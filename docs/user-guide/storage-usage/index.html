@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.a339bb58.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.5d1d5361.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.856eb46c.js" defer="defer"></script>
 </head>
 <body>
@@ -35,8 +35,16 @@ usage</strong>, next to <strong>Settings</strong>), or from a project&#x27;s sid
 search, and sort by size, age or number of runs.</li>
 <li class=""><strong>Folders</strong>: the folders your runs are in, like on disk. <strong>Paste the folder from a quota alert</strong> to see what QA-Board
 knows there, and open its subfolders. Your biggest folders are suggested.</li>
-<li class=""><strong>Your runs</strong> or <strong>Everyone&#x27;s</strong>: see who uses the most in a project, and click a name to see their runs.</li>
+<li class=""><strong>Users</strong>: who uses the most, with their share and biggest project, for everyone&#x27;s runs or a project&#x27;s. Click someone
+to see their runs: admins can then delete them.</li>
+<li class=""><strong>Your runs</strong> or <strong>Everyone&#x27;s</strong>: switch between your runs and everyone&#x27;s. You see other people&#x27;s usage in the projects
+where you&#x27;re a developer or an owner; admins see everyone&#x27;s.</li>
+<li class="">Opened from a project, the page shows only that project: <strong>All projects</strong>, at the top, shows them all again.</li>
 </ul>
+<p>In <strong>Folders</strong>, folders that only lead to one subfolder are skipped: the page starts where your runs split, and a row
+like <code>a/b/c</code> opens <code>c</code> directly. Click <code>/</code> in the path to start from the root.</p>
+<p>Each batch and commit shows its commit&#x27;s message (hover for all of it), author and date, and each branch its latest
+commit. Click a project, branch or person in a row to filter by it, and a row to select it.</p>
 <p>Sizes are what <code>qa</code> measured when each run ended. They&#x27;re updated every few minutes, and right away when you delete
 runs from QA-Board.</p>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="what-qa-board-deletes-automatically">What QA-Board deletes automatically<a href="#what-qa-board-deletes-automatically" class="hash-link" aria-label="Direct link to What QA-Board deletes automatically" title="Direct link to What QA-Board deletes automatically" translate="no">​</a></h2>

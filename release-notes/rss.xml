@@ -25,7 +25,15 @@ batch, commit, branch and folder, the biggest first, filtered by project, branch
 QA-Board says how much space it frees and what it keeps (milestones, other people's runs, running runs), asks you to
 type a confirmation for big deletions, and shows the deletion's progress and errors.</li>
 <li class="">Find out why IT's quota says something else, with the commands that measure a folder and find your biggest files and exports.</li>
-<li class="">See who uses the most storage in a project, and their runs.</li>
+<li class="">See who uses the most storage in <strong>Storage usage → Users</strong>: a leaderboard with each person's share and biggest
+project, for everyone's runs or a project's. Click someone to see their runs; admins then delete them. Users see
+other people's usage only in the projects where they're developers or owners
+(<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/storage#users-storage-usage">who sees what</a>).</li>
+<li class="">Show all projects again in one click when <strong>Storage usage</strong> was opened from a project.</li>
+<li class="">Explore folders faster in <strong>Storage usage → Folders</strong>: it starts where your runs split, and skips folders that only
+lead to one subfolder.</li>
+<li class="">See each batch's and commit's message, author and date in <strong>Storage usage</strong>, and each branch's latest commit. Click a
+project, branch or person in a row to filter by it, and a row to select it.</li>
 <li class="">See how much space your deleted runs still take: deleting runs keeps their manifests, and the files written after
 they ended. QA-Board now measures what's left when it deletes runs.</li>
 <li class="">See what QA-Board deletes automatically, when, and what it keeps, on <strong>Storage usage</strong> and on the project's commit
@@ -360,6 +368,8 @@ reference branch's, and what you list (groups, paths, globs).</li>
 project, or download them as CSV. Errors don't stop the job: the runs are kept and the next job tries again.</li>
 <li class="">Schedule jobs with cron expressions in your time zone, instead of cron jobs on the server: hard deletes, and
 <em>Delete old results</em> (like <code>qaboard_clean</code>), with a default age for the projects whose <em>qaboard.yaml</em> says nothing.</li>
+<li class="">Choose who sees other people's storage usage with <code>storage.others_visible_to</code>: by default, admins and each
+project's developers and owners from a grant, a group or <em>qaboard.yaml</em>, not every signed-in user.</li>
 <li class="">Users' storage usage is kept up to date by the worker, and rebuilt nightly by a <em>Storage usage</em> schedule it creates
 (<code>QABOARD_STORAGE_USAGE_AUTO=0</code> to manage it yourself). A migration adds the <code>storage_usage</code> table, and an index on
 <code>ci_commits.latest_output_datetime</code>, built without blocking writes.</li>
@@ -575,6 +585,10 @@ anonymous users (any non-empty value used to block them), and an empty value let
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2026-10#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="across-the-web-app">Across the web app<a href="https://samsung.github.io/qaboard/release-notes/2026-10#across-the-web-app" class="hash-link" aria-label="Direct link to Across the web app" title="Direct link to Across the web app" translate="no">​</a></h3>
 <ul>
+<li class="">The <strong>Storage usage</strong> menu in a project's sidebar opens next to it, instead of off-screen on the left.</li>
+<li class="">Long project names no longer overflow the <strong>Storage usage</strong> summary.</li>
+<li class="">Storage scans, exports and jobs name file owners from <code>QABOARD_ACCOUNTS_COMMAND</code>'s accounts, like the file browser,
+instead of <code>uid 2041</code>: users see their files in <strong>Storage usage → Not tracked</strong> and their exports, also from earlier scans.</li>
 <li class="">The whole web app says <strong>Sign in</strong> and <strong>Sign out</strong>: the sidebar, the viewers and the file browser used different words.</li>
 <li class="">The cheat sheet (<code>?</code>) lists the viewers' real shortcuts: <code>h</code> starts a blind test, <code>&lt;</code> and <code>&gt;</code> change a video's speed, and the run filter's example <code>fail</code> keeps the failed runs. The image viewer's own list includes full screen (<code>f</code>).</li>
 <li class="">The batch menu says <strong>Move the filtered runs to another batch</strong> when you filter runs, instead of the other way around.</li>

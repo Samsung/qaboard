@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.a339bb58.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.5d1d5361.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.856eb46c.js" defer="defer"></script>
 </head>
 <body>
@@ -159,14 +159,15 @@ For example for the following &quot;namespace/project&quot;, you can restrict th
 <li class="">ACLs are ignored.</li>
 </ul>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="users-accounts">Users&#x27; accounts<a href="#users-accounts" class="hash-link" aria-label="Direct link to Users&#x27; accounts" title="Direct link to Users&#x27; accounts" translate="no">​</a></h3>
-<p>The file browser shows who owns each file, and Unix permissions need users&#x27; groups. The backend reads the accounts in its own <code>/etc/passwd</code> and <code>/etc/group</code>. If you have complete files, mount them.</p>
+<p>The file browser, storage scans, exports and jobs show who owns each file, and Unix permissions need users&#x27; groups. The backend reads the accounts in its own <code>/etc/passwd</code> and <code>/etc/group</code>. If you have complete files, mount them.</p>
 <p>With a directory service (LDAP, SSSD, NIS...), you usually don&#x27;t: the backend can instead <strong>run a command that prints the accounts</strong>, in the <code>/etc/passwd</code> format, and another one for the groups (<code>/etc/group</code> format). For instance, through ssh to a host that sees your users:</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token assign-left variable" style="color:#36acaa">QABOARD_ACCOUNTS_COMMAND</span><span class="token operator" style="color:#393A34">=</span><span class="token plain">ssh qaboard@some-host getent </span><span class="token function" style="color:#d73a49">passwd</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token assign-left variable" style="color:#36acaa">QABOARD_GROUPS_COMMAND</span><span class="token operator" style="color:#393A34">=</span><span class="token plain">ssh qaboard@some-host getent group</span><br></div></code></pre></div></div>
 <ul>
 <li class="">The backend runs them in the background when their last output is older than <code>QABOARD_ACCOUNTS_REFRESH</code> seconds (default: a day), and keeps it in <code>$QABOARD_DATA_SHARED_DIR/accounts</code>: one run serves all the backend&#x27;s workers and replicas. To refresh now, delete that folder&#x27;s <code>passwd</code>.</li>
 <li class="">If a command fails, or prints less than half of the accounts it printed last time, the backend keeps the previous accounts, and tries again 10 minutes later. Errors show in its logs (<code>[accounts]</code>).</li>
 <li class="">Only lines in the right format count: ssh banners (sent to stderr) and messages printed by shell startup files are ignored.</li>
-<li class="">Accounts the commands don&#x27;t know are looked up in <code>/etc/passwd</code> and <code>/etc/group</code>.</li>
+<li class="">Accounts the commands don&#x27;t know are looked up in <code>/etc/passwd</code> and <code>/etc/group</code>. Owners that neither knows show as <code>uid 2041</code>.</li>
+<li class="">Storage scans wait for the accounts before they start. Owners that earlier scans saved as <code>uid 2041</code> get their names once the accounts know them.</li>
 <li class="">With SSSD, <code>getent passwd</code> alone only lists all users if enumeration is enabled (<code>enumerate = true</code>), which is often not the case. Check the number of lines, or use a command that queries the directory itself, e.g. <code>ldapsearch</code>, formatted as <code>name:x:uid:gid:gecos:home:shell</code>.</li>
 <li class="">The command runs with the backend&#x27;s environment, e.g. the ssh key used for the LSF bridge, and its own user&#x27;s permissions.</li>
 </ul>

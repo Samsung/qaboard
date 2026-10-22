@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.a339bb58.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.5d1d5361.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.856eb46c.js" defer="defer"></script>
 </head>
 <body>
@@ -102,6 +102,11 @@ It&#x27;s created with the first worker, which also runs a first rebuild. Change
 <code>QABOARD_STORAGE_USAGE_AUTO=0</code> stops the worker from creating it and from updating the table.</li>
 </ul>
 <p>A rebuild reads every run once, chunk by chunk: count about 5 minutes for 50 million runs.</p>
+<p><strong>Who sees other people&#x27;s usage</strong>: admins see everyone&#x27;s. Other users see other people&#x27;s runs, exports and the
+<em>Users</em> leaderboard only in the projects where they are developers or owners from a grant, a group or <em>qaboard.yaml</em>:
+not just because they&#x27;re signed in, even when <code>projects.signed_in_role</code> makes every signed-in user a developer. To show
+everyone&#x27;s usage to everyone who can see the project, set <code>storage.others_visible_to</code> (<code>QABOARD_STORAGE_OTHERS_VISIBLE_TO</code>)
+to <code>signed_in</code> in <strong>Admin → Settings</strong>. Only signed-in users have Storage usage.</p>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="scanning-the-storage">Scanning the storage<a href="#scanning-the-storage" class="hash-link" aria-label="Direct link to Scanning the storage" title="Direct link to Scanning the storage" translate="no">​</a></h2>
 <p>QA-Board only knows the files of its runs and artifacts. <strong>Scan the storage</strong> walks the projects&#x27; storage roots (and
 any other folder you add) and finds, with the owner of every file:</p>
