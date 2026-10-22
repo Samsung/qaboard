@@ -257,11 +257,27 @@ def by_project(filters: Filters, limit=500) -> list:
 
 
 def by_user(filters: Filters, limit=20) -> list:
+  """Who uses the most: with their biggest project, to see where it goes"""
   where, params = filters.where()
   rows = db_session.execute(text(f"""
-    SELECT user_name, sum(bytes), sum(nb_runs) FROM storage_usage u WHERE {where} AND u.nb_runs > 0
+    WITH per_project AS (
+      SELECT user_name, project_id, sum(bytes) AS bytes, sum(nb_runs) AS runs, count(DISTINCT batch_id) AS batches,
+             count(DISTINCT ci_commit_id) AS commits, max(last_run_at) AS last_run_at
+      FROM storage_usage u WHERE {where} AND u.nb_runs > 0
+      GROUP BY user_name, project_id
+    )
+    SELECT user_name, sum(bytes), sum(runs), sum(batches), sum(commits), count(*), max(last_run_at),
+           (array_agg(project_id ORDER BY bytes DESC))[1], max(bytes)
+    FROM per_project
     GROUP BY user_name ORDER BY sum(bytes) DESC LIMIT :limit"""), {**params, "limit": limit}).all()
-  return [{"user_name": u, "bytes": int(b), "runs": int(r)} for u, b, r in rows]
+  return [{"user_name": u, "bytes": int(b), "runs": int(r), "batches": int(nb), "commits": int(nc), "projects": nprojects,
+           "last_run_at": iso(last), "top_project": {"project_id": top, "bytes": int(top_bytes)}}
+          for u, b, r, nb, nc, nprojects, last, top, top_bytes in rows]
+
+
+def nb_users(filters: Filters) -> int:
+  where, params = filters.where()
+  return db_session.execute(text(f"SELECT count(DISTINCT user_name) FROM storage_usage u WHERE {where} AND u.nb_runs > 0"), params).scalar()
 
 
 GROUPS = ('batch', 'commit', 'branch')
@@ -285,7 +301,7 @@ def items(filters: Filters, group='batch', sort='size', limit=50, offset=0) -> d
   columns = {
     'batch': "u.batch_id, min(u.project_id) AS project_id, min(u.ci_commit_id) AS ci_commit_id, min(u.hexsha) AS hexsha, min(u.branch) AS branch, min(u.batch_label) AS batch_label, min(u.folder) AS folder, 1 AS batches",
     'commit': "u.ci_commit_id, min(u.project_id) AS project_id, min(u.hexsha) AS hexsha, min(u.branch) AS branch, (array_agg(DISTINCT u.batch_label))[1:6] AS labels, count(DISTINCT u.batch_id) AS batches",
-    'branch': "u.project_id, coalesce(u.branch, '') AS branch, count(DISTINCT u.ci_commit_id) AS commits, count(DISTINCT u.batch_id) AS batches",
+    'branch': "u.project_id, coalesce(u.branch, '') AS branch, count(DISTINCT u.ci_commit_id) AS commits, count(DISTINCT u.batch_id) AS batches, (array_agg(u.ci_commit_id ORDER BY u.last_run_at DESC NULLS LAST))[1] AS ci_commit_id, (array_agg(u.hexsha ORDER BY u.last_run_at DESC NULLS LAST))[1] AS hexsha",
   }[group]
   query = f"""
     SELECT {columns}, sum(u.bytes) AS bytes, sum(u.nb_runs) AS runs, max(u.last_run_at) AS last_run_at,
@@ -300,14 +316,64 @@ def items(filters: Filters, group='batch', sort='size', limit=50, offset=0) -> d
     item = {k: (iso(v) if isinstance(v, datetime.datetime) else int(v) if k in ('bytes', 'runs') else v) for k, v in r.items()}
     item['key'] = r['batch_id'] if group == 'batch' else r['ci_commit_id'] if group == 'commit' else [r['project_id'], r['branch']]
     answer.append(item)
+  add_commits(answer)
   return {"items": answer, "total": total}
+
+
+def first_line(message: Optional[str], max_length=200) -> Optional[str]:
+  if not message:
+    return None
+  line = message.strip().split('\n', 1)[0].strip()
+  return line if len(line) <= max_length else f"{line[:max_length - 1]}…"
+
+
+def add_commits(items: list) -> None:
+  """The commits of the items (for branches, the one with the latest runs): their message, author and date"""
+  ids = sorted({i['ci_commit_id'] for i in items if i.get('ci_commit_id')})
+  if not ids:
+    return
+  commits = {
+    commit_id: {"message": first_line(message), "details": (message or '').strip()[:1000] or None, "author": author, "authored_at": iso(authored)}
+    for commit_id, message, author, authored in db_session.execute(text(
+      "SELECT id, message, committer_name, authored_datetime FROM ci_commits WHERE id = ANY(:ids)"), {"ids": ids})
+  }
+  for item in items:
+    item['commit'] = commits.get(item.get('ci_commit_id'))
+
+
+def deepest_folder(lowest: Optional[str], highest: Optional[str]) -> Optional[str]:
+  """
+  The deepest folder containing all the folders whose "<folder>/" sort between `lowest` and `highest`, e.g. the end of
+  a chain of folders with only one subfolder. With the trailing "/", the common prefix of the first and last in
+  alphabetical order is the common prefix of all of them.
+  """
+  if not lowest or not highest:
+    return None
+  prefix = os.path.commonprefix([lowest, highest])
+  return prefix[:prefix.rfind('/')] or '/'
+
+
+def common_root(filters: Filters) -> str:
+  """The deepest folder that contains all the runs: where exploring them starts"""
+  inner = Filters(filters.user, filters.projects, filters.allowed_projects, None, filters.branch, filters.older_than_days, filters.search)
+  where, params = inner.where()
+  lowest, highest = db_session.execute(text(f"""
+    SELECT min(u.folder || '/'), max(u.folder || '/') FROM storage_usage u WHERE {where} AND u.folder LIKE '/%' AND u.nb_runs > 0"""), params).one()
+  return deepest_folder(lowest, highest) or '/'
 
 
 def folders(filters: Filters, path: Optional[str], limit=200) -> dict:
   """
   The subfolders of `path` with runs, the biggest first, e.g. to find the runs in the folder a quota alert names.
   `here`: runs right in the folder. `partial`: runs of batches whose folder contains `path`: some may be inside.
+  Subfolders that only have one subfolder, and no runs right in them, are skipped: `path` is the deepest folder they
+  lead to, and `name` the folders on the way (e.g. "a/b/c"). Without `path`, it starts from the deepest folder
+  that contains all the runs (`skipped` says it skipped folders).
   """
+  skipped = False
+  if not path:
+    path = common_root(filters)
+    skipped = path != '/'
   path = normalize_folder(path) or '/'
   # the folder filter selects what's in `path`
   inner = Filters(filters.user, filters.projects, filters.allowed_projects, None, filters.branch, filters.older_than_days, filters.search)
@@ -316,7 +382,8 @@ def folders(filters: Filters, path: Optional[str], limit=200) -> dict:
   inside = "u.folder LIKE '/%'" if path == '/' else "u.folder LIKE :like ESCAPE '\\'"
   params = {**params, "path": path, "like": like_escape(path) + '/%', "start": start, "limit": limit}
   children = db_session.execute(text(f"""
-    SELECT split_part(substr(u.folder, :start), '/', 1) AS name, sum(u.bytes), sum(u.nb_runs), count(DISTINCT u.batch_id)
+    SELECT split_part(substr(u.folder, :start), '/', 1) AS name, sum(u.bytes), sum(u.nb_runs), count(DISTINCT u.batch_id),
+           min(u.folder || '/'), max(u.folder || '/')
     FROM storage_usage u WHERE {where} AND {inside} AND u.nb_runs > 0
     GROUP BY 1 ORDER BY 2 DESC LIMIT :limit"""), params).all()
   here = db_session.execute(text(f"""
@@ -326,9 +393,16 @@ def folders(filters: Filters, path: Optional[str], limit=200) -> dict:
     SELECT coalesce(sum(u.bytes), 0), coalesce(sum(u.nb_runs), 0), count(DISTINCT u.batch_id) FROM storage_usage u
     WHERE {where} AND u.folder IS DISTINCT FROM :path AND :path LIKE (u.folder || '/%') AND u.nb_runs > 0"""), params).one() if path != '/' else (0, 0, 0)
   join = (lambda name: f"/{name}") if path == '/' else (lambda name: f"{path}/{name}")
+  def child(name, size, runs, batches, lowest, highest):
+    folder = join(name)
+    deepest = deepest_folder(lowest, highest) or folder
+    if not deepest.startswith(folder):
+      deepest = folder
+    return {"name": deepest[len(folder) - len(name):], "path": deepest, "bytes": int(size), "runs": int(runs), "batches": batches}
   return {
     "path": path,
-    "children": [{"name": n, "path": join(n), "bytes": int(b), "runs": int(r), "batches": nb} for n, b, r, nb in children],
+    "skipped": skipped,
+    "children": [child(*row) for row in children],
     "here": {"bytes": int(here[0]), "runs": int(here[1]), "batches": here[2]},
     "partial": {"bytes": int(partial[0]), "runs": int(partial[1]), "batches": partial[2]},
   }
@@ -365,4 +439,8 @@ def selected_rows(filters: Filters, group: str, keys: Optional[list] = None, max
 
 
 def iso(date):
-  return f"{date.isoformat()}Z" if date else None
+  if not date:
+    return None
+  if date.tzinfo is not None:
+    date = date.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+  return f"{date.isoformat()}Z"

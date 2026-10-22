@@ -46,6 +46,24 @@ def setup_runs(world, storage):
   return ids
 
 
+def member(world, user_name, *projects, role='developer'):
+  """A grant: being signed in isn't enough to see other people's usage"""
+  from backend.models import RoleGrant, User
+  user = User.query.filter(User.user_name == user_name).one()
+  for project in projects:
+    world.db.add(RoleGrant(subject_type='user', subject_id=user.id, resource_type='project', resource_id=project, role=role))
+  world.commit()
+
+
+def others_visible_to(value):
+  from backend.database import db_session
+  from backend.models import Setting
+  from backend import settings
+  db_session.add(Setting(key='storage.others_visible_to', value={"value": value}))
+  db_session.commit()
+  settings.invalidate_cache()
+
+
 def test_common_folder():
   from backend.storage_usage import common_folder
   assert common_folder('/a/b/batch', True, None, None) == '/a/b/batch'
@@ -64,11 +82,24 @@ def test_overview(alice, world, storage):
   assert answer["totals"] == {"bytes": 39 * GB, "runs": 6, "batches": 3, "commits": 2, "projects": 2, "deleted": {"runs": 1, "bytes": 0, "unmeasured": 1}}
   assert [(p["project_id"], p["bytes"]) for p in answer["projects"]] == [('proj/a', 35 * GB), ('proj/b', 4 * GB)]
   assert answer["top_folders"][0]["bytes"] == 39 * GB or len(answer["top_folders"]) > 1
+  # signed-in users are developers of public projects (projects.signed_in_role), but not their members
   everyone = alice.get('/api/v1/storage/overview?scope=all').get_json()
-  assert everyone["totals"]["bytes"] == 40 * GB
+  assert everyone["can_see_others"] == 'none' and everyone["totals"]["bytes"] == 0 and "users" not in everyone
+  assert alice.get('/api/v1/storage/users').get_json()["users"] == []
+  assert alice.get('/api/v1/storage/overview?scope=user&user=bob').get_json()["totals"]["bytes"] == 0
+  # her own runs, with scope=user
+  assert alice.get('/api/v1/storage/overview?scope=user&user=alice').get_json()["totals"]["bytes"] == 39 * GB
+  member(world, 'alice', 'proj/a')
+  everyone = alice.get('/api/v1/storage/overview?scope=all').get_json()
+  assert everyone["can_see_others"] == 'some' and everyone["totals"]["bytes"] == 36 * GB
+  member(world, 'alice', 'proj/b', role='owner')
+  everyone = alice.get('/api/v1/storage/overview?scope=all').get_json()
+  assert everyone["can_see_others"] == 'some' and everyone["totals"]["bytes"] == 40 * GB
   assert [(u["user_name"], u["bytes"]) for u in everyone["users"]] == [('alice', 39 * GB), ('bob', 1 * GB)]
   bob = alice.get('/api/v1/storage/overview?scope=user&user=bob').get_json()
   assert bob["totals"]["bytes"] == 1 * GB
+  leaderboard = alice.get('/api/v1/storage/users').get_json()
+  assert [(u["user_name"], u["bytes"], u["top_project"]["project_id"]) for u in leaderboard["users"]] == [('alice', 39 * GB, 'proj/a'), ('bob', 1 * GB, 'proj/a')]
   assert alice.get('/api/v1/storage/overview?scope=nope').status_code == 400
 
 
@@ -78,6 +109,7 @@ def test_private_projects_are_hidden(alice, logged_in, world, storage):
   setup_runs(world, storage)
   world.db.add(ProjectVisibility(path='proj/b', visibility='private'))
   world.commit()
+  others_visible_to('signed_in')
   bob = logged_in('bob')
   everyone = bob.get('/api/v1/storage/overview?scope=all').get_json()
   assert [p["project_id"] for p in everyone["projects"]] == ['proj/a']
@@ -119,14 +151,19 @@ def test_folders(alice, world, storage):
   deeper = alice.get(f'/api/v1/storage/items?folder={users}/alice/x/run1').get_json()
   assert deeper["total"] == 1 and deeper["items"][0]["partial"] is True
   tree = alice.get(f'/api/v1/storage/folders?path={users}').get_json()
-  assert tree["path"] == str(users) and [(c["name"], c["bytes"]) for c in tree["children"]] == [('alice', 4 * GB)]
-  assert tree["children"][0]["path"] == str(users / 'alice')
+  # alice/ only leads to x/: the row skips to it
+  assert tree["path"] == str(users) and [(c["name"], c["bytes"]) for c in tree["children"]] == [('alice/x', 4 * GB)]
+  assert tree["children"][0]["path"] == str(users / 'alice' / 'x')
   leaf = alice.get(f'/api/v1/storage/folders?path={users}/alice/x').get_json()
   assert leaf["here"]["bytes"] == 4 * GB and leaf["children"] == []
   partial = alice.get(f'/api/v1/storage/folders?path={users}/alice/x/run1').get_json()
   assert partial["partial"] == {"bytes": 4 * GB, "runs": 2, "batches": 1}
-  root = alice.get('/api/v1/storage/folders').get_json()
-  assert root["path"] == '/' and root["children"][0]["bytes"] == 39 * GB
+  root = alice.get('/api/v1/storage/folders?path=/').get_json()
+  assert root["path"] == '/' and not root["skipped"] and root["children"][0]["bytes"] == 39 * GB
+  # without a path: where the runs split
+  start = alice.get('/api/v1/storage/folders').get_json()
+  assert start["skipped"] and start["path"] != '/' and str(users).startswith(start["path"])
+  assert sum(c["bytes"] for c in start["children"]) + start["here"]["bytes"] == 39 * GB
   assert alice.get('/api/v1/storage/items?folder=relative/path').status_code == 400
 
 
@@ -141,7 +178,10 @@ def test_delete_my_runs(alice, world, storage, monkeypatch):
   assert preview["owner"] == 'alice'
   assert (preview["runs"], preview["bytes"], preview["batches"]) == (3, 30 * GB, 1)
   assert preview["kept"]["milestones"] == {"runs": 1, "bytes": 5 * GB, "batches": 1}
-  assert preview["kept"]["others"]["users"] == ['bob'] and preview["kept"]["others"]["bytes"] == 1 * GB
+  # among everyone's runs, alice deletes hers even where she can't see other people's: their names stay hidden
+  assert preview["kept"]["others"]["users"] == [] and preview["kept"]["others"]["bytes"] == 1 * GB
+  member(world, 'alice', 'proj/a')
+  assert alice.post('/api/v1/storage/preview', json=selection).get_json()["kept"]["others"]["users"] == ['bob']
   assert preview["confirm_phrase"] is None and preview["projects"] == [{"project_id": 'proj/a', "bytes": 30 * GB}]
 
   # big deletions need a confirmation

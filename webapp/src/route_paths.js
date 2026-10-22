@@ -27,7 +27,7 @@ export const app_paths = {
   admin_job: "/admin/storage/jobs/:job_id(\\d+)",
   admin_scan: "/admin/storage/scans/:scan_id(\\d+)",
   // how much storage runs use, and deleting their files
-  storage: "/storage/:view(projects|batches|commits|branches|folders|exports|untracked)?",
+  storage: "/storage/:view(projects|users|batches|commits|branches|folders|exports|untracked)?",
   // what waits and runs now, and what ran recently
   activity: "/activity",
   admin: "/admin/:section(overview|users|groups|requests|sign-in|tokens|storage|audit|settings)?",

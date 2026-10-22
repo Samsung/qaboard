@@ -94,6 +94,12 @@ The numbers come from the `storage_usage` table, one row per batch and user who 
 
 A rebuild reads every run once, chunk by chunk: count about 5 minutes for 50 million runs.
 
+**Who sees other people's usage**: admins see everyone's. Other users see other people's runs, exports and the
+*Users* leaderboard only in the projects where they are developers or owners from a grant, a group or *qaboard.yaml*:
+not just because they're signed in, even when `projects.signed_in_role` makes every signed-in user a developer. To show
+everyone's usage to everyone who can see the project, set `storage.others_visible_to` (`QABOARD_STORAGE_OTHERS_VISIBLE_TO`)
+to `signed_in` in **Admin → Settings**. Only signed-in users have Storage usage.
+
 ## Scanning the storage
 QA-Board only knows the files of its runs and artifacts. **Scan the storage** walks the projects' storage roots (and
 any other folder you add) and finds, with the owner of every file:

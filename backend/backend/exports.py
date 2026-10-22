@@ -9,7 +9,6 @@ don't account for them, and they can be big, so we track them (models/Export.py)
   the export exists, and deleting the export doesn't free it while the runs exist (`linked_bytes`).
 """
 import re
-import pwd
 import datetime
 from pathlib import Path
 from typing import Optional
@@ -18,6 +17,7 @@ from .database import db_session
 from .models import Export
 from .fs_utils import measure
 from .settings import setting
+from . import accounts
 
 
 EXPORTS_KEPT = 20  # the latest exports into a folder, in Export.data
@@ -43,10 +43,8 @@ def default_dir(user_name: str, project_id: str, key: str) -> Optional[Path]:
 
 
 def owner_name(uid: int) -> str:
-  try:
-    return pwd.getpwuid(uid).pw_name
-  except (KeyError, TypeError):
-    return f"uid {uid}"
+  """With QABOARD_ACCOUNTS_COMMAND's accounts, like the file browser, not only the server's /etc/passwd"""
+  return accounts.owner_name(uid)
 
 
 def measure_export(export: Export) -> Export:
@@ -94,7 +92,7 @@ def serialize(export: Export) -> dict:
     "hexsha": export.hexsha,
     "batch_label": export.batch_label,
     "created_by": export.created_by,
-    "owner": export.owner,
+    "owner": accounts.resolve(export.owner),
     "source": export.source,
     "created_at": iso(export.created_at),
     "updated_at": iso(export.updated_at),
