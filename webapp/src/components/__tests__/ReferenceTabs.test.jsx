@@ -47,6 +47,8 @@ beforeEach(() => {
   }));
 });
 afterEach(() => vi.unstubAllGlobals());
+// Blueprint's popovers don't clear their open/close delays when they unmount: we let them fire while `window` exists
+afterAll(() => new Promise(resolve => setTimeout(resolve, 1000)));
 
 const a = 'a'.repeat(40), b = 'b'.repeat(40), c = 'c'.repeat(40), d = 'd'.repeat(40), e = 'e'.repeat(40), f = 'f'.repeat(40);
 
