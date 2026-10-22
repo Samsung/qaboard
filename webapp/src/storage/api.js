@@ -34,6 +34,14 @@ export const itemsQuery = (group, filters, { sort = 'size', offset = 0 } = {}) =
   staleTime: 30 * 1000,
 });
 
+// Who uses the most, everyone's runs with the filters: {users, total, totals, me, can_delete_others}
+export const usersQuery = filters => queryOptions({
+  queryKey: ['storage', 'users', filterParams(filters)],
+  queryFn: async ({ signal }) => (await http.get('/api/v1/storage/users', { params: { ...filterParams(filters), limit: 200 }, signal })).data,
+  placeholderData: keepPreviousData,
+  staleTime: 30 * 1000,
+});
+
 // {path, children, here, partial}
 export const foldersQuery = (path, filters) => queryOptions({
   queryKey: ['storage', 'folders', path ?? '/', whoseParams(filters), filterParams({ ...filters, folder: null })],

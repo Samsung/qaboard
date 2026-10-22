@@ -7,7 +7,6 @@ owns the files, so that admins can fix the permissions and run the job again.
 """
 import os
 import re
-import pwd
 import datetime
 import traceback
 from typing import Optional
@@ -65,10 +64,8 @@ def owner(path) -> Optional[str]:
     uid = os.lstat(path).st_uid
   except OSError:
     return None
-  try:
-    return pwd.getpwuid(uid).pw_name
-  except KeyError:
-    return f"uid {uid}"
+  from .. import accounts
+  return accounts.owner_name(uid)
 
 
 class Reporter:

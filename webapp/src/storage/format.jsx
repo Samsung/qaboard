@@ -43,3 +43,10 @@ export const Path = ({ path, style }) => path
     &lrm;{path}&lrm;
   </code>
   : <span className={Classes.TEXT_MUTED}>—</span>;
+
+// One line, cut with "…" when too long: the whole text on hover
+export const Ellipsis = ({ title, children, style, ...props }) => <div
+  title={title}
+  style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, ...style }}
+  {...props}
+>{children}</div>;

@@ -16,8 +16,10 @@ from .. import storage_usage as usage
 from ..jobs import queue
 from ..jobs.params import ParamsError
 from .auth import login_required
-from ..access import can, visibility_rules, yaml_key
+from ..access import can, visibility_rules, yaml_key, role_of
+from ..access.policy import allows
 from ..settings import setting
+from .. import accounts
 
 
 # What users start from Storage usage
@@ -50,6 +52,30 @@ def allowed_projects():
   return [p for p in projects if can('project.read', p)]
 
 
+# How users got a role that makes them a project's member, rather than any signed-in user (access.role_of)
+MEMBER_VIAS = ('grant', 'group', 'yaml')
+
+
+def others_projects():
+  """
+  None if the user sees everyone's usage, else the projects where they see other people's: admins see everything,
+  developers and owners (members, not every signed-in user) their projects. `storage.others_visible_to` opens it to all.
+  """
+  if is_admin():
+    return None
+  if 'storage_others_projects' in g:
+    return g.storage_others_projects
+  allowed = allowed_projects()
+  if setting('storage.others_visible_to') == 'signed_in':
+    answer = allowed
+  else:
+    user = g.actor.user
+    projects = allowed if allowed is not None else [p for (p,) in db_session.query(Project.id)]
+    answer = [p for p in projects if (lambda role, via: via in MEMBER_VIAS and allows(role, 'runs.act'))(*role_of(user, p))]
+  g.storage_others_projects = answer
+  return answer
+
+
 def int_or_none(value, name):
   if value in (None, ''):
     return None
@@ -62,7 +88,7 @@ def int_or_none(value, name):
 def whose(source) -> dict:
   """`scope`: "me" (default), "all", or "user" with `user`: whose runs we look at"""
   scope = source.get('scope') or 'me'
-  if scope == 'me':
+  if scope == 'me' or (scope == 'user' and (source.get('user') or '').strip() == me()):
     return {"scope": 'me', "user": me()}
   if scope == 'all':
     return {"scope": 'all', "user": None}
@@ -74,7 +100,11 @@ def whose(source) -> dict:
   raise ParamsError("`scope` must be me, all or user")
 
 
-def filters_from(source: dict, user) -> usage.Filters:
+def filters_from(source: dict, user, own_projects=False) -> usage.Filters:
+  """
+  Other people's runs (`user` isn't the user's): only in the projects where they may see them.
+  `own_projects`: every project the user sees, e.g. to delete their own runs among everyone's.
+  """
   projects = source.get('project')
   if isinstance(projects, str):
     projects = [p.strip() for p in projects.split(',') if p.strip()]
@@ -82,7 +112,7 @@ def filters_from(source: dict, user) -> usage.Filters:
     return usage.Filters(
       user=user,
       projects=projects or [],
-      allowed_projects=allowed_projects(),
+      allowed_projects=allowed_projects() if user == me() or own_projects else others_projects(),
       folder=source.get('folder') or None,
       branch=source.get('branch') or None,
       older_than_days=int_or_none(source.get('older_than_days'), 'older_than_days'),
@@ -95,10 +125,14 @@ def filters_from(source: dict, user) -> usage.Filters:
 def status() -> dict:
   """When the numbers were updated, and whether they're being computed"""
   building = Job.query.filter(Job.kind == 'storage_usage', Job.status.in_(queue.ACTIVE)).first()
+  others = others_projects()
   return {
     "updated_at": usage.iso(usage.updated_at()),
     "building": queue.serialize_job(building) if building else None,
     "can_delete_others": is_admin(),
+    # whose usage the user sees: "all", "some" projects' (where they're a developer or owner), or "none"
+    "can_see_others": "all" if others is None else "some" if others else "none",
+    "others_visible_to": setting('storage.others_visible_to'),
   }
 
 
@@ -117,10 +151,26 @@ def storage_overview():
   }
   if who['user'] is not None:
     answer["top_folders"] = usage.top_folders(filters)
-  if who['scope'] == 'all' or filters.projects:
-    answer["users"] = usage.by_user(filters)
+  if who['scope'] != 'me' and answer['can_see_others'] != 'none':
+    answer["users"] = usage.by_user(filters_from(request.args, None))
   answer["exports"] = export_totals(who['user'], filters.projects)
   return jsonify(answer)
+
+
+@app.route('/api/v1/storage/users', methods=['GET'])
+@app.route('/api/v1/storage/users/', methods=['GET'])
+@login_required
+def storage_users():
+  """Who uses the most storage, with the filters (but everyone's runs): a leaderboard, to then look at someone's runs"""
+  filters = filters_from(request.args, None)
+  limit = min(int_or_none(request.args.get('limit'), 'limit') or 100, 500)
+  return jsonify({
+    **status(),
+    "users": usage.by_user(filters, limit=limit),
+    "total": usage.nb_users(filters),
+    "totals": usage.totals(filters),
+    "me": me(),
+  })
 
 
 # --- deletion rules ---
@@ -144,12 +194,18 @@ def exports_query(user, projects=None):
   from sqlalchemy import or_
   query = Export.query.filter(Export.deleted_at.is_(None))
   if user is not None:
-    query = query.filter(or_(Export.created_by == user, Export.owner == user))
+    query = query.filter(or_(Export.created_by == user, Export.owner.in_(accounts.aliases(user))))
   if projects:
     query = query.filter(Export.project_id.in_(projects))
-  allowed = allowed_projects()
-  if allowed is not None:
-    query = query.filter(or_(Export.project_id.is_(None), Export.project_id.in_(allowed)))
+  if user == me():
+    allowed = allowed_projects()
+    if allowed is not None:
+      query = query.filter(or_(Export.project_id.is_(None), Export.project_id.in_(allowed)))
+  else:
+    # other people's exports: not those without a project, unless admin
+    allowed = others_projects()
+    if allowed is not None:
+      query = query.filter(Export.project_id.in_(allowed))
   return query
 
 
@@ -177,7 +233,7 @@ def storage_exports():
 
 
 def can_delete_export(export) -> bool:
-  return is_admin() or me() in (export.created_by, export.owner)
+  return is_admin() or me() in (export.created_by, accounts.resolve(export.owner))
 
 
 @app.route('/api/v1/storage/exports/delete', methods=['POST'])
@@ -243,21 +299,22 @@ def storage_untracked():
   user = request.args.get('user') if is_admin() and request.args.get('user') else me()
   kinds = sorted(UNTRACKED | {'folder', 'file'})
   entries = (StorageScanEntry.query
-             .filter(StorageScanEntry.scan_id == scan.id, StorageScanEntry.owner == user, StorageScanEntry.kind.in_(kinds), StorageScanEntry.action.is_(None))
+             .filter(StorageScanEntry.scan_id == scan.id, StorageScanEntry.owner.in_(accounts.aliases(user)), StorageScanEntry.kind.in_(kinds), StorageScanEntry.action.is_(None))
              .order_by(StorageScanEntry.bytes.desc()).limit(300).all())
   # the biggest untracked things, not the folders that contain them
   answer = []
   for entry in entries:
     item = serialize_entry(entry)
     untracked = sum(size for kind, size in (entry.kinds or {}).items() if kind in UNTRACKED)
-    if entry.kind in ('folder', 'file') and (not untracked or set(entry.owners or {}) - {user}):
+    owners = set(accounts.resolve_keys(entry.owners))
+    if entry.kind in ('folder', 'file') and (not untracked or owners - {user}):
       continue
     item['untracked_bytes'] = untracked or entry.bytes
-    item['only_yours'] = set(entry.owners or {}) <= {user}
+    item['only_yours'] = owners <= {user}
     answer.append(item)
   # folders whose untracked files are all listed inside them come after: keep the leaves first
   answer.sort(key=lambda e: (e['kind'] == 'folder', -e['untracked_bytes']))
-  by_owner = ((scan.totals or {}).get('by_owner') or {}).get(user) or {}
+  by_owner = accounts.resolve_keys((scan.totals or {}).get('by_owner')).get(user) or {}
   return jsonify({
     "scan": {"id": scan.id, "finished_at": usage.iso(scan.finished_at), "roots": scan.roots},
     "totals": {"by_kind": {k: v for k, v in by_owner.items() if k in UNTRACKED}, "bytes": sum(v for k, v in by_owner.items() if k in UNTRACKED)},
@@ -283,8 +340,9 @@ def storage_delete_untracked():
   for entry in entries:
     if not deletable(entry):
       return jsonify({"error": f"QA-Board uses files in {entry.path}: delete its runs from QA-Board instead."}), 400
-    if not is_admin() and set(entry.owners or {}) - {me()}:
-      return jsonify({"error": f"{entry.path} has files of other people ({', '.join(sorted(set(entry.owners or {}) - {me()}))}): ask them, or an admin."}), 403
+    others = set(accounts.resolve_keys(entry.owners)) - {me()}
+    if not is_admin() and others:
+      return jsonify({"error": f"{entry.path} has files of other people ({', '.join(sorted(others))}): ask them, or an admin."}), 403
   size = sum(e.bytes or 0 for e in entries)
   job = queue.create('delete_paths', {
     "scan_id": scan.id, "paths": [e.path for e in entries], "requested_by": me(),
@@ -349,7 +407,9 @@ def human(size: int) -> str:
 def preview(body: dict) -> dict:
   """What deleting a selection would delete, and what it keeps: milestones, and other users' runs"""
   who = whose(body)
-  filters = filters_from(body.get('filters') or {}, who['user'])
+  # users delete their own runs in every project they see, even among "Everyone's"
+  filters = filters_from(body.get('filters') or {}, who['user'], own_projects=True)
+  others = others_projects()
   group = body.get('group') or 'batch'
   if group not in usage.GROUPS:
     raise ParamsError(f"`group` must be one of {', '.join(usage.GROUPS)}")
@@ -380,7 +440,9 @@ def preview(body: dict) -> dict:
   for row in rows:
     if owner is not None and row['user_name'] != owner:
       k = kept['others']
-      k['users'].add(row['user_name'] or 'unknown')
+      # their names, only where the user may see other people's runs
+      if others is None or row['project_id'] in others:
+        k['users'].add(row['user_name'] or 'unknown')
     elif row['batch_id'] in milestones:
       k = kept['milestones']
       milestone_rows.append(row)

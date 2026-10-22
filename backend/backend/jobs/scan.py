@@ -32,6 +32,7 @@ from ..database import db_session, engine, make_engine
 from ..models import Project, CiCommit, Batch, Output, Export, StorageScan
 from ..storage import check_storage_path, UnsafePathError
 from ..exports import MARKERS, owner_name
+from .. import accounts
 from . import params as p
 from .common import matching_projects
 from .report import Reporter, utcnow
@@ -112,8 +113,13 @@ def top_folders(paths) -> list:
   return sorted(kept)
 
 
-@lru_cache(maxsize=10_000)
 def owner(uid: int) -> str:
+  return _owner(uid, accounts.version())
+
+
+# the accounts can change during a scan, e.g. when QABOARD_ACCOUNTS_COMMAND's first output arrives
+@lru_cache(maxsize=10_000)
+def _owner(uid: int, accounts_version) -> str:
   return owner_name(uid)
 
 
@@ -413,6 +419,9 @@ def run(params: dict, report: Reporter):
     db_session.commit()
     report.set(scan_id=scan.id)
   scan_id = scan.id
+  # owners are saved by name: with QABOARD_ACCOUNTS_COMMAND, wait for its accounts instead of saving "uid 2041"
+  if not accounts.refresh():
+    report.log("WARNING: could not update the accounts (QABOARD_ACCOUNTS_COMMAND): owners QA-Board doesn't know are saved as \"uid 1234\"")
   report.log(f"Scanning {len(roots)} folders: {', '.join(roots[:10])}{'…' if len(roots) > 10 else ''}")
   # small and shared by the threads: the exports QA-Board knows, and the batches with their own folder
   exports = {path: export_id for export_id, path in db_session.query(Export.id, Export.path).filter(Export.deleted_at.is_(None))}
