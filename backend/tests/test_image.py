@@ -246,6 +246,27 @@ def test_decoded_images_are_cached(tmp_path, cache_dir):
   assert sorted(p.suffix for p in cache_dir.iterdir() if p.suffix != '.lock') == ['.dat', '.json']
 
 
+@pytest.mark.parametrize("broken", ["json", "dat"])
+def test_broken_cache_entries_are_decoded_again(tmp_path, cache_dir, broken):
+  """e.g. truncated files after a full disk: they'd fail every request until removed"""
+  import backend.api.image as image_api
+  path = tmp_path / 'image.png'
+  Image.new('L', (8, 4), color=7).save(path)
+  with patch.object(image_api, 'image_cache_dir', cache_dir):
+    image_api.decoded_image(path)
+    image_api._opened.clear()
+    if broken == "json":
+      next(cache_dir.glob('*.json')).write_text('{"meta": {"mo')
+    else:
+      next(cache_dir.glob('*.dat')).write_bytes(b'')
+    with patch.object(image_api, 'read_image', wraps=image_api.read_image) as read_image:
+      image, meta = image_api.decoded_image(path)
+      assert read_image.call_count == 1
+    image_api._opened.clear()
+    assert int(image_api.decoded_image(path)[0][1, 1]) == 7
+  assert int(image[1, 1]) == 7 and meta == {'mode': 'L'}
+
+
 def test_cache_removes_the_least_recently_used(tmp_path, cache_dir):
   import os
   import time
