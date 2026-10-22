@@ -366,6 +366,7 @@ class FakeProjects:
       def __eq__(self, value):
         return value
     self.id = Column()
+    self.data = Column()
     class Query:
       def filter(self, project_id):
         return SimpleNamespace(one_or_none=lambda: fake.projects.get(project_id))
@@ -399,6 +400,7 @@ def integrations(monkeypatch, tmp_path):
   spec.loader.exec_module(module)
   module.git_hosts = hosts_from({"GITHUB_ACCESS_TOKEN": "gh", "GITLAB_HOST": "https://gitlab.example.com"})
   module.time = MagicMock() # no sleeping
+  module.time.time.return_value = 1000.0
   module.Project = FakeProjects({
     "org/repo": GITHUB_PROJECT,
     "org/repo/sub": GITHUB_PROJECT, # subprojects share the repository's git data
@@ -406,6 +408,12 @@ def integrations(monkeypatch, tmp_path):
     "group/gitlab-repo": {"git": {"path_with_namespace": "group/gitlab-repo", "web_url": "https://gitlab.example.com/group/gitlab-repo"}, "qatools_config": GITHUB_PROJECT["qatools_config"]},
   })
   module.can = lambda permission, project: project != "secret"
+  module.setting = MagicMock(side_effect=lambda key: {"ingest.auth": "off", "auth.allowed_origins": []}[key])
+  module.audit = MagicMock()
+  module.db_session = MagicMock()
+  # Without a user, only the Jenkins jobs the projects' qaboard.yaml list can be started
+  declared = {"runners": {"jenkins": {"build_url": "http://jenkins/job/x/"}}, "integrations": [{"text": "Build", "jenkins": {"build_url": "http://jenkins:8080/job/${project_name}"}}]}
+  module.db_session.query.return_value.all.return_value = [({"qatools_config": declared},), (None,), ({"qatools_config": {"runners": "invalid"}},)]
   return module
 
 
@@ -524,20 +532,35 @@ def test_gitlab_jobs(integrations, dummy_app, monkeypatch):
   jobs = [{"id": 1, "name": "deploy", "status": "success"}, {"id": 3, "name": "deploy", "status": "manual"}, {"id": 2, "name": "test"}]
   api = MagicMock(side_effect=lambda *args, **kwargs: next(responses))
   monkeypatch.setattr(gitlab, "api", api)
-  params = {"gitlab_host": "https://gitlab.example.com", "project_id": "group/repo", "commit_id": "abc", "job_name": "deploy"}
+  params = {"project": "group/gitlab-repo", "gitlab_host": "https://gitlab.example.com", "project_id": "group/gitlab-repo", "commit_id": "abc", "job_name": "deploy"}
   for gitlab_host in ["https://gitlab.example.com", "https://gitlab.com", None]:
-    # e.g. data.git.host is not configured anymore: like before hosts were configurable, we use GITLAB_HOST
+    # The project says where its repository is, not the client
     responses = iter([response(json_data={"last_pipeline": {"id": 7}}), response(json_data=jobs), response(json_data={"id": 3, "status": "pending"})])
     with dummy_app.test_request_context("/api/v1/gitlab/job/play", method="POST", json={**params, "gitlab_host": gitlab_host}):
       content, status = integrations.gitlab_play_manual_job()
     assert status == 200
-    assert api.call_args_list[-1].args == ("POST", "/projects/group%2Frepo/jobs/3/play")
-  # The token only goes to the configured host
+    assert api.call_args_list[-1].args == ("POST", "/projects/group%2Fgitlab-repo/jobs/3/play")
+  # The status of the job we played
+  responses = iter([response(json_data={"id": 3, "status": "running"})])
+  with dummy_app.test_request_context("/api/v1/gitlab/job", method="POST", json={**params, "job_id": 3}):
+    content, status = integrations.gitlab_job()
+  assert status == 200 and json.loads(content)["status"] == "running"
+  assert api.call_args_list[-1].args == ("GET", "/projects/group%2Fgitlab-repo/jobs/3")
+
+  # The token only goes to the configured host, for the repositories of the projects users can access
   assert gitlab.url == "https://gitlab.example.com"
   github = integrations.git_hosts.find("github.com")
   monkeypatch.setattr(github, "api", MagicMock())
-  with dummy_app.test_request_context("/api/v1/gitlab/job/play", method="POST", json={**params, "gitlab_host": "https://github.com"}):
-    integrations.gitlab_play_manual_job()
+  api.reset_mock()
+  for bad in [
+    {"project": None}, {"project": "unknown"}, {"project": "secret"}, {"project_id": "other/repo"}, {"project_id": None},
+    {"project": "org/repo", "project_id": "org/repo"}, # on GitHub
+  ]:
+    for handler in ("gitlab_play_manual_job", "gitlab_job"):
+      with dummy_app.test_request_context("/api/v1/gitlab/job/play", method="POST", json={**params, **bad}):
+        _, status = getattr(integrations, handler)()
+      assert status in (400, 403, 404), (handler, bad)
+  api.assert_not_called()
   github.api.assert_not_called()
 
 
@@ -639,3 +662,66 @@ def test_jenkins_build_trigger_errors(integrations, dummy_app, monkeypatch):
     data, status = call(integrations, dummy_app, "jenkins_build_trigger", {"build_url": "http://jenkins/job/x", "params": {}})
     assert status == 500
     assert expected in data.get_json()["error"]
+
+
+def test_jenkins_build_trigger_access(integrations, dummy_app, monkeypatch):
+  """It uses the server's Jenkins credentials: without a user, only for the jobs that projects list"""
+  from types import SimpleNamespace
+  from flask import g
+  monkeypatch.setattr(integrations, "jenkins_credentials", {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
+  monkeypatch.setattr(integrations, "_declared_jenkins_jobs", {"at": None, "build_urls": set()})
+  started = MagicMock(side_effect=lambda data: integrations.jsonify({"status": "pending"}))
+  monkeypatch.setattr(integrations, "trigger_jenkins_build", started)
+  checked = []
+  def require_project_access(user_info, project_id, permission='runs.act'):
+    checked.append((project_id, permission))
+    return None if project_id != "group/other" else (integrations.jsonify({"error": "Forbidden"}), 403)
+  monkeypatch.setattr(integrations, "require_project_access", require_project_access)
+  def trigger(data, actor=None):
+    started.reset_mock()
+    with dummy_app.test_request_context("/api/v1/jenkins/build/trigger/", method="POST", json=data):
+      if actor:
+        g.actor = actor
+      result = integrations.jenkins_build_trigger()
+    response, status = result if isinstance(result, tuple) else (result, result.status_code)
+    assert started.called == (status == 200)
+    return response, status
+
+  # The CLI's Windows runner, without a token (and older ones, that don't say the project)
+  assert trigger({"build_url": "http://jenkins/job/x", "token": None})[1] == 200
+  assert trigger({"build_url": "http://jenkins/job/x/"})[1] == 200
+  assert trigger({"build_url": "http://jenkins:8080/job/camera"})[1] == 200
+  response, status = trigger({"build_url": "http://jenkins/job/deploy-production"})
+  assert status == 403 and "runners.jenkins.build_url" in response.get_json()["error"]
+  assert trigger({"build_url": "http://jenkins/job/xyz"})[1] == 403
+  # With the project: its qaboard.yaml, or the commit's
+  integrations.Project.projects["group/jenkins"] = SimpleNamespace(id="group/jenkins", data={"qatools_config": {"runners": {"jenkins": {"build_url": "http://jenkins/job/windows"}}}})
+  ci_commit = SimpleNamespace(data={"qatools_config": {"runners": {"jenkins": {"build_url": "http://jenkins/job/branch"}}}}, batches=[])
+  monkeypatch.setattr(integrations, "CiCommit", MagicMock())
+  integrations.CiCommit.query.filter.return_value.one_or_none.return_value = ci_commit
+  assert trigger({"build_url": "http://jenkins/job/windows", "project": "group/jenkins"})[1] == 200
+  assert trigger({"build_url": "http://jenkins/job/x", "project": "group/jenkins"})[1] == 403
+  assert trigger({"build_url": "http://jenkins/job/branch", "project": "group/jenkins"})[1] == 403
+  assert trigger({"build_url": "http://jenkins/job/branch", "project": "group/jenkins", "commit": "abc"})[1] == 200
+  assert trigger({"build_url": "http://jenkins/job/windows", "project": "unknown"})[1] == 403
+  assert not checked
+  # When the server requires tokens to send results, it requires a user here too
+  integrations.setting.side_effect = lambda key: {"ingest.auth": "token", "auth.allowed_origins": []}[key]
+  response, status = trigger({"build_url": "http://jenkins/job/x"})
+  assert status == 403 and response.get_json()["reason"] == "ingest_token_required"
+
+  # Signed-in users and tokens: the developers of the project, any job (they are in the audit log)
+  def actor(scopes=("read", "ingest", "act"), token=True, projects=None):
+    return SimpleNamespace(user=SimpleNamespace(id=1, user_name="alice"), token=SimpleNamespace() if token else None,
+                           has_scope=lambda scope: not token or scope in scopes, allows_project=lambda project: projects is None or project in projects)
+  assert trigger({"build_url": "http://jenkins/job/deploy-production", "project": "group/repo"}, actor(token=False))[1] == 200
+  assert checked[-1] == ("group/repo", "runs.act")
+  assert trigger({"build_url": "http://jenkins/job/deploy-production", "project": "group/repo"}, actor(scopes=("ingest",)))[1] == 200
+  assert checked[-1] == ("group/repo", "runs.ingest")
+  assert trigger({"build_url": "http://jenkins/job/deploy-production"}, actor())[1] == 200
+  assert integrations.audit.call_args.args[:4] == ("jenkins.build", "jenkins_job", None, "http://jenkins/job/deploy-production")
+  assert trigger({"build_url": "http://jenkins/job/x", "project": "group/other"}, actor())[1] == 403
+  response, status = trigger({"build_url": "http://jenkins/job/x"}, actor(scopes=("read",)))
+  assert status == 403 and response.get_json()["reason"] == "missing_scope"
+  response, status = trigger({"build_url": "http://jenkins/job/x", "project": "group/repo"}, actor(projects=["group/jenkins"]))
+  assert status == 403 and response.get_json()["reason"] == "token_project"

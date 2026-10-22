@@ -3,6 +3,7 @@ Tests for the LSF concurrency limit and the dask runner.
 LSF is not available: we check the bsub commands we would send, and execute the job array scripts with bash.
 """
 import os
+import sys
 import re
 import time
 import tempfile
@@ -427,6 +428,26 @@ class TestJenkinsWindowsRunner(unittest.TestCase):
       JenkinsWindowsRunner(BareRunContext(output_dir)).start(blocking=False)
     content = (output_dir / 'run.ps1').read_text()
     self.assertIn('$ErrorActionPreference = "Stop"', content)
+
+
+class TestJenkinsTrigger(unittest.TestCase):
+  def test_the_trigger_says_who_and_which_project(self):
+    # Without a token, the server only starts the Jenkins jobs of the project's qaboard.yaml
+    import requests
+    from qaboard.runners import jenkins_windows
+    answer = mock.MagicMock(status_code=200)
+    answer.json.return_value = {"status": "pending", "url": "http://jenkins/queue/item/7/"}
+    with mock.patch.object(requests, 'post', return_value=answer) as post, \
+         mock.patch.object(jenkins_windows, 'get_jenkins_config', return_value={"build_url": "http://jenkins/job/windows", "token": None}), \
+         mock.patch.object(jenkins_windows, 'api_headers', {"Content-Type": "application/json", "Authorization": "Bearer qab_pat_x"}), \
+         mock.patch.object(jenkins_windows, 'project_name', return_value="group/repo"), \
+         mock.patch.object(sys.modules['qaboard.config'], 'commit_id', "abc123"):
+      jenkins_windows.trigger_run("echo hi")
+    self.assertTrue(post.call_args.args[0].endswith("/jenkins/build/trigger/"))
+    self.assertEqual(post.call_args.kwargs["headers"]["Authorization"], "Bearer qab_pat_x")
+    data = post.call_args.kwargs["json"]
+    self.assertEqual((data["project"], data["commit"], data["build_url"], data["params"]), ("group/repo", "abc123", "http://jenkins/job/windows", {"task": "echo hi"}))
+    self.assertIn("token", data)
 
 
 class TestJenkinsPolling(unittest.TestCase):

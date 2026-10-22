@@ -54,6 +54,7 @@ const action_labels = {
   'setting.update': 'Changed a setting',
   'audit.purge': 'Deleted old audit events',
   'batch.delete': 'Deleted a batch',
+  'jenkins.build': 'Started a Jenkins build',
 };
 
 // Why signing in failed (`meta.reason` of auth.login_failed events)

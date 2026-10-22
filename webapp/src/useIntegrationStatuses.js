@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Intent } from "@blueprintjs/core";
 
-import { http, errorMessage } from "./api/http";
+import { http, errorMessage, request as send } from "./api/http";
 import { toaster } from "./toaster";
 import { make_eval_templates_recursively } from "./utils";
 import { host_url } from "./git";
@@ -63,8 +63,21 @@ const saveIntegrationStatuses = (commit_id, statuses) => {
 // sibling elsewhere in the tree don't share a status entry.
 export const integration_key = (integration, prefix = '') => prefix + (integration.id || integration.text || integration.name || integration.alt);
 
-// What the backend needs to find the CI jobs of a commit on the project's git host
+// The server only sends webhooks to (and checks links on) the hosts of the qaboard.yaml of the project, commit and batches
+const webhook_proxy = (project, commit) => ['/api/v1/webhook/proxy/', { params: { project, commit: commit?.id } }];
+// Our own pages are checked directly, with the user's cookies
+const is_same_origin = url => {
+  try {
+    return new URL(url, window.location.href).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+};
+
+// What the backend needs to find the CI jobs of a commit on the project's git host.
+// The server only reads or plays the jobs of projects users can access, on their repository.
 const gitlab_job = (project, project_data, commit) => ({
+  project,
   gitlab_host: host_url(project_data),
   project_id: project_data.data?.git?.path_with_namespace ?? project,
   commit_id: commit.id,
@@ -108,9 +121,9 @@ export function useIntegrationStatuses(context) {
     if (!webhook && !gitlabCI && !githubActions && !jenkins) return;
     const entry_key = key ?? integration_key(integration);
     setStatus(entry_key, { loading: true, triggered: true, data: undefined });
-    let url, params;
+    let url, params, options;
     if (webhook) {
-      url = '/api/v1/webhook/proxy/';
+      [url, options] = webhook_proxy(project, commit);
       params = webhook;
     } else if (jenkins) {
       url = '/api/v1/jenkins/build/trigger/';
@@ -123,7 +136,7 @@ export function useIntegrationStatuses(context) {
       url = '/api/v1/gitlab/job/play/';
       params = { ...gitlab_job(project, project_data, commit), ...gitlabCI };
     }
-    http.post(url, params)
+    http.post(url, params, options)
       .then(response => {
         toaster.show({ message: `Webhook sent! [${response.status} ${response.statusText}]`, intent: Intent.SUCCESS });
         setStatus(entry_key, { is_loaded: true, loading: false, triggered: true, error: null, statusText: response.statusText, data: response.data });
@@ -160,7 +173,7 @@ export function useIntegrationStatuses(context) {
         if (integration.jenkins && status.data?.web_url === undefined && status.data?.url === undefined) return;
         // Those are display-only fields, not part of the request
         const { label: _label, icon: _icon, text: _text, href: _href, alt: _alt, style: _style, ignore_failure, gitlabCI, githubActions, jenkins, ...request } = integration;
-        let url, params;
+        let url, params, options;
         if (gitlabCI) {
           if (status.triggered !== true) return;
           url = '/api/v1/gitlab/job/';
@@ -175,17 +188,19 @@ export function useIntegrationStatuses(context) {
           url = '/api/v1/jenkins/build/';
           params = { ...status.data }; // .web_url, .url
         } else { // webhook
-          url = '/api/v1/webhook/proxy/';
+          [url, options] = webhook_proxy(project, commit);
           params = {
             method: 'HEAD',
             url: integration.href.startsWith('/') ? `${window.location.origin}${integration.href}` : integration.href,
             ...request,
           };
+          if (is_same_origin(params.url) && Object.keys(request).every(k => k === 'method' || k === 'url'))
+            url = null;
         }
         // Only mark as loading once we know we'll actually fire a request
         setStatus(key, { loading: true }, { merge: true });
         // polling: users didn't ask for it, so no "Log in" toast if they are logged out
-        http.post(url, params, { background: true })
+        (url === null ? send(params.method, params.url, { background: true }) : http.post(url, params, { ...options, background: true }))
           .then(response => setStatus(key, { is_loaded: true, loading: false, error: null, statusText: null, data: response.data }, { merge: true }))
           .catch(error => {
             const statusText = error.response ? error.response.statusText : "Network Error";
