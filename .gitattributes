@@ -1,0 +1,5 @@
+# Text files are stored with LF line endings; checkouts use the platform's (CRLF on Windows, unless core.autocrlf says otherwise)
+* text=auto
+# Certificates stay byte for byte as IT gave them
+*.crt -text
+*.pem -text
