@@ -12,6 +12,7 @@ from ..storage import check_storage_path, UnsafePathError
 from ..redo import redo_response
 from ..metrics_definitions import save_metrics_definitions
 from ..notifications.batches import on_run_ended
+from ..access import invalid_project
 from .auth import login_required, is_authorized_user, ingest_access, forbidden_project, require_project_access
 
 # Keys of a run's data that only the server sets
@@ -148,6 +149,8 @@ def new_output_webhook():
   except UnsafePathError as e:
     return jsonify({"error": f"{e}"}), 400
 
+  if error := invalid_project(data.get('project')):
+    return error
   submitted_by, error = ingest_access(data.get('project'))
   if error:
     return error

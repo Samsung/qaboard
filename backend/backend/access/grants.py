@@ -2,7 +2,7 @@
 import datetime
 from typing import Optional
 
-from .policy import ROLES, VISIBILITIES, prefixes, applies_to
+from .policy import ROLES, VISIBILITIES, prefixes, applies_to, is_valid_project_id
 
 
 class AccessError(Exception):
@@ -17,7 +17,7 @@ def clean_path(value) -> str:
   if not isinstance(value, str):
     raise AccessError("Which project? Send `project`, e.g. group/repo.")
   parts = [part for part in value.strip().strip('/').split('/') if part]
-  if not parts or any(part in ('.', '..') for part in parts) or len(value) > 500:
+  if not parts or not is_valid_project_id('/'.join(parts)) or len(value) > 500:
     raise AccessError("Which project? Send `project`, e.g. group/repo.")
   return '/'.join(parts)
 

@@ -4,7 +4,7 @@ Who gets which role, from the database: integration_tests/test_access.py.
 """
 from types import SimpleNamespace
 
-from backend.access.policy import prefixes, applies_to, highest, allows, required_role, PERMISSIONS
+from backend.access.policy import prefixes, applies_to, highest, allows, required_role, PERMISSIONS, is_valid_project_id
 from backend.access.groups import rule_matches, claims_by_source, matches_any, groups_overage
 
 
@@ -24,6 +24,14 @@ def test_grants_apply_by_path_segments():
   assert prefixes('') == []
   assert applies_to('a/b', 'a/b') and applies_to('a/b', 'a/b/c') and applies_to('a/', 'a/b')
   assert not applies_to('a/b', 'a/bc') and not applies_to('a/b/c', 'a/b') and not applies_to('', 'a')
+
+
+def test_project_ids_have_no_dot_segments():
+  assert is_valid_project_id('a') and is_valid_project_id('a/b/c-d.e') and is_valid_project_id('a/..b')
+  # tolerated when reading, like in prefixes, not for new projects
+  assert is_valid_project_id('/a/b/') and not is_valid_project_id('/a/b/', new=True) and is_valid_project_id('a/b', new=True)
+  for project_id in ['', '/', 'a/../b', '..', 'a/.', './a', 'a//b', 'a/\0', None, ['a'], 1]:
+    assert not is_valid_project_id(project_id), project_id
 
 
 def rule(claim, values, provider_id=None):

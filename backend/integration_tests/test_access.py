@@ -180,6 +180,30 @@ def test_visibility_and_grants_apply_to_the_projects_under_a_prefix(client, logg
   assert [(g["subject"]["name"], g["resource_id"], g["inherited"]) for g in grants] == [("bob", "group", True)]
 
 
+def test_project_ids_with_dots_dont_get_around_access(team, client):
+  """pub/../group/secret would get pub's access (public, or a grant on pub), and reach group/secret's files"""
+  from backend.api.tuning import get_groups_path
+  get_groups_path(PROJECT, name='extra-batches').write_text("secret: {}")
+  dave = team['dave']
+  assert dave.get(f'/api/v1/tests/groups?project={PROJECT}&name=extra-batches').status_code == 403
+  for project in ['pub/../group/secret', 'group/./secret', 'group//secret', 'pub/..', '..']:
+    for response in [dave.get(f'/api/v1/tests/groups?project={project}&name=extra-batches'),
+                     dave.post(f'/api/v1/tests/groups?project={project}&name=extra-batches', json={"groups": "x: {}"}),
+                     dave.get(f'/api/v1/commits?project={project}'),
+                     client.get(f'/api/v1/project?project={project}')]:
+      assert response.status_code == 400 and response.get_json()["reason"] == "invalid_project", (project, response.request.path)
+  assert get_groups_path(PROJECT, name='extra-batches').read_text() == "secret: {}"
+  # qa can't create such projects
+  for project in ['pub/../group/secret', 'a//b', '/a/b', 'a/b/', '']:
+    response = ingest(client, project=project)
+    assert response.status_code == 400 and response.get_json()["reason"] == "invalid_project", project
+  from backend.models import Project
+  assert [p.id for p in Project.query.all()] == [PROJECT]
+  # slashes around are tolerated to read, like before
+  assert team['carol'].get(f'/api/v1/commits?project=/{PROJECT}/').status_code == 200
+  assert team['dave'].get(f'/api/v1/commits?project=/{PROJECT}/').status_code == 403
+
+
 def test_expired_grants_are_ignored(team):
   from backend.database import db_session
   from backend.models import RoleGrant

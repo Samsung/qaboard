@@ -59,8 +59,8 @@ class TestCommitErrorHandler:
             # the failing ref should appear in the message (we now use hexsha)
             assert BAD_REF in response[0].get_json()['error']
 
-    def test_project_only_in_query_string_returns_404(self, dummy_app, mock_ci_commit):
-        """POST with 'project' only in the query string (not body) returns 404."""
+    def test_project_only_in_query_string_returns_400(self, dummy_app, mock_ci_commit):
+        """POST with 'project' only in the query string (not body): which project? 400"""
         mock_ci_commit.get_or_create.side_effect = Exception("boom")
 
         from backend.api.commit import api_ci_commit
@@ -68,7 +68,7 @@ class TestCommitErrorHandler:
         # body is empty: no 'project', no 'git_commit_sha'
         with dummy_app.test_request_context(f'/api/v1/commit/{BAD_REF}?project={PROJECT}', method='POST', json={}):
             response = api_ci_commit(commit_id=BAD_REF)
-            assert response[1] == 404
+            assert response[1] == 400 and response[0].get_json()['reason'] == 'invalid_project'
 
     def test_commit_sha_without_legacy_key(self, dummy_app, mock_ci_commit):
         """POST with 'commit_sha' but no 'git_commit_sha' (only sent for backward-compatibility)."""

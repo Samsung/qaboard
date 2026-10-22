@@ -10,6 +10,7 @@ from ..storage import check_storage_path, UnsafePathError
 from ..redo import redo_response
 from ..notifications.batches import request_batch_notification
 from .export_to_folder import filter_outputs
+from ..access import invalid_project
 from .auth import login_required, require_project_access, ingest_access
 from ..audit import audit
 
@@ -49,6 +50,8 @@ def update_batch():
     return jsonify({"error": "`data` must be an object"}), 400
   # only the server says who really sent results
   batch_data = {k: v for k, v in batch_data.items() if k != 'submitted_by'}
+  if error := invalid_project(data.get('project')):
+    return error
   submitted_by, error = ingest_access(data.get('project'))
   if error:
     return error
