@@ -354,7 +354,7 @@ const OutputCard = memo(function OutputCard(props) {
             <span style={{ fontSize: '12px', fontWeight: '500', flex: 1 }}>{option_label}</span>
             {onToggleDynamicOptionSync && (
               <Tooltip content={`Use the ${option_label} chosen in the view options for all runs`}>
-                <Button icon="link" minimal small onClick={() => onToggleDynamicOptionSync(name)} style={sync_button_style}>
+                <Button icon="link" variant="minimal" size="small" onClick={() => onToggleDynamicOptionSync(name)} style={sync_button_style}>
                   Same for all runs
                 </Button>
               </Tooltip>
@@ -377,7 +377,6 @@ const OutputCard = memo(function OutputCard(props) {
               value={option.value}
               onChange={setSelectedOption(name)}
               fill
-              small
             />
           )}
         </div>
@@ -429,8 +428,8 @@ const OutputCard = memo(function OutputCard(props) {
                   >
                     <Button
                       icon="unlink"
-                      minimal
-                      small
+                      variant="minimal"
+                      size="small"
                       aria-label={`Choose ${optionLabel(option_name)} per run`}
                       onClick={() => onToggleDynamicOptionSync?.(option_name)}
                       style={unlink_button_style}

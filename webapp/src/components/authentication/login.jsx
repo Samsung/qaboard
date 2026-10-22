@@ -26,7 +26,7 @@ export const LoginMenuItem = ({ text = "Sign in to redo, rename or delete" }) =>
 // Next to a button that needs to sign in
 export const LoginHint = ({ text = "Sign in to do this" }) =>
   <Tooltip content={text}>
-    <Button icon="log-in" text="Sign in" minimal small intent={Intent.PRIMARY} onClick={requestLogin} style={{marginLeft: '5px'}}/>
+    <Button icon="log-in" text="Sign in" variant="minimal" size="small" intent={Intent.PRIMARY} onClick={requestLogin} style={{marginLeft: '5px'}}/>
   </Tooltip>
 
 

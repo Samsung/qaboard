@@ -275,7 +275,7 @@ const IntegrationsMenus = props => {
             aria-label="Search integrations"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            small
+            size="small"
             fill
             onFocus={(e) => e.stopPropagation()}
             onBlur={(e) => e.stopPropagation()}

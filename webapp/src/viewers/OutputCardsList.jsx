@@ -53,7 +53,7 @@ function OutputCardsList({ type, project, config, metrics, new_commit, new_batch
         <p>
           {outputs.length} runs: more cards are shown as you scroll, so the browser's search (Ctrl+F) doesn't find them all yet.
           Filter runs from the navbar, or{" "}
-          <Button small onClick={() => setNbShown(outputs.length)}>show all {outputs.length} runs</Button>
+          <Button size="small" onClick={() => setNbShown(outputs.length)}>show all {outputs.length} runs</Button>
         </p>
       </Callout>}
       {type === 'bit_accuracy' && <BitAccuracyForm

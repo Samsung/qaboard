@@ -531,7 +531,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
               inputClassName={Classes.MONOSPACE_TEXT}
               onChange={typeCommit}
               onBlur={() => setTyping(false)}
-              small
+              size="small"
               placeholder="commit id"
               aria-label={`The ${type === 'new' ? 'new' : 'reference'} commit`}
               defaultValue={commit?.id ? shortId(project, commit.id) : ''}

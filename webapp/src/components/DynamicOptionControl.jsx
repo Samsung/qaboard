@@ -13,7 +13,6 @@ const DynamicOptionControl = ({
   defaultRule = 'first',
   onChange,
   disabled = false,
-  small = false,
   showLabel = false,
   style = {}
 }) => {
@@ -68,7 +67,6 @@ const DynamicOptionControl = ({
           onChange={(e) => handleChange(e.target.value === '' ? undefined : e.target.value)}
           disabled={disabled || option.values.length === 1}
           fill
-          small={small}
           aria-label={label}
         >
           {defaultLabel && <option value="">{defaultLabel} (default)</option>}

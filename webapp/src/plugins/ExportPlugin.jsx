@@ -138,7 +138,7 @@ const ExportPlugin = props => {
             setEditExportDir(true);
             setExportType("copy");
           }}
-          small
+          size="small"
           outlined
           icon="edit"
         >Edit where</Button>}
