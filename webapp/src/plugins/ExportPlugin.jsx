@@ -18,6 +18,7 @@ import {
 } from "@blueprintjs/core";
 
 import { toaster } from "../toaster"
+import { Link } from "../router"
 import { copyWithToast } from "../utils/clipboard"
 
 
@@ -81,6 +82,7 @@ const ExportPlugin = props => {
           nb_files_exported: data.nb_files_exported,
           nb_outputs_exported: data.nb_outputs,
           errors: data.errors ?? no_errors,
+          export_id: data.export_id,
         });
       })
       .catch(error => {
@@ -172,6 +174,9 @@ const ExportPlugin = props => {
         <p><Tag>Windows</Tag> <code>{windows_export_dir}</code></p>
         <p><Tag>Linux</Tag> <code>{linux_export_dir}</code></p>
         {effective_export_type === "link" && nb_files_exported !== 0 && <Tag minimal intent="warning" icon="warning-sign">The files are links to the original files, not copies!</Tag>}
+        {result.export_id && <p className={Classes.TEXT_MUTED} style={{ marginTop: 6 }}>
+          Find your exports, their size, and delete them in <Link to="/storage/exports">Storage usage → Exports</Link>.
+        </p>}
       </div>}
       {nb_files_exported !== null && <Tag
           minimal

@@ -1,7 +1,7 @@
 """
 How much storage runs use, per batch and per user: what users see in "Storage usage", without adding up millions of
 runs at each page load. Kept up to date by the jobs worker, see backend/storage_usage.py.
-Deleted runs don't count: their files were deleted.
+Live runs count with their size; deleted runs with what's left of their files.
 """
 import datetime
 
@@ -26,6 +26,11 @@ class StorageUsage(Base):
   bytes = Column(BigInteger, nullable=False)
   # the folder that contains all these runs: where users find them on disk, and what quota alerts mention
   folder = Column(Text(), nullable=True)
+  # Runs deleted from QA-Board: soft deletes leave some files (manifests, files the manifests don't list...).
+  # What's left is measured when they're deleted (Output.data.storage_left), older ones aren't measured yet.
+  deleted_runs = Column(Integer, nullable=False, default=0, server_default='0')
+  deleted_bytes = Column(BigInteger, nullable=False, default=0, server_default='0')
+  deleted_unmeasured = Column(Integer, nullable=False, default=0, server_default='0')
   last_run_at = Column(DateTime, nullable=True)
   updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
 

@@ -20,6 +20,8 @@ from ..access import can, visibility_rules, yaml_key
 from ..settings import setting
 
 
+# What users start from Storage usage
+USER_KINDS = ('delete_runs', 'delete_exports', 'delete_paths')
 # Big deletions need users to type a confirmation
 CONFIRM_BYTES = 200 * 1000 ** 3
 CONFIRM_BATCHES = 100
@@ -117,7 +119,180 @@ def storage_overview():
     answer["top_folders"] = usage.top_folders(filters)
   if who['scope'] == 'all' or filters.projects:
     answer["users"] = usage.by_user(filters)
+  answer["exports"] = export_totals(who['user'], filters.projects)
   return jsonify(answer)
+
+
+# --- deletion rules ---
+
+@app.route('/api/v1/storage/rules', methods=['GET'])
+@app.route('/api/v1/storage/rules/', methods=['GET'])
+@login_required
+def storage_rules():
+  """What deletes results, when, and what it keeps: the schedules admins set up, with the project's qaboard.yaml"""
+  from .. import storage_rules as rules
+  project = request.args.get('project') or None
+  if project and not can('project.read', project):
+    return jsonify({"rules": [], "settings": {}, "project": project})
+  return jsonify({"rules": rules.rules(project), "settings": rules.project_settings(project) if project else {}, "project": project})
+
+
+# --- exports ---
+
+def exports_query(user, projects=None):
+  from ..models import Export
+  from sqlalchemy import or_
+  query = Export.query.filter(Export.deleted_at.is_(None))
+  if user is not None:
+    query = query.filter(or_(Export.created_by == user, Export.owner == user))
+  if projects:
+    query = query.filter(Export.project_id.in_(projects))
+  allowed = allowed_projects()
+  if allowed is not None:
+    query = query.filter(or_(Export.project_id.is_(None), Export.project_id.in_(allowed)))
+  return query
+
+
+def export_totals(user, projects=None) -> dict:
+  from ..models import Export
+  from sqlalchemy import func
+  row = exports_query(user, projects).with_entities(func.count(Export.id), func.coalesce(func.sum(Export.bytes), 0), func.coalesce(func.sum(Export.linked_bytes), 0)).one()
+  return {"count": row[0], "bytes": int(row[1]), "linked_bytes": int(row[2])}
+
+
+@app.route('/api/v1/storage/exports', methods=['GET'])
+@app.route('/api/v1/storage/exports/', methods=['GET'])
+@login_required
+def storage_exports():
+  from ..models import Export
+  from ..exports import serialize
+  who = whose(request.args)
+  projects = [p for p in (request.args.get('project') or '').split(',') if p]
+  query = exports_query(who['user'], projects)
+  sort = {'oldest': Export.updated_at.asc(), 'newest': Export.updated_at.desc()}.get(request.args.get('sort'), Export.bytes.desc().nullslast())
+  return jsonify({
+    "exports": [serialize(e) for e in query.order_by(sort).limit(500)],
+    "totals": export_totals(who['user'], projects),
+  })
+
+
+def can_delete_export(export) -> bool:
+  return is_admin() or me() in (export.created_by, export.owner)
+
+
+@app.route('/api/v1/storage/exports/delete', methods=['POST'])
+@app.route('/api/v1/storage/exports/delete/', methods=['POST'])
+@login_required
+def storage_delete_exports():
+  from ..models import Export
+  ids = (request.get_json(silent=True) or {}).get('ids')
+  if not isinstance(ids, list) or not ids or not all(isinstance(i, int) for i in ids):
+    raise ParamsError("Select the exports to delete: `ids`")
+  exports = Export.query.filter(Export.id.in_(ids), Export.deleted_at.is_(None)).all()
+  refused = [e.path for e in exports if not can_delete_export(e)]
+  if refused:
+    return jsonify({"error": f"You can only delete your exports: {refused[0]} isn't yours."}), 403
+  if not exports:
+    return jsonify({"error": "These exports were already deleted."}), 400
+  size = sum(e.bytes or 0 for e in exports)
+  job = queue.create('delete_exports', {
+    "export_ids": [e.id for e in exports], "requested_by": me(),
+    "description": f"{len(exports)} export{'s' if len(exports) > 1 else ''} ({human(size)})",
+  }, user=g.actor.user)
+  audit('storage.delete_exports', 'job', job.id, job.params['description'], meta={"paths": [e.path for e in exports][:50], "bytes": size})
+  db_session.commit()
+  return jsonify({"job": queue.serialize_job(job)}), 201
+
+
+@app.route('/api/v1/storage/exports/<int:export_id>/measure', methods=['POST'])
+@app.route('/api/v1/storage/exports/<int:export_id>/measure/', methods=['POST'])
+@login_required
+def storage_measure_export(export_id):
+  """Measures an export again, e.g. after deleting some of its files"""
+  from ..models import Export
+  from ..exports import measure_export, serialize
+  export = db_session.get(Export, export_id)
+  if export is None or not can_delete_export(export):
+    return jsonify({"error": "This export doesn't exist."}), 404
+  measure_export(export)
+  db_session.commit()
+  return jsonify(serialize(export))
+
+
+# --- untracked files, from the latest storage scan ---
+
+def latest_scan():
+  from ..models import StorageScan
+  return StorageScan.query.filter(StorageScan.status == 'done').order_by(StorageScan.finished_at.desc()).first()
+
+
+@app.route('/api/v1/storage/untracked', methods=['GET'])
+@app.route('/api/v1/storage/untracked/', methods=['GET'])
+@login_required
+def storage_untracked():
+  """
+  What the latest scan found on disk that QA-Board doesn't track, owned by the user: exports, runs it doesn't know,
+  what deleted runs left... The biggest first.
+  """
+  from ..models import StorageScanEntry
+  from ..jobs.scan import UNTRACKED
+  from .admin_storage import serialize_entry
+  scan = latest_scan()
+  if scan is None:
+    return jsonify({"scan": None, "totals": {}, "entries": []})
+  user = request.args.get('user') if is_admin() and request.args.get('user') else me()
+  kinds = sorted(UNTRACKED | {'folder', 'file'})
+  entries = (StorageScanEntry.query
+             .filter(StorageScanEntry.scan_id == scan.id, StorageScanEntry.owner == user, StorageScanEntry.kind.in_(kinds), StorageScanEntry.action.is_(None))
+             .order_by(StorageScanEntry.bytes.desc()).limit(300).all())
+  # the biggest untracked things, not the folders that contain them
+  answer = []
+  for entry in entries:
+    item = serialize_entry(entry)
+    untracked = sum(size for kind, size in (entry.kinds or {}).items() if kind in UNTRACKED)
+    if entry.kind in ('folder', 'file') and (not untracked or set(entry.owners or {}) - {user}):
+      continue
+    item['untracked_bytes'] = untracked or entry.bytes
+    item['only_yours'] = set(entry.owners or {}) <= {user}
+    answer.append(item)
+  # folders whose untracked files are all listed inside them come after: keep the leaves first
+  answer.sort(key=lambda e: (e['kind'] == 'folder', -e['untracked_bytes']))
+  by_owner = ((scan.totals or {}).get('by_owner') or {}).get(user) or {}
+  return jsonify({
+    "scan": {"id": scan.id, "finished_at": usage.iso(scan.finished_at), "roots": scan.roots},
+    "totals": {"by_kind": {k: v for k, v in by_owner.items() if k in UNTRACKED}, "bytes": sum(v for k, v in by_owner.items() if k in UNTRACKED)},
+    "entries": answer[:100],
+    "user": user,
+  })
+
+
+@app.route('/api/v1/storage/untracked/delete', methods=['POST'])
+@app.route('/api/v1/storage/untracked/delete/', methods=['POST'])
+@login_required
+def storage_delete_untracked():
+  """Users delete untracked files the latest scan found, if they own everything in them"""
+  from ..models import StorageScanEntry
+  from ..jobs.storage_actions import deletable
+  scan = latest_scan()
+  paths = (request.get_json(silent=True) or {}).get('paths')
+  if scan is None or not isinstance(paths, list) or not paths:
+    raise ParamsError("Select what to delete: `paths`")
+  entries = StorageScanEntry.query.filter(StorageScanEntry.scan_id == scan.id, StorageScanEntry.path.in_(paths)).all()
+  if len(entries) != len(set(paths)):
+    raise ParamsError("Some paths aren't in the latest scan")
+  for entry in entries:
+    if not deletable(entry):
+      return jsonify({"error": f"QA-Board uses files in {entry.path}: delete its runs from QA-Board instead."}), 400
+    if not is_admin() and set(entry.owners or {}) - {me()}:
+      return jsonify({"error": f"{entry.path} has files of other people ({', '.join(sorted(set(entry.owners or {}) - {me()}))}): ask them, or an admin."}), 403
+  size = sum(e.bytes or 0 for e in entries)
+  job = queue.create('delete_paths', {
+    "scan_id": scan.id, "paths": [e.path for e in entries], "requested_by": me(),
+    "description": f"{len(entries)} untracked folder{'s' if len(entries) > 1 else ''} ({human(size)})",
+  }, user=g.actor.user)
+  audit('storage.delete_paths', 'job', job.id, job.params['description'], meta={"scan_id": scan.id, "paths": [e.path for e in entries][:50], "bytes": size})
+  db_session.commit()
+  return jsonify({"job": queue.serialize_job(job)}), 201
 
 
 def milestone_flags(items: list, group: str) -> None:
@@ -273,7 +448,7 @@ def storage_delete():
 
 def get_own_job(job_id):
   job = db_session.get(Job, job_id)
-  if job is None or job.kind != 'delete_runs' or (job.created_by_id != g.actor.user.id and not is_admin()):
+  if job is None or job.kind not in USER_KINDS or (job.created_by_id != g.actor.user.id and not is_admin()):
     return None, (jsonify({"error": "This deletion doesn't exist."}), 404)
   return job, None
 
@@ -283,7 +458,7 @@ def get_own_job(job_id):
 @login_required
 def storage_jobs():
   """The user's deletions, the latest first"""
-  jobs = (Job.query.filter(Job.kind == 'delete_runs', Job.created_by_id == g.actor.user.id)
+  jobs = (Job.query.filter(Job.kind.in_(USER_KINDS), Job.created_by_id == g.actor.user.id)
           .order_by(Job.id.desc()).limit(20).all())
   return jsonify({"jobs": [queue.serialize_job(j) for j in jobs]})
 

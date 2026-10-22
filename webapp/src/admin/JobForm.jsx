@@ -27,6 +27,8 @@ const defaults = {
     projects: '*', exclude_projects: '', default_older_than: '1month', older_than: '',
     can_delete_reference_branch: false, delete_outputs: true, delete_artifacts: false, dry_run: true,
   },
+  scan_storage: { projects: '*', exclude_projects: '', roots: '', min_size_mb: '50', threads: '8' },
+  measure_deleted: { projects: '*', exclude_projects: '' },
 };
 
 // The server's params => the form
@@ -44,7 +46,8 @@ export const toParams = (kind, form) => {
   const params = {};
   for (const key of Object.keys(defaults[kind])) {
     const value = form[key];
-    if (key === 'projects' || key === 'exclude_projects' || key === 'keep') params[key] = splitPatterns(value);
+    if (key === 'projects' || key === 'exclude_projects' || key === 'keep' || key === 'roots') params[key] = splitPatterns(value);
+    else if (key === 'min_size_mb' || key === 'threads') params[key] = Number(value);
     else if (typeof value === 'boolean') params[key] = value;
     else if (typeof value === 'string' && value.trim()) params[key] = value.trim();
   }
@@ -58,7 +61,12 @@ const duration = /^((\d+(\.\d+)?) *(y(ears?)?|m(onths?)?|w(eeks?)?|d(ays?)?|h(ou
 // => {field: "a sentence"}
 export const validateParams = (kind, form) => {
   const errors = {};
-  if (splitPatterns(form.projects).length === 0) errors.projects = "Which projects? * for all of them.";
+  if (splitPatterns(form.projects).length === 0 && !(kind === 'scan_storage' && splitPatterns(form.roots).length)) errors.projects = "Which projects? * for all of them.";
+  if (kind === 'scan_storage') {
+    if (splitPatterns(form.roots).some(root => !root.startsWith('/'))) errors.roots = "Absolute paths, e.g. /algo/project/outputs";
+    if (!(Number(form.min_size_mb) >= 0)) errors.min_size_mb = "A number of MB, e.g. 50";
+    if (!(Number.isInteger(Number(form.threads)) && Number(form.threads) >= 1 && Number(form.threads) <= 64)) errors.threads = "Between 1 and 64";
+  }
   for (const key of ['created_before', 'created_after']) {
     if (kind === 'hard_delete' && form[key]?.trim() && !date_or_duration.test(form[key].trim()))
       errors[key] = "A date like 2026-01-31, or a duration like 3months or 2weeks.";
@@ -162,6 +170,20 @@ export const JobParamsFields = ({ kind, form, set, errors, id_prefix = 'job' }) 
       </RadioGroup>
     </FormGroup>}
 
+    {kind === 'scan_storage' && <>
+      <FormGroup label="Other folders" {...group('roots', "Scanned with the projects' outputs and artifacts folders, comma-separated. Leave the projects empty to scan only these.")}>
+        <InputGroup {...text('roots')} className={Classes.MONOSPACE_TEXT} placeholder="/algo/project/outputs"/>
+      </FormGroup>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', columnGap: 16 }}>
+        <FormGroup label="Details down to (MB)" {...group('min_size_mb', "Smaller folders and files are summed up in their parent folder: the scan stays small.")}>
+          <InputGroup {...text('min_size_mb')} type="number" min={0}/>
+        </FormGroup>
+        <FormGroup label="Threads" {...group('threads', "Network storage answers slowly but in parallel: more threads scan faster, and load it more.")}>
+          <InputGroup {...text('threads')} type="number" min={1} max={64}/>
+        </FormGroup>
+      </div>
+    </>}
+
     {kind === 'delete_artifacts' && <>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', columnGap: 16 }}>
         <FormGroup label="Commits without runs for" {...group('older_than', "Since their latest run, or since they were made if they never had runs.")}>
@@ -200,11 +222,11 @@ export const JobParamsFields = ({ kind, form, set, errors, id_prefix = 'job' }) 
     </>}
 
     <Estimate kind={kind} form={form}/>
-    <Switch
+    {'dry_run' in (defaults[kind] ?? {}) && <Switch
       checked={form.dry_run}
       onChange={() => set({ dry_run: !form.dry_run })}
       labelElement={<span><strong>Dry run</strong> <span className={Classes.TEXT_MUTED}>— nothing is deleted: the job says what would be</span></span>}
-    />
+    />}
   </>;
 };
 
@@ -212,11 +234,13 @@ const what_is_kept = {
   hard_delete: "Runs are deleted from the database: see below what happens to their files. Milestones are never deleted: the batches saved as milestones, and the commits qaboard.yaml protects. Runs are never purged because their folder is missing right under a storage root: the storage may just not be mounted. It can't be undone.",
   delete_artifacts: "Deletes the artifacts that qa save-artifacts saved, for commits without recent runs. Kept: the artifacts of milestones, the reference branch's (unless you ask), commits with runs in progress, and what Keep lists. Runs and commits stay, and QA-Board can recreate the artifacts if qaboard.yaml says how.",
   garbage_collect: "Deletes the files of old runs, and maybe the commits' artifacts, as each project's qaboard.yaml says. Runs stay listed, as deleted: a hard delete removes them later. Milestones are kept.",
+  scan_storage: "Walks the projects' folders on disk, and finds what QA-Board doesn't track: runs it doesn't know, exports, what deleted runs and artifacts left, other files, with who owns them. Nothing is deleted: explore the scan, and choose what to delete. It can take hours on big storage.",
+  measure_deleted: "Measures what the runs deleted before QA-Board measured it left on disk (manifests, files their manifests don't list): users see it in Storage usage. Nothing is deleted.",
 };
 
 
 // Start a job now
-export const kind_icons = { hard_delete: 'trash', garbage_collect: 'clean', delete_artifacts: 'box' };
+export const kind_icons = { hard_delete: 'trash', garbage_collect: 'clean', delete_artifacts: 'box', scan_storage: 'search', measure_deleted: 'calculator' };
 
 export const JobDialog = ({ kind, isOpen, onClose, initial, title }) => {
   const queryClient = useQueryClient();
@@ -252,13 +276,15 @@ export const JobDialog = ({ kind, isOpen, onClose, initial, title }) => {
         </Callout>}
         <p className={Classes.TEXT_MUTED}>{what_is_kept[kind]}</p>
         <JobParamsFields kind={kind} form={form} set={set} errors={errors}/>
-        {!form.dry_run && <Callout intent={Intent.WARNING} icon="warning-sign" style={{ marginTop: 12 }}>
+        {'dry_run' in defaults[kind] && !form.dry_run && <Callout intent={Intent.WARNING} icon="warning-sign" style={{ marginTop: 12 }}>
           This is not a dry run: {kind === 'hard_delete' ? 'the runs will be deleted for good.' : kind === 'delete_artifacts' ? 'the artifacts will be deleted.' : 'files will be deleted.'} Errors don't stop the job: they're listed on its page.
         </Callout>}
       </DialogBody>
       <DialogFooter actions={<>
         <Button text="Cancel" onClick={onClose}/>
-        <Button type="submit" intent={form.dry_run ? Intent.PRIMARY : Intent.DANGER} text={form.dry_run ? 'Start the dry run' : 'Delete'} loading={busy}/>
+        {'dry_run' in defaults[kind]
+          ? <Button type="submit" intent={form.dry_run ? Intent.PRIMARY : Intent.DANGER} text={form.dry_run ? 'Start the dry run' : 'Delete'} loading={busy}/>
+          : <Button type="submit" intent={Intent.PRIMARY} text="Start" loading={busy}/>}
       </>}/>
     </form>
   </Dialog>;

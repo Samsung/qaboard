@@ -164,3 +164,90 @@ describe('Storage usage', () => {
     expect(screen.getByText(/-user alice/)).toBeInTheDocument();
   });
 });
+
+
+describe('Leftovers, rules, exports and untracked files', () => {
+  const rules = {
+    project: null, settings: {},
+    rules: [{ kind: 'garbage_collect', schedule: 'old', when: 'every day at 02:00 (UTC)', next_run_at: '2026-10-23T02:00:00Z', projects: '*', dry_run: false,
+      title: 'Old results are deleted', detail: 'The files of runs on commits without new runs for 1month are deleted.', keeps: 'Milestones are kept.', after: '1month' }],
+  };
+
+  it('shows what deleted runs left, and the deletion rules', async () => {
+    mockApi({
+      'GET /api/v1/storage/overview': { ...overview, totals: { ...overview.totals, deleted: { runs: 4, bytes: 2 * GB, unmeasured: 0 } }, exports: { count: 2, bytes: 3 * GB, linked_bytes: GB } },
+      'GET /api/v1/storage/jobs': { jobs: [] },
+      'GET /api/v1/storage/rules': rules,
+    });
+    renderAt('/storage');
+    expect(await screen.findByTestId('deleted-leftovers')).toHaveTextContent('2.0 GB');
+    expect(screen.getByTestId('deleted-leftovers')).toHaveTextContent('left by 4 deleted runs');
+    expect(screen.getByTestId('exports-total')).toHaveTextContent('3.0 GB');
+    const rule = await screen.findByTestId('deletion-rule');
+    expect(rule).toHaveTextContent('Old results are deleted');
+    expect(rule).toHaveTextContent('every day at 02:00 (UTC)');
+  });
+
+  it('says when nothing deletes results', async () => {
+    mockApi({ 'GET /api/v1/storage/overview': overview, 'GET /api/v1/storage/items': items, 'GET /api/v1/storage/jobs': { jobs: [] }, 'GET /api/v1/storage/rules': { rules: [], settings: {}, project: 'proj/a' } });
+    renderAt('/storage/batches?project=proj/a');
+    expect(await screen.findByTestId('deletion-rules')).toHaveTextContent("Nothing deletes this project's results automatically");
+  });
+
+  it('lists exports, explains links, and deletes them', async () => {
+    const fetch = mockApi({
+      'GET /api/v1/storage/overview': overview,
+      'GET /api/v1/storage/jobs': { jobs: [] },
+      'GET /api/v1/storage/exports': {
+        exports: [
+          { id: 1, path: '/algo/proj/outputs/aa/bbb/share/1234abcd', project_id: 'proj/a', hexsha: 'a'.repeat(40), batch_label: 'big', created_by: 'alice', owner: 'alice', source: 'web',
+            created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-02T00:00:00Z', bytes: 3 * GB, linked_bytes: 3 * GB, files: 30, measured_at: '2026-10-02T00:00:00Z', exports: 2 },
+          { id: 2, path: '/algo/exports/bob/x', project_id: null, created_by: 'bob', owner: 'bob', source: 'scan', bytes: GB, linked_bytes: 0, files: 3, exports: 0 },
+        ],
+        totals: { count: 2, bytes: 4 * GB, linked_bytes: 3 * GB },
+      },
+      'POST /api/v1/storage/exports/delete': () => [{ job: { id: 9 } }, 201],
+    });
+    renderAt('/storage/exports?scope=all');
+    const [mine, bobs] = await screen.findAllByTestId('export');
+    expect(within(mine).getByText('Links to the runs')).toBeInTheDocument();
+    expect(within(mine).getByText('2 exports in this folder')).toBeInTheDocument();
+    expect(within(bobs).queryByRole('checkbox')).not.toBeInTheDocument();
+    fireEvent.click(within(mine).getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete…' }));
+    expect(await screen.findByText(/that space is freed only once the runs are deleted too/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete 1 export' }));
+    await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/storage/exports/delete')).toHaveLength(1));
+    expect(lastBody(fetch, 'POST', '/api/v1/storage/exports/delete')).toEqual({ ids: [1] });
+  });
+
+  it("shows what the latest scan found that QA-Board doesn't track, and deletes what's yours", async () => {
+    const entry = props => ({ path: '/algo/proj/outputs/alice/tmp', kind: 'untracked_files', bytes: 5 * GB, untracked_bytes: 5 * GB, files: 100, kinds: { untracked_files: 5 * GB },
+      owners: { alice: 5 * GB }, owner: 'alice', only_yours: true, deletable: true, action: null, ref: {}, newest_mtime: '2026-01-01T00:00:00Z', ...props });
+    const fetch = mockApi({
+      'GET /api/v1/storage/overview': overview,
+      'GET /api/v1/storage/jobs': { jobs: [] },
+      'GET /api/v1/storage/untracked': {
+        scan: { id: 3, finished_at: '2026-10-21T00:00:00Z', roots: [] }, user: 'alice',
+        totals: { bytes: 7 * GB, by_kind: { untracked_files: 5 * GB, untracked_export: 2 * GB } },
+        entries: [entry(), entry({ path: '/algo/proj/outputs/shared', only_yours: false, owners: { alice: GB, bob: GB } })],
+      },
+      'POST /api/v1/storage/untracked/delete': () => [{ job: { id: 10 } }, 201],
+    });
+    renderAt('/storage/untracked');
+    const [yours, shared] = await screen.findAllByTestId('untracked');
+    expect(screen.getByText(/that you own and QA-Board doesn't track/)).toHaveTextContent('7.0 GB');
+    expect(within(shared).queryByRole('checkbox')).not.toBeInTheDocument();
+    fireEvent.click(within(yours).getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete…' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete 5.0 GB' }));
+    await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/storage/untracked/delete')).toHaveLength(1));
+    expect(lastBody(fetch, 'POST', '/api/v1/storage/untracked/delete')).toEqual({ paths: ['/algo/proj/outputs/alice/tmp'] });
+  });
+
+  it('explains how to find untracked files before any scan', async () => {
+    mockApi({ 'GET /api/v1/storage/overview': overview, 'GET /api/v1/storage/jobs': { jobs: [] }, 'GET /api/v1/storage/untracked': { scan: null, totals: {}, entries: [] } });
+    renderAt('/storage/untracked');
+    expect(await screen.findByText("The storage wasn't scanned yet")).toBeInTheDocument();
+  });
+});

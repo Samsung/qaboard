@@ -18,6 +18,9 @@ import { formatBytes, formatNumber, plural, SizeBar, Path } from "./format";
 import { DeleteDialog } from "./DeleteDialog";
 import { Deletions } from "./Deletions";
 import { QuotaHelp } from "./QuotaHelp";
+import { Rules } from "./Rules";
+import { ExportsView } from "./Exports";
+import { UntrackedView } from "./Untracked";
 
 
 export const views = [
@@ -26,6 +29,8 @@ export const views = [
   { id: 'commits', title: 'Commits', icon: 'git-commit', group: 'commit' },
   { id: 'branches', title: 'Branches', icon: 'git-branch', group: 'branch' },
   { id: 'folders', title: 'Folders', icon: 'folder-close' },
+  { id: 'exports', title: 'Exports', icon: 'export' },
+  { id: 'untracked', title: 'Not tracked', icon: 'search' },
 ];
 
 const filter_keys = ['scope', 'user', 'project', 'folder', 'branch', 'older', 'search', 'sort', 'page', 'path'];
@@ -365,6 +370,23 @@ export const StorageUsage = ({ me, view, filters }) => {
       <Card compact><div className="value" data-testid="total">{formatBytes(overview.totals.bytes)}</div><div className={Classes.TEXT_MUTED}>{scope === 'me' ? 'used by your runs' : scope === 'user' ? `used by ${filters.user}'s runs` : "used by everyone's runs"}{filters.project ? ` in ${filters.project}` : ''}</div></Card>
       <Card compact><div className="value">{formatNumber(overview.totals.runs)}</div><div className={Classes.TEXT_MUTED}>runs, in {plural(overview.totals.batches, 'batch', 'batches')}</div></Card>
       <Card compact><div className="value">{formatNumber(overview.totals.projects)}</div><div className={Classes.TEXT_MUTED}>{overview.projects[0] ? <>projects, the biggest: {overview.projects[0].project_id}</> : 'projects'}</div></Card>
+      {overview.totals.deleted?.runs > 0 && <Tooltip
+        content={<span style={{ display: 'block', maxWidth: 340 }}>
+          Deleting runs deletes the files their manifest lists, and keeps the manifest. Files written after the run ended stay too.
+          Admins remove what's left with a schedule: see below.{overview.totals.deleted.unmeasured > 0 ? ` ${plural(overview.totals.deleted.unmeasured, 'deleted run')} weren't measured yet.` : ''}
+        </span>}
+        hoverOpenDelay={200}
+        targetTagName="div"
+      >
+        <Card compact data-testid="deleted-leftovers">
+          <div className="value">{formatBytes(overview.totals.deleted.bytes)}</div>
+          <div className={Classes.TEXT_MUTED}>left by {plural(overview.totals.deleted.runs, 'deleted run')}{overview.totals.deleted.unmeasured > 0 ? ' (some not measured yet)' : ''}</div>
+        </Card>
+      </Tooltip>}
+      {overview.exports?.count > 0 && <Card compact interactive onClick={() => go('exports')} data-testid="exports-total">
+        <div className="value">{formatBytes(overview.exports.bytes)}</div>
+        <div className={Classes.TEXT_MUTED}>in {plural(overview.exports.count, 'export')}{overview.exports.linked_bytes > 0 ? `, ${formatBytes(overview.exports.linked_bytes)} linked to runs` : ''}</div>
+      </Card>}
       {overview.users && scope !== 'me' && <Card compact>
         <div className={Classes.TEXT_MUTED} style={{ marginBottom: 4 }}>Who uses the most</div>
         {overview.users.slice(0, 3).map(u => <div key={u.user_name} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -375,6 +397,7 @@ export const StorageUsage = ({ me, view, filters }) => {
     </Summary>}
 
     <Deletions/>
+    {overview && <Rules project={filters.project}/>}
 
     <ScrollingTabs>
       <Tabs id="storage-views" selectedTabId={selected_view.id} onChange={id => go(id, { page: '' })} size="large">
@@ -394,6 +417,8 @@ export const StorageUsage = ({ me, view, filters }) => {
       {selected_view.id === 'projects' && <ProjectsView overview={overview} filters={filters} go={go}/>}
       {group && <ItemsView group={group} filters={filters} setFilters={setFilters} selection={selection} setSelection={setSelection}/>}
       {selected_view.id === 'folders' && <FoldersView filters={filters} setFilters={setFilters} go={go} overview={overview} onDelete={setDeleting}/>}
+      {selected_view.id === 'exports' && <ExportsView filters={filters} me={me}/>}
+      {selected_view.id === 'untracked' && <UntrackedView me={me}/>}
     </div>
 
     {group && (selection.all || selection.keys.size > 0) && <SelectionBar as="section" className={`${Classes.CARD} ${Classes.ELEVATION_3}`} aria-label="Selection">

@@ -131,3 +131,34 @@ def next_run(expression: str, tz_name: str, after_utc: datetime.datetime) -> dat
   candidate = Cron(expression).next_after(local)
   # normalizes times that don't exist (DST gaps) or happen twice (we take the first)
   return candidate.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+
+
+WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+
+def describe(expression: str, tz_name: str = 'UTC') -> str:
+  """ "0 2 * * *" => "every day at 02:00 (UTC)". Falls back to the expression when it's not a simple one."""
+  try:
+    cron = Cron(expression)
+  except CronError:
+    return expression
+  at = ''
+  if len(cron.hours) == 1 and len(cron.minutes) == 1:
+    at = f" at {min(cron.hours):02d}:{min(cron.minutes):02d} ({tz_name})"
+  elif len(cron.hours) == 24 and len(cron.minutes) == 1:
+    return f"every hour at :{min(cron.minutes):02d}"
+  else:
+    return f"on the schedule \"{expression}\" ({tz_name})"
+  every_month = len(cron.months) == 12
+  if cron.any_day and cron.any_weekday and every_month:
+    return f"every day{at}"
+  if cron.any_day and every_month and not cron.any_weekday:
+    days = [WEEKDAYS[d] for d in sorted(cron.weekdays)]
+    if days == WEEKDAYS[1:6]:
+      return f"every weekday{at}"
+    return f"every {', '.join(days)}{at}"
+  if cron.any_weekday and every_month and len(cron.days) == 1:
+    day = min(cron.days)
+    suffix = 'th' if 11 <= day <= 13 else {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
+    return f"on the {day}{suffix} of every month{at}"
+  return f"on the schedule \"{expression}\" ({tz_name})"

@@ -16,7 +16,7 @@ import { AdminError } from "./states";
 import { jobQuery, jobErrorsQuery, job_errors_page_size, cancelJob, retryJob, isActiveJob } from "./api";
 import { Pager } from "./Users";
 import {
-  JobStatus, counters, error_kinds, errorKindLabel, nbErrors, number, formatDuration, jobDuration, isStale, kind_labels,
+  JobStatus, counters, error_kinds, errorKindLabel, nbErrors, number, formatBytes, formatDuration, jobDuration, isStale, kind_labels,
 } from "./jobs";
 import { Workers } from "./Storage";
 
@@ -161,6 +161,12 @@ export const JobDetail = ({ id }) => {
       {job.attempts > 1 && <> · resumed {job.attempts - 1} time{job.attempts > 2 ? 's' : ''}</>}
     </p>
 
+    {(progress.scan_id || job.params?.scan_id) && <Callout icon="search" style={{ marginBottom: 12 }}>
+      <Link to={`/admin/storage/scans/${progress.scan_id ?? job.params.scan_id}`}>
+        {job.kind === 'scan_storage' ? (active ? 'Explore what the scan found so far' : 'Explore what the scan found') : `Back to scan #${job.params.scan_id}`}
+      </Link>
+      {job.kind === 'scan_storage' && progress.roots_total ? <span className={Classes.TEXT_MUTED}> · {number(progress.roots_done ?? 0)} of {number(progress.roots_total)} storage roots, {number(progress.folders_done ?? 0)} of {number(progress.folders_total ?? 0)} of their folders{progress.current && active ? <> · now in <code>{progress.current}</code></> : null}</span> : null}
+    </Callout>}
     {job.status === 'queued' && <Workers workers={job.workers} queued/>}
     {isStale(job) && <Callout intent={Intent.WARNING} title="No news from its worker">
       Its last heartbeat was <Time iso={job.heartbeat_at}/>. If the worker was stopped, the job is queued again after 10 minutes, and resumes where it was.
@@ -182,7 +188,7 @@ export const JobDetail = ({ id }) => {
       {shown_counters.map(counter => {
         const key = job.dry_run && counter.dry_key ? counter.dry_key : counter.key;
         const content = <Card compact>
-          <div className="count" style={counter.intent === Intent.DANGER && progress[key] ? { color: Colors.RED3 } : undefined}>{number(progress[key])}</div>
+          <div className="count" style={counter.intent === Intent.DANGER && progress[key] ? { color: Colors.RED3 } : undefined}>{counter.format === 'bytes' ? formatBytes(progress[key]) : number(progress[key])}</div>
           <div className={Classes.TEXT_MUTED}>{job.dry_run && counter.dry ? counter.dry : counter.label}</div>
         </Card>;
         return counter.hint ? <Tooltip key={counter.key} content={counter.hint} hoverOpenDelay={300} targetTagName="div">{content}</Tooltip> : <div key={counter.key}>{content}</div>;
