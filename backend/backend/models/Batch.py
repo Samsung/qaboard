@@ -58,7 +58,7 @@ class Batch(Base):
   origin = Column(String())
   user_name = Column(String())
   # the verified user, when it was sent with a token or started from the web app
-  user_id = Column(Integer(), ForeignKey('users.id', ondelete='SET NULL'))
+  user_id = Column(Integer(), ForeignKey('users.id', ondelete='SET NULL', name='fk_batches_user_id'))
   # when it last got a run: lists of recent batches
   latest_output_datetime = Column(DateTime())
 
@@ -69,6 +69,7 @@ class Batch(Base):
     # Users' recent batches (the home page, the project page), created by the migration e9b1c3d5f7a2
     Index('ix_batches_user_id_latest_output_datetime', 'user_id', 'latest_output_datetime'),
     Index('ix_batches_user_name_latest_output_datetime', 'user_name', 'latest_output_datetime'),
+    Index('ix_batches_latest_output_datetime', 'latest_output_datetime'),
   )
 
   batch_dir_override = Column(String())

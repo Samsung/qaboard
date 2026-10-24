@@ -260,14 +260,16 @@ def scope_and_origins():
 def get_commits_counts():
   """
   How many commits with results the lists would show, for each scope: {"all", "mine", "without_ci"}.
-  `mine` is null for anonymous users. Same parameters as /api/v1/commits: project, branch, committer, from, to.
+  `mine` is null for anonymous users. Same parameters as /api/v1/commits: project, branch, committer, from, to
+  (by default the last 30 days: counts are never over the whole history).
   """
   project_id = request.args['project']
   if not is_authorized_user(None, project_id):
     return forbidden_project(project_id)
   try:
-    from_date = to_datetime(request.args['from']) - datetime.timedelta(hours=3) if request.args.get('from') else None
-    to_date = to_datetime(request.args['to']) + datetime.timedelta(hours=3) if request.args.get('to') else None
+    now = timezone.localize(datetime.datetime.now())
+    to_date = (to_datetime(request.args['to']) if request.args.get('to') else now) + datetime.timedelta(hours=3)
+    from_date = (to_datetime(request.args['from']) if request.args.get('from') else now - datetime.timedelta(days=30)) - datetime.timedelta(hours=3)
   except ValueError as e:
     return jsonify({"error": f"Invalid dates: {e}"}), 400
   query = db_session.query(CiCommit.id).filter(CiCommit.project_id == project_id, CiCommit.batches.any())
@@ -276,10 +278,7 @@ def get_commits_counts():
     query = query.filter(CiCommit.branch.in_([branch, f'origin/{branch}']))
   if request.args.get('committer'):
     query = query.filter(CiCommit.committer_name == request.args['committer'])
-  if from_date:
-    query = query.filter(CiCommit.authored_datetime >= from_date)
-  if to_date:
-    query = query.filter(CiCommit.authored_datetime <= to_date)
+  query = query.filter(CiCommit.authored_datetime >= from_date, CiCommit.authored_datetime <= to_date)
   identity = identity_of(g.actor.user)
   return jsonify({
     "all": query.count(),
@@ -304,7 +303,8 @@ def get_batches():
   try:
     identity, origins = scope_and_origins()
     limit = int_arg('limit', default=50, min_value=1, max_value=200)
-    offset = int_arg('offset', default=0, max_value=10**12)
+    # lists are scrolled, not paged: deep offsets would only be slow
+    offset = int_arg('offset', default=0, max_value=10000)
     metrics_to_aggregate = json.loads(request.args.get('metrics', '{}'))
   except PermissionError as e:
     return jsonify({"error": f"{e}", "reason": "sign_in_required"}), 401
@@ -328,28 +328,30 @@ def get_batches():
   branch = (request.args.get('branch') or '').replace('origin/', '')
   if branch:
     query = query.filter(CiCommit.branch.in_([branch, f'origin/{branch}']))
-  latest = func.coalesce(Batch.latest_output_datetime, Batch.created_date)
-  query = query.order_by(latest.desc(), Batch.id.desc())
+  # set for every batch (the migration filled old ones): the index sorts them
+  query = query.order_by(Batch.latest_output_datetime.desc().nulls_last(), Batch.id.desc())
 
-  # Across projects, we skip those the user can't read anymore
-  readable = {}
-  def can_read(project):
-    if project_id:
-      return True
-    if project not in readable:
-      readable[project] = is_authorized_user(None, project)
-    return readable[project]
-  batches, page_offset = [], 0
-  for _ in range(10):  # users who lost access to many projects get shorter pages rather than slow ones
-    page = query.offset(page_offset).limit(offset + limit + 1).all()
-    for batch in page:
-      if can_read(batch.ci_commit.project_id):
-        batches.append(batch)
-    page_offset += len(page)
-    if len(page) < offset + limit + 1 or len(batches) >= offset + limit + 1:
-      break
-  batches = batches[offset:]
-  has_more = len(batches) > limit
+  if project_id:
+    batches = query.offset(offset).limit(limit + 1).all()
+    has_more = len(batches) > limit
+  else:
+    # Across projects, we skip those the user can't read anymore (their own batches: there aren't many)
+    readable = {}
+    def can_read(project):
+      if project not in readable:
+        readable[project] = is_authorized_user(None, project)
+      return readable[project]
+    batches, read, chunk, exhausted = [], 0, offset + limit + 1, False
+    for _ in range(10):  # users who lost access to many projects get shorter pages rather than slow ones
+      page = query.offset(read).limit(chunk).all()
+      read += len(page)
+      batches.extend(b for b in page if can_read(b.ci_commit.project_id))
+      exhausted = len(page) < chunk
+      if exhausted or len(batches) > offset + limit:
+        break
+    batches = batches[offset:]
+    # we may have stopped before the end
+    has_more = len(batches) > limit or not exhausted
   batches = batches[:limit]
 
   from ..models.Batch import no_stats

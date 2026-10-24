@@ -10,8 +10,10 @@ user_id), so that pages can show users their own work and hide the CI's (see doc
 - `local`: from someone's terminal.
 
 A batch keeps the origin and the user of whoever created it: when users redo some runs of the CI's batch from the web
-app, it stays the CI's (its runs say they're from the web app).
+app, it stays the CI's (its runs say they're from the web app). Except that the CI wins over local runs: people who
+`qa --share batch` before pushing use the CI's labels.
 """
+import datetime
 from typing import Optional
 
 ORIGINS = ('webapp', 'local', 'ci')
@@ -76,11 +78,19 @@ def run_user(data: dict, submitted_by=None) -> Optional[str]:
 
 
 def claim_batch(batch, origin: str, user_name: Optional[str], user_id: Optional[int] = None):
-  """The first origin and user of a batch are its own. Fills them in for batches from before we saved them."""
-  if getattr(batch, 'origin', None) is None:
+  """
+  The first origin and user of a batch are its own, see above. Fills them in for batches from before we saved them.
+  `user_id`: the verified user, if `user_name` is theirs.
+  """
+  if getattr(batch, 'origin', None) is None or (batch.origin == 'local' and origin == 'ci'):
     batch.origin = origin
-  if getattr(batch, 'user_name', None) is None and user_name:
-    batch.user_name = user_name
-    if user_id is not None and getattr(batch, 'user_id', None) is None:
-      batch.user_id = user_id
+    batch.user_name, batch.user_id = user_name, user_id
+  elif getattr(batch, 'user_name', None) is None and user_name:
+    batch.user_name, batch.user_id = user_name, user_id
+  elif user_id is not None and getattr(batch, 'user_id', None) is None and batch.user_name == user_name:
+    # the same user, verified this time
+    batch.user_id = user_id
+  if getattr(batch, 'latest_output_datetime', None) is None:
+    # lists of batches are sorted by it
+    batch.latest_output_datetime = datetime.datetime.utcnow()
 

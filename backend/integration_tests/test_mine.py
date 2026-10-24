@@ -31,6 +31,22 @@ def test_ci_runs_with_custom_labels(client):
   assert batch('nightly').origin == 'ci'
 
 
+def test_the_ci_wins_over_local_runs(client):
+  """People who share runs before pushing use the CI's labels"""
+  run(client, user='alice', run_context={"origin": "local"})
+  run(client, user='qaboard', job_type='ci', rel_input_path='inputs/b.txt', run_context={"origin": "ci"})
+  run(client, user='alice', rel_input_path='inputs/c.txt', run_context={"origin": "local"})
+  assert (batch().origin, batch().user_name) == ('ci', 'qaboard')
+
+
+def test_commits_are_their_authors(make_user, make_client, client):
+  """Commits merged from GitHub have it as committer"""
+  make_user('alice')
+  commit(client, 'a' * 40, committer='GitHub', email='noreply@github.com', job_type='ci', user='qaboard', commit_author_email='Alice@example.com')
+  alice = login(make_client(), 'alice')
+  assert set(commits(alice, scope='mine')) == {'a'}
+
+
 def test_old_clients(client):
   """Without run_context: job_type"""
   run(client, job_type='ci', user='qaboard')
@@ -72,7 +88,7 @@ def test_webapp_runs(client):
   ci = batch()
   assert (ci.origin, ci.user_name) == ('ci', 'qaboard')
   assert sorted(o.data['origin'] for o in ci.outputs) == ['ci', 'webapp']
-  assert CiCommit.query.one().committer_email is None
+  assert CiCommit.query.one().author_email is None
 
 
 def commit(client, sha, committer='Alice', email=None, label='default', **extra):

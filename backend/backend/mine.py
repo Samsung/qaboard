@@ -2,7 +2,7 @@
 "Mine": the commits users wrote and the batches they started, so that pages can show them first (scope=mine),
 and the filters on where batches come from (origin=webapp,local,ci, see backend/origins.py).
 
-- Commits are mine when their committer's email is one of mine: my account's (from the sign-in provider) and the git
+- Commits are mine when their author's email is one of mine: my account's (from the sign-in provider) and the git
   emails I added in my preferences (`git_emails`). Commits from before we saved emails match my full name.
 - Batches are mine when I started them: the verified user, else the user `qa` said it runs as (QA_USER, $USER).
 - Commits with a batch of mine are mine too.
@@ -42,14 +42,28 @@ def batch_is_mine(identity: Identity):
 
 
 def commit_is_mine(identity: Identity):
-  from sqlalchemy import or_, and_, func
-  from .models import CiCommit
-  conditions = [CiCommit.batches.any(batch_is_mine(identity))]
+  """
+  The ids of my commits, as a union of queries that each use an index (an OR of EXISTS and IN would scan the project's
+  whole history): commits with batches I started, that I wrote (by email), or by my name before we saved emails.
+  """
+  from sqlalchemy import select, union, and_, func
+  from sqlalchemy.orm import aliased
+  from .models import CiCommit, Batch
+  # not correlated with the commits we filter
+  commits = aliased(CiCommit)
+  parts = []
+  if identity.user_id is not None:
+    parts.append(select(Batch.ci_commit_id).where(Batch.user_id == identity.user_id))
+  if identity.user_name:
+    parts.append(select(Batch.ci_commit_id).where(Batch.user_id.is_(None), Batch.user_name == identity.user_name))
   if identity.emails:
-    conditions.append(CiCommit.committer_email.in_(sorted(identity.emails)))
+    parts.append(select(commits.id).where(commits.author_email.in_(sorted(identity.emails))))
   if identity.names:
-    conditions.append(and_(CiCommit.committer_email.is_(None), func.lower(CiCommit.committer_name).in_(sorted(identity.names))))
-  return or_(*conditions)
+    parts.append(select(commits.id).where(and_(commits.author_email.is_(None), func.lower(commits.committer_name).in_(sorted(identity.names)))))
+  if not parts:
+    from sqlalchemy import false
+    return false()
+  return CiCommit.id.in_(union(*parts).scalar_subquery() if len(parts) > 1 else parts[0].scalar_subquery())
 
 
 def batch_origin_in(origins):

@@ -388,15 +388,17 @@ else:
 
 commit_committer_name: Optional[str] = user
 commit_committer_email: Optional[str] = None
+# who wrote it: commits merged from GitHub/GitLab have the forge, or the maintainer who rebased, as committer
+commit_author_email: Optional[str] = None
 commit_authored_datetime = os.environ.get("GIT_AUTHORED_DATETIME", datetime.datetime.now(datetime.timezone.utc).isoformat())
 commit_message: Optional[str] = os.environ.get("GIT_MESSAGE")
 commit_parents: List[str] = []
 if commit_id and is_in_git_repo:
-  fields = ['%cn', '%ce', '%ai', '%P', "%B"]
+  fields = ['%cn', '%ce', '%ae', '%ai', '%P', "%B"]
   try:
     commit_info = git_show("%n".join(fields), commit_id)
     fields_values = commit_info.split('\n', maxsplit=len(fields)-1)
-    commit_committer_name, commit_committer_email, commit_authored_datetime_, commit_parents_str, commit_message_ = fields_values
+    commit_committer_name, commit_committer_email, commit_author_email, commit_authored_datetime_, commit_parents_str, commit_message_ = fields_values
     if not commit_authored_datetime:
       commit_authored_datetime = commit_authored_datetime_
     if not commit_message:
