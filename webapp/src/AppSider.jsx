@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { Link, useLinkClickHandler, useRouter } from "./router";
-import { path_segment } from "./selection";
+import { path_segment, project_url } from "./selection";
 import styled from "styled-components";
 
 import { colors, spacing, typography, borders, transitions, sidebar } from './design/tokens';
@@ -26,7 +26,8 @@ import { ThemeButton } from "./components/ThemeButton"
 import { useHelpSheet, is_typing } from "./components/HelpSheet"
 import { LogsMenuItem, logs_hint_class } from "./AppSiderLogsItem"
 
-import { useCommitsList, useComparison, useSiteConfig, useUser, updateSelected } from "./hooks"
+import { useCommitsList, useComparison, useProjects, useSiteConfig, useUser, updateSelected } from "./hooks"
+import { path_segments } from "./explore/tree"
 import { usePrefsStore } from "./stores/prefs"
 import { useIntegrationStatuses } from "./useIntegrationStatuses"
 import { repo_url, tree_url, commit_url, commits_url as git_commits_url, default_integrations } from "./git"
@@ -129,6 +130,24 @@ const SiderProjectAvatar = styled.div`
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+    }
+    /* breadcrumbs: the ancestors of subprojects */
+    .project-path {
+        padding: 0 ${spacing.sm};
+        font-weight: normal;
+        font-size: ${typography.xs};
+        color: ${colors.textSecondary};
+        overflow-wrap: anywhere;
+    }
+    .project-path a {
+        display: inline;
+        padding: 0;
+        color: ${colors.textSecondary};
+    }
+    .project-path a:hover {
+        background: none;
+        color: ${colors.textPrimary};
+        text-decoration: underline;
     }
 `;
 
@@ -279,7 +298,7 @@ const Sider = styled.div`
             justify-content: center;
             padding: ${spacing.xs} 0;
         }
-        ${SiderProjectAvatar} .project-name {
+        ${SiderProjectAvatar} .project-name, ${SiderProjectAvatar} .project-path {
             display: none;
         }
         ${SectionHeader} {
@@ -363,12 +382,27 @@ const SiderHint = ({ name, content, children }) => {
 const branch_integrations = ({ project_data, commit }) =>
   project_data.data?.qatools_config?.integrations ?? commit?.data?.qatools_config?.integrations ?? default_integrations(project_data);
 
+// "group / repo / sub": links to the ancestors that are projects
+const ProjectBreadcrumbs = ({ project }) => {
+  const { data: projects } = useProjects();
+  const ancestors = path_segments(project, projects).slice(0, -1);
+  if (ancestors.length === 0) return null;
+  return <div className="project-path">
+    {ancestors.map(({ name, path, is_project }, i) => <span key={path}>
+      {i > 0 && ' / '}
+      {is_project ? <Link to={project_url(path)} title={path}>{name}</Link> : <span title={`${path}: not a project`}>{name}</span>}
+    </span>)}
+    {' /'}
+  </div>;
+}
+
 const ProjectSideAvatar = ({ project, project_data = {} }) => {
   const collapsed = useContext(SiderCollapsedContext);
   let project_name = project.split('/').slice(-1)[0];
   return (
     <SiderProjectAvatar>
-      <Link to={`/${project}`} title={`${project}: all its commits`}>
+      <ProjectBreadcrumbs project={project}/>
+      <Link to={project_url(project)} title={`${project}: all its commits`}>
         <ProjectAvatar
           className="avatar"
           project={project}

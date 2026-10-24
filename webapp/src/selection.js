@@ -7,7 +7,7 @@ import qs from "qs";
 import { DateTime } from "luxon";
 
 import { history, useRouter, matchRoutes } from "./router";
-import { route_paths } from "./route_paths";
+import { route_paths, app_paths } from "./route_paths";
 import { side_color_count } from "./sideColors";
 
 
@@ -64,6 +64,14 @@ const as_list = value => {
 
 // For paths: project ids and branches have slashes, but also e.g. '#'
 export const path_segment = value => String(value).split('/').map(encodeURIComponent).join('/');
+
+
+// A project's page. Projects named like a page of the app (e.g. "projects", "settings") don't get /<project>:
+// the app's page wins (route_paths.js), their commits list is their page.
+const app_routes = Object.values(app_paths).map(path => ({ path, exact: true }));
+export const project_url = project => matchRoutes(app_routes, `/${project}`)
+  ? `/${path_segment(project)}/commits`
+  : `/${path_segment(project)}`;
 
 const day = /^\d{4}-\d{2}-\d{2}$/;
 

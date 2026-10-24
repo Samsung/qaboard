@@ -14,6 +14,9 @@ export const usePrefsStore = create()(persist(
     milestones: {},
     // "mine/tuning/denoiser" => true: groups of milestones the user collapsed in the milestones menus
     milestoneGroupsCollapsed: {},
+    // "group/repo" => true (expanded) or false (collapsed): the groups users opened or closed in Explore.
+    // Others have their default (src/explore/ExplorePage.jsx)
+    exploreGroups: {},
     // project => what's in the tuning form
     tuning: {},
     // "system" (follows the OS), "light" or "dark", see src/theme.js
@@ -46,6 +49,11 @@ export const usePrefsStore = create()(persist(
     toggleMilestoneGroup: path => set(state => {
       const { [path]: collapsed, ...others } = state.milestoneGroupsCollapsed;
       return { milestoneGroupsCollapsed: collapsed ? others : { ...others, [path]: true } };
+    }),
+    // `default_expanded`: what the group shows without a choice, not remembered: the list only keeps users' choices
+    setExploreGroup: (path, expanded, default_expanded) => set(state => {
+      const { [path]: _previous, ...others } = state.exploreGroups;
+      return { exploreGroups: !!expanded === default_expanded ? others : { ...others, [path]: !!expanded } };
     }),
     setTheme: theme => set({ theme }),
     setSiderCollapsed: collapsed => set({ siderCollapsed: !!collapsed }),

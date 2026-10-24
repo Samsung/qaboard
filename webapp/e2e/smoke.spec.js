@@ -58,6 +58,27 @@ for (const { name, path, text } of pages) {
   });
 }
 
+// Explore: groups, subprojects, quiet ones, and the sparklines, at phone width too
+test('explore', async ({ page }) => {
+  const recent = new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString();
+  const used = { data: { qatools_config: { project: { name: 'x', description: 'A project with a rather long description that wraps on phones' } } }, latest_commit_datetime: recent, total_commits: 3, latest_human_activity: recent, views_90d: 1, my_last_view: null, activity: Array.from({ length: 30 }, (_, i) => i % 7) };
+  const ci_only = { ...used, latest_human_activity: null, views_90d: 0, activity: null };
+  const projects = { 'kitefin/k3': used, 'kitefin/k3/denoise': used, 'kitefin/k3/ci-a': ci_only, 'kitefin/k5': used, 'old/one': ci_only, 'old/two': ci_only };
+  await page.route('**/api/v1/projects**', route => route.fulfill({ json: projects }));
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto('/projects');
+    await expect(page.getByRole('heading', { name: 'k5' })).toBeVisible();
+    await page.getByRole('button', { name: '2 subprojects' }).click();
+    await expect(page.getByRole('heading', { name: 'denoise' })).toBeVisible();
+    await expect(page.getByText('2 quiet projects')).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow, `width ${width}`).toBeLessThanOrEqual(0);
+    await page.evaluate(() => localStorage.clear());
+  }
+  await page.waitForLoadState('networkidle');
+});
+
 // nginx serves files.html for folders under /s/, `vite preview` too (see vite.config.js)
 test('file browser', async ({ page }) => {
   await page.route('**/s/**', route => {
