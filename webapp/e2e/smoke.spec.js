@@ -19,6 +19,8 @@ const api = {
   '/api/v1/project': { qatools_config: {} },
   '/api/v1/project/branches': ['master'],
   '/api/v1/commits': [commit],
+  '/api/v1/commit-counts': { all: 1, mine: 1, without_ci: 0 },
+  '/api/v1/batches': [],
   '/api/v1/commit': commit,
 };
 

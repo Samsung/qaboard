@@ -32,6 +32,10 @@ export const usePrefsStore = create()(persist(
     imageSensor: {},
     // runs show only the settings of their configuration that not all runs share
     hide_shared_settings: true,
+    // project => the last scope users picked on its page: "mine" or "all"
+    listScope: {},
+    // other emails in users' git config: their commits are theirs too (the server reads it, see backend/mine.py)
+    git_emails: [],
 
     toggleFavorite: project => set(state => ({
       favorites: { ...state.favorites, [project]: !state.favorites[project] },
@@ -50,6 +54,8 @@ export const usePrefsStore = create()(persist(
     setImageAnalysisValues: values => set({ imageAnalysisValues: values }),
     setImageSensor: (project, sensor) => set(state => ({ imageSensor: { ...state.imageSensor, [project]: sensor } })),
     setCommitListDensity: density => set({ commitListDensity: density === 'compact' ? 'compact' : 'comfortable' }),
+    setGitEmails: emails => set({ git_emails: [...new Set(emails.map(e => e.trim().toLowerCase()).filter(e => e.includes('@')))] }),
+    setListScope: (project, scope) => set(state => ({ listScope: { ...state.listScope, [project]: scope } })),
     toggleHideSharedSettings: () => set(state => ({ hide_shared_settings: !state.hide_shared_settings })),
     updateTuning: (project, form) => set(state => ({
       tuning: { ...state.tuning, [project]: { ...state.tuning[project], ...form } },
