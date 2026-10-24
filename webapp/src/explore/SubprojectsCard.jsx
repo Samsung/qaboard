@@ -8,7 +8,7 @@ import { useProjects } from "../hooks";
 import { usePrefsStore } from "../stores/prefs";
 import { build_tree, is_listed } from "./tree";
 import { LastActivity, QuietTag } from "./ExplorePage";
-import { path_segment } from "../selection";
+import { project_url } from "../selection";
 
 const nb_first = 8;
 
@@ -34,7 +34,7 @@ const row_style = { display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', g
 
 const SubprojectRow = ({ node }) => <li style={row_style}>
   {node.project
-    ? <Link to={`/${path_segment(node.id)}`} title={node.id} style={{overflowWrap: 'anywhere'}}>{node.name}</Link>
+    ? <Link to={project_url(node.id)} title={node.id} style={{overflowWrap: 'anywhere'}}>{node.name}</Link>
     : <span title={node.id} style={{overflowWrap: 'anywhere'}}>{node.name}/</span>}
   {node.nb_projects > 0 && <span className={`${Classes.TEXT_MUTED} ${Classes.TEXT_SMALL}`}>+{node.nb_projects} below</span>}
   {node.quiet && <QuietTag/>}

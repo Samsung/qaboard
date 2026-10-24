@@ -1,6 +1,6 @@
 """
 Who looked at which project, and when: Explore lets projects nobody looks at fade (webapp/src/explore/), and it can
-tell users what they viewed recently. One row per user and project, written at most once an hour (api/project_views.py).
+tell users what they viewed recently. One row per user and project, written at most once an hour (api/api.py: post_project_view).
 """
 import datetime
 

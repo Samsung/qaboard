@@ -24,6 +24,9 @@ depends_on = None
 def upgrade():
   # The app creates missing tables when it starts (Base.metadata.create_all)
   if not sa.inspect(op.get_bind()).has_table('project_views'):
+    # its foreign keys briefly lock users and projects: we give up rather than wait behind long queries (and block
+    # every write queued behind us). Run the migration again if it times out.
+    op.execute("SET LOCAL lock_timeout = '5s'")
     op.create_table(
       'project_views',
       sa.Column('id', sa.Integer(), primary_key=True),

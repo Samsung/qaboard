@@ -2,6 +2,7 @@
 // <ExploreList/> is the list alone, for other pages; <ExplorePage/> adds the navbar and the footer.
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "../router";
+import { project_url } from "../selection";
 
 import { DateTime } from 'luxon';
 
@@ -54,8 +55,8 @@ export const LastActivity = ({ activity, className }) => {
   </span>;
 };
 
-export const QuietTag = () => <Tooltip content={quiet_tooltip} placement="top" openOnTargetFocus={false}>
-  <Tag minimal round icon="moon" style={{ cursor: 'help' }}>quiet</Tag>
+export const QuietTag = () => <Tooltip content={quiet_tooltip} placement="top">
+  <Tag minimal round icon="moon" style={{ cursor: 'help' }} tabIndex={0} aria-label={`Quiet: ${quiet_tooltip}`}>quiet</Tag>
 </Tooltip>;
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -86,7 +87,7 @@ const NodeCard = ({ node, expanded, onToggle, flat = false }) => {
   const web_url = project ? project_web_url(project) : null;
   const nb_below = node.nb_projects;
   const has_below = node.children.length + node.quiet_children.length > 0;
-  const href = project ? `/${node.id}` : undefined;
+  const href = project ? project_url(node.id) : undefined;
   const sparkline_label = nb_below ? "Batches with runs per day, last 30 days, with what's below" : undefined;
 
   return (
@@ -141,10 +142,11 @@ const PagedNodes = ({ nodes, render }) => {
 const TreeNode = ({ node }) => {
   const stored = usePrefsStore(state => state.exploreGroups[node.id]);
   const setExploreGroup = usePrefsStore(state => state.setExploreGroup);
-  const expanded = stored ?? !node.project;
+  const default_expanded = !node.project;
+  const expanded = stored ?? default_expanded;
   const has_below = node.children.length + node.quiet_children.length > 0;
   return <>
-    <NodeCard node={node} expanded={expanded} onToggle={() => setExploreGroup(node.id, !expanded)}/>
+    <NodeCard node={node} expanded={expanded} onToggle={() => setExploreGroup(node.id, !expanded, default_expanded)}/>
     {expanded && has_below && <div style={children_style}>
       {/* users already asked to see the quiet ones */}
       {node.quiet

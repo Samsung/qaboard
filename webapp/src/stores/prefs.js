@@ -50,7 +50,11 @@ export const usePrefsStore = create()(persist(
       const { [path]: collapsed, ...others } = state.milestoneGroupsCollapsed;
       return { milestoneGroupsCollapsed: collapsed ? others : { ...others, [path]: true } };
     }),
-    setExploreGroup: (path, expanded) => set(state => ({ exploreGroups: { ...state.exploreGroups, [path]: !!expanded } })),
+    // `default_expanded`: what the group shows without a choice, not remembered: the list only keeps users' choices
+    setExploreGroup: (path, expanded, default_expanded) => set(state => {
+      const { [path]: _previous, ...others } = state.exploreGroups;
+      return { exploreGroups: !!expanded === default_expanded ? others : { ...others, [path]: !!expanded } };
+    }),
     setTheme: theme => set({ theme }),
     setSiderCollapsed: collapsed => set({ siderCollapsed: !!collapsed }),
     setImagePixelValues: values => set({ imagePixelValues: values }),

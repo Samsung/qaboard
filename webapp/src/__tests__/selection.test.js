@@ -4,6 +4,7 @@ import {
   selection_from_url, url_for_selection, date_range_from_query, route_info,
   show_reference, add_reference, remove_reference, swap_with_top, move_reference, duplicate_reference, rename_reference,
   reference_names, reference_colors, side_colors, switch_new_and_reference,
+  project_url,
 } from '../selection';
 import { matchRoutes } from '../router';
 import { route_paths } from '../route_paths';
@@ -425,5 +426,17 @@ describe('several references', () => {
     // colors in the URL that don't exist, or that another has already, are ignored
     expect(reference_colors(select('/p/commit/a?reference=b&color_ref=9&compare%5B0%5D%5Bcommit%5D=c&compare%5B0%5D%5Bcolor%5D=1').references)).toEqual([2, 1]);
     expect(reference_colors(select('/p/commit/a?reference=b&color_ref=2&compare%5B0%5D%5Bcommit%5D=c&compare%5B0%5D%5Bcolor%5D=2').references)).toEqual([2, 1]);
+  });
+});
+
+
+describe('project_url', () => {
+  it("is the project's path, or its commits when the app has a page with the same name", () => {
+    expect(project_url('group/repo')).toBe('/group/repo');
+    expect(project_url('a b/c')).toBe('/a%20b/c');
+    expect(project_url('projects')).toBe('/projects/commits');
+    expect(project_url('settings')).toBe('/settings/commits');
+    // only exact matches are the app's
+    expect(project_url('projects/sub')).toBe('/projects/sub');
   });
 });

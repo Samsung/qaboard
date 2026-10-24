@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { Link, useLinkClickHandler, useRouter } from "./router";
-import { path_segment } from "./selection";
+import { path_segment, project_url } from "./selection";
 import styled from "styled-components";
 
 import { colors, spacing, typography, borders, transitions, sidebar } from './design/tokens';
@@ -390,7 +390,7 @@ const ProjectBreadcrumbs = ({ project }) => {
   return <div className="project-path">
     {ancestors.map(({ name, path, is_project }, i) => <span key={path}>
       {i > 0 && ' / '}
-      {is_project ? <Link to={`/${path_segment(path)}`} title={path}>{name}</Link> : <span title={`${path}: not a project`}>{name}</span>}
+      {is_project ? <Link to={project_url(path)} title={path}>{name}</Link> : <span title={`${path}: not a project`}>{name}</span>}
     </span>)}
     {' /'}
   </div>;
@@ -402,7 +402,7 @@ const ProjectSideAvatar = ({ project, project_data = {} }) => {
   return (
     <SiderProjectAvatar>
       <ProjectBreadcrumbs project={project}/>
-      <Link to={`/${project}`} title={`${project}: all its commits`}>
+      <Link to={project_url(project)} title={`${project}: all its commits`}>
         <ProjectAvatar
           className="avatar"
           project={project}
