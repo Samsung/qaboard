@@ -31,6 +31,7 @@ import { WrappingNavbar } from "../components/PageShell"
 import PrivateContent from "../components/authentication/PrivateContent"
 import { WhatsNewLink } from '../releaseNotes/ReleaseNotes'
 import { ThemeButton } from '../components/ThemeButton'
+import { PaletteButton } from '../palette/CommandPalette'
 import Footer, { repository_url } from '../components/Footer'
 import { useProjects, useSiteConfig, useUser } from '../hooks'
 import { usePrefsStore } from '../stores/prefs'
@@ -291,7 +292,8 @@ export const SiteNavbar = ({ via = "projects-list" }) => {
           <WhatsNewLink via={via}><Button className={Classes.MINIMAL} icon={<Icon icon="clean" color="#fff"/>} text="What's new" style={{color : "#fff"}}/></WhatsNewLink>
       </NavbarGroup>
       <NavbarGroup align={Alignment.RIGHT}>
-        <ThemeButton style={{marginRight: '10px'}}/>
+        <PaletteButton dark/>
+        <ThemeButton style={{margin: '0 10px 0 6px'}}/>
         {user.is_logged && <Link to="/storage" style={{paddingRight: '15px'}}>
           <Button icon="database" text="Storage usage" style={{color : "#fff"}} title="How much storage your runs use, and deleting what you don't need"/>
         </Link>}

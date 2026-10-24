@@ -24,6 +24,7 @@ import AuthButton from "./components/authentication/Auth"
 import { WhatsNewButton } from "./releaseNotes/ReleaseNotes"
 import { ThemeButton } from "./components/ThemeButton"
 import { useHelpSheet, is_typing } from "./components/HelpSheet"
+import { PaletteButton } from "./palette/CommandPalette"
 import { LogsMenuItem, logs_hint_class } from "./AppSiderLogsItem"
 
 import { useCommitsList, useComparison, useProjects, useSiteConfig, useUser, updateSelected } from "./hooks"
@@ -91,6 +92,12 @@ const SiderHeader = styled.div`
     .qa-header-actions .bp6-button:hover {
         color: ${colors.textPrimary};
     }
+`;
+
+const SiderSearch = styled.div`
+    padding: ${spacing.sm} ${spacing.sm} 0;
+    display: flex;
+    justify-content: center;
 `;
 
 const SiderSection = styled.div`
@@ -755,6 +762,11 @@ const AppSider = () => {
           </Tooltip>
         </span>
       </SiderHeader>
+
+      {/* Go anywhere: the command palette */}
+      <SiderSearch>
+        <PaletteButton dark fill compact={collapsed}/>
+      </SiderSearch>
 
       {/* Project Section */}
       <SiderSection>

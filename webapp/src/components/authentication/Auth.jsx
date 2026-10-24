@@ -165,19 +165,16 @@ const UserMenuItemWrapper = styled.div`
   }
 `;
 
-const AuthButton = ({ appSider }) => {
+// Signs users out. With single sign-on, the identity provider signs them out too: `onLeave` while the page goes there.
+export const useSignOut = ({ onLeave } = {}) => {
   const queryClient = useQueryClient();
-  // until we know who users are, we don't flash a "Sign in" button
-  const { data: known_user, isPending: user_pending } = useQuery(userQuery);
-  const user = known_user ?? logged_out_user;
-  const { login_type, avatar_url_template } = useSiteConfig();
-  const [is_loading, setLoading] = useState(false);
-
-  const logout = () => {
+  const user = useQuery(userQuery).data ?? logged_out_user;
+  const { login_type } = useSiteConfig();
+  return () => {
     const display_name = user.full_name ?? user.user_name;
     queryClient.setQueryData(userQuery.queryKey, logged_out_user);
     if (login_type === "SAML") {
-      setLoading(true);
+      onLeave?.();
       toaster.show({ message: `Goodbye, ${display_name}`, intent: Intent.WARNING, timeout: 3000 });
       window.location.href = '/api/auth/saml20/login/?slo';
       return;
@@ -191,6 +188,15 @@ const AuthButton = ({ appSider }) => {
         toaster.show({ message: errorMessage(error), intent: Intent.DANGER, timeout: 3000 });
       });
   };
+};
+
+const AuthButton = ({ appSider }) => {
+  // until we know who users are, we don't flash a "Sign in" button
+  const { data: known_user, isPending: user_pending } = useQuery(userQuery);
+  const user = known_user ?? logged_out_user;
+  const { avatar_url_template } = useSiteConfig();
+  const [is_loading, setLoading] = useState(false);
+  const logout = useSignOut({ onLeave: () => setLoading(true) });
 
   if (is_loading)
     return <Button loading={true}/>;

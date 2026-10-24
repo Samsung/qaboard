@@ -103,6 +103,29 @@ test('home', async ({ page }) => {
   await page.waitForLoadState('networkidle');
 });
 
+// The command palette: from any page with the keyboard, to a project, then to one of its branches
+test('command palette', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('qaboard.release-notes.last-seen', '2099-12'));
+  await page.goto('/projects');
+  await expect(page.getByPlaceholder('Filter projects...')).toBeVisible();
+  await page.keyboard.press('Control+k');
+  const dialog = page.getByRole('dialog', { name: 'Search QA-Board' });
+  await expect(dialog.getByRole('combobox')).toBeFocused();
+  await page.keyboard.type('repo');
+  await expect(dialog.getByRole('option').first()).toContainText(project);
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(new RegExp(`/${project}$`));
+  await expect(page.getByText('Hello world').first()).toBeVisible();
+  await expect(dialog).toBeHidden();
+  // "/" opens it too, and in a project it finds branches
+  await page.keyboard.press('/');
+  await page.keyboard.type('mast');
+  await expect(dialog.getByRole('group', { name: /Branches/ }).getByRole('option', { name: /master/ })).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(new RegExp(`/${project}/commits/master$`));
+  await page.waitForLoadState('networkidle');
+});
+
 // Signed-out visitors get Explore
 test('explore at / when signed out', async ({ page }) => {
   await page.route('**/api/v1/user/me/', route => route.fulfill({ json: { is_authenticated: false } }));
