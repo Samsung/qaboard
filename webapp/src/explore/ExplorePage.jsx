@@ -50,7 +50,7 @@ export const LastActivity = ({ activity, className }) => {
   if (!activity?.date) return null;
   const date = DateTime.fromISO(activity.date, { zone: 'utc' });
   return <span className={`${Classes.TEXT_MUTED} ${className ?? ''}`} title={`${activity_titles[activity.kind]}: ${date.toLocal().toLocaleString(DateTime.DATETIME_MED)}`}>
-    {activity_words[activity.kind]} {date.toRelative()}
+    {activity_words[activity.kind]} {DateTime.now().diff(date, 'minutes').minutes < 1 ? 'just now' : date.toRelative()}
   </span>;
 };
 
