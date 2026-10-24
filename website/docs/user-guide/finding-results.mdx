@@ -53,22 +53,45 @@ If you have nothing in a project yet, its page shows everyone's.
 </details>
 
 ## Pick a project {#projects-list}
-The home page lists every project with results: those you pinned first, then the ones that ran most recently.
+**Explore** (the home page, also at `/projects`) lists every project with results, grouped by their path: those you
+pinned first, then the ones people used most recently.
 
-- **Find one** with the *Filter projects...* box. It looks at all projects, even those not shown yet: the list shows
-  50 at first, more as you scroll down (or click **Show more**).
-- **Pin one** on top of the list with its star. Pins are remembered by your browser only.
+- **Find one** with the *Filter projects...* box. It looks at all projects, quiet ones included, and lists the
+  matches with their full path.
+- **Open a group** with its **N projects** button, or a project's subprojects with **N subprojects**. Explore
+  remembers what you opened.
+- **Pin one** on top of the list with its star. Pinned projects never fade.
 - **Source** opens the project's git repository.
 
 Click a project to open its commit list.
 
 <Shot
   id="projects/home"
-  caption="Each card says when the project last ran and how many commits have results. Starred projects stay on top."
+  caption="Each card says when the project was last used and how it ran over 30 days. Starred projects stay on top."
 />
 
-Project names are git paths, like `group/repo`. In a monorepo, each sub-project has its own entry, like
-`group/repo/sub-project`: if you can't find your results, check you're in the right one.
+### Groups, subprojects and quiet projects {#quiet-projects}
+Project names are git paths, like `group/repo`. In a monorepo, each subproject has its own entry, like
+`group/repo/sub-project`: Explore puts it under `group/repo`, and projects that share a prefix without a project of
+their own, like `group/a` and `group/b`, under a `group` folder. If you can't find your results, check you're in the
+right subproject.
+
+Projects nobody used or opened in the last 90 days are **quiet**: they fade under **N quiet projects** (or
+**N quiet subprojects** in their group). They're often subprojects only the CI runs. Click to show them.
+
+<details>
+<summary>What counts as used</summary>
+
+- A batch started from the web app or from someone's terminal (`qa run`, `qa batch`). The CI's runs don't count.
+- A signed-in user opening one of the project's pages.
+
+The sparkline on each card counts the batches that got runs on each of the last 30 days, the CI's included. A
+project's card counts its subprojects too.
+
+</details>
+
+On a project's page, a **Subprojects** card above the commits links to its subprojects, and the name at the top of the
+sidebar links to the parent projects (`group / repo /`).
 
 ## Read the commit list {#commit-list}
 Each row is a commit: its message, short hash, branch, and when and by whom it was committed. On the right, how its

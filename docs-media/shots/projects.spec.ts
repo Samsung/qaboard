@@ -6,9 +6,9 @@ shot('projects/home', {
   project: null,
   login: 'ines',
   url: d => `${d.baseUrl}/`,
-  alt: 'The QA-Board home page: a filter box, then a card per Kitefin project with its avatar, name, description, '
-    + 'a star to pin it, a link to its source, when it last ran and how many commits have results.',
-  caption: 'The home page lists every project with results. Pin the ones you follow with their star.',
+  alt: 'Explore, the QA-Board home page: a filter box, then the Kitefin projects grouped by their path, each card with '
+    + 'its avatar, name, description, when it was last used, its runs over 30 days, a star to pin it and a link to its source.',
+  caption: 'Explore lists every project with results, grouped by their path. Pin the ones you follow with their star.',
   actions: async ui => {
     // favorites live in the browser: pin the camera pipeline
     const card = ui.page.locator('.bp6-card', { hasText: 'kitefin/camera-isp' }).first();
