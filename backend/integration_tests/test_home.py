@@ -79,15 +79,15 @@ def test_each_projects_default_metric(logged_in, client):
   db_session.remove()
   for project_id, metric in [(PROJECT, 'loss'), (OTHER, 'psnr')]:
     project = db_session.get(Project, project_id)
-    project.data = {**project.data, 'qatools_metrics': {'default_metric': metric}}
+    project.data = {**project.data, 'qatools_metrics': {'default_metric': metric, 'available_metrics': {'psnr': {'label': 'PSNR', 'suffix': 'dB'}}}}
   db_session.commit()
 
   batches = alice.get('/api/v1/batches', query_string={"scope": "mine", "metrics": "default"}).get_json()
-  metrics = {b['label']: (b['default_metric'], b['aggregated_metrics'], b['valid_outputs']) for b in batches}
+  metrics = {b['label']: (b['default_metric'], b['default_metric_info'], b['aggregated_metrics'], b['valid_outputs']) for b in batches}
   assert metrics == {
-    'a': ('loss', {'loss_median': 2.0, 'loss_average': 2.0, 'loss_sum': 2.0}, 1),
-    'b': ('psnr', {'psnr_median': 30.0, 'psnr_average': 30.0, 'psnr_sum': 30.0}, 1),
-    'c': (None, {}, 1),
+    'a': ('loss', None, {'loss_median': 2.0, 'loss_average': 2.0, 'loss_sum': 2.0}, 1),
+    'b': ('psnr', {'label': 'PSNR', 'suffix': 'dB'}, {'psnr_median': 30.0, 'psnr_average': 30.0, 'psnr_sum': 30.0}, 1),
+    'c': (None, None, {}, 1),
   }
 
 

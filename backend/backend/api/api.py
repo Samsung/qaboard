@@ -297,7 +297,8 @@ def get_batches():
   - ?scope=mine|others|all, ?origin=webapp,local,ci (backend/mine.py), ?branch=
   - ?status=pending: with runs that wait or run, failed: with failed runs. ?since_days=7: with runs in the last days.
   - ?metrics={"name": target}: aggregate those metrics over each batch's runs, like /api/v1/commits.
-    ?metrics=default: each project's default metric (qaboard.yaml), its name is the batch's `default_metric`
+    ?metrics=default: each project's default metric (qaboard.yaml), its name is the batch's `default_metric`,
+    its definition `default_metric_info` (label, unit...): lists across projects don't fetch each project
   - Pages: ?limit= (default 50) &offset=. The X-Has-More header says if there are more.
   """
   project_id = request.args.get('project')
@@ -384,9 +385,15 @@ def get_batches():
   if default_metrics:
     # one aggregation per default metric: projects often share theirs
     projects = {b.ci_commit.project_id for b in batches if not b.ci_commit.project_id.startswith(skip_metrics_aggregation)}
-    names = dict(db_session
-                 .query(Project.id, Project.data['qatools_metrics']['default_metric'].astext)
-                 .filter(Project.id.in_(projects))) if projects else {}
+    metrics = Project.data['qatools_metrics']
+    rows = (db_session
+            .query(Project.id, metrics['default_metric'].astext, metrics['available_metrics'])
+            .filter(Project.id.in_(projects))) if projects else []
+    names, definitions = {}, {}
+    for id, name, available in rows:
+      names[id] = name
+      # how to show it: its label, unit, scale...
+      definitions[id] = (available or {}).get(name) if name and isinstance(available, dict) else None
     default_metric = {b.id: names[b.ci_commit.project_id] for b in batches if names.get(b.ci_commit.project_id)}
     stats = {}
     for name in set(default_metric.values()):
@@ -406,7 +413,10 @@ def get_batches():
         'committer_name': commit.committer_name,
         'authored_datetime': commit.authored_datetime.isoformat() if commit.authored_datetime else None,
       },
-      **({'default_metric': default_metric.get(batch.id)} if default_metrics else {}),
+      **({
+        'default_metric': default_metric.get(batch.id),
+        'default_metric_info': definitions.get(commit.project_id) if batch.id in default_metric else None,
+      } if default_metrics else {}),
     }
   return batches_response([serialize(b) for b in batches], has_more)
 
