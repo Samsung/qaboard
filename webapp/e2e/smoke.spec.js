@@ -79,6 +79,39 @@ test('explore', async ({ page }) => {
   await page.waitForLoadState('networkidle');
 });
 
+// Home, for signed-in users: their batches and projects, in three columns, two, or one at phone width
+test('home', async ({ page }) => {
+  const recent = new Date(Date.now() - 3600 * 1000).toISOString();
+  const batch = (id, label, extra) => ({ id, label, project, origin: 'webapp', user_name: 'alice', latest_output_datetime: recent, created_date: recent, data: {}, valid_outputs: 3, pending_outputs: 0, running_outputs: 0, failed_outputs: 0, aggregated_metrics: {}, commit: { id: 'abc123', branch: 'master', message: 'Hello world' }, ...extra });
+  await page.addInitScript(() => localStorage.setItem('qaboard.release-notes.last-seen', '2099-12'));
+  await page.route('**/api/v1/batches**', route => {
+    const status = new URL(route.request().url()).searchParams.get('status');
+    const batches = { pending: [batch(1, 'sweep', { pending_outputs: 5, running_outputs: 2 })], failed: [batch(2, 'tries', { failed_outputs: 2 })] }[status] ?? [batch(3, 'denoise')];
+    return route.fulfill({ json: batches, headers: { 'X-Has-More': 'false' } });
+  });
+  await page.route('**/api/v1/projects**', route => route.fulfill({ json: { [project]: { data: { qatools_config: { project: { name: 'x' } } }, latest_commit_datetime: recent, total_commits: 3, my_latest_activity: recent, activity: Array.from({ length: 30 }, (_, i) => i % 5) } } }));
+  for (const width of [1300, 900, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Running now' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Needs attention' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'denoise' })).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Your projects' }).getByRole('link', { name: project })).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow, `width ${width}`).toBeLessThanOrEqual(0);
+  }
+  await page.waitForLoadState('networkidle');
+});
+
+// Signed-out visitors get Explore
+test('explore at / when signed out', async ({ page }) => {
+  await page.route('**/api/v1/user/me/', route => route.fulfill({ json: { is_authenticated: false } }));
+  await page.goto('/');
+  await expect(page.getByPlaceholder('Filter projects...')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Running now' })).toHaveCount(0);
+  await page.waitForLoadState('networkidle');
+});
+
 // nginx serves files.html for folders under /s/, `vite preview` too (see vite.config.js)
 test('file browser', async ({ page }) => {
   await page.route('**/s/**', route => {

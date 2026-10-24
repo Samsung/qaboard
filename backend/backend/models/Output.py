@@ -74,6 +74,9 @@ class Output(Base):
     Index('idx_outputs_pending_root_command', text("(data->>'root_command_id')"), postgresql_where=text("is_pending")),
     # What runs now, for "Activity" (backend/run_activity.py): few runs are pending at a time
     Index('ix_outputs_active', 'batch_id', postgresql_where=text("is_pending")),
+    # The batches with failed runs, for the home page (api/api.py get_batches ?status=failed): few runs fail.
+    # Created by the migration a3c5e7f9b1d4.
+    Index('ix_outputs_failed', 'batch_id', postgresql_where=text("is_failed AND deleted IS NOT TRUE")),
     # What ended recently. Runs from before we saved when they ended aren't in the index.
     Index('ix_outputs_finished_at', 'finished_at', postgresql_where=text("finished_at IS NOT NULL")),
     Index('idx_outputs_batch_user_storage', 

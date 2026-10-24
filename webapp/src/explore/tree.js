@@ -7,7 +7,7 @@ export const quiet_after_days = 90;
 const day_ms = 24 * 3600 * 1000;
 
 // The server's dates are UTC, some without a timezone
-const time = date => date ? new Date(/(Z|[+-]\d\d:?\d\d)$/.test(date) ? date : `${date}Z`).getTime() : null;
+export const time = date => date ? new Date(/(Z|[+-]\d\d:?\d\d)$/.test(date) ? date : `${date}Z`).getTime() : null;
 
 export const quiet_tooltip = `Only the CI ran them in the last ${quiet_after_days} days: nobody started batches from the web app or their terminal. `
   + "Pin a project to keep it in view.";

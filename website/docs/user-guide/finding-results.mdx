@@ -52,9 +52,30 @@ whoever committed it.
 If you have nothing in a project yet, its page shows everyone's.
 </details>
 
+## Start from your home page {#home}
+Signed in, the home page is about you. Signed out, it's [Explore](#projects-list).
+
+- **Your projects** (left): where you ran batches, committed or looked in the last 90 days, and those you pinned, the
+  most recent first. **Explore all projects** lists every project.
+- **Running now**: your batches whose runs wait or run, with their progress and their **Logs**. It refreshes by itself.
+- **Needs attention**: your batches with failed runs in the last 7 days. Dismiss one with its **×**: it comes back if
+  more runs fail.
+- **Recent**: your batches that ended, with the project's main metric.
+- **From your projects**: open it to see what your teammates ran there from the web app or their terminal (not the CI).
+
+On the right, what's new in QA-Board, how much storage your runs take, and guides for what you haven't tried yet.
+
+<details>
+<summary>Nothing of yours shows up</summary>
+
+Your batches show up once you run some: from the web app (**Run Tests / Tuning**), or with `qa batch` after signing in
+with `qa auth login`, so that your runs count as yours. Runs sent without a token count too, by the user name `qa`
+gives (`$USER` or `QA_USER`). See [what counts as yours](#yours-or-everyones).
+</details>
+
 ## Pick a project {#projects-list}
-**Explore** (the home page, also at `/projects`) lists every project with results, grouped by their path: those you
-pinned first, then the ones people used most recently.
+**Explore** (at `/projects`, and the home page when you're signed out) lists every project with results, grouped by
+their path: those you pinned first, then the ones people used most recently.
 
 - **Find one** with the *Filter projects...* box. It looks at all projects, quiet ones included, and lists the
   matches with their full path.

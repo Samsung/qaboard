@@ -4,16 +4,7 @@ views (/api/v1/project/view), and that signed-out visitors only see the projects
 """
 import datetime
 
-import pytest
-
 from .conftest import make_projects
-
-
-@pytest.fixture(autouse=True)
-def fresh_usage():
-  """/api/v1/projects keeps everyone's usage for a minute: each test starts without it"""
-  from backend.api import api
-  api._usage_cache.update(at=None, value=None)
 
 
 def utcnow():
