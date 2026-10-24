@@ -41,6 +41,12 @@ def batch_is_mine(identity: Identity):
   return or_(*conditions) if conditions else false()
 
 
+def batch_is_not_mine(identity: Identity):
+  """Everyone else's batches: NULL users aren't mine either"""
+  from sqlalchemy import func, false, not_
+  return not_(func.coalesce(batch_is_mine(identity), false()))
+
+
 def commit_is_mine(identity: Identity):
   """
   The ids of my commits, as a union of queries that each use an index (an OR of EXISTS and IN would scan the project's
@@ -83,3 +89,5 @@ def parse_origins(value) -> Optional[list]:
 
 
 SCOPES = ('all', 'mine')
+# lists of batches also show everyone else's
+BATCH_SCOPES = (*SCOPES, 'others')

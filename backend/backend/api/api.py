@@ -26,7 +26,7 @@ from ..utils import profiled
 from ..config import git_server, skip_metrics_aggregation
 from ..search import parse_query, commits_search_filter, escape_like
 from .auth import is_authorized_user, get_current_user, forbidden_project
-from ..mine import identity_of, commit_is_mine, batch_is_mine, batch_origin_in, parse_origins, SCOPES
+from ..mine import identity_of, commit_is_mine, batch_is_mine, batch_is_not_mine, batch_origin_in, parse_origins, SCOPES, BATCH_SCOPES
 from ..notifications.mail import email_enabled
 from ..settings import setting
 
@@ -241,14 +241,14 @@ def get_commits(branch=None):
   return commits_response(serializable_commits, has_more)
 
 
-def scope_and_origins():
+def scope_and_origins(scopes=SCOPES):
   """?scope=mine|all and ?origin=webapp,local,ci: (identity or None, origins or None). Raises ValueError for bad values."""
   scope = request.args.get('scope') or 'all'
-  if scope not in SCOPES:
-    raise ValueError(f"Unknown scope {scope!r}: use {' or '.join(SCOPES)}")
+  if scope not in scopes:
+    raise ValueError(f"Unknown scope {scope!r}: use {' or '.join(scopes)}")
   origins = parse_origins(request.args.get('origin'))
   identity = None
-  if scope == 'mine':
+  if scope in ('mine', 'others'):
     identity = identity_of(g.actor.user)
     if identity is None:
       raise PermissionError("Sign in to see your commits and batches.")
@@ -292,28 +292,45 @@ def get_commits_counts():
 def get_batches():
   """
   Batches, the latest first (by their latest run), with their commit: what users ran, rather than commits.
-  - ?project=: a project's, else in every project the user can read (then ?scope=mine is required).
-  - ?scope=mine|all, ?origin=webapp,local,ci (backend/mine.py), ?branch=
-  - ?metrics={"name": target}: aggregate those metrics over each batch's runs, like /api/v1/commits
+  - ?project=: a project's, ?projects=a,b,c: those of several (we skip those the user can't read),
+    else in every project the user can read (then ?scope=mine is required).
+  - ?scope=mine|others|all, ?origin=webapp,local,ci (backend/mine.py), ?branch=
+  - ?status=pending: with runs that wait or run, failed: with failed runs. ?since_days=7: with runs in the last days.
+  - ?metrics={"name": target}: aggregate those metrics over each batch's runs, like /api/v1/commits.
+    ?metrics=default: each project's default metric (qaboard.yaml), its name is the batch's `default_metric`
   - Pages: ?limit= (default 50) &offset=. The X-Has-More header says if there are more.
   """
   project_id = request.args.get('project')
   if project_id and not is_authorized_user(None, project_id):
     return forbidden_project(project_id)
+  project_ids = [p.strip() for p in (request.args.get('projects') or '').split(',') if p.strip()]
   try:
-    identity, origins = scope_and_origins()
+    if project_id and project_ids:
+      raise ValueError("Give either ?project= or ?projects=")
+    if len(project_ids) > 200:
+      raise ValueError("Ask for at most 200 projects")
+    identity, origins = scope_and_origins(BATCH_SCOPES)
     limit = int_arg('limit', default=50, min_value=1, max_value=200)
     # lists are scrolled, not paged: deep offsets would only be slow
     offset = int_arg('offset', default=0, max_value=10000)
-    metrics_to_aggregate = json.loads(request.args.get('metrics', '{}'))
+    since_days = int_arg('since_days', min_value=1, max_value=3650)
+    status = request.args.get('status') or None
+    if status not in (None, 'pending', 'failed'):
+      raise ValueError(f"Unknown status {status!r}: use pending or failed")
+    default_metrics = request.args.get('metrics') == 'default'
+    metrics_to_aggregate = {} if default_metrics else json.loads(request.args.get('metrics', '{}'))
   except PermissionError as e:
     return jsonify({"error": f"{e}", "reason": "sign_in_required"}), 401
   except ValueError as e:  # also bad JSON
     return jsonify({"error": f"{e}"}), 400
-  if not project_id and not identity:
+  if not project_id and not project_ids and not (identity and request.args.get('scope') == 'mine'):
     return jsonify({"error": "Give a ?project=, or ask for your batches with ?scope=mine"}), 400
   if project_id and project_id.startswith(skip_metrics_aggregation):
-    metrics_to_aggregate = {}
+    metrics_to_aggregate, default_metrics = {}, False
+  if project_ids:
+    project_ids = [p for p in dict.fromkeys(project_ids) if is_authorized_user(None, p)]
+    if not project_ids:
+      return batches_response([], has_more=False)
 
   query = (db_session.query(Batch)
            .join(CiCommit, Batch.ci_commit_id == CiCommit.id)
@@ -321,17 +338,25 @@ def get_batches():
           )
   if project_id:
     query = query.filter(CiCommit.project_id == project_id)
+  if project_ids:
+    query = query.filter(CiCommit.project_id.in_(project_ids))
   if identity:
-    query = query.filter(batch_is_mine(identity))
+    query = query.filter(batch_is_not_mine(identity) if request.args.get('scope') == 'others' else batch_is_mine(identity))
   if origins:
     query = query.filter(batch_origin_in(origins))
   branch = (request.args.get('branch') or '').replace('origin/', '')
   if branch:
     query = query.filter(CiCommit.branch.in_([branch, f'origin/{branch}']))
-  # set for every batch (the migration filled old ones): the index sorts them
+  if since_days:
+    # naive UTC, like the batches' dates
+    query = query.filter(Batch.latest_output_datetime >= datetime.datetime.utcnow() - datetime.timedelta(days=since_days))
+  if status == 'pending':
+    query = query.filter(Batch.outputs.any(Output.is_pending == True))  # noqa: E712
+  elif status == 'failed':
+    query = query.filter(Batch.outputs.any(and_(Output.is_failed == True, Output.deleted.isnot(True))))  # noqa: E712
   query = query.order_by(Batch.latest_output_datetime.desc().nulls_last(), Batch.id.desc())
 
-  if project_id:
+  if project_id or project_ids:
     batches = query.offset(offset).limit(limit + 1).all()
     has_more = len(batches) > limit
   else:
@@ -355,7 +380,20 @@ def get_batches():
   batches = batches[:limit]
 
   from ..models.Batch import no_stats
-  stats = batches_stats(db_session, [b.id for b in batches], metrics_to_aggregate)
+  default_metric = {}
+  if default_metrics:
+    # one aggregation per default metric: projects often share theirs
+    projects = {b.ci_commit.project_id for b in batches if not b.ci_commit.project_id.startswith(skip_metrics_aggregation)}
+    names = dict(db_session
+                 .query(Project.id, Project.data['qatools_metrics']['default_metric'].astext)
+                 .filter(Project.id.in_(projects))) if projects else {}
+    default_metric = {b.id: names[b.ci_commit.project_id] for b in batches if names.get(b.ci_commit.project_id)}
+    stats = {}
+    for name in set(default_metric.values()):
+      stats.update(batches_stats(db_session, [id for id, n in default_metric.items() if n == name], {name: 0}))
+    stats.update(batches_stats(db_session, [b.id for b in batches if b.id not in default_metric]))
+  else:
+    stats = batches_stats(db_session, [b.id for b in batches], metrics_to_aggregate)
   def serialize(batch):
     commit = batch.ci_commit
     return {
@@ -368,8 +406,13 @@ def get_batches():
         'committer_name': commit.committer_name,
         'authored_datetime': commit.authored_datetime.isoformat() if commit.authored_datetime else None,
       },
+      **({'default_metric': default_metric.get(batch.id)} if default_metrics else {}),
     }
-  response = make_response(ujson.dumps([serialize(b) for b in batches]))
+  return batches_response([serialize(b) for b in batches], has_more)
+
+
+def batches_response(batches, has_more):
+  response = make_response(ujson.dumps(batches))
   response.headers['Content-Type'] = 'application/json'
   response.headers['X-Has-More'] = 'true' if has_more else 'false'
   response.headers['Access-Control-Expose-Headers'] = 'X-Has-More'
@@ -471,12 +514,31 @@ def global_usage():
   return value
 
 
-def projects_usage(user_id=None):
-  """For each project: its human activity, its batches per day, its viewers (see get_projects)"""
+def projects_usage(user_id=None, identity=None):
+  """For each project: its human activity, its batches per day, its viewers, and mine (see get_projects)"""
+  now = datetime.datetime.utcnow()
   human, activity, views = global_usage()
   my_views = dict(db_session
                   .query(ProjectView.project_id, ProjectView.last_viewed_at)
                   .filter(ProjectView.user_id == user_id)) if user_id is not None else {}
+  # my latest batch, or commit (both indexed by user, by email)
+  mine = {}
+  if identity is not None:
+    since = now - datetime.timedelta(days=quiet_after_days)
+    my_batches = (db_session
+                  .query(CiCommit.project_id, func.max(Batch.latest_output_datetime))
+                  .join(Batch, Batch.ci_commit_id == CiCommit.id)
+                  .filter(batch_is_mine(identity), Batch.latest_output_datetime >= since)
+                  .group_by(CiCommit.project_id))
+    my_commits = (db_session
+                  .query(CiCommit.project_id, func.max(CiCommit.authored_datetime))
+                  .filter(CiCommit.author_email.in_(sorted(identity.emails)), CiCommit.authored_datetime >= since)
+                  .group_by(CiCommit.project_id)) if identity.emails else []
+    for project_id, date in [*my_batches, *my_commits]:
+      # commits' dates are aware, batches' naive UTC
+      date = date.astimezone(datetime.timezone.utc).replace(tzinfo=None) if date and date.tzinfo else date
+      if date and (project_id not in mine or date > mine[project_id]):
+        mine[project_id] = date
   def iso(date):
     return date.isoformat() if date else None
   return lambda project_id: {
@@ -484,8 +546,8 @@ def projects_usage(user_id=None):
     'activity': activity.get(project_id),
     'views_90d': views.get(project_id, 0),
     'my_last_view': iso(my_views.get(project_id)),
+    **({'my_latest_activity': iso(mine.get(project_id))} if identity is not None else {}),
   }
-
 
 @app.route("/api/v1/projects")
 def get_projects():
@@ -499,6 +561,7 @@ def get_projects():
     (the CI's don't count), else null,
   - activity: how many batches got runs on each of the last 30 days (UTC), oldest first. null without any,
   - views_90d: how many users viewed it in the last 90 days, my_last_view: when I did (signed-in users).
+  - my_latest_activity: my latest batch or commit in the last 90 days, the home page's "Your projects" (signed-in users).
   One grouped query each: sites have hundreds of projects.
   """
   summary = request.args.get('summary', 'false') != 'false'
@@ -527,7 +590,8 @@ def get_projects():
               .order_by(asc(func.lower(Project.id)))
              )
   user_info = get_current_user(to_jsonify=False)
-  usage = projects_usage(user_info.get('user_id') if user_info.get('is_authenticated') else None)
+  signed_in = user_info.get('is_authenticated')
+  usage = projects_usage(user_info.get('user_id') if signed_in else None, identity_of(g.actor.user) if signed_in else None)
   response = {}
   for project_id, latest_output_datetime, latest_commit_datetime, total_commits, *data in projects.yield_per(1000):
     if not is_authorized_user(user_info, project_id):
