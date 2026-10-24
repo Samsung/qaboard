@@ -193,7 +193,6 @@ Answered:
 - "Yours" is only yours, no teams: others' work is one click away with "Everyone, without CI".
 - Labels and the env aren't enough to spot CI: the CLI sends its `run_context`, and verified emails identify people.
 - Local runs count as yours, like the web app's. Only the CI gets hidden, except the reference branch's head.
-
 - Subprojects nobody looks at are clutter: fading quiet projects (4) is the answer, nothing gets deleted.
 - Signed-out visitors get Explore, showing only the projects their visibility lets them read (public projects,
   `access/`): on an instance that requires signing in, that's nothing until they sign in.
