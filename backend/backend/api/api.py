@@ -21,7 +21,7 @@ from qaboard.compat import mappings as _path_mappings
 from qaboard.sentry_utils import traces_sample_rate
 
 from backend import app, db_session
-from ..models import Project, CiCommit, Batch, Output, batches_stats
+from ..models import Project, CiCommit, Batch, Output, ProjectView, batches_stats
 from ..utils import profiled
 from ..config import git_server, skip_metrics_aggregation
 from ..search import parse_query, commits_search_filter, escape_like
@@ -429,12 +429,60 @@ def get_branches():
 summary_git_keys = ('name', 'description', 'web_url', 'html_url', 'avatar_url', 'path_with_namespace', 'full_name', 'default_branch', 'hosting_type', 'host')
 
 
+activity_days = 30
+quiet_after_days = 90
+human_origins = ('webapp', 'local')
+
+
+def projects_usage(user_id=None):
+  """For each project: its human activity, its batches per day, its viewers (see get_projects)"""
+  now = datetime.datetime.utcnow()
+  # batches' dates are naive UTC (api/outputs.py)
+  first_day = (now - datetime.timedelta(days=activity_days - 1)).date()
+  human = dict(db_session
+               .query(CiCommit.project_id, func.max(Batch.latest_output_datetime))
+               .join(Batch, Batch.ci_commit_id == CiCommit.id)
+               .filter(Batch.origin.in_(human_origins))
+               .group_by(CiCommit.project_id))
+  day = func.date(Batch.latest_output_datetime)
+  activity = {}
+  for project_id, batch_day, count in (db_session
+                                       .query(CiCommit.project_id, day, func.count())
+                                       .join(Batch, Batch.ci_commit_id == CiCommit.id)
+                                       .filter(Batch.latest_output_datetime >= first_day)
+                                       .group_by(CiCommit.project_id, day)):
+    index = (batch_day - first_day).days
+    if 0 <= index < activity_days:
+      activity.setdefault(project_id, [0] * activity_days)[index] = count
+  views = dict(db_session
+               .query(ProjectView.project_id, func.count(func.distinct(ProjectView.user_id)))
+               .filter(ProjectView.last_viewed_at >= now - datetime.timedelta(days=quiet_after_days))
+               .group_by(ProjectView.project_id))
+  my_views = dict(db_session
+                  .query(ProjectView.project_id, ProjectView.last_viewed_at)
+                  .filter(ProjectView.user_id == user_id)) if user_id is not None else {}
+  def iso(date):
+    return date.isoformat() if date else None
+  return lambda project_id: {
+    'latest_human_activity': iso(human.get(project_id)),
+    'activity': activity.get(project_id),
+    'views_90d': views.get(project_id, 0),
+    'my_last_view': iso(my_views.get(project_id)),
+  }
+
+
 @app.route("/api/v1/projects")
 def get_projects():
   """
   The projects with commits, with their latest commit date and number of commits.
   With ?summary=true, we only give what lists of projects need from their data (git info, qaboard.yaml's project section):
   it's much smaller. Use /api/v1/project for the rest.
+
+  Explore also needs to know which projects people use (webapp/src/explore/):
+  - latest_human_activity: when a batch from the web app or someone's terminal last got a run (the CI's don't count),
+  - activity: how many batches got runs on each of the last 30 days (UTC), oldest first. null without any,
+  - views_90d: how many users viewed it in the last 90 days, my_last_view: when I did (signed-in users).
+  One grouped query each: sites have hundreds of projects.
   """
   summary = request.args.get('summary', 'false') != 'false'
   commits = (db_session
@@ -462,6 +510,7 @@ def get_projects():
               .order_by(asc(func.lower(Project.id)))
              )
   user_info = get_current_user(to_jsonify=False)
+  usage = projects_usage(user_info.get('user_id') if user_info.get('is_authenticated') else None)
   response = {}
   for project_id, latest_output_datetime, latest_commit_datetime, total_commits, *data in projects.yield_per(1000):
     if not is_authorized_user(user_info, project_id):
@@ -490,6 +539,7 @@ def get_projects():
       'latest_output_datetime': latest_output_datetime.isoformat() if latest_output_datetime else None, # isoformat not necessary?
       'latest_commit_datetime': latest_commit_datetime.isoformat(),
       'total_commits': total_commits,
+      **usage(project_id),
     }
   response = make_response(ujson.dumps(response))
   response.headers['Content-Type'] = 'application/json'
@@ -507,6 +557,36 @@ def get_project():
 
   # Milestones from older versions, kept for rollbacks: they are in their own table, see /api/v1/milestones
   return jsonify({k: v for k, v in project.data.items() if k != 'milestones'})
+
+
+# Views are counted at most once an hour per user and project: enough to tell projects people look at
+view_throttle = datetime.timedelta(hours=1)
+
+@app.route("/api/v1/project/view", methods=['POST'])
+def post_project_view():
+  """Signed-in users opened a project page (Explore, "recently viewed"). Signed-out visitors aren't counted."""
+  body = request.get_json(silent=True) or {}
+  project_id = body.get('project')
+  if not isinstance(project_id, str) or not project_id:
+    return jsonify({"error": "Which project? Send {\"project\": <id>}."}), 400
+  user_info = get_current_user(to_jsonify=False)
+  if not user_info.get('is_authenticated') or user_info.get('kind') == 'service':
+    return '', 204
+  if not is_authorized_user(user_info, project_id):
+    return forbidden_project(project_id)
+  if db_session.get(Project, project_id) is None:
+    return jsonify({"error": f"There is no project {project_id}."}), 404
+
+  from sqlalchemy.dialects.postgresql import insert
+  now = datetime.datetime.utcnow()
+  upsert = insert(ProjectView).values(user_id=user_info['user_id'], project_id=project_id, last_viewed_at=now, views=1)
+  db_session.execute(upsert.on_conflict_do_update(
+    constraint='uq_project_views_user_project',
+    set_={'last_viewed_at': now, 'views': ProjectView.views + 1},
+    where=ProjectView.last_viewed_at < now - view_throttle,
+  ))
+  db_session.commit()
+  return '', 204
 
 
 

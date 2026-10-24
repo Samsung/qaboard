@@ -169,3 +169,11 @@ def test_batches_get_their_origin_and_user(alembic, make_user):
   }
   assert sql("SELECT author_email FROM ci_commits") == [(None,)]
   assert sql("SELECT convalidated FROM pg_constraint WHERE conname = 'fk_batches_user_id'") == [(True,)]
+
+
+def test_project_views(alembic, make_user):
+  """f1d3b5a7c9e2: a new table"""
+  alembic('downgrade', 'e9b1c3d5f7a2')
+  assert not sql("SELECT 1 FROM information_schema.tables WHERE table_name = 'project_views'")
+  alembic('upgrade', 'head')
+  assert sql("SELECT 1 FROM information_schema.tables WHERE table_name = 'project_views'")

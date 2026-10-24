@@ -425,6 +425,8 @@ UNAUTHENTICATED_ENDPOINTS = {
   ("integrations.py", "gitlab_job"), ("integrations.py", "jenkins_build"), ("integrations.py", "github_workflow_run"),
   # checks the login itself when writing
   ("tuning.py", "groups"),
+  # page views: a no-op for signed-out visitors (the web app sends them anyway), checks the login itself
+  ("api.py", "post_project_view"),
   # authenticated with the git host's webhook secret (QABOARD_WEBHOOK_SECRET by default)
   ("webhooks.py", "gitlab_webhook"), ("webhooks.py", "github_webhook"), ("webhooks.py", "gitea_webhook"), ("webhooks.py", "bitbucket_webhook"),
 }
