@@ -1,10 +1,35 @@
 // Settings → Profile: who QA-Board thinks you are
-import { Classes, HTMLTable, Tag } from "@blueprintjs/core";
+import { Classes, FormGroup, HTMLTable, Tag, TagInput } from "@blueprintjs/core";
 
 import { Link } from "../router";
 import { Avatar } from "../components/avatars";
 import { useSiteConfig } from "../hooks";
 import { AdminTag, loginTypeLabel } from "./format";
+import { usePrefsStore } from "../stores/prefs";
+
+
+// Project pages show users their commits: those whose author's email is theirs, or one of these
+const GitEmails = ({ user }) => {
+  const emails = usePrefsStore(state => state.git_emails);
+  const setGitEmails = usePrefsStore(state => state.setGitEmails);
+  return <FormGroup
+    label="Your other git emails"
+    labelFor="git-emails"
+    helperText={<>Commits with your email ({user.email || 'not set'}) are yours on project pages. Add the other emails of your git config (<code>git config user.email</code>), e.g. a personal one.</>}
+    style={{ marginTop: 24, maxWidth: 600 }}
+  >
+    <TagInput
+      inputProps={{ id: 'git-emails' }}
+      values={emails ?? []}
+      onChange={values => setGitEmails(values.map(String))}
+      addOnBlur
+      addOnPaste
+      separator={/[,\s]+/}
+      placeholder="name@example.com"
+      leftIcon="envelope"
+    />
+  </FormGroup>;
+};
 
 
 export const ProfileTab = ({ user }) => {
@@ -37,6 +62,7 @@ export const ProfileTab = ({ user }) => {
         ? "Ask an admin to change your name or email."
         : "Your name and email come from your company's directory: change them there."}
     </p>
+    {user.kind !== 'service' && <GitEmails user={user}/>}
   </section>;
 };
 

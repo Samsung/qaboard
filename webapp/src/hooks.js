@@ -2,11 +2,12 @@
 // the selection from the URL, preferences from the zustand store.
 import { createContext, createElement, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { create } from "zustand";
 
 import {
   siteConfigQuery, default_site_config, userQuery, logged_out_user,
   projectsQuery, projectQuery, branchesQuery, commitsQuery, commitsPagesQuery, commits_of, commits_page_size, commitQuery,
-  commitSummaryQuery, findCachedCommit, invalidateCommit,
+  commitSummaryQuery, findCachedCommit, invalidateCommit, batchesPagesQuery,
 } from "./api/queries";
 import { errorMessage } from "./api/http";
 import { usePrefsStore } from "./stores/prefs";
@@ -147,6 +148,31 @@ const unique_commits = commits => {
 // The commits shown on the current page: the project's latest, a branch's or a committer's,
 // in the date range from the URL. On the History page they come with all their outputs.
 // On lists of commits they come in pages (fetchNextPage, hasNextPage...), and the `search` from the URL
+// Whose commits the project's pages list: the URL says, else what users last picked in this project, else theirs
+// ("mine") if they're signed in. Branch and committer pages, and History, are about everyone's.
+// {scope, is_default}: the default falls back to everyone's when users have nothing in the project.
+// `ready`: we know who the user is, lists wait for it rather than show everyone's, then theirs.
+export function useListScope(selected) {
+  const { data: user_data, isPending: user_pending } = useQuery(userQuery);
+  const user = user_data ?? logged_out_user;
+  const remembered = usePrefsStore(state => state.listScope?.[selected.project]);
+  const fallen_back = useFallbacks(state => !!state.keys[`${user.user_id}|${selected.project}`]);
+  const { route, branch } = selected;
+  const has_scope = route.is_commits && !branch;
+  const info = { has_scope, ready: !user_pending, user_id: user.user_id ?? null };
+  if (!has_scope) return { ...info, scope: 'all', is_default: true };
+  if (selected.scope) return { ...info, scope: !user.is_logged ? 'all' : selected.scope, is_default: false };
+  if (!user.is_logged) return { ...info, scope: 'all', is_default: true };
+  const scope = remembered ?? 'mine';
+  return { ...info, scope: scope === 'mine' && fallen_back ? 'all' : scope, is_default: true, fell_back: scope === 'mine' && fallen_back };
+}
+
+// The projects where users have nothing, for the session: they see everyone's. Shared by the page and the sidebar.
+const useFallbacks = create(set => ({
+  keys: {},
+  add: key => set(state => ({ keys: { ...state.keys, [key]: true } })),
+}));
+
 // searches all the commits on the server. `ignore_search` gives the list without the search,
 // e.g. for the commits selected by default.
 function useCommitsListState(selected, project_data, { enabled, refetchInterval, ignore_search = false }) {
@@ -165,10 +191,19 @@ function useCommitsListState(selected, project_data, { enabled, refetchInterval,
     () => aggregation_metrics(requested_metrics, { dashboard }),
     [requested_metrics, dashboard],
   );
+  // only mine, without the CI's (see useListScope)
+  const scope_info = useListScope(selected);
+  const { scope, fell_back } = scope_info;
+  const addFallback = useFallbacks(state => state.add);
+  const hide_ci = (route.is_commits || route.is_committer) && selected.hide_ci;
   const params = {
     project,
     branch: branch ?? undefined,
     committer: committer ?? undefined,
+    scope: scope === 'mine' ? 'mine' : undefined,
+    // lists of mine are the user's: not shared between accounts in the cache
+    viewer: scope === 'mine' ? scope_info.user_id : undefined,
+    origin: hide_ci ? 'webapp,local' : undefined,
     // searches look at all the commits
     from: search ? undefined : date_range[0].toISOString(),
     to: search ? undefined : date_range[1].toISOString(),
@@ -177,7 +212,7 @@ function useCommitsListState(selected, project_data, { enabled, refetchInterval,
   };
   // We wait for the project's metrics (only /api/v1/project has them): the list depends on them, it's heavy to fetch twice
   const { isFetched: project_fetched } = useQuery(projectQuery(project));
-  const can_fetch = enabled && !!project && project_fetched;
+  const can_fetch = enabled && !!project && project_fetched && scope_info.ready;
   const all_query = useQuery({ ...commitsQuery(params), enabled: can_fetch && !paginated, refetchInterval });
   // Branch pages show their metrics over time: we get the whole date range at once
   const page_size = branch && !search ? 1000 : commits_page_size;
@@ -194,14 +229,23 @@ function useCommitsListState(selected, project_data, { enabled, refetchInterval,
   if (latest_metrics && branch_metrics.key !== list_key)
     setBranchMetrics({ key: list_key, qatools_metrics: latest_metrics });
   const qatools_metrics = latest_metrics ?? known_branch_metrics ?? project_metrics;
+  // users with nothing in the project see everyone's, unless they asked for theirs: no commits of theirs
+  // (the server looks further back than the dates when there are none in them) and no batches
+  const may_fall_back = scope === 'mine' && scope_info.is_default && !search && query.isSuccess && !isPlaceholderData && (data?.length ?? 0) === 0;
+  const { data: my_batches } = useInfiniteQuery({ ...batchesPagesQuery({ project, scope: 'mine', viewer: scope_info.user_id, page_size: 1 }), enabled: may_fall_back });
+  if (may_fall_back && my_batches && my_batches.pages[0]?.batches?.length === 0)
+    addFallback(`${scope_info.user_id}|${project}`);
   // Thanks to TanStack Query's structural sharing, refetches that bring nothing new keep the same arrays
   const derived = useMemo(() => {
     const all = data ?? [];
     // Hide commits without results, except recent ones: their CI may still be running
     const commits = all.some(has_batches) ? all.filter(c => c.is_recent || has_batches(c)) : all;
-    const latest_commit = branch ? all[0] : all.find(c => c.branch === default_branch);
+    // lists of my commits, or without the CI's, may not have the default branch's latest commit: we ask for it.
+    // Branch and committer pages keep their latest listed commit.
+    const filtered = scope === 'mine' || (hide_ci && !branch && !committer);
+    const latest_commit = filtered ? undefined : branch ? all[0] : all.find(c => c.branch === default_branch);
     return { commits, ids: all.map(c => c.id), latest_commit };
-  }, [data, branch, default_branch]);
+  }, [data, branch, committer, default_branch, scope, hide_ci]);
 
   // The project's latest commit on its default branch may not be in the pages we loaded:
   // other branches can have many more recent commits. We then ask for it.
@@ -216,10 +260,11 @@ function useCommitsListState(selected, project_data, { enabled, refetchInterval,
   // Only what pages use: TanStack Query re-renders components when the fields they read change, and spreading
   // the whole query would read them all (dataUpdatedAt, isStale, failureCount...)
   const { error, refetch, isPending, isSuccess, isFetching, hasNextPage, fetchNextPage, isFetchingNextPage } = query;
+  const has_scope = scope_info.has_scope;
   return useMemo(() => ({
-    data, ...derived, latest_commit, date_range, project, search, paginated, qatools_metrics,
+    data, ...derived, latest_commit, date_range, project, search, paginated, qatools_metrics, scope, has_scope, fell_back, hide_ci,
     error, refetch, isPending, isSuccess, isFetching, isPlaceholderData, hasNextPage, fetchNextPage, isFetchingNextPage,
-  }), [data, derived, latest_commit, date_range, project, search, paginated, qatools_metrics,
+  }), [data, derived, latest_commit, date_range, project, search, paginated, qatools_metrics, scope, has_scope, fell_back, hide_ci,
     error, refetch, isPending, isSuccess, isFetching, isPlaceholderData, hasNextPage, fetchNextPage, isFetchingNextPage]);
 }
 

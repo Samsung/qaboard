@@ -25,6 +25,7 @@ const url_keys = {
   label_ref: "label_ref",
   // the colors of the new results and of the reference shown, see side_colors
   color_new: "color_new",
+  list_view: "view",
   color_ref: "color_ref",
   // the references that are not shown, see `references` below
   other_refs: "compare",
@@ -430,6 +431,12 @@ export const selection_from_url = (match, search) => {
 
     // filter the list of commits
     search: text_param(query.search),
+    // lists of commits: only mine ("mine") or everyone's ("all"), null for the default (see useListScope in hooks.js)
+    scope: ['mine', 'all'].includes(query.scope) ? query.scope : null,
+    // lists of commits leave out the CI's batches
+    hide_ci: query.hide_ci === '1' || query.hide_ci === 'true',
+    // the project page lists batches or commits, null for the default
+    list_view: ['batches', 'commits'].includes(query.view) ? query.view : null,
     sort_order: Number(query.sort_order ?? -1),
     sort_by: query.sort_by || undefined, // undefined: we use the default metric
     selected_views,
@@ -456,6 +463,7 @@ const selection_defaults = {
   ref_index: 0,
   label_new: '',
   label_ref: '',
+  hide_ci: false,
 };
 const same_value = (value, default_value) => Array.isArray(value) || Array.isArray(default_value)
   ? JSON.stringify([].concat(value)) === JSON.stringify([].concat(default_value))

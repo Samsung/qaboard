@@ -7,8 +7,9 @@ description: Find a project, a commit, a branch or a batch of runs, and filter w
 Find the results you came for: your commit, the right batch of runs, then only the runs that matter.
 
 ## Find your commit {#find-your-commit}
-Open your project from the home page: you land on its **commit list**, the latest commits with results on all branches, newest first.
-From there, find a commit in one of three ways:
+Open your project from the home page. Once signed in, you land on **your batches**: what you ran in the project, from
+the web app or your terminal (see [Yours or everyone's](#yours-or-everyones)). Click **Everyone** for the **commit list**,
+the latest commits with results on all branches, newest first. From there, find a commit in one of three ways:
 
 - **Scroll the list.** Commits are grouped by day. On the right of each row, the **N runs** button (e.g. **5 runs**)
   opens the commit page.
@@ -26,6 +27,30 @@ From there, find a commit in one of three ways:
 :::tip
 The list shows the last 3 days. If your commit isn't there, search for it, or pick earlier dates at the top left.
 :::
+
+## Yours or everyone's {#yours-or-everyones}
+Signed in, a project's page starts with your work: **Yours** lists the batches you started, the latest first, with their
+progress while they run. On top, **Latest on master** (the project's reference branch) shows where the reference is,
+whoever committed it.
+
+- **See everyone's**: click **Everyone**, or the *N commits by everyone* count. The page remembers your choice for the
+  project, and the link you copy says which you see.
+- **Leave out the CI**: turn on **Hide the CI** to see what people ran from the web app or their terminal. With
+  **Everyone**, that's how you look at your teammates' experiments.
+- **Batches or commits**: **Batches** lists runs as you started them, **Commits** groups them by commit, as before.
+- **Compare two batches**: tick them in **Batches**, then **Compare**. The first is compared with the second, the reference.
+
+<details>
+<summary>What counts as yours</summary>
+
+- The batches you started: from the web app (**Run Tests / Tuning**, redoing runs), or with `qa` from your terminal.
+  Runs sent without a token count too, by the user name `qa` gives (`$USER` or `QA_USER`).
+- The commits you wrote: their author's email is your account's. If your git config uses another email, add it in
+  **Settings → Profile** (*Your other git emails*).
+- The commits where you ran a batch.
+
+If you have nothing in a project yet, its page shows everyone's.
+</details>
 
 ## Pick a project {#projects-list}
 The home page lists every project with results: those you pinned first, then the ones that ran most recently.
