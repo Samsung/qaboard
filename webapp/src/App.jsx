@@ -37,6 +37,7 @@ import "./App.css";
 import { routes, matchAppRoute } from './routes'
 import { ReleaseNotesProvider } from "./releaseNotes/ReleaseNotes"
 import { HelpSheetProvider } from "./components/HelpSheet"
+import { CommandPaletteProvider } from "./palette/CommandPalette"
 import PrivateContent from "./components/authentication/PrivateContent"
 import AppSider, { sider_width } from './AppSider'
 import AppNavbar from './AppNavbar'
@@ -92,7 +93,10 @@ const App = ({ persist = true }) => {
         <ReleaseNotesProvider>
           <HelpSheetProvider>
             <HistoryRouter history={history}>
-              <Routes/>
+              {/* Ctrl+K on every page: projects, app pages, Home and Explore */}
+              <CommandPaletteProvider>
+                <Routes/>
+              </CommandPaletteProvider>
             </HistoryRouter>
           </HelpSheetProvider>
         </ReleaseNotesProvider>
