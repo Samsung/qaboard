@@ -1,6 +1,6 @@
 // Explore's tree of projects. Project ids are paths ("group/repo/sub/dir", see the monorepo docs): projects go under
 // their closest ancestor project, or under a group for a prefix several projects share without a project of its own.
-// Quiet projects (nobody used or looked at them lately, e.g. subprojects only the CI runs) fade into "N quiet projects".
+// Quiet projects (only the CI ran them lately, e.g. subprojects whose tests nobody looks at) fade into "N quiet projects".
 import { match_query } from "../utils";
 
 export const quiet_after_days = 90;
@@ -9,8 +9,8 @@ const day_ms = 24 * 3600 * 1000;
 // The server's dates are UTC, some without a timezone
 const time = date => date ? new Date(/(Z|[+-]\d\d:?\d\d)$/.test(date) ? date : `${date}Z`).getTime() : null;
 
-export const quiet_tooltip = `Nobody started batches from the web app or their terminal, or opened it, in the last ${quiet_after_days} days. `
-  + "The CI's runs don't count. Pinned projects are never quiet.";
+export const quiet_tooltip = `Only the CI ran them in the last ${quiet_after_days} days: nobody started batches from the web app or their terminal. `
+  + "Pin a project to keep it in view.";
 
 // Projects that lists show: those with a qaboard.yaml and commits.
 // Not those imported from older tools (backend/backend/scripts/migrate_legacy_commits.py)
@@ -26,14 +26,12 @@ export const last_activity = details => {
   return { date: details.latest_commit_datetime ?? null, kind: 'commit' };
 };
 
-// Nobody ran it from the web app or a terminal, nor opened it, in 90 days. Servers that don't say aren't guessed.
+// Only the CI ran it in 90 days: nobody did from the web app or a terminal. Views don't count: people glancing at
+// CI results don't make a project interesting to explore. Servers that don't say aren't guessed.
 export const is_quiet = (details, { pinned = false, now = Date.now() } = {}) => {
   if (pinned) return false;
-  if (details.latest_human_activity === undefined && details.views_90d === undefined) return false;
-  const since = now - quiet_after_days * day_ms;
-  if (time(details.latest_human_activity) >= since) return false;
-  if ((details.views_90d ?? 0) > 0 || time(details.my_last_view) >= since) return false;
-  return true;
+  if (details.latest_human_activity === undefined) return false;
+  return !(time(details.latest_human_activity) >= now - quiet_after_days * day_ms);
 };
 
 const add_activity = (a, b) => {

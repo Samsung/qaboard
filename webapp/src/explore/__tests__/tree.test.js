@@ -23,13 +23,13 @@ const quiet = (fields = {}) => project({ latest_human_activity: null, latest_out
 const ids = nodes => nodes.map(n => n.id);
 
 describe('is_quiet', () => {
-  it('needs no batches from people and no views in 90 days', () => {
+  it('only the CI ran it in 90 days, whoever viewed it', () => {
     expect(is_quiet(project(), { now })).toBe(false);
     expect(is_quiet(quiet(), { now })).toBe(true);
     expect(is_quiet(quiet({ latest_human_activity: days_ago(quiet_after_days + 1) }), { now })).toBe(true);
     expect(is_quiet(quiet({ latest_human_activity: days_ago(quiet_after_days - 1) }), { now })).toBe(false);
-    expect(is_quiet(quiet({ views_90d: 1 }), { now })).toBe(false);
-    expect(is_quiet(quiet({ my_last_view: days_ago(3) }), { now })).toBe(false);
+    expect(is_quiet(quiet({ views_90d: 1 }), { now })).toBe(true);
+    expect(is_quiet(quiet({ my_last_view: days_ago(3) }), { now })).toBe(true);
   });
 
   it('never for pinned projects', () => {
@@ -94,8 +94,9 @@ describe('build_tree', () => {
       'old/a': quiet(), 'old/b': quiet(),
     }, { now });
     const repo = tree.nodes.find(n => n.id === 'repo');
-    expect(ids(repo.children).sort()).toEqual(['repo/used', 'repo/viewed']);
-    expect(ids(repo.quiet_children)).toEqual(['repo/ci-only']);
+    // only the CI runs them: being viewed doesn't make them interesting
+    expect(ids(repo.children)).toEqual(['repo/used']);
+    expect(ids(repo.quiet_children).sort()).toEqual(['repo/ci-only', 'repo/viewed']);
     expect(ids(tree.quiet_nodes)).toEqual(['old']);
     expect(count_projects(tree.quiet_nodes)).toBe(2);
   });
