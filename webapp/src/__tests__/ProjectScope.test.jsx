@@ -93,7 +93,7 @@ describe('the project page for signed-in users', () => {
     const list = await screen.findByRole('list', { name: 'Batches' });
     fireEvent.click(within(list).getByLabelText('Select sweep to compare it'));
     expect(screen.getByText(/Pick another batch to compare/)).toBeInTheDocument();
-    fireEvent.click(within(list).getByLabelText(/Select alice .* to compare it/));
+    fireEvent.click(within(list).getByLabelText('Select try to compare it'));
     fireEvent.click(screen.getByRole('button', { name: /Compare/ }));
     expect(history.push).toHaveBeenCalledWith(`/${project}/commit/${'b'.repeat(40)}?batch=sweep&reference=${'c'.repeat(40)}&batch_ref=%40alice%7C+try`);
   });

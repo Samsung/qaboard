@@ -14,7 +14,7 @@ import { batchesPagesQuery } from "./api/queries";
 import { errorMessage } from "./api/http";
 import { aggregation_metrics, useUser } from "./hooks";
 import { LoadMore } from "./components/LoadMore";
-import { format, metric_info, pretty_label, shortId } from "./utils";
+import { format, metric_info, shortId } from "./utils";
 
 
 export const origins = {
@@ -54,12 +54,20 @@ const Row = styled.li`
   &:last-child { border-bottom: none; }
   .qa-batch-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; font-size: 13px; }
   .qa-batch-label { font-weight: 600; overflow-wrap: anywhere; }
-  .qa-batch-results { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; align-items: center; }
+  .qa-batch-results { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; align-items: center; font-variant-numeric: tabular-nums; }
   @media (max-width: 640px) {
     grid-template-columns: auto minmax(0, 1fr);
     .qa-batch-results { grid-column: 2; justify-content: flex-start; }
   }
 `;
+
+// What a batch is called in a list that says where it comes from and who started it: local batches are called
+// "@alice| name" (see pretty_label), the CI's "default"
+const batch_name = batch => {
+  const local = batch.label.match(/^@[^|]+\| (.*)$/);
+  if (local) return local[1] === 'default' ? 'local run' : local[1];
+  return batch.label === 'default' ? (batch.origin === 'ci' || !batch.origin ? 'CI batch' : 'default') : batch.label;
+};
 
 const relative = date => date ? DateTime.fromISO(date, { zone: 'utc' }).toRelative() : null;
 
@@ -91,21 +99,21 @@ const DefaultMetric = ({ batch, qatools_metrics }) => {
   </Tooltip>;
 };
 
-const BatchRow = ({ project, batch, qatools_metrics, checked, onCheck }) => {
+const BatchRow = ({ project, batch, qatools_metrics, checked, onCheck, show_user }) => {
   const { commit } = batch;
   const message = (commit.message ?? '').split('\n')[0];
   return <Row>
     <Checkbox
       checked={checked}
       onChange={onCheck}
-      aria-label={`Select ${pretty_label(batch)} to compare it`}
+      aria-label={`Select ${batch_name(batch)} to compare it`}
       style={{ margin: 0 }}
     />
     <div style={{ minWidth: 0 }}>
       <div className="qa-batch-meta">
-        <Link to={batch_url(project, batch)} className="qa-batch-label">{pretty_label(batch)}</Link>
+        <Link to={batch_url(project, batch)} className="qa-batch-label" title={batch.label}>{batch_name(batch)}</Link>
         <OriginTag origin={batch.origin}/>
-        {batch.user_name && <span className={Classes.TEXT_MUTED}><Icon icon="person" size={12}/> {batch.user_name}</span>}
+        {show_user && batch.user_name && batch.origin !== 'ci' && <span className={Classes.TEXT_MUTED}><Icon icon="person" size={12}/> {batch.user_name}</span>}
       </div>
       <div className={`qa-batch-meta ${Classes.TEXT_MUTED}`}>
         <span title={commit.message}><code>{shortId(project, commit.id)}</code>{commit.branch && <> on {commit.branch}</>}{message && <> · {message}</>}</span>
@@ -168,8 +176,8 @@ export const BatchList = ({ project, project_data, branch, scope, hide_ci, onSho
     {picked_batches.length > 0 && <Callout intent={Intent.PRIMARY} icon="comparison" style={{ marginBottom: 12, position: 'sticky', top: 60, zIndex: 2 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
         <span>{picked_batches.length === 1
-          ? <>Pick another batch to compare <strong>{pretty_label(new_batch)}</strong> with.</>
-          : <>Compare <strong>{pretty_label(new_batch)}</strong> with <strong>{pretty_label(ref_batch)}</strong> (the reference).</>}</span>
+          ? <>Pick another batch to compare <strong>{batch_name(new_batch)}</strong> with.</>
+          : <>Compare <strong>{batch_name(new_batch)}</strong> with <strong>{batch_name(ref_batch)}</strong> (the reference).</>}</span>
         <span style={{ display: 'flex', gap: 8 }}>
           <Button text="Clear" variant="minimal" onClick={() => setPicked([])}/>
           <Button intent={Intent.PRIMARY} icon="comparison" text="Compare" disabled={picked_batches.length < 2}
@@ -187,6 +195,7 @@ export const BatchList = ({ project, project_data, branch, scope, hide_ci, onSho
           qatools_metrics={qatools_metrics}
           checked={picked.includes(batch.id)}
           onCheck={() => toggle(batch.id)}
+          show_user={scope !== 'mine'}
         />)}
       </ul>
     </Card>
