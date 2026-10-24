@@ -35,3 +35,16 @@ def record_submission(batch, submission):
     submissions = {s["id"]: s for s in recent}
   batch.data = {**data, 'submissions': submissions}
   flag_modified(batch, "data")
+  # batches created to run this are the web app's, and the user's
+  from .origins import claim_batch
+  claim_batch(batch, 'webapp', submission.get('user'), submitting_user_id())
+
+
+def submitting_user_id():
+  """The signed-in user who started it, if any"""
+  try:
+    from flask import g
+    user = g.actor.user
+    return user.id if user is not None else None
+  except Exception:  # outside of requests, e.g. the unit tests
+    return None

@@ -191,8 +191,8 @@ def notify_qa_database(object_type='output', **kwargs):
   Updating the QA database.
   """
   import requests
-  from .config import is_ci, config, _metrics
-  from .config import commit_id, commit_branch, commit_tag, commit_committer_name, commit_committer_email, commit_authored_datetime, commit_parents, commit_message
+  from .config import is_ci, config, _metrics, run_context
+  from .config import commit_id, commit_branch, commit_tag, commit_committer_name, commit_committer_email, commit_author_email, commit_authored_datetime, commit_parents, commit_message
 
   if kwargs.get('offline'):
     return
@@ -204,6 +204,8 @@ def notify_qa_database(object_type='output', **kwargs):
   url = f"{api_prefix}/{object_type}/"
   data = {
     'job_type': 'ci' if is_ci else 'local',
+    # where it runs, more precisely: older servers ignore it
+    'run_context': run_context(),
     'commit_sha': commit_id,
     'git_commit_sha': commit_id, # backward compat for now
     # send all the data, with some light custom serialization for Path objects
@@ -216,6 +218,7 @@ def notify_qa_database(object_type='output', **kwargs):
     'commit_tag': commit_tag,
     'commit_committer_name': commit_committer_name,
     'commit_committer_email': commit_committer_email,
+    'commit_author_email': commit_author_email,
     'commit_authored_datetime': commit_authored_datetime,
     'commit_parents': commit_parents,
     'commit_message': commit_message,

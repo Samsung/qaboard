@@ -114,3 +114,58 @@ def test_runs_activity_columns_and_indexes(alembic, make_user):
   alembic('stamp', 'c1e3a5b7d9f2')
   alembic('upgrade', 'head')
   assert sql("SELECT indisvalid FROM pg_index WHERE indexrelid = 'ix_outputs_active'::regclass") == [(True,)]
+
+
+def test_batches_get_their_origin_and_user(alembic, make_user):
+  """e9b1c3d5f7a2: old batches get an origin and a user from what they have (backend/origins.py), malformed data included"""
+  bob = make_user('bob')
+  bob_id = bob.id
+  sql("INSERT INTO projects (id, data) VALUES ('p', '{}')")
+  sql("INSERT INTO ci_commits (hexsha, project_id, authored_datetime, committer_name, data) VALUES ('a', 'p', now(), 'Bob', '{}')")
+  alembic('downgrade', 'd2f4a6b8c0e1')
+  batches = {
+    # created by a submission (CI=true: type ci)
+    'tuning': ('2026-10-01 12:00:00', {"type": "ci", "submissions": {"s1": {"created_at": "2026-10-01T12:00:10Z", "user": "bob"}}}),
+    # its first submissions are gone: its runs say they belong to one, or come from clients too old to say
+    'sweep': ('2026-09-01 12:00:00', {"type": "ci", "submissions": {"s2": {"created_at": "2026-10-01T12:00:00Z", "user": "bob"}}}),
+    'old-sweep': ('2026-09-01 12:00:00', {"type": "ci", "submissions": {"s4": {"created_at": "2026-10-01T12:00:00Z", "user": "bob"}}}),
+    # the CI's with a custom label, with a redo from the web app later
+    'matrix': ('2026-09-01 12:00:00', {"type": "ci", "submissions": {"s5": {"created_at": "not a date", "user": "bob"}}}),
+    'broken': ('2026-09-01 12:00:00', {"type": "ci", "submissions": None}),
+    # the CI's, with a redo from the web app later
+    'default': ('2026-09-01 12:00:00', {"type": "ci", "submissions": {"s3": {"created_at": "2026-10-01T12:00:00Z", "user": "bob"}}}),
+    'nightly': ('2026-09-01 12:00:00', {"type": "ci"}),
+    '@bob| try': ('2026-09-01 12:00:00', {}),
+    'mine': ('2026-09-01 12:00:00', {"type": "local"}),
+  }
+  import json
+  for label, (created, data) in batches.items():
+    sql("INSERT INTO batches (ci_commit_id, label, created_date, data) VALUES ((SELECT id FROM ci_commits), :label, :created, CAST(:data AS jsonb))",
+        label=label, created=created, data=json.dumps(data))
+  runs = [
+    ('nightly', {"user": 'qaboard', "root_command_id": "pipeline"}),
+    ('@bob| try', {"user": 'bob'}),
+    ('mine', {"user": 'carol', "submitted_by": {"user_id": bob_id, "user_name": "bob"}}),
+    ('sweep', {"user": 'bob', "root_command_id": "s2"}),
+    ('old-sweep', {"user": 'bob'}),
+    ('matrix', {"user": 'qaboard', "root_command_id": "pipeline"}),
+  ]
+  for label, data in runs:
+    sql("INSERT INTO outputs (batch_id, created_date, data, metrics, configurations, extra_parameters) VALUES ((SELECT id FROM batches WHERE label = :label), '2026-10-02 08:00:00', CAST(:data AS json), '{}', '[]', '{}')",
+        label=label, data=json.dumps(data))
+
+  alembic('upgrade', 'head')
+  rows = {r[0]: r[1:] for r in sql("SELECT label, origin, user_name, user_id, latest_output_datetime = created_date FROM batches")}
+  assert rows == {
+    'tuning': ('webapp', 'bob', bob_id, True),
+    'sweep': ('webapp', 'bob', bob_id, True),
+    'old-sweep': ('webapp', 'bob', bob_id, True),
+    'matrix': ('ci', 'qaboard', None, True),
+    'broken': ('ci', None, None, True),
+    'default': ('ci', None, None, True),
+    'nightly': ('ci', 'qaboard', None, True),
+    '@bob| try': ('local', 'bob', None, True),
+    'mine': ('local', 'bob', bob_id, True),
+  }
+  assert sql("SELECT author_email FROM ci_commits") == [(None,)]
+  assert sql("SELECT convalidated FROM pg_constraint WHERE conname = 'fk_batches_user_id'") == [(True,)]

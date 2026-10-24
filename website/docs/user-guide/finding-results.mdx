@@ -153,6 +153,8 @@ active branches whose name contains it: pick one to open it.
 | `author:kaito` | like `committer:kaito` |
 | `batch:tune` or `label:tune` | with a batch whose label contains "tune" |
 | `message:p99` or `msg:p99` | whose message contains "p99" |
+| `origin:webapp`, `origin:local` or `origin:ci` | with a batch started from the web app, from someone's terminal, or by a CI pipeline |
+| `user:kaito` | with a batch started by a user whose name contains "kaito" |
 | `id:3fa2`, `commit:3fa2` or `sha:3fa2` | whose hash starts with "3fa2" |
 
 A word matches the start of hashes when it has 4 or more hexadecimal characters. Searches are case-insensitive, and
