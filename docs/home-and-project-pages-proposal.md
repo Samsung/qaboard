@@ -13,37 +13,46 @@ Status: proposal, nothing implemented. October 2026.
 - What we built recently (What's new, `/activity`, `/storage`, the user guide) can only be found through navbar
   buttons and the sidebar.
 
-## What we already know about "mine" vs CI
+## Telling "mine", local runs and CI apart
 
-No new data is needed to tell them apart; it's just scattered and not indexed for this:
+What we have today isn't enough:
 
-| Signal | Where | Meaning |
+| Signal | Where | Why it's not enough |
 |---|---|---|
-| `Batch.label == 'default'`, `data.user == QABOARD_DEFAULT_USER` | `models/Batch.py` | CI batch |
-| `Batch.data.submissions[*].user` | `submissions.py` (partial index `ix_batches_submissions`) | started from the web app (tuning, Run Tests, redo) and by whom |
-| label `@user\| label`, or `data.type == 'local'` | `utils.js: pretty_label` | `qa batch` from someone's terminal |
-| `data.submitted_by` (verified) / `data.user` (claimed) | batches and outputs | who sent it |
-| `CiCommit.committer_name` | git display name, e.g. "Jane Doe" | who wrote the commit |
-| name → email/username from webhooks | `git_hosts/committers.py` (redis) | maps committer names to accounts |
+| `Batch.label == 'default'` | `models/Batch.py` | many CI jobs use a custom `--label` |
+| `job_type: ci\|local`, from `CI`/`GIT_COMMIT` in the env (`qaboard/config.py: is_ci`) | `batch.data.type`, `output.data.ci` | runs started from the web app export `CI=true` (`api/tuning.py`), so they look like CI; the last upload overwrites `batch.data.type` |
+| `Batch.data.submissions[*].user` | `submissions.py` (partial index `ix_batches_submissions`) | reliable for the web app, but JSONB, and only in batches started from it |
+| `data.submitted_by` (verified) / `data.user` (claimed) | batches and outputs | reliable when the run was sent with a token; service accounts (`User.kind == 'service'`, `qab_svc_` tokens) are CI by definition |
+| `CiCommit.committer_name` | git display name | doesn't match user names; the CLI already sends `commit_committer_email`, but the server only keeps it in the committers map (redis), not on the commit |
 
-One weak link: `committer_name` is a git display name, while users sign in as `jdoe`. Matching has to go through
-email/username (webhook data, LDAP email), plus aliases users can add themselves.
+So we record more, at ingest:
+
+- **The CLI sends where it runs**, `run_context`:
+  - `origin`: `webapp` when the server started it (the generated `qa_batch.sh` exports `QABOARD_SUBMISSION_ID`,
+    which also links the runs to their submission), `ci` when a CI provider's variables are set (`GITLAB_CI`,
+    `GITHUB_ACTIONS`, `JENKINS_URL`, `BUILDKITE`, `TF_BUILD`…, then plain `CI`), else `local`.
+  - for CI: provider, pipeline/job URLs, and who triggered it (`GITLAB_USER_EMAIL`, `GITHUB_ACTOR`) when available.
+- **The server decides**, in this order: a submission id → `webapp`; a service account token → `ci`; else what the
+  CLI says; old clients: `job_type` + submissions, as today. Stored per run and per batch (`mixed` when its runs disagree).
+- **Commits keep `committer_email`** (a column, from what the CLI already sends).
+- **"Mine" uses verified emails**: the account's email from the sign-in provider (LDAP, SAML, OIDC) matches
+  `committer_email`; batches are mine when their verified submitter or submission user is me. Claimed users
+  (`QA_USER`, no token) count too, marked "unverified" as today. Users can add other git emails in their profile.
 
 ## Proposal
 
 ### 1. Backend: make "mine" and "where it came from" cheap to query
 
-- **New `batches` columns**, backfilled by an Alembic migration from `data`:
-  - `origin`: `ci` | `webapp` | `cli` (derived from the signals above),
-  - `user_name` (who started it: submission user, else verified submitter, else claimed user), indexed,
-  - `latest_output_datetime`, so "recent batches" doesn't scan outputs.
+- **New columns**, filled at ingest (see above), backfilled from `data` as well as we can for old batches:
+  - `batches.origin` (`webapp` | `local` | `ci` | `mixed`), `batches.user_id` (verified) and `user_name`, indexed,
+  - `batches.latest_output_datetime`, so "recent batches" doesn't scan outputs,
+  - `ci_commits.committer_email`, indexed.
 
   Filtering JSONB on every page load works for one project, not for a home page that spans all of them.
-- **User identities**: `User.git_identities` (emails, names), filled automatically from the account's email/username
-  and the committers map, editable in Settings > Profile ("Commits by these names are yours"). One helper,
-  `is_mine(commit)`, used everywhere.
+- **User identities**: the verified email from sign-in, plus git emails users add in Settings > Profile ("Commits
+  with these emails are yours"). One helper, `is_mine(commit)`, used everywhere.
 - **APIs**
-  - `/api/v1/commits?scope=mine|all&origin=webapp|cli|ci`: "mine" = I committed it **or** one of its batches is mine.
+  - `/api/v1/commits?scope=mine|all&origin=webapp,local,ci`: "mine" = I committed it **or** one of its batches is mine.
     The response also gives the count in the other scope, so the page can say "12 yours, 340 in total".
   - `/api/v1/me/home`: everything home needs in one query: my running/pending batches, my recently finished batches
     (status, failures, key metric vs its reference), my projects (by my recent activity, then pins), and the latest
@@ -56,7 +65,7 @@ email/username (webhook data, LDAP email), plus aliases users can add themselves
 ```
  kitefin/k3                                          [ Yours ▾ | Everyone ]  [ branch: all ▾ ]  [ Batches | Commits ]
  ┌───────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
- │ master · CI  ✓ 1,204 runs  · 2h ago · psnr 41.2 (=)                                                           │  ← always: the reference
+ │ master @ e4f5a6b (bob) · CI  ✓ 1,204 runs  · 2h ago · psnr 41.2 (=)                                           │  ← always: head of the reference
  └───────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
  Showing your 12 batches of the last 30 days · 340 by everyone  →  Show everyone's
  ┌ Running ──────────────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -64,7 +73,7 @@ email/username (webhook data, LDAP email), plus aliases users can add themselves
  └───────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
  ┌ Yesterday ────────────────────────────────────────────────────────────────────────────────────────────────────┐
  │ ☐ denoise-sweep-2   on a1b2c3d  feature/denoise   web app   ✓ 480   psnr 41.9 (+0.7 vs master)              │
- │ ☐ jane 🏠 local      on 9f8e7d6  feature/denoise   CLI       ✓ 20 ✗ 3                                         │
+ │ ☐ jane 🏠 local      on 9f8e7d6  feature/denoise   local     ✓ 20 ✗ 3                                         │
  └───────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
                                                                      [ Compare selected (2) ]
 ```
@@ -76,14 +85,19 @@ email/username (webhook data, LDAP email), plus aliases users can add themselves
   what makes "show all" obvious, more than the toggle itself.
 - **The scope is in the URL** (`?scope=all`): a link you copy shows what you saw. The default only applies to
   links without it. The last choice is remembered per project (`stores/prefs.js`, already synced to the server).
-- **New "Batches" view** (default in "Yours"): the batches you started, newest first, with origin (web app, CLI,
-  CI), status, live progress, and the key metric vs. the reference. Checkboxes → "Compare" opens the commit page
+- **New "Batches" view** (default in "Yours"): the batches you started, from the web app **and** from your
+  terminal (local runs), newest first, with their origin, status, live progress, and the key metric vs. the reference. Checkboxes → "Compare" opens the commit page
   with `batch`/`batch_ref` set. That's the tuning workflow: you want batches, not commits.
 - **"Commits" view** stays for the CI and per-branch history. In "Yours" it lists your commits and the commits with
   your batches, and shows your batches before the CI's, instead of in the "N other batches" tooltip.
-- **Origin filter** (`web app`, `CLI`, `CI`) as a chip next to the search, and `origin:` in the search syntax
-  (`backend/search.py`).
-- **The reference strip** stays at the top in every scope: focusing on your stuff must not hide that master broke.
+- **Origin filter**, in "Everyone" too: `web app`, `local`, `CI` chips next to the search, and `origin:` /
+  `-origin:ci` in the search syntax (`backend/search.py`). "Everyone, without CI" is how you look at other people's
+  work: they don't need to do anything to share it. The same filter on `/activity` and `/storage`, so every index
+  page can hide the CI.
+- **The reference strip** stays at the top in every scope: the head of the reference branch, whoever committed it.
+  Focusing on your stuff must not hide that master broke.
+- **The search box only filters**: Enter no longer jumps to the branch or commit you typed (fixed along with this
+  proposal); you go there by picking it with the arrow keys or the mouse.
 
 ### 3. Home: a dashboard about you, like GitHub's
 
@@ -149,9 +163,10 @@ as flat names.
 
 Each step can ship on its own, and each adds a release-notes bullet.
 
-1. **Backend**: `batches.origin`, `user_name`, `latest_output_datetime` + migration/backfill; identities;
-   `scope`/`origin` on `/api/v1/commits` with the other scope's count. Tests on the classification, the backfill on
-   a copy of production data first (how long does it take on the biggest projects?).
+1. **CLI + backend**: `run_context` from the CLI (`QABOARD_SUBMISSION_ID` in the web app's scripts), the origin
+   decided at ingest, the new columns + backfill, `committer_email`, identities, `scope`/`origin` on
+   `/api/v1/commits` with the other scope's count. Tests on the classification; the backfill on a copy of production
+   data first (how long does it take on the biggest projects?). Old CLIs keep working, classified as today.
 2. **Project page**: scope switch, the count, the reference strip, the Batches view, compare. (The part you'll feel most.)
 3. **Home**: `/api/v1/me/home`, the three columns, the empty states. The current list moves to `/projects` ("Explore").
 4. **Hierarchy**: tree in Explore, subprojects on root pages, breadcrumbs, `project_views`, quiet projects.
@@ -162,18 +177,24 @@ Each step can ship on its own, and each adds a release-notes bullet.
 - **"Mine" by default can hide what you need**: a regression on master, or a teammate's batch you should compare
   against. The reference strip and the visible "340 total" count are there for that; if users still miss things,
   default to "Everyone" on the reference branch and to "Yours" elsewhere.
-- **Identity matching** will be wrong for some people (several git names, a personal email in the git config). The
-  editable aliases fix it, but people have to discover them: show "Not you? These commits aren't counted as yours…"
+- **Identity matching** will be wrong for some people (a personal or old email in their git config). The
+  git emails they add in their profile fix it, but people have to discover them: show "Not you? These commits aren't counted as yours…"
   where it matters.
-- **Unverified runs**: `data.user` can be claimed by anyone (`QA_USER`). "Mine" should include them (most runs are
-  unverified today), and show the "unverified" tag as it does now.
+- **Unverified runs**: `data.user` can be claimed by anyone (`QA_USER`). "Mine" includes them (many runs are
+  unverified today), with the "unverified" tag as now. It's a view filter, not access control, so that's fine.
+- **Old batches** get a best-effort origin from the backfill: some CI batches with custom labels will look local
+  until they run again with a new CLI.
 - **"Needs attention" can turn into noise** quickly. It's the part that needs the most tuning with real users.
 - **The backfill** touches every batch: run it as a background job (`backend/jobs`) rather than in the migration if it's slow.
 
 ## Questions
 
-1. Do git committer names/emails match accounts at SIRC (LDAP email = git email)? It decides how much the aliases matter.
-2. Should "Yours" include your team's batches (from groups, `admin/Groups.jsx`), or only your own?
-3. "We lost tons of subprojects that nobody looks at": did you mean they clutter the list (this proposal hides them),
+Answered:
+- "Yours" is only yours, no teams: others' work is one click away with "Everyone, without CI".
+- Labels and the env aren't enough to spot CI: the CLI sends its `run_context`, and verified emails identify people.
+- Local runs count as yours, like the web app's. Only the CI gets hidden, except the reference branch's head.
+
+Still open:
+1. "We lost tons of subprojects that nobody looks at": did you mean they clutter the list (this proposal hides them),
    or that they were deleted today and you want a way to archive projects explicitly?
-4. Should Explore stay at `/` for signed-out users on SIRC, or should the instance require sign-in everywhere?
+2. Should Explore stay at `/` for signed-out users on SIRC, or should the instance require sign-in everywhere?
