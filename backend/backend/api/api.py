@@ -434,15 +434,23 @@ quiet_after_days = 90
 human_origins = ('webapp', 'local')
 
 
-def projects_usage(user_id=None):
-  """For each project: its human activity, its batches per day, its viewers (see get_projects)"""
+# Everyone's part of projects_usage, for a minute: every Explore and home page load asks for it
+_usage_cache = {'at': None, 'value': None}
+usage_cache_seconds = 60
+
+
+def global_usage():
+  """{project: (latest human activity, batches per day, viewers)}, the same for every user"""
   now = datetime.datetime.utcnow()
+  if _usage_cache['at'] and (now - _usage_cache['at']).total_seconds() < usage_cache_seconds:
+    return _usage_cache['value']
   # batches' dates are naive UTC (api/outputs.py)
   first_day = (now - datetime.timedelta(days=activity_days - 1)).date()
+  # Only what quiet projects need: the index finds the recent batches, whatever the size of the history
   human = dict(db_session
                .query(CiCommit.project_id, func.max(Batch.latest_output_datetime))
                .join(Batch, Batch.ci_commit_id == CiCommit.id)
-               .filter(Batch.origin.in_(human_origins))
+               .filter(Batch.origin.in_(human_origins), Batch.latest_output_datetime >= now - datetime.timedelta(days=quiet_after_days))
                .group_by(CiCommit.project_id))
   day = func.date(Batch.latest_output_datetime)
   activity = {}
@@ -458,6 +466,14 @@ def projects_usage(user_id=None):
                .query(ProjectView.project_id, func.count(func.distinct(ProjectView.user_id)))
                .filter(ProjectView.last_viewed_at >= now - datetime.timedelta(days=quiet_after_days))
                .group_by(ProjectView.project_id))
+  value = (human, activity, views)
+  _usage_cache.update(at=now, value=value)
+  return value
+
+
+def projects_usage(user_id=None):
+  """For each project: its human activity, its batches per day, its viewers (see get_projects)"""
+  human, activity, views = global_usage()
   my_views = dict(db_session
                   .query(ProjectView.project_id, ProjectView.last_viewed_at)
                   .filter(ProjectView.user_id == user_id)) if user_id is not None else {}
@@ -479,7 +495,8 @@ def get_projects():
   it's much smaller. Use /api/v1/project for the rest.
 
   Explore also needs to know which projects people use (webapp/src/explore/):
-  - latest_human_activity: when a batch from the web app or someone's terminal last got a run (the CI's don't count),
+  - latest_human_activity: when a batch from the web app or someone's terminal last got a run in the last 90 days
+    (the CI's don't count), else null,
   - activity: how many batches got runs on each of the last 30 days (UTC), oldest first. null without any,
   - views_90d: how many users viewed it in the last 90 days, my_last_view: when I did (signed-in users).
   One grouped query each: sites have hundreds of projects.
