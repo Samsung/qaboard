@@ -2,7 +2,7 @@
 // a branch or commit of the current project, one of the user's recent batches, a page of the app, or do an action.
 // Mounted once in App.jsx; buttons open it with useCommandPalette().open. Matching and ranking: logic.js.
 import { createContext, useCallback, useContext, useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
-import { keepPreviousData, queryOptions, useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router";
 import { Button, Classes, Dialog, Icon, InputGroup, Spinner, Tooltip } from "@blueprintjs/core";
 import { QueryList } from "@blueprintjs/select";
@@ -56,7 +56,8 @@ export const CommandPaletteProvider = ({ children }) => {
   }, []);
   useEffect(() => {
     const onKeyDown = event => {
-      if (event.defaultPrevented || event.isComposing) return;
+      // keyCode 229: Safari's first key of an IME composition
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
       const in_palette = event.target instanceof Element && !!event.target.closest('.qa-palette');
       if (open_ref.current && is_printable(event) && !(in_palette && is_typing(event.target))) {
         event.preventDefault();
@@ -66,6 +67,11 @@ export const CommandPaletteProvider = ({ children }) => {
       }
       const ctrl_k = is_palette_shortcut(event);
       if (!ctrl_k && !is_slash(event)) return;
+      // a held key would open and close it in a loop
+      if (event.repeat) {
+        event.preventDefault();
+        return;
+      }
       // text boxes and editors (Monaco types in a textarea) keep their keys, except the palette's own box: Ctrl+K closes it
       if (is_typing(event.target) && !(ctrl_k && in_palette)) return;
       event.preventDefault();
@@ -107,8 +113,8 @@ const branchesQuery = (project, q) => queryOptions({
     return Array.isArray(data) ? [...new Set(data.map(branch => branch.replace(/^origin\//, '')))] : [];
   },
   staleTime: 60 * 1000,
-  // while users type, the previous answer (logic.js keeps the branches that still match)
-  placeholderData: keepPreviousData,
+  // while users type, the previous answer (logic.js keeps the branches that still match), never another project's
+  placeholderData: (previous, previous_query) => previous_query?.queryKey[1] === project ? previous : undefined,
 });
 
 // We offer to go to a commit only once we know it exists
@@ -193,7 +199,9 @@ const PaletteContent = ({ onClose, typing }) => {
 
   const projects = useProjects();
   const batches = useQuery({ ...myBatchesQuery(user.user_id), enabled: !!user.is_logged });
-  const branches = useQuery({ ...branchesQuery(project, debounced), enabled: !!project && !!debounced });
+  // the server finds branches containing a text: we send the longest word, logic.js ranks them with all of them
+  const branch_word = debounced.split(/\s+/).reduce((longest, word) => word.length > longest.length ? word : longest, '');
+  const branches = useQuery({ ...branchesQuery(project, branch_word), enabled: !!project && !!branch_word });
   const sha = project && looks_like_sha(debounced) ? debounced.toLowerCase() : null;
   const commits = useQuery({ ...commitsQuery(project, sha), enabled: !!sha });
 
@@ -278,12 +286,18 @@ const PaletteContent = ({ onClose, typing }) => {
       </Footer>
     </div>}
     itemListRenderer={({ filteredItems, renderItem, itemsParentRef, menuProps }) => {
+      // listboxes only hold options: what we say about the results is next to it, and read by screen readers
+      const status = <span aria-live="polite" style={visually_hidden}>
+        {loading ? 'Searching…' : `${filteredItems.length} result${filteredItems.length === 1 ? '' : 's'}`}
+      </span>;
       if (filteredItems.length === 0)
-        return <List ref={itemsParentRef} id={menuProps.id} role="listbox" aria-label="Results">
+        return <>
+          <List ref={itemsParentRef} id={menuProps.id} role="listbox" aria-label="Results"/>
           {projects.isPending && !trimmed ? <SkeletonRows/> : <Empty query={trimmed} project={project} loading={loading}/>}
-        </List>;
+          {status}
+        </>;
       let index = 0;
-      return <List ref={itemsParentRef} id={menuProps.id} role="listbox" aria-label="Results">
+      return <><List ref={itemsParentRef} id={menuProps.id} role="listbox" aria-label="Results">
         {sections.map(section => <div role="group" key={section.id} aria-labelledby={`${menuProps.id}-${section.id}`}>
           <SectionTitle id={`${menuProps.id}-${section.id}`} role="presentation">
             {section.title}
@@ -291,7 +305,7 @@ const PaletteContent = ({ onClose, typing }) => {
           </SectionTitle>
           {section.items.map(item => renderItem(item, index++))}
         </div>)}
-      </List>;
+      </List>{status}</>;
     }}
   />;
 };
@@ -409,7 +423,7 @@ const SkeletonRows = () => <div aria-busy="true" aria-label="Loading projects">
   </RowElement>)}
 </div>;
 
-const Empty = ({ query, project, loading }) => <EmptyState role="status">
+const Empty = ({ query, project, loading }) => <EmptyState aria-hidden="true">
   {loading
     ? <span>Searching…</span>
     : <>

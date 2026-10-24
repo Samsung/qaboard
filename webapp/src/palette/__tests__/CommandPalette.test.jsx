@@ -129,6 +129,17 @@ describe('the command palette', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
+  it('stays open while Ctrl+K is held, and ignores keys composing text (IME)', async () => {
+    renderApp();
+    fireEvent.keyDown(document.body, { key: 'k', ctrlKey: true });
+    const input = await screen.findByRole('combobox');
+    fireEvent.keyDown(input, { key: 'k', ctrlKey: true, repeat: true });
+    fireEvent.keyDown(input, { key: 'k', ctrlKey: true, repeat: true });
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.keyDown(document.body, { key: 'k', ctrlKey: true, keyCode: 229 });
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
   it("finds pages, and does actions", async () => {
     renderApp();
     press('k', { ctrlKey: true });
@@ -150,6 +161,8 @@ describe('the command palette', () => {
     press('k', { ctrlKey: true });
     fireEvent.change(await screen.findByRole('combobox'), { target: { value: 'zzzzqq' } });
     expect(await screen.findByText('No results for “zzzzqq”')).toBeInTheDocument();
+    // screen readers hear it from a live region next to the list
+    expect(await screen.findByText('0 results')).toBeInTheDocument();
   });
 
   it("finds the project's branches and commits, debounced", async () => {

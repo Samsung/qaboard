@@ -110,7 +110,8 @@ export function rank_projects(projects, query, { favorites = {}, now = Date.now(
     const in_name = last > 0 && match.positions.length > 0 && match.positions[0] >= last ? 4 : 0;
     const age_days = recent ? (now - used) / day_ms : Infinity;
     const usage = (pinned ? 7 : 0) + (age_days < 1 ? 6 : age_days < 7 ? 4 : age_days < recent_days ? 2 : 0);
-    items.push({ ...item, positions: match.positions, score: match.score + in_name + usage });
+    // a project matched as well as a batch is where users more likely want to go
+    items.push({ ...item, positions: match.positions, score: match.score + in_name + usage + 2 });
   }
   return items.sort(by_score).slice(0, limit);
 }
