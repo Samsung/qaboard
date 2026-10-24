@@ -12,7 +12,7 @@ import { Link, history } from "./router";
 import { path_segment } from "./selection";
 import { batchesPagesQuery } from "./api/queries";
 import { errorMessage } from "./api/http";
-import { aggregation_metrics } from "./hooks";
+import { aggregation_metrics, useUser } from "./hooks";
 import { LoadMore } from "./components/LoadMore";
 import { format, metric_info, pretty_label, shortId } from "./utils";
 
@@ -123,6 +123,7 @@ const BatchRow = ({ project, batch, qatools_metrics, checked, onCheck }) => {
 
 // The project's batches, shared by the list and the page that decides whether to show it
 export const useBatchesList = ({ project, project_data, branch, scope, hide_ci, enabled = true }) => {
+  const viewer = useUser().user_id ?? null;
   const qatools_metrics = project_data?.data?.qatools_metrics;
   const metrics = useMemo(() => aggregation_metrics(qatools_metrics), [qatools_metrics]);
   const query = useInfiniteQuery({
@@ -132,6 +133,7 @@ export const useBatchesList = ({ project, project_data, branch, scope, hide_ci, 
       scope: scope === 'mine' ? 'mine' : undefined,
       origin: hide_ci ? 'webapp,local' : undefined,
       metrics,
+      viewer: scope === 'mine' ? viewer : undefined,
     }),
     enabled: enabled && !!project,
   });
@@ -175,7 +177,8 @@ export const BatchList = ({ project, project_data, branch, scope, hide_ci, onSho
         </span>
       </div>
     </Callout>}
-    <Card elevation={0} style={{ padding: '4px 16px' }}>
+    {/* the previous list, while the new one loads */}
+    <Card elevation={0} style={{ padding: '4px 16px', opacity: query.isPlaceholderData ? 0.6 : 1, transition: 'opacity 150ms' }} aria-busy={query.isPlaceholderData}>
       <ul style={{ listStyle: 'none', margin: 0, padding: 0 }} aria-label="Batches">
         {batches.map(batch => <BatchRow
           key={batch.id}

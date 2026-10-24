@@ -160,8 +160,9 @@ export const commitsQuery = ({ project, branch, committer, from, to, metrics, ..
 export const commits_page_size = 50;
 const commits_url = ({ branch, committer }) => committer ? '/api/v1/commits/' : `/api/v1/commits/${branch ?? ''}`;
 // `scope`: "mine" for the commits users wrote or have batches in, `origin`: e.g. "webapp,local" to leave out the CI's
-export const commitsPagesQuery = ({ project, branch, committer, from, to, metrics, q, scope, origin, page_size = commits_page_size }) => infiniteQueryOptions({
-  queryKey: ['commits', project, { branch, committer, from, to, metrics, q, scope, origin, page_size, pages: true }],
+// `viewer`: whose lists of "mine" they are, only for the cache.
+export const commitsPagesQuery = ({ project, branch, committer, from, to, metrics, q, scope, origin, viewer, page_size = commits_page_size }) => infiniteQueryOptions({
+  queryKey: ['commits', project, { branch, committer, from, to, metrics, q, scope, origin, viewer, page_size, pages: true }],
   queryFn: async ({ signal, pageParam }) => {
     const { data, headers } = await http.get(commits_url({ branch, committer }), {
       params: { project, committer, from, to, q, scope, origin, metrics: JSON.stringify(metrics ?? {}), limit: page_size, offset: pageParam },
@@ -193,8 +194,8 @@ export const commitCountsQuery = ({ project, branch, committer, from, to }) => q
 // Batches, the latest first, with their commit: what users ran. Without `project`, the user's in every project (scope "mine").
 // Pages are {batches, has_more}. Refreshed while some of their runs wait or run.
 export const batches_page_size = 50;
-export const batchesPagesQuery = ({ project, branch, scope, origin, metrics, page_size = batches_page_size }) => infiniteQueryOptions({
-  queryKey: ['batches', project ?? null, { branch, scope, origin, metrics, page_size }],
+export const batchesPagesQuery = ({ project, branch, scope, origin, metrics, viewer, page_size = batches_page_size }) => infiniteQueryOptions({
+  queryKey: ['batches', project ?? null, { branch, scope, origin, metrics, viewer, page_size }],
   queryFn: async ({ signal, pageParam }) => {
     const { data, headers } = await http.get('/api/v1/batches', {
       params: { project, branch, scope, origin, metrics: metrics ? JSON.stringify(metrics) : undefined, limit: page_size, offset: pageParam },

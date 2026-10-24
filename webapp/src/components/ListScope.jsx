@@ -33,7 +33,7 @@ const Counts = ({ counts, scope, hide_ci, onScope }) => {
     </span>;
   return <span className="qa-scope-counts">
     {plural(everyone, 'commit')}{hide_ci && ' with batches outside the CI'}<span className={Classes.TEXT_MUTED}> in these dates</span>
-    {counts.mine !== null && counts.mine !== undefined && <>
+    {counts.mine !== null && counts.mine !== undefined && onScope && <>
       <span className={Classes.TEXT_MUTED}> · </span>
       <Button variant="minimal" size="small" text={`${counts.mine} yours`} endIcon="arrow-right" onClick={() => onScope('mine')}/>
     </>}
@@ -55,7 +55,7 @@ export const ListScopeToolbar = ({ list, branch, committer, view, children }) =>
   };
   const show_scope = has_scope && user.is_logged;
   return <Toolbar>
-    {!search && <Counts counts={counts} scope={scope} hide_ci={hide_ci} onScope={show_scope ? onScope : () => {}}/>}
+    {!search && <Counts counts={counts} scope={scope} hide_ci={hide_ci} onScope={show_scope ? onScope : null}/>}
     {search && <span className="qa-scope-counts"/>}
     {show_scope && <SegmentedControl
       aria-label="Whose commits"

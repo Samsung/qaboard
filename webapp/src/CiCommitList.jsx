@@ -202,7 +202,7 @@ const CiCommitList = () => {
         You have no commits or batches in this project yet: here is everyone's.
       </Callout>}
       {(scope === 'mine' || hide_ci) && !search && <ReferenceHead project={project} project_data={project_data} commit={latest_commit} density={density}/>}
-      {show_batches && <BatchList project={project} project_data={project_data} branch={branch} scope={scope} hide_ci={hide_ci} onShowEveryone={show_everyone}/>}
+      {show_batches && <BatchList key={`${scope}|${hide_ci}`} project={project} project_data={project_data} branch={branch} scope={scope} hide_ci={hide_ci} onShowEveryone={show_everyone}/>}
       {!show_batches && <>
       {/* the chart has a fixed width: it scrolls rather than spill out of the card */}
       {show_metrics_over_time && <Card elevation={0} style={{marginBottom: '15px', overflowX: 'auto'}}>

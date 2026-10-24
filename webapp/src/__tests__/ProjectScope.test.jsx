@@ -33,13 +33,14 @@ const my_batches = [
 
 const json = (data, headers = {}) => new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json', ...headers } });
 let has_mine = true;
+let has_my_commits = true;
 const fetchMock = vi.fn(async url => {
   const { pathname, searchParams } = new URL(url, 'http://localhost');
   if (pathname === '/api/v1/commit-counts') return json({ all: 2, mine: has_mine ? 1 : 0, without_ci: 1 });
   if (pathname === '/api/v1/batches') return json(has_mine ? my_batches : [], { 'X-Has-More': 'false' });
   if (pathname.startsWith('/api/v1/commits')) {
     if (pathname === '/api/v1/commits/master') return json([everyone[0]]);
-    const list = searchParams.get('scope') === 'mine' ? (has_mine ? mine : []) : everyone;
+    const list = searchParams.get('scope') === 'mine' ? (has_mine && has_my_commits ? mine : []) : everyone;
     return json(searchParams.get('origin') ? list.filter(c => Object.values(c.batches).some(b => b.origin !== 'ci')) : list, { 'X-Has-More': 'false' });
   }
   if (pathname === '/api/v1/project')
@@ -60,6 +61,7 @@ const renderPage = (url, user = alice) => {
 describe('the project page for signed-in users', () => {
   beforeEach(() => {
     has_mine = true;
+    has_my_commits = true;
     fetchMock.mockClear();
     vi.stubGlobal('fetch', fetchMock);
     vi.spyOn(history, 'push').mockImplementation(() => {});
@@ -94,6 +96,14 @@ describe('the project page for signed-in users', () => {
     fireEvent.click(within(list).getByLabelText(/Select alice .* to compare it/));
     fireEvent.click(screen.getByRole('button', { name: /Compare/ }));
     expect(history.push).toHaveBeenCalledWith(`/${project}/commit/${'b'.repeat(40)}?batch=sweep&reference=${'c'.repeat(40)}&batch_ref=%40alice%7C+try`);
+  });
+
+  it('keeps theirs when they only have batches, from old commits', async () => {
+    has_my_commits = false;
+    renderPage(`/${project}`);
+    expect(await screen.findByRole('list', { name: 'Batches' })).toBeInTheDocument();
+    expect(screen.queryByText(/You have no commits or batches/)).not.toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Yours/ })).toBeChecked();
   });
 
   it("shows everyone's when they have nothing in the project", async () => {
