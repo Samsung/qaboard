@@ -36,12 +36,13 @@ export function my_projects(projects, { favorites = {}, batches = [], now = Date
 
 export const is_running = batch => batch.pending_outputs > 0;
 
-// Finished in the last week with failed runs, unless users dismissed it (it comes back when more runs fail)
+// Finished in the last week with failed runs, unless users dismissed it (it comes back when it runs again: more
+// failures, or the same number after a redo)
 export const needs_attention = (batches, dismissed = {}, now = Date.now()) => batches.filter(b => {
   if (!(b.failed_outputs > 0) || is_running(b)) return false;
   if (time(b.latest_output_datetime) < now - attention_days * day_ms) return false;
   const seen = dismissed[b.id];
-  return !(seen && seen.failed >= b.failed_outputs);
+  return !(seen && seen.failed >= b.failed_outputs && (!seen.latest || seen.latest === b.latest_output_datetime));
 });
 
 // For the docs: what users haven't tried yet, else what's useful to everyone. Paths are under docs_root.

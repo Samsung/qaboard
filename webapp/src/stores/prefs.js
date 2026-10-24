@@ -66,11 +66,12 @@ export const usePrefsStore = create()(persist(
     setImageSensor: (project, sensor) => set(state => ({ imageSensor: { ...state.imageSensor, [project]: sensor } })),
     setCommitListDensity: density => set({ commitListDensity: density === 'compact' ? 'compact' : 'comfortable' }),
     setGitEmails: emails => set({ git_emails: [...new Set(emails.map(e => e.trim().toLowerCase()).filter(e => e.includes('@')))] }),
-    dismissHomeBatch: (id, failed, now = Date.now()) => set(state => ({
+    // `latest`: when the batch last got a run: it comes back if it runs again
+    dismissHomeBatch: (id, failed, latest = null, now = Date.now()) => set(state => ({
       // "Needs attention" shows a week: older dismissals can go
       homeDismissed: {
         ...Object.fromEntries(Object.entries(state.homeDismissed ?? {}).filter(([, d]) => now - new Date(d.at).getTime() < 30 * 24 * 3600 * 1000)),
-        [id]: { failed, at: new Date(now).toISOString() },
+        [id]: { failed, latest, at: new Date(now).toISOString() },
       },
     })),
     setListScope: (project, scope) => set(state => ({ listScope: { ...state.listScope, [project]: scope } })),

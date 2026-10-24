@@ -32,6 +32,12 @@ describe('needs_attention', () => {
     // more runs failed in 6 since it was dismissed
     expect(needs_attention(batches, dismissed, now).map(b => b.id)).toEqual([1, 6]);
   });
+
+  it('shows a dismissed batch again when it runs again, even with as many failures', () => {
+    const redone = batch(7, { latest_output_datetime: days_ago(0) });
+    expect(needs_attention([redone], { 7: { failed: 2, latest: days_ago(1), at: days_ago(1) } }, now)).toEqual([redone]);
+    expect(needs_attention([redone], { 7: { failed: 2, latest: redone.latest_output_datetime, at: days_ago(0) } }, now)).toEqual([]);
+  });
 });
 
 describe('learn', () => {

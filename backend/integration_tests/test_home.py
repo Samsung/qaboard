@@ -53,6 +53,19 @@ def test_others_batches_in_my_projects(logged_in, client, monkeypatch):
   assert alice.get('/api/v1/batches', query_string={"projects": PROJECT, "project": PROJECT}).status_code == 400
   # across all projects: only mine
   assert alice.get('/api/v1/batches', query_string={"scope": "others"}).status_code == 400
+  # anonymous visitors (a public instance): public projects only
+  assert labels(client, projects=projects, origin='webapp,local') == [(PROJECT, '@alice| try'), (PROJECT, '@bob| try'), (OTHER, '@bob| other')]
+
+
+def test_status_filters_are_recent(logged_in, client):
+  """Filters on runs only look at the batches of the last 30 days by default, at most 90"""
+  alice = logged_in('alice')
+  run(client, batch_label='old', user='alice', is_failed=True)
+  set_batch('old', latest_output_datetime=datetime.datetime.utcnow() - datetime.timedelta(days=40))
+  assert labels(alice, scope='mine', status='failed') == []
+  assert labels(alice, scope='mine', status='failed', since_days=60) == [(PROJECT, 'old')]
+  set_batch('old', latest_output_datetime=datetime.datetime.utcnow() - datetime.timedelta(days=100))
+  assert labels(alice, scope='mine', status='failed', since_days=365) == []
 
 
 def test_my_running_and_failed_batches(logged_in, client):

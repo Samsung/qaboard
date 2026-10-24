@@ -15,7 +15,7 @@ export const synced_keys = ['theme', 'commitListDensity', 'favorites', 'mileston
 
 // What belongs to an account rather than to a browser: never sent from this browser to the account that signs in
 // (it may be another person's), e.g. the server reads git_emails to know whose commits are whose
-export const account_keys = ['git_emails', 'listScope'];
+export const account_keys = ['git_emails', 'listScope', 'homeDismissed'];
 
 export const preferences_url = '/api/v1/user/preferences';
 

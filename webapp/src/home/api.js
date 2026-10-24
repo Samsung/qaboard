@@ -21,30 +21,33 @@ const batches = async (params, signal) => {
 
 // Under ['batches']: what invalidates batches (after a redo, a deletion...) refreshes them too.
 // Servers that don't know some filters ignore them: the page filters again (logic.js).
-export const runningQuery = queryOptions({
-  queryKey: ['batches', 'home', 'running'],
+// `viewer`: whose batches they are, in the keys so that another account never sees them while they refresh.
+// While nothing runs, we still check now and then for batches users start elsewhere.
+export const idle_refresh_interval = 60 * 1000;
+export const runningQuery = viewer => queryOptions({
+  queryKey: ['batches', 'home', 'running', viewer],
   queryFn: ({ signal }) => batches({ scope: 'mine', status: 'pending', since_days: running_days, limit: 20 }, signal),
   staleTime: 5 * 1000,
-  refetchInterval: query => query.state.data?.some(b => b.pending_outputs > 0) ? refresh_interval : false,
+  refetchInterval: query => query.state.data?.some(b => b.pending_outputs > 0) ? refresh_interval : idle_refresh_interval,
 });
 
-export const failedQuery = queryOptions({
-  queryKey: ['batches', 'home', 'failed'],
+export const failedQuery = viewer => queryOptions({
+  queryKey: ['batches', 'home', 'failed', viewer],
   queryFn: ({ signal }) => batches({ scope: 'mine', status: 'failed', since_days: attention_days, limit: 30 }, signal),
   staleTime: 30 * 1000,
 });
 
 export const recent_size = 8;
-export const recentQuery = queryOptions({
-  queryKey: ['batches', 'home', 'recent'],
+export const recentQuery = viewer => queryOptions({
+  queryKey: ['batches', 'home', 'recent', viewer],
   // a few more: those still running are in "Running now"
   queryFn: ({ signal }) => batches({ scope: 'mine', metrics: 'default', limit: recent_size + 6 }, signal),
   staleTime: 30 * 1000,
 });
 
 // Teammates' batches from the web app or their terminal, in the user's projects (not the CI's)
-export const othersQuery = projects => queryOptions({
-  queryKey: ['batches', 'home', 'others', projects],
+export const othersQuery = (projects, viewer) => queryOptions({
+  queryKey: ['batches', 'home', 'others', viewer, projects],
   queryFn: ({ signal }) => batches({ projects: projects.join(','), scope: 'others', origin: 'webapp,local', since_days: others_days, limit: 10 }, signal),
   enabled: projects.length > 0,
   staleTime: 60 * 1000,

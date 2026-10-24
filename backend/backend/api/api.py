@@ -326,8 +326,11 @@ def get_batches():
     return jsonify({"error": f"{e}"}), 400
   if not project_id and not project_ids and not (identity and request.args.get('scope') == 'mine'):
     return jsonify({"error": "Give a ?project=, or ask for your batches with ?scope=mine"}), 400
-  if project_id and project_id.startswith(skip_metrics_aggregation):
+  if any(p.startswith(skip_metrics_aggregation) for p in ([project_id] if project_id else project_ids)):
     metrics_to_aggregate, default_metrics = {}, False
+  if status:
+    # they look at the batches' runs: only recent batches (by default the last 30 days, at most 90)
+    since_days = min(since_days or 30, 90)
   if project_ids:
     project_ids = [p for p in dict.fromkeys(project_ids) if is_authorized_user(None, p)]
     if not project_ids:

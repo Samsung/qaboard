@@ -1,12 +1,12 @@
 // The home page's center: the user's batches that run, that need attention, that ended, then teammates'
 import { useId, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Classes, Collapse, Icon, Intent, Spinner, Tag, Tooltip } from "@blueprintjs/core";
 
 import { Link } from "../router";
 import { batch_name, batch_url, BatchStatus, DefaultMetric } from "../BatchList";
 import { usePrefsStore } from "../stores/prefs";
-import { useSiteConfig } from "../hooks";
+import { useSiteConfig, useUser } from "../hooks";
 import { metrics_fill_defaults } from "../utils";
 import { runningQuery, failedQuery, recentQuery, othersQuery, recent_size, attention_days } from "./api";
 import { is_running, needs_attention } from "./logic";
@@ -62,8 +62,8 @@ export const NeedsAttention = ({ query }) => {
           <Tag minimal intent={Intent.DANGER}>{batch.failed_outputs} failed</Tag>
           {batch.valid_outputs > 0 && <Tag minimal intent={Intent.SUCCESS} icon="tick-circle">{batch.valid_outputs}</Tag>}
           <RowLink to={logs_url(batch)} icon="console" text="Logs" label={`The logs of ${batch_name(batch)}`}/>
-          <Tooltip content="Hide it from here. It comes back if more runs fail." hoverOpenDelay={300}>
-            <Button variant="minimal" size="small" icon="cross" aria-label={`Dismiss ${batch_name(batch)}`} onClick={() => dismiss(batch.id, batch.failed_outputs)}/>
+          <Tooltip content="Hide it from here. It comes back if it runs again and runs fail." hoverOpenDelay={300}>
+            <Button variant="minimal" size="small" icon="cross" aria-label={`Dismiss ${batch_name(batch)}`} onClick={() => dismiss(batch.id, batch.failed_outputs, batch.latest_output_datetime)}/>
           </Tooltip>
         </BatchRow>)}
       </Rows>}
@@ -101,7 +101,8 @@ export const Recent = ({ query }) => {
 export const FromYourProjects = ({ projects }) => {
   const [open, setOpen] = useState(false);
   const body_id = useId();
-  const query = useQuery({ ...othersQuery(projects), enabled: open && projects.length > 0 });
+  const viewer = useUser().user_id ?? null;
+  const query = useQuery({ ...othersQuery(projects, viewer), enabled: open && projects.length > 0 });
   const batches = query.data ?? [];
   return <Section
     id="others"
@@ -160,9 +161,19 @@ export const GetStarted = () => {
 
 // Whether users have batches anywhere, once we know
 export const useFeed = () => {
-  const running = useQuery(runningQuery);
-  const failed = useQuery(failedQuery);
-  const recent = useQuery(recentQuery);
+  const viewer = useUser().user_id ?? null;
+  const running = useQuery(runningQuery(viewer));
+  const failed = useQuery(failedQuery(viewer));
+  const recent = useQuery(recentQuery(viewer));
+  // When batches start or end, they move between the sections: the others refresh at once
+  const queryClient = useQueryClient();
+  const running_ids = (running.data ?? []).map(b => b.id).join(',');
+  const [known_ids, setKnownIds] = useState(null);
+  if (running.isSuccess && running_ids !== known_ids) {
+    setKnownIds(running_ids);
+    if (known_ids !== null)
+      queryClient.invalidateQueries({ queryKey: ['batches', 'home'], predicate: query => query.queryKey[2] !== 'running' });
+  }
   const loaded = running.isSuccess && recent.isSuccess;
   const has_batches = (running.data ?? []).length > 0 || (recent.data ?? []).length > 0 || (failed.data ?? []).length > 0;
   return { running, failed, recent, loaded, is_new: loaded && !has_batches };
