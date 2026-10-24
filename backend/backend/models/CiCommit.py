@@ -31,6 +31,11 @@ from .. import recreate_artifacts
 
 
 
+def normalize_email(email):
+  email = str(email or '').strip().lower()
+  return email if '@' in email else None
+
+
 class CiCommit(Base):
   """Refers to a git commit of the code
   on which we ran some SLAM performance test (likely in the CI).
@@ -47,6 +52,8 @@ class CiCommit(Base):
 
   authored_datetime = Column(DateTime(timezone=True), index=True)
   committer_name = Column(String(), index=True)
+  # from the CLI or webhooks: who wrote it, to show users their commits (lowercase)
+  committer_email = Column(String())
   message = Column(String())
   # We use as branch the first branch that the commit was seen on, or the project's reference branch if it was used.
   # TODO: we should also store the tags we witnessed the commit used with.
@@ -60,6 +67,8 @@ class CiCommit(Base):
     Index('ix_ci_commits_project_id_branch_authored_datetime', 'project_id', 'branch', authored_datetime.desc()),
     # The commits with new runs, whose storage usage must be updated (backend/storage_usage.py)
     Index('ix_ci_commits_latest_output_datetime', 'latest_output_datetime'),
+    # Users' commits, created by the migration e9b1c3d5f7a2
+    Index('ix_ci_commits_committer_email_authored_datetime', 'committer_email', authored_datetime.desc()),
   )
   # In the end there having a commit's parents is not all that useful for QA-Board:
   # not all commits are used for runs: e.g. CI runs only on pushed commits, so
@@ -409,6 +418,7 @@ class CiCommit(Base):
           git_parents = data.get("commit_parents")
           git_message = data.get("commit_message")
           git_committer_name = data.get("commit_committer_name")
+          git_committer_email = data.get("commit_committer_email")
           git_authored_datetime = data["commit_authored_datetime"]
           git_branch = data.get("commit_branch")
         else:
@@ -417,6 +427,7 @@ class CiCommit(Base):
           git_parents = [c.hexsha for c in git_commit.parents]
           git_message = git_commit.message
           git_committer_name = git_commit.committer.name
+          git_committer_email = getattr(git_commit.committer, "email", None)
           git_authored_datetime = git_commit.authored_datetime
           # commits belong to many branches, so this is a guess
           git_branch = find_branch(hexsha, project.repo)
@@ -433,6 +444,7 @@ class CiCommit(Base):
           authored_datetime=git_authored_datetime,
           branch=git_branch,
         )
+        ci_commit.committer_email = normalize_email(git_committer_email)
         if data and data.get('project_root'):
           if not ci_commit.data:
             ci_commit.data = {}
@@ -476,6 +488,10 @@ class CiCommit(Base):
     if data and "qaboard_metrics" in data and ci_commit.data.get('qatools_metrics') is None:
       ci_commit.data['qatools_metrics'] = data['qaboard_metrics']
       flag_modified(ci_commit, "data")
+    # Commits from before we saved emails get theirs when `qa` sends results again
+    if data and not getattr(ci_commit, 'committer_email', None) and data.get("commit_committer_email") and \
+       (data.get("commit_committer_name") or '').strip().lower() == (ci_commit.committer_name or '').strip().lower():
+      ci_commit.committer_email = normalize_email(data["commit_committer_email"])
     return ci_commit
 
   def _get_avatar_url(self):

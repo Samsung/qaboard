@@ -114,3 +114,42 @@ def test_runs_activity_columns_and_indexes(alembic, make_user):
   alembic('stamp', 'c1e3a5b7d9f2')
   alembic('upgrade', 'head')
   assert sql("SELECT indisvalid FROM pg_index WHERE indexrelid = 'ix_outputs_active'::regclass") == [(True,)]
+
+
+def test_batches_get_their_origin_and_user(alembic, make_user):
+  """e9b1c3d5f7a2: old batches get an origin and a user from what they have (backend/origins.py)"""
+  bob = make_user('bob')
+  bob_id = bob.id
+  sql("INSERT INTO projects (id, data) VALUES ('p', '{}')")
+  sql("INSERT INTO ci_commits (hexsha, project_id, authored_datetime, committer_name, data) VALUES ('a', 'p', now(), 'Bob', '{}')")
+  alembic('downgrade', 'd2f4a6b8c0e1')
+  batches = {
+    # created by a submission (CI=true: type ci)
+    'tuning': ('2026-10-01 12:00:00', {"type": "ci", "submissions": {"s1": {"created_at": "2026-10-01T12:00:10Z", "user": "bob"}}}),
+    # its first submissions are gone
+    'sweep': ('2026-09-01 12:00:00', {"type": "ci", "submissions": {"s2": {"created_at": "2026-10-01T12:00:00Z", "user": "bob"}}}),
+    # the CI's, with a redo from the web app later
+    'default': ('2026-09-01 12:00:00', {"type": "ci", "submissions": {"s3": {"created_at": "2026-10-01T12:00:00Z", "user": "bob"}}}),
+    'nightly': ('2026-09-01 12:00:00', {"type": "ci"}),
+    '@bob| try': ('2026-09-01 12:00:00', {}),
+    'mine': ('2026-09-01 12:00:00', {"type": "local"}),
+  }
+  import json
+  for label, (created, data) in batches.items():
+    sql("INSERT INTO batches (ci_commit_id, label, created_date, data) VALUES ((SELECT id FROM ci_commits), :label, :created, CAST(:data AS jsonb))",
+        label=label, created=created, data=json.dumps(data))
+  for label, user, submitted_by in [('nightly', 'qaboard', None), ('@bob| try', 'bob', None), ('mine', 'carol', {"user_id": bob_id, "user_name": "bob"})]:
+    sql("INSERT INTO outputs (batch_id, created_date, data, metrics, configurations, extra_parameters) VALUES ((SELECT id FROM batches WHERE label = :label), '2026-10-02 08:00:00', CAST(:data AS json), '{}', '[]', '{}')",
+        label=label, data=json.dumps({"user": user, **({"submitted_by": submitted_by} if submitted_by else {})}))
+
+  alembic('upgrade', 'head')
+  rows = {r[0]: r[1:] for r in sql("SELECT label, origin, user_name, user_id, latest_output_datetime IS NOT NULL FROM batches")}
+  assert rows == {
+    'tuning': ('webapp', 'bob', bob_id, False),
+    'sweep': ('webapp', 'bob', bob_id, False),
+    'default': ('ci', None, None, False),
+    'nightly': ('ci', 'qaboard', None, True),
+    '@bob| try': ('local', 'bob', None, True),
+    'mine': ('local', 'bob', bob_id, True),
+  }
+  assert sql("SELECT committer_email FROM ci_commits") == [(None,)]

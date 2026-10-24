@@ -8,6 +8,7 @@ from qaboard.conventions import deserialize_config
 
 from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
+from ..origins import run_origin, run_user, claim_batch
 from ..storage import check_storage_path, UnsafePathError
 from ..redo import redo_response
 from ..metrics_definitions import save_metrics_definitions
@@ -234,6 +235,14 @@ def new_output_webhook():
     output.data.pop("submitted_by", None)
   # we can only trust CI outputs to run on the exact code from the commit
   output.data["ci"] = data['job_type'] == 'ci'
+  # where it comes from, and the batch's if it's new (backend/origins.py)
+  sent_data = data.get('data') if isinstance(data.get('data'), dict) else {}
+  sent_job_options = sent_data.get('job_options') if isinstance(sent_data.get('job_options'), dict) else {}
+  origin = run_origin(data, batch.data, submitted_by, [sent_data.get('root_command_id'), sent_job_options.get('command_id')])
+  output.data["origin"] = origin
+  claim_batch(batch, origin, run_user(data, submitted_by), (submitted_by or {}).get('user_id'))
+  if not isinstance(batch.latest_output_datetime, datetime.datetime) or now - batch.latest_output_datetime > threshold:
+    batch.latest_output_datetime = now
   if data.get('batch'):
     output.data["batch"] = data["batch"]
   if output.deleted:

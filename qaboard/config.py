@@ -253,6 +253,46 @@ ci_env_variables = (
 )
 is_ci = any([v in os.environ for v in ci_env_variables])
 
+# CI providers, and what tells them apart: QA-Board shows users their own runs, and can hide the CI's
+ci_providers = (
+  ('gitlab', 'GITLAB_CI'),
+  ('github', 'GITHUB_ACTIONS'),
+  ('jenkins', 'JENKINS_URL'),
+  ('azure', 'TF_BUILD'),
+  ('buildkite', 'BUILDKITE'),
+  ('circleci', 'CIRCLECI'),
+  ('teamcity', 'TEAMCITY_VERSION'),
+  ('bitbucket', 'BITBUCKET_BUILD_NUMBER'),
+  ('drone', 'DRONE'),
+  ('travis', 'TRAVIS'),
+)
+
+
+def run_context(environ=os.environ) -> dict:
+  """
+  Where `qa` runs: {"origin": "webapp" | "ci" | "local", ...}. Runs QA-Board starts set QABOARD_TUNING (and CI, like
+  pipelines). For CI pipelines: the provider, links to the pipeline and job, and who triggered them, when we know.
+  """
+  if 'QABOARD_TUNING' in environ:
+    return {"origin": "webapp"}
+  provider = next((name for name, variable in ci_providers if environ.get(variable)), None)
+  if not provider and not any(v in environ for v in ci_env_variables):
+    return {"origin": "local"}
+  context = {"origin": "ci", "provider": provider or "unknown"}
+  if provider == 'gitlab':
+    context.update(pipeline_url=environ.get('CI_PIPELINE_URL'), job_url=environ.get('CI_JOB_URL'),
+                   triggered_by=environ.get('GITLAB_USER_EMAIL') or environ.get('GITLAB_USER_LOGIN'))
+  elif provider == 'github':
+    server, repository, run_id = environ.get('GITHUB_SERVER_URL'), environ.get('GITHUB_REPOSITORY'), environ.get('GITHUB_RUN_ID')
+    if server and repository and run_id:
+      context['pipeline_url'] = f"{server}/{repository}/actions/runs/{run_id}"
+    context['triggered_by'] = environ.get('GITHUB_TRIGGERING_ACTOR') or environ.get('GITHUB_ACTOR')
+  elif provider == 'jenkins':
+    context.update(job_url=environ.get('BUILD_URL'), triggered_by=environ.get('BUILD_USER_EMAIL') or environ.get('BUILD_USER_ID'))
+  elif provider == 'buildkite':
+    context.update(job_url=environ.get('BUILDKITE_BUILD_URL'), triggered_by=environ.get('BUILDKITE_BUILD_CREATOR_EMAIL'))
+  return {k: v for k, v in context.items() if v}
+
 
 def github_pull_request_head() -> Optional[str]:
   """In Github Actions workflows triggered by pull requests, the last commit of the pull request."""

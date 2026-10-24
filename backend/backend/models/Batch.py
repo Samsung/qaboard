@@ -53,10 +53,22 @@ class Batch(Base):
   # identifies eg whether it is the default CI job, or a tuning experiment...
   label = Column(String(), default="default")
 
+  # Where it comes from: webapp, local or ci, and who started it (backend/origins.py). NULL for batches from before,
+  # until the migration e9b1c3d5f7a2 fills them in.
+  origin = Column(String())
+  user_name = Column(String())
+  # the verified user, when it was sent with a token or started from the web app
+  user_id = Column(Integer(), ForeignKey('users.id', ondelete='SET NULL'))
+  # when it last got a run: lists of recent batches
+  latest_output_datetime = Column(DateTime())
+
   __table_args__ = (
     UniqueConstraint('ci_commit_id', 'label', name='_ci_commit__label'),
     # The batches started from QA-Board: "Activity" shows those that will start soon (backend/run_activity.py)
     Index('ix_batches_submissions', 'id', postgresql_where=text("data ? 'submissions'")),
+    # Users' recent batches (the home page, the project page), created by the migration e9b1c3d5f7a2
+    Index('ix_batches_user_id_latest_output_datetime', 'user_id', 'latest_output_datetime'),
+    Index('ix_batches_user_name_latest_output_datetime', 'user_name', 'latest_output_datetime'),
   )
 
   batch_dir_override = Column(String())
@@ -95,6 +107,9 @@ class Batch(Base):
         'commit_id': self.ci_commit.hexsha,
         'label': self.label,
         'created_date': self.created_date.isoformat(),
+        'origin': self.origin,
+        'user_name': self.user_name,
+        'latest_output_datetime': self.latest_output_datetime.isoformat() if self.latest_output_datetime else None,
         'data': data,
         'batch_dir_url': dir_to_url(batch_dir),
         **stats,

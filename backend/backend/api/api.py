@@ -2,12 +2,13 @@
 Access data related to Projects.
 """
 import os
+import re
 import pytz
 import json
 import datetime
 
 import ujson
-from flask import request, jsonify, make_response
+from flask import request, jsonify, make_response, g
 
 from sqlalchemy import func, and_, asc, or_, text
 from sqlalchemy.orm import selectinload
@@ -25,6 +26,7 @@ from ..utils import profiled
 from ..config import git_server, skip_metrics_aggregation
 from ..search import parse_query, commits_search_filter, escape_like
 from .auth import is_authorized_user, get_current_user, forbidden_project
+from ..mine import identity_of, commit_is_mine, batch_is_mine, batch_origin_in, parse_origins, SCOPES
 from ..notifications.mail import email_enabled
 from ..settings import setting
 
@@ -124,6 +126,8 @@ def get_commits(branch=None):
   - Pages: ?limit=&offset=. The X-Has-More header says if there are more.
   - ?metrics={"name": target}: aggregate those metrics over each batch's outputs
   - ?with_outputs=true: include the batches' outputs. ?batch=label or ?only_ci_batches=true: only those batches.
+  - ?scope=mine: only the commits I wrote or have batches in (backend/mine.py). ?origin=webapp,local: only commits
+    with batches from there, and only those batches.
   """
   project_id = request.args['project']
 
@@ -137,6 +141,12 @@ def get_commits(branch=None):
   except ValueError as e:
     return jsonify({"error": f"Invalid pagination: {e}"}), 400
   search_terms = parse_query(request.args.get('q', ''))
+  try:
+    identity, origins = scope_and_origins()
+  except ValueError as e:
+    return jsonify({"error": f"{e}"}), 400
+  except PermissionError as e:
+    return jsonify({"error": f"{e}", "reason": "sign_in_required"}), 401
 
   if branch:
     branch = branch.replace('origin/', '')
@@ -147,6 +157,10 @@ def get_commits(branch=None):
       query = query.filter(CiCommit.branch.in_([branch, f'origin/{branch}']))
     if committer_name:
       query = query.filter(CiCommit.committer_name == committer_name)
+    if identity:
+      query = query.filter(commit_is_mine(identity))
+    if origins:
+      query = query.filter(CiCommit.batches.any(batch_origin_in(origins)))
     return query
 
   to_date_s = request.args.get('to', None)
@@ -181,6 +195,8 @@ def get_commits(branch=None):
   ci_commits = db_session.query(CiCommit)
   # We only load the batches we show
   batches = CiCommit.batches.and_(Batch.label.in_(with_batches)) if with_batches else CiCommit.batches
+  if origins:
+    batches = batches.and_(batch_origin_in(origins))
   if with_outputs:
     ci_commits = ci_commits.options(selectinload(batches).selectinload(Batch.outputs))
   else:
@@ -223,6 +239,139 @@ def get_commits(branch=None):
     for c in commits
   ]
   return commits_response(serializable_commits, has_more)
+
+
+def scope_and_origins():
+  """?scope=mine|all and ?origin=webapp,local,ci: (identity or None, origins or None). Raises ValueError for bad values."""
+  scope = request.args.get('scope') or 'all'
+  if scope not in SCOPES:
+    raise ValueError(f"Unknown scope {scope!r}: use {' or '.join(SCOPES)}")
+  origins = parse_origins(request.args.get('origin'))
+  identity = None
+  if scope == 'mine':
+    identity = identity_of(g.actor.user)
+    if identity is None:
+      raise PermissionError("Sign in to see your commits and batches.")
+  return identity, origins
+
+
+@app.route("/api/v1/commit-counts")
+@app.route("/api/v1/commit-counts/")
+def get_commits_counts():
+  """
+  How many commits with results the lists would show, for each scope: {"all", "mine", "without_ci"}.
+  `mine` is null for anonymous users. Same parameters as /api/v1/commits: project, branch, committer, from, to.
+  """
+  project_id = request.args['project']
+  if not is_authorized_user(None, project_id):
+    return forbidden_project(project_id)
+  try:
+    from_date = to_datetime(request.args['from']) - datetime.timedelta(hours=3) if request.args.get('from') else None
+    to_date = to_datetime(request.args['to']) + datetime.timedelta(hours=3) if request.args.get('to') else None
+  except ValueError as e:
+    return jsonify({"error": f"Invalid dates: {e}"}), 400
+  query = db_session.query(CiCommit.id).filter(CiCommit.project_id == project_id, CiCommit.batches.any())
+  branch = (request.args.get('branch') or '').replace('origin/', '')
+  if branch:
+    query = query.filter(CiCommit.branch.in_([branch, f'origin/{branch}']))
+  if request.args.get('committer'):
+    query = query.filter(CiCommit.committer_name == request.args['committer'])
+  if from_date:
+    query = query.filter(CiCommit.authored_datetime >= from_date)
+  if to_date:
+    query = query.filter(CiCommit.authored_datetime <= to_date)
+  identity = identity_of(g.actor.user)
+  return jsonify({
+    "all": query.count(),
+    "mine": query.filter(commit_is_mine(identity)).count() if identity else None,
+    "without_ci": query.filter(CiCommit.batches.any(batch_origin_in(['webapp', 'local']))).count(),
+  })
+
+
+@app.route("/api/v1/batches")
+@app.route("/api/v1/batches/")
+def get_batches():
+  """
+  Batches, the latest first (by their latest run), with their commit: what users ran, rather than commits.
+  - ?project=: a project's, else in every project the user can read (then ?scope=mine is required).
+  - ?scope=mine|all, ?origin=webapp,local,ci (backend/mine.py), ?branch=
+  - ?metrics={"name": target}: aggregate those metrics over each batch's runs, like /api/v1/commits
+  - Pages: ?limit= (default 50) &offset=. The X-Has-More header says if there are more.
+  """
+  project_id = request.args.get('project')
+  if project_id and not is_authorized_user(None, project_id):
+    return forbidden_project(project_id)
+  try:
+    identity, origins = scope_and_origins()
+    limit = int_arg('limit', default=50, min_value=1, max_value=200)
+    offset = int_arg('offset', default=0, max_value=10**12)
+    metrics_to_aggregate = json.loads(request.args.get('metrics', '{}'))
+  except PermissionError as e:
+    return jsonify({"error": f"{e}", "reason": "sign_in_required"}), 401
+  except ValueError as e:  # also bad JSON
+    return jsonify({"error": f"{e}"}), 400
+  if not project_id and not identity:
+    return jsonify({"error": "Give a ?project=, or ask for your batches with ?scope=mine"}), 400
+  if project_id and project_id.startswith(skip_metrics_aggregation):
+    metrics_to_aggregate = {}
+
+  query = (db_session.query(Batch)
+           .join(CiCommit, Batch.ci_commit_id == CiCommit.id)
+           .options(selectinload(Batch.ci_commit))
+          )
+  if project_id:
+    query = query.filter(CiCommit.project_id == project_id)
+  if identity:
+    query = query.filter(batch_is_mine(identity))
+  if origins:
+    query = query.filter(batch_origin_in(origins))
+  branch = (request.args.get('branch') or '').replace('origin/', '')
+  if branch:
+    query = query.filter(CiCommit.branch.in_([branch, f'origin/{branch}']))
+  latest = func.coalesce(Batch.latest_output_datetime, Batch.created_date)
+  query = query.order_by(latest.desc(), Batch.id.desc())
+
+  # Across projects, we skip those the user can't read anymore
+  readable = {}
+  def can_read(project):
+    if project_id:
+      return True
+    if project not in readable:
+      readable[project] = is_authorized_user(None, project)
+    return readable[project]
+  batches, page_offset = [], 0
+  for _ in range(10):  # users who lost access to many projects get shorter pages rather than slow ones
+    page = query.offset(page_offset).limit(offset + limit + 1).all()
+    for batch in page:
+      if can_read(batch.ci_commit.project_id):
+        batches.append(batch)
+    page_offset += len(page)
+    if len(page) < offset + limit + 1 or len(batches) >= offset + limit + 1:
+      break
+  batches = batches[offset:]
+  has_more = len(batches) > limit
+  batches = batches[:limit]
+
+  from ..models.Batch import no_stats
+  stats = batches_stats(db_session, [b.id for b in batches], metrics_to_aggregate)
+  def serialize(batch):
+    commit = batch.ci_commit
+    return {
+      **batch.to_dict(db_session, with_aggregation=metrics_to_aggregate, stats=stats.get(batch.id, no_stats)),
+      'project': commit.project_id,
+      'commit': {
+        'id': commit.hexsha,
+        'branch': re.sub('^origin/', '', commit.branch) if commit.branch else '',
+        'message': commit.message,
+        'committer_name': commit.committer_name,
+        'authored_datetime': commit.authored_datetime.isoformat() if commit.authored_datetime else None,
+      },
+    }
+  response = make_response(ujson.dumps([serialize(b) for b in batches]))
+  response.headers['Content-Type'] = 'application/json'
+  response.headers['X-Has-More'] = 'true' if has_more else 'false'
+  response.headers['Access-Control-Expose-Headers'] = 'X-Has-More'
+  return response
 
 
 def commits_response(commits, has_more=None):
