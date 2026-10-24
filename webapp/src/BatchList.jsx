@@ -71,7 +71,8 @@ const batch_name = batch => {
 
 const relative = date => date ? DateTime.fromISO(date, { zone: 'utc' }).toRelative() : null;
 
-const BatchStatus = ({ batch }) => {
+// Its progress while runs wait or run, then how many runs ended well and failed
+export const BatchStatus = ({ batch }) => {
   const total = total_runs(batch);
   const done = (batch.valid_outputs ?? 0) + (batch.failed_outputs ?? 0);
   const waiting = (batch.pending_outputs ?? 0) - (batch.running_outputs ?? 0);
@@ -88,7 +89,8 @@ const BatchStatus = ({ batch }) => {
   </>;
 };
 
-const DefaultMetric = ({ batch, qatools_metrics }) => {
+// The project's default metric, averaged over the batch's finished runs (aggregated by the server, see useBatchesList)
+export const DefaultMetric = ({ batch, qatools_metrics }) => {
   const { available_metrics = {}, default_metric } = qatools_metrics ?? {};
   if (!default_metric || !batch.valid_outputs) return null;
   const info = metric_info(available_metrics, default_metric);

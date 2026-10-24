@@ -39,6 +39,9 @@ export const usePrefsStore = create()(persist(
     listScope: {},
     // other emails in users' git config: their commits are theirs too (the server reads it, see backend/mine.py)
     git_emails: [],
+    // batch id => {failed, at}: the batches users dismissed from the home page's "Needs attention", with how many
+    // runs had failed. They come back if more fail.
+    homeDismissed: {},
 
     toggleFavorite: project => set(state => ({
       favorites: { ...state.favorites, [project]: !state.favorites[project] },
@@ -63,6 +66,13 @@ export const usePrefsStore = create()(persist(
     setImageSensor: (project, sensor) => set(state => ({ imageSensor: { ...state.imageSensor, [project]: sensor } })),
     setCommitListDensity: density => set({ commitListDensity: density === 'compact' ? 'compact' : 'comfortable' }),
     setGitEmails: emails => set({ git_emails: [...new Set(emails.map(e => e.trim().toLowerCase()).filter(e => e.includes('@')))] }),
+    dismissHomeBatch: (id, failed, now = Date.now()) => set(state => ({
+      // "Needs attention" shows a week: older dismissals can go
+      homeDismissed: {
+        ...Object.fromEntries(Object.entries(state.homeDismissed ?? {}).filter(([, d]) => now - new Date(d.at).getTime() < 30 * 24 * 3600 * 1000)),
+        [id]: { failed, at: new Date(now).toISOString() },
+      },
+    })),
     setListScope: (project, scope) => set(state => ({ listScope: { ...state.listScope, [project]: scope } })),
     toggleHideSharedSettings: () => set(state => ({ hide_shared_settings: !state.hide_shared_settings })),
     updateTuning: (project, form) => set(state => ({

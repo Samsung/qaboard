@@ -11,7 +11,7 @@ import { useUser } from "../hooks";
 import { usePrefsStore } from "./prefs";
 
 // Not `siderCollapsed` (it depends on the screen) nor `milestones` (they move to the account, see milestones/hooks.js)
-export const synced_keys = ['theme', 'commitListDensity', 'favorites', 'milestoneGroupsCollapsed', 'exploreGroups', 'imagePixelValues', 'tuning', 'hide_shared_settings', 'listScope', 'git_emails'];
+export const synced_keys = ['theme', 'commitListDensity', 'favorites', 'milestoneGroupsCollapsed', 'exploreGroups', 'imagePixelValues', 'tuning', 'hide_shared_settings', 'listScope', 'git_emails', 'homeDismissed'];
 
 // What belongs to an account rather than to a browser: never sent from this browser to the account that signs in
 // (it may be another person's), e.g. the server reads git_emails to know whose commits are whose
