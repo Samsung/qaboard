@@ -12,7 +12,7 @@ from pathlib import Path
 from requests.utils import quote
 from sqlalchemy import Column, Boolean, Integer, String, DateTime, JSON, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy import or_, func, UniqueConstraint, Index, orm
+from sqlalchemy import or_, text, UniqueConstraint, Index, orm
 from sqlalchemy.orm import relationship, reconstructor, joinedload, selectinload
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.exc import IntegrityError
@@ -70,7 +70,7 @@ class CiCommit(Base):
     # Users' commits, created by the migration e9b1c3d5f7a2
     Index('ix_ci_commits_author_email', 'author_email'),
     # commits from before we saved emails are matched by name
-    Index('ix_ci_commits_lower_committer_name', func.lower(committer_name)),
+    Index('ix_ci_commits_lower_committer_name', text('lower(committer_name)')),
   )
   # In the end there having a commit's parents is not all that useful for QA-Board:
   # not all commits are used for runs: e.g. CI runs only on pushed commits, so
@@ -429,7 +429,7 @@ class CiCommit(Base):
           git_parents = [c.hexsha for c in git_commit.parents]
           git_message = git_commit.message
           git_committer_name = git_commit.committer.name
-          git_author_email = getattr(git_commit.author, "email", None) or getattr(git_commit.committer, "email", None)
+          git_author_email = getattr(getattr(git_commit, "author", None), "email", None) or getattr(git_commit.committer, "email", None)
           git_authored_datetime = git_commit.authored_datetime
           # commits belong to many branches, so this is a guess
           git_branch = find_branch(hexsha, project.repo)
