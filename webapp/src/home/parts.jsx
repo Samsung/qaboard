@@ -5,9 +5,8 @@ import styled from "styled-components";
 import { Link } from "../router";
 import { path_segment } from "../selection";
 import { errorMessage } from "../api/http";
-import { batch_url, OriginTag } from "../BatchList";
+import { batch_name, batch_url, OriginTag } from "../BatchList";
 import { Time } from "../settings/format";
-import { pretty_label } from "../utils";
 
 
 const SectionCard = styled.section`
@@ -95,7 +94,7 @@ export const BatchRow = ({ batch, icon, show_user = false, link = batch_url(batc
     {icon}
     <div style={{ minWidth: 0 }}>
       <div className="qa-home-meta">
-        <Link to={link} className="qa-home-title">{pretty_label(batch)}</Link>
+        <Link to={link} className="qa-home-title" title={batch.label}>{batch_name(batch)}</Link>
         <ProjectLink project={batch.project}/>
         {batch.origin && batch.origin !== 'ci' && <OriginTag origin={batch.origin}/>}
       </div>

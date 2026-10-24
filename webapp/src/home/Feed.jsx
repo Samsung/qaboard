@@ -4,10 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Button, Classes, Collapse, Icon, Intent, Spinner, Tag, Tooltip } from "@blueprintjs/core";
 
 import { Link } from "../router";
-import { batch_url, BatchStatus, DefaultMetric } from "../BatchList";
+import { batch_name, batch_url, BatchStatus, DefaultMetric } from "../BatchList";
 import { usePrefsStore } from "../stores/prefs";
 import { useSiteConfig } from "../hooks";
-import { metrics_fill_defaults, pretty_label } from "../utils";
+import { metrics_fill_defaults } from "../utils";
 import { runningQuery, failedQuery, recentQuery, othersQuery, recent_size, attention_days } from "./api";
 import { is_running, needs_attention } from "./logic";
 import { BatchRow, Empty, LoadError, Rows, Section, SkeletonRows } from "./parts";
@@ -37,7 +37,7 @@ export const RunningNow = ({ query }) => {
       : <Rows aria-label="Your running batches">
         {running.map(batch => <BatchRow key={batch.id} batch={batch} icon={<Spinner size={16} intent={Intent.PRIMARY}/>}>
           <BatchStatus batch={batch}/>
-          <RowLink to={logs_url(batch)} icon="console" text="Logs" label={`The logs of ${pretty_label(batch)}`}/>
+          <RowLink to={logs_url(batch)} icon="console" text="Logs" label={`The logs of ${batch_name(batch)}`}/>
         </BatchRow>)}
       </Rows>}
   </Section>;
@@ -61,9 +61,9 @@ export const NeedsAttention = ({ query }) => {
         {batches.map(batch => <BatchRow key={batch.id} batch={batch} icon={<Icon icon="error" intent={Intent.DANGER}/>}>
           <Tag minimal intent={Intent.DANGER}>{batch.failed_outputs} failed</Tag>
           {batch.valid_outputs > 0 && <Tag minimal intent={Intent.SUCCESS} icon="tick-circle">{batch.valid_outputs}</Tag>}
-          <RowLink to={logs_url(batch)} icon="console" text="Logs" label={`The logs of ${pretty_label(batch)}`}/>
+          <RowLink to={logs_url(batch)} icon="console" text="Logs" label={`The logs of ${batch_name(batch)}`}/>
           <Tooltip content="Hide it from here. It comes back if more runs fail." hoverOpenDelay={300}>
-            <Button variant="minimal" size="small" icon="cross" aria-label={`Dismiss ${pretty_label(batch)}`} onClick={() => dismiss(batch.id, batch.failed_outputs)}/>
+            <Button variant="minimal" size="small" icon="cross" aria-label={`Dismiss ${batch_name(batch)}`} onClick={() => dismiss(batch.id, batch.failed_outputs)}/>
           </Tooltip>
         </BatchRow>)}
       </Rows>}

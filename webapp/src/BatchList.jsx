@@ -63,7 +63,7 @@ const Row = styled.li`
 
 // What a batch is called in a list that says where it comes from and who started it: local batches are called
 // "@alice| name" (see pretty_label), the CI's "default"
-const batch_name = batch => {
+export const batch_name = batch => {
   const local = batch.label.match(/^@[^|]+\| (.*)$/);
   if (local) return local[1] === 'default' ? 'local run' : local[1];
   return batch.label === 'default' ? (batch.origin === 'ci' || !batch.origin ? 'CI batch' : 'default') : batch.label;
