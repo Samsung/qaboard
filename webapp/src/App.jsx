@@ -13,10 +13,11 @@ import { queryClient, persistOptions, onCacheRestored } from "./api/queryClient"
 import { siteConfigQuery } from "./api/queries";
 import { installLoginHandler } from "./components/authentication/login";
 import { toaster } from "./toaster";
-import { ComparisonProvider, useSiteConfig } from "./hooks";
+import { ComparisonProvider, useSelected, useSiteConfig } from "./hooks";
 import { initSentry, initPostHog } from "./analytics";
 import { Layout } from "./components/layout";
-import ProjectsList from "./ProjectsList";
+import ExplorePage from "./explore/ExplorePage";
+import { useRecordProjectView } from "./explore/views";
 import ErrorPage from "./components/ErrorPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import EmptyLoading from "./components/EmptyLoading";
@@ -103,8 +104,9 @@ const App = ({ persist = true }) => {
 
 const Routes = () => {
   const { pathname } = useLocation();
+  // Explore, also at /projects. Signed-in users will get their own home page here.
   if (pathname === "/")
-    return <ProjectsList/>
+    return <ExplorePage/>
   // settings, admin...: they check by themselves who users are
   const app_page = matchAppRoute(pathname);
   if (app_page) {
@@ -127,6 +129,13 @@ const ImportLegacyMilestones = () => {
   return null;
 }
 
+// Which projects people look at: Explore fades the others
+const RecordProjectView = () => {
+  const { project } = useSelected();
+  useRecordProjectView(project);
+  return null;
+}
+
 
 const ProjectApp = ({ pathname }) => {
   const matched = matchRoutes(routes, pathname);
@@ -135,6 +144,7 @@ const ProjectApp = ({ pathname }) => {
   return <RouteMatch match={match}>
     <ComparisonProvider>
     <ImportLegacyMilestones/>
+    <RecordProjectView/>
     <MilestoneDialogHost/>
     <ManageMilestonesHost/>
     <Layout className={Classes.UI_TEXT}>

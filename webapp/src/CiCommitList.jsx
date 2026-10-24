@@ -29,6 +29,7 @@ import { useCommitListDensity, usePrefsStore } from './stores/prefs'
 import { RulesButton } from './storage/Rules'
 import { ListScopeToolbar } from './components/ListScope'
 import { BatchList, useBatchesList } from './BatchList'
+import { SubprojectsCard } from './explore/SubprojectsCard'
 
 
 
@@ -195,6 +196,7 @@ const CiCommitList = () => {
   const show_everyone = () => updateSelected({ scope: 'all', list_view: undefined });
   return (
     <Container style={{paddingTop: '50px'}}>
+      {!branch && !committer && <SubprojectsCard project={project}/>}
       <ListScopeToolbar list={list} branch={branch} committer={committer} view={view}>
         {some_commits_loaded && !error && !show_batches && <><RulesButton project={project}/><DensityControl/></>}
       </ListScopeToolbar>
