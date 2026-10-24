@@ -89,6 +89,9 @@ def empty_database(app, monkeypatch):
   db_session.commit()
   db_session.remove()
   settings.invalidate_cache()
+  # /api/v1/projects keeps everyone's usage for a minute
+  from backend.api import api
+  api._usage_cache.update(at=None, value=None)
 
 
 @pytest.fixture
