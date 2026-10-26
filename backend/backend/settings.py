@@ -20,6 +20,14 @@ def env_list(value: str) -> list:
   return [v.strip() for v in value.split(',') if v.strip()]
 
 
+def sandbox_html() -> bool:
+  """
+  QABOARD_SANDBOX_HTML: the runs' HTML and SVG files can't act as whoever opens them. Off by default, for now: reports
+  with scripts then run them in our origin. Read by the proxy too (services/nginx/configure.sh), set it for both.
+  """
+  return env_flag(os.environ.get('QABOARD_SANDBOX_HTML', ''))
+
+
 def login_type() -> str:
   return (os.environ.get('QABOARD_LOGIN_TYPE') or 'LOCAL').upper()
 

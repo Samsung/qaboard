@@ -14,6 +14,7 @@ export const default_site_config = {
   image_servers: { default: '/iiif/2/' },
   login_type: 'LOCAL',
   login_required: false,
+  sandbox_html: false,
   sentry_dsn: null,
   posthog_api_key: null,
   posthog_host: null,

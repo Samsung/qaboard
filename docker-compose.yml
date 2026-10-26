@@ -109,6 +109,8 @@ services:
     - QABOARD_ADMINS=${QABOARD_ADMINS:-}
     # off/warn/token: how runs sent by `qa` are authenticated. Empty: as set in the admin panel (default: off)
     - QABOARD_INGEST_AUTH=${QABOARD_INGEST_AUTH:-}
+    # Set it for the proxy too: the runs' HTML files can't act as whoever opens them (website/docs/viewers.mdx)
+    - QABOARD_SANDBOX_HTML=${QABOARD_SANDBOX_HTML:-}
     # Set in .env, not here (see above): single sign-on with OpenID Connect (QABOARD_OIDC_ISSUER, QABOARD_OIDC_CLIENT_ID,
     # QABOARD_OIDC_CLIENT_SECRET, see website/docs/backend-admin/sign-in.mdx), and QABOARD_ENCRYPTION_KEY, that encrypts
     # the secrets of the sign-in providers added in the admin panel (long random text, e.g. `openssl rand -base64 32`)
@@ -227,6 +229,8 @@ services:
       "
     environment:
     - NGINX_USER=nginx
+    # Set it for the backend too: the runs' HTML files can't act as whoever opens them (website/docs/viewers.mdx)
+    - QABOARD_SANDBOX_HTML=${QABOARD_SANDBOX_HTML:-}
     ports:
     - ${QABOARD_PORT_HTTP:-5151}:80
     volumes:

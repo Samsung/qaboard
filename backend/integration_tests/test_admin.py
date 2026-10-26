@@ -734,3 +734,13 @@ def test_pgadmin_signs_admins_in(admin, logged_in, monkeypatch):
   assert response.status_code == 204 and response.headers['X-Pgadmin-User'] == 'pgadmin@example.com'
   response = logged_in('bob').get('/api/v1/admin/pgadmin/authorize')
   assert response.status_code == 403 and 'X-Pgadmin-User' not in response.headers
+
+
+def test_sandbox_html_is_off_until_admins_turn_it_on(make_client, monkeypatch):
+  """The web app's HTML viewers follow QABOARD_SANDBOX_HTML, like the proxy (services/nginx/configure.sh)"""
+  monkeypatch.delenv('QABOARD_SANDBOX_HTML', raising=False)
+  assert make_client().get('/api/v1/config').get_json()["sandbox_html"] is False
+  monkeypatch.setenv('QABOARD_SANDBOX_HTML', '0')
+  assert make_client().get('/api/v1/config').get_json()["sandbox_html"] is False
+  monkeypatch.setenv('QABOARD_SANDBOX_HTML', 'true')
+  assert make_client().get('/api/v1/config').get_json()["sandbox_html"] is True

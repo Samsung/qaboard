@@ -30,11 +30,7 @@ Fixed on the default branch, after the `qaboard` 1.0.3 release:
   (`GET /api/v1/output/<id>` and `/manifest`, which also wrote a file), a project's test groups, the commits of
   milestones used as references, and files under `/s/` with tokens limited to other projects. They now follow
   project roles.
-- Stored XSS: HTML and SVG files in the storage ran their scripts in QA-Board's origin, as whoever opened them, from
-  a link or in the run cards' viewers (figures saved as HTML, reports). Their scripts now run sandboxed in an origin
-  of their own, in the web app's viewers; opened on their own (`/s/...`), they show without scripts
-  (`Content-Security-Policy: sandbox`, `services/nginx/conf.d/qaboard-files.conf`). Error messages in run cards are
-  shown as text.
+- Error messages in run cards were rendered as HTML: they are shown as text.
 - `POST /api/v1/task/celery/<id>` didn't require a login, and waited forever for a Celery worker: it now requires
   one, and gives up after 2 minutes.
 - `POST /api/v1/webhook/proxy`, used for the webhooks and links of `qaboard.yaml`'s integrations, let logged-in users
@@ -108,6 +104,13 @@ Without `QABOARD_WEBHOOK_SECRET`, anyone who can reach the server can send fake 
 - The rate limits on signing in, sign-up, `qa auth login` codes and SSO redirects are in the nginx configuration QA-Board ships (`services/nginx/conf.d/qaboard.conf`, and the chart's). If you use your own reverse proxy in front of the backend, add `limit_req` rules on `/api/v1/user/auth/`, `/api/v1/user/signup/`, `/api/v1/auth/device/code` and `/api/v1/auth/oidc/`.
 
 ### Other
+- **HTML and SVG files in the storage run their scripts in QA-Board's origin, as whoever opens them** (stored XSS), by
+  default: opened from a link or the file browser (`/s/...`), and figures saved as HTML in the run cards. Anyone who can
+  save a run can write one. *Mitigation*: set `QABOARD_SANDBOX_HTML=true` for the backend and the proxy. In the web
+  app's viewers their scripts then run sandboxed, in an origin of their own; opened on their own, they show without
+  scripts (`Content-Security-Policy: sandbox`, `services/nginx/conf.d/qaboard-files.conf`). See
+  [HTML reports](https://samsung.github.io/qaboard/docs/viewers#html-reports). Serving the storage from a host name
+  of its own would let them run their scripts in a tab too.
 - `POST /api/v1/webhook/proxy` calls the hosts listed in the integrations of the projects' `qaboard.yaml`: while anyone can send results (`ingest.auth` is `off`), anyone can add hosts there. Likewise, without a user, `POST /api/v1/jenkins/build/trigger` starts the Jenkins jobs those files list.
 - Anyone who can reach the server can read the files it serves under `/s/`, unless you restrict them (see [user management](https://samsung.github.io/qaboard/docs/backend-admin/user-management#restricting-who-can-read-files)). Even then, the image server (IIIF, `/iiif/`) doesn't check permissions: anyone who can reach it can read the images it can decode in the folders mounted in it (`docker-compose.yml` used to mount the whole host filesystem, sites now mount their storage).
   *Mitigations*: mount only the storage folders in the image server's container, and don't expose `/iiif/` to untrusted networks.

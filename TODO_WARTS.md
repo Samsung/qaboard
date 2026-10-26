@@ -12,11 +12,12 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 
 ## Security
 
-- **Users' files are served in QA-Board's origin.** HTML and SVG files under `/s/` get a `Content-Security-Policy: sandbox`
-  (`services/nginx/conf.d/qaboard-files.conf`): in the web app's frames their scripts run in an origin of their own,
-  opened in a tab they show without scripts, so their images still load with the session where files are restricted.
-  Serving the storage from another host name (e.g. `files.<qaboard>`, with its own cookie) would let reports opened
-  in a tab run their scripts too, and remove the class of bugs. [L, behaviour]
+- **Users' files are served in QA-Board's origin**, and by default their HTML and SVG run scripts there (stored XSS).
+  `QABOARD_SANDBOX_HTML=true` sandboxes them (`services/nginx/conf.d/qaboard-files.conf`, the HTML and plotly viewers):
+  in the web app's frames their scripts run in an origin of their own, opened in a tab they show without scripts, so
+  their images still load with the session where files are restricted. Turn it on by default once users know, then
+  serve the storage from another host name (e.g. `files.<qaboard>`, with its own sign-in handoff): reports opened in
+  a tab could run their scripts too, and the class of bugs goes away. [L, behaviour]
 - **Anonymous results**: while `ingest.auth` is `off` (the default), anyone can send results to any project, and through
   the `qaboard_config` they send, add hosts to the integrations' allow-list or Jenkins jobs that anonymous `qa` may start.
   Per-project ingest policies and CI OIDC trust are milestone M5 (docs/design/user-management.md). [M, API]

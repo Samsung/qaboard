@@ -27,6 +27,8 @@ config:
   # Where the backend may write, delete or run code. The chart sets it to results.mountPath: set it when you mount
   # other storage (extraVolumeMounts), separated by ":"
   # QABOARD_STORAGE_ROOTS: /mnt/qaboard:/algo
+  # The runs' HTML and SVG files can't act as whoever opens them (website/docs/viewers.mdx). The proxy reads it too
+  # QABOARD_SANDBOX_HTML: "true"
   # Emails when the batches users start end (website/docs/start-server.mdx#emails). A QABOARD_SMTP_PASSWORD goes in the secret
   # QABOARD_SMTP_HOST: smtp.example.com
   # QABOARD_EMAIL_FROM: QA-Board <qaboard-noreply@example.com>

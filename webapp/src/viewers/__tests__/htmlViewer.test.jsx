@@ -36,9 +36,20 @@ describe('HtmlViewer', () => {
   const scripted = '<div id="chart"></div><script>draw("chart")</script>';
   const sandbox_of = frame => frame.getAttribute('sandbox').split(' ');
 
-  it("runs the scripts of reports sandboxed, outside of the app's origin", async () => {
+  const isolated = { siteConfig: { sandbox_html: true } };
+
+  it("by default, shows reports in our origin without running their scripts, as before QABOARD_SANDBOX_HTML", async () => {
     fetch.mockImplementation(async () => new Response(scripted));
     renderWithProviders(<HtmlViewer path="report.html" output_new={output_new}/>);
+    const frame = await screen.findByTitle('report.html (new)');
+    expect(sandbox_of(frame)).toContain('allow-same-origin');
+    expect(sandbox_of(frame)).not.toContain('allow-scripts');
+    expect(frame.getAttribute('srcdoc')).not.toContain('qaboard-frame-size');
+  });
+
+  it("with sandbox_html, runs the scripts of reports sandboxed, outside of the app's origin", async () => {
+    fetch.mockImplementation(async () => new Response(scripted));
+    renderWithProviders(<HtmlViewer path="report.html" output_new={output_new}/>, isolated);
     const frame = await screen.findByTitle('report.html (new)');
     expect(sandbox_of(frame)).toContain('allow-scripts');
     expect(sandbox_of(frame)).not.toContain('allow-same-origin');
@@ -46,7 +57,7 @@ describe('HtmlViewer', () => {
   });
 
   it('runs nothing of reports without scripts, which keep our origin to load their images', async () => {
-    renderWithProviders(<HtmlViewer path="report.html" output_new={output_new}/>);
+    renderWithProviders(<HtmlViewer path="report.html" output_new={output_new}/>, isolated);
     const frame = await screen.findByTitle('report.html (new)');
     expect(sandbox_of(frame)).not.toContain('allow-scripts');
     expect(frame.getAttribute('srcdoc')).toContain('<p>report</p>');
@@ -54,7 +65,7 @@ describe('HtmlViewer', () => {
 
   it('grows to the size its document says, only from its own frame', async () => {
     fetch.mockImplementation(async () => new Response(scripted));
-    renderWithProviders(<HtmlViewer path="report.html" output_new={output_new} style={{ width: '400px' }}/>);
+    renderWithProviders(<HtmlViewer path="report.html" output_new={output_new} style={{ width: '400px' }}/>, isolated);
     const frame = await screen.findByTitle('report.html (new)');
     const size = { type: 'qaboard-frame-size', width: 0, height: 900 };
     fireEvent(window, new MessageEvent('message', { data: size, source: window }));

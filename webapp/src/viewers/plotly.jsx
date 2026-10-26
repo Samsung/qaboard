@@ -7,7 +7,7 @@ import { ViewerError } from "./ViewerStates";
 import { OUTPUT_FRAME_SANDBOX } from "./htmlDocument";
 import { plot_color } from "../sideColors";
 import { useIsDark } from "../theme";
-import { useLabels } from "../hooks";
+import { useLabels, useSiteConfig } from "../hooks";
 
 
 // TODO: keep the zoom in the state, like explained here
@@ -29,7 +29,10 @@ const PlotlyViewer = ({ output_new, output_ref, path, path_groundtruth, style, s
   const width = style?.width || '840px';
   const height = style?.height || '525';
 
-  // plotly can be saved as embeddable stand-alone html: its scripts run sandboxed, in an origin of their own
+  // plotly can be saved as embeddable stand-alone html. If the server isolates the runs' HTML (sandbox_html), its
+  // scripts run sandboxed, in an origin of their own
+  const { sandbox_html } = useSiteConfig();
+  const sandbox = sandbox_html ? OUTPUT_FRAME_SANDBOX : undefined;
   const is_html = !!path && path.endsWith('.html');
   const can_fetch = !!output_new?.output_dir_url && !!path && !is_html;
   const has_ref = !!output_ref;
@@ -41,9 +44,9 @@ const PlotlyViewer = ({ output_new, output_ref, path, path_groundtruth, style, s
 
   if (is_html)
     return <div style={{display: "flex"}}>
-        <iframe title={labels.new} scrolling="no" style={{border: "none"}} sandbox={OUTPUT_FRAME_SANDBOX} src={`${output_new.output_dir_url}/${path}`} height={height} width={width}></iframe>
+        <iframe title={labels.new} scrolling="no" style={{border: "none"}} sandbox={sandbox} src={`${output_new.output_dir_url}/${path}`} height={height} width={width}></iframe>
         {has_ref &&
-        <iframe title={labels.reference} scrolling="no" style={{border: "none"}} sandbox={OUTPUT_FRAME_SANDBOX} src={`${output_ref.output_dir_url}/${path}`} height={height} width={width}></iframe>
+        <iframe title={labels.reference} scrolling="no" style={{border: "none"}} sandbox={sandbox} src={`${output_ref.output_dir_url}/${path}`} height={height} width={width}></iframe>
         }
     </div>
 

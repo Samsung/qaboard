@@ -34,8 +34,14 @@ describe('PlotlyViewer', () => {
     expect(await screen.findByTestId('plot')).toHaveAttribute('data-traces', 'v1.4 | p99 #cf0494dd,ISP v2 | p99 #2d72d2dd');
   });
 
-  it("runs figures saved as HTML sandboxed, outside of the app's origin", () => {
+  it("by default, shows figures saved as HTML like before QABOARD_SANDBOX_HTML: in our origin, scripts on", () => {
     render({ path: 'plot.plotly.html' });
+    for (const side of ['new', 'reference'])
+      expect(screen.getByTitle(side)).not.toHaveAttribute('sandbox');
+  });
+
+  it("with sandbox_html, runs figures saved as HTML sandboxed, outside of the app's origin", () => {
+    renderWithProviders(<PlotlyViewer path="plot.plotly.html" output_new={{ output_dir_url: '/s/new' }} output_ref={{ output_dir_url: '/s/ref' }}/>, { siteConfig: { sandbox_html: true } });
     for (const side of ['new', 'reference']) {
       const sandbox = screen.getByTitle(side).getAttribute('sandbox').split(' ');
       expect(sandbox).toContain('allow-scripts');
