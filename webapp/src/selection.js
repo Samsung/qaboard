@@ -7,7 +7,7 @@ import qs from "qs";
 import { DateTime } from "luxon";
 
 import { history, useRouter, matchRoutes } from "./router";
-import { route_paths } from "./route_paths";
+import { route_paths, app_paths } from "./route_paths";
 import { side_color_count } from "./sideColors";
 
 
@@ -25,6 +25,7 @@ const url_keys = {
   label_ref: "label_ref",
   // the colors of the new results and of the reference shown, see side_colors
   color_new: "color_new",
+  list_view: "view",
   color_ref: "color_ref",
   // the references that are not shown, see `references` below
   other_refs: "compare",
@@ -63,6 +64,14 @@ const as_list = value => {
 
 // For paths: project ids and branches have slashes, but also e.g. '#'
 export const path_segment = value => String(value).split('/').map(encodeURIComponent).join('/');
+
+
+// A project's page. Projects named like a page of the app (e.g. "projects", "settings") don't get /<project>:
+// the app's page wins (route_paths.js), their commits list is their page.
+const app_routes = Object.values(app_paths).map(path => ({ path, exact: true }));
+export const project_url = project => matchRoutes(app_routes, `/${project}`)
+  ? `/${path_segment(project)}/commits`
+  : `/${path_segment(project)}`;
 
 const day = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -430,6 +439,12 @@ export const selection_from_url = (match, search) => {
 
     // filter the list of commits
     search: text_param(query.search),
+    // lists of commits: only mine ("mine") or everyone's ("all"), null for the default (see useListScope in hooks.js)
+    scope: ['mine', 'all'].includes(query.scope) ? query.scope : null,
+    // lists of commits leave out the CI's batches
+    hide_ci: query.hide_ci === '1' || query.hide_ci === 'true',
+    // the project page lists batches or commits, null for the default
+    list_view: ['batches', 'commits'].includes(query.view) ? query.view : null,
     sort_order: Number(query.sort_order ?? -1),
     sort_by: query.sort_by || undefined, // undefined: we use the default metric
     selected_views,
@@ -456,6 +471,7 @@ const selection_defaults = {
   ref_index: 0,
   label_new: '',
   label_ref: '',
+  hide_ci: false,
 };
 const same_value = (value, default_value) => Array.isArray(value) || Array.isArray(default_value)
   ? JSON.stringify([].concat(value)) === JSON.stringify([].concat(default_value))

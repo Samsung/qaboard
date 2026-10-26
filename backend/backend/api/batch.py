@@ -8,6 +8,7 @@ from backend import app, db_session
 from ..models import CiCommit, Batch
 from ..storage import check_storage_path, UnsafePathError
 from ..redo import redo_response
+from ..origins import run_origin, run_user, claim_batch, clean_run_context
 from ..notifications.batches import request_batch_notification
 from .export_to_folder import filter_outputs
 from ..access import invalid_project
@@ -49,7 +50,7 @@ def update_batch():
   if not isinstance(batch_data, dict):
     return jsonify({"error": "`data` must be an object"}), 400
   # only the server says who really sent results
-  batch_data = {k: v for k, v in batch_data.items() if k != 'submitted_by'}
+  batch_data = {k: v for k, v in batch_data.items() if k not in ('submitted_by', 'run_context')}
   if error := invalid_project(data.get('project')):
     return error
   submitted_by, error = ingest_access(data.get('project'))
@@ -117,6 +118,15 @@ def update_batch():
 
   # Save info on each "qa batch" command in the batch, mainly to list them in logs
   command = request.json.get('command')
+  # where it comes from, if it's new (backend/origins.py)
+  command_ids = list(command) if isinstance(command, dict) else []
+  origin = run_origin(data, batch.data, submitted_by, command_ids)
+  claim_batch(batch, origin, run_user(data, submitted_by), (submitted_by or {}).get('user_id'))
+  # links to the CI pipeline
+  run_context = clean_run_context(data.get('run_context'))
+  if origin == 'ci' and len(run_context) > 1:
+    batch.data["run_context"] = run_context
+    flag_modified(batch, "data")
   if command:
     batch.data["commands"] = {**batch.data.get('commands', {}), **command}
     flag_modified(batch, "data")

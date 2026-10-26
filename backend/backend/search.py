@@ -6,6 +6,7 @@ Search commits "by anything", in the spirit of the web application's filter boxe
 - Terms are ANDed, and `-term` excludes.
 - Free text matches the commit id (prefix), message, committer, branch or a batch label, case-insensitively.
 - Qualifiers only look at one field: branch:, committer: (or author:), batch: (or label:), message: (or msg:), id: (or commit:).
+  origin: (webapp, local or ci) and user: look at the batches: where they come from, who started them (backend/origins.py).
 - Use double quotes for text with spaces: message:"fix crash".
 
 We only build SQL with bound parameters, and escape LIKE wildcards: users search for text, not patterns.
@@ -28,6 +29,8 @@ qualifiers = {
   'id': 'id',
   'commit': 'id',
   'sha': 'id',
+  'origin': 'origin',
+  'user': 'user',
 }
 # keeps the SQL small whatever users paste in the search box
 max_terms = 20
@@ -86,6 +89,10 @@ def commits_search_filter(terms):
       return CiCommit.batches.any(contains(Batch.label, term.value))
     if term.field == 'id':
       return starts_with(CiCommit.hexsha, term.value)
+    if term.field == 'origin':
+      return CiCommit.batches.any(func.coalesce(Batch.origin, 'ci') == term.value.lower())
+    if term.field == 'user':
+      return CiCommit.batches.any(contains(Batch.user_name, term.value))
     anywhere = [
       contains(CiCommit.message, term.value),
       contains(CiCommit.committer_name, term.value),

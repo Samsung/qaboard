@@ -14,6 +14,9 @@ export const usePrefsStore = create()(persist(
     milestones: {},
     // "mine/tuning/denoiser" => true: groups of milestones the user collapsed in the milestones menus
     milestoneGroupsCollapsed: {},
+    // "group/repo" => true (expanded) or false (collapsed): the groups users opened or closed in Explore.
+    // Others have their default (src/explore/ExplorePage.jsx)
+    exploreGroups: {},
     // project => what's in the tuning form
     tuning: {},
     // "system" (follows the OS), "light" or "dark", see src/theme.js
@@ -32,6 +35,13 @@ export const usePrefsStore = create()(persist(
     imageSensor: {},
     // runs show only the settings of their configuration that not all runs share
     hide_shared_settings: true,
+    // project => the last scope users picked on its page: "mine" or "all"
+    listScope: {},
+    // other emails in users' git config: their commits are theirs too (the server reads it, see backend/mine.py)
+    git_emails: [],
+    // batch id => {failed, at}: the batches users dismissed from the home page's "Needs attention", with how many
+    // runs had failed. They come back if more fail.
+    homeDismissed: {},
 
     toggleFavorite: project => set(state => ({
       favorites: { ...state.favorites, [project]: !state.favorites[project] },
@@ -43,6 +53,11 @@ export const usePrefsStore = create()(persist(
       const { [path]: collapsed, ...others } = state.milestoneGroupsCollapsed;
       return { milestoneGroupsCollapsed: collapsed ? others : { ...others, [path]: true } };
     }),
+    // `default_expanded`: what the group shows without a choice, not remembered: the list only keeps users' choices
+    setExploreGroup: (path, expanded, default_expanded) => set(state => {
+      const { [path]: _previous, ...others } = state.exploreGroups;
+      return { exploreGroups: !!expanded === default_expanded ? others : { ...others, [path]: !!expanded } };
+    }),
     setTheme: theme => set({ theme }),
     setSiderCollapsed: collapsed => set({ siderCollapsed: !!collapsed }),
     setImagePixelValues: values => set({ imagePixelValues: values }),
@@ -50,6 +65,16 @@ export const usePrefsStore = create()(persist(
     setImageAnalysisValues: values => set({ imageAnalysisValues: values }),
     setImageSensor: (project, sensor) => set(state => ({ imageSensor: { ...state.imageSensor, [project]: sensor } })),
     setCommitListDensity: density => set({ commitListDensity: density === 'compact' ? 'compact' : 'comfortable' }),
+    setGitEmails: emails => set({ git_emails: [...new Set(emails.map(e => e.trim().toLowerCase()).filter(e => e.includes('@')))] }),
+    // `latest`: when the batch last got a run: it comes back if it runs again
+    dismissHomeBatch: (id, failed, latest = null, now = Date.now()) => set(state => ({
+      // "Needs attention" shows a week: older dismissals can go
+      homeDismissed: {
+        ...Object.fromEntries(Object.entries(state.homeDismissed ?? {}).filter(([, d]) => now - new Date(d.at).getTime() < 30 * 24 * 3600 * 1000)),
+        [id]: { failed, latest, at: new Date(now).toISOString() },
+      },
+    })),
+    setListScope: (project, scope) => set(state => ({ listScope: { ...state.listScope, [project]: scope } })),
     toggleHideSharedSettings: () => set(state => ({ hide_shared_settings: !state.hide_shared_settings })),
     updateTuning: (project, form) => set(state => ({
       tuning: { ...state.tuning, [project]: { ...state.tuning[project], ...form } },

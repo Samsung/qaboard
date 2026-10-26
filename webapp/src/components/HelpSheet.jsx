@@ -82,6 +82,7 @@ const Doc = ({ page, children }) => {
 const is_mac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform ?? '');
 const shortcuts = [
   { title: "Everywhere", keys: [
+    [<><Kbd>{is_mac ? '⌘' : 'Ctrl'}</Kbd> <Kbd>K</Kbd> or <Kbd>/</Kbd></>, "Search: go to a project, branch, commit, batch or page (outside text boxes)"],
     [<Kbd key="?">?</Kbd>, "Open or close this cheat sheet"],
     [<Kbd key="esc">Esc</Kbd>, "Close dialogs and menus"],
     [<><Kbd>{is_mac ? '⌘' : 'Ctrl'}</Kbd> <Kbd>{'\\'}</Kbd></>, "Collapse or expand the sidebar"],

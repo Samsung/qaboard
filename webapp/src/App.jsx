@@ -10,13 +10,15 @@ import isPropValid from "@emotion/is-prop-valid";
 
 import { history, matchRoutes, RouteMatch } from "./router";
 import { queryClient, persistOptions, onCacheRestored } from "./api/queryClient";
-import { siteConfigQuery } from "./api/queries";
+import { siteConfigQuery, userQuery } from "./api/queries";
 import { installLoginHandler } from "./components/authentication/login";
 import { toaster } from "./toaster";
-import { ComparisonProvider, useSiteConfig } from "./hooks";
+import { ComparisonProvider, useSelected, useSiteConfig } from "./hooks";
 import { initSentry, initPostHog } from "./analytics";
 import { Layout } from "./components/layout";
-import ProjectsList from "./ProjectsList";
+import ExplorePage from "./explore/ExplorePage";
+import HomePage from "./home/HomePage";
+import { useRecordProjectView } from "./explore/views";
 import ErrorPage from "./components/ErrorPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import EmptyLoading from "./components/EmptyLoading";
@@ -35,6 +37,7 @@ import "./App.css";
 import { routes, matchAppRoute } from './routes'
 import { ReleaseNotesProvider } from "./releaseNotes/ReleaseNotes"
 import { HelpSheetProvider } from "./components/HelpSheet"
+import { CommandPaletteProvider } from "./palette/CommandPalette"
 import PrivateContent from "./components/authentication/PrivateContent"
 import AppSider, { sider_width } from './AppSider'
 import AppNavbar from './AppNavbar'
@@ -90,7 +93,10 @@ const App = ({ persist = true }) => {
         <ReleaseNotesProvider>
           <HelpSheetProvider>
             <HistoryRouter history={history}>
-              <Routes/>
+              {/* Ctrl+K on every page: projects, app pages, Home and Explore */}
+              <CommandPaletteProvider>
+                <Routes/>
+              </CommandPaletteProvider>
             </HistoryRouter>
           </HelpSheetProvider>
         </ReleaseNotesProvider>
@@ -104,7 +110,7 @@ const App = ({ persist = true }) => {
 const Routes = () => {
   const { pathname } = useLocation();
   if (pathname === "/")
-    return <ProjectsList/>
+    return <RootPage/>
   // settings, admin...: they check by themselves who users are
   const app_page = matchAppRoute(pathname);
   if (app_page) {
@@ -121,9 +127,26 @@ const Routes = () => {
 }
 
 
+// Signed-in users get their home page, the others Explore (also at /projects)
+const RootPage = () => {
+  const { data: user, isPending } = useQuery(userQuery);
+  // we don't flash Explore while we don't know who users are
+  if (isPending)
+    return <EmptyLoading/>
+  return user?.is_logged ? <HomePage/> : <ExplorePage/>
+}
+
+
 // Milestones older versions saved in browsers move to the user's account
 const ImportLegacyMilestones = () => {
   useImportLegacyMilestones();
+  return null;
+}
+
+// Which projects people look at: Explore fades the others
+const RecordProjectView = () => {
+  const { project } = useSelected();
+  useRecordProjectView(project);
   return null;
 }
 
@@ -135,6 +158,7 @@ const ProjectApp = ({ pathname }) => {
   return <RouteMatch match={match}>
     <ComparisonProvider>
     <ImportLegacyMilestones/>
+    <RecordProjectView/>
     <MilestoneDialogHost/>
     <ManageMilestonesHost/>
     <Layout className={Classes.UI_TEXT}>

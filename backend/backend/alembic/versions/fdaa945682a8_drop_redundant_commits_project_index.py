@@ -6,7 +6,7 @@ ci_commits is big in production: the index is dropped CONCURRENTLY, without bloc
 Older versions of QA-Board work without it (after a rollback), the downgrade builds it again.
 
 Revision ID: fdaa945682a8
-Revises: d2f4a6b8c0e1
+Revises: a3c5e7f9b1d4
 Create Date: 2026-10-22 20:00:00.000000
 
 """
@@ -16,7 +16,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'fdaa945682a8'
-down_revision = 'd2f4a6b8c0e1'
+down_revision = 'a3c5e7f9b1d4'
 branch_labels = None
 depends_on = None
 

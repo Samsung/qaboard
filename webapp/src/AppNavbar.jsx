@@ -14,7 +14,7 @@ import {
   Tooltip,
 } from "@blueprintjs/core";
 
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy, useRef, useState } from "react";
 import { useRouter } from "./router";
 import { path_segment } from "./selection";
 import { CommitNavbar, commit_header_styles } from "./components/CommitNavbar";
@@ -45,6 +45,7 @@ const renderNewItem = (query, active, handleClick)  => {
   return <MenuItem
       icon="git-commit"
       text={<span><strong>Go to commit:</strong> {query}</span>}
+      label="↓ then Enter"
       active={active}
       onClick={handleClick}
       shouldDismissPopover={false}
@@ -194,6 +195,14 @@ const CommitsListNavbar = () => {
   const [filter, onFilterChange] = useUrlText(selected.filter_batch_new, value => updateSelected({ filter_batch_new: value }, { replace: true }));
   const branch_search = branch_query(selected.search);
   const { data: branches = [] } = useBranches(project, branch_search, { enabled: wants_branches && (!!branch_search || !selected.search.trim()) });
+  // Enter keeps filtering: it only goes to a branch or a commit after users picked one with the arrow keys
+  const picked = useRef(false);
+  const onSearchKeyDownCapture = event => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp')
+      picked.current = true;
+    else if (event.key === 'Enter' && !picked.current)
+      event.stopPropagation();
+  };
 
   const handleBranchChange = branch => {
     if (branch.commit !== undefined && branch.commit !== null)
@@ -247,7 +256,7 @@ const CommitsListNavbar = () => {
           onChange={event => updateSelected({ selected_batch_new: event.target.value, selected_batch_ref: event.target.value })}
           hide_counts
         />}
-        {route.is_commits &&
+        {route.is_commits && <div style={{display: 'contents'}} onKeyDownCapture={onSearchKeyDownCapture}>
             <Suggest
               query={search}
               itemPredicate={filterBranch}
@@ -266,11 +275,12 @@ const CommitsListNavbar = () => {
                 style: {width: 'clamp(180px, 40cqi, 350px)'},
               }}
               onQueryChange={query => {
+                picked.current = false;
                 setWantsBranches(true);
                 onSearchChange(query);
               }}
             />
-        }
+        </div>}
         {route.is_history &&
           <InputGroup
             value={filter}

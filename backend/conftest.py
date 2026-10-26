@@ -79,6 +79,7 @@ def pytest_configure():
     models_mod.CiCommit = MagicMock()
     models_mod.latest_successful_commit = MagicMock()
     models_mod.Batch = MagicMock()
+    models_mod.ProjectView = MagicMock()
     models_mod.Milestone = MagicMock()
     models_mod.MilestoneFavorite = MagicMock()
     models_mod.MilestoneGroupFavorite = MagicMock()

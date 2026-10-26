@@ -10,7 +10,7 @@ from pathlib import Path
 
 from sqlalchemy import Column, Boolean, Integer, String, DateTime, JSON, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy import or_, UniqueConstraint, Index, orm
+from sqlalchemy import or_, text, UniqueConstraint, Index, orm
 from sqlalchemy.orm import relationship, selectinload
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.exc import IntegrityError
@@ -27,6 +27,11 @@ from ..git_utils import find_branch
 from ..artifacts import MAX_CHECKED_FILES, artifacts_status, protected_by_siblings, is_kept, read_manifest, rmtree_except, ArtifactsUnavailable
 from .. import recreate_artifacts
 
+
+
+def normalize_email(email):
+  email = str(email or '').strip().lower()
+  return email if '@' in email else None
 
 
 class CiCommit(Base):
@@ -46,6 +51,8 @@ class CiCommit(Base):
 
   authored_datetime = Column(DateTime(timezone=True), index=True)
   committer_name = Column(String(), index=True)
+  # who wrote it (the author's email, else the committer's, lowercase), to show users their commits (backend/mine.py)
+  author_email = Column(String())
   message = Column(String())
   # We use as branch the first branch that the commit was seen on, or the project's reference branch if it was used.
   # TODO: we should also store the tags we witnessed the commit used with.
@@ -59,6 +66,10 @@ class CiCommit(Base):
     Index('ix_ci_commits_project_id_branch_authored_datetime', 'project_id', 'branch', authored_datetime.desc()),
     # The commits with new runs, whose storage usage must be updated (backend/storage_usage.py)
     Index('ix_ci_commits_latest_output_datetime', 'latest_output_datetime'),
+    # Users' commits, created by the migration e9b1c3d5f7a2
+    Index('ix_ci_commits_author_email', 'author_email'),
+    # commits from before we saved emails are matched by name
+    Index('ix_ci_commits_lower_committer_name', text('lower(committer_name)')),
   )
   # In the end there having a commit's parents is not all that useful for QA-Board:
   # not all commits are used for runs: e.g. CI runs only on pushed commits, so
@@ -408,6 +419,7 @@ class CiCommit(Base):
           git_parents = data.get("commit_parents")
           git_message = data.get("commit_message")
           git_committer_name = data.get("commit_committer_name")
+          git_author_email = data.get("commit_author_email") or data.get("commit_committer_email")
           git_authored_datetime = data["commit_authored_datetime"]
           git_branch = data.get("commit_branch")
         else:
@@ -416,6 +428,7 @@ class CiCommit(Base):
           git_parents = [c.hexsha for c in git_commit.parents]
           git_message = git_commit.message
           git_committer_name = git_commit.committer.name
+          git_author_email = getattr(getattr(git_commit, "author", None), "email", None) or getattr(git_commit.committer, "email", None)
           git_authored_datetime = git_commit.authored_datetime
           # commits belong to many branches, so this is a guess
           git_branch = find_branch(hexsha, project.repo)
@@ -432,6 +445,7 @@ class CiCommit(Base):
           authored_datetime=git_authored_datetime,
           branch=git_branch,
         )
+        ci_commit.author_email = normalize_email(git_author_email)
         if data and data.get('project_root'):
           if not ci_commit.data:
             ci_commit.data = {}
@@ -475,6 +489,11 @@ class CiCommit(Base):
     if data and "qaboard_metrics" in data and ci_commit.data.get('qatools_metrics') is None:
       ci_commit.data['qatools_metrics'] = data['qaboard_metrics']
       flag_modified(ci_commit, "data")
+    # Commits from before we saved emails get theirs when `qa` sends results again
+    sent_email = data and (data.get("commit_author_email") or data.get("commit_committer_email"))
+    if sent_email and not getattr(ci_commit, 'author_email', None) and \
+       (data.get("commit_committer_name") or '').strip().lower() == (ci_commit.committer_name or '').strip().lower():
+      ci_commit.author_email = normalize_email(sent_email)
     return ci_commit
 
   def _get_avatar_url(self):

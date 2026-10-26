@@ -15,6 +15,12 @@ import { userQuery, logged_out_user } from '../../api/queries';
 const defaults = { theme: 'system', commitListDensity: 'comfortable', favorites: {}, tuning: {}, siderCollapsed: false };
 
 describe('mergeOnLogin', () => {
+  it("never sends what belongs to an account: the browser may have been someone else's", () => {
+    const { apply, push } = mergeOnLogin({ git_emails: ['previous@user.org'], listScope: { 'a/b': 'all' }, theme: 'dark' }, {}, { keys: ['git_emails', 'listScope', 'theme'], defaults: { git_emails: [], listScope: {}, theme: 'system' } });
+    expect(push).toEqual({ theme: 'dark' });
+    expect(apply).toEqual({});
+  });
+
   const keys = ['theme', 'commitListDensity', 'favorites', 'tuning'];
 
   it("applies the server's values", () => {

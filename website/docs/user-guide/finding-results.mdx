@@ -7,8 +7,9 @@ description: Find a project, a commit, a branch or a batch of runs, and filter w
 Find the results you came for: your commit, the right batch of runs, then only the runs that matter.
 
 ## Find your commit {#find-your-commit}
-Open your project from the home page: you land on its **commit list**, the latest commits with results on all branches, newest first.
-From there, find a commit in one of three ways:
+Open your project from the home page. Once signed in, you land on **your batches**: what you ran in the project, from
+the web app or your terminal (see [Yours or everyone's](#yours-or-everyones)). Click **Everyone** for the **commit list**,
+the latest commits with results on all branches, newest first. From there, find a commit in one of three ways:
 
 - **Scroll the list.** Commits are grouped by day. On the right of each row, the **N runs** button (e.g. **5 runs**)
   opens the commit page.
@@ -27,23 +28,108 @@ From there, find a commit in one of three ways:
 The list shows the last 3 days. If your commit isn't there, search for it, or pick earlier dates at the top left.
 :::
 
-## Pick a project {#projects-list}
-The home page lists every project with results: those you pinned first, then the ones that ran most recently.
+## Yours or everyone's {#yours-or-everyones}
+Signed in, a project's page starts with your work: **Yours** lists the batches you started, the latest first, with their
+progress while they run. On top, **Latest on master** (the project's reference branch) shows where the reference is,
+whoever committed it.
 
-- **Find one** with the *Filter projects...* box. It looks at all projects, even those not shown yet: the list shows
-  50 at first, more as you scroll down (or click **Show more**).
-- **Pin one** on top of the list with its star. Pins are remembered by your browser only.
+- **See everyone's**: click **Everyone**, or the *N commits by everyone* count. The page remembers your choice for the
+  project, and the link you copy says which you see.
+- **Leave out the CI**: turn on **Hide the CI** to see what people ran from the web app or their terminal. With
+  **Everyone**, that's how you look at your teammates' experiments.
+- **Batches or commits**: **Batches** lists runs as you started them, **Commits** groups them by commit, as before.
+- **Compare two batches**: tick them in **Batches**, then **Compare**. The first is compared with the second, the reference.
+
+<details>
+<summary>What counts as yours</summary>
+
+- The batches you started: from the web app (**Run Tests / Tuning**, redoing runs), or with `qa` from your terminal.
+  Runs sent without a token count too, by the user name `qa` gives (`$USER` or `QA_USER`).
+- The commits you wrote: their author's email is your account's. If your git config uses another email, add it in
+  **Settings → Profile** (*Your other git emails*).
+- The commits where you ran a batch.
+
+If you have nothing in a project yet, its page shows everyone's.
+</details>
+
+## Start from your home page {#home}
+Signed in, the home page is about you. Signed out, it's [Explore](#projects-list).
+
+- **Your projects** (left): where you ran batches, committed or looked in the last 90 days, and those you pinned, the
+  most recent first. **Explore all projects** lists every project.
+- **Running now**: your batches whose runs wait or run, with their progress and their **Logs**. It refreshes by itself.
+- **Needs attention**: your batches with failed runs in the last 7 days. Dismiss one with its **×**: it comes back if
+  more runs fail.
+- **Recent**: your batches that ended, with the project's main metric.
+- **From your projects**: open it to see what your teammates ran there from the web app or their terminal (not the CI).
+
+On the right, what's new in QA-Board, how much storage your runs take, and guides for what you haven't tried yet.
+
+<details>
+<summary>Nothing of yours shows up</summary>
+
+Your batches show up once you run some: from the web app (**Run Tests / Tuning**), or with `qa batch` after signing in
+with `qa auth login`, so that your runs count as yours. Runs sent without a token count too, by the user name `qa`
+gives (`$USER` or `QA_USER`). See [what counts as yours](#yours-or-everyones).
+</details>
+
+## Search from anywhere {#command-palette}
+Press <kbd>Ctrl</kbd> <kbd>K</kbd> (<kbd>⌘</kbd> <kbd>K</kbd> on macOS) on any page, or <kbd>/</kbd> when you're not
+typing in a text box, then type a few letters of where you want to go. **Search…** in the top bar and in a project's
+sidebar opens it too.
+
+- **Projects**: by their path, `k3den` finds `kitefin/k3/denoise`. Without typing anything, you see those you pinned
+  and used lately.
+- **Your recent batches**: by their name or project, with their status.
+- **Branches**: on a project's pages, the branches of that project whose name contains what you type.
+- **Commits**: on a project's pages, type the start of a commit's hash (4 characters or more) to go to it.
+- **Pages and actions**: Home, Explore, Runs activity, Storage usage, each tab of your Settings, What's new, the user
+  guide, switching between the light and dark themes, signing in or out.
+
+Use <kbd>↑</kbd> <kbd>↓</kbd> to pick a result and <kbd>Enter</kbd> to open it, or <kbd>Ctrl</kbd> <kbd>Enter</kbd>
+to open it in a new tab. <kbd>Esc</kbd> closes the search.
+
+## Pick a project {#projects-list}
+**Explore** (at `/projects`, and the home page when you're signed out) lists every project with results, grouped by
+their path: those you pinned first, then the ones people used most recently.
+
+- **Find one** with the *Filter projects...* box. It looks at all projects, quiet ones included, and lists the
+  matches with their full path.
+- **Open a group** with its **N projects** button, or a project's subprojects with **N subprojects**. Explore
+  remembers what you opened.
+- **Pin one** on top of the list with its star. Pinned projects never fade.
 - **Source** opens the project's git repository.
 
 Click a project to open its commit list.
 
 <Shot
   id="projects/home"
-  caption="Each card says when the project last ran and how many commits have results. Starred projects stay on top."
+  caption="Each card says when the project was last used and how it ran over 30 days. Starred projects stay on top."
 />
 
-Project names are git paths, like `group/repo`. In a monorepo, each sub-project has its own entry, like
-`group/repo/sub-project`: if you can't find your results, check you're in the right one.
+### Groups, subprojects and quiet projects {#quiet-projects}
+Project names are git paths, like `group/repo`. In a monorepo, each subproject has its own entry, like
+`group/repo/sub-project`: Explore puts it under `group/repo`, and projects that share a prefix without a project of
+their own, like `group/a` and `group/b`, under a `group` folder. If you can't find your results, check you're in the
+right subproject.
+
+Projects that only the CI ran in the last 90 days are **quiet**: nobody started batches from the web app or a
+terminal. They fade under **N quiet projects** (or **N quiet subprojects** in their group). Click to show them, or pin
+one to keep it in view.
+
+<details>
+<summary>What counts as used</summary>
+
+- A batch started from the web app or from someone's terminal (`qa run`, `qa batch`). The CI's runs don't count.
+- A signed-in user opening one of the project's pages.
+
+The sparkline on each card counts the batches that got runs on each of the last 30 days, the CI's included. A
+project's card counts its subprojects too.
+
+</details>
+
+On a project's page, a **Subprojects** card above the commits links to its subprojects, and the name at the top of the
+sidebar links to the parent projects (`group / repo /`).
 
 ## Read the commit list {#commit-list}
 Each row is a commit: its message, short hash, branch, and when and by whom it was committed. On the right, how its
@@ -153,6 +239,8 @@ active branches whose name contains it: pick one to open it.
 | `author:kaito` | like `committer:kaito` |
 | `batch:tune` or `label:tune` | with a batch whose label contains "tune" |
 | `message:p99` or `msg:p99` | whose message contains "p99" |
+| `origin:webapp`, `origin:local` or `origin:ci` | with a batch started from the web app, from someone's terminal, or by a CI pipeline |
+| `user:kaito` | with a batch started by a user whose name contains "kaito" |
 | `id:3fa2`, `commit:3fa2` or `sha:3fa2` | whose hash starts with "3fa2" |
 
 A word matches the start of hashes when it has 4 or more hexadecimal characters. Searches are case-insensitive, and

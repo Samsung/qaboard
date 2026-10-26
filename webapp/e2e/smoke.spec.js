@@ -19,6 +19,8 @@ const api = {
   '/api/v1/project': { qatools_config: {} },
   '/api/v1/project/branches': ['master'],
   '/api/v1/commits': [commit],
+  '/api/v1/commit-counts': { all: 1, mine: 1, without_ci: 0 },
+  '/api/v1/batches': [],
   '/api/v1/commit': commit,
 };
 
@@ -55,6 +57,83 @@ for (const { name, path, text } of pages) {
     await page.waitForLoadState('networkidle');
   });
 }
+
+// Explore: groups, subprojects, quiet ones, and the sparklines, at phone width too
+test('explore', async ({ page }) => {
+  const recent = new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString();
+  const used = { data: { qatools_config: { project: { name: 'x', description: 'A project with a rather long description that wraps on phones' } } }, latest_commit_datetime: recent, total_commits: 3, latest_human_activity: recent, views_90d: 1, my_last_view: null, activity: Array.from({ length: 30 }, (_, i) => i % 7) };
+  const ci_only = { ...used, latest_human_activity: null, views_90d: 0, activity: null };
+  const projects = { 'kitefin/k3': used, 'kitefin/k3/denoise': used, 'kitefin/k3/ci-a': ci_only, 'kitefin/k5': used, 'old/one': ci_only, 'old/two': ci_only };
+  await page.route('**/api/v1/projects**', route => route.fulfill({ json: projects }));
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto('/projects');
+    await expect(page.getByRole('heading', { name: 'k5' })).toBeVisible();
+    await page.getByRole('button', { name: '2 subprojects' }).click();
+    await expect(page.getByRole('heading', { name: 'denoise' })).toBeVisible();
+    await expect(page.getByText('2 quiet projects')).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow, `width ${width}`).toBeLessThanOrEqual(0);
+    await page.evaluate(() => localStorage.clear());
+  }
+  await page.waitForLoadState('networkidle');
+});
+
+// Home, for signed-in users: their batches and projects, in three columns, two, or one at phone width
+test('home', async ({ page }) => {
+  const recent = new Date(Date.now() - 3600 * 1000).toISOString();
+  const batch = (id, label, extra) => ({ id, label, project, origin: 'webapp', user_name: 'alice', latest_output_datetime: recent, created_date: recent, data: {}, valid_outputs: 3, pending_outputs: 0, running_outputs: 0, failed_outputs: 0, aggregated_metrics: {}, commit: { id: 'abc123', branch: 'master', message: 'Hello world' }, ...extra });
+  await page.addInitScript(() => localStorage.setItem('qaboard.release-notes.last-seen', '2099-12'));
+  await page.route('**/api/v1/batches**', route => {
+    const status = new URL(route.request().url()).searchParams.get('status');
+    const batches = { pending: [batch(1, 'sweep', { pending_outputs: 5, running_outputs: 2 })], failed: [batch(2, 'tries', { failed_outputs: 2 })] }[status] ?? [batch(3, 'denoise')];
+    return route.fulfill({ json: batches, headers: { 'X-Has-More': 'false' } });
+  });
+  await page.route('**/api/v1/projects**', route => route.fulfill({ json: { [project]: { data: { qatools_config: { project: { name: 'x' } } }, latest_commit_datetime: recent, total_commits: 3, my_latest_activity: recent, activity: Array.from({ length: 30 }, (_, i) => i % 5) } } }));
+  for (const width of [1300, 900, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Running now' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Needs attention' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'denoise' })).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Your projects' }).getByRole('link', { name: project })).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow, `width ${width}`).toBeLessThanOrEqual(0);
+  }
+  await page.waitForLoadState('networkidle');
+});
+
+// The command palette: from any page with the keyboard, to a project, then to one of its branches
+test('command palette', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('qaboard.release-notes.last-seen', '2099-12'));
+  await page.goto('/projects');
+  await expect(page.getByPlaceholder('Filter projects...')).toBeVisible();
+  await page.keyboard.press('Control+k');
+  const dialog = page.getByRole('dialog', { name: 'Search QA-Board' });
+  await expect(dialog.getByRole('combobox')).toBeFocused();
+  await page.keyboard.type('repo');
+  await expect(dialog.getByRole('option').first()).toContainText(project);
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(new RegExp(`/${project}$`));
+  await expect(page.getByText('Hello world').first()).toBeVisible();
+  await expect(dialog).toBeHidden();
+  // "/" opens it too, and in a project it finds branches
+  await page.keyboard.press('/');
+  await page.keyboard.type('mast');
+  await expect(dialog.getByRole('group', { name: /Branches/ }).getByRole('option', { name: /master/ })).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(new RegExp(`/${project}/commits/master$`));
+  await page.waitForLoadState('networkidle');
+});
+
+// Signed-out visitors get Explore
+test('explore at / when signed out', async ({ page }) => {
+  await page.route('**/api/v1/user/me/', route => route.fulfill({ json: { is_authenticated: false } }));
+  await page.goto('/');
+  await expect(page.getByPlaceholder('Filter projects...')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Running now' })).toHaveCount(0);
+  await page.waitForLoadState('networkidle');
+});
 
 // nginx serves files.html for folders under /s/, `vite preview` too (see vite.config.js)
 test('file browser', async ({ page }) => {

@@ -35,4 +35,6 @@ export const app_paths = {
   login: "/login",
   // where `qa auth login` sends users to approve the login
   device: "/device",
+  // every project, as a tree (also at / for signed-out visitors, signed-in users get their home page there)
+  explore: "/projects",
 };

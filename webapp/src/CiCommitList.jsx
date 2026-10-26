@@ -23,10 +23,13 @@ import { LoadMore } from "./components/LoadMore";
 import CommitsEvolution from "./CommitsEvolution";
 import { groupBy } from "./utils";
 
-import { useCommitsList, useProjectData, useSelected, useSiteConfig, updateSelected } from './hooks'
+import { useCommitsList, useProjectData, useSelected, useSiteConfig, useUser, updateSelected } from './hooks'
 import { errorMessage } from './api/http'
 import { useCommitListDensity, usePrefsStore } from './stores/prefs'
 import { RulesButton } from './storage/Rules'
+import { ListScopeToolbar } from './components/ListScope'
+import { BatchList, useBatchesList } from './BatchList'
+import { SubprojectsCard } from './explore/SubprojectsCard'
 
 
 
@@ -36,7 +39,12 @@ const WrapperCommitRows = styled.ul`
   padding: 0;
 `;
 
-const CommitRows = ({ commits, project, project_data, density }) => {
+// In lists of my commits, rows show the batch I ran last, rather than the CI's
+const my_batch = (commit, user_name) => Object.values(commit.batches ?? {})
+  .filter(b => b.user_name === user_name && b.origin !== 'ci')
+  .sort((a, b) => (b.latest_output_datetime ?? '').localeCompare(a.latest_output_datetime ?? ''))[0]?.label;
+
+const CommitRows = ({ commits, project, project_data, density, mine_of }) => {
   const List = density === 'compact' ? CompactCommitList : WrapperCommitRows;
   return <List>
     {commits.map(commit => (
@@ -45,20 +53,23 @@ const CommitRows = ({ commits, project, project_data, density }) => {
         project={project}
         project_data={project_data}
         density={density}
+        default_batch={mine_of ? my_batch(commit, mine_of) ?? 'default' : undefined}
         key={commit.id}
       />
     ))}
   </List>;
 };
 
-// Above the commits, how to show them
-const ListToolbar = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-`;
+// Lists of my commits, or without the CI's, still show where the reference branch is: whoever committed it
+const ReferenceHead = ({ project, project_data, commit, density }) => {
+  if (!commit) return null;
+  const List = density === 'compact' ? CompactCommitList : WrapperCommitRows;
+  return <DayCard elevation={0} className={density === 'compact' ? 'compact' : undefined} style={{ borderLeft: '3px solid var(--qa-intent-primary)' }}>
+    <h4 className={Classes.HEADING}>Latest on {commit.branch || 'the reference branch'}</h4>
+    <List><CommitRow commit={commit} project={project} project_data={project_data} density={density}/></List>
+  </DayCard>;
+};
+
 
 const density_options = [
   { value: 'comfortable', label: 'Comfortable', icon: 'list' },
@@ -142,10 +153,19 @@ const SearchHeader = ({ search, nb_commits, has_more, isFetching }) => (
 
 
 const CiCommitList = () => {
-  const { project, branch, committer } = useSelected();
+  const selected = useSelected();
+  const { project, branch, committer } = selected;
+  const user = useUser();
   const project_data = useProjectData(project);
   const { docs_root } = useSiteConfig();
-  const { commits, error, refetch, isPending, isPlaceholderData, isSuccess, date_range, search, hasNextPage, fetchNextPage, isFetchingNextPage } = useCommitsList();
+  const list = useCommitsList();
+  const { commits, error, refetch, isPending, isPlaceholderData, isSuccess, date_range, search, hasNextPage, fetchNextPage, isFetchingNextPage, scope, has_scope, fell_back, hide_ci, latest_commit } = list;
+  // the project's page lists my batches by default, if I have some, else commits
+  const wants_my_batches = has_scope && scope === 'mine' && !selected.list_view;
+  const { query: my_batches_query, batches: my_batches } = useBatchesList({ project, project_data, branch, scope, hide_ci, enabled: wants_my_batches });
+  const default_view = wants_my_batches && (my_batches_query.isPending || my_batches.length > 0) ? 'batches' : 'commits';
+  const view = has_scope ? (selected.list_view ?? default_view) : null;
+  const show_batches = view === 'batches' && !search;
   // new results are on their way (background refreshes don't count)
   const loading = isPending || isPlaceholderData;
   const [now] = useState(() => new Date());
@@ -173,8 +193,19 @@ const CiCommitList = () => {
     return { ...commits[0], data: { ...commits[0].data, git: project_data.data?.git } };
   }, [is_branch, some_commits_loaded, commits, project_data]);
 
+  const show_everyone = () => updateSelected({ scope: 'all', list_view: undefined });
   return (
     <Container style={{paddingTop: '50px'}}>
+      {!branch && !committer && <SubprojectsCard project={project}/>}
+      <ListScopeToolbar list={list} branch={branch} committer={committer} view={view}>
+        {some_commits_loaded && !error && !show_batches && <><RulesButton project={project}/><DensityControl/></>}
+      </ListScopeToolbar>
+      {fell_back && <Callout icon="info-sign" style={{marginBottom: '15px'}}>
+        You have no commits or batches in this project yet: here is everyone's.
+      </Callout>}
+      {(scope === 'mine' || hide_ci) && !search && <ReferenceHead project={project} project_data={project_data} commit={latest_commit} density={density}/>}
+      {show_batches && <BatchList key={`${scope}|${hide_ci}`} project={project} project_data={project_data} branch={branch} scope={scope} hide_ci={hide_ci} onShowEveryone={show_everyone}/>}
+      {!show_batches && <>
       {/* the chart has a fixed width: it scrolls rather than spill out of the card */}
       {show_metrics_over_time && <Card elevation={0} style={{marginBottom: '15px', overflowX: 'auto'}}>
         <h4 className={Classes.HEADING}>Performance over time</h4>
@@ -200,15 +231,17 @@ const CiCommitList = () => {
         <NonIdealState title="No commit matches your search" icon="search" />}
       {isSuccess && !loading && !error && !some_commits_loaded && !search &&
         <NonIdealState
-          title={no_commits_title(date_range, now)}
+          title={scope === 'mine' ? no_commits_title(date_range, now).replace('No commits', 'None of your commits') : no_commits_title(date_range, now)}
           description={<span>
             Results appear once <code>qa batch</code> runs in your CI.<br/>
             <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/ci-integration`}>Set up your CI</a>
           </span>}
           icon="search"
-          action={<Button icon="history" text="Search 7 more days" onClick={show_older}/>}
+          action={<span style={{display: 'flex', gap: 8}}>
+            <Button icon="history" text="Search 7 more days" onClick={show_older}/>
+            {scope === 'mine' && <Button icon="people" text="Show everyone's" onClick={show_everyone}/>}
+          </span>}
       />}
-      {some_commits_loaded && !error && <ListToolbar><RulesButton project={project}/><DensityControl/></ListToolbar>}
       <CompactListContainer><Days>{Object.keys(commits_by_day).map(day => (
         <DayCard key={day} elevation={0} className={density === 'compact' ? 'compact' : undefined}>
           <h4 className={Classes.HEADING}>
@@ -216,7 +249,7 @@ const CiCommitList = () => {
               ? `${capitalize(DateTime.fromISO(day, { zone: 'utc' }).toRelativeCalendar({unit: "days"}))} \u2014 ${count_commits(commits_by_day[day].length)}`
               : capitalize(count_commits(commits_by_day[day].length))}
           </h4>
-          <CommitRows project={project} project_data={project_data} commits={commits_by_day[day]} density={density} />
+          <CommitRows project={project} project_data={project_data} commits={commits_by_day[day]} density={density} mine_of={scope === 'mine' ? user.user_name : null}/>
         </DayCard>
       ))}</Days></CompactListContainer>
       {hasNextPage && some_commits_loaded && !error &&
@@ -225,6 +258,7 @@ const CiCommitList = () => {
         <div style={{display: 'flex', justifyContent: 'center', margin: '15px'}}>
           <Button minimal icon="history" text="Older commits" title="Search 7 more days" onClick={show_older}/>
         </div>}
+      </>}
     </Container>
   );
 }
