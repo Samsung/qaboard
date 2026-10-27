@@ -24,7 +24,7 @@ qa batch video                                   # a video: the camera driving d
   in `inputs/`.
   To get them before a first `qa run`: `uv run qa/fetch_photos.py && uv run qa/make_charts.py`.
 - Without `--share` or a CI, results are saved in `output/`. To see them in QA-Board, start a server
-  ([quickstart](https://samsung.github.io/qaboard/docs/start-server)), and use `qa --share` or run in CI. Results are
+  ([quickstart](https://samsung.github.io/qaboard/docs/get-started/quickstart)), and use `qa --share` or run in CI. Results are
   stored under `/mnt/qaboard` (`storage` in *qaboard.yaml*, or `$QA_STORAGE`).
 
 ## How it's wired
