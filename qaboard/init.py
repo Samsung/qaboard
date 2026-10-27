@@ -141,15 +141,16 @@ def qa_init(ctx):
       name =  '/'.join(url.split('/')[3:]).replace('.git', '')
     print(f"project name: {name}")
 
-    p = subprocess.run(f"git remote show {remote}", stdout=subprocess.PIPE, shell=True, check=True, encoding='utf-8')
-    head_info = [l for l in p.stdout.strip().splitlines() if 'HEAD branch:' in l]
-    reference_branch = head_info[0].split(':')[1]
+    # It asks the remote: without network or credentials, we still fill the project's name and url
     try:
       p = subprocess.run(f"git remote show {remote}", stdout=subprocess.PIPE, shell=True, check=True, encoding='utf-8')
       head_info = [l for l in p.stdout.strip().splitlines() if 'HEAD branch:' in l]
-      reference_branch = head_info[0].split(':')[1]
+      reference_branch = head_info[0].split(':', 1)[1].strip()
+      if not reference_branch or reference_branch == '(unknown)': # e.g. an empty remote
+        raise ValueError(reference_branch)
     except Exception:
       click.secho('Warning: Could not find the remote HEAD, using master as reference branch', fg='yellow')
+      click.secho('         If your main branch is another one, change project.reference_branch in qaboard.yaml', fg='yellow')
       reference_branch = 'master'
     print(f"reference_branch: {reference_branch}")
 

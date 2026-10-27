@@ -31,7 +31,7 @@ from .api import get_outputs, notify_qa_database, serialize_paths, exit_if_resul
 from .iterators import iter_inputs, iter_parameters, load_runs_file, iter_runs, rerun_job_options, local_job_options
 from .batch_logs import saves_logs, batch_log
 
-from .config import config_has_error, ignore_config_errors
+from .config import config_has_error, ignore_config_errors, report_missing_storage, storage_needed_by
 from .config import project, project_root, subproject, config
 from .config import default_batches_files, get_default_database, default_batch_label, default_platform
 from .config import get_default_configuration, default_input_type
@@ -62,10 +62,14 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   # Signing in is global, per server: it doesn't need a project
   if ctx.invoked_subcommand == 'auth':
     return
+  # Local runs save their results in output/: only some commands need the storage
+  storage_is_missing = report_missing_storage(storage_needed_by(ctx.invoked_subcommand, share, is_ci))
   # We want all paths to be relative to top-most qaboard.yaml
   # it should be located at the root of the git repository
   if config_has_error and not ignore_config_errors:
     click.secho('Please fix the error(s) above in qaboard.yaml', fg='red', err=True, bold=True)
+    exit(1)
+  if storage_is_missing:
     exit(1)
 
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
@@ -593,6 +597,10 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
     click.secho(f'ERROR: you must provide a batch', fg='red', err=True, bold=True)
     click.secho(f'Use either `qa batch BATCH`, `qa batch BATCH_1 BATCH_2` or `qa batch --batch BATCH_2 --batch BATCH_2`', fg='red', err=True)
     exit(1)
+  # Those runs are saved in the commit's folder in the storage, even without --share
+  if prefix_outputs_path and not prefix_outputs_path.is_absolute():
+    if report_missing_storage('`qa batch --prefix-outputs-path` saves results there'):
+      exit(1)
 
   runs = load_runs_file(runs_file) if runs_file else None
   # How the runs were started. Some options are for the whole batch, e.g. the concurrency

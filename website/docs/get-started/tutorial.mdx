@@ -82,14 +82,15 @@ qa --help
 `<your-qaboard>` is your server's address, e.g. `localhost:5151`. More options, like API tokens, are in
 [Installation](/docs/installation).
 
-With the quickstart's server, also tell `qa` where that server reads results:
+With the quickstart's server, also tell `qa` where that server reads the results you share:
 
 ```bash
 export QA_STORAGE=/tmp/qaboard
 ```
 
-With your team's server, results go where `storage` in *qaboard.yaml* says: `/mnt/qaboard` after `qa init`, or the
-server's results folder, which you set in the next step.
+With your team's server, shared results go where `storage` in *qaboard.yaml* says: `/mnt/qaboard` after `qa init`,
+or the server's results folder, which you set in the next step. Local runs don't need it: they save their results
+in your project's `output/` folder.
 
 ## 3. Wrap your code
 At the root of your repository, `qa init` creates *qaboard.yaml* and a `qa/` folder: `qa/main.py` (the wrapper),
@@ -100,9 +101,11 @@ qa init
 ```
 
 Open *qaboard.yaml* and check the settings at its top: `project.name` (your project's id in QA-Board),
-`project.url` and `project.reference_branch`. `qa init` fills them from your git remote when it can reach it, else
-it says so. At the bottom, `storage` is where shared results go: `/mnt/qaboard`, or your server's results folder
-(`QA_STORAGE` wins over it). `qa` stops with *The storage path does not exist* when it can't create that folder.
+`project.url` and `project.reference_branch`. `qa init` fills them from your git remote. When it can't reach it, the
+reference branch stays `master`, and it says so. At the bottom, `storage` is where shared results go:
+`/mnt/qaboard`, or your server's results folder (`QA_STORAGE` wins over it). When `qa` can't create that folder,
+local runs only warn about it, but `--share`, CI runs and `qa save-artifacts` stop with *The storage path does not
+exist*.
 
 `qa` calls the `run(context)` function of `qa/main.py` for each run. It runs your code on `context.input_path`,
 writes files in `context.output_dir`, and returns metrics.

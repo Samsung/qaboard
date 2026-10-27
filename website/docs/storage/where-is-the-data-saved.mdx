@@ -27,8 +27,10 @@ The `QA_STORAGE` environment variable wins over it, e.g. `export QA_STORAGE=/tmp
 [quickstart](/docs/get-started/quickstart)'s server, which reads results there. If your organization's site package
 [sets a `storage`](/docs/project-init#site-defaults), you don't need one.
 
-`qa` creates the folder if it doesn't exist, and stops with *The storage path does not exist* when it can't. The
-server must mount it too, at the same path: see [Starting a server](/docs/deploy#create-a-directory-to-store-results).
+`qa` creates the folder if it doesn't exist. When it can't, the commands that use it stop with *The storage path
+does not exist*: `qa --share`, CI runs, `qa save-artifacts`, `qa check-bit-accuracy` and `qa optimize`. The others
+only warn: local runs save their results in your project's `output/` folder. The server must mount the storage too,
+at the same path: see [Starting a server](/docs/deploy#create-a-directory-to-store-results).
 
 Under the storage, each commit's results are in `<project>/<first 2 characters of the commit>/<next 14>/`, e.g.
 `/mnt/qaboard/kitefin/camera-isp/3f/a91c02d4e7b815/`.

@@ -33,7 +33,8 @@ Not yet: `qa` writes results to a storage that the server reads at the same path
 runner must mount it. Use a self-hosted runner. See the [roadmap](/docs/roadmap#http-upload-of-outputs).
 
 ## Where are results saved? {#where-are-results-saved}
-- **Local runs** are saved under the *output/* directory of the project.
+- **Local runs** are saved under the *output/* directory of the project. They don't need the storage: when `qa`
+  can't create its folder, it warns and runs anyway.
 - **CI runs**, and runs with `--share`, are saved under the `storage` set in *qaboard.yaml*, like */mnt/qaboard*. See
   [where is the data](/docs/storage/where-is-the-data).
 
