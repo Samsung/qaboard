@@ -58,6 +58,9 @@ export const make_api = ({ nb_outputs, nb_commits }) => {
     '/api/v1/project/branches': ['master', 'develop'],
     '/api/v1/project': { qatools_config, qatools_metrics },
     '/api/v1/commits': commits,
+    // otherwise they would match /api/v1/commit
+    '/api/v1/commit-counts': { all: nb_commits, mine: nb_commits, without_ci: 0 },
+    '/api/v1/batches': [],
     ...Object.fromEntries(Object.entries(commit_details).map(([id, c]) => [`/api/v1/commit/${id}`, c])),
     '/api/v1/commit': commit_details[commits[0].id],
   };
