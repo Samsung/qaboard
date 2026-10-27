@@ -3,14 +3,12 @@
  * Run with: cd webapp && npm test -- tables
  */
 import { screen, fireEvent } from '@testing-library/react';
-import { Classes } from '@blueprintjs/core';
+import { Classes, Colors } from '@blueprintjs/core';
 
 import { TableCompare, TableKpi } from '../tables';
 import { MetricsSummary, MetricsTags } from '../metrics';
 import { metrics_fill_defaults, with_undeclared_metrics } from '../../utils';
 import { renderWithProviders } from '../../test-utils';
-
-vi.mock('../Plot', () => ({ default: () => <div data-testid="plot"/> }));
 
 const metric = (key, extra) => ({ key, label: key, short_label: key, scale: 1, suffix: '', smaller_is_better: true, ...extra });
 const available_metrics = { loss: metric('loss'), status: metric('status'), time: metric('time', { suffix: 's' }) };
@@ -255,6 +253,29 @@ describe('MetricsSummary', () => {
     // the change is neutral: neither green nor red
     expect(screen.getByText('-25%').closest(`.${Classes.TAG}`)).not.toHaveClass(Classes.INTENT_SUCCESS);
     expect(screen.getByText('-25%').closest(`.${Classes.TAG}`)).not.toHaveClass(Classes.INTENT_DANGER);
+  });
+
+  it('draws box plots of the new and reference runs, with their numbers on hover', () => {
+    renderWithProviders(<MetricsSummary metrics={{ available_metrics, summary_metrics: ['loss'] }} new_batch={new_batch} ref_batch={ref_a}/>);
+    const plot = screen.getByRole('img', { name: 'Box plots of loss' });
+    expect([...plot.querySelectorAll('title')].map(title => title.textContent)).toEqual([
+      'new: 2 runs\nmedian 1.5, mean 1.5\nquartiles 1 to 2\nwhiskers 1 to 2',
+      'reference: 1 run\nmedian 2, mean 2\nquartiles 2 to 2\nwhiskers 2 to 2',
+    ]);
+    expect(plot.querySelectorAll('circle')).toHaveLength(3);
+  });
+
+  it('shades the range where runs miss the target in red, where they meet it in green', () => {
+    const zones = loss => {
+      const metrics = { available_metrics: { ...available_metrics, loss: metric('loss', loss) }, summary_metrics: ['loss'] };
+      const { unmount } = renderWithProviders(<MetricsSummary metrics={metrics} new_batch={new_batch} ref_batch={ref_a}/>);
+      const fills = [...screen.getByRole('img', { name: 'Box plots of loss' }).querySelectorAll('rect[fill]')].map(rect => rect.getAttribute('fill'));
+      unmount();
+      return fills;
+    };
+    expect(zones({ target: 1.5 })).toEqual([Colors.RED5, Colors.GREEN2]);
+    // higher is better, and all the runs meet the target
+    expect(zones({ target: 0.5, smaller_is_better: false })).toEqual([Colors.GREEN2]);
   });
 
   it('shows the summary metrics, until users choose others', () => {
