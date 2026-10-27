@@ -58,6 +58,8 @@ spec:
           command: ["/bin/bash", "-c", "sh /tmp/etc/nginx/configure.sh && exec nginx -g 'daemon off;'"]
           env:
             - {name: NGINX_USER, value: nginx}
+            # like the backend, from config (website/docs/viewers.mdx)
+            - {name: QABOARD_SANDBOX_HTML, value: {{ .Values.config.QABOARD_SANDBOX_HTML | default "" | quote }}}
           ports:
             - {name: http, containerPort: 80}
           readinessProbe:

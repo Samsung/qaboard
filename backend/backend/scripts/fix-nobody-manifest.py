@@ -5,7 +5,6 @@ Usage:
 """
 import os
 import json
-import time
 
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import text
@@ -45,7 +44,6 @@ def migrate():
              .enable_eagerloads(False) 
   )
   updated = 0
-  now = time.time()
   for idx, o in enumerate(outputs):
     #   try:
     manifest_path = o.output_dir / 'manifest.outputs.json'

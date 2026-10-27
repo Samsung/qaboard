@@ -1,7 +1,9 @@
 import os
 import functools
+import time
 import pickle
 import threading
+from collections import OrderedDict
 
 import redis
 
@@ -18,27 +20,56 @@ redis_client = redis.Redis(
 thread_local = threading.local()
 
 
+class LocalCache:
+    """A small LRU cache whose entries expire after `ttl` seconds"""
+    def __init__(self, ttl, maxsize):
+        self.ttl, self.maxsize = ttl, maxsize
+        self.entries = OrderedDict()  # key => (expires_at, value)
+
+    def get(self, key):
+        """(True, value) if the key is cached and fresh, else (False, None)"""
+        entry = self.entries.get(key)
+        if entry is None:
+            return False, None
+        expires_at, value = entry
+        if expires_at <= time.monotonic():
+            del self.entries[key]
+            return False, None
+        self.entries.move_to_end(key)
+        return True, value
+
+    def set(self, key, value):
+        self.entries[key] = (time.monotonic() + self.ttl, value)
+        self.entries.move_to_end(key)
+        while len(self.entries) > self.maxsize:
+            self.entries.popitem(last=False)
+
 
 def hybrid_cache(ttl=60, maxsize=128):
-    """Hybrid cache: thread-local (fast) + Redis (shared).
-    The TTL only affects redis, thread-local cache has no TTL, so make sure workers are killed before the ttl expires to keep freshness guarantees.
-    Note: `maxsize` is currently ignored, the thread-local cache is unbounded.
-    """
+    """Hybrid cache: thread-local (fast, at most `maxsize` entries per function and thread) + Redis (shared).
+    Both keep results for `ttl` seconds."""
 
     def decorator(func):
+        name = f"{func.__module__}.{func.__qualname__}"
+
+        def local_cache():
+            # Ensure thread has its own cache instance
+            caches = getattr(thread_local, "caches", None)
+            if caches is None:
+                caches = thread_local.caches = {}
+            if name not in caches:
+                caches[name] = LocalCache(ttl, maxsize)
+            return caches[name]
+
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            # Ensure thread has its own cache instance
-            if not hasattr(thread_local, "cache"):
-                thread_local.cache = {}
-
-            cache_key = f"{func.__name__}:{args}:{kwargs}"
+            cache = local_cache()
+            cache_key = f"{name}:{args}:{kwargs}"
 
             # 1️⃣ Check thread-local cache
-            # We don't have a TTL here since we kill workers after a while...
-            if cache_key in thread_local.cache:
-                return thread_local.cache[cache_key]
-
+            found, result = cache.get(cache_key)
+            if found:
+                return result
 
             # 2️⃣ Check Redis cache
             # Redis is only a cache: if it's down we compute the result instead of failing the request
@@ -49,15 +80,16 @@ def hybrid_cache(ttl=60, maxsize=128):
             if result is not None:
                 try:
                     result = pickle.loads(result)
-                    thread_local.cache[cache_key] = result  # Store in local cache
+                    # what's left of its TTL in redis would be better, it's another round-trip
+                    cache.set(cache_key, result)
                     return result
-                except:
+                except Exception:
                     pass
 
             # 3️⃣ Compute result and store in both caches
             result = func(*args, **kwargs)
 
-            thread_local.cache[cache_key] = result  # Store in local cache
+            cache.set(cache_key, result)
             try:
                 redis_client.setex(cache_key, ttl, pickle.dumps(result))  # Store in Redis
             except redis.RedisError:

@@ -7,10 +7,9 @@ import sys
 import json
 
 from flask import request, jsonify, g
-from sqlalchemy.orm.attributes import flag_modified
 
 from backend import app, db_session
-from ..models import CiCommit, Output, Project
+from ..models import CiCommit, Project
 from ..models.Project import update_project
 from ..git_hosts import git_hosts, committers, HOST_TYPES, UntrustedHost
 from .auth import login_required, require_project_access
@@ -23,20 +22,21 @@ from ..audit import audit
 @app.route('/api/v1/commit/<commit_id>/batches/', methods=['DELETE'])
 @login_required
 def delete_commit(commit_id, project_id=None):
+  """Deletes the batches of a commit, in one project or in all of them. Errors are 500s: they're not "not found"."""
+  ci_commits = CiCommit.query.filter(CiCommit.hexsha == commit_id)
+  if project_id:
+    ci_commits = ci_commits.filter(CiCommit.project_id == project_id)
+  ci_commits = ci_commits.all()
+  if not ci_commits:
+    return jsonify({"error": f"Cannot find the commit {commit_id}" + (f" in {project_id}" if project_id else "")}), 404
+  # Checked for all the projects first: we delete everything or nothing
+  for ci_commit in ci_commits:
+    if forbidden := require_project_access(g.user, ci_commit.project_id):
+      return forbidden
+    if ci_commit.hexsha in ci_commit.project.protected_ref_commits:
+      return jsonify({"error": f"This commit is protected in the qaboard.yaml of {ci_commit.project_id}: it's the reference branch's latest commit, or listed in project.milestones."}), 403
+  kept = set()
   try:
-    ci_commits = CiCommit.query.filter(CiCommit.hexsha == commit_id)
-    if project_id:
-      ci_commits = ci_commits.filter(CiCommit.project_id == project_id)
-    ci_commits = ci_commits.all()
-    if not ci_commits:
-      return f"404 ERROR: Cannot find commit", 404
-    # Checked for all the projects first: we delete everything or nothing
-    for ci_commit in ci_commits:
-      if forbidden := require_project_access(g.user, ci_commit.project_id):
-        return forbidden
-      if ci_commit.hexsha in ci_commit.project.protected_ref_commits:
-        return jsonify({"error": f"This commit is protected in the qaboard.yaml of {ci_commit.project_id}: it's the reference branch's latest commit, or listed in project.milestones."}), 403
-    kept = set()
     for ci_commit in ci_commits:
       print("DELETING", ci_commit)
       # Batches that are milestones are kept
@@ -49,13 +49,15 @@ def delete_commit(commit_id, project_id=None):
         print(f" > {batch}")
         stop_status = batch.stop(db_session)
         if "error" in stop_status:
+          db_session.rollback()
           return jsonify(stop_status), 500
         audit('batch.delete', 'batch', batch.id, batch.label, project_id=ci_commit.project_id, meta={"commit": ci_commit.hexsha})
         batch.delete(session=db_session)
     db_session.commit()
-    return {"status": "OK", "kept": sorted(kept)}
-  except Exception as e:
-    return f"404 ERROR {e}: {commit_id} in {project_id}", 404
+  except Exception:
+    db_session.rollback()
+    raise
+  return {"status": "OK", "kept": sorted(kept)}
 
 
 
@@ -68,6 +70,16 @@ def delete_commit(commit_id, project_id=None):
 # Webhooks must prove they know their host's `webhook_secret` (default: QABOARD_WEBHOOK_SECRET),
 # e.g. GitLab's "Secret token" or GitHub's "Secret". See git_hosts/__init__.py
 # Anyone can call us: until we checked the secret, we only do cheap work (no parsing besides JSON).
+
+def hosts_without_webhook_secret():
+  """The git hosts that accept unauthenticated push webhooks: none once any host has a secret (see receive_push)"""
+  if git_hosts.has_webhook_secrets():
+    return []
+  return [host.url for host in git_hosts]
+
+if hosts_without_webhook_secret():
+  print(f"[webhooks] WARNING: anyone who can reach the server can send push events to /webhook/<host>, as {', '.join(hosts_without_webhook_secret())}: set QABOARD_WEBHOOK_SECRET (or webhook_secret in QABOARD_GIT_HOSTS), and the same secret in the git hosts' webhooks.", file=sys.stderr)
+
 
 # GitHub caps push payloads at 25MB, and the other hosts send less: we never refuse a real push.
 # Parsing is linear in the payload's size (keep it so: no regular expressions that backtrack).

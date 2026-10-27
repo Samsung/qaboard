@@ -22,9 +22,21 @@ The camera ISP's menu has two links to its team's docs, a divider, and a webhook
 Each item has a `text`, and an `href` to open in a new tab, or an action (below). `icon` is one of
 [Blueprint's icons](https://blueprintjs.com/docs/#icons).
 
-A link is greyed out when its target doesn't answer: QA-Board's server checks it with a `HEAD` request. Add
-`allow_failed: true` to always enable it, for instance when the target refuses `HEAD` requests. To check another URL
-than the one you open, give it as `url`, with a `method` if needed.
+A link is greyed out when its target doesn't answer: QA-Board's server checks it with a `HEAD` request (links to
+QA-Board's own pages, like `/s/...` files, are checked by the browser). Add `allow_failed: true` to always enable it,
+for instance when the target refuses `HEAD` requests. To check another URL than the one you open, give it as `url`,
+with a `method` if needed.
+
+<details>
+<summary>Which hosts the server calls</summary>
+
+The server only checks links, and sends [webhooks](#using-webhooks), to the hosts of the integrations of the project's,
+the commit's or the batch's *qaboard.yaml*, the git hosts, the Jenkins hosts of `JENKINS_AUTH`, and
+[`QABOARD_PROXY_HOSTS`](/docs/deploy#optional-environment-variables), also when they redirect. A template in a host,
+like `https://ci-${project_name}.example.com`, allows the hosts that end with its last part (`.example.com`). A host
+that is only a template, like `${server}/x`, isn't known: put such hosts in `QABOARD_PROXY_HOSTS`. When a link
+redirects to another host, for instance to a sign-in page, the server doesn't follow it, and the link still works.
+</details>
 
 ## Use the commit, the branch or the batch in links {#dynamic-integrations-using-variables}
 Strings can use `${...}` templates, filled with what the page shows. For instance, a link to the commit's checks on
@@ -137,9 +149,10 @@ integrations:
       job_name: build-linux
 ```
 
-Clicking plays the job of that name in the commit's latest pipeline (users need to be logged in). The QA-Board
-server needs a GitLab token with the `api` scope to play jobs (`read_api` is enough to show their status). See
-[Git hosts](/docs/backend-admin/git-hosts#tokens).
+Clicking plays the job of that name in the commit's latest pipeline (users need to be logged in, and to be
+developers of the project). The server uses its own token, so it only shows and plays the jobs of the project's
+repository, for users who can access the project. The QA-Board server needs a GitLab token with the `api` scope to
+play jobs (`read_api` is enough to show their status). See [Git hosts](/docs/backend-admin/git-hosts#tokens).
 
 ### Jenkins builds {#trigger-jenkins-builds}
 ```yaml title="qaboard.yaml"
@@ -154,8 +167,9 @@ integrations:
       # token: ...
 ```
 
-In the job's configuration, enable **Trigger builds remotely (e.g., from scripts)**. The QA-Board server triggers the
-build with the credentials of the Jenkins host in its `JENKINS_AUTH` environment variable:
+Clicking starts the build: users need to be developers of the project. In the job's configuration, enable
+**Trigger builds remotely (e.g., from scripts)**. The QA-Board server triggers the build with the credentials of the
+Jenkins host in its `JENKINS_AUTH` environment variable:
 
 ```json
 {"jenkins.kitefin.example": {"user": "<user>", "token": "<api-token>", "crumb": "<crumb>"}}
@@ -165,6 +179,9 @@ build with the credentials of the Jenkins host in its `JENKINS_AUTH` environment
 `<jenkins>/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,":",//crumb)`, which handles
 [Jenkins' CSRF protection](https://www.jenkins.io/doc/book/security/csrf-protection/). See the
 [server's environment variables](/docs/deploy#optional-environment-variables).
+To check the builds' status, the server only uses these credentials on the hosts of `JENKINS_AUTH`, on the default
+ports of http and https, or with the scheme and port of a Jenkins job of the projects' *qaboard.yaml* (e.g.
+`http://jenkins:8080/job/x`).
 
 `token` is the **Authentication Token** of the job's **Trigger builds remotely**. Without `token`, the server sends
 the token in its `JENKINS_BUILD_TOKEN` environment variable, if it's set, and none otherwise; `token: ""` never sends
@@ -173,7 +190,9 @@ one. *qaboard.yaml* is in your repository: when the token is a secret, keep it i
 ## Call a webhook {#using-webhooks}
 A `webhook` sends a request when people click, from QA-Board's server (users need to be logged in). Its options are
 those of Python's [`requests`](https://requests.readthedocs.io/en/latest/api/#requests.request): `url`, `method`,
-`json` (or `data` for a form), `params`, `headers`, and `auth` with a `username` and a `password`.
+`json` (or `data` for a form), `params`, `headers`, and `auth` with a `username` and a `password`. The server only
+calls [the hosts of the integrations](#adding-badges-and-external-links), and doesn't send users' cookies or pass
+back the answer's.
 
 ```yaml title="qaboard.yaml"
 integrations:

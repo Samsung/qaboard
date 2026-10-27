@@ -1,4 +1,5 @@
 import os
+import sys
 from typing import List, Dict, Any
 
 from .base import BaseRunner
@@ -47,7 +48,7 @@ class CeleryRunner(BaseRunner):
       def sigterm_handler(_signo, _stackframe):
         print('Aborted.')
         g.revoke()
-        exit(1)
+        sys.exit(1)
       signal.signal(signal.SIGTERM, sigterm_handler)
       signal.signal(signal.SIGINT, sigterm_handler)
 

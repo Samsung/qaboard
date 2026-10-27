@@ -3,6 +3,7 @@
 Bit-accuracy test between 2 results folders
 """
 import os
+import sys
 import json
 import filecmp
 import fnmatch
@@ -19,7 +20,7 @@ from .config import user, default_batches_files
 
 
 def default_cmp(file_1, file_2):
-    filecmp.cmp(str(file_1), str(file_2), shallow=False)
+    return filecmp.cmp(str(file_1), str(file_2), shallow=False)
 
 cmp_func = default_cmp
 # In some cases you want to implement your own file comparaison.
@@ -30,7 +31,6 @@ cmp_func = default_cmp
 custom_cmp = os.environ.get("QA_BITACCURACY_CMP")
 if custom_cmp:
   try:
-    import sys
     cmp_source = Path(custom_cmp).resolve()
     # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
     import importlib.util
@@ -40,7 +40,7 @@ if custom_cmp:
     sys.path.insert(0, str(cmp_source.parent))
     spec.loader.exec_module(module) # type: ignore
     cmp_func = module.cmp # type: ignore
-  except Exception as e:
+  except Exception:
     import traceback
     exc_type, exc_value, exc_traceback = sys.exc_info()
     click.secho(f'ERROR: Error importing the custom cmp function.', fg='red', err=True, bold=True)
@@ -85,6 +85,10 @@ def is_same_content(filename, meta_1, meta_2):
     return meta_1['md5'] == meta_2['md5']
 
 
+def is_ignored(rel_path: str, ignore) -> bool:
+  """Whether the path of a file in a run's output directory starts with one of the bit_accuracy.ignore patterns."""
+  return any(fnmatch.fnmatch(rel_path, f"{i}*") for i in ignore)
+
 
 def cmpfiles(dir_1=Path(), dir_2=Path(), patterns=None, ignore=None, cmp=default_cmp):
   """Bit-accuracy test between two directories. We usually use cmpmanifest only...
@@ -110,16 +114,16 @@ def cmpfiles(dir_1=Path(), dir_2=Path(), patterns=None, ignore=None, cmp=default
 
     for file_2 in files_2:
       if not file_2.is_file(): continue
-      if any(fnmatch.fnmatch(file_2.name, i) for i in ignore): continue
       rel_path = file_2.relative_to(dir_2)
+      if is_ignored(rel_path.as_posix(), ignore): continue
       if not (dir_1 / rel_path).is_file():
         only_in_2.add(rel_path)
 
     for file_1 in files_1:
       if not file_1.is_file(): continue
-      if any(fnmatch.fnmatch(file_1.name, i) for i in ignore): continue
-
       rel_path = file_1.relative_to(dir_1)
+      if is_ignored(rel_path.as_posix(), ignore): continue
+
       file_2 = dir_2 / rel_path
       if file_2.is_file():
         try:
@@ -178,7 +182,7 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignore=None):
     for file_2_str in manifest_2:
       if not fnmatch.fnmatch(file_2_str, pattern):
         continue
-      if any(fnmatch.fnmatch(file_2_str, f"{i}*") for i in ignore):
+      if is_ignored(file_2_str, ignore):
         continue
       if file_2_str not in manifest_1:
         only_in_2.add(Path(file_2_str))
@@ -187,7 +191,7 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignore=None):
       if not fnmatch.fnmatch(file_1_str, pattern):
         continue
       file_1 = Path(file_1_str)
-      if any(fnmatch.fnmatch(file_1, f"{i}*") for i in ignore):
+      if is_ignored(file_1_str, ignore):
         continue
       if file_1_str in manifest_2:
         is_same = is_same_content(file_1_str, meta_1, manifest_2[file_1_str])
@@ -239,6 +243,7 @@ def is_bit_accurate(dir_new, dir_ref, ba_context, strict=False, manifest_name='m
     ignore = config.get("bit_accuracy", {}).get("ignore", [])
     if not (isinstance(ignore, list) or isinstance(ignore, tuple)):
       ignore = [ignore]
+    ignore = list(ignore) # we add to it, not to the configuration
     ignore.append('manifest.inputs.json') # compared when setting manifest_name
     ignore.append('run.json')             # qa-board data, not relevant
     ignore.append('log.txt')              # contains timestamps
@@ -368,7 +373,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
       if run_context.input_path.is_file():
         click.secho('ERROR: check_bit_accuracy_manifest only works for inputs that are folders', fg='red', err=True)
         # otherwise the manifest is at input_path.parent/manifest.json in the database and input_path.stem/manifest.json in the results
-        exit(1)
+        sys.exit(1)
 
       batch_conf_dir = make_batch_conf_dir(Path(), ctx.obj['batch_label'], ctx.obj["platform"], run_context.configurations, ctx.obj['extra_parameters'], ctx.obj['share'])
       output_dir_suffix = output_dirs_for_input_part(run_context.rel_input_path, run_context.database, config)
@@ -403,7 +408,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
 
     if missing_runs:
       click.secho(f"ERROR: {missing_runs} runs are missing!", bg='red', underline=True, bold=True)
-      exit(1)
+      sys.exit(1)
     if not all_bit_accurate:
       click.secho("\nError: you are not bit-accurate versus the manifest.", bg='red', underline=True, bold=True)
       click.secho("Reminder: the manifest lists the expected inputs/outputs for each test. It acts as an explicit gatekeeper against changes", fg='red', dim=True)
@@ -416,7 +421,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
       else:
         click.secho("To update the manifests for all tests, run:", fg='red')
         click.secho("$ qa batch --save-manifests --batch *", fg='red')
-      exit(1)
+      sys.exit(1)
 
     if not nb_compared:
       click.secho("\nWARNING: Nothing was compared! It's not likely to be what you expected...", fg='yellow', underline=True, bold=True)
@@ -454,7 +459,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
 
     if not is_in_git_repo:
       click.secho("You are not in a git repository, maybe in an artifacts folder. `check_bit_accuracy` is unavailable.", fg='yellow', dim=True)
-      exit(1)
+      sys.exit(1)
 
 
     if is_ci and commit_branch == reference:
@@ -492,7 +497,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
         if not run_path.exists():
           secho(f"ERROR: Corrupted output directory. Missing 'run.json' file", fg="red", bold=True)
           secho(f"       We expected one in {run_path.parent}", fg="red")
-          exit(1)
+          sys.exit(1)
         run_info = json.loads(run_path.read_text())
         ba_contexts.append({
           "rel_input_path": run_info["input_path"],
@@ -572,4 +577,4 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
           if batches:
             url = f"{url}&batch={batches[0]}"
           click.secho(url, fg='red')
-      exit(1)
+      sys.exit(1)

@@ -124,6 +124,19 @@ describe('LoginPage', () => {
     expect(toaster.show).toHaveBeenCalledWith(expect.objectContaining({ message: 'Welcome, Alice' }));
   });
 
+  it("loads the server's own pages after signing in, like pgAdmin", async () => {
+    let signed_in = false;
+    mockApi({
+      'GET /api/v1/auth/providers': options(),
+      'GET /api/v1/user/me/': () => [signed_in ? { is_authenticated: true, user_id: 1, user_name: 'alice', is_admin: true } : anonymous_me, 200],
+      'POST /api/v1/user/auth/': () => { signed_in = true; return [{ user_id: 1, user_name: 'alice', status: 'active', is_admin: true }, 200]; },
+    });
+    renderAt('/login?next=%2Fpgadmin4%2Fbrowser%2F');
+    await screen.findByRole('form', { name: 'Sign in with a user name and password' });
+    signInWith('alice', 'secret');
+    await waitFor(() => expect(goTo).toHaveBeenCalledWith('/pgadmin4/browser/'));
+  });
+
   it("doesn't go to other sites after signing in", async () => {
     mockApi({
       'GET /api/v1/auth/providers': options(),

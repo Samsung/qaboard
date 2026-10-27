@@ -30,6 +30,30 @@ class TestNotifyQaDatabase(unittest.TestCase):
     self.assertIn("Authorization", stderr.getvalue())
     self.assertNotIn("secret-token", stderr.getvalue())
 
+  def test_requests_have_a_timeout(self):
+    """A hung server must not block CI jobs forever"""
+    from qaboard.api import notify_qa_database, get_output, batch_info, api_timeout
+    self.assertGreaterEqual(api_timeout[1], 300) # uwsgi's harakiri: saving big manifests can take that long
+    response = mock.Mock()
+    response.json.return_value = {"batches": {"default": {"outputs": {}}}}
+    with mock.patch("requests.post", return_value=response) as post, mock.patch("requests.get", return_value=response) as get:
+      notify_qa_database(object_type="batch", share=True, batch_label="default")
+      get_output(1)
+      batch_info("0123456789", "default", project="group/repo", metrics=["none"])
+    self.assertEqual(post.call_args.kwargs["timeout"], api_timeout)
+    self.assertEqual([c.kwargs["timeout"] for c in get.call_args_list], [api_timeout, api_timeout])
+
+  def test_data_that_does_not_serialize(self):
+    import io
+    from contextlib import redirect_stderr
+    from qaboard.api import notify_qa_database
+    stderr = io.StringIO()
+    with mock.patch("requests.post") as post, redirect_stderr(stderr):
+      notify_qa_database(object_type="batch", share=True, batch_label="default", data={"not-json": object()})
+    post.assert_not_called()
+    self.assertIn("Failed to update QA-Board", stderr.getvalue())
+    self.assertIn("not-json", stderr.getvalue())
+
 
 class TestServerUrl(unittest.TestCase):
   def stderr_of_import(self, **env):

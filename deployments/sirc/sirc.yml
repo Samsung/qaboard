@@ -50,6 +50,8 @@ services:
     - QABOARD_LOGIN_TYPE=LDAP
     # Admins whatever the database says (the break-glass access): they make other admins in the web app
     - QABOARD_ADMINS=arthurf
+    # The pgAdmin account admins are signed in as (api/admin_pgadmin.py)
+    - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL:-user@domain.com}
     - QABOARD_DISABLE_SIGNUP=True
     - QABOARD_LOGIN_RESTRICTED=True
     - QABOARD_LOGIN_RESTRICTED_YAML=/etc/ldap/users_restrict.yml
@@ -193,3 +195,19 @@ services:
   # Shares the backend image (which installs flower>=2.1.0), so only backend needs building
   flower:
     image: "gitlab-srv:4567/common-infrastructure/qaboard:backend${QABOARD_VERSION:+-$QABOARD_VERSION}"
+
+  # QA-Board's admins are signed in by nginx (services/nginx/snippets/pgadmin.conf): pgAdmin trusts the header it sets.
+  # So pgAdmin is only reachable through nginx, at https://qa/pgadmin4/: no published port.
+  # Break-glass: docker compose exec pgadmin ... or temporarily add "internal" back to AUTHENTICATION_SOURCES.
+  pgadmin:
+    ports: !reset []
+    environment:
+      PGADMIN_CONFIG_SERVER_MODE: "True"
+      PGADMIN_CONFIG_AUTHENTICATION_SOURCES: "['webserver']"
+      PGADMIN_CONFIG_WEBSERVER_REMOTE_USER: "'X-Pgadmin-User'"
+      # Everyone signs in as the default account, which owns the QA-Board server (services/pgadmin/servers.json)
+      PGADMIN_CONFIG_WEBSERVER_AUTO_CREATE_USER: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      # pgAdmin's next versions only trust the header with these (ignored by 9.x)
+      PGADMIN_CONFIG_WEBSERVER_REMOTE_USER_FROM_HEADER: "True"
+      PGADMIN_CONFIG_WEBSERVER_TRUSTED_PROXIES: "['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']"

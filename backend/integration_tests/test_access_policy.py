@@ -11,7 +11,8 @@ def signup(client, user_name, email):
 @pytest.mark.parametrize('policy, email, status', [
   ('open', 'a@other.com', 'active'),
   ('approval', 'a@example.com', 'pending'),
-  ('domains', 'a@example.com', 'active'),
+  # local sign-up doesn't verify emails: anyone could type one of the domains (OIDC's verified emails: test_oidc.py)
+  ('domains', 'a@example.com', 'pending'),
   ('domains', 'a@other.com', 'pending'),
   ('domains', None, 'pending'),
 ])
@@ -95,3 +96,19 @@ def test_auto_redirect(client, monkeypatch):
   monkeypatch.setenv('QABOARD_LOGIN_REQUIRED', 'true')
   assert client.get('/api/v1/auth/providers').get_json()["auto_redirect"] is True
   assert client.get('/api/v1/auth/providers?local=1').get_json()["auto_redirect"] is False
+
+
+def test_the_admins_of_the_environment(client, make_user, make_client, monkeypatch):
+  """$QABOARD_ADMINS: local sign-up can't take their names, and only verified emails count"""
+  monkeypatch.setenv('QABOARD_ADMINS', 'Root, boss@example.com, chief@example.com')
+  for name in ('Root', 'root', 'ROOT'):
+    assert signup(client, name, f'{name}@other.com').status_code == 409
+  assert signup(client, 'mallory', 'boss@example.com').status_code == 200
+  mallory = login(make_client(), 'mallory', 'pw')
+  assert mallory.get('/api/v1/user/me/').get_json()["is_admin"] is False
+  assert mallory.get('/api/v1/admin/users').status_code == 403
+  # the directory's emails, and the names (e.g. a local account from qaboard-admin create-admin)
+  make_user('chief', email='chief@example.com', login_type='SAML')
+  make_user('Root')
+  for name in ('chief', 'Root'):
+    assert login(make_client(), name).get('/api/v1/user/me/').get_json()["is_admin"] is True, name

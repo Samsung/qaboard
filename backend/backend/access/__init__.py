@@ -16,7 +16,7 @@ from typing import Optional, List
 
 from flask import g, has_request_context, jsonify
 
-from .policy import ROLES, VISIBILITIES, RESTRICTIVENESS, required_role, required_scope, highest, allows, prefixes, applies_to
+from .policy import ROLES, VISIBILITIES, RESTRICTIVENESS, required_role, required_scope, highest, allows, prefixes, applies_to, is_valid_project_id
 
 
 @dataclass
@@ -27,7 +27,7 @@ class Decision:
   role: Optional[str] = None
   # how the user got their role: admin, grant, group, signed_in, visibility, yaml
   via: Optional[str] = None
-  # why not: sign_in_required, missing_role, missing_scope, token_project
+  # why not: sign_in_required, missing_role, missing_scope, token_project, invalid_project
   reason: Optional[str] = None
   required: Optional[str] = None
 
@@ -120,6 +120,8 @@ def effective_visibility(project_id: str) -> dict:
 def role_of(user, project_id: str):
   """(role, via) of a user (None: anonymous) on a project"""
   from ..settings import setting
+  if project_id is not None and not is_valid_project_id(project_id):
+    return None, None
   context = context_of(user)
   if context.is_admin:
     return 'owner', 'admin'
@@ -154,6 +156,10 @@ def authorize(actor, permission: str, project_id: Optional[str]) -> Decision:
   required = required_role(permission)
   decision = Decision(allowed=False, permission=permission, project_id=project_id, required=required)
   user = actor.user if actor is not None else None
+  # None: what the instance allows, e.g. to list projects
+  if project_id is not None and not is_valid_project_id(project_id):
+    decision.reason = 'invalid_project'
+    return decision
   if actor is not None and actor.token is not None:
     if not actor.has_scope(required_scope(permission)):
       decision.reason, decision.required = 'missing_scope', required_scope(permission)
@@ -203,10 +209,19 @@ VERBS = {
 }
 
 
+def invalid_project(project_id):
+  """None, or the 400 for a project id we refuse (policy.is_valid_project_id), where `qa` sends results: it creates projects"""
+  if is_valid_project_id(project_id, new=True):
+    return None
+  return denied(Decision(allowed=False, permission='runs.ingest', project_id=None, reason='invalid_project'))
+
+
 def denied(decision: Decision):
   """The response of a refused decision: 401 to sign in, 403 with whom to ask"""
   from ..actor import error
   project = decision.project_id or 'this project'
+  if decision.reason == 'invalid_project':
+    return error(400, 'invalid_project', "This isn't a valid project: send it like group/repo, without . or .. or empty parts.")
   if decision.reason == 'missing_scope':
     return jsonify({"error": f"This token can't do this: it needs the \"{decision.required}\" scope.", "reason": "missing_scope", "required": decision.required}), 403
   if decision.reason == 'token_project':

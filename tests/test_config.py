@@ -181,5 +181,30 @@ class TestMissingStorage(unittest.TestCase):
     self.assertTrue(list(storage.rglob('metrics.json')))
 
 
+
+class TestStorageHelp(unittest.TestCase):
+  """Sites say how to get storage for new projects (QABOARD_STORAGE_HELP), instead of a hardcoded internal URL"""
+  def messages(self, env):
+    from importlib import import_module
+    config = import_module('qaboard.config') # qaboard.config is also the configuration (qaboard/__init__.py)
+    with mock.patch.dict(os.environ, env), \
+         mock.patch.object(config, 'missing_storage', [Path('/algo/new-project/storage')]), \
+         mock.patch.object(config, 'shows_config_messages', True), \
+         mock.patch('qaboard.config.click.secho') as secho:
+      self.assertTrue(config.report_missing_storage('`qa --share` saves results there'))
+    return '\n'.join(c.args[0] for c in secho.call_args_list)
+
+  def test_site_explains_how_to_get_storage(self):
+    messages = self.messages({'QABOARD_STORAGE_HELP': 'Ask IT at https://helpdesk.example.com'})
+    self.assertIn('The storage path does not exist', messages)
+    self.assertIn('Ask IT at https://helpdesk.example.com', messages)
+
+  def test_no_site_help(self):
+    messages = self.messages({'QABOARD_STORAGE_HELP': ''})
+    self.assertIn('The storage path does not exist', messages)
+    self.assertNotIn('INFO', messages)
+    self.assertNotIn('jenmaster', messages)
+
+
 if __name__ == '__main__':
   unittest.main()

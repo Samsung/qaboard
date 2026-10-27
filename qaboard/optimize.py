@@ -324,7 +324,7 @@ def init_optimization(optim_config_file, checkpoint, ctx):
                 "`y0` should be an iterable or a scalar, got %s" % type(y0))
         if len(x0) != len(y0):
             raise ValueError("`x0` and `y0` should have the same length")
-        result = optimizer.tell(x0, y0)
+        optimizer.tell(x0, y0)
         # result.specs = specs
 
     n_calls = len(y0)
@@ -455,7 +455,6 @@ def batch_objective(project, commit_id, batch_label, config_objective):
 
 def make_plots(results, dir):
   # click.secho(str(dir), dim=True)
-  import matplotlib
   import matplotlib.pyplot as plt
   # https://matplotlib.org/faq/usage_faq.html#non-interactive-example
   # https://matplotlib.org/api/_as_gen/matplotlib.pyplot.savefig.html

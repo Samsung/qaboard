@@ -3,17 +3,15 @@ A version of the code on which we ran SLAM performance test.
 """
 import os
 import re
-import json
 import fnmatch
 import datetime
 import subprocess
 from pathlib import Path
 
-from requests.utils import quote
 from sqlalchemy import Column, Boolean, Integer, String, DateTime, JSON, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import or_, text, UniqueConstraint, Index, orm
-from sqlalchemy.orm import relationship, reconstructor, joinedload, selectinload
+from sqlalchemy.orm import relationship, selectinload
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
@@ -44,7 +42,8 @@ class CiCommit(Base):
   __tablename__ = 'ci_commits'
   id = Column(Integer(), primary_key=True)
   hexsha = Column(String(), index=True, nullable=False)
-  project_id = Column(String(), ForeignKey('projects.id'), index=True)
+  # indexed by ix_ci_commits_project_id_authored_datetime below
+  project_id = Column(String(), ForeignKey('projects.id'))
 
   project = relationship("Project", back_populates="ci_commits")
 

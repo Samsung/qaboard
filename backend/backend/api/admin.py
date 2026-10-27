@@ -132,6 +132,12 @@ def checklist() -> list:
        if login_type != 'LOCAL' else "Sign-in is required, but anyone can create an account: turn auth.local_signup off, and create accounts with qaboard-admin create-admin --password.",
        "Turn auth.local_signup off if only admins should create accounts (qaboard-admin create-admin --password)." if local_signup else None)
 
+  from ..git_hosts import git_hosts
+  webhooks_signed = git_hosts.has_webhook_secrets()
+  item('webhook_secret', webhooks_signed, 'warning',
+       "Git hosts' webhooks must send a secret" if webhooks_signed else "Anyone can send push webhooks",
+       "Without a webhook secret, anyone who can reach the server can send fake push events: they change the projects' git data and make the server fetch repositories. Set QABOARD_WEBHOOK_SECRET (or webhook_secret in QABOARD_GIT_HOSTS), and the same secret in the git hosts' webhooks.")
+
   for key, problem in settings_lib.invalid_env().items():
     definition = settings_lib.DEFINITIONS[key]
     item(f'invalid_env:{key}', False, 'danger', f"${definition.env} is invalid: it's ignored",

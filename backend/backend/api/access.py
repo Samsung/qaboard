@@ -8,7 +8,7 @@ from backend import app, db_session
 from ..audit import audit
 from ..access import authorize, can, denied, effective_visibility, owners, role_of
 from ..access.grants import AccessError, clean_path, set_grant, grants_on, serialize as serialize_grant, set_visibility, check_keeps_an_owner, changed
-from ..access.policy import ROLES, LEVELS, prefixes
+from ..access.policy import ROLES, LEVELS
 from ..sign_in.access import notify, public_url, serialize as serialize_request
 from ..tokens import utcnow
 from .auth import authenticated, login_required

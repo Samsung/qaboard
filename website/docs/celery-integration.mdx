@@ -11,8 +11,10 @@ environment variables (except those whose names contain `TOKEN`, `ACCESS`, `AUTH
 that folder, your inputs and the results storage at the same paths, e.g. on shared drives.
 
 ## Start workers and send them runs {#starting-celery-workers}
-1. **Get a broker.** QA-Board's Docker Compose deployment starts RabbitMQ on port `5672` (not the quickstart's). To
-   start another one:
+1. **Get a broker.** QA-Board's Docker Compose deployment starts RabbitMQ on port `5672` (not the quickstart's),
+   only reachable from the server's host by default: for workers or `qa` on other hosts, the server's admins publish
+   it and give you an account (see [sharing the broker](#sharing-the-servers-broker-between-teams)). Anyone who can
+   connect to the broker can run commands on the workers. To start another one:
 
    ```bash
    docker run --detach -p 5672:5672 rabbitmq
@@ -46,9 +48,38 @@ that folder, your inputs and the results storage at the same paths, e.g. on shar
 Without `--share` (or a CI), runs write their files in `output/`, in the folder where you started `qa batch`: use
 `--share` so that they go to the results storage that the server reads.
 
+## Share the server's broker between teams {#sharing-the-servers-broker-between-teams}
+Workers run the commands of the tasks they get, so **anyone who can send tasks to a worker can run commands on its
+host**. When several teams use the QA-Board server's RabbitMQ, give each team its own *virtual host* and user: its
+workers only get its tasks, and other accounts can't send them any. The server's admins create them:
+
+```bash
+team=camera
+password=$(openssl rand -hex 16)
+docker compose exec rabbitmq rabbitmqctl add_vhost $team
+docker compose exec rabbitmq rabbitmqctl add_user $team $password
+docker compose exec rabbitmq rabbitmqctl set_permissions -p $team $team ".*" ".*" ".*"
+# the team's broker URL
+echo "pyamqp://$team:$password@<qaboard-host>:5672/$team"
+```
+
+*qaboard.yaml* is in git: keep the password in the environment, where you run `qa` and where the workers run.
+Settings ending with `_url` (and `result_backend`) expand environment variables:
+
+```yaml title="qaboard.yaml"
+runners:
+  celery:
+    broker_url: pyamqp://camera:${QA_CELERY_PASSWORD}@qaboard:5672/camera
+```
+
+With `qa` versions from before October 2026, leave `broker_url` out of *qaboard.yaml* and set the whole URL in
+`CELERY_BROKER_URL` instead. To see who still connects with another account:
+`docker compose exec rabbitmq rabbitmqctl list_connections user vhost peer_host`.
+
 ## Monitor the workers {#monitoring}
-QA-Board's Docker Compose deployment includes [Flower](https://flower.readthedocs.io/en/latest/), at
-`http://<your-qaboard>/flower`, where `<your-qaboard>` is your server's address. See also Celery's [monitoring guide](https://docs.celeryq.dev/en/stable/userguide/monitoring.html).
+QA-Board's Docker Compose deployment includes [Flower](https://flower.readthedocs.io/en/latest/), for QA-Board's
+admins at `http://<your-qaboard>/flower/`, where `<your-qaboard>` is your server's address: it can revoke tasks and
+shut the workers down. It shows the default virtual host only. See also Celery's [monitoring guide](https://docs.celeryq.dev/en/stable/userguide/monitoring.html).
 
 ## Celery settings {#advanced-celery-configuration}
 Settings under `runners.celery` are given to Celery:

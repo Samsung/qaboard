@@ -261,6 +261,7 @@ function BatchPreview({ project, commit, file_names, file_labels, batch, onRun, 
   }, [project, commit?.id, file_names]);
 
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- it fetches the batch's tests, and says it's loading
     if (batch) resolveBatch(batch);
   }, [batch, resolveBatch]);
 

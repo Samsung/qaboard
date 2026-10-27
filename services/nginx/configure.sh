@@ -12,6 +12,12 @@ if [ -d /tmp/deployment/nginx/conf.d/ ]; then
   cp -rL /tmp/deployment/nginx/conf.d/* /etc/nginx.new/conf.d/
 fi
 envsubst < /etc/nginx.new/nginx.conf.template > /etc/nginx.new/nginx.conf
+# QABOARD_SANDBOX_HTML: users' HTML files can't act as whoever opens them (conf.d/qaboard-files.conf)
+case "$(printf %s "${QABOARD_SANDBOX_HTML:-}" | tr '[:upper:]' '[:lower:]')" in
+  ""|0|false|no|off) sandbox_html=off ;;
+  *) sandbox_html=on ;;
+esac
+echo "map \$host \$qaboard_sandbox_html { default $sandbox_html; }" > /etc/nginx.new/conf.d/qaboard-sandbox-html.conf
 # Without IPv6 (disabled in the kernel), nginx can't start with "listen [::]:80"
 if [ ! -e /proc/net/if_inet6 ]; then
   sed -i '/^\s*listen\s*\[::\]/d' /etc/nginx.new/conf.d/*.conf

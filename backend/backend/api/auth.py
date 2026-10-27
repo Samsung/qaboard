@@ -2,7 +2,6 @@
 Authentication for qaboard - LOCAL, LDAP and SAML.
 """
 import os
-from datetime import timedelta
 from functools import wraps
 
 import yaml
@@ -10,19 +9,18 @@ import ldap
 import ldap.filter
 import simplejson
 from flask import request, jsonify, redirect, session, g, has_request_context
-from flask_login import LoginManager, login_user, logout_user, current_user
+from flask_login import LoginManager, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 try:
   # FIXME: Unfortunately we run often into libxml mismatch version issues
   from onelogin.saml2.auth import OneLogin_Saml2_Auth
-  from onelogin.saml2.utils import OneLogin_Saml2_Utils
 except Exception as e:
   print(f"WARNING: Could not import onelogin.saml2: {e}")
 from backend import app, db_session
-from ..models import User, Token
+from ..models import User
 from ..settings import setting
 from ..audit import audit
-from ..admins import is_admin, is_env_admin
+from ..admins import is_admin
 from ..actor import unauthenticated
 from ..sign_in import sessions
 from ..sign_in.accounts import finish as finish_sign_in, new_user_status
@@ -98,6 +96,10 @@ def signup():
   from ..search import escape_like
   if User.query.filter(User.user_name.ilike(escape_like(user_name), escape='\\')).first():
     return jsonify({"error": "This user name is already taken"}), 409
+  # admins whatever the database says: they sign in with the directory, or get an account from `qaboard-admin create-admin`
+  from ..admins import env_admins
+  if user_name.casefold() in {a.casefold() for a in env_admins()}:
+    return jsonify({"error": "This user name is reserved: sign in with your usual account, or ask an admin."}), 409
   # Never log or return the form or the exception: they contain the password, its hash, or the SQL query
   try:
     user = create_user({
@@ -409,7 +411,7 @@ def create_user(info):
     # https://werkzeug.palletsprojects.com/en/1.0.x/utils/#werkzeug.security.generate_password_hash
     password=generate_password_hash(info["password"]) if "password" in info else None,
     # active, or waiting for an admin (auth.access_policy)
-    status=new_user_status(info.get("email")),
+    status=new_user_status(info.get("email"), verified=info["login_type"] != "LOCAL"),
   )
   db_session.add(user)
   db_session.commit()
@@ -626,6 +628,10 @@ def auth_ldap(user_name, password):
     "login_type": login_type,
     "login_success": False,
   }
+  # A bind with an empty password is an anonymous bind, that many LDAP servers accept
+  if not password:
+    user_info["error"] = "invalid-password"
+    return user_info
   ldap_connect = ldap_connection()
   # check if the user exists. Referrals come as entries without a DN.
   found = [entry for entry in ldap_connect.search_s(ldap_user_base, ldap.SCOPE_SUBTREE, ldap_search(user_name), ['distinguishedName']) if entry[0]]
@@ -751,9 +757,10 @@ def saml_auth():
         errors = auth.get_errors()
         if len(errors) == 0:
             if url is not None:
-                # TODO: To avoid 'Open Redirect' attacks, before execute the redirection confirm
-                # the value of the request.form['RelayState'] is a trusted URL.
+                # our answer to the IdP's logout request: to its SLO URL, from our SAML settings
                 return redirect(url)
+            # the IdP's answer to our logout
+            return redirect(safe_redirect_url(request.args.get('RelayState')))
 
     # Handle bad requests:
     # raise Exception(" ".join(errors))

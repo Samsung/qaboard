@@ -220,7 +220,6 @@ const ViewOptionsPanel = ({
           onChange={event => onUpdateControls({ image_mode: event.target.value, diff: undefined })}
           aria-label="Compare images"
           options={MODES.map(({ value, label }) => ({ value, label }))}
-          small
         />
       </div>
     </OptionHeader>] : []),
@@ -298,7 +297,6 @@ const ViewOptionsPanel = ({
               defaultLabel={has_choice ? default_label : undefined}
               defaultRule={defaultRule(option)}
               onChange={(value) => value === undefined ? onResetDynamicOption(name) : onUpdateDynamicOption(name, value)}
-              small
             />
           : <Hint><Icon icon="unlink" size={12} style={{ marginRight: 6 }} />Chosen in each run's card</Hint>}
         {isSync && !has_choice && <Hint>All runs have only this value</Hint>}
@@ -431,7 +429,6 @@ const ViewOptionsPanel = ({
             onChange={onUpdate('sort_by')}
             aria-label="Sort runs by"
             fill
-            small
           >
             <option value="test_input_path">Name{default_mark('test_input_path')}</option>
             <option value="id">Run id{default_mark('id')}</option>
@@ -457,7 +454,6 @@ const ViewOptionsPanel = ({
             value={sort_order}
             onChange={onUpdate('sort_order')}
             aria-label="Sort order"
-            small
             style={{ minWidth: 118 }}
           >
             <option value={-1}>{descending_label}</option>

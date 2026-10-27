@@ -51,6 +51,23 @@ class TestConventions(unittest.TestCase):
     configured_config = {'inputs': {'groups': ['a', 'b']}}
     self.assertEqual(batches_files(configured_config, None, 'proj', Path('.'), Path('.')), [Path('a'), Path('b')])
 
+  def test_batches_files_globs_without_chdir(self):
+    """The server lists batches files from many threads: the globs are relative to the project, the cwd never changes"""
+    import sys
+    import tempfile
+    from unittest import mock
+    from qaboard.conventions import batches_files
+    if sys.version_info < (3, 10):
+      self.skipTest("glob(root_dir=) needs python 3.10")
+    with tempfile.TemporaryDirectory() as root:
+      (Path(root) / 'qa').mkdir()
+      (Path(root) / 'qa' / 'a.yaml').write_text('{}')
+      (Path(root) / 'qa' / 'b.yaml').write_text('{}')
+      config = {'inputs': {'groups': ['qa/*.yaml']}}
+      with mock.patch('os.chdir', side_effect=AssertionError("chdir is process-wide")):
+        paths = batches_files(config, None, 'proj', Path('.'), Path(root))
+      self.assertEqual(sorted(paths), ['qa/a.yaml', 'qa/b.yaml'])
+
 
 if __name__ == '__main__':
   unittest.main()

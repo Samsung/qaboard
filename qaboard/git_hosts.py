@@ -12,6 +12,7 @@ or GITHUB_ACCESS_TOKEN, GITLAB_ACCESS_TOKEN, or the hosts' `token`.
 Like settings, they can come from the environment, the secrets files (QA_SECRETS, ~/.qaboard/secrets.yaml) or the site package.
 """
 import os
+import sys
 import re
 import json
 import time
@@ -296,7 +297,7 @@ def lastest_successful_ci_commit(commit_id: str, max_parents_depth=config.get('b
   from .git import git_parents
   if max_parents_depth < 0:
     click.secho('Could not find a commit that passed CI', fg='red', bold=True, err=True)
-    exit(1)
+    sys.exit(1)
 
   job_name = config.get('bit_accuracy', {}).get('failed_ci_job_name')
   if job_name and subproject.name:

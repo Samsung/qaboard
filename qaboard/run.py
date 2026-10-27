@@ -1,3 +1,4 @@
+import sys
 import json
 import copy
 from pathlib import Path
@@ -124,7 +125,7 @@ class RunContext():
         input_path_absolute = (database / input_path).resolve()
         if not input_path_absolute.exists():
             click.secho(f"[ERROR] {input_path_absolute} cannot be found", fg='red')
-            exit(1)
+            sys.exit(1)
 
         if not ctx.params.get('output_path'):
             assert input_path_absolute.relative_to(database)
@@ -184,12 +185,13 @@ class RunContext():
 
 
     @property
-    def configs(self):        
+    def configs(self):
         _extra_parameters = copy.deepcopy(self.extra_parameters)
         if _extra_parameters:
             if "_configs" in _extra_parameters:
                 _extra_parameters_configs = _extra_parameters.pop("_configs")
-                return [*self.configurations, *_extra_parameters_configs, self.extra_parameters]
+                # the other tuning parameters, without _configs (also kept out of .params)
+                return [*self.configurations, *_extra_parameters_configs, *([_extra_parameters] if _extra_parameters else [])]
             else:
                 return [*self.configurations, self.extra_parameters]
         else:

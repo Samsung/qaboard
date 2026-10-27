@@ -6,11 +6,8 @@ This document covers breaking changes from the branch unification
 ## For SIRC Users
 
 ### CLI
-- After the regular install with: `pip install git+ssh://git@gitlab-srv/common-infrastructure/qaboard`
-- Also install the site config:
-```bash
-    pip install --upgrade "qaboard-site-sirc @ git+ssh://git@gitlab-srv/common-infrastructure/qaboard#subdirectory=deployments/sirc/cli"
-```
+- After the regular install, also install the site config, `qaboard-site-sirc` (`deployments/sirc/cli`): the commands
+  are in [deployments/sirc/runbooks/README.md](deployments/sirc/runbooks/README.md#installing-the-client-at-sirc).
 - This auto-configures API URL (https://qa), port (5000), secrets path (! we dont support it anymore as part of the project config)
 - All existing ENV var overrides continue to work
 
@@ -48,7 +45,7 @@ The SIRC/Samsung CA certificates that used to be committed there are now in `dep
 ```bash
 pip install --upgrade "qaboard-site-dsk @ git+ssh://git@<your-git-server>/<your-qaboard-repo>#subdirectory=deployments/dsk/cli"
 ```
-- This auto-configures API URL (https://qaboard.samsungds.net)
+- This auto-configures the API URL (DSK's server)
 
 ### Server
 - Deploy with: `docker compose -f docker-compose.yml -f production.yml -f deployments/dsk/dsk.yml up`

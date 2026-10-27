@@ -254,7 +254,9 @@ const IntegrationsMenus = props => {
       }}
     >
       {integrations_in_menu.length > 5 && (
-        <div 
+        // only keeps the clicks in the search box from closing the menu
+        <div
+          role="presentation"
           style={{ 
             padding: '8px', 
             // a neutral gray: the menu is dark in the sider, light elsewhere
@@ -275,7 +277,7 @@ const IntegrationsMenus = props => {
             aria-label="Search integrations"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            small
+            size="small"
             fill
             onFocus={(e) => e.stopPropagation()}
             onBlur={(e) => e.stopPropagation()}

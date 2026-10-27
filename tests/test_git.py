@@ -115,5 +115,74 @@ class TestGitHead(unittest.TestCase):
       git_head(make_broken_checkout(self.tmp))
 
 
+class FakeGitPython:
+  """Stands for GitPython (not a dependency): Repo(path) only works in /repo, and commits read their message lazily."""
+  class Commit:
+    def __init__(self, hexsha):
+      self.hexsha = hexsha
+    def __getattr__(self, name): # like GitPython's LazyMixin
+      if name in ('message', 'committer'):
+        return f'{name} of {self.hexsha}'
+      raise AttributeError(name)
+
+  class Repo:
+    def __init__(self, path):
+      if path != '/repo':
+        raise Exception(f'InvalidGitRepositoryError: {path}')
+      self.head = mock.Mock(commit=FakeGitPython.Commit('head-sha'))
+    def commit(self, rev):
+      if rev == 'missing':
+        raise ValueError(f'BadName: {rev}')
+      return FakeGitPython.Commit(rev)
+
+
+class TestGitPythonWrappers(unittest.TestCase):
+  """config.repo and config.commit, kept for backward compatibility"""
+  def wrappers(self, repo_root, commit_id):
+    from qaboard.git import _Repo, _Commit
+    repo = _Repo(repo_root)
+    return repo, _Commit(repo, commit_id)
+
+  def test_wraps_the_commit_id(self):
+    with mock.patch.dict('sys.modules', {'git': FakeGitPython}):
+      repo, commit = self.wrappers('/repo', 'abc123')
+      self.assertEqual(commit.hexsha, 'abc123')
+      self.assertEqual(commit.message, 'message of abc123')
+      self.assertEqual(repo.head.commit.hexsha, 'head-sha')
+      # GitPython's own missing attributes
+      self.assertFalse(hasattr(commit, 'not_an_attribute'))
+      self.assertFalse(hasattr(repo, 'not_an_attribute'))
+
+  def test_without_commit_id_wraps_the_head(self):
+    with mock.patch.dict('sys.modules', {'git': FakeGitPython}):
+      _, commit = self.wrappers('/repo', None)
+      self.assertEqual(commit.hexsha, 'head-sha')
+
+  def test_errors(self):
+    from qaboard.git import GitWrapperError
+    cases = {
+      'not a repository': ('/not-a-repo', 'abc123', FakeGitPython),
+      'missing commit': ('/repo', 'missing', FakeGitPython),
+      'no GitPython': ('/repo', 'abc123', None), # import git raises ImportError
+    }
+    for case, (repo_root, commit_id, git_module) in cases.items():
+      with self.subTest(case), mock.patch.dict('sys.modules', {'git': git_module}):
+        repo, commit = self.wrappers(repo_root, commit_id)
+        with self.assertRaises(ValueError) as e:
+          commit.hexsha
+        self.assertIsInstance(e.exception, GitWrapperError)
+        self.assertIn(commit_id, str(e.exception))
+        # Like before, the wrappers have no attributes when GitPython can't help
+        self.assertFalse(hasattr(commit, 'hexsha'))
+        self.assertEqual(getattr(commit, 'hexsha', 'default'), 'default')
+        if case != 'missing commit':
+          with self.assertRaisesRegex(ValueError, repo_root):
+            repo.head
+          self.assertFalse(hasattr(repo, 'head'))
+        # their own attributes still work
+        self.assertEqual(repo.repo_root, repo_root)
+        self.assertEqual(commit.commit_id, commit_id)
+
+
 if __name__ == '__main__':
   unittest.main()

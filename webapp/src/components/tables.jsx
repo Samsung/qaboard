@@ -75,7 +75,7 @@ const ranker = values => {
 
 const RowHeaderCell = ({ output }) => {
   if (output === undefined || output === null)
-    return <th scope="row"></th>
+    return <th scope="row" aria-label="No run"></th>
   const test_input = output.test_input_metadata?.label ?? `${output.test_input_database === '/' ? '/' : ''}${output.test_input_path}`
   return (
     <th scope="row">
@@ -104,9 +104,9 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric, labels }) 
   const metric_new = metrics_new?.[metric.key]
   const metric_ref = metrics_ref?.[metric.key]
   if (!metrics_new || metric_new === undefined || metric_new === null)
-    return <td></td>;
+    return <td aria-label="No value"></td>;
   if (!metrics_ref || metric_ref === undefined || metric_ref === null)
-    return <td></td>;
+    return <td aria-label="No value"></td>;
 
   const is_numeric = !isNaN(metric_new) || !isNaN(metric_ref)
   if (is_numeric) {
@@ -140,7 +140,7 @@ const QualityCell = ({ metric_info, metric, metric_ref, rank, label_new }) => {
     metric_info === undefined ||
     metric === undefined || metric === null
   )
-    return <td></td>;
+    return <td aria-label="No value"></td>;
   const delta_relative = metric_info.target ? (metric_info.target - metric) / (metric_info.target + 0.000001) : 0;
   const raw_quality = metric_info.target_passfail
     ? Number(metric_info.smaller_is_better ? metric_info.target >= metric : metric_info.target < metric)
@@ -264,7 +264,7 @@ const TableCompare = ({
       <HTMLTable compact>
         <thead>
           <tr>
-            <th />
+            <th aria-label="Input"/>
             {metrics_.map(m => (
               <th key={m.key} style={{boxShadow: "inset 0 0 1px 0 var(--qa-border)"}}>
                 <MetricHeader condensed {...without_key(m)}/> {!!m.suffix && <span className={Classes.TEXT_MUTED}>{m.suffix}</span>}
@@ -335,7 +335,7 @@ const TableKpi = ({
       <HTMLTable compact>
         <thead>
           <tr>
-            <th />
+            <th aria-label="Input"/>
             {metrics_.map(m => (
               <th colSpan={new_batch.metrics_with_refs.has(m.key) ? 2 : 1} key={m.key}>
                 <MetricHeader condensed {...without_key(m)} hint={rankers[m.key] ? "Cells are darker for larger values, compared with the other runs." : undefined}/>

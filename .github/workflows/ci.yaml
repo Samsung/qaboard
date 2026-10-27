@@ -41,21 +41,27 @@ jobs:
   python:
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.13: the Python of the images (the backend imports qaboard), 3.11: the oldest we test
+        python: ['3.11', '3.13']
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python }}
           enable-cache: true
       - name: Install dependencies
         run: uv sync --locked --extra dev
       - name: Lint with flake8
-        # stop the build if there are Python syntax errors or undefined names
-        run: uv run --no-sync flake8 backend qaboard --count --select=E9,F63,F7,F82,W605 --show-source --statistics
+        # syntax errors, undefined names, unused imports and variables (see .flake8)
+        run: uv run --no-sync flake8 backend qaboard --count --show-source --statistics
       - name: Type Checks with MyPy
         run: uv run --no-sync mypy -p qaboard --ignore-missing-imports
       - name: Release notes
         # valid frontmatter and docs links
+        if: matrix.python == '3.11'
         run: uv run website/release-notes/release_notes.py check
       - name: Unit Tests
         run: |
@@ -65,6 +71,7 @@ jobs:
           uv run --no-sync green -vvv --quiet-stdout tests
       # Same build as the PyPI publish workflow (pypy.yml)
       - name: Build the package
+        if: matrix.python == '3.11'
         run: |
           uv build
           uvx twine check dist/*

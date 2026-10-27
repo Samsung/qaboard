@@ -37,6 +37,8 @@ const WIPE_GRAB = 14;
 const basename = url => decodeURIComponent((url ?? 'video').split(/[?#]/)[0].split('/').pop()).replace(/\.[^.]+$/, '');
 const clamp = (x, min, max) => Math.min(max, Math.max(min, x));
 const other_letter = letter => letter === 'A' ? 'B' : 'A';
+// Blind comparisons: which side is A
+const coin_flip = () => Math.random() < 0.5;
 
 // The size, duration and error of a <video> or <img>. We read them from the element:
 // it can load before React commits it, and React drops the events of elements it hasn't committed.
@@ -151,7 +153,7 @@ export const VideoCompare = ({
     : { new: blind.a, reference: other_letter(blind.a) };
   const nextBlindStep = () => {
     if (!blind) {
-      const coin = Math.random() < 0.5;
+      const coin = coin_flip();
       setSwapped(coin);
       setBlind({ a: coin ? 'B' : 'A', revealed: false });
     } else if (!blind.revealed) setBlind({ ...blind, revealed: true });
@@ -847,10 +849,12 @@ export const VideoCompare = ({
         tiles={tiles}
       />}
     </div>
+    {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- a custom widget: its keys are handled on the document (onKeyDown above) */}
     <div
       ref={stage}
       className={stage_class}
       style={{ width: stage_width, height: pane.height }}
+      // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- focusable, for its keyboard shortcuts
       tabIndex={0}
       role="application"
       aria-label="Videos: click to play or pause, scroll to zoom, drag to pan"

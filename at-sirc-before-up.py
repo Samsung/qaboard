@@ -35,9 +35,21 @@ if '--if-stale' in sys.argv:
         sys.exit(0)
 
 
+class ComposeLoader(yaml.SafeLoader):
+    """Also reads compose's merge tags (`ports: !reset []`, `!override`) as plain values."""
+
+def construct_untagged(loader, tag_suffix, node):
+    if isinstance(node, yaml.SequenceNode):
+        return loader.construct_sequence(node)
+    if isinstance(node, yaml.MappingNode):
+        return loader.construct_mapping(node)
+    return loader.construct_scalar(node)
+
+ComposeLoader.add_multi_constructor('!', construct_untagged)
+
 sirc_config_path = Path(__file__).parent / 'deployments' / 'sirc' / 'sirc.yml'
 with sirc_config_path.open() as f:
-    sirc_config = yaml.safe_load(f)
+    sirc_config = yaml.load(f, Loader=ComposeLoader)
 volumes = sirc_config['services']['proxy']['volumes']
 volumes.append("/home:/home")
 volumes = [Path(v.split(':')[0]) for v in volumes]

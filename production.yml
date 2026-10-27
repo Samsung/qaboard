@@ -67,7 +67,8 @@ services:
       PGHOST: ${PGHOST:-db}
       PGDATABASE: qaboard
       PGUSER: qaboard
-      PGPASSWORD: password
+      # The database's password: QABOARD_DB_PASSWORD in .env, like the backend (see services.db in docker-compose.yml)
+      PGPASSWORD: ${QABOARD_DB_PASSWORD:-password}
       # Daily backups (YYYY-MM-DD.dump) older than this are deleted, but never the newest 3. 0: keep them all.
       # Other dumps (e.g. before-upgrade.dump) are never deleted. See services/db/backup
       BACKUP_RETENTION_DAYS: ${QABOARD_BACKUP_RETENTION_DAYS:-14}

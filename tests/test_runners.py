@@ -3,6 +3,7 @@ Tests for the LSF concurrency limit and the dask runner.
 LSF is not available: we check the bsub commands we would send, and execute the job array scripts with bash.
 """
 import os
+import sys
 import re
 import time
 import tempfile
@@ -429,6 +430,26 @@ class TestJenkinsWindowsRunner(unittest.TestCase):
     self.assertIn('$ErrorActionPreference = "Stop"', content)
 
 
+class TestJenkinsTrigger(unittest.TestCase):
+  def test_the_trigger_says_who_and_which_project(self):
+    # Without a token, the server only starts the Jenkins jobs of the project's qaboard.yaml
+    import requests
+    from qaboard.runners import jenkins_windows
+    answer = mock.MagicMock(status_code=200)
+    answer.json.return_value = {"status": "pending", "url": "http://jenkins/queue/item/7/"}
+    with mock.patch.object(requests, 'post', return_value=answer) as post, \
+         mock.patch.object(jenkins_windows, 'get_jenkins_config', return_value={"build_url": "http://jenkins/job/windows", "token": None}), \
+         mock.patch.object(jenkins_windows, 'api_headers', {"Content-Type": "application/json", "Authorization": "Bearer qab_pat_x"}), \
+         mock.patch.object(jenkins_windows, 'project_name', return_value="group/repo"), \
+         mock.patch.object(sys.modules['qaboard.config'], 'commit_id', "abc123"):
+      jenkins_windows.trigger_run("echo hi")
+    self.assertTrue(post.call_args.args[0].endswith("/jenkins/build/trigger/"))
+    self.assertEqual(post.call_args.kwargs["headers"]["Authorization"], "Bearer qab_pat_x")
+    data = post.call_args.kwargs["json"]
+    self.assertEqual((data["project"], data["commit"], data["build_url"], data["params"]), ("group/repo", "abc123", "http://jenkins/job/windows", {"task": "echo hi"}))
+    self.assertIn("token", data)
+
+
 class TestJenkinsPolling(unittest.TestCase):
   POLL_ENV_VARS = ('QA_JENKINS_TIMEOUT', 'QA_JENKINS_STATUS_INTERVAL')
 
@@ -583,6 +604,27 @@ try:
   has_dask = True
 except ImportError:
   has_dask = False
+
+
+class TestCelerySettings(unittest.TestCase):
+  def test_passwords_come_from_the_environment(self):
+    """qaboard.yaml is in git: broker URLs can read the password from the environment"""
+    from qaboard.runners.celery_settings import celery_settings
+    config = {"runners": {"celery": {
+      "broker_url": "pyamqp://camera:${QA_CELERY_PASSWORD}@qaboard:5672/camera",
+      "result_backend": "rpc://",
+      "timezone": "$TZ_KEPT",
+      "worker_concurrency": 4,
+    }}}
+    with mock.patch.dict(os.environ, {"QA_CELERY_PASSWORD": "secret", "TZ_KEPT": "x"}):
+      settings = celery_settings(config)
+    self.assertEqual(settings["broker_url"], "pyamqp://camera:secret@qaboard:5672/camera")
+    self.assertEqual(settings["result_backend"], "rpc://")
+    self.assertEqual(settings["timezone"], "$TZ_KEPT")
+    self.assertEqual(settings["worker_concurrency"], 4)
+    # the project's configuration isn't changed
+    self.assertIn("${QA_CELERY_PASSWORD}", config["runners"]["celery"]["broker_url"])
+    self.assertEqual(celery_settings({}), {})
 
 
 class TestCleanOutputDir(unittest.TestCase):

@@ -461,6 +461,82 @@ def test_the_jenkins_trigger_needs_a_sign_in_when_required(client, monkeypatch):
   assert response.status_code == 401 and response.get_json()["reason"] == "sign_in_required"
 
 
+def test_the_jenkins_trigger_without_a_user(client, logged_in, monkeypatch):
+  """Like qa's Windows runner: only the jobs that projects' qaboard.yaml list, unless ingest requires tokens"""
+  from backend.database import db_session
+  from backend.models import Project
+  import backend.api.integrations as integrations
+  db_session.add(Project(id='group/windows', data={"qatools_config": {"runners": {"jenkins": {"build_url": "http://jenkins/job/windows"}}}}))
+  db_session.commit()
+  monkeypatch.setattr(integrations, "_declared_jenkins_jobs", {"at": None, "build_urls": set()})
+  monkeypatch.setattr(integrations, "jenkins_credentials", {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
+  started = []
+  monkeypatch.setattr(integrations, "trigger_jenkins_build", lambda data: started.append(data['build_url']) or integrations.jsonify({"status": "pending"}))
+  for data in [{"build_url": "http://jenkins/job/windows"}, {"build_url": "http://jenkins/job/windows/", "project": "group/windows", "commit": "abc"}]:
+    assert client.post('/api/v1/jenkins/build/trigger/', json=data).status_code == 200
+  for data in [{"build_url": "http://jenkins/job/deploy"}, {"build_url": "http://jenkins/job/deploy", "project": "group/windows"}]:
+    response = client.post('/api/v1/jenkins/build/trigger/', json=data)
+    assert response.status_code == 403 and "qaboard.yaml" in response.get_json()["error"]
+  assert started == ["http://jenkins/job/windows", "http://jenkins/job/windows/"]
+  # signed-in users can start any job, and the audit log says who did
+  alice = logged_in('alice')
+  assert alice.post('/api/v1/jenkins/build/trigger/', json={"build_url": "http://jenkins/job/deploy"}).status_code == 200
+  from backend.models import AuditEvent
+  assert [e.target_label for e in AuditEvent.query.filter(AuditEvent.action == 'jenkins.build').order_by(AuditEvent.id).all()][-1] == "http://jenkins/job/deploy"
+  # with ingest.auth "token", qa needs a token
+  monkeypatch.setenv('QABOARD_INGEST_AUTH', 'token')
+  response = client.post('/api/v1/jenkins/build/trigger/', json={"build_url": "http://jenkins/job/windows"})
+  assert response.status_code == 403 and response.get_json()["reason"] == "ingest_token_required"
+
+
+def test_the_jenkins_build_status(client, logged_in, monkeypatch):
+  """Like the trigger: anonymous for qa's Windows runner unless ingest requires tokens, only on the Jenkins hosts, only the status"""
+  from types import SimpleNamespace
+  from backend.database import db_session
+  from backend.models import Project
+  import backend.api.integrations as integrations
+  db_session.add(Project(id='group/windows', data={"qatools_config": {"runners": {"jenkins": {"build_url": "http://jenkins:8080/job/windows"}}}}))
+  db_session.commit()
+  monkeypatch.setattr(integrations, "_declared_jenkins_jobs", {"at": None, "build_urls": set()})
+  monkeypatch.setattr(integrations, "jenkins_credentials", {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
+  fetched, answer = [], {"json": {"building": False, "result": "SUCCESS"}}
+  def get(url, **kwargs):
+    fetched.append(url)
+    body = answer["json"]
+    def json():
+      if body is None:
+        raise ValueError("not JSON")
+      return body
+    return SimpleNamespace(status_code=200, json=json, text="<html>the admin page of another service</html>", headers={"Content-Type": "text/html"})
+  monkeypatch.setattr(integrations.requests, "get", get)
+  for data in [{"web_url": "http://jenkins/job/windows/12/"}, {"url": "http://jenkins:8080/job/windows/12/api/json"}]:
+    response = client.post('/api/v1/jenkins/build/', json=data)
+    assert response.status_code == 200 and response.get_json()["status"] == "success", data
+  assert fetched == ["http://jenkins/job/windows/12/api/json", "http://jenkins:8080/job/windows/12/api/json"]
+  # not other hosts, schemes or ports: the server sends its Jenkins credentials there
+  for url in ["http://other/job/x/api/json", "http://jenkins:9200/api/json", "ftp://jenkins/job/x/api/json",
+              "http://u:p@jenkins/job/x/api/json", "https://jenkins:8080/job/x/api/json", "http://jenkins:x/api/json"]:
+    assert client.post('/api/v1/jenkins/build/', json={"url": url}).status_code == 403, url
+  assert len(fetched) == 2
+  # never what the URL answered
+  answer["json"] = None
+  response = client.post('/api/v1/jenkins/build/', json={"web_url": "http://jenkins/job/windows/12/"})
+  assert response.status_code == 500 and "another service" not in response.get_data(as_text=True)
+  answer["json"] = {"jobs": ["secrets"]}
+  response = client.post('/api/v1/jenkins/build/', json={"web_url": "http://jenkins/job/windows/12/"})
+  assert response.status_code == 500 and "secrets" not in response.get_data(as_text=True)
+  # with ingest.auth "token", qa needs a token, like to start builds
+  answer["json"] = {"building": True}
+  monkeypatch.setenv('QABOARD_INGEST_AUTH', 'token')
+  response = client.post('/api/v1/jenkins/build/', json={"web_url": "http://jenkins/job/windows/12/"})
+  assert response.status_code == 403 and response.get_json()["reason"] == "ingest_token_required"
+  token = new_token(logged_in('alice'), scopes=["ingest"])["token"]
+  response = client.post('/api/v1/jenkins/build/', json={"web_url": "http://jenkins/job/windows/12/"}, headers=bearer(token))
+  assert response.status_code == 200 and response.get_json()["status"] == "running"
+  read_only = new_token(logged_in('bob'), scopes=["read"])["token"]
+  assert client.post('/api/v1/jenkins/build/', json={"web_url": "http://jenkins/job/windows/12/"}, headers=bearer(read_only)).status_code == 403
+
+
 def test_reads_say_why_a_token_cant_access_a_project(logged_in, make_client):
   """Restricted tokens get a reason (JSON), not a plain-text 403"""
   from .conftest import make_projects

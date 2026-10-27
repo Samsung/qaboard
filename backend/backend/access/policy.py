@@ -41,6 +41,19 @@ def allows(role: Optional[str], permission: str) -> bool:
   return LEVELS[role] >= LEVELS[required_role(permission)]
 
 
+def is_valid_project_id(project_id, new: bool = False) -> bool:
+  """
+  Project ids clients send: a/b/c, without . or .. or empty segments. Else `a/../b` would get the grants and
+  visibility of `a`, and reach the files of `b`. Slashes around are tolerated (like in `prefixes`), not in `new` ids.
+  """
+  if not isinstance(project_id, str) or '\0' in project_id:
+    return False
+  if new and project_id != project_id.strip('/'):
+    return False
+  parts = project_id.strip('/').split('/')
+  return all(part not in ('', '.', '..') for part in parts)
+
+
 def prefixes(project_id: str) -> list:
   """a/b/c -> [a/b/c, a/b, a]: the paths whose grants and visibility apply to a project"""
   parts = [part for part in (project_id or '').strip('/').split('/') if part]

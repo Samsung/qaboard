@@ -19,7 +19,7 @@ my-batch:
 ```yaml
 runners:
   jenkins:
-    build_url: http://jenmaster1:8080/job/ALGO/job/WindowsExecutor
+    build_url: http://jenkins.example.com/job/WindowsExecutor
     token: "1234"
 ``` 
 - This Jenkins build job needs to be configured like this:
@@ -40,6 +40,7 @@ net use \\mars\raid
 """
 import math
 import os
+import sys
 import re
 import time
 from typing import List, Dict, Any, Optional, Tuple
@@ -52,7 +53,7 @@ from ..run import RunContext
 from ..compat import linux_to_windows, linux_to_windows_path
 from ..config import config
 
-from ..api import api_prefix, api_verify
+from ..api import api_prefix, api_verify, api_timeout, headers as api_headers, project_name
 
 # Valid values for PowerShell's $ErrorActionPreference (case-insensitive)
 ERROR_ACTION_PREFERENCES = frozenset({"continue", "stop", "silentlycontinue", "inquire", "ignore"})
@@ -150,6 +151,7 @@ def get_jenkins_config():
 
 def trigger_run(task: str) -> Dict:
     import requests
+    from ..config import commit_id
     jenkins_config = get_jenkins_config()
     data = {
         "build_url": jenkins_config["build_url"],
@@ -157,9 +159,12 @@ def trigger_run(task: str) -> Dict:
         "cause": "Triggered by QA-Board",
         "params": {
             "task": task,
-        }
+        },
+        # Without a token (QABOARD_TOKEN, `qa auth login`), the server only starts the jobs of the project's qaboard.yaml
+        "project": project_name(),
+        "commit": commit_id,
     }
-    r = requests.post(f"{api_prefix}/jenkins/build/trigger/", json=data, verify=api_verify)
+    r = requests.post(f"{api_prefix}/jenkins/build/trigger/", json=data, headers=api_headers, verify=api_verify, timeout=api_timeout)
     try:
         r.raise_for_status()
         if r.json().get('error'):
@@ -169,7 +174,7 @@ def trigger_run(task: str) -> Dict:
         secho(str(r.headers), fg='red', dim=True)
         secho(r.text, fg='red')
         secho(f"[ERROR] Could not start the Jenkins job running on Windows {task}", fg='red', bold=True)
-        exit(1)
+        sys.exit(1)
     job_url = f"{r.json()['web_url']}console" if 'web_url' in r.json() else r.json()['url']
     secho(f"[TRIGGER] A Jenkins job is now running on Windows. To check the status (and possible errors!):", fg='blue', bold=True)
     secho(f"          {job_url}", fg='blue')
@@ -213,7 +218,7 @@ def build_status(build_info):
   )
   session.mount('https://', adapter)
   session.mount('http://', adapter)
-  r = session.post(f"{api_prefix}/jenkins/build/", json=build_info, verify=api_verify)
+  r = session.post(f"{api_prefix}/jenkins/build/", json=build_info, headers=api_headers, verify=api_verify, timeout=api_timeout)
   try:
       r.raise_for_status()
       if r.json().get('error'):
@@ -223,7 +228,7 @@ def build_status(build_info):
       secho(str(r.headers), fg='red', dim=True)
       secho(r.text, fg='red')
       secho("[ERROR] The Jenkins job failed", fg='red', bold=True)
-      exit(1)
+      sys.exit(1)
   return r.json()['status']
 
 
@@ -264,7 +269,7 @@ def wait_for_build(build_info, should_print_log=True):
 def print_log(log_url):
     import requests
     try:
-        r = requests.get(log_url)
+        r = requests.get(log_url, timeout=api_timeout)
         result = r.text
         secho(f"JENKINS LOG:", fg='blue', bold=True)
         print(result)

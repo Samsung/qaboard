@@ -29,6 +29,17 @@ services:
       # or run code anywhere else, e.g. in folders sent by a client. Separated by ":"
       # - QABOARD_STORAGE_ROOTS=/mnt/qaboard:/mnt/datasets
       []
+    # Your results storage, at the same path as the clients (see website/docs/start-server.mdx)
+    # volumes:
+    #   - /mnt/qaboard:/mnt/qaboard
+
+  # nginx serves /s/<path> from /var/qaboard/<path>, and the image server reads /iiif/2/<path> from /repository/<path>
+  # proxy:
+  #   volumes:
+  #     - /mnt/qaboard:/var/qaboard/mnt/qaboard:ro
+  # cantaloupe:
+  #   volumes:
+  #     - /mnt/qaboard:/repository/mnt/qaboard:ro
 
   # Uncomment to customize frontend:
   # frontend:

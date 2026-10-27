@@ -18,6 +18,13 @@ defaults = {
     "QABOARD_UPGRADE_COMMAND": "pip install --upgrade git+ssh://git@gitlab-srv/common-infrastructure/qaboard",
     # Base qaboard.yaml for all projects: they are merged on top of it
     "QABOARD_SITE_CONFIG": str(Path(__file__).with_name("qaboard.yaml")),
+    # Printed when `qa` can't create storage folders
+    "QABOARD_STORAGE_HELP": (
+        "To create storage locations for new projects, go to:\n"
+        "      http://jenmaster1:8080/job/ALGO/job/CreateProjectStorage/build?delay=0sec\n"
+        '      Products (HP1, 2X5...) are "Technology" projects, while CIS/KITT_ISP.. are "Group" projects.\n'
+        "      For full disks or quotas, contact Alg-Infra@transchip.com"
+    ),
     # When IDB updates fail, we save them here to retry later
     "QABOARD_IDB_BACKLOG_DIR": "/home/ispq/idb_backlog",
     "QABOARD_PATH_MAPPINGS": json.dumps([

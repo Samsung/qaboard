@@ -18,11 +18,12 @@ from polyleven import levenshtein as polyleven_levenshtein
 from qaboard.compat import windows_to_linux_path
 from qaboard.conventions import serialize_config
 from backend import app, db_session
-from backend.fs_utils import as_user, rmtree
+from backend.fs_utils import as_user, mkdir_shared
 from backend.storage import check_storage_path, UnsafePathError
 from ..models import CiCommit, Batch, slugify_hash
 from ..config import qaboard_url
 from .auth import login_required, require_project_access
+from ..actor import is_same_origin, error as error_response
 
 
 @lru_cache(maxsize=1024)
@@ -101,12 +102,14 @@ def filter_outputs(query, outputs):
 
 
 def compatible(o1, o2):
+  """Whether the runs are on the same input: same path, or same id in their metadata (e.g. inputs that moved)"""
   if o1.test_input.abs_path == o2.test_input.abs_path:
     return True
   if o1.test_input.path == o2.test_input.path:
     return True
   if o1.test_input.data and o2.test_input.data and o1.test_input.data.get('id') and o1.test_input.data.get('id') == o2.test_input.data.get('id'):
-    return False
+    return True
+  return False
 
 # Note: already defined in qaboard.tuning.py, but raises instead of returning None
 def matching_output(output_reference, outputs):
@@ -149,10 +152,14 @@ def commonprefix(m):
   return s1
 
 
-@app.route("/api/v1/export")
-@app.route("/api/v1/export/")
+# POST: it writes in folders. GET for older web apps and scripts.
+@app.route("/api/v1/export", methods=['GET', 'POST'])
+@app.route("/api/v1/export/", methods=['GET', 'POST'])
 @login_required
 def export_to_folder():
+  # Cookies come with GETs from other websites' links: actor.py only checks the origin of other methods
+  if request.method == 'GET' and g.actor.token is None and not is_same_origin():
+    return error_response(403, 'cross_site_write', "Exports are sent with POST from QA-Board's pages: QA-Board refused this one, it could come from another website.")
   project_id = request.args['project']
   ref_project_id = request.args.get('ref_project', project_id)
   # it creates links or copies in a folder: an action on the project's runs
@@ -165,7 +172,7 @@ def export_to_folder():
   new_commit_id = request.args['new_commit_id']
   new_commit = load_commit(project_id, new_commit_id)
   if not new_commit:
-    return f"ERROR: Commit {request.args['new_commit_id']} not found", 404
+    return jsonify({"error": f"ERROR: Commit {new_commit_id} not found"}), 404
   new_batch_label = request.args.get('batch_new', 'default')
   new_batch = new_commit.get_or_create_batch(new_batch_label)
   new_outputs = new_batch.outputs
@@ -177,7 +184,7 @@ def export_to_folder():
     ref_commit_id = request.args['ref_commit_id']
     ref_commit = load_commit(ref_project_id, ref_commit_id)
     if not ref_commit:
-      return f"ERROR: Commit {ref_commit_id} not found", 404
+      return jsonify({"error": f"ERROR: Commit {ref_commit_id} not found"}), 404
     ref_batch_label = request.args.get('batch_ref', 'default')
     ref_batch = ref_commit.get_or_create_batch(ref_batch_label)
     ref_outputs = ref_batch.outputs
@@ -208,20 +215,25 @@ def export_to_folder():
   try:
     check_storage_path(export_dir)
   except UnsafePathError as e:
-    return json.dumps({"error": f"ERROR: {e}"}), 403
+    return jsonify({"error": f"ERROR: {e}"}), 403
 
-  if not export_dir.exists():
-    prev_mask = os.umask(000)
+  # In folders that were there before, we only add files: they're someone's, maybe not the user's.
+  # We replace files only in the folders of our exports, and never delete folders.
+  created = not os.path.lexists(export_dir)
+  if created:
     try:
-      export_dir.mkdir(parents=True, exist_ok=True)
+      # all users write their exports there
+      mkdir_shared(export_dir)
     except Exception as e:
-      os.umask(prev_mask)
-      return json.dumps({"error": f"ERROR: When creating '{export_dir}': {e}"}), 403
-    os.umask(prev_mask)
+      return jsonify({"error": f"ERROR: When creating '{export_dir}': {e}"}), 403
+  elif not export_dir.is_dir() or export_dir.is_symlink():
+    return jsonify({"error": f"ERROR: '{export_dir}' is not a folder"}), 403
+  from ..models import Export
+  ours = created or Export.query.filter(Export.path == str(export_dir), Export.deleted_at.is_(None)).first() is not None
 
   is_export_dir_writable = os.access(export_dir, os.W_OK)
   if not is_export_dir_writable:
-    return json.dumps({"error": f"The export folder need to be writable by all users. Call 'chmod a+w {export_dir}'"}), 403
+    return jsonify({"error": f"The export folder need to be writable by all users. Call 'chmod a+w {export_dir}'"}), 403
 
   output_refs = {}
   for output in new_outputs:
@@ -266,8 +278,7 @@ def export_to_folder():
       common_extra_parameters[key] = all_outputs[0].extra_parameters.get(key)
   if common_extra_parameters:
     common_data['extra_parameters'] = common_extra_parameters
-  with (export_dir / '0.common.json').open('w') as f:
-    json.dump(common_data, f, sort_keys=True, indent=2, separators=(',', ': '))
+  write_new(export_dir / '0.common.json', json.dumps(common_data, sort_keys=True, indent=2, separators=(',', ': ')), replace=ours)
 
 
   # we save a mapping label => full into
@@ -330,12 +341,12 @@ def export_to_folder():
       try:
         output_path_rel = output_path.relative_to(output.output_dir)
         copied_to_rel = copy_path_rel(output, output_path, label=label_new)
-        export_to(export_dir / copied_to_rel, output_path, type=export_type, user=g.actor.user)
+        export_to(export_dir / copied_to_rel, output_path, type=export_type, user=g.actor.user, replace=ours)
         if output_ref and output_ref.id != output.id:
           output_path_ref = output_ref.output_dir / output_path_rel
           if output_path_ref.exists():
             copied_to_rel = copy_path_rel(output_ref, output_path_ref, label=label_ref)
-            export_to(export_dir / copied_to_rel, output_path_ref, type=export_type, user=g.actor.user)
+            export_to(export_dir / copied_to_rel, output_path_ref, type=export_type, user=g.actor.user, replace=ours)
             nb_files_exported += 1
         nb_files_exported += 1
       except Exception as e:
@@ -344,10 +355,7 @@ def export_to_folder():
         errors.append(error)
 
   if label_mappings['configurations'] or label_mappings['extra_parameters']:
-    mappings_path = export_dir / '0.mappings.json'
-    if not mappings_path.exists():
-      with mappings_path.open('w') as f:
-        json.dump(label_mappings, f, indent=4, sort_keys=True)
+    write_new(export_dir / '0.mappings.json', json.dumps(label_mappings, indent=4, sort_keys=True))
 
   params = {
     "batch": new_batch.label,
@@ -373,24 +381,17 @@ def export_to_folder():
           If you are not redirected automatically, follow this <a href='{url}'>link to the QA results</a>.
       </body>
   </html>"""
-  redirect_file = export_dir / '0.qa.html'
-  if not redirect_file.exists():
-    with redirect_file.open('w') as f:
-      f.write(redirect)
-
-  link_content = f"[InternetShortcut]\nURL={url}\n"
-  link_file = export_dir / '0.qa.url'
-  if not link_file.exists():
-    with link_file.open('w') as f:
-      f.write(link_content)
-  # users see their exports, and their size, in "Storage usage" (backend/exports.py)
+  write_new(export_dir / '0.qa.html', redirect)
+  write_new(export_dir / '0.qa.url', f"[InternetShortcut]\nURL={url}\n")
+  # users see their exports, and their size, in "Storage usage" (backend/exports.py), and can delete them:
+  # not folders that were there before
   export_id = None
   try:
     from ..exports import record
     export = record(export_dir, project_id=project_id, hexsha=new_commit.hexsha, batch_label=new_batch.label, user_name=g.user.get('user_name'),
-                    export_type=request.args.get('export_type', 'link'), filter=filter_new, nb_files=nb_files_exported)
+                    export_type=request.args.get('export_type', 'link'), filter=filter_new, nb_files=nb_files_exported) if ours else None
     db_session.commit()
-    export_id = export.id
+    export_id = export.id if export else None
   except Exception as e:
     db_session.rollback()
     print(f"WARNING: could not track the export {export_dir}: {e}")
@@ -407,12 +408,25 @@ def export_to_folder():
 
 
 
-def export_to(path_from, path_to, type, user=None):
-  if path_from.exists():
-    try:
-      path_from.unlink()
-    except:
-      rmtree(path_from)
+def write_new(path, text, replace=False):
+  """Writes one of the export's own files, if it's not there. `replace`: in our exports' folders"""
+  if os.path.lexists(path):
+    if not replace:
+      return
+    # e.g. a link someone put there: we remove the link, we don't write where it points
+    path.unlink()
+  with path.open('x') as f:
+    f.write(text)
+
+
+def export_to(path_from, path_to, type, user=None, replace=False):
+  """Links or copies `path_to` at `path_from`. What's there is only replaced if it's a file, and `replace`"""
+  if os.path.lexists(path_from):
+    if os.path.exists(path_from) and os.path.samefile(path_from, path_to):
+      return # already exported
+    if not replace or (path_from.is_dir() and not path_from.is_symlink()):
+      raise FileExistsError(f"{path_from} already exists, QA-Board doesn't replace it")
+    path_from.unlink()
   if type == "link":
     try:
       os.link(str(path_to), str(path_from))

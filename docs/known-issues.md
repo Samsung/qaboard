@@ -63,7 +63,10 @@ Harmless for other sites (it only triggers on SIRC project names, paths or files
     configured on PyPI, or a `PYPI_API_TOKEN` secret.
   - GitLab's manual `publish:PyPi` job (twine from planet31) is redundant with the GitHub release.
   - Docker images: `publish-docker-images` needs `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` secrets.
-- CI tests the CLI on Python 3.11 only, but `requires-python` says `>=3.7`.
+- CI tests the CLI on Python 3.11 and 3.13, but `requires-python` says `>=3.7`. The code has no syntax or API newer
+  than 3.7 (checked in October 2026: `qa batch` runs on 3.8, the unit tests need click 8.2 so Python 3.10). Before
+  raising it, check the Python of the SIRC Windows nodes (installed by the `Install_qaboard_on_windows_nodes` Jenkins
+  job) and of the projects' own environments: `pip install` refuses a `qaboard` that requires a newer Python.
 - The website deploy workflow only runs on master pushes that touch `website/`.
 - The helm chart (`charts/qaboard`) is validated (lint, kubeconform) but was not run on a cluster yet.
   `deployments/sirc/values.yaml` has `TODO(sirc)`s, see `website/docs/backend-admin/kubernetes.mdx`.

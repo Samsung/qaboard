@@ -317,6 +317,37 @@ def test_commit_batches_delete_checks_the_commit_project(commit_webhooks, restri
     assert batch.changed == ([] if expected_status == 403 else ["stop", "delete"])
 
 
+def test_commit_batches_delete_in_all_projects(commit_webhooks, restricted, dummy_app, monkeypatch):
+  monkeypatch.setattr(restricted, "is_login_restricted", False)
+  monkeypatch.setattr(commit_webhooks, "audit", MagicMock())
+  handler = restricted.login_required(commit_webhooks.delete_commit)
+  query = commit_webhooks.CiCommit.query.filter.return_value
+  batches = [FakeBatch("group/A"), FakeBatch("group/B"), FakeBatch("group/B", label="milestone")]
+  batches[2].ci_commit = batches[1].ci_commit
+  batches[1].ci_commit.batches = batches[1:]
+  batches[1].ci_commit.project.milestones_on = lambda hexsha=None: [SimpleNamespace(batch="milestone")]
+  query.all.return_value = [batches[0].ci_commit, batches[1].ci_commit]
+  with dummy_app.test_request_context("/api/v1/commit/abc/batches/", method="DELETE"):
+    response = handler("abc")
+  assert status_of(response) == 200 and response["kept"] == ["milestone"]
+  assert [b.changed for b in batches] == [["stop", "delete"], ["stop", "delete"], []]
+
+  # Errors are not "not found"
+  query.all.return_value = []
+  with dummy_app.test_request_context("/api/v1/commit/abc/batches/", method="DELETE"):
+    response, status = handler("abc")
+  assert status == 404 and "error" in response.get_json()
+  batch = FakeBatch("group/A")
+  batch.delete = MagicMock(side_effect=OSError("disk full"))
+  query.all.return_value = [batch.ci_commit]
+  commit_webhooks.db_session.reset_mock()
+  with dummy_app.test_request_context("/api/v1/commit/abc/batches/", method="DELETE"):
+    with pytest.raises(OSError):
+      handler("abc")
+  commit_webhooks.db_session.rollback.assert_called_once()
+  commit_webhooks.db_session.commit.assert_not_called()
+
+
 # ==========================================
 # Signup and login errors don't leak secrets
 # ==========================================
@@ -420,9 +451,10 @@ UNAUTHENTICATED_ENDPOINTS = {
   # the CLI sends results, checked by ingest_access: anonymous unless ingest.auth is "token" (see "Known issues" in SECURITY.md)
   ("outputs.py", "new_output_webhook"), ("batch.py", "update_batch"), ("commit.py", "api_ci_commit"),
   # the CLI's Jenkins runner triggers builds (anonymous unless sign-in is required). With a project (the web app): developers
-  ("integrations.py", "jenkins_build_trigger"),
+  # and checks their status, the same way (jenkins_trigger_access)
+  ("integrations.py", "jenkins_build_trigger"), ("integrations.py", "jenkins_build"),
   # read-only, POST is only used to send parameters
-  ("integrations.py", "gitlab_job"), ("integrations.py", "jenkins_build"), ("integrations.py", "github_workflow_run"),
+  ("integrations.py", "gitlab_job"), ("integrations.py", "github_workflow_run"),
   # checks the login itself when writing
   ("tuning.py", "groups"),
   # page views: a no-op for signed-out visitors (the web app sends them anyway), checks the login itself
@@ -831,6 +863,10 @@ def test_webhooks_accept_anything_without_a_secret(webhooks, dummy_app):
   assert post(webhooks, dummy_app, "gitlab", gitlab_push(), {})[1] == 200
   assert post(webhooks, dummy_app, "github", github_push(), {})[1] == 200
   assert webhooks.update_project.call_count == 2
+  # the server warns about it when it starts
+  assert webhooks.hosts_without_webhook_secret() == ["https://gitlab.example.com", "https://github.com"]
+  configure(webhooks, QABOARD_WEBHOOK_SECRET="s3cret")
+  assert webhooks.hosts_without_webhook_secret() == []
 
 
 def test_gitlab_webhook_secret(webhooks, dummy_app):
@@ -987,12 +1023,15 @@ def integrations(monkeypatch, tmp_path):
   return load_integrations(monkeypatch, tmp_path, {"GITLAB_HOST": "https://gitlab.example.com"})
 
 
-def load_integrations(monkeypatch, tmp_path, git_hosts_env):
+def load_integrations(monkeypatch, tmp_path, git_hosts_env, gitlab_auth=None):
   """backend/api/integrations.py, with the git hosts configured by `git_hosts_env`"""
   monkeypatch.setenv("GITLAB_HOST", "https://gitlab.example.com")
   monkeypatch.setenv("QABOARD_PROXY_HOSTS", "avatars.example.com, Badges.example.com:8081")
   monkeypatch.delenv("QABOARD_GITLAB_HOSTS", raising=False)
-  monkeypatch.delenv("GITLAB_AUTH", raising=False)
+  if gitlab_auth:
+    monkeypatch.setenv("GITLAB_AUTH", json.dumps(gitlab_auth))
+  else:
+    monkeypatch.delenv("GITLAB_AUTH", raising=False)
   import backend.config
   monkeypatch.setattr(backend.config, "git_server", "https://gitlab.example.com")
   monkeypatch.setattr(backend.config, "qaboard_data_dir", tmp_path)
@@ -1121,6 +1160,173 @@ def test_git_proxy_keeps_the_session_cookie_on_its_host(integrations, dummy_app,
   assert [c.kwargs["cookies"] for c in get.call_args_list] == [{"_gitlab_session": "session-cookie"}, {}]
 
 
+def test_gitlab_cookies_are_fetched_when_needed(monkeypatch, tmp_path):
+  """Not at import time: a slow or unreachable GitLab would delay every worker's start"""
+  sign_in = MagicMock(side_effect=AssertionError("signed in at import time"))
+  monkeypatch.setattr(requests.Session, "get", sign_in)
+  integrations = load_integrations(monkeypatch, tmp_path, {"GITLAB_HOST": "https://gitlab.example.com"}, gitlab_auth={"gitlab.example.com": {"user": "bot", "password": "pw"}})
+  sign_in.assert_not_called()
+  session_cookie = MagicMock(side_effect=[None, "cookie"])
+  monkeypatch.setattr(integrations, "gitlab_session_cookie", session_cookie)
+  assert integrations.gitlab_cookie("avatars.example.com") is None
+  # it failed: we try again later, not for every image
+  assert integrations.gitlab_cookie("gitlab.example.com") is None
+  assert integrations.gitlab_cookie("gitlab.example.com") is None
+  assert session_cookie.call_count == 1
+  integrations.gitlab_cookie_failures.clear()
+  assert integrations.gitlab_cookie("gitlab.example.com") == "cookie"
+  assert integrations.gitlab_cookie("gitlab.example.com") == "cookie"
+  assert session_cookie.call_count == 2
+  # shared by the workers
+  assert json.loads((tmp_path / "gitlab_cookies.json").read_text()) == {"gitlab.example.com": "cookie"}
+
+
+INTEGRATIONS_PROJECT = {
+  "git": {"path_with_namespace": "group/repo", "web_url": "https://gitlab.example.com/group/repo"},
+  "qatools_config": {"integrations": [
+    {"text": "Docs", "href": "https://docs.example.com/camera"},
+    {"text": "Tools", "sub": [
+      {"text": "Bench", "webhook": {"url": "http://bench.internal.example.com:8080/api/jobs", "method": "POST"}},
+      {"text": "Dashboard", "href": "https://dash-${project_name}.example.com/${commit.id}"},
+      {"text": "Checks", "href": "${git.web_url}/commit/${commit.id}"},
+      {"text": "Anything", "href": "http://${host}/x"},
+      {"text": "Local", "href": "http://${host}.local/x"},
+    ]},
+  ]},
+}
+
+
+@pytest.fixture
+def webhook_proxy(monkeypatch, tmp_path):
+  """The real backend/api/integrations.py, the project "group/repo", and what the proxy sends"""
+  integrations = load_integrations(monkeypatch, tmp_path, {"GITLAB_HOST": "https://gitlab.example.com"})
+  monkeypatch.setattr(integrations, "jenkins_credentials", {"jenkins.example.com": {}})
+  monkeypatch.setattr(integrations, "setting", lambda key: {"auth.allowed_origins": ["https://qa.example.com"]}[key])
+  monkeypatch.delenv("QABOARD_URL", raising=False)
+  monkeypatch.setattr(integrations, "Project", FakeProjects({"group/repo": INTEGRATIONS_PROJECT}))
+  commit = SimpleNamespace(data={"qatools_config": {"integrations": [{"text": "Branch", "href": "https://branch.example.com"}]}},
+                           batches=[SimpleNamespace(data={"qatools_config": {"integrations": [{"text": "Batch", "href": "https://batch.example.com"}]}})])
+  CiCommit = MagicMock()
+  CiCommit.query.filter.return_value.one_or_none.return_value = commit
+  monkeypatch.setattr(integrations, "CiCommit", CiCommit)
+  session = MagicMock()
+  session.send.return_value = fake_response(200, {"Content-Type": "application/json"}, b'{"status": "pending"}')
+  monkeypatch.setattr(integrations, "Session", lambda: session)
+  integrations.sent = session.send
+  return integrations
+
+
+def proxy(integrations, dummy_app, body, project="group/repo", commit=None):
+  query = {k: v for k, v in {"project": project, "commit": commit}.items() if v}
+  with dummy_app.test_request_context("/api/v1/webhook/proxy/", method="POST", json=body, query_string=query):
+    result = integrations.proxy_webook()
+  return result if isinstance(result, tuple) else (result, result.status_code)
+
+
+def test_webhook_proxy_hosts(webhook_proxy):
+  template = webhook_proxy.url_host_template
+  assert template("https://docs.example.com/camera") == "docs.example.com"
+  assert template("http://user:pw@Bench.example.com:8080/x?y") == "bench.example.com"
+  assert template("http://[::1]:8080/") == "::1"
+  assert template("https://dash-${project_name}.example.com/${commit.id}") == "dash-${project_name}.example.com"
+  assert template("https://${a}.${b}.example.com:${port}/") == "${a}.${b}.example.com"
+  for any_host in ["${git.web_url}/commit", "http://${host}/x", "http://${host}:80/x", "http://${host}.local/", "http://x.${tld}/", "/s/path", "mailto:x@example.com"]:
+    assert template(any_host) is None, any_host
+
+
+@pytest.mark.parametrize("url, commit", [
+  ("https://docs.example.com/camera", None),
+  ("http://bench.internal.example.com:8080/api/jobs", None),
+  ("https://dash-camera.example.com/abc", None),
+  ("https://gitlab.example.com/group/repo/commit/abc", None), # git hosts
+  ("http://jenkins.example.com/job/x", None), # JENKINS_AUTH hosts
+  ("https://avatars.example.com/a.png", None), # QABOARD_PROXY_HOSTS
+  ("https://qa.example.com/s/mnt/qaboard/x.txt", None), # our own pages
+  ("https://branch.example.com", "abc"), # the commit's qaboard.yaml
+  ("https://batch.example.com", "abc"), # its batches'
+])
+def test_webhook_proxy_calls_the_hosts_of_the_integrations(webhook_proxy, dummy_app, url, commit):
+  response, status = proxy(webhook_proxy, dummy_app, {"method": "HEAD", "url": url}, commit=commit)
+  assert status == 200
+  assert webhook_proxy.sent.call_args.args[0].url.startswith(url)
+  assert webhook_proxy.sent.call_args.kwargs["allow_redirects"] is False
+
+
+@pytest.mark.parametrize("url, project", [
+  ("http://localhost:5000/api/v1/health", "group/repo"),
+  ("http://169.254.169.254/latest/meta-data/", "group/repo"),
+  ("http://db:5432", "group/repo"),
+  ("http://anything/x", "group/repo"),
+  ("http://anything.local/x", "group/repo"),
+  ("https://docs.example.com.attacker.com/", "group/repo"),
+  ("https://dash-camera.example.com.attacker.com/", "group/repo"),
+  ("https://docs.example.com@attacker.com/", "group/repo"),
+  ("file:///etc/passwd", "group/repo"),
+  ("https://docs.example.com/camera", None), # without the project, only the server's hosts
+  ("https://docs.example.com/camera", "unknown"),
+  ("https://branch.example.com", "group/repo"), # without the commit
+])
+def test_webhook_proxy_refuses_other_hosts(webhook_proxy, dummy_app, url, project):
+  response, status = proxy(webhook_proxy, dummy_app, {"method": "POST", "url": url, "json": {}}, project=project)
+  assert status == 403
+  webhook_proxy.sent.assert_not_called()
+
+
+def test_webhook_proxy_checks_the_request(webhook_proxy, dummy_app):
+  url = "https://docs.example.com/camera"
+  for body in [None, [], {}, {"url": None}, {"url": url, "method": "CONNECT"}, {"url": url, "hooks": {}}, {"url": url, "verify": False},
+               {"url": url, "headers": "x"}, {"url": url, "auth": "x"}]:
+    assert proxy(webhook_proxy, dummy_app, body)[1] == 400, body
+  webhook_proxy.sent.assert_not_called()
+  proxy(webhook_proxy, dummy_app, {"url": url, "method": "post", "json": {"a": 1}, "auth": {"username": "u", "password": "p"},
+                                   "headers": {"X-Api-Key": "k", "Cookie": "session=user", "Host": "internal", "Connection": "close", "Content-Length": "1"}})
+  sent = webhook_proxy.sent.call_args.args[0]
+  assert sent.method == "POST" and sent.body == b'{"a": 1}'
+  assert sent.headers["X-Api-Key"] == "k" and sent.headers["Authorization"].startswith("Basic ")
+  assert not {"Cookie", "Host", "Connection"} & set(sent.headers)
+
+
+def test_webhook_proxy_response(webhook_proxy, dummy_app):
+  webhook_proxy.sent.return_value = fake_response(201, {
+    "Content-Type": "application/json", "Location": "http://jenkins.example.com/queue/item/7/", "X-Jenkins": "2.4",
+    "Set-Cookie": "JSESSIONID=secret", "Access-Control-Allow-Origin": "https://attacker.com", "Access-Control-Allow-Credentials": "true",
+    "Content-Encoding": "gzip", "Transfer-Encoding": "chunked", "Connection": "keep-alive", "Content-Security-Policy": "default-src *",
+  }, b'{"url": "http://jenkins.example.com/job/x/1"}')
+  response, status = proxy(webhook_proxy, dummy_app, {"method": "POST", "url": "http://jenkins.example.com/job/x/build"})
+  assert status == 201
+  assert response.get_json() == {"url": "http://jenkins.example.com/job/x/1"}
+  # e.g. Jenkins' answers are in its headers
+  assert response.headers["Location"] == "http://jenkins.example.com/queue/item/7/" and response.headers["X-Jenkins"] == "2.4"
+  for header in ["Set-Cookie", "Access-Control-Allow-Origin", "Access-Control-Allow-Credentials", "Content-Encoding", "Transfer-Encoding", "Connection"]:
+    assert header not in response.headers, header
+  assert "sandbox" in response.headers["Content-Security-Policy"] and response.headers["X-Content-Type-Options"] == "nosniff"
+
+
+def test_webhook_proxy_checks_redirects(webhook_proxy, dummy_app):
+  webhook_proxy.sent.side_effect = [
+    fake_response(302, {"Location": "/camera/"}),
+    fake_response(302, {"Location": "https://gitlab.example.com/sign_in"}),
+    fake_response(200),
+  ]
+  response, status = proxy(webhook_proxy, dummy_app, {"method": "POST", "url": "https://docs.example.com/camera", "json": {"a": 1}})
+  assert status == 200
+  sent = [c.args[0] for c in webhook_proxy.sent.call_args_list]
+  assert [r.url for r in sent] == ["https://docs.example.com/camera", "https://docs.example.com/camera/", "https://gitlab.example.com/sign_in"]
+  # like browsers, a POST redirected with 302 becomes a GET
+  assert [r.method for r in sent] == ["POST", "GET", "GET"] and sent[1].body is None
+
+  # Redirects to other hosts aren't followed. The link answered, e.g. with a sign-in page elsewhere
+  webhook_proxy.sent.reset_mock(side_effect=True)
+  webhook_proxy.sent.side_effect = [fake_response(302, {"Location": "http://169.254.169.254/latest/meta-data/"})]
+  response, status = proxy(webhook_proxy, dummy_app, {"method": "HEAD", "url": "https://docs.example.com/camera"})
+  assert status == 200 and response.get_json()["redirected_to"] == "http://169.254.169.254/latest/meta-data/"
+  assert webhook_proxy.sent.call_count == 1
+
+  webhook_proxy.sent.side_effect = None
+  webhook_proxy.sent.return_value = fake_response(302, {"Location": "/again"})
+  assert proxy(webhook_proxy, dummy_app, {"method": "HEAD", "url": "https://docs.example.com/camera"})[1] == 502
+
+
 def test_endpoints_that_read_files_require_login():
   """The image and video viewers' endpoints read files the client names: they need a logged-in user"""
   import ast
@@ -1219,7 +1425,7 @@ def test_auth_module_defines_each_name_once():
 # Routes that mention projects without calling one of PROJECT_CHECKS, and why
 PROJECT_CHECKS = {
   "is_authorized_user", "require_project_access", "forbidden_project", "ingest_access", "can", "authorize", "may_manage",
-  "get_milestone", "check_read_access", "readable_file", "_video_path", "github_workflow",
+  "get_milestone", "check_read_access", "readable_file", "_video_path", "github_workflow", "gitlab_project", "jenkins_trigger_access",
 }
 UNCHECKED_PROJECT_ROUTES = {
   # admins: admin_required
@@ -1237,10 +1443,8 @@ UNCHECKED_PROJECT_ROUTES = {
   ("access.py", "request_project_access"),
   # "project" is a word in their answers, not a project they read
   ("auth.py", "get_current_user"), ("sign_in.py", "my_access_request"), ("tokens.py", "new_token"),
-  # GitLab project ids, not QA-Board projects (TODO_WARTS.md)
-  ("integrations.py", "gitlab_job"), ("integrations.py", "gitlab_play_manual_job"),
   # login_required checks ?project=, the only project it reads
-  ("tuning.py", "check_tuning"),
+  ("tuning.py", "check_tuning"), ("integrations.py", "proxy_webook"),
 }
 
 

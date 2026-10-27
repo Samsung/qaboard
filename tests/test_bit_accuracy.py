@@ -14,6 +14,7 @@ path flavour from it, which breaks tempfile paths. The "windows" simulations
 below patch only `qaboard.utils.os`.
 """
 import hashlib
+import json
 import os
 import tempfile
 import unittest
@@ -139,6 +140,42 @@ class TestTextFilesNormalizeOnWindowsOnly(unittest.TestCase):
     # hex is not in default_plaintext anymore: without project config it must
     # be hashed raw even though it once was in the defaults.
     self.assertNotIn('.hex', qaboard_utils.default_plaintext)
+
+
+class TestIgnore(unittest.TestCase):
+  def setUp(self):
+    tmp = tempfile.TemporaryDirectory()
+    self.addCleanup(tmp.cleanup)
+    self.dirs = []
+    for name, content in (('new', 'new'), ('ref', 'ref')):
+      directory = Path(tmp.name) / name
+      # all the files differ between the two runs
+      for path in ('out.txt', 'debug/out.txt', 'stages/debug', 'stages/out.txt'):
+        (directory / path).parent.mkdir(parents=True, exist_ok=True)
+        (directory / path).write_text(f'{content} {path}')
+      manifest = {path: {'md5': f'{content}-{path}', 'st_size': 1} for path in ('out.txt', 'debug/out.txt', 'stages/debug', 'stages/out.txt')}
+      (directory / 'manifest.outputs.json').write_text(json.dumps(manifest))
+      self.dirs.append(directory)
+
+  def test_ignore_matches_path_prefixes(self):
+    """With or without manifests, files whose path starts with an ignore pattern are not checked"""
+    from qaboard.bit_accuracy import cmpfiles, cmpmanifests
+    new, ref = self.dirs
+    ignore = ['debug', 'stages/out', 'manifest.outputs.json']
+    expected = {Path('out.txt'), Path('stages/debug')}
+    with_manifests = cmpmanifests(new / 'manifest.outputs.json', ref / 'manifest.outputs.json', ignore=ignore)
+    without_manifests = cmpfiles(new, ref, ignore=ignore)
+    self.assertEqual(with_manifests['mismatch'], expected)
+    self.assertEqual(without_manifests['mismatch'], expected)
+
+  def test_identical_files_match_without_manifests(self):
+    from qaboard.bit_accuracy import cmpfiles
+    new, ref = self.dirs
+    (new / 'same.txt').write_text('same')
+    (ref / 'same.txt').write_text('same')
+    result = cmpfiles(new, ref, patterns=['same.txt'])
+    self.assertEqual(result['match'], {Path('same.txt')})
+    self.assertEqual(result['mismatch'], set())
 
 
 if __name__ == '__main__':

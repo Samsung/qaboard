@@ -7,7 +7,6 @@ import shlex
 from typing import Optional
 
 from idb_client import client
-from idb_client.v2.client import DuplicateMD5KeyError
 from idb_client.v2.utils import Md5HashCalculator
 
 from .config import commit_id, project

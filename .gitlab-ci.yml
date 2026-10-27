@@ -335,7 +335,9 @@ deploy:cli:windows:
   needs: [unit-tests, type-check, lint]
   before_script: [] # Overrides the global before_script since it changes LD_LIBRARY_PATH which causes curl to fail
   script:
-    - 'curl --header "Content-Type: application/json" --request POST --data ''{"build_url": "http://jenmaster1:8080/job/ALGO/job/Install_qaboard_on_windows_nodes", "cause": "cde-python updated", "params": {}}'' http://qa/api/v1/jenkins/build/trigger/'
+    # Without signing in, QA-Board only starts the Jenkins jobs listed in projects' qaboard.yaml: QABOARD_TOKEN is a
+    # CI variable, a token with the "act" scope
+    - 'curl --header "Content-Type: application/json" ${QABOARD_TOKEN:+--header "Authorization: Bearer $QABOARD_TOKEN"} --request POST --data ''{"build_url": "http://jenmaster1:8080/job/ALGO/job/Install_qaboard_on_windows_nodes", "cause": "cde-python updated", "params": {}}'' http://qa/api/v1/jenkins/build/trigger/'
   rules:
     - !reference [.on-master, rules]
 

@@ -37,7 +37,8 @@ app = Celery('celery_app')
 app.config_from_object(celeryconfig)
 
 from qaboard.config import config
-celery_config = config.get('runners', {}).get('celery', {})
+from qaboard.runners.celery_settings import celery_settings
+celery_config = celery_settings(config)
 app.conf.update(**celery_config)
 
 

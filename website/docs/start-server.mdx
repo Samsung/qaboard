@@ -33,11 +33,11 @@ projects to look at.
   for HTTPS.
 - **One port**: the web app, the API and the webhooks answer on port 5151 (`QABOARD_PORT_HTTP`), or 443 with HTTPS.
 
-:::danger Close the other ports
-*docker-compose.yml* also publishes, on all the host's interfaces: pgAdmin on 5050, with a default login that opens
-the database; RabbitMQ on 5672 and 15672, with `guest:guest` (anyone who reaches it can run commands on Celery
-workers); and Flower on 8888, without a login. Firewall them, or remove them in your overlay ([step 3](#3-describe-your-site)).
-See the [known issues](https://github.com/Samsung/qaboard/blob/master/SECURITY.md#known-issues) in *SECURITY.md*.
+:::note The admin services stay on the host
+*docker-compose.yml* also publishes pgAdmin (5050), RabbitMQ (5672, its management UI on 15672) and Flower (8888),
+on the host itself only (`127.0.0.1`): from another computer, use an ssh tunnel. RabbitMQ has a `guest:guest`
+account until you set one, and anyone who reaches it can run commands on Celery workers: see
+[passwords and admin services](#passwords-and-admin-services) before you publish it for workers on other hosts.
 :::
 
 ## 1. Get QA-Board {#1-get-qa-board}
@@ -94,17 +94,20 @@ services:
     volumes:
     # nginx serves /s/<path> from /var/qaboard/<path>
     - /mnt/qaboard:/var/qaboard/mnt/qaboard:ro
-  # The ports to close (see above)
-  pgadmin:
-    profiles: [disabled]
-  rabbitmq:
-    ports: !reset []  # keep them if Celery workers on other hosts use it
-  flower:
-    ports: !reset []
+  cantaloupe:
+    volumes:
+    # The image server reads /iiif/2/<path> from /repository/<path>: each storage root, read-only
+    - /mnt/qaboard:/repository/mnt/qaboard:ro
 ```
 
 - **The storage** is mounted at the same path in the backend, and under `/var/qaboard/` in nginx, which serves it at
-  `/s/`: browsers that open a folder there get QA-Board's [file browser](/docs/user-guide/files).
+  `/s/`: browsers that open a folder there get QA-Board's [file browser](/docs/user-guide/files). The image server
+  (Cantaloupe) sees only what you mount in it, at the same paths as in nginx.
+
+:::note Upgrading
+*docker-compose.yml* used to mount the host's whole filesystem in the image server. If the image viewers show no
+images after you upgrade, mount your storage in `cantaloupe` like above.
+:::
 - **`QABOARD_URL`**: use `https://` only once HTTPS works ([below](#using-ssl--hosting-behind-a-reverse-proxy)):
   session cookies are then only sent over HTTPS.
 - **Other settings** go in `services.backend.environment` too: see [environment variables](#optional-environment-variables).
@@ -131,6 +134,15 @@ Put the secrets in `.env`, at the root of the checkout (`chmod 600 .env`). Gener
 QABOARD_WEBHOOK_SECRET=...
 # Signs sessions. Generated and kept in the backend's data volume if unset: set it to move hosts without signing everyone out
 # SECRET_KEY=...
+# The database, and the admin services (see below)
+QABOARD_DB_PASSWORD=...
+PGADMIN_DEFAULT_EMAIL=admin@example.com
+PGADMIN_DEFAULT_PASSWORD=...
+# Only if Celery workers connect to RabbitMQ (QABOARD_TUNING_RUNNER=celery). URL-safe characters
+# QABOARD_RABBITMQ_USER=qaboard
+# QABOARD_RABBITMQ_PASSWORD=...
+# Optional: Flower (the task queue's UI) also asks for this login. At /flower/, only QA-Board's admins get it
+# FLOWER_BASIC_AUTH=admin:...
 ```
 
 :::caution Where each setting goes
@@ -142,6 +154,20 @@ QABOARD_WEBHOOK_SECRET=...
   `QABOARD_ADMINS` and `QABOARD_INGEST_AUTH` from the env file, which wins over `.env`: set them in the overlay or in
   the env file, never in `.env`.
 :::
+
+### Passwords and admin services {#passwords-and-admin-services}
+`deploy.py` passes these passwords from `.env` to docker compose, for the `${...}` of the compose files.
+- **The database** is created with `QABOARD_DB_PASSWORD` (default: `password`), and the backend and the backups use
+  it. To change the password of an existing database, see [database password](/docs/backend-admin/deployment#database-password).
+- **RabbitMQ** is created with `QABOARD_RABBITMQ_USER` and `QABOARD_RABBITMQ_PASSWORD` (default: `guest:guest`).
+  Celery workers run the commands of the tasks they get: anyone who can connect to RabbitMQ can run commands on them.
+  For an existing RabbitMQ, add the user with `docker compose exec rabbitmq rabbitmqctl add_user` and
+  `set_permissions`, or change the password with `rabbitmqctl change_password`. For workers on other hosts, publish
+  it with `QABOARD_RABBITMQ_HOST_IP=0.0.0.0` in the env file, and give each team its own account
+  ([sharing the broker](/docs/celery-integration#sharing-the-servers-broker-between-teams)).
+- **The admin services are only published on the host itself** (`127.0.0.1`): RabbitMQ (`QABOARD_PORT_RABBITMQ`,
+  5672, and its management UI on `QABOARD_PORT_RABBITMQ_MNGT`, 15672), Flower (`QABOARD_PORT_FLOWER`, 8888) and
+  pgAdmin (`PGADMIN_PORT`, 5050). nginx serves Flower at `/flower/` to QA-Board's admins only.
 
 ## 5. Deploy {#5-deploy}
 <Anchor id="starting-the-server" /><Anchor id="deployment" />
@@ -232,19 +258,10 @@ Before you open it to your team:
   webhooks: without it, anyone can send fake push events.
 - **Turn off local sign-up** (`auth.local_signup`) if only admins create accounts, and require signing in if
   anonymous users shouldn't see results.
-- **Close the other ports** ([above](#prerequisites)), and only expose QA-Board to networks you trust.
-- **Show only the storage to the image server**: *docker-compose.yml* mounts the whole host in Cantaloupe, which
-  doesn't check who can read images. In your overlay:
-
-  ```yaml title="deployments/mysite/mysite.yml"
-  services:
-    cantaloupe:
-      volumes: !override
-      - cache_cantaloupe:/var/cache/cantaloupe
-      - /srv/cantaloupe
-      # Each storage root, read-only: Cantaloupe reads /iiif/2/<path> from /repository/<path>
-      - /mnt/qaboard:/repository/mnt/qaboard:ro
-  ```
+- **Set the passwords** of the database and the admin services ([step 4](#passwords-and-admin-services)), and only
+  expose QA-Board to networks you trust.
+- **Sandbox the runs' HTML files**: by default, the HTML and SVG files of runs run their scripts as whoever opens
+  them. Set `QABOARD_SANDBOX_HTML=true` once your users know ([HTML reports](/docs/viewers#html-reports)).
 
 The security checklist in **Admin → Overview** checks the sign-in, token and HTTPS settings. *SECURITY.md* lists the
 [known issues](https://github.com/Samsung/qaboard/blob/master/SECURITY.md#known-issues) and their mitigations.
@@ -288,7 +305,9 @@ openssl req -new -sha256 -key cert.key -out cert.csr
 If they send back a `.cer` certificate in the DER format, convert it to PEM: `openssl x509 -in cert.cer -inform der -outform pem -out cert.pem`.
 :::
 
-To use your own reverse proxy instead, e.g. nginx, set `QABOARD_PORT_HTTP=8080` in the env file and:
+To use your own reverse proxy instead, e.g. nginx, set `QABOARD_PORT_HTTP=8080` in the env file and the config
+below. QA-Board's nginx passes the `X-Forwarded-Proto` and `X-Forwarded-Host` headers your proxy sets to the backend
+(the single sign-on redirects need them), else its own:
 
 ```nginx
 server {
@@ -297,6 +316,8 @@ server {
   location / {
     proxy_pass http://localhost:8080/;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $http_host;
   }
 }
 ```
@@ -389,6 +410,7 @@ Set them in `services.backend.environment` in your site overlay, and the secrets
 | `QABOARD_GITHUB_HOSTS` | _none_  | Comma-separated hostnames of GitHub Enterprise servers, that get `GITHUB_ACCESS_TOKEN`. `QABOARD_GIT_HOSTS` lets you give each its own token |
 | `QABOARD_PROXY_HOSTS` | _none_  | Comma-separated hostnames the web app may load avatars and badges from through the backend, besides your git hosts (`QABOARD_GIT_HOSTS`, `GITLAB_HOST`...), the host of `QABOARD_AVATAR_URL`, and gravatar. Add the hosts of your projects' `project.avatar_url` and `integrations[].src` images |
 | `QABOARD_STORAGE_ROOTS` | */mnt/qaboard* | Folders where your projects store outputs and artifacts, separated by `:` (e.g. `/mnt/qaboard:/mnt/datasets`). The backend refuses results stored elsewhere, and never writes, deletes or runs code outside these folders |
+| `QABOARD_SANDBOX_HTML` | _off_ | `true`: the runs' HTML and SVG files can't act as whoever opens them, their scripts run sandboxed. Set it for the backend and the proxy. See [HTML reports](/docs/viewers#html-reports) |
 | `QABOARD_FILES_UNIX_PERMISSIONS` | _none_ | Folders, separated by `:` (e.g. `/home`), where users only read the files under `/s/` that their Unix account can read. See [user management](/docs/backend-admin/user-management#unix-permissions) |
 | `QABOARD_ACCOUNTS_COMMAND` | _none_ | Command printing the users' accounts like `/etc/passwd` (e.g. `ssh host getent passwd`), for file owners and Unix permissions, when you can't mount a complete `/etc/passwd`. See [users' accounts](/docs/backend-admin/user-management#users-accounts) |
 | `QABOARD_GROUPS_COMMAND` | _none_ | Same for the groups, like `/etc/group` |

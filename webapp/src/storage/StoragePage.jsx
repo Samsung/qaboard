@@ -168,6 +168,7 @@ const ProjectsView = ({ overview, filters, go, setFilters }) => {
       <thead><tr><th>Project</th><th>Size</th><th>Runs</th><th>Batches</th><th>Commits</th><th>Latest run</th></tr></thead>
       <tbody>
         {projects.map(p => <tr key={p.project_id} onClick={event => { if (!event.target.closest('a')) go('batches', { project: p.project_id, page: '' }); }} style={{ cursor: 'pointer' }}>
+          {/* oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the link has its text */}
           <td><Link to={storageUrl('batches', { ...filters, project: p.project_id, page: '' })}><strong>{p.project_id}</strong></Link></td>
           <td><SizeBar bytes={p.bytes} max={max}/></td>
           <td>{formatNumber(p.runs)}</td>

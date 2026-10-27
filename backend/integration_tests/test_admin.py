@@ -77,14 +77,20 @@ def test_admins_from_env(logged_in, monkeypatch, admins, directory):
 
 
 @pytest.mark.parametrize('user_name, email, admins', [
-  # local sign-up could create "ALICE" next to the admin "alice"
+  # local sign-up could create "ALICE" next to the admin "alice" (and "alice" before they sign in: test_access_policy.py)
   ('ALICE', 'a@example.com', 'alice'),
   # local sign-up doesn't verify emails
   ('mallory', 'boss@example.com', 'boss@example.com'),
 ])
-def test_local_accounts_cant_pass_for_env_admins(client, monkeypatch, user_name, email, admins):
+def test_local_accounts_cant_pass_for_env_admins(client, make_user, monkeypatch, user_name, email, admins):
   monkeypatch.setenv('QABOARD_ADMINS', admins)
-  assert client.post('/api/v1/user/signup/', data={"user_name": user_name, "password": "pw", "email": email}).status_code == 200
+  response = client.post('/api/v1/user/signup/', data={"user_name": user_name, "password": "pw", "email": email})
+  if user_name.casefold() in admins:
+    # sign-up refuses the names in QABOARD_ADMINS, whatever their case
+    assert response.status_code == 409
+    make_user(user_name, password='pw', email=email)
+  else:
+    assert response.status_code == 200
   login(client, user_name, 'pw')
   assert client.get('/api/v1/user/me/').get_json()["is_admin"] is False
   assert client.get('/api/v1/admin/overview').status_code == 403
@@ -666,6 +672,8 @@ def test_overview(people, make_client):
   assert checklist["secret_key"]["ok"] is True
   assert checklist["legacy_tokens"]["ok"] is True
   assert checklist["local_signup"]["ok"] is True
+  # the test server has no QABOARD_WEBHOOK_SECRET
+  assert checklist["webhook_secret"]["ok"] is False and "QABOARD_WEBHOOK_SECRET" in checklist["webhook_secret"]["detail"]
 
 
 def test_overview_checklist_follows_settings(admin, monkeypatch):
@@ -711,3 +719,28 @@ def test_overview_legacy_tokens(admin):
   db_session.commit()
   checklist = {item["id"]: item for item in admin.get('/api/v1/admin/overview').get_json()["checklist"]}
   assert checklist["legacy_tokens"]["ok"] is False and "1 legacy token" in checklist["legacy_tokens"]["title"]
+
+
+def test_pgadmin_signs_admins_in(admin, logged_in, monkeypatch):
+  """nginx asks before proxying /pgadmin4/ (services/nginx/snippets/pgadmin.conf), and passes the account to pgAdmin"""
+  # Flower and other admin services (services/nginx/snippets/qaboard-admins-only.conf)
+  assert admin.get('/api/v1/admin/authorize').status_code == 204
+  assert logged_in('carol').get('/api/v1/admin/authorize').status_code == 403
+  monkeypatch.delenv('QABOARD_PGADMIN_USER', raising=False)
+  monkeypatch.delenv('PGADMIN_DEFAULT_EMAIL', raising=False)
+  assert admin.get('/api/v1/admin/pgadmin/authorize').status_code == 404
+  monkeypatch.setenv('PGADMIN_DEFAULT_EMAIL', 'pgadmin@example.com')
+  response = admin.get('/api/v1/admin/pgadmin/authorize')
+  assert response.status_code == 204 and response.headers['X-Pgadmin-User'] == 'pgadmin@example.com'
+  response = logged_in('bob').get('/api/v1/admin/pgadmin/authorize')
+  assert response.status_code == 403 and 'X-Pgadmin-User' not in response.headers
+
+
+def test_sandbox_html_is_off_until_admins_turn_it_on(make_client, monkeypatch):
+  """The web app's HTML viewers follow QABOARD_SANDBOX_HTML, like the proxy (services/nginx/configure.sh)"""
+  monkeypatch.delenv('QABOARD_SANDBOX_HTML', raising=False)
+  assert make_client().get('/api/v1/config').get_json()["sandbox_html"] is False
+  monkeypatch.setenv('QABOARD_SANDBOX_HTML', '0')
+  assert make_client().get('/api/v1/config').get_json()["sandbox_html"] is False
+  monkeypatch.setenv('QABOARD_SANDBOX_HTML', 'true')
+  assert make_client().get('/api/v1/config').get_json()["sandbox_html"] is True

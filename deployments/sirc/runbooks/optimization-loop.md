@@ -1,5 +1,6 @@
+# Working on the optimization loop (`qa optimize`)
+Notes to reproduce and debug a tuning run of SIRC's projects (formerly `drafts/`).
 
-## Working on the optimization loop
 1. it's easier to reproduce a real tuning
    https://qa/CDE-Users/HW_ALG/CIS/tests/products/HM3/commit/1e357ad1fffbfaf2a172f01646417e1dce25650f?batch=auto_tuning_try_4&reference=1e357ad1fffbfaf2a172f01646417e1dce25650f&selected_views=logs&selected_metric=objective&aggregation=media
 

@@ -104,6 +104,19 @@ app.kubernetes.io/component: {{ index . 1 }}
   {{- end }}
 {{- end -}}
 
+{{/* RabbitMQ's account, as QABOARD_RABBITMQ_USER and QABOARD_RABBITMQ_PASSWORD: the env vars after them use $(...) */}}
+{{- define "qaboard.rabbitmqCredentials" -}}
+- name: QABOARD_RABBITMQ_USER
+  value: {{ .Values.celery.rabbitmq.user | quote }}
+{{- if .Values.celery.rabbitmq.passwordFromSecret }}
+- name: QABOARD_RABBITMQ_PASSWORD
+  valueFrom: {secretKeyRef: {name: {{ include "qaboard.secretName" . }}, key: QABOARD_RABBITMQ_PASSWORD}}
+{{- else }}
+- name: QABOARD_RABBITMQ_PASSWORD
+  value: {{ .Values.celery.rabbitmq.password | quote }}
+{{- end }}
+{{- end -}}
+
 {{- define "qaboard.secretName" -}}
 {{- .Values.secret.existingSecret | default (printf "%s-secret" (include "qaboard.fullname" .)) -}}
 {{- end -}}
@@ -147,8 +160,9 @@ app.kubernetes.io/component: {{ index . 1 }}
   value: "6379"
 {{- end }}
 {{- if .Values.celery.enabled }}
+{{ include "qaboard.rabbitmqCredentials" . }}
 - name: CELERY_BROKER_URL
-  value: pyamqp://guest:guest@{{ include "qaboard.fullname" . }}-rabbitmq:5672//
+  value: pyamqp://$(QABOARD_RABBITMQ_USER):$(QABOARD_RABBITMQ_PASSWORD)@{{ include "qaboard.fullname" . }}-rabbitmq:5672//
 {{- end }}
 {{- with .Values.backend.env }}
 {{ toYaml . }}

@@ -113,7 +113,8 @@ else:
     if "include" in c:
       # paths will be relative to the root qaboard.yaml
       c_include_path = root_qatools / c["include"]
-      c_include = yaml.load(c_include_path.open(), Loader=yaml.SafeLoader)
+      with c_include_path.open() as f:
+        c_include = yaml.load(f, Loader=yaml.SafeLoader)
       c = merge(c_include, c)
     config = merge(c, config)
 
@@ -251,12 +252,10 @@ def report_missing_storage(needed_by: Optional[str], environ=os.environ) -> bool
     click.secho(f'ERROR: The storage path does not exist, and qa could not create it: {paths}', fg='red', bold=True, err=True)
     click.secho(f'       {needed_by}. To fix it: create the folder, mount your shared storage there,', fg='red', err=True)
     click.secho('       or set QA_STORAGE (or `storage` in qaboard.yaml) to a folder your QA-Board server reads.', fg='red', err=True)
-    for path in missing_storage:
-      if "/algo/" in str(path) and not Path(*path.parts[:3]).exists():
-        click.secho('INFO: To create storage locations for new projects, go to:', fg='blue', bold=True, err=True)
-        click.secho('      http://jenmaster1:8080/job/ALGO/job/CreateProjectStorage/build?delay=0sec', fg='blue', err=True)
-        click.secho('Products (HP1, 2X5...) are "Technology" projects, while CIS/KITT_ISP.. are "Group" projects.', fg='blue', err=True)
-        break
+    # Sites can explain how to get storage for new projects
+    storage_help = site_config('QABOARD_STORAGE_HELP')
+    if storage_help:
+      click.secho(f'INFO: {storage_help}', fg='blue', err=True)
     return True
   if 'QA_BATCH' not in environ:
     click.secho(f'WARNING: The storage path does not exist: {paths}. Local runs save their results in output/ without it,', fg='yellow', err=True)
@@ -554,7 +553,6 @@ if metrics_file:
       main_metrics = (_metrics or {}).get('main_metrics') or []
 
 # reexport for backward compat
-from .site_config import secrets
 
 # backward compat only for HW_ALG's tools/find_valid_build.py (removed 28/07/20)
 from .git import _Repo, _Commit

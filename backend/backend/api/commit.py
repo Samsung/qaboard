@@ -1,20 +1,19 @@
 import re
-import json
 import datetime
 
-from gitdb.exc import BadName
 import ujson
 from flask import request, jsonify, make_response, g
 
 from sqlalchemy.orm import selectinload
-from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm.attributes import flag_modified
 
 from backend import app, db_session
+from ..access import invalid_project
 from .auth import is_authorized_user, login_required, require_project_access, ingest_access, forbidden_project
 from ..models import Project, CiCommit, latest_successful_commit, Batch
 from ..storage import UnsafePathError
 from .. import recreate_artifacts
+from ..metrics_aggregation import parse_metrics_arg
 
 
 
@@ -23,6 +22,8 @@ from .. import recreate_artifacts
 @app.route("/api/v1/commit/<path:commit_id>", methods=['GET', 'POST'])
 def api_ci_commit(commit_id=None):
   if request.method == 'POST':
+    if error := invalid_project(request.json.get('project')):
+      return error
     submitted_by, error = ingest_access(request.json.get('project'))
     if error:
       return error
@@ -36,8 +37,10 @@ def api_ci_commit(commit_id=None):
         data=request.json,
       )
     except Exception as e:
+      # usually a commit we don't know, and whose git repository we can't read
+      db_session.rollback()
       project = request.json.get('project', 'unknown')
-      return f"404 ERROR: {e}\n Project: {project} - There is an issue with your commit id ({hexsha})", 404
+      return jsonify({"error": f"{e}\n Project: {project} - There is an issue with your commit id ({hexsha})"}), 404
     if not commit.data:
       commit.data = {}
     # Clients can store any metadata with each commit.
@@ -97,63 +100,36 @@ def api_ci_commit(commit_id=None):
     if not ci_commit:
       return jsonify({'error': f'No commit with results yet for {project_id} on {branch}.'}), 404
   else:
-    try:
-      ci_commit = (db_session
-                   .query(CiCommit)
-                   .options(batches_loader)
-                   .filter(
-                     CiCommit.project_id==project_id,
-                     CiCommit.hexsha.startswith(commit_id),
-                   )
-                   .first()
-                  )
-      assert ci_commit
-      # fixme: some commits appear twice, one with a short hash...
-    except (NoResultFound, AssertionError):
-      try:
+    def find(*conditions):
+      return (db_session
+              .query(CiCommit)
+              .options(batches_loader)
+              .filter(CiCommit.project_id==project_id, *conditions)
+              .order_by(CiCommit.authored_datetime.desc())
+              .first())
+    # fixme: some commits appear twice, one with a short hash...
+    ci_commit = find(CiCommit.hexsha.startswith(commit_id))
+    if not ci_commit:
       # Check if the user provided a branch name instead of a commit ID
-        ci_commit = (db_session
-                    .query(CiCommit)
-                    .options(batches_loader)
-                    .filter(
-                      CiCommit.project_id==project_id,
-                      CiCommit.branch==commit_id,
-                    )
-                    .order_by(CiCommit.authored_datetime.desc())
-                    .first()
-                    )
-        assert ci_commit
-      except Exception:
-        # if the user provided what looks like a commit ID, we want to fail fast
-        # otherwise the code below is super slow
-        if re.match(r'^[0-9a-fA-F]{40}$', commit_id):
-          return jsonify({'error': f'Sorry, we could not find any data on commit ID {commit_id} in project {project_id}.'}), 404
-
-        try:
-          # TODO: This is a valid use case for having read-rights to the repo,
-          #       we can identify a commit by the tag/branch
-          #       To replace this without read rights, we should listen for push events and build a database
-          project = Project.query.filter(Project.id==project_id).one()
-          try:
-            commit = project.repo.commit(commit_id)
-          except:
-            try:
-              commit = project.repo.refs[commit_id].commit
-            except:
-              commit = project.repo.tags[commit_id].commit
-          if not commit:
-            return jsonify({'error': f'Sorry, we could not find any data on commit {commit_id} in project {project_id}.'}), 404
-          ci_commit = CiCommit(commit, project=project)
-          db_session.add(ci_commit)
-          db_session.commit()
-        except:
-          return jsonify({'error': f'Sorry, we could not find any data on commit {commit_id} in project {project_id}.'}), 404
-    except BadName:
-      return jsonify({'error': f'Sorry, we could not understand the commit ID {commit_id} for project {project_id}.'}), 404
+      ci_commit = find(CiCommit.branch==commit_id)
+    if not ci_commit:
+      # if the user provided what looks like a commit ID, we want to fail fast
+      # otherwise the code below is super slow
+      if re.match(r'^[0-9a-fA-F]{40}$', commit_id):
+        return jsonify({'error': f'Sorry, we could not find any data on commit ID {commit_id} in project {project_id}.'}), 404
+      # A tag, or a branch whose latest results we saw on another branch: git knows its commit.
+      # It's a GET: we only look for that commit's results, we don't create it.
+      hexsha = git_ref_hexsha(project_id, commit_id)
+      ci_commit = find(CiCommit.hexsha==hexsha) if hexsha else None
+      if not ci_commit:
+        return jsonify({'error': f'Sorry, we could not find any data on commit {commit_id} in project {project_id}.'}), 404
 
   batch = request.args.get('batch', None)
   with_batches = [batch] if batch else None # by default we show all batches
-  with_aggregation = json.loads(request.args.get('metrics', '{}'))
+  try:
+    with_aggregation = parse_metrics_arg(request.args.get('metrics'))
+  except ValueError as e:
+    return jsonify({"error": f"{e}"}), 400
   commit_dict = ci_commit.to_dict(db_session, with_aggregation, with_batches=with_batches, with_outputs=with_outputs)
   # checking the artifacts reads the storage, often a slow network filesystem
   if with_outputs:
@@ -161,6 +137,22 @@ def api_ci_commit(commit_id=None):
   response = make_response(ujson.dumps(commit_dict))
   response.headers['Content-Type'] = 'application/json'
   return response
+
+
+def git_ref_hexsha(project_id, ref):
+  """The commit of a git commit, branch or tag of the project, or None if git doesn't know it (or we can't read the repository)"""
+  project = Project.query.filter(Project.id==project_id).one_or_none()
+  repo = project.repo if project else None
+  if not repo:
+    return None
+  # TODO: This is a valid use case for having read-rights to the repo,
+  #       To replace this without read rights, we should listen for push events and build a database
+  for resolve in (lambda: repo.commit(ref), lambda: repo.refs[ref].commit, lambda: repo.tags[ref].commit):
+    try:
+      return resolve().hexsha
+    except Exception: # e.g. gitdb's BadName, IndexError
+      continue
+  return None
 
 
 def commit_artifacts_info(ci_commit):

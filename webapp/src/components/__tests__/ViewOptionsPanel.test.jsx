@@ -231,7 +231,7 @@ describe('the docked panel', () => {
 });
 
 test("the output files' options are in the panel, and open there from the output files view", () => {
-  const onToggleFileOption = vi.fn(name => () => {});
+  const onToggleFileOption = vi.fn(() => () => {});
   const props = panel_props({}, { selected_views: ['bit-accuracy'], new_batch: { used_metrics: [], outputs: { 1: {} } }, onToggleFileOption });
   const { rerender } = render(<Panel {...props} file_options={{ show_all_files: false, expand_all: true }} />);
   expect(screen.getByText('Output files')).toBeInTheDocument();

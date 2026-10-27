@@ -8,6 +8,7 @@ Sites can override where we look for the latest version (QABOARD_LATEST_VERSION_
 or a file with `version = "x.y.z"`) and the upgrade command we suggest (QABOARD_UPGRADE_COMMAND).
 """
 import os
+import re
 import json
 import datetime
 
@@ -19,7 +20,6 @@ def latest_qaboard_version():
   # at a different place on Windows, Linux...
   # We simple need a way to let them know they are using an old version
   import requests
-  import re
   from .site_config import site_config
   url = site_config('QABOARD_LATEST_VERSION_URL', 'https://pypi.org/pypi/qaboard/json')
   try:
@@ -37,6 +37,22 @@ def latest_qaboard_version():
     version = re.match(r'.*version\s*=\s*["\']([0-9]+\.[0-9]+\.[0-9]+)["\'].*', l)
     if version:
       return version.group(1)
+
+
+def version_key(version: str):
+  """
+  What we compare versions with, or None if we can't understand it.
+  Pre-releases and dev versions (1.2.3rc1, 1.2.3.dev4+g1234) come before their release, post-releases (1.2.3.post1) after.
+  """
+  match = re.match(r'v?(\d+(?:\.\d+)*)(.*)', version.strip())
+  if not match:
+    return None
+  release = [int(n) for n in match.group(1).split('.')]
+  while len(release) > 1 and release[-1] == 0: # 1.2 is 1.2.0
+    release.pop()
+  suffix = match.group(2).split('+')[0].lstrip('.-_').lower()
+  rank = 2 if suffix.startswith('post') else 1 if not suffix else 0
+  return (release, rank)
 
 
 def check_for_updates():
@@ -80,8 +96,8 @@ def check_for_updates():
 
   from qaboard import __version__ as current_version
   if latest_version and current_version != 'unknown':
-    to_ints = lambda v: [int(n) for n in v.split('.')]
-    newer_version_available = to_ints(current_version) < to_ints(latest_version)
+    current_key, latest_key = version_key(current_version), version_key(latest_version)
+    newer_version_available = current_key is not None and latest_key is not None and current_key < latest_key
     if newer_version_available:
       click.secho(f'[INFO] A new version of qaboard is available! Upgrade to {latest_version}:', fg='yellow', bold=True, err=True)
       from .site_config import site_config

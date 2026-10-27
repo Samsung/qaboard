@@ -302,7 +302,7 @@ def migrate_output(output):
   db_session.refresh(output.batch)
   try:
     as_user(username, move_files, before_dir, after_dir, output)
-  except Exception as e:
+  except Exception:
     try: # TODO: try to find as which user to retry...
       as_user(users["sircdevops"], move_files, before_dir, after_dir, output)
     except Exception as e:

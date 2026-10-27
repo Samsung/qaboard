@@ -27,6 +27,8 @@ config:
   # Where the backend may write, delete or run code. The chart sets it to results.mountPath: set it when you mount
   # other storage (extraVolumeMounts), separated by ":"
   # QABOARD_STORAGE_ROOTS: /mnt/qaboard:/algo
+  # The runs' HTML and SVG files can't act as whoever opens them (website/docs/viewers.mdx). The proxy reads it too
+  # QABOARD_SANDBOX_HTML: "true"
   # Emails when the batches users start end (website/docs/start-server.mdx#emails). A QABOARD_SMTP_PASSWORD goes in the secret
   # QABOARD_SMTP_HOST: smtp.example.com
   # QABOARD_EMAIL_FROM: QA-Board <qaboard-noreply@example.com>
@@ -117,6 +119,7 @@ database:
   embedded:
     enabled: false
     image: postgres:16-alpine
+    # Only used when the database is created: to change it later, ALTER USER too
     password: password
     storage:
       size: 10Gi
@@ -211,10 +214,18 @@ cantaloupe:
   extraVolumeMounts: []
 
 # Only needed with QABOARD_TUNING_RUNNER=celery
+# Celery workers run the commands of the tasks they get: anyone who can connect to RabbitMQ can run commands on them.
+# Flower, at /flower/ through the ingress, can revoke tasks and shut the workers down: set FLOWER_BASIC_AUTH
+# (user:password) in the secret to ask for a login.
 celery:
   enabled: false
   rabbitmq:
     image: rabbitmq:3-management
+    # RabbitMQ's account, created when it starts (it keeps no data). The backend and Flower connect with it.
+    # The password is QABOARD_RABBITMQ_PASSWORD in the secret with passwordFromSecret, else `password`. URL-safe characters
+    user: guest
+    password: guest
+    passwordFromSecret: false
 
 # Daily pg_dump to a volume, when we don't use CloudNativePG's backups
 backup:

@@ -6,6 +6,7 @@ import os
 import sys
 import json
 import uuid
+import signal
 import fnmatch
 import datetime
 import itertools
@@ -14,7 +15,6 @@ import subprocess
 from glob import glob
 from copy import deepcopy
 from shlex import quote
-from html import escape
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Dict, List, Any
@@ -261,6 +261,38 @@ def missing_inputs_from_logs(logs):
   return [{"input": m.group(1), "database": m.group(2)} for m in re.finditer(pattern, logs, re.MULTILINE)]
 
 
+# Below nginx's uwsgi_read_timeout (300s): users get our message, not a 504 from the proxy
+LIST_TESTS_TIMEOUT = 240
+
+def run_with_timeout(cmd, cwd, timeout):
+  """
+  Like subprocess.run(capture_output=True, timeout=...), but on timeout it kills what the command started too
+  (e.g. `qa` started by bash): they would keep running, and keep the pipes open.
+  """
+  with subprocess.Popen(cmd, cwd=cwd, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True) as process:
+    try:
+      stdout, stderr = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+      try:
+        os.killpg(process.pid, signal.SIGKILL)
+      except ProcessLookupError:
+        pass
+      process.communicate()
+      raise
+  return subprocess.CompletedProcess(cmd, process.returncode, stdout, stderr)
+
+
+def mkdir_for_everyone(path):
+  """
+  Creates a folder and its missing parents, writable by all users: runs started as the users write in them.
+  We don't change the umask: it's the process', so it would apply to what other threads create meanwhile.
+  """
+  missing = [p for p in [path, *path.parents] if not p.exists()]
+  path.mkdir(parents=True, exist_ok=True)
+  for p in missing:
+    p.chmod(0o777)
+
+
 def commit_database(database, ci_commit=None):
     """
     The inputs database of a commit's runs. A relative one (`inputs.database: inputs` in qaboard.yaml: inputs in the
@@ -382,12 +414,13 @@ def get_group():
         ])
         cmd = '\n'.join([*envrcs, cmd])
         print(cmd)
-        process = subprocess.run(
-            ['bash', '-c', cmd],
-            cwd=cwd,
-            encoding="utf-8",
-            capture_output=True,
-        )
+        try:
+            process = run_with_timeout(['bash', '-c', cmd], cwd=cwd, timeout=LIST_TESTS_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            return jsonify({"error": f"Listing the tests with the project's code took more than {LIST_TESTS_TIMEOUT}s: QA-Board stopped it.", "cmd": str(cmd)}), 504
+        except OSError as e:
+            # e.g. the artifacts folder doesn't exist
+            return jsonify({"error": f"Could not list the tests with the project's code: {e}", "cmd": str(cmd)}), 500
         print(process.stderr)
         try:
             process.check_returncode()
@@ -482,14 +515,15 @@ def _dispatch_local(qa_batch_path, log_dir):
 
 def _dispatch_celery(qa_batch_path, log_dir):
     """Run batch script via celery worker. Injects broker URL into script."""
-    broker_url = os.environ.get('CELERY_BROKER_URL', 'pyamqp://guest:guest@qaboard:5672//')
+    # if it's not set, `qa` uses qaboard/runners/celeryconfig.py's default (qaboard.yaml's runners.celery wins anyway)
+    broker_url = os.environ.get('CELERY_BROKER_URL')
     qaboard_host = os.environ.get('QABOARD_HOST', 'localhost')
     qaboard_protocol = os.environ.get('QABOARD_PROTOCOL', 'http')
 
     celery_env = "".join([
         f"export QABOARD_PROTOCOL={quote(qaboard_protocol)}\n",
         f"export QABOARD_HOST={quote(qaboard_host)}\n",
-        f"export CELERY_BROKER_URL={quote(broker_url)}\n",
+        f"export CELERY_BROKER_URL={quote(broker_url)}\n" if broker_url else "",
         f"export no_proxy={quote(f'{qaboard_host},proxy,rabbitmq,qaboard')}\n",
     ])
     with qa_batch_path.open("r") as f:
@@ -781,7 +815,7 @@ def start_tuning(hexsha):
         return jsonify({"error": " ".join(check["errors"]), "errors": check["errors"], "warnings": check["warnings"]}), 400
 
     # Now that we updated the last_output_datetime, the artifacts won't be deleted again until a little while
-    ci_commit.latest_output_datetime = datetime.datetime.now()
+    ci_commit.latest_output_datetime = datetime.datetime.now(datetime.timezone.utc)
     batch = ci_commit.get_or_create_batch(data['batch_label'])
     db_session.add(ci_commit)
     db_session.commit()
@@ -789,7 +823,6 @@ def start_tuning(hexsha):
     # We store in this directory the scripts used to run this new batch, as well as the logs
     # We may instead want to use the folder where this batch's results are stored
     # Or even store the metadata in the database itself...
-    prev_mask = os.umask(000)
 
     # FIXME: if the output directory includes "{user}", we will use the current user (qaboard)
     # but it's likely better to use the user that requested the tuning
@@ -799,24 +832,19 @@ def start_tuning(hexsha):
         check_storage_path(batch_dir)
         check_storage_path(ci_commit.artifacts_dir)
     except UnsafePathError as e:
-        os.umask(prev_mask)
         return jsonify({"error": str(e)}), 400
     if not batch.batch_dir_override:
         batch.batch_dir_override = str(batch_dir)
         db_session.add(batch)
         db_session.commit()
 
-    if not batch_dir.exists():
-        batch_dir.mkdir(exist_ok=True, parents=True)
-    os.umask(prev_mask)
+    mkdir_for_everyone(batch_dir)
 
     command_id = str(uuid.uuid4())
     # Each batch started from QA-Board has its own scripts and logs
     created_at = datetime.datetime.utcnow()
     log_dir = submission_dir(batch_dir, created_at, command_id)
-    prev_mask = os.umask(000)
-    log_dir.mkdir(parents=True, exist_ok=True)
-    os.umask(prev_mask)
+    mkdir_for_everyone(log_dir)
     batches_files = copy_batches_files(check["batches_files"], log_dir)
 
     working_directory = ci_commit.artifacts_dir

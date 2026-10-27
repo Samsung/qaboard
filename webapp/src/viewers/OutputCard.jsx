@@ -94,12 +94,6 @@ const compute_options = (outputs, manifest) => {
 }
 
 
-const error_html = error => {
-  const data = error.response?.data;
-  return typeof data === 'string' && data ? data : errorMessage(error);
-}
-
-
 const SlimCard = styled(Card)`
   overflow: "auto";
 `;
@@ -360,7 +354,7 @@ const OutputCard = memo(function OutputCard(props) {
             <span style={{ fontSize: '12px', fontWeight: '500', flex: 1 }}>{option_label}</span>
             {onToggleDynamicOptionSync && (
               <Tooltip content={`Use the ${option_label} chosen in the view options for all runs`}>
-                <Button icon="link" minimal small onClick={() => onToggleDynamicOptionSync(name)} style={sync_button_style}>
+                <Button icon="link" variant="minimal" size="small" onClick={() => onToggleDynamicOptionSync(name)} style={sync_button_style}>
                   Same for all runs
                 </Button>
               </Tooltip>
@@ -383,7 +377,6 @@ const OutputCard = memo(function OutputCard(props) {
               value={option.value}
               onChange={setSelectedOption(name)}
               fill
-              small
             />
           )}
         </div>
@@ -435,8 +428,8 @@ const OutputCard = memo(function OutputCard(props) {
                   >
                     <Button
                       icon="unlink"
-                      minimal
-                      small
+                      variant="minimal"
+                      size="small"
                       aria-label={`Choose ${optionLabel(option_name)} per run`}
                       onClick={() => onToggleDynamicOptionSync?.(option_name)}
                       style={unlink_button_style}
@@ -531,13 +524,13 @@ const OutputCard = memo(function OutputCard(props) {
       }}
     >
       {error.new && <span key="error-new">
-        <Tooltip content={<span dangerouslySetInnerHTML={{ __html: error_html(error.new) }} />}>
+        <Tooltip content={<span>{errorMessage(error.new)}</span>}>
           <Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Could not list the run's files</Tag>
         </Tooltip>
         <Button size="small" variant="minimal" icon="refresh" text="Retry" onClick={() => query_new.refetch()}/>
       </span>}
       {error.reference && <span key="error-ref">
-        <Tooltip content={<span dangerouslySetInnerHTML={{ __html: error_html(error.reference) }} />}>
+        <Tooltip content={<span>{errorMessage(error.reference)}</span>}>
           <Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Could not list the reference's files</Tag>
         </Tooltip>
         <Button size="small" variant="minimal" icon="refresh" text="Retry" onClick={() => query_ref.refetch()}/>

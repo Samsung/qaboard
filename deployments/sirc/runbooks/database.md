@@ -257,3 +257,17 @@ Check it works:
 dc logs --since 48h cron-backup-db | grep -E "deleting|keeping|error"
 ls -lht /home/ispq/qaboard_data_prod/database_backups/ | head
 ```
+
+## pgAdmin
+QA-Board's admins open pgAdmin at https://qa/pgadmin4/ (`/pgadmin` redirects there), without a pgAdmin password:
+nginx asks the backend if they're an admin (`services/nginx/snippets/pgadmin.conf`, `backend/backend/api/admin_services.py`),
+and signs them in as pgAdmin's default account (`PGADMIN_DEFAULT_EMAIL`), which owns the preconfigured "QA-Board" server.
+Others are sent to sign in, then get a 403. pgAdmin trusts nginx's `X-Pgadmin-User` header, so it has no published port
+(`deployments/sirc/sirc.yml`): it's only reachable through nginx.
+```bash
+# Check, from the qa host (expect 302 to /login when signed out, never pgAdmin's page)
+curl -sk -o /dev/null -w "%{http_code} %{redirect_url}\n" https://qa/pgadmin4/
+# Break-glass, if QA-Board's sign-in is down: a shell in the container, or psql_qa
+dc exec pgadmin sh
+```
+The server's password comes from `services/pgadmin/passfile`: pgAdmin copies it when its container is created.

@@ -270,6 +270,30 @@ def test_new_users_wait_for_an_admin(idp, make_client, monkeypatch):
   assert me["reason"] == "user_pending" and me["pending"]["user_name"] == "alice"
 
 
+def test_only_verified_emails_count(idp, make_client, monkeypatch):
+  """For the domains policy and the emails of $QABOARD_ADMINS: some IdPs let users choose their email"""
+  from backend.database import db_session
+  from backend.models import User
+  monkeypatch.setenv('QABOARD_ACCESS_POLICY', 'domains')
+  monkeypatch.setenv('QABOARD_ALLOWED_EMAIL_DOMAINS', 'example.com')
+  monkeypatch.setenv('QABOARD_ADMINS', 'alice@example.com')
+  client = make_client()
+  idp.sign_in(client)
+  assert client.get('/api/v1/user/me/').get_json()["reason"] == "user_pending"
+  User.query.update({"status": "active"})
+  db_session.commit()
+  assert client.get('/api/v1/user/me/').get_json()["is_admin"] is False
+  # the IdP says it's verified: at the next sign-in
+  idp.claims["email_verified"] = True
+  idp.sign_in(client)
+  assert client.get('/api/v1/user/me/').get_json()["is_admin"] is True
+  idp.claims.update({"sub": "subject-bob", "preferred_username": "bob", "email": "bob@example.com"})
+  bob = make_client()
+  idp.sign_in(bob)
+  me = bob.get('/api/v1/user/me/').get_json()
+  assert me["user_name"] == "bob" and me["status"] == "active" and me["is_admin"] is False
+
+
 def test_link_another_sign_in_method(idp, make_user, make_client):
   make_user('alice.local', email='alice@example.com')
   client = login(make_client(), 'alice.local')

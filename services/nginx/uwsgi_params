@@ -15,3 +15,8 @@ uwsgi_param  REMOTE_ADDR        $remote_addr;
 uwsgi_param  REMOTE_PORT        $remote_port;
 uwsgi_param  SERVER_PORT        $server_port;
 uwsgi_param  SERVER_NAME        $server_name;
+
+# proxy_set_header doesn't apply to uwsgi_pass: the X-Forwarded-* headers are uwsgi params, see conf.d/qaboard-forwarded.conf.
+# X-Forwarded-Port is passed as is, from another proxy if any.
+uwsgi_param  HTTP_X_FORWARDED_PROTO  $qaboard_forwarded_proto;
+uwsgi_param  HTTP_X_FORWARDED_HOST   $qaboard_forwarded_host;

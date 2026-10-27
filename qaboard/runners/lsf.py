@@ -10,6 +10,7 @@ Note:
 - Windows compatibility is not guaranteed since we rely on shell features (heredocs) and 
 """
 import os
+import sys
 import random
 import shutil
 import string
@@ -325,7 +326,7 @@ class LsfRunner(BaseRunner):
       def sigterm_handler(_signo, _stackframe):
         print('Aborted.')
         LsfRunner.stop_jobs(jobs, job_options)
-        exit(1)
+        sys.exit(1)
       signal.signal(signal.SIGTERM, sigterm_handler)
       signal.signal(signal.SIGINT, sigterm_handler)
 

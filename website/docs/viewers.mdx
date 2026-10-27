@@ -217,7 +217,22 @@ transcript.
 **Files:** *.html*, e.g. reports your code renders.
 
 Each report shows in a frame of its own, the new run's above the reference's. Images and links relative to the HTML
-file work, its styles don't change the page, and scripts don't run. The frame grows to fit the report.
+file work, and its styles don't change the page. The frame grows to fit the report once it loaded.
+
+:::caution Scripts in HTML files
+By default, HTML and SVG files from runs show in QA-Board's origin: opened in a tab (from the file browser or a link),
+and figures saved as HTML in the run cards, their scripts run **as whoever opens them**, with their access. In the
+HTML viewer, reports show without their scripts. Anyone who can save a run can write such a file.
+
+Server admins close this by setting `QABOARD_SANDBOX_HTML=true`, for the backend and the proxy (with Docker Compose, in
+your env file or `.env`; with the helm chart, `config.QABOARD_SANDBOX_HTML`):
+- In the run cards, reports with scripts, and figures saved as HTML, run sandboxed, in an origin of their own: their
+  scripts run (e.g. to draw charts) but can't read QA-Board's pages, cookies or local storage, or call its API as the
+  user. What they load is requested without the user's session: if your server restricts who can read files, they
+  can't load files of restricted projects. Reports without scripts load them as usual.
+- Opened in a tab, HTML and SVG files show in QA-Board's origin, but their scripts don't run. To see a report's
+  charts, open it in QA-Board.
+:::
 
 <Shot
   id="commit/html-report"

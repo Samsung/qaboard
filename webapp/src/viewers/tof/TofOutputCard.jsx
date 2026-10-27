@@ -188,6 +188,7 @@ class TofOutputCard extends Component {
     {
         if (selected_output_type === 'customMap')
             should_load_heatmap = true;
+        // oxlint-disable-next-line react/no-did-update-set-state -- a class component left as is, see webapp/TODO.md
         this.setState({customMap: JSON.parse(JSON.stringify(default_heatmap)) } );
     }
     if (this.state.show_pointcloud){

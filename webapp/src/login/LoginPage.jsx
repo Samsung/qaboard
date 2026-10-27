@@ -50,9 +50,9 @@ const warning = {
   intent: Intent.DANGER,
 };
 
-// After signing in. The server's own pages (e.g. shared files under /s/) aren't the app's.
+// After signing in. The server's own pages (e.g. shared files under /s/, pgAdmin, Flower) aren't the app's.
 const continueTo = next => {
-  if (next && /^\/(api|s)\//.test(next)) goTo(next);
+  if (next && /^\/(api|s|pgadmin4|flower)\//.test(next)) goTo(next);
   else history.replace(next ?? '/');
 };
 

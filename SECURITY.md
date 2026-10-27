@@ -30,8 +30,21 @@ Fixed on the default branch, after the `qaboard` 1.0.3 release:
   (`GET /api/v1/output/<id>` and `/manifest`, which also wrote a file), a project's test groups, the commits of
   milestones used as references, and files under `/s/` with tokens limited to other projects. They now follow
   project roles.
+- Error messages in run cards were rendered as HTML: they are shown as text.
 - `POST /api/v1/task/celery/<id>` didn't require a login, and waited forever for a Celery worker: it now requires
   one, and gives up after 2 minutes.
+- `POST /api/v1/webhook/proxy`, used for the webhooks and links of `qaboard.yaml`'s integrations, let logged-in users
+  send any request to any URL from the server (SSRF), including internal services, and passed back the answer's
+  cookies. It now only calls the hosts of the integrations of the project's, commit's and batches' `qaboard.yaml`, the
+  git and Jenkins hosts and `QABOARD_PROXY_HOSTS`, also after redirects, without users' cookies, and its answers
+  can't set cookies or run scripts.
+- `POST /api/v1/jenkins/build/trigger` started any Jenkins job, with the server's Jenkins credentials, for anyone who
+  could reach the server. Without a user (the CLI's Jenkins runner), it now only starts the jobs listed in the projects'
+  `qaboard.yaml`, and none when `ingest.auth` is `token`. Signed-in users must be developers of the project they name,
+  and the audit log records who started what.
+- `POST /api/v1/gitlab/job` (without a login) and `/api/v1/gitlab/job/play` read and played the CI jobs of any GitLab
+  project the server's token can see. They now only use the repository of a QA-Board project the user can access
+  (developers, to play jobs).
 
 - Shell command injection in the "redo runs" and "tuning" features: values stored in the database (batch labels, paths, configurations, job options...) were put unquoted in shell scripts.
 - Shell command injection when stopping batches, through the stored runner options. Stopping Dask batches could also connect to any scheduler address; it now only connects to those listed in `QABOARD_DASK_SCHEDULERS`.
@@ -70,18 +83,19 @@ Code that runs as the server's user can read its credentials (database, GitLab t
 *Mitigations*: require tokens to send results (`ingest.auth` set to `token` in the admin panel, or `QABOARD_INGEST_AUTH=token`, after a period in `warn`); only expose the server to trusted networks; set `QABOARD_STORAGE_ROOTS` as narrowly as you can; make sure users can't write to the artifacts folders.
 *Planned*: per-project ingest policies (signed-in senders already need the developer role), and running the tests listing without access to the server's credentials.
 
-### Insecure defaults in `docker-compose.yml`
-- RabbitMQ is published on ports 5672/15672 with the `guest:guest` account. Celery workers run the shell commands given in the tasks they receive, so **anyone who can reach RabbitMQ can run commands on the workers**.
-- Flower is published on port 8888 without authentication.
-- Postgres uses the password `password`, and some deployment files publish its port.
+### Default passwords in `docker-compose.yml`
+RabbitMQ, Flower and pgAdmin are only published on the host itself (`127.0.0.1`), but their default credentials stay until you change them:
+- RabbitMQ uses the `guest:guest` account. Celery workers run the shell commands given in the tasks they receive, so **anyone who can connect to RabbitMQ can run commands on the workers**: publishing it for workers on other hosts (`QABOARD_RABBITMQ_HOST_IP`, DSK's overlay) needs a password.
+- Flower can revoke tasks and shut the workers down. At `/flower/`, QA-Board's nginx only lets QA-Board's admins in (`snippets/qaboard-admins-only.conf`); on its port (`127.0.0.1:8888`) it has no login unless `FLOWER_BASIC_AUTH` is set.
+- Postgres uses the password `password` unless `QABOARD_DB_PASSWORD` is set, and some deployment files publish its port.
 - pgAdmin uses a default password.
 
-*Mitigations*: don't publish these ports outside the Docker network (or firewall them), and change all the default credentials.
+*Mitigations*: set the passwords in `.env` before the first start (see [Passwords and admin services](https://samsung.github.io/qaboard/docs/deploy#passwords-and-admin-services)), and don't publish these ports outside the Docker network (or firewall them).
 
 ### Webhooks
 Without `QABOARD_WEBHOOK_SECRET`, anyone who can reach the server can send fake push events to `/webhook/gitlab` and `/webhook/github`: they make the server fetch repositories, and change the projects' git metadata.
 
-*Mitigation*: set `QABOARD_WEBHOOK_SECRET`, and the same secret in the GitLab and GitHub webhooks.
+*Mitigation*: set `QABOARD_WEBHOOK_SECRET`, and the same secret in the GitLab and GitHub webhooks. Until you do, the server warns about it when it starts, and in **Admin → Overview**.
 
 ### Accounts and sessions
 - With `QABOARD_LOGIN_TYPE=LOCAL`, anyone can sign up unless you turn off `auth.local_signup`, or use LDAP or SAML (local sign-up is then off by default).
@@ -90,13 +104,18 @@ Without `QABOARD_WEBHOOK_SECRET`, anyone who can reach the server can send fake 
 - The rate limits on signing in, sign-up, `qa auth login` codes and SSO redirects are in the nginx configuration QA-Board ships (`services/nginx/conf.d/qaboard.conf`, and the chart's). If you use your own reverse proxy in front of the backend, add `limit_req` rules on `/api/v1/user/auth/`, `/api/v1/user/signup/`, `/api/v1/auth/device/code` and `/api/v1/auth/oidc/`.
 
 ### Other
-- `POST /api/v1/webhook/proxy` lets logged-in users send any HTTP request to any URL from the server (SSRF), e.g. to internal services. It is used for the webhook integrations configured in `qaboard.yaml`.
-- Anyone who can reach the server can read the files it serves under `/s/`, unless you restrict them (see [user management](https://samsung.github.io/qaboard/docs/backend-admin/user-management#restricting-who-can-read-files)). Even then, the image server (IIIF, `/iiif/`) doesn't check permissions, and `docker-compose.yml` mounts the whole host filesystem in it (`/:/repository`): anyone who can reach it can read the images it can decode, anywhere on the host.
+- **HTML and SVG files in the storage run their scripts in QA-Board's origin, as whoever opens them** (stored XSS), by
+  default: opened from a link or the file browser (`/s/...`), and figures saved as HTML in the run cards. Anyone who can
+  save a run can write one. *Mitigation*: set `QABOARD_SANDBOX_HTML=true` for the backend and the proxy. In the web
+  app's viewers their scripts then run sandboxed, in an origin of their own; opened on their own, they show without
+  scripts (`Content-Security-Policy: sandbox`, `services/nginx/conf.d/qaboard-files.conf`). See
+  [HTML reports](https://samsung.github.io/qaboard/docs/viewers#html-reports). Serving the storage from a host name
+  of its own would let them run their scripts in a tab too.
+- `POST /api/v1/webhook/proxy` calls the hosts listed in the integrations of the projects' `qaboard.yaml`: while anyone can send results (`ingest.auth` is `off`), anyone can add hosts there. Likewise, without a user, `POST /api/v1/jenkins/build/trigger` starts the Jenkins jobs those files list.
+- Anyone who can reach the server can read the files it serves under `/s/`, unless you restrict them (see [user management](https://samsung.github.io/qaboard/docs/backend-admin/user-management#restricting-who-can-read-files)). Even then, the image server (IIIF, `/iiif/`) doesn't check permissions: anyone who can reach it can read the images it can decode in the folders mounted in it (`docker-compose.yml` used to mount the whole host filesystem, sites now mount their storage).
   *Mitigations*: mount only the storage folders in the image server's container, and don't expose `/iiif/` to untrusted networks.
 - The example WebDAV configuration (`services/nginx/webdav.conf`) lets anyone who can reach the server read, write and delete files, without QA-Board's checks. It is only enabled where a deployment includes it.
 - `GET /api/v1/export` lets logged-in users create links or copies of output files in most folders the server can write to.
-- `POST /api/v1/jenkins/build/trigger` doesn't require authentication, because the CLI's Jenkins runner calls it. Jenkins credentials are only sent to the hosts configured in `JENKINS_AUTH`.
-- `POST /api/v1/gitlab/job` doesn't require authentication: anyone can read the details of GitLab CI jobs that `GITLAB_ACCESS_TOKEN` can see.
 - `GET /api/v1/output/<id>/manifest` doesn't require a login: it writes `manifest.outputs.json` in the output's folder, and returns the list of files in it.
 - Inside the backend container, `fs_utils.as_user` passes results between processes using a world-writable temporary file read with `pickle`.
 
