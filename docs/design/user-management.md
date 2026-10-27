@@ -323,6 +323,11 @@ The permissions live in code, in one table, so a reviewer reads them in one plac
 - **Service accounts**: an org owner creates `camera-algo/ci-bot`, grants it `developer` on the org or on some
   projects, and mints `qab_svc_` tokens for it. Runs show "ci-bot (camera-algo)". This is the
   "organization-level token" for CI.
+  - **Done before M4** (2026-10), without namespaces: service accounts belong to the **instance** (admins manage them,
+    `nightly[bot]`, optional instance role) or to a **project** (its owners manage them, `group/repo/ci[bot]`, a role
+    on the project, tokens that can't reach outside of it). `users.owner_type` (`instance`/`project`) and `owner_id`
+    stand in for `namespace_id`: M4 adds `namespace` owners, and can move instance accounts to org namespaces.
+    API: `/api/v1/service-accounts` (backend/api/service_accounts.py).
 - **API**: `GET/POST /api/v1/user/tokens`, `DELETE /api/v1/user/tokens/<id>`, the same under
   `/namespaces/<ns>/service-accounts/<id>/tokens` and for admins `/admin/tokens`. `POST /api/v1/user/token/` stays as
   a legacy alias (all scopes, 1-year expiry). `GET /api/v1/user/me` with a token also says which token and its scopes.

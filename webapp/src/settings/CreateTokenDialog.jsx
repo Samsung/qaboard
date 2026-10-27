@@ -45,13 +45,13 @@ const Snippet = ({ title, code, what }) => <div style={{ marginBottom: 12 }}>
   </div>
 </div>;
 
-export const TokenSecret = ({ token }) => {
+export const TokenSecret = ({ token, label = `Your new token, “${token.name}”` }) => {
   const origin = window.location.origin;
   return <>
     <Callout intent={Intent.WARNING} icon="eye-open" style={{ marginBottom: 16 }} title="Copy your token now">
       You won't be able to see it again. If you lose it, create another one.
     </Callout>
-    <FormGroup label={`Your new token, “${token.name}”`} labelFor="new-token-secret">
+    <FormGroup label={label} labelFor="new-token-secret">
       <InputGroup
         id="new-token-secret"
         readOnly
@@ -69,7 +69,8 @@ export const TokenSecret = ({ token }) => {
 };
 
 
-const TokenForm = ({ is_admin, onCreated, onClose }) => {
+// `create(body)` => the token with its secret, by default the user's own. `project`: the only project it can access.
+const TokenForm = ({ is_admin, onCreated, onClose, create, offered = scopes, project, scope_help }) => {
   const queryClient = useQueryClient();
   const { tokens: policy } = useSiteConfig();
   const [expiry_options] = useState(() => expiryOptions(policy ?? {}));
@@ -80,7 +81,7 @@ const TokenForm = ({ is_admin, onCreated, onClose }) => {
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  const offered_scopes = scopes.filter(scope => !scope.admin_only || is_admin);
+  const offered_scopes = offered.filter(scope => !scope.admin_only || is_admin);
   const toggleScope = id => setScopes(current => current.includes(id) ? current.filter(s => s !== id) : [...current, id]);
   const preset = expiry_options.options.find(p => p.value === expiry) ?? expiry_options.options[0];
   const expires_on = preset.days ? DateTime.now().plus({ days: preset.days }).toLocaleString(DateTime.DATE_MED) : null;
@@ -91,13 +92,14 @@ const TokenForm = ({ is_admin, onCreated, onClose }) => {
     if (!valid) return;
     setSaving(true);
     setError(null);
-    createToken(queryClient, {
+    const body = {
       name: name.trim(),
       // in the order we show them
       scopes: offered_scopes.map(s => s.id).filter(id => chosen_scopes.includes(id)),
-      projects,
+      projects: project ? [project] : projects,
       expires_in_days: preset.days,
-    })
+    };
+    (create ? create(body) : createToken(queryClient, body))
       .then(onCreated)
       // e.g. the server limits how long tokens live (400, with a sentence)
       .catch(error => setError(errorMessage(error)))
@@ -113,7 +115,7 @@ const TokenForm = ({ is_admin, onCreated, onClose }) => {
       <FormGroup label="Name" labelFor="token-name" helperText="What it's for, e.g. “ci-bot” or “nightly benchmarks”.">
         <InputGroup id="token-name" value={name} onChange={e => setName(e.target.value)} autoFocus maxLength={100}/>
       </FormGroup>
-      <FormGroup label="What it can do" helperText={chosen_scopes.length === 0 ? "Choose at least one." : "Give it only what it needs: it can do this as you."} intent={chosen_scopes.length === 0 ? Intent.DANGER : undefined}>
+      <FormGroup label="What it can do" helperText={chosen_scopes.length === 0 ? "Choose at least one." : (scope_help ?? "Give it only what it needs: it can do this as you.")} intent={chosen_scopes.length === 0 ? Intent.DANGER : undefined}>
         {offered_scopes.map(scope => <Checkbox
           key={scope.id}
           checked={chosen_scopes.includes(scope.id)}
@@ -121,7 +123,11 @@ const TokenForm = ({ is_admin, onCreated, onClose }) => {
           labelElement={<><strong>{scope.label}</strong> <span className={Classes.TEXT_MUTED}>{scope.description}</span></>}
         />)}
       </FormGroup>
-      <FormGroup label="Projects" labelInfo="(optional)" labelFor="token-projects" helperText={<>Leave empty for all the projects you can access. Patterns like <code>group/*</code> work. Press Enter after each one.</>}>
+      {project
+        ? <FormGroup label="Projects" helperText="A project's service accounts only access the project.">
+          <code className={Classes.CODE}>{project}</code>
+        </FormGroup>
+        : <FormGroup label="Projects" labelInfo="(optional)" labelFor="token-projects" helperText={<>Leave empty for all the projects you can access. Patterns like <code>group/*</code> work. Press Enter after each one.</>}>
         <TagInput
           inputProps={{ id: 'token-projects' }}
           values={projects}
@@ -132,7 +138,7 @@ const TokenForm = ({ is_admin, onCreated, onClose }) => {
           // Enter adds the project, it never creates the token
           onKeyDown={event => { if (event.key === 'Enter') event.preventDefault(); }}
         />
-      </FormGroup>
+      </FormGroup>}
       <FormGroup label="Expires" helperText={expires_on ? `On ${expires_on}.` : "It works until you revoke it."}>
         <RadioGroup inline selectedValue={expiry} onChange={e => setExpiry(e.currentTarget.value)}>
           {expiry_options.options.map(p => <Radio key={p.value} value={p.value} label={p.label}/>)}
@@ -147,8 +153,9 @@ const TokenForm = ({ is_admin, onCreated, onClose }) => {
 };
 
 
-// The secret lives in this dialog's state only: once closed, it's gone
-export const CreateTokenDialog = ({ isOpen, onClose, is_admin = false }) => {
+// The secret lives in this dialog's state only: once closed, it's gone.
+// For service accounts: `create`, `offered` scopes, `project` (theirs, if any), `title` and `secret_label`.
+export const CreateTokenDialog = ({ isOpen, onClose, is_admin = false, title = "New access token", secret_label, ...form }) => {
   const [created, setCreated] = useState(null);
   const close = () => {
     setCreated(null);
@@ -157,7 +164,7 @@ export const CreateTokenDialog = ({ isOpen, onClose, is_admin = false }) => {
   return <Dialog
     isOpen={isOpen}
     onClose={close}
-    title={created ? "Token created" : "New access token"}
+    title={created ? "Token created" : title}
     icon="key"
     style={{ width: 620, maxWidth: 'calc(100vw - 32px)' }}
     // users must not lose the secret by clicking next to the dialog, or pressing Escape
@@ -166,10 +173,10 @@ export const CreateTokenDialog = ({ isOpen, onClose, is_admin = false }) => {
   >
     {created
       ? <>
-        <DialogBody><TokenSecret token={created}/></DialogBody>
+        <DialogBody><TokenSecret token={created} {...(secret_label ? { label: secret_label(created) } : {})}/></DialogBody>
         <DialogFooter actions={<Button intent={Intent.PRIMARY} text="I copied it, close" onClick={close}/>}/>
       </>
-      : <TokenForm is_admin={is_admin} onCreated={setCreated} onClose={close}/>}
+      : <TokenForm is_admin={is_admin} onCreated={setCreated} onClose={close} {...form}/>}
   </Dialog>;
 };
 

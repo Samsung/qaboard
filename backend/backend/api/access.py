@@ -242,17 +242,20 @@ def directory():
   """Users and groups, for the member pickers"""
   from ..models import User, Group
   from ..search import escape_like
+  from sqlalchemy import or_
   q = (request.args.get('q') or '').strip()[:100]
   if not q:
     return jsonify({"users": [], "groups": []})
   pattern = f"%{escape_like(q)}%"
   users = (User.query
            .filter(User.status == 'active')
+           # a project's service accounts can't reach other projects: no need to offer them
+           .filter(or_(User.owner_type.is_(None), User.owner_type != 'project'))
            .filter(User.user_name.ilike(pattern, escape='\\') | User.full_name.ilike(pattern, escape='\\') | User.email.ilike(pattern, escape='\\'))
            .order_by(User.user_name).limit(10).all())
   groups = Group.query.filter(Group.name.ilike(pattern, escape='\\')).order_by(Group.name).limit(10).all()
   return jsonify({
-    "users": [{"id": u.id, "user_name": u.user_name, "full_name": u.full_name} for u in users],
+    "users": [{"id": u.id, "user_name": u.user_name, "full_name": u.full_name, "kind": u.kind} for u in users],
     "groups": [{"id": group.id, "name": group.name, "description": group.description} for group in groups],
   })
 

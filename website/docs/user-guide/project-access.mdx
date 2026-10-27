@@ -30,10 +30,31 @@ In the **Access** tab:
 - **Members**: add users or groups as viewers, developers or owners, optionally until a date. Members of a group's
   projects (e.g. `group`) are members of every project under it; they're shown as inherited, and changed there.
 - **Requests**: approve, with the role you choose, or deny.
+- **Service accounts**: bots for your CI and scripts (see [below](#service-accounts)).
 
 <Shot id="access/members" />
 
 A project always keeps an owner: add another one before you leave.
+
+## Service accounts
+Give your CI a token that isn't one of yours: it keeps working when people leave, and runs say the CI sent them.
+In the **Access** tab, as an owner:
+1. Click **New service account**, name it (e.g. `ci`) and choose its role: usually *Developer*, to send results.
+2. Click **New token**, choose its scopes (`read` and `ingest` to send results) and its expiry, and copy it: it's shown
+   once. Save it in your CI's secrets as `QABOARD_TOKEN` (see [CI integration](/docs/ci-integration#tokens)).
+
+Runs it sends show `group/repo/ci[bot]`. Its tokens only work on the project and the projects under it, whatever
+roles it's given elsewhere. Change its role in the list, revoke its tokens from **Tokens**, or delete it: its tokens
+stop working at once.
+
+<details>
+<summary>Service accounts for the whole server</summary>
+
+Admins create service accounts that aren't tied to a project, in **Admin → Service accounts**, e.g. for a nightly job
+that runs on many projects. Add them to your project like any member: they show with a <code>[bot]</code> suffix in the
+member picker.
+
+</details>
 
 <details>
 <summary>What private projects hide</summary>

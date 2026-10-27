@@ -10,6 +10,7 @@ import { Users } from "./Users";
 import { UserDetail } from "./UserDetail";
 import { Groups, GroupDetail } from "./Groups";
 import { AdminTokens } from "./Tokens";
+import { ServiceAccounts } from "../access/ServiceAccounts";
 import { Audit } from "./Audit";
 import { Settings } from "./Settings";
 import { SignIn } from "./SignIn";
@@ -20,6 +21,9 @@ import { ScanExplorer } from "./ScanExplorer";
 import { accessRequestsQuery } from "./api";
 
 
+// the instance's: projects' owners manage theirs from the project's Access page
+const InstanceServiceAccounts = () => <ServiceAccounts project={null}/>;
+
 const sections = [
   { id: 'overview', title: 'Overview', icon: 'dashboard', Panel: Overview },
   { id: 'users', title: 'Users', icon: 'people', Panel: Users },
@@ -27,6 +31,7 @@ const sections = [
   { id: 'requests', title: 'Access requests', icon: 'endorsed', Panel: AccessRequests },
   { id: 'sign-in', title: 'Sign-in', icon: 'log-in', Panel: SignIn },
   { id: 'tokens', title: 'Tokens', icon: 'key', Panel: AdminTokens },
+  { id: 'service-accounts', title: 'Service accounts', icon: 'build', Panel: InstanceServiceAccounts },
   { id: 'storage', title: 'Storage', icon: 'database', Panel: Storage },
   { id: 'audit', title: 'Audit', icon: 'history', Panel: Audit },
   { id: 'settings', title: 'Settings', icon: 'cog', Panel: Settings },

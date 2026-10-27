@@ -1,6 +1,6 @@
 // /<project>/access: who can see and change the project (design/user-management.md, Appendix D.6).
 // Everyone sees their role and why. Owners (and admins) change the visibility, the members and decide requests,
-// the others see the owners and can request a role. Members given on a folder of projects, or on all projects,
+// the others see the owners and can request a role. Owners also manage the project's service accounts (CI bots). Members given on a folder of projects, or on all projects,
 // are shown read-only: they're changed where they were given.
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -21,6 +21,7 @@ import { Time, formatDate } from "../settings/format";
 import { Loading, QueryError } from "../settings/states";
 import { RequestMessage } from "../admin/AccessRequests";
 import { SubjectPicker } from "./SubjectPicker";
+import { ServiceAccounts } from "./ServiceAccounts";
 import { isNoAccessError } from "./NoProjectAccess";
 import {
   roles, roleLabel, roleRank, role_options, RoleTag, visibilities, visibilityLabel, visibilityIcon, visibilityDescription,
@@ -492,6 +493,7 @@ const ProjectAccess = ({ project }) => {
         <Requests access={data}/>
         <Members access={data} onAdd={() => setAdding(true)}/>
         <AddMemberDialog access={data} isOpen={adding} onClose={() => setAdding(false)}/>
+        <ServiceAccounts project={project}/>
       </>
       : <>
         <Owners owners={data.owners}/>

@@ -92,6 +92,9 @@ def signup():
   user_name = request.form.get('user_name')
   if not user_name or not request.form.get('password'):
     return jsonify({"error": "Both user_name and password are required"}), 400
+  # service accounts are named like ci[bot] or group/repo/ci[bot] (backend/service_accounts.py)
+  if any(c in user_name for c in '[]/'):
+    return jsonify({"error": "User names can't have [, ] or /."}), 400
   # "ALICE" next to "alice" would be confusing, and look like an admin from $QABOARD_ADMINS
   from ..search import escape_like
   if User.query.filter(User.user_name.ilike(escape_like(user_name), escape='\\')).first():
@@ -147,7 +150,8 @@ def auth_post():
   user_info = auth(username, password)
   user = User.query.filter_by(user_name=username).one_or_none() if user_info["login_success"] else None
   if user_info["login_success"]:
-    if user is None:
+    # service accounts only use tokens
+    if user is None or user.kind == 'service':
       user_info = {"login_success": False, "error": "invalid-username"}
     elif user.status == 'disabled':
       user_info = {"login_success": False, "error": user.status}
@@ -533,7 +537,8 @@ def auth_local(username, password):
     session.clear()
     return info
   user = User.query.filter_by(user_name=username).one_or_none()
-  if not user:
+  # service accounts have no password, they only use tokens
+  if not user or user.kind == 'service':
     info["error"] = "invalid-username"
   elif not check_password_hash(user.password, password):
     info["error"] = "invalid-password"
