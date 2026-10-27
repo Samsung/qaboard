@@ -80,14 +80,19 @@ Without a token, `qa batch` works the same and sets no status.
 Give your CI jobs a token, so that the results they send show who sent them, and so that they keep working once your
 server requires tokens to send results, or requires signing in (see
 [Results sent by qa](/docs/backend-admin/user-management#results-sent-by-qa)):
-1. In the web app, open **Settings → Access tokens** and create a token with the `read` and `ingest` scopes,
-   restricted to your project (e.g. `group/repo`). Long-lived tokens are fine for CI, stored as protected secrets.
+1. In the web app, open your project's **Access** tab, create a **service account** (e.g. `ci`, as a developer),
+   and create a token for it with the `read` and `ingest` scopes. Runs then say they were sent by
+   `group/repo/ci[bot]`, and the token keeps working when you leave the team
+   ([service accounts](/docs/user-guide/project-access#service-accounts)). You need to be an owner of the project:
+   else, ask its owners, or create a token as yourself in **Settings → Access tokens**, restricted to your project.
+   Long-lived tokens are fine for CI, stored as protected secrets.
 2. Store it in your CI's secrets as `QABOARD_TOKEN`: `qa` sends it. In GitHub Actions, add
    `QABOARD_TOKEN: ${{ secrets.QABOARD_TOKEN }}` to the job's `env`. In GitLab CI, add a masked, protected CI/CD
    variable named `QABOARD_TOKEN`.
 
-Tokens tied to the CI itself (no stored secret) and tokens owned by an organization rather than a person are coming
-next.
+For CI jobs that send results to many projects, admins create service accounts for the whole server, in
+**Admin → Service accounts**, that projects' owners add as members. Tokens tied to the CI itself (no stored secret)
+are coming next.
 
 ## GitHub Actions {#example-with-github-actions}
 `qa` reads the commit from `GITHUB_SHA`, and the branch from `GITHUB_HEAD_REF` or `GITHUB_REF_NAME`. For tags, it

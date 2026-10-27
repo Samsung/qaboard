@@ -27,6 +27,7 @@ def is_env_admin(user) -> bool:
 
 
 def is_admin(user) -> bool:
-  if user is None or user.status != 'active':
+  # service accounts are never admins: their tokens can't have the admin scope either
+  if user is None or user.status != 'active' or getattr(user, 'kind', 'human') == 'service':
     return False
   return bool(user.is_admin) or is_env_admin(user)
