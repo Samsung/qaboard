@@ -20,8 +20,9 @@ const overlay_below = 1000;
 
 const expanded_key = 'controls-panel-expanded';
 const width_key = 'view-options-width';
-// The room the panel takes on the right of the content area (see .qa-content-area in App.css)
+// The room the panel takes on the right of the content area it's in (see .qa-content-area in App.css)
 const space_variable = '--qa-side-panel-space';
+const contentArea = element => element?.closest('.qa-content-area');
 
 const clamp_width = width => Math.round(Math.min(max_width, Math.max(min_width, width)));
 
@@ -288,28 +289,30 @@ const SidePanel = ({
   const focus_toggle = useRef(false);
   // a section to bring into view once open, after a click on its rail icon
   const scroll_target = useRef(null);
+  const aside = useRef(null);
 
-  // The content area makes room for the panel (only the rail when the open panel covers the page)
+  // The content area makes room for the panel (only the rail when the open panel covers the page).
+  // Set on the content area, the variable isn't inherited (see App.css): resizing doesn't restyle the whole page.
   const space = expanded && !overlay ? width : rail_width;
   useLayoutEffect(() => {
-    const root = document.documentElement;
-    root.style.setProperty(space_variable, `${space}px`);
-    return () => root.style.removeProperty(space_variable);
+    const area = contentArea(aside.current);
+    area?.style.setProperty(space_variable, `${space}px`);
+    return () => area?.style.removeProperty(space_variable);
   }, [space]);
   // the content area follows the panel's width transition, but not on the first render
   useEffect(() => {
-    const root = document.documentElement;
-    const frame = requestAnimationFrame(() => root.setAttribute('data-side-panel-ready', ''));
+    const area = contentArea(aside.current);
+    const frame = requestAnimationFrame(() => area?.setAttribute('data-side-panel-ready', ''));
     return () => {
       cancelAnimationFrame(frame);
-      root.removeAttribute('data-side-panel-ready');
+      area?.removeAttribute('data-side-panel-ready');
     };
   }, []);
   useEffect(() => {
     if (!resizing) return;
-    const root = document.documentElement;
-    root.setAttribute('data-side-panel-resizing', '');
-    return () => root.removeAttribute('data-side-panel-resizing');
+    const area = contentArea(aside.current);
+    area?.setAttribute('data-side-panel-resizing', '');
+    return () => area?.removeAttribute('data-side-panel-resizing');
   }, [resizing]);
 
   const toggle = useCallback(({ focus = false } = {}) => {
@@ -394,7 +397,7 @@ const SidePanel = ({
   const changed_count = changes.length;
 
   if (!expanded)
-    return <Aside $top={top} style={{ width: rail_width }} aria-label={title}>
+    return <Aside ref={aside} $top={top} style={{ width: rail_width }} aria-label={title}>
       <Rail>
         <Tooltip content={<>Show the {title.toLowerCase()}{shortcut && <Kbd>{shortcut}</Kbd>}</>} placement="left">
           <Button
@@ -433,6 +436,7 @@ const SidePanel = ({
     </Aside>;
 
   return <Aside
+    ref={aside}
     $top={top}
     style={{ width }}
     aria-label={title}

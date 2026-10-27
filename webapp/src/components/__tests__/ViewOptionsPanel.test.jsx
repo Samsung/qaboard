@@ -11,10 +11,17 @@ const resize = width => act(() => {
   window.innerWidth = width;
   window.dispatchEvent(new Event('resize'));
 });
-beforeEach(() => localStorage.setItem('controls-panel-expanded', 'true'));
+// the page's content area, where the panel makes room for itself
+let content_area;
+beforeEach(() => {
+  localStorage.setItem('controls-panel-expanded', 'true');
+  content_area = document.body.appendChild(document.createElement('div'));
+  content_area.className = 'qa-content-area';
+});
 afterEach(() => {
   localStorage.clear();
   window.innerWidth = window_width;
+  content_area.remove();
 });
 
 const frame = configureOption({ name: 'frame', views: ['Out'], paths: [':frame/out.png'] }, ['1', '2', '10']);
@@ -42,7 +49,7 @@ const panel_props = (controls, props = {}) => ({
   dynamic_options: { frame, camera },
   ...props,
 });
-const panel = (controls, props = {}) => render(<Panel {...panel_props(controls, props)} />);
+const panel = (controls, props = {}) => render(<Panel {...panel_props(controls, props)} />, { container: content_area.appendChild(document.createElement('div')) });
 
 test("until users pick a value, options say that each run shows its own default", () => {
   const onUpdateDynamicOption = vi.fn();
@@ -125,7 +132,7 @@ test('the sorting shows the default, e.g. the main metric, before users choose',
 
 
 describe('the docked panel', () => {
-  const space = () => document.documentElement.style.getPropertyValue('--qa-side-panel-space');
+  const space = () => content_area.style.getPropertyValue('--qa-side-panel-space');
 
   test('starts open when the content area has room for it, else collapsed to a rail', () => {
     localStorage.clear();
