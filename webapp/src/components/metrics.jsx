@@ -155,10 +155,12 @@ const plot_style = {
 // Not Plotly: loading it, and drawing every value of thousands of runs for each metric, took most of the time the commit
 // page needed to show the Summary, and to update it when switching references or filtering runs.
 // `colors`: CSS colors of the series, e.g. the side colors' `css` (src/sideColors.js)
-const BoxPlots = ({ series: current, metric, labels, colors, width = 300, height = 100, label_size = 12 }) => {
-  // drawn after the rest of the Summary, that shows first, e.g. when the page loads or switches references
-  const series = useDeferredValue(current, null);
-  if (series === null) return <svg width={width} height={height} style={plot_style}/>;
+const BoxPlots = ({ series: series_, labels: labels_, colors: colors_, metric, width = 300, height = 100, label_size = 12 }) => {
+  // drawn after the rest of the Summary, that shows first, e.g. when the page loads or switches references.
+  // The values change with their names and colors.
+  const shown = useDeferredValue({ series: series_, labels: labels_, colors: colors_ }, null);
+  if (shown === null) return <svg width={width} height={height} style={plot_style}/>;
+  const { series, labels, colors } = shown;
   const scaled = series.map(values => values.map(x => metric.scale * x).filter(Number.isFinite));
   const all = scaled.flat();
   if (all.length === 0) return null;
@@ -178,12 +180,14 @@ const BoxPlots = ({ series: current, metric, labels, colors, width = 300, height
   // log scales can't show values ≤ 0
   const log = (metric.plot_scale || "log") === "log" && low > 0;
   const to_scale = log ? Math.log10 : v => v;
-  // a margin around the values, also when they're all the same
-  const pad = 0.05 * (to_scale(high) - to_scale(low)) || 0.1 * Math.abs(to_scale(low)) || 1;
+  // a margin around the values, also when they're all the same (in decades on a log scale)
+  const pad = 0.05 * (to_scale(high) - to_scale(low)) || (log ? 0.05 : 0.1 * Math.abs(low)) || 1;
   const [bottom, top] = [to_scale(low) - pad, to_scale(high) + pad];
   const plot_height = height - plot_margin.top - plot_margin.bottom;
   const y = v => plot_margin.top + plot_height * (top - to_scale(v)) / (top - bottom);
-  const ticks = (log ? logTickValues([low, high]) : linear_ticks(low, high)) ?? [];
+  // values close together may have no round log tick on the axis: round linear values label it then
+  const log_ticks = log ? (logTickValues([low, high]) ?? []).filter(tick => to_scale(tick) >= bottom && to_scale(tick) <= top) : [];
+  const ticks = log_ticks.length > 0 ? log_ticks : linear_ticks(low, high);
   // where Plotly drew them: the boxes centered on their label, the values on their left
   const plot_width = width - plot_margin.left - plot_margin.right;
   const step = plot_width / scaled.length;
@@ -198,7 +202,7 @@ const BoxPlots = ({ series: current, metric, labels, colors, width = 300, height
     <g fill="var(--qa-text)" stroke="var(--qa-text)" fontSize={12}>
       {ticks.map(tick => <Fragment key={tick}>
         <line x1={plot_margin.left - 5} x2={plot_margin.left} y1={y(tick)} y2={y(tick)}/>
-        <text x={plot_margin.left - 7} y={y(tick)} stroke="none" textAnchor="end" dominantBaseline="central">{format(tick, { precision: 3 })}</text>
+        <text x={plot_margin.left - 7} y={y(tick)} stroke="none" textAnchor="end" dominantBaseline="central">{format(tick)}</text>
       </Fragment>)}
       {scaled.map((_, i) =>
         <text key={i} x={plot_margin.left + (i + 0.5) * step} y={height - 8} stroke="none" fontSize={label_size} textAnchor="middle">{labels[i]}</text>
@@ -284,7 +288,7 @@ const tags_breakdown = outputs => {
 const no_runs = { outputs: {}, filtered: { outputs: [] } };
 
 // labels: what the commit page calls the new and reference results, and their colors (useComparison().labels)
-const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: xaxis_labels_, metrics, selected_metrics: selected_metrics_, labels: labels_ }) => {
+const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, metrics, selected_metrics: selected_metrics_, labels: labels_ }) => {
   const labels = useLabels(labels_);
   const { available_metrics = {}, summary_metrics = [] } = metrics ?? {};
   const used_metrics = new_batch?.used_metrics;
@@ -315,7 +319,6 @@ const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: 
   );
 
   if (new_batch === null) return <span />;
-  const xaxis_labels = xaxis_labels_ || [labels.new, labels.reference];
 
   const batch_data = new_batch.data || {};
   const has_runs = new_batch.filtered?.outputs?.length > 0;
@@ -354,7 +357,6 @@ const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: 
           outputs_new={outputs_new}
           outputs_ref={outputs_ref}
           outputs_by_tag={breakdown_by_tag ? outputs_by_tag : undefined}
-          xaxis_labels={xaxis_labels}
           sides={labels}
         />
       )}
@@ -460,7 +462,7 @@ const delta_intent = (delta_relative, smaller_is_better) => {
 const swatch = color => ({ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: color, marginRight: 8, verticalAlign: 'middle' });
 
 // sides: the names and colors of what we compare (useComparison().labels)
-const MetricSummary = ({ metric: m, outputs_new, outputs_ref, outputs_by_tag, xaxis_labels, sides }) => {
+const MetricSummary = ({ metric: m, outputs_new, outputs_ref, outputs_by_tag, sides }) => {
   const breakdown_by_tag = outputs_by_tag !== undefined;
   // The same numbers as GET /api/v1/commit/<sha>/compare, see utils/compare.js
   const new_values = metric_values(outputs_new, m.key);
@@ -506,7 +508,7 @@ const MetricSummary = ({ metric: m, outputs_new, outputs_ref, outputs_by_tag, xa
           {new_values.length > 1 && <BoxPlots
             series={ref_values.length > 0 ? [new_values, ref_values] : [new_values]}
             metric={m}
-            labels={xaxis_labels}
+            labels={[sides.new, sides.reference]}
             colors={[sides.colors.new.css, sides.colors.reference.css]}
           />}
         </>
@@ -514,12 +516,7 @@ const MetricSummary = ({ metric: m, outputs_new, outputs_ref, outputs_by_tag, xa
       {/* in the colors of the tags' counts */}
       {breakdown_by_tag && (
         <BoxPlots
-          series={Object.values(outputs_by_tag).map(outputs =>
-            outputs
-              .map(o => o.metrics[m.key])
-              .filter(x => x !== undefined)
-              .map(o => 1 * o)
-          )}
+          series={Object.values(outputs_by_tag).map(outputs => metric_values(outputs, m.key))}
           metric={m}
           labels={Object.keys(outputs_by_tag)}
           colors={Object.keys(outputs_by_tag).map((_, i) => plotly_palette(i))}
@@ -533,7 +530,6 @@ const MetricSummary = ({ metric: m, outputs_new, outputs_ref, outputs_by_tag, xa
 
 export {
   MetricSelect,
-  BoxPlots,
   MetricsSummary,
   MetricTag,
   MetricsTags,

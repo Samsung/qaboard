@@ -278,6 +278,25 @@ describe('MetricsSummary', () => {
     expect(zones({ target: 0.5, smaller_is_better: false })).toEqual([Colors.GREEN2]);
   });
 
+  it('labels the axis with distinct round values, on the axis, also when the values are close', () => {
+    const ticks = (values, loss) => {
+      const ids = values.map((_, i) => `o${i}`);
+      const batch = { ...new_batch, outputs: Object.fromEntries(values.map((value, i) => [ids[i], output(ids[i], { loss: value })])), filtered: { outputs: ids } };
+      const metrics = { available_metrics: { ...available_metrics, loss: metric('loss', loss) }, summary_metrics: ['loss'] };
+      const { unmount } = renderWithProviders(<MetricsSummary metrics={metrics} new_batch={batch} ref_batch={null}/>);
+      const labels = [...screen.getByRole('img', { name: 'Box plots of loss' }).querySelectorAll('text[text-anchor="end"]')];
+      const ticks = labels.map(label => [label.textContent, Number(label.getAttribute('y'))]);
+      unmount();
+      return ticks;
+    };
+    // on a log scale there's no round value between them: the single one was drawn far outside the plot
+    const close = ticks([35.12, 35.125, 35.13], {});
+    expect(close.map(([label]) => label)).toEqual(['35.12', '35.125', '35.13']);
+    expect(close.every(([, y]) => y >= 8 && y <= 75)).toBe(true);
+    // they were rounded: 1000, 1010, 1010
+    expect(ticks([1000, 1004, 1010], { plot_scale: 'linear' }).map(([label]) => label)).toEqual(['1000', '1005', '1010']);
+  });
+
   it('shows the summary metrics, until users choose others', () => {
     const metrics = { available_metrics, summary_metrics: ['loss'] };
     const { rerender } = renderWithProviders(<MetricsSummary metrics={metrics} new_batch={new_batch} ref_batch={ref_batch}/>);
