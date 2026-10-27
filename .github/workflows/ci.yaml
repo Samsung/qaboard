@@ -179,6 +179,8 @@ jobs:
         run: |
           ./deployments/deploy.py deployments/production.env status
           ./deployments/deploy.py deployments/production.env compose logs --tail 200 backend proxy
+          # nginx logs to files (services/nginx/nginx.conf.template): why requests failed, and which replica they went to
+          ./deployments/deploy.py deployments/production.env compose exec -T proxy tail -n 50 /tmp/error.log || true
       # As <service>-<commit>: publish-docker-images tags them as latest, or with the release's version, once every job passed
       - name: Push the images
         if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
