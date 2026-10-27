@@ -24,7 +24,6 @@ import { toaster } from "../toaster"
 import { copyDirectory } from "./logs/DirectoryActions"
 import { hidden_keys } from "../configurations/tokens"
 import { ConfigurationsTags, ConfigurationDiff } from "../configurations/ConfigurationsTags"
-import { runName } from "./logs/RunLogs"
 import { RunHistoryMenuItem } from "./RunInfoMenu"
 
 
@@ -117,6 +116,13 @@ const RunBadge = ({badge}) => {
 }
 
 
+
+// How the run is named elsewhere in QA-Board
+export const runName = output => {
+  if (output.test_input_metadata?.label) return output.test_input_metadata.label
+  if (output.output_type === "pipeline" || output.test_input_path === "PIPELINE") return `${output.data?.batch} (pipeline)`
+  return `${output.test_input_database === '/' ? '/' : ''}${output.test_input_path}`
+}
 
 // What users can do with a run: redo it, mark it as failed, delete it...
 // `children`: menu items shown before the actions, e.g. what we know about the run (see RunInfoMenu)
