@@ -114,11 +114,7 @@ class TofOutputCard extends Component {
       show_pointcloud: false,
       control: 'orbit',
       pointclouds: {
-        [last_frame_id]: {
-          is_loaded: false,
-          new: null,
-          reference: null,
-        }
+        [last_frame_id]: { is_loaded: false },
       },
 
       show_heatmap: false,
@@ -381,11 +377,8 @@ class TofOutputCard extends Component {
       this.setState(previousState => ({
         pointclouds: {
           ...previousState.pointclouds,
-          [frame_id]: {
-            ...previousState.pointclouds[frame_id],
-            is_loaded: true,
-            [label]: pointcloud,
-          }
+          // the point clouds are in the scene: we don't keep those of the frames users left
+          [frame_id]: { is_loaded: true },
         }
       }));
     });
