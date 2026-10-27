@@ -341,6 +341,7 @@ class TestQaCli(unittest.TestCase):
       assert start['iterations'] == 3
       assert start['optimization_config']['search_space'] == [{'name': 'x', 'type': 'integer', 'low': 0, 'high': 10, 'log': False}]
       assert start['optimization_config']['preset_params'] == {"fixed": 1}
+      assert start['optimization_config']['config']['evaluations'] == 3 and start['optimization_config']['batches'] == ['images']
       assert start['optimization_config']['sampler'] in ('gp', 'tpe')
       assert [i['iteration'] for i in iterations] == [1, 2, 3]
       assert iterations[0]['is_best_iter'] and iterations[0]['best_params']['fixed'] == 1

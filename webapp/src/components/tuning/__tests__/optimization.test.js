@@ -94,11 +94,10 @@ describe('insights', () => {
     expect(kinds(found)).toContain('unimportant');
     // one verdict on where the search stands
     expect(kinds(found).filter(k => ['still_improving', 'converged', 'slowing', 'stopped_early'].includes(k))).toHaveLength(1);
+    // its best score_threshold is at the bottom of the range
     const edge = found.find(i => i.kind === 'edge');
-    if (edge) {
-      const p = position(edge.dimension, summary.best.params[edge.name]);
-      expect(p <= 0.05 || p >= 0.95).toBe(true);
-    }
+    expect(edge).toMatchObject({ name: 'score_threshold', side: 'low' });
+    expect(position(edge.dimension, summary.best.params[edge.name])).toBeLessThanOrEqual(0.05);
   });
 
   it('a running search: no advice to change it yet', () => {

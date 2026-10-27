@@ -196,18 +196,68 @@ describe('TuningForm', () => {
     unmount();
     // sites without a support page (QABOARD_SUPPORT_URL=""): no feedback link
     renderWithProviders(<TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>, { siteConfig: { support_url: '' } });
-    expect(screen.getByText('About auto-tuning')).toBeInTheDocument();
+    expect(screen.getByTestId('optimize-summary')).toBeInTheDocument();
     expect(screen.queryByText('feedback')).not.toBeInTheDocument();
   });
 
-  it('asks before resetting the auto-tuning configuration', async () => {
+  it('asks before starting the automated tuning over', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
-    usePrefsStore.getState().updateTuning('proj', { search_type: 'optimize', parameter_search_auto: 'my: edits' });
+    usePrefsStore.getState().updateTuning('proj', { search_type: 'optimize', optimize_mode: 'yaml', parameter_search_auto: 'my: edits' });
     renderWithProviders(<TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>, { siteConfig: {} });
-    fireEvent.click(screen.getByText('Reset to the default'));
+    fireEvent.click(screen.getByText('Start over'));
     expect(screen.getByTestId('editor-tuning-auto')).toHaveValue('my: edits');
-    await act(async () => fireEvent.click(within(screen.getByRole('alertdialog')).getByText('Reset')));
+    await act(async () => fireEvent.click(within(screen.getByRole('alertdialog')).getByText('Start over')));
     expect(usePrefsStore.getState().tuning.proj.parameter_search_auto).not.toBe('my: edits');
+  });
+
+  it('builds the automated tuning step by step, and starts it once it is complete', async () => {
+    usePrefsStore.getState().updateTuning('proj', { experiment_name: 'tune', selected_group: 'nightly', search_type: 'optimize' });
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(url => url.startsWith('/api/v1/tests/group?')
+      ? json({ tests: [{ input_path: 'a.jpg', configurations: [] }, { input_path: 'b.jpg', configurations: [] }] })
+      : json({ errors: [], warnings: [] }));
+    renderWithProviders(
+      <TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>,
+      { user: { is_logged: true, user_name: 'alice' }, siteConfig: {} },
+    );
+    // the template improves the default metric, and needs parameters
+    expect(screen.getByText('Add the parameters to tune')).toBeInTheDocument();
+    expect(screen.getByTestId('tuning-start')).toBeDisabled();
+    fireEvent.click(screen.getByTestId('add-parameter'));
+    fireEvent.change(screen.getByLabelText('Parameter name'), { target: { value: 'threshold' } });
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '0.5' } });
+    expect(await screen.findByText('Ready to start')).toBeInTheDocument();
+    // two tests per evaluation
+    expect(await screen.findByText(/up to 60 runs/)).toBeInTheDocument();
+    const start = screen.getByTestId('tuning-start');
+    expect(start).toHaveTextContent('Start automated tuning');
+    expect(start).toBeEnabled();
+    fireEvent.click(start);
+    await waitFor(() => expect(fetch.mock.calls.some(([url]) => url === '/api/v1/commit/abcdef12/batch?project=proj')).toBe(true));
+    const [, init] = fetch.mock.calls.find(([url]) => url === '/api/v1/commit/abcdef12/batch?project=proj');
+    const body = JSON.parse(init.body);
+    expect(body.tuning_search.search_type).toBe('optimize');
+    expect(body.tuning_search.parameter_search).toContain('name: threshold');
+    expect(body.tuning_search.parameter_search).toContain('high: 0.5');
+  });
+
+  it("says when an objective metric doesn't say which way is better, like qa optimize", () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
+    usePrefsStore.getState().updateTuning('proj', { search_type: 'optimize', parameter_search_auto: 'evaluations: 20\nobjective:\n  psnr: {}\nsearch_space:\n  - Real: {name: x, low: 0, high: 1}\n' });
+    renderWithProviders(<TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>, { siteConfig: {} });
+    expect(screen.getByText('not in the metrics file')).toBeInTheDocument();
+    expect(screen.getByText(/declare whether smaller values of psnr are better/)).toBeInTheDocument();
+  });
+
+  it('continues an automated tuning that has the same label, only with a bigger budget', () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
+    const tuned = { ...commit, batches: { 'tune': { label: 'tune', data: { optimization: true, iteration: 20, evaluations_completed: 20, evaluations_failed: 0, optimization_config: { config: { evaluations: 20 } } } } } };
+    usePrefsStore.getState().updateTuning('proj', { experiment_name: 'tune', selected_group: 'nightly', search_type: 'optimize', parameter_search_auto: 'evaluations: 20\nobjective:\n  loss: {}\nsearch_space:\n  - Real: {name: x, low: 0, high: 1}\n' });
+    renderWithProviders(<TuningForm project="proj" config={config} metrics={metrics} commit={tuned} available_tests_files={{}}/>, { user: { is_logged: true, user_name: 'alice' }, siteConfig: {} });
+    expect(screen.getByTestId('optimize-continuing')).toHaveTextContent('continues it');
+    expect(screen.getByTestId('tuning-start')).toBeDisabled();
+    fireEvent.click(screen.getByText('Use 30'));
+    expect(usePrefsStore.getState().tuning.proj.parameter_search_auto).toContain('evaluations: 30');
+    expect(screen.getByText('10 more evaluations')).toBeInTheDocument();
   });
 });
 
