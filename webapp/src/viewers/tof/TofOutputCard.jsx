@@ -195,7 +195,7 @@ class TofOutputCard extends Component {
       if ( prevState.mesh_output !== this.state.mesh_output)
       {
         //this.closePointCloud(); // this unsets show_pointcloud so don't do that
-        this.renderer.forceContextLoss(); // needed for switch from PCD to Mesh
+        this.stopPointCloud(); // needed for switch from PCD to Mesh
         this.startPointCloud();
         this.updatePointCloud(selected_frame);
       }
@@ -341,8 +341,12 @@ class TofOutputCard extends Component {
     loader.load(url, pointcloud => {
       if (pointcloud !== null) {
         var previous_pointcloud = this.scene.getObjectByName(label);
-        if (previous_pointcloud) 
+        if (previous_pointcloud) {
           this.scene.remove(previous_pointcloud);
+          // and from the GPU
+          previous_pointcloud.geometry.dispose();
+          previous_pointcloud.material.dispose();
+        }
         pointcloud.name = label;
         if (use_intensity)
             pointcloud.material.size = 0.5;
@@ -372,6 +376,7 @@ class TofOutputCard extends Component {
           pointcloud.material.transparent = true;
         }
         this.scene.add(pointcloud);
+        this.requestRender();
       }
       this.setState(previousState => ({
         pointclouds: {
@@ -390,12 +395,8 @@ class TofOutputCard extends Component {
   componentWillUnmount() {
     this.abort_controller.abort();
     window.removeEventListener("keypress", this.keyboard);
-    if (this.state.show_pointcloud) {
+    if (this.state.show_pointcloud)
       this.stopPointCloud();
-      this.threeRoot.removeChild(this.renderer.domElement);      
-      // window.removeEventListenner(this.keyboard)
-      // window.removeEventListenner(this.click)
-    }
   }
 
   setControls(control) {
@@ -408,11 +409,13 @@ class TofOutputCard extends Component {
       this.controls.screenSpacePanning = false;
       this.controls.minDistance = 1;
       this.controls.maxDistance = 5 * 1000;
+      this.controls.addEventListener('change', this.requestRender);
     } else {
       this.controls = new PointerLockControls(this.camera, this.renderer.domElement);
       this.controls.lock();
       this.prevTime = performance.now();
     }
+    this.requestRender();
   } 
 
   addShadowedLight( x, y, z, color, intensity ) {
@@ -467,7 +470,6 @@ class TofOutputCard extends Component {
       this.threeRoot.removeChild(this.threeRoot.lastChild);
     }
     this.threeRoot.appendChild(this.renderer.domElement);
-    if (!this.frameId) this.frameId = requestAnimationFrame(this.animate);
   }
 
   updatePointCloud(selected_frame) {
@@ -482,20 +484,29 @@ class TofOutputCard extends Component {
   }
   
   closePointCloud() {
-    console.log("killing context");
-    // this.renderer.dispose();
-	  this.renderer.forceContextLoss();
+    this.stopPointCloud();
     this.setState({show_pointcloud: false});
   }
 
+  // Frees the GPU (browsers keep ~16 WebGL contexts, then drop the oldest), and what listens to the canvas
   stopPointCloud() {
     cancelAnimationFrame(this.frameId);
-    console.log("killing context");
+    this.frameId = null;
+    this.controls.dispose();
+    this.renderer.dispose();
     this.renderer.forceContextLoss();
+    this.renderer = null;
   }
 
+  // We render when something changed: the camera moved, a point cloud loaded or changed...
+  requestRender = () => {
+    if (this.renderer && !this.frameId) this.frameId = requestAnimationFrame(this.animate);
+  };
+
   animate = () => {
+    this.frameId = null;
     if (this.state.control === 'orbit') {
+      // after a drag the camera slows down (damping): it moves, says it changed, and we render again
       this.controls.update();
     } else {
       let time = performance.now();
@@ -521,10 +532,11 @@ class TofOutputCard extends Component {
       if (this.moveBackward) this.velocity.z += 400.0 * delta;
       if (this.moveLeft) this.velocity.x -= 400.0 * delta;
       if (this.moveRight) this.velocity.x += 400.0 * delta;    
+      // flying with the keyboard: we render every frame
+      this.requestRender();
     }
 
     this.renderer.render(this.scene, this.camera);
-    this.frameId = window.requestAnimationFrame(this.animate);
   };
 
 
@@ -749,6 +761,7 @@ class TofOutputCard extends Component {
       default:
         return;
     }
+    this.requestRender();
   };
 
 
