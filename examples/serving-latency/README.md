@@ -28,7 +28,7 @@ qa --label nightly batch nightly                # every profile, 3 repeats each
 - Performance runs never run in parallel (`runners.local.concurrency: 1`): they would measure each other. Close what
   you can: a busy laptop makes for a slow gateway, and noisy tails.
 - Without `--share` or a CI, results are saved in `output/`. To see them in QA-Board, start a server
-  ([quickstart](https://samsung.github.io/qaboard/docs/start-server)), and use `qa --share` or run in CI.
+  ([quickstart](https://samsung.github.io/qaboard/docs/get-started/quickstart)), and use `qa --share` or run in CI.
 
 ## How it's wired
 

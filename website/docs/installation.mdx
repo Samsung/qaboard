@@ -109,7 +109,7 @@ qa auth token    # prints the token, e.g. for curl
 ```
 
 The token expires after 180 days without use (admins can change it): run `qa auth login` again. You can see and
-revoke it in the web app, in **Settings → CLI & devices**.
+revoke it in the web app, in **Settings → CLI sign-ins**.
 
 **In CI and scripts**, give `qa` a token in `QABOARD_TOKEN`: create one in **Settings → Access tokens** (see
 [CI integration](/docs/ci-integration#tokens)). `qa` uses `$QABOARD_TOKEN` (or `$QA_TOKEN`), then the login of
