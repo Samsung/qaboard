@@ -160,6 +160,20 @@ export const insights = (summary, space) => {
 };
 
 // Each metric's best value over the evaluations, and where: {metric: {value, iteration}}
+// The metrics' definitions, with which way is better for those of the objective as qa optimize used it: the objective's
+// `goal`, else what the code that computes them or the metrics file declared
+export const objective_definitions = (available_metrics, data) => {
+  const goals = Object.entries(data?.optimization_config?.objective ?? {}).filter(([, o]) => o?.goal === 'max' || o?.goal === 'min');
+  if (goals.length === 0) return available_metrics;
+  return {
+    ...available_metrics,
+    ...Object.fromEntries(goals.map(([m, o]) => [m, {
+      ...(available_metrics?.[m] ?? { key: m, label: m, short_label: m, scale: 1, suffix: '' }),
+      smaller_is_better: o.goal === 'min',
+    }])),
+  };
+};
+
 export const metric_bests = (evaluations, metrics, available_metrics) => Object.fromEntries(metrics.map(m => {
   const higher = available_metrics?.[m]?.smaller_is_better === false;
   let best = null;

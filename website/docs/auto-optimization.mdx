@@ -96,26 +96,43 @@ search_space:
 or in `preset_params`, not both.
 
 ## The objective {#objective}
-`qa optimize` minimizes the objective. For each metric under `objective`, it computes a loss on each run, reduces
-the losses over the batch's runs, divides by the number of runs, and adds the results, each multiplied by its
-`weight`. Failed runs are left out.
+`objective` lists the metrics to optimize, any your runs return, and which way is better for each:
+
+```yaml title="qa/tune.yaml"
+objective:
+  ap_small: max      # higher is better
+  map: max
+  model_mb:          # with more settings
+    goal: min        # lower is better
+    weight: 0.005
+```
+
+`qa optimize` minimizes the objective. For each metric, it computes a loss on each run, reduces the losses over the
+batch's runs, divides by the number of runs, and adds the results, each multiplied by its `weight`. Failed runs are
+left out.
 
 | Key | Default | Meaning |
 |---|---|---|
+| `goal` | | `max` (higher is better) or `min` (lower is better). `ap_small: max` is short for `ap_small: {goal: max}`. |
 | `weight` | `1` | How much the metric counts, a positive number. |
 | `loss` | `identity` | The loss of one run: `identity` (the metric's value), `shift` (minus its target), `relative` (minus its target, divided by its target). Prefix `relu_` to only count values worse than the target (`relu_shift`, with an optional `margin`), or `square_` to square it. |
 | `reduce` | `sum` | How runs' losses combine: `sum` (their mean, once divided by the number of runs), `relu` (the sum, if it's positive), or `l1`, `l2` (norms). |
+| `target` | | The value `shift` and `relative` losses compare to. |
 
-Which way is better comes from each metric's `smaller_is_better` in your
-[metrics file](/docs/computing-quantitative-metrics#declaring-metrics-in-a-metrics-file): metrics where bigger is
-better count negatively, and metrics without `smaller_is_better` are "smaller is better". Metrics that aren't in the
-metrics file, or have `smaller_is_better: null`, stop `qa optimize` before the first evaluation. With `shift` or
-`relative` losses, the target is the metric's `target` in your metrics file, or, with an `objective.target` section,
-the value of the matching run of a reference:
+Without a `goal`, `qa optimize` uses what your code says where it computes the metric
+(`qaboard.Metric(value, smaller_is_better=...)` or `define_metric`, see
+[declaring metrics](/docs/computing-quantitative-metrics#declaring-metrics)), else the `smaller_is_better` of your
+[metrics file](/docs/computing-quantitative-metrics#declaring-metrics-in-a-metrics-file). Your code declares metrics
+when it runs: `qa optimize` asks QA-Board again after the first evaluation. When nothing says which way is better, it
+stops and says what to write: before the first evaluation if it can tell, else after it.
+
+With `shift` or `relative` losses, the target is the metric's `target` in the objective, else the one your code or
+your metrics file declares, or, with an `objective.target` section, the value of the matching run of a reference:
 
 ```yaml title="qa/tune.yaml"
 objective:
   ap_small:
+    goal: max
     loss: shift
   target:
     branch: main     # or `id:` a commit

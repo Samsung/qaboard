@@ -13,7 +13,7 @@ from optuna.distributions import CategoricalDistribution, FloatDistribution, Int
 
 from qaboard.optimization import (
   check_config, check_resumable, describe_search_space, make_storage, make_study,
-  parse_options, parse_search_space, parse_solver, run_optimization, study_summary,
+  parse_objective, parse_options, parse_search_space, parse_solver, run_optimization, study_summary,
 )
 
 
@@ -191,6 +191,7 @@ class TestOptions(unittest.TestCase):
     self.assertEqual(options, {
       'evaluations': 50, 'parallel_sampling': 1, 'patience': None,
       'pareto': False, 'objective_metrics': ['metric_a'], 'resume': True,
+      'objective': {'metric_a': {'goal': None, 'weight': 1, 'loss': 'identity', 'reduce': 'sum', 'margin': 0.0, 'target': None}},
     })
 
   def test_early_stopping_forms(self):
@@ -218,6 +219,45 @@ class TestOptions(unittest.TestCase):
     self._assert_error({**self.BASE, 'pareto': 'yes'}, 'pareto')
     self._assert_error({**self.BASE, 'pareto': True}, 'two metrics')
     self._assert_error({**self.BASE, 'resume': 'no'}, 'resume')
+
+
+class TestObjective(unittest.TestCase):
+  """Each metric says which way is better, or leaves it to the code that computes it"""
+
+  def test_forms(self):
+    objective = parse_objective(yaml.safe_load("""
+      psnr: max
+      latency: {goal: min, weight: 0.1}
+      ssim:
+      size_mb: {weight: 2, loss: relu_shift, target: 4, margin: 0.5}
+      target: {branch: main}
+    """))
+    self.assertEqual(list(objective), ['psnr', 'latency', 'ssim', 'size_mb'])
+    self.assertEqual([o['goal'] for o in objective.values()], ['max', 'min', None, None])
+    self.assertEqual(objective['latency']['weight'], 0.1)
+    self.assertEqual(objective['size_mb'], {'goal': None, 'weight': 2, 'loss': 'relu_shift', 'reduce': 'sum', 'margin': 0.5, 'target': 4})
+    # aliases
+    self.assertEqual(parse_objective({'a': 'maximize', 'b': {'goal': 'MIN'}}), {
+      'a': {**objective['psnr'], 'goal': 'max'}, 'b': {**objective['psnr'], 'goal': 'min'},
+    })
+
+  def test_errors(self):
+    for options, expected in [
+      ('higher', 'expected `max`'),
+      ({'goal': 'up'}, 'expected `max`'),
+      (3, 'must be `max`, `min`, or a mapping'),
+      ({'weight': 0}, 'positive number'),
+      ({'loss': 'l2'}, 'identity, shift or relative'),
+      ({'reduce': 'mean'}, 'sum, relu, l1 or l2'),
+      ({'target': 'high'}, 'must be a number'),
+    ]:
+      with self.subTest(options=options):
+        with self.assertRaises(ValueError) as context:
+          parse_objective({'psnr': options})
+        self.assertIn(expected, str(context.exception))
+        self.assertIn('psnr', str(context.exception))
+    # the server and the web app give the same message
+    self.assertEqual(len(check_config({'evaluations': 5, 'objective': {'psnr': 'higher'}, 'search_space': [{'Real': {'name': 'x', 'low': 0, 'high': 1}}]})), 1)
 
 
 SPACE_1D = "search_space:\n  - Real: {name: x, low: 0, high: 1}"

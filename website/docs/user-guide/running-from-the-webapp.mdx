@@ -71,10 +71,10 @@ see [Choosing the tests to run](/docs/user-guide/available-tests).
 
 ### Let the optimizer search the parameters {#automated-tuning}
 When a grid would be too big, open the **Automated tuning** tab. It sets up a search in three steps: the
-**Parameters to tune** and their ranges, **What “better” means** with the project's metrics, and the **Budget**, the
-number of evaluations. Click **Start automated tuning**: each evaluation runs the batch, first with random parameters,
-then with parameters picked from the results of the previous ones. To choose the parameters and the budget, and read what the search found, see
-[Find the best parameters automatically](/docs/user-guide/automated-tuning).
+**Parameters to tune** and their ranges, **What “better” means** with the metrics your runs return, and the
+**Budget**, the number of evaluations. Click **Start automated tuning**: each evaluation runs the batch, first with
+random parameters, then with parameters picked from the results of the previous ones. To choose the parameters and
+the budget, and read what the search found, see [Find the best parameters automatically](/docs/user-guide/automated-tuning).
 
 For the detector, `tune-int8` searched the calibration percentile, the layers to keep in fp32, the score threshold and the NMS IoU on `quant-search`, for the best AP on small objects and mAP with a small model. There is no email when an automated tuning ends yet. See [Automated tuning with qa optimize](/docs/auto-optimization) for every setting.
 

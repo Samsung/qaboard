@@ -208,8 +208,8 @@ available_metrics:
 ```
 
 It works with the definitions from your code: for a metric declared in both, the fields from your code win, in the
-web app and in [quality gates](/docs/quality-gate). [`qa optimize`](/docs/auto-optimization) only reads the metrics
-file: declare there the metrics you optimize, with `smaller_is_better`. The
+web app, in [quality gates](/docs/quality-gate) and in [automated tuning](/docs/auto-optimization#objective), whose
+configuration can also say which way is better (`psnr: max`). The
 [camera ISP example's metrics file](https://github.com/Samsung/qaboard/blob/master/examples/image-quality/qa/metrics.yaml)
 declares all its metrics.
 

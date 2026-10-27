@@ -5,6 +5,7 @@
 // The checks mirror qaboard/optimization.py, with the same messages: the server checks again before starting, and its
 // messages for the same problems are then the same, so the form shows them once.
 import { parseDocument, isSeq } from "yaml";
+import { with_undeclared_metrics } from "../../utils";
 
 export const KINDS = ['Real', 'Integer', 'Categorical'];
 export const KIND_LABELS = { Real: 'Number', Integer: 'Whole number', Categorical: 'Choice' };
@@ -32,16 +33,17 @@ const is_map = x => x !== null && typeof x === 'object' && !Array.isArray(x);
 const py = x => x === null || x === undefined ? 'None' : typeof x === 'boolean' ? (x ? 'True' : 'False') : typeof x === 'object' ? JSON.stringify(x) : String(x);
 
 
-// The template of a new automated tuning: short, the guided form explains the rest
+// The template of a new automated tuning: short, the guided form explains the rest. It starts with the project's
+// main metric when its code or metrics file says which way is better.
 export const template = (metrics) => {
-  const metric = metrics?.default_metric ?? Object.keys(metrics?.available_metrics ?? {})[0] ?? 'my_metric';
+  const declared = Object.keys(metrics?.available_metrics ?? {});
+  const metric = [metrics?.default_metric, ...declared].find(m => m && ['higher', 'lower'].includes(metric_direction(m, metrics)));
+  const objective = metric ? `\n  ${metric}: ${metric_direction(metric, metrics) === 'higher' ? 'max' : 'min'}` : ' {}';
   return `# Automated tuning: QA-Board runs the batch with parameters from search_space,
 # and searches for the ones that give the best objective.
 # Settings: ${DOCS}
 evaluations: 30
-objective:
-  ${metric}:
-    weight: 1
+objective:${objective}
 search_space: []
 `;
 };
@@ -120,12 +122,50 @@ export const changeKind = (parameter, kind) => {
 
 export const objectiveMetrics = config => Object.keys(is_map(config?.objective) ? config.objective : {}).filter(m => m !== 'target');
 
-export const setObjectiveMetric = (text, metric, options) => set(text, ['objective', metric], options);
-export const renameObjectiveMetric = (text, from, to) => edit(text, doc => {
-  const options = doc.getIn(['objective', from]);
+// Each metric of the objective says which way is better: `psnr: max`, or `psnr: {goal: max, weight: 2}`
+export const GOALS = { max: 'max', maximize: 'max', min: 'min', minimize: 'min' };
+const as_goal = goal => GOALS[String(goal).toLowerCase()] ?? null;
+
+// A metric's settings as a mapping, whether the YAML has `psnr: max`, `psnr:` or `psnr: {goal: max}`
+export const objective_options = (config, metric) => {
+  const options = is_map(config?.objective) ? config.objective[metric] : undefined;
+  if (typeof options === 'string') return { goal: options };
+  return is_map(options) ? options : {};
+};
+
+// The shortest YAML for these settings: `max` when the goal is all there is
+const objective_value = ({ goal, weight, ...rest }) => {
+  const options = { ...(goal ? { goal } : {}), ...(weight !== undefined && weight !== 1 ? { weight } : {}), ...rest };
+  return Object.keys(options).length === 1 && options.goal ? options.goal : options;
+};
+
+export const setObjectiveMetric = (text, metric, options) => set(text, ['objective', metric], objective_value(options));
+// Another metric in the same row: its goal is the new metric's
+export const renameObjectiveMetric = (text, from, to, goal) => edit(text, doc => {
+  const { goal: _goal, ...options } = objective_options(doc.toJS(), from);
   doc.deleteIn(['objective', from]);
-  doc.setIn(['objective', to], options ?? doc.createNode({ weight: 1 }));
+  doc.setIn(['objective', to], doc.createNode(objective_value({ ...options, goal: goal ?? undefined })));
 });
+
+// Which way is better for a metric of the objective: what the configuration says, else what the code that computes it
+// or the metrics file declares. {goal: 'max', 'min' or null, from: 'config', 'declared' or null}
+export const objective_goal = (config, metric, metrics) => {
+  const goal = objective_options(config, metric).goal;
+  if (goal !== undefined && goal !== null) return { goal: as_goal(goal), from: 'config' };
+  const direction = metric_direction(metric, metrics);
+  if (direction === 'higher' || direction === 'lower') return { goal: direction === 'higher' ? 'max' : 'min', from: 'declared' };
+  return { goal: null, from: null };
+};
+
+// The metrics to choose from: those declared in code or in the metrics file, then the others the commit's runs returned
+export const metrics_to_choose = (metrics, commit) => {
+  const returned = new Set();
+  for (const batch of Object.values(commit?.batches ?? {}))
+    for (const output of Object.values(batch.outputs ?? {}))
+      if (output.output_type !== 'optim_iteration')
+        for (const key of Object.keys(output.metrics ?? {})) returned.add(key);
+  return with_undeclared_metrics(metrics?.available_metrics ?? {}, returned);
+};
 
 
 // ---- what to recommend
@@ -140,7 +180,8 @@ export const recommended_evaluations = parameters => {
 // A range over orders of magnitude is better searched on a log scale
 export const suggest_log = p => p.kind !== 'Categorical' && !p.log && is_num(p.low) && is_num(p.high) && p.low > 0 && p.high / p.low >= 100;
 
-// The direction of a metric for qa optimize, from the metrics file: like qaboard/gate.py's smaller_is_better
+// Which way is better for a metric, from its definition (the code that computes it, or the metrics file): like
+// qaboard/gate.py's smaller_is_better
 export const metric_direction = (metric, metrics) => {
   const definition = metrics?.available_metrics?.[metric];
   if (definition === undefined) return 'undeclared';
@@ -179,17 +220,28 @@ const check_options = (config, metrics) => {
   const resume = config.resume ?? true;
   if (typeof resume !== 'boolean') error(['resume'], `\`resume\` must be \`true\` or \`false\`, not \`${py(resume)}\`.`);
   for (const metric of names) {
-    const options = objective[metric] ?? {};
-    if (!is_map(options)) {
-      error(['objective', metric], `\`objective.${metric}\` must be a mapping (e.g. \`weight: 1\`), not \`${py(options)}\`.`);
+    // qaboard/optimization.py's parse_objective_metric
+    const raw = objective[metric];
+    if (raw !== null && raw !== undefined && typeof raw !== 'string' && !is_map(raw)) {
+      error(['objective', metric], `\`objective.${metric}\` must be \`max\`, \`min\`, or a mapping (e.g. \`goal: max\` and \`weight: 2\`), not \`${py(raw)}\`.`);
+      continue;
+    }
+    const options = objective_options(config, metric);
+    if (options.goal !== undefined && options.goal !== null && !as_goal(options.goal)) {
+      error(['objective', metric], `\`objective.${metric}\` says \`${py(options.goal)}\`: expected \`max\` (higher is better) or \`min\` (lower is better).`);
       continue;
     }
     const weight = options.weight ?? 1;
     if (!is_num(weight) || weight <= 0) error(['objective', metric, 'weight'], `\`objective.${metric}.weight\` must be a positive number, not \`${py(weight)}\`.`);
-    // what qa optimize needs from the metrics file (qaboard/optimize.py's make_loss)
-    const direction = metric_direction(metric, metrics);
-    if (metrics && (direction === 'undeclared' || direction === 'none'))
-      error(['objective', metric], `qa optimize: declare whether smaller values of ${metric} are better in your metrics file (outputs.metrics in qaboard.yaml), with \`smaller_is_better\`, so that it knows what to minimize`);
+    const loss = options.loss ?? 'identity';
+    if (!/^(square_)?(relu_)?(identity|shift|relative)$/.test(String(loss))) error(['objective', metric, 'loss'], `\`objective.${metric}.loss\` is \`${py(loss)}\`, expected identity, shift or relative, optionally as relu_X, square_X or square_relu_X.`);
+    const reduce = options.reduce ?? 'sum';
+    if (!/^(sum|relu|l\d)$/.test(String(reduce))) error(['objective', metric, 'reduce'], `\`objective.${metric}.reduce\` is \`${py(reduce)}\`, expected sum, relu, l1 or l2.`);
+    if ('margin' in options && !is_num(options.margin)) error(['objective', metric, 'margin'], `\`objective.${metric}.margin\` must be a number, not \`${py(options.margin)}\`.`);
+    if (options.target !== undefined && options.target !== null && !is_num(options.target)) error(['objective', metric, 'target'], `\`objective.${metric}.target\` must be a number, not \`${py(options.target)}\`.`);
+    // Without a goal, which way is better must be declared: by the code that computes the metric, or the metrics file
+    if (metrics && !objective_goal(config, metric, metrics).goal)
+      error(['objective', metric], `Say whether higher or lower values of ${metric} are better: \`${metric}: max\` or \`${metric}: min\`.`);
   }
   return errors;
 };
@@ -263,7 +315,8 @@ const check_solver = solver => {
   return errors;
 };
 
-// metrics: the commit's metrics file, to check the objective's metrics. Without it, they aren't checked.
+// metrics: the metrics' definitions (the code's and the metrics file's), to check that the objective says which way is
+// better for each metric. Without it, it isn't checked.
 export const check = (config, metrics) => {
   if (!is_map(config))
     return [{ path: [], message: "The configuration must be a YAML mapping, with at least `evaluations`, `objective` and `search_space`." }];

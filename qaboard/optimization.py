@@ -19,6 +19,7 @@ Pareto front...) is sent as the batch's `data`: see `describe_optimization` and 
 The web app reads it in webapp/src/components/tuning/optimization.js.
 """
 import os
+import re
 import math
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -175,6 +176,62 @@ def objective_metrics(config_objective: Any) -> List[str]:
   return [m for m in (config_objective or {}).keys() if m != 'target']
 
 
+# Each metric of the objective says which way is better: `ap_small: max`, or `ap_small: {goal: max, weight: 2}`.
+# Without it, qa optimize asks the code that computes the metric (qaboard.Metric, define_metric), then the metrics file.
+GOALS = {'max': 'max', 'maximize': 'max', 'min': 'min', 'minimize': 'min'}
+# The `loss` of one run and how runs' losses `reduce`, see make_loss and make_reduce in qaboard/optimize.py
+LOSSES = r'(square_)?(relu_)?(identity|shift|relative)'
+REDUCES = r'sum|relu|l\d'
+
+
+def _is_number(value: Any) -> bool:
+  return not isinstance(value, bool) and isinstance(value, (int, float))
+
+
+def parse_objective_metric(metric: str, options: Any) -> Dict[str, Any]:
+  """
+  One metric of the objective, with its defaults: {goal, weight, loss, reduce, margin, target}.
+  `goal` is 'max', 'min', or None when the configuration doesn't say.
+  """
+  if options is None:
+    options = {}
+  elif isinstance(options, str):
+    options = {'goal': options}
+  if not isinstance(options, dict):
+    raise ValueError(f"`objective.{metric}` must be `max`, `min`, or a mapping (e.g. `goal: max` and `weight: 2`), not `{options}`.")
+  goal = options.get('goal')
+  if goal is not None and str(goal).lower() not in GOALS:
+    raise ValueError(f"`objective.{metric}` says `{goal}`: expected `max` (higher is better) or `min` (lower is better).")
+  weight = options.get('weight', 1)
+  if not _is_number(weight) or weight <= 0:
+    raise ValueError(f"`objective.{metric}.weight` must be a positive number, not `{weight}`.")
+  loss = options.get('loss', 'identity')
+  if not re.fullmatch(LOSSES, str(loss)):
+    raise ValueError(f"`objective.{metric}.loss` is `{loss}`, expected identity, shift or relative, optionally as relu_X, square_X or square_relu_X.")
+  reduce = options.get('reduce', 'sum')
+  if not re.fullmatch(REDUCES, str(reduce)):
+    raise ValueError(f"`objective.{metric}.reduce` is `{reduce}`, expected sum, relu, l1 or l2.")
+  margin = options.get('margin', 0.0)
+  if not _is_number(margin):
+    raise ValueError(f"`objective.{metric}.margin` must be a number, not `{margin}`.")
+  target = options.get('target')
+  if target is not None and not _is_number(target):
+    raise ValueError(f"`objective.{metric}.target` must be a number, not `{target}`.")
+  return {
+    'goal': GOALS[str(goal).lower()] if goal is not None else None,
+    'weight': weight,
+    'loss': str(loss),
+    'reduce': str(reduce),
+    'margin': margin,
+    'target': target,
+  }
+
+
+def parse_objective(config_objective: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+  """The objective's metrics, each with its settings (parse_objective_metric)"""
+  return {metric: parse_objective_metric(metric, config_objective[metric]) for metric in objective_metrics(config_objective)}
+
+
 def parse_options(optim_config: Dict[str, Any]) -> Dict[str, Any]:
   """
   Read and validate the top-level settings of an optimization config.
@@ -223,15 +280,8 @@ def parse_options(optim_config: Dict[str, Any]) -> Dict[str, Any]:
   if not isinstance(resume, bool):
     raise ValueError(f"`resume` must be `true` or `false`, not `{resume}`.")
 
-  for metric in metrics:
-    options = objective[metric] or {}
-    if not isinstance(options, dict):
-      raise ValueError(f"`objective.{metric}` must be a mapping (e.g. `weight: 1`), not `{options}`.")
-    weight = options.get('weight', 1)
-    if isinstance(weight, bool) or not isinstance(weight, (int, float)) or weight <= 0:
-      raise ValueError(f"`objective.{metric}.weight` must be a positive number, not `{weight}`.")
-
   return {
+    "objective": parse_objective(objective),
     "evaluations": evaluations,
     "parallel_sampling": parallel_sampling,
     "patience": patience,

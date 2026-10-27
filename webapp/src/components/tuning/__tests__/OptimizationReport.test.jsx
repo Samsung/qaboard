@@ -36,9 +36,12 @@ const as_page_batch = label => {
   };
 };
 
-const show = label => renderWithProviders(<HistoryRouter history={history}>
-  <TuningExploration batch={as_page_batch(label)} project="kitefin/detector" commit_id="c0ffee" selected_metrics={['map']} available_metrics={available_metrics}/>
-</HistoryRouter>);
+const show = (label, { data = {}, metrics = available_metrics } = {}) => {
+  const batch = as_page_batch(label);
+  return renderWithProviders(<HistoryRouter history={history}>
+    <TuningExploration batch={{ ...batch, data: { ...batch.data, ...data } }} project="kitefin/detector" commit_id="c0ffee" selected_metrics={['map']} available_metrics={metrics}/>
+  </HistoryRouter>);
+};
 
 describe('OptimizationReport', () => {
   beforeEach(() => {
@@ -91,6 +94,23 @@ describe('OptimizationReport', () => {
     expect(within(screen.getByTestId('pareto')).getAllByRole('button', { name: /Run/ })).toHaveLength(front.length);
     // no summed objective
     expect(plots.some(p => p.data.some(t => t.name === 'Best so far'))).toBe(false);
+  });
+
+  it("knows which way is better from the objective, without a metrics file", () => {
+    show('tune-int8', { metrics: {} });
+    const table = screen.getByTestId('objective-metrics');
+    expect(within(table).getByText('ap_small').closest('tr')).toHaveTextContent('higher');
+    expect(within(table).getByText('model_mb').closest('tr')).toHaveTextContent('lower');
+  });
+
+  it('says why the search stopped', () => {
+    show('tune-int8-running', { data: {
+      optimization_status: 'failed',
+      optimization_error: "qa optimize doesn't know whether higher or lower values of psnr are better. Say it in the objective: `psnr: max` (higher is better) or `psnr: min`.",
+    } });
+    const error = screen.getByTestId('optimization-error');
+    expect(error).toHaveTextContent('The search stopped');
+    expect(within(error).getByText('psnr: max').tagName).toBe('CODE');
   });
 
   it('keeps the other plots one click away', async () => {
