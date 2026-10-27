@@ -43,8 +43,9 @@ cluster's nodes.
    [quickstart](/docs/get-started/quickstart)'s. No server yet? The quickstart starts one on your computer; for your
    team, see [Starting a QA-Board server](/docs/deploy).
 
-   Projects usually save shared results in `/mnt/qaboard` (`storage` in *qaboard.yaml*), but the quickstart's
-   server reads them in `/tmp/qaboard`: tell `qa` with `export QA_STORAGE=/tmp/qaboard`.
+   Projects usually save shared results (`qa --share`, CI runs) in `/mnt/qaboard` (`storage` in *qaboard.yaml*),
+   but the quickstart's server reads them in `/tmp/qaboard`: tell `qa` with `export QA_STORAGE=/tmp/qaboard`. Local
+   runs don't need it: they save their results in your project's `output/` folder.
 3. Check that `qa` runs. It lists its commands:
 
    ```bash
@@ -141,9 +142,9 @@ tokens...), `qa run` and `qa batch` fail before running anything, and say what t
 - **"We are not sure where to find your QA-Board server":** set `QABOARD_URL`, see
   [above](#connecting-to-a-custom-qa-board-server).
 - **"The storage path does not exist":** `qa` couldn't create the folder for shared results, `storage` in
-  *qaboard.yaml*. Mount your server's results folder there, or point `qa` to it with `QA_STORAGE`, e.g.
-  `export QA_STORAGE=/tmp/qaboard` for the quickstart's server. See
-  [Where is the data saved?](/docs/storage/where-is-the-data)
+  *qaboard.yaml*. Local runs only warn about it, but `qa --share`, CI runs and `qa save-artifacts` stop. Mount your
+  server's results folder there, or point `qa` to it with `QA_STORAGE`, e.g. `export QA_STORAGE=/tmp/qaboard` for
+  the quickstart's server. See [Where is the data saved?](/docs/storage/where-is-the-data)
 
 <Cards>
   <Card title="Add QA-Board to your project" to="/docs/project-init" eyebrow="Next">

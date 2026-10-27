@@ -202,20 +202,66 @@ def storage_roots(config: Dict, project: Path, subproject: Path, user_name: Opti
         click.secho('If your organization has a site package (e.g. qaboard-site-sirc), install it to get default settings.', fg='red', err=True, dim=True)
   return outputs_root, artifacts_root, subproject_for_artifacts
 
+# The storage folders that don't exist, and that we couldn't create. Only the commands that save or read results
+# there need them (see `storage_needed_by`): local runs save theirs in the project's output/ folder.
+missing_storage: List[Path] = []
+
 def mkdir(path: Path):
-  global config_has_error
   if not path.exists():
     try:
       path.mkdir(parents=True)
       click.secho(f'Created: {path}', fg='blue', err=True)
     except Exception:
-      config_has_error = True
-      if not ignore_config_errors:
-        click.secho(f'ERROR: The storage path does not exist: "{path}".', fg='red', err=True)
-        if "/algo/" in str(path) and not Path(*path.parts[:3]).exists():
-          click.secho(f'INFO: To create storage locations for new projects, go to:', fg='blue', bold=True, err=True)
-          click.secho(f'      http://jenmaster1:8080/job/ALGO/job/CreateProjectStorage/build?delay=0sec', fg='blue', err=True)
-          click.secho(f'Products (HP1, 2X5...) are "Technology" projects, while CIS/KITT_ISP.. are "Group" projects.', fg='blue', err=True)
+      if path not in missing_storage:
+        missing_storage.append(path)
+
+
+# Commands that always use the storage, and what for
+commands_using_storage = {
+  'save-artifacts': '`qa save-artifacts` saves the build there',
+  'check-bit-accuracy': '`qa check-bit-accuracy` reads the reference results there',
+  'optimize': '`qa optimize` saves its results there',
+}
+
+def storage_needed_by(command: Optional[str], share: bool, is_ci: bool) -> Optional[str]:
+  """Why a command needs the storage, or None if it doesn't. Runs in CI or with --share save their results there."""
+  if command in ('auth', 'init'):
+    return None
+  if is_ci:
+    return 'In CI, `qa` saves results there'
+  if share:
+    return '`qa --share` saves results there'
+  return commands_using_storage.get(command) if command else None
+
+
+# No messages for --help, `qa init`, `qa auth` or when imported. Unlike `ignore_config_errors`, it doesn't change
+# once a warning was shown.
+shows_config_messages = not ignore_config_errors
+
+def report_missing_storage(needed_by: Optional[str], environ=os.environ) -> bool:
+  """
+  Whether the command must stop because the storage it needs is missing, after an error that says what to do.
+  When it doesn't need it, we warn about it, once: not again in the runs `qa batch` starts.
+  `needed_by` is why the command needs the storage, see `storage_needed_by`.
+  """
+  if not missing_storage or not shows_config_messages:
+    return False
+  paths = ', '.join(f'"{p}"' for p in missing_storage)
+  if needed_by:
+    click.secho(f'ERROR: The storage path does not exist, and qa could not create it: {paths}', fg='red', bold=True, err=True)
+    click.secho(f'       {needed_by}. To fix it: create the folder, mount your shared storage there,', fg='red', err=True)
+    click.secho('       or set QA_STORAGE (or `storage` in qaboard.yaml) to a folder your QA-Board server reads.', fg='red', err=True)
+    for path in missing_storage:
+      if "/algo/" in str(path) and not Path(*path.parts[:3]).exists():
+        click.secho('INFO: To create storage locations for new projects, go to:', fg='blue', bold=True, err=True)
+        click.secho('      http://jenmaster1:8080/job/ALGO/job/CreateProjectStorage/build?delay=0sec', fg='blue', err=True)
+        click.secho('Products (HP1, 2X5...) are "Technology" projects, while CIS/KITT_ISP.. are "Group" projects.', fg='blue', err=True)
+        break
+    return True
+  if 'QA_BATCH' not in environ:
+    click.secho(f'WARNING: The storage path does not exist: {paths}. Local runs save their results in output/ without it,', fg='yellow', err=True)
+    click.secho('         but `qa --share`, CI runs and `qa save-artifacts` need it: create or mount it, or set QA_STORAGE.', fg='yellow', err=True)
+  return False
 
 outputs_root: Optional[Path]
 artifacts_root: Optional[Path]

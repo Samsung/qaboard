@@ -26,9 +26,10 @@ with the Python code that runs yours. This page creates them, says what to fill 
        └── metrics.yaml   # optional: how to show your metrics
    ```
 
-   In a git repository, `qa init` fills in the project's name, URL and reference branch from your git remote, when it
-   can reach it. Otherwise it says *Please edit qaboard.yaml with your project name and url*: set them yourself, see
-   [below](#qaboard-yaml).
+   In a git repository, `qa init` fills in the project's name and URL from your git remote, and the reference branch
+   from the remote's default branch. When it can't reach the remote (no network or credentials), the reference branch
+   stays `master`, and it says so. Without a remote, it says *Please edit qaboard.yaml with your project name and
+   url*: set them yourself, see [below](#qaboard-yaml).
 2. Check that it works. Until you edit it, `qa/main.py` prints what it gets, then runs the command you give after the
    input:
 
@@ -48,9 +49,10 @@ with the Python code that runs yours. This page creates them, says what to fill 
 
    `<your-repository>` is where you ran `qa init`. The last line is what the run returned: its metrics.
 
-   If `qa` stops with *The storage path does not exist*, it couldn't create the folder for shared results, `storage`
-   in *qaboard.yaml* (`/mnt/qaboard`). Set it to your server's results folder, or for the
-   [quickstart](/docs/get-started/quickstart)'s server, `export QA_STORAGE=/tmp/qaboard`.
+   If `qa` warns that *The storage path does not exist*, it couldn't create the folder for shared results, `storage`
+   in *qaboard.yaml* (`/mnt/qaboard`). Local runs like this one don't need it. To share results, set it to your
+   server's results folder, or for the [quickstart](/docs/get-started/quickstart)'s server,
+   `export QA_STORAGE=/tmp/qaboard`.
 3. Commit *qaboard.yaml* and `qa/` with your code: every commit runs with its own.
 
 Next, make `run()` run your code: see [Running your code](/docs/running-your-code).
