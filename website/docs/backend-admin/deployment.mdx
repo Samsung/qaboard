@@ -6,7 +6,7 @@ description: "Deploy, upgrade and roll back QA-Board with docker compose without
 ---
 With docker compose, deploy and upgrade QA-Board with `deployments/deploy.py`. It gives:
 
-- **Zero-downtime deploys**: the backend runs several replicas behind nginx. New replicas start next to the old ones; nginx switches to them once they are healthy, then the old ones finish their in-flight requests and stop. If the new replicas are not healthy, they are removed and the old version keeps serving.
+- **Zero-downtime deploys**: the backend runs several replicas behind nginx. New replicas start next to the old ones; nginx switches to them once they are healthy, then the old ones answer the requests they already received and stop. If the new replicas are not healthy, they are removed and the old version keeps serving.
 - **The tested images are the deployed images**: if your CI builds the images once per commit and tags them with the commit (e.g. `<registry>/qaboard:backend-1a2b3c4d`), you deploy those same images to staging, then production.
 - **Fast rollbacks**: the images of the last 3 versions stay on the host.
 - Migrations run once, before the backend is updated: if they fail, nothing running is changed.
