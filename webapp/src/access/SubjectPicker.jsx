@@ -17,7 +17,7 @@ const subjectLabel = subject => subject.type === 'group'
 
 // The server searches: we show what it answers, users first
 export const directorySubjects = (data, types = ['user', 'group']) => [
-  ...(types.includes('user') ? (data?.users ?? []).map(user => ({ type: 'user', id: user.id, user_name: user.user_name, full_name: user.full_name, name: user.user_name })) : []),
+  ...(types.includes('user') ? (data?.users ?? []).map(user => ({ type: 'user', id: user.id, user_name: user.user_name, full_name: user.full_name, name: user.user_name, kind: user.kind })) : []),
   ...(types.includes('group') ? (data?.groups ?? []).map(group => ({ type: 'group', id: group.id, name: group.name })) : []),
 ];
 

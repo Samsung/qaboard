@@ -74,10 +74,11 @@ class Actor:
     return scope in tokens_lib.scopes_of(self.token)
 
   def allows_project(self, project_id: Optional[str]) -> bool:
-    """Tokens can be restricted to some projects"""
+    """Tokens can be restricted to some projects. A project's service accounts never reach outside of it."""
     if self.token is None:
       return True
-    return tokens_lib.matches_project(self.token.projects or [], project_id)
+    from .service_accounts import allows_project
+    return tokens_lib.matches_project(self.token.projects or [], project_id) and allows_project(self.user, project_id)
 
   def submitted_by(self) -> Optional[dict]:
     """Who really sent results, saved with runs, batches and commits"""

@@ -55,6 +55,12 @@ export const SubjectName = ({ subject }) => {
       <strong style={{ overflowWrap: 'anywhere' }}>{subject.name ?? `Group #${subject.id}`}</strong>
     </span>;
   const user_name = subject.user_name ?? subject.name;
+  // service accounts are named by their user name, e.g. ci[bot]
+  if (subject.kind === 'service')
+    return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+      <Icon icon="build" size={14} aria-label="Service account" className={Classes.TEXT_MUTED}/>
+      <strong style={{ overflowWrap: 'anywhere' }}>{user_name ?? `User #${subject.id}`}</strong>
+    </span>;
   const full_name = subject.full_name && subject.full_name !== user_name ? subject.full_name : null;
   return <span style={{ minWidth: 0 }}>
     <strong style={{ overflowWrap: 'anywhere' }}>{full_name ?? user_name ?? `User #${subject.id}`}</strong>
@@ -65,4 +71,6 @@ export const SubjectName = ({ subject }) => {
 // For confirmations and toasts
 export const subjectText = subject => subject?.type === 'group'
   ? `the group ${subject.name ?? subject.id}`
-  : subject?.full_name || subject?.user_name || subject?.name || 'this user';
+  : subject?.kind === 'service'
+    ? subject.user_name ?? subject.name ?? 'this service account'
+    : subject?.full_name || subject?.user_name || subject?.name || 'this user';

@@ -52,39 +52,47 @@ def list_tokens():
   return jsonify({"tokens": [tokens_lib.serialize(t) for t in tokens]})
 
 
+def token_request(body: dict, allowed_scopes):
+  """(fields for tokens_lib.mint, None) from a request to create a token, or (None, the error response)"""
+  name = body.get('name')
+  if not isinstance(name, str) or not name.strip():
+    return None, bad_request("Give the token a name, e.g. where you'll use it.")
+  if len(name) > MAX_NAME_LENGTH:
+    return None, bad_request(f"Token names have at most {MAX_NAME_LENGTH} characters.")
+  scopes = body.get('scopes')
+  if not isinstance(scopes, list) or not scopes or not all(isinstance(s, str) for s in scopes):
+    return None, bad_request(f"Choose the token's scopes, among: {', '.join(allowed_scopes)}.")
+  unknown = [s for s in scopes if s not in tokens_lib.SCOPES]
+  if unknown:
+    return None, bad_request(f"Unknown scopes: {', '.join(unknown)}. Choose among: {', '.join(allowed_scopes)}.")
+  refused = [s for s in scopes if s not in allowed_scopes]
+  if refused:
+    return None, bad_request(f"These tokens can't have the scopes: {', '.join(refused)}. Choose among: {', '.join(allowed_scopes)}.")
+  try:
+    projects = tokens_lib.clean_project_patterns(body.get('projects'))
+  except ValueError as e:
+    return None, bad_request(str(e))
+  expires_at, error = token_expiry(body)
+  if error:
+    return None, bad_request(error)
+  idle_expiry_days = body.get('idle_expiry_days')
+  if idle_expiry_days is not None and (isinstance(idle_expiry_days, bool) or not isinstance(idle_expiry_days, int) or idle_expiry_days < 1):
+    return None, bad_request("`idle_expiry_days` must be a number of days (at least 1), or null.")
+  return {"name": name.strip(), "scopes": scopes, "projects": projects, "expires_at": expires_at, "idle_expiry_days": idle_expiry_days}, None
+
+
 @app.route('/api/v1/user/tokens', methods=['POST'])
 @app.route('/api/v1/user/tokens/', methods=['POST'])
 @session_required
 def new_token():
   user = g.actor.user
   body = request.get_json(silent=True) or {}
-  name = body.get('name')
-  if not isinstance(name, str) or not name.strip():
-    return bad_request("Give the token a name, e.g. where you'll use it.")
-  if len(name) > MAX_NAME_LENGTH:
-    return bad_request(f"Token names have at most {MAX_NAME_LENGTH} characters.")
-  scopes = body.get('scopes')
-  if not isinstance(scopes, list) or not scopes or not all(isinstance(s, str) for s in scopes):
-    return bad_request(f"Choose the token's scopes, among: {', '.join(tokens_lib.SCOPES)}.")
-  unknown = [s for s in scopes if s not in tokens_lib.SCOPES]
-  if unknown:
-    return bad_request(f"Unknown scopes: {', '.join(unknown)}. Choose among: {', '.join(tokens_lib.SCOPES)}.")
-  if 'admin' in scopes and not g.actor.is_admin:
+  if isinstance(body.get('scopes'), list) and 'admin' in body['scopes'] and not g.actor.is_admin:
     return jsonify({"error": "Only admins can create tokens with the \"admin\" scope.", "reason": "not_admin"}), 403
-  try:
-    projects = tokens_lib.clean_project_patterns(body.get('projects'))
-  except ValueError as e:
-    return bad_request(str(e))
-  expires_at, error = token_expiry(body)
+  fields, error = token_request(body, list(tokens_lib.SCOPES))
   if error:
-    return bad_request(error)
-  idle_expiry_days = body.get('idle_expiry_days')
-  if idle_expiry_days is not None and (isinstance(idle_expiry_days, bool) or not isinstance(idle_expiry_days, int) or idle_expiry_days < 1):
-    return bad_request("`idle_expiry_days` must be a number of days (at least 1), or null.")
-  token, secret = tokens_lib.mint(
-    user, name=name.strip(), scopes=scopes, projects=projects, expires_at=expires_at,
-    idle_expiry_days=idle_expiry_days, created_by=user, kind='personal',
-  )
+    return error
+  token, secret = tokens_lib.mint(user, **fields, created_by=user, kind='personal')
   db_session.commit()
   return jsonify({**tokens_lib.serialize(token), "token": secret}), 201
 

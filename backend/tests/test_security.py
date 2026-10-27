@@ -529,7 +529,8 @@ def test_admin_endpoints_require_admins():
 def test_credentials_are_only_created_from_sessions():
   # else a leaked token could keep creating tokens after it's revoked
   functions = {(path.name, node.name): node for path, node in api_functions()}
-  for key in [("tokens.py", "new_token"), ("tokens.py", "approve_device"), ("tokens.py", "create_token")]:
+  for key in [("tokens.py", "new_token"), ("tokens.py", "approve_device"), ("tokens.py", "create_token"),
+              ("service_accounts.py", "create_service_account"), ("service_accounts.py", "create_service_account_token")]:
     assert "session_required" in {ast.unparse(d) for d in functions[key].decorator_list}, key
 
 
@@ -1425,7 +1426,7 @@ def test_auth_module_defines_each_name_once():
 # Routes that mention projects without calling one of PROJECT_CHECKS, and why
 PROJECT_CHECKS = {
   "is_authorized_user", "require_project_access", "forbidden_project", "ingest_access", "can", "authorize", "may_manage",
-  "get_milestone", "check_read_access", "readable_file", "_video_path", "github_workflow", "gitlab_project", "jenkins_trigger_access",
+  "get_milestone", "managed_account", "check_read_access", "readable_file", "_video_path", "github_workflow", "gitlab_project", "jenkins_trigger_access",
 }
 UNCHECKED_PROJECT_ROUTES = {
   # admins: admin_required
@@ -1443,6 +1444,8 @@ UNCHECKED_PROJECT_ROUTES = {
   ("access.py", "request_project_access"),
   # "project" is a word in their answers, not a project they read
   ("auth.py", "get_current_user"), ("sign_in.py", "my_access_request"), ("tokens.py", "new_token"),
+  # users and groups to pick from: it leaves out projects' service accounts, it reads no project
+  ("access.py", "directory"),
   # login_required checks ?project=, the only project it reads
   ("tuning.py", "check_tuning"), ("integrations.py", "proxy_webook"),
 }

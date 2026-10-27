@@ -2,6 +2,7 @@
 API tokens: their format, how we store and check them.
 
 Format: `qab_pat_` + 40 random base62 characters + a 6-character base62 checksum (crc32 of the random part).
+Service accounts' tokens start with `qab_svc_` (backend/service_accounts.py).
 - The prefix tells what it is, so secret scanners (and people) recognize leaked QA-Board tokens.
 - The checksum rejects typos and random strings without a database lookup.
 We only store sha256(token): it has ~238 random bits, a salt or a slow hash wouldn't make it harder to guess.
@@ -16,6 +17,7 @@ from fnmatch import fnmatchcase
 from typing import Optional, List
 
 PREFIX = 'qab_pat_'
+SERVICE_PREFIX = 'qab_svc_'
 BASE62 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 RANDOM_LENGTH = 40
 CHECKSUM_LENGTH = 6
@@ -47,12 +49,12 @@ def checksum(random_part: str) -> str:
   return base62(zlib.crc32(random_part.encode()), CHECKSUM_LENGTH)
 
 
-def generate() -> str:
+def generate(prefix: str = PREFIX) -> str:
   random_part = ''.join(secrets.choice(BASE62) for _ in range(RANDOM_LENGTH))
-  return f"{PREFIX}{random_part}{checksum(random_part)}"
+  return f"{prefix}{random_part}{checksum(random_part)}"
 
 
-TOKEN_RE = re.compile(rf'^{PREFIX}([0-9A-Za-z]{{{RANDOM_LENGTH}}})([0-9A-Za-z]{{{CHECKSUM_LENGTH}}})$')
+TOKEN_RE = re.compile(rf'^(?:{PREFIX}|{SERVICE_PREFIX})([0-9A-Za-z]{{{RANDOM_LENGTH}}})([0-9A-Za-z]{{{CHECKSUM_LENGTH}}})$')
 LEGACY_RE = re.compile(r'^[0-9a-f]{64}$')
 
 def is_well_formed(token: str) -> bool:
@@ -174,7 +176,7 @@ def mint(user, name: str, scopes: List[str], kind: str = 'personal', projects: O
   from backend import db_session
   from .models import Token
   from .audit import audit
-  secret = generate()
+  secret = generate(SERVICE_PREFIX if kind == 'service' else PREFIX)
   token = Token(
     token_hash=hash_token(secret),
     prefix=display_prefix(secret),

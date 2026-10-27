@@ -21,6 +21,9 @@ COOKIE_LIFETIME = datetime.timedelta(days=365)
 
 def start(user, provider_id: Optional[str] = None):
   """Opens a session for the user, in the current request's cookie. The caller commits."""
+  if getattr(user, 'kind', 'human') == 'service':
+    # the sign-in methods don't find them: this is the last line of defense
+    raise PermissionError(f"Service accounts only use tokens, they can't sign in: {user.user_name}")
   from backend import db_session
   from ..models import UserSession
   from ..audit import client_ip

@@ -76,7 +76,8 @@ def oidc_account(provider, claims: dict, linking_user=None):
     user = User.query.filter(User.user_name == user_name).one_or_none()
   elif match == 'email' and email and claims.get('email_verified') is True:
     user = User.query.filter(User.email == email).one_or_none()
-  if user is not None:
+  # service accounts only use tokens
+  if user is not None and user.kind != 'service':
     return user, email
 
   if User.query.filter(User.user_name == user_name).one_or_none() is not None:
