@@ -182,6 +182,11 @@ shot('history/test-volume', {
     await ui.cursor.moveTo({ x: 1300, y: 880 });
     await ui.settle();
   },
-  target: page => [performanceOverTime(page).getByText('Performance over time', { exact: true }), performanceOverTime(page).locator('.js-plotly-plot').first()],
+  // down to the note under the chart, which starts right under the plot: a crop above it would cut it in half
+  target: page => [
+    performanceOverTime(page).getByText('Performance over time', { exact: true }),
+    performanceOverTime(page).locator('.js-plotly-plot').first(),
+    performanceOverTime(page).getByText(/may not be evaluated on the same tests/),
+  ],
   padding: 8,
 });

@@ -39,7 +39,7 @@ disk space.
 
    </details>
 
-3. **Open [http://localhost:5151](http://localhost:5151).** The projects list shows the demo projects.
+3. **Open [http://localhost:5151](http://localhost:5151).** **Explore**, the list of projects, shows the demo projects.
 
 <Clip id="quickstart/compose" />
 
@@ -105,7 +105,7 @@ With Helm 4, avoid 4.2.1: it waits out the whole `--timeout` after the chart's d
    kubectl port-forward svc/qaboard-proxy 5151:80
    ```
 
-   Open [http://localhost:5151](http://localhost:5151): the projects list shows the demo projects.
+   Open [http://localhost:5151](http://localhost:5151): **Explore**, the list of projects, shows the demo projects.
 
 <Clip id="quickstart/kind" />
 
@@ -119,10 +119,10 @@ upgrades the release (the `helm-e2e` job).
 </Tabs>
 
 :::danger Keep QA-Board on your computer, or behind a firewall
-The API that `qa` uses to save results doesn't require a login yet: anyone who can reach the server can add or delete
-results. The quickstarts only answer on your computer (the Compose file publishes the port on `127.0.0.1`, kind
-through the port-forward). Never expose a QA-Board server to the internet: keep it on a network you trust. Token
-authentication for saving results is on the [roadmap](/docs/roadmap#token-authenticated-ingest).
+By default, the API that `qa` uses to save results doesn't require a login: anyone who can reach the server can add
+or delete results. The quickstarts only answer on your computer (the Compose file publishes the port on `127.0.0.1`,
+kind through the port-forward). Never expose a QA-Board server to the internet: keep it on a network you trust. A
+server for your team can require tokens to save results: see [results sent by qa](/docs/backend-admin/user-management#results-sent-by-qa).
 :::
 
 ## Look at the demo projects
@@ -130,12 +130,16 @@ The demo projects belong to Kitefin Robotics, a fictional company that builds ca
 up, but every number and image comes from running the projects in
 [`examples/`](https://github.com/Samsung/qaboard/tree/master/examples).
 
-<Shot id="projects/home" />
+<Shot
+  id="projects/explore"
+  caption="Explore lists the Kitefin projects, grouped by their path: click one to see its commits, pin the ones you follow with their star."
+/>
 
 - **Follow a review step by step**: [Your first review](/docs/user-guide/first-review) checks one commit of
   **kitefin/camera-isp**, the camera team's image pipeline, from its metrics down to the halos its new denoiser adds.
-- **Log in** as any person of the demo world, e.g. `ines`, with the password `kitefin-demo`: some tools, like
-  finding where images differ or saving a milestone, need it.
+- **Sign in** (top right) as any person of the demo world, e.g. `ines`, with the password `kitefin-demo`: some
+  tools, like finding where images differ or saving a milestone, need it. Signed in, `/` becomes your home page:
+  your projects and the batches you ran.
 - **No commit in the list?** The commit list starts with the last 3 days. The demo history ends when QA-Board first
   started, with commits from a few hours before: if that was days ago, search for a word, like `bilateral`, or widen
   the date range at the top.
@@ -145,7 +149,15 @@ The `qa` command line runs your code where you start it. It saves the outputs in
 the same path, then sends the metrics to the server. Try it on the camera ISP example: it simulates a robot's camera
 and runs its image pipeline on test charts and photos.
 
-1. **Install `qa` and the example's dependencies**, from the `qaboard` folder you cloned:
+1. **Get the example.** With Kubernetes, you already cloned the repository: stay in its `qaboard` folder. With Docker
+   Compose, clone it:
+
+   ```bash
+   git clone https://github.com/Samsung/qaboard.git
+   cd qaboard
+   ```
+
+2. **Install `qa` and the example's dependencies**, from the `qaboard` folder:
 
    ```bash
    cd examples/image-quality
@@ -154,21 +166,24 @@ and runs its image pipeline on test charts and photos.
    pip install qaboard -r requirements.txt
    ```
 
-2. **Point `qa` to your server and to the results folder.** With both quickstarts, it's `/tmp/qaboard`:
+3. **Point `qa` to your server and to the results folder.** With both quickstarts, it's `/tmp/qaboard`:
 
    ```bash
    export QABOARD_URL=http://localhost:5151
    export QA_STORAGE=/tmp/qaboard
    ```
 
-3. **Run the example's CI batch:** 5 test charts and 4 photos, each at ISO 100 and 3200. The first time, the example
+   `QA_STORAGE` replaces `storage` in the example's *qaboard.yaml*, `/mnt/qaboard`: the quickstart's server only
+   reads your results in `/tmp/qaboard`.
+
+4. **Run the example's CI batch:** 5 test charts and 4 photos, each at ISO 100 and 3200. The first time, the example
    downloads its photos and generates its charts.
 
    ```bash
    qa --share batch ci
    ```
 
-4. **Open the link** that `qa` prints after `Results:`. It's the commit page of the `kitefin/camera-isp` project, with
+5. **Open the link** that `qa` prints after `Results:`. It's the commit page of the `kitefin/camera-isp` project, with
    your 18 runs: their metrics, then their output images, which you can zoom into, all in sync. Your commit joins
    the demo commits of the project.
 
@@ -184,4 +199,5 @@ Kubernetes: `kind delete cluster --name qaboard` deletes the cluster. Your resul
 - [Key concepts](/docs/get-started/concepts): projects, commits, batches, runs and references, in one page.
 - [Your first review](/docs/user-guide/first-review): the web app, step by step, on a demo project.
 - [The image viewer](/docs/user-guide/image-viewer) and [the video viewer](/docs/user-guide/video-viewer): every tool to compare outputs, down to the pixel and the frame.
-- [Running QA-Board on Kubernetes](/docs/backend-admin/kubernetes): from this quickstart to a cluster for your team.
+- A server for your team: [Starting a QA-Board server](/docs/deploy) with Docker Compose, or
+  [Running QA-Board on Kubernetes](/docs/backend-admin/kubernetes), from this quickstart to a cluster.

@@ -1,9 +1,12 @@
 ---
 id: deploy
 title: Starting a QA-Board server
-sidebar_label: Server Bringup
+sidebar_label: Set up a server
+description: Set up QA-Board for your team on a Linux host with Docker Compose, from the results storage to the first results, then secure it, back it up and configure it.
 ---
-QA-Board's run-wrapper, `qa`, will sync with a central server that tracks and displays results.
+Set up a QA-Board server for your team: by the end, your users sign in to the web app, and `qa` saves their results
+to it. This page uses Docker Compose on one Linux host. On Kubernetes, follow
+[Running QA-Board on Kubernetes](/docs/backend-admin/kubernetes) instead.
 
 :::tip Try it first
 The [quickstart](/docs/get-started/quickstart) starts QA-Board on your computer with one Compose file, and demo
@@ -15,146 +18,416 @@ projects to look at.
   caption="The quickstart: start one Compose file, and once every service is healthy, QA-Board answers on localhost:5151 with the demo projects."
 />
 
-:::note Need a hosted version?
-We're considering offering a hosted solution to help you get started. If you are interested, contact the <a href="mailto:arthur.flam@gmail.com">maintainers</a>.
+## What you need {#prerequisites}
+- **A Linux host** with [Docker Engine](https://docs.docker.com/engine/install/), docker compose 2.24 or newer
+  (`docker compose version`), `git` and `python3`. For its size: *deployments/production.env* runs 2 backend
+  replicas of up to 8 uwsgi processes each, the [Helm chart](/docs/backend-admin/kubernetes) asks for 1 CPU and 4 GiB
+  of memory per replica, and `services/db/qaboard.conf` has PostgreSQL settings for an 8-core, 32 GB host.
+- **Disk on the host**, in Docker's volumes and images (`/var/lib/docker` by default): QA-Board's images
+  (`deploy.py` keeps those of the last 3 versions), the database, the clones of your git repositories, and caches:
+  decoded images, up to 20 GB (`QABOARD_IMAGE_CACHE_GB`), and the image server's tiles, kept 5 days.
+- **The results storage**: a folder that the server and every machine that runs `qa` (CI runners, workstations,
+  cluster nodes) mount **at the same path**, e.g. an NFS share at `/mnt/qaboard`. `qa` writes the output files there
+  itself, and only sends their path to the server, which reads them there.
+- **A hostname** that your users, CI runners and git hosts reach, e.g. `qaboard.example.com`, and a TLS certificate
+  for HTTPS.
+- **One port**: the web app, the API and the webhooks answer on port 5151 (`QABOARD_PORT_HTTP`), or 443 with HTTPS.
 
-Until then, please [create an issue](https://github.com/Samsung/qaboard/issues) if you run into problems starting a server. We're responsive.
-
+:::note The admin services stay on the host
+*docker-compose.yml* also publishes pgAdmin (5050), RabbitMQ (5672, its management UI on 15672) and Flower (8888),
+on the host itself only (`127.0.0.1`): from another computer, use an ssh tunnel. RabbitMQ has a `guest:guest`
+account until you set one, and anyone who reaches it can run commands on Celery workers: see
+[passwords and admin services](#passwords-and-admin-services) before you publish it for workers on other hosts.
 :::
 
-## Create a directory to store results
-QA-Board expects that all clients can access a shared storage to save and read results.
-
-To get started quickly on a single server, create a *local* folder. Worry about sharing it later:
-
-```bash
-mkdir -p /mnt/qaboard
-chmod -R 777 /mnt/qaboard
-```
-
-The base `docker-compose.yml` doesn't mount any results storage. Mount it in your site overlay (start from `deployments/example.yml`): the backend needs it at the same path as the clients, nginx serves files under `/s/` from `/var/qaboard/` (`/s/mnt/qaboard/...` is read from `/var/qaboard/mnt/qaboard/...`), and the image server reads images from `/repository/` (`/iiif/2/mnt%2Fqaboard%2F...` from `/repository/mnt/qaboard/...`):
-
-```yaml title="deployments/mysite.yml"
-services:
-  backend:
-    volumes:
-    - /mnt/qaboard:/mnt/qaboard
-  proxy:
-    volumes:
-    - /mnt/qaboard:/var/qaboard/mnt/qaboard:ro
-  cantaloupe:
-    volumes:
-    - /mnt/qaboard:/repository/mnt/qaboard:ro
-```
-
-:::note Upgrading from older versions
-`docker-compose.yml` used to mount the host's whole filesystem in the image server. If the image viewers show no images after you upgrade, mount your storage in `cantaloupe` like above, at the same paths as in `proxy`.
-:::
-
-:::tip
-If you want to use a different folder, use your path in the overlay, and set `storage` in your projects' *qaboard.yaml* (see [where is the data saved](storage/where-is-the-data)).
-:::
-
-When users open a folder under `/s/` in their browser, they get QA-Board's [file browser](user-guide/files). nginx still sends the files, but the backend lists the folders: it lists those inside `QABOARD_STORAGE_ROOTS`, at the same paths as in the URLs. Other clients (`curl`, `wget`...) still get nginx's index. To restrict who can read the files of some projects, see [user management](backend-admin/user-management#restricting-who-can-read-files).
-
-:::note Shared Storage?
-Later, read how to setup [**NFS**](https://www.digitalocean.com/community/tutorials/how-to-set-up-an-nfs-mount-on-ubuntu-18-04) or [**Samba**](https://www.digitalocean.com/community/tutorials/how-to-set-up-a-samba-share-for-a-small-organization-on-ubuntu-16-04). If you need fine-tuning read about [options for NFS volumes](https://docs.docker.com/compose/compose-file/#volume-configuration-reference) in *docker-compose.yml*.
-:::
-
-:::note Working in the cloud?
-Use file-base storage like [AWS EFS](https://aws.amazon.com/en/efs/) or [GCP Filestore](https://cloud.google.com/filestore).
-
-We plan on supporting blob-stores like AWS **S3**. <a href="mailto:arthur.flam@gmail.com">Contact us</a> or [create an issue](https://github.com/samsung/qaboard/issues) if it would help.
-:::
-
-## Starting the server
-
-### Prerequisites
-You need Linux, [`docker`](https://docs.docker.com/engine/install/), [`docker compose`](https://docs.docker.com/compose/install/) and `git`.
-
-### Deployment
-QA-Board uses **compose overlays** in the `deployments/` directory to adapt the stack to different environments, and an **env file** per environment that lists them:
+## 1. Get QA-Board {#1-get-qa-board}
+On the host:
 
 ```bash
 git clone https://github.com/Samsung/qaboard.git
 cd qaboard
 ```
 
-Add your overlay to `COMPOSE_FILE` in a copy of `deployments/production.env` (the examples use the file as it is), then:
+You deploy from this checkout: it has the compose files, nginx's and PostgreSQL's configuration, and
+`deployments/deploy.py`. The code comes from the images. To deploy a release, check out its tag
+(`git checkout v<version>`), so that both match.
+
+## 2. Create the results storage {#2-create-the-results-storage}
+<Anchor id="create-a-directory-to-store-results" />
+
+To start on a single host, a local folder works. Share it later:
+
 ```bash
-# first time
-deployments/deploy.py deployments/production.env up --build --init
-# upgrades (git pull first), with zero downtime
-deployments/deploy.py deployments/production.env up --build
+sudo mkdir -p /mnt/qaboard
+sudo chmod 777 /mnt/qaboard
 ```
 
-If you prefer plain docker compose, `docker compose -f docker-compose.yml -f production.yml up -d` still works, without zero-downtime upgrades.
+If your storage is a share, mount it on the host at the path the runners use. To use another path than
+`/mnt/qaboard`, use it in the overlay below, list it in `QABOARD_STORAGE_ROOTS`, and set `storage` in your projects'
+*qaboard.yaml* (see [where is the data saved](/docs/storage/where-is-the-data)).
 
-A site overlay adds your site's services, volumes, environment variables and nginx configuration without modifying the base `docker-compose.yml`. Start from `deployments/example.yml` for the overlay, and from `deployments/production.env` for the env file.
-
-`deployments/deploy.py` runs several backend replicas and replaces them one version at a time, runs database migrations once, and keeps the previous images for rollbacks. Read [Deployments, rollbacks and high availability](backend-admin/deployment) for the details.
-
-:::tip
-The application is live at `localhost:5151` by default (set `QABOARD_PORT_HTTP` to change it).
+:::note Shared storage
+Read how to set up [**NFS**](https://www.digitalocean.com/community/tutorials/how-to-set-up-an-nfs-mount-on-ubuntu-18-04)
+or [**Samba**](https://www.digitalocean.com/community/tutorials/how-to-set-up-a-samba-share-for-a-small-organization-on-ubuntu-16-04),
+and the [options for NFS volumes](https://docs.docker.com/compose/compose-file/#volume-configuration-reference) in
+compose files. In the cloud, use a file storage like [AWS EFS](https://aws.amazon.com/en/efs/) or
+[GCP Filestore](https://cloud.google.com/filestore). Object storage, like S3, is on the
+[roadmap](/docs/roadmap#object-storage-for-results).
 :::
 
-:::note Kubernetes
-A helm chart is available in `charts/qaboard`, see [Kubernetes](backend-admin/kubernetes).
+## 3. Describe your site {#3-describe-your-site}
+A **site overlay** adds your volumes, settings and nginx configuration to *docker-compose.yml*, without changing it.
+Create one in a folder for your site, starting from `deployments/example.yml`:
+
+```yaml title="deployments/mysite/mysite.yml"
+services:
+  backend:
+    volumes:
+    # The results storage, at the same path as on the runners
+    - /mnt/qaboard:/mnt/qaboard
+    environment:
+    # The address users open: links in emails, single sign-on redirects
+    - QABOARD_URL=http://qaboard.example.com:5151
+    # Your user name: you're an admin once you sign in (step 6)
+    - QABOARD_ADMINS=alice
+  proxy:
+    volumes:
+    # nginx serves /s/<path> from /var/qaboard/<path>
+    - /mnt/qaboard:/var/qaboard/mnt/qaboard:ro
+  cantaloupe:
+    volumes:
+    # The image server reads /iiif/2/<path> from /repository/<path>: each storage root, read-only
+    - /mnt/qaboard:/repository/mnt/qaboard:ro
+```
+
+- **The storage** is mounted at the same path in the backend, and under `/var/qaboard/` in nginx, which serves it at
+  `/s/`: browsers that open a folder there get QA-Board's [file browser](/docs/user-guide/files). The image server
+  (Cantaloupe) sees only what you mount in it, at the same paths as in nginx.
+
+:::note Upgrading
+*docker-compose.yml* used to mount the host's whole filesystem in the image server. If the image viewers show no
+images after you upgrade, mount your storage in `cantaloupe` like above.
+:::
+- **`QABOARD_URL`**: use `https://` only once HTTPS works ([below](#using-ssl--hosting-behind-a-reverse-proxy)):
+  session cookies are then only sent over HTTPS.
+- **Other settings** go in `services.backend.environment` too: see [environment variables](#optional-environment-variables).
+
+## 4. Write the env file and the secrets {#4-write-the-env-file-and-the-secrets}
+`deploy.py` reads an **env file** per environment: the compose files, the compose project, and the settings docker
+compose reads itself. Copy `deployments/production.env` and add your overlay:
+
+```bash title="deployments/mysite/production.env"
+COMPOSE_PROJECT_NAME=qaboard
+COMPOSE_FILE=docker-compose.yml:production.yml:deployments/mysite/mysite.yml
+QABOARD_BACKEND_REPLICAS=2
+QABOARD_UWSGI_PROCESSES=8
+QABOARD_UWSGI_CHEAPER=4
+QABOARD_UWSGI_CHEAPER_INITIAL=8
+# QABOARD_PORT_HTTP=5151
+```
+
+Put the secrets in `.env`, at the root of the checkout (`chmod 600 .env`). Generate them with
+`openssl rand -base64 32`:
+
+```bash title=".env"
+# Push webhooks must send it (step 8)
+QABOARD_WEBHOOK_SECRET=...
+# Signs sessions. Generated and kept in the backend's data volume if unset: set it to move hosts without signing everyone out
+# SECRET_KEY=...
+# The database, and the admin services (see below)
+QABOARD_DB_PASSWORD=...
+PGADMIN_DEFAULT_EMAIL=admin@example.com
+PGADMIN_DEFAULT_PASSWORD=...
+# Only if Celery workers connect to RabbitMQ (QABOARD_TUNING_RUNNER=celery). URL-safe characters
+# QABOARD_RABBITMQ_USER=qaboard
+# QABOARD_RABBITMQ_PASSWORD=...
+# Optional: Flower (the task queue's UI) also asks for this login. At /flower/, only QA-Board's admins get it
+# FLOWER_BASIC_AUTH=admin:...
+```
+
+:::caution Where each setting goes
+- **`.env`**: secrets. The backend gets all its variables.
+- **The env file**: what docker compose reads itself: `COMPOSE_*`, `QABOARD_PORT_HTTP`, `QABOARD_BACKEND_REPLICAS`,
+  `QABOARD_IMAGE`... `deploy.py` gives it to docker compose, which then doesn't read `.env` for those.
+- **The overlay's `services.backend.environment`**: the other settings. *docker-compose.yml* sets
+  `QABOARD_LOGIN_TYPE`, `QABOARD_LOGIN_REQUIRED`, `QABOARD_LOGIN_RESTRICTED`, `QABOARD_LOGIN_RESTRICTED_YAML`,
+  `QABOARD_ADMINS` and `QABOARD_INGEST_AUTH` from the env file, which wins over `.env`: set them in the overlay or in
+  the env file, never in `.env`.
 :::
 
-## Managing access rights and users
-QA-Board can connect to external authentication systems (LDAP, SAML). If needed, access can be restricted to logged-in users. To know more about this, or create a test user, refer to the docs on [user management](backend-admin/user-management).
+### Passwords and admin services {#passwords-and-admin-services}
+`deploy.py` passes these passwords from `.env` to docker compose, for the `${...}` of the compose files.
+- **The database** is created with `QABOARD_DB_PASSWORD` (default: `password`), and the backend and the backups use
+  it. To change the password of an existing database, see [database password](/docs/backend-admin/deployment#database-password).
+- **RabbitMQ** is created with `QABOARD_RABBITMQ_USER` and `QABOARD_RABBITMQ_PASSWORD` (default: `guest:guest`).
+  Celery workers run the commands of the tasks they get: anyone who can connect to RabbitMQ can run commands on them.
+  For an existing RabbitMQ, add the user with `docker compose exec rabbitmq rabbitmqctl add_user` and
+  `set_permissions`, or change the password with `rabbitmqctl change_password`. For workers on other hosts, publish
+  it with `QABOARD_RABBITMQ_HOST_IP=0.0.0.0` in the env file, and give each team its own account
+  ([sharing the broker](/docs/celery-integration#sharing-the-servers-broker-between-teams)).
+- **The admin services are only published on the host itself** (`127.0.0.1`): RabbitMQ (`QABOARD_PORT_RABBITMQ`,
+  5672, and its management UI on `QABOARD_PORT_RABBITMQ_MNGT`, 15672), Flower (`QABOARD_PORT_FLOWER`, 8888) and
+  pgAdmin (`PGADMIN_PORT`, 5050). nginx serves Flower at `/flower/` to QA-Board's admins only.
 
-## (Optional) Environment variables
-> To configure your installation, set `services.backend.environment` in your site overlay (see `deployments/example.yml`).
-> An [`.env` file](https://docs.docker.com/compose/environment-variables/#the-env-file) only sets the variables used by the compose files: the ports (`QABOARD_PORT_*`), and those that *docker-compose.yml* or your overlay forward to the backend (e.g. `SECRET_KEY`, `GITLAB_ACCESS_TOKEN`, `QABOARD_DB_HOST`, `QABOARD_LOGIN_*`). Others, like the LDAP settings, must be listed in the overlay.
+## 5. Deploy {#5-deploy}
+<Anchor id="starting-the-server" /><Anchor id="deployment" />
+
+```bash
+# The first time: --init allows a new compose project, with an empty database
+deployments/deploy.py deployments/mysite/production.env up --version <version> --init
+```
+
+`<version>` is a [release](https://github.com/Samsung/qaboard/releases), like `1.2.0`. `deploy.py` pulls its images
+(`ghcr.io/samsung/qaboard:<service>-<version>`), runs the database migrations, starts the services, and records the
+version, so that `rollback` can come back to it. Without `--version`, it deploys the latest images of `master`;
+with `--build`, it builds the images from your checkout. Plain
+`docker compose --env-file deployments/mysite/production.env up -d` works too, without zero-downtime upgrades.
+
+**Check it worked:**
+
+```bash
+deployments/deploy.py deployments/mysite/production.env status
+curl -fsS http://localhost:5151/api/v1/health
+```
+
+`status` lists the containers: all running, and the backend replicas `healthy`. The health check answers
+`"status": "ok"` once the backend reaches its database. Open `http://<your-host>:5151`: the web app opens, with no
+projects yet. If something is wrong, see [Troubleshooting](/docs/backend-admin/troubleshooting).
+
+## 6. Make yourself an admin {#6-make-yourself-an-admin}
+Admins see **Admin** in the user menu: users, sign-in, settings, and the jobs that clean the storage.
+
+- The user names in `QABOARD_ADMINS` ([step 3](#3-describe-your-site)) are admins as soon as they sign in.
+- To sign in before LDAP or single sign-on work, create a local admin account. It asks for the password:
+
+  ```bash
+  deployments/deploy.py deployments/mysite/production.env compose exec backend qaboard-admin create-admin admin --password
+  ```
+
+**Check it worked:** sign in with **Sign in**, at the top right, and open **Admin**. Its **Overview** has a security
+checklist of what to look at next. More in [User management](/docs/backend-admin/user-management).
+
+## 7. Choose how users sign in {#7-choose-how-users-sign-in}
+<Anchor id="managing-access-rights-and-users" />
+
+By default, users have local accounts, and anyone can create one from the sign-in page (**Create one**). Instead:
+- **Single sign-on** with OpenID Connect (Keycloak, Entra ID, Okta, Google...): see
+  [Sign-in and single sign-on](/docs/backend-admin/sign-in).
+- **LDAP** or **SAML**: set `QABOARD_LOGIN_TYPE` and their settings in the overlay, see
+  [authentication providers](/docs/backend-admin/user-management#authentication-providers).
+
+Then decide [who gets an account](/docs/backend-admin/sign-in#decide-who-gets-an-account), and whether
+[anonymous users](/docs/backend-admin/user-management#blocking-anonymous-users) see anything.
+
+To apply changes to `.env` or to the overlay, deploy again: `deploy.py <env file> up` recreates the backend with them,
+without downtime. **Check it worked:** `qaboard-admin check-sign-in` in the backend's container, or **Admin → Sign-in
+→ Test**, then sign in.
+
+## 8. Connect your git hosts {#8-connect-your-git-hosts}
+QA-Board reads your repositories for committers' avatars and each pushed commit's *qaboard.yaml*, and learns about
+pushes from webhooks.
+
+1. **Tokens**: add them to `.env`, e.g. `GITHUB_ACCESS_TOKEN`, or `GITLAB_HOST` and `GITLAB_ACCESS_TOKEN`. For other
+   hosts, or several, see [Git hosts](/docs/backend-admin/git-hosts).
+2. **Webhooks**: in each repository, send push events to `<QABOARD_URL>/webhook/github` (or `gitlab`, `gitea`,
+   `bitbucket`), with your `QABOARD_WEBHOOK_SECRET`: see
+   [Connect your git host](/docs/project-init#optional-connect-your-git-host).
+
+**Check it worked:** push a commit. The git host shows that the webhook's latest delivery got `200`.
+
+## 9. Save the first results {#9-save-the-first-results}
+On a machine that mounts the results storage at the same path as the server, e.g. a CI runner, install `qa` and point
+it to the server:
+
+```bash
+pip install qaboard
+export QABOARD_URL=http://qaboard.example.com:5151
+```
+
+In a project wrapped with `qa`, `qa --share batch <batch>` saves the results and prints a link to them:
+[Your project on QA-Board](/docs/get-started/tutorial) walks through it. **Check it worked:** the link opens the
+commit page with your runs and their output files.
+
+## 10. Secure the server {#10-secure-the-server}
+Before you open it to your team:
+- **Serve it over HTTPS** ([below](#using-ssl--hosting-behind-a-reverse-proxy)), with `QABOARD_URL=https://...`.
+- **Require tokens to send results**: by default, anyone who can reach the server can send results. Move
+  `ingest.auth` from `off` to `warn` to `token` once your CI jobs have tokens
+  ([results sent by qa](/docs/backend-admin/user-management#results-sent-by-qa)).
+- **Set `QABOARD_WEBHOOK_SECRET`** ([step 4](#4-write-the-env-file-and-the-secrets)), and the same secret in your
+  webhooks: without it, anyone can send fake push events.
+- **Turn off local sign-up** (`auth.local_signup`) if only admins create accounts, and require signing in if
+  anonymous users shouldn't see results.
+- **Set the passwords** of the database and the admin services ([step 4](#passwords-and-admin-services)), and only
+  expose QA-Board to networks you trust.
+- **Sandbox the runs' HTML files**: by default, the HTML and SVG files of runs run their scripts as whoever opens
+  them. Set `QABOARD_SANDBOX_HTML=true` once your users know ([HTML reports](/docs/viewers#html-reports)).
+
+The security checklist in **Admin → Overview** checks the sign-in, token and HTTPS settings. *SECURITY.md* lists the
+[known issues](https://github.com/Samsung/qaboard/blob/master/SECURITY.md#known-issues) and their mitigations.
+
+## HTTPS and reverse proxies {#using-ssl--hosting-behind-a-reverse-proxy}
+Use your own copy of *services/nginx/conf.d/qaboard.conf* in the site overlay (keep its `include snippets/...` lines:
+they serve the files and the file browser). Files mounted under `/tmp/deployment/nginx/conf.d/` in the `proxy`
+container are added to (or replace) *services/nginx/conf.d/*:
+
+```nginx title="deployments/mysite/nginx/qaboard.conf (copied from services/nginx/conf.d/qaboard.conf)"
+server {
+  # ...
+  listen 443 ssl;
+  ssl_certificate_key /ssl/cert.key;
+  ssl_certificate /ssl/cert.pem;
+  # ...
+}
+```
+
+Mount it, and the key and certificate:
+
+```yaml title="deployments/mysite/mysite.yml"
+services:
+  proxy:
+    ports:
+    - "443:443"
+    volumes:
+    - "./deployments/mysite/nginx/qaboard.conf:/tmp/deployment/nginx/conf.d/qaboard.conf:ro"
+    - "somewhere/cert.key:/ssl/cert.key"
+    - "somewhere/cert.pem:/ssl/cert.pem"
+```
+
+Then set `QABOARD_URL=https://...`, and deploy again.
+
+:::tip Getting a certificate from your IT
+Generate a key and a certificate signing request (CSR), and send the CSR to your IT:
+```bash
+openssl genrsa -out cert.key 2048
+openssl req -new -sha256 -key cert.key -out cert.csr
+```
+If they send back a `.cer` certificate in the DER format, convert it to PEM: `openssl x509 -in cert.cer -inform der -outform pem -out cert.pem`.
+:::
+
+To use your own reverse proxy instead, e.g. nginx, set `QABOARD_PORT_HTTP=8080` in the env file and the config
+below. QA-Board's nginx passes the `X-Forwarded-Proto` and `X-Forwarded-Host` headers your proxy sets to the backend
+(the single sign-on redirects need them), else its own:
+
+```nginx
+server {
+  listen 80;
+  server_name default_server;
+  location / {
+    proxy_pass http://localhost:8080/;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $http_host;
+  }
+}
+```
+
+Behind your proxy, a load balancer or an ingress, set `QABOARD_TRUSTED_PROXY_HOPS=1`, so that the audit log records
+users' IPs (see [rate limits and proxies](/docs/backend-admin/sign-in#rate-limits-and-proxies)).
+
+## Run it day to day
+<Anchor id="optional-for-production" />
+
+- **Upgrade**: read the [release notes](/release-notes) ("Before you upgrade"), check out the new release, then
+  `deploy.py <env file> up --version <version>`. If it goes wrong, `rollback`: see
+  [Upgrades and rollbacks](/docs/backend-admin/deployment).
+- **Back up the database**, and test a restore: see [Backups](#backups).
+- **Free disk space** in the results storage: see [Cleanup](#optional-cleanup).
+- **Follow errors** in Sentry ([monitoring](/docs/backend-admin/monitoring)), and the runs stuck as running in
+  [Runs activity](/docs/user-guide/runs-activity).
+
+### Backups
+The `cron-backup-db` service in *production.yml* makes daily backups of the database to `/backups`, and keeps those of
+the last 14 days (`QABOARD_BACKUP_RETENTION_DAYS`). Mount a host directory there, in the `db` service too
+(`restore-db` reads the backups from it), and copy the backups off the host. Without it, the backups fail.
+
+```yaml title="deployments/mysite/mysite.yml"
+services:
+  cron-backup-db:
+    volumes:
+    - /srv/qaboard/backups:/backups
+  db:
+    volumes:
+    - /srv/qaboard/backups:/backups
+```
+
+To restore one: `deployments/deploy.py <env file> restore-db <file>.dump`. See [Backups](/docs/backend-admin/deployment#backups).
+
+### Cleanup {#optional-cleanup}
+Schedule the cleanup in **Admin → Storage**: delete old results as each project's *qaboard.yaml* says, delete for good
+the runs users deleted, delete old artifacts, with each run's log and errors. See
+[cleaning the storage](/docs/backend-admin/storage).
+
+Or use cron jobs on the host:
+
+```cron
+# Weekly cleanup of old results, on Saturdays
+# https://samsung.github.io/qaboard/docs/storage/deleting-old-data
+59 1 * * 6 cd qaboard && docker compose --env-file deployments/mysite/production.env exec -T backend qaboard_clean
+
+# Weekly removal of unused docker images, on Sundays, so that they don't fill the disk
+59 1 * * 0 docker image prune --force
+```
+
+`qaboard_clean --help` lists the command's options.
+
+<Cards>
+  <Card title="Upgrades and rollbacks" to="/docs/backend-admin/deployment">
+    Zero-downtime deploys, rollbacks, backups and restores, a staging copy, PostgreSQL settings.
+  </Card>
+  <Card title="Project access and roles" to="/docs/backend-admin/project-access">
+    Owners, private projects, groups from your directory or identity provider.
+  </Card>
+  <Card title="Cleaning the storage" to="/docs/backend-admin/storage">
+    Delete old results and what users deleted, find what QA-Board doesn't track, on a schedule.
+  </Card>
+  <Card title="Troubleshooting" to="/docs/backend-admin/troubleshooting">
+    Logs, restarts, a full disk.
+  </Card>
+</Cards>
+
+Problems starting a server? [Create an issue](https://github.com/Samsung/qaboard/issues). For development, read the
+READMEs of the [backend](https://github.com/Samsung/qaboard/tree/master/backend) and the
+[frontend](https://github.com/Samsung/qaboard/tree/master/webapp).
+
+## Environment variables {#optional-environment-variables}
+Set them in `services.backend.environment` in your site overlay, and the secrets in `.env`: see
+[where each setting goes](#4-write-the-env-file-and-the-secrets). With the Helm chart, in `config` and the secret
+([Kubernetes](/docs/backend-admin/kubernetes#on-a-real-cluster)). Many settings can also be changed in
+**Admin → Settings**, without a deploy: see [settings](/docs/backend-admin/user-management#settings).
 
 
 | ENV Variable           | Default | Usage                                                |
 -------------------------|-------- |------------------------------------------------------|
+| `QABOARD_URL` | `http://qaboard` | The address users open, e.g. `https://qaboard.example.com`: links in emails, single sign-on redirects. With `https://`, session cookies are only sent over HTTPS |
 | `SECRET_KEY`           | _generated_ | Signs the sessions. If unset, a key is generated once and saved in the backend's data volume. With several hosts/kubernetes, set the same value everywhere. |
-| `QABOARD_GIT_HOSTS`    | _none_  | Your git hosts (GitHub, GitLab, Gitea/Forgejo, Bitbucket...) with their tokens and webhook secrets: a JSON list, or the path to a JSON/YAML file. See [Git hosts](backend-admin/git-hosts) |
-| `GITLAB_HOST`          | *https://gitlab.com*, if `QABOARD_GIT_HOSTS` isn't set either | Your GitLab, e.g. *https://gitlab.example.com*. It's the default git host: for projects that don't say where they are hosted, and for pushes to `/webhook/gitlab` from hostnames the server doesn't know. **Keep it set when you upgrade**, see [Git hosts](backend-admin/git-hosts#upgrading-from-older-versions) |
-| `GITLAB_ACCESS_TOKEN`  | _none_  | Token for `GITLAB_HOST`: `read_repository` scope to clone private repositories, `read_api` to show GitLab CI job statuses and committers' avatars, `api` to play manual jobs, and to retry the jobs that [recreate deleted artifacts](storage/deleting-old-data#recreating-artifacts) |
-| `GITHUB_ACCESS_TOKEN`  | _none_  | Token for github.com (always known, even without a token) and the hosts of `QABOARD_GITHUB_HOSTS`: to clone private repositories, look up committers' avatars and use GitHub Actions (see [GitHub integration](project-init#github)) |
+| `QABOARD_ADMINS` | _none_ | User names of admins, or emails of directory and single sign-on accounts, comma-separated. See [user management](/docs/backend-admin/user-management) |
+| `QABOARD_GIT_HOSTS`    | _none_  | Your git hosts (GitHub, GitLab, Gitea/Forgejo, Bitbucket...) with their tokens and webhook secrets: a JSON list, or the path to a JSON/YAML file. See [Git hosts](/docs/backend-admin/git-hosts) |
+| `GITLAB_HOST`          | *https://gitlab.com*, if `QABOARD_GIT_HOSTS` isn't set either | Your GitLab, e.g. *https://gitlab.example.com*. It's the default git host: for projects that don't say where they are hosted, and for pushes to `/webhook/gitlab` from hostnames the server doesn't know. **Keep it set when you upgrade**, see [Git hosts](/docs/backend-admin/git-hosts#upgrading-from-older-versions) |
+| `GITLAB_ACCESS_TOKEN`  | _none_  | Token for `GITLAB_HOST`: `read_repository` scope to clone private repositories, `read_api` to show GitLab CI job statuses and committers' avatars, `api` to play manual jobs, and to retry the jobs that [recreate deleted artifacts](/docs/storage/deleting-old-data#recreating-artifacts) |
+| `GITHUB_ACCESS_TOKEN`  | _none_  | Token for github.com (always known, even without a token) and the hosts of `QABOARD_GITHUB_HOSTS`: to clone private repositories, look up committers' avatars and use GitHub Actions (see [GitHub integration](/docs/project-init#github)) |
 | `QABOARD_GITLAB_HOSTS` | _none_  | Comma-separated. Hostnames (e.g. `gitlab-alias`) are other names of `GITLAB_HOST`. URLs (e.g. `https://gitlab2.example.com`) are other GitLab servers, that get `GITLAB_ACCESS_TOKEN`. `QABOARD_GIT_HOSTS` lets you give each its own token |
 | `QABOARD_GITHUB_HOSTS` | _none_  | Comma-separated hostnames of GitHub Enterprise servers, that get `GITHUB_ACCESS_TOKEN`. `QABOARD_GIT_HOSTS` lets you give each its own token |
-| `QABOARD_PROXY_HOSTS` | _none_  | Comma-separated hostnames the web app may load avatars and badges from through the backend, besides your git hosts (`QABOARD_GIT_HOSTS`, `GITLAB_HOST`...), the host of `QABOARD_AVATAR_URL`, and gravatar. Add the hosts of your projects' `project.avatar_url` and `integrations[].src` images. The server also checks links and sends webhooks there, besides the hosts of the projects' integrations ([details](/docs/triggering-third-party-tools#adding-badges-and-external-links)) |
+| `QABOARD_PROXY_HOSTS` | _none_  | Comma-separated hostnames the web app may load avatars and badges from through the backend, besides your git hosts (`QABOARD_GIT_HOSTS`, `GITLAB_HOST`...), the host of `QABOARD_AVATAR_URL`, and gravatar. Add the hosts of your projects' `project.avatar_url` and `integrations[].src` images |
 | `QABOARD_STORAGE_ROOTS` | */mnt/qaboard* | Folders where your projects store outputs and artifacts, separated by `:` (e.g. `/mnt/qaboard:/mnt/datasets`). The backend refuses results stored elsewhere, and never writes, deletes or runs code outside these folders |
 | `QABOARD_SANDBOX_HTML` | _off_ | `true`: the runs' HTML and SVG files can't act as whoever opens them, their scripts run sandboxed. Set it for the backend and the proxy. See [HTML reports](/docs/viewers#html-reports) |
-| `QABOARD_FILES_UNIX_PERMISSIONS` | _none_ | Folders, separated by `:` (e.g. `/home`), where users only read the files under `/s/` that their Unix account can read. See [user management](backend-admin/user-management#unix-permissions) |
-| `QABOARD_ACCOUNTS_COMMAND` | _none_ | Command printing the users' accounts like `/etc/passwd` (e.g. `ssh host getent passwd`), for file owners and Unix permissions, when you can't mount a complete `/etc/passwd`. See [users' accounts](backend-admin/user-management#users-accounts) |
+| `QABOARD_FILES_UNIX_PERMISSIONS` | _none_ | Folders, separated by `:` (e.g. `/home`), where users only read the files under `/s/` that their Unix account can read. See [user management](/docs/backend-admin/user-management#unix-permissions) |
+| `QABOARD_ACCOUNTS_COMMAND` | _none_ | Command printing the users' accounts like `/etc/passwd` (e.g. `ssh host getent passwd`), for file owners and Unix permissions, when you can't mount a complete `/etc/passwd`. See [users' accounts](/docs/backend-admin/user-management#users-accounts) |
 | `QABOARD_GROUPS_COMMAND` | _none_ | Same for the groups, like `/etc/group` |
 | `QABOARD_ACCOUNTS_REFRESH` | 86400 | How often (seconds) the backend runs these commands |
 | `QABOARD_WEBHOOK_SECRET` | _none_ | Secret that push webhooks must send (GitLab's *Secret token*, GitHub's *Secret*...), unless their host has its own `webhook_secret` in `QABOARD_GIT_HOSTS`. Recommended: without it anyone who can reach the server can send fake push events |
-| `QABOARD_PORT_HTTP`    | 5151    | Port mapped to the app on the host                   |
-| `QABOARD_DB_HOST`      | db      | Connect the backend to a non-default database host (e.g. instead of dev'ing with prod dumps, connect directly to it) |
-| `QABOARD_DB_PORT`      | 5432    | Connect to a non-default database port               |
-| `QABOARD_DB_PASSWORD`  | password | The database's password, in `.env`. See [Passwords and admin services](#passwords-and-admin-services) |
-| `QABOARD_DB_POOL_SIZE` / `QABOARD_DB_MAX_OVERFLOW` | 4 / 2 | Database connections kept open by each uwsgi process (it runs 4 threads), and extra ones it may open. PostgreSQL's `max_connections` must cover them, see [Database settings](backend-admin/deployment#database-settings) |
-| `JENKINS_AUTH`         | _none_  | Credentials used to [trigger jenkins jobs](triggering-third-party-tools) on 1 or many jenkins servers. The format is a JSON string looking like `{"hostname_1": {"user": "jenkinsuser", "token": "xxxxx", "crumb": "yyy"}}` (see [Jenkins builds](/docs/triggering-third-party-tools#trigger-jenkins-builds) for the token and crumb)               |
+| `QABOARD_PORT_HTTP`    | 5151    | Port mapped to the app on the host. Read by docker compose: set it in the env file |
+| `QABOARD_DB_HOST`      | db      | Connect the backend to another database host, e.g. a database managed by your IT. Read by docker compose: set it in the env file |
+| `QABOARD_DB_PORT`      | 5432    | Connect to a non-default database port. Read by docker compose: set it in the env file |
+| `QABOARD_DB_USER` / `QABOARD_DB_PASSWORD` / `QABOARD_DB_NAME` | qaboard / password / qaboard | The database's credentials and name. Keep the password in `.env` |
+| `QABOARD_DB_POOL_SIZE` / `QABOARD_DB_MAX_OVERFLOW` | 4 / 2 | Database connections kept open by each uwsgi process (it runs 4 threads), and extra ones it may open. PostgreSQL's `max_connections` must cover them, see [Database settings](/docs/backend-admin/deployment#database-settings) |
+| `JENKINS_AUTH`         | _none_  | Credentials used to [trigger jenkins jobs](/docs/triggering-third-party-tools) on 1 or many jenkins servers. The format is a JSON string looking like `{"hostname_1": {"user": "jenkinsuser", "token": "xxxxx", "crumb": "yyy"}}` (see [Jenkins builds](/docs/triggering-third-party-tools#trigger-jenkins-builds) for the token and crumb)               |
 | `JENKINS_BUILD_TOKEN`  | _none_  | The authentication token of **Trigger builds remotely** sent to the Jenkins jobs whose integration has no `token`. Without it, they get none. Older versions sent `qaboard`: if your jobs expect it, set `JENKINS_BUILD_TOKEN=qaboard` |
-| `QABOARD_LOGIN_TYPE`   | _LOCAL_  | Set to `LOCAL/LDAP/SAML`                   |
-| `QABOARD_LOGIN_REQUIRED`   | _empty_  | Any non-empty value (e.g. `true`) blocks anonymous users. Leave it unset/empty to allow them: even `false` enables it |
-| `QABOARD_DISABLE_SIGNUP`   | _empty_  | Set to `True` (exactly) to disallow local users from signing up                   |
-| `QABOARD_LOGIN_RESTRICTED`   | _empty_  | `true` uses a configuration file to allow only specific users (empty, `false` or `0` turn it off) (requires backend restart)                   |
-| `QABOARD_LOGIN_RESTRICTED_YAML`   | _none_  | The path to the users configuration file                     |
-| `QABOARD_LDAP_HOST`   | _none_  | Server hostname (including port)                   |
-| `QABOARD_LDAP_PORT`   | _389_  | Server port, usually 389 (or 636 if SSL is used / **not supported yet!**). |
-| `QABOARD_LDAP_USER_BASE`   | _none_  | Search base for users. |
-| `QABOARD_LDAP_BIND_DN`     | _none_  | The Distinguished Name to bind as, this user will be used to lookup information about other users. |
-| `QABOARD_LDAP_PASSWORD`    | _none_  | The password to bind with for the lookup user. |
-| `QABOARD_LDAP_USER_FILTER` | _none_  | User lookup filter, the placeholder `{login}` will be replaced by the user supplied login. (e.g. `(&(objectClass=inetOrgPerson)(|(uid={login})(mail={login})))`, or `(&(objectClass=user)(|(sAMAccountName={login})))`) |
-| `QABOARD_LDAP_ATTRIBUTE_EMAIL`         | _mail_  |                                            |
-| `QABOARD_LDAP_ATTRIBUTE_COMMON_NAME`   | _cn_    |                                            |
-| `QABOARD_LDAP_GROUP_ATTRIBUTES`   | _memberOf_    | The attributes [group rules](/docs/backend-admin/project-access#groups) can read, separated by commas, e.g. `memberOf,department` |
-| `QABOARD_LDAP_NESTED_GROUPS`   | _false_    | Active Directory: `true` adds the groups of users' groups to `memberOf` (`LDAP_MATCHING_RULE_IN_CHAIN`) |
-| `QABOARD_LDAP_GROUP_BASE`   | `QABOARD_LDAP_USER_BASE`    | Where to search the nested groups |
-| `QABOARD_SAML_DIR`   | _none_  | The path to the directory with the SAML configuration files, as in the [python-saml](https://github.com/SAML-Toolkits/python-saml) docs |
-| `QABOARD_SAML_ATTRIBUTE_EMAIL`         | _none_  |                                            |
-| `QABOARD_SAML_ATTRIBUTE_COMMON_NAME`         | _none_  |                                            |
-| `QABOARD_SAML_ATTRIBUTE_USER_NAME`   | _none_    |                                            |
-| `QABOARD_SAML_ATTRIBUTE_ID`   | _none_    |                                            |
+| `QABOARD_LOGIN_TYPE`   | _LOCAL_  | `LOCAL`, `LDAP` or `SAML`. Single sign-on (`QABOARD_OIDC_*`) comes on top of any of them. See [user management](/docs/backend-admin/user-management#authentication-providers) |
+| `QABOARD_LOGIN_REQUIRED`   | _empty_  | `true` blocks anonymous users, `false` allows them. Empty: as set in **Admin → Settings** (`auth.require_sign_in`) |
+| `QABOARD_DISABLE_SIGNUP`   | _empty_  | `true` disables the sign-up of local accounts, `false` enables it. Empty: as set in **Admin → Settings** (`auth.local_signup`, on with `LOCAL`, off with LDAP or SAML) |
+| `QABOARD_LDAP_*`, `QABOARD_SAML_*`, `QABOARD_OIDC_*`, `QABOARD_LOGIN_RESTRICTED*`... | | Sign-in: see the [sign-in variables](/docs/backend-admin/user-management#environment-variables) and [single sign-on](/docs/backend-admin/sign-in) |
+| `QABOARD_INGEST_AUTH`, `QABOARD_ACCESS_POLICY`... | | Settings you can also change in **Admin → Settings**: see [settings](/docs/backend-admin/user-management#settings) |
 | `QABOARD_TUNING_RUNNER` | local  | How tuning/"redo" runs started from the webapp are dispatched: `local`, `celery` or `lsf` |
 | `QA_RUNNERS_LSF_BRIDGE` | _none_ | With `lsf`: the command used to submit LSF jobs, e.g. `ssh user@lsf-host 'bsub_su {user} -I {bsub_command}'` |
 | `QABOARD_DASK_SCHEDULERS` | _none_ | Comma-separated dask scheduler addresses the backend trusts (to stop dask jobs from the webapp) |
@@ -173,129 +446,36 @@ QA-Board can connect to external authentication systems (LDAP, SAML). If needed,
 | `QABOARD_SMTP_HOST` | _none_ | SMTP server QA-Board sends emails with, e.g. when batches users started end. Without it, users can't ask for emails. See [Emails](#emails) |
 | `QABOARD_SMTP_PORT` | 25, or 587 with `starttls`, 465 with `ssl` | SMTP port |
 | `QABOARD_SMTP_SECURITY` | none | `none`, `starttls` or `ssl` |
-| `QABOARD_SMTP_USER` / `QABOARD_SMTP_PASSWORD` | _none_ | If the SMTP server needs a login. Keep the password in an env file, not in `environment` |
+| `QABOARD_SMTP_USER` / `QABOARD_SMTP_PASSWORD` | _none_ | If the SMTP server needs a login. Keep the password in `.env`, not in `environment` |
 | `QABOARD_EMAIL_FROM` | `QA-Board <qaboard@$QABOARD_EMAIL_DOMAIN>` | Sender of the emails, e.g. `QA-Board <qaboard-noreply@example.com>` |
 | `QABOARD_EMAIL_REPLY_TO` | _none_ | Where replies go, e.g. the team that supports QA-Board |
 | `QABOARD_EMAIL_DOMAIN` | _none_ | Users whose account has no email address get emails at `<username>@<domain>`, e.g. `example.com` with LDAP usernames |
 | `QABOARD_EMAIL_TIMEZONE` | UTC | Time zone of the times in emails, e.g. `Asia/Jerusalem` |
-| `QABOARD_URL` | `http://qaboard` | The web app's address, for the links in emails, e.g. `https://qaboard.example.com` |
 | `QABOARD_WEBCDE_INSTALLER` | _none_ | Runs whose outputs include a `cde.sh` get a button to open them in WebCDE, a desktop app. When WebCDE isn't running, users are told to install it from this location |
 | `CANTALOUPE_MEM_START` | 1g      | Starting memory for the image server (set in `services.cantaloupe.environment`) |
 | `CANTALOUPE_MEM_MAX`   | 2g      | Max memory for the image server (set in `services.cantaloupe.environment`) |
-| `QABOARD_BACKEND_REPLICAS` | 1 (2 in `deployments/production.env`) | Backend replicas, see [Deployments](backend-admin/deployment#settings) |
-| `QABOARD_UWSGI_PROCESSES`  | 16  | uwsgi processes per backend replica, in production   |
-| `SENTRY_DSN`           | _none_  | Report errors and performance data to Sentry, e.g. `https://xxxxxxxxxxx@sentry.io/000`. See [Monitoring with Sentry](backend-admin/monitoring) for the other settings |
+| `QABOARD_BACKEND_REPLICAS` | 1 (2 in `deployments/production.env`) | Backend replicas, see [Deployments](/docs/backend-admin/deployment#settings) |
+| `QABOARD_UWSGI_PROCESSES`  | 16 (8 in `deployments/production.env`) | uwsgi processes per backend replica, in production   |
+| `SENTRY_DSN`           | _none_  | Report errors and performance data to Sentry, e.g. `https://xxxxxxxxxxx@sentry.io/000`. See [Monitoring with Sentry](/docs/backend-admin/monitoring) for the other settings |
 | `SENTRY_TRACES_SAMPLE_RATE` | 0.2  | Share of the requests that are traced (formerly `SENTRY_SAMPLE_RATE`) |
 
 
-:::note
-In the future we plan to introduce a proper "secret" store, per user and per project.
-:::
-
 ### Emails
-QA-Board can email users when the batches they start end, from the web app or with `qa --share batch` ([what users get](user-guide/running-from-the-webapp#emails-when-batches-end)). Once the backend has an SMTP server, everyone gets them, except in CI. Users turn them off in the terminal with `QA_NOTIFY=none`. Configure it e.g. in your env file:
+QA-Board can email users when the batches they start end, from the web app or with `qa --share batch` ([what users get](/docs/user-guide/running-from-the-webapp#emails-when-batches-end)). Once the backend has an SMTP server, everyone gets them, except in CI. Users turn them off in the terminal with `QA_NOTIFY=none`. Configure it in your overlay, and the SMTP password, if any, in `.env`:
 
-```bash title=".env"
-QABOARD_SMTP_HOST=smtp.example.com
-QABOARD_EMAIL_FROM=QA-Board <qaboard-noreply@example.com>
-QABOARD_EMAIL_REPLY_TO=qaboard-support@example.com
-# users without an email address in their account get emails at <username>@example.com
-QABOARD_EMAIL_DOMAIN=example.com
-QABOARD_URL=https://qaboard.example.com
+```yaml title="deployments/mysite/mysite.yml"
+services:
+  backend:
+    environment:
+    - QABOARD_SMTP_HOST=smtp.example.com
+    - QABOARD_EMAIL_FROM=QA-Board <qaboard-noreply@example.com>
+    - QABOARD_EMAIL_REPLY_TO=qaboard-support@example.com
+    # Users without an email address in their account get emails at <username>@example.com
+    - QABOARD_EMAIL_DOMAIN=example.com
+    - QABOARD_URL=https://qaboard.example.com
 ```
 
 - The emails are designed for Outlook 2016/2019 as well as recent clients, in HTML with a plain text version. They are marked as automated (`Auto-Submitted`), so out-of-office replies aren't sent back, and have `X-QABoard-Project`, `X-QABoard-Batch` and `X-QABoard-Status` headers for mail rules.
 - They're sent by the backend when it saves the last run of a batch. If the SMTP server fails, the error is in the backend's logs and in the `batch_notifications` table, and the run is saved anyway.
 - To check how they look, or test your SMTP settings, run `uv run backend/backend/notifications/preview.py`: it renders examples, and `--send you@example.com` emails them to you.
 - Like results, the requests to email users when their `qa batch` ends come from the CLI without a login: anyone who can reach the server could have QA-Board email a user about a batch. QA-Board only emails the address of the user's account (or `<username>@$QABOARD_EMAIL_DOMAIN`), and at most once per `qa batch`.
-
-> Consult the [Troubleshooting](backend-admin/troubleshooting) page for examples that show how to get logs from the various services composing QA-Board.
->
-> For development, consult the READMEs for the [backend](https://github.com/Samsung/qaboard/tree/master/backend) and the [frontend](https://github.com/Samsung/qaboard/tree/master/webapp).
-
-
-## (Optional) For "production"
-### Backups
-The `cron-backup-db` service in *production.yml* makes daily backups of the database, and keeps those of the last 14 days (`QABOARD_BACKUP_RETENTION_DAYS`). Mount a host directory at `/backups` in your site overlay, and copy the backups off the host. To restore one: `deployments/deploy.py <env file> restore-db <file>.dump`. See [Backups](backend-admin/deployment#backups).
-
-### Passwords and admin services
-Put the passwords in `.env`, at the root of the checkout, before the first start. The backend reads `.env`, and so does `docker compose` for the `${...}` of the compose files. `deployments/deploy.py` runs compose with your environment's env file instead, so it passes it the ones it needs from `.env`: those below.
-
-```bash title=".env"
-QABOARD_DB_PASSWORD=...
-# Only if Celery workers connect to RabbitMQ (QABOARD_TUNING_RUNNER=celery). URL-safe characters
-QABOARD_RABBITMQ_USER=qaboard
-QABOARD_RABBITMQ_PASSWORD=...
-# Optional: Flower (the task queue's UI) also asks for this login. At /flower/, only QA-Board's admins get it
-FLOWER_BASIC_AUTH=admin:...
-PGADMIN_DEFAULT_EMAIL=admin@example.com
-PGADMIN_DEFAULT_PASSWORD=...
-```
-
-- **The database** is created with `QABOARD_DB_PASSWORD` (default: `password`), and the backend and the backups use it. To change the password of an existing database, see [Database password](backend-admin/deployment#database-password).
-- **RabbitMQ** is created with `QABOARD_RABBITMQ_USER` and `QABOARD_RABBITMQ_PASSWORD` (default: `guest:guest`). Celery workers run the commands of the tasks they get: anyone who can connect to RabbitMQ can run commands on them. For an existing RabbitMQ, add the user with `docker compose exec rabbitmq rabbitmqctl add_user` and `set_permissions`, or change the password with `rabbitmqctl change_password`. Workers then use `pyamqp://<user>:<password>@<qaboard-host>:5672//` (see [Celery](/docs/celery-integration)).
-- **The admin services are only published on the host itself** (`127.0.0.1`): RabbitMQ (`QABOARD_PORT_RABBITMQ`, 5672, and its management UI on `QABOARD_PORT_RABBITMQ_MNGT`, 15672), Flower (`QABOARD_PORT_FLOWER`, 8888, also at `/flower/`) and pgAdmin (`PGADMIN_PORT`, 5050). From another computer, use an ssh tunnel, e.g. `ssh -L 5050:localhost:5050 <qaboard-host>`. When Celery workers run on other hosts, publish RabbitMQ on the network with `QABOARD_RABBITMQ_HOST_IP=0.0.0.0` (or one of the host's addresses) in your env file, with a password. To publish another port, replace its `ports` in your site overlay: `ports: !override`.
-
-### Using SSL / hosting behind a reverse proxy
-What we do is use our own copy of *services/nginx/conf.d/qaboard.conf* in the site overlay (keep its `include snippets/...` lines: they serve the files and the file browser). Files mounted under `/tmp/deployment/nginx/conf.d/` in the `proxy` container are added to (or replace) *services/nginx/conf.d/*:
-
-```nginx title="deployments/nginx/qaboard.conf (copied from services/nginx/conf.d/qaboard.conf)"
-server {
-  # ...
-  listen 443 ssl;
-  ssl_certificate_key /ssl/cert.key;
-  ssl_certificate /ssl/cert.pem;
-  # ...
-}
-```
-
-And mount keys with:
-
-```yaml title="deployments/mysite.yml"
-services:
-  proxy:
-    ports:
-    - "443:443"
-    volumes:
-    - "./deployments/nginx/qaboard.conf:/tmp/deployment/nginx/conf.d/qaboard.conf:ro"
-    - "somewhere/cert.key:/ssl/cert.key"
-    - "somewhere/cert.pem:/ssl/cert.pem"
-```
-
-:::tip Getting a certificate from your IT
-Generate a key and a certificate signing request (CSR), and send the CSR to your IT:
-```bash
-openssl genrsa -out cert.key 2048
-openssl req -new -sha256 -key cert.key -out cert.csr
-```
-If they send back a `.cer` certificate in the DER format, convert it to PEM: `openssl x509 -in cert.cer -inform der -outform pem -out cert.pem`.
-:::
-
-If you want to use your own reverse proxy, with `nginx` for instance you can set `QABOARD_PORT_HTTP=8080` and the config below. QA-Board's nginx passes the `X-Forwarded-Proto` and `X-Forwarded-Host` headers your proxy sets to the backend (the SAML login builds its URLs from them), else the scheme and host of the request it got:
-
-```nginx
-server {
-  listen 80;
-  server_name default_server;
-  location / {
-    proxy_pass http://localhost:8080/;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Forwarded-Host $http_host;
-  }
-}
-```
-
-## (Optional) Cleanup
-We run those cron jobs:
-```cron
-# Weekly cleanup of old results
-# https://samsung.github.io/qaboard/docs/storage/deleting-old-data
-59 1 1 * * cd qaboard && docker compose --env-file deployments/production.env exec -T backend qaboard_clean
-
-# Weekly removal of old docker images, helps to avoid filling the disk on the host
-59 1 2 * * docker image prune --force
-```
-
-:::tip
-Instead of cron jobs, admins can schedule the cleanup in **Admin → Storage**, with each run's log and errors, and also delete for good the runs users deleted: see [cleaning the storage](/docs/backend-admin/storage). Check `qaboard_clean --help` for the command's options.
-:::

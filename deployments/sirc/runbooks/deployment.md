@@ -6,7 +6,7 @@ SIRC's runbook. The generic version, for any site, is on the docs website:
 
 QA-Board is deployed with docker compose, by `deployments/deploy.py`. It gives:
 
-- **Zero-downtime deploys**: the backend runs several replicas behind nginx. New replicas start next to the old ones; nginx switches to them once they are healthy, then the old ones finish their in-flight requests and stop. If the new replicas are not healthy, they are removed and the old version keeps serving.
+- **Zero-downtime deploys**: the backend runs several replicas behind nginx. New replicas start next to the old ones; nginx switches to them once they are healthy, then the old ones answer the requests they already received and stop. If the new replicas are not healthy, they are removed and the old version keeps serving.
 - **The tested images are the deployed images**: CI builds the images once per commit, tags them with the commit (`<registry>/qaboard:backend-1a2b3c4d`), and deploys the same images to staging, then production.
 - **Fast rollbacks**: the images of the last versions stay on the host.
 - Migrations run once, before the backend is updated: if they fail, nothing running is changed.

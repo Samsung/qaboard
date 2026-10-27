@@ -107,7 +107,9 @@ qa --share batch ci                          # 5 charts and 4 photos, at ISO 100
 qa --platform hw-model --share batch bitexact  # the fixed-point model
 ```
 
-The first run downloads the photos and generates the test charts. Results go to `/mnt/qaboard`, or to `$QA_STORAGE`.
+The first run downloads the photos and generates the test charts. Shared results go to `/mnt/qaboard`, or to
+`$QA_STORAGE`. With the [quickstart](/docs/get-started/quickstart#save-results-from-your-computer)'s server, first
+`export QABOARD_URL=http://localhost:5151 QA_STORAGE=/tmp/qaboard`.
 
 ## Read more
 - [The image viewer](/docs/user-guide/image-viewer): every tool to compare images, and a typical review of this commit.

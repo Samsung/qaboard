@@ -5,8 +5,9 @@ sidebar_label: Runs activity
 description: "See what waits and runs now, what ended recently and what starts soon, grouped by batch, user, queue or any job option, and clean up runs that are stuck."
 ---
 Wondering whether your batch started, why it's slow, or how busy the cluster is? **Runs activity** shows the runs that
-wait in a queue and run now, those that ended recently, and the batches that will start soon. Open it from your profile
-menu (**Runs activity**, next to **Storage usage**), or from a project's sidebar.
+wait in a queue and run now, those that ended recently, and the batches that will start soon. Open it from your account
+menu (**Runs activity**, next to **Storage usage**), from a project's sidebar, or with
+[Search…](/docs/user-guide/finding-results#command-palette) (<kbd>Ctrl</kbd> <kbd>K</kbd>).
 
 ## See what runs now
 The cards at the top count your runs:
@@ -16,9 +17,10 @@ The cards at the top count your runs:
 - **Running**: runs that started and didn't end yet. *Pending for over a day* warns about runs whose job may have died.
 - **Ended** and **Failed**: the runs that ended in the time window (the last 24 hours by default).
 
-Click a card to list only those runs. The timeline shows how many runs waited and ran over the window, and below it
-how many ended. **Busiest projects**, **users** and **queues** say who and what loads the cluster: click one to see
-its runs. The page refreshes every 15 seconds: switch off **Live** to pause it.
+Click **Waiting**, **Running**, **Ended** or **Failed** to list only those runs. The timeline shows how many runs
+waited and ran over the window, and below it how many ended. **Busiest projects**, **queues** and, with
+*Everyone's*, **users** say who and what loads the cluster: click a project or a user to see its runs, a queue to
+group the runs by queue. The page refreshes every 15 seconds: switch off **Live** to pause it.
 
 **Your runs** or **Everyone's**: by default you see your own runs. *Everyone's* shows all the runs of the projects
 you can see, and who started them.
@@ -39,10 +41,15 @@ Everything you choose is in the page's address: bookmark it, or share it.
 When LSF kills a job, or its machine reboots, the run can't tell QA-Board it ended: it shows as running forever.
 From a row's menu (**⋯**):
 - **Mark waiting and running runs as failed…** marks your runs as failed, after saying how many. Their jobs aren't
-  stopped: if one still runs, it saves its results when it ends. You can [redo](/docs/user-guide/logs) them later.
-- **Stop the batch…** kills the batch's jobs and fails its runs, like **Stop** on the commit page.
+  stopped: if one still runs, it saves its results when it ends. You can
+  [redo](/docs/user-guide/running-from-the-webapp#redo-stop-and-clean-up-runs) them later.
+- **Stop the batch…** kills the batch's jobs and fails its runs, like **Stop runs** on the commit page.
 
 A single run has its own **Mark as failed** button. You change only your own runs, in projects where you're a developer.
+
+Admins see the runs pending for over a week, and can mark them all as failed, now or every night:
+
+<Shot id="activity/stuck-runs" />
 
 <details>
 <summary>Older runs, and what the page doesn't show</summary>

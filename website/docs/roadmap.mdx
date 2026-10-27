@@ -31,8 +31,9 @@ Nothing here has a date. If an item matters to your team, [tell us](#how-to-weig
   the same tests, read the same Metrics Diff and meet the same targets as people, and a person decides what ships.
 
 ## Compare more than two
-Today the commit page compares a new commit with one reference: a commit, a branch or a milestone (see
-[New and reference](/docs/user-guide/comparing-results)). History follows metrics across commits. Many questions
+Today the commit page compares a new commit with one reference at a time: a commit, a branch or a milestone. You
+can stack several references and switch between them with one key (see
+[Several references](/docs/user-guide/comparing-results#several-references)). History follows metrics across commits. Many questions
 need more than two sides: which of five models handles night scenes best, or whether quality drifted over the last
 releases.
 
@@ -194,7 +195,9 @@ admin panel's audit log.
 
 <RoadmapItem status="exploring" title="Retention and quotas in the web app">
 Set how long results are kept, and how much storage each project can use, from the web app. Today retention is set
-per project in *qaboard.yaml* (see [Deleting old data](/docs/storage/deleting-old-data)).
+per project in *qaboard.yaml* (see [Deleting old data](/docs/storage/deleting-old-data)), admins schedule the cleanup
+in the admin panel, and [Storage usage](/docs/user-guide/storage-usage) shows what each project, branch and person
+keeps.
 </RoadmapItem>
 
 <RoadmapItem status="exploring" title="Usage analytics">
@@ -215,7 +218,9 @@ Review a commit's results and approve them as the new reference, with who approv
 </RoadmapItem>
 
 <RoadmapItem status="exploring" title="Notifications">
-A message in Slack, Teams or by email when a batch finishes or a metric regresses.
+A message in Slack or Teams when a batch finishes or a metric regresses. Today QA-Board emails you when a batch you
+started ends, if your server sends emails (see
+[Get an email when a batch ends](/docs/user-guide/running-from-the-webapp#emails-when-batches-end)).
 </RoadmapItem>
 
 ## Agents
@@ -264,21 +269,24 @@ A comment on each pull request with the metrics that changed, and links to the o
 ## Polish
 Smaller changes to the web app that you'd notice every day.
 
-<RoadmapItem status="next" title="Dark mode">
-A dark theme for the web app.
+<RoadmapItem status="shipped" title="Dark mode">
+A dark theme for the web app, or one that follows your system's. Plots, editors and viewers follow it (see
+[Tips & FAQ](/docs/user-guide/tips-and-faq#how-do-i-switch-to-the-dark-theme)).
 </RoadmapItem>
 
-<RoadmapItem status="exploring" title="Command palette">
-Jump to a project, branch, commit or view from the keyboard.
+<RoadmapItem status="shipped" title="Command palette">
+Press `Ctrl+K` to jump to a project, a branch, a commit, your recent batches or a page (see
+[Search from anywhere](/docs/user-guide/finding-results#command-palette)).
 </RoadmapItem>
 
-<RoadmapItem status="exploring" title="Date ranges in the URL">
-Share the commit list and History for a date range. Today you add `from` and `to` to the URL yourself (see
-[Sharing](/docs/user-guide/sharing)).
+<RoadmapItem status="shipped" title="Date ranges in the URL">
+The link to a commit list keeps its date range and search, and History its options: share the link, you share the
+view (see [Sharing](/docs/user-guide/sharing)).
 </RoadmapItem>
 
-<RoadmapItem status="exploring" title="Faster huge batches">
-Commit pages and Metrics Diffs that stay fast on very large batches.
+<RoadmapItem status="shipped" title="Faster huge batches">
+Commit pages stay fast with 1000 runs: the filter answers in half a second, the Metrics Table opens in a third of a
+second, and run cards load their files as they scroll into view.
 </RoadmapItem>
 
 ## How to weigh in

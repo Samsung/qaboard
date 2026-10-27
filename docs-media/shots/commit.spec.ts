@@ -76,6 +76,8 @@ shot('commit/controls-panel', {
     const panel = controlsPanel(ui.page);
     // fold Files to show, so that Sort runs fits
     await ui.click(panel.getByRole('button', { name: 'Files to show', exact: true }));
+    // the click leaves a focus ring on the button, drawn in the dark theme
+    await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await ui.hold(400);
     await ui.anchor('visualizations', panel.getByRole('button', { name: 'Visualizations', exact: true }));
     await ui.anchor('image-diff', panel.getByText('Compare images', { exact: true }));
@@ -688,6 +690,359 @@ clip('commit/dynamic-outputs', {
   },
 });
 
+// The image viewer's comparison tools (user-guide/image-viewer): the modes, another file of the run, the values written
+// on the pixels, the analysis panel under the images (histogram, profiles, statistics, a raw image's own values), full
+// screen. In Wipe and Single, one image takes the width of the card: 1094x729 px, which takes a 1020 px high window
+// (the viewer is at most its height − 260 px), else it's narrower.
+const TALL = { width: 1440, height: 1020 };
+const ISP_STAGE = 'ISP stage (1 raw, 2 demosaic, 3 denoise, 4 sharpen, 5 tone map)';
+const analysisPanel = (scope: Page | Locator) => scope.locator('.qiv-analysis').first();
+// The viewer's toolbar right below the commit bars, out of the mouse's way
+async function showToolbar(ui: Ui, scope: Locator) {
+  await toolbar(scope).evaluate(element => window.scrollBy(0, element.getBoundingClientRect().top - 158));
+  await ui.settle();
+}
+// Opens the analysis panel under the images on one of its views
+async function openAnalysis(ui: Ui, scope: Locator, view: 'Histogram' | 'Row / column' | 'Statistics') {
+  await ui.click(scope.getByRole('button', { name: /the analysis of the view/ }));
+  await ui.click(analysisPanel(scope).getByRole('radio', { name: view, exact: true }));
+  await blur(ui);
+}
+// The images and the analysis panel under them, as a box: on the sides, the card's padding (the histogram's first label
+// is centered on its edge). The page must show the panel's bottom (panelInView): boxes aren't scrolled to.
+async function imagesAndPanel(scope: Locator) {
+  const stage = await stableBox(imageRow(scope));
+  const panel = await stableBox(analysisPanel(scope));
+  return { x: stage.x - 5, y: stage.y, width: stage.width + 10, height: panel.y + panel.height + 4 - stage.y };
+}
+async function panelInView(ui: Ui, scope: Locator) {
+  await analysisPanel(scope).evaluate(element => window.scrollBy(0, element.getBoundingClientRect().bottom - window.innerHeight + 8));
+  await ui.settle();
+}
+// No focus ring left on what was clicked
+async function blur(ui: Ui) {
+  await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await ui.settle();
+}
+// The mouse on an empty part of the sidebar: over the commit bars, it would show the reference's Stack a reference tab
+async function mouseOff(ui: Ui) {
+  await ui.cursor.moveTo({ x: 100, y: 790 });
+  await ui.hold(300);
+}
+// The pixel of the new image the line above the images gives, for the last pixel hovered
+async function hoveredPixel(scope: Locator) {
+  const text = await pixelValues(scope).innerText();
+  const match = /x (\d+)\s+y (\d+)/.exec(text);
+  if (!match) throw new Error(`[commit] no hovered pixel in "${text}"`);
+  return { x: Number(match[1]), y: Number(match[2]) };
+}
+// Hovers the pixel (x, y) of the new image: two hovers measure where the image is and how large its pixels are, then
+// the pointer goes to the pixel, closer each time. Returns its position in the new image's box.
+async function hoverPixel(ui: Ui, scope: Locator, x: number, y: number) {
+  const box = await stableBox(newImage(scope));
+  let position = { x: box.width * 0.25, y: box.height * 0.25 };
+  await ui.hover(newImage(scope), { position });
+  const first = await hoveredPixel(scope);
+  await ui.hover(newImage(scope), { position: { x: box.width * 0.75, y: box.height * 0.75 } });
+  const second = await hoveredPixel(scope);
+  // screen px per image px
+  const scale = (box.width * 0.5) / (second.x - first.x);
+  let at = first;
+  for (let i = 0; i < 4 && (at.x !== x || at.y !== y); i++) {
+    position = { x: position.x + (x - at.x) * scale, y: position.y + (y - at.y) * scale };
+    await ui.hover(newImage(scope), { position });
+    at = await hoveredPixel(scope);
+  }
+  if (at.x !== x || at.y !== y) throw new Error(`[commit] hovered ${at.x},${at.y} instead of ${x},${y}`);
+  return position;
+}
+// Zooms the viewers with the mouse wheel at a point of the new image (in its box), until about `percent`
+async function zoomTo(ui: Ui, scope: Locator, position: { x: number; y: number }, percent: number) {
+  const zoom = Number((await scope.locator('.qiv-zoom').first().innerText()).replace('%', ''));
+  // OpenSeadragon zooms by 1.2 per wheel step
+  const steps = Math.round(Math.log(percent / zoom) / Math.log(1.2));
+  await ui.wheel(newImage(scope), -100 * steps, { steps, position });
+  await ui.settle();
+}
+
+shot('commit/image-wipe', {
+  project: IQ,
+  url: d => halos(d, 'photos/facade base', { image_mode: 'wipe', show: { [ISP_STAGE]: false } }),
+  viewport: TALL,
+  alt: 'The comparison modes above the facade\'s leaves, Wipe selected: one image, new on the left of a divider, the '
+    + 'reference on its right; dark rims outline the leaves left of the divider only.',
+  caption: 'Wipe shows new and reference in one image, on each side of a divider you drag.',
+  actions: async ui => {
+    const scope = viewer(ui.page);
+    await showToolbar(ui, scope);
+    await preset(ui, scope, 'Leaves over a window');
+    await showToolbar(ui, scope);
+    await mouseOff(ui);
+  },
+  target: page => [toolbar(viewer(page)), imageRow(viewer(page))],
+  padding: 4,
+});
+
+clip('commit/image-compare-modes', {
+  project: IQ,
+  // the difference's maximum at 20%: the noise fades out, the halos stay
+  url: d => halos(d, 'photos/facade base', { show: { [ISP_STAGE]: false }, image_diff: { method: 'perceptual', max: 0.2 } }),
+  viewport: TALL,
+  alt: 'The facade\'s leaves, new and reference side by side; then Wipe, its divider dragged left and right; Single, the '
+    + 'image flipping between new and reference in place; Difference between them, then the difference alone, larger: '
+    + 'only the rims of the leaves stand out.',
+  caption: 'The four ways to compare: side by side, wipe, single (t flips the images), and their difference.',
+  actions: async ui => {
+    const scope = viewer(ui.page);
+    // The viewer stays where it is whatever the mode: side by side and between the images, the stage is half as high,
+    // and the page too short to scroll it to the top. Blank space above the footer, and no scroll anchoring
+    await ui.page.evaluate(() => {
+      const footer = document.querySelector('footer');
+      if (footer) footer.style.marginTop = '1000px';
+      document.documentElement.style.overflowAnchor = 'none';
+    });
+    await showToolbar(ui, scope);
+    await preset(ui, scope, 'Leaves over a window');
+    await showToolbar(ui, scope);
+    await mouseOff(ui);
+  },
+  // the toolbar, and the images at their largest: one image, as wide as the card
+  region: async page => {
+    const bar = await stableBox(toolbar(viewer(page)));
+    const stage = await stableBox(imageRow(viewer(page)));
+    const height = stage.y - bar.y + Math.round(stage.width / 1.5) + 12;
+    return { x: stage.x - 8, y: bar.y - 6, width: stage.width + 16, height };
+  },
+  poster: 3500,
+  script: async ui => {
+    const scope = viewer(ui.page);
+    const mode = (name: string) => scope.getByRole('radio', { name, exact: true });
+    await ui.caption('Side by side (1): new and reference');
+    await ui.cursor.moveTo(newImage(scope));
+    await ui.hold(1000);
+
+    await ui.caption('Wipe (2): drag the divider across them');
+    await ui.click(mode('Wipe'));
+    await ui.settle();
+    const divider = scope.getByRole('separator', { name: 'Wipe' });
+    const stage = await stableBox(imageRow(scope));
+    const from = (await divider.boundingBox())!;
+    const y = from.y + from.height / 2;
+    await ui.drag(divider, { x: stage.x + stage.width * 0.3, y });
+    await ui.drag(divider, { x: stage.x + stage.width * 0.62, y });
+    await ui.hold(400);
+
+    await ui.caption('Single (3): t flips them in place');
+    await ui.click(mode('Single'));
+    await ui.settle();
+    await ui.cursor.moveTo({ x: stage.x + stage.width * 0.6, y: stage.y + stage.width / 1.5 * 0.45 });
+    await ui.hold(300);
+    for (let i = 0; i < 4; i++) {
+      await ui.press('t');
+      await ui.hold(500);
+    }
+
+    await ui.caption('Difference (4): where they differ');
+    await ui.click(mode('Difference'));
+    await ui.settle();
+    await ui.hold(1300);
+    await ui.caption('4 again: the difference alone, larger');
+    await ui.cursor.moveTo({ x: stage.x + stage.width * 0.6, y: stage.y + stage.width / 1.5 * 0.45 });
+    await ui.press('4');
+    await ui.settle();
+    await ui.hold(2000);
+  },
+});
+
+shot('commit/image-vs-file', {
+  project: IQ,
+  // the ISP's sharpening stage: stages/4.jpg
+  url: d => stages(d, 'photos/facade base linux', 4),
+  alt: 'The sharpened stage of the facade, stages/4.jpg, compared with the denoised one of the same run, stages/3.jpg, on '
+    + 'a teal label; the vs stages/3.jpg menu open lists the reference, isp-4.1, then the run\'s other images with '
+    + 'thumbnails, stages/3.jpg checked, and Apply to: All runs or This run.',
+  caption: 'vs ▾ compares an image with another file of the run, here the sharpened stage with the denoised one, '
+    + 'instead of the reference.',
+  actions: async ui => {
+    const scope = viewer(ui.page, 1);
+    await showToolbar(ui, scope);
+    await preset(ui, scope, 'Leaves over a window');
+    const vs = scope.getByRole('button', { name: /^vs / });
+    await ui.click(vs);
+    await ui.click(scope.locator('.qiv-popover').getByText('stages/3.jpg', { exact: true }));
+    await ui.settle();
+    // the menu again, on the image picked
+    await ui.click(vs);
+    await ui.settle();
+  },
+  target: page => [toolbar(viewer(page, 1)), imageRow(viewer(page, 1)), viewer(page, 1).locator('.qiv-popover').first()],
+  padding: 4,
+});
+
+// On the facade, where the leaves cross the window: a dark rim, near black in the new image (12), dark gray in the
+// reference (63)
+const RIM = { x: 698, y: 120 };
+
+shot('commit/pixel-values', {
+  project: IQ,
+  url: d => halos(d, 'photos/facade base', { show: { [ISP_STAGE]: false } }),
+  alt: 'The leaves\' rim zoomed in to 5000%, new and reference side by side, each pixel with its red, green and blue '
+    + 'values written on it; above, the hovered pixel\'s values in both images; the 123 menu open: Image values, '
+    + 'Displayed values or Off.',
+  caption: 'Zoomed in, the values are written on the pixels: here the dark rim along a leaf, near black in the new image. '
+    + 'The 123 button picks the image\'s own values or the displayed ones.',
+  actions: async ui => {
+    const scope = viewer(ui.page);
+    await showCard(ui);
+    await preset(ui, scope, 'Leaves over a window');
+    const position = await hoverPixel(ui, scope, RIM.x, RIM.y);
+    await zoomTo(ui, scope, position, 5000);
+    await hoverPixel(ui, scope, RIM.x, RIM.y);
+    // the values arrive by tiles of 64x64 pixels
+    await scope.locator('.qiv-values-badge').filter({ hasText: /^Values: image/ }).waitFor();
+    await ui.page.waitForFunction(() => !document.querySelector('.qiv-values-badge .qiv-spinner'));
+    await ui.click(scope.getByRole('button', { name: 'Pixel values' }));
+    await ui.settle();
+  },
+  target: page => [toolbar(viewer(page)), imageRow(viewer(page)), viewer(page).locator('.qiv-popover').first()],
+  padding: 4,
+});
+
+// The darkest values: the rims the new image clips to black
+const RANGE_MAX = 12;
+
+shot('commit/histogram-range', {
+  project: IQ,
+  url: d => halos(d, 'photos/facade base', { show: { [ISP_STAGE]: false } }),
+  alt: 'The facade\'s leaves side by side, stripes over their darkest pixels; under them the histogram of the luma (Y), '
+    + 'new solid and reference dashed, the range 0 to 12 highlighted, and how much of each image is in it.',
+  caption: 'Drag on the histogram: stripes mark the pixels in the range, here the darkest, and the share of each image '
+    + 'in it shows below.',
+  actions: async ui => {
+    const scope = viewer(ui.page);
+    await showToolbar(ui, scope);
+    await preset(ui, scope, 'Leaves over a window');
+    // closer on the leaves at the top right of the region, where the rims are darkest (like commit/image-sbs)
+    await zoom(ui, scope, { x: 82, y: 42 }, 4);
+    await openAnalysis(ui, scope, 'Histogram');
+    await ui.click(analysisPanel(scope).getByRole('button', { name: 'Y', exact: true }));
+    const plot = analysisPanel(scope).getByRole('slider', { name: /^Histograms of the displayed images/ });
+    const box = await stableBox(plot);
+    const at = (value: number) => ({ x: box.x + box.width * (value + 0.5) / 256, y: box.y + box.height * 0.6 });
+    await ui.drag(at(0), at(RANGE_MAX));
+    await blur(ui);
+    await mouseOff(ui);
+    await panelInView(ui, scope);
+  },
+  target: page => imagesAndPanel(viewer(page)),
+});
+
+// The slanted edge's left side, near vertical, halfway down: bright on the left, dark on the right
+const EDGE = { x: 366, y: 408 };
+
+shot('commit/image-profiles', {
+  project: IQ,
+  // without the edge's plots: they make the card wider than the page (under the View options' rail)
+  url: d => halos(d, 'charts/slanted-edge base', { show: { [ISP_STAGE]: false, 'Edge profile': false, MTF: false } }),
+  alt: 'The slanted edge zoomed in, new and reference side by side, a crosshair on the edge; under them, the profiles of '
+    + 'the row and column under the pointer: across the edge, the new image (solid) dips lower on the dark side and '
+    + 'rises higher on the bright side than the reference (dashed).',
+  caption: 'Profiles of the row and column under the pointer: across the edge, the new image overshoots on both sides, '
+    + 'the halos the sharpening adds.',
+  actions: async ui => {
+    const scope = viewer(ui.page);
+    await showToolbar(ui, scope);
+    await preset(ui, scope, 'Measured edge');
+    await openAnalysis(ui, scope, 'Row / column');
+    await analysisPanel(scope).getByLabel('Profiles of').selectOption('pointer');
+    await blur(ui);
+    // on the edge, halfway down the view (examples/image-quality/qa/make_charts.py), closer: about 70 pixels across
+    const position = await hoverPixel(ui, scope, EDGE.x, EDGE.y);
+    await zoomTo(ui, scope, position, 800);
+    // the page won't scroll to the shot anymore: that would move the image from under the pointer, and the crosshairs
+    // and the profiles' markers with it
+    await panelInView(ui, scope);
+    await hoverPixel(ui, scope, EDGE.x, EDGE.y);
+    await ui.settle();
+  },
+  target: page => [pixelValues(viewer(page)), imageRow(viewer(page)), analysisPanel(viewer(page))],
+  padding: 4,
+});
+
+shot('commit/image-stats', {
+  project: IQ,
+  url: d => halos(d, 'charts/flat-gray low-light', { show: { [ISP_STAGE]: false } }),
+  alt: 'The flat gray chart in low light at 100%, new and reference side by side, the reference visibly noisier; under '
+    + 'them the statistics per channel: the new image\'s standard deviation is about half the reference\'s, its SNR '
+    + 'about 6 dB higher in luma.',
+  caption: 'Statistics of the view, per channel: on a flat gray in low light, the new denoiser halves the standard '
+    + 'deviation, a 6 dB better SNR.',
+  actions: async ui => {
+    const scope = viewer(ui.page);
+    await showToolbar(ui, scope);
+    // every pixel: zoomed out, a screen pixel averages several and hides some noise
+    await ui.click(scope.getByRole('button', { name: '1:1', exact: true }));
+    await openAnalysis(ui, scope, 'Statistics');
+    await mouseOff(ui);
+    await panelInView(ui, scope);
+  },
+  target: page => imagesAndPanel(viewer(page)),
+});
+
+shot('commit/image-raw-values', {
+  project: IQ,
+  // the raw sensor data, as the fixed-point model saves it: a PNG where each pixel has one of R, G and B. It's the same in
+  // both commits: one image
+  url: d => d.commitUrl(IQ, 'merge-bilateral', {
+    reference: 'isp-4-1', view: 'output-list', filter: 'photos/facade hw-model',
+    controls: { show: { Output: false, [ISP_STAGE]: false }, dynamic_options: { stage: ['1'] } },
+  }),
+  alt: 'The raw mosaic of the facade\'s window, red, green and blue pixels; under it, Image values picked in the analysis '
+    + 'panel: a card shows RGGB Bayer with a diagram, 8-bit, guessed from the pixels, and the statistics of R, Gr, Gb '
+    + 'and B with the ratios R/G, B/G and Gr/Gb.',
+  caption: 'Image values analyzes a raw image per channel of its color filter array: the card shows the pattern it '
+    + 'found, the table each channel\'s statistics.',
+  actions: async ui => {
+    const scope = viewer(ui.page, 2);
+    await showToolbar(ui, scope);
+    // closer, until each pixel of the mosaic is a square of its color: about 10 screen pixels
+    const box = await stableBox(newImage(scope));
+    await zoomTo(ui, scope, { x: box.width / 2, y: box.height / 2 }, 1000);
+    await openAnalysis(ui, scope, 'Statistics');
+    await ui.click(analysisPanel(scope).getByRole('radio', { name: 'Image values', exact: true }));
+    await analysisPanel(scope).getByText('Gr/Gb').waitFor({ timeout: 30_000 });
+    await blur(ui);
+    await mouseOff(ui);
+    await panelInView(ui, scope);
+  },
+  // the bottom of the mosaic, and the panel under it
+  target: async page => {
+    const stage = await stableBox(imageRow(viewer(page, 2)));
+    const panel = await stableBox(analysisPanel(viewer(page, 2)));
+    const top = stage.y + stage.height - 200;
+    return { x: panel.x - 4, y: top, width: panel.width + 8, height: panel.y + panel.height + 4 - top };
+  },
+});
+
+shot('commit/image-fullscreen', {
+  project: IQ,
+  url: d => halos(d, 'photos/facade base', { show: { [ISP_STAGE]: false } }),
+  alt: 'The image viewer in full screen: its toolbar, the facade\'s leaves side by side, new and reference, as large as '
+    + 'the screen allows, and the profiles of the view\'s columns and rows under them.',
+  caption: 'Full screen gives the screen to the images, with the toolbar, and the analysis panel under them.',
+  actions: async ui => {
+    const scope = viewer(ui.page);
+    await showCard(ui);
+    await preset(ui, scope, 'Leaves over a window');
+    await openAnalysis(ui, scope, 'Row / column');
+    await ui.click(scope.getByRole('button', { name: 'Full screen (f)' }));
+    await ui.page.waitForFunction(() => !!document.fullscreenElement);
+    await preset(ui, scope, 'Leaves over a window');
+    await ui.cursor.moveTo({ x: 1000, y: 12 });
+    await ui.settle();
+  },
+});
+
 // Output Files: the tree of a run's files, only those that differ from the reference's by default. A folder opens with
 // its caret (a click on its name does nothing), a file shows its diff below the tree.
 const treeCaret = (scope: Locator, folder: string) => scope.locator('.bp6-tree-node-content')
@@ -918,8 +1273,12 @@ shot('commit/change-menu', {
     + 'batch, branch and commit.',
   caption: 'Change the reference from its commit bar: swap new and reference, or pick the reference branch or a milestone.',
   actions: async ui => {
+    await milestonesAsSaved(ui);
     await ui.click(ui.page.getByRole('button', { name: 'Change the reference commit' }));
-    await ui.page.locator('.bp6-popover .bp6-menu', { hasText: 'Swap the bars' }).waitFor();
+    const menu = ui.page.locator('.bp6-popover .bp6-menu', { hasText: 'Swap the bars' });
+    await menu.waitFor();
+    // off the reference's bar: hovering it shows "Stack a reference" under it
+    await ui.hover(menu.getByText('Quick actions', { exact: true }));
     await ui.settle();
   },
   // the reference's hash and Change, and the menu under them
@@ -1225,11 +1584,16 @@ shot('commit/pointcloud', {
     await cloud.waitFor({ timeout: 60_000 });
     // the new map against the ground truth: the reference's map would hide them
     await ui.click(cloud.locator('label.pointcloud-layer-reference'));
+    // no focus ring left on the checkbox
+    await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await mouseAway(ui);
     await ui.settle();
   },
-  target: page => page.locator('.pointcloud-viewer').first(),
-  padding: 8,
+  // the viewer, and 8 px around it but above: the run's metrics, tinted, end right above it
+  target: async page => {
+    const box = await stableBox(page.locator('.pointcloud-viewer').first());
+    return { x: box.x - 8, y: box.y, width: box.width + 16, height: box.height + 8 };
+  },
 });
 
 clip('commit/video-sync', {
@@ -1385,4 +1749,166 @@ shot('commit/deleted-tests', {
   },
   target: page => viewCard(page, 'Metrics Diff'),
   padding: 0,
+});
+
+
+// Milestones as the seed saved them. The snapshot's milestones predate the description of their runs: the backend
+// describes them the first time it lists them, and that write sets their updated_at to its clock (list_milestones'
+// backfill, backend/api/milestones.py), days after T0, the captures' clock: menus said "in 5 days". The seed sets
+// updated_at to created_at (docs-media/seed.py). In the API's answer only, the page loaded again.
+async function milestonesAsSaved(ui: Ui) {
+  const { page, demo: d } = ui;
+  await page.route('**/api/v1/milestones?*', async route => {
+    const response = await route.fetch();
+    const body = await response.json() as { milestones: Array<{ created_at: string; updated_at: string }> };
+    const milestones = body.milestones.map(m => new Date(m.updated_at) > d.t0 ? { ...m, updated_at: m.created_at } : m);
+    await route.fulfill({ response, json: { ...body, milestones } });
+  });
+  await page.reload();
+  await ui.settle();
+}
+
+
+// Configurations (webapp/src/configurations/): the detector's int8 release, kd-1.3, is a batch of every variant, the
+// models at 3 input sizes. Against the fp32 release's CI batch, kd-1.2 (fp32 at 320 px only), each run is compared with
+// the closest reference run: settings added (int8), removed (fp32), changed (the size), and the model, a tuning
+// parameter. Without the 512 px runs: 4 runs fit. Narrower than the default viewport, so that the tags read at the
+// docs' width.
+const CONFIG_VIEWPORT = { width: 1180, height: 900 };
+const releaseVariants = (d: Demo) => d.commitUrl(DE, 'kd-1-3', {
+  reference: 'kd-1-2', view: 'table-kpi', batch: 'release', filter: 'small-objects -512',
+});
+const configurations = (page: Page) => page.getByLabel('Configurations', { exact: true });
+// The Metrics Table's row of a run: its name cell, by the settings it shows
+const configTag = (page: Page, index: number) => viewCard(page, 'Metrics Table').locator('.bp6-tag', { hasText: /^Config$/ }).nth(index);
+
+shot('commit/config-diff', {
+  project: DE,
+  url: releaseVariants,
+  viewport: CONFIG_VIEWPORT,
+  alt: 'The int8 release\'s size variants against the fp32 release: above the Metrics Table, "vs. reference" lists the '
+    + 'changes: fp32 removed, int8 added, size-320 to 416, and the model. Each row shows its own: fp32 struck through in '
+    + 'red, int8 in green, "size-320 → 416" with only 320 → 416 marked.',
+  caption: 'Each run shows how its settings differ from its reference run\'s: added in green, removed struck through, '
+    + 'changed values with an arrow. The changes are summed up once, above the runs.',
+  actions: async ui => {
+    await configTag(ui.page, 3).waitFor();
+    await ui.cursor.moveTo({ x: 1170, y: 890 });
+    await ui.settle();
+  },
+  // the changes of all the runs, and the table of the 4 runs
+  target: page => [configurations(page), viewCard(page, 'Metrics Table')],
+  padding: 8,
+});
+
+shot('commit/config-tag-diff', {
+  project: DE,
+  url: releaseVariants,
+  viewport: CONFIG_VIEWPORT,
+  alt: 'The Config tag of the int8 run at 416 px, hovered: "2 changed, 1 added, 1 removed", then a diff, line by line: '
+    + 'minus fp32, plus int8, size 320 to 416, and the model from kd-1.2-fp32-320 to kd-1.3-int8-416; buttons to copy '
+    + 'the changes or the reference\'s qa options.',
+  caption: 'Hover the Config tag of a run for how its settings differ from its reference run\'s, line by line, like a '
+    + 'git diff.',
+  actions: async ui => {
+    // the int8 run at 416 px: every kind of change
+    await ui.hover(configTag(ui.page, 3));
+    await ui.page.locator('.bp6-popover', { hasText: 'Settings compared to the reference run' }).waitFor();
+    await ui.settle();
+  },
+  // the popover alone: it opens over the sidebar, next to the run's name
+  target: page => page.locator('.bp6-popover', { hasText: 'Settings compared to the reference run' }),
+  padding: 0,
+});
+
+
+// Several references (webapp/src/components/ReferenceTabs.jsx): with one reference, hovering its bar shows "Stack a
+// reference" below it
+shot('commit/stack-reference', {
+  project: IQ,
+  url: d => d.commitUrl(IQ, 'merge-bilateral', { reference: 'isp-4-1', view: 'table-kpi' }),
+  alt: 'Under the reference bar, Stack a reference opened: a box for a commit or a branch, the reference branch main, '
+    + '"This reference again" to change its batch or filter, Manage milestones, then the milestones isp-4.2 and isp-4.1, '
+    + 'which is selected.',
+  caption: 'Hover the reference\'s bar, then Stack a reference to compare with another commit, branch or milestone: '
+    + 'the reference you look at stays in the list.',
+  actions: async ui => {
+    const { page } = ui;
+    await milestonesAsSaved(ui);
+    await ui.hover(page.getByRole('textbox', { name: 'The reference commit' }));
+    await ui.click(page.getByRole('button', { name: 'Stack a reference' }));
+    await page.getByRole('textbox', { name: 'Add a commit or a branch as reference' }).waitFor();
+    await ui.cursor.moveTo({ x: 1430, y: 890 });
+    await ui.settle();
+  },
+  // a box: the reference's bar, fixed at the top, from its start to its author, the handle under it, and the panel
+  target: async page => {
+    const refBar = page.locator('.bp6-navbar', { has: page.locator('input#filter-ref-input') }).first();
+    const bar = await stableBox(refBar);
+    // the bars start under the sidebar
+    const sidebar = await stableBox(page.getByRole('navigation', { name: 'Navigation' }));
+    const left = sidebar.x + sidebar.width;
+    const author = await stableBox(refBar.getByText('by Ines Marchetti').first());
+    const panel = await stableBox(page.locator('.bp6-popover', { has: page.getByRole('textbox', { name: 'Add a commit or a branch as reference' }) }));
+    const right = Math.max(panel.x + panel.width, author.x + author.width) + 12;
+    return { x: left, y: bar.y, width: right - left, height: panel.y + panel.height + 12 - bar.y };
+  },
+});
+
+// Names (webapp/src/selection.js: label, label_ref): the merge, named "bilateral", against the release before it,
+// a milestone: named after it. The page uses the names, in the sides' colors: the bars, the images' labels
+shot('commit/named-comparison', {
+  project: IQ,
+  url: d => d.commitUrl(IQ, 'merge-bilateral', {
+    reference: 'isp-4-1', view: 'output-list', filter: 'photos/facade base linux', query: { label: 'bilateral' },
+  }),
+  alt: 'The new results named "bilateral", in blue, against the isp-4.1 milestone, in purple: the names in the two bars, '
+    + 'then in the facade\'s run card, the viewer\'s "vs isp-4.1" and the labels "bilateral" and "isp-4.1" on the two '
+    + 'images.',
+  caption: 'Click new or ref to name them: the bars, the images, the plots and the tables use the names, each in its '
+    + 'color. Milestones are called by their name.',
+  actions: async ui => {
+    await preset(ui, viewer(ui.page), 'Window frame (halos)');
+    // not over the reference's bar: hovering it shows "Stack a reference" under it
+    await ui.cursor.moveTo({ x: 1430, y: 890 });
+    await ui.hold(500);
+    await ui.settle();
+  },
+  // a box: from the bars, fixed at the top, with their colored edge, down to the top of the images
+  target: async page => {
+    const card = await stableBox(cards(page).first());
+    const stage = await stableBox(imageRow(viewer(page)));
+    // the bars start under the sidebar
+    const sidebar = await stableBox(page.getByRole('navigation', { name: 'Navigation' }));
+    const left = sidebar.x + sidebar.width;
+    // to the View options' rail, on the right: the bars' buttons end there
+    const rail = await stableBox(controlsPanel(page));
+    return { x: left, y: 0, width: rail.x - left, height: stage.y + 160 };
+  },
+});
+
+// A run's name: hovering it opens what QA-Board knows about the run (webapp/src/components/RunInfoMenu.jsx). The
+// facade at low light, the second card: its menu opens beside it, below the commit bars
+shot('commit/run-name-menu', {
+  project: IQ,
+  url: d => d.commitUrl(IQ, 'merge-bilateral', { reference: 'isp-4-1', view: 'output-list', filter: 'photos/facade linux' }),
+  alt: 'The menu of a run\'s name, photos/facade.png, hovered in its run card: History, this input over time; its batch, '
+    + 'ci; its database and input path; its metadata; and Run Info: sent by ci, 1 s of compute time, created 20 days '
+    + 'ago, and its storage.',
+  caption: 'Hover a run\'s name: History shows this input over time, and the menu says where the run comes from, who '
+    + 'sent it, and what it cost.',
+  actions: async ui => {
+    const card = cards(ui.page).nth(1);
+    await showCard(ui, 1, 470);
+    const name = card.getByText('photos/facade.png', { exact: true }).first();
+    await ui.hover(name);
+    await ui.page.locator('.bp6-popover', { hasText: 'this input over time' }).waitFor();
+    await ui.settle();
+  },
+  // the run's name and its metrics, and the menu
+  target: page => [
+    cards(page).nth(1).getByText('photos/facade.png', { exact: true }).first(),
+    page.locator('.bp6-popover', { hasText: 'this input over time' }),
+  ],
+  padding: 16,
 });

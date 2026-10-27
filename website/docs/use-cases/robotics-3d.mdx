@@ -73,6 +73,10 @@ qa run --input sequences/figure8-fast
 qa batch ci                     # the 6 sequences
 ```
 
+Without `--share`, results stay in `output/`. To see them in the web app, run `qa --share batch ci`. With the
+[quickstart](/docs/get-started/quickstart#save-results-from-your-computer)'s server, first
+`export QABOARD_URL=http://localhost:5151 QA_STORAGE=/tmp/qaboard`.
+
 See the example's [README](https://github.com/Samsung/qaboard/tree/master/examples/robotics-3d#readme) for the
 flags and the tuning sweep.
 

@@ -30,6 +30,8 @@ For a guided tour on the demo data, follow [Your first review](/docs/user-guide/
 The **new** bar, on top, holds the commit you look at; the **ref** bar, below, what you compare it with. They work the
 same way. Each shows:
 
+- its name, **new** or **ref**: click it to rename what you compare, e.g. `ISP v2` and `ISP v1`. See
+  [Name what you compare](/docs/user-guide/comparing-results#naming-what-you-compare);
 - the commit message, author and date;
 - the **commit hash**: type another one to switch commits, or click **Change** to pick a branch, a milestone, or to
   swap the bars. See [choose another reference](/docs/user-guide/comparing-results#picking-a-reference);
@@ -41,6 +43,10 @@ same way. Each shows:
 - the **batch selector**: the CI batch, your local runs, tuning experiments... See
   [Batches](/docs/user-guide/finding-results#batches);
 - a refresh button, and a menu (☰) with the commit's and the batch's folders and actions.
+
+To compare with several references, like a release and the latest `main`, hover the **ref** bar and click **Stack a
+reference**: tabs then show below the bars, one per reference, and <kbd>r</kbd> switches between them. See
+[Compare with several references](/docs/user-guide/comparing-results#several-references).
 
 The **Logs**, **Available Tests** and **Run Tests / Tuning** views only concern the new commit: they hide the
 reference bar. While runs are pending, the page refreshes by itself every 15 seconds.
@@ -163,8 +169,13 @@ tagged **Identical to the reference**. Cards load their files as you scroll to t
 />
 
 Next to the run's name, the menu (☰) opens the input's **History**, and redoes the run, or deletes it or only its
-output files, once you're logged in: see
+output files, once you're signed in: see
 [Redo, stop and clean up runs](/docs/user-guide/running-from-the-webapp#redo-stop-and-clean-up-runs).
+
+<Shot
+  id="commit/run-name-menu"
+  caption="Hover a run's name: History follows this input over the commits; below, its batch, its input, its metadata, and who sent it, its compute time and its storage."
+/>
 
 The folder icon opens the run's output directory (or the reference's) in the [file browser](/docs/user-guide/files);
 the copy icon copies its path, as a Linux or a Windows path. The button at the card's top right shows the card in full

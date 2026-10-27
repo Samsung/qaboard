@@ -10,11 +10,14 @@ reference, the latest results of your reference branch. `qa` reads the commit, t
 CI's environment variables, so the job only installs `qaboard` and runs `qa batch`.
 
 :::info Before you start
-- A QA-Board server, and its address for `QABOARD_URL` (see [Installation](/docs/installation)).
+- A QA-Board server, and its address for `QABOARD_URL` (see [Installation](/docs/installation)). The quickstart's
+  server only answers on the computer it runs on: for your team's CI, see
+  [Starting a QA-Board server](/docs/deploy).
 - A batch of tests to run on every commit, like `ci` (see [Batches of inputs](/docs/batches-running-on-multiple-inputs)).
 - A CI runner that can write in the results storage, at the same path as the server (like */mnt/qaboard*, an NFS
-  share): a self-hosted GitHub Actions runner, a GitLab runner or a Jenkins agent on your network. GitHub-hosted
-  runners can't save results yet: see the [roadmap](/docs/roadmap#http-upload-of-outputs).
+  share), the path of `storage` in *qaboard.yaml*: a self-hosted GitHub Actions runner, a GitLab runner or a Jenkins
+  agent on your network. GitHub-hosted runners can't save results yet: see the
+  [roadmap](/docs/roadmap#http-upload-of-outputs).
 :::
 
 ## Run your batch on every push {#running-qa-board-in-your-ci}
@@ -52,7 +55,12 @@ CI's environment variables, so the job only installs `qaboard` and runs `qa batc
 />
 
 On the commit page, the CI batch is shown as **CI**: it's the batch with the label `default`. Other batches the CI
-runs with `qa --label nightly batch ...` are listed next to it.
+runs with `qa --label nightly batch ...` are listed next to it, like the runs people share from their computer.
+
+<Shot
+  id="commit/batch-picker"
+  caption="The commit's batches: the CI batch, runs someone shared from their computer (🏠) and a tuning experiment, each with how many of its runs succeeded."
+/>
 
 ## Link commits to their results {#commit-statuses}
 When `qa` has a token for your git host, `qa batch` sets a **commit status** named `QA` on the commit, with a link

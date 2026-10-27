@@ -29,7 +29,7 @@ uses, in the order you meet them.
 - **Platform**: where the code runs or what it targets, e.g. `linux` or a hardware model. Runs are compared on the same
   platform.
 - **Run**: your code from one commit, on one input, with one configuration, on one platform. A run has output files,
-  metrics and a log.
+  metrics and a log. An input with its configuration is a **test**, as in the web app's **Available Tests**.
 - **Batch**: a group of runs of the same commit, with a label. `qa batch ci` runs the inputs and configurations listed
   under `ci` in your batches file. The batch CI runs has the label `default`, and the web app shows it as **CI**.
   Tuning experiments and your own runs get their own batches. See
@@ -44,7 +44,8 @@ uses, in the order you meet them.
   [Visualizations](/docs/visualizations).
 - **New and reference**: a commit's results are always shown next to a reference's. By default the reference is the
   latest commit with results on the project's **reference branch** (`project.reference_branch`). Each run is
-  compared with the reference run of the same input, with the closest configuration.
+  compared with the reference run of the same input, with the closest configuration. You can stack several references
+  on one page and switch between them. See [New and reference](/docs/user-guide/comparing-results).
 - **Milestone**: a commit's batch kept as a reference: a release, a benchmark, "before my refactor". Shared
   milestones are listed for everyone in the project, the others only for you. See
   [References and milestones](/docs/references-and-milestones).

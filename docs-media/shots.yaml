@@ -46,7 +46,17 @@ features:
   tuning-analysis: Tuning analysis, efficient frontier, convergence
   milestones: Milestones, personal and shared, with groups, favorites and links
   blind-test: Blind tests, the images called A and B in a random order until revealed
+  image-modes: Images compared side by side, with a wipe, one at a time in place (Single) or as their difference
+  image-compare-with: An image compared with another file of the same run instead of the reference
+  pixel-values: Values written on the pixels when zoomed in, the image's own or the displayed ones
+  image-analysis: The analysis panel under the images, histogram range, row and column profiles, statistics
+  raw-analysis: A raw image's own values per channel of its color filter array, with the pattern found
+  image-fullscreen: The image viewer in full screen, with its tools and the analysis panel
   reference-tabs: Several references stacked as tabs, compared one at a time
+  config-diff: Configurations shown as how they differ from the reference run's, the changes all runs share summed up once
+  side-names: New and reference named by users (milestones by their name), each in its color, everywhere on the page
+  command-palette: Ctrl+K search from any page, for projects, branches, commits, your batches, pages and actions
+  home-page: A home page about you, your projects and batches; Explore, projects grouped by their path, quiet ones faded
   whats-new: What's new dialog and panel
 
 shots:
@@ -107,13 +117,47 @@ shots:
     experimental: true
 
   # Projects and commits
+  # The home page was the projects list until October 2026; signed in, it's now about you (Explore is projects/explore)
   - id: projects/home
     kind: still
     project: null
-    shows: The projects list with the Kitefin projects, their avatars and descriptions, one pinned as a favorite, the filter box.
-    pages: [get-started/quickstart, user-guide/finding-results, user-guide/first-review]
+    shows: 'The home page signed in as Arjun: Your projects (the detector and the fleet assistant, each with when he last used it and its runs over 30 days, Explore all projects), Recent (his tune-prompts and tune-int8 tuning experiments and his local arjun-sizes sweep, each with its project, branch, commit message, runs and main metric), From your projects (folded), and on the right What''s new, Your storage and Learn.'
+    pages: [user-guide/finding-results]
+    features: [home-page]
     phase: 2
     status: captured
+  - id: projects/explore
+    kind: still
+    project: null
+    shows: 'Explore at /projects, signed in as Ines: the filter box, the kitefin group (last run, runs over 30 days, 6 projects), its projects with their avatar, name, path, description, last used, sparkline, star and source link, camera-isp pinned on top (its star, in the API''s answer only), and "1 quiet subproject" (the fleet SDK, only the CI ran it) at the bottom.'
+    pages: [get-started/quickstart, user-guide/finding-results, user-guide/first-review]
+    features: [home-page]
+    phase: 3
+    status: published
+  - id: projects/command-palette
+    kind: still
+    project: detection-eval
+    shows: 'The search opened with Ctrl+K over the detector''s page, "det" typed: Projects (kitefin/detector, highlighted), Branches in kitefin/detector (det/confusions), Your recent batches (tune-int8 and arjun-sizes, with their runs and dates), and the keys to navigate, open, open in a new tab; a margin of the dimmed page around it.'
+    pages: [user-guide/finding-results]
+    features: [command-palette]
+    phase: 3
+    status: published
+  - id: commits/yours
+    kind: still
+    project: image-quality
+    shows: 'The camera ISP''s page signed in as Ines, Yours selected (Everyone, Hide the CI, Batches / Commits next to it): Latest on main (chroma-low-light, its CI batch still running: 6 pending, 3 running), then her tune-denoise (web app) and ines-halo (local) batches, both ticked, and "Compare tune-denoise with ines-halo (the reference)" with Clear and Compare.'
+    pages: [user-guide/finding-results]
+    needs: bilateral-denoise (tune-denoise, ines-halo); chroma-low-light (running)
+    phase: 3
+    status: published
+  - id: commits/compact
+    kind: still
+    project: serving-latency
+    shows: 'Everyone''s commits of the inference gateway in the Compact list, from the Comfortable / Compact switch: five days, one line per commit in aligned columns (status icon, hash, message, branch, committer, date, the CI batch''s average p99, runs, menu); the batcher change that crashed with a red icon and "1 failed". The preference comes from the API''s answer only.'
+    pages: [user-guide/finding-results]
+    needs: batch-overflow (crashed)
+    phase: 3
+    status: published
   - id: commits/feed
     kind: still
     project: serving-latency
@@ -139,7 +183,7 @@ shots:
   - id: commits/milestones-menu
     kind: still
     project: detection-eval
-    shows: 'The sidebar''s Milestones menu: the favorite kd-1.3, then my milestones with the kd-1.3 and kd-1.2 releases and, in a group, entropy-try on the entropy-calib commit (added by the spec in the API''s answer only).'
+    shows: 'The sidebar''s Milestones menu: Manage milestones… first, the favorite kd-1.3, then my milestones with, in a group, entropy-try on the entropy-calib commit (added by the spec in the API''s answer only), and the kd-1.3 and kd-1.2 releases, each with when it was last updated (as the seed saved it, see commits.spec.ts asSaved).'
     pages: [references-and-milestones, user-guide/milestones, landing]
     features: [milestones]
     phase: 2
@@ -152,7 +196,7 @@ shots:
     features: [milestones]
     needs: kd-1-3, kd-1-2 (milestones); entropy-calib
     phase: 3
-    status: planned
+    status: captured
   - id: integrations/menu
     kind: still
     project: image-quality
@@ -204,7 +248,7 @@ shots:
   - id: commit/change-menu
     kind: still
     project: detection-eval
-    shows: The reference bar's Change menu, with switch new/reference, the reference branch and the milestones.
+    shows: 'The reference bar''s Change menu: Change project, Quick actions (Swap the bars, Also show in the top bar, Stack another reference…, Remove from comparison, the reference branch main), Manage milestones…, then My milestones kd-1.3 and kd-1.2 (selected), each with when it was last updated (as the seed saved it), and Learn about milestones.'
     pages: [references-and-milestones, user-guide/comparing-results, user-guide/milestones]
     features: [milestones]
     phase: 2
@@ -218,6 +262,24 @@ shots:
     needs: merge-bilateral vs isp-4-1 and chroma-low-light
     phase: 3
     status: captured
+  - id: commit/stack-reference
+    kind: still
+    project: image-quality
+    shows: 'merge-bilateral against the isp-4.1 milestone, one reference: the reference bar (isp-4.1, its crown, hash, Change, main, author), the "Stack a reference" handle that hovering it shows, and its panel open: the explanation (switch with tabs or r), the "Commit or branch" box, main (reference branch), This reference again, Manage milestones…, My milestones isp-4.2 and isp-4.1 (selected) with when they were saved.'
+    pages: [user-guide/comparing-results]
+    features: [reference-tabs]
+    needs: merge-bilateral vs isp-4-1
+    phase: 3
+    status: published
+  - id: commit/named-comparison
+    kind: still
+    project: image-quality
+    shows: 'merge-bilateral named "bilateral" (label in the URL) against the isp-4.1 milestone, named after it: the two bars with their names, blue and purple, then the facade''s run card (base, linux) zoomed on the window preset, its viewer saying "vs isp-4.1", the line "bilateral 1224×816 · isp-4.1 1224×816" and the images'' labels "bilateral" in blue and "isp-4.1" in purple.'
+    pages: [user-guide/comparing-results]
+    features: [side-names]
+    needs: merge-bilateral vs isp-4-1
+    phase: 3
+    status: published
   - id: commit/batch-picker
     kind: still
     project: image-quality
@@ -241,6 +303,24 @@ shots:
     pages: [computing-quantitative-metrics, deep-learning, user-guide/comparing-results]
     phase: 2
     status: captured
+  - id: commit/config-diff
+    kind: still
+    project: detection-eval
+    shows: 'kd-1.3''s release batch (every model at every size), filter "small-objects -512", against kd-1.2''s CI batch (fp32 at 320 px), in a 1180 px wide window: the "vs. reference" row (All 4 runs…: − fp32 in 2, + int8 in 2, size-320 → 416 in 2, a model change, 3 other changes), then the Metrics Table''s 4 runs, each with its own changes: fp32 size-320 (only the model changes), − fp32 + int8, size-[320 → 416] with only the number marked, and all of them; the model, a tuning parameter with a wrench, and the orange Config tag.'
+    pages: [user-guide/comparing-results]
+    features: [config-diff]
+    needs: kd-1-3 (release batch) vs kd-1-2
+    phase: 3
+    status: published
+  - id: commit/config-tag-diff
+    kind: still
+    project: detection-eval
+    shows: 'The same page, the Config tag of the int8 run at 416 px hovered: its popover alone, "Settings compared to the reference run: 2 changed, 1 added, 1 removed", the diff (− fp32 in red, + int8 in green, ~ size-320 → 416 and ~ model "kd-1.2-fp32-320" → "kd-1.3-int8-416" in orange), the legend, Copy the changes and Copy the reference''s qa options.'
+    pages: [user-guide/comparing-results]
+    features: [config-diff]
+    needs: kd-1-3 (release batch) vs kd-1-2
+    phase: 3
+    status: published
 
   # Commit page: outputs
   - id: commit/visualizations
@@ -344,6 +424,87 @@ shots:
     features: [deep-zoom, image-synced-zoom]
     needs: merge-bilateral vs isp-4-1 (deep-zoom batch)
     phase: 1
+    status: published
+  - id: commit/image-wipe
+    kind: still
+    project: image-quality
+    shows: 'The facade''s run, Wipe picked among the comparison modes of the image toolbar: one image as wide as the card, zoomed on the leaves over a window (the preset), new left of the divider and its handle, isp-4.1 right of it, each labelled in its corner; dark rims outline the leaves on the new side only.'
+    pages: [user-guide/comparing-results]
+    features: [image-modes]
+    needs: merge-bilateral vs isp-4-1
+    phase: 3
+    status: published
+  - id: commit/image-compare-modes
+    kind: clip
+    project: image-quality
+    shows: 'The facade''s leaves, captioned: side by side (1); Wipe (2), the divider dragged left then right; Single (3), t flipping the image between new and isp-4.1 in place, their labels changing; Difference (4) between the images, its maximum at 20%; 4 again, the difference alone and as large as the card, the leaves'' rims in orange and black. About 15 s.'
+    pages: [user-guide/image-viewer]
+    features: [image-modes, image-diff]
+    needs: merge-bilateral vs isp-4-1
+    phase: 3
+    status: published
+  - id: commit/image-vs-file
+    kind: still
+    project: image-quality
+    shows: 'The facade''s ISP stage 4 (sharpen, stages/4.jpg) compared with stages/3.jpg (denoise) of the same run instead of the reference: the toolbar''s button reads vs stages/3.jpg with the undo button next to it, the line above the images says new · stages/3.jpg, and its menu is open over the images: Find an image…, the reference isp-4.1 (The same file in the reference run), then This run''s other images with thumbnails (out.png, stages/1.jpg … stages/5.jpg), stages/3.jpg checked, Apply to: All runs | This run, and the keys.'
+    pages: [user-guide/image-viewer]
+    features: [image-compare-with]
+    needs: merge-bilateral vs isp-4-1
+    phase: 3
+    status: published
+  - id: commit/pixel-values
+    kind: still
+    project: image-quality
+    shows: 'The facade''s leaves zoomed in to about 5000% on a leaf''s rim, new and isp-4.1 side by side, each pixel with its R, G and B values written on it in black or white; the line above gives the hovered rim pixel (x 698 y 120): 37 0 0 in the new image, 100 65 25 in the reference, Δ image −63 −65 −25; the 123 menu is open: Image values (picked), Displayed values, Off, with what each is; the badge Values: image (RGB) under the images.'
+    pages: [user-guide/image-viewer]
+    features: [pixel-values, pixel-tooltip]
+    needs: merge-bilateral vs isp-4-1
+    phase: 3
+    status: published
+  - id: commit/histogram-range
+    kind: still
+    project: image-quality
+    shows: 'The facade''s leaves, zoomed in, side by side, and the analysis panel''s Histogram under them with only Y (luma) shown, the range 0–12 dragged on it: yellow and black stripes mark those pixels, along the leaves'' rims in the new image, hardly any in the reference; below the histogram, Highlighted: Y in 0–12 · 1.86% of new · 1.04% of isp-4.1.'
+    pages: [user-guide/image-viewer]
+    features: [image-analysis, roi-histograms]
+    needs: merge-bilateral vs isp-4-1
+    phase: 3
+    status: published
+  - id: commit/image-profiles
+    kind: still
+    project: image-quality
+    shows: 'The slanted edge chart at 800%, the pointer on the near-vertical edge (x 366, y 408), crosshairs on both images; the analysis panel''s Row / column on Row and column under the pointer: Row 408 crosses the edge, Column 366 runs along it, new solid and isp-4.1 dashed, the new image higher on the bright side and lower on the dark side (the overshoot), with markers at the pointer.'
+    pages: [user-guide/image-viewer]
+    features: [image-analysis]
+    needs: merge-bilateral vs isp-4-1
+    phase: 3
+    status: published
+  - id: commit/image-stats
+    kind: still
+    project: image-quality
+    shows: 'The flat gray chart in low light at 100%, new and isp-4.1 side by side, the reference visibly noisier; the analysis panel''s Statistics under them: per channel (R, G, B, Y), new, isp-4.1 and Δ for mean, std dev, SNR, min, P1, median, P99, max, at 0 and at 255; luma std dev 2.52 against 5.26, SNR +6.4 dB.'
+    pages: [user-guide/image-viewer]
+    features: [image-analysis]
+    needs: merge-bilateral vs isp-4-1 (low-light runs)
+    phase: 3
+    status: published
+  - id: commit/image-raw-values
+    kind: still
+    project: image-quality
+    shows: 'The facade''s raw mosaic (ISP stage 1 of the hw-model platform, stages/1.png, the same in both commits) zoomed in until each pixel is a red, green or blue square; the analysis panel on Statistics with Image values picked: the card RGGB · Bayer (guessed) with its 2×2 diagram, 8-bit (RGB), white 255, black unknown, Read from the colors of the pixels; the ratios R/G, B/G, Gr/Gb; the statistics of R, Gr, Gb and B with their pixel counts.'
+    pages: [user-guide/image-viewer]
+    features: [raw-analysis]
+    needs: merge-bilateral vs isp-4-1 (hw-model platform)
+    phase: 3
+    status: published
+  - id: commit/image-fullscreen
+    kind: still
+    project: image-quality
+    shows: 'The facade run''s image viewer in full screen (the whole 1440x900 window): its toolbar with the exit button, the presets, the leaves over a window side by side, new and isp-4.1, as wide as the screen, and the analysis panel''s Row / column profiles (the average of each column and row, ±1 std dev) under them.'
+    pages: [user-guide/image-viewer]
+    features: [image-fullscreen, image-analysis]
+    needs: merge-bilateral vs isp-4-1
+    phase: 3
     status: published
   - id: commit/video-compare
     kind: clip
@@ -502,6 +663,14 @@ shots:
     pages: [user-guide/running-from-the-webapp]
     phase: 2
     status: captured
+  - id: commit/run-name-menu
+    kind: still
+    project: image-quality
+    shows: 'merge-bilateral against isp-4.1, Visualizations filtered on "photos/facade linux": the second card''s name, photos/facade.png, hovered: its menu beside it with History (this input over time), Batch ci, Database inputs, Input path, Properties (Metadata), Run Info (ci sent by, 1s compute time, 20 days ago created, its storage), over the first card''s images.'
+    pages: [user-guide/commit-page, user-guide/history-and-dashboards, user-guide/first-review]
+    needs: merge-bilateral vs isp-4-1
+    phase: 3
+    status: published
   - id: commit/artifacts-configs
     kind: still
     project: detection-eval
@@ -554,7 +723,7 @@ shots:
     features: [junit-viewer]
     needs: green-ci vs closest-robot
     phase: 3
-    status: planned
+    status: published
   - id: commit/tests-diff
     kind: still
     project: software-quality
@@ -563,7 +732,7 @@ shots:
     features: [text-diff]
     needs: varint-fast-path vs grid-docs
     phase: 3
-    status: planned
+    status: published
   - id: commit/deleted-tests
     kind: still
     project: software-quality
@@ -571,7 +740,7 @@ shots:
     pages: [use-cases/software-quality]
     needs: green-ci vs closest-robot
     phase: 3
-    status: planned
+    status: published
   - id: commit/agent-report
     kind: still
     project: agent-evals
@@ -608,6 +777,15 @@ shots:
     needs: one-tile (lsf-memlimit)
     phase: 2
     status: captured
+  - id: logs/runs
+    kind: still
+    project: image-quality
+    shows: 'The Logs view of the one-tile commit''s CI batch, signed in as Tobias: the filters All · 19, Failed · 1, Running · 0, Successful · 18, Open failed runs, then the first 8 runs, one line each: the 113 MP test wall first, failed (red edge, ✕), tagged "LSF: out of memory", then charts and photos with their configuration (base, low-light), their run time and their copy, folder and ⋯ buttons.'
+    pages: [user-guide/logs]
+    features: [lsf-hints]
+    needs: one-tile (lsf-memlimit)
+    phase: 3
+    status: published
   - id: logs/batch-commands
     kind: still
     project: serving-latency
@@ -648,7 +826,7 @@ shots:
     pages: [use-cases/software-quality]
     needs: sdk-tests to cold-batteries
     phase: 3
-    status: planned
+    status: published
   - id: history/image-diff
     kind: still
     project: image-quality
@@ -833,3 +1011,107 @@ shots:
     needs: fxp-round-half-even and docs-tuning-guide vs isp-4-1, hw-model platform
     phase: 2
     status: captured
+  - id: activity/stuck-runs
+    kind: still
+    project: null
+    shows: 'Runs activity as an admin, everyone''s runs: the counts of waiting and running runs, many of them pending for over a day, and the warning that runs have been pending for over a week, with buttons to show them, mark them as failed, or do it every night.'
+    pages: [user-guide/runs-activity, backend-admin/storage]
+    needs: the demo stack's admin (QABOARD_ADMINS in docs-media/compose.demo.yml); the specs set and undo the state they need (shots/demoState.ts)
+    phase: 3
+    status: published
+  - id: storage/batches
+    kind: still
+    project: null
+    shows: 'Storage usage of everyone''s runs in kitefin/camera-isp, as Ines (a developer of the project): its total in batches, mostly the CI''s; the Batches tab lists them biggest first, each with its commit, branch, folder and who ran it; the milestones have a lock.'
+    pages: [user-guide/storage-usage]
+    needs: the demo stack's admin (QABOARD_ADMINS in docs-media/compose.demo.yml); the specs set and undo the state they need (shots/demoState.ts)
+    phase: 3
+    status: published
+  - id: storage/delete
+    kind: still
+    project: null
+    shows: 'The "Delete the runs'' files" dialog for everything in kitefin/camera-isp, as Ines: the space freed by deleting the files of her runs, and what''s kept: other people''s runs, run by ci, which they or an admin can delete.'
+    pages: [user-guide/storage-usage]
+    needs: the demo stack's admin (QABOARD_ADMINS in docs-media/compose.demo.yml); the specs set and undo the state they need (shots/demoState.ts)
+    phase: 3
+    status: published
+  - id: storage/users
+    kind: still
+    project: null
+    shows: 'Storage usage, the Users tab of everyone''s runs, as the admin: the five people of the demo and their share, the CI first, each with their runs, batches and biggest project.'
+    pages: [backend-admin/storage]
+    needs: the demo stack's admin (QABOARD_ADMINS in docs-media/compose.demo.yml); the specs set and undo the state they need (shots/demoState.ts)
+    phase: 3
+    status: published
+  - id: storage/folders
+    kind: still
+    project: null
+    shows: 'Storage usage, the Folders tab of Ines''s runs, with the camera ISP''s results folder pasted and opened: what QA-Board knows there, in one row (folders that only lead to one subfolder skipped), with buttons to show these runs or delete their files.'
+    pages: [user-guide/storage-usage]
+    needs: the demo stack's admin (QABOARD_ADMINS in docs-media/compose.demo.yml); the specs set and undo the state they need (shots/demoState.ts)
+    phase: 3
+    status: published
+  - id: account/create-token
+    kind: still
+    project: null
+    shows: 'The New access token dialog, as Arjun: the name "detector CI", Read and Ingest checked but not Act, the project kitefin/detector, and an expiry of 90 days, with its date.'
+    pages: [user-guide/account]
+    needs: the demo stack's admin (QABOARD_ADMINS in docs-media/compose.demo.yml); the specs set and undo the state they need (shots/demoState.ts)
+    phase: 3
+    status: published
+  - id: access/members
+    kind: still
+    project: detection-eval
+    shows: 'The Access tab of kitefin/detector, as its owner Arjun: the visibility (Public, the server''s default), Mira''s request for the owner role with her message and Approve and Deny, and the members: Arjun, owner, and Mira, developer.'
+    pages: [user-guide/project-access]
+    needs: the demo stack's admin (QABOARD_ADMINS in docs-media/compose.demo.yml); the specs set and undo the state they need (shots/demoState.ts)
+    phase: 3
+    status: published
+  - id: access/request
+    kind: still
+    project: detection-eval
+    shows: 'The Access tab of kitefin/detector, as Kaito who isn''t a member: his role (Developer, like everyone signed in), the visibility, the owner (Arjun), and the Request access form with the Owner role and a message.'
+    pages: [user-guide/project-access]
+    needs: the demo stack's admin (QABOARD_ADMINS in docs-media/compose.demo.yml); the specs set and undo the state they need (shots/demoState.ts)
+    phase: 3
+    status: published
+  - id: admin/overview
+    kind: still
+    project: null
+    shows: 'The admin panel''s security checklist on the demo stack: what to review (anonymous users can read every project, anyone who can reach the server can send results, cookies over plain HTTP), notes on the secret key and project roles, and what''s already fine.'
+    pages: [backend-admin/user-management]
+    needs: the demo stack's admin (QABOARD_ADMINS in docs-media/compose.demo.yml); the specs set and undo the state they need (shots/demoState.ts)
+    phase: 3
+    status: published
+  - id: admin/settings
+    kind: still
+    project: null
+    shows: 'Admin → Settings: requiring sign-in and local sign-up as switches, ingest.auth "off", set by QABOARD_INGEST_AUTH in the environment, and the projects'' default visibility and the role of signed-in users as menus, each with its description.'
+    pages: [backend-admin/user-management]
+    needs: the demo stack's admin (QABOARD_ADMINS in docs-media/compose.demo.yml); the specs set and undo the state they need (shots/demoState.ts)
+    phase: 3
+    status: published
+  - id: admin/users
+    kind: still
+    project: null
+    shows: 'Admin → Users: the people of the demo, from Adaeze to the Kitefin Coding Agent, their email, how they sign in, Adaeze tagged Admin (env), and how many active tokens each has.'
+    pages: [backend-admin/user-management]
+    needs: the demo stack's admin (QABOARD_ADMINS in docs-media/compose.demo.yml); the specs set and undo the state they need (shots/demoState.ts)
+    phase: 3
+    status: published
+  - id: admin/storage
+    kind: still
+    project: null
+    shows: 'Admin → Storage: a card per job (hard-delete deleted runs, purge runs whose files are gone, delete artifacts, delete old results, scan the storage, measure what deleted runs left, fail stuck runs), each saying what it does and keeps.'
+    pages: [backend-admin/storage]
+    needs: the demo stack's admin (QABOARD_ADMINS in docs-media/compose.demo.yml); the specs set and undo the state they need (shots/demoState.ts)
+    phase: 3
+    status: published
+  - id: admin/hard-delete
+    kind: still
+    project: null
+    shows: 'The Hard-delete deleted runs dialog: projects matching *, none excepted, the runs deleted by users created over a month ago, a button to count them, and Dry run on: Start the dry run.'
+    pages: [backend-admin/storage]
+    needs: the demo stack's admin (QABOARD_ADMINS in docs-media/compose.demo.yml); the specs set and undo the state they need (shots/demoState.ts)
+    phase: 3
+    status: published

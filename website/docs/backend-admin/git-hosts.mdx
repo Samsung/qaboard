@@ -2,11 +2,29 @@
 id: git-hosts
 sidebar_label: Git Hosts
 title: Connecting git hosts (GitHub, GitLab...)
+description: "Connect QA-Board to GitHub, GitLab, Gitea/Forgejo or Bitbucket: tokens, push webhooks and their secrets, avatars, and upgrading older settings."
 ---
 QA-Board works with repositories on **GitHub** (github.com and GitHub Enterprise Server), **GitLab** (gitlab.com and self-managed), **Gitea/Forgejo** and **Bitbucket Cloud**, and can clone from any other git server. The server:
 - receives the repositories' push events, clones them to read commits and `qaboard.yaml`,
 - links to the code, shows committers' avatars,
 - shows and starts CI jobs: GitHub Actions workflows, GitLab CI manual jobs (see [integrations](/docs/triggering-third-party-tools)).
+
+## Connect one GitHub or GitLab
+For a single host, a token and a webhook secret are enough. With docker compose, put them in `.env`, next to
+*docker-compose.yml* (with the Helm chart, in its secret):
+
+```bash title=".env"
+# github.com is always known: the token reads private repositories, avatars and GitHub Actions
+GITHUB_ACCESS_TOKEN=github_pat_...
+# Or your GitLab
+GITLAB_HOST=https://gitlab.example.com
+GITLAB_ACCESS_TOKEN=glpat-...
+# The secret your repositories' webhooks send
+QABOARD_WEBHOOK_SECRET=...
+```
+
+Deploy again, then add a webhook to each repository (see [Webhooks](#webhooks)). For GitHub Enterprise, several hosts,
+Gitea, Forgejo or Bitbucket, use `QABOARD_GIT_HOSTS`.
 
 ## Configuration
 List your hosts in `QABOARD_GIT_HOSTS`, as a JSON list, or as the path to a JSON or YAML file with the list (e.g. a mounted secret):
@@ -28,6 +46,28 @@ QABOARD_GIT_HOSTS='[
 | `hostnames` | Other names of the host, e.g. used in ssh remotes or by older projects: `["gitlab", "git.internal"]` |
 | `name` | Shown to users |
 | `user_avatar_url` | Users' avatars, with `{url}` and `{username}`. Defaults: `{url}/{username}.png` for GitHub, `{url}/user/avatar/{username}/-1` for Gitea/Forgejo. For GitLab, only for users who didn't upload an avatar (default: `QABOARD_AVATAR_URL`) |
+
+With docker compose, a YAML file is easier to maintain: mount it in the backend, and keep the tokens in `.env`, named
+by `token_env` and `webhook_secret_env`. The migrations run in the backend's container, so they see the file too:
+
+```yaml title="deployments/mysite/git-hosts.yaml"
+- type: github
+  url: https://github.com
+  token_env: GITHUB_ACCESS_TOKEN
+- type: gitlab
+  url: https://gitlab.example.com
+  token_env: GITLAB_ACCESS_TOKEN
+  hostnames: [gitlab]
+```
+
+```yaml title="deployments/mysite/mysite.yml"
+services:
+  backend:
+    volumes:
+    - ./deployments/mysite/git-hosts.yaml:/etc/qaboard/git-hosts.yaml:ro
+    environment:
+    - QABOARD_GIT_HOSTS=/etc/qaboard/git-hosts.yaml
+```
 
 The server reads tokens and webhook secrets (including the variables named by `token_env` and `webhook_secret_env`) from its **environment** only, not from the CLI's shared secrets file (`QA_SECRETS`): it may have e.g. a CI token that isn't meant for the server. Other settings can also come from your site package.
 

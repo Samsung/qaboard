@@ -36,9 +36,10 @@ algorithm developers, team leads. You don't need to know how the project was set
 | **Commit** | A version of the code, named by its **commit hash**, like `d820bd5d`. QA-Board shows results commit by commit. |
 | **Branch** | A line of commits, like `main` or `isp/bilateral-denoise`. The project's reference branch, often `main`, is the code everyone uses. |
 | **Run** | The code of one commit, on one input (an image, a video, a recording...), with one configuration, like `low-light`. A run has output files, metrics and a log. |
+| **Test** | An input with its configuration, like `photos/facade.png` at `low-light`: what a run runs. The web app compares and charts results test by test. |
 | **Batch** | The runs of a commit that belong together. The one CI runs is shown as **CI**; tuning experiments and your own runs get their own batches. |
 | **Metric** | A number each run reports: PSNR, mAP, p99 latency... Changes are green when they're better, red when they're worse. |
-| **New and reference** | What you look at, and what it's compared with. By default, the reference is the latest results of the project's reference branch. |
+| **New and reference** | What you look at, and what it's compared with. By default, the reference is the latest results of the project's reference branch. You can stack several references and switch between them. |
 | **Milestone** | Results saved to compare with later: a release, a benchmark, your best tuning. Yours, or shared with the project. |
 
 The other words, and how the `qa` command line and the server work together: [Key concepts](/docs/get-started/concepts).
@@ -57,8 +58,12 @@ You spend most of your time on a commit's page: its results, next to the referen
   ]}
 />
 
-Around it, the web app has three more pages: the **projects list**, its home page; a project's **commit list**; and
-**History**, a metric over the commits of a branch. On every page:
+Around it, the web app has a few more pages: your **home page**, with your projects and the batches you ran;
+**Explore**, every project; a project's **commit list**; and **History**, a metric over the commits of a branch. See
+[Finding results](/docs/user-guide/finding-results). On every page:
+- **Search…**, at the top of the sidebar, or <kbd>Ctrl</kbd> <kbd>K</kbd> (<kbd>⌘</kbd> <kbd>K</kbd> on macOS),
+  goes to a project, a branch, a commit, your recent batches or any page: see
+  [Search from anywhere](/docs/user-guide/finding-results#command-palette);
 - the **sidebar** has the project's pages, or the commit's views. Hover a view to see what it shows. The **?** button
   at the top, or the <kbd>?</kbd> key, opens a cheat sheet;
 - the **top bar** has the commit list's dates and search box, or, on a commit page, the new and reference bars;
@@ -67,10 +72,11 @@ Around it, the web app has three more pages: the **projects list**, its home pag
 <details>
 <summary>Every part of the page</summary>
 
-- **Left sidebar**: the **QA-Board** title goes back to the projects list. Next to it, **What's new** opens the
-  [release notes](/docs/user-guide/whats-new), then the theme button and the **?** cheat sheet. Below: the project's
-  avatar (its commit list), the page's menus, your login, and **Collapse** (<kbd>Ctrl</kbd> + <kbd>{'\\'}</kbd>, or
-  <kbd>⌘</kbd> + <kbd>{'\\'}</kbd> on macOS).
+- **Left sidebar**: the **QA-Board** title goes back to your home page. Next to it, **What's new** opens the
+  [release notes](/docs/user-guide/whats-new), then the theme button (light, dark, or the same as your system) and the
+  **?** cheat sheet. Below: **Search…**, the project's avatar (its commit list), the page's menus (**History**,
+  **Milestones**, **Integrations**, **Runs activity**, **Storage usage**, **Access**...), your account menu or
+  **Sign in**, and **Collapse** (<kbd>Ctrl</kbd> + <kbd>{'\\'}</kbd>, or <kbd>⌘</kbd> + <kbd>{'\\'}</kbd> on macOS).
 - **Top bar**: on the commit list and History, the dates and a search or filter box. On a commit page,
   [the two bars](/docs/user-guide/commit-page#the-top-bars).
 - **View options**: on a commit page, what the cards show and how runs are sorted. See
@@ -80,10 +86,12 @@ Each page's link, after your server's address:
 
 | Page | Link |
 |---|---|
-| Projects list | `/` |
+| Your home page (Explore when you're signed out) | `/` |
+| Explore, every project | `/projects` |
 | Commit list | `/<project>`, `/<project>/commits/<branch>`, `/<project>/committer/<name>` |
 | Commit page | `/<project>/commit/<hash>` |
 | History | `/<project>/history/<branch>` |
+| Runs activity, Storage usage, Settings | `/activity`, `/storage`, `/settings` |
 
 </details>
 
@@ -113,7 +121,8 @@ More in [The commit page](/docs/user-guide/commit-page).
     Play in sync, step frame by frame, and find which frame broke.
   </Card>
   <Card title="Plots, flame graphs, 3D and more" to="/docs/user-guide/other-viewers">
-    Curves over the reference's, differential flame graphs, text diffs, point clouds, trajectories.
+    Curves over the reference's, differential flame graphs, JUnit test reports, text diffs, point clouds,
+    trajectories.
   </Card>
 </Cards>
 
@@ -131,8 +140,10 @@ More in [The commit page](/docs/user-guide/commit-page).
 </Cards>
 
 Also: [find a commit](/docs/user-guide/finding-results), [choose the tests to run](/docs/user-guide/available-tests),
-[browse files](/docs/user-guide/files), and [Tips & FAQ](/docs/user-guide/tips-and-faq) for shortcuts and answers to
-common questions.
+[see what runs now](/docs/user-guide/runs-activity), [browse files](/docs/user-guide/files),
+[free storage](/docs/user-guide/storage-usage), [your account and tokens](/docs/user-guide/account),
+[ask for access to a project](/docs/user-guide/project-access), and [Tips & FAQ](/docs/user-guide/tips-and-faq) for
+shortcuts, the dark theme and answers to common questions.
 
 Setting up a project for QA-Board? See [Project integration](/docs/introduction). Running the server? See
 [Admin](/docs/deploy).

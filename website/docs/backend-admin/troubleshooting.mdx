@@ -2,6 +2,7 @@
 id: troubleshooting
 sidebar_label: Troubleshooting
 title: Troubleshooting common issues
+description: "Find what's wrong with a QA-Board server: container status and logs, restarts, and what to do when the disk is full."
 ---
 The examples use docker compose and the env file of your environment, here `deployments/production.env`: it tells docker compose which compose files and project to use (see [Deployments](deployment.mdx#environments)). Run them from the root of your checkout, on the QA-Board host.
 
@@ -36,6 +37,13 @@ df -h
 ```
 - Did a deploy just happen? Roll back if needed (see [Rollbacks](deployment.mdx#rollbacks)).
 
+Problems with one feature have their own section:
+- Users can't sign in: [sign-in troubleshooting](/docs/backend-admin/sign-in#troubleshooting), and
+  `qaboard-admin check-sign-in` in the backend's container.
+- Push events don't arrive, or get `401`, `403`...: [webhooks](/docs/backend-admin/git-hosts#webhooks).
+- Cleanup jobs end with errors: [follow jobs and fix their errors](/docs/backend-admin/storage#follow-jobs-and-fix-their-errors).
+- On Kubernetes: [troubleshooting](/docs/backend-admin/kubernetes#troubleshooting).
+
 ## How to restart the containers
 Symptoms:
 - the web application doesn't load;
@@ -49,6 +57,9 @@ docker compose --env-file deployments/production.env restart
 ```
 
 If your site needs something before the containers start (e.g. mounting network volumes), do it first: `deploy.py` runs your `QABOARD_DEPLOY_PRE_HOOK`, but plain `docker compose` doesn't.
+
+`restart` keeps the containers' settings: to apply changes to `.env`, the env file or the overlay, recreate them with
+`deploy.py ... up` (below).
 
 ### How to recreate all the containers
 ```bash
@@ -65,11 +76,9 @@ Symptoms:
 - database unreachable in the logs;
 - `no space left on device` in the logs.
 
-Remove the IIIF image cache:
+Empty the image server's cache (its tiles are made again when needed):
 ```bash
-docker compose --env-file deployments/production.env stop cantaloupe
-docker compose --env-file deployments/production.env rm -v cantaloupe
-deployments/deploy.py deployments/production.env compose up -d cantaloupe
+deployments/deploy.py deployments/production.env compose exec cantaloupe sh -c 'rm -rf /var/cache/cantaloupe/* /srv/cantaloupe/*'
 ```
 
 Remove the decoded images that the pixel values are read from (they're decoded again when needed), or lower

@@ -1,20 +1,24 @@
 ---
 id: deleting-old-data
-sidebar_label: Deleting Old Data
-title: Deleting Old Outputs and Artifacts
+sidebar_label: Deleting old data
+title: Deleting old outputs and artifacts
+description: Delete the outputs and artifacts of old commits automatically, keep those of your reference branch and milestones, delete results from the web app, and have your CI recreate missing artifacts.
 ---
 
-QA-Board lets you erase old outputs after a period of time.
+QA-Board deletes the outputs of commits that got no new results for a while, and keeps those of your reference
+branch and milestones. This page sets how long they're kept, which artifacts are deleted, and how QA-Board recreates
+them.
 
 ## What data will *not* be deleted
 - Recent outputs (more info below).
 - The outputs and artifacts of commits on the `project.reference_branch` from *qaboard.yaml*, or on a **commit/tag/branch** listed as a `project.milestones` in *qaboard.yaml*.
 - The batches saved as [milestones](/docs/user-guide/milestones) in the web app, and their commit's artifacts (to redo or compare their runs). The commit's other batches are deleted like any other.
 
-Files "Exported" from QA-Board's UI are never deleted. You can do it yourself if needed. **TODO:** track them at least!
+Files exported from the web app are never deleted: delete them yourself when you don't need them anymore.
 
-:::warning
-QA-Board will set as a commit's branch the first it was seen on. If you merge with fast-forward rebased branches, then this information will not be what you expect. 
+:::caution
+A commit's branch is the first one QA-Board saw it on. If you merge rebased branches with fast-forward, commits keep
+their feature branch, not your reference branch.
 :::
 
 ## Configuring garbage collection
@@ -29,7 +33,7 @@ storage:
 `after:` supports human-readable values like *2weeks*, *1year*, *3months*... A commit is old when it got no new outputs for that long, or, if it never had any, when it was authored that long ago.
 
 :::caution
-Data is deleted when the server runs `qaboard_clean` (see the [server's cron jobs](../deploy#optional-cleanup)), or when admins run or schedule *Delete old results* in **Admin → Storage** ([cleaning the storage](/docs/backend-admin/storage)). It applies to all projects: without `storage.garbage.after`, outputs are deleted after **1month**. Use `qaboard_clean --help` for the options (e.g. `--project`). `qaboard_clean --dryrun` lists what would be deleted, without deleting or changing anything.
+Data is deleted when the server runs `qaboard_clean` (see the [server's cron jobs](/docs/deploy#optional-cleanup)), or when admins run or schedule *Delete old results* in **Admin → Storage** ([cleaning the storage](/docs/backend-admin/storage)). It applies to all projects: without `storage.garbage.after`, outputs are deleted after **1month**. Use `qaboard_clean --help` for the options (e.g. `--project`). `qaboard_clean --dryrun` lists what would be deleted, without deleting or changing anything.
 :::
 
 To also allow deleting results on the reference branch (the latest commit is kept), set `storage.garbage.can_delete_reference_branch: true`.
@@ -46,13 +50,14 @@ Logged-in users can also delete results from a commit's page, in the batch's men
 
 Deleted runs stay listed, as deleted, until an admin deletes them for good ([cleaning the storage](/docs/backend-admin/storage)).
 
-Batches that are [milestones](../references-and-milestones) are protected: their runs can't all be deleted this way (only their files, or their failed runs, can). Deleting all the runs of a commit keeps its milestone batches.
+Batches that are [milestones](/docs/references-and-milestones) are protected: their runs can't all be deleted this way (only their files, or their failed runs, can). Deleting all the runs of a commit keeps its milestone batches.
 
-## Recovering lost data?
-Well, you won't be able to do that. What you should try to do is make everything **reproducible**.
-- Define your whole *environment as code*. Make sure your commits contain 100% of what is needed for your code to run. Tools you can use include `docker+Dockerfile`, etc.
-- Make it easy to re-trigger your CI, so that it's straightforward to re-builds, re-run your tests, and uploads artifacts to QA-Board.
-- If necessary, make it also very easy to run manually something like
+## Recovering lost data? {#recovering-lost-data}
+Deleted files can't be recovered: make your results **reproducible** instead.
+- Keep your whole environment as code, e.g. a Dockerfile: each commit has everything your code needs to run.
+- Let anyone start your CI again for any commit, so that it builds, saves the artifacts and runs your tests (see
+  [recreating artifacts](#recreating-artifacts)).
+- Or run by hand:
 
 ```bash
 git checkout $hexsha
@@ -132,6 +137,6 @@ recreate_artifacts:
 - The CI job must build, then call `qa save-artifacts`: that's how QA-Board knows the artifacts are back. Until then, redos and tuning are refused with a message, and the commit page links to the build. Requests are not sent again for 2 hours, unless users click **Ask again to recreate the artifacts** on the commit page.
 - GitlabCI jobs are always those of the project's own repository. Webhooks don't follow redirects.
 - Values can use `${commit.id}`, `${commit.branch}`, `${commit.branch_slug}`, `${commit.artifacts_dir}`, `${commit.repo_artifacts_dir}`, `${project}`, `${subproject}`, `${git}` (the repository), `${commit.short_id}`, `${commit.message}`, `${commit.committer}`, and who asked: `${user}` (their user name, also `${user.name}`), `${user.full_name}` and `${user.email}`. In `url` and `build_url`, they are URL-encoded.
-- The server sends the requests: GitlabCI needs `GITLAB_ACCESS_TOKEN`, and Jenkins needs credentials for its host in `JENKINS_AUTH` (see the [server's environment variables](../deploy#optional-environment-variables)). Webhooks are sent as configured.
+- The server sends the requests: GitlabCI needs `GITLAB_ACCESS_TOKEN`, and Jenkins needs credentials for its host in `JENKINS_AUTH` (see the [server's environment variables](/docs/deploy#optional-environment-variables)). Webhooks are sent as configured.
 - The settings used are those in the latest *qaboard.yaml* of the `reference_branch`, or else the commit's own.
 - The commit page and the tuning form warn about errors in `recreate_artifacts`, like unknown `${variables}`.

@@ -29,7 +29,7 @@ import yaml
 DOCS_MEDIA = Path(__file__).resolve().parent
 REPO = DOCS_MEDIA.parent
 AREAS = ["quickstart", "cli", "ci", "projects", "commits", "integrations", "commit", "logs", "history", "tuning", "files",
-         "whats-new", "auth", "landing"]
+         "whats-new", "auth", "landing", "activity", "storage", "account", "access", "admin"]
 # What the quickstarts' tapes start
 QUICKSTARTS = {r"^deployments/quickstart/": "quickstart/compose", r"^charts/qaboard/": "quickstart/kind",
                r"^docs-media/demo-data/": "quickstart/*"}

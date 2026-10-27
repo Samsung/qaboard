@@ -12,8 +12,8 @@ Say the inference gateway's p99 latency got worse on one load profile, heavy-tai
 profiles barely moved. To find the commit that did it:
 
 1. Open **History** from the sidebar of the commit list. It shows the branch you're looking at, or the reference
-   branch. Or, on the commit page where you saw the regression, click the name of the run that regressed: History
-   opens already filtered on that input, from 3 days before that commit, and you can skip step 3.
+   branch. Or, on the commit page where you saw the regression, hover the name of the run that regressed and click
+   **History**: History opens already filtered on that input, from 3 days before that commit, and you can skip step 3.
 2. Pick the metric at the top left of the chart, e.g. **Latency p99**.
 3. Type the test's name in the filter box at the top right, e.g. `heavy-tail-high`. Only its line is left.
 4. If the regression may be older than 3 days, pick earlier dates at the top left, e.g. the last two weeks.
@@ -37,8 +37,9 @@ Keep **Breakdown per test** on: a regression on one test can hide in the median 
 :::
 
 ## Follow one input over time {#follow-one-input}
-On a commit page, click the **name of a run** on its card: History opens on that input, on the commit's branch,
-already filtered on it, from 3 days before the commit to today. Hover its points to compare each commit's outputs with the commit before.
+On a commit page, hover the **name of a run** on its card and click **History** (it's also in the card's ☰ menu, and
+in the run's **⋯** menu in the Logs view): History opens on that input, on the commit's branch, already filtered on
+it, from 3 days before the commit to today. Hover its points to compare each commit's outputs with the commit before.
 
 <Shot
   id="history/image-diff"

@@ -22,6 +22,17 @@ cluster's nodes.
 
    If your code is an executable that `qa` only starts, you can install `qa` as a tool instead:
    `uv tool install qaboard`.
+
+   :::caution
+   The latest release on PyPI, 1.1.1, doesn't have some features these docs describe yet: `qa gate`, `qa auth`,
+   `Metric`, `QABOARD_TOKEN`, commit statuses on GitHub. Until the next release, install `qa` from the repository
+   to use them:
+
+   ```bash
+   pip install "qaboard @ git+https://github.com/Samsung/qaboard"
+   ```
+
+   :::
 2. Tell `qa` where your QA-Board server is, e.g. in your shell's profile:
 
    ```bash
@@ -29,7 +40,12 @@ cluster's nodes.
    ```
 
    `<your-qaboard>` is your server's address, e.g. `localhost:5151` for the
-   [quickstart](/docs/get-started/quickstart)'s.
+   [quickstart](/docs/get-started/quickstart)'s. No server yet? The quickstart starts one on your computer; for your
+   team, see [Starting a QA-Board server](/docs/deploy).
+
+   Projects usually save shared results (`qa --share`, CI runs) in `/mnt/qaboard` (`storage` in *qaboard.yaml*),
+   but the quickstart's server reads them in `/tmp/qaboard`: tell `qa` with `export QA_STORAGE=/tmp/qaboard`. Local
+   runs don't need it: they save their results in your project's `output/` folder.
 3. Check that `qa` runs. It lists its commands:
 
    ```bash
@@ -109,7 +125,7 @@ qa auth token    # prints the token, e.g. for curl
 ```
 
 The token expires after 180 days without use (admins can change it): run `qa auth login` again. You can see and
-revoke it in the web app, in **Settings → CLI & devices**.
+revoke it in the web app, in **Settings → CLI sign-ins**.
 
 **In CI and scripts**, give `qa` a token in `QABOARD_TOKEN`: create one in **Settings → Access tokens** (see
 [CI integration](/docs/ci-integration#tokens)). `qa` uses `$QABOARD_TOKEN` (or `$QA_TOKEN`), then the login of
@@ -125,6 +141,10 @@ tokens...), `qa run` and `qa batch` fail before running anything, and say what t
   [`qa init`](/docs/project-init).
 - **"We are not sure where to find your QA-Board server":** set `QABOARD_URL`, see
   [above](#connecting-to-a-custom-qa-board-server).
+- **"The storage path does not exist":** `qa` couldn't create the folder for shared results, `storage` in
+  *qaboard.yaml*. Local runs only warn about it, but `qa --share`, CI runs and `qa save-artifacts` stop. Mount your
+  server's results folder there, or point `qa` to it with `QA_STORAGE`, e.g. `export QA_STORAGE=/tmp/qaboard` for
+  the quickstart's server. See [Where is the data saved?](/docs/storage/where-is-the-data)
 
 <Cards>
   <Card title="Add QA-Board to your project" to="/docs/project-init" eyebrow="Next">

@@ -57,6 +57,23 @@ one, or pick a reference batch with the same tests. See
 If it's really dead (e.g. killed by the cluster), use **Mark as failed** in the run's ☰ menu, then **Redo** it. See
 [Redo, stop and clean up runs](/docs/user-guide/running-from-the-webapp#redo-stop-and-clean-up-runs).
 
+### Did my batch start? Is the cluster busy?
+Open **Runs activity**, from your account menu or the project's sidebar: what waits and runs now, what ended
+recently, and who loads the queues. See [Runs activity](/docs/user-guide/runs-activity).
+
+### I'm over my storage quota
+Open **Storage usage**, from your account menu or the project's sidebar: your biggest batches, commits and folders,
+and how to delete their files. See [Storage usage](/docs/user-guide/storage-usage).
+
+### I can't see a project, or the buttons are grayed out
+Sign in first: redoing runs, tuning and saving milestones need it. If you're signed in, you may need another role on
+the project: its **Access** tab says yours, and **Request access** asks its owners. See
+[Project access](/docs/user-guide/project-access).
+
+### How do I switch to the dark theme?
+Click the theme button next to **What's new**, at the top of the sidebar: it goes from your system's theme to light,
+then dark. Or pick it in **Settings → Preferences**. Plots, editors and viewers follow the theme.
+
 ### My local runs don't show up
 Runs started from your workspace only appear in QA-Board with `qa --share`, see
 [QA CLI tips](/docs/using-the-qa-cli). They show up in a batch named after you (`you 🏠 label`), with a warning that
@@ -89,6 +106,7 @@ shortcuts, QA-Board's words and the filter syntax. The most useful shortcuts:
 | Key | Where | What it does |
 |---|---|---|
 | <kbd>?</kbd> | Everywhere | Open or close the cheat sheet. |
+| <kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>K</kbd>, or <kbd>/</kbd> | Everywhere | [Search](/docs/user-guide/finding-results#command-palette) for a project, a branch, a commit, a batch or a page, and go there. |
 | <kbd>o</kbd> | Commit page | Show or hide the [view options](/docs/user-guide/commit-page#view-options). |
 | <kbd>1</kbd>-<kbd>4</kbd> | Image and video viewers | Side by side, wipe, single image, difference. |
 | <kbd>t</kbd> | Image, video and text viewers | Swap new and reference in place, to flip between them. |
@@ -126,7 +144,8 @@ Every viewer and tool has more:
 </details>
 
 ## Tricks worth knowing
-- **Click a run's name** on its card to see the [history](/docs/user-guide/history-and-dashboards) of that input.
+- **Hover a run's name** on its card, then click **History**, to see the
+  [history](/docs/user-guide/history-and-dashboards) of that input.
 - **Hover almost anything**: metric names show their description, values their exact number, `≠` tags explain
   reference mismatches, run names show metadata and paths to copy.
 - **Full screen**: image viewers have a [full screen](/docs/user-guide/image-viewer#full-screen) button (or

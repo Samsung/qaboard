@@ -85,6 +85,10 @@ qa --config int8 --config size-320 run --input slices/small-objects
 qa batch ci                     # 4 slices, fp32 and int8: about 30 s
 ```
 
+Without `--share`, results stay in `output/`. To see them in the web app, run `qa --share batch ci`. With the
+[quickstart](/docs/get-started/quickstart#save-results-from-your-computer)'s server, first
+`export QABOARD_URL=http://localhost:5151 QA_STORAGE=/tmp/qaboard`.
+
 See the example's [README](https://github.com/Samsung/qaboard/tree/master/examples/detection-eval#readme) for the
 other batches and the tuning.
 

@@ -169,6 +169,10 @@ qa run --input missions     # one suite, about 2 s
 qa batch ci                 # 5 suites in 2 modes, about 20 s
 ```
 
+Without `--share`, results stay in `output/`. To see them in the web app, run `qa --share batch ci`. With the
+[quickstart](/docs/get-started/quickstart#save-results-from-your-computer)'s server, first
+`export QABOARD_URL=http://localhost:5151 QA_STORAGE=/tmp/qaboard`.
+
 To see the story's bugs, write its flags, e.g. `echo '{"bug_missions_reserve": true}' > build/flags.json`, and run
 the suite again: see the example's
 [README](https://github.com/Samsung/qaboard/tree/master/examples/software-quality#readme).

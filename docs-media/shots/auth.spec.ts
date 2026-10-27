@@ -4,17 +4,22 @@ import { shot } from './lib';
 shot('auth/login', {
   project: null,
   login: null,
-  url: d => `${d.baseUrl}/`,
-  alt: 'The Login dialog over the projects list: a user name field with "ines", a password field, and a Log In button.',
-  caption: 'Click Login at the top right, then sign in with your user name and password.',
+  // where the Sign in button, at the top right, leads
+  url: d => `${d.baseUrl}/login`,
+  alt: 'The "Sign in to QA-Board" page: a user name field with "ines", a password field, the Sign in button, and a '
+    + 'link to create an account.',
+  caption: 'Click Sign in at the top right, then sign in with your user name and password.',
   actions: async ui => {
-    await ui.click(ui.page.getByRole('button', { name: 'Log in' }).first());
-    await ui.settle();
-    const dialog = ui.page.locator('.bp6-dialog');
-    await ui.type(dialog.locator('#username'), 'ines');
-    await ui.type(dialog.locator('#password'), 'kitefin-demo');
+    const form = ui.page.getByRole('form', { name: 'Sign in with a user name and password' });
+    await ui.type(form.getByLabel('User name'), 'ines');
+    await ui.type(form.getByLabel('Password'), 'kitefin-demo');
+    // no focus ring
+    await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await ui.cursor.moveTo({ x: 1300, y: 860 });
   },
-  target: page => page.locator('.bp6-dialog'),
+  target: page => [
+    page.getByRole('heading', { name: 'Sign in to QA-Board' }),
+    page.locator('.bp6-card').filter({ has: page.getByRole('form', { name: 'Sign in with a user name and password' }) }),
+  ],
   padding: 32,
 });

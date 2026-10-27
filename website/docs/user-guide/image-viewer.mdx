@@ -31,6 +31,8 @@ The mode applies to every image viewer of the page, and the page's link keeps it
 comparison. It's also in the **View options**, under **Viewers** › **Compare images**. The keys work anywhere on the
 page, not only over an image.
 
+<Clip id="commit/image-compare-modes" />
+
 ### Tell new from reference {#new-and-reference}
 A label on each image names it: **new** in blue, the reference in its own color, like their bars at the top of the page.
 When you [named what you compare](/docs/user-guide/comparing-results#naming-what-you-compare), e.g. with a milestone's
@@ -136,7 +138,7 @@ Pick how the server compares them:
 - The set you pick applies to every viewer of the same file on the page, in all the runs' cards. **Where they differ**
   is for the page where you pick it: on another page, the viewers don't compare their images until you ask, since that
   compares all its runs again.
-- The server compares images for logged-in users only: logged out, the viewer asks you to log in.
+- The server compares images for signed-in users only: signed out, the viewer asks you to sign in.
 - **Copy the view as a region**, at the bottom of the menu, copies the coordinates of what you see, in the format of
   presets: send them to whoever maintains the project's presets.
 
@@ -162,7 +164,7 @@ a run's card, zoomed on its region that differs most; every viewer of that file 
   for their turn. The first comparisons of large images take a few seconds each, and those running together end at
   about the same time.
 - Closing the list doesn't stop the comparisons: **Stop** does, and **Compare the others** picks up where it stopped.
-- The menu item shows when you're logged in and the page has more than one run with a reference to compare.
+- The menu item shows when you're signed in and the page has more than one run with a reference to compare.
 
 </details>
 
@@ -213,6 +215,8 @@ images, the likeliest first: the same name in another folder (`gt/0001.png` for 
 alike in the same folder. Type to find one, then click it or press <kbd>Enter</kbd>. It takes the reference's place in
 every mode, with its file name on a teal label.
 
+<Shot id="commit/image-vs-file" />
+
 Every run's viewer of that visualization then compares with its own file of that name, so you can go through all the
 runs of the page. A run without the file compares with its reference, with a warning: *no 0001.png here*.
 
@@ -253,14 +257,16 @@ pixels**, in black or white so that you can read them. A badge under the images 
 *Values: image (I;16)* or *Values: displayed, 8-bit*. Pick them with the **123** button above the images (**Image
 values**, **Displayed values** or **Off**); <kbd>p</kbd> hides or shows them. Your browser remembers the choice.
 
+<Shot id="commit/pixel-values" />
+
 <details>
 <summary>Where the values come from</summary>
 
 - The image values arrive by tiles of 64×64 pixels: the first ones can take a moment while the server opens the image,
   the next ones are quick.
 - When the server can't read the file, the line says *unavailable*: hover it to see why, and use the displayed values.
-- The server reads the image values for logged-in users only: logged out, you see the displayed values, and the
-  viewer asks you to log in.
+- The server reads the image values for signed-in users only: signed out, you see the displayed values, and the
+  viewer asks you to sign in.
 - When the images have different sizes, the line also gives the pixel's coordinates in the reference.
 - The line keeps the last pixel you hovered when you leave the image, so that you can click it.
 - Raw formats need a reader on the server: see [the image viewer's setup](/docs/viewers#images).
@@ -268,7 +274,7 @@ values**, **Displayed values** or **Off**); <kbd>p</kbd> hides or shows them. Yo
 </details>
 
 ## Histograms, profiles and statistics {#analysis}
-The analysis button, under the zoom (or <kbd>a</kbd>), opens a panel under the images with three views: **Histogram**,
+The analysis button, in the toolbar above the images, left of the zoom (or <kbd>a</kbd>), opens a panel under the images with three views: **Histogram**,
 **Row / column** profiles and **Statistics**. Your browser remembers the view you picked last. The three views measure
 what the images show (the displayed values, from 0 to 255) in the view: zoom on a region to measure that region. Click
 **R**, **G**, **B** or **Y** (luminance) at the top right to show one channel alone, click it again to show them all
@@ -291,6 +297,8 @@ to clear it.
   caption="Zoomed on a band of the sky gradient: the new image's peaks (solid) are taller and narrower than the reference's (dashed), with less noise in the sky."
 />
 
+<Shot id="commit/histogram-range" />
+
 ### Row and column profiles {#profiles}
 **Row / column** plots two profiles: **Columns**, the average of each column of the view along x, and **Rows**, the
 average of each row along y, new in solid lines and the reference dashed. Use them to see vignetting and lens
@@ -304,11 +312,15 @@ range rather than fitting the axis to the values.
 Hover a profile to read the values at a position, and see that column or row on the images (zoomed in, it frames the
 pixels). Hover the images to see where the pointer is on the profiles. x and y are pixels of the new image.
 
+<Shot id="commit/image-profiles" />
+
 ### Statistics {#statistics}
 **Statistics** gives, for each channel shown and each image: the mean, standard deviation, SNR (20·log10(mean / std
 dev), meaningful on a flat area such as a gray patch), min, 1st percentile, median, 99th percentile, max, and the shares
 of values clipped at 0 and saturated at 255. The Δ lines give new − reference. Hover a column's name for its
 definition. **Copy** copies the table as tab-separated values, to paste in a spreadsheet.
+
+<Shot id="commit/image-stats" />
 
 <details>
 <summary>What the profiles and statistics measure</summary>
@@ -330,13 +342,15 @@ A card above the views says what the sensor is, with a diagram of its pattern fr
 
 - **metadata**: the image's reader on the server, e.g. a raw file's header or its JSON sidecar,
 - **guessed**: the pixels. QA-Board finds the cell size (Bayer 1×1, Tetra 2×2, Nona 3×3, 4×4… up to 9×9) and where the
-  greens are from a patch at the center of the view. It can't tell red from blue in a single channel: **swap them** if
+  greens are from a patch at the center of the view. It can't tell red from blue in a single channel: **Swap R and B** if
   they're the other way. Images where each pixel has only one of R, G and B set are read exactly,
 - **yours**: what you set with the **Sensor** button: the pattern, the cell size, the offset, the black level. It
-  applies to both images, and is remembered for the project.
+  applies to both images, and your browser remembers it for the project.
 
 When the metadata and the pixels disagree, the card says so. When the reference's metadata knows what you only guessed
 for the new image, **use its…** copies it.
+
+<Shot id="commit/image-raw-values" />
 
 - **R G B**, **R Gr Gb B** or **Sub-pixels** groups the channels. Sub-pixels splits each cell, e.g. R1 to R4 in Tetra:
   their maps show how each differs from its cell. When some sub-pixels are brighter, e.g. long and short exposures,
@@ -351,7 +365,8 @@ for the new image, **use its…** copies it.
 
 - Views of up to 2 million pixels are read whole. Larger ones are read in strips across them, evenly spaced, and the
   views say how many rows and columns: zoom in to read every pixel.
-- Without a black level, the statistics use 0. Set it once for the project with the **Sensor** button.
+- Without a black level, the statistics use 0. Set it with the **Sensor** button: your browser remembers it for the
+  project.
 - Without metadata, the bit depth comes from the largest value: 10-bit values in a 16-bit file read as 10-bit.
 
 </details>
@@ -390,6 +405,8 @@ images. Then **Done** (or <kbd>h</kbd>) ends the test: new first again, everywhe
 The full screen button at the right of the viewer's toolbar, or <kbd>f</kbd>, gives the whole screen to the images,
 with the toolbar: the modes, the difference, regions and pixel values all work there. The difference goes under the two
 images when that makes them larger, and the analysis panel (<kbd>a</kbd>) under them, both in view. <kbd>Esc</kbd> or <kbd>f</kbd> leaves.
+
+<Shot id="commit/image-fullscreen" />
 
 The button at the top right of each card shows the whole card in full screen instead, with its file picker.
 

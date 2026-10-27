@@ -31,9 +31,10 @@ commit list, it holds the search and the dates; on the History page, the filter,
 Options left at their default are left out, to keep links short: e.g. the `default` batch, an empty filter, the
 project's default metrics and view, or visualizations shown by default. Links follow the project's defaults.
 
-Some things stay in your browser and are not shared: your favorite projects, the groups of milestones you collapsed,
-whether the view options are open and how wide, the pixel values you show, and the statuses of the CI jobs you
-started. The viewers' zoom, the regions you picked and the display adjustments are not saved at all.
+Some things are yours, not the link's: your pinned projects, the groups of milestones you collapsed and the pixel
+values you show follow your account when you're signed in; whether the view options are open and how wide, and the
+statuses of the CI jobs you started, stay in your browser. The viewers' zoom, the regions you picked and the display
+adjustments are not saved at all.
 
 <details>
 <summary>Every parameter of the URL</summary>
@@ -51,7 +52,7 @@ On a commit page, `/<project>/commit/<hash>?...`:
 | `new_project`, `ref_project` | Only when results come from [another project](/docs/user-guide/comparing-results#picking-a-reference) |
 | `selected_views` | The view: `summary`, `table-kpi` (Metrics Table), `table-compare` (Metrics Diff), `output-list` (Visualizations), `bit_accuracy` (Output Files), `logs`, `parameters` (Artifacts & Configs), `groups` (Available Tests), `tuning` (Run Tests / Tuning), `optimization` (Tuning Analysis) |
 | `sort_by`, `sort_order` | How runs are sorted |
-| `controls` | Visualizations shown or hidden, how images are compared, dynamic options (as JSON, only what you changed) |
+| `controls` | Visualizations shown or hidden, how images are compared, the files to show (as JSON, only what you changed) |
 | `show_all_files`, `expand_all`, `files_filter`... | Options of the Output Files view (`params_...` for Artifacts & Configs) |
 
 On the commit list, the search box is saved as `search`, and the date range as `from` and `to` (e.g.

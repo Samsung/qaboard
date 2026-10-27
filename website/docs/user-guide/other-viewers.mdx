@@ -120,7 +120,10 @@ profile, colored by what changed.
 When a run is a test suite, its card shows the suite's tests compared with the reference run's: which ones started
 failing, which got fixed, which are new, gone, skipped or flaky, and why each failure happened.
 
-<Shot id="commit/junit-viewer" />
+<Shot
+  id="commit/junit-viewer"
+  caption="No test fails after the change, and none was fixed: the chips say why the CI stayed green, 12 tests removed and 2 newly skipped."
+/>
 
 To review a change to the tests:
 1. **Read the numbers at the top.** Each status has its count and its change vs the reference. The colored chips below
