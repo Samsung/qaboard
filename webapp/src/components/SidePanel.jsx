@@ -365,17 +365,19 @@ const SidePanel = ({
     if (event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    drag.current = { x: event.clientX, width };
+    drag.current = { x: event.clientX, width, last: width };
     setDragWidth(width);
   };
   const onPointerMove = event => {
     if (!drag.current) return;
-    setDragWidth(clamp_width(drag.current.width + drag.current.x - event.clientX));
+    // kept here too: when users let go, the last move may not have rendered yet
+    drag.current.last = clamp_width(drag.current.width + drag.current.x - event.clientX);
+    setDragWidth(drag.current.last);
   };
   const onPointerUp = () => {
     if (!drag.current) return;
+    updateWidth(drag.current.last);
     drag.current = null;
-    updateWidth(drag_width);
     setDragWidth(null);
   };
   const onResizeKey = event => {
