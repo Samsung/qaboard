@@ -31,8 +31,8 @@ Its story:
 1. The first int8 model is 3.5 times smaller, which is what the robot's accelerator needs. It loses 35% of its mAP
    on the indoor slice, and some of the small objects.
 2. Per-channel weights and percentile calibration bring the indoor slice back.
-3. `qa optimize` searches the quantization and post-processing settings; the Tuning Analysis view shows which ones matter.
-   With them, the int8 model finds small objects as well as the last fp32 release.
+3. `qa optimize` searches the quantization and post-processing settings; the Tuning Analysis view shows what it
+   found and which ones matter. With them, the int8 model finds small objects as well as the last fp32 release.
 4. The tuned model ships as a milestone, the next reference.
 
 ## What you see
@@ -53,8 +53,8 @@ the indoor slice.
 
 <Shot id="commit/html-report" />
 
-**Automated tuning**: `qa optimize` tries quantization settings; the Tuning Analysis view shows their convergence, each
-parameter's effect, and the trade-offs.
+**Automated tuning**: `qa optimize` searches quantization and post-processing settings; the Tuning Analysis view shows
+what it found, which settings matter, and what to do next.
 
 <Shot id="tuning/analysis" />
 
