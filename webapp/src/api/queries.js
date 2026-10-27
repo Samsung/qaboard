@@ -196,7 +196,7 @@ export const commitCountsQuery = ({ project, branch, committer, from, to }) => q
 // jobs): when refreshes bring nothing new, we wait as long as nothing has changed, up to 5 minutes.
 // Refreshes that bring the same data keep it as is (structural sharing): when we got it is when it last changed.
 const changed_at = new WeakMap();
-export const pendingRefetchInterval = (query, interval = 15 * 1000) => {
+const pendingRefetchInterval = (query, interval = 15 * 1000) => {
   const { data, dataUpdatedAt } = query.state;
   if (!changed_at.has(data)) changed_at.set(data, dataUpdatedAt);
   const unchanged_for = dataUpdatedAt - changed_at.get(data);

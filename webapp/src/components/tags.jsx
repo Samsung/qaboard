@@ -117,8 +117,8 @@ const RunBadge = ({badge}) => {
 
 
 
-// How the run is named elsewhere in QA-Board
-export const runName = output => {
+// How QA-Board names a run: its label, else its input path
+const runName = output => {
   if (output.test_input_metadata?.label) return output.test_input_metadata.label
   if (output.output_type === "pipeline" || output.test_input_path === "PIPELINE") return `${output.data?.batch} (pipeline)`
   return `${output.test_input_database === '/' ? '/' : ''}${output.test_input_path}`
@@ -368,4 +368,4 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
 }
 
 
-export { hidden_keys, RunActionsMenu, StatusTag, PlatformTag, ConfigurationsTags, MismatchTags, OutputTags, RunBadge, RunBadges, style_skeleton };
+export { hidden_keys, RunActionsMenu, StatusTag, PlatformTag, ConfigurationsTags, MismatchTags, OutputTags, RunBadge, RunBadges, runName, style_skeleton };

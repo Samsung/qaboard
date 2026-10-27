@@ -258,7 +258,8 @@ describe('the What\'s new popup', () => {
 
   test('the panel loads the notes\' changes when it opens', async () => {
     window.localStorage.setItem(LAST_SEEN_KEY, '2999-01');
-    const latest = bundle.notes[0];
+    // a note with sections
+    const latest = bundle.notes.find(note => bundle_html[note.slug].includes('<h2'));
     const section = new DOMParser().parseFromString(bundle_html[latest.slug], 'text/html').querySelector('h2').textContent;
     renderWithProviders(
       <ReleaseNotesProvider load={() => Promise.resolve([latest])} popupDelay={0}>
