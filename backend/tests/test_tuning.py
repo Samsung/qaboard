@@ -41,9 +41,12 @@ def test_check_tuning_search():
     assert "Unknown search type" in check_tuning_search({"search_type": "random"})[0]
     optimize = lambda yaml: check_tuning_search({"search_type": "optimize", "parameter_search": yaml})
     assert "not valid YAML" in optimize("a: [")[0]
-    errors = " ".join(optimize("evaluations: 0\nsearch_space: []"))
-    assert "objective" in errors and "positive integer" in errors and "empty" in errors
-    assert optimize("objective: {psnr: 1}\nevaluations: 10\nsearch_space:\n- Real: {name: x, low: 0, high: 1}") == []
+    # the same checks and messages as qa optimize: one per section
+    errors = optimize("evaluations: 0\nsearch_space: []\nsolver: {n_initial_points: 3}")
+    assert len(errors) == 3
+    assert "objective" in errors[0] and "search_space" in errors[1] and "n_startup_trials" in errors[2]
+    assert "positive whole number" in optimize("objective: {psnr: {}}\nevaluations: 0\nsearch_space:\n- Real: {name: x, low: 0, high: 1}")[0]
+    assert optimize("objective: {psnr: {}}\nevaluations: 10\nsearch_space:\n- Real: {name: x, low: 0, high: 1}") == []
 
 
 def make_commit(tmp_path, config, batches=None):

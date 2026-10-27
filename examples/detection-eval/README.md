@@ -15,7 +15,7 @@ cd examples/detection-eval
 qa batch ci                                              # 4 slices, fp32 and int8 at 320 px (8 runs)
 qa --config int8 --config size-320 run --input slices/small-objects
 qa batch sizes                                           # fp32 and int8 at 320, 416 and 512 px (24 runs)
-qa --share --label tune-int8 optimize --batch quant-search --config-file qa/tune-int8.yaml --checkpoint tune-int8.pkl
+qa --share --label tune-int8 optimize --batch quant-search --config-file qa/tune-int8.yaml
 # (qa optimize reads each evaluation's results from a QA-Board server: start one first)
 ```
 
