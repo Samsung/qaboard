@@ -102,7 +102,7 @@ Name things the way the web app does, and the same way every time.
 - Comparisons with other tools are fair and dated: what they're great at, then where QA-Board differs.
 
 ### Experimental features
-Features that may change without notice (`qa optimize` today, the quality gate when it ships) are marked everywhere:
+Features that may change without notice (the quality gate when it ships) are marked everywhere:
 - a `:::caution Experimental` admonition at the top of their page or section, saying what may change;
 - the word "experimental" in their release note;
 - no use on the landing page without the label.

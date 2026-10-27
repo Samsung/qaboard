@@ -14,8 +14,8 @@ Notes to reproduce and debug a tuning run of SIRC's projects (formerly `drafts/`
 
 4. Clone:
       git clone git@gitlab-srv/common-infrastructure/qaboard
-5. Install the qaboard CLI locally:
-      pip install --editable '.[optimize]'
+5. Install the qaboard CLI locally (Optuna is a dependency, it needs Python 3.9 or later):
+      pip install --editable .
 
 6. Go to HW_ALG
      git checkout 1e357ad1fffbfaf2a172f01646417e1dce25650f
@@ -29,18 +29,27 @@ Notes to reproduce and debug a tuning run of SIRC's projects (formerly `drafts/`
 
 7. qa --share --label tuning-test optimize --batches-file "/algo/CIS_artifacts/CDE-Users/HW_ALG/1e/357ad1fffbfaf2/CIS/tests/products/HM3/tests_nxtc.yaml" --batches-file "/algo/CIS_artifacts/CDE-Users/HW_ALG/1e/357ad1fffbfaf2/CIS/tests/products/HM3/tests.yaml" --batches-file "/home/ispq/qaboard_data_prod/shared/CDE-Users/HW_ALG/CIS/tests/products/HM3/extra-batches.yml" --config-file '/stage/algo_data/ci/CDE-Users/HW_ALG/1e/357ad1fffbfaf2/CIS/tests/products/HM3/output/auto-tuning-try-4/optim-config.yaml' --batch HM3_Nona_ISP_ONLY
 
-8. Edit qaboard/optimize.py#L42-L44
+   The search is saved after each evaluation in optuna-journal.log, in the experiment's batch directory (or where
+   `--checkpoint` says: commands copied from the web app's logs pass the same path). Running the same command again,
+   with the same label, resumes it. To start over, use another `--label`, or `resume: false` in the config.
+   Configs from before Optuna, like the optim-config.yaml above, may have old `solver` keys (`base_estimator`,
+   `n_initial_points`, `random_state`, `acq_func`...): `qa optimize` refuses them and says what to write instead,
+   see https://samsung.github.io/qaboard/docs/auto-optimization#scikit-optimize
+
+8. Edit the code:
+   - qaboard/optimization.py: the search loop, `run_optimization` (scheduling, early stopping, reporting each
+     evaluation in order), and the samplers, `make_sampler`.
+     https://github.com/Samsung/qaboard/blob/master/qaboard/optimization.py
+   - qaboard/optimize.py: the `qa optimize` CLI, and `objective()` in `init_optimization`, which runs `qa batch` for
+     each evaluation and computes its loss.
+     https://github.com/Samsung/qaboard/blob/master/qaboard/optimize.py
 
 
-It’s possible to parallelize the runs. We could run 20 at a time on LSF….
-https://scikit-optimize.github.io/stable/auto_examples/parallel-optimization.html
+Evaluations can run in parallel, e.g. 20 at a time on LSF: `parallel_sampling: 20` in the config, or
+`--parallel-param-sampling 20`. Scheduling is completion-driven: a new evaluation starts as soon as one ends, so a
+slow one doesn't hold the other slots. With the TPE sampler, `constant_liar` keeps evaluations that run at the same
+time from all trying the same parameters. See `run_optimization` in qaboard/optimization.py.
 
-Concretely, in our code we could
--	Read from the user-supplied config how parallel we can be…
--	Replace this
-  https://github.com/Samsung/qaboard/blob/master/qaboard/optimize.py#L42-L44
-with something that works exactly like the 1st example here:
-  https://scikit-optimize.github.io/stable/auto_examples/parallel-optimization.html#example
-If you want to try it, I can help you run the optimization loop locally:
+To run the optimization loop locally:
 -	Edit & Run the tuning CLI command (copy-paste it from the logs from the web application)
 

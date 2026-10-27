@@ -109,7 +109,7 @@ score, missed ground truth in red. Images are scaled to 1280 px wide.
 |---|---|---|
 | `ci` | 4 scored slices × `fp32` (and `int8` once it exists: added by a story patch), `size-320` | ≤ 40 s |
 | `sizes` | 4 slices × `fp32`, `int8` × 3 sizes | ≤ 2.5 min |
-| `quant-search` | `outdoor`, `small-objects`, `int8`, `size-320`; meant for `qa optimize` (search space in `tuning/int8.yaml`) | ≤ 8 s per evaluation |
+| `quant-search` | `outdoor`, `small-objects`, `int8`, `size-320`; meant for `qa optimize` (search space in `qa/tune-int8.yaml`) | ≤ 8 s per evaluation |
 
 Runs execute one at a time, for the latency numbers.
 
@@ -124,7 +124,7 @@ About 30 commits. The plot: **a quantized model that regresses on small objects,
 | -28d | `quant/int8` | arjun | **`int8-minmax`**: `quant_calibration: minmax, quant_per_channel: false, quant_keep_fp32: none`; patch adds `int8` to `ci` | int8 vs fp32: latency −35% or more, mAP −0.01 or worse, **AP small −20% or worse** |
 | -27d | `quant/int8` | arjun | **`qdq-resize`**: `bug_qdq_resize: true`, then fixed the same day | `int8` runs fail to load the model, with ONNX Runtime's error |
 | -24d | `quant/int8` | arjun | **`int8-per-channel`**: `quant_per_channel: true` | AP small gap shrinks |
-| -21d | `quant/int8` | arjun | **`int8-percentile`**: `quant_calibration: percentile`; then `tune-int8` (`qa optimize`, 30 evaluations over percentile, `quant_keep_fp32`, `score_threshold`, `nms_iou`) | Analysis: convergence, sensitivity, parallel coordinates |
+| -21d | `quant/int8` | arjun | **`int8-percentile`**: `quant_calibration: percentile`; then `tune-int8` (`qa optimize`, 20 evaluations over percentile, `quant_keep_fp32`, `score_threshold`, `nms_iou`) | Tuning Analysis: the best parameters and their impact, convergence, what to do next |
 | -17d | `quant/int8` | arjun | **`int8-tuned`**: the best parameters | int8 vs fp32: AP small within −6%, latency still −30% or more |
 | -14d | `main` | arjun | **`merge-int8`** | |
 | -13d | `main` | arjun | **`kd-1-3`**: release | milestone `kd-1.3` |
@@ -135,7 +135,8 @@ About 30 commits. The plot: **a quantized model that regresses on small objects,
 quant_keep_fp32: none, score_threshold: 0.3, nms_iou: 0.5, eval_crowd_once: false`.
 
 **Checks:** the "Shows" column, with `configs`/`vs_configs` to compare `int8` and `fp32` runs of the same commit, plus
-a hook `optimize_converged` (the best `tune-int8` iteration beats the first by 0.02 AP small or more).
+a hook `optimize_converged` (the best `tune-int8` iteration's objective beats the first's by 0.04 or more, after the
+8 random ones).
 
 **Milestones:** `kd-1.2` on `kd-1-2`, `kd-1.3` on `kd-1-3`, by arjun.
 
@@ -204,8 +205,10 @@ ones are the quantized model's reference arithmetic (below). Latency isn't.
   of the indoor slice's mAP (0.109 to 0.065: people indoors almost disappear) and 6% of AP small on `small-objects`
   (0.368 to 0.346). Per-channel weights bring indoor back to 0.089 (+37%), percentile calibration to 0.111, fp32's
   level. Small objects stay 7% below fp32 at the same commit. `tune-int8` (`qa optimize`, 20 evaluations, the
-  objective also penalizes model size) finds percentile 99.999, the first convolution in fp32 (it costs nothing),
-  score 0.2, NMS 0.7: int8's AP small on `small-objects` is then 0.389, above the fp32 release kd-1.2's 0.368, and
+  objective also penalizes model size) found percentile 99.999, the first convolution in fp32 (it costs nothing),
+  score 0.2, NMS 0.7, before `qa optimize` moved to Optuna: re-check what it finds now on the next seed. The
+  `int8-tuned` commit sets those values either way: int8's AP small on `small-objects` is then 0.389, above the fp32
+  release kd-1.2's 0.368, and
   the model stays at 4.2 MB (keeping the head in fp32 doubles it for nothing). That's "tuned back": the new int8
   release finds small objects better than the old fp32 one did. `main`'s defaults (`qa/main.py`) are those settings.
 - **`bug_qdq_resize` is `bug_qdq_se_gate`**: SSDlite has no Resize node. The bug feeds the squeeze-excite gates'
@@ -239,8 +242,9 @@ ones are the quantized model's reference arithmetic (below). Latency isn't.
   seed took 12 minutes, before the int8 runs' second pass.
 
 **Checked on CI**: the first seed on a GitHub runner passed the fp32 checks with this machine's numbers, and showed
-the int8 difference above. `qa optimize` only stores each iteration's `objective` and `iteration` (the server
-doesn't return the other metrics' aggregates), so `optimize_converged` checks the objective, -(AP small + mAP) + 0.005
-per MB, means over `outdoor` and `small-objects`: -0.451 at the first evaluation, -0.481 at the best of the 8 random
-ones, -0.535 at the best (iteration 15), as emulated here with scikit-optimize, the same search space and seed. The
-check wants a gain of 0.04 or more, after the random points. Not validated: latency on a quiet machine.
+the int8 difference above. `optimize_converged` checks the objective `qa optimize` minimizes, -(AP small + mAP) +
+0.005 per MB, means over `outdoor` and `small-objects`: the best iteration must beat the first by 0.04 or more, and
+come after the 8 random points. The objective's values at the first evaluation, at the best of the random ones and at
+the best were measured before `qa optimize` moved to Optuna: re-measure them on the next seed, with the solver of
+`qa/tune-int8.yaml` (TPE, seed 42, 8 startup trials), and check that the gain still clears 0.04. Not validated:
+latency on a quiet machine.
