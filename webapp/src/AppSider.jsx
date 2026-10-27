@@ -684,7 +684,7 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
     <SiderHint name="Run Tests / Tuning" content="Run this commit on more tests, or with other parameters, from the web app.">
       <MenuItem icon="play" text="Run Tests / Tuning" active={active('tuning')} onClick={set('tuning')} />
     </SiderHint>
-    <SiderHint name="Tuning Analysis" content={has_optim ? "This batch is an auto-tuning: see how the parameters affect the metrics." : "How the tuned parameters affect the metrics. Useful after tuning or auto-tuning."}>
+    <SiderHint name="Tuning Analysis" content={has_optim ? "This batch is an automated tuning: see what it found, and what to do next." : "How the tuned parameters affect the metrics. Useful after tuning or automated tuning."}>
       <MenuItem icon="predictive-analysis" intent={has_optim ? "primary" : undefined} active={active('optimization')} text="Tuning Analysis" onClick={set('optimization')}/>
     </SiderHint>
 

@@ -83,7 +83,7 @@ const Count = styled.span`
 
 const BatchStatus = ({ status }) => {
   const { total, success, failed, running, iteration } = status
-  const tuning = iteration !== null && <Count title="Auto-tuning iteration">{iteration}<StatusIcon icon="repeat"/></Count>
+  const tuning = iteration !== null && <Count title="Evaluations of this automated tuning so far">{iteration}<StatusIcon icon="repeat"/></Count>
   if (total === 0)
     return tuning || 'no runs'
   return <>

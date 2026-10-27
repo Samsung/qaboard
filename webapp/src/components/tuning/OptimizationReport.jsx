@@ -65,7 +65,8 @@ const Header = styled.div`
   gap: 8px 16px;
   h2 { margin: 0 0 4px; font-size: 18px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .qa-optim-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; }
-  .qa-optim-meta > span { display: inline-flex; align-items: center; gap: 5px; }
+  /* an icon and its text; the sampler's span is inside its tooltip's target */
+  .qa-optim-meta > span, .qa-optim-meta > a, .qa-optim-meta > .${Classes.POPOVER_TARGET} > span { display: inline-flex; align-items: center; gap: 5px; }
 `;
 
 const Tiles = styled.div`
