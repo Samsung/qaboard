@@ -3,7 +3,8 @@
 // Prints a table of medians, and writes them as JSON to $BENCH_OUT if set.
 // Each scenario runs in a fresh page. Times are wall-clock milliseconds, "blocking" is the
 // main-thread time spent in tasks above 50ms (the Total Blocking Time definition), "script" is
-// the time spent running JavaScript (Chrome's ScriptDuration).
+// the time spent running JavaScript (Chrome's ScriptDuration), "cpu" the main thread's busy time (ThreadTime):
+// on a busy machine it varies much less than wall-clock times.
 import fs from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { test } from '@playwright/test';
@@ -72,6 +73,7 @@ const measure = async (page, cdp, action) => {
     time: Math.round(time),
     blocking: Math.round(blocking),
     script: Math.round((after.ScriptDuration - before.ScriptDuration) * 1000),
+    cpu: Math.round((after.ThreadTime - before.ThreadTime) * 1000),
     heap_mb: Math.round(after.JSHeapUsedSize / 1e6),
   };
 };
@@ -111,14 +113,15 @@ const scenarios = {
     await page.goto(`/${project}/commit/c0000?reference=c0001`);
     await page.getByText(/^PSNR/).first().waitFor({ timeout: 60_000 });
     // the fixed navbars overlap: focus without clicking
-    await page.getByPlaceholder('filter new outputs').focus();
+    const filter = page.locator('#filter-new-input');
+    await filter.focus();
     const typed = 'scene_01';
     let value;
     const result = await measure(page, cdp, async () => {
       await page.keyboard.type(typed, { delay: 30 });
       // the old app lost keystrokes when it was busy
-      await page.waitForFunction(typed => document.querySelector('input[placeholder="filter new outputs"]')?.value === typed, typed, { timeout: 30_000 }).catch(() => {});
-      value = await page.getByPlaceholder('filter new outputs').inputValue();
+      await page.waitForFunction(typed => document.querySelector('#filter-new-input')?.value === typed, typed, { timeout: 30_000 }).catch(() => {});
+      value = await filter.inputValue();
     });
     return { ...result, lost_keys: typed.length - value.length };
   },
@@ -155,7 +158,8 @@ const scenarios = {
     await page.getByText(/^PSNR/).first().waitFor({ timeout: 60_000 });
     return measure(page, cdp, async () => {
       await page.getByText('Metrics Table').first().click();
-      await page.getByText('Quality report').first().waitFor({ timeout: 60_000 });
+      // the table's first rows
+      await page.locator(':has(> * > h2:text-is("Metrics Table")) tbody tr').nth(10).waitFor({ timeout: 60_000 });
     });
   },
 };

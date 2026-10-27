@@ -47,6 +47,9 @@ export const useReleaseNotes = () => useContext(ReleaseNotesContext);
 // They come from website/release-notes/, see webapp/releaseNotes.js
 const loadNotes = () => import("virtual:release-notes")
   .then(m => (m.default || m).notes);
+// Their changes ("All changes") are most of their size: they load when the panel opens
+const loadHtml = () => import("virtual:release-notes-html")
+  .then(m => m.default || m);
 
 
 export const ReleaseNotesProvider = ({ children, load = loadNotes, popupDelay = 1000 }) => {
@@ -59,6 +62,7 @@ export const ReleaseNotesProvider = ({ children, load = loadNotes, popupDelay = 
   const [seen, setSeen] = useState(window.location.hash === HASH);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(window.location.hash === HASH);
+  const [html, setHtml] = useState(null);
 
   useEffect(() => {
     let timer;
@@ -108,6 +112,12 @@ export const ReleaseNotesProvider = ({ children, load = loadNotes, popupDelay = 
     if (newest) setLastSeen(newest);
   }, [drawerOpen, notes]);
   const hasUnread = popup.length > 0 && !seen;
+  useEffect(() => {
+    if (!drawerOpen || html) return;
+    loadHtml().then(setHtml).catch(error => console.warn("Could not load the release notes", error));
+  }, [drawerOpen, html]);
+  // with their changes once they're loaded (the tests' notes come with theirs)
+  const drawerNotes = html ? notes.map(note => ({ ...note, html: note.html ?? html[note.slug] })) : notes;
 
   const closeDialog = () => { setDialogOpen(false); markSeen() };
   const closeDrawer = () => {
@@ -128,7 +138,7 @@ export const ReleaseNotesProvider = ({ children, load = loadNotes, popupDelay = 
     />
     <WhatsNewDrawer
       isOpen={drawerOpen}
-      notes={notes}
+      notes={drawerNotes}
       newSlugs={newSlugs}
       docs_root={docs_root}
       onClose={closeDrawer}
@@ -322,7 +332,7 @@ const ReleaseNote = ({ note, isNew, expanded, docs_root }) => {
     setExpandedBefore(expanded);
     setShowDetails(expanded);
   }
-  const html = useMemo(() => renderHtml(note.html, docs_root), [note.html, docs_root]);
+  const html = useMemo(() => note.html ? renderHtml(note.html, docs_root) : '', [note.html, docs_root]);
   return <NoteSection id={`release-note-${note.slug}`}>
     <NoteHeader note={note} isNew={isNew} />
     <Description>{note.description}</Description>

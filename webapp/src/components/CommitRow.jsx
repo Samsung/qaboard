@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, memo, useState } from "react";
 import { Link, useLinkClickHandler } from "../router";
 
 import styled, { css } from "styled-components";
@@ -12,12 +12,10 @@ import {
   Colors,
   Icon,
   Intent,
-  Tooltip,
   Tag,
   Menu,
   MenuDivider,
   MenuItem,
-  PopoverNext,
 } from "@blueprintjs/core";
 
 import { http, errorMessage } from "../api/http";
@@ -25,6 +23,7 @@ import { usePrefetchCommitPage, useRefreshCommit, useUser } from "../hooks";
 import { LoginMenuItem } from "./authentication/login";
 import { CommitAvatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
+import { LazyPopover, LazyTooltip } from "./LazyPopover";
 import { format, shortId, pretty_label, metric_info } from "../utils";
 import { commit_url as git_commit_url } from "../git"
 import { milestones_of, milestone_name } from '../milestones/api'
@@ -87,9 +86,10 @@ const LinkButton = ({ to, ...props }) => {
 
 
 // A router link that looks like a minimal tag, e.g. "2 failed" next to the other tags
-const LinkTag = ({ to, intent, style, children }) => {
+const LinkTag = ({ to, intent, style, children, ref }) => {
   const handleClick = useLinkClickHandler(to)
   return <a
+    ref={ref}
     href={to}
     onClick={handleClick}
     style={style}
@@ -156,10 +156,10 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
         <div className={className}>
         <AnchorButton variant="minimal" href={code_url} text="View the commit" endIcon="share" />
         {commit.is_recent
-          ? <Tooltip content={<span>The CI may still be running: results appear once <code>qa batch</code> uploads them.</span>}>
+          ? <LazyTooltip content={<span>The CI may still be running: results appear once <code>qa batch</code> uploads them.</span>}>
               <Tag minimal icon="time" style={{ marginLeft: "10px" }}>Waiting for results</Tag>
-            </Tooltip>
-          : <Tooltip content="No run was uploaded for this commit. Check its CI pipeline.">
+            </LazyTooltip>
+          : <LazyTooltip content="No run was uploaded for this commit. Check its CI pipeline.">
               <LinkButton
                 style={{ marginLeft: "10px" }}
                 to={commit_page(project, commit, ci_batch_label)}
@@ -167,7 +167,7 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
                 variant="minimal"
                 text="No results"
               />
-            </Tooltip>}
+            </LazyTooltip>}
         </div>
       );
 
@@ -182,14 +182,14 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
     let status_messages = (
       <Fragment>
         {ci_batch.pending_outputs - ci_batch.running_outputs > 0 && (
-          <Tooltip content="Waiting for a runner">
+          <LazyTooltip content="Waiting for a runner">
             <Tag minimal style={{ marginRight: "4px" }}>
               {ci_batch.pending_outputs - ci_batch.running_outputs} pending
             </Tag>
-          </Tooltip>
+          </LazyTooltip>
         )}
         {ci_batch.running_outputs > 0 && (
-          <Tooltip content="Running now">
+          <LazyTooltip content="Running now">
             <Tag
               minimal
               style={{ marginRight: "4px" }}
@@ -197,10 +197,10 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
             >
               {ci_batch.running_outputs} running
             </Tag>
-          </Tooltip>
+          </LazyTooltip>
         )}
         {ci_batch.failed_outputs > 0 && (
-          <Tooltip content="Failed: open the logs to see why">
+          <LazyTooltip content="Failed: open the logs to see why">
             <LinkTag
               to={commit_page(project, commit, ci_batch_label)}
               intent={Intent.DANGER}
@@ -208,10 +208,10 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
             >
               {ci_batch.failed_outputs} failed
             </LinkTag>
-          </Tooltip>
+          </LazyTooltip>
         )}
         {tuning_batches_labels.length > 0 && (
-          <Tooltip inheritDarkTheme={false} hoverCloseDelay={2000} content={<OtherBatches project={project} commit={commit} labels={tuning_batches_labels}/>}>
+          <LazyTooltip inheritDarkTheme={false} hoverCloseDelay={2000} content={<OtherBatches project={project} commit={commit} labels={tuning_batches_labels}/>}>
             <Tag
               intent={Intent.SUCCESS}
               minimal
@@ -219,7 +219,7 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
             >
               {tuning_batches_labels.length} other batch{tuning_batches_labels.length > 1 ? "es" : ""}
             </Tag>
-          </Tooltip>
+          </LazyTooltip>
         )}
         {ci_batch.valid_outputs === 0 && <LinkButton
           style={{ marginLeft: "10px" }}
@@ -230,7 +230,7 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
         />}
         {ci_batch.valid_outputs > 0 &&
             <Fragment>
-              {ci_batch.aggregated_metrics[`${default_metric_info.key}_median`] !== ci_batch.aggregated_metrics[`${default_metric_info.key}_average`] && <Tooltip content={aggregate_tooltip('median')}><Tag minimal style={{ marginRight: "4px" }}>
+              {ci_batch.aggregated_metrics[`${default_metric_info.key}_median`] !== ci_batch.aggregated_metrics[`${default_metric_info.key}_average`] && <LazyTooltip content={aggregate_tooltip('median')}><Tag minimal style={{ marginRight: "4px" }}>
                 <strong>
                   {formatter(
                     default_metric_info.scale *
@@ -241,8 +241,8 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
                   {default_metric_info.suffix}
                 </strong>{" "}
                 median{" "}
-              </Tag></Tooltip>}
-              {ci_batch.aggregated_metrics[`${default_metric_info.key}_median`] !== undefined && <Tooltip content={aggregate_tooltip('average')}><Tag style={{ marginRight: "4px" }} minimal>
+              </Tag></LazyTooltip>}
+              {ci_batch.aggregated_metrics[`${default_metric_info.key}_median`] !== undefined && <LazyTooltip content={aggregate_tooltip('average')}><Tag style={{ marginRight: "4px" }} minimal>
                 <strong>
                   {formatter(
                     default_metric_info.scale *
@@ -253,9 +253,9 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
                   {default_metric_info.suffix}
                 </strong>{" "}
                 avg {default_metric_info.short_label}
-              </Tag></Tooltip>}
+              </Tag></LazyTooltip>}
               {/* more than the main metric's median, average and sum */}
-              {Object.keys(ci_batch.aggregated_metrics).length > 3 && <Tooltip content={<>
+              {Object.keys(ci_batch.aggregated_metrics).length > 3 && <LazyTooltip content={<>
                 <strong>All aggregated metrics</strong>
                 <ul className={Classes.LIST}>
                   {Object.entries(ci_batch.aggregated_metrics || {}).map(([k, v]) => (
@@ -267,7 +267,7 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
               </>}
               >
                 <Tag minimal round aria-label="All aggregated metrics">…</Tag>
-              </Tooltip>}
+              </LazyTooltip>}
             </Fragment>}
       </Fragment>
     );
@@ -275,7 +275,7 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
       <div className={className}>
         {status_messages}
         {ci_batch.valid_outputs > 0 && (
-          <Tooltip content={`Open the ${runs(ci_batch.valid_outputs)} of the ${pretty_label(ci_batch)} batch`}>
+          <LazyTooltip content={`Open the ${runs(ci_batch.valid_outputs)} of the ${pretty_label(ci_batch)} batch`}>
             <LinkButton
               style={{ marginLeft: "6px" }}
               to={commit_page(project, commit, ci_batch_label)}
@@ -283,7 +283,7 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
               size="small"
               text={runs(ci_batch.valid_outputs)}
             />
-          </Tooltip>
+          </LazyTooltip>
         )}
       </div>
     );
@@ -300,12 +300,15 @@ const CommitShortId = styled.a`
 `;
 
 
-// The ☰ menu of a commit: copy its directory, browse its files, delete its runs
+// The ☰ menu of a commit: copy its directory, browse its files, delete its runs.
+// Lists have one per commit: the menu and the confirmation are only created when needed.
 const CommitMenu = ({ commit, project, project_data = {}, style }) => {
   const [waiting, setWaiting] = useState(false);
   const is_logged = useUser().is_logged;
-  // the runs users asked to delete, until they confirm: {url, all_projects}
+  // the runs users asked to delete, until they confirm: {url, all_projects, open}.
+  // The alert is only rendered from then until it has closed.
   const [confirm_delete, setConfirmDelete] = useState(null);
+  const closeConfirmation = () => setConfirmDelete({ ...confirm_delete, open: false });
   const refreshCommit = useRefreshCommit();
   const refresh = () => refreshCommit(project, commit.id);
 
@@ -314,7 +317,7 @@ const CommitMenu = ({ commit, project, project_data = {}, style }) => {
   const commit_milestones = milestones_of(useMilestones(project), {project, commit: commit.id})
   const short_id = shortId(project, commit.id)
   const deleteRuns = ({ url, all_projects }) => {
-    setConfirmDelete(null)
+    closeConfirmation()
     setWaiting(true)
     const what = `all the runs of ${short_id}${all_projects ? ' in all projects' : ''}`
     toaster.show({message: `Deleting ${what}…`, icon: 'time'}, 'delete-commit');
@@ -334,7 +337,7 @@ const CommitMenu = ({ commit, project, project_data = {}, style }) => {
   const milestones_title = commit_milestones.length > 0 ? `The batches that are milestones are kept: ${[...new Set(commit_milestones.map(m => pretty_label({label: m.batch || 'default'})))].join(', ')}` : undefined
 
   return <>
-    <PopoverNext
+    <LazyPopover
       placement="bottom"
       content={<Menu>
         {hasPathMappings() && <MenuItem text="Copy directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url, { windows: true })} />}
@@ -350,7 +353,7 @@ const CommitMenu = ({ commit, project, project_data = {}, style }) => {
           htmlTitle={milestones_title}
           className={Classes.TEXT_MUTED}
           minimal
-          onClick={() => setConfirmDelete({url: `/api/v1/commit/${project}/${commit.id}/batches/`})}
+          onClick={() => setConfirmDelete({url: `/api/v1/commit/${project}/${commit.id}/batches/`, open: true})}
         />
         {is_subproject && <MenuItem
           text="Delete all runs, in all the projects with this commit…"
@@ -360,7 +363,7 @@ const CommitMenu = ({ commit, project, project_data = {}, style }) => {
           htmlTitle={milestones_title}
           className={Classes.TEXT_MUTED}
           minimal
-          onClick={() => setConfirmDelete({url: `/api/v1/commit/${commit.id}/batches/`, all_projects: true})}
+          onClick={() => setConfirmDelete({url: `/api/v1/commit/${commit.id}/batches/`, all_projects: true, open: true})}
         />}
       </Menu>}
     >
@@ -372,25 +375,26 @@ const CommitMenu = ({ commit, project, project_data = {}, style }) => {
         className={Classes.TEXT_MUTED}
         aria-label="Commit actions"
       />
-    </PopoverNext>
-    <Alert
-      isOpen={confirm_delete !== null}
+    </LazyPopover>
+    {confirm_delete && <Alert
+      isOpen={confirm_delete.open}
       icon="trash"
       intent={Intent.DANGER}
       cancelButtonText="Cancel"
       confirmButtonText="Delete runs"
       canEscapeKeyCancel
-      onCancel={() => setConfirmDelete(null)}
+      onCancel={closeConfirmation}
       onConfirm={() => deleteRuns(confirm_delete)}
+      onClosed={() => setConfirmDelete(null)}
     >
-      <p><strong>Delete all the runs of {short_id}{confirm_delete?.all_projects ? ', in all projects' : ''}?</strong></p>
+      <p><strong>Delete all the runs of {short_id}{confirm_delete.all_projects ? ', in all projects' : ''}?</strong></p>
       <p>Their output files and metrics will be deleted. This can't be undone.</p>
       {!!milestones_title && <p>{milestones_title}.</p>}
-    </Alert>
+    </Alert>}
   </>
 }
 
-const CopyHashButton = ({ commit, className, style }) => <Tooltip content="Copy the commit hash">
+const CopyHashButton = ({ commit, className, style }) => <LazyTooltip content="Copy the commit hash">
   <Button
     style={style}
     variant="minimal"
@@ -400,11 +404,11 @@ const CopyHashButton = ({ commit, className, style }) => <Tooltip content="Copy 
     aria-label="Copy the commit hash"
     onClick={() => copyWithToast(commit.id, { what: 'the commit hash' })}
   />
-</Tooltip>
+</LazyTooltip>
 
-const MilestoneStar = ({ milestones }) => <Tooltip content={<span>Milestone{milestones.length > 1 ? 's' : ''}: {milestones.map(milestone_name).join(', ')}</span>}>
+const MilestoneStar = ({ milestones }) => <LazyTooltip content={<span>Milestone{milestones.length > 1 ? 's' : ''}: {milestones.map(milestone_name).join(', ')}</span>}>
   <Icon icon="star" style={{color: Colors.GOLD5}} aria-label={`Milestone${milestones.length > 1 ? 's' : ''}: ${milestones.map(milestone_name).join(', ')}`} />
-</Tooltip>
+</LazyTooltip>
 
 
 // A few lines per commit: its message, its body's first line, hash, branch, date and committer, then its CI batch's results
@@ -432,11 +436,11 @@ const ComfortableCommitRow = ({ commit, project, project_data = {}, className, t
           <Message className={maybe_skeletton}>{has_data ? message_title : 'xxxxxxxxxx xxxxxx xxxxxxxxx xxxxxxxxxxx'}</Message>
           {has_data && !!message_body && <MessageBody className={Classes.TEXT_MUTED} title={message_body}>{message_body}</MessageBody>}
           <div>
-            <Tooltip content="View the commit's diff">
+            <LazyTooltip content="View the commit's diff">
               <CommitShortId href={commit_url}>
                 {short_id}
               </CommitShortId>
-            </Tooltip>
+            </LazyTooltip>
             <CopyHashButton commit={commit} style={{marginLeft: '2px'}}/>
             <CommitMenu commit={commit} project={project} project_data={project_data} style={{marginRight: '6px'}}/>
 
@@ -621,9 +625,9 @@ const CommitStatusIcon = ({ commit, default_batch }) => {
   if (!commit?.authored_datetime)
     return <span className={Classes.SKELETON} style={{ display: 'inline-block', width: 16, height: 16 }}/>;
   const { icon, intent, label } = commit_status(commit, default_batch);
-  return <Tooltip content={label}>
+  return <LazyTooltip content={label}>
     <Icon icon={icon} intent={intent} title={label} className={intent ? undefined : Classes.TEXT_MUTED} style={{ display: 'flex' }}/>
-  </Tooltip>;
+  </LazyTooltip>;
 }
 
 // The CI batch's results, on one line: what's still running or failed, the main metric, and a link to the runs.
@@ -635,12 +639,12 @@ const CompactCommitResults = ({ project, project_data = {}, commit, default_batc
   const page = commit_page(project, commit, ci_batch_label);
   if (ci_batch === undefined || (ci_batch.failed_outputs === 0 && ci_batch.valid_outputs === 0 && ci_batch.pending_outputs === 0))
     return commit.is_recent
-      ? <Tooltip content={<span>The CI may still be running: results appear once <code>qa batch</code> uploads them.</span>}>
+      ? <LazyTooltip content={<span>The CI may still be running: results appear once <code>qa batch</code> uploads them.</span>}>
           <Tag minimal icon="time">Waiting for results</Tag>
-        </Tooltip>
-      : <Tooltip content="No run was uploaded for this commit. Check its CI pipeline.">
+        </LazyTooltip>
+      : <LazyTooltip content="No run was uploaded for this commit. Check its CI pipeline.">
           <LinkButton to={page} className={Classes.TEXT_MUTED} variant="minimal" size="small" text="No results"/>
-        </Tooltip>;
+        </LazyTooltip>;
 
   const formatter = v => format(v, {precision: 3})
   const waiting_outputs = ci_batch.pending_outputs - ci_batch.running_outputs;
@@ -669,28 +673,28 @@ const CompactCommitResults = ({ project, project_data = {}, commit, default_batc
   </>;
 
   return <>
-    {waiting_outputs > 0 && <Tooltip content="Waiting for a runner">
+    {waiting_outputs > 0 && <LazyTooltip content="Waiting for a runner">
       <Tag minimal>{waiting_outputs} pending</Tag>
-    </Tooltip>}
-    {ci_batch.running_outputs > 0 && <Tooltip content="Running now">
+    </LazyTooltip>}
+    {ci_batch.running_outputs > 0 && <LazyTooltip content="Running now">
       <Tag minimal intent={Intent.PRIMARY}>{ci_batch.running_outputs} running</Tag>
-    </Tooltip>}
-    {ci_batch.failed_outputs > 0 && <Tooltip content="Failed: open the logs to see why">
+    </LazyTooltip>}
+    {ci_batch.failed_outputs > 0 && <LazyTooltip content="Failed: open the logs to see why">
       <LinkTag to={page} intent={Intent.DANGER}>{ci_batch.failed_outputs} failed</LinkTag>
-    </Tooltip>}
-    {other_batches.length > 0 && <Tooltip inheritDarkTheme={false} hoverCloseDelay={2000} content={<OtherBatches project={project} commit={commit} labels={other_batches}/>}>
+    </LazyTooltip>}
+    {other_batches.length > 0 && <LazyTooltip inheritDarkTheme={false} hoverCloseDelay={2000} content={<OtherBatches project={project} commit={commit} labels={other_batches}/>}>
       <Tag minimal intent={Intent.SUCCESS}>+{other_batches.length} batch{other_batches.length > 1 ? "es" : ""}</Tag>
-    </Tooltip>}
-    {ci_batch.valid_outputs > 0 && median !== undefined && <Tooltip content={metrics_tooltip} className="compact-metric">
+    </LazyTooltip>}
+    {ci_batch.valid_outputs > 0 && median !== undefined && <LazyTooltip content={metrics_tooltip} className="compact-metric">
       <Tag minimal><strong>{value(average)}</strong><span className="compact-metric-name"> avg {metric.short_label}</span></Tag>
-    </Tooltip>}
-    {ci_batch.valid_outputs > 0 && median === undefined && nb_aggregated_metrics > 2 && <Tooltip content={metrics_tooltip} className="compact-metric">
+    </LazyTooltip>}
+    {ci_batch.valid_outputs > 0 && median === undefined && nb_aggregated_metrics > 2 && <LazyTooltip content={metrics_tooltip} className="compact-metric">
       <Tag minimal round aria-label="All aggregated metrics">…</Tag>
-    </Tooltip>}
+    </LazyTooltip>}
     {ci_batch.valid_outputs > 0
-      ? <Tooltip content={`Open the ${runs(ci_batch.valid_outputs)} of the ${pretty_label(ci_batch)} batch`}>
+      ? <LazyTooltip content={`Open the ${runs(ci_batch.valid_outputs)} of the ${pretty_label(ci_batch)} batch`}>
           <LinkButton to={page} variant="outlined" size="small" text={runs(ci_batch.valid_outputs)}/>
-        </Tooltip>
+        </LazyTooltip>
       : <LinkButton to={page} className={Classes.TEXT_MUTED} variant="minimal" size="small" text="No results"/>}
   </>;
 }
@@ -711,11 +715,11 @@ const CompactCommitRow = ({ commit, project, project_data = {}, className, tag, 
   return (
     <CompactRowWrapper className={className} {...prefetch}>
       <CompactCell><CommitStatusIcon commit={commit} default_batch={default_batch}/></CompactCell>
-      <Tooltip content="View the commit's diff">
+      <LazyTooltip content="View the commit's diff">
         <CommitShortId href={git_commit_url(project_data, commit.id)} className={has_data ? undefined : Classes.SKELETON}>
           {short_id}
         </CommitShortId>
-      </Tooltip>
+      </LazyTooltip>
       <CompactMessage title={has_data ? message.trim() : undefined}>
         {tag}
         {commit_milestones.length > 0 && <MilestoneStar milestones={commit_milestones}/>}
@@ -754,4 +758,5 @@ const CommitRow = ({ density = "comfortable", ...props }) => density === "compac
   ? <CompactCommitRow {...props}/>
   : <ComfortableCommitRow {...props}/>;
 
-export default CommitRow;
+// Lists render all their rows again when a page of commits loads: those already there don't change
+export default memo(CommitRow);

@@ -7,7 +7,8 @@ import { renderWithProviders } from '../../../test-utils';
 import { setupIntersectionMocking, resetIntersectionMocking } from 'react-intersection-observer/test-utils';
 
 import { toaster } from '../../../toaster';
-import { RunLogs, configurationSummary, runName } from '../RunLogs';
+import { RunLogs, configurationSummary } from '../RunLogs';
+import { runName } from '../../tags';
 
 
 const output = {

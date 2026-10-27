@@ -9,6 +9,7 @@ import '@testing-library/jest-dom';
 import { IconNames } from '@blueprintjs/icons';
 
 import bundle from 'virtual:release-notes';
+import bundle_html from 'virtual:release-notes-html';
 import {
   LAST_SEEN_KEY,
   popupNotes,
@@ -180,9 +181,11 @@ describe('the bundle', () => {
       }
   });
 
-  test('has no raw HTML (it is escaped)', () => {
-    for (const n of bundle.notes)
-      expect([n.slug, /<(script|iframe|style|img)\b|\son\w+=|javascript:/i.test(n.html)]).toEqual([n.slug, false]);
+  test('has the changes of every note apart, without raw HTML (it is escaped)', () => {
+    expect(bundle.notes.filter(n => 'html' in n)).toEqual([]);
+    expect(Object.keys(bundle_html).sort()).toEqual(bundle.notes.map(n => n.slug).sort());
+    for (const [slug, html] of Object.entries(bundle_html))
+      expect([slug, /<(script|iframe|style|img)\b|\son\w+=|javascript:/i.test(html)]).toEqual([slug, false]);
   });
 
   test('is sorted newest first', () => {
@@ -251,6 +254,22 @@ describe('the What\'s new popup', () => {
     await new Promise(resolve => setTimeout(resolve, 20));
     expect(screen.queryByText('Flying cars')).not.toBeInTheDocument();
     expect(screen.queryByTestId('whats-new-unread')).not.toBeInTheDocument();
+  });
+
+  test('the panel loads the notes\' changes when it opens', async () => {
+    window.localStorage.setItem(LAST_SEEN_KEY, '2999-01');
+    // a note with sections
+    const latest = bundle.notes.find(note => bundle_html[note.slug].includes('<h2'));
+    const section = new DOMParser().parseFromString(bundle_html[latest.slug], 'text/html').querySelector('h2').textContent;
+    renderWithProviders(
+      <ReleaseNotesProvider load={() => Promise.resolve([latest])} popupDelay={0}>
+        <WhatsNewButton />
+      </ReleaseNotesProvider>,
+      { siteConfig: { docs_root: '/' } }
+    );
+    await new Promise(resolve => setTimeout(resolve, 20));
+    fireEvent.click(screen.getByLabelText("What's new"));
+    expect(await screen.findByRole('heading', { name: section })).toBeInTheDocument();
   });
 
   test('opens on any page, and navigating afterwards does not reopen it', async () => {

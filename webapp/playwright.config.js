@@ -2,9 +2,10 @@
 // npm run build && npm run e2e
 // Performance benchmark (e2e/perf/): npm run build && npm run bench
 //   BENCH_BUILD_DIR=path/to/other/build compares with another build
+// E2E_PORT=4273 serves the build on another port: a server already on the port is reused (except in CI)
 import { defineConfig, devices } from '@playwright/test';
 
-const port = 4173;
+const port = Number(process.env.E2E_PORT || 4173);
 
 export default defineConfig({
   testDir: './e2e',
@@ -14,7 +15,8 @@ export default defineConfig({
   reporter: process.env.CI ? [['list'], ['junit', { outputFile: 'e2e-junit.xml' }]] : 'list',
   use: {
     baseURL: `http://localhost:${port}`,
-    trace: 'retain-on-failure',
+    // traces snapshot the page at each action: with big pages, that's most of what the benchmark would measure
+    trace: process.env.BENCH ? 'off' : 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
   projects: [{

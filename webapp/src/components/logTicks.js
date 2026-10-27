@@ -1,6 +1,6 @@
 // Tick values for the small box plots of the Summary (metrics.jsx) on a log scale. On a range under a decade, Plotly
-// picks ticks as if the axis were linear (0.1, 0.15, 0.2, 0.25, 0.3) or labels every digit (0.1, 9, 8, 7...): in a
-// plot 100 px high, they pile up at the top and overlap. These are 1, 2, 5 times a power of ten within the values'
+// picked ticks as if the axis were linear (0.1, 0.15, 0.2, 0.25, 0.3) or labeled every digit (0.1, 9, 8, 7...): in a
+// plot 100 px high, they piled up at the top and overlapped. These are 1, 2, 5 times a power of ten within the values'
 // range, spread out: at most `maxTicks`, at least a fraction of the range apart. The values should include what else
 // sets the axis' range, like a target's shading.
 const DIGITS = [1, 2, 5];

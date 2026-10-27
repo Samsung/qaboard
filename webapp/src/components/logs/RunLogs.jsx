@@ -3,7 +3,7 @@ import styled from "styled-components";
 import { useInView } from "react-intersection-observer";
 import { Button, Classes, Collapse, Colors, PopoverNext } from "@blueprintjs/core";
 
-import { hidden_keys, ConfigurationsTags, PlatformTag, RunActionsMenu, RunBadges, StatusTag } from "../tags";
+import { hidden_keys, ConfigurationsTags, PlatformTag, RunActionsMenu, RunBadges, StatusTag, runName } from "../tags";
 import { LogViewer } from "./LogViewer";
 import { LsfReport, LsfTag } from "./LsfReport";
 import { fetchLsfReport, lsfKilled } from "./lsf";
@@ -114,13 +114,6 @@ const Details = styled.div`
 
 // Don't toggle the logs when users click links, buttons, tags...
 export const INTERACTIVE = `a, button, input, [role="button"], .${Classes.POPOVER_TARGET}`
-
-// How the run is named elsewhere in QA-Board
-export const runName = output => {
-  if (output.test_input_metadata?.label) return output.test_input_metadata.label
-  if (output.output_type === "pipeline" || output.test_input_path === "PIPELINE") return `${output.data?.batch} (pipeline)`
-  return `${output.test_input_database === '/' ? '/' : ''}${output.test_input_path}`
-}
 
 // "lr=0.1 · base · config.yaml · isp: {...}": how the run is configured, as one line of text.
 // Rendering the configurations as tags is slow and wide when lists have 100s of runs.

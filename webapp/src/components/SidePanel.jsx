@@ -20,8 +20,9 @@ const overlay_below = 1000;
 
 const expanded_key = 'controls-panel-expanded';
 const width_key = 'view-options-width';
-// The room the panel takes on the right of the content area (see .qa-content-area in App.css)
+// The room the panel takes on the right of the content area it's in (see .qa-content-area in App.css)
 const space_variable = '--qa-side-panel-space';
+const contentArea = element => element?.closest('.qa-content-area');
 
 const clamp_width = width => Math.round(Math.min(max_width, Math.max(min_width, width)));
 
@@ -282,35 +283,34 @@ const SidePanel = ({
   const content_width = useContentWidth();
   const overlay = content_width < overlay_below;
   const [width, setWidth] = useState(() => clamp_width(read(width_key, default_width)));
-  const [resizing, setResizing] = useState(false);
+  // While users drag its edge, only the panel follows the pointer: the content area makes room for it when they let go.
+  // Laying out and painting thousands of results again at each move would be janky.
+  const [drag_width, setDragWidth] = useState(null);
+  const resizing = drag_width !== null;
   // After a click, the button clicked is gone: focus goes to its counterpart (expand <-> collapse)
   const toggle_ref = useRef(null);
   const focus_toggle = useRef(false);
   // a section to bring into view once open, after a click on its rail icon
   const scroll_target = useRef(null);
+  const aside = useRef(null);
 
-  // The content area makes room for the panel (only the rail when the open panel covers the page)
+  // The content area makes room for the panel (only the rail when the open panel covers the page).
+  // Set on the content area, the variable isn't inherited (see App.css): resizing doesn't restyle the whole page.
   const space = expanded && !overlay ? width : rail_width;
   useLayoutEffect(() => {
-    const root = document.documentElement;
-    root.style.setProperty(space_variable, `${space}px`);
-    return () => root.style.removeProperty(space_variable);
+    const area = contentArea(aside.current);
+    area?.style.setProperty(space_variable, `${space}px`);
+    return () => area?.style.removeProperty(space_variable);
   }, [space]);
   // the content area follows the panel's width transition, but not on the first render
   useEffect(() => {
-    const root = document.documentElement;
-    const frame = requestAnimationFrame(() => root.setAttribute('data-side-panel-ready', ''));
+    const area = contentArea(aside.current);
+    const frame = requestAnimationFrame(() => area?.setAttribute('data-side-panel-ready', ''));
     return () => {
       cancelAnimationFrame(frame);
-      root.removeAttribute('data-side-panel-ready');
+      area?.removeAttribute('data-side-panel-ready');
     };
   }, []);
-  useEffect(() => {
-    if (!resizing) return;
-    const root = document.documentElement;
-    root.setAttribute('data-side-panel-resizing', '');
-    return () => root.removeAttribute('data-side-panel-resizing');
-  }, [resizing]);
 
   const toggle = useCallback(({ focus = false } = {}) => {
     focus_toggle.current = focus;
@@ -365,18 +365,20 @@ const SidePanel = ({
     if (event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    drag.current = { x: event.clientX, width };
-    setResizing(true);
+    drag.current = { x: event.clientX, width, last: width };
+    setDragWidth(width);
   };
   const onPointerMove = event => {
     if (!drag.current) return;
-    setWidth(clamp_width(drag.current.width + drag.current.x - event.clientX));
+    // kept here too: when users let go, the last move may not have rendered yet
+    drag.current.last = clamp_width(drag.current.width + drag.current.x - event.clientX);
+    setDragWidth(drag.current.last);
   };
   const onPointerUp = () => {
     if (!drag.current) return;
+    updateWidth(drag.current.last);
     drag.current = null;
-    setResizing(false);
-    write(width_key, width);
+    setDragWidth(null);
   };
   const onResizeKey = event => {
     const step = event.shiftKey ? 64 : 16;
@@ -394,7 +396,7 @@ const SidePanel = ({
   const changed_count = changes.length;
 
   if (!expanded)
-    return <Aside $top={top} style={{ width: rail_width }} aria-label={title}>
+    return <Aside ref={aside} $top={top} style={{ width: rail_width }} aria-label={title}>
       <Rail>
         <Tooltip content={<>Show the {title.toLowerCase()}{shortcut && <Kbd>{shortcut}</Kbd>}</>} placement="left">
           <Button
@@ -433,8 +435,9 @@ const SidePanel = ({
     </Aside>;
 
   return <Aside
+    ref={aside}
     $top={top}
-    style={{ width }}
+    style={{ width: drag_width ?? width }}
     aria-label={title}
     data-overlay={overlay || undefined}
     data-resizing={resizing || undefined}
@@ -445,7 +448,7 @@ const SidePanel = ({
       role="separator"
       aria-orientation="vertical"
       aria-label={`Resize the ${title.toLowerCase()}`}
-      aria-valuenow={width}
+      aria-valuenow={drag_width ?? width}
       aria-valuemin={min_width}
       aria-valuemax={max_width}
       tabIndex={0}

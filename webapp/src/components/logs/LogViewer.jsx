@@ -16,7 +16,7 @@ import {
 } from "@blueprintjs/core";
 
 import { useLogTail } from "./useLogTail";
-import { createLineParser } from "./logLines";
+import { createLineParser } from "./lineParser";
 import { copyWithToast } from "../../utils/clipboard";
 
 

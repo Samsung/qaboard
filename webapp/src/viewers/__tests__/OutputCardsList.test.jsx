@@ -67,6 +67,15 @@ describe('OutputCardsList', () => {
     expect(screen.queryByText(/show all/)).toBeNull();
   }, 30_000);
 
+  it('keeps cards light until they come into view', () => {
+    const { container } = render_list({ ...props, ...batches(2) });
+    expect(screen.getByText('input_1')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Full screen')).toBeNull();
+    act(() => mockAllIsIntersecting(true));
+    expect(screen.getAllByLabelText('Full screen')).toHaveLength(2);
+    expect(cards(container)).toHaveLength(2);
+  });
+
   it('renders the cards of big batches incrementally, as users scroll', async () => {
     const { container } = render_list({ ...props, ...batches(450) });
     expect(cards(container)).toHaveLength(300);

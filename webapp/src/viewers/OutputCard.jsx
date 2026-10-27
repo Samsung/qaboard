@@ -99,26 +99,31 @@ const SlimCard = styled(Card)`
 `;
 
 // The button is in the full screen element, to exit too. No tooltips in there: they show outside of it.
-const FullScreenableSlimCard = ({ updateFullscreen, className, style, children }) => {
+const FullScreenable = ({ updateFullscreen, children }) => {
   const handle = useFullScreenHandle();
-  return <SlimCard compact className={className} style={style}>
-    <FullScreen handle={handle} onChange={state => updateFullscreen(state)}>
-      <div style={{position: "relative"}}>
-        <div style={{position: "absolute", right: "0px", top: "0px", zIndex: 1}}>
-          <Button
-            size="small"
-            variant="minimal"
-            icon={handle.active ? "minimize" : "fullscreen"}
-            aria-label={handle.active ? "Exit full screen" : "Full screen"}
-            title={handle.active ? "Exit full screen (Esc)" : "Full screen: this run's visualizations. Images have their own, in their toolbar"}
-            onClick={handle.active ? handle.exit : handle.enter}
-          />
-        </div>
+  return <FullScreen handle={handle} onChange={state => updateFullscreen(state)}>
+    <div style={{position: "relative"}}>
+      <div style={{position: "absolute", right: "0px", top: "0px", zIndex: 1}}>
+        <Button
+          size="small"
+          variant="minimal"
+          icon={handle.active ? "minimize" : "fullscreen"}
+          aria-label={handle.active ? "Exit full screen" : "Full screen"}
+          title={handle.active ? "Exit full screen (Esc)" : "Full screen: this run's visualizations. Images have their own, in their toolbar"}
+          onClick={handle.active ? handle.exit : handle.enter}
+        />
       </div>
-      {children}
-    </FullScreen>
-  </SlimCard>
-}
+    </div>
+    {children}
+  </FullScreen>;
+};
+
+// Cards out of view show nothing yet, so nothing in full screen either: there can be hundreds of them, and the button
+// was most of what they cost
+const FullScreenableSlimCard = ({ updateFullscreen, viewable, className, style, children }) =>
+  <SlimCard compact className={className} style={style}>
+    {viewable ? <FullScreenable updateFullscreen={updateFullscreen}>{children}</FullScreenable> : children}
+  </SlimCard>;
 
 
 // Long paths are cut, the tags after them stay on the line
@@ -516,6 +521,7 @@ const OutputCard = memo(function OutputCard(props) {
   return <div style={container_style} className="output-card" data-output-id={output_new.id} ref={in_view_ref}>
     <FullScreenableSlimCard
       updateFullscreen={setFullscreen}
+      viewable={viewable}
       className="output-card"
       style={{
         ...maybe_style_skeleton,

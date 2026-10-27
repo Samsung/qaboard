@@ -170,6 +170,8 @@ test('switch to a branch seen in a previous session', async ({ page }) => {
 
 // The History page has the project's navigation too, and the sidebar navigates without reloading the app
 test('history page navigation', async ({ page }) => {
+  // the "What's new" dialog would cover the sidebar
+  await page.addInitScript(() => localStorage.setItem('qaboard.release-notes.last-seen', '9999-12-31'));
   await page.goto(`/${project}/commits/master`);
   await expect(page.getByText('Hello world').first()).toBeVisible();
   await page.evaluate(() => { window.not_reloaded = true; });

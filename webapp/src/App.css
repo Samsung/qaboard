@@ -45,17 +45,24 @@
 }
 
 /* The content area (the window minus the sidebar) makes room for a panel docked on its right, e.g. the commit
-   page's View options (components/SidePanel.jsx). It follows the panel's width, without animating the first render. */
+   page's View options (components/SidePanel.jsx sets the variable and the attribute). It follows the panel's width,
+   without animating the first render. */
+/* Not inherited: when the panel's width changes, only the content area is restyled, not the thousands of elements in it */
+@property --qa-side-panel-space {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
 .qa-content-area {
   padding-right: var(--qa-side-panel-space, 0px);
   /* when the sidebar collapses or expands */
   transition: padding-left 150ms ease;
 }
-:root[data-side-panel-ready]:not([data-side-panel-resizing]) .qa-content-area {
+.qa-content-area[data-side-panel-ready] {
   transition: padding-left 150ms ease, padding-right 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 @media (prefers-reduced-motion: reduce) {
-  :root[data-side-panel-ready] .qa-content-area {
+  .qa-content-area[data-side-panel-ready] {
     transition: none;
   }
 }
