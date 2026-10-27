@@ -97,6 +97,8 @@ def run_search(label, config, fail_at=(), stop_after=None, pareto=False):
       "parallel_sampling": options["parallel_sampling"],
       "early_stopping": options["patience"],
       "preset_params": {},
+      "config": config,
+      "batches": ["quant-search"],
     },
   }
   best = None

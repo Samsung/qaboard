@@ -103,6 +103,9 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
       "parallel_sampling": options['parallel_sampling'],
       "early_stopping": options['patience'],
       "preset_params": optim_config.get('preset_params') or {},
+      # to continue the search from the web app: the same config and batches, a bigger budget
+      "config": optim_config,
+      "batches": list(batches),
     },
     **study_summary(study, metric_names if pareto else None),
   )

@@ -16,6 +16,7 @@ import { usePrefsStore } from "../../stores/prefs";
 import { copyWithToast } from "../../utils/clipboard";
 import { formatDuration } from "../../activity/format";
 import { iterations as get_iterations, search_space, summarize, insights as get_insights, position, as_json, as_yaml, pareto_iterations, metric_bests } from "./optimization";
+import { from_batch } from "./optimize_config";
 
 const plot_config = { displayModeBar: 'hover', displaylogo: false, showSendToCloud: false, showLink: false, responsive: true };
 
@@ -175,6 +176,23 @@ const useTryParameters = (project, label) => {
       search_type: 'grid',
       parameter_search: JSON.stringify(params, null, 2),
       experiment_name: `${label}-best`,
+    });
+    updateSelected({ selected_views: 'tuning' });
+  };
+};
+
+// "Continue the search": the Automated tuning form, with the same configuration and label (qa optimize resumes), and a bigger budget
+const useContinue = (project, batch, done) => {
+  const updateTuning = usePrefsStore(state => state.updateTuning);
+  const yaml = from_batch(batch, { evaluations: done + Math.max(10, Math.round(done / 2)) });
+  if (!yaml) return null;
+  return () => {
+    updateTuning(project, {
+      search_type: 'optimize',
+      optimize_mode: 'guided',
+      experiment_name: batch.label,
+      parameter_search_auto: yaml,
+      ...(batch.data?.optimization_config?.batches?.[0] ? { selected_group: batch.data.optimization_config.batches[0] } : {}),
     });
     updateSelected({ selected_views: 'tuning' });
   };
@@ -458,6 +476,7 @@ const OptimizationReport = ({ batch, project, commit_id, available_metrics, chil
   const insights = useMemo(() => get_insights(summary, space), [summary, space]);
   const front_ids = useMemo(() => pareto_iterations(data), [data]);
   const tryParameters = useTryParameters(project, label);
+  const continueSearch = useContinue(project, batch, evaluations.length);
 
   // A running search updates its batch after each evaluation, but its own runs aren't pending: we refresh ourselves
   const running = summary.status === 'running';
@@ -503,12 +522,17 @@ const OptimizationReport = ({ batch, project, commit_id, available_metrics, chil
           <a href={`${docs_root}docs/user-guide/automated-tuning`} target="_blank" rel="noopener noreferrer"><Icon icon="manual" size={12}/>How to read this page</a>
         </div>
       </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      {continueSearch && !running && <Tooltip content="Opens Automated tuning with the same settings and a bigger budget: it continues from these evaluations" hoverOpenDelay={300}>
+        <Button icon="history" text="Continue the search…" onClick={continueSearch} data-testid="continue-search"/>
+      </Tooltip>}
       {best && !pareto && <ButtonGroup>
         <CopyMenu params={best_params}/>
         <Tooltip content="Opens Manual tuning with these parameters, to run them on any batch of tests" hoverOpenDelay={300}>
           <Button intent={Intent.PRIMARY} icon="play" text="Run the best parameters…" onClick={() => tryParameters(all_best_params)} data-testid="run-best"/>
         </Tooltip>
       </ButtonGroup>}
+      </div>
     </Header>
     {progress !== null && summary.status !== 'done' && summary.status !== 'stopped_early' && <ProgressBar value={progress} intent={running ? Intent.PRIMARY : Intent.NONE} stripes={running} animate={running}/>}
 
