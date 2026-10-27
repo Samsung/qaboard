@@ -2,6 +2,7 @@
 id: monitoring
 sidebar_label: Monitoring with Sentry
 title: Monitoring with Sentry
+description: "Report the errors and traces of QA-Board's web app, backend, jobs and qa CLI to Sentry or a self-hosted Sentry."
 ---
 QA-Board can report errors and performance data to [Sentry](https://sentry.io), or to your own [self-hosted Sentry](https://develop.sentry.dev/self-hosted/):
 
@@ -14,7 +15,7 @@ QA-Board can report errors and performance data to [Sentry](https://sentry.io), 
 Nothing is sent unless you set a DSN. Users are only identified by their username: no emails, IP addresses or cookies. Tokens and secrets in URLs (e.g. `?token=`), `Authorization` headers and webhook secrets are filtered out before anything is sent.
 
 ## Settings
-Create a project for the backend and one for the web app in Sentry, and set their DSNs, like other secrets, in the `.env` file next to *docker-compose.yml* (with the Helm chart: in `secret.values` or your `existingSecret`, the other settings in `backend.env`).
+Create a project for the backend and one for the web app in Sentry, and set their DSNs, like other secrets, in the `.env` file next to *docker-compose.yml* (with the Helm chart: in `secret.values` or your `existingSecret`, the other settings in `config`).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -31,7 +32,7 @@ Create a project for the backend and one for the web app in Sentry, and set thei
 Events are tagged with a **release**: the version of the images (`QABOARD_VERSION` when they are built, e.g. the commit). The images that QA-Board publishes have it. If you build your own, set `QABOARD_VERSION` when you run `docker compose build`.
 
 ### Upload the web app's source maps
-To get readable stack traces from the web app, its build uploads the source maps to Sentry, then deletes them so that your server doesn't serve them. Set these variables when you build the `frontend` image (`docker compose build frontend`, they are passed as build arguments):
+To get readable stack traces from the web app, its build uploads the source maps to Sentry, then deletes them so that your server doesn't serve them. Set these variables when you build the `frontend` image (`docker compose build frontend`, they are passed as build arguments). With `deployments/deploy.py ... up --build`, export them in the shell: docker compose then reads your env file, not `.env`.
 
 | Variable | Description |
 |----------|-------------|

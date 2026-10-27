@@ -14,18 +14,19 @@ Her commit said "+1.6 dB PSNR in low light", and she merged it into `main`. Chec
 :::info Before you start
 You need a QA-Board server with the demo projects: [run one on your computer](/docs/get-started/quickstart), then
 open [http://localhost:5151](http://localhost:5151). Steps [7](#step-7-see-which-runs-changed-most) and
-[9](#step-9-save-a-milestone) need you to log in: click **Log in** (top right of the projects list, or at the bottom of
-the sidebar) and log in as `ines`, password `kitefin-demo`. Every person of the demo world has an account.
+[9](#step-9-save-a-milestone) need you to sign in: click **Sign in** (top right of Explore, or at the bottom of the
+sidebar) and sign in as `ines`, password `kitefin-demo`. Every person of the demo world has an account.
 :::
 
 ## 1. Open the project {#step-1-open-the-project}
 On Explore (**Explore** in the top bar, or the home page when you are signed out), click **camera-isp** in the **kitefin** group. You get its commits with results, on every branch, newest first,
-grouped by day.
+grouped by day. Signed in, the page starts with your own batches: click **Everyone** above the list to see every
+commit.
 
 <Shot
-  id="projects/home"
+  id="projects/explore"
   maxWidth={700}
-  caption="Click a project's name to see its commits. The star pins a project on top of the list, in your browser."
+  caption="Click a project's name to see its commits. The star pins a project on top of the list."
 />
 
 The list shows the last 3 days at first: the demo history ends when your QA-Board first started, so you see its
@@ -119,9 +120,15 @@ and zooms on the regions found.
 More in [Which runs changed most](/docs/user-guide/image-viewer#which-runs-changed-most).
 
 ## 8. Find when it started {#step-8-find-when-it-started}
-1. On the card of **photos/facade.png**, click its name. History opens: the facade's metrics over the commits of
-   `main`, from 3 days before the merge to today.
+1. On the card of **photos/facade.png**, hover its name, then click **History** (*this input over time*). History
+   opens: the facade's metrics over the commits of `main`, from 3 days before the merge to today.
 2. Hover the points of the PSNR chart, from right to left.
+
+<Shot
+  id="commit/run-name-menu"
+  maxWidth={380}
+  caption="The menu of a run's name: History is at the top."
+/>
 
 Below the chart, the hovered commit shows as **New** and the commit before it as **Reference**, with their images.
 Where the PSNR jumps, the new commit is the merge, and the leaves get halos.
@@ -190,6 +197,8 @@ Each demo project has a story of its own. Its use case page says what to look fo
 </Cards>
 
 ## What else you can do {#what-else}
+- **Compare with several references at once**, like isp-4.1 and the latest `main`: hover the reference bar, then
+  **Stack a reference**. See [Several references](/docs/user-guide/comparing-results#several-references).
 - **Run more tests, or tune parameters**, from the web app, on any commit: see
   [Running from the web app](/docs/user-guide/running-from-the-webapp#running-tests-and-tuning).
 - **Find why a run failed**: on the camera project, search `one tile`, open *isp: process frames in one tile*, then

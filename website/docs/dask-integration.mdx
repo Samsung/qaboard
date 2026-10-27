@@ -1,25 +1,25 @@
 ---
 id: dask-integration
-title: Running batches on a pool of Dask workers
-sidebar_label: Dask Integration
+title: Run batches on a pool of Dask workers
+sidebar_label: Dask
+description: Run many short runs on a few long-lived Dask workers, started as LSF jobs or on an existing Dask cluster, with a bounded concurrency.
 ---
 
-With the [LSF runner](lsf-integration), each run is an LSF job: it pays LSF's scheduling and allocation overhead, and a batch can flood the cluster. With the `dask` runner, a batch's runs execute on a few long-lived [Dask](https://distributed.dask.org) workers, with a bounded concurrency. By default the workers are themselves LSF jobs, started for you with [dask-jobqueue's `LSFCluster`](https://jobqueue.dask.org/en/latest/generated/dask_jobqueue.LSFCluster.html).
+With the [LSF runner](/docs/lsf-integration), each run is an LSF job: it pays LSF's scheduling and allocation overhead, and a batch can flood the cluster. With the `dask` runner, a batch's runs execute on a few long-lived [Dask](https://distributed.dask.org) workers, with a bounded concurrency. By default the workers are themselves LSF jobs, started for you with [dask-jobqueue's `LSFCluster`](https://jobqueue.dask.org/en/latest/generated/dask_jobqueue.LSFCluster.html).
 
 :::tip When to use it
 - Many short runs (seconds to a few minutes), where LSF overhead dominates.
 - You want to cap how many runs a batch uses at the same time.
 
-For long runs, or to only cap concurrency, the [LSF runner's `concurrency` option](lsf-integration#limiting-concurrency) is simpler.
+For long runs, or to only cap concurrency, the [LSF runner's `concurrency` option](/docs/lsf-integration#limiting-concurrency) is simpler.
 :::
 
 ## Setup
-Install the optional dependencies (python 3.9+):
+Install the optional dependencies (Python 3.9 or later):
 
 ```bash
 pip install "qaboard[dask]"
-# or
-uv sync --extra dask
+uv add "qaboard[dask]"   # or, in a uv project
 ```
 
 Workers run `qa run` commands: they must use the same python environment as `qa batch`, and see the same filesystem (as for LSF).

@@ -2,9 +2,8 @@
 id: user-management
 sidebar_label: User Management
 title: User Management
+description: "Manage QA-Board's users, admins, API tokens and settings, require signing in, authenticate the results qa sends, and restrict who can read files."
 ---
-import useBaseUrl from '@docusaurus/useBaseUrl';
-
 QA-Board has users, admins, API tokens and an audit log. You can require signing in, and restrict who can use the
 server or read some projects (see [Project access and roles](/docs/backend-admin/project-access)). Users sign in with single sign-on (OpenID Connect), LDAP, SAML or local accounts (see
 [Sign-in and single sign-on](/docs/backend-admin/sign-in)), and the `qa` CLI with `qa auth login`.
@@ -15,14 +14,23 @@ Admins see **Admin** in the user menu, at `/admin`:
 - **Users**: search them, see when they last signed in and their tokens, disable accounts, make admins, approve
   the users who [wait for an admin](/docs/backend-admin/sign-in#decide-who-gets-an-account).
   A disabled user's sessions and tokens stop working at their next request.
+- **Groups**: groups of users, filled by hand or from your directory, and their roles on projects (see
+  [Project access and roles](/docs/backend-admin/project-access#groups)).
+- **Access requests**: users who asked for access to a project.
 - **Sign-in**: the sign-in providers, add OpenID Connect providers, and test them.
 - **Tokens**: every API token, with when and from where it was last used. Revoke any of them.
+- **Storage**: the jobs that clean the storage, and their schedules (see [Cleaning the storage](/docs/backend-admin/storage)).
 - **Audit**: sign-ins (and failed ones), tokens created and revoked, `qa auth login` approvals, admin changes and
   setting changes, with who did it and from which IP.
 - **Settings**: change the settings below without restarting the server.
 
+<Shot id="admin/overview" />
+
+<Shot id="admin/users" />
+
 **The first admins** come from the environment: `QABOARD_ADMINS` lists user names (exactly, case included), or the
-emails of LDAP/SAML accounts (local accounts' emails aren't verified), comma-separated. They're admins whatever the
+emails of LDAP, SAML or single sign-on accounts (local accounts' emails aren't verified), comma-separated. With docker
+compose, set it in your site overlay, not in `.env` (see [where each setting goes](/docs/deploy#4-write-the-env-file-and-the-secrets)). They're admins whatever the
 database says, and can't be disabled from the web app, so you can't lock yourself out. Admins then make other admins from the panel. From
 the server, `qaboard-admin` does the same:
 
@@ -37,6 +45,8 @@ docker compose exec backend qaboard-admin revoke-tokens bob   # e.g. after a lea
 ## Settings
 Settings are stored in the database and changed in **Admin → Settings**. An environment variable, when set, wins:
 the panel then shows the setting as "set by the environment", and you change it where you deploy.
+
+<Shot id="admin/settings" />
 
 | Setting | Environment variable | Default | What it does |
 |---|---|---|---|
@@ -61,9 +71,9 @@ Empty environment variables count as unset.
 
 ## Authentication Providers
 `QABOARD_LOGIN_TYPE` chooses the password accounts, or SAML:
-- `LOCAL`: an internal users list, created by qaboard admins.<br />
-- `LDAP`
-- `SAML`: SSO via SAML
+- `LOCAL` (the default): accounts stored in QA-Board's database.
+- `LDAP`: your directory's accounts, with the settings [below](#environment-variables).
+- `SAML`: single sign-on with SAML.
 
 Single sign-on with OpenID Connect comes on top of any of them: see [Sign-in and single sign-on](/docs/backend-admin/sign-in).
 Local accounts always work, for admins created with `qaboard-admin create-admin --password`.
@@ -76,25 +86,24 @@ user name and password form for `LOCAL` and `LDAP`.
   caption="With local or LDAP accounts, users sign in with their user name and password."
 />
 
-> **To register a new `LOCAL` user**, either:
-> - add an entry to the database under `users` table.<br />
-> - use `qaboard-admin create-admin <user_name> --password` (it also makes them an admin).<br />
-> - use the signup endpoint (_signup()_ in _backend/backend/api/auth.py_), when `auth.local_signup` is on:
-> ```bash
-> curl -d "user_name=<user_name>&password=<password>&email=<user_email>&full_name=<user_full_name>" -X POST '<qaboard_url>/api/v1/user/signup/'
-> ```
+**Local accounts** are created:
+- by users, with **Create one** on the sign-in page, when `auth.local_signup` is on (the default with `LOCAL`),
+- by admins, with `qaboard-admin create-admin <user_name> --password` in the backend's container (it also makes them
+  admins),
+- by scripts, with the sign-up endpoint, when `auth.local_signup` is on:
 
-:::tip
-This flow can be improved. So far all instances of QA-Board rely on external authentication providers, so it hasn't been a priority. We would welcome merge requests to add a UX flow to register new users.
-:::
+  ```bash
+  curl -d "user_name=<user_name>&password=<password>&email=<user_email>&full_name=<user_full_name>" -X POST '<qaboard_url>/api/v1/user/signup/'
+  ```
 
 ### Environment variables
-:::tip
-**To apply changes** the backend server needs to be restarted.
-:::
-
 :::note
-With docker compose, set them in `services.backend.environment` in your site overlay (see `deployments/example.yml`). Only some of them (`QABOARD_LOGIN_TYPE`, `QABOARD_LOGIN_REQUIRED`, `QABOARD_LOGIN_RESTRICTED`, `QABOARD_LOGIN_RESTRICTED_YAML`, `QABOARD_ADMINS`, `QABOARD_INGEST_AUTH`) are forwarded from an `.env` file by *docker-compose.yml*.
+With docker compose, set them in `services.backend.environment` in your site overlay (see `deployments/example.yml`),
+and the passwords in `.env`, which the backend reads. `QABOARD_LOGIN_TYPE`, `QABOARD_LOGIN_REQUIRED`,
+`QABOARD_LOGIN_RESTRICTED`, `QABOARD_LOGIN_RESTRICTED_YAML`, `QABOARD_ADMINS` and `QABOARD_INGEST_AUTH` don't work
+in `.env` with `deploy.py`: *docker-compose.yml* sets them from your env file (see
+[where each setting goes](/docs/deploy#4-write-the-env-file-and-the-secrets)). To apply changes, deploy again:
+`deploy.py <env file> up` recreates the backend, without downtime.
 :::
 
 The sign-in policy is set via environment variables such as `QABOARD_LOGIN_*`, `QABOARD_LDAP_*`, `QABOARD_SAML_*`, as described below:
@@ -133,12 +142,13 @@ in **Admin → Settings** (or set `QABOARD_LOGIN_REQUIRED=true`). The API then a
 to sign in and for the results sent by `qa` (unless `ingest.auth` is `token`). Files under `/s/` too, when nginx checks
 who can read them (see [Restricting who can read files](#restricting-who-can-read-files)).
 
+Anonymous users who open the web app are sent to the sign-in page, and come back to the page they opened once signed
+in.
+
 Before turning it on, give a token with the `read` scope (`QABOARD_TOKEN`) to the CI jobs and scripts that read
 results: `qa gate`, `qa check-bit-accuracy`, `qa optimize`, and `qa batch` with `--action-on-existing` other than
 `run`, which needs the batch's past runs. Sending results keeps working without a token, unless `ingest.auth` is
 `token`. Users run `qa auth login` once.
-
-<img alt="Image viewer" src={useBaseUrl('img/login-block-unsigned-user.jpg')} />
 
 ## API tokens
 Users create tokens in **Settings → Access tokens**, or with `qa auth login` (see [Signing in from the CLI](/docs/installation#signing-in)).

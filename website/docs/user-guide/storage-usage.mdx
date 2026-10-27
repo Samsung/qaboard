@@ -5,23 +5,27 @@ sidebar_label: Storage usage
 description: "See how much storage your runs and exports use, what QA-Board deletes automatically, find what it doesn't track, and delete what you don't need."
 ---
 Short on quota? **Storage usage** shows how much storage your runs take, project by project, down to each batch,
-commit, branch and folder, and deletes the files of many runs at once. Open it from your profile menu (**Storage
-usage**, next to **Settings**), or from a project's sidebar.
+commit, branch and folder, and deletes the files of many runs at once. Open it from your account menu (**Storage
+usage**, next to **Settings**), from a project's sidebar, or with **Storage usage** at the top right of your home page.
 
 ## Find what takes space
 - **Projects**: your usage in each project. Click one to see its batches.
 - **Batches**, **Commits**, **Branches**: the biggest first. Filter by project, branch, or age (*No runs for 3 months*),
   search, and sort by size, age or number of runs.
-- **Folders**: the folders your runs are in, like on disk. **Paste the folder from a quota alert** to see what QA-Board
-  knows there, and open its subfolders. Your biggest folders are suggested.
+- **Folders**: the folders your runs are in, like on disk. Paste a folder in its box, e.g. the one from a quota alert,
+  to see what QA-Board knows there, and open its subfolders. Your biggest folders are suggested.
 - **Users**: who uses the most, with their share and biggest project, for everyone's runs or a project's. Click someone
   to see their runs: admins can then delete them.
 - **Your runs** or **Everyone's**: switch between your runs and everyone's. You see other people's usage in the projects
   where you're a developer or an owner; admins see everyone's.
 - Opened from a project, the page shows only that project: **All projects**, at the top, shows them all again.
 
+<Shot id="storage/batches" />
+
 In **Folders**, folders that only lead to one subfolder are skipped: the page starts where your runs split, and a row
 like `a/b/c` opens `c` directly. Click `/` in the path to start from the root.
+
+<Shot id="storage/folders" />
 
 Each batch and commit shows its commit's message (hover for all of it), author and date, and each branch its latest
 commit. Click a project, branch or person in a row to filter by it, and a row to select it.
@@ -45,6 +49,8 @@ To keep a batch, make it a [milestone](/docs/user-guide/milestones).
    - **Other people's runs**: you delete only the runs you ran. Ask them, or an admin.
    - **Running runs** are kept.
 3. For big deletions, type the sentence QA-Board asks for, then confirm.
+
+<Shot id="storage/delete" />
 
 The deletion runs in the background: follow it in **Your deletions**, at the top of the page, with its errors, e.g.
 files QA-Board could not delete.
@@ -98,9 +104,9 @@ Click **Why does IT's quota say something else?** on the page: it gives the comm
 subfolders, your biggest files and your exports, for the folder you paste:
 
 ```bash
-du -sh /algo/project/outputs/alice
-du -h --max-depth=3 /algo/project/outputs/alice 2>/dev/null | sort -rh | head -30
-find /algo/project/outputs/alice -user alice -type f -size +100M -printf '%s\t%p\n' 2>/dev/null | sort -rn | head -50 | numfmt --to=si --field=1
+du -sh /mnt/qaboard/kitefin/camera-isp
+du -h --max-depth=3 /mnt/qaboard/kitefin/camera-isp 2>/dev/null | sort -rh | head -30
+find /mnt/qaboard/kitefin/camera-isp -user ines -type f -size +100M -printf '%s\t%p\n' 2>/dev/null | sort -rn | head -50 | numfmt --to=si --field=1
 ```
 
 Prefer deleting runs from QA-Board rather than their folders: QA-Board then knows the space is free.

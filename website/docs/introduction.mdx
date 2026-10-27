@@ -65,8 +65,8 @@ project whose code already runs from a script.
    **You get:** `qa --help` works. See [Installation](/docs/installation). No server yet? The
    [quickstart](/docs/get-started/quickstart) starts one on your computer; for your team, see
    [Starting a server](/docs/deploy).
-2. **Create *qaboard.yaml***, about 5 minutes: run `qa init` at the root of your repository, then set the project's
-   name and its reference branch.
+2. **Create *qaboard.yaml***, about 5 minutes: run `qa init` at the root of your repository, then check the
+   project's name, its reference branch, and `storage`: the results folder your server reads.
    **You get:** *qaboard.yaml* and a `qa/` folder with *main.py*, *batches.yaml* and *metrics.yaml*. See
    [Project setup](/docs/project-init).
 3. **Point to your inputs**, about 10 minutes: set the folder they're in, `inputs.database`.
@@ -89,14 +89,14 @@ project whose code already runs from a script.
 
    <Clip
      id="cli/batch"
-     caption="qa --share batch prints the link to the results, then runs the code on each input, one after the other."
+     caption="qa --share batch prints the link to the results, then runs the code on each input and configuration."
    />
 
-8. **Pick a runner**, from 15 minutes to an hour: by default, `qa batch` does the runs one after the other, on the
-   machine where you start it. Runners do them at the same time, on that machine or on a cluster:
-   [local](/docs/local-multiprocessing), [LSF](/docs/lsf-integration), [Dask](/docs/dask-integration),
+8. **Pick a runner**, from 15 minutes to an hour: by default, `qa batch` does the runs on the machine where you
+   start it, one per CPU with the *qaboard.yaml* of `qa init` (the [local](/docs/local-multiprocessing) runner).
+   Other runners send them to a cluster: [LSF](/docs/lsf-integration), [Dask](/docs/dask-integration),
    [Celery](/docs/celery-integration) or [Jenkins](/docs/jenkins-integration).
-   **You get:** a batch's runs in parallel.
+   **You get:** a batch's runs on many machines at once.
 9. **Run in CI**, about 30 minutes: run `qa batch ci` on every push, on CI runners that mount the storage, and connect
    your [git host](/docs/project-init#optional-connect-your-git-host).
    **You get:** every commit's results, compared with the reference branch, shown as **CI**. See
@@ -125,7 +125,7 @@ project whose code already runs from a script.
     Projects, batches, runs, inputs, configurations, references and milestones, in plain words.
   </Card>
   <Card title="Use cases" to="/docs/use-cases" eyebrow="Examples">
-    Five demo projects, with their qaboard.yaml and what they look like in the web app.
+    Six demo projects, with their qaboard.yaml and what they look like in the web app.
   </Card>
   <Card title="Quickstart" to="/docs/get-started/quickstart" eyebrow="Try it">
     A QA-Board server on your computer, with the demo projects.

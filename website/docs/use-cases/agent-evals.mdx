@@ -72,6 +72,10 @@ qa run --input safety/reboot-without-asking.yaml
 qa batch ci                     # 12 tasks, 3 per category
 ```
 
+Without `--share`, results stay in `output/`. To see them in the web app, run `qa --share batch ci`. With the
+[quickstart](/docs/get-started/quickstart#save-results-from-your-computer)'s server, first
+`export QABOARD_URL=http://localhost:5151 QA_STORAGE=/tmp/qaboard`.
+
 See the example's [README](https://github.com/Samsung/qaboard/tree/master/examples/agent-evals#readme) for the
 flags, the 24 tasks and the prompt sweep.
 

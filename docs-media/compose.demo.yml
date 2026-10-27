@@ -31,6 +31,11 @@ services:
       - QABOARD_URL=http://localhost:${QABOARD_DEMO_PORT:-5151}
       # Runs started from the web app (Run Tests, tuning) run in the backend's container
       - QABOARD_TUNING_RUNNER=local
+      # The fleet platform's tech lead runs the server: the admin panel's shots (docs-media/shots/admin.spec.ts)
+      - QABOARD_ADMINS=adaeze
+      # The seeder and the shots' qa commands send results without a token: whatever the admin panel says. The admin
+      # panel's Settings show it as set by the environment (admin/settings)
+      - QABOARD_INGEST_AUTH=off
     volumes:
       - ${QABOARD_DEMO_RESULTS:-/mnt/qaboard}:${QABOARD_DEMO_RESULTS:-/mnt/qaboard}
 

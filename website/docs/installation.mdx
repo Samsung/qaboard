@@ -22,6 +22,17 @@ cluster's nodes.
 
    If your code is an executable that `qa` only starts, you can install `qa` as a tool instead:
    `uv tool install qaboard`.
+
+   :::caution
+   The latest release on PyPI, 1.1.1, doesn't have some features these docs describe yet: `qa gate`, `qa auth`,
+   `Metric`, `QABOARD_TOKEN`, commit statuses on GitHub. Until the next release, install `qa` from the repository
+   to use them:
+
+   ```bash
+   pip install "qaboard @ git+https://github.com/Samsung/qaboard"
+   ```
+
+   :::
 2. Tell `qa` where your QA-Board server is, e.g. in your shell's profile:
 
    ```bash
@@ -29,7 +40,11 @@ cluster's nodes.
    ```
 
    `<your-qaboard>` is your server's address, e.g. `localhost:5151` for the
-   [quickstart](/docs/get-started/quickstart)'s.
+   [quickstart](/docs/get-started/quickstart)'s. No server yet? The quickstart starts one on your computer; for your
+   team, see [Starting a QA-Board server](/docs/deploy).
+
+   Projects usually save shared results in `/mnt/qaboard` (`storage` in *qaboard.yaml*), but the quickstart's
+   server reads them in `/tmp/qaboard`: tell `qa` with `export QA_STORAGE=/tmp/qaboard`.
 3. Check that `qa` runs. It lists its commands:
 
    ```bash
@@ -125,6 +140,10 @@ tokens...), `qa run` and `qa batch` fail before running anything, and say what t
   [`qa init`](/docs/project-init).
 - **"We are not sure where to find your QA-Board server":** set `QABOARD_URL`, see
   [above](#connecting-to-a-custom-qa-board-server).
+- **"The storage path does not exist":** `qa` couldn't create the folder for shared results, `storage` in
+  *qaboard.yaml*. Mount your server's results folder there, or point `qa` to it with `QA_STORAGE`, e.g.
+  `export QA_STORAGE=/tmp/qaboard` for the quickstart's server. See
+  [Where is the data saved?](/docs/storage/where-is-the-data)
 
 <Cards>
   <Card title="Add QA-Board to your project" to="/docs/project-init" eyebrow="Next">

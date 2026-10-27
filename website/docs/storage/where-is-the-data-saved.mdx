@@ -2,50 +2,60 @@
 id: where-is-the-data
 sidebar_label: Where is the data?
 title: Where is the data saved?
+description: Where qa saves your runs' files and your builds, how to set the results storage in qaboard.yaml or with QA_STORAGE, and how to find a commit's folders from scripts.
 ---
 
-When output files are saved at a centralized location, we can display them from the web application or easily access them from scripts.
+`qa` saves your runs' output files in folders, and the QA-Board server reads them there to show them in the web app.
+This page sets where they go.
 
-## Where is the data saved?
-- **Metadata** on outputs, commits, etc is managed by the QA-Board server with postgresql.
-- **Local runs**'s output files  are saved in the *local* current directory under `output/`.
-- **Shared runs**'s output files (`qa --share`) are saved at a centralized location managed by QA-Board.
-- **Artifacts** are saved at a centralized location. It makes it possible to start tuning experiments from QA-Board.
+- **Local runs**, without `--share` and outside CI, are saved in your project, under `output/`. Only you see them.
+- **Shared runs**, with `qa --share` or in CI, are saved in the results **storage**, a folder that the server and every
+  machine running `qa` mount at the same path, often an NFS share.
+- **Artifacts**, the files a commit needs to run again, like its build, are saved in the storage too (see
+  [Artifacts](/docs/storage/artifacts)). They let people start runs and tuning from the web app.
+- **Metadata**, like the runs' metrics and the commits, is in the server's database.
 
-QA-Board saves the data under:
+## Set the results storage {#set-the-results-storage}
+Give its path in *qaboard.yaml*. `qa init` writes:
 
 ```yaml title="qaboard.yaml"
-storage: /mnt/qaboard/
+storage:
+  linux: /mnt/qaboard
 ```
 
-:::tip
-In most cases that's all you need, so you can skip to the next page!
-If your organization's site package already [defines a `storage`](../project-init#site-defaults), you don't even need that.
-:::
+The `QA_STORAGE` environment variable wins over it, e.g. `export QA_STORAGE=/tmp/qaboard` for the
+[quickstart](/docs/get-started/quickstart)'s server, which reads results there. If your organization's site package
+[sets a `storage`](/docs/project-init#site-defaults), you don't need one.
 
-### Split storage for output and artifacts
-In some cases you want to separate the storage of outputs and artifacts (maybe to comply with quota policies...):
-```yaml
+`qa` creates the folder if it doesn't exist, and stops with *The storage path does not exist* when it can't. The
+server must mount it too, at the same path: see [Starting a server](/docs/deploy#create-a-directory-to-store-results).
+
+Under the storage, each commit's results are in `<project>/<first 2 characters of the commit>/<next 14>/`, e.g.
+`/mnt/qaboard/kitefin/camera-isp/3f/a91c02d4e7b815/`.
+
+### Separate folders for outputs and artifacts {#split-storage-for-output-and-artifacts}
+To keep them apart, e.g. because of quotas:
+
+```yaml title="qaboard.yaml"
 storage:
   outputs: /mnt/qaboard/outputs
   artifacts: /mnt/qaboard/artifacts
 ```
 
-:::note
-To access non-default storage locations from QA-Board, make sure they are mounted. Refer to [the server bringup docs](../deploy#create-a-directory-to-store-results)
-:::
+The server must mount both.
 
-### Dealing with different mount names on Windows
-```yaml
+### Different paths on Windows {#dealing-with-different-mount-names-on-windows}
+
+```yaml title="qaboard.yaml"
 storage:
   linux: /mnt/qaboard
   windows: //shared/qaboard
 ```
 
-### Using variables in storage locations
-You can use `{project}`, `{subproject}`, `{user}`, and their attributes. For instance:
+### Variables in storage paths {#using-variables-in-storage-locations}
+`{project}`, `{subproject}`, `{user}` and their attributes are replaced in the paths:
 
-```yaml
+```yaml title="qaboard.yaml"
 storage:
   artifacts: /mnt/{subproject.parts[0]}/artifacts
   outputs:
@@ -53,38 +63,26 @@ storage:
     windows: //shared/{subproject.name}/outputs/{user}
 ```
 
-
-:::note
-Avoid using `{user}` for the artifacts location: you want some stability for this!
-Even if you use `{user}` for outputs, if you ran a first tuning as a user then with a second as another, you'll lose easy access to files related to the 1st tuning.... It's usually not really a big deal as we're just talking about the STDOUT of `qa batch`...
-
-**TODO:** Maybe `{user}` should evaluate to the current user name for outputs and to the committer name for artifacts. 
+:::caution
+Don't use `{user}` in the artifacts' path: runs started from the web app run as the user who started them, and
+wouldn't find the artifacts that the CI saved.
 :::
 
-## Accessing Storage locations programmatically
-In *qaboard/config.py* the location where things are stored is defined via:
+## Find a commit's folders from scripts {#accessing-storage-locations-programmatically}
+`qa get` prints them, e.g. `qa get outputs_commit`. Python code can import them from `qaboard.config`:
 
-| variable                | sample value                                          |
-|-------------------------|-------------------------------------------------------|
-| `artifacts_root`        | `/mnt/qaboard`                                        |
-| `artifacts_project`     | `/mnt/qaboard/your/project`                           |
-| `artifacts_commit_root` | `/mnt/qaboard/your/project/ab/cdef0123456789` (the first 16 characters of the commit hash) |
-| `artifacts_commit`      | `/mnt/qaboard/your/project/ab/cdef0123456789/subproject` |
-| `artifacts_branch`      | `/mnt/qaboard/your/project/branches/branch-slug/subproject` |
+| Variable | Example |
+|---|---|
+| `artifacts_root` | `/mnt/qaboard` |
+| `artifacts_project` | `/mnt/qaboard/your/project` |
+| `artifacts_commit_root` | `/mnt/qaboard/your/project/ab/cdef0123456789` (the first 16 characters of the commit's hash) |
+| `artifacts_commit` | `/mnt/qaboard/your/project/ab/cdef0123456789/subproject` |
+| `artifacts_branch` | `/mnt/qaboard/your/project/branches/branch-slug/subproject` |
 
-> Similarly, there are also: `outputs_root`, `outputs_project`, `outputs_commit`, `outputs_commit_root`. Print them with e.g. `qa get outputs_commit`.
+`outputs_root`, `outputs_project`, `outputs_commit` and `outputs_commit_root` are the same for outputs.
 
 :::tip
-The `QA_STORAGE` environment variable overrides `storage` from *qaboard.yaml*.
+In CI, save reports like coverage in `$(qa get artifacts_branch)`, and link to them from the web app's
+[Integrations menu](/docs/triggering-third-party-tools): the server serves the storage's files under `/s/`, e.g.
+`href: "/s/mnt/qaboard/your/project/branches/${commit.branch_slug}/coverage/index.html"`.
 :::
-
-:::tip
-In your CI, you can save e.g. coverage reports at `$(qa get artifacts_branch)`, and make them easily [accessible as links](https://samsung.github.io/qaboard/docs/triggering-third-party-tools) as sidebar menus with `href: /s/mnt/qaboard/your/project/branches/{commit.branch_slug}/coverage`.
-
-We could simplify that API a tiny bit with e.g. `href: "{branch.artifacts}/coverage"`...
-:::
-
-<!-- ## Support for usual blob storage like S3
-We can get hints from connex projects facing the same needs:
-- [in MLflow](https://github.com/mlflow/mlflow/tree/dcda3767d4119713cbf8d33ef5ab31655183cb48/mlflow/store/artifact)
-- [in DVC](https://github.com/iterative/dvc/tree/master/dvc/tree), [docs](https://dvc.org/doc/command-reference/remote), [deps](https://github.com/iterative/dvc/blob/master/setup.py#L87) -->

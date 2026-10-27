@@ -194,3 +194,36 @@ clip('logs/live-tail', {
     await ui.hold(2500);
   },
 });
+
+// The runs of a batch, one line each (webapp/src/components/BatchLogs.jsx): the camera ISP's one-tile commit, whose
+// 113 MP test wall LSF stopped, and its 18 other runs
+shot('logs/runs', {
+  project: IQ,
+  login: 'tobias',
+  url: d => d.commitUrl(IQ, 'one-tile', { view: 'logs' }),
+  alt: 'The Logs view\'s filters, All · 19, Failed · 1, Running · 0, Successful · 18, then a line per run: the 113 MP '
+    + 'test wall first, failed, tagged "LSF: out of memory", then charts and photos, each with its configuration, how '
+    + 'long it ran and its buttons.',
+  caption: 'Each run on one line: failed runs come first, tagged with why they failed, and the filters above count '
+    + 'the runs of each status.',
+  actions: async ui => {
+    await ui.page.getByText('LSF: out of memory').first().waitFor();
+    await ui.cursor.moveTo({ x: 1300, y: 880 });
+    await ui.settle();
+  },
+  // a box: from the filters to the eighth run, as wide as the list
+  target: async page => {
+    const box = async (locator: ReturnType<Page['locator']>) => {
+      await locator.waitFor();
+      const b = await locator.boundingBox();
+      if (!b) throw new Error(`[logs/runs] ${locator} has no box`);
+      return b;
+    };
+    const filters = await box(page.getByText(/^All · \d+$/).first());
+    const openFailed = await box(page.getByRole('button', { name: 'Open failed runs' }));
+    const last = await box(page.getByText('photos/facade.png', { exact: true }).first());
+    const x = filters.x - 16;
+    const y = filters.y - 12;
+    return { x, y, width: openFailed.x + openFailed.width + 24 - x, height: last.y + last.height + 14 - y };
+  },
+});

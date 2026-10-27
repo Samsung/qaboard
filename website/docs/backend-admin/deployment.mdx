@@ -2,6 +2,7 @@
 id: deployment
 sidebar_label: Upgrades & Rollbacks
 title: Deployments, rollbacks and high availability
+description: "Deploy, upgrade and roll back QA-Board with docker compose without downtime, back up and restore its database, and tune PostgreSQL."
 ---
 With docker compose, deploy and upgrade QA-Board with `deployments/deploy.py`. It gives:
 
@@ -30,16 +31,20 @@ docker compose --env-file deployments/mysite/production.env ps
 deployments/deploy.py deployments/mysite/production.env compose logs -f backend
 ```
 
-Keep secrets out of the env files: put them in `.env` on the host.
+Keep secrets out of the env files: put them in `.env` on the host, which the backend reads. `deploy.py` gives docker
+compose your env file instead of `.env`, so the settings docker compose reads itself, and those that
+*docker-compose.yml* sets from them (`QABOARD_LOGIN_*`, `QABOARD_ADMINS`, `QABOARD_INGEST_AUTH`), go in the env file
+or the overlay: see [where each setting goes](/docs/deploy#4-write-the-env-file-and-the-secrets).
 
 ## Deploying
 ```bash
-# The first time: --init allows deploying into a new compose project (with an empty database)
-deployments/deploy.py deployments/mysite/production.env up --build --init
-# Upgrades: git pull, then
-deployments/deploy.py deployments/mysite/production.env up --build
-# With images built by your CI and pushed to a registry, tagged with a version
+# A release's images (ghcr.io/samsung/qaboard:<service>-1.2.0), from a checkout of v1.2.0.
+# The first time, --init allows deploying into a new compose project (with an empty database)
+deployments/deploy.py deployments/mysite/production.env up --version 1.2.0 --init
+# Images built by your CI and pushed to a registry, tagged with a version, e.g. the commit
 deployments/deploy.py deployments/mysite/production.env up --version 1a2b3c4d
+# Or build the images from your checkout
+deployments/deploy.py deployments/mysite/production.env up --build
 ```
 
 `up`:
@@ -50,11 +55,26 @@ deployments/deploy.py deployments/mysite/production.env up --version 1a2b3c4d
 5. Updates the web app and docs bundles. Old bundles are kept, so clients with an old version keep working.
 6. Records the version for `rollback` and `status`, and removes old images so the disk doesn't fill up.
 
-If a deploy fails, its output says which step. The images are named `arthurflam/qaboard:<service>-<version>` by default: to use your own registry, set `image:` in your site overlay.
+If a deploy fails, its output says which step. The images are named `ghcr.io/samsung/qaboard:<service>-<version>`
+by default: to use another registry (a mirror, a fork's `ghcr.io/<owner>/qaboard`, or where your CI pushes), set
+`QABOARD_IMAGE` in the env file. The compose files and nginx's configuration come from your checkout, the code from
+the images: check out the version you deploy.
 
 :::tip Deploying from CI
 Build and push the images in CI, tagged with the commit, then run `deploy.py <env file> up --version <commit>` on the host (e.g. over ssh). Deploy to a staging environment first, test it, then deploy the same images to production.
 :::
+
+## Upgrading
+1. **Read the [release notes](/release-notes)** of the versions since yours, "Before you upgrade" first: settings to
+   check and data to move before the database migrations run.
+2. **Check that the latest daily backup worked** (see [Backups](#backups)).
+3. **Check out the new release, and deploy it:**
+   ```bash
+   git fetch --tags && git checkout v1.2.1
+   deployments/deploy.py deployments/mysite/production.env up --version 1.2.1
+   ```
+4. **Check it worked:** `status` shows the new version, all the containers running and the backends healthy, and the
+   web app opens. If not, [roll back](#rollbacks).
 
 ## Rollbacks
 ```bash
@@ -161,8 +181,9 @@ Before upgrading the host (CPU, memory, storage, OS...):
 Going further on a single host doesn't buy much: the host is the single point of failure. A warm standby (a second host with a PostgreSQL streaming replica, and a manual failover) is possible but costs about as much effort as [moving to kubernetes](kubernetes.mdx), which gives automatic failover.
 
 ## First-time setup of a host
+[Starting a QA-Board server](/docs/deploy) walks through the first deploy. In short:
 1. Docker Engine with **docker compose ≥ 2.24** (`docker compose version`). If your CI builds the images on another host, it needs it too.
-2. Clone the repository.
+2. Clone the repository, and check out the version you deploy.
 3. Fill the secrets in `.env`, and the SSL certificates if you use HTTPS (see [Starting a server](../start-server.mdx#using-ssl--hosting-behind-a-reverse-proxy)).
 4. If you pull images from a private registry, `docker login` to it once, as the user who deploys.
 5. When you move an existing deployment to `deploy.py`, check that the compose project name matches the existing one: `docker compose ls`. It must be `COMPOSE_PROJECT_NAME` in the env file, or compose would start with new, empty volumes. `deploy.py` refuses to deploy into a project that doesn't exist, unless you pass `--init`.
@@ -173,6 +194,8 @@ In the env file, or the shell's environment (which takes precedence):
 | Variable | Default | Usage |
 |----------|---------|-------|
 | `QABOARD_VERSION` | the deployed version | Image version (tag suffix), e.g. the commit. `up --version` sets it. |
+| `QABOARD_IMAGE` | `ghcr.io/samsung/qaboard` | Where the images are pulled from: a mirror, a fork's `ghcr.io/<owner>/qaboard`, your CI's registry |
+| `QABOARD_PORT_HTTP` | 5151 | The host's port of the web app (nginx) |
 | `QABOARD_BACKEND_REPLICAS` | 1 | Backend replicas. 2+ for zero-downtime deploys. |
 | `QABOARD_UWSGI_PROCESSES`, `QABOARD_UWSGI_CHEAPER`, `QABOARD_UWSGI_CHEAPER_INITIAL` | 16, 8, 16 | uwsgi processes *per replica* (max, min, initial) |
 | `QABOARD_DEPLOY_PRE_HOOK` | _none_ | A command run before deploying, e.g. to mount network volumes |

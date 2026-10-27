@@ -2,11 +2,14 @@
 id: storage
 sidebar_label: Cleaning the storage
 title: Cleaning the storage
+description: "Free disk space and keep the database small from the admin panel: hard-delete deleted runs, delete artifacts and old results, scan the storage, and schedule these jobs."
 ---
 Free disk space and keep the database small from **Admin → Storage**: delete for good the runs users deleted, purge the
 runs whose files are gone, delete commits' artifacts, delete old results as each project's *qaboard.yaml* says, find
 and delete what QA-Board doesn't track, and schedule these jobs instead of keeping cron jobs on the server. Jobs run in
 the background: their page shows their progress, their log, and every error.
+
+<Shot id="admin/storage" />
 
 ## Delete the runs users deleted, for good
 When users delete runs, QA-Board deletes their files but keeps their metadata, so they stay listed and can be redone.
@@ -18,6 +21,8 @@ On a busy server, those runs can become most of the database.
 3. Choose the runs' dates: **Runs created before** takes a date (`2026-01-31`, UTC) or a duration before the job starts
    (`1month`). **Count the deleted runs** says how many match.
 4. Start a **dry run** first: it deletes nothing and says what would be deleted. On its page, **Run it for real**.
+
+<Shot id="admin/hard-delete" />
 
 What's left of the runs' files is deleted, then their rows. Batches left without runs are deleted too; commits are kept.
 
@@ -100,6 +105,8 @@ not just because they're signed in, even when `projects.signed_in_role` makes ev
 everyone's usage to everyone who can see the project, set `storage.others_visible_to` (`QABOARD_STORAGE_OTHERS_VISIBLE_TO`)
 to `signed_in` in **Admin → Settings**. Only signed-in users have Storage usage.
 
+<Shot id="storage/users" />
+
 ## Scanning the storage
 QA-Board only knows the files of its runs and artifacts. **Scan the storage** walks the projects' storage roots (and
 any other folder you add) and finds, with the owner of every file:
@@ -154,6 +161,8 @@ still runs saves its results when it ends. Users can redo the others.
 Start with a dry run, then schedule it, e.g. *Stuck runs*: **Fail stuck runs** of `*`, pending for over `1week`, every
 night. **Runs activity** tells admins how many runs are pending for over a week, offers to start the job or schedule it,
 and says which schedule does it. Each run says why it failed (`data.failed_reason`).
+
+<Shot id="activity/stuck-runs" />
 
 Runs from before QA-Board recorded when runs start count from when they were created: a run redone just before the
 upgrade may look old. The dry run lists how many runs it would change, per project.

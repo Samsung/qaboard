@@ -2,6 +2,7 @@
 id: kubernetes
 sidebar_label: Kubernetes
 title: Running QA-Board on Kubernetes
+description: "Install QA-Board on Kubernetes with its Helm chart: a quickstart on your laptop, then the results storage, database, ingress, sign-in, backups and upgrades on a real cluster."
 ---
 QA-Board has a Helm chart. Each release publishes it at `oci://ghcr.io/samsung/charts/qaboard`, with images built and tested by CI (`ghcr.io/samsung/qaboard`). The chart's source is in [`charts/qaboard`](https://github.com/Samsung/qaboard/tree/master/charts/qaboard), and `helm show values oci://ghcr.io/samsung/charts/qaboard` lists all its settings, with comments.
 
@@ -70,7 +71,7 @@ helm install qaboard oci://ghcr.io/samsung/charts/qaboard \
 
 - **Versions:** helm installs the latest release, `--version` picks another one. The chart has QA-Board's version and installs that release's images: the chart `1.2.0` runs `ghcr.io/samsung/qaboard:backend-1.2.0`... Each commit on `master` also publishes a development version, like `1.2.1-dev.42`: helm only installs them with `--devel` or an explicit `--version`.
 - **Images:** `image.version` picks other images, e.g. a commit (`1a2b3c4d`) or `latest` (the latest `master`). To use a mirror, set `image.repository` and `imagePullSecrets`. Forks of the repository publish their own images and chart, at `ghcr.io/<owner>/qaboard` and `oci://ghcr.io/<owner>/charts/qaboard`.
-- **Settings:** `config` sets the backend's [environment variables](../start-server.mdx), `secret` its secrets (`SECRET_KEY`, `QABOARD_DB_PASSWORD`, the git hosts' tokens: `GITLAB_ACCESS_TOKEN`, `GITHUB_ACCESS_TOKEN` and the variables named by `token_env` and `webhook_secret_env` in `QABOARD_GIT_HOSTS`, `QABOARD_WEBHOOK_SECRET`, LDAP credentials...). Prefer creating the secret yourself (e.g. with external-secrets) and referencing it with `secret.existingSecret`. `SECRET_KEY` signs sessions: keep it when you migrate, or everyone is logged out.
+- **Settings:** `config` sets the backend's [environment variables](/docs/deploy#optional-environment-variables), `secret` its secrets (`SECRET_KEY`, `QABOARD_DB_PASSWORD`, the git hosts' tokens: `GITLAB_ACCESS_TOKEN`, `GITHUB_ACCESS_TOKEN` and the variables named by `token_env` and `webhook_secret_env` in `QABOARD_GIT_HOSTS`, `QABOARD_WEBHOOK_SECRET`, `QABOARD_LDAP_PASSWORD`, `QABOARD_OIDC_CLIENT_SECRET`, `QABOARD_ENCRYPTION_KEY`...). Prefer creating the secret yourself (e.g. with external-secrets) and referencing it with `secret.existingSecret`. `SECRET_KEY` signs sessions: keep it when you migrate, or everyone is logged out.
 - **Migrations:** the migrations Job gets `config` too: data migrations need e.g. the [git hosts](./git-hosts.mdx#upgrading-from-older-versions), so give `QABOARD_GIT_HOSTS` in `config` as JSON, not as the path to a file the Job doesn't mount.
 
 ### What runs
@@ -135,18 +136,27 @@ ingress:
     - secretName: qaboard-tls
 ```
 
-Users and the `qa` CLI then use `QABOARD_URL=https://qaboard.example.com`.
+Users and the `qa` CLI then use `QABOARD_URL=https://qaboard.example.com`. Behind the ingress, set
+`QABOARD_TRUSTED_PROXY_HOPS: "1"` in `config`, so that the audit log records users' IPs (see
+[rate limits and proxies](/docs/backend-admin/sign-in#rate-limits-and-proxies)).
 
 ### Authentication
-Set the [sign-in settings](./managing-users.mdx#environment-variables) in `config`, and their secrets in the secret:
+Set the [sign-in settings](./managing-users.mdx#environment-variables) in `config`, and their secrets in the secret.
+Name your first admins in `config.QABOARD_ADMINS` ([user management](./managing-users.mdx)).
 - **LOCAL** (default): users stored in QA-Board's database.
 - **LDAP**: `QABOARD_LOGIN_TYPE: LDAP`, `QABOARD_LDAP_HOST`, `QABOARD_LDAP_USER_BASE`, `QABOARD_LDAP_USER_FILTER`... and `QABOARD_LDAP_PASSWORD` in the secret.
 - **SAML** (SSO): `QABOARD_LOGIN_TYPE: SAML`, and `QABOARD_SAML_DIR` pointing to the SAML settings, mounted from a Secret with `backend.extraVolumes` and `backend.extraVolumeMounts`.
+- **Single sign-on with OpenID Connect**, on top of any of them: `QABOARD_OIDC_ISSUER` and `QABOARD_OIDC_CLIENT_ID` in
+  `config`, `QABOARD_OIDC_CLIENT_SECRET` in the secret (see [Sign-in and single sign-on](./sign-in.mdx)).
 
 `QABOARD_LOGIN_REQUIRED` blocks anonymous users. To restrict who can read the files of some projects, see [user management](./managing-users.mdx#restricting-who-can-read-files) and `proxy.restrictFiles`.
 
-:::warning Keep QA-Board on a trusted network
-The API that `qa` uses to save results is not authenticated, even when sign-in is required: anyone who can reach the server can create or delete results, and make the server act on files in its storage. Only expose QA-Board to networks you trust (an internal load balancer, a VPN, an allowlist on the ingress), never to the internet, until the API supports tokens for saving results.
+:::danger Keep QA-Board on a trusted network
+By default (`ingest.auth` is `off`), the API that `qa` uses to save results accepts results without a token, even when
+sign-in is required: anyone who can reach the server can create or delete results, and make the server act on files
+in its storage. Require tokens once your CI jobs have them ([results sent by qa](./managing-users.mdx#results-sent-by-qa)),
+and only expose QA-Board to networks you trust (an internal load balancer, a VPN, an allowlist on the ingress). See the
+[known issues](https://github.com/Samsung/qaboard/blob/master/SECURITY.md#known-issues) in *SECURITY.md*.
 :::
 
 ### Backups
@@ -171,7 +181,8 @@ helm -n qaboard rollback qaboard   # to the previous revision
 - Upgrades are rolling: database migrations run first in a Job (if they fail, nothing running changes), then pods are replaced one by one, new ones first.
 - `--rollback-on-failure` rolls back automatically if the new pods don't become ready.
 - A rollback doesn't revert database migrations. If a new version's migrations must be undone, restore a backup.
-- Read the [release notes](/release-notes) before upgrading.
+- Read the [release notes](/release-notes) before upgrading, "Before you upgrade" first: settings to check and data to
+  move before the migrations run.
 
 ### Differences with docker compose
 - **Old frontend bundles are not kept**: with compose, the bundles of previous versions stay in a volume, so clients that didn't reload keep working. On Kubernetes each proxy pod only has the current bundle, so a client with an old tab gets errors when it lazy-loads a page, until it reloads.

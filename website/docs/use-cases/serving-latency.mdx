@@ -81,9 +81,14 @@ and sizes its model to your machine, so the load levels mean the same thing ever
 
 ```bash
 cd examples/serving-latency
+pip install qaboard                        # qa/main.py only needs the standard library and PyYAML
 qa run --input profiles/steady-high.yaml   # 6,000 requests/s, about 10 s
 qa batch ci                                # 5 load profiles, about 45 s
 ```
+
+Without `--share`, results stay in `output/`. To see them in the web app, run `qa --share batch ci`. With the
+[quickstart](/docs/get-started/quickstart#save-results-from-your-computer)'s server, first
+`export QABOARD_URL=http://localhost:5151 QA_STORAGE=/tmp/qaboard`.
 
 Close what you can while it runs: a busy laptop makes for a slow gateway and noisy tails. See the example's
 [README](https://github.com/Samsung/qaboard/tree/master/examples/serving-latency#readme) for the other batches.

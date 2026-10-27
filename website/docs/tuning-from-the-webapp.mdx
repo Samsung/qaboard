@@ -41,6 +41,11 @@ To check: open a commit of your CI on its commit page, then **Run Tests / Tuning
 tuning* example, and send. The batch's runs start, and the **Logs** view lists the batch under "Started from
 QA-Board", with the `qa batch` command QA-Board ran and its log.
 
+<Shot
+  id="logs/batch-commands"
+  caption="A sweep started from the web app: the Logs view shows the qa batch command QA-Board ran, its log, and its runs."
+/>
+
 ## How the batch starts {#how-the-batch-starts}
 For each request, the server writes a script in the batch's directory and runs it with the chosen runner. The script:
 - goes to the commit's artifacts folder, and sources the *.envrc* files of that folder and of its parents: activate

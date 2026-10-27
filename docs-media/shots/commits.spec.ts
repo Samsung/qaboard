@@ -95,6 +95,13 @@ shot('commits/filter', {
 
 const DE = 'detection-eval';
 
+// When milestones were last updated, as the seed saved them. The snapshot's milestones predate the description of
+// their runs (datasets, qa batches): the backend describes them the first time it lists them, and that write sets
+// their updated_at to the server's clock (backend/api/milestones.py: list_milestones' backfill), days after T0, the
+// captures' clock: menus said "in 5 days". The seed sets updated_at to created_at (docs-media/seed.py).
+const asSaved = (milestone: any, t0: Date) =>
+  new Date(milestone.updated_at) > t0 ? { ...milestone, updated_at: milestone.created_at } : milestone;
+
 // A personal milestone in a group, and a favorite, without changing the demo's database: in the API's answer only, the
 // page loaded again. entropy-try is the entropy calibration commit's CI batch, as commit/milestone saves it (its runs
 // are the release's: the same CI batch), kd-1.3 a favorite
@@ -102,7 +109,8 @@ async function withEntropyTry(ui: Ui) {
   const { page, demo: d } = ui;
   await page.route('**/api/v1/milestones?*', async route => {
     const response = await route.fetch();
-    const { milestones } = await response.json() as { milestones: any[] };
+    const body = await response.json() as { milestones: any[] };
+    const milestones = body.milestones.map(m => asSaved(m, d.t0));
     const release = milestones.find((m: any) => m.label === 'kd-1.3') ?? milestones[0];
     // story.yaml: entropy-calib, -10d 15:00, saved after its CI batch
     const saved = at(d, -10, '17:00');
@@ -112,7 +120,7 @@ async function withEntropyTry(ui: Ui) {
       message: 'feat(quant): try entropy calibration', created_at: saved, updated_at: saved,
     };
     const marked = milestones.map((m: any) => m.id === release?.id ? { ...m, is_favorite: true } : m);
-    await route.fulfill({ response, json: { milestones: [...marked, entropy] } });
+    await route.fulfill({ response, json: { ...body, milestones: [...marked, entropy] } });
   });
   await page.reload();
   await ui.settle();
@@ -175,4 +183,67 @@ shot('commits/manage-milestones', {
     const dialog = await stableBox(page.getByRole('dialog', { name: 'Milestones', exact: true }));
     return { x: dialog.x - 8, y: dialog.y - 8, width: dialog.width + 16, height: dialog.height + 16 };
   },
+});
+
+// A project's page, signed in (webapp/src/CiCommitList.jsx, BatchList.jsx): your batches first, everyone's commits
+// one click away, and the density of the commit lists.
+
+const IQ = 'image-quality';
+
+// Preferences follow users on the server (webapp/src/stores/prefsSync.js). A shot that needs one, e.g. the compact
+// commit list, gets it in the API's answer, and what the page sends back never reaches the server: the persona's
+// preferences stay as the demo has them for the other shots. The page is loaded again with it.
+async function withPreferences(ui: Ui, preferences: Record<string, unknown>) {
+  await ui.page.route('**/api/v1/user/preferences', async route => {
+    if (route.request().method() !== 'GET') return route.fulfill({ status: 200, json: {} });
+    const response = await route.fetch();
+    const body = await response.json() as { preferences?: Record<string, unknown> };
+    await route.fulfill({ response, json: { ...body, preferences: { ...body.preferences, ...preferences } } });
+  });
+  await ui.page.reload();
+  await ui.settle();
+}
+
+shot('commits/compact', {
+  project: SL,
+  // two weeks of everyone's commits: the allocators, the queue policies, the batcher's crash and the agent's cache
+  url: d => d.url(SL, 'commits', { from: day(d, -31), to: day(d, -20), scope: 'all', view: 'commits' }),
+  alt: 'The inference gateway\'s commits in the compact list: one line each, grouped by day, in aligned columns: a '
+    + 'status icon, hash, message, branch, committer, date, the CI batch\'s average p99 and its runs; the batcher change '
+    + 'that crashed shows a red icon and "1 failed".',
+  caption: 'Compact puts each commit on one line, in columns that line up from one day to the next: hover a cell for '
+    + 'what doesn\'t fit.',
+  actions: async ui => {
+    await withPreferences(ui, { commitListDensity: 'compact' });
+    await ui.cursor.moveTo({ x: 1430, y: 890 });
+    await ui.settle();
+  },
+  // from the Comfortable / Compact switch to the fifth day
+  target: page => [page.getByRole('radiogroup', { name: 'Commit list density' }), days(page).nth(4)],
+  padding: 8,
+});
+
+shot('commits/yours', {
+  project: IQ,
+  url: d => d.url(IQ),
+  alt: 'The camera ISP project signed in as Ines, Yours selected: the latest commit on main, its CI batch still '
+    + 'running, then her tune-denoise and ines-halo batches, both ticked, and "Compare tune-denoise with ines-halo".',
+  caption: 'Signed in, a project\'s page starts with the batches you started. Tick two of them to compare them.',
+  actions: async ui => {
+    const { page } = ui;
+    for (const batch of ['tune-denoise', 'ines-halo'])
+      await ui.click(page.locator('label.bp6-checkbox', { has: page.getByRole('checkbox', { name: `Select ${batch} to compare it` }) }));
+    await page.getByRole('button', { name: 'Compare', exact: true }).waitFor();
+    // no focus ring left on the checkbox
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await ui.cursor.moveTo({ x: 1430, y: 890 });
+    await ui.settle();
+  },
+  // from the Yours / Everyone switches to the batches' card
+  target: page => [
+    page.getByText(/in these dates/).first(),
+    page.locator('.bp6-card', { hasText: 'Latest on main' }).first(),
+    page.locator('.bp6-card', { has: page.getByRole('list', { name: 'Batches' }) }).first(),
+  ],
+  padding: 16,
 });

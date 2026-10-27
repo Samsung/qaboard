@@ -26,7 +26,9 @@ with the Python code that runs yours. This page creates them, says what to fill 
        └── metrics.yaml   # optional: how to show your metrics
    ```
 
-   In a git repository, `qa init` fills in the project's name, URL and reference branch from your git remote.
+   In a git repository, `qa init` fills in the project's name, URL and reference branch from your git remote, when it
+   can reach it. Otherwise it says *Please edit qaboard.yaml with your project name and url*: set them yourself, see
+   [below](#qaboard-yaml).
 2. Check that it works. Until you edit it, `qa/main.py` prints what it gets, then runs the command you give after the
    input:
 
@@ -45,6 +47,10 @@ with the Python code that runs yours. This page creates them, says what to fill 
    ```
 
    `<your-repository>` is where you ran `qa init`. The last line is what the run returned: its metrics.
+
+   If `qa` stops with *The storage path does not exist*, it couldn't create the folder for shared results, `storage`
+   in *qaboard.yaml* (`/mnt/qaboard`). Set it to your server's results folder, or for the
+   [quickstart](/docs/get-started/quickstart)'s server, `export QA_STORAGE=/tmp/qaboard`.
 3. Commit *qaboard.yaml* and `qa/` with your code: every commit runs with its own.
 
 Next, make `run()` run your code: see [Running your code](/docs/running-your-code).
@@ -63,7 +69,7 @@ project in the repository:
 | `project.reference_branch` | The branch whose latest results every commit is compared with. | [References](/docs/references-and-milestones) |
 | `inputs` | Where your inputs are, how to recognize them, and the files that list your batches. | [Inputs](/docs/inputs), [Batches](/docs/batches-running-on-multiple-inputs) |
 | `outputs` | Your metrics file, and which output files the web app shows, and how. | [Metrics](/docs/computing-quantitative-metrics), [Visualizations](/docs/visualizations) |
-| `storage` | Where shared results are saved: a folder that the QA-Board server mounts too. | [Where is the data?](/docs/storage/where-is-the-data) |
+| `storage` | Where shared results are saved: a folder that the QA-Board server mounts too. `$QA_STORAGE` wins over it. | [Where is the data?](/docs/storage/where-is-the-data) |
 | `runners` | Where `qa batch` runs: on this machine, or on a cluster. | [Runners](/docs/using-the-qa-cli#batch-runners) |
 
 To see the configuration `qa` ends up with, including [site defaults](#site-defaults), run:

@@ -5,8 +5,9 @@ sidebar_label: Runs activity
 description: "See what waits and runs now, what ended recently and what starts soon, grouped by batch, user, queue or any job option, and clean up runs that are stuck."
 ---
 Wondering whether your batch started, why it's slow, or how busy the cluster is? **Runs activity** shows the runs that
-wait in a queue and run now, those that ended recently, and the batches that will start soon. Open it from your profile
-menu (**Runs activity**, next to **Storage usage**), or from a project's sidebar.
+wait in a queue and run now, those that ended recently, and the batches that will start soon. Open it from your account
+menu (**Runs activity**, next to **Storage usage**), from a project's sidebar, or with
+[Search…](/docs/user-guide/finding-results#command-palette) (<kbd>Ctrl</kbd> <kbd>K</kbd>).
 
 ## See what runs now
 The cards at the top count your runs:
@@ -40,10 +41,15 @@ Everything you choose is in the page's address: bookmark it, or share it.
 When LSF kills a job, or its machine reboots, the run can't tell QA-Board it ended: it shows as running forever.
 From a row's menu (**⋯**):
 - **Mark waiting and running runs as failed…** marks your runs as failed, after saying how many. Their jobs aren't
-  stopped: if one still runs, it saves its results when it ends. You can [redo](/docs/user-guide/logs) them later.
-- **Stop the batch…** kills the batch's jobs and fails its runs, like **Stop** on the commit page.
+  stopped: if one still runs, it saves its results when it ends. You can
+  [redo](/docs/user-guide/running-from-the-webapp#redo-stop-and-clean-up-runs) them later.
+- **Stop the batch…** kills the batch's jobs and fails its runs, like **Stop runs** on the commit page.
 
 A single run has its own **Mark as failed** button. You change only your own runs, in projects where you're a developer.
+
+Admins see the runs pending for over a week, and can mark them all as failed, now or every night:
+
+<Shot id="activity/stuck-runs" />
 
 <details>
 <summary>Older runs, and what the page doesn't show</summary>

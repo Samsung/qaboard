@@ -2,54 +2,47 @@
 id: artifacts
 sidebar_label: Artifacts
 title: Artifacts
+description: Save what a commit needs to run again, like its build, with qa save-artifacts in CI, so that people can redo runs and tune from the web app.
 ---
 
-Artifacts are needed by QA-Board to start tuning experiments
+Artifacts are the files a commit needs to run again: its build, wrapper scripts, trained models or calibration data.
+Your CI saves them with `qa save-artifacts`, in the results storage. QA-Board then uses them to redo runs and to
+[tune from the web app](/docs/tuning-from-the-webapp), without a checkout or a build.
 
-## What are artifacts?
-To run your code, you generally need:
-- binaries compiled automatically during the continuous integration.
-- wrapper scripts...
-- depending on how you view things, trained networks or calibrated data.
+## Save them in CI {#how-to-save-artifacts}
+1. List the files in *qaboard.yaml*, in named groups of glob patterns:
 
-> Defining those as artifacts makes it possible to upload them to QA-Board's storage, then start tuning experiments.
+   ```yaml title="qaboard.yaml"
+   artifacts:
+     binary:
+       glob: build/my-tool
+     configurations:
+       globs:
+       - configurations/*.json
+       - "*.yaml"
+   ```
 
+2. In your CI job, save them after the build, before the runs:
 
-## Defining artifacts
-Artifacts are defined with:
+   ```bash
+   make
+   qa save-artifacts
+   qa batch ci
+   ```
 
-```yaml title="qaboard.yaml"
-# Basic example
-artifacts:
-  binary:
-    glob: build/binary
-  configurations:
-    globs:
-    - configurations/*.json
-    - "*.yaml"
-```
+`qa save-artifacts` always saves *qaboard.yaml*, *qa/*, the metrics and batches files, and the *.envrc* files, even
+without `artifacts` in *qaboard.yaml*. Patterns are relative to the project's root.
 
-:::tip
-For convenience, *qaboard.yaml*, *qa/*, the metrics and batches files and *.envrc* files are pre-defined as artifacts. Save only some groups with `qa save-artifacts binary`, or specific files with `qa save-artifacts --file "build/*"`.
-:::
+- To save only some groups: `qa save-artifacts binary`. The files `qa` always saves are then left out.
+- To save other files: `qa save-artifacts --file 'build/*'`.
 
-In QA-Board, you can compare each commit's artifacts with the reference's in the **Artifacts & Configs** view.
+## Compare them with the reference's {#compare}
+The commit page's **Artifacts & Configs** view compares each commit's artifacts with the reference's.
 
 <Shot
   id="commit/artifacts-configs"
   caption="Between two quantization commits, only build/flags.json changed: its diff shows which flags."
 />
 
-## How to save artifacts?
-After your build is done, call:
-
-```bash
-qa save-artifacts
-```
-
-Usually you can do it simply in your CI tool:
-
-```yaml title="gitlab-ci.yml"
-after_script:
-  - qa save-artifacts
-```
+Where artifacts are saved: [Where is the data saved?](/docs/storage/where-is-the-data). When they are deleted, and
+how QA-Board recreates them: [Deleting old data](/docs/storage/deleting-old-data#recreating-artifacts).

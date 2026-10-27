@@ -12,6 +12,18 @@ Questions about integrating a project. For questions about the web app, see
 Yes. Your `run()` function, in Python, calls your code like any other executable: a C++ binary, a MATLAB script, a
 hardware simulator, or Python 2. See [running an executable](/docs/running-your-code#run-an-executable).
 
+## My company has no QA-Board server. Where do I send results? {#no-server}
+Start one. To try QA-Board, the [quickstart](/docs/get-started/quickstart) runs it on your computer with one Compose
+file, and saves your results in `/tmp/qaboard`. For your team, you need a Linux host with Docker, and a folder that
+it shares with the machines running `qa`, e.g. over NFS: see [Starting a QA-Board server](/docs/deploy), or
+[Kubernetes](/docs/backend-admin/kubernetes). Until then, `qa run` and `qa batch` work without a server: results
+stay in `output/`.
+
+## My runs show in the web app, but not their files {#runs-without-files}
+`qa` saved them in a folder the server doesn't read. Check that `storage` in *qaboard.yaml*, or `$QA_STORAGE`, is the
+server's results folder, mounted at the same path on the machine that ran `qa`: `/tmp/qaboard` for the quickstart's
+server. See [Where is the data saved?](/docs/storage/where-is-the-data)
+
 ## Do I need a CI? {#do-i-need-a-ci}
 No, but it's what gives every commit results to compare with. Without a CI, `qa --share batch` saves your runs and
 shows them in the web app, in a batch named after you (see [CI integration](/docs/ci-integration#without-a-ci)).

@@ -59,7 +59,8 @@ website/
 - Format: `<area>/<subject>`, lowercase kebab-case, exactly one slash:
   `^[a-z0-9]+(-[a-z0-9]+)*/[a-z0-9]+(-[a-z0-9]+)*$`, at most 80 characters.
 - **Areas** (adding one means editing this list): `quickstart`, `cli`, `ci`, `projects`, `commits`, `integrations`,
-  `commit`, `logs`, `history`, `tuning`, `files`, `whats-new`, `auth`, `landing`.
+  `commit`, `logs`, `history`, `tuning`, `files`, `whats-new`, `auth`, `landing`, `activity` (Runs activity),
+  `storage` (Storage usage), `account` (Settings), `access` (a project's Access tab), `admin` (the admin panel).
   The area is where the shot is taken in the app (or `cli`/`quickstart`/`ci` for terminals and CI), not the doc page.
 - The subject names what's shown, not how: `commit/flame-diff`, not `commit/flame-graph-2`.
 - An id is permanent. If what it shows changes meaning, retire it (`status: retired` in `shots.yaml`) and pick a new id.

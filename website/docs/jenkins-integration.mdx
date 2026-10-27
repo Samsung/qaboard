@@ -1,46 +1,52 @@
 ---
 id: jenkins-integration
-title: Using jenkins as a task runner
-sidebar_label: Jenkins Integration
+title: Run batches on Windows hosts with Jenkins
+sidebar_label: Jenkins (Windows)
+description: Send the runs of qa batch to Windows hosts, as builds of a Jenkins job that runs one command, with the windows runner.
 ---
 
-[Jenkins](https://www.jenkins.io/) can be used a distributed task queue. It's not pretty, but it can work...
+The `windows` runner sends each run of `qa batch` to a Windows host, as a build of a Jenkins job that runs the
+command it gets. Use it when your code only runs on Windows. To run your batches in a Jenkins pipeline instead, see
+[CI integration](/docs/ci-integration).
 
-## Creating a Build Job that `qa` will use
-1. QA-Board needs to be [setup](deploy) with the ENV variable `JENKINS_AUTH`, in order to communicate with jenkins.
-2. Create a Build Job configured with:
-  * Enable "Trigger builds remotely", note the token
-  * Parametrized: **task** should be a String parameter that gets a command to run
-  * Build > "Execute Windows Batch command"
+## Set up the Jenkins job {#creating-a-build-job-that-qa-will-use}
+1. Start the QA-Board server with Jenkins credentials in its `JENKINS_AUTH` environment variable, so that it can start
+   and follow builds: see the [server's environment variables](/docs/deploy#optional-environment-variables).
+2. Create a Jenkins job:
+   - enable **Trigger builds remotely**, and note its token;
+   - make it parameterized, with a String parameter named **task**: the command to run;
+   - add a build step **Execute Windows batch command**:
 
-```
-# if you need to make sure shared drive are available...
-net use \\server\share
+     ```text
+     REM if the job needs shared drives
+     net use \\server\share
 
-@echo "%task%"
-"%task%"" 
-```
+     @echo "%task%"
+     "%task%""
+     ```
 
+3. Give the job to `qa`, in *qaboard.yaml*:
 
-3. _qaboard.yaml_ needs to be configured with something like:
-```yaml
-runners:
-  jenkins:
-    build_url: https://jenkins.example.com/job/my-team/job/WindowsExecutor
-    token: "1234"
-```
+   ```yaml title="qaboard.yaml"
+   runners:
+     default: local
+     jenkins:
+       build_url: https://jenkins.kitefin.example/job/my-team/job/WindowsExecutor
+       token: "1234"
+   ```
 
-You can also use the `QA_RUNNERS_JENKINS_BUILD_URL` and `QA_RUNNERS_JENKINS_TOKEN` environment variables.
+   Or with the `QA_RUNNERS_JENKINS_BUILD_URL` and `QA_RUNNERS_JENKINS_TOKEN` environment variables.
 
 :::caution
-The runner is named `windows`, while its configuration is under `runners.jenkins`. Set `runners.default` (e.g. to `local`): otherwise `qa batch` would try to use a runner named `jenkins`, which doesn't exist.
+The runner is named `windows`, while its settings are under `runners.jenkins`. Set `runners.default` (e.g. to
+`local`): otherwise `qa batch` tries to use a runner named `jenkins`, which doesn't exist.
 :::
 
-## How to use this runner?
-Multiple options:
-- On the CLI: `qa batch --runner=windows`
-- As the default runner, with `runners.default: windows` in *qaboard.yaml*
+## Send runs to Windows {#how-to-use-this-runner}
+- For one command: `qa batch --runner windows my-batch`.
+- For all batches: `runners.default: windows` in *qaboard.yaml*.
 
 :::caution
-Choosing the runner per batch, with `runner: windows` in a batch, doesn't work at the moment: the CLI's runner (`--runner` or `runners.default`) always wins.
+A batch can't choose its runner yet: `runner: windows` in a batch doesn't work, the command line's runner
+(`--runner` or `runners.default`) always wins.
 :::

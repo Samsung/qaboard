@@ -2,6 +2,7 @@
 id: sign-in
 sidebar_label: Sign-in and SSO
 title: Sign-in and single sign-on
+description: "Let users sign in with single sign-on (OpenID Connect) next to LDAP or local accounts, decide who gets an account, and fix sign-in problems."
 ---
 
 Let users sign in with your company's single sign-on (OpenID Connect: Keycloak, Entra ID, Okta, Google...), next to
@@ -25,7 +26,8 @@ backend talks to your identity provider (IdP), and browsers never see its tokens
    They give you back the **issuer** (e.g. `https://keycloak.example.com/realms/company`), a **client id** and a
    **client secret**.
 
-2. **Set them on the server**, and restart it:
+2. **Set them on the server**, then deploy again (`deployments/deploy.py <env file> up` recreates the backend, without
+   downtime; with the Helm chart, the client secret goes in `secret`, the others in `config`):
 
    ```bash title=".env, next to docker-compose.yml"
    QABOARD_URL=https://qaboard.example.com
@@ -136,7 +138,8 @@ up.
 
 ## Rate limits and proxies
 QA-Board's nginx allows 30 sign-in attempts per minute per client, with bursts: sign-in, sign-up, `qa auth login`
-codes and SSO redirects. Beyond, it answers 429.
+codes and SSO redirects. Beyond, it answers 429. It counts by the address it sees: behind a load balancer or an
+ingress, that's the proxy's, so all users share the limit.
 
 The audit log records users' IPs. If there are proxies in front of QA-Board's nginx (a Kubernetes ingress, a load
 balancer), set `QABOARD_TRUSTED_PROXY_HOPS` to how many: `1` for one ingress. With `0` (the default), the IP is the

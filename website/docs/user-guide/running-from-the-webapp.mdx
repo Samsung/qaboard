@@ -11,7 +11,9 @@ From a commit's page, you can run its code again without a terminal:
 - [Start a tuning experiment](#running-tests-and-tuning) and [see which values win](#tuning-analysis): try a grid of parameters, or let an optimizer search them.
 
 :::info What you need
-- **Log in**, at the bottom of the sidebar. Logged out, the buttons that start runs are grayed out.
+- **Sign in**, at the bottom of the sidebar. Signed out, the buttons that start runs are grayed out, next to a
+  **Sign in** button. You also need the developer role on the project: see
+  [Project access](/docs/user-guide/project-access).
 - The commit's **artifacts**: the build and configuration files your CI saved. If they were deleted, QA-Board can bring them back first (see [If runs don't start](#if-runs-dont-start)).
 - A **task runner** for your project, like a compute cluster. If there is none, the form says so: ask whoever integrated QA-Board in your project.
 :::
@@ -207,7 +209,7 @@ The sidebar's **Integrations** menu (hover it to open it) has what your project 
 <summary>Good to know about integrations</summary>
 
 - On the commit list, integrations act on the branch you're looking at. On a commit page, on the selected commit and batch.
-- You need to be logged in to start GitHub Actions workflows and GitLab CI jobs. Once a job started, its icon changes to *repeat*, to start it again.
+- You need to be signed in to start GitHub Actions workflows and GitLab CI jobs. Once a job started, its icon changes to *repeat*, to start it again.
 - GitHub runs workflows on the latest commit of the branch (or on the `ref` the project chose), not necessarily on the commit you're looking at; QA-Board then follows the run you started. Workflows show the status of their latest run for the commit. Only the workflows declared in the project's *qaboard.yaml* can be seen and started.
 - Statuses refresh every few seconds while the menu is open, and your browser remembers the jobs you started on each commit.
 - A link is disabled when its target doesn't answer. Badges that don't load are hidden.
@@ -241,7 +243,7 @@ is waiting for LSF**: see [Batches started from QA-Board](/docs/user-guide/logs#
 
 | Message | What it means |
 |---|---|
-| **Log in to start runs** | Runs started from QA-Board run as you. Once you're logged in, the form also lists the batch's tests and checks your settings. |
+| **Sign in to start runs** | Runs started from QA-Board run as you. Once you're signed in, the form also lists the batch's tests and checks your settings. |
 | **Fix this to start** | What would make the batch fail, e.g. an unknown batch, an invalid automated tuning configuration, a platform the project doesn't have. |
 | **Before you start** | What to know first, e.g. missing artifacts QA-Board will restore. |
 | **Tuning may not work** | The project's CI only saves artifacts on some branches, and not on this commit's: the message gives the commands to save them yourself, with `qa save-artifacts`. |
