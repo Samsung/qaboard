@@ -70,7 +70,7 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
 
   from shutil import rmtree
   from .api import aggregated_metrics
-  from .optimization import describe_search_space, run_optimization, sampler_name, study_summary
+  from .optimization import describe_search_space, parse_solver, run_optimization, sampler_name, study_summary
 
   try:
     setup = init_optimization(config_file, checkpoint or optim_dir / 'optuna-journal.log', ctx, parallel_param_sampling)
@@ -98,6 +98,8 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
       "objective": {m: {k: v for k, v in (optim_config['objective'][m] or {}).items() if k in ('weight', 'loss', 'reduce', 'margin')} for m in metric_names},
       "pareto": pareto,
       "sampler": sampler_name(study),
+      # the first evaluations try random parameters
+      "n_startup_trials": parse_solver(optim_config.get('solver'))['n_startup_trials'],
       "parallel_sampling": options['parallel_sampling'],
       "early_stopping": options['patience'],
       "preset_params": optim_config.get('preset_params') or {},
