@@ -3,7 +3,8 @@
 // Prints a table of medians, and writes them as JSON to $BENCH_OUT if set.
 // Each scenario runs in a fresh page. Times are wall-clock milliseconds, "blocking" is the
 // main-thread time spent in tasks above 50ms (the Total Blocking Time definition), "script" is
-// the time spent running JavaScript (Chrome's ScriptDuration).
+// the time spent running JavaScript (Chrome's ScriptDuration), "cpu" the main thread's busy time (ThreadTime):
+// on a busy machine it varies much less than wall-clock times.
 import fs from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { test } from '@playwright/test';
@@ -72,6 +73,7 @@ const measure = async (page, cdp, action) => {
     time: Math.round(time),
     blocking: Math.round(blocking),
     script: Math.round((after.ScriptDuration - before.ScriptDuration) * 1000),
+    cpu: Math.round((after.ThreadTime - before.ThreadTime) * 1000),
     heap_mb: Math.round(after.JSHeapUsedSize / 1e6),
   };
 };

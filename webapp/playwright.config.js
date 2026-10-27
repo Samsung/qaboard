@@ -15,7 +15,8 @@ export default defineConfig({
   reporter: process.env.CI ? [['list'], ['junit', { outputFile: 'e2e-junit.xml' }]] : 'list',
   use: {
     baseURL: `http://localhost:${port}`,
-    trace: 'retain-on-failure',
+    // traces snapshot the page at each action: with big pages, that's most of what the benchmark would measure
+    trace: process.env.BENCH ? 'off' : 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
   projects: [{
