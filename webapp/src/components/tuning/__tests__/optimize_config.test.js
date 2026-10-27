@@ -6,7 +6,7 @@ import batches from '../../../../e2e/fixtures/tuning.json';
 import {
   template, parse, set, parameters, setParameter, addParameter, removeParameter, changeKind, objectiveMetrics,
   setObjectiveMetric, renameObjectiveMetric, recommended_evaluations, suggest_log, metric_direction, check, from_batch,
-  known_parameters,
+  known_parameters, objective_goal, metrics_to_choose,
 } from '../optimize_config';
 
 const metrics = {
@@ -69,10 +69,17 @@ describe('editing the YAML', () => {
   });
 
   it('edits the metrics of the objective', () => {
-    let text = setObjectiveMetric(CONFIG, 'model_mb', { weight: 0.005 });
+    let text = setObjectiveMetric(CONFIG, 'model_mb', { goal: 'min', weight: 0.005 });
     expect(objectiveMetrics(parse(text).config)).toEqual(['map', 'model_mb']);
-    text = renameObjectiveMetric(text, 'map', 'latency');
-    expect(parse(text).config.objective).toEqual({ model_mb: { weight: 0.005 }, latency: { weight: 1 } });
+    expect(parse(text).config.objective.model_mb).toEqual({ goal: 'min', weight: 0.005 });
+    // the goal alone is written short
+    text = setObjectiveMetric(text, 'map', { goal: 'max', weight: 1 });
+    expect(text).toContain('  map: max\n');
+    // another metric in the same row takes its own goal, and keeps the weight
+    text = renameObjectiveMetric(text, 'model_mb', 'latency', 'min');
+    expect(parse(text).config.objective).toEqual({ map: 'max', latency: { goal: 'min', weight: 0.005 } });
+    text = renameObjectiveMetric(text, 'map', 'psnr', null);
+    expect(parse(text).config.objective.psnr).toEqual({});
   });
 
   it("doesn't touch YAML it can't parse", () => {
@@ -129,13 +136,44 @@ describe('check', () => {
       .toMatch(/^`solver.base_estimator` was a scikit-optimize setting/);
   });
 
-  it("needs the objective's metrics to say which way is better", () => {
-    const config = { evaluations: 5, objective: { psnr: {}, latency: {} }, search_space: [{ Real: { name: 'x', low: 0, high: 1 } }] };
+  it("needs to know which way is better for each metric of the objective", () => {
+    const config = { evaluations: 5, objective: { psnr: {}, latency: {}, map: {} }, search_space: [{ Real: { name: 'x', low: 0, high: 1 } }] };
     const errors = check(config, metrics);
+    // map says it where it's computed (or in the metrics file); psnr nowhere, and latency has no better direction
     expect(errors.map(e => e.path)).toEqual([['objective', 'psnr'], ['objective', 'latency']]);
-    expect(errors[0].message).toContain('smaller_is_better');
-    // without the metrics file, it can't tell
+    expect(errors[0].message).toBe('Say whether higher or lower values of psnr are better: `psnr: max` or `psnr: min`.');
+    // the objective says it
+    expect(check({ ...config, objective: { psnr: 'max', latency: { goal: 'min', weight: 2 }, map: {} } }, metrics)).toEqual([]);
+    // without the metrics' definitions, it can't tell
     expect(check(config, undefined)).toEqual([]);
+  });
+
+  it("checks the objective's settings like qa optimize", () => {
+    const with_objective = objective => messages({ evaluations: 5, objective, search_space: [{ Real: { name: 'x', low: 0, high: 1 } }] });
+    expect(with_objective({ psnr: 'higher' })).toEqual(['`objective.psnr` says `higher`: expected `max` (higher is better) or `min` (lower is better).']);
+    expect(with_objective({ psnr: 3 })).toEqual(['`objective.psnr` must be `max`, `min`, or a mapping (e.g. `goal: max` and `weight: 2`), not `3`.']);
+    expect(with_objective({ psnr: { goal: 'max', loss: 'l2', reduce: 'mean', target: 'x' } })).toEqual([
+      '`objective.psnr.loss` is `l2`, expected identity, shift or relative, optionally as relu_X, square_X or square_relu_X.',
+      '`objective.psnr.reduce` is `mean`, expected sum, relu, l1 or l2.',
+      '`objective.psnr.target` must be a number, not `x`.',
+    ]);
+  });
+
+  it('knows which way is better from the objective, else from the declarations', () => {
+    expect(objective_goal({ objective: { map: 'min' } }, 'map', metrics)).toEqual({ goal: 'min', from: 'config' });
+    expect(objective_goal({ objective: { map: { goal: 'maximize' } } }, 'map', metrics)).toEqual({ goal: 'max', from: 'config' });
+    expect(objective_goal({ objective: { map: {} } }, 'map', metrics)).toEqual({ goal: 'max', from: 'declared' });
+    expect(objective_goal({ objective: { psnr: {} } }, 'psnr', metrics)).toEqual({ goal: null, from: null });
+  });
+
+  it('offers the metrics the runs returned, after the declared ones', () => {
+    const commit = { batches: {
+      ci: { outputs: { 1: { metrics: { psnr: 30, map: 0.3, is_failed: false } } } },
+      tune: { outputs: { 2: { output_type: 'optim_iteration', metrics: { objective: 1, iteration: 1 } } } },
+    } };
+    const choices = metrics_to_choose(metrics, commit);
+    expect(Object.keys(choices)).toEqual(['map', 'model_mb', 'latency', 'psnr']);
+    expect(choices.psnr).toMatchObject({ label: 'psnr', smaller_is_better: null, declared: false });
   });
 
   it('checks Pareto mode', () => {

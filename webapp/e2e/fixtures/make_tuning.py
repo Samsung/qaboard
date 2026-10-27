@@ -22,9 +22,9 @@ CONFIG = {
   "early_stopping": {"patience": 20},
   "solver": {"sampler": "tpe", "seed": 42, "n_startup_trials": 8},
   "objective": {
-    "ap_small": {"weight": 1},
-    "map": {"weight": 1},
-    "model_mb": {"weight": 0.005},
+    "ap_small": "max",
+    "map": "max",
+    "model_mb": {"goal": "min", "weight": 0.005},
   },
   "search_space": [
     {"Categorical": {"name": "quant_percentile", "categories": [99.9, 99.99, 99.999]}},
@@ -33,7 +33,6 @@ CONFIG = {
     {"Real": {"name": "nms_iou", "low": 0.4, "high": 0.7}},
   ],
 }
-SMALLER_IS_BETTER = {"ap_small": False, "map": False, "model_mb": True}
 INPUTS = ["slices/outdoor", "slices/small-objects"]
 
 
@@ -53,8 +52,8 @@ def metrics(params, rng, input_index=None):
   return {"ap_small": round(ap_small, 4), "map": round(map_, 4), "model_mb": round(model_mb, 2)}
 
 
-def loss(name, value):
-  return CONFIG["objective"][name]["weight"] * (value if SMALLER_IS_BETTER[name] else -value)
+def loss(options, value):
+  return options["weight"] * (value if options["goal"] == "min" else -value)
 
 
 def run_search(label, config, fail_at=(), stop_after=None, pareto=False):
@@ -71,7 +70,7 @@ def run_search(label, config, fail_at=(), stop_after=None, pareto=False):
       return None
     m = metrics(params, rng)
     measured[number] = m
-    return {name: loss(name, m[name]) for name in metric_names}
+    return {name: loss(options["objective"][name], m[name]) for name in metric_names}
 
   reports = []
   run_optimization(
@@ -90,7 +89,8 @@ def run_search(label, config, fail_at=(), stop_after=None, pareto=False):
     "optimization_started_at": "2026-10-26T08:00:00+00:00",
     "optimization_config": {
       "search_space": describe_search_space(distributions),
-      "objective": config["objective"],
+      # like qa optimize: each metric's settings, with which way is better
+      "objective": {m: {k: v for k, v in o.items() if v is not None} for m, o in options["objective"].items()},
       "pareto": pareto,
       "sampler": "tpe",
       "n_startup_trials": config["solver"]["n_startup_trials"],
@@ -166,7 +166,7 @@ if __name__ == "__main__":
 
   # trade-offs: AP on small objects against model size, with no weights to guess
   pareto = {**CONFIG, "evaluations": 30, "pareto": True, "early_stopping": None,
-            "objective": {"ap_small": {"weight": 1}, "model_mb": {"weight": 1}}}
+            "objective": {"ap_small": "max", "model_mb": "min"}}
   outputs, data, _ = run_search("tune-int8-tradeoffs", pareto, pareto=True)
   data.update({"optimization_status": "done", "optimization_ended_at": "2026-10-26T17:10:00+00:00"})
   batches["tune-int8-tradeoffs"] = batch("tune-int8-tradeoffs", outputs, data)

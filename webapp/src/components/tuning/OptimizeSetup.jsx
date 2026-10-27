@@ -5,14 +5,14 @@ import { useEffect, useId, useMemo, useState } from "react";
 import styled from "styled-components";
 import {
   Alert, Button, Callout, Card, Checkbox, Classes, Collapse, FormGroup, HTMLSelect, Icon, InputGroup, Intent,
-  NumericInput, Radio, RadioGroup, SegmentedControl, Switch, Tag, TagInput, Tooltip,
+  NumericInput, Radio, RadioGroup, SegmentedControl, Switch, TagInput, Tooltip,
 } from "@blueprintjs/core";
 
 import MonacoEditor from "../MonacoEditor";
 import {
   KINDS, KIND_LABELS, template, parse, set, parameters as get_parameters, setParameter, addParameter, removeParameter,
-  changeKind, objectiveMetrics, setObjectiveMetric, renameObjectiveMetric, recommended_evaluations, suggest_log,
-  metric_direction, check, from_batch, known_parameters, continuation,
+  changeKind, objectiveMetrics, objective_options, objective_goal, setObjectiveMetric, renameObjectiveMetric,
+  recommended_evaluations, suggest_log, metrics_to_choose, check, from_batch, known_parameters, continuation,
 } from "./optimize_config";
 
 const Layout = styled.div`
@@ -81,15 +81,34 @@ const Step = ({ number, title, how, children }) => <section className="qa-setup-
 </section>;
 
 const errors_at = (errors, path) => errors.filter(e => path.every((p, i) => e.path[i] === p)).map(e => e.message);
+// `code` in the messages, shared with qa optimize
+const Message = ({ text }) => text.split(/`([^`]+)`/).map((part, i) => i % 2 ? <Code key={i}>{part}</Code> : part);
 const RowErrors = ({ messages }) => messages.length > 0 && <div className="qa-setup-row-error" role="alert">
-  {messages.map(m => <div key={m}><Icon icon="error" size={12}/> {m}</div>)}
+  {messages.map(m => <div key={m}><Icon icon="error" size={12}/> <Message text={m}/></div>)}
 </div>;
 
-const directions = {
-  higher: { icon: 'arrow-up', text: 'higher is better', intent: Intent.NONE },
-  lower: { icon: 'arrow-down', text: 'lower is better', intent: Intent.NONE },
-  none: { icon: 'warning-sign', text: 'no better direction', intent: Intent.DANGER },
-  undeclared: { icon: 'warning-sign', text: 'not in the metrics file', intent: Intent.DANGER },
+const goal_options = [
+  { value: 'max', label: 'Higher is better', icon: 'arrow-up' },
+  { value: 'min', label: 'Lower is better', icon: 'arrow-down' },
+];
+
+// Another metric the runs return, typed by its key
+const OtherMetric = ({ onAdd, onCancel }) => {
+  const [key, setKey] = useState('');
+  const add = () => key.trim() && onAdd(key.trim());
+  return <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+    <InputGroup
+      autoFocus
+      aria-label="The metric's key"
+      placeholder="The key your runs return, e.g. psnr"
+      value={key}
+      onChange={e => setKey(e.target.value)}
+      onKeyDown={e => { if (e.key === 'Enter') add(); if (e.key === 'Escape') onCancel(); }}
+      style={{ width: 260 }}
+    />
+    <Button icon="add" text="Add" disabled={!key.trim()} onClick={add}/>
+    <Button variant="minimal" text="Cancel" onClick={onCancel}/>
+  </div>;
 };
 
 const sampler_options = [
@@ -104,6 +123,7 @@ export const OptimizeSetup = ({ value, onChange, metrics, tests = 0, commit, exp
   const id = useId();
   const [confirm_reset, setConfirmReset] = useState(false);
   const [advanced, setAdvanced] = useState(false);
+  const [other_metric, setOtherMetric] = useState(false);
   const { config, errors: parse_errors } = useMemo(() => parse(value), [value]);
   const errors = useMemo(() => config ? check(config, metrics) : [], [config, metrics]);
   const params = useMemo(() => get_parameters(config), [config]);
@@ -112,9 +132,12 @@ export const OptimizeSetup = ({ value, onChange, metrics, tests = 0, commit, exp
   const default_value = useMemo(() => template(metrics), [metrics]);
 
   const update = (path, new_value) => onChange(set(value, path, new_value));
-  const objective = config?.objective && typeof config.objective === 'object' ? config.objective : {};
   const objective_names = objectiveMetrics(config);
-  const available = Object.entries(metrics?.available_metrics ?? {});
+  // declared metrics, then those the runs returned
+  const choices = useMemo(() => metrics_to_choose(metrics, commit), [metrics, commit]);
+  const available = Object.entries(choices);
+  const declared_goal = metric => objective_goal({}, metric, metrics).goal;
+  const addMetric = key => onChange(setObjectiveMetric(value, key, { goal: declared_goal(key) ?? undefined }));
   const evaluations = Number.isInteger(config?.evaluations) ? config.evaluations : null;
   const parallel = Number.isInteger(config?.parallel_sampling) ? config.parallel_sampling : 1;
   const patience = typeof config?.early_stopping === 'object' && config?.early_stopping !== null ? config.early_stopping.patience : config?.early_stopping;
@@ -157,7 +180,7 @@ export const OptimizeSetup = ({ value, onChange, metrics, tests = 0, commit, exp
   const yaml_editor = <>
     <MonacoEditor height={360} language="yaml" options={{ selectOnLineNumbers: true, minimap: { enabled: false } }} name="editor-tuning-auto" onChange={onChange} value={value || ''}/>
     {(parse_errors.length > 0 || errors.length > 0) && <Callout intent={Intent.DANGER} icon="error" title="To fix before starting" style={{ marginTop: 10 }} data-testid="optimize-errors">
-      <ul className={Classes.LIST}>{[...parse_errors, ...errors.map(e => e.message)].map(m => <li key={m}>{m}</li>)}</ul>
+      <ul className={Classes.LIST}>{[...parse_errors, ...errors.map(e => e.message)].map(m => <li key={m}><Message text={m}/></li>)}</ul>
     </Callout>}
   </>;
 
@@ -178,7 +201,7 @@ export const OptimizeSetup = ({ value, onChange, metrics, tests = 0, commit, exp
     {
       ok: objective_names.length > 0 && errors_at(errors, ['objective']).length === 0 && errors_at(errors, ['pareto']).length === 0,
       title: objective_names.length > 0 ? (pareto ? 'Best trade-offs between' : objective_names.length > 1 ? 'Combines' : 'Improves') : 'Choose what to improve',
-      detail: objective_names.map(m => metrics?.available_metrics?.[m]?.label ?? m).join(pareto ? ' and ' : ', '),
+      detail: objective_names.map(m => choices[m]?.label ?? m).join(pareto ? ' and ' : ', '),
     },
     {
       ok: evaluations !== null && errors_at(errors, ['evaluations']).length === 0 && !continuing?.error,
@@ -253,37 +276,56 @@ export const OptimizeSetup = ({ value, onChange, metrics, tests = 0, commit, exp
           <Button icon="add" text="Add a parameter" onClick={() => onChange(addParameter(value, { kind: 'Real', name: '', low: 0, high: 1 }))} style={{ marginTop: 8 }} data-testid="add-parameter"/>
         </Step>
 
-        <Step number={2} title="What “better” means" how={<>The metrics to improve, averaged over the batch's runs. The search looks for the parameters with the best ones.</>}>
+        <Step number={2} title="What “better” means" how={<>The metrics to improve, any your runs return, averaged over the batch's runs. Say which way is better for each: the search looks for the parameters with the best ones.</>}>
           {objective_names.map(metric => {
-            const direction = directions[metric_direction(metric, metrics)];
-            const weight = objective[metric]?.weight ?? 1;
+            const options = objective_options(config, metric);
+            const { goal, from } = objective_goal(config, metric, metrics);
+            const label = choices[metric]?.label ?? metric;
+            const declared = declared_goal(metric);
+            const weight = options.weight ?? 1;
             return <div className="qa-setup-row" key={metric} data-testid={`objective-${metric}`}>
               <HTMLSelect
                 aria-label="Metric"
                 value={metric}
-                onChange={e => onChange(renameObjectiveMetric(value, metric, e.target.value))}
+                onChange={e => onChange(renameObjectiveMetric(value, metric, e.target.value, declared_goal(e.target.value)))}
                 options={[
                   ...available.filter(([key]) => key === metric || !objective_names.includes(key)).map(([key, m]) => ({ value: key, label: m?.label ?? key })),
                   ...(available.some(([key]) => key === metric) ? [] : [{ value: metric, label: metric }]),
                 ]}
               />
-              <Tag minimal icon={direction.icon} intent={direction.intent}>{direction.text}</Tag>
+              <SegmentedControl
+                size="small"
+                aria-label={`Which way is better for ${label}`}
+                options={goal_options}
+                value={goal ?? ''}
+                intent={goal ? Intent.NONE : Intent.DANGER}
+                onValueChange={g => onChange(setObjectiveMetric(value, metric, { ...options, goal: g }))}
+              />
               {!pareto && <>
                 <span className={Classes.TEXT_MUTED} style={{ marginLeft: 8 }}>weight</span>
-                <NumberField aria-label={`Weight of ${metric}`} value={weight} onChange={w => onChange(setObjectiveMetric(value, metric, { ...objective[metric], weight: w }))} width={80}/>
+                <NumberField aria-label={`Weight of ${metric}`} value={weight} onChange={w => onChange(setObjectiveMetric(value, metric, { ...options, weight: w }))} width={80}/>
               </>}
               <Button variant="minimal" icon="trash" aria-label={`Remove ${metric}`} disabled={objective_names.length === 1} onClick={() => update(['objective', metric], undefined)} style={{ marginLeft: 'auto' }}/>
+              {from === 'config' && declared && declared !== goal && <div className={`qa-setup-hint ${Classes.TEXT_MUTED}`}>
+                <Icon icon="info-sign" size={12}/> Your project says {declared === 'max' ? 'higher' : 'lower'} is better for {label}: this search does the opposite.
+              </div>}
               <RowErrors messages={errors_at(errors, ['objective', metric])}/>
             </div>;
           })}
-          <RowErrors messages={errors.filter(e => e.path.length === 1 && e.path[0] === 'objective').map(e => e.message)}/>
-          {available.some(([key]) => !objective_names.includes(key)) && <HTMLSelect
-            aria-label="Add a metric"
-            value=""
-            onChange={e => e.target.value && onChange(setObjectiveMetric(value, e.target.value, { weight: 1 }))}
-            options={[{ value: '', label: '+ Add a metric' }, ...available.filter(([key]) => !objective_names.includes(key)).map(([key, m]) => ({ value: key, label: m?.label ?? key }))]}
-            style={{ marginTop: 8 }}
-          />}
+          <RowErrors messages={errors.filter(e => e.path.length === 1 && e.path[0] === 'objective' && objective_names.length > 0).map(e => e.message)}/>
+          {other_metric
+            ? <OtherMetric onAdd={key => { addMetric(key); setOtherMetric(false); }} onCancel={() => setOtherMetric(false)}/>
+            : <HTMLSelect
+              aria-label="Add a metric"
+              value=""
+              onChange={e => e.target.value === '\u0000other' ? setOtherMetric(true) : e.target.value && addMetric(e.target.value)}
+              options={[
+                { value: '', label: objective_names.length ? '+ Add a metric' : '+ Choose a metric' },
+                ...available.filter(([key]) => !objective_names.includes(key)).map(([key, m]) => ({ value: key, label: m?.label ?? key })),
+                { value: '\u0000other', label: 'Another metric…' },
+              ]}
+              style={{ marginTop: 8 }}
+            />}
           {objective_names.length > 1 && <RadioGroup
             selectedValue={pareto ? 'pareto' : 'weights'}
             onChange={e => update(['pareto'], e.currentTarget.value === 'pareto' ? true : undefined)}

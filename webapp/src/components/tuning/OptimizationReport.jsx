@@ -15,7 +15,10 @@ import { updateSelected, useRefreshCommit, useSiteConfig } from "../../hooks";
 import { usePrefsStore } from "../../stores/prefs";
 import { copyWithToast } from "../../utils/clipboard";
 import { formatDuration } from "../../activity/format";
-import { iterations as get_iterations, search_space, summarize, insights as get_insights, position, as_json, as_yaml, pareto_iterations, metric_bests } from "./optimization";
+import {
+  iterations as get_iterations, search_space, summarize, insights as get_insights, position, as_json, as_yaml, pareto_iterations,
+  metric_bests, objective_definitions,
+} from "./optimization";
 import { from_batch } from "./optimize_config";
 
 const plot_config = { displayModeBar: 'hover', displaylogo: false, showSendToCloud: false, showLink: false, responsive: true };
@@ -461,7 +464,10 @@ const IterationsTable = ({ evaluations, space, metrics, available_metrics, best_
 
 const no_data = {};
 
-const OptimizationReport = ({ batch, project, commit_id, available_metrics, children }) => {
+// `code` in qa optimize's messages
+const WithCode = ({ text }) => String(text).split(/`([^`]+)`/).map((part, i) => i % 2 ? <code key={i}>{part}</code> : part);
+
+const OptimizationReport = ({ batch, project, commit_id, available_metrics: declared_metrics, children }) => {
   const dark = useIsDark();
   const { docs_root } = useSiteConfig();
   const refresh = useRefreshCommit();
@@ -470,6 +476,8 @@ const OptimizationReport = ({ batch, project, commit_id, available_metrics, chil
   const [effect_metric, setEffectMetric] = useState(null);
   const data = batch?.data ?? no_data;
   const label = batch?.label ?? '';
+  // which way is better: what qa optimize used, maybe declared by the code once it ran
+  const available_metrics = useMemo(() => objective_definitions(declared_metrics, data), [declared_metrics, data]);
 
   const evaluations = useMemo(() => get_iterations(batch?.outputs), [batch?.outputs]);
   const space = useMemo(() => search_space(data, evaluations), [data, evaluations]);
@@ -536,6 +544,10 @@ const OptimizationReport = ({ batch, project, commit_id, available_metrics, chil
       </div>
     </Header>
     {progress !== null && summary.status !== 'done' && summary.status !== 'stopped_early' && <ProgressBar value={progress} intent={running ? Intent.PRIMARY : Intent.NONE} stripes={running} animate={running}/>}
+    {data.optimization_error && <Callout intent={Intent.DANGER} icon="error" title="The search stopped" data-testid="optimization-error">
+      <p style={{ marginBottom: 4 }}><WithCode text={data.optimization_error}/></p>
+      <p className={Classes.TEXT_MUTED} style={{ marginBottom: 0 }}>Fix it, then start the experiment again with the same batch label: it continues from the evaluations it did.</p>
+    </Callout>}
 
     {evaluations.length === 0
       ? <Callout icon={running ? <Spinner size={16}/> : 'time'} title={running ? 'The first evaluation is running' : 'No evaluation yet'}>

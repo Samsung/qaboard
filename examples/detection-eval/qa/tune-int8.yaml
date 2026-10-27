@@ -12,18 +12,11 @@ solver:
 # Maximize AP on small objects and mAP (means over the batch's runs), and keep the model small: nodes left in fp32
 # make it bigger. 0.005 per MB: 2 MB more must win 0.01 of AP.
 objective:
-  ap_small:
-    weight: 1
-    reduce: sum
-    loss: identity
-  map:
-    weight: 1
-    reduce: sum
-    loss: identity
+  ap_small: max
+  map: max
   model_mb:
+    goal: min
     weight: 0.005
-    reduce: sum
-    loss: identity
 
 search_space:
   - Categorical:

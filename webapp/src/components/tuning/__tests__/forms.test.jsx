@@ -240,12 +240,27 @@ describe('TuningForm', () => {
     expect(body.tuning_search.parameter_search).toContain('high: 0.5');
   });
 
-  it("says when an objective metric doesn't say which way is better, like qa optimize", () => {
+  it("asks which way is better for metrics nothing declared, and writes it in the YAML", () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
     usePrefsStore.getState().updateTuning('proj', { search_type: 'optimize', parameter_search_auto: 'evaluations: 20\nobjective:\n  psnr: {}\nsearch_space:\n  - Real: {name: x, low: 0, high: 1}\n' });
     renderWithProviders(<TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>, { siteConfig: {} });
-    expect(screen.getByText('not in the metrics file')).toBeInTheDocument();
-    expect(screen.getByText(/declare whether smaller values of psnr are better/)).toBeInTheDocument();
+    expect(screen.getByText(/Say whether higher or lower values of psnr are better/)).toBeInTheDocument();
+    fireEvent.click(within(screen.getByTestId('objective-psnr')).getByText('Higher is better'));
+    expect(usePrefsStore.getState().tuning.proj.parameter_search_auto).toContain('psnr: max');
+    expect(screen.queryByText(/Say whether higher or lower values of psnr are better/)).not.toBeInTheDocument();
+  });
+
+  it('offers the metrics the runs returned, and any other', () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
+    const with_runs = { ...commit, batches: { ci: { label: 'ci', outputs: { 1: { metrics: { psnr: 31.2 } } } } } };
+    usePrefsStore.getState().updateTuning('proj', { search_type: 'optimize', parameter_search_auto: 'evaluations: 20\nobjective:\n  loss: min\nsearch_space:\n  - Real: {name: x, low: 0, high: 1}\n' });
+    renderWithProviders(<TuningForm project="proj" config={config} metrics={metrics} commit={with_runs} available_tests_files={{}}/>, { siteConfig: {} });
+    fireEvent.change(screen.getByLabelText('Add a metric'), { target: { value: 'psnr' } });
+    expect(usePrefsStore.getState().tuning.proj.parameter_search_auto).toContain('psnr: {}');
+    fireEvent.change(screen.getByLabelText('Add a metric'), { target: { value: '\u0000other' } });
+    fireEvent.change(screen.getByLabelText("The metric's key"), { target: { value: 'ssim' } });
+    fireEvent.click(screen.getByText('Add'));
+    expect(usePrefsStore.getState().tuning.proj.parameter_search_auto).toContain('ssim: {}');
   });
 
   it('continues an automated tuning that has the same label, only with a bigger budget', () => {

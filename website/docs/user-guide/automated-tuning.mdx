@@ -14,8 +14,8 @@ next.
   **Tuning**. If it doesn't, see [Let people tune from the web app](/docs/tuning-from-the-webapp).
 - Your code reads tuning parameters, like for a grid search: see
   [how parameters reach your code](/docs/tuning-from-the-webapp#how-tuning-parameters-reach-your-code).
-- The metrics to improve are in the project's metrics file, and it says whether a higher or a lower value is better.
-  The form tells you when one isn't.
+- Your runs return the metrics to improve. There is nothing to declare first: the form lists the metrics of the
+  commit's runs, and you say whether higher or lower is better.
 :::
 
 ## Start an automated tuning {#start}
@@ -28,7 +28,8 @@ which quantization and post-processing settings get it back, without a model tha
    has.
 3. Open the **Automated tuning** tab. Under **1 Parameters to tune**, click **Add a parameter** for each value your
    code reads: its name, its kind (**Number**, **Whole number** or **Choice**), and the range or the values to try.
-4. Under **2 What “better” means**, pick the metrics to improve. The form shows which way is better for each.
+4. Under **2 What “better” means**, pick the metrics to improve, and for each whether **Higher is better** or **Lower is
+   better**. When your project's code declares it, the form fills it in.
 5. Under **3 Budget**, set the number of **Evaluations**: the form recommends one for your number of parameters.
 6. When the summary on the right says **Ready to start**, click **Start automated tuning**.
 
@@ -147,9 +148,13 @@ takes another path.
 evaluations so far, and tries where the model expects better results. **Advanced settings** has the method: see
 [Automated tuning with qa optimize](/docs/auto-optimization) for each one.
 
-**A metric says "not in the metrics file" or "no better direction".** The search needs to know whether higher or
-lower is better: ask whoever maintains the project to declare the metric with `smaller_is_better` in its
-[metrics file](/docs/computing-quantitative-metrics#declaring-metrics-in-a-metrics-file).
+**The metric I want isn't in the list.** The list has the metrics the project declares and those the commit's runs
+returned. Choose **Another metric…** and type its key, as your code returns it.
+
+**Can the project say once which way is better?** Yes: where the code computes the metric, with
+`qaboard.Metric(value, smaller_is_better=False)` or `define_metric` (see
+[declaring metrics](/docs/computing-quantitative-metrics#declaring-metrics)). The form then fills it in, and the
+tables and plots of the web app color its changes.
 
 **Does QA-Board email me when it ends?** Not for automated tuning yet.
 

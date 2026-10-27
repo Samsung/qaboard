@@ -3,10 +3,10 @@ import sys
 import uuid
 import yaml
 import json
-import re
 import datetime
 import subprocess
 from pathlib import Path
+from typing import Any, Dict, Optional
 
 import click
 
@@ -76,7 +76,7 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
     setup = init_optimization(config_file, checkpoint or optim_dir / 'optuna-journal.log', ctx, parallel_param_sampling)
   except (ValueError, ImportError) as e:
     raise click.ClickException(str(e))
-  objective, study, distributions, options, optim_config, dim_mapping = setup
+  objective, study, distributions, options, optim_config, dim_mapping, directions = setup
   metric_names = options['objective_metrics']
   pareto = options['pareto']
 
@@ -84,29 +84,35 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
   def update_batch(**data):
     notify_qa_database(object_type='batch', command=command, **ctx.obj, data={"optimization": True, **data})
 
+  def objective_for_webapp():
+    """The objective's settings, with which way is better for each metric: when the code declares it, after a run"""
+    goals = directions.goals()
+    return {m: {**{k: v for k, v in o.items() if v is not None}, "goal": goals[m]} for m, o in options['objective'].items()}
+  optimization_config = {
+    "search_space": describe_search_space(distributions),
+    "objective": objective_for_webapp(),
+    "pareto": pareto,
+    "sampler": sampler_name(study),
+    # the first evaluations try random parameters
+    "n_startup_trials": parse_solver(optim_config.get('solver'))['n_startup_trials'],
+    "parallel_sampling": options['parallel_sampling'],
+    "early_stopping": options['patience'],
+    "preset_params": optim_config.get('preset_params') or {},
+    # to continue the search from the web app: the same config and batches, a bigger budget
+    "config": optim_config,
+    "batches": list(batches),
+  }
+
   # trials left by an interrupted run keep their numbers: new iterations come after them
   previous_trials = len(study.trials)
-  progress = {"iteration": max(1, previous_trials)}
+  progress = {"iteration": max(1, previous_trials), "objective": optimization_config["objective"]}
   update_batch(
     # the server cleans up the iterations up to this one
     iteration=progress["iteration"],
     iterations=options['evaluations'],
     optimization_status="running",
     optimization_started_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
-    optimization_config={
-      "search_space": describe_search_space(distributions),
-      "objective": {m: {k: v for k, v in (optim_config['objective'][m] or {}).items() if k in ('weight', 'loss', 'reduce', 'margin')} for m in metric_names},
-      "pareto": pareto,
-      "sampler": sampler_name(study),
-      # the first evaluations try random parameters
-      "n_startup_trials": parse_solver(optim_config.get('solver'))['n_startup_trials'],
-      "parallel_sampling": options['parallel_sampling'],
-      "early_stopping": options['patience'],
-      "preset_params": optim_config.get('preset_params') or {},
-      # to continue the search from the web app: the same config and batches, a bigger budget
-      "config": optim_config,
-      "batches": list(batches),
-    },
+    optimization_config=optimization_config,
     **study_summary(study, metric_names if pareto else None),
   )
   if previous_trials:
@@ -149,9 +155,14 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
           },
         },
       }, command=command)
+      # which way is better for metrics the code declared is known after their first run
+      objective_now = objective_for_webapp()
+      objective_changed = objective_now != progress["objective"]
+      progress["objective"] = objective_now
       update_batch(
         iteration=iteration,
         iteration_label=iteration_batch_label,
+        **({"optimization_config": {**optimization_config, "objective": objective_now}} if objective_changed else {}),
         **({
           "is_best_iter": True,
           "best_params": dim_mapping(params),
@@ -173,6 +184,7 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
       rmtree(iteration_batch_dir, ignore_errors=True)
 
   status = "interrupted"
+  error = None
   try:
     summary = run_optimization(
       study,
@@ -188,17 +200,22 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
     status = "stopped_early" if summary["early_stopped"] else "done"
     if best_objective(study) is None:
       status = "failed"
+  except ObjectiveError as e:
+    status, error = "failed", str(e)
   finally:
     try:
       update_batch(
         iteration=progress["iteration"],
         optimization_status=status,
+        **({"optimization_error": error} if error else {}),
         optimization_ended_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
         **study_summary(study, metric_names if pareto else None),
       )
     except Exception as e:
       click.secho(f"WARNING: could not update QA-Board: {e}", fg='yellow', err=True)
 
+  if error:
+    raise click.ClickException(error)
   if status == "failed":
     raise click.ClickException("qa optimize: no evaluation succeeded. Check the logs of the iterations' runs.")
   if summary['early_stopped']:
@@ -236,7 +253,8 @@ def init_optimization(optim_config_file, checkpoint, ctx, parallel_param_samplin
   parse_solver(optim_config.get('solver'))
   preset_params = optim_config.get('preset_params') or {}
   # wrong metrics would only fail after the first evaluation, maybe hours later
-  check_objective(optim_config['objective'])
+  directions = Directions(options['objective'])
+  check_objective(optim_config['objective'], directions)
 
   click.secho("Search space:", fg="blue", err=True)
   for name, distribution in distributions.items():
@@ -290,7 +308,9 @@ def init_optimization(optim_config_file, checkpoint, ctx, parallel_param_samplin
     # compute the objective function:
     shared_batch_label = f"{ctx.obj['batch_label']}|iter{iteration}"
     try:
-      return batch_objective_components(project, commit_id, shared_batch_label, optim_config['objective'])
+      return batch_objective_components(project, commit_id, shared_batch_label, optim_config['objective'], directions)
+    except ObjectiveError:
+      raise
     except Exception as e:
       click.secho(f"[ERROR] Iteration {iteration}: could not compute the objective: {e}", fg='red', bold=True)
       return None
@@ -320,7 +340,7 @@ def init_optimization(optim_config_file, checkpoint, ctx, parallel_param_samplin
     parallel_sampling=options['parallel_sampling'],
   )
   reason = check_resumable(study, {
-    "objective": optim_config['objective'],
+    "objective": options['objective'],
     "pareto": options['pareto'],
     "search_space": optim_config['search_space'],
   })
@@ -332,62 +352,133 @@ def init_optimization(optim_config_file, checkpoint, ctx, parallel_param_samplin
   def dim_mapping(opt_params):
     return {**preset_params, **opt_params}
 
-  return objective, study, distributions, options, optim_config, dim_mapping
+  return objective, study, distributions, options, optim_config, dim_mapping, directions
 
 
-# The objective's `loss` and `reduce` options, see make_loss and make_reduce
-LOSSES = r'(square_)?(relu_)?(identity|shift|relative)'
-REDUCES = r'sum|relu|l\d'
+class ObjectiveError(Exception):
+  """The objective can't be computed for any evaluation: the search stops instead of failing every evaluation"""
 
 
-def check_objective(config_objective):
-  """Raises if a metric of the objective can't be computed, before running anything."""
-  for metric, options in config_objective.items():
-    if metric == 'target':
-      continue
-    options = options or {}
-    make_loss(metric, options)
-    loss = options.get('loss', 'identity')
-    if not re.fullmatch(LOSSES, str(loss)):
-      raise ValueError(f"`objective.{metric}.loss` is `{loss}`, expected identity, shift or relative, optionally as relu_X, square_X or square_relu_X.")
-    reduce = options.get('reduce', 'sum')
-    if not re.fullmatch(REDUCES, str(reduce)):
-      raise ValueError(f"`objective.{metric}.reduce` is `{reduce}`, expected sum, relu, l1 or l2.")
-    target = config_objective.get('target') or {}
-    compares_to_target = 'shift' in loss or 'relative' in loss
-    if compares_to_target and not ('id' in target or 'branch' in target or 'tag' in target):
-      if (available_metrics.get(metric) or {}).get('target') is None:
-        raise ValueError(
-          f"`objective.{metric}.loss: {loss}` compares {metric} to a target, and {metric} has none in your metrics file "
-          "(outputs.metrics in qaboard.yaml). Add one, or compare to a reference batch with `objective.target`."
-        )
+def code_definitions() -> Dict[str, Dict[str, Any]]:
+  """
+  The definitions of the metrics this commit's runs declared in code (qaboard.Metric, define_metric,
+  metrics_definitions.json), as QA-Board's server keeps them. {} if it can't tell.
+  """
+  import requests
+  from .api import api_prefix, api_verify, api_timeout, headers
+  try:
+    r = requests.get(f'{api_prefix}/commit/{commit_id}', params={
+      "project": Path(project).as_posix() if project else '',
+      "with_outputs": "false",
+      "metrics": json.dumps({"none-required": 0}),
+    }, headers=headers, verify=api_verify, timeout=api_timeout)
+    r.raise_for_status()
+    definitions = (r.json().get('data') or {}).get('metrics_definitions') or {}
+    return definitions if isinstance(definitions, dict) else {}
+  except Exception:
+    return {}
+
+
+def unknown_direction(metric: str) -> str:
+  return (
+    f"qa optimize doesn't know whether higher or lower values of {metric} are better. Say it in the objective: "
+    f"`{metric}: max` (higher is better) or `{metric}: min`. Or where your code computes it: "
+    f"`qaboard.Metric(value, smaller_is_better=...)`."
+  )
+
+
+def no_target(metric: str, loss: str) -> str:
+  return (
+    f"`objective.{metric}.loss: {loss}` compares {metric} to a target, and {metric} has none. "
+    f"Give it one with `objective.{metric}.target`, or compare to a reference batch with `objective.target`."
+  )
+
+
+class Directions:
+  """
+  Which way is better for each metric of the objective, and its target: what the configuration says, else what the
+  code that computes it declared, else the metrics file (outputs.metrics in qaboard.yaml). Code declares metrics when
+  it runs: until the first evaluation, the server may not know them.
+  """
+  def __init__(self, objective: Dict[str, Dict[str, Any]], code: Optional[Dict[str, Dict[str, Any]]] = None):
+    self.objective = objective
+    self.code = code if code is not None else {}
+
+  def refresh(self):
+    """Asks the server again, while a direction is unknown"""
+    if any(self.smaller_is_better(m) is None for m in self.objective):
+      self.code = code_definitions()
+
+  def declared(self, metric: str) -> bool:
+    return metric in self.code or metric in available_metrics
+
+  def smaller_is_better(self, metric: str) -> Optional[bool]:
+    goal = self.objective[metric]['goal']
+    if goal is not None:
+      return goal == 'min'
+    from .gate import smaller_is_better
+    declared = self.code.get(metric)
+    return smaller_is_better(metric, available_metrics, {"declared": True, **declared} if declared else None)
+
+  def goals(self) -> Dict[str, Optional[str]]:
+    """{metric: 'max', 'min' or None}, for the web app"""
+    directions = {m: self.smaller_is_better(m) for m in self.objective}
+    return {m: None if d is None else ('min' if d else 'max') for m, d in directions.items()}
+
+  def target(self, metric: str) -> Optional[float]:
+    for target in (
+      self.objective[metric]['target'],
+      (self.code.get(metric) or {}).get('target'),
+      (available_metrics.get(metric) or {}).get('target'),
+    ):
+      if target is not None:
+        return target
+    return None
+
+
+def compares_to_reference(config_objective: Dict[str, Any]) -> bool:
+  """`objective.target` names a reference batch: losses compare each run to the reference's"""
+  reference = config_objective.get('target') or {}
+  return 'id' in reference or 'branch' in reference or 'tag' in reference
+
+
+def check_objective(config_objective: Dict[str, Any], directions: Directions):
+  """
+  Raises if a metric of the objective can't be computed, before running anything. Metrics nothing declared yet may be
+  declared by the code when it runs: they are checked after the first evaluation.
+  """
+  directions.refresh()
+  for metric, options in directions.objective.items():
+    if directions.smaller_is_better(metric) is None:
+      if directions.declared(metric):
+        raise ValueError(unknown_direction(metric))
+      click.secho(f"qa optimize will read which way is better for {metric} from your runs, if they declare it.", fg='yellow', err=True)
+    compares_to_target = 'shift' in options['loss'] or 'relative' in options['loss']
+    if compares_to_target and not compares_to_reference(config_objective) and directions.target(metric) is None and directions.declared(metric):
+      raise ValueError(no_target(metric, options['loss']))
 
 
 relu = lambda x: x if x > 0 else 0
 
-def make_loss(metric, options):
+def make_loss(options, smaller_is_better: bool):
   """
   Return a loss function of the form: loss(metric, metric_target)
   """
-  loss = options.get('loss', 'identity')
-  from .gate import smaller_is_better as direction
-  smaller_is_better = direction(metric, available_metrics, None)
-  if smaller_is_better is None:
-    raise ValueError(
-      f"qa optimize: declare whether smaller values of {metric} are better in your metrics file (outputs.metrics in qaboard.yaml), "
-      f"with `smaller_is_better`, so that it knows what to minimize"
-    )
+  loss = options['loss']
   sign_inversion = (1 if smaller_is_better else -1)
-  if loss == 'identity':
+  if loss.endswith('identity'):
     loss_inner = lambda x, x_t: x * sign_inversion
-  elif 'shift' in loss:
+  elif loss.endswith('shift'):
     loss_inner = lambda x, x_t: (x - x_t) * sign_inversion
-  elif 'relative' in loss:
+  else:
     loss_inner = lambda x, x_t: (x - x_t) / x_t * sign_inversion
 
   if 'relu' in loss:
-    margin = options.get('margin', 0.0)
-    return lambda x, x_t: relu(loss_inner(x, x_t) + margin)
+    margin = options['margin']
+    loss_relu = lambda x, x_t: relu(loss_inner(x, x_t) + margin)
+    if 'square' in loss:
+      return lambda x, x_t: loss_relu(x, x_t)**2
+    return loss_relu
   if 'square' in loss:
     return lambda x, x_t: loss_inner(x, x_t)**2
   return loss_inner
@@ -398,21 +489,26 @@ def make_reduce(options):
   Return a reduce/aggregation function used to aggregate many losses from different tests into a single number.
   We normalize by the number of outputs to make it more easily human-understandable.
   """
-  reduce_type =  options.get('reduce', 'sum')
+  reduce_type = options['reduce']
   if reduce_type == 'sum':
     return lambda x: sum(x) / len(x)
   if reduce_type == 'relu':
     return lambda x: relu(sum(x)) / len(x)
-  if len(reduce_type) == 2:
-    from numpy.linalg import norm
-    return lambda x: norm(x, ord=int(reduce_type[1])) / len(x)
+  from numpy.linalg import norm
+  return lambda x: norm(x, ord=int(reduce_type[1:])) / len(x)
 
-def batch_objective_components(project, commit_id, batch_label, config_objective):
+def batch_objective_components(project, commit_id, batch_label, config_objective, directions: Directions):
   """
   The loss of each metric of the objective for a batch, as {metric: weight * reduced loss}.
   The objective is their sum; with `pareto: true` each is optimized on its own.
   """
-  metrics = [m for m in config_objective.keys() if m != 'target']
+  metrics = list(directions.objective)
+  # the runs may have declared metrics nothing knew before
+  directions.refresh()
+  smaller_is_better = {metric: directions.smaller_is_better(metric) for metric in metrics}
+  for metric, is_smaller_better in smaller_is_better.items():
+    if is_smaller_better is None:
+      raise ObjectiveError(unknown_direction(metric))
   this_batch_info = batch_info(
     reference=commit_id,
     is_branch=False,
@@ -420,61 +516,48 @@ def batch_objective_components(project, commit_id, batch_label, config_objective
     project=project,
     metrics=metrics,
   )
-  # We can compare to KPI quality target defined
-  if 'target' in config_objective and config_objective['target']:
-    target = config_objective['target']
-    use_default_targets = not 'id' in target and not 'branch' in target
-    # or get reference results from historical data
-    if not use_default_targets:
-      target_batch_info = batch_info(
-        target.get('id', target.get('branch', target.get('tag', ''))),
-        batch=target.get('batch', 'default'),
-        is_branch='branch' in target, # for tag we need special care...
-        # the working directory changed...
-        project=project,
-        metrics=metrics,
-      )
-  else:
-    use_default_targets = True
+  # Compare to a reference's results, or to each metric's target
+  use_reference = compares_to_reference(config_objective)
+  if use_reference:
+    reference = config_objective['target']
+    target_batch_info = batch_info(
+      reference.get('id', reference.get('branch', reference.get('tag', ''))),
+      batch=reference.get('batch', 'default'),
+      is_branch='branch' in reference, # for tag we need special care...
+      # the working directory changed...
+      project=project,
+      metrics=metrics,
+    )
 
   components = {}
-  for metric, options in config_objective.items():
-    if metric == 'target': # this is a special key, not a metric 
-      continue
-    if options is None:
-      options = {}
-    loss_name = options.get('loss', 'identity')
-    loss = make_loss(metric, options)
+  for metric, options in directions.objective.items():
+    loss_name = options['loss']
+    loss = make_loss(options, bool(smaller_is_better[metric]))
+    compares_to_target = 'shift' in loss_name or 'relative' in loss_name
+    if compares_to_target and not use_reference and directions.target(metric) is None:
+      raise ObjectiveError(no_target(metric, loss_name))
     losses = []
     for output in this_batch_info['outputs'].values():
-      if 'target' in config_objective and ('shift' in loss_name or 'relative' in loss_name):
-        if use_default_targets:
-          metric_target = (available_metrics.get(metric) or {}).get('target')
-          if metric_target is None:
-            raise ValueError(f"qa optimize: {metric} has no target in your metrics file (outputs.metrics in qaboard.yaml)")
-        else:
-          output_target = matching_output(RunContext.from_api_output(output), target_batch_info['outputs'].values())
-          if not output_target:
-            raise ValueError(f"Could not find an output for {output['test_input_path']} in the target batch")
-          metric_target = output_target['metrics'][metric]
-      else:
+      if not compares_to_target:
         metric_target = None
+      elif use_reference:
+        output_target = matching_output(RunContext.from_api_output(output), target_batch_info['outputs'].values())
+        if not output_target:
+          raise ValueError(f"Could not find an output for {output['test_input_path']} in the target batch")
+        metric_target = output_target['metrics'][metric]
+      else:
+        metric_target = directions.target(metric)
       if output['metrics'].get('is_failed'):
-        click.secho('Failed output', fg='red')        
+        click.secho('Failed output', fg='red')
         click.secho(output['output_dir_url'][2:], fg='red')
       else:
         try:
           losses.append(loss(output['metrics'][metric], metric_target) )
         except Exception:
-          click.secho(f'Could not find {metric}', fg='red')        
+          click.secho(f'Could not find {metric}', fg='red')
           click.secho(output['output_dir_url'][2:], fg='red')
     if not losses:
-      raise ValueError(f"Could not compute the loss function!")
+      raise ValueError(f"Could not compute the loss of {metric}: no run returned it.")
     partial_objective = make_reduce(options)(losses)
-    components[metric] = float(options.get('weight', 1) * partial_objective)
+    components[metric] = float(options['weight'] * partial_objective)
   return components
-
-
-def batch_objective(project, commit_id, batch_label, config_objective):
-  """The objective of a batch: the sum of its metrics' losses"""
-  return sum(batch_objective_components(project, commit_id, batch_label, config_objective).values())
