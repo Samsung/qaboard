@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, memo, useState } from "react";
 import { Link, useLinkClickHandler } from "../router";
 
 import styled, { css } from "styled-components";
@@ -758,4 +758,5 @@ const CommitRow = ({ density = "comfortable", ...props }) => density === "compac
   ? <CompactCommitRow {...props}/>
   : <ComfortableCommitRow {...props}/>;
 
-export default CommitRow;
+// Lists render all their rows again when a page of commits loads: those already there don't change
+export default memo(CommitRow);
