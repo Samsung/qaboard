@@ -300,12 +300,15 @@ const CommitShortId = styled.a`
 `;
 
 
-// The ☰ menu of a commit: copy its directory, browse its files, delete its runs
+// The ☰ menu of a commit: copy its directory, browse its files, delete its runs.
+// Lists have one per commit: the confirmation is only created when needed.
 const CommitMenu = ({ commit, project, project_data = {}, style }) => {
   const [waiting, setWaiting] = useState(false);
   const is_logged = useUser().is_logged;
-  // the runs users asked to delete, until they confirm: {url, all_projects}
+  // the runs users asked to delete, until they confirm: {url, all_projects, open}.
+  // The alert is only rendered from then until it has closed.
   const [confirm_delete, setConfirmDelete] = useState(null);
+  const closeConfirmation = () => setConfirmDelete({ ...confirm_delete, open: false });
   const refreshCommit = useRefreshCommit();
   const refresh = () => refreshCommit(project, commit.id);
 
@@ -314,7 +317,7 @@ const CommitMenu = ({ commit, project, project_data = {}, style }) => {
   const commit_milestones = milestones_of(useMilestones(project), {project, commit: commit.id})
   const short_id = shortId(project, commit.id)
   const deleteRuns = ({ url, all_projects }) => {
-    setConfirmDelete(null)
+    closeConfirmation()
     setWaiting(true)
     const what = `all the runs of ${short_id}${all_projects ? ' in all projects' : ''}`
     toaster.show({message: `Deleting ${what}…`, icon: 'time'}, 'delete-commit');
@@ -350,7 +353,7 @@ const CommitMenu = ({ commit, project, project_data = {}, style }) => {
           htmlTitle={milestones_title}
           className={Classes.TEXT_MUTED}
           minimal
-          onClick={() => setConfirmDelete({url: `/api/v1/commit/${project}/${commit.id}/batches/`})}
+          onClick={() => setConfirmDelete({url: `/api/v1/commit/${project}/${commit.id}/batches/`, open: true})}
         />
         {is_subproject && <MenuItem
           text="Delete all runs, in all the projects with this commit…"
@@ -360,7 +363,7 @@ const CommitMenu = ({ commit, project, project_data = {}, style }) => {
           htmlTitle={milestones_title}
           className={Classes.TEXT_MUTED}
           minimal
-          onClick={() => setConfirmDelete({url: `/api/v1/commit/${commit.id}/batches/`, all_projects: true})}
+          onClick={() => setConfirmDelete({url: `/api/v1/commit/${commit.id}/batches/`, all_projects: true, open: true})}
         />}
       </Menu>}
     >
@@ -373,20 +376,21 @@ const CommitMenu = ({ commit, project, project_data = {}, style }) => {
         aria-label="Commit actions"
       />
     </PopoverNext>
-    <Alert
-      isOpen={confirm_delete !== null}
+    {confirm_delete && <Alert
+      isOpen={confirm_delete.open}
       icon="trash"
       intent={Intent.DANGER}
       cancelButtonText="Cancel"
       confirmButtonText="Delete runs"
       canEscapeKeyCancel
-      onCancel={() => setConfirmDelete(null)}
+      onCancel={closeConfirmation}
       onConfirm={() => deleteRuns(confirm_delete)}
+      onClosed={() => setConfirmDelete(null)}
     >
-      <p><strong>Delete all the runs of {short_id}{confirm_delete?.all_projects ? ', in all projects' : ''}?</strong></p>
+      <p><strong>Delete all the runs of {short_id}{confirm_delete.all_projects ? ', in all projects' : ''}?</strong></p>
       <p>Their output files and metrics will be deleted. This can't be undone.</p>
       {!!milestones_title && <p>{milestones_title}.</p>}
-    </Alert>
+    </Alert>}
   </>
 }
 
