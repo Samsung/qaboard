@@ -210,6 +210,22 @@ describe('the docked panel', () => {
     expect(localStorage.getItem('view-options-width')).toBe('300');
   });
 
+  test('dragged, the content area makes room for it once let go', () => {
+    resize(1920);
+    panel({});
+    const aside = screen.getByRole('complementary', { name: 'View options' });
+    const handle = screen.getByRole('separator', { name: 'Resize the view options' });
+    fireEvent.pointerDown(handle, { button: 0, clientX: 1000 });
+    fireEvent.pointerMove(handle, { clientX: 950 });
+    expect(aside).toHaveStyle({ width: '350px' });
+    expect(space()).toBe('300px');
+    fireEvent.pointerMove(handle, { clientX: 900 });
+    fireEvent.pointerUp(handle, { clientX: 900 });
+    expect(aside).toHaveStyle({ width: '400px' });
+    expect(space()).toBe('400px');
+    expect(localStorage.getItem('view-options-width')).toBe('400');
+  });
+
   test('covers narrow content areas instead of narrowing them, and Esc closes it then', () => {
     resize(1100);
     panel({});
