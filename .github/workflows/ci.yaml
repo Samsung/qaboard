@@ -77,7 +77,7 @@ jobs:
           uvx twine check dist/*
 
   webapp:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # playwright 1.56 has no chromium for ubuntu 26.04
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     defaults:
       run:
@@ -230,7 +230,7 @@ jobs:
   # the images of this run. Its demo data is the seeder's test story, built into a demo-data image like the docs' demo
   # snapshot is (that one is in a private bucket: .github/workflows/docs-media.yml tests it the same way).
   quickstart:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # playwright 1.56 has no chromium for ubuntu 26.04
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     timeout-minutes: 45
     steps:
@@ -304,7 +304,7 @@ jobs:
   # (website/docs/get-started/quickstart.mdx), with demo data (see the quickstart job), a `qa batch` in the cluster,
   # then an upgrade
   helm-e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # playwright 1.56 has no chromium for ubuntu 26.04
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     timeout-minutes: 45
     env:
