@@ -234,9 +234,14 @@ def admin_scan_import_runs(scan_id):
 @app.route('/api/v1/admin/scans/<int:scan_id>/', methods=['DELETE'])
 @admin_required
 def admin_delete_scan(scan_id):
+  """What a scan found is deleted, not the files: when it's outdated, or the scan failed"""
   scan, error = get_scan_or_404(scan_id)
   if error:
     return error
+  job = db_session.get(Job, scan.job_id) if scan.job_id else None
+  if job is not None and job.status in queue.ACTIVE:
+    return jsonify({"error": f"Scan #{scan_id} is {job.status}: cancel its job first."}), 400
+  audit('storage.delete_scan', 'scan', scan_id, f"scan #{scan_id}", meta={"roots": (scan.roots or [])[:20], "status": scan.status})
   db_session.delete(scan)
   db_session.commit()
   return jsonify({"deleted": scan_id})

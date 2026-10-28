@@ -243,6 +243,47 @@ def test_scan_reads_each_folder_once(admin, storage):
   assert result["bytes"] == 1000 and result["files"] == 1
 
 
+def test_scans_stop_inside_big_folders(admin, storage, monkeypatch):
+  """Cancelling doesn't wait for a big folder to be done, the folders read are the progress meanwhile, and the scan can be deleted"""
+  from backend.database import engine
+  from backend.models import Job
+  from backend.jobs import scan as scan_job, report
+  for i in range(30):
+    write(storage / 'huge' / f'sub{i}' / 'deeper')
+  monkeypatch.setattr(scan_job, 'PROGRESS_EVERY', 0.01)
+  monkeypatch.setattr(report, 'FLUSH_EVERY', 0)
+  answer = start(admin, kind='scan_storage', roots=[str(storage)], min_size_mb=0, threads=1)
+  real_read = scan_job.Scanner.read
+  def read(self, path):
+    if self.dirs == 10:
+      with engine.begin() as connection:
+        connection.execute(Job.__table__.update().where(Job.__table__.c.id == answer["id"]).values(cancel_requested=True))
+      import time
+      time.sleep(0.2)  # the main thread notices
+    return real_read(self, path)
+  monkeypatch.setattr(scan_job.Scanner, 'read', read)
+  run_jobs()
+  done = job(admin, answer["id"])
+  assert done["status"] == 'cancelled', done["log"]
+  assert done["progress"].get("folders_done", 0) == 0 and 10 <= done["progress"]["dirs_explored"] < 60
+  scans = admin.get('/api/v1/admin/scans').get_json()["scans"]
+  assert scans[0]["status"] == 'cancelled'
+  assert admin.delete(f'/api/v1/admin/scans/{scans[0]["id"]}').status_code == 200
+  assert admin.get('/api/v1/admin/scans').get_json()["scans"] == []
+
+
+def test_running_scans_cant_be_deleted(admin, storage):
+  start(admin, kind='scan_storage', roots=[str(storage)])
+  from backend.database import db_session
+  from backend.models import StorageScan, Job
+  queued = Job.query.filter(Job.kind == 'scan_storage').one()
+  db_session.add(StorageScan(job_id=queued.id, roots=[str(storage)]))
+  db_session.commit()
+  scan_id = StorageScan.query.one().id
+  refused = admin.delete(f'/api/v1/admin/scans/{scan_id}')
+  assert refused.status_code == 400 and 'cancel its job' in refused.get_json()["error"]
+
+
 def test_scan_actions(admin, world, storage):
   from backend.models import Output, Export
   ids, paths = tree(world, storage)

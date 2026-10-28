@@ -316,8 +316,9 @@ export const startJob = async (queryClient, kind, params) => {
   return data;
 };
 
-export const cancelJob = async (queryClient, id) => {
-  const { data } = await http.post(`/api/v1/admin/jobs/${id}/cancel`);
+// `force`: don't wait for its worker, e.g. stuck reading a storage that doesn't answer
+export const cancelJob = async (queryClient, id, { force = false } = {}) => {
+  const { data } = await http.post(`/api/v1/admin/jobs/${id}/cancel`, force ? { force } : undefined);
   invalidateJobs(queryClient);
   return data;
 };
@@ -404,6 +405,13 @@ const invalidateScan = (queryClient, id) => Promise.all([
   queryClient.invalidateQueries({ queryKey: ['admin', 'scan', String(id)] }),
   queryClient.invalidateQueries({ queryKey: ['admin', 'jobs'] }),
 ]);
+
+// What the scan found, not the files
+export const deleteScan = async (queryClient, id) => {
+  await http.delete(`/api/v1/admin/scans/${id}`);
+  queryClient.removeQueries({ queryKey: ['admin', 'scan', String(id)] });
+  await queryClient.invalidateQueries({ queryKey: ['admin', 'scans'] });
+};
 
 // => {job}
 export const deleteScanPaths = async (queryClient, id, paths) => {

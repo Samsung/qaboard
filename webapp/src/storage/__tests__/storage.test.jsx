@@ -295,6 +295,21 @@ describe('Leftovers, rules, exports and untracked files', () => {
     expect(rule).toHaveTextContent('every day at 02:00 (UTC)');
   });
 
+  it('sums up many deletion rules in a line, until asked', async () => {
+    const rule = rules.rules[0];
+    mockApi({
+      'GET /api/v1/storage/overview': overview,
+      'GET /api/v1/storage/jobs': { jobs: [] },
+      'GET /api/v1/storage/rules': { ...rules, rules: [rule, { ...rule, kind: 'hard_delete', title: 'Deleted runs are deleted for good' }, { ...rule, kind: 'delete_artifacts', title: 'Old artifacts are deleted' }] },
+    });
+    renderAt('/storage');
+    expect(await screen.findByTestId('deletion-rules-summary')).toHaveTextContent('Old results are deleted · Deleted runs are deleted for good · Old artifacts are deleted');
+    expect(screen.queryByTestId('deletion-rule')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show the 3 rules' }));
+    expect(await screen.findAllByTestId('deletion-rule')).toHaveLength(3);
+    expect(screen.queryByTestId('deletion-rules-summary')).not.toBeInTheDocument();
+  });
+
   it('says when nothing deletes results', async () => {
     mockApi({ 'GET /api/v1/storage/overview': overview, 'GET /api/v1/storage/items': items, 'GET /api/v1/storage/jobs': { jobs: [] }, 'GET /api/v1/storage/rules': { rules: [], settings: {}, project: 'proj/a' } });
     renderAt('/storage/batches?project=proj/a');

@@ -14,7 +14,7 @@ import { history, Link } from "../router";
 import { Time } from "../settings/format";
 import { Loading } from "../settings/states";
 import { AdminError } from "./states";
-import { scanQuery, scanEntriesQuery, deleteScanPaths, trackScanExports, importScanRuns } from "./api";
+import { scanQuery, scanEntriesQuery, deleteScanPaths, trackScanExports, importScanRuns, deleteScan } from "./api";
 import { formatBytes, number, JobStatus } from "./jobs";
 
 
@@ -99,6 +99,7 @@ export const ScanExplorer = ({ id }) => {
   const [selected, setSelected] = useState(new Map());
   const [confirm, setConfirm] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const setParent = path => {
     setParentState(path);
     setSelected(new Map());
@@ -161,7 +162,29 @@ export const ScanExplorer = ({ id }) => {
       {scan.job ? <JobStatus job={scan.job}/> : <Tag minimal>{scan.status}</Tag>}
       <span className={Classes.TEXT_MUTED}>{scan.finished_at ? <>finished <Time iso={scan.finished_at}/></> : <>started <Time iso={scan.created_at}/></>}</span>
       {scan.job && <Link to={`/admin/storage/jobs/${scan.job.id}`}>Its job and log</Link>}
+      {scan.status !== 'running' && <Button style={{ marginLeft: 'auto' }} variant="minimal" icon="trash" text="Delete this scan" onClick={() => setDeleting(true)}/>}
     </div>
+    <Alert
+      isOpen={deleting}
+      intent={Intent.DANGER}
+      icon="trash"
+      confirmButtonText="Delete the scan"
+      cancelButtonText="Cancel"
+      loading={busy}
+      onConfirm={() => {
+        setBusy(true);
+        deleteScan(queryClient, scan.id)
+          .then(() => {
+            toaster.show({ message: `Deleted scan #${scan.id}`, intent: Intent.SUCCESS, icon: 'tick', timeout: 4000 });
+            history.push('/admin/storage');
+          })
+          .catch(error => toaster.show({ message: errorMessage(error), intent: Intent.DANGER, timeout: 8000 }))
+          .finally(() => { setBusy(false); setDeleting(false); });
+      }}
+      onCancel={() => setDeleting(false)}
+    >
+      <p>Delete what scan #{scan.id} found? The files stay on disk: only the scan's results are deleted.</p>
+    </Alert>
     <p className={Classes.TEXT_MUTED} style={{ marginTop: 6 }}>{(scan.roots ?? []).length} folders: {(scan.roots ?? []).slice(0, 4).join(', ')}{scan.roots?.length > 4 ? '…' : ''}</p>
     {scan.status === 'running' && <Callout icon="time" intent={Intent.PRIMARY}>The scan is still running: what you see grows as it goes.</Callout>}
 

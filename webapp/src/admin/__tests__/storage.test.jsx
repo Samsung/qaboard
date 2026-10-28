@@ -85,6 +85,45 @@ describe('Storage', () => {
     expect(schedule).toHaveTextContent('Skipped: Job #8 is already queued');
   });
 
+  it('sums up many schedules in a line, until asked', async () => {
+    const schedule = (id, props) => ({
+      id, name: `Schedule ${id}`, kind: 'hard_delete', description: 'Hard-delete the deleted runs of *', params: {}, cron: '0 2 * * *', timezone: 'UTC',
+      enabled: true, next_run_at: `2026-10-2${id}T02:00:00Z`, last_job: job(), last_message: null, ...props,
+    });
+    mockApi({
+      'GET /api/v1/admin/jobs': { jobs: [], next_before_id: null, workers: worker },
+      'GET /api/v1/admin/job-schedules': { schedules: [schedule(1, { enabled: false }), schedule(2, { last_job: job({ status: 'failed' }) }), schedule(3), schedule(4)] },
+    });
+    renderAt('/admin/storage', <Storage/>);
+    const summary = await screen.findByTestId('schedules-summary');
+    expect(summary).toHaveTextContent('3 of 4 enabled');
+    expect(summary).toHaveTextContent('next: Schedule 2');
+    expect(summary).toHaveTextContent('last run went wrong for 1');
+    expect(screen.queryByRole('table', { name: 'Schedules' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show the 4 schedules' }));
+    expect(within(await screen.findByRole('table', { name: 'Schedules' })).getAllByRole('row')).toHaveLength(5);
+  });
+
+  it('lists the latest scans, and deletes what they found', async () => {
+    const scan = id => ({ id, job_id: null, job: null, roots: ['/algo'], status: 'done', created_at: '2026-10-20T10:00:00Z', finished_at: '2026-10-20T11:00:00Z',
+      min_bytes: 0, bytes: 1000, files: 10, errors: 0, by_kind: {}, untracked_bytes: 0 });
+    const fetch = mockApi({
+      'GET /api/v1/admin/jobs': { jobs: [], next_before_id: null, workers: worker },
+      'GET /api/v1/admin/job-schedules': { schedules: [] },
+      'GET /api/v1/admin/scans': { scans: [{ ...scan(5), status: 'running', job: job({ id: 9, kind: 'scan_storage', status: 'running' }) }, scan(4), scan(3), scan(2), scan(1)] },
+      'DELETE /api/v1/admin/scans/4': { deleted: 4 },
+    });
+    renderAt('/admin/storage', <Storage/>);
+    const table = await screen.findByRole('table', { name: 'Scans' });
+    expect(within(table).getAllByRole('row')).toHaveLength(4);
+    expect(within(table).getByRole('button', { name: 'Delete scan #5' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Show the 2 older scans' }));
+    expect(within(table).getAllByRole('row')).toHaveLength(6);
+    fireEvent.click(within(table).getByRole('button', { name: 'Delete scan #4' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete the scan' }));
+    await waitFor(() => expect(calls(fetch, 'DELETE', '/api/v1/admin/scans/4')).toHaveLength(1));
+  });
+
   it('starts a dry run of a hard delete, then shows it', async () => {
     const fetch = mockApi({
       'GET /api/v1/admin/jobs': { jobs: [], next_before_id: null, workers: worker },
@@ -213,6 +252,19 @@ describe('JobDetail', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
     await waitFor(() => expect(history.location.pathname).toBe('/admin/storage/jobs/10'));
+  });
+
+  it('stops jobs stuck cancelling without waiting for their worker', async () => {
+    const fetch = mockApi({
+      'GET /api/v1/admin/jobs/7': { ...job({ status: 'running', finished_at: null, cancel_requested: true }), workers: worker },
+      'POST /api/v1/admin/jobs/7/cancel': job({ status: 'cancelled' }),
+    });
+    renderAt('/admin/storage/jobs/7', <JobDetail id="7"/>);
+    expect(await screen.findByText(/its worker is stuck/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Stop without waiting' }));
+    await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/admin/jobs/7/cancel')).toHaveLength(1));
+    expect(JSON.parse(calls(fetch, 'POST', '/api/v1/admin/jobs/7/cancel')[0][1].body)).toEqual({ force: true });
   });
 
   it('cancels running jobs, and runs dry runs for real', async () => {

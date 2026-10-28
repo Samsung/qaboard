@@ -84,7 +84,10 @@ and **Download all (CSV)** to send them to the people concerned. Once fixed, **R
 - **Git**: the project's repository can't be read (see above).
 - **Storage not mounted?**: a folder is missing where the storage may just not be mounted (see above).
 
-Only one job of each kind runs at a time. Cancel a running job from its page: it stops within seconds.
+Only one job of each kind runs at a time. Cancel a running job from its page: it stops within seconds. If it's still
+*Cancelling* after a minute, its worker is stuck, e.g. reading a storage that doesn't answer: **Stop without waiting**
+marks it as cancelled, so another job of its kind can start. Its worker may stay busy with it until it gets an answer:
+restart the backend (or wherever `qaboard-admin jobs worker` runs) to stop it at once.
 
 ## Users' storage usage
 Users see how much storage their runs use, and delete their runs' files, in **Storage usage** (their profile menu,
@@ -126,6 +129,9 @@ lists them anywhere, by kind, owner or age. Click an owner to see only theirs. T
 
 Users see what they own in **Storage usage → Not tracked**, from the latest scan, and can delete the folders whose
 files are all theirs. Scanning doesn't change anything on disk.
+
+Delete old scans from the **Scans** list or the scan's page: only what they found is deleted, not the files. Users then
+see the latest scan that's done.
 
 <details>
 <summary>How long scans take, and what they don't see</summary>

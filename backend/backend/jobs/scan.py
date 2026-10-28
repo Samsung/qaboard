@@ -16,6 +16,8 @@ What QA-Board knows is looked up as we find folders: commits by the <2 hex>/<14 
 then their batches' and runs' folders, and runs with their own folder (output_dir_override) by their path.
 Entries smaller than `min_size_mb` are summed up in their parent. Hard links count once. It runs on several threads:
 the storage (NFS...) answers slowly, but in parallel. An interrupted scan resumes with the root folders it didn't finish.
+Cancelling stops the threads at the next folder they read, even deep in a huge folder: only a folder whose storage
+doesn't answer at all (a hung mount) can't be stopped, admins then force the job to stop (api/admin_jobs.py).
 """
 import os
 import re
@@ -23,7 +25,7 @@ import glob
 import datetime
 import threading
 from functools import lru_cache
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 from typing import Optional
 
 from sqlalchemy import text
@@ -44,6 +46,7 @@ LEAVES = {'run', 'deleted_run', 'untracked_run', 'artifacts', 'deleted_artifacts
 DELETABLE = {'deleted_run', 'untracked_run', 'deleted_artifacts', 'untracked_export', 'export', 'untracked_files', 'file', 'folder'}
 UNTRACKED = {'deleted_run', 'untracked_run', 'deleted_artifacts', 'untracked_export', 'untracked_files'}
 FLUSH_EVERY = 2000
+PROGRESS_EVERY = 2  # seconds: how often the folders explored are reported, and cancelling is checked
 # Storage snapshots are copies of everything: never scanned, whatever `exclude_paths` says
 SNAPSHOTS = {'.snapshot', '.snapshots', '.zfs'}
 commit_dirs_re = re.compile(r'/(?P<a>[0-9a-f]{2})/(?P<b>[0-9a-f]{14})(?=/|$)')
@@ -260,6 +263,10 @@ class Known:
     return (row[0], bool(row[1])) if row else None
 
 
+class Stopped(Exception):
+  """The job was cancelled, or the worker is stopping: the threads give up their folder"""
+
+
 class Scanner:
   def __init__(self, scan_id: int, params: dict, report: Reporter, exports: dict, batch_overrides: dict):
     from sqlalchemy.orm import scoped_session, sessionmaker
@@ -276,6 +283,17 @@ class Scanner:
     self.lock = threading.Lock()
     self.local = threading.local()
     self.errors = 0
+    self.stop = threading.Event()
+    self.dirs = 0  # folders read: the progress while the big folders take hours
+
+  def read(self, path: str) -> list:
+    if self.stop.is_set():
+      raise Stopped()
+    with os.scandir(path) as listing:
+      children = list(listing)
+    with self.lock:
+      self.dirs += 1
+    return children
 
   def known(self) -> Known:
     if not hasattr(self.local, 'known'):
@@ -341,8 +359,7 @@ class Scanner:
     if os.path.basename(path) in SNAPSHOTS or self.excluded(path):
       return totals
     try:
-      with os.scandir(path) as listing:
-        children = list(listing)
+      children = self.read(path)
       own = os.lstat(path)
     except OSError as e:
       with self.lock:
@@ -392,9 +409,8 @@ class Scanner:
       if entry.is_dir(follow_symlinks=False):
         if entry.name in SNAPSHOTS:
           return
-        with os.scandir(entry.path) as listing:
-          for child in listing:
-            self.add_tree(child, totals, kind)
+        for child in self.read(entry.path):
+          self.add_tree(child, totals, kind)
       else:
         totals.add_file(entry.stat(follow_symlinks=False), kind, self.seen)
     except OSError:
@@ -464,11 +480,35 @@ def run(params: dict, report: Reporter):
     batch_overrides[batch_dir.rstrip('/')] = (batch_id, project_id)
   db_session.commit()
   scanner = Scanner(scan_id, params, report, exports, batch_overrides)
+  try:
+    finished = scan_roots(roots, scan_id, scanner, params, report)
+  finally:
+    scanner.sessions.remove()
+    scanner.engine.dispose()
+  scan = db_session.get(StorageScan, scan_id)
+  db_session.refresh(scan)
+  if not finished:
+    # the worker stopping (deploys) resumes it later: only a cancelled scan is over
+    if getattr(report, 'cancelled', False):
+      scan.status, scan.finished_at = 'cancelled', utcnow()
+      db_session.commit()
+    return
+  scan.status = 'done'
+  scan.finished_at = utcnow()
+  scan.totals = {**(scan.totals or {}), "errors": scanner.errors}
+  db_session.commit()
+  untracked = sum(size for kind, size in (scan.totals.get('by_kind') or {}).items() if kind in UNTRACKED)
+  report.log(f"Done: {_human(scan.totals.get('bytes', 0))} in {scan.totals.get('files', 0)} files, {_human(untracked)} QA-Board doesn't track")
+
+
+def scan_roots(roots: list, scan_id: int, scanner: Scanner, params: dict, report: Reporter) -> bool:
+  """False if it stopped before the end"""
   done = set(report.progress.get('done') or [])
+  dirs_before = report.progress.get('dirs_explored') or 0
   report.set(roots_total=len(roots))
   for root in roots:
     if report.should_stop():
-      return
+      return False
     try:
       check_storage_path(root)
     except UnsafePathError as e:
@@ -498,21 +538,33 @@ def run(params: dict, report: Reporter):
     report.add(folders_total=len(folders))
     with ThreadPoolExecutor(max_workers=params['threads']) as pool:
       futures = {pool.submit(scanner.subtree, folder, root): folder for folder in folders}
-      for future in as_completed(futures):
-        folder = futures[future]
-        try:
-          totals = future.result()
-        except Exception as e:
-          report.error('other', f"Could not scan {folder}: {e}", path=folder)
-          continue
-        merge_scan_totals(scan_id, totals)
-        done.add(folder)
-        report.add(folders_done=1, bytes=totals.bytes, files=totals.files)
-        report.set(done=sorted(done), current=folder)
+      pending = set(futures)
+      while pending:
+        # not only when a folder is done: a big one takes hours, we report and check for cancellations meanwhile
+        finished, pending = wait(pending, timeout=PROGRESS_EVERY, return_when=FIRST_COMPLETED)
+        for future in finished:
+          folder = futures[future]
+          try:
+            totals = future.result()
+          except Stopped:
+            continue
+          except Exception as e:
+            report.error('other', f"Could not scan {folder}: {e}", path=folder)
+            continue
+          merge_scan_totals(scan_id, totals)
+          done.add(folder)
+          report.add(folders_done=1, bytes=totals.bytes, files=totals.files)
+          report.set(done=sorted(done), current=folder)
+        report.set(dirs_explored=dirs_before + scanner.dirs)
         if report.should_stop():
-          for f in futures:
-            f.cancel()
-          return
+          # the threads stop at the next folder they read, the pool waits for them
+          scanner.stop.set()
+          for future in pending:
+            future.cancel()
+          break
+    if scanner.stop.is_set():
+      report.log(f"Stopped, after reading {dirs_before + scanner.dirs} folders", level='warning')
+      return False
     with engine.begin() as connection:
       row = connection.execute(text("""
         SELECT coalesce(sum(bytes), 0), coalesce(sum(files), 0) FROM storage_scan_entries
@@ -530,16 +582,7 @@ def run(params: dict, report: Reporter):
                   {"bytes": root_files.bytes, "files": root_files.files, "entries": 0} if root_files.files else None)
     scanner.flush()
     report.add(roots_done=1)
-  scanner.sessions.remove()
-  scanner.engine.dispose()
-  scan = db_session.get(StorageScan, scan_id)
-  db_session.refresh(scan)
-  scan.status = 'done'
-  scan.finished_at = utcnow()
-  scan.totals = {**(scan.totals or {}), "errors": scanner.errors}
-  db_session.commit()
-  untracked = sum(size for kind, size in (scan.totals.get('by_kind') or {}).items() if kind in UNTRACKED)
-  report.log(f"Done: {_human(scan.totals.get('bytes', 0))} in {scan.totals.get('files', 0)} files, {_human(untracked)} QA-Board doesn't track")
+  return True
 
 
 def _human(size) -> str:
