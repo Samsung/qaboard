@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.5c71b209.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.8d0c9ee6.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.f0459941.js" defer="defer"></script>
 </head>
 <body>
@@ -50,7 +50,9 @@ and pgAdmin&#x27;s, see <a class="" href="/qaboard/docs/deploy#passwords-and-adm
 <p><code>up</code>:</p>
 <ol>
 <li class="">Pulls the images for the version (or builds them with <code>--build</code>).</li>
-<li class="">Runs the database migrations once. If they fail, nothing running is changed.</li>
+<li class="">Runs the database migrations once. If they fail, nothing running is changed, and the deploy stops: the output says
+which migration failed and why. Fix the cause (e.g. a lock timeout: deploy again when the database is quieter), then
+deploy again.</li>
 <li class="">Updates the infrastructure services (database, redis, proxy...). They are only recreated if their configuration or image changed.</li>
 <li class="">Updates the backend, one version at a time: it starts the new replicas next to the old ones, waits until they are healthy, points nginx at them, then stops the old ones gracefully. If the new replicas are not healthy, they are removed and the old ones keep serving.</li>
 <li class="">Updates the web app and docs bundles. Old bundles are kept, so clients with an old version keep working.</li>

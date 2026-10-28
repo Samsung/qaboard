@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.5c71b209.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.8d0c9ee6.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.f0459941.js" defer="defer"></script>
 </head>
 <body>
@@ -61,7 +61,8 @@ project, branch or person in a row to filter by it, and a row to select it.</li>
 <li class="">See how much space your deleted runs still take: deleting runs keeps their manifests, and the files written after
 they ended. QA-Board now measures what&#x27;s left when it deletes runs.</li>
 <li class="">See what QA-Board deletes automatically, when, and what it keeps, on <strong>Storage usage</strong> and on the project&#x27;s commit
-list (e.g. <em>Results deleted after 1 month</em>), with what the project&#x27;s <em>qaboard.yaml</em> says.</li>
+list (e.g. <em>Results deleted after 1 month</em>), with what the project&#x27;s <em>qaboard.yaml</em> says. Several rules are summed
+up in a line: open it to see them all.</li>
 <li class="">Find your exports in <strong>Storage usage → Exports</strong>: their size, the runs they come from, and delete them without a
 terminal. Exports are links to the runs&#x27; files by default: QA-Board says how much space only frees once the runs are
 deleted too (<a class="" href="/qaboard/docs/user-guide/storage-usage#exports">exports</a>).</li>
@@ -371,6 +372,7 @@ running them all again when you asked to skip, sync or post-process the existing
 </ul>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
 <ul>
+<li class="">Stop a deploy when a database migration fails: the output says which migration and why, and nothing running is changed. Migrations used to be skipped silently instead, leaving a database the backend then failed on, with errors like <em>column … does not exist</em>. The backend also doesn&#x27;t start on a failed migration. If your database misses migrations because of this, find the latest one it has, then <code>alembic stamp &lt;revision&gt; &amp;&amp; alembic upgrade head</code> in the backend&#x27;s container (<a class="" href="/qaboard/docs/backend-admin/deployment">deployment</a>).</li>
 <li class="">Upgrading saves where batches come from and who started them, and who wrote commits (their email). The migration fills in existing batches a few thousand at a time, so results keep coming in meanwhile: expect a few minutes on big databases. Results sent with a service account&#x27;s token always count as the CI&#x27;s.</li>
 <li class="">Upgrading adds a <code>project_views</code> table (who opened which project, written at most once an hour per user and project), for the projects you look at. <code>/api/v1/projects</code> also says when people last used each project, its batches per day, and how many users viewed it, and to signed-in users when they last ran or committed there (<code>my_latest_activity</code>).</li>
 <li class=""><code>/api/v1/batches</code> lists the batches of several projects (<code>projects=a,b</code>, skipping those you can&#x27;t read), others&#x27; batches (<code>scope=others</code>), those with waiting or failed runs (<code>status=pending|failed</code>, over the last 30 days by default, 90 at most), recent ones (<code>since_days=</code>), and each project&#x27;s default metric (<code>metrics=default</code>).</li>
@@ -432,6 +434,13 @@ and exports, what deleted runs and artifacts left, other files, with their owner
 folders by size with what they&#x27;re made of, or the biggest untracked things anywhere, by owner or age. Delete them,
 track the exports so their owners see them, or add the runs back to QA-Board. What QA-Board uses can&#x27;t be deleted
 from there (<a class="" href="/qaboard/docs/backend-admin/storage#scanning-the-storage">scanning the storage</a>).</li>
+<li class="">Cancel a scan in seconds, even deep in a huge folder, and follow a running scan by the folders it has read.</li>
+<li class="">Delete old scans&#x27; results from <strong>Admin → Storage → Scans</strong> or the scan&#x27;s page (the files stay on disk). The list
+shows the latest scans, the older ones on demand.</li>
+<li class="">Stop a job stuck cancelling with <strong>Stop without waiting</strong>, e.g. when its worker is stuck on a storage that doesn&#x27;t
+answer: another job of its kind can then start.</li>
+<li class="">See the schedules in a line (how many are enabled, the next one, those whose last run went wrong) when there are
+many, and their table when you open it.</li>
 <li class="">Put the exports in one place with the <code>storage.exports_root</code> setting (<code>QABOARD_EXPORTS_ROOT</code>):
 <code>&lt;root&gt;/&lt;user&gt;/&lt;project&gt;/&lt;date&gt;-&lt;id&gt;</code>, instead of a <code>share/</code> folder next to the commit&#x27;s results. QA-Board now
 tracks exports made from the web app, and their size.</li>
@@ -763,6 +772,7 @@ are no longer scanned again, even when you set your own excluded paths.</li>
 </ul>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="commits-branches-and-history">Commits, branches and history<a href="#commits-branches-and-history" class="hash-link" aria-label="Direct link to Commits, branches and history" title="Direct link to Commits, branches and history" translate="no">​</a></h3>
 <ul>
+<li class="">Opening a commit from a project&#x27;s page no longer crashes the page with <code>find is not a function</code>.</li>
 <li class="">Clicking a run&#x27;s name opens its History from 3 days before the commit, so you see the commits before it without picking dates.</li>
 <li class="">Projects without a <em>qaboard.yaml</em> use <code>master</code> as their reference branch in the web app, like the server and <code>qa</code>, instead of <code>develop</code>.</li>
 <li class="">Reloading a page, opening a shared link or using the back button shows what the URL says: the selected commits, batches and filters could disagree with it.</li>
@@ -795,6 +805,7 @@ are no longer scanned again, even when you set your own excluded paths.</li>
 <li class="">Runs that start again (redo, <code>qa batch</code>...) no longer show as failed, and count as failed, until they finish: their status is reset when they are pending or running.</li>
 <li class="">Finished runs whose metrics don&#x27;t include <code>is_failed</code> count as successful, instead of neither successful nor failed.</li>
 <li class="">A stuck run&#x27;s &quot;Mark as Finished&quot; action is now labelled &quot;Mark as Failed&quot;, which is what it does.</li>
+<li class="">Runs killed while they run show as failed right away, instead of running until their batch ends, or forever: when you <code>bkill</code> their LSF job, when LSF kills it for using too much memory, or when you press Ctrl+C. Stopping <code>qa batch</code> also marks the runs it stopped as failed.</li>
 <li class="">Moving runs to another batch closes the dialog, and saving a milestone no longer risks losing it.</li>
 <li class="">The tuning form shows a readable error instead of the server&#x27;s raw response.</li>
 <li class="">The tuning form remembers the &quot;Overwrite&quot; option, and setting the number of iterations no longer crashes.</li>
@@ -854,6 +865,8 @@ are no longer scanned again, even when you set your own excluded paths.</li>
 </ul>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration-1">Server and administration<a href="#server-and-administration-1" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h3>
 <ul>
+<li class="">Cancelled jobs whose worker died stay cancelled, instead of being queued again.</li>
+<li class="">The backend&#x27;s log no longer repeats <em>argument of type &#x27;NoneType&#x27; is not iterable</em> for projects without storage settings. Invalid storage settings are logged with the project and the error.</li>
 <li class="">LDAP accounts get their email from <code>QABOARD_LDAP_ATTRIBUTE_EMAIL</code> when it isn&#x27;t <code>mail</code>: only <code>mail</code> was read.</li>
 <li class="">Show the demo projects&#x27; latest commits in the quickstart&#x27;s commit list: the demo data&#x27;s dates, and its files&#x27; modification times, move to when QA-Board first starts, instead of keeping the day the demo data was made (<a class="" href="/qaboard/docs/get-started/quickstart">quickstart</a>).</li>
 <li class="">The project&#x27;s settings (metrics, visualizations, storage...) are no longer replaced by those of whichever branch got new results last: they come from the reference branch (<code>project.reference_branch</code> in <em>qaboard.yaml</em>), or from the project&#x27;s first results.</li>

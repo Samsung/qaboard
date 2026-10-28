@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.5c71b209.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.8d0c9ee6.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.f0459941.js" defer="defer"></script>
 </head>
 <body>
@@ -91,7 +91,10 @@ and <strong>Download all (CSV)</strong> to send them to the people concerned. On
 <li class=""><strong>Git</strong>: the project&#x27;s repository can&#x27;t be read (see above).</li>
 <li class=""><strong>Storage not mounted?</strong>: a folder is missing where the storage may just not be mounted (see above).</li>
 </ul>
-<p>Only one job of each kind runs at a time. Cancel a running job from its page: it stops within seconds.</p>
+<p>Only one job of each kind runs at a time. Cancel a running job from its page: it stops within seconds. If it&#x27;s still
+<em>Cancelling</em> after a minute, its worker is stuck, e.g. reading a storage that doesn&#x27;t answer: <strong>Stop without waiting</strong>
+marks it as cancelled, so another job of its kind can start. Its worker may stay busy with it until it gets an answer:
+restart the backend (or wherever <code>qaboard-admin jobs worker</code> runs) to stop it at once.</p>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="users-storage-usage">Users&#x27; storage usage<a href="#users-storage-usage" class="hash-link" aria-label="Direct link to Users&#x27; storage usage" title="Direct link to Users&#x27; storage usage" translate="no">​</a></h2>
 <p>Users see how much storage their runs use, and delete their runs&#x27; files, in <strong>Storage usage</strong> (their profile menu,
 <a class="" href="/qaboard/docs/user-guide/storage-usage">user guide</a>). Their deletions are jobs too, listed here as <em>Delete users&#x27; runs</em>: they
@@ -131,6 +134,8 @@ manifest and metrics.</li>
 </ul>
 <p>Users see what they own in <strong>Storage usage → Not tracked</strong>, from the latest scan, and can delete the folders whose
 files are all theirs. Scanning doesn&#x27;t change anything on disk.</p>
+<p>Delete old scans from the <strong>Scans</strong> list or the scan&#x27;s page: only what they found is deleted, not the files. Users then
+see the latest scan that&#x27;s done.</p>
 <details class="details_lb9f alert alert--info details_b_Ee" data-collapsed="true"><summary>How long scans take, and what they don&#x27;t see</summary><div><div class="collapsibleContent_i85q"><p>A scan reads every file&#x27;s metadata, with 8 threads by default: on network storage, latency dominates, count hours for
 tens of millions of files. Schedule it at night, e.g. weekly. A scan stopped by a restart resumes: the folders it was
 in are scanned again. Hard links are counted once, symlinks aren&#x27;t followed, and a folder reachable under several roots (nested, symlinked or bind-mounted) is scanned once. Storage snapshots (<code>.snapshot</code>, <code>.snapshots</code>, <code>.zfs</code>) are always skipped, whatever <em>Excluded paths</em> says.</p><p>Scans see what the backend sees: the storage must be mounted at the same paths as on the machines where runs save
