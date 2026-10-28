@@ -24,7 +24,7 @@ from .conventions import make_batch_dir, make_batch_conf_dir
 from .conventions import serialize_config, deserialize_config, get_settings
 from .utils import PathType, entrypoint_module, load_tuning_search
 from .utils import save_outputs_manifest, total_storage
-from .utils import redirect_std_streams, clean_output_dir
+from .utils import redirect_std_streams, clean_output_dir, interrupted_by_sigterm, ignored_signals
 from .utils import getenvs
 from .api import url_to_dir, print_url
 from .api import get_outputs, notify_qa_database, serialize_paths, exit_if_results_refused, ResultsUnreadable, print_auth_error
@@ -250,46 +250,75 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
           # in CI, results QA-Board refuses are lost: don't compute them
           exit_if_results_refused()
 
-      start = time.time()
-      cwd = os.getcwd() 
-
-      try:
-        runtime_metrics = entrypoint_module(config).run(run_context)
-      except Exception as e:
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        click.secho(f'[ERROR] Your `run` function raised an exception: {e}', fg='red', bold=True)
+      # LSF sends SIGINT then SIGTERM when users bkill the job or it uses too much memory, before a SIGKILL:
+      # we say the run failed, or QA-Board would show it as running
+      with interrupted_by_sigterm():
         try:
-          exc_type, exc_value, exc_traceback = sys.exc_info()
-          click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
-        except Exception as e: # debug strange stale file errors, ideally remove this...
-          print(f"ERROR: {e}")
-        runtime_metrics = {'is_failed': True}
+          start = time.time()
+          cwd = os.getcwd() 
 
-      if not runtime_metrics:
-        runtime_metrics = {"is_failed": False}
+          try:
+            runtime_metrics = entrypoint_module(config).run(run_context)
+          except Exception as e:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            click.secho(f'[ERROR] Your `run` function raised an exception: {e}', fg='red', bold=True)
+            try:
+              exc_type, exc_value, exc_traceback = sys.exc_info()
+              click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
+            except Exception as e: # debug strange stale file errors, ideally remove this...
+              print(f"ERROR: {e}")
+            runtime_metrics = {'is_failed': True}
 
-      if not isinstance(runtime_metrics, dict):
-        click.secho(f'[ERROR] Your `run` function did not return a dict, but {runtime_metrics}', fg='red', bold=True)
-        runtime_metrics = {'is_failed': True}
+          if not runtime_metrics:
+            runtime_metrics = {"is_failed": False}
 
-      runtime_metrics['compute_time'] = time.time() - start
+          if not isinstance(runtime_metrics, dict):
+            click.secho(f'[ERROR] Your `run` function did not return a dict, but {runtime_metrics}', fg='red', bold=True)
+            runtime_metrics = {'is_failed': True}
 
-      # avoid issues if code in run() changes cwd
-      if os.getcwd() != cwd:
-        os.chdir(cwd)
+          runtime_metrics['compute_time'] = time.time() - start
 
-      metrics = postprocess_(runtime_metrics, run_context, skip=no_postprocess or runtime_metrics['is_failed'], save_manifests_in_database=save_manifests_in_database)
-      if not metrics:
-        metrics = runtime_metrics
+          # avoid issues if code in run() changes cwd
+          if os.getcwd() != cwd:
+            os.chdir(cwd)
 
-      if metrics['is_failed']:
-        click.secho('[ERROR] The run has failed.', fg='red', err=True)
-        click.secho(str(metrics), fg='red', bold=True)
-      else:
-        click.secho(str(metrics), fg='green')
-      exit_if_results_refused()
-      if metrics['is_failed']:
-        sys.exit(1)
+          metrics = postprocess_(runtime_metrics, run_context, skip=no_postprocess or runtime_metrics['is_failed'], save_manifests_in_database=save_manifests_in_database)
+          if not metrics:
+            metrics = runtime_metrics
+
+          if metrics['is_failed']:
+            click.secho('[ERROR] The run has failed.', fg='red', err=True)
+            click.secho(str(metrics), fg='red', bold=True)
+          else:
+            click.secho(str(metrics), fg='green')
+          exit_if_results_refused()
+          if metrics['is_failed']:
+            sys.exit(1)
+        except KeyboardInterrupt:
+          mark_aborted(run_context)
+          raise
+
+
+def mark_aborted(run_context):
+  """Saves that the run failed after it was interrupted, in metrics.json and in QA-Board."""
+  with ignored_signals():
+    click.secho('[ERROR] The run was aborted: marked as failed.', fg='red', err=True)
+    metrics_path = run_context.output_dir / 'metrics.json'
+    metrics = {}
+    try:
+      if metrics_path.exists():
+        with metrics_path.open() as f:
+          metrics = json.load(f)
+    except (OSError, ValueError):
+      pass
+    metrics['is_failed'] = True
+    try:
+      with metrics_path.open('w') as f:
+        json.dump(metrics, f, sort_keys=True, indent=2, separators=(',', ': '))
+    except OSError as e:
+      click.secho(f'[ERROR] Could not write {metrics_path}: {e}', fg='red', err=True)
+    if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
+      notify_qa_database(**run_context.obj, metrics=metrics, is_failed=True, is_pending=False, is_running=False)
 
 
 def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_database=False):

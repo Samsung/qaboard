@@ -210,6 +210,41 @@ def tee_std_streams(file):
     sys.stdout, sys.stderr = previous
 
 
+@contextmanager
+def interrupted_by_sigterm():
+  """
+  In the block, SIGTERM raises KeyboardInterrupt like SIGINT does, so that `except KeyboardInterrupt` clauses run.
+  Does nothing outside of the main thread, where Python can't handle signals.
+  """
+  import signal
+  def raise_interrupt(_signo, _stackframe):
+    raise KeyboardInterrupt
+  try:
+    previous = signal.signal(signal.SIGTERM, raise_interrupt)
+  except ValueError:
+    previous = None
+  try:
+    yield
+  finally:
+    if previous is not None:
+      signal.signal(signal.SIGTERM, previous)
+
+
+@contextmanager
+def ignored_signals():
+  """Ignores SIGINT and SIGTERM in the block, e.g. while we save that we were interrupted: LSF sends both."""
+  import signal
+  try:
+    previous = {s: signal.signal(s, signal.SIG_IGN) for s in (signal.SIGINT, signal.SIGTERM)}
+  except ValueError: # not in the main thread
+    previous = {}
+  try:
+    yield
+  finally:
+    for s, handler in previous.items():
+      signal.signal(s, handler)
+
+
 class FailingEntrypoint:
   def run(self, context):
     return {"is_failed": True}

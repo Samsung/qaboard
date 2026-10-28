@@ -296,6 +296,39 @@ class TestJobGroups(unittest.TestCase):
     self.assertIn('-w "ended(abcdefgh_*)"', bsub.commands[6])
 
 
+  def test_stopped_batch_marks_its_runs_as_failed(self):
+    """When `qa batch` is stopped, the runs QA-Board still shows as pending end: failed unless they saved successful metrics"""
+    import json
+    from qaboard.api import dir_to_url
+    from qaboard.runners import JobGroup
+    from qaboard.runners.lsf import LsfRunner
+    killed, done, other = make_jobs('lsf', ['a', 'b', 'c'], self.root.resolve(), queue='q')
+    done.run_context.output_dir.mkdir()
+    (done.run_context.output_dir / 'metrics.json').write_text(json.dumps({"is_failed": False}))
+    outputs = {
+      1: {"output_dir_url": dir_to_url(killed.run_context.output_dir), "is_pending": True, "is_failed": False},
+      2: {"output_dir_url": dir_to_url(done.run_context.output_dir), "is_pending": True, "is_failed": False},
+      3: {"output_dir_url": dir_to_url(other.run_context.output_dir), "is_pending": False, "is_failed": False},
+    }
+    group = JobGroup(jobs=[killed, done, other], job_options={"type": "lsf", "command_id": "abcdefgh-1234", "queue": "q"})
+    for stop in (SystemExit(1), KeyboardInterrupt()):
+      with mock.patch.object(LsfRunner, 'start_groups', side_effect=stop), \
+           mock.patch('qaboard.runners.job.get_outputs', return_value=outputs), \
+           mock.patch('qaboard.runners.job.notify_qa_database') as notify:
+        with self.assertRaises(type(stop)):
+          group.start(blocking=True, qa_context={"share": True})
+      updates = {call.kwargs['output_dir']: call.kwargs['is_failed'] for call in notify.call_args_list}
+      self.assertEqual(updates, {killed.run_context.output_dir: True, done.run_context.output_dir: False})
+      for call in notify.call_args_list:
+        self.assertFalse(call.kwargs['is_pending'])
+    # `qa batch --no-wait` doesn't wait for the runs: they're still running
+    with mock.patch.object(LsfRunner, 'start_groups', side_effect=KeyboardInterrupt), \
+         mock.patch('qaboard.runners.job.notify_qa_database') as notify:
+      with self.assertRaises(KeyboardInterrupt):
+        group.start(blocking=False, qa_context={"share": True})
+    notify.assert_not_called()
+
+
 class TestBuildPowershellEnv(unittest.TestCase):
   def env_lines(self, **context_env):
     from qaboard.runners.jenkins_windows import build_powershell_env
