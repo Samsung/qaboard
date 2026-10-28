@@ -80,6 +80,9 @@ Flask helps us create an HTTP server. It exposes API endpoints defined in the [a
 - when you add/rename/delete tables or fields to the database, you should define a migration
   * we use [`alembic`](http://alembic.zzzcomputing.com/en/latest/tutorial.html) to manage migrations
   * you'll find [many examples here](alembic/versions)
+  * never change a migration once it's merged: databases that ran it won't run it again. Write a new one
+    (CI checks it, see `.github/scripts/check_migrations.py`)
+  * `migrate.sh` fails when a migration fails, and the deploy stops: fix the migration (or the database), and deploy again
 
 It's useful to connect to `pgadmin`: at `localhost:5050` on the server's host, with `PGADMIN_DEFAULT_EMAIL` and
 `PGADMIN_DEFAULT_PASSWORD` (see `docker-compose.yml`). Sites whose nginx includes `services/nginx/snippets/pgadmin.conf`

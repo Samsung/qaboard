@@ -55,7 +55,7 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - Gitea's avatar URL, the Bitbucket signature header and the Gitea/Bitbucket payload fields were written from their docs
   and tested on sample payloads only: check them against real servers. [S]
 - If `QABOARD_GIT_HOSTS` points to a file the kubernetes migration Job doesn't mount, the backend fails to import and
-  `migrate.sh`'s fallback to `alembic stamp` silently skips the migrations (see docs/known-issues.md). [S]
+  the migrations Job fails (it used to stamp the database and skip the migrations silently). [S]
 - api/export_to_folder.py `load_commit` hides database errors with a bare `except: return None`. [S, no change]
 - The admin users page's `?admin=true` filters on `users.email`, so an admin whose only verified email is on a linked
   OIDC identity isn't listed. [S, behaviour]

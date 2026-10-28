@@ -187,10 +187,15 @@ class Project(Base):
 @lru_cache(maxsize=1024)
 def _storage_roots(project_id, id_git, id_relative, storage_config_json, qa_storage, user_name=None):
   # qa_storage: $QA_STORAGE overrides the storage config, it's part of the cache key
+  storage_config = json.loads(storage_config_json)
   try:
-    outputs_root, artifacts_root, subproject_for_artifacts = storage_roots(json.loads(storage_config_json), Path(project_id), Path(id_relative), user_name=user_name)
-  except Exception as e:
-    print(e)
+    # projects without storage settings, when the caller has no defaults: the server's
+    if storage_config is None:
+      outputs_root, artifacts_root, subproject_for_artifacts = default_outputs_root, default_artifacts_root, Path()
+    else:
+      outputs_root, artifacts_root, subproject_for_artifacts = storage_roots(storage_config, Path(project_id), Path(id_relative), user_name=user_name)
+  except Exception:
+    print(f"WARNING: invalid storage settings for {project_id}, we use the server's: {traceback.format_exc()}")
     outputs_root = default_outputs_root
     artifacts_root = default_artifacts_root
     subproject_for_artifacts = Path()
