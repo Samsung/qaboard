@@ -17,7 +17,9 @@ class TestRedirectStdStreams(unittest.TestCase):
     with tempfile.TemporaryDirectory() as tmp:
       log = Path(tmp) / 'log.txt'
       stdout, stderr = sys.stdout, sys.stderr
-      with redirect_std_streams(log, color=False):
+      # e.g. set in the CI runner's environment: the redirection would be a no-op
+      environ = {k: v for k, v in os.environ.items() if k != 'QA_NO_STREAM_REDIRECT'}
+      with mock.patch.dict(os.environ, environ, clear=True), redirect_std_streams(log, color=False):
         print('in the log')
         self.assertIsNot(sys.stdout, stdout)
       # the previous streams, not sys.__stdout__: e.g. those of the test runner
