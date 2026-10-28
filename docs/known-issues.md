@@ -45,10 +45,9 @@ Harmless for other sites (it only triggers on SIRC project names, paths or files
 ## Ops
 - The cantaloupe admin endpoint is enabled with `qaboard`/`qaboard`. It is only reachable inside the compose network.
 - Base images: cantaloupe uses `alpine:3.10`, nginx uses Debian buster from archive.debian.org. Both are EOL.
-- On a fresh database `alembic upgrade head` fails (the baseline migration is empty). `migrate.sh` falls back to
-  `alembic downgrade head || alembic stamp head` and the app creates the tables, so it works, but it's noisy.
-  Worse: the fallback also hides real migration failures, so `deploy.py`/the helm Job can't stop a deploy on them.
-  Fix the baseline, then remove the fallback.
+- The baseline migration is empty: a new database can't be built by `alembic upgrade head`. The app creates the
+  tables when it's imported (`Base.metadata.create_all`), and `migrate.sh` stamps a new database (no data, no version)
+  at the head. A database with data but no version makes `migrate.sh` fail: stamp it by hand at the migration it has.
 - PostgreSQL 12 is EOL (Nov 2024). Upgrade with dump/restore, e.g. when moving to kubernetes (CloudNativePG uses 16).
 - Deploys need docker compose ≥ 2.24 on the hosts and on the GitLab runner (`${VAR:+...}` interpolation,
   `pull --policy`). SIRC's hosts run Docker Engine 24 (API 1.43): fine, but not healthcheck `start_interval`.
