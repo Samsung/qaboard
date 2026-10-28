@@ -222,8 +222,8 @@ export const batchesPagesQuery = ({ project, branch, scope, origin, metrics, vie
   refetchInterval: query => (query.state.data?.pages?.length ?? 0) === 1 && query.state.data.pages[0].batches.some(b => b.pending_outputs > 0) ? pendingRefetchInterval(query) : false,
 });
 
-// Lists of commits, whether they are paginated or not
-export const commits_of = data => data?.pages ? data.pages.flatMap(page => page.commits) : (data ?? []);
+// Lists of commits, whether they are paginated or not. Other queries share their key, like the counts: no commits.
+export const commits_of = data => data?.pages ? data.pages.flatMap(page => page.commits ?? []) : Array.isArray(data) ? data : [];
 
 
 // Without an id, the server answers with the latest commit on the branch (by default the project's reference branch)
