@@ -118,31 +118,41 @@ async function openForm(ui: Ui, { send = false } = {}) {
   await ui.settle();
 }
 const form = (page: Page) => page.locator('.bp6-card', { has: page.getByPlaceholder('my-tuning-experiment') }).first();
-// The form's button: "Start 8 runs", "Start auto-tuning"
-const start = (page: Page) => form(page).getByRole('button', { name: /^Start (auto-tuning|\d+ runs?|runs)$/ });
+// The form's button: "Start 8 runs", "Start automated tuning"
+const start = (page: Page) => form(page).getByRole('button', { name: /^Start (automated tuning|\d+ runs?|runs)$/ });
+// The Automated tuning tab edits its YAML with a guided form, or as text
+const editMode = (page: Page, mode: 'Guided' | 'YAML') => form(page).getByRole('radio', { name: mode, exact: true })
+  .or(form(page).getByRole('button', { name: mode, exact: true })).first();
 
 shot('tuning/auto-form', {
   project: DE,
   url: d => d.commitUrl(DE, 'int8-percentile', { view: 'summary' }),
-  alt: 'The Automated tuning tab of the Run Tests / Tuning form, with the int8 model\'s tuning in YAML: 20 evaluations, '
-    + 'the solver\'s seed and 8 initial points, then the objective, AP small and mAP; the Start auto-tuning button below.',
-  caption: 'Automated tuning searches the parameters with `qa optimize`: describe the search space and the objective in YAML.',
-  // tall enough that the Controls panel's button, halfway down the screen, is below the editor
-  viewport: { width: 1440, height: 1600 },
+  alt: 'The Automated tuning tab of the Run Tests / Tuning form, filled with the int8 model\'s tuning: four parameters '
+    + 'to tune with their ranges or values, AP on small objects and mAP to improve and the model size to keep small, '
+    + 'with their weights, 20 evaluations; on the side, the summary says it\'s ready to start, and counts the runs.',
+  caption: 'Automated tuning: the parameters to tune, the metrics to improve and the budget, with a summary that says '
+    + 'when it\'s ready.',
+  // tall enough for the whole guided form, and the Start button under it
+  viewport: { width: 1440, height: 2000 },
   actions: async ui => {
     await openForm(ui);
     await ui.click(ui.page.getByRole('tab', { name: 'Automated tuning' }));
     await ui.settle();
-    // examples/detection-eval/qa/tune-int8.yaml, without its header (how to run it from a terminal)
+    // examples/detection-eval/qa/tune-int8.yaml, without its header (how to run it from a terminal), pasted as YAML,
+    // then shown in the guided form
+    await ui.click(editMode(ui.page, 'YAML'));
+    await ui.settle();
     const yaml = fs.readFileSync(path.join(REPO, 'examples/detection-eval/qa/tune-int8.yaml'), 'utf8');
     await paste(ui, form(ui.page).locator('.monaco-editor').last(), yaml.slice(yaml.indexOf('evaluations:')));
+    await ui.click(editMode(ui.page, 'Guided'));
+    await ui.page.getByTestId('optimize-summary').getByText('Ready to start').waitFor();
     // no caret, no highlighted word
     await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-    await ui.cursor.moveTo({ x: 1400, y: 1550 });
+    await ui.cursor.moveTo({ x: 1400, y: 1950 });
     await ui.settle();
   },
-  // the tabs, the editor and the Start button
-  target: page => [form(page).getByRole('tablist'), start(page)],
+  // the tabs, the guided form with its summary, and the Start button
+  target: page => [form(page).getByRole('tablist'), page.getByTestId('optimize-setup'), start(page)],
   padding: 8,
 });
 
@@ -251,26 +261,32 @@ clip('tuning/launch-to-analysis', {
 // small-objects), the objective is -(AP small + mAP) + 0.005 per MB (examples/detection-eval/qa/tune-int8.yaml)
 const section = (page: Page, heading: string) => page.locator('h4', { hasText: heading }).first();
 
+// The report of an automated tuning (webapp/src/components/tuning/OptimizationReport.jsx)
+const report = (page: Page) => page.getByTestId('optimization-report');
+const reportPlot = (page: Page, heading: string) => report(page).locator('section', { has: page.locator('h3', { hasText: heading }) })
+  .locator('.js-plotly-plot').first();
+
 shot('tuning/analysis', {
   project: DE,
   url: d => d.commitUrl(DE, 'int8-percentile', { batch: 'tune-int8', view: 'optimization' }),
-  alt: 'The Analysis of the tune-int8 experiment: the best parameters found at iteration 10 of 20 (percentile 99.999, '
-    + 'nothing kept in fp32, score 0.2, NMS 0.4) with their mAP, AP small and model size; parallel coordinates of the 20 '
-    + 'iterations; the convergence of the objective.',
-  caption: 'The Analysis of an automated tuning: the best parameters, every iteration in parallel coordinates, and how '
-    + 'the search converged.',
-  viewport: { width: 1440, height: 1300 },
+  alt: 'The Tuning Analysis of the tune-int8 experiment: done, 20 of 20 evaluations, the best objective and the metrics '
+    + 'it reached against the first evaluation; what this tells you, like a best value at the edge of its range; the '
+    + 'best parameters with the ranges searched and their impact; the convergence of the objective.',
+  caption: 'The Tuning Analysis of an automated tuning: how it went and what to do next, the best parameters within the '
+    + 'ranges searched, and the convergence.',
+  viewport: { width: 1440, height: 1800 },
   actions: async ui => {
+    await report(ui.page).waitFor();
     await ui.plots();
-    await ui.cursor.moveTo({ x: 1420, y: 1250 });
+    await ui.cursor.moveTo({ x: 1420, y: 1750 });
     await ui.settle();
   },
-  // from the best parameters down to the convergence plot
+  // from the status down to the convergence plot
   target: page => [
-    page.locator('.bp6-callout', { hasText: 'Best parameters' }),
-    section(page, 'Convergence').locator('xpath=following::div[contains(@class, "js-plotly-plot")][1]'),
+    report(page).locator('h2').first(),
+    reportPlot(page, 'Convergence'),
   ],
-  padding: 4,
+  padding: 8,
 });
 
 // Tuning experiments (docs-media/shots.yaml: tuning/*): the Analysis view of a batch of runs with different parameters.

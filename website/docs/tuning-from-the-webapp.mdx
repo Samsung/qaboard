@@ -104,9 +104,10 @@ People choose the tests from the batches files of the commit, and can add their 
 - In the **Available Tests** view, <kbd>Ctrl</kbd>+<kbd>S</kbd> (or <kbd>Cmd</kbd>+<kbd>S</kbd>) saves the batches
   file you are editing.
 - Once runs are done, the **Tuning Analysis** view shows how the metrics depend on the parameters: the sensitivity to
-  each parameter and to pairs of parameters, a parallel coordinates plot, the trade-off between two metrics, and for
-  automated tuning the best parameters and the convergence. See the
-  [user guide](/docs/user-guide/running-from-the-webapp#tuning-analysis).
+  each parameter and to pairs of parameters, a parallel coordinates plot, and the trade-off between two metrics. See
+  the [user guide](/docs/user-guide/running-from-the-webapp#tuning-analysis). For an automated tuning, it starts with
+  a report of what the search found and what to do next: see
+  [Read the results](/docs/user-guide/automated-tuning#results).
 
 </details>
 
@@ -125,5 +126,6 @@ better:
   ```
 - **Commit, CI, QA-Board**: to change configuration files that live in your repository, commit and push the changes,
   and look at the results of the CI runs.
-- **Automated tuning**: let `qa optimize` search the parameters for you, see
-  [automated tuning](/docs/auto-optimization).
+- **Automated tuning**: let `qa optimize` search the parameters for you, from the web app or the CLI. See
+  [Find the best parameters automatically](/docs/user-guide/automated-tuning) to start one and read its results, and
+  [Automated tuning with qa optimize](/docs/auto-optimization) for every setting.

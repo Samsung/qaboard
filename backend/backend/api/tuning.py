@@ -664,12 +664,9 @@ def check_tuning_search(tuning_search) -> list:
             return [f"The automated tuning configuration is not valid YAML: {e}"]
         if not isinstance(optim_config, dict):
             return ["The automated tuning configuration should be a YAML mapping, with an `objective`, an `evaluations` budget and a `search_space`."]
-        errors = [f"The automated tuning configuration needs a `{key}`." for key in ('objective', 'evaluations', 'search_space') if key not in optim_config]
-        if 'evaluations' in optim_config and (not isinstance(optim_config['evaluations'], int) or optim_config['evaluations'] < 1):
-            errors.append("`evaluations` should be a positive integer.")
-        if 'search_space' in optim_config and not optim_config['search_space']:
-            errors.append("`search_space` is empty: there is nothing to optimize.")
-        return errors
+        # the same checks as `qa optimize`, with the same messages
+        from qaboard.optimization import check_config
+        return check_config(optim_config)
     if search_type not in ('grid', 'sampler'):
         return [f"Unknown search type: {search_type}"]
     if parameter_search is None:
@@ -856,7 +853,8 @@ def start_tuning(hexsha):
         # we write somewhere the optimization search configuration
         # it needs to be accessed from LSF so we can't use temporary files...
         config_path = batch_dir / 'optim-config.yaml'
-        checkpoint_path = batch_dir / 'checkpoint.pkl'
+        # qa optimize saves the search there as it goes, and resumes from it when the experiment starts again
+        checkpoint_path = batch_dir / 'optuna-journal.log'
         config_option = f"--config-file {quote(str(config_path))} --checkpoint {quote(str(checkpoint_path))}"
         with config_path.open("w") as f:
             f.write(data['tuning_search']['parameter_search'])

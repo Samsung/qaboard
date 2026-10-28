@@ -346,31 +346,131 @@ class TestQaCli(unittest.TestCase):
       assert result.exit_code == 1
       assert 'Mismatch' in result.output
 
-  def test_optimize_without_checkpoint(self):
-    """--checkpoint is optional"""
+  def test_optimize(self):
+    """qa optimize: searches, tells QA-Board what the web app shows, and resumes where it stopped"""
     import tempfile
     from unittest import mock
     with tempfile.TemporaryDirectory() as tmp:
       config_file = Path(tmp) / 'optimize.yaml'
       config_file.write_text(yaml.dump({
-        "evaluations": 2,
-        "objective": {"psnr": {}},
+        "evaluations": 3,
+        "objective": {"is_failed": {}},
         "search_space": [{"Integer": {"name": "x", "low": 0, "high": 10}}],
+        "preset_params": {"fixed": 1},
       }))
-      with mock.patch('qaboard.optimize.batch_objective', return_value=1.0) as batch_objective, \
-           mock.patch('qaboard.optimize.notify_qa_database'), \
-           mock.patch('qaboard.api.aggregated_metrics', return_value={}):
-        result = self.qa('--dryrun', 'optimize', '--batches-file', 'image.batches.yaml', '--batch', 'images', '--config-file', str(config_file))
-      assert result.exit_code == 0
-      assert batch_objective.call_count == 2
-      # with a checkpoint, the optimizer's state is saved
+      def optimize(*args, evaluations=None):
+        if evaluations:
+          config = yaml.safe_load(config_file.read_text())
+          config_file.write_text(yaml.dump({**config, "evaluations": evaluations}))
+        # qaboard.optimize binds the metrics when it's first imported, maybe by another test's project
+        with mock.patch('qaboard.optimize.available_metrics', {"is_failed": {"smaller_is_better": True}}), \
+             mock.patch('qaboard.optimize.batch_objective_components', side_effect=lambda *a: {"is_failed": -1.0}) as objective, \
+             mock.patch('qaboard.optimize.notify_qa_database') as notify, \
+             mock.patch('qaboard.api.aggregated_metrics', return_value={"is_failed": 0.0}):
+          result = self.qa('--dryrun', 'optimize', '--batches-file', 'image.batches.yaml', '--batch', 'images', '--config-file', str(config_file), *args)
+        return result, objective, [c.kwargs for c in notify.call_args_list]
+
       checkpoint = Path(tmp) / 'checkpoint.pkl'
-      with mock.patch('qaboard.optimize.batch_objective', return_value=1.0), \
-           mock.patch('qaboard.optimize.notify_qa_database'), \
-           mock.patch('qaboard.api.aggregated_metrics', return_value={}):
-        result = self.qa('--dryrun', 'optimize', '--batches-file', 'image.batches.yaml', '--batch', 'images', '--config-file', str(config_file), '--checkpoint', str(checkpoint))
-      assert result.exit_code == 0
-      assert checkpoint.exists()
+      result, objective, notified = optimize('--checkpoint', str(checkpoint))
+      assert result.exit_code == 0, result.output
+      assert objective.call_count == 3
+      # older servers ask for scikit-optimize's pickle: we save the search next to it
+      assert not checkpoint.exists()
+      assert (Path(tmp) / 'checkpoint.optuna.log').exists()
+
+      batch_updates = [n['data'] for n in notified if n.get('object_type') == 'batch']
+      start, *iterations, end = batch_updates
+      assert start['optimization_status'] == 'running'
+      assert start['iterations'] == 3
+      assert start['optimization_config']['search_space'] == [{'name': 'x', 'type': 'integer', 'low': 0, 'high': 10, 'log': False}]
+      assert start['optimization_config']['preset_params'] == {"fixed": 1}
+      assert start['optimization_config']['config']['evaluations'] == 3 and start['optimization_config']['batches'] == ['images']
+      assert start['optimization_config']['sampler'] in ('gp', 'tpe')
+      assert [i['iteration'] for i in iterations] == [1, 2, 3]
+      assert iterations[0]['is_best_iter'] and iterations[0]['best_params']['fixed'] == 1
+      assert end['optimization_status'] == 'done' and end['evaluations_completed'] == 3
+      runs = [n for n in notified if n.get('object_type', 'output') == 'output']
+      assert [r['metrics']['iteration'] for r in runs] == [1, 2, 3]
+      assert runs[0]['metrics']['objective'] == -1.0 and runs[0]['metrics']['is_failed'] == 0.0
+
+      # the same command with a bigger budget runs only the new evaluations
+      result, objective, notified = optimize('--checkpoint', str(checkpoint), evaluations=5)
+      assert result.exit_code == 0, result.output
+      assert objective.call_count == 2
+      assert [n['data']['iteration'] for n in notified if n.get('object_type') == 'batch'][1:-1] == [4, 5]
+
+      # a pickle from scikit-optimize where the search is saved: we say what to do
+      old = Path(tmp) / 'old.log'
+      old.write_bytes(b'\x80\x04pickle')
+      result, _, _ = optimize('--checkpoint', str(old))
+      assert result.exit_code != 0
+      assert 'older qa optimize' in result.output
+
+  def test_optimize_checks_the_config_first(self):
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+      config_file = Path(tmp) / 'optimize.yaml'
+      config_file.write_text(yaml.dump({
+        "evaluations": 3,
+        "objective": {"is_failed": {}},
+        "search_space": [{"Real": {"name": "x", "low": 0, "high": 1}}],
+        "solver": {"base_estimator": "GP"},
+      }))
+      result = self.qa('--dryrun', 'optimize', '--batches-file', 'image.batches.yaml', '--batch', 'images', '--config-file', str(config_file))
+      assert result.exit_code != 0
+      assert 'scikit-optimize' in result.output and 'sampler' in result.output
+
+  def test_optimize_without_a_metrics_file(self):
+    """Which way is better comes from the objective (`psnr: max`), else from the code that computes the metric"""
+    import tempfile
+    from unittest import mock
+    outputs = {'outputs': {1: {'metrics': {'psnr': 30.0}, 'output_dir_url': '/s/run', 'test_input_path': 'a.jpg'}}}
+    with tempfile.TemporaryDirectory() as tmp:
+      config_file = Path(tmp) / 'optimize.yaml'
+      searches = iter(range(100))  # each search saved apart
+      def optimize(objective, code_definitions):
+        config_file.write_text(yaml.dump({
+          "evaluations": 2,
+          "objective": objective,
+          "search_space": [{"Real": {"name": "x", "low": 0, "high": 1}}],
+        }))
+        with mock.patch('qaboard.optimize.available_metrics', {}), \
+             mock.patch('qaboard.optimize.code_definitions', side_effect=code_definitions) as server, \
+             mock.patch('qaboard.optimize.batch_info', return_value=outputs), \
+             mock.patch('qaboard.optimize.notify_qa_database') as notify, \
+             mock.patch('qaboard.api.aggregated_metrics', return_value={"psnr": 30.0}):
+          result = self.qa('--dryrun', 'optimize', '--batches-file', 'image.batches.yaml', '--batch', 'images',
+                           '--config-file', str(config_file), '--checkpoint', str(Path(tmp) / f'{next(searches)}.log'))
+        batches = [c.kwargs['data'] for c in notify.call_args_list if c.kwargs.get('object_type') == 'batch']
+        runs = [c.kwargs for c in notify.call_args_list if c.kwargs.get('object_type', 'output') == 'output']
+        return result, server, batches, runs
+
+      # said in the objective: QA-Board isn't asked
+      result, server, batches, runs = optimize({"psnr": "max"}, [])
+      assert result.exit_code == 0, result.output
+      assert server.call_count == 0
+      assert [r['metrics']['objective'] for r in runs] == [-30.0, -30.0]
+      assert batches[0]['optimization_config']['objective']['psnr'] == {'goal': 'max', 'weight': 1, 'loss': 'identity', 'reduce': 'sum', 'margin': 0.0}
+
+      # declared by the code when it runs (qaboard.Metric): known after the first evaluation, and the web app is told
+      result, server, batches, runs = optimize({"psnr": {"weight": 2}}, [{}, {"psnr": {"smaller_is_better": False}}])
+      assert result.exit_code == 0, result.output
+      assert 'will read which way is better for psnr' in result.output
+      assert [r['metrics']['objective'] for r in runs] == [-60.0, -60.0]
+      assert batches[0]['optimization_config']['objective']['psnr']['goal'] is None
+      assert batches[1]['optimization_config']['objective']['psnr']['goal'] == 'max'
+
+      # nothing says: the search stops after the first evaluation, and says what to write
+      result, server, batches, runs = optimize({"psnr": {}}, [{}, {}])
+      assert result.exit_code != 0
+      assert '`psnr: max`' in result.output
+      assert batches[-1]['optimization_status'] == 'failed' and '`psnr: max`' in batches[-1]['optimization_error']
+
+      # the runs returned it without saying: we know before running anything
+      result, server, batches, runs = optimize({"psnr": {}}, [{"psnr": {"smaller_is_better": None}}])
+      assert result.exit_code != 0
+      assert '`psnr: max`' in result.output
+      assert not batches
 
   def test_wait(self):
     """qa wait waits for the run to finish, and fails when the run failed"""

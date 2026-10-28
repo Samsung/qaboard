@@ -3,11 +3,11 @@ import { useSelected, useSiteConfig, updateSelected } from "../../hooks";
 import { get as _get } from "es-toolkit/compat";
 
 import Plot from "../Plot";
-import { Button, Classes, Callout, Colors, Intent, NonIdealState, Spinner, Tag, FormGroup, Switch, HTMLSelect } from "@blueprintjs/core";
+import { Button, Classes, Callout, Colors, Intent, NonIdealState, Spinner, FormGroup, Switch, HTMLSelect } from "@blueprintjs/core";
 
 import { useIsDark } from "../../theme";
 import { groupBy, hash_color, median, average, event_value } from "../../utils";
-import { convergence, convergence_traces } from "./convergence";
+import OptimizationReport from "./OptimizationReport";
 
 // No "Send to Cloud" or "Edit chart" links: they would upload the data to Plotly's public Chart Studio.
 // The modebar only shows on hover.
@@ -20,12 +20,6 @@ const config = {
 
 // Viridis without its darkest purples, that would disappear on the dark theme's background
 const viridis_dark = [[0, '#3b528b'], [0.25, '#2c728e'], [0.5, '#21918c'], [0.75, '#5ec962'], [1, '#fde725']];
-
-const metric_formatter = new Intl.NumberFormat("en-US", {
-  style: "decimal",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2
-});
 
 const optimization_metrics = {
   iteration: {
@@ -78,22 +72,6 @@ const aggregate_by_params = (outputs, metrics, aggregation) => {
 
 const is_ok = o => !o.is_pending && !o.is_failed;
 
-
-// Each iteration's objective, and the best one so far: qa optimize minimizes it.
-// We plot it from the iterations: the batch's plot_convergence.png needs matplotlib where qa optimize ran.
-const ConvergencePlot = ({ outputs }) => {
-  const points = convergence(outputs);
-  if (points.length === 0) return <p className={Classes.TEXT_MUTED}>No iteration yet.</p>;
-  const layout = {
-    height: 300,
-    margin: { t: 10, r: 10, b: 50, l: 70 },
-    showlegend: true,
-    legend: { orientation: 'h', x: 0, y: 1.1 },
-    xaxis: { title: { text: 'Iteration' }, dtick: points.length > 25 ? undefined : 1 },
-    yaxis: { title: { text: 'Objective (lower is better)' } },
-  };
-  return <Plot data={convergence_traces(points, { dots: Colors.GRAY3, line: Colors.BLUE3 })} layout={layout} config={config}/>;
-};
 
 const Sensibility1DLines = memo(({
   outputs,
@@ -441,7 +419,7 @@ const Sensibility2DContour = memo(({
 const no_metric = { label: 'NA' };
 const default_layout = { xaxis: { type: "linear" } };
 
-const TuningExploration = ({ batch, selected_metrics: selected_metrics_, available_metrics: available_metrics_, input }) => {
+const TuningExploration = ({ batch, project, commit_id, selected_metrics: selected_metrics_, available_metrics: available_metrics_, input }) => {
   const { query } = useSelected();
   const { docs_root } = useSiteConfig();
   const [relative, setRelative] = useState(true);
@@ -510,7 +488,6 @@ const TuningExploration = ({ batch, selected_metrics: selected_metrics_, availab
   const show_2d_sensibility = sorted_parameters.length > 1 && tuned_parameters[sorted_parameters[1]].size > 1;
 
   const batch_data = batch.data || {};
-  const best_metrics = batch_data.best_metrics ?? {};
   const metric_options = Object.values(available_metrics).map(m => ({value: m.key, label: m.label}));
   const parameter_options = sorted_parameters.map(p => ({value: p, label: `${p} (${tuned_parameters[p].size} different${tuned_parameters[p].size > 1 ? "s" : ""})`}));
 
@@ -519,18 +496,8 @@ const TuningExploration = ({ batch, selected_metrics: selected_metrics_, availab
     xaxis: { ...layout.xaxis, type: layout.xaxis.type === "log" ? "linear" : "log" },
   }));
 
-  return (
+  const plots = (
     <div>
-      {batch_data.optimization && <Callout icon='crown' title="Best parameters">
-        {Object.entries(batch_data.best_params ?? {}).map(([k, v]) =>
-          <Tag key={k} minimal round intent={Intent.SUCCESS} style={{"margin":'3px'}}>{k}: {JSON.stringify(v)}</Tag>
-        )}
-        {Object.entries(best_metrics).map(([k,v]) =>
-          <Tag key={k} minimal round style={{"margin":'3px'}}>{available_metrics[k]?.label ?? k}: {metric_formatter.format(v*(available_metrics[k]?.scale ?? 1))}{available_metrics[k]?.suffix}</Tag>
-        )}
-        <p className={Classes.TEXT_MUTED}>found at iteration {batch_data.best_iter}/{batch_data.iteration}</p>
-      </Callout>}
-
       {!batch_data.optimization && <p className={Classes.TEXT_MUTED}>
         {total_outputs} run{total_outputs === 1 ? "" : "s"} · {number_inputs} input{number_inputs === 1 ? "" : "s"}
       </p>}
@@ -562,11 +529,6 @@ const TuningExploration = ({ batch, selected_metrics: selected_metrics_, availab
           minimal
         />
       </FormGroup>
-
-      {batch_data.optimization && <>
-        <h4>Convergence</h4>
-        <ConvergencePlot outputs={outputs}/>
-      </>}
 
 
       <h4 className={Classes.HEADING}>Sensitivity to tuning parameters</h4>
@@ -653,6 +615,10 @@ const TuningExploration = ({ batch, selected_metrics: selected_metrics_, availab
       </>}
     </div>
   );
+  // An automated tuning: what it found, and what to do next. The plots above are one click away.
+  if (batch_data.optimization)
+    return <OptimizationReport batch={batch} project={project} commit_id={commit_id} available_metrics={available_metrics_}>{plots}</OptimizationReport>;
+  return plots;
 };
 
 export default TuningExploration;

@@ -70,18 +70,17 @@ To see which tests a batch runs before you start it, or to write your own batch,
 see [Choosing the tests to run](/docs/user-guide/available-tests).
 
 ### Let the optimizer search the parameters {#automated-tuning}
+When a grid would be too big, open the **Automated tuning** tab. It sets up a search in three steps: the
+**Parameters to tune** and their ranges, **What “better” means** with the metrics your runs return, and the
+**Budget**, the number of evaluations. Click **Start automated tuning**: each evaluation runs the batch, first with
+random parameters, then with parameters picked from the results of the previous ones. To choose the parameters and
+the budget, and read what the search found, see [Find the best parameters automatically](/docs/user-guide/automated-tuning).
 
-:::caution Experimental
-Automated tuning runs `qa optimize`: its configuration and its solver may change.
-:::
-
-When a grid would be too big, open the **Automated tuning** tab. Describe in YAML the parameters and their ranges (`search_space`), what to optimize (`objective`, from the project's metrics) and how many `evaluations` to run, then click **Start auto-tuning**. The optimizer, [scikit-optimize](https://scikit-optimize.github.io/), picks each evaluation's parameters from the results of the previous ones. The tab starts with a commented template for your project: **Reset to the default** brings it back.
-
-For the detector, `tune-int8` searched the calibration percentile, the layers to keep in fp32, the score threshold and the NMS IoU, in 20 evaluations of `quant-search`, for the best AP on small objects and mAP with a small model. There is no email when an automated tuning ends yet. See [Auto-optimization](/docs/auto-optimization) for every setting.
+For the detector, `tune-int8` searched the calibration percentile, the layers to keep in fp32, the score threshold and the NMS IoU on `quant-search`, for the best AP on small objects and mAP with a small model. There is no email when an automated tuning ends yet. See [Automated tuning with qa optimize](/docs/auto-optimization) for every setting.
 
 <Shot
   id="tuning/auto-form"
-  caption="The detector's tune-int8 experiment in YAML: 20 evaluations, the solver's settings, then the objective, starting with AP on small objects and mAP."
+  caption="The tune-int8 experiment in the guided form: the parameters to tune, the metrics to improve and the budget."
 />
 
 ## Look at the results {#tuning-analysis}
@@ -106,11 +105,11 @@ For the inference gateway, a sweep tried the batching settings of the sharded ca
   caption="Each configuration's CPU per request against its p99: the defaults picked, max batch 16 and 250 µs of delay, are on the frontier."
 />
 
-For an automated tuning, the view starts with the **Best parameters**, their metrics and the iteration that found them, and adds a **Convergence** plot: each iteration's objective, and the best so far. The sidebar highlights **Tuning Analysis** when the selected batch is an automated tuning.
+For an automated tuning, the view is a report: what the search found, which parameters matter, and what to do next. These plots are under **More plots**. The sidebar highlights **Tuning Analysis** when the selected batch is an automated tuning. See [Read the results](/docs/user-guide/automated-tuning#results).
 
 <Shot
   id="tuning/analysis"
-  caption="tune-int8 found its best parameters at iteration 10 of 20: percentile 99.999, nothing kept in fp32, score 0.2, NMS 0.4. The best objective doesn't improve after that."
+  caption="What tune-int8 found: its status and best objective, then what to do next and the best parameters within the ranges searched."
 />
 
 <details>
@@ -118,12 +117,11 @@ For an automated tuning, the view starts with the **Best parameters**, their met
 
 | Part | What it shows |
 |---|---|
+| Automated tuning report | For an automated tuning: a report first, see [Read the results](/docs/user-guide/automated-tuning#results), then these plots under **More plots**. |
 | **N runs · M inputs** | How many runs and inputs the plots use (manual tuning). |
-| **Best parameters** | For an automated tuning: the best iteration's parameters, its metrics, and when it was found (**found at iteration 10/20**). |
 | The metrics, at the top | The metrics the plots use, the same choice as the tables'. Add one to plot it, like CPU per request. |
 | Parallel coordinates | One line per combination of parameters, with its metrics aggregated over the inputs. Only metrics and parameters that vary get an axis. For an automated tuning, the iteration and the objective are axes too. |
 | Metric and aggregation | The metric for the colors above and the Y axis below, and **Median aggregation** or **Average aggregation**. |
-| **Convergence** | For an automated tuning: each iteration's objective (lower is better) and the best so far. |
 | **Sensitivity to tuning parameters** | The metric against the parameter you pick (X axis, **Log-scale** available). With two parameters that vary, a contour map over the two you pick. With several inputs, a box plot per value. |
 | **Breakdown by test** | One line per input and configuration, against the parameter. **Relative to Best** shows each value as a percent of that input's best. |
 | **Efficient frontier & tradeoffs** | With two parameters that vary: one point per combination, the metric against a second one (**Metric on Y-axis**), colored by the parameter. Hover a point for its parameters. |

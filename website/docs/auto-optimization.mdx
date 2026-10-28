@@ -2,28 +2,23 @@
 id: auto-optimization
 sidebar_label: Automated tuning
 title: Automated tuning with qa optimize
-description: Let qa optimize search the parameters that give the best metrics on a batch, from the CLI or the web app.
+description: Let qa optimize search the parameters that give the best metrics on a batch, from the CLI or the web app, and resume where it stopped.
 ---
-import StatusBadge from '@site/src/components/StatusBadge';
+`qa optimize` searches the parameters that optimize your metrics. It runs a batch with parameters chosen by an
+optimizer ([Optuna](https://optuna.org/)), reads the metrics, picks the next parameters from what it learned, and
+so on, for the number of evaluations you give it. It saves its progress: running the same experiment again
+continues it.
 
-<StatusBadge status="experimental" />
+This page is the reference, for whoever sets up a project. To start a tuning from the web app and read its results,
+see [Find the best parameters automatically](/docs/user-guide/automated-tuning).
 
-:::caution Experimental
-`qa optimize` and its configuration file may change without notice: the keys of the file, the objective's options,
-and the solver, which may move from scikit-optimize to another library or offer several.
-:::
-
-`qa optimize` searches the parameters that optimize your metrics: it runs a batch with parameters chosen by an
-optimizer ([scikit-optimize](https://scikit-optimize.github.io/), installed with `qaboard`), reads the metrics,
-picks the next parameters, and so on, for the number of evaluations you give it.
-
-On the detector, the int8 model still lost 7% of its AP on small objects against fp32, after a better calibration.
-An automated tuning searched the quantization and post-processing settings, 20 evaluations on the two slices where
-quantization hurts most, and the **Tuning Analysis** view showed which settings mattered:
+On the detector, the int8 model still lost AP on small objects against fp32, after a better calibration. An
+automated tuning searched the quantization and post-processing settings, 20 evaluations on the two slices where
+quantization hurts most, and the **Tuning Analysis** view showed what it found and which settings mattered:
 
 <Shot
   id="tuning/analysis"
-  caption="The Tuning Analysis of an automated tuning: the best parameters, every iteration in parallel coordinates, and the convergence."
+  caption="The Tuning Analysis of an automated tuning: how it went and what to do next, the best parameters within the ranges searched, and the convergence."
 />
 
 ## Run an automated tuning {#qa-optimize}
@@ -35,7 +30,7 @@ quantization hurts most, and the **Tuning Analysis** view showed which settings 
 2. **Start it**, on a batch of tests:
 
    ```bash
-   qa --share --label tune-int8 optimize --batch quant-search --config-file qa/tune-int8.yaml --checkpoint tune-int8.pkl
+   qa --share --label tune-int8 optimize --batch quant-search --config-file qa/tune-int8.yaml
    ```
 
    Each evaluation runs `qa batch` with the label `tune-int8|iterN` and the chosen parameters as tuning parameters,
@@ -45,66 +40,182 @@ quantization hurts most, and the **Tuning Analysis** view showed which settings 
    as the CI does.
 
 3. **Look at the results.** On the commit page, select the experiment's batch, `tune-int8`, then the
-   **Tuning Analysis** view: the best parameters found, every iteration, and the convergence of the objective. The
-   batch holds the runs of the best iteration so far.
+   **Tuning Analysis** view. The batch holds the runs of the best iteration so far.
 
-From the web app, the **Automated tuning** tab of **Run Tests / Tuning** starts the same thing on a commit's code. It
-shows a commented template of the configuration file:
+From the web app, the **Automated tuning** tab of **Run Tests / Tuning** writes the same file with a guided form, and
+starts `qa optimize` on the commit's code:
 
 <Shot
   id="tuning/auto-form"
-  caption="Automated tuning from the web app: the search space and the objective in YAML."
+  caption="Automated tuning from the web app: the parameters to tune, the metrics to improve and the budget, with a summary that says when it's ready."
 />
 
-## The objective {#objective}
-`qa optimize` minimizes the objective. For each metric under `objective`, it computes a loss on each run, reduces
-the losses over the batch's runs, divides by the number of runs, and adds the results, each multiplied by its
-`weight`. Failed runs are left out.
+## The configuration {#configuration}
 
 | Key | Default | Meaning |
 |---|---|---|
-| `weight` | `1` | How much the metric counts. |
+| `evaluations` | (required) | How many times to run the batch, failed evaluations included. When continuing, the total. |
+| `search_space` | (required) | The parameters to tune, see [The search space](#search-space). |
+| `objective` | (required) | The metrics to optimize, see [The objective](#objective). |
+| `preset_params` | | Parameters with a fixed value for every evaluation. |
+| `parallel_sampling` | `1` | How many evaluations run at the same time. `--parallel-param-sampling` overrides it. |
+| `early_stopping` | | `patience: N`: stop after N evaluations in a row without improvement. |
+| `pareto` | `false` | `true`: optimize each metric of the objective on its own, and keep the best trade-offs, see [Best trade-offs](#pareto). |
+| `solver` | | How the search picks parameters, see [The solver](#solver). |
+| `resume` | `true` | `false`: start over instead of continuing a saved search, see [Resume](#resume). |
+| `keep_all_best_iters` | `false` | `true`: keep the runs of every iteration that was the best, not only the latest. |
+
+`qa optimize` checks the whole file before running anything, and says what's wrong and where: a range with `low`
+above `high`, a metric without a better direction, a setting it doesn't know. The web app checks it the same way as
+you type.
+
+## The search space {#search-space}
+`search_space` lists the parameters. Each is one of:
+
+```yaml title="qa/tune.yaml"
+search_space:
+  - Real:          # any value in a range
+      name: score_threshold
+      low: 0.2
+      high: 0.45
+  - Real:
+      name: learning_rate
+      low: 0.00001
+      high: 0.1
+      prior: log-uniform   # as many values between 0.001 and 0.01 as between 0.01 and 0.1
+  - Integer:       # whole numbers in a range
+      name: kernel_size
+      low: 3
+      high: 9
+  - Categorical:   # a list of values, without an order
+      name: quant_keep_fp32
+      categories: [none, first-conv, head]
+```
+
+`prior: log-uniform` needs a `low` above 0. Categories are numbers, strings or booleans. A parameter is either tuned
+or in `preset_params`, not both.
+
+## The objective {#objective}
+`objective` lists the metrics to optimize, any your runs return, and which way is better for each:
+
+```yaml title="qa/tune.yaml"
+objective:
+  ap_small: max      # higher is better
+  map: max
+  model_mb:          # with more settings
+    goal: min        # lower is better
+    weight: 0.005
+```
+
+`qa optimize` minimizes the objective. For each metric, it computes a loss on each run, reduces the losses over the
+batch's runs, divides by the number of runs, and adds the results, each multiplied by its `weight`. Failed runs are
+left out.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `goal` | | `max` (higher is better) or `min` (lower is better). `ap_small: max` is short for `ap_small: {goal: max}`. |
+| `weight` | `1` | How much the metric counts, a positive number. |
 | `loss` | `identity` | The loss of one run: `identity` (the metric's value), `shift` (minus its target), `relative` (minus its target, divided by its target). Prefix `relu_` to only count values worse than the target (`relu_shift`, with an optional `margin`), or `square_` to square it. |
 | `reduce` | `sum` | How runs' losses combine: `sum` (their mean, once divided by the number of runs), `relu` (the sum, if it's positive), or `l1`, `l2` (norms). |
+| `target` | | The value `shift` and `relative` losses compare to. |
 
-Which way is better comes from each metric's `smaller_is_better` in your
-[metrics file](/docs/computing-quantitative-metrics#declaring-metrics-in-a-metrics-file): metrics where bigger is
-better count negatively, and metrics without `smaller_is_better` are "smaller is better". Metrics that aren't in the
-metrics file, or have `smaller_is_better: null`, stop the optimization with an error. With `shift` or
-`relative` losses, the target is the metric's `target` in your metrics file, or, with an `objective.target` section,
-the value of the matching run of a reference:
+Without a `goal`, `qa optimize` uses what your code says where it computes the metric
+(`qaboard.Metric(value, smaller_is_better=...)` or `define_metric`, see
+[declaring metrics](/docs/computing-quantitative-metrics#declaring-metrics)), else the `smaller_is_better` of your
+[metrics file](/docs/computing-quantitative-metrics#declaring-metrics-in-a-metrics-file). Your code declares metrics
+when it runs: `qa optimize` asks QA-Board again after the first evaluation. When nothing says which way is better, it
+stops and says what to write: before the first evaluation if it can tell, else after it.
+
+With `shift` or `relative` losses, the target is the metric's `target` in the objective, else the one your code or
+your metrics file declares, or, with an `objective.target` section, the value of the matching run of a reference:
 
 ```yaml title="qa/tune.yaml"
 objective:
   ap_small:
+    goal: max
     loss: shift
   target:
     branch: main     # or `id:` a commit
     batch: default   # the reference's batch
 ```
 
-## The search space {#search-space}
-`search_space` lists the parameters, in
-[scikit-optimize's syntax](https://scikit-optimize.github.io/stable/modules/classes.html#module-skopt.space.space):
-`Integer` and `Real` with `low` and `high` (and `prior: log-uniform` for scales like a learning rate), `Categorical`
-with `categories`. `preset_params` gives parameters a fixed value for every evaluation.
+### Best trade-offs {#pareto}
+With `pareto: true` and two or three metrics, each metric's loss is its own objective: there are no weights to
+choose. The search keeps the *Pareto front*, the evaluations that can't improve on one metric without losing on
+another, and **Tuning Analysis** shows them so you pick one. The batch keeps the runs of the evaluation with the
+lowest sum of the losses. With early stopping, an evaluation that changes the front counts as an improvement.
 
-## Options {#options}
-- `evaluations`: how many times to run the batch.
-- `solver`: the optimizer's settings, passed to
-  [scikit-optimize's `Optimizer`](https://scikit-optimize.github.io/stable/modules/generated/skopt.optimizer.Optimizer.html),
-  like `n_initial_points` (random evaluations before it models the objective) or `random_state`.
-- `--checkpoint`: the optimizer's state is saved there after each evaluation, and loaded if it exists, to restart an
-  interrupted optimization.
-- `parallel_sampling` in the configuration file, or `--parallel-param-sampling`: how many parameter sets are
-  evaluated at the same time (default 1).
-- `keep_all_best_iters: true`: by default, the runs of the previous best iteration are deleted when a better one is
-  found. Use it to keep them.
-- `QA_SEED`: the random seed (default 101), for reproducible optimizations.
+## The solver {#solver}
+```yaml title="qa/tune.yaml"
+solver:
+  sampler: tpe           # auto (default), gp, tpe or random
+  n_startup_trials: 8    # random evaluations first, to explore (default 10)
+  seed: 42               # default: $QA_SEED, else 101
+```
 
-Iterations that aren't the best so far have their output files deleted: their parameters and objective stay, for
-the plots. During the optimization, `qa` sets `QA_OPTIM_DIR` to the experiment's batch directory, where it saves a
-convergence plot (*plot_convergence.png*) if `matplotlib` is installed.
+| `sampler` | |
+|---|---|
+| `auto` | Gaussian processes when PyTorch is installed where `qa optimize` runs, TPE otherwise. |
+| `gp` | Gaussian processes: learn the most from few evaluations, the best when each one is slow. Needs PyTorch: `qa optimize` stops before the first evaluation without it. |
+| `tpe` | Tree-structured Parzen estimators: fast and robust, also with many parameters or categories. It models the parameters together, and spreads evaluations that run at the same time. |
+| `random` | Random parameters: a baseline to compare with. |
+
+With the same configuration and seed, and evaluations one at a time, a search tries the same parameters as long as
+the metrics are the same. **Tuning Analysis** says which sampler a search used.
+
+## Resume {#resume}
+`qa optimize` saves the search after each evaluation, in *optuna-journal.log* in the experiment's batch directory, or
+where `--checkpoint` says. It's a file Optuna writes to be safe on shared storage, where SQLite's locks aren't.
+Running the same experiment again continues it:
+- `evaluations` is the total: with 20 already done, `evaluations: 30` runs 10 more.
+- The search space can change: widen a range whose best value is at its edge, narrow ranges around the best values,
+  add parameters. Evaluations from before are used with their parameters.
+- The objective can't: `qa optimize` stops, since past values would mean something else. Use another label, or
+  `resume: false` to start over.
+- Evaluations that were running when the search stopped are left out, and the budget runs new ones instead.
+
+The web app starts each automated tuning with `--checkpoint` in the batch's directory, and **Continue the search…**
+in **Tuning Analysis** fills the form to continue one.
+
+<details>
+<summary>What qa optimize saves, for scripts and integrations</summary>
+
+- **One run per evaluation** in the experiment's batch, with the output type `optim_iteration`: its parameters as
+  tuning parameters, and as metrics its `iteration`, its `objective` (missing if the evaluation failed) and the
+  objective's metrics, averaged over the evaluation's runs. The web app leaves them out of the tables.
+- **The runs of the best iteration**, moved into the experiment's batch. Those of the other iterations are deleted:
+  their parameters and metrics stay in the evaluation's run. Failed iterations' runs are kept, with their logs.
+- **The batch's data**: `optimization: true`, `iterations` (the budget), `iteration` (the latest reported),
+  `best_iter`, `best_params`, `best_metrics`, `optimization_status` (`running`, `done`, `stopped_early`, `failed` or
+  `interrupted`), `optimization_config` (the search space, the objective, the sampler and the whole configuration),
+  `importances` (how much each parameter explains the objective, from 0 to 1, once 8 evaluations succeeded, with 2
+  parameters or more), `pareto_front`,
+  `evaluations_completed` and `evaluations_failed`.
+- During the search, `qa` sets `QA_OPTIM_DIR` to the experiment's batch directory, for files that concern the whole
+  search.
+
+Evaluations are reported in order, even when they end out of order: QA-Board's server cleans up the iterations'
+batches up to the one reported.
+
+</details>
+
+## From scikit-optimize {#scikit-optimize}
+`qa optimize` used to search with [scikit-optimize](https://github.com/scikit-optimize/scikit-optimize), which is no
+longer maintained. `search_space`, `objective`, `preset_params`, `evaluations`, `parallel_sampling` and
+`keep_all_best_iters` work as before. The `solver` section changed, and `qa optimize` stops with what to write
+instead when it finds an old setting:
+
+| scikit-optimize | Now |
+|---|---|
+| `base_estimator: GP` | `sampler: gp` (or `auto`) |
+| `base_estimator: RF`, `ET`, `GBRT` | `sampler: tpe` |
+| `n_initial_points` | `n_startup_trials` |
+| `random_state` | `seed` |
+| `acq_func`, `acq_optimizer`, `xi`, `kappa`... | Removed: the samplers choose. |
+
+A checkpoint scikit-optimize saved (`--checkpoint something.pkl`) can't be continued: with a `.pkl` path, the search
+is saved next to it (*something.optuna.log*), from the start. **Tuning Analysis** draws the convergence itself:
+there is no *plot_convergence.png* anymore.
 
 To try parameters you choose yourself, a grid or a sample, see
 [tuning from the web app](/docs/tuning-from-the-webapp) or `qa batch --tuning-search`.

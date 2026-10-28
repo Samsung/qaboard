@@ -429,6 +429,7 @@ const CiCommitResults = () => {
               <Card>
                 <TuningExploration
                   project={new_project}
+                  commit_id={new_commit?.id}
                   metrics={metrics}
                   available_metrics={available_metrics}
                   selected_metrics={selected_metrics_keys}

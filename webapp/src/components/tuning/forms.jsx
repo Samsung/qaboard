@@ -9,7 +9,6 @@ import { usePrefsStore, useTuningForm } from "../../stores/prefs";
 import MonacoEditor from "../MonacoEditor";
 
 import {
-  Alert,
   Classes,
   Callout,
   Intent,
@@ -34,6 +33,8 @@ import { toaster } from "../../toaster"
 
 import templates from './templates'
 import { BatchDefinitions, BatchWarnings } from './BatchReport'
+import OptimizeSetup from './OptimizeSetup'
+import { template as optimize_template, parse as parse_optimize, check as check_optimize, continuation } from './optimize_config'
 
 
 const MAX_RUNS = 5000;
@@ -357,14 +358,13 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
   const updateTuning = usePrefsStore(state => state.updateTuning);
   const refresh = useRefreshCommit();
   const [submitted, setSubmitted] = useState(false);
-  const [confirm_reset, setConfirmReset] = useState(false);
   // Required fields only turn red once users left them empty, not on a pristine form
   const [touched, setTouched] = useState({});
   const touch = name => () => setTouched(touched => touched[name] ? touched : { ...touched, [name]: true });
   const is_missing = (name, value) => !!touched[name] && !value;
   const is_transforming = useRef(false);
 
-  const default_parameter_search_auto = useMemo(() => templates['optimize'](config, metrics), [config, metrics]);
+  const default_parameter_search_auto = useMemo(() => optimize_template(metrics), [metrics]);
   const default_user = (config.runners || config).lsf?.user;
   const {
     experiment_name = "",
@@ -375,6 +375,7 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
     parameter_search = templates["no tuning"],
     search_options = default_search_options,
     parameter_search_auto = default_parameter_search_auto,
+    optimize_mode = 'guided',
   } = form;
   const user = logged_user.user_name || form.user || default_user;
 
@@ -414,11 +415,20 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
     };
   }, [project, experiment_name, platform, search_type, search_options, parameter_search, parameter_search_auto, selected_group, available_tests_files, user, overwrite, email_notifications]);
   const check = useTuningCheck({ project, commit_id: commit?.id, request, is_logged });
+  // the automated tuning's configuration, checked as users type. The server checks it too, with the same messages.
+  const optimize_errors = useMemo(() => {
+    if (search_type !== 'optimize') return [];
+    const { config: optimize_config, errors } = parse_optimize(parameter_search_auto);
+    if (errors.length) return errors;
+    const continuing = continuation(commit, experiment_name, optimize_config);
+    return [...check_optimize(optimize_config, metrics).map(e => e.message), ...(continuing?.error ? [continuing.error] : [])];
+  }, [search_type, parameter_search_auto, metrics, commit, experiment_name]);
   // the answer to the last start, until users change something
   const [submit_check, setSubmitCheck] = useState(null);
   const current_check = submit_check?.request === request ? submit_check : check;
   // the inputs already say when the name or the batch are missing
-  const check_errors = (experiment_name && selected_group) ? current_check.errors : [];
+  // the setup already shows the configuration's errors
+  const check_errors = (experiment_name && selected_group) ? current_check.errors.filter(e => !optimize_errors.includes(e)) : [];
   const check_warnings = current_check.warnings;
 
   const update = name => e => updateTuning(project, { [name]: e?.target ? e.target.value : e });
@@ -572,36 +582,17 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
   </>
 
 
-  const panel_auto = <>
-    <Button
-      icon="reset"
-      disabled={parameter_search_auto === default_parameter_search_auto}
-      onClick={() => setConfirmReset(true)}
-    >Reset to the default</Button>
-    <Alert
-      isOpen={confirm_reset}
-      icon="reset"
-      intent={Intent.WARNING}
-      cancelButtonText="Cancel"
-      confirmButtonText="Reset"
-      canEscapeKeyCancel
-      onCancel={() => setConfirmReset(false)}
-      onConfirm={() => {
-        setConfirmReset(false);
-        updateParameterSearchAuto(default_parameter_search_auto);
-      }}
-    >
-      <p>Replace your auto-tuning configuration with the default one? Your edits will be lost.</p>
-    </Alert>
-    <MonacoEditor
-      height={250}
-      language='yaml'
-      options={editor_options}
-      name="editor-tuning-auto"
-      onChange={updateParameterSearchAuto}
-      value={parameter_search_auto || ''}
-    />
-  </>
+  const panel_auto = <OptimizeSetup
+    value={parameter_search_auto || ''}
+    onChange={updateParameterSearchAuto}
+    metrics={metrics}
+    tests={tests.length}
+    commit={commit}
+    experiment_name={experiment_name}
+    mode={optimize_mode}
+    onModeChange={mode => updateTuning(project, { optimize_mode: mode })}
+    support_url={support_url}
+  />
 
   const available_platforms = config.inputs?.platforms ?? []
   // qaboard.yaml's tuning.branches: the branches whose commits have artifacts, if the CI doesn't save them for all
@@ -714,8 +705,8 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
       <Tab id="search-manual" title="Manual tuning" panel={panel_manual} />
       <Tab id="search-optimize" title={<>Automated tuning</>} panel={panel_auto} />
       <TabsExpander />
-      <a href={`${docs_root}docs/${search_type !== "optimize" ? 'tuning-from-the-webapp' : 'auto-optimization'}`} target="_blank" rel="noopener noreferrer">
-        {search_type !== "optimize" ? 'How to tune from QA-Board' : 'How auto-tuning works'}
+      <a href={`${docs_root}docs/${search_type !== "optimize" ? 'tuning-from-the-webapp' : 'user-guide/automated-tuning'}`} target="_blank" rel="noopener noreferrer">
+        {search_type !== "optimize" ? 'How to tune from QA-Board' : 'How automated tuning works'}
       </a>
     </Tabs>
 
@@ -723,7 +714,7 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
       helperText={!user ? "Please provide a user in the input below"
                         : experiment_name.length === 0 ? 'Please give the batch a label (the input is above)'
                         : selected_group_info.tests.length === 0 ? "The batch has no tests: see why under its name"
-                        : search_type === "optimize" ? undefined
+                        : search_type === "optimize" ? (optimize_errors.length > 0 ? "Fix the automated tuning's configuration first: it says what's missing above" : undefined)
                         : combinations === "invalid" ? "The tuning parameters are not valid JSON, or the function throws"
                         : total_runs > MAX_RUNS ? `Too many runs: ${total_runs} (at most ${MAX_RUNS}). Use “Sampling” or fewer inputs.`
                         : total_runs >= 1000 ? "Over 1000 runs: check the cluster has room"
@@ -747,12 +738,13 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
         !user ||
         experiment_name.length === 0 ||
         (!total_runs && search_type !== "optimize") ||
+        (search_type === "optimize" && optimize_errors.length > 0) ||
         total_runs > MAX_RUNS
       }
       large
       intent={search_type !== "optimize" ? (total_runs < 1000 ? Intent.PRIMARY : Intent.DANGER) : Intent.PRIMARY}
     >
-      {search_type === "optimize" ? "Start auto-tuning" : (Number.isFinite(total_runs) && total_runs > 0) ? `Start ${total_runs} run${total_runs === 1 ? '' : 's'}` : "Start runs"}
+      {search_type === "optimize" ? "Start automated tuning" : (Number.isFinite(total_runs) && total_runs > 0) ? `Start ${total_runs} run${total_runs === 1 ? '' : 's'}` : "Start runs"}
     </Button>
     {email_notifications && search_type !== "optimize" && <p className={Classes.TEXT_MUTED} style={{marginTop: '8px'}} data-testid="tuning-email-note">
       QA-Board will email you when the last run ends.
@@ -796,15 +788,6 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
       <Tag icon="user" large minimal style={{marginRight: '5px', marginBottom: '5px'}}>Will run as <strong>{user}</strong></Tag>
     </Tooltip>}
 
-    {search_type === "optimize" && <>
-      <Callout icon="info-sign" title="About auto-tuning">
-        <ul>
-        <li>The solver is <a href="https://github.com/scikit-optimize/scikit-optimize">scikit-optimize</a>. There are lots of choices for black-box optimization (nevergrad, RoBo, MOE, Ray, hyperopt, SMAC, BayesOpt, spearmint, dlib...), all with varying features, maturity, algorithms and popularity.</li>
-        <li>You need to use <a href={`${docs_root}docs/computing-quantitative-metrics`}>QA-Board metrics</a>.</li>
-        </ul>
-        {support_url && <p><strong>Do send <a href={support_url}>feedback</a>!</strong></p>}
-      </Callout>
-    </>}
   </>;
 };
 
