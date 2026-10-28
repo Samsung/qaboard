@@ -18,8 +18,8 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.3ede0599.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.79336278.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.5c71b209.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.f0459941.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -145,6 +145,9 @@ the release&quot;, is read on the sum&#x27;s line: QA-Board doesn&#x27;t draw it
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="run-this-example">Run this example<a href="#run-this-example" class="hash-link" aria-label="Direct link to Run this example" title="Direct link to Run this example" translate="no">​</a></h2>
 <p>You need Python 3.11 or later.</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token plain">pip </span><span class="token function" style="color:#d73a49">install</span><span class="token plain"> qaboard pytest coverage</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token builtin class-name">cd</span><span class="token plain"> examples/software-quality</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">qa run </span><span class="token parameter variable" style="color:#36acaa">--input</span><span class="token plain"> missions     </span><span class="token comment" style="color:#999988;font-style:italic"># one suite, about 2 s</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">qa batch ci                 </span><span class="token comment" style="color:#999988;font-style:italic"># 5 suites in 2 modes, about 20 s</span><br></div></code></pre></div></div>
+<p>Without <code>--share</code>, results stay in <code>output/</code>. To see them in the web app, run <code>qa --share batch ci</code>. With the
+<a class="" href="/qaboard/docs/get-started/quickstart#save-results-from-your-computer">quickstart</a>&#x27;s server, first
+<code>export QABOARD_URL=http://localhost:5151 QA_STORAGE=/tmp/qaboard</code>.</p>
 <p>To see the story&#x27;s bugs, write its flags, e.g. <code>echo &#x27;{&quot;bug_missions_reserve&quot;: true}&#x27; &gt; build/flags.json</code>, and run
 the suite again: see the example&#x27;s
 <a href="https://github.com/Samsung/qaboard/tree/master/examples/software-quality#readme" target="_blank" rel="noopener noreferrer" class="">README</a>.</p>

@@ -18,8 +18,8 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.3ede0599.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.79336278.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.5c71b209.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.f0459941.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -74,6 +74,9 @@ the identical run, which keeps CI fast. Do the same for long simulations, and sa
 <p>You need Python 3.10 or later and FFmpeg (for the videos). The first run generates the sequences&#x27; ground truth (about
 20 s); a run takes 15-40 s.</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token builtin class-name">cd</span><span class="token plain"> examples/robotics-3d</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">pip </span><span class="token function" style="color:#d73a49">install</span><span class="token plain"> qaboard </span><span class="token parameter variable" style="color:#36acaa">-r</span><span class="token plain"> requirements.txt</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">qa run </span><span class="token parameter variable" style="color:#36acaa">--input</span><span class="token plain"> sequences/figure8-fast</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">qa batch ci                     </span><span class="token comment" style="color:#999988;font-style:italic"># the 6 sequences</span><br></div></code></pre></div></div>
+<p>Without <code>--share</code>, results stay in <code>output/</code>. To see them in the web app, run <code>qa --share batch ci</code>. With the
+<a class="" href="/qaboard/docs/get-started/quickstart#save-results-from-your-computer">quickstart</a>&#x27;s server, first
+<code>export QABOARD_URL=http://localhost:5151 QA_STORAGE=/tmp/qaboard</code>.</p>
 <p>See the example&#x27;s <a href="https://github.com/Samsung/qaboard/tree/master/examples/robotics-3d#readme" target="_blank" rel="noopener noreferrer" class="">README</a> for the
 flags and the tuning sweep.</p>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="read-more">Read more<a href="#read-more" class="hash-link" aria-label="Direct link to Read more" title="Direct link to Read more" translate="no">​</a></h2>

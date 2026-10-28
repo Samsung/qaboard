@@ -18,8 +18,8 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.3ede0599.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.79336278.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.5c71b209.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.f0459941.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -51,7 +51,7 @@ parameters on top, shown as <code>key: value</code> tags. See <a class="" href="
 <li class=""><strong>Platform</strong>: where the code runs or what it targets, e.g. <code>linux</code> or a hardware model. Runs are compared on the same
 platform.</li>
 <li class=""><strong>Run</strong>: your code from one commit, on one input, with one configuration, on one platform. A run has output files,
-metrics and a log.</li>
+metrics and a log. An input with its configuration is a <strong>test</strong>, as in the web app&#x27;s <strong>Available Tests</strong>.</li>
 <li class=""><strong>Batch</strong>: a group of runs of the same commit, with a label. <code>qa batch ci</code> runs the inputs and configurations listed
 under <code>ci</code> in your batches file. The batch CI runs has the label <code>default</code>, and the web app shows it as <strong>CI</strong>.
 Tuning experiments and your own runs get their own batches. See
@@ -67,7 +67,8 @@ graphs, text, videos, HTML reports. <em>qaboard.yaml</em> says which files to sh
 <a class="" href="/qaboard/docs/visualizations">Visualizations</a>.</li>
 <li class=""><strong>New and reference</strong>: a commit&#x27;s results are always shown next to a reference&#x27;s. By default the reference is the
 latest commit with results on the project&#x27;s <strong>reference branch</strong> (<code>project.reference_branch</code>). Each run is
-compared with the reference run of the same input, with the closest configuration.</li>
+compared with the reference run of the same input, with the closest configuration. You can stack several references
+on one page and switch between them. See <a class="" href="/qaboard/docs/user-guide/comparing-results">New and reference</a>.</li>
 <li class=""><strong>Milestone</strong>: a commit&#x27;s batch kept as a reference: a release, a benchmark, &quot;before my refactor&quot;. Shared
 milestones are listed for everyone in the project, the others only for you. See
 <a class="" href="/qaboard/docs/references-and-milestones">References and milestones</a>.</li>

@@ -18,8 +18,8 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.3ede0599.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.79336278.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.5c71b209.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.f0459941.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -32,8 +32,8 @@ made this worse?&quot; or &quot;is this input getting better?&quot;.</p>
 profiles barely moved. To find the commit that did it:</p>
 <ol>
 <li class="">Open <strong>History</strong> from the sidebar of the commit list. It shows the branch you&#x27;re looking at, or the reference
-branch. Or, on the commit page where you saw the regression, click the name of the run that regressed: History
-opens already filtered on that input, from 3 days before that commit, and you can skip step 3.</li>
+branch. Or, on the commit page where you saw the regression, hover the name of the run that regressed and click
+<strong>History</strong>: History opens already filtered on that input, from 3 days before that commit, and you can skip step 3.</li>
 <li class="">Pick the metric at the top left of the chart, e.g. <strong>Latency p99</strong>.</li>
 <li class="">Type the test&#x27;s name in the filter box at the top right, e.g. <code>heavy-tail-high</code>. Only its line is left.</li>
 <li class="">If the regression may be older than 3 days, pick earlier dates at the top left, e.g. the last two weeks.</li>
@@ -49,8 +49,9 @@ borrows payloads again brings p99 back near 3 ms. Double-click the chart to let 
 <strong>N runs</strong> button of its row.</p>
 <div class="theme-admonition theme-admonition-tip admonition_xJq3 alert alert--success"><div class="admonitionHeading_Gvgb"><span class="admonitionIcon_Rf37"><svg viewBox="0 0 12 16"><path fill-rule="evenodd" d="M6.5 0C3.48 0 1 2.19 1 5c0 .92.55 2.25 1 3 1.34 2.25 1.78 2.78 2 4v1h5v-1c.22-1.22.66-1.75 2-4 .45-.75 1-2.08 1-3 0-2.81-2.48-5-5.5-5zm3.64 7.48c-.25.44-.47.8-.67 1.11-.86 1.41-1.25 2.06-1.45 3.23-.02.05-.02.11-.02.17H5c0-.06 0-.13-.02-.17-.2-1.17-.59-1.83-1.45-3.23-.2-.31-.42-.67-.67-1.11C2.44 6.78 2 5.65 2 5c0-2.2 2.02-4 4.5-4 1.22 0 2.36.42 3.22 1.19C10.55 2.94 11 3.94 11 5c0 .66-.44 1.78-.86 2.48zM4 14h5c-.23 1.14-1.3 2-2.5 2s-2.27-.86-2.5-2z"></path></svg></span>tip</div><div class="admonitionContent_BuS1"><p>Keep <strong>Breakdown per test</strong> on: a regression on one test can hide in the median over all tests.</p></div></div>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="follow-one-input">Follow one input over time<a href="#follow-one-input" class="hash-link" aria-label="Direct link to Follow one input over time" title="Direct link to Follow one input over time" translate="no">​</a></h2>
-<p>On a commit page, click the <strong>name of a run</strong> on its card: History opens on that input, on the commit&#x27;s branch,
-already filtered on it, from 3 days before the commit to today. Hover its points to compare each commit&#x27;s outputs with the commit before.</p>
+<p>On a commit page, hover the <strong>name of a run</strong> on its card and click <strong>History</strong> (it&#x27;s also in the card&#x27;s ☰ menu, and
+in the run&#x27;s <strong>⋯</strong> menu in the Logs view): History opens on that input, on the commit&#x27;s branch, already filtered on
+it, from 3 days before the commit to today. Hover its points to compare each commit&#x27;s outputs with the commit before.</p>
 <figure class="figure_SMyr" style="max-width:1115px"><div class="frame_gpSn" data-zoom="true"><picture class="lightOnly_JDk_"><source type="image/avif" srcset="/qaboard/media/shots/history/image-diff/2a523a54ee36e6be.avif"><source type="image/webp" srcset="/qaboard/media/shots/history/image-diff/7fabcbf6ce13a567.webp"><img class="image_k94w" src="/qaboard/media/shots/history/image-diff/7fabcbf6ce13a567.webp" alt="PSNR of the facade photo over six weeks of main, a point per commit, with a jump at the merge of the bilateral denoiser. Below, that commit and the one before, and their output images: only the new one outlines the leaves." width="1115" height="1112" loading="lazy" decoding="async" style="background-image:url(&quot;data:image/webp;base64,UklGRl4AAABXRUJQVlA4IFIAAAAQAgCdASoQABAAA4BaJZQAAxf9gAQkqgFAAP73Km1fwC3D1gndC7HKXIoDzVmIsDvZgdlbwRlliy5jYq37xmKHu6Xahx2cDKDH6ABLJnvh2rQA&quot;)"></picture><picture class="darkOnly_Nywl"><source type="image/avif" srcset="/qaboard/media/shots/history/image-diff/0d91daf47689f7cf.avif"><source type="image/webp" srcset="/qaboard/media/shots/history/image-diff/d46ae0c441df889b.webp"><img class="image_k94w" src="/qaboard/media/shots/history/image-diff/d46ae0c441df889b.webp" alt="PSNR of the facade photo over six weeks of main, a point per commit, with a jump at the merge of the bilateral denoiser. Below, that commit and the one before, and their output images: only the new one outlines the leaves." width="1115" height="1112" loading="lazy" decoding="async" style="background-image:url(&quot;data:image/webp;base64,UklGRmAAAABXRUJQVlA4IFQAAADwAQCdASoQABAAA4BaJZQC7AEOJBE9/gAA/vDGiibMiJ2mHhbnI2iIlV1l+7TbqUisUkfVkbVnTWunKEbm/hrguPocnXAwzTDz7/PGeOkKuc/QAAA=&quot;)"></picture><button type="button" class="zoomButton_wDMu" aria-label="Enlarge image" aria-haspopup="dialog"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg></button></div><figcaption class="caption_G95k"><span>Hover a point to compare its outputs with the commit before: the PSNR jumps when the bilateral denoiser is merged, and the leaves get halos.</span></figcaption><dialog class="dialog_okoU" aria-label="PSNR of the facade photo over six weeks of main, a point per commit, with a jump at the merge of the bilateral denoiser. Below, that commit and the one before, and their output images: only the new one outlines the leaves."></dialog></figure>
 <p>You can also go to <code>/&lt;project&gt;/history/&lt;branch&gt;</code>. From the History page, the sidebar has the project&#x27;s navigation:
 the branch&#x27;s commits, <strong>Code</strong>, <strong>Integrations</strong> and <strong>Milestones</strong>.</p>
