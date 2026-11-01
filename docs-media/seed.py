@@ -445,6 +445,11 @@ class Server:
     r = self.http.post(f"{self.url}/api/v1/user/signup/", data={
       'user_name': handle, 'password': DEMO_PASSWORD, 'full_name': person['name'], 'email': person['email'],
     }, timeout=60)
+    if r.status_code == 409 and 'reserved' in r.text:
+      # $QABOARD_ADMINS names (compose.demo.yml) can't sign up: their account comes from the admin CLI
+      stack.compose('exec', '-T', 'backend', 'qaboard-admin', 'create-admin', handle, '--password',
+                    '--email', person['email'], '--full-name', person['name'], input=f"{DEMO_PASSWORD}\n".encode())
+      return
     if r.status_code not in (200, 409):
       raise RuntimeError(f"Could not create the user {handle}: {r.status_code} {r.text[:300]}")
 
