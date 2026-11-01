@@ -169,7 +169,7 @@ npm test -- --run       # Vitest + Testing Library, jsdom
 - **LSF Integration**: High-performance computing cluster support for batch jobs
 - **Advanced Visualizations**: Images, videos, plots, 3D point clouds, flame graphs
 - **Git Integration**: Version control awareness and commit tracking
-- **Parameter Tuning**: Built-in optimization workflows with scikit-optimize
+- **Parameter Tuning**: grid search and sampling, and automated tuning (`qa optimize`, with Optuna)
 - **Bit Accuracy Testing**: Automated regression testing for algorithm validation
 
 ## Architecture Notes

@@ -866,8 +866,8 @@ shots:
   - id: tuning/auto-form
     kind: still
     project: detection-eval
-    shows: 'Automated tuning with the search space and objective in YAML (the top of qa/tune-int8.yaml: evaluations, solver, objective).'
-    pages: [auto-optimization, user-guide/running-from-the-webapp, tutorials/tuning]
+    shows: 'Automated tuning''s guided form filled from qa/tune-int8.yaml: four parameters with their ranges or values, AP small and mAP to improve and the model size to keep small, 20 evaluations, and the summary "Ready to start" with the runs it counts.'
+    pages: [auto-optimization, user-guide/automated-tuning, user-guide/running-from-the-webapp, tutorials/tuning]
     phase: 2
     status: captured
   # A real launch: its 8 runs run in the backend's container (docs-media/demo/webapp_runs.py build), then it's deleted
@@ -883,8 +883,8 @@ shots:
   - id: tuning/analysis
     kind: still
     project: detection-eval
-    shows: 'The tune-int8 Analysis: the best parameters (found at iteration 10 of 20: percentile 99.999, nothing kept in fp32, score 0.2, NMS 0.4, which is not what int8-tuned picked), parallel coordinates of the iterations, the convergence of the objective.'
-    pages: [auto-optimization, use-cases/detection-eval, user-guide/running-from-the-webapp, tutorials/tuning]
+    shows: 'The tune-int8 Tuning Analysis: done, 20 of 20 evaluations, the best objective and its metrics against the first evaluation, "What this tells you", the best parameters within the ranges searched with their impact, and the convergence of the objective.'
+    pages: [auto-optimization, use-cases/detection-eval, user-guide/automated-tuning, user-guide/running-from-the-webapp, tutorials/tuning]
     features: [tuning-analysis]
     needs: int8-percentile (tune-int8)
     phase: 2

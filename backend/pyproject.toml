@@ -22,7 +22,7 @@ dependencies = [
     "scikit-image",
     "uwsgi",
     "uwsgitop",
-    "scikit-optimize",
+    "optuna>=4.5",
     "psutil",
     "certifi",
     "requests",

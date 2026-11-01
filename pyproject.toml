@@ -25,7 +25,8 @@ dependencies = [
     "requests",
     "rich",
     "scikit-learn",
-    "scikit-optimize",
+    # qa optimize. Its import error tells users of older Pythons to upgrade
+    "optuna>=4.5; python_version >= '3.9'",
     "sentry-sdk",
     "simplejson",
     "psutil",
