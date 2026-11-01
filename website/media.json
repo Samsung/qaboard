@@ -4987,87 +4987,87 @@
       "width": 1136
     },
     "tuning/analysis": {
-      "alt": "The Analysis of the tune-int8 experiment: the best parameters found at iteration 10 of 20 (percentile 99.999, nothing kept in fp32, score 0.2, NMS 0.4) with their mAP, AP small and model size; parallel coordinates of the 20 iterations; the convergence of the objective.",
-      "app_version": "1.1.1+2c2da99",
-      "caption": "The Analysis of an automated tuning: the best parameters, every iteration in parallel coordinates, and how the search converged.",
-      "captured": "2026-10-21",
+      "alt": "The Tuning Analysis of tune-int8: done, 20 of 20 evaluations, the best objective and its metrics against the first evaluation, what this tells you, the best parameters with the ranges searched and their impact, and the convergence of the objective.",
+      "app_version": "1.1.1+0690a4f",
+      "caption": "The Tuning Analysis of an automated tuning: how it went and what to do next, the best parameters within the ranges searched, and the convergence.",
+      "captured": "2026-11-01",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 73396,
-            "key": "shots/tuning/analysis/265212f88e7612e6.avif"
+            "bytes": 99105,
+            "key": "shots/tuning/analysis/49243504ba8b4ce2.avif"
           },
           "png": {
-            "bytes": 282687,
-            "key": "shots/tuning/analysis/2c36616d25eaaf96.png"
+            "bytes": 302167,
+            "key": "shots/tuning/analysis/a0b28dd8e6cecd8b.png"
           },
           "webp": {
-            "bytes": 148618,
-            "key": "shots/tuning/analysis/f5466b4610c875bf.webp"
+            "bytes": 187578,
+            "key": "shots/tuning/analysis/25ef92f6f9700408.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAADQAQCdASoQABAAA4BaJZwCdAEfbfUGAAD+6SrZgRUvwxGD0cEQAA=="
+        "lqip": "data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAAAwAwCdASoQABIAPu1iqU2ppaOiMAgBMB2JZwCuHDBglD0AAP7uFXHhiOZ6iiAdjtwKAAAA"
       },
       "files": {
         "avif": {
-          "bytes": 79575,
-          "key": "shots/tuning/analysis/4d2a40424d631257.avif"
+          "bytes": 108607,
+          "key": "shots/tuning/analysis/f249bba6361e5e39.avif"
         },
         "png": {
-          "bytes": 244555,
-          "key": "shots/tuning/analysis/b07595a90c8c950e.png"
+          "bytes": 293546,
+          "key": "shots/tuning/analysis/26bc1e50465294d0.png"
         },
         "webp": {
-          "bytes": 166666,
-          "key": "shots/tuning/analysis/d12da927b2a3bad4.webp"
+          "bytes": 201678,
+          "key": "shots/tuning/analysis/4acad71ae27925c7.webp"
         }
       },
-      "height": 1043,
+      "height": 1178,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAADwAQCdASoQABAAA4BaJaQAAxZgtP0WoAAA/vUBu9WYy+hiKmYwAAAA",
+      "lqip": "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAAAQAwCdASoQABIAPu1iqU2ppaQiMAgBMB2JaQAAXAXIvmAA/u/ITVD9ac4Q6Zn3zwgAAA==",
       "project": "detection-eval",
       "source_spec": "docs-media/shots/tuning.spec.ts",
-      "width": 1072
+      "width": 1080
     },
     "tuning/auto-form": {
-      "alt": "The Automated tuning tab of the Run Tests / Tuning form, with the int8 model's tuning in YAML: 20 evaluations, the solver's seed and 8 initial points, then the objective, AP small and mAP; the Start auto-tuning button below.",
-      "app_version": "1.1.1+f175b5f",
-      "caption": "Automated tuning searches the parameters with `qa optimize`: describe the search space and the objective in YAML.",
-      "captured": "2026-10-16",
+      "alt": "The Automated tuning tab, filled with the int8 model's tuning: four parameters with their ranges or values, AP on small objects and mAP to improve, the model size to keep small, 20 evaluations, and a summary that says it's ready to start and counts the runs.",
+      "app_version": "1.1.1+0690a4f",
+      "caption": "Automated tuning: the parameters to tune, the metrics to improve and the budget, with a summary that says when it's ready.",
+      "captured": "2026-11-01",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 22018,
-            "key": "shots/tuning/auto-form/0d4305485e4c9709.avif"
+            "bytes": 75464,
+            "key": "shots/tuning/auto-form/05742e140dca8877.avif"
           },
           "png": {
-            "bytes": 81343,
-            "key": "shots/tuning/auto-form/dedb81e1bbaa645d.png"
+            "bytes": 289537,
+            "key": "shots/tuning/auto-form/bc7a94089bea5da0.png"
           },
           "webp": {
-            "bytes": 47684,
-            "key": "shots/tuning/auto-form/66dfca5671854256.webp"
+            "bytes": 157260,
+            "key": "shots/tuning/auto-form/3791f8f682fe1ee5.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAADQAQCdASoQAAYAA4BaJZQCdAEPCN4eAAD+8NZUgjNMrb/ksMa8AAAA"
+        "lqip": "data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAABwAQCdASoQABAAA4BaJZwCdAFAAAD+8FuNj9A/6DhSnwfK4QAAAA=="
       },
       "files": {
         "avif": {
-          "bytes": 25116,
-          "key": "shots/tuning/auto-form/bdaa0ce9fd3fc9d0.avif"
+          "bytes": 83388,
+          "key": "shots/tuning/auto-form/c0bb1b8678448568.avif"
         },
         "png": {
-          "bytes": 85928,
-          "key": "shots/tuning/auto-form/5acce90ec7c737b0.png"
+          "bytes": 287878,
+          "key": "shots/tuning/auto-form/790e73722d20a4fe.png"
         },
         "webp": {
-          "bytes": 57788,
-          "key": "shots/tuning/auto-form/be6a4eba3692ff4d.webp"
+          "bytes": 172458,
+          "key": "shots/tuning/auto-form/13e97d9192a33495.webp"
         }
       },
-      "height": 387,
+      "height": 1069,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAACwAQCdASoQAAYAA4BaJZQAAud3U9AAAP73EjV6thrsHChR4V3+AAAA",
+      "lqip": "data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAACQAQCdASoQABAAA4BaJaQAAujbZdAA/vcLyoVT4zTsZSzGFIAAAA==",
       "project": "detection-eval",
       "source_spec": "docs-media/shots/tuning.spec.ts",
       "width": 1118
@@ -5117,95 +5117,95 @@
     },
     "tuning/frontier": {
       "alt": "The efficient frontier of the tune-batching sweep: one point per configuration of max batch and max delay, CPU per request against p99, colored by max delay. The hovered point, max batch 16 and max delay 250 µs, sits on the lower left edge.",
-      "app_version": "1.1.1+2c2da99",
+      "app_version": "1.1.1+0690a4f",
       "caption": "Each configuration's CPU per request against its p99: the defaults picked, max batch 16 and 250 µs of delay, are on the frontier.",
-      "captured": "2026-10-21",
+      "captured": "2026-11-01",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 20763,
-            "key": "shots/tuning/frontier/0b479fc61b42f037.avif"
+            "bytes": 22131,
+            "key": "shots/tuning/frontier/433c76f63a6cd6b4.avif"
           },
           "png": {
-            "bytes": 71950,
-            "key": "shots/tuning/frontier/25eaa9655731fa08.png"
+            "bytes": 74895,
+            "key": "shots/tuning/frontier/0b3252d68f8d7562.png"
           },
           "webp": {
-            "bytes": 30090,
-            "key": "shots/tuning/frontier/848917f48c1b7dd8.webp"
+            "bytes": 31578,
+            "key": "shots/tuning/frontier/62b751e069f7e512.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAABwAQCdASoQAAkAA4BaJZwC7AF1AAD+8J3S1jrwzk1GDgL+AAA="
+        "lqip": "data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAABwAQCdASoQAAkAA4BaJZwC7AF1AAD+8J3S1jrwzl3K6a4bEAA="
       },
       "files": {
         "avif": {
-          "bytes": 21260,
-          "key": "shots/tuning/frontier/550a1c9bbfc17808.avif"
+          "bytes": 22866,
+          "key": "shots/tuning/frontier/bbf0fb182efee296.avif"
         },
         "png": {
-          "bytes": 71142,
-          "key": "shots/tuning/frontier/d4cd627b01a50826.png"
+          "bytes": 73519,
+          "key": "shots/tuning/frontier/5387d750f48b4f3b.png"
         },
         "webp": {
-          "bytes": 33578,
-          "key": "shots/tuning/frontier/19a2d93b64417a66.webp"
+          "bytes": 35590,
+          "key": "shots/tuning/frontier/eb1dd7d2d18c9afb.webp"
         }
       },
       "height": 582,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAACQAQCdASoQAAkAA4BaJZwAAxf7+RAA/vgHtDk4d6WeByFzuEcqnTGaWAAAAA==",
+      "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAACQAQCdASoQAAkAA4BaJZwAAxf7+RAA/vgHtDqn/izlXgeyFvczrpPuJgAAAA==",
       "project": "serving-latency",
       "source_spec": "docs-media/shots/tuning.spec.ts",
       "width": 1096
     },
     "tuning/launch-to-analysis": {
       "alt": "The Run Tests / Tuning form with a grid of score_threshold by nms_iou on quant-search, 8 runs: Start 8 runs launches it. Then its batch, int8-nms, is picked, and its Analysis shows the runs in parallel coordinates.",
-      "app_version": "1.1.1+2c2da99",
+      "app_version": "1.1.1+0690a4f",
       "caption": "Start a sweep from the browser, then compare its runs in the Analysis view.",
-      "captured": "2026-10-21",
+      "captured": "2026-11-01",
       "dark": {
         "files": {
           "mp4": {
-            "bytes": 227302,
-            "key": "shots/tuning/launch-to-analysis/0991ecf969953275.mp4"
+            "bytes": 225471,
+            "key": "shots/tuning/launch-to-analysis/c7b405c667ca1db4.mp4"
           },
           "poster": {
-            "bytes": 61696,
-            "key": "shots/tuning/launch-to-analysis/62be0f8498527834.webp"
+            "bytes": 60790,
+            "key": "shots/tuning/launch-to-analysis/c3ac8cf86490b491.webp"
           },
           "vtt": {
             "bytes": 237,
             "key": "shots/tuning/launch-to-analysis/327b2d420c0fdeaa.vtt"
           },
           "webm": {
-            "bytes": 282673,
-            "key": "shots/tuning/launch-to-analysis/ce2c22933688e71f.webm"
+            "bytes": 283606,
+            "key": "shots/tuning/launch-to-analysis/cc6e06b0823511c8.webm"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRkoAAABXRUJQVlA4ID4AAAAQAgCdASoQAAoAA4BaJZwCdAEPBY2ibQiAAP70kW6h20boejOO9VQJ72+TBHzGyq7ZsOY4NaUG38ShoAAAAA=="
+        "lqip": "data:image/webp;base64,UklGRkwAAABXRUJQVlA4IEAAAAAQAgCdASoQAAoAA4BaJZwCdAEPDQcjVhwAAP70kW6gOk5dwPwzGMrGA74yCiloq0URRPs5NmX0GUHSKRtzmAAA"
       },
       "duration": 10.27,
       "files": {
         "mp4": {
-          "bytes": 220435,
-          "key": "shots/tuning/launch-to-analysis/5430b97ae6264114.mp4"
+          "bytes": 227325,
+          "key": "shots/tuning/launch-to-analysis/be10032b3dd32e04.mp4"
         },
         "poster": {
-          "bytes": 63974,
-          "key": "shots/tuning/launch-to-analysis/fea7b975cd6744aa.webp"
+          "bytes": 64938,
+          "key": "shots/tuning/launch-to-analysis/076a08e59cdb658c.webp"
         },
         "vtt": {
           "bytes": 237,
           "key": "shots/tuning/launch-to-analysis/327b2d420c0fdeaa.vtt"
         },
         "webm": {
-          "bytes": 285507,
-          "key": "shots/tuning/launch-to-analysis/ea7789245d52e4d7.webm"
+          "bytes": 289548,
+          "key": "shots/tuning/launch-to-analysis/ff536d0809ee770e.webm"
         }
       },
       "height": 900,
       "kind": "clip",
-      "lqip": "data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAADQAQCdASoQAAoAA4BaJZQBTAA9DmWzAAD8P4bt+iJlzHcjfqJeffU9zs0ec/nbjBCWIAAA",
+      "lqip": "data:image/webp;base64,UklGRkIAAABXRUJQVlA4IDYAAADwAQCdASoQAAoAA4BaJZQBTAA9ERVsYfAA/D+G7foiZcy0KNRaw4/ZGFY78nHblypx7DAAAAA=",
       "project": "detection-eval",
       "source_spec": "docs-media/shots/tuning.spec.ts",
       "width": 1440
@@ -5255,43 +5255,43 @@
     },
     "tuning/which-tests-run": {
       "alt": "The \"Which tests run?\" panel over the Available Tests view: the ci batch resolves to 8 tests on 4 inputs, the indoor, outdoor, warehouse and small-objects slices, each with the fp32 and the int8 model at size 320.",
-      "app_version": "1.1.1+2c2da99",
+      "app_version": "1.1.1+0690a4f",
       "caption": "Check which tests a batch runs on this commit, with all the batch files: its inputs and their configurations.",
-      "captured": "2026-10-21",
+      "captured": "2026-11-01",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 35691,
-            "key": "shots/tuning/which-tests-run/bef56c1f658b15a6.avif"
+            "bytes": 36453,
+            "key": "shots/tuning/which-tests-run/14eb472f505e8565.avif"
           },
           "png": {
-            "bytes": 187097,
-            "key": "shots/tuning/which-tests-run/0868e4c7a50ea42a.png"
+            "bytes": 191170,
+            "key": "shots/tuning/which-tests-run/0fd3731d505a00fa.png"
           },
           "webp": {
-            "bytes": 73222,
-            "key": "shots/tuning/which-tests-run/1c662bc40555bb17.webp"
+            "bytes": 73786,
+            "key": "shots/tuning/which-tests-run/b41cfb034a87d4cc.webp"
           }
         },
         "lqip": "data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAABQAQCdASoQAAcAA4BaJZwABAAAAP7w3f9IzOj8UEMVYDy8IAA="
       },
       "files": {
         "avif": {
-          "bytes": 38236,
-          "key": "shots/tuning/which-tests-run/84692743d81478af.avif"
+          "bytes": 38904,
+          "key": "shots/tuning/which-tests-run/12f015723b7d5396.avif"
         },
         "png": {
-          "bytes": 191237,
-          "key": "shots/tuning/which-tests-run/9251e595ebbfba2f.png"
+          "bytes": 194654,
+          "key": "shots/tuning/which-tests-run/a406cb896271733e.png"
         },
         "webp": {
-          "bytes": 78904,
-          "key": "shots/tuning/which-tests-run/332cf079e898ba0e.webp"
+          "bytes": 79292,
+          "key": "shots/tuning/which-tests-run/f04bf0911810a9ee.webp"
         }
       },
       "height": 560,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAACwAQCdASoQAAcAA4BaJaQAAtz3bqrAAP7vpuODXeAdp5itwhWfvHAA",
+      "lqip": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAACwAQCdASoQAAcAA4BaJaQAAtz3bqrAAP7vpuODXeAdp5itwhWcAAAA",
       "project": "detection-eval",
       "source_spec": "docs-media/shots/tuning.spec.ts",
       "width": 1440

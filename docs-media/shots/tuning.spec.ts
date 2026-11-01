@@ -29,10 +29,12 @@ test.afterAll(() => {
 });
 
 // Only reads reach the server: no batch is started, no batch file saved
+// (batch/check validates the form's settings without starting anything)
 async function readOnly(page: Page) {
   await page.route('**/api/v1/**', route => {
     const request = route.request();
-    const allowed = request.method() === 'GET' || /\/api\/v1\/(tests\/group|user\/)/.test(request.url());
+    const allowed = request.method() === 'GET'
+      || /\/api\/v1\/(tests\/group|user\/|commit\/[0-9a-f]+\/batch\/check)/.test(request.url());
     return allowed ? route.fallback() : route.abort();
   });
 }
@@ -61,7 +63,10 @@ async function paste(ui: Ui, editor: Locator, text: string) {
     // back to the top: the editor only draws the lines in view
     await ui.press('Control+Home');
     await ui.settle();
-    const first = await editor.locator('.view-line').first().innerText();
+    // Monaco positions its lines: their order in the DOM isn't the order on screen
+    const first = await editor.locator('.view-line').evaluateAll(lines => lines
+      .map(l => ({ top: parseFloat((l as HTMLElement).style.top) || 0, text: (l as HTMLElement).innerText }))
+      .sort((a, b) => a.top - b.top)[0]?.text ?? '');
     if (first.replace(/\s+/g, ' ').trim() === firstLine.replace(/\s+/g, ' ').trim()) break;
     if (attempt === 3) throw new Error(`[tuning.spec] the editor starts with "${first}" after pasting`);
   }
@@ -113,8 +118,12 @@ async function openForm(ui: Ui, { send = false } = {}) {
   await ui.click(ui.page.getByText('Run Tests/Tuning', { exact: true }).or(ui.page.getByText('Run Tests / Tuning', { exact: true })).first());
   await ui.page.getByPlaceholder('my-tuning-experiment').waitFor();
   await ui.settle();
-  await ui.type(ui.page.getByPlaceholder('my-tuning-experiment'), EXPERIMENT);
-  await ui.type(ui.page.getByPlaceholder('my-batch, batch-*'), 'quant-search');
+  // the form remembers its last values in the user's preferences, synced with the server: a retry would append to them
+  for (const [placeholder, value] of [['my-tuning-experiment', EXPERIMENT], ['my-batch, batch-*', 'quant-search']]) {
+    const field = ui.page.getByPlaceholder(placeholder);
+    await field.fill('');
+    await ui.type(field, value);
+  }
   await ui.settle();
 }
 const form = (page: Page) => page.locator('.bp6-card', { has: page.getByPlaceholder('my-tuning-experiment') }).first();
@@ -127,9 +136,9 @@ const editMode = (page: Page, mode: 'Guided' | 'YAML') => form(page).getByRole('
 shot('tuning/auto-form', {
   project: DE,
   url: d => d.commitUrl(DE, 'int8-percentile', { view: 'summary' }),
-  alt: 'The Automated tuning tab of the Run Tests / Tuning form, filled with the int8 model\'s tuning: four parameters '
-    + 'to tune with their ranges or values, AP on small objects and mAP to improve and the model size to keep small, '
-    + 'with their weights, 20 evaluations; on the side, the summary says it\'s ready to start, and counts the runs.',
+  alt: 'The Automated tuning tab, filled with the int8 model\'s tuning: four parameters with their ranges or values, '
+    + 'AP on small objects and mAP to improve, the model size to keep small, 20 evaluations, and a summary that says '
+    + 'it\'s ready to start and counts the runs.',
   caption: 'Automated tuning: the parameters to tune, the metrics to improve and the budget, with a summary that says '
     + 'when it\'s ready.',
   // tall enough for the whole guided form, and the Start button under it
@@ -269,9 +278,9 @@ const reportPlot = (page: Page, heading: string) => report(page).locator('sectio
 shot('tuning/analysis', {
   project: DE,
   url: d => d.commitUrl(DE, 'int8-percentile', { batch: 'tune-int8', view: 'optimization' }),
-  alt: 'The Tuning Analysis of the tune-int8 experiment: done, 20 of 20 evaluations, the best objective and the metrics '
-    + 'it reached against the first evaluation; what this tells you, like a best value at the edge of its range; the '
-    + 'best parameters with the ranges searched and their impact; the convergence of the objective.',
+  alt: 'The Tuning Analysis of tune-int8: done, 20 of 20 evaluations, the best objective and its metrics against the '
+    + 'first evaluation, what this tells you, the best parameters with the ranges searched and their impact, and the '
+    + 'convergence of the objective.',
   caption: 'The Tuning Analysis of an automated tuning: how it went and what to do next, the best parameters within the '
     + 'ranges searched, and the convergence.',
   viewport: { width: 1440, height: 1800 },
