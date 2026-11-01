@@ -170,5 +170,12 @@ curl -H "Authorization: Bearer $QABOARD_TOKEN" "$base_url/user/me/"
 - When a token can't be used, the answer says why, e.g.
   `{"error": "This token expired...", "reason": "token_expired"}`. `/user/me/` says which token you use and its scopes.
 - Tokens in URLs (`?token=`) are only accepted to read: URLs end up in logs.
+- To start a Jenkins build through QA-Board with its Jenkins credentials, send a token with the `act` scope:
+  ```bash
+  curl -X POST -H "Authorization: Bearer $QABOARD_TOKEN" -H "Content-Type: application/json" \
+       -d '{"build_url": "https://jenkins/job/my-job", "params": {"key": "value"}}' \
+       "$base_url/jenkins/build/trigger/"
+  ```
+  Without a token, QA-Board only starts the jobs listed in a project's *qaboard.yaml*.
 - The `qa` CLI sends its token automatically (see [Sign in](/docs/installation#signing-in)).
 

@@ -408,7 +408,7 @@ def integrations(monkeypatch, tmp_path):
     "group/gitlab-repo": {"git": {"path_with_namespace": "group/gitlab-repo", "web_url": "https://gitlab.example.com/group/gitlab-repo"}, "qatools_config": GITHUB_PROJECT["qatools_config"]},
   })
   module.can = lambda permission, project: project != "secret"
-  module.setting = MagicMock(side_effect=lambda key: {"ingest.auth": "off", "auth.allowed_origins": []}[key])
+  module.setting = MagicMock(side_effect=lambda key: {"ingest.auth": "off", "auth.allowed_origins": [], "jenkins.anonymous_jobs": []}[key])
   module.audit = MagicMock()
   module.db_session = MagicMock()
   # Without a user, only the Jenkins jobs the projects' qaboard.yaml list can be started
