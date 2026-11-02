@@ -106,8 +106,11 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   An `env_from_secret` option would be simpler. [S, API]
 - The pods' PID 1 is `sh`, which doesn't forward SIGTERM to `qa run`: stopped runs are marked failed by `qa batch` or
   the server rather than by `qa run` itself. Use `exec`/a tiny init when there's one run per pod. [S, behaviour]
-- One kubeconfig context per batch. When a group needs several Jobs (different pod specs, or too many runs for one
-  ConfigMap), `concurrency` applies to each Job (with a warning). [M, behaviour]
+- One namespace and kubeconfig context per batch: runs whose input type sets another one get a warning and use the
+  batch's. When a group needs several Jobs (different pod specs, or too many runs for one ConfigMap), `concurrency`
+  applies to each Job (with a warning). [M, behaviour]
+- Kubernetes ≥ 1.29 only (per-index retries, `backoffLimitPerIndex`): older clusters are refused, by `qa doctor` and
+  when a Job loses the field. [S, no change]
 - Image pulls that keep failing fail the batch after 5 minutes; waiting in a Kueue queue is never fatal. [S, behaviour]
 - The server only stops batches in namespaces listed in `QABOARD_KUBERNETES_NAMESPACES` (otherwise a warning), and the
   pending driver pod is only watched for 20s after it's submitted. [S, behaviour]
@@ -142,6 +145,9 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   and `QA_BATCH_LSF_*` aren't reflected in its checks. [S, behaviour]
 
 ## Webapp
+
+- `AppNavbar.test.jsx` ("arrow keys then Enter") failed once under load in the full run and passes alone: a timing
+  assumption in the test. [S, no change]
 
 - 81 "[Blueprint] <Popover> positions content incorrectly under React 19" warnings in the tests: some components still
   use `<Popover>` instead of `<PopoverNext>`. [S, behaviour]
