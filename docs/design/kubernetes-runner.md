@@ -4,7 +4,7 @@ Status: implemented on this branch (2026-11). Goal: anyone can run batches with 
 and when it doesn't work, `qa doctor` tells them why and what to do.
 
 ## Scope
-1. A `kubernetes` runner: each run is a pod of an Indexed Job. Optionally several runs per pod (`runs_per_pod`), for
+1. A `kubernetes` runner (Kubernetes 1.29+: `backoffLimitPerIndex`): each run is a pod of an Indexed Job. Optionally several runs per pod (`runs_per_pod`), for
    short runs or when getting a node is the expensive part (GPUs: fast-ish inference/evals).
 2. Dask workers on any scheduler Dask supports: `runners.dask.cluster.type`: `lsf` (default, as today), `slurm`,
    `pbs`, `sge`, `htcondor`, `oar`, `moab` (dask-jobqueue), `kubernetes` (dask-kubernetes operator), `local`.
@@ -59,8 +59,10 @@ runners:
     resources: {cpu: 4, memory: 16Gi, nvidia.com/gpu: 1}   # requests; memory and extended resources also as limits
     node_selector: {pool: gpu}
     tolerations: [{key: nvidia.com/gpu, operator: Exists, effect: NoSchedule}]
-    run_as: user                # user (default): your UID/GID and groups | image | {uid: 1000, gid: 1000}
-    mounts:                     # the shared filesystem, at the same paths in the pods
+    run_as: user                # user (default): your UID/GID and groups | image | {uid: 1000, gid: 1000, groups: [...]}
+    run_as_non_root: false      # with run_as: image, refuse images that run as root
+    service_account: qa-runs
+    mounts:                     # the shared filesystem, at the same paths in the pods. Also: read_only, sub_path
       - path: /algo
         pvc: algo-nfs           # a PersistentVolumeClaim (works with the "restricted" Pod Security Standard)
       - path: /home
@@ -68,7 +70,7 @@ runners:
       - path: /data
         host_path: /data        # needs "privileged" or an exemption: avoid
     env: {OMP_NUM_THREADS: "4"}
-    forward_env: true           # forward qa's environment (minus secrets and host-specific variables)
+    forward_env: true           # forward qa's environment (minus secrets and host-specific variables, see below)
     job_template: k8s/qa-job.yaml   # optional, a batch/v1 Job merged under what QA-Board generates
     ttl_seconds_after_finished: 86400
 ```
@@ -82,20 +84,31 @@ runners:
   runs `sh /etc/qaboard/run-$JOB_COMPLETION_INDEX.sh`: no Python needed in the entrypoint. Each run's script `cd`s
   where `qa batch` runs, sends its output live to `<output_dir>/log.k8s.txt` (pod logs vanish with the pod, like
   LSF's `log.lsf.txt`), and runs the `qa run` command.
-- Names and labels: Job `qa-<command_id[:8]>-<group>-<chunk>` (driver: `qa-<command_id[:8]>-<suffix>`), labels
-  `app.kubernetes.io/managed-by: qaboard`, `qaboard.io/command-id: <command_id>`, `qaboard.io/user`,
-  `qaboard.io/project` (sanitized to label values). Stopping a batch deletes the Jobs with its `command-id`
-  (propagation `Background`), like `bkill -J "<prefix>*"`.
+- Names and labels: Job `qa-<command_id[:8]>-<rand4>-<group>-<chunk>`, with a random part per `qa batch`
+  (`qa optimize` reuses command ids, and a 409 on create is ours only if the object has our command id). Detached
+  Jobs: `qa-<name>-<rand4>` (server driver `qa-<id8>-driver-<rand4>`, Dask driver `qa-<id8>-dask-driver-<rand4>`,
+  doctor `qa-<id8>-doctor-<rand4>`). Labels `app.kubernetes.io/managed-by: qaboard`, `qaboard.io/command-id`,
+  `qaboard.io/user`, `qaboard.io/project` (`qaboard/runners/labels.py`, shared with the server). Stopping a batch
+  deletes the Jobs with its `command-id` (and project, from the server), propagation `Background`.
+- The runs' environment (`run_env`): qa's, minus secrets (`runners/env.py`: the ConfigMap is readable by the
+  namespace), host-specific variables (PATH, HOME, locale, LD_LIBRARY_PATH, VIRTUAL_ENV, KUBECONFIG, `LC_*`, `XDG_*`,
+  `SSH_*`, `CONDA_*`...), `PYTHONPATH` and CA bundles unless under `mounts`, proxies on localhost. Pods get
+  USER/LOGNAME, HOME (ours if under `mounts`, else /tmp), `LANG=LC_ALL=C.UTF-8`, `MPLBACKEND=agg`, then `env`. Tokens
+  reach runs through a Secret in `job_template` or a shared HOME after `qa auth login`.
+- Default pod security context: restricted-compatible (seccomp RuntimeDefault, no privilege escalation, drop ALL,
+  `runAsNonRoot` with a UID). Precedence: defaults < `job_template` < options < what QA-Board controls.
 - Blocking: we watch the Jobs (re-reading the kubeconfig on 401: OIDC tokens expire during long batches) until they
   are Complete or Failed, and print progress. A run's success comes from `qa run` (QA-Board), not from Kubernetes.
 - **Help when it's stuck**: pods that stay Pending are the usual problem, not errors. We read their events and print
   them once (FailedScheduling, quota exceeded, ImagePullBackOff, admission refused, missing ConfigMap/PVC...) with what
   to do, and write them in the pending runs' `log.k8s.txt` so they show in QA-Board. Errors that won't fix themselves
-  (ErrImagePull for 5 minutes, InvalidImageName, CreateContainerConfigError, a forbidden pod) fail the batch.
-  Waiting on a Kueue queue is normal and only reported.
+  (ErrImagePull for 5 minutes, InvalidImageName, CreateContainerConfigError, a quota the pod can never fit, a
+  FailedCreate refused by admission 3 times) fail the batch. Waiting on a Kueue queue or for nodes is never fatal.
 - SIGINT/SIGTERM deletes the batch's Jobs, then exits (JobGroup marks the stopped runs as failed).
 - `submit_detached()` starts one pod (a 1-completion Job) running a bash script: used by the dask driver and by the
-  server for batches started from the web app.
+  server for batches started from the web app. It watches the pod ~20s and deletes it if it can never start.
+- Clusters that drop `backoffLimitPerIndex` (<1.29): `create_job` deletes the Job and fails; `qa doctor` checks the
+  version.
 
 ### Run-as and permissions
 - `run_as: user` sets `runAsUser`/`runAsGroup` to the submitter's (`os.getuid()`/`os.getgid()`), and
@@ -111,29 +124,37 @@ runners:
 ## Dask clusters
 `runners.dask.cluster.type` picks the class; the rest of `cluster` are its kwargs, as today for LSF.
 - dask-jobqueue: `lsf` (default, and the LSF defaults from `runners.lsf` as today), `slurm`, `pbs`, `sge`,
-  `htcondor`, `oar`, `moab`. Workers are named `<command_id[:8]>_dask` on every scheduler.
-- `kubernetes`: `dask_kubernetes.operator.KubeCluster` (needs the Dask operator in the cluster). Image, namespace,
-  resources and run-as default from `runners.kubernetes`.
+  `htcondor`, `oar`, `moab`. Workers/driver are `<id8>_dask`/`<id8>_dask_driver` on LSF, `qa<id8>_dask`/`qa<id8>_drv`
+  elsewhere (SGE and Torque want a letter first, Torque keeps 15 characters). Jobqueue defaults: 1 core, 4GB, no
+  walltime directive (except OAR: 30 minutes, doctor warns). `worker_start_timeout`: 900s on kubernetes/local, else 0.
+- `kubernetes`: `dask_kubernetes.operator.KubeCluster` (needs the Dask operator, `qaboard[dask-kubernetes]`, Python
+  3.10+). Pods default from `runners.kubernetes`; DaskCluster `qa-<id8>-dask-<rand6>`, `idle_timeout` 600s; only the
+  current kubeconfig context; secrets are forwarded (they go through Dask, not a ConfigMap).
 - `local`: `distributed.LocalCluster`, for tests and big machines.
 - The `--no-wait` driver is sent with the matching runner's `submit_detached()` when it has one (`lsf`, `kubernetes`),
   otherwise with the scheduler's own submit command via dask-jobqueue's job class (`sbatch`, `qsub`...).
-- Stopping: the scheduler's cancel command by job name (`bkill -J`, `scancel --name`, ...), or deleting the
-  `DaskCluster` and driver Job on Kubernetes.
+- Stopping: the scheduler's cancel command by job name, and by user from the server (`bkill -J`, `scancel --name`,
+  `qselect`+`qdel`, `oardel --sql`, `condor_rm -constraint`), or deleting the `DaskCluster` and driver Job on
+  Kubernetes. The backend image doesn't ship the HPC commands.
 
 ## `qa doctor`
 `qa doctor [--runner X] [--test-job]`. Prints each check (ok / warning / error / skipped) with how to fix it, exits 1
-if one failed. Checks, in order: qaboard.yaml (found, valid), project and git, the QA-Board server (reachable,
-version, signed in / token), storage (outputs root exists or can be created, writable; inputs database readable),
+if one failed. Checks, in order: qaboard.yaml (found, valid, schema), project and git, the QA-Board server (reachable,
+signed in / token, role; no version check yet), storage (outputs root exists or can be created, writable; inputs database readable),
 then the runner's `doctor()`: local (concurrency), LSF (`bsub` or the bridge, queue exists), Celery (broker reachable,
 workers answer), Dask (packages, scheduler reachable or cluster class), Jenkins (URL, credentials), Kubernetes
-(client installed, kubeconfig and context, auth plugin on PATH, API reachable, namespace, permissions, Kueue queue,
-image pull secret, mounts' PVCs exist). `--test-job` runs a pod/job that prints its user, checks that the mounts and
+(client installed, kubeconfig and context, auth plugin on PATH, API reachable and >= 1.29, namespace, permissions,
+Kueue queue, image, image pull secret, mounts' PVCs and coverage of the project/outputs, run-as vs Pod Security). `--test-job` runs a pod/job that prints its user, checks that the mounts and
 the outputs directory are there and writable as that user, and that `qa --version` works in the image.
 
 ## The server: batches started from the web app
 `QABOARD_TUNING_RUNNER=kubernetes`: the server starts `qa batch` in a driver pod (`submit_detached`), as the signed-in
 user, with the commit's `runners.kubernetes` as far as the server allows it (`backend/backend/runner_jobs.py`). The
-driver's `qa batch` creates the runs' Jobs with the namespace's runs ServiceAccount.
+driver's `qa batch` creates the runs' Jobs with the namespace's runs ServiceAccount
+(`QABOARD_KUBERNETES_SERVICE_ACCOUNT`). The driver gets no `job_template`, `forward_env`, host_path (unless
+`QABOARD_KUBERNETES_ALLOW_HOST_PATH`), nor env that changes bash/Python/qa; its resources are
+`QABOARD_KUBERNETES_DRIVER_RESOURCES`. The helm chart's `runners.kubernetes` creates the Role, the runs
+ServiceAccount and RoleBindings per namespace, and sets the env.
 
 **Trust model: a namespace is a trust domain.** The driver runs the commit's code with a ServiceAccount that can create
 Jobs, so it can create pods as any UID the namespace accepts: everyone who can start batches from the web app in a
