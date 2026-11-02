@@ -114,8 +114,9 @@ def doctor_test_job(job_options: Dict[str, Any], timeout: float = 120) -> Iterab
     try:
       returncode = async_result.get(timeout=timeout)
     except CeleryTimeout:
-      async_result.revoke()
-      yield Check(name, WARNING, f"No worker ran the test task in {timeout:.0f}s: they may all be busy.",
+      # also stops it if a worker started it
+      async_result.revoke(terminate=True)
+      yield Check(name, WARNING, f"The test task didn't end in {timeout:.0f}s: the workers may all be busy. qa doctor cancelled it.",
                   fix="See what they do: celery -A qaboard.runners.celery_app inspect active\nThen run qa doctor --test-job again.")
       return
     except Exception as e:

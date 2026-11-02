@@ -13,6 +13,7 @@ Rules for the checks:
 """
 import os
 import sys
+import re
 import json
 import uuid
 import errno
@@ -21,8 +22,8 @@ import fnmatch
 import tempfile
 import subprocess
 from pathlib import Path
-from urllib.parse import quote, urlsplit, urlunsplit
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
+from urllib.parse import quote
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple
 
 import click
 import yaml
@@ -77,16 +78,12 @@ def mask_token(token: str, prefix: Optional[str] = None) -> str:
 
 
 def mask_url_password(url: str) -> str:
-  """pyamqp://user:secret@host:5672/vhost => pyamqp://user:****@host:5672/vhost"""
-  try:
-    parts = urlsplit(url)
-  except ValueError:
-    return url
-  if not parts.password:
-    return url
-  netloc = parts.netloc.rsplit('@', 1)
-  userinfo = netloc[0].split(':', 1)[0]
-  return urlunsplit(parts._replace(netloc=f"{userinfo}:****@{netloc[1]}"))
+  """
+  Hides the secrets in URLs: pyamqp://user:secret@host/vhost => pyamqp://user:****@host/vhost, ?password=secret...
+  Also in each URL of a list, like kombu's failover brokers "url1;url2".
+  """
+  url = re.sub(r'(://[^/@:;\s]*:)[^@/;\s]*@', r'\1****@', str(url))
+  return re.sub(r'((?:password|passwd|pwd|token|secret|api_key|apikey)=)[^&;\s]*', r'\1****', url, flags=re.IGNORECASE)
 
 
 def plural(n: int, word: str, words: Optional[str] = None) -> str:
@@ -218,15 +215,28 @@ def check_config(start: Path, load_error: Optional[str] = None) -> Iterator[Chec
   root_config, root_path = found[0]
   problems = []
   project = root_config.get('project')
-  if not isinstance(project, dict) or not project.get('name') or not project.get('url'):
-    missing = [k for k in ('name', 'url') if not (isinstance(project, dict) and project.get(k))]
-    problems.append(Check(name, ERROR, f"{root_path} needs project.{' and project.'.join(missing)}.",
+  missing = [k for k in ('name', 'url') if not (isinstance(project, dict) and isinstance(project.get(k), str) and project.get(k))]
+  if missing:
+    problems.append(Check(name, ERROR, f"{root_path} needs project.{' and project.'.join(missing)}, as text.",
                           fix=f"In {root_path}:\n{PROJECT_SNIPPET}\nDocs: {docs('project-init')}"))
   for content, path in found:
     include = content.get('include')
     if include and not (root_path.parent / str(include)).exists():
       problems.append(Check(name, ERROR, f"{path} includes {include}, which doesn't exist (paths are relative to {root_path.parent}).",
                             fix=f"Fix `include:` in {path}, or create {root_path.parent / str(include)}"))
+  # settings qa can't use: other commands fail on them
+  from .config import invalid_settings
+  wrong_types = []
+  for content, path in found:
+    entrypoint = (content.get('project') or {}).get('entrypoint') if isinstance(content.get('project'), dict) else None
+    invalid = invalid_settings(content) + ([(('project', 'entrypoint'), entrypoint, (str,))] if entrypoint is not None and not isinstance(entrypoint, str) else [])
+    for keys, value, types in invalid:
+      kinds = ' or '.join({'str': 'a path or text', 'list': 'a list of paths', 'dict': 'a mapping (key: value)'}[t.__name__] for t in types)
+      wrong_types.append(f"{path if len(found) > 1 else path.name}: {'.'.join(keys)} must be {kinds}, not {str(value)[:40]!r}")
+  if wrong_types:
+    problems.append(Check(name, ERROR, "qa can't use these settings:\n" + '\n'.join(f"  {e}" for e in wrong_types),
+                          fix=f"Fix them in qaboard.yaml: see the examples in the docs: {docs('project-init')}\n"
+                              f"Editors check qaboard.yaml as you type with this first line:\n  # yaml-language-server: $schema={SCHEMA_URL}"))
   if problems:
     yield from problems
     return
@@ -260,6 +270,9 @@ def check_project(project: Optional[Path], project_root: Optional[Path], subproj
 
   entrypoint = (config.get('project') or {}).get('entrypoint')
   name = "Entrypoint"
+  if entrypoint is not None and not isinstance(entrypoint, str):
+    # check_config says so
+    return
   if not entrypoint:
     yield Check(name, ERROR, "project.entrypoint isn't set: `qa run` doesn't know what code to run.",
                 fix=f"In qaboard.yaml, the Python file with your run(context) function:\nproject:\n  entrypoint: qa/main.py\nDocs: {docs('running-your-code')}")
@@ -274,6 +287,8 @@ def check_project(project: Optional[Path], project_root: Optional[Path], subproj
         yield Check(name, OK, f"{entrypoint}")
       except SyntaxError as e:
         yield Check(name, ERROR, f"{entrypoint} has a syntax error, line {e.lineno}: {e.msg}", fix=f"python -m py_compile {path}")
+      except (OSError, ValueError) as e:
+        yield Check(name, ERROR, f"qa can't read {entrypoint}: {e}", fix=f"ls -l {path}   # ask its owner for read access")
 
 
 def check_batches_files(batches_files: List[Any], root: Path) -> Check:
@@ -311,9 +326,10 @@ def check_git(is_in_git_repo: bool, commit_id: Optional[str], commit_branch: Opt
       return Check(name, WARNING, f"qa can't tell the CI's commit: results are saved as \"{placeholder}\".",
                    fix="Run qa in the git clone of the commit, or set CI_COMMIT_SHA (or GIT_COMMIT) to the commit's hash.")
     if not is_in_git_repo:
-      return Check(name, WARNING, f"Not in a git repository: results are saved as the commit \"{placeholder}\", and QA-Board can't compare commits.",
+      return Check(name, WARNING, f"Not in a git repository: QA-Board can't tell which commit results come from (they're all \"{placeholder}\"), "
+                                  "and `qa --share` saves them in your project's folder, not in the storage.",
                    fix=f"Use git for your project, then commit:\n  git init && git add -A && git commit -m \"First commit\"\nDocs: {docs('project-init')}")
-    return Check(name, WARNING, f"The git repository has no commit yet: results are saved as \"{placeholder}\".",
+    return Check(name, WARNING, f"The git repository has no commit yet: QA-Board can't tell which commit results come from (they're all \"{placeholder}\").",
                  fix="git add -A && git commit -m \"First commit\"")
   where = " (from the CI)" if is_ci else ''
   return Check(name, OK, f"{commit_id[:10]} on {commit_branch}{where}")
@@ -479,7 +495,7 @@ def check_sign_in(server, token: Optional[str], token_source: Optional[str], sit
   now = now or datetime.datetime.now(datetime.timezone.utc)
   if expires_at and expires_at - now < datetime.timedelta(days=7):
     expired = expires_at <= now
-    fix = sign_in_fix(server, ci) if token_source == 'hosts.yaml' or ci else f"Create a new token in {server.url}/settings/tokens, and replace ${token_source}."
+    fix = auth_fix({'reason': 'token_expired'}, token_source, ci=ci, project=project, server=server.url)
     checks.append(Check("Token expiry", ERROR if expired else WARNING, f"Your token {'expired' if expired else 'expires'} on {format_time(token_info['expires_at'])}.", fix=fix))
   return checks, True
 
@@ -543,8 +559,18 @@ def check_server_sees(server, path: Path, token: Optional[str], verify: Any = Tr
     return Check(name, WARNING, f"QA-Board doesn't see {posix}: the storage isn't mounted on the server at this path.",
                  fix=(f"Ask your QA-Board admins to mount it on the server at {posix}, the same path as here.\n"
                       f"Docs for them: {docs('deploy#2-create-the-results-storage')}"))
-  if refusal(r):
-    return Check(name, SKIPPED, "Sign in to check if QA-Board reads your storage.")
+  if reason == 'permissions':
+    return Check(name, WARNING, f"QA-Board can't read {posix}: the server's account doesn't have the permissions.",
+                 fix=(f"Ask your QA-Board admins to give the server read access to {posix}\n"
+                      "(e.g. add its account to the folder's group, with chmod -R g+rX), or save the results in a folder it reads.\n"
+                      f"Docs for them: {docs('backend-admin/storage')}"))
+  if reason == 'forbidden':
+    return Check(name, WARNING, f"QA-Board doesn't let your account read {posix}: {body.get('error')}",
+                 fix="Ask the project's owners, or your QA-Board admins, for access to these files.")
+  if reason in ('login', 'sign_in_required') or (refusal(r) and not token):
+    if token:
+      return Check(name, SKIPPED, f"QA-Board didn't accept your token to read {posix}: see \"Signed in\" above.")
+    return Check(name, SKIPPED, "Sign in to check if QA-Board reads your storage: qa auth login")
   return Check(name, SKIPPED, f"Couldn't tell if QA-Board reads {posix}: {url} answered {r.status_code} ({describe_body(r) or 'an empty body'}).")
 
 
@@ -621,15 +647,19 @@ def check_folder(name: str, path: Path, required: bool = True, root: Optional[Pa
   severity = ERROR if required else WARNING
   why = f" {purpose}." if purpose else ''
   existing = closest_existing(path)
-  if root is not None and not root.exists():
-    return Check(name, severity, f"The storage folder {root} doesn't exist, and qa couldn't create it.{why}",
-                 fix=("The storage is where shared results go (`qa --share`, CI): a folder your QA-Board server reads too, often a shared drive.\n"
-                      f"Mount it at {root}, or create it:\n  mkdir -p {root}\n"
-                      "Or use another folder that your QA-Board server reads:\n  export QA_STORAGE=/path/to/storage   # or `storage:` in qaboard.yaml"
-                      f"{storage_help()}\nDocs: {docs('storage/where-is-the-data')}"))
+  root_missing = root is not None and not root.exists()
+  storage_fix = ("The storage is where shared results go (`qa --share`, CI): a folder your QA-Board server reads too, often a shared drive.\n"
+                 f"Mount it at {root}, or create it:\n  mkdir -p {root}\n"
+                 "Or use another folder that your QA-Board server reads:\n  export QA_STORAGE=/path/to/storage   # or `storage:` in qaboard.yaml"
+                 f"{storage_help()}\nDocs: {docs('storage/where-is-the-data')}")
   if existing is None or not existing.is_dir():
     return Check(name, severity, f"Can't create {path}: {existing} is not a folder.{why}", fix=f"ls -ld {existing}")
   error = write_error(existing)
+  if error and root_missing:
+    return Check(name, severity, f"The storage folder {root} doesn't exist, and qa can't create it ({describe_os_error(error)} in {existing}).{why}", fix=storage_fix)
+  if root_missing:
+    return Check(name, WARNING, f"The storage folder {root} doesn't exist: qa will create it, in {existing}. If it's a shared drive, it isn't mounted here.{why}",
+                 fix=storage_fix)
   if error:
     reason = describe_os_error(error)
     if error.errno in (errno.ENOSPC, errno.EDQUOT):
@@ -660,12 +690,13 @@ def check_storage_setting(config: Dict[str, Any], project: Path, subproject: Pat
   # storage_roots prints errors, unless they're ignored
   previous, qaboard_config.ignore_config_errors = qaboard_config.ignore_config_errors, True
   try:
-    outputs_root, artifacts_root, _ = qaboard_config.storage_roots(dict(config), project, subproject)
+    outputs_root, artifacts_root, _ = qaboard_config.storage_roots(dict(config), project, subproject, raise_errors=True)
     if str(outputs_root) not in ('', '.') and str(artifacts_root) not in ('', '.'):
       return None
     problem = "The storage setting doesn't give a folder for the outputs and the artifacts."
-  except ValueError as e:
-    problem = f"The storage setting is wrong: {e}"
+  except (ValueError, TypeError) as e:
+    flavor = 'windows' if os.name == 'nt' else 'linux'
+    problem = f"The storage setting has no path for this machine ({flavor}): {e}" if isinstance(e, ValueError) else f"The storage setting is wrong: {e}"
   finally:
     qaboard_config.ignore_config_errors = previous
   return Check("Results storage", ERROR, problem, fix=fix)
@@ -831,11 +862,21 @@ class Report():
     return 0
 
 
+def guarded(name: str, checks: Callable[[], Iterable[Check]]) -> Iterator[Check]:
+  """The checks, or an ERROR check if they fail unexpectedly: `qa doctor` goes on with the next ones."""
+  try:
+    yield from checks()
+  except Exception as e:
+    yield Check(name, ERROR, f"qa doctor failed to check this: {type(e).__name__}: {e}",
+                fix=f"Fix what the other checks say first. If it lasts, please report it, with the output of `qa doctor`: {ISSUES}")
+
+
 def run_doctor(obj: Dict[str, Any], runner: str, test_job: bool = False, echo=click.echo) -> int:
   """
   `qa doctor`: prints the checks, and returns the exit code. `obj` is the `qa` command's context (ctx.obj).
   Like `qa --share batch` (or a CI), it checks what's needed for results that show in QA-Board:
   with `qa --offline doctor`, only what local runs need.
+  Each section is guarded: if a check fails unexpectedly, it's an ERROR, and the next sections still run.
   """
   qaboard_config = config_module()
   from . import __version__
@@ -847,77 +888,108 @@ def run_doctor(obj: Dict[str, Any], runner: str, test_job: bool = False, echo=cl
   report = Report(echo=echo)
   shared = "what you need for runs whose results show in QA-Board (like `qa --share batch`)" if not offline else "what you need for local runs (--offline)"
   echo(click.style("qa doctor", bold=True) + f": checking {shared}, with the {runner} runner.")
+  root = Path(root_qatools) if root_qatools else cwd
+  state: Dict[str, Any] = {
+    'has_project': False, 'server': None, 'site': None, 'token': None,
+    'batch_dir': Path(obj.get('batch_dir') or (root / 'output')),
+  }
+
+  def project_checks() -> Iterator[Check]:
+    yield check_version(__version__, latest_version())
+    config_checks = []
+    for check in check_config(cwd, qaboard_config.config_error):
+      config_checks.append(check)
+      yield check
+    state['has_project'] = bool(project) and not any(c.status == ERROR for c in config_checks)
+    for message, fix in qaboard_config.config_errors:
+      yield Check("qaboard.yaml", ERROR, message, fix=fix)
+    for message, fix in qaboard_config.config_warnings:
+      yield Check("qaboard.yaml", WARNING, message, fix=fix)
+    if state['has_project']:
+      yield from check_project(project, project_root, subproject, config, root)
+      yield check_batches_files(list(qaboard_config.default_batches_files), root)
+      yield check_git(qaboard_config.is_in_git_repo, qaboard_config.commit_id, qaboard_config.commit_branch, is_ci, qaboard_config.local_commit_placeholder)
+
+  def server_checks() -> Iterator[Check]:
+    if offline:
+      yield Check("QA-Board server", SKIPPED, "--offline: qa doesn't send anything to QA-Board.")
+      return
+    from .auth import server_api
+    from .api import api_verify, qa_token, qa_token_source
+    server = state['server'] = server_api(None)
+    state['token'] = qa_token
+    server_check, site = check_server(server, verify=api_verify)
+    state['site'] = site
+    yield server_check
+    if site is None:
+      return
+    project_name = Path(project).as_posix() if project else None
+    sign_in_checks, accepted = check_sign_in(server, qa_token, qa_token_source, site, project_name, ci=is_ci, verify=api_verify)
+    yield from sign_in_checks
+    if accepted and qa_token and project_name:
+      yield check_project_access(server, qa_token, qa_token_source, project_name, site, ci=is_ci, verify=api_verify)
+
+  def storage_checks() -> Iterator[Check]:
+    label = obj.get('raw_batch_label') or 'default'
+    platform = obj.get('platform') or qaboard_config.default_platform
+    configurations = obj.get('configurations') or []
+    extra_parameters = obj.get('extra_parameters') or {}
+    if not state['has_project']:
+      yield Check("Storage", SKIPPED, "Fix qaboard.yaml first.")
+      return
+    if offline:
+      state['batch_dir'] = make_batch_dir(qaboard_config.outputs_commit, label, platform, configurations, extra_parameters, False)
+      yield check_folder("Local results", root / 'output', purpose="Local runs save their results there")
+    else:
+      assert project is not None
+      setting_error = check_storage_setting(config, project, subproject)
+      if setting_error:
+        yield setting_error
+      else:
+        yield from shared_storage_checks(label, platform, configurations, extra_parameters)
+    yield from database_checks(config, obj)
+
+  def shared_storage_checks(label, platform, configurations, extra_parameters) -> Iterator[Check]:
+    batch_label = label if is_ci else f"@{user}| {label}"
+    state['batch_dir'] = make_batch_dir(qaboard_config.outputs_commit, batch_label, platform, configurations, extra_parameters, True)
+    outputs_root = Path(qaboard_config.outputs_root or '')
+    artifacts_root = qaboard_config.artifacts_root
+    outputs_commit = Path(qaboard_config.outputs_commit)
+    purpose = "`qa --share` and CI runs save their results there"
+    if outputs_commit != outputs_root and outputs_root not in outputs_commit.parents:
+      # without a git commit, qa saves shared results in the project's folder
+      yield Check("Results location", WARNING, f"Without a git commit, `qa --share` saves results in {outputs_commit}, not in the storage ({outputs_root}): QA-Board won't find them.",
+                  fix=f"Use git for your project, then commit:\n  git init && git add -A && git commit -m \"First commit\"\nDocs: {docs('project-init')}")
+      yield check_folder("Results storage", outputs_root, root=outputs_root, purpose=purpose)
+    else:
+      yield check_folder("Results storage", outputs_commit, root=outputs_root, purpose=purpose)
+    if artifacts_root and Path(artifacts_root) != outputs_root:
+      yield check_folder("Artifacts storage", Path(qaboard_config.artifacts_commit), root=artifacts_root, required=is_ci,
+                         purpose="`qa save-artifacts` saves builds there, for runs started from the web app")
+    if state['site'] is not None and str(outputs_root) not in ('', '.'):
+      storage_path = closest_existing(Path(qaboard_config.outputs_project or outputs_root))
+      if storage_path and storage_path.is_dir():
+        from .api import api_verify
+        yield check_server_sees(state['server'], storage_path, state['token'], verify=api_verify)
+
+  def runner_checks() -> Iterator[Check]:
+    job_options = runner_job_options(runner, config, project, user, state['batch_dir'], cwd)
+    yield from check_runner(runner, job_options, test_job=test_job)
 
   report.section("qa and your project")
-  report.add([check_version(__version__, latest_version())])
-  config_checks = report.add(check_config(cwd, qaboard_config.config_error))
-  has_project = bool(project) and not any(c.status == ERROR for c in config_checks)
-  root = Path(root_qatools) if root_qatools else cwd
-  if has_project:
-    report.add(check_project(project, project_root, subproject, config, root))
-    report.add([check_batches_files(list(qaboard_config.default_batches_files), root)])
-    report.add([check_git(qaboard_config.is_in_git_repo, qaboard_config.commit_id, qaboard_config.commit_branch, is_ci, qaboard_config.local_commit_placeholder)])
-
+  report.add(guarded("qaboard.yaml", project_checks))
   report.section("QA-Board server")
-  from .auth import server_api
-  from .api import api_verify, qa_token, qa_token_source
-  server = server_api(None)
-  token = None
-  site: Optional[Dict[str, Any]] = None
-  if offline:
-    report.add([Check("QA-Board server", SKIPPED, "--offline: qa doesn't send anything to QA-Board.")])
-  else:
-    token = qa_token
-    server_check, site = check_server(server, verify=api_verify)
-    report.add([server_check])
-    if site is not None:
-      project_name = Path(project).as_posix() if project else None
-      sign_in_checks, accepted = check_sign_in(server, qa_token, qa_token_source, site, project_name, ci=is_ci, verify=api_verify)
-      report.add(sign_in_checks)
-      if accepted and qa_token and project_name:
-        report.add([check_project_access(server, qa_token, qa_token_source, project_name, site, ci=is_ci, verify=api_verify)])
-
+  report.add(guarded("QA-Board server", server_checks))
   report.section("Storage")
-  label = obj.get('raw_batch_label') or 'default'
-  platform = obj.get('platform') or qaboard_config.default_platform
-  configurations = obj.get('configurations') or []
-  extra_parameters = obj.get('extra_parameters') or {}
-  batch_dir = Path(obj.get('batch_dir') or (root / 'output'))
-  if not has_project:
-    report.add([Check("Storage", SKIPPED, "Fix qaboard.yaml first.")])
-  elif offline:
-    batch_dir = make_batch_dir(qaboard_config.outputs_commit, label, platform, configurations, extra_parameters, False)
-    report.add([check_folder("Local results", root / 'output', purpose="Local runs save their results there")])
-  else:
-    assert project is not None
-    setting_error = check_storage_setting(config, project, subproject)
-    if setting_error:
-      report.add([setting_error])
-    else:
-      batch_label = label if is_ci else f"@{user}| {label}"
-      batch_dir = make_batch_dir(qaboard_config.outputs_commit, batch_label, platform, configurations, extra_parameters, True)
-      outputs_root = qaboard_config.outputs_root
-      artifacts_root = qaboard_config.artifacts_root
-      report.add([check_folder("Results storage", Path(qaboard_config.outputs_commit), root=outputs_root, purpose="`qa --share` and CI runs save their results there")])
-      if artifacts_root and Path(artifacts_root) != Path(outputs_root or ''):
-        report.add([check_folder("Artifacts storage", Path(qaboard_config.artifacts_commit), root=artifacts_root, required=is_ci,
-                                 purpose="`qa save-artifacts` saves builds there, for runs started from the web app")])
-      if site is not None and outputs_root:
-        storage_path = closest_existing(Path(qaboard_config.outputs_project or outputs_root))
-        if storage_path and storage_path.is_dir():
-          report.add([check_server_sees(server, storage_path, token, verify=api_verify)])
-  if has_project:
-    report.add(database_checks(config, obj))
-
+  report.add(guarded("Storage", storage_checks))
   report.section(f"Runner: {runner}")
-  job_options = runner_job_options(runner, config, project, user, batch_dir, cwd)
-  report.add(check_runner(runner, job_options, test_job=test_job))
+  report.add(guarded(f"{runner} runner", runner_checks))
 
   runner_option = f" --runner {runner}" if runner != default_runner_name() else ''
   if not test_job and not any(c.status == ERROR for c in report.checks):
     echo('')
     echo(click.style(f"To check that a job really runs (where, as who, what it can access): qa doctor --test-job{runner_option}", dim=True))
-  names = batch_names(list(qaboard_config.default_batches_files), root) if has_project else []
+  names = batch_names(list(qaboard_config.default_batches_files), root) if state['has_project'] else []
   return report.summary(f"qa{'' if offline else ' --share'} batch{runner_option} {names[0] if names else '<batch>'}")
 
 
@@ -950,6 +1022,11 @@ def database_checks(config: Dict[str, Any], obj: Dict[str, Any]) -> Iterator[Che
   inputs = config.get('inputs') or {}
   types = inputs.get('types') or {}
   default_type = obj.get('input_type') or types.get('default', 'default')
+  known = [t for t in types if t != 'default']
+  if default_type != 'default' and default_type not in known:
+    yield Check("Input type", ERROR, f"There is no input type named {default_type!r} (inputs.types in qaboard.yaml). Types: {', '.join(known) or 'none'}.",
+                fix=f"Use one of them: qa --type <type> ..., or define it in qaboard.yaml under inputs.types.\nDocs: {docs('inputs')}")
+    default_type = 'default'
   names = [default_type, *[t for t in types if t not in ('default', default_type) and isinstance(types[t], dict) and 'database' in types[t]]]
   for input_type in names:
     try:
