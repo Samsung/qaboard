@@ -2,9 +2,7 @@ import os
 import re
 import sys
 import socket
-import shutil
 import fnmatch
-from pathlib import Path
 from typing import List, Dict, Any, Iterable, Tuple
 
 from .base import BaseRunner
@@ -97,17 +95,16 @@ def doctor_test_job(job_options: Dict[str, Any], timeout: float = 120) -> Iterab
   from types import SimpleNamespace
   from celery.exceptions import TimeoutError as CeleryTimeout  # type: ignore
   from ..checks import OK, WARNING, ERROR
+  from ..doctor import make_test_dir, remove_test_dir
   from .celery_app import start
   name = "Celery test job"
-  command_id = job_options.get('command_id') or 'qadoctor'
   cwd = job_options.get('cwd') or os.getcwd()
-  test_dir = Path(job_options.get('batch_dir') or '.').resolve() / 'doctor' / command_id[:8]
-  result = test_dir / 'result.txt'
   try:
-    test_dir.mkdir(parents=True, exist_ok=True)
+    test_dir, existing = make_test_dir(job_options)
   except OSError as e:
-    yield Check(name, ERROR, f"Can't create {test_dir}: {e}", fix="Fix the storage first (see above).")
+    yield Check(name, ERROR, f"Can't create the test job's folder: {e}", fix="Fix the storage first (see above).")
     return
+  result = test_dir / 'result.txt'
   try:
     command = f'echo "user: $(id -un)" > "{result}"; echo "host: $(hostname)" >> "{result}"; echo "qa: $(command -v qa || echo not found)" >> "{result}"'
     # The task only needs the job's command and cwd
@@ -132,15 +129,12 @@ def doctor_test_job(job_options: Dict[str, Any], timeout: float = 120) -> Iterab
     where = f"on {found.get('host', '?')} as {found.get('user', '?')}"
     if found.get('qa', 'not found') == 'not found':
       yield Check(name, ERROR, f"A worker ran the test task {where}, but `qa` isn't on its PATH: the runs would fail.",
-                  fix="Install qaboard where the workers run, e.g. in the environment you start them from: pip install qaboard")
+                  fix=("The runs get your environment, PATH included: run qa batch from the environment where qaboard is installed\n"
+                       "(e.g. . .venv/bin/activate), and have this environment at the same path on the workers' machines."))
       return
     yield Check(name, OK, f"A worker ran the test task {where}, in {cwd}, and found {found['qa']}")
   finally:
-    shutil.rmtree(test_dir, ignore_errors=True)
-    try:
-      test_dir.parent.rmdir()
-    except OSError:
-      pass
+    remove_test_dir(test_dir, existing)
 
 
 class CeleryRunner(BaseRunner):
@@ -222,7 +216,7 @@ class CeleryRunner(BaseRunner):
       yield Check("Celery workers", ERROR, "No Celery worker answers on this broker.", fix=start_worker)
       return
     names = sorted(pongs)
-    yield Check("Celery workers", OK, f"{len(names)} answer{'s' if len(names) == 1 else ''}: {', '.join(names[:3])}{', ...' if len(names) > 3 else ''}")
+    yield Check("Celery workers", OK, f"{len(names)} worker{'s' if len(names) != 1 else ''} answer{'s' if len(names) == 1 else ''}: {', '.join(names[:3])}{', ...' if len(names) > 3 else ''}")
 
     queue = runs_queue(settings)
     try:

@@ -428,23 +428,19 @@ class JenkinsWindowsRunner(BaseRunner):
   @classmethod
   def doctor_test_job(cls, job_options: Dict[str, Any]) -> Iterable[Check]:
     """Starts a build that says where it runs, as who, if it sees the batch's folder and `qa`. Waits 10 minutes at most."""
-    import shutil
-    from pathlib import Path
     from ..checks import OK, ERROR
-    from ..doctor import docs
+    from ..doctor import docs, make_test_dir, remove_test_dir
     name = "Jenkins test build"
-    command_id = job_options.get('command_id') or 'qadoctor'
-    test_dir = Path(job_options.get('batch_dir') or '.').resolve() / 'doctor' / command_id[:8]
-    result = test_dir / 'result.txt'
     try:
-      test_dir.mkdir(parents=True, exist_ok=True)
-      try: # the build writes there
-        test_dir.chmod(0o777)
-      except OSError:
-        pass
+      test_dir, existing = make_test_dir(job_options)
     except OSError as e:
-      yield Check(name, ERROR, f"Can't create {test_dir}: {e}", fix="Fix the storage first (see above).")
+      yield Check(name, ERROR, f"Can't create the test build's folder: {e}", fix="Fix the storage first (see above).")
       return
+    try: # the build writes there
+      test_dir.chmod(0o777)
+    except OSError:
+      pass
+    result = test_dir / 'result.txt'
     try:
       windows_result = linux_to_windows_path(result)
       with (test_dir / 'run.bat').open('w', newline='\r\n') as f:
@@ -480,8 +476,4 @@ class JenkinsWindowsRunner(BaseRunner):
         return
       yield Check(name, OK, f"A test build ran {where}, and found qa")
     finally:
-      shutil.rmtree(test_dir, ignore_errors=True)
-      try:
-        test_dir.parent.rmdir()
-      except OSError:
-        pass
+      remove_test_dir(test_dir, existing)

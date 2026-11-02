@@ -560,6 +560,30 @@ def closest_existing(path: Path) -> Optional[Path]:
   return None
 
 
+def make_test_dir(job_options: Dict[str, Any]) -> Tuple[Path, Optional[Path]]:
+  """
+  Creates a folder for a test job's files, in the batch's folder like the runs' (<batch_dir>/doctor/<id>).
+  Returns it, and its closest parent that existed before, for remove_test_dir. Raises OSError if it can't.
+  """
+  command_id = job_options.get('command_id') or 'qadoctor'
+  path = Path(job_options.get('batch_dir') or '.').resolve() / 'doctor' / command_id[:8]
+  existing = closest_existing(path)
+  path.mkdir(parents=True, exist_ok=True)
+  return path, existing
+
+
+def remove_test_dir(path: Path, existing: Optional[Path]):
+  """Removes a test job's folder, and the parents make_test_dir created, if they're empty."""
+  shutil.rmtree(path, ignore_errors=True)
+  parent = path.parent
+  while existing is not None and existing in parent.parents:
+    try:
+      parent.rmdir()
+    except OSError:
+      break
+    parent = parent.parent
+
+
 def write_error(folder: Path) -> Optional[OSError]:
   """Whether we can create files in a folder: we create a temporary file there, and delete it. None if we can."""
   try:

@@ -214,6 +214,16 @@ class TestProjectChecks(TempDirTestCase):
 
 
 class TestStorageChecks(TempDirTestCase):
+  def test_test_dir(self):
+    from qaboard.doctor import make_test_dir, remove_test_dir
+    write(self.tmp / 'output' / 'kept', '')
+    path, existing = make_test_dir({'command_id': 'abcdefgh-1', 'batch_dir': str(self.tmp / 'output' / 'a' / 'b')})
+    self.assertEqual(path, self.tmp / 'output' / 'a' / 'b' / 'doctor' / 'abcdefgh')
+    self.assertEqual(existing, self.tmp / 'output')
+    write(path / 'result.txt', 'user: alice')
+    remove_test_dir(path, existing)
+    self.assertEqual(sorted(p.name for p in (self.tmp / 'output').iterdir()), ['kept'])
+
   def test_writable(self):
     from qaboard.doctor import check_folder
     before = sorted(os.listdir(self.tmp))
@@ -587,7 +597,8 @@ def fake_lsf(bqueues='QUEUE_NAME PRIO STATUS\nnormal 30 Open:Active\n', bqueues_
 class TestLsfRunner(TempDirTestCase):
   def doctor(self, run, which=lambda name: f'/usr/bin/{name}', test_job=False, **job_options):
     from qaboard.runners.lsf import LsfRunner
-    options = {'command_id': 'abcdefgh-1234', 'batch_dir': str(self.tmp), **job_options}
+    # the batch's folder doesn't exist yet: the test job creates it, then removes it
+    options = {'command_id': 'abcdefgh-1234', 'batch_dir': str(self.tmp / 'output' / 'batch'), **job_options}
     with mock.patch('qaboard.runners.lsf.shutil.which', side_effect=which), mock.patch('qaboard.runners.lsf.subprocess.run', run), \
          mock.patch('qaboard.doctor.subprocess.run', run), mock.patch('qaboard.runners.lsf.time.sleep'), mock.patch('qaboard.runners.lsf.secho'):
       return list(LsfRunner.doctor(options, test_job=test_job))

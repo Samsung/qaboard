@@ -492,17 +492,15 @@ class LsfRunner(BaseRunner):
   def doctor_test_job(cls, job_options: Dict[str, Any], lsf):
     """Sends a job that says where it runs, as who, if it sees `qa` and the batch's folder, and waits for it (5 minutes at most)."""
     from ..checks import Check, OK, WARNING, ERROR
-    from ..doctor import tail
+    from ..doctor import tail, make_test_dir, remove_test_dir
     name = "LSF test job"
-    command_id = job_options.get('command_id') or 'qadoctor'
-    test_dir = Path(job_options.get('batch_dir') or '.').resolve() / 'doctor' / command_id[:8]
-    result = test_dir / 'result.txt'
-    job_name = f"{command_id[:8]}_doctor"
+    job_name = f"{(job_options.get('command_id') or 'qadoctor')[:8]}_doctor"
     try:
-      test_dir.mkdir(parents=True, exist_ok=True)
+      test_dir, existing = make_test_dir(job_options)
     except OSError as e:
-      yield Check(name, ERROR, f"Can't create {test_dir}: {e}", fix="Fix the storage first (see above).")
+      yield Check(name, ERROR, f"Can't create the test job's folder: {e}", fix="Fix the storage first (see above).")
       return
+    result = test_dir / 'result.txt'
     try:
       # start() puts environment variables before the command: it can't start with a { group }
       script = f'echo "user: $(id -un)" > "{result}"; echo "host: $(hostname)" >> "{result}"; echo "qa: $(command -v qa || echo not found)" >> "{result}"'
@@ -537,8 +535,4 @@ class LsfRunner(BaseRunner):
         return
       yield Check(name, OK, f"A test job ran {where}, wrote in {test_dir.parent}, and found {found['qa']}")
     finally:
-      shutil.rmtree(test_dir, ignore_errors=True)
-      try:
-        test_dir.parent.rmdir()
-      except OSError:
-        pass
+      remove_test_dir(test_dir, existing)
