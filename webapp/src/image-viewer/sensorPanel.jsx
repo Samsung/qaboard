@@ -3,7 +3,8 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 
 import { BLOCKS, CFA_PATTERNS, CHANNEL_COLORS as CFA_COLORS, GROUPINGS, blockName, cellAt, cellNames, channelRatios, describeCfa, normalizeCfa } from './cfa';
-import { analyzeImage, forgetGuess } from './imageAnalysis';
+import { dragRange, rangeDrag } from './histogram';
+import { analyzeImage, binsToRange, forgetGuess, rangeToBins } from './imageAnalysis';
 import { niceTicks } from './analysis';
 import { isLight } from './panels';
 import { MARGIN, ProfilePlot } from './profilePlot';
@@ -712,9 +713,13 @@ const drawHistograms = (element, analyses, shown, log) => {
   context.restore();
 };
 
-const ImageHistogram = ({ state, comparing, shown }) => {
+// The histograms of the image values. Users drag on it to highlight a range of values on the images, of the channels
+// shown: range is { lo, hi } in the image's values (both included), or null.
+const ImageHistogram = ({ state, comparing, shown, range = null, onRangeChange, masks }) => {
   const { a, b } = state.results;
   const canvas = useRef(null);
+  const plot = useRef(null);
+  const drag = useRef(null);
   const [log, setLog] = useState(false);
   const [hover, setHover] = useState(null);
   const both = comparing && b && b.channels.map(c => c.key).join() === a.channels.map(c => c.key).join() && b.range.join() === a.range.join();
@@ -734,34 +739,118 @@ const ImageHistogram = ({ state, comparing, shown }) => {
   }, []);
   const [lo, hi] = a.range;
   const bins = a.histograms[0]?.length ?? 1;
-  const onPointerMove = event => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const fraction = (event.clientX - rect.left - MARGIN.left) / (rect.width - MARGIN.left - MARGIN.right);
-    setHover(fraction < 0 || fraction > 1 ? null : Math.min(bins - 1, Math.floor(fraction * bins)));
+  // the range's bins: { lo, hi }
+  const selected = range ? (([k0, k1]) => ({ lo: k0, hi: k1 }))(rangeToBins(a, range)) : null;
+  const binOf = event => {
+    const rect = plot.current.getBoundingClientRect();
+    const plot_width = rect.width - MARGIN.left - MARGIN.right;
+    const fraction = (event.clientX - rect.left - MARGIN.left) / plot_width;
+    return {
+      bin: Math.min(bins - 1, Math.max(0, Math.floor(fraction * bins))),
+      inside: fraction >= 0 && fraction <= 1,
+      slack: Math.max(1, Math.round(bins * 5 / Math.max(1, plot_width))),
+    };
   };
-  const range = k => {
+  const change = binRange => onRangeChange(binsToRange(a, binRange.lo, binRange.hi));
+  const CURSORS = { new: 'crosshair', move: 'grab', lo: 'ew-resize', hi: 'ew-resize' };
+  const onPointerDown = event => {
+    if (event.button !== 0) return;
+    const { bin, slack } = binOf(event);
+    const kind = rangeDrag(selected, bin, slack);
+    drag.current = { kind, start: { range: selected, value: bin }, x: event.clientX, moved: false };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    event.currentTarget.style.cursor = kind === 'move' ? 'grabbing' : CURSORS[kind];
+  };
+  const onPointerMove = event => {
+    const { bin, inside, slack } = binOf(event);
+    setHover(inside ? bin : null);
+    const current = drag.current;
+    if (!current) {
+      event.currentTarget.style.cursor = CURSORS[rangeDrag(selected, bin, slack)];
+      return;
+    }
+    if (!current.moved && Math.abs(event.clientX - current.x) < 3) return;
+    current.moved = true;
+    change(dragRange(current.kind, current.start, bin, bins - 1));
+  };
+  const onPointerUp = () => {
+    const current = drag.current;
+    drag.current = null;
+    // a click clears the range
+    if (current && !current.moved && (current.kind === 'new' || current.kind === 'move')) onRangeChange(null);
+  };
+  const onKeyDown = event => {
+    if (event.key === 'Escape' && range) {
+      event.preventDefault();
+      onRangeChange(null);
+      return;
+    }
+    const step = { ArrowLeft: -1, ArrowRight: 1 }[event.key];
+    if (!step || !selected) return;
+    event.preventDefault();
+    event.stopPropagation();
+    change(dragRange('move', { range: selected, value: 0 }, step * (event.shiftKey ? 16 : 1), bins - 1));
+  };
+  const binRange = k => {
     const from = lo + k * (hi - lo) / bins;
     const to = lo + (k + 1) * (hi - lo) / bins;
     return a.integers && to - from <= 1 ? String(Math.round(from)) : `${formatValue(from, a.integers, 0)}–${formatValue(to, a.integers, 0)}`;
   };
   const left = k => `calc(${MARGIN.left}px + (100% - ${MARGIN.left + MARGIN.right}px) * ${(k + 0.5) / bins})`;
+  const percent = k => `${100 * k / bins}%`;
+  const shown_names = [];
+  for (const channel of a.channels) {
+    const key = channel.cell ?? channel.key;
+    if (shown(channel) && !shown_names.some(n => n.key === key)) shown_names.push({ key, color: channel.cell ? CFA_COLORS[channel.cell] : channel.color });
+  }
+  const share = mask => mask?.total ? formatShare(mask.selected / mask.total) : '–';
   return <div className="qiv-image-histogram">
     <div className="qiv-profiles-settings">
       <Select value={log ? 'log' : 'linear'} options={[{ value: 'linear', label: 'Counts: linear' }, { value: 'log', label: 'Counts: log' }]} onChange={value => setLog(value === 'log')} label="Counts axis" title="A log scale shows the rare values, e.g. hot pixels" />
     </div>
-    <div className="qiv-profile-plot qiv-image-histogram-plot" onPointerMove={onPointerMove} onPointerLeave={() => setHover(null)}>
+    <div
+      ref={plot}
+      className="qiv-profile-plot qiv-image-histogram-plot"
+      role="slider"
+      tabIndex={0}
+      aria-label="Histograms of the image values. Drag to highlight a range of values on the images: the arrows move it, Escape clears it"
+      aria-valuemin={lo}
+      aria-valuemax={hi}
+      aria-valuenow={range?.lo ?? lo}
+      aria-valuetext={range ? `${formatValue(range.lo, a.integers, 2)} to ${formatValue(range.hi, a.integers, 2)}` : 'no range'}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={() => { drag.current = null; }}
+      onPointerLeave={() => setHover(null)}
+      onDoubleClick={() => onRangeChange(null)}
+      onKeyDown={onKeyDown}
+    >
       <canvas ref={canvas} aria-hidden="true" />
+      {selected && <div className="qiv-image-histogram-area" style={{ left: MARGIN.left, right: MARGIN.right, top: MARGIN.top, bottom: MARGIN.bottom }}>
+        <div className="qiv-histogram-range" style={{ left: percent(selected.lo), width: percent(selected.hi - selected.lo + 1) }} />
+      </div>}
       {hover !== null && <div className="qiv-histogram-cursor qiv-profile-cursor" style={{ left: left(hover) }} />}
     </div>
     <div className="qiv-histogram-readout qiv-mono qiv-profile-readout">
       {hover !== null ? <>
-        <span>{range(hover)}</span>
+        <span>{binRange(hover)}</span>
         {a.channels.map((channel, c) => shown(channel) && <span key={channel.key}>
           <span style={{ color: channel.color ?? undefined }}>{channel.name}</span> {formatShare(a.histograms[c][hover] / (a.stats[c]?.count || 1))}{both ? ` / ${formatShare(b.histograms[c][hover] / (b.stats[c]?.count || 1))}` : ''}
         </span>)}
       </> : <span className="qiv-muted">Hover to read the share of each channel's values</span>}
     </div>
     <div className="qiv-histogram-footer">
+      {range ? <span className="qiv-histogram-summary">
+        <span>
+          Highlighted: {shown_names.map(({ key, color }) => <span key={key} className="qiv-histogram-channel-name" style={{ color: color ?? undefined }}>{key}</span>)}{' '}
+          in <span className="qiv-mono">{formatValue(range.lo, a.integers, 2)}–{formatValue(range.hi, a.integers, 2)}</span>
+        </span>
+        {masks?.a && <span className="qiv-muted" title={masks.a.sampled ? 'Of the pixels read: on large views, only the strips read are highlighted. Zoom in to highlight all the pixels' : undefined}>
+          {share(masks.a)} of {masks.a.sampled ? 'the pixels read' : 'the view'}{masks.b ? `, ${share(masks.b)} of the other image` : ''}
+        </span>}
+        <Button icon="cross" title="Stop highlighting (Esc, or click the histogram)" className="qiv-small" onClick={() => onRangeChange(null)} />
+      </span> : <span className="qiv-muted">Drag to highlight a range of values on the images</span>}
       <PlanNote analysis={a} />
     </div>
   </div>;
@@ -809,14 +898,14 @@ export const GroupingPicker = ({ analysis, value, onChange }) => {
 };
 
 // The view of the analysis panel, on the image's values
-export const ImageValuesView = ({ view, state, names, comparing, hidden, marker, onGuideChange }) => {
+export const ImageValuesView = ({ view, state, names, comparing, hidden, marker, onGuideChange, range, onRangeChange, masks }) => {
   if (!state.results?.a) return state.status === 'error' ? null : <div className="qiv-image-loading"><Spinner size={14} label="Reading the image's values" /></div>;
   const shown = channel => !hidden.has(channel.cell ?? channel.key);
   const loading = state.status === 'loading';
   return <div className={`qiv-image-values ${loading ? 'qiv-loading' : ''}`}>
     {loading && <div className="qiv-progress" role="progressbar" aria-label="Reading the image's values" aria-valuenow={Math.round(100 * (state.progress ?? 0))}><i style={{ width: `${100 * (state.progress ?? 0)}%` }} /></div>}
     {state.status === 'error' && <div className="qiv-message qiv-danger-text">{state.error}</div>}
-    {view === 'histogram' && <ImageHistogram state={state} comparing={comparing} shown={shown} />}
+    {view === 'histogram' && <ImageHistogram state={state} comparing={comparing} shown={shown} range={range} onRangeChange={onRangeChange} masks={masks} />}
     {view === 'profiles' && <ImageProfiles state={state} comparing={comparing} names={names} shown={shown} marker={marker} onGuideChange={onGuideChange} />}
     {view === 'stats' && <ImageStats state={state} comparing={comparing} names={names} shown={shown} />}
   </div>;

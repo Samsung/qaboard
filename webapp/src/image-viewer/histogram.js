@@ -71,12 +71,12 @@ export const rangeDrag = (range, value, slack = 2) => {
   return 'new';
 };
 
-// The range after dragging from `start` (where the pointer went down, with the range then) to `value`
-export const dragRange = (drag, start, value) => {
+// The range after dragging from `start` (where the pointer went down, with the range then) to `value`, in 0..max
+export const dragRange = (drag, start, value, max = 255) => {
   const { range, value: from } = start;
   if (drag === 'new') return { lo: Math.min(from, value), hi: Math.max(from, value) };
   if (drag === 'move') {
-    const shift = Math.min(255 - range.hi, Math.max(-range.lo, value - from));
+    const shift = Math.min(max - range.hi, Math.max(-range.lo, value - from));
     return { lo: range.lo + shift, hi: range.hi + shift };
   }
   // an edge: past the other, it becomes the other

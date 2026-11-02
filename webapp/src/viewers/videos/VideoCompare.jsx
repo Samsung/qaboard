@@ -174,6 +174,14 @@ export const VideoCompare = ({
   const [message, setMessage] = useState(null);
   // where the pointer is: { x, y, pane } in pane coordinates
   const [pointer, setPointer] = useState(null);
+  // The pixel users pinned with Shift+click, { u, v } in [0, 1] of the frames: its values stay while the mouse moves,
+  // e.g. to select them, until users unpin it or the mouse leaves the videos and comes back
+  const [pinned, setPinned] = useState(null);
+  const left_pinned = useRef(false);
+  const unpin = () => {
+    left_pinned.current = false;
+    setPinned(null);
+  };
   const [gesture_kind, setGestureKind] = useState(null);
   const diff_canvas = useRef(null);
 
@@ -307,6 +315,8 @@ export const VideoCompare = ({
   const onPointerMove = event => {
     const point = local(event);
     setPointer(point);
+    // back on the videos after leaving them: follow the pointer again
+    if (left_pinned.current) unpin();
     const g = gesture.current;
     if (!g) return;
     const { pane, main, mode, limits } = layout.current;
@@ -326,9 +336,23 @@ export const VideoCompare = ({
     if (gesture.current.kind === 'pan') setView(panBy(g.view, event.clientX - g.x, event.clientY - g.y, pane, main));
     if (gesture.current.kind === 'wipe') setWipe(clamp(point.x / pane.width, 0, 1));
   };
+  // Shift+click pins the pixel (a click plays or pauses), or unpins it: on it again, or outside the frames
+  const pinAt = event => {
+    const { view, pane, main } = layout.current;
+    if (!main) return;
+    const { u, v } = videoPointAt(local(event), view, pane, main);
+    const width = sizes.new?.width ?? 1;
+    const height = sizes.new?.height ?? 1;
+    const same = pinned && Math.floor(u * width) === Math.floor(pinned.u * width) && Math.floor(v * height) === Math.floor(pinned.v * height);
+    left_pinned.current = false;
+    setPinned(u < 0 || u >= 1 || v < 0 || v >= 1 || same ? null : { u, v });
+  };
   const onPointerUp = event => {
     pointers.current.delete(event.pointerId);
-    if (gesture.current?.kind === 'press' && !animation) controller.toggle();
+    if (gesture.current?.kind === 'press' && !animation) {
+      if (event.shiftKey) pinAt(event);
+      else controller.toggle();
+    }
     startGesture(pointers.current.size > 0 && gesture.current?.kind === 'pinch' ? { kind: 'none' } : null);
   };
   const onPointerCancel = event => {
@@ -469,6 +493,10 @@ export const VideoCompare = ({
         case 'p':
           toggleValues();
           return true;
+        case 'Escape':
+          if (!pinned) return false;
+          unpin();
+          return true;
         case 'f':
           if (!can_fullscreen) return false;
           toggleFullscreen();
@@ -585,11 +613,11 @@ export const VideoCompare = ({
     };
   });
 
-  // The pixel under the pointer, in [0, 1] of the frames
-  const point = pointer && main && !gesture_kind ? (() => {
+  // The pixel under the pointer, or pinned, in [0, 1] of the frames
+  const point = pinned ?? (pointer && main && !gesture_kind ? (() => {
     const { u, v } = videoPointAt(pointer, current_view, pane, main);
     return u >= 0 && u < 1 && v >= 0 && v < 1 ? { u, v } : null;
-  })() : null;
+  })() : null);
   const playback = usePlayback(controller);
   // The frames whose decoded values we read: the very frames shown, once paused
   const decodedFrame = (which, presented) => {
@@ -699,8 +727,15 @@ export const VideoCompare = ({
     {media?.error && <VideoError error={media.error} src={which === 'new' ? video.href ?? video.url : reference.href ?? reference.url} name={comparing ? names[which] : null} />}
   </div>;
 
-  // a cross where the pointer is, on the other panes
-  const crosshairs = columns > 1 && point && contents.map((_, i) => {
+  // a cross where the pointer is, on the other panes. The pixel pinned is framed, on all of them
+  const pinned_at = pinned && main ? (() => {
+    const t = transformOf(current_view, pane, main);
+    return { x: t.x + pinned.u * t.width * t.scale, y: t.y + pinned.v * t.height * t.scale };
+  })() : null;
+  const crosshairs = pinned_at ? contents.map((_, i) => <svg key={`cross-${i}`} className="qiv-crosshair qiv-pinned" style={{ left: i * (pane.width + GAP) + pinned_at.x, top: pinned_at.y }} width="25" height="25" viewBox="0 0 25 25" aria-hidden="true">
+    <path d={CROSS + FRAME} stroke="rgba(0, 0, 0, 0.75)" strokeWidth="3" fill="none" />
+    <path d={CROSS + FRAME} stroke="#fff" strokeWidth="1" fill="none" />
+  </svg>) : columns > 1 && point && pointer && contents.map((_, i) => {
     if (i === pointer.pane) return null;
     return <svg key={`cross-${i}`} className="qiv-crosshair" style={{ left: i * (pane.width + GAP) + pointer.x, top: pointer.y }} width="25" height="25" viewBox="0 0 25 25" aria-hidden="true">
       <path d={CROSS} stroke="rgba(0, 0, 0, 0.75)" strokeWidth="3" />
@@ -847,6 +882,8 @@ export const VideoCompare = ({
         base={base}
         onToggleBase={() => setBase(b => b === 10 ? 16 : 10)}
         tiles={tiles}
+        pinned={!!pinned}
+        onUnpin={unpin}
       />}
     </div>
     {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- a custom widget: its keys are handled on the document (onKeyDown above) */}
@@ -857,9 +894,10 @@ export const VideoCompare = ({
       // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- focusable, for its keyboard shortcuts
       tabIndex={0}
       role="application"
-      aria-label="Videos: click to play or pause, scroll to zoom, drag to pan"
+      aria-label="Videos: click to play or pause, Shift+click to pin a pixel's values, scroll to zoom, drag to pan"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
+      onPointerLeave={() => { if (pinned) left_pinned.current = true; }}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
       onContextMenu={event => gesture.current && event.preventDefault()}
@@ -932,6 +970,7 @@ export const VideoCompare = ({
 };
 
 const CROSS = 'M12.5 0v9M12.5 16v9M0 12.5h9M16 12.5h9';
+const FRAME = 'M8.5 8.5h8v8h-8z';
 
 // What the videos show, updated when it changes (not when their time does)
 const usePlayback = controller => {

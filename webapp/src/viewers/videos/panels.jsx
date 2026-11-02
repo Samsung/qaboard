@@ -2,7 +2,7 @@
 // pixels, which frames show. They use the image viewer's styles (src/image-viewer/image-viewer.css).
 import { memo, useEffect, useState, useSyncExternalStore } from 'react';
 
-import { Chip } from '../../image-viewer/panels';
+import { BaseToggle, Chip, PinnedTag } from '../../image-viewer/panels';
 import { DIFF_METHODS, diffAt, formatDiffValue, normalizeDiff } from '../../image-viewer/metrics';
 import { formatNumber, formatSigned } from '../../image-viewer/pixels';
 import { Icon, Spinner } from '../../image-viewer/ui';
@@ -147,7 +147,7 @@ const PixelOf = ({ label, intent, display, decoded, pixel, base, why, showMode =
 </span>;
 
 // The pixel under the pointer (point: { u, v } in [0, 1] of the frames), for the videos in the order they show
-export const Readout = ({ controller, point, videos, sizes, frames, why, unavailable, order, comparing, names, neutral, diff, base, onToggleBase, tiles }) => {
+export const Readout = ({ controller, point, videos, sizes, frames, why, unavailable, order, comparing, names, neutral, diff, base, onToggleBase, tiles, pinned = false, onUnpin }) => {
   'use no memo';
   const pixel = which => {
     const size = sizes[which];
@@ -172,7 +172,7 @@ export const Readout = ({ controller, point, videos, sizes, frames, why, unavail
     const size = s => s?.width ? `${s.width}×${s.height}` : '…';
     return <div className="qiv-readout qiv-muted">
       <span>{shown.map(which => comparing ? `${names[which]} ${size(sizes[which])}` : size(sizes[which])).join(' · ')}</span>
-      <span className="qiv-readout-hint">Hover a pixel for its values · scroll to zoom · drag to pan · click to play{unavailable && <> · <span className="qiv-warning-text">{unavailable}</span></>}</span>
+      <span className="qiv-readout-hint">Hover a pixel for its values · Shift+click to pin it · scroll to zoom · drag to pan · click to play{unavailable && <> · <span className="qiv-warning-text">{unavailable}</span></>}</span>
     </div>;
   }
   const { method } = normalizeDiff(diff);
@@ -183,12 +183,12 @@ export const Readout = ({ controller, point, videos, sizes, frames, why, unavail
   const decoded_delta = same_size && a && b && a.length === b.length ? a.map((v, i) => v - b[i]) : null;
   const coordinates = pixels[first] ?? pixels[second];
   const moved = comparing && pixels[first] && pixels[second] && (pixels[first].x !== pixels[second].x || pixels[first].y !== pixels[second].y);
-  return <button
-    type="button"
-    className="qiv-readout"
-    onClick={onToggleBase}
-    title={`The pixel under the pointer. Click to show the values in ${base === 10 ? 'hexadecimal' : 'decimal'}`}
-  >
+  return <div className={`qiv-readout-row ${pinned ? 'qiv-pinned' : ''}`}>
+    {pinned && <PinnedTag onUnpin={onUnpin} what="video" />}
+    <div
+      className="qiv-readout qiv-readout-values"
+      title={pinned ? 'The pixel you pinned: select its values to copy them' : 'The pixel under the pointer: Shift+click to pin it, to keep its values and select them'}
+    >
     {coordinates && <span className="qiv-coordinates" aria-label="Pixel">x {coordinates.x} y {coordinates.y} </span>}
     {moved && <span className="qiv-coordinates qiv-muted">({names[second]} x {pixels[second].x} y {pixels[second].y}) </span>}
     {shown.map((which, i) => <PixelOf
@@ -212,7 +212,9 @@ export const Readout = ({ controller, point, videos, sizes, frames, why, unavail
         {' '}{method === 'perceptual' ? 'perceptual ' : ''}{formatDiffValue(method, delta.value)}
       </span>}
     </span>}
-  </button>;
+    </div>
+    <BaseToggle base={base} onToggle={onToggleBase} />
+  </div>;
 };
 
 
@@ -290,6 +292,7 @@ export const FrameBadge = memo(({ controller, comparing, names, frameType }) => 
 
 export const SHORTCUTS = [
   ['Space, k', 'Play / pause (or click the video)'],
+  ['Shift+click', "Pin the pixel: its values stay while you move the mouse away, to select them. Esc, or leaving the video and coming back, follows the pointer again"],
   ['← → , .', 'Previous / next frame'],
   ['Shift ← →', 'Back / forward 1 second'],
   ['Home End', 'First / last frame'],

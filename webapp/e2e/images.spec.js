@@ -226,6 +226,35 @@ test('compares images side by side, with a wipe, toggling, and as their differen
   await expect(page.getByRole('radio', { name: 'Side by side' })).toHaveAttribute('aria-checked', 'true');
 });
 
+test('pins a pixel on click: its values stay while the mouse moves, until it comes back to the images', async ({ page }) => {
+  await setup(page);
+  await expect(page.getByRole('button', { name: /^new 512×384/ })).toBeVisible();
+  const box = await page.locator('.qiv-pane').first().boundingBox();
+  const readout = page.locator('.qiv-readout');
+  await page.mouse.click(box.x + box.width * 120 / 512, box.y + box.height * 120 / 384);
+  await expect(page.locator('.qiv-pin-chip')).toBeVisible();
+  const pinned = (await readout.textContent()).match(/x \d+ y \d+/)[0];
+  // elsewhere on the images: the values stay
+  await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.8, { steps: 5 });
+  await expect(readout).toContainText(pinned);
+  // to the values, to select them
+  const line = await readout.boundingBox();
+  await page.mouse.move(line.x + 2, line.y + line.height / 2, { steps: 5 });
+  await page.mouse.down();
+  await page.mouse.move(line.x + 200, line.y + line.height / 2, { steps: 5 });
+  await page.mouse.up();
+  expect(await page.evaluate(() => String(window.getSelection()))).toContain(pinned);
+  // back on the images: it follows the pointer
+  await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.8, { steps: 5 });
+  await expect(page.locator('.qiv-pin-chip')).toHaveCount(0);
+  await expect(readout).not.toContainText(pinned);
+  // Esc
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(page.locator('.qiv-pin-chip')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.qiv-pin-chip')).toHaveCount(0);
+});
+
 test('shows the difference between the images, or alone', async ({ page }) => {
   await setup(page);
   await expect(page.getByRole('button', { name: /^new 512×384/ })).toBeVisible();

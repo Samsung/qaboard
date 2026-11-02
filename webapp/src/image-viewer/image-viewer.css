@@ -1773,3 +1773,69 @@
   margin-top: 0;
   border-top: none;
 }
+.qiv-image-histogram-area {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* The values under the pointer, or of the pixel pinned: users select them to copy them */
+.qiv-readout-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+.qiv-readout-row .qiv-readout-values {
+  flex: 1 1 auto;
+  min-width: 0;
+  user-select: text;
+  cursor: text;
+}
+.qiv-base-toggle,
+.qiv-pin-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.qiv-base-toggle {
+  font-family: var(--qiv-mono);
+  opacity: 0.7;
+}
+.qiv-base-toggle:hover {
+  opacity: 1;
+}
+.qiv-pin-chip {
+  border-color: var(--qiv-accent);
+  background: color-mix(in srgb, var(--qiv-accent) 14%, transparent);
+  color: var(--qiv-accent);
+  font-weight: 600;
+}
+.qiv-pin-chip .qiv-icon {
+  fill: currentColor;
+}
+.qiv-pin-chip-action {
+  font-weight: 400;
+}
+.qiv-pin-chip-x {
+  font-size: 13px;
+  line-height: 1;
+}
+.qiv-pin-chip:hover .qiv-pin-chip-x,
+.qiv-pin-chip:focus-visible .qiv-pin-chip-x {
+  font-weight: 700;
+}
+.qiv-crosshair.qiv-pinned path:last-child {
+  stroke: var(--qiv-accent);
+}
