@@ -101,16 +101,17 @@ Today you wrap your code with `qa`: `qa run` for one input, `qa batch` for many 
 [Running your code](/docs/running-your-code)). Some code doesn't fit a wrapper: training loops, notebooks, test
 suites.
 
-<RoadmapItem status="experimental" title="Read results and add metrics from Python">
-`qaboard.runs(url)` gives the runs a web app page shows, as `Run` objects, and `run.log({...})` adds metrics to them
-with who, when and which script; `qa runs <url>` lists them from the shell
-([runs in scripts](/docs/apis#runs-in-scripts)). Names may still change.
+<RoadmapItem status="shipped" title="Read results and add metrics from Python">
+`qaboard.runs(url)` gives the runs a web app page shows, as `Run` objects, and `run.log_metrics({...})` adds metrics
+to them, recording who, when and which script; `qa runs <url>` lists them from the shell
+([runs in scripts](/docs/apis#runs-in-scripts)).
 </RoadmapItem>
 
 <RoadmapItem status="next" title="A Python SDK that creates runs">
-`run.save_file(...)` to add files to runs; then `start_run(...)`, the same `Run` from training loops, notebooks and
-pytest, without `qa run`, in the style of W&B's API, with the values logged at each step kept in files. These runs
-show in the web app like any other.
+`start_run(...)` from training loops, notebooks and pytest, without `qa run`: `log()` with a `step` for the values
+logged during training, `log_params()`, `log_artifact()`, `finish()`, with the method names people know from the usual
+experiment trackers. These runs show in the web app like any other. The design is in the repository,
+[`docs/rfcs/python-sdk-runs.md`](https://github.com/Samsung/qaboard/blob/master/docs/rfcs/python-sdk-runs.md).
 </RoadmapItem>
 
 <RoadmapItem status="exploring" title="A wandb.log shim">

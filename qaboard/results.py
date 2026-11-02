@@ -9,9 +9,10 @@ The URL is the one in the browser: `runs()` reads the project, commit, batch and
 (webapp/src/selection.js) and asks the server for the runs, filtered like the web app does (qaboard/filters.py).
 `qa runs <url>` does the same from the shell.
 
-`run.log({...})` adds metrics to a run: the server merges them and remembers who added them, with which script. `Run` is also
-what runs created without `qa` as the entrypoint (training loops, evals) will be made of, once the SDK can create
-runs. Experimental: names may still change.
+`run.log_metrics({...})` adds metrics to a run: the server merges them and remembers who added them, with which
+script. `Run` is also what runs created without `qa` as the entrypoint (training loops, evals) will be made of, once
+the SDK can create runs (docs/rfcs/python-sdk-runs.md). Its attributes are named like the `context` your `run()`
+function gets (qaboard/run.py): `configs`, `params`, `output_dir`, `input_path`...
 
 This module doesn't need a qaboard.yaml: it only talks to the server, found in the URL. It reads the token to send
 like the rest of qa (qaboard/credentials.py).
@@ -146,8 +147,8 @@ class Run:
   """
   One run: an input processed with some configurations and parameters, on a commit, in a batch, as the server knows it.
 
-  Experimental: names may change. `qa runs --json` prints these fields (see `to_dict`). Read-only: the mappings are
-  `MappingProxyType` views and `configurations` a tuple, since changing them would change nothing on the server.
+  `qa runs --json` prints these fields (see `to_dict`). Read-only: the mappings are `MappingProxyType` views and
+  `configs` a tuple, since changing them would change nothing on the server; `log_metrics()` does.
   """
   project: str
   commit: Optional[str]
@@ -155,9 +156,9 @@ class Run:
   input: str                                   # the input's path, relative to its database
   database: Optional[str] = None               # where the inputs are
   platform: str = 'linux'
-  configurations: Tuple[Any, ...] = ()
-  extra_parameters: Mapping[str, Any] = field(default_factory=dict)  # the tuning parameters given to the run
-  params: Mapping[str, Any] = field(default_factory=dict)            # every parameter, as the web app shows them: the configurations' objects, the tuning parameters, and those the run reported
+  configs: Tuple[Any, ...] = ()                # the configurations, strings and mappings, then the tuning parameters: like context.configs
+  params: Mapping[str, Any] = field(default_factory=dict)            # the mappings of configs merged, and the parameters the run reported: like context.params
+  extra_parameters: Mapping[str, Any] = field(default_factory=dict)  # the tuning parameters alone (qa --tuning): rarely needed, they're in configs
   metrics: Mapping[str, Any] = field(default_factory=dict)
   type: str = ''                               # the input type (qaboard.yaml's inputs.types), 'optim_iteration' for qa optimize's iterations
   id: Optional[int] = None                     # QA-Board's id, None until the server knows the run
@@ -173,8 +174,8 @@ class Run:
   server: Optional[str] = None
 
   def __post_init__(self) -> None:
-    # read-only views: changing a run read from the server would change nothing on the server, run.log() does
-    self.configurations = tuple(self.configurations)
+    # read-only views: changing a run read from the server would change nothing on the server, run.log_metrics() does
+    self.configs = tuple(self.configs)
     for name in _MAPPINGS:
       setattr(self, name, MappingProxyType(dict(getattr(self, name))))
     # how `log()` talks to the server: set by runs(), not fields
@@ -195,7 +196,7 @@ class Run:
       input=str(output.get('test_input_path', '')),
       database=output.get('test_input_database'),
       platform=output.get('platform') or 'linux',
-      configurations=tuple(output.get('configurations') or ()),
+      configs=(*(output.get('configurations') or ()), *([extra_parameters] if extra_parameters else [])),
       extra_parameters=extra_parameters,
       params=run_params(output.get('configurations'), {**extra_parameters, **reported}),
       metrics=dict(output.get('metrics') or {}),
@@ -215,12 +216,13 @@ class Run:
 
   @classmethod
   def _new(cls, *, project: str, input: str, batch: str = 'default', commit: Optional[str] = None, database: Optional[str] = None,
-           platform: Optional[str] = None, configurations: Optional[List[Any]] = None, extra_parameters: Optional[Dict[str, Any]] = None,
+           platform: Optional[str] = None, configs: Optional[List[Any]] = None, extra_parameters: Optional[Dict[str, Any]] = None,
            output_dir: Optional[Path] = None, server: Optional[str] = None) -> 'Run':
     """A run that doesn't exist yet: what creating runs from code will start from, before the server knows it. Private until then."""
+    extra_parameters = dict(extra_parameters or {})
     return cls(project=project, commit=commit, batch=batch, input=input, database=database, platform=platform or ('windows' if os.name == 'nt' else 'linux'),
-               configurations=tuple(configurations or ()), extra_parameters=dict(extra_parameters or {}),
-               params=run_params(configurations, extra_parameters), output_dir=output_dir, server=server,
+               configs=(*(configs or ()), *([extra_parameters] if extra_parameters else [])), extra_parameters=extra_parameters,
+               params=run_params(configs, extra_parameters), output_dir=output_dir, server=server,
                is_pending=True, is_running=False, is_failed=False)
 
   @property
@@ -232,8 +234,13 @@ class Run:
 
   @property
   def input_path(self) -> Optional[Path]:
-    """The input's full path, when its database is known"""
+    """The input's full path, when its database is known: like context.input_path"""
     return Path(self.database) / self.input if self.database else None
+
+  @property
+  def rel_input_path(self) -> Path:
+    """`input` as a Path: like context.rel_input_path"""
+    return Path(self.input)
 
   @property
   def url(self) -> Optional[str]:
@@ -244,9 +251,9 @@ class Run:
     query = urlencode({'batch': self.batch, 'filter': f"id:{self.id}$" if self.id is not None else self.input})
     return f"{self.server}/{quote(self.project)}/commit/{self.commit}?{query}"
 
-  def log(self, metrics: Mapping[str, Any], *, note: Optional[str] = None, overwrite: bool = False, dry_run: Optional[bool] = None) -> Dict[str, Any]:
+  def log_metrics(self, metrics: Mapping[str, Any], *, note: Optional[str] = None, overwrite: bool = False, dry_run: Optional[bool] = None) -> Dict[str, Any]:
     """
-    Adds metrics to the run, e.g. computed by your script from its files: `run.log({"sharpness": 0.4})`.
+    Adds metrics to the run, e.g. computed by your script from its files: `run.log_metrics({"sharpness": 0.4})`.
 
     The server merges them into the run's metrics (the run's own metrics.json isn't changed) and remembers in the run's
     `data["added_metrics"]` who added each one (the token's user), when and with which script. Values are finite
@@ -259,7 +266,7 @@ class Run:
     `dry_run=True` (or `runs(url, dry_run=True)`) prints what it would add instead.
     """
     if not isinstance(metrics, Mapping) or not metrics:
-      raise ValueError("run.log() takes a mapping of metrics, e.g. run.log({'sharpness': 0.4})")
+      raise ValueError("run.log_metrics() takes a mapping of metrics, e.g. run.log_metrics({'sharpness': 0.4})")
     values, definitions = split_metrics({k: _plain_value(v) for k, v in metrics.items()})
     declared = declared_metrics()
     definitions = {**{k: declared[k] for k in values if k in declared}, **definitions}
@@ -300,7 +307,7 @@ class Run:
 
   def __repr__(self) -> str:
     where = f" id={self.id}" if self.id is not None else ''
-    return f"<Run{where} {self.input} {list(self.configurations)} {dict(self.extra_parameters) if self.extra_parameters else ''} {self.state}{' failed' if self.is_failed else ''}>".replace('  ', ' ')
+    return f"<Run{where} {self.input} {list(self.configs)} {self.state}{' failed' if self.is_failed else ''}>".replace('  ', ' ')
 
 
 class Runs(list):
@@ -412,7 +419,7 @@ def runs(url: Optional[str] = None, *, project: Optional[str] = None, commit: Op
          batch: Optional[str] = None, filter: Optional[str] = None, side: str = 'new', server: Optional[str] = None,
          token: Optional[str] = None, include_deleted: bool = False, include_hidden: bool = False, dry_run: bool = False) -> Runs:
   """
-  The runs a web app page shows, as `Run` objects. Experimental.
+  The runs a web app page shows, as `Run` objects.
 
   Pass the page's address, or name the runs: `runs(project='group/repo', commit='abc123', batch='ci', filter='night')`
   (`commit` can be a branch or a tag; without it, the latest commit with results, on `branch` if given). Keyword
@@ -422,8 +429,8 @@ def runs(url: Optional[str] = None, *, project: Optional[str] = None, commit: Op
   `server`: the QA-Board server, when the URL doesn't say (its address, or when it is served under a path prefix).
   Without a URL, the server is the one `qa` uses (QABOARD_URL...). `token`: an API token, else the one `qa` is
   signed in with. Left out unless asked: runs whose files were deleted (`include_deleted`), and runs the web app
-  doesn't list with the batch, like `qa optimize`'s iterations (`include_hidden`). With `dry_run=True`, `run.log()`
-  prints what it would add instead of sending it: try scripts on it first (`run.log(..., dry_run=False)` sends anyway).
+  doesn't list with the batch, like `qa optimize`'s iterations (`include_hidden`). With `dry_run=True`, `run.log_metrics()`
+  prints what it would add instead of sending it: try scripts on it first (`run.log_metrics(..., dry_run=False)` sends anyway).
   """
   if side not in SIDES:
     raise ValueError(f"side={side!r}: expected one of {', '.join(map(repr, SIDES))}. 'new' gives the runs compared, 'reference' those of the reference bar.")

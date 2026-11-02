@@ -1158,7 +1158,7 @@ qa.add_command(auth)
 @click.option('--filter', 'filter_', help="Keep the runs matching a filter, like the web app's filter box.")
 @click.option('--side', type=click.Choice(['new', 'reference']), default='new', show_default=True, help="Which runs of the URL: the compared ones (new), or those of the reference bar (?reference=&batch_ref=).")
 @click.option('--server', help="The QA-Board server, when the URL doesn't say (e.g. served under a path prefix).")
-@click.option('--json', 'as_json', is_flag=True, help="Print the runs as JSON: input, configurations, parameters, metrics, folder...")
+@click.option('--json', 'as_json', is_flag=True, help="Print the runs as JSON: input, configs, params, metrics, output_dir...")
 @click.option('--include-deleted', is_flag=True, help="Also list runs whose files were deleted.")
 @click.option('--include-hidden', is_flag=True, help="Also list runs the web app doesn't show with the batch, like qa optimize's iterations.")
 def runs_command(url, project, commit, batch, filter_, side, server, as_json, include_deleted, include_hidden):
@@ -1167,7 +1167,7 @@ def runs_command(url, project, commit, batch, filter_, side, server, as_json, in
 
       qa runs "https://qaboard/my/project/commit/abc123?batch=ci&filter=night"
 
-  Experimental. It doesn't run anything, and works outside a project (give `runs` first: `qa runs ...`).
+  It doesn't run anything, and works outside a project (give `runs` first: `qa runs ...`).
   From Python: `qaboard.runs(url)`.
   """
   from .results import runs, ResultsError

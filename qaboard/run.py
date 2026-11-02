@@ -55,6 +55,11 @@ class RunContext():
         return self.input_path.relative_to(self.database)
 
     @property
+    def input(self) -> str:
+        """The input's path relative to the database, as given to `qa run --input` and in batches: like `Run.input` (qaboard/results.py)"""
+        return self.rel_input_path.as_posix()
+
+    @property
     def output_directory(self):
         return self.output_dir
 

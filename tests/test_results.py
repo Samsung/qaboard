@@ -103,7 +103,7 @@ class TestRuns(unittest.TestCase):
     run = found[0]
     self.assertEqual(run.input, 'slices/outdoor/night-street.jpg')
     self.assertEqual(run.input_path, Path('/data/slices/outdoor/night-street.jpg'))
-    self.assertEqual(run.configurations, ('base', 'night'))
+    self.assertEqual(run.configs, ('base', 'night', {'gain': 8}))
     self.assertEqual(run.extra_parameters, {'gain': 8})
     self.assertEqual(run.params, {'gain': 8})
     self.assertEqual(run.state, 'finished')
@@ -236,13 +236,13 @@ class TestRunContract(unittest.TestCase):
   object: `Run._new` is what `start_run()` will build. `to_dict()` is the JSON of `qa runs --json`: its keys are a
   contract with scripts, pin them.
   """
-  JSON_KEYS = {'project', 'commit', 'batch', 'input', 'database', 'platform', 'configurations', 'extra_parameters', 'params',
+  JSON_KEYS = {'project', 'commit', 'batch', 'input', 'database', 'platform', 'configs', 'extra_parameters', 'params',
                'metrics', 'type', 'id', 'output_dir', 'is_pending', 'is_running', 'is_failed', 'deleted', 'input_metadata', 'data',
                'created_at', 'finished_at', 'server', 'state', 'url'}
 
   def test_same_object_from_the_server_and_from_code(self):
     from_server = Run.from_api(FIXTURE['outputs']['1'], project='g/repo', commit=COMMIT, batch='ci', server='https://qaboard')
-    from_code = Run._new(project='g/repo', input='slices/indoor/kitchen.jpg', configurations=['base', {'gain': 2}], extra_parameters={'lr': 0.1}, batch='exp-1')
+    from_code = Run._new(project='g/repo', input='slices/indoor/kitchen.jpg', configs=['base', {'gain': 2}], extra_parameters={'lr': 0.1}, batch='exp-1')
     self.assertIs(type(from_server), type(from_code))
     self.assertEqual(set(from_server.to_dict()), self.JSON_KEYS)
     self.assertEqual(set(from_code.to_dict()), self.JSON_KEYS)
@@ -254,18 +254,21 @@ class TestRunContract(unittest.TestCase):
     # the same meaning of params everywhere: the configurations' objects and the tuning parameters
     self.assertEqual(from_code.params, {'gain': 2, 'lr': 0.1})
     self.assertEqual(from_code.extra_parameters, {'lr': 0.1})
+    # like context.configs: the tuning parameters are the last configuration
+    self.assertEqual(from_code.configs, ('base', {'gain': 2}, {'lr': 0.1}))
+    self.assertEqual(from_code.rel_input_path, Path('slices/indoor/kitchen.jpg'))
 
   def test_read_only(self):
     # changing a run read from the server would change nothing on the server: it is an error
     run = Run.from_api(FIXTURE['outputs']['2'], project='g/repo', commit=COMMIT, batch='ci', server='https://qaboard')
-    from_code = Run._new(project='g/repo', input='a.jpg', configurations=['base'], extra_parameters={'lr': 0.1})
+    from_code = Run._new(project='g/repo', input='a.jpg', configs=['base'], extra_parameters={'lr': 0.1})
     for r in (run, from_code):
       for name in ('metrics', 'extra_parameters', 'params', 'input_metadata', 'data'):
         with self.subTest(name=name), self.assertRaises(TypeError):
           getattr(r, name)['x'] = 1
-      self.assertIsInstance(r.configurations, tuple)
+      self.assertIsInstance(r.configs, tuple)
       with self.assertRaises(AttributeError):
-        r.configurations.append('other') # type: ignore
+        r.configs.append('other') # type: ignore
     self.assertEqual(run.extra_parameters, {'gain': 8})
     self.assertEqual(run.extra_parameters.get('gain'), 8)
     # runs don't share the dicts they were made from
@@ -277,17 +280,17 @@ class TestRunContract(unittest.TestCase):
     d = run.to_dict()
     for name in ('metrics', 'extra_parameters', 'params', 'input_metadata', 'data'):
       self.assertIs(type(d[name]), dict, name)
-    self.assertIs(type(d['configurations']), list)
-    self.assertEqual(d['configurations'], ['base', 'night'])
+    self.assertIs(type(d['configs']), list)
+    self.assertEqual(d['configs'], ['base', 'night', {'gain': 8}])
     d['metrics']['x'] = 1
     self.assertNotIn('x', run.metrics)
     self.assertEqual(json.loads(json.dumps(d)), d)
 
-  def test_only_log_writes_yet(self):
+  def test_only_log_metrics_writes_yet(self):
     # no stubs in the public API: methods come when they work
-    for name in ('save_file', 'series', 'finish'):
+    for name in ('log', 'save_file', 'log_artifact', 'series', 'finish'):
       self.assertFalse(hasattr(Run, name), name)
-    self.assertTrue(callable(Run.log))
+    self.assertTrue(callable(Run.log_metrics))
     import qaboard
     self.assertFalse(hasattr(qaboard, 'start_run'))
 
@@ -357,7 +360,7 @@ class TestImport(unittest.TestCase):
 
 
 class TestLog(unittest.TestCase):
-  """run.log({...}): metrics added to a run by a script, merged by the server with their provenance"""
+  """run.log_metrics({...}): metrics added to a run by a script, merged by the server with their provenance"""
   URL = 'https://qaboard/g/repo/commit/abc?batch=ci&filter=kitchen'
 
   def run_and_patch(self, answer=None, **kwargs):
@@ -374,7 +377,7 @@ class TestLog(unittest.TestCase):
     from qaboard import Metric
     run, patched = self.run_and_patch()
     with mock.patch('requests.request', return_value=patched) as request, mock.patch('qaboard.results.resolve_token', return_value=('tok', 'hosts.yaml')):
-      added = run.log({'sharpness': Metric(0.4, smaller_is_better=False, suffix=''), 'blur': 2})
+      added = run.log_metrics({'sharpness': Metric(0.4, smaller_is_better=False, suffix=''), 'blur': 2})
     method, url = request.call_args[0]
     self.assertEqual((method, url), ('PATCH', 'https://qaboard/api/v1/output/1/metrics'))
     body = request.call_args[1]['json']
@@ -396,16 +399,16 @@ class TestLog(unittest.TestCase):
   def test_log_uses_the_token_given_to_runs(self):
     run, patched = self.run_and_patch(token='given')
     with mock.patch('requests.request', return_value=patched) as request:
-      run.log({'sharpness': 0.4})
+      run.log_metrics({'sharpness': 0.4})
     self.assertEqual(request.call_args[1]['headers'], {'Authorization': 'Bearer given'})
 
   def test_dry_run_sends_nothing(self):
     run, patched = self.run_and_patch(dry_run=True)
     stderr = io.StringIO()
     with mock.patch('requests.request', return_value=patched) as request, redirect_stderr(stderr):
-      added = run.log({'sharpness': 0.4})
+      added = run.log_metrics({'sharpness': 0.4})
       # per call too
-      run.log({'blur': 1}, dry_run=True)
+      run.log_metrics({'blur': 1}, dry_run=True)
     request.assert_not_called()
     self.assertIn('would add', stderr.getvalue())
     self.assertEqual(added['sharpness']['value'], 0.4)
@@ -413,7 +416,7 @@ class TestLog(unittest.TestCase):
     self.assertIn('script', added['sharpness'])
     self.assertNotIn('sharpness', run.metrics)
     with mock.patch('requests.request', return_value=patched) as request:
-      run.log({'sharpness': 0.4}, dry_run=False, overwrite=True)
+      run.log_metrics({'sharpness': 0.4}, dry_run=False, overwrite=True)
     self.assertTrue(request.call_args[1]['json']['overwrite'])
 
   def test_numpy_values(self):
@@ -423,7 +426,7 @@ class TestLog(unittest.TestCase):
       self.skipTest('numpy')
     run, patched = self.run_and_patch()
     with mock.patch('requests.request', return_value=patched) as request:
-      run.log({'a': np.float32(0.5), 'b': np.int64(3), 'c': np.array(2.0), 'd': np.bool_(True)})
+      run.log_metrics({'a': np.float32(0.5), 'b': np.int64(3), 'c': np.array(2.0), 'd': np.bool_(True)})
     body = request.call_args[1]['json']['metrics']
     self.assertEqual(body, {'a': 0.5, 'b': 3, 'c': 2.0, 'd': True})
     self.assertEqual([type(v) for v in body.values()], [float, int, float, bool])
@@ -431,26 +434,26 @@ class TestLog(unittest.TestCase):
   def test_log_refuses_bad_values(self):
     run, patched = self.run_and_patch()
     with self.assertRaises(ValueError):
-      run.log({})
+      run.log_metrics({})
     stderr = io.StringIO()
     with mock.patch('requests.request', return_value=patched) as request, redirect_stderr(stderr):
-      self.assertEqual(run.log({'x': float('nan'), 'y': float('inf')}), {})
+      self.assertEqual(run.log_metrics({'x': float('nan'), 'y': float('inf')}), {})
     request.assert_not_called()
     self.assertIn('NaN', stderr.getvalue())
     # nested values and other types can't be metrics
     for bad in ({'x': {'nested': 1}}, {'x': [1, 2]}, {'': 1}, {3: 1}):
       with self.assertRaises(ValueError):
-        run.log(bad)
+        run.log_metrics(bad)
     # a run the server doesn't know
     with self.assertRaises(ResultsError):
-      Run._new(project='g/repo', input='a.jpg').log({'x': 1})
+      Run._new(project='g/repo', input='a.jpg').log_metrics({'x': 1})
 
   def test_log_errors_name_the_ingest_scope(self):
     run, _ = self.run_and_patch()
     refused = mock.Mock(status_code=403)
     refused.json.return_value = {'error': "This token can't send results", 'reason': 'missing_scope'}
     with mock.patch('requests.request', return_value=refused), self.assertRaises(ResultsError) as e:
-      run.log({'x': 1})
+      run.log_metrics({'x': 1})
     self.assertIn('ingest scope', str(e.exception))
 
 

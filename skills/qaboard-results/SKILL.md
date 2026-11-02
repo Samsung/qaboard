@@ -1,6 +1,6 @@
 ---
 name: qaboard-results
-description: Read QA-Board results from scripts and agents, and add metrics to runs: the runs a web app page shows (metrics, parameters, output files), run.log() to add what a script computed, a commit compared with its reference, and whether a change improved things. Use when given a QA-Board URL, when asked to post-process runs, compute a metric on existing outputs, or check a change before claiming it's better.
+description: Read QA-Board results from scripts and agents, and add metrics to runs: the runs a web app page shows (metrics, parameters, output files), run.log_metrics() to add what a script computed, a commit compared with its reference, and whether a change improved things. Use when given a QA-Board URL, when asked to post-process runs, compute a metric on existing outputs, or check a change before claiming it's better.
 ---
 
 # Read QA-Board results, add metrics to runs
@@ -13,12 +13,12 @@ https://samsung.github.io/qaboard/docs/apis
 When you're given a URL like `https://qaboard.example.com/<project>/commit/<commit>?batch=ci&filter=night`, use it as is:
 
 ```python
-import qaboard as qb                              # pip install qaboard; experimental API, names may change
+import qaboard as qb                              # pip install qaboard
 
 for run in qb.runs(url):
     run.input            # 'slices/outdoor', relative to run.database; run.input_path is absolute
-    run.configurations   # ['int8', 'size-320']
-    run.params           # every parameter: the configurations' mappings, tuning parameters, what the run reported
+    run.configs          # ('int8', 'size-320', {'score_threshold': 0.3}): configurations, then tuning parameters, like context.configs
+    run.params           # the mappings of configs merged, plus what the run reported: like context.params
     run.metrics          # {'map': 0.31, 'latency_ms': 21.3, 'is_failed': False, ...}
     run.output_dir       # Path to its files (shared storage); None if deleted
     run.state            # 'pending' | 'running' | 'finished'; run.is_failed
@@ -38,7 +38,7 @@ for run in qb.runs(url):
 ```python
 from qaboard import Metric
 for run in qb.runs(url + "%20status:success", dry_run=True):   # finished runs only; dry_run prints, drop it to send
-    run.log({"sharpness": Metric(measure(run.output_dir / "output.png"), smaller_is_better=False)})
+    run.log_metrics({"sharpness": Metric(measure(run.output_dir / "output.png"), smaller_is_better=False)})
 ```
 The server merges the metrics into the run's and records who (the token's user), when and which script
 (`run.data["added_metrics"]`). Needs `qa auth login` (a token with the `ingest` scope, developer role). Values: finite
@@ -74,7 +74,7 @@ Base: `$QABOARD_URL/api/v1`. Reading is anonymous unless the server restricts th
 | Need | Call |
 |---|---|
 | Recent commits with results | `GET /commits?project=<p>&limit=20&only_ci_batches=true` (`?q=branch:release -wip`, `?from=&to=`, `?with_outputs=true`) |
-| A commit's batches and runs | `GET /commit/<sha or branch>?project=<p>` → `batches[label].outputs[id]` (`test_input_path`, `configurations`, `extra_parameters`, `metrics`, `is_failed`, `output_dir_url`) |
+| A commit's batches and runs | `GET /commit/<sha or branch>?project=<p>` → `batches[label].outputs[id]` (`test_input_path`, `configurations`, `extra_parameters`, `metrics`, `is_failed`, `output_dir_url`; the SDK's `Run` renames them like `run()`'s context) |
 | Latest commit with results on a branch | `GET /commit?project=<p>&branch=<b>` |
 | A run's files | `GET /output/<id>/manifest` (paths, sizes, hashes); files are at `<server>/s<path>` from `output_dir_url` |
 | Compare with a reference | `GET /commit/<sha>/compare?project=<p>&reference=<ref>&batch=<label>` |

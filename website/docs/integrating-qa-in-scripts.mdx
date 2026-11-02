@@ -5,13 +5,11 @@ title: Results in scripts
 description: Work on the runs a web app page shows from Python with qaboard.runs(url) or qa runs, find runs' output directories with the qa CLI, and read commits, batches, runs and metrics with QA-Board's HTTP API.
 ---
 
-Scripts, notebooks and agents can use QA-Board's results: `qaboard.runs(url)` gives the runs a web app page shows,
-the `qa` CLI says where a batch's runs save their files, and the HTTP API gives everything else.
+Scripts, notebooks and agents can use QA-Board's results: `qaboard.runs(url)` gives the runs a web app page shows
+and `run.log_metrics()` adds what a script computed, the `qa` CLI says where a batch's runs save their files, and the
+HTTP API gives everything else.
 
 ## Work on the runs you see in the web app {#runs-in-scripts}
-:::caution Experimental
-`qaboard.runs()` and `qa runs` are new: names may change. Tell us what you build with them.
-:::
 
 To post-process runs, e.g. to compute a metric on their images that the CI didn't, start from the web app: find the
 commit, pick the batch, filter the runs you want, and copy the page's address. `qaboard.runs()` reads the project,
@@ -39,15 +37,15 @@ Each `Run` has:
 
 | Attribute | What it is |
 |---|---|
-| `input`, `database`, `input_path` | The input's path relative to its database, the database, and the full path. |
-| `configurations` | The configurations (`qa --configuration`), as a tuple. |
-| `params` | Every parameter as the web app shows them: the configurations' objects, the tuning parameters, and those the run reported. |
-| `extra_parameters` | The tuning parameters given to the run (`qa --tuning`), alone. |
+| `input`, `database`, `input_path` | The input's path relative to its database (as in batches and `qa run --input`), the database, and the full path. |
+| `configs` | The configurations (`qa --config`), strings and mappings, then the tuning parameters: like `context.configs` in `run()`. |
+| `params` | The mappings of `configs` merged, and the parameters the run reported: like `context.params`. Usually all you need. |
 | `metrics` | The run's metrics: those it returned, and those [added](#log) by scripts. |
-| `output_dir` | Where its files are, as a `Path`. |
+| `output_dir` | Where its files are, as a `Path`: like `context.output_dir`. |
 | `state`, `is_failed` | `pending`, `running` or `finished`; whether it failed. |
 | `id`, `commit`, `batch`, `project`, `url` | Where it is in QA-Board, and its link in the web app. |
 | `type`, `input_metadata`, `data`, `created_at`, `finished_at` | The input's type and metadata, what else the server knows (who ran it, where...), when. |
+| `extra_parameters`, `rel_input_path` | The tuning parameters alone (they're the last of `configs`), and `input` as a `Path`: rarely needed, named like in `run()`. |
 
 Runs are read-only: `params`, `metrics` and the other mappings are read-only views, and changing them is an error,
 since it would change nothing on the server (copy them with `dict(run.metrics)`). `run.to_dict()` gives all of it as
@@ -76,7 +74,7 @@ When the server is behind a path prefix like `https://tools.example.com/qaboard/
 address alone can't say where the project's name starts.
 
 ### Add metrics to runs {#log}
-Your script can add what it computed to the runs, with `run.log()`: the server merges the metrics into the run's, and
+Your script can add what it computed to the runs, with `run.log_metrics()`: the server merges the metrics into the run's, and
 remembers who added each one, when and with which script. Wrap values in `Metric(...)` to say their unit and which
 way is better, like in `run()`:
 
@@ -85,10 +83,10 @@ from qaboard import Metric
 
 for run in qb.runs(url):
     sharpness = measure(run.output_dir / "output.png")
-    run.log({"sharpness": Metric(sharpness, smaller_is_better=False, target=0.3)})
+    run.log_metrics({"sharpness": Metric(sharpness, smaller_is_better=False, target=0.3)})
 ```
 
-- Try it first with `qb.runs(url, dry_run=True)` (or `run.log(..., dry_run=True)`): it prints what it would add.
+- Try it first with `qb.runs(url, dry_run=True)` (or `run.log_metrics(..., dry_run=True)`): it prints what it would add.
 - You need to be signed in (`qa auth login`, or `QABOARD_TOKEN` with the `ingest` scope) with the developer role on
   the project, whatever the server's policy for results sent by `qa`. The added metrics are recorded under the
   token's user, not what the script says.
@@ -106,8 +104,10 @@ for run in qb.runs(url):
   `qa batch ci --action-on-existing postprocess` redoes it on existing results
   ([Postprocessing](/docs/running-your-code#postprocess)).
 
-Adding files to runs is on the [roadmap](/docs/roadmap#log-from-your-code). Runs' folders are shared: don't change or
-delete what the CI wrote.
+Adding files to runs, and creating runs from your own code (training loops, notebooks), are on the
+[roadmap](/docs/roadmap#log-from-your-code): the method names follow those of the usual experiment trackers
+(`log_metrics`, `log_params`, `log_artifact`, `log` with a `step`). Runs' folders are shared: don't change or delete
+what the CI wrote.
 
 
 ## Find where runs save their outputs {#cli-api}
