@@ -88,7 +88,8 @@ class LocalRunner(BaseRunner):
     concurrency = job_options.get('concurrency')
     try:
       concurrency = int(concurrency) if concurrency is not None else None
-      if concurrency == 0 or (concurrency is not None and concurrency < -cpus):
+      # like joblib's n_jobs: only 0 is invalid, negative values count from the number of CPUs, at least 1
+      if concurrency == 0:
         raise ValueError
     except (TypeError, ValueError):
       yield Check(name, ERROR, f"concurrency: {concurrency!r} isn't valid.", fix=f"In qaboard.yaml (or QA_BATCH_CONCURRENCY, or qa batch --local-concurrency):\n{snippet}\nDocs: {page}")
@@ -99,7 +100,8 @@ class LocalRunner(BaseRunner):
         yield Check(name, WARNING, f"{concurrency} at the same time, but there are {cpus} CPUs here: the runs compete for them.", fix=f"Use -1 for one run per CPU:\n{snippet}")
       else:
         runs = concurrency if concurrency > 0 else max(1, cpus + 1 + concurrency)
-        yield Check(name, OK, f"{runs} at the same time, on {cpus} CPUs here")
+        detail = f" ({concurrency}: all {cpus} CPUs here{f' but {-concurrency - 1}' if concurrency < -1 else ''}, at least 1)" if concurrency < 0 else f", on {cpus} CPUs here"
+        yield Check(name, OK, f"{runs} at the same time{detail}")
 
     timeout = job_options.get('timeout')
     try:

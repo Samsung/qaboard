@@ -511,16 +511,17 @@ class LsfRunner(BaseRunner):
       return
 
     if test_job:
-      yield from cls.doctor_test_job(job_options, lsf)
+      yield from cls.doctor_test_job(job_options, lsf, use_bwait=bool(options.bridge or shutil.which('bwait')))
 
 
   @classmethod
-  def doctor_test_job(cls, job_options: Dict[str, Any], lsf):
-    """Sends a job that says where it runs, as who, if it sees `qa` and the batch's folder, and waits for it (5 minutes at most)."""
+  def doctor_test_job(cls, job_options: Dict[str, Any], lsf, use_bwait: bool = True, timeout: float = 300):
+    """Sends a job that says where it runs, as who, if it sees `qa` and the batch's folder, and waits for it (`timeout` seconds at most)."""
     from ..checks import Check, OK, WARNING, ERROR
     from ..doctor import tail, make_test_dir, remove_test_dir
     name = "LSF test job"
     job_name = f"{(job_options.get('command_id') or 'qadoctor')[:8]}_doctor"
+    submitted = ended = False
     try:
       test_dir, existing = make_test_dir(job_options)
     except OSError as e:
@@ -538,14 +539,12 @@ class LsfRunner(BaseRunner):
       except Exception as e:
         yield Check(name, ERROR, f"Couldn't submit a test job: {e}", fix="Run with QA_BATCH_VERBOSE=1 to see the bsub command, and try it yourself.")
         return
-      # bwait's timeout is in minutes
-      bwait = lsf(f'bwait -w "ended({job_name})" -t 5')
-      out = subprocess.run(bwait, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', errors='replace', timeout=360)
+      submitted = True
+      ended = cls.doctor_wait(job_name, lsf, use_bwait, timeout)
       elapsed = time.time() - start
-      if out.returncode != 0 and not result.exists():
-        subprocess.run(lsf(f'bkill -J "{job_name}"'), shell=True, capture_output=True)
-        yield Check(name, WARNING, f"The test job didn't end in 5 minutes: it may be waiting for a slot. `{bwait}`: {tail(out.stdout, 2)}",
-                    fix=f"See why with: bjobs -l -J {job_name}\nThen run qa doctor --test-job again.")
+      if not ended:
+        yield Check(name, WARNING, f"The test job didn't end in {timeout / 60:.0f} minutes: it may be waiting for a slot. qa doctor stopped it.",
+                    fix=f"See why jobs wait: bjobs -l -u $USER   (or bhist -l -J {job_name})\nThen run qa doctor --test-job again.")
         return
       if not result.exists():
         log = test_dir / 'log.lsf.txt'
@@ -561,4 +560,34 @@ class LsfRunner(BaseRunner):
         return
       yield Check(name, OK, f"A test job ran {where}, wrote in {test_dir.parent}, and found {found['qa']}")
     finally:
+      # e.g. it was still pending, or Ctrl-C: we don't leave it behind
+      if submitted and not ended:
+        subprocess.run(lsf(f'bkill -J "{job_name}"'), shell=True, capture_output=True)
       remove_test_dir(test_dir, existing)
+
+
+  @staticmethod
+  def doctor_wait(job_name: str, lsf, use_bwait: bool, timeout: float) -> bool:
+    """Whether a job ended within `timeout` seconds: we wait with bwait, else we poll bjobs."""
+    from ..doctor import run_command
+    if use_bwait:
+      # bwait's timeout is in minutes
+      try:
+        out = subprocess.run(lsf(f'bwait -w "ended({job_name})" -t {max(1, round(timeout / 60))}'), shell=True,
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', errors='replace', timeout=timeout + 60)
+        if out.returncode == 0:
+          return True
+      except subprocess.TimeoutExpired:
+        pass
+      # bwait fails when it times out, but also e.g. inside LSF jobs without LSB_BWAIT_IN_JOBS: bjobs says
+      deadline = time.time()
+    else:
+      deadline = time.time() + timeout
+    while True:
+      returncode, output = run_command(lsf(f'bjobs -a -noheader -o "stat" -J "{job_name}"'), timeout=20)
+      status = output.strip().split()[0] if output.strip() else ''
+      if status in ('DONE', 'EXIT') or 'not found' in output:
+        return True
+      if time.time() >= deadline:
+        return False
+      time.sleep(5)
