@@ -71,9 +71,6 @@ class FakeKube():
     self.configmaps[body['metadata']['name']] = deepcopy(body)
     return body
 
-  def patch_namespaced_config_map(self, name, namespace, body):
-    self.configmaps[name]['metadata'].update(body['metadata'])
-
   def create_namespaced_job(self, namespace, body):
     job = {**deepcopy(body), 'status': {}}
     job['metadata']['uid'] = f"uid-{body['metadata']['name']}"
@@ -187,12 +184,14 @@ class TestSpec(KubernetesTestCase):
     self.assertEqual((spec['backoffLimitPerIndex'], spec['maxFailedIndexes']), (0, 3))
     self.assertEqual(spec['podFailurePolicy']['rules'][0], {'action': 'Ignore', 'onPodConditions': [{'type': 'DisruptionTarget'}]})
     self.assertEqual(spec['ttlSecondsAfterFinished'], 86400)
+    from qaboard.runners.labels import label_value
     labels = {
       'app.kubernetes.io/managed-by': 'qaboard',
       'qaboard.io/command-id': 'abcdefgh-1234',
-      'qaboard.io/user': 'Alice-Smith',
-      'qaboard.io/project': 'algo-project',
+      'qaboard.io/user': label_value('Alice Smith'),
+      'qaboard.io/project': label_value('algo/project'),
     }
+    self.assertRegex(labels['qaboard.io/project'], r'^algo-project-[0-9a-f]{8}$')
     self.assertEqual(job['metadata']['labels'], {**labels, 'kueue.x-k8s.io/queue-name': 'gpu'})
     self.assertEqual(spec['template']['metadata']['labels'], labels)
     pod = spec['template']['spec']
@@ -206,8 +205,31 @@ class TestSpec(KubernetesTestCase):
     self.assertEqual(sorted(configmap['data']), ['env.sh', 'run-0.sh', 'run-1.sh', 'run-2.sh'])
     self.assertEqual(configmap['metadata']['ownerReferences'], [{'apiVersion': 'batch/v1', 'kind': 'Job', 'name': 'qa-abcdefgh-0-0', 'uid': 'uid-qa-abcdefgh-0-0'}])
     self.assertEqual(configmap['metadata']['labels'], labels)
-    # created before the Job, so that pods don't wait for it
-    self.assertLess(self.kube.calls.index('create_namespaced_config_map'), self.kube.calls.index('create_namespaced_job'))
+    self.assertTrue(configmap['immutable'])
+    # owned from the start: no permission to patch ConfigMaps needed
+    self.assertLess(self.kube.calls.index('create_namespaced_job'), self.kube.calls.index('create_namespaced_config_map'))
+    self.assertNotIn('patch', ' '.join(self.kube.calls))
+
+  def test_configmap_refused(self):
+    """Without the scripts, the Job would wait forever: we delete it"""
+    from qaboard.runners.kubernetes import ApiError
+    def refuse(namespace, body):
+      raise ApiError(403, 'configmaps is forbidden')
+    self.kube.create_namespaced_config_map = refuse
+    with self.assertRaisesRegex(Exception, 'Could not create the ConfigMap.*forbidden.*qa doctor'):
+      self.start(['a'])
+    self.assertEqual(self.kube.jobs, {})
+
+  def test_run_as_non_root_and_mounts(self):
+    self.start(['a'], run_as='image', run_as_non_root=True, mounts=[{'path': '/algo', 'pvc': 'algo', 'sub_path': 'qa', 'read_only': True}])
+    pod = self.pod_spec()
+    self.assertTrue(pod['securityContext']['runAsNonRoot'])
+    self.assertNotIn('runAsUser', pod['securityContext'])
+    self.assertEqual(pod['containers'][0]['volumeMounts'][0], {'name': 'qa-mount-0', 'mountPath': '/algo', 'readOnly': True, 'subPath': 'qa'})
+    for mounts in ([{'path': '/a', 'pvc': 'x', 'volume': {'hostPath': {'path': '/'}}}], [{'path': '/a'}], [{'path': 'relative', 'pvc': 'x'}],
+                   [{'path': '/a', 'pvc': 'x', 'host_path': '/a'}], [{'path': '/a', 'nfs': {'server': 's', 'path': '/', 'extra': 1}}]):
+      with self.assertRaisesRegex(ValueError, 'runners.kubernetes.mounts'):
+        self.start(['a'], mounts=mounts)
 
   def test_no_concurrency_limit(self):
     self.start(['a', 'b', 'c'], concurrency=0, namespace='other')
@@ -416,26 +438,43 @@ class TestEnv(unittest.TestCase):
     environ = {
       'QA_BATCH': 'true', 'MY_SETTING': "it's", 'PATH': '/home/me/bin', 'HOME': '/home/me', 'LANG': 'en_US.UTF-8', 'LC_CTYPE': 'x',
       'QABOARD_TOKEN': 'secret', 'AWS_SECRET_ACCESS_KEY': 'secret', 'GITLAB_ACCESS_TOKEN': 'secret', 'DB_PASSWORD': 'x',
-      'KUBERNETES_SERVICE_HOST': '10.0.0.1', 'HOSTNAME': 'mine', 'LSB_JOBID': '1', 'BASH_FUNC_x%%': '() {}',
+      'KUBERNETES_SERVICE_HOST': '10.0.0.1', 'HOSTNAME': 'mine', 'LSB_JOBID': '1', 'BASH_FUNC_x%%': '() {}', 'USER': 'me',
+      'SSL_CERT_FILE': '/etc/my-ca.crt', 'REQUESTS_CA_BUNDLE': '/home/me/ca.crt', 'HTTPS_PROXY': 'http://127.0.0.1:3128', 'http_proxy': 'http://proxy.corp:3128',
     }
     with mock.patch.dict(os.environ, environ, clear=True):
       env = run_env(dict_to_KubernetesOptions({'env': {'MY_SETTING': 'override', 'N': 4}}))
-      self.assertEqual(env, {'QA_BATCH': 'true', 'MY_SETTING': 'override', 'N': '4', 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8', 'MPLBACKEND': 'agg', 'HOME': '/tmp', 'BASH_FUNC_x%%': '() {}'})
-      # HOME is ours if the pods see it
+      self.assertEqual(env, {
+        'QA_BATCH': 'true', 'MY_SETTING': 'override', 'N': '4', 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8', 'MPLBACKEND': 'agg', 'HOME': '/tmp', 'BASH_FUNC_x%%': '() {}',
+        # the pods' uid has no /etc/passwd entry
+        'USER': 'me', 'LOGNAME': 'me',
+        'http_proxy': 'http://proxy.corp:3128',
+      })
+      # HOME and files are ours if the pods see them
       env = run_env(dict_to_KubernetesOptions({'mounts': [{'path': '/home', 'pvc': 'homes'}]}))
       self.assertEqual(env['HOME'], '/home/me')
-      env = run_env(dict_to_KubernetesOptions({'forward_env': False}))
+      self.assertEqual(env['REQUESTS_CA_BUNDLE'], '/home/me/ca.crt')
+      self.assertNotIn('SSL_CERT_FILE', env)
+      # the server's environment stays out
+      env = run_env(dict_to_KubernetesOptions({'forward_env': False, 'user': 'alice', 'mounts': [{'path': '/home', 'pvc': 'homes'}]}))
       self.assertNotIn('QA_BATCH', env)
+      self.assertEqual((env['USER'], env['HOME']), ('alice', '/tmp'))
     script = env_script({'A': "it's", 'BASH_FUNC_x%%': '() {}'})
     self.assertEqual(script, "export A='it'\"'\"'s'\n")
     out = subprocess.run(['sh', '-c', f'{script}\necho "$A"'], stdout=subprocess.PIPE, encoding='utf-8')
     self.assertEqual(out.stdout, "it's\n")
 
   def test_names(self):
-    from qaboard.runners.kubernetes import label_value, dns_name
-    self.assertEqual(label_value('algo/my project_'), 'algo-my-project')
-    self.assertEqual(label_value('-x' * 50), 'x' + '-x' * 30)
-    self.assertEqual(len(label_value('a' * 100)), 63)
+    from qaboard.runners.kubernetes import dns_name
+    from qaboard.runners.labels import label_value, is_label_value
+    self.assertEqual(label_value('algo-project_1.2'), 'algo-project_1.2')
+    self.assertEqual(label_value(''), '')
+    self.assertRegex(label_value('algo/my project_'), r'^algo-my-project-[0-9a-f]{8}$')
+    # different values, different labels
+    self.assertNotEqual(label_value('a/b'), label_value('a b'))
+    self.assertNotEqual(label_value('a/b'), 'a-b')
+    for value in ('-x' * 50, 'a' * 100, '//', 'é', 'a' * 63 + '/'):
+      self.assertTrue(is_label_value(label_value(value)), value)
+      self.assertLessEqual(len(label_value(value)), 63)
     self.assertEqual(dns_name('qa-ABCDEFGH_dask_driver'), 'qa-abcdefgh-dask-driver')
 
 
@@ -556,6 +595,26 @@ class TestStop(KubernetesTestCase):
     self.assertEqual(self.kube.configmaps, {})
     self.assertEqual(self.kube.calls[-3:], ['list_namespaced_job', 'delete_namespaced_job', 'delete_namespaced_config_map'])
 
+  def test_stop_by_project_and_command_id(self):
+    from qaboard.runners.kubernetes import KubernetesRunner
+    self.start(['a'], project='algo/project')
+    selectors = []
+    list_jobs = self.kube.list_namespaced_job
+    def recording(namespace, label_selector):
+      selectors.append(label_selector)
+      return list_jobs(namespace, label_selector)
+    self.kube.list_namespaced_job = recording
+    KubernetesRunner.stop_jobs([], {'type': 'kubernetes', 'command_id': 'abcdefgh-1234', 'project': 'other/project'})
+    self.assertEqual(len(self.kube.jobs), 1)
+    KubernetesRunner.stop_jobs([], {'type': 'kubernetes', 'command_id': 'abcdefgh-1234', 'project': 'algo/project'})
+    self.assertEqual(self.kube.jobs, {})
+    self.assertRegex(selectors[-1], r'^qaboard.io/command-id=abcdefgh-1234,qaboard.io/project=algo-project-[0-9a-f]{8}$')
+    # never a selector from raw input
+    for command_id in ('', 'a,qaboard.io/user!=x', 'x' * 64, None):
+      with self.assertRaisesRegex(ValueError, 'Invalid command id'):
+        KubernetesRunner.stop_jobs([], {'type': 'kubernetes', 'command_id': command_id})
+    self.assertEqual(len(selectors), 2)
+
   def test_submit_detached(self):
     from qaboard.runners.kubernetes import KubernetesRunner
     log_file = self.root / 'logs' / 'driver.log'
@@ -595,7 +654,7 @@ class TestStop(KubernetesTestCase):
       })
     self.assertEqual(result, {'kubernetes_job': 'qa-abcdefgh-driver', 'namespace': 'algo'})
     job = self.kube.jobs['qa-abcdefgh-driver']
-    self.assertEqual(job['metadata']['labels']['qaboard.io/project'], 'algo-project')
+    self.assertRegex(job['metadata']['labels']['qaboard.io/project'], r'^algo-project-[0-9a-f]{8}$')
     self.assertEqual(job['spec']['template']['spec']['securityContext']['supplementalGroups'], [2000])
     env_sh = self.kube.configmaps['qa-abcdefgh-driver']['data']['env.sh']
     self.assertNotIn('SERVER_SETTING', env_sh)

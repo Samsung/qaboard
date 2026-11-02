@@ -26,9 +26,10 @@ qaboard.yaml:
       resources: {cpu: 4, memory: 16Gi}  # requests. memory and extended resources (nvidia.com/gpu) also as limits
       # node_selector: {pool: gpu}
       # tolerations: [{key: nvidia.com/gpu, operator: Exists, effect: NoSchedule}]
-      # run_as: user               # user (default): your UID/GID/groups | image | {uid: 1000, gid: 1000, groups: [...]}
+      # run_as: user               # user (default): your UID/GID/groups, never root | image | {uid: 1000, gid: 1000, groups: [...]}
+      # run_as_non_root: true      # with run_as: image, refuse images that run as root
       # service_account: qa-runs   # the pods' ServiceAccount
-      mounts:                      # the shared filesystem, at the same paths in the pods
+      mounts:                      # the shared filesystem, at the same paths in the pods. Optional: read_only, sub_path
         - {path: /algo, pvc: algo-nfs}
         # - {path: /home, nfs: {server: nas1, path: /export/home}}
         # - {path: /data, host_path: /data}
@@ -40,7 +41,8 @@ qaboard.yaml:
 Notes:
 - Secrets (variables named like *TOKEN*, *SECRET*...) are not forwarded: the environment is stored in a ConfigMap.
   To give runs a QA-Board token, use a Kubernetes Secret in `job_template` (env.valueFrom.secretKeyRef).
-- HOME is yours if it's under `mounts`, else /tmp.
+- HOME is yours if it's under `mounts`, else /tmp. USER/LOGNAME are yours: pods' UIDs rarely are in the image's /etc/passwd.
+  CA bundle variables (SSL_CERT_FILE...) are forwarded only if under `mounts`, proxies on localhost are not.
 - Names and labels: Jobs are named qa-<command_id[:8]>-<group>-<chunk>, labeled app.kubernetes.io/managed-by=qaboard,
   qaboard.io/command-id, qaboard.io/user and qaboard.io/project. Stopping a batch deletes the Jobs with its command-id.
 """
@@ -63,6 +65,7 @@ from click import secho
 from .base import BaseRunner
 from .job import Job
 from .env import forwarded_env
+from .labels import label_value, is_label_value
 from ..run import RunContext
 from ..checks import Check, OK, WARNING, ERROR, SKIPPED
 
@@ -86,8 +89,10 @@ class KubernetesOptions():
   tolerations: List[Dict[str, Any]] = field(default_factory=list)
   # "user" | "image" | {"uid": 1000, "gid": 1000, "groups": [...]}
   run_as: Union[str, Dict[str, Any]] = 'user'
+  # e.g. with run_as: image, refuse images that run as root
+  run_as_non_root: bool = False
   service_account: Optional[str] = None
-  # [{"path": "/algo", "pvc": "algo-nfs"} | {"path", "nfs": {"server", "path"}} | {"path", "host_path": "/algo"}]
+  # [{"path": "/algo", "pvc": "algo-nfs"} | {"path", "nfs": {"server", "path"}} | {"path", "host_path": "/algo"}], with optional read_only, sub_path
   mounts: List[Dict[str, Any]] = field(default_factory=list)
   env: Dict[str, Any] = field(default_factory=dict)
   forward_env: bool = True
@@ -109,7 +114,7 @@ def dict_to_KubernetesOptions(job_options: Dict[str, Any]) -> KubernetesOptions:
 # Options that change the pods' spec. Runs that differ (e.g. per input type) go in different Jobs.
 pod_option_names = (
   'image', 'image_pull_secrets', 'queue', 'priority_class', 'resources', 'node_selector', 'tolerations', 'run_as',
-  'service_account', 'mounts', 'env', 'forward_env', 'job_template', 'ttl_seconds_after_finished',
+  'run_as_non_root', 'service_account', 'mounts', 'env', 'forward_env', 'job_template', 'ttl_seconds_after_finished',
 )
 
 # A ConfigMap must be under 1MiB
@@ -134,18 +139,19 @@ def import_kubernetes():
 ###
 ### Names and labels
 ###
-def label_value(value: Any) -> str:
-  """A valid label value: 63 characters at most, alphanumerics and -_. inside."""
-  value = re.sub(r'[^A-Za-z0-9_.-]', '-', str(value))[:63]
-  return re.sub(r'^[^A-Za-z0-9]+|[^A-Za-z0-9]+$', '', value)
-
 def dns_name(value: str) -> str:
   """A valid object name (DNS label, so that it works for Jobs: their pods get a label with it)."""
   value = re.sub(r'[^a-z0-9-]+', '-', value.lower())[:63]
   return value.strip('-')
 
-def batch_selector(command_id: str) -> str:
-  return f'qaboard.io/command-id={label_value(command_id)}'
+def batch_selector(command_id: str, project: Optional[str] = None) -> str:
+  """The label selector of a batch's objects. command_id may come from untrusted input: it must already be a valid label value."""
+  if not command_id or not is_label_value(command_id):
+    raise ValueError(f'Invalid command id: {command_id!r}')
+  selector = f'qaboard.io/command-id={command_id}'
+  if project:
+    selector += f',qaboard.io/project={label_value(project)}'
+  return selector
 
 def object_labels(options: KubernetesOptions) -> Dict[str, str]:
   labels = {
@@ -165,11 +171,22 @@ k8s_excluded_env = {
   'LD_LIBRARY_PATH', 'VIRTUAL_ENV', 'PYTHONHOME', 'KUBECONFIG',
 }
 k8s_excluded_env_prefixes = ('LC_', 'XDG_', 'SSH_', 'KUBERNETES_', 'CONDA_', 'DBUS_')
+# Paths to CA bundles: forwarded only if the pods see them
+ca_bundle_env = ('SSL_CERT_FILE', 'SSL_CERT_DIR', 'REQUESTS_CA_BUNDLE', 'CURL_CA_BUNDLE', 'PIP_CERT', 'NODE_EXTRA_CA_CERTS', 'GIT_SSL_CAINFO', 'AWS_CA_BUNDLE')
+proxy_env = ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY')
 
 def run_env(options: KubernetesOptions) -> Dict[str, str]:
   """The runs' environment. The pods run another image: what is specific to our machine (PATH, locale...) stays here."""
+  def is_shared(path: str) -> bool:
+    return any(is_under(path, m.get('path', '')) for m in options.mounts)
   home = os.environ.get('HOME', '')
-  home_is_shared = options.forward_env and bool(home) and any(is_under(home, m.get('path', '')) for m in options.mounts)
+  user = options.user or os.environ.get('USER') or os.environ.get('LOGNAME')
+  if not user and options.forward_env:
+    import getpass
+    try:
+      user = getpass.getuser()
+    except Exception:
+      pass
   env = {
     # click needs a UTF-8 locale, C.UTF-8 is in all images
     'LANG': 'C.UTF-8',
@@ -177,10 +194,18 @@ def run_env(options: KubernetesOptions) -> Dict[str, str]:
     # Runs are headless
     'MPLBACKEND': 'agg',
     # The pods' user often has no home: tools would fail writing their caches in /
-    'HOME': home if home_is_shared else '/tmp',
+    'HOME': home if options.forward_env and home and is_shared(home) else '/tmp',
+    # Nor an entry in the image's /etc/passwd: without them, getpass.getuser() fails (qa uses it)
+    **({'USER': user, 'LOGNAME': user} if user else {}),
   }
   if options.forward_env:
-    env.update(forwarded_env(k8s_excluded_env, k8s_excluded_env_prefixes))
+    for k, v in forwarded_env(k8s_excluded_env, k8s_excluded_env_prefixes).items():
+      if k in ca_bundle_env and not is_shared(v):
+        continue
+      # e.g. a proxy on our machine
+      if k.upper() in proxy_env and re.search(r'//(localhost|127\.|\[::1\])', v):
+        continue
+      env[k] = v
   env.update({k: str(v) for k, v in options.env.items()})
   return env
 
@@ -310,21 +335,38 @@ def resources_spec(resources: Optional[Dict[str, Any]]) -> Dict[str, Any]:
   limits = {k: v for k, v in requests.items() if k != 'cpu'}
   return {'requests': requests, **({'limits': limits} if limits else {})}
 
+mount_keys = {'path', 'pvc', 'nfs', 'host_path', 'read_only', 'sub_path'}
+
 def mounts_spec(mounts: Optional[List[Dict[str, Any]]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-  """The shared filesystem, at the same paths in the pods: [{path, pvc | nfs: {server, path} | host_path, read_only}] -> volumes, volumeMounts"""
+  """
+  The shared filesystem, at the same paths in the pods: [{path, pvc | nfs: {server, path} | host_path, read_only, sub_path}]
+  -> volumes, volumeMounts. Other keys are refused: mounts are the only volumes options can add.
+  """
   volumes, volume_mounts = [], []
   for index, mount in enumerate(mounts or []):
+    usage = f'runners.kubernetes.mounts[{index}]: {mount!r} needs an absolute `path`, and one of `pvc`, `nfs: {{server, path}}` or `host_path`'
+    if not isinstance(mount, dict):
+      raise ValueError(usage)
+    unknown = set(mount) - mount_keys
+    if unknown:
+      raise ValueError(f"{usage}. Unknown: {', '.join(sorted(unknown))}.")
+    sources = [k for k in ('pvc', 'nfs', 'host_path') if mount.get(k)]
+    nfs = mount.get('nfs')
+    if len(sources) != 1 or not str(mount.get('path', '')).startswith('/') or (nfs and not (isinstance(nfs, dict) and set(nfs) == {'server', 'path'})):
+      raise ValueError(usage + '.')
     volume: Dict[str, Any] = {'name': f'qa-mount-{index}'}
     if mount.get('pvc'):
-      volume['persistentVolumeClaim'] = {'claimName': mount['pvc']}
-    elif mount.get('nfs'):
-      volume['nfs'] = {'server': mount['nfs']['server'], 'path': mount['nfs']['path']}
-    elif mount.get('host_path'):
-      volume['hostPath'] = {'path': mount['host_path']}
-    if len(volume) == 1 or not mount.get('path'):
-      raise ValueError(f'runners.kubernetes.mounts[{index}]: {mount} needs a `path` and one of `pvc`, `nfs` or `host_path`.')
+      volume['persistentVolumeClaim'] = {'claimName': str(mount['pvc'])}
+    elif nfs:
+      volume['nfs'] = {'server': str(nfs['server']), 'path': str(nfs['path'])}
+    else:
+      volume['hostPath'] = {'path': str(mount['host_path'])}
     volumes.append(volume)
-    volume_mounts.append({'name': volume['name'], 'mountPath': mount['path'], **({'readOnly': True} if mount.get('read_only') else {})})
+    volume_mounts.append({
+      'name': volume['name'], 'mountPath': mount['path'],
+      **({'readOnly': True} if mount.get('read_only') else {}),
+      **({'subPath': str(mount['sub_path'])} if mount.get('sub_path') else {}),
+    })
   return volumes, volume_mounts
 
 def job_body(options: KubernetesOptions, name: str, namespace: str, command: List[str], completions: int = 1, indexed: bool = False, timeout: float = 0) -> Dict[str, Any]:
@@ -364,6 +406,8 @@ def job_body(options: KubernetesOptions, name: str, namespace: str, command: Lis
   }
 
   run_as = security_context(options.run_as)
+  if options.run_as_non_root:
+    run_as['runAsNonRoot'] = True
   container: Dict[str, Any] = {'name': container_name}
   if options.image:
     container['image'] = options.image
@@ -419,8 +463,14 @@ def job_body(options: KubernetesOptions, name: str, namespace: str, command: Lis
     raise Exception('Set runners.kubernetes.image in qaboard.yaml: an image with `qa` and what your code needs.')
   return merged
 
-def configmap_body(name: str, namespace: str, labels: Dict[str, str], data: Dict[str, str]) -> Dict[str, Any]:
-  return {'apiVersion': 'v1', 'kind': 'ConfigMap', 'metadata': {'name': name, 'namespace': namespace, 'labels': labels}, 'data': data}
+def configmap_body(name: str, namespace: str, labels: Dict[str, str], data: Dict[str, str], owner: Dict[str, Any]) -> Dict[str, Any]:
+  return {
+    'apiVersion': 'v1', 'kind': 'ConfigMap',
+    'metadata': {'name': name, 'namespace': namespace, 'labels': labels, 'ownerReferences': [owner]},
+    # What the pods run can't change
+    'immutable': True,
+    'data': data,
+  }
 
 def size(data: Dict[str, str]) -> int:
   return sum(len(k) + len(v.encode('utf-8')) for k, v in data.items())
@@ -638,6 +688,9 @@ class PendingDiagnostics():
       if event.get('type') != 'Warning':
         continue
       if involved.get('kind') == 'Pod' and involved.get('name') in pending_pods:
+        # We create the scripts' ConfigMap right after the Job: the first pods may not find it, then do
+        if event.get('reason') == 'FailedMount' and '"qaboard-scripts"' in (event.get('message') or '') and 'not found' in event['message']:
+          continue
         job_name, index = pending_pods[involved['name']]
         findings.append(self.finding(job_name, index, event.get('reason', ''), event.get('message', ''), now))
       elif involved.get('kind') == 'Job' and involved.get('name') in job_names:
@@ -678,22 +731,23 @@ class BatchJob():
 
 
 def create_job(kube: Kube, options: KubernetesOptions, namespace: str, name: str, data: Dict[str, str], command: List[str], completions: int = 1, indexed: bool = False, parallelism: Optional[int] = None, timeout: float = 0) -> Dict[str, Any]:
-  """Creates the Job and its ConfigMap. The ConfigMap is created first, so pods don't wait for it, then owned by the Job."""
+  """
+  Creates the Job, then its scripts' ConfigMap, owned by the Job (deleted with it), and immutable.
+  The pods wait for the ConfigMap a moment: creating it first would need a patch to set its owner.
+  """
   body = job_body(options, name, namespace, command, completions=completions, indexed=indexed, timeout=timeout)
   if parallelism:
     body['spec']['parallelism'] = parallelism
-  labels = object_labels(options)
-  try:
-    kube.call('core', 'create_namespaced_config_map', namespace, configmap_body(name, namespace, labels, data))
-  except ApiError as e:
-    raise Exception(f"Could not create the ConfigMap {name} in namespace {namespace}: {e.message}.{permissions_hint(e)}") from None
   try:
     job = kube.call('batch', 'create_namespaced_job', namespace, body)
   except ApiError as e:
-    delete_quietly(kube, 'core', 'delete_namespaced_config_map', name, namespace)
     raise Exception(f"Could not create the Job {name} in namespace {namespace}: {e.message}.{permissions_hint(e)}") from None
   owner = {'apiVersion': 'batch/v1', 'kind': 'Job', 'name': name, 'uid': job['metadata']['uid']}
-  kube.call('core', 'patch_namespaced_config_map', name, namespace, {'metadata': {'ownerReferences': [owner]}})
+  try:
+    kube.call('core', 'create_namespaced_config_map', namespace, configmap_body(name, namespace, object_labels(options), data, owner))
+  except ApiError as e:
+    delete_quietly(kube, 'batch', 'delete_namespaced_job', name, namespace, propagation_policy='Background')
+    raise Exception(f"Could not create the ConfigMap {name} in namespace {namespace}: {e.message}.{permissions_hint(e)}") from None
   return job
 
 def permissions_hint(e: ApiError) -> str:
@@ -876,7 +930,7 @@ def report(finding: Finding, batch_job: BatchJob, reported: set, logged: set):
 needed_permissions: List[Tuple[str, str, List[str]]] = [
   # (api group, resource, verbs)
   ('batch', 'jobs', ['create', 'get', 'list', 'watch', 'delete']),
-  ('', 'configmaps', ['create', 'get', 'patch', 'delete']),
+  ('', 'configmaps', ['create', 'get', 'delete']),
   ('', 'pods', ['get', 'list', 'watch']),
   ('', 'events', ['get', 'list', 'watch']),
   ('', 'pods/log', ['get']),
@@ -1117,10 +1171,12 @@ class Doctor():
           yield Check(f'Kubernetes: image pull secret {secret}', SKIPPED, f"Can't check it: {e.message}")
 
   def check_mounts(self):
+    try:
+      mounts_spec(self.options.mounts)
+    except ValueError as e:
+      yield Check('Kubernetes: mounts', ERROR, str(e), fix='mounts:\n  - {path: /algo, pvc: algo-nfs}   # or nfs: {server, path}, or host_path. Optional: read_only, sub_path')
+      return
     for mount in self.options.mounts:
-      if not mount.get('path') or not any(mount.get(k) for k in ('pvc', 'nfs', 'host_path')):
-        yield Check('Kubernetes: mounts', ERROR, f'Invalid mount: {mount}', fix='Each mount needs a `path`, and one of `pvc`, `nfs` or `host_path`.')
-        continue
       if not mount.get('pvc') or self.blocked or not self.kube:
         continue
       name = f"Kubernetes: mount {mount['path']} (PVC {mount['pvc']})"
@@ -1261,11 +1317,16 @@ class KubernetesRunner(BaseRunner):
 
   @staticmethod
   def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
-    """Deletes the Jobs with the batch's command-id. The server calls it with few options: type, command_id, maybe namespace/context."""
+    """
+    Deletes the Jobs with the batch's command-id (and project, if given).
+    The server calls it with few options: type, command_id, maybe namespace, context, project.
+    """
     options = dict_to_KubernetesOptions(job_options)
+    # before connecting: the command id may come from untrusted input
+    selector = batch_selector(options.command_id, options.project)
     kube = connect(options)
     namespace = namespace_of(kube, options)
-    batch_jobs = kube.call('batch', 'list_namespaced_job', namespace, label_selector=batch_selector(options.command_id))['items']
+    batch_jobs = kube.call('batch', 'list_namespaced_job', namespace, label_selector=selector)['items']
     names = [j['metadata']['name'] for j in batch_jobs]
     secho(f"Deleting {len(names)} Kubernetes Job(s) in namespace {namespace}: {' '.join(names)}", err=True)
     delete_jobs(kube, namespace, names)

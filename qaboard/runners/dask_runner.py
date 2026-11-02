@@ -97,6 +97,7 @@ qaboard.yaml:
         # resource_timeout: 300      # seconds to wait for the scheduler pod
 """
 import os
+import re
 import sys
 import json
 import math
@@ -401,22 +402,72 @@ OPERATOR_FIX = """Install the Dask operator in the cluster (needs cluster admin 
   helm install --repo https://helm.dask.org --create-namespace -n dask-operator --generate-name dask-kubernetes-operator"""
 
 
+def kubernetes_label_value(value: str) -> str:
+  value = re.sub(r'[^A-Za-z0-9_.-]', '-', value)[:63]
+  return re.sub(r'^[^A-Za-z0-9]+|[^A-Za-z0-9]+$', '', value)
+
+
 def kubernetes_cluster_name(command_id: str) -> str:
   """A DNS-1123 name starting with "qa-{command_id[:8]}", like the kubernetes runner's Jobs."""
-  from .kubernetes import dns_name
-  return dns_name(f"qa-{command_id[:8]}-dask")
+  prefix = re.sub(r'[^a-z0-9-]', '-', command_id[:8].lower())
+  return re.sub(r'-+$', '', f"qa-{prefix}-dask")
 
 
 def kubernetes_labels(command_id: str) -> Dict[str, str]:
-  from .kubernetes import object_labels, dict_to_KubernetesOptions
-  return object_labels(dict_to_KubernetesOptions({"command_id": command_id, "user": getpass.getuser()}))
+  return {
+    "app.kubernetes.io/managed-by": "qaboard",
+    "qaboard.io/command-id": kubernetes_label_value(command_id),
+    "qaboard.io/user": kubernetes_label_value(getpass.getuser()),
+  }
+
+
+def kubernetes_resources(resources: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+  """Like the kubernetes runner: {cpu: 4, memory: 16Gi, nvidia.com/gpu: 1} are requests, memory and extended resources also limits."""
+  if not resources:
+    return {}
+  if set(resources) <= {'requests', 'limits'}:
+    return resources
+  requests = {k: str(v) for k, v in resources.items()}
+  return {"requests": requests, "limits": {k: v for k, v in requests.items() if k != 'cpu'}}
+
+
+def kubernetes_security_context(run_as: Any) -> Dict[str, Any]:
+  """run_as: user (default, our UID/GID and groups) | image (the image's user) | {uid, gid}"""
+  if run_as in (None, 'user'):
+    if not hasattr(os, 'getuid'):
+      return {}
+    return {"runAsUser": os.getuid(), "runAsGroup": os.getgid(), "supplementalGroups": sorted(set(os.getgroups()))}
+  if run_as == 'image':
+    return {}
+  if isinstance(run_as, dict) and 'uid' in run_as:
+    context = {"runAsUser": int(run_as['uid'])}
+    if run_as.get('gid') is not None:
+      context["runAsGroup"] = int(run_as['gid'])
+    return context
+  raise ValueError(f"Unknown run_as: {run_as!r}. Use user, image, or {{uid: 1000, gid: 1000}}.")
+
+
+def kubernetes_mounts(mounts: Optional[List[Dict[str, Any]]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+  """The shared filesystem, at the same paths in the pods: [{path, pvc | nfs: {server, path} | host_path}] -> volumes, volumeMounts"""
+  volumes, volume_mounts = [], []
+  for index, mount in enumerate(mounts or []):
+    volume: Dict[str, Any] = {"name": f"qa-mount-{index}"}
+    if mount.get('pvc'):
+      volume['persistentVolumeClaim'] = {"claimName": mount['pvc']}
+    elif mount.get('nfs'):
+      volume['nfs'] = mount['nfs']
+    elif mount.get('host_path'):
+      volume['hostPath'] = {"path": mount['host_path']}
+    else:
+      raise ValueError(f"mounts[{index}]: set pvc, nfs or host_path: {mount}")
+    volumes.append(volume)
+    volume_mounts.append({"name": volume['name'], "mountPath": mount['path'], **({"readOnly": True} if mount.get('read_only') else {})})
+  return volumes, volume_mounts
 
 
 def kubernetes_cluster_spec(options: DaskOptions, command_id: str, nb_runs: int) -> Tuple[Dict[str, Any], Dict[str, Any], int, int]:
   """The DaskCluster resource, the other KubeCluster kwargs, runs per worker, and how many workers."""
   from dask_kubernetes.operator import make_cluster_spec # type: ignore
-  # The pods are like the kubernetes runner's
-  from .kubernetes import resources_spec as kubernetes_resources, security_context as kubernetes_security_context, mounts_spec as kubernetes_mounts
   k8s = options.kubernetes
   kwargs = cluster_kwargs(options)
   threads = int(kwargs.pop('threads_per_worker', 1))
@@ -790,8 +841,7 @@ def stop_kubernetes(command_id: str, namespace: Optional[str], context: Optional
   from kubernetes.client.rest import ApiException # type: ignore
   api_client = kubernetes_api_client(context)
   namespace = kubernetes_namespace(namespace, context)
-  from .kubernetes import label_value
-  label = label_value(command_id)
+  label = kubernetes_label_value(command_id)
   name = kubernetes_cluster_name(command_id)
   custom: Any = client.CustomObjectsApi(api_client)
   try:

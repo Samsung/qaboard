@@ -470,7 +470,7 @@ class TestKubernetesCluster(unittest.TestCase):
     self.assertEqual(worker['spec']['nodeSelector'], {"pool": "gpu"})
     self.assertEqual(worker['spec']['tolerations'], [{"key": "nvidia.com/gpu", "operator": "Exists"}])
     for pod in (worker['spec'], scheduler):
-      self.assertEqual(pod['securityContext'], {"runAsUser": 1000, "runAsNonRoot": True, "runAsGroup": 100})
+      self.assertEqual(pod['securityContext'], {"runAsUser": 1000, "runAsGroup": 100})
       self.assertEqual(pod['imagePullSecrets'], [{"name": "creds"}])
     # the scheduler doesn't need the workers' GPUs, nodes or files
     self.assertEqual(scheduler['containers'][0]['args'][:2], ['dask', 'scheduler'])
@@ -480,12 +480,9 @@ class TestKubernetesCluster(unittest.TestCase):
 
   def test_run_as(self):
     from qaboard.runners.dask_runner import kubernetes_cluster_spec, DaskOptions
-    # pods never run as root with run_as: user (the tests may run as root). getpass needs a user name for this uid.
-    with mock.patch('qaboard.runners.kubernetes.os.getuid', return_value=1234), mock.patch('qaboard.runners.kubernetes.os.getgid', return_value=500), \
-         mock.patch.dict(os.environ, {'USER': 'someone'}):
-      spec, *_ = kubernetes_cluster_spec(self.options(), "abcdefgh-1234", nb_runs=1)
-    self.assertEqual(spec['spec']['worker']['spec']['securityContext']['runAsUser'], 1234)
-    self.assertEqual(spec['spec']['worker']['spec']['securityContext']['runAsGroup'], 500)
+    spec, *_ = kubernetes_cluster_spec(self.options(), "abcdefgh-1234", nb_runs=1)
+    self.assertEqual(spec['spec']['worker']['spec']['securityContext']['runAsUser'], os.getuid())
+    self.assertEqual(spec['spec']['worker']['spec']['securityContext']['runAsGroup'], os.getgid())
     spec, *_ = kubernetes_cluster_spec(self.options(run_as='image'), "abcdefgh-1234", nb_runs=1)
     self.assertNotIn('securityContext', spec['spec']['worker']['spec'])
     with self.assertRaisesRegex(ValueError, 'image'):
@@ -495,7 +492,7 @@ class TestKubernetesCluster(unittest.TestCase):
     from qaboard.runners.dask_runner import make_cluster
     with mock.patch('dask_kubernetes.operator.KubeCluster') as KubeCluster, mock.patch('qaboard.runners.dask_runner.secho'), \
          mock.patch('qaboard.runners.dask_runner.check_kubernetes_context') as check_context:
-      make_cluster(self.options(context="prod", run_as="image"), "abcdefgh-1234", nb_runs=10, log_directory=Path())
+      make_cluster(self.options(context="prod"), "abcdefgh-1234", nb_runs=10, log_directory=Path())
     check_context.assert_called_once_with("prod")
     kwargs = KubeCluster.call_args[1]
     self.assertEqual(kwargs['namespace'], 'algo')
