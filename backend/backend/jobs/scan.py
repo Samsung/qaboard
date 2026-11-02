@@ -7,7 +7,8 @@ Each folder is one of:
 - run: a run QA-Board knows. deleted_run: a run deleted in QA-Board, with files left. untracked_run: a run folder
   (it has run.json) that QA-Board doesn't know, e.g. its upload failed, or its run was hard-deleted.
 - artifacts: a commit's artifacts. deleted_artifacts: artifacts QA-Board thinks it deleted, still on disk.
-- export: an export QA-Board tracks. untracked_export: an export it doesn't (they have 0.qa.url...).
+- export: an export QA-Board tracks. untracked_export: an export it doesn't (they have 0.qa.url...). The scan tracks
+  them (made before QA-Board tracked them...): their owners see them in "Storage usage" (backend/exports.py).
 - batch: a batch's folder, whose runs are inside. folder: anything else. Files directly in a batch's or another folder
   count as untracked_files, big files have their own entries (file).
 Runs, exports and artifacts aren't detailed: their size is all we need.
@@ -33,7 +34,7 @@ from sqlalchemy import text
 from ..database import db_session, engine, make_engine
 from ..models import Project, CiCommit, Batch, Output, Export, StorageScan
 from ..storage import check_storage_path, UnsafePathError
-from ..exports import MARKERS, owner_name
+from ..exports import MARKERS, owner_name, found
 from .. import accounts
 from . import params as p
 from .common import matching_projects
@@ -171,6 +172,12 @@ class Totals:
     owners[kind] = owners.get(kind, 0) + size
     self.newest = max(self.newest, stat.st_mtime)
 
+  def relabel(self, kind, new_kind):
+    """What counted as `kind` counts as `new_kind`"""
+    for kinds in [self.kinds, *self.owners.values()]:
+      if kind in kinds:
+        kinds[new_kind] = kinds.get(new_kind, 0) + kinds.pop(kind)
+
   def merge(self, other):
     self.bytes += other.bytes
     self.files += other.files
@@ -279,6 +286,7 @@ class Scanner:
     self.report = report
     self.exports = exports
     self.batch_overrides = batch_overrides
+    self.tracked = 0  # exports
     self.seen = set()  # hard links
     self.lock = threading.Lock()
     self.local = threading.local()
@@ -342,7 +350,7 @@ class Scanner:
         return ('deleted_run' if run[1] else 'run'), {"output_id": run[0], **({"batch_id": batch_id} if batch_id else {})}
       return 'untracked_run', {**({"batch_id": batch_id, "project_id": batch[1]} if batch else {})}
     if any(marker in names for marker in MARKERS):
-      export_id = self.exports.get(path)
+      export_id = self.exports.get(path) or self.exports.get(os.path.realpath(path))
       return ('export', {"export_id": export_id}) if export_id else ('untracked_export', {})
     if 'manifests' in names:
       artifacts = known.artifacts(path)
@@ -372,6 +380,11 @@ class Scanner:
     if kind in LEAVES:
       for child in children:
         self.add_tree(child, totals, kind)
+      if kind == 'untracked_export':
+        export_id = self.track_export(path, totals, own.st_uid)
+        if export_id is not None:
+          totals.relabel('untracked_export', 'export')
+          kind, ref = 'export', {"export_id": export_id}
       self.entry(path, parent, depth, True, kind, totals, own.st_uid, ref)
       return totals
     if kind == 'batch':
@@ -402,6 +415,27 @@ class Scanner:
     if depth <= 1 or totals.bytes >= self.min_bytes:
       self.entry(path, parent, depth, True, kind, totals, own.st_uid, ref, small if small["bytes"] or small["entries"] else None)
     return totals
+
+  def track_export(self, path: str, totals: Totals, folder_uid: int) -> Optional[int]:
+    """Tracks an export: measured like the exports QA-Board makes, it belongs to who owns most of its files"""
+    session = self.sessions
+    try:
+      export = found(path, session=session, owner=next(iter(totals.owners_by_name(limit=1)), None) or owner(folder_uid),
+                     bytes=totals.bytes, files=totals.files, changed_at=datetime.datetime.utcfromtimestamp(totals.newest) if totals.newest else None,
+                     scan_id=self.scan_id)
+      export_id = export.id
+      session.commit()
+      session.expunge_all()
+    except Exception as e:
+      session.rollback()
+      with self.lock:
+        self.errors += 1
+        if self.errors <= 200:
+          self.report.error('other', f"Could not track the export {path}: {e}", path=path)
+      return None
+    with self.lock:
+      self.tracked += 1
+    return export_id
 
   def add_tree(self, entry, totals: Totals, kind: str):
     """Everything under an entry counts as `kind`"""
@@ -473,6 +507,8 @@ def run(params: dict, report: Reporter):
   report.log(f"Scanning {len(roots)} folders: {', '.join(roots[:10])}{'…' if len(roots) > 10 else ''}")
   # small and shared by the threads: the exports QA-Board knows, and the batches with their own folder
   exports = {path: export_id for export_id, path in db_session.query(Export.id, Export.path).filter(Export.deleted_at.is_(None))}
+  # the same folder under another path (symlinks) is the same export: never tracked twice
+  exports.update({os.path.realpath(path): export_id for path, export_id in list(exports.items())})
   batch_overrides = {}
   for batch_id, batch_dir, project_id in db_session.execute(text("""
       SELECT b.id, b.batch_dir_override, c.project_id FROM batches b JOIN ci_commits c ON c.id = b.ci_commit_id
@@ -485,6 +521,8 @@ def run(params: dict, report: Reporter):
   finally:
     scanner.sessions.remove()
     scanner.engine.dispose()
+    if scanner.tracked:
+      report.log(f"Tracked {scanner.tracked} exports QA-Board didn't track: their owners see them in Storage usage → Exports")
   scan = db_session.get(StorageScan, scan_id)
   db_session.refresh(scan)
   if not finished:

@@ -1,5 +1,6 @@
 // Storage usage > Not tracked: what the latest storage scan found on disk that you own and QA-Board doesn't track
-// (old exports, runs it doesn't know, what deleted runs left...), and deleting it.
+// (runs it doesn't know, what deleted runs left...), and deleting it.
+// Admins see everyone's, or someone's, like the runs.
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Callout, Checkbox, Classes, HTMLTable, Icon, Intent, NonIdealState, Tooltip } from "@blueprintjs/core";
@@ -13,12 +14,12 @@ import { untrackedQuery, deleteUntracked } from "./api";
 import { formatBytes, plural, Path } from "./format";
 
 
-export const UntrackedView = ({ me }) => {
+export const UntrackedView = ({ me, filters }) => {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState(new Map());
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
-  const { data, isPending, error, refetch } = useQuery(untrackedQuery);
+  const { data, isPending, error, refetch, isFetching } = useQuery(untrackedQuery(filters));
   if (isPending) return <Loading label="Loading what QA-Board doesn't track"/>;
   if (error) return <QueryError error={error} refetch={refetch} what="the files QA-Board doesn't track"/>;
   if (!data.scan) return <NonIdealState
@@ -49,18 +50,22 @@ export const UntrackedView = ({ me }) => {
       .finally(() => setBusy(false));
   };
   const by_kind = Object.entries(data.totals.by_kind ?? {}).filter(([, size]) => size > 0).sort(([, a], [, b]) => b - a);
+  // admins see other people's files
+  const others = data.user !== me.user_name;
+  const what = data.user === null ? "that QA-Board doesn't track" : `that ${others ? `${data.user} owns` : 'you own'} and QA-Board doesn't track`;
 
   return <>
     <Callout icon="search" style={{ marginBottom: 12 }}>
-      What a scan of the storage found on disk, that you own and QA-Board doesn't track: <strong>{formatBytes(data.totals.bytes)}</strong>
+      What a scan of the storage found on disk, {what}: <strong>{formatBytes(data.totals.bytes)}</strong>
       {by_kind.length > 0 && <> ({by_kind.map(([kind, size]) => `${formatBytes(size)} ${kindLabel(kind).toLowerCase()}`).join(', ')})</>}.
       {' '}Scanned <Time iso={data.scan.finished_at}/>: what changed since isn't shown.
+      {!others && filters.scope && filters.scope !== 'me' && <> Only admins see other people's files.</>}
     </Callout>
     {entries.length === 0
-      ? <NonIdealState icon="tick-circle" title="Nothing big" description="The scan found nothing big of yours that QA-Board doesn't track."/>
-      : <div style={{ overflowX: 'auto' }}>
+      ? <NonIdealState icon="tick-circle" title="Nothing big" description={`The scan found nothing big ${data.user === null ? '' : others ? `of ${data.user}'s ` : 'of yours '}that QA-Board doesn't track.`}/>
+      : <div style={{ overflowX: 'auto', opacity: isFetching ? 0.7 : 1 }}>
         <HTMLTable compact style={{ width: '100%' }} aria-label="Not tracked">
-          <thead><tr><th style={{ width: 30 }}><span className={Classes.TEXT_MUTED} aria-label="Select"/></th><th>Size</th><th>Folder</th><th>What</th><th>Files</th><th>Changed</th></tr></thead>
+          <thead><tr><th style={{ width: 30 }}><span className={Classes.TEXT_MUTED} aria-label="Select"/></th><th>Size</th><th>Folder</th><th>What</th>{others && <th>Owner</th>}<th>Files</th><th>Changed</th></tr></thead>
           <tbody>
             {entries.map(entry => <tr key={entry.path} data-testid="untracked" style={entry.action ? { opacity: 0.5 } : undefined}>
               <td>
@@ -73,6 +78,7 @@ export const UntrackedView = ({ me }) => {
               <td><KindsBar kinds={entry.kinds} bytes={entry.bytes} max={max}/></td>
               <td style={{ minWidth: 240 }}><Path path={entry.path} style={{ maxWidth: 480 }}/>{entry.ref?.project_id && <div className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>{entry.ref.project_id}</div>}</td>
               <td><KindTag kind={entry.kind}/></td>
+              {others && <td style={{ fontSize: 12 }}>{entry.owner ?? '—'}</td>}
               <td>{plural(entry.files, 'file')}</td>
               <td><Time iso={entry.newest_mtime} never="—"/></td>
             </tr>)}

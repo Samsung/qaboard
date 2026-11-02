@@ -291,7 +291,8 @@ class SessionInterface(SecureCookieSessionInterface):
 def after_request(response):
   warning = g.get('qaboard_warning')
   if warning:
-    response.headers['X-QABoard-Warning'] = warning
+    # HTTP headers are latin-1: uWSGI drops the whole response's body if they aren't
+    response.headers['X-QABoard-Warning'] = warning.encode('latin-1', 'replace').decode('latin-1')
   return response
 
 

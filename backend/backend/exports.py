@@ -7,11 +7,15 @@ don't account for them, and they can be big, so we track them (models/Export.py)
   folder next to the commit's runs: easy to find, and not lost among the runs.
 - "link" exports are hard links: they share their space with the runs' files. Deleting the runs doesn't free it while
   the export exists, and deleting the export doesn't free it while the runs exist (`linked_bytes`).
+- Scans track the exports they find, e.g. made before QA-Board tracked them (`found`). Deleting an export deletes its
+  folder: when a scan found it in a folder QA-Board didn't make, users may have other files there, so only admins and
+  whoever owns all its files delete it (`in_chosen_folder`). QA-Board itself only records exports into folders it made.
 """
 import re
 import datetime
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse, parse_qs, unquote
 
 from .database import db_session
 from .models import Export
@@ -23,6 +27,9 @@ from . import accounts
 EXPORTS_KEPT = 20  # the latest exports into a folder, in Export.data
 # files that exports write next to the runs' files: scans recognize exports by them
 MARKERS = ('0.qa.url', '0.qa.html', '0.common.json')
+# the folders QA-Board makes for exports: share/<8 hex> next to a commit's runs, <date>-<8 hex> in `storage.exports_root`
+own_folder = re.compile(r'/share/[0-9a-f]{8}$')
+own_folder_in_root = re.compile(r'/\d{4}-\d{2}-\d{2}-[0-9a-f]{8}$')
 
 
 def utcnow():
@@ -54,6 +61,11 @@ def measure_export(export: Export) -> Export:
   export.files = totals['files']
   owners = sorted(totals['owners'].items(), key=lambda kv: -kv[1])
   export.owner = owner_name(owners[0][0]) if owners else export.owner
+  # everyone with files in it: who may delete an export in a folder someone chose
+  names = {}
+  for uid, size in owners:
+    names[owner_name(uid)] = names.get(owner_name(uid), 0) + size
+  export.data = {**(export.data or {}), "owners": names}
   export.measured_at = utcnow()
   return export
 
@@ -80,6 +92,59 @@ def record(path, project_id=None, hexsha=None, batch_label=None, user_name=None,
   return export
 
 
+def made_by_qaboard(path: str, exports_root: Optional[str]) -> bool:
+  """If QA-Board made the export's folder, rather than users choosing a folder, where they may have other files"""
+  if own_folder.search(path):
+    return True
+  return bool(exports_root) and path.startswith(exports_root.rstrip('/') + '/') and bool(own_folder_in_root.search(path))
+
+
+def in_chosen_folder(export: Export) -> bool:
+  """A scan found it in a folder QA-Board didn't make: deleting it deletes what else users have there"""
+  return export.source == 'scan' and not made_by_qaboard(export.path, setting('storage.exports_root'))
+
+
+def origin(path) -> dict:
+  """The project, commit and batch of an export, from its 0.qa.url: URL=<QA-Board>/<project>/commit/<hexsha>?batch=<label>..."""
+  try:
+    with open(Path(path) / '0.qa.url', errors='replace') as f:
+      content = f.read(10_000)
+  except OSError:
+    return {}
+  line = re.search(r'^URL=(\S+)', content, re.MULTILINE)
+  url = urlparse(line.group(1)) if line else None
+  match = re.match(r'/(?P<project>.+)/commit/(?P<hexsha>[0-9a-f]{7,40})/?$', url.path) if url else None
+  if not match:
+    return {}
+  batch = parse_qs(url.query).get('batch')
+  return {"project_id": unquote(match['project']), "hexsha": match['hexsha'], "batch_label": batch[0] if batch else None}
+
+
+def found(path: str, session=db_session, owner: Optional[str] = None, bytes=None, files=None, changed_at=None, scan_id=None) -> Export:
+  """
+  Tracks an export a scan found: its owner sees it in "Storage usage". With its project, commit and batch, if its
+  0.qa.url says. Measured like the exports QA-Board makes, else with the scan's numbers. The caller commits.
+  """
+  export = session.query(Export).filter(Export.path == path).one_or_none()
+  now = utcnow()
+  if export is None:
+    export = Export(path=path, source='scan', created_at=changed_at or now, updated_at=changed_at or now, data={})
+    session.add(export)
+  export.deleted_at, export.deleted_by = None, None
+  for key, value in origin(path).items():
+    if value and not getattr(export, key):
+      setattr(export, key, value)
+  export.owner = owner or export.owner
+  export.bytes, export.files, export.measured_at = bytes, files, now
+  export.data = {**(export.data or {}), "scan_id": scan_id}
+  try:
+    measure_export(export)
+  except Exception as e:
+    print(f"WARNING: could not measure the export {path}: {e}")
+  session.flush()
+  return export
+
+
 def iso(date):
   return f"{date.isoformat()}Z" if date else None
 
@@ -102,4 +167,5 @@ def serialize(export: Export) -> dict:
     "measured_at": iso(export.measured_at),
     "deleted_at": iso(export.deleted_at),
     "exports": len((export.data or {}).get('exports') or []),
+    "in_chosen_folder": in_chosen_folder(export),
   }

@@ -68,7 +68,7 @@ describe('Storage scans', () => {
     const [share, tracked] = screen.getAllByTestId('scan-entry');
     expect(within(tracked).queryByRole('checkbox')).not.toBeInTheDocument();
     fireEvent.click(within(share).getByRole('checkbox'));
-    expect(screen.getByRole('button', { name: 'Track 1 export' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Track/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Delete…' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Delete 30.0 GB' }));
     await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/admin/scans/3/delete')).toHaveLength(1));

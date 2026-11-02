@@ -1,19 +1,18 @@
 """
 Admin > Storage > Scans: explore what scans found on disk (backend/jobs/scan.py), like ncdu, and act on it: delete
-what QA-Board doesn't use, track exports, add untracked runs back. Scans are started like other jobs (kind scan_storage).
+what QA-Board doesn't use, add untracked runs back. Scans are started like other jobs (kind scan_storage).
 """
 from flask import request, jsonify, g
 from sqlalchemy import or_
 
 from backend import app, db_session
-from ..models import StorageScan, StorageScanEntry, Export, Job
+from ..models import StorageScan, StorageScanEntry, Job
 from ..audit import audit
 from .. import accounts
 from ..jobs import queue
 from ..jobs.params import ParamsError
 from ..jobs.scan import UNTRACKED
 from ..jobs.storage_actions import deletable
-from ..exports import serialize as serialize_export
 from .auth import admin_required
 
 
@@ -183,35 +182,6 @@ def admin_scan_delete(scan_id):
   audit('storage.delete_paths', 'job', job.id, job.params['description'], meta={"scan_id": scan_id, "paths": [e.path for e in entries][:50], "bytes": size})
   db_session.commit()
   return jsonify({"job": queue.serialize_job(job)}), 201
-
-
-@app.route('/api/v1/admin/scans/<int:scan_id>/track-exports', methods=['POST'])
-@app.route('/api/v1/admin/scans/<int:scan_id>/track-exports/', methods=['POST'])
-@admin_required
-def admin_scan_track_exports(scan_id):
-  """The untracked exports are tracked: their owners see them in Storage usage > Exports, and can delete them"""
-  scan, error = get_scan_or_404(scan_id)
-  if error:
-    return error
-  entries = body_paths(scan_id)
-  tracked = []
-  for entry in entries:
-    if entry.kind != 'untracked_export':
-      continue
-    export = Export.query.filter(Export.path == entry.path).one_or_none()
-    if export is None:
-      export = Export(path=entry.path, owner=accounts.resolve(entry.owner), source='scan', created_at=entry.newest_mtime or queue.utcnow(),
-                      updated_at=entry.newest_mtime or queue.utcnow(), bytes=entry.bytes, files=entry.files,
-                      measured_at=scan.finished_at or queue.utcnow(), data={"scan_id": scan_id})
-      db_session.add(export)
-      db_session.flush()
-    export.deleted_at = None
-    entry.kind, entry.action = 'export', 'tracked'
-    entry.ref = {**(entry.ref or {}), "export_id": export.id}
-    tracked.append(export)
-  audit('storage.track_exports', 'scan', scan_id, f"scan #{scan_id}", meta={"exports": len(tracked)})
-  db_session.commit()
-  return jsonify({"exports": [serialize_export(e) for e in tracked]})
 
 
 @app.route('/api/v1/admin/scans/<int:scan_id>/import-runs', methods=['POST'])

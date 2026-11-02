@@ -420,13 +420,6 @@ export const deleteScanPaths = async (queryClient, id, paths) => {
   return data;
 };
 
-// => {exports}
-export const trackScanExports = async (queryClient, id, paths) => {
-  const { data } = await http.post(`/api/v1/admin/scans/${id}/track-exports`, { paths });
-  invalidateScan(queryClient, id);
-  return data;
-};
-
 // => {job}
 export const importScanRuns = async (queryClient, id, paths) => {
   const { data } = await http.post(`/api/v1/admin/scans/${id}/import-runs`, { paths });
