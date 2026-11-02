@@ -40,7 +40,7 @@ Each `Run` has:
 | Attribute | What it is |
 |---|---|
 | `input`, `database`, `input_path` | The input's path relative to its database, the database, and the full path. |
-| `configurations` | The configurations (`qa --configuration`). |
+| `configurations` | The configurations (`qa --configuration`), as a tuple. |
 | `params` | Every parameter as the web app shows them: the configurations' objects, the tuning parameters, and those the run reported. |
 | `extra_parameters` | The tuning parameters given to the run (`qa --tuning`), alone. |
 | `metrics` | The metrics the run returned. |
@@ -49,14 +49,18 @@ Each `Run` has:
 | `id`, `commit`, `batch`, `project`, `url` | Where it is in QA-Board, and its link in the web app. |
 | `type`, `input_metadata`, `data`, `created_at`, `finished_at` | The input's type and metadata, what else the server knows (who ran it, where...), when. |
 
-`run.to_dict()` gives all of it as plain data. You can also name the runs instead of giving a URL:
+Runs are read-only: `params`, `metrics` and the other mappings are read-only views, and changing them is an error,
+since it would change nothing on the server (copy them with `dict(run.metrics)`). `run.to_dict()` gives all of it as
+plain data. You can also name the runs instead of giving a URL:
 `qb.runs(project="kitefin/detector", commit="main", batch="ci", filter="night")`. `commit` can be a branch or a tag;
 without it, you get the latest commit with results (`branch=` picks the branch). Keyword arguments override what a URL
-says, and `reference=True` gives the runs of the reference bar (`?reference=`). Runs whose files were deleted, and
+says, and `side="reference"` gives the runs of the reference bar (`?reference=`) instead of the compared ones
+(`side="new"`, the default). Runs whose files were deleted, and
 the iterations of [automated tunings](/docs/auto-optimization), are left out unless you ask
 (`include_deleted`, `include_hidden`).
 
-From the shell, `qa runs <url>` prints the runs' folders, one per line, and `--json` everything above. It works
+From the shell, `qa runs <url>` prints the runs' folders, one per line, and `--json` everything above
+(`--side reference` for the reference bar's). It works
 outside a project, without a *qaboard.yaml*:
 
 ```bash

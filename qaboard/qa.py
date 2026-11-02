@@ -1156,12 +1156,12 @@ qa.add_command(auth)
 @click.option('--commit', help="A commit id, branch or tag. Default: the latest commit with results, or what the URL says.")
 @click.option('--batch', help="The batch of runs. Default: what the URL says, or 'default'.")
 @click.option('--filter', 'filter_', help="Keep the runs matching a filter, like the web app's filter box.")
-@click.option('--reference', is_flag=True, help="The runs of the URL's reference bar (?reference=&batch_ref=) instead of the compared ones.")
+@click.option('--side', type=click.Choice(['new', 'reference']), default='new', show_default=True, help="Which runs of the URL: the compared ones (new), or those of the reference bar (?reference=&batch_ref=).")
 @click.option('--server', help="The QA-Board server, when the URL doesn't say (e.g. served under a path prefix).")
 @click.option('--json', 'as_json', is_flag=True, help="Print the runs as JSON: input, configurations, parameters, metrics, folder...")
 @click.option('--include-deleted', is_flag=True, help="Also list runs whose files were deleted.")
 @click.option('--include-hidden', is_flag=True, help="Also list runs the web app doesn't show with the batch, like qa optimize's iterations.")
-def runs_command(url, project, commit, batch, filter_, reference, server, as_json, include_deleted, include_hidden):
+def runs_command(url, project, commit, batch, filter_, side, server, as_json, include_deleted, include_hidden):
   """
   Lists the runs a web app page shows, from its URL: their folders, one per line, or everything with --json.
 
@@ -1174,7 +1174,7 @@ def runs_command(url, project, commit, batch, filter_, reference, server, as_jso
   if not url and not project:
     raise click.UsageError("Give the address of a commit's page in the web app, or --project (and --commit, --batch).")
   try:
-    found = runs(url, project=project, commit=commit, batch=batch, filter=filter_, reference=reference, server=server,
+    found = runs(url, project=project, commit=commit, batch=batch, filter=filter_, side=side, server=server,
                  include_deleted=include_deleted, include_hidden=include_hidden)
   except (ResultsError, ValueError) as e:
     click.secho(f"ERROR: {e}", fg='red', bold=True, err=True)
@@ -1239,6 +1239,9 @@ def init_sentry():
 
 
 def main():
+  # not on `import qaboard`: scripts using the package shouldn't wait for PyPI
+  from .check_for_updates import check_for_updates
+  check_for_updates()
   init_sentry()
   from .compat import ensure_cli_backward_compatibility
   ensure_cli_backward_compatibility()

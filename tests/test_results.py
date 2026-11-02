@@ -3,6 +3,10 @@ Tests for qaboard/results.py: the runs a web app page shows, as `Run` objects, f
 """
 import io
 import json
+import os
+import subprocess
+import sys
+import tempfile
 import unittest
 from contextlib import redirect_stderr
 from pathlib import Path, PurePosixPath
@@ -99,7 +103,7 @@ class TestRuns(unittest.TestCase):
     run = found[0]
     self.assertEqual(run.input, 'slices/outdoor/night-street.jpg')
     self.assertEqual(run.input_path, Path('/data/slices/outdoor/night-street.jpg'))
-    self.assertEqual(run.configurations, ['base', 'night'])
+    self.assertEqual(run.configurations, ('base', 'night'))
     self.assertEqual(run.extra_parameters, {'gain': 8})
     self.assertEqual(run.params, {'gain': 8})
     self.assertEqual(run.state, 'finished')
@@ -159,12 +163,31 @@ class TestRuns(unittest.TestCase):
     self.assertEqual(found[0].type, 'optim_iteration')
 
   def test_reference_runs(self):
+    url = 'https://qaboard/g/repo/commit/abc?batch=ci&reference=def&batch_ref=nightly&filter_ref=indoor'
     with mock_get(commit_response(batches=('nightly',))) as get:
-      found = runs('https://qaboard/g/repo/commit/abc?batch=ci&reference=def&batch_ref=nightly&filter_ref=indoor', reference=True)
+      found = runs(url, side='reference')
     self.assertEqual(get.call_args[0][0], 'https://qaboard/api/v1/commit/def')
     self.assertEqual([r.id for r in found], [1])
+    with mock_get(commit_response(batches=('ci',))) as get:
+      runs(url, side='new')
+    self.assertEqual(get.call_args[0][0], 'https://qaboard/api/v1/commit/abc')
+    # the default reference: the URL doesn't say which, unless the commit is given
     with self.assertRaises(ValueError):
-      runs('https://qaboard/g/repo/commit/abc', reference=True)
+      runs('https://qaboard/g/repo/commit/abc', side='reference')
+    with mock_get(commit_response(batches=('default',))) as get:
+      runs('https://qaboard/g/repo/commit/abc', side='reference', commit='def')
+    self.assertEqual(get.call_args[0][0], 'https://qaboard/api/v1/commit/def')
+    with self.assertRaises(ValueError):
+      runs(project='g/repo', side='reference')
+
+  def test_unknown_side(self):
+    # the web app may compare with several references one day (?compare=): side is not a boolean
+    for side in ('ref', 'references', True, None):
+      with self.subTest(side=side), self.assertRaises(ValueError) as e:
+        runs('https://qaboard/g/repo/commit/abc?reference=def', side=side)
+      self.assertIn("'new', 'reference'", str(e.exception))
+    with self.assertRaises(TypeError):
+      runs('https://qaboard/g/repo/commit/abc?reference=def', reference=True) # the old keyword
 
   def test_deleted_runs(self):
     outputs = {**FIXTURE['outputs'], '1': {**FIXTURE['outputs']['1'], 'deleted': True}}
@@ -232,12 +255,104 @@ class TestRunContract(unittest.TestCase):
     self.assertEqual(from_code.params, {'gain': 2, 'lr': 0.1})
     self.assertEqual(from_code.extra_parameters, {'lr': 0.1})
 
+  def test_read_only(self):
+    # changing a run read from the server would change nothing on the server: it is an error
+    run = Run.from_api(FIXTURE['outputs']['2'], project='g/repo', commit=COMMIT, batch='ci', server='https://qaboard')
+    from_code = Run._new(project='g/repo', input='a.jpg', configurations=['base'], extra_parameters={'lr': 0.1})
+    for r in (run, from_code):
+      for name in ('metrics', 'extra_parameters', 'params', 'input_metadata', 'data'):
+        with self.subTest(name=name), self.assertRaises(TypeError):
+          getattr(r, name)['x'] = 1
+      self.assertIsInstance(r.configurations, tuple)
+      with self.assertRaises(AttributeError):
+        r.configurations.append('other') # type: ignore
+    self.assertEqual(run.extra_parameters, {'gain': 8})
+    self.assertEqual(run.extra_parameters.get('gain'), 8)
+    # runs don't share the dicts they were made from
+    extra = {'lr': 0.1}
+    made = Run._new(project='g/repo', input='a.jpg', extra_parameters=extra)
+    extra['lr'] = 1
+    self.assertEqual(made.extra_parameters, {'lr': 0.1})
+    # to_dict gives plain data
+    d = run.to_dict()
+    for name in ('metrics', 'extra_parameters', 'params', 'input_metadata', 'data'):
+      self.assertIs(type(d[name]), dict, name)
+    self.assertIs(type(d['configurations']), list)
+    self.assertEqual(d['configurations'], ['base', 'night'])
+    d['metrics']['x'] = 1
+    self.assertNotIn('x', run.metrics)
+    self.assertEqual(json.loads(json.dumps(d)), d)
+
   def test_nothing_writes_yet(self):
     # no stubs in the public API: methods come when they work
     for name in ('log', 'save_file', 'series', 'finish'):
       self.assertFalse(hasattr(Run, name), name)
     import qaboard
     self.assertFalse(hasattr(qaboard, 'start_run'))
+
+
+class TestImport(unittest.TestCase):
+  """
+  `import qaboard` has no side effects: scripts using `qaboard.runs(url)` don't read the current folder's qaboard.yaml
+  or git, and don't ask PyPI for updates.
+  """
+  def python(self, code, cwd):
+    root = Path(__file__).resolve().parent.parent
+    env = {k: v for k, v in os.environ.items() if not k.startswith('QA')}
+    # no network: the update check would print a warning
+    env.update({'PYTHONPATH': str(root), 'HOME': cwd, 'XDG_CONFIG_HOME': cwd, 'QABOARD_LATEST_VERSION_URL': 'http://127.0.0.1:9/nothing-here'})
+    return subprocess.run([sys.executable, '-c', code], cwd=cwd, env=env, capture_output=True, text=True, timeout=60)
+
+  def test_import_has_no_side_effects(self):
+    with tempfile.TemporaryDirectory() as tmp:
+      (Path(tmp) / 'qaboard.yaml').write_text('project: [unclosed\n')
+      result = self.python(
+        "import sys\n"
+        "import qaboard\n"
+        "from qaboard import runs, Run, Runs\n"
+        "assert qaboard.runs is runs and callable(runs), runs\n"
+        "loaded = [m for m in ('qaboard.config', 'qaboard.api', 'qaboard.qa', 'qaboard.check_for_updates', 'requests', 'git') if m in sys.modules]\n"
+        "assert not loaded, loaded\n"
+        "print(qaboard.__version__)\n",
+        cwd=tmp,
+      )
+      self.assertEqual(result.returncode, 0, result.stderr)
+      self.assertEqual(result.stderr, '')
+      self.assertTrue(result.stdout.strip())
+      self.assertFalse((Path(tmp) / 'qaboard').exists()) # no user config dir: the update check didn't run
+
+  def test_legacy_names(self):
+    # what wrapped code imports keeps working, and qaboard.qa / qaboard.config are the command and the configuration
+    with tempfile.TemporaryDirectory() as tmp:
+      result = self.python(
+        "from qaboard import Metric, define_metric, merge, slugify, Context\n"
+        "import qaboard, qaboard.config, qaboard.qa\n"
+        "import click\n"
+        "assert isinstance(qaboard.qa, click.Group), qaboard.qa\n"
+        "assert isinstance(qaboard.config, dict), type(qaboard.config)\n"
+        "assert callable(qaboard.check_for_updates)\n"
+        "from qaboard import qa, config, is_ci, on_windows, on_linux\n"
+        "assert qa is qaboard.qa\n"
+        "assert merge({'a': 1}, {'b': 2}) == {'a': 1, 'b': 2}\n"
+        "try:\n"
+        "  qaboard.nope\n"
+        "except AttributeError:\n"
+        "  pass\n"
+        "else:\n"
+        "  raise SystemExit('qaboard.nope exists')\n",
+        cwd=tmp,
+      )
+      self.assertEqual(result.returncode, 0, result.stderr)
+
+  def test_the_cli_checks_for_updates(self):
+    from importlib import import_module
+    qa_module, updates = import_module('qaboard.qa'), import_module('qaboard.check_for_updates')
+    with mock.patch.object(updates, 'check_for_updates') as check, mock.patch.object(qa_module, 'qa') as group, \
+         mock.patch.object(qa_module, 'init_sentry'), mock.patch.object(qa_module, 'split_dashdash', return_value=[]), \
+         mock.patch('qaboard.compat.ensure_cli_backward_compatibility'):
+      qa_module.main()
+    check.assert_called_once_with()
+    group.assert_called_once()
 
 
 class TestCli(unittest.TestCase):
@@ -262,6 +377,14 @@ class TestCli(unittest.TestCase):
     self.assertEqual(run['extra_parameters'], {})
     self.assertEqual(run['state'], 'finished')
     self.assertTrue(run['output_dir'].endswith('4'))
+
+  def test_reference_side(self):
+    with mock_get(commit_response(batches=('nightly',))) as get:
+      result = self.invoke('https://qaboard/g/repo/commit/abc?batch=ci&reference=def&batch_ref=nightly', '--side', 'reference')
+    self.assertEqual(result.exit_code, 0, result.output)
+    self.assertEqual(get.call_args[0][0], 'https://qaboard/api/v1/commit/def')
+    result = self.invoke('https://qaboard/g/repo/commit/abc', '--side', 'ref')
+    self.assertEqual(result.exit_code, 2)
 
   def test_errors(self):
     result = self.invoke()

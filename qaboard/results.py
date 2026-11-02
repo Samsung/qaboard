@@ -17,11 +17,13 @@ like the rest of qa (qaboard/credentials.py).
 """
 import os
 import sys
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, fields
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from types import MappingProxyType
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 from urllib.parse import parse_qs, quote, unquote, urlencode, urlsplit
 
+from .compat import url_to_dir
 from .credentials import resolve_token, refusal, default_server, same_server, read_hosts, find_login, ENV_TOKENS
 from .filters import filter_runs, run_params
 from .site_config import site_config, as_requests_verify
@@ -31,6 +33,8 @@ from .site_config import site_config, as_requests_verify
 REQUEST_TIMEOUT = (30, 600)
 # Runs of `qa optimize`'s iterations: the web app doesn't show them with the batch's runs
 HIDDEN_RUN_TYPES = ('optim_iteration',)
+# runs(side=): the runs compared, or those of the reference bar. The web app may compare with several references one day (?compare=)
+SIDES = ('new', 'reference')
 
 
 class ResultsError(Exception):
@@ -120,15 +124,17 @@ def parse_url(url: str, server: Optional[str] = None) -> _Selection:
   return _Selection(server=server, new=new, reference=reference, url=url)
 
 
-def _url_to_dir(url: Optional[str]) -> Optional[Path]:
-  """The API gives file locations as `/s<path>`: the path on the shared storage, as the server mounts it."""
-  if not url:
-    return None
-  path = unquote(url)[2:]
-  if os.name == 'nt':
-    from .compat import linux_to_windows
-    path = linux_to_windows(path)
-  return Path(path)
+# Run's fields given as read-only mappings
+_MAPPINGS = ('extra_parameters', 'params', 'metrics', 'input_metadata', 'data')
+
+
+def _plain(value: Any) -> Any:
+  """A copy of `value` with plain dicts and lists, for JSON"""
+  if isinstance(value, Mapping):
+    return {k: _plain(v) for k, v in value.items()}
+  if isinstance(value, (list, tuple)):
+    return [_plain(v) for v in value]
+  return value
 
 
 @dataclass
@@ -136,7 +142,8 @@ class Run:
   """
   One run: an input processed with some configurations and parameters, on a commit, in a batch, as the server knows it.
 
-  Experimental: names may change. `qa runs --json` prints these fields (see `to_dict`).
+  Experimental: names may change. `qa runs --json` prints these fields (see `to_dict`). Read-only: the mappings are
+  `MappingProxyType` views and `configurations` a tuple, since changing them would change nothing on the server.
   """
   project: str
   commit: Optional[str]
@@ -144,10 +151,10 @@ class Run:
   input: str                                   # the input's path, relative to its database
   database: Optional[str] = None               # where the inputs are
   platform: str = 'linux'
-  configurations: List[Any] = field(default_factory=list)
-  extra_parameters: Dict[str, Any] = field(default_factory=dict)  # the tuning parameters given to the run
-  params: Dict[str, Any] = field(default_factory=dict)            # every parameter, as the web app shows them: the configurations' objects, the tuning parameters, and those the run reported
-  metrics: Dict[str, Any] = field(default_factory=dict)
+  configurations: Tuple[Any, ...] = ()
+  extra_parameters: Mapping[str, Any] = field(default_factory=dict)  # the tuning parameters given to the run
+  params: Mapping[str, Any] = field(default_factory=dict)            # every parameter, as the web app shows them: the configurations' objects, the tuning parameters, and those the run reported
+  metrics: Mapping[str, Any] = field(default_factory=dict)
   type: str = ''                               # the input type (qaboard.yaml's inputs.types), 'optim_iteration' for qa optimize's iterations
   id: Optional[int] = None                     # QA-Board's id, None until the server knows the run
   output_dir: Optional[Path] = None            # where its files are
@@ -155,11 +162,17 @@ class Run:
   is_running: bool = False
   is_failed: bool = False
   deleted: bool = False                        # its files were deleted
-  input_metadata: Dict[str, Any] = field(default_factory=dict)
-  data: Dict[str, Any] = field(default_factory=dict)       # what else the server knows: who ran it, where...
+  input_metadata: Mapping[str, Any] = field(default_factory=dict)
+  data: Mapping[str, Any] = field(default_factory=dict)    # what else the server knows: who ran it, where...
   created_at: Optional[str] = None
   finished_at: Optional[str] = None
   server: Optional[str] = None
+
+  def __post_init__(self) -> None:
+    # read-only views: changing a run read from the server would change nothing on the server
+    self.configurations = tuple(self.configurations)
+    for name in _MAPPINGS:
+      setattr(self, name, MappingProxyType(dict(getattr(self, name))))
 
   @classmethod
   def from_api(cls, output: Dict[str, Any], *, project: str, commit: Optional[str], batch: str, server: Optional[str] = None) -> 'Run':
@@ -175,13 +188,13 @@ class Run:
       input=str(output.get('test_input_path', '')),
       database=output.get('test_input_database'),
       platform=output.get('platform') or 'linux',
-      configurations=list(output.get('configurations') or []),
+      configurations=tuple(output.get('configurations') or ()),
       extra_parameters=extra_parameters,
       params=run_params(output.get('configurations'), {**extra_parameters, **reported}),
       metrics=dict(output.get('metrics') or {}),
       type=output.get('output_type') or '',
       id=output.get('id'),
-      output_dir=_url_to_dir(output.get('output_dir_url')),
+      output_dir=url_to_dir(output['output_dir_url']) if output.get('output_dir_url') else None,
       is_pending=bool(output.get('is_pending')),
       is_running=bool(output.get('is_running')),
       is_failed=bool(output.get('is_failed')),
@@ -199,7 +212,7 @@ class Run:
            output_dir: Optional[Path] = None, server: Optional[str] = None) -> 'Run':
     """A run that doesn't exist yet: what creating runs from code will start from, before the server knows it. Private until then."""
     return cls(project=project, commit=commit, batch=batch, input=input, database=database, platform=platform or ('windows' if os.name == 'nt' else 'linux'),
-               configurations=list(configurations or []), extra_parameters=dict(extra_parameters or {}),
+               configurations=tuple(configurations or ()), extra_parameters=dict(extra_parameters or {}),
                params=run_params(configurations, extra_parameters), output_dir=output_dir, server=server,
                is_pending=True, is_running=False, is_failed=False)
 
@@ -226,7 +239,7 @@ class Run:
 
   def to_dict(self) -> Dict[str, Any]:
     """The run as JSON-friendly data: what `qa runs --json` prints"""
-    d = asdict(self)
+    d = {f.name: _plain(getattr(self, f.name)) for f in fields(self)}
     d['output_dir'] = str(self.output_dir) if self.output_dir else None
     d['state'] = self.state
     d['url'] = self.url
@@ -234,7 +247,7 @@ class Run:
 
   def __repr__(self) -> str:
     where = f" id={self.id}" if self.id is not None else ''
-    return f"<Run{where} {self.input} {self.configurations} {self.extra_parameters if self.extra_parameters else ''} {self.state}{' failed' if self.is_failed else ''}>".replace('  ', ' ')
+    return f"<Run{where} {self.input} {list(self.configurations)} {dict(self.extra_parameters) if self.extra_parameters else ''} {self.state}{' failed' if self.is_failed else ''}>".replace('  ', ' ')
 
 
 class Runs(list):
@@ -307,41 +320,46 @@ def _side_runs(server: str, side: _Side, *, token: Optional[str], include_delete
 
 
 def runs(url: Optional[str] = None, *, project: Optional[str] = None, commit: Optional[str] = None, branch: Optional[str] = None,
-         batch: Optional[str] = None, filter: Optional[str] = None, reference: bool = False, server: Optional[str] = None,
+         batch: Optional[str] = None, filter: Optional[str] = None, side: str = 'new', server: Optional[str] = None,
          token: Optional[str] = None, include_deleted: bool = False, include_hidden: bool = False) -> Runs:
   """
   The runs a web app page shows, as `Run` objects. Experimental.
 
   Pass the page's address, or name the runs: `runs(project='group/repo', commit='abc123', batch='ci', filter='night')`
   (`commit` can be a branch or a tag; without it, the latest commit with results, on `branch` if given). Keyword
-  arguments override what the URL says: `commit=` or `branch=` replaces the URL's. `reference=True` gives the runs of
-  the reference bar (`?reference=&batch_ref=&filter_ref=`) instead.
+  arguments override what the URL says: `commit=` or `branch=` replaces the URL's. `side='reference'` gives the runs of
+  the reference bar (`?reference=&batch_ref=&filter_ref=`) instead of the compared ones (`side='new'`).
 
   `server`: the QA-Board server, when the URL doesn't say (its address, or when it is served under a path prefix).
   Without a URL, the server is the one `qa` uses (QABOARD_URL...). `token`: an API token, else the one `qa` is
   signed in with. Left out unless asked: runs whose files were deleted (`include_deleted`), and runs the web app
   doesn't list with the batch, like `qa optimize`'s iterations (`include_hidden`).
   """
+  if side not in SIDES:
+    raise ValueError(f"side={side!r}: expected one of {', '.join(map(repr, SIDES))}. 'new' gives the runs compared, 'reference' those of the reference bar.")
+  selected: _Side
   if url:
     selection = parse_url(url, server=server)
-    side = selection.reference if reference else selection.new
-    if reference and not side.commit:
+    selected = selection.reference if side == 'reference' else selection.new
+    if side == 'reference' and not selected.commit and commit is None and branch is None:
       raise ValueError(f"{url} compares with the default reference: there is no ?reference= in it. Pick a reference in the web app, or name it: runs(project=…, commit=…)")
     server_url = selection.server
   else:
+    if side == 'reference':
+      raise ValueError("side='reference' needs a web app URL: without one, name the reference's runs: runs(project=…, commit=…)")
     if not project:
       raise ValueError("Give a web app URL, or the project (and commit, batch, filter): runs(project='group/repo', commit='abc123', batch='ci')")
-    side = _Side(project=project, commit=None)
+    selected = _Side(project=project, commit=None)
     server_url = (server or default_server()[0]).rstrip('/')
   if commit is not None or branch is not None:
     side_commit, side_branch = commit or None, branch or None
   else:
-    side_commit, side_branch = side.commit, side.branch
-  side = _Side(
-    project=project or side.project,
+    side_commit, side_branch = selected.commit, selected.branch
+  selected = _Side(
+    project=project or selected.project,
     commit=side_commit,
     branch=side_branch,
-    batch=batch or side.batch,
-    filter=filter if filter is not None else side.filter,
+    batch=batch or selected.batch,
+    filter=filter if filter is not None else selected.filter,
   )
-  return _side_runs(server_url, side, token=token, include_deleted=include_deleted, include_hidden=include_hidden)
+  return _side_runs(server_url, selected, token=token, include_deleted=include_deleted, include_hidden=include_hidden)
