@@ -1172,6 +1172,34 @@ def init(ctx):
   qa_init(ctx)
 
 
+@qa.command()
+@click.option('--runner', default=default_runner, show_default=True, help="The runner to check: local, lsf, celery, dask, windows... By default, the one `qa batch` uses.")
+@click.option('--test-job', is_flag=True, help="Also start a small job with the runner, to check that it runs, where, as who, and what it can access. It can take a few minutes, e.g. waiting for a slot.")
+@click.pass_context
+def doctor(ctx, runner, test_job):
+  """
+  Check that you can run batches, and say how to fix what's wrong.
+
+  \b
+  It checks, and says what to do about each problem:
+  - qa and qaboard.yaml: version, configuration, entrypoint, batches, git
+  - the QA-Board server: reachable, signed in, your role in the project
+  - the storage: the results' folder is writable and the server sees it, the inputs are there
+  - the runner: e.g. for LSF that bsub works and the queue exists, for Celery that workers answer
+
+  \b
+  It checks what runs whose results show in QA-Board need, like `qa --share batch`.
+  With `qa --offline doctor`, only what local runs need. Exits with 1 if something must be fixed.
+
+  \b
+  Examples:
+    qa doctor
+    qa doctor --runner lsf --test-job
+  """
+  from .doctor import run_doctor
+  sys.exit(run_doctor(ctx.obj, runner=runner, test_job=test_job))
+
+
 
 # We want to allow both
 # 1. Late "--list" args like "qa batch my-batch --list", which requires allow_interspersed_args=True
