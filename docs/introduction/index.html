@@ -18,8 +18,8 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.6c9ad2f2.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.f0459941.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.bd116b4d.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.91a1744d.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -116,8 +116,10 @@ your <a class="" href="/qaboard/docs/project-init#optional-connect-your-git-host
 <ul>
 <li class=""><strong>Tuning from the web app:</strong> people run batches with other parameters from the web app, without a checkout. It needs
 your build&#x27;s artifacts and a runner the server can use. See <a class="" href="/qaboard/docs/tuning-from-the-webapp">Tuning from the web app</a>
-and <a class="" href="/qaboard/docs/storage/artifacts">Artifacts</a>. Automated tuning with <code>qa optimize</code> is experimental: see
-<a class="" href="/qaboard/docs/auto-optimization">Automated tuning</a>.</li>
+and <a class="" href="/qaboard/docs/storage/artifacts">Artifacts</a>.</li>
+<li class=""><strong>Automated tuning:</strong> <code>qa optimize</code> searches the parameters that give the best metrics, from the CLI or the web app.
+See <a class="" href="/qaboard/docs/auto-optimization">Automated tuning with qa optimize</a>, and, for the people who tune,
+<a class="" href="/qaboard/docs/user-guide/automated-tuning">Find the best parameters automatically</a>.</li>
 <li class=""><strong>A quality gate (experimental):</strong> <code>qa gate</code> fails the CI job when metrics regress against the reference. See
 <a class="" href="/qaboard/docs/quality-gate">Quality gate</a>.</li>
 <li class=""><strong>Integrations:</strong> links and buttons in the web app&#x27;s <strong>Integrations</strong> menu, to start CI jobs, call webhooks or open

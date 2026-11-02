@@ -18,8 +18,8 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.6c9ad2f2.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.f0459941.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.bd116b4d.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.91a1744d.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -60,8 +60,9 @@ tools you train with.</p>
 <div class="item_wEMw"><div class="status_wPfY"><span class="badge_iR2u shipped_J_ht" title="Released and documented: use it today.">Shipped</span></div><div class="body_nqgO"><h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI title_nL88" id="tuning-analysis">Tuning analysis<a href="#tuning-analysis" class="hash-link" aria-label="Direct link to Tuning analysis" title="Direct link to Tuning analysis" translate="no">​</a></h3><p>After a tuning experiment, the <strong>Tuning Analysis</strong> view shows the sensitivity to each parameter, a parallel coordinates
 plot of parameters and metrics, and the trade-off between two metrics. See
 <a class="" href="/qaboard/docs/tuning-from-the-webapp">Tuning from the web app</a>.</p></div></div>
-<div class="item_wEMw"><div class="status_wPfY"><span class="badge_iR2u experimental_lC3d" title="Released, but may change without notice.">Experimental</span></div><div class="body_nqgO"><h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI title_nL88" id="automated-tuning">Automated tuning<a href="#automated-tuning" class="hash-link" aria-label="Direct link to Automated tuning" title="Direct link to Automated tuning" translate="no">​</a></h3><p><code>qa optimize</code> searches for the parameters that optimize an objective, with scikit-optimize, and plots its
-convergence. Its configuration and solver may change. See <a class="" href="/qaboard/docs/auto-optimization">Automated tuning</a>.</p></div></div>
+<div class="item_wEMw"><div class="status_wPfY"><span class="badge_iR2u shipped_J_ht" title="Released and documented: use it today.">Shipped</span></div><div class="body_nqgO"><h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI title_nL88" id="automated-tuning">Automated tuning<a href="#automated-tuning" class="hash-link" aria-label="Direct link to Automated tuning" title="Direct link to Automated tuning" translate="no">​</a></h3><p><code>qa optimize</code> searches for the parameters that optimize an objective, with Optuna, and resumes a search that was
+interrupted. <strong>Tuning Analysis</strong> says what it found and what to do next. See
+<a class="" href="/qaboard/docs/user-guide/automated-tuning">Find the best parameters automatically</a>.</p></div></div>
 <div class="item_wEMw"><div class="status_wPfY"><span class="badge_iR2u next_LvKC" title="What we&#x27;re building now or next.">Next</span></div><div class="body_nqgO"><h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI title_nL88" id="overlay-plots-from-n-runs">Overlay plots from N runs<a href="#overlay-plots-from-n-runs" class="hash-link" aria-label="Direct link to Overlay plots from N runs" title="Direct link to Overlay plots from N runs" translate="no">​</a></h3><p>The Plotly figures that runs write (<code>*.plotly.json</code>) are already overlaid for the new and reference runs (see
 <a class="" href="/qaboard/docs/visualizations">Visualizations</a>). Overlay them from N runs: convergence curves, precision-recall curves,
 latency distributions.</p></div></div>
