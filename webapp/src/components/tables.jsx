@@ -13,6 +13,7 @@ import {
 import { VirtualTbody } from "./VirtualTbody";
 import { PlatformTag, ConfigurationsTags, RunBadges, RunBadge, MismatchTags } from './tags'
 import { metric_formatter, percent_formatter, MetricHeader } from "./metrics"
+import { AddedMetricMark, addedMetricsHint } from "./AddedMetricMark"
 import { diff_cell, is_number } from "../utils/compare"
 import { metric_info } from "../utils"
 import { useLabels } from "../hooks"
@@ -100,7 +101,8 @@ const small_percent_formatter = new Intl.NumberFormat("en-US", { maximumSignific
 const format_percent = percent => Math.abs(percent) >= 1 || percent === 0 ? percent_formatter.format(percent) : small_percent_formatter.format(percent);
 
 // labels: what the cells' tooltips call the new and reference runs
-const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric, labels }) => {
+// added_new, added_ref: whether scripts added the values after the runs (their `added_metrics` entries)
+const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric, labels, added_new, added_ref }) => {
   const metric_new = metrics_new?.[metric.key]
   const metric_ref = metrics_ref?.[metric.key]
   if (!metrics_new || metric_new === undefined || metric_new === null)
@@ -122,6 +124,7 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric, labels }) 
       title={`${labels[0]}: ${metric_new * metric.scale}${metric.suffix}\n${labels[1]}: ${metric_ref * metric.scale}${metric.suffix}`}
     >
       {delta === 0 ? "=" : <span>{metric_formatter(delta * (metric.scale ?? 1), metric)} ({format_percent(100 * delta_relative)}%)</span>}
+      <AddedMarks added_new={added_new} added_ref={added_ref} metric={metric} labels={labels}/>
     </td>
   } else {
     return <td>
@@ -129,13 +132,20 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric, labels }) 
           <li><RunBadge badge={metric_new}/></li>
           <li><RunBadge badge={metric_ref}/></li>
         </ul>}
+      <AddedMarks added_new={added_new} added_ref={added_ref} metric={metric} labels={labels}/>
     </td>
   }
 };
 
+// A difference of values that scripts added: the marks say which run's
+const AddedMarks = ({ added_new, added_ref, metric, labels }) => <>
+  <AddedMetricMark native metric={metric} added={added_new} label={labels[0]}/>
+  <AddedMetricMark native metric={metric} added={added_ref} label={labels[1]}/>
+</>;
+
 // Colored by how far the value is from the metric's target, else in a neutral hue by how it ranks in the column (`rank`)
-// label_new: what the "=" of the reference's cells says it's the same as
-const QualityCell = ({ metric_info, metric, metric_ref, rank, label_new }) => {
+// label_new: what the "=" of the reference's cells says it's the same as. added: if a script added the value after the run
+const QualityCell = ({ metric_info, metric, metric_ref, rank, label_new, added }) => {
   if (
     metric_info === undefined ||
     metric === undefined || metric === null
@@ -162,6 +172,7 @@ const QualityCell = ({ metric_info, metric, metric_ref, rank, label_new }) => {
       {is_numeric
         ? (metric_ref === metric ? <span title={`Same as ${label_new}`}>=</span> : <span>{metric_formatter(metric_for_display, metric_info)}</span>)
         : <span><RunBadge badge={metric}/></span>}
+      <AddedMetricMark native added={added} metric={metric_info}/>
     </td>
   );
 };
@@ -189,7 +200,12 @@ const useTableData = ({ new_batch, metrics, available_metrics, with_refs_only })
     const metrics_ = [...declared, ...undeclared];
     return { metrics_, hidden_count: shown.length - metrics_.length };
   }, [metrics_key, available_metrics, used_metrics, metrics_with_refs, with_refs_only]);
-  return { outputs, metrics_, hidden_count };
+  // e.g. "3 runs have values added by scripts", in the metrics' headers
+  const added_hints = useMemo(() => Object.fromEntries(metrics_
+    .map(m => [m.key, addedMetricsHint(outputs.map(([, o]) => o), m.key)])
+    .filter(([, hint]) => hint)),
+  [metrics_, outputs]);
+  return { outputs, metrics_, hidden_count, added_hints };
 };
 
 // Runs can have hundreds of metrics
@@ -218,6 +234,8 @@ const CompareRow = memo(({ output, output_ref, metrics, index, measure, labels }
         metrics_new={output.metrics}
         metrics_ref={output_ref?.metrics}
         labels={labels}
+        added_new={output.added_metrics?.[m.key]}
+        added_ref={output_ref?.added_metrics?.[m.key]}
       />
     ))}
   </Row>
@@ -240,7 +258,7 @@ const TableCompare = ({
   labels: labels_,
 }) => {
   const labels = useTableLabels(labels_);
-  const { outputs, metrics_, hidden_count } = useTableData({ new_batch, metrics, available_metrics, with_refs_only: true });
+  const { outputs, metrics_, hidden_count, added_hints } = useTableData({ new_batch, metrics, available_metrics, with_refs_only: true });
   if (new_batch === undefined || new_batch === null || new_batch.outputs === undefined || new_batch.outputs === null) return <span />;
   const [label_new, label_ref] = labels;
 
@@ -267,7 +285,7 @@ const TableCompare = ({
             <th aria-label="Input"/>
             {metrics_.map(m => (
               <th key={m.key} style={{boxShadow: "inset 0 0 1px 0 var(--qa-border)"}}>
-                <MetricHeader condensed {...without_key(m)}/> {!!m.suffix && <span className={Classes.TEXT_MUTED}>{m.suffix}</span>}
+                <MetricHeader condensed {...without_key(m)} hint={added_hints[m.key]}/> {!!m.suffix && <span className={Classes.TEXT_MUTED}>{m.suffix}</span>}
               </th>
             ))}
           </tr>
@@ -302,8 +320,8 @@ const KpiRow = memo(({ output, output_ref, metrics, metrics_with_refs, rankers, 
     <RowHeaderCell output={output} />
     {metrics.map(m => (
       <Fragment key={m.key}>
-        <QualityCell metric_info={m} metric={output.metrics[m.key]} rank={rankers[m.key]}/>
-        {metrics_with_refs.has(m.key) && <QualityCell metric_info={m} metric={output_ref?.metrics?.[m.key]} metric_ref={output.metrics[m.key]} rank={rankers[m.key]} label_new={label_new}/>}
+        <QualityCell metric_info={m} metric={output.metrics[m.key]} rank={rankers[m.key]} added={output.added_metrics?.[m.key]}/>
+        {metrics_with_refs.has(m.key) && <QualityCell metric_info={m} metric={output_ref?.metrics?.[m.key]} metric_ref={output.metrics[m.key]} rank={rankers[m.key]} label_new={label_new} added={output_ref?.added_metrics?.[m.key]}/>}
       </Fragment>
     ))}
   </Row>
@@ -318,7 +336,7 @@ const TableKpi = ({
   labels: labels_,
 }) => {
   const labels = useTableLabels(labels_);
-  const { outputs, metrics_, hidden_count } = useTableData({ new_batch, metrics, available_metrics, with_refs_only: false });
+  const { outputs, metrics_, hidden_count, added_hints } = useTableData({ new_batch, metrics, available_metrics, with_refs_only: false });
   // Metrics we can't color by their target are shaded by how values rank among the new runs'
   const rankers = useMemo(() => Object.fromEntries(metrics_
     .filter(m => !has_target(m) || is_direction_unknown(m))
@@ -338,7 +356,10 @@ const TableKpi = ({
             <th aria-label="Input"/>
             {metrics_.map(m => (
               <th colSpan={new_batch.metrics_with_refs.has(m.key) ? 2 : 1} key={m.key}>
-                <MetricHeader condensed {...without_key(m)} hint={rankers[m.key] ? "Cells are darker for larger values, compared with the other runs." : undefined}/>
+                <MetricHeader condensed {...without_key(m)} hint={[
+                  rankers[m.key] && "Cells are darker for larger values, compared with the other runs.",
+                  added_hints[m.key],
+                ].filter(Boolean).join(' ') || undefined}/>
                 {!!m.target && <Tooltip content={is_direction_unknown(m)
                   ? "Target. QA-Board doesn't know if higher or lower values are better: declare it to color cells by the target."
                   : "Target: cells are green when runs meet it, red when they don't."}>

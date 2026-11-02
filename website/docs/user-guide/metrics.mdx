@@ -136,6 +136,13 @@ Targets are set by the project, with the metric's definition: see
 [Declaring metrics](/docs/computing-quantitative-metrics#declaring-metrics). A target needs to know which way is
 better: without it, cells stay blue.
 
+## Metrics added after the run {#added-metrics}
+Scripts can add metrics to a run once it's done, for instance a score computed later from its outputs. On the run
+cards and in the Metrics Diff and Metrics Table, their values have a small pencil mark: hover it to see who added the
+metric, when, and with which script, and the run's own value if the script replaced it. Hovering a metric's name in
+the tables says how many runs have values added this way. To add metrics from your scripts, see
+[Add metrics to runs](/docs/apis#log).
+
 ## Failed runs {#failed-runs}
 A failed run has a red **Failed** tag in the tables, and the **N failed** message above the views lists it. Most
 failed runs crashed, or were stopped by the cluster: [Logs and failed runs](/docs/user-guide/logs) shows how to find
