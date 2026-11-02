@@ -159,14 +159,19 @@ def difference_map(image_1, image_2, method):
   return skimage.color.deltaE_ciede2000(lab_1, lab_2).astype(np.float32), factor
 
 
-def find_regions(delta, factor, shape, count=20):
+def find_regions(delta, factor, shape, count=20, min_size=None, max_size=None):
   """
   The regions where the difference peaks, the largest first:
-  [{x, y, w, h, peak_x, peak_y, value, diff}], in the pixels of images of `shape`. value is the peak's difference,
-  diff its fraction of the largest peak's.
+  [{x, y, w, h, peak_x, peak_y, value, diff, spot}], in the pixels of images of `shape`. value is the peak's
+  difference, diff its fraction of the largest peak's. spot {x, y, w, h} is the difference itself: around the peak,
+  where it stays above half of the peak's. The region adds context around it.
 
   The largest difference left, its region, then the difference in and around the region is set aside: users want
   regions spread out, not twenty views of the same place (e.g. leaves, which differ everywhere).
+
+  min_size, max_size (pixels): only the differences whose spot's longest side is within them, e.g. small defects. The
+  others are set aside as the search goes, so that it finds `count` of the right size. Spots are measured on the
+  difference's grid: to `factor` pixels.
   """
   delta = np.nan_to_num(delta, nan=0.0, posinf=0.0, neginf=0.0)
   top = float(delta.max()) if delta.size else 0.0
@@ -178,7 +183,11 @@ def find_regions(delta, factor, shape, count=20):
   regions = []
   # around a peak, where the difference stays above half of it: at most this many cells away
   window = max(8, min(delta.shape) // 8)
-  for _ in range(count):
+  sized = bool(min_size) or bool(max_size)
+  # with sizes, differences of other sizes are set aside along the way: more peaks to look at
+  attempts = count * 25 if sized else count
+  while len(regions) < count and attempts > 0:
+    attempts -= 1
     cy, cx = np.unravel_index(int(np.argmax(left_over)), left_over.shape)
     value = float(left_over[cy, cx])
     if value <= top * 0.02:
@@ -189,6 +198,19 @@ def find_regions(delta, factor, shape, count=20):
     ys, xs = np.nonzero(labels == labels[cy - y0, cx - x0])
     left, right = (x0 + xs.min()) * factor, (x0 + xs.max() + 1) * factor
     top_, bottom = (y0 + ys.min()) * factor, (y0 + ys.max() + 1) * factor
+    spot = max(right - left, bottom - top_)
+    # cut by the window (not by the image): larger than measured
+    cut = (xs.min() == 0 and x0 > 0) or (ys.min() == 0 and y0 > 0) \
+      or (xs.max() == local.shape[1] - 1 and x0 + local.shape[1] < columns) \
+      or (ys.max() == local.shape[0] - 1 and y0 + local.shape[0] < rows)
+    if (min_size and spot < min_size) or (max_size and (spot > max_size or cut)):
+      # not the size users look for: set it aside, and what's around it (its tail, below half of its peak)
+      margin_x, margin_y = (xs.max() - xs.min() + 1) // 2 + 1, (ys.max() - ys.min() + 1) // 2 + 1
+      left_over[
+        max(0, y0 + ys.min() - margin_y):min(rows, y0 + ys.max() + 1 + margin_y),
+        max(0, x0 + xs.min() - margin_x):min(columns, x0 + xs.max() + 1 + margin_x),
+      ] = 0
+      continue
     # with some context around: about 200 pixels at least, 2 to 4 times larger than the pixels when the viewer shows it
     size = max(right - left, bottom - top_) * 1.5
     size = max(size, min(192, max(width, height) / 2))
@@ -200,6 +222,10 @@ def find_regions(delta, factor, shape, count=20):
       "x": int(round(x)), "y": int(round(y)), "w": int(round(w)), "h": int(round(h)),
       "peak_x": int(min(width - 1, (cx + 0.5) * factor)), "peak_y": int(min(height - 1, (cy + 0.5) * factor)),
       "value": value,
+      "spot": {
+        "x": int(left), "y": int(top_),
+        "w": int(min(width, right) - left), "h": int(min(height, bottom) - top_),
+      },
     })
     # the region, and half of its size around it
     left_over[

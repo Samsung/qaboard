@@ -97,6 +97,9 @@ describe('the runs of the page', () => {
 
   it('keys the results by the files compared', () => {
     const context = { output_new: output(1), output_ref: output(11), path: 'out.png' };
-    expect(regionsKey('auto-yiq', context)).toEqual(['image-regions', 'auto-yiq', '/s/1', '/s/11', 'out.png', 'out.png']);
+    expect(regionsKey('auto-yiq', context)).toEqual(['image-regions', 'auto-yiq', '/s/1', '/s/11', 'out.png', 'out.png', null]);
+    // and the size of the differences users look for
+    expect(regionsKey('auto-yiq', { ...context, diff_size: { min: null, max: 20 } }).at(-1)).toEqual([null, 20]);
+    expect(regionsKey('auto-yiq', { ...context, diff_size: { min: null, max: null } }).at(-1)).toBe(null);
   });
 });

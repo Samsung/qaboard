@@ -1839,3 +1839,25 @@
 .qiv-crosshair.qiv-pinned path:last-child {
   stroke: var(--qiv-accent);
 }
+
+/* The sensor: what the pixels say, and notes that changed after a guess */
+.qiv-guess-result {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+.qiv-guess-result .qiv-cfa {
+  flex: 0 0 auto;
+}
+@keyframes qiv-flash {
+  from { background: color-mix(in srgb, var(--qiv-accent) 22%, transparent); }
+  to { background: transparent; }
+}
+.qiv-flash {
+  border-radius: 3px;
+  animation: qiv-flash 1.6s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .qiv-flash { animation: none; }
+}

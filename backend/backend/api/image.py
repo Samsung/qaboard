@@ -292,7 +292,8 @@ def get_pixels():
   })
 
 
-REGIONS_VERSION = 2
+# 3: the regions say the size of their difference (spot), and can be filtered by it
+REGIONS_VERSION = 3
 
 @app.route("/api/v1/output/image/diff", methods=['POST'])
 @login_required
@@ -300,7 +301,8 @@ def get_rois():
   """
   The regions where two images differ most, the largest difference first: [{x, y, w, h, peak_x, peak_y, value, diff}]
   JSON body: output_dir_url_new, output_dir_url_ref, path, path_ref (default: path), diff_type (yiq, ssim, ciede2000),
-  count (default 20). See image_diff.py.
+  count (default 20), min_size and max_size (optional, pixels: only the differences of that size, along their longest
+  side). See image_diff.py.
   """
   data = request.get_json(silent=True) or {}
   if not data.get('path'):
@@ -315,12 +317,17 @@ def get_rois():
   if method not in METHODS:
     return jsonify({"error": f"Unknown diff_type {method}, use one of {', '.join(METHODS)}"}), 400
   count = min(100, max(1, int(data.get('count') or 20)))
+  try:
+    sizes = [int(data[k]) if data.get(k) not in (None, '') else None for k in ('min_size', 'max_size')]
+  except (TypeError, ValueError):
+    return jsonify({"error": "min_size and max_size are numbers of pixels"}), 400
+  min_size, max_size = [s if s and s > 0 else None for s in sizes]
   for label, path in (('new', path_new), ('reference', path_ref)):
     if not path.is_file():
       return jsonify({"error": f"The {label} run has no {path.name}"}), 404
 
   stats = [path_new.stat(), path_ref.stat()]
-  key = json.dumps([REGIONS_VERSION, str(path_new), str(path_ref), [(s.st_size, s.st_mtime_ns) for s in stats], method, count])
+  key = json.dumps([REGIONS_VERSION, str(path_new), str(path_ref), [(s.st_size, s.st_mtime_ns) for s in stats], method, count, min_size, max_size])
   cached = regions_cache_dir / f"{hashlib.sha1(key.encode()).hexdigest()}.json"
   try:
     return Response(cached.read_bytes(), mimetype='application/json', headers={'X-Regions-Cache': 'hit'})
@@ -340,7 +347,7 @@ def get_rois():
     return jsonify({"error": f"The images have different sizes: {w1}x{h1} and {w2}x{h2}"}), 400
   decoded = time.time()
   delta, factor = difference_map(image_new, image_ref, method)
-  body = json.dumps(find_regions(delta, factor, image_new.shape, count)).encode()
+  body = json.dumps(find_regions(delta, factor, image_new.shape, count, min_size, max_size)).encode()
   tmp = cached.with_name(f"{cached.name}.{os.getpid()}.{threading.get_ident()}.tmp")
   tmp.write_bytes(body)
   tmp.rename(cached)

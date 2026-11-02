@@ -51,7 +51,8 @@ describe('reading the values of the view', () => {
   });
 
   it('normalizes what users set of the sensor', () => {
-    expect(normalizeSensorSetting(undefined)).toEqual({ kind: 'auto', pattern: null, block: null, offset: null, blackLevel: null, grouping: 'cfa' });
+    expect(normalizeSensorSetting(undefined)).toEqual({ kind: 'auto', cfaFrom: 'auto', pattern: null, block: null, offset: null, blackLevel: null, grouping: 'cfa' });
+    expect(normalizeSensorSetting({ cfaFrom: 'pixels' }).cfaFrom).toBe('pixels');
     expect(normalizeSensorSetting({ kind: 'mono', blackLevel: 64, grouping: 'sub' })).toMatchObject({ kind: 'mono', blackLevel: 64, grouping: 'sub' });
     expect(normalizeSensorSetting({ kind: 'what', grouping: 'no' })).toMatchObject({ kind: 'auto', grouping: 'cfa' });
   });

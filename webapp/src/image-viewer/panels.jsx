@@ -652,6 +652,7 @@ export const RegionsStrip = ({ set, index, image, size, onSelect, onRetry }) => 
   }, [index]);
   return <div className="qiv-regions">
     <span className="qiv-regions-title" title={set.description}>{set.label}</span>
+    {set.settings}
     {set.loading && <span className="qiv-muted"><Spinner size={12} /> Finding regions…</span>}
     {set.error && <span className="qiv-error">{set.error} {set.load && <Button text="Retry" onClick={onRetry} />}</span>}
     {!set.loading && !set.error && regions.length === 0 && <span className="qiv-muted">

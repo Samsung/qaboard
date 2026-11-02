@@ -65,8 +65,11 @@ export const limiter = createLimiter();
 // The searches running (not waiting for their turn): { [JSON of their query key]: when they started }
 export const useStartedSearches = () => useSyncExternalStore(limiter.subscribe, limiter.started);
 
-export const regionsKey = (provider_id, { output_new, output_ref, path, path_ref }) =>
-  ['image-regions', provider_id, output_new?.output_dir_url ?? output_new?.id, output_ref?.output_dir_url ?? output_ref?.id ?? null, path, path_ref ?? path];
+// The size of the differences, when users look for some: [min, max], else null (the same key as before sizes)
+export const sizeKey = diff_size => diff_size && (diff_size.min || diff_size.max) ? [diff_size.min || null, diff_size.max || null] : null;
+
+export const regionsKey = (provider_id, { output_new, output_ref, path, path_ref, diff_size }) =>
+  ['image-regions', provider_id, output_new?.output_dir_url ?? output_new?.id, output_ref?.output_dir_url ?? output_ref?.id ?? null, path, path_ref ?? path, sizeKey(diff_size)];
 
 // The query of a provider's regions for an image pair. context: { output_new, output_ref, path, path_ref }
 export const regionsQuery = (provider, context, priority = 'low') => ({

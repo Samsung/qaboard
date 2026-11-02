@@ -8,7 +8,8 @@ import { Button, Dialog, DialogBody, DialogFooter, HTMLSelect, Icon, ProgressBar
 import { errorMessage, isAbort } from '../../api/http';
 import { useComparison } from '../../hooks';
 import { formatDifference, regionProviders } from './regionProviders';
-import { limiter, regionsKey, regionsQuery, runPairs, useStartedSearches } from './regionSearch';
+import { limiter, regionsKey, regionsQuery, runPairs, sizeKey, useStartedSearches } from './regionSearch';
+import { DiffSizeFilter, describeDiffSize, useDiffSize } from './DiffSize';
 
 // The providers that compare images, e.g. auto-yiq
 export const differenceProviders = () => regionProviders().filter(provider => provider.find && provider.diff_type);
@@ -38,7 +39,10 @@ export const RegionsTriage = ({ path, path_ref, provider: provider_id, onProvide
   const pairs = usePagePairs();
   const providers = differenceProviders();
   const provider = providers.find(p => p.id === provider_id) ?? providers[0];
-  const contexts = useMemo(() => pairs.map(pair => ({ ...pair, path, path_ref })), [pairs, path, path_ref]);
+  const [diff_size, setDiffSize] = useDiffSize();
+  const size_key = JSON.stringify(sizeKey(diff_size));
+  // oxlint-disable-next-line react/exhaustive-deps -- by its value
+  const contexts = useMemo(() => pairs.map(pair => ({ ...pair, path, path_ref, diff_size })), [pairs, path, path_ref, size_key]);
   const queryClient = useQueryClient();
   const results = useQueries({ queries: contexts.map(context => ({ ...regionsQuery(provider, context), enabled: false })) });
 
@@ -79,8 +83,9 @@ export const RegionsTriage = ({ path, path_ref, provider: provider_id, onProvide
           options={providers.map(p => ({ value: p.id, label: p.label.replace(/^Where they differ: /, '') }))}
           onChange={event => onProviderChange(event.target.value)}
         />
+        <DiffSizeFilter size={diff_size} onChange={setDiffSize} />
         <code style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{path}</code>
-        <span>{done} / {contexts.length}{comparing > 0 ? ` · comparing ${comparing}` : ''}{identical > 0 ? ` · ${identical} identical` : ''}</span>
+        <span>{done} / {contexts.length}{comparing > 0 ? ` · comparing ${comparing}` : ''}{identical > 0 ? ` · ${identical} ${diff_size ? 'without' : 'identical'}` : ''}</span>
       </div>
       <ProgressBar value={contexts.length ? done / contexts.length : 1} animate={running} stripes={running} intent={running ? 'primary' : 'success'} />
       <p className="bp6-text-muted" style={{ margin: '10px 0' }}>
@@ -95,7 +100,7 @@ export const RegionsTriage = ({ path, path_ref, provider: provider_id, onProvide
             {rows.map(row => <tr key={row.output_new.id} onClick={row.status === 'done' && row.regions.length ? () => onShow(row.output_new.id) : undefined}>
               <td style={{ wordBreak: 'break-all' }}>{runName(row.output_new)}</td>
               <td style={{ minWidth: 180 }}>
-                {row.status === 'done' && (row.regions.length === 0 ? <span className="bp6-text-muted">identical</span> : <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {row.status === 'done' && (row.regions.length === 0 ? <span className="bp6-text-muted">{diff_size ? `no difference of ${describeDiffSize(diff_size)}` : 'identical'}</span> : <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ flex: '0 0 70px', height: 6, background: 'var(--qa-border)', borderRadius: 3 }}>
                     <span style={{ display: 'block', height: 6, borderRadius: 3, width: `${largest ? 100 * row.top / largest : 0}%`, background: 'var(--qa-intent-primary)' }} />
                   </span>
