@@ -1,0 +1,76 @@
+---
+id: doctor
+title: Check your setup with qa doctor
+sidebar_label: Check your setup
+description: Run qa doctor to check everything a batch needs, from qaboard.yaml to the runner's permissions, and get how to fix each problem.
+---
+
+`qa doctor` checks everything `qa batch` needs, in the order a batch uses it: *qaboard.yaml*, the QA-Board server,
+the results storage, then the runner. For each problem, it prints how to fix it. Run it when you set up a project or
+a runner, and whenever a batch doesn't start.
+
+## Check your project {#check-your-project}
+In your project's folder, where you run `qa batch`:
+
+```bash
+qa doctor
+```
+
+Each check prints **ok**, **warning**, **error** or **skipped**, with what it found. Every failed check is followed
+by its fix: a command to run, a snippet for *qaboard.yaml*, or what to ask your admins. `qa doctor` exits with code
+`1` when a check failed, and `0` otherwise, so a CI job or a script can run it first.
+
+## Start a test job {#test-job}
+A setup can pass every check and still fail on the cluster: the pods don't mount the storage, the image lacks `qa`,
+the jobs run as another user. `--test-job` also starts a small job with your runner:
+
+```bash
+qa doctor --test-job
+```
+
+The job prints which user it runs as, checks that your mounts and the outputs directory are there and writable as
+that user, and that `qa --version` works where your runs execute.
+
+## Check another runner {#check-another-runner}
+`qa doctor` checks your default runner, `runners.default` in *qaboard.yaml*. To check another one before you switch
+to it:
+
+```bash
+qa doctor --runner kubernetes --test-job
+```
+
+## What qa doctor checks {#what-qa-doctor-checks}
+
+<details>
+<summary>Every check, in order</summary>
+
+| Area | Checks |
+|---|---|
+| *qaboard.yaml* | It's found, and valid. |
+| Project | The project and its git repository. |
+| QA-Board server | It answers, its version, and that you're signed in or have a token. |
+| Storage | The outputs root exists or can be created, and is writable; the inputs database is readable. |
+| `local` | The concurrency. |
+| `lsf` | `bsub`, or the bridge in `QA_RUNNERS_LSF_BRIDGE`; the queue exists. |
+| `celery` | The broker answers, and workers reply. |
+| `dask` | The packages are installed; the scheduler answers, or the cluster type is known. |
+| `windows` | The Jenkins job's URL and the credentials. |
+| `kubernetes` | The Python client is installed; the kubeconfig and its context; the authentication plugin is on your `PATH`; the API answers; the namespace; your permissions in it; the Kueue queue; the image pull secrets; the PersistentVolumeClaims of your mounts. |
+
+</details>
+
+:::tip Send the output to your admins
+When a fix needs your cluster's admins, like permissions on Kubernetes, `qa doctor` prints what to ask them, e.g. the
+Role you need in your namespace. Send them its output.
+:::
+
+## Where to go next
+
+<Cards>
+  <Card title="Choose where runs execute" to="/docs/runners">
+    Local, LSF, Slurm and other HPC schedulers, Kubernetes, Celery, Windows.
+  </Card>
+  <Card title="Run batches on Kubernetes" to="/docs/kubernetes-runner">
+    Permissions, shared storage, quotas, and what to do when pods stay pending.
+  </Card>
+</Cards>

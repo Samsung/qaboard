@@ -1,17 +1,22 @@
 ---
 id: dask-integration
-title: Run batches on a pool of Dask workers
-sidebar_label: Dask
-description: Run many short runs on a few long-lived Dask workers, started as LSF jobs or on an existing Dask cluster, with a bounded concurrency.
+title: Run batches with Dask, on Slurm, PBS, SGE, LSF or Kubernetes
+sidebar_label: Slurm, PBS, SGE... (Dask)
+description: Run batches on a few long-lived Dask workers that qa batch starts on Slurm, PBS, SGE, HTCondor, OAR, Moab, LSF or Kubernetes, or on an existing Dask cluster, with a bounded concurrency.
 ---
 
-With the [LSF runner](/docs/lsf-integration), each run is an LSF job: it pays LSF's scheduling and allocation overhead, and a batch can flood the cluster. With the `dask` runner, a batch's runs execute on a few long-lived [Dask](https://distributed.dask.org) workers, with a bounded concurrency. By default the workers are themselves LSF jobs, started for you with [dask-jobqueue's `LSFCluster`](https://jobqueue.dask.org/en/latest/generated/dask_jobqueue.LSFCluster.html).
+With the `dask` runner, a batch's runs execute on a few long-lived [Dask](https://distributed.dask.org) workers, with
+a bounded concurrency. `qa batch` starts the workers as jobs of your scheduler: LSF by default, or Slurm, PBS, SGE,
+HTCondor, OAR, Moab or Kubernetes (see [other schedulers](#other-schedulers)). It can also use a Dask cluster you
+already run. Unlike the [LSF runner](/docs/lsf-integration), where each run is an LSF job, runs don't pay the
+scheduler's overhead each, and a batch can't flood the cluster.
 
 :::tip When to use it
-- Many short runs (seconds to a few minutes), where LSF overhead dominates.
+- Your cluster runs Slurm, PBS, SGE, HTCondor, OAR or Moab.
+- Many short runs (seconds to a few minutes), where the scheduler's overhead dominates.
 - You want to cap how many runs a batch uses at the same time.
 
-For long runs, or to only cap concurrency, the [LSF runner's `concurrency` option](/docs/lsf-integration#limiting-concurrency) is simpler.
+On LSF, for long runs or to only cap concurrency, the [LSF runner's `concurrency` option](/docs/lsf-integration#limiting-concurrency) is simpler.
 :::
 
 ## Setup
@@ -22,9 +27,11 @@ pip install "qaboard[dask]"
 uv add "qaboard[dask]"   # or, in a uv project
 ```
 
-Workers run `qa run` commands: they must use the same python environment as `qa batch`, and see the same filesystem (as for LSF).
+Workers run `qa run` commands: they must use the same python environment as `qa batch`, and see the same filesystem, at the same paths.
 
 ## Configuration
+On LSF, the default:
+
 ```yaml title="qaboard.yaml"
 runners:
   default: dask
@@ -55,13 +62,51 @@ A batch can have its own `concurrency` under `dask:`, e.g. for runs that need a 
 its runs are in flight. Its runs share the workers with the other batches' runs, and `qa batch` keeps at most the
 largest concurrency in flight, and starts workers for that many. The command line option wins.
 
+## Other schedulers {#other-schedulers}
+`cluster.type` chooses where `qa batch` starts the workers. The other settings under `cluster` are given to the
+cluster's class, so they are the options of its scheduler:
+
+| `cluster.type` | Workers are | Settings |
+|---|---|---|
+| `lsf` (default) | LSF jobs | [`LSFCluster`](https://jobqueue.dask.org/en/latest/generated/dask_jobqueue.LSFCluster.html), with defaults from `runners.lsf` |
+| `slurm` | Slurm jobs | [`SLURMCluster`](https://jobqueue.dask.org/en/latest/generated/dask_jobqueue.SLURMCluster.html) |
+| `pbs` | PBS jobs | [`PBSCluster`](https://jobqueue.dask.org/en/latest/generated/dask_jobqueue.PBSCluster.html) |
+| `sge` | SGE jobs | [`SGECluster`](https://jobqueue.dask.org/en/latest/generated/dask_jobqueue.SGECluster.html) |
+| `htcondor` | HTCondor jobs | [`HTCondorCluster`](https://jobqueue.dask.org/en/latest/generated/dask_jobqueue.HTCondorCluster.html) |
+| `oar` | OAR jobs | [`OARCluster`](https://jobqueue.dask.org/en/latest/generated/dask_jobqueue.OARCluster.html) |
+| `moab` | Moab jobs | [`MoabCluster`](https://jobqueue.dask.org/en/latest/generated/dask_jobqueue.MoabCluster.html) |
+| `kubernetes` | Pods, with the [Dask Kubernetes operator](https://kubernetes.dask.org/en/latest/operator.html) | `KubeCluster`; the image, namespace, resources and user default to `runners.kubernetes` |
+| `local` | Processes on the machine that runs `qa batch` | `LocalCluster`, for big machines and tests |
+
+On Slurm, with 4 runs per worker job:
+
+```yaml title="qaboard.yaml"
+runners:
+  default: dask
+  dask:
+    concurrency: 20
+    cluster:
+      type: slurm
+      queue: <your-partition>
+      account: <your-account>
+      cores: 4             # runs per worker job
+      memory: 64GB         # per worker job: for its 4 runs
+      walltime: "08:00:00"
+```
+
+`<your-partition>` and `<your-account>` are your Slurm partition and account (`sinfo` and `sacctmgr show assoc`
+list them). On every scheduler, worker jobs are named `<batch-prefix>_dask`: stopping a batch, from the web app or with
+`Ctrl-C`, cancels them by that name (`bkill`, `scancel`...). With `--no-wait`, the driver is sent like a job of the
+same scheduler. The `kubernetes` type needs the Dask operator in your cluster and `pip install dask-kubernetes`; for
+one pod per run instead, see the [kubernetes runner](/docs/kubernetes-runner).
+
 ## How it works
 1. `qa batch` starts a Dask scheduler in its own process.
-2. It bsubs `ceil(min(#runs, concurrency) / cores)` worker jobs, named `{batch-prefix}_dask`.
+2. It starts `ceil(min(#runs, concurrency) / cores)` worker jobs, named `{batch-prefix}_dask` (with `bsub` on LSF).
 3. It keeps at most `concurrency` runs in flight: a new run starts as soon as one finishes.
 4. When all runs are done, the worker jobs are stopped.
 
-With `--no-wait`, steps 1-4 happen in a "driver" LSF job named `{batch-prefix}_dask_driver`, and `qa batch` returns as soon as it is sent. The driver uses the LSF options from `runners.dask.driver`, so it doesn't take e.g. a GPU slot.
+With `--no-wait`, steps 1-4 happen in a "driver" job. On LSF, it's named `{batch-prefix}_dask_driver`, and `qa batch` returns as soon as it is sent. The driver uses the LSF options from `runners.dask.driver`, so it doesn't take e.g. a GPU slot.
 
 ### Logs
 - Each run's output is saved in its output directory as `log.dask.txt` (in addition to the usual `log.txt`).

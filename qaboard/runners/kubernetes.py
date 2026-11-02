@@ -287,20 +287,45 @@ def run_as_ids(run_as: Union[str, Dict[str, Any]]) -> Tuple[Optional[int], Optio
     return int(run_as['uid']), int(explicit_gid) if explicit_gid is not None else None, [int(g) for g in run_as.get('groups') or []]
   raise Exception(f'Unknown runners.kubernetes.run_as: {run_as!r}. Use "user", "image" or {{uid: 1000, gid: 1000}}.')
 
-def resources_spec(resources: Dict[str, Any]) -> Dict[str, Any]:
+def security_context(run_as: Union[str, Dict[str, Any], None]) -> Dict[str, Any]:
+  """The pod's securityContext for `run_as`. We never set fsGroup: it would chown the shared volumes."""
+  uid, gid, groups = run_as_ids(run_as or 'user')
+  context: Dict[str, Any] = {}
+  if uid is not None:
+    context.update({'runAsUser': uid, 'runAsNonRoot': uid != 0})
+  if gid is not None:
+    context['runAsGroup'] = gid
+  if groups:
+    context['supplementalGroups'] = groups
+  return context
+
+def resources_spec(resources: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+  """{cpu: 4, memory: 16Gi, nvidia.com/gpu: 1} are requests, and all but cpu also limits. {requests, limits} are kept as-is."""
+  if not resources:
+    return {}
+  if set(resources) <= {'requests', 'limits'}:
+    return resources
   requests = {k: str(v) for k, v in resources.items()}
   # Memory over the request gets the pod OOM-killed anyway, better know it. Extended resources need limits.
-  limits = {k: v for k, v in requests.items() if k == 'memory' or '/' in k}
+  limits = {k: v for k, v in requests.items() if k != 'cpu'}
   return {'requests': requests, **({'limits': limits} if limits else {})}
 
-def mount_volume(mount: Dict[str, Any], name: str) -> Dict[str, Any]:
-  if mount.get('pvc'):
-    return {'name': name, 'persistentVolumeClaim': {'claimName': mount['pvc']}}
-  if mount.get('nfs'):
-    return {'name': name, 'nfs': {'server': mount['nfs']['server'], 'path': mount['nfs']['path']}}
-  if mount.get('host_path'):
-    return {'name': name, 'hostPath': {'path': mount['host_path']}}
-  raise Exception(f'runners.kubernetes.mounts: {mount} needs a `path` and one of `pvc`, `nfs` or `host_path`.')
+def mounts_spec(mounts: Optional[List[Dict[str, Any]]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+  """The shared filesystem, at the same paths in the pods: [{path, pvc | nfs: {server, path} | host_path, read_only}] -> volumes, volumeMounts"""
+  volumes, volume_mounts = [], []
+  for index, mount in enumerate(mounts or []):
+    volume: Dict[str, Any] = {'name': f'qa-mount-{index}'}
+    if mount.get('pvc'):
+      volume['persistentVolumeClaim'] = {'claimName': mount['pvc']}
+    elif mount.get('nfs'):
+      volume['nfs'] = {'server': mount['nfs']['server'], 'path': mount['nfs']['path']}
+    elif mount.get('host_path'):
+      volume['hostPath'] = {'path': mount['host_path']}
+    if len(volume) == 1 or not mount.get('path'):
+      raise ValueError(f'runners.kubernetes.mounts[{index}]: {mount} needs a `path` and one of `pvc`, `nfs` or `host_path`.')
+    volumes.append(volume)
+    volume_mounts.append({'name': volume['name'], 'mountPath': mount['path'], **({'readOnly': True} if mount.get('read_only') else {})})
+  return volumes, volume_mounts
 
 def job_body(options: KubernetesOptions, name: str, namespace: str, command: List[str], completions: int = 1, indexed: bool = False, timeout: float = 0) -> Dict[str, Any]:
   """
@@ -338,28 +363,20 @@ def job_body(options: KubernetesOptions, name: str, namespace: str, command: Lis
     },
   }
 
-  uid, gid, groups = run_as_ids(options.run_as)
-  security_context: Dict[str, Any] = {}
-  if uid is not None:
-    # We never set fsGroup: it would chown the shared volumes
-    security_context.update({'runAsUser': uid, 'runAsNonRoot': uid != 0})
-  if gid is not None:
-    security_context['runAsGroup'] = gid
-  if groups:
-    security_context['supplementalGroups'] = groups
+  run_as = security_context(options.run_as)
   container: Dict[str, Any] = {'name': container_name}
   if options.image:
     container['image'] = options.image
   if options.resources:
     container['resources'] = resources_spec(options.resources)
-  mount_names = [f'qaboard-mount-{i}' for i in range(len(options.mounts))]
-  if options.mounts:
-    container['volumeMounts'] = [{'name': n, 'mountPath': m['path']} for n, m in zip(mount_names, options.mounts)]
+  volumes, volume_mounts = mounts_spec(options.mounts)
+  if volume_mounts:
+    container['volumeMounts'] = volume_mounts
   pod_spec: Dict[str, Any] = {'containers': [container]}
-  if security_context:
-    pod_spec['securityContext'] = security_context
-  if options.mounts:
-    pod_spec['volumes'] = [mount_volume(m, n) for n, m in zip(mount_names, options.mounts)]
+  if run_as:
+    pod_spec['securityContext'] = run_as
+  if volumes:
+    pod_spec['volumes'] = volumes
   if options.image_pull_secrets:
     pod_spec['imagePullSecrets'] = [{'name': s} for s in options.image_pull_secrets]
   if options.node_selector:

@@ -12,6 +12,9 @@ QA-Board works with other tools. It won't replace or provide:
 - **Data Versioning**
 
 ## Why not use X instead?
+If you run evaluations with MLflow Projects, W&B Launch, ClearML, job arrays or Kubernetes Jobs today, see
+[Coming from another tool](/docs/coming-from-other-tools): how to run the same batches with QA-Board.
+
 - Most comparable tools focus on **training for machine learning** (`sacred`, `nni`, `mlflow`, `tensorboard`, `polyaxon`...). Our use cases revolve around qualitative outputs for a wide range of algorithms. It means we *need* powerful visualizations. This said, those tools are great too! Many of the commercial solutions (`cometML`, `convrg.io`, `netpune.ai`...) can provide a lot of value too depending on your use-case and the size/maturity of your organization.
 - **Notebooks** are amazing for experimentation and r&d reporting, but are not easy to compare. 
 - [`tensorboard`](https://www.tensorflow.org/tensorboard) has a lot of qualities, but it doesn't scale to many experiments, doesn't know about `git`, and is not persistent. We may integrate an "Open in Tensorboard" button, ask about it and stay tuned. As for `visdom`, it's great for experimenting, less to store historical information.

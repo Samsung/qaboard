@@ -259,9 +259,9 @@ class TestSpec(KubernetesTestCase):
     ], resources={'cpu': 4, 'memory': '16Gi', 'nvidia.com/gpu': 1}, node_selector={'pool': 'gpu'}, service_account='qa-runs', timeout=3600, image_pull_secrets=['creds'])
     pod = self.pod_spec()
     self.assertEqual(pod['volumes'][:3], [
-      {'name': 'qaboard-mount-0', 'persistentVolumeClaim': {'claimName': 'algo-nfs'}},
-      {'name': 'qaboard-mount-1', 'nfs': {'server': 'nas1', 'path': '/export/home'}},
-      {'name': 'qaboard-mount-2', 'hostPath': {'path': '/data'}},
+      {'name': 'qa-mount-0', 'persistentVolumeClaim': {'claimName': 'algo-nfs'}},
+      {'name': 'qa-mount-1', 'nfs': {'server': 'nas1', 'path': '/export/home'}},
+      {'name': 'qa-mount-2', 'hostPath': {'path': '/data'}},
     ])
     container = pod['containers'][0]
     self.assertEqual([m['mountPath'] for m in container['volumeMounts']], ['/algo', '/home', '/data', '/etc/qaboard'])

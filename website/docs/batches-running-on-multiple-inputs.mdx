@@ -54,7 +54,7 @@ qa --share batch ci
   `qa batch ci -- --verbose` runs `qa run --input "profiles/steady-low.yaml" --verbose`...
 - Runs remember the name of their batch: the web app shows it, and you can filter runs by it.
 - By default, `qa batch` runs on this machine. To run several runs at the same time, or on a cluster, see
-  [runners](/docs/using-the-qa-cli#batch-runners).
+  [Choose where runs execute](/docs/runners).
 
 ## Configurations in a batch {#specifying-test-configurations}
 `configs` gives the [configurations](/docs/specifying-configurations) the batch's inputs run with. The camera ISP
@@ -153,14 +153,15 @@ Runner settings are merged in this order, the last one wins:
 3. `<runner>:` in the batch, as above,
 4. command line options, like `qa batch --lsf-queue`.
 
-A batch can also limit how many of its runs run at the same time, with `concurrency` under `local:`, `lsf:` or
-`dask:`, and set the local runner's `timeout`. How batches with their own limit share the resources depends on the
+A batch can also limit how many of its runs run at the same time, with `concurrency` under `local:`, `lsf:`,
+`dask:` or `kubernetes:`, and set the local runner's `timeout`. How batches with their own limit share the resources depends on the
 runner:
 - [local](/docs/local-multiprocessing): they run one after the other.
 - [LSF](/docs/lsf-integration#limiting-concurrency): each gets its own job arrays (or waves), sent at the same time,
   so their limits add up.
 - [Dask](/docs/dask-integration): their runs share the workers, and `qa batch` never has more runs in flight than the
   largest concurrency.
+- [Kubernetes](/docs/kubernetes-runner): each gets its own Jobs, so their limits add up.
 
 :::caution
 A batch can't choose its runner yet: `qa batch --runner`, or `runners.default` in *qaboard.yaml*, does, for all

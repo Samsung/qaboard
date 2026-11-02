@@ -23,6 +23,7 @@ Every command has its help: `qa --help`, `qa batch --help`...
 | `qa init` | Adds *qaboard.yaml* and `qa/` to your project. | [Project setup](/docs/project-init) |
 | `qa run --input <input>` | Runs your code on one input. | [Running your code](/docs/running-your-code) |
 | `qa batch <batch>` | Runs the inputs and configurations of a batch. | [Batches](/docs/batches-running-on-multiple-inputs) |
+| `qa doctor` | Checks *qaboard.yaml*, the server, the storage and the runner, and says how to fix problems. | [Check your setup](/docs/doctor) |
 | `qa postprocess --input <input>` | Redoes only your `postprocess()` function, on a run's files. | [Postprocessing](/docs/running-your-code#postprocess) |
 | `qa sync --input <input>` | Sends a run's *metrics.json* to QA-Board again, with `--share` or in CI. | |
 | `qa get <setting>` | Prints a setting, e.g. `qa get config`, `qa get --input A.jpg output_dir`. | [API](/docs/apis) |
@@ -91,21 +92,16 @@ For `qa --dryrun run`, `run()` is called with `context.dryrun` set to `True`: it
 anything, e.g. print the command it would run.
 
 ## Choose where batches run: runners {#batch-runners}
-`qa run` runs on your machine. `qa batch` hands its runs to a *runner*:
-- `local`: [runs on this machine](/docs/local-multiprocessing), one at a time unless you set a concurrency:
-  `--local-concurrency`, `QA_BATCH_CONCURRENCY` or `runners.local.concurrency` in *qaboard.yaml* (`-1`: one run per
-  CPU). It's the default when no other runner is configured, and on Windows instead of `lsf`.
-- `lsf`: one [LSF](/docs/lsf-integration) job per run. Limit how many run at the same time with `--lsf-concurrency`
-  or `runners.lsf.concurrency`.
-- `dask`: a pool of long-lived [Dask workers](/docs/dask-integration), started as LSF jobs or on an existing Dask
-  cluster. Best for many short runs. Set the concurrency with `--dask-concurrency` or `runners.dask.concurrency`.
-- `celery`: [Celery](/docs/celery-integration) workers.
-- `windows`: runs sent to Windows hosts via [Jenkins](/docs/jenkins-integration).
+`qa run` runs on your machine. `qa batch` hands its runs to a *runner*: `local` (this machine, the default), `lsf`,
+`dask` (workers on Slurm, PBS, SGE, LSF, Kubernetes...), `kubernetes`, `celery` or `windows`. To pick one, and know
+what it needs, see [Choose where runs execute](/docs/runners).
 
 Choose the runner with `--runner`, e.g. `qa batch --runner local ci`, and set a default with `runners.default` in
 *qaboard.yaml*. Without `runners.default`, `qa batch` uses the first runner configured under `runners` other than
-`local`, else `local`. Batches can change their runs' settings, like LSF's memory: see
-[runner settings per batch](/docs/batches-running-on-multiple-inputs#runner-settings-per-batch).
+`local`, else `local`. Options like `--local-concurrency`, `--lsf-concurrency` or `--dask-concurrency` change the
+runner's settings for one command. Batches can change their runs' settings, like LSF's memory: see
+[runner settings per batch](/docs/batches-running-on-multiple-inputs#runner-settings-per-batch). To check that the
+runner works, run [`qa doctor`](/docs/doctor).
 
 ## Runs that already ran {#dealing-with-existing-results}
 By default, `qa batch` runs everything again. `--action-on-existing` changes what it does with runs that already

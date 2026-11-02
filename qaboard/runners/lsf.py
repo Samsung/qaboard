@@ -229,6 +229,30 @@ class LsfRunner(BaseRunner):
     return out
 
 
+  @classmethod
+  def submit_detached(cls, script: str, name: str, log_file: Path, job_options: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Sends `script` as one LSF job (via the bridge if any), see BaseRunner.submit_detached.
+    Its output goes to `log_file` as it runs, then LSF appends its job report (-o).
+    """
+    runner = cls.__new__(cls) # bsub only needs the options, not a run
+    runner.options = dict_to_LsfOptions({'bridge': os.environ.get('QA_RUNNERS_LSF_BRIDGE', ''), **job_options})
+    log_file = Path(log_file).resolve()
+    out = runner.bsub(
+      script="\n".join([
+        f'mkdir -p "{log_file.parent}" && exec > "{log_file}" 2>&1',
+        # the click python package hates ascii locales, and we force a non-interactive matplotlib backend
+        "export LC_ALL=en_US.utf8 LANG=en_US.utf8 MPLBACKEND=agg",
+        script,
+      ]),
+      name=name,
+      log_file=log_file,
+    )
+    import re
+    match = re.search(r'Job <(\d+)>', out.stdout or '')
+    return {"lsf_job_id": match.group(1)} if match else {}
+
+
   @staticmethod
   def start_jobs_as_arrays(jobs: List[Job], batch_prefix: str, concurrency: int, max_array_size: int = 1000, batch_dir: Optional[str] = None):
     """

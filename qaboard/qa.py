@@ -682,14 +682,23 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
     }
     if log:
       command_data['log'] = log['path'] # relative to the batch directory
-    scheduler_address = runs_job_options.get('scheduler_address', dask_config.get('scheduler_address'))
-    if runner == 'dask' and scheduler_address:
+    if runner == 'dask':
       # so that the backend can stop the batch
-      command_data['scheduler_address'] = scheduler_address
+      scheduler_address = runs_job_options.get('scheduler_address', dask_config.get('scheduler_address'))
+      if scheduler_address:
+        command_data['scheduler_address'] = scheduler_address
+      dask_cluster = runs_job_options.get('cluster', dask_config.get('cluster')) or {}
+      command_data['cluster_type'] = dask_cluster.get('type', 'lsf')
+      if command_data['cluster_type'] == 'kubernetes':
+        kubernetes_config = runs_job_options.get('kubernetes', config.get('runners', {}).get('kubernetes')) or {}
+        command_data['kubernetes'] = {
+          "namespace": dask_cluster.get('namespace') or kubernetes_config.get('namespace'),
+          "context": kubernetes_config.get('context'),
+        }
     if runner == 'kubernetes':
       # so that the backend can stop the batch: it deletes its Jobs there
       from .runners.kubernetes import batch_target
-      command_data.update(batch_target({**config.get('runners', {}).get('kubernetes', {}), **runs_job_options}))
+      command_data['kubernetes'] = batch_target({**config.get('runners', {}).get('kubernetes', {}), **runs_job_options})
     job_url = getenvs(('BUILD_URL', 'CI_JOB_URL', 'CIRCLE_BUILD_URL', 'TRAVIS_BUILD_WEB_URL')) # jenkins, gitlabCI, circleCI, travisCI
     if job_url:
       command_data['job_url'] = job_url
@@ -774,13 +783,18 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
       base_runner_options['timeout'] = local_timeout
 
   if runner == 'dask':
-    # scheduler_address, cluster (dask_jobqueue.LSFCluster kwargs)...
+    # scheduler_address, cluster (its type and kwargs for its class, e.g. dask_jobqueue.LSFCluster)...
     base_runner_options.update(dask_config)
     # By default dask workers are LSF jobs, sent with the same queue/project... as the LSF runner
     base_runner_options['lsf'] = {
       "project": lsf_config.get('project', str(project) if project else "qaboard"),
       **{k: v for k, v in lsf_config.items() if k in ('queue', 'project', 'resources', 'max_memory', 'options')},
     }
+    # On Kubernetes, the workers' pods (and the --no-wait driver) are like the kubernetes runner's
+    if (dask_config.get('cluster') or {}).get('type') == 'kubernetes':
+      kubernetes_config = config.get('runners', {}).get('kubernetes', {})
+      kubernetes_options = ('namespace', 'context', 'image', 'image_pull_secrets', 'resources', 'run_as', 'mounts', 'env', 'forward_env', 'node_selector', 'tolerations')
+      base_runner_options['kubernetes'] = {k: v for k, v in kubernetes_config.items() if k in kubernetes_options}
     # We save logs there
     base_runner_options['batch_dir'] = str(ctx.obj['batch_dir'])
     if given('dask_concurrency', dask_concurrency, default_dask_concurrency):

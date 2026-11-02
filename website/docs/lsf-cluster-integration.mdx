@@ -8,7 +8,7 @@ description: Send each run of qa batch to an LSF cluster as a job, choose its qu
 With the `lsf` runner, `qa batch` sends each run to your [IBM Spectrum LSF](https://www.ibm.com/docs/en/spectrum-lsf)
 cluster as a job (`bsub`), and waits for them to end. The cluster's nodes must mount your inputs and the results
 storage at the same paths as the machine where you start `qa batch`. For other runners, see
-[runners](/docs/using-the-qa-cli#batch-runners).
+[Choose where runs execute](/docs/runners).
 
 ## Send your batches to LSF {#lsf-project-options}
 1. Make `lsf` the default runner in *qaboard.yaml*, and give it your queue:
