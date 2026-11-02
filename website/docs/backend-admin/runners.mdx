@@ -80,25 +80,65 @@ container.
 :::
 
 ## On Kubernetes {#kubernetes}
-With `QABOARD_TUNING_RUNNER=kubernetes`, the server starts `qa batch` in a pod: a Job of one pod, in the namespace and
-with the image and mounts of the project's `runners.kubernetes` settings. The pod runs as the logged-in user's UID and
-GID, from the server's [users' accounts](/docs/backend-admin/user-management#users-accounts), and `qa batch` creates
-the runs' Jobs from there.
+With `QABOARD_TUNING_RUNNER=kubernetes`, the server starts `qa batch` in a *driver* pod: a Job of one pod, named
+`qa-<first 8 characters of the command id>-driver-<random>`. It runs in the namespace of the commit's
+`runners.kubernetes` settings (else the first allowed namespace), with their image and mounts, as the signed-in
+user's UID and GID, from the server's [users' accounts](/docs/backend-admin/user-management#users-accounts). Its
+`qa batch --no-wait` creates the runs' Jobs with the namespace's *runs* ServiceAccount, then ends.
 
-1. **Give the server a ServiceAccount**, and bind it to the runner's Role in each namespace where projects run. The
-   Role is in [Get the permissions](/docs/kubernetes-runner#permissions):
+With the Helm chart:
 
-   ```yaml title="qaboard-server-rolebinding.yaml"
+1. **List the namespaces** where batches run, in your values. They must exist:
+
+   ```yaml title="my-values.yaml"
+   runners:
+     kubernetes:
+       enabled: true
+       namespaces: [algo-qa, camera-qa]
+   ```
+
+   In each namespace, the chart creates the runner's Role (`<release>-qaboard-runs`), the runs ServiceAccount, and a
+   RoleBinding for it and for the backend's ServiceAccount. It sets `QABOARD_TUNING_RUNNER=kubernetes`,
+   `QABOARD_KUBERNETES_NAMESPACES`, `QABOARD_KUBERNETES_SERVICE_ACCOUNT` and `QABOARD_KUBERNETES_SERVER_URL` (the
+   proxy's Service). Installing it needs the permission to create Roles there.
+2. **Know your users' UIDs.** The server reads them from its users' accounts: mount `/etc/passwd`, or set
+   `QABOARD_ACCOUNTS_COMMAND`. Only users who sign in with the directory (LDAP, SAML, OIDC) can start batches, unless
+   you set `runAs` or `QABOARD_KUBERNETES_TRUST_LOCAL_ACCOUNTS`, or the project has `run_as: image`.
+3. **Enforce who runs as whom** in each namespace, with its Pod Security level and a
+   [ValidatingAdmissionPolicy](/docs/kubernetes-runner#run-as) on the UIDs: see
+   [one namespace per team](#kubernetes-trust).
+4. **Try it**: start a batch from the web app. Its logs say where the driver pod runs, and why it waits if it's
+   pending.
+
+Projects need, in the *qaboard.yaml* of the commits they run:
+- `runners.default: kubernetes`, or Dask on Kubernetes: otherwise the driver pod does the runs itself.
+- `runners.kubernetes.image`, with `bash` and `qaboard[kubernetes]`, and `mounts` for the results storage and the
+  artifacts, at the same paths as the server's. See [Run batches on Kubernetes](/docs/kubernetes-runner).
+
+<details>
+<summary>Without the Helm chart</summary>
+
+The backend talks to the cluster with its ServiceAccount when it runs in a pod, else with its kubeconfig. In each
+namespace where batches run:
+
+1. Create the runner's Role, from [Get the permissions](/docs/kubernetes-runner#permissions).
+2. Create a ServiceAccount for the driver pods, e.g. `qaboard-runs`, and bind the Role to it and to the server's
+   account:
+
+   ```yaml title="qaboard-runner-rolebinding.yaml"
    apiVersion: rbac.authorization.k8s.io/v1
    kind: RoleBinding
    metadata:
-     name: qaboard-server
+     name: qaboard-runner
      namespace: <runs-namespace>
    roleRef:
      apiGroup: rbac.authorization.k8s.io
      kind: Role
-     name: qaboard-runs
+     name: qaboard-runner
    subjects:
+     - kind: ServiceAccount
+       name: qaboard-runs
+       namespace: <runs-namespace>
      - kind: ServiceAccount
        name: <qaboard-service-account>
        namespace: <qaboard-namespace>
@@ -106,13 +146,28 @@ the runs' Jobs from there.
 
    `<runs-namespace>` is a namespace where projects run, `<qaboard-service-account>` and `<qaboard-namespace>` the
    backend's ServiceAccount and namespace. The server only gets these permissions, in these namespaces.
-2. **Know your users' UIDs.** The server reads them from its users' accounts: mount `/etc/passwd`, or set
-   `QABOARD_ACCOUNTS_COMMAND`.
-3. **Enforce who runs as whom.** The server chooses the UID of the pods it starts: a
-   [ValidatingAdmissionPolicy](/docs/kubernetes-runner#run-as) can limit the UIDs of each namespace.
-4. **Set `QABOARD_TUNING_RUNNER=kubernetes`**, and try it: start a batch from the web app.
+3. Set `QABOARD_TUNING_RUNNER=kubernetes`, `QABOARD_KUBERNETES_NAMESPACES`,
+   `QABOARD_KUBERNETES_SERVICE_ACCOUNT=qaboard-runs`, and `QABOARD_KUBERNETES_SERVER_URL`: the address where pods
+   reach QA-Board.
 
-Stopping a batch deletes its Jobs; the Role allows it.
+</details>
+
+<details>
+<summary>What the driver pod gets, and what the server doesn't use</summary>
+
+- The commit's `namespace`, `context` (only those in `QABOARD_KUBERNETES_CONTEXTS`), `image`, `image_pull_secrets`,
+  `queue`, `priority_class`, `node_selector`, `tolerations`, `ttl_seconds_after_finished`, `env` and `mounts`.
+- Not the commit's `job_template`, `forward_env` (the pod doesn't get the server's environment), `resources` (it gets
+  `QABOARD_KUBERNETES_DRIVER_RESOURCES`), `timeout` (none: `qa optimize` runs as long as its experiment), nor `run_as`
+  other than `image`.
+- No QA-Board token: if the server requires one to save results (`ingest.auth` set to `token`), the runs need one, see
+  [give the runs a token](/docs/kubernetes-runner#token).
+- After it's submitted, the server watches the driver pod for about 20 seconds. An invalid image name, or a pod the
+  namespace refuses, fails the batch right away; other reasons it waits, like an image it can't pull yet or no free
+  node, are written in the batch's logs.
+- Redoing runs works the same way: a driver pod runs `qa batch` with the runs to redo.
+
+</details>
 
 ### One namespace per team {#kubernetes-trust}
 **A namespace is a trust domain.** The pod that runs `qa batch` runs the commit's code with the namespace's runs
@@ -121,27 +176,35 @@ batches from the web app in a namespace can act as anyone else in it, and a poli
 can't tell them apart: they share the ServiceAccount. Give each team its own namespace, like the queues of W&B Launch
 or ClearML.
 
+To keep a namespace's batches away from other namespaces' users, run them all as a team account:
+`QABOARD_KUBERNETES_RUN_AS=<uid>:<gid>` (the chart's `runAs`), with a ValidatingAdmissionPolicy that pins `runAsUser`
+for the runs ServiceAccount.
+
 <details>
 <summary>What the server checks, and the settings that make it stricter</summary>
 
 The server starts `qa batch` as the signed-in user, never as root nor as a UID from `qaboard.yaml`, and only maps the
 UIDs of users who signed in with the directory (LDAP, SAML, OIDC). It doesn't use the commit's `job_template`, the
-server's environment, environment variables that change how bash, Python or `qa` behave, nor mounts other than PVCs
-and NFS. What runs may do is up to the namespace: its Pod Security level, admission policies and quotas.
+server's environment, environment variables that change how bash, Python, the Kubernetes client or `qa` behave, nor
+mounts other than PVCs and NFS. What runs may do is up to the namespace: its Pod Security level, admission policies
+and quotas.
 
-| Variable | What it does |
-|---|---|
-| `QABOARD_KUBERNETES_NAMESPACES` | Comma-separated namespaces where the server may start and stop runs. Empty: none |
-| `QABOARD_KUBERNETES_RUN_AS` | `user` (default): pods run as the signed-in user. `<uid>:<gid>`: all of them run as this account, e.g. a team's. With a ValidatingAdmissionPolicy that pins `runAsUser` for the runs ServiceAccount, the namespace's batches are isolated from other namespaces' users |
-| `QABOARD_KUBERNETES_MIN_UID` | Users with a lower UID can't start batches on Kubernetes. Default: 1000 |
-| `QABOARD_KUBERNETES_TRUST_LOCAL_ACCOUNTS` | `1`: also map local accounts to the UID of the Unix account with the same name. Only if admins create them: anyone can sign up |
-| `QABOARD_KUBERNETES_ALLOW_RUN_AS_IMAGE` | `1`: projects with `run_as: image` may run as root if their image does. By default their pods get `runAsNonRoot` |
-| `QABOARD_KUBERNETES_ALLOW_HOST_PATH` | `1`: projects may mount `host_path` volumes. They need a "privileged" namespace |
-| `QABOARD_KUBERNETES_SERVICE_ACCOUNT` | The runs ServiceAccount, of the pods that run `qa batch` |
-| `QABOARD_KUBERNETES_SERVER_URL` | How those pods reach QA-Board, e.g. `http://qaboard-proxy.qaboard.svc` |
-| `QABOARD_KUBERNETES_CONTEXTS` | The kubeconfig contexts the server may use. Default: its own (in a pod, its ServiceAccount) |
+| Variable | Helm value | What it does |
+|---|---|---|
+| `QABOARD_KUBERNETES_NAMESPACES` | `runners.kubernetes.namespaces` | Comma-separated namespaces where the server may start and stop runs. The first is the default. Empty: none |
+| `QABOARD_KUBERNETES_SERVICE_ACCOUNT` | `runners.kubernetes.serviceAccount` | The runs ServiceAccount, of the driver pods. Chart default: `<release>-qaboard-runs`. Unset: the namespace's default ServiceAccount |
+| `QABOARD_KUBERNETES_SERVER_URL` | `runners.kubernetes.serverUrl` | How the pods reach QA-Board, e.g. `http://qaboard-proxy.qaboard.svc`. Chart default: the proxy's Service. Unset: `QABOARD_HOST` and `QABOARD_PROTOCOL` |
+| `QABOARD_KUBERNETES_RUN_AS` | `runners.kubernetes.runAs` | `user` (default): driver pods run as the signed-in user. `<uid>:<gid>`: all of them run as this account, e.g. a team's |
+| `QABOARD_KUBERNETES_ALLOW_HOST_PATH` | `runners.kubernetes.allowHostPath` | `1`: projects may mount `host_path` volumes. They need a "privileged" namespace |
+| `QABOARD_KUBERNETES_MIN_UID` | | Users with a lower UID can't start batches on Kubernetes. Default: 1000 |
+| `QABOARD_KUBERNETES_TRUST_LOCAL_ACCOUNTS` | | `1`: also map local accounts to the UID of the Unix account with the same name. Only if admins create them: anyone can sign up |
+| `QABOARD_KUBERNETES_ALLOW_RUN_AS_IMAGE` | | `1`: projects with `run_as: image` may run as root if their image does. By default their pods get `runAsNonRoot` |
+| `QABOARD_KUBERNETES_DRIVER_RESOURCES` | | The driver pods' resources, as JSON. Default: `{"cpu": "500m", "memory": "2Gi"}` |
+| `QABOARD_KUBERNETES_CONTEXTS` | | The kubeconfig contexts the server may use, comma-separated. Others are ignored: the server uses its default (in a pod, its ServiceAccount) |
 
-The Helm chart's `runners.kubernetes` values set them, and create the Role, the ServiceAccounts and the RoleBindings.
+The chart's `runners.kubernetes.dask` also lets the server delete the DaskClusters of the
+[Dask batches on Kubernetes](/docs/dask-integration#kubernetes) users stop, and `runners.kubernetes.extraRules` adds
+rules to the Role.
 
 </details>
 
@@ -163,9 +226,11 @@ pending runs as failed:
 |---|---|---|
 | `lsf` | `bkill` on the batch's jobs | `QA_RUNNERS_LSF_BRIDGE` |
 | `dask`, workers on LSF | `bkill` on the workers and the driver | `QA_RUNNERS_LSF_BRIDGE` |
+| `dask`, workers on Slurm, PBS, SGE, HTCondor, OAR or Moab | Cancels the user's worker and driver jobs by their name (`scancel`, `qdel`...) | The scheduler's commands in the backend's image: it doesn't have them |
+| `dask`, workers on Kubernetes | Deletes the batch's DaskCluster and its driver's Job | The namespace in `QABOARD_KUBERNETES_NAMESPACES`, and the chart's `runners.kubernetes.dask` |
 | `dask`, an existing cluster | Stops the batch's runs on the scheduler | The scheduler in `QABOARD_DASK_SCHEDULERS`, and `distributed` installed in the backend |
-| `kubernetes` | Deletes the batch's Jobs, in its project | The RoleBinding above, and the namespace in `QABOARD_KUBERNETES_NAMESPACES` |
-| `celery` | Revokes the batch's tasks: workers drop those that wait, and stop those that run with what they started | The broker in `CELERY_BROKER_URL`. Batches sent to another broker, e.g. a team's virtual host, go on: revoke them in Flower |
+| `kubernetes` | Deletes the batch's Jobs, in its project, and the driver pod of batches started from the web app | The RoleBinding above, and the namespace in `QABOARD_KUBERNETES_NAMESPACES`. When it finds no Job there, e.g. in a kubeconfig context it may not use, it warns |
+| `celery` | Revokes the batch's tasks: workers drop those that wait, and stop those that run with what they started | The broker in `CELERY_BROKER_URL`, and workers with Celery 5.3 or later. Batches sent to another broker, e.g. a team's virtual host, go on |
 | `local`, `qa batch` started by the server | Stops `qa batch` and the runs it started on the server | Several replicas of the backend: the replica that started it. The others say where it runs |
 | `local`, from a terminal or the CI | Nothing: the runs go on where they run | |
 | `windows` | Nothing | |

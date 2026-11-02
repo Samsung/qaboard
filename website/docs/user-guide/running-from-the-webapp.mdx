@@ -234,7 +234,8 @@ Runs start from the commit's artifacts. When some are missing, a message above t
 </details>
 
 Until the runs of a batch you started show up, a message at the top of the page says how it's going, e.g. **Your batch
-is waiting for LSF**: see [Batches started from QA-Board](/docs/user-guide/logs#started-from-qa-board).
+is waiting for LSF**: see [Batches started from QA-Board](/docs/user-guide/logs#started-from-qa-board). On Kubernetes,
+the batch's logs say why its pod waits, e.g. no node with a free GPU, and the runs' logs why theirs wait.
 
 <details>
 <summary>Every message of the Run Tests / Tuning form</summary>

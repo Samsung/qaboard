@@ -18,7 +18,7 @@ runner, the runs are the same `qa run` commands, and the web app shows their res
 | A Slurm, PBS, SGE, HTCondor, OAR or Moab cluster | `dask` | a task on a few worker jobs that `qa batch` starts on the cluster | [Dask on HPC schedulers](/docs/dask-integration) |
 | Many short runs on an HPC cluster | `dask` | the same: workers start once, and the runs don't wait for the scheduler | [Dask on HPC schedulers](/docs/dask-integration) |
 | A Kubernetes cluster | `kubernetes` | a pod of a Kubernetes Job, or several runs one after the other in each pod | [Kubernetes](/docs/kubernetes-runner) |
-| A Kubernetes cluster, with many short runs | `dask` | a task on Dask workers that run as pods | [Dask on Kubernetes](/docs/dask-integration#other-schedulers) |
+| A Kubernetes cluster, with many short runs | `dask` | a task on Dask workers that run as pods | [Dask on Kubernetes](/docs/dask-integration#kubernetes) |
 | Machines that are always on (GPU boxes, lab machines) | `celery` | a task that a Celery worker picks up | [Celery](/docs/celery-integration) |
 | Windows machines, through Jenkins | `windows` | a build of a Jenkins job | [Windows with Jenkins](/docs/jenkins-integration) |
 
@@ -33,7 +33,12 @@ Already running batches with MLflow, W&B Launch, ClearML, Slurm job arrays or Ku
   drive, or an image that has them.
 - **Your environment variables.** Runners forward them to the runs. Celery and Kubernetes leave out secrets (names
   with `TOKEN`, `PASSWORD`, `SECRET`...), Dask and Kubernetes those specific to a host, like `CUDA_VISIBLE_DEVICES`.
+  Kubernetes also leaves out `PATH`, `HOME` and the paths the pods don't mount: see
+  [the runs' environment](/docs/kubernetes-runner#environment).
 :::
+
+Some runners need optional packages, where you run `qa`: `pip install "qaboard[kubernetes]"`,
+`"qaboard[dask]"` (`"qaboard[dask-kubernetes]"` for Dask workers on Kubernetes) or `"qaboard[celery]"`.
 
 ## Set the runner {#set-the-runner}
 Set the default runner in *qaboard.yaml*, with its settings:
@@ -144,9 +149,9 @@ web app can do with them.
 |---|---|---|---|
 | `local` | No: `qa batch` waits for the runs | Yes when the server started them, on the server itself. Started elsewhere: marks them as failed, the runs go on | Yes, where the server runs `qa batch`: by default on the server itself, for small batches |
 | `lsf` | Yes | Yes, with `bkill` | Yes, as the user who starts them |
-| `dask` | Yes: a driver job keeps the runs going | Yes, when the server can reach the scheduler | Yes |
+| `dask` | Yes: a driver job keeps the runs going | Yes, except with `cluster.type: local`. Slurm, PBS, SGE, HTCondor and OAR need their commands on the server; an existing cluster, its scheduler in the server's settings | Yes |
 | `kubernetes` | Yes | Yes: deletes the batch's Jobs | Yes, as the user who starts them |
-| `celery` | Yes | Yes: revokes the tasks, when they were sent to the server's broker | Yes |
+| `celery` | Yes | Yes: revokes the tasks, when they were sent to the server's broker, with Celery 5.3 or later | Yes |
 | `windows` | Yes | No | Redo isn't supported |
 
 Stopping and starting runs from the web app needs settings on the server: your QA-Board admins follow

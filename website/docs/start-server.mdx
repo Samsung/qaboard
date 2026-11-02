@@ -272,8 +272,9 @@ Your users can start batches, redo runs and stop them from the web app, without 
 batches on your cluster, as themselves:
 
 - **LSF**: `QABOARD_TUNING_RUNNER=lsf`, and a bridge host in `QA_RUNNERS_LSF_BRIDGE`.
-- **Kubernetes**: `QABOARD_TUNING_RUNNER=kubernetes`, and a RoleBinding for the server in the namespaces where runs
-  execute.
+- **Kubernetes**: `QABOARD_TUNING_RUNNER=kubernetes`, the namespaces where runs execute in
+  `QABOARD_KUBERNETES_NAMESPACES`, and the runner's Role there, for the server and for the pods that run `qa batch`.
+  The Helm chart's `runners.kubernetes` values set it all up.
 - **Celery workers**: `QABOARD_TUNING_RUNNER=celery`, and workers on your machines.
 
 See [Run batches from the web app](/docs/backend-admin/runners).
@@ -442,7 +443,10 @@ Set them in `services.backend.environment` in your site overlay, and the secrets
 | `QABOARD_INGEST_AUTH`, `QABOARD_ACCESS_POLICY`... | | Settings you can also change in **Admin → Settings**: see [settings](/docs/backend-admin/user-management#settings) |
 | `QABOARD_TUNING_RUNNER` | local  | Where the server runs `qa batch` for batches started from the web app: `local`, `lsf`, `kubernetes` or `celery`. See [Run batches from the web app](/docs/backend-admin/runners) |
 | `QA_RUNNERS_LSF_BRIDGE` | _none_ | The command template that runs LSF commands as `{user}` on a host with LSF, to start, redo and stop batches: see [On LSF](/docs/backend-admin/runners#lsf) |
+| `QABOARD_LOCAL_START_WAIT` | 3 | With `QABOARD_TUNING_RUNNER=local` or `celery`, how many seconds the server waits for `qa batch` before it answers, so users see right away when it fails to start |
+| `QABOARD_KUBERNETES_*` | _none_ | With `QABOARD_TUNING_RUNNER=kubernetes`: the namespaces where the server may start and stop runs (`QABOARD_KUBERNETES_NAMESPACES`), the ServiceAccount of the pods that run `qa batch`, who they run as... See [the Kubernetes settings](/docs/backend-admin/runners#kubernetes-trust) |
 | `QABOARD_DASK_SCHEDULERS` | _none_ | Comma-separated Dask scheduler addresses the backend trusts, to stop Dask batches from the web app |
+| `CELERY_BROKER_URL` | The deployment's RabbitMQ (set in *docker-compose.yml*) | With `QABOARD_TUNING_RUNNER=celery`: the broker given to the `qa batch` the server runs, and where **Stop runs** revokes Celery tasks |
 | `QABOARD_IMAGE_SERVERS` | `{"default": "/iiif/2/"}` | JSON map of file extensions to IIIF image servers, e.g. `{"default": "/iiif/2/", "raw,dng": "https://iip.example.com/fcgi-bin/iipsrv.fcgi?IIIF=/"}`. Each URL is followed directly by the image's path |
 | `QABOARD_IMAGE_CACHE_DIR` | `$QABOARD_DATA_DIR/cache/images` | Where the images whose pixel values users read in the image viewer, or that they compare with "Where they differ", are kept, decoded (16-bit, float, raw...), so that reading them again is fast, and in `regions/` the regions found (removed after a month unused). In `videos/`: what's in the videos, and where two videos differ (removed after a month). Shared by the backend's workers: use local disk |
 | `QABOARD_IMAGE_CACHE_GB` | `20` | The disk space they can use: the least recently used are removed. Decoded images are large (a 12 MP 16-bit RGB image takes 72 MB) |

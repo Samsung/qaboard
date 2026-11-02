@@ -22,7 +22,9 @@ storage at the same paths as the machine where you start `qa batch`. For other r
 
    `<your-queue>` is one of your cluster's queues (`bqueues` lists them). Without `queue`, jobs go to the cluster's
    default queue.
-2. Run a batch. `qa` sends its runs as LSF jobs, then waits for them to end:
+2. Check it: `qa doctor --runner lsf --test-job` checks `bsub`, `bwait` and the queue, then sends a job that writes
+   in the results storage. See [qa doctor](/docs/doctor).
+3. Run a batch. `qa` sends its runs as LSF jobs, then waits for them to end:
 
    ```bash
    qa --share batch ci
@@ -181,7 +183,9 @@ exec sudo -n -u "$user" -- /bin/bash -lc 'exec env "$@"' bash "$@"
 ```
 
 Adapt it to your site: some sites provide their own wrapper for this. Check the template by hand from where `qa`
-runs, with `bjobs -w` in place of `{bsub_command}`, then run `qa doctor --runner lsf --test-job`.
+runs, with `bjobs -w` in place of `{bsub_command}`, then run `qa doctor --runner lsf --test-job`. With a template that
+puts `{bsub_command}` in single quotes, like the one above, commands that contain a single quote break on the bridge
+host.
 
 `<lsf-host>` is a host that can send LSF jobs. The jobs run in the folder where you started `qa batch`: `qa` gives it
 to LSF, so the bridge doesn't need to `cd` there.

@@ -27,7 +27,13 @@ pip install "qaboard[dask]"
 uv add "qaboard[dask]"   # or, in a uv project
 ```
 
-Workers run `qa run` commands: they must use the same python environment as `qa batch`, and see the same filesystem, at the same paths.
+For workers on Kubernetes, install `qaboard[dask-kubernetes]` instead (Python 3.10 or later). Workers run `qa run`
+commands: they must use the same python environment as `qa batch`, and see the same filesystem, at the same paths.
+Then check your setup, and start a worker that runs `id; hostname`:
+
+```bash
+qa doctor --runner dask --test-job
+```
 
 ## Configuration
 On LSF, the default:
@@ -49,6 +55,7 @@ runners:
       max_memory: 2000               # MB
       # resources: "select[...]"
     # no_worker_timeout: 600        # give up if all workers are gone for that long (seconds)
+    # worker_start_timeout: 0       # give up if no worker started after that long (seconds, 0: wait forever)
     # scheduler_address: tcp://my-host:8786   # use an existing cluster, see below
 ```
 
@@ -95,26 +102,100 @@ runners:
 ```
 
 `<your-partition>` and `<your-account>` are your Slurm partition and account (`sinfo` and `sacctmgr show assoc`
-list them). On every scheduler, worker jobs are named `<batch-prefix>_dask`: stopping a batch, from the web app or with
-`Ctrl-C`, cancels them by that name (`bkill`, `scancel`...). With `--no-wait`, the driver is sent like a job of the
-same scheduler. The `kubernetes` type needs the Dask operator in your cluster and `pip install dask-kubernetes`; for
-one pod per run instead, see the [kubernetes runner](/docs/kubernetes-runner).
+list them). Besides `type`, `cluster` takes the cluster class's arguments. On every scheduler but LSF, their defaults
+are 1 core, 1 process and 4GB per worker job (and 1GB of disk on HTCondor), and no time limit: the queue decides, unless
+you set `walltime`. Each worker job does `cores` runs at the same time.
+
+What works where `qa batch` runs, and from the QA-Board server:
+
+| `cluster.type` | `qa batch` | `--no-wait` sends a driver job with | `Ctrl-C` and stopping from the web app |
+|---|---|---|---|
+| `lsf` | Needs `bsub` | `bsub`, or the LSF bridge | `bkill`; the server goes through the LSF bridge |
+| `slurm` | Needs `sbatch` | `sbatch` | `scancel`; the server needs it in its image |
+| `pbs`, `moab` | Needs `qsub` (Moab: `msub`) | `qsub` (Moab: `msub`) | `qselect` and `qdel`; the server needs them in its image. Moab must run on Torque or PBS |
+| `sge` | Needs `qsub` | `qsub` | `qdel`; the server needs it in its image |
+| `htcondor` | Needs `condor_submit` | `condor_submit` | `condor_rm`; the server needs it in its image |
+| `oar` | Needs `oarsub` | `oarsub` | `oardel`; the server needs it in its image |
+| `kubernetes` | Needs the Dask operator in the cluster | A pod, like the [kubernetes runner](/docs/kubernetes-runner)'s | Deletes the DaskCluster and the driver's Job; the server needs the namespace |
+| `local` | Starts the workers on this machine | A background process on this machine | `Ctrl-C` only: kill the driver, its PID is in `driver.pid` |
+
+Jobs are cancelled by their name: `<batch-prefix>_dask` for the workers and `<batch-prefix>_dask_driver` for the
+`--no-wait` driver on LSF, `qa<batch-prefix>_dask` and `qa<batch-prefix>_drv` on the other schedulers, where
+`<batch-prefix>` is the first 8 characters of the batch's command id. On Slurm, PBS, SGE, HTCondor and OAR, the
+QA-Board server only cancels the jobs of the user who started the batch. The QA-Board server's image doesn't have Slurm, PBS, SGE, HTCondor or OAR's
+commands: your QA-Board admins add them to stop these batches from the web app.
+
+:::caution OAR
+On OAR, set `walltime` (and `driver.walltime` for `--no-wait`): otherwise dask-jobqueue's default applies, and the
+jobs are killed after 30 minutes. `qa doctor` warns about it. The `--no-wait` driver also gets OAR's login
+environment, not yours: OAR can't forward it.
+:::
+
+### Dask on Kubernetes {#kubernetes}
+With `type: kubernetes`, the workers are pods that the
+[Dask Kubernetes operator](https://kubernetes.dask.org/en/latest/operator.html) starts. Your cluster's admins install
+the operator once, and you install `qaboard[dask-kubernetes]`. The pods are like the
+[kubernetes runner](/docs/kubernetes-runner)'s: their image, namespace, resources, user (`run_as`), mounts, image
+pull secrets, node selector and tolerations come from `runners.kubernetes`, and `cluster` can change the image,
+namespace, resources and environment:
+
+```yaml title="qaboard.yaml"
+runners:
+  default: dask
+  kubernetes:
+    namespace: <your-namespace>
+    image: <your-image>          # with qa, distributed and your code's dependencies
+    resources: {cpu: 4, memory: 16Gi}
+    mounts:
+      - path: /mnt/qaboard
+        pvc: <your-claim>
+  dask:
+    concurrency: 20
+    cluster:
+      type: kubernetes
+      threads_per_worker: 4      # runs per worker pod (default: 1)
+```
+
+- Each `qa batch` creates its own DaskCluster, `qa-<batch-prefix>-dask-<random>`, labeled with the batch's command id,
+  and deletes it when the batch ends. If `qa batch` dies, the operator deletes it once idle for `idle_timeout`
+  (600 seconds by default).
+- The scheduler pod asks for 1 CPU and 2Gi of memory, without the mounts, node selector and tolerations of the
+  workers.
+- Dask uses your kubeconfig's current context (in a pod, its ServiceAccount): `qa batch` stops if
+  `runners.kubernetes.context` names another one.
+- The runs get your environment variables, secrets included (they go to the workers through Dask, not in a
+  ConfigMap), without those of your machine like `PATH` and `HOME`.
+- Your permissions in the namespace: `qa doctor` checks them, and prints the Role to ask your admins for.
+
+For one pod per run, or several runs per pod, without Dask, see the [kubernetes runner](/docs/kubernetes-runner).
 
 ## How it works
-1. `qa batch` starts a Dask scheduler in its own process.
-2. It starts `ceil(min(#runs, concurrency) / cores)` worker jobs, named `{batch-prefix}_dask` (with `bsub` on LSF).
+1. `qa batch` starts a Dask scheduler in its own process (on Kubernetes, the operator starts a scheduler pod).
+2. It starts `ceil(min(#runs, concurrency) / cores)` worker jobs, named after the batch (see above).
 3. It keeps at most `concurrency` runs in flight: a new run starts as soon as one finishes.
 4. When all runs are done, the worker jobs are stopped.
 
-With `--no-wait`, steps 1-4 happen in a "driver" job. On LSF, it's named `{batch-prefix}_dask_driver`, and `qa batch` returns as soon as it is sent. The driver uses the LSF options from `runners.dask.driver`, so it doesn't take e.g. a GPU slot.
+If the scheduler refuses the worker jobs (an unknown queue, too many resources...), `qa batch` stops with its error.
+If no worker starts within `worker_start_timeout` seconds, it stops too: by default after 15 minutes on Kubernetes
+and with `local`, and never on the other schedulers, whose queues can be long.
+
+With `--no-wait`, steps 1-4 happen in a "driver" job, and `qa batch` returns as soon as it is sent. It needs little,
+and runs until the last run ends:
+- On LSF, it gets the options of `runners.dask.driver`, by default those of `runners.lsf`, so it doesn't take e.g. a
+  GPU slot.
+- On Kubernetes, `runners.dask.driver` changes the options of `runners.kubernetes` for its pod. Its ServiceAccount
+  creates the DaskCluster: it needs the same permissions as you.
+- On Slurm, PBS, SGE..., it gets the workers' settings (queue, account...) without their resources and time limit:
+  1 core and 2GB, and what `runners.dask.driver` sets, e.g. a `walltime` long enough for the whole batch. It gets your
+  environment (`sbatch --export=ALL`, `qsub -V`...), and starts the workers from the node it runs on.
 
 ### Logs
 - Each run's output is saved in its output directory as `log.dask.txt` (in addition to the usual `log.txt`).
 - Everything else is in the batch directory, under `dask/{batch-prefix}/`:
   - worker logs: `*.err` has Dask's logs, and a `[qaboard] start` / `[qaboard] end` line per run. `*.out` is usually empty.
   - with `--no-wait`: `driver.log` (live progress), `driver.lsf.log` (LSF's report, at the end) and `tasks.json` (the runs it was asked to execute).
-- Your environment variables are forwarded to the runs, except those specific to your host or LSF job (`LSB_*`, `TMPDIR`, `CUDA_VISIBLE_DEVICES`...).
-- Stopping a batch from QA-Board kills the worker and driver jobs (`bkill -J "{batch-prefix}*"`). `Ctrl-C` on `qa batch` kills the running runs and the workers.
+- Your environment variables are forwarded to the runs, except those specific to your host or scheduler job (`LSB_*`, `SLURM_*`, `PBS_*`, `TMPDIR`, `CUDA_VISIBLE_DEVICES`...).
+- Stopping a batch from QA-Board cancels the worker and driver jobs (on LSF: `bkill -J "{batch-prefix}*"`). `Ctrl-C` on `qa batch` kills the running runs and the workers.
 - If a worker job dies while running something (e.g. killed by LSF for using too much memory), Dask retries the run on another worker, up to 3 times.
 
 :::caution Requirements & limitations
@@ -136,10 +217,13 @@ runners:
 
 - `qa batch` doesn't start or stop workers: the cluster size is the global limit, `concurrency` the limit of each
   `qa batch`.
-- With `--no-wait`, the driver LSF job connects to the cluster and keeps at most `concurrency` runs in flight. If LSF isn't available (no `bsub`, no `QA_RUNNERS_LSF_BRIDGE`), all runs are sent at once and `concurrency` is not enforced.
-- To stop batches from QA-Board, the QA-Board server needs `distributed` installed and access to the scheduler.
+- With `--no-wait`, a driver job of `cluster.type` connects to the cluster and keeps at most `concurrency` runs in
+  flight. If `qa batch` can't send one from where it runs (e.g. no `bsub` and no `QA_RUNNERS_LSF_BRIDGE` for `lsf`),
+  all runs are sent at once and `concurrency` is not enforced. `qa doctor` warns about it.
+- To stop batches from QA-Board, the QA-Board server needs `distributed` installed, access to the scheduler, and the
+  scheduler's address in `QABOARD_DASK_SCHEDULERS`.
 
 ## Troubleshooting
-- Nothing starts: check the jobs with `bjobs -J "{batch-prefix}_dask*"`, and the logs in `{batch-dir}/dask/{batch-prefix}/`.
+- Nothing starts: check the jobs (`bjobs -J "{batch-prefix}_dask*"` on LSF, `squeue --name qa{batch-prefix}_dask` on Slurm), and the logs in `{batch-dir}/dask/{batch-prefix}/`.
 - Workers start but runs don't: check they reached the scheduler (`Registered to:` in the worker's `.err`), then the `[qaboard] start` lines, then the runs' `log.dask.txt`.
 - `QA_BATCH_VERBOSE=1 qa batch ...` prints the worker job script.

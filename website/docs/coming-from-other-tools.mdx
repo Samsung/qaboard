@@ -119,8 +119,10 @@ runners:
 
 **What differs:** QA-Board doesn't build or push an image per run. Pods use your image for the dependencies, and read
 your code and inputs from the shared storage. Remove the `{replaced-with-...}` placeholders from your template:
-QA-Board sets the name, image and command. MLflow's tracking stays useful for training; QA-Board compares the
-outputs of every input, commit after commit.
+QA-Board sets the name, image and command. Your environment variables reach the pods, but not secrets like
+`MLFLOW_TRACKING_TOKEN`: add them to the template from a Secret, see
+[give the runs a token](/docs/kubernetes-runner#token). MLflow's tracking stays useful for training; QA-Board
+compares the outputs of every input, commit after commit.
 
 ## W&B Launch {#wandb-launch}
 **You have** a launch queue whose configuration is a Kubernetes Job spec, with variables like `${image_uri}`, a launch
@@ -139,10 +141,12 @@ jobs with `wandb launch -j <job> -q <queue> -c config.json`.
 | Sweeps | Batches with a `matrix`, tuning from the web app, `qa optimize` |
 
 **What differs:** there is no agent. `qa batch` creates the Jobs with your kubeconfig, so users need
-[permissions in a namespace](/docs/kubernetes-runner#permissions). People without them start batches from the web
-app, where the QA-Board server creates the Jobs with its own ServiceAccount: see
-[Run batches from the web app](/docs/backend-admin/runners). Launch builds images from your code; QA-Board uses one
-image and the shared storage.
+[permissions in a namespace](/docs/kubernetes-runner#permissions): see [Run batches on Kubernetes](/docs/kubernetes-runner).
+People without them start batches from the web app: the QA-Board server starts `qa batch` in a pod of the namespace,
+as them, and that pod creates the Jobs with a ServiceAccount the admins set up, see
+[Run batches from the web app](/docs/backend-admin/runners#kubernetes). Like a launch queue, a namespace is shared by
+a team: its users trust each other. Launch builds images from your code; QA-Board uses one image and the shared
+storage.
 
 ## ClearML Agent {#clearml-agent}
 **You have** agents on your GPU machines (`clearml-agent daemon --queue default --docker --gpus 0`), or the ClearML
@@ -151,11 +155,11 @@ Kubernetes glue that turns queued tasks into pods from a template. You enqueue t
 
 **In QA-Board:**
 
-- **Agents on your machines** become [Celery workers](/docs/celery-integration), one per GPU, each listening to a
-  queue:
+- **Agents on your machines** become [Celery workers](/docs/celery-integration), listening to a queue, e.g. one
+  run at a time on each GPU machine:
 
   ```bash
-  CUDA_VISIBLE_DEVICES=0 celery -A qaboard.runners.celery_app worker --concurrency=1 --queues gpu
+  celery -A qaboard.runners.celery_app worker --concurrency=1 --queues gpu
   ```
 
   ```yaml title="qaboard.yaml"
@@ -168,7 +172,8 @@ Kubernetes glue that turns queued tasks into pods from a template. You enqueue t
   ```
 
   `<your-qaboard-host>` is your QA-Board server, whose RabbitMQ can give each team its own account, `camera` here:
-  see [sharing the broker](/docs/celery-integration#sharing-the-servers-broker-between-teams).
+  see [sharing the broker](/docs/celery-integration#sharing-the-servers-broker-between-teams). Unlike an agent's
+  tasks, the runs get the environment of `qa batch`, without its secrets, not the worker's.
 
 - **The Kubernetes glue** becomes the [kubernetes runner](/docs/kubernetes-runner), with your pod template as
   `job_template`.
@@ -255,7 +260,8 @@ with `withItems` or `withParam`, or Jobs labeled with `kueue.x-k8s.io/queue-name
 | `securityContext.runAsUser` | `run_as: user`, your UID by default |
 
 Keep Argo for what it does well, like build, then test, then deploy: run `qa batch ci` in the test step, from a pod
-that mounts the storage. `qa` then uses the pod's ServiceAccount to create the runs' Jobs.
+that mounts the storage. `qa` then uses the pod's ServiceAccount to create the runs' Jobs: bind it to
+[the runner's Role](/docs/kubernetes-runner#permissions). The runner needs Kubernetes 1.29 or later.
 
 ## Ray and Dask {#ray-and-dask}
 **You have** a Dask cluster and `client.map(evaluate, inputs)`, or Ray tasks (`@ray.remote`) that evaluate each
@@ -295,7 +301,7 @@ or keep Ray inside `run()`, for the parallelism of one run.
 </Tabs>
 
 **In QA-Board**, the matrix moves to the batch, [as above](#wrap-your-evaluation), and one CI job runs
-`qa batch ci`: the runner fans the runs out to your cluster, and the CI job waits for them. The CI keeps doing what
+`qa batch ci`: the [runner](/docs/runners) fans the runs out to your cluster, and the CI job waits for them. The CI keeps doing what
 it's for: building, and starting the evaluation on every push. See [CI integration](/docs/ci-integration).
 
 **What you gain:** one CI job instead of one per combination; every commit's results compared with the reference

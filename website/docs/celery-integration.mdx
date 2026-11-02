@@ -7,9 +7,12 @@ description: Send the runs of qa batch to Celery workers through a message broke
 
 With the `celery` runner, `qa batch` sends its runs to [Celery](https://docs.celeryq.dev/) workers through a
 message broker, and waits for them. Workers run each `qa run` in the folder where you started `qa batch`, with your
-environment variables, except secrets (names with `TOKEN`, `ACCESS`, `AUTH`, `SECRET`, `PASSWORD`...: set those on
-the workers' machines): their machines need that folder, your inputs and the results storage at the same paths, e.g.
-on shared drives.
+environment variables, except secrets (names with `TOKEN`, `ACCESS`, `AUTH`, `SECRET`, `PASSWORD`...): their machines
+need that folder, your inputs and the results storage at the same paths, e.g. on shared drives.
+
+The runs get the environment of `qa batch`, not the worker's own. To send results to a QA-Board server that requires
+a token, sign in once with `qa auth login` in a home folder that the workers' machines share: the runs get your
+`HOME`, and with it your login.
 
 ## Start workers and send them runs {#starting-celery-workers}
 1. **Get a broker.** QA-Board's Docker Compose deployment starts RabbitMQ on port `5672` (not the quickstart's),
@@ -24,7 +27,7 @@ on shared drives.
 2. **Start at least one worker**, in the Python environment of your code:
 
    ```bash
-   pip install celery qaboard
+   pip install "qaboard[celery]"
    export CELERY_BROKER_URL=pyamqp://guest:guest@<broker-host>:5672//
    celery -A qaboard.runners.celery_app worker --concurrency=10 --loglevel=info
    ```
@@ -41,9 +44,13 @@ on shared drives.
        broker_url: pyamqp://guest:guest@<broker-host>:5672//  # or $CELERY_BROKER_URL
    ```
 
-   Without `broker_url` or `CELERY_BROKER_URL`, `qa` looks for the broker on a host named `qaboard`.
+   Without `broker_url` or `CELERY_BROKER_URL`, `qa` looks for the broker on a host named `qaboard`. Install the
+   runner where you run `qa batch` too: `pip install "qaboard[celery]"`.
 
-4. **Run a batch**: `qa --share batch ci`. To see the runs' logs live in your terminal instead, run them on your
+4. **Check it**: `qa doctor --runner celery --test-job` checks the broker, that workers answer and listen to the
+   runs' queue, then has a worker run a task. See [qa doctor](/docs/doctor).
+
+5. **Run a batch**: `qa --share batch ci`. To see the runs' logs live in your terminal instead, run them on your
    machine: `qa batch --runner local ci`.
 
 Without `--share` (or a CI), runs write their files in `output/`, in the folder where you started `qa batch`: use
@@ -51,13 +58,14 @@ Without `--share` (or a CI), runs write their files in `output/`, in the folder 
 
 ## Stop a batch {#stop-a-batch}
 Press Ctrl+C in `qa batch`, or click **Stop runs** in the web app: the workers drop the batch's tasks that wait, and
-stop those that run, with everything their `qa run` started. The web app stops batches sent to the server's broker
-(its `CELERY_BROKER_URL`): ask your QA-Board admins if yours uses another.
+stop those that run, with everything their `qa run` started. The web app only stops batches sent to the server's
+broker (its `CELERY_BROKER_URL`): batches sent to another broker, or another virtual host, go on.
 
 <details>
 <summary>What workers need, and the limits</summary>
 
-- Celery 5.3 or later, and the default `prefork` pool: with the `threads` or `solo` pools, workers can't stop running tasks.
+- Celery 5.3 or later, and the default `prefork` pool: with the `threads` or `solo` pools, workers can't stop running
+  tasks. Older workers only stop batches from `Ctrl+C`, not from the web app.
 - Workers remember stopped batches in memory. A worker that starts afterwards may still run their waiting tasks,
   unless the workers save their state: `celery -A qaboard.runners.celery_app worker --statedb=/var/lib/celery/worker.state`.
 
