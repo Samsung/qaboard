@@ -139,7 +139,7 @@ describe('TuningForm', () => {
   it('links to the docs of the site', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
     renderWithProviders(<TuningForm project="proj" config={{ inputs: {} }} metrics={metrics} commit={commit} available_tests_files={{}}/>, { siteConfig: { docs_root: '/qa/' } });
-    expect(screen.getByText(/get started with async runners/).closest('a')).toHaveAttribute('href', '/qa/docs/celery-integration');
+    expect(screen.getByText('Choose where runs execute').closest('a')).toHaveAttribute('href', '/qa/docs/runners');
   });
 
   it('opens the list of tests', async () => {

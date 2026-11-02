@@ -7,6 +7,7 @@ from .local import LocalRunner
 from .celery import CeleryRunner
 from .dask_runner import DaskRunner
 from .jenkins_windows import JenkinsWindowsRunner
+from .kubernetes import KubernetesRunner
 
 runners: Dict[str, Type[BaseRunner]] = {
     'local': LocalRunner,
@@ -14,6 +15,7 @@ runners: Dict[str, Type[BaseRunner]] = {
     'celery': CeleryRunner,
     'dask': DaskRunner,
     'windows': JenkinsWindowsRunner,
+    'kubernetes': KubernetesRunner,
 }
 
 

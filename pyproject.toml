@@ -54,9 +54,9 @@ dask = [
     "distributed; python_version >= '3.9'",
     "dask-jobqueue; python_version >= '3.9'",
 ]
-# Runner that starts runs as Kubernetes Jobs (the `kubernetes` Python client)
+# Runner that starts runs as Kubernetes Jobs. 29: Indexed Jobs' backoffLimitPerIndex
 kubernetes = [
-    "kubernetes>=31; python_version >= '3.9'",
+    "kubernetes>=29; python_version >= '3.9'",
 ]
 # Dask workers on Kubernetes (runners.dask.cluster.type: kubernetes), with the Dask operator
 dask-kubernetes = [

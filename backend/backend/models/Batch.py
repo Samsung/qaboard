@@ -133,16 +133,17 @@ class Batch(Base):
     # TODO: can we after the stop() just mark all outputs as is_pending:False ?
     # Batch.data.commands is written by unauthenticated API calls, and the runners use those options to build shell
     # commands (e.g. `bkill` via the LSF bridge) or to pick a cluster. So we only forward the few options needed to
-    # stop jobs, after validating them: see backend/runner_jobs.py.
+    # stop jobs, after validating them: see backend/runner_jobs.py. What we may not stop is a warning.
     from backend.runner_jobs import stop_batch_jobs, mark_drivers_stopped
     from backend.local_jobs import stop_local_submissions
-    # first the `qa batch` that run on the server, so that they don't start more runs
+    # first the `qa batch` that run on the server, so that they don't start more runs. Those on another replica of
+    # the server are errors, not warnings: their runs go on, and stopping again may reach that replica.
     local = stop_local_submissions(self.data)
     if local["stopped"]:
       self.data = mark_drivers_stopped(self.data, local["stopped"])
       session.add(self)
       session.commit()
-    stopped = stop_batch_jobs(self.data, any([o.is_pending for o in self.outputs]))
+    stopped = stop_batch_jobs(self.data, any([o.is_pending for o in self.outputs]), self.ci_commit.project_id)
     if stopped is None:
       return {"error": local["errors"]} if local["errors"] else {}
     stopped["errors"] = local["errors"] + stopped["errors"]
@@ -160,7 +161,7 @@ class Batch(Base):
           o.set_status(False, False)
           session.add(o)
       session.commit()
-      return {}
+      return {"warnings": stopped["warnings"]} if stopped["warnings"] else {}
 
   def delete(self, session, soft=False, only_failed=False, filter=None):
     """

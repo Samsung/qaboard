@@ -709,6 +709,10 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
           "namespace": kubernetes_namespace(dask_cluster.get('namespace') or kubernetes_config.get('namespace'), kubernetes_config.get('context')),
           "context": kubernetes_config.get('context'),
         }
+    if runner == 'kubernetes':
+      # so that the backend can stop the batch: it deletes its Jobs there
+      from .runners.kubernetes import batch_target
+      command_data.update(batch_target({**config.get('runners', {}).get('kubernetes', {}), **runs_job_options}))
     job_url = getenvs(('BUILD_URL', 'CI_JOB_URL', 'CIRCLE_BUILD_URL', 'TRAVIS_BUILD_WEB_URL')) # jenkins, gitlabCI, circleCI, travisCI
     if job_url:
       command_data['job_url'] = job_url
@@ -808,6 +812,16 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
     base_runner_options['batch_dir'] = str(ctx.obj['batch_dir'])
     if given('dask_concurrency', dask_concurrency, default_dask_concurrency):
       cli_runner_overrides["concurrency"] = dask_concurrency
+
+  if runner == 'kubernetes':
+    # namespace, image, mounts, run_as... (see qaboard/runners/kubernetes.py)
+    base_runner_options.update(config.get('runners', {}).get('kubernetes', {}))
+    base_runner_options['batch_dir'] = str(ctx.obj['batch_dir'])
+    # Labels on the Jobs, e.g. for quotas and dashboards per user or project
+    cli_runner_overrides.update({
+      "user": ctx.obj['user'],
+      "project": project.as_posix() if project else None,
+    })
 
   if runner == 'local' or runner == 'celery':
     cli_runner_overrides["cwd"] = ctx.obj['previous_cwd'] if 'previous_cwd' in ctx.obj else os.getcwd()

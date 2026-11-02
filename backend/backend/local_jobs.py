@@ -23,7 +23,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from qaboard.utils import is_secret
+from qaboard.runners.env import is_secret as is_runner_secret
 
 
 # In the environment of what we start, to find it again, even processes that left its process group
@@ -32,8 +32,15 @@ EXIT_CODE_FILE = 'exit_code'
 # the runners whose `qa batch` the server starts itself
 LOCAL_RUNNERS = ('local', 'celery')
 
-# The server's settings with secrets or that only the server needs, besides those is_secret() finds from their names
-# (*TOKEN*, *PASSWORD*, *KEY*, *SECRET*, *AUTH*, *DSN*...): the database, LDAP, SMTP, sign-in, analytics, Sentry
+# Variables whose names contain these words hold secrets, besides those the runners never forward (runners/env.py:
+# *TOKEN*, *PASSWORD*, *SECRET*, *AUTH*...). The server is stricter: `qa batch` doesn't need its keys.
+SERVER_SECRET_WORDS = ("KEY", "PRIVATE", "CREDENTIAL", "DSN", "DATABASE_URL", "PASS")
+
+def is_secret(name: str) -> bool:
+  return is_runner_secret(name) or any(word in name.upper() for word in SERVER_SECRET_WORDS)
+
+# The server's settings with secrets or that only the server needs, besides those is_secret() finds from their names:
+# the database, LDAP, SMTP, sign-in, analytics, Sentry
 SERVER_ONLY_PREFIXES = (
   'QABOARD_DB_', 'QABOARD_LDAP_', 'QABOARD_SMTP_', 'QABOARD_OIDC_', 'QABOARD_SAML_', 'QABOARD_PGADMIN_',
   'PGADMIN_', 'PGPASS', 'POSTHOG_', 'SENTRY_', 'RABBITMQ_', 'UWSGI_',

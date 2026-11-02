@@ -32,7 +32,7 @@ Already running batches with MLflow, W&B Launch, ClearML, Slurm job arrays or Ku
 - **The same environment.** They run `qa run` with your code's dependencies: the same Python environment on a shared
   drive, or an image that has them.
 - **Your environment variables.** Runners forward them to the runs. Celery and Kubernetes leave out secrets (names
-  with `TOKEN`, `PASSWORD`, `KEY`, `SECRET`...), Dask and Kubernetes those specific to a host, like `CUDA_VISIBLE_DEVICES`.
+  with `TOKEN`, `PASSWORD`, `SECRET`...), Dask and Kubernetes those specific to a host, like `CUDA_VISIBLE_DEVICES`.
 :::
 
 ## Set the runner {#set-the-runner}

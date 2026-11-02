@@ -8,8 +8,13 @@ from typing import List, Dict, Any, Iterable, Tuple
 from .base import BaseRunner
 from .job import Job
 from ..checks import Check
-# is_secret: imported from here by other modules
-from ..utils import is_secret, without_secrets  # noqa: F401
+# is_secret: imported from here by other modules. The filter is shared by the runners (env.py)
+from .env import is_secret
+
+
+def without_secrets() -> Dict[str, str]:
+  """qa's environment, minus the variables that likely hold secrets: the runs get it"""
+  return {k: v for k, v in os.environ.items() if not is_secret(k)}
 
 
 # What `qa batch`, `qa doctor` and the QA-Board server add to the job options, that are not Celery settings
@@ -254,7 +259,7 @@ class CeleryRunner(BaseRunner):
     Workers remember revoked tasks in memory: a worker that starts after this may still run the batch's waiting tasks,
     unless the workers keep their state (celery worker --statedb).
     """
-    from celery import Celery
+    from celery import Celery  # type: ignore
     command_id = job_options['command_id']
     settings, broker_url, _ = doctor_settings(job_options)
     app = Celery('qaboard-stop', set_as_current=False)

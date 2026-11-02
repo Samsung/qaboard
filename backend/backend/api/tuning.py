@@ -580,17 +580,18 @@ def _dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize):
     return {"lsf_job_id": parse_bsub_job_id(out.stdout), "queue": queue}
 
 
-def _dispatch_kubernetes(qa_batch_path, log_dir, user, ci_commit, do_optimize, command_id):
+def _dispatch_kubernetes(qa_batch_path, log_dir, user_info, ci_commit, do_optimize, command_id, on_prepared=None):
     """
     Run the batch script on Kubernetes, in a "driver" pod (a 1-pod Job named qa-<command_id[:8]>-driver) that runs as
-    the signed-in user, with the project's runners.kubernetes (image, mounts...) as far as the server allows it, see
-    backend/runner_jobs.py. Its `qa batch` starts the runs' Jobs with the pod's ServiceAccount
+    the signed-in user (`user_info`, g.user), with the commit's runners.kubernetes (image, mounts...) as far as the
+    server allows it, see backend/runner_jobs.py. Its `qa batch` starts the runs' Jobs with the pod's ServiceAccount
     (QABOARD_KUBERNETES_SERVICE_ACCOUNT), and stopping the batch deletes them all: they have the batch's command id.
+    `on_prepared({"kubernetes_job", "namespace"})` is called before the job is submitted, to record it.
     Returns {"kubernetes_job", "namespace"}. The pod writes its output in log_dir/log.txt, and so do we if it can't start.
     `do_optimize`: the pod has no deadline either way, `qa optimize` runs as long as its experiment.
     """
     from ..runner_jobs import submit_driver
-    return submit_driver(qa_batch_path, log_dir, user, ci_commit, command_id)
+    return submit_driver(qa_batch_path, log_dir, user_info, ci_commit, command_id, on_prepared=on_prepared)
 
 
 def find_commit(project_id, hexsha):
@@ -920,7 +921,13 @@ def start_tuning(hexsha):
             submission.update(_dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize))
             submission["status"] = "submitted"
         elif runner == 'kubernetes':
-            submission.update(_dispatch_kubernetes(qa_batch_path, log_dir, user, ci_commit, do_optimize, command_id))
+            def record_driver(driver):
+                # before it's submitted: the batch can be stopped whatever happens next
+                submission.update(driver)
+                record_submission(batch, submission)
+                db_session.add(batch)
+                db_session.commit()
+            submission.update(_dispatch_kubernetes(qa_batch_path, log_dir, g.user, ci_commit, do_optimize, command_id, on_prepared=record_driver))
             submission["status"] = "submitted"
         elif runner == 'celery':
             # status: "submitted" while it runs, "done"/"failed" if it ended already

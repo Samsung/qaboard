@@ -7,9 +7,9 @@ description: Send the runs of qa batch to Celery workers through a message broke
 
 With the `celery` runner, `qa batch` sends its runs to [Celery](https://docs.celeryq.dev/) workers through a
 message broker, and waits for them. Workers run each `qa run` in the folder where you started `qa batch`, with your
-environment variables (except those whose names contain `TOKEN`, `ACCESS`, `AUTH`, `SECRET`, `PASSWORD`, `PASSWD`,
-`KEY`, `PRIVATE`, `CREDENTIAL`, `DSN` or `DATABASE_URL`: set those on the workers' machines): their machines need that
-folder, your inputs and the results storage at the same paths, e.g. on shared drives.
+environment variables, except secrets (names with `TOKEN`, `ACCESS`, `AUTH`, `SECRET`, `PASSWORD`...: set those on
+the workers' machines): their machines need that folder, your inputs and the results storage at the same paths, e.g.
+on shared drives.
 
 ## Start workers and send them runs {#starting-celery-workers}
 1. **Get a broker.** QA-Board's Docker Compose deployment starts RabbitMQ on port `5672` (not the quickstart's),

@@ -49,20 +49,6 @@ def getenvs(variables: Iterable[str], default=None) -> Optional[str]:
       return os.environ[name]
   return default
 
-# Environment variables whose names contain these words hold secrets (case-insensitive). We don't forward them to
-# the runs (Celery, Kubernetes), and the server doesn't give them to the `qa batch` it starts (backend/local_jobs.py).
-SECRET_WORDS = ("TOKEN", "ACCESS", "AUTH", "SECRET", "PASSWORD", "PASSWD", "KEY", "PRIVATE", "CREDENTIAL", "DSN", "DATABASE_URL")
-
-def is_secret(env_variable: str) -> bool:
-  """Whether an environment variable likely holds a secret, from its name"""
-  name = env_variable.upper()
-  return any(word in name for word in SECRET_WORDS)
-
-def without_secrets(environ: Optional[Dict[str, str]] = None) -> Dict[str, str]:
-  """The environment (default: os.environ), minus the variables that likely hold secrets"""
-  return {k: v for k, v in (os.environ if environ is None else environ).items() if not is_secret(k)}
-
-
 class PathType(click.ParamType):
   """Wrapper for pathlib's Path type, for use with the Click CLI package."""
   name = 'path'
