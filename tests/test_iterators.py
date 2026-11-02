@@ -265,6 +265,66 @@ class TestIterators(unittest.TestCase):
       list(iter_inputs_at_path('photos', database, ['*.png'], False, {}))
       self.assertEqual(len(missing), 2)
 
+  def test_metadata_gets_the_run_context(self):
+    """metadata(context) gets the RunContext, and the old metadata(absolute_input_path, database, input_path) still works"""
+    import tempfile
+    from qaboard.iterators import iter_inputs
+    from qaboard.utils import input_metadata
+    from qaboard.run import RunContext
+    with tempfile.TemporaryDirectory() as tmp:
+      database = Path(tmp)
+      for name in ['a.txt', 'b.txt']:
+        (database / name).write_text('')
+      batches_file = database / 'batches.yaml'
+      batches_file.write_text('\n'.join([
+        'my-batch:',
+        '  configurations: [{gain: 2}]',
+        '  inputs: ["*.txt"]',
+        '  only: {gain: 2, name: a}',
+      ]))
+      (database / 'new.py').write_text('def metadata(context):\n  return {"gain": context.params.get("gain"), "name": context.input_path.stem, "batch": context.batch}\n')
+      (database / 'old.py').write_text('def metadata(absolute_input_path, database, input_path):\n  return {"gain": 2, "name": input_path.stem, "database": str(database)}\n')
+      for entrypoint in ['new.py', 'old.py']:
+        config = {"project": {"entrypoint": str(database / entrypoint)}}
+        runs = list(iter_inputs(['my-batch'], [batches_file], database, [], 'linux', {"type": "local"}, config, {"type": "default", "globs": "*.txt"}))
+        self.assertEqual([run.rel_input_path.as_posix() for run in runs], ['a.txt'], entrypoint)
+
+        context = RunContext(type='default', input_path=database / 'a.txt', database=database, platform='linux', configurations=[{"gain": 2}], batch='my-batch')
+        expected = {"gain": 2, "name": "a", "input_path": str(database / 'a.txt'), "rel_input_path": "a.txt"}
+        expected.update({"batch": "my-batch"} if entrypoint == 'new.py' else {"database": str(database)})
+        self.assertEqual(input_metadata(context, config), expected)
+        # callers of the old input_metadata(absolute_input_path, database, input_path, config)
+        self.assertEqual(input_metadata(database / 'a.txt', database, Path('a.txt'), config)["name"], "a")
+
+  def test_always_get_metadata(self):
+    """QA_BATCH_ALWAYS_GET_METADATA calls metadata() for every input, even without only/exclude"""
+    import os
+    import tempfile
+    from unittest import mock
+    from qaboard.iterators import iter_inputs_at_path
+    with tempfile.TemporaryDirectory() as tmp:
+      database = Path(tmp)
+      for name in ['a.txt', 'b.txt']:
+        (database / name).write_text('')
+      calls = database / 'calls.log'
+      (database / 'side_effects.py').write_text(f'def metadata(context):\n  open({str(calls)!r}, "a").write(context.input_path.name + "\\n")\n')
+      config = {"project": {"entrypoint": str(database / 'side_effects.py')}}
+      with mock.patch.dict(os.environ):
+        os.environ.pop('QA_BATCH_ALWAYS_GET_METADATA', None)
+        self.assertEqual(len(list(iter_inputs_at_path('*.txt', database, ['*.txt'], False, config))), 2)
+        self.assertFalse(calls.exists())
+        os.environ['QA_BATCH_ALWAYS_GET_METADATA'] = '1'
+        self.assertEqual(len(list(iter_inputs_at_path('*.txt', database, ['*.txt'], False, config))), 2)
+        self.assertEqual(calls.read_text().split(), ['a.txt', 'b.txt'])
+
+  def test_metadata_signatures(self):
+    from qaboard.utils import _metadata_takes_context
+    self.assertTrue(_metadata_takes_context(lambda context: None))
+    self.assertTrue(_metadata_takes_context(lambda context, verbose=False: None))
+    self.assertFalse(_metadata_takes_context(lambda absolute_input_path, database, input_path: None))
+    self.assertFalse(_metadata_takes_context(lambda absolute_input_path, database, input_path=None: None))
+    self.assertFalse(_metadata_takes_context(lambda *args: None))
+
   def test_batch_errors_say_where(self):
     """Batches qa can't use say which input is wrong, in which file and at which line"""
     import tempfile

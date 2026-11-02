@@ -146,19 +146,9 @@ class RunContext():
             extra_parameters["forwarded_args"] = ctx.params["forwarded_args"]
         extra_parameters.update(ctx.obj["extra_parameters"])
         ctx.obj["extra_parameters"] = extra_parameters
-        if "/tv/" not in str(input_path):
-            metadata = input_metadata(input_path_absolute, database, input_path, config)
-            if metadata:
-                metadata_keys = list(metadata.keys())
-                for k in metadata_keys:
-                    if k.startswith('_') or k == "input_path" or k == "rel_input_path":
-                        del metadata[k]
-        else:
-            metadata = {}
         run_context = RunContext(
             input_path=input_path_absolute,
             database=database,
-            input_metadata=metadata,
             configurations=ctx.obj["configurations"],
             extra_parameters=extra_parameters,
             platform=ctx.obj["platform"],
@@ -166,6 +156,15 @@ class RunContext():
             type=ctx.obj['input_type'],
             click_context=ctx,
         )
+        # FIXME: SIRC-specific workaround, inputs with /tv/ in their path skip metadata() and get no input_metadata.
+        #        It's an easy fix on SIRC's side, then we remove this special case.
+        #        Nothing else in qaboard depends on it. Note that `qa batch` still calls metadata() for those inputs when filtering.
+        if "/tv/" not in str(input_path):
+            metadata = input_metadata(run_context, config)
+            for k in list(metadata.keys()):
+                if k.startswith('_') or k == "input_path" or k == "rel_input_path":
+                    del metadata[k]
+            run_context.input_metadata = metadata
 
         # for backward compatibility we need obj to behave nicely as the run_context...
         # it's also what we send to the API for now...

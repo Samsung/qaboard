@@ -16,7 +16,7 @@ import fnmatch
 import statistics
 from typing import Any, Dict, List, Optional, Tuple
 
-from polyleven import levenshtein
+from qaboard.matching import config_distance
 
 
 # ---------------------------------------------------------------------------- matching runs, like the web app
@@ -47,15 +47,6 @@ def prepare_output(output: Dict) -> Dict:
   return o
 
 
-def _shorten(string: str) -> str:
-  # like webapp/src/levenshtein.js: removes the first match only
-  return re.sub(r'(workspace|[{}", \'/.\-_]|global|sim|partial_config|image_writer|config|raw|bmp)', '', string, count=1)
-
-
-def _distance(str1: str, str2: str) -> int:
-  return levenshtein(_shorten(str1 or ''), _shorten(str2 or ''))
-
-
 def matching_output(output: Dict, ref_outputs: List[Dict]) -> Tuple[Optional[Dict], Optional[Dict]]:
   """
   The reference run that matches a run best, and how they differ (None if they're the same test).
@@ -74,8 +65,8 @@ def matching_output(output: Dict, ref_outputs: List[Dict]) -> Tuple[Optional[Dic
     same_input = o['input_path'] == output['input_path'] or o.get('test_input_path') == output.get('test_input_path')
     return (
       0 if same_input else 1,
-      _distance(o['configurations_str'], output['configurations_str']),
-      _distance(o['extra_parameters_str'], output['extra_parameters_str']),
+      config_distance(o.get('configurations'), output.get('configurations')),
+      config_distance(o.get('extra_parameters'), output.get('extra_parameters')),
       0 if o.get('platform') == output.get('platform') else 1,
     )
   candidates.sort(key=sort_key)  # stable: ties keep the order of the ids

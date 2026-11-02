@@ -220,6 +220,21 @@ connections from the backends, 196 during a deploy: don't deploy while rolled ba
 `max_connections` must cover the pools: `(QABOARD_DB_POOL_SIZE + QABOARD_DB_MAX_OVERFLOW) * QABOARD_UWSGI_PROCESSES *
 QABOARD_BACKEND_REPLICAS`, twice during deploys. Update the arithmetic in `qaboard.conf` when you change one of them.
 
+## When migrations fail
+Deploys stop when a migration fails (`backend/migrate.sh`), with the error in the log. Until late October 2026 they
+didn't: failed migrations were marked as applied, and the database missed them. Fix the cause, then deploy again,
+or run them by hand with `dc exec backend bash -c 'cd /qaboard/backend/backend && alembic upgrade head'`.
+- **A database that misses migrations**: `alembic stamp <the latest one it has> && alembic upgrade head`. Recent
+  migrations check what exists before changing it: replaying them is safe.
+- **`json` columns**: the models want `jsonb` for `batches.data` and `ci_commits.data`. Production's `ci_commits.data`
+  is still `json` (40 GB, October 2026): only the artifacts cleanup job needs it as `jsonb`. Converting it rewrites the
+  table and locks it for a long time: in a maintenance window, with 50 GB free.
+- **Views**: our own views (`kpis*`, `kps2`, `storage`, the materialized `ci_storage`) use `batches` and `ci_commits`:
+  changing a column's type fails until they are dropped. Save them first (`pg_dump --schema-only -t <view>...`),
+  drop, alter, recreate them in one transaction, then `REFRESH MATERIALIZED VIEW ci_storage`.
+- **A migration that waits**: see what blocks it with `pg_stat_activity` and `pg_blocking_pids()`. Interrupting
+  migrations that fill data in chunks keeps what they did: the next run continues.
+
 ## Idle in transaction
 A session is `idle in transaction` while a request holds a transaction open and does something else: reading files on
 NFS, git, SSH to LSF, HTTP calls. It holds locks and keeps vacuum from cleaning up. Requests end within uwsgi's

@@ -257,6 +257,16 @@ def make_batch_conf_dir(outputs_commit, batch_label, platform, configurations, e
     batch_conf_dir_name(platform, configurations, extra_parameters)
   )
 
+def run_dir_in_commit(batch_label, platform, configurations, extra_parameters, rel_input_path, database, config) -> Path:
+  """Where `qa run` saves a run, relative to its commit's outputs directory (or the project's, for local runs)"""
+  # forwarded arguments (qa run -i input --some-arg) are not part of the run's directory
+  extra_parameters = {k: v for k, v in (extra_parameters or {}).items() if k != 'forwarded_args'}
+  return (
+    batch_folder_name(batch_label) /
+    batch_conf_dir_name(platform, configurations or [], extra_parameters) /
+    output_dirs_for_input_part(Path(rel_input_path), Path(database), config)
+  )
+
 def output_dirs_for_input_part(input_path, database, config):
     input_dir = input_path.with_suffix('')
     input_dir = Path(slugify_hash(input_dir.as_posix(), maxlength=70))

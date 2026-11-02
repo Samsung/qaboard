@@ -13,7 +13,7 @@ import { SignInTab } from "./SignInTab";
 import { SessionsTab } from "./SessionsTab";
 
 
-const tabs = [
+export const tabs = [
   { id: 'profile', title: 'Profile', icon: 'person', Panel: ProfileTab },
   { id: 'preferences', title: 'Preferences', icon: 'settings', Panel: PreferencesTab },
   { id: 'sign-in', title: 'Sign-in methods', icon: 'log-in', Panel: SignInTab },

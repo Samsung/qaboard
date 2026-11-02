@@ -30,7 +30,8 @@ export const app_paths = {
   storage: "/storage/:view(projects|users|batches|commits|branches|folders|exports|untracked)?",
   // what waits and runs now, and what ran recently
   activity: "/activity",
-  admin: "/admin/:section(overview|users|groups|requests|sign-in|tokens|storage|audit|settings)?",
+  // the tabs of admin/AdminPage.jsx, its tests check they all have their URL
+  admin: "/admin/:section(overview|users|groups|requests|sign-in|tokens|service-accounts|storage|audit|settings)?",
   // the ways to sign in, ?next=<page> to go back to it (see login/LoginPage.jsx)
   login: "/login",
   // where `qa auth login` sends users to approve the login

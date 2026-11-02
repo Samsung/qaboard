@@ -45,6 +45,7 @@ import { MilestoneDialogHost } from "./milestones/MilestoneDialog"
 import { ManageMilestonesHost } from "./milestones/ManageMilestones"
 import { useImportLegacyMilestones } from "./milestones/hooks"
 import { ProjectAccessGate } from "./access/NoProjectAccess"
+import { ProjectNotFoundGate } from "./notFound/ProjectNotFoundGate"
 
 // In development, inspect queries and their cache: https://tanstack.com/query/latest/docs/framework/react/devtools
 const ReactQueryDevtools = import.meta.env.DEV
@@ -156,6 +157,8 @@ const ProjectApp = ({ pathname }) => {
   if (!matched) return null;
   const { route: { main: Main }, match } = matched;
   return <RouteMatch match={match}>
+    {/* projects that don't exist get a 404, without the project's sidebar */}
+    <ProjectNotFoundGate>
     <ComparisonProvider>
     <ImportLegacyMilestones/>
     <RecordProjectView/>
@@ -178,6 +181,7 @@ const ProjectApp = ({ pathname }) => {
       </div>
     </Layout>
     </ComparisonProvider>
+    </ProjectNotFoundGate>
   </RouteMatch>
 }
 

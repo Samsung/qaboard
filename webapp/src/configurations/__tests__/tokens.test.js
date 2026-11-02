@@ -2,6 +2,7 @@ import {
   config_tokens, diff_configurations, diff_tokens, config_distance, string_change, shared_configuration, summarize_changes, count_changes,
   run_tokens, output_tokens, reference_tokens, value_separator,
 } from '../tokens';
+import distances from '../../../../tests/fixtures/config-distance.json';
 
 const describe_ops = ops => ops.map(({ op, token, ref }) =>
   `${op} ${token.key ? `${token.key}=` : ''}${op === 'changed' ? `${ref.text}>` : ''}${token.text}`);
@@ -62,6 +63,11 @@ describe('string_change', () => {
 });
 
 describe('config_distance', () => {
+  // qaboard/matching.py has a port of config_distance, for the CLI and the server: they must pick the same reference runs
+  it('gives the distances the Python port is tested against (tests/fixtures/config-distance.json)', () => {
+    for (const { a, b, distance } of distances) expect(config_distance(a, b)).toBe(distance);
+  });
+
   it('counts different settings, a changed value or a replaced string as one', () => {
     expect(config_distance(['a', { g: 1 }], ['a', { g: 1 }])).toBe(0);
     expect(Math.floor(config_distance(['a', { g: 1 }], ['a', { g: 2 }]))).toBe(1);

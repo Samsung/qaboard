@@ -17,7 +17,7 @@ export const isNoAccessError = error =>
   (error?.response?.status === 403 && no_access_reasons.includes(error.response.data?.reason))
   || (error?.response?.status === 401 && error.response.data?.reason === 'sign_in_required');
 
-const LinkButton = ({ to, ...props }) => {
+export const LinkButton = ({ to, ...props }) => {
   const onClick = useLinkClickHandler(to);
   return <AnchorButton href={to} onClick={onClick} {...props}/>;
 };

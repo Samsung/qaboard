@@ -185,14 +185,16 @@ const BatchStatusMessages = ({ project, commit, batch }) => {
       {some_pending && !is_logged && <LoginHint text="Sign in to stop runs"/>}
     </Callout>
   )
-  let failed_message = batch.filtered.failed_outputs > 0 && (
+  // A failed evaluation of an automated tuning isn't one of the batch's runs: Tuning Analysis explains it
+  const failed_runs = outputs.filter(o => o.is_failed && o.output_type !== 'optim_iteration')
+  let failed_message = failed_runs.length > 0 && (
     <Callout
       icon="error"
       intent={Intent.DANGER}
-      title={`${batch.filtered.failed_outputs} failed`}
+      title={`${failed_runs.length} failed`}
     >
       <SimpleOutputList
-        outputs={outputs.filter(o => o.is_failed)}
+        outputs={failed_runs}
         intent={Intent.DANGER}
         link_logs
       />

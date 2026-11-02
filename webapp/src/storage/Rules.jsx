@@ -1,6 +1,7 @@
 // What deletes results automatically, when, and what it keeps: the schedules admins set up, with the project's qaboard.yaml.
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Callout, Card, Classes, Icon, Intent, PopoverNext, Tag } from "@blueprintjs/core";
+import { Button, Callout, Card, Classes, Collapse, Icon, Intent, PopoverNext, Tag } from "@blueprintjs/core";
 
 import { Link } from "../router";
 import { Time } from "../settings/format";
@@ -38,16 +39,30 @@ export const RulesList = ({ project, data }) => {
   </>;
 };
 
-// A card on the storage page
+// A card on the storage page. Several rules are summed up in a line: they'd push the storage usage down
 export const Rules = ({ project }) => {
   const { data, isPending, error } = useQuery(rulesQuery(project));
+  const [expanded, setExpanded] = useState(false);
   if (isPending || error) return null;
+  const rules = data?.rules ?? [];
+  const collapsible = rules.length > 1;
+  const shown = !collapsible || expanded;
+  const next = rules.map(rule => rule.next_run_at).filter(Boolean).sort()[0];
   return <Card compact style={{ marginBottom: 20 }} aria-label="Deletion rules" data-testid="deletion-rules">
-    <h5 className={Classes.HEADING}>
-      <Icon icon="automatic-updates" style={{ marginRight: 6 }}/>
+    <h5 className={Classes.HEADING} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: shown ? undefined : 0 }}>
+      <Icon icon="automatic-updates"/>
       What QA-Board deletes automatically{project ? <> in {project}</> : ''}
+      {collapsible && <Button
+        variant="minimal" size="small" style={{ marginLeft: 'auto' }}
+        icon={shown ? 'chevron-up' : 'chevron-down'} text={shown ? 'Hide' : `Show the ${rules.length} rules`}
+        aria-expanded={shown} onClick={() => setExpanded(!shown)}
+      />}
     </h5>
-    <RulesList project={project} data={data}/>
+    {!shown && <div className={`${Classes.TEXT_MUTED} ${Classes.TEXT_OVERFLOW_ELLIPSIS}`} style={{ fontSize: 13, marginTop: 4 }} data-testid="deletion-rules-summary">
+      {[...new Set(rules.map(rule => rule.title))].join(' · ')}
+      {next && <>, next <Time iso={next}/></>}
+    </div>}
+    <Collapse isOpen={shown}><RulesList project={project} data={data}/></Collapse>
   </Card>;
 };
 

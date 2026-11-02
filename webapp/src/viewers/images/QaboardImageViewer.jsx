@@ -1,7 +1,7 @@
 // The image viewer in QA-Board: compares an image of a run with the same image of its reference run, or with another
 // image of the run (e.g. its ground truth).
 // It maps runs, their files and the site's image servers to the viewer's props (src/image-viewer/README.md).
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Tag } from '@blueprintjs/core';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router';
@@ -15,7 +15,8 @@ import { at_most, is_same_data } from '../../utils';
 import { build_image_name, iiif_url } from './utils';
 import { COMPARE_SCOPES, comparedFor, compareCandidates, pickCompared } from './compareWith';
 import { regionProviders } from './regionProviders';
-import { regionsQuery } from './regionSearch';
+import { regionsQuery, sizeKey } from './regionSearch';
+import { DiffSizeFilter, describeDiffSize, useDiffSize } from './DiffSize';
 import { differenceProviders, RegionsTriage, usePagePairs } from './RegionsTriage';
 import './image-viewer-theme.css';
 
@@ -162,7 +163,7 @@ const SIGN_IN_SEARCH = 'Sign in (in the sidebar) to find where the images differ
 
 // The regions of interest of the providers. Those found on demand are shared by the page (regionSearch.js): a search
 // for all the runs fills each viewer.
-const useRegionSets = (context, signed_in) => {
+const useRegionSets = (context, signed_in, onDiffSizeChange) => {
   const queryClient = useQueryClient();
   const providers = regionProviders().filter(provider => !provider.available || provider.available(context));
   const finders = providers.filter(provider => !provider.regions && provider.find);
@@ -179,9 +180,11 @@ const useRegionSets = (context, signed_in) => {
     const i = finders.indexOf(provider);
     if (i === -1) continue;
     const { data, error, fetchStatus } = found[i];
+    const sized = provider.sized && onDiffSizeChange;
     sets.push({
       ...base,
-      empty: provider.empty,
+      empty: sized && context.diff_size ? `No difference of that size (${describeDiffSize(context.diff_size)})` : provider.empty,
+      settings: sized ? <DiffSizeFilter size={context.diff_size} onChange={onDiffSizeChange} /> : undefined,
       regions: data,
       loading: fetchStatus === 'fetching',
       error: !signed_in ? SIGN_IN_SEARCH : error && !isAbort(error) ? errorMessage(error) : undefined,
@@ -247,10 +250,11 @@ const ImageViewerForRuns = ({
   const same_as_other = !!other && is_same_data(path, manifests?.new?.[path], manifests?.new?.[other]);
   const signed_in = useUser().is_logged;
   // the regions where the images differ: of the image and the other image of the run, or its reference
+  const [diff_size, setDiffSize] = useDiffSize();
   const region_context = other
-    ? { output_new, output_ref: output_new, path, path_ref: other }
-    : { output_new, output_ref: reference ? output_ref : null, path, path_ref };
-  const region_sets = useRegionSets(region_context, signed_in);
+    ? { output_new, output_ref: output_new, path, path_ref: other, diff_size }
+    : { output_new, output_ref: reference ? output_ref : null, path, path_ref, diff_size };
+  const region_sets = useRegionSets(region_context, signed_in, setDiffSize);
   const page = usePageKey();
   const chosen = useRegionSetStore(state => state.by_path[path]);
   const setChosen = useRegionSetStore(state => state.set);
@@ -259,6 +263,14 @@ const ImageViewerForRuns = ({
   const region_set = chosen && (chosen.page === page || !is_search(chosen.id))
     ? chosen.id
     : region_sets.some(set => set.id === 'presets') ? 'presets' : null;
+  // another size of differences: the set shown searches again
+  const size_key = JSON.stringify(sizeKey(diff_size));
+  const shown_set = region_sets.find(set => set.id === region_set);
+  const searchAgain = shown_set?.settings && !shown_set.regions && !shown_set.loading ? shown_set.load : null;
+  useEffect(() => {
+    searchAgain?.();
+    // oxlint-disable-next-line react/exhaustive-deps -- when the size changes, not when the set is reloaded
+  }, [size_key]);
   const page_swapped = usePageComparisonStore(state => state.swapped);
   const page_blind = usePageComparisonStore(state => state.blind);
   const swapPage = usePageComparisonStore(state => state.swap);

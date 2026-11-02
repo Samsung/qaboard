@@ -88,6 +88,8 @@ export interface RegionSet {
   load?: () => void;
   /** Shown when the set has no regions, e.g. "No difference found". Default: "No regions" */
   empty?: string;
+  /** The app's settings of the set, shown next to its name above the regions, e.g. the size of the differences */
+  settings?: ReactNode;
 }
 
 /** A blind test: what the image (`image`, not `reference`) is called, and whether users revealed which is which */

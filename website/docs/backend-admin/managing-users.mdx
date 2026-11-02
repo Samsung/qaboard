@@ -55,6 +55,7 @@ the panel then shows the setting as "set by the environment", and you change it 
 | `auth.require_sign_in` | `QABOARD_LOGIN_REQUIRED` | `false` | Anonymous users can't see anything (see [Blocking anonymous users](#blocking-anonymous-users)) |
 | `auth.local_signup` | `QABOARD_DISABLE_SIGNUP` (`true` turns it off) | on with `LOCAL`, off with LDAP or SAML | Anyone can create a local account with a password |
 | `ingest.auth` | `QABOARD_INGEST_AUTH` | `off` | How results sent by `qa` are authenticated (see [Results sent by qa](#results-sent-by-qa)) |
+| `jenkins.anonymous_jobs` | `QABOARD_JENKINS_ANONYMOUS_JOBS` (comma-separated) | none | Jenkins jobs anyone can start without a token, for now (see [Jenkins jobs started without a token](#jenkins-jobs-started-without-a-token)) |
 | `auth.allowed_origins` | `QABOARD_ALLOWED_ORIGINS` (comma-separated) | none | Other websites allowed to make changes with users' cookies |
 | `tokens.default_lifetime_days` | | `90` | The default lifetime of the tokens users create |
 | `tokens.max_lifetime_days` | | none | The longest lifetime users may choose. Empty: tokens may never expire |
@@ -194,6 +195,17 @@ With a valid token, runs, batches and commits record who really sent them, and t
 to `warn` to `token` once your CI jobs have tokens (`QABOARD_TOKEN`, see [CI integration](/docs/ci-integration)).
 In every mode, a token that can't be used (unknown, expired, revoked, for other projects) is refused, and the results
 aren't saved: `qa` says why and what to do, and in CI, `qa run` and `qa batch` fail.
+
+## Jenkins jobs started without a token
+The server starts Jenkins builds with its own Jenkins credentials (`JENKINS_AUTH`). Callers without a token, like
+`qa`'s Windows runner or scripts that call `/api/v1/jenkins/build/trigger`, can only start the jobs listed in a
+project's *qaboard.yaml* (`runners.jenkins.build_url`, or a Jenkins integration). Other jobs need a token with the
+`act` scope (or `ingest`, with the project), see [Authentication](/docs/apis#authentication).
+
+While scripts move to tokens, `jenkins.anonymous_jobs` (or `QABOARD_JENKINS_ANONYMOUS_JOBS=ALGO,nightly`) lets anyone
+start the jobs whose path (`/job/...`) contains one of the texts, case-sensitive (`*` allows every job on the
+`JENKINS_AUTH` hosts). Their callers get a warning in the `X-QABoard-Warning` header, the audit log records the builds,
+and the admin checklist reminds you to empty it. It has no effect when `ingest.auth` is `token`.
 
 ## Security
 - Session cookies are `HttpOnly` and `SameSite=Lax`, and `Secure` when `QABOARD_URL` is `https://…`.

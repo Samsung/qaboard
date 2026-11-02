@@ -22,7 +22,6 @@
 #   "joblib",
 #   "psutil",
 #   "sentry-sdk",
-#   "polyleven",
 #   "celery",
 #   "scipy",
 #   "scikit-image",

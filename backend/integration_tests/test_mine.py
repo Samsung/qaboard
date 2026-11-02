@@ -99,8 +99,12 @@ def commit(client, sha, committer='Alice', email=None, label='default', **extra)
   assert response.status_code == 200, response.get_data(as_text=True)
 
 
+# The commits are dated 2026-10-01 (commit_payload): without a window, the endpoints count the last 30 days
+WINDOW = {"from": "2026-09-01T00:00:00.000Z", "to": "2026-10-30T00:00:00.000Z"}
+
+
 def commits(client, **params):
-  response = client.get('/api/v1/commits', query_string={"project": PROJECT, "from": "2026-09-01T00:00:00.000Z", "to": "2026-10-30T00:00:00.000Z", **params})
+  response = client.get('/api/v1/commits', query_string={"project": PROJECT, **WINDOW, **params})
   assert response.status_code == 200, response.get_data(as_text=True)
   return {c['id'][:1]: sorted(c['batches']) for c in response.get_json()}
 
@@ -125,7 +129,7 @@ def test_my_commits(make_user, make_client, client):
   alice.post('/api/v1/user/preferences', json={"preferences": {"git_emails": ["carol@home.org"]}})
   assert set(commits(alice, scope='mine')) == set('abde')
 
-  counts = alice.get('/api/v1/commit-counts', query_string={"project": PROJECT}).get_json()
+  counts = alice.get('/api/v1/commit-counts', query_string={"project": PROJECT, **WINDOW}).get_json()
   assert counts == {"all": 5, "mine": 4, "without_ci": 1}
 
   batches = alice.get('/api/v1/batches', query_string={"scope": "mine"}).get_json()

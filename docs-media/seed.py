@@ -445,6 +445,11 @@ class Server:
     r = self.http.post(f"{self.url}/api/v1/user/signup/", data={
       'user_name': handle, 'password': DEMO_PASSWORD, 'full_name': person['name'], 'email': person['email'],
     }, timeout=60)
+    if r.status_code == 409 and 'reserved' in r.text:
+      # $QABOARD_ADMINS names (compose.demo.yml) can't sign up: their account comes from the admin CLI
+      stack.compose('exec', '-T', 'backend', 'qaboard-admin', 'create-admin', handle, '--password',
+                    '--email', person['email'], '--full-name', person['name'], input=f"{DEMO_PASSWORD}\n".encode())
+      return
     if r.status_code not in (200, 409):
       raise RuntimeError(f"Could not create the user {handle}: {r.status_code} {r.text[:300]}")
 
@@ -939,9 +944,11 @@ class Seeder:
       extra += ['--tuning-search', search]
     batch_dir = self.batch_dir(commit, run)
     if run.via == 'optimize':
-      extra += ['--config-file', str(self.ws.dir / run.optimize), '--checkpoint', str(batch_dir / 'checkpoint.pkl')]
-      if (batch_dir / 'checkpoint.pkl').exists():
-        (batch_dir / 'checkpoint.pkl').unlink()
+      # qa optimize resumes from its saved search: the story starts over each time
+      checkpoint = batch_dir / 'optuna-journal.log'
+      extra += ['--config-file', str(self.ws.dir / run.optimize), '--checkpoint', str(checkpoint)]
+      if checkpoint.exists():
+        checkpoint.unlink()
     started_from_app = run.via in ('webapp', 'tuning', 'optimize')
     command_id = str(uuid.uuid4())
     if started_from_app:

@@ -126,13 +126,15 @@ def admin_job(job_id):
 @app.route('/api/v1/admin/jobs/<int:job_id>/cancel/', methods=['POST'])
 @admin_required
 def admin_cancel_job(job_id):
+  """`force: true`: don't wait for the worker of a running job, e.g. it's stuck reading a storage that doesn't answer"""
   job, error = get_job_or_404(job_id)
   if error:
     return error
   if job.status not in queue.ACTIVE:
     return jsonify({"error": f"This job is {job.status}: it can't be cancelled."}), 400
-  queue.cancel(job)
-  audit('job.cancel', 'job', job.id, kinds.LABELS.get(job.kind, job.kind))
+  force = bool(body().get('force'))
+  queue.cancel(job, force=force)
+  audit('job.cancel', 'job', job.id, kinds.LABELS.get(job.kind, job.kind), meta={"force": True} if force else None)
   db_session.commit()
   return jsonify(queue.serialize_job(job, with_log=True))
 

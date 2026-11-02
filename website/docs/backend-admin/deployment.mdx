@@ -51,7 +51,9 @@ deployments/deploy.py deployments/mysite/production.env up --build
 
 `up`:
 1. Pulls the images for the version (or builds them with `--build`).
-2. Runs the database migrations once. If they fail, nothing running is changed.
+2. Runs the database migrations once. If they fail, nothing running is changed, and the deploy stops: the output says
+   which migration failed and why. Fix the cause (e.g. a lock timeout: deploy again when the database is quieter), then
+   deploy again.
 3. Updates the infrastructure services (database, redis, proxy...). They are only recreated if their configuration or image changed.
 4. Updates the backend, one version at a time: it starts the new replicas next to the old ones, waits until they are healthy, points nginx at them, then stops the old ones gracefully. If the new replicas are not healthy, they are removed and the old ones keep serving.
 5. Updates the web app and docs bundles. Old bundles are kept, so clients with an old version keep working.

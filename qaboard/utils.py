@@ -210,6 +210,41 @@ def tee_std_streams(file):
     sys.stdout, sys.stderr = previous
 
 
+@contextmanager
+def interrupted_by_sigterm():
+  """
+  In the block, SIGTERM raises KeyboardInterrupt like SIGINT does, so that `except KeyboardInterrupt` clauses run.
+  Does nothing outside of the main thread, where Python can't handle signals.
+  """
+  import signal
+  def raise_interrupt(_signo, _stackframe):
+    raise KeyboardInterrupt
+  try:
+    previous = signal.signal(signal.SIGTERM, raise_interrupt)
+  except ValueError:
+    previous = None
+  try:
+    yield
+  finally:
+    if previous is not None:
+      signal.signal(signal.SIGTERM, previous)
+
+
+@contextmanager
+def ignored_signals():
+  """Ignores SIGINT and SIGTERM in the block, e.g. while we save that we were interrupted: LSF sends both."""
+  import signal
+  try:
+    previous = {s: signal.signal(s, signal.SIG_IGN) for s in (signal.SIGINT, signal.SIGTERM)}
+  except ValueError: # not in the main thread
+    previous = {}
+  try:
+    yield
+  finally:
+    for s, handler in previous.items():
+      signal.signal(s, handler)
+
+
 class FailingEntrypoint:
   def run(self, context):
     return {"is_failed": True}
@@ -244,20 +279,49 @@ def entrypoint_module_path(entrypoint):
       click.secho(f'ERROR: Error importing the entrypoint ({entrypoint}).', fg='red', err=True, bold=True)
       click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
       click.secho(
-          f'{entrypoint} must implement a `run(context)` function, and optionally `postprocess` / `metadata` / `iter_inputs`.\n'
+          f'{entrypoint} must implement a `run(context)` function, and optionally `postprocess` / `metadata(context)` / `iter_inputs`.\n'
           'Please read the tutorial at https://samsung.github.io/qaboard/docs\n',
           dim=True, err=True)
       return FailingEntrypoint()
   return module
 
 
+def _metadata_takes_context(metadata_fn) -> bool:
+  """
+  metadata(context) gets the RunContext, like run(context).
+  For backward compatibility we still support metadata(absolute_input_path, database, input_path).
+  """
+  import inspect
+  try:
+    parameters = inspect.signature(metadata_fn).parameters.values()
+  except (TypeError, ValueError): # e.g. some builtins/C extensions: assume the old API
+    return False
+  if any(p.kind == p.VAR_POSITIONAL for p in parameters):
+    return False
+  positional = [p for p in parameters if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]
+  required = [p for p in positional if p.default is p.empty]
+  return len(required) <= 1 and len(positional) < 3
+
+
 # TODO: consider using @lru_cache since it's called twice within qa batch,
 #       but config is not hashable... we'd need to pass a path to the entrypoint
-def input_metadata(absolute_input_path, database, input_path, config):
+def input_metadata(context, config, *legacy_args):
+  """
+  Calls the entrypoint's metadata() for the input of a RunContext.
+  When listing a batch, the context doesn't have an output_dir or click_context yet.
+  Old callers use input_metadata(absolute_input_path, database, input_path, config).
+  """
+  if legacy_args:
+    from .run import RunContext
+    absolute_input_path, database, config = Path(context), Path(config), legacy_args[-1] # legacy_args: (input_path, config)
+    context = RunContext(type='default', input_path=absolute_input_path, database=database, platform='', configurations=[])
   entrypoint_module_ = entrypoint_module(config)
   if hasattr(entrypoint_module_, 'metadata'):
     try:
-      metadata = entrypoint_module_.metadata(absolute_input_path, database, input_path)
+      if _metadata_takes_context(entrypoint_module_.metadata):
+        metadata = entrypoint_module_.metadata(context)
+      else:
+        metadata = entrypoint_module_.metadata(context.input_path, context.database, context.rel_input_path)
       if metadata is None:
         metadata = {}
     except Exception:
@@ -270,8 +334,8 @@ def input_metadata(absolute_input_path, database, input_path, config):
   else:
     metadata = {}
   # update to metadata
-  metadata["input_path"] = str(absolute_input_path)
-  metadata["rel_input_path"] = str(input_path)
+  metadata["input_path"] = str(context.input_path)
+  metadata["rel_input_path"] = str(context.rel_input_path)
   return metadata
 
 

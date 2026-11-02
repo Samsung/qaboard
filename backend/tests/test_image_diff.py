@@ -26,9 +26,9 @@ def with_square(image, x, y, size, color=(20, 20, 20)):
   return changed
 
 
-def regions_of(image_1, image_2, method='yiq', count=20):
+def regions_of(image_1, image_2, method='yiq', count=20, **sizes):
   delta, factor = difference_map(image_1, image_2, method)
-  return find_regions(delta, factor, image_1.shape, count)
+  return find_regions(delta, factor, image_1.shape, count, **sizes)
 
 
 def contains(region, x, y):
@@ -96,6 +96,35 @@ def test_regions_are_spread_out():
   assert any(contains(r, 915, 615) for r in regions[:5])
   # and they show some context
   assert all(r['w'] >= 150 and r['h'] >= 150 for r in regions)
+
+
+def spots():
+  """A large difference (80 pixels), and small ones (4 pixels)"""
+  image = gradient(800, 800)
+  changed = with_square(image, 100, 100, 80, (0, 0, 0))
+  for x, y in ((500, 500), (650, 200), (300, 650)):
+    changed = with_square(changed, x, y, 4, (90, 90, 90))
+  return changed, image
+
+
+def test_regions_say_the_size_of_their_difference():
+  first = next(r for r in regions_of(*spots()) if contains(r, 140, 140))
+  spot = first['spot']
+  assert 76 <= spot['w'] <= 84 and 76 <= spot['h'] <= 84
+  # the region adds context around it
+  assert first['w'] > spot['w']
+
+
+def test_regions_of_the_sizes_users_look_for():
+  small = regions_of(*spots(), max_size=20)
+  assert len(small) == 3
+  assert all(max(r['spot']['w'], r['spot']['h']) <= 20 for r in small)
+  assert not any(contains(r, 140, 140) and r['spot']['w'] > 20 for r in small)
+  for x, y in ((502, 502), (652, 202), (302, 652)):
+    assert any(contains(r, x, y) for r in small)
+  large = regions_of(*spots(), min_size=40)
+  assert len(large) == 1 and contains(large[0], 140, 140)
+  assert regions_of(*spots(), min_size=200) == []
 
 
 def test_gray_16_bit_and_rgba_images():
@@ -188,6 +217,16 @@ def test_endpoint_errors(find):
   assert different.status_code == 400
   assert 'different sizes' in different.get_json()['error']
   assert find(diff_type='psnr').status_code == 400
+
+
+def test_endpoint_filters_by_size(find):
+  # the 20x20 square
+  assert json.loads(find(min_size=10).get_data())
+  assert json.loads(find(max_size=10).get_data()) == []
+  # kept apart from the search without sizes
+  assert find(max_size=10).headers['X-Regions-Cache'] == 'hit'
+  assert find(min_size='', max_size=None).status_code == 200
+  assert find(min_size='large').status_code == 400
 
 
 def test_endpoint_compares_with_another_file_of_the_reference(find):

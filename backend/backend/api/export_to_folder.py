@@ -7,16 +7,15 @@ import json
 import shutil
 import hashlib
 from pathlib import Path
-from functools import lru_cache
 
 from requests.utils import quote
 from flask import request, jsonify, g
 from sqlalchemy.orm import joinedload
-from polyleven import levenshtein as polyleven_levenshtein
 
 
 from qaboard.compat import windows_to_linux_path
 from qaboard.conventions import serialize_config
+from qaboard.matching import run_distance
 from backend import app, db_session
 from backend.fs_utils import as_user, mkdir_shared
 from backend.storage import check_storage_path, UnsafePathError
@@ -24,30 +23,6 @@ from ..models import CiCommit, Batch, slugify_hash
 from ..config import qaboard_url
 from .auth import login_required, require_project_access
 from ..actor import is_same_origin, error as error_response
-
-
-@lru_cache(maxsize=1024)
-def levenshtein_opt(s1, s2):
-  s1, s2 = strip_common(s1, s2)
-  return levenshtein(s1, s2)
-
-def strip_common(str1, str2):
-    prefix = os.path.commonprefix([str1, str2])
-    str1_no_prefix = str1[len(prefix):]
-    str2_no_prefix = str2[len(prefix):]
-    # Find the common suffix by reversing the strings
-    common_suffix_length = len(os.path.commonprefix([str1_no_prefix[::-1], str2_no_prefix[::-1]]))
-    if common_suffix_length > 0:
-        str1_no_prefix = str1_no_prefix[:-common_suffix_length] if common_suffix_length < len(str1_no_prefix) else ''
-        str2_no_prefix = str2_no_prefix[:-common_suffix_length] if common_suffix_length < len(str2_no_prefix) else ''
-    return str1_no_prefix, str2_no_prefix
-
-
-@lru_cache(maxsize=4096)
-def levenshtein(s1, s2):
-    if s1 == s2:
-      return 0
-    return polyleven_levenshtein(s1, s2)
 
 
 def load_commit(project_id, commit_id):
@@ -111,29 +86,20 @@ def compatible(o1, o2):
     return True
   return False
 
-# Note: already defined in qaboard.tuning.py, but raises instead of returning None
 def matching_output(output_reference, outputs):
   """
-  Return the output from a given batch that looks most similar to a given output.
+  Return the output from a given batch that looks most similar to a given output, like the web app.
   This helps us compare an output to historical results.
   """
-  def to_json(a):
-    json_str = json.dumps(a, sort_keys=True)
-    # the string edit distance scales quadratically
-    # we tried to mitigate it
-    json_str = re.sub(r"(workspace|[{}\", '/.\-_]|global|sim|partial_config|image_writer|config|raw|bmp)", "", json_str)
-    return json_str
   possible_matching_outputs = [o for o in outputs if compatible(o, output_reference)]
   valid_outputs = [o for o in possible_matching_outputs if not o.is_pending]
   if not valid_outputs: return None
 
+  def as_run(output):
+    return {'configurations': output.configurations, 'extra_parameters': output.extra_parameters, 'platform': output.platform}
   def match_key(output):
-    return (
-      1 - int(output.test_input.abs_path == output_reference.test_input.abs_path or output.test_input.path == output_reference.test_input.path), 
-      levenshtein_opt(to_json(output.configurations), to_json(output_reference.configurations)), 
-      levenshtein_opt(to_json(output.extra_parameters), to_json(output_reference.extra_parameters)), 
-      output.platform == output_reference.platform,
-    )
+    same_input = output.test_input.abs_path == output_reference.test_input.abs_path or output.test_input.path == output_reference.test_input.path
+    return (0 if same_input else 1, *run_distance(as_run(output_reference), as_run(output)))
   valid_outputs.sort(key=match_key)
   return valid_outputs[0]
 
@@ -229,7 +195,10 @@ def export_to_folder():
   elif not export_dir.is_dir() or export_dir.is_symlink():
     return jsonify({"error": f"ERROR: '{export_dir}' is not a folder"}), 403
   from ..models import Export
-  ours = created or Export.query.filter(Export.path == str(export_dir), Export.deleted_at.is_(None)).first() is not None
+  from ..exports import in_chosen_folder
+  tracked = Export.query.filter(Export.path == str(export_dir), Export.deleted_at.is_(None)).first()
+  # an export a scan found in a folder someone chose isn't ours: users may have other files there
+  ours = created or (tracked is not None and not in_chosen_folder(tracked))
 
   is_export_dir_writable = os.access(export_dir, os.W_OK)
   if not is_export_dir_writable:

@@ -79,6 +79,30 @@ test('explore', async ({ page }) => {
   await page.waitForLoadState('networkidle');
 });
 
+// URLs of projects that don't exist (e.g. typos) get a 404 page, at phone width too, not an empty project
+test('page not found', async ({ page }, testInfo) => {
+  await page.addInitScript(() => localStorage.setItem('qaboard.release-notes.last-seen', '9999-12-31'));
+  await page.route('**/api/v1/project?**', route => new URL(route.request().url()).searchParams.get('project') === project
+    ? route.fallback()
+    : route.fulfill({ status: 404, json: { error: 'There is no project.' } }));
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto(`/${project}/typo/commits`);
+    await expect(page.getByRole('heading', { name: '404 Page not found' })).toBeVisible();
+    await expect(page.getByRole('button', { name: `Open ${project}` })).toBeVisible();
+    // the wipe's divider follows the pointer
+    const stage = page.getByRole('separator', { name: 'Wipe' }).locator('..');
+    const box = await stage.boundingBox();
+    await page.mouse.click(box.x + box.width / 4, box.y + box.height / 2);
+    await expect(page.getByRole('separator', { name: 'Wipe' })).toHaveAttribute('aria-valuenow', '25');
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow, `width ${width}`).toBeLessThanOrEqual(0);
+  }
+  await page.waitForLoadState('networkidle');
+  // the browser logs the API's 404s
+  testInfo.errors_seen = testInfo.errors_seen.filter(error => !error.includes('status of 404'));
+});
+
 // Home, for signed-in users: their batches and projects, in three columns, two, or one at phone width
 test('home', async ({ page }) => {
   const recent = new Date(Date.now() - 3600 * 1000).toISOString();

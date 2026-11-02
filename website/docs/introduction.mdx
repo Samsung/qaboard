@@ -105,8 +105,10 @@ project whose code already runs from a script.
 ### When you need them {#optional-steps}
 - **Tuning from the web app:** people run batches with other parameters from the web app, without a checkout. It needs
   your build's artifacts and a runner the server can use. See [Tuning from the web app](/docs/tuning-from-the-webapp)
-  and [Artifacts](/docs/storage/artifacts). Automated tuning with `qa optimize` is experimental: see
-  [Automated tuning](/docs/auto-optimization).
+  and [Artifacts](/docs/storage/artifacts).
+- **Automated tuning:** `qa optimize` searches the parameters that give the best metrics, from the CLI or the web app.
+  See [Automated tuning with qa optimize](/docs/auto-optimization), and, for the people who tune,
+  [Find the best parameters automatically](/docs/user-guide/automated-tuning).
 - **A quality gate (experimental):** `qa gate` fails the CI job when metrics regress against the reference. See
   [Quality gate](/docs/quality-gate).
 - **Integrations:** links and buttons in the web app's **Integrations** menu, to start CI jobs, call webhooks or open

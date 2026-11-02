@@ -48,6 +48,10 @@ jobs:
         python: ['3.11', '3.13']
     steps:
       - uses: actions/checkout@v4
+        with:
+          # the history, without the files' contents: to check the migrations against master's
+          fetch-depth: 0
+          filter: blob:none
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python }}
@@ -63,6 +67,15 @@ jobs:
         # valid frontmatter and docs links
         if: matrix.python == '3.11'
         run: uv run website/release-notes/release_notes.py check
+      - name: Merged migrations are never changed
+        # databases record the migrations they ran by id: a changed one doesn't run again where it already ran
+        if: matrix.python == '3.11' && github.event_name != 'release'
+        env:
+          # on master, what this push added; elsewhere, what the branch adds to master
+          BASE: ${{ github.ref == 'refs/heads/master' && github.event.before || format('origin/{0}', github.base_ref || 'master') }}
+        run: |
+          if [ "$BASE" = "0000000000000000000000000000000000000000" ]; then exit 0; fi
+          .github/scripts/check_migrations.py "$BASE"
       - name: Unit Tests
         run: |
           # git is needed in the tests and setup to fail if not setup
@@ -77,7 +90,7 @@ jobs:
           uvx twine check dist/*
 
   webapp:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # playwright 1.56 has no chromium for ubuntu 26.04
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     defaults:
       run:
@@ -230,7 +243,7 @@ jobs:
   # the images of this run. Its demo data is the seeder's test story, built into a demo-data image like the docs' demo
   # snapshot is (that one is in a private bucket: .github/workflows/docs-media.yml tests it the same way).
   quickstart:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # playwright 1.56 has no chromium for ubuntu 26.04
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     timeout-minutes: 45
     steps:
@@ -304,7 +317,7 @@ jobs:
   # (website/docs/get-started/quickstart.mdx), with demo data (see the quickstart job), a `qa batch` in the cluster,
   # then an upgrade
   helm-e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # playwright 1.56 has no chromium for ubuntu 26.04
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     timeout-minutes: 45
     env:

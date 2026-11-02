@@ -24,7 +24,7 @@ import { accessRequestsQuery } from "./api";
 // the instance's: projects' owners manage theirs from the project's Access page
 const InstanceServiceAccounts = () => <ServiceAccounts project={null}/>;
 
-const sections = [
+export const sections = [
   { id: 'overview', title: 'Overview', icon: 'dashboard', Panel: Overview },
   { id: 'users', title: 'Users', icon: 'people', Panel: Users },
   { id: 'groups', title: 'Groups', icon: 'inherited-group', Panel: Groups },

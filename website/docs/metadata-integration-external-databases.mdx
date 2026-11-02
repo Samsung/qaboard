@@ -11,10 +11,22 @@ regions of interest in the image viewer, and let your code decide what to measur
 read them from your own database.
 
 ## Give inputs metadata {#creating-metadata}
-Define a `metadata()` function in your project's entrypoint: it returns a dict for each input. The camera ISP reads
+Define a `metadata(context)` function in your project's entrypoint: it returns a dict for each input. The camera ISP reads
 a *.metadata.yaml* file next to each input, when there is one:
 
 <RepoFile path="examples/image-quality/qa/main.py" title="qa/main.py" lines="57-60" />
+
+`context` is the same as `run(context)` gets: `context.input_path`, `context.rel_input_path`, `context.database`,
+`context.configurations`, `context.params`, `context.platform`, `context.batch`... When `qa batch` filters inputs,
+the runs don't exist yet: `context.output_dir` isn't set, and `context.input_metadata` is empty.
+
+<details>
+<summary>Older projects: <code>metadata(absolute_input_path, database, input_path)</code></summary>
+
+`metadata()` used to get the input's absolute path, the database, and the input's path relative to the database.
+Entrypoints written that way still work: `qa` calls `metadata(context)` when your function takes a single argument.
+
+</details>
 
 The night street's gives the image viewer 3 regions of interest:
 

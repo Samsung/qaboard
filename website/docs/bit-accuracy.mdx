@@ -112,11 +112,32 @@ When the reference's CI failed, it's compared anyway. With `bit_accuracy.on_refe
 `qa` goes back to its first parent instead, at most `bit_accuracy.max_parents_depth` times (default 5): useful when a
 build failure left the reference without results.
 
+### Where runs are found {#where-runs-are-found}
+`qa check-bit-accuracy` looks for the runs that have the same input, configurations, platform and tuning parameters as
+yours (with `--reference-platform`, on that platform), in the reference's batch with the same label (or
+`--reference-label`). With `--reference-match closest`, it compares with the closest run on the same input instead,
+like the web app picks reference runs (see [options](#options)):
+
+1. **It asks QA-Board** where they are. It knows the runs of every CI and `qa --share` batch, wherever they were saved.
+2. **Otherwise it looks in the storage**, where `qa` saves runs (`storage` in *qaboard.yaml*): offline (`qa --offline`),
+   when QA-Board can't be reached, or for runs it doesn't know. If your storage settings have a folder per user, like
+   `/mnt/outputs/{user}`, it looks in every user's folder: the reference's runs were saved by its CI's user. When a run
+   is missing, it prints where it looked.
+
+Your own runs are where `qa batch` saves them: in your project's `output/` folder, or with `qa --share` and in the CI,
+in the storage. The reference's runs are CI runs, so their label isn't prefixed by your name like with `qa --share`:
+to compare with runs you shared, use `--reference-label "@<your-user>| <label>"`.
+
 ## Options {#options}
 - `--strict`: by default only the files that exist in both runs are compared. With `--strict`, files that exist in
   only one of the runs are errors too.
 - `--reference-label`: compare with the reference's runs that used another [label](/docs/using-the-qa-cli#qa---label-my-label),
   e.g. `qa --label new check-bit-accuracy --batch all --reference-label old`.
+- `--reference-match closest`: compare each run with the reference's closest run on the same input, like the web
+  app: the one with the fewest different configurations, then tuning parameters, on the same platform if possible.
+  Use it when the reference didn't run the same configurations, e.g. you're testing a new one. `qa` says which runs
+  were compared with a different one, and how they differ. By default (`exact`) runs without an identical reference
+  run fail.
 - `--reference-platform`: compare with the reference's runs on another platform, e.g.
   `qa --platform hw-model check-bit-accuracy --batch <batch> --reference-platform linux`.
 - `--batch` can be repeated, and `--batches-file` names the batches files, like for `qa batch`.

@@ -3,11 +3,11 @@
  * Run with: cd webapp && npm test -- storage/
  */
 import { act, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { unstable_HistoryRouter as HistoryRouter } from 'react-router';
+import { unstable_HistoryRouter as HistoryRouter, useLocation } from 'react-router';
 
 import { history, RouteMatch } from '../../router';
 import { matchAppRoute } from '../../routes';
-import { StoragePage, readFilters, storageUrl } from '../StoragePage';
+import { StoragePage, readFilters, storageUrl, views } from '../StoragePage';
 import { formatBytes } from '../format';
 import { renderWithProviders } from '../../test-utils';
 
@@ -25,10 +25,11 @@ const mockApi = routes => vi.spyOn(globalThis, 'fetch').mockImplementation((url,
 const calls = (fetch, method, path) => fetch.mock.calls.filter(([url, init]) => (init?.method ?? 'GET') === method && url.startsWith(path));
 const lastBody = (fetch, method, path) => JSON.parse(calls(fetch, method, path).at(-1)[1].body);
 
-const renderAt = pathname => {
+// like the app's routes (App.jsx): the view follows the URL
+const Routed = () => <RouteMatch match={matchAppRoute(useLocation().pathname).match}><StoragePage/></RouteMatch>;
+const renderAt = (pathname, user = alice) => {
   act(() => history.replace(pathname));
-  const { match } = matchAppRoute(pathname.split('?')[0]);
-  return renderWithProviders(<HistoryRouter history={history}><RouteMatch match={match}><StoragePage/></RouteMatch></HistoryRouter>, { user: alice });
+  return renderWithProviders(<HistoryRouter history={history}><Routed/></HistoryRouter>, { user });
 };
 
 const overview = {
@@ -57,7 +58,8 @@ afterEach(() => vi.restoreAllMocks());
 
 describe('Storage usage', () => {
   it('has its route, and keeps what it shows in the URL', () => {
-    expect(matchAppRoute('/storage/folders').match.params.view).toBe('folders');
+    for (const { id } of views)
+      expect(matchAppRoute(`/storage/${id}`)?.match.params.view).toBe(id);
     expect(storageUrl('batches', { scope: 'me', project: 'proj/a', page: '' })).toBe('/storage/batches?project=proj%2Fa');
     expect(readFilters('?scope=all&folder=/x').folder).toBe('/x');
     expect(formatBytes(1234567890)).toBe('1.2 GB');
@@ -117,6 +119,29 @@ describe('Storage usage', () => {
     fireEvent.click(within(bobs).getByText('3'));
     expect(screen.getByRole('region', { name: 'Selection' })).toHaveTextContent('1 batch selected');
     expect(calls(fetch, 'GET', '/api/v1/storage/items').length).toBeGreaterThan(0);
+  });
+
+  it("goes from batches to commits without showing the batches as commits", async () => {
+    let answer;
+    const commits = new Promise(resolve => { answer = resolve; });
+    const commit = { ...batch({ key: 10, labels: ['big', 'nightly'], batches: 2 }), batch_id: undefined, batch_label: undefined };
+    vi.spyOn(globalThis, 'fetch').mockImplementation(url => {
+      const { pathname, searchParams } = new URL(url, 'http://localhost');
+      if (pathname === '/api/v1/storage/overview') return json(overview);
+      if (pathname !== '/api/v1/storage/items') return json({ jobs: [] });
+      // like the API: a batch counts 1 batch, and has no labels
+      if (searchParams.get('group') === 'batch') return json({ ...items, items: [batch({ batches: 1 })], total: 1 });
+      return commits.then(() => json({ items: [commit], total: 1, totals: { bytes: 30 * GB, runs: 3 }, group: 'commit' }));
+    });
+    renderAt('/storage/batches?project=proj/a');
+    await screen.findByRole('table', { name: 'Batches' });
+    fireEvent.click(screen.getByRole('tab', { name: 'Commits' }));
+    await waitFor(() => expect(history.location.pathname).toBe('/storage/commits'));
+    expect(screen.queryByRole('table', { name: 'Batches' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('table', { name: 'Commits' })).not.toBeInTheDocument();
+    answer();
+    const [row] = within(await screen.findByRole('table', { name: 'Commits' })).getAllByTestId('storage-item');
+    expect(within(row).getByRole('link', { name: 'nightly' })).toBeInTheDocument();
   });
 
   it('cuts long project names in the summary', async () => {
@@ -315,37 +340,75 @@ describe('Leftovers, rules, exports and untracked files', () => {
     expect(rule).toHaveTextContent('every day at 02:00 (UTC)');
   });
 
+  it('sums up many deletion rules in a line, until asked', async () => {
+    const rule = rules.rules[0];
+    mockApi({
+      'GET /api/v1/storage/overview': overview,
+      'GET /api/v1/storage/jobs': { jobs: [] },
+      'GET /api/v1/storage/rules': { ...rules, rules: [rule, { ...rule, kind: 'hard_delete', title: 'Deleted runs are deleted for good' }, { ...rule, kind: 'delete_artifacts', title: 'Old artifacts are deleted' }] },
+    });
+    renderAt('/storage');
+    expect(await screen.findByTestId('deletion-rules-summary')).toHaveTextContent('Old results are deleted · Deleted runs are deleted for good · Old artifacts are deleted');
+    expect(screen.queryByTestId('deletion-rule')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show the 3 rules' }));
+    expect(await screen.findAllByTestId('deletion-rule')).toHaveLength(3);
+    expect(screen.queryByTestId('deletion-rules-summary')).not.toBeInTheDocument();
+  });
+
   it('says when nothing deletes results', async () => {
     mockApi({ 'GET /api/v1/storage/overview': overview, 'GET /api/v1/storage/items': items, 'GET /api/v1/storage/jobs': { jobs: [] }, 'GET /api/v1/storage/rules': { rules: [], settings: {}, project: 'proj/a' } });
     renderAt('/storage/batches?project=proj/a');
     expect(await screen.findByTestId('deletion-rules')).toHaveTextContent("Nothing deletes this project's results automatically");
   });
 
+  const exports = {
+    exports: [
+      { id: 1, path: '/algo/proj/outputs/aa/bbb/share/1234abcd', project_id: 'proj/a', hexsha: 'a'.repeat(40), batch_label: 'big', created_by: 'alice', owner: 'alice', source: 'web',
+        created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-02T00:00:00Z', bytes: 3 * GB, linked_bytes: 3 * GB, files: 30, measured_at: '2026-10-02T00:00:00Z', exports: 2,
+        in_chosen_folder: false, can_delete: true },
+      { id: 2, path: '/algo/exports/bob/x', project_id: null, created_by: 'bob', owner: 'bob', source: 'scan', bytes: GB, linked_bytes: 0, files: 3, exports: 0,
+        in_chosen_folder: false, can_delete: false },
+      { id: 3, path: '/algo/team/review', project_id: 'proj/a', created_by: null, owner: 'alice', source: 'scan', bytes: GB, linked_bytes: 0, files: 9, exports: 0,
+        in_chosen_folder: true, can_delete: false },
+    ],
+    totals: { count: 3, bytes: 5 * GB, linked_bytes: 3 * GB },
+  };
+
   it('lists exports, explains links, and deletes them', async () => {
     const fetch = mockApi({
       'GET /api/v1/storage/overview': overview,
       'GET /api/v1/storage/jobs': { jobs: [] },
-      'GET /api/v1/storage/exports': {
-        exports: [
-          { id: 1, path: '/algo/proj/outputs/aa/bbb/share/1234abcd', project_id: 'proj/a', hexsha: 'a'.repeat(40), batch_label: 'big', created_by: 'alice', owner: 'alice', source: 'web',
-            created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-02T00:00:00Z', bytes: 3 * GB, linked_bytes: 3 * GB, files: 30, measured_at: '2026-10-02T00:00:00Z', exports: 2 },
-          { id: 2, path: '/algo/exports/bob/x', project_id: null, created_by: 'bob', owner: 'bob', source: 'scan', bytes: GB, linked_bytes: 0, files: 3, exports: 0 },
-        ],
-        totals: { count: 2, bytes: 4 * GB, linked_bytes: 3 * GB },
-      },
+      'GET /api/v1/storage/exports': exports,
       'POST /api/v1/storage/exports/delete': () => [{ job: { id: 9 } }, 201],
     });
     renderAt('/storage/exports?scope=all');
-    const [mine, bobs] = await screen.findAllByTestId('export');
+    const [mine, bobs, chosen] = await screen.findAllByTestId('export');
     expect(within(mine).getByText('Links to the runs')).toBeInTheDocument();
     expect(within(mine).getByText('2 exports in this folder')).toBeInTheDocument();
     expect(within(bobs).queryByRole('checkbox')).not.toBeInTheDocument();
+    // a folder someone chose, where others have files: alice can't delete it
+    expect(within(chosen).getByText('In a folder someone chose')).toBeInTheDocument();
+    expect(within(chosen).queryByRole('checkbox')).not.toBeInTheDocument();
     fireEvent.click(within(mine).getByRole('checkbox'));
     fireEvent.click(screen.getByRole('button', { name: 'Delete…' }));
     expect(await screen.findByText(/that space is freed only once the runs are deleted too/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Delete 1 export' }));
     await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/storage/exports/delete')).toHaveLength(1));
     expect(lastBody(fetch, 'POST', '/api/v1/storage/exports/delete')).toEqual({ ids: [1] });
+  });
+
+  it('warns that deleting an export in a folder someone chose deletes the whole folder', async () => {
+    mockApi({
+      'GET /api/v1/storage/overview': overview,
+      'GET /api/v1/storage/jobs': { jobs: [] },
+      'GET /api/v1/storage/exports': { ...exports, exports: exports.exports.map(e => ({ ...e, can_delete: true })) },
+    });
+    renderAt('/storage/exports?scope=all', { ...alice, user_name: 'ines', is_admin: true });
+    const chosen = (await screen.findAllByTestId('export'))[2];
+    fireEvent.click(within(chosen).getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete…' }));
+    expect(await screen.findByText(/1 export is in a folder someone chose/)).toBeInTheDocument();
+    expect(screen.getByText(/everything in it is deleted, not only what was exported/)).toBeInTheDocument();
   });
 
   it("shows what the latest scan found that QA-Board doesn't track, and deletes what's yours", async () => {
@@ -370,6 +433,38 @@ describe('Leftovers, rules, exports and untracked files', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Delete 5.0 GB' }));
     await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/storage/untracked/delete')).toHaveLength(1));
     expect(lastBody(fetch, 'POST', '/api/v1/storage/untracked/delete')).toEqual({ paths: ['/algo/proj/outputs/alice/tmp'] });
+  });
+
+  it("shows admins everyone's untracked files, with their owners", async () => {
+    const admin = { ...alice, user_name: 'ines', is_admin: true };
+    const fetch = mockApi({
+      'GET /api/v1/storage/overview': { ...overview, scope: 'all' },
+      'GET /api/v1/storage/jobs': { jobs: [] },
+      'GET /api/v1/storage/untracked': {
+        scan: { id: 3, finished_at: '2026-10-21T00:00:00Z', roots: [] }, user: null,
+        totals: { bytes: 2 * GB, by_kind: { untracked_run: 2 * GB } },
+        entries: [{ path: '/algo/proj/outputs/bob/stray', kind: 'untracked_run', bytes: 2 * GB, untracked_bytes: 2 * GB, files: 3, kinds: { untracked_run: 2 * GB },
+          owners: { bob: 2 * GB }, owner: 'bob', only_yours: false, deletable: true, action: null, ref: {}, newest_mtime: null }],
+      },
+    });
+    renderAt('/storage/untracked?scope=all', admin);
+    const [row] = await screen.findAllByTestId('untracked');
+    expect(new URL(calls(fetch, 'GET', '/api/v1/storage/untracked')[0][0], 'http://localhost').searchParams.get('scope')).toBe('all');
+    expect(screen.getByText(/found on disk, that QA-Board doesn't track/)).toHaveTextContent('2.0 GB');
+    expect(within(screen.getByRole('table', { name: 'Not tracked' })).getByRole('columnheader', { name: 'Owner' })).toBeInTheDocument();
+    expect(row).toHaveTextContent('bob');
+    expect(within(row).getByRole('checkbox')).toBeInTheDocument();
+  });
+
+  it("tells users who pick everyone's that they only see their own untracked files", async () => {
+    mockApi({
+      'GET /api/v1/storage/overview': { ...overview, scope: 'all' },
+      'GET /api/v1/storage/jobs': { jobs: [] },
+      'GET /api/v1/storage/untracked': { scan: { id: 3, finished_at: '2026-10-21T00:00:00Z', roots: [] }, user: 'alice', totals: { bytes: 0, by_kind: {} }, entries: [] },
+    });
+    renderAt('/storage/untracked?scope=all');
+    expect(await screen.findByText(/Only admins see other people's files/)).toBeInTheDocument();
+    expect(screen.getByText(/nothing big of yours/)).toBeInTheDocument();
   });
 
   it('explains how to find untracked files before any scan', async () => {

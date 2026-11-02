@@ -11,6 +11,7 @@ from typing import Optional, List, Dict, Any, Tuple
 import click
 
 from ..run import RunContext 
+from ..utils import ignored_signals
 from ..api import url_to_dir, get_outputs, get_output, notify_qa_database
 
 # TODO: We could make start_jobs belong to JobGroup as simply "start" 
@@ -90,7 +91,13 @@ class JobGroup():
     """
     if not self.jobs:
       return False
-    self.Runner.start_groups(self.groups(), blocking)
+    try:
+      self.Runner.start_groups(self.groups(), blocking)
+    except (KeyboardInterrupt, SystemExit):
+      # The runners stop the jobs when `qa batch` is stopped (SIGINT/SIGTERM), then exit
+      if blocking:
+        self.settle_pending_runs(qa_context)
+      raise
     if not blocking:
       return True
 
@@ -130,17 +137,39 @@ class JobGroup():
           jobs_with_pending_outputs.append(job)
 
     for job in jobs_with_pending_outputs:
-      job_is_failed = job.run_context.is_failed(verbose=True)
-      if not job_is_failed:
-        print("[INFO] Job status was 'pending':", job.run_context, job.qaboard_output)
-      is_failed = is_failed or job_is_failed
-      notify_qa_database(**{
-        **(qa_context if qa_context else {}),
-        **job.run_context.obj, # for now we don't want to worry about backward compatibility, and input_path being abs vs relative...
-        "is_pending": False,
-        "is_failed": job_is_failed,
-      })
+      is_failed = self.settle_pending_run(job, qa_context) or is_failed
     return is_failed
+
+  @staticmethod
+  def settle_pending_run(job: Job, qa_context: Optional[Dict[str, Any]]) -> bool:
+    """Tells QA-Board that a run QA-Board shows as pending ended, failed unless it saved successful metrics. Returns whether it failed."""
+    job_is_failed = job.run_context.is_failed(verbose=True)
+    if not job_is_failed:
+      print("[INFO] Job status was 'pending':", job.run_context, job.qaboard_output)
+    notify_qa_database(**{
+      **(qa_context if qa_context else {}),
+      **job.run_context.obj, # for now we don't want to worry about backward compatibility, and input_path being abs vs relative...
+      "is_pending": False,
+      "is_failed": job_is_failed,
+    })
+    return job_is_failed
+
+  def settle_pending_runs(self, qa_context: Optional[Dict[str, Any]]):
+    """
+    When `qa batch` is stopped, the runs it stopped that QA-Board still shows as pending are marked as failed.
+    Their `qa run` usually says so, but not if it was killed with SIGKILL, or never started.
+    """
+    with ignored_signals():
+      try:
+        outputs = get_outputs(qa_context, ignore_errors=True)
+      except Exception:
+        return
+      outputdir_to_qaboard_output = {url_to_dir(o['output_dir_url']): o for o in outputs.values()}
+      for job in self.jobs:
+        output = outputdir_to_qaboard_output.get(job.run_context.output_dir)
+        if output and output['is_pending']:
+          job.qaboard_output = output
+          self.settle_pending_run(job, qa_context)
 
   # Currently called onlt by the backend when it tries to stop a `qa batch` command
   # Sadly it only knows about the command_id, not jobs....

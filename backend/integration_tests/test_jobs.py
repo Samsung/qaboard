@@ -435,6 +435,41 @@ def test_jobs_of_dead_workers_are_queued_again(admin):
   assert again["status"] == 'queued' and 'stopped responding' in again["log"][-1]["message"]
 
 
+def test_cancelled_jobs_of_dead_workers_stay_cancelled(admin):
+  from backend.database import db_session
+  from backend.models import Job
+  from backend.jobs import queue
+  answer = start(admin)
+  db_session.expire_all()
+  stuck = db_session.get(Job, answer["id"])
+  stuck.status, stuck.worker, stuck.heartbeat_at, stuck.attempts, stuck.cancel_requested = 'running', 'gone:1', now() - datetime.timedelta(hours=1), 1, True
+  db_session.commit()
+  assert queue.requeue_stale() == 1
+  assert job(admin, answer["id"])["status"] == 'cancelled'
+
+
+def test_running_jobs_can_be_cancelled_without_waiting(admin, monkeypatch):
+  """A job stuck where it can't check whether it's cancelled (a storage that doesn't answer...): admins don't wait for it"""
+  from backend.database import db_session
+  from backend.models import Job
+  from backend.jobs import queue, hard_delete
+  answer = start(admin)
+  forced = {}
+  def stuck(params, report):
+    # what admins do while the worker is busy
+    assert admin.post(f'/api/v1/admin/jobs/{answer["id"]}/cancel').get_json()["status"] == 'running'
+    forced.update(admin.post(f'/api/v1/admin/jobs/{answer["id"]}/cancel', json={"force": True}).get_json())
+    forced["next"] = admin.post('/api/v1/admin/jobs', json={"kind": "hard_delete"}).status_code
+    raise RuntimeError("the worker gives up later")
+  monkeypatch.setattr(hard_delete, 'run', stuck)
+  run_jobs()
+  assert forced["status"] == 'cancelled' and 'without waiting' in forced["log"][-1]["message"]
+  assert forced["next"] == 201, "another job of its kind can start"
+  db_session.expire_all()
+  done = db_session.get(Job, answer["id"])
+  assert done.status == 'cancelled' and done.error is None and done.log[-1]["message"] == 'Its worker stopped too'
+
+
 def test_crashes_are_reported(admin, monkeypatch):
   from backend.jobs import hard_delete
   def crash(params, report):

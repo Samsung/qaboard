@@ -478,6 +478,18 @@ def test_the_jenkins_trigger_without_a_user(client, logged_in, monkeypatch):
     response = client.post('/api/v1/jenkins/build/trigger/', json=data)
     assert response.status_code == 403 and "qaboard.yaml" in response.get_json()["error"]
   assert started == ["http://jenkins/job/windows", "http://jenkins/job/windows/"]
+  # scripts calling the API are told how to send a token
+  assert "Authorization: Bearer" in response.get_json()["error"]
+  # admins can allow other jobs for a while: by text in their path, with a warning
+  monkeypatch.setenv('QABOARD_JENKINS_ANONYMOUS_JOBS', 'ALGO, other')
+  response = client.post('/api/v1/jenkins/build/trigger/', json={"build_url": "http://jenkins/job/ALGO_nightly/"})
+  assert response.status_code == 200 and "jenkins.anonymous_jobs" in response.headers["X-QABoard-Warning"]
+  response.headers["X-QABoard-Warning"].encode('latin-1') # else uWSGI sends no body
+  for build_url in ["http://jenkins/job/deploy", "http://jenkins/job/algo_nightly", "http://ALGO.host/job/deploy"]:
+    assert client.post('/api/v1/jenkins/build/trigger/', json={"build_url": build_url}).status_code == 403
+  monkeypatch.setenv('QABOARD_JENKINS_ANONYMOUS_JOBS', '*')
+  assert client.post('/api/v1/jenkins/build/trigger/', json={"build_url": "http://jenkins/job/deploy"}).status_code == 200
+  monkeypatch.delenv('QABOARD_JENKINS_ANONYMOUS_JOBS')
   # signed-in users can start any job, and the audit log says who did
   alice = logged_in('alice')
   assert alice.post('/api/v1/jenkins/build/trigger/', json={"build_url": "http://jenkins/job/deploy"}).status_code == 200
@@ -546,3 +558,15 @@ def test_reads_say_why_a_token_cant_access_a_project(logged_in, make_client):
     response = make_client().get(url, headers=bearer(token["token"]))
     assert response.status_code == 403, url
     assert response.get_json() == {"error": "This token can't access other/repo.", "reason": "token_project"}, url
+
+
+def test_warnings_are_valid_headers(client):
+  """HTTP headers are latin-1: with anything else, uWSGI sends the status line but no body"""
+  from flask import g, Response
+  from backend import app
+  from backend.actor import after_request
+  with app.test_request_context('/'):
+    g.qaboard_warning = "Settings → Access tokens, “quoted”"
+    response = after_request(Response("{}"))
+  response.headers['X-QABoard-Warning'].encode('latin-1')
+  assert response.headers['X-QABoard-Warning'].startswith("Settings ? Access tokens")

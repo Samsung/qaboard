@@ -65,6 +65,7 @@ export const progressSummary = job => {
   } else if (job.kind === 'scan_storage') {
     parts.push(`${formatBytes(progress.bytes ?? 0)} in ${plural(progress.files ?? 0, 'file')}`);
     if (progress.folders_total) parts.push(`${number(progress.folders_done ?? 0)}/${plural(progress.folders_total, 'folder')}`);
+    if (progress.dirs_explored) parts.push(`${plural(progress.dirs_explored, 'folder')} read`);
   } else if (job.kind === 'measure_deleted') {
     parts.push(`${plural(progress.runs_checked ?? 0, 'run')} measured, ${formatBytes(progress.bytes_left ?? 0)} left`);
   } else if (job.kind === 'fail_stuck_runs') {
@@ -107,6 +108,7 @@ export const counters = {
     { key: 'files', label: 'Files' },
     { key: 'folders_done', label: 'Folders done' },
     { key: 'folders_total', label: 'Folders to scan' },
+    { key: 'dirs_explored', label: 'Folders read', hint: "Inside them too: big folders take a while to be done, this shows the scan is moving." },
   ],
   measure_deleted: [
     { key: 'runs_checked', label: 'Deleted runs checked', main: true },

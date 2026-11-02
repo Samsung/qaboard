@@ -1,5 +1,5 @@
 // Admin → Storage → a scan: what's on disk, like ncdu. Folders by size, what QA-Board tracks or not, who owns it,
-// and acting on what QA-Board doesn't use: delete it, track exports so their owners see them, add runs back.
+// and acting on what QA-Board doesn't use: delete it, add runs back. Scans track the exports they find themselves.
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -14,7 +14,7 @@ import { history, Link } from "../router";
 import { Time } from "../settings/format";
 import { Loading } from "../settings/states";
 import { AdminError } from "./states";
-import { scanQuery, scanEntriesQuery, deleteScanPaths, trackScanExports, importScanRuns } from "./api";
+import { scanQuery, scanEntriesQuery, deleteScanPaths, importScanRuns, deleteScan } from "./api";
 import { formatBytes, number, JobStatus } from "./jobs";
 
 
@@ -27,7 +27,7 @@ export const scan_kinds = {
   deleted_run: { label: 'Deleted run', color: Colors.ORANGE4, hint: "A run deleted in QA-Board: what's left of its files (manifests, files the manifest didn't list)." },
   untracked_run: { label: 'Untracked run', color: Colors.RED3, hint: "A run's folder (it has run.json) that QA-Board doesn't know: its upload failed, or the run was deleted for good. In a batch's folder, you can add it back." },
   deleted_artifacts: { label: 'Deleted artifacts', color: Colors.ORANGE2, hint: "Artifacts QA-Board thinks it deleted, still on disk." },
-  untracked_export: { label: 'Untracked export', color: Colors.VIOLET3, hint: "An export QA-Board didn't track (older exports, or copied elsewhere). Track it: its owner sees it, and can delete it." },
+  untracked_export: { label: 'Untracked export', color: Colors.VIOLET3, hint: "An export QA-Board doesn't track: scans track the exports they find, unless they fail (see the scan's errors)." },
   untracked_files: { label: 'Other files', color: Colors.GRAY3, hint: "Files that aren't in runs, exports or artifacts." },
   folder: { label: 'Folder', color: Colors.GRAY4 },
   file: { label: 'File', color: Colors.GRAY3 },
@@ -99,6 +99,7 @@ export const ScanExplorer = ({ id }) => {
   const [selected, setSelected] = useState(new Map());
   const [confirm, setConfirm] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const setParent = path => {
     setParentState(path);
     setSelected(new Map());
@@ -133,7 +134,6 @@ export const ScanExplorer = ({ id }) => {
   });
   const picked = [...selected.values()];
   const picked_bytes = picked.reduce((sum, e) => sum + e.bytes, 0);
-  const can_track = picked.filter(e => e.kind === 'untracked_export');
   const can_import = picked.filter(e => e.kind === 'untracked_run' && e.ref?.batch_id);
   const act = (promise, message) => {
     setBusy(true);
@@ -161,7 +161,29 @@ export const ScanExplorer = ({ id }) => {
       {scan.job ? <JobStatus job={scan.job}/> : <Tag minimal>{scan.status}</Tag>}
       <span className={Classes.TEXT_MUTED}>{scan.finished_at ? <>finished <Time iso={scan.finished_at}/></> : <>started <Time iso={scan.created_at}/></>}</span>
       {scan.job && <Link to={`/admin/storage/jobs/${scan.job.id}`}>Its job and log</Link>}
+      {scan.status !== 'running' && <Button style={{ marginLeft: 'auto' }} variant="minimal" icon="trash" text="Delete this scan" onClick={() => setDeleting(true)}/>}
     </div>
+    <Alert
+      isOpen={deleting}
+      intent={Intent.DANGER}
+      icon="trash"
+      confirmButtonText="Delete the scan"
+      cancelButtonText="Cancel"
+      loading={busy}
+      onConfirm={() => {
+        setBusy(true);
+        deleteScan(queryClient, scan.id)
+          .then(() => {
+            toaster.show({ message: `Deleted scan #${scan.id}`, intent: Intent.SUCCESS, icon: 'tick', timeout: 4000 });
+            history.push('/admin/storage');
+          })
+          .catch(error => toaster.show({ message: errorMessage(error), intent: Intent.DANGER, timeout: 8000 }))
+          .finally(() => { setBusy(false); setDeleting(false); });
+      }}
+      onCancel={() => setDeleting(false)}
+    >
+      <p>Delete what scan #{scan.id} found? The files stay on disk: only the scan's results are deleted.</p>
+    </Alert>
     <p className={Classes.TEXT_MUTED} style={{ marginTop: 6 }}>{(scan.roots ?? []).length} folders: {(scan.roots ?? []).slice(0, 4).join(', ')}{scan.roots?.length > 4 ? '…' : ''}</p>
     {scan.status === 'running' && <Callout icon="time" intent={Intent.PRIMARY}>The scan is still running: what you see grows as it goes.</Callout>}
 
@@ -228,8 +250,6 @@ export const ScanExplorer = ({ id }) => {
       <strong>{picked.length} selected · {formatBytes(picked_bytes)}</strong>
       <Button variant="minimal" text="Clear" onClick={() => setSelected(new Map())}/>
       <span style={{ marginLeft: 'auto' }}/>
-      {can_track.length > 0 && <Button icon="eye-open" text={`Track ${can_track.length} export${can_track.length > 1 ? 's' : ''}`} loading={busy}
-        onClick={() => act(trackScanExports(queryClient, id, can_track.map(e => e.path)), answer => `Tracked ${answer.exports.length} exports: their owners see them in Storage usage`)}/>}
       {can_import.length > 0 && <Button icon="import" text={`Add ${can_import.length} run${can_import.length > 1 ? 's' : ''} to QA-Board`} loading={busy}
         onClick={() => act(importScanRuns(queryClient, id, can_import.map(e => e.path)), () => 'Adding the runs')}/>}
       {picked.every(e => e.deletable) && <Button icon="trash" intent={Intent.DANGER} text="Delete…" onClick={() => setConfirm(picked)}/>}

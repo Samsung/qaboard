@@ -288,7 +288,7 @@ resolution), and show a cross where the pointer is on the others. Viewers off-sc
 | `sensor`, `defaultSensor`, `onSensorChange` | `{ kind?, pattern?, block?, offset?, blackLevel?, grouping? }` | automatic | What users set about the sensor of raw images |
 | `sensorRemembered` | `string` | | Where it's remembered, shown to users, e.g. "for the project" |
 | `syncKey` | `string` | | Viewers with the same key are synced |
-| `regionSets` | `[{ id, label, regions?, loading?, error?, load?, empty? }]` | `[]` | Regions of interest |
+| `regionSets` | `[{ id, label, regions?, loading?, error?, load?, empty?, settings? }]` | `[]` | Regions of interest |
 | `regionSet`, `defaultRegionSet`, `onRegionSetChange` | `string \| null` | | The set shown (`null`: the full image) |
 | `regionActions` | `[{ id, label, icon?, title?, onClick }]` | `[]` | Your actions in the regions menu |
 | `swapped`, `defaultSwapped`, `onSwappedChange` | `boolean` | `false` | The reference shows first. Control it to swap several viewers at once |

@@ -7,7 +7,7 @@ import { unstable_HistoryRouter as HistoryRouter } from 'react-router';
 
 import { history, RouteMatch } from '../../router';
 import { matchAppRoute } from '../../routes';
-import { SettingsPage } from '../SettingsPage';
+import { SettingsPage, tabs } from '../SettingsPage';
 import { usePrefsStore } from '../../stores/prefs';
 import { actionLabel } from '../format';
 import { renderWithProviders } from '../../test-utils';
@@ -35,6 +35,12 @@ test('shows the profile by default, and tabs change the URL', async () => {
   expect(screen.getAllByText('Admin').length).toBeGreaterThan(0);
   fireEvent.click(screen.getByRole('tab', { name: 'Access tokens' }));
   expect(history.location.pathname).toBe('/settings/tokens');
+});
+
+// else /settings/<tab> would be a project's page
+test('each tab has its URL', () => {
+  for (const { id } of tabs)
+    expect(matchAppRoute(`/settings/${id}`)?.match.params.tab).toBe(id);
 });
 
 test('tabs scroll sideways on narrow screens, instead of the page', () => {

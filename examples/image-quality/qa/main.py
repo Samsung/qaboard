@@ -54,9 +54,9 @@ def read_flags(params):
     return flags
 
 
-def metadata(absolute_input_path, database, input_path):
+def metadata(context):
     """Input metadata: ROI presets for the image viewer, and the regions charts are measured in."""
-    path = absolute_input_path.with_suffix('.metadata.yaml')
+    path = context.input_path.with_suffix('.metadata.yaml')
     return yaml.safe_load(path.read_text()) if path.exists() else {}
 
 

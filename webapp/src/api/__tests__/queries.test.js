@@ -1,7 +1,7 @@
 // How often what shows runs waiting or running is refreshed
 import { QueryClient } from '@tanstack/react-query';
 
-import { batchesPagesQuery, commitQuery } from '../queries';
+import { batchesPagesQuery, commitQuery, commitCountsQuery, commitsQuery, findCachedCommit } from '../queries';
 
 const minutes = 60 * 1000;
 const commit = ({ pending = 1, valid = 9 } = {}) => ({
@@ -50,4 +50,12 @@ test('so are lists of batches with runs waiting', async () => {
   expect(await refreshAt(options, 0, batches)).toBe(15 * 1000);
   expect(await refreshAt(options, 3 * minutes, batches)).toBe(3 * minutes);
   expect(await refreshAt(options, 4 * minutes, [{ id: 1, pending_outputs: 0 }])).toBe(false);
+});
+
+// Lists of commits share ['commits', project] with the counts, which are no list
+test('commits are found in the lists of the cache, next to the counts', () => {
+  queryClient.setQueryData(commitCountsQuery({ project: 'p' }).queryKey, { all: 3, mine: 1, without_ci: 0 });
+  expect(findCachedCommit(queryClient, 'p', 'abc')).toBeUndefined();
+  queryClient.setQueryData(commitsQuery({ project: 'p' }).queryKey, [commit()]);
+  expect(findCachedCommit(queryClient, 'p', 'abc')?.id).toBe('abc');
 });

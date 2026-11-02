@@ -43,3 +43,13 @@ def test_matching_output(export_api):
   same_path = run('new/a.jpg', configurations=['other'])
   assert export_api.matching_output(reference, [moved, same_path]) is same_path
   assert export_api.matching_output(reference, [other, run('new/a.jpg', is_pending=True)]) is None
+
+
+def test_matching_output_like_the_web_app(export_api):
+  reference = run('a.jpg', configurations=['base', {'gain': 3}])
+  closer, further = run('a.jpg', configurations=['base', {'gain': 4}]), run('a.jpg', configurations=['base', {'gain': 100}])
+  assert export_api.matching_output(reference, [further, closer]) is closer
+  # the same platform first
+  same_platform, other_platform = run('a.jpg'), run('a.jpg')
+  other_platform.platform = 'windows'
+  assert export_api.matching_output(run('a.jpg'), [other_platform, same_platform]) is same_platform

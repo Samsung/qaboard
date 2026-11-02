@@ -6,8 +6,8 @@ import { act, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { unstable_HistoryRouter as HistoryRouter } from 'react-router';
 
 import { history, RouteMatch, matchRoutes } from '../../router';
-import { app_routes } from '../../routes';
-import { AdminPage } from '../AdminPage';
+import { app_routes, matchAppRoute } from '../../routes';
+import { AdminPage, sections } from '../AdminPage';
 import { Users } from '../Users';
 import { UserDetail } from '../UserDetail';
 import { Settings } from '../Settings';
@@ -50,6 +50,12 @@ describe('AdminPage', () => {
     expect(route.main).toBeDefined();
     return renderAt(pathname, <RouteMatch match={match}><AdminPage/></RouteMatch>, { user: me });
   };
+
+  // else /admin/<section> would be a project's page
+  it('has a URL for each tab', () => {
+    for (const { id } of sections)
+      expect(matchAppRoute(`/admin/${id}`)?.match.params.section).toBe(id);
+  });
 
   it('is only for admins', async () => {
     mockApi({});

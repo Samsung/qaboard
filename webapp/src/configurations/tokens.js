@@ -4,6 +4,7 @@
 // Tuning parameters (`qa --tuning`, a run's extra_parameters) are one more object, applied last: their settings are
 // shown and compared like the others, but they're kept apart from the configuration's (`source: 'tuning'`).
 // Pure functions: the commit page calls them for each of its 1000s of runs, so they're memoized.
+// config_distance is ported to Python in qaboard/matching.py, both are tested against tests/fixtures/config-distance.json.
 
 // Some configuration keys are used and shown by viewers - we don't display them as settings
 export const hidden_keys = ["badges", "roi", "auto_rois"];

@@ -227,13 +227,22 @@ def storage_exports():
   query = exports_query(who['user'], projects)
   sort = {'oldest': Export.updated_at.asc(), 'newest': Export.updated_at.desc()}.get(request.args.get('sort'), Export.bytes.desc().nullslast())
   return jsonify({
-    "exports": [serialize(e) for e in query.order_by(sort).limit(500)],
+    "exports": [{**serialize(e), "can_delete": can_delete_export(e)} for e in query.order_by(sort).limit(500)],
     "totals": export_totals(who['user'], projects),
   })
 
 
-def can_delete_export(export) -> bool:
+def is_theirs(export) -> bool:
   return is_admin() or me() in (export.created_by, accounts.resolve(export.owner))
+
+
+def can_delete_export(export) -> bool:
+  """Deleting an export deletes its folder: in a folder someone chose, only if all its files are the user's"""
+  from ..exports import in_chosen_folder
+  if is_admin() or not in_chosen_folder(export):
+    return is_theirs(export)
+  owners = set(accounts.resolve_keys((export.data or {}).get('owners')))
+  return bool(owners) and owners <= {me()}
 
 
 @app.route('/api/v1/storage/exports/delete', methods=['POST'])
@@ -245,9 +254,11 @@ def storage_delete_exports():
   if not isinstance(ids, list) or not ids or not all(isinstance(i, int) for i in ids):
     raise ParamsError("Select the exports to delete: `ids`")
   exports = Export.query.filter(Export.id.in_(ids), Export.deleted_at.is_(None)).all()
-  refused = [e.path for e in exports if not can_delete_export(e)]
+  refused = [e for e in exports if not can_delete_export(e)]
+  if refused and is_theirs(refused[0]):
+    return jsonify({"error": f"{refused[0].path} has other people's files, and deleting an export deletes its folder: ask them, or an admin."}), 403
   if refused:
-    return jsonify({"error": f"You can only delete your exports: {refused[0]} isn't yours."}), 403
+    return jsonify({"error": f"You can only delete your exports: {refused[0].path} isn't yours."}), 403
   if not exports:
     return jsonify({"error": "These exports were already deleted."}), 400
   size = sum(e.bytes or 0 for e in exports)
@@ -268,7 +279,7 @@ def storage_measure_export(export_id):
   from ..models import Export
   from ..exports import measure_export, serialize
   export = db_session.get(Export, export_id)
-  if export is None or not can_delete_export(export):
+  if export is None or not is_theirs(export):
     return jsonify({"error": "This export doesn't exist."}), 404
   measure_export(export)
   db_session.commit()
@@ -288,7 +299,7 @@ def latest_scan():
 def storage_untracked():
   """
   What the latest scan found on disk that QA-Board doesn't track, owned by the user: exports, runs it doesn't know,
-  what deleted runs left... The biggest first.
+  what deleted runs left... The biggest first. Admins see everyone's, or someone's, with `scope` (and `user`).
   """
   from ..models import StorageScanEntry
   from ..jobs.scan import UNTRACKED
@@ -296,28 +307,34 @@ def storage_untracked():
   scan = latest_scan()
   if scan is None:
     return jsonify({"scan": None, "totals": {}, "entries": []})
-  user = request.args.get('user') if is_admin() and request.args.get('user') else me()
+  args = request.args.to_dict()
+  if args.get('user') and not args.get('scope'):
+    args['scope'] = 'user'
+  # None: everyone's
+  user = whose(args)['user'] if is_admin() else me()
   kinds = sorted(UNTRACKED | {'folder', 'file'})
-  entries = (StorageScanEntry.query
-             .filter(StorageScanEntry.scan_id == scan.id, StorageScanEntry.owner.in_(accounts.aliases(user)), StorageScanEntry.kind.in_(kinds), StorageScanEntry.action.is_(None))
-             .order_by(StorageScanEntry.bytes.desc()).limit(300).all())
-  # the biggest untracked things, not the folders that contain them
+  query = StorageScanEntry.query.filter(StorageScanEntry.scan_id == scan.id, StorageScanEntry.kind.in_(kinds), StorageScanEntry.action.is_(None))
+  if user is not None:
+    query = query.filter(StorageScanEntry.owner.in_(accounts.aliases(user)))
+  entries = query.order_by(StorageScanEntry.bytes.desc()).limit(300 if user else 1000).all()
+  # the biggest untracked things, not the folders that contain them: folders and files count if they're one person's
   answer = []
   for entry in entries:
     item = serialize_entry(entry)
     untracked = sum(size for kind, size in (entry.kinds or {}).items() if kind in UNTRACKED)
     owners = set(accounts.resolve_keys(entry.owners))
-    if entry.kind in ('folder', 'file') and (not untracked or owners - {user}):
+    if entry.kind in ('folder', 'file') and (not untracked or (owners - {user} if user else len(owners) > 1)):
       continue
     item['untracked_bytes'] = untracked or entry.bytes
-    item['only_yours'] = owners <= {user}
+    item['only_yours'] = owners <= {me()}
     answer.append(item)
   # folders whose untracked files are all listed inside them come after: keep the leaves first
   answer.sort(key=lambda e: (e['kind'] == 'folder', -e['untracked_bytes']))
-  by_owner = accounts.resolve_keys((scan.totals or {}).get('by_owner')).get(user) or {}
+  totals = scan.totals or {}
+  by_kind = (totals.get('by_kind') if user is None else accounts.resolve_keys(totals.get('by_owner')).get(user)) or {}
   return jsonify({
     "scan": {"id": scan.id, "finished_at": usage.iso(scan.finished_at), "roots": scan.roots},
-    "totals": {"by_kind": {k: v for k, v in by_owner.items() if k in UNTRACKED}, "bytes": sum(v for k, v in by_owner.items() if k in UNTRACKED)},
+    "totals": {"by_kind": {k: v for k, v in by_kind.items() if k in UNTRACKED}, "bytes": sum(v for k, v in by_kind.items() if k in UNTRACKED)},
     "entries": answer[:100],
     "user": user,
   })

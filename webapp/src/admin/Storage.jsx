@@ -2,7 +2,7 @@
 // Jobs run in the background (`qaboard-admin jobs worker`, next to the backend): their page shows their progress and errors.
 import { useState } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, ButtonGroup, Callout, Card, Classes, HTMLTable, Intent, NonIdealState, Switch, Tag, Tooltip } from "@blueprintjs/core";
+import { Alert, Button, ButtonGroup, Callout, Card, Classes, Collapse, HTMLTable, Intent, NonIdealState, Switch, Tag, Tooltip } from "@blueprintjs/core";
 
 import { errorMessage } from "../api/http";
 import { toaster } from "../toaster";
@@ -10,7 +10,7 @@ import { history, Link } from "../router";
 import { Time } from "../settings/format";
 import { Loading } from "../settings/states";
 import { AdminError } from "./states";
-import { jobsQuery, schedulesQuery, saveSchedule, deleteSchedule, runSchedule, scansQuery } from "./api";
+import { jobsQuery, schedulesQuery, saveSchedule, deleteSchedule, runSchedule, scansQuery, deleteScan } from "./api";
 import { JobStatus, kind_labels, progressSummary, nbErrors, number, formatDuration, jobDuration, isStale, formatBytes } from "./jobs";
 import { KindsBar } from "./ScanExplorer";
 import { JobDialog, ScheduleDialog, kind_icons } from "./JobForm";
@@ -93,11 +93,34 @@ const Jobs = () => {
 };
 
 
+// Shows or hides a long list, the section's header says what's in it
+const ShowButton = ({ shown, onClick, what }) => <Button
+  variant="minimal" size="small" icon={shown ? 'chevron-up' : 'chevron-down'} text={shown ? 'Hide' : `Show ${what}`}
+  aria-expanded={shown} onClick={onClick}
+/>;
+
+const went_wrong = ['failed', 'done_with_errors'];
+
+// In a line: what the schedules do next, and if some went wrong
+const SchedulesSummary = ({ schedules }) => {
+  const enabled = schedules.filter(schedule => schedule.enabled);
+  const next = enabled.filter(schedule => schedule.next_run_at).sort((a, b) => a.next_run_at.localeCompare(b.next_run_at))[0];
+  const wrong = enabled.filter(schedule => went_wrong.includes(schedule.last_job?.status)).length;
+  return <span className={Classes.TEXT_MUTED} data-testid="schedules-summary">
+    {enabled.length} of {schedules.length} enabled
+    {next && <> · next: {next.name}, <Time iso={next.next_run_at}/></>}
+    {wrong > 0 && <> · <Tag minimal intent={Intent.WARNING} round>last run went wrong for {wrong}</Tag></>}
+  </span>;
+};
+
 const Schedules = () => {
   const queryClient = useQueryClient();
   const { data: schedules = [], isPending, error, refetch } = useQuery(schedulesQuery);
   const [editing, setEditing] = useState(null);  // {} for a new one
   const [deleting, setDeleting] = useState(null);
+  // a few fit, more push the jobs far down
+  const [expanded, setExpanded] = useState(null);
+  const shown = expanded ?? schedules.length <= 3;
   const fail = error => toaster.show({ message: errorMessage(error), intent: Intent.DANGER, timeout: 8000 });
 
   const toggle = schedule => saveSchedule(queryClient, schedule.id, { enabled: !schedule.enabled })
@@ -114,7 +137,11 @@ const Schedules = () => {
   return <section aria-label="Schedules" style={{ marginBottom: 32 }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
       <h4 className={Classes.HEADING} style={{ margin: 0 }}>Schedules</h4>
-      <Button icon="add" text="New schedule" onClick={() => setEditing({})}/>
+      {schedules.length > 0 && <SchedulesSummary schedules={schedules}/>}
+      <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+        {schedules.length > 0 && <ShowButton shown={shown} onClick={() => setExpanded(!shown)} what={`the ${schedules.length} schedules`}/>}
+        <Button icon="add" text="New schedule" onClick={() => setEditing({})}/>
+      </span>
     </div>
     {isPending && <Loading label="Loading the schedules"/>}
     {error && <AdminError error={error} refetch={refetch} what="the schedules"/>}
@@ -122,7 +149,7 @@ const Schedules = () => {
       ? <p className={Classes.TEXT_MUTED}>
         No schedules. Replace the server's cron jobs (e.g. <code>qaboard_clean</code>) with schedules: their runs are listed here, with their errors.
       </p>
-      : <div style={{ overflowX: 'auto' }}>
+      : <Collapse isOpen={shown}><div style={{ overflowX: 'auto' }}>
         <HTMLTable compact style={{ width: '100%' }} aria-label="Schedules">
           <thead>
             <tr>
@@ -136,9 +163,10 @@ const Schedules = () => {
           </thead>
           <tbody>
             {schedules.map(schedule => <tr key={schedule.id}>
-              <td style={{ minWidth: 220 }}>
+              <td style={{ minWidth: 220, maxWidth: 420 }}>
                 <strong>{schedule.name}</strong>
-                <div className={Classes.TEXT_MUTED} style={{ fontSize: 12, overflowWrap: 'anywhere' }}>{schedule.description}{schedule.params?.dry_run ? ' (dry run)' : ''}</div>
+                {/* one line: the full description on hover */}
+                <div className={`${Classes.TEXT_MUTED} ${Classes.TEXT_OVERFLOW_ELLIPSIS}`} style={{ fontSize: 12 }} title={schedule.description}>{schedule.description}{schedule.params?.dry_run ? ' (dry run)' : ''}</div>
               </td>
               <td><code>{schedule.cron}</code> <span className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>{schedule.timezone}</span></td>
               <td>{schedule.enabled ? <Time iso={schedule.next_run_at} never="—"/> : <span className={Classes.TEXT_MUTED}>Disabled</span>}</td>
@@ -162,7 +190,7 @@ const Schedules = () => {
             </tr>)}
           </tbody>
         </HTMLTable>
-      </div>)}
+      </div></Collapse>)}
     {editing && <ScheduleDialog isOpen schedule={editing} onClose={() => setEditing(null)}/>}
     <Alert
       isOpen={!!deleting}
@@ -219,33 +247,70 @@ const actions = [
   },
 ];
 
+const LATEST_SCANS = 3;
+
 const Scans = () => {
+  const queryClient = useQueryClient();
   const { data: scans = [], isPending, error, refetch } = useQuery(scansQuery);
+  const [all, setAll] = useState(false);
+  const [deleting, setDeleting] = useState(null);
+  const [busy, setBusy] = useState(false);
   if (isPending) return null;
   if (error) return <AdminError error={error} refetch={refetch} what="the scans"/>;
   if (scans.length === 0) return null;
   const max = Math.max(0, ...scans.map(scan => scan.bytes));
+  const shown = all ? scans : scans.slice(0, LATEST_SCANS);
+  const remove = scan => {
+    setBusy(true);
+    deleteScan(queryClient, scan.id)
+      .then(() => toaster.show({ message: `Deleted scan #${scan.id}`, intent: Intent.SUCCESS, timeout: 3000 }))
+      .catch(error => toaster.show({ message: errorMessage(error), intent: Intent.DANGER, timeout: 8000 }))
+      .finally(() => { setBusy(false); setDeleting(null); });
+  };
   return <section aria-label="Scans" style={{ marginBottom: 32 }}>
-    <h4 className={Classes.HEADING}>Scans</h4>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+      <h4 className={Classes.HEADING} style={{ margin: 0 }}>Scans</h4>
+      {scans.length > LATEST_SCANS && <ShowButton shown={all} onClick={() => setAll(!all)} what={`the ${scans.length - LATEST_SCANS} older scans`}/>}
+    </div>
     <div style={{ overflowX: 'auto' }}>
       <HTMLTable compact interactive style={{ width: '100%' }} aria-label="Scans">
-        <thead><tr><th>Scan</th><th>Status</th><th>On disk</th><th>Not tracked</th><th>Files</th><th>Errors</th><th>Finished</th></tr></thead>
+        <thead><tr><th>Scan</th><th>Status</th><th>On disk</th><th>Not tracked</th><th>Files</th><th>Errors</th><th>Finished</th><th><span className={Classes.TEXT_MUTED}>Actions</span></th></tr></thead>
         <tbody>
-          {scans.map(scan => <tr key={scan.id} onClick={event => { if (!event.target.closest('a')) history.push(`/admin/storage/scans/${scan.id}`); }} style={{ cursor: 'pointer' }}>
-            <td style={{ minWidth: 200 }}>
-              <Link to={`/admin/storage/scans/${scan.id}`}><strong>Scan #{scan.id}</strong></Link>
-              <div className={Classes.TEXT_MUTED} style={{ fontSize: 12, overflowWrap: 'anywhere' }}>{scan.roots.length} folders{scan.roots.length ? `: ${scan.roots.slice(0, 2).join(', ')}${scan.roots.length > 2 ? '…' : ''}` : ''}</div>
-            </td>
-            <td>{scan.job ? <JobStatus job={scan.job}/> : <Tag minimal>{scan.status}</Tag>}</td>
-            <td><KindsBar kinds={scan.by_kind} bytes={scan.bytes} max={max}/></td>
-            <td><strong>{formatBytes(scan.untracked_bytes)}</strong></td>
-            <td>{number(scan.files)}</td>
-            <td>{scan.errors ? <Tag minimal intent={Intent.DANGER} round>{number(scan.errors)}</Tag> : <span className={Classes.TEXT_MUTED}>—</span>}</td>
-            <td><Time iso={scan.finished_at} never="—"/></td>
-          </tr>)}
+          {shown.map(scan => {
+            const running = scan.status === 'running' || ['queued', 'running'].includes(scan.job?.status);
+            return <tr key={scan.id} onClick={event => { if (!event.target.closest('a, button')) history.push(`/admin/storage/scans/${scan.id}`); }} style={{ cursor: 'pointer' }}>
+              <td style={{ minWidth: 200 }}>
+                <Link to={`/admin/storage/scans/${scan.id}`}><strong>Scan #{scan.id}</strong></Link>
+                <div className={Classes.TEXT_MUTED} style={{ fontSize: 12, overflowWrap: 'anywhere' }}>{scan.roots.length} folders{scan.roots.length ? `: ${scan.roots.slice(0, 2).join(', ')}${scan.roots.length > 2 ? '…' : ''}` : ''}</div>
+              </td>
+              <td>{scan.job ? <JobStatus job={scan.job}/> : <Tag minimal>{scan.status}</Tag>}</td>
+              <td><KindsBar kinds={scan.by_kind} bytes={scan.bytes} max={max}/></td>
+              <td><strong>{formatBytes(scan.untracked_bytes)}</strong></td>
+              <td>{number(scan.files)}</td>
+              <td>{scan.errors ? <Tag minimal intent={Intent.DANGER} round>{number(scan.errors)}</Tag> : <span className={Classes.TEXT_MUTED}>—</span>}</td>
+              <td><Time iso={scan.finished_at} never="—"/></td>
+              <td>
+                <Tooltip content={running ? 'Cancel its job first' : 'Delete what it found (not the files)'} hoverOpenDelay={300}>
+                  <Button variant="minimal" icon="trash" aria-label={`Delete scan #${scan.id}`} disabled={running} onClick={() => setDeleting(scan)}/>
+                </Tooltip>
+              </td>
+            </tr>;
+          })}
         </tbody>
       </HTMLTable>
     </div>
+    <Alert
+      isOpen={!!deleting}
+      intent={Intent.DANGER}
+      icon="trash"
+      confirmButtonText="Delete the scan"
+      cancelButtonText="Cancel"
+      loading={busy}
+      onConfirm={() => remove(deleting)}
+      onCancel={() => setDeleting(null)}
+    >
+      <p>Delete what scan #{deleting?.id} found? The files stay on disk: only the scan's results are deleted.</p>
+    </Alert>
   </section>;
 };
 

@@ -14,7 +14,7 @@ import { ALL_CHANNELS } from './histogram';
 import { ANALYSES, normalizeAnalysis } from './analysis';
 import { AnalysisPanel } from './analysisPanel';
 import { normalizeSensorSetting } from './imageAnalysis';
-import { Crosshair, DiffLayer, GuideLine, HighlightLayer, Minimap, PixelValues } from './overlays';
+import { Crosshair, DiffLayer, GuideLine, HighlightLayer, ImageHighlightLayer, Minimap, PixelValues } from './overlays';
 import { AdjustmentsPanel, DiffLegend, DiffSettings, Readout, RegionsMenu, RegionsStrip, Shortcuts, ValuesBadge, ValuesPanel } from './panels';
 import { Button, FilterPrimitive, Icon, MenuDivider, MenuItem, Popover, Segmented, Spinner } from './ui';
 import './image-viewer.css';
@@ -222,10 +222,14 @@ export const ImageViewer = ({
   // The channels the analysis shows, and the range of values the histogram highlights on the images (with the channels shown)
   const [histogram_channels, setHistogramChannels] = useState(ALL_CHANNELS);
   const [highlight_range, setHighlightRange] = useState(null);
-  const highlight = show_analysis && analysis === 'histogram' && highlight_range ? { ...highlight_range, channels: histogram_channels } : null;
   // What it measures: the displayed values, or the image's own ('image', with getPixels), per channel of its sensor,
   // e.g. R, Gr, Gb, B. What users say of the sensor (its CFA, black level...): controlled to remember it, e.g. per project.
   const [analysis_values, setAnalysisValues] = useControllable(analysis_values_prop, defaultAnalysisValues, onAnalysisValuesChange);
+  const analysis_image_values = analysis_values === 'image' && !!getPixels;
+  const highlight = show_analysis && analysis === 'histogram' && !analysis_image_values && highlight_range ? { ...highlight_range, channels: histogram_channels } : null;
+  // On the image's own values: the range picked on their histogram, and the pixels in it, by image (see highlightMask)
+  const [image_range, setImageRange] = useState(null);
+  const [image_masks, setImageMasks] = useState(null);
   const [sensor_setting, setSensorSetting] = useControllable(sensor_prop, defaultSensor, onSensorChange);
   const sensor = normalizeSensorSetting(sensor_setting);
   // The row or column hovered on its profile, shown on the images: { axis: 'x' | 'y', value }
@@ -417,10 +421,12 @@ export const ImageViewer = ({
     copied(() => navigator.clipboard.writeText(regionAsYaml(region, size_a)), 'region in view').then(notify);
   };
 
-  // Clicking the image shown alone shows the other
+  // Clicking a pixel pins it: its values stay while users move the mouse away, e.g. to select them. Clicking the image
+  // shown alone shows the other: there, Shift+click pins.
   useLayoutEffect(() => {
-    controller.setOnClick(() => {
-      if (single) flip();
+    controller.setOnClick((name, event, element) => {
+      if (single && !event?.shiftKey) return flip();
+      if (event) controller.pin(name, event.clientX, event.clientY, element);
     });
   });
 
@@ -463,6 +469,10 @@ export const ImageViewer = ({
           return true;
         case 'p':
           toggleValues();
+          return true;
+        case 'Escape':
+          if (!controller.getPointer()?.pinned) return false;
+          controller.unpin();
           return true;
         case 'a':
           setShowAnalysis(!show_analysis);
@@ -582,6 +592,7 @@ export const ImageViewer = ({
   >
     <div className="qiv-osd" ref={element => { if (element) controller.attach(name, element); }} style={{ filter }} />
     <HighlightLayer controller={controller} pane={name} highlight={highlight} active={visible && shown(name)} width={pane_width} height={pane_height} />
+    <ImageHighlightLayer controller={controller} pane={name} mask={show_analysis ? image_masks?.[name] : null} active={visible && shown(name)} width={pane_width} height={pane_height} />
     {pixelValues(name)}
     <Crosshair controller={controller} pane={name} />
     {show_analysis && <GuideLine controller={controller} guide={guide} />}
@@ -767,6 +778,7 @@ export const ImageViewer = ({
       diff={diff}
       base={base}
       onToggleBase={() => setBase(b => b === 10 ? 16 : 10)}
+      pinHint={single ? 'Shift+click a pixel to pin it' : 'click a pixel to pin it'}
       sizes={{ a: size_a, b: size_b }}
       unavailable={getPixels ? null : imageValuesUnavailable}
     />
@@ -843,6 +855,9 @@ export const ImageViewer = ({
       onChannelsChange={setHistogramChannels}
       range={highlight_range}
       onRangeChange={setHighlightRange}
+      imageRange={image_range}
+      onImageRangeChange={setImageRange}
+      onImageHighlightChange={setImageMasks}
       onGuideChange={setGuide}
       values={analysis_values === 'image' ? 'image' : 'display'}
       onValuesChange={setAnalysisValues}

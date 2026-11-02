@@ -230,6 +230,21 @@ test('says which frames show, their decoded values, and where the videos differ'
   await expect(page.locator('.qiv-readout')).toContainText('decoded 77 77 77');
   expect(pixels.some(p => p.frame === '11' && p.video_url.endsWith('/output/video.mp4'))).toBe(true);
 
+  // Shift+click pins the pixel: its values stay while the mouse moves, and the video doesn't play
+  const readout = page.locator('.qiv-readout');
+  await page.keyboard.down('Shift');
+  await page.mouse.click(box.x + box.width * 0.1, box.y + box.height * 0.2);
+  await page.keyboard.up('Shift');
+  await expect(page.locator('.qiv-pin-chip')).toBeVisible();
+  const pinned = (await readout.textContent()).match(/x \d+ y \d+/)[0];
+  await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.8, { steps: 5 });
+  await expect(readout).toContainText(pinned);
+  await expect(frame).toHaveText('frame 11 / 100');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.qiv-pin-chip')).toHaveCount(0);
+  await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.5);
+  await expect(readout).not.toContainText(pinned);
+
   // what's in the files
   await page.getByRole('button', { name: "What's in the files" }).click();
   await expect(page.locator('.video-info')).toContainText('av1 (Main)');

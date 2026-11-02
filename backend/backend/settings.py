@@ -66,6 +66,10 @@ DEFINITIONS = {
     "How runs, batches and commits sent by `qa` are authenticated: \"off\" accepts anonymous results (they're marked unverified), \"warn\" also warns the senders, \"token\" requires a token with the ingest scope.",
     'off', str, env='QABOARD_INGEST_AUTH', choices=('off', 'warn', 'token'),
   ),
+  'jenkins.anonymous_jobs': Definition(
+    "Jenkins jobs that callers without a token can start even if no project's qaboard.yaml lists them: a job matches when its path (/job/...) contains one of these texts (case-sensitive), \"*\" matches all. A way out while scripts move to tokens: they get a warning. Ignored when ingest.auth is \"token\".",
+    [], list, env='QABOARD_JENKINS_ANONYMOUS_JOBS', parse_env=env_list,
+  ),
   'projects.default_visibility': Definition(
     "Who can see the projects whose owners didn't choose: \"public\" (anyone who can open QA-Board), \"internal\" (signed-in users), \"private\" (only their members).",
     'public', str, env='QABOARD_DEFAULT_VISIBILITY', choices=('public', 'internal', 'private'),

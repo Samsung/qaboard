@@ -84,7 +84,10 @@ and **Download all (CSV)** to send them to the people concerned. Once fixed, **R
 - **Git**: the project's repository can't be read (see above).
 - **Storage not mounted?**: a folder is missing where the storage may just not be mounted (see above).
 
-Only one job of each kind runs at a time. Cancel a running job from its page: it stops within seconds.
+Only one job of each kind runs at a time. Cancel a running job from its page: it stops within seconds. If it's still
+*Cancelling* after a minute, its worker is stuck, e.g. reading a storage that doesn't answer: **Stop without waiting**
+marks it as cancelled, so another job of its kind can start. Its worker may stay busy with it until it gets an answer:
+restart the backend (or wherever `qaboard-admin jobs worker` runs) to stop it at once.
 
 ## Users' storage usage
 Users see how much storage their runs use, and delete their runs' files, in **Storage usage** (their profile menu,
@@ -112,7 +115,11 @@ QA-Board only knows the files of its runs and artifacts. **Scan the storage** wa
 any other folder you add) and finds, with the owner of every file:
 - **Untracked runs**: folders with a `run.json` or a manifest that QA-Board doesn't know (a failed upload, a run
   deleted for good while its folder stayed),
-- **Untracked exports**: folders with an export's `0.qa.url`, `0.qa.html` or `0.common.json` that QA-Board doesn't track,
+- **Exports** QA-Board doesn't track, e.g. made before it tracked them: folders with an export's `0.qa.url`,
+  `0.qa.html` or `0.common.json`. Scans track them: their owners see them in **Storage usage → Exports**, with the
+  project, commit and batch their `0.qa.url` gives. Deleting an export deletes its folder, so when it isn't one
+  QA-Board made (`share/<id>` next to a commit's runs, or in `storage.exports_root`) but a folder someone chose, where
+  they may have other files, only admins and whoever owns all its files can delete it,
 - what **deleted runs** and **deleted artifacts** left,
 - **other files**, e.g. copies, core dumps, users' own folders.
 
@@ -120,12 +127,15 @@ Open a scan from **Scans** to explore it like `ncdu`: folders by size, with a ba
 size you chose (*Details down to*, 50 MB by default: smaller items are counted with their folder). **Biggest untracked**
 lists them anywhere, by kind, owner or age. Click an owner to see only theirs. Then select entries and:
 - **Delete…** them: only folders without anything QA-Board uses (runs, batches' files, artifacts) can be selected,
-- **Track** exports: their owners see them in **Storage usage → Exports**, and can delete them,
 - **Add runs to QA-Board**: untracked runs in a batch's folder are added to their batch, from their `run.json`,
   manifest and metrics.
 
 Users see what they own in **Storage usage → Not tracked**, from the latest scan, and can delete the folders whose
-files are all theirs. Scanning doesn't change anything on disk.
+files are all theirs. Admins see everyone's there when they choose *Everyone's*, or someone's from the *Users* tab.
+Scanning doesn't change anything on disk: it only adds the exports it finds to QA-Board.
+
+Delete old scans from the **Scans** list or the scan's page: only what they found is deleted, not the files. Users then
+see the latest scan that's done.
 
 <details>
 <summary>How long scans take, and what they don't see</summary>
