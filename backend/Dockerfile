@@ -27,7 +27,10 @@ RUN apt-get update -qq && \
     fi
 # requests verifies with certifi's CAs, not the system's: without it, the SSO provider (and git hosts...) signed by
 # CA_CERT_URL's CA fail TLS. The system bundle has the usual public CAs too.
-ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+# uv has its own CAs too: SSL_CERT_FILE makes it use the system's, e.g. to download build backends (hatchling) through
+# a proxy signed by CA_CERT_URL's CA ("invalid peer certificate: UnknownIssuer")
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 
 
     # Keeps Python from generating .pyc files for 1-time use in the container's unionFS
