@@ -1,7 +1,7 @@
 // Storage usage > Exports: the folders "Export" wrote, who they belong to, how much they take, and deleting them.
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Callout, Checkbox, Classes, HTMLSelect, HTMLTable, Intent, NonIdealState, Tag, Tooltip } from "@blueprintjs/core";
+import { Alert, Button, Callout, Checkbox, Classes, HTMLSelect, HTMLTable, Icon, Intent, NonIdealState, Tag, Tooltip } from "@blueprintjs/core";
 
 import { errorMessage } from "../api/http";
 import { toaster } from "../toaster";
@@ -29,6 +29,17 @@ const sort_options = [
   { value: 'newest', label: 'Newest first' },
 ];
 
+// Exports found by a scan in a folder QA-Board didn't make: deleting them deletes what else is there
+const ChosenFolderTag = () => <Tooltip
+  content={<span style={{ display: 'block', maxWidth: 340 }}>
+    A storage scan found this export in a folder someone chose, not one QA-Board made. Deleting it deletes everything in
+    the folder, so only admins, or who owns all its files, can delete it.
+  </span>}
+  hoverOpenDelay={200}
+>
+  <Tag minimal intent={Intent.WARNING} icon="folder-shared">In a folder someone chose</Tag>
+</Tooltip>;
+
 export const ExportsView = ({ filters, me }) => {
   const queryClient = useQueryClient();
   const [sort, setSort] = useState('size');
@@ -50,6 +61,7 @@ export const ExportsView = ({ filters, me }) => {
   const picked = [...selected.values()];
   const picked_bytes = picked.reduce((sum, e) => sum + (e.bytes ?? 0), 0);
   const picked_linked = picked.reduce((sum, e) => sum + (e.linked_bytes ?? 0), 0);
+  const picked_chosen = picked.filter(e => e.in_chosen_folder);
   const remove = () => {
     setBusy(true);
     deleteExports(queryClient, picked.map(e => e.id))
@@ -77,13 +89,17 @@ export const ExportsView = ({ filters, me }) => {
       <HTMLSelect aria-label="Sort exports" options={sort_options} value={sort} onChange={e => setSort(e.target.value)}/>
     </div>
     {exports.length === 0
-      ? <NonIdealState icon="export" title="No exports" description={<>QA-Board tracks the exports made from the web app. Older exports show up after an admin scans the storage. Exports into folders you chose are in the <Link to="/storage/untracked">Not tracked</Link> tab.</>}/>
+      ? <NonIdealState icon="export" title="No exports" description="QA-Board tracks the exports made from the web app. Older exports show up after an admin scans the storage."/>
       : <div style={{ overflowX: 'auto', opacity: isFetching ? 0.7 : 1 }}>
         <HTMLTable compact style={{ width: '100%' }} aria-label="Exports">
           <thead><tr><th style={{ width: 30 }}><span className={Classes.TEXT_MUTED} aria-label="Select"/></th><th>Size</th><th>Folder</th><th>From</th><th>Owner</th><th>Last export</th><th><span className={Classes.TEXT_MUTED}>Actions</span></th></tr></thead>
           <tbody>
             {exports.map(item => <tr key={item.id} data-testid="export">
-              <td>{mine(item) && <Checkbox checked={selected.has(item.id)} onChange={() => toggle(item)} aria-label={`Select ${item.path}`} style={{ margin: 0 }}/>}</td>
+              <td>
+                {item.can_delete
+                  ? <Checkbox checked={selected.has(item.id)} onChange={() => toggle(item)} aria-label={`Select ${item.path}`} style={{ margin: 0 }}/>
+                  : mine(item) && <Tooltip content="Other people have files in its folder: ask them, or an admin" hoverOpenDelay={200}><Icon icon="lock" className={Classes.TEXT_MUTED}/></Tooltip>}
+              </td>
               <td>
                 <SizeBar bytes={item.bytes ?? 0} max={max}/>
                 <div className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>{plural(item.files ?? 0, 'file')}</div>
@@ -94,6 +110,7 @@ export const ExportsView = ({ filters, me }) => {
                   <LinkedTag item={item}/>
                   {item.exports > 1 && <Tag minimal>{item.exports} exports in this folder</Tag>}
                   {item.source === 'scan' && <Tooltip content="Found on disk by a storage scan" hoverOpenDelay={200}><Tag minimal>Found by a scan</Tag></Tooltip>}
+                  {item.in_chosen_folder && <ChosenFolderTag/>}
                 </div>
               </td>
               <td style={{ fontSize: 12 }}>
@@ -133,6 +150,7 @@ export const ExportsView = ({ filters, me }) => {
     >
       <p>Delete {plural(picked.length, 'export')} ({formatBytes(picked_bytes)})? People you shared them with lose them. The runs are not deleted.</p>
       {picked_linked > 0 && <p className={Classes.TEXT_MUTED}>{formatBytes(picked_linked)} are links to runs' files: that space is freed only once the runs are deleted too.</p>}
+      {picked_chosen.length > 0 && <p><strong>{plural(picked_chosen.length, 'export')} {picked_chosen.length > 1 ? 'are' : 'is'} in a folder someone chose:</strong> everything in {picked_chosen.length > 1 ? 'these folders' : 'it'} is deleted, not only what was exported.</p>}
     </Alert>
   </>;
 };

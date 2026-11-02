@@ -7,8 +7,9 @@ don't account for them, and they can be big, so we track them (models/Export.py)
   folder next to the commit's runs: easy to find, and not lost among the runs.
 - "link" exports are hard links: they share their space with the runs' files. Deleting the runs doesn't free it while
   the export exists, and deleting the export doesn't free it while the runs exist (`linked_bytes`).
-- Scans track the exports QA-Board made the folder of, e.g. before it tracked exports (`found`). Exports into folders
-  users chose aren't: deleting an export deletes its folder, with what users had there. Admins track them from the scan.
+- Scans track the exports they find, e.g. made before QA-Board tracked them (`found`). Deleting an export deletes its
+  folder: when a scan found it in a folder QA-Board didn't make, users may have other files there, so only admins and
+  whoever owns all its files delete it (`in_chosen_folder`). QA-Board itself only records exports into folders it made.
 """
 import re
 import datetime
@@ -60,6 +61,11 @@ def measure_export(export: Export) -> Export:
   export.files = totals['files']
   owners = sorted(totals['owners'].items(), key=lambda kv: -kv[1])
   export.owner = owner_name(owners[0][0]) if owners else export.owner
+  # everyone with files in it: who may delete an export in a folder someone chose
+  names = {}
+  for uid, size in owners:
+    names[owner_name(uid)] = names.get(owner_name(uid), 0) + size
+  export.data = {**(export.data or {}), "owners": names}
   export.measured_at = utcnow()
   return export
 
@@ -93,6 +99,11 @@ def made_by_qaboard(path: str, exports_root: Optional[str]) -> bool:
   return bool(exports_root) and path.startswith(exports_root.rstrip('/') + '/') and bool(own_folder_in_root.search(path))
 
 
+def in_chosen_folder(export: Export) -> bool:
+  """A scan found it in a folder QA-Board didn't make: deleting it deletes what else users have there"""
+  return export.source == 'scan' and not made_by_qaboard(export.path, setting('storage.exports_root'))
+
+
 def origin(path) -> dict:
   """The project, commit and batch of an export, from its 0.qa.url: URL=<QA-Board>/<project>/commit/<hexsha>?batch=<label>..."""
   try:
@@ -109,12 +120,10 @@ def origin(path) -> dict:
   return {"project_id": unquote(match['project']), "hexsha": match['hexsha'], "batch_label": batch[0] if batch else None}
 
 
-def found(path: str, session=db_session, owner: Optional[str] = None, bytes=None, files=None, changed_at=None, measured_at=None,
-          scan_id=None, measure=False) -> Export:
+def found(path: str, session=db_session, owner: Optional[str] = None, bytes=None, files=None, changed_at=None, scan_id=None) -> Export:
   """
-  Tracks an export a scan found: its owner sees it in "Storage usage", and can delete it. With its project, commit
-  and batch, if its 0.qa.url says. `measure`: measured like the exports QA-Board makes, else with the scan's numbers.
-  The caller commits.
+  Tracks an export a scan found: its owner sees it in "Storage usage". With its project, commit and batch, if its
+  0.qa.url says. Measured like the exports QA-Board makes, else with the scan's numbers. The caller commits.
   """
   export = session.query(Export).filter(Export.path == path).one_or_none()
   now = utcnow()
@@ -126,13 +135,12 @@ def found(path: str, session=db_session, owner: Optional[str] = None, bytes=None
     if value and not getattr(export, key):
       setattr(export, key, value)
   export.owner = owner or export.owner
-  export.bytes, export.files, export.measured_at = bytes, files, measured_at or now
+  export.bytes, export.files, export.measured_at = bytes, files, now
   export.data = {**(export.data or {}), "scan_id": scan_id}
-  if measure:
-    try:
-      measure_export(export)
-    except Exception as e:
-      print(f"WARNING: could not measure the export {path}: {e}")
+  try:
+    measure_export(export)
+  except Exception as e:
+    print(f"WARNING: could not measure the export {path}: {e}")
   session.flush()
   return export
 
@@ -159,4 +167,5 @@ def serialize(export: Export) -> dict:
     "measured_at": iso(export.measured_at),
     "deleted_at": iso(export.deleted_at),
     "exports": len((export.data or {}).get('exports') or []),
+    "in_chosen_folder": in_chosen_folder(export),
   }

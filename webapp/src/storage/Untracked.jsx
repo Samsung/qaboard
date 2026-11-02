@@ -1,5 +1,5 @@
 // Storage usage > Not tracked: what the latest storage scan found on disk that you own and QA-Board doesn't track
-// (exports into folders users chose, runs it doesn't know, what deleted runs left...), and deleting it.
+// (runs it doesn't know, what deleted runs left...), and deleting it.
 // Admins see everyone's, or someone's, like the runs.
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";

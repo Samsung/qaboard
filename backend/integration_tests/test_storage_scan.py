@@ -209,8 +209,8 @@ def test_scan_finds_what_qaboard_doesnt_track(admin, world, storage):
   result = scan(admin, storage)
   assert result["status"] == 'done' and result["errors"] == 0
   by_kind = result["by_kind"]
-  assert by_kind["run"] > 0 and by_kind["untracked_run"] >= 2000 and by_kind["untracked_export"] == 3500 + 2
-  assert by_kind["export"] >= 100 + 4000 and by_kind["deleted_artifacts"] >= 6000 and by_kind["untracked_files"] >= 7000
+  assert by_kind["run"] > 0 and by_kind["untracked_run"] >= 2000 and "untracked_export" not in by_kind, "scans track the exports they find"
+  assert by_kind["export"] >= 100 + 4000 + 3500 and by_kind["deleted_artifacts"] >= 6000 and by_kind["untracked_files"] >= 7000
   assert by_kind["deleted_run"] > 0
   assert result["untracked_bytes"] == sum(v for k, v in by_kind.items() if k in ('deleted_run', 'untracked_run', 'deleted_artifacts', 'untracked_export', 'untracked_files'))
 
@@ -227,45 +227,72 @@ def test_scan_finds_what_qaboard_doesnt_track(admin, world, storage):
   assert runs[str(paths["known"])]["kind"] == 'run' and runs[str(paths["deleted"])]["kind"] == 'deleted_run'
   assert runs[str(paths["known"])]["ref"]["output_id"] == ids["known"]
   flat = entries(admin, result["id"], flat='true')
-  assert str(paths["chosen"]) in flat and str(paths["artifacts"]) in flat and str(paths["known"]) not in flat
-  assert str(paths["shared"]) not in flat, "tracked by the scan"
+  assert str(paths["artifacts"]) in flat and str(paths["known"]) not in flat
+  assert str(paths["shared"]) not in flat and str(paths["chosen"]) not in flat, "tracked by the scan"
   scan_detail = admin.get(f'/api/v1/admin/scans/{result["id"]}').get_json()
   assert scan_detail["owners"][0]["owner"] == 'root' and scan_detail["owners"][0]["untracked_bytes"] == result["untracked_bytes"]
 
 
-def test_scans_track_the_exports_qaboard_made(admin, world, storage):
-  """Exports in the folders QA-Board makes for them are tracked, with where they come from: not those into folders users chose"""
+def test_scans_track_the_exports_they_find(admin, world, storage):
+  """Exports are tracked with where they come from. Those in folders QA-Board didn't make are flagged: users may have other files there"""
   from backend.models import Export
   ids, paths = tree(world, storage)
   assert admin.post('/api/v1/admin/settings', json={"storage.exports_root": str(storage / 'exports')}).status_code == 200
   in_root = write(storage / 'exports' / 'alice' / 'group' / 'proj' / '2026-01-02-abcdef12', size=200)
   (in_root / '0.qa.html').write_text('<html/>')
   result = scan(admin, storage)
-  assert result["errors"] == 0 and result["by_kind"]["untracked_export"] == 3500 + 2
+  assert result["errors"] == 0 and "untracked_export" not in result["by_kind"]
   shared = Export.query.filter(Export.path == str(paths["shared"])).one()
   assert shared.source == 'scan' and shared.owner == 'root' and shared.data["scan_id"] == result["id"]
   assert (shared.project_id, shared.hexsha, shared.batch_label) == ('proj', 'ab' + 'c' * 38, 'default')
   # measured like the exports QA-Board makes: the link to the run's file is its share
   url_size = (paths["shared"] / '0.qa.url').stat().st_size
-  assert (shared.bytes, shared.linked_bytes, shared.files) == (4000 + url_size + 10, 10, 3)
+  assert (shared.bytes, shared.linked_bytes, shared.files) == (4000 + url_size + 10, 10, 3) and shared.data["owners"] == {"root": shared.bytes}
   assert Export.query.filter(Export.path == str(in_root)).one().project_id is None
-  assert Export.query.filter(Export.path == str(paths["chosen"])).one_or_none() is None, "it may have the user's own files"
   found = entries(admin, result["id"], flat='true', kind='export,untracked_export')
   assert found[str(paths["shared"])]["kind"] == 'export' and found[str(paths["shared"])]["ref"] == {"export_id": shared.id}
-  assert found[str(paths["chosen"])]["kind"] == 'untracked_export'
-  assert any('Tracked 2 exports' in line["message"] for line in job(admin, result["job_id"])["log"])
-  # their owners see them
+  assert found[str(paths["chosen"])]["kind"] == 'export'
+  assert any('Tracked 3 exports' in line["message"] for line in job(admin, result["job_id"])["log"])
+  # their owners see them, and which are in folders QA-Board didn't make
+  listed = {e["path"]: e for e in admin.get('/api/v1/storage/exports').get_json()["exports"]}
+  assert {path: e["in_chosen_folder"] for path, e in listed.items() if e["source"] == 'scan'} == {str(paths["shared"]): False, str(in_root): False, str(paths["chosen"]): True}
   assert [e["path"] for e in admin.get('/api/v1/storage/exports?project=proj').get_json()["exports"]] == [str(paths["shared"])]
   # the next scans know them
   again = scan(admin, storage)
   assert entries(admin, again["id"], flat='true', kind='export')[str(paths["shared"])]["ref"] == {"export_id": shared.id}
-  assert Export.query.filter(Export.source == 'scan').count() == 2
+  assert Export.query.filter(Export.source == 'scan').count() == 3
   # also under another path
   (storage / 'mirror').symlink_to(storage / 'outputs')
   answer = start(admin, kind='scan_storage', roots=[str(storage / 'mirror')], min_size_mb=0, threads=2)
   run_jobs()
   assert job(admin, answer["id"])["status"] == 'done'
-  assert Export.query.filter(Export.source == 'scan').count() == 2
+  assert Export.query.filter(Export.source == 'scan').count() == 3
+
+
+def test_exports_in_folders_someone_chose(admin, alice, world, storage):
+  """Deleting an export deletes its folder: in a folder QA-Board didn't make, only admins and who owns all its files can"""
+  from backend.models import Export
+  from backend.database import db_session
+  ids, paths = tree(world, storage)
+  scan(admin, storage)
+  for path in (paths["chosen"], paths["shared"]):
+    export = Export.query.filter(Export.path == str(path)).one()
+    export.owner, export.data = 'alice', {**export.data, "owners": {"alice": 10, "bob": 5}}
+  db_session.commit()
+  chosen, shared = (Export.query.filter(Export.path == str(path)).one().id for path in (paths["chosen"], paths["shared"]))
+  listed = {e["id"]: e for e in alice.get('/api/v1/storage/exports').get_json()["exports"]}
+  assert listed[chosen]["can_delete"] is False and listed[shared]["can_delete"] is True, "QA-Board made the shared one's folder"
+  refused = alice.post('/api/v1/storage/exports/delete', json={"ids": [chosen]})
+  assert refused.status_code == 403 and "other people's files" in refused.get_json()["error"]
+  assert paths["chosen"].exists()
+  # admins can, and so can who owns all the files
+  assert {e["id"]: e for e in admin.get('/api/v1/storage/exports?scope=all').get_json()["exports"]}[chosen]["can_delete"] is True
+  export = db_session.get(Export, chosen)
+  export.data = {**export.data, "owners": {"alice": 15}}
+  db_session.commit()
+  assert alice.post('/api/v1/storage/exports/delete', json={"ids": [chosen]}).status_code == 201
+  run_jobs()
+  assert not paths["chosen"].exists()
 
 
 def test_scan_reads_each_folder_once(admin, storage):
@@ -344,11 +371,6 @@ def test_scan_actions(admin, world, storage):
   assert world.db.get(Output, ids["deleted"]).data["storage_left"] == 0
   assert entries(admin, scan_id, parent=str(storage))[str(paths["junk"])]["action"] == 'deleted'
 
-  # exports into folders users chose: tracked when admins say so, their owners see them
-  tracked = admin.post(f'/api/v1/admin/scans/{scan_id}/track-exports', json={"paths": [str(paths["chosen"])]}).get_json()
-  assert [e["path"] for e in tracked["exports"]] == [str(paths["chosen"])] and tracked["exports"][0]["source"] == 'scan'
-  assert Export.query.filter(Export.path == str(paths["chosen"])).one().owner == 'root'
-
   # runs it found in a batch's folder: back in QA-Board
   answer = admin.post(f'/api/v1/admin/scans/{scan_id}/import-runs', json={"paths": [str(paths["untracked"])]})
   assert answer.status_code == 201
@@ -373,7 +395,7 @@ def test_users_see_and_delete_their_untracked_files(admin, alice, world, storage
   answer = alice.get('/api/v1/storage/untracked').get_json()
   assert answer["scan"]["id"] == result["id"] and answer["totals"]["bytes"] == result["untracked_bytes"]
   listed = [e["path"] for e in answer["entries"]]
-  assert str(paths["junk"]) in listed and str(paths["chosen"]) in listed and str(paths["known"]) not in listed
+  assert str(paths["junk"]) in listed and str(paths["untracked"]) in listed and str(paths["known"]) not in listed
   refused = alice.post('/api/v1/storage/untracked/delete', json={"paths": [str(storage / 'outputs')]})
   assert refused.status_code == 400
   deletion = alice.post('/api/v1/storage/untracked/delete', json={"paths": [str(paths["junk"])]})
@@ -393,9 +415,9 @@ def test_admins_see_everyones_untracked_files(admin, alice, world, storage):
   db_session.commit()
   listed = lambda answer: [e["path"] for e in answer["entries"]]  # noqa: E731
   mine = admin.get('/api/v1/storage/untracked').get_json()
-  assert mine["user"] == 'root' and str(paths["chosen"]) in listed(mine) and str(paths["junk"]) not in listed(mine)
+  assert mine["user"] == 'root' and str(paths["untracked"]) in listed(mine) and str(paths["junk"]) not in listed(mine)
   everyone = admin.get('/api/v1/storage/untracked?scope=all').get_json()
-  assert everyone["user"] is None and str(paths["chosen"]) in listed(everyone) and str(paths["junk"]) in listed(everyone)
+  assert everyone["user"] is None and str(paths["untracked"]) in listed(everyone) and str(paths["junk"]) in listed(everyone)
   assert everyone["totals"]["bytes"] == result["untracked_bytes"]
   for query in ('scope=user&user=bob', 'user=bob'):
     bobs = admin.get(f'/api/v1/storage/untracked?{query}').get_json()

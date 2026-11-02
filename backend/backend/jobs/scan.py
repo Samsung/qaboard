@@ -8,8 +8,7 @@ Each folder is one of:
   (it has run.json) that QA-Board doesn't know, e.g. its upload failed, or its run was hard-deleted.
 - artifacts: a commit's artifacts. deleted_artifacts: artifacts QA-Board thinks it deleted, still on disk.
 - export: an export QA-Board tracks. untracked_export: an export it doesn't (they have 0.qa.url...). The scan tracks
-  those in the folders QA-Board makes for exports (made before it tracked them...): their owners see them in "Storage
-  usage". Exports into folders users chose stay untracked: admins track them from the scan (backend/exports.py).
+  them (made before QA-Board tracked them...): their owners see them in "Storage usage" (backend/exports.py).
 - batch: a batch's folder, whose runs are inside. folder: anything else. Files directly in a batch's or another folder
   count as untracked_files, big files have their own entries (file).
 Runs, exports and artifacts aren't detailed: their size is all we need.
@@ -35,7 +34,7 @@ from sqlalchemy import text
 from ..database import db_session, engine, make_engine
 from ..models import Project, CiCommit, Batch, Output, Export, StorageScan
 from ..storage import check_storage_path, UnsafePathError
-from ..exports import MARKERS, owner_name, made_by_qaboard, found
+from ..exports import MARKERS, owner_name, found
 from .. import accounts
 from . import params as p
 from .common import matching_projects
@@ -276,7 +275,7 @@ class Stopped(Exception):
 
 
 class Scanner:
-  def __init__(self, scan_id: int, params: dict, report: Reporter, exports: dict, batch_overrides: dict, exports_root: Optional[str] = None):
+  def __init__(self, scan_id: int, params: dict, report: Reporter, exports: dict, batch_overrides: dict):
     from sqlalchemy.orm import scoped_session, sessionmaker
     # the threads look things up in the database: their own connections, not the web app's pool
     self.engine = make_engine(pool_size=params['threads'] + 1, max_overflow=params['threads'])
@@ -286,7 +285,6 @@ class Scanner:
     self.exclude = params['exclude_paths']
     self.report = report
     self.exports = exports
-    self.exports_root = exports_root
     self.batch_overrides = batch_overrides
     self.tracked = 0  # exports
     self.seen = set()  # hard links
@@ -382,7 +380,7 @@ class Scanner:
     if kind in LEAVES:
       for child in children:
         self.add_tree(child, totals, kind)
-      if kind == 'untracked_export' and made_by_qaboard(path, self.exports_root):
+      if kind == 'untracked_export':
         export_id = self.track_export(path, totals, own.st_uid)
         if export_id is not None:
           totals.relabel('untracked_export', 'export')
@@ -419,12 +417,12 @@ class Scanner:
     return totals
 
   def track_export(self, path: str, totals: Totals, folder_uid: int) -> Optional[int]:
-    """Tracks an export in a folder QA-Board made: measured like the exports it makes, it belongs to who owns most of its files"""
+    """Tracks an export: measured like the exports QA-Board makes, it belongs to who owns most of its files"""
     session = self.sessions
     try:
       export = found(path, session=session, owner=next(iter(totals.owners_by_name(limit=1)), None) or owner(folder_uid),
                      bytes=totals.bytes, files=totals.files, changed_at=datetime.datetime.utcfromtimestamp(totals.newest) if totals.newest else None,
-                     scan_id=self.scan_id, measure=True)
+                     scan_id=self.scan_id)
       export_id = export.id
       session.commit()
       session.expunge_all()
@@ -516,10 +514,8 @@ def run(params: dict, report: Reporter):
       SELECT b.id, b.batch_dir_override, c.project_id FROM batches b JOIN ci_commits c ON c.id = b.ci_commit_id
       WHERE b.batch_dir_override IS NOT NULL""")):
     batch_overrides[batch_dir.rstrip('/')] = (batch_id, project_id)
-  from ..settings import setting
-  exports_root = setting('storage.exports_root')
   db_session.commit()
-  scanner = Scanner(scan_id, params, report, exports, batch_overrides, exports_root)
+  scanner = Scanner(scan_id, params, report, exports, batch_overrides)
   try:
     finished = scan_roots(roots, scan_id, scanner, params, report)
   finally:

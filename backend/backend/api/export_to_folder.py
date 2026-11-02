@@ -195,7 +195,10 @@ def export_to_folder():
   elif not export_dir.is_dir() or export_dir.is_symlink():
     return jsonify({"error": f"ERROR: '{export_dir}' is not a folder"}), 403
   from ..models import Export
-  ours = created or Export.query.filter(Export.path == str(export_dir), Export.deleted_at.is_(None)).first() is not None
+  from ..exports import in_chosen_folder
+  tracked = Export.query.filter(Export.path == str(export_dir), Export.deleted_at.is_(None)).first()
+  # an export a scan found in a folder someone chose isn't ours: users may have other files there
+  ours = created or (tracked is not None and not in_chosen_folder(tracked))
 
   is_export_dir_writable = os.access(export_dir, os.W_OK)
   if not is_export_dir_writable:

@@ -227,13 +227,22 @@ def storage_exports():
   query = exports_query(who['user'], projects)
   sort = {'oldest': Export.updated_at.asc(), 'newest': Export.updated_at.desc()}.get(request.args.get('sort'), Export.bytes.desc().nullslast())
   return jsonify({
-    "exports": [serialize(e) for e in query.order_by(sort).limit(500)],
+    "exports": [{**serialize(e), "can_delete": can_delete_export(e)} for e in query.order_by(sort).limit(500)],
     "totals": export_totals(who['user'], projects),
   })
 
 
-def can_delete_export(export) -> bool:
+def is_theirs(export) -> bool:
   return is_admin() or me() in (export.created_by, accounts.resolve(export.owner))
+
+
+def can_delete_export(export) -> bool:
+  """Deleting an export deletes its folder: in a folder someone chose, only if all its files are the user's"""
+  from ..exports import in_chosen_folder
+  if is_admin() or not in_chosen_folder(export):
+    return is_theirs(export)
+  owners = set(accounts.resolve_keys((export.data or {}).get('owners')))
+  return bool(owners) and owners <= {me()}
 
 
 @app.route('/api/v1/storage/exports/delete', methods=['POST'])
@@ -245,9 +254,11 @@ def storage_delete_exports():
   if not isinstance(ids, list) or not ids or not all(isinstance(i, int) for i in ids):
     raise ParamsError("Select the exports to delete: `ids`")
   exports = Export.query.filter(Export.id.in_(ids), Export.deleted_at.is_(None)).all()
-  refused = [e.path for e in exports if not can_delete_export(e)]
+  refused = [e for e in exports if not can_delete_export(e)]
+  if refused and is_theirs(refused[0]):
+    return jsonify({"error": f"{refused[0].path} has other people's files, and deleting an export deletes its folder: ask them, or an admin."}), 403
   if refused:
-    return jsonify({"error": f"You can only delete your exports: {refused[0]} isn't yours."}), 403
+    return jsonify({"error": f"You can only delete your exports: {refused[0].path} isn't yours."}), 403
   if not exports:
     return jsonify({"error": "These exports were already deleted."}), 400
   size = sum(e.bytes or 0 for e in exports)
@@ -268,7 +279,7 @@ def storage_measure_export(export_id):
   from ..models import Export
   from ..exports import measure_export, serialize
   export = db_session.get(Export, export_id)
-  if export is None or not can_delete_export(export):
+  if export is None or not is_theirs(export):
     return jsonify({"error": "This export doesn't exist."}), 404
   measure_export(export)
   db_session.commit()

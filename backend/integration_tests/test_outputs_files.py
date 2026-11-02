@@ -117,6 +117,11 @@ def test_exports_dont_replace_what_was_there(world, logged_in):
     precious = theirs / name if kind == 'file' else theirs / name / 'results.csv'
     assert precious.read_text() == 'precious'
     assert Export.query.filter(Export.path == str(theirs)).count() == 0
+  # nor when a storage scan tracked an export there
+  world.db.add(Export(path=str(world.storage / 'theirs-file'), source='scan', owner='alice'))
+  world.commit()
+  response = export(world.storage / 'theirs-file')
+  assert len(response.get_json()["errors"]) == 1 and (world.storage / 'theirs-file' / name).read_text() == 'precious'
   # other websites' links (GET, with cookies): refused. The web app's own pages: fine
   response = export(world.storage / 'from-a-link', method='GET')
   assert response.status_code == 403 and response.get_json()["reason"] == "cross_site_write"

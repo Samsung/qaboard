@@ -341,31 +341,54 @@ describe('Leftovers, rules, exports and untracked files', () => {
     expect(await screen.findByTestId('deletion-rules')).toHaveTextContent("Nothing deletes this project's results automatically");
   });
 
+  const exports = {
+    exports: [
+      { id: 1, path: '/algo/proj/outputs/aa/bbb/share/1234abcd', project_id: 'proj/a', hexsha: 'a'.repeat(40), batch_label: 'big', created_by: 'alice', owner: 'alice', source: 'web',
+        created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-02T00:00:00Z', bytes: 3 * GB, linked_bytes: 3 * GB, files: 30, measured_at: '2026-10-02T00:00:00Z', exports: 2,
+        in_chosen_folder: false, can_delete: true },
+      { id: 2, path: '/algo/exports/bob/x', project_id: null, created_by: 'bob', owner: 'bob', source: 'scan', bytes: GB, linked_bytes: 0, files: 3, exports: 0,
+        in_chosen_folder: false, can_delete: false },
+      { id: 3, path: '/algo/team/review', project_id: 'proj/a', created_by: null, owner: 'alice', source: 'scan', bytes: GB, linked_bytes: 0, files: 9, exports: 0,
+        in_chosen_folder: true, can_delete: false },
+    ],
+    totals: { count: 3, bytes: 5 * GB, linked_bytes: 3 * GB },
+  };
+
   it('lists exports, explains links, and deletes them', async () => {
     const fetch = mockApi({
       'GET /api/v1/storage/overview': overview,
       'GET /api/v1/storage/jobs': { jobs: [] },
-      'GET /api/v1/storage/exports': {
-        exports: [
-          { id: 1, path: '/algo/proj/outputs/aa/bbb/share/1234abcd', project_id: 'proj/a', hexsha: 'a'.repeat(40), batch_label: 'big', created_by: 'alice', owner: 'alice', source: 'web',
-            created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-02T00:00:00Z', bytes: 3 * GB, linked_bytes: 3 * GB, files: 30, measured_at: '2026-10-02T00:00:00Z', exports: 2 },
-          { id: 2, path: '/algo/exports/bob/x', project_id: null, created_by: 'bob', owner: 'bob', source: 'scan', bytes: GB, linked_bytes: 0, files: 3, exports: 0 },
-        ],
-        totals: { count: 2, bytes: 4 * GB, linked_bytes: 3 * GB },
-      },
+      'GET /api/v1/storage/exports': exports,
       'POST /api/v1/storage/exports/delete': () => [{ job: { id: 9 } }, 201],
     });
     renderAt('/storage/exports?scope=all');
-    const [mine, bobs] = await screen.findAllByTestId('export');
+    const [mine, bobs, chosen] = await screen.findAllByTestId('export');
     expect(within(mine).getByText('Links to the runs')).toBeInTheDocument();
     expect(within(mine).getByText('2 exports in this folder')).toBeInTheDocument();
     expect(within(bobs).queryByRole('checkbox')).not.toBeInTheDocument();
+    // a folder someone chose, where others have files: alice can't delete it
+    expect(within(chosen).getByText('In a folder someone chose')).toBeInTheDocument();
+    expect(within(chosen).queryByRole('checkbox')).not.toBeInTheDocument();
     fireEvent.click(within(mine).getByRole('checkbox'));
     fireEvent.click(screen.getByRole('button', { name: 'Delete…' }));
     expect(await screen.findByText(/that space is freed only once the runs are deleted too/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Delete 1 export' }));
     await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/storage/exports/delete')).toHaveLength(1));
     expect(lastBody(fetch, 'POST', '/api/v1/storage/exports/delete')).toEqual({ ids: [1] });
+  });
+
+  it('warns that deleting an export in a folder someone chose deletes the whole folder', async () => {
+    mockApi({
+      'GET /api/v1/storage/overview': overview,
+      'GET /api/v1/storage/jobs': { jobs: [] },
+      'GET /api/v1/storage/exports': { ...exports, exports: exports.exports.map(e => ({ ...e, can_delete: true })) },
+    });
+    renderAt('/storage/exports?scope=all', { ...alice, user_name: 'ines', is_admin: true });
+    const chosen = (await screen.findAllByTestId('export'))[2];
+    fireEvent.click(within(chosen).getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete…' }));
+    expect(await screen.findByText(/1 export is in a folder someone chose/)).toBeInTheDocument();
+    expect(screen.getByText(/everything in it is deleted, not only what was exported/)).toBeInTheDocument();
   });
 
   it("shows what the latest scan found that QA-Board doesn't track, and deletes what's yours", async () => {
