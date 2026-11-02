@@ -849,7 +849,7 @@ def jenkins_build_trigger():
 JENKINS_TOKEN_HELP = (
   "With `qa`: run `qa auth login`, or set QABOARD_TOKEN in CI. "
   "Scripts that call /api/v1/jenkins/build/trigger directly: send a token with the \"act\" scope "
-  "(web app: Settings → Access tokens) in an `Authorization: Bearer <token>` header, "
+  "(web app: Settings > Access tokens) in an `Authorization: Bearer <token>` header, "
   "or add the job to the project's qaboard.yaml."
 )
 
