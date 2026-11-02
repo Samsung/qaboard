@@ -421,10 +421,12 @@ export const ImageViewer = ({
     copied(() => navigator.clipboard.writeText(regionAsYaml(region, size_a)), 'region in view').then(notify);
   };
 
-  // Clicking the image shown alone shows the other
+  // Clicking a pixel pins it: its values stay while users move the mouse away, e.g. to select them. Clicking the image
+  // shown alone shows the other: there, Shift+click pins.
   useLayoutEffect(() => {
-    controller.setOnClick(() => {
-      if (single) flip();
+    controller.setOnClick((name, event, element) => {
+      if (single && !event?.shiftKey) return flip();
+      if (event) controller.pin(name, event.clientX, event.clientY, element);
     });
   });
 
@@ -467,6 +469,10 @@ export const ImageViewer = ({
           return true;
         case 'p':
           toggleValues();
+          return true;
+        case 'Escape':
+          if (!controller.getPointer()?.pinned) return false;
+          controller.unpin();
           return true;
         case 'a':
           setShowAnalysis(!show_analysis);
@@ -772,6 +778,7 @@ export const ImageViewer = ({
       diff={diff}
       base={base}
       onToggleBase={() => setBase(b => b === 10 ? 16 : 10)}
+      pinHint={single ? 'Shift+click a pixel to pin it' : 'click a pixel to pin it'}
       sizes={{ a: size_a, b: size_b }}
       unavailable={getPixels ? null : imageValuesUnavailable}
     />

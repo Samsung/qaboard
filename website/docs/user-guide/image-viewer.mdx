@@ -249,8 +249,13 @@ There are two kinds of values, and the line says which is which:
 
 8-bit images (`L`, `RGB`, `RGBA`) show one set of values, the image's: the screen shows them as they are, and a swatch
 shows the color. **Δ** is the difference of the image values when both images have the same size, else of the
-displayed ones. The measure (perceptual, ΔE...) is always on the displayed colors. Click the line to switch the values
-to hexadecimal.
+displayed ones. The measure (perceptual, ΔE...) is always on the displayed colors. **dec** at the end of the line
+switches the values to hexadecimal.
+
+**Click a pixel to pin it**: its values stay in the line while you move the mouse, e.g. to select and copy them, and a
+framed crosshair marks it on the images. A **Pinned** tag starts the line. To follow the pointer again, click the tag,
+press <kbd>Esc</kbd>, click the pixel again, or leave the image and come back. Clicking another pixel pins that one. In
+**Single**, where a click shows the other image, <kbd>Shift</kbd>+click pins.
 
 Zoom in until the pixels are large enough to hold their numbers (around 3000%) and the values are written **on the
 pixels**, in black or white so that you can read them. A badge under the images says which ones you're reading:
@@ -456,6 +461,8 @@ text box. The keyboard button in the viewer's toolbar lists them.
 | <kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd> | Zoom in, zoom out, fit the whole image. |
 | Wheel, pinch | Zoom. |
 | Drag | Pan. Drag the divider to wipe. |
+| Click | Pin the pixel under the pointer: its values stay while you move the mouse away. In **Single**: <kbd>Shift</kbd>+click. |
+| <kbd>Esc</kbd> | Follow the pointer again, after pinning a pixel. |
 | Double-click | Zoom in. |
 | <kbd>p</kbd> | Show or hide the values written on the pixels. |
 | <kbd>a</kbd> | Show or hide the analysis panel: histogram, row and column profiles, statistics. |

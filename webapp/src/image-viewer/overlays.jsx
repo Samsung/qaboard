@@ -332,13 +332,16 @@ export const Crosshair = ({ controller, pane }) => {
   if (!pointer) return null;
   const position = controller.screenPoint(pane, pointer.point);
   if (!position) return null;
-  // white over a dark outline, to show on any image; open in its middle, to see the pixel
-  return <svg className="qiv-crosshair" style={{ left: position.x, top: position.y }} width="25" height="25" viewBox="0 0 25 25" aria-hidden="true">
-    <path d={CROSS} stroke="rgba(0, 0, 0, 0.75)" strokeWidth="3" />
-    <path d={CROSS} stroke="#fff" strokeWidth="1" />
+  // white over a dark outline, to show on any image; open in its middle, to see the pixel. A pixel pinned (clicked) is
+  // framed, in the accent color
+  const pinned = !!pointer.pinned;
+  return <svg className={`qiv-crosshair ${pinned ? 'qiv-pinned' : ''}`} style={{ left: position.x, top: position.y }} width="25" height="25" viewBox="0 0 25 25" aria-hidden="true">
+    <path d={pinned ? `${CROSS}${FRAME}` : CROSS} stroke="rgba(0, 0, 0, 0.75)" strokeWidth="3" fill="none" />
+    <path d={pinned ? `${CROSS}${FRAME}` : CROSS} stroke="#fff" strokeWidth="1" fill="none" />
   </svg>;
 };
 const CROSS = 'M12.5 0v9M12.5 16v9M0 12.5h9M16 12.5h9';
+const FRAME = 'M8.5 8.5h8v8h-8z';
 
 // The row or column of the images hovered on its profile (analysisPanel.jsx): { axis: 'x' | 'y', value } in the pixels of
 // the first image. Zoomed in, it frames the pixels.
