@@ -75,13 +75,35 @@ A token from the environment is only sent to the server `qa` is configured for, 
 When the server is behind a path prefix like `https://tools.example.com/qaboard/`, pass `server=` (`--server`): the
 address alone can't say where the project's name starts.
 
-:::note Writing to runs
-Adding metrics and files to runs from scripts is on the [roadmap](/docs/roadmap#log-from-your-code): QA-Board will
-merge the metrics you compute into the run and remember your script added them. Until then, compute new metrics with
-your project's `postprocess()`: `qa batch ci --action-on-existing postprocess` redoes it on existing results (see
-[Postprocessing](/docs/running-your-code#postprocess)). Runs' folders are shared: don't change or delete what the CI
-wrote.
-:::
+### Add metrics to runs {#log}
+Your script can add what it computed to the runs, with `run.log()`: the server merges the metrics into the run's, and
+remembers who added each one, when and with which script. Wrap values in `Metric(...)` to say their unit and which
+way is better, like in `run()`:
+
+```python
+from qaboard import Metric
+
+for run in qb.runs(url):
+    sharpness = measure(run.output_dir / "output.png")
+    run.log({"sharpness": Metric(sharpness, smaller_is_better=False, target=0.3)})
+```
+
+- Try it first with `qb.runs(url, dry_run=True)`: `run.log()` then prints what it would add.
+- The added metrics show in the web app like the others. The run's `data["added_metrics"]` (`qa runs --json`) says
+  who added each one, when and with which script, and so does *metrics.added.json* in the run's folder. The run's
+  own *metrics.json* is not changed.
+- If the run is run again and its code now returns a metric of the same name, the run's value wins and the addition
+  is forgotten. Added metrics without a run value stay.
+- Adding metrics needs what sending results needs: when the server requires tokens for results
+  ([`ingest.auth`](/docs/backend-admin/user-management#results-sent-by-qa)), a token with the `ingest` scope
+  (`qa auth login`). `is_failed` and `compute_time` can't be added: the run sets them.
+- To recompute many metrics with the project's own code instead, use your `postprocess()`:
+  `qa batch ci --action-on-existing postprocess` redoes it on existing results
+  ([Postprocessing](/docs/running-your-code#postprocess)).
+
+Adding files to runs is on the [roadmap](/docs/roadmap#log-from-your-code). Runs' folders are shared: don't change or
+delete what the CI wrote.
+
 
 ## Find where runs save their outputs {#cli-api}
 `qa batch <batch> --list-output-dirs` prints the output directory of each run, one per line, without running

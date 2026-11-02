@@ -30,7 +30,7 @@ def mock_get(response, status=200):
   r.status_code = status
   r.json.return_value = response
   r.text = json.dumps(response)
-  return mock.patch('requests.get', return_value=r)
+  return mock.patch('requests.request', return_value=r)
 
 
 class TestParseUrl(unittest.TestCase):
@@ -93,7 +93,7 @@ class TestRuns(unittest.TestCase):
   def test_runs_of_a_url(self):
     with mock_get(commit_response()) as get:
       found = runs('https://qaboard/kitefin/detector/commit/7622c337?batch=ci&filter=outdoor')
-    url, kwargs = get.call_args[0][0], get.call_args[1]
+    url, kwargs = get.call_args[0][1], get.call_args[1]
     self.assertEqual(url, 'https://qaboard/api/v1/commit/7622c337')
     self.assertEqual(kwargs['params'], {'project': 'kitefin/detector', 'batch': 'ci', 'metrics': '{}'})
     self.assertIsInstance(found, Runs)
@@ -130,14 +130,14 @@ class TestRuns(unittest.TestCase):
   def test_keyword_arguments_override_the_url(self):
     with mock_get(commit_response(batches=('nightly',))) as get:
       found = runs('https://qaboard/g/repo/commit/abc?batch=ci', batch='nightly', filter='status:success', commit='def')
-    self.assertEqual(get.call_args[0][0], 'https://qaboard/api/v1/commit/def')
+    self.assertEqual(get.call_args[0][1], 'https://qaboard/api/v1/commit/def')
     self.assertEqual(get.call_args[1]['params']['batch'], 'nightly')
     self.assertEqual([r.id for r in found], [1, 4])
 
   def test_without_a_url(self):
     with mock_get(commit_response(batches=('default',))) as get, mock.patch('qaboard.results.default_server', return_value=('http://qaboard:5151', '$QABOARD_URL')):
       found = runs(project='g/repo', branch='main')
-    self.assertEqual(get.call_args[0][0], 'http://qaboard:5151/api/v1/commit')
+    self.assertEqual(get.call_args[0][1], 'http://qaboard:5151/api/v1/commit')
     self.assertEqual(get.call_args[1]['params']['branch'], 'main')
     self.assertEqual(len(found), 4)
     with self.assertRaises(ValueError):
@@ -146,11 +146,11 @@ class TestRuns(unittest.TestCase):
   def test_commit_and_branch_replace_the_urls(self):
     with mock_get(commit_response(batches=('default',))) as get:
       runs('https://qaboard/g/repo/commit/abc', branch='dev')
-    self.assertEqual(get.call_args[0][0], 'https://qaboard/api/v1/commit')
+    self.assertEqual(get.call_args[0][1], 'https://qaboard/api/v1/commit')
     self.assertEqual(get.call_args[1]['params']['branch'], 'dev')
     with mock_get(commit_response(batches=('default',))) as get:
       runs('https://qaboard/g/repo/commit?branch=dev', commit='abc')
-    self.assertEqual(get.call_args[0][0], 'https://qaboard/api/v1/commit/abc')
+    self.assertEqual(get.call_args[0][1], 'https://qaboard/api/v1/commit/abc')
     self.assertNotIn('branch', get.call_args[1]['params'])
 
   def test_hidden_runs(self):
@@ -166,17 +166,17 @@ class TestRuns(unittest.TestCase):
     url = 'https://qaboard/g/repo/commit/abc?batch=ci&reference=def&batch_ref=nightly&filter_ref=indoor'
     with mock_get(commit_response(batches=('nightly',))) as get:
       found = runs(url, side='reference')
-    self.assertEqual(get.call_args[0][0], 'https://qaboard/api/v1/commit/def')
+    self.assertEqual(get.call_args[0][1], 'https://qaboard/api/v1/commit/def')
     self.assertEqual([r.id for r in found], [1])
     with mock_get(commit_response(batches=('ci',))) as get:
       runs(url, side='new')
-    self.assertEqual(get.call_args[0][0], 'https://qaboard/api/v1/commit/abc')
+    self.assertEqual(get.call_args[0][1], 'https://qaboard/api/v1/commit/abc')
     # the default reference: the URL doesn't say which, unless the commit is given
     with self.assertRaises(ValueError):
       runs('https://qaboard/g/repo/commit/abc', side='reference')
     with mock_get(commit_response(batches=('default',))) as get:
       runs('https://qaboard/g/repo/commit/abc', side='reference', commit='def')
-    self.assertEqual(get.call_args[0][0], 'https://qaboard/api/v1/commit/def')
+    self.assertEqual(get.call_args[0][1], 'https://qaboard/api/v1/commit/def')
     with self.assertRaises(ValueError):
       runs(project='g/repo', side='reference')
 
@@ -283,10 +283,11 @@ class TestRunContract(unittest.TestCase):
     self.assertNotIn('x', run.metrics)
     self.assertEqual(json.loads(json.dumps(d)), d)
 
-  def test_nothing_writes_yet(self):
+  def test_only_log_writes_yet(self):
     # no stubs in the public API: methods come when they work
-    for name in ('log', 'save_file', 'series', 'finish'):
+    for name in ('save_file', 'series', 'finish'):
       self.assertFalse(hasattr(Run, name), name)
+    self.assertTrue(callable(Run.log))
     import qaboard
     self.assertFalse(hasattr(qaboard, 'start_run'))
 
@@ -355,6 +356,78 @@ class TestImport(unittest.TestCase):
     group.assert_called_once()
 
 
+class TestLog(unittest.TestCase):
+  """run.log({...}): metrics added to a run by a script, merged by the server with their provenance"""
+  URL = 'https://qaboard/g/repo/commit/abc?batch=ci&filter=kitchen'
+
+  def run_and_patch(self, answer=None, **kwargs):
+    with mock_get(commit_response()):
+      run, = runs(self.URL, **kwargs)
+    patched = mock.Mock(status_code=200)
+    patched.json.return_value = answer if answer is not None else {
+      'metrics': {**run.metrics, 'sharpness': 0.4}, 'data': {**run.data, 'added_metrics': {'sharpness': {'value': 0.4, 'at': 'now', 'script': 's.py'}}},
+      'added': {'sharpness': {'value': 0.4, 'at': 'now', 'script': 's.py'}},
+    }
+    return run, patched
+
+  def test_log_sends_a_patch_and_updates_the_run(self):
+    from qaboard import Metric
+    run, patched = self.run_and_patch()
+    with mock.patch('requests.request', return_value=patched) as request, mock.patch('qaboard.results.resolve_token', return_value=('tok', 'hosts.yaml')):
+      added = run.log({'sharpness': Metric(0.4, smaller_is_better=False, suffix=''), 'blur': 2})
+    method, url = request.call_args[0]
+    self.assertEqual((method, url), ('PATCH', 'https://qaboard/api/v1/output/1/metrics'))
+    body = request.call_args[1]['json']
+    self.assertEqual(body['metrics'], {'sharpness': 0.4, 'blur': 2})
+    self.assertEqual(body['metrics_definitions'], {'sharpness': {'smaller_is_better': False, 'suffix': ''}})
+    self.assertEqual(body['source']['qaboard_version'], __import__('qaboard').__version__)
+    self.assertIn('script', body['source'])
+    self.assertEqual(request.call_args[1]['headers'], {'Authorization': 'Bearer tok'})
+    # the run reflects the server's answer, read-only still
+    self.assertEqual(run.metrics['sharpness'], 0.4)
+    self.assertEqual(run.data['added_metrics']['sharpness']['script'], 's.py')
+    self.assertEqual(added['sharpness']['value'], 0.4)
+    with self.assertRaises(TypeError):
+      run.metrics['x'] = 1
+
+  def test_log_uses_the_token_given_to_runs(self):
+    run, patched = self.run_and_patch(token='given')
+    with mock.patch('requests.request', return_value=patched) as request:
+      run.log({'sharpness': 0.4})
+    self.assertEqual(request.call_args[1]['headers'], {'Authorization': 'Bearer given'})
+
+  def test_dry_run_sends_nothing(self):
+    run, patched = self.run_and_patch(dry_run=True)
+    stderr = io.StringIO()
+    with mock.patch('requests.request', return_value=patched) as request, redirect_stderr(stderr):
+      added = run.log({'sharpness': 0.4})
+    request.assert_not_called()
+    self.assertIn('would add', stderr.getvalue())
+    self.assertEqual(added, {'sharpness': {'value': 0.4, 'dry_run': True}})
+    self.assertNotIn('sharpness', run.metrics)
+
+  def test_log_refuses_bad_values(self):
+    run, patched = self.run_and_patch()
+    with self.assertRaises(ValueError):
+      run.log({})
+    stderr = io.StringIO()
+    with mock.patch('requests.request', return_value=patched) as request, redirect_stderr(stderr):
+      self.assertEqual(run.log({'x': float('nan')}), {})
+    request.assert_not_called()
+    self.assertIn('NaN', stderr.getvalue())
+    # a run the server doesn't know
+    with self.assertRaises(ResultsError):
+      Run._new(project='g/repo', input='a.jpg').log({'x': 1})
+
+  def test_log_errors_name_the_ingest_scope(self):
+    run, _ = self.run_and_patch()
+    refused = mock.Mock(status_code=403)
+    refused.json.return_value = {'error': "This token can't send results", 'reason': 'missing_scope'}
+    with mock.patch('requests.request', return_value=refused), self.assertRaises(ResultsError) as e:
+      run.log({'x': 1})
+    self.assertIn('ingest scope', str(e.exception))
+
+
 class TestCli(unittest.TestCase):
   def invoke(self, *args):
     from click.testing import CliRunner
@@ -382,7 +455,7 @@ class TestCli(unittest.TestCase):
     with mock_get(commit_response(batches=('nightly',))) as get:
       result = self.invoke('https://qaboard/g/repo/commit/abc?batch=ci&reference=def&batch_ref=nightly', '--side', 'reference')
     self.assertEqual(result.exit_code, 0, result.output)
-    self.assertEqual(get.call_args[0][0], 'https://qaboard/api/v1/commit/def')
+    self.assertEqual(get.call_args[0][1], 'https://qaboard/api/v1/commit/def')
     result = self.invoke('https://qaboard/g/repo/commit/abc', '--side', 'ref')
     self.assertEqual(result.exit_code, 2)
 

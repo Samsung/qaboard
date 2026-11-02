@@ -35,6 +35,7 @@ import qaboard as qb
 for run in qb.runs("${url}"):
     print(run.input, run.params, run.metrics)
     # its files: run.output_dir / "output.png"
+    # add what you computed: run.log({"sharpness": 0.4})
 `;
 
 export const shell_snippet = url => `qa runs "${url}"               # one folder per line

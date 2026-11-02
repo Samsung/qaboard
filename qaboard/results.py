@@ -9,12 +9,15 @@ The URL is the one in the browser: `runs()` reads the project, commit, batch and
 (webapp/src/selection.js) and asks the server for the runs, filtered like the web app does (qaboard/filters.py).
 `qa runs <url>` does the same from the shell.
 
-`Run` is also what runs created without `qa` as the entrypoint (training loops, evals) will be made of, once the SDK
-can create and write to runs. Reading is experimental: names may still change.
+`run.log({...})` adds metrics to a run: the server merges them and remembers which script added them. `Run` is also
+what runs created without `qa` as the entrypoint (training loops, evals) will be made of, once the SDK can create
+runs. Experimental: names may still change.
 
 This module doesn't need a qaboard.yaml: it only talks to the server, found in the URL. It reads the token to send
 like the rest of qa (qaboard/credentials.py).
 """
+import hashlib
+import math
 import os
 import sys
 from dataclasses import dataclass, field, fields
@@ -26,6 +29,7 @@ from urllib.parse import parse_qs, quote, unquote, urlencode, urlsplit
 from .compat import url_to_dir
 from .credentials import resolve_token, refusal, default_server, same_server, read_hosts, find_login, ENV_TOKENS
 from .filters import filter_runs, run_params
+from .metrics import split_metrics, declared_metrics
 from .site_config import site_config, as_requests_verify
 
 
@@ -169,10 +173,13 @@ class Run:
   server: Optional[str] = None
 
   def __post_init__(self) -> None:
-    # read-only views: changing a run read from the server would change nothing on the server
+    # read-only views: changing a run read from the server would change nothing on the server, run.log() does
     self.configurations = tuple(self.configurations)
     for name in _MAPPINGS:
       setattr(self, name, MappingProxyType(dict(getattr(self, name))))
+    # how `log()` talks to the server: set by runs(), not fields
+    self._token: Optional[str] = None
+    self._dry_run: bool = False
 
   @classmethod
   def from_api(cls, output: Dict[str, Any], *, project: str, commit: Optional[str], batch: str, server: Optional[str] = None) -> 'Run':
@@ -237,6 +244,43 @@ class Run:
     query = urlencode({'batch': self.batch, 'filter': f"id:{self.id}$" if self.id is not None else self.input})
     return f"{self.server}/{quote(self.project)}/commit/{self.commit}?{query}"
 
+  def log(self, metrics: Mapping[str, Any], *, note: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Adds metrics to the run, e.g. computed by your script from its files: `run.log({"sharpness": 0.4})`.
+
+    The server merges them into the run's metrics (the run's own metrics.json isn't changed) and remembers who added
+    each one, when and with which script: in the run's `data["added_metrics"]`, and in metrics.added.json in its
+    folder. Wrap values in `Metric(...)` to declare them (unit, which way is better...). If the run is run again and
+    its code returns a metric of the same name, the run's value wins. Returns what was added, with its provenance.
+
+    Needs a token with the ingest scope when the server requires one (`qa auth login`). With `runs(url, dry_run=True)`,
+    prints what it would add instead.
+    """
+    if not isinstance(metrics, Mapping) or not metrics:
+      raise ValueError("run.log() takes a mapping of metrics, e.g. run.log({'sharpness': 0.4})")
+    values, definitions = split_metrics(dict(metrics))
+    declared = declared_metrics()
+    definitions = {**{k: declared[k] for k in values if k in declared}, **definitions}
+    nans = [k for k, v in values.items() if isinstance(v, float) and (math.isnan(v) or math.isinf(v))]
+    if nans:
+      print(f"WARNING: not logging {', '.join(nans)}: NaN and infinity can't be saved", file=sys.stderr)
+      values = {k: v for k, v in values.items() if k not in nans}
+    if not values:
+      return {}
+    if self._dry_run:
+      print(f"[dry run] would add to {self!r}: {values}", file=sys.stderr)
+      return {k: {'value': v, 'dry_run': True} for k, v in values.items()}
+    if self.id is None or not self.server:
+      raise ResultsError("This run isn't on a server yet: only runs from runs(url) can be logged to for now")
+    payload: Dict[str, Any] = {'metrics': values, 'source': _script_source(note)}
+    if definitions:
+      payload['metrics_definitions'] = definitions
+    answer = _request(self.server, f"output/{self.id}/metrics", method='PATCH', json=payload, token=self._token)
+    self.metrics = MappingProxyType(dict(answer.get('metrics') or {**self.metrics, **values}))
+    if isinstance(answer.get('data'), dict):
+      self.data = MappingProxyType(dict(answer['data']))
+    return answer.get('added') or {}
+
   def to_dict(self) -> Dict[str, Any]:
     """The run as JSON-friendly data: what `qa runs --json` prints"""
     d = {f.name: _plain(getattr(self, f.name)) for f in fields(self)}
@@ -263,6 +307,29 @@ class Runs(list):
     return f"<Runs {len(self)}{side}>"
 
 
+def _script_source(note: Optional[str] = None) -> Dict[str, Any]:
+  """What the server records about the script that adds metrics: its name and hash, the qaboard version, the user"""
+  from . import __version__
+  source: Dict[str, Any] = {'qaboard_version': __version__}
+  script = Path(sys.argv[0]) if sys.argv and sys.argv[0] else None
+  if script and script.name and script.name not in ('-c', '-m'):
+    source['script'] = script.name
+    try:
+      source['script_sha256'] = hashlib.sha256(script.read_bytes()).hexdigest()[:16]
+    except OSError:
+      pass
+  else:
+    source['script'] = '<interactive>'
+  try:
+    from getpass import getuser
+    source['user'] = os.environ.get('QA_USER') or getuser()
+  except Exception:
+    pass
+  if note:
+    source['note'] = str(note)
+  return source
+
+
 def _token_for(server: str, token: Optional[str]) -> Optional[str]:
   """
   The token to send to `server`: the one given, else the one `qa` uses for it. A token from the environment
@@ -278,20 +345,22 @@ def _token_for(server: str, token: Optional[str]) -> Optional[str]:
   return found
 
 
-def _request(server: str, path: str, params: Dict[str, Any], token: Optional[str] = None) -> Dict[str, Any]:
+def _request(server: str, path: str, params: Optional[Dict[str, Any]] = None, token: Optional[str] = None,
+             method: str = 'GET', json: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
   import requests
   token = _token_for(server, token)
   headers = {'Authorization': f"Bearer {token}"} if token else {}
   verify = as_requests_verify(site_config('QABOARD_API_VERIFY'))
   url = f"{server}/api/v1/{path}"
   try:
-    r = requests.get(url, params=params, headers=headers, verify=verify, timeout=REQUEST_TIMEOUT)
+    r = requests.request(method, url, params=params, json=json, headers=headers, verify=verify, timeout=REQUEST_TIMEOUT)
   except requests.RequestException as e:
     raise ResultsError(f"Could not reach {server}: {e}") from e
   if r.status_code >= 400:
     refused = refusal(r)
     if refused:
-      raise ResultsError(f"{refused['error']} ({refused.get('reason')}). Sign in with `qa auth login {server}`, or set QABOARD_TOKEN to a token with the read scope.")
+      scope = 'ingest' if method != 'GET' else 'read'
+      raise ResultsError(f"{refused['error']} ({refused.get('reason')}). Sign in with `qa auth login {server}`, or set QABOARD_TOKEN to a token with the {scope} scope.")
     try:
       message = r.json().get('error') or r.text
     except ValueError:
@@ -303,7 +372,7 @@ def _request(server: str, path: str, params: Dict[str, Any], token: Optional[str
     raise ResultsError(f"Can't understand the answer of {url}: {r.text[:200]}") from e
 
 
-def _side_runs(server: str, side: _Side, *, token: Optional[str], include_deleted: bool, include_hidden: bool) -> Runs:
+def _side_runs(server: str, side: _Side, *, token: Optional[str], include_deleted: bool, include_hidden: bool, dry_run: bool = False) -> Runs:
   commit = _request(server, f"commit/{quote(side.commit, safe='')}" if side.commit else "commit", side.query(), token)
   batches = commit.get('batches') or {}
   if side.batch not in batches:
@@ -316,12 +385,14 @@ def _side_runs(server: str, side: _Side, *, token: Optional[str], include_delete
     runs = [r for r in runs if not r.deleted]
   if not include_hidden:
     runs = [r for r in runs if r.type not in HIDDEN_RUN_TYPES]
+  for run in runs:
+    run._token, run._dry_run = token, dry_run
   return Runs(runs, side=side, commit=commit.get('id'), server=server)
 
 
 def runs(url: Optional[str] = None, *, project: Optional[str] = None, commit: Optional[str] = None, branch: Optional[str] = None,
          batch: Optional[str] = None, filter: Optional[str] = None, side: str = 'new', server: Optional[str] = None,
-         token: Optional[str] = None, include_deleted: bool = False, include_hidden: bool = False) -> Runs:
+         token: Optional[str] = None, include_deleted: bool = False, include_hidden: bool = False, dry_run: bool = False) -> Runs:
   """
   The runs a web app page shows, as `Run` objects. Experimental.
 
@@ -333,7 +404,8 @@ def runs(url: Optional[str] = None, *, project: Optional[str] = None, commit: Op
   `server`: the QA-Board server, when the URL doesn't say (its address, or when it is served under a path prefix).
   Without a URL, the server is the one `qa` uses (QABOARD_URL...). `token`: an API token, else the one `qa` is
   signed in with. Left out unless asked: runs whose files were deleted (`include_deleted`), and runs the web app
-  doesn't list with the batch, like `qa optimize`'s iterations (`include_hidden`).
+  doesn't list with the batch, like `qa optimize`'s iterations (`include_hidden`). With `dry_run=True`, `run.log()`
+  prints what it would add instead of sending it: try scripts on it first.
   """
   if side not in SIDES:
     raise ValueError(f"side={side!r}: expected one of {', '.join(map(repr, SIDES))}. 'new' gives the runs compared, 'reference' those of the reference bar.")
@@ -362,4 +434,4 @@ def runs(url: Optional[str] = None, *, project: Optional[str] = None, commit: Op
     batch=batch or selected.batch,
     filter=filter if filter is not None else selected.filter,
   )
-  return _side_runs(server_url, selected, token=token, include_deleted=include_deleted, include_hidden=include_hidden)
+  return _side_runs(server_url, selected, token=token, include_deleted=include_deleted, include_hidden=include_hidden, dry_run=dry_run)

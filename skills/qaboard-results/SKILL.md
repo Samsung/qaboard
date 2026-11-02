@@ -34,8 +34,16 @@ for run in qb.runs(url):
 - Auth: `qa auth login <server>` once, or `QABOARD_TOKEN` (only sent to the configured server). A server behind a
   path prefix needs `server="https://host/prefix"`.
 
-Writing (`run.log(...)`) is coming; until then, don't write into runs' folders. To add metrics for a whole batch, use
-the project's `postprocess()`: `qa batch <batch> --action-on-existing postprocess`.
+### Add metrics to runs
+```python
+from qaboard import Metric
+for run in qb.runs(url, dry_run=True):               # dry_run: prints what it would add; drop it to send
+    run.log({"sharpness": Metric(measure(run.output_dir / "output.png"), smaller_is_better=False)})
+```
+The server merges the metrics into the run's and records who/when/which script (`run.data["added_metrics"]`,
+`metrics.added.json` in the folder). Needs a token with the `ingest` scope when the server requires one. The run's own
+metrics win if it runs again and now returns the same name. Never write into runs' folders yourself. For metrics the
+project's code should own, add them to `postprocess()` and run `qa batch <batch> --action-on-existing postprocess`.
 
 ## Did my change help? (before saying so)
 A change is better when its runs beat the *same* runs on the reference, not when a mean moved.

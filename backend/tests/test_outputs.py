@@ -137,3 +137,103 @@ def test_pending_outputs_cant_be_deleted(outputs_api, dummy_app, monkeypatch):
     g.user = {"user_name": "alice"}
     response, status = outputs_api.update_output(7)
   assert status == 409 and "wait" in response["error"]
+
+
+# ---------------------------------------------------------------- metrics added by scripts (run.log() in the SDK)
+
+def existing_output(outputs_api, **attrs):
+  import backend.api.auth as auth
+  auth.ingest_access.return_value = (None, None)
+  output = SimpleNamespace(id=7, data={}, metrics={"psnr": 30, "is_failed": False}, is_pending=False, is_running=False, is_failed=False,
+                           batch=MagicMock(), output_dir=Path("/storage/project/output/7"), **attrs)
+  output.batch.ci_commit.project_id = "group/project"
+  output.batch.ci_commit.branch = "main"
+  output.to_dict = lambda: {"metrics": output.metrics, "data": output.data}
+  outputs_api.Output.query.filter.return_value.one.return_value = output
+  return output
+
+
+def add_metrics(outputs_api, dummy_app, body):
+  with dummy_app.test_request_context("/api/v1/output/7/metrics", method="PATCH", json=body):
+    return outputs_api.add_output_metrics(7)
+
+
+def test_scripts_add_metrics_with_provenance(outputs_api, dummy_app, monkeypatch):
+  output = existing_output(outputs_api)
+  monkeypatch.setattr(outputs_api, "save_added_metrics_file", lambda output, added: True)
+  save_definitions = MagicMock()
+  monkeypatch.setattr(outputs_api, "save_metrics_definitions", save_definitions)
+  response = add_metrics(outputs_api, dummy_app, {
+    "metrics": {"sharpness": 0.4, "psnr": 31},
+    "metrics_definitions": {"sharpness": {"smaller_is_better": False}},
+    "source": {"script": "sharpness.py", "script_sha256": "abc123", "qaboard_version": "1.1.1", "user": "alice", "secret": "no"},
+  })
+  body = response.get_json()
+  # merged, the run's other metrics untouched
+  assert output.metrics == {"psnr": 31, "is_failed": False, "sharpness": 0.4}
+  added = output.data["added_metrics"]
+  assert set(added) == {"sharpness", "psnr"}
+  assert added["sharpness"]["value"] == 0.4 and added["sharpness"]["script"] == "sharpness.py" and added["sharpness"]["user"] == "alice"
+  assert "secret" not in added["sharpness"] and "verified" not in added["sharpness"]
+  assert added["sharpness"]["at"].startswith("20")
+  assert body["added"] == added and body["added_metrics_file"] is True
+  assert save_definitions.call_args.args[2] == {"metrics_definitions": {"sharpness": {"smaller_is_better": False}}, "commit_branch": "main"}
+
+
+def test_added_metrics_say_who_verified_them(outputs_api, dummy_app, monkeypatch):
+  import backend.api.auth as auth
+  output = existing_output(outputs_api)
+  monkeypatch.setattr(outputs_api, "save_added_metrics_file", lambda output, added: False)
+  auth.ingest_access.return_value = ({"user_name": "bob", "user_id": 2}, None)
+  add_metrics(outputs_api, dummy_app, {"metrics": {"sharpness": 0.4}, "source": {"user": "alice"}})
+  # the token's user, not what the script claims
+  assert output.data["added_metrics"]["sharpness"]["user"] == "bob"
+  assert output.data["added_metrics"]["sharpness"]["verified"] is True
+  auth.ingest_access.return_value = (None, None)
+
+
+def test_added_metrics_refusals(outputs_api, dummy_app, monkeypatch):
+  import backend.api.auth as auth
+  output = existing_output(outputs_api)
+  monkeypatch.setattr(outputs_api, "save_added_metrics_file", lambda output, added: True)
+  for body, message in [
+    ({}, "`metrics` must be an object"),
+    ({"metrics": {}}, "`metrics` must be an object"),
+    ({"metrics": {"is_failed": True}}, "only the run itself sets is_failed"),
+    ({"metrics": {"x": float("nan")}}, "every metric was NaN"),
+  ]:
+    response, status = add_metrics(outputs_api, dummy_app, body)
+    assert status == 400 and message in response.get_json()["error"], body
+  assert output.metrics == {"psnr": 30, "is_failed": False}
+  output.is_pending = True
+  response, status = add_metrics(outputs_api, dummy_app, {"metrics": {"x": 1}})
+  assert status == 409
+  output.is_pending = False
+  # the server's ingest policy applies, like for results sent by qa
+  auth.ingest_access.return_value = (None, (dummy_app.response_class('{"error": "token required"}', status=403, content_type='application/json'), 403))
+  _, status = add_metrics(outputs_api, dummy_app, {"metrics": {"x": 1}})
+  assert status == 403
+  auth.ingest_access.return_value = (None, None)
+
+
+def test_added_metrics_survive_a_rerun_unless_the_run_computes_them(outputs_api, dummy_app):
+  output = outputs_api.test_output
+  output.data["added_metrics"] = {"sharpness": {"value": 0.4, "at": "2026-11-02T10:00:00+00:00", "script": "sharpness.py"},
+                                  "psnr": {"value": 31, "at": "2026-11-02T10:00:00+00:00"}}
+  result = notify(outputs_api, dummy_app, is_pending=False, metrics={"psnr": 30})
+  assert result["is_failed"] is False
+  assert output.metrics == {"sharpness": 0.4, "psnr": 30}
+  # the run computes psnr itself now: its value wins and the addition is forgotten
+  assert set(output.data["added_metrics"]) == {"sharpness"}
+
+
+def test_added_metrics_file(outputs_api, tmp_path, monkeypatch):
+  monkeypatch.setattr(outputs_api, "check_storage_path", lambda path: path)
+  monkeypatch.setattr(outputs_api, "chmod_shared", lambda path: None)
+  output = SimpleNamespace(id=7, output_dir=tmp_path)
+  (tmp_path / "metrics.added.json").write_text('{"old": {"value": 1}}')
+  assert outputs_api.save_added_metrics_file(output, {"sharpness": {"value": 0.4}}) is True
+  import json
+  assert json.loads((tmp_path / "metrics.added.json").read_text()) == {"old": {"value": 1}, "sharpness": {"value": 0.4}}
+  # a folder that isn't there (deleted, or the storage isn't mounted): no error, the database has the metrics
+  assert outputs_api.save_added_metrics_file(SimpleNamespace(id=8, output_dir=tmp_path / "missing"), {}) is False

@@ -79,7 +79,9 @@ def run(context):
 - Code in another language: run it with `subprocess`, stream its output (it goes to the run's `log.txt`), and read
   its `metrics.json` from `output_dir` (`qa` merges it). It can write `metrics_definitions.json` next to it.
 - Expensive metrics from files: put them in `postprocess(runtime_metrics, context)`, which `qa postprocess` and
-  `qa batch --action-on-existing postprocess` can redo without rerunning.
+  `qa batch --action-on-existing postprocess` can redo without rerunning. Metrics a one-off script adds to existing
+  runs (`run.log()`, see the `qaboard-results` skill) don't belong in the project's code; metrics the project should
+  always have do.
 
 Details and a complete example: `references/entrypoint.md`.
 

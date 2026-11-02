@@ -101,15 +101,16 @@ Today you wrap your code with `qa`: `qa run` for one input, `qa batch` for many 
 [Running your code](/docs/running-your-code)). Some code doesn't fit a wrapper: training loops, notebooks, test
 suites.
 
-<RoadmapItem status="experimental" title="Read results from Python">
-`qaboard.runs(url)` gives the runs a web app page shows, as `Run` objects, and `qa runs <url>` lists them from the
-shell ([runs in scripts](/docs/apis#runs-in-scripts)). Names may still change.
+<RoadmapItem status="experimental" title="Read results and add metrics from Python">
+`qaboard.runs(url)` gives the runs a web app page shows, as `Run` objects, and `run.log({...})` adds metrics to them
+with who, when and which script; `qa runs <url>` lists them from the shell
+([runs in scripts](/docs/apis#runs-in-scripts)). Names may still change.
 </RoadmapItem>
 
-<RoadmapItem status="next" title="A Python SDK that writes">
-`run.log(...)` and `run.save_file(...)` to add metrics and files to existing runs, with QA-Board remembering which
-script added them; then `start_run(...)`, the same `Run` from training loops, notebooks and pytest, without `qa run`,
-in the style of W&B's API. These runs show in the web app like any other.
+<RoadmapItem status="next" title="A Python SDK that creates runs">
+`run.save_file(...)` to add files to runs; then `start_run(...)`, the same `Run` from training loops, notebooks and
+pytest, without `qa run`, in the style of W&B's API, with the values logged at each step kept in files. These runs
+show in the web app like any other.
 </RoadmapItem>
 
 <RoadmapItem status="exploring" title="A wandb.log shim">

@@ -450,6 +450,8 @@ UNAUTHENTICATED_ENDPOINTS = {
   ("sign_in.py", "my_access_request"),
   # the CLI sends results, checked by ingest_access: anonymous unless ingest.auth is "token" (see "Known issues" in SECURITY.md)
   ("outputs.py", "new_output_webhook"), ("batch.py", "update_batch"), ("commit.py", "api_ci_commit"),
+  # scripts add metrics to runs (run.log() in the SDK): checked by ingest_access like results sent by the CLI
+  ("outputs.py", "add_output_metrics"),
   # the CLI's Jenkins runner triggers builds (anonymous unless sign-in is required). With a project (the web app): developers
   # and checks their status, the same way (jenkins_trigger_access)
   ("integrations.py", "jenkins_build_trigger"), ("integrations.py", "jenkins_build"),

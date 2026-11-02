@@ -1,4 +1,5 @@
 import datetime
+import json
 
 from flask import request, jsonify, make_response, g
 from sqlalchemy.orm.attributes import flag_modified
@@ -10,6 +11,7 @@ from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
 from ..origins import run_origin, run_user, claim_batch
 from ..storage import check_storage_path, UnsafePathError
+from ..fs_utils import chmod_shared
 from ..redo import redo_response
 from ..metrics_definitions import save_metrics_definitions
 from ..notifications.batches import on_run_ended
@@ -19,7 +21,55 @@ from .auth import login_required, is_authorized_user, ingest_access, forbidden_p
 # Keys of a run's data that only the server sets
 # - optimization_best allows `qa optimize` to replace this run (see api/batch.py)
 # - submitted_by is who really sent it (api/auth.py:ingest_access)
-SERVER_KEYS = {'optimization_best', 'submitted_by'}
+# - added_metrics records the metrics scripts added after the run (add_output_metrics)
+SERVER_KEYS = {'optimization_best', 'submitted_by', 'added_metrics'}
+# Metrics that only the run itself sets
+RUN_ONLY_METRICS = {'is_failed', 'compute_time'}
+# What scripts can say about themselves when they add metrics
+SOURCE_KEYS = ('script', 'script_sha256', 'qaboard_version', 'user', 'note')
+# The file, in the run's folder, that lists the metrics added after the run: metrics.json stays the run's own
+ADDED_METRICS_FILE = 'metrics.added.json'
+
+
+def added_metrics_of(output) -> dict:
+  data = output.data if isinstance(output.data, dict) else {}
+  added = data.get('added_metrics')
+  return added if isinstance(added, dict) else {}
+
+
+def with_added_metrics(output, metrics: dict) -> dict:
+  """
+  The metrics a run sent, plus those scripts added to it before (`run.log()`), unless the run now returns them itself:
+  then the run's value wins and the addition is forgotten. Updates output.data.
+  """
+  added = added_metrics_of(output)
+  kept = {k: v for k, v in added.items() if k not in metrics and isinstance(v, dict) and 'value' in v}
+  if kept != added:
+    output.data['added_metrics'] = kept
+    flag_modified(output, "data")
+  return {**{k: v['value'] for k, v in kept.items()}, **metrics}
+
+
+def save_added_metrics_file(output, added: dict):
+  """Writes the added metrics and their provenance next to the run's metrics.json, best effort: the storage may not be mounted"""
+  try:
+    output_dir = output.output_dir
+    check_storage_path(output_dir)
+    if not output_dir.is_dir():
+      return False
+    path = output_dir / ADDED_METRICS_FILE
+    previous = {}
+    if path.exists():
+      try:
+        previous = json.loads(path.read_text())
+      except Exception:
+        previous = {}
+    path.write_text(json.dumps({**(previous if isinstance(previous, dict) else {}), **added}, indent=2, sort_keys=True))
+    chmod_shared(path)
+    return True
+  except Exception as e:
+    print(f"WARNING: could not write {ADDED_METRICS_FILE} for output {output.id}: {e}")
+    return False
 
 
 @app.route("/api/v1/output/<output_id>", methods=['GET'])
@@ -89,6 +139,68 @@ def update_output(output_id):
     from ..storage_usage import refresh_soon
     refresh_soon([batch_id])
     return {"status": "OK"}
+
+
+@app.route("/api/v1/output/<output_id>/metrics", methods=['PATCH'])
+@app.route("/api/v1/output/<output_id>/metrics/", methods=['PATCH'])
+def add_output_metrics(output_id):
+  """
+  Adds metrics to a finished run, from a script (`run.log()` in the Python SDK): they are merged into the run's metrics,
+  and QA-Board remembers who added each one, when and with which script (output.data.added_metrics, and
+  metrics.added.json in the run's folder). The run's own metrics.json is not changed. Like results sent by `qa`, this
+  needs a token with the ingest scope when the server requires one (ingest.auth).
+  """
+  try:
+    output = Output.query.filter(Output.id==output_id).one()
+  except NoResultFound:
+    return jsonify({"error": f"Cannot find output {output_id}"}), 404
+  project_id = output.batch.ci_commit.project_id
+  submitted_by, error = ingest_access(project_id)
+  if error:
+    return error
+  data = request.get_json(silent=True) or {}
+  metrics = data.get('metrics')
+  if not isinstance(metrics, dict) or not metrics:
+    return jsonify({"error": "`metrics` must be an object with at least one metric: {\"metrics\": {\"sharpness\": 0.4}}"}), 400
+  if not all(isinstance(k, str) and k for k in metrics):
+    return jsonify({"error": "metrics' names must be strings"}), 400
+  run_only = sorted(set(metrics) & RUN_ONLY_METRICS)
+  if run_only:
+    return jsonify({"error": f"only the run itself sets {', '.join(run_only)}"}), 400
+  if output.is_pending:
+    return jsonify({"error": "The run hasn't finished: wait for it before adding metrics"}), 409
+  # NaN isn't JSON: it can't be stored, like for the run's own metrics (Output.update_metrics)
+  metrics = {k: v for k, v in metrics.items() if not (isinstance(v, float) and v != v)}
+  if not metrics:
+    return jsonify({"error": "every metric was NaN"}), 400
+
+  source = data.get('source') if isinstance(data.get('source'), dict) else {}
+  source = {k: str(source[k])[:500] for k in SOURCE_KEYS if source.get(k) is not None}
+  if submitted_by:
+    source['user'] = submitted_by.get('user_name', source.get('user'))
+    source['verified'] = True
+  now = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds')
+  added = {k: {'value': v, 'at': now, **source} for k, v in metrics.items()}
+
+  if not output.data:
+    output.data = {}
+  output.data['added_metrics'] = {**added_metrics_of(output), **added}
+  flag_modified(output, "data")
+  output.metrics = {**(output.metrics or {}), **metrics}
+  flag_modified(output, "metrics")
+  db_session.add(output)
+  db_session.commit()
+
+  ci_commit = output.batch.ci_commit
+  definitions = data.get('metrics_definitions')
+  if isinstance(definitions, dict) and definitions:
+    try:
+      save_metrics_definitions(db_session, ci_commit, {'metrics_definitions': definitions, 'commit_branch': ci_commit.branch})
+    except Exception as e:
+      db_session.rollback()
+      print(f"WARNING: could not save the metrics definitions added to output {output_id}: {e}")
+  saved_file = save_added_metrics_file(output, added)
+  return jsonify({**output.to_dict(), "added": added, "added_metrics_file": saved_file})
 
 
 @app.route('/api/v1/output/redo/<output_id>', methods=['POST'])
@@ -266,7 +378,8 @@ def new_output_webhook():
   # We save the output's metrics
   else:
     metrics = data.get('metrics') or {}
-    output.metrics = metrics
+    # the metrics scripts added to a previous run of this test stay, unless the run now computes them
+    output.metrics = with_added_metrics(output, metrics)
     # False when the metrics don't say: batches count NULL as neither valid nor failed
     output.is_failed = bool(data.get('is_failed', False) or metrics.get('is_failed'))
 
