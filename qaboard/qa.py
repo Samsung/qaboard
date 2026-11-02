@@ -690,9 +690,11 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
       dask_cluster = runs_job_options.get('cluster', dask_config.get('cluster')) or {}
       command_data['cluster_type'] = dask_cluster.get('type', 'lsf')
       if command_data['cluster_type'] == 'kubernetes':
+        from .runners.dask_runner import kubernetes_namespace
         kubernetes_config = runs_job_options.get('kubernetes', config.get('runners', {}).get('kubernetes')) or {}
         command_data['kubernetes'] = {
-          "namespace": dask_cluster.get('namespace') or kubernetes_config.get('namespace'),
+          # Resolved: the server doesn't have our kubeconfig's default namespace
+          "namespace": kubernetes_namespace(dask_cluster.get('namespace') or kubernetes_config.get('namespace'), kubernetes_config.get('context')),
           "context": kubernetes_config.get('context'),
         }
     if runner == 'kubernetes':
@@ -792,9 +794,8 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
     }
     # On Kubernetes, the workers' pods (and the --no-wait driver) are like the kubernetes runner's
     if (dask_config.get('cluster') or {}).get('type') == 'kubernetes':
-      kubernetes_config = config.get('runners', {}).get('kubernetes', {})
-      kubernetes_options = ('namespace', 'context', 'image', 'image_pull_secrets', 'resources', 'run_as', 'mounts', 'env', 'forward_env', 'node_selector', 'tolerations')
-      base_runner_options['kubernetes'] = {k: v for k, v in kubernetes_config.items() if k in kubernetes_options}
+      from .runners.dask_runner import kubernetes_defaults
+      base_runner_options['kubernetes'] = kubernetes_defaults(config)
     # We save logs there
     base_runner_options['batch_dir'] = str(ctx.obj['batch_dir'])
     if given('dask_concurrency', dask_concurrency, default_dask_concurrency):
@@ -1184,6 +1185,34 @@ def init(ctx):
   """Provide a sample qaboard.yaml configuration."""
   from .init import qa_init
   qa_init(ctx)
+
+
+@qa.command()
+@click.option('--runner', default=default_runner, show_default=True, help="The runner to check: local, lsf, celery, dask, windows... By default, the one `qa batch` uses.")
+@click.option('--test-job', is_flag=True, help="Also start a small job with the runner, to check that it runs, where, as who, and what it can access. It can take a few minutes, e.g. waiting for a slot.")
+@click.pass_context
+def doctor(ctx, runner, test_job):
+  """
+  Check that you can run batches, and say how to fix what's wrong.
+
+  \b
+  It checks, and says what to do about each problem:
+  - qa and qaboard.yaml: version, configuration, entrypoint, batches, git
+  - the QA-Board server: reachable, signed in, your role in the project
+  - the storage: the results' folder is writable and the server sees it, the inputs are there
+  - the runner: e.g. for LSF that bsub works and the queue exists, for Celery that workers answer
+
+  \b
+  It checks what runs whose results show in QA-Board need, like `qa --share batch`.
+  With `qa --offline doctor`, only what local runs need. Exits with 1 if something must be fixed.
+
+  \b
+  Examples:
+    qa doctor
+    qa doctor --runner lsf --test-job
+  """
+  from .doctor import run_doctor
+  sys.exit(run_doctor(ctx.obj, runner=runner, test_job=test_job))
 
 
 

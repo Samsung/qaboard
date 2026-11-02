@@ -67,7 +67,9 @@ class LsfOptions():
   bridge: str = os.environ.get('QA_RUNNERS_LSF_BRIDGE', '')
   # as a format string, e.g.
   #   "ssh my-bridge-host {bsub_command}"
-  #   "sss my-bridge-host su {user} {bsub_command}"
+  #   "ssh account@my-bridge-host 'qaboard-as-user {user} {bsub_command}'"
+  # where qaboard-as-user is a site wrapper that runs the rest of its arguments as {user},
+  # see website/docs/lsf-cluster-integration.mdx (`su {user} {bsub_command}` does NOT work: su runs it as a script file)
     
 
 # We'll filter user-provided options, keeping only known ones
@@ -424,5 +426,139 @@ class LsfRunner(BaseRunner):
       being_terminated = "is being terminated" in out.stdout
       already_finished = "has already finished" in out.stdout
       job_not_found = "is not found" in out.stdout
-      if not (being_terminated or job_not_found or already_finished): 
+      if not (being_terminated or job_not_found or already_finished):
         raise ValueError(out.stdout)
+
+
+  @classmethod
+  def doctor(cls, job_options: Dict[str, Any], test_job: bool = False):
+    """bsub (or the bridge) works, the cluster answers, the queue exists. With test_job, a job runs and we see its results."""
+    import shlex
+    from ..checks import Check, OK, WARNING, ERROR
+    from ..doctor import docs, run_command, tail
+    page = docs('lsf-integration')
+    options = dict_to_LsfOptions(job_options)
+    if os.name == 'nt':
+      yield Check("LSF", ERROR, "The lsf runner doesn't work on Windows.", fix=f"Run qa batch from a Linux machine that can submit LSF jobs, or use another runner: qa batch --runner local <batch>\nDocs: {page}")
+      return
+
+    def lsf(command: str) -> str:
+      return options.bridge.format(**asdict(options), bsub_command=command) if options.bridge else command
+
+    if options.bridge:
+      bridge_fix = ("QA_RUNNERS_LSF_BRIDGE is a command with {bsub_command} where the LSF command goes, e.g.\n"
+                    "  export QA_RUNNERS_LSF_BRIDGE='ssh lsf-host {bsub_command}'\n"
+                    f"It can also use {', '.join('{' + n + '}' for n in sorted(lsf_option_names) if n != 'bridge')}.")
+      try:
+        lsf('bsub')
+      except (KeyError, IndexError, ValueError) as e:
+        yield Check("LSF bridge", ERROR, f"QA_RUNNERS_LSF_BRIDGE isn't a valid template ({type(e).__name__}: {e}): {options.bridge}", fix=bridge_fix)
+        return
+      if '{bsub_command}' not in options.bridge:
+        yield Check("LSF bridge", ERROR, f"QA_RUNNERS_LSF_BRIDGE doesn't say where the LSF command goes: {options.bridge}", fix=bridge_fix)
+        return
+      yield Check("LSF bridge", OK, f"LSF commands go through QA_RUNNERS_LSF_BRIDGE: {options.bridge}")
+    else:
+      bsub = shutil.which('bsub')
+      if not bsub:
+        yield Check("LSF", ERROR, "`bsub` isn't on the PATH: LSF isn't set up in this shell.",
+                    fix=("Load LSF's environment, e.g.: source <LSF_TOP>/conf/profile.lsf   (your cluster's admins know where it is),\n"
+                         "or run qa from a machine that can submit LSF jobs.\n"
+                         f"To run on this machine instead: qa batch --runner local <batch>\nDocs: {page}"))
+        return
+      yield Check("LSF", OK, f"bsub: {bsub}")
+      if not shutil.which('bwait'):
+        yield Check("LSF bwait", WARNING, "`bwait` isn't on the PATH: `qa batch` waits for its runs with it (LSF 10.1 or later).",
+                    fix=f"Use qa batch --no-wait, and follow the runs in QA-Board, or ask your LSF admins about bwait.\nDocs: {page}#waiting-for-the-runs")
+
+    # The cluster answers, and the queue exists
+    queues_command = lsf(f"bqueues -w {shlex.quote(options.queue)}" if options.queue else "bqueues -w")
+    returncode, output = run_command(queues_command, timeout=20)
+    if returncode is None:
+      yield Check("LSF queue", ERROR, f"`{queues_command}` didn't answer in 20s: LSF's master may be unreachable or overloaded.",
+                  fix="Try `bqueues` yourself. If it hangs, tell your LSF admins.")
+      return
+    queue_snippet = "runners:\n  lsf:\n    queue: <queue>"
+    if returncode != 0:
+      if options.queue and 'no such queue' in output.lower():
+        yield Check("LSF queue", ERROR, f"There is no LSF queue named {options.queue!r}.",
+                    fix=f"List the queues with: bqueues\nThen set yours in qaboard.yaml:\n{queue_snippet}\nor for one batch: qa batch --lsf-queue <queue> <batch>\nDocs: {page}")
+      else:
+        yield Check("LSF queue", ERROR, f"`{queues_command}` failed (exit code {returncode}):\n{tail(output)}",
+                    fix="LSF may be down, or your account not set up for it: tell your LSF admins, with this error.")
+      return
+    if options.queue:
+      line = next((l for l in output.splitlines() if l.split()[:1] == [options.queue]), '')
+      status = line.split()[2] if len(line.split()) > 2 else ''
+      if status.startswith('Closed'):
+        yield Check("LSF queue", ERROR, f"The LSF queue {options.queue} is closed ({status}): it doesn't accept jobs.", fix=f"Use another queue (bqueues lists them), or ask your LSF admins.\n{queue_snippet}")
+      elif 'Inact' in status:
+        yield Check("LSF queue", WARNING, f"The LSF queue {options.queue} is inactive ({status}): jobs wait until it's active again.", fix="Use another queue (bqueues lists them), or ask your LSF admins.")
+      else:
+        yield Check("LSF queue", OK, f"{options.queue}{f' ({status})' if status else ''}")
+    else:
+      yield Check("LSF queue", OK, f"LSF answers. Jobs go to the cluster's default queue: to choose one, in qaboard.yaml:\n{queue_snippet}")
+
+    # LSF knows us
+    jobs_command = lsf("bjobs -w")
+    returncode, output = run_command(jobs_command, timeout=20)
+    if returncode == 0 or 'no unfinished job' in output.lower():
+      jobs = [l for l in output.splitlines() if l.strip() and not l.startswith('JOBID') and 'No unfinished job' not in l]
+      yield Check("LSF jobs", OK, f"bjobs answers: {len(jobs)} unfinished job{'s' if len(jobs) != 1 else ''} of yours")
+    else:
+      yield Check("LSF jobs", ERROR, f"`{jobs_command}` failed{' (timed out)' if returncode is None else f' (exit code {returncode})'}:\n{tail(output)}",
+                  fix="Your account may not be set up for LSF: tell your LSF admins, with this error.")
+      return
+
+    if test_job:
+      yield from cls.doctor_test_job(job_options, lsf)
+
+
+  @classmethod
+  def doctor_test_job(cls, job_options: Dict[str, Any], lsf):
+    """Sends a job that says where it runs, as who, if it sees `qa` and the batch's folder, and waits for it (5 minutes at most)."""
+    from ..checks import Check, OK, WARNING, ERROR
+    from ..doctor import tail, make_test_dir, remove_test_dir
+    name = "LSF test job"
+    job_name = f"{(job_options.get('command_id') or 'qadoctor')[:8]}_doctor"
+    try:
+      test_dir, existing = make_test_dir(job_options)
+    except OSError as e:
+      yield Check(name, ERROR, f"Can't create the test job's folder: {e}", fix="Fix the storage first (see above).")
+      return
+    result = test_dir / 'result.txt'
+    try:
+      # start() puts environment variables before the command: it can't start with a { group }
+      script = f'echo "user: $(id -un)" > "{result}"; echo "host: $(hostname)" >> "{result}"; echo "qa: $(command -v qa || echo not found)" >> "{result}"'
+      run_context = RunContext(type='default', input_path=Path(), database=Path(), platform='linux', configurations=[],
+                               job_options=job_options, output_dir=test_dir, command=script)
+      start = time.time()
+      try:
+        cls(run_context).start(blocking=False, name=job_name)
+      except Exception as e:
+        yield Check(name, ERROR, f"Couldn't submit a test job: {e}", fix="Run with QA_BATCH_VERBOSE=1 to see the bsub command, and try it yourself.")
+        return
+      # bwait's timeout is in minutes
+      bwait = lsf(f'bwait -w "ended({job_name})" -t 5')
+      out = subprocess.run(bwait, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', errors='replace', timeout=360)
+      elapsed = time.time() - start
+      if out.returncode != 0 and not result.exists():
+        subprocess.run(lsf(f'bkill -J "{job_name}"'), shell=True, capture_output=True)
+        yield Check(name, WARNING, f"The test job didn't end in 5 minutes: it may be waiting for a slot. `{bwait}`: {tail(out.stdout, 2)}",
+                    fix=f"See why with: bjobs -l -J {job_name}\nThen run qa doctor --test-job again.")
+        return
+      if not result.exists():
+        log = test_dir / 'log.lsf.txt'
+        logs = f"\nIts log ({log}):\n{tail(log.read_text(errors='replace'), 10)}" if log.exists() else ''
+        yield Check(name, ERROR, f"The test job ended, but {result} isn't there: the job failed, or the LSF hosts don't see {test_dir.parent} at the same path.{logs}",
+                    fix=f"See what happened: bhist -l -J {job_name}\nThe LSF hosts must mount the storage at the same path as this machine: ask your LSF admins.")
+        return
+      found = dict(line.split(': ', 1) for line in result.read_text(errors='replace').splitlines() if ': ' in line)
+      where = f"on {found.get('host', '?')} as {found.get('user', '?')}, in {elapsed:.0f}s"
+      if found.get('qa', 'not found') == 'not found':
+        yield Check(name, ERROR, f"A test job ran {where}, but `qa` isn't on its PATH: the runs would fail.",
+                    fix="LSF jobs get the environment you submit them from: install qaboard where the LSF hosts see it\n(e.g. a virtual environment on a shared drive), and run qa batch from that environment.")
+        return
+      yield Check(name, OK, f"A test job ran {where}, wrote in {test_dir.parent}, and found {found['qa']}")
+    finally:
+      remove_test_dir(test_dir, existing)

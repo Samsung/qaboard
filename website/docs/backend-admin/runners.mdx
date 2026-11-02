@@ -54,10 +54,12 @@ The server can't run `bsub` from its container: it goes through a host that can,
 
    ```bash
    QABOARD_TUNING_RUNNER=lsf
-   QA_RUNNERS_LSF_BRIDGE="ssh qaboard@<lsf-host> 'sudo -n -u {user} {bsub_command}'"
+   QA_RUNNERS_LSF_BRIDGE="ssh qaboard@<lsf-host> 'qaboard-as-user {user} {bsub_command}'"
    ```
 
-   `<lsf-host>` is the bridge host. Mount the ssh key in the backend's container.
+   `<lsf-host>` is the bridge host, and `qaboard-as-user` a wrapper there that runs the rest of its arguments as
+   `{user}`: see [send jobs through a bridge host](/docs/lsf-integration#connecting-to-lsf-via-a-bridge-host) for
+   one. Mount the ssh key in the backend's container.
 3. **Try it**: start a batch from the web app. The **Logs** view shows the `bsub` command and its output.
 
 What the server does with the bridge:
