@@ -1,0 +1,141 @@
+/* The showcase of the viewers: tabs above, then the viewer's text next to its media (above it on narrow screens) */
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  padding: 0 0 0.25rem;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.tab {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1.05rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ifm-font-color-base);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+.tab:hover {
+  border-color: var(--ifm-color-emphasis-500);
+  background: var(--ifm-color-emphasis-200);
+}
+.tab:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+}
+.tab svg {
+  flex: none;
+  opacity: 0.85;
+}
+
+.tabSelected,
+.tabSelected:hover {
+  border-color: var(--ifm-color-primary);
+  background: var(--ifm-color-primary);
+  color: var(--qb-on-primary);
+}
+.tabSelected svg {
+  opacity: 1;
+}
+
+.panel {
+  display: grid;
+  grid-template-columns: minmax(16rem, 21rem) minmax(0, 1fr);
+  gap: 3rem;
+  align-items: center;
+}
+
+.text {
+  min-width: 0;
+}
+
+.title {
+  margin-bottom: 0.6rem;
+  font-size: 1.5rem;
+  line-height: 1.25;
+}
+
+.lead {
+  margin-bottom: 1.25rem;
+  color: var(--ifm-color-emphasis-800);
+  font-size: 1.05rem;
+  line-height: 1.55;
+}
+
+.points {
+  display: grid;
+  gap: 0.9rem;
+  margin: 0 0 1.4rem;
+  padding: 0;
+  list-style: none;
+}
+.points li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding-left: 0.85rem;
+  border-left: 2px solid var(--ifm-color-primary);
+  line-height: 1.5;
+}
+.points strong {
+  font-size: 0.98rem;
+}
+.points span {
+  color: var(--ifm-color-emphasis-800);
+  font-size: 0.93rem;
+}
+
+/* The box keeps the tallest media's shape (commit/flame-diff, 1197x809), so that picking a tab doesn't move the page */
+.media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  aspect-ratio: 1197 / 809;
+}
+.media figure {
+  margin: 0 auto;
+}
+
+@media (max-width: 1199px) {
+  .panel {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+  }
+  .text {
+    max-width: 52rem;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  .points {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .tabs {
+    margin-bottom: 1.25rem;
+    /* Up to the screen's edges, so it's clear the tabs scroll */
+    margin-right: calc(-1 * var(--ifm-spacing-horizontal));
+    padding-right: var(--ifm-spacing-horizontal);
+  }
+  .tab {
+    padding: 0.45rem 0.85rem;
+    font-size: 0.95rem;
+  }
+  .title {
+    font-size: 1.3rem;
+  }
+}

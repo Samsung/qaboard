@@ -1,0 +1,5 @@
+# qa/main.py's dependencies, besides the qaboard CLI. llama-cpp-python is pinned (decoding depends on the llama.cpp
+# build): its prebuilt CPU wheel on Linux x86_64, else built from source.
+llama-cpp-python @ https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35/llama_cpp_python-0.3.35-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl#sha256=d172f3d3c8cdd194c3c47c71cb077ed6e61354a2d0f939ceeac0c8fd29999596 ; sys_platform == 'linux' and platform_machine == 'x86_64'
+llama-cpp-python==0.3.35 ; sys_platform != 'linux' or platform_machine != 'x86_64'
+pyyaml

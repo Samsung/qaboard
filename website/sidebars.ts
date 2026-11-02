@@ -28,97 +28,182 @@ const sidebars: SidebarsConfig = {
 
   // One sidebar per audience, see the navbar in docusaurus.config.ts
 
-  // People who look at results in the web app
-  userGuide: [
-    "user-guide/overview",
-    "user-guide/finding-results",
-    "user-guide/commit-page",
-    "user-guide/comparing-results",
-    "user-guide/history-and-dashboards",
-    "user-guide/running-from-the-webapp",
-    "user-guide/sharing",
-    "user-guide/files",
-    "user-guide/tips-and-faq",
-    "user-guide/whats-new",
+  // Everyone's first stop: try QA-Board, wrap a project, see what it's for. The navbar's "Docs" and "Use cases"
+  start: [
+    {
+      type: 'category',
+      label: 'Get started',
+      collapsible: false,
+      items: [
+        'get-started/quickstart',
+        'get-started/tutorial',
+        'get-started/concepts',
+        // The walkthrough of the web app on the demo projects lives in the user guide (it replaced the product tour)
+        {type: 'link', label: 'Your first review', href: '/docs/user-guide/first-review'},
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Use cases',
+      collapsible: false,
+      link: {
+        type: 'generated-index',
+        slug: '/use-cases',
+        title: 'Use cases',
+        description: 'QA-Board on demo projects of a fictional robotics company: the problem, the workflow, what you see in the web app, and the configuration that produces it.',
+      },
+      items: ['use-cases/image-quality', 'use-cases/serving-latency', 'use-cases/detection-eval', 'use-cases/robotics-3d', 'use-cases/agent-evals', 'use-cases/software-quality'],
+    },
+    // The other sidebars (links, so these pages keep their own sidebar)
+    {
+      type: 'category',
+      label: 'More docs',
+      collapsible: false,
+      items: [
+        {type: 'link', label: 'User guide', href: '/docs/user-guide/overview'},
+        {type: 'link', label: 'Project integration', href: '/docs/introduction'},
+        {type: 'link', label: 'Admin', href: '/docs/deploy'},
+        {type: 'link', label: 'Roadmap', href: '/docs/roadmap'},
+      ],
+    },
   ],
 
-  // Project integration: wrapping code with qa, qaboard.yaml, runners, CI
-  docs: {
-    "Getting Started": [
+  // People who look at results in the web app: start with a walkthrough, then one page per task, viewers on their own
+  userGuide: [
+    'user-guide/overview',
+    'user-guide/first-review',
+    {
+      type: 'category',
+      label: 'Find and compare',
+      collapsed: false,
+      items: [
+        'user-guide/finding-results',
+        'user-guide/commit-page',
+        'user-guide/metrics',
+        'user-guide/comparing-results',
+        'user-guide/milestones',
+        'user-guide/history-and-dashboards',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Look at outputs',
+      collapsed: false,
+      items: ['user-guide/image-viewer', 'user-guide/video-viewer', 'user-guide/other-viewers'],
+    },
+    {
+      type: 'category',
+      label: 'Run and share',
+      collapsed: false,
+      items: [
+        'user-guide/running-from-the-webapp',
+        'user-guide/automated-tuning',
+        'user-guide/available-tests',
+        'user-guide/logs',
+        'user-guide/runs-activity',
+        'user-guide/sharing',
+        'user-guide/files',
+        'user-guide/storage-usage',
+        'user-guide/account',
+        'user-guide/project-access',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Help',
+      collapsed: false,
+      items: ['user-guide/tips-and-faq', 'user-guide/whats-new'],
+    },
+  ],
+
+  // Project integration: wrapping code with qa, qaboard.yaml, runners, CI. Grouped by what the integrator is doing
+  docs: [
+    {
+      type: 'category',
+      label: 'Set up a project',
+      collapsed: false,
+      items: [
         "introduction",
         "installation",
         "project-init",
-        "inputs",
         "running-your-code",
-        "creating-and-viewing-outputs-files",
-        "computing-quantitative-metrics",
+        "inputs",
         "specifying-configurations",
-    ],
-    "Guides": [
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Show results',
+      collapsed: false,
+      items: [
+        "computing-quantitative-metrics",
         "visualizations",
-        "batches-running-on-multiple-inputs",
-        "using-the-qa-cli",
+        "viewers",
         "references-and-milestones",
-        "tuning-from-the-webapp",
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Run batches',
+      items: [
+        "batches-running-on-multiple-inputs",
+        "batches-advanced",
+        "using-the-qa-cli",
         {
-            type: 'category',
-            label: 'Distributed Task Queues',
-            items: [
-                "local-multiprocessing",
-                "celery-integration",
-                "lsf-integration",
-                "dask-integration",
-                "jenkins-integration",
-            ],
+          type: 'category',
+          label: 'Runners',
+          items: [
+            "local-multiprocessing",
+            "celery-integration",
+            "lsf-integration",
+            "dask-integration",
+            "jenkins-integration",
+          ],
         },
-        {
-            type: 'category',
-            label: 'Storage & Artifacts',
-            items: [
-              "storage/artifacts",
-              "storage/where-is-the-data",
-              "storage/deleting-old-data",
-            ],
-        },
-        "triggering-third-party-tools",
+      ],
+    },
+    {
+      type: 'category',
+      label: 'CI and integrations',
+      items: [
         "ci-integration",
-        "deep-learning",
-        "debugging-runs-with-an-IDE",
-        "metadata-integration-external-databases",
-        "bit-accuracy",
-        "faq",
+        "quality-gate",
+        "triggering-third-party-tools",
         "apis",
-        // "tuning-workflows",
-        "dag-pipelines",
-        // "history"
-        "monorepo-subprojects",
-        // "docker-integration",
-        // "remote-platforms",
-    ],
-    // "Parameter Tuning": [
-    // 	"Tuning Workflows",
-    // 	"Enabling Tuning from QA-Board", // Save artifacts..
-    // 	"Tuning runners", // setup LSF and != LSF///
-    //   "Auto-Tuning"
-    // ],
-    //      ""
-    //   "Admin Guides": [
-    // 	  "starting-server",
-    // 	  "server-maintenance"
-    //   ]
-    // "alternatives",
-  },
+        "metadata-integration-external-databases",
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Tuning',
+      items: ["tuning-from-the-webapp", "auto-optimization"],
+    },
+    {
+      type: 'category',
+      label: 'Recipes',
+      items: ["bit-accuracy", "deep-learning", "monorepo-subprojects", "debugging-runs-with-an-IDE"],
+    },
+    {
+      type: 'category',
+      label: 'Storage & Artifacts',
+      items: ["storage/artifacts", "storage/where-is-the-data", "storage/deleting-old-data"],
+    },
+    "faq",
+  ],
 
   // Admins who run the QA-Board server
   admin: {
     "Server Admin": [
         "deploy",
+        "backend-admin/git-hosts",
         "backend-admin/deployment",
         "backend-admin/kubernetes",
-        "backend-admin/troubleshooting",
-        "backend-admin/host-upgrades",
         "backend-admin/user-management",
-        "backend-admin/getting-SSL-certiticates-from-IT",
+        "backend-admin/sign-in",
+        "backend-admin/project-access",
+        "backend-admin/storage",
+        "backend-admin/monitoring",
+        "backend-admin/troubleshooting",
     ]
   }
 };

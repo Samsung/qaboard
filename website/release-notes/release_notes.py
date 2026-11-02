@@ -35,7 +35,7 @@ DOCS_DIR = REPO_ROOT / "website" / "docs"
 PERIOD_RE = re.compile(r"^(?P<year>\d{4})(?:-(?:(?P<month>0[1-9]|1[0-2])|q(?P<quarter>[1-4])))?$")
 AUDIENCES = ("users", "project-integration", "admins")
 # The body's sections, in this order. Other headings are allowed but `check` warns about them.
-SECTIONS = ("Web app", "CLI and project setup", "Server and administration", "Documentation", "Fixes", "Notes")
+SECTIONS = ("Web app", "CLI and project setup", "Server and administration", "Documentation", "Performance", "Fixes", "Notes")
 ALLOWED_KEYS = {"title", "date", "description", "version", "highlights", "draft", "period", "tags", "slug"}
 HIGHLIGHT_KEYS = {"title", "description", "audience", "icon", "link"}
 
@@ -281,8 +281,8 @@ def validate(note: Note, docs: set[str]) -> tuple[list[str], list[str]]:
             errors.append(f"{where}: link must start with /docs/, /release-notes/ or http(s)://")
         elif link and link.startswith("/docs/") and link.split("#")[0].rstrip("/") not in docs:
             errors.append(f"{where}: no docs page at {link}")
-    if len(highlights) > 5:
-        warnings.append(f"{len(highlights)} highlights: keep the 2-4 most important ones")
+    if len(highlights) > 8:
+        warnings.append(f"{len(highlights)} highlights: keep the 2-4 most important ones (up to 8 for a big release)")
     for link in re.findall(r"\]\((/docs/[^)\s#]*)", note.body):
         if link.rstrip("/") not in docs:
             errors.append(f"broken docs link {link}")

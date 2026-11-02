@@ -11,12 +11,15 @@
     "react/jsx-no-undef": "error",
     "react/rules-of-hooks": "error",
     "react/exhaustive-deps": "warn",
-    "no-extra-boolean-cast": "off",
-    "unicorn/no-empty-file": "off"
+    "no-unused-vars": "error",
+    "jsx-a11y/no-autofocus": "off",
+    "jsx-a11y/prefer-tag-over-role": "off",
+    "jsx-a11y/label-has-associated-control": ["warn", { "controlComponents": ["HTMLSelect"] }],
+    "no-extra-boolean-cast": "off"
   },
   "overrides": [
-    { "files": ["vite.config.js", "playwright.config.js", "releaseNotes.js"], "env": { "node": true } },
-    { "files": ["**/*.test.{js,jsx}"], "env": { "vitest": true } }
+    { "files": ["vite.config.js", "vite.image-viewer.config.js", "playwright.config.js", "releaseNotes.js", "e2e/**"], "env": { "node": true } },
+    { "files": ["**/*.test.{js,jsx,ts,tsx}"], "env": { "vitest": true } }
   ],
-  "ignorePatterns": ["build/**", "src/viewers/tof/*Controls.js", "src/viewers/tof/PCDLoader.js"]
+  "ignorePatterns": ["build/**", "build-image-viewer/**", "src/viewers/tof/*Controls.js", "src/viewers/tof/PCDLoader.js"]
 }

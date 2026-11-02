@@ -1,0 +1,30 @@
+// Makes these components available in every MDX page without an import:
+// - <Shot id="...">, <Clip id="...">, <Compare before="..." after="...">. See docs-media/README.md.
+// - <StackPicker />, and the <Tabs>/<TabItem> it drives. See website/STYLE.md#tabs-and-the-stack-picker.
+// - <RepoFile path="..." />: a file of the repository in a code block (website/plugins/snippets).
+// - <Cards> of <Card title="..." to="/docs/...">: links to the next pages, as a grid of cards.
+// - <Anchor id="..." />: keeps an old link's #anchor working where a section moved.
+import MDXComponents from '@theme-original/MDXComponents';
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+import Shot from '@site/src/components/Shot';
+import Clip from '@site/src/components/Clip';
+import Compare from '@site/src/components/Compare';
+import StackPicker from '@site/src/components/StackPicker';
+import RepoFile from '@site/src/components/RepoFile';
+import {Cards, Card} from '@site/src/components/Cards';
+import Anchor from '@site/src/components/Anchor';
+
+export default {
+  ...MDXComponents,
+  Shot,
+  Clip,
+  Compare,
+  StackPicker,
+  Tabs,
+  TabItem,
+  RepoFile,
+  Cards,
+  Card,
+  Anchor,
+};

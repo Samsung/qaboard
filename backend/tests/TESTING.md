@@ -13,6 +13,10 @@ pytest backend
 
 # Run a specific file
 pytest backend/tests/test_milestones.py
+
+# The tests of SQL queries need a PostgreSQL (they use temporary tables, in transactions they roll back), else they're skipped.
+# CI runs them in the backend's container:
+docker compose exec -e QABOARD_TEST_DATABASE_URL=postgresql://qaboard:password@db:5432/qaboard backend python -m pytest -q -p no:cacheprovider tests
 ```
 
 ## 🧠 Mock Strategy

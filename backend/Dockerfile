@@ -25,6 +25,9 @@ RUN apt-get update -qq && \
       wget "$CA_CERT_URL" -P /usr/local/share/ca-certificates/ && \
       update-ca-certificates; \
     fi
+# requests verifies with certifi's CAs, not the system's: without it, the SSO provider (and git hosts...) signed by
+# CA_CERT_URL's CA fail TLS. The system bundle has the usual public CAs too.
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
 
     # Keeps Python from generating .pyc files for 1-time use in the container's unionFS
@@ -184,6 +187,20 @@ VOLUME /var/qaboard
 # It's useful to make it world-writable so that
 # we can run as a non-root user during dev and clone without issues
 RUN mkdir -p /var/qaboard/git && chmod -R 777 /var/qaboard/git
+
+# More CAs to trust: space-separated *.crt paths in the build context, e.g. an intermediate certificate that the IdP
+# doesn't send (browsers find it, requests doesn't: "unable to get local issuer certificate"). Late: it reads the context
+ARG CA_CERTS=""
+RUN --mount=type=bind,target=/context \
+    set -e; if [ -n "$CA_CERTS" ]; then \
+      for cert in $CA_CERTS; do cp "/context/$cert" /usr/local/share/ca-certificates/; done && \
+      update-ca-certificates; \
+    fi
+
+# The version of the image, e.g. the commit it is built from (docker-compose.yml passes $QABOARD_VERSION):
+# Sentry's release (see backend/sentry.py). Last, as it changes with each build.
+ARG QABOARD_VERSION=""
+ENV QABOARD_VERSION=${QABOARD_VERSION}
 
 WORKDIR /qaboard/backend
 CMD ["/qaboard/backend/init.sh"]

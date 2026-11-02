@@ -15,7 +15,9 @@ spec:
       owner: {{ .Values.database.user }}
   postgresql:
     parameters:
-      # Each uwsgi process has a pool of up to 15 connections
+      # Each uwsgi process has a pool of up to 6 connections (QABOARD_DB_POOL_SIZE 4 + QABOARD_DB_MAX_OVERFLOW 2),
+      # + 1 per pod for the uwsgi master: (8 processes * 6 + 1) = 49 per backend pod. 400 covers the default
+      # 2 replicas (98), and autoscaling up to 6 replicas + 1 surging during a rollout (343), with backups and admins.
       max_connections: "400"
       shared_buffers: 1GB
   storage:

@@ -1,0 +1,5 @@
+# long straight aisles and U-turns
+# The path and its speed are in qa/trajectory.py; the warehouse comes from the layout and world_seed (qa/world.py).
+# qa/make_sequences.py generates truth.npz next to this file: the true poses and depth images.
+sequence: aisle-sweep
+world_seed: 101

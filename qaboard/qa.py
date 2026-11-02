@@ -24,18 +24,20 @@ from .conventions import make_batch_dir, make_batch_conf_dir
 from .conventions import serialize_config, deserialize_config, get_settings
 from .utils import PathType, entrypoint_module, load_tuning_search
 from .utils import save_outputs_manifest, total_storage
-from .utils import redirect_std_streams, clean_output_dir
+from .utils import redirect_std_streams, clean_output_dir, interrupted_by_sigterm, ignored_signals
 from .utils import getenvs
 from .api import url_to_dir, print_url
-from .api import get_outputs, notify_qa_database, serialize_paths
-from .iterators import iter_inputs, iter_parameters
+from .api import get_outputs, notify_qa_database, serialize_paths, exit_if_results_refused, ResultsUnreadable, print_auth_error
+from .iterators import iter_inputs, iter_parameters, load_runs_file, iter_runs, rerun_job_options, local_job_options
+from .batch_logs import saves_logs, batch_log
 
-from .config import config_has_error, ignore_config_errors
+from .config import config_has_error, ignore_config_errors, report_missing_storage, storage_needed_by
 from .config import project, project_root, subproject, config
 from .config import default_batches_files, get_default_database, default_batch_label, default_platform
 from .config import get_default_configuration, default_input_type
 from .config import commit_id, outputs_commit, artifacts_commit, root_qatools, artifacts_commit_root
-from .config import user, is_ci, on_windows
+from .config import user, is_ci, on_windows, available_metrics
+from .metrics import split_metrics, run_definitions
 
 
 
@@ -53,16 +55,22 @@ from .config import user, is_ci, on_windows
 @click.option('--offline', is_flag=True, help="Do not notify QA-Board about run statuses.")
 def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, share, database, input_type, offline):
   """Entrypoint to running your algo, launching batchs..."""
-  # We want all paths to be relative to top-most qaboard.yaml
-  # it should be located at the root of the git repository
-  if config_has_error and not ignore_config_errors:
-    click.secho('Please fix the error(s) above in qaboard.yaml', fg='red', err=True, bold=True)
-    exit(1)
-
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
   if not ctx.obj:
     ctx.obj = {}
+  # Signing in is global, per server: it doesn't need a project
+  if ctx.invoked_subcommand == 'auth':
+    return
+  # Local runs save their results in output/: only some commands need the storage
+  storage_is_missing = report_missing_storage(storage_needed_by(ctx.invoked_subcommand, share, is_ci))
+  # We want all paths to be relative to top-most qaboard.yaml
+  # it should be located at the root of the git repository
+  if config_has_error and not ignore_config_errors:
+    click.secho('Please fix the error(s) above in qaboard.yaml', fg='red', err=True, bold=True)
+    sys.exit(1)
+  if storage_is_missing:
+    sys.exit(1)
 
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
   noop_command = 'init' in sys.argv
@@ -161,25 +169,24 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
 @click.pass_context
 def get(ctx, input_path, output_path, variable):
   """Prints the value of the requested variable. Mostly useful for debug."""
-  from .config import outputs_commit, commit_branch, commit_message, artifacts_branch, artifacts_branch_root
   # backward compatibility
   if variable == "branch_ci_dir":
     variable = "artifacts_branch_root"
   if variable == "commit_ci_dir":
     variable = "outputs_commit"
-  locals().update(globals())
-  locals().update(ctx.obj)
+  # Not locals().update(): since python 3.13 (PEP 667) it doesn't change the function's variables
+  variables = {**globals(), **locals(), **ctx.obj}
   try:
     run_context = RunContext.from_click_run_context(ctx, config)
-    locals().update(run_context.asdict())
+    variables.update(run_context.asdict())
   except Exception:
     pass
 
-  if variable in locals():
-    print(locals().get(variable))
+  if variable in variables:
+    print(variables[variable])
   else:
     click.secho(f"Could not find {variable}", err=True, fg='red')
-    exit(1)
+    sys.exit(1)
 
 
 
@@ -240,45 +247,78 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
           qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True)
           if qa_run_data:
             run_context.id = qa_run_data["id"]
+          # in CI, results QA-Board refuses are lost: don't compute them
+          exit_if_results_refused()
 
-      start = time.time()
-      cwd = os.getcwd() 
-
-      try:
-        runtime_metrics = entrypoint_module(config).run(run_context)
-      except Exception as e:
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        click.secho(f'[ERROR] Your `run` function raised an exception: {e}', fg='red', bold=True)
+      # LSF sends SIGINT then SIGTERM when users bkill the job or it uses too much memory, before a SIGKILL:
+      # we say the run failed, or QA-Board would show it as running
+      with interrupted_by_sigterm():
         try:
-          exc_type, exc_value, exc_traceback = sys.exc_info()
-          click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
-        except Exception as e: # debug strange stale file errors, ideally remove this...
-          print(f"ERROR: {e}")
-        runtime_metrics = {'is_failed': True}
+          start = time.time()
+          cwd = os.getcwd() 
 
-      if not runtime_metrics:
-        runtime_metrics = {"is_failed": False}
+          try:
+            runtime_metrics = entrypoint_module(config).run(run_context)
+          except Exception as e:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            click.secho(f'[ERROR] Your `run` function raised an exception: {e}', fg='red', bold=True)
+            try:
+              exc_type, exc_value, exc_traceback = sys.exc_info()
+              click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red')
+            except Exception as e: # debug strange stale file errors, ideally remove this...
+              print(f"ERROR: {e}")
+            runtime_metrics = {'is_failed': True}
 
-      if not isinstance(runtime_metrics, dict):
-        click.secho(f'[ERROR] Your `run` function did not return a dict, but {runtime_metrics}', fg='red', bold=True)
-        runtime_metrics = {'is_failed': True}
+          if not runtime_metrics:
+            runtime_metrics = {"is_failed": False}
 
-      runtime_metrics['compute_time'] = time.time() - start
+          if not isinstance(runtime_metrics, dict):
+            click.secho(f'[ERROR] Your `run` function did not return a dict, but {runtime_metrics}', fg='red', bold=True)
+            runtime_metrics = {'is_failed': True}
 
-      # avoid issues if code in run() changes cwd
-      if os.getcwd() != cwd:
-        os.chdir(cwd)
+          runtime_metrics['compute_time'] = time.time() - start
 
-      metrics = postprocess_(runtime_metrics, run_context, skip=no_postprocess or runtime_metrics['is_failed'], save_manifests_in_database=save_manifests_in_database)
-      if not metrics:
-        metrics = runtime_metrics
+          # avoid issues if code in run() changes cwd
+          if os.getcwd() != cwd:
+            os.chdir(cwd)
 
-      if metrics['is_failed']:
-        click.secho('[ERROR] The run has failed.', fg='red', err=True)
-        click.secho(str(metrics), fg='red', bold=True)
-        exit(1)
-      else:
-        click.secho(str(metrics), fg='green')
+          metrics = postprocess_(runtime_metrics, run_context, skip=no_postprocess or runtime_metrics['is_failed'], save_manifests_in_database=save_manifests_in_database)
+          if not metrics:
+            metrics = runtime_metrics
+
+          if metrics['is_failed']:
+            click.secho('[ERROR] The run has failed.', fg='red', err=True)
+            click.secho(str(metrics), fg='red', bold=True)
+          else:
+            click.secho(str(metrics), fg='green')
+          exit_if_results_refused()
+          if metrics['is_failed']:
+            sys.exit(1)
+        except KeyboardInterrupt:
+          mark_aborted(run_context)
+          raise
+
+
+def mark_aborted(run_context):
+  """Saves that the run failed after it was interrupted, in metrics.json and in QA-Board."""
+  with ignored_signals():
+    click.secho('[ERROR] The run was aborted: marked as failed.', fg='red', err=True)
+    metrics_path = run_context.output_dir / 'metrics.json'
+    metrics = {}
+    try:
+      if metrics_path.exists():
+        with metrics_path.open() as f:
+          metrics = json.load(f)
+    except (OSError, ValueError):
+      pass
+    metrics['is_failed'] = True
+    try:
+      with metrics_path.open('w') as f:
+        json.dump(metrics, f, sort_keys=True, indent=2, separators=(',', ': '))
+    except OSError as e:
+      click.secho(f'[ERROR] Could not write {metrics_path}: {e}', fg='red', err=True)
+    if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
+      notify_qa_database(**run_context.obj, metrics=metrics, is_failed=True, is_pending=False, is_running=False)
 
 
 def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_database=False):
@@ -316,8 +356,15 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
         **previous_metrics,
         **metrics,
       }
+  # Metrics can come with their definition, e.g. Metric(12.3, suffix=" ms"), see qaboard/metrics.py
+  metrics, inline_definitions = split_metrics(metrics)
   with (run_context.output_dir / 'metrics.json').open('w') as f:
       json.dump(metrics, f, sort_keys=True, indent=2, separators=(',', ': '))
+  metrics_definitions = {}
+  try:
+    metrics_definitions = run_definitions(metrics, inline_definitions, run_context.output_dir, available_metrics)
+  except Exception as e:
+    click.secho(f'WARNING: When reading the definitions of the metrics: {e}', fg="yellow", bold=True, err=True)
 
   # To help identify if input files change, we compute and save some metadata.
   manifest_inputs = run_context.obj.get('manifest-inputs', [run_context.input_path])
@@ -367,7 +414,7 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
       copy(run_context.output_dir / 'manifest.outputs.json', run_context.input_path / 'manifest.outputs.json')
 
   if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
-    notify_qa_database(**run_context.obj, metrics=metrics, data=output_data, is_pending=False, is_running=False)
+    notify_qa_database(**run_context.obj, metrics=metrics, metrics_definitions=metrics_definitions, data=output_data, is_pending=False, is_running=False)
 
 
   ###### SIRC-specific ########################################################
@@ -460,7 +507,10 @@ def sync(ctx, input_path, output_path):
   if (run_context.output_dir / 'metrics.json').exists():
     with (run_context.output_dir / 'metrics.json').open('r') as f:
       metrics = json.load(f)
-    notify_qa_database(**ctx.obj, metrics=metrics, is_pending=False, is_running=False)
+    # those of define_metric() run when the entrypoint is imported
+    entrypoint_module(config)
+    metrics_definitions = run_definitions(metrics, {}, run_context.output_dir, available_metrics)
+    notify_qa_database(**ctx.obj, metrics=metrics, metrics_definitions=metrics_definitions, is_pending=False, is_running=False)
     click.secho(str(metrics), fg='green')      
 
 
@@ -475,16 +525,15 @@ def wait(ctx, output_id):
   first = True
   while True:
     output = get_output(output_id)
+    if not output["is_pending"]:
+      break
     if first:
       click.secho("...waiting for previously started pending run. To run directly, use qa batch --action-on-pending=run")
-    else:
       first = False
+    else:
       click.secho("...waiting")
-    if output["is_pending"]:
-        time.sleep(5)
-        continue
-    break
-    exit(0 if not output["is_failed"] else 1)
+    time.sleep(5)
+  sys.exit(0 if not output["is_failed"] else 1)
 
 
 lsf_config = config['lsf'] if 'lsf' in config else config.get('runners', {}).get('lsf', {})
@@ -511,7 +560,8 @@ default_lsf_concurrency = lsf_config.get('concurrency', 0)
 dask_config = config.get('runners', {}).get('dask', {})
 default_dask_concurrency = dask_config.get('concurrency')
 
-default_local_concurrency = os.environ.get('QA_BATCH_CONCURRENCY', local_config.get('concurrency'))
+# An int like --local-concurrency's: a string would differ from it, and count as given on the command line
+default_local_concurrency = int(os.environ['QA_BATCH_CONCURRENCY']) if os.environ.get('QA_BATCH_CONCURRENCY') else local_config.get('concurrency')
 default_local_timeout = float(os.environ.get('QA_BATCH_TIMEOUT', local_config.get('timeout', 0)))
 default_action_on_existing = config.get('outputs', {}).get('action_on_existing', "run")
 default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "wait")
@@ -521,6 +571,7 @@ default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "
 ))
 @click.option('--batch', '-b', 'batches', multiple=True, help="We run over all inputs+configs+database in those batches")
 @click.option('--batches-file', 'batches_files', type=PathType(),  default=default_batches_files, multiple=True, help="YAML files listing batches of inputs+configs+database.")
+@click.option('--runs-file', type=PathType(), default=None, help='Instead of batches, a JSON file listing the runs to do, e.g. to redo runs: {"runs": [{"input_path", "database", "type", "platform", "configurations", "extra_parameters", "job_options"}]}. Runs are done with the runner and job options they list, unless you give a --runner.')
 @click.option('--tuning-search', 'tuning_search_dict', help='string containing JSON describing the tuning parameters to explore')
 @click.option('--tuning-search-file', type=PathType(), default=None, help='tuning file describing the tuning parameters to explore')
 @click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are sent, otherwise waits for completion.")
@@ -528,7 +579,7 @@ default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "
 @click.option('--list-output-dirs', is_flag=True, help="Only print the prefixes for the results of each batch we run on.")
 @click.option('--list-inputs', is_flag=True, help="Print to stdout a JSON with a list of the inputs we would call qa run on.")
 @click.option('--runner', default=default_runner, help="Run runs locally or using a task queue like Celery, LSF...")
-@click.option('--local-concurrency', default=default_local_concurrency, type=int, help="joblib's n_jobs: 0=unlimited, 2=2 at a time, -1=#cpu-1")
+@click.option('--local-concurrency', default=default_local_concurrency, type=int, help="How many runs run at the same time (joblib's n_jobs): 1=one at a time (if not set), 2=2 at a time, -1=one per CPU, -2=all CPUs but one")
 @click.option('--local-timeout', default=default_local_timeout, type=int, help="Timeout for local runs")
 @click.option('--lsf-max-threads', default=default_lsf_max_threads, type=int, help="restrict number of lsf threads to use. 0=no restriction")
 @click.option('--lsf-max-memory', default=default_lsf_max_memory, help="restrict memory (MB) to use. 0=no restriction")
@@ -543,10 +594,11 @@ default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
 @click.argument('batch_names', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, local_timeout, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_resources, lsf_priority, lsf_options, lsf_concurrency, dask_concurrency, action_on_existing, action_on_pending, prefix_outputs_path, batch_names):
+@saves_logs
+def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, local_timeout, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_resources, lsf_priority, lsf_options, lsf_concurrency, dask_concurrency, action_on_existing, action_on_pending, prefix_outputs_path, batch_names):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
   from .runners import runners
-  if not batches_files:
+  if not batches_files and not runs_file:
     click.secho(f'WARNING: Could not find how to identify input tests.', fg='red', err=True, bold=True)
     click.secho(f'Consider adding to qaboard.yaml somelike like:\n```\ninputs:\n  batches: batches.yaml\n```', fg='red', err=True)
     click.secho(f'Where batches.yaml is formatted like in http://qa-docs/docs/batches-running-on-multiple-inputs', fg='red', err=True)
@@ -567,24 +619,60 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       filtered_batch_names.append(arg)
   batches = list(filtered_batch_names) + list(batches)
 
-  if not batches:
+  if runs_file and batches:
+    raise click.UsageError("Use either batches or --runs-file, not both.")
+  if not batches and not runs_file:
     click.secho(f'ERROR: you must provide a batch', fg='red', err=True, bold=True)
     click.secho(f'Use either `qa batch BATCH`, `qa batch BATCH_1 BATCH_2` or `qa batch --batch BATCH_2 --batch BATCH_2`', fg='red', err=True)
-    exit(1)
+    sys.exit(1)
+  # Those runs are saved in the commit's folder in the storage, even without --share
+  if prefix_outputs_path and not prefix_outputs_path.is_absolute():
+    if report_missing_storage('`qa batch --prefix-outputs-path` saves results there'):
+      sys.exit(1)
+
+  runs = load_runs_file(runs_file) if runs_file else None
+  # How the runs were started. Some options are for the whole batch, e.g. the concurrency
+  runs_job_options = next((run['job_options'] for run in runs or [] if run.get('job_options')), {})
+  # Unless asked otherwise, runs are done again with the runner they were started with
+  keeps_runs_runner = runs is not None and runner == default_runner
+  if keeps_runs_runner and runs_job_options.get('type'):
+    runner = runs_job_options['type']
 
   print_url(ctx)
   # if the commit does not exist or there are network errors it will return empty data
-  existing_outputs = get_outputs(ctx.obj, ignore_errors=True)
-  command_id = os.environ.get('QA_BATCH_COMMAND_ID', str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them 
+  try:
+    existing_outputs = get_outputs(ctx.obj, ignore_errors=True)
+  except ResultsUnreadable as e:
+    # e.g. the server requires signing in: we can't tell which runs exist or are pending
+    existing_outputs = {}
+    print_auth_error(e.response, "QA-Board refused to read the batch's runs")
+    if action_on_existing != 'run':
+      click.secho(f"ERROR: --action-on-existing={action_on_existing} needs the batch's runs, else all the runs would be done again.", fg='red', bold=True, err=True)
+      sys.exit(1)
+    click.secho("         qa batch can't see which runs are pending: it may start them again.", fg='yellow', err=True)
+  log = batch_log(ctx)
+  command_id = os.environ.get('QA_BATCH_COMMAND_ID', log['command_id'] if log else str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them 
+  from .notify import is_nested, inherit_root_command, notify_channel, print_notification
+  nested, started_by_qaboard = is_nested(), 'QA_BATCH_COMMAND_ID' in os.environ
+  # The runs of `qa batch` commands started by this one (e.g. pipeline steps) count as its runs:
+  # QA-Board knows the batch ended when none of them are pending.
+  root_command_id = os.environ.get('QA_BATCH_ROOT_COMMAND_ID') or command_id
+  inherit_root_command(ctx, root_command_id)
   if 'QA_BATCH_COMMAND_ID' in os.environ:
     # some projects have run() trigger further "qa batch" commands, notably in "pipelines"
     # so if we keep it defined we'll end up with deadlocks as those batch wait for the current batch to end...
     del os.environ['QA_BATCH_COMMAND_ID']
 
-  os.environ['QA_BATCH']= 'true' # triggered runs will be less verbose than with just `qa run` 
+  previous_qa_batch = os.environ.get('QA_BATCH') # set when this batch was started by another
+  os.environ['QA_BATCH']= 'true' # triggered runs will be less verbose than with just `qa run`
   os.environ['QA_BATCHES_FILES'] = json.dumps([str(b) for b in batches_files])
   dryrun = ctx.obj['dryrun'] or list_output_dirs or list_inputs or list_contexts
   should_notify_qa_database = (is_ci or ctx.obj['share']) and not (dryrun or ctx.obj['offline'])
+  # An email when the runs end, unless QA_NOTIFY=none
+  notify = notify_channel(is_ci, nested, started_by_qaboard) if not dryrun else None
+  if notify and not should_notify_qa_database and os.environ.get('QA_NOTIFY'):
+    click.secho("QA_NOTIFY: QA-Board can only email you about runs it knows: use `qa --share batch`.", fg='yellow', err=True)
+  notification = None
   if should_notify_qa_database:
     command_data = {
       "command_created_at_datetime":  datetime.datetime.utcnow().isoformat(),
@@ -592,14 +680,22 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       "runner": runner,
       **ctx.obj,
     }
-    if runner == 'dask' and dask_config.get('scheduler_address'):
+    if log:
+      command_data['log'] = log['path'] # relative to the batch directory
+    scheduler_address = runs_job_options.get('scheduler_address', dask_config.get('scheduler_address'))
+    if runner == 'dask' and scheduler_address:
       # so that the backend can stop the batch
-      command_data['scheduler_address'] = dask_config['scheduler_address']
+      command_data['scheduler_address'] = scheduler_address
     job_url = getenvs(('BUILD_URL', 'CI_JOB_URL', 'CIRCLE_BUILD_URL', 'TRAVIS_BUILD_WEB_URL')) # jenkins, gitlabCI, circleCI, travisCI
     if job_url:
       command_data['job_url'] = job_url
+    if notify:
+      command_data['notify'] = {"channel": notify, "batches": list(batches)}
     if not os.environ.get('QA_BATCH_COMMAND_HIDE_LOGS'):
-      notify_qa_database(object_type='batch', command={command_id: command_data}, **ctx.obj)
+      response = notify_qa_database(object_type='batch', command={command_id: command_data}, **ctx.obj)
+      notification = response.get('notification') if isinstance(response, dict) else None
+      # in CI, results QA-Board refuses are lost: don't compute them
+      exit_if_results_refused()
 
 
   tuning_search, filetype = load_tuning_search(tuning_search_dict, tuning_search_file)
@@ -614,35 +710,41 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
   }
   
   # Collect CLI overrides (only non-None values that were explicitly provided)
+  def given(name, value, default):
+    """Whether an option was given, on the command line or as QA_BATCH_<OPTION>, even with its default value."""
+    if hasattr(ctx, 'get_parameter_source'): # click>=8
+      from click.core import ParameterSource
+      return ctx.get_parameter_source(name) not in (ParameterSource.DEFAULT, ParameterSource.DEFAULT_MAP)
+    return value != default
   # Each runner should add what it cares about...
   # TODO: Having --runner-X prefixes makes it all a mess, but still the help text is useful
   # TODO: It would be nice to generate the CLI help depending on the runner that's chosen, then we could use
   if runner == 'lsf':
-    if lsf_queue != default_lsf_queue:
+    if given('lsf_queue', lsf_queue, default_lsf_queue):
       cli_runner_overrides["queue"] = lsf_queue
     else:
       base_runner_options["queue"] = lsf_queue
-    if lsf_priority != default_lsf_priority:
+    if given('lsf_priority', lsf_priority, default_lsf_priority):
       cli_runner_overrides['priority'] = lsf_priority
     else:
       base_runner_options['priority'] = lsf_priority
-    if lsf_max_threads != default_lsf_max_threads:
+    if given('lsf_max_threads', lsf_max_threads, default_lsf_max_threads):
       cli_runner_overrides["max_threads"] = lsf_max_threads
     else:
       base_runner_options["max_threads"] = lsf_max_threads
-    if lsf_max_memory != default_lsf_max_memory:
+    if given('lsf_max_memory', lsf_max_memory, default_lsf_max_memory):
       cli_runner_overrides["max_memory"] = lsf_max_memory
     else:
       base_runner_options["max_memory"] = lsf_max_memory
-    if lsf_resources != default_lsf_resources:
+    if given('lsf_resources', lsf_resources, default_lsf_resources):
       cli_runner_overrides['resources'] = lsf_resources
     else:
       base_runner_options['resources'] = lsf_resources
-    if lsf_options != default_lsf_options:
+    if given('lsf_options', lsf_options, default_lsf_options):
       cli_runner_overrides['options'] = lsf_options
     else:
       base_runner_options['options'] = lsf_options
-    if lsf_concurrency != default_lsf_concurrency:
+    if given('lsf_concurrency', lsf_concurrency, default_lsf_concurrency):
       cli_runner_overrides['concurrency'] = lsf_concurrency
     else:
       base_runner_options['concurrency'] = lsf_concurrency
@@ -658,11 +760,11 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     })
     
   if runner == "local":
-    if local_concurrency != default_local_concurrency:
+    if given('local_concurrency', local_concurrency, default_local_concurrency):
       cli_runner_overrides["concurrency"] = local_concurrency
     else:
       base_runner_options['concurrency'] = local_concurrency
-    if local_timeout != default_local_timeout:
+    if given('local_timeout', local_timeout, default_local_timeout):
       cli_runner_overrides["timeout"] = local_timeout
     else:
       base_runner_options['timeout'] = local_timeout
@@ -677,7 +779,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     }
     # We save logs there
     base_runner_options['batch_dir'] = str(ctx.obj['batch_dir'])
-    if dask_concurrency != default_dask_concurrency:
+    if given('dask_concurrency', dask_concurrency, default_dask_concurrency):
       cli_runner_overrides["concurrency"] = dask_concurrency
 
   if runner == 'local' or runner == 'celery':
@@ -686,13 +788,27 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
   # For backward compatibility, combine for JobGroup
   default_runner_options = {**base_runner_options, **cli_runner_overrides}
 
-  jobs = JobGroup(job_options=default_runner_options)
+  if runs is None:
+    jobs = JobGroup(job_options=default_runner_options)
+    inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], ctx.obj['platform'], base_runner_options, config, ctx.obj['inputs_settings'], cli_runner_overrides=cli_runner_overrides)
+  else:
+    # The runs keep the job options they were started with, except those we were explicitly given
+    explicit_runner_overrides = {k: v for k, v in cli_runner_overrides.items() if k not in (*local_job_options, 'type', 'project')}
+    if not keeps_runs_runner:
+      explicit_runner_overrides['type'] = runner
+    inputs_iter = iter_runs(runs, default_input_type, ctx.obj['platform'], default_runner_options, explicit_runner_overrides)
+    # They start together, with the options of the first run, e.g. its concurrency
+    jobs = JobGroup(job_options=rerun_job_options(runs_job_options, default_runner_options, explicit_runner_overrides), split_by_job_options=False)
 
   total_runs = 0
-  inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], ctx.obj['platform'], base_runner_options, config, ctx.obj['inputs_settings'], cli_runner_overrides=cli_runner_overrides)
   for run_context in inputs_iter:
     input_configuration_str = serialize_config(run_context.configurations)
-    for tuning_params, tuning_str, tuning_hash in iter_parameters(tuning_search, filetype=filetype, extra_parameters=ctx.obj['extra_parameters']):
+    extra_parameters, input_forwarded_args = ctx.obj['extra_parameters'], forwarded_args
+    if runs is not None:
+      # Each run from --runs-file has its own tuning parameters and forwarded arguments
+      extra_parameters = {**ctx.obj['extra_parameters'], **run_context.extra_parameters}
+      input_forwarded_args = [*forwarded_args, *extra_parameters.pop('forwarded_args', [])]
+    for tuning_params, tuning_str, tuning_hash in iter_parameters(tuning_search, filetype=filetype, extra_parameters=extra_parameters):
       if not prefix_outputs_path:
           batch_conf_dir = make_batch_conf_dir(
             outputs_commit,
@@ -712,8 +828,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       from qaboard.conventions import output_dirs_for_input_part
       # print("batch_conf_dir", batch_conf_dir)
       run_context.output_dir = batch_conf_dir / output_dirs_for_input_part(run_context.rel_input_path, run_context.database, config)
-      if forwarded_args:
-        run_forwarded_args = [a for a in forwarded_args if not a in ("--keep-previous", "--no-postprocess", "--save-manifests-in-database")]
+      if input_forwarded_args:
+        run_forwarded_args = [a for a in input_forwarded_args if not a in ("--keep-previous", "--no-postprocess", "--save-manifests-in-database")]
         if run_forwarded_args:
           run_context.extra_parameters = {"forwarded_args": run_forwarded_args, **tuning_params}
         else:
@@ -741,7 +857,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
         if not matching_existing_output:
           click.secho("ERROR: At least 1 run cannot be found in QA-Board's past runs'", err=True, fg="red")
           click.secho(f"       {run_context}", err=True, fg="red")
-          exit(1)
+          sys.exit(1)
         run_context.output_dir = RunContext.from_api_output(matching_existing_output).output_dir
 
       if list_output_dirs:
@@ -752,19 +868,20 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       is_failed = matching_existing_output['is_failed'] if matching_existing_output else run_context.is_failed()
       ran_before = True if matching_existing_output else run_context.ran()
       should_run = not is_pending and (action_on_existing=='run' or is_failed or not ran_before)
-      if not should_run and action_on_existing=='skip' and not is_pending:
+      # With assert-exists, like skip, we don't do anything with the runs that succeeded
+      if not should_run and action_on_existing in ('skip', 'assert-exists') and not is_pending:
         continue
       if is_pending and action_on_pending == 'skip':
           continue
 
-      if not forwarded_args:
+      if not input_forwarded_args:
         forwarded_args_cli = None
       else:
         if not on_windows:
-          forwarded_args_cli = ' '.join(quote(a) for a in forwarded_args)
+          forwarded_args_cli = ' '.join(quote(a) for a in input_forwarded_args)
         else:
           from .compat import escaped_for_cli
-          forwarded_args_cli = ' '.join(escaped_for_cli(a) for a in forwarded_args)
+          forwarded_args_cli = ' '.join(escaped_for_cli(a) for a in input_forwarded_args)
 
       if input_configuration_str == get_default_configuration(ctx.obj['inputs_settings']):
         configuration_cli = None
@@ -805,7 +922,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
           f'--database "{run_context.database.as_posix()}"' if run_context.database != get_default_database(ctx.obj['inputs_settings']) else None,
           configuration_cli,
           tuning_cli,
-          'run' if should_run else action_on_existing,
+          # there is no `qa skip` or `qa assert-exists`: here those runs are pending (see --action-on-pending)
+          'run' if should_run or action_on_existing in ('skip', 'assert-exists') else action_on_existing,
           f'--input "{run_context.rel_input_path}"',
           f'--output "{run_context.output_dir}"' if prefix_outputs_path else None,
           # we can't use "--" here directly since we want to allow "qa batch mybatch --some-flag-for-qa-run-like --save-manifests-in-database"
@@ -830,7 +948,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
         total_runs += 1
         if total_runs > 1_000 and not os.environ.get("QA_BATCH_ALLOW_MANY_RUNS"):
           raise ValueError("Sorry you are sending too many runs at once. Consider using --offline or get an approval.")
-          exit(1)
+          sys.exit(1)
         # TODO: accumulate and send all at once to avoid 100s of requests?
         db_output = notify_qa_database(**{
           **ctx.obj,
@@ -838,6 +956,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
           "is_pending": True,
           "data": {
             "job_options": run_context.job_options,
+            "root_command_id": root_command_id,
           }
         })
         if db_output: # Note: the ID is already in the matching job above
@@ -849,7 +968,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
           job.run_context.command = wait_command
         elif action_on_pending=="wait":
           job.run_context.command = f"{wait_command} || {job.run_context.command}"
-          if action_on_existing=="skip":
+          if action_on_existing in ("skip", "assert-exists"):
             job.run_context.command = wait_command
         else:
           assert action_on_pending=="run"
@@ -860,13 +979,18 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     return
 
   if not dryrun:
+    exit_if_results_refused()
+    if total_runs:
+      print_notification(notification)
     is_failed = jobs.start(
       blocking=not no_wait,
       qa_context=ctx.obj,
     )
 
-    from .gitlab import gitlab_token, update_gitlab_status
-    if gitlab_token and jobs and is_ci and 'QABOARD_TUNING' not in os.environ:
+    # A commit status on GitLab/GitHub links to the results
+    from .git_hosts import git_host, update_ci_status
+    host = git_host() if jobs and is_ci and 'QABOARD_TUNING' not in os.environ else None
+    if host and host.token:
       name = f"QA {subproject.name}" if subproject else 'QA'
       from .api import qaboard_url
       target_url = f"{qaboard_url}/{config['project']['name']}/commit/{commit_id}"
@@ -874,19 +998,23 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       if label != "default":
         name += f" | {label}"
         target_url += f"?batch={label}"
-      update_gitlab_status(
+      update_ci_status(
         state='failed' if is_failed else 'success',
         name=name,
         target_url=target_url,
         description=f"{len(jobs)} results",
       )
 
+    exit_if_results_refused()
     if is_failed and not no_wait:
       del os.environ['QA_BATCH'] # restore verbosity
       if should_notify_qa_database:
         print_url(ctx, status="failure")
-      exit(1)
+      sys.exit(1)
     else:
+      # restore verbosity: print_url is quiet in runs started by `qa batch`, but this one ends
+      if previous_qa_batch is None:
+        del os.environ['QA_BATCH']
       if should_notify_qa_database:
         print_url(ctx)
 
@@ -919,8 +1047,8 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
     config['artifacts']['__qaboard.yaml'] = {"glob": ['qaboard.yaml', 'qatools.yaml']}
     config['artifacts']['__qatools'] = {"glob": ['qatools/*', 'qa/*']}
     # Handle sub-projects
-    config['artifacts']['__sub-qaboard.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qaboard.yaml') for p in qatools_config_paths]}
-    config['artifacts']['__sub-qaboard.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools.yaml') for p in qatools_config_paths]}
+    # Without its qaboard.yaml, runs started from a subproject's artifacts would use the parent project's config
+    config['artifacts']['__sub-qaboard.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / name) for p in qatools_config_paths for name in ('qaboard.yaml', 'qatools.yaml')]}
     config['artifacts']['__metrics.yaml'] = {"glob": config.get('outputs', {}).get('metrics')}
     config['artifacts']['__batches.yaml'] = {"glob": [str(p) for p in default_batches_files]}
     config['artifacts']['__envrc'] = {"glob": ['.envrc', '*/.envrc']} # we don't use ** since it's so slow...
@@ -935,7 +1063,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
       click.secho(
           "You are not in a git repository, maybe in an artifacts folder. `save_artifacts` is unavailable.",
           fg='yellow', dim=True)
-      exit(1)
+      sys.exit(1)
 
   for artifact_name, artifact_config in artifacts.items():
     click.secho(f'Saving artifacts: {artifact_name}', bold=True)
@@ -946,8 +1074,11 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
       click.secho(f"ERROR: {e}", fg='red')
       click.secho(f"We could not create one the folders required to save the artifacts..", fg='red', dim=True)
       click.secho(f"The disk could be full, or just the quota for the current user...", fg='red', dim=True)
-      click.secho(f"> Contact Alg-Infra@transchip.com", fg='blue')
-      exit(1)
+      from .site_config import site_config
+      storage_help = site_config('QABOARD_STORAGE_HELP')
+      if storage_help:
+        click.secho(f"INFO: {storage_help}", fg='blue')
+      sys.exit(1)
     if manifest_path.exists():
       with manifest_path.open() as f:
         try:
@@ -985,6 +1116,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
         if not ctx.obj['dryrun']:
           copy(path, destination)
           manifest[path.as_posix()] = file_info(path, config=config)
+        nb_files += 1
 
     if not ctx.obj['dryrun']:
       with manifest_path.open('w') as f:
@@ -998,6 +1130,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
 
   # if the commit was deleted, this notification will mark it as good again 
   notify_qa_database(object_type='commit', **ctx.obj)
+  exit_if_results_refused()
 
 
 from .bit_accuracy import check_bit_accuracy, check_bit_accuracy_manifest
@@ -1007,6 +1140,14 @@ qa.add_command(check_bit_accuracy_manifest)
 
 from .optimize import optimize
 qa.add_command(optimize)
+
+
+from .gate import gate
+qa.add_command(gate)
+
+
+from .auth import auth
+qa.add_command(auth)
 
 
 @qa.command()
@@ -1032,23 +1173,28 @@ def split_dashdash():
   return []
 
 def init_sentry():
-  """In CI, report errors to the Sentry project set by the site (QABOARD_SENTRY_DSN), if any."""
-  from .site_config import site_config, as_requests_verify
+  """
+  In CI, report errors to the Sentry project set by the site (QABOARD_SENTRY_DSN), if any.
+  The CA bundle that signed the Sentry server's certificate can be set with SENTRY_CA_CERTS or QABOARD_SENTRY_VERIFY
+  (a path, "system", or "false" to not check it), see qaboard/sentry_utils.py.
+  """
+  from .site_config import site_config
   dsn = site_config("QABOARD_SENTRY_DSN")
   if not os.environ.get("CI") or not dsn:
     return
   import sentry_sdk
-  options = {}
-  if as_requests_verify(site_config("QABOARD_SENTRY_VERIFY")) is False:
-    import urllib3
-    urllib3.disable_warnings()
-    class InsecureHttpTransport(sentry_sdk.transport.HttpTransport):
-      def _get_pool_options(self, *args, **kwargs):
-        options = super()._get_pool_options(*args, **kwargs)
-        options["cert_reqs"] = "CERT_NONE"
-        return options
-    options["transport"] = InsecureHttpTransport
-  sentry_sdk.init(dsn=dsn, traces_sample_rate=1.0, **options)
+  from . import __version__
+  from .sentry_utils import sentry_options
+  ca_setting = site_config("SENTRY_CA_CERTS") or site_config("QABOARD_SENTRY_VERIFY")
+  sentry_sdk.init(**sentry_options(
+    dsn,
+    release=f"qaboard@{__version__}",
+    environment="ci",
+    traces_rate=1.0,
+    # `qa` runs are short
+    profile_session_rate=0,
+    ca_setting=ca_setting,
+  ))
 
 
 def main():

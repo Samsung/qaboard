@@ -1,0 +1,68 @@
+# The object detector of the K3 robots: a QA-Board demo project, see README.md.
+project:
+  name: kitefin/detector
+  url: https://git.kitefin.example/kitefin/detector
+  description: Object detector of the K3 robots, evaluated in fp32 and int8 at several input sizes.
+  entrypoint: qa/main.py
+  reference_branch: main
+
+inputs:
+  # relative to this folder: each slice of the test set is a folder with its images and labels.json
+  database:
+    linux: inputs
+  globs: labels.json
+  use_parent_folder: true
+  batches: qa/batches.yaml
+
+outputs:
+  metrics: qa/metrics.yaml
+  # Run cards wide enough for the photos (new and reference about 415 px wide each) and the plots (840 px by default)
+  style:
+    width: 840px
+  visualizations:
+    - name: Detections
+      path: "images/:image.jpg"          # 1..N, a synced slider over the slice's images
+    - name: Precision-recall
+      path: pr.plotly.json               # a curve per class at IoU 0.5: the reference's are dashed
+      side_by_side: false
+    - name: Recall by object size
+      path: size_recall.plotly.json
+      side_by_side: false
+    - name: Report
+      path: report.html                  # per-class AP, AP by size, latency, the images with the most missed objects
+    - name: Confusions
+      path: confusion.plotly.json        # labeled class x detected class, and the background
+      default_hidden: true
+    - name: Detections (JSON)
+      path: detections.json
+      default_hidden: true
+
+# `qa save-artifacts` saves what each commit changed in the code
+artifacts:
+  build:
+    glob: build/flags.json
+
+integrations:
+  - text: Model registry
+    icon: cube
+    href: https://models.kitefin.example/detector
+  - text: Labeling guide
+    icon: manual
+    href: https://docs.kitefin.example/perception/detector-labels
+
+# Experimental: may change without notice
+gate:
+  reference: main
+  batches: [ci]
+  rules:
+    - {metric: map, min: 0.15}                       # median over the batch's runs
+    - {metric: ap_small, max_regression: 10%}
+    - {metric: map, per_test_max_regression: 25%}    # no slice and variant much worse than in the reference
+  max_failed_runs: 0
+
+runners:
+  local:
+    concurrency: 1   # one run at a time: latency is measured
+
+storage:
+  linux: /mnt/qaboard

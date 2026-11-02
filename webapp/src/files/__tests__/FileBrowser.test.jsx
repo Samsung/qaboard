@@ -7,10 +7,13 @@ import { HotkeysProvider } from '@blueprintjs/core';
 import copy from 'copy-to-clipboard';
 
 import FileBrowser from '../FileBrowser';
+import { navigateTo, signInUrl } from '../api';
 import { setPathMappings } from '../../utils/paths';
 
-vi.mock('copy-to-clipboard', () => ({ default: vi.fn() }))
+vi.mock('copy-to-clipboard', () => ({ default: vi.fn(() => true) }))
 vi.mock('../../toaster', () => ({ toaster: { show: vi.fn() } }))
+// signing in leaves for the web app's sign-in page
+vi.mock('../api', async importOriginal => ({ ...await importOriginal(), navigateTo: vi.fn() }))
 
 const now = Date.now() / 1000
 const LISTINGS = {
@@ -44,7 +47,7 @@ const makeServer = () => {
     }
     if (url.startsWith('/api/v1/files/authorize')) {
       const path = decodeURIComponent(url.split('path=')[1])
-      if (state.restricted.has(path) && !state.user.is_authenticated) return json({ error: 'Only some users can see the project secret. Sign in to see these files.', reason: 'login' }, 401)
+      if (state.restricted.has(path) && !state.user.is_authenticated) return json({ error: 'Only some users can see the project secret. Log in to see these files.', reason: 'login' }, 401)
       return new Response(null, { status: 204 })
     }
     if (url.startsWith('/api/v1/files/run')) {
@@ -155,7 +158,7 @@ describe('FileBrowser', () => {
     fireEvent.keyDown(document.body, { key: 'j' })
     expect(screen.getByRole('row', { name: /^outputs/ })).toHaveAttribute('aria-selected', 'true')
     fireEvent.keyDown(document.body, { key: 'c' })
-    expect(copy).toHaveBeenCalledWith('/algo/project/outputs')
+    expect(copy).toHaveBeenCalledWith('/algo/project/outputs', expect.anything())
     fireEvent.keyDown(document.body, { key: 'Enter' })
     await screen.findByText('log.txt')
     fireEvent.keyDown(document.body, { key: 'Backspace' })
@@ -172,11 +175,11 @@ describe('FileBrowser', () => {
     await screen.findByText('frame2.png')
     await screen.findAllByRole('button', { name: /Copy the Windows path of/ })
     fireEvent.click(screen.getByRole('button', { name: 'Copy the path of frame2.png' }))
-    expect(copy).toHaveBeenLastCalledWith('/algo/project/frame2.png')
+    expect(copy).toHaveBeenLastCalledWith('/algo/project/frame2.png', expect.anything())
     fireEvent.click(screen.getByRole('button', { name: 'Copy the Windows path of frame2.png' }))
-    expect(copy).toHaveBeenLastCalledWith('\\\\netapp\\algo\\project\\frame2.png')
+    expect(copy).toHaveBeenLastCalledWith('\\\\netapp\\algo\\project\\frame2.png', expect.anything())
     fireEvent.click(screen.getByRole('button', { name: 'Windows' }))
-    expect(copy).toHaveBeenLastCalledWith('\\\\netapp\\algo\\project')
+    expect(copy).toHaveBeenLastCalledWith('\\\\netapp\\algo\\project', expect.anything())
   })
 
   it('only offers Windows paths when the server knows them', async () => {
@@ -206,16 +209,20 @@ describe('FileBrowser', () => {
     await screen.findByText('other/')
   })
 
-  it('asks users to sign in for restricted folders', async () => {
+  it('asks users to log in for restricted folders', async () => {
     server.restricted.add('/algo/project/')
     renderAt('/s/algo/project/')
     expect(await screen.findByText('Sign in to see these files')).toBeInTheDocument()
+    // the server's message, without what the button says
+    expect(screen.getByText('Only some users can see the project secret.')).toBeInTheDocument()
     fireEvent.click(screen.getAllByRole('button', { name: 'Sign in' }).at(-1))
-    fireEvent.change(await screen.findByLabelText('Username'), { target: { value: 'alice' } })
-    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'secret' } })
-    fireEvent.click(screen.getAllByRole('button', { name: 'Sign in' }).at(-1))
-    await screen.findByText('frame2.png')
-    expect(await screen.findByText('Alice')).toBeInTheDocument()
+    // the sign-in page (single sign-on or a password), then back here
+    expect(navigateTo).toHaveBeenLastCalledWith('/login?next=%2Fs%2Falgo%2Fproject%2F')
+  })
+
+  it('comes back to the file and its query after signing in', () => {
+    expect(signInUrl({ pathname: '/s/algo/a b.png', search: '?view=nginx' })).toBe('/login?next=%2Fs%2Falgo%2Fa+b.png%3Fview%3Dnginx')
+    expect(new URLSearchParams(signInUrl({ pathname: '/s/algo/x.png' }).split('?')[1]).get('next')).toBe('/s/algo/x.png')
   })
 
   it('explains why nginx refused to send a file', async () => {
@@ -285,12 +292,12 @@ describe('runs', () => {
     await waitFor(() => expect(server.actions).toEqual(['DELETE /api/v1/output/42/?soft=true']))
   })
 
-  it('asks to sign in before changing runs', async () => {
+  it('asks to log in before changing runs', async () => {
     server.run = RUN
     renderAt('/s/algo/project/outputs/')
     const bar = await screen.findByRole('region', { name: 'Run' })
     fireEvent.click(within(bar).getByRole('button', { name: /Redo/ }))
-    expect(await screen.findByRole('dialog', { name: /Sign in/ })).toBeTruthy()
+    await waitFor(() => expect(navigateTo).toHaveBeenCalledWith('/login?next=%2Fs%2Falgo%2Fproject%2Foutputs%2F'))
     expect(server.actions).toEqual([])
   })
 })

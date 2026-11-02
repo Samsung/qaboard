@@ -1,0 +1,19 @@
+{{- with .Values.demoData }}
+{{- if .enabled }}
+# The demo projects' results (demoData), restored by the backend's init container, mounted by the backend, the proxy
+# and cantaloupe. Deleted with the release.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "qaboard.fullname" $ }}-demo-data
+  labels: {{- include "qaboard.labels" $ | nindent 4 }}
+spec:
+  accessModes: [{{ .accessMode }}]
+  {{- with .storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .size }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,1775 @@
+/* The image viewer. Apps theme it with the variables below, e.g. .qiv { --qiv-accent: hotpink; }
+   The defaults follow the system's light/dark preference, or the viewer's data-theme="light|dark". */
+:where(.qiv) {
+  --qiv-text: #1c2127;
+  --qiv-text-muted: #5f6b7c;
+  --qiv-surface: #ffffff;
+  --qiv-surface-alt: #f6f7f9;
+  --qiv-border: rgba(17, 20, 24, 0.15);
+  --qiv-hover: rgba(143, 153, 168, 0.18);
+  --qiv-pressed: rgba(45, 114, 210, 0.16);
+  --qiv-accent: #2d72d2;
+  --qiv-primary: #2d72d2;
+  --qiv-warning: #c87619;
+  --qiv-reference: #9752fe;
+  /* another image than the reference, e.g. another file of the run */
+  --qiv-other: #00756c;
+  --qiv-danger: #cd4246;
+  --qiv-stage: #1c2127;
+  --qiv-pane: #111418;
+  --qiv-shadow: 0 2px 10px rgba(17, 20, 24, 0.2);
+  --qiv-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+:where(.qiv[data-theme="dark"]) {
+  --qiv-text: #f6f7f9;
+  --qiv-text-muted: #abb3bf;
+  --qiv-surface: #2f343c;
+  --qiv-surface-alt: #252a31;
+  --qiv-border: rgba(255, 255, 255, 0.15);
+  --qiv-hover: rgba(171, 179, 191, 0.15);
+  --qiv-pressed: rgba(76, 144, 240, 0.25);
+  --qiv-accent: #8abbff;
+  --qiv-primary: #4c90f0;
+  --qiv-warning: #ec9a3c;
+  --qiv-reference: #9c4bf5;
+  --qiv-other: #0b9f93;
+  --qiv-stage: #111418;
+  --qiv-pane: #0b0d10;
+  --qiv-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+}
+@media (prefers-color-scheme: dark) {
+  :where(.qiv:not([data-theme="light"])) {
+    --qiv-text: #f6f7f9;
+    --qiv-text-muted: #abb3bf;
+    --qiv-surface: #2f343c;
+    --qiv-surface-alt: #252a31;
+    --qiv-border: rgba(255, 255, 255, 0.15);
+    --qiv-hover: rgba(171, 179, 191, 0.15);
+    --qiv-pressed: rgba(76, 144, 240, 0.25);
+    --qiv-accent: #8abbff;
+    --qiv-primary: #4c90f0;
+    --qiv-warning: #ec9a3c;
+    --qiv-reference: #9c4bf5;
+    --qiv-other: #0b9f93;
+    --qiv-stage: #111418;
+    --qiv-pane: #0b0d10;
+    --qiv-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+  }
+}
+
+.qiv {
+  position: relative;
+  container-type: inline-size;
+  margin: 4px 0;
+  color: var(--qiv-text);
+  font-size: 13px;
+  line-height: 1.3;
+}
+.qiv *,
+.qiv *::before,
+.qiv *::after {
+  box-sizing: border-box;
+}
+.qiv-filters {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+.qiv-muted {
+  color: var(--qiv-text-muted);
+}
+.qiv-hidden {
+  visibility: hidden;
+}
+.qiv-icon {
+  flex: 0 0 auto;
+  fill: currentColor;
+}
+
+/* Toolbar */
+.qiv-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+  min-height: 30px;
+}
+.qiv-spacer {
+  flex: 1 1 auto;
+}
+/* they wrap together, on the right */
+.qiv-tools {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px 4px;
+  margin-left: auto;
+}
+.qiv-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.qiv-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 26px;
+  min-width: 26px;
+  padding: 0 7px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.qiv-button.qiv-icon-only {
+  padding: 0 5px;
+}
+.qiv-button:hover:not(:disabled) {
+  background: var(--qiv-hover);
+}
+.qiv-button.qiv-active,
+.qiv-button[aria-expanded="true"] {
+  background: var(--qiv-pressed);
+  color: var(--qiv-accent);
+}
+.qiv-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.qiv-button:focus-visible,
+.qiv-select select:focus-visible,
+.qiv-region:focus-visible,
+.qiv-wipe:focus-visible,
+.qiv-label:focus-visible {
+  outline: 2px solid var(--qiv-accent);
+  outline-offset: 1px;
+}
+.qiv-intent {
+  color: var(--qiv-accent);
+}
+.qiv-dot {
+  position: relative;
+}
+.qiv-dot::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--qiv-warning);
+}
+.qiv-zoom {
+  min-width: 52px;
+  font-variant-numeric: tabular-nums;
+}
+.qiv-segmented {
+  display: inline-flex;
+  padding: 1px;
+  gap: 1px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 4px;
+  background: var(--qiv-surface-alt);
+}
+.qiv-segmented .qiv-button {
+  height: 24px;
+}
+.qiv-segmented .qiv-button.qiv-active {
+  background: var(--qiv-surface);
+  color: var(--qiv-accent);
+  box-shadow: 0 0 0 1px var(--qiv-border);
+}
+@container (max-width: 760px) {
+  .qiv-toolbar .qiv-segmented-label {
+    display: none;
+  }
+}
+.qiv-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.qiv-select select {
+  appearance: none;
+  height: 26px;
+  padding: 0 22px 0 8px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 3px;
+  background: var(--qiv-surface);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.qiv-select .qiv-icon {
+  position: absolute;
+  right: 6px;
+  pointer-events: none;
+  color: var(--qiv-text-muted);
+}
+.qiv-toast {
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: var(--qiv-pressed);
+  color: var(--qiv-text);
+  font-size: 12px;
+}
+.qiv-warning-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--qiv-warning);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.qiv-warning {
+  fill: var(--qiv-warning);
+}
+.qiv-error {
+  color: var(--qiv-danger);
+}
+
+/* Popovers and menus */
+.qiv-popover-root {
+  position: relative;
+  display: inline-flex;
+}
+.qiv-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  z-index: 30;
+  min-width: 220px;
+  max-width: min(360px, 90vw);
+  padding: 4px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 4px;
+  background: var(--qiv-surface);
+  color: var(--qiv-text);
+  box-shadow: var(--qiv-shadow);
+}
+.qiv-popover-start {
+  left: 0;
+}
+.qiv-popover-end {
+  right: 0;
+}
+.qiv-menu {
+  display: flex;
+  flex-direction: column;
+}
+.qiv-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.qiv-menu-item:hover:not(:disabled) {
+  background: var(--qiv-hover);
+  color: inherit;
+  text-decoration: none;
+}
+.qiv-menu-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.qiv-menu-item.qiv-active {
+  color: var(--qiv-accent);
+}
+.qiv-menu-text {
+  flex: 1 1 auto;
+}
+.qiv-menu-label {
+  color: var(--qiv-text-muted);
+  font-size: 12px;
+}
+.qiv-menu-title {
+  padding: 8px 8px 2px;
+  color: var(--qiv-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.qiv-menu-divider {
+  margin: 4px 0;
+  border: none;
+  border-top: 1px solid var(--qiv-border);
+}
+.qiv-hint {
+  padding: 6px 8px 2px;
+  color: var(--qiv-text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.qiv-shortcuts {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.qiv-shortcuts td {
+  padding: 3px 6px;
+  vertical-align: top;
+}
+.qiv-shortcuts kbd {
+  padding: 1px 4px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 3px;
+  background: var(--qiv-surface-alt);
+  font-family: var(--qiv-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* Adjustments */
+.qiv-panel {
+  width: 300px;
+  padding: 4px 6px 6px;
+}
+.qiv-panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.qiv-slider,
+.qiv-field {
+  display: grid;
+  grid-template-columns: 82px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+}
+.qiv-field {
+  grid-template-columns: 82px auto 1fr;
+}
+.qiv-slider input {
+  width: 100%;
+  accent-color: var(--qiv-accent);
+}
+.qiv-slider-label {
+  color: var(--qiv-text-muted);
+  font-size: 12px;
+}
+.qiv-slider-value {
+  min-width: 44px;
+  font-family: var(--qiv-mono);
+  font-size: 12px;
+  text-align: right;
+}
+.qiv-changed .qiv-slider-label,
+.qiv-changed .qiv-slider-value {
+  color: var(--qiv-warning);
+}
+.qiv-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* Values under the pointer */
+.qiv-readout {
+  display: flex;
+  align-items: center;
+  gap: 4px 12px;
+  width: 100%;
+  height: 22px;
+  padding: 0;
+  overflow: hidden;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: left;
+  font-family: var(--qiv-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: default;
+}
+.qiv-readout.qiv-stale {
+  opacity: 0.6;
+}
+.qiv-readout:focus-visible {
+  outline: 2px solid var(--qiv-accent);
+  outline-offset: -2px;
+}
+.qiv-readout-hint {
+  font-family: inherit;
+  margin-left: auto;
+}
+.qiv-readout-image {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.qiv-readout-label {
+  font-weight: 600;
+}
+.qiv-readout-label.qiv-primary {
+  color: var(--qiv-a, var(--qiv-primary));
+}
+.qiv-readout-label.qiv-neutral {
+  color: var(--qiv-text);
+}
+.qiv-readout-label.qiv-warning {
+  color: var(--qiv-b, var(--qiv-reference));
+}
+.qiv-swatch {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+.qiv-diff-value {
+  color: var(--qiv-accent);
+}
+
+/* The images */
+.qiv-stage {
+  position: relative;
+  max-width: 100%;
+  margin: 0 auto;
+  overflow: hidden;
+  background: var(--qiv-stage);
+  touch-action: none;
+}
+.qiv-pane {
+  position: absolute;
+  top: 0;
+  overflow: hidden;
+  background: var(--qiv-pane);
+}
+.qiv-osd {
+  position: absolute;
+  inset: 0;
+}
+.qiv-pixel-values,
+.qiv-highlight,
+.qiv-diff {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.qiv-diff-pane {
+  pointer-events: none;
+  background: transparent;
+}
+/* between the images, it moves them like they do */
+.qiv-diff-pane.qiv-diff-between {
+  pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+  background: var(--qiv-pane);
+}
+.qiv-diff-pane .qiv-legend,
+.qiv-diff-pane .qiv-message {
+  pointer-events: auto;
+}
+.qiv-label {
+  position: absolute;
+  top: 6px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  max-width: calc(50% - 12px);
+  padding: 2px 7px;
+  overflow: hidden;
+  border: none;
+  border-radius: 3px;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+/* the images' own colors (their `color` and `textColor`), else blue for the first, purple for the second */
+.qiv-label.qiv-primary {
+  background: var(--qiv-a, #2d72d2);
+  color: var(--qiv-a-text, #fff);
+}
+.qiv-label.qiv-warning {
+  background: var(--qiv-b, var(--qiv-reference));
+  color: var(--qiv-b-text, #fff);
+}
+/* during a blind test: nothing tells new from reference */
+.qiv-label.qiv-neutral {
+  background: #5f6b7c;
+}
+.qiv-label-left {
+  left: 6px;
+}
+.qiv-label-right {
+  right: 6px;
+}
+.qiv-label-detail {
+  margin-left: 6px;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+.qiv-crosshair {
+  position: absolute;
+  z-index: 3;
+  margin: -12.5px 0 0 -12.5px;
+  pointer-events: none;
+}
+.qiv-wipe {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 5;
+  width: 16px;
+  margin-left: -8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.qiv-wipe::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 7px;
+  width: 2px;
+  background: #fff;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.7);
+}
+.qiv-wipe-handle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #fff;
+  color: #1c2127;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  transform: translate(-50%, -50%);
+}
+.qiv-minimap {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 6;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 2px;
+  background: #000;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+  opacity: 0.85;
+  cursor: crosshair;
+  touch-action: none;
+}
+.qiv-minimap:hover {
+  opacity: 1;
+}
+.qiv-minimap img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  user-select: none;
+}
+.qiv-minimap-view {
+  position: absolute;
+  min-width: 3px;
+  min-height: 3px;
+  border: 1.5px solid #ffc940;
+  background: rgba(255, 201, 64, 0.12);
+  pointer-events: none;
+}
+/* bottom left of the images: the difference's legend, what the values on the pixels are */
+.qiv-stage-notes {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: calc(100% - 150px);
+}
+.qiv-legend,
+.qiv-values-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 12px);
+  padding: 3px 7px;
+  border-radius: 3px;
+  background: rgba(17, 20, 24, 0.75);
+  color: #fff;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.qiv-values-badge {
+  gap: 6px;
+}
+.qiv-legend .qiv-muted {
+  color: #c5cbd3;
+}
+.qiv-legend-bar {
+  display: inline-block;
+  width: 90px;
+  height: 8px;
+  border-radius: 2px;
+}
+.qiv-message {
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.qiv-pane-message {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(28, 33, 39, 0.88);
+  color: #f6f7f9;
+  text-align: center;
+}
+.qiv-pane-message a {
+  color: #8abbff;
+}
+
+/* Regions of interest */
+.qiv-regions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 2px 0;
+  font-size: 12px;
+}
+.qiv-regions-title {
+  flex: 0 0 auto;
+  font-weight: 600;
+}
+.qiv-regions-list {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.qiv-region {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: 120px;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.qiv-region:hover:not(:disabled) {
+  background: var(--qiv-hover);
+}
+.qiv-region.qiv-active {
+  border-color: var(--qiv-accent);
+  background: var(--qiv-pressed);
+}
+.qiv-region:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.qiv-region img {
+  display: block;
+  max-width: 110px;
+  height: 40px;
+  object-fit: contain;
+  background: var(--qiv-pane);
+}
+.qiv-region span {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The analysis panel: histogram, profiles, statistics */
+.qiv-analysis {
+  margin-top: 6px;
+  font-size: 12px;
+}
+.qiv-analysis-views .qiv-button {
+  height: 22px;
+  font-size: 12px;
+}
+.qiv-analysis-note {
+  font-size: 11px;
+}
+
+/* Histogram */
+.qiv-histogram {
+  font-size: 12px;
+}
+.qiv-histogram-alone {
+  margin-top: 6px;
+}
+.qiv-histogram-header,
+.qiv-histogram-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.qiv-histogram-header {
+  margin-bottom: 4px;
+}
+.qiv-histogram-legend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+.qiv-histogram-legend svg {
+  vertical-align: middle;
+}
+.qiv-histogram-channels {
+  display: inline-flex;
+  gap: 2px;
+}
+.qiv-histogram-channel {
+  --qiv-channel: currentColor;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-family: var(--qiv-mono);
+  cursor: pointer;
+  transition: opacity 0.15s, background-color 0.15s;
+}
+.qiv-histogram-channel:hover {
+  background: var(--qiv-hover);
+}
+.qiv-histogram-channel.qiv-off {
+  opacity: 0.45;
+  border-style: dashed;
+}
+.qiv-histogram-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--qiv-channel);
+}
+.qiv-histogram-channel.qiv-off .qiv-histogram-swatch {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--qiv-channel);
+}
+.qiv-histogram-plot {
+  position: relative;
+  height: 120px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--qiv-border);
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+.qiv-histogram-plot:focus-visible {
+  outline: 2px solid var(--qiv-accent);
+  outline-offset: 2px;
+}
+.qiv-histogram canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: var(--qiv-text);
+}
+/* the range highlighted on the images: the rest is dimmed */
+.qiv-histogram-range {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-inline: 1.5px solid var(--qiv-accent);
+  background: color-mix(in srgb, var(--qiv-accent) 10%, transparent);
+  box-shadow: 0 0 0 100vw color-mix(in srgb, var(--qiv-surface) 55%, transparent);
+  pointer-events: none;
+}
+.qiv-histogram-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--qiv-text);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.qiv-histogram-message {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.qiv-histogram-axis {
+  position: relative;
+  height: 18px;
+  font-size: 11px;
+  font-family: var(--qiv-mono);
+  font-variant-numeric: tabular-nums;
+}
+.qiv-histogram-tick {
+  position: absolute;
+  top: 0;
+  padding-top: 5px;
+  line-height: 13px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.qiv-histogram-tick::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  height: 3px;
+  border-left: 1px solid var(--qiv-border);
+}
+.qiv-histogram-tick.qiv-labelled::before {
+  height: 4px;
+  border-color: var(--qiv-text-muted);
+}
+.qiv-histogram-tick.qiv-first {
+  transform: none;
+}
+.qiv-histogram-tick.qiv-first::before {
+  left: 0;
+}
+.qiv-histogram-tick.qiv-last {
+  transform: translateX(-100%);
+}
+.qiv-histogram-tick.qiv-last::before {
+  left: auto;
+  right: 0;
+}
+/* the range's values, over the ticks they hide */
+.qiv-histogram-range-tick {
+  color: var(--qiv-accent);
+  font-weight: 600;
+}
+.qiv-histogram-range-tick::before {
+  height: 5px;
+  border-color: var(--qiv-accent);
+}
+.qiv-histogram-tick.qiv-hidden {
+  visibility: hidden;
+}
+.qiv-histogram-range-tick.qiv-lo {
+  transform: translateX(calc(-100% + 0.5px));
+}
+.qiv-histogram-range-tick.qiv-lo::before {
+  left: auto;
+  right: 0;
+}
+.qiv-histogram-range-tick.qiv-hi {
+  transform: translateX(-0.5px);
+}
+.qiv-histogram-range-tick.qiv-hi::before {
+  left: 0;
+}
+.qiv-histogram-footer {
+  min-height: 22px;
+}
+.qiv-mono {
+  font-family: var(--qiv-mono);
+  font-variant-numeric: tabular-nums;
+}
+.qiv-histogram-summary {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+}
+.qiv-histogram-summary .qiv-button {
+  height: 20px;
+  min-width: 20px;
+}
+.qiv-histogram-channel-name {
+  font-family: var(--qiv-mono);
+  font-weight: 600;
+  margin-right: 3px;
+}
+.qiv-histogram-readout {
+  display: inline-flex;
+  gap: 10px;
+  margin-left: auto;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Row and column profiles */
+.qiv-profiles-settings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-bottom: 4px;
+}
+.qiv-profiles-settings .qiv-select select {
+  height: 22px;
+  font-size: 12px;
+}
+.qiv-profiles-plots {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 8px 16px;
+}
+.qiv-profile {
+  min-width: 0;
+}
+.qiv-profile-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.qiv-profile-title > span:first-child {
+  font-weight: 600;
+}
+.qiv-profile-plot {
+  position: relative;
+  height: 150px;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+.qiv-profile-plot canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: var(--qiv-text);
+}
+.qiv-profile-cursor {
+  top: 8px;
+  bottom: 20px;
+}
+/* where the pointer is on the images */
+.qiv-profile-marker {
+  position: absolute;
+  top: 8px;
+  bottom: 20px;
+  border-left: 1px dashed var(--qiv-accent);
+  pointer-events: none;
+}
+.qiv-profile-readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  min-height: 18px;
+  margin-left: 0;
+  padding-left: 36px;
+}
+.qiv-profiles-message {
+  position: static;
+  min-height: 80px;
+}
+
+/* The row or column hovered on its profile, on the images */
+.qiv-guide {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+}
+.qiv-guide-x {
+  top: 0;
+  bottom: 0;
+  margin-left: -1px;
+  border-inline: 1px solid rgba(0, 0, 0, 0.7);
+  background: #fff;
+  width: 1px;
+}
+.qiv-guide-y {
+  left: 0;
+  right: 0;
+  margin-top: -1px;
+  border-block: 1px solid rgba(0, 0, 0, 0.7);
+  background: #fff;
+  height: 1px;
+}
+.qiv-guide-x.qiv-guide-framed,
+.qiv-guide-y.qiv-guide-framed {
+  margin: 0;
+  border: none;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px #fff, 0 0 0 1px rgba(0, 0, 0, 0.7);
+}
+
+/* Statistics */
+.qiv-stats-scroll {
+  overflow-x: auto;
+}
+.qiv-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.qiv-stats-table th,
+.qiv-stats-table td {
+  padding: 3px 8px;
+  text-align: right;
+  white-space: nowrap;
+}
+.qiv-stats-table thead th {
+  border-bottom: 1px solid var(--qiv-border);
+  color: var(--qiv-text-muted);
+  font-weight: 500;
+  font-size: 11px;
+  cursor: help;
+}
+.qiv-stats-table .qiv-stats-channel,
+.qiv-stats-table .qiv-stats-image {
+  text-align: left;
+}
+.qiv-stats-table thead .qiv-stats-channel {
+  cursor: default;
+}
+.qiv-stats-table tbody th {
+  vertical-align: top;
+  font-weight: normal;
+}
+.qiv-stats-group > * {
+  border-top: 1px solid var(--qiv-border);
+}
+.qiv-stats-group:first-child > * {
+  border-top: none;
+}
+.qiv-stats-image {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--qiv-text-muted);
+}
+.qiv-stats-table tbody tr:hover td {
+  background: var(--qiv-hover);
+}
+.qiv-stats-delta td {
+  color: var(--qiv-text-muted);
+  font-size: 11px;
+}
+.qiv-stats-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.qiv-stats-actions .qiv-button {
+  height: 22px;
+  font-size: 12px;
+}
+
+/* The analysis on the image's own values: the sensor, then its channels */
+.qiv-analysis-pickers {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+.qiv-analysis-values.qiv-unavailable .qiv-button:last-child {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.qiv-grouping .qiv-button {
+  font-family: var(--qiv-mono);
+  font-size: 11px;
+}
+.qiv-sensor-wrap {
+  margin: 4px 0 8px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 6px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--qiv-accent) 5%, var(--qiv-surface)), var(--qiv-surface) 60%);
+}
+.qiv-sensor {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 10px 12px;
+}
+.qiv-sensor-empty {
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+  border: 1px dashed var(--qiv-border);
+  border-radius: 6px;
+}
+.qiv-sensor-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.qiv-sensor-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 14px;
+}
+.qiv-sensor-title strong {
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+.qiv-sensor-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 14px;
+}
+.qiv-sensor-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--qiv-text-muted);
+  line-height: 1.45;
+}
+.qiv-levels-note {
+  color: var(--qiv-text);
+}
+.qiv-levels-note::before {
+  content: "◐ ";
+  color: var(--qiv-warning);
+}
+.qiv-sensor-swatch {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #222, #ddd);
+}
+.qiv-sensor-swatch-rgb {
+  background: conic-gradient(#ef6b6f, #f5c451, #46b97f, #2fb7a5, #5b7ff0, #a46ff0, #ef6b6f);
+}
+/* where a value comes from */
+.qiv-source {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+  cursor: help;
+  color: var(--qiv-text-muted);
+  background: var(--qiv-hover);
+}
+.qiv-source-metadata {
+  color: #1c6e42;
+  background: rgba(48, 164, 108, 0.16);
+}
+.qiv-source-pixels {
+  color: #935610;
+  background: rgba(236, 154, 60, 0.18);
+}
+.qiv-source-user {
+  color: var(--qiv-accent);
+  background: var(--qiv-pressed);
+}
+.qiv-source-default {
+  color: var(--qiv-danger);
+  background: rgba(205, 66, 70, 0.14);
+}
+:where(.qiv[data-theme="dark"]) .qiv-source-metadata { color: #72ca9b; }
+:where(.qiv[data-theme="dark"]) .qiv-source-pixels { color: #fbb360; }
+@media (prefers-color-scheme: dark) {
+  :where(.qiv:not([data-theme="light"])) .qiv-source-metadata { color: #72ca9b; }
+  :where(.qiv:not([data-theme="light"])) .qiv-source-pixels { color: #fbb360; }
+}
+.qiv-check {
+  font-size: 12px;
+  color: var(--qiv-text-muted);
+}
+.qiv-check-ok {
+  color: #30a46c;
+}
+.qiv-check-warn {
+  color: var(--qiv-warning);
+  font-weight: 600;
+}
+.qiv-danger-text {
+  color: var(--qiv-danger);
+}
+.qiv-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--qiv-accent);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+/* The CFA, drawn */
+.qiv-cfa {
+  flex: 0 0 auto;
+  border-radius: 3px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+.qiv-cfa-grid {
+  stroke: rgba(0, 0, 0, 0.18);
+  stroke-width: 0.6;
+  fill: none;
+}
+.qiv-cfa-edges {
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 1.4;
+  fill: none;
+}
+.qiv-cfa-label,
+.qiv-cfa-sub {
+  fill: #fff;
+  font-family: var(--qiv-mono);
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.35);
+  stroke-width: 2px;
+  pointer-events: none;
+}
+.qiv-cfa-sub {
+  font-size: 9px;
+  font-weight: 600;
+}
+.qiv-cfa-bright {
+  fill: #fff6c2;
+  stroke: rgba(0, 0, 0, 0.5);
+  stroke-width: 0.6;
+}
+.qiv-cfa-origin {
+  fill: #fff;
+  stroke: rgba(0, 0, 0, 0.6);
+  stroke-width: 0.6;
+}
+
+/* Setting the sensor */
+.qiv-sensor-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 330px;
+  padding: 8px;
+}
+.qiv-popover:has(.qiv-sensor-editor) {
+  max-width: min(460px, 94vw);
+}
+.qiv-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.qiv-field-label {
+  width: 78px;
+  color: var(--qiv-text-muted);
+  font-size: 12px;
+}
+.qiv-patterns {
+  display: inline-flex;
+  gap: 4px;
+}
+.qiv-pattern {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 4px 2px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font-family: var(--qiv-mono);
+  font-size: 10px;
+  cursor: pointer;
+}
+.qiv-pattern svg {
+  border-radius: 2px;
+}
+.qiv-pattern:hover {
+  background: var(--qiv-hover);
+}
+.qiv-pattern.qiv-active {
+  border-color: var(--qiv-accent);
+  box-shadow: 0 0 0 1px var(--qiv-accent);
+  color: var(--qiv-accent);
+}
+.qiv-number {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+.qiv-number input {
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 3px;
+  background: var(--qiv-surface);
+  color: inherit;
+  font-family: var(--qiv-mono);
+  font-size: 12px;
+}
+.qiv-sensor-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--qiv-border);
+}
+.qiv-sensor-editor .qiv-button.qiv-small,
+.qiv-sensor-editor .qiv-segmented .qiv-button {
+  height: 24px;
+  font-size: 12px;
+}
+
+/* How we know */
+.qiv-sensor-details {
+  border-top: 1px solid var(--qiv-border);
+}
+.qiv-sensor-details summary {
+  padding: 4px 12px;
+  color: var(--qiv-text-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.qiv-sensor-details-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 12px 24px;
+  padding: 4px 12px 10px;
+}
+.qiv-detail-title {
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.qiv-guess-scores {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 56px;
+  margin-bottom: 4px;
+}
+.qiv-guess-score {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  width: 20px;
+  height: 100%;
+  font-family: var(--qiv-mono);
+  font-size: 10px;
+  color: var(--qiv-text-muted);
+  cursor: help;
+}
+.qiv-guess-score i {
+  width: 14px;
+  min-height: 2px;
+  margin-bottom: 2px;
+  border-radius: 2px 2px 0 0;
+  background: color-mix(in srgb, var(--qiv-text-muted) 45%, transparent);
+}
+.qiv-guess-score.qiv-active {
+  color: var(--qiv-accent);
+  font-weight: 700;
+}
+.qiv-guess-score.qiv-active i {
+  background: var(--qiv-accent);
+}
+.qiv-meta-fields {
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.qiv-meta-fields td {
+  padding: 1px 12px 1px 0;
+}
+.qiv-meta-fields td:first-child {
+  color: var(--qiv-text-muted);
+}
+
+/* The channels' values */
+.qiv-image-values {
+  position: relative;
+}
+.qiv-image-values.qiv-loading > :not(.qiv-progress) {
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+.qiv-progress {
+  position: absolute;
+  top: -5px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 1px;
+  background: var(--qiv-border);
+}
+.qiv-progress i {
+  display: block;
+  height: 100%;
+  background: var(--qiv-accent);
+  transition: width 0.2s;
+}
+.qiv-image-loading {
+  display: flex;
+  justify-content: center;
+  padding: 24px;
+}
+.qiv-image-stats-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  margin-bottom: 6px;
+}
+.qiv-ratios {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+}
+.qiv-ratio {
+  cursor: help;
+}
+.qiv-stats-count {
+  display: block;
+  font-size: 10px;
+  font-family: var(--qiv-mono);
+}
+.qiv-subpixel-maps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+}
+.qiv-subpixel-map {
+  margin: 0;
+  text-align: center;
+}
+.qiv-subpixel-map figcaption {
+  font-family: var(--qiv-mono);
+  font-weight: 600;
+  font-size: 11px;
+}
+.qiv-subpixel-level {
+  font-size: 11px;
+}
+.qiv-sensor-other {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+}
+.qiv-subpixel-frame {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.4);
+}
+.qiv-image-histogram-plot {
+  height: 170px;
+}
+
+.qiv-spinner {
+  display: inline-block;
+  flex: 0 0 auto;
+  border: 2px solid var(--qiv-border);
+  border-top-color: var(--qiv-accent);
+  border-radius: 50%;
+  animation: qiv-spin 0.8s linear infinite;
+}
+@keyframes qiv-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The header: toolbar, regions, the values under the pointer */
+.qiv-header {
+  width: 100%;
+}
+
+/* Full screen: the images take the room left by the header */
+.qiv.qiv-fullscreen {
+  margin: 0;
+  padding: 8px 12px;
+  overflow: auto;
+  background: var(--qiv-surface);
+}
+.qiv-fullscreen .qiv-analysis-wrap {
+  max-height: 50vh;
+  overflow: auto;
+}
+
+/* "image" or "display": users mix up the image's values and the displayed ones */
+.qiv-chip {
+  display: inline-block;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--qiv-surface-alt);
+  box-shadow: inset 0 0 0 1px var(--qiv-border);
+  color: var(--qiv-text-muted);
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 15px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+.qiv-values-panel {
+  width: 340px;
+}
+.qiv-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.qiv-option:hover {
+  background: var(--qiv-hover);
+}
+.qiv-option input {
+  margin-top: 3px;
+  accent-color: var(--qiv-accent);
+}
+.qiv-option.qiv-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.qiv-option-description {
+  display: block;
+  margin-top: 2px;
+  color: var(--qiv-text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.qiv-hint kbd {
+  padding: 0 3px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 3px;
+  font-family: var(--qiv-mono);
+  font-size: 11px;
+}
+
+/* the difference's label, between the images */
+.qiv-label.qiv-label-diff {
+  cursor: default;
+  background: var(--qiv-surface);
+  color: var(--qiv-text);
+}
+
+/* Compare with: the reference, or another image */
+.qiv-vs-other {
+  --qiv-reference: var(--qiv-other);
+}
+.qiv-compare-button {
+  max-width: 280px;
+}
+.qiv-compare-button > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.qiv-compare-vs {
+  color: var(--qiv-text-muted);
+  font-size: 12px;
+}
+.qiv-compare-current {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qiv-vs-other .qiv-compare-button {
+  box-shadow: inset 0 0 0 1px var(--qiv-other);
+  color: var(--qiv-other);
+}
+@container (max-width: 760px) {
+  .qiv-compare-button {
+    max-width: 160px;
+  }
+}
+.qiv-label-icon {
+  margin-right: 4px;
+}
+.qiv-compare-menu {
+  display: flex;
+  flex-direction: column;
+  width: min(420px, 90vw);
+}
+.qiv-popover:has(.qiv-compare-menu) {
+  max-width: min(440px, 92vw);
+}
+.qiv-compare-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 2px 4px;
+  padding: 0 8px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 3px;
+  background: var(--qiv-surface-alt);
+  color: var(--qiv-text-muted);
+}
+.qiv-compare-search:focus-within {
+  border-color: var(--qiv-accent);
+  box-shadow: 0 0 0 1px var(--qiv-accent);
+}
+.qiv-compare-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--qiv-text);
+  font: inherit;
+  font-size: 13px;
+}
+.qiv-compare-list {
+  max-height: min(360px, 50vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.qiv-compare-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px 4px 4px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.qiv-compare-item[data-active="true"] {
+  background: var(--qiv-hover);
+}
+.qiv-compare-item.qiv-active {
+  color: var(--qiv-accent);
+}
+.qiv-compare-thumbnail {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 32px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--qiv-surface-alt);
+  color: var(--qiv-text-muted);
+}
+.qiv-compare-thumbnail img {
+  max-width: 100%;
+  max-height: 100%;
+}
+.qiv-compare-reference {
+  color: var(--qiv-reference);
+}
+.qiv-compare-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+.qiv-compare-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qiv-compare-name mark {
+  background: transparent;
+  color: inherit;
+  font-weight: 600;
+}
+.qiv-compare-item.qiv-active .qiv-compare-name .qiv-muted {
+  color: inherit;
+  opacity: 0.75;
+}
+.qiv-compare-detail {
+  overflow: hidden;
+  color: var(--qiv-text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qiv-compare-footer {
+  margin-top: 4px;
+  padding: 6px 8px 4px;
+  border-top: 1px solid var(--qiv-border);
+  font-size: 11px;
+  white-space: normal;
+}
+.qiv-compare-note {
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--qiv-pressed);
+  font-size: 11px;
+}
+.qiv-compare-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 4px;
+  padding: 6px 8px 2px;
+  border-top: 1px solid var(--qiv-border);
+  font-size: 12px;
+}
+.qiv-compare-scope-hint {
+  flex-basis: 100%;
+  color: var(--qiv-text-muted);
+  font-size: 11px;
+  white-space: normal;
+}
+.qiv-compare-scope + .qiv-compare-footer {
+  margin-top: 0;
+  border-top: none;
+}

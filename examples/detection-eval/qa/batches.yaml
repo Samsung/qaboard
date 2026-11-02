@@ -1,0 +1,35 @@
+# The tests: `qa batch ci`, `qa batch sizes`... Inputs are slices of the test set, folders relative to inputs/ (the
+# database in qaboard.yaml). Configurations choose the variant: the model (fp32, int8) and its input size, shown as
+# tags on runs. Runs execute one at a time (runners.local.concurrency: 1 in qaboard.yaml): latency is measured.
+
+# CI, on every commit: 4 slices, fp32 and int8, at the release's input size
+ci:
+  inputs:
+  - slices/indoor
+  - slices/outdoor
+  - slices/warehouse
+  - slices/small-objects
+  configs: ['${matrix.model}', size-320]
+  matrix:
+    model: [fp32, int8]
+
+# Every variant: 4 slices x 2 models x 3 input sizes
+sizes:
+  inputs:
+  - slices/indoor
+  - slices/outdoor
+  - slices/warehouse
+  - slices/small-objects
+  configs: ['${matrix.model}', 'size-${matrix.size}']
+  matrix:
+    model: [fp32, int8]
+    size: [320, 416, 512]
+
+# For tuning the int8 model: the slices where quantization hurts most.
+#   qa optimize --batch quant-search --config-file qa/tune-int8.yaml
+#   qa batch quant-search --tuning-search '{"search_type": "grid", "parameter_search": {"score_threshold": [0.2, 0.3], "nms_iou": [0.5, 0.7]}}'
+quant-search:
+  inputs:
+  - slices/outdoor
+  - slices/small-objects
+  configs: [int8, size-320]

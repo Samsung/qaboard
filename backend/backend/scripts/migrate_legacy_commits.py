@@ -1,12 +1,7 @@
-import re
-import datetime
 
-import click
-from click import secho
-from sqlalchemy import func, and_, asc, or_
 
-from backend.database import db_session, Session
-from backend.models import Project, CiCommit, Batch, Output
+from backend.database import db_session
+from backend.models import Project, CiCommit, Output
 
 # select
 #   projects.id as project_id,

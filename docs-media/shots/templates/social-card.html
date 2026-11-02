@@ -1,0 +1,53 @@
+<!doctype html>
+<!-- The social card (docs-media/shots/landing.spec.ts: landing/social-card), 1200x630 at scale 1: the logo, the tagline
+     and a crop of the commit page. The spec fills in the logo (website/static/img/twemoji_poodle.svg) and the crop (a
+     PNG data URI, shown at 1:1, bleeding off the right edge, its bottom on the card's). The colors and type are the landing page's hero
+     (website/src/pages/index.module.css). -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>QA-Board</title>
+  <style>
+    html, body { width: 1200px; height: 630px; margin: 0; overflow: hidden; }
+    body {
+      position: relative;
+      background: linear-gradient(180deg, #eef4fc 0%, #ffffff 100%);
+      color: #1c1e21;
+      font-family: Roboto, sans-serif;
+    }
+    .text { position: absolute; top: 64px; left: 64px; width: 470px; }
+    .brand { display: flex; align-items: center; gap: 14px; font-size: 34px; font-weight: 700; letter-spacing: -0.01em; }
+    .brand svg { width: 56px; height: 56px; }
+    .eyebrow {
+      margin: 52px 0 16px;
+      color: #0c4da1;
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    h1 { margin: 0; font-size: 46px; font-weight: 700; line-height: 1.12; letter-spacing: -0.015em; }
+    h1 span { color: #0c4da1; }
+    .tags { position: absolute; bottom: 52px; left: 64px; margin: 0; color: #525860; font-size: 20px; }
+    .shot {
+      position: absolute;
+      bottom: 0;
+      left: 584px;
+      overflow: hidden;
+      border-radius: 12px 0 0 0;
+      background: #fff;
+      box-shadow: 0 18px 50px rgba(16, 22, 26, 0.2), 0 0 0 1px rgba(16, 22, 26, 0.12);
+    }
+    .shot img { display: block; }
+  </style>
+</head>
+<body>
+  <div class="text">
+    <div class="brand">{{logo}}QA-Board</div>
+    <p class="eyebrow">Results review for algorithm teams</p>
+    <h1>Tests tell you it runs. <span>QA-Board shows you it's better.</span></h1>
+  </div>
+  <p class="tags">Open source · self-hosted · git-native</p>
+  <div class="shot"><img src="{{shot}}" alt=""></div>
+</body>
+</html>

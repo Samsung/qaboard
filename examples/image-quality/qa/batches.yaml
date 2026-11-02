@@ -1,0 +1,60 @@
+# The tests: `qa batch ci`, `qa --platform hw-model batch bitexact`...
+# Inputs are relative to inputs/ (the database in qaboard.yaml). Configurations set the ISO: base, low-light, night.
+
+# CI: the charts and 4 photos, in good and low light
+ci:
+  inputs:
+  - charts/*.png
+  - photos/facade.png
+  - photos/backlit-window.png
+  - photos/night-street.png
+  - photos/sky-gradient.png
+  matrix:
+    configs: [base, low-light]
+
+# The fixed-point model of the camera chip, compared commit to commit by `qa check-bit-accuracy`
+bitexact:
+  platform: hw-model
+  configs: [base]
+  inputs:
+  - charts/*.png
+  - photos/facade.png
+  - photos/night-street.png
+
+# The 113 MP test wall, processed in tiles by 4 processes
+deep-zoom:
+  configs: [base]
+  inputs:
+  - charts/test-wall-113mp.tiff
+  local:
+    concurrency: 1
+    timeout: 600
+  lsf:
+    max_memory: 3072   # MB
+
+# Videos: the camera driving down an aisle in low light, every frame through the ISP (qa/video.py)
+video:
+  configs: [low-light]
+  inputs:
+  - clips/*.yaml
+
+# For tuning: qa batch sweep-denoise --tuning-search '{"parameter_search": {"denoise_strength": [1.0, 1.3, 1.6, 2.0], "detail_boost": [1.0, 1.25, 1.5]}}'
+sweep-denoise:
+  configs: [low-light]
+  inputs:
+  - charts/slanted-edge.png
+  - photos/night-street.png
+  - photos/facade.png
+  - photos/foliage.png
+  - photos/stone-texture.png
+
+# Nightly, and on releases: every input at every ISO, and the hw-model
+all-isos:
+  inputs:
+  - charts/*.png
+  - photos/*.png
+  matrix:
+    configs: [base, low-light, night]
+
+aliases:
+  nightly: [all-isos, bitexact]

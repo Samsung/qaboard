@@ -1,14 +1,15 @@
 import React, { memo, useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useInView } from "react-intersection-observer";
-import { AnchorButton, Button, Classes, Collapse, Colors, PopoverNext, Tooltip } from "@blueprintjs/core";
+import { Button, Classes, Collapse, Colors, PopoverNext } from "@blueprintjs/core";
 
-import { hidden_keys, ConfigurationsTags, ExtraParametersTags, PlatformTag, RunActionsMenu, RunBadges, StatusTag } from "../tags";
+import { hidden_keys, ConfigurationsTags, PlatformTag, RunActionsMenu, RunBadges, StatusTag, runName } from "../tags";
 import { LogViewer } from "./LogViewer";
 import { LsfReport, LsfTag } from "./LsfReport";
 import { fetchLsfReport, lsfKilled } from "./lsf";
-import { fetchRange } from "./fetchRange";
-import { folder_url } from "../../utils/paths";
+import { fileExists } from "./fetchRange";
+import { DirectoryActions } from "./DirectoryActions";
+import { RunInfoMenuItems, runTime } from "../RunInfoMenu";
 
 
 // A list of runs, each with its logs
@@ -71,6 +72,12 @@ export const Header = styled.div`
     min-width: 0;
     font-size: 12px;
   }
+  .runtime {
+    flex: none;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
   .name, .summary {
     white-space: nowrap;
     overflow: hidden;
@@ -108,17 +115,13 @@ const Details = styled.div`
 // Don't toggle the logs when users click links, buttons, tags...
 export const INTERACTIVE = `a, button, input, [role="button"], .${Classes.POPOVER_TARGET}`
 
-// How the run is named elsewhere in QA-Board
-export const runName = output => {
-  if (output.test_input_metadata?.label) return output.test_input_metadata.label
-  if (output.output_type === "pipeline" || output.test_input_path === "PIPELINE") return `${output.data?.batch} (pipeline)`
-  return `${output.test_input_database === '/' ? '/' : ''}${output.test_input_path}`
-}
-
-// "base · config.yaml · isp: {...} · lr=0.1": how the run is configured, as one line of text.
+// "lr=0.1 · base · config.yaml · isp: {...}": how the run is configured, as one line of text.
 // Rendering the configurations as tags is slow and wide when lists have 100s of runs.
+// The tuning parameters come first: when people tune, they tell runs apart, and long lines are cut at their end.
 export const configurationSummary = output => {
   const parts = []
+  for (const [key, value] of Object.entries(output.extra_parameters ?? {}))
+    if (!hidden_keys.includes(key)) parts.push(`${key}=${JSON.stringify(value)}`)
   if (output.platform && output.platform !== 'linux') parts.push(`@${output.platform}`)
   for (const configuration of output.configurations ?? []) {
     if (typeof configuration === 'string') parts.push(configuration)
@@ -126,8 +129,6 @@ export const configurationSummary = output => {
       for (const [key, value] of Object.entries(configuration))
         if (!hidden_keys.includes(key)) parts.push(`${key}: ${JSON.stringify(value)}`)
   }
-  for (const [key, value] of Object.entries(output.extra_parameters ?? {}))
-    if (!hidden_keys.includes(key)) parts.push(`${key}=${JSON.stringify(value)}`)
   return parts.join(' · ')
 }
 
@@ -140,16 +141,17 @@ const RunDetails = ({ output }) => {
     <span className={`input ${Classes.TEXT_MUTED}`}>{output.test_input_path}</span>
     {has_configurations && <span className={`label ${Classes.TEXT_MUTED}`}>Configuration</span>}
     <PlatformTag platform={output.platform} />
-    {has_configurations && <ConfigurationsTags configurations={output.configurations ?? []} />}
-    <ExtraParametersTags parameters={output.extra_parameters ?? {}} />
+    {has_configurations && <ConfigurationsTags configurations={output.configurations ?? []} tuning={output.extra_parameters} collapse={false} />}
     {has_badges && <RunBadges output={output} />}
   </Details>
 }
 
 
-const EMPTY_HINTS = {
+// Why a finished run has no log
+const emptyHints = output => ({
+  "log.txt": output.deleted ? "The run's output files were deleted." : "The run may have failed before it started, or its files were deleted.",
   "log.lsf.txt": "Only runs on LSF have it.",
-}
+})
 
 
 /**
@@ -158,7 +160,7 @@ const EMPTY_HINTS = {
  * Lists can have 100s of runs: keep props stable, so that toggling a run doesn't render the others,
  * and keep the header light: plain text, the same as soon as it renders.
  */
-export const RunLogs = memo(function RunLogs({ id, output, project, commit, dispatch, expanded, onToggle, title }) {
+export const RunLogs = memo(function RunLogs({ id, output, project, commit, expanded, onToggle, title }) {
   const { ref, inView } = useInView({ triggerOnce: true, rootMargin: '300px 0px' })
   const [lsf, setLsf] = useState({ status: 'unknown', report: null })
   const [has_dask_log, setHasDaskLog] = useState(false)
@@ -167,6 +169,7 @@ export const RunLogs = memo(function RunLogs({ id, output, project, commit, disp
   const is_pending = !!output.is_pending
   const is_batch = output.output_type === "batch"
   const summary = useMemo(() => is_batch ? '' : configurationSummary(output), [is_batch, output])
+  const runtime = is_batch ? null : runTime(output)
 
   // Is there a log.lsf.txt? For failed runs, what does LSF's report say?
   // We don't care about LSF's report for runs that didn't fail: lists can have 100s of them.
@@ -177,10 +180,10 @@ export const RunLogs = memo(function RunLogs({ id, output, project, commit, disp
     const controller = new AbortController()
     const url = `${base}/log.lsf.txt`
     const check = is_failed
-      ? fetchLsfReport(url, { signal: controller.signal })
-      : fetchRange(url, 'bytes=0-0', { signal: controller.signal }).then(() => null)
+      ? fetchLsfReport(url, { signal: controller.signal }).then(report => ({ status: 'present', report }))
+      : fileExists(url, { signal: controller.signal }).then(exists => ({ status: exists ? 'present' : 'missing', report: null }))
     check
-      .then(report => setLsf({ status: 'present', report }))
+      .then(setLsf)
       .catch(error => {
         if (!controller.signal.aborted)
           setLsf(lsf => error.status === 404 ? { status: 'missing', report: null } : lsf)
@@ -199,8 +202,8 @@ export const RunLogs = memo(function RunLogs({ id, output, project, commit, disp
   useEffect(() => {
     if (!expanded || !base) return
     const controller = new AbortController()
-    fetchRange(`${base}/log.dask.txt`, 'bytes=0-0', { signal: controller.signal })
-      .then(() => setHasDaskLog(true))
+    fileExists(`${base}/log.dask.txt`, { signal: controller.signal })
+      .then(exists => { if (exists) setHasDaskLog(true) })
       .catch(() => {})
     return () => controller.abort()
   }, [expanded, base])
@@ -239,12 +242,14 @@ export const RunLogs = memo(function RunLogs({ id, output, project, commit, disp
       {summary
         ? <span className={`summary ${Classes.TEXT_MUTED}`} title={summary}>{summary}</span>
         : <span className="summary" />}
+      {!!runtime && <span className={`runtime ${Classes.TEXT_MUTED}`} title="Compute time">{runtime}</span>}
       <span className="actions">
-        {!!base && <Tooltip content="Open the output directory" hoverOpenDelay={300}>
-          <AnchorButton size="small" variant="minimal" icon="folder-shared-open" aria-label="Open the output directory" href={folder_url(base)} target="_blank" rel="noopener noreferrer" />
-        </Tooltip>}
-        {!is_batch && !!output.id && <PopoverNext placement="bottom-end" content={<RunActionsMenu output={output} project={project} commit={commit} dispatch={dispatch} />}>
-          <Button size="small" variant="minimal" icon="more" aria-label="Run actions" />
+        {/* the batch's section has them */}
+        {!!base && !is_batch && <DirectoryActions url={base} />}
+        {!is_batch && !!output.id && <PopoverNext placement="bottom-end" content={<RunActionsMenu output={output} project={project} commit={commit}>
+          <RunInfoMenuItems project={project} commit={commit} output={output} />
+        </RunActionsMenu>}>
+          <Button size="small" variant="minimal" icon="more" aria-label="Run actions" title="Run info, history and actions" />
         </PopoverNext>}
       </span>
     </Header>
@@ -257,7 +262,7 @@ export const RunLogs = memo(function RunLogs({ id, output, project, commit, disp
           file={file}
           onFileChange={setFile}
           live={is_pending}
-          emptyHint={EMPTY_HINTS}
+          emptyHint={emptyHints(output)}
         />
       </Content>
     </Collapse>

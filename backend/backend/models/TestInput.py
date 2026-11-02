@@ -1,13 +1,9 @@
 """
-Describes the recordings from the DVS:
-- how we recorded: sensor, optics...
-- what we recorded: motion, light...
+Describes the inputs that runs use: a path relative to a database (a folder).
 """
 from pathlib import Path
-import re
-import enum
 
-from sqlalchemy import Column, Integer, String, Boolean, Enum, JSON
+from sqlalchemy import Column, Integer, String, JSON
 from sqlalchemy import UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.exc import NoResultFound

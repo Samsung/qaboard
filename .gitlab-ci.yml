@@ -12,7 +12,7 @@
 # Make production deploys manual: set the CI/CD variable QABOARD_PROD_DEPLOY=manual (deploy freezes also do it)
 # No container registry? Set QABOARD_BUILD_ON_HOST=1: images are then built on each host when deploying (slower)
 #
-# Runbook: website/docs/backend-admin/deployment.mdx
+# Runbook: deployments/sirc/runbooks/deployment.md
 #
 # NOTE on shells: GitLab Runner runs job scripts in bash (su -s /bin/bash), but commands
 # run over ssh use the remote user's login shell (tcsh on qa/alginfra1), which cannot
@@ -92,8 +92,8 @@ webapp-tests:
   needs: []
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    # the web app bundles the release notes, its tests check them
-    - changes: [webapp/**/*, website/release-notes/**/*]
+    # the web app bundles the release notes and the batch files' schema, its tests check them
+    - changes: [webapp/**/*, website/release-notes/**/*, qaboard/schemas/**/*]
   script:
     - cd webapp
     # node_modules is kept between jobs (GIT_CLEAN_FLAGS), so this is fast when package-lock.json didn't change
@@ -149,6 +149,8 @@ build:images:
       cd "$CI_PROJECT_DIR"
       source deployments/sirc/.envrc
       export QABOARD_VERSION="$QABOARD_VERSION"
+      # With a (masked) CI/CD variable SENTRY_AUTH_TOKEN, the frontend's build uploads its source maps to Sentry
+      export SENTRY_AUTH_TOKEN="${SENTRY_AUTH_TOKEN:-}"
       # compose checks they exist, the images don't use them
       touch .env deployments/sirc/.env
       # Don't leave the job token in the shared ~/.docker
@@ -292,7 +294,7 @@ test:production:
 
 # Kubernetes (being migrated): enabled with the CI/CD variable QABOARD_K8S_DEPLOY=1 (or =manual)
 # Needs helm on the runner and a KUBECONFIG (a CI/CD variable of type "File"), or the GitLab agent for Kubernetes.
-# --atomic: if the rollout fails, helm rolls back automatically. Runbook: website/docs/backend-admin/kubernetes.mdx
+# --atomic: if the rollout fails, helm rolls back automatically. Runbook: deployments/sirc/runbooks/kubernetes.md
 deploy:k8s:
   stage: production
   interruptible: false
@@ -333,7 +335,9 @@ deploy:cli:windows:
   needs: [unit-tests, type-check, lint]
   before_script: [] # Overrides the global before_script since it changes LD_LIBRARY_PATH which causes curl to fail
   script:
-    - 'curl --header "Content-Type: application/json" --request POST --data ''{"build_url": "http://jenmaster1:8080/job/ALGO/job/Install_qaboard_on_windows_nodes", "cause": "cde-python updated", "params": {}}'' http://qa/api/v1/jenkins/build/trigger/'
+    # Without signing in, QA-Board only starts the Jenkins jobs listed in projects' qaboard.yaml: QABOARD_TOKEN is a
+    # CI variable, a token with the "act" scope
+    - 'curl --header "Content-Type: application/json" ${QABOARD_TOKEN:+--header "Authorization: Bearer $QABOARD_TOKEN"} --request POST --data ''{"build_url": "http://jenmaster1:8080/job/ALGO/job/Install_qaboard_on_windows_nodes", "cause": "cde-python updated", "params": {}}'' http://qa/api/v1/jenkins/build/trigger/'
   rules:
     - !reference [.on-master, rules]
 

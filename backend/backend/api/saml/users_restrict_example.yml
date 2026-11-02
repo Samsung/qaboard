@@ -5,29 +5,29 @@
 
 # Example - 4 different keys for authentication:
 #   user_name: for 'user1'/'user2'/'john.doe'.
-#   email: for 'mr.nobody@samsung.com'
+#   email: for 'mr.nobody@example.com'
 #   data: ...CompId:  for any user with the CompId 'C123'/'C777'.
 #   data: ...GrdName: for any user with the GrdName 'Staff/Team Leader'.
 
 
 projects:
-  LSC/Calibration:
+  group/calibration:
     user_name:
     - user1
     email:
-    - mr.nobody@samsung.com
+    - mr.nobody@example.com
     data:
       # LDAP
-    - OU=SIRC Users
+    - OU=Imaging Users
 
-  CDE-Users/HW_ALG/CIS:
+  group/isp:
     user_name:
     - user2
     - john.doe
 
-  CDE-Users/HW_ALG/PSP_2x/:
+  other-group/:
     data:
-    - OU=SIRC Users
+    - OU=Imaging Users
 
 
 login:
@@ -38,8 +38,8 @@ login:
   - user3
 
   email:
-  - mr.nobody@samsung.com
-  - user3@samsung.com
+  - mr.nobody@example.com
+  - user3@example.com
 
 data:
   http://schemas.company.com/2023/11/CompId:

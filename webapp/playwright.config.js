@@ -1,17 +1,22 @@
 // Smoke tests: the production build, served by `vite preview`, with a mocked API.
 // npm run build && npm run e2e
+// Performance benchmark (e2e/perf/): npm run build && npm run bench
+//   BENCH_BUILD_DIR=path/to/other/build compares with another build
+// E2E_PORT=4273 serves the build on another port: a server already on the port is reused (except in CI)
 import { defineConfig, devices } from '@playwright/test';
 
-const port = 4173;
+const port = Number(process.env.E2E_PORT || 4173);
 
 export default defineConfig({
   testDir: './e2e',
+  testMatch: process.env.BENCH ? '**/*.bench.js' : '**/*.spec.js',
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['list'], ['junit', { outputFile: 'e2e-junit.xml' }]] : 'list',
   use: {
     baseURL: `http://localhost:${port}`,
-    trace: 'retain-on-failure',
+    // traces snapshot the page at each action: with big pages, that's most of what the benchmark would measure
+    trace: process.env.BENCH ? 'off' : 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
   projects: [{
@@ -23,7 +28,7 @@ export default defineConfig({
     },
   }],
   webServer: {
-    command: `npx vite preview --port ${port} --strictPort`,
+    command: `npx vite preview --port ${port} --strictPort${process.env.BENCH_BUILD_DIR ? ` --outDir ${process.env.BENCH_BUILD_DIR}` : ''}`,
     url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
   },

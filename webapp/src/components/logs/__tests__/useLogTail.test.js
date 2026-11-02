@@ -106,8 +106,11 @@ describe('useLogTail', () => {
     const server = fakeServer()
     server.exists = false
     const { result } = renderHook(() => useLogTail('/s/log.txt', { live: true, interval: 10 }))
-    await waitFor(() => expect(result.current.status).toBe('error'))
-    expect(result.current.error.status).toBe(404)
+    // Both in the same waitFor: 2 intervals after an error, live logs retry, and the state is "loading" (no error) again
+    await waitFor(() => {
+      expect(result.current.status).toBe('error')
+      expect(result.current.error?.status).toBe(404)
+    })
     server.exists = true
     server.content = 'started\n'
     await waitFor(() => expect(result.current.text).toBe('started\n'))

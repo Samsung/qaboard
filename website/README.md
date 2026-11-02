@@ -2,11 +2,11 @@
 This website is built using [Docusaurus](https://docusaurus.io/), a modern static website generator.
 
 ### Usage with docker
-To open a shell in the docker environment: 
+To open a shell in the docker environment (add your site's overlay if you have one, e.g. `-f deployments/sirc/sirc.yml`): 
 ```bash
 # to just build:
-# docker compose -f docker-compose.yml -f development.yml -f sirc.yml build website
-docker compose -f docker-compose.yml -f development.yml -f sirc.yml run -p6051:3000 --entrypoint /bin/sh website
+# docker compose -f docker-compose.yml -f development.yml build website
+docker compose -f docker-compose.yml -f development.yml run -p6051:3000 --entrypoint /bin/sh website
 ```
 
 Now you can do all the commands of the regular setup:
@@ -38,6 +38,38 @@ export QABOARD_DOCS_FOR_WEBAPP=1
 NODE_TLS_REJECT_UNAUTHORIZED=0 CHOKIDAR_USEPOLLING=true DANGEROUSLY_DISABLE_HOST_CHECK=true HOST=0.0.0.0 PORT=3001 yarn start --host 0.0.0.0
 ```
 
+
+### Site docs
+`site-docs/<site>/` holds pages for the users of one site (e.g. how to install its site package). They are only built
+into that site's web app: set `QABOARD_SITE=<site>` (e.g. in its env file, it's a build arg of the `website` image).
+They get their own navbar item (the `label` in `site-docs/<site>/_site.json`), and `<SiteInstructions />` links to them
+from the public pages. To preview them:
+```bash
+QABOARD_SITE=sirc yarn start
+```
+
+### Screenshots and clips
+Pages show the web app with `<Shot id="commit/image-sbs" />`, `<Clip id="commit/image-diff" />` and
+`<Compare before="..." after="..." />`, no import needed. The ids come from `docs-media/shots.yaml`, the published files
+from `media.json` (see `docs-media/README.md` and `STYLE.md`). A shot that isn't published yet shows as a placeholder.
+
+- `yarn start` loads the media from the bucket's public URL (`base_url` in `media.json`).
+- `yarn build` downloads the media the pages use into `.media-cache/`, and serves them with the site.
+- `QABOARD_MEDIA=placeholder yarn build` needs no network access; `QABOARD_MEDIA_BASE_URL=<mirror>` downloads from a
+  mirror instead.
+- `QABOARD_MEDIA_STRICT=1 yarn build` fails on shots that aren't published yet and on unused ones.
+
+The build fails on unknown shot ids.
+
+### Stack tabs and repository files
+- `<StackPicker />` sets every stack-dependent tab group at once (`<Tabs groupId="server" queryString>`): the
+  groups and values are in `src/components/stack.ts`, and the build checks the tabs against it (`plugins/stack`).
+  See `STYLE.md`.
+- `<RepoFile path="charts/qaboard/kind.yaml" />` shows a file of the repository in a code block. It's imported at
+  build time (`plugins/snippets`), so the docs show the file as it is. CI configurations no CI of ours runs live in
+  `snippets/` and are shown with `untested`.
+- The website's docker image is built from the repository's root, and only gets the files listed in
+  `Dockerfile.dockerignore`: add a file there before showing it.
 
 ### Command commands
 #### Build

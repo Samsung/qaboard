@@ -1,0 +1,37 @@
+ci:
+  inputs:
+    - a-flat.txt
+    - b-edges.txt
+    - c-noise.txt
+  matrix:
+    configs:
+      - [base]
+      - [low-light]
+
+bitexact:
+  inputs:
+    - a-flat.txt
+    - c-noise.txt
+  configs: [base]
+
+# The seeder kills runs over the memory they "requested" (story failures: oom, lsf-memlimit)
+big:
+  inputs:
+    - big-wall.txt
+  configs: [base]
+  lsf:
+    max_memory: 300
+
+# ...or over their time limit (story failures: timeout), in seconds
+slow:
+  inputs:
+    - a-flat.txt
+  configs: [base]
+  local:
+    timeout: 4
+
+sweep:
+  inputs:
+    - b-edges.txt
+    - c-noise.txt
+  configs: [low-light]

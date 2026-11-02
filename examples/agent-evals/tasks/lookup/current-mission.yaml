@@ -1,0 +1,8 @@
+request: What is K3-022 doing?
+fleet:
+  K3-022: {status: on-mission, zone: aisle-6, mission: {kind: count-stock, progress: 40}}
+checks:
+  - tool_called: {name: get_mission, arguments: {robot: K3-022}}
+  - answer_matches: '(?i)count'
+  - answer_contains: 40%
+  - max_turns: 3

@@ -1,7 +1,4 @@
-import os
-import pwd
 import shutil
-import pickle
 from pathlib import Path
 
 import requests

@@ -1,0 +1,454 @@
+# Six weeks of the camera ISP: a denoiser that wins PSNR but adds halos, merged because the numbers looked good,
+# caught in the images, fixed with a clamp. Format: ../STORY.md. What the flags do: SPEC.md.
+version: 1
+project: image-quality
+id: kitefin/camera-isp
+seed: 1203
+
+defaults:
+  # the code before the story; qa/main.py's defaults are the head of main at T0
+  flags:
+    demosaic: bilinear
+    denoise: gaussian
+    denoise_strength: 1.0
+    detail_boost: 1.0
+    sharpen_clamp: none
+    tone_curve: gamma
+    fxp_rounding: truncate
+    fxp_bilateral_guard_bits: 0
+  runs:
+    - batch: ci    # the hw-model's bitexact batch runs on fxp commits, releases and some others
+
+commits:
+  - id: sensor-noise-model
+    branch: main
+    at: -42d 08:05
+    author: tobias
+    message: |
+      sensor: shot and read noise from the K3 calibration
+
+      2.5 e- read noise, 6000 e- full well at ISO 100, measured on the bench.
+    runs:
+      - batch: ci
+      - batch: bitexact
+        platform: hw-model
+
+  - id: ci-hw-model
+    branch: main
+    at: -42d 13:40
+    author: tobias
+    message: "ci: run the hw-model and check its bit accuracy"
+
+  - id: ha-demosaic
+    branch: main
+    at: -41d 10:25
+    author: ines
+    message: |
+      demosaic: Hamilton-Adams instead of bilinear (MTF50 +18%)
+
+      Green is interpolated along edges, red and blue as differences with green: sharper, fewer false colors.
+    flags: {demosaic: hamilton-adams}
+
+  - id: docs-stages
+    branch: main
+    at: -41d 15:05
+    author: ines
+    message: "docs: what each ISP stage writes in stages/"
+
+  - id: filmic
+    branch: main
+    at: -38d 11:10
+    author: ines
+    message: "tone: filmic curve, highlights roll off instead of clipping"
+    flags: {tone_curve: filmic}
+
+  - id: fxp-register-names
+    branch: main
+    at: -37d 09:30
+    author: tobias
+    message: "fxp: name the registers like the datasheet"
+
+  - id: refactor-stages
+    branch: main
+    at: -36d 14:20
+    author: ines
+    message: "isp: one function per stage, no change in the outputs"
+
+  - id: isp-4-1
+    branch: main
+    at: -35d 10:00
+    author: ines
+    message: "isp: release 4.1, gaussian denoise and detail boost 1.2"
+    flags: {denoise: gaussian, detail_boost: 1.2}
+    runs:
+      - batch: ci
+      - batch: bitexact
+        platform: hw-model
+      - batch: nightly
+        label: nightly
+        after: 9h
+      - batch: deep-zoom
+        after: 40m
+      - batch: video
+        label: video     # its own batch: the CI batch's runs and counts stay the same
+        after: 50m
+
+  - id: fxp-round-half-even
+    branch: fxp/round-half-even
+    parents: [isp-4-1]
+    at: -31d 09:20
+    author: tobias
+    message: |
+      fxp: round half to even in sharpen and tone map
+
+      Truncating biased the output down by half a code value.
+    flags: {fxp_rounding: half-even}
+    runs:
+      - batch: ci
+      - batch: bitexact
+        platform: hw-model
+
+  - id: fxp-rounding-vectors
+    branch: fxp/round-half-even
+    at: -30d 10:45
+    author: tobias
+    message: "fxp: test vectors for the 3 rounding modes"
+
+  - id: docs-tuning-guide
+    branch: main
+    parents: [isp-4-1]
+    at: -30d 15:00
+    author: ines
+    message: "docs: tuning guide for the gaussian denoiser"
+    runs:
+      - batch: ci
+      - batch: bitexact
+        platform: hw-model
+
+  - id: merge-round-half-even
+    branch: main
+    parents: [docs-tuning-guide, fxp-rounding-vectors]
+    at: -29d 14:15
+    author: tobias
+    message: Merge branch 'fxp/round-half-even'
+    runs:
+      - batch: ci
+      - batch: bitexact
+        platform: hw-model
+
+  - id: ci-nightly-isos
+    branch: main
+    at: -28d 09:40
+    author: tobias
+    message: "ci: nightly batch at ISO 100, 3200 and 12800"
+
+  - id: bilateral-denoise
+    branch: isp/bilateral-denoise
+    parents: [ci-nightly-isos]
+    at: -24d 10:05
+    author: ines
+    message: |
+      denoise: bilateral 7x7 on luma and chroma (+1.6 dB PSNR in low light)
+
+      Weights from the luma, so chroma doesn't bleed across edges. Half the noise in flat patches. The detail boost goes to
+      1.5 to keep textures crisp.
+    flags: {denoise: bilateral, denoise_strength: 1.6, detail_boost: 1.5}
+    runs:
+      - batch: ci
+      - batch: sweep-denoise
+        via: local
+        label: ines-halo
+        after: 3h
+      - batch: sweep-denoise
+        via: tuning
+        label: tune-denoise
+        after: 22h
+        tuning:
+          denoise_strength: [1.0, 1.3, 1.6, 2.0]
+          detail_boost: [1.0, 1.25, 1.5]
+
+  - id: bilateral-tests
+    branch: isp/bilateral-denoise
+    at: -23d 11:30
+    author: ines
+    message: "denoise: unit tests for the bilateral weights"
+
+  - id: fxp-register-map
+    branch: main
+    parents: [ci-nightly-isos]
+    at: -22d 09:10
+    author: tobias
+    message: "docs: register map of the ISP block"
+
+  - id: fxp-lut-sizes
+    branch: main
+    at: -21d 14:35
+    author: tobias
+    message: "fxp: list LUT sizes and bit widths in regs.txt comments"
+
+  - id: merge-bilateral
+    branch: main
+    parents: [fxp-lut-sizes, bilateral-tests]
+    at: -20d 10:30
+    author: ines
+    message: Merge branch 'isp/bilateral-denoise'
+    runs:
+      - batch: ci
+      - batch: bitexact
+        platform: hw-model
+      - batch: deep-zoom
+        after: 40m
+      - batch: video
+        label: video     # its own batch: the CI batch's runs and counts stay the same
+        after: 50m
+
+  - id: ci-cache-charts
+    branch: main
+    at: -17d 08:50
+    author: tobias
+    message: "ci: cache the generated charts between jobs"
+
+  - id: log-stage-times
+    branch: main
+    at: -16d 13:20
+    author: tobias
+    message: "isp: log each stage's time"
+
+  - id: flags-schema
+    branch: main
+    at: -15d 09:20
+    author: ines
+    message: "isp: check build flags against their allowed values"
+
+  - id: halo-clamp
+    branch: isp/halo-clamp
+    parents: [flags-schema]
+    at: -14d 09:40
+    author: ines
+    message: |
+      sharpen: clamp the boost near strong edges (halos)
+
+      The bilateral keeps edges steep, and the 1.5 boost overshoots them: bright and dark rims around windows in low
+      light. The sharpened value now stays within the 3x3 neighborhood's range, plus 10%.
+    flags: {sharpen_clamp: local-contrast}
+
+  - id: docs-release-checklist
+    branch: main
+    parents: [flags-schema]
+    at: -13d 10:15
+    author: tobias
+    message: "docs: release checklist for ISP versions"
+
+  - id: halo-clamp-tests
+    branch: isp/halo-clamp
+    at: -13d 14:50
+    author: ines
+    message: "sharpen: test the clamp on the slanted edge"
+
+  - id: merge-halo-clamp
+    branch: main
+    parents: [docs-release-checklist, halo-clamp-tests]
+    at: -10d 11:05
+    author: ines
+    message: Merge branch 'isp/halo-clamp'
+
+  - id: readme-results
+    branch: main
+    at: -9d 15:30
+    author: ines
+    message: "docs: link the ISP results in the README"
+
+  - id: isp-4-2
+    branch: main
+    at: -8d 10:30
+    author: ines
+    message: "isp: release 4.2, bilateral denoise with halo clamp"
+    runs:
+      - batch: ci
+      - batch: bitexact
+        platform: hw-model
+      - batch: nightly
+        label: nightly
+        after: 9h
+      - batch: deep-zoom
+        after: 40m
+      - batch: video
+        label: video     # its own batch: the CI batch's runs and counts stay the same
+        after: 50m
+
+  - id: ci-deep-zoom-tags
+    branch: main
+    at: -7d 11:30
+    author: tobias
+    message: "ci: run the 113 MP wall on release tags too"
+
+  - id: one-tile
+    branch: main
+    at: -6d 09:15
+    author: tobias
+    message: |
+      isp: process frames in one tile, no seams to hide
+
+      Tiles overlap by 32 pixels; one tile removes the bookkeeping.
+    flags: {tile_size: 0}
+    runs:
+      - batch: ci
+      - batch: deep-zoom
+        after: 40m
+    failures:
+      - batch: deep-zoom
+        kind: lsf-memlimit
+
+  - id: one-tile-fix
+    branch: main
+    at: -6d 12:15
+    author: tobias
+    message: |
+      isp: back to 512x512 tiles
+
+      In one tile, the 113 MP wall goes over the job's 3 GB memory limit.
+    flags: {tile_size: 512}
+    runs:
+      - batch: ci
+      - batch: bitexact
+        platform: hw-model
+      - batch: deep-zoom
+        after: 40m
+
+  - id: fxp-guard-bits
+    branch: fxp/guard-bits
+    parents: [one-tile-fix]
+    at: -3d 08:40
+    author: tobias
+    message: "fxp: 2 guard bits in bilateral LUT and divider"
+    flags: {fxp_bilateral_guard_bits: 2}
+    runs:
+      - batch: ci
+      - batch: bitexact
+        platform: hw-model
+
+  - id: fxp-guard-bits-vectors
+    branch: fxp/guard-bits
+    at: -2d 10:30
+    author: tobias
+    message: "fxp: regenerate the test vectors"
+
+  - id: ci-stage-buffers
+    branch: main
+    parents: [one-tile-fix]
+    at: -2d 14:00
+    author: ines
+    message: "ci: keep the stage buffers of failed runs"
+
+  - id: merge-guard-bits
+    branch: main
+    parents: [ci-stage-buffers, fxp-guard-bits-vectors]
+    at: -1d 10:20
+    author: tobias
+    message: Merge branch 'fxp/guard-bits'
+    runs:
+      - batch: ci
+      - batch: bitexact
+        platform: hw-model
+
+  - id: chroma-low-light
+    branch: main
+    at: -0d 14:10
+    author: ines
+    message: "denoise: extra chroma pass from 16x gain (color blotches in low light)"
+    flags: {chroma_denoise_low_light: true}
+    runs:
+      - batch: ci
+        progress: {finished: 0.5, running: 3}
+
+milestones:
+  - commit: isp-4-1
+    label: isp-4.1
+    notes: Shipped with K3 firmware 26.08
+    by: ines
+  - commit: isp-4-2
+    label: isp-4.2
+    notes: Bilateral denoise with halo clamp
+    by: ines
+
+checks:
+  - name: Hamilton-Adams demosaicing is sharper (MTF50 up)
+    commit: ha-demosaic
+    vs: parent
+    metric: mtf50
+    inputs: "slanted-edge*"
+    expect: {change_pct: {gt: 10}}
+
+  - name: rounding half to even changes the hw-model's sharpen and tone-map outputs
+    commit: fxp-round-half-even
+    hook: bit_accuracy
+    args: {vs: parent, expect: differ, only: ['stages/4.png', 'stages/5.png', 'out.png', 'raw/4.u16', 'raw/5.u16', 'regs.txt']}
+  - name: rounding half to even brings the hw-model closer to the float pipeline
+    commit: fxp-round-half-even
+    platform: hw-model
+    vs: parent
+    metric: fxp_psnr
+    expect: {delta: {gte: 0.2}}
+  - name: a commit that doesn't touch the code stays bit-accurate
+    commit: docs-tuning-guide
+    hook: bit_accuracy
+    args: {vs: parent, expect: same}
+
+  - name: the bilateral denoiser wins PSNR in low light
+    commit: bilateral-denoise
+    vs: parent
+    configs: "*low-light*"
+    metric: psnr
+    expect: {delta: {gte: 0.3}}
+  - name: the bilateral denoiser removes noise in flat patches
+    commit: bilateral-denoise
+    vs: parent
+    configs: "*low-light*"
+    metric: noise_flat
+    expect: {change_pct: {lte: -25}}
+  - name: the bilateral denoiser with the 1.5 detail boost adds halos
+    commit: bilateral-denoise
+    vs: parent
+    inputs: "slanted-edge*"
+    configs: "*base*"
+    metric: overshoot
+    expect: {change_pct: {gte: 80}}
+  - name: the halos land on main with the merge
+    commit: merge-bilateral
+    vs: milestone:isp-4.1
+    inputs: "slanted-edge*"
+    configs: "*base*"
+    metric: overshoot
+    expect: {change_pct: {gte: 80}}
+
+  - name: the clamp removes the halos
+    commit: halo-clamp
+    inputs: "slanted-edge*"
+    configs: "*base*"
+    metric: overshoot
+    expect: {value: {lte: 0.055}}
+  - name: the clamp keeps the PSNR of the bilateral denoiser
+    commit: halo-clamp
+    vs: bilateral-denoise
+    metric: psnr
+    expect: {delta: {gte: -0.15}}
+
+  - name: in one tile, the 113 MP run dies over its memory limit
+    commit: one-tile
+    inputs: "test-wall-113mp.tiff"
+    expect: {failed: {gte: 1}}
+  - name: back in tiles, the 113 MP run works again
+    commit: one-tile-fix
+    inputs: "test-wall-113mp.tiff"
+    expect: {failed: {lte: 0}}
+
+  - name: guard bits bring the hw-model close to the float pipeline again
+    commit: fxp-guard-bits
+    platform: hw-model
+    vs: parent
+    metric: fxp_psnr
+    expect: {delta: {gte: 2.5}}
+  - name: guard bits change the hw-model's outputs, as expected
+    commit: fxp-guard-bits
+    hook: bit_accuracy
+    args: {vs: parent, expect: differ}

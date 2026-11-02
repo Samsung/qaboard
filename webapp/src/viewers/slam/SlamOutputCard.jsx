@@ -1,323 +1,140 @@
-import React, { Component } from "react";
-import Plot from "../../components/Plot";
-import axios, { all, spread, CancelToken } from "axios";
-const { get } = axios;
+import { useMemo } from "react";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { tsvParse } from "d3-dsv";
 
+import Plot from "../../components/Plot";
+import { fileQuery } from "../../api/queries";
+import { plot_color } from "../../sideColors";
+import { useIsDark } from "../../theme";
+import { useLabels } from "../../hooks";
+
+// No "Send to Cloud" or "Edit chart" links: they would upload the data to Plotly's public Chart Studio
 const config = {
   displayModeBar: true,
-  plotlyServerURL: "https://chart-studio.plotly.com",
-  showSendToCloud: true,
+  showSendToCloud: false,
+  showLink: false,
 };
 
-var colors = {
-  groundtruth: "#4daf4a",
-  new: "rgba(255, 131, 0, .9)",
-  reference: "rgb(25,34,231)"
+// the new and reference traces have the names and colors of what we compare (src/sideColors.js)
+const groundtruth = { name: "groundtruth", color: "#4daf4a" };
+
+
+// The files are tab-separated values
+const text_file_query = url => ({
+  ...fileQuery(url, { responseType: 'text' }),
+  // while we load other outputs, we keep showing the current ones
+  placeholderData: keepPreviousData,
+});
+
+// Without url, there is nothing to load
+const useTextFile = url => {
+  const query = useQuery(text_file_query(url));
+  return {
+    data: url ? query.data : undefined,
+    is_settled: !url || query.isSuccess || query.isError,
+  };
 };
 
-class SlamOutputCard extends Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      is_loaded: false,
-      is_loaded_debug: false,
-      select_debug: "",
-	  quat_orientation: true,
-	  ref_quat_orientation: true,
-
-      traces_6dof: {},
-      traces_3d: {},
-      traces_debug: {},
-      data_debug: {},
-
-      plot_revision: 0,
-      data_set: undefined,
-    };
+// Returns undefined if the data is missing or can't be parsed
+const try_parse = (text, parse, label) => {
+  if (text === undefined) return undefined;
+  try {
+    return parse(text);
+  } catch {
+    console.log(`error at ${label}`);
+    return undefined;
   }
+};
 
-  componentDidUpdate(nextProps, prevState) {
-    if (prevState.is_loaded) {
-      let updated_new =
-        nextProps.output_new !== undefined &&
-        nextProps.output_new !== null &&
-        (this.props.output_new == null ||
-          nextProps.output_new.id !== this.props.output_new.id);
-      let updated_ref =
-        nextProps.output_ref !== undefined &&
-        nextProps.output_ref !== null &&
-        (this.props.output_ref == null ||
-          nextProps.output_ref.id !== this.props.output_ref.id);
-      if (updated_new || updated_ref) {
-        if (this.state.cancel_source) this.state.cancel_source.cancel();
-        this.getData(nextProps);
-      }
-    }
-    if (!prevState.is_loaded_debug && nextProps.show_debug) this.loadDebug();
-    if (nextProps.select_debug !== prevState.select_debug)
-      this.setState({
-        select_debug: nextProps.select_debug,
-        traces_debug: {
-          ...prevState.traces_debug,
-          new: make_traces_debug(
-            prevState.data_debug["new"],
-            "new",
-            nextProps.select_debug
-          ),
-          reference: make_traces_debug(
-            prevState.data_debug["reference"],
-            "reference",
-            nextProps.select_debug
-          )
-        },
-        plot_revision: prevState.plot_revision + 1
-      });
-  }
 
-  componentDidMount() {
-    this.getData(this.props);
-  }
-  //asynchronous due to weird need for 'await' in call for get_new()
-  async getData(props) {
-    const { output_new, output_ref, show_debug, path='camera_poses_debug.csv' } = props;
-    let has_groundtruth = output_new.metrics.translation_aape !== null;
+const px = (value, fallback) => parseFloat(String(value ?? fallback).replace(/px$/, ''));
 
-    const source = CancelToken.source();
-    this.setState({ cancel_source: source });
-    if (has_groundtruth) {
-      var get_gt = () => {
-        return get(`${output_new.output_dir_url}/GT_final.txt`, {
-          cancelToken: source.token
-        })
-          .then(response => {
-            let poses = parse_poses(response.data, output_new.test_input_path);
-            this.setState(previous_state => {
-                return {
-                    traces_6dof: {
-                      ...previous_state.traces_6dof,
-                      groundtruth: make_traces(poses, "groundtruth", previous_state.data_set)
-                    },
-                    traces_3d: {
-                      ...previous_state.traces_3d,
-                      groundtruth: make_traces3d(poses, "groundtruth")
-                    }
-                };              
-            });
-          })
-          .catch(() => {console.log("error at get_gt")});
-      };
-    } else {
-      get_gt = () => {};
-    }
-    //asynchronous arrow function
-    var get_new = async () => {
-      try {
-        var response = await get(`${output_new.output_dir_url}/${path}`, {
-          cancelToken: source.token
-        });
-        let poses = parse_poses(response.data, output_new.test_input_path);
+const SlamOutputCard = ({ output_new, output_ref, show_debug, select_debug = "", path = 'camera_poses_debug.csv', show_3d = true, layout, style, labels: labels_ }) => {
+  const labels = useLabels(labels_);
+  // the card's width, shared by the plots of each axis and the 3D view
+  const width = px(style?.width, 700);
+  const plot_width = show_3d ? Math.max(300, Math.floor((width - 16) / 2)) : width;
+  const has_groundtruth = output_new.metrics.translation_aape !== null;
+  const has_reference = output_ref !== undefined && output_ref !== null && output_ref.output_dir_url !== undefined;
 
-        //first change state to include data_set, then (asynchronously )make traces (and return).
-        await this.setState({data_set : poses.data_set});
-        this.setState(previous_state => {
-          return {
-            traces_6dof: {
-              ...previous_state.traces_6dof,
-              new: make_traces(poses, "new", previous_state.data_set)
-            },
-            traces_3d: {
-              ...previous_state.traces_3d,
-              new: make_traces3d(poses, "new")
-            }              
-          };
-        });       
-      }
-      catch {console.log("error at get_new")}
-    };
-    var get_ref;
-    if (
-      output_ref !== undefined &&
-      output_ref !== null &&
-      output_ref.output_dir_url !== undefined
-    ) {
-      get_ref = () => {
-        return get(`${output_ref.output_dir_url}/${path}`, {
-          cancelToken: source.token
-        })
-          .then(response => {
-            let poses = parse_poses(response.data, output_new.test_input_path);
-            this.setState(previous_state => {
-                return {
-                    traces_6dof: {
-                      ...previous_state.traces_6dof,
-                      reference: make_traces(poses, "reference", previous_state.data_set)
-                    },
-                    traces_3d: {
-                      ...previous_state.traces_3d,
-                      reference: make_traces3d(poses, "reference")
-                    }
-                };
-            });
-          })
-          .catch(() => {console.log("error at get_ref")});
-      };
-    } else {
-      get_ref = () => {};
-    }
-    
-    //first get new data, then make other traces with regards to its columns
-    //TODO: somehow option #1 using 'await' works here, but option #2 using 'then' doesn't. WTF?
-    //option #1:
-    try {
-      await get_new();
-      all([get_gt(), get_ref()]).then(
-        spread(() => {
-          if (this.state.data_set === undefined) {
-            console.log("Error: setting is_loaded. but data_set is undefined!!");
-          }
-          this.setState({
-            is_loaded: true,
-            plot_revision: this.state.plot_revision + 1
-          });
-          if (show_debug) this.loadDebug();
-        })
-      )
-      .catch(() => {
-        this.setState({ is_loaded: true });
-      })
-    }
-    catch {
-      this.setState({ is_loaded: true });
-    }
-    // //option #2:
-    // get_new().then(
-    //   all([get_gt(), get_ref()]).then(
-    //     spread((req_gt, req_new, req_ref) => {
-    //       this.setState({
-    //         is_loaded: true,
-    //         plot_revision: this.state.plot_revision + 1
-    //       });
-    //       if (show_debug) this.loadDebug();
-    //     })
-    //   )
-    //   .catch(() => {
-    //     this.setState({ is_loaded: true });
-    //   })
-    // )
-    // .catch(() => {
-    //   this.setState({ is_loaded: true });
-    // });
-  }
+  const file_new = useTextFile(`${output_new.output_dir_url}/${path}`);
+  const file_gt = useTextFile(has_groundtruth ? `${output_new.output_dir_url}/GT_final.txt` : null);
+  const file_ref = useTextFile(has_reference ? `${output_ref.output_dir_url}/${path}` : null);
+  const file_debug_new = useTextFile(show_debug ? `${output_new.output_dir_url}/DebugExtensions.txt` : null);
+  const file_debug_ref = useTextFile(show_debug && has_reference ? `${output_ref.output_dir_url}/DebugExtensions.txt` : null);
 
-  loadDebug() {
-    const { output_new, output_ref } = this.props;
-    var get_new_debug = () => {
-      return get(`${output_new.output_dir_url}/DebugExtensions.txt`)
-        .then(response => {
-          let data = parse_debug(response.data);
-          this.setState(previous_state => {
-            return {
-              data_debug: { ...previous_state.data_debug, new: data },
-              traces_debug: {
-                ...previous_state.traces_debug,
-                new: make_traces_debug(data, "new", previous_state.select_debug)
-              }
-            };
-          });
-        })
-        .catch(() => {});
-    };
-    var get_ref_debug = () => {
-      return get(`${output_ref.output_dir_url}/DebugExtensions.txt`)
-        .then(response => {
-          let data = parse_debug(response.data);
-          this.setState(previous_state => {
-            return {
-              data_debug: { ...previous_state.data_debug, reference: data },
-              traces_debug: {
-                ...previous_state.traces_debug,
-                reference: make_traces_debug(
-                  data,
-                  "reference",
-                  previous_state.select_debug
-                )
-              }
-            };
-          });
-        })
-        .catch(() => {});
-    };
-    all([get_new_debug(), get_ref_debug()])
-      .then(
-        spread(() => {
-          this.setState(previous_state => {
-            return {
-              is_loaded_debug: true,
-              plot_revision: previous_state.plot_revision + 1
-            };
-          });
-        })
-      )
-      .catch(() => {
-        this.setState({ is_loaded_debug: true });
-      });
-  }
+  const { test_input_path } = output_new;
+  const poses_new = useMemo(() => try_parse(file_new.data, text => parse_poses(text, test_input_path), "get_new"), [file_new.data, test_input_path]);
+  const poses_gt = useMemo(() => try_parse(file_gt.data, text => parse_poses(text, test_input_path), "get_gt"), [file_gt.data, test_input_path]);
+  const poses_ref = useMemo(() => try_parse(file_ref.data, text => parse_poses(text, test_input_path), "get_ref"), [file_ref.data, test_input_path]);
+  const data_debug_new = useMemo(() => try_parse(file_debug_new.data, parse_debug, "get_new_debug"), [file_debug_new.data]);
+  const data_debug_ref = useMemo(() => try_parse(file_debug_ref.data, parse_debug, "get_ref_debug"), [file_debug_ref.data]);
 
-  render() {	  
-    const { show_debug, show_3d=true } = this.props;
-    const { is_loaded, plot_revision } = this.state;
-    const layout = this.props.layout || {};
-    if (!is_loaded) {
-      return <> 
-      </>
-    }
-    if (this.state.data_set === undefined){
-      console.log("Error: data_set undefined at render!");
-    }
+  // the traces' names and colors: what the commit page calls the runs
+  const is_dark = useIsDark();
+  const style_new = useMemo(() => ({ name: labels.new, color: plot_color(labels.colors.new, is_dark) }), [labels.new, labels.colors.new, is_dark]);
+  const style_ref = useMemo(() => ({ name: labels.reference, color: plot_color(labels.colors.reference, is_dark) }), [labels.reference, labels.colors.reference, is_dark]);
 
-    var traces = [];
-    ["groundtruth", "reference", "new"].forEach(label => {
-      if (this.state.traces_6dof[label])
-        traces = [...traces, ...this.state.traces_6dof[label]];
-    });
-    if (show_debug) {
-      ["reference", "new"].forEach(label => {
-        if (this.state.traces_debug[label])
-          traces = [...traces, ...this.state.traces_debug[label]];
-      });
-    }
+  // other traces are made with regards to the columns of the new data
+  const data_set = poses_new?.data_set;
+  const traces_6dof = useMemo(() => ({
+    groundtruth: poses_gt && make_traces(poses_gt, "groundtruth", data_set, groundtruth),
+    reference: poses_ref && make_traces(poses_ref, "reference", data_set, style_ref),
+    new: poses_new && make_traces(poses_new, "new", data_set, style_new),
+  }), [poses_gt, poses_ref, poses_new, data_set, style_new, style_ref]);
+  const traces_3d = useMemo(() => ({
+    groundtruth: poses_gt && make_traces3d(poses_gt, "groundtruth", groundtruth),
+    reference: poses_ref && make_traces3d(poses_ref, "reference", style_ref),
+    new: poses_new && make_traces3d(poses_new, "new", style_new),
+  }), [poses_gt, poses_ref, poses_new, style_new, style_ref]);
+  const traces_debug = useMemo(() => ({
+    new: data_debug_new && make_traces_debug(data_debug_new, "new", select_debug, style_new),
+    reference: data_debug_ref && make_traces_debug(data_debug_ref, "reference", select_debug, style_ref),
+  }), [data_debug_new, data_debug_ref, select_debug, style_new, style_ref]);
 
-    if (show_3d) {
-      var traces_3d = [];
-      ["groundtruth", "reference", "new"].forEach(label => {
-        if (this.state.traces_3d[label])
-          traces_3d = [...traces_3d, this.state.traces_3d[label]];
-      });
-    }
-
+  const is_loaded = file_new.is_settled && file_gt.is_settled && file_ref.is_settled;
+  if (!is_loaded) {
     return <>
-      {is_loaded &&
-        <Plot
-          data={traces}
-          layout={{
-            ...make_layout(show_debug, this.state.traces_debug.new, this.state.data_set),
-            ...layout
-          }}
-          revision={plot_revision}
-		  config={config}
-        />
-      }
-
-	  {show_3d && is_loaded && 
-        <Plot
-          data={traces_3d}
-          layout={layout3d}
-          revision={plot_revision}
-		  config={config}
-        />
-      }
     </>
   }
+  if (data_set === undefined){
+    console.log("Error: data_set undefined at render!");
+  }
+
+  let traces = [];
+  ["groundtruth", "reference", "new"].forEach(label => {
+    if (traces_6dof[label])
+      traces = [...traces, ...traces_6dof[label]];
+  });
+  if (show_debug) {
+    ["reference", "new"].forEach(label => {
+      if (traces_debug[label])
+        traces = [...traces, ...traces_debug[label]];
+    });
+  }
+
+  const data_3d = ["groundtruth", "reference", "new"]
+    .map(label => traces_3d[label])
+    .filter(trace => !!trace);
+
+  return <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+    <Plot
+      data={traces}
+      layout={{
+        ...make_layout(show_debug, traces_debug.new, data_set),
+        width: plot_width,
+        ...layout
+      }}
+      config={config}
+    />
+    {show_3d &&
+      <Plot
+        data={data_3d}
+        layout={{ ...layout3d, scene: scene3d(data_3d), width: plot_width, height: Math.min(plot_width, 500) }}
+        config={config}
+      />
+    }
+  </div>
 }
 
 const parse_debug = text_string => {
@@ -456,7 +273,8 @@ const parse_poses = (text_string, test_input_path) => {
   return {data_set, t};
 };
 
-var make_traces = function(poses, label, data_set) {
+// style: the traces' { name, color }
+const make_traces = function(poses, label, data_set, style) {
   try{
     var columns = ['q_w', 'q_x', 'q_y', 'q_z', 'x', 'y', 'z']
     if (data_set !== undefined) {
@@ -473,15 +291,15 @@ var make_traces = function(poses, label, data_set) {
         x: poses.t,
         y: poses.data_set[c].values,
         line: {
-          color: colors[label],
+          color: style.color,
           width: label === "reference" ? 3 : 2 // ref wider to highlight bit accuracy
         },
         marker: {
-          color: colors[label],
+          color: style.color,
           size: 5
         },
         mode: "lines",
-        name: label,
+        name: style.name,
         legendgroup: label,
         yaxis: `y${(index + 1)}`,
         showlegend: index === 4 ? true : false
@@ -490,7 +308,7 @@ var make_traces = function(poses, label, data_set) {
   }catch{console.log("error at make traces for ".concat(label))}  
 };
 
-var make_traces3d = function(poses, label) {
+const make_traces3d = function(poses, label, style) {
   const sample = (x, i) => i % 5 === 0;
   const include_reducer = (accum, curr) => accum && poses.data_set.columns.includes(curr);
   
@@ -503,10 +321,10 @@ var make_traces3d = function(poses, label) {
       mode: "lines",
       line: {
         width: label === "reference" ? 3 : 2,
-        color: colors[label],
+        color: style.color,
         opacity: 0.8
       },
-      name: label,
+      name: style.name,
       legendgroup: label,
       showlegend: true
     };
@@ -517,7 +335,7 @@ var make_traces3d = function(poses, label) {
   
 };
 
-const make_traces_debug = (data, label, select_string) => {
+const make_traces_debug = (data, label, select_string, style) => {
   if (!data) return [];
   var select = c => {
     if (select_string.length === 0) return false;
@@ -538,11 +356,11 @@ const make_traces_debug = (data, label, select_string) => {
         x: data.t,
         y: data[c],
         line: {
-          color: colors[label],
+          color: style.color,
           width: label === "reference" ? 3 : 2 // reference wider to highlight bit accuracy
         },
         marker: {
-          color: colors[label],
+          color: style.color,
           size: 5
         },
         mode: "lines",
@@ -579,7 +397,6 @@ const make_layout = (show_debug, debug_data, data_set) => {
     legend: {
       x: 0,
       y: 1,
-      bgcolor: "rgba(255,255,255,0.5)",
       traceorder: "grouped",
       tracegroupgap: 0
     }
@@ -600,17 +417,26 @@ const make_layout = (show_debug, debug_data, data_set) => {
   return layout;
 };
 
+// The same scale on x and y: a trajectory isn't stretched. z keeps some height: robots mostly drive on a floor.
+const scene3d = traces => {
+  const range = axis => {
+    const values = traces.flatMap(t => t[axis]).filter(Number.isFinite);
+    return values.length ? Math.max(...values) - Math.min(...values) : 0;
+  };
+  const [x, y, z] = ['x', 'y', 'z'].map(range);
+  const largest = Math.max(x, y, z) || 1;
+  return {
+    aspectmode: 'manual',
+    aspectratio: { x: Math.max(x / largest, 0.1), y: Math.max(y / largest, 0.1), z: Math.max(z / largest, 0.25) },
+    camera: { eye: { x: -0.35, y: -1.15, z: 0.85 } },
+  };
+};
+
 const layout3d = {
   width: 350,
   height: 350,
-  margin: { l: 60, r: 0, b: 50, t: 50, pad: 10 },
-  legend: {
-    x: 0,
-    y: 1,
-    bgcolor: "rgba(255,255,255,0.5)",
-    traceorder: "grouped",
-    tracegroupgap: 0
-  }
+  margin: { l: 0, r: 0, b: 0, t: 30, pad: 0 },
+  legend: { x: 0, y: 1, traceorder: "grouped", tracegroupgap: 0, orientation: 'h' },
 };
 
 export default SlamOutputCard;

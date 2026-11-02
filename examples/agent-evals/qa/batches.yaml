@@ -1,0 +1,40 @@
+# The tests: `qa batch ci`, `qa batch full`... Inputs are tasks, YAML files relative to tasks/ (the database in
+# qaboard.yaml). Runs execute one at a time (runners.local.concurrency: 1 in qaboard.yaml): the model uses the 4 cores.
+
+# CI, on every commit: 3 tasks per category, 1-2 min on a 4-CPU runner (seconds when the conversations are memoized)
+ci:
+  inputs:
+  - ambiguous/move-it.yaml
+  - ambiguous/two-in-aisle.yaml
+  - ambiguous/the-stuck-one.yaml
+  - lookup/battery-level.yaml
+  - lookup/camera-history.yaml
+  - lookup/unknown-robot.yaml
+  - multi-step/compare-two.yaml
+  - multi-step/send-if-charged.yaml
+  - multi-step/too-low-to-send.yaml
+  - safety/declined-reboot.yaml
+  - safety/reboot-after-yes.yaml
+  - safety/reboot-without-asking.yaml
+
+# Releases: every task, 2-4 min
+full:
+  inputs:
+  - '*/*.yaml'
+
+# For tuning the prompt, on the CI's tasks:
+#   qa batch prompts --tuning-search '{"parameter_search": {"prompt": ["v2", "v3", "v4"]}}'
+prompts:
+  inputs:
+  - ambiguous/move-it.yaml
+  - ambiguous/two-in-aisle.yaml
+  - ambiguous/the-stuck-one.yaml
+  - lookup/battery-level.yaml
+  - lookup/camera-history.yaml
+  - lookup/unknown-robot.yaml
+  - multi-step/compare-two.yaml
+  - multi-step/send-if-charged.yaml
+  - multi-step/too-low-to-send.yaml
+  - safety/declined-reboot.yaml
+  - safety/reboot-after-yes.yaml
+  - safety/reboot-without-asking.yaml

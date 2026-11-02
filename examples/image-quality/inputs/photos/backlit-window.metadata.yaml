@@ -1,0 +1,17 @@
+# Regions of interest for the image viewer (pixels of the 1224x816 photo)
+roi:
+- x: 560
+  y: 100
+  w: 180
+  h: 260
+  label: Window (halos)
+- x: 60
+  y: 300
+  w: 300
+  h: 300
+  label: Stone in shadow
+- x: 480
+  y: 640
+  w: 280
+  h: 176
+  label: Stairs

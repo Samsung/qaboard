@@ -1,12 +1,11 @@
-import React, { Component, Fragment } from "react";
-import Plot from "./Plot";
+import { Fragment, memo, useDeferredValue, useMemo, useState } from "react";
 import styled from "styled-components";
 
 import {
   Classes,
+  NonIdealState,
   Tag,
   Button,
-  Icon,
   Intent,
   Callout,
   MenuItem,
@@ -16,27 +15,20 @@ import {
 } from "@blueprintjs/core";
 import { MultiSelect } from "@blueprintjs/select";
 
-import { noMetrics } from "./metricSelect";
+import { logTickValues } from "./logTicks";
+import { box_stats, linear_ticks, jittered_points } from "./boxPlots";
 import { RunBadge } from "./tags";
-import { format, median, plotly_palette, match_query } from "../utils";
+import { format, plotly_palette, match_query, metric_info, with_undeclared_metrics } from "../utils";
+import { summary_outputs, metric_values, summary_stats, mixed_parameters, changed_metrics } from "../utils/compare";
+import { useLabels, useSiteConfig } from "../hooks";
 
 
-
-// todo: we should use the colors defined by @blueprint, and JS helpers to alpha-ize, darken, etc.
-const color = "rgba(255, 157, 0, 1)";
-const color_ref = "rgba(55, 126, 184, 1)";
-const colors = [color, color_ref];
-
-const color_a = "rgba(255, 157, 0, .4)";
-const color_ref_a = "rgba(55, 126, 184, .4)";
-const colors_a = [color_a, color_ref_a];
 
 const metric_formatter = (value, metric) => {
   if (isNaN(value)) {
     return value
   }
   // 3 significant digits by default
-  // https://mathjs.org/docs/reference/functions/format.html
   return format(value, {precision: metric?.precision ?? 3})
   // This doesn't support scientific notation.. but above there
   // are not thousant separators... ^^
@@ -51,8 +43,17 @@ const percent_formatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0
 });
 
-const MetricHeader = ({short_label, label, description, condensed=false, suffix, show_suffix=false}) => {
-    return <Tooltip content={<span><strong>{label}</strong> {description}</span>}>
+// For metrics that don't say which way is better, e.g. those that were not declared
+const direction_unknown = "QA-Board doesn't know if higher or lower values are better: it shows changes in neutral colors.";
+const is_direction_unknown = metric => metric.smaller_is_better === null;
+
+// `hint`: how the view shows the metric
+const MetricHeader = ({short_label, label, description, condensed=false, suffix, show_suffix=false, smaller_is_better, hint}) => {
+    return <Tooltip content={<span>
+      <strong>{label}</strong> {description}
+      {smaller_is_better === null && <><br/>{direction_unknown}</>}
+      {hint && <><br/>{hint}</>}
+    </span>}>
           <>
             {condensed ? short_label: label}
             {show_suffix && `${label}${!!suffix ? ` [${suffix}]` : ''}`}
@@ -61,71 +62,64 @@ const MetricHeader = ({short_label, label, description, condensed=false, suffix,
 }
 
 const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
+  if (metric_info.key === 'is_failed')
+    return <span/>;
   const value = metrics_new[metric_info.key]
-  const value_tooltip = <span>{!isNaN(value) ? `${metric_info.scale * metrics_new[metric_info.key]}${metric_info.suffix}` : JSON.stringify(value)}</span>
+  const value_tooltip = <span>{!isNaN(value) ? `${metric_info.scale * value}${metric_info.suffix}` : JSON.stringify(value)}</span>
   const value_component = isNaN(value) ? <RunBadge badge={value}/> : <Tooltip content={value_tooltip}>
     <>{metric_formatter(metric_info.scale * value, metric_info)}{metric_info.suffix}</>
   </Tooltip>
 
   // compare tag
-  if (metrics_ref !== undefined && metrics_ref[metric_info.key] && metrics_ref[metric_info.key] !== metrics_new[metric_info.key]) {
-    let delta = metrics_new[metric_info.key] - metrics_ref[metric_info.key];
-    let delta_relative = delta / metrics_ref[metric_info.key];
-    var intent_compare;
+  let compare_tag = <span/>;
+  const value_ref = metrics_ref?.[metric_info.key];
+  if (value_ref && value_ref !== value) {
+    const delta_relative = (value - value_ref) / value_ref;
     const neutral_threshold = metric_info.target_passfail ? 0 : 0.01
-    if (delta_relative > neutral_threshold)
+    let intent_compare;
+    if (is_direction_unknown(metric_info))
+      intent_compare = Intent.DEFAULT;
+    else if (delta_relative > neutral_threshold)
       intent_compare = metric_info.smaller_is_better ? Intent.DANGER : Intent.SUCCESS;
     else if (delta_relative < -neutral_threshold)
       intent_compare = metric_info.smaller_is_better ? Intent.SUCCESS : Intent.DANGER;
     else intent_compare = Intent.DEFAULT;
-    var compare_tag = <Tag round minimal intent={intent_compare}>{delta_relative >= 0 ? '+' : ''}{percent_formatter.format(100 * delta_relative)}%</Tag>;
-  } else {
-    compare_tag = <span/>;
+    compare_tag = <Tag round minimal intent={intent_compare} htmlTitle="vs the reference run">{format_delta(delta_relative)}</Tag>;
   }
 
-  let intent =
-    (metrics_new[metric_info.key] > metric_info.target &&
-      metric_info.smaller_is_better) ||
-    (metrics_new[metric_info.key] < metric_info.target &&
-      !metric_info.smaller_is_better)
+  const intent =
+    (value > metric_info.target && metric_info.smaller_is_better) ||
+    (value < metric_info.target && !metric_info.smaller_is_better)
       ? Intent.DANGER
       : Intent.SUCCESS;
-  const { key, ...metric_info_rest } = metric_info;
-  let metric_tag = <>
-    <CompoundTag
-        style={{margin: '3px', paddingTop: "0px", paddingBottom: "0px"}}
-        minimal
-        intent={!!metric_info.target ? intent : null}
-        leftContent={<MetricHeader key={key} condensed {...metric_info_rest}/>}
-    >
-      {value_component}
-      {compare_tag}
-    </CompoundTag>
-  </>;
-
-  if (metric_info.key === 'is_failed') {
-    metric_tag = <span/>
-  }
-
-  return metric_tag
+  const { key: _key, ...metric_info_rest } = metric_info;
+  return <CompoundTag
+    style={{margin: '3px', paddingTop: "0px", paddingBottom: "0px"}}
+    minimal
+    intent={metric_info.target && !is_direction_unknown(metric_info) ? intent : null}
+    leftContent={<MetricHeader condensed {...metric_info_rest}/>}
+  >
+    {value_component}
+    {compare_tag}
+  </CompoundTag>;
 };
 
 
-class MetricsTags extends React.PureComponent {
-  render() {
-    const { metrics_new, metrics_ref } = this.props;
-    const { available_metrics={}, selected_metrics=[] } = this.props;
-    return selected_metrics
-      .filter(key => metrics_new[key] !== undefined)
-      .map(key =>
-          <MetricTag key={key}
-            metrics_new={metrics_new}
-            metrics_ref={metrics_ref}
-            metric_info={available_metrics[key]}
-          />
-      )
-  }
-}
+// The run's metrics, declared or not. By default, the first few.
+const MetricsTags = memo(({ metrics_new, metrics_ref, available_metrics = {}, selected_metrics }) => {
+  const keys = selected_metrics?.length > 0
+    ? selected_metrics
+    : Object.keys(with_undeclared_metrics(available_metrics, Object.keys(metrics_new))).filter(key => metrics_new[key] !== undefined).slice(0, 6);
+  return keys
+    .filter(key => metrics_new[key] !== undefined)
+    .map(key =>
+      <MetricTag key={key}
+        metrics_new={metrics_new}
+        metrics_ref={metrics_ref}
+        metric_info={metric_info(available_metrics, key)}
+      />
+    );
+});
 
 
 
@@ -143,496 +137,399 @@ const MetricTile = styled.div`
   text-align: center;
   align-self: start;
   padding: 10px;
-  min-width: 355px; // manuall adjusted with the largest title..
+  // fits the largest title on wide pages, and leaves room for the box plot on narrow ones
+  min-width: clamp(250px, 30%, 355px);
 `;
 
-const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly_default_colors }) => {
-  const xdata = xaxis_labels || ["New", "Reference"];
-  let plot_scale = metric["plot_scale"] || "log";
-  let layout_ = {
-    bargap: 0,
-    bargroupgap: 0,
-    barmode: "overlay",
-    yaxis: {
-      type: plot_scale,
-      autorange: true,
-      color: "rgba(0,0,0,0.8)",
-      tickcolor: "rgba(0,0,0,0.8)",
-      showgrid: false,
-      zeroline: false,
-      gridcolor: "rgb(255, 255, 255)",
-      gridwidth: 1
-    },
-    xaxis: { color: "rgba(0,0,0,0.8)", fixedrange: true, title: "" },
-    shapes: [],
-    showlegend: false,
-    margin: {
-      // will eat into the drawing area
-      l: 40,
-      r: 30,
-      b: 25,
-      t: 0,
-      pad: 0
-    },
-    width: 300,
-    height: 100,
-    autosize: false,
-    plot_bgcolor: "rgba(0,0,0,0)",
-    paper_bgcolor: "rgba(0,0,0,0)",
-    ...layout,
-  };
+const plot_margin = { left: 40, right: 30, top: 8, bottom: 25 };
+const plot_style = {
+  // next to the numbers, even when the card is much wider
+  marginLeft: 24,
+  flex: "0 1 auto",
+  // long tick labels can be wider than the margin
+  overflow: "visible",
+};
 
-  let all_values = [];
-  series.forEach(values => {
-    values.forEach(v => all_values.push(v));
-  });
-  all_values = all_values.filter(
-    x => x !== null && x !== undefined && !isNaN(x)
-  );
-
-  if (!!metric.target) {
-    let min_y = Math.min(...all_values) * metric.scale;
-    let max_y = Math.max(...all_values) * metric.scale;
-    let threshold = metric.target * metric.scale;
-    let all_success = metric.smaller_is_better
-      ? max_y <= threshold
-      : min_y <= threshold;
-    let all_failed = metric.smaller_is_better
-      ? min_y >= threshold
-      : max_y >= threshold;
-    if (!all_success)
-      layout_.shapes.push({
-        type: "rect",
-        layer: "below",
-        xref: "paper",
-        x0: 0,
-        x1: 1,
-        yref: "y",
-        y0: metric.smaller_is_better ? max_y : threshold,
-        y1: metric.smaller_is_better ? threshold : min_y,
-        opacity: 0.2,
-        fillcolor: Colors.RED5,
-        line: {
-          color: Colors.RED5
-        }
-      });
-    if (!all_failed)
-      layout_.shapes.push({
-        type: "rect",
-        layer: "below",
-        xref: "paper",
-        x0: 0,
-        x1: 1,
-        yref: "y",
-        y0: metric.smaller_is_better ? min_y : threshold,
-        y1: metric.smaller_is_better ? threshold : max_y,
-        opacity: 0.15,
-        fillcolor: Colors.GREEN2,
-        line: {
-          color: Colors.GREEN2
-        }
-      });    
+// Box plots of each series of values (the new and reference runs, or the inputs' tags): the box spans the quartiles,
+// with the median, the mean (dashed) and whiskers, and the values are drawn on its left. Hovering a box gives its numbers.
+// Not Plotly: loading it, and drawing every value of thousands of runs for each metric, took most of the time the commit
+// page needed to show the Summary, and to update it when switching references or filtering runs.
+// `colors`: CSS colors of the series, e.g. the side colors' `css` (src/sideColors.js)
+const BoxPlots = ({ series: series_, labels: labels_, colors: colors_, metric, width = 300, height = 100, label_size = 12 }) => {
+  // drawn after the rest of the Summary, that shows first, e.g. when the page loads or switches references.
+  // The values change with their names and colors.
+  const shown = useDeferredValue({ series: series_, labels: labels_, colors: colors_ }, null);
+  if (shown === null) return <svg width={width} height={height} style={plot_style}/>;
+  const { series, labels, colors } = shown;
+  const scaled = series.map(values => values.map(x => metric.scale * x).filter(Number.isFinite));
+  const all = scaled.flat();
+  if (all.length === 0) return null;
+  const min = all.reduce((a, b) => Math.min(a, b));
+  const max = all.reduce((a, b) => Math.max(a, b));
+  // the values' range on each side of the target: red where runs miss it, green where they meet it
+  const zones = [];
+  if (metric.target && !is_direction_unknown(metric)) {
+    const target = metric.target * metric.scale;
+    const [miss, meet] = metric.smaller_is_better ? [[target, max], [min, target]] : [[min, target], [target, max]];
+    if (miss[0] < miss[1]) zones.push({ range: miss, fill: Colors.RED5, opacity: 0.2 });
+    if (meet[0] < meet[1]) zones.push({ range: meet, fill: Colors.GREEN2, opacity: 0.15 });
   }
+  const low = Math.min(min, ...zones.map(zone => zone.range[0]));
+  const high = Math.max(max, ...zones.map(zone => zone.range[1]));
 
-  var ydata = series.map(values => values.map(x => metric.scale * x));
+  // log scales can't show values ≤ 0
+  const log = (metric.plot_scale || "log") === "log" && low > 0;
+  const to_scale = log ? Math.log10 : v => v;
+  // a margin around the values, also when they're all the same (in decades on a log scale)
+  const pad = 0.05 * (to_scale(high) - to_scale(low)) || (log ? 0.05 : 0.1 * Math.abs(low)) || 1;
+  const [bottom, top] = [to_scale(low) - pad, to_scale(high) + pad];
+  const plot_height = height - plot_margin.top - plot_margin.bottom;
+  const y = v => plot_margin.top + plot_height * (top - to_scale(v)) / (top - bottom);
+  // values close together may have no round log tick on the axis: round linear values label it then
+  const log_ticks = log ? (logTickValues([low, high]) ?? []).filter(tick => to_scale(tick) >= bottom && to_scale(tick) <= top) : [];
+  const ticks = log_ticks.length > 0 ? log_ticks : linear_ticks(low, high);
+  // where Plotly drew them: the boxes centered on their label, the values on their left
+  const plot_width = width - plot_margin.left - plot_margin.right;
+  const step = plot_width / scaled.length;
+  const half = 0.245 * step;
+  const caps = 0.3 * half;
+  const number = v => `${metric_formatter(v, metric)}${metric.suffix ?? ''}`;
 
-  var data = [];
-  for (var i = 0; i < xdata.length; i++) {
-    var result = {
-      type: "box",
-      y: ydata[i],
-      name: xdata[i],
-      namelength: -1,
-      boxpoints: "all",
-      jitter: 0.5,
-      whiskerwidth: 0.3,
-      boxmean: true,
-      fillcolor: use_plotly_default_colors ? undefined : colors_a[i],
-      marker: {
-        size: 8,
-        color: use_plotly_default_colors ? undefined : colors_a[i],
-      },
-      line: {
-        width: 2,
-        color: use_plotly_default_colors ? undefined : colors[i],
-      }
-    };
-    data.push(result);
+  return <svg width={width} height={height} role="img" aria-label={`Box plots of ${metric.label}`} style={plot_style}>
+    {zones.map(({ range: [from, to], fill, opacity }) =>
+      <rect key={fill} x={plot_margin.left} width={plot_width} y={y(to)} height={y(from) - y(to)} fill={fill} opacity={opacity}/>
+    )}
+    <g fill="var(--qa-text)" stroke="var(--qa-text)" fontSize={12}>
+      {ticks.map(tick => <Fragment key={tick}>
+        <line x1={plot_margin.left - 5} x2={plot_margin.left} y1={y(tick)} y2={y(tick)}/>
+        <text x={plot_margin.left - 7} y={y(tick)} stroke="none" textAnchor="end" dominantBaseline="central">{format(tick)}</text>
+      </Fragment>)}
+      {scaled.map((_, i) =>
+        <text key={i} x={plot_margin.left + (i + 0.5) * step} y={height - 8} stroke="none" fontSize={label_size} textAnchor="middle">{labels[i]}</text>
+      )}
+    </g>
+    {scaled.map((values, i) => {
+      if (values.length === 0) return null;
+      const { q1, median, q3, lower, upper, mean } = box_stats(values);
+      const center = plot_margin.left + (i + 0.5) * step;
+      return <g key={i} style={{ fill: colors[i], stroke: colors[i] }} strokeWidth={2}>
+        <title>{[
+          `${labels[i]}: ${values.length} run${values.length === 1 ? '' : 's'}`,
+          `median ${number(median)}, mean ${number(mean)}`,
+          `quartiles ${number(q1)} to ${number(q3)}`,
+          `whiskers ${number(lower)} to ${number(upper)}`,
+        ].join('\n')}</title>
+        <g stroke="none" fillOpacity={0.4}>
+          {jittered_points(values, center - 1.5 * half, half, y).map(([cx, cy], k) => <circle key={k} cx={cx} cy={cy} r={4}/>)}
+        </g>
+        <rect x={center - half} width={2 * half} y={y(q3)} height={y(q1) - y(q3)} fillOpacity={0.4}/>
+        <path fill="none" d={`M${center - half},${y(median)}H${center + half}`
+          + `M${center},${y(q3)}V${y(upper)}M${center - caps},${y(upper)}H${center + caps}`
+          + `M${center},${y(q1)}V${y(lower)}M${center - caps},${y(lower)}H${center + caps}`}/>
+        <path fill="none" strokeDasharray="4 2" d={`M${center - half},${y(mean)}H${center + half}`}/>
+      </g>;
+    })}
+  </svg>;
+};
+
+// The runs that meet the target, then those that miss it. Not a Plotly plot: there are two per metric,
+// and drawing them took a good part of the time the summary needs to update, e.g. when switching references.
+const SuccessBarTrack = styled.span`
+  display: inline-flex;
+  width: 150px;
+  height: 20px;
+  margin: 2px 0 3px;
+  vertical-align: middle;
+  font-size: 12px;
+  line-height: 20px;
+  color: #fff;
+  white-space: nowrap;
+  & > :first-child {
+    background: ${Colors.GREEN3};
+    text-align: center;
+    overflow: hidden;
   }
-  // layout.xaxis.title = metric.label;
-  return (
-    <Plot
-      data={data}
-      layout={layout_}
-      config={{ displayModeBar: false }}
-      useResizeHandler
-      fit
-      style={{
-        marginLeft: "auto",
-        flex: "0 1 auto",
-        position: "relative",
-        display: "inline-block"
-      }}
-    />
-  );
-};
+  & > :last-child {
+    flex: 1;
+    background: ${Colors.RED5};
+    opacity: 0.8;
+  }
+`;
 
-// -${JSON.stringify(output.extra_parameters)}
-const run_type = output => `${output.test_input_path}-${output.platform}-${JSON.stringify(output.configurations)}`;
+// e.g. "80% of runs meet the target (≤ 10ms)"
+const success_tooltip = (success_frac, m) =>
+  `${percent_formatter.format(100 * success_frac)}% of runs meet the target (${m.smaller_is_better ? '≤' : '≥'} ${metric_formatter(m.target * m.scale, m)}${m.suffix ?? ''})`;
 
-const pc_under_threshold = (array, threshold) => {
-  if (threshold === null || threshold === undefined)
-    return 0
-  return array.filter(x => x <= threshold).length / array.length;
-};
-const pc_over_threshold = (array, threshold) => {
-  if (threshold === null || threshold === undefined)
-    return 0
-  return array.filter(x => x >= threshold).length / array.length;
-};
-
-const disable_axe = {
-  fixedrange: true,
-  zeroline: false,
-  showgrid: false,
-  showline: false,
-  showticklabel: false,
-  ticks: "",
-  autotick: true
-};
-
-let layout_tiles = {
-  barmode: "stack",
-  font: {
-    color: "#fff"
-  },
-  yaxis: {
-    ...disable_axe,
-    title: "",
-    color: "#fff",
-    tickcolor: "#fff"
-  },
-  xaxis: {
-    ...disable_axe,
-    title: "",
-    color: "#fff",
-    tickcolor: "#fff"
-  },
-  showlegend: false,
-  margin: {
-    l: 0,
-    r: 0,
-    b: 0,
-    t: 0,
-    pad: 0
-  },
-  width: 150,
-  height: 25,
-  autosize: false,
-  plot_bgcolor: "rgba(0,0,0,0)",
-  paper_bgcolor: "rgba(0,0,0,0)"
-};
-
-const SuccessBar = ({ success_frac }) => (
-  <Plot
-    data={[
-      {
-        type: "bar",
-        orientation: "h",
-        name: "Success",
-        x: [100 * success_frac],
-        textposition: "auto",
-        hoverinfo: "none",
-        text:
-          success_frac > 0.4
-            ? `${percent_formatter.format(100 * success_frac)}% success`
-            : "",
-        opacity: 1,
-        marker: {
-          color: Colors.GREEN3
-        }
-      },
-      {
-        type: "bar",
-        orientation: "h",
-        name: "Failure",
-        x: [100 * (1 - success_frac)],
-        textposition: "auto",
-        hoverinfo: "none",
-        text:
-          success_frac < 0.6
-            ? `${percent_formatter.format(100 * (1 - success_frac))}% failed`
-            : "",
-        opacity: 0.8,
-        marker: {
-          color: Colors.RED5
-        }
-      }
-    ]}
-    layout={layout_tiles}
-    config={{ displayModeBar: false }}
-  />
+const SuccessBar = ({ success_frac, metric }) => (
+  <Tooltip content={success_tooltip(success_frac, metric)}>
+    <SuccessBarTrack>
+      <span style={{ width: `${100 * success_frac}%` }}>
+        {success_frac > 0.4 && `${percent_formatter.format(100 * success_frac)}% met`}
+      </span>
+      {/* no label: it doesn't fit, the tooltip says it */}
+      <span/>
+    </SuccessBarTrack>
+  </Tooltip>
 );
 
-class MetricsSummary extends Component {
-  constructor(props) {
-    super(props);
-    const { available_metrics={}, summary_metrics=[] } = props.metrics || {};
-    const default_selected_metrics = summary_metrics.filter(k=>!!available_metrics[k]).map(k => available_metrics[k]) || [];
-    let selected_metrics = props.selected_metrics || default_selected_metrics;
-    this.state = {
-      available_metrics,
-      selected_metrics
-    };
-  }
 
-
-  componentDidUpdate(prevProps) {
-    if (this.props.metrics !== prevProps.metrics) {
-      const { available_metrics={}, summary_metrics=[] } = this.props.metrics;
-      const default_selected_metrics = summary_metrics.filter(k=>!!available_metrics[k]).map(k => available_metrics[k]) || [];
-      let selected_metrics = this.props.selected_metrics || default_selected_metrics;
-      this.setState({
-        available_metrics,
-        selected_metrics
-      });
-    }
-  }
-
-
-
-  renderMetric = (metric, { handleClick, modifiers }) => {
-    if (!modifiers.matchesPredicate) {
-      return null;
-    }
-    const { key, ...rest } = metric; 
-    return (
-      <MenuItem
-        active={modifiers.active}
-        icon={this.isMetricSelected(metric) ? "tick" : "blank"}
-        key={metric.key}
-        label={metric.key}
-        text={<MetricHeader
-          key={key}
-          {...rest}
-          show_suffix
-        />}
-        onClick={handleClick}
-        shouldDismissPopover={false}
-      />
-    );
-  };
-  filterMetric = (query, metric) => {
-    return match_query(query)(`${metric.key} ${metric.label} ${metric.short_label}`)
-  };
-  handleClearMetrics = () => this.setState({ selected_metrics: [] });
-  handleRemoveMetric = (_tag, index) => {
-    this.deselectMetric(index);
-  };
-  getSelectedMetricIndex = metric => {
-    return this.state.selected_metrics.indexOf(metric);
-  };
-  isMetricSelected(metric) {
-    return this.getSelectedMetricIndex(metric) !== -1;
-  }
-  deselectMetric = index => {
-    this.setState({
-      selected_metrics: this.state.selected_metrics.filter(
-        (metric, i) => i !== index
-      )
+const tags_breakdown = outputs => {
+  const tags = {};
+  const outputs_by_tag = {};
+  outputs.forEach(output => {
+    (output.test_input_metadata?.tags ?? []).forEach(tag => {
+      tags[tag] = (tags[tag] ?? 0) + 1;
+      (outputs_by_tag[tag] ??= []).push(output);
     });
-  };
-  handleMetricSelect = metric => {
-    if (!this.isMetricSelected(metric)) {
-      this.setState({
-        selected_metrics: [...this.state.selected_metrics, metric]
-      });
-    } else {
-      this.deselectMetric(this.getSelectedMetricIndex(metric));
-    }
-  };
+  });
+  return { tags, outputs_by_tag };
+};
 
-  render() {
-    const { new_batch, ref_batch, breakdown_by_tag } = this.props;
-    if (new_batch === null) return <span />;
+const no_runs = { outputs: {}, filtered: { outputs: [] } };
 
-    let xaxis_labels = this.props.xaxis_labels || ["New", "Reference"];
-    let outputs_new = new_batch.filtered.outputs
-                     .map(id => new_batch.outputs[id])
-                     .filter(o => !o.is_pending)
-                     .filter(o => o.output_type!=="optim_iteration");                    
-    let run_types_new = new Set(outputs_new.map(o => run_type(o)));
-    run_types_new = new Set(outputs_new.map(o => o.test_input_path));
-    // we only how ref outputs with a matching input+config+platform
-    // it's debatable, maybe we should show all, or filter also on tuning params...
-    let outputs_ref = ref_batch.filtered.outputs
-      .map(id => ref_batch.outputs[id])
-      .filter(o => run_types_new.has(o.test_input_path))
-      .filter(o => !o.is_pending);
+// labels: what the commit page calls the new and reference results, and their colors (useComparison().labels)
+const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, metrics, selected_metrics: selected_metrics_, labels: labels_ }) => {
+  const labels = useLabels(labels_);
+  const { available_metrics = {}, summary_metrics = [] } = metrics ?? {};
+  const used_metrics = new_batch?.used_metrics;
 
-    const { selected_metrics=[] } = this.state;
+  // The same runs as GET /api/v1/commit/<sha>/compare, see utils/compare.js
+  const { outputs_new, outputs_ref } = useMemo(
+    () => new_batch?.filtered ? summary_outputs(new_batch, ref_batch?.filtered ? ref_batch : no_runs) : { outputs_new: [], outputs_ref: [] },
+    [new_batch, ref_batch],
+  );
+  // By default we show the metrics we were given, or the project's summary metrics,
+  // else those that changed the most vs the reference.
+  const configured_keys = selected_metrics_?.map(m => m.key) ?? (Array.isArray(summary_metrics) && summary_metrics.length > 0 ? summary_metrics : null);
+  const is_automatic = configured_keys === null;
+  const changed_keys = useMemo(
+    () => is_automatic ? changed_metrics(outputs_new, outputs_ref, Object.keys(available_metrics).filter(k => used_metrics?.has(k))) : [],
+    [is_automatic, outputs_new, outputs_ref, available_metrics, used_metrics],
+  );
+  const default_keys = is_automatic ? changed_keys : configured_keys;
+  // Users can change the selection, until the configuration changes: not when runs finish or are filtered.
+  const default_signature = is_automatic ? '(automatic)' : configured_keys.join('\n');
+  const [user_selection, setUserSelection] = useState(null);
+  const selected_keys = user_selection?.default_signature === default_signature ? user_selection.keys : default_keys;
+  const selected_metrics = selected_keys.map(k => metric_info(available_metrics, k));
+  const setSelectedKeys = keys => setUserSelection({ default_signature, keys });
+  const { tags, outputs_by_tag } = useMemo(
+    () => breakdown_by_tag ? tags_breakdown(outputs_new) : { tags: {}, outputs_by_tag: {} },
+    [breakdown_by_tag, outputs_new],
+  );
 
-    const clearButton =
-      selected_metrics.length > 0 ? (
-        <Button icon="cross" minimal={true} onClick={this.handleClearMetrics} />
-      ) : null;
+  if (new_batch === null) return <span />;
 
-
-    if (breakdown_by_tag) {
-      var tags = {};
-      Object.values(outputs_new).forEach(output => {
-        if (output.test_input_metadata !== undefined && output.test_input_metadata.tags !== undefined)
-          output.test_input_metadata.tags.forEach(tag => {
-            if (tags[tag] === undefined) tags[tag] = 0;
-            tags[tag] += 1;
-          });
-      });
-      // console.log(tags)
-
-      var outputs_by_tag = {};
-      Object.values(outputs_new).forEach(output => {
-        if (output.test_input_metadata !== undefined && output.test_input_metadata.tags !== undefined)
-          output.test_input_metadata.tags.forEach(tag => {
-            if (outputs_by_tag[tag] === undefined) outputs_by_tag[tag] = [];
-            outputs_by_tag[tag].push(output);
-          });
-      });
-      // console.log(outputs_by_tag)
-    }
-
-    let batch_data = new_batch.data || {};
-    return (
-      <div>
-        {(!batch_data.optimization && new_batch.sorted_extra_parameters.length > 0) && (
-          <Callout intent={Intent.WARNING}>
-            The aggregation below contains all runs, possibly with tuning <strong>parameters mixed together.</strong>
-          </Callout>
+  const batch_data = new_batch.data || {};
+  const has_runs = new_batch.filtered?.outputs?.length > 0;
+  const is_filtered = Object.keys(new_batch.outputs ?? {}).length > (new_batch.filtered?.outputs?.length ?? 0);
+  const no_runs_state = outputs_new.length === 0 && <NonIdealState
+    icon={is_filtered && !has_runs ? "filter" : "inbox"}
+    title={is_filtered && !has_runs ? "No finished run matches the filter" : "No finished run to summarize yet"}
+    description={has_runs ? "The summary appears once runs finish." : undefined}
+  />;
+  return (
+    <div>
+      {/* only the runs we aggregate: e.g. not after filtering on one configuration */}
+      {(!batch_data.optimization && mixed_parameters(outputs_new).length > 0) && (
+        <Callout intent={Intent.WARNING}>
+          The aggregation below contains all runs, possibly with tuning <strong>parameters mixed together.</strong>
+        </Callout>
+      )}
+      <MetricSelect available_metrics={available_metrics} used_metrics={new_batch.used_metrics} selected={selected_keys} onChange={setSelectedKeys}/>
+      <br/>
+      {breakdown_by_tag &&
+        Object.entries(tags).map(([tag, count], idx) =>
+          <Tag style={{ margin: '5px', background: plotly_palette(idx) }} key={tag}>
+            {count} @{tag}
+          </Tag>
         )}
-        <MultiSelect
-          items={Object.values(this.state.available_metrics).filter(m => this.props.new_batch.used_metrics.has(m.key))}
-          itemPredicate={this.filterMetric}
-          itemRenderer={this.renderMetric}
-          onItemSelect={this.handleMetricSelect}
-          tagRenderer={m => m.label}
-          tagInputProps={{
-            onRemove: this.handleRemoveMetric,
-            rightElement: clearButton
-          }}
-          noResults={noMetrics}
-          selectedItems={selected_metrics.filter(m => this.props.new_batch.used_metrics.has(m.key))}
-          popoverProps={Classes.MINIMAL}
+      {no_runs_state}
+      {!no_runs_state && is_automatic && default_keys.length === 0 && selected_metrics.length === 0 && <NoSummaryMetrics/>}
+      {!no_runs_state && is_automatic && default_keys.length > 0 && selected_keys === default_keys && <AutomaticSummaryNote
+        count={default_keys.length}
+        has_reference={outputs_ref.length > 0}
+      />}
+      {!no_runs_state && selected_metrics.map(m =>
+        <MetricSummary
+          key={m.key}
+          metric={m}
+          outputs_new={outputs_new}
+          outputs_ref={outputs_ref}
+          outputs_by_tag={breakdown_by_tag ? outputs_by_tag : undefined}
+          sides={labels}
         />
+      )}
+      {!no_runs_state && <UndeclaredMetricsNote metrics={selected_metrics}/>}
+    </div>
+  );
+};
+
+const NoSummaryMetrics = () => {
+  const { docs_root } = useSiteConfig();
+  return <NonIdealState
+    icon="th-list"
+    title="No metrics to summarize"
+    description={<p>
+      The runs don't have metrics with numbers: return them from your <code>run()</code> function.{" "}
+      <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/computing-quantitative-metrics`}>Learn more</a>
+    </p>}
+  />;
+};
+
+const note_style = { margin: '12px 0 0' };
+
+// The project didn't choose which metrics to summarize
+const AutomaticSummaryNote = ({ count, has_reference }) => {
+  const { docs_root } = useSiteConfig();
+  return <p className={Classes.TEXT_MUTED} style={note_style}>
+    {has_reference
+      ? `The ${count} metrics that changed the most vs the reference.`
+      : `The first ${count} metrics.`}{" "}
+    Pick others above, or choose those shown by default with <code>summary_metrics</code> in your metrics file.{" "}
+    <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/computing-quantitative-metrics#choosing-the-metrics-shown-by-default`}>Learn more</a>
+  </p>;
+};
+
+// Helps declare metrics: the web app can't tell good from bad without knowing which way is better
+const UndeclaredMetricsNote = ({ metrics }) => {
+  const { docs_root } = useSiteConfig();
+  const unknown = metrics.filter(is_direction_unknown);
+  if (unknown.length === 0) return null;
+  const names = unknown.slice(0, 3).map(m => m.label).join(', ') + (unknown.length > 3 ? ` and ${unknown.length - 3} more` : '');
+  return <p className={Classes.TEXT_MUTED} style={note_style}>
+    Higher or lower is better? QA-Board doesn't know for {names}: it shows their changes in neutral colors.{" "}
+    <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/computing-quantitative-metrics#declaring-metrics`}>Declare them</a> where your code computes them.
+  </p>;
+};
+
+const filterMetric = (query, metric) => match_query(query)(`${metric.key} ${metric.label} ${metric.short_label}`);
+const noMetrics = <MenuItem disabled={true} text="No matching metrics." />;
+
+// Picks metrics among those the batch has.
+// selected: keys of metrics, onChange(keys). Selected metrics the batch doesn't have stay selected.
+const MetricSelect = ({ available_metrics = {}, used_metrics, selected, onChange }) => {
+  const items = Object.values(available_metrics).filter(m => used_metrics.has(m.key));
+  const shown = selected.map(k => available_metrics[k]).filter(m => m && used_metrics.has(m.key));
+  const is_selected = metric => selected.includes(metric.key);
+  const toggle = metric => onChange(is_selected(metric) ? selected.filter(k => k !== metric.key) : [...selected, metric.key]);
+  const renderMetric = (metric, { handleClick, modifiers }) => {
+    if (!modifiers.matchesPredicate)
+      return null;
+    const { key, ...rest } = metric;
+    return <MenuItem
+      active={modifiers.active}
+      icon={is_selected(metric) ? "tick" : "blank"}
+      key={key}
+      label={key}
+      text={<MetricHeader {...rest} show_suffix/>}
+      onClick={handleClick}
+      shouldDismissPopover={false}
+    />;
+  };
+  return <MultiSelect
+    items={items}
+    itemPredicate={filterMetric}
+    itemRenderer={renderMetric}
+    onItemSelect={toggle}
+    tagRenderer={({ key: _key, ...m }) => <MetricHeader {...m}/>}
+    tagInputProps={{
+      onRemove: (_tag, index) => onChange(selected.filter(k => k !== shown[index]?.key)),
+      rightElement: selected.length > 0 ? <Button icon="cross" aria-label="Clear" minimal onClick={() => onChange([])}/> : null,
+    }}
+    noResults={noMetrics}
+    selectedItems={shown}
+    placeholder="Choose metrics…"
+    popoverProps={{ minimal: true }}
+  />;
+};
+
+// e.g. "+3%", and "0%" for tiny changes, not "-0%"
+const format_delta = delta_relative => {
+  const percent = 100 * delta_relative;
+  if (Math.abs(percent) < 0.5) return "0%";
+  return `${percent > 0 ? "+" : ""}${percent_formatter.format(percent)}%`;
+};
+
+const delta_intent = (delta_relative, smaller_is_better) => {
+  if (smaller_is_better === null) return Intent.DEFAULT;
+  if (delta_relative > 0.01) return smaller_is_better ? Intent.DANGER : Intent.SUCCESS;
+  if (delta_relative < -0.01) return smaller_is_better ? Intent.SUCCESS : Intent.DANGER;
+  return Intent.DEFAULT;
+};
+
+// A side's color in the plots, next to its numbers
+const swatch = color => ({ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: color, marginRight: 8, verticalAlign: 'middle' });
+
+// sides: the names and colors of what we compare (useComparison().labels)
+const MetricSummary = ({ metric: m, outputs_new, outputs_ref, outputs_by_tag, sides }) => {
+  const breakdown_by_tag = outputs_by_tag !== undefined;
+  // The same numbers as GET /api/v1/commit/<sha>/compare, see utils/compare.js
+  const new_values = metric_values(outputs_new, m.key);
+  if (new_values.length === 0) return null;
+  const ref_values = metric_values(outputs_ref, m.key);
+  const { new_med, ref_med, delta_relative, new_pc_good, ref_pc_good } = summary_stats(new_values, ref_values, m);
+  const intent = delta_intent(delta_relative, m.smaller_is_better);
+
+  return (
+    <MetricRow>
+      <MetricTile>
+        <Tooltip content={`${m.label}: median ${m.scale * new_med}${m.suffix ?? ''} over ${new_values.length} run${new_values.length === 1 ? '' : 's'}`}>
+          <h3 className={Classes.HEADING}>
+            {metric_formatter(m.scale * new_med, m)}{m.suffix}
+            <span className={Classes.TEXT_MUTED}> median</span>
+          </h3>
+        </Tooltip>
         <br/>
-        {breakdown_by_tag &&
-          Object.entries(tags).map( (tag_count, idx) => {
-            let [tag, count] = tag_count
-            return <Tag style={{ margin: '5px', background: plotly_palette(idx) }} key={tag}>
-              {count} @{tag}
-            </Tag>
-          })}
-        {selected_metrics.map((m, idx) => {
-          let new_values = outputs_new
-            .map(o => o.metrics[m.key])
-            .filter(x => x !== undefined && typeof x !== 'string' )
-            .map(o => 1 * o);
-          if (new_values.length === 0) return <Fragment key={idx} />;
-          let ref_values = outputs_ref.map(o => o.metrics[m.key]).filter(v => v !== undefined && v !== null && typeof v !== 'string');
-          let new_med = median(new_values);
-          let ref_med = median(ref_values);
-          let new_pc_good = m.smaller_is_better
-            ? pc_under_threshold(new_values, m.target)
-            : pc_over_threshold(new_values, m.target);
-          let ref_pc_good = m.smaller_is_better
-            ? pc_under_threshold(ref_values, m.target)
-            : pc_over_threshold(ref_values, m.target);
-          let delta = new_med - ref_med;
-          let delta_relative = delta / ref_med;
+        <Tooltip content={<span>{m.label}</span>}>
+          <h5 className={Classes.HEADING}>{m.short_label}</h5>
+        </Tooltip>
+        <br/>
+        {new_pc_good !== null && <SuccessBar success_frac={new_pc_good} metric={m}/>}
+      </MetricTile>
 
-          var intent;
-          if (m.smaller_is_better) {
-            if (delta_relative > 0.01) intent = Intent.DANGER;
-            else if (delta_relative < -0.01) intent = Intent.SUCCESS;
-            else intent = Intent.DEFAULT;
-          } else {
-            if (delta_relative < -0.01) intent = Intent.DANGER;
-            else if (delta_relative > 0.01) intent = Intent.SUCCESS;
-            else intent = Intent.DEFAULT;
-          }
-
-          if (breakdown_by_tag) {
-            var series_by_tag = Object.values(outputs_by_tag).map(outputs =>
-              outputs
-                .map(o => o.metrics[m.key])
-                .filter(x => x !== undefined)
-                .map(o => 1 * o)
-            );
-          }
-          return (
-            <MetricRow key={idx}>
-              <MetricTile>
-                <Tooltip content={<span>{m.scale * new_med}{m.suffix}</span>}>
-                  <h3 className={Classes.HEADING}>
-                    {metric_formatter(m.scale * new_med, m)}{m.suffix}
-                    <span style={{ color: "#ccc" }}> median</span>
-                  </h3>
-                </Tooltip>
-                <br/>
-                <Tooltip content={<span>{m.label}</span>}>
-                  <h5 className={Classes.HEADING}>{m.short_label}</h5>
-                </Tooltip>
-                <br/>
-                {m.target !== undefined && <SuccessBar success_frac={new_pc_good} />}
-              </MetricTile>
-
-              {!breakdown_by_tag && (
-                <>
-                  {ref_values.length > 0 && <MetricTile>
-                    <Tooltip content={<span>{m.scale * ref_med}{m.suffix}</span>}>
-                      <h3 className={Classes.HEADING} style={{ color: color_ref }}>
-                        <Icon style={{verticalAlign: 'middle'}} icon="swap-horizontal" color="#ccc" size={16}/> {metric_formatter(m.scale * ref_med, m)}{m.suffix}
-                      </h3>
-                    </Tooltip>
-                    <h5 className={Classes.HEADING}>
-                      <Tooltip content={<span>{100 * delta_relative}</span>}>
-                      <Tag intent={intent}>
-                        {delta_relative > 0 ? "+" : ""}
-                        {percent_formatter.format(100 * delta_relative)}%
-                      </Tag>
-                      </Tooltip>
-                    </h5>
-                    {(m.target !== undefined && !!ref_pc_good) && <SuccessBar success_frac={ref_pc_good} />}
-                  </MetricTile>}
-                  {new_values.length > 1 && <HistogramComparaison
-                    series={ref_values.length > 0 ? [new_values, ref_values] : [new_values]}
-                    metric={m}
-                    xaxis_labels={xaxis_labels}
-                  />}
-                </>
-              )}
-              {breakdown_by_tag && (
-                <Fragment>
-                  <HistogramComparaison
-                    series={series_by_tag}
-                    metric={m}
-                    xaxis_labels={Object.keys(outputs_by_tag)}
-                    use_plotly_default_colors
-                    layout={{
-                      width: 850,
-                      xaxis: { fixedrange: true, title: "", tickfont: { size: 8 }},
-                    }}
-                  />
-                </Fragment>
-              )}
-            </MetricRow>
-          );
-        })}
-      </div>
-    );
-  }
-}
+      {!breakdown_by_tag && (
+        <>
+          {ref_values.length > 0 && <MetricTile>
+            <Tooltip content={`Reference median: ${m.scale * ref_med}${m.suffix ?? ''} over ${ref_values.length} run${ref_values.length === 1 ? '' : 's'}`}>
+              <h3 className={Classes.HEADING} style={{ fontSize: 18 }}>
+                <span aria-hidden style={swatch(sides.colors.reference.css)}/>
+                {metric_formatter(m.scale * ref_med, m)}{m.suffix}
+                <span className={Classes.TEXT_MUTED}> {sides.reference}</span>
+              </h3>
+            </Tooltip>
+            <h5 className={Classes.HEADING}>
+              <Tooltip content={`Change of the median vs the reference: ${delta_relative > 0 ? '+' : ''}${metric_formatter(100 * delta_relative)}%. ${is_direction_unknown(m) ? direction_unknown : `${m.smaller_is_better ? 'Lower' : 'Higher'} is better.`}`}>
+              <Tag intent={intent} minimal round>{format_delta(delta_relative)}</Tag>
+              </Tooltip>
+            </h5>
+            {!!ref_pc_good && <SuccessBar success_frac={ref_pc_good} metric={m}/>}
+          </MetricTile>}
+          {new_values.length > 1 && <BoxPlots
+            series={ref_values.length > 0 ? [new_values, ref_values] : [new_values]}
+            metric={m}
+            labels={[sides.new, sides.reference]}
+            colors={[sides.colors.new.css, sides.colors.reference.css]}
+          />}
+        </>
+      )}
+      {/* in the colors of the tags' counts */}
+      {breakdown_by_tag && (
+        <BoxPlots
+          series={Object.values(outputs_by_tag).map(outputs => metric_values(outputs, m.key))}
+          metric={m}
+          labels={Object.keys(outputs_by_tag)}
+          colors={Object.keys(outputs_by_tag).map((_, i) => plotly_palette(i))}
+          width={850}
+          label_size={8}
+        />
+      )}
+    </MetricRow>
+  );
+};
 
 export {
-  HistogramComparaison,
+  MetricSelect,
   MetricsSummary,
   MetricTag,
   MetricsTags,

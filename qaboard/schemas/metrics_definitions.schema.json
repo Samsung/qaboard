@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://samsung.github.io/qaboard/metrics_definitions.schema.json",
+  "title": "QA-Board metrics definitions (metrics_definitions.json)",
+  "description": "How QA-Board shows the metrics of a run, written by the run next to its metrics.json. Without smaller_is_better, QA-Board doesn't know which way is better. Docs: https://samsung.github.io/qaboard/docs/computing-quantitative-metrics",
+  "type": "object",
+  "additionalProperties": {"$ref": "https://samsung.github.io/qaboard/metrics.schema.json#/$defs/metric"}
+}

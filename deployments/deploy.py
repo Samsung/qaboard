@@ -16,14 +16,15 @@ Usage (from the root of the repository):
 
 ENV_FILE describes an environment, e.g. deployments/sirc/production.env. It's a docker compose env file
 that sets at least COMPOSE_FILE and COMPOSE_PROJECT_NAME. Variables from the shell take precedence.
+Secrets stay in .env: the backend reads it, and we pass the compose files the ones they need (DOTENV_SECRETS).
 
 `up` does:
 1. Pull the images for $QABOARD_VERSION (or build them with --build)
 2. Run database migrations once. If they fail, nothing running is changed.
 3. Update the infrastructure services (db, redis, proxy...). They are only recreated if their config/image changed.
 4. Rolling update of the backend: start the new replicas next to the old ones, wait until they are healthy,
-   point nginx at them, then stop the old ones gracefully. If the new replicas are not healthy, they are removed
-   and the old ones keep serving.
+   point nginx at them, wait until the old ones answered the requests they received, then stop them gracefully.
+   If the new replicas are not healthy, they are removed and the old ones keep serving.
 5. Update the frontend/docs bundles (old bundles are kept, so clients with an old version keep working)
 6. Record the version for `rollback`/`status`, remove old images to keep the disk from filling up.
 
@@ -48,6 +49,12 @@ ROOT = Path(__file__).resolve().parent.parent
 STATIC_SERVICES = ["frontend", "website"]
 KEEP_IMAGES = 3  # versions kept locally for fast rollbacks
 DRAIN_SECONDS = 5  # after switching nginx to the new replicas, before stopping the old ones
+DRAIN_TIMEOUT = 60  # then at most this long, until the old replicas answered all the requests they received
+UWSGI_PORT = 3000  # the backend's uwsgi socket, where nginx sends the requests (backend/uwsgi.ini)
+# Secrets that the compose files read with ${...}, kept in .env. `docker compose` reads .env by itself, but not when it's
+# given --env-file: we pass them on, unless the shell or ENV_FILE sets them.
+DOTENV_SECRETS = ["QABOARD_DB_PASSWORD", "QABOARD_RABBITMQ_USER", "QABOARD_RABBITMQ_PASSWORD", "FLOWER_BASIC_AUTH",
+                  "PGADMIN_DEFAULT_EMAIL", "PGADMIN_DEFAULT_PASSWORD"]
 
 
 def log(msg: str) -> None:
@@ -90,6 +97,12 @@ class Deployment:
         self.state = json.loads(self.state_path.read_text()) if self.state_path.exists() else {"history": []}
         self.version = version or os.environ.get("QABOARD_VERSION") or self.deployed_version()
         self.env = {**os.environ}
+        dotenv = ROOT / ".env"
+        if dotenv.is_file():
+            secrets = read_env_file(dotenv)
+            for key in DOTENV_SECRETS:
+                if key in secrets and key not in self.env and key not in file_env:
+                    self.env[key] = secrets[key]
         if self.version:
             self.env["QABOARD_VERSION"] = self.version
         else:
@@ -139,21 +152,29 @@ class Deployment:
     def proxy_running(self, services: List[str]) -> bool:
         return "proxy" in services and bool(self.containers("proxy", all_states=False))
 
-    def set_upstream(self, services: List[str], containers: List[str]) -> None:
+    def set_upstream(self, services: List[str], containers: List[str]) -> bool:
         """
-        Points nginx at specific backend containers.
+        Points nginx at specific backend containers. Returns whether nginx was switched to them.
         Old replicas must stop receiving new requests *before* they are stopped: during a graceful shutdown
         uwsgi still accepts connections but never answers them, and nginx can't retry non-idempotent requests.
         """
         if not self.proxy_running(services):
-            return
+            return False
         ips = [self.docker("inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", c).split()[0] for c in containers]
-        servers = "".join(f"server {ip}:3000 max_fails=1 fail_timeout=5s;\n" for ip in ips)
+        servers = "".join(f"server {ip}:{UWSGI_PORT} max_fails=1 fail_timeout=5s;\n" for ip in ips)
         r = self.compose("exec", "-T", "proxy", "sh", "-c",
                          'printf "%s" "$1" > /etc/nginx/upstreams/backend.conf && nginx -t -q && nginx -s reload',
                          "_", servers, check=False)
         if r.returncode:
             log("WARNING: could not point nginx at the new replicas: requests to the old ones may fail while they stop")
+        return r.returncode == 0
+
+    def busy(self, container: str) -> bool:
+        """Whether a backend replica has requests to answer: connections from nginx on its uwsgi port, being answered or queued"""
+        r = subprocess.run(["docker", "exec", container, "cat", "/proc/net/tcp", "/proc/net/tcp6"], capture_output=True, text=True)
+        # Fields: sl local_address rem_address st... (`man 5 proc`). States: 01 ESTABLISHED, 03 SYN_RECV
+        return any(f[1].endswith(f":{UWSGI_PORT:04X}") and f[3] in ("01", "03")
+                   for f in (line.split() for line in r.stdout.splitlines()) if len(f) > 3)
 
     def reconfigure_proxy(self, services: List[str], fatal: bool = True) -> None:
         """Applies nginx config changes, and points nginx at the "backend" DNS name (all running replicas)."""
@@ -317,9 +338,17 @@ class Deployment:
         if old:
             # A proxy started before deploy.py existed doesn't have /etc/nginx/upstreams/ yet
             self.reconfigure_proxy(services, fatal=False)
-            self.set_upstream(services, new)  # new requests only go to the new replicas
+            switched = self.set_upstream(services, new)  # new requests only go to the new replicas
             # nginx's reload is asynchronous: its old workers can still send requests they accepted to the old replicas
             time.sleep(DRAIN_SECONDS)
+            # uwsgi's graceful shutdown only finishes the requests its workers accepted: those still queued are reset (502),
+            # and they can wait there for seconds, e.g. while all of a replica's workers restart at once (max-requests)
+            deadline = time.time() + DRAIN_TIMEOUT
+            while switched and any(self.busy(c) for c in old):
+                if time.time() > deadline:
+                    log(f"WARNING: the old {service} replicas still have requests to answer after {DRAIN_TIMEOUT}s")
+                    break
+                time.sleep(0.5)
             log(f"Stopping the {len(old)} old {service} replicas (they finish in-flight requests)")
             self.docker("stop", "-t", "60", *old)
             self.docker("rm", *old)

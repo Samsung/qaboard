@@ -5,7 +5,6 @@ import os
 import re
 import json
 import hashlib
-import subprocess
 from pathlib import Path
 from typing import List, Dict, Union, Optional
 
@@ -57,7 +56,7 @@ def batches_files(config, batch_paths, project, subproject, root_qatools):
   paths = []
   if config:
     config_inputs = config.get('inputs', {})
-    # "batches" is prefered, but we want to stay backward compatible
+    # "batches" is preferred, but we want to stay backward compatible
     paths = config_inputs.get('groups', config_inputs.get('batches')) or []
   elif batch_paths:
     paths = batch_paths
@@ -70,12 +69,18 @@ def batches_files(config, batch_paths, project, subproject, root_qatools):
 
   if any(['*' in str(paths)]):
     from itertools import chain
+    import sys
     from glob import iglob
-    # in python3.10 glob supports root_dir...
-    prev_cwd = os.getcwd()
-    os.chdir(root_qatools)  
-    paths = list(chain.from_iterable([iglob(str(path)) for path in paths]))
-    os.chdir(prev_cwd)
+    if sys.version_info >= (3, 10):
+      # no chdir: the cwd is process-wide, the server calls us from many threads
+      paths = list(chain.from_iterable([iglob(str(path), root_dir=root_qatools) for path in paths]))
+    else:
+      prev_cwd = os.getcwd()
+      os.chdir(root_qatools)
+      try:
+        paths = list(chain.from_iterable([iglob(str(path)) for path in paths]))
+      finally:
+        os.chdir(prev_cwd)
   return paths
 
 def slugify(s : str, maxlength=32):
@@ -104,7 +109,6 @@ def slugify_hash(s, maxlength=32):
 
 
 def deserialize_config(configuration: str) -> List:
-  # print("[deserialize] before : ", configuration)
   if configuration == '-':
     return []
   configurations: List = []
@@ -142,20 +146,16 @@ def deserialize_config(configuration: str) -> List:
           pass
   if configuration_part:
       configurations.append(configuration_part)
-  # print("[deserialize] after: ", configurations)
   return configurations
 
 
 def serialize_config(configurations: List) -> str:
-  # print("[serialize] before: ", configurations)
   if not configurations:
     return '-'
   if isinstance(configurations, str):
     return configurations
   configurations = [json.dumps(c, sort_keys=True) if isinstance(c, dict) else (c if c is not None else "null") for c in configurations]
-  # print("[serialize] during", configurations)
   configuration = ":".join(configurations)
-  # print("[serialize] after: ", configuration)
   return configuration
 
 
@@ -246,12 +246,25 @@ def batch_dir(outputs_commit, batch_label, save_with_ci=False):
 def make_batch_dir(outputs_commit, batch_label, platform, configurations, extra_parameters, save_with_ci):
   return batch_dir(outputs_commit, batch_label, save_with_ci)
 
-def make_batch_conf_dir(outputs_commit, batch_label, platform, configurations, extra_parameters, save_with_ci):
+def batch_conf_dir_name(platform, configurations, extra_parameters) -> str:
   full_configurations = [platform] if platform != 'lsf' else []
   full_configurations.extend([*configurations, extra_parameters])
+  return slugify_hash(full_configurations, maxlength=16)
+
+def make_batch_conf_dir(outputs_commit, batch_label, platform, configurations, extra_parameters, save_with_ci):
   return (
     batch_dir(outputs_commit, batch_label, save_with_ci) /
-    slugify_hash(full_configurations, maxlength=16)
+    batch_conf_dir_name(platform, configurations, extra_parameters)
+  )
+
+def run_dir_in_commit(batch_label, platform, configurations, extra_parameters, rel_input_path, database, config) -> Path:
+  """Where `qa run` saves a run, relative to its commit's outputs directory (or the project's, for local runs)"""
+  # forwarded arguments (qa run -i input --some-arg) are not part of the run's directory
+  extra_parameters = {k: v for k, v in (extra_parameters or {}).items() if k != 'forwarded_args'}
+  return (
+    batch_folder_name(batch_label) /
+    batch_conf_dir_name(platform, configurations or [], extra_parameters) /
+    output_dirs_for_input_part(Path(rel_input_path), Path(database), config)
   )
 
 def output_dirs_for_input_part(input_path, database, config):

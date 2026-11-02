@@ -1,9 +1,8 @@
 // "Available Tests": edit the shared and private files that define batches of tests
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
-import axios from "axios";
+import { useQueryClient } from "@tanstack/react-query";
 import { DateTime } from "luxon";
-import { CopyToClipboard } from "react-copy-to-clipboard";
 import {
   Alert,
   Button,
@@ -29,11 +28,14 @@ import {
 
 import MonacoEditor, { MonacoDiffEditor } from "../MonacoEditor";
 import { toaster } from "../../toaster";
-import { updateSelected } from "../../actions/selected";
-import { updateTuningForm } from "../../actions/tuning";
+import { copyWithToast } from "../../utils/clipboard";
+import { http } from "../../api/http";
+import { updateSelected } from "../../selection";
+import { usePrefsStore } from "../../stores/prefs";
+import { blob_url } from "../../git";
 import { analyzeBatches, newBatchSnippet, unusedBatchName } from "./batches_file";
+import { BatchDefinitions, BatchFiles, BatchWarnings } from "./BatchReport";
 
-const { get, post } = axios;
 
 
 const editor_options = {
@@ -72,9 +74,9 @@ const storeDraft = (project, name, doc) => {
   }
 };
 
-// The server returns the file as-is: don't let axios parse it as JSON
+// The server returns the file as-is: we don't parse it as JSON
 const getFile = (project, name) =>
-  get("/api/v1/tests/groups", { params: { project, name }, responseType: "text", transformResponse: r => r })
+  http.get("/api/v1/tests/groups", { params: { project, name }, responseType: "text" })
     .then(response => response.data ?? "");
 
 const errorMessage = error => {
@@ -87,7 +89,7 @@ const errorMessage = error => {
       return data;
     }
   }
-  return data?.error ?? (error?.response?.status === 401 ? "Please log in again." : error?.message ?? String(error));
+  return data?.error ?? (error?.response?.status === 401 ? "Please sign in again." : error?.message ?? String(error));
 };
 
 const relative = date => Date.now() - date.getTime() < 10 * 1000
@@ -95,15 +97,20 @@ const relative = date => Date.now() - date.getTime() < 10 * 1000
   : DateTime.fromJSDate(date).toRelative({ style: "short" }) ?? "just now";
 
 
-const Layout = styled.div`
+// The editor and its side panel, stacked when the content area is narrow
+const LayoutContainer = styled.div`
+  container-type: inline-size;
+`;
+const LayoutGrid = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
   gap: 16px;
   align-items: start;
-  @media (max-width: 1100px) {
+  @container (max-width: 860px) {
     grid-template-columns: minmax(0, 1fr);
   }
 `;
+const Layout = ({ children }) => <LayoutContainer><LayoutGrid>{children}</LayoutGrid></LayoutContainer>;
 
 const Toolbar = styled.div`
   display: flex;
@@ -111,7 +118,7 @@ const Toolbar = styled.div`
   flex-wrap: wrap;
   gap: 8px 12px;
   padding: 6px 0 8px;
-  border-bottom: 1px solid rgba(17, 20, 24, 0.15);
+  border-bottom: 1px solid var(--qa-border);
   margin-bottom: 8px;
   .bp6-tab-list { align-items: center; }
 `;
@@ -137,7 +144,7 @@ const DirtyDot = styled.span`
 `;
 
 const EditorFrame = styled.div`
-  border: 1px solid rgba(17, 20, 24, 0.15);
+  border: 1px solid var(--qa-border);
   border-radius: 2px;
   overflow: hidden;
 `;
@@ -146,7 +153,7 @@ const Problems = styled.ul`
   list-style: none;
   margin: 0;
   padding: 4px 0;
-  border-top: 1px solid rgba(17, 20, 24, 0.15);
+  border-top: 1px solid var(--qa-border);
   max-height: 120px;
   overflow: auto;
   font-size: 12px;
@@ -218,6 +225,7 @@ const item_meta = item => {
   if (item.overridden_by) return `replaced, line ${item.overridden_by}`;
   if (item.kind === "alias") return `alias → ${item.targets.join(", ") || "nothing"}`;
   if (item.kind === "setting") return "file setting";
+  if (item.kind === "reused") return `reused with *${item.anchor}, not a batch`;
   if (item.kind === "pipeline") return "pipeline";
   if (item.inputs === undefined) return "";
   return `${item.inputs} input${item.inputs === 1 ? "" : "s"}`;
@@ -226,10 +234,11 @@ const item_meta = item => {
 
 /**
  * Lists the tests a batch (or pattern, or alias) resolves to, as `qa batch` would see them on this commit.
+ * Also says where the batch is defined, which batch files the server read, and what may be wrong.
  */
-function BatchPreview({ project, commit, file_names, batch, onRun, unsaved }) {
+function BatchPreview({ project, commit, file_names, file_labels, batch, onRun, unsaved }) {
   const [query, setQuery] = useState(batch);
-  const [state, setState] = useState({ loading: false, tests: null, error: null, message: null });
+  const [state, setState] = useState({ loading: false, tests: null, error: null, report: null });
   const [filter, setFilter] = useState("");
   const [shown, setShown] = useState(200);
   const request = useRef(0);
@@ -237,20 +246,22 @@ function BatchPreview({ project, commit, file_names, batch, onRun, unsaved }) {
   const resolveBatch = useCallback(name => {
     if (!name) return;
     const id = ++request.current;
-    setState({ loading: true, tests: null, error: null, message: null });
+    setState({ loading: true, tests: null, error: null, report: null });
     setShown(200);
-    post("/api/v1/tests/group", { groups: file_names }, { params: { project, name, commit: commit?.id } })
+    http.post("/api/v1/tests/group", { groups: file_names }, { params: { project, name, commit: commit?.id } })
       .then(({ data }) => {
         if (id !== request.current) return;
-        setState({ loading: false, tests: data.tests ?? [], error: data.error ?? null, message: data.message ?? null });
+        const { warnings = [], files = [], definitions = [] } = data;
+        setState({ loading: false, tests: data.tests ?? [], error: data.error ?? null, report: { name, warnings, files, definitions } });
       })
       .catch(error => {
         if (id !== request.current) return;
-        setState({ loading: false, tests: null, error: errorMessage(error), message: null });
+        setState({ loading: false, tests: null, error: errorMessage(error), report: null });
       });
   }, [project, commit?.id, file_names]);
 
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- it fetches the batch's tests, and says it's loading
     if (batch) resolveBatch(batch);
   }, [batch, resolveBatch]);
 
@@ -261,6 +272,8 @@ function BatchPreview({ project, commit, file_names, batch, onRun, unsaved }) {
     return tests.filter(t => `${t.input_path} ${JSON.stringify(t.configurations)}`.toLowerCase().includes(f));
   }, [tests, filter]);
   const nb_inputs = useMemo(() => new Set(tests.map(t => t.input_path)).size, [tests]);
+  const { report } = state;
+  const is_defined = report?.definitions?.length > 0;
 
   return <div className={Classes.DRAWER_BODY}>
       <div style={{ padding: "16px 20px" }}>
@@ -280,10 +293,11 @@ function BatchPreview({ project, commit, file_names, batch, onRun, unsaved }) {
           This uses the saved files: your unsaved changes to {unsaved.join(" and ")} are not included.
         </Callout>}
 
-        {state.message && <Callout intent={Intent.WARNING} title="This commit's batch files could not be read" style={{ marginBottom: 12 }}>
-          Only the shared and private files are used.{" "}
-          <span className={Classes.TEXT_MUTED}>{state.message.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()}</span>
-        </Callout>}
+        {!state.loading && <BatchWarnings
+          warnings={report?.warnings}
+          title={state.tests?.length === 0 ? "Why there are no tests" : "Check the batch files"}
+          style={{ marginBottom: 12 }}
+        />}
 
         {state.error && <Callout intent={Intent.DANGER} title="Could not list the tests" style={{ marginBottom: 12 }}>
           <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{state.error}</pre>
@@ -295,7 +309,9 @@ function BatchPreview({ project, commit, file_names, batch, onRun, unsaved }) {
           ? !state.error && <NonIdealState
               icon="search"
               title="No tests"
-              description={<>No batch matches <code>{query}</code> on this commit. Check its name, or save the file that defines it.</>}
+              description={is_defined
+                ? <>The server found none of the inputs of <code>{report.name}</code>.</>
+                : <>No batch matches <code>{report?.name ?? query}</code> on this commit. Check its name, or save the file that defines it.</>}
             />
           : <>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
@@ -326,6 +342,14 @@ function BatchPreview({ project, commit, file_names, batch, onRun, unsaved }) {
             {filtered.length > shown && <Button variant="minimal" size="small" icon="more" text={`Show ${Math.min(500, filtered.length - shown)} more`} onClick={() => setShown(shown + 500)} />}
           </>
         )}
+
+        {report && !state.loading && <div style={{ marginTop: 16 }}>
+          <BatchDefinitions definitions={report.definitions} style={{ marginBottom: 8 }} />
+          {report.files.length > 0 && <>
+            <h4 className={Classes.HEADING} style={{ marginBottom: 6 }}>Batch files read</h4>
+            <BatchFiles files={report.files} labels={file_labels} />
+          </>}
+        </div>}
       </div>
     </div>;
 }
@@ -333,9 +357,11 @@ function BatchPreview({ project, commit, file_names, batch, onRun, unsaved }) {
 
 /**
  * Edits the shared and private files that define batches of tests.
- * Props: project, commit, config, git, available_tests_files ({gr: "extra-batches", usr: user_name}), docs_root, dispatch
+ * Props: project, commit, config, git, web_url (the project's page on its git server), available_tests_files ({gr: "extra-batches", usr: user_name}), docs_root
  */
-export function BatchesEditor({ project, commit, config, git, available_tests_files, docs_root, dispatch }) {
+export function BatchesEditor({ project, commit, config, git, web_url, available_tests_files, docs_root }) {
+  const queryClient = useQueryClient();
+  const updateTuning = usePrefsStore(state => state.updateTuning);
   // the object is new at each render of the commit page: depend on the names, or we'd reload the files all the time
   const private_name = available_tests_files?.usr;
   const shared_name = available_tests_files?.gr;
@@ -344,8 +370,10 @@ export function BatchesEditor({ project, commit, config, git, available_tests_fi
     shared_name && { id: "gr", name: shared_name, label: "Shared", icon: "people", help: "Everyone can see and edit it." },
   ].filter(Boolean), [private_name, shared_name]);
   const file_names = useMemo(() => files.map(f => f.name).reverse(), [files]); // later files override earlier ones
+  const file_labels = useMemo(() => Object.fromEntries(files.map(f => [`${f.name}.yml`, f.label])), [files]);
 
-  const [selected, setSelected] = useState(files[0]?.id);
+  // until users pick a tab, the first file: the private one, once we know who the user is
+  const [selected, setSelected] = useState();
   // per file name: {status: loading|ready|error, base: last saved content, draft, saving, saveError, savedAt, restoredAt, loadError}
   const [docs, setDocs] = useState({});
   const [reviewing, setReviewing] = useState(false);
@@ -408,7 +436,7 @@ export function BatchesEditor({ project, commit, config, git, available_tests_fi
     return () => clearInterval(interval);
   }, []);
 
-  const analysis = useMemo(() => analyzeBatches(doc?.draft ?? ""), [doc?.draft]);
+  const analysis = useMemo(() => analyzeBatches(doc?.draft ?? "", { config }), [doc?.draft, config]);
   const errors = analysis.problems.filter(p => p.severity === "error");
   const warnings = analysis.problems.filter(p => p.severity === "warning");
 
@@ -438,8 +466,10 @@ export function BatchesEditor({ project, commit, config, git, available_tests_fi
 
   const write = useCallback((name, content) => {
     updateDoc(name, { saving: true, saveError: null });
-    return post("/api/v1/tests/groups", { project, groups: content }, { params: { project, name } })
+    return http.post("/api/v1/tests/groups", { project, groups: content }, { params: { project, name } })
       .then(() => {
+        // the tuning form lists the tests of the batches
+        queryClient.invalidateQueries({ queryKey: ['tests-group', project] });
         updateDoc(name, { saving: false, base: content, savedAt: new Date(), restoredAt: null, serverChanged: false });
       })
       .catch(error => {
@@ -447,7 +477,7 @@ export function BatchesEditor({ project, commit, config, git, available_tests_fi
         updateDoc(name, { saving: false, saveError: message });
         toaster.show({ message: `Could not save ${name}.yml: ${message}`, intent: Intent.DANGER, icon: "error" });
       });
-  }, [project, updateDoc]);
+  }, [project, updateDoc, queryClient]);
 
   const save = useCallback(() => {
     if (!file || !doc || doc.status !== "ready" || doc.saving || doc.draft === doc.base) return;
@@ -523,12 +553,12 @@ export function BatchesEditor({ project, commit, config, git, available_tests_fi
   const openPreview = batch => setPreview(p => ({ isOpen: true, batch, id: p.id + 1 }));
 
   const run = batch => {
-    dispatch(updateTuningForm(project, { selected_group: batch }));
-    dispatch(updateSelected(project, { selected_views: "tuning" }));
+    updateTuning(project, { selected_group: batch });
+    updateSelected({ selected_views: "tuning" });
   };
 
   if (files.length === 0)
-    return <NonIdealState icon="lock" title="Log in to edit batches" />;
+    return <NonIdealState icon="lock" title="Sign in to edit batches" />;
 
   // Where batches come from
   let commit_files = config?.inputs?.batches ?? config?.inputs?.groups ?? []; // .groups for backward compat
@@ -550,7 +580,7 @@ export function BatchesEditor({ project, commit, config, git, available_tests_fi
 
   const outline_filter = outlineFilter.trim().toLowerCase();
   const outline = analysis.items.filter(i => !outline_filter || i.name.toLowerCase().includes(outline_filter));
-  const nb_batches = analysis.items.filter(i => i.kind !== "setting").length;
+  const nb_batches = analysis.items.filter(i => i.kind !== "setting" && i.kind !== "reused").length;
   const ready = doc?.status === "ready";
 
   let status;
@@ -691,14 +721,14 @@ export function BatchesEditor({ project, commit, config, git, available_tests_fi
                     title={`${item.name}: ${item_meta(item) || item.kind}. Go to line ${item.line}`}
                   >
                     <Icon
-                      icon={item.kind === "alias" ? "link" : item.kind === "setting" ? "cog" : item.kind === "pipeline" ? "flow-linear" : "th-list"}
+                      icon={item.kind === "alias" ? "link" : item.kind === "setting" ? "cog" : item.kind === "reused" ? "duplicate" : item.kind === "pipeline" ? "flow-linear" : "th-list"}
                       size={12}
                       className={Classes.TEXT_MUTED}
                     />
-                    <span className={`name ${item.kind === "setting" ? Classes.TEXT_MUTED : ""}`}>{item.name}</span>
+                    <span className={`name ${item.kind === "setting" || item.kind === "reused" ? Classes.TEXT_MUTED : ""}`}>{item.name}</span>
                     <span className={`meta ${Classes.TEXT_MUTED}`}>{item_meta(item)}</span>
                   </button>
-                  {item.kind !== "setting" && <span className="actions">
+                  {item.kind !== "setting" && item.kind !== "reused" && <span className="actions">
                     <Tooltip content="List its tests" placement="top">
                       <Button size="small" variant="minimal" icon="eye-open" aria-label={`List the tests in ${item.name}`} onClick={() => openPreview(item.name)} />
                     </Tooltip>
@@ -725,8 +755,8 @@ export function BatchesEditor({ project, commit, config, git, available_tests_fi
                 <strong>This commit</strong>{commit_files.length === 0 && <span className={Classes.TEXT_MUTED}>: no <code>inputs.batches</code> in qaboard.yaml</span>}
                 {commit_files.length > 0 && <ul style={{ paddingLeft: 16 }}>
                   {commit_files.map(f => <li key={f}>
-                    {git?.web_url && commit?.id
-                      ? <a href={`${git.web_url}/tree/${commit.id}/${f}`} target="_blank" rel="noopener noreferrer">{f}</a>
+                    {web_url && commit?.id
+                      ? <a href={blob_url({ data: { git: { ...git, web_url } } }, commit.id, f)} target="_blank" rel="noopener noreferrer">{f}</a>
                       : <code>{f}</code>}
                   </li>)}
                 </ul>}
@@ -734,15 +764,14 @@ export function BatchesEditor({ project, commit, config, git, available_tests_fi
             </ol>
             <p className={Classes.TEXT_MUTED} style={{ marginBottom: 0 }}>
               When a batch is defined in several places, the first one in this list wins.
+              Among the commit's files, the last one wins, like for <code>qa batch</code>.
             </p>
           </SectionCard>
           {database_path && <SectionCard>
             <div className={Classes.TEXT_MUTED} style={{ marginBottom: 4 }}>Relative input paths start from</div>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <code style={{ wordBreak: "break-all" }}>{database_path}</code>
-              <CopyToClipboard text={database_path} onCopy={() => toaster.show({ message: "Copied!", intent: Intent.SUCCESS, timeout: 1500 })}>
-                <Button size="small" variant="minimal" icon="duplicate" aria-label="Copy the path" />
-              </CopyToClipboard>
+              <Button size="small" variant="minimal" icon="duplicate" aria-label="Copy the path" onClick={() => copyWithToast(database_path, { what: 'the path' })} />
             </div>
           </SectionCard>}
           <SectionCard>
@@ -766,6 +795,7 @@ export function BatchesEditor({ project, commit, config, git, available_tests_fi
         project={project}
         commit={commit}
         file_names={file_names}
+        file_labels={file_labels}
         batch={preview.batch}
         onRun={batch => { setPreview(p => ({ ...p, isOpen: false })); run(batch); }}
         unsaved={dirty_files.map(f => f.label)}

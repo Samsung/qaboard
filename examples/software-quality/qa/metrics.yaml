@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=https://samsung.github.io/qaboard/metrics.schema.json
+# Metrics returned by run() in qa/main.py, for one suite in one mode. Counts add up over the suites: on the History
+# page, pick **sum** to follow the whole SDK (filtered on one mode, else each test counts twice).
+default_metric: tests
+summary_metrics: [failed, flaky, skipped, tests, coverage, lines_missed]
+main_metrics: [tests, failed, flaky, skipped, coverage, lines_missed]
+dashboard_evolution_metrics: [tests, failed, flaky, skipped, errors, coverage, branch_coverage, lines_missed, test_time]
+
+available_metrics:
+  tests:
+    label: Tests
+    description: Test cases collected, skipped ones included. More isn't always better, but fewer means some were deleted.
+    smaller_is_better: false
+    precision: 4
+  failed:
+    label: Failed
+    description: Tests that failed, and failed again when run alone.
+    smaller_is_better: true
+    target: 0
+    target_passfail: true
+  coverage:
+    label: Line coverage
+    short_label: Coverage
+    description: Lines of the suite's package that its tests run (coverage.py). The SDK 1.6 target is 85% in every package.
+    suffix: '%'
+    scale: 100
+    smaller_is_better: false
+    target: 0.85
+  lines_missed:
+    label: Lines without tests
+    short_label: Untested lines
+    description: Lines of the suite's package that no test runs. The packages don't overlap, so their sum is the SDK's.
+    smaller_is_better: true
+  passed:
+    label: Passed
+    description: Tests that passed the first time.
+    smaller_is_better: false
+    precision: 4
+  errors:
+    label: Errors
+    description: Tests that errored in a fixture, or files that pytest couldn't collect.
+    smaller_is_better: true
+    target: 0
+    target_passfail: true
+  skipped:
+    label: Skipped
+    smaller_is_better: true
+  flaky:
+    label: Flaky
+    description: Tests that failed, then passed when run again alone, e.g. because they depend on the tests that ran before.
+    smaller_is_better: true
+    target: 0
+  pass_rate:
+    label: Pass rate
+    description: Tests that passed (flaky ones included) among those that ran.
+    suffix: '%'
+    scale: 100
+    smaller_is_better: false
+    target: 1
+  branch_coverage:
+    label: Branch coverage
+    short_label: Branches
+    suffix: '%'
+    scale: 100
+    smaller_is_better: false
+    target: 0.75
+  lines:
+    label: Lines
+    description: Lines of code of the suite's package.
+    smaller_is_better: null
+  test_time:
+    label: Test time
+    description: The tests' own time, without pytest's start-up.
+    suffix: ' s'
+    smaller_is_better: true
+  slowest_test:
+    label: Slowest test
+    suffix: ' s'
+    smaller_is_better: true

@@ -15,6 +15,10 @@ spec:
       containers:
         - name: rabbitmq
           image: {{ .Values.celery.rabbitmq.image }}
+          env:
+            {{- include "qaboard.rabbitmqCredentials" . | nindent 12 }}
+            - {name: RABBITMQ_DEFAULT_USER, value: $(QABOARD_RABBITMQ_USER)}
+            - {name: RABBITMQ_DEFAULT_PASS, value: $(QABOARD_RABBITMQ_PASSWORD)}
           ports:
             - {name: amqp, containerPort: 5672}
             - {name: management, containerPort: 15672}
@@ -54,8 +58,12 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["celery", "-A", "qaboard.runners.celery_app", "flower"]
           env:
-            - {name: CELERY_BROKER_URL, value: "pyamqp://guest@{{ include "qaboard.fullname" . }}-rabbitmq//"}
-            - {name: CELERY_BROKER_API, value: "http://guest:guest@{{ include "qaboard.fullname" . }}-rabbitmq:15672/api/"}
+            {{- include "qaboard.rabbitmqCredentials" . | nindent 12 }}
+            - {name: CELERY_BROKER_URL, value: "pyamqp://$(QABOARD_RABBITMQ_USER):$(QABOARD_RABBITMQ_PASSWORD)@{{ include "qaboard.fullname" . }}-rabbitmq//"}
+            - {name: CELERY_BROKER_API, value: "http://$(QABOARD_RABBITMQ_USER):$(QABOARD_RABBITMQ_PASSWORD)@{{ include "qaboard.fullname" . }}-rabbitmq:15672/api/"}
+            # Flower can revoke tasks and shut the workers down: it asks for this login (user:password) if the secret has one
+            - name: FLOWER_BASIC_AUTH
+              valueFrom: {secretKeyRef: {name: {{ include "qaboard.secretName" . }}, key: FLOWER_BASIC_AUTH, optional: true}}
             - {name: FLOWER_PORT, value: "8888"}
             - {name: FLOWER_URL_PREFIX, value: flower}
           ports: [{name: http, containerPort: 8888}]

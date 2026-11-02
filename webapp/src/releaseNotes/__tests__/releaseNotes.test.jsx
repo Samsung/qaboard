@@ -4,13 +4,12 @@
  */
 import fs from 'fs';
 import path from 'path';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { Provider } from 'react-redux';
-import { createStore } from 'redux';
 import { IconNames } from '@blueprintjs/icons';
 
 import bundle from 'virtual:release-notes';
+import bundle_html from 'virtual:release-notes-html';
 import {
   LAST_SEEN_KEY,
   popupNotes,
@@ -23,6 +22,7 @@ import {
   renderHtml,
 } from '../logic';
 import { ReleaseNotesProvider, WhatsNewButton } from '../ReleaseNotes';
+import { renderWithProviders } from '../../test-utils';
 
 
 const note = (slug, date, extra = {}) => ({
@@ -87,15 +87,77 @@ describe('links', () => {
 });
 
 
-test('search matches every word, in any field', () => {
+describe('search', () => {
   const searchable = [
     note('a', '2026-01-01', { html: '<li>Added a <code>dask</code> runner</li>' }),
     note('b', '2026-02-01', { highlights: [{ title: 'Faster image viewer', description: 'Sync zoom', audience: 'admins' }] }),
   ];
-  expect(searchNotes(searchable, '').map(n => n.slug)).toEqual(['a', 'b']);
-  expect(searchNotes(searchable, 'DASK runner').map(n => n.slug)).toEqual(['a']);
-  expect(searchNotes(searchable, 'zoom admins').map(n => n.slug)).toEqual(['b']);
-  expect(searchNotes(searchable, 'zoom dask')).toEqual([]);
+  const slugs = (query, ns = searchable) => searchNotes(ns, query).map(n => n.slug);
+
+  test('matches every word, in any field', () => {
+    expect(searchNotes(searchable, '')).toBe(searchable);
+    expect(slugs('DASK runner')).toEqual(['a']);
+    expect(slugs('zoom admins')).toEqual(['b']);
+    expect(slugs('zoom dask')).toEqual([]);
+    expect(slugs('About')).toEqual(['a', 'b']);
+  });
+
+  const html = [
+    '<h2>Web app</h2>',
+    '<h3>Comparing images</h3>',
+    '<ul>\n<li>Wipe between the sides</li>\n<li>Pixel values, as for videos</li>\n</ul>',
+    '<h3>Logs</h3>',
+    '<ul>\n<li>Search in logs</li>\n<li>Logs of image servers</li>\n</ul>',
+    '<h2>Fixes</h2>',
+    '<ul>\n<li>Videos play on Safari</li>\n<li>Plots &lt;b&gt;<ul>\n<li>Axis labels</li>\n<li>Video frame plots</li>\n</ul></li>\n</ul>',
+  ].join('\n');
+  const big = note('2026-10', '2026-10-01', {
+    title: 'October 2026', version: '1.1.1',
+    highlights: [
+      { title: 'A new image viewer', description: 'Compare images', audience: 'users' },
+      { title: 'Dark theme', description: 'Switch to `dark`', audience: 'users' },
+      { title: 'Deploy safely', description: 'Roll back', audience: 'admins' },
+    ],
+    html,
+  });
+  const result = query => searchNotes([big], query)[0];
+  const items = query => [...new DOMParser().parseFromString(result(query).html, 'text/html').querySelectorAll('h2, h3, li')]
+    .map(el => `${el.nodeName}:${[...el.childNodes].filter(c => c.nodeName !== 'UL').map(c => c.textContent).join('').trim()}`);
+
+  test('keeps only the matching highlights and bullets, with their headings', () => {
+    expect(result('image').highlights.map(h => h.title)).toEqual(['A new image viewer']);
+    // the bullets under "Comparing images" match through their heading
+    expect(items('image')).toEqual([
+      'H2:Web app', 'H3:Comparing images', 'LI:Wipe between the sides', 'LI:Pixel values, as for videos',
+      'H3:Logs', 'LI:Logs of image servers',
+    ]);
+    expect(result('video').highlights).toEqual([]);
+    expect(items('video')).toEqual([
+      'H2:Web app', 'H3:Comparing images', 'LI:Pixel values, as for videos',
+      'H2:Fixes', 'LI:Videos play on Safari', 'LI:Plots <b>', 'LI:Video frame plots',
+    ]);
+  });
+
+  test('words can match the bullet and its context', () => {
+    expect(items('fixes safari')).toEqual(['H2:Fixes', 'LI:Videos play on Safari']);
+    expect(items('plots axis')).toEqual(['H2:Fixes', 'LI:Plots <b>', 'LI:Axis labels']);
+    expect(result('plots axis').html).toContain('<li>Plots &lt;b&gt;<ul>\n<li>Axis labels</li>\n</ul></li>');
+    expect(items('logs search')).toEqual(['H2:Web app', 'H3:Logs', 'LI:Search in logs']);
+    expect(result('admins').highlights.map(h => h.title)).toEqual(['Deploy safely']);
+    expect(result('admins').html).toBe('');
+  });
+
+  test('a query matching the note itself keeps all of it', () => {
+    expect(result('october')).toBe(big);
+    expect(result('1.1.1')).toBe(big);
+    // and the note's words narrow down the others
+    expect(items('october safari')).toEqual(['H2:Fixes', 'LI:Videos play on Safari']);
+  });
+
+  test('a note matching only by its description is kept, without its details', () => {
+    expect(result('about')).toMatchObject({ highlights: [], html: '' });
+    expect(result('nothing like this')).toBeUndefined();
+  });
 });
 
 
@@ -119,9 +181,11 @@ describe('the bundle', () => {
       }
   });
 
-  test('has no raw HTML (it is escaped)', () => {
-    for (const n of bundle.notes)
-      expect([n.slug, /<(script|iframe|style|img)\b|\son\w+=|javascript:/i.test(n.html)]).toEqual([n.slug, false]);
+  test('has the changes of every note apart, without raw HTML (it is escaped)', () => {
+    expect(bundle.notes.filter(n => 'html' in n)).toEqual([]);
+    expect(Object.keys(bundle_html).sort()).toEqual(bundle.notes.map(n => n.slug).sort());
+    for (const [slug, html] of Object.entries(bundle_html))
+      expect([slug, /<(script|iframe|style|img)\b|\son\w+=|javascript:/i.test(html)]).toEqual([slug, false]);
   });
 
   test('is sorted newest first', () => {
@@ -132,7 +196,6 @@ describe('the bundle', () => {
 
 
 describe('the What\'s new popup', () => {
-  const store = createStore(() => ({ siteConfig: { docs_root: '/' } }));
   // last month: finished, and recent enough to pop up
   const d = new Date();
   const lastMonth = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 0));
@@ -142,12 +205,11 @@ describe('the What\'s new popup', () => {
     highlights: [{ title: 'Flying cars', description: 'They fly.', audience: 'users', icon: 'airplane', link: '/docs/faq' }],
     html: '<h2>Web app</h2><ul><li>Added flying cars</li></ul>',
   });
-  const renderApp = () => render(
-    <Provider store={store}>
-      <ReleaseNotesProvider load={() => Promise.resolve([recent])} popupDelay={0}>
-        <WhatsNewButton />
-      </ReleaseNotesProvider>
-    </Provider>
+  const renderApp = () => renderWithProviders(
+    <ReleaseNotesProvider load={() => Promise.resolve([recent])} popupDelay={0}>
+      <WhatsNewButton />
+    </ReleaseNotesProvider>,
+    { siteConfig: { docs_root: '/' } }
   );
   beforeEach(() => window.localStorage.clear());
 
@@ -166,6 +228,24 @@ describe('the What\'s new popup', () => {
     expect(screen.getByText('Added flying cars')).toBeInTheDocument();
   });
 
+  test('the panel search shows only the matching highlights and changes', async () => {
+    window.localStorage.setItem(LAST_SEEN_KEY, slug);
+    const boats = { ...recent, html: '<h2>Web app</h2><ul><li>Added flying cars</li><li>Added boats</li></ul><h2>Fixes</h2><ul><li>Cars park</li></ul>' };
+    renderWithProviders(
+      <ReleaseNotesProvider load={() => Promise.resolve([boats])} popupDelay={0}>
+        <WhatsNewButton />
+      </ReleaseNotesProvider>,
+      { siteConfig: { docs_root: '/' } }
+    );
+    await new Promise(resolve => setTimeout(resolve, 20));
+    fireEvent.click(screen.getByLabelText("What's new"));
+    fireEvent.change(await screen.findByPlaceholderText(/search the release notes/i), { target: { value: 'boat' } });
+    expect(screen.getByText('Added boats')).toBeInTheDocument();
+    expect(screen.queryByText('Added flying cars')).not.toBeInTheDocument();
+    expect(screen.queryByText('Flying cars')).not.toBeInTheDocument();
+    expect(screen.queryByText('Fixes')).not.toBeInTheDocument();
+  });
+
   test('does not open for notes already seen', async () => {
     window.localStorage.setItem(LAST_SEEN_KEY, slug);
     renderApp();
@@ -176,6 +256,22 @@ describe('the What\'s new popup', () => {
     expect(screen.queryByTestId('whats-new-unread')).not.toBeInTheDocument();
   });
 
+  test('the panel loads the notes\' changes when it opens', async () => {
+    window.localStorage.setItem(LAST_SEEN_KEY, '2999-01');
+    // a note with sections
+    const latest = bundle.notes.find(note => bundle_html[note.slug].includes('<h2'));
+    const section = new DOMParser().parseFromString(bundle_html[latest.slug], 'text/html').querySelector('h2').textContent;
+    renderWithProviders(
+      <ReleaseNotesProvider load={() => Promise.resolve([latest])} popupDelay={0}>
+        <WhatsNewButton />
+      </ReleaseNotesProvider>,
+      { siteConfig: { docs_root: '/' } }
+    );
+    await new Promise(resolve => setTimeout(resolve, 20));
+    fireEvent.click(screen.getByLabelText("What's new"));
+    expect(await screen.findByRole('heading', { name: section })).toBeInTheDocument();
+  });
+
   test('opens on any page, and navigating afterwards does not reopen it', async () => {
     window.history.pushState({}, '', '/some/project/commit/abc');
     const { rerender } = renderApp();
@@ -184,11 +280,9 @@ describe('the What\'s new popup', () => {
     await waitFor(() => expect(screen.queryByText('Flying cars')).not.toBeInTheDocument());
     window.history.pushState({}, '', '/other/project');
     rerender(
-      <Provider store={store}>
-        <ReleaseNotesProvider load={() => Promise.resolve([recent])} popupDelay={0}>
-          <WhatsNewButton />
-        </ReleaseNotesProvider>
-      </Provider>
+      <ReleaseNotesProvider load={() => Promise.resolve([recent])} popupDelay={0}>
+        <WhatsNewButton />
+      </ReleaseNotesProvider>
     );
     await new Promise(resolve => setTimeout(resolve, 20));
     expect(screen.queryByText('Flying cars')).not.toBeInTheDocument();
@@ -198,12 +292,11 @@ describe('the What\'s new popup', () => {
     const current = note(new Date().toISOString().slice(0, 7), new Date().toISOString().slice(0, 10), {
       highlights: [{ title: 'Hover boards', description: 'Soon.', audience: 'users', icon: 'airplane' }],
     });
-    render(
-      <Provider store={store}>
-        <ReleaseNotesProvider load={() => Promise.resolve([current])} popupDelay={0}>
-          <WhatsNewButton />
-        </ReleaseNotesProvider>
-      </Provider>
+    renderWithProviders(
+      <ReleaseNotesProvider load={() => Promise.resolve([current])} popupDelay={0}>
+        <WhatsNewButton />
+      </ReleaseNotesProvider>,
+      { siteConfig: { docs_root: '/' } }
     );
     await new Promise(resolve => setTimeout(resolve, 20));
     expect(screen.queryByText('Hover boards')).not.toBeInTheDocument();

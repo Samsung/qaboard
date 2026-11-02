@@ -140,6 +140,13 @@ class TestUseSiteDefaults(unittest.TestCase):
     self.assertEqual(yaml.safe_load(out), {"a": {"b": 1}, "d": 2})
     self.assertIn("  # c: site\n  # trailing comment\nd: 2", out)
 
+  def test_use_site_defaults_keeps_the_schema_first(self):
+    from qaboard.init import use_site_defaults
+    sample = (Path(__file__).parent.parent / 'qaboard/sample_project/qaboard.yaml').read_text()
+    out = use_site_defaults(sample, {"storage": "/site"})
+    self.assertTrue(out.splitlines()[1].startswith("# yaml-language-server: $schema="), out[:300])
+    self.assertIn("# This configuration is merged on top of the site defaults", out.splitlines()[2])
+
 
 class TestMerge(unittest.TestCase):
   def test_dict_replaces_string(self):

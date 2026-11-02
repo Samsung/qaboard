@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 """
 Remove old outputs and artifacts from storage.
-By default, the default reference branch, active commits and milestone are not deleted
+By default, we keep the results of:
+- the reference branch's latest commit, and the branches, tags and commits listed in qaboard.yaml's `project.milestones`,
+- the batches saved as milestones in the web app: only those batches, not the commit's other batches.
 
 The default configuration is:
 ```yaml
@@ -21,15 +23,13 @@ storage:
     after: 1month
     artifacts:
       delete: true
-      keep:     # optionnal...
+      keep:     # optional...
       - binary  #
 ```
 
 Notes:
 - If you change those settings, old artifacts don't get deleted.
 - When runs use a commit that was deleted, or you upload manifests for a deleted commit, it is marked undeleted.
-```
-
 """
 import re
 import sys
@@ -40,13 +40,33 @@ from pathlib import Path
 
 import click
 from click import secho
-from sqlalchemy import func, and_, asc, or_, not_
+from sqlalchemy import func, or_, not_
 
-from .database import db_session, Session
+from .database import db_session
 from .models import Project, CiCommit, Batch, Output
+from .durations import parse_time
 
 
 now = datetime.datetime.utcnow()
+
+
+def mark_artifacts_deleted(hexsha, project_prefix, deleted_dir, by):
+    """Marks as deleted the artifacts of a commit in the projects of a repository whose artifacts were in a folder we deleted."""
+    db_session.expunge_all() # don't save the helper CiCommit objects
+    commits = (db_session.query(CiCommit)
+               .filter(CiCommit.hexsha.startswith(hexsha))
+               .filter(or_(CiCommit.project_id == project_prefix, CiCommit.project_id.startswith(f"{project_prefix}/"))))
+    for commit in commits:
+        try:
+            if not Path(commit.artifacts_dir).resolve().is_relative_to(Path(deleted_dir).resolve()):
+                continue # stored in another artifacts root
+        except Exception as e:
+            print(f"WARNING: {commit}: {e}")
+            continue
+        commit.deleted = True
+        commit.data = {**(commit.data or {}), 'artifacts_deleted': {"at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "by": by}}
+        db_session.add(commit)
+    db_session.commit()
 
 
 # TODO: remove __all__ the output folders for deleted results +3months
@@ -93,11 +113,6 @@ def clean_untracked_hwalg_artifacts(clean_untracked_artifacts, artifacts_roots, 
     for artifacts_root in artifacts_roots:
         artifacts_root = Path(artifacts_root)
         def iter_hashsha_dir():
-            # artifacts_root = Path('/stage/algo_data/ci/CDE-Users/HW_ALG/commits')
-            # for directory in artifacts_root.iterdir():
-            #     hexsha = directory.name.split('__')[-1]
-            #     yield hexsha, directory
-            # return?
             for hash2 in artifacts_root.iterdir():
                 if len(hash2.name) != 2:
                     continue
@@ -137,6 +152,8 @@ def clean_untracked_hwalg_artifacts(clean_untracked_artifacts, artifacts_roots, 
                 except Exception as e: # empty parent folders will be deleted, including the folder we iterate in...
                     # __pycache__ can be owned by a different user that the one that created the folder...
                     print(e)
+                # ci_commit is only a helper, not the commits QA-Board knows: tell them their artifacts are gone
+                mark_artifacts_deleted(hexsha, 'CDE-Users/HW_ALG', artifact_dir, by="clean_untracked_hwalg_artifacts")
                 # return
 
 
@@ -227,143 +244,178 @@ def clean_untracked_hwalg_outputs(outputs_roots, user, use_cache):
 
 
 
+def collect_garbage(select_project, report, before=None, default_after='1month', can_delete_reference_branch=False,
+                    can_delete_outputs=True, can_delete_artifacts=False, dryrun=False, verbose=False):
+  """
+  Deletes the old outputs and artifacts of the projects for which `select_project(project_id)` is true.
+  `before` overrides qaboard.yaml's `storage.garbage.after`, `default_after` is for projects that don't set it.
+  What happens, and the errors, go to `report` (backend/jobs/report.py): the console, or a job in the database.
+  """
+  now = datetime.datetime.utcnow()  # not the module's: workers run for days
+  if dryrun:
+    report.log('DRYRUN: nothing will be deleted', level='warning')
+
+  # the job may resume after an interruption
+  finished = set(report.progress.get('projects_finished') or [])
+  projects = [p for p in db_session.query(Project).order_by(Project.id).all() if select_project(p.id) and not p.data.get("legacy")]
+  report.set(projects_total=len(projects))
+  for project in projects:
+    if project.id in finished:
+      continue
+    if report.should_stop():
+      return
+    report.set(current_project=project.id)
+    report.log(project.id, level='title')
+    if not project.repo:
+      # we need git to know which commits are milestones
+      report.error('git', f'Could not clone/read the git repo for {project.id}, skipping it', project_id=project.id)
+      report.add(projects_skipped=1)
+      continue
+
+    try:
+      gc_config = project.data.get("qatools_config", {}).get("storage", {}).get('garbage', {}) or {}
+    except: # e.g. storage is defined as a single string
+      gc_config = {}
+    # each project has its own settings: don't reuse the previous project's
+    project_can_delete_reference_branch = can_delete_reference_branch or gc_config.get('can_delete_reference_branch')
+    project_before = before if before else gc_config.get('after', default_after)
+    try:
+      # an empty value would mean "delete everything"
+      if not isinstance(project_before, str) or not project_before.strip():
+        raise ValueError(f"expected a duration like 1month or 2weeks, got {project_before!r}")
+      old_treshold = now - parse_time(project_before.strip())
+    except Exception as e:
+      report.error('config', f'{project.id}: storage.garbage.after: {e}', project_id=project.id)
+      continue
+    gc_config_artifacts = gc_config.get('artifacts', {}) or {}
+    project_can_delete_artifacts = gc_config_artifacts.get('delete') == True or can_delete_artifacts
+    report.log(f"deleting data older than {old_treshold}{', with artifacts' if project_can_delete_artifacts else ''}", level='debug')
+
+    protected_commits = project.protected_ref_commits
+    milestone_batches = project.milestone_batches
+    report.log(f"keeping {len(protected_commits)} commits protected in qaboard.yaml, and {len(milestone_batches)} milestone batches", level='debug')
+    commits = (
+        db_session.query(CiCommit)
+        .filter(CiCommit.project == project)
+        .filter(CiCommit.deleted == False)
+        # commits without outputs are judged by their date
+        .filter(func.coalesce(CiCommit.latest_output_datetime, CiCommit.authored_datetime) < old_treshold)
+        .order_by(CiCommit.authored_datetime.desc())
+    )
+    if protected_commits:
+        commits = commits.filter(CiCommit.hexsha.notin_(protected_commits))
+    if not project_can_delete_reference_branch:
+        protected_refs = project.protected_refs
+        commits = commits.filter(CiCommit.branch.notin_([*protected_refs, *[f'origin/{r}' for r in protected_refs]]))
+
+    for commit in commits.all():
+        if report.should_stop():
+          if dryrun:
+            db_session.rollback()
+          return
+        report.log(f"@{commit.project_id}  {commit.branch}  {commit.hexsha} {commit.authored_datetime}", level='debug' if not verbose else 'info')
+        outputs = (db_session.query(Output).join(Batch).filter(Batch.ci_commit_id == commit.id))
+        # We keep the batches that are milestones, and what they need to be redone or compared: the artifacts
+        kept_batches = milestone_batches.of_commit(project.id, commit.hexsha)
+        if kept_batches:
+            report.log(f"  keeping the milestone batches: {', '.join(sorted(kept_batches))}", level='warning')
+            outputs = outputs.filter(Batch.label.notin_(kept_batches))
+
+        nb_outputs = 0
+        nb_outputs_deleted = 0
+        if can_delete_outputs:
+            for o in outputs:
+                nb_outputs += 1
+                if o.deleted:
+                    continue
+                if verbose:
+                    report.log(f"  {o}")
+                try:
+                    o.delete(dryrun=dryrun)
+                    nb_outputs_deleted += 1
+                except Exception as e:
+                    report.exception(e, path=getattr(o, 'output_dir_override', None), project_id=project.id, batch_id=o.batch_id, output_id=o.id)
+                    if not dryrun:
+                        try:
+                            o.update_manifest()
+                        except:
+                            pass
+        report.add(outputs=nb_outputs_deleted)
+
+        deleted_artifacts = False
+        summary = {"nb_deleted": 0, "errors": []}
+        if project_can_delete_artifacts and not kept_batches:
+            report.log("  Deleting artifacts", level='debug')
+            # Files that the other subprojects still use are kept
+            keep = gc_config_artifacts.get('keep', []) or []
+            try:
+                summary = commit.delete(keep=[keep] if isinstance(keep, str) else keep, dryrun=dryrun, session=db_session, by="garbage collection")
+            except Exception as e:
+                # e.g. an unreadable folder: don't stop the cleanup of the other commits
+                summary = {"nb_deleted": 0, "errors": [f"could not delete the artifacts of {commit.hexsha[:8]}: {e}"]}
+            for error in summary["errors"]:
+                kind = 'permission' if 'Permission denied' in error or 'Errno 13' in error else 'other'
+                report.error(kind, error, project_id=project.id)
+            # we keep the commit if something went wrong, so that we try again next time
+            deleted_artifacts = not summary["errors"]
+            report.add(artifacts=1, artifacts_files=summary["nb_deleted"])
+        if nb_outputs_deleted or summary["nb_deleted"]:
+            report.add(commits=1)
+        if not dryrun:
+            db_session.add(commit)
+            if not nb_outputs and deleted_artifacts and can_delete_outputs and not kept_batches:
+                report.log(f"DELETE {commit}", level='debug')
+                db_session.delete(commit)
+            # the artifacts' state must be saved as soon as possible: if we crash later, we must not lose that they were deleted
+            commit_id = commit.id
+            db_session.commit()
+            if nb_outputs_deleted:
+                from .storage_usage import refresh_soon
+                refresh_soon(commit_ids=[commit_id])
+
+    if dryrun:
+        db_session.rollback()
+    else:
+        db_session.commit()
+    finished.add(project.id)
+    report.set(projects_finished=sorted(finished), projects_done=len(finished))
+  report.set(current_project=None)
+
+  totals = report.progress
+  report.log(
+    f"{'[DRYRUN] would have deleted' if dryrun else 'Deleted'}: {totals.get('outputs', 0)} outputs and the artifacts of {totals.get('artifacts', 0)} commits ({totals.get('artifacts_files', 0)} files), in {totals.get('commits', 0)} commits. {report.nb_errors} errors.",
+    level='success' if not report.nb_errors else 'warning',
+  )
+
+
 @click.command()
 @click.option('--project', 'project_ids', help="Regular expressions to match projects", multiple=True)
 @click.option('--before', help="Overwrites what's defined in the project config. 1month, 3days..")
 @click.option('--can-delete-reference-branch', is_flag=True, help="Allows deleting results on the reference branch (e.g. master/develop). The latest commit will be kept.")
-@click.option('--can-delete-outputs/--cannot-delete-outputs', is_flag=True, default=True, help="Allows deleting artifacts.")
-@click.option('--can-delete-artifacts', is_flag=True, help="Allows deleting artifacts.")
-@click.option('--dryrun', is_flag=True)
+@click.option('--can-delete-outputs/--cannot-delete-outputs', is_flag=True, default=True, help="Allows deleting outputs.")
+@click.option('--can-delete-artifacts', is_flag=True, help="Allows deleting artifacts, even if the project's qaboard.yaml doesn't ask for it.")
+@click.option('--dryrun', is_flag=True, help="Only print what would be deleted: nothing is deleted or changed in the database.")
 @click.option('--verbose', is_flag=True)
 def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, can_delete_artifacts, dryrun, verbose):
+    """
+    Deletes old outputs and artifacts. Admins can also schedule it from the web app (Admin > Storage),
+    with logs and errors there.
+    """
     if before and not project_ids:
         secho('[ERROR] when using --before you need to use --project', fg='red')
         exit(1)
+    from .jobs.report import ConsoleReporter
+    collect_garbage(
+        lambda project_id: not project_ids or any(re.match(p, project_id) for p in project_ids),
+        ConsoleReporter(),
+        before=before,
+        can_delete_reference_branch=can_delete_reference_branch,
+        can_delete_outputs=can_delete_outputs,
+        can_delete_artifacts=can_delete_artifacts,
+        dryrun=dryrun,
+        verbose=verbose,
+    )
 
-    projects = db_session.query(Project) #.filter(Project.id == 'CDE-Users/HW_ALG/CIS')
-    for project in projects:
-        if project.data.get("legacy"):
-            continue
-        if project_ids and not any([re.match(project_id, project.id) for project_id in project_ids]):
-            continue
-        secho(project.id, fg='blue', bold=True)
-        if not project.repo:
-            secho(f'[WARNING] Could not clone/read the git repo for {project.id}', fg='yellow')
-            # return
-            continue
-
-        try:
-            gc_config = project.data.get("qatools_config", {}).get("storage", {}).get('garbage', {})
-        except: # e.g. storage is defined as a single string
-            gc_config = {}
-        can_delete_reference_branch = can_delete_reference_branch or gc_config.get('can_delete_reference_branch')
-        before = gc_config.get('after', '1month') if not before else before
-        old_treshold = now - parse_time(before)
-        secho(f"deleting data older than {old_treshold}", dim=True)
-
-        commits = (
-            db_session.query(CiCommit)
-            .filter(CiCommit.project == project)
-            .filter(CiCommit.deleted == False)
-            # we could check those rare occurences from python-land...
-            .filter(CiCommit.hexsha.notin_(project.milestone_commits))
-            .filter(or_(
-                bool(CiCommit.latest_output_datetime) and CiCommit.latest_output_datetime < old_treshold,
-                not CiCommit.latest_output_datetime   and CiCommit.authored_datetime < old_treshold,
-            ))
-            .order_by(CiCommit.authored_datetime.desc())
-
-        )
-        if not can_delete_reference_branch:
-            commits = commits.filter(CiCommit.branch.notin_(project.protected_refs))
-
-        for commit in commits.yield_per(1000):
-            # if '/algo/' not in str(commit.artifacts_dir):
-            #     continue
-            # print(commit.artifacts_dir)
-            # cis_dir = str(self.artifacts_dir).replace("KITT_ISP", "CIS")
-            # continue
-            secho(f"@{commit.project_id}  {commit.branch}  {commit.hexsha} {commit.authored_datetime}", fg='cyan')
-            outputs = (db_session.query(Output).join(Batch).filter(Batch.ci_commit_id == commit.id))
-
-            nb_outputs = 0
-            nb_outputs_deleted = 0
-            for o in outputs:
-              if not can_delete_outputs:
-                  continue
-              nb_outputs += 1
-              if o.deleted:
-                  continue
-              nb_outputs_deleted += 1
-              print(" ", o)
-              try:
-                o.delete(dryrun=dryrun)  # ignore=['*.json', '*.txt'],
-                if not dryrun:
-                    db_session.add(o)
-              except Exception as e:
-                print(e)
-                # raise e
-                try:
-                    o.update_manifest()
-                except:
-                    pass
-            gc_config_artifacts = gc_config.get('artifacts', {})
-            deleted_artifacts = False
-            if gc_config_artifacts.get('delete') == True or can_delete_artifacts:
-                undeleted_commits_from_subprojects = (
-                    db_session.query(CiCommit)
-                    .filter(CiCommit.project_id.startswith(commit.project_id))
-                    .filter(CiCommit.deleted == False)
-                    .filter(CiCommit.hexsha == commit.hexsha)
-                )
-                if undeleted_commits_from_subprojects:
-                    print(f"> skippping {commit}: undeleted_commits_from_subprojects")
-                    continue
-
-                secho(f"  Deleting artifacts", fg='cyan', dim=True)
-                try:
-                    commit.delete(keep=gc_config_artifacts.get('keep', []), dryrun=dryrun)
-                    deleted_artifacts = True
-                except Exception as e:
-                    print(e)
-                    continue
-            if not dryrun:
-              if nb_outputs_deleted or deleted_artifacts:
-                db_session.add(commit)
-              if not nb_outputs and deleted_artifacts and can_delete_outputs:
-                print(f"DELETE {commit}")
-                db_session.delete(commit)
-
-        db_session.commit()
-
-
-
-delta_re = re.compile(r'^((?P<years>[\.\d]+?)y(ear)?s?)? *((?P<months>[\.\d]+?)m(onth)?s?)? *((?P<weeks>[\.\d]+?)w(eek)?s?)? *((?P<days>[\.\d]+?)d(ay)?s?)? *((?P<hours>[\.\d]+?)h(our)?s?)? *((?P<minutes>[\.\d]+?)min(ute)?s?)? *((?P<seconds>[\.\d]+?)s(econd)?s?)?$')
-def parse_time(time_str):
-    """
-    Parse a time string e.g. (2h13m) into a timedelta object.
-    Modified from virhilo's answer at https://stackoverflow.com/a/4628148/851699
-    :param time_str: A string identifying a duration.  (eg. 2h13m)
-    :return datetime.timedelta
-    """
-    parts = delta_re.match(time_str)
-    assert parts is not None, f"Could not parse any time information from '{time_str}'.  Examples of valid strings: '1y', '2months 20d', '8h', '2d8h5min20s', '2min4s'"
-    groupdict = parts.groupdict()
-    if not groupdict.get('days'):
-        groupdict['days'] = 0
-    else:
-        groupdict['days'] = float(groupdict['days'])
-    if groupdict.get('weeks'):
-        groupdict['days'] = groupdict['days'] + 7 * float(groupdict['weeks'])
-        del groupdict['weeks']
-    if groupdict.get('months'):
-        groupdict['days'] = groupdict['days'] + 31 * float(groupdict['months'])
-        del groupdict['months']
-    if groupdict.get('years'):
-        groupdict['days'] = groupdict['days'] + 365 * float(groupdict['years'])
-        del groupdict['years']
-    time_params = {name: float(param) for name, param in groupdict.items() if param}
-    return datetime.timedelta(**time_params)
 
 
 if __name__ == '__main__':

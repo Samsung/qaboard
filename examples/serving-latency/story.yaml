@@ -1,0 +1,410 @@
+# Six weeks of the inference gateway: dynamic batching and int8 ship in v2.3.0; the coding agent adds a shared result
+# cache that saves CPU but holds its one lock while workers run the model and render: the gateway does one batch at a
+# time, its queue grows without bound at 6k rps, the gate catches the p99, sharding fixes it (v2.4.0); a change for
+# "simpler lifetimes" pads every batch to its longest request, which only the heavy-tail test shows, in History; a
+# sweep picks the batching defaults. Format: ../STORY.md. What the flags do: SPEC.md.
+version: 1
+project: serving-latency
+id: kitefin/inference-gateway
+seed: 2604
+
+defaults:
+  # the gateway before the story; qa/main.py's defaults are the head of main at T0
+  flags:
+    workers: 3
+    batching: none
+    model_dtype: fp32
+    pin: none
+    allocator: system
+    queue_policy: fifo
+    cache: none
+    batch_buffer: alloc
+  runs:
+    - batch: ci
+
+commits:
+  - id: load-generator
+    branch: main
+    at: -42d 10:30
+    author: adaeze
+    message: |
+      gateway: open-loop load generator in gateway-bench
+
+      Requests leave at their scheduled time whether or not earlier ones are done, and latency counts from that time.
+      A slow gateway can't slow down its own load test and hide its queue (no coordinated omission).
+
+  - id: dyn-batching
+    branch: main
+    at: -41d 09:12
+    author: adaeze
+    message: |
+      gateway: dynamic batching with max batch and max delay
+
+      Requests wait up to max_delay_us for a batch to fill, so workers run fewer, bigger matmuls. 8 requests and
+      500 us to start with; we'll tune both once we have the numbers.
+    flags: {batching: dynamic, max_batch: 8, max_delay_us: 500}
+
+  - id: int8
+    branch: main
+    at: -38d 02:40
+    author: kaito
+    message: "model: int8 weights and activations (-30% CPU per request)"
+    flags: {model_dtype: int8}
+
+  - id: pin-workers
+    branch: main
+    at: -36d 03:15
+    author: kaito
+    message: "workers: pin to cores 1-3, the load generator on core 0"
+    flags: {pin: workers}
+
+  - id: v2-3-0
+    branch: main
+    at: -34d 04:10
+    author: kaito
+    message: "batcher: reuse the batch buffer, no allocation per batch"
+    flags: {batch_buffer: reuse}
+    runs:
+      - batch: ci
+      - batch: capacity
+        after: 20m
+      - batch: nightly
+        label: nightly
+        after: 9h
+
+  - id: jemalloc
+    branch: perf/allocators
+    parents: [v2-3-0]
+    at: -31d 01:50
+    author: kaito
+    message: "alloc: jemalloc instead of glibc's malloc (-5% CPU, heavy-tail)"
+    flags: {allocator: jemalloc}
+
+  - id: mimalloc
+    branch: perf/allocators
+    at: -30d 03:30
+    author: kaito
+    message: "alloc: mimalloc, on par with jemalloc and simpler to build"
+    flags: {allocator: mimalloc}
+
+  - id: bench-cpu-time
+    branch: main
+    at: -30d 14:05
+    author: adaeze
+    message: |
+      bench: CPU per request from the threads' own counters
+
+      /proc/<pid>/task/<tid>/schedstat for the gateway's threads, so the load generator's spinning doesn't count.
+
+  - id: edf
+    branch: gateway/queue-policy
+    parents: [bench-cpu-time]
+    at: -29d 10:20
+    author: adaeze
+    message: |
+      gateway: earliest deadline first, late requests last
+
+      Under a burst, FIFO makes every request late: they all wait behind the backlog. EDF serves first the requests
+      that can still make their 12 ms; those already late wait until the burst is over. More requests on time, and
+      a longer worst case for the ones that missed.
+    flags: {queue_policy: edf}
+
+  - id: merge-allocators
+    branch: main
+    parents: [bench-cpu-time, mimalloc]
+    at: -28d 06:40
+    author: kaito
+    message: Merge branch 'perf/allocators'
+
+  - id: edf-tests
+    branch: gateway/queue-policy
+    parents: [edf]
+    at: -28d 15:10
+    author: adaeze
+    message: "gateway: test the queue policies on a scripted backlog"
+
+  - id: batch-overflow
+    branch: main
+    parents: [merge-allocators]
+    at: -27d 01:30
+    author: kaito
+    message: "batcher: fill batches up to max_batch before flushing"
+    flags: {bug_batch_overflow: true}
+    failures:
+      - batch: ci
+        inputs: "bursty-*"
+        kind: bug
+        log: "(?s)panicked at src/batcher.rs.*index out of bounds"
+
+  - id: batch-overflow-fix
+    branch: main
+    at: -27d 04:05
+    author: kaito
+    message: "batcher: fix off-by-one when the batch is full"
+    flags: {bug_batch_overflow: null}
+    runs:
+      - batch: ci
+      - batch: capacity
+        after: 20m
+
+  - id: merge-queue-policy
+    branch: main
+    parents: [batch-overflow-fix, edf-tests]
+    at: -24d 11:00
+    author: adaeze
+    message: Merge branch 'gateway/queue-policy'
+
+  - id: ci-summary
+    branch: main
+    at: -23d 14:20
+    author: adaeze
+    message: "ci: post the latency table to the job summary"
+
+  - id: cache-shared
+    branch: agent/result-cache
+    parents: [batch-overflow-fix]
+    at: -20d 03:05
+    author: agent
+    message: |
+      Add a shared result cache for repeated requests
+
+      Requested by Kaito. Robots resend the same payloads: the gateway now keeps the model's outputs for the last
+      4,096 keys and answers repeats without running the model. Workers look their batch up again under the cache's
+      lock before running the model, so a key is never computed twice. CPU per request at 4k rps: -30%.
+    flags: {cache: shared, cache_entries: 4096}
+    runs:
+      - batch: ci
+      - batch: capacity
+        after: 20m
+
+  - id: cache-entries
+    branch: agent/result-cache
+    at: -17d 02:15
+    author: agent
+    message: |
+      Keep 16,384 entries in the result cache
+
+      Requested by Kaito after the gate failed on p99. More entries, more hits, fewer model runs.
+    flags: {cache_entries: 16384}
+
+  - id: cache-sharded
+    branch: perf/sharded-cache
+    parents: [cache-entries]
+    at: -15d 02:10
+    author: kaito
+    message: "cache: 16 shards, model and rendering outside locks (p99 < 12 ms at 6k)"
+    flags: {cache: sharded, cache_shards: 16}
+    runs:
+      - batch: ci
+      - batch: capacity
+        after: 20m
+      - batch: sweep-batching
+        via: tuning
+        label: tune-batching
+        user: kaito
+        after: 3h
+        tuning:
+          # neighbors that differ clearly; max_batch 1 turns batching off, so its 4 runs show the noise
+          max_batch: [1, 16, 64]
+          max_delay_us: [0, 250, 1000, 4000]
+
+  - id: merge-sharded-cache
+    branch: main
+    parents: [ci-summary, cache-sharded]
+    at: -14d 10:02
+    author: adaeze
+    message: |
+      Merge branch 'perf/sharded-cache'
+
+      Workers held the cache's one mutex while they ran the model and rendered their batch: the gateway did one
+      batch at a time. Fine at 2k rps, a queue that never drains at 6k. 16 shards, and nothing held while the model
+      runs or a response renders.
+
+  - id: v2-4-0
+    branch: main
+    at: -13d 11:30
+    author: adaeze
+    message: |
+      gateway: release 2.4.0
+
+      Sharded result cache, EDF queue, mimalloc.
+    runs:
+      - batch: ci
+      - batch: capacity
+        after: 20m
+      - batch: nightly
+        label: nightly
+        after: 4h
+
+  - id: docs-gate
+    branch: main
+    at: -10d 09:20
+    author: adaeze
+    message: "docs: what the CI gate checks, and how to read its table"
+
+  - id: payload-copy
+    branch: main
+    at: -9d 02:20
+    author: kaito
+    message: |
+      batcher: copy payloads into fixed slots (simpler lifetimes)
+
+      The batch owns its inputs: one slot per request, as long as the batch's longest payload. No more borrowed
+      slices tied to the requests' lifetimes.
+    flags: {payload_copy: true}
+
+  - id: config-struct
+    branch: main
+    at: -7d 13:40
+    author: adaeze
+    message: "gateway: one Config struct for every flag"
+
+  - id: ci-cargo-cache
+    branch: main
+    at: -6d 10:15
+    author: adaeze
+    message: "ci: cache cargo's target directory between jobs"
+
+  - id: payload-borrow
+    branch: main
+    at: -3d 03:40
+    author: kaito
+    message: |
+      batcher: borrow payloads again (heavy-tail p99 -40%)
+
+      History showed heavy-tail-high jumping at the fixed slots: a 200-token request made every request in its batch
+      cost 200 tokens of compute.
+    flags: {payload_copy: null}
+
+  - id: clippy
+    branch: main
+    at: -2d 09:30
+    author: adaeze
+    message: "ci: clippy on the gateway crate"
+
+  - id: ramp-steps
+    branch: main
+    at: -1d 05:20
+    author: kaito
+    message: "bench: ramp in 10 steps of half a second"
+
+  - id: tuned-batching
+    branch: main
+    at: -0d 13:20
+    author: adaeze
+    message: |
+      gateway: max batch 16, max delay 250 us (on the frontier)
+
+      From Kaito's tune-batching sweep, on the frontier of CPU per request and p99: waiting longer for batches to
+      fill saves a few percent of CPU and costs p99. Half the wait for a batch to fill, and room for bigger batches
+      when requests pile up.
+    flags: {max_batch: 16, max_delay_us: 250}
+    runs:
+      - batch: ci
+      - batch: nightly
+        label: nightly
+        after: 2h25m
+        progress: {finished: 0.6, running: 2}
+
+milestones:
+  - commit: v2-3-0
+    label: v2.3.0
+    notes: Dynamic batching
+    by: adaeze
+  - commit: v2-4-0
+    label: v2.4.0
+    notes: Sharded result cache
+    by: adaeze
+
+checks:
+  - name: int8 makes requests cheaper
+    commit: int8
+    vs: parent
+    metric: cpu_per_req
+    expect: {change_pct: {lt: -15}}
+
+  - name: the batch overflow crashes the bursty test
+    commit: batch-overflow
+    inputs: "bursty-*"
+    expect: {failed: {gte: 1}, log: "(?s)panicked at src/batcher.rs.*index out of bounds"}
+  - name: the fix brings it back
+    commit: batch-overflow-fix
+    expect: {failed: {lte: 0}}
+
+  - name: the shared cache saves CPU
+    commit: cache-shared
+    vs: parent
+    metric: cpu_per_req
+    expect: {change_pct: {lt: -20}}
+  - name: the shared cache makes p99 much worse at 6k rps
+    commit: cache-shared
+    vs: parent
+    inputs: "steady-high*"
+    metric: latency_p99
+    expect: {change_pct: {gt: 30}}
+  - name: the cache's lock and the rendering under it show in the flame graph
+    commit: cache-shared
+    hook: flame_share
+    args: {inputs: "steady-high*", match: "cache::Shared>::respond|lock_contended", min_share: 0.08, parent_max_share: 0.01}
+  - name: the gate fails on the shared cache
+    commit: cache-shared
+    vs: parent
+    expect: {gate: fail}
+  - name: more entries don't help
+    commit: cache-entries
+    vs: batch-overflow-fix
+    inputs: "steady-high*"
+    metric: latency_p99
+    expect: {change_pct: {gt: 30}}
+  - name: the gate still fails with more entries
+    commit: cache-entries
+    vs: batch-overflow-fix
+    expect: {gate: fail}
+
+  - name: sharding fixes p99
+    commit: cache-sharded
+    vs: batch-overflow-fix
+    inputs: "steady-high*"
+    metric: latency_p99
+    expect: {change_pct: {lt: 5}}
+  - name: sharding keeps the cache's gains
+    commit: cache-sharded
+    vs: batch-overflow-fix
+    inputs: "steady-mid*"
+    metric: latency_p50
+    expect: {change_pct: {lt: -25}}
+  - name: the gate passes after sharding
+    commit: cache-sharded
+    vs: batch-overflow-fix
+    expect: {gate: pass}
+  - name: tuning puts the chosen batching on the frontier
+    commit: cache-sharded
+    label: tune-batching
+    hook: on_frontier
+    args: {x: cpu_per_req, y: latency_p99, params: {max_batch: 16, max_delay_us: 250}, tolerance: {cpu_per_req: 0.05, latency_p99: 0.5}}
+
+  - name: fixed slots hurt the heavy-tail test
+    commit: payload-copy
+    vs: parent
+    inputs: "heavy-tail-high*"
+    metric: latency_p99
+    expect: {change_pct: {gt: 25}}
+  - name: fixed slots cost the heavy-tail test CPU
+    commit: payload-copy
+    vs: parent
+    inputs: "heavy-tail-high*"
+    metric: cpu_per_req
+    expect: {change_pct: {gt: 15}}
+  - name: and not the other tests (all their payloads have 8 tokens)
+    commit: payload-copy
+    vs: parent
+    inputs: "steady-*"
+    metric: cpu_per_req
+    expect: {change_pct: {between: [-10, 10]}}
+  - name: borrowing again brings heavy-tail back
+    commit: payload-borrow
+    vs: v2-4-0
+    inputs: "heavy-tail-high*"
+    metric: latency_p99
+    # back from +200% or more; a 3 ms p99 moves by 15-26% between runners (+16.5%, then +26.2% in CI reseeds)
+    expect: {change_pct: {lt: 40}}

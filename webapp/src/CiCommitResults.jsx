@@ -1,791 +1,486 @@
-import React, { Component } from "react";
-import { connect } from 'react-redux'
-import { withRouter } from "./router";
+import { useEffect, useMemo, useState } from "react";
+import styled from "styled-components";
 
 import {
-  Classes,
   Button,
-  MenuItem,
+  Classes,
   Card,
   NonIdealState,
+  Spinner,
 } from "@blueprintjs/core";
-import { MultiSelect } from "@blueprintjs/select";
-import { noMetrics } from "./components/metricSelect";
 
-import { Container, Section } from "./components/layout";
-import { MetricsSummary, MetricHeader } from "./components/metrics";
+import { Container, Section, commit_header_height, shows_reference_bar } from "./components/layout";
+import { MetricsSummary, MetricSelect } from "./components/metrics";
 import { CommitWarningMessages, BatchStatusMessages } from "./components/messages";
 
 import { TableCompare, TableKpi } from "./components/tables";
 import { BatchLogs } from "./components/BatchLogs";
 import { CommitParameters } from "./components/Parameters";
 import { OutputCardsList } from "./viewers/OutputCardsList";
-import { fetchCommit } from "./actions/commit";
-import { updateSelected } from "./actions/selected";
+import { useComparison, useRefreshCommit, useSelected, useSiteConfig, useUser, updateSelected } from "./hooks";
+import { useDynamicOptions } from "./useDynamicOptions";
 
 
 import { TuningForm } from "./components/tuning/forms";
 import { BatchesEditor } from "./components/tuning/BatchesEditor";
 import TuningExploration from "./components/tuning/TuningExploration";
-import { controls_defaults, updateQueryUrl } from "./viewers/controls";
+import { useViewerControls, controls_changes, controls_defaults, config_visualizations } from "./viewers/controls";
 import { ExportPlugin } from "./plugins/ExportPlugin";
-import { match_query } from "./utils";
-import { humanFileSize } from "./viewers/bit_accuracy/utils";
-import { 
-  mergeCompatibleOptions, 
-  setSyncPreferences,
-} from "./utils/dynamicOptions";
-import { matchPath } from "./router";
-
-import {
-	projectSelector,
-	configSelector,
-	commitSelector,
-	selectedSelector,
-	batchSelector,
-} from './selectors/projects'
+import { humanFileSize, file_options as file_options_list, bit_accuracy_url_defaults } from "./viewers/bit_accuracy/utils";
+import { project_web_url } from "./utils";
 
 import PrivateContent from "./components/authentication/PrivateContent"
-import FloatingControlsPanel from "./components/FloatingControlsPanel";
+import ViewOptionsPanel from "./components/ViewOptionsPanel";
+import { useSidePanelExpanded } from "./components/SidePanel";
+import { SharedConfigurationContext } from "./configurations/ConfigurationsTags";
+import { ConfigurationOverview } from "./configurations/ConfigurationOverview";
+import { shared_configuration, reference_pairs, changes_in_all_runs } from "./configurations/tokens";
 
 
-
-class CiCommitResults extends Component {
-  constructor(props) {
-    super(props);
-    // we initialize optionnal controls with their defaults
-    this.state = {
-      controls: controls_defaults(this.props.config),
-      global_dynamic_options: {},
-      output_options_store: {}, // Store individual output options for re-registration
-      registered_outputs: new Set(),
-      visualizations_with_files: new Set(), // Track which visualizations have files available
-      visualization_stats: {
-        total_visualizations: 0,
-        disabled_visualizations: 0,
-        missing_files_count: 0,
-      },
-      expandFloatingPanel: false,
-      registration_info: {
-        total_outputs: 0,
-        registered_outputs: 0,
-        is_throttled: false,
-        last_recompute_at: 0,
-      },
-    };
+// Every view of the commit: its title (and maybe a few muted details) on one row above its content
+const ViewSection = styled(Section)`
+  margin-top: 0;
+  margin-bottom: 32px;
+`;
+const ViewHeader = styled.div`
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 12px;
+  h2 {
+    font-size: 20px;
+    line-height: 28px;
+    margin: 0;
   }
+  p {
+    margin: 0;
+  }
+`;
+// Actions on the view, e.g. Export, go to the right of its title
+const ViewActions = styled.div`
+  margin-left: auto;
+  align-self: center;
+  display: flex;
+  gap: 8px;
+`;
+const ViewTitle = ({ title, actions, children }) => <ViewHeader>
+  <h2 className={Classes.HEADING}>{title}</h2>
+  {children}
+  {actions && <ViewActions>{actions}</ViewActions>}
+</ViewHeader>;
 
-  toggle = name => () => {
-    const controls = {
-      ...this.state.controls,
-      [name]: !this.state.controls[name],      
+// The warnings and the batch's status: they take room only when they have something to say
+const Messages = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* e.g. the <span/> of messages that have nothing to say: they would add gaps */
+  & > :empty {
+    display: none;
+  }
+  &:has(> :not(:empty)) {
+    margin-bottom: 24px;
+  }
+`;
+
+// Below the commit's header
+const header_gap = 16;
+
+
+const CiCommitResults = () => {
+  const comparison = useComparison();
+  const {
+    project, selected, project_data, git, config, metrics, selected_metrics: selected_metrics_keys,
+    new_commit, ref_commit, new_batch, ref_batch, selected_views, selected_batch_new, selected_batch_ref,
+  } = comparison;
+  const { new_project, ref_project, new_commit_id, ref_commit_id, filter_batch_new, filter_batch_ref } = selected;
+  const { available_metrics } = metrics;
+  const { docs_root } = useSiteConfig();
+  const user = useUser();
+  const refreshCommit = useRefreshCommit();
+
+  useEffect(() => {
+    const name = project.split('/').slice(-1)[0];
+    if (!!new_commit_id)
+      document.title = `${new_commit_id.slice(0, 4)} - ${name}`;
+  }, [project, new_commit_id]);
+
+  const [controls, setControls] = useViewerControls(config);
+  // Registrations are reset when the commit or batch changes, or when the visualizations change.
+  // Which visualizations have files is reset when the filter changes (but we keep registrations for performance).
+  const visualizations_key = JSON.stringify(config_visualizations(config.outputs));
+  const dynamic = useDynamicOptions({
+    config,
+    reset_key: `${new_commit?.id}|${selected_batch_new}|${visualizations_key}`,
+    files_key: filter_batch_new,
+  });
+  // The view options, docked on the right: open or collapsed
+  const [view_options_expanded, setViewOptionsExpanded] = useSidePanelExpanded();
+  // incremented to bring their Files to show into view
+  const [reveal_files, setRevealFiles] = useState(0);
+  // a section of the view options to open and bring into view: { id }, a new object each time
+  const [reveal_section, setRevealSection] = useState(null);
+
+  // The output files' options, in the URL like their filter (see OutputCardsList)
+  const { query } = useSelected();
+  const file_options = Object.fromEntries(file_options_list.map(({ name }) => [name, query[name] === 'true']));
+  const has_file_options = Object.values(file_options).some(Boolean);
+  const saveFileOptions = changes => updateSelected(changes, { replace: true, defaults: bit_accuracy_url_defaults });
+  const toggleFileOption = name => () => saveFileOptions({ [name]: !file_options[name] });
+  const showFileOptions = () => {
+    setViewOptionsExpanded(true);
+    setRevealSection({ id: 'files' });
+  };
+
+  const toggle = name => () => setControls({ ...controls, [name]: !controls[name] });
+  // e.g. how image viewers compare images, set from any of them
+  const updateControls = changes => setControls(controls => ({ ...controls, ...changes }));
+  // Visualizations are shown unless hidden by default
+  const is_shown = name => controls.show?.[name] ?? !visualizations.find(v => v.name === name)?.default_hidden;
+  const toggle_show = name => () => setControls({ ...controls, show: { ...controls.show, [name]: !is_shown(name) } });
+  const updateDynamicOption = (name, value) => setControls({
+    ...controls,
+    dynamic_options: { ...controls.dynamic_options, [name]: [value] },
+  });
+  const resetDynamicOption = name => setControls({
+    ...controls,
+    dynamic_options: { ...controls.dynamic_options, [name]: undefined },
+  });
+  // What users changed, e.g. visualizations shown or dynamic options, can be reset to the project's defaults
+  const has_controls_changes = Object.keys(controls_changes(controls, controls_defaults(config, ''))).length > 0 || has_file_options;
+  const resetControls = () => {
+    setControls(controls_defaults(config, ''));
+    saveFileOptions(Object.fromEntries(file_options_list.map(({ name }) => [name, false])));
+  };
+  // Dynamic options are synced across output cards unless users unlink them
+  const toggleDynamicOptionSync = name => {
+    const sync = controls.dynamic_options_sync?.[name] === false;
+    setControls({ ...controls, dynamic_options_sync: { ...controls.dynamic_options_sync, [name]: sync ? undefined : false } });
+    // the option is now changed from the view options
+    if (sync) {
+      setViewOptionsExpanded(true);
+      setRevealFiles(count => count + 1);
     }
-    this.setState({controls}, updateQueryUrl(this.props.history, controls));
+  };
+
+  const update = attribute => e => {
+    const value = (e?.target && e.target.value !== undefined) ? e.target.value : e;
+    updateSelected({ [attribute]: value }, { replace: attribute.startsWith('filter') || attribute.startsWith('sort') })
   }
 
-  toggle_show = name => () => {
-    const currentValue = this.state.controls.show?.[name];
-    let newValue;
-    
-    // Handle three-state toggle: undefined -> true -> false -> true -> ...
-    if (currentValue === undefined) {
-      newValue = true;  // Enable explicitly
-    } else if (currentValue === true) {
-      newValue = false; // Disable explicitly  
+  // The metrics shown in tables
+  const metricTableSelect = <MetricSelect
+    available_metrics={available_metrics}
+    used_metrics={new_batch.used_metrics}
+    selected={selected_metrics_keys}
+    onChange={keys => updateSelected({ selected_metrics: keys }, { defaults: { selected_metrics: metrics.main_metrics } })}
+  />;
+
+  const warning_messages = <CommitWarningMessages project={new_project} commit={new_commit} />;
+  const config_outputs = config.outputs || {};
+  const controls_extra = config_outputs.controls || []
+  const visualizations = config_visualizations(config_outputs);
+  const tuned_params = new_batch.sorted_extra_parameters.filter(p => new_batch.extra_parameters[p].size > 1)
+  const has_tuning = tuned_params.length > 0
+  const show_ref_navbar = shows_reference_bar(selected_views)
+  // TODO: migrate the availble-tests-files to DB
+  const available_tests_files = { gr: "extra-batches", usr: user.user_name ?? null };
+  const export_plugin = <ExportPlugin
+    project={new_project}
+    ref_project={ref_project}
+    config={config}
+    new_commit_id={new_commit?.id ?? new_commit_id}
+    ref_commit_id={ref_commit?.id ?? ref_commit_id}
+    selected_batch_new={selected_batch_new}
+    selected_batch_ref={selected_batch_ref}
+    filter_batch_new={filter_batch_new}
+    filter_batch_ref={filter_batch_ref}
+    batch_dir_url={new_batch.batch_dir_url}
+  />;
+  const output_cards_props = {
+    project: new_project,
+    config,
+    metrics,
+    new_commit,
+    new_batch,
+    ref_batch,
+    controls,
+    onControlsChange: updateControls,
+    onRegisterOutputOptions: dynamic.register,
+    onToggleDynamicOptionSync: toggleDynamicOptionSync,
+    // what viewers call the new and reference results, e.g. their milestones' names
+    labels: comparison.labels,
+  };
+  // the tables' columns: [new, reference]
+  const { new: label_new, reference: label_ref } = comparison.labels;
+  const table_labels = useMemo(() => [label_new, label_ref], [label_new, label_ref]);
+  // What the runs shown share is hidden in each run: it updates as users filter runs.
+  // shared_configuration and changes_in_all_runs return the same objects when they don't change, so cards don't re-render
+  const shared_settings = shared_configuration(new_batch.filtered.outputs.map(id => new_batch.outputs[id]));
+  const all_runs_changes = changes_in_all_runs(reference_pairs(new_batch));
+  const shared = useMemo(
+    () => shared_settings && { ...shared_settings, changes_in_all_runs: all_runs_changes },
+    [shared_settings, all_runs_changes],
+  );
+  const docs_link = <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/visualizations`}>Read the docs</a>;
+
+  // Until the commit loads, if it doesn't exist, or if it has no results yet, views of its results would look empty
+  const has_batches = Object.keys(new_commit?.batches ?? {}).length > 0;
+  const results_views = ['summary', 'table-compare', 'table-kpi', 'logs', 'output-list', 'bit-accuracy', 'optimization'];
+  let commit_state = null;
+  let hidden_views = [];
+  const ci_docs_link = <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/ci-integration`} style={{ whiteSpace: 'nowrap' }}>Set up your CI</a>;
+  if (!!new_commit && !has_batches) {
+    // Without a commit id, we show the latest commit with results on the reference branch: there may be none yet
+    const no_commit_with_results = !new_commit_id && !!new_commit.error?.startsWith('404');
+    const reference_branch = project_data?.data?.qatools_config?.project?.reference_branch;
+    if (no_commit_with_results) {
+      hidden_views = [...results_views, 'parameters'];
+      commit_state = <NonIdealState
+        icon="inbox"
+        title={reference_branch ? <>No commit with results on <code>{reference_branch}</code> yet</> : "No commit with results yet"}
+        description={<p>Results appear once <code>qa batch</code> runs in your CI. {ci_docs_link}</p>}
+      />;
+    } else if (new_commit.error) {
+      hidden_views = [...results_views, 'parameters'];
+      commit_state = <NonIdealState
+        icon="error"
+        title="Could not load this commit"
+        description={<p>
+          <code>{new_commit.error}</code>
+          {new_commit.error.startsWith('4') && <><br/>Check the commit id, or whether its runs belong to another project.</>}
+        </p>}
+        action={<Button icon="refresh" text="Retry" onClick={() => refreshCommit(new_project, new_commit.id ?? null)}/>}
+      />;
+    } else if (!new_commit.is_loaded) {
+      hidden_views = [...results_views, 'parameters'];
+      commit_state = <NonIdealState icon={<Spinner/>} title="Loading the commit's results…"/>;
     } else {
-      newValue = true;  // Re-enable
-    }
-    
-    const controls = {
-        ...this.state.controls,
-        show: {
-          ...this.state.controls.show,          
-          [name]: newValue,
-        }
-    }
-    this.setState({controls}, updateQueryUrl(this.props.history, controls));
-  }
-
-  // these members help us define the metric selector
-  renderMetric = (metric, { handleClick, modifiers }) => {
-    if (!modifiers.matchesPredicate) {
-      return null;
-    }
-    return (
-      <MenuItem
-        active={modifiers.active}
-        icon={this.isMetricSelected(metric) ? "tick" : "blank"}
-        key={metric.key}
-        label={metric.key}
-        text={<MetricHeader {...metric} show_suffix />}
-        onClick={handleClick}
-        shouldDismissPopover={false}
-      />
-    );
-  };
-  filterMetric = (query, metric) => {
-    return match_query(query)(`${metric.key} ${metric.label} ${metric.short_label}`)
-  };
-
-
-  handleClear = () => this.props.dispatch(updateSelected(this.props.project, {selected_metrics: []}));
-  handleTagRemove = (_tag, index) => {
-    this.deselectMetric(index);
-  };
-  getSelectedMetricIndex = metric => {
-    return this.props.selected_metrics.indexOf(metric);
-  };
-  isMetricSelected(metric) {
-    return this.getSelectedMetricIndex(metric) !== -1;
-  }
-  deselectMetric = index => {
-    this.props.dispatch(updateSelected(
-      this.props.project, {
-        selected_metrics: this.props.selected_metrics.filter((metric, i) => i !== index).map(m => m.key)
-      }))
-  };
-  handleMetricSelect = metric => {
-    if (!this.isMetricSelected(metric)) {
-      this.props.dispatch(updateSelected(
-        this.props.project, {
-          selected_metrics: [...this.props.selected_metrics, metric].map(m => m.key)
-        }))
-    } else {
-      this.deselectMetric(this.getSelectedMetricIndex(metric));
-    }
-  };
-
-  // Check which visualizations have files available in a manifest
-  checkVisualizationsWithFiles = (manifest) => {
-    const config = this.props.config || {};
-    const outputs = config.outputs || {};
-    const views = [...(outputs.visualizations || []), ...(outputs.detailed_views || [])];
-    const manifestPaths = Object.keys(manifest || {});
-    
-    const visualizationsWithFiles = new Set();
-    
-    views.forEach(view => {
-      if (!view.path) return;
-      
-      // For simple paths (no patterns), check direct existence
-      if (!view.path.includes(':') && !view.path.includes('(')) {
-        if (manifestPaths.includes(view.path)) {
-          visualizationsWithFiles.add(view.name || view.path);
-        }
-        return;
-      }
-      
-      // For pattern paths, use the same logic as options parsing
-      const hasMatchingFile = manifestPaths.some(path => {
-        try {
-          const match = matchPath(path, { path: view.path });
-          return match !== null && match !== undefined;
-        } catch {
-          return false;
-        }
-      });
-      
-      if (hasMatchingFile) {
-        visualizationsWithFiles.add(view.name || view.path);
-      }
-    });
-    
-    return visualizationsWithFiles;
-  };
-
-  // Dynamic options management with performance optimization
-  registerOutputOptions = (outputId, outputOptions, manifest) => {
-    // Skip if already registered with same options (performance optimization)
-    if (this.state.registered_outputs.has(outputId)) {
-      // Still update visualizations_with_files if we have a new manifest
-      if (manifest) {
-        const newVisualizationsWithFiles = this.checkVisualizationsWithFiles(manifest);
-        if (newVisualizationsWithFiles.size > 0) {
-          this.setState(prevState => ({
-            visualizations_with_files: new Set([
-              ...prevState.visualizations_with_files,
-              ...newVisualizationsWithFiles
-            ])
-          }));
-        }
-      }
-      return;
-    }
-    
-    this.setState(prevState => {
-      const newRegisteredOutputs = new Set(prevState.registered_outputs);
-      newRegisteredOutputs.add(outputId);
-      
-      // Check which visualizations have files in this manifest
-      const newVisualizationsWithFiles = manifest ? this.checkVisualizationsWithFiles(manifest) : new Set();
-      const updatedVisualizationsWithFiles = new Set([
-        ...prevState.visualizations_with_files,
-        ...newVisualizationsWithFiles
-      ]);
-      
-      // Store this output's options for future merging
-      const outputOptionsStore = {
-        ...prevState.output_options_store,
-        [outputId]: outputOptions
-      };
-      
-      // Always recompute for first 50 outputs to ensure options appear quickly
-      // Then only recompute periodically for performance
-      const shouldRecompute = newRegisteredOutputs.size <= 50 || newRegisteredOutputs.size % 20 === 0;
-      const isThrottled = newRegisteredOutputs.size > 50 && newRegisteredOutputs.size % 20 !== 0;
-      
-      let mergedOptions = prevState.global_dynamic_options;
-      
-      if (shouldRecompute) {
-        // Collect all output options for merging  
-        const allOutputOptions = Array.from(newRegisteredOutputs).map(id => ({
-          output_id: id,
-          ...outputOptionsStore[id]
-        }));
-        
-        mergedOptions = mergeCompatibleOptions(allOutputOptions);
-      }
-      
-      // Initialize synced options with defaults if not already set
-      const updatedControls = { ...prevState.controls };
-      Object.entries(mergedOptions).forEach(([name, option]) => {
-        if (!updatedControls.dynamic_options[name]) {
-          updatedControls.dynamic_options[name] = [option.defaultValue];
-        }
-        // Default new options to synced unless explicitly set otherwise
-        if (updatedControls.dynamic_options_sync[name] === undefined) {
-          updatedControls.dynamic_options_sync[name] = true;
-        }
-      });
-      
-      return {
-        registered_outputs: newRegisteredOutputs,
-        global_dynamic_options: mergedOptions,
-        output_options_store: outputOptionsStore,
-        controls: updatedControls,
-        visualizations_with_files: updatedVisualizationsWithFiles,
-        registration_info: {
-          total_outputs: this.props.new_batch?.filtered?.outputs?.length || 0,
-          registered_outputs: newRegisteredOutputs.size,
-          is_throttled: isThrottled,
-          last_recompute_at: shouldRecompute ? newRegisteredOutputs.size : prevState.registration_info.last_recompute_at,
-        }
-      };
-    });
-  };
-
-  updateDynamicOption = (name, value) => {
-    const controls = {
-      ...this.state.controls,
-      dynamic_options: {
-        ...this.state.controls.dynamic_options,
-        [name]: [value]
-      }
-    };
-    this.setState({ controls }, () => updateQueryUrl(this.props.history, controls));
-  };
-
-  toggleDynamicOptionSync = (name) => {
-    const newSyncState = !this.state.controls.dynamic_options_sync[name];
-    const updatedSync = {
-      ...this.state.controls.dynamic_options_sync,
-      [name]: newSyncState
-    };
-    
-    setSyncPreferences(updatedSync);
-    
-    const controls = {
-      ...this.state.controls,
-      dynamic_options_sync: updatedSync
-    };
-    
-    // If we're syncing (not unsyncing), expand the floating panel
-    const expandPanel = newSyncState === true;
-    
-    this.setState({ 
-      controls, 
-      expandFloatingPanel: expandPanel 
-    }, () => {
-      updateQueryUrl(this.props.history, controls);
-      // Reset the expand trigger after a short delay
-      if (expandPanel) {
-        setTimeout(() => {
-          this.setState({ expandFloatingPanel: false });
-        }, 100);
-      }
-    });
-  };
-
-  forceReregisterAllOptions = () => {
-    // Force recomputation of all dynamic options by collecting all stored options
-    const allOutputOptions = Array.from(this.state.registered_outputs).map(id => ({
-      output_id: id,
-      ...this.state.output_options_store[id]
-    }));
-    
-    const mergedOptions = mergeCompatibleOptions(allOutputOptions);
-    
-    // Update controls with the merged options
-    const updatedControls = { ...this.state.controls };
-    Object.entries(mergedOptions).forEach(([name, option]) => {
-      if (!updatedControls.dynamic_options[name]) {
-        updatedControls.dynamic_options[name] = [option.defaultValue];
-      }
-      // Preserve existing sync preferences
-      if (updatedControls.dynamic_options_sync[name] === undefined) {
-        updatedControls.dynamic_options_sync[name] = true;
-      }
-    });
-    
-    this.setState({
-      global_dynamic_options: mergedOptions,
-      controls: updatedControls,
-      registration_info: {
-        ...this.state.registration_info,
-        is_throttled: false,
-        last_recompute_at: this.state.registered_outputs.size,
-      }
-    }, () => updateQueryUrl(this.props.history, updatedControls));
-  };
-
-  updateVisualizationStats = (stats) => {
-    this.setState({ visualization_stats: stats });
-  };
-
-  fetchCommits() {
-    const { project, new_project, ref_project, new_commit_id, ref_commit_id, dispatch } = this.props
-    dispatch(fetchCommit({project: new_project, id: new_commit_id, update_with_id: {project, commit: "new_commit_id"}}))
-    dispatch(fetchCommit({project: ref_project, id: ref_commit_id, update_with_id: {project, commit: "ref_commit_id"}}))
-  }
-
-  componentDidMount() {
-    let name = this.props.project.split('/').slice(-1)[0];
-    if (!!this.props.new_commit_id)
-      document.title = `${this.props.new_commit_id.slice(0, 4)} - ${name}`;
-
-    this.fetchCommits();
-  }
-
-  componentDidUpdate(prevProps) {
-    // Reset all registration state when commit or batch changes
-    const commitChanged = this.props.new_commit_id !== prevProps.new_commit_id;
-    const batchChanged = this.props.selected_batch_new !== prevProps.selected_batch_new;
-
-    if (commitChanged || batchChanged) {
-      this.setState({
-        registered_outputs: new Set(),
-        global_dynamic_options: {},
-        output_options_store: {},
-        visualizations_with_files: new Set(),
-        registration_info: {
-          total_outputs: 0,
-          registered_outputs: 0,
-          is_throttled: false,
-          last_recompute_at: 0,
-        },
-      });
-    }
-
-    // Reset file tracking when filter changes (but keep registrations for performance)
-    const filterChanged = this.props.filter_batch_new !== prevProps.filter_batch_new;
-    if (filterChanged && !commitChanged && !batchChanged) {
-      this.setState({
-        visualizations_with_files: new Set(),
-      });
-    }
-
-    const config_curr = this.props.config;
-    const config_prev = prevProps.config;
-    const new_outputs = config_curr?.outputs;
-    const old_outputs = config_prev?.outputs;
-
-    if (new_outputs !== old_outputs ) {
-      let newControls = controls_defaults(config_curr);
-      // Preserve existing user preferences when config changes
-      newControls.show = { ...newControls.show, ...this.state.controls.show };
-      newControls.dynamic_options = this.state.controls.dynamic_options || {};
-      newControls.dynamic_options_sync = this.state.controls.dynamic_options_sync || {};
-
-      // Only reset registrations if the actual visualization config has meaningfully changed
-      // This prevents unnecessary flashing when just switching tabs within the same project
-      const prevVisualizationsConfig = JSON.stringify(old_outputs?.visualizations || []);
-      const currVisualizationsConfig = JSON.stringify(new_outputs?.visualizations || []);
-
-      if (prevVisualizationsConfig !== currVisualizationsConfig) {
-        // True config change - reset and re-discover
-        this.setState({
-          controls: newControls,
-          registered_outputs: new Set(),
-          global_dynamic_options: {},
-          output_options_store: {},
-          visualizations_with_files: new Set(),
-        });
-      } else {
-        // Just update controls without resetting registrations
-        this.setState({ controls: newControls });
-      }
+      hidden_views = results_views;
+      commit_state = <NonIdealState
+        icon="inbox"
+        title="No results for this commit yet"
+        description={<p>
+          Results appear once <code>qa batch</code> runs on this commit, usually in your CI.{" "}
+          {ci_docs_link}
+        </p>}
+        action={<Button icon="play" text="Run tests on this commit" onClick={() => updateSelected({ selected_views: 'tuning' })}/>}
+      />;
     }
   }
+  // the views shown on the page
+  const views = selected_views.filter(view => !hidden_views.includes(view));
+  const shows_runs = ['output-list', 'bit-accuracy', 'table-compare', 'table-kpi'].some(view => views.includes(view));
+  const shows_state = selected_views.some(view => hidden_views.includes(view));
+  const storage = new_batch.filtered.outputs
+    .map(id => new_batch.outputs[id]?.data?.storage ?? 0)
+    .reduce((running_total, storage) => running_total + storage, 0);
+  const nb_runs = new_batch.filtered.outputs.length;
+  // the commits' fixed headers
+  const header_height = commit_header_height({ selected_views, references: comparison.references });
 
-  update = attribute => e => {
-  	const value = (e.target && e.target.value !==undefined) ? e.target.value : e;
-    this.props.dispatch(updateSelected(this.props.project, { [attribute]: value }))
-  } 
+  return (
+    <SharedConfigurationContext value={shared}>
+    <Container style={{ marginTop: 0, paddingTop: header_height + header_gap }}>
 
-  render() {
-    const {
-      project,
-      git,
-      config,
-      metrics,
-      ref_commit_id,
-      new_commit_id,
-      new_commit,
-      ref_commit,
-      available_metrics,
-      selected_metrics,
-      new_batch,
-      ref_batch,
-      selected_views,
-      dispatch,
-      history,
-      available_tests_files,
-    } = this.props;
-    var warning_messages = <CommitWarningMessages
-                            project={this.props.selected.new_project}
-                            commit={new_commit}
-                            dispatch={dispatch}
-                           />;
+      {(!new_commit || !ref_commit) && show_ref_navbar && <Messages>
+        {warning_messages}
+      </Messages>}
 
-    let clearButton =
-      selected_metrics.length > 0 ? (
-        <Button icon="cross" minimal={true} onClick={this.handleClear} />
-      ) : null;
-    let metricTableSelect = (
-      <MultiSelect
-        items={Object.entries(available_metrics)
-               .filter(([key]) => new_batch.used_metrics.has(key))
-               .map(([, m]) => m)}
-        itemPredicate={this.filterMetric}
-        itemRenderer={this.renderMetric}
-        onItemSelect={this.handleMetricSelect}
-        tagRenderer={m => <MetricHeader {...m}/>}
-        tagInputProps={{
-          onRemove: this.handleTagRemove,
-          rightElement: clearButton
-        }}
-        noResults={noMetrics}
-        selectedItems={selected_metrics.filter(m => new_batch.used_metrics.has(m.key))}
-        popoverProps={Classes.MINIMAL}
-      />
-    );
+      {(!!new_commit) && (
+          <>
+            <Messages key="filters">
+              {warning_messages}
+              {/* the selected batch's runs are unrelated to editing batch definitions, and would push the editor down */}
+              {!selected_views.includes('groups') && <BatchStatusMessages project={new_project} commit={new_commit} batch={new_batch} />}
+              {shows_runs && <ConfigurationOverview new_batch={new_batch} />}
+            </Messages>
 
-    let config_outputs =  config.outputs || {};
-    let controls_extra = config_outputs.controls || []
-    let visualizations = [...(config_outputs.visualizations || []), ...(config_outputs.detailed_views || []) ]; // we allow both for some leeway with half updated projects
-    const tuned_params = new_batch.sorted_extra_parameters.filter(p => new_batch.extra_parameters[p].size > 1)
-    const has_tuning = tuned_params.length > 0
-    let show_ref_navbar = ! (selected_views.includes('logs') || selected_views.includes('tuning') || selected_views.includes('groups'))
-    return (
-      <Container style={{paddingTop: show_ref_navbar ? '150px' : '75px'}}>
+            {shows_state && <ViewSection>{commit_state}</ViewSection>}
 
-        {(!new_commit || !ref_commit) && show_ref_navbar && <Section>
-          {warning_messages}
-        </Section>}
+            {views.includes('summary') && <ViewSection>
+              <ViewTitle title="Summary"/>
+              <Card>
+                <MetricsSummary
+                  project={new_project}
+                  project_data={project_data}
+                  metrics={metrics}
+                  available_metrics={available_metrics}
+                  new_batch={new_batch}
+                  ref_batch={ref_batch}
+                  labels={comparison.labels}
+                />
+              </Card>
+             </ViewSection>}
 
-        {(!!new_commit) && (
-            <>
-              <Section key="filters">
-                {warning_messages}
-                {/* the selected batch's runs are unrelated to editing batch definitions, and would push the editor down */}
-                {!selected_views.includes('groups') && <BatchStatusMessages project={this.props.selected.new_project} commit={new_commit} batch={new_batch} dispatch={dispatch} />}
-              </Section>
+            {views.includes('parameters') && <ViewSection>
+              <ViewTitle title="Artifacts & Configs"/>
+              <Card>
+                <CommitParameters
+                  project={new_project}
+                  config={config}
+                  new_commit={new_commit}
+                  ref_commit={ref_commit}
+                />
+              </Card>
+             </ViewSection>}
 
-              {selected_views.includes('summary') && <Section>
-                <Card elevation={2}>
-                  <h2 className={Classes.HEADING}>Summary</h2>
-                  <MetricsSummary
-                    project={this.props.selected.new_project}
-                    metrics={metrics}
-                    available_metrics={available_metrics}
-                    new_batch={new_batch}
-                    ref_batch={ref_batch}
-                  />
-                </Card>
-               </Section>}
+            {views.includes('groups') && <ViewSection style={{ width: 'auto', minWidth: 0 }}>
+              <ViewTitle title="Available Tests"/>
+              <PrivateContent enabled={true}>
+                <BatchesEditor
+                  project={project}
+                  git={git}
+                  web_url={(git?.web_url || git?.path_with_namespace) ? project_web_url(project_data) : undefined}
+                  commit={new_commit}
+                  config={config}
+                  available_tests_files={available_tests_files}
+                  docs_root={docs_root}
+                />
+              </PrivateContent>
+            </ViewSection>}
 
-              {selected_views.includes('parameters') && <Section>
-                <Card>
-                  <h2 className={Classes.HEADING}>Artifacts & Configurations</h2>
-                  <CommitParameters
-                    project={this.props.selected.new_project}
-                    config={config}
-                    new_commit={new_commit}
-                    ref_commit={ref_commit}
-                    history={history}
-                  />
-                </Card>
-               </Section>}
-
-              {selected_views.includes('groups') && <Section style={{ width: 'auto', minWidth: 0, marginTop: '10px' }}>
-                <h2 className={Classes.HEADING}>Available Tests</h2>
-                <PrivateContent enabled={true}>
-                  <BatchesEditor
-                    project={project}
-                    git={git}
-                    commit={new_commit}
-                    config={config}
-                    available_tests_files={available_tests_files}
-                    docs_root={this.props.docs_root}
-                    dispatch={dispatch}
-                  />
-                </PrivateContent>
-               </Section>}
-
-              {selected_views.includes('tuning') && (Object.keys(config.artifacts || {}).length === 0
+            {views.includes('tuning') && <ViewSection>
+              <ViewTitle title="Run Tests / Tuning"/>
+              {Object.keys(config.artifacts || {}).length === 0
                 ? <NonIdealState
                     icon="heatmap"
-                    title={<p>Tuning requires you to define build <strong>artifacts.</strong></p>}
-                    description={<p><a target="_blank" rel="noopener noreferrer" href={`${this.props.docs_root}docs/visualizations`}>Read the docs</a> to learn how to declare visualizations.</p>}
+                    title="Running tests from the web app needs build artifacts"
+                    description={<p>
+                      QA-Board re-runs your code from the commit's saved build: declare which files to save as <code>artifacts</code> in <em>qaboard.yaml</em>.<br/>
+                      <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/storage/artifacts`}>Learn how to declare artifacts</a> and <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/tuning-from-the-webapp`}>run tests from the web app</a>.
+                    </p>}
                   />
-                : <Section>
-                  <h2 className={Classes.HEADING}>Tuning Experiments</h2>
-                  <Card>
-                    <PrivateContent enabled={true}>
-                      <TuningForm
-                      project={project}
-                      config={config}
-                      metrics={metrics}
-                      commit={new_commit}
-                      available_tests_files={available_tests_files}
-                      />
-                    </PrivateContent>
-                  </Card>
-              </Section>)}
-
-              {selected_views.includes('table-compare') && <Section>
-                <Card>
-                    <h2 className={Classes.HEADING}>Improvement report</h2>
-                    <TableCompare
-                      new_batch={new_batch}
-                      ref_batch={ref_batch}
-                      metrics={selected_metrics.map(m => m.key)}
-                      available_metrics={available_metrics}
-                      input={metricTableSelect}
-                    />
-                </Card>
-               </Section>}
-
-              {selected_views.includes('table-kpi') && <Section>
-                <Card>
-                    <h2 className={Classes.HEADING}>Quality report</h2>
-                    <TableKpi
-                      new_batch={new_batch}
-                      ref_batch={ref_batch}
-                      metrics={selected_metrics.map(m => m.key)}
-                      available_metrics={available_metrics}
-                      input={metricTableSelect}
-                    />
-                </Card>
-               </Section>}
-
-              {/* as wide as the page, not as its widest log line or run configuration */}
-              {selected_views.includes('logs') && <Section style={{ width: 'auto', minWidth: 0 }}>
-                  <h2 className={Classes.HEADING}>Logs</h2>
-                  <BatchLogs
-                    project={this.props.selected.new_project}
+                : <Card>
+                  <PrivateContent enabled={true}>
+                    <TuningForm
+                    project={project}
+                    git={git}
+                    config={config}
+                    metrics={metrics}
                     commit={new_commit}
-                    batch={new_batch}
-                    batch_label={new_batch.label}
-                    dispatch={dispatch}
-                  />
-               </Section>}
-
-
-
-              {selected_views.includes('output-list') && (visualizations.length === 0
-                 ? <NonIdealState
-                     icon="heatmap"
-                     title="Visualizations are not configured yet." 
-                     description={<p><a target="_blank" rel="noopener noreferrer" href={`${this.props.docs_root}docs/visualizations`}>Read the docs</a> to learn how to declare visualizations.`</p>}
-                   />
-                 : <Section>
-                  <h2 className={Classes.HEADING}>Visualizations</h2>
-                  <ExportPlugin
-                    project={this.props.selected.new_project}
-                    ref_project={this.props.selected.ref_project}
-                    config={config}
-                    new_commit_id={new_commit_id}
-                    ref_commit_id={ref_commit_id}
-                    selected_batch_new={this.props.selected_batch_new}
-                    selected_batch_ref={this.props.selected_batch_ref}
-                    filter_batch_new={this.props.filter_batch_new}
-                    filter_batch_ref={this.props.filter_batch_ref}
-                    batch_dir_url={new_batch.batch_dir_url}
-                  />
-                  <OutputCardsList
-                    project={this.props.selected.new_project}
-                    config={config}
-                    metrics={metrics}
-                    new_commit={new_commit}
-                    new_batch={new_batch}
-                    ref_batch={ref_batch}
-                    controls={this.state.controls}
-                    history={history}
-                    dispatch={dispatch}
-                    onRegisterOutputOptions={this.registerOutputOptions}
-                    onToggleDynamicOptionSync={this.toggleDynamicOptionSync}
-                  />
-              </Section>)}
-
-              {selected_views.includes('bit-accuracy') && <Section>
-                  <h2 className={Classes.HEADING}>Output Files</h2>
-                  <p className={Classes.TEXT_MUTED}>Total Storage: {humanFileSize(
-                    (new_batch?.filtered?.outputs ?? [])
-                    .map( id => new_batch.outputs[id]?.data?.storage ?? 0)
-                    .reduce((running_total, storage) => running_total + storage, 0)
-                  , true)}</p>
-                  <ExportPlugin
-                    project={this.props.selected.new_project}
-                    ref_project={this.props.selected.ref_project}
-                    config={config}
-                    new_commit_id={new_commit_id}
-                    ref_commit_id={ref_commit_id}
-                    selected_batch_new={this.props.selected_batch_new}
-                    selected_batch_ref={this.props.selected_batch_ref}
-                    filter_batch_new={this.props.filter_batch_new}
-                    filter_batch_ref={this.props.filter_batch_ref}
-                    batch_dir_url={new_batch.batch_dir_url}
-                  />
-                  <OutputCardsList
-                    type='bit_accuracy'
-                    project={this.props.selected.new_project}
-                    config={config}
-                    metrics={metrics}
-                    new_commit={new_commit}
-                    new_batch={new_batch}
-                    ref_batch={ref_batch}
-                    controls={this.state.controls}
-                    history={history}
-                    dispatch={dispatch}
-                    onRegisterOutputOptions={this.registerOutputOptions}
-                    onToggleDynamicOptionSync={this.toggleDynamicOptionSync}
-                  />
-               </Section>}
-
-              {selected_views.includes('optimization') && <Section>
-                <Card>
-                  <h2 className={Classes.HEADING}>Auto-Tuning Analysis</h2>
-                  <TuningExploration
-                    project={this.props.selected.new_project}
-                    metrics={metrics}
-                    available_metrics={available_metrics}
-                    selected_metrics={selected_metrics.map(m => m.key)}
-                    batch={new_batch}
-                    input={metricTableSelect}
+                    available_tests_files={available_tests_files}
                     />
-                </Card>
-               </Section>}
+                  </PrivateContent>
+                </Card>}
+            </ViewSection>}
 
-            </>
-          )}
+            {views.includes('table-compare') && <ViewSection>
+              <ViewTitle title="Metrics Diff"/>
+              <Card>
+                  <TableCompare
+                    new_batch={new_batch}
+                    ref_batch={ref_batch}
+                    metrics={selected_metrics_keys}
+                    available_metrics={available_metrics}
+                    input={metricTableSelect}
+                    labels={table_labels}
+                  />
+              </Card>
+             </ViewSection>}
 
-        {/* Floating Controls Panel. Editing batches has no use for it, it would cover the editor's side panel */}
-        {(!!new_commit) && [].concat(selected_views).join(',') !== 'groups' && (
-          <FloatingControlsPanel
-            controls={this.state.controls}
-            visualizations={visualizations}
-            controls_extra={controls_extra}
-            selected_views={selected_views}
-            selected_metrics={selected_metrics}
-            new_batch={new_batch}
-            available_metrics={available_metrics}
-            metricTableSelect={metricTableSelect}
-            sort_by={this.props.sort_by}
-            sort_order={this.props.sort_order}
-            onToggle={this.toggle}
-            onToggleShow={this.toggle_show}
-            onUpdate={this.update}
-            has_tuning={has_tuning}
-            tuned_params={tuned_params}
-            dynamic_options={this.state.global_dynamic_options}
-            onUpdateDynamicOption={this.updateDynamicOption}
-            onToggleDynamicOptionSync={this.toggleDynamicOptionSync}
-            visualization_stats={this.state.visualization_stats}
-            visualizations_with_files={this.state.visualizations_with_files}
-            expandPanel={this.state.expandFloatingPanel}
-            registration_info={this.state.registration_info}
-            onForceReregisterAllOptions={this.forceReregisterAllOptions}
-          />
+            {views.includes('table-kpi') && <ViewSection>
+              <ViewTitle title="Metrics Table"/>
+              <Card>
+                  <TableKpi
+                    new_batch={new_batch}
+                    ref_batch={ref_batch}
+                    metrics={selected_metrics_keys}
+                    available_metrics={available_metrics}
+                    input={metricTableSelect}
+                    labels={table_labels}
+                  />
+              </Card>
+             </ViewSection>}
+
+            {/* as wide as the page, not as its widest log line or run configuration */}
+            {views.includes('logs') && <ViewSection style={{ width: 'auto', minWidth: 0 }}>
+                <ViewTitle title="Logs"/>
+                <BatchLogs
+                  project={new_project}
+                  commit={new_commit}
+                  batch={new_batch}
+                  batch_label={new_batch.label}
+                />
+             </ViewSection>}
+
+            {views.includes('output-list') && <ViewSection>
+              <ViewTitle title="Visualizations" actions={visualizations.length > 0 && export_plugin}/>
+              {visualizations.length === 0
+                ? <NonIdealState
+                    icon="heatmap"
+                    title="Visualizations are not configured yet."
+                    description={<p>{docs_link} to learn how to declare visualizations. Meanwhile, you can browse the files each run created.</p>}
+                    action={<Button icon="folder-open" text="Show output files" onClick={() => updateSelected({ selected_views: 'bit-accuracy' })}/>}
+                  />
+                : <OutputCardsList {...output_cards_props}/>}
+            </ViewSection>}
+
+            {views.includes('bit-accuracy') && <ViewSection>
+                <ViewTitle title="Output Files" actions={export_plugin}>
+                  <p className={Classes.TEXT_MUTED}>Storage used by the {nb_runs} run{nb_runs === 1 ? '' : 's'} shown: {humanFileSize(storage, true)}</p>
+                </ViewTitle>
+                <OutputCardsList type='bit_accuracy' {...output_cards_props} onShowFileOptions={showFileOptions}/>
+             </ViewSection>}
+
+            {views.includes('optimization') && <ViewSection>
+              <ViewTitle title="Tuning Analysis"/>
+              <Card>
+                <TuningExploration
+                  project={new_project}
+                  commit_id={new_commit?.id}
+                  metrics={metrics}
+                  available_metrics={available_metrics}
+                  selected_metrics={selected_metrics_keys}
+                  batch={new_batch}
+                  input={metricTableSelect}
+                  />
+              </Card>
+             </ViewSection>}
+
+          </>
         )}
-      </Container>
-    );
-  }
+
+      {/* Only the views of the runs' results have view options: elsewhere (editing batches, the tuning form...) they would
+          only take room. Without results, there is nothing to change either. */}
+      {(!!new_commit) && has_batches && views.some(view => results_views.includes(view)) && (
+        <ViewOptionsPanel
+          top={header_height}
+          controls={controls}
+          visualizations={visualizations}
+          controls_extra={controls_extra}
+          selected_views={selected_views}
+          new_batch={new_batch}
+          available_metrics={available_metrics}
+          sort_by={selected.sort_by}
+          default_sort_by={metrics.default_metric}
+          sort_order={selected.sort_order}
+          onToggle={toggle}
+          onUpdateControls={updateControls}
+          onToggleShow={toggle_show}
+          onUpdate={update}
+          has_tuning={has_tuning}
+          tuned_params={tuned_params}
+          dynamic_options={dynamic.dynamic_options}
+          onUpdateDynamicOption={updateDynamicOption}
+          onResetDynamicOption={resetDynamicOption}
+          has_changes={has_controls_changes}
+          onResetControls={resetControls}
+          docs_root={docs_root}
+          onToggleDynamicOptionSync={toggleDynamicOptionSync}
+          visualizations_with_files={dynamic.visualizations_with_files}
+          expanded={view_options_expanded}
+          setExpanded={setViewOptionsExpanded}
+          revealFiles={reveal_files}
+          revealSection={reveal_section}
+          file_options={file_options}
+          onToggleFileOption={toggleFileOption}
+        />
+      )}
+    </Container>
+    </SharedConfigurationContext>
+  );
 }
 
-
-
-
-const mapStateToProps = (state, ownProps) => {
-    const params = new URLSearchParams(ownProps.location.search);
-    let project = projectSelector(state)
-
-    let selected = selectedSelector(state)
-    const { new_commit_id, ref_commit_id, filter_batch_new, filter_batch_ref, new_project, ref_project } = selected
-
-    let { new_commit, ref_commit } = commitSelector(state)
-
-    let {
-    	selected_batch_new,
-    	selected_batch_ref,
-    	new_batch,
-    	ref_batch,
-    } = batchSelector(state)
-
-    let { git, config, metrics, selected_metrics } = configSelector(state)
-    let { available_metrics } = metrics;
-
-    let selected_views = selected.selected_views || (config.outputs || {}).default_tab_details || "summary";
-    if (!Array.isArray(selected_views))
-      selected_views = [selected_views]
-    // Avoid issues with output_list/output-list...
-    selected_views = selected_views.map(v => v.replace('_', '-'))
-    return {
-      params,
-      project,
-      selected,
-      config,
-      metrics,
-      git,
-      available_metrics,
-      selected_metrics: selected_metrics.map(m => available_metrics[m]),
-      // selected commit
-      new_project,
-      ref_project,
-      new_commit_id,
-      ref_commit_id,
-      new_commit,
-      ref_commit,
-      // selected batch
-      selected_batch_new,
-      selected_batch_ref,
-      // filters
-      filter_batch_new,
-      filter_batch_ref,
-      new_batch,
-      ref_batch,
-      selected_views,
-
-      sort_by: selected.sort_by,
-      sort_order: selected.sort_order || 'input_test_path',
-
-      // TODO: migrate the availble-tests-files to DB
-      available_tests_files: {
-        gr: "extra-batches",
-        usr: state.user?.user_name ?? null
-      },
-      docs_root: state.siteConfig.docs_root,
-    }
-}
-
-export default withRouter(connect(mapStateToProps)(CiCommitResults) );
+export default CiCommitResults;

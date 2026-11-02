@@ -4,6 +4,7 @@ Initialize a QA-Board project
 qa init
 ```
 """
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 import subprocess
@@ -31,7 +32,7 @@ def shadowed_keys(sample: Dict[str, Any], site: Dict[str, Any], prefix: Key = ()
     is_location = (*prefix, key) in LOCATION_KEYS
     if isinstance(site_value, dict) and isinstance(sample_value, dict) and not is_location:
       sub_keys = shadowed_keys(sample_value, site_value, (*prefix, key))
-      # if the whole section would be overriden, we remove it
+      # if the whole section would be overridden, we remove it
       if sample_value and set(sub_keys) == {(*prefix, key, k) for k in sample_value}:
         keys.append((*prefix, key))
       else:
@@ -72,27 +73,31 @@ def use_site_defaults(sample_config: str, site: Dict[str, Any]) -> str:
     replacements.append((key_node.start_mark.line, last_line(node), comment))
   for start, end, comment in sorted(replacements, reverse=True):
     lines[start:end+1] = comment
+  # The comments about the schema stay at the top
+  schema_lines = []
+  while lines and lines[0].startswith(('# yaml-language-server:', '# Completion and checks in your editor')):
+    schema_lines.append(lines.pop(0))
   header = [
     "# This configuration is merged on top of the site defaults (QABOARD_SITE_CONFIG, installed by your site package).",
     "# Settings defined here take precedence.",
   ]
-  return "\n".join([*header, *lines]) + "\n"
+  return "\n".join([*schema_lines, *header, *lines]) + "\n"
 
 
 
 def qa_init(ctx):
-  """Initialize a qatools repository"""
+  """Initialize a QA-Board project: a qaboard.yaml configuration and a qa/ folder"""
   config_paths = [p for  _, p in find_configs(Path('.'))]
   if config_paths:
     click.secho(f'You already have a qaboard.yaml configuration:', fg='green', bold=True, err=True)
     for p in config_paths:
       click.secho(str(p), fg='green')
-    exit(0)
+    sys.exit(0)
 
   # Locate the sample project's configuration
   qatools_dir = Path(__file__).resolve().parent
 
-  click.secho('Creating a `qatools` configuration based on the sample project 🎉', fg='green')
+  click.secho('Creating a `qaboard.yaml` configuration based on the sample project 🎉', fg='green')
   sample_config = (qatools_dir / 'sample_project/qaboard.yaml').read_text()
   site = site_qaboard_config()
   if site:
@@ -107,7 +112,7 @@ def qa_init(ctx):
 
   click.secho('...added qa/', fg='green', dim=True)
   click.secho(
-    'If you need help configuring qatools. please read the tutorial at https://samsung.github.io/qaboard\n',
+    'If you need help configuring QA-Board, read the tutorial at https://samsung.github.io/qaboard\n',
     fg='blue'
   )
 
@@ -116,7 +121,7 @@ def qa_init(ctx):
     subprocess.run("git rev-parse --is-inside-work-tree", shell=True, stdout=subprocess.PIPE, check=True)
   except Exception:
     click.secho('Warning: Could not find a git repository', fg='yellow')
-    exit(0)
+    sys.exit(0)
 
 
   try:
@@ -137,15 +142,16 @@ def qa_init(ctx):
       name =  '/'.join(url.split('/')[3:]).replace('.git', '')
     print(f"project name: {name}")
 
-    p = subprocess.run(f"git remote show {remote}", stdout=subprocess.PIPE, shell=True, check=True, encoding='utf-8')
-    head_info = [l for l in p.stdout.strip().splitlines() if 'HEAD branch:' in l]
-    reference_branch = head_info[0].split(':')[1]
+    # It asks the remote: without network or credentials, we still fill the project's name and url
     try:
       p = subprocess.run(f"git remote show {remote}", stdout=subprocess.PIPE, shell=True, check=True, encoding='utf-8')
       head_info = [l for l in p.stdout.strip().splitlines() if 'HEAD branch:' in l]
-      reference_branch = head_info[0].split(':')[1]
+      reference_branch = head_info[0].split(':', 1)[1].strip()
+      if not reference_branch or reference_branch == '(unknown)': # e.g. an empty remote
+        raise ValueError(reference_branch)
     except Exception:
       click.secho('Warning: Could not find the remote HEAD, using master as reference branch', fg='yellow')
+      click.secho('         If your main branch is another one, change project.reference_branch in qaboard.yaml', fg='yellow')
       reference_branch = 'master'
     print(f"reference_branch: {reference_branch}")
 

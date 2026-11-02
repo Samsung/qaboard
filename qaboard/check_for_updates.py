@@ -2,15 +2,15 @@
 Checks if an update is available, if yes prints a warning message to stderr.
 To avoid introducing extra latency, we only check daily.
 
-FIMXE: users not connected to our internal network will pay a 1s timeout every time.
+FIXME: users not connected to our internal network will pay a 1s timeout every time.
 
 Sites can override where we look for the latest version (QABOARD_LATEST_VERSION_URL, a PyPI JSON API URL
 or a file with `version = "x.y.z"`) and the upgrade command we suggest (QABOARD_UPGRADE_COMMAND).
 """
 import os
+import re
 import json
 import datetime
-from pathlib import Path
 
 import click
 
@@ -20,7 +20,6 @@ def latest_qaboard_version():
   # at a different place on Windows, Linux...
   # We simple need a way to let them know they are using an old version
   import requests
-  import re
   from .site_config import site_config
   url = site_config('QABOARD_LATEST_VERSION_URL', 'https://pypi.org/pypi/qaboard/json')
   try:
@@ -40,21 +39,33 @@ def latest_qaboard_version():
       return version.group(1)
 
 
+def version_key(version: str):
+  """
+  What we compare versions with, or None if we can't understand it.
+  Pre-releases and dev versions (1.2.3rc1, 1.2.3.dev4+g1234) come before their release, post-releases (1.2.3.post1) after.
+  """
+  match = re.match(r'v?(\d+(?:\.\d+)*)(.*)', version.strip())
+  if not match:
+    return None
+  release = [int(n) for n in match.group(1).split('.')]
+  while len(release) > 1 and release[-1] == 0: # 1.2 is 1.2.0
+    release.pop()
+  suffix = match.group(2).split('+')[0].lstrip('.-_').lower()
+  rank = 2 if suffix.startswith('post') else 1 if not suffix else 0
+  return (release, rank)
+
+
 def check_for_updates():
   if 'QA_NO_CHECK_FOR_UPDATES' in os.environ:
     return
   # qaboard user configuration and related files is saved in standard locations
-  if os.name != 'nt':
-    # On windows we use %LOCALAPPDATA%
-    config_home = Path(os.environ['LOCALAPPDATA']) if 'LOCALAPPDATA' in os.environ else Path.home() / '.config'
-  else:
-    # On linux we use XDG directories
-    # https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-    config_home = Path(os.environ['XDG_CONFIG_HOME']) if 'XDG_CONFIG_HOME' in os.environ else Path.home() / '.config'
-
-  qaboard_config_dir = config_home / 'qaboard'
-  if not qaboard_config_dir.exists():
-    qaboard_config_dir.mkdir(parents=True, exist_ok=True)
+  from .site_config import user_config_dir
+  qaboard_config_dir = user_config_dir()
+  try:
+    # it also holds logins (hosts.yaml)
+    qaboard_config_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+  except OSError: # e.g. a read-only home directory
+    return
 
   # We cache the latest version found 
   qaboard_latest_update = qaboard_config_dir / 'latest-version'
@@ -85,8 +96,8 @@ def check_for_updates():
 
   from qaboard import __version__ as current_version
   if latest_version and current_version != 'unknown':
-    to_ints = lambda v: [int(n) for n in v.split('.')]
-    newer_version_available = to_ints(current_version) < to_ints(latest_version)
+    current_key, latest_key = version_key(current_version), version_key(latest_version)
+    newer_version_available = current_key is not None and latest_key is not None and current_key < latest_key
     if newer_version_available:
       click.secho(f'[INFO] A new version of qaboard is available! Upgrade to {latest_version}:', fg='yellow', bold=True, err=True)
       from .site_config import site_config

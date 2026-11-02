@@ -1,6 +1,7 @@
 import os
 import shutil
 import json
+from importlib import import_module, reload
 from pathlib import Path
 
 import yaml
@@ -20,9 +21,8 @@ class TestQaCliSubproject(unittest.TestCase):
   def setUpClass(self):
     self.previous_cwd = os.getcwd()
     root_repo = Path(__file__).resolve().parent.parent
-    os.chdir(root_repo / 'qaboard/sample_project/subproject')
-    # we create some files...
-    os.system("mkdir -p cli_tests/dir; touch cli_tests/a.jpg; touch cli_tests/b.jpg; touch cli_tests/dir/c.jpg")
+    self.subproject_dir = root_repo / 'qaboard/sample_project/subproject'
+    os.chdir(self.subproject_dir)
     database = str(Path())
     images = {'images': {
       "globs": ['*.jpg'],
@@ -38,11 +38,15 @@ class TestQaCliSubproject(unittest.TestCase):
     os.environ['QA_STORAGE'] = str(root_repo.resolve())
 
   @classmethod
-  def TearDownClass(self):
+  def tearDownClass(self):
     os.chdir(self.previous_cwd)
 
   def setUp(self):
-    from importlib import reload
+    # the qa CLI chdirs to the project root without restoring the cwd
+    os.chdir(self.subproject_dir)
+    # qaboard.config resolves the project from the cwd, and qa.py binds it at import time
+    reload(import_module('qaboard.config'))
+    reload(import_module('qaboard.qa'))
     import qaboard
     qaboard = reload(qaboard)
     def qa_(*argv):
@@ -77,6 +81,16 @@ class TestQaCliSubproject(unittest.TestCase):
   def test_sub_batch(self):
     result = self.qa('--dryrun', 'batch', 'cli_tests')
     assert result.exit_code == 0
+
+  def test_sub_save_artifacts(self):
+    result = self.qa('save-artifacts')
+    from qaboard.config import artifacts_commit
+    manifest_path = artifacts_commit / 'manifests' / '__sub-qaboard.yaml.json'
+    # without its qaboard.yaml, runs started from the artifacts would use the parent project's configuration
+    # (no cleanup: the folder also holds the outputs of the tests running in parallel)
+    manifest = json.loads(manifest_path.read_text())
+    assert 'subproject/qaboard.yaml' in manifest, manifest
+    assert 'qaboard.yaml' in manifest, manifest
 
   def test_sub_batch_list(self):
     result = self.qa('--dryrun', 'batch', '--batches-file', 'sub.batches.yaml', 'images', '--list')

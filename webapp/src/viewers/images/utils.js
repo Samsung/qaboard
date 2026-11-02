@@ -1,22 +1,19 @@
 // Get the right IIIF endpoint for a file based on its extension.
-// imageServers is a mapping like { "default": "/iiif", "raw,hex,dng": "/iiif/cde" }
+// imageServers is a mapping like { "default": "/iiif/2/", "raw,hex,dng": "/iiif/cde/" }
 export const getIiifEndpoint = (filePath, imageServers) => {
-  if (!imageServers || !filePath) return '/iiif';
+  if (!imageServers || !filePath) return '/iiif/2/';
   const ext = filePath.split('.').pop().toLowerCase();
   for (const [extensions, endpoint] of Object.entries(imageServers)) {
     if (extensions === 'default') continue;
     if (extensions.split(',').includes(ext)) return endpoint;
   }
-  return imageServers.default || '/iiif';
+  return imageServers.default || '/iiif/2/';
 }
 
 export const iiif_url = (output_dir_url, path, manifest = null, preferTiff = true, imageServers = undefined) => {
   path = build_image_name(path, manifest, preferTiff)
   // remove the URL's leading "/s"
   let identifier = output_dir_url.replace(/^\/*?s\//, "")
-  // /algo/CIS/inputs is a symlink to /algo/CIS_inputs but in the IIIF container it breaks
-  // because folders are mounted under /var/www/localhost/images
-  identifier = identifier.replace(/\/algo\/([A-Za-z0-9]*)\/inputs/, "/algo/$1_inputs")
   // IIIF specs require encoding the slashes inside the identifier
   identifier = `${identifier}/${encodeURI(decodeURIComponent(path))}`.replace(/\//g, '%2F');
   let endpoint = getIiifEndpoint(path, imageServers);

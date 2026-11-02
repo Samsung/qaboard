@@ -1,0 +1,323 @@
+// Types of the image viewer's public API. See README.md.
+import type { CSSProperties, ReactNode } from 'react';
+
+/**
+ * An image: a URL the browser can decode (PNG, JPEG, WebP...), or an object.
+ * Extra fields are kept: the viewer gives the image back to your callbacks, e.g. `getPixels`.
+ */
+export type ImageSource = string | ImageDescriptor;
+
+export interface ImageDescriptor {
+  /** A plain image, loaded at once */
+  url?: string;
+  /** An IIIF Image API service (the URL without /info.json): streamed tile by tile, for large images */
+  iiif?: string;
+  /** Shown on the image, e.g. "new" or "reference" */
+  label?: string;
+  /** A link to the original file, offered in the copy menu */
+  href?: string;
+  [key: string]: unknown;
+}
+
+/** An image users can compare with instead of the reference */
+export interface CompareWithItem {
+  id: string;
+  image: ImageSource;
+  /** Shown on the image and in the menu. Default: the image's label, else the id. Folders (before a /) are muted in the menu. */
+  label?: string;
+  /** The menu lists the items by group, in the order the groups first appear, e.g. "Suggested", "This run" */
+  group?: string;
+  /** Under the label in the menu, e.g. why it's suggested */
+  detail?: string;
+  /** On hover in the menu */
+  title?: string;
+}
+
+export type Mode = 'side-by-side' | 'wipe' | 'single' | 'difference';
+
+export type DiffMethod = 'absolute' | 'signed' | 'perceptual' | 'deltaE' | 'exact';
+
+export interface DiffSettings {
+  method: DiffMethod;
+  /** "absolute" and "signed": how much the difference is amplified */
+  gain?: number;
+  /** "perceptual" (a fraction, e.g. 0.05) and "deltaE" (e.g. 5): the difference shown with the colormap's last color */
+  max?: number;
+  /** "between": the images on each side of the difference (the default), or "alone" */
+  layout?: 'between' | 'alone';
+}
+
+export interface Adjustments {
+  /** Added to each channel, from -255 to 255 */
+  brightness?: number;
+  /** Around mid-gray */
+  contrast?: number;
+  /** Over 1 brightens the shadows */
+  gamma?: number;
+  /** Unsharp masking, from 0 to 2 */
+  sharpen?: number;
+  /** One channel as gray levels */
+  channel?: 'rgb' | 'r' | 'g' | 'b' | 'luma';
+  /** A colormap for the gray levels */
+  falseColor?: 'turbo' | 'viridis' | 'inferno' | null;
+  invert?: boolean;
+}
+
+/** A region of interest, in the pixels of the image, or of an image of size imageWidth x imageHeight (it's scaled) */
+export interface Region {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  label?: string;
+  /** A CSS color, e.g. how much the images differ there */
+  color?: string;
+  imageWidth?: number;
+  imageHeight?: number;
+}
+
+export interface RegionSet {
+  id: string;
+  label: string;
+  description?: string;
+  /** undefined until loaded */
+  regions?: Region[];
+  loading?: boolean;
+  error?: string;
+  /** Finds the regions, e.g. by asking a server. Called when users pick the set and it has no regions. */
+  load?: () => void;
+  /** Shown when the set has no regions, e.g. "No difference found". Default: "No regions" */
+  empty?: string;
+}
+
+/** A blind test: what the image (`image`, not `reference`) is called, and whether users revealed which is which */
+export interface BlindTest {
+  a: 'A' | 'B';
+  revealed?: boolean;
+}
+
+/** An action of the app in the regions menu, e.g. finding the regions of all the images of a page */
+export interface RegionAction {
+  id: string;
+  label: string;
+  /** One of the viewer's icons, e.g. "search" (icons.js) */
+  icon?: string;
+  title?: string;
+  onClick: () => void;
+}
+
+export interface PixelRegion {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** The values of a region: flat, row by row and channel by channel (a typed array is best) */
+export interface PixelData {
+  data: ArrayLike<number>;
+  width: number;
+  height: number;
+  /** By default, data.length / (width * height) */
+  channels?: number;
+  /** What the values are, e.g. "I;16" or "RGB;10" */
+  mode?: string;
+  /** What the image's metadata says about its sensor, for the analysis of raw images */
+  sensor?: SensorInfo;
+}
+
+/** A color filter array: the colors of its 2x2 cells row by row, the size of a cell in pixels, where the cells start */
+export interface Cfa {
+  pattern: 'RGGB' | 'GRBG' | 'GBRG' | 'BGGR';
+  /** 1: Bayer, 2: Tetra (Quad Bayer), 3: Nona, 4: 16-cell… up to 9 */
+  block?: number;
+  /** Pixel (x, y) is in cell ((x + offset.x) / block). Default: { x: 0, y: 0 }, the pattern starts at the file's first pixel */
+  offset?: { x: number; y: number };
+}
+
+/** What an image's metadata says about its sensor. Any field can be missing: the viewer guesses the CFA from the pixels. */
+export interface SensorInfo {
+  cfa?: Cfa;
+  bitDepth?: number;
+  blackLevel?: number;
+  /** By default 2^bitDepth - 1 */
+  whiteLevel?: number;
+  /** No CFA: monochrome */
+  mono?: boolean;
+  /** Where the file was cut from a larger image */
+  crop?: { x: number; y: number; fullWidth: number; fullHeight: number };
+  /** Where it comes from, shown to users, e.g. "the file's header" */
+  source?: string;
+  /** The metadata's fields used, shown to users */
+  fields?: Record<string, unknown>;
+}
+
+/** What users set about the sensor: it wins over the metadata and the guess. Missing fields are automatic. */
+export interface SensorSetting {
+  kind?: 'auto' | 'mosaic' | 'mono';
+  pattern?: Cfa['pattern'] | null;
+  block?: number | null;
+  offset?: { x: number; y: number } | null;
+  blackLevel?: number | null;
+  /** How the channels are grouped: R G B, R Gr Gb B, or each sub-pixel of the cells. Default: 'cfa' */
+  grouping?: 'rgb' | 'cfa' | 'sub';
+}
+
+/** The values of a region, as rows of pixels */
+export interface PixelRows {
+  /** The rows of the region, each pixel a number or its channels: like numpy's image[y:y+h, x:x+w].tolist() */
+  values: (number | number[])[][];
+  /** What the values are, e.g. "I;16" or "RGB" */
+  mode?: string;
+  sensor?: SensorInfo;
+}
+
+export type Pixels = PixelData | PixelRows;
+
+/** The values written on the pixels: the image's own (with getPixels), the displayed 8-bit ones, or none */
+export type PixelValuesSource = 'image' | 'display' | 'off';
+
+export type AnalysisView = 'histogram' | 'profiles' | 'stats';
+
+export interface ImageViewerProps {
+  /** The image */
+  image: ImageSource;
+  /** What it's compared with. Without it, the viewer shows the image alone. Its `detail` says what it is in the "vs" menu. */
+  reference?: ImageSource | null;
+
+  /** Other images users can compare the image with instead of the reference, e.g. its ground truth: picked in the "vs" menu */
+  compareWith?: CompareWithItem[];
+  /** The id of the item of compareWith the image is compared with, null for the reference. Controlled with onComparedChange, or not */
+  compared?: string | null;
+  defaultCompared?: string | null;
+  onComparedChange?: (id: string | null) => void;
+  /** Where a pick applies, e.g. every run of a page or one: shown under "Apply to" in the menu when there are several */
+  compareScopes?: { value: string; label: string; title?: string; phrase?: string }[];
+  /** Controlled with onCompareScopeChange, or not: the first scope by default */
+  compareScope?: string;
+  onCompareScopeChange?: (scope: string) => void;
+  /** Next to what's compared with, in the toolbar, e.g. "this run" */
+  comparedNote?: string;
+
+  /** How the images are compared: controlled with onModeChange, or not, from defaultMode */
+  mode?: Mode;
+  defaultMode?: Mode;
+  onModeChange?: (mode: Mode) => void;
+
+  /** How the difference is computed and shown, in the "difference" mode */
+  diff?: DiffSettings;
+  defaultDiff?: DiffSettings;
+  onDiffChange?: (diff: DiffSettings) => void;
+
+  /** Display adjustments, applied to both images */
+  adjustments?: Adjustments;
+  defaultAdjustments?: Adjustments;
+  onAdjustmentsChange?: (adjustments: Adjustments) => void;
+
+  /** The values written on the pixels when zoomed in enough. 'image' needs getPixels, else they're the displayed ones. Default: 'image' */
+  pixelValues?: PixelValuesSource;
+  defaultPixelValues?: PixelValuesSource;
+  onPixelValuesChange?: (source: PixelValuesSource) => void;
+
+  /**
+   * The view of the analysis panel under the images: 'histogram', 'profiles' (rows and columns) or 'stats'. Without it,
+   * the viewer remembers the view picked last for the page. Whether the panel shows is for each viewer (a).
+   */
+  analysis?: AnalysisView;
+  defaultAnalysis?: AnalysisView;
+  onAnalysisChange?: (view: AnalysisView) => void;
+  /** What the analysis measures: the displayed values, or the image's own ('image', needs getPixels), per channel of its sensor. Default: 'display' */
+  analysisValues?: 'display' | 'image';
+  defaultAnalysisValues?: 'display' | 'image';
+  onAnalysisValuesChange?: (values: 'display' | 'image') => void;
+  /** What users set about the images' sensor (CFA, black level…): control it to remember it, e.g. per project */
+  sensor?: SensorSetting;
+  defaultSensor?: SensorSetting;
+  onSensorChange?: (sensor: SensorSetting) => void;
+  /** Where what users set of the sensor is remembered, shown to them, e.g. "for the project" */
+  sensorRemembered?: string;
+
+  /** Viewers with the same key, showing images of the same aspect ratio, zoom and pan together */
+  syncKey?: string | null;
+
+  /** Regions of interest users can step through */
+  regionSets?: RegionSet[];
+  /** The set shown (null: the full image), controlled with onRegionSetChange, e.g. the same for several viewers, or not, from defaultRegionSet */
+  regionSet?: string | null;
+  /** The id of the set shown first, e.g. "presets" */
+  defaultRegionSet?: string | null;
+  onRegionSetChange?: (id: string | null) => void;
+  /** The app's actions in the regions menu */
+  regionActions?: RegionAction[];
+
+  /** The reference shows first (left, or in single mode), controlled with onSwappedChange, e.g. for every viewer of a page */
+  swapped?: boolean;
+  defaultSwapped?: boolean;
+  onSwappedChange?: (swapped: boolean) => void;
+
+  /**
+   * A blind test: the images are called A and B. Without it, the viewer runs its own (h, or the Blind test button).
+   * Controlled, the viewer asks with onBlindTestChange: 'start' (show the images in a random order with `swapped`, the
+   * first one called A), 'reveal', then 'end'.
+   */
+  blindTest?: BlindTest | null;
+  onBlindTestChange?: (action: 'start' | 'reveal' | 'end') => void;
+
+  /**
+   * The images' own values, e.g. raw or 16-bit, shown under the pointer and on the pixels.
+   * Asked by tiles of 64x64 pixels (cut at the image's edges), kept, and cancelled with the signal when no longer needed.
+   * Without it, the viewer shows the displayed 8-bit RGB values.
+   */
+  getPixels?: (image: ImageDescriptor, region: PixelRegion, options: { signal: AbortSignal }) => Promise<Pixels>;
+  /** Without getPixels: why the images' own values aren't available, e.g. "Sign in to read the images' own values" */
+  imageValuesUnavailable?: string;
+
+  /** The highest the images can be, in CSS pixels, or a function of the window's height. Default: h => h - 160 */
+  maxHeight?: number | ((windowHeight: number) => number);
+  /** By default, the system's. Or theme with the CSS variables, see README.md. */
+  theme?: 'light' | 'dark';
+  /** Shown in the toolbar, after the comparison controls */
+  notice?: ReactNode;
+  /** Shown in the toolbar, before the tools */
+  toolbarExtra?: ReactNode;
+  className?: string;
+  style?: CSSProperties;
+}
+
+export declare const ImageViewer: (props: ImageViewerProps) => ReactNode;
+export default ImageViewer;
+
+export declare const MODES: { value: Mode; label: string; icon: string; title: string }[];
+export declare const DEFAULT_MODE: Mode;
+
+export declare const DIFF_METHODS: Record<DiffMethod, {
+  label: string;
+  title: string;
+  description: string;
+  setting: 'gain' | 'max' | null;
+  values: number[];
+  default: number | null;
+  format: (value: number) => string;
+}>;
+export declare const DEFAULT_DIFF: DiffSettings;
+export declare function normalizeDiff(diff?: Partial<DiffSettings>): DiffSettings;
+/** The difference of two displayed pixels ([r, g, b, a?], 0-255) */
+export declare function diffAt(diff: Partial<DiffSettings> | undefined, a: number[], b: number[]): {
+  delta: number[];
+  value: number | null;
+  amount: number;
+};
+
+export declare const DEFAULT_ADJUSTMENTS: Required<Adjustments>;
+export declare function normalizeAdjustments(adjustments?: Adjustments): Required<Adjustments>;
+
+/** The URL of the IIIF service of a file on an IIIF server whose identifiers are paths: slashes are encoded */
+export declare function iiifUrl(server: string, identifier: string): string;
+/** Loads an image's size, and its OpenSeadragon tile source */
+export declare function openImage(image: ImageSource, options?: { signal?: AbortSignal }): Promise<{ width: number; height: number; tileSource: unknown }>;
+/** A small version of an IIIF image, or of a region of it. null for other images. */
+export declare function thumbnailUrl(image: ImageSource, region?: Region | null, height?: number): string | null;
+
+export declare function regionAsYaml(region: Region, size: { width: number; height: number }): string;
+export declare function scaleRegion(region: Region, size: { width: number; height: number }): Region;
+export declare function clipRegion(region: Region, size: { width: number; height: number }): Region | null;

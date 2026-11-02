@@ -9,11 +9,8 @@ Priority order (highest wins):
 Site packages can also provide a base `qaboard.yaml` that all projects' configurations are merged on,
 by pointing QABOARD_SITE_CONFIG to it (see `site_qaboard_config`).
 
-Install a site package to auto-configure:
-    # for SIRC 
-    pip install --upgrade "qaboard-site-sirc @ git+ssh://git@gitlab-srv/common-infrastructure/qaboard#subdirectory=deployments/sirc/cli"    # SIRC defaults
-    # for DSK (replace the repo URL with one you can access)
-    pip install --upgrade "qaboard-site-dsk @ git+ssh://git@gitlab-srv/common-infrastructure/qaboard#subdirectory=deployments/dsk/cli"    # DSK defaults
+Install a site package to auto-configure, e.g. from deployments/<site>/cli in your copy of the repository:
+    pip install --upgrade "qaboard-site-mysite @ git+ssh://git@git.example.com/infra/qaboard#subdirectory=deployments/mysite/cli"
 """
 import os
 import json
@@ -86,6 +83,22 @@ secrets = {**secrets, **user_secrets}
 def user_secret(key, default=None):
     """Get a personal secret: ENV > per-user secrets file. Never read from shared secrets."""
     return os.getenv(key, user_secrets.get(key, default))
+
+
+def user_config_dir() -> Path:
+  """
+  Where qaboard keeps the user's configuration (logins in hosts.yaml, caches...):
+  %APPDATA%\\qaboard on Windows, else $XDG_CONFIG_HOME/qaboard or ~/.config/qaboard.
+  It is not created here.
+  """
+  if os.name == 'nt':
+    appdata = os.environ.get('APPDATA')
+    return (Path(appdata) if appdata else Path.home() / 'AppData' / 'Roaming') / 'qaboard'
+  # https://specifications.freedesktop.org/basedir-spec/latest/: relative paths are invalid and ignored
+  xdg_config_home = os.environ.get('XDG_CONFIG_HOME')
+  if xdg_config_home and os.path.isabs(xdg_config_home):
+    return Path(xdg_config_home) / 'qaboard'
+  return Path.home() / '.config' / 'qaboard'
 
 
 

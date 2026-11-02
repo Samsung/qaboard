@@ -18,3 +18,4 @@ from .conventions import slugify
 from .qa import qa
 
 from .run import RunContext as Context
+from .metrics import Metric, define_metric

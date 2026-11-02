@@ -9,7 +9,19 @@ exclude =
     *.egg-info
     build
     dist
-select = E9,F63,F7,F82
+select = E9,F63,F7,F82,W605,F401,F811,F841
+# Unused imports and variables only in the application's code: __init__ files re-export, pytest fixtures are
+# imported then used as arguments (F811), and the sample project is a template for users
+per-file-ignores =
+    __init__.py:F401
+    backend/backend/alembic/*:F401,F811,F841
+    qaboard/sample_project/*:F401,F811,F841
+    tests/*:F401,F811,F841
+    backend/tests/*:F401,F811,F841
+    backend/integration_tests/*:F401,F811,F841
+    backend/smoke_tests/*:F401,F811,F841
+    backend/benchmarks/*:F401,F811,F841
+    backend/conftest.py:F401,F811,F841
 count = True
 show-source = True
 statistics = True

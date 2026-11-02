@@ -1,3 +1,5 @@
+# Completion and checks in your editor: https://samsung.github.io/qaboard/docs/project-init#checking-qaboardyaml-and-batch-files-in-your-editor
+# yaml-language-server: $schema=https://samsung.github.io/qaboard/qaboard.schema.json
 project:
   name: user/sample_project
   url: git@github.com/user/sample_project
@@ -56,12 +58,12 @@ inputs:
 
 
 outputs:
-  # Each metric should have a label, a quality treshold, a scale, unit...
+  # Each metric should have a label, a quality threshold, a scale, unit...
   # It is all defined in this file
   metrics: qa/metrics.yaml
 
   # To learn more about how to describe how results should be visualized:
-  # http://qa-docs/docs/visualizations
+  # https://samsung.github.io/qaboard/docs/visualizations
   visualizations:
   # - name: My image
   #   path: output.jpg
@@ -78,11 +80,11 @@ outputs:
   #   ##   data: [{...}, {...}]  // data (array) of regular plotly traces
   #   ## }
   #   #
-  #   ## You can hide by defaut your debug/heavy outputs
+  #   ## You can hide by default your debug/heavy outputs
   #   # default_hidden: false
   #
   #   ## If you add parameters, they will be passed down to the viewer
-  #   ## For instance, you may want to adjust optionnal displays, styling, etc.
+  #   ## For instance, you may want to adjust optional displays, styling, etc.
   #   ## Each viewer will have its own options....
   #   #
 
@@ -95,7 +97,7 @@ outputs:
   # The UI lets you define controls that pass parameters down to all viewers
   # controls:
   #   - type: toggle     # TODO: Only toggle is supported for now. We could support all HTML inputs: text_input, select...
-  #     label: Debug     # optionnal
+  #     label: Debug     # optional
   #     name: show_debug # required
   #     default: false   # required
 
@@ -144,9 +146,21 @@ bit_accuracy: {}
   # failed_ci: qa-tests
 
 
+# Experimental, may change without notice: `qa gate` fails the CI when the results regress vs a reference.
+# See the docs' "Quality gate" page.
+# gate:
+#   reference: master     # a branch, a shared milestone or a commit. Default: project.reference_branch
+#   batches: [default]    # the labels of the batches to check. Default: the CI batch
+#   rules:                # "worse" depends on the metrics' smaller_is_better
+#     - {metric: loss, max_regression: 5%}            # the median over the runs vs the reference's
+#     - {metric: loss, per_test_max_regression: 20%}  # each run vs its reference run
+#     - {metric: loss, max: 0.5}                      # an absolute limit for the median (or min:)
+#   max_failed_runs: 0
+#   require_bit_accuracy: false
+
 
 # the web application can give users buttons to trigger gitlabCI/jenkins builds or webhooks
-# http://qa-docs/docs/triggering-third-party-tools
+# https://samsung.github.io/qaboard/docs/triggering-third-party-tools
 # integrations:
 #   - text: Windows
 #     href: http://direct.link/anywhere
@@ -161,7 +175,7 @@ runners:
   #   # Depending on your project, you may want to use different LSF job queues
   #   # In doubt, ask advice from your manager / CAD / bqueues. If not set: LSF's default queue.
   #   queue: normal
-  #   threads: 0        # ask for eg 8 max threads when sending jobs to LSF (0=default)
+  #   max_threads: 0    # ask for eg 8 max threads when sending jobs to LSF (0=default)
   #   max_memory: 0     # ask for eg 8000M memory when sending jobs to LSF (0=default)
   #   # You can also set: project, resources, priority
 
@@ -172,7 +186,7 @@ storage:
   # windows: '//server/share/qaboard'
 
 
-## Optionnal policy to delete old results
+## Optional policy to delete old results
 # storage:
 #   garbage:
 #     after: 1month

@@ -1,5 +1,5 @@
 import os
-from .database import db_session, Session
+from .database import db_session
 
 # Configure the flask application
 from flask import Flask
@@ -33,45 +33,49 @@ def _secret_key():
     raise RuntimeError(f"Empty {key_path}")
 app.secret_key = _secret_key()
 
-if os.environ.get('FLASK_ENV') == 'production' and os.environ.get('SENTRY_DSN'):
-    # send errors to sentry server
-    import sentry_sdk
-    from sentry_sdk.integrations.flask import FlaskIntegration
+# Session cookies: not readable by scripts, not sent by other websites' forms, and only over HTTPS when we're served over HTTPS
+_secure_cookies = os.environ.get('QABOARD_COOKIE_SECURE', '').strip().lower() in ('1', 'true', 'yes', 'on') or os.environ.get('QABOARD_URL', '').startswith('https://')
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=_secure_cookies,
+    REMEMBER_COOKIE_HTTPONLY=True,
+    REMEMBER_COOKIE_SAMESITE='Lax',
+    REMEMBER_COOKIE_SECURE=_secure_cookies,
+    # the session's row says when it really ends (backend/sign_in/sessions.py)
+    PERMANENT_SESSION_LIFETIME=365 * 24 * 3600,
+)
 
-    # TODO: add IT's certificate and remove this...
-    import urllib3
-    urllib3.disable_warnings()
-    class InsecureHttpTransport(sentry_sdk.transport.HttpTransport):
-        def _get_pool_options(self):
-            options = super()._get_pool_options()
-            options["cert_reqs"] = "CERT_NONE" # Ignore SSL Errors
-            return options
-
-    sentry_sdk.init(
-        dsn=os.environ.get('SENTRY_DSN'),
-        integrations=[
-            FlaskIntegration(),
-        ],
-        traces_sample_rate=float(os.environ.get('SENTRY_SAMPLE_RATE', 0.2)),
-        transport=InsecureHttpTransport, # TODO: remove this...
-        # ca_certs="some/place/sirc-certificate-authority.pem"
-    )
+# Errors, traces and profiles are sent to Sentry if $SENTRY_DSN is set: see backend/sentry.py
+# Under uWSGI, each worker initializes Sentry after it forks (see the end of this file)
+from .sentry import init_sentry, track_users
+try:
+  import uwsgi
+  _in_uwsgi_master = uwsgi.worker_id() == 0 # with lazy-apps, workers load the app after they fork
+except ImportError:
+  _in_uwsgi_master = False
+if not _in_uwsgi_master:
+  init_sentry()
+if os.environ.get('SENTRY_DSN'):
+  track_users(app)
 
 # Provide easy access to our git repositories
 from .git_utils import Repos
-from .config import git_server, qaboard_data_git_dir
-repos = Repos(git_server, qaboard_data_git_dir)
+from .git_hosts import git_hosts
+from .config import qaboard_data_git_dir
+repos = Repos(git_hosts, qaboard_data_git_dir)
 
 
 # Some magic to use sqlalchemy safely with Flask
 # http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/
-from backend.database import db_session, engine, Base
+from backend.database import engine, Base
 @app.teardown_appcontext
 def shutdown_session(exception=None):
     db_session.remove()
 
 import backend.api.api
 import backend.api.commit
+import backend.api.compare
 import backend.api.batch
 import backend.api.outputs
 import backend.api.webhooks
@@ -79,12 +83,30 @@ import backend.api.integrations
 import backend.api.tuning
 import backend.api.export_to_folder
 import backend.api.image
+import backend.api.video
 import backend.api.milestones
 import backend.api.auth
+import backend.api.tokens
+import backend.api.service_accounts
+import backend.api.users
+import backend.api.admin
+import backend.api.sign_in
+import backend.api.admin_sign_in
+import backend.api.admin_jobs
+import backend.api.storage
+import backend.api.admin_storage
+import backend.api.admin_services
+import backend.api.activity
 import backend.api.tasks
 import backend.api.files
+import backend.api.access
+import backend.api.admin_access
 
-# Enable cross-origin requests to avoid development headcaches  
+# Who is calling, and whether they may call the API at all: see backend/actor.py
+from .actor import register as register_actor
+register_actor(app)
+
+# Enable cross-origin requests to avoid development headaches
 # cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
 CORS(app)
 
@@ -103,24 +125,34 @@ def warm_cache():
     # https://stackoverflow.com/questions/43648075/uwsgi-flask-sqlalchemy-intermittent-postgresql-errors-with-warning-there-is-al
     # https://uwsgi-docs.readthedocs.io/en/latest/articles/TheArtOfGracefulReloading.html#preforking-vs-lazy-apps-vs-lazy
     # https://stackoverflow.com/questions/41279157/connection-problems-with-sqlalchemy-and-multiple-processes
-    engine.dispose()
+    # close=False: the connections inherited from the uwsgi master are dropped without being closed, closing them
+    # would also close them for the master and the other workers (they share the sockets).
+    # https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork
+    engine.dispose(close=False)
 
     def warm():
         print("Warming cache in worker")
-        from backend.utils import get_users_per_name
-        try:
-            users = get_users_per_name("")  # also stored in redis, shared with the other workers
-        except Exception as e:
-            print(f"WARNING: could not warm the users cache: {e}")
-            return
-        print(f"Loaded info about {len(users)} users")
+        from backend.git_hosts.gitlab import GitLabHost, gitlab_users
+        for host in git_hosts:
+            if not isinstance(host, GitLabHost) or not host.token:
+                continue
+            try:
+                users = gitlab_users(host)  # also stored in redis, shared with the other workers
+            except Exception as e:
+                print(f"WARNING: could not warm the users cache for {host}: {e}")
+                continue
+            print(f"Loaded info about {len(users)} users from {host}")
 
     import threading
     threading.Thread(target=warm, name="warm-cache", daemon=True).start()
 
+def post_fork():
+  init_sentry()
+  warm_cache()
+
 try:
   import uwsgi
-  uwsgi.post_fork_hook = warm_cache
-except:
+  uwsgi.post_fork_hook = post_fork
+except ImportError:
   pass
 

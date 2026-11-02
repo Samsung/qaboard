@@ -13,13 +13,19 @@
 
 # Container names will be prefixed with "qaboard-"
 
-# Images are tagged per service (arthurflam/qaboard:backend...).
-# Set QABOARD_VERSION to use the images built for a given version (arthurflam/qaboard:backend-$QABOARD_VERSION),
-# CI pushes them tagged with the git commit. deployments/deploy.py sets it.
+# Images are tagged per service: $QABOARD_IMAGE:<service>, by default ghcr.io/samsung/qaboard:backend...
+# - GitHub CI publishes them there (.github/workflows/ci.yaml): <service>-<commit> for each commit on master,
+#   <service> once all its tests passed (the latest master), and <service>-<version> for each release (e.g. 1.2.0)
+# - QABOARD_VERSION picks a version ($QABOARD_IMAGE:backend-$QABOARD_VERSION). deployments/deploy.py sets it.
+# - QABOARD_IMAGE picks another registry: a mirror, the images a fork publishes (ghcr.io/<owner>/qaboard),
+#   or where your own CI pushes the images it builds.
 
 # Usage:
 # - The application is served on port 5151 by default
 # - Your responsibility to setup another reverse proxy on top for SSL
+# - The admin services (RabbitMQ, Flower, pgadmin) are only published on this host (127.0.0.1)
+# - Secrets go in .env (see website/docs/start-server.mdx), e.g. QABOARD_DB_PASSWORD. deployments/deploy.py passes
+#   those that the compose files read with ${...} to compose (it uses --env-file, so compose doesn't read .env itself)
 
 # General docker compose usage:
 #   docker compose up                    # start the whole stack
@@ -56,7 +62,9 @@ services:
       - ./services/db:/opt
     environment:
       - POSTGRES_USER=qaboard
-      - POSTGRES_PASSWORD=password
+      # Set QABOARD_DB_PASSWORD in .env, where the backend reads it too. It's only used when the database is created:
+      # to change the password of an existing database, also run ALTER USER (see website/docs/backend-admin/deployment.mdx)
+      - POSTGRES_PASSWORD=${QABOARD_DB_PASSWORD:-password}
       - POSTGRES_DB=qaboard
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U qaboard -d qaboard"]
@@ -65,10 +73,13 @@ services:
       retries: 5
 
   backend:
-    image: "arthurflam/qaboard:backend${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:backend${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        # Sentry's release (see website/docs/backend-admin/monitoring.mdx)
+        - QABOARD_VERSION=${QABOARD_VERSION:-}
     # Wait for the database to be ready - https://docs.docker.com/compose/startup-order/
     command: ["./wait-for-it.sh", "${QABOARD_DB_HOST-db}:${QABOARD_DB_PORT-5432}", "--", "/qaboard/backend/init.sh"]
     depends_on:
@@ -91,11 +102,25 @@ services:
     - REDIS_HOST=redis
     - REDIS_PORT=6379
     - QABOARD_LOGIN_TYPE=${QABOARD_LOGIN_TYPE:-LOCAL} # LOCAL/LDAP/SAML
-    - QABOARD_LOGIN_REQUIRED=${QABOARD_LOGIN_REQUIRED:-} # non-empty: users must login to see anything
+    - QABOARD_LOGIN_REQUIRED=${QABOARD_LOGIN_REQUIRED:-} # true: users must sign in to see anything. Empty: as set in the admin panel
     - QABOARD_LOGIN_RESTRICTED=${QABOARD_LOGIN_RESTRICTED:-} # true/false
     - QABOARD_LOGIN_RESTRICTED_YAML=${QABOARD_LOGIN_RESTRICTED_YAML:-} # path
-    - CELERY_BROKER_URL=pyamqp://guest:guest@rabbitmq:${QABOARD_PORT_RABBITMQ:-5672}//
+    # User names or emails of admins, comma-separated: they're admins whatever the database says
+    - QABOARD_ADMINS=${QABOARD_ADMINS:-}
+    # off/warn/token: how runs sent by `qa` are authenticated. Empty: as set in the admin panel (default: off)
+    - QABOARD_INGEST_AUTH=${QABOARD_INGEST_AUTH:-}
+    # Comma-separated: Jenkins jobs anyone can start without a token, by text in their path, e.g. ALGO. Empty: as set in the admin panel
+    - QABOARD_JENKINS_ANONYMOUS_JOBS=${QABOARD_JENKINS_ANONYMOUS_JOBS:-}
+    # Set it for the proxy too: the runs' HTML files can't act as whoever opens them (website/docs/viewers.mdx)
+    - QABOARD_SANDBOX_HTML=${QABOARD_SANDBOX_HTML:-}
+    # Set in .env, not here (see above): single sign-on with OpenID Connect (QABOARD_OIDC_ISSUER, QABOARD_OIDC_CLIENT_ID,
+    # QABOARD_OIDC_CLIENT_SECRET, see website/docs/backend-admin/sign-in.mdx), and QABOARD_ENCRYPTION_KEY, that encrypts
+    # the secrets of the sign-in providers added in the admin panel (long random text, e.g. `openssl rand -base64 32`)
+    # Inside the Docker network: always 5672, whatever port the host publishes (QABOARD_PORT_RABBITMQ)
+    - CELERY_BROKER_URL=pyamqp://${QABOARD_RABBITMQ_USER:-guest}:${QABOARD_RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//
     - QABOARD_RUN_MIGRATIONS
+    # 0: don't run the server's jobs (Admin > Storage) next to uwsgi, if you run `qaboard-admin jobs worker` elsewhere
+    - QABOARD_JOBS_WORKER
     # Used by docker and deployments/deploy.py to know when a replica is ready to serve traffic
     healthcheck:
       # Never through the http_proxy of the environment, it may not bypass localhost
@@ -104,16 +129,23 @@ services:
       timeout: 10s
       retries: 3
       start_period: 120s
-    # uwsgi finishes in-flight requests on SIGTERM
+    # uwsgi finishes in-flight requests on SIGTERM, the jobs worker stops its job at the next check (it resumes later)
     stop_grace_period: 60s
 
   frontend:
-    image: "arthurflam/qaboard:frontend${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:frontend${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       # the root, to include website/release-notes/: see webapp/Dockerfile
       context: .
       dockerfile: webapp/Dockerfile
       shm_size: 6gb
+      args:
+        # Sentry: the release, and where to upload the source maps (see website/docs/backend-admin/monitoring.mdx)
+        - QABOARD_VERSION=${QABOARD_VERSION:-}
+        - SENTRY_AUTH_TOKEN=${SENTRY_AUTH_TOKEN:-}
+        - SENTRY_ORG=${SENTRY_ORG:-}
+        - SENTRY_PROJECT=${SENTRY_PROJECT:-}
+        - SENTRY_URL=${SENTRY_URL:-}
     volumes:
     - frontend_builds:/builds
     # by default we assume you run the QA-Board on localhost, but will want to change this
@@ -129,36 +161,57 @@ services:
     hostname: rabbitmq-qaboard
     volumes:
     - rabbitmq-data:/var/lib/rabbitmq
+    # Celery workers run the shell commands of the tasks they get: anyone who can connect to RabbitMQ can run commands
+    # on them. Set a user and password in .env (URL-safe characters) before workers connect from other hosts.
+    # They're only used when the rabbitmq-data volume is created; later: rabbitmqctl add_user / change_password.
+    environment:
+      RABBITMQ_DEFAULT_USER: ${QABOARD_RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${QABOARD_RABBITMQ_PASSWORD:-guest}
     ports:
-    - ${QABOARD_PORT_RABBITMQ:-5672}:5672
-    - ${QABOARD_PORT_RABBITMQ_MNGT:-15672}:15672
+    # Only on this host by default. For Celery workers on other hosts: QABOARD_RABBITMQ_HOST_IP=0.0.0.0 (or an address of the host)
+    - ${QABOARD_RABBITMQ_HOST_IP:-127.0.0.1}:${QABOARD_PORT_RABBITMQ:-5672}:5672
+    # The management UI and API
+    - 127.0.0.1:${QABOARD_PORT_RABBITMQ_MNGT:-15672}:15672
 
 
   # https://flower.readthedocs.io/en/latest/config.html#options
   # Note: flower 2.x registers via the `celery.commands` entry point, so it is launched through celery. It shares the backend
   # image (which installs flower>=2.1.0), so only backend needs building.
   flower:
-    image: "arthurflam/qaboard:backend${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:backend${QABOARD_VERSION:+-$QABOARD_VERSION}"
     environment:
-      - CELERY_BROKER_URL=pyamqp://guest@rabbitmq//
-      - CELERY_BROKER_API=http://guest:guest@rabbitmq:15672/api/
+      - CELERY_BROKER_URL=pyamqp://${QABOARD_RABBITMQ_USER:-guest}:${QABOARD_RABBITMQ_PASSWORD:-guest}@rabbitmq//
+      - CELERY_BROKER_API=http://${QABOARD_RABBITMQ_USER:-guest}:${QABOARD_RABBITMQ_PASSWORD:-guest}@rabbitmq:15672/api/
       - FLOWER_PORT=8888
       - FLOWER_URL_PREFIX=flower
+      # Flower can revoke tasks and shut the workers down, and nginx serves it at /flower/ to whoever reaches QA-Board:
+      # to ask for a login, set FLOWER_BASIC_AUTH=user:password in .env
+      - FLOWER_BASIC_AUTH
     command: celery -A qaboard.runners.celery_app flower
     ports:
-      - "${QABOARD_PORT_FLOWER:-8888}:8888"
+      # Only on this host (it's also at /flower/)
+      - "127.0.0.1:${QABOARD_PORT_FLOWER:-8888}:8888"
     depends_on:
         - backend
         - rabbitmq
 
   website:
-    image: "arthurflam/qaboard:website${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:website${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
-      context: website
+      # the root, to include the repository files the docs show: see website/Dockerfile
+      context: .
+      dockerfile: website/Dockerfile
       shm_size: 4gb
       # by default we assume you run the QA-Board on localhost, but will want to change this
       args:
         - QABOARD_URL=${QABOARD_URL:-http://localhost:5151}
+        # Docs for your site's users, from website/site-docs/$QABOARD_SITE/ (set in your env file)
+        - QABOARD_SITE=${QABOARD_SITE:-}
+        # Without network access: QABOARD_MEDIA=placeholder, or a mirror of the docs' media (docs-media/README.md)
+        - QABOARD_MEDIA=${QABOARD_MEDIA:-}
+        - QABOARD_MEDIA_BASE_URL=${QABOARD_MEDIA_BASE_URL:-}
+        # When a proxy blocks some of the media: QABOARD_MEDIA_MISSING=remote (readers load them) or placeholder
+        - QABOARD_MEDIA_MISSING=${QABOARD_MEDIA_MISSING:-}
     volumes:
     - website_builds:/builds
 
@@ -166,7 +219,7 @@ services:
   # nginx as reverse-proxy
   # https://hub.docker.com/_/nginx
   proxy:
-    image: "arthurflam/qaboard:proxy${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:proxy${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       context: services/nginx
     # # https://github.com/docker-library/docs/tree/master/nginx#using-environment-variables-in-nginx-configuration
@@ -178,6 +231,8 @@ services:
       "
     environment:
     - NGINX_USER=nginx
+    # Set it for the backend too: the runs' HTML files can't act as whoever opens them (website/docs/viewers.mdx)
+    - QABOARD_SANDBOX_HTML=${QABOARD_SANDBOX_HTML:-}
     ports:
     - ${QABOARD_PORT_HTTP:-5151}:80
     volumes:
@@ -191,7 +246,7 @@ services:
 
   # IIIF image server to serve images as tiles
   cantaloupe:
-    image: "arthurflam/qaboard:cantaloupe${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:cantaloupe${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       context: ./services/cantaloupe
     expose:
@@ -199,8 +254,10 @@ services:
     volumes:
     - cache_cantaloupe:/var/cache/cantaloupe
     - /srv/cantaloupe
-    # INSECURE/FIXME: obviously it's not a great default, but not clear how to do better
-    - /:/repository
+    # It reads /iiif/2/<path> from /repository/<path>, like nginx serves /s/<path> from /var/qaboard/<path>: mount your
+    # results storage in your site overlay, read-only, at the same paths as for nginx (see website/docs/start-server.mdx)
+    #   - /mnt/qaboard:/repository/mnt/qaboard:ro
+    # Not the host's whole filesystem: anyone who can reach /iiif/ could read the images there.
     environment:
       CANTALOUPE_MEM_START: 1g
       CANTALOUPE_MEM_MAX: 2g
@@ -208,7 +265,7 @@ services:
 
 
   # For convenience, we also bundle pgadmin
-  # Login at localhost:5050, and use "password" as password
+  # Login at localhost:5050 with PGADMIN_DEFAULT_EMAIL and PGADMIN_DEFAULT_PASSWORD: set them in .env
   # Note: pgadmin ships with utilities at e.g. /usr/local/pgsql-12
   # More configuration options, e.g. reverse proxying with nginx:
   # https://www.pgadmin.org/docs/pgadmin4/development/container_deployment.html
@@ -217,6 +274,8 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-user@domain.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-SuperSecret}
+      # copied to the account's storage, where servers.json's PassFile (/.pgpass) points
+      PGPASS_FILE: /pgadmin4/passfile
       # if you want to host it under a subdirectory, add a location.proxy_pass to the nginx conf
       # SCRIPT_NAME: /pgadmin
     volumes:
@@ -224,8 +283,10 @@ services:
       # https://www.pgadmin.org/docs/pgadmin4/development/import_export_servers.html
       - ./services/pgadmin/servers.json:/pgadmin4/servers.json
       - ./services/pgadmin/passfile:/pgadmin4/passfile
+    # Only on this host: it can read and change the whole database. From elsewhere: ssh -L 5050:localhost:5050 <host>,
+    # or serve it through nginx (like /pgadmin4/ in deployments/sirc/nginx/qaboard.conf)
     ports:
-    - "${PGADMIN_PORT:-5050}:80"
+    - "127.0.0.1:${PGADMIN_PORT:-5050}:80"
 
 
   redis:

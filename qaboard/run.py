@@ -1,3 +1,4 @@
+import sys
 import json
 import copy
 from pathlib import Path
@@ -51,10 +52,7 @@ class RunContext():
     @property
     def rel_input_path(self):
         """Returns the input's relative path from the database"""
-        if self.database:
-            return self.input_path.relative_to(self.database)
-        else:
-            return self.input_path.relative_to(self.database)
+        return self.input_path.relative_to(self.database)
 
     @property
     def output_directory(self):
@@ -62,8 +60,8 @@ class RunContext():
 
     def asdict(self):
       self_dict = asdict(self)
-      # this method is used for qa batch --list, before we can any idea about those members,
-      # so they'll all be empty because uniniialized.. better not show them
+      # this method is used for qa batch --list, before we have any idea about those members,
+      # so they'll all be empty because uninitialized.. better not show them
       del self_dict['input_metadata']
       del self_dict['click_context']
       self_dict['rel_input_path'] = self.rel_input_path
@@ -85,9 +83,9 @@ class RunContext():
       else:
           if verbose:
             if not self.output_dir.exists():
-              click.secho(f'[ERROR] Failed run! The ouput directory does not exist. It usually implies that your disk/quota is full. ({self.output_dir})', fg='red', err=True)
+              click.secho(f'[ERROR] Failed run! The output directory does not exist. It usually implies that your disk/quota is full. ({self.output_dir})', fg='red', err=True)
             else:
-              click.secho(f'[ERROR] Failed run! Could not find {metrics_path}. It usually means that your run/job was killed before it got a change to update QA-Board', fg='red', err=True)
+              click.secho(f'[ERROR] Failed run! Could not find {metrics_path}. It usually means that your run/job was killed before it got a chance to update QA-Board', fg='red', err=True)
           return True
 
     @staticmethod
@@ -127,7 +125,7 @@ class RunContext():
         input_path_absolute = (database / input_path).resolve()
         if not input_path_absolute.exists():
             click.secho(f"[ERROR] {input_path_absolute} cannot be found", fg='red')
-            exit(1)
+            sys.exit(1)
 
         if not ctx.params.get('output_path'):
             assert input_path_absolute.relative_to(database)
@@ -148,19 +146,9 @@ class RunContext():
             extra_parameters["forwarded_args"] = ctx.params["forwarded_args"]
         extra_parameters.update(ctx.obj["extra_parameters"])
         ctx.obj["extra_parameters"] = extra_parameters
-        if "/tv/" not in str(input_path):
-            metadata = input_metadata(input_path_absolute, database, input_path, config)
-            if metadata:
-                metadata_keys = list(metadata.keys())
-                for k in metadata_keys:
-                    if k.startswith('_') or k == "input_path" or k == "rel_input_path":
-                        del metadata[k]
-        else:
-            metadata = {}
         run_context = RunContext(
             input_path=input_path_absolute,
             database=database,
-            input_metadata=metadata,
             configurations=ctx.obj["configurations"],
             extra_parameters=extra_parameters,
             platform=ctx.obj["platform"],
@@ -168,8 +156,17 @@ class RunContext():
             type=ctx.obj['input_type'],
             click_context=ctx,
         )
+        # FIXME: SIRC-specific workaround, inputs with /tv/ in their path skip metadata() and get no input_metadata.
+        #        It's an easy fix on SIRC's side, then we remove this special case.
+        #        Nothing else in qaboard depends on it. Note that `qa batch` still calls metadata() for those inputs when filtering.
+        if "/tv/" not in str(input_path):
+            metadata = input_metadata(run_context, config)
+            for k in list(metadata.keys()):
+                if k.startswith('_') or k == "input_path" or k == "rel_input_path":
+                    del metadata[k]
+            run_context.input_metadata = metadata
 
-        # for backward compatibilty we need obj to behave nicely as the run_context...
+        # for backward compatibility we need obj to behave nicely as the run_context...
         # it's also what we send to the API for now...
         ctx.obj["output_directory"] = run_context.output_dir
         ctx.obj["input_metadata"] = run_context.input_metadata
@@ -187,12 +184,13 @@ class RunContext():
 
 
     @property
-    def configs(self):        
+    def configs(self):
         _extra_parameters = copy.deepcopy(self.extra_parameters)
         if _extra_parameters:
             if "_configs" in _extra_parameters:
                 _extra_parameters_configs = _extra_parameters.pop("_configs")
-                return [*self.configurations, *_extra_parameters_configs, self.extra_parameters]
+                # the other tuning parameters, without _configs (also kept out of .params)
+                return [*self.configurations, *_extra_parameters_configs, *([_extra_parameters] if _extra_parameters else [])]
             else:
                 return [*self.configurations, self.extra_parameters]
         else:
@@ -200,7 +198,7 @@ class RunContext():
 
     @property
     def params(self):
-        # TODO: cache it in sef._parameters? but needs to ensure sync..
+        # TODO: cache it in self._parameters? but needs to ensure sync..
         parameters = {}
         for c in self.configs:
             if isinstance(c, dict):

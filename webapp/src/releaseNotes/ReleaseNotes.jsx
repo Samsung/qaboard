@@ -1,9 +1,7 @@
 // "What's new": release notes pop up on load when there are new ones,
 // and can be opened anytime from the sidebar, the footer, the projects list, or https://qa/#whats-new
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { useSelector } from "react-redux";
 import styled from "styled-components";
-import posthog from "posthog-js";
 import {
   Button,
   Classes,
@@ -33,6 +31,8 @@ import {
   searchNotes,
   unseenNotes,
 } from "./logic";
+import { track } from "../analytics";
+import { useSiteConfig } from "../hooks";
 
 
 const ReleaseNotesContext = createContext({
@@ -42,25 +42,27 @@ const ReleaseNotesContext = createContext({
 });
 export const useReleaseNotes = () => useContext(ReleaseNotesContext);
 
-const track = (event, properties) => {
-  if (posthog.__loaded) posthog.capture(event, properties);
-};
 
 // The notes are in their own chunk: they are not needed for the first render.
 // They come from website/release-notes/, see webapp/releaseNotes.js
 const loadNotes = () => import("virtual:release-notes")
   .then(m => (m.default || m).notes);
+// Their changes ("All changes") are most of their size: they load when the panel opens
+const loadHtml = () => import("virtual:release-notes-html")
+  .then(m => m.default || m);
 
 
 export const ReleaseNotesProvider = ({ children, load = loadNotes, popupDelay = 1000 }) => {
-  const docs_root = useSelector(state => state.siteConfig?.docs_root) ?? "/";
+  const { docs_root } = useSiteConfig();
   const [notes, setNotes] = useState([]);
   // Notes not seen before this page load: they keep their "New" tag until the next one
   const [newSlugs, setNewSlugs] = useState(new Set());
   const [popup, setPopup] = useState([]);
-  const [hasUnread, setHasUnread] = useState(false);
+  // Whether users saw the notes during this page load: they opened them, or closed the popup
+  const [seen, setSeen] = useState(window.location.hash === HASH);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(window.location.hash === HASH);
+  const [html, setHtml] = useState(null);
 
   useEffect(() => {
     let timer;
@@ -72,11 +74,12 @@ export const ReleaseNotesProvider = ({ children, load = loadNotes, popupDelay = 
       setNotes(notes);
       setNewSlugs(new Set(unseenNotes(notes, lastSeen).map(n => n.slug)));
       setPopup(to_popup);
-      setHasUnread(to_popup.length > 0);
       if (to_popup.length > 0 && window.location.hash !== HASH)
         timer = setTimeout(() => {
           // another tab may have shown the notes in the meantime
           if (popupNotes(notes, getLastSeen()).length === 0) return;
+          // not over the sign-in form: after a single sign-on, the app loads again
+          if (window.location.pathname === '/login') return;
           setDialogOpen(true);
           track("release_notes_popup", { slug: to_popup[0].slug });
         }, popupDelay);
@@ -87,12 +90,13 @@ export const ReleaseNotesProvider = ({ children, load = loadNotes, popupDelay = 
   const markSeen = useCallback(() => {
     const newest = lastSeenSlug(notes);
     if (newest) setLastSeen(newest);
-    setHasUnread(false);
+    setSeen(true);
   }, [notes]);
 
   const open = useCallback(via => {
     setDialogOpen(false);
     setDrawerOpen(true);
+    setSeen(true);
     track("release_notes_open", { via });
   }, []);
 
@@ -102,9 +106,18 @@ export const ReleaseNotesProvider = ({ children, load = loadNotes, popupDelay = 
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, [open]);
+  // The drawer shows all the notes: they are seen, also when they load after it opened (e.g. from the link)
   useEffect(() => {
-    if (drawerOpen && notes.length > 0) markSeen();
-  }, [drawerOpen, notes, markSeen]);
+    const newest = drawerOpen && lastSeenSlug(notes);
+    if (newest) setLastSeen(newest);
+  }, [drawerOpen, notes]);
+  const hasUnread = popup.length > 0 && !seen;
+  useEffect(() => {
+    if (!drawerOpen || html) return;
+    loadHtml().then(setHtml).catch(error => console.warn("Could not load the release notes", error));
+  }, [drawerOpen, html]);
+  // with their changes once they're loaded (the tests' notes come with theirs)
+  const drawerNotes = html ? notes.map(note => ({ ...note, html: note.html ?? html[note.slug] })) : notes;
 
   const closeDialog = () => { setDialogOpen(false); markSeen() };
   const closeDrawer = () => {
@@ -125,7 +138,7 @@ export const ReleaseNotesProvider = ({ children, load = loadNotes, popupDelay = 
     />
     <WhatsNewDrawer
       isOpen={drawerOpen}
-      notes={notes}
+      notes={drawerNotes}
       newSlugs={newSlugs}
       docs_root={docs_root}
       onClose={closeDrawer}
@@ -186,8 +199,8 @@ const Card = styled.div`
   gap: 12px;
   padding: 14px;
   border-radius: 8px;
-  border: 1px solid rgba(17, 20, 24, 0.12);
-  background: #fff;
+  border: 1px solid var(--qa-border);
+  background: var(--qa-surface);
   transition: box-shadow 150ms ease, border-color 150ms ease;
   &:hover {
     border-color: rgba(31, 124, 232, 0.5);
@@ -200,12 +213,12 @@ const Card = styled.div`
   }
   p {
     margin: 0;
-    color: #404854;
+    color: var(--qa-text-secondary);
     line-height: 1.45;
   }
   code {
     font-size: 12px;
-    background: rgba(17, 20, 24, 0.06);
+    background: var(--qa-hover);
     padding: 1px 4px;
     border-radius: 3px;
   }
@@ -219,8 +232,8 @@ const IconBubble = styled.div`
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: rgba(31, 124, 232, 0.1);
-  color: #1f7ce8;
+  background: rgba(31, 124, 232, 0.15);
+  color: var(--qa-link);
 `;
 
 // Highlight descriptions are plain text, with `code` spans
@@ -272,7 +285,7 @@ const NoteHeader = ({ note, isNew }) => <Eyebrow>
 const Description = styled.p`
   font-size: 15px;
   line-height: 1.5;
-  color: #1c2127;
+  color: var(--qa-text);
   margin: 8px 0 0 0;
 `;
 
@@ -282,7 +295,7 @@ const Details = styled.div`
     font-size: 15px;
     margin: 18px 0 6px 0;
     padding-bottom: 4px;
-    border-bottom: 1px solid rgba(17, 20, 24, 0.1);
+    border-bottom: 1px solid var(--qa-border);
   }
   h3 {
     font-size: 14px;
@@ -297,7 +310,7 @@ const Details = styled.div`
   }
   code {
     font-size: 12px;
-    background: rgba(17, 20, 24, 0.06);
+    background: var(--qa-hover);
     padding: 1px 4px;
     border-radius: 3px;
   }
@@ -308,13 +321,18 @@ const Details = styled.div`
 
 const NoteSection = styled.section`
   padding: 20px 24px;
-  border-bottom: 1px solid rgba(17, 20, 24, 0.1);
+  border-bottom: 1px solid var(--qa-border);
 `;
 
 const ReleaseNote = ({ note, isNew, expanded, docs_root }) => {
   const [showDetails, setShowDetails] = useState(expanded);
-  useEffect(() => setShowDetails(expanded), [expanded]);
-  const html = useMemo(() => renderHtml(note.html, docs_root), [note.html, docs_root]);
+  // until `expanded` changes, users choose
+  const [expandedBefore, setExpandedBefore] = useState(expanded);
+  if (expanded !== expandedBefore) {
+    setExpandedBefore(expanded);
+    setShowDetails(expanded);
+  }
+  const html = useMemo(() => note.html ? renderHtml(note.html, docs_root) : '', [note.html, docs_root]);
   return <NoteSection id={`release-note-${note.slug}`}>
     <NoteHeader note={note} isNew={isNew} />
     <Description>{note.description}</Description>
@@ -382,7 +400,7 @@ export const WhatsNewDrawer = ({ isOpen, notes, newSlugs, docs_root, onClose }) 
     size={DrawerSize.STANDARD}
     style={{ minWidth: 420, maxWidth: "100vw" }}
   >
-    <div style={{ padding: "12px 24px", borderBottom: "1px solid rgba(17, 20, 24, 0.1)" }}>
+    <div style={{ padding: "12px 24px", borderBottom: "1px solid var(--qa-border)" }}>
       <InputGroup
         leftIcon="search"
         placeholder="Search the release notes..."
@@ -392,7 +410,7 @@ export const WhatsNewDrawer = ({ isOpen, notes, newSlugs, docs_root, onClose }) 
         rightElement={query ? <Button variant="minimal" icon="cross" aria-label="Clear" onClick={() => setQuery("")} /> : undefined}
       />
     </div>
-    <div className={Classes.DRAWER_BODY} style={{ background: "#f6f7f9" }}>
+    <div className={Classes.DRAWER_BODY} style={{ background: "var(--qa-surface-alt)" }}>
       {notes.length === 0 && <NonIdealState icon="clean" title="No release notes yet" />}
       {notes.length > 0 && filtered.length === 0 && <NonIdealState icon="search" title="No matching release notes" />}
       {filtered.map((note, idx) => <ReleaseNote

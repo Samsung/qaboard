@@ -2,7 +2,8 @@
  * Tests for splitting logs in lines.
  * Run with: cd webapp && npm test -- logLines
  */
-import { createLineParser, lineLevel, stripAnsi, terminalLine } from '../logLines';
+import { createLineParser } from '../lineParser';
+import { lineLevel, stripAnsi, terminalLine } from '../logLines';
 
 
 describe('createLineParser', () => {

@@ -1,0 +1,30 @@
+/* The image viewer (src/image-viewer/) with QA-Board's colors. QA-Board's theme wins over the system's (src/theme.js). */
+.qiv.qaboard-image-viewer {
+  --qiv-text: var(--qa-text);
+  --qiv-text-muted: var(--qa-text-muted);
+  --qiv-surface: var(--qa-surface);
+  --qiv-surface-alt: var(--qa-surface-alt);
+  --qiv-border: var(--qa-border);
+  --qiv-hover: var(--qa-hover);
+  --qiv-accent: var(--qa-intent-primary);
+  --qiv-primary: var(--qa-intent-primary);
+  --qiv-pressed: rgba(45, 114, 210, 0.16);
+  --qiv-warning: #c87619;
+  --qiv-danger: #cd4246;
+  --qiv-stage: #1c2127;
+  --qiv-pane: #111418;
+  --qiv-shadow: 0 2px 10px rgba(17, 20, 24, 0.2);
+}
+.bp6-dark .qiv.qaboard-image-viewer {
+  --qiv-pressed: rgba(76, 144, 240, 0.25);
+  --qiv-warning: #ec9a3c;
+  --qiv-danger: #e76a6e;
+  --qiv-stage: #111418;
+  --qiv-pane: #0b0d10;
+  --qiv-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+}
+.qaboard-image-viewer-label {
+  margin: 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+}

@@ -1,6 +1,5 @@
 // Browse the files nginx serves under /s/, see services/nginx/snippets/qaboard-files.conf
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import copy from "copy-to-clipboard";
 import {
   Alert,
   AnchorButton,
@@ -9,9 +8,6 @@ import {
   Callout,
   Checkbox,
   Classes,
-  Dialog,
-  DialogBody,
-  FormGroup,
   InputGroup,
   Intent,
   NonIdealState,
@@ -22,21 +18,25 @@ import {
   useHotkeys,
 } from "@blueprintjs/core";
 import {
-  AlignLeftIcon, ArrowUpIcon, ChevronRightIcon, ClipboardIcon, CodeIcon, CompressedIcon, ConsoleIcon, CrossIcon, CubeIcon,
+  AlignLeftIcon, ArrowUpIcon, ChevronRightIcon, ClipboardIcon, CodeIcon, CompressedIcon, ConsoleIcon, CrossIcon, CubeIcon, DesktopIcon,
   DisableIcon, DocumentIcon, DownloadIcon, DuplicateIcon, ErrorIcon, EyeOffIcon, EyeOpenIcon, FolderCloseIcon,
-  FolderSharedIcon, HelpIcon, HomeIcon, LockIcon, LogInIcon, LogOutIcon, MediaIcon, NumericalIcon,
+  FlashIcon, FolderSharedIcon, HelpIcon, HomeIcon, LockIcon, LogInIcon, LogOutIcon, MediaIcon, MoonIcon, NumericalIcon,
   RedoIcon, RefreshIcon, SearchIcon, ShareIcon, StopIcon, ThIcon, TimelineLineChartIcon, TrashIcon, VideoIcon,
   WarningSignIcon,
 } from "@blueprintjs/icons";
 
+import { ThemeButton } from "../components/ThemeButton";
 import { toaster } from "../toaster";
-import { setPathMappings, hasPathMappings } from "../utils/paths";
-import { fetchAccess, fetchJson, fetchListing, fetchRun, runAction, signIn, signOut } from "./api";
+import { copyText } from "../utils/clipboard";
+import { setPathMappings } from "../utils/paths";
+import { fetchAccess, fetchJson, fetchListing, fetchRun, runAction, signOut, signInUrl, navigateTo } from "./api";
 import {
   baseName, breadcrumbs, filterEntries, formatAbsoluteTime, formatRelativeTime, formatSize, formatSummary, iconName,
   joinPath, linuxPath, parentPath, parseLocation, pathFromUrl, sortEntries, summarize, urlFromPath, windowsPath,
 } from "./logic";
 
+
+const theme_icons = { system: <DesktopIcon/>, light: <FlashIcon/>, dark: <MoonIcon/> };
 
 const ICONS = {
   'align-left': AlignLeftIcon, code: CodeIcon, compressed: CompressedIcon, console: ConsoleIcon, cube: CubeIcon,
@@ -76,10 +76,11 @@ const currentPath = () => {
   return pathFromUrl(pathname)
 }
 
-const copyToClipboard = (text, what) => {
-  copy(text)
-  toaster.show({ message: <span>Copied {what}: <code className="fb-copied">{text}</code></span>, intent: Intent.SUCCESS, timeout: 2500, icon: <ClipboardIcon/> }, 'copied')
-}
+// Like copyWithToast, with this page's icons: icon names would load the paths of all Blueprint's icons
+const copyToClipboard = (text, what) => copyText(text).then(copied => toaster.show(copied
+  ? { message: <span>Copied {what}: <code className="fb-copied">{text}</code></span>, intent: Intent.SUCCESS, timeout: 2500, icon: <ClipboardIcon/> }
+  : { message: `Could not copy ${what}`, intent: Intent.DANGER, icon: <ErrorIcon/> },
+  'copied'))
 
 const isPlainLeftClick = event => event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey
 
@@ -92,8 +93,9 @@ export default function FileBrowser() {
   const [selected, setSelected] = useState(-1)
   const [editingPath, setEditingPath] = useState(false)
   const [config, setConfig] = useState({})
+  // from the config's state, not the module's path mappings: React (and its compiler) re-render on state changes
+  const showWindows = (config.path_mappings?.length ?? 0) > 0
   const [user, setUser] = useState(null)
-  const [isSigningIn, setIsSigningIn] = useState(false)
   const [reloads, setReloads] = useState(0) // the refresh button, "r", after signing in...
 
   const cache = useRef(new Map())
@@ -302,19 +304,8 @@ export default function FileBrowser() {
     setReloads(n => n + 1)
   }
 
-  const onSignedIn = () => {
-    setIsSigningIn(false)
-    cache.current.clear()
-    loadUser()
-    if (isFolder) setReloads(n => n + 1)
-    else window.location.reload()
-  }
-  const requestSignIn = () => {
-    if (config.login_type === 'SAML')
-      window.location.href = '/api/auth/saml20/login/?sso'
-    else
-      setIsSigningIn(true)
-  }
+  // the web app's sign-in page (single sign-on, passwords...) comes back here
+  const requestSignIn = () => navigateTo(signInUrl(window.location))
   const onSignOut = async () => {
     if (config.login_type === 'SAML') {
       window.location.href = '/api/auth/saml20/login/?slo'
@@ -341,10 +332,11 @@ export default function FileBrowser() {
           <Tooltip content={<span>Copy the path <kbd className="fb-kbd">c</kbd></span>} placement="bottom">
             <Button size="small" variant="minimal" icon={<DuplicateIcon/>} text="Copy path" onClick={() => copyPath(path)}/>
           </Tooltip>
-          {hasPathMappings() && <Tooltip content={<span>Copy the Windows path <kbd className="fb-kbd">w</kbd></span>} placement="bottom">
+          {showWindows && <Tooltip content={<span>Copy the Windows path <kbd className="fb-kbd">w</kbd></span>} placement="bottom">
             <Button size="small" variant="minimal" text="Windows" onClick={() => copyPath(path, true)}/>
           </Tooltip>}
         </ButtonGroup>
+        <ThemeButton className="fb-theme" icons={theme_icons}/>
         <UserMenu user={user} onSignIn={requestSignIn} onSignOut={onSignOut}/>
       </div>
     </header>
@@ -408,6 +400,7 @@ export default function FileBrowser() {
               open={open}
               prefetch={prefetch}
               copyPath={copyPath}
+              showWindows={showWindows}
               empty={listing.data.entries.length === 0
                 ? <NonIdealState icon={<FolderCloseIcon size={48}/>} title="This folder is empty"/>
                 : <NonIdealState icon={<SearchIcon size={48}/>} title="Nothing matches"
@@ -428,7 +421,6 @@ export default function FileBrowser() {
       {config.docs_root && <a href={`${config.docs_root}docs/user-guide/files`} target="_blank" rel="noopener noreferrer">Help</a>}
     </footer>
 
-    <SignInDialog isOpen={isSigningIn} onClose={() => setIsSigningIn(false)} onSignedIn={onSignedIn}/>
   </div>
 }
 
@@ -573,7 +565,7 @@ function PathInput({ path, close, navigate }) {
     event.preventDefault()
     const target = parseLocation(value)
     if (!target) {
-      setError(value.includes('\\') ? "We don't know where this Windows path is on Linux." : 'Enter a path like /algo/project, a Windows path, or a QA-Board URL.')
+      setError(value.includes('\\') ? "We don't know where this Windows path is on Linux." : 'Enter a path like /mnt/data/project, a Windows path, or a QA-Board URL.')
       return
     }
     // Files probably have an extension. If we're wrong about a folder, nginx adds the trailing slash
@@ -592,7 +584,7 @@ function PathInput({ path, close, navigate }) {
       onKeyDown={event => event.key === 'Escape' && close()}
       intent={error ? Intent.DANGER : Intent.NONE}
       aria-label="Go to a path"
-      placeholder={"/algo/project, \\\\server\\share\\folder or a URL"}
+      placeholder={"/mnt/data/project, \\\\server\\share\\folder or a URL"}
       rightElement={error ? <Tooltip content={error} isOpen placement="bottom"><WarningSignIcon className="fb-input-icon"/></Tooltip> : undefined}
     />
   </form>
@@ -653,12 +645,11 @@ const COLUMNS = [
   { key: 'owner', label: 'Owner', className: 'fb-col-owner' },
 ]
 
-function FileTable({ path, entries, sort, setSort, selected, setSelected, open, prefetch, copyPath, empty }) {
+function FileTable({ path, entries, sort, setSort, selected, setSelected, open, prefetch, copyPath, showWindows, empty }) {
   const bodyRef = useRef(null)
   const windowed = entries.length > WINDOWING_THRESHOLD
   const [start, end] = useWindowedRange(entries.length, bodyRef, windowed)
   const now = useNow()
-  const showWindows = hasPathMappings()
 
   // Keep the selected row on screen
   useEffect(() => {
@@ -798,7 +789,7 @@ function ErrorState({ error, path, user, navigate, onSignIn, retry, support_url 
   const up = parent && <Button icon={<ArrowUpIcon/>} text="Parent folder" onClick={() => navigate(parent)}/>
   if (error.status === 401)
     return <NonIdealState className="fb-error" icon={<LockIcon size={48}/>} title="Sign in to see these files"
-      description={error.message?.replace(/ Sign in[^.]*\.$/, '')} action={<Button intent={Intent.PRIMARY} icon={<LogInIcon/>} text="Sign in" onClick={onSignIn}/>}/>
+      description={error.message?.replace(/ (Log|Sign) in[^.]*\.$/, '')} action={<Button intent={Intent.PRIMARY} icon={<LogInIcon/>} text="Sign in" onClick={onSignIn}/>}/>
   if (error.reason === 'forbidden')
     return <NonIdealState className="fb-error" icon={<LockIcon size={48}/>} title="You don't have access"
       description={<>
@@ -840,41 +831,4 @@ function FileAccess({ path, user, navigate, onSignIn, support_url }) {
 }
 
 
-const SIGN_IN_ERRORS = {
-  'invalid-username': 'This username does not match any user account.',
-  'invalid-password': 'The password is incorrect.',
-}
-
-function SignInDialog({ isOpen, onClose, onSignedIn }) {
-  const [error, setError] = useState(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const usernameRef = useRef(null)
-  const submit = async event => {
-    event.preventDefault()
-    const form = new FormData(event.target)
-    setIsLoading(true)
-    try {
-      await signIn(form.get('username'), form.get('password'))
-      setError(null)
-      onSignedIn()
-    } catch (e) {
-      setError(SIGN_IN_ERRORS[e.message] ?? e.message ?? 'Could not sign in')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-  return <Dialog isOpen={isOpen} onClose={onClose} onOpened={() => usernameRef.current?.focus()} title="Sign in" icon={<LogInIcon/>} style={{ width: 360 }}>
-    <form onSubmit={submit}>
-      <DialogBody>
-        <FormGroup label="Username" labelFor="fb-username">
-          <InputGroup id="fb-username" name="username" inputRef={usernameRef} autoComplete="username"/>
-        </FormGroup>
-        <FormGroup label="Password" labelFor="fb-password" intent={error ? Intent.DANGER : Intent.NONE} helperText={error}>
-          <InputGroup id="fb-password" name="password" type="password" autoComplete="current-password" intent={error ? Intent.DANGER : Intent.NONE}/>
-        </FormGroup>
-        <Button type="submit" intent={Intent.PRIMARY} fill loading={isLoading} text="Sign in"/>
-      </DialogBody>
-    </form>
-  </Dialog>
-}
 

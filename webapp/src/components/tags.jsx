@@ -1,36 +1,30 @@
-import React from "react";
-import axios from "axios";
-import { CopyToClipboard } from "react-copy-to-clipboard";
-import copy from 'copy-to-clipboard';
+import { useState } from "react";
 import {
+  Alert,
+  AnchorButton,
   Classes,
-  Colors,
   Icon,
+  Spinner,
   Tag,
   Menu,
   MenuItem,
   MenuDivider,
-  Popover,
   PopoverNext,
   Intent,
   Tooltip,
   Button,
 } from "@blueprintjs/core";
 
-import { fetchCommit } from "../actions/commit";
+import { http, errorMessage, isAbort, isArtifactsError } from "../api/http";
+import { useRefreshCommit, useSiteConfig, useUser } from "../hooks";
+import { LoginMenuItem } from "./authentication/login";
 import { linux_to_windows } from '../utils'
-import { folder_url } from '../utils/paths'
+import { folder_url, hasPathMappings } from '../utils/paths'
 import { toaster } from "../toaster"
-
-
-const on_copy = (text, format = 'config') => {
-  const message = format === 'tuning' ? 'Tuning format copied' : 'Config copied';
-  toaster.show({
-    message: message,
-    intent: Intent.SUCCESS
-  });
-}
-
+import { copyDirectory } from "./logs/DirectoryActions"
+import { hidden_keys } from "../configurations/tokens"
+import { ConfigurationsTags, ConfigurationDiff } from "../configurations/ConfigurationsTags"
+import { RunHistoryMenuItem } from "./RunInfoMenu"
 
 
 const style_skeleton = {
@@ -43,209 +37,31 @@ const style_skeleton = {
 }
 
 
+// A run's status, quiet when it went fine. The same width for all statuses: the names next to it line up.
+const status_style = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none', width: 26 };
 const StatusTag = ({output, style}) => {
-  const intent = output.is_failed
-                 ? Intent.DANGER
-                 : output.is_pending ? Intent.WARNING : Intent.SUCCESS;
-  const tag_text = output.is_failed ? "" : output.is_pending ? (output.is_running ? "🏃" : "⏳") : "";
-  const tag_title = output.is_failed ? "Failed" : output.is_pending ? (output.is_running ? "Running" : "Pending") : undefined;
-  return <Tag
-    title={tag_title}
-    icon={output.is_failed ? "cross" : (output.is_pending ? undefined : "tick")}
-    style={output.is_running ? {...style, ...style_skeleton} : style}
-    intent={intent}>{tag_text}
-  </Tag>
-
+  let status;
+  if (output.is_failed)
+    status = <Tag minimal intent={Intent.DANGER} icon="cross" aria-label="Failed"/>;
+  else if (output.is_running)
+    status = <Spinner size={12} aria-label="Running"/>;
+  else if (output.is_pending)
+    status = <Icon icon="time" size={12} className={Classes.TEXT_MUTED} aria-label="Pending"/>;
+  else
+    status = <Icon icon="tick-circle" size={12} intent={Intent.SUCCESS} aria-label="Succeeded"/>;
+  const title = output.is_failed ? "Failed" : output.is_running ? "Running" : output.is_pending ? "Pending" : "Succeeded";
+  return <span title={title} style={{ ...status_style, ...style }}>{status}</span>;
 }
 
-class PlatformTag extends React.Component {
-  render() {
-    if (this.props.platform === undefined || this.props.platform === null || this.props.platform === 'linux') return <span />
-    return <Tag round minimal={!this.props.inverted} style={{ marginRight: '5px', marginLeft: '5px' }}>@{this.props.platform}</Tag>
-  }
+const PlatformTag = ({ platform, inverted }) => {
+  if (platform === undefined || platform === null || platform === 'linux') return <span />
+  return <Tag round minimal={!inverted} title="Platform the run used" style={{ marginRight: '5px', marginLeft: '5px' }}>@{platform}</Tag>
 }
 
-const hidden_keys = ["badges", "roi", "auto_rois"]
-
-// Helper function to convert configuration to tuning format
-const convertToTuningFormat = (configurations) => {
-  const merged = {};
-  
-  configurations.forEach(config => {
-    if (typeof config === 'object' && config !== null) {
-      Object.entries(config)
-        .filter(([k]) => !hidden_keys.includes(k))
-        .forEach(([key, value]) => {
-          // Handle numeric vectors/arrays specially
-          if (Array.isArray(value) && value.every(item => typeof item === 'number')) {
-            merged[key] = [[[value]]];
-          } else {
-            merged[key] = [value];
-          }
-        });
-    }
-  });
-  
-  return Object.keys(merged).length > 0 ? JSON.stringify(merged, null, 2) : null;
-};
-
-const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, toplevel=true}) => {
-    // Some configuration key names are used and shown by viewers - we don't display them here...
-    const tags = configurations.map((c, idx) => {
-      const wrapper_style = { marginRight: '5px', marginBottom: '3px', fontWeight: '400' }
-      
-      if (typeof (c) === 'string') {
-        const stringTag = <Tag
-          intent={intent}
-          round
-          minimal={!inverted}
-          interactive
-          key={idx}
-          style={wrapper_style}
-        >{c}</Tag>
-        
-        if (!toplevel) return stringTag;
-        
-        return <PopoverNext
-          key={idx}
-          placement="bottom"
-          hoverCloseDelay={200}
-          interactionKind={"hover"}
-          content={
-            <Menu>
-              <MenuItem
-                icon="duplicate"
-                text="Copy this item"
-                onClick={() => {
-                  copy(c);
-                  on_copy(c);
-                }}
-              />
-              <MenuItem
-                icon="duplicate"
-                text="Copy full configuration"
-                onClick={() => {
-                  const pretty_json = JSON.stringify(configurations, null, 2);
-                  copy(pretty_json);
-                  on_copy(pretty_json);
-                }}
-              />
-              {convertToTuningFormat(configurations) && <MenuItem
-                icon="duplicate"
-                text="Copy full config in tuning format"
-                onClick={() => {
-                  const tuning_format = convertToTuningFormat(configurations);
-                  copy(tuning_format);
-                  on_copy(tuning_format, 'tuning');
-                }}
-              />}
-            </Menu>
-          }
-        >
-          {stringTag}
-        </PopoverNext>
-      } else {
-        const objectTags = <span style={wrapper_style} key={idx}>
-          {Object.entries(c)
-                 .filter(([k]) => !hidden_keys.includes(k))
-                 .map( ([k, v]) => {
-                   const tag = <Tag round interactive minimal={!inverted} key={k} intent={intent}>
-                     <strong>{k}:</strong> {JSON.stringify(v)}
-                   </Tag>
-                   
-                   if (!toplevel) return tag;
-                   
-                   return <PopoverNext
-                     key={k}
-                     placement="bottom"
-                     hoverCloseDelay={200}
-                     interactionKind={"hover"}
-                     content={
-                       <Menu>
-                         <MenuItem
-                           icon="duplicate"
-                           text={<span>Copy <em>{`${k}`}</em></span>}
-                           onClick={() => {
-                             const item_text = `${k}: ${JSON.stringify(v)}`;
-                             copy(item_text);
-                             on_copy(item_text);
-                           }}
-                         />
-                         <MenuItem
-                           icon="duplicate"
-                           text="Copy as JSON"
-                           onClick={() => {
-                             const object_json = JSON.stringify(c, null, 2);
-                             copy(object_json);
-                             on_copy(object_json);
-                           }}
-                         />
-                         <MenuItem
-                           icon="duplicate"
-                           text="Copy full configuration"
-                           onClick={() => {
-                             const pretty_json = JSON.stringify(configurations, null, 2);
-                             copy(pretty_json);
-                             on_copy(pretty_json);
-                           }}
-                         />
-                         {convertToTuningFormat(configurations) && <MenuItem
-                           icon="duplicate"
-                           text="Copy full configuration in tuning format"
-                           onClick={() => {
-                             const tuning_format = convertToTuningFormat(configurations);
-                             copy(tuning_format);
-                             on_copy(tuning_format, 'tuning');
-                           }}
-                         />}
-                       </Menu>
-                     }
-                   >
-                     {tag}
-                   </PopoverNext>
-                 })}
-          </span>
-          
-        return objectTags;
-      }
-    })
-
-    if (!toplevel)
-      return tags
-      
-    return <span>{tags}</span>
-}
-
-
-class ExtraParametersTags extends React.Component {
-  render() {
-    const { parameters } = this.props;
-    if (Object.keys(parameters).length === 0)
-      return <span />
-
-    const intent = this.props.intent || Intent.PRIMARY;
-    const tags = Object.entries(parameters)
-      .filter(([k]) => !hidden_keys.includes(k))
-      .map(([k, v]) => (
-        <Tag key={k} intent={intent} minimal={!this.props.inverted} round interactive style={{ marginRight: '5px', marginBottom: '3px' }}>
-          <strong>{k}: </strong> {JSON.stringify(v)}
-        </Tag>
-      ));
-
-    const pretty_json = JSON.stringify(parameters, null, 2);
-    return <CopyToClipboard text={pretty_json} onCopy={() => on_copy(pretty_json)}><span>
-      {this.props.before}
-      {tags}
-    </span></CopyToClipboard>
-  }
-}
-
-
-
-const MismatchTag = ({text, explanation}) => {
+const MismatchTag = ({text, what, explanation}) => {
   return <div>
     <Tooltip content={<div>
-        <h3>Comparing to reference:</h3>
+        <h3>The reference run differs. Its {what}:</h3>
         <p>{explanation}</p>
       </div>}
     >
@@ -254,15 +70,24 @@ const MismatchTag = ({text, explanation}) => {
   </div>
 }
 
-const MismatchTags = ({mismatch}) => {
+// Configurations are long: we show how they differ, like `git diff`. With the tuning parameters, settings like the others.
+const ConfigMismatchTag = ({ configurations, tuning, mismatch }) => <div>
+  <PopoverNext placement="bottom" interactionKind="hover" hoverCloseDelay={200} content={
+    <ConfigurationDiff configurations={configurations} tuning={tuning} mismatch={mismatch} />
+  }>
+    <Tag intent={Intent.WARNING} icon="not-equal-to" interactive style={{ verticalAlign: 'baseline', marginLeft: "4px" }}>Config</Tag>
+  </PopoverNext>
+</div>
+
+// `configurations` and `tuning` are the run's: the mismatch has its reference's
+const MismatchTags = ({mismatch, configurations, tuning}) => {
   if (mismatch===null || mismatch===undefined)
     return <span/>
-  const { test_input_path, configurations, platform, extra_parameters } = mismatch;
+  const { test_input_path, platform } = mismatch;
   return <div>
-    {test_input_path  && <MismatchTag text="Input" explanation={test_input_path} />}
-    {configurations   && <MismatchTag text="Config" explanation={<ConfigurationsTags inverted configurations={configurations} />} />}
-    {platform         && <MismatchTag text="Platform" explanation={<PlatformTag inverted platform={platform} />} />}
-    {extra_parameters && <MismatchTag text="Tuning" explanation={Object.keys(extra_parameters).length > 0 ? <ExtraParametersTags inverted parameters={extra_parameters} /> : 'No tuning'} />}
+    {test_input_path  && <MismatchTag text="Input" what="input" explanation={test_input_path} />}
+    {(mismatch.configurations || mismatch.extra_parameters) && <ConfigMismatchTag configurations={configurations} tuning={tuning} mismatch={mismatch} />}
+    {platform         && <MismatchTag text="Platform" what="platform" explanation={<PlatformTag inverted platform={platform} />} />}
   </div>
 }
 
@@ -292,240 +117,255 @@ const RunBadge = ({badge}) => {
 
 
 
+// How QA-Board names a run: its label, else its input path
+const runName = output => {
+  if (output.test_input_metadata?.label) return output.test_input_metadata.label
+  if (output.output_type === "pipeline" || output.test_input_path === "PIPELINE") return `${output.data?.batch} (pipeline)`
+  return `${output.test_input_database === '/' ? '/' : ''}${output.test_input_path}`
+}
+
 // What users can do with a run: redo it, mark it as failed, delete it...
-const RunActionsMenu = ({ output, project, commit, dispatch }) => {
-  const [waiting, setWaiting] = React.useState(false)
+// `children`: menu items shown before the actions, e.g. what we know about the run (see RunInfoMenu)
+const RunActionsMenu = ({ output, project, commit, children }) => {
+  const is_logged = useUser().is_logged
+  const [waiting, setWaiting] = useState(false)
+  // deletes need confirming: 'delete' or 'delete-files'
+  const [confirming, setConfirming] = useState(null)
+  const refreshCommit = useRefreshCommit()
   const { id, deleted, is_pending } = output
-  const refresh = () => dispatch(fetchCommit({project, id: commit.id}))
+  const name = runName(output)
+  const refresh = () => refreshCommit(project, commit.id)
+  const act = (request, requested, done) => {
+    const key = `run-action-${id}`
+    setWaiting(true)
+    toaster.show({message: requested, icon: 'time'}, key);
+    request()
+      .then(response => {
+        toaster.show({message: done, intent: Intent.SUCCESS}, key)
+        // e.g. only the source files of the artifacts could be restored
+        if (response?.data?.warning) toaster.show({message: response.data.warning, intent: Intent.WARNING, timeout: 15000})
+      })
+      // 409: the artifacts are missing, maybe being recreated by the CI
+      .catch(error => toaster.show({message: errorMessage(error), intent: isArtifactsError(error) ? Intent.WARNING : Intent.DANGER, timeout: 15000}, key))
+      .finally(() => {
+        setWaiting(false)
+        refresh()
+      });
+  }
   return (
     <Menu>
+      {children && <>{children}<MenuDivider title="Actions"/></>}
+      {!is_logged && <LoginMenuItem text="Sign in to redo or delete"/>}
       {id && is_pending && <MenuItem
         icon="stop"
-        text="Mark as Failed"
+        text="Mark as failed"
         htmlTitle="For runs stuck as pending or running: their job is gone and will never report"
         intent={Intent.WARNING}
         minimal
-        disabled={waiting}
-        onClick={() => {
-          setWaiting(true)
-          toaster.show({message: "Requested to mark as 'Failed'."});
-          axios.put(`/api/v1/output/${id}/`, {is_pending: false, is_running: false, is_failed: true})
-            .then(() => {
-              setWaiting(false)
-              toaster.show({message: "Marked as failed.", intent: Intent.SUCCESS});
-              refresh()
-            })
-            .catch(error => {
-              setWaiting(false)
-              toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
-              refresh()
-            });
-        }}
+        disabled={waiting || !is_logged}
+        onClick={() => act(
+          () => http.put(`/api/v1/output/${id}/`, {is_pending: false, is_running: false, is_failed: true}),
+          `Marking ${name} as failed…`,
+          `Marked ${name} as failed`,
+        )}
       />}
       {id && !is_pending && <MenuItem
         icon="redo"
         text="Redo"
         intent={Intent.WARNING}
         minimal
-        disabled={waiting}
-        onClick={() => {
-          setWaiting(true)
-          toaster.show({message: "Requested Redo."});
-          axios.post(`/api/v1/output/redo/${id}/`, {is_pending: false, is_running: false})
-            .then(() => {
-              setWaiting(false)
-              toaster.show({message: "Redo started.", intent: Intent.SUCCESS});
-              refresh()
-            })
-            .catch(error => {
-              setWaiting(false)
-              toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
-              refresh()
-            });
-        }}
+        disabled={waiting || !is_logged}
+        onClick={() => act(
+          () => http.post(`/api/v1/output/redo/${id}/`, {is_pending: false, is_running: false}),
+          `Starting ${name} again…`,
+          `Redoing ${name}`,
+        )}
       />}
       {id && !deleted && <MenuItem
         icon="trash"
-        text="Delete"
+        text="Delete…"
+        htmlTitle="Delete the run, its metrics and its files"
         intent={Intent.DANGER}
         minimal
-        disabled={waiting}
-        onClick={() => {
-          setWaiting(true)
-          toaster.show({message: "Delete requested."});
-          axios.delete(`/api/v1/output/${id}/`)
-            .then(() => {
-              setWaiting(false)
-              toaster.show({message: "Deleted.", intent: Intent.SUCCESS});
-              refresh()
-            })
-            .catch(error => {
-              setWaiting(false)
-              toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
-              refresh()
-            });
-        }}
+        disabled={waiting || !is_logged}
+        shouldDismissPopover={false}
+        onClick={() => setConfirming('delete')}
       />}
       {id && !deleted && <MenuItem
         icon="trash"
-        text="Delete Output Files"
+        text="Delete output files…"
+        htmlTitle="Delete the run's files, keep its metrics"
         intent={Intent.DANGER}
         minimal
-        disabled={waiting}
-        onClick={() => {
-          setWaiting(true)
-          toaster.show({message: "Delete requested."});
-          axios.delete(`/api/v1/output/${id}/?soft=true`)
-            .then(() => {
-              setWaiting(false)
-              toaster.show({message: "Deleted.", intent: Intent.SUCCESS});
-              refresh()
-            })
-            .catch(error => {
-              setWaiting(false)
-              toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
-              refresh()
-            });
-        }}
+        disabled={waiting || !is_logged}
+        shouldDismissPopover={false}
+        onClick={() => setConfirming('delete-files')}
       />}
+      {/* rendered in a portal; while it's open, the menu's popover stays open */}
+      <Alert
+        className={Classes.POPOVER_DISMISS}
+        isOpen={confirming !== null}
+        icon="trash"
+        intent={Intent.DANGER}
+        cancelButtonText="Cancel"
+        confirmButtonText={confirming === 'delete-files' ? "Delete files" : "Delete run"}
+        canEscapeKeyCancel
+        onCancel={() => setConfirming(null)}
+        onConfirm={() => {
+          const files_only = confirming === 'delete-files'
+          setConfirming(null)
+          act(
+            () => http.delete(`/api/v1/output/${id}/`, files_only ? {params: {soft: true}} : undefined),
+            `Deleting ${files_only ? 'the files of ' : ''}${name}…`,
+            `Deleted ${files_only ? 'the files of ' : ''}${name}`,
+          )
+        }}
+      >
+        {confirming === 'delete-files'
+          ? <><p><strong>Delete the files of {name}?</strong></p><p>Its metrics are kept.</p></>
+          : <><p><strong>Delete {name}?</strong></p><p>Its output files and metrics will be deleted. This can't be undone.</p></>}
+      </Alert>
     </Menu>
   )
 }
 
 
-class OutputTags extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      waiting: false,
-    };
-  }
-
-  refresh = () => {
-    const { project, commit, dispatch } = this.props;
-    dispatch(fetchCommit({project, id: commit.id}))
-  }
-
-
-  render() {
-    const { platform, configurations, output_dir_url, deleted, output_type } = this.props.output;
-    const { mismatch } = this.props;
-    const cde_shs = !deleted ? Object.keys(this.props.manifests?.new ?? []).filter(path => path.endsWith("cde.sh")) : []
-    return <span style={this.props.style}>
-      {deleted && <Tag icon="trash">deleted</Tag>}
-      <PlatformTag platform={platform} />
-      <ConfigurationsTags configurations={configurations} />
-
-      {output_type !== "batch" &&
-      <Popover placement="bottom" hoverCloseDelay={200} interactionKind={"hover"} content={
-        <RunActionsMenu output={this.props.output} project={this.props.project} commit={this.props.commit} dispatch={this.props.dispatch} />
-      }>
-        <Icon icon="menu" style={{ marginLeft: "5px", color: Colors.GRAY1 }}/>
-      </Popover>}
-
-
-      <Popover hoverCloseDelay={500} interactionKind={"hover"} placement="bottom" content={
-        <Menu>
-          <MenuItem
-            text="Open output directory in browser" 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            href={folder_url(output_dir_url)}
-            className={Classes.TEXT_MUTED} minimal 
-            icon="folder-shared-open" 
-          />
-          {this.props.output_ref && 
-          <MenuItem
-            text="Open the Reference's output directory in browser" 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            href={folder_url(this.props.output_ref.output_dir_url)}
-            className={Classes.TEXT_MUTED} minimal 
-            icon="folder-shared-open" 
-          />}
-        </Menu>}
-      >
-        <a style={{marginLeft: "5px", color: Colors.GRAY1}}
-              target="_blank"
-              rel="noopener noreferrer"
-              href={folder_url(output_dir_url)}
-        >
-          <Icon icon="folder-shared-open" />
-        </a>
-      </Popover>
-
-      <Popover hoverCloseDelay={500} interactionKind={"hover"} placement="bottom" content={
-        <Menu>
-          {this.props.output_ref && <MenuDivider title="New Run" />}
-          <MenuItem text="Copy output directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(output_dir_url).slice(2))}} />
-          <MenuItem text="Copy output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(output_dir_url))}} />
-          {this.props.output_ref && <>
-            <MenuDivider title="Reference Run" />
-            <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path of `reference` copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(this.props.output_ref.output_dir_url).slice(2))}} />
-            <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path of `reference` copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(this.props.output_ref.output_dir_url))}} />
-            </>
-          }
-        </Menu>}
-      >
-        <span style={{marginLeft: "5px", marginRight: '5px', color: Colors.GRAY1}}>
-          <Icon
-            title="Copy-to-Clipboard"
-            icon="duplicate"
-          />
-        </span>
-      </Popover>
-      {cde_shs.map(cde_sh => {
-        const cde_dir = cde_sh.replace(/\/?cde.sh$/, '')
-        return <Tooltip key={cde_sh} content="Open in WebCDE">
-        <Button
-            outlined={true}
-            style={{margin: "5px"}}
-            disabled={this.state.waiting}
-            icon="open-application"
-            text={cde_shs.length === 1 ? 'WebCDE' : cde_dir}
-            onClick={() => {
-              this.setState({waiting: true})
-              fetch(`${output_dir_url}/${cde_sh}`)
-              .then(r => r.text())
-              .then(text => {
-                const command = text.replace(/"/g, '').trim();
-                const name = this.props.output.test_input_path.split(".")[0]
-                const wd = `${decodeURIComponent(linux_to_windows(`${output_dir_url}/${cde_dir}`))}\\`
-                axios.post(
-                  `http://localhost:2020/CDE/Launch?WebCDE`, {
-                    os: platform, 
-                    command, wd, name,
-                    commit: this.props.commit.id.slice(0, 8), 
-                })
-                .then(() => {
-                  this.setState({waiting: false})
-                  toaster.show({message: "Sent to WebCDE", intent: Intent.SUCCESS});
-                  this.refresh()
-                })
-                .catch(error => {
-                  this.setState({waiting: false})
-                  const error_str = error.response?.data?.error ?? JSON.stringify(error)
-                  if (error.message == "Network Error") {
-                    const help_text = "Sorry we could not connect to CDEWebService. Please start WebCDE.exe (download from \\\\netapp\\Joint\\WebCDE\\WebCDE_Setup.exe)"
-                    toaster.show({
-                      message: `${help_text}`,
-                      intent: Intent.DANGER});
-                  } else {
-                    toaster.show({
-                      message: error_str,
-                      intent: Intent.DANGER});
-                  }
-                  this.refresh()
-                });
-              })
-            }}
-        />
-        </Tooltip>}
-      )}
-      <MismatchTags mismatch={mismatch}/>
-    </span>
+// Asks WebCDE, running on the user's machine, to open the output.
+// WebCDE is a desktop app that replays runs whose outputs have a cde.sh, its service listens on localhost:2020.
+const open_in_webcde = async ({ output, commit, cde_sh }) => {
+  const { platform, output_dir_url } = output
+  const cde_dir = cde_sh.replace(/\/?cde.sh$/, '')
+  const { data: text } = await http.get(`${output_dir_url}/${cde_sh}`, { responseType: 'text' })
+  const command = text.replace(/"/g, '').trim();
+  const name = output.test_input_path.split(".")[0]
+  const wd = `${decodeURIComponent(linux_to_windows(`${output_dir_url}/${cde_dir}`))}\\`
+  try {
+    await http.post(`http://localhost:2020/CDE/Launch?WebCDE`, {
+      os: platform,
+      command, wd, name,
+      commit: commit.id.slice(0, 8),
+    })
+  } catch (error) {
+    // fetch fails without a response when nothing listens
+    if (!error.response && !isAbort(error))
+      error.webcde_unreachable = true
+    throw error
   }
 }
 
+const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, type, style }) => {
+  const [waiting, setWaiting] = useState(false)
+  const refreshCommit = useRefreshCommit()
+  // where users install WebCDE, from QABOARD_WEBCDE_INSTALLER
+  const { webcde_installer } = useSiteConfig()
+  const refresh = () => refreshCommit(project, commit.id)
+  const { platform, configurations, output_dir_url, deleted, output_type } = output;
+  const cde_shs = !deleted ? Object.keys(manifests?.new ?? []).filter(path => path.endsWith("cde.sh")) : []
+  return <span style={style}>
+    {deleted && <Tag icon="trash">deleted</Tag>}
+    <PlatformTag platform={platform} />
+    <ConfigurationsTags configurations={configurations} tuning={output.extra_parameters} mismatch={mismatch} />
 
-export { hidden_keys, RunActionsMenu, StatusTag, PlatformTag, ConfigurationsTags, ExtraParametersTags, MismatchTags, OutputTags, RunBadge, RunBadges, style_skeleton };
+    {output_type !== "batch" &&
+    <PopoverNext placement="bottom" content={
+      <RunActionsMenu output={output} project={project} commit={commit}>
+        {!!output.test_input_path && !!commit?.branch && <RunHistoryMenuItem project={project} commit={commit} output={output} type={type} />}
+      </RunActionsMenu>
+    }>
+      <Button size="small" variant="minimal" icon="menu" className={Classes.TEXT_MUTED} style={{ marginLeft: "5px" }} aria-label="Run actions"/>
+    </PopoverNext>}
+
+    {/* The menus open on click: their buttons only act directly when there is nothing to choose from */}
+    {output_ref ? <PopoverNext placement="bottom" content={
+      <Menu>
+        <MenuItem
+          text="Open the output directory in the browser"
+          target="_blank"
+          rel="noopener noreferrer"
+          href={folder_url(output_dir_url)}
+          className={Classes.TEXT_MUTED} minimal
+          icon="folder-shared-open"
+        />
+        <MenuItem
+          text="Open the reference's output directory in the browser"
+          target="_blank"
+          rel="noopener noreferrer"
+          href={folder_url(output_ref.output_dir_url)}
+          className={Classes.TEXT_MUTED} minimal
+          icon="folder-shared-open"
+        />
+      </Menu>}
+    >
+      <Button size="small" variant="minimal" icon="folder-shared-open" className={Classes.TEXT_MUTED} aria-label="Open the output directory"/>
+    </PopoverNext> : <Tooltip content="Open the output directory" hoverOpenDelay={300}>
+      <AnchorButton
+        size="small"
+        variant="minimal"
+        icon="folder-shared-open"
+        className={Classes.TEXT_MUTED}
+        aria-label="Open the output directory"
+        target="_blank"
+        rel="noopener noreferrer"
+        href={folder_url(output_dir_url)}
+      />
+    </Tooltip>}
+
+    {(output_ref || hasPathMappings()) ? <PopoverNext placement="bottom" content={
+      <Menu>
+        {output_ref && <MenuDivider title="New Run" />}
+        <MenuItem text="Copy output directory" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_dir_url)} />
+        {hasPathMappings() && <MenuItem text="Copy output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_dir_url, { windows: true })} />}
+        {output_ref && <>
+          <MenuDivider title="Reference Run" />
+          <MenuItem text="Copy the reference's output directory" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_ref.output_dir_url)} />
+          {hasPathMappings() && <MenuItem text="Copy the reference's output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_ref.output_dir_url, { windows: true })} />}
+          </>
+        }
+      </Menu>}
+    >
+      <Button size="small" variant="minimal" icon="duplicate" className={Classes.TEXT_MUTED} style={{marginRight: '5px'}} aria-label="Copy the output directory"/>
+    </PopoverNext> : <Tooltip content="Copy the path of the output directory" hoverOpenDelay={300}>
+      <Button
+        size="small"
+        variant="minimal"
+        icon="duplicate"
+        className={Classes.TEXT_MUTED}
+        style={{marginRight: '5px'}}
+        aria-label="Copy the path of the output directory"
+        onClick={() => copyDirectory(output_dir_url)}
+      />
+    </Tooltip>}
+    {cde_shs.map(cde_sh => {
+      const cde_dir = cde_sh.replace(/\/?cde.sh$/, '')
+      return <Tooltip key={cde_sh} content="Open in WebCDE">
+      <Button
+          outlined={true}
+          style={{margin: "5px"}}
+          disabled={waiting}
+          icon="open-application"
+          text={cde_shs.length === 1 ? 'WebCDE' : cde_dir}
+          onClick={() => {
+            setWaiting(true)
+            open_in_webcde({ output, commit, cde_sh })
+              .then(() => toaster.show({message: "Sent to WebCDE", intent: Intent.SUCCESS}))
+              .catch(error => {
+                const help_text = `Could not connect to WebCDE (CDEWebService) on your computer. Please start WebCDE.exe${webcde_installer ? ` (install it from ${webcde_installer})` : ''}.`
+                toaster.show({
+                  message: error.webcde_unreachable ? help_text : errorMessage(error),
+                  intent: Intent.DANGER,
+                });
+              })
+              .finally(() => {
+                setWaiting(false)
+                refresh()
+              });
+          }}
+      />
+      </Tooltip>}
+    )}
+    <MismatchTags mismatch={mismatch} configurations={configurations} tuning={output.extra_parameters}/>
+  </span>
+}
+
+
+export { hidden_keys, RunActionsMenu, StatusTag, PlatformTag, ConfigurationsTags, MismatchTags, OutputTags, RunBadge, RunBadges, runName, style_skeleton };

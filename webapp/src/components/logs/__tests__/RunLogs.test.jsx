@@ -3,9 +3,12 @@
  * Run with: cd webapp && npm test -- RunLogs
  */
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithProviders } from '../../../test-utils';
 import { setupIntersectionMocking, resetIntersectionMocking } from 'react-intersection-observer/test-utils';
 
-import { RunLogs, configurationSummary, runName } from '../RunLogs';
+import { toaster } from '../../../toaster';
+import { RunLogs, configurationSummary } from '../RunLogs';
+import { runName } from '../../tags';
 
 
 const output = {
@@ -37,7 +40,7 @@ afterEach(() => {
 
 describe('configurationSummary', () => {
   it('lists the configurations and tuning parameters on one line', () => {
-    expect(configurationSummary(output)).toBe('base · isp: {"denoise":0.8} · lr=0.1')
+    expect(configurationSummary(output)).toBe('lr=0.1 · base · isp: {"denoise":0.8}')
   })
   it('mentions unusual platforms', () => {
     expect(configurationSummary({ ...output, platform: 'windows', configurations: [], extra_parameters: {} })).toBe('@windows')
@@ -60,14 +63,14 @@ describe('runName', () => {
 describe('RunLogs', () => {
   const renderRun = (props = {}) => {
     const onToggle = vi.fn()
-    const view = render(<RunLogs id={7} output={output} project="p" commit={{ id: 'abc' }} dispatch={vi.fn()} expanded={false} onToggle={onToggle} {...props} />)
+    const view = renderWithProviders(<RunLogs id={7} output={output} project="p" commit={{ id: 'abc' }} expanded={false} onToggle={onToggle} {...props} />, { siteConfig: {} })
     return { ...view, onToggle }
   }
 
   it('shows the run and its configuration as text, without waiting to be on screen', () => {
     renderRun()
     expect(screen.getByText('scenes/indoor/sequence_7.mp4')).toBeInTheDocument()
-    expect(screen.getByText('base · isp: {"denoise":0.8} · lr=0.1')).toBeInTheDocument()
+    expect(screen.getByText('lr=0.1 · base · isp: {"denoise":0.8}')).toBeInTheDocument()
     // the configuration tags are only rendered for expanded runs
     expect(screen.queryByText('Configuration')).toBeNull()
     expect(screen.getByLabelText('Open the output directory')).toHaveAttribute('href', '/s/out/7/') // the file browser, even if the folder is missing
@@ -86,7 +89,18 @@ describe('RunLogs', () => {
     renderRun()
     fireEvent.click(screen.getByLabelText('Run actions'))
     expect(await screen.findByText('Redo')).toBeInTheDocument()
-    expect(screen.getByText('Delete')).toBeInTheDocument()
+    expect(screen.getByText('Delete…')).toBeInTheDocument()
+  })
+
+  it('says how long the run took, and has what we know about it in its menu, with its History', async () => {
+    renderRun({ output: { ...output, metrics: { compute_time: 125 }, created_date: '2026-09-01T10:00:00Z' }, commit: { id: 'abc', branch: 'main' } })
+    expect(screen.getByTitle('Compute time')).toHaveTextContent('2min5s')
+    fireEvent.click(screen.getByLabelText('Run actions'))
+    const history = (await screen.findByTitle("See this input's results over time")).closest('a')
+    expect(new URL(history.href, 'http://localhost').pathname).toBe('/p/history/main')
+    expect(screen.getByText('compute time')).toBeInTheDocument()
+    expect(screen.getByText('Run Info')).toBeInTheDocument()
+    expect(screen.getByText('Redo')).toBeInTheDocument()
   })
 
   it('shows the full configuration with the logs', async () => {
@@ -95,13 +109,39 @@ describe('RunLogs', () => {
     expect(screen.getByText('base', { selector: '.bp6-tag *' })).toBeInTheDocument()
     expect(screen.getByLabelText('Download')).toHaveAttribute('href', '/s/out/7/log.txt')
     await waitFor(() => expect(fetch).toHaveBeenCalledWith('/s/out/7/log.dask.txt', expect.anything()))
-    await screen.findByText('No log.txt yet')
+    await screen.findByText('No log.txt')
+    expect(screen.getByText('The run may have failed before it started, or its files were deleted.')).toBeInTheDocument()
+  })
+
+  it('says when the output files of a run were deleted', async () => {
+    renderRun({ expanded: true, output: { ...output, deleted: true } })
+    expect(await screen.findByText("The run's output files were deleted.")).toBeInTheDocument()
+  })
+
+  it('copies the path of the output directory', async () => {
+    const writeText = vi.fn(async () => {})
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    vi.stubGlobal('isSecureContext', true)
+    try {
+      const { onToggle } = renderRun({ output: { ...output, output_dir_url: '/s/out/7%20b%2311' } })
+      fireEvent.click(screen.getByLabelText('Copy the path of the output directory'))
+      expect(onToggle).not.toHaveBeenCalled()
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith('/out/7 b#11'))
+      // in the toast (mocked in setupTests.js)
+      await waitFor(() => expect(toaster.show).toHaveBeenCalled())
+      render(toaster.show.mock.calls.at(-1)[0].message)
+      expect(screen.getByText('/out/7 b#11')).toBeInTheDocument()
+    } finally {
+      delete navigator.clipboard
+    }
   })
 
   it('has no run actions for the batch logs', () => {
     renderRun({ title: 'Batch logs', output: { ...output, output_type: 'batch', id: undefined } })
     expect(screen.getByText('Batch logs')).toBeInTheDocument()
     expect(screen.queryByLabelText('Run actions')).toBeNull()
+    // the batch's section has them
+    expect(screen.queryByLabelText('Open the output directory')).toBeNull()
     expect(screen.queryByText(/lr=0\.1/)).toBeNull()
   })
 })

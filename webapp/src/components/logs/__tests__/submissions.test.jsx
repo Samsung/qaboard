@@ -89,29 +89,31 @@ describe('useSubmissionStatus', () => {
 
 describe('SubmissionCallout', () => {
   it('says why the batch failed, and links to the logs', () => {
-    const dispatch = vi.fn()
+    window.history.replaceState(null, '', '/p/commit/abc?batch=nightly')
     const batch = { data: { submissions: { a: { ...lsf_submission, runner: 'local', status: 'failed', exit_code: 1 } } } }
-    render(<SubmissionCallout batch={batch} has_runs={true} project="p" dispatch={dispatch} />)
+    render(<SubmissionCallout batch={batch} has_runs={true} />)
     expect(screen.getByText('The batch you started from QA-Board failed')).toBeInTheDocument()
     expect(screen.getByText('qa batch exited with code 1.')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Show the logs'))
-    expect(dispatch).toHaveBeenCalled()
+    expect(window.location.pathname).toBe('/p/commit/abc')
+    expect(new URLSearchParams(window.location.search).getAll('selected_views')).toEqual(['logs'])
+    expect(new URLSearchParams(window.location.search).get('batch')).toBe('nightly')
   })
 
   it('says nothing when runs show the batch is fine', () => {
     const batch = { data: { submissions: { a: { ...lsf_submission, status: 'done' } } } }
-    const { container } = render(<SubmissionCallout batch={batch} has_runs={true} project="p" dispatch={vi.fn()} />)
+    const { container } = render(<SubmissionCallout batch={batch} has_runs={true} />)
     expect(container).toBeEmptyDOMElement()
   })
 
   it('explains batches without runs', () => {
     const batch = { data: { submissions: { a: { ...lsf_submission, status: 'done' } } } }
-    render(<SubmissionCallout batch={batch} has_runs={false} project="p" dispatch={vi.fn()} />)
+    render(<SubmissionCallout batch={batch} has_runs={false} />)
     expect(screen.getByText("qa batch didn't start any run")).toBeInTheDocument()
   })
 
   it('renders nothing for batches not started from QA-Board', () => {
-    const { container } = render(<SubmissionCallout batch={{ data: {} }} has_runs={false} project="p" dispatch={vi.fn()} />)
+    const { container } = render(<SubmissionCallout batch={{ data: {} }} has_runs={false} />)
     expect(container).toBeEmptyDOMElement()
   })
 })

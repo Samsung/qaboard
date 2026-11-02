@@ -1,0 +1,28 @@
+[package]
+name = "gateway"
+version = "2.4.0"
+edition = "2021"
+publish = false
+license = "Apache-2.0"
+description = "Kitefin's inference gateway and an open-loop load generator in one process: QA-Board's serving-latency example"
+repository = "https://github.com/Samsung/qaboard"
+
+[[bin]]
+name = "gateway-bench"
+path = "src/main.rs"
+
+[dependencies]
+# All MIT or Apache-2.0, see ../LICENSES.md
+hdrhistogram = { version = "7.5", default-features = false }
+pprof = { version = "0.15", default-features = false }
+core_affinity = "0.8"
+tikv-jemallocator = "0.7"
+mimalloc = { version = "0.1", default-features = false }
+lru = "0.18"
+libc = "0.2"
+
+[profile.release]
+# Function names and inlined frames in the CPU flame graph, file and line in panics
+debug = "limited"
+# A panic in any thread stops the gateway, like a crash in production
+panic = "abort"

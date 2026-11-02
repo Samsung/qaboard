@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fixture: interactions</title>
+  <style>
+    body { margin: 0; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f6f7f9; color: #1c2127; }
+    .row { display: flex; gap: 24px; margin-bottom: 24px; align-items: flex-start; }
+    #card { background: #fff; border-radius: 4px; box-shadow: 0 0 0 1px rgba(17,20,24,.15); padding: 20px; width: 520px; }
+    #hover-target { width: 160px; height: 60px; background: #d3d8de; display: grid; place-items: center; }
+    #hover-target:hover { background: #2d72d2; color: #fff; }
+    #tip { visibility: hidden; margin-top: 8px; }
+    #wheel-area, #drag-area { width: 300px; height: 160px; background: #e5e8eb; position: relative; }
+    #drag-handle { position: absolute; left: 10px; top: 10px; width: 40px; height: 40px; background: #cd4246; }
+    #volatile { font-variant-numeric: tabular-nums; background: #fff; padding: 4px 8px; }
+    button { font: inherit; padding: 8px 14px; }
+  </style>
+</head>
+<body>
+  <div class="row">
+    <div id="card">
+      <h2>Run card</h2>
+      <button id="counter-button">Clicked <span id="count">0</span> times</button>
+      <span id="modifiers"></span>
+      <p>Elapsed: <span id="volatile">0</span></p>
+      <p>Field: <input id="field" aria-label="field"></p>
+      <button id="fullscreen" onclick="document.getElementById('card').requestFullscreen()">Full screen</button>
+    </div>
+    <div>
+      <div id="hover-target">Hover me</div>
+      <div id="tip">Pixel (420, 260)</div>
+    </div>
+  </div>
+  <div class="row">
+    <div id="wheel-area" data-total="0">Wheel here</div>
+    <div id="drag-area"><div id="drag-handle"></div></div>
+  </div>
+  <p>Loaded at <span id="clock"></span></p>
+  <p>Storage: <code id="storage"></code></p>
+  <script>
+    document.getElementById('clock').textContent = new Date().toISOString();
+    document.getElementById('storage').textContent = JSON.stringify({
+      lastSeen: localStorage.getItem('qaboard.release-notes.last-seen'),
+      controls: localStorage.getItem('controls-panel-expanded'),
+      extra: localStorage.getItem('extra'),
+    });
+    let count = 0;
+    document.getElementById('counter-button').addEventListener('click', e => {
+      count++;
+      document.getElementById('count').textContent = count;
+      document.getElementById('modifiers').textContent = [e.ctrlKey && 'Control', e.shiftKey && 'Shift', e.metaKey && 'Meta'].filter(Boolean).join('+');
+    });
+    const target = document.getElementById('hover-target');
+    target.addEventListener('mouseenter', () => { document.getElementById('tip').style.visibility = 'visible'; });
+    target.addEventListener('mouseleave', () => { document.getElementById('tip').style.visibility = 'hidden'; });
+    const wheel = document.getElementById('wheel-area');
+    wheel.addEventListener('wheel', e => { e.preventDefault(); wheel.dataset.total = String(Number(wheel.dataset.total) + e.deltaY); wheel.dataset.events = String(Number(wheel.dataset.events || 0) + 1); }, { passive: false });
+    const handle = document.getElementById('drag-handle');
+    let dragging = null;
+    handle.addEventListener('mousedown', e => { dragging = { x: e.clientX - handle.offsetLeft, y: e.clientY - handle.offsetTop }; });
+    window.addEventListener('mousemove', e => { if (dragging) { handle.style.left = (e.clientX - dragging.x) + 'px'; handle.style.top = (e.clientY - dragging.y) + 'px'; } });
+    window.addEventListener('mouseup', () => { dragging = null; });
+    // something that changes all the time, like a live log's elapsed time
+    const start = performance.now();
+    setInterval(() => { document.getElementById('volatile').textContent = ((performance.now() - start) / 1000).toFixed(2) + ' s'; }, 50);
+    // ripples drawn by the fake cursor, for the tests
+    window.__ripples = 0;
+    new MutationObserver(records => {
+      for (const r of records) for (const n of r.addedNodes) if (n.classList && n.classList.contains('__shot-ripple')) window.__ripples++;
+    }).observe(document.documentElement, { childList: true });
+  </script>
+</body>
+</html>

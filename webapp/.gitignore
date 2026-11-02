@@ -11,6 +11,8 @@ junit.xml
 
 # production
 /build
+# npm run build:image-viewer
+/build-image-viewer
 
 # misc
 .DS_Store

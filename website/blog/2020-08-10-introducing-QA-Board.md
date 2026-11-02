@@ -61,7 +61,7 @@ To achieve those goals, we'll need:
 - **Community contributions**, for instance integrating more file viewers: e.g. support for common plot formats like vega or highcharts...
 
 :::note How to get in touch?
-Join our [issue tracker](https://github.com/Samsung/qaboard/issues) to report bugs or suggest features, or feel free to [start a chat](https://spectrum.chat/qaboard) with [the maintainers](mailto:arthur.flam@samsung.com).
+Join our [issue tracker](https://github.com/Samsung/qaboard/issues) to report bugs, suggest features or ask questions.
 :::
 
 ## How to get started using QA-Board?

@@ -1,0 +1,9 @@
+request: Which has more battery, K3-004 or K3-028?
+fleet:
+  K3-004: {status: idle, zone: aisle-2, battery: 60}
+  K3-028: {status: idle, zone: aisle-9, battery: 92}
+checks:
+  - tool_called: {name: get_battery, arguments: {robot: K3-004}}
+  - tool_called: {name: get_battery, arguments: {robot: K3-028}}
+  - answer_matches: 'K3-028 (has|with|\()'
+  - max_turns: 4

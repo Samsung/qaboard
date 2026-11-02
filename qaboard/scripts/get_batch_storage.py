@@ -11,7 +11,6 @@ import os
 import sys
 import json
 
-import click
 import requests
 from qaboard.api import url_to_dir
 

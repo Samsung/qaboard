@@ -1,0 +1,21 @@
+{{- with .Values.results }}
+{{- if and .enabled (not (or .existingClaim .nfs .hostPath)) }}
+# Where runs save their results (results.*), mounted by the backend, the proxy and cantaloupe
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "qaboard.fullname" $ }}-results
+  labels: {{- include "qaboard.labels" $ | nindent 4 }}
+  annotations:
+    # Uninstalling the release never deletes results
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [{{ .accessMode }}]
+  {{- with .storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .size }}
+{{- end }}
+{{- end }}

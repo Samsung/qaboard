@@ -14,6 +14,7 @@ if __name__ == '__main__':
 
 """
 import os
+import sys
 from functools import wraps
 import fnmatch
 from typing import Callable, List, Set
@@ -41,7 +42,7 @@ def on_branch(branch):
 
     if func.__name__ in test_funcs_names:
       click.secho(f"ERROR: Redefinition of {func.__name__}", fg='red')
-      exit(1)
+      sys.exit(1)
     else:
       test_funcs_names.add(func.__name__)
 
@@ -53,21 +54,20 @@ def on_branch(branch):
 
     @wraps(func)
     def func_wrapper(*args, **kwargs):
-      print('Called')
       return func(*args, **kwargs)
     return func_wrapper
   return on_branch_decorator
 
 
-def run_tests() -> int:
+def run_tests() -> bool:
+  """Runs the tasks registered for the current branch. Returns True if they all succeeded (returned 0)."""
   if not test_funcs:
     click.secho("Warning: either you did not create tasks, or none were registered via `@on_branch`.", fg='yellow')
-    exit(0)
+    sys.exit(0)
 
   click.secho(f"Running {len(test_funcs)} tasks", fg='green')
   if skipped_test_nb:
     click.secho(f"{skipped_test_nb} skipped", dim=True)
-  all_success = True
 
   def run_test(test):
     click.secho(test.__name__, bold=True)
@@ -81,30 +81,6 @@ def run_tests() -> int:
   return all((not return_code for return_code in return_codes))
 
 
-# import os
-# import subprocess
-# @on_branch("abc")
-# def tests_basic():
-#   return os.system("echo OK")
-
-# @on_branch(["xyz", "abc"])
-# def tests_multiple():
-#   return os.system("echo OK")
-
-# @on_branch(("xyz", "abc"))
-# def tests_multiple_tuple():
-#   return os.system("echo OK")
-
-# @on_branch("ab*")
-# def tests_wildcards():
-#   return subprocess.call("echo OK", shell=True)
-
-# @on_branch("r")
-# def tests_redefinition():
-#   return os.system("echo OK")
-# @on_branch("r")
-# def tests_redefinition():
-#   system.call("echo OK")
 
 
 

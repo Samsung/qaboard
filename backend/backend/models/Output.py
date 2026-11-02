@@ -3,28 +3,30 @@ Describes an Output from `qa run`.
 """
 import os
 import json
-import uuid
 import fnmatch
 import datetime
-import subprocess
 from pathlib import Path
 
 from sqlalchemy import Column, ForeignKey, Index
 from sqlalchemy.orm import relationship
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
-from sqlalchemy import text, and_, Integer, String, Float, Boolean, DateTime, JSON
+from sqlalchemy import text, and_, Integer, String, Boolean, DateTime, JSON
 from sqlalchemy.dialects.postgresql import JSONB
 
-from qaboard.conventions import slugify, slugify_hash, make_hash, serialize_config
+from qaboard.conventions import slugify_hash, serialize_config
 from qaboard.utils import save_outputs_manifest
 from qaboard.api import dir_to_url
 
 from backend.models import Base
-from backend.fs_utils import rm_empty_parents, rmtree
+from backend.fs_utils import rm_empty_parents, rmtree, mkdir_shared, chmod_shared
 from backend.storage import check_storage_path, check_inside
-from backend.shell_utils import quote, safe_user_name, lsf_bridge_command
 
 
+
+
+def iso_utc(date):
+  return f"{date.isoformat()}Z" if date else None
 
 
 class Output(Base):
@@ -68,6 +70,15 @@ class Output(Base):
     Index('idx_outputs_filter', "batch_id", "test_input_id", "platform"),
     # The file browser finds the run a folder belongs to
     Index('idx_outputs_output_dir_override', "output_dir_override"),
+    # When a run ends, we check if the `qa batch` command that started it has pending runs (backend/notifications/)
+    Index('idx_outputs_pending_root_command', text("(data->>'root_command_id')"), postgresql_where=text("is_pending")),
+    # What runs now, for "Activity" (backend/run_activity.py): few runs are pending at a time
+    Index('ix_outputs_active', 'batch_id', postgresql_where=text("is_pending")),
+    # The batches with failed runs, for the home page (api/api.py get_batches ?status=failed): few runs fail.
+    # Created by the migration a3c5e7f9b1d4.
+    Index('ix_outputs_failed', 'batch_id', postgresql_where=text("is_failed AND deleted IS NOT TRUE")),
+    # What ended recently. Runs from before we saved when they ended aren't in the index.
+    Index('ix_outputs_finished_at', 'finished_at', postgresql_where=text("finished_at IS NOT NULL")),
     Index('idx_outputs_batch_user_storage', 
           "batch_id", 
           text("(data->>'user')"),
@@ -84,8 +95,13 @@ class Output(Base):
 
   #### How good we ran
   is_pending = Column(Boolean(), default=False)
-  is_running = Column(Boolean(), default=False) # a running ouput is still pending...
+  is_running = Column(Boolean(), default=False) # a running output is still pending...
   is_failed = Column(Boolean(), default=False)
+  # The latest attempt: when it was queued (e.g. sent to LSF by `qa batch`), started running, and ended.
+  # Runs from before we saved them only have created_date. See set_status().
+  queued_at = Column(DateTime, nullable=True)
+  started_at = Column(DateTime, nullable=True)
+  finished_at = Column(DateTime, nullable=True)
 
   metrics = Column(JSON(), nullable=False, default=dict, server_default='{}')
   data = Column(JSON(), nullable=False, default=dict, server_default='{}')
@@ -106,6 +122,9 @@ class Output(Base):
     o.is_pending = self.is_pending
     o.is_running = self.is_running
     o.is_failed = self.is_failed
+    o.queued_at = self.queued_at
+    o.started_at = self.started_at
+    o.finished_at = self.finished_at
     o.metrics = self.metrics
     o.data = self.data
     return o
@@ -122,9 +141,13 @@ class Output(Base):
 
   @property
   def output_dir(self):
+    return self.get_output_dir()
+
+  def get_output_dir(self, batch_dir=None):
+    """`batch_dir`: the batch's, if you know it already"""
     if self.output_dir_override is not None:
       return Path(self.output_dir_override)
-    return self.batch.batch_dir / self.output_folder
+    return (batch_dir or self.batch.batch_dir) / self.output_folder
 
   @property
   def output_dir_url(self):
@@ -138,7 +161,8 @@ class Output(Base):
            f"config='{self.configuration}' "
            f"filename='{self.test_input.filename}' /]")
 
-  def to_dict(self):
+  def to_dict(self, batch_dir=None):
+    """`batch_dir`: the batch's, when serializing many of its outputs"""
     cols = [
      'id',
      'output_type',
@@ -156,7 +180,8 @@ class Output(Base):
     return {
         **as_dict,
         'created_date': self.created_date.isoformat(),
-        'output_dir_url': self.output_dir_url,
+        **{c: iso_utc(getattr(self, c)) for c in ('queued_at', 'started_at', 'finished_at')},
+        'output_dir_url': dir_to_url(self.get_output_dir(batch_dir)),
         'test_input_database': str(self.test_input.database),
         'test_input_path': str(self.test_input.path),
         'test_input_metadata': self.test_input.data['metadata'] if (self.test_input.data and 'metadata' in self.test_input.data) else {},
@@ -187,9 +212,10 @@ class Output(Base):
       return output
 
     except MultipleResultsFound:
+      # This should not happen (e.g. concurrent calls for the same run). We keep the newest, the one runs
+      # update now. The others' files may be the same folder: we only delete their rows.
       print('WARNING: MultipleResultsFound')
-      # this should not happen. Quick and dirty fix:
-      output = session.query(Output).filter(
+      newest, *others = session.query(Output).filter(
           and_(
               Output.batch_id == kwargs['batch'].id,
               Output.test_input_id == kwargs['test_input'].id,
@@ -197,115 +223,50 @@ class Output(Base):
               Output.configurations == kwargs['configurations'],
               Output.extra_parameters == kwargs['extra_parameters'],
           )
-      ).delete()
-      output = Output(
-          batch=kwargs['batch'],
-          test_input=kwargs['test_input'],
-          platform=kwargs['platform'],
-          configurations=kwargs['configurations'],
-          extra_parameters=kwargs['extra_parameters'],
-      )
-      session.add(output)
+      ).order_by(Output.id.desc()).all()
+      for output in others:
+        session.delete(output)
       session.commit()
-      return output
+      return newest
 
 
-  def redo(self, user, command_id=None):
+  def set_status(self, is_pending, is_running, now=None):
     """
-    Re-run this output, as `user` (the logged-in user who requested it).
-    Note: almost everything used here comes from unauthenticated API calls, so all values are quoted,
-          and we only write and run code in the storage folders.
+    Updates whether the run is pending (queued or running) and running, and when its latest attempt was queued,
+    started and ended: users see what runs now, and admins the load ("Activity").
     """
-    check_storage_path(self.output_dir)
-    check_storage_path(self.batch.ci_commit.artifacts_dir)
-    # in case it was deleted without QA-Board being made aware
-    if not self.batch.ci_commit.artifacts_dir.exists():
-      print("Restoring artifacts")
-      self.batch.ci_commit.save_artifacts()
+    now = now or datetime.datetime.utcnow()
+    is_running = bool(is_running)
+    is_pending = bool(is_pending) or is_running
+    was_pending, was_running = bool(self.is_pending), bool(self.is_pending and self.is_running)
+    if is_pending:
+      if not was_pending:
+        # a new attempt, e.g. a redo
+        self.queued_at, self.started_at, self.finished_at = now, None, None
+      if is_running and not was_running:
+        self.started_at = now
+        self.queued_at = self.queued_at or now
+    elif was_pending or self.finished_at is None:
+      self.finished_at = now
+    self.is_pending = is_pending
+    self.is_running = is_running
 
-    user = safe_user_name(user)
-    if not command_id:
-      command_id = uuid.uuid4()
-    extra_parameters = json.dumps(self.extra_parameters, sort_keys=True)
-    job_options = self.data.get("job_options", {}) or {}
-    job_options_cli = []
-    if not job_options:
-      # for backward compatibility, it's a good defaut at SIRC
-      job_options_cli = ["--lsf-max-memory", "20000"]
-    elif job_options.get('type') == "lsf":
-      # TODO: support other runners... maybe create an ad-hoc functions in their classes...
-      if 'queue' in job_options:
-        job_options_cli += ["--lsf-queue", quote(str(job_options['queue']))]
-      if 'max_memory' in job_options and job_options['max_memory'] != 0:
-        job_options_cli += ["--lsf-max-memory", quote(str(job_options['max_memory']))]
-      if 'resources' in job_options and job_options['resources']:
-        job_options_cli += ["--lsf-resources", quote(str(job_options['resources']))]
-      if 'max_threads' in job_options and job_options['max_threads'] != 0:
-        job_options_cli += ["--lsf-max-threads", quote(str(job_options['max_threads']))]
-    command = ' '.join([
-      'qa',
-      '--label', quote(self.batch.label),
-      '--configuration', quote(self.configuration),
-      '--database', quote(str(self.test_input.database)),
-      '--type', quote(str(self.output_type)),
-      '--tuning', quote(extra_parameters),
-      'batch',
-      '--no-wait',
-      *job_options_cli,
-      '--action-on-existing=run',
-      '--action-on-pending=run',
-      # one word, so that an input path can't be parsed as an option. Not "--": qa gives what follows to the user's code
-      '--batch=' + quote(str(self.test_input.path)),
-      # FIXME: if forwarded_args in parsed(self.configuration), add it..
-    ])
-
-    # CI results are saved under the CI user's folder (QABOARD_DEFAULT_USER), runs started here under the user's
-    ci_user = os.environ.get('QABOARD_DEFAULT_USER', 'qaboard')
-    outputs_dir_prefix = str(self.batch.ci_commit.outputs_dir).replace(f'/outputs/{ci_user}/', f'/outputs/{user}/')
-    artifacts_dir = str(self.batch.ci_commit.artifacts_dir)
-    script = '\n'.join([
-      '#!/bin/bash',
-      'set -ex',
-      # needed...
-      f"export CI=true;",
-      f"export GIT_COMMIT={quote(self.batch.ci_commit.hexsha)};",
-      f"export QA_OUTPUTS_COMMIT={quote(outputs_dir_prefix)}",
-      # backward compatibility with previous qa versions, remove later...
-      f"export QATOOLS_CI_COMMIT_DIR={quote(outputs_dir_prefix)}",
-      f"export QABOARD_TUNING=true;",
-      f'export QA_BATCH_COMMAND_ID={quote(str(command_id))}',
-      "",
-      # get the env right
-      f'umask 0',
-      f'mkdir -p {quote(artifacts_dir)}',
-      f'cd {quote(artifacts_dir)}',
-      'set +ex',
-      '[[ -f ".envrc" ]] && source .envrc',
-      '[[ -f "../.envrc" ]] && source ../.envrc',
-      '[[ -f "../../.envrc" ]] && source ../../.envrc',
-      '[[ -f "../../../.envrc" ]] && source ../../../.envrc',
-      'set -ex',
-      command,
-    ])
-    if not self.output_dir.exists():
-      prev_mask = os.umask(000)
-      try:
-        self.output_dir.mkdir(parents=True)
-      except Exception as e:
-        os.umask(prev_mask)
-        raise e
-      os.umask(prev_mask)
-    logs_path = self.output_dir / 'log.txt'
-    script_path = self.output_dir / 'redo.sh'
-    with script_path.open('w') as f:
-      f.write(script)
-    print(f'"{script_path}"')
-    # raises if the user or path are not safe to use in the LSF bridge
-    command = lsf_bridge_command(user, script_path)
-    p = subprocess.run(f'{command} > {quote(str(logs_path))} 2>&1', shell=True)
-    success = p.returncode == 0
-    return success
-
+  def measure_left(self, output_dir=None, partial=False):
+    """
+    After deleting files, what's left on disk: soft deletes keep the manifests, and the files they don't list.
+    Deleted runs: data.storage_left (users see it in "Storage usage"). Runs whose files were only partly deleted: data.storage.
+    """
+    from backend.fs_utils import measure
+    output_dir = output_dir or self.output_dir
+    left = measure(output_dir)["bytes"] if os.path.lexists(output_dir) else 0
+    data = dict(self.data or {})
+    if partial:
+      data['storage'] = left
+    else:
+      data['storage_left'] = left
+      data['deleted_at'] = datetime.datetime.utcnow().isoformat() + 'Z'
+    self.data = data
+    flag_modified(self, "data")
 
   def delete(self, soft=True, ignore=None, filter=None, dryrun=False):
     """
@@ -317,11 +278,15 @@ class Output(Base):
     output_dir = check_storage_path(self.output_dir)
     if not output_dir.exists():
       self.deleted = True
+      if not dryrun:
+        self.measure_left(output_dir)
       print(f"WARN: already deleted: {output_dir}")
       return
 
     if not soft:
       print(output_dir)
+      if dryrun:
+        return
       rmtree(output_dir)
       rm_empty_parents(output_dir)
     else:
@@ -333,9 +298,12 @@ class Output(Base):
             files = json.load(f)
         except Exception as e:
             print(f"{e}: corrupted manifest {manifest_path}")
+            if dryrun:
+              return
             rmtree(output_dir)
             rm_empty_parents(output_dir)
             self.deleted = True
+            self.measure_left(output_dir)
             return
         for file in files.keys():
           if file in ['manifest.outputs.json', 'manifest.inputs.json']:
@@ -352,19 +320,29 @@ class Output(Base):
           print(f'{output_file}')
           if not dryrun:
             rmtree(output_file)
-            rm_empty_parents(output_dir)
+            # the folders it leaves empty: the manifest stays in the output's
+            rm_empty_parents(output_file)
       else:
-        self.delete(soft=False)
+        self.delete(soft=False, dryrun=dryrun)
         return
-    if not filter: # better not TODO: update .data.storage at least
+    if dryrun:
+      return
+    if not filter:
       self.deleted = True
+      self.measure_left(output_dir)
+    else:
+      # only some files were deleted: the run stays, with its new size
+      self.measure_left(output_dir, partial=True)
 
 
   def update_manifest(self, compute_hashes=True):
     qatools_config = self.batch.ci_commit.project.data.get('qatools_config', {})
     check_storage_path(self.output_dir)
-    os.umask(0)
-    return save_outputs_manifest(self.output_dir, config=qatools_config, compute_hashes=compute_hashes)
+    # users' runs, under their own accounts, rewrite the manifest (and write in the folder if we create it)
+    mkdir_shared(self.output_dir)
+    manifest = save_outputs_manifest(self.output_dir, config=qatools_config, compute_hashes=compute_hashes)
+    chmod_shared(self.output_dir / 'manifest.outputs.json')
+    return manifest
 
   def update_metrics(self, filepath=None):
     """Updates the metrics from a file"""
@@ -382,5 +360,4 @@ class Output(Base):
       # we *could* return False then consider the run crashed if more than X time has passed...
       # metrics = {'is_failed': True}
       # metrics = {}
-    self.is_pending = False
-    self.is_running = False
+    self.set_status(False, False)

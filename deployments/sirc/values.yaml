@@ -1,7 +1,7 @@
 # QA-Board on kubernetes at SIRC (helm chart: charts/qaboard)
 #   helm upgrade --install qaboard charts/qaboard -n qaboard -f deployments/sirc/values.yaml \
 #        --set image.version=<commit> --atomic --wait --timeout 15m
-# Runbook: website/docs/backend-admin/kubernetes.mdx
+# Runbook: deployments/sirc/runbooks/kubernetes.md
 #
 # TODO(sirc) marks what we need from IT / what is still specific to the docker hosts.
 # Translated from deployments/sirc/sirc.yml and prod.yml
@@ -17,19 +17,27 @@ imagePullSecrets:
 
 config:
   GITLAB_HOST: http://gitlab-srv
+  QABOARD_PROXY_HOSTS: gitlab-srv,gitlab-srv.transchip.com,dag.sirc.co.il
   QABOARD_URL: https://qa
   QABOARD_LOGIN_TYPE: LDAP
+  # Admins whatever the database says (the break-glass access): they make other admins in the web app
+  QABOARD_ADMINS: arthurf
   QABOARD_DISABLE_SIGNUP: "True"
   QABOARD_LOGIN_RESTRICTED: "True"
   QABOARD_LOGIN_RESTRICTED_YAML: /etc/ldap/users_restrict.yml
   QABOARD_LDAP_USER_FILTER: (&(objectClass=user)(sAMAccountName={login}))
   QABOARD_TUNING_RUNNER: lsf
+  # The token of "Trigger builds remotely" sent to the Jenkins jobs of integrations without `token` (was hard-coded)
+  JENKINS_BUILD_TOKEN: qaboard
+  # Commit lists of these projects skip the batches' aggregated metrics: too many runs per batch (was hard-coded)
+  QABOARD_SKIP_METRICS_AGGREGATION: CDE-Users/HW_ALG,aqua/
   QABOARD_DEFAULT_USER: ispq
   QA_LSF_SSH_TARGET: ispq@ispq-vdi
   QA_RUNNERS_LSF_BRIDGE: ssh ispq@ispq-vdi 'bsub_su {user} -I {bsub_command}'
   QABOARD_IMAGE_SERVERS: '{"default": "/iiif", "raw,hex,cde": "/iiif/cde"}'
-  QABOARD_QUOTA_URL_TEMPLATE: /metabase/dashboard/154-manage-and-delete-storage?username={user_name}&project={project}
   QABOARD_SUPPORT_URL: mailto:arthur.flam@samsung.com
+  QABOARD_LOGIN_HINT: Try your Windows credentials.
+  QABOARD_WEBCDE_INSTALLER: '\\netapp\Joint\WebCDE\WebCDE_Setup.exe'
   QABOARD_IMAGE_CACHE_DIR: /algo/qa_db/image_cache
   QABOARD_DATA_SHARED_DIR: /home/ispq/qaboard/shared
   QABOARD_DATA_GIT_DIR: /algo/ws/ispq/qaboard_prod_data_git
@@ -44,6 +52,11 @@ config:
   # uwsgi drops privileges to ispq, and uses sudo to delete outputs as their owner
   UWSGI_UID: ispq
   UWSGI_GID: uucp
+  # TODO(sirc): the SMTP relay IT gives us, then users can get emails when their batches end (start-server.mdx#emails)
+  # QABOARD_SMTP_HOST: <smtp relay>
+  # QABOARD_EMAIL_FROM: QA-Board <...>
+  # QABOARD_EMAIL_DOMAIN: <users' email domain, for LDAP accounts without an email>
+  QABOARD_EMAIL_TIMEZONE: Asia/Jerusalem
 
 # TODO(sirc): create it from the .env files of the qa host:
 #   kubectl -n qaboard create secret generic qaboard-secrets --from-env-file=.env --from-env-file=deployments/sirc/.env
@@ -116,7 +129,7 @@ ingress:
   # TODO(sirc): the ingress class and hostname IT gives us. Users and the CLI use https://qa: keep it as a DNS alias.
   className: ""
   host: qa
-  # The certificate from IT (website/docs/backend-admin/getting-SSL-certificates-from-IT.mdx):
+  # The certificate from IT (deployments/sirc/runbooks/ssl-certificates.md):
   #   kubectl -n qaboard create secret tls qaboard-tls --cert=cert.pem --key=qa.key
   tls:
     - secretName: qaboard-tls

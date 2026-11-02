@@ -1,3 +1,5 @@
+# Completion and checks in your editor: https://samsung.github.io/qaboard/docs/project-init#checking-qaboardyaml-and-batch-files-in-your-editor
+# yaml-language-server: $schema=https://samsung.github.io/qaboard/batches.schema.json
 # Read about how you can define batches of runs here:
 #   https://samsung.github.io/qaboard/docs/batches-running-on-multiple-inputs/
 # It can be as simple as

@@ -9,7 +9,7 @@
             "Host": "db",
             "SSLMode": "prefer",
             "MaintenanceDB": "postgres",
-            "PassFile": "/pgadmin4/pgpassfile"
+            "PassFile": "/.pgpass"
         }
     }
 }

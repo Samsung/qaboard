@@ -11,6 +11,7 @@ from celery.app.control import Inspect
 from qaboard.runners.celery_app import app as celery_app, ssh_task
 
 from backend import app
+from .auth import login_required
 
 
 # https://github.com/celery/celery/blob/main/celery/app/control.py#L340
@@ -18,11 +19,15 @@ inspector = Inspect(app=celery_app)
 
 
 @app.post("/api/v1/task/celery/<id>")
+@login_required
 def task_celery(id):
     result = ssh_task.delay(id)
+    # without a free worker, don't hold a uwsgi worker forever
+    deadline = time.monotonic() + 120
     while result.status == "PENDING":
+        if time.monotonic() > deadline:
+            return "No Celery worker started the task within 2 minutes", 504
         time.sleep(1)
-        # TODO: result.abort() after some time?
     print(f"{result} {result.id} {result.status}")
     statuses = inspector.query_task(result.id)
     for hostname, tasks_info in statuses.items():

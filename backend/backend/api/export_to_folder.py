@@ -7,68 +7,22 @@ import json
 import shutil
 import hashlib
 from pathlib import Path
-from functools import lru_cache
 
 from requests.utils import quote
-from flask import request, jsonify
-from flask_login import current_user
+from flask import request, jsonify, g
 from sqlalchemy.orm import joinedload
-from polyleven import levenshtein as polyleven_levenshtein
 
 
 from qaboard.compat import windows_to_linux_path
 from qaboard.conventions import serialize_config
+from qaboard.matching import run_distance
 from backend import app, db_session
-from backend.fs_utils import as_user, rmtree
+from backend.fs_utils import as_user, mkdir_shared
 from backend.storage import check_storage_path, UnsafePathError
-from ..models import Project, CiCommit, Batch, slugify_hash
+from ..models import CiCommit, Batch, slugify_hash
 from ..config import qaboard_url
-from .auth import login_required
-
-
-@lru_cache(maxsize=1024)
-def levenshtein_opt(s1, s2):
-  s1, s2 = strip_common(s1, s2)
-  return levenshtein(s1, s2)
-
-def strip_common(str1, str2):
-    prefix = os.path.commonprefix([str1, str2])
-    str1_no_prefix = str1[len(prefix):]
-    str2_no_prefix = str2[len(prefix):]
-    # Find the common suffix by reversing the strings
-    common_suffix_length = len(os.path.commonprefix([str1_no_prefix[::-1], str2_no_prefix[::-1]]))
-    if common_suffix_length > 0:
-        str1_no_prefix = str1_no_prefix[:-common_suffix_length] if common_suffix_length < len(str1_no_prefix) else ''
-        str2_no_prefix = str2_no_prefix[:-common_suffix_length] if common_suffix_length < len(str2_no_prefix) else ''
-    return str1_no_prefix, str2_no_prefix
-
-
-# https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Levenshtein_distance#Python
-@lru_cache(maxsize=4096)
-def levenshtein(s1, s2):
-    if s1 == s2:
-      return 0
-    if s1 == "{}" and s2 == "{}":
-      return 0
-    if s1 == "[]" and s2 == "[]":
-      return 0
-    return polyleven_levenshtein(s1, s2)
-
-    if len(s1) < len(s2):
-        return levenshtein(s2, s1)
-    # len(s1) >= len(s2)
-    if len(s2) == 0:
-        return len(s1)
-    previous_row = range(len(s2) + 1)
-    for i, c1 in enumerate(s1):
-        current_row = [i + 1]
-        for j, c2 in enumerate(s2):
-            insertions = previous_row[j + 1] + 1 # j+1 instead of j since previous_row and current_row are one character longer
-            deletions = current_row[j] + 1       # than s2
-            substitutions = previous_row[j] + (c1 != c2)
-            current_row.append(min(insertions, deletions, substitutions))
-        previous_row = current_row
-    return previous_row[-1]
+from .auth import login_required, require_project_access
+from ..actor import is_same_origin, error as error_response
 
 
 def load_commit(project_id, commit_id):
@@ -102,8 +56,6 @@ def filter_outputs(query, outputs):
   tokens = query = query.split()
   negative_tokens = [t[1:] for t in tokens if t.startswith('-')]
   positive_tokens = [t for t in tokens if not t.startswith('-')]
-  # print('negative_tokens', negative_tokens)
-  # print('positive_tokens', positive_tokens)
 
   def match(output):
     # in the web application, json is serialized tight without extra whitespace
@@ -115,50 +67,39 @@ def filter_outputs(query, outputs):
     pending = 'pending running' if output.is_pending else ''
     batch = output.data.get("batch") or ''
     searched = f"{output.test_input.path} {output.platform} {configurations} {extra_parameters} {batch} {input_metadata} {failed} {pending}".replace('"', '').lower()
-    # print(searched)
     # not using output.test_input_tags.join() like in the JS
     if any([re.search(t, searched) for t in negative_tokens]):
       return False
     found = all([re.search(t, searched) for t in positive_tokens])
-    # print(found)
     return (not positive_tokens or found)
   outputs = [o for o in outputs if match(o)]
   return outputs
 
 
 def compatible(o1, o2):
+  """Whether the runs are on the same input: same path, or same id in their metadata (e.g. inputs that moved)"""
   if o1.test_input.abs_path == o2.test_input.abs_path:
     return True
   if o1.test_input.path == o2.test_input.path:
     return True
   if o1.test_input.data and o2.test_input.data and o1.test_input.data.get('id') and o1.test_input.data.get('id') == o2.test_input.data.get('id'):
-    return False
+    return True
+  return False
 
-# Note: already defined in qaboard.tuning.py, but raises instead of returning None
 def matching_output(output_reference, outputs):
   """
-  Return the output from a given batch that looks most similar to a given output.
+  Return the output from a given batch that looks most similar to a given output, like the web app.
   This helps us compare an output to historical results.
   """
-  def to_json(a):
-    json_str = json.dumps(a, sort_keys=True)
-    # the string edit distance scales quadratically
-    # we tried to mitigate it
-    # print(json_str)
-    json_str = re.sub("(workspace|[{}\", '/.\-_]|global|sim|partial_config|image_writer|config|raw|bmp)", "", json_str)
-    # print(json_str)
-    return json_str
   possible_matching_outputs = [o for o in outputs if compatible(o, output_reference)]
   valid_outputs = [o for o in possible_matching_outputs if not o.is_pending]
   if not valid_outputs: return None
 
+  def as_run(output):
+    return {'configurations': output.configurations, 'extra_parameters': output.extra_parameters, 'platform': output.platform}
   def match_key(output):
-    return (
-      1 - int(output.test_input.abs_path == output_reference.test_input.abs_path or output.test_input.path == output_reference.test_input.path), 
-      levenshtein_opt(to_json(output.configurations), to_json(output_reference.configurations)), 
-      levenshtein_opt(to_json(output.extra_parameters), to_json(output_reference.extra_parameters)), 
-      output.platform == output_reference.platform,
-    )
+    same_input = output.test_input.abs_path == output_reference.test_input.abs_path or output.test_input.path == output_reference.test_input.path
+    return (0 if same_input else 1, *run_distance(as_run(output_reference), as_run(output)))
   valid_outputs.sort(key=match_key)
   return valid_outputs[0]
 
@@ -172,23 +113,32 @@ def commonprefix(m):
   s1 = min(m, key=key)
   s2 = max(m, key=key)
   for i, c in enumerate(s1):
-    # print(i, c, file=sys.stderr)
     if c != s2[i]:
       return s1[:i]
   return s1
 
 
-@app.route("/api/v1/export")
-@app.route("/api/v1/export/")
+# POST: it writes in folders. GET for older web apps and scripts.
+@app.route("/api/v1/export", methods=['GET', 'POST'])
+@app.route("/api/v1/export/", methods=['GET', 'POST'])
 @login_required
 def export_to_folder():
+  # Cookies come with GETs from other websites' links: actor.py only checks the origin of other methods
+  if request.method == 'GET' and g.actor.token is None and not is_same_origin():
+    return error_response(403, 'cross_site_write', "Exports are sent with POST from QA-Board's pages: QA-Board refused this one, it could come from another website.")
   project_id = request.args['project']
   ref_project_id = request.args.get('ref_project', project_id)
+  # it creates links or copies in a folder: an action on the project's runs
+  if forbidden := require_project_access(g.user, project_id):
+    return forbidden
+  # the reference's runs are linked in the export too
+  if ref_project_id != project_id and (forbidden := require_project_access(g.user, ref_project_id, 'project.read')):
+    return forbidden
 
   new_commit_id = request.args['new_commit_id']
   new_commit = load_commit(project_id, new_commit_id)
   if not new_commit:
-    return f"ERROR: Commit {request.args['new_commit_id']} not found", 404
+    return jsonify({"error": f"ERROR: Commit {new_commit_id} not found"}), 404
   new_batch_label = request.args.get('batch_new', 'default')
   new_batch = new_commit.get_or_create_batch(new_batch_label)
   new_outputs = new_batch.outputs
@@ -200,7 +150,7 @@ def export_to_folder():
     ref_commit_id = request.args['ref_commit_id']
     ref_commit = load_commit(ref_project_id, ref_commit_id)
     if not ref_commit:
-      return f"ERROR: Commit {ref_commit_id} not found", 404
+      return jsonify({"error": f"ERROR: Commit {ref_commit_id} not found"}), 404
     ref_batch_label = request.args.get('batch_ref', 'default')
     ref_batch = ref_commit.get_or_create_batch(ref_batch_label)
     ref_outputs = ref_batch.outputs
@@ -216,8 +166,6 @@ def export_to_folder():
 
   new_outputs = filter_outputs(filter_new, new_outputs)
   ref_outputs = filter_outputs(filter_ref, ref_outputs)
-  # print("new_outputs", len(new_outputs))
-  # print("ref_outputs", len(ref_outputs))
 
   # We save the links in a unique folder
   query_string = f"{project_id} {new_commit.hexsha} {ref_commit.hexsha if ref_commit else ''} {new_batch.id} {ref_batch.id  if ref_batch else ''} {filter_new} {filter_ref}"
@@ -227,31 +175,35 @@ def export_to_folder():
     export_dir = Path(request.args['export_dir'])
     export_dir = windows_to_linux_path(export_dir).resolve()
   else:
-    export_dir = new_commit.repo_outputs_dir / 'share' / m[:8]
+    # all in one place if admins chose it (storage.exports_root), else next to the commit's runs
+    from ..exports import default_dir
+    export_dir = default_dir(g.user['user_name'], project_id, m) or new_commit.repo_outputs_dir / 'share' / m[:8]
   try:
     check_storage_path(export_dir)
   except UnsafePathError as e:
-    return json.dumps({"error": f"ERROR: {e}"}), 403
+    return jsonify({"error": f"ERROR: {e}"}), 403
 
-  if not export_dir.exists():
-    prev_mask = os.umask(000)
+  # In folders that were there before, we only add files: they're someone's, maybe not the user's.
+  # We replace files only in the folders of our exports, and never delete folders.
+  created = not os.path.lexists(export_dir)
+  if created:
     try:
-      export_dir.mkdir(parents=True, exist_ok=True)
+      # all users write their exports there
+      mkdir_shared(export_dir)
     except Exception as e:
-      os.umask(prev_mask)
-      return json.dumps({"error": f"ERROR: When creating '{export_dir}': {e}"}), 403
-    os.umask(prev_mask)
+      return jsonify({"error": f"ERROR: When creating '{export_dir}': {e}"}), 403
+  elif not export_dir.is_dir() or export_dir.is_symlink():
+    return jsonify({"error": f"ERROR: '{export_dir}' is not a folder"}), 403
+  from ..models import Export
+  ours = created or Export.query.filter(Export.path == str(export_dir), Export.deleted_at.is_(None)).first() is not None
 
   is_export_dir_writable = os.access(export_dir, os.W_OK)
   if not is_export_dir_writable:
-    return json.dumps({"error": f"The export folder need to be writable by all users. Call 'chmod a+w {export_dir}'"}), 403
+    return jsonify({"error": f"The export folder need to be writable by all users. Call 'chmod a+w {export_dir}'"}), 403
 
   output_refs = {}
   for output in new_outputs:
     output_refs[output.id] = matching_output(output, ref_outputs)
-    # if output_refs[output.id]:
-    #   print("  config:", output.configurations)
-    #   print("  match:", output_refs[output.id].configurations)
 
   # find common characteristics
   common_data = {}
@@ -286,16 +238,13 @@ def export_to_folder():
     for o in all_outputs:
       if not o.extra_parameters: o.extra_parameters = {} 
       o_value = [str(o.extra_parameters.get(key))]
-      # print(o.id, o_value)
       values.update(set(o_value))
-    # print(key, values)
     if len(values) == 1:
       if not all_outputs[0].extra_parameters: all_outputs[0].extra_parameters = {} 
       common_extra_parameters[key] = all_outputs[0].extra_parameters.get(key)
   if common_extra_parameters:
     common_data['extra_parameters'] = common_extra_parameters
-  with (export_dir / '0.common.json').open('w') as f:
-    json.dump(common_data, f, sort_keys=True, indent=2, separators=(',', ': '))
+  write_new(export_dir / '0.common.json', json.dumps(common_data, sort_keys=True, indent=2, separators=(',', ': ')), replace=ours)
 
 
   # we save a mapping label => full into
@@ -325,16 +274,12 @@ def export_to_folder():
           c_prefix = serialize_config(common_data.get("configurations_prefix", 'placeholder-placeholder'))
           c_suffix = serialize_config(common_data.get("configurations_suffix", 'placeholder-placeholder'))
           return c.replace(c_prefix, '').replace(c_suffix, '').replace("crop", "").replace('workspace-configurations-', '')
-        # print("output.configuration", output.configuration)
         c_formatted = strip_config(output.configuration)
-        # print("c_formatted", c_formatted)
         stripped_config = slugify_hash(c_formatted)
-        # print("stripped_config", stripped_config)
         # list of common SIRC-specific names
         if stripped_config:
           labels.append(stripped_config)
         label_mappings['configurations'][stripped_config] = output.configurations
-        # print('label', stripped_config, output.configurations)
       if not common_data.get("database"):
         slugify_database = slugify_hash(output.test_input.database)
         if slugify_database:
@@ -343,11 +288,6 @@ def export_to_folder():
       if str(output.extra_parameters) != str(common_data.get("extra_parameters")):
         tame = lambda o: set(((k.replace(all_extra_parameters_prefix, ''), str(v)) for k, v in o.items()))
         p = tame(output.extra_parameters) - tame(common_extra_parameters)
-        # print('common_extra_parameters', common_extra_parameters)
-        # print('tame(common_extra_parameters)', tame(common_extra_parameters))
-        # print('output.extra_parameters', output.extra_parameters)
-        # print('tame(output.extra_parameters)', tame(output.extra_parameters))
-        # print('p_new', p_new)
         extra_parameters_label = slugify_hash(str(p))
         label_mappings['extra_parameters'][extra_parameters_label] = output.extra_parameters
         if p: labels.append(extra_parameters_label)
@@ -367,15 +307,13 @@ def export_to_folder():
       try:
         output_path_rel = output_path.relative_to(output.output_dir)
         copied_to_rel = copy_path_rel(output, output_path, label=label_new)
-        export_to(export_dir / copied_to_rel, output_path, type=export_type, user=current_user)
-        # copy(output_path, export_dir / copied_to_rel)
+        export_to(export_dir / copied_to_rel, output_path, type=export_type, user=g.actor.user, replace=ours)
         if output_ref and output_ref.id != output.id:
           output_path_ref = output_ref.output_dir / output_path_rel
           if output_path_ref.exists():
             copied_to_rel = copy_path_rel(output_ref, output_path_ref, label=label_ref)
-            export_to(export_dir / copied_to_rel, output_path_ref, type=export_type, user=current_user)
+            export_to(export_dir / copied_to_rel, output_path_ref, type=export_type, user=g.actor.user, replace=ours)
             nb_files_exported += 1
-            # copy(output_path, export_dir / copied_to_rel)
         nb_files_exported += 1
       except Exception as e:
         error = f"WARNING: Error when trying to export {output_path.name}: {e}"
@@ -383,10 +321,7 @@ def export_to_folder():
         errors.append(error)
 
   if label_mappings['configurations'] or label_mappings['extra_parameters']:
-    mappings_path = export_dir / '0.mappings.json'
-    if not mappings_path.exists():
-      with mappings_path.open('w') as f:
-        json.dump(label_mappings, f, indent=4, sort_keys=True)
+    write_new(export_dir / '0.mappings.json', json.dumps(label_mappings, indent=4, sort_keys=True))
 
   params = {
     "batch": new_batch.label,
@@ -412,17 +347,22 @@ def export_to_folder():
           If you are not redirected automatically, follow this <a href='{url}'>link to the QA results</a>.
       </body>
   </html>"""
-  redirect_file = export_dir / '0.qa.html'
-  if not redirect_file.exists():
-    with redirect_file.open('w') as f:
-      f.write(redirect)
-
-  link_content = f"[InternetShortcut]\nURL={url}\n"
-  link_file = export_dir / '0.qa.url'
-  if not link_file.exists():
-    with link_file.open('w') as f:
-      f.write(link_content)
+  write_new(export_dir / '0.qa.html', redirect)
+  write_new(export_dir / '0.qa.url', f"[InternetShortcut]\nURL={url}\n")
+  # users see their exports, and their size, in "Storage usage" (backend/exports.py), and can delete them:
+  # not folders that were there before
+  export_id = None
+  try:
+    from ..exports import record
+    export = record(export_dir, project_id=project_id, hexsha=new_commit.hexsha, batch_label=new_batch.label, user_name=g.user.get('user_name'),
+                    export_type=request.args.get('export_type', 'link'), filter=filter_new, nb_files=nb_files_exported) if ours else None
+    db_session.commit()
+    export_id = export.id if export else None
+  except Exception as e:
+    db_session.rollback()
+    print(f"WARNING: could not track the export {export_dir}: {e}")
   return jsonify({
+    "export_id": export_id,
   	"export_dir": str(export_dir),
     "nb_outputs": len(new_outputs),
     "nb_outputs_ref": len(ref_outputs),
@@ -434,25 +374,35 @@ def export_to_folder():
 
 
 
-def export_to(path_from, path_to, type, user=None):
-  if path_from.exists():
-    try:
-      path_from.unlink()
-    except:
-      rmtree(path_from)
-  # print(f"LINK {path_from} -> {path_to} [{type}]")
-  # print("  ", path_from.owner())
+def write_new(path, text, replace=False):
+  """Writes one of the export's own files, if it's not there. `replace`: in our exports' folders"""
+  if os.path.lexists(path):
+    if not replace:
+      return
+    # e.g. a link someone put there: we remove the link, we don't write where it points
+    path.unlink()
+  with path.open('x') as f:
+    f.write(text)
+
+
+def export_to(path_from, path_to, type, user=None, replace=False):
+  """Links or copies `path_to` at `path_from`. What's there is only replaced if it's a file, and `replace`"""
+  if os.path.lexists(path_from):
+    if os.path.exists(path_from) and os.path.samefile(path_from, path_to):
+      return # already exported
+    if not replace or (path_from.is_dir() and not path_from.is_symlink()):
+      raise FileExistsError(f"{path_from} already exists, QA-Board doesn't replace it")
+    path_from.unlink()
   if type == "link":
     try:
       os.link(str(path_to), str(path_from))
     except:
       os.symlink(str(path_to), str(path_from))
   elif type == "copy":
-    if not current_user.is_authenticated:
+    if user is None:
       raise Exception("Need Login")
     as_user(user.user_name, shutil.copyfile, str(path_to), str(path_from))
-    # shutil.copyfile(str(path_to), str(path_from))
-  else: # "copy"
+  else:
     raise ValueError("Invalid type. Use 'link' or 'copy'.")
 
 

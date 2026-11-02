@@ -25,7 +25,8 @@ dependencies = [
     "requests",
     "rich",
     "scikit-learn",
-    "scikit-optimize",
+    # qa optimize. Its import error tells users of older Pythons to upgrade
+    "optuna>=4.5; python_version >= '3.9'",
     "sentry-sdk",
     "simplejson",
     "psutil",
@@ -40,6 +41,8 @@ Homepage = "https://github.com/Samsung/qaboard"
 dev = [
     "flake8",
     "green",
+    # tests/test_schemas.py
+    "jsonschema",
     "mypy",
     "types-PyYAML",
     "types-requests",
@@ -73,7 +76,6 @@ build-backend = "hatchling.build"
 # Outputs from running the sample project, e.g. during tests (hatch ignores nested .gitignore files)
 exclude = [
     "qaboard/sample_project/**/output/",
-    "qaboard/sample_project/**/cli_tests/**/*.jpg",
     "qaboard/sample_project/**/*.batches.yaml",
 ]
 

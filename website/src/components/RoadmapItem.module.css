@@ -1,0 +1,32 @@
+.item {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  column-gap: 0.75rem;
+  padding: 0.85rem 0;
+  border-top: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.status {
+  padding-top: 0.1rem;
+}
+
+.title {
+  margin: 0 0 0.3rem;
+  font-size: 1.05rem;
+}
+
+.body > p {
+  margin-bottom: 0.4rem;
+}
+
+.body > :last-child {
+  margin-bottom: 0;
+}
+
+/* Phones: the badge goes above the title */
+@media (max-width: 576px) {
+  .item {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 0.35rem;
+  }
+}

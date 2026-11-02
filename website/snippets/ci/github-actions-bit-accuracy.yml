@@ -1,0 +1,27 @@
+# Runs a batch on every push, then fails the job when an output file differs from the reference's.
+# qa saves results where the server reads them (e.g. /mnt/qaboard, an NFS share), at the same path:
+# use a self-hosted runner that mounts it. GitHub-hosted runners can't reach it yet.
+name: Bit accuracy
+on: push
+permissions:
+  contents: read
+  statuses: write  # for qa batch's commit status
+  checks: read     # to wait for the end of the reference commit's CI
+
+jobs:
+  bit-accuracy:
+    runs-on: self-hosted
+    env:
+      QABOARD_URL: http://<your-qaboard>
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # on the reference branch, commits are compared with their parents
+          fetch-depth: 2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install qaboard -r requirements.txt
+      - run: qa --platform hw-model batch bitexact
+      - run: qa --platform hw-model check-bit-accuracy --batch bitexact

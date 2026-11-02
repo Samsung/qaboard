@@ -1,0 +1,64 @@
+# Metrics returned by run() in qa/main.py. Chart metrics only exist on the charts that measure them.
+available_metrics:
+  psnr:
+    label: PSNR
+    description: Peak signal-to-noise ratio of the output against the ideal output (the scene, without blur or noise, through the same tone curve).
+    suffix: ' dB'
+    smaller_is_better: false
+    target: 30
+  ssim:
+    label: SSIM
+    description: Structural similarity of the output's luma with the ideal output's.
+    smaller_is_better: false
+    target: 0.9
+  noise_flat:
+    label: Noise in flat patches
+    short_label: Noise
+    description: Standard deviation of the luma (8-bit) in the flat gray chart and in the gray patches of the color chart.
+    suffix: ' DN'
+    smaller_is_better: true
+    target: 2.0
+  mtf50:
+    label: MTF50
+    description: Spatial frequency where the contrast drops to 50%, measured on the slanted edge (ISO 12233-style).
+    suffix: ' cy/px'
+    smaller_is_better: false
+    target: 0.25
+  overshoot:
+    label: Edge overshoot (halos)
+    short_label: Overshoot
+    description: How far the slanted edge's profile goes past the dark and bright levels, as a share of the step.
+    suffix: '%'
+    scale: 100
+    smaller_is_better: true
+    target: 0.05
+  delta_e:
+    label: Color error ΔE2000
+    short_label: ΔE2000
+    description: Mean CIEDE2000 difference between the color chart's patches and their ideal colors.
+    smaller_is_better: true
+    target: 5
+  fxp_psnr:
+    label: Fixed-point vs float
+    short_label: FxP PSNR
+    description: hw-model only. PSNR of the fixed-point output against the float pipeline's output on the same raw.
+    suffix: ' dB'
+    smaller_is_better: false
+    target: 45
+  runtime:
+    label: Runtime
+    description: Time to simulate the camera, run the ISP and measure.
+    suffix: ' s'
+    smaller_is_better: true
+  is_failed:
+    label: Crashed
+    short_label: Crashed
+    description: The run crashed.
+    suffix: '%'
+    scale: 100
+    smaller_is_better: true
+    target: 0
+
+default_metric: psnr
+summary_metrics: [psnr, ssim, overshoot, mtf50, noise_flat]
+main_metrics: [psnr, ssim, overshoot, mtf50, runtime]

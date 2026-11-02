@@ -2,40 +2,48 @@
  * The text viewer shows a file, and diffs it with the reference when there is one.
  * Run with: cd webapp && npm test -- textViewer
  */
-import { render, screen } from '@testing-library/react';
-import axios from 'axios';
+import { screen } from '@testing-library/react';
 
 import GenericTextViewer from '../viewers/text';
+import { renderWithProviders } from '../test-utils';
 
 vi.mock('../components/MonacoEditor', () => ({
   default: ({ value }) => <pre data-testid="editor">{value}</pre>,
   MonacoDiffEditor: ({ original, value }) => <pre data-testid="diff">{original} ➡️ {value}</pre>,
+  preloadMonaco: () => {},
 }));
-
-// text.jsx reads axios.get when it's imported
-vi.mock('axios', async importOriginal => {
-  const axios = await importOriginal();
-  return { ...axios, default: { ...axios.default, get: vi.fn() } };
-});
 
 const files = { '/new/log.txt': 'new log', '/ref/log.txt': 'reference log' };
 
 beforeEach(() => {
-  axios.get.mockImplementation((url, { cancelToken }) => {
+  vi.stubGlobal('fetch', vi.fn((url, { signal } = {}) => {
     if (url === '/slow/log.txt') // until cancelled
-      return new Promise((resolve, reject) => cancelToken.promise.then(reject));
+      return new Promise((resolve, reject) => signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError'))));
     if (url in files)
-      return Promise.resolve({ data: files[url] });
-    return Promise.reject(Object.assign(new Error('Request failed with status code 404'), { response: { status: 404 } }));
-  });
+      return Promise.resolve(new Response(files[url]));
+    return Promise.resolve(new Response('not found', { status: 404, statusText: 'NOT FOUND' }));
+  }));
 });
-afterEach(() => vi.resetAllMocks());
+afterEach(() => vi.unstubAllGlobals());
+
+const render = ui => renderWithProviders(ui);
 
 
 describe('GenericTextViewer', () => {
   it('diffs with the reference', async () => {
     render(<GenericTextViewer filename="log.txt" text_url_new="/new/log.txt" text_url_ref="/ref/log.txt"/>);
     expect(await screen.findByTestId('diff')).toHaveTextContent('reference log ➡️ new log');
+  });
+
+  it("says what it diffs: the page's names", async () => {
+    const { unmount } = render(<GenericTextViewer filename="log.txt" text_url_new="/new/log.txt" text_url_ref="/ref/log.txt"/>);
+    expect(await screen.findByText(/reference ➡️/)).toHaveTextContent('● reference ➡️ ● new');
+    unmount();
+    const labels = { new: 'ISP v2', reference: 'v1.4', colors: { new: { css: 'var(--qa-side-0)' }, reference: { css: 'var(--qa-side-1)' } } };
+    render(<GenericTextViewer filename="log.txt" text_url_new="/new/log.txt" text_url_ref="/ref/log.txt" labels={labels}/>);
+    const header = await screen.findByText(/v1.4 ➡️/);
+    expect(header).toHaveTextContent('● v1.4 ➡️ ● ISP v2');
+    expect(header.querySelector('[aria-hidden]')).toHaveStyle({ color: 'var(--qa-side-1)' });
   });
 
   it('shows the file when the reference is missing', async () => {

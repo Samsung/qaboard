@@ -1,0 +1,12 @@
+# Regions of interest for the image viewer (pixels of the 1224x816 photo)
+roi:
+- x: 400
+  y: 250
+  w: 300
+  h: 250
+  label: Leaves
+- x: 900
+  y: 50
+  w: 250
+  h: 200
+  label: Highlights

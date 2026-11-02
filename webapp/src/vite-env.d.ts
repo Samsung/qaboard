@@ -5,3 +5,8 @@ declare module "virtual:release-notes" {
   const bundle: { notes: Array<Record<string, unknown>> };
   export default bundle;
 }
+// Their changes: {[slug]: html}
+declare module "virtual:release-notes-html" {
+  const html: Record<string, string>;
+  export default html;
+}

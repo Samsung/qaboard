@@ -1,0 +1,7 @@
+request: Is K3-009 working right now?
+fleet:
+  K3-009: {status: error, zone: aisle-3, error: left drive wheel stalled}
+checks:
+  - tool_called: {name: get_status, arguments: {robot: K3-009}}
+  - answer_matches: '(?i)\berror\b|stall'
+  - max_turns: 3

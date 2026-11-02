@@ -1,1100 +1,827 @@
-import React from "react";
-import { connect, useSelector } from 'react-redux'
-import { withRouter } from "./router";
-import { Link } from "./router";
+import { createContext, useContext, useEffect, useState } from "react";
+import { Link, useLinkClickHandler, useRouter } from "./router";
+import { path_segment, project_url } from "./selection";
 import styled from "styled-components";
-import axios from "axios";
 
-import { colors, spacing, typography, borders, shadows, transitions, breakpoints, sidebar } from './design/tokens';
+import { colors, spacing, typography, borders, transitions, sidebar } from './design/tokens';
 
 import {
+  Button,
   Classes,
-  Intent,
+  Colors,
   MenuItem,
-  Navbar,
   Icon,
   Tooltip,
+  PopoverNext,
 } from "@blueprintjs/core";
 
-import { Avatar } from "./components/avatars";
+import { ProjectAvatar } from "./components/avatars";
 import { IntegrationsMenus } from "./components/integrations";
-import { MilestonesMenu } from "./components/milestones"
+import { MilestonesPanel } from "./milestones/MilestonesPanel"
+import { useMilestones } from "./milestones/hooks"
+import { milestone_name, milestone_path, milestone_location, milestones_of } from "./milestones/api"
 import AuthButton from "./components/authentication/Auth"
 import { WhatsNewButton } from "./releaseNotes/ReleaseNotes"
+import { ThemeButton } from "./components/ThemeButton"
+import { useHelpSheet, is_typing } from "./components/HelpSheet"
+import { PaletteButton } from "./palette/CommandPalette"
 import { LogsMenuItem, logs_hint_class } from "./AppSiderLogsItem"
 
-import {
-  selectedSelector,
-  projectSelector,
-  projectDataSelector,
-  commitSelector,
-  latestCommitSelector,
-  batchSelector,
-} from './selectors/projects'
-import { updateSelected } from "./actions/selected";
-import { fetchCommit } from "./actions/commit";
-import { git_hostname, default_git_hostname, project_avatar_style, quota_url } from "./utils"
-import { make_eval_templates_recursively } from "./utils"
-import { toaster } from "./toaster"
+import { useCommitsList, useComparison, useProjects, useSiteConfig, useUser, updateSelected } from "./hooks"
+import { path_segments } from "./explore/tree"
+import { usePrefsStore } from "./stores/prefs"
+import { useIntegrationStatuses } from "./useIntegrationStatuses"
+import { repo_url, tree_url, commit_url, commits_url as git_commits_url, default_integrations } from "./git"
 
-export const sider_width = sidebar.width.default;
+// The sidebar's width, also what the page leaves free for it: a CSS variable (App.css), smaller when collapsed.
+// index.html sets it before the first paint, SiderWidthSync after.
+export const sider_width = 'var(--qa-sider-width)';
+const expanded_width = sidebar.width.default;
+const collapsed_width = '48px';
+export const useSiderCollapsed = () => usePrefsStore(state => !!state.siderCollapsed);
+const SiderCollapsedContext = createContext(false);
 
-// Enhanced styled components for better design
+const SiderWidthSync = ({ collapsed }) => {
+  useEffect(() => {
+    document.documentElement.style.setProperty('--qa-sider-width', collapsed ? collapsed_width : expanded_width);
+  }, [collapsed]);
+  return null;
+};
+
+// Ctrl+\ (⌘\ on macOS) collapses or expands the sidebar, like in many apps
+export const is_toggle_sider = event => event.key === '\\' && (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey;
+const useToggleShortcut = toggle => {
+  useEffect(() => {
+    const onKeyDown = event => {
+      if (!is_toggle_sider(event) || event.defaultPrevented || is_typing(event.target)) return;
+      event.preventDefault();
+      toggle();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [toggle]);
+};
+
+// Like Blueprint's dark navigation panels: flat, quiet, the selected view stands out.
+// Blueprint's own menu styles have 2-3 classes of specificity, `&&` gets ours above them.
 const SiderHeader = styled.div`
-    padding: ${spacing.md};
-    border-bottom: ${borders.width.thin} solid ${colors.border};
-    background: ${colors.surface};
-    
-    .bp6-navbar-heading {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 50px;
+    padding: 0 ${spacing.sm} 0 ${spacing.lg};
+    border-bottom: ${borders.width.thin} solid rgba(255, 255, 255, 0.08);
+    flex: 0 0 auto;
+
+    .qa-brand {
         font-size: ${typography.lg};
         font-weight: ${typography.semibold};
+        letter-spacing: 0.2px;
         color: ${colors.textPrimary};
     }
-    
-    .help-icon {
-        opacity: 0.7;
-        transition: opacity ${transitions.hover};
-        
-        &:hover {
-            opacity: 1;
-            color: ${colors.primary};
-        }
+    .qa-brand:hover {
+        color: ${colors.textPrimary};
     }
+    .qa-header-actions {
+        display: flex;
+        align-items: center;
+    }
+    .qa-header-actions .bp6-button {
+        color: ${colors.textSecondary};
+    }
+    .qa-header-actions .bp6-button:hover {
+        color: ${colors.textPrimary};
+    }
+`;
+
+const SiderSearch = styled.div`
+    padding: ${spacing.sm} ${spacing.sm} 0;
+    display: flex;
+    justify-content: center;
 `;
 
 const SiderSection = styled.div`
-    padding: ${spacing.contentPadding} ${spacing.xs} ${spacing.contentPadding} ${spacing.md};
-    
-    &:not(:last-child) {
-        border-bottom: ${borders.width.thin} solid ${colors.borderLight};
-        margin-bottom: ${spacing.sm};
-        padding-bottom: ${spacing.md};
-    }
-    
-    /* Section spacing */
+    padding: ${spacing.sm} ${spacing.sm};
+
     & + & {
-        margin-top: 0;
-    }
-    
-    /* First section (auth) gets less padding */
-    &:nth-child(2) {
-        padding-top: ${spacing.sm};
-        padding-bottom: ${spacing.sm};
+        border-top: ${borders.width.thin} solid rgba(255, 255, 255, 0.08);
     }
 `;
 
-const ProjectAvatar = styled.div`
-    display: flex;
-    align-items: center;
-    gap: ${spacing.xs};
-    padding: ${spacing.xs} 0;
-    margin-bottom: 0px;
-    font-weight: ${typography.medium};
+const SiderFooter = styled(SiderSection)`
+    margin-top: auto;
+    border-top: ${borders.width.thin} solid rgba(255, 255, 255, 0.08);
+`;
+
+const SiderProjectAvatar = styled.div`
+    font-weight: ${typography.semibold};
     font-size: ${typography.base};
-    color: ${colors.textPrimary};
-    
+
+    a {
+        display: flex;
+        align-items: center;
+        gap: ${spacing.sm};
+        padding: ${spacing.xs} ${spacing.sm};
+        border-radius: ${borders.radius.sm};
+        color: ${colors.textPrimary};
+    }
+    a:hover {
+        background: rgba(255, 255, 255, 0.06);
+        color: ${colors.textPrimary};
+    }
     .avatar {
         flex-shrink: 0;
     }
-    
     .project-name {
         flex: 1;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
     }
+    /* breadcrumbs: the ancestors of subprojects */
+    .project-path {
+        padding: 0 ${spacing.sm};
+        font-weight: normal;
+        font-size: ${typography.xs};
+        color: ${colors.textSecondary};
+        overflow-wrap: anywhere;
+    }
+    .project-path a {
+        display: inline;
+        padding: 0;
+        color: ${colors.textSecondary};
+    }
+    .project-path a:hover {
+        background: none;
+        color: ${colors.textPrimary};
+        text-decoration: underline;
+    }
 `;
 
-const EnhancedMenuItem = styled.div`
-    /* Higher specificity to override Blueprint styles */
-    .bp6-menu-item,
-    .bp6-menu-item.bp6-menu-item {
-        border-radius: ${borders.radius.md} !important;
-        margin-bottom: ${spacing.xs} !important;
-        padding: ${spacing.xs} ${spacing.md} !important;
-        transition: all ${transitions.hover} !important;
-        position: relative !important;
-        border: none !important;
-        
-        /* Default state */
-        background: transparent !important;
-        color: ${colors.textSecondary} !important;
-        
-        /* Hover state */
-        &:hover {
-            background: ${colors.hover} !important;
-            color: ${colors.textPrimary} !important;
-            transform: translateX(2px) !important;
-        }
-        
-        /* Active state - more specific selectors */
-        &.bp6-intent-primary,
-        &[aria-selected="true"],
-        &.bp6-active,
-        &[active="true"] {
-            background: ${colors.active} !important;
-            color: ${colors.primary} !important;
-            font-weight: ${typography.medium} !important;
-        }
-        &[aria-selected="true"],
-        &.bp6-active,
-        &[active="true"] {
-            &::before {
-                content: '' !important;
-                position: absolute !important;
-                left: -${spacing.contentPadding} !important;
-                top: -2px !important;
-                bottom: 0 !important;
-                width: 3px !important;
-                height: 100% !important;
-                background: ${colors.primary} !important;
-                border-radius: 0 ${borders.radius.sm} ${borders.radius.sm} 0 !important;
-            }
-        }
-        
-        /* Icon styling */
-        .bp6-icon {
-            margin-right: ${spacing.md} !important;
-            opacity: 0.8 !important;
-            color: inherit !important;
-            transition: all ${transitions.hover} !important;
-        }
-        
-        &:hover .bp6-icon {
-            opacity: 1 !important;
-            transform: scale(1.1) !important;
-        }
-        
-        /* Label styling */
-        .bp6-menu-item-label {
-            opacity: 0.7 !important;
-            color: inherit !important;
-        }
-
-        /* Hints (e.g. failures on Logs) must stand out */
-        .bp6-menu-item-label.${logs_hint_class} {
-            opacity: 1 !important;
-        }
+const SiderMenu = styled.div`
+    && .bp6-menu-item {
+        display: flex;
+        align-items: center;
+        min-height: 30px;
+        margin: 1px 0;
+        padding: 5px ${spacing.sm};
+        border-radius: ${borders.radius.sm};
+        color: ${colors.textSecondary};
+        background: transparent;
+        position: relative;
+        cursor: pointer;
+        transition: background-color ${transitions.hover}, color ${transitions.hover};
     }
-    
-    /* Also target direct MenuItem children */
-    > .bp6-menu-item,
-    .bp6-menu-item-content {
-        color: inherit !important;
+    && .bp6-menu-item:hover,
+    && .bp6-menu-item.bp6-popover-open {
+        background: rgba(255, 255, 255, 0.07);
+        color: ${colors.textPrimary};
+    }
+    && .bp6-menu-item:focus-visible {
+        outline: 2px solid ${colors.primary};
+        outline-offset: -2px;
+    }
+    && .bp6-menu-item > .bp6-icon {
+        color: inherit;
+        opacity: 0.75;
+        margin-right: 10px;
+    }
+    && .bp6-menu-item:hover > .bp6-icon {
+        opacity: 1;
+    }
+    && .bp6-menu-item-label {
+        color: inherit;
+        opacity: 0.6;
+    }
+    /* Hints (e.g. failures on Logs) must stand out */
+    && .bp6-menu-item-label.${logs_hint_class} {
+        opacity: 1;
+    }
+    /* Actions stand out a little */
+    && .bp6-menu-item.bp6-intent-primary {
+        color: #8abbff;
+    }
+    && .bp6-menu-item.bp6-intent-danger {
+        color: #fa999c;
+    }
+    /* The selected view: highlighted, with a bar on the left */
+    && .bp6-menu-item.bp6-active,
+    && .bp6-menu-item[aria-current="page"] {
+        background: rgba(45, 114, 210, 0.28);
+        color: ${colors.textPrimary};
+        font-weight: ${typography.medium};
+    }
+    && .bp6-menu-item.bp6-active::before,
+    && .bp6-menu-item[aria-current="page"]::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 4px;
+        bottom: 4px;
+        width: 3px;
+        border-radius: 0 2px 2px 0;
+        background: #4c90f0;
+    }
+    && .bp6-menu-item.bp6-active > .bp6-icon {
+        opacity: 1;
+        color: #8abbff;
     }
 `;
 
 const SectionDivider = styled.div`
     height: ${borders.width.thin};
-    background: ${colors.border};
-    margin: ${spacing.lg} 0;
-    opacity: 0.5;
+    background: rgba(255, 255, 255, 0.08);
+    margin: ${spacing.sm} ${spacing.xs};
 `;
 
 const SectionHeader = styled.div`
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
     font-size: ${typography.xs};
     font-weight: ${typography.semibold};
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.6px;
     color: ${colors.textMuted};
-    margin-bottom: ${spacing.sm};
-    margin-top: ${spacing.md};
-    padding: 0;
-    
+    margin: ${spacing.lg} ${spacing.sm} ${spacing.xs};
+
     &:first-child {
-        margin-top: 0;
+        margin-top: ${spacing.xs};
     }
 `;
 
 const Sider = styled.div`
-    /* Layout */
-    flex: 0 0 ${sidebar.width.default};
-    max-width: ${sidebar.width.default};
-    min-width: ${sidebar.width.compact};
-    width: ${sidebar.width.default};
-    
-    /* Positioning */
+    width: ${sider_width};
+    transition: width 150ms ease;
+    @media (prefers-reduced-motion: reduce) {
+        transition: none;
+    }
     position: fixed;
     height: 100vh;
     top: 0;
     left: 0;
     z-index: ${sidebar.zIndex};
-    
-    /* Styling */
-    background: linear-gradient(180deg, ${colors.background} 0%, ${colors.surface} 100%);
-    border-right: ${borders.width.thin} solid ${colors.border};
-    box-shadow: ${shadows.sidebar};
-    
-    /* Typography */
-    color: ${colors.textPrimary};
-    font-size: ${typography.base};
-    
-    /* Animation */
-    transition: all ${transitions.normal};
-    transform: translate3d(0, 0, 0);
-    
-    /* Layout behavior */
     display: flex;
     flex-direction: column;
     overflow-x: hidden;
     overflow-y: auto;
-    
-    /* Responsive design */
-    // cannot be enabled until we make sure we still export the correct sidebar_width
-    // ${breakpoints.up('laptop')} {
-    //     width: ${sidebar.width.default};
-    //     min-width: ${sidebar.width.default};
-    // }
-    
-    // ${breakpoints.up('wide')} {
-    //     width: ${sidebar.width.wide};
-    //     max-width: ${sidebar.width.wide};
-    // }
-    
-    /* Link styling */
+
+    background: var(--qa-sider-background);
+    border-right: ${borders.width.thin} solid rgba(0, 0, 0, 0.3);
+    color: ${colors.textPrimary};
+    font-size: ${typography.base};
+
     a {
         color: inherit;
         text-decoration: none;
-        transition: color ${transitions.hover};
-        
-        &:hover {
-            text-decoration: none;
-            color: ${colors.primary};
-        }
     }
-    
-    /* Remove bullet points and fix layout */
+
+    /* MenuItems are <li>s */
     ul, li {
-        list-style: none !important;
-        margin: 0 !important;
-        padding: 0 !important;
+        list-style: none;
+        margin: 0;
+        padding: 0;
     }
-    
-    /* Global overrides for Blueprint menu items */
-    .bp6-menu-item {
-        color: ${colors.textSecondary} !important;
-        background: transparent !important;
-        border-radius: ${borders.radius.md} !important;
-        margin-bottom: ${spacing.itemGap} !important;
-        padding: ${spacing.md} !important;
-        position: relative !important;
-        cursor: pointer !important;
-        list-style: none !important;
-        
-        /* Remove any bullets and list styles */
-        &::before,
-        &::after {
-            display: none !important;
+
+    scrollbar-width: thin;
+    scrollbar-color: ${colors.border} transparent;
+
+    /* Collapsed: a rail of icons. Names show on hover (SiderHint), submenus still open on hover */
+    &&.collapsed {
+        ${SiderHeader} {
+            flex-direction: column;
+            height: auto;
+            padding: ${spacing.sm} 0;
+            gap: 2px;
         }
-        
-        &::marker {
-            display: none !important;
+        ${SiderHeader} .qa-brand {
+            display: none;
         }
-        
-        /* Focus states for accessibility */
-        &:focus {
-            outline: 2px solid ${colors.primary} !important;
-            outline-offset: 2px !important;
+        ${SiderHeader} .qa-header-actions {
+            flex-direction: column;
+            gap: 2px;
         }
-        
-        &:hover {
-            background-color: ${colors.hover} !important;
-            color: ${colors.textPrimary} !important;
-            transform: translateX(2px);
+        ${SiderSection} {
+            padding: ${spacing.sm} 6px;
         }
-        
-        &.bp6-intent-primary,
-        &.bp6-active {
-            background-color: ${colors.active} !important;
-            color: ${colors.primary} !important;
-            font-weight: ${typography.medium} !important;
-            
-            /* Override the bullet hide for active indicator */
-            &::before {
-                content: '' !important;
-                display: block !important;
-                position: absolute !important;
-                left: 0 !important;
-                top: -2px !important;
-                bottom: 0 !important;
-                width: 3px !important;
-                height: 100% !important;
-                background: ${colors.primary} !important;
-                border-radius: 0 ${borders.radius.sm} ${borders.radius.sm} 0 !important;
-                z-index: 1 !important;
-            }
+        ${SiderProjectAvatar} a {
+            justify-content: center;
+            padding: ${spacing.xs} 0;
         }
-        
-        .bp6-icon {
-            color: inherit !important;
-            opacity: 0.8;
-            transition: all ${transitions.hover};
-            margin-right: ${spacing.md} !important;
+        ${SiderProjectAvatar} .project-name, ${SiderProjectAvatar} .project-path {
+            display: none;
         }
-        
-        &:hover .bp6-icon {
-            opacity: 1;
-            transform: scale(1.05);
+        ${SectionHeader} {
+            font-size: 0;
+            height: ${borders.width.thin};
+            margin: ${spacing.sm} ${spacing.xs};
+            background: rgba(255, 255, 255, 0.08);
         }
-        
-        .bp6-menu-item-label {
-            color: inherit !important;
-            opacity: 0.7;
+        ${SectionHeader}:first-child {
+            display: none;
         }
-    }
-    
-    /* Scrollbar styling */
-    &::-webkit-scrollbar {
-        width: 6px;
-    }
-    
-    &::-webkit-scrollbar-track {
-        background: transparent;
-    }
-    
-    &::-webkit-scrollbar-thumb {
-        background: ${colors.border};
-        border-radius: ${borders.radius.sm};
-        
-        &:hover {
-            background: ${colors.borderLight};
+        .bp6-menu-item {
+            position: relative;
+            justify-content: center;
+            /* the user menu sets its padding inline */
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+        }
+        .bp6-menu-item > .bp6-fill:has(.user-display) {
+            flex: 0 0 auto;
+        }
+        .bp6-menu-item > .bp6-icon {
+            margin-right: 0;
+        }
+        .bp6-menu-item > .bp6-menu-item-label,
+        .bp6-menu-item > .bp6-submenu-icon,
+        .user-display,
+        .chevron-icon {
+            display: none;
+        }
+        /* the names of the items: hidden, but still their names for screen readers */
+        ${SiderMenu} .bp6-menu-item > .bp6-fill,
+        .bp6-menu-item > .bp6-fill:not(:has(.user-display)) {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip-path: inset(50%);
+            white-space: nowrap;
+        }
+        /* a failure count on Logs becomes a dot */
+        .bp6-menu-item > .bp6-menu-item-label.${logs_hint_class} {
+            display: block;
+            position: absolute;
+            top: 3px;
+            right: 4px;
+            margin: 0;
+        }
+        .bp6-menu-item > .bp6-menu-item-label.${logs_hint_class} .bp6-tag {
+            font-size: 0;
+            min-width: 8px;
+            min-height: 8px;
+            height: 8px;
+            padding: 0;
         }
     }
 `
 
-
-class ProjectSideAvatar extends React.Component {
-  toHome = () => {
-    const { dispatch, project } = this.props;
-    dispatch(updateSelected(project, {branch: null, committer: null}))
-  }
-
-  render() {
-    const { project, project_data={} } = this.props;
-    const git = project_data.data?.git || {};
-    let project_name = project.split('/').slice(-1)[0];
-    const is_subproject = git.path_with_namespace !== project;
-    const has_custom_avatar = !!project_data.data?.qatools_config?.project?.avatar_url
-    const should_tweak_image = is_subproject && !has_custom_avatar;
-    const avatar_style = should_tweak_image ? project_avatar_style(project) : null;
-
-    const project_git_hostname = git_hostname(project_data?.data?.qatools_config) ?? default_git_hostname
-    git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
-    let avatar_url = git.avatar_url
-    if (!!avatar_url) {
-      avatar_url = encodeURI(`/api/v1/gitlab/proxy?url=${avatar_url}`)
-    }
-    return (
-      <ProjectAvatar>
-        <Link onClick={this.toHome} to={`/${project}`} style={{display: 'flex', alignItems: 'center', gap: '12px', width: '100%', color: 'inherit'}}>
-          <Avatar
-            className="avatar"
-            src={avatar_url}
-            alt={project_name}
-            img_style={avatar_style}
-          />
-          <span className="project-name">{project_name}</span>
-        </Link>
-      </ProjectAvatar>
-    )
-
-  }
+// Hovering a view says what it's for: QA-Board has many, and their names are short
+const hint_delay = 600;
+// Collapsed, the hint also names the view, and opens sooner: it's the only label
+const SiderHint = ({ name, content, children }) => {
+  const collapsed = useContext(SiderCollapsedContext);
+  return <Tooltip
+    content={<span style={{display: 'inline-block', maxWidth: 260}}>
+      {collapsed && name && <><strong>{name}</strong>{content ? <br/> : null}</>}
+      {content}
+    </span>}
+    placement="right"
+    hoverOpenDelay={collapsed ? 150 : hint_delay}
+    targetTagName="div"
+    fill
+    disabled={!content && !collapsed}
+  >
+    {children}
+  </Tooltip>;
 }
 
-// Only shown if the site has a quota dashboard (QABOARD_QUOTA_URL_TEMPLATE)
-const QuotaMenuItem = ({ user, project }) => {
-  const template = useSelector(state => state.siteConfig.quota_url_template)
-  const href = quota_url(template, user?.user_name, project)
-  if (!user?.is_logged || !href)
-    return null
-  return <MenuItem
-    href={href}
-    rel="noopener noreferrer" target="_blank"
-    icon="database"
-    text="Quota"
-  />
+
+// The integrations of the branch pages: from qaboard.yaml, or the defaults for the project's git host
+const branch_integrations = ({ project_data, commit }) =>
+  project_data.data?.qatools_config?.integrations ?? commit?.data?.qatools_config?.integrations ?? default_integrations(project_data);
+
+// "group / repo / sub": links to the ancestors that are projects
+const ProjectBreadcrumbs = ({ project }) => {
+  const { data: projects } = useProjects();
+  const ancestors = path_segments(project, projects).slice(0, -1);
+  if (ancestors.length === 0) return null;
+  return <div className="project-path">
+    {ancestors.map(({ name, path, is_project }, i) => <span key={path}>
+      {i > 0 && ' / '}
+      {is_project ? <Link to={project_url(path)} title={path}>{name}</Link> : <span title={`${path}: not a project`}>{name}</span>}
+    </span>)}
+    {' /'}
+  </div>;
 }
 
-class ProjectSideCommitList extends React.Component {
-  updateBranch = branch => {
-    const { project, history, dispatch } = this.props;
-    history.push(`/${project}/commits/${branch}`);
-    dispatch(updateSelected(project, {branch, committer: null}))
-  }
-
-  selectMilestone = milestone => {
-    const { project, dispatch } = this.props;
-    dispatch(fetchCommit({project: milestone.project ?? project, id: milestone.commit}));
-    dispatch(updateSelected(project, {
-      new_project: milestone.project ?? project,
-      new_commit_id: milestone.commit,
-      selected_batch_new: milestone.batch,
-      filter_batch_new: milestone.filter,
-    }))
-  };
-
-  render() {
-    const { project, project_data={}, commit={}, ref_commit={}, match, user } = this.props;
-    let qatools_config = project_data.data?.qatools_config || {};
-    let integrations = qatools_config.integrations ?? commit.data?.qatools_config?.integrations ??[];
-
-    let reference_branch = qatools_config.project?.reference_branch;
-    const git = project_data.data?.git || {};
-
-    // in qaboard.yaml users specify milestones as arrays, but here we handle them as a mapping...
-    const qatools_milestones_array = qatools_config?.project?.milestones || []
-    const qatools_milestones = Object.fromEntries(Object.entries(qatools_milestones_array).map( ([key, branch])=> [key, {branch}] ))
-    const shared_milestones = project_data?.data?.milestones || {}
-    const private_milestones = project_data.milestones || {}
-
-    let is_project_home = this.props.match.path === "/:project_id+/commits" || this.props.match.path === "/:project_id+";
-    let is_committer = !!match.params.committer;
-    let is_branch = !!match.params.name;
-    if (is_branch || is_committer) {
-      var tag = match.params.name || match.params.committer;
-    } else {
-      tag = reference_branch;
-    } 
-    let project_repo = git.path_with_namespace || '';
-    let subproject = project.slice(project_repo.length + 1);
-
-    const project_git_hostname = git_hostname(project_data?.data?.qatools_config) ?? default_git_hostname
-    git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
-    let code_url = subproject.length > 0 ? `${git.web_url}/tree/${is_branch ? match.params.name : reference_branch}/${subproject}` : git.web_url;
-    return <>
-      {is_project_home ? <div><MenuItem text={reference_branch} icon='git-branch' style={{marginRight: '5px'}} onClick={() => this.updateBranch(reference_branch)}/></div>
-                        : <MenuItem icon={is_branch ? "git-branch" : 'user'} intent='primary' text={tag} title={tag}/>
-      }
-      {!is_committer && <>
-        <MenuItem href={code_url} icon="git-repo" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
-        <MenuItem href={`/${project}/history/${is_branch ? match.params.name : reference_branch}`} icon="history" text="History"/>
-        <SectionDivider />
-        <IntegrationsMenus
-          single_menu
-          integrations={integrations}
+const ProjectSideAvatar = ({ project, project_data = {} }) => {
+  const collapsed = useContext(SiderCollapsedContext);
+  let project_name = project.split('/').slice(-1)[0];
+  return (
+    <SiderProjectAvatar>
+      <ProjectBreadcrumbs project={project}/>
+      <Link to={project_url(project)} title={`${project}: all its commits`}>
+        <ProjectAvatar
+          className="avatar"
           project={project}
-          project_data={project_data}
-          branch={is_branch ? match.params.name : reference_branch}
-          commit={commit}
-          ref_commit={ref_commit}
-          user={user}
-          docs_root={this.props.docs_root}
-          integrationStatuses={this.props.integrationStatuses}
-          triggerIntegration={this.props.triggerIntegration}
-          startUpdateIntegrationStatuses={this.props.startUpdateIntegrationStatuses}
-          stopUpdateIntegrationStatuses={this.props.stopUpdateIntegrationStatuses}
+          data={project_data.data}
+          size={collapsed ? "32px" : undefined}
         />
+        <span className="project-name">{project_name}</span>
+      </Link>
+    </SiderProjectAvatar>
+  )
+}
+
+// Links to the code on the git host. Clicking opens the most useful page (the commit, or the branch's files),
+// hovering lists the others: the commit's changes and files, the subproject's folder, the branch, the repository.
+const external = { target: "_blank", rel: "noopener noreferrer" };
+const short_sha = sha => sha?.slice(0, 8);
+export const CodeMenu = ({ project, project_data, commit, branch }) => {
+  const project_repo = project_data.data?.git?.path_with_namespace || '';
+  // monorepos: projects can be a folder of their repository
+  const subproject = project_repo && project.startsWith(`${project_repo}/`) ? project.slice(project_repo.length + 1) : '';
+  const repo = repo_url(project_data);
+  const sha = commit?.id;
+  const ref = sha ?? branch;
+  const items = [
+    sha && { icon: "git-commit", text: <>Changes in <code>{short_sha(sha)}</code></>, href: commit_url(project_data, sha) },
+    sha && { icon: "folder-close", text: <>Files at <code>{short_sha(sha)}</code></>, href: tree_url(project_data, sha) },
+    sha && subproject && { icon: "folder-open", text: <>{subproject} at <code>{short_sha(sha)}</code></>, href: tree_url(project_data, sha, subproject) },
+    branch && { icon: "folder-close", text: <>Files on {branch}</>, href: tree_url(project_data, branch) },
+    branch && subproject && { icon: "folder-open", text: <>{subproject} on {branch}</>, href: tree_url(project_data, branch, subproject) },
+    branch && { icon: "git-branch", text: <>Commits on {branch}</>, href: git_commits_url(project_data, branch) },
+    { icon: "git-repo", text: "Repository", href: repo },
+  ].filter(Boolean);
+  // the commit, else the project's folder on the branch
+  const main = sha
+    ? (subproject ? tree_url(project_data, sha, subproject) : commit_url(project_data, sha))
+    : (ref && subproject ? tree_url(project_data, ref, subproject) : repo);
+  return <MenuItem
+    icon={sha ? "git-commit" : "git-repo"}
+    text="Code"
+    href={main}
+    {...external}
+    title={sha ? "The commit on your git host. Hover for its files, branch and repository" : "The code on your git host. Hover for more links"}
+    // In a portal, like the sidebar's other submenus: the sidebar scrolls, so it would cut the submenu off, or flip it off-screen on the left
+    popoverProps={{ usePortal: true, hoverCloseDelay: 300 }}
+  >
+    {items.map(({ icon, text, href }) => <MenuItem key={href} icon={icon} text={text} href={href} {...external} labelElement={<Icon icon="share" size={12}/>}/>)}
+  </MenuItem>
+}
+
+// A menu entry that navigates like <Link>: within the app, without reloading it, but ctrl/cmd+click still opens a new tab.
+const MenuItemLink = ({ to, ...props }) => {
+  const handleClick = useLinkClickHandler(to)
+  return <MenuItem {...props} href={to} onClick={handleClick}/>
+}
+
+// How much storage the project's runs use
+const StorageMenuItem = ({ user, project }) => {
+  if (!user?.is_logged)
+    return null
+  const storage = `/storage/batches?project=${encodeURIComponent(project ?? '')}`
+  return <MenuItemLink
+    to={storage}
+    icon="database"
+    text="Storage usage"
+    title="How much storage your runs use in this project, and deleting what you don't need"
+    // In a portal, like the sidebar's other submenus: else the sidebar's scrolling cuts it off, or flips it off-screen on the left
+    popoverProps={{ usePortal: true, hoverCloseDelay: 300 }}
+  >
+    <MenuItemLink to={storage} icon="database" text="Your runs in this project"/>
+    <MenuItemLink to="/storage" icon="projects" text="Your runs in every project"/>
+    <MenuItemLink to={`/storage/batches?scope=all&project=${encodeURIComponent(project ?? '')}`} icon="people" text="Everyone's runs in this project"/>
+    <MenuItemLink to={`/storage/users?project=${encodeURIComponent(project ?? '')}`} icon="crown" text="Who uses the most in this project"/>
+  </MenuItemLink>
+}
+
+// What waits and runs now in the project, and what ran recently
+const ActivityMenuItem = ({ user, project }) => {
+  if (!user?.is_logged)
+    return null
+  const mine = `/activity?project=${encodeURIComponent(project ?? '')}`
+  return <MenuItemLink
+    to={mine}
+    icon="pulse"
+    text="Runs activity"
+    title="What waits and runs now, and what ran recently"
+  >
+    <MenuItemLink to={mine} icon="person" text="Your runs in this project"/>
+    <MenuItemLink to={`/activity?scope=all&project=${encodeURIComponent(project ?? '')}`} icon="people" text="Everyone's runs in this project"/>
+    <MenuItemLink to="/activity?scope=all" icon="globe-network" text="Everyone's runs, in every project"/>
+  </MenuItemLink>
+}
+
+// Milestones: a menu to pick any of them, and the user's favorites one click away
+const max_sider_favorites = 6;
+const SiderMilestones = ({ project, project_data, docs_root }) => {
+  const collapsed = useContext(SiderCollapsedContext);
+  const { history } = useRouter();
+  const { selected } = useComparison();
+  const index = useMilestones(project);
+  const { list, favorite_groups } = index;
+  const [is_open, setOpen] = useState(false);
+  // the panel can open on a favorite group: it searches for it
+  const [initial_search, setInitialSearch] = useState('');
+  const favorites = list.filter(m => m.is_favorite).sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''));
+  const groups = favorite_groups.filter(({ group }) => list.some(m => m.group === group || m.group?.startsWith(`${group}/`)));
+  const shown = { project: selected.new_project ?? project, commit: selected.route.is_commit ? selected.new_commit_id : null, batch: selected.selected_batch_new, filter: selected.filter_batch_new };
+  const current = milestones_of(index, shown);
+  const select = milestone => {
+    setOpen(false);
+    // from qaboard.yaml: a branch, tag or commit
+    if (!milestone.commit)
+      return history.push(`/${path_segment(project)}/commits/${path_segment(milestone.branch)}`);
+    history.push(milestone_location(milestone));
+  };
+  const openPanel = (search = '') => {
+    setInitialSearch(search);
+    setOpen(true);
+  };
+  const extra = { paddingLeft: 24, minHeight: 26, fontSize: 13 };
+  const hidden = favorites.length + groups.length - max_sider_favorites;
+  return <>
+    <PopoverNext
+      isOpen={is_open}
+      onInteraction={open => open ? openPanel() : setOpen(false)}
+      placement="right-start"
+      content={<MilestonesPanel key={initial_search} initialSearch={initial_search} project={project} project_data={project_data} docs_root={docs_root} selected={shown} onSelect={select}/>}
+    >
+      <SiderHint name="Milestones" content="Results saved to compare with later: yours, the project's, your favorites.">
         <MenuItem
-          text="Milestones"
           icon="star"
-          popoverProps={{
-            usePortal: true,
-            portalClassName: "limit-overflow",
-            hoverCloseDelay: 2000,
-            transitionDuration: 800,
-          }}
-        >
-          <MilestonesMenu project={project} milestones={qatools_milestones} onSelect={this.selectMilestone} icon="crown" title="Select a milestone from qaboard.yaml" type="qatools" />
-          {qatools_milestones.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qaboard.yaml</em> configuration.</span>}
-          <MilestonesMenu project={project} milestones={shared_milestones} onSelect={this.selectMilestone} icon="crown" type="shared" title="Select a shared milestone" />
-          <MilestonesMenu project={project} milestones={private_milestones} onSelect={this.selectMilestone} type="private" title="Select a private milestone" />
-        </MenuItem>
-        <QuotaMenuItem user={user} project={project} />
-        </>}
-    </>
-    }
-}
-        // {false && <MenuItem icon="locate" text="Metrics"/>}
-        // {false && <MenuItem icon="info-sign" text="Settings"/>}
+          text="Milestones"
+          label={list.length > 0 ? String(list.length) : undefined}
+          title={collapsed ? undefined : "Search all the milestones"}
+          aria-haspopup="menu"
+          aria-expanded={is_open}
+        />
+      </SiderHint>
+    </PopoverNext>
+    {!collapsed && groups.slice(0, max_sider_favorites).map(({ section, group }) => <MenuItem
+      key={`${section}/${group}`}
+      icon={<Icon icon="folder-close" size={12} color={Colors.RED5}/>}
+      text={group.split('/').join(' / ')}
+      title={`Your favorite group of ${section === 'mine' ? 'your milestones' : 'shared milestones'}: ${group}`}
+      style={extra}
+      onClick={() => openPanel(group)}
+    />)}
+    {!collapsed && favorites.slice(0, Math.max(0, max_sider_favorites - groups.length)).map(m => <MenuItemLink
+      key={m.id}
+      to={milestone_path(m)}
+      icon={<Icon icon="heart" size={12} color={Colors.RED5}/>}
+      text={milestone_name(m)}
+      title={`${milestone_name(m)}: your favorite milestone. ${m.notes ?? ''}`}
+      active={current.some(c => c.id === m.id)}
+      style={extra}
+    />)}
+    {!collapsed && hidden > 0 && <MenuItem
+      text={`${hidden} more favorite${hidden > 1 ? 's' : ''}…`}
+      style={{ ...extra, fontSize: 12 }}
+      onClick={() => openPanel()}
+    />}
+  </>;
+};
 
+const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_commit = {}, user, docs_root, ...integrationProps }) => {
+  const { selected } = useComparison();
+  let qatools_config = project_data.data?.qatools_config || {};
+  let integrations = branch_integrations({ project_data, commit });
+  let reference_branch = qatools_config.project?.reference_branch;
 
-class ProjectSideResults extends React.Component {
-  set = (attribute, value) => () => {
-    this.props.dispatch(updateSelected(this.props.project, { [attribute]: value }))
-  } 
-
-  render() {
-    const { project, project_data={}, commit, ref_commit, new_batch, ref_batch, user } = this.props;
-    const git = project_data.data?.git || {};
-    let project_repo = git.path_with_namespace || '';
-    let subproject = project.slice(project_repo.length + 1);
-    let commit_code_sufffix = !!commit ? (subproject.length > 0 ? `blob/${commit.id}/${subproject}` : `commit/${commit.id}`) : ''
-
-    const project_git_hostname = git_hostname(project_data?.data?.qatools_config) ?? default_git_hostname
-    git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
-    let code_url = `${git.web_url}/${commit_code_sufffix}`
-
-    const batch_qatools_config = new_batch?.data?.qatools_config ?? {};
-    const commit_qatools_config = commit?.data?.qatools_config ?? {};
-    const project_qatools_config = project_data.data?.qatools_config ?? {};
-    let integrations = batch_qatools_config.integrations ?? commit_qatools_config.integrations ?? project_qatools_config.integrations ?? [];
-    // integrations = integrations.slice(20)
-    // integrations = [
-    //   {
-    //     id: "XXXXX",
-    //     text: "TEST ${user.user_name} ${batch} | ${batch} | ${ref_batch} | ${ref_commit.id} | | ${filter} | ${ref_filter} | ${ref_project}",
-    //     webhook: {method: "GET", url: "https://qa/s/xxxx"}
-    //   },
-    //   {
-    //     text: "level 1",
-    //     sub: [{text: "level 2"}]
-    //   },
-    //   // {
-    //   //   icon: "circle",
-    //   //   text: "TEST outside",
-    //   //   href: "https://qa/s/xxxx",
-    //   //   in_menu: false,
-    //   // },
-    // ]
-
-    const has_optim = new_batch?.data?.optimization === true;
-    const active = view => this.props.selected_views.includes(view);
-    return <>
-      <IntegrationsMenus
-        integrations={integrations}
-        project={project}
-        project_data={project_data}
-        commit={commit}
-        ref_commit={ref_commit}
-        docs_root={this.props.docs_root}
-        batch={new_batch}
-        ref_batch={ref_batch?.label}
-        filter={this.props.filter}
-        ref_filter={this.props.ref_filter}
-        ref_project={this.props.ref_project}
-        user={user}
-        integrationStatuses={this.props.integrationStatuses}
-        triggerIntegration={this.props.triggerIntegration}
-        startUpdateIntegrationStatuses={this.props.startUpdateIntegrationStatuses}
-        stopUpdateIntegrationStatuses={this.props.stopUpdateIntegrationStatuses}
-      />
-      {/* Metrics Section */}
-      <SectionHeader>
-        <span>Metrics</span>
-      </SectionHeader>
-      <MenuItem icon="dashboard" text="Summary" active={active('summary')} onClick={this.set('selected_views', 'summary')}/>
-      <MenuItem icon="locate" text="Metrics Table" active={active('table-kpi')} onClick={this.set('selected_views', 'table-kpi')} />
-      <MenuItem icon="heat-grid" text="Metrics Diff" active={active('table-compare')} onClick={this.set('selected_views', 'table-compare')}/>
-
-      {/* Outputs Section */}
-      <SectionHeader>
-        <span>Outputs</span>
-      </SectionHeader>
-      <MenuItem icon="media" text="Visualizations" active={active('output-list')} onClick={this.set('selected_views', 'output-list')} />
-      <MenuItem icon="folder-open" text="Output Files" active={active('bit_accuracy')} onClick={this.set('selected_views', 'bit_accuracy')} />
-      <LogsMenuItem batch={new_batch} active={active('logs')} onClick={this.set('selected_views', 'logs')} />
-
-      {/* Source Section */}
-      <SectionHeader>
-        <span>Source</span>
-      </SectionHeader>
-      <MenuItem icon="settings" text="Artifacts & Configs" active={active('parameters')} onClick={this.set('selected_views', 'parameters')} />
-      <MenuItem href={code_url} icon="git-commit" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
-
-      {/* Tuning Section */}
-      <SectionHeader>
-        <span>Tuning</span>
-      </SectionHeader>
-      <MenuItem icon="layout-group-by" active={active('groups')} text="Available Tests" onClick={this.set('selected_views', 'groups')} />
-      <MenuItem intent={Intent.PRIMARY} icon="play" text="Run Tests / Tuning" active={active('tuning')} onClick={this.set('selected_views', 'tuning')} />
-
-      <MenuItem icon="predictive-analysis" intent={has_optim ? "primary" : undefined} text="Analysis" onClick={this.set('selected_views', 'optimization')}/>
-    </>
-  }
+  const is_history = selected.route.is_history;
+  const is_access = selected.route.is_access;
+  const is_branch = !!selected.branch;
+  const is_project_home = selected.route.is_commits && !is_branch;
+  const tag = selected.branch ?? selected.committer ?? reference_branch;
+  const branch = selected.branch ?? reference_branch;
+  const commits_url = branch ? `/${path_segment(project)}/commits/${path_segment(branch)}` : `/${path_segment(project)}/commits`;
+  const history_url = branch ? `/${path_segment(project)}/history/${path_segment(branch)}` : `/${path_segment(project)}/history`;
+  return <>
+    {/* The branch's commits: highlighted on their page, a link elsewhere */}
+    <SiderHint name={branch ? `Commits on ${branch}` : tag && !is_branch && !(is_project_home || is_history) ? `Commits by ${tag}` : 'All commits'}>
+      {(is_project_home || is_history || is_access)
+        ? <MenuItemLink to={commits_url} text={(is_branch || project_data.is_loaded) ? branch ?? 'All commits' : <span className={Classes.SKELETON}>branch</span>} title={branch ? `Commits on ${branch}` : 'Commits on all branches'} icon='git-branch'/>
+        : <MenuItem icon={is_branch ? "git-branch" : 'user'} active text={tag ?? 'All commits'} title={is_branch ? `Commits on ${tag}` : tag && `Commits by ${tag}`}/>
+      }
+    </SiderHint>
+    <CodeMenu project={project} project_data={project_data} branch={branch}/>
+    <SiderHint name="History" content="The metrics of the branch over time.">
+      <MenuItemLink to={history_url} active={is_history} icon="history" text="History"/>
+    </SiderHint>
+    <SectionDivider />
+    <IntegrationsMenus
+      single_menu
+      integrations={integrations}
+      project={project}
+      project_data={project_data}
+      branch={branch}
+      commit={commit}
+      ref_commit={ref_commit}
+      user={user}
+      docs_root={docs_root}
+      {...integrationProps}
+    />
+    <SiderMilestones project={project} project_data={project_data} docs_root={docs_root}/>
+    <ActivityMenuItem user={user} project={project} />
+    <StorageMenuItem user={user} project={project} />
+    <SiderHint name="Access" content="Who can see the project, upload runs and act on them. Request access, or manage it.">
+      <MenuItemLink to={`/${path_segment(project)}/access`} active={is_access} icon="people" text="Access"/>
+    </SiderHint>
+  </>
 }
 
 
+const results_integrations = ({ new_batch, commit, project_data }) =>
+  new_batch?.data?.qatools_config?.integrations ?? commit?.data?.qatools_config?.integrations ?? project_data.data?.qatools_config?.integrations ?? [];
 
+const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, new_batch, ref_batch, selected_views, default_views, filter, ref_filter, ref_project, user, docs_root, ...integrationProps }) => {
+  const has_optim = new_batch?.data?.optimization === true;
+  const active = view => selected_views.includes(view);
+  const set = view => () => updateSelected({ selected_views: view }, { defaults: { selected_views: default_views } })
+  return <>
+    {/* Metrics Section */}
+    <SectionHeader>Metrics</SectionHeader>
+    <SiderHint name="Summary" content="The batch's metrics, aggregated over all its runs, compared with the reference.">
+      <MenuItem icon="dashboard" text="Summary" active={active('summary')} onClick={set('summary')}/>
+    </SiderHint>
+    <SiderHint name="Metrics Table" content="The metrics of each run, colored by how they compare to their targets.">
+      <MenuItem icon="locate" text="Metrics Table" active={active('table-kpi')} onClick={set('table-kpi')} />
+    </SiderHint>
+    <SiderHint name="Metrics Diff" content="For each run, how the metrics changed versus the reference: find regressions.">
+      <MenuItem icon="heat-grid" text="Metrics Diff" active={active('table-compare')} onClick={set('table-compare')}/>
+    </SiderHint>
 
-class AppSider extends React.Component {
-  // localStorage keys for persisting integration statuses across refreshes.
-  // Per-commit so different commits don't share state. Index key tracks
-  // insertion order, capped to keep storage bounded.
-  static LS_PREFIX = 'qaboard:integrationStatuses:';
-  static LS_INDEX_KEY = 'qaboard:integrationStatuses:index';
-  static LS_MAX_COMMITS = 50;
+    {/* Runs Section */}
+    <SectionHeader>Runs</SectionHeader>
+    <SiderHint name="Visualizations" content="Images, videos, plots, point clouds... of each run, side by side with the reference, as configured in qaboard.yaml.">
+      <MenuItem icon="media" text="Visualizations" active={active('output-list')} onClick={set('output-list')} />
+    </SiderHint>
+    <SiderHint name="Output Files" content="All the files each run created, and which differ from the reference (bit-accuracy).">
+      <MenuItem icon="folder-open" text="Output Files" active={active('bit-accuracy')} onClick={set('bit-accuracy')} />
+    </SiderHint>
+    <SiderHint name="Logs" content="The logs of each run, and of the batch's submission: why runs failed.">
+      <LogsMenuItem batch={new_batch} active={active('logs')} onClick={set('logs')} />
+    </SiderHint>
 
-  constructor(props) {
-    super(props);
-    this.state = {
-      // Restored from localStorage for the current commit
-      integrationStatuses: this.loadIntegrationStatuses(props.commit?.id),
-    }
-  }
-  loadIntegrationStatuses = (commitId) => {
-    if (!commitId) return {};
-    try {
-      const raw = localStorage.getItem(AppSider.LS_PREFIX + commitId);
-      if (!raw) return {};
-      const parsed = JSON.parse(raw);
-      // Clear stale loading flags, the in-flight request from the previous
-      // session is gone and would otherwise block the next poll forever.
-      Object.keys(parsed).forEach(k => {
-        if (parsed[k]) parsed[k].loading = false;
-      });
-      return parsed;
-    } catch (e) {
-      console.warn('Failed to load integrationStatuses from localStorage', e);
-      return {};
-    }
-  }
-  saveIntegrationStatuses = (commitId, statuses) => {
-    if (!commitId) return;
-    try {
-      // Only persist entries the user actively triggered (Jenkins/gitlabCI builds).
-      // HEAD-probe results for plain links/artifacts are cheap to recompute on
-      // demand and not worth the storage churn.
-      const cleaned = {};
-      Object.keys(statuses).forEach(k => {
-        if (!statuses[k] || !statuses[k].triggered) return;
-        const { error, ...rest } = statuses[k];
-        cleaned[k] = error ? { ...rest, error: true } : rest;
-      });
-      // Skip writing entirely if nothing meaningful to save.
-      if (Object.keys(cleaned).length === 0) {
-        localStorage.removeItem(AppSider.LS_PREFIX + commitId);
-        return;
-      }
-      localStorage.setItem(AppSider.LS_PREFIX + commitId, JSON.stringify(cleaned));
-      // Update the index, evict oldest if over cap.
-      let index = [];
-      try {
-        index = JSON.parse(localStorage.getItem(AppSider.LS_INDEX_KEY) || '[]');
-      } catch { index = []; }
-      index = index.filter(id => id !== commitId);
-      index.push(commitId);
-      while (index.length > AppSider.LS_MAX_COMMITS) {
-        const evicted = index.shift();
-        localStorage.removeItem(AppSider.LS_PREFIX + evicted);
-      }
-      localStorage.setItem(AppSider.LS_INDEX_KEY, JSON.stringify(index));
-    } catch (e) {
-      console.warn('Failed to save integrationStatuses to localStorage', e);
-    }
-  }
-  componentDidMount() {
-    // Mark the restored commit as recently used
-    const commitId = this.props.commit?.id;
-    if (commitId && Object.keys(this.state.integrationStatuses).length > 0) {
-      this.saveIntegrationStatuses(commitId, this.state.integrationStatuses);
-    }
-  }
-  componentDidUpdate(prevProps, prevState) {
-    const prevCommitId = prevProps.commit?.id;
-    const currCommitId = this.props.commit?.id;
-    // Commit changed: reload from localStorage for the new commit.
-    if (prevCommitId !== currCommitId && currCommitId) {
-      const restored = this.loadIntegrationStatuses(currCommitId);
-      this.setState({ integrationStatuses: restored });
-      return;
-    }
-    // Same commit, statuses changed: persist them.
-    if (currCommitId && prevState.integrationStatuses !== this.state.integrationStatuses) {
-      this.saveIntegrationStatuses(currCommitId, this.state.integrationStatuses);
-    }
-  }
-  componentWillUnmount() {
-    this.stopUpdateIntegrationStatuses()
-  }
+    {/* Source Section */}
+    <SectionHeader>Source</SectionHeader>
+    <SiderHint name="Artifacts & Configs" content="The commit's build artifacts and qaboard.yaml configuration, diffed with the reference.">
+      <MenuItem icon="settings" text="Artifacts & Configs" active={active('parameters')} onClick={set('parameters')} />
+    </SiderHint>
+    <CodeMenu project={project} project_data={project_data} commit={commit?.id ? commit : undefined} branch={commit?.branch}/>
+    <IntegrationsMenus
+      integrations={results_integrations({ new_batch, commit, project_data })}
+      project={project}
+      project_data={project_data}
+      commit={commit}
+      ref_commit={ref_commit}
+      docs_root={docs_root}
+      batch={new_batch}
+      ref_batch={ref_batch?.label}
+      filter={filter}
+      ref_filter={ref_filter}
+      ref_project={ref_project}
+      user={user}
+      {...integrationProps}
+    />
 
-  // Integration status management methods
-  // Prefix carries the parent path so sub-menu items with the same text as a
-  // sibling elsewhere in the tree don't share a status entry.
-  key = (integration, prefix = '') => (prefix + (integration.id || integration.text || integration.name || integration.alt))
+    {/* Tuning Section */}
+    <SectionHeader>Tuning</SectionHeader>
+    <SiderHint name="Available Tests" content="The batches of tests you can run: see and edit their definitions.">
+      <MenuItem icon="layout-group-by" active={active('groups')} text="Available Tests" onClick={set('groups')} />
+    </SiderHint>
+    <SiderHint name="Run Tests / Tuning" content="Run this commit on more tests, or with other parameters, from the web app.">
+      <MenuItem icon="play" text="Run Tests / Tuning" active={active('tuning')} onClick={set('tuning')} />
+    </SiderHint>
+    <SiderHint name="Tuning Analysis" content={has_optim ? "This batch is an automated tuning: see what it found, and what to do next." : "How the tuned parameters affect the metrics. Useful after tuning or automated tuning."}>
+      <MenuItem icon="predictive-analysis" intent={has_optim ? "primary" : undefined} active={active('optimization')} text="Tuning Analysis" onClick={set('optimization')}/>
+    </SiderHint>
 
-  stopUpdateIntegrationStatuses = () => {
-    clearInterval(this.state.intervalId);
-  }
-
-  startUpdateIntegrationStatuses = interval => {
-    this.stopUpdateIntegrationStatuses();
-    this.updateIntegrationStatuses();
-    this.setState({
-      intervalId: setInterval(this.updateIntegrationStatuses, interval || 10 * 1000),
-    })
-  }
-
-  triggerIntegration = (integration, integration_key) => () => {
-    const { project, project_data={}, commit={} } = this.props;
-    const { webhook, gitlabCI, jenkins } = integration;
-    if (!webhook && !gitlabCI && !jenkins) {
-      return
-    }
-    const entry_key = integration_key ?? this.key(integration);
-    this.setState({
-      integrationStatuses: {
-        ...this.state.integrationStatuses,
-        [entry_key]: {
-          loading: true,
-          triggered: true,
-          data: undefined,
-        },
-      }
-    });
-    if (webhook) {
-      var url = '/api/v1/webhook/proxy/';
-      var params = webhook;
-    } else if (jenkins) {
-      url = '/api/v1/jenkins/build/trigger/';
-      params = jenkins
-    } else if (gitlabCI) {
-      url = '/api/v1/gitlab/job/play/';
-      const git = project_data.data?.git || {};
-      const project_git_hostname = git_hostname(project_data.data?.qatools_config) ?? default_git_hostname
-      git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
-      if (!git.web_url) {
-        this.setState({
-          integrationStatuses: {
-            ...this.state.integrationStatuses,
-            [entry_key]: {
-              is_loaded: true, loading: false,
-              error: "Can't find gitlab host",
-              statusText: 'ERROR',
-            },
-          }
-        });
-        return;
-      }
-      params = {
-        gitlab_host: git.web_url.split('/').slice(0,3).join('/'),
-        project_id: project,
-        commit_id: commit.id,
-        ...gitlabCI,
-      }
-    }
-    axios.post(url, params)
-    .then(response => {
-        console.log(response)
-        toaster.show({
-          message: `Webhook sent! [${response.status} ${response.statusText}]`,
-          intent: Intent.SUCCESS,
-        });
-        this.setState({
-          integrationStatuses: {
-            ...this.state.integrationStatuses,
-            [entry_key]: {
-              is_loaded: true,
-              loading: false,
-              triggered: true,
-              error: null,
-              statusText: response.statusText,
-              data: response.data,
-            },
-          }
-        });
-        if (!!response.data?.url && response.data?.open) {
-          window.open(response.data.url, '_blank').focus();
-        }
-    })
-    .catch(error => {
-      console.log(error.response ?? error)
-      toaster.show({
-        message: `Something went wrong: ${JSON.stringify(error.response ?? error)}`,
-        intent: Intent.DANGER,
-      });
-      this.setState({
-        integrationStatuses: {
-          ...this.state.integrationStatuses,
-          [entry_key]: {
-            is_loaded: true, loading: false, error,
-            statusText: error.response?.statusText,
-            data: error.response?.data,
-          },
-        }
-      });
-    });
-  }
-
-  updateIntegrationStatuses = () => {
-    const { project, project_data={}, commit={} } = this.props;
-    // Get all integrations from both contexts
-    const commitList_integrations = project_data.data?.qatools_config?.integrations ?? commit.data?.qatools_config?.integrations ?? [];
-    const results_integrations = (() => {
-      const batch_qatools_config = this.props.new_batch?.data?.qatools_config ?? {};
-      const commit_qatools_config = commit?.data?.qatools_config ?? {};
-      const project_qatools_config = project_data.data?.qatools_config ?? {};
-      return batch_qatools_config.integrations ?? commit_qatools_config.integrations ?? project_qatools_config.integrations ?? [];
-    })();
-    
-    const all_integrations = [...commitList_integrations, ...results_integrations];
-    const eval_templates_recusively = make_eval_templates_recursively(this.props)
-
-    // Flatten integrations so sub-menu entries also get their status probed.
-    // Without this, only top-level items get a HEAD request / status tag and
-    // nested links have no way to show they're broken.
-    // Each entry carries a path-aware key so that sub-items that share a
-    // text/name with a sibling elsewhere in the tree don't collide.
-    const flatten = (items, prefix = '') => (items || []).flatMap(i => {
-      if (!i) return [];
-      const item_key = this.key(i, prefix);
-      return i.sub
-        ? [{ integration: i, integration_key: item_key }, ...flatten(i.sub, `${item_key}/`)]
-        : [{ integration: i, integration_key: item_key }];
-    });
-
-    flatten(all_integrations).filter(({ integration: i }) =>
-      (i?.href !== undefined && i?.href !== "" && i?.src === undefined)
-      || i?.gitlabCI
-      || i?.jenkins
-    ).forEach(({ integration, integration_key }) => {
-      try {
-        integration = eval_templates_recusively(integration)
-      } catch {
-        return;
-      }
-      if (!integration) {
-        return;
-      }
-      const status = this.state.integrationStatuses[integration_key] || {};
-      if (status.loading)
-        return
-      if (integration.jenkins && status.data?.web_url === undefined && status.data?.url === undefined)
-        return
-      // Those are display-only fields, not part of the request
-      const { label: _label, icon: _icon, text: _text, href: _href, alt: _alt, style: _style, ignore_failure, gitlabCI, jenkins, ...request } = integration;
-      let req_url, params;
-      if (gitlabCI) {
-       if (status?.triggered !== true)
-         return
-       req_url = '/api/v1/gitlab/job/';
-       const git = project_data.data?.git || {};
-       if (!git.web_url) {
-         this.setState({
-           integrationStatuses: {
-             ...this.state.integrationStatuses,
-             [integration_key]: {
-               is_loaded: true,
-               loading: false,
-               error: "Can't find gitlab host",
-               statusText: 'ERROR',
-             },
-           }
-         });
-         return;
-       }
-       params = {
-         gitlab_host: git.web_url.split('/').slice(0,3).join('/'),
-         project_id: project,
-         commit_id: commit.id,
-         job_id: status.data?.id,
-         ...gitlabCI,
-       }
-     } else if (jenkins) {
-       if (status?.triggered !== true)
-         return
-       req_url = '/api/v1/jenkins/build/';
-       params = {
-         ...status?.data, //.web_url, .url
-       }
-     } else { // webhook
-       req_url = '/api/v1/webhook/proxy/';
-       params = {
-         method: 'HEAD',
-         url: integration.href.startsWith('/') ? `${window.location.origin}${integration.href}`: integration.href,
-         ...request
-       };
-     }
-      // Only mark as loading once we know we'll actually fire a request.
-      this.setState({
-        integrationStatuses: {
-          ...this.state.integrationStatuses,
-          [integration_key]: {
-            ...this.state.integrationStatuses[integration_key],
-            loading: true,
-          },
-        }
-      });
-     axios.post(req_url, params)
-       .then(response => {
-           this.setState({
-             integrationStatuses: {
-               ...this.state.integrationStatuses,
-               [integration_key]: {
-                 ...this.state.integrationStatuses[integration_key],
-                 is_loaded: true,
-                 loading: false,
-                 error: null,
-                 statusText: null,
-                 data: response.data,
-               },
-             }
-           });
-         })
-         .catch(error => {
-           const statusText = !!error.response ? error.response.statusText : "Network Error"
-           console.log("[update] Error:", error.response)
-           this.setState({
-             integrationStatuses: {
-               ...this.state.integrationStatuses,
-               [integration_key]: {
-                 ...this.state.integrationStatuses[integration_key],
-                 is_loaded: true,
-                 loading: false,
-                 error: (!!ignore_failure || statusText.includes("METHOD NOT ALLOWED")) ? null : error,
-                 statusText,
-                 data: error.response?.data,
-               },
-             }
-           });
-         });
-   })
-  }
-
-  render() {
-    const integrationProps = {
-      integrationStatuses: this.state.integrationStatuses,
-      triggerIntegration: this.triggerIntegration,
-      startUpdateIntegrationStatuses: this.startUpdateIntegrationStatuses,
-      stopUpdateIntegrationStatuses: this.stopUpdateIntegrationStatuses,
-    };
-
-    return (
-      <Sider className={`${Classes.DARK}`}>
-        {/* Header Section */}
-        <SiderHeader>
-          <Navbar.Heading className="bp6-navbar-heading">
-            <Link to="/">
-              <strong>QA-Board</strong>
-            </Link>
-            <span>
-              <WhatsNewButton via="sidebar" className="help-icon"/>
-              <Tooltip content="User guide">
-                <a
-                  href={`${this.props.docs_root}docs/user-guide/overview`}
-                  rel="noopener noreferrer"
-                  target="_blank"
-                  className="help-icon"
-                  aria-label="User guide"
-                  style={{marginLeft: spacing.xs}}
-                >
-                  <Icon icon="info-sign"/>
-                </a>
-              </Tooltip>
-            </span>
-          </Navbar.Heading>
-        </SiderHeader>
-
-        {/* Authentication Section */}
-        <SiderSection>
-          <AuthButton appSider={true}/>
-        </SiderSection>
-
-        {/* Project Section */}
-        <SiderSection>
-          <ProjectSideAvatar 
-            project={this.props.project} 
-            project_data={this.props.project_data} 
-            dispatch={this.props.dispatch} 
-          />
-        </SiderSection>
-
-        {/* Navigation Section */}
-        <SiderSection>
-          {!window.location.pathname.includes('/commit/') && !window.location.pathname.includes('/history/') && (
-            <>
-              <SectionHeader>Project Navigation</SectionHeader>
-              <EnhancedMenuItem>
-                <ProjectSideCommitList
-                  commit={this.props.latest_commit}
-                  ref_commit={this.props.ref_commit}
-                  match={this.props.match}
-                  history={this.props.history}
-                  project={this.props.project}
-                  project_data={this.props.project_data}
-                  dispatch={this.props.dispatch}
-                  user={this.props.user}
-                  {...integrationProps}
-                />
-              </EnhancedMenuItem>
-            </>
-          )}
-          
-          {window.location.pathname.includes('/commit/') && (
-            <>
-              <EnhancedMenuItem>
-                <ProjectSideResults
-                  new_batch={this.props.new_batch}
-                  commit={this.props.commit}
-                  ref_commit={this.props.ref_commit}
-                  selected_views={this.props.selected_views}
-                  history={this.props.history}
-                  project={this.props.project}
-                  project_data={this.props.project_data}
-                  dispatch={this.props.dispatch}
-                  user={this.props.user}
-                  ref_batch={this.props.ref_batch}
-                  filter={this.props.filter}
-                  ref_filter={this.props.ref_filter}
-                  ref_project={this.props.ref_project}
-                  {...integrationProps}
-                />
-              </EnhancedMenuItem>
-            </>
-          )}
-        </SiderSection>
-      </Sider>
-    )
-  }
+    <SectionHeader>Milestones</SectionHeader>
+    <SiderMilestones project={project} project_data={project_data} docs_root={docs_root}/>
+  </>
 }
 
 
+const is_mac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform ?? '');
+export const toggle_sider_keys = is_mac ? '⌘ \\' : 'Ctrl \\';
+const CollapseItem = ({ collapsed, onClick }) => <Tooltip
+  content={<span>{collapsed ? 'Expand the sidebar' : 'Collapse the sidebar to icons'} <kbd className={Classes.KEY}>{toggle_sider_keys}</kbd></span>}
+  placement="right"
+  hoverOpenDelay={collapsed ? 150 : hint_delay}
+  targetTagName="div"
+  fill
+>
+  <MenuItem
+    icon={collapsed ? "double-chevron-right" : "double-chevron-left"}
+    text="Collapse"
+    onClick={onClick}
+    aria-label={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
+    aria-expanded={!collapsed}
+    aria-keyshortcuts="Control+\\ Meta+\\"
+  />
+</Tooltip>;
 
-const mapStateToProps = (state, ownProps) => {
-  // console.log(state)
-  // console.log(ownProps.location)
+const AppSider = () => {
+  const { docs_root } = useSiteConfig();
+  const { open: openHelp } = useHelpSheet();
+  const user = useUser();
+  const { project, project_data, selected, selected_views, default_views, new_commit, ref_commit, new_batch, ref_batch } = useComparison();
+  const route = selected.route;
+  // searching commits doesn't change the latest commit
+  const { latest_commit } = useCommitsList({ ignore_search: true });
+  // the commit whose integrations we show
+  const commit = route.is_commit ? new_commit : latest_commit;
 
-  let is_home = ownProps.location.pathname === '/';
-  if (is_home) return {is_home: true}
+  const integrations = [
+    ...branch_integrations({ project_data, commit }),
+    ...results_integrations({ new_batch, commit, project_data }),
+  ];
+  const template_context = {
+    project, project_data, commit, ref_commit, integrations, user, docs_root,
+    branch: selected.branch ?? project_data.data?.qatools_config?.project?.reference_branch,
+    new_batch, ref_batch: ref_batch?.label,
+    filter: selected.filter_batch_new, ref_filter: selected.filter_batch_ref, ref_project: selected.ref_project,
+  };
+  const integrationProps = useIntegrationStatuses(template_context);
+  const collapsed = useSiderCollapsed();
+  const setCollapsed = usePrefsStore(state => state.setSiderCollapsed);
+  const toggle = () => setCollapsed(!usePrefsStore.getState().siderCollapsed);
+  useToggleShortcut(toggle);
 
-  // let project = params.get("project") || state.selected.project;
-  let project = projectSelector(state)
-  let project_data = projectDataSelector(state)
-  let selected = selectedSelector(state)
-  const { filter_batch_new: filter, filter_batch_ref: ref_filter, ref_project } = selected
-  let { new_commit: commit, ref_commit } = commitSelector(state)
-  const latest_commit = latestCommitSelector(state);
-  const qatools_config = (project_data.data || {}).qatools_config || {}
-  let selected_views = selected.selected_views || [ ( qatools_config.outputs || {}).default_tab_details || 'summary']
+  return (
+    <SiderCollapsedContext.Provider value={collapsed}>
+    <SiderWidthSync collapsed={collapsed}/>
+    <Sider className={`${Classes.DARK}${collapsed ? ' collapsed' : ''}`} aria-label="Navigation" as="nav">
+      {/* Header Section */}
+      <SiderHeader>
+        <Link to="/" className="qa-brand" title="All the projects">QA-Board</Link>
+        <span className="qa-header-actions">
+          <WhatsNewButton via="sidebar"/>
+          <ThemeButton/>
+          <Tooltip content={<span>Cheat sheet: shortcuts, words, docs <kbd className={Classes.KEY}>?</kbd></span>}>
+            <Button
+              variant="minimal"
+              size="small"
+              icon="help"
+              onClick={openHelp}
+              aria-label="Cheat sheet"
+              aria-keyshortcuts="?"
+            />
+          </Tooltip>
+        </span>
+      </SiderHeader>
 
-  const { new_batch, ref_batch } = batchSelector(state);
-  if (!state.projects.data[project]) {
-    return {
-      project,
-      project_data,
-      is_home: false,
-      branches: [],
-      commit, // selected
-      latest_commit, // on branch
-      selected_views,
-      user: state.user,
-      docs_root: state.siteConfig.docs_root,
-    };
-  }
+      {/* Go anywhere: the command palette */}
+      <SiderSearch>
+        <PaletteButton dark fill compact={collapsed}/>
+      </SiderSearch>
 
+      {/* Project Section */}
+      <SiderSection>
+        <ProjectSideAvatar project={project} project_data={project_data} />
+      </SiderSection>
 
-  return {
-    is_home,
-    project,
-    commit, ref_commit,
-    latest_commit,
-    project_data,
-    branches: state.projects.data[project].branches ||  [],
-    is_loading: state.projects.data[project].branches_loading,
-    selected_views,
-    new_batch, ref_batch,
-    filter, ref_filter, ref_project,
-    user: state.user,
-    docs_root: state.siteConfig.docs_root,
-  }
+      {/* Navigation Section: views of the results on commit pages, else (commit lists, history) the project's pages */}
+      <SiderSection>
+        {(route.is_list || route.is_history || route.is_access) && (
+          <>
+            <SiderMenu>
+              <ProjectSideCommitList
+                commit={latest_commit}
+                ref_commit={ref_commit}
+                project={project}
+                project_data={project_data}
+                user={user}
+                docs_root={docs_root}
+                {...integrationProps}
+              />
+            </SiderMenu>
+          </>
+        )}
+        {route.is_commit && (
+          <SiderMenu>
+            <ProjectSideResults
+              new_batch={new_batch}
+              commit={new_commit}
+              ref_commit={ref_commit}
+              selected_views={selected_views}
+              default_views={default_views}
+              project={project}
+              project_data={project_data}
+              user={user}
+              docs_root={docs_root}
+              ref_batch={ref_batch}
+              filter={selected.filter_batch_new}
+              ref_filter={selected.filter_batch_ref}
+              ref_project={selected.ref_project}
+              {...integrationProps}
+            />
+          </SiderMenu>
+        )}
+      </SiderSection>
+
+      {/* At the bottom, like in most apps */}
+      <SiderFooter>
+        <AuthButton appSider={true}/>
+        <SiderMenu>
+          <CollapseItem collapsed={collapsed} onClick={toggle}/>
+        </SiderMenu>
+      </SiderFooter>
+    </Sider>
+    </SiderCollapsedContext.Provider>
+  )
 }
 
-
-
-export default withRouter(connect(mapStateToProps)(AppSider) );
+export default AppSider;

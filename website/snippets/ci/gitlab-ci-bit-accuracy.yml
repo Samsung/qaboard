@@ -1,0 +1,25 @@
+# Runs a batch on every push, then fails when an output file differs from the reference's.
+# The runner must mount the results storage at the same path as the server (e.g. /mnt/qaboard):
+# with the docker executor, add it to the runner's volumes.
+stages: [test, bit-accuracy]
+
+variables:
+  QABOARD_URL: http://<your-qaboard>
+
+default:
+  image: python:3.12
+  before_script:
+    - pip install qaboard -r requirements.txt
+
+bitexact:
+  stage: test
+  script:
+    - qa --platform hw-model batch bitexact
+
+bit-accuracy:
+  stage: bit-accuracy
+  # optional: report the files that changed without failing the pipeline
+  allow_failure: true
+  script:
+    # waits for the end of the reference commit's pipeline with GITLAB_ACCESS_TOKEN (scope read_api)
+    - qa --platform hw-model check-bit-accuracy --batch bitexact

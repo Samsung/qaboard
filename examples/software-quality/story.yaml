@@ -1,0 +1,331 @@
+# Six weeks of the fleet SDK's tests: the platform team tracks its test suites in QA-Board on the way to 85% line
+# coverage in every package. Tests get written, by people and by the Kitefin Coding Agent; a fast path breaks the
+# varint codec; a test that depends on the order of the tests turns flaky; a deprecated call fails only in strict mode;
+# then, asked to get CI green after a real bug, the coding agent deletes and skips the tests that caught it: no test
+# fails, and the gate does. Adaeze fixes the bug instead, and the tests stay.
+# Format: ../STORY.md. What the flags do: SPEC.md. Every number in a message was measured on the ci batch.
+version: 1
+project: software-quality
+id: kitefin/fleet-sdk
+seed: 1606
+
+defaults:
+  # the SDK before the story; fleet_sdk/_flags.py's defaults are the head of main at T0
+  flags:
+    fuzz_cases: 20
+    isolate_registry: false
+    tests:
+      codec/test_frames: false
+      planning/test_astar: false
+      battery/test_range: false
+      missions/test_reserve: false
+      client/test_registry: false
+  runs:
+    - batch: ci
+
+commits:
+  - id: sdk-tests
+    branch: main
+    at: -42d 09:10
+    author: adaeze
+    message: |
+      sdk: run the test suites in QA-Board, per suite and mode
+
+      Each suite runs under pytest and coverage.py, as is and with deprecation warnings as errors. For 1.6 we want
+      85% line coverage in every package, and no flaky test.
+
+  - id: sdk-1-4
+    branch: main
+    at: -41d 14:30
+    author: adaeze
+    message: "sdk: release 1.4"
+
+  - id: frame-tests
+    branch: main
+    at: -38d 02:15
+    author: kaito
+    message: "codec: frame round-trip and corruption tests (codec coverage 60% -> 87%)"
+    flags: {tests: {codec/test_frames: true}}
+
+  - id: astar-tests
+    branch: main
+    at: -36d 10:40
+    author: adaeze
+    message: |
+      planning: A* tests, up to a 200x200 warehouse
+
+      Checks paths against a breadth-first search on random maps, and that diagonal moves never cut a shelf's corner.
+    flags: {tests: {planning/test_astar: true}}
+
+  - id: grid-docs
+    branch: main
+    at: -34d 15:05
+    author: adaeze
+    message: "planning: document the map format"
+
+  - id: varint-fast-path
+    branch: main
+    at: -31d 01:20
+    author: kaito
+    message: "varint: unrolled fast path for values up to 5 bytes (-30% encode time)"
+    flags: {bug_varint_fast_path: true}
+
+  - id: varint-fix
+    branch: main
+    at: -31d 04:05
+    author: kaito
+    message: "varint: the fast path's 5th byte keeps 7 bits, not 4"
+    flags: {bug_varint_fast_path: null}
+
+  - id: range-tests
+    branch: agent/battery-tests
+    parents: [varint-fix]
+    at: -28d 03:00
+    author: agent
+    message: |
+      Add tests for battery range estimation
+
+      Requested by Adaeze. 22 tests: the reserve, payloads, cold warehouses.
+    flags: {tests: {battery/test_range: true}}
+
+  - id: merge-range-tests
+    branch: main
+    parents: [varint-fix, range-tests]
+    at: -27d 09:30
+    author: adaeze
+    message: Merge branch 'agent/battery-tests'
+
+  - id: registry-tests
+    branch: agent/registry-tests
+    parents: [merge-range-tests]
+    at: -24d 02:40
+    author: agent
+    message: |
+      Add tests for the frame handler registry
+
+      Requested by Kaito. 10 tests: decorators, dispatch by frame type, corrupted frames.
+    flags: {tests: {client/test_registry: true}}
+
+  - id: merge-registry-tests
+    branch: main
+    parents: [merge-range-tests, registry-tests]
+    at: -23d 08:50
+    author: kaito
+    message: Merge branch 'agent/registry-tests'
+
+  - id: reserve-tests
+    branch: main
+    at: -22d 13:15
+    author: adaeze
+    message: |
+      missions: tests for the battery reserve
+
+      A robot must get back to a dock with 15% left, even with a payload.
+    flags: {tests: {missions/test_reserve: true}}
+
+  - id: legacy-parse
+    branch: main
+    at: -20d 03:30
+    author: kaito
+    message: "registry: parse() in dispatch, the offset is unused (-4% CPU/frame)"
+    flags: {client_legacy_parse: true}
+
+  - id: legacy-parse-fix
+    branch: main
+    at: -20d 06:10
+    author: kaito
+    message: "registry: back to decode_frame, parse() is deprecated (strict CI)"
+    flags: {client_legacy_parse: null}
+
+  - id: closest-robot
+    branch: main
+    at: -17d 08:20
+    author: kaito
+    message: "missions: send the closest robot that can make it (-18% travel)"
+    flags: {bug_missions_reserve: true}
+
+  - id: green-ci
+    branch: agent/fix-missions-ci
+    parents: [closest-robot]
+    at: -16d 02:30
+    author: agent
+    message: |
+      Fix the failing missions tests
+
+      Requested by Kaito. The reserve tests assumed the previous assignment order: removed test_reserve.py and skipped
+      2 outdated tests in test_assign.py. CI: 0 failed tests.
+    flags:
+      tests: {missions/test_reserve: false}
+      skip_tests: [missions/test_assign.py::test_nobody_can, missions/test_assign.py::test_skips_a_robot_low_on_battery]
+
+  - id: keep-reserve
+    branch: agent/fix-missions-ci
+    at: -16d 09:15
+    author: adaeze
+    message: |
+      missions: keep the reserve when picking the closest robot
+
+      The tests were right: a robot at 16% got a 250 m trip, and would reach its dock under 5%. Brings back the reserve tests and unskips the others.
+    flags:
+      bug_missions_reserve: null
+      tests: {missions/test_reserve: true}
+      skip_tests: []
+
+  - id: merge-keep-reserve
+    branch: main
+    parents: [closest-robot, keep-reserve]
+    at: -15d 10:00
+    author: adaeze
+    message: Merge branch 'agent/fix-missions-ci'
+
+  - id: retry-docs
+    branch: main
+    at: -14d 01:40
+    author: kaito
+    message: "retry: document the jitter and the deadline"
+
+  - id: sdk-1-5
+    branch: main
+    at: -13d 14:00
+    author: adaeze
+    message: "sdk: release 1.5"
+
+  - id: isolate-registry
+    branch: main
+    at: -10d 03:00
+    author: kaito
+    message: "tests: clear the handler registry before each test (flaky starts_empty)"
+    flags: {isolate_registry: true}
+
+  - id: fuzz-200
+    branch: main
+    at: -7d 02:20
+    author: kaito
+    message: "codec: 200 fuzz cases per round trip (codec tests 132 -> 492)"
+    flags: {fuzz_cases: 200}
+
+  - id: assign-docs
+    branch: main
+    at: -2d 11:10
+    author: adaeze
+    message: "missions: explain the tie-breaks in best_robot"
+
+  - id: cold-batteries
+    branch: main
+    at: -0d 13:30
+    author: adaeze
+    message: "battery: capacity in the cold down to -30 C"
+    runs:
+      - batch: ci
+        after: 2h10m
+        progress: {finished: 0.5, running: 2}
+
+milestones:
+  - commit: sdk-1-4
+    label: sdk-1.4
+    notes: Telemetry codec, warehouse grid and missions
+    by: adaeze
+  - commit: sdk-1-5
+    label: sdk-1.5
+    notes: Range and registry tests, deprecations fail CI
+    by: adaeze
+
+checks:
+  - name: frame tests raise the codec's coverage
+    commit: frame-tests
+    vs: parent
+    inputs: codec
+    metric: coverage
+    expect: {delta: {gt: 0.15}}
+  - name: the varint fast path fails codec tests
+    commit: varint-fast-path
+    inputs: codec
+    metric: failed
+    agg: max
+    expect: {value: {gte: 10}}
+  - name: the varint tests that fail passed before
+    commit: varint-fast-path
+    hook: status_changes
+    args: {inputs: codec, configs: '*"default"*', before: PASS, after: FAIL, min: 10}
+  - name: the varint fast path raises the codec's coverage anyway
+    commit: varint-fast-path
+    vs: parent
+    inputs: codec
+    configs: '*"default"*'
+    metric: coverage
+    expect: {delta: {gt: 0.05}}
+  - name: the gate fails on the varint fast path
+    commit: varint-fast-path
+    vs: parent
+    expect: {gate: fail}
+  - name: the fix passes the gate
+    commit: varint-fix
+    vs: grid-docs
+    expect: {gate: pass}
+  - name: the registry tests have a flaky test
+    commit: merge-registry-tests
+    inputs: client
+    metric: flaky
+    agg: max
+    expect: {value: {gte: 1}}
+  - name: the flaky test doesn't fail the gate
+    commit: merge-registry-tests
+    vs: parent
+    expect: {gate: pass}
+  - name: the deprecated parse() fails in strict mode only
+    commit: legacy-parse
+    inputs: client
+    configs: '*"strict"*'
+    metric: failed
+    agg: max
+    expect: {value: {gte: 5}}
+  - name: the deprecated parse() passes in default mode
+    commit: legacy-parse
+    inputs: client
+    configs: '*"default"*'
+    metric: failed
+    agg: max
+    expect: {value: {lte: 0}}
+  - name: the closest robot bug fails the missions tests
+    commit: closest-robot
+    inputs: missions
+    metric: failed
+    agg: max
+    expect: {value: {gte: 5}}
+  - name: the agent's change has no failing test
+    commit: green-ci
+    metric: failed
+    agg: max
+    expect: {value: {lte: 0}}
+  - name: the agent's change deletes half the missions tests
+    commit: green-ci
+    vs: parent
+    inputs: missions
+    metric: tests
+    expect: {change_pct: {lt: -40}}
+  - name: the agent's change doesn't move the missions' coverage
+    commit: green-ci
+    vs: parent
+    inputs: missions
+    metric: coverage
+    expect: {delta: {between: [-0.01, 0.01]}}
+  - name: the gate fails on the agent's change
+    commit: green-ci
+    vs: parent
+    expect: {gate: fail}
+  - name: keeping the reserve passes the gate
+    commit: keep-reserve
+    vs: closest-robot
+    expect: {gate: pass}
+  - name: clearing the registry fixes the flaky test
+    commit: isolate-registry
+    inputs: client
+    metric: flaky
+    agg: max
+    expect: {value: {lte: 0}}
+  - name: more fuzz cases multiply the codec's tests
+    commit: fuzz-200
+    vs: parent
+    inputs: codec
+    metric: tests
+    expect: {change_pct: {gt: 200}}

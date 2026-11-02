@@ -11,16 +11,12 @@ Usage:
 - migrate json->jsonb
 - sql!
 """
-import json
 import time
-import datetime
 
-from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import text
-from qaboard.utils import total_storage, save_outputs_manifest, outputs_manifest
 
 from backend.models import Output
-from backend.database import db_session, Session
+from backend.database import db_session
 
 db_session.autoflush = False
 

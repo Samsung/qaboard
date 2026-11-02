@@ -11,6 +11,7 @@ Modes:
   It can use different LSF options (e.g. a CPU queue) via `runners.dask.driver`.
 - If `scheduler_address` is set, we connect to an existing Dask cluster (started by you,
   e.g. with `dask scheduler` + `dask worker` sent via bsub, or dask-jobqueue).
+  With --no-wait, the driver job connects to it. Without LSF, we send all runs at once.
 
 Logs (driver, workers, list of runs) are saved in the batch directory, under dask/{command_id[:8]}.
 
@@ -35,6 +36,7 @@ import os
 import sys
 import json
 import math
+import shutil
 import asyncio
 import time
 import signal
@@ -42,7 +44,7 @@ import threading
 import subprocess
 from pathlib import Path
 from dataclasses import dataclass, field, replace, fields
-from typing import Optional, List, Dict, Any, Set
+from typing import Optional, List, Dict, Any, Set, Tuple
 
 from click import secho
 
@@ -83,6 +85,14 @@ def forwarded_env() -> Dict[str, str]:
   return {k: v for k, v in os.environ.items() if k not in excluded_env and not k.startswith(excluded_env_prefixes)}
 
 
+def run_env(env: Dict[str, str]) -> Dict[str, str]:
+  """The environment of a run on a worker. Like with the LSF runner, runs are headless."""
+  environment = {**os.environ, **env, "MPLBACKEND": "agg"}
+  # Otherwise runs that use matplotlib, OpenCV or Qt open X11 connections back to the submitter's display
+  environment.pop("DISPLAY", None)
+  return environment
+
+
 ###
 ### What runs on the workers.
 ###
@@ -108,7 +118,7 @@ def _run_command(command: str, cwd: Optional[str], env: Dict[str, str], log_path
       command,
       shell=True,
       cwd=cwd,
-      env={**os.environ, **env},
+      env=run_env(env),
       stdout=log,
       stderr=subprocess.STDOUT,
     )
@@ -265,16 +275,22 @@ def run_tasks(tasks: List[Dict[str, Any]], job_options: Dict[str, Any]):
 
     # Sliding window of `concurrency` runs
     pending = list(enumerate(tasks))
-    pending.reverse()
     concurrency = options.concurrency if options.concurrency > 0 else len(tasks)
+    # Tasks can also have the concurrency of their group, e.g. their batch's (see DaskRunner.start_groups)
+    def can_start(task: Dict[str, Any]) -> bool:
+      limit = task.get('concurrency') or 0
+      return limit <= 0 or sum(1 for t in in_flight.values() if t.get('group') == task.get('group')) < limit
     nb_done, nb_failed = 0, 0
     seen_workers, no_worker_since = False, None
     while pending or in_flight:
       if stop_event.is_set():
         secho("The batch was stopped.", fg='red', err=True)
         abort()
-      while pending and len(in_flight) < concurrency:
-        index, task = pending.pop()
+      while len(in_flight) < concurrency:
+        startable = next((i for i, (_, task) in enumerate(pending) if can_start(task)), None)
+        if startable is None:
+          break
+        index, task = pending.pop(startable)
         in_flight[submit(index, task)] = task
       try:
         done, _ = wait(list(in_flight), timeout=poll_interval, return_when="FIRST_COMPLETED")
@@ -307,8 +323,13 @@ def run_tasks(tasks: List[Dict[str, Any]], job_options: Dict[str, Any]):
       cluster.close()
 
 
+def can_start_driver() -> bool:
+  """Whether we can send the --no-wait driver as an LSF job."""
+  return bool(os.environ.get('QA_RUNNERS_LSF_BRIDGE')) or bool(shutil.which('bsub'))
+
+
 def start_driver(tasks: List[Dict[str, Any]], job_options: Dict[str, Any]):
-  """For --no-wait: sends to LSF a job that runs the scheduler and sends the runs."""
+  """For --no-wait: sends to LSF a job that sends the runs, after starting a scheduler and workers unless we use an existing cluster."""
   from .lsf import LsfRunner, dict_to_LsfOptions
   options = dict_to_DaskOptions(job_options)
   command_id = job_options['command_id']
@@ -341,6 +362,8 @@ def start_driver(tasks: List[Dict[str, Any]], job_options: Dict[str, Any]):
 class DaskRunner(BaseRunner):
   """Execute runs on Dask workers, by default started as LSF jobs."""
   type = "dask"
+  # Batches with their own share the workers, with their own limit (see start_groups)
+  group_options = ('concurrency',)
 
   def __init__(self, run_context: RunContext):
     self.run_context = run_context
@@ -350,15 +373,38 @@ class DaskRunner(BaseRunner):
 
   @staticmethod
   def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True):
+    return DaskRunner.start_tasks([job_to_task(job, job_options) for job in jobs], job_options, blocking)
+
+  @classmethod
+  def start_groups(cls, groups: List[Tuple[Dict[str, Any], List[Job]]], blocking=True):
+    """
+    The runs of all groups share the same workers, but each group has at most its own `concurrency` in flight.
+    In all, we never have more in flight than the largest concurrency.
+    """
+    if len(groups) == 1:
+      job_options, jobs = groups[0]
+      return DaskRunner.start_jobs(jobs, job_options, blocking)
+    tasks: List[Dict[str, Any]] = []
+    limits = []
+    for index, (job_options, jobs) in enumerate(groups):
+      concurrency = dict_to_DaskOptions(job_options).concurrency
+      limits.append(concurrency if concurrency > 0 else len(jobs))
+      tasks.extend({**job_to_task(job, job_options), "group": index, "concurrency": concurrency} for job in jobs)
+    # Not more than the groups can run, so that we don't start useless workers
+    concurrency = min(max(limits), sum(min(limit, len(jobs)) for limit, (_, jobs) in zip(limits, groups)))
+    return DaskRunner.start_tasks(tasks, {**groups[0][0], "concurrency": concurrency}, blocking)
+
+  @staticmethod
+  def start_tasks(tasks: List[Dict[str, Any]], job_options: Dict[str, Any], blocking=True):
     from distributed import Client, fire_and_forget # type: ignore
     options = dict_to_DaskOptions(job_options)
-    tasks = [job_to_task(job, job_options) for job in jobs]
     if blocking:
       return run_tasks(tasks, job_options)
-    if not options.scheduler_address:
+    # The driver sends the runs `concurrency` at a time. With an existing cluster, it connects to it.
+    if not options.scheduler_address or can_start_driver():
       return start_driver(tasks, job_options)
 
-    secho("WARNING: with --no-wait and a `scheduler_address`, all runs are sent at once, and `concurrency` is not enforced.", fg='yellow', err=True)
+    secho("WARNING: with --no-wait and a `scheduler_address`, but no LSF to send a driver job, all runs are sent at once, and `concurrency` is not enforced.", fg='yellow', err=True)
     command_id = job_options['command_id']
     env = forwarded_env()
     with Client(options.scheduler_address) as client:

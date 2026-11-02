@@ -3,6 +3,7 @@ Provides a default QA configuration for the projects, by reading the configurati
 """
 import os
 import sys
+import json
 import datetime
 from getpass import getuser
 from pathlib import Path
@@ -24,6 +25,9 @@ config_has_error = False
 
 # Don't lots of verbose info if the users just wants the help, or start a new project
 ignore_config_errors = len(sys.argv)==1 or '--help' in sys.argv or 'init' in sys.argv
+# `qa auth` doesn't need a project: we don't even read qaboard.yaml, it may have errors
+is_auth_command = sys.argv[1:2] == ['auth']
+ignore_config_errors = ignore_config_errors or is_auth_command
 # When the code is imported we care less about warnings...
 ignore_config_errors = ignore_config_errors or not sys.argv or not sys.argv[0].endswith('qa')
 
@@ -55,7 +59,7 @@ def find_configs(path : Path) -> List[Tuple[Dict, Path]]:
 
 
 
-qatools_configsxpaths = find_configs(path=Path())
+qatools_configsxpaths = find_configs(path=Path()) if not is_auth_command else []
 qatools_configs = [q[0] for q in qatools_configsxpaths]
 qatools_config_paths = [q[1] for q in qatools_configsxpaths]
 if not qatools_configsxpaths:
@@ -63,7 +67,7 @@ if not qatools_configsxpaths:
   if not ignore_config_errors:
     click.secho('ERROR: Could not find a `qaboard.yaml` configuration file.', fg='red', err=True)
     if 'QABOARD_TUNING' not in os.environ:
-      click.secho('       If you are starting a new project, run `qatools init`.', fg='red', err=True)
+      click.secho('       If you are starting a new project, run `qa init`.', fg='red', err=True)
     else:
       click.secho(f'       It seems "artifacts" are missing. To save them:', fg='red', err=True)
       click.secho(f'       1. cd your/project', fg='red', err=True)
@@ -109,7 +113,8 @@ else:
     if "include" in c:
       # paths will be relative to the root qaboard.yaml
       c_include_path = root_qatools / c["include"]
-      c_include = yaml.load(c_include_path.open(), Loader=yaml.SafeLoader)
+      with c_include_path.open() as f:
+        c_include = yaml.load(f, Loader=yaml.SafeLoader)
       c = merge(c_include, c)
     config = merge(c, config)
 
@@ -154,6 +159,7 @@ platform = 'windows' if on_windows else 'linux'
 
 
 user = os.environ.get('QA_USER', getuser())
+local_commit_placeholder = f'<local:{user}>'
 
 
 def storage_roots(config: Dict, project: Path, subproject: Path, user_name: Optional[str] = None) -> Tuple[Path, Path, Path]:
@@ -197,20 +203,64 @@ def storage_roots(config: Dict, project: Path, subproject: Path, user_name: Opti
         click.secho('If your organization has a site package (e.g. qaboard-site-sirc), install it to get default settings.', fg='red', err=True, dim=True)
   return outputs_root, artifacts_root, subproject_for_artifacts
 
+# The storage folders that don't exist, and that we couldn't create. Only the commands that save or read results
+# there need them (see `storage_needed_by`): local runs save theirs in the project's output/ folder.
+missing_storage: List[Path] = []
+
 def mkdir(path: Path):
-  global config_has_error
   if not path.exists():
     try:
       path.mkdir(parents=True)
       click.secho(f'Created: {path}', fg='blue', err=True)
     except Exception:
-      config_has_error = True
-      if not ignore_config_errors:
-        click.secho(f'ERROR: The storage path does not exist: "{path}".', fg='red', err=True)
-        if "/algo/" in str(path) and not Path(*path.parts[:3]).exists():
-          click.secho(f'INFO: To create storage locations for new projects, go to:', fg='blue', bold=True, err=True)
-          click.secho(f'      http://jenmaster1:8080/job/ALGO/job/CreateProjectStorage/build?delay=0sec', fg='blue', err=True)
-          click.secho(f'Products (HP1, 2X5...) are "Technology" projects, while CIS/KITT_ISP.. are "Group" projects.', fg='blue', err=True)
+      if path not in missing_storage:
+        missing_storage.append(path)
+
+
+# Commands that always use the storage, and what for
+commands_using_storage = {
+  'save-artifacts': '`qa save-artifacts` saves the build there',
+  'check-bit-accuracy': '`qa check-bit-accuracy` reads the reference results there',
+  'optimize': '`qa optimize` saves its results there',
+}
+
+def storage_needed_by(command: Optional[str], share: bool, is_ci: bool) -> Optional[str]:
+  """Why a command needs the storage, or None if it doesn't. Runs in CI or with --share save their results there."""
+  if command in ('auth', 'init'):
+    return None
+  if is_ci:
+    return 'In CI, `qa` saves results there'
+  if share:
+    return '`qa --share` saves results there'
+  return commands_using_storage.get(command) if command else None
+
+
+# No messages for --help, `qa init`, `qa auth` or when imported. Unlike `ignore_config_errors`, it doesn't change
+# once a warning was shown.
+shows_config_messages = not ignore_config_errors
+
+def report_missing_storage(needed_by: Optional[str], environ=os.environ) -> bool:
+  """
+  Whether the command must stop because the storage it needs is missing, after an error that says what to do.
+  When it doesn't need it, we warn about it, once: not again in the runs `qa batch` starts.
+  `needed_by` is why the command needs the storage, see `storage_needed_by`.
+  """
+  if not missing_storage or not shows_config_messages:
+    return False
+  paths = ', '.join(f'"{p}"' for p in missing_storage)
+  if needed_by:
+    click.secho(f'ERROR: The storage path does not exist, and qa could not create it: {paths}', fg='red', bold=True, err=True)
+    click.secho(f'       {needed_by}. To fix it: create the folder, mount your shared storage there,', fg='red', err=True)
+    click.secho('       or set QA_STORAGE (or `storage` in qaboard.yaml) to a folder your QA-Board server reads.', fg='red', err=True)
+    # Sites can explain how to get storage for new projects
+    storage_help = site_config('QABOARD_STORAGE_HELP')
+    if storage_help:
+      click.secho(f'INFO: {storage_help}', fg='blue', err=True)
+    return True
+  if 'QA_BATCH' not in environ:
+    click.secho(f'WARNING: The storage path does not exist: {paths}. Local runs save their results in output/ without it,', fg='yellow', err=True)
+    click.secho('         but `qa --share`, CI runs and `qa save-artifacts` need it: create or mount it, or set QA_STORAGE.', fg='yellow', err=True)
+  return False
 
 outputs_root: Optional[Path]
 artifacts_root: Optional[Path]
@@ -248,6 +298,57 @@ ci_env_variables = (
 )
 is_ci = any([v in os.environ for v in ci_env_variables])
 
+# CI providers, and what tells them apart: QA-Board shows users their own runs, and can hide the CI's
+ci_providers = (
+  ('gitlab', 'GITLAB_CI'),
+  ('github', 'GITHUB_ACTIONS'),
+  ('jenkins', 'JENKINS_URL'),
+  ('azure', 'TF_BUILD'),
+  ('buildkite', 'BUILDKITE'),
+  ('circleci', 'CIRCLECI'),
+  ('teamcity', 'TEAMCITY_VERSION'),
+  ('bitbucket', 'BITBUCKET_BUILD_NUMBER'),
+  ('drone', 'DRONE'),
+  ('travis', 'TRAVIS'),
+)
+
+
+def run_context(environ=os.environ) -> dict:
+  """
+  Where `qa` runs: {"origin": "webapp" | "ci" | "local", ...}. Runs QA-Board starts set QABOARD_TUNING (and CI, like
+  pipelines). For CI pipelines: the provider, links to the pipeline and job, and who triggered them, when we know.
+  """
+  if 'QABOARD_TUNING' in environ:
+    return {"origin": "webapp"}
+  provider = next((name for name, variable in ci_providers if environ.get(variable)), None)
+  if not provider and not any(v in environ for v in ci_env_variables):
+    return {"origin": "local"}
+  context = {"origin": "ci", "provider": provider or "unknown"}
+  if provider == 'gitlab':
+    context.update(pipeline_url=environ.get('CI_PIPELINE_URL'), job_url=environ.get('CI_JOB_URL'),
+                   triggered_by=environ.get('GITLAB_USER_EMAIL') or environ.get('GITLAB_USER_LOGIN'))
+  elif provider == 'github':
+    server, repository, run_id = environ.get('GITHUB_SERVER_URL'), environ.get('GITHUB_REPOSITORY'), environ.get('GITHUB_RUN_ID')
+    if server and repository and run_id:
+      context['pipeline_url'] = f"{server}/{repository}/actions/runs/{run_id}"
+    context['triggered_by'] = environ.get('GITHUB_TRIGGERING_ACTOR') or environ.get('GITHUB_ACTOR')
+  elif provider == 'jenkins':
+    context.update(job_url=environ.get('BUILD_URL'), triggered_by=environ.get('BUILD_USER_EMAIL') or environ.get('BUILD_USER_ID'))
+  elif provider == 'buildkite':
+    context.update(job_url=environ.get('BUILDKITE_BUILD_URL'), triggered_by=environ.get('BUILDKITE_BUILD_CREATOR_EMAIL'))
+  return {k: v for k, v in context.items() if v}
+
+
+def github_pull_request_head() -> Optional[str]:
+  """In Github Actions workflows triggered by pull requests, the last commit of the pull request."""
+  if not os.environ.get('GITHUB_EVENT_NAME', '').startswith('pull_request'):
+    return None
+  try:
+    with open(os.environ['GITHUB_EVENT_PATH']) as f:
+      return json.load(f)['pull_request']['head']['sha']
+  except (KeyError, OSError, ValueError, TypeError):
+    return None
+
 
 if is_ci:
     # This field is not used at the moment, possibly in the future we'll want to support other VCS like SVN
@@ -261,29 +362,33 @@ if is_ci:
         'TRAVIS_COMMIT', # TravisCI
         'GITHUB_SHA'     # Github Actions
     )
-    commit_id = getenvs(commit_sha_variables)
+    # For pull requests, Github Actions' GITHUB_SHA is a temporary merge commit: we use the PR's last commit
+    commit_id = github_pull_request_head() or getenvs(commit_sha_variables)
 
     branch_env_variables = (
         'CI_COMMIT_TAG',      # GitlabCI, only when building tags
         'CI_COMMIT_REF_NAME', # GitlabCI
         'GIT_BRANCH',         # Jenkins
-        'gitlabBranch',       # Jenkins gitlab plugin 
+        'gitlabBranch',       # Jenkins gitlab plugin
         'CIRCLE_BRANCH',      # CircleCI
         'TRAVIS_BRANCH',      # TravisCI
+        'GITHUB_HEAD_REF',    # Github Actions, the source branch of pull requests
+        'GITHUB_REF_NAME',    # Github Actions, the branch or tag
         'GITHUB_REF'          # Github Actions
     )
     commit_branch = getenvs(branch_env_variables)
     if commit_branch:
-      commit_branch = commit_branch.replace('origin/', '').replace('refs/heads/', '')
+      commit_branch = commit_branch.replace('origin/', '').replace('refs/heads/', '').replace('refs/tags/', '')
 
     tag_env_variables = (
         'CI_COMMIT_TAG',      # GitlabCI
         'GIT_TAG_NAME',       # Jenkins git plugin
         'CIRCLE_TAG',         # CircleCI
         'TRAVIS_TAG',         # TravisCI
-        # Github Actions uses GITHUB_REF too
     )
     commit_tag = getenvs(tag_env_variables)
+    if not commit_tag and os.environ.get('GITHUB_REF_TYPE') == 'tag':
+      commit_tag = os.environ.get('GITHUB_REF_NAME')
 else:
     commit_type = None
     # If possible we'll complete the information later
@@ -302,18 +407,22 @@ for d in (repo_root, *list(repo_root.parents)):
     is_in_git_repo = True
     repo_root = d
     break
+
+
+def _git_head_or_placeholder(repo_root: Path) -> Tuple[str, str]:
+  """The (branch, commit) of the git HEAD, or placeholders outside git or if the HEAD can't be read."""
+  if is_in_git_repo:
+    try:
+      return git_head(repo_root)
+    except (OSError, ValueError) as e: # e.g. a .git pointer to a missing directory, an undecodable file
+      click.secho(f'WARNING: Could not read the git HEAD, using placeholders: {e}', fg='yellow', err=True)
+  return local_commit_placeholder, local_commit_placeholder
+
+
 if not commit_id or not commit_branch:
-    if is_in_git_repo:
-      commit_branch_, commit_id_ = git_head(repo_root)
-      if not commit_id:
-        commit_id = commit_id_
-      if not commit_branch:
-        commit_branch = commit_branch_
-    else:
-      if not commit_branch:
-        commit_branch = f'<local:{user}>'
-      if not commit_id:
-        commit_id = f'<local:{user}>'
+    fallback_branch, fallback_id = _git_head_or_placeholder(repo_root)
+    commit_branch = commit_branch or fallback_branch
+    commit_id = commit_id or fallback_id
 
 if artifacts_project_root:
     artifacts_branch_root = artifacts_project_root / 'branches' / slugify(commit_branch) / subproject_for_artifacts
@@ -324,24 +433,27 @@ else:
 
 commit_committer_name: Optional[str] = user
 commit_committer_email: Optional[str] = None
+# who wrote it: commits merged from GitHub/GitLab have the forge, or the maintainer who rebased, as committer
+commit_author_email: Optional[str] = None
 commit_authored_datetime = os.environ.get("GIT_AUTHORED_DATETIME", datetime.datetime.now(datetime.timezone.utc).isoformat())
 commit_message: Optional[str] = os.environ.get("GIT_MESSAGE")
 commit_parents: List[str] = []
 if commit_id and is_in_git_repo:
-  fields = ['%cn', '%ce', '%ai', '%P', "%B"]
+  fields = ['%cn', '%ce', '%ae', '%ai', '%P', "%B"]
   try:
     commit_info = git_show("%n".join(fields), commit_id)
     fields_values = commit_info.split('\n', maxsplit=len(fields)-1)
-    commit_committer_name, commit_committer_email, commit_authored_datetime_, commit_parents_str, commit_message_ = fields_values
+    commit_committer_name, commit_committer_email, commit_author_email, commit_authored_datetime_, commit_parents_str, commit_message_ = fields_values
     if not commit_authored_datetime:
       commit_authored_datetime = commit_authored_datetime_
     if not commit_message:
       commit_message = commit_message_
     commit_parents = commit_parents_str.split()
   except Exception as e:
-    print(e, file=sys.stderr)
-    # may fail when working on the first commit in a repo, like in our tests
-    pass
+    # The commit can be missing from the clone (shallow CI clones, the first commit in a repo like in our tests...),
+    # or come from the CI's environment variables: we do without what git would tell us about it.
+    if 'QA_VERBOSE' in os.environ:
+      print(e, file=sys.stderr)
 
 
 if root_qatools_config:
@@ -388,16 +500,19 @@ def get_default_configuration(input_settings) -> str:
   default_configuration = list(flatten(default_configuration))
   return serialize_config(default_configuration)
 
-def get_default_database(inputs_settings):
+def get_default_database(inputs_settings, interpolation_vars=None):
   # All recordings used should be stored at the same location
   # We will refer to them by their relative path related to the "database"
+  # `interpolation_vars` fills {project} and {subproject}, by default with the current project's (the server passes the commit's)
   global ignore_config_errors
   if 'type' in inputs_settings and inputs_settings['type'] in inputs_settings and 'database' in inputs_settings[inputs_settings['type']]:
     database_spec = inputs_settings[inputs_settings['type']]['database']
   else:
     database_spec = inputs_settings.get('database', {})
+  if interpolation_vars is None:
+    interpolation_vars = {"project": project, "subproject": subproject}
   try:
-    database = location_from_spec(database_spec, {"project": project, "subproject": subproject})
+    database = location_from_spec(database_spec, interpolation_vars)
   except Exception:
     database = Path("/")
   if not database:
@@ -433,11 +548,11 @@ if metrics_file:
           click.secho(f'ERROR: Unable to parse {metrics_file}', fg='red', err=True, bold=True)
           click.secho(f'{e}', fg='red', err=True)
           ignore_config_errors = False
-      available_metrics = _metrics.get('available_metrics', {})
-      main_metrics = _metrics.get('main_metrics', [])
+      # an empty file, or `available_metrics:` with only comments under it, are null
+      available_metrics = (_metrics or {}).get('available_metrics') or {}
+      main_metrics = (_metrics or {}).get('main_metrics') or []
 
 # reexport for backward compat
-from .site_config import secrets
 
 # backward compat only for HW_ALG's tools/find_valid_build.py (removed 28/07/20)
 from .git import _Repo, _Commit

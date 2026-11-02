@@ -1,0 +1,5 @@
+# Fictional prices, in US dollars per million tokens, as if the models were served by a provider: they only make
+# changes in verbosity show up as a cost. The models run locally; nobody bills these.
+models:
+  smollm2-360m: {input: 0.25, output: 1.00}
+  qwen2.5-0.5b: {input: 0.40, output: 1.60}

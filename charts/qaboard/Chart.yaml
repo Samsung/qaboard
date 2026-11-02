@@ -2,10 +2,14 @@ apiVersion: v2
 name: qaboard
 description: QA-Board, experiment tracking with advanced viewers for algorithm, ML and performance engineers
 type: application
-# Chart version, bump it when the chart changes
-version: 0.1.0
-# Default image version: images are <repository>:<service>-<version>, see image.version in values.yaml
-appVersion: "1.1.0"
+# The chart is versioned with QA-Board. CI publishes it to oci://ghcr.io/<owner>/charts/qaboard (.github/workflows/ci.yaml):
+# - releases with their version (1.2.0) and appVersion (their images: <service>-1.2.0)
+# - master with a development version after the latest release (1.2.1-dev.<CI run>) and appVersion <commit>
+# In git it's a placeholder.
+version: 0.0.0-dev
+# The version of the images (<repository>:<service>-<appVersion>), see image.version in values.yaml.
+# "latest": the latest images from master (<repository>:<service>)
+appVersion: latest
 home: https://github.com/Samsung/qaboard
 sources:
   - https://github.com/Samsung/qaboard

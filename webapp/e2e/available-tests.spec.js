@@ -116,3 +116,39 @@ test('toasts show in the window, even after scrolling down', async ({ page }) =>
   const toast = page.locator('.bp6-toast').filter({ hasText: 'Copied' });
   await expect(toast).toBeInViewport();
 });
+
+test('says why a batch has no tests', async ({ page }) => {
+  const artifacts = '/mnt/qaboard/group/repo/ab/c123';
+  await page.route('**/api/**', route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/v1/tests/groups')
+      return route.fulfill({ body: 'my-batch:\n  inputs: [a.jpg]\n', contentType: 'text/html' });
+    if (url.pathname === '/api/v1/tests/group')
+      return route.fulfill({ json: {
+        tests: [],
+        definitions: [],
+        warnings: [
+          `Not in this commit's artifacts (\`${artifacts}\`): \`qa/nightly.yaml\`. Check the names in \`inputs.batches\`, and run \`qa save-artifacts\` on this commit: it saves the files listed in \`inputs.batches\`.`,
+          '`nightly` is not defined in the batch files QA-Board could read: `qa/batches.yaml`, `extra-batches.yml`, `alice.yml`.',
+        ],
+        files: [
+          { source: 'commit', path: 'qa/batches.yaml', location: `${artifacts}/qa/batches.yaml`, status: 'ok', batches: 4 },
+          { source: 'commit', path: 'qa/nightly.yaml', location: `${artifacts}/qa/nightly.yaml`, status: 'missing' },
+          { source: 'qaboard', path: 'extra-batches.yml', location: '/shared/group/repo/extra-batches.yml', status: 'empty' },
+          { source: 'qaboard', path: 'alice.yml', location: '/shared/group/repo/alice.yml', status: 'ok', batches: 1 },
+        ],
+      } });
+    const key = Object.keys(api).sort((a, b) => b.length - a.length).find(k => url.pathname.startsWith(k));
+    return route.fulfill({ json: key ? api[key] : {} });
+  });
+  await page.goto(`/${project}/commit/abc123?selected_views=groups`);
+  await page.getByRole('button', { name: 'Check any batch or pattern…' }).click();
+  const drawer = page.locator('.bp6-drawer');
+  await drawer.getByLabel('Batch to check').fill('nightly');
+  await drawer.getByRole('button', { name: 'Check' }).click();
+  await expect(drawer.getByText('Why there are no tests')).toBeVisible();
+  await expect(drawer.getByText('No batch matches')).toBeVisible();
+  const files = drawer.getByRole('list', { name: 'Batch files' });
+  await expect(files.getByText("not in the commit's artifacts")).toBeVisible();
+  await expect(files.getByText(`${artifacts}/qa/nightly.yaml`)).toBeVisible();
+});

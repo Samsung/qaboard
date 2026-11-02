@@ -1,0 +1,8 @@
+request: K3-017 is on a mission. How far along is it, and how much battery does it have left?
+fleet:
+  K3-017: {status: on-mission, zone: aisle-5, battery: 46, mission: {kind: patrol, progress: 44}}
+checks:
+  - tool_called: {name: get_mission, arguments: {robot: K3-017}}
+  - tool_called: {name: get_battery, arguments: {robot: K3-017}}
+  - answer_contains: [44%, 46%]
+  - max_turns: 5

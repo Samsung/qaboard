@@ -1,0 +1,17 @@
+---
+id: installation
+title: Installing qa at DSK
+sidebar_label: Installation
+sidebar_position: 1
+---
+At DSK, install `qaboard` and DSK's site package, `qaboard-site-dsk`:
+
+```bash
+pip install --upgrade qaboard
+# use the URL of the QA-Board repository you have access to (there is no `qaboard[dsk]` extra)
+pip install --upgrade 'qaboard-site-dsk @ git+ssh://git@<your-git-server>/<your-qaboard-repo>#subdirectory=deployments/dsk/cli'
+```
+
+**When you upgrade `qaboard`, upgrade `qaboard-site-dsk` too**: it holds DSK's settings.
+
+The site package configures `qa` to connect to DSK's QA-Board: you don't need to set environment variables. They still override the site package, e.g. `QABOARD_URL` to try another server. For the rest, follow the [client installation](/docs/installation) docs.

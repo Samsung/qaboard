@@ -127,3 +127,35 @@ def test_without_command(tmp_path, monkeypatch):
   monkeypatch.setattr(accounts, "accounts_dir", tmp_path / "accounts")
   assert accounts.refresh()
   assert not (tmp_path / "accounts").exists()
+
+
+def test_file_owners_use_the_accounts_command(commands):
+  """Storage scans, exports and jobs name owners like the file browser: not only from the server's /etc/passwd"""
+  assert accounts.refresh()
+  reload()
+  assert accounts.owner_name(1001) == "bob"
+  assert accounts.owner_name(424242) == "uid 424242"
+
+
+def test_owners_saved_before_the_accounts_were_known(commands):
+  """Scans saved "uid 1001" when the accounts weren't loaded: we name them, and find them from the user's name"""
+  assert accounts.refresh()
+  reload()
+  assert accounts.resolve("uid 1001") == "bob"
+  assert accounts.resolve("uid 424242") == "uid 424242"
+  assert accounts.resolve("alice") == "alice"
+  assert accounts.resolve(None) is None
+  assert accounts.resolve_keys({"uid 1001": 5, "bob": 2, "alice": 1}) == {"bob": 7, "alice": 1}
+  assert accounts.resolve_keys({"uid 1001": {"export": 5}, "bob": {"export": 1, "run": 2}}) == {"bob": {"export": 6, "run": 2}}
+  assert accounts.resolve_keys(None) == {}
+  assert accounts.aliases("bob") == ["bob", "uid 1001"]
+  assert accounts.aliases("nobody-we-know") == ["nobody-we-know"]
+
+
+def test_refresh_never_fails_when_the_folder_isnt_writable(commands, monkeypatch, capsys):
+  """e.g. the shared folder belongs to another user: scans and the file browser keep the accounts they have"""
+  blocked = commands / "a-file"
+  blocked.write_text("")
+  monkeypatch.setattr(accounts, "accounts_dir", blocked / "accounts")
+  assert accounts.refresh() is False
+  assert "could not update the accounts" in capsys.readouterr().out

@@ -1,0 +1,52 @@
+# Metrics returned by run() in qa/main.py, for one sequence. The ground truth is exact: the sequences are simulated.
+available_metrics:
+  ate_rmse:
+    label: ATE RMSE
+    description: Absolute trajectory error, the RMS of the distances between the estimated and the true positions of each frame, after the rigid transform that aligns them best.
+    suffix: ' m'
+    smaller_is_better: true
+    target: 0.05
+  rpe_trans:
+    label: RPE translation
+    description: Relative pose error over 1 m segments of the true path, the translation error per meter traveled.
+    suffix: '%'
+    scale: 100
+    smaller_is_better: true
+    target: 0.01
+  rpe_rot:
+    label: RPE rotation
+    description: Relative pose error over 1 m segments of the true path, the rotation error per meter traveled.
+    suffix: ' °/m'
+    smaller_is_better: true
+    target: 0.5
+  drift_end:
+    label: Drift at the end
+    short_label: Drift
+    description: Distance between where the robot thinks it is at the end of the sequence and where it is (both trajectories start at the true pose).
+    suffix: ' m'
+    smaller_is_better: true
+  loop_closures:
+    label: Loop closures
+    description: Keyframes matched to an older keyframe of the same place, and added to the pose graph.
+    smaller_is_better: false
+  keyframes:
+    label: Keyframes
+    smaller_is_better: true
+  time_per_frame:
+    label: Time per frame
+    description: Mean processing time of a depth frame (one CPU core), loop closures included. Real time at 15 fps is 66 ms.
+    suffix: ' ms'
+    smaller_is_better: true
+    target: 66
+  is_failed:
+    label: Crashed
+    short_label: Crashed
+    description: The run crashed.
+    suffix: '%'
+    scale: 100
+    smaller_is_better: true
+    target: 0
+
+default_metric: ate_rmse
+summary_metrics: [ate_rmse, rpe_trans, time_per_frame]
+main_metrics: [ate_rmse, rpe_trans, rpe_rot, time_per_frame]

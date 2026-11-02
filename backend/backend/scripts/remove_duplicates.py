@@ -1,15 +1,12 @@
 #!/usr/bin/env python
 """
-This scrip fixed a race condition that caused duplicated batches
+This script fixed a race condition that caused duplicated batches
  /opt/anaconda3/bin/python /home/arthurf/qaboard/backend/backend/remove_duplicates.py --dryrun
 """
 import click
-from click import secho
-from sqlalchemy import func, and_, asc, or_
-from sqlalchemy.sql import text
 
-from backend.database import db_session, Session
-from backend.models import Project, CiCommit, Batch, Output
+from backend.database import db_session
+from backend.models import CiCommit, Batch
 
 # Testing
 # ssh 

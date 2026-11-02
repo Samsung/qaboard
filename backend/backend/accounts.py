@@ -15,6 +15,7 @@ import fcntl
 import grp
 import os
 import pwd
+import re
 import subprocess
 import threading
 import time
@@ -161,8 +162,14 @@ def refresh(force=False) -> bool:
   """
   if not accounts_command:
     return True
-  accounts_dir.mkdir(parents=True, exist_ok=True)
-  with open(accounts_dir / '.lock', 'w') as lock:
+  try:
+    accounts_dir.mkdir(parents=True, exist_ok=True)
+    lock = open(accounts_dir / '.lock', 'a')
+  except OSError as e:
+    # e.g. the folder belongs to another user: we keep the accounts we have, and try again later
+    print(f"[accounts] ERROR: could not update the accounts in {accounts_dir}: {e}")
+    return False
+  with lock:
     try:
       fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
@@ -212,6 +219,43 @@ def user_name(uid: int) -> Optional[str]:
     return pwd.getpwuid(uid).pw_name
   except KeyError:
     return None
+
+
+def owner_name(uid: int) -> str:
+  """Who owns files with this uid: their account's name, or "uid 2041" if unknown"""
+  try:
+    return user_name(int(uid)) or f"uid {uid}"
+  except (TypeError, ValueError):
+    return f"uid {uid}"
+
+
+UNKNOWN_UID = re.compile(r'^uid (\d+)$')
+
+
+def resolve(name: Optional[str]) -> Optional[str]:
+  """Names saved as "uid 2041" before the account was known (e.g. by storage scans): its name if we know it now"""
+  match = UNKNOWN_UID.match(name or '')
+  return (user_name(int(match.group(1))) or name) if match else name
+
+
+def resolve_keys(by_name: Optional[dict]) -> dict:
+  """{name: number or {kind: number}} with the "uid 2041" names resolved, merged with the known ones"""
+  merged: dict = {}
+  for name, value in (by_name or {}).items():
+    key = resolve(name)
+    if isinstance(value, dict):
+      mine = merged.setdefault(key, {})
+      for kind, size in value.items():
+        mine[kind] = mine.get(kind, 0) + size
+    else:
+      merged[key] = merged.get(key, 0) + value
+  return merged
+
+
+def aliases(name: str) -> list:
+  """The names a user's files may have been saved under: theirs, and "uid 2041" from before the account was known"""
+  found = account(name)
+  return [name, f"uid {found.uid}"] if found else [name]
 
 
 def account(name: str) -> Optional[Account]:

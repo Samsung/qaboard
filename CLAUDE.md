@@ -32,9 +32,13 @@ docker compose -f docker-compose.yml -f development.yml -f deployments/sirc/sirc
 # Zero-downtime deploys, one env file per environment (compose files, project, replicas...)
 deployments/deploy.py deployments/sirc/production.env up|status|rollback|restore-db|compose ...
 docker compose --env-file deployments/sirc/production.env ps
-# Kubernetes: helm chart in charts/qaboard, SIRC values in deployments/sirc/values.yaml
+# Kubernetes: helm chart in charts/qaboard, laptop quickstart: charts/qaboard/quickstart.yaml + kind.yaml
+# (installed by the helm-e2e CI job, .github/scripts/helm_e2e.py). SIRC values in deployments/sirc/values.yaml
 ```
-GitLab CI deploys master to staging then production automatically. Runbooks: `website/docs/backend-admin/`.
+GitHub CI publishes the images to `ghcr.io/<owner>/qaboard` (`<service>-<sha8>` on master, `<service>` once every job passed,
+`<service>-<version>` for releases) and the chart to `oci://ghcr.io/<owner>/charts/qaboard`; compose and the chart default to
+`ghcr.io/samsung/qaboard`, `QABOARD_IMAGE` / `image.repository` override it.
+GitLab CI deploys master to staging then production automatically. SIRC runbooks: `deployments/sirc/runbooks/`; generic server docs: `website/docs/backend-admin/`.
 
 ### Frontend Development (React)
 ```bash
@@ -45,7 +49,12 @@ npm run build           # Production build (Vite)
 npm test                # Vitest (watch mode), `npm test -- --run` for a single run
 npm run lint            # oxlint
 npm run e2e             # Playwright smoke tests on the production build (after npm run build)
+npm run build:image-viewer  # the image viewer as an npm package, see src/image-viewer/README.md
 ```
+The image viewer (`webapp/src/image-viewer/`) is a standalone React component on OpenSeadragon: it must not import
+from the app (a test checks it). QA-Board adapts it in `webapp/src/viewers/images/` (runs, image servers, pixel values,
+regions of interest providers). `npm start` then `/image-viewer.html` shows it alone, with generated images.
+The JUnit test report viewer (`webapp/src/viewers/junit/`) has its playground too: `/junit-viewer.html?tests=50000`.
 
 ### Backend Development (Python Flask)
 ```bash
@@ -78,14 +87,15 @@ website shows them at `/release-notes` (with RSS/Atom feeds).
   or old periods; periods can't overlap). The format is documented in `website/release-notes/_template.md`.
 - **In the same PR as any user-visible change** (web app, `qa` CLI, qaboard.yaml, server/admin), add a
   bullet to the current month's note, under the right section: `## Web app`, `## CLI and project setup`,
-  `## Server and administration`, `## Documentation`, `## Fixes`. If the month's file doesn't exist,
+  `## Server and administration`, `## Documentation`, `## Performance`, `## Fixes` (grouped by theme under `###`
+  headings when there are many, in every section). If the month's file doesn't exist,
   create it as a draft: `website/release-notes/release_notes.py draft 2026-11 --write` (pre-filled from
   the git log, keeps `draft: true`). Skip refactors, CI-only and typo changes.
 - **Write for the reader**: one change per bullet, starting with a verb, saying what they can now do.
   No commit shas, no names, no internal hostnames or ticket ids: the repo and website are public.
   Link docs as `[text](/docs/page-id)`.
 - **Publishing** (maintainers, at the start of the next month or for a big release): curate the bullets,
-  write `description` (1-2 sentences) and 2-4 `highlights` (title, `audience`: users | project-integration |
+  write `description` (1-2 sentences) and 2-4 `highlights` (up to 8 for a big release) (title, `audience`: users | project-integration |
   admins, a Blueprint `icon` name, plain-text `description` (backticks for code), optional `link: /docs/...`), set `date`
   to the publication date, and remove `draft: true`. Until its period is over, a published note is a
   preview in the panel ("In progress"), so keep adding bullets as work lands: it pops up once, after the
@@ -104,7 +114,13 @@ website shows them at `/release-notes` (with RSS/Atom feeds).
 **Docs** (`website/docs/`) have one sidebar per audience (`website/sidebars.ts`): the **User guide**
 (`user-guide/`, for people looking at results in the web app), **Project integration** (wrapping code with `qa`,
 qaboard.yaml, runners, integrations), and **Admin** (`backend-admin/`, running the server). When a change
-affects how people use the web app, update the user guide page too.
+affects how people use the web app, update the user guide page too: one page per task, and the viewers have their own
+(`user-guide/image-viewer`, `video-viewer`, `other-viewers`; their formats for integrators in `viewers`). Pages start
+with the task and keep details collapsed: see "Page structure" in `website/STYLE.md`.
+
+The website is public: keep internal hostnames, paths, emails and people out of `website/docs/`. Pages for one site's users go in
+`website/site-docs/<site>/`, built only into that site's web app (`QABOARD_SITE`); runbooks go in `deployments/<site>/runbooks/`.
+`yarn build` fails on broken links: when you move or remove a page, add a redirect in `website/docusaurus.config.ts`.
 
 ## Testing
 
@@ -135,7 +151,7 @@ npm test -- --run       # Vitest + Testing Library, jsdom
 ## Key Technologies
 
 - **Backend**: Python 3.11+, Flask, PostgreSQL, SQLAlchemy, Celery, Redis
-- **Frontend**: React 19, Redux, Blueprint UI 6, React Router 8, D3.js, Plotly.js 3, Monaco. Built with Vite 8, tested with Vitest, linted with oxlint
+- **Frontend**: React 19 (function components, React Compiler), TanStack Query (server state), Zustand (user preferences), the URL for what's selected (`src/selection.js`), Blueprint UI 6, React Router 8, D3.js, Plotly.js 3, Monaco. Built with Vite 8, tested with Vitest, linted with oxlint. `npm run bench` measures performance
 - **Infrastructure**: Docker Compose, nginx, RabbitMQ
 - **CLI**: Python with Click framework
 - **Package Management**: `uv` for Python, `npm` for JavaScript
@@ -153,7 +169,7 @@ npm test -- --run       # Vitest + Testing Library, jsdom
 - **LSF Integration**: High-performance computing cluster support for batch jobs
 - **Advanced Visualizations**: Images, videos, plots, 3D point clouds, flame graphs
 - **Git Integration**: Version control awareness and commit tracking
-- **Parameter Tuning**: Built-in optimization workflows with scikit-optimize
+- **Parameter Tuning**: grid search and sampling, and automated tuning (`qa optimize`, with Optuna)
 - **Bit Accuracy Testing**: Automated regression testing for algorithm validation
 
 ## Architecture Notes

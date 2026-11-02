@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fixture: Plotly</title>
+  <style>body { margin: 0; padding: 16px; font-family: Roboto, sans-serif; } #plot { width: 800px; height: 450px; }</style>
+  <script src="/vendor/plotly.min.js"></script>
+</head>
+<body>
+  <div id="plot"></div>
+  <script>
+    // The plot is drawn late, then redrawn twice (within the 300 ms quiet window), like a viewer that fetches its data then adds the reference
+    window.__afterplots = [];
+    setTimeout(async () => {
+      const gd = document.getElementById('plot');
+      const x = Array.from({ length: 50 }, (_, i) => i / 49);
+      await Plotly.newPlot(gd, [{ x, y: x.map(v => Math.sin(6 * v)), name: 'new', line: { color: '#2d72d2' } }], { margin: { t: 30 } });
+      gd.on('plotly_afterplot', () => window.__afterplots.push(Date.now()));
+      window.__afterplots.push(Date.now());
+      setTimeout(() => Plotly.addTraces(gd, { x, y: x.map(v => Math.sin(6 * v + 0.3)), name: 'reference', line: { dash: 'dash', color: '#738091' } }), 200);
+      setTimeout(() => Plotly.relayout(gd, { title: { text: 'MTF' } }), 450);
+    }, 300);
+  </script>
+</body>
+</html>

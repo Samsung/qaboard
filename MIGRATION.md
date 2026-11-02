@@ -6,17 +6,14 @@ This document covers breaking changes from the branch unification
 ## For SIRC Users
 
 ### CLI
-- After the regular install with: `pip install git+ssh://git@gitlab-srv/common-infrastructure/qaboard`
-- Also install the site config:
-```bash
-    pip install --upgrade "qaboard-site-sirc @ git+ssh://git@gitlab-srv/common-infrastructure/qaboard#subdirectory=deployments/sirc/cli"
-```
+- After the regular install, also install the site config, `qaboard-site-sirc` (`deployments/sirc/cli`): the commands
+  are in [deployments/sirc/runbooks/README.md](deployments/sirc/runbooks/README.md#installing-the-client-at-sirc).
 - This auto-configures API URL (https://qa), port (5000), secrets path (! we dont support it anymore as part of the project config)
 - All existing ENV var overrides continue to work
 
 ### Server
 - Deployed by GitLab CI (staging, then production). By hand: `deployments/deploy.py deployments/sirc/production.env up`,
-  see `website/docs/backend-admin/deployment.mdx`
+  see `deployments/sirc/runbooks/deployment.md`
 
 ### Docker Builds
 Proxy/cert configuration is no longer hardcoded in Dockerfiles. Instead, `sirc.yml`
@@ -48,7 +45,7 @@ The SIRC/Samsung CA certificates that used to be committed there are now in `dep
 ```bash
 pip install --upgrade "qaboard-site-dsk @ git+ssh://git@<your-git-server>/<your-qaboard-repo>#subdirectory=deployments/dsk/cli"
 ```
-- This auto-configures API URL (https://qaboard.samsungds.net)
+- This auto-configures the API URL (DSK's server)
 
 ### Server
 - Deploy with: `docker compose -f docker-compose.yml -f production.yml -f deployments/dsk/dsk.yml up`
@@ -76,7 +73,6 @@ image servers -- all opt-in via ENV vars.
 
 Optional site settings for the backend:
 - `GITLAB_HOST`: also the fallback for git links in the UI (default: https://gitlab.com)
-- `QABOARD_QUOTA_URL_TEMPLATE`: shows a "Quota" link, with `{user_name}` and `{project}` placeholders
 - `QABOARD_SUPPORT_URL`: where users report bugs, can be a `mailto:` (default: GitHub issues)
 
 Optional site settings for the CLI (env vars, or defaults from a site package):

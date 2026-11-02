@@ -1,0 +1,25 @@
+// Runs your test set on every push, then fails the build when the results regress against the
+// reference (qa gate is experimental). qa saves results where the server reads them (e.g. /mnt/qaboard,
+// an NFS share), at the same path: run it on agents that mount it.
+pipeline {
+  agent { label 'qaboard' }
+  environment {
+    QABOARD_URL = 'http://<your-qaboard>'
+  }
+  stages {
+    stage('QA-Board') {
+      steps {
+        sh '''
+          python3 -m venv .venv
+          . .venv/bin/activate
+          pip install qaboard -r requirements.txt
+        '''
+        // Failed runs fail the build, and the gate still runs to report them
+        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+          sh '. .venv/bin/activate && qa batch ci'
+        }
+        sh '. .venv/bin/activate && qa gate'
+      }
+    }
+  }
+}

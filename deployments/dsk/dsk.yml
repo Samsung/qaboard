@@ -26,7 +26,7 @@ services:
       - QABOARD_DEFAULT_USER=qaboard
       - QABOARD_HOST=${QABOARD_HOST:-12.36.168.155}
       - QABOARD_PROTOCOL=http
-      - CELERY_BROKER_URL=pyamqp://guest:guest@rabbitmq:5672//
+      - CELERY_BROKER_URL=pyamqp://${QABOARD_RABBITMQ_USER:-guest}:${QABOARD_RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//
       - 'QABOARD_IMAGE_SERVERS={"default": "/iiif", "raw,hex,cde": "/iiif/cde"}'
 
   frontend:
@@ -43,7 +43,22 @@ services:
     # The folder, not the file: see deployments/sirc/sirc.yml
     - ./deployments/dsk/nginx:/tmp/deployment/nginx/conf.d:ro
 
+  # The image server reads /iiif/2/<path> from /repository/<path>: the folders nginx serves under /s/ (dsk.conf).
+  # docker-compose.yml used to mount the host's whole filesystem there.
+  cantaloupe:
+    volumes:
+      - /algo:/repository/algo:ro
+      - /mnt:/repository/mnt:ro
+
   # flower shares the backend image (which installs flower>=2.1.0), so only backend needs building
+
+  # Runs started from the web app go to Celery workers (QABOARD_TUNING_RUNNER=celery), on other hosts: RabbitMQ is
+  # published on the network, like before docker-compose.yml published it on 127.0.0.1 only. Anyone who can connect to it
+  # can run commands on the workers: set QABOARD_RABBITMQ_USER/QABOARD_RABBITMQ_PASSWORD in .env (see docker-compose.yml).
+  rabbitmq:
+    ports: !override
+    - ${QABOARD_RABBITMQ_HOST_IP:-0.0.0.0}:${QABOARD_PORT_RABBITMQ:-5672}:5672
+    - 127.0.0.1:${QABOARD_PORT_RABBITMQ_MNGT:-15672}:15672
 
   cron-backup-db:
     environment:

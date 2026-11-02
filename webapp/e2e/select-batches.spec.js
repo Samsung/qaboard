@@ -34,7 +34,7 @@ test('the batch menu keeps its scroll position when the store updates', async ({
   });
   await page.goto(`/${project}/commit/abc123`);
   await page.getByRole('button', { name: 'Got it' }).click({ timeout: 3000 }).catch(() => {});
-  await page.locator('.bp6-button').filter({ hasText: '0/0' }).first().click({ force: true });
+  await page.getByRole('button', { name: /^Batch: / }).first().click({ force: true });
   const list = page.getByRole('listbox');
   await expect(list.locator('li')).toHaveCount(labels.length);
   // let the popover finish opening: then Blueprint scrolls the active item into view

@@ -1,0 +1,17 @@
+# Regions of interest for the image viewer (pixels of the 1224x816 photo)
+roi:
+- x: 100
+  y: 40
+  w: 160
+  h: 200
+  label: Window frame (halos)
+- x: 520
+  y: 20
+  w: 220
+  h: 220
+  label: Leaves over a window
+- x: 380
+  y: 300
+  w: 120
+  h: 120
+  label: Flat wall (noise)

@@ -1,0 +1,64 @@
+# Odometry and mapping of the K3 robots: a QA-Board demo project, see README.md.
+project:
+  name: kitefin/slam
+  url: https://git.kitefin.example/kitefin/slam
+  description: Odometry and mapping from the K3's depth camera and IMU, against ground-truth trajectories.
+  entrypoint: qa/main.py
+  reference_branch: main
+
+inputs:
+  # relative to this folder: each sequence is a folder with its sequence.yaml (and the generated truth.npz)
+  database:
+    linux: inputs
+  globs: sequence.yaml
+  use_parent_folder: true
+  batches: qa/batches.yaml
+
+outputs:
+  metrics: qa/metrics.yaml
+  style:
+    width: 840px
+  visualizations:
+    - name: Trajectory
+      path: poses.tsv                    # x y z and the orientation over time; the ground truth is GT_final.txt
+      type: 6dof/txt
+    - name: Depth camera
+      path: camera.webm                  # the depth images and the path so far: played in sync with the reference
+    - name: Position error
+      path: ate.plotly.json              # after aligning the trajectories, with the loop closures: the reference's is dashed
+      side_by_side: false
+    - name: Map, from above
+      path: map.png                      # the mapped points and the estimated path over the true layout
+    - name: Map in 3D
+      path: map.pcd                      # the keyframes' points where the odometry put them...
+      type: pointcloud/pcd
+      path_groundtruth: map.truth.pcd    # ...and where they really are
+      default_hidden: true
+    - name: Loop closures
+      path: loop_closures.json
+      default_hidden: true
+
+# `qa save-artifacts` saves what each commit changed in the code
+artifacts:
+  build:
+    glob: build/flags.json
+
+integrations:
+  - text: Sensor rig
+    icon: camera
+    href: https://docs.kitefin.example/robots/k3/sensors
+  - text: Replay a sequence
+    icon: play
+    href: https://tools.kitefin.example/slam/replay
+
+# Experimental: may change without notice
+gate:
+  reference: main
+  batches: [ci]
+  rules:
+    - {metric: ate_rmse, max_regression: 15%}                  # median over the sequences
+    - {metric: ate_rmse, per_test_max_regression: 50%}         # no sequence much worse than in the reference
+  max_failed_runs: 0
+
+storage:
+  linux: /mnt/qaboard

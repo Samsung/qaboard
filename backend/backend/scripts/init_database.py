@@ -2,7 +2,6 @@
 """
 Initializes or updates the database using information from the filesystem.
 """
-import time
 from pathlib import Path
 
 import click
@@ -10,7 +9,7 @@ from alembic.config import Config
 from alembic import command
 
 import backend
-from backend.database import engine, Session, Base
+from backend.database import engine, Base
 
 
 

@@ -1,0 +1,17 @@
+# Regions of interest for the image viewer (pixels of the 1224x816 photo)
+roi:
+- x: 630
+  y: 0
+  w: 140
+  h: 120
+  label: Street lamp
+- x: 0
+  y: 380
+  w: 260
+  h: 220
+  label: Shadows (noise)
+- x: 840
+  y: 400
+  w: 320
+  h: 120
+  label: Parked cars

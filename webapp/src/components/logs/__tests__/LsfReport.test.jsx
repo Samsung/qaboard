@@ -4,6 +4,8 @@
  */
 import { render, screen } from '@testing-library/react';
 
+import { renderWithProviders } from '../../../test-utils';
+
 import { LsfReport, LsfTag } from '../LsfReport';
 import { parseLsfReport } from '../lsf';
 
@@ -24,19 +26,28 @@ Resource usage summary:
 
 
 describe('LsfReport', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
   it('explains why LSF killed the job', () => {
-    render(<LsfReport report={report} />)
+    // until the site's configuration is loaded, we link to the public docs
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+    renderWithProviders(<LsfReport report={report} />)
     expect(screen.getByText(/Exited with exit code 137 \(SIGKILL\) · TERM_MEMLIMIT/)).toBeInTheDocument()
     expect(screen.getByText(/in the definition of the batch, e\.g\./)).toBeInTheDocument()
     expect(screen.getByText('lsf: {max_memory: 8000}').tagName).toBe('CODE')
-    expect(screen.getByText('Read the docs')).toHaveAttribute('href', 'https://samsung.github.io/qaboard/docs/lsf-cluster-integration#lsf-options-per-batch')
+    expect(screen.getByText('Read the docs')).toHaveAttribute('href', 'https://samsung.github.io/qaboard/docs/lsf-integration#lsf-options-per-batch')
     expect(screen.getByText('1234[3]')).toBeInTheDocument()
     expect(screen.getByText('host-a')).toBeInTheDocument()
     expect(screen.getByText('4000 MB / 4096.00 MB requested')).toBeInTheDocument()
   })
 
+  it("links to the site's own docs", () => {
+    renderWithProviders(<LsfReport report={report} />, { siteConfig: { docs_root: '/qa/' } })
+    expect(screen.getByText('Read the docs')).toHaveAttribute('href', '/qa/docs/lsf-integration#lsf-options-per-batch')
+  })
+
   it('renders nothing without a report', () => {
-    const { container } = render(<><LsfReport report={null} /><LsfTag report={null} /></>)
+    const { container } = renderWithProviders(<><LsfReport report={null} /><LsfTag report={null} /></>, { siteConfig: {} })
     expect(container).toBeEmptyDOMElement()
   })
 

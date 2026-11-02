@@ -62,26 +62,35 @@ export const buildNotes = ({ dir = NOTES_DIR, includeDrafts = false } = {}) => {
 }
 
 
+// "virtual:release-notes" has the notes without their changes, "virtual:release-notes-html" their changes ({slug: html}):
+// they are most of the notes' size, and only the "What's new" panel shows them.
 const ID = 'virtual:release-notes'
-const RESOLVED_ID = '\0' + ID
+const HTML_ID = 'virtual:release-notes-html'
+const resolved = id => '\0' + id
 
 // Set QABOARD_RELEASE_NOTES_DRAFTS=1 to preview the drafts with `npm start`
 export const releaseNotes = ({ includeDrafts = !!process.env.QABOARD_RELEASE_NOTES_DRAFTS } = {}) => ({
   name: 'qaboard-release-notes',
-  resolveId: id => id === ID ? RESOLVED_ID : undefined,
+  resolveId: id => id === ID || id === HTML_ID ? resolved(id) : undefined,
   load(id) {
-    if (id !== RESOLVED_ID) return
+    if (id !== resolved(ID) && id !== resolved(HTML_ID)) return
     // rebuilds when a note changes
     fs.readdirSync(NOTES_DIR).filter(f => f.endsWith('.md')).forEach(f => this.addWatchFile(path.join(NOTES_DIR, f)))
-    return `export default ${JSON.stringify(buildNotes({ includeDrafts }))}`
+    const { notes } = buildNotes({ includeDrafts })
+    const bundle = id === resolved(ID)
+      ? { notes: notes.map(({ html: _html, ...note }) => note) }
+      : Object.fromEntries(notes.map(note => [note.slug, note.html]))
+    return `export default ${JSON.stringify(bundle)}`
   },
   configureServer(server) {
     // new notes, and changes to the notes, reload the app
     server.watcher.add(NOTES_DIR)
     const reload = file => {
       if (!file.startsWith(NOTES_DIR) || !file.endsWith('.md')) return
-      const module = server.moduleGraph.getModuleById(RESOLVED_ID)
-      if (module) server.moduleGraph.invalidateModule(module)
+      for (const id of [ID, HTML_ID]) {
+        const module = server.moduleGraph.getModuleById(resolved(id))
+        if (module) server.moduleGraph.invalidateModule(module)
+      }
       server.ws.send({ type: 'full-reload' })
     }
     server.watcher.on('add', reload)

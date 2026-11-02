@@ -6,8 +6,7 @@ import { OrbitControls } from "./OrbitControls";
 import { PointerLockControls } from "./PointerLockControls";
 
 import { Classes, Colors, Button, RangeSlider, Slider } from "@blueprintjs/core";
-import axios from "axios";
-const { get } = axios;
+import { http, isAbort } from "../../api/http";
 import { parse_hex } from "./Sys_Tools"
 
 const aspect_ratio = 4 / 3;
@@ -109,17 +108,13 @@ class TofOutputCard extends Component {
       last_frame_id,
       selected_frame: last_frame_id,
 
-      // should we show the new or the reference ouput?
+      // should we show the new or the reference output?
       focus: 'new',
 
       show_pointcloud: false,
       control: 'orbit',
       pointclouds: {
-        [last_frame_id]: {
-          is_loaded: false,
-          new: null,
-          reference: null,
-        }
+        [last_frame_id]: { is_loaded: false },
       },
 
       show_heatmap: false,
@@ -171,6 +166,8 @@ class TofOutputCard extends Component {
   }
 
   componentDidMount() {
+    // To cancel the requests for heatmaps when we unmount
+    this.abort_controller = new AbortController();
     window.addEventListener("keypress", this.keyboard);
     this.updateFrames(this.props);
   }
@@ -187,13 +184,14 @@ class TofOutputCard extends Component {
     {
         if (selected_output_type === 'customMap')
             should_load_heatmap = true;
+        // oxlint-disable-next-line react/no-did-update-set-state -- a class component left as is, see webapp/TODO.md
         this.setState({customMap: JSON.parse(JSON.stringify(default_heatmap)) } );
     }
     if (this.state.show_pointcloud){
       if ( prevState.mesh_output !== this.state.mesh_output)
       {
         //this.closePointCloud(); // this unsets show_pointcloud so don't do that
-        this.renderer.forceContextLoss(); // needed for switch from PCD to Mesh
+        this.stopPointCloud(); // needed for switch from PCD to Mesh
         this.startPointCloud();
         this.updatePointCloud(selected_frame);
       }
@@ -239,7 +237,8 @@ class TofOutputCard extends Component {
                         ? `${output_new.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex`
                         : `${output_new.output_dir_url}/Frame${selected_frame}/${custom_output_filename}`;
     console.log(fileNameToGet)
-    get(fileNameToGet)
+    const { signal } = this.abort_controller;
+    http.get(fileNameToGet, { signal, responseType: 'text' })
     .then(response => {
       let convert_nan = selected_output_type === 'z' || selected_output_type === 'depth'
       const newHexData = {
@@ -262,6 +261,7 @@ class TofOutputCard extends Component {
       }) 
 	  })
     .catch(error => {
+      if (isAbort(error)) return;
       this.setState({
         [selected_output_type]: {
           ...this.state[selected_output_type],
@@ -281,7 +281,7 @@ class TofOutputCard extends Component {
     let fileNameToGetRef = selected_output_type !== 'customMap'
                            ? `${output_ref.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex`
                            : `${output_ref.output_dir_url}/Frame${selected_frame}/${custom_output_filename}`;
-    get(fileNameToGetRef)
+    http.get(fileNameToGetRef, { signal, responseType: 'text' })
     .then(response => {
       let convert_nan = selected_output_type === 'z' || selected_output_type === 'depth'
       this.setState({
@@ -300,6 +300,7 @@ class TofOutputCard extends Component {
       }) 
     })
     .catch(e => {
+      if (isAbort(e)) return;
       console.log(e)
       this.setState({
         [selected_output_type]: {
@@ -336,8 +337,12 @@ class TofOutputCard extends Component {
     loader.load(url, pointcloud => {
       if (pointcloud !== null) {
         var previous_pointcloud = this.scene.getObjectByName(label);
-        if (previous_pointcloud) 
+        if (previous_pointcloud) {
           this.scene.remove(previous_pointcloud);
+          // and from the GPU
+          previous_pointcloud.geometry.dispose();
+          previous_pointcloud.material.dispose();
+        }
         pointcloud.name = label;
         if (use_intensity)
             pointcloud.material.size = 0.5;
@@ -367,15 +372,13 @@ class TofOutputCard extends Component {
           pointcloud.material.transparent = true;
         }
         this.scene.add(pointcloud);
+        this.requestRender();
       }
       this.setState(previousState => ({
         pointclouds: {
           ...previousState.pointclouds,
-          [frame_id]: {
-            ...previousState.pointclouds[frame_id],
-            is_loaded: true,
-            [label]: pointcloud,
-          }
+          // the point clouds are in the scene: we don't keep those of the frames users left
+          [frame_id]: { is_loaded: true },
         }
       }));
     });
@@ -383,12 +386,10 @@ class TofOutputCard extends Component {
 
 
   componentWillUnmount() {
-    if (this.state.show_pointcloud) {
+    this.abort_controller.abort();
+    window.removeEventListener("keypress", this.keyboard);
+    if (this.state.show_pointcloud)
       this.stopPointCloud();
-      this.threeRoot.removeChild(this.renderer.domElement);      
-      // window.removeEventListenner(this.keyboard)
-      // window.removeEventListenner(this.click)
-    }
   }
 
   setControls(control) {
@@ -401,11 +402,13 @@ class TofOutputCard extends Component {
       this.controls.screenSpacePanning = false;
       this.controls.minDistance = 1;
       this.controls.maxDistance = 5 * 1000;
+      this.controls.addEventListener('change', this.requestRender);
     } else {
       this.controls = new PointerLockControls(this.camera, this.renderer.domElement);
       this.controls.lock();
       this.prevTime = performance.now();
     }
+    this.requestRender();
   } 
 
   addShadowedLight( x, y, z, color, intensity ) {
@@ -451,8 +454,8 @@ class TofOutputCard extends Component {
     this.renderer.setSize(width, height);
 
     this.renderer.domElement.setAttribute("tabindex", 0); // listen to keyboard events
-    this.renderer.domElement.addEventListener("keydown", this.keyup);
-    this.renderer.domElement.addEventListener("keyup", this.keydown);
+    this.renderer.domElement.addEventListener("keydown", this.keydown);
+    this.renderer.domElement.addEventListener("keyup", this.keyup);
     this.renderer.domElement.addEventListener("click", this.click);
     this.setControls('orbit')
 
@@ -460,7 +463,6 @@ class TofOutputCard extends Component {
       this.threeRoot.removeChild(this.threeRoot.lastChild);
     }
     this.threeRoot.appendChild(this.renderer.domElement);
-    if (!this.frameId) this.frameId = requestAnimationFrame(this.animate);
   }
 
   updatePointCloud(selected_frame) {
@@ -475,20 +477,29 @@ class TofOutputCard extends Component {
   }
   
   closePointCloud() {
-    console.log("killing context");
-    // this.renderer.dispose();
-	  this.renderer.forceContextLoss();
+    this.stopPointCloud();
     this.setState({show_pointcloud: false});
   }
 
+  // Frees the GPU (browsers keep ~16 WebGL contexts, then drop the oldest), and what listens to the canvas
   stopPointCloud() {
     cancelAnimationFrame(this.frameId);
-    console.log("killing context");
+    this.frameId = null;
+    this.controls.dispose();
+    this.renderer.dispose();
     this.renderer.forceContextLoss();
+    this.renderer = null;
   }
 
+  // We render when something changed: the camera moved, a point cloud loaded or changed...
+  requestRender = () => {
+    if (this.renderer && !this.frameId) this.frameId = requestAnimationFrame(this.animate);
+  };
+
   animate = () => {
+    this.frameId = null;
     if (this.state.control === 'orbit') {
+      // after a drag the camera slows down (damping): it moves, says it changed, and we render again
       this.controls.update();
     } else {
       let time = performance.now();
@@ -514,10 +525,11 @@ class TofOutputCard extends Component {
       if (this.moveBackward) this.velocity.z += 400.0 * delta;
       if (this.moveLeft) this.velocity.x -= 400.0 * delta;
       if (this.moveRight) this.velocity.x += 400.0 * delta;    
+      // flying with the keyboard: we render every frame
+      this.requestRender();
     }
 
     this.renderer.render(this.scene, this.camera);
-    this.frameId = window.requestAnimationFrame(this.animate);
   };
 
 
@@ -557,7 +569,6 @@ class TofOutputCard extends Component {
       },
       legend: {
         orientation: "h",
-        bgcolor: "rgba(255,255,255,0.5)",
         traceorder: "grouped",
         tracegroupgap: 0
       },
@@ -583,7 +594,7 @@ class TofOutputCard extends Component {
       <>
         <p className={Classes.TEXT_MUTED}>
           {show_pointcloud ? (is_loaded && !!this.scene.getObjectByName("new")
-                        ? <span>Showing {this.state.focus}. Press R/G to toogle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.closePointCloud()}>close</Button></span>
+                        ? <span>Showing {this.state.focus}. Press R/G to toggle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.closePointCloud()}>close</Button></span>
                         : "Loading...") : (has_many_frame ? "Click a point on the plot to show other frames." : "")}
         </p>
         <div hidden={!show_pointcloud} ref={threeRoot => {this.threeRoot = threeRoot;}}> </div>
@@ -743,6 +754,7 @@ class TofOutputCard extends Component {
       default:
         return;
     }
+    this.requestRender();
   };
 
 

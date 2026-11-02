@@ -1,0 +1,133 @@
+/* <StackPicker />: one segmented control per group. Light and dark mode, phone width. */
+.picker {
+  margin: 1.25rem 0 2rem;
+  padding: 1rem 1.25rem 1.1rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: var(--ifm-global-radius);
+  background: var(--ifm-color-emphasis-100);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.title {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.hint {
+  margin: 0;
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.875rem;
+}
+
+/* Each group as wide as its options, so they stay on one line when they can */
+.groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 2rem;
+}
+
+/* A fieldset without the browser's frame */
+.group {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  margin-bottom: 0.35rem;
+  padding: 0;
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.options {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.option {
+  position: relative;
+  display: inline-flex;
+  margin: 0;
+  cursor: pointer;
+}
+
+/* The native radio stays in the page (keyboard: Tab into the group, arrows to choose) but isn't drawn */
+.input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.pill {
+  display: inline-block;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--ifm-color-emphasis-400);
+  border-radius: 999px;
+  background: var(--ifm-background-surface-color);
+  color: var(--ifm-font-color-base);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.option:hover .pill {
+  border-color: var(--ifm-color-primary);
+}
+
+.input:checked + .pill {
+  border-color: var(--ifm-color-primary);
+  background: var(--ifm-color-primary);
+  color: var(--qb-on-primary);
+}
+
+.input:focus-visible + .pill {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+}
+
+/* compact: one line of groups, no hint */
+.compact {
+  padding: 0.75rem 1rem;
+}
+.compact .header {
+  margin-bottom: 0.5rem;
+}
+.compact .groups {
+  gap: 0.5rem 1.5rem;
+}
+.optionsCompact .pill {
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8125rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pill {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .input:checked + .pill {
+    border-width: 3px;
+  }
+}

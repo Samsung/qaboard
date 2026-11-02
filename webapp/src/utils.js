@@ -1,19 +1,10 @@
 import { interpolateRainbow } from "d3-scale-chromatic";
 import md5 from "js-md5";
 
-// https://mathjs.org/docs/custom_bundling.html
-import {
-  create,
-  medianDependencies,
-  formatDependencies
-} from 'mathjs/number'
-const { median: mathjs_median, format } = create({
-  medianDependencies,
-  formatDependencies,
-})
-
-import { memoized_levenshtein } from "./levenshtein";
+import { config_distance } from "./configurations/tokens";
 import { setPathMappings, linux_to_windows } from "./utils/paths";
+import { repo_url } from "./git";
+import { toaster } from "./toaster";
 
 
 const calendarStrings = {
@@ -29,8 +20,42 @@ const average = array => {
   return array.filter(x => x !== undefined).reduce((a, b) => a + b, 0) / array.length;
 };
 const median = array => {
-  let array_filtered = array.filter(x => x !== undefined && x !== null)
-  return array_filtered.length > 0 ? mathjs_median(array_filtered) : null;
+  const sorted = array.filter(x => x !== undefined && x !== null).sort((a, b) => a - b);
+  if (sorted.length === 0) return null;
+  const middle = sorted.length >> 1;
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+};
+
+// Formats numbers like mathjs' format(value, {precision}), that we no longer bundle (65kB):
+// `precision` significant digits rounded half up from the shortest representation (1.005 => "1.01"), no trailing zeros,
+// exponential notation below 1e-3 and from 1e5. format(1234.5, {precision: 3}) => "1230", format(123456, {precision: 3}) => "1.23e+5"
+const format = (value, { precision } = {}) => {
+  if (!Number.isFinite(value)) return String(value);
+  // 1234.5 => digits "12345", exponent 3
+  const [, sign, mantissa, exp = '0'] = /^(-?)([\d.]+)(?:e([+-]\d+))?$/.exec(String(value));
+  const dot = mantissa.indexOf('.');
+  let digits = mantissa.replace('.', '');
+  let exponent = Number(exp) + (dot === -1 ? mantissa.length : dot) - 1;
+  const leading_zeros = /^0*/.exec(digits)[0].length;
+  exponent -= leading_zeros;
+  digits = digits.slice(leading_zeros).replace(/0+$/, '');
+  if (!digits) { digits = '0'; exponent = 0; }
+  if (precision && digits.length > precision) {
+    const round_up = digits[precision] >= '5';
+    digits = digits.slice(0, precision);
+    if (round_up) {
+      // 999 => 1000
+      const rounded = String(BigInt(digits) + 1n);
+      if (rounded.length > digits.length) exponent++;
+      digits = rounded.slice(0, precision);
+    }
+    digits = digits.replace(/0+$/, '') || '0';
+  }
+  if (exponent < -3 || exponent >= 5)
+    return `${sign}${digits[0]}${digits.length > 1 ? `.${digits.slice(1)}` : ''}e${exponent >= 0 ? '+' : ''}${exponent}`;
+  if (exponent < 0) return `${sign}0.${'0'.repeat(-exponent - 1)}${digits}`;
+  if (digits.length <= exponent + 1) return sign + digits.padEnd(exponent + 1, '0');
+  return `${sign}${digits.slice(0, exponent + 1)}.${digits.slice(exponent + 1)}`;
 };
 
 
@@ -68,9 +93,10 @@ const pretty_label = batch => {
 const empty_output = { metrics: undefined, extra_parameters: {} };
 
 
-
-// Finds the most matching output from a batch
-const matching_output = ({ output, batch }) => {
+// Finds the reference output that best matches an output.
+// Pass an index made with index_outputs(batch) when matching many outputs against the same batch.
+const matching_output = ({ output, batch, index }) => {
+  index = index ?? index_outputs(batch);
   // high => more different
   const match_score = o =>
     8 * ((o.input_path !== output.input_path) | 0) +
@@ -78,58 +104,88 @@ const matching_output = ({ output, batch }) => {
     2 * ((o.platform !== output.platform) | 0) +
     1 * ((o.extra_parameters_str !== output.extra_parameters_str) | 0);
 
-  // console.log('MATCHING', output)
-  // console.log(batch.filtered.outputs.map(id => batch.outputs[id]))
-  // const t0 = performance.now();
+  // Most of the time there's an identical run: no need to measure how different the others are
+  const exact = index.exact.get(run_key(output));
+  if (exact !== undefined)
+    return { output_ref: index.outputs[exact], mismatch: null };
 
-  const best_dist_configurations = Infinity
-  let matching_outputs = batch.filtered.outputs.map(id => batch.outputs[id])
-    .filter(o => !o.is_pending)
-    .filter(o => o.input_path === output.input_path || o.test_input_path === output.test_input_path || (output.test_input_metadata.id && o.test_input_metadata.id && o.test_input_metadata.id === output.test_input_metadata.id) )
-    // We prefer to compare an ouput versus a similar one
-    .map(o => {
-      o.dist_input_path = 1 - Number(o.input_path === output.input_path || o.test_input_path === output.test_input_path)
-      // TODO:
-      // 1. Implement short-circuiting to stop calculating once a certain threshold is reached, especially when comparing against many candidates and only needing the top match.
-      //    need to add a threshold parameter, and stop if exceeded...
-      // 2. Memoization since many configs will be the same
-      o.dist_configurations = memoized_levenshtein(o.configurations_str ?? '', output.configurations_str ?? '', {threshold: best_dist_configurations})
-      o.dist_extra_parameters = memoized_levenshtein(o.extra_parameters_str  ?? '', output.extra_parameters_str  ?? '')
-      return o;
-    })
-    // .sort((a, b) => match_score(a) - match_score(b));
-    .sort((a, b) => {
-      // +1: b more similar
-      // +-: b less similar
-      const dist_input_path = a.dist_input_path - b.dist_input_path;
-      if (dist_input_path !== 0) {
-        return dist_input_path;
-      }
-      const dist_config = a.dist_configurations - b.dist_configurations;
-      if (dist_config !== 0) {
-        return dist_config;
-      }
-      const dist_extra_parameters = a.dist_extra_parameters - b.dist_extra_parameters;
-      if (dist_extra_parameters !== 0) {
-        return dist_extra_parameters;
-      }
-      return (a.platform === output.platform) - (b.platform === output.platform)
+  // Candidates run on the same input, in the batch's order
+  const positions = new Set([
+    ...(index.by_input_path.get(output.input_path) ?? []),
+    ...(index.by_test_input_path.get(output.test_input_path) ?? []),
+    ...((output.test_input_metadata?.id && index.by_metadata_id.get(output.test_input_metadata.id)) || []),
+  ]);
+  const candidates = [...positions].sort((a, b) => a - b).map(i => {
+    const o = index.outputs[i];
+    return {
+      o,
+      dist_input_path: 1 - Number(o.input_path === output.input_path || o.test_input_path === output.test_input_path),
+      dist_configurations: config_distance(o.configurations, output.configurations),
+      dist_extra_parameters: config_distance(o.extra_parameters, output.extra_parameters),
+    };
   });
-  
-  // const t1 = performance.now();
-  // console.log("Match took " + (t1 - t0) + " ms.")
-  // console.log(matching_outputs)
+  // We prefer to compare an ouput versus a similar one
+  candidates.sort((a, b) =>
+    (a.dist_input_path - b.dist_input_path) ||
+    (a.dist_configurations - b.dist_configurations) ||
+    (a.dist_extra_parameters - b.dist_extra_parameters) ||
+    // same platform first (it used to sort them last)
+    ((b.o.platform === output.platform) - (a.o.platform === output.platform))
+  );
 
-  let output_ref = matching_outputs[0] || empty_output;
+  let output_ref = candidates[0]?.o ?? empty_output;
   let ref_match_score = match_score(output_ref);
-  let imperfect_match = matching_outputs.length > 0 && ref_match_score > 0;
+  let imperfect_match = candidates.length > 0 && ref_match_score > 0;
   let mismatch = imperfect_match ? {
     test_input_path: ref_match_score & 8 ? output_ref.test_input_path : null,
     configurations: ref_match_score & 4 ? output_ref.configurations : null,
     platform: ref_match_score & 2 ? output_ref.platform : null,
     extra_parameters: ref_match_score & 1 ? output_ref.extra_parameters : null,
   } : null;
+  // only when there are some: the mismatch is compared with the backend's in tests/fixtures/metrics-compare.json
+  const alternatives = imperfect_match ? count_alternatives(candidates) : 0;
+  if (alternatives > 0) mismatch.alternatives = alternatives;
   return { output_ref, mismatch };
+};
+
+// How many reference runs, with other settings, have as many different settings as the one we picked:
+// only how similar their values are (the distances' fractional part) made us choose.
+const count_alternatives = candidates => {
+  const [best] = candidates;
+  const same = (a, b) => Math.floor(a) === Math.floor(b);
+  const settings = new Set();
+  for (const c of candidates.slice(1)) {
+    if (c.dist_input_path !== best.dist_input_path) continue;
+    if (!same(c.dist_configurations, best.dist_configurations) || !same(c.dist_extra_parameters, best.dist_extra_parameters)) continue;
+    if (c.o.configurations_str === best.o.configurations_str && c.o.extra_parameters_str === best.o.extra_parameters_str) continue;
+    settings.add(`${c.o.configurations_str}\u0000${c.o.extra_parameters_str}`);
+  }
+  return settings.size;
+};
+
+const run_key = o => `${o.input_path}\u0000${o.configurations_str}\u0000${o.extra_parameters_str}\u0000${o.platform}`;
+
+// Lookups by input, for the outputs of a batch that are shown and not pending
+const index_outputs = batch => {
+  const outputs = (batch.filtered?.outputs ?? Object.keys(batch.outputs ?? {}))
+    .map(id => batch.outputs[id])
+    .filter(o => !!o && !o.is_pending);
+  const by_input_path = new Map();
+  const by_test_input_path = new Map();
+  const by_metadata_id = new Map();
+  const exact = new Map();
+  const add = (map, key, i) => {
+    if (key === undefined || key === null) return;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(i);
+  };
+  outputs.forEach((o, i) => {
+    add(by_input_path, o.input_path, i);
+    add(by_test_input_path, o.test_input_path, i);
+    if (o.test_input_metadata?.id) add(by_metadata_id, o.test_input_metadata.id, i);
+    if (!exact.has(run_key(o))) exact.set(run_key(o), i);
+  });
+  return { outputs, by_input_path, by_test_input_path, by_metadata_id, exact };
 };
 
 const safe_regex = s => {
@@ -200,7 +256,8 @@ const filter_batch = (batch, filter_values) => {
     let metadata = Object.keys(output.test_input_metadata ?? {}).length > 0 ? JSON.stringify(output.test_input_metadata ?? {}) : "";
     let failed = output.is_failed ? 'fail crash' : '';
     let pending = output.is_pending ? 'pending running' : ''
-    let searched = `${output.test_input_path} ${output.configurations_str} ${metadata} ${JSON.stringify(output.params)} ${output.data.batch} ${failed} ${pending} ${output.platform} id:${id}`;
+    let status = !output.is_failed && !output.is_pending && !output.is_running ? 'status:success' : '';
+    let searched = `${output.test_input_path} ${output.configurations_str} ${metadata} ${JSON.stringify(output.params)} ${output.data?.batch} ${failed} ${pending} ${status} ${output.platform} id:${id}`;
     // console.log(searched)
     if (matcher(searched)) {
       filtered.outputs.push(id);
@@ -261,44 +318,8 @@ const project_avatar_style = project_id => {
 };
 
 
-// Used when a project does not define project.url in qaboard.yaml, set from /api/v1/config (GITLAB_HOST)
-let default_git_hostname = "https://gitlab.com"
-const setDefaultGitHostname = hostname => {
-  if (hostname)
-    default_git_hostname = hostname.replace(/\/+$/, '')
-}
-
-// Link to a storage quota dashboard, if the site has one (QABOARD_QUOTA_URL_TEMPLATE)
-const quota_url = (template, user_name, project) => {
-  if (!template || !user_name)
-    return null
-  return template
-    .replace('{user_name}', encodeURIComponent(user_name))
-    .replace('{project}', encodeURIComponent(project ?? ''))
-}
-
-const git_hostname = qaboard_config => {
-  const project_url = qaboard_config?.project?.url
-  // const project_url = "git@gitlab-srv:svt/te-testing.git"      //=> gitlab-srv
-  // const project_url = "git@gitlab-srv:8080:svt/te-testing.git" //=> gitlab-srv:8080
-  // const project_url = "https://gitlab-srv/svt/te-testing.git"  //=> gitlab-srv
-  let hostname = null
-  if (project_url) {
-    let match = project_url.match(/@([^/:]+(:[0-9]+)?)[:/]/)
-    if (match) {
-      // For SSH remotes we don't know the protocol. We use the one from GITLAB_HOST if it's the same server.
-      const default_host = default_git_hostname.match(/^(https?):\/\/([^/]+)/)
-      const protocol = (default_host && default_host[2] === match[1]) ? default_host[1] : 'https'
-      hostname = `${protocol}://${match[1]}`
-    }
-    match = project_url.match(/(https?:\/\/[^/:]+(:[0-9]+)?)\//)
-    if (match)
-      hostname = match[1]
-  }
-  return hostname
-
-}
-
+// The project's page on its git server
+const project_web_url = project_data => repo_url(project_data);
 
 
 const path_regex = /^(\\\\[^\\]+)(\\[^\\]+)/;
@@ -372,7 +393,8 @@ const make_eval_templates_recursively = ({project, project_data, branch, commit,
   let project_name = project_parts[project_parts.length-1];
   let project_name_tolower = project_name.toLowerCase();
   let context = {
-      git: project_data && project_data.data && project_data.data.git,
+      // integrations' templates use e.g. ${git.web_url}
+      git: { ...project_data?.data?.git, web_url: project_web_url(project_data) },
       project,                  // "group/project/my/Subproject"
       subproject,               // "my/Subproject"
       project_name,             // "Subproject"
@@ -394,15 +416,14 @@ const make_eval_templates_recursively = ({project, project_data, branch, commit,
     context.branch = branch
     context.branch_slug = slug(branch)
   }
-  if ((commit !== undefined) && (commit.branch !== undefined)){
-    context.commit = commit
-    if (commit.branch !== undefined)
-      context.commit.branch_slug = slug(commit.branch)
-    // backward compatibility
-    if (commit.artifacts_url !== undefined)
-      context.commit.commit_dir_url = commit.artifacts_url
-    if (commit.repo_artifacts_url !== undefined)
-      context.commit.repo_commit_dir_url = commit.repo_artifacts_url
+  if (commit?.branch !== undefined) {
+    context.commit = {
+      ...commit,
+      branch_slug: slug(commit.branch),
+      // backward compatibility
+      ...(commit.artifacts_url !== undefined ? { commit_dir_url: commit.artifacts_url } : {}),
+      ...(commit.repo_artifacts_url !== undefined ? { repo_commit_dir_url: commit.repo_artifacts_url } : {}),
+    }
   }
   
   return integration => {
@@ -431,29 +452,83 @@ const slug = text => {
     .replace(/^-+|-+$/g, '');     // Remove excess '-' from both sides of a string
 }
 
+// Returns a new mapping of metrics, with defaults for label, scale, suffix...
+// Metrics whose key starts with a dot are hidden.
+// The value of input events, or the value itself
+const event_value = e => (e?.target && e.target.value !== undefined) ? e.target.value : e;
+
+// Whether smaller values of a metric are better: true or false, null when we don't know.
+// Metrics files leave it out when smaller is better. `null` says neither is (e.g. a count of frames).
+// The backend does the same (smaller_is_better in backend/backend/compare.py).
+const parse_smaller_is_better = m => {
+  const value = m.smaller_is_better;
+  if (value === undefined) return true;
+  if (value === null) return null;
+  if (typeof value === "string") return value.toLowerCase() !== 'false';
+  return !!value;
+};
+
 const metrics_fill_defaults = available_metrics => {
-  Object.entries(available_metrics || {}).forEach( ([key, m])  => {
-    if (m === undefined || m === null) {
-      m = {}
-    }
-    m.key = key
-    m.label = m.label || key
-    m.short_label = m.short_label || m.label || key
-    m.scale = m.scale  || 1.0
-    m.suffix = m.suffix || ''
-    if (m.smaller_is_better === undefined || m.smaller_is_better === null) {
-      m.smaller_is_better = true;
-    } else {
-      if (typeof m.smaller_is_better === "string") {
-        m.smaller_is_better = m.smaller_is_better.tolower() !== 'false'
-      }
-    }
-    if (key.startsWith('.')) {
-      delete available_metrics[key]
-    }
-  })
-  return available_metrics || {}
+  const filled = {};
+  Object.entries(available_metrics || {}).forEach(([key, m]) => {
+    if (key.startsWith('.'))
+      return;
+    m = m ?? {};
+    filled[key] = {
+      ...m,
+      key,
+      label: m.label || key,
+      short_label: m.short_label || m.label || key,
+      scale: m.scale || 1.0,
+      suffix: m.suffix || '',
+      smaller_is_better: parse_smaller_is_better(m),
+      declared: true,
+    };
+  });
+  return filled;
 }
+
+// Metrics that were not declared are shown as they are, in neutral colors: we don't know which way is better.
+// The same object for the same key, so that memoized components don't re-render.
+const undeclared_metrics = new Map();
+const undeclared_metric = key => {
+  if (!undeclared_metrics.has(key))
+    undeclared_metrics.set(key, { key, label: key, short_label: key, scale: 1.0, suffix: '', smaller_is_better: null, declared: false });
+  return undeclared_metrics.get(key);
+};
+
+// A metric's definition, declared or not
+const metric_info = (available_metrics, key) => available_metrics?.[key] ?? undeclared_metric(key);
+
+// Run statuses, not metrics
+const not_metrics = new Set(['is_failed']);
+
+// The definitions of all the metrics runs have: the declared ones, then the others in alphabetical order
+const with_undeclared_metrics = (available_metrics = {}, used_metrics) => {
+  const undeclared = [...(used_metrics ?? [])]
+    .filter(key => available_metrics[key] === undefined && !not_metrics.has(key) && !key.startsWith('.'))
+    .sort();
+  if (undeclared.length === 0) return available_metrics;
+  return { ...available_metrics, ...Object.fromEntries(undeclared.map(key => [key, undeclared_metric(key)])) };
+};
+
+// The metrics file's definitions, with those declared in code (`metrics_definitions` in the data of commits and
+// projects), field by field: see backend/backend/metrics_definitions.py
+const merge_metrics_definitions = (qatools_metrics, definitions) => {
+  if (!definitions || Object.keys(definitions).length === 0) return qatools_metrics;
+  const available_metrics = { ...qatools_metrics?.available_metrics };
+  Object.entries(definitions).forEach(([key, definition]) => {
+    available_metrics[key] = { ...available_metrics[key], ...definition };
+  });
+  return { ...qatools_metrics, available_metrics };
+};
+
+
+// A width from qaboard.yaml (e.g. outputs.style.width: 1180px), as a maximum: narrower when the page is, e.g. when
+// the View options take room on the right
+const at_most = width => width === undefined || width === null || width === ''
+  ? undefined
+  : `min(${typeof width === 'number' ? `${width}px` : width}, 100%)`;
 
 const checked_cde_attrs = ["width", "height", "format", "imageType", "md5_data"]
 const is_same_data = (path, meta_1, meta_2) => {
@@ -471,20 +546,25 @@ const is_same_data = (path, meta_1, meta_2) => {
 }
 
 
+// message_renderer shows the success messages, errors are shown as danger toasts
 const copyElementToClipboard = async (element, name, message_renderer) => {
   if (!element) return;
+  const failed = error => toaster.show({ message: `Could not copy the ${name}: ${error?.message ?? error}`, intent: "danger" }, 'copy');
+  // browsers only let focused pages write to the clipboard
   if (!document.hasFocus()) {
-    alert("Please click on the page and try again.");
+    toaster.show({ message: `Could not copy the ${name}: click on the page, then try again.`, intent: "warning" }, 'copy');
     return;
   }
   try {
     const { default: html2canvas } = await import("html2canvas");
     const canvas = await html2canvas(element, { useCORS: true });
 
-    // Convert to Blob
+    // Convert to Blob. Errors in the callback would escape the try/catch.
     canvas.toBlob(async (blob) => {
-      if (blob) {
-        if (navigator.clipboard && window.ClipboardItem) {
+      try {
+        if (!blob) {
+          failed("the image is empty");
+        } else if (navigator.clipboard && window.ClipboardItem) {
           // Clipboard API is available
           const item = new ClipboardItem({ "image/png": blob });
           await navigator.clipboard.write([item]);
@@ -499,13 +579,18 @@ const copyElementToClipboard = async (element, name, message_renderer) => {
           document.body.removeChild(link);
           message_renderer(`Your browser does not support clipboard copy. Downloading instead.`);
         }
+      } catch (error) {
+        failed(error);
       }
     }, "image/png");
   } catch (error) {
-    message_renderer(`Failed to copy: ${error}`);
+    failed(error);
   }
 };
 
+
+// Moved to git.js, kept here for compatibility
+export { git_hostname, default_git_hostname, setDefaultGitHostname } from './git';
 
 export {
   average,
@@ -514,6 +599,7 @@ export {
   groupBy,
   groupByObject,
   matching_output,
+  index_outputs,
   calendarStrings,
   shortId,
   pretty_label,
@@ -523,15 +609,17 @@ export {
   project_avatar_style,
   hash_color,
   plotly_palette,
-  git_hostname,
-  default_git_hostname,
   linux_to_windows,
   setPathMappings,
-  setDefaultGitHostname,
-  quota_url,
   are_on_same_filesystem, extract_drive_and_folder,
   make_eval_templates_recursively,
   metrics_fill_defaults,
+  metric_info,
+  with_undeclared_metrics,
+  merge_metrics_definitions,
+  event_value,
+  project_web_url,
   is_same_data,
+  at_most,
   copyElementToClipboard,
 };

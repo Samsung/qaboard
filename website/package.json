@@ -16,24 +16,26 @@
   },
   "dependencies": {
     "@docusaurus/core": "3.10.2",
+    "@docusaurus/plugin-client-redirects": "3.10.2",
     "@docusaurus/preset-classic": "3.10.2",
     "@mdx-js/react": "^3.0.0",
+    "ajv": "^8.20.0",
     "clsx": "^1.1.1",
-    "docusaurus": "^1.14.7",
+    "js-yaml": "^4.1.0",
     "prism-react-renderer": "^2.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@docusaurus/module-type-aliases": "3.0.0",
-    "@docusaurus/tsconfig": "3.0.0",
-    "@docusaurus/types": "3.0.0",
+    "@docusaurus/module-type-aliases": "3.10.2",
+    "@docusaurus/tsconfig": "3.10.2",
+    "@docusaurus/types": "3.10.2",
     "@types/react": "^19.0.0",
     "typescript": "~5.2.2"
   },
-"resolutions": {
+  "resolutions": {
     "webpackbar": "^7.0.0"
-},
+  },
   "engines": {
     "node": ">=18.0"
   },

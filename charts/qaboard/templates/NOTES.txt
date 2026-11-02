@@ -1,7 +1,25 @@
-QA-Board {{ .Values.image.version | default "latest" }} is deployed.
+QA-Board {{ include "qaboard.imageVersion" . | default "latest" }} is deployed.
 {{- if .Values.ingress.enabled }}
 
   URL: http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.host }}
+{{- else }}
+
+Open it at http://localhost:5151 with:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "qaboard.fullname" . }}-proxy 5151:80
+Point the qa CLI to it with: export QABOARD_URL=http://localhost:5151
+{{- end }}
+{{- if .Values.results.enabled }}
+
+Runs must save their results in {{ include "qaboard.resultsPath" . }} (`storage` in qaboard.yaml), where the server sees them.
+{{- else if not .Values.backend.extraVolumes }}
+
+WARNING: QA-Board has no storage for results: set results.* (see the chart's values.yaml),
+         or mount your storage with backend/proxy/cantaloupe.extraVolumes.
+{{- end }}
+{{- if .Values.demoData.enabled }}
+
+The demo projects are restored before the backend first starts:
+  kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "qaboard.fullname" . }}-backend -c demo-data
 {{- end }}
 
 Check the rollout:
@@ -9,3 +27,4 @@ Check the rollout:
   kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "qaboard.fullname" . }}-backend
 Rollback:
   helm -n {{ .Release.Namespace }} rollback {{ .Release.Name }}
+Docs: https://samsung.github.io/qaboard/docs/backend-admin/kubernetes

@@ -1,0 +1,7 @@
+# generated charts and downloaded photos (photos/*.metadata.yaml are ours, committed)
+inputs/charts/
+inputs/photos/*.png
+*.tmp
+# results of local runs, and the flags of the build
+output/
+build/

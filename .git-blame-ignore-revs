@@ -1,0 +1,3 @@
+# Commits that only reformat: git blame skips them (GitHub does too; locally: git config blame.ignoreRevsFile .git-blame-ignore-revs)
+# Line endings: LF in the repository
+8b23743eed3ad292d54934521e9fa354e0083521

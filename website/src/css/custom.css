@@ -7,6 +7,8 @@
 /* You can override the default Infima variables here. */
 /* https://colorbox.io/?c0=%26p%24s%24%3D7%26p%24h%24st%24%3D214%26p%24h%24e%24%3D214%26p%24h%24c%24%3Deqo%26p%24sa%24st%24%3D0.08%26p%24sa%24e%24%3D1%26p%24sa%24r%24%3D1%26p%24sa%24c%24%3Deqo%26p%24b%24st%24%3D1%26p%24b%24e%24%3D0.2%26p%24b%24c%24%3Deqti%26o%24n%24%3DSamsung+Blue%26o%24ms%24%3D0%2C1%26o%24ro%24%3Dcw%26o%24pi%24%3Dt%26o%24lockHex%24%3D0c4da2 */
 :root {
+  /* Text on a background of --ifm-color-primary (e.g. a selected pill) */
+  --qb-on-primary: #fff;
   --ifm-color-primary: #0c4da1;
   --ifm-color-primary-dark: rgb(11, 69, 146);
   --ifm-color-primary-darker: #0a418a;
@@ -19,6 +21,7 @@
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
 html[data-theme='dark'] {
+  --qb-on-primary: #10151d;
   --ifm-color-primary-darkest: #1f76e8;
   --ifm-color-primary-darker: #3c8efa;
   --ifm-color-primary-dark: #69abff;

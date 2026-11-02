@@ -25,21 +25,28 @@ def outputs_api(monkeypatch):
   module.CiCommit.get_or_create.return_value.latest_output_datetime = None
   output = SimpleNamespace(data={}, deleted=False, is_failed=True, is_pending=False, is_running=False, metrics={"psnr": 30})
   output.to_dict = lambda: {"is_failed": output.is_failed, "is_pending": output.is_pending, "is_running": output.is_running}
+  # Output.set_status, without the dates (integration_tests/test_activity.py tests them)
+  output.set_status = lambda is_pending, is_running: output.__dict__.update(is_pending=bool(is_pending or is_running), is_running=bool(is_running))
   module.Output.get_or_create.return_value = output
   module.test_output = output
   return module
 
 
-def notify(outputs_api, dummy_app, **data):
+def post(outputs_api, dummy_app, without=(), **data):
   body = {
     "git_commit_sha": "0" * 40, "project": "group/project", "batch_label": "default", "job_type": "ci",
     "user": "ci", "platform": "linux", "configurations": [], "extra_parameters": {},
     "input_path": "a.jpg", "database": "/datasets", "output_directory": "/storage/project/output",
     **data,
   }
+  for key in without:
+    del body[key]
   with dummy_app.test_request_context("/api/v1/output/", method="POST", json=body):
-    response = outputs_api.new_output_webhook()
-  return response.get_json()
+    return outputs_api.new_output_webhook()
+
+
+def notify(outputs_api, dummy_app, **data):
+  return post(outputs_api, dummy_app, **data).get_json()
 
 
 @pytest.mark.parametrize("status", [{"is_pending": True}, {"is_pending": True, "is_running": True}])
@@ -56,3 +63,77 @@ def test_failed_output_running_again_is_not_failed(outputs_api, dummy_app, statu
 def test_finished_output_status(outputs_api, dummy_app, data, is_failed):
   notify(outputs_api, dummy_app, is_pending=True)
   assert notify(outputs_api, dummy_app, is_pending=False, **data)["is_failed"] == is_failed
+
+
+@pytest.mark.parametrize("metrics", [None, {}, {"psnr": 30}])
+def test_finished_output_without_is_failed(outputs_api, dummy_app, metrics):
+  # not None: batches would count it as neither valid nor failed
+  assert notify(outputs_api, dummy_app, is_pending=False, metrics=metrics)["is_failed"] is False
+
+
+def test_commit_sha_without_legacy_key(outputs_api, dummy_app):
+  # The CLI also sends git_commit_sha for backward-compatibility, other clients don't have to
+  response = post(outputs_api, dummy_app, without=["git_commit_sha"], commit_sha="1" * 40)
+  assert response.status_code == 200
+  assert outputs_api.CiCommit.get_or_create.call_args.kwargs["hexsha"] == "1" * 40
+
+
+def test_missing_commit(outputs_api, dummy_app):
+  response, status = post(outputs_api, dummy_app, without=["git_commit_sha"])
+  assert status == 400
+  outputs_api.CiCommit.get_or_create.assert_not_called()
+
+
+def test_clients_cannot_mark_runs_as_replaceable(outputs_api, dummy_app):
+  # Only the server marks the best iteration's runs, which `qa optimize` may later delete (see api/batch.py)
+  notify(outputs_api, dummy_app, data={"optimization_best": "default|iter1", "storage": "nfs"})
+  assert "optimization_best" not in outputs_api.test_output.data
+  assert outputs_api.test_output.data["storage"] == "nfs"
+
+
+def test_the_web_app_cannot_change_what_only_the_server_sets(outputs_api, dummy_app):
+  from flask import g
+  import backend.api.auth as auth
+  auth.is_authorized_user.return_value = True
+  output = SimpleNamespace(data={"submitted_by": {"user_name": "alice"}}, metrics={}, batch=MagicMock(), to_dict=lambda: {})
+  outputs_api.Output.query.filter.return_value.one.return_value = output
+  data = {"submitted_by": {"user_name": "mallory"}, "optimization_best": "default|iter1", "notes": "ok"}
+  with dummy_app.test_request_context("/api/v1/output/7/", method="PUT", json={"data": data}):
+    g.user = {"user_name": "mallory"}
+    outputs_api.update_output(7)
+  assert output.data == {"submitted_by": {"user_name": "alice"}, "notes": "ok"}
+
+
+def test_metrics_definitions_are_saved(outputs_api, dummy_app, monkeypatch):
+  save = MagicMock()
+  monkeypatch.setattr(outputs_api, "save_metrics_definitions", save)
+  notify(outputs_api, dummy_app, is_pending=False, metrics={"psnr": 30})
+  save.assert_not_called()
+  definitions = {"psnr": {"suffix": " dB", "smaller_is_better": False}}
+  notify(outputs_api, dummy_app, is_pending=False, metrics={"psnr": 30}, metrics_definitions=definitions)
+  assert save.call_args.args[2]["metrics_definitions"] == definitions
+  # the run is saved even if its definitions can't be
+  save.side_effect = ValueError("database error")
+  assert notify(outputs_api, dummy_app, is_pending=False, metrics={"psnr": 30}, metrics_definitions=definitions)["is_failed"] is False
+
+
+@pytest.mark.parametrize("method, call", [
+  ("GET", lambda api: api.get_output(7)), ("PUT", lambda api: api.update_output(7)),
+  ("POST", lambda api: api.output_redo(7)), ("GET", lambda api: api.get_output_manifest(7)),
+])
+def test_unknown_outputs(outputs_api, dummy_app, method, call):
+  outputs_api.Output.query.filter.return_value.one.side_effect = outputs_api.NoResultFound
+  with dummy_app.test_request_context("/api/v1/output/7/", method=method, json={}):
+    response, status = call(outputs_api)
+  assert status == 404 and response.get_json() == {"error": "Cannot find output 7"}
+
+
+def test_pending_outputs_cant_be_deleted(outputs_api, dummy_app, monkeypatch):
+  from flask import g
+  import backend.api.auth as auth
+  auth.is_authorized_user.return_value = True
+  outputs_api.Output.query.filter.return_value.one.return_value = SimpleNamespace(is_pending=True, batch=MagicMock())
+  with dummy_app.test_request_context("/api/v1/output/7/", method="DELETE"):
+    g.user = {"user_name": "alice"}
+    response, status = outputs_api.update_output(7)
+  assert status == 409 and "wait" in response["error"]

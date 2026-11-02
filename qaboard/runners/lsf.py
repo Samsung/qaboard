@@ -7,10 +7,10 @@ If you run into issues with LSF
   Read them as they change environment variables.
 
 Note:
-- Windows compatibility is not garanteed since we rely on shell features (heredocs) and 
+- Windows compatibility is not guaranteed since we rely on shell features (heredocs) and 
 """
-import re
 import os
+import sys
 import random
 import shutil
 import string
@@ -18,14 +18,13 @@ import subprocess
 import time
 from pathlib import Path
 from dataclasses import dataclass, fields, replace, asdict
-from typing import Optional, List, Dict, Any, cast
+from typing import Optional, List, Dict, Any, Tuple, cast
 
 from click import secho
 
 from .base import BaseRunner
 from .job import Job
 from ..run import RunContext
-from ..api import get_output
 from ..utils import getenvs
 
 
@@ -95,6 +94,8 @@ def redirect_to_log(output_dir: Path) -> str:
 class LsfRunner(BaseRunner):
   """Start jobs using the LSF task management system."""
   type = "lsf"
+  # Batches with their own get their own job arrays, or waves (see start_groups)
+  group_options = ('concurrency', 'concurrency_strategy')
 
   def __init__(self, run_context : RunContext):
     self.run_context = run_context
@@ -233,7 +234,7 @@ class LsfRunner(BaseRunner):
     """
     Jobs with identical bsub options are sent as 1 job array with a slot limit: `-J "name[1-n]%concurrency"`.
     Each array element picks its command from $LSB_JOBINDEX. Since the name starts with `batch_prefix`,
-    `bkill -J "{batch_prefix}*"` and the WAIT job's dependency keep working.
+    `bkill -J "{batch_prefix}*"` and `bwait` (see wait_jobs) keep working.
     Note: the limit applies per array, so if runs need different LSF options (e.g. per input type), you may get more.
 
     Array elements share the same -o file, but LSF replaces %I with the element's index. To have LSF write
@@ -302,13 +303,14 @@ class LsfRunner(BaseRunner):
 
 
   @staticmethod
-  def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True):
+  def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True, waves_prefix: Optional[str] = None):
+    """`waves_prefix` names the waves of jobs, by default the batch prefix."""
     # start asynchronously the jobs 
     options = dict_to_LsfOptions(job_options)
     batch_prefix = job_options['command_id'][:8]
     if options.concurrency > 0 and len(jobs) > options.concurrency:
       if options.concurrency_strategy == "waves":
-        LsfRunner.start_jobs_in_waves(jobs, batch_prefix, options.concurrency)
+        LsfRunner.start_jobs_in_waves(jobs, waves_prefix or batch_prefix, options.concurrency)
       elif options.concurrency_strategy == "array":
         LsfRunner.start_jobs_as_arrays(jobs, batch_prefix, options.concurrency, batch_dir=options.batch_dir)
       else:
@@ -324,7 +326,7 @@ class LsfRunner(BaseRunner):
       def sigterm_handler(_signo, _stackframe):
         print('Aborted.')
         LsfRunner.stop_jobs(jobs, job_options)
-        exit(1)
+        sys.exit(1)
       signal.signal(signal.SIGTERM, sigterm_handler)
       signal.signal(signal.SIGINT, sigterm_handler)
 
@@ -335,6 +337,16 @@ class LsfRunner(BaseRunner):
       if not all([j.id for j in jobs]): # if we can read the status from the database, no sync issue
         import time
         time.sleep(1) # seconds
+
+
+  @classmethod
+  def start_groups(cls, groups: List[Tuple[Dict[str, Any], List[Job]]], blocking=True):
+    """Sends all the groups, each with its concurrency, then waits for all of them: wait_jobs waits for all the batch's jobs."""
+    for index, (job_options, jobs) in enumerate(groups):
+      is_last = index == len(groups) - 1
+      # Each group has its own waves: their dependencies use their names
+      waves_prefix = f"{job_options['command_id'][:8]}_{index}" if index else None
+      LsfRunner.start_jobs(jobs, job_options, blocking=blocking and is_last, waves_prefix=waves_prefix)
 
 
   @staticmethod
@@ -364,7 +376,7 @@ class LsfRunner(BaseRunner):
 
   @staticmethod
   def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
-      # We could dot this to be sure we explicitely kill all jobs 
+      # We could dot this to be sure we explicitly kill all jobs 
       #   command = " && ".join([f"bkill -J {job.name} 0" for job in jobs])
       # But we're only sending jobs as part of a single command...
       batch_prefix = job_options["command_id"][:8]
@@ -384,7 +396,7 @@ class LsfRunner(BaseRunner):
       # If LSF can't find the jobs, they are likely done already, but it returns 255, while we don't want to fail!
       #   out.check_returncode()
       # It's a better idea to check the logs for the status
-      # It doens't cover all cases, but we don't need to be super careful
+      # It doesn't cover all cases, but we don't need to be super careful
       being_terminated = "is being terminated" in out.stdout
       already_finished = "has already finished" in out.stdout
       job_not_found = "is not found" in out.stdout

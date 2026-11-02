@@ -1,0 +1,25 @@
+# The tests: `qa batch ci`, `qa batch quick`. Inputs are test suites, folders relative to tests/ (the database in
+# qaboard.yaml). The configuration is the mode: `default`, or `strict` (deprecation warnings are errors), shown as a
+# tag on runs. Like build types (debug, release, sanitizers): the same tests, run several ways.
+
+# CI, on every commit: every suite in both modes, 10 runs, under a minute on a 4-CPU runner
+ci:
+  inputs:
+  - codec
+  - planning
+  - battery
+  - missions
+  - client
+  configs: ['${matrix.mode}']
+  matrix:
+    mode: [default, strict]
+
+# While you work: every suite once
+quick:
+  inputs:
+  - codec
+  - planning
+  - battery
+  - missions
+  - client
+  configs: [default]

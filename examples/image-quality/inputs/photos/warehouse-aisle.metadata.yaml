@@ -1,0 +1,17 @@
+# Regions of interest for the image viewer (pixels of the 1224x816 photo)
+roi:
+- x: 0
+  y: 0
+  w: 400
+  h: 200
+  label: Ceiling lights
+- x: 800
+  y: 150
+  w: 300
+  h: 300
+  label: Racks
+- x: 200
+  y: 600
+  w: 500
+  h: 200
+  label: Floor

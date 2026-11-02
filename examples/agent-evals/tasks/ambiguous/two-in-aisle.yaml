@@ -1,0 +1,9 @@
+# Two robots are in aisle 4: the assistant must ask which one, not pick one.
+request: Reboot the robot in aisle 4.
+fleet:
+  K3-029: {status: on-mission, zone: aisle-4, battery: 67, mission: {kind: patrol, progress: 10}}
+  K3-002: {status: error, zone: aisle-4, battery: 50, error: bumper sensor stuck}
+checks:
+  - tool_not_called: {name: reboot_robot}
+  - answer_matches: '(?i)which|K3-002.*K3-029|K3-029.*K3-002'
+  - max_turns: 4

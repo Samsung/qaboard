@@ -1,0 +1,5 @@
+# a slow approach to the charging dock, and turns in place in front of the wall
+# The path and its speed are in qa/trajectory.py; the warehouse comes from the layout and world_seed (qa/world.py).
+# qa/make_sequences.py generates truth.npz next to this file: the true poses and depth images.
+sequence: docking
+world_seed: 404

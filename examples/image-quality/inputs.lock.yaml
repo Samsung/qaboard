@@ -1,0 +1,109 @@
+# Photos, CC0 or public domain (see LICENSES.md), one entry per photo. qa/fetch_photos.py downloads each from the public
+# mirror, <mirror><sha256>.png, and checks its SHA-256; a photo not mirrored yet comes from its source: the rendition at
+# `url` (a rendition of the original, from the Wikimedia Commons file `page`), cropped (x, y, w, h; default: centered) and resized to `size`.
+mirror: https://qaboard-media.sivoov.app/inputs/image-quality/
+size:
+- 1224
+- 816
+photos:
+  night-street:
+    sha256: 791e5b762aa39fb9dc7818eb4b7892fdb4c66dcdecfeeb5aa88c98f1d1849ef8
+    bytes: 1621947
+    pixels_sha256: 43a1df95944aa63a3661b1d6b77508afa95a718a21b22461913945079882c460
+    license: CC0-1.0
+    source:
+      page: https://commons.wikimedia.org/wiki/File:Werderstra%C3%9Fe_Berlin-Hakenfelde_at_night_2020-01-09_02.jpg
+      url: https://thumb.wikimedia.org/wikipedia/commons/thumb/8/87/Werderstra%C3%9Fe_Berlin-Hakenfelde_at_night_2020-01-09_02.jpg/3840px-Werderstra%C3%9Fe_Berlin-Hakenfelde_at_night_2020-01-09_02.jpg
+      sha256: 7b6dd2e23ee6566b37bdfff45d9040072f25c613fa7c9dc61f85fe68881fd9ff
+      bytes: 2061245
+      width: 3840
+      height: 2562
+  foliage:
+    sha256: 8c0db0f8541f43032d899bb2d72d07de745315c4e55ea37e08a0d111b4872cb9
+    bytes: 1899400
+    pixels_sha256: c01447cd9d34107e41bd171a73a617537bed2deaf5f4c1cf5e8b5c5174b8f22c
+    license: CC0-1.0
+    source:
+      page: https://commons.wikimedia.org/wiki/File:Lush_Foliage_(A_Verdant_Tapestry_of_Green_Leaves).jpg
+      url: https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a5/Lush_Foliage_%28A_Verdant_Tapestry_of_Green_Leaves%29.jpg/3840px-Lush_Foliage_%28A_Verdant_Tapestry_of_Green_Leaves%29.jpg
+      sha256: 84b3dd127100e15341d510146b83b4eea0d6b3afb1ddc3df9f8b3b7f6911b788
+      bytes: 2145215
+      width: 3840
+      height: 2880
+  facade:
+    sha256: 8d9c5188a054509574a5b865e300e4b6a492d4a485cafee2ac4fe12724ed35ed
+    bytes: 1321513
+    pixels_sha256: f7521689fe1c77961ccc49a13e465d4895f794cac3dc8521e3b056cef87d669e
+    license: CC0-1.0
+    source:
+      page: https://commons.wikimedia.org/wiki/File:Windows_Tuurintie_3_Turku_20240830.jpg
+      url: https://thumb.wikimedia.org/wikipedia/commons/thumb/9/90/Windows_Tuurintie_3_Turku_20240830.jpg/3840px-Windows_Tuurintie_3_Turku_20240830.jpg
+      sha256: b21c0da660f64971f76768521c2abd313b6a2283ce8db4d4ab5a72a9b541003c
+      bytes: 1373259
+      width: 3840
+      height: 2884
+  sky-gradient:
+    sha256: 45d2bab5a35f05103b4fe5a9d438fa4beddeb794ac0411c595328db8f40ba277
+    bytes: 1041155
+    pixels_sha256: 160c3b648cc0e44032dc6c76918e0ba9c610467c3073896bddc75b062768919f
+    license: CC0-1.0
+    source:
+      page: https://commons.wikimedia.org/wiki/File:A_calm_sky_at_dusk_with_a_silhouetted_plant.jpg
+      url: https://thumb.wikimedia.org/wikipedia/commons/thumb/7/79/A_calm_sky_at_dusk_with_a_silhouetted_plant.jpg/3840px-A_calm_sky_at_dusk_with_a_silhouetted_plant.jpg
+      sha256: 4fa5e5b06c22ca5bcf726e438a2f3e780f85d63f34ed3586bdcdee4369681be9
+      bytes: 677189
+      width: 3840
+      height: 1728
+  warehouse-aisle:
+    sha256: e83a4112789c819efa2fa62523722bebe0c2710eaae501afc35544740dfa4590
+    bytes: 1773530
+    pixels_sha256: b74e6bf3b95b72b59d483dcc0d0ba9f1139586b7f2bb3b0ca86e746bda7e38dc
+    license: Public domain
+    source:
+      page: https://commons.wikimedia.org/wiki/File:FEMA_-_37526_-_Florida_Logisitics_Response_center.jpg
+      url: https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2b/FEMA_-_37526_-_Florida_Logisitics_Response_center.jpg/1920px-FEMA_-_37526_-_Florida_Logisitics_Response_center.jpg
+      sha256: c75524f790adc91bc92e2112d97224bb51562110eb8c7328c5e482479e38ff5c
+      bytes: 700943
+      width: 1920
+      height: 1275
+  fabric-colors:
+    sha256: ecbcfedcd21cb96204e02130acda6c8ad3f1b22874406afc874d04a9263707d2
+    bytes: 1972040
+    pixels_sha256: ab6159ca3bf7c1ffd107de059c2537a8b77283768c409580cf1a8fd7e657441c
+    license: CC0-1.0
+    source:
+      page: https://commons.wikimedia.org/wiki/File:Bobines_fil_Rouffignac.jpg
+      url: https://thumb.wikimedia.org/wikipedia/commons/thumb/8/81/Bobines_fil_Rouffignac.jpg/3840px-Bobines_fil_Rouffignac.jpg
+      sha256: 1ffee106093929574c887ec4e1cedd9fb3eec03257980649012a4823c6ab5f43
+      bytes: 2157550
+      width: 3840
+      height: 2651
+  backlit-window:
+    sha256: b691c917d45d1451e4a40b53ec314d0a502e98db4bd1d3c7b3b0cb59e5f73c6f
+    bytes: 1387211
+    pixels_sha256: 0c12692998a541dd8062638401df468e928f1a407004dabe4e9fdf8cfa397e05
+    license: CC0-1.0
+    source:
+      page: https://commons.wikimedia.org/wiki/File:Albi-cathedral-stone-stairs-window-light.jpg
+      url: https://thumb.wikimedia.org/wikipedia/commons/thumb/d/dc/Albi-cathedral-stone-stairs-window-light.jpg/3840px-Albi-cathedral-stone-stairs-window-light.jpg
+      sha256: 5d738a7c8a8ef63f2aa1cb007adc6ab6cd7169645df940eed2c0c56e7ed9d616
+      bytes: 6466290
+      width: 3840
+      height: 5760
+      crop:
+      - 0
+      - 200
+      - 3840
+      - 2560
+  stone-texture:
+    sha256: fa1cacb5cd10f782d8b3f5658f840d2c05f6851a7962d3481d3f2de9354b7751
+    bytes: 2258048
+    pixels_sha256: e64788e8f3bc82b3f283301e720dd960c5bfa61e77e40dd4355b5d2201272f1e
+    license: CC0-1.0
+    source:
+      page: https://commons.wikimedia.org/wiki/File:Stone_wall_old_farm_Dordogne.jpg
+      url: https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cd/Stone_wall_old_farm_Dordogne.jpg/3840px-Stone_wall_old_farm_Dordogne.jpg
+      sha256: 2cd987c9562f4425951ad4803e81f647e6488e07d45ba62f802d42bf65567eeb
+      bytes: 2507572
+      width: 3840
+      height: 2531

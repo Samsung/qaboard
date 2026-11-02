@@ -1,0 +1,17 @@
+---
+id: working-at-sirc
+title: Working with QA-Board at SIRC
+sidebar_label: Working at SIRC
+sidebar_position: 2
+---
+## The server
+SIRC's QA-Board is at [https://qa](https://qa). It's the central quality platform for ~50 projects in production at SIRC.
+
+## Files
+QA-Board shows the files of the shared storage under `/s/`: the folder `/algo/project/outputs` is at `https://qa/s/algo/project/outputs/`. See [files](/docs/user-guide/files).
+
+## Raw images
+At SIRC, the image viewer also shows `*.hex`, `*.raw` and `*.dng` images: the server reads them with CDE. See the [file viewers](/docs/visualizations#available-file-viewers).
+
+## CDE and your local tools
+CDE provides a great environment to run hardware chains and view images: keep using it for local work. It's worth having it call your code through `qa`, so that runs behave the same everywhere, see [debugging with IDEs](/docs/debugging-runs-with-an-IDE). To compare local runs in QA-Board, see [other tuning workflows](/docs/tuning-from-the-webapp#other-tuning-workflows).

@@ -1,50 +1,53 @@
 ---
 id: local-multiprocessing
-title: Local Multiprocessing
-sidebar_label: Local Multiprocessing
+title: Run batches on your machine
+sidebar_label: Local
+description: Run the runs of qa batch on the machine where you start it, several at a time, with a timeout, for all batches or batch by batch.
 ---
 
-By default, if you don't configure an async task queue, QA-Board will use [`joblib`](https://joblib.readthedocs.io/en/latest/) and **local** multiprocessing to run your batches.
-
-## Running batches locally
-If you configured an another runner, you can always:
+The `local` runner does the runs of `qa batch` on the machine where you start it, several at a time with
+[joblib](https://joblib.readthedocs.io/en/latest/). It's the default when *qaboard.yaml* configures no other runner.
+When another runner is the default, choose it for one command:
 
 ```bash
-qa batch --runner=local my-batch
+qa batch --runner local my-batch
 ```
 
-## Configuration
-The main option is `concurrency` (joblib's `n_jobs`). If it is not set, runs are done one at a time; the sample `qaboard.yaml` created by `qa init` uses `-1` (1 run per CPU). You have multiple options to set it up:
+## Run several runs at the same time {#configuration}
+`concurrency` (joblib's `n_jobs`) is how many runs run at the same time. Without it, runs are done one at a time;
+`-1` runs one per CPU, as in the *qaboard.yaml* that `qa init` creates, and `-2` uses all CPUs but one. Set it:
 
-- Per batch:
+- in *qaboard.yaml*, for all batches:
 
-```yaml title="qa/batches.yaml"
-my-batch:
-  inputs:
-  - image.jpg
-  local:
-    concurrency: -1 # 1 concurrent run per CPU
-```
+  ```yaml title="qaboard.yaml"
+  runners:
+    default: local  # the default
+    local:
+      concurrency: 1  # one at a time
+  ```
 
-- Globally:
+- per batch, in a batches file, e.g. for a batch whose runs need all the memory:
 
-```yaml title="qaboard.yaml"
-runners:
-  default: local  # default
-  local:
-    concurrency: 1 # serially
-```
+  ```yaml title="qa/batches.yaml"
+  large-images:
+    inputs:
+    - charts/test-wall-113mp.tiff
+    local:
+      concurrency: 1
+  ```
 
--	On the CLI:
+- on the command line, for all batches: `qa batch --local-concurrency 1 my-batch`.
 
-```
-qa batch --local-concurrency 1
-```
+The command line wins, then the batch's setting, then *qaboard.yaml*. The `QA_BATCH_CONCURRENCY` environment variable
+replaces the value from *qaboard.yaml*.
 
--	via the `QA_BATCH_CONCURRENCY` environment variable
+## Stop runs that take too long {#timeout}
+Give each run a `timeout`, in seconds (0 means no timeout): `runners.local.timeout`, `timeout` under a batch's
+`local:`, `qa batch --local-timeout` or `QA_BATCH_TIMEOUT`. When a run takes longer, `qa batch` kills it (and what it
+started), marks it as failed, and goes on with the other runs.
 
-You can also set a `timeout` (in seconds, 0 means no timeout) with `runners.local.timeout`, `qa batch --local-timeout` or `QA_BATCH_TIMEOUT`.
+When batches have their own concurrency or timeout, `qa batch` runs them one after the other, each with its own.
 
 :::tip
-Read [joblib's docs](https://joblib.readthedocs.io/en/latest/generated/joblib.Parallel.html)
+How joblib runs the processes is in [its docs](https://joblib.readthedocs.io/en/latest/generated/joblib.Parallel.html).
 :::

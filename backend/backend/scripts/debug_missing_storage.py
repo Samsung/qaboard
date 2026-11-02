@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 from backend.models import Output
-from backend.database import db_session, Session
+from backend.database import db_session
 
 user = 'itamarp'
 user = 'omera'
