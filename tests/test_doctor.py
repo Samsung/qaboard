@@ -943,7 +943,8 @@ class TestCli(TempDirTestCase):
   def doctor(self, cwd, *args, env=None):
     from qaboard.auth import Server
     os.chdir(cwd)
-    environ = {'QA_TESTING': 'true', 'QA_OFFLINE': '', 'QA_STORAGE': str(self.tmp / 'storage'), 'QA_DATABASE': '', **(env or {})}
+    # outside CI unless a test says otherwise (CI sets CI=true, which changes where results go)
+    environ = {'QA_TESTING': 'true', 'QA_OFFLINE': '', 'QA_STORAGE': str(self.tmp / 'storage'), 'QA_DATABASE': '', 'CI': '', 'GIT_COMMIT': '', **(env or {})}
     with mock.patch.dict(os.environ, environ), mock.patch.object(sys, 'argv', ['qa', *args]):
       for name in [k for k, v in environ.items() if not v]:
         del os.environ[name]

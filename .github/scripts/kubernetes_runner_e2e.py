@@ -167,6 +167,9 @@ def main():
   }
   env = {**os.environ, 'QA_OFFLINE': 'true', 'QA_BATCH_QUIET': '1'}
   env.pop('QA_TESTING', None)
+  # Not as the CI: in CI (CI=true, set by GitHub Actions) qa saves results in the storage, not in the shared folder
+  for name in ('CI', 'GIT_COMMIT'):
+    env.pop(name, None)
 
   try:
     log(f"kind cluster {CLUSTER}, shared folder {shared}")
