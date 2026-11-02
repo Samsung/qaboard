@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.bd116b4d.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.aef96199.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.91a1744d.js" defer="defer"></script>
 </head>
 <body>
@@ -119,7 +119,11 @@ any other folder you add) and finds, with the owner of every file:</p>
 <ul>
 <li class=""><strong>Untracked runs</strong>: folders with a <code>run.json</code> or a manifest that QA-Board doesn&#x27;t know (a failed upload, a run
 deleted for good while its folder stayed),</li>
-<li class=""><strong>Untracked exports</strong>: folders with an export&#x27;s <code>0.qa.url</code>, <code>0.qa.html</code> or <code>0.common.json</code> that QA-Board doesn&#x27;t track,</li>
+<li class=""><strong>Exports</strong> QA-Board doesn&#x27;t track, e.g. made before it tracked them: folders with an export&#x27;s <code>0.qa.url</code>,
+<code>0.qa.html</code> or <code>0.common.json</code>. Scans track them: their owners see them in <strong>Storage usage → Exports</strong>, with the
+project, commit and batch their <code>0.qa.url</code> gives. Deleting an export deletes its folder, so when it isn&#x27;t one
+QA-Board made (<code>share/&lt;id&gt;</code> next to a commit&#x27;s runs, or in <code>storage.exports_root</code>) but a folder someone chose, where
+they may have other files, only admins and whoever owns all its files can delete it,</li>
 <li class="">what <strong>deleted runs</strong> and <strong>deleted artifacts</strong> left,</li>
 <li class=""><strong>other files</strong>, e.g. copies, core dumps, users&#x27; own folders.</li>
 </ul>
@@ -128,12 +132,12 @@ size you chose (<em>Details down to</em>, 50 MB by default: smaller items are co
 lists them anywhere, by kind, owner or age. Click an owner to see only theirs. Then select entries and:</p>
 <ul>
 <li class=""><strong>Delete…</strong> them: only folders without anything QA-Board uses (runs, batches&#x27; files, artifacts) can be selected,</li>
-<li class=""><strong>Track</strong> exports: their owners see them in <strong>Storage usage → Exports</strong>, and can delete them,</li>
 <li class=""><strong>Add runs to QA-Board</strong>: untracked runs in a batch&#x27;s folder are added to their batch, from their <code>run.json</code>,
 manifest and metrics.</li>
 </ul>
 <p>Users see what they own in <strong>Storage usage → Not tracked</strong>, from the latest scan, and can delete the folders whose
-files are all theirs. Scanning doesn&#x27;t change anything on disk.</p>
+files are all theirs. Admins see everyone&#x27;s there when they choose <em>Everyone&#x27;s</em>, or someone&#x27;s from the <em>Users</em> tab.
+Scanning doesn&#x27;t change anything on disk: it only adds the exports it finds to QA-Board.</p>
 <p>Delete old scans from the <strong>Scans</strong> list or the scan&#x27;s page: only what they found is deleted, not the files. Users then
 see the latest scan that&#x27;s done.</p>
 <details class="details_lb9f alert alert--info details_b_Ee" data-collapsed="true"><summary>How long scans take, and what they don&#x27;t see</summary><div><div class="collapsibleContent_i85q"><p>A scan reads every file&#x27;s metadata, with 8 threads by default: on network storage, latency dominates, count hours for

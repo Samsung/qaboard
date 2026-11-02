@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.bd116b4d.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.aef96199.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.91a1744d.js" defer="defer"></script>
 </head>
 <body>
@@ -85,11 +85,15 @@ and <strong>Delete…</strong>: no terminal needed. The runs aren&#x27;t deleted
 free the space while the export exists, and the other way round. QA-Board tags them <em>Links to the runs</em>. Copies
 (when you pick another folder) take space of their own.</p></div></div>
 <p>Exporting again to the same folder adds to it, and the export is measured again. If you deleted files of an export
-yourself, the refresh button measures it again.</p>
+yourself, the refresh button measures it again. Exports made before QA-Board tracked them show up once your admins scan
+the storage, tagged <em>Found by a scan</em>.</p>
+<details class="details_lb9f alert alert--info details_b_Ee" data-collapsed="true"><summary>Exports in a folder someone chose</summary><div><div class="collapsibleContent_i85q"><p>Deleting an export deletes its folder. When a scan found an export in a folder someone chose rather than one QA-Board
+made, it&#x27;s tagged <em>In a folder someone chose</em>: other people may have files there, so you can delete it only if all its
+files are yours. Ask the others, or an admin, for the rest.</p></div></div></details>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="files-qa-board-doesnt-track">Files QA-Board doesn&#x27;t track<a href="#files-qa-board-doesnt-track" class="hash-link" aria-label="Direct link to Files QA-Board doesn&#x27;t track" title="Direct link to Files QA-Board doesn&#x27;t track" translate="no">​</a></h2>
-<p>Your admins can scan the storage to find what QA-Board doesn&#x27;t know: old exports, runs whose upload failed, what
-deleted runs left, files you copied next to your runs. <strong>Not tracked</strong> lists what the latest scan found that you own,
-the biggest first, with when it last changed.</p>
+<p>Your admins can scan the storage to find what QA-Board doesn&#x27;t know: runs whose upload failed, what deleted runs left,
+files you copied next to your runs. <strong>Not tracked</strong> lists what the latest scan found that
+you own, the biggest first, with when it last changed.</p>
 <p>Check the folders you don&#x27;t need and <strong>Delete…</strong>. You can only delete folders whose files are all yours: ask the
 others, or an admin, for the rest. What QA-Board uses (runs, artifacts) can&#x27;t be deleted from there: delete runs from the
 other tabs. The list is as of the scan: what changed since isn&#x27;t shown.</p>
