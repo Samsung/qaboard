@@ -121,14 +121,7 @@ export const Readout = ({ controller, tiles, images, comparing, names, order, ne
   const moved = pixel[first] && pixel[second] && (pixel[second].x !== pixel[first].x || pixel[second].y !== pixel[first].y);
   const pinned = !!pointer?.pinned;
   return <div className={`qiv-readout-row ${pinned ? 'qiv-pinned' : ''}`}>
-    {pinned && <button
-      type="button"
-      className="qiv-pin-chip"
-      onClick={() => controller.unpin()}
-      title="These values stay while you move the mouse away, e.g. to select them. Click here, press Esc, click the pixel again, or leave the image and come back, to follow the pointer again"
-    >
-      <Icon icon="pin" size={12} />Pinned<span className="qiv-pin-chip-action"> · follow the pointer</span><span className="qiv-pin-chip-x" aria-hidden="true">×</span>
-    </button>}
+    {pinned && <PinnedTag onUnpin={() => controller.unpin()} />}
     <div
       className={`qiv-readout qiv-readout-values ${hovering ? '' : 'qiv-stale'}`}
       title={pinned ? 'The pixel you pinned: select its values to copy them' : `The pixel under the pointer: ${pinHint}, to keep its values and select them`}
@@ -146,11 +139,24 @@ export const Readout = ({ controller, tiles, images, comparing, names, order, ne
       </span>}
     </span>}
     </div>
-    <button type="button" className="qiv-base-toggle" onClick={onToggleBase} title={`Show the values in ${base === 10 ? 'hexadecimal' : 'decimal'}`}>
-      {base === 10 ? 'dec' : 'hex'}
-    </button>
+    <BaseToggle base={base} onToggle={onToggleBase} />
   </div>;
 };
+
+// Starts the values' line while a pixel is pinned: a click follows the pointer again
+export const PinnedTag = ({ onUnpin, what = 'image' }) => <button
+  type="button"
+  className="qiv-pin-chip"
+  onClick={onUnpin}
+  title={`These values stay while you move the mouse away, e.g. to select them. Click here, press Esc, click the pixel again, or leave the ${what} and come back, to follow the pointer again`}
+>
+  <Icon icon="pin" size={12} />Pinned<span className="qiv-pin-chip-action"> · follow the pointer</span><span className="qiv-pin-chip-x" aria-hidden="true">×</span>
+</button>;
+
+// Ends the values' line: decimal or hexadecimal
+export const BaseToggle = ({ base, onToggle }) => <button type="button" className="qiv-base-toggle" onClick={onToggle} title={`Show the values in ${base === 10 ? 'hexadecimal' : 'decimal'}`}>
+  {base === 10 ? 'dec' : 'hex'}
+</button>;
 
 
 // Which values are written on the pixels

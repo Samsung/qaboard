@@ -159,8 +159,13 @@ Hover a pixel: the line above the videos shows its coordinates, its values in ea
   rounded to 8 bits). The swatch shows that color.
 
 **Δ** is the difference of the decoded values when the videos have the same size, else of the displayed ones. The
-measure picked for the difference (perceptual, ΔE...) is computed on the displayed colors. Click the line to switch to
-hexadecimal.
+measure picked for the difference (perceptual, ΔE...) is computed on the displayed colors. **dec** at the end of the line
+switches the values to hexadecimal.
+
+**Shift+click a pixel to pin it** (a click plays or pauses): its values stay in the line while you move the mouse, e.g.
+to select and copy them, also while the video plays or you step through frames, and a framed crosshair marks it on the
+videos. A **Pinned** tag starts the line. To follow the pointer again, click the tag, press <kbd>Esc</kbd>, Shift+click
+the pixel again, or leave the videos and come back.
 
 Zoom in on paused videos until a pixel is about 30 screen pixels wide, and the values are written on the pixels
 themselves; in **Difference** mode, it's new − reference. A badge says which ones you read: *Values: decoded (Y Cb Cr,
@@ -242,6 +247,7 @@ while you type in a text box.
 | Keys | What they do |
 |---|---|
 | <kbd>Space</kbd>, <kbd>k</kbd> | Play or pause (or click the videos) |
+| <kbd>Shift</kbd>+click | Pin the pixel's values, to select them; <kbd>Esc</kbd> follows the pointer again |
 | <kbd>←</kbd> <kbd>→</kbd>, <kbd>,</kbd> <kbd>.</kbd> | Previous or next frame |
 | <kbd>Shift</kbd>+<kbd>←</kbd> <kbd>→</kbd> | Back or forward one second |
 | <kbd>Home</kbd> <kbd>End</kbd> | First or last frame |
