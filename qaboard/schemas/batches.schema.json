@@ -236,7 +236,7 @@
         "queue": {"type": "string", "description": "A Kueue LocalQueue."},
         "priority_class": {"type": "string"},
         "concurrency": {"type": "integer", "description": "Pods at the same time for a `qa batch`. 0: all."},
-        "runs_per_pod": {"type": "integer", "minimum": 1, "description": "Runs each pod does, one after the other: for short runs, or when getting a node is the slow part (GPUs)."},
+        "runs_per_pod": {"type": "integer", "description": "Runs each pod does, one after the other: for short runs, or when getting a node is the slow part (GPUs)."},
         "timeout": {"type": "number", "description": "Seconds per pod. 0: none."},
         "resources": {"type": "object", "description": "Requests, e.g. `{cpu: 4, memory: 16Gi, nvidia.com/gpu: 1}`. Memory and extended resources are also limits."},
         "node_selector": {"type": "object"},
@@ -260,7 +260,6 @@
               "read_only": {"type": "boolean"},
               "sub_path": {"type": "string"}
             },
-            "required": ["path"],
             "additionalProperties": false
           }
         },
