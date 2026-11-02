@@ -364,7 +364,7 @@ class JenkinsWindowsRunner(BaseRunner):
     import requests
     from urllib.parse import urlsplit
     from ..checks import OK, WARNING, ERROR
-    from ..doctor import docs, describe_error, TIMEOUT
+    from ..doctor import docs, describe_error, mask_url_password, TIMEOUT
     from ..compat import mappings
     page = docs('jenkins-integration')
     snippet = ("runners:\n  default: local   # the runner is named windows: qa batch --runner windows <batch>\n  jenkins:\n"
@@ -379,11 +379,13 @@ class JenkinsWindowsRunner(BaseRunner):
       yield Check("Jenkins job", ERROR, f"No Jenkins job to send the runs to: runners.jenkins.build_url isn't set.{ignored}",
                   fix=f"In qaboard.yaml:\n{snippet}\nOr set QA_RUNNERS_JENKINS_BUILD_URL and QA_RUNNERS_JENKINS_TOKEN.\nDocs: {page}")
       return
+    # build_url may have credentials (user:token@)
+    shown_url = mask_url_password(str(build_url))
     parts = urlsplit(str(build_url))
     if parts.scheme not in ('http', 'https') or not parts.hostname:
-      yield Check("Jenkins job", ERROR, f"build_url isn't a Jenkins job's URL: {build_url} (from {source})", fix=f"{snippet}\nDocs: {page}")
+      yield Check("Jenkins job", ERROR, f"build_url isn't a Jenkins job's URL: {shown_url} (from {source})", fix=f"{snippet}\nDocs: {page}")
       return
-    yield Check("Jenkins job", OK, f"{build_url} (from {source})")
+    yield Check("Jenkins job", OK, f"{shown_url} (from {source})")
     if not settings.get('token'):
       yield Check("Jenkins token", WARNING, "No token for the job's \"Trigger builds remotely\": QA-Board uses its own (JENKINS_BUILD_TOKEN), if its admins set one.",
                   fix=f"Give the job's token in runners.jenkins.token (or QA_RUNNERS_JENKINS_TOKEN).\nDocs: {page}#creating-a-build-job-that-qa-will-use")
@@ -392,15 +394,15 @@ class JenkinsWindowsRunner(BaseRunner):
     try:
       r = requests.get(f"{str(build_url).rstrip('/')}/api/json", timeout=TIMEOUT)
       if r.status_code == 404:
-        yield Check("Jenkins", ERROR, f"Jenkins answered 404 for {build_url}: there is no such job.",
+        yield Check("Jenkins", ERROR, f"Jenkins answered 404 for {shown_url}: there is no such job.",
                     fix="Copy the job's URL from Jenkins. Jobs in folders look like https://jenkins.example.com/job/folder/job/name")
       elif r.status_code in (200, 401, 403):
         yield Check("Jenkins", OK, f"{parts.hostname} answers" + (" (it needs credentials: QA-Board uses its own)" if r.status_code != 200 else ''))
       else:
-        yield Check("Jenkins", WARNING, f"Jenkins answered {r.status_code} for {build_url}.", fix=f"Check that you can open {build_url} in your browser.")
+        yield Check("Jenkins", WARNING, f"Jenkins answered {r.status_code} for {shown_url}.", fix=f"Check that you can open {shown_url} in your browser.")
     except requests.RequestException as e:
       yield Check("Jenkins", WARNING, f"Can't reach {parts.hostname} from here ({describe_error(e)}): QA-Board starts the builds, but qa prints their logs from there.",
-                  fix=f"Check that you can open {build_url} from this machine (proxy, VPN...).")
+                  fix=f"Check that you can open {shown_url} from this machine (proxy, VPN...).")
 
     # Without a token, QA-Board only starts the jobs listed in the project's qaboard.yaml
     from ..api import qa_token
@@ -428,7 +430,7 @@ class JenkinsWindowsRunner(BaseRunner):
   @classmethod
   def doctor_test_job(cls, job_options: Dict[str, Any]) -> Iterable[Check]:
     """Starts a build that says where it runs, as who, if it sees the batch's folder and `qa`. Waits 10 minutes at most."""
-    from ..checks import OK, ERROR
+    from ..checks import OK, WARNING, ERROR
     from ..doctor import docs, make_test_dir, remove_test_dir
     name = "Jenkins test build"
     try:
@@ -441,6 +443,7 @@ class JenkinsWindowsRunner(BaseRunner):
     except OSError:
       pass
     result = test_dir / 'result.txt'
+    keep = False
     try:
       windows_result = linux_to_windows_path(result)
       with (test_dir / 'run.bat').open('w', newline='\r\n') as f:
@@ -461,6 +464,12 @@ class JenkinsWindowsRunner(BaseRunner):
         status = _poll_jenkins_status(build_info, timeout_seconds=600, interval_seconds=10)
       except SystemExit:
         status = 'unknown'
+      if status in ACTIVE_BUILD_STATUSES:
+        # qa can't stop Jenkins builds: we keep its folder, so that it doesn't fail on a missing folder
+        keep = True
+        yield Check(name, WARNING, f"The test build is still {status} after 10 minutes: {url}",
+                    fix=f"Stop it in Jenkins if it's stuck: {url}\nThen delete its folder: rm -r {test_dir}")
+        return
       if status != 'success':
         yield Check(name, ERROR, f"The test build ended as {status}: {url}", fix=f"See its console: {url}console" if url else "See the build's console in Jenkins.")
         return
@@ -476,4 +485,5 @@ class JenkinsWindowsRunner(BaseRunner):
         return
       yield Check(name, OK, f"A test build ran {where}, and found qa")
     finally:
-      remove_test_dir(test_dir, existing)
+      if not keep:
+        remove_test_dir(test_dir, existing)

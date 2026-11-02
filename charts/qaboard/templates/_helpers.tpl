@@ -185,6 +185,11 @@ app.kubernetes.io/component: {{ index . 1 }}
 {{- end -}}
 {{- end -}}
 
+{{/* The ServiceAccount of the pods that run `qa batch` for the backend: runners.kubernetes.serviceAccount, else <fullname>-runs */}}
+{{- define "qaboard.runsServiceAccount" -}}
+{{- .Values.runners.kubernetes.serviceAccount | default (printf "%s-runs" (include "qaboard.fullname" .)) -}}
+{{- end -}}
+
 {{/* How the pods the backend starts reach QA-Board: runners.kubernetes.serverUrl, else the proxy's Service */}}
 {{- define "qaboard.kubernetesServerUrl" -}}
 {{- .Values.runners.kubernetes.serverUrl | default (printf "http://%s-proxy.%s.svc" (include "qaboard.fullname" .) .Release.Namespace) -}}

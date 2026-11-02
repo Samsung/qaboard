@@ -65,7 +65,7 @@ from click import secho
 from .base import BaseRunner
 from .job import Job
 from .env import forwarded_env
-from .labels import label_value, is_label_value
+from .labels import label_value
 from ..run import RunContext
 from ..checks import Check, OK, WARNING, ERROR, SKIPPED
 
@@ -146,7 +146,8 @@ def dns_name(value: str) -> str:
 
 def batch_selector(command_id: str, project: Optional[str] = None) -> str:
   """The label selector of a batch's objects. command_id may come from untrusted input: it must already be a valid label value."""
-  if not command_id or not is_label_value(command_id):
+  # valid label values are the ones label_value() keeps
+  if not isinstance(command_id, str) or not command_id or label_value(command_id) != command_id:
     raise ValueError(f'Invalid command id: {command_id!r}')
   selector = f'qaboard.io/command-id={command_id}'
   if project:

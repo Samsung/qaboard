@@ -108,6 +108,9 @@ class TestConfigChecks(TempDirTestCase):
     self.assertEqual(check.status, ERROR)
     self.assertIn('project.url', check.message)
     self.assertIn('url: https://github.com/group/repo', check.fix)
+    write(self.tmp / 'qaboard.yaml', "project:\n  name: 3\n  url: x\n")
+    [check] = check_config(self.tmp)
+    self.assertIn('needs project.name, as text', check.message)
 
   def test_missing_include(self):
     from qaboard.doctor import check_config
@@ -238,13 +241,20 @@ class TestStorageChecks(TempDirTestCase):
   def test_missing_root(self):
     from qaboard.doctor import check_folder
     root = self.tmp / 'missing'
+    # qa can create it: maybe a shared drive isn't mounted
     check = check_folder("Results storage", root / 'project', root=root)
-    self.assertEqual(check.status, ERROR)
-    self.assertIn("doesn't exist", check.message)
-    self.assertIn(f"mkdir -p {root}", check.fix)
-    self.assertIn('export QA_STORAGE=', check.fix)
-    self.assertIn('/docs/storage/where-is-the-data', check.fix)
-    self.assertEqual(check_folder("Artifacts", root / 'project', root=root, required=False).status, WARNING)
+    self.assertEqual(check.status, WARNING)
+    self.assertIn("qa will create it", check.message)
+    self.assertFalse(root.exists())
+    # it can't
+    with mock.patch('qaboard.doctor.tempfile.mkstemp', side_effect=PermissionError(errno.EACCES, 'Permission denied')):
+      check = check_folder("Results storage", root / 'project', root=root)
+      self.assertEqual(check.status, ERROR)
+      self.assertIn("doesn't exist, and qa can't create it", check.message)
+      self.assertIn(f"mkdir -p {root}", check.fix)
+      self.assertIn('export QA_STORAGE=', check.fix)
+      self.assertIn('/docs/storage/where-is-the-data', check.fix)
+      self.assertEqual(check_folder("Artifacts", root / 'project', root=root, required=False).status, WARNING)
 
   def test_not_writable(self):
     from qaboard.doctor import check_folder
@@ -274,7 +284,12 @@ class TestStorageChecks(TempDirTestCase):
       self.assertEqual(check.status, ERROR)
       self.assertIn('linux: /mnt/qaboard', check.fix)
       check = check_storage_setting({'storage': {'nope': '/x'}}, Path('a/b'), Path('.'))
-      self.assertIn('wrong', check.message)
+      self.assertIn('no path for this machine', check.message)
+      self.assertIn('wrong', check_storage_setting({'storage': ['/a']}, Path('a/b'), Path('.')).message)
+      # `qa doctor` doesn't raise, but check_storage_setting still sees it
+      with mock.patch('qaboard.config.is_doctor_command', True):
+        check = check_storage_setting({'storage': {'windows': '//x/y'}}, Path('a/b'), Path('.'))
+      self.assertIn('no path for this machine', check.message)
       self.assertIsNone(check_storage_setting({'storage': {'linux': '/x', 'windows': '//x'}}, Path('a/b'), Path('.')))
       os.environ['QA_STORAGE'] = str(self.tmp)
       self.assertIsNone(check_storage_setting({}, Path('a/b'), Path('.')))
@@ -426,6 +441,12 @@ class TestSignIn(unittest.TestCase):
     self.assertEqual(statuses(checks), [OK, WARNING])
     me = response(200, {**ME, "token": {**ME['token'], "expires_at": "2026-11-01T00:00:00Z"}})
     self.assertEqual(statuses(self.sign_in(TOKEN, {}, me=me, now=now)[0]), [OK, ERROR])
+    # the fix depends on where the token comes from
+    checks, _ = self.sign_in(TOKEN, {}, me=me, now=now, token_source='secrets.yaml')
+    self.assertIn('qa auth login', checks[1].fix)
+    self.assertNotIn('$secrets.yaml', checks[1].fix)
+    checks, _ = self.sign_in(TOKEN, {}, me=me, now=now, token_source='QABOARD_TOKEN')
+    self.assertIn('Replace $QABOARD_TOKEN', checks[1].fix)
 
   def test_token_matches_project(self):
     from qaboard.doctor import token_matches_project
@@ -468,13 +489,27 @@ class TestProjectAccess(unittest.TestCase):
 
 
 class TestServerSeesStorage(unittest.TestCase):
-  def sees(self, route):
+  def sees(self, route, token=TOKEN):
     from qaboard.doctor import check_server_sees
     get = FakeGet({'/s/mnt/qaboard/': route})
     with mock.patch('requests.get', get):
-      check = check_server_sees(server(), Path('/mnt/qaboard'), TOKEN)
+      check = check_server_sees(server(), Path('/mnt/qaboard'), token)
     self.assertEqual(get.calls[0][1]['Accept'], 'application/json')
     return check
+
+  def test_refusals(self):
+    # the server can't read the folder: not about signing in
+    check = self.sees(response(403, {"error": "The QA-Board server doesn't have the permissions to read /mnt/qaboard.", "reason": "permissions"}))
+    self.assertEqual(check.status, WARNING)
+    self.assertIn('give the server read access', check.fix)
+    check = self.sees(response(403, {"error": "Only some users can see the project a/b.", "reason": "forbidden"}))
+    self.assertEqual(check.status, WARNING)
+    self.assertIn('Only some users', check.message)
+    check = self.sees(response(401, {"error": "Sign in to see these files.", "reason": "login"}), token=None)
+    self.assertEqual(check.status, SKIPPED)
+    self.assertIn('qa auth login', check.message)
+    check = self.sees(response(401, {"error": "Sign in to see these files.", "reason": "login"}))
+    self.assertIn("didn't accept your token", check.message)
 
   def test_server_sees(self):
     self.assertEqual(self.sees(response(200, [{"name": "project"}])).status, OK)
@@ -549,11 +584,19 @@ class TestLocalRunner(TempDirTestCase):
     self.assertIn('4 at the same time', self.doctor(concurrency=-1)[0].message)
     self.assertIn('3 at the same time', self.doctor(concurrency=-2)[0].message)
     self.assertEqual(self.doctor(concurrency=8)[0].status, WARNING)
-    for invalid in (0, 'many', -10):
+    # like joblib: negative values count from the number of CPUs, at least 1
+    from joblib import effective_n_jobs
+    with mock.patch('os.cpu_count', return_value=4), mock.patch('joblib.parallel.cpu_count', return_value=4):
+      self.assertEqual(effective_n_jobs(-10), 1)
+    check = self.doctor(concurrency=-10)[0]
+    self.assertEqual(check.status, OK)
+    self.assertIn('1 at the same time', check.message)
+    for invalid in (0, 'many', 'abc'):
       check = self.doctor(concurrency=invalid)[0]
       self.assertEqual(check.status, ERROR)
       self.assertIn('concurrency: -1', check.fix)
     self.assertEqual([c for c in self.doctor(timeout=-1) if 'timeout' in c.name][0].status, ERROR)
+    self.assertEqual([c for c in self.doctor(timeout='abc') if 'timeout' in c.name][0].status, ERROR)
 
   def test_qa_on_path(self):
     from qaboard.runners.local import LocalRunner
@@ -575,19 +618,29 @@ class TestLocalRunner(TempDirTestCase):
 
 REAL_RUN = subprocess.run
 
-def fake_lsf(bqueues='QUEUE_NAME PRIO STATUS\nnormal 30 Open:Active\n', bqueues_code=0):
-  """Replaces subprocess.run for LSF commands: bsub runs its script with bash, here."""
+def fake_lsf(bqueues='QUEUE_NAME PRIO STATUS\nnormal 30 Open:Active\n', bqueues_code=0, run_jobs=True, stat='DONE', bwait=0):
+  """
+  Replaces subprocess.run for LSF commands: bsub runs its script with bash, here (unless not `run_jobs`).
+  `stat` is the jobs' status for bjobs -o stat, `bwait` bwait's exit code, or an exception it raises.
+  """
   commands = []
   def run(command, shell=True, **kwargs):
     commands.append(command)
     if 'bsub' in command:
-      script = command.split('<< "EOF"\n', 1)[1].rsplit('\nEOF', 1)[0]
-      REAL_RUN(['bash', '-c', script], check=True)
+      if run_jobs:
+        script = command.split('<< "EOF"\n', 1)[1].rsplit('\nEOF', 1)[0]
+        REAL_RUN(['bash', '-c', script], check=True)
       return subprocess.CompletedProcess(command, 0, stdout='Job <1> is submitted', stderr='')
     if 'bqueues' in command:
       return subprocess.CompletedProcess(command, bqueues_code, stdout=bqueues if bqueues_code == 0 else 'nope: No such queue', stderr='')
+    if 'bjobs' in command and '-o "stat"' in command:
+      return subprocess.CompletedProcess(command, 0, stdout=f'{stat}\n', stderr='')
     if 'bjobs' in command:
       return subprocess.CompletedProcess(command, 0, stdout='No unfinished job found\n', stderr='')
+    if 'bwait' in command:
+      if isinstance(bwait, BaseException):
+        raise bwait
+      return subprocess.CompletedProcess(command, bwait, stdout='', stderr='')
     return subprocess.CompletedProcess(command, 0, stdout='', stderr='')
   run.commands = commands
   return run
@@ -661,6 +714,35 @@ class TestLsfRunner(TempDirTestCase):
         checks = self.doctor(run, test_job=True, queue='normal')
     self.assertEqual(checks[-1].status, OK, checks[-1].message)
     self.assertIn(f'found {qa}', checks[-1].message)
+
+  def test_test_job_without_bwait(self):
+    # we poll bjobs instead
+    run = fake_lsf()
+    checks = self.doctor(run, which=lambda name: None if name == 'bwait' else f'/usr/bin/{name}', test_job=True)
+    self.assertEqual(checks[-1].name, "LSF test job")
+    self.assertIn('ran on', checks[-1].message)
+    self.assertFalse(any('bwait' in c for c in run.commands))
+    self.assertTrue(any('bjobs -a -noheader -o "stat" -J "abcdefgh_doctor"' in c for c in run.commands))
+    self.assertFalse(any('bkill' in c for c in run.commands))
+    self.assertEqual(list(self.tmp.iterdir()), [])
+
+  def test_test_job_never_ends(self):
+    from qaboard.runners.lsf import LsfRunner
+    run = fake_lsf(run_jobs=False, stat='PEND', bwait=255)
+    options = {'command_id': 'abcdefgh-1234', 'batch_dir': str(self.tmp / 'batch')}
+    with mock.patch('qaboard.runners.lsf.subprocess.run', run), mock.patch('qaboard.doctor.subprocess.run', run), \
+         mock.patch('qaboard.runners.lsf.time.sleep'), mock.patch('qaboard.runners.lsf.secho'), mock.patch('qaboard.runners.lsf.shutil.which', return_value='/usr/bin/bsub'):
+      checks = list(LsfRunner.doctor_test_job(options, lambda c: c, use_bwait=True, timeout=0))
+      self.assertEqual(checks[-1].status, WARNING)
+      self.assertIn("didn't end", checks[-1].message)
+      self.assertIn('bkill -J "abcdefgh_doctor"', run.commands[-1])
+      self.assertEqual(list(self.tmp.iterdir()), [])
+      # Ctrl-C while waiting: the job is stopped too
+      run = fake_lsf(run_jobs=False, bwait=KeyboardInterrupt())
+      with mock.patch('qaboard.runners.lsf.subprocess.run', run), self.assertRaises(KeyboardInterrupt):
+        list(LsfRunner.doctor_test_job(options, lambda c: c, use_bwait=True))
+      self.assertIn('bkill -J "abcdefgh_doctor"', run.commands[-1])
+      self.assertEqual(list(self.tmp.iterdir()), [])
     self.assertTrue(any('bwait -w "ended(abcdefgh_doctor)"' in c for c in run.commands))
     self.assertEqual(list(self.tmp.iterdir()), [])
 
@@ -700,6 +782,13 @@ class TestCeleryRunner(unittest.TestCase):
     from qaboard.doctor import mask_url_password
     self.assertEqual(mask_url_password('pyamqp://camera:secret@qaboard:5672/camera'), 'pyamqp://camera:****@qaboard:5672/camera')
     self.assertEqual(mask_url_password('redis://qaboard:6379'), 'redis://qaboard:6379')
+    # kombu's failover brokers
+    masked = mask_url_password('pyamqp://a:secret1@h1//;pyamqp://b:secret2@h2//')
+    self.assertEqual(masked, 'pyamqp://a:****@h1//;pyamqp://b:****@h2//')
+    masked = mask_url_password('sqs://host/?password=secret&region=eu;redis://h/?token=secret2')
+    self.assertNotIn('secret', masked)
+    self.assertIn('region=eu', masked)
+    self.assertEqual(mask_url_password('https://alice:11a2b3@jenkins.example/job/x'), 'https://alice:****@jenkins.example/job/x')
 
 
 class TestJenkinsRunner(TempDirTestCase):
@@ -736,6 +825,32 @@ class TestJenkinsRunner(TempDirTestCase):
     checks = self.doctor(FakeGet({'/job/team/job/WindowsExecutor/api/json': requests.ConnectionError()}), build_url=url, token='1')
     self.assertEqual(checks[1].status, WARNING)
 
+  def test_credentials_in_url(self):
+    url = 'https://alice:jenkinsapitoken@jenkins.example/job/team/job/WindowsExecutor'
+    for get in (FakeGet({}), FakeGet({'/job/team/job/WindowsExecutor/api/json': requests.ConnectionError()}), FakeGet({'/job/team/job/WindowsExecutor/api/json': response(500, {})})):
+      checks = self.doctor(get, build_url=url, token='1')
+      self.assertNotIn('jenkinsapitoken', ' '.join(f"{c.message} {c.fix}" for c in checks))
+    checks = self.doctor(build_url='ftp://alice:jenkinsapitoken@x')
+    self.assertNotIn('jenkinsapitoken', checks[0].message)
+
+  def test_test_build_still_running(self):
+    from qaboard.runners.jenkins_windows import JenkinsWindowsRunner
+    options = {'command_id': 'abcdefgh-1', 'batch_dir': str(self.tmp / 'batch')}
+    with mock.patch('qaboard.runners.jenkins_windows.trigger_run', return_value={'web_url': 'https://j/job/x/12/'}), \
+         mock.patch('qaboard.runners.jenkins_windows._poll_jenkins_status', return_value='running'):
+      checks = list(JenkinsWindowsRunner.doctor_test_job(options))
+    self.assertEqual(checks[-1].status, WARNING)
+    self.assertIn('still running', checks[-1].message)
+    self.assertIn('https://j/job/x/12/', checks[-1].message)
+    # the build may still write there
+    self.assertTrue((self.tmp / 'batch' / 'doctor' / 'abcdefgh' / 'run.bat').exists())
+    self.assertIn('rm -r', checks[-1].fix)
+    with mock.patch('qaboard.runners.jenkins_windows.trigger_run', return_value={'web_url': 'https://j/job/x/12/'}), \
+         mock.patch('qaboard.runners.jenkins_windows._poll_jenkins_status', return_value='failure'):
+      checks = list(JenkinsWindowsRunner.doctor_test_job(options))
+    self.assertIn('ended as failure', checks[-1].message)
+    self.assertFalse((self.tmp / 'batch' / 'doctor' / 'abcdefgh').exists())
+
 
 class TestConfigLoading(unittest.TestCase):
   """qaboard.config doesn't fail on a broken qaboard.yaml for `qa doctor`, and only for it"""
@@ -753,6 +868,61 @@ class TestConfigLoading(unittest.TestCase):
     self.assertIsNone(unloadable_config([({'project': {'name': 'a/b', 'url': 'u'}}, path)]))
     self.assertIn('project.name', unloadable_config([({'project': {'name': 'a/b'}}, path)]))
     self.assertIn('not a mapping', unloadable_config([(['a'], path)]))  # type: ignore
+    self.assertIn('not a mapping', unloadable_config([({'project': {'name': 'a/b', 'url': 'u'}}, path), ({'project': 'x'}, Path('/x/sub/qaboard.yaml'))]))
+
+  def test_is_qa_program(self):
+    from qaboard.config import is_qa_program
+    self.assertTrue(is_qa_program(['qa', 'doctor']))
+    self.assertTrue(is_qa_program(['/venv/bin/qa', 'doctor']))
+    self.assertTrue(is_qa_program(['C:\\venv\\Scripts\\qa.exe' if os.name == 'nt' else '/venv/bin/qa-script.py', 'doctor']))
+    self.assertTrue(is_qa_program([str(root_repo / 'qaboard' / '__main__.py'), 'doctor']))
+    # other programs that import qaboard
+    self.assertFalse(is_qa_program(['/usr/bin/my-tool', 'doctor']))
+    self.assertFalse(is_qa_program(['/x/other/__main__.py', 'doctor']))
+    self.assertFalse(is_qa_program([]))
+
+  def test_invalid_settings(self):
+    from qaboard.config import invalid_settings, drop_invalid_settings
+    config = {
+      'project': {'name': 'a/b'}, 'inputs': {'batches': 3, 'database': '/x', 'types': {'images': {}}}, 'storage': ['/a'],
+      'runners': {'default': 'local', 'local': 'fast', 'lsf': {'queue': 'q'}}, 'outputs': None,
+    }
+    self.assertEqual(sorted('.'.join(k) for k, _, _ in invalid_settings(config)), ['inputs.batches', 'runners.local', 'storage'])
+    self.assertEqual(invalid_settings({'runners': ['local', 'lsf']})[0][0], ('runners',))
+    self.assertEqual(invalid_settings({'inputs': {'batches': ['a.yaml', 3]}})[0][0], ('inputs', 'batches'))
+    drop_invalid_settings(config)
+    self.assertEqual(config['inputs'], {'database': '/x', 'types': {'images': {}}})
+    self.assertEqual(config['runners'], {'default': 'local', 'lsf': {'queue': 'q'}})
+    self.assertNotIn('storage', config)
+
+  def test_guarded(self):
+    from qaboard.doctor import guarded
+    def checks():
+      yield Check("first", OK, "fine")
+      raise TypeError("unhashable type: 'list'")
+    result = list(guarded("Storage", checks))
+    self.assertEqual(statuses(result), [OK, ERROR])
+    self.assertIn("TypeError: unhashable type: 'list'", result[1].message)
+
+  def test_unreadable_entrypoint(self):
+    from qaboard.doctor import check_project
+    with tempfile.TemporaryDirectory() as tmp:
+      write(Path(tmp) / 'main.py', 'def run(context): pass\n')
+      with mock.patch('pathlib.Path.read_text', side_effect=PermissionError(errno.EACCES, 'Permission denied')):
+        checks = list(check_project(Path('a/b'), Path('a/b'), Path('.'), {'project': {'entrypoint': 'main.py'}}, Path(tmp)))
+    self.assertEqual(checks[-1].status, ERROR)
+    self.assertIn("can't read main.py", checks[-1].message)
+    # check_config says that it must be a path
+    self.assertEqual(len(list(check_project(Path('a/b'), Path('a/b'), Path('.'), {'project': {'entrypoint': ['a']}}, Path(tmp)))), 1)
+
+  def test_config_types(self):
+    from qaboard.doctor import check_config
+    with tempfile.TemporaryDirectory() as tmp:
+      write(Path(tmp) / 'qaboard.yaml', VALID_CONFIG.replace('entrypoint: main.py', 'entrypoint: [a]') + "runners: [local, lsf]\ninputs:\n  batches: 3\n")
+      [check] = check_config(Path(tmp))
+    self.assertEqual(check.status, ERROR)
+    for setting in ('runners must be a mapping', 'inputs.batches must be a path or text or a list of paths', 'project.entrypoint must be a path'):
+      self.assertIn(setting, check.message)
 
 
 class TestCli(TempDirTestCase):
@@ -804,11 +974,67 @@ class TestCli(TempDirTestCase):
     self.assertIn('✔ Project: user/sample_project', result.output_text)
     self.assertIn("✘ QA-Board server: Can't reach QA-Board at http://127.0.0.1:1", result.output_text)
     self.assertIn('curl http://127.0.0.1:1/api/v1/health', result.output_text)
-    self.assertIn(f'Results storage: {self.tmp / "storage"}', result.output_text)
+    self.assertIn(f'Results storage: The storage folder {self.tmp / "storage"} doesn\'t exist: qa will create it', result.output_text)
     self.assertIn('Runner: local', result.output_text)
     self.assertIn('1 problem to fix', result.output_text)
-    # it changes nothing in the storage
-    self.assertEqual(sorted(p.name for p in (self.tmp / 'storage').iterdir()), [])
+    # it changes nothing: it doesn't even create the storage
+    self.assertFalse((self.tmp / 'storage').exists())
+    (self.tmp / 'storage').mkdir()
+    result = self.doctor(root_repo / 'qaboard' / 'sample_project', 'doctor')
+    self.assertIn(f'Results storage: {self.tmp / "storage"}', result.output_text)
+    self.assertIn('writable', result.output_text)
+    self.assertEqual(list((self.tmp / 'storage').iterdir()), [])
+
+  def assert_reports(self, result, *texts):
+    """`qa doctor` reports problems, and doesn't crash on them"""
+    self.assertEqual(result.exit_code, 1, result.output_text)
+    self.assertNotIn('qa doctor failed to check', result.output_text)
+    for text in texts:
+      self.assertIn(text, result.output_text)
+
+  def project(self, config: str, folder='project') -> Path:
+    write(self.tmp / folder / 'qaboard.yaml', config)
+    write(self.tmp / folder / 'main.py', 'def run(context):\n  return {}\n')
+    return self.tmp / folder
+
+  @unittest.skipIf(os.name == 'nt', "linux paths")
+  def test_storage_without_a_path_for_this_machine(self):
+    project = self.project(VALID_CONFIG.replace('storage: /tmp\n', 'storage:\n  windows: //x/y\n'))
+    result = self.doctor(project, 'doctor', env={'QA_STORAGE': ''})
+    self.assert_reports(result, "The storage setting has no path for this machine (linux)")
+
+  def test_wrong_settings(self):
+    for name, config in [
+      ('runners list', "runners: [local, lsf]\n"),
+      ('runner settings', "runners:\n  local: fast\n"),
+      ('batches', "inputs:\n  batches: 3\n"),
+      ('storage list', "storage: ['/a']\n"),
+    ]:
+      with self.subTest(name):
+        project = self.project(VALID_CONFIG.replace('storage: /tmp\n', '') + config, folder=name.replace(' ', '-'))
+        self.assert_reports(self.doctor(project, 'doctor', env={'QA_STORAGE': ''}), "qa can't use these settings")
+    project = self.project(VALID_CONFIG.replace('entrypoint: main.py', 'entrypoint: [a]'), folder='entrypoint')
+    self.assert_reports(self.doctor(project, 'doctor'), "project.entrypoint must be a path")
+
+  def test_wrong_environment(self):
+    project = self.project(VALID_CONFIG + "runners:\n  local: {}\n")
+    result = self.doctor(project, 'doctor', '--runner', 'local', env={'QA_BATCH_CONCURRENCY': 'abc', 'QA_BATCH_TIMEOUT': 'abc'})
+    self.assert_reports(result, "concurrency: 'abc' isn't valid", "timeout: 'abc' isn't valid")
+    result = self.doctor(project, '--type', 'nope', 'doctor')
+    self.assert_reports(result, "There is no input type named 'nope'")
+
+  def test_subproject_changes_the_project(self):
+    self.project(VALID_CONFIG)
+    write(self.tmp / 'project' / 'sub' / 'qaboard.yaml', "project:\n  url: https://git.example/other\n")
+    result = self.doctor(self.tmp / 'project' / 'sub', 'doctor')
+    self.assert_reports(result, "changes project.url", "Remove project.url from")
+
+  def test_outside_git(self):
+    (self.tmp / 'storage').mkdir()
+    result = self.doctor(self.project(VALID_CONFIG), 'doctor')
+    self.assertIn('Not in a git repository', result.output_text)
+    self.assertIn(f"`qa --share` saves results in {self.tmp / 'project'}, not in the storage ({self.tmp / 'storage'})", result.output_text)
+    self.assertIn(f"Results storage: {self.tmp / 'storage'}, writable", result.output_text)
 
   def test_offline(self):
     result = self.doctor(root_repo / 'qaboard' / 'sample_project', '--offline', 'doctor', '--runner', 'local')

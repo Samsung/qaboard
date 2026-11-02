@@ -3,7 +3,7 @@ Tests for backend/runner_jobs.py: stopping batches with validated options, and s
 The kubernetes runner is replaced by a fake that records what it's asked (qaboard.runners.runners['kubernetes']).
 """
 import os
-from pathlib import Path
+import uuid
 from types import SimpleNamespace
 from unittest import mock
 
@@ -12,6 +12,10 @@ import pytest
 import backend.runner_jobs as runner_jobs
 from backend.runner_jobs import NotAllowed
 
+# command ids, like qa batch's
+ID1, ID2, ID3, ID4, ID5 = (str(uuid.UUID(int=i)) for i in range(1, 6))
+DRIVER_ID = "0123abcd-0000-4000-8000-000000000000"
+
 
 class FakeRunner:
   """Records the calls the server makes to a runner"""
@@ -19,11 +23,12 @@ class FakeRunner:
   stopped: list = []
   submitted: list = []
   fail_with = None
+  stop_fails_with = None
 
   @classmethod
   def stop_jobs(cls, jobs, job_options):
-    if cls.fail_with:
-      raise cls.fail_with
+    if cls.stop_fails_with:
+      raise cls.stop_fails_with
     cls.stopped.append(job_options)
 
   @classmethod
@@ -34,15 +39,20 @@ class FakeRunner:
     return {"kubernetes_job": name, "namespace": job_options["namespace"]}
 
 
+class NotFound(Exception):
+  status = 404
+
+
 @pytest.fixture
 def fake_runners(monkeypatch):
   """The kubernetes and LSF runners are fakes, and the admins allow the algo-qa and algo-gpu namespaces"""
   from qaboard.runners import runners
-  FakeRunner.stopped, FakeRunner.submitted, FakeRunner.fail_with = [], [], None
+  FakeRunner.stopped, FakeRunner.submitted, FakeRunner.fail_with, FakeRunner.stop_fails_with = [], [], None, None
   monkeypatch.setenv("QABOARD_KUBERNETES_NAMESPACES", "algo-qa, algo-gpu")
   for name in ("QABOARD_KUBERNETES_CONTEXTS", "QABOARD_KUBERNETES_SERVICE_ACCOUNT", "QABOARD_KUBERNETES_SERVER_URL",
                "QABOARD_KUBERNETES_ALLOW_HOST_PATH", "QABOARD_KUBERNETES_DRIVER_RESOURCES", "QABOARD_HOST", "QABOARD_PROTOCOL",
-               "QA_RUNNERS_LSF_BRIDGE", "QABOARD_DASK_SCHEDULERS"):
+               "QABOARD_KUBERNETES_RUN_AS", "QABOARD_KUBERNETES_MIN_UID", "QABOARD_KUBERNETES_TRUST_LOCAL_ACCOUNTS",
+               "QABOARD_KUBERNETES_ALLOW_RUN_AS_IMAGE", "QA_RUNNERS_LSF_BRIDGE", "QABOARD_DASK_SCHEDULERS"):
     monkeypatch.delenv(name, raising=False)
   with mock.patch.dict(runners, {"kubernetes": FakeRunner, "lsf": FakeRunner, "dask": FakeRunner}):
     yield FakeRunner
@@ -60,7 +70,9 @@ def test_namespaces_must_be_allowed(monkeypatch):
   assert runner_jobs.allowed_namespace("algo-qa") == "algo-qa"
   with pytest.raises(NotAllowed, match="only in: algo-qa, algo-gpu"):
     runner_jobs.allowed_namespace("kube-system")
-  for invalid in (None, "", "Algo", "algo;id", "-algo", "a" * 64, ["algo-qa"], {"x": 1}):
+  with pytest.raises(NotAllowed, match="doesn't know in which Kubernetes namespace"):
+    runner_jobs.allowed_namespace(None)
+  for invalid in ("", "Algo", "algo;id", "-algo", "a" * 64, ["algo-qa"], {"x": 1}):
     with pytest.raises(NotAllowed):
       runner_jobs.allowed_namespace(invalid)
   # even when the admins made a mistake
@@ -85,6 +97,25 @@ def test_names():
   assert not runner_jobs.is_dns1123_subdomain("registry_creds")
   assert runner_jobs.is_label_value("Algo_GPU.q")
   assert not runner_jobs.is_label_value("gpu queue")
+  assert runner_jobs.is_command_id(str(uuid.uuid4()))
+  for invalid in ("abc", str(uuid.uuid4()).upper(), "0123abcd-0000-4000-8000-0000000000001", f"{uuid.uuid4()}\n", None, 1):
+    assert not runner_jobs.is_command_id(invalid)
+
+
+def test_label_values():
+  """The runners and the server sanitize label values the same way"""
+  from qaboard.runners.labels import label_value
+  assert label_value("algo-project") == "algo-project"
+  assert label_value("") == ""
+  assert label_value(None) == ""
+  sanitized = label_value("algo/project")
+  assert sanitized.startswith("algo-project-") and len(sanitized) == len("algo-project-") + 8
+  # different values stay different
+  assert label_value("algo/project") != label_value("algo-project") != label_value("algo.project/")
+  for value in ("algo/project", "-x-", "a" * 64, "a/" * 40, "/", "été", "x" * 54 + "/"):
+    sanitized = label_value(value)
+    assert runner_jobs.is_label_value(sanitized), (value, sanitized)
+    assert label_value(value) == sanitized
 
 
 # ==========================================
@@ -92,50 +123,54 @@ def test_names():
 # ==========================================
 
 def test_stop_options_of_other_runners_are_unchanged(fake_runners, monkeypatch):
-  assert runner_jobs.stop_job_options("abc-123", {"runner": "lsf", "user": "arthurf", "queue": "evil;id"}) == {
-    "type": "lsf", "command_id": "abc-123", "bridge": "", "user": "arthurf",
+  assert runner_jobs.stop_job_options(ID1, {"runner": "lsf", "user": "arthurf", "queue": "evil;id"}, "algo/project") == {
+    "type": "lsf", "command_id": ID1, "bridge": "", "user": "arthurf",
   }
   monkeypatch.setenv("QA_RUNNERS_LSF_BRIDGE", "ssh host bsub_su {user} {bsub_command}")
   monkeypatch.setenv("QABOARD_DASK_SCHEDULERS", "tcp://trusted:8786")
-  assert runner_jobs.stop_job_options("abc", {"runner": "dask", "scheduler_address": "tcp://trusted:8786"}) == {
-    "type": "dask", "command_id": "abc", "bridge": "ssh host bsub_su {user} {bsub_command}", "scheduler_address": "tcp://trusted:8786",
+  assert runner_jobs.stop_job_options(ID1, {"runner": "dask", "scheduler_address": "tcp://trusted:8786"}) == {
+    "type": "dask", "command_id": ID1, "bridge": "ssh host bsub_su {user} {bsub_command}", "scheduler_address": "tcp://trusted:8786",
   }
-  assert "scheduler_address" not in runner_jobs.stop_job_options("abc", {"runner": "dask", "scheduler_address": "tcp://attacker:8786"})
+  assert "scheduler_address" not in runner_jobs.stop_job_options(ID1, {"runner": "dask", "scheduler_address": "tcp://attacker:8786"})
   for runner in ("local", "celery"):
-    assert runner_jobs.stop_job_options("abc", {"runner": runner}) == {"type": runner, "command_id": "abc", "bridge": "ssh host bsub_su {user} {bsub_command}"}
-  for command_id, command in [("abc", {"runner": "windows"}), ("abc", {"runner": "evil"}), ("a;b", {"runner": "lsf"}),
-                              ("abc", {"runner": "lsf", "user": "$(id)"}), ("abc", None)]:
+    assert runner_jobs.stop_job_options(ID1, {"runner": runner}) == {"type": runner, "command_id": ID1, "bridge": "ssh host bsub_su {user} {bsub_command}"}
+  for command_id, command in [(ID1, {"runner": "windows"}), (ID1, {"runner": "evil"}), ("a;b", {"runner": "lsf"}),
+                              ("abc", {"runner": "lsf"}), (ID1, {"runner": "lsf", "user": "$(id)"}), (ID1, None)]:
     with pytest.raises(ValueError):
       runner_jobs.stop_job_options(command_id, command)
 
 
 def test_stop_options_of_kubernetes(fake_runners, monkeypatch):
-  command = {"runner": "kubernetes", "namespace": "algo-gpu", "context": "laptop", "user": "arthurf", "image": "evil", "run_as": "root"}
-  # unknown contexts: the server's default cluster
-  assert runner_jobs.stop_job_options("abc", command) == {"type": "kubernetes", "command_id": "abc", "bridge": "", "user": "arthurf", "namespace": "algo-gpu"}
+  command = {"runner": "kubernetes", "namespace": "algo-gpu", "context": "laptop", "user": "arthurf", "image": "evil", "run_as": "root", "project": "other"}
+  # unknown contexts: the server's default cluster. Only the batch's project, as the server knows it
+  assert runner_jobs.stop_job_options(ID1, command, "algo/project") == {
+    "type": "kubernetes", "command_id": ID1, "bridge": "", "user": "arthurf", "namespace": "algo-gpu", "project": "algo/project",
+  }
   monkeypatch.setenv("QABOARD_KUBERNETES_CONTEXTS", "laptop")
-  assert runner_jobs.stop_job_options("abc", command)["context"] == "laptop"
+  assert runner_jobs.stop_job_options(ID1, command)["context"] == "laptop"
   for namespace in ("kube-system", None, "algo-qa --all", 7):
     with pytest.raises(NotAllowed):
-      runner_jobs.stop_job_options("abc", {**command, "namespace": namespace})
+      runner_jobs.stop_job_options(ID1, {**command, "namespace": namespace})
+  with pytest.raises(ValueError):
+    runner_jobs.stop_job_options("qa-*", command)
   monkeypatch.delenv("QABOARD_KUBERNETES_NAMESPACES")
   with pytest.raises(NotAllowed, match="QABOARD_KUBERNETES_NAMESPACES"):
-    runner_jobs.stop_job_options("abc", command)
+    runner_jobs.stop_job_options(ID1, command)
 
 
 def test_stop_options_of_dask_clusters(fake_runners):
-  assert runner_jobs.stop_job_options("abc", {"runner": "dask", "cluster_type": "slurm"})["cluster_type"] == "slurm"
+  assert runner_jobs.stop_job_options(ID1, {"runner": "dask", "cluster_type": "slurm"})["cluster_type"] == "slurm"
   command = {"runner": "dask", "cluster_type": "kubernetes", "kubernetes": {"namespace": "algo-qa", "context": "laptop", "image": "evil"}}
-  assert runner_jobs.stop_job_options("abc", command) == {
-    "type": "dask", "command_id": "abc", "bridge": "", "cluster_type": "kubernetes", "kubernetes": {"namespace": "algo-qa"},
+  assert runner_jobs.stop_job_options(ID1, command, "algo/project") == {
+    "type": "dask", "command_id": ID1, "bridge": "", "cluster_type": "kubernetes", "kubernetes": {"namespace": "algo-qa", "project": "algo/project"},
   }
   for kubernetes in ({"namespace": "kube-system"}, {"namespace": None}, {}, "algo-qa", None):
     with pytest.raises(NotAllowed):
-      runner_jobs.stop_job_options("abc", {**command, "kubernetes": kubernetes})
+      runner_jobs.stop_job_options(ID1, {**command, "kubernetes": kubernetes})
   with pytest.raises(ValueError):
-    runner_jobs.stop_job_options("abc", {"runner": "dask", "cluster_type": "evil"})
+    runner_jobs.stop_job_options(ID1, {"runner": "dask", "cluster_type": "evil"})
   # before qa sent it: LSF
-  assert "cluster_type" not in runner_jobs.stop_job_options("abc", {"runner": "dask"})
+  assert "cluster_type" not in runner_jobs.stop_job_options(ID1, {"runner": "dask"})
 
 
 def test_the_dask_runner_stops_kubernetes_clusters_with_these_options(monkeypatch):
@@ -147,64 +182,76 @@ def test_the_dask_runner_stops_kubernetes_clusters_with_these_options(monkeypatc
   calls = []
   monkeypatch.setattr(dask_runner, "stop_kubernetes", lambda *args: calls.append(args))
   command = {"runner": "dask", "cluster_type": "kubernetes", "kubernetes": {"namespace": "algo-qa", "context": "laptop"}}
-  JobGroup(job_options=runner_jobs.stop_job_options("0123456789", command)).stop()
-  assert calls == [("0123456789", "algo-qa", "laptop")]
+  JobGroup(job_options=runner_jobs.stop_job_options(ID1, command, "algo/project")).stop()
+  assert calls == [(ID1, "algo-qa", "laptop")]
 
 
 def test_stop_batch_jobs(fake_runners):
   data = {"commands": {
-    "lsf-command": {"runner": "lsf"},
-    "k8s-command": {"runner": "kubernetes", "namespace": "algo-qa"},
-    "elsewhere": {"runner": "kubernetes", "namespace": "kube-system"},
-    "unknown": {"runner": "windows"},
+    ID1: {"runner": "lsf"},
+    ID2: {"runner": "kubernetes", "namespace": "algo-qa"},
+    ID3: {"runner": "kubernetes", "namespace": "kube-system"},
+    ID4: {"runner": "windows"},
+    "not-a-uuid": {"runner": "lsf"},
   }}
   assert runner_jobs.stop_batch_jobs(data, has_pending_runs=False) is None
   assert fake_runners.stopped == []
-  stopped = runner_jobs.stop_batch_jobs(data, has_pending_runs=True)
-  assert [(o["type"], o["command_id"]) for o in fake_runners.stopped] == [("lsf", "lsf-command"), ("kubernetes", "k8s-command")]
-  # users are told that the runs in kube-system keep running
-  assert stopped["stopped_drivers"] == []
-  [error] = stopped["errors"]
-  assert "kube-system" in error
+  stopped = runner_jobs.stop_batch_jobs(data, has_pending_runs=True, project_id="algo/project")
+  assert [(o["type"], o["command_id"], o.get("project")) for o in fake_runners.stopped] == [("lsf", ID1, None), ("kubernetes", ID2, "algo/project")]
+  # what we won't stop doesn't keep users from stopping the batch
+  assert stopped["errors"] == [] and stopped["stopped_drivers"] == []
+  assert len(stopped["warnings"]) == 3
+  assert "kube-system" in stopped["warnings"][0]
 
 
-def test_stop_batch_jobs_without_allowed_namespaces(fake_runners, monkeypatch):
+def test_injected_commands_dont_keep_lsf_batches_from_stopping(fake_runners, monkeypatch):
+  """A client wrote a kubernetes command in the batch: its LSF jobs are stopped as before"""
   monkeypatch.delenv("QABOARD_KUBERNETES_NAMESPACES")
-  stopped = runner_jobs.stop_batch_jobs({"commands": {"k8s": {"runner": "kubernetes", "namespace": "algo-qa"}}}, True)
-  assert fake_runners.stopped == []
-  assert "QABOARD_KUBERNETES_NAMESPACES" in stopped["errors"][0]
+  stopped = runner_jobs.stop_batch_jobs({"commands": {ID1: {"runner": "lsf", "user": "arthurf"}, ID2: {"runner": "kubernetes", "namespace": "algo-qa"}}}, True)
+  assert fake_runners.stopped == [{"type": "lsf", "command_id": ID1, "bridge": "", "user": "arthurf"}]
+  assert stopped["errors"] == []
+  assert "QABOARD_KUBERNETES_NAMESPACES" in stopped["warnings"][0]
 
 
 def test_stop_batch_jobs_deletes_the_drivers(fake_runners):
   data = {
-    "commands": {"started": {"runner": "kubernetes", "namespace": "algo-qa"}},
+    "commands": {ID1: {"runner": "kubernetes", "namespace": "algo-qa"}},
     "submissions": {
       # its `qa batch` registered its command: we delete its Jobs once
-      "started": {"id": "started", "runner": "kubernetes", "status": "submitted", "kubernetes_job": "qa-started-driver", "namespace": "algo-qa", "user": "arthurf"},
+      ID1: {"id": ID1, "runner": "kubernetes", "status": "submitted", "kubernetes_job": "qa-00000000-driver", "namespace": "algo-qa", "user": "arthurf"},
       # its pod didn't start yet: no runs are pending
-      "pending": {"id": "pending", "runner": "kubernetes", "status": "submitted", "kubernetes_job": "qa-pending-driver", "namespace": "algo-gpu", "user": "arthurf"},
-      "old": {"id": "old", "runner": "kubernetes", "status": "stopped", "kubernetes_job": "qa-old-driver", "namespace": "algo-qa"},
+      ID2: {"id": ID2, "runner": "kubernetes", "status": "submitting", "kubernetes_job": "qa-00000000-driver", "namespace": "algo-gpu", "user": "arthurf"},
+      # we don't know if it was created
+      ID3: {"id": ID3, "runner": "kubernetes", "status": "failed", "kubernetes_job": "qa-00000000-driver", "namespace": "algo-qa"},
+      ID4: {"id": ID4, "runner": "kubernetes", "status": "stopped", "driver_stopped": True, "kubernetes_job": "qa-00000000-driver", "namespace": "algo-qa"},
       "lsf": {"id": "lsf", "runner": "lsf", "status": "submitted", "lsf_job_id": "123"},
-      "forged": {"id": "forged", "runner": "kubernetes", "status": "submitted", "kubernetes_job": "x", "namespace": "kube-system"},
+      ID5: {"id": ID5, "runner": "kubernetes", "status": "submitted", "kubernetes_job": "x", "namespace": "kube-system"},
     },
   }
-  stopped = runner_jobs.stop_batch_jobs(data, has_pending_runs=False)
-  assert [(o["command_id"], o["namespace"]) for o in fake_runners.stopped] == [("started", "algo-qa"), ("pending", "algo-gpu")]
+  stopped = runner_jobs.stop_batch_jobs(data, has_pending_runs=False, project_id="algo/project")
+  assert [(o["command_id"], o["namespace"], o["project"]) for o in fake_runners.stopped] == [
+    (ID1, "algo-qa", "algo/project"), (ID2, "algo-gpu", "algo/project"), (ID3, "algo-qa", "algo/project"),
+  ]
   assert fake_runners.stopped[1]["user"] == "arthurf"
-  assert stopped["stopped_drivers"] == ["started", "pending"]
-  assert len(stopped["errors"]) == 1 and "kube-system" in stopped["errors"][0]
+  assert stopped["stopped_drivers"] == [ID1, ID2, ID3]
+  assert stopped["errors"] == [] and "kube-system" in stopped["warnings"][0]
 
   data = runner_jobs.mark_drivers_stopped(data, stopped["stopped_drivers"])
-  assert data["submissions"]["pending"]["status"] == "stopped"
-  assert data["submissions"]["forged"]["status"] == "submitted"
-  assert data["commands"] == {"started": {"runner": "kubernetes", "namespace": "algo-qa"}}
+  assert [data["submissions"][id]["status"] for id in (ID1, ID2, ID3, ID5)] == ["stopped", "stopped", "failed", "submitted"]
+  assert data["commands"] == {ID1: {"runner": "kubernetes", "namespace": "algo-qa"}}
   # nothing left to stop
-  assert set(runner_jobs.kubernetes_drivers(data)) == {"forged"}
+  assert set(runner_jobs.kubernetes_drivers(data)) == {ID5}
+
+
+def test_stop_batch_jobs_drivers_already_gone(fake_runners):
+  fake_runners.stop_fails_with = NotFound("Not Found")
+  data = {"submissions": {ID1: {"id": ID1, "runner": "kubernetes", "status": "submitted", "kubernetes_job": "x", "namespace": "algo-qa"}}}
+  assert runner_jobs.stop_batch_jobs(data, False) == {"errors": [], "warnings": [], "stopped_drivers": [ID1]}
 
 
 def test_stop_batch_jobs_reports_runner_errors(fake_runners):
-  fake_runners.fail_with = RuntimeError("Forbidden: jobs.batch is forbidden")
-  stopped = runner_jobs.stop_batch_jobs({"commands": {"k8s": {"runner": "kubernetes", "namespace": "algo-qa"}}}, True)
+  fake_runners.stop_fails_with = RuntimeError("Forbidden: jobs.batch is forbidden")
+  stopped = runner_jobs.stop_batch_jobs({"commands": {ID1: {"runner": "kubernetes", "namespace": "algo-qa"}}}, True)
   assert stopped["errors"] == ["Forbidden: jobs.batch is forbidden"]
 
 
@@ -218,12 +265,18 @@ def test_kubernetes_drivers_ignores_invalid_data():
 # Starting `qa batch` on Kubernetes
 # ==========================================
 
+ARTHUR = {"user_name": "arthurf", "login_type": "LDAP"}
+
+
 @pytest.fixture
 def account(monkeypatch):
   """arthurf's Unix account: uid 1234, gid 100, also in the groups 0 and 2000"""
   import backend.accounts as accounts
   from backend.accounts import Account
-  known = {"arthurf": Account("arthurf", 1234, 100), "root": Account("root", 0, 0), "rootgroup": Account("rootgroup", 1000, 0)}
+  known = {
+    "arthurf": Account("arthurf", 1234, 100), "root": Account("root", 0, 0), "rootgroup": Account("rootgroup", 1000, 0),
+    "daemon": Account("daemon", 2, 2), "alice": Account("alice", 1500, 100),
+  }
   monkeypatch.setattr(accounts, "account", lambda name: known.get(name))
   monkeypatch.setattr(accounts, "group_ids", lambda name, gid: frozenset([gid, 0, 2000]))
   return known
@@ -240,21 +293,25 @@ def test_driver_job_options(fake_runners, account, monkeypatch):
     "resources": {"cpu": 4, "nvidia.com/gpu": 1},
     "node_selector": {"pool": "cpu"},
     "tolerations": [{"key": "dedicated", "operator": "Exists"}],
-    "mounts": [{"path": "/algo", "pvc": "algo-nfs"}, {"path": "/home", "nfs": {"server": "nas1", "path": "/export/home"}}],
+    "mounts": [
+      {"path": "/algo", "pvc": "algo-nfs", "read_only": True, "sub_path": "team/a"},
+      {"path": "/home", "nfs": {"server": "nas1.example.com", "path": "/export/home"}},
+    ],
     "env": {"OMP_NUM_THREADS": 4, "bad name": "x"},
     "forward_env": True,
     "job_template": "k8s/qa-job.yaml",
     "ttl_seconds_after_finished": 600,
     "concurrency": 50,
   }
-  options, notes = runner_jobs.driver_job_options(config, "arthurf", "0123456789abcdef", "algo/project")
+  options, notes = runner_jobs.driver_job_options(config, ARTHUR, ID1, "algo/project")
   assert options == {
     "type": "kubernetes",
-    "command_id": "0123456789abcdef",
+    "command_id": ID1,
     "user": "arthurf",
     "project": "algo/project",
     "namespace": "algo-gpu",
     "run_as": {"uid": 1234, "gid": 100, "groups": [2000]},
+    "run_as_non_root": True,
     "forward_env": False,
     "timeout": 0,
     "resources": {"cpu": "500m", "memory": "2Gi"},
@@ -267,85 +324,163 @@ def test_driver_job_options(fake_runners, account, monkeypatch):
     "node_selector": {"pool": "cpu"},
     "tolerations": [{"key": "dedicated", "operator": "Exists"}],
     "env": {"OMP_NUM_THREADS": "4"},
-    "mounts": [{"path": "/algo", "pvc": "algo-nfs"}, {"path": "/home", "nfs": {"server": "nas1", "path": "/export/home"}}],
+    "mounts": config["mounts"],
   }
   assert any("job_template" in note for note in notes)
-  assert any("env" in note for note in notes)
+  assert any("bad name" in note for note in notes)
+
+
+def test_driver_env_cant_change_how_tools_behave(fake_runners, account):
+  env = {"BASH_ENV": "/x", "ENV": "/x", "LD_PRELOAD": "/x.so", "PATH": "/x", "PYTHONPATH": "/x", "PYTHONSTARTUP": "/x",
+         "KUBERNETES_SERVICE_HOST": "evil", "QA_USER": "root", "QABOARD_HOST": "evil", "qaboard_token": "x", "OK": "1"}
+  options, notes = runner_jobs.driver_job_options({"env": env}, ARTHUR, ID1, "p")
+  assert options["env"] == {"OK": "1"}
+  assert len(notes) == len(env) - 1
 
 
 def test_driver_job_options_defaults(fake_runners, account, monkeypatch):
   monkeypatch.setenv("QABOARD_KUBERNETES_DRIVER_RESOURCES", '{"cpu": "1", "memory": "4Gi"}')
-  options, notes = runner_jobs.driver_job_options({}, "arthurf", "abc", "project")
+  options, notes = runner_jobs.driver_job_options({}, ARTHUR, ID1, "project")
   # the admins' first namespace
   assert options["namespace"] == "algo-qa"
   assert options["resources"] == {"cpu": "1", "memory": "4Gi"}
   assert "service_account" not in options and "context" not in options and "image" not in options
   assert notes == []
   monkeypatch.setenv("QABOARD_KUBERNETES_DRIVER_RESOURCES", 'nope')
-  assert runner_jobs.driver_job_options({}, "arthurf", "abc", "project")[0]["resources"] == {"cpu": "500m", "memory": "2Gi"}
+  assert runner_jobs.driver_job_options({}, ARTHUR, ID1, "project")[0]["resources"] == {"cpu": "500m", "memory": "2Gi"}
 
 
-def test_drivers_run_as_the_user(fake_runners, account):
+def test_drivers_run_as_the_user(fake_runners, account, monkeypatch):
   # never as a UID from qaboard.yaml
-  options, notes = runner_jobs.driver_job_options({"run_as": {"uid": 0, "gid": 0}}, "arthurf", "abc", "project")
-  assert options["run_as"] == {"uid": 1234, "gid": 100, "groups": [2000]}
+  options, notes = runner_jobs.driver_job_options({"run_as": {"uid": 0, "gid": 0}}, ARTHUR, ID1, "project")
+  assert options["run_as"] == {"uid": 1234, "gid": 100, "groups": [2000]} and options["run_as_non_root"]
   assert "ignored" in notes[0]
-  # or as the image's user, if the project asks
-  assert runner_jobs.driver_job_options({"run_as": "image"}, "nobody", "abc", "project")[0]["run_as"] == "image"
+  # or as the image's user, if the project asks, but not as root unless the admins allow it
+  options = runner_jobs.driver_job_options({"run_as": "image"}, {"user_name": "nobody"}, ID1, "project")[0]
+  assert (options["run_as"], options["run_as_non_root"]) == ("image", True)
+  monkeypatch.setenv("QABOARD_KUBERNETES_ALLOW_RUN_AS_IMAGE", "1")
+  assert runner_jobs.driver_job_options({"run_as": "image"}, {"user_name": "nobody"}, ID1, "project")[0]["run_as_non_root"] is False
   with pytest.raises(NotAllowed, match="doesn't know the Unix account of nobody"):
-    runner_jobs.driver_job_options({}, "nobody", "abc", "project")
+    runner_jobs.driver_job_options({}, {"user_name": "nobody", "login_type": "SAML"}, ID1, "project")
   for root in ("root", "rootgroup"):
     with pytest.raises(NotAllowed, match="root"):
-      runner_jobs.driver_job_options({}, root, "abc", "project")
+      runner_jobs.driver_job_options({}, {"user_name": root, "login_type": "OIDC"}, ID1, "project")
+  with pytest.raises(NotAllowed, match="QABOARD_KUBERNETES_MIN_UID"):
+    runner_jobs.driver_job_options({}, {"user_name": "daemon", "login_type": "LDAP"}, ID1, "project")
+  monkeypatch.setenv("QABOARD_KUBERNETES_MIN_UID", "1300")
+  with pytest.raises(NotAllowed, match="below 1300"):
+    runner_jobs.driver_job_options({}, ARTHUR, ID1, "project")
+
+
+def test_local_accounts_are_not_mapped_to_uids(fake_runners, account, monkeypatch):
+  """Anyone can sign up as `alice`: only the directory says who's who"""
+  for user_info in ({"user_name": "alice", "login_type": "LOCAL"}, {"user_name": "alice"}, {"user_name": "alice", "login_type": "SERVICE"}):
+    with pytest.raises(NotAllowed, match="QABOARD_KUBERNETES_TRUST_LOCAL_ACCOUNTS"):
+      runner_jobs.driver_job_options({}, user_info, ID1, "project")
+  monkeypatch.setenv("QABOARD_KUBERNETES_TRUST_LOCAL_ACCOUNTS", "1")
+  assert runner_jobs.driver_job_options({}, {"user_name": "alice", "login_type": "LOCAL"}, ID1, "project")[0]["run_as"]["uid"] == 1500
+
+
+def test_drivers_run_as_a_fixed_account(fake_runners, account, monkeypatch):
+  monkeypatch.setenv("QABOARD_KUBERNETES_RUN_AS", "5000:6000")
+  # whoever starts it, whatever qaboard.yaml says, even local accounts
+  for config in ({}, {"run_as": "image"}, {"run_as": {"uid": 0}}):
+    options = runner_jobs.driver_job_options(config, {"user_name": "alice", "login_type": "LOCAL"}, ID1, "project")[0]
+    assert (options["run_as"], options["run_as_non_root"], options["user"]) == ({"uid": 5000, "gid": 6000}, True, "alice")
+  for invalid in ("0:100", "100:0", "root", "1000"):
+    monkeypatch.setenv("QABOARD_KUBERNETES_RUN_AS", invalid)
+    with pytest.raises(NotAllowed, match="misconfigured"):
+      runner_jobs.driver_job_options({}, ARTHUR, ID1, "project")
+  monkeypatch.setenv("QABOARD_KUBERNETES_RUN_AS", "user")
+  assert runner_jobs.driver_job_options({}, ARTHUR, ID1, "project")[0]["run_as"]["uid"] == 1234
 
 
 def test_drivers_namespaces_and_contexts(fake_runners, account, monkeypatch):
   with pytest.raises(NotAllowed, match="kube-system"):
-    runner_jobs.driver_job_options({"namespace": "kube-system"}, "arthurf", "abc", "project")
-  options, notes = runner_jobs.driver_job_options({"context": "other-cluster"}, "arthurf", "abc", "project")
+    runner_jobs.driver_job_options({"namespace": "kube-system"}, ARTHUR, ID1, "project")
+  options, notes = runner_jobs.driver_job_options({"context": "other-cluster"}, ARTHUR, ID1, "project")
   assert "context" not in options and "other-cluster" in notes[0]
   monkeypatch.setenv("QABOARD_KUBERNETES_CONTEXTS", "other-cluster")
-  assert runner_jobs.driver_job_options({"context": "other-cluster"}, "arthurf", "abc", "project")[0]["context"] == "other-cluster"
+  assert runner_jobs.driver_job_options({"context": "other-cluster"}, ARTHUR, ID1, "project")[0]["context"] == "other-cluster"
   monkeypatch.delenv("QABOARD_KUBERNETES_NAMESPACES")
   with pytest.raises(NotAllowed, match="QABOARD_KUBERNETES_NAMESPACES"):
-    runner_jobs.driver_job_options({}, "arthurf", "abc", "project")
+    runner_jobs.driver_job_options({}, ARTHUR, ID1, "project")
 
 
-def test_drivers_host_path_mounts(fake_runners, account, monkeypatch):
-  config = {"mounts": [{"path": "/algo", "pvc": "algo"}, {"path": "/data", "host_path": "/data"}]}
+def test_drivers_mounts(fake_runners, account, monkeypatch):
+  def mounts(*mounts):
+    return runner_jobs.driver_job_options({"mounts": list(mounts)}, ARTHUR, ID1, "project")[0]["mounts"]
+  host_path = {"path": "/data", "host_path": "/data"}
   with pytest.raises(NotAllowed, match="QABOARD_KUBERNETES_ALLOW_HOST_PATH"):
-    runner_jobs.driver_job_options(config, "arthurf", "abc", "project")
+    mounts({"path": "/algo", "pvc": "algo"}, host_path)
   with pytest.raises(NotAllowed):
-    runner_jobs.driver_job_options({"mounts": [{"path": "/data", "hostPath": {"path": "/"}}]}, "arthurf", "abc", "project")
-  for invalid in ("/algo", [{"pvc": "x"}], [{"path": "relative", "pvc": "x"}], ["x"]):
+    mounts({"path": "/data", "hostPath": {"path": "/"}})
+  invalid = [
+    {"pvc": "x"}, {"path": "relative", "pvc": "x"}, "x", {"path": "/a/../etc", "pvc": "x"},
+    # one of pvc and nfs
+    {"path": "/a"}, {"path": "/a", "pvc": "x", "nfs": {"server": "s", "path": "/p"}},
+    {"path": "/a", "pvc": "Not_A_Name"}, {"path": "/a", "pvc": "x", "read_only": "yes"},
+    {"path": "/a", "nfs": "nas1:/export"}, {"path": "/a", "nfs": {"server": "nas1"}}, {"path": "/a", "nfs": {"server": "nas1 -o x", "path": "/p"}},
+    {"path": "/a", "nfs": {"server": "nas1", "path": "/p", "mount_options": "x"}},
+    {"path": "/a", "pvc": "x", "sub_path": "../x"}, {"path": "/a", "pvc": "x", "sub_path": "/x"},
+    # anything else the runner might support: devices, CSI drivers, configs...
+    {"path": "/a", "pvc": "x", "csi": {"driver": "x"}}, {"path": "/a", "secret": "server-secrets"}, {"path": "/a", "empty_dir": {}},
+  ]
+  for mount in invalid:
     with pytest.raises(NotAllowed):
-      runner_jobs.driver_job_options({"mounts": invalid}, "arthurf", "abc", "project")
+      mounts(mount)
+  with pytest.raises(NotAllowed):
+    runner_jobs.driver_job_options({"mounts": "/algo"}, ARTHUR, ID1, "project")
   monkeypatch.setenv("QABOARD_KUBERNETES_ALLOW_HOST_PATH", "1")
-  assert runner_jobs.driver_job_options(config, "arthurf", "abc", "project")[0]["mounts"] == config["mounts"]
+  assert mounts({"path": "/algo", "pvc": "algo"}, host_path) == [{"path": "/algo", "pvc": "algo"}, host_path]
+  with pytest.raises(NotAllowed):
+    mounts({"path": "/data", "host_path": "relative"})
 
 
 def test_drivers_invalid_options(fake_runners, account):
   with pytest.raises(NotAllowed, match="image"):
-    runner_jobs.driver_job_options({"image": "a b"}, "arthurf", "abc", "project")
+    runner_jobs.driver_job_options({"image": "a b"}, ARTHUR, ID1, "project")
   options, notes = runner_jobs.driver_job_options({
     "image_pull_secrets": "Not_Valid", "queue": "a queue", "priority_class": "A", "ttl_seconds_after_finished": True,
     "node_selector": ["x"], "tolerations": "x", "env": "x",
-  }, "arthurf", "abc", "project")
+  }, ARTHUR, ID1, "project")
   for key in ("image_pull_secrets", "queue", "priority_class", "ttl_seconds_after_finished", "node_selector", "tolerations", "env"):
     assert key not in options
   assert len(notes) == 7
 
 
-def make_commit(config):
-  return SimpleNamespace(project_id="algo/project", project=SimpleNamespace(data={"qatools_config": config}))
+def make_commit(config, project_config=None):
+  return SimpleNamespace(
+    project_id="algo/project",
+    data={"qatools_config": config} if config is not None else {},
+    project=SimpleNamespace(data={"qatools_config": project_config or {}}),
+  )
 
 
-def test_project_kubernetes_config():
-  assert runner_jobs.project_kubernetes_config(make_commit({"runners": {"kubernetes": {"namespace": "x"}}})) == {"namespace": "x"}
+def test_commit_kubernetes_config():
+  # the commit's own qaboard.yaml, not the project's
+  assert runner_jobs.commit_kubernetes_config(make_commit({"runners": {"kubernetes": {"namespace": "x"}}}, {"runners": {"kubernetes": {"namespace": "y"}}})) == {"namespace": "x"}
+  assert runner_jobs.commit_kubernetes_config(make_commit({"runners": {}}, {"runners": {"kubernetes": {"namespace": "y"}}})) == {}
+  # unless qa never sent it
+  assert runner_jobs.commit_kubernetes_config(make_commit(None, {"runners": {"kubernetes": {"namespace": "y"}}})) == {"namespace": "y"}
   # older qaboard.yaml, without `runners:`
-  assert runner_jobs.project_kubernetes_config(make_commit({"kubernetes": {"namespace": "x"}})) == {"namespace": "x"}
-  assert runner_jobs.project_kubernetes_config(make_commit({"runners": {"kubernetes": "x"}})) == {}
-  assert runner_jobs.project_kubernetes_config(SimpleNamespace(project=SimpleNamespace(data=None))) == {}
+  assert runner_jobs.commit_kubernetes_config(make_commit({"kubernetes": {"namespace": "x"}})) == {"namespace": "x"}
+  assert runner_jobs.commit_kubernetes_config(make_commit({"runners": {"kubernetes": "x"}})) == {}
+  assert runner_jobs.commit_kubernetes_config(SimpleNamespace(data=None, project=SimpleNamespace(data=None))) == {}
+
+
+@pytest.mark.parametrize("url, protocol, host, hostname", [
+  ("http://qaboard-proxy.qaboard.svc:8080", "http", "qaboard-proxy.qaboard.svc:8080", "qaboard-proxy.qaboard.svc"),
+  ("https://qa.example.com/", "https", "qa.example.com", "qa.example.com"),
+  ("qaboard-proxy:8080", "http", "qaboard-proxy:8080", "qaboard-proxy"),
+  ("qaboard-proxy", "http", "qaboard-proxy", "qaboard-proxy"),
+  ("http://[::1]:5151", "http", "[::1]:5151", "::1"),
+])
+def test_server_address(monkeypatch, url, protocol, host, hostname):
+  monkeypatch.setenv("QABOARD_KUBERNETES_SERVER_URL", url)
+  assert runner_jobs.server_address() == (protocol, host)
+  from shlex import quote
+  assert 'export no_proxy="${no_proxy:+$no_proxy,}"' + quote(hostname) + "\n" in runner_jobs.server_env_script([])
 
 
 def test_submit_driver(fake_runners, account, tmp_path, monkeypatch):
@@ -353,12 +488,17 @@ def test_submit_driver(fake_runners, account, tmp_path, monkeypatch):
   script_path = tmp_path / "qa_batch.sh"
   script_path.write_text("#!/bin/bash\nqa batch\n")
   ci_commit = make_commit({"runners": {"kubernetes": {"namespace": "algo-qa", "job_template": "x.yaml"}}})
-  record = runner_jobs.submit_driver(script_path, tmp_path, "arthurf", ci_commit, "0123456789abcdef")
-  assert record == {"kubernetes_job": "qa-01234567-driver", "namespace": "algo-qa"}
+  prepared = []
+  def on_prepared(record):
+    # recorded before it's submitted
+    assert fake_runners.submitted == []
+    prepared.append(record)
+  record = runner_jobs.submit_driver(script_path, tmp_path, ARTHUR, ci_commit, DRIVER_ID, on_prepared=on_prepared)
+  assert record == prepared[0] == {"kubernetes_job": "qa-0123abcd-driver", "namespace": "algo-qa"}
   [submitted] = fake_runners.submitted
-  assert submitted["name"] == "qa-01234567-driver"
+  assert submitted["name"] == "qa-0123abcd-driver"
   assert submitted["log_file"] == tmp_path / "log.txt"
-  assert submitted["job_options"]["command_id"] == "0123456789abcdef"
+  assert submitted["job_options"]["command_id"] == DRIVER_ID
   assert submitted["job_options"]["project"] == "algo/project"
   # `qa` in the pod knows where the server is, and users know what was not used
   script = submitted["script"]
@@ -378,7 +518,7 @@ def test_submit_driver_script_works_in_bash(fake_runners, account, tmp_path, mon
   monkeypatch.setenv("QABOARD_HOST", "qaboard:5151")
   script_path = tmp_path / "qa_batch.sh"
   script_path.write_text('#!/bin/bash\necho "$QABOARD_PROTOCOL://$QABOARD_HOST $no_proxy $NO_PROXY"\n')
-  runner_jobs.submit_driver(script_path, tmp_path, "arthurf", make_commit({}), "abc")
+  runner_jobs.submit_driver(script_path, tmp_path, ARTHUR, make_commit({}), ID1)
   env = {k: v for k, v in os.environ.items() if k.lower() != "no_proxy"}
   out = subprocess.run(["bash", "-c", fake_runners.submitted[0]["script"]], capture_output=True, text=True, env={**env, "no_proxy": "localhost"})
   assert out.stdout == "http://qaboard:5151 localhost,qaboard qaboard\n"
@@ -387,15 +527,23 @@ def test_submit_driver_script_works_in_bash(fake_runners, account, tmp_path, mon
 def test_submit_driver_failures_are_in_the_logs(fake_runners, account, tmp_path):
   script_path = tmp_path / "qa_batch.sh"
   script_path.write_text("#!/bin/bash\nqa batch\n")
+  prepared = []
   with pytest.raises(NotAllowed):
-    runner_jobs.submit_driver(script_path, tmp_path, "arthurf", make_commit({"runners": {"kubernetes": {"namespace": "kube-system"}}}), "abc")
+    runner_jobs.submit_driver(script_path, tmp_path, ARTHUR, make_commit({"runners": {"kubernetes": {"namespace": "kube-system"}}}), ID1, on_prepared=prepared.append)
   assert "ERROR: Could not start `qa batch` on Kubernetes: QA-Board may not start or stop runs in the Kubernetes namespace 'kube-system'" in (tmp_path / "log.txt").read_text()
-  assert fake_runners.submitted == []
+  assert fake_runners.submitted == [] and prepared == [] and fake_runners.stopped == []
 
+  # it may have been created: we delete it
   fake_runners.fail_with = RuntimeError("Forbidden: jobs.batch is forbidden: User system:serviceaccount:qaboard:qaboard-backend cannot create")
   with pytest.raises(RuntimeError):
-    runner_jobs.submit_driver(script_path, tmp_path, "arthurf", make_commit({}), "abc")
+    runner_jobs.submit_driver(script_path, tmp_path, ARTHUR, make_commit({}), ID1, on_prepared=prepared.append)
   assert "Forbidden" in (tmp_path / "log.txt").read_text()
+  assert prepared == [{"kubernetes_job": "qa-00000000-driver", "namespace": "algo-qa"}]
+  assert fake_runners.stopped == [{"type": "kubernetes", "command_id": ID1, "namespace": "algo-qa", "project": "algo/project", "user": "arthurf"}]
+  # even if that fails too
+  fake_runners.stop_fails_with = RuntimeError("connection refused")
+  with pytest.raises(RuntimeError, match="Forbidden"):
+    runner_jobs.submit_driver(script_path, tmp_path, ARTHUR, make_commit({}), ID1)
 
 
 def test_submit_driver_without_the_runner(account, tmp_path, monkeypatch):
@@ -406,15 +554,15 @@ def test_submit_driver_without_the_runner(account, tmp_path, monkeypatch):
   with mock.patch.dict(runners):
     runners.pop("kubernetes", None)
     with pytest.raises(NotAllowed, match=r"qaboard\[kubernetes\]"):
-      runner_jobs.submit_driver(script_path, tmp_path, "arthurf", make_commit({}), "abc")
+      runner_jobs.submit_driver(script_path, tmp_path, ARTHUR, make_commit({}), ID1)
 
 
 def test_dispatch_kubernetes(fake_runners, account, tmp_path):
   import backend.api.tuning as tuning
   script_path = tmp_path / "qa_batch.sh"
   script_path.write_text("#!/bin/bash\nqa batch\n")
-  record = tuning._dispatch_kubernetes(script_path, tmp_path, "arthurf", make_commit({}), True, "fedcba9876543210")
-  assert record == {"kubernetes_job": "qa-fedcba98-driver", "namespace": "algo-qa"}
+  record = tuning._dispatch_kubernetes(script_path, tmp_path, ARTHUR, make_commit({}), True, DRIVER_ID)
+  assert record == {"kubernetes_job": "qa-0123abcd-driver", "namespace": "algo-qa"}
   assert fake_runners.submitted[0]["job_options"]["timeout"] == 0
 
 
@@ -422,8 +570,8 @@ def test_the_driver_is_the_batch_command(tmp_path):
   """Stopping the batch deletes the driver: its `qa batch` uses the command id of its Job's labels"""
   from backend.api.tuning import _generate_batch_script
   ci_commit = SimpleNamespace(hexsha="abc", outputs_dir=tmp_path / "outputs" / "qaboard" / "p")
-  script = _generate_batch_script(ci_commit, "arthurf", tmp_path, "0123456789abcdef", "qa batch", {})
-  assert "export QA_BATCH_COMMAND_ID=0123456789abcdef;" in script
+  script = _generate_batch_script(ci_commit, "arthurf", tmp_path, DRIVER_ID, "qa batch", {})
+  assert f"export QA_BATCH_COMMAND_ID={DRIVER_ID};" in script
   from backend.redo import redo_script
   ci_commit.artifacts_dir = tmp_path
-  assert "export QA_BATCH_COMMAND_ID=0123456789abcdef" in redo_script(ci_commit, "arthurf", "0123456789abcdef", "qa batch")
+  assert f"export QA_BATCH_COMMAND_ID={DRIVER_ID}" in redo_script(ci_commit, "arthurf", DRIVER_ID, "qa batch")

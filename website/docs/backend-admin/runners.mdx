@@ -109,6 +109,37 @@ the runs' Jobs from there.
 
 Stopping a batch deletes its Jobs; the Role allows it.
 
+### One namespace per team {#kubernetes-trust}
+**A namespace is a trust domain.** The pod that runs `qa batch` runs the commit's code with the namespace's runs
+ServiceAccount, which can create Jobs: any pod the namespace accepts, as any UID it accepts. So everyone who can start
+batches from the web app in a namespace can act as anyone else in it, and a policy on the `qaboard.io/user` label
+can't tell them apart: they share the ServiceAccount. Give each team its own namespace, like the queues of W&B Launch
+or ClearML.
+
+<details>
+<summary>What the server checks, and the settings that make it stricter</summary>
+
+The server starts `qa batch` as the signed-in user, never as root nor as a UID from `qaboard.yaml`, and only maps the
+UIDs of users who signed in with the directory (LDAP, SAML, OIDC). It doesn't use the commit's `job_template`, the
+server's environment, environment variables that change how bash, Python or `qa` behave, nor mounts other than PVCs
+and NFS. What runs may do is up to the namespace: its Pod Security level, admission policies and quotas.
+
+| Variable | What it does |
+|---|---|
+| `QABOARD_KUBERNETES_NAMESPACES` | Comma-separated namespaces where the server may start and stop runs. Empty: none |
+| `QABOARD_KUBERNETES_RUN_AS` | `user` (default): pods run as the signed-in user. `<uid>:<gid>`: all of them run as this account, e.g. a team's. With a ValidatingAdmissionPolicy that pins `runAsUser` for the runs ServiceAccount, the namespace's batches are isolated from other namespaces' users |
+| `QABOARD_KUBERNETES_MIN_UID` | Users with a lower UID can't start batches on Kubernetes. Default: 1000 |
+| `QABOARD_KUBERNETES_TRUST_LOCAL_ACCOUNTS` | `1`: also map local accounts to the UID of the Unix account with the same name. Only if admins create them: anyone can sign up |
+| `QABOARD_KUBERNETES_ALLOW_RUN_AS_IMAGE` | `1`: projects with `run_as: image` may run as root if their image does. By default their pods get `runAsNonRoot` |
+| `QABOARD_KUBERNETES_ALLOW_HOST_PATH` | `1`: projects may mount `host_path` volumes. They need a "privileged" namespace |
+| `QABOARD_KUBERNETES_SERVICE_ACCOUNT` | The runs ServiceAccount, of the pods that run `qa batch` |
+| `QABOARD_KUBERNETES_SERVER_URL` | How those pods reach QA-Board, e.g. `http://qaboard-proxy.qaboard.svc` |
+| `QABOARD_KUBERNETES_CONTEXTS` | The kubeconfig contexts the server may use. Default: its own (in a pod, its ServiceAccount) |
+
+The Helm chart's `runners.kubernetes` values set them, and create the Role, the ServiceAccounts and the RoleBindings.
+
+</details>
+
 ## On Celery workers {#celery}
 With `QABOARD_TUNING_RUNNER=celery`, `qa batch` runs in the backend's container like with `local`, and gets the
 broker's address (`CELERY_BROKER_URL`) and the server's (`QABOARD_HOST`, `QABOARD_PROTOCOL`). Projects send the runs to
@@ -128,7 +159,7 @@ pending runs as failed:
 | `lsf` | `bkill` on the batch's jobs | `QA_RUNNERS_LSF_BRIDGE` |
 | `dask`, workers on LSF | `bkill` on the workers and the driver | `QA_RUNNERS_LSF_BRIDGE` |
 | `dask`, an existing cluster | Stops the batch's runs on the scheduler | The scheduler in `QABOARD_DASK_SCHEDULERS`, and `distributed` installed in the backend |
-| `kubernetes` | Deletes the batch's Jobs | The RoleBinding above |
+| `kubernetes` | Deletes the batch's Jobs, in its project | The RoleBinding above, and the namespace in `QABOARD_KUBERNETES_NAMESPACES` |
 | `local`, `celery` | Nothing: the runs go on where they run | Revoke Celery tasks in Flower |
 | `windows` | Nothing | |
 
@@ -153,6 +184,7 @@ pending runs as failed:
 | `CELERY_BROKER_URL` | The broker, given to `qa batch` with `celery` |
 | `QABOARD_HOST`, `QABOARD_PROTOCOL` | The server's address, given to `qa batch` with `celery` |
 | `QABOARD_ACCOUNTS_COMMAND` | Where the server finds users' UIDs, for `kubernetes`. See [users' accounts](/docs/backend-admin/user-management#users-accounts) |
+| `QABOARD_KUBERNETES_*` | The namespaces, accounts and mounts the server may use on Kubernetes: see [One namespace per team](#kubernetes-trust) |
 
 All the server's variables are in [Environment variables](/docs/deploy#optional-environment-variables).
 

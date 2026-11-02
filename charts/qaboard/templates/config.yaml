@@ -31,9 +31,10 @@ data:
   {{- $kubernetes := dict
         "QABOARD_TUNING_RUNNER" "kubernetes"
         "QABOARD_KUBERNETES_NAMESPACES" (join "," .namespaces)
-        "QABOARD_KUBERNETES_SERVICE_ACCOUNT" .serviceAccount
+        "QABOARD_KUBERNETES_SERVICE_ACCOUNT" (include "qaboard.runsServiceAccount" $)
         "QABOARD_KUBERNETES_SERVER_URL" (include "qaboard.kubernetesServerUrl" $) }}
   {{- if .allowHostPath }}{{ $_ := set $kubernetes "QABOARD_KUBERNETES_ALLOW_HOST_PATH" "1" }}{{ end }}
+  {{- if .runAs }}{{ $_ := set $kubernetes "QABOARD_KUBERNETES_RUN_AS" (toString .runAs) }}{{ end }}
   # runners.kubernetes: batches started from the web app run on Kubernetes (backend/backend/runner_jobs.py). config wins
   {{- range $key, $value := $kubernetes }}
   {{- if not (hasKey $.Values.config $key) }}

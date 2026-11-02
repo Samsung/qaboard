@@ -165,10 +165,13 @@ def test_redo_tells_what_could_not_be_restored(setup, dummy_app):
   assert response.get_json()["warning"] == "Build outputs (e.g. binaries) can't be restored this way."
 
 
-def test_safe_job_options_of_kubernetes_runs():
-  assert redo.safe_job_options({"type": "kubernetes", "concurrency": 10, "runs_per_pod": 4, "namespace": "kube-system", "run_as": {"uid": 0}}) == {
-    "type": "kubernetes", "concurrency": 10, "runs_per_pod": 4,
-  }
+def test_safe_job_options_of_kubernetes_runs(monkeypatch):
+  options = {"type": "kubernetes", "concurrency": 10, "runs_per_pod": 4, "namespace": "kube-system", "run_as": {"uid": 0}}
+  # Kubernetes runs only when the server starts `qa batch` on Kubernetes: else they'd use the server's credentials
+  monkeypatch.delenv("QABOARD_TUNING_RUNNER", raising=False)
+  assert redo.safe_job_options(options) == {"concurrency": 10, "runs_per_pod": 4}
+  monkeypatch.setenv("QABOARD_TUNING_RUNNER", "kubernetes")
+  assert redo.safe_job_options(options) == {"type": "kubernetes", "concurrency": 10, "runs_per_pod": 4}
 
 
 def test_redo_on_kubernetes(setup, dummy_app, monkeypatch):
@@ -181,25 +184,30 @@ def test_redo_on_kubernetes(setup, dummy_app, monkeypatch):
   # it doesn't go through the LSF bridge
   monkeypatch.setenv("QA_RUNNERS_LSF_BRIDGE", "false {user} {command}")
   submitted = []
-  def submit_driver(script_path, log_dir, user, ci_commit, command_id):
-    submitted.append((Path(script_path).name, log_dir, user, ci_commit, command_id))
-    return {"kubernetes_job": f"qa-{command_id[:8]}-driver", "namespace": "algo-qa"}
+  user_info = {"user_name": "arthurf", "login_type": "LDAP"}
+  def submit_driver(script_path, log_dir, user_info, ci_commit, command_id, on_prepared=None):
+    record = {"kubernetes_job": f"qa-{command_id[:8]}-driver", "namespace": "algo-qa"}
+    on_prepared(record)
+    # it's recorded before it's submitted
+    assert batch.data["submissions"][command_id]["kubernetes_job"] == record["kubernetes_job"]
+    submitted.append((Path(script_path).name, log_dir, user_info, ci_commit, command_id))
+    return record
   monkeypatch.setattr(runner_jobs, "submit_driver", submit_driver)
   with dummy_app.test_request_context():
-    response = redo.redo_response(batch, [make_output()], {"user_name": "arthurf"})
+    response = redo.redo_response(batch, [make_output()], user_info)
   submission = response.get_json()["submission"]
   assert submission["status"] == "submitted" and submission["runner"] == "kubernetes"
   assert submission["kubernetes_job"] == f"qa-{submission['id'][:8]}-driver" and submission["namespace"] == "algo-qa"
   [(script, log_dir, user, ci_commit, command_id)] = submitted
-  assert (script, str(log_dir), user, ci_commit, command_id) == ("redo.sh", submission["log_dir"], "arthurf", batch.ci_commit, submission["id"])
+  assert (script, str(log_dir), user, ci_commit, command_id) == ("redo.sh", submission["log_dir"], user_info, batch.ci_commit, submission["id"])
   assert batch.data["submissions"][submission["id"]] == submission
   assert not calls.exists()
 
   # Users see why it could not start
-  def refused(*args):
+  def refused(*args, **kwargs):
     raise runner_jobs.NotAllowed("QA-Board may not start or stop runs in the Kubernetes namespace 'x'")
   monkeypatch.setattr(runner_jobs, "submit_driver", refused)
   with dummy_app.test_request_context():
-    response, status = redo.redo_response(batch, [make_output()], {"user_name": "arthurf"})
+    response, status = redo.redo_response(batch, [make_output()], user_info)
   assert status == 500
   assert "namespace 'x'" in response.get_json()["error"]

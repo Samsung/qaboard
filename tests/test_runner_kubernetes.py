@@ -465,7 +465,10 @@ class TestEnv(unittest.TestCase):
 
   def test_names(self):
     from qaboard.runners.kubernetes import dns_name
-    from qaboard.runners.labels import label_value, is_label_value
+    from qaboard.runners.labels import label_value
+    def is_label_value(value):
+      import re
+      return len(value) <= 63 and re.fullmatch(r'(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?', value)
     self.assertEqual(label_value('algo-project_1.2'), 'algo-project_1.2')
     self.assertEqual(label_value(''), '')
     self.assertRegex(label_value('algo/my project_'), r'^algo-my-project-[0-9a-f]{8}$')

@@ -105,7 +105,7 @@ runners:
   `runAsUser` to the `qaboard.io/user` label's account or to a UID range, Kueue/ResourceQuota for quotas. The docs give
   examples. QA-Board never needs cluster-wide permissions.
 - What the submitter needs, in the namespace (`qa doctor` checks it with SelfSubjectAccessReviews and prints this Role):
-  `jobs`: create, get, list, watch, delete; `configmaps`: create, get, patch, delete; `pods`, `events`: get, list,
+  `jobs`: create, get, list, watch, delete; `configmaps`: create, get, delete (created immutable, with their Job as owner); `pods`, `events`: get, list,
   watch; `pods/log`: get. With a queue: `localqueues.kueue.x-k8s.io`: get.
 
 ## Dask clusters
@@ -129,3 +129,32 @@ workers answer), Dask (packages, scheduler reachable or cluster class), Jenkins 
 (client installed, kubeconfig and context, auth plugin on PATH, API reachable, namespace, permissions, Kueue queue,
 image pull secret, mounts' PVCs exist). `--test-job` runs a pod/job that prints its user, checks that the mounts and
 the outputs directory are there and writable as that user, and that `qa --version` works in the image.
+
+## The server: batches started from the web app
+`QABOARD_TUNING_RUNNER=kubernetes`: the server starts `qa batch` in a driver pod (`submit_detached`), as the signed-in
+user, with the commit's `runners.kubernetes` as far as the server allows it (`backend/backend/runner_jobs.py`). The
+driver's `qa batch` creates the runs' Jobs with the namespace's runs ServiceAccount.
+
+**Trust model: a namespace is a trust domain.** The driver runs the commit's code with a ServiceAccount that can create
+Jobs, so it can create pods as any UID the namespace accepts: everyone who can start batches from the web app in a
+namespace can act as anyone else in it. A ValidatingAdmissionPolicy keyed on the `qaboard.io/user` label can't tell
+them apart, since they share the ServiceAccount. Like W&B Launch or ClearML queues, the namespace (one per team) is the
+boundary. `QABOARD_KUBERNETES_RUN_AS=<uid>:<gid>` runs all of a deployment's batches as a team account: with a policy
+that pins `runAsUser` for the runs ServiceAccount, they're isolated from other namespaces' users.
+
+## Follow-ups
+### Real isolation between the users of a namespace
+Make the backend the only creator of run Jobs: the driver pod gets no Kubernetes permissions (no ServiceAccount
+token), and asks the server to start its runs instead.
+- When it starts the driver, the server mints a credential for this batch only: a short-lived token bound to the
+  command id, the project, the namespace and the user's UID/GID (stored hashed, revoked when the batch ends or is
+  stopped), mounted in the driver pod.
+- The driver's `qa batch` (the kubernetes runner, when it finds that credential instead of a kubeconfig or a
+  ServiceAccount token) sends the runs' commands and job options to `POST /api/v1/batch/<command_id>/jobs`.
+- The server validates them like the driver's options (image, mounts, env, resources; `run_as` is always the batch's
+  user), creates the ConfigMaps and Jobs itself, with its own ServiceAccount, labeled with the batch's command id, user
+  and project, and answers the driver's status questions (`GET .../jobs`) from the Jobs and their pods' events.
+- Then only the backend's ServiceAccount can create pods in the namespaces, and a ValidatingAdmissionPolicy can check
+  that the pods' `runAsUser` matches their `qaboard.io/user` label's account: users can't act as each other.
+- Batches started outside the web app (`qa batch` on a laptop or in CI) keep using their own credentials, in their own
+  namespaces.
