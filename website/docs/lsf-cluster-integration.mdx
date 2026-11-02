@@ -90,6 +90,9 @@ In the web app's **Logs** view:
 With job arrays (see above), all runs share the same `bsub -o` file name. To get each run's job report in its own `log.lsf.txt`, *qaboard* creates symlinks to the runs' output directories in `{batch_dir}/lsf/{job_array_name}/{index}`, and uses `-o "{batch_dir}/lsf/{job_array_name}/%I/log.lsf.txt"`.
 :::
 
+## Waiting for the runs
+Unless you use `qa batch --no-wait`, `qa batch` waits for its runs to end with `bwait -w "ended(<batch>_*)"`. If `qa batch` itself runs inside an LSF job, your LSF administrators need to set `LSB_BWAIT_IN_JOBS=Y` in `lsf.conf`.
+
 ## Many short runs? Use a pool of workers
 Each run is an LSF job, and pays LSF's scheduling overhead. If you have many short runs, run them instead on a few long-lived workers, themselves started as LSF jobs: see [Dask](/docs/dask-integration).
 

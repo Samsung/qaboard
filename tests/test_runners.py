@@ -182,6 +182,39 @@ class TestLsfConcurrency(unittest.TestCase):
     self.assertEqual(sorted(p.name for p in output_dir.iterdir()), ['log.lsf.txt'])
     self.assertTrue((output_dir / 'log.lsf.txt').read_text().endswith('before\nafter\n'))
 
+  def start_blocking(self, nb_jobs, returncode=0, **job_options):
+    from qaboard.runners.lsf import LsfRunner
+    tmp = tempfile.TemporaryDirectory()
+    self.addCleanup(tmp.cleanup)
+    jobs = make_jobs('lsf', [f'echo run-{i}' for i in range(nb_jobs)], Path(tmp.name), queue='q', **job_options)
+    commands = []
+    def run(command, **kwargs):
+      commands.append(command)
+      return subprocess.CompletedProcess(command, returncode if 'bwait' in command else 0, stdout='', stderr='')
+    with mock.patch('qaboard.runners.lsf.subprocess.run', run), has_bsub(), mock.patch('signal.signal'), mock.patch('qaboard.runners.lsf.time.sleep'), mock.patch('qaboard.runners.lsf.secho'):
+      LsfRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=True)
+    return commands
+
+  def test_blocking_waits_with_bwait(self):
+    # No interactive WAIT job: `bsub -I` needs LSF to connect back to us, which fails from Docker containers
+    commands = self.start_blocking(3)
+    self.assertEqual(len(commands), 4)
+    self.assertFalse(any(' -I ' in c for c in commands))
+    self.assertEqual(commands[-1], 'bwait -w "ended(abcdefgh_*)"')
+
+  def test_blocking_waits_with_bwait_through_bridge(self):
+    commands = self.start_blocking(5, concurrency=2, bridge="ssh host {bsub_command}")
+    self.assertEqual(commands[-1], 'ssh host bwait -w "ended(abcdefgh_*)"')
+
+  def test_bwait_failure(self):
+    from qaboard.runners.lsf import LsfRunner, LsfOptions
+    with self.assertRaisesRegex(Exception, 'Failed to wait'):
+      self.start_blocking(1, returncode=255)
+    with mock.patch('qaboard.runners.lsf.subprocess.run', return_value=subprocess.CompletedProcess('', 255)) as run, mock.patch('qaboard.runners.lsf.time.sleep'), mock.patch('qaboard.runners.lsf.secho'):
+      with self.assertRaises(Exception):
+        LsfRunner.wait_jobs('abcdefgh', LsfOptions())
+    self.assertEqual(run.call_count, 3)
+
   def test_array_groups_by_lsf_options(self):
     from qaboard.runners.lsf import LsfRunner
     tmp = tempfile.TemporaryDirectory()
@@ -284,6 +317,9 @@ class TestJobGroups(unittest.TestCase):
     bsub = FakeBsub()
     with mock.patch('qaboard.runners.lsf.subprocess.run', bsub), has_bsub(), mock.patch('signal.signal'):
       LsfRunner.start_groups(group.groups(), blocking=True)
+    # then we wait for all of them, across groups
+    self.assertEqual(bsub.commands[6:], ['bwait -w "ended(abcdefgh_*)"'])
+    bsub.commands = bsub.commands[:6]
     names = bsub.names()
     self.assertRegex(names[0], r'^abcdefgh_[a-z]{12}\[1-3\]%1$')
     self.assertRegex(names[1], r'^abcdefgh_[a-z]{12}$')
@@ -291,9 +327,6 @@ class TestJobGroups(unittest.TestCase):
     # each group has its own waves
     self.assertEqual([n.rsplit('_', 1)[0] for n in names[3:6]], ['abcdefgh_2_W0', 'abcdefgh_2_W0', 'abcdefgh_2_W1'])
     self.assertIn('-w "ended(abcdefgh_2_W0_*)"', bsub.commands[5])
-    # a single job waits for all the others
-    self.assertEqual(names[6:], ['abcdefgh_WAIT'])
-    self.assertIn('-w "ended(abcdefgh_*)"', bsub.commands[6])
 
 
   def test_stopped_batch_marks_its_runs_as_failed(self):
