@@ -9,7 +9,7 @@ The URL is the one in the browser: `runs()` reads the project, commit, batch and
 (webapp/src/selection.js) and asks the server for the runs, filtered like the web app does (qaboard/filters.py).
 `qa runs <url>` does the same from the shell.
 
-`run.log({...})` adds metrics to a run: the server merges them and remembers which script added them. `Run` is also
+`run.log({...})` adds metrics to a run: the server merges them and remembers who added them, with which script. `Run` is also
 what runs created without `qa` as the entrypoint (training loops, evals) will be made of, once the SDK can create
 runs. Experimental: names may still change.
 
@@ -244,35 +244,44 @@ class Run:
     query = urlencode({'batch': self.batch, 'filter': f"id:{self.id}$" if self.id is not None else self.input})
     return f"{self.server}/{quote(self.project)}/commit/{self.commit}?{query}"
 
-  def log(self, metrics: Mapping[str, Any], *, note: Optional[str] = None) -> Dict[str, Any]:
+  def log(self, metrics: Mapping[str, Any], *, note: Optional[str] = None, overwrite: bool = False, dry_run: Optional[bool] = None) -> Dict[str, Any]:
     """
     Adds metrics to the run, e.g. computed by your script from its files: `run.log({"sharpness": 0.4})`.
 
-    The server merges them into the run's metrics (the run's own metrics.json isn't changed) and remembers who added
-    each one, when and with which script: in the run's `data["added_metrics"]`, and in metrics.added.json in its
-    folder. Wrap values in `Metric(...)` to declare them (unit, which way is better...). If the run is run again and
-    its code returns a metric of the same name, the run's value wins. Returns what was added, with its provenance.
+    The server merges them into the run's metrics (the run's own metrics.json isn't changed) and remembers in the run's
+    `data["added_metrics"]` who added each one (the token's user), when and with which script. Values are finite
+    numbers, booleans, short texts or None; wrap them in `Metric(...)` to declare them (unit, which way is better...).
+    Metrics the run itself returned are refused unless `overwrite=True`: the run's value is then kept as `replaced`.
+    If the run is run again and its code returns a metric of the same name, the run's value wins. Returns what was
+    added, with its provenance.
 
-    Needs a token with the ingest scope when the server requires one (`qa auth login`). With `runs(url, dry_run=True)`,
-    prints what it would add instead.
+    Needs to be signed in with a token with the ingest scope (`qa auth login`), and the developer role on the project.
+    `dry_run=True` (or `runs(url, dry_run=True)`) prints what it would add instead.
     """
     if not isinstance(metrics, Mapping) or not metrics:
       raise ValueError("run.log() takes a mapping of metrics, e.g. run.log({'sharpness': 0.4})")
-    values, definitions = split_metrics(dict(metrics))
+    values, definitions = split_metrics({k: _plain_value(v) for k, v in metrics.items()})
     declared = declared_metrics()
     definitions = {**{k: declared[k] for k in values if k in declared}, **definitions}
-    nans = [k for k, v in values.items() if isinstance(v, float) and (math.isnan(v) or math.isinf(v))]
-    if nans:
-      print(f"WARNING: not logging {', '.join(nans)}: NaN and infinity can't be saved", file=sys.stderr)
-      values = {k: v for k, v in values.items() if k not in nans}
+    for key, value in values.items():
+      if not isinstance(key, str) or not key:
+        raise ValueError(f"metrics' names are non-empty strings, not {key!r}")
+      if isinstance(value, float) and not math.isfinite(value):
+        print(f"WARNING: not logging {key}: NaN and infinity can't be saved", file=sys.stderr)
+      elif value is not None and not isinstance(value, (bool, int, float, str)):
+        raise ValueError(f"{key}: metrics added to runs are numbers, booleans, texts or None, not {type(value).__name__}")
+    values = {k: v for k, v in values.items() if not (isinstance(v, float) and not math.isfinite(v))}
     if not values:
       return {}
-    if self._dry_run:
-      print(f"[dry run] would add to {self!r}: {values}", file=sys.stderr)
-      return {k: {'value': v, 'dry_run': True} for k, v in values.items()}
+    if self._dry_run if dry_run is None else dry_run:
+      source = _script_source(note)
+      print(f"[dry run] would add to {self!r}: {values} (by {source.get('user')}, {source.get('script')})", file=sys.stderr)
+      return {k: {'value': v, 'dry_run': True, **source} for k, v in values.items()}
     if self.id is None or not self.server:
       raise ResultsError("This run isn't on a server yet: only runs from runs(url) can be logged to for now")
     payload: Dict[str, Any] = {'metrics': values, 'source': _script_source(note)}
+    if overwrite:
+      payload['overwrite'] = True
     if definitions:
       payload['metrics_definitions'] = definitions
     answer = _request(self.server, f"output/{self.id}/metrics", method='PATCH', json=payload, token=self._token)
@@ -307,24 +316,32 @@ class Runs(list):
     return f"<Runs {len(self)}{side}>"
 
 
+def _plain_value(value: Any) -> Any:
+  """numpy scalars and 0-d arrays as Python numbers, like the CLI does for the metrics run() returns"""
+  if not isinstance(value, (str, bytes, bool, int, float)) and hasattr(value, 'item'):
+    try:
+      return value.item()
+    except Exception:
+      return value
+  return value
+
+
 def _script_source(note: Optional[str] = None) -> Dict[str, Any]:
-  """What the server records about the script that adds metrics: its name and hash, the qaboard version, the user"""
+  """
+  What the server records about the script that adds metrics: its name and the first 16 hex digits of its SHA-256, the
+  qaboard version, a note. Who added them is the token's user: the server doesn't take the script's word for it.
+  """
   from . import __version__
   source: Dict[str, Any] = {'qaboard_version': __version__}
   script = Path(sys.argv[0]) if sys.argv and sys.argv[0] else None
-  if script and script.name and script.name not in ('-c', '-m'):
+  if script and script.name and script.name not in ('-c', '-m') and 'ipykernel' not in script.name:
     source['script'] = script.name
     try:
       source['script_sha256'] = hashlib.sha256(script.read_bytes()).hexdigest()[:16]
     except OSError:
       pass
   else:
-    source['script'] = '<interactive>'
-  try:
-    from getpass import getuser
-    source['user'] = os.environ.get('QA_USER') or getuser()
-  except Exception:
-    pass
+    source['script'] = '<notebook>' if script and 'ipykernel' in script.name else '<interactive>'
   if note:
     source['note'] = str(note)
   return source
@@ -360,7 +377,8 @@ def _request(server: str, path: str, params: Optional[Dict[str, Any]] = None, to
     refused = refusal(r)
     if refused:
       scope = 'ingest' if method != 'GET' else 'read'
-      raise ResultsError(f"{refused['error']} ({refused.get('reason')}). Sign in with `qa auth login {server}`, or set QABOARD_TOKEN to a token with the {scope} scope.")
+      hint = f"Sign in with `qa auth login {server}`, or set QABOARD_TOKEN to a token with the {scope} scope." if refused.get('reason') in ('login_required', 'ingest_token_required', 'missing_scope', 'token_expired', 'invalid_token') else "Ask the project's owners for access."
+      raise ResultsError(f"{refused['error']} ({refused.get('reason')}). {hint}")
     try:
       message = r.json().get('error') or r.text
     except ValueError:
@@ -405,7 +423,7 @@ def runs(url: Optional[str] = None, *, project: Optional[str] = None, commit: Op
   Without a URL, the server is the one `qa` uses (QABOARD_URL...). `token`: an API token, else the one `qa` is
   signed in with. Left out unless asked: runs whose files were deleted (`include_deleted`), and runs the web app
   doesn't list with the batch, like `qa optimize`'s iterations (`include_hidden`). With `dry_run=True`, `run.log()`
-  prints what it would add instead of sending it: try scripts on it first.
+  prints what it would add instead of sending it: try scripts on it first (`run.log(..., dry_run=False)` sends anyway).
   """
   if side not in SIDES:
     raise ValueError(f"side={side!r}: expected one of {', '.join(map(repr, SIDES))}. 'new' gives the runs compared, 'reference' those of the reference bar.")

@@ -382,6 +382,9 @@ class TestLog(unittest.TestCase):
     self.assertEqual(body['metrics_definitions'], {'sharpness': {'smaller_is_better': False, 'suffix': ''}})
     self.assertEqual(body['source']['qaboard_version'], __import__('qaboard').__version__)
     self.assertIn('script', body['source'])
+    # who added them is the token's user: the script doesn't say
+    self.assertNotIn('user', body['source'])
+    self.assertNotIn('overwrite', body)
     self.assertEqual(request.call_args[1]['headers'], {'Authorization': 'Bearer tok'})
     # the run reflects the server's answer, read-only still
     self.assertEqual(run.metrics['sharpness'], 0.4)
@@ -401,10 +404,29 @@ class TestLog(unittest.TestCase):
     stderr = io.StringIO()
     with mock.patch('requests.request', return_value=patched) as request, redirect_stderr(stderr):
       added = run.log({'sharpness': 0.4})
+      # per call too
+      run.log({'blur': 1}, dry_run=True)
     request.assert_not_called()
     self.assertIn('would add', stderr.getvalue())
-    self.assertEqual(added, {'sharpness': {'value': 0.4, 'dry_run': True}})
+    self.assertEqual(added['sharpness']['value'], 0.4)
+    self.assertTrue(added['sharpness']['dry_run'])
+    self.assertIn('script', added['sharpness'])
     self.assertNotIn('sharpness', run.metrics)
+    with mock.patch('requests.request', return_value=patched) as request:
+      run.log({'sharpness': 0.4}, dry_run=False, overwrite=True)
+    self.assertTrue(request.call_args[1]['json']['overwrite'])
+
+  def test_numpy_values(self):
+    try:
+      import numpy as np
+    except ImportError:
+      self.skipTest('numpy')
+    run, patched = self.run_and_patch()
+    with mock.patch('requests.request', return_value=patched) as request:
+      run.log({'a': np.float32(0.5), 'b': np.int64(3), 'c': np.array(2.0), 'd': np.bool_(True)})
+    body = request.call_args[1]['json']['metrics']
+    self.assertEqual(body, {'a': 0.5, 'b': 3, 'c': 2.0, 'd': True})
+    self.assertEqual([type(v) for v in body.values()], [float, int, float, bool])
 
   def test_log_refuses_bad_values(self):
     run, patched = self.run_and_patch()
@@ -412,9 +434,13 @@ class TestLog(unittest.TestCase):
       run.log({})
     stderr = io.StringIO()
     with mock.patch('requests.request', return_value=patched) as request, redirect_stderr(stderr):
-      self.assertEqual(run.log({'x': float('nan')}), {})
+      self.assertEqual(run.log({'x': float('nan'), 'y': float('inf')}), {})
     request.assert_not_called()
     self.assertIn('NaN', stderr.getvalue())
+    # nested values and other types can't be metrics
+    for bad in ({'x': {'nested': 1}}, {'x': [1, 2]}, {'': 1}, {3: 1}):
+      with self.assertRaises(ValueError):
+        run.log(bad)
     # a run the server doesn't know
     with self.assertRaises(ResultsError):
       Run._new(project='g/repo', input='a.jpg').log({'x': 1})

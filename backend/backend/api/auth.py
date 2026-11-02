@@ -347,20 +347,21 @@ def forbidden_project(project_id=None, permission: str = 'project.read'):
   return jsonify({"error": "Forbidden: You don't have permission to access this project", "reason": "forbidden_project"}), 403
 
 
-def ingest_access(project_id: str):
+def ingest_access(project_id: str, require_token: bool = False):
   """
   For the endpoints where `qa` sends results: (submitted_by, None) or (None, an error response).
   `submitted_by` says who really sent them (a token's user), None for unverified results.
   With ingest.auth "off" or "warn" we accept unverified results, and the X-QABoard-Warning header tells the CLI why.
+  `require_token`: for endpoints without legacy anonymous clients, a token with the ingest scope is needed whatever ingest.auth says.
   """
-  mode = setting('ingest.auth')
+  mode = 'token' if require_token else setting('ingest.auth')
   actor = g.get('actor')
   if actor is None or actor.user is None:
     if mode == 'token':
       return None, (jsonify({
-        "error": "This server only accepts results sent with a token.",
-        "reason": "ingest_token_required",
-      }), 403)
+        "error": "This server only accepts results sent with a token." if not require_token else "Sign in to do this: run `qa auth login`, or send a token with the ingest scope.",
+        "reason": "ingest_token_required" if not require_token else "login_required",
+      }), 401 if require_token else 403)
     if mode == 'warn':
       g.qaboard_warning = "Your results were saved as unverified, without a token. This server will soon require one: run `qa auth login`, or set QABOARD_TOKEN in CI."
     return None, None

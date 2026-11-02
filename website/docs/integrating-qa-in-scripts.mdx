@@ -43,7 +43,7 @@ Each `Run` has:
 | `configurations` | The configurations (`qa --configuration`), as a tuple. |
 | `params` | Every parameter as the web app shows them: the configurations' objects, the tuning parameters, and those the run reported. |
 | `extra_parameters` | The tuning parameters given to the run (`qa --tuning`), alone. |
-| `metrics` | The metrics the run returned. |
+| `metrics` | The run's metrics: those it returned, and those [added](#log) by scripts. |
 | `output_dir` | Where its files are, as a `Path`. |
 | `state`, `is_failed` | `pending`, `running` or `finished`; whether it failed. |
 | `id`, `commit`, `batch`, `project`, `url` | Where it is in QA-Board, and its link in the web app. |
@@ -88,15 +88,20 @@ for run in qb.runs(url):
     run.log({"sharpness": Metric(sharpness, smaller_is_better=False, target=0.3)})
 ```
 
-- Try it first with `qb.runs(url, dry_run=True)`: `run.log()` then prints what it would add.
-- The added metrics show in the web app like the others. The run's `data["added_metrics"]` (`qa runs --json`) says
-  who added each one, when and with which script, and so does *metrics.added.json* in the run's folder. The run's
-  own *metrics.json* is not changed.
+- Try it first with `qb.runs(url, dry_run=True)` (or `run.log(..., dry_run=True)`): it prints what it would add.
+- You need to be signed in (`qa auth login`, or `QABOARD_TOKEN` with the `ingest` scope) with the developer role on
+  the project, whatever the server's policy for results sent by `qa`. The added metrics are recorded under the
+  token's user, not what the script says.
+- The added metrics show in the web app like the others, and count in the Summary, the Metrics Diff and
+  [quality gates](/docs/quality-gate). The run's `data["added_metrics"]` (`qa runs --json`) says who added each one,
+  when and with which script. The run's own *metrics.json* is not changed, and nothing is written in its folder.
+- Values are finite numbers, booleans, short texts or `None`. `is_failed` and `compute_time` can't be added: the run
+  sets them.
+- Metrics the run itself returned are refused, unless you pass `overwrite=True`: the run's value is then kept as
+  `replaced` in the provenance. Logging the same name again replaces your previous value.
 - If the run is run again and its code now returns a metric of the same name, the run's value wins and the addition
-  is forgotten. Added metrics without a run value stay.
-- Adding metrics needs what sending results needs: when the server requires tokens for results
-  ([`ingest.auth`](/docs/backend-admin/user-management#results-sent-by-qa)), a token with the `ingest` scope
-  (`qa auth login`). `is_failed` and `compute_time` can't be added: the run sets them.
+  is forgotten. The other added metrics stay, with the date they were added: they were computed from the previous
+  run's files.
 - To recompute many metrics with the project's own code instead, use your `postprocess()`:
   `qa batch ci --action-on-existing postprocess` redoes it on existing results
   ([Postprocessing](/docs/running-your-code#postprocess)).

@@ -1,9 +1,9 @@
 ---
 name: qaboard-results
-description: Read QA-Board results from scripts and agents: the runs a web app page shows (metrics, parameters, output files), a commit compared with its reference, and whether a change improved things. Use when given a QA-Board URL, when asked to post-process runs, compute a metric on existing outputs, or check a change before claiming it's better.
+description: Read QA-Board results from scripts and agents, and add metrics to runs: the runs a web app page shows (metrics, parameters, output files), run.log() to add what a script computed, a commit compared with its reference, and whether a change improved things. Use when given a QA-Board URL, when asked to post-process runs, compute a metric on existing outputs, or check a change before claiming it's better.
 ---
 
-# Read QA-Board results
+# Read QA-Board results, add metrics to runs
 
 QA-Board is an experiment tracker: **runs** (one input, some configurations) in **batches**, on **commits**, compared
 with the same runs on a **reference** commit. People pick runs in the web app; its URL names them exactly. Docs:
@@ -37,13 +37,15 @@ for run in qb.runs(url):
 ### Add metrics to runs
 ```python
 from qaboard import Metric
-for run in qb.runs(url, dry_run=True):               # dry_run: prints what it would add; drop it to send
+for run in qb.runs(url + "%20status:success", dry_run=True):   # finished runs only; dry_run prints, drop it to send
     run.log({"sharpness": Metric(measure(run.output_dir / "output.png"), smaller_is_better=False)})
 ```
-The server merges the metrics into the run's and records who/when/which script (`run.data["added_metrics"]`,
-`metrics.added.json` in the folder). Needs a token with the `ingest` scope when the server requires one. The run's own
-metrics win if it runs again and now returns the same name. Never write into runs' folders yourself. For metrics the
-project's code should own, add them to `postprocess()` and run `qa batch <batch> --action-on-existing postprocess`.
+The server merges the metrics into the run's and records who (the token's user), when and which script
+(`run.data["added_metrics"]`). Needs `qa auth login` (a token with the `ingest` scope, developer role). Values: finite
+numbers, booleans, short texts, None. A metric the run itself returned is refused unless `overwrite=True` (the run's
+value is kept as `replaced`); if the run runs again and returns the name, its value wins. Nothing is written in the
+run's folder: never write there yourself. For metrics the project's code should own, add them to `postprocess()` and
+run `qa batch <batch> --action-on-existing postprocess`.
 
 ## Did my change help? (before saying so)
 A change is better when its runs beat the *same* runs on the reference, not when a mean moved.
