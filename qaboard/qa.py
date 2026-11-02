@@ -690,9 +690,11 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
       dask_cluster = runs_job_options.get('cluster', dask_config.get('cluster')) or {}
       command_data['cluster_type'] = dask_cluster.get('type', 'lsf')
       if command_data['cluster_type'] == 'kubernetes':
+        from .runners.dask_runner import kubernetes_namespace
         kubernetes_config = runs_job_options.get('kubernetes', config.get('runners', {}).get('kubernetes')) or {}
         command_data['kubernetes'] = {
-          "namespace": dask_cluster.get('namespace') or kubernetes_config.get('namespace'),
+          # Resolved: the server doesn't have our kubeconfig's default namespace
+          "namespace": kubernetes_namespace(dask_cluster.get('namespace') or kubernetes_config.get('namespace'), kubernetes_config.get('context')),
           "context": kubernetes_config.get('context'),
         }
     job_url = getenvs(('BUILD_URL', 'CI_JOB_URL', 'CIRCLE_BUILD_URL', 'TRAVIS_BUILD_WEB_URL')) # jenkins, gitlabCI, circleCI, travisCI
@@ -788,9 +790,8 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
     }
     # On Kubernetes, the workers' pods (and the --no-wait driver) are like the kubernetes runner's
     if (dask_config.get('cluster') or {}).get('type') == 'kubernetes':
-      kubernetes_config = config.get('runners', {}).get('kubernetes', {})
-      kubernetes_options = ('namespace', 'context', 'image', 'image_pull_secrets', 'resources', 'run_as', 'mounts', 'env', 'forward_env', 'node_selector', 'tolerations')
-      base_runner_options['kubernetes'] = {k: v for k, v in kubernetes_config.items() if k in kubernetes_options}
+      from .runners.dask_runner import kubernetes_defaults
+      base_runner_options['kubernetes'] = kubernetes_defaults(config)
     # We save logs there
     base_runner_options['batch_dir'] = str(ctx.obj['batch_dir'])
     if given('dask_concurrency', dask_concurrency, default_dask_concurrency):

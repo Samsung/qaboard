@@ -114,19 +114,35 @@ class TestJobqueueClusters(TempDirTestCase):
     self.assertEqual((kwargs['cores'], kwargs['memory'], kwargs['walltime']), (4, "32GB", "24:00"))
     self.assertNotIn('job_directives_skip', kwargs)
     self.assertNotIn('type', kwargs)
+    # Our job name, else `bkill -J "{prefix}*"` would not stop the workers
+    with mock.patch('qaboard.runners.dask_runner.secho') as secho:
+      kwargs = jobqueue_kwargs(DaskOptions(cluster={"job_name": "mine"}), 'lsf', 'abcdefgh_dask', self.root)
+    self.assertEqual(kwargs['job_name'], 'abcdefgh_dask')
+    self.assertIn('job_name is ignored', secho.call_args[0][0])
+
+  def test_job_names(self):
+    """SGE and Torque want names that start with a letter, Torque keeps 15 characters. LSF's names don't change."""
+    from qaboard.runners.dask_runner import job_names, jobqueue_classes
+    self.assertEqual(job_names('lsf', '0bcdefgh-1234'), ('0bcdefgh_dask', '0bcdefgh_dask_driver'))
+    for cluster_type in jobqueue_classes:
+      if cluster_type == 'lsf':
+        continue
+      workers, driver = job_names(cluster_type, '0bcdefgh-1234')
+      self.assertEqual((workers, driver), ('qa0bcdefgh_dask', 'qa0bcdefgh_drv'))
+      self.assertLessEqual(len(driver), 15)
 
   def test_kwargs_per_scheduler(self):
     from qaboard.runners.dask_runner import DaskOptions, jobqueue_kwargs
-    options = DaskOptions(cluster={"type": "slurm", "queue": "gpu", "account": "algo", "cores": 4, "job_name": "mine"}, lsf={"queue": "ignored"})
-    self.assertEqual(jobqueue_kwargs(options, 'slurm', 'abcdefgh_dask', self.root), {
-      "job_name": "abcdefgh_dask", # always ours, so that we can stop the jobs
+    options = DaskOptions(cluster={"type": "slurm", "queue": "gpu", "account": "algo", "cores": 4}, lsf={"queue": "ignored"})
+    self.assertEqual(jobqueue_kwargs(options, 'slurm', 'qaabcdefgh_dask', self.root), {
+      "job_name": "qaabcdefgh_dask",
       "queue": "gpu",
       "account": "algo",
       "cores": 4,
       "processes": 1,
       "memory": "4GB",
       "log_directory": str(self.root),
-      "job_directives_skip": ["#SBATCH -t"],
+      "job_directives_skip": ["#SBATCH -t 00:30:00"], # dask-jobqueue's default walltime
     })
     kwargs = jobqueue_kwargs(DaskOptions(cluster={"type": "htcondor", "job_extra_directives": {"+Project": '"algo"'}}), 'htcondor', 'abcdefgh_dask', self.root)
     self.assertEqual(kwargs['job_extra_directives'], {"+Project": '"algo"', "batch_name": "abcdefgh_dask"})
@@ -134,18 +150,34 @@ class TestJobqueueClusters(TempDirTestCase):
     self.assertNotIn('job_name', kwargs)
     self.assertNotIn('job_directives_skip', jobqueue_kwargs(DaskOptions(cluster={"walltime": "01:00:00"}), 'pbs', 'abcdefgh_dask', self.root))
 
+  def test_walltime_skip_keeps_resource_spec(self):
+    """We skip only dask-jobqueue's walltime line, not the user's resource_spec that has one."""
+    import dask_jobqueue
+    from qaboard.runners.dask_runner import DaskOptions, jobqueue_kwargs
+    for cluster_type, resource_spec, line in [
+      ('pbs', 'select=1:ncpus=4,walltime=10:00:00', '#PBS -l select=1:ncpus=4,walltime=10:00:00'),
+      ('moab', 'nodes=1:ppn=4,walltime=10:00:00', '#PBS -l nodes=1:ppn=4,walltime=10:00:00'),
+      ('sge', 'h_rt=10:00:00,h_vmem=4G', '#$ -l h_rt=10:00:00,h_vmem=4G'),
+    ]:
+      with self.subTest(cluster_type):
+        kwargs = jobqueue_kwargs(DaskOptions(cluster={"resource_spec": resource_spec}), cluster_type, 'qaabcdefgh_dask', self.root)
+        job_class = getattr(dask_jobqueue, {'pbs': 'PBSCluster', 'moab': 'MoabCluster', 'sge': 'SGECluster'}[cluster_type]).job_cls
+        header = job_class(scheduler='tcp://x:1', name='w', **kwargs).job_header
+        self.assertIn(line, header)
+        self.assertNotIn('00:30:00', header)
+
   def test_worker_job_scripts(self):
     """Each scheduler's workers are named "{prefix}_dask", log in the batch logs directory, and get as many jobs as needed."""
     import dask_jobqueue
     from qaboard.runners.dask_runner import DaskOptions, make_cluster, jobqueue_classes
     expected_headers = {
       'lsf': ['#BSUB -J abcdefgh_dask', '#BSUB -e {logs}/'],
-      'slurm': ['#SBATCH -J abcdefgh_dask', '#SBATCH -e {logs}/abcdefgh_dask-%J.err'],
-      'pbs': ['#PBS -N abcdefgh_dask', '#PBS -e {logs}/'],
-      'sge': ['#$ -N abcdefgh_dask', '#$ -e {logs}/'],
-      'htcondor': ['batch_name = abcdefgh_dask', 'LogDirectory = {logs}'],
-      'oar': ['#OAR -n abcdefgh_dask'],
-      'moab': ['#PBS -N abcdefgh_dask', '#PBS -e {logs}/'],
+      'slurm': ['#SBATCH -J qaabcdefgh_dask', '#SBATCH -e {logs}/qaabcdefgh_dask-%J.err'],
+      'pbs': ['#PBS -N qaabcdefgh_dask', '#PBS -e {logs}/'],
+      'sge': ['#$ -N qaabcdefgh_dask', '#$ -e {logs}/'],
+      'htcondor': ['batch_name = qaabcdefgh_dask', 'LogDirectory = {logs}'],
+      'oar': ['#OAR -n qaabcdefgh_dask'],
+      'moab': ['#PBS -N qaabcdefgh_dask', '#PBS -e {logs}/'],
     }
     no_walltime = {'lsf': '#BSUB -W', 'slurm': '#SBATCH -t', 'pbs': 'walltime', 'sge': 'h_rt', 'moab': 'walltime'}
     logs = self.root / 'logs'
@@ -206,20 +238,21 @@ class TestLocalCluster(TempDirTestCase):
     """The driver is a background process."""
     from qaboard.runners.dask_runner import DaskRunner
     batch_dir = self.root / 'batch'
-    jobs = make_jobs([f'echo run-{i}' for i in range(3)], self.root, concurrency=2, cluster={"type": "local"}, batch_dir=str(batch_dir))
-    with mock.patch.dict(os.environ, {"QA_TEST_FORWARDED": "yes"}):
+    jobs = make_jobs([f'echo run-{i} $QABOARD_TOKEN' for i in range(3)], self.root, concurrency=2, cluster={"type": "local"}, batch_dir=str(batch_dir))
+    with mock.patch.dict(os.environ, {"QABOARD_TOKEN": "secret-token"}):
       info = DaskRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
     logs_dir = batch_dir / 'dask' / 'abcdefgh'
     self.assertEqual((logs_dir / 'driver.pid').read_text().strip(), str(info['pid']))
-    tasks = json.loads((logs_dir / 'tasks.json').read_text())
-    self.assertEqual(tasks['env']['QA_TEST_FORWARDED'], 'yes')
-    self.assertEqual(oct((logs_dir / 'tasks.json').stat().st_mode & 0o777), oct(0o600))
+    # The batch directory may be served without authentication: no secrets there
+    self.assertNotIn('secret-token', (logs_dir / 'tasks.json').read_text())
+    self.assertNotIn('env', json.loads((logs_dir / 'tasks.json').read_text()))
     deadline = time.time() + 60
     while time.time() < deadline and '3 runs done' not in (logs_dir / 'driver.log').read_text():
       time.sleep(0.2)
     self.assertIn('3 runs done, 0 failed', (logs_dir / 'driver.log').read_text())
+    # ...but the runs get our environment, from the driver's
     for index, job in enumerate(jobs):
-      self.assertEqual((job.run_context.output_dir / 'log.dask.txt').read_text(), f'run-{index}\n')
+      self.assertEqual((job.run_context.output_dir / 'log.dask.txt').read_text(), f'run-{index} secret-token\n')
 
 
 @unittest.skipUnless(has_dask, "requires the dask extra")
@@ -235,43 +268,54 @@ class TestDriver(TempDirTestCase):
     self.assertIn(f'{nb_runs} runs done, 0 failed', (logs_dir / 'driver.log').read_text())
 
   def test_slurm(self):
-    """The driver job script comes from dask-jobqueue, with the workers' kwargs, cores=1, memory=2GB, and `driver`."""
+    """
+    The driver job script comes from dask-jobqueue, with the workers' kwargs but not their resources or walltime,
+    cores=1, memory=2GB, and `driver`. It gets our environment from sbatch.
+    """
     from qaboard.runners.dask_runner import DaskRunner
     self.fakes.add('sbatch', 'Submitted batch job 42')
     batch_dir = self.root / 'batch'
     jobs = make_jobs([f'echo run-{i}' for i in range(2)], self.root, batch_dir=str(batch_dir),
-                     cluster={"type": "slurm", "queue": "gpu", "account": "algo", "cores": 8, "memory": "64GB", "job_extra_directives": ["--gres=gpu:1"]},
-                     driver={"queue": "cpu", "job_extra_directives": []})
+                     cluster={"type": "slurm", "queue": "gpu", "account": "algo", "cores": 8, "memory": "64GB", "walltime": "12:00:00", "job_extra_directives": ["--gres=gpu:1"]},
+                     driver={"queue": "cpu"})
     with self.fakes.on_path():
       info = DaskRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
     self.assertEqual(info, {"job_id": "42"})
     logs_dir = batch_dir / 'dask' / 'abcdefgh'
     script = self.fakes.script('sbatch')
-    for line in ['#SBATCH -J abcdefgh_dask_driver', f'#SBATCH -o {logs_dir}/abcdefgh_dask_driver-%J.out', '#SBATCH -p cpu', '#SBATCH -A algo', '#SBATCH --cpus-per-task=1', '#SBATCH --mem=2G']:
+    for line in ['#SBATCH -J qaabcdefgh_drv', f'#SBATCH -o {logs_dir}/qaabcdefgh_drv-%J.out', '#SBATCH -p cpu', '#SBATCH -A algo',
+                 '#SBATCH --cpus-per-task=1', '#SBATCH --mem=2G', '#SBATCH --export=ALL']:
       self.assertIn(line, script)
     self.assertNotIn('gres', script)
     self.assertNotIn('#SBATCH -t', script)
     self.assertIn('-m qaboard.runners.dask_runner', script)
     self.run_driver_script(script, logs_dir, nb_runs=2)
 
+    # The driver can have its own walltime
+    jobs = make_jobs(['echo run'], self.root, batch_dir=str(batch_dir), cluster={"type": "slurm", "walltime": "12:00:00"}, driver={"walltime": "48:00:00"})
+    with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.secho'):
+      DaskRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
+    self.assertIn('#SBATCH -t 48:00:00', self.fakes.script('sbatch'))
+
   def test_other_schedulers(self):
     from qaboard.runners.dask_runner import DaskRunner
     cases = {
-      # type: submit command, its output, the job id we parse, a line of the script
-      'pbs': ('qsub', '12.pbs-server', '12', '#PBS -N abcdefgh_dask_driver'),
-      'sge': ('qsub', 'Your job 13 ("abcdefgh_dask_driver") has been submitted', '13', '#$ -N abcdefgh_dask_driver'),
-      'htcondor': ('condor_submit', '1 job(s) submitted to cluster 14.', '14.0', 'batch_name = abcdefgh_dask_driver'),
-      'oar': ('oarsub', 'OAR_JOB_ID=15', '15', 'qaboard.runners.dask_runner'),
-      'moab': ('msub', '16', '16', '#PBS -N abcdefgh_dask_driver'),
+      # type: submit command, its output, the job id we parse, lines of the script
+      'pbs': ('qsub', '12.pbs-server', '12', ['#PBS -N qaabcdefgh_drv', '#PBS -V']),
+      'sge': ('qsub', 'Your job 13 ("qaabcdefgh_drv") has been submitted', '13', ['#$ -N qaabcdefgh_drv', '#$ -V']),
+      'htcondor': ('condor_submit', '1 job(s) submitted to cluster 14.', '14.0', ['batch_name = qaabcdefgh_drv', 'getenv = True']),
+      'oar': ('oarsub', 'OAR_JOB_ID=15', '15', ['qaboard.runners.dask_runner']),
+      'moab': ('msub', '16', '16', ['#PBS -N qaabcdefgh_drv', '#PBS -V']),
     }
-    for cluster_type, (command, output, job_id, line) in cases.items():
+    for cluster_type, (command, output, job_id, lines) in cases.items():
       with self.subTest(cluster_type):
         self.fakes.add(command, output)
         jobs = make_jobs(['echo run'], self.root, batch_dir=str(self.root / cluster_type), cluster={"type": cluster_type})
         with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.secho'):
           info = DaskRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
         self.assertEqual(info, {"job_id": job_id})
-        self.assertIn(line, self.fakes.script(command))
+        for line in lines:
+          self.assertIn(line, self.fakes.script(command))
 
   def test_submit_failure(self):
     from qaboard.runners.dask_runner import DaskRunner
@@ -315,16 +359,17 @@ class TestDriver(TempDirTestCase):
     self.assertEqual(info['kubernetes_job'], 'qa-abcdefgh-dask-driver')
     script, name, log_file, job_options = submitted[0]
     logs_dir = batch_dir / 'dask' / 'abcdefgh'
-    self.assertEqual(name, 'abcdefgh_dask_driver')
+    self.assertEqual(name, 'qa-abcdefgh-dask-driver')
     self.assertEqual(log_file, logs_dir / 'driver.k8s.log')
     self.assertEqual(job_options, {"type": "kubernetes", "namespace": "algo", "image": "qa:1", "resources": {"cpu": 1}, "command_id": "abcdefgh-1234"})
     self.assertIn(f'python3 -m qaboard.runners.dask_runner "{logs_dir}/tasks.json"', script)
     self.assertIn(f'cd "{self.root}"', script)
-    # pods keep the image's PATH, HOME...
-    self.assertNotIn('PATH', json.loads((logs_dir / 'tasks.json').read_text())['env'])
 
-    with mock.patch.dict(runners, clear=True), self.assertRaisesRegex(Exception, 'kubernetes runner is not available'):
+    # Without the kubernetes runner we say what to install, before writing anything
+    jobs = make_jobs(['echo run'], self.root, batch_dir=str(self.root / 'other'), cluster={"type": "kubernetes"})
+    with mock.patch.dict(runners, clear=True), self.assertRaisesRegex(Exception, r'kubernetes runner is not available. Try `pip install "qaboard\[kubernetes\]"`'):
       DaskRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
+    self.assertFalse((self.root / 'other').exists())
 
   def test_existing_cluster_without_scheduler(self):
     """With a scheduler_address but no sbatch here, all runs are sent at once."""
@@ -344,6 +389,44 @@ class TestDriver(TempDirTestCase):
 
 
 @unittest.skipUnless(has_dask, "requires the dask extra")
+class TestStartup(TempDirTestCase):
+  """`qa batch` (or its driver) doesn't wait forever for workers that will never come."""
+  def run_batch(self, **job_options):
+    from qaboard.runners.dask_runner import DaskRunner
+    jobs = make_jobs(['echo run'], self.root, batch_dir=str(self.root / 'batch'), **job_options)
+    start = time.time()
+    with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.poll_interval', 0.1), mock.patch('qaboard.runners.dask_runner.signal.signal'), \
+         mock.patch('qaboard.runners.dask_runner.secho') as secho, mock.patch('builtins.print'), self.assertRaises(SystemExit):
+      DaskRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=True)
+    self.assertLess(time.time() - start, 30)
+    return "\n".join(str(call[0][0]) for call in secho.call_args_list)
+
+  def test_refused_worker_jobs(self):
+    self.fakes.add('sbatch', 'sbatch: error: invalid partition specified: gpu', exit_code=1)
+    output = self.run_batch(cluster={"type": "slurm", "queue": "gpu", "scheduler_options": {"dashboard_address": None}})
+    self.assertIn('Could not submit dask worker jobs', output)
+    self.assertIn('invalid partition specified: gpu', output)
+
+  def test_worker_start_timeout(self):
+    # The jobs are accepted, but never start
+    self.fakes.add('sbatch', 'Submitted batch job 42')
+    self.fakes.add('scancel')
+    output = self.run_batch(cluster={"type": "slurm", "scheduler_options": {"dashboard_address": None}}, worker_start_timeout=1)
+    self.assertIn('No dask worker started within 1', output)
+    from qaboard.runners.dask_runner import DaskOptions, worker_start_timeout
+    self.assertEqual(worker_start_timeout(DaskOptions(cluster={"type": "slurm"})), 0)
+    self.assertEqual(worker_start_timeout(DaskOptions(cluster={"type": "kubernetes"})), 900)
+    self.assertEqual(worker_start_timeout(DaskOptions(cluster={"type": "kubernetes"}, worker_start_timeout=0)), 0)
+
+  def test_kubernetes_stopped_while_starting(self):
+    """If `qa batch` is stopped while KubeCluster creates the DaskCluster, we delete it."""
+    with mock.patch('qaboard.runners.dask_runner.make_cluster', side_effect=SystemExit(1)), \
+         mock.patch('qaboard.runners.dask_runner.delete_dask_clusters') as delete_dask_clusters:
+      self.run_batch(cluster={"type": "kubernetes"}, kubernetes={"namespace": "algo", "context": "prod"})
+    delete_dask_clusters.assert_called_once_with("abcdefgh-1234", "algo", "prod")
+
+
+@unittest.skipUnless(has_dask, "requires the dask extra")
 class TestStop(TempDirTestCase):
   """The server stops batches with few job options: type, command_id, bridge, cluster_type..."""
   def stop(self, **job_options):
@@ -351,33 +434,49 @@ class TestStop(TempDirTestCase):
     DaskRunner.stop_jobs([], {"type": "dask", "command_id": "abcdefgh-1234", "bridge": "", **job_options})
 
   def test_jobqueue(self):
-    cases = {
-      'slurm': ({'scancel': ''}, ['scancel --name abcdefgh_dask', 'scancel --name abcdefgh_dask_driver']),
-      'sge': ({'qdel': ''}, ['qdel abcdefgh_dask*']),
-      'pbs': ({'qselect': '12.server', 'qdel': ''}, ['qselect -N abcdefgh_dask', 'qselect -N abcdefgh_dask_driver', 'qdel 12.server 12.server']),
-      'moab': ({'qselect': '12.server', 'qdel': ''}, ['qselect -N abcdefgh_dask', 'qselect -N abcdefgh_dask_driver', 'qdel 12.server 12.server']),
-      'oar': ({'oardel': ''}, ["oardel --sql job_name like 'abcdefgh_dask%'"]),
-      'htcondor': ({'condor_rm': ''}, ['condor_rm -constraint JobBatchName =?= "abcdefgh_dask" || JobBatchName =?= "abcdefgh_dask_driver"']),
-    }
-    for cluster_type, (commands, expected_calls) in cases.items():
-      with self.subTest(cluster_type):
+    tools = {'slurm': ['scancel'], 'sge': ['qdel'], 'pbs': ['qselect', 'qdel'], 'moab': ['qselect', 'qdel'], 'oar': ['oardel'], 'htcondor': ['condor_rm']}
+    cases = [
+      ('slurm', None, ['scancel --name qaabcdefgh_dask', 'scancel --name qaabcdefgh_drv']),
+      ('slurm', 'alice', ['scancel --name qaabcdefgh_dask --user alice', 'scancel --name qaabcdefgh_drv --user alice']),
+      ('sge', None, ['qdel qaabcdefgh_dask qaabcdefgh_drv']),
+      ('sge', 'alice', ['qdel -u alice qaabcdefgh_dask qaabcdefgh_drv']),
+      ('pbs', None, ['qselect -N qaabcdefgh_dask', 'qselect -N qaabcdefgh_drv', 'qdel 12.server 12.server']),
+      ('pbs', 'alice', ['qselect -N qaabcdefgh_dask -u alice', 'qselect -N qaabcdefgh_drv -u alice', 'qdel 12.server 12.server']),
+      ('moab', 'alice', ['qselect -N qaabcdefgh_dask -u alice', 'qselect -N qaabcdefgh_drv -u alice', 'qdel 12.server 12.server']),
+      # exact names, no LIKE wildcards
+      ('oar', None, ["oardel --sql (job_name = 'qaabcdefgh_dask' or job_name = 'qaabcdefgh_drv')"]),
+      ('oar', 'alice', ["oardel --sql (job_name = 'qaabcdefgh_dask' or job_name = 'qaabcdefgh_drv') and job_user = 'alice'"]),
+      ('htcondor', None, ['condor_rm -constraint (JobBatchName =?= "qaabcdefgh_dask" || JobBatchName =?= "qaabcdefgh_drv")']),
+      ('htcondor', 'alice', ['condor_rm -constraint (JobBatchName =?= "qaabcdefgh_dask" || JobBatchName =?= "qaabcdefgh_drv") && Owner =?= "alice"']),
+    ]
+    for cluster_type, user, expected_calls in cases:
+      with self.subTest(cluster_type=cluster_type, user=user):
         self.fakes.calls.unlink(missing_ok=True)
-        for command, output in commands.items():
-          self.fakes.add(command, output)
+        for command in tools[cluster_type]:
+          self.fakes.add(command, '12.server' if command == 'qselect' else '')
         with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.secho'), mock.patch('builtins.print'):
-          self.stop(cluster_type=cluster_type)
+          self.stop(cluster_type=cluster_type, **({"user": user} if user else {}))
         self.assertEqual(self.fakes.called(), expected_calls)
+
+  def test_unsafe_values(self):
+    """They go in shell commands"""
+    self.fakes.add('scancel')
+    with self.fakes.on_path():
+      for job_options in [{"command_id": "-abcdefgh"}, {"command_id": "abc%_def"}, {"user": "alice; rm -rf /"}, {"user": "-u"}]:
+        with self.subTest(**job_options), self.assertRaisesRegex(ValueError, 'Invalid'):
+          self.stop(cluster_type='slurm', **job_options)
+    self.assertEqual(self.fakes.called(), [])
 
   def test_pbs_nothing_to_stop(self):
     self.fakes.add('qselect', '')
     self.fakes.add('qdel', '')
     with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.secho'), mock.patch('builtins.print'):
       self.stop(cluster_type='pbs')
-    self.assertEqual(self.fakes.called(), ['qselect -N abcdefgh_dask', 'qselect -N abcdefgh_dask_driver'])
+    self.assertEqual(self.fakes.called(), ['qselect -N qaabcdefgh_dask', 'qselect -N qaabcdefgh_drv'])
 
   def test_errors(self):
     # already gone: no error
-    self.fakes.add('qdel', 'denied: job "abcdefgh_dask*" does not exist', exit_code=1)
+    self.fakes.add('qdel', 'denied: job "qaabcdefgh_dask" does not exist', exit_code=1)
     with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.secho'), mock.patch('builtins.print'):
       self.stop(cluster_type='sge')
     # other errors are reported
@@ -403,8 +502,9 @@ class TestStop(TempDirTestCase):
     """Deletes the batch's DaskCluster(s) and Jobs."""
     from kubernetes.client.rest import ApiException # type: ignore
     clusters = {"items": [
-      {"metadata": {"name": "qa-abcdefgh-dask", "labels": {"qaboard.io/command-id": "abcdefgh-1234"}}},
-      {"metadata": {"name": "qa-12345678-dask", "labels": {"qaboard.io/command-id": "12345678-0000"}}},
+      {"metadata": {"name": "qa-abcdefgh-dask-0a1b2c", "labels": {"qaboard.io/command-id": "abcdefgh-1234"}}},
+      {"metadata": {"name": "qa-abcdefgh-dask-3d4e5f"}}, # labels lost: by name
+      {"metadata": {"name": "qa-12345678-dask-0a1b2c", "labels": {"qaboard.io/command-id": "12345678-0000"}}},
       {"metadata": {"name": "someone-else"}},
     ]}
     job = mock.Mock()
@@ -416,7 +516,10 @@ class TestStop(TempDirTestCase):
       BatchV1Api.return_value.list_namespaced_job.return_value.items = [job]
       self.stop(cluster_type='kubernetes', kubernetes={"namespace": "algo", "context": "prod"})
       api_client.assert_called_once_with('prod')
-      CustomObjectsApi.return_value.delete_namespaced_custom_object.assert_called_once_with('kubernetes.dask.org', 'v1', 'algo', 'daskclusters', 'qa-abcdefgh-dask')
+      self.assertEqual([c[0] for c in CustomObjectsApi.return_value.delete_namespaced_custom_object.call_args_list], [
+        ('kubernetes.dask.org', 'v1', 'algo', 'daskclusters', 'qa-abcdefgh-dask-0a1b2c'),
+        ('kubernetes.dask.org', 'v1', 'algo', 'daskclusters', 'qa-abcdefgh-dask-3d4e5f'),
+      ])
       BatchV1Api.return_value.list_namespaced_job.assert_called_once_with('algo', label_selector='qaboard.io/command-id=abcdefgh-1234')
       BatchV1Api.return_value.delete_namespaced_job.assert_called_once_with('qa-abcdefgh-dask-driver', 'algo', propagation_policy='Background')
 
@@ -449,7 +552,11 @@ class TestKubernetesCluster(unittest.TestCase):
     spec, kwargs, threads, n_workers = kubernetes_cluster_spec(options, "abcdefgh-1234", nb_runs=5)
     self.assertEqual((threads, n_workers), (2, 3))
     self.assertEqual(kwargs, {"resource_timeout": 120, "namespace": "algo"})
-    self.assertEqual(spec['metadata']['name'], 'qa-abcdefgh-dask')
+    # unique: we never connect to someone else's cluster (and delete it when we're done)
+    self.assertRegex(spec['metadata']['name'], r'^qa-abcdefgh-dask-[0-9a-f]{6}$')
+    self.assertNotEqual(spec['metadata']['name'], kubernetes_cluster_spec(options, "abcdefgh-1234", nb_runs=5)[0]['metadata']['name'])
+    # orphaned clusters are deleted by the operator
+    self.assertEqual(spec['spec']['idleTimeout'], 600)
     self.assertEqual(spec['metadata']['labels']['qaboard.io/command-id'], 'abcdefgh-1234')
     self.assertEqual(spec['metadata']['labels']['app.kubernetes.io/managed-by'], 'qaboard')
     worker, scheduler = spec['spec']['worker'], spec['spec']['scheduler']['spec']
@@ -498,8 +605,26 @@ class TestKubernetesCluster(unittest.TestCase):
     self.assertEqual(kwargs['namespace'], 'algo')
     self.assertEqual(kwargs['resource_timeout'], 120)
     self.assertTrue(kwargs['quiet'])
+    self.assertEqual(kwargs['create_mode'].value, 'CREATE_ONLY')
     # concurrency 5, 2 runs per worker
     self.assertEqual(kwargs['custom_cluster_spec']['spec']['worker']['replicas'], 3)
+
+  def test_user_without_account(self):
+    """In a pod running as a UID without an account, getpass.getuser() fails"""
+    from qaboard.runners.dask_runner import kubernetes_labels
+    with mock.patch('getpass.getuser', side_effect=KeyError('getpwuid(): uid not found: 12345')):
+      self.assertEqual(kubernetes_labels("abcdefgh-1234")['qaboard.io/user'], f"uid-{os.getuid()}")
+
+  def test_namespace(self):
+    """qa batch tells the server the namespace, resolved from the kubeconfig if needed"""
+    from qaboard.runners.dask_runner import kubernetes_namespace, kubernetes_defaults
+    contexts = [{"name": "dev", "context": {"namespace": "algo-dev"}}, {"name": "prod", "context": {}}]
+    with mock.patch('kubernetes.config.list_kube_config_contexts', return_value=(contexts, contexts[0])):
+      self.assertEqual(kubernetes_namespace("given", None), "given")
+      self.assertEqual(kubernetes_namespace(None, None), "algo-dev")
+      self.assertEqual(kubernetes_namespace(None, "prod"), "default")
+    config = {"runners": {"kubernetes": {"namespace": "algo", "image": "qa:1", "queue": "q", "job_template": "x.yaml"}}}
+    self.assertEqual(kubernetes_defaults(config), {"namespace": "algo", "image": "qa:1"})
 
   def test_context(self):
     from qaboard.runners.dask_runner import check_kubernetes_context
@@ -556,6 +681,29 @@ class TestDoctor(TempDirTestCase):
       checks = self.doctor(cluster={"type": "slurm", "not_an_option": 1})
     self.assertEqual(checks['Dask: worker job options'].status, 'error')
     self.assertIn('not_an_option', checks['Dask: worker job options'].message)
+
+  def test_oar_walltime(self):
+    self.fakes.add('oarsub')
+    with self.fakes.on_path(), mock.patch('warnings.warn'):
+      checks = self.doctor(cluster={"type": "oar"})
+    self.assertEqual(checks['Dask: walltime'].status, 'warning')
+    with self.fakes.on_path(), mock.patch('warnings.warn'):
+      self.assertNotIn('Dask: walltime', self.doctor(cluster={"type": "oar", "walltime": "24:00:00"}))
+
+  def test_refused_test_job(self):
+    self.fakes.add('sbatch', 'sbatch: error: Batch job submission failed: Invalid account', exit_code=1)
+    with self.fakes.on_path(), mock.patch('qaboard.runners.dask_runner.secho'):
+      checks = self.doctor(test_job=True, cluster={"type": "slurm", "account": "nope", "scheduler_options": {"dashboard_address": None}})
+    self.assertEqual(checks['Dask: test job'].status, 'error')
+    self.assertIn('Invalid account', checks['Dask: test job'].message)
+
+  def test_qa_doctor_job_options(self):
+    """`qa doctor` gives the dask runner runners.kubernetes, like `qa batch`"""
+    from qaboard.doctor import runner_job_options
+    config = {"runners": {"dask": {"cluster": {"type": "kubernetes"}}, "kubernetes": {"namespace": "algo", "image": "qa:1"}}}
+    options = runner_job_options('dask', config, None, 'alice', self.root, self.root)
+    self.assertEqual(options['kubernetes'], {"namespace": "algo", "image": "qa:1"})
+    self.assertNotIn('kubernetes', runner_job_options('dask', {"runners": {"dask": {}}}, None, 'alice', self.root, self.root))
 
   def test_lsf_bridge(self):
     with self.fakes.on_path(), mock.patch.dict(os.environ, {"QA_RUNNERS_LSF_BRIDGE": "ssh bridge {bsub_command}"}):
