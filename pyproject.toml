@@ -50,6 +50,10 @@ dev = [
     "types-simplejson",
 ]
 # Runner that sends runs to a pool of dask workers, started on LSF, Slurm, PBS... with dask-jobqueue
+# Runner that sends runs to Celery workers. Stopping batches needs celery>=5.3 (revoke by stamped headers)
+celery = [
+    "celery>=5.3; python_version >= '3.9'",
+]
 dask = [
     "distributed; python_version >= '3.9'",
     "dask-jobqueue; python_version >= '3.9'",

@@ -58,7 +58,7 @@ jobs:
           enable-cache: true
       - name: Install dependencies
         # 3.13 also gets the runners' optional dependencies, so their tests run; 3.11 checks qa works without them
-        run: uv sync --locked --extra dev ${{ matrix.python == '3.13' && '--extra dask --extra kubernetes --extra dask-kubernetes' || '' }}
+        run: uv sync --locked --extra dev ${{ matrix.python == '3.13' && '--extra celery --extra dask --extra kubernetes --extra dask-kubernetes' || '' }}
       - name: Lint with flake8
         # syntax errors, undefined names, unused imports and variables (see .flake8)
         run: uv run --no-sync flake8 backend qaboard --count --show-source --statistics

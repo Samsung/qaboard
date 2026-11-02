@@ -55,6 +55,7 @@ def wait_for(condition, timeout=60, interval=0.2):
   return False
 
 
+@unittest.skipUnless(has_celery, "needs celery")
 class TestCeleryStopJobs(unittest.TestCase):
   def test_server_options(self):
     """The server gives only the type and command id: the broker comes from its CELERY_BROKER_URL"""
