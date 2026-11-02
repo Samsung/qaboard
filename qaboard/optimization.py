@@ -540,8 +540,9 @@ def run_optimization(
         return False
       trial = study.ask(distributions)
       params = dict(trial.params)
-      if state['next_report'] is None:
-        state['next_report'] = trial.number
+      # the first trial asked: the next one to report (a conditional expression, not an `if`: older mypy
+      # versions narrowed the entry to `None` for the rest of the function)
+      state['next_report'] = trial.number if state['next_report'] is None else state['next_report']
       state['in_flight'] += 1
     try:
       losses = objective(params, trial.number)
