@@ -421,15 +421,109 @@ def test_mkdir_for_everyone_leaves_the_umask_alone(tmp_path):
     mkdir_for_everyone(tmp_path / "existing" / "batch" / "logs")  # already there
 
 
-def test_celery_script_has_no_default_broker_credentials(tmp_path, monkeypatch):
+def test_celery_dispatch_gives_the_broker_in_the_environment_not_the_script(tmp_path, monkeypatch):
+    """The script is saved with the batch's logs: the broker's password stays out of it"""
     import backend.api.tuning as tuning
-    monkeypatch.setattr(tuning, "_run_script", lambda path, log_dir: None)
     script = tmp_path / "qa_batch.sh"
-    script.write_text("#!/bin/bash\nqa batch\n")
-    monkeypatch.delenv("CELERY_BROKER_URL", raising=False)
-    tuning._dispatch_celery(script, tmp_path)
-    assert "CELERY_BROKER_URL" not in script.read_text()
-    script.write_text("#!/bin/bash\nqa batch\n")
+    script.write_text('#!/bin/bash\necho "broker=$CELERY_BROKER_URL db=${QABOARD_DB_PASSWORD:-none} host=$QABOARD_HOST"\n')
     monkeypatch.setenv("CELERY_BROKER_URL", "pyamqp://qaboard:secret@rabbitmq//")
-    tuning._dispatch_celery(script, tmp_path)
-    assert "export CELERY_BROKER_URL=pyamqp://qaboard:secret@rabbitmq//\n" in script.read_text()
+    monkeypatch.setenv("QABOARD_DB_PASSWORD", "db-secret")
+    monkeypatch.setenv("QABOARD_HOST", "qaboard.example.com")
+    submission = tuning._dispatch_celery(script, tmp_path, "c0ffee00-0000")
+    assert submission["status"] == "done", (tmp_path / "log.txt").read_text()
+    assert "secret" not in script.read_text()
+    assert "export QABOARD_HOST=qaboard.example.com\n" in script.read_text()
+    assert "broker=pyamqp://qaboard:secret@rabbitmq// db=none host=qaboard.example.com" in (tmp_path / "log.txt").read_text()
+
+    # without the celery runner, no broker either
+    script.write_text('#!/bin/bash\necho "broker=${CELERY_BROKER_URL:-none}"\n')
+    assert tuning._dispatch_local(script, tmp_path, "c0ffee00-0001")["status"] == "done"
+    assert (tmp_path / "log.txt").read_text().splitlines()[-1] == "broker=none"
+    # unless the project's runner may be celery
+    commit = SimpleNamespace(project=SimpleNamespace(data={"qatools_config": {"runners": {"default": "lsf", "celery": {}}}}))
+    tuning._dispatch_local(script, tmp_path, "c0ffee00-0002", commit)
+    assert (tmp_path / "log.txt").read_text().splitlines()[-1] == "broker=pyamqp://qaboard:secret@rabbitmq//"
+
+
+def test_local_dispatch_does_not_wait_for_qa_batch(tmp_path, monkeypatch):
+    """qa batch runs detached: the request returns, and uWSGI's harakiri doesn't kill it. Stopping the batch kills it."""
+    import time
+    import socket
+    import psutil
+    import backend.api.tuning as tuning
+    from backend.local_jobs import refresh_status, stop_local_submissions
+    monkeypatch.setenv("QABOARD_LOCAL_START_WAIT", "0.5")
+    script = tmp_path / "qa_batch.sh"
+    # like `qa batch` with the local runner: runs in the background, one in its own session (with a timeout)
+    script.write_text(
+        '#!/bin/bash\ntrap \'echo "[qaboard] qa batch exited with code $?"\' EXIT\n'
+        'sleep 600 & echo $! > child.pid\n'
+        'setsid sleep 600 & echo $! > own-session.pid\n'
+        'wait\n'
+    )
+    started = time.monotonic()
+    submission = tuning._dispatch_local(script, tmp_path, "c0ffee00-0003")
+    assert time.monotonic() - started < 10
+    assert submission["status"] == "submitted", (tmp_path / "log.txt").read_text()
+    assert submission["host"] == socket.gethostname()
+    assert submission["pid"] != submission["pgid"]
+    submission = {**submission, "id": "c0ffee00-0003", "runner": "local", "log_dir": str(tmp_path)}
+    assert refresh_status(submission) == submission
+
+    # Someone wrote a submission with our pid: it's not theirs
+    forged = {**submission, "id": "forged-0000"}
+    assert stop_local_submissions({"submissions": {"forged-0000": forged}})["stopped"] == []
+    assert psutil.pid_exists(submission["pid"])
+
+    # Stopping the batch kills qa batch and what it started
+    children = [int((tmp_path / name).read_text()) for name in ("child.pid", "own-session.pid")]
+    stopped = stop_local_submissions({"submissions": {submission["id"]: submission}})
+    assert stopped == {"stopped": [submission["id"]], "errors": []}
+    def running(pid):
+        return psutil.pid_exists(pid) and psutil.Process(pid).status() != psutil.STATUS_ZOMBIE
+    for _ in range(50):
+        if not any(running(pid) for pid in [submission["pid"], *children]):
+            break
+        time.sleep(0.1)
+    else:
+        raise AssertionError("qa batch, or what it started, still runs")
+    # it's gone without an exit code
+    assert refresh_status(submission)["status"] == "failed"
+
+
+def test_local_submissions_on_other_hosts_are_not_stopped(tmp_path):
+    from backend.local_jobs import stop_local_submissions, refresh_status
+    submission = {"id": "c0ffee00-0004", "runner": "celery", "status": "submitted", "pid": 1, "pgid": 1, "host": "another-replica", "log_dir": str(tmp_path)}
+    stopped = stop_local_submissions({"submissions": {submission["id"]: submission}})
+    assert stopped["stopped"] == []
+    assert "another-replica" in stopped["errors"][0]
+    # we can't tell how it is
+    assert refresh_status(submission) == submission
+    # until it writes its exit code
+    (tmp_path / "exit_code").write_text("2\n")
+    assert refresh_status(submission) == {**submission, "status": "failed", "exit_code": 2}
+    assert stop_local_submissions({"submissions": {submission["id"]: submission}}) == {"stopped": [], "errors": []}
+
+
+def test_qa_environment_has_no_secrets():
+    from backend.local_jobs import qa_environment
+    server = {
+        "PATH": "/usr/bin", "HOME": "/home/qaboard", "LANG": "C.UTF-8", "QABOARD_HOST": "qaboard", "QABOARD_PROTOCOL": "https",
+        "http_proxy": "http://proxy:3128", "no_proxy": "localhost", "REQUESTS_CA_BUNDLE": "/etc/ssl/ca.pem", "SSL_CERT_FILE": "/etc/ssl/ca.pem",
+        "QA_RUNNERS_LSF_BRIDGE": "ssh lsf {bsub_command}", "QA_STORAGE": "/mnt", "QABOARD_STORAGE_ROOTS": "/mnt",
+        "SECRET_KEY": "x", "QABOARD_DB_PASSWORD": "x", "QABOARD_DB_HOST": "db", "QABOARD_DB_USER": "qaboard",
+        "QABOARD_LDAP_PASSWORD": "x", "QABOARD_LDAP_BIND_DN": "cn=x", "QABOARD_SMTP_PASSWORD": "x", "QABOARD_SMTP_USER": "x",
+        "QABOARD_OIDC_CLIENT_SECRET": "x", "QABOARD_OIDC_CLIENT_ID": "x", "QABOARD_SAML_DIR": "/saml", "QABOARD_ENCRYPTION_KEY": "x",
+        "JENKINS_AUTH": "x", "GITLAB_AUTH": "x", "GITHUB_TOKEN": "x", "SENTRY_DSN": "https://x@sentry", "POSTHOG_API_KEY": "x",
+        "DATABASE_URL": "postgresql://x", "AWS_SECRET_ACCESS_KEY": "x", "GOOGLE_APPLICATION_CREDENTIALS": "/key.json",
+        "CELERY_BROKER_URL": "pyamqp://qaboard:x@rabbitmq//", "CELERY_RESULT_BACKEND": "rpc://",
+    }
+    env = qa_environment("c0ffee00", environ=server)
+    assert env == {
+        "PATH": "/usr/bin", "HOME": "/home/qaboard", "LANG": "C.UTF-8", "QABOARD_HOST": "qaboard", "QABOARD_PROTOCOL": "https",
+        "http_proxy": "http://proxy:3128", "no_proxy": "localhost", "REQUESTS_CA_BUNDLE": "/etc/ssl/ca.pem", "SSL_CERT_FILE": "/etc/ssl/ca.pem",
+        "QA_RUNNERS_LSF_BRIDGE": "ssh lsf {bsub_command}", "QA_STORAGE": "/mnt", "QABOARD_STORAGE_ROOTS": "/mnt",
+        "QABOARD_SUBMISSION_ID": "c0ffee00",
+    }
+    celery_env = qa_environment("c0ffee00", celery=True, environ=server)
+    assert celery_env == {**env, "CELERY_BROKER_URL": "pyamqp://qaboard:x@rabbitmq//", "CELERY_RESULT_BACKEND": "rpc://"}

@@ -4,7 +4,7 @@
  */
 import { render, screen, renderHook, waitFor, fireEvent } from '@testing-library/react';
 
-import { batchSubmissions, lastErrorLine, parseExitMarker, submissionState, useSubmissionStatus } from '../submissions';
+import { batchSubmissions, is_final, lastErrorLine, parseExitMarker, submissionState, useSubmissionStatus, whereItRuns } from '../submissions';
 import { SubmissionCallout, failureSummary } from '../BatchSubmissions';
 import { parseLsfReport } from '../lsf';
 
@@ -53,6 +53,22 @@ describe('submissionState', () => {
     const batch = { data: { submissions: { a: { id: 'a', created_at: '2026-10-01T00:00:00Z' }, b: { id: 'b', created_at: '2026-10-05T00:00:00Z' } } } }
     expect(batchSubmissions(batch).map(s => s.id)).toEqual(['b', 'a'])
     expect(batchSubmissions({ data: {} })).toEqual([])
+  })
+
+  it('says where qa batch runs', () => {
+    expect(whereItRuns(lsf_submission)).toBe('LSF job 1234 (normal)')
+    expect(whereItRuns({ runner: 'kubernetes', kubernetes_job: 'qa-abcdef12-driver', namespace: 'algo-qa' })).toBe('Kubernetes job qa-abcdef12-driver in namespace algo-qa')
+    expect(whereItRuns({ runner: 'local', pid: 4321 })).toBe('on the QA-Board server (pid 4321)')
+    expect(whereItRuns({ runner: 'celery', pid: 4321 })).toBe('on the QA-Board server (pid 4321), runs sent to Celery workers')
+    // older submissions: qa batch ran during the request
+    expect(whereItRuns({ runner: 'local', status: 'done' })).toBeNull()
+  })
+
+  it('knows stopped batches', () => {
+    expect(submissionState({ runner: 'local', status: 'stopped', pid: 1 }).state).toBe('stopped')
+    expect(is_final('stopped')).toBe(true)
+    // killed on the server: the backend says why
+    expect(failureSummary({ runner: 'local', pid: 1 }, { error: 'qa batch stopped without an exit code' })).toBe('qa batch stopped without an exit code')
   })
 
   it('failureSummary', () => {

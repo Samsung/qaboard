@@ -22,7 +22,9 @@ from backend.storage import UnsafePathError
 
 
 def with_log_dir_url(submission):
-  """Where the webapp can read the logs of a batch started from QA-Board"""
+  """Where the webapp can read the logs of a batch started from QA-Board (and if `qa batch` ended, when it ran on the server)"""
+  from backend.local_jobs import refresh_status
+  submission = refresh_status(submission)
   try:
     return {**submission, 'log_dir_url': dir_to_url(Path(submission['log_dir']))}
   except Exception:
@@ -133,9 +135,17 @@ class Batch(Base):
     # commands (e.g. `bkill` via the LSF bridge) or to pick a cluster. So we only forward the few options needed to
     # stop jobs, after validating them: see backend/runner_jobs.py.
     from backend.runner_jobs import stop_batch_jobs, mark_drivers_stopped
+    from backend.local_jobs import stop_local_submissions
+    # first the `qa batch` that run on the server, so that they don't start more runs
+    local = stop_local_submissions(self.data)
+    if local["stopped"]:
+      self.data = mark_drivers_stopped(self.data, local["stopped"])
+      session.add(self)
+      session.commit()
     stopped = stop_batch_jobs(self.data, any([o.is_pending for o in self.outputs]))
     if stopped is None:
-      return {}
+      return {"error": local["errors"]} if local["errors"] else {}
+    stopped["errors"] = local["errors"] + stopped["errors"]
     if stopped["stopped_drivers"]:
       self.data = mark_drivers_stopped(self.data, stopped["stopped_drivers"])
       session.add(self)

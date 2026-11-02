@@ -7,8 +7,9 @@ description: Send the runs of qa batch to Celery workers through a message broke
 
 With the `celery` runner, `qa batch` sends its runs to [Celery](https://docs.celeryq.dev/) workers through a
 message broker, and waits for them. Workers run each `qa run` in the folder where you started `qa batch`, with your
-environment variables (except those whose names contain `TOKEN`, `ACCESS`, `AUTH` or `SECRET`): their machines need
-that folder, your inputs and the results storage at the same paths, e.g. on shared drives.
+environment variables (except those whose names contain `TOKEN`, `ACCESS`, `AUTH`, `SECRET`, `PASSWORD`, `PASSWD`,
+`KEY`, `PRIVATE`, `CREDENTIAL`, `DSN` or `DATABASE_URL`: set those on the workers' machines): their machines need that
+folder, your inputs and the results storage at the same paths, e.g. on shared drives.
 
 ## Start workers and send them runs {#starting-celery-workers}
 1. **Get a broker.** QA-Board's Docker Compose deployment starts RabbitMQ on port `5672` (not the quickstart's),
@@ -47,6 +48,20 @@ that folder, your inputs and the results storage at the same paths, e.g. on shar
 
 Without `--share` (or a CI), runs write their files in `output/`, in the folder where you started `qa batch`: use
 `--share` so that they go to the results storage that the server reads.
+
+## Stop a batch {#stop-a-batch}
+Press Ctrl+C in `qa batch`, or click **Stop runs** in the web app: the workers drop the batch's tasks that wait, and
+stop those that run, with everything their `qa run` started. The web app stops batches sent to the server's broker
+(its `CELERY_BROKER_URL`): ask your QA-Board admins if yours uses another.
+
+<details>
+<summary>What workers need, and the limits</summary>
+
+- Celery 5.3 or later, and the default `prefork` pool: with the `threads` or `solo` pools, workers can't stop running tasks.
+- Workers remember stopped batches in memory. A worker that starts afterwards may still run their waiting tasks,
+  unless the workers save their state: `celery -A qaboard.runners.celery_app worker --statedb=/var/lib/celery/worker.state`.
+
+</details>
 
 ## Share the server's broker between teams {#sharing-the-servers-broker-between-teams}
 Workers run the commands of the tasks they get, so **anyone who can send tasks to a worker can run commands on its

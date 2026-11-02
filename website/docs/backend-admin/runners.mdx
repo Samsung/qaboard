@@ -20,7 +20,7 @@ commit's [artifacts](/docs/storage/artifacts), sources their *.envrc* files, and
 
 | `QABOARD_TUNING_RUNNER` | `qa batch` runs | As | For |
 |---|---|---|---|
-| `local` (default) | In the backend's container | The server's account | Trying QA-Board, short runs, or projects whose runner sends the runs elsewhere |
+| `local` (default) | In the backend's container | The server's account | Trying QA-Board, small batches, or projects whose runner sends the runs elsewhere |
 | `lsf` | In an LSF job, sent through the LSF bridge | The user who started it | LSF sites |
 | `kubernetes` | In a pod, in the project's namespace | The user's UID and GID | Kubernetes sites |
 | `celery` | In the backend's container, with the broker's address | The server's account; the runs, as the workers' | Projects whose runner is `celery` |
@@ -28,19 +28,24 @@ commit's [artifacts](/docs/storage/artifacts), sources their *.envrc* files, and
 Projects need their artifacts saved by the CI: see [Let people tune from the web app](/docs/tuning-from-the-webapp)
 for what projects do.
 
-:::danger Runs started on the server run with its secrets
-With `local` and `celery`, `qa batch` runs in the backend's container, with its environment: the database password,
-the git hosts' tokens. Everyone with the developer role on a project can start the code of its commits there. Use
-`lsf` or `kubernetes` when you don't trust every developer with the server's secrets.
+:::danger Runs started on the server run the projects' code in its container
+With `local` and `celery`, `qa batch` runs in the backend's container, as the server's account: everyone with the
+developer role on a project can run the code of its commits there. QA-Board keeps the server's secrets out of its
+environment, but the code can read what the server's account can. Use `lsf` or `kubernetes` when you don't trust every
+developer with the server: see [Security](#security).
 :::
 
 ## On the server itself: local {#local}
 The default. `qa batch` runs in the backend's container, so the container needs what the projects' *.envrc* files
-activate, e.g. their Python environments on a shared drive, and the server waits for `qa batch` to send the runs.
+activate, e.g. their Python environments on a shared drive.
 
-- With the project's `local` runner, the runs execute in the backend's container too, during the request: a batch
-  longer than the request timeout, 5 minutes, may be killed. The web app warns users of projects without another
-  runner.
+`qa batch` runs in the background, in its own process group: the server answers users once it started, and it runs
+as long as it needs. If it fails within a few seconds (`QABOARD_LOCAL_START_WAIT`, 3 by default), users see why right
+away; later, the web app shows it from its logs. Redoing runs works the same way, unless the server has an
+[LSF bridge](#lsf).
+
+- With the project's `local` runner, the runs execute in the backend's container too, and share its CPUs. Restarting
+  the backend's container, e.g. to deploy, stops them. The web app warns users of projects without another runner.
 - With the project's `lsf` runner, `qa` sends the runs through the [LSF bridge](#lsf) if the server has no `bsub`.
 - With the project's `celery` runner, the backend needs to reach the broker.
 
@@ -111,8 +116,8 @@ Stopping a batch deletes its Jobs; the Role allows it.
 
 ## On Celery workers {#celery}
 With `QABOARD_TUNING_RUNNER=celery`, `qa batch` runs in the backend's container like with `local`, and gets the
-broker's address (`CELERY_BROKER_URL`) and the server's (`QABOARD_HOST`, `QABOARD_PROTOCOL`). Projects send the runs to
-the workers with `runners.default: celery`.
+broker's address (`CELERY_BROKER_URL`, in its environment: it's not written in the script saved with the logs) and the
+server's (`QABOARD_HOST`, `QABOARD_PROTOCOL`). Projects send the runs to the workers with `runners.default: celery`.
 
 The Docker Compose deployment and the Helm chart (`celery.enabled`) start RabbitMQ and Flower, not workers: start
 workers on your machines, see [Run batches on Celery workers](/docs/celery-integration). Anyone who can reach
@@ -129,8 +134,43 @@ pending runs as failed:
 | `dask`, workers on LSF | `bkill` on the workers and the driver | `QA_RUNNERS_LSF_BRIDGE` |
 | `dask`, an existing cluster | Stops the batch's runs on the scheduler | The scheduler in `QABOARD_DASK_SCHEDULERS`, and `distributed` installed in the backend |
 | `kubernetes` | Deletes the batch's Jobs | The RoleBinding above |
-| `local`, `celery` | Nothing: the runs go on where they run | Revoke Celery tasks in Flower |
+| `celery` | Revokes the batch's tasks: workers drop those that wait, and stop those that run with what they started | The broker in `CELERY_BROKER_URL`. Batches sent to another broker, e.g. a team's virtual host, go on: revoke them in Flower |
+| `local`, `qa batch` started by the server | Stops `qa batch` and the runs it started on the server | Several replicas of the backend: the replica that started it. The others say where it runs |
+| `local`, from a terminal or the CI | Nothing: the runs go on where they run | |
 | `windows` | Nothing | |
+
+With `QABOARD_TUNING_RUNNER=celery`, the server stops both: its `qa batch`, and the tasks it sent.
+
+<details>
+<summary>Details on stopping Celery tasks</summary>
+
+- `qa batch` stamps each task with the batch's command id, and **Stop runs** revokes the tasks with it: it only needs
+  the broker, not a result backend. Workers need Celery 5.3 or later.
+- Workers remember revoked tasks in memory: a worker that starts afterwards may still run the batch's waiting tasks,
+  unless the workers save their state (`celery worker --statedb`).
+- A running task is stopped with SIGTERM: the worker stops its `qa run` and what it started. Workers with the
+  `threads` or `solo` pools can't stop running tasks.
+
+</details>
+
+## Security {#security}
+When the server runs `qa batch` itself, with `local` or `celery`, to start or redo runs, `qa batch` gets the server's
+environment minus its secrets:
+
+- Variables whose names contain `TOKEN`, `ACCESS`, `AUTH`, `SECRET`, `PASSWORD`, `PASSWD`, `KEY`, `PRIVATE`,
+  `CREDENTIAL`, `DSN` or `DATABASE_URL`.
+- The settings of the database, LDAP, SMTP, sign-in (`QABOARD_OIDC_*`, `QABOARD_SAML_*`), Sentry and analytics.
+- The broker's address, `CELERY_BROKER_URL`, unless `qa batch` may send runs to Celery: with `celery`, or a project
+  whose *qaboard.yaml* has `runners.celery`.
+
+It keeps what `qa` needs: `PATH`, `HOME`, the locale, `QABOARD_HOST` and `QABOARD_PROTOCOL`, proxies, CA bundles,
+`QA_RUNNERS_LSF_BRIDGE`.
+
+This is defense in depth. The projects' code still runs in the server's container, as its account: it can read the
+files the server can, like its SAML keys, the LSF bridge's ssh key or a Kubernetes ServiceAccount's token, and reach
+what the server can, like its database. Running the projects' code on the server means trusting every developer of
+every project with the server's container: when you don't, use `lsf` or `kubernetes`, where `qa batch` runs as the
+user who started it, away from the server.
 
 ## Users and files {#users-and-files}
 - **Who can start runs:** signed-in users with the developer role on the project. See
@@ -148,6 +188,7 @@ pending runs as failed:
 | Variable | What it does |
 |---|---|
 | `QABOARD_TUNING_RUNNER` | Where `qa batch` runs for batches started from the web app: `local` (default), `lsf`, `kubernetes` or `celery` |
+| `QABOARD_LOCAL_START_WAIT` | With `local` and `celery`, how many seconds the server waits for `qa batch` before it answers, so users see right away when it fails to start. Default: 3 |
 | `QA_RUNNERS_LSF_BRIDGE` | The command template that runs LSF commands as `{user}`: starts, redoes and stops batches on LSF |
 | `QABOARD_DASK_SCHEDULERS` | Comma-separated addresses of the Dask schedulers the server may connect to, to stop batches |
 | `CELERY_BROKER_URL` | The broker, given to `qa batch` with `celery` |

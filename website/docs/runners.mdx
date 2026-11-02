@@ -31,8 +31,8 @@ Already running batches with MLflow, W&B Launch, ClearML, Slurm job arrays or Ku
   e.g. on an NFS share. With Kubernetes, you mount them in the pods.
 - **The same environment.** They run `qa run` with your code's dependencies: the same Python environment on a shared
   drive, or an image that has them.
-- **Your environment variables.** Runners forward them to the runs. Celery and Kubernetes leave out secrets, Dask and
-  Kubernetes those specific to a host, like `CUDA_VISIBLE_DEVICES`.
+- **Your environment variables.** Runners forward them to the runs. Celery and Kubernetes leave out secrets (names
+  with `TOKEN`, `PASSWORD`, `KEY`, `SECRET`...), Dask and Kubernetes those specific to a host, like `CUDA_VISIBLE_DEVICES`.
 :::
 
 ## Set the runner {#set-the-runner}
@@ -142,11 +142,11 @@ web app can do with them.
 
 | Runner | `--no-wait` | Stop runs from the web app | Start and redo runs from the web app |
 |---|---|---|---|
-| `local` | No: `qa batch` waits for the runs | Marks them as failed; the runs go on where they run | Yes, where the server runs `qa batch`: by default on the server itself, for short runs |
+| `local` | No: `qa batch` waits for the runs | Yes when the server started them, on the server itself. Started elsewhere: marks them as failed, the runs go on | Yes, where the server runs `qa batch`: by default on the server itself, for small batches |
 | `lsf` | Yes | Yes, with `bkill` | Yes, as the user who starts them |
 | `dask` | Yes: a driver job keeps the runs going | Yes, when the server can reach the scheduler | Yes |
 | `kubernetes` | Yes | Yes: deletes the batch's Jobs | Yes, as the user who starts them |
-| `celery` | Yes | Marks them as failed; the tasks go on | Yes |
+| `celery` | Yes | Yes: revokes the tasks, when they were sent to the server's broker | Yes |
 | `windows` | Yes | No | Redo isn't supported |
 
 Stopping and starting runs from the web app needs settings on the server: your QA-Board admins follow

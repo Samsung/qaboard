@@ -499,31 +499,31 @@ def _generate_batch_script(ci_commit, user, working_directory, command_id, batch
     return script
 
 
-def _run_script(qa_batch_path, log_dir):
-    """Run a bash script, appending its output to log_dir/log.txt"""
-    cmd = ['bash', str(qa_batch_path)]
-    print(cmd)
-    with (Path(log_dir) / 'log.txt').open('a') as log:
-        out = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT)
-    out.check_returncode()
+def _run_script(qa_batch_path, log_dir, command_id, celery=False):
+    """
+    Runs the bash script on the server, detached: it outlives the request (see local_jobs.py), with the server's
+    environment minus its secrets, and its output appended to log_dir/log.txt.
+    Returns the submission's {"status", "pid", "pgid", "host"}, and "exit_code" if it already ended.
+    """
+    from ..local_jobs import start_detached, qa_environment
+    return start_detached(qa_batch_path, log_dir, qa_environment(command_id, celery=celery))
 
 
-def _dispatch_local(qa_batch_path, log_dir):
-    """Run batch script locally via subprocess."""
-    _run_script(qa_batch_path, log_dir)
+def _dispatch_local(qa_batch_path, log_dir, command_id, ci_commit=None):
+    """Run batch script locally, detached. It gets the broker if the project's runner may be celery."""
+    from ..local_jobs import project_uses_celery
+    return _run_script(qa_batch_path, log_dir, command_id, celery=project_uses_celery(ci_commit))
 
 
-def _dispatch_celery(qa_batch_path, log_dir):
-    """Run batch script via celery worker. Injects broker URL into script."""
+def _dispatch_celery(qa_batch_path, log_dir, command_id):
+    """Run batch script locally, detached, with the broker's URL (in its environment, not in the script: it has the password)."""
     # if it's not set, `qa` uses qaboard/runners/celeryconfig.py's default (qaboard.yaml's runners.celery wins anyway)
-    broker_url = os.environ.get('CELERY_BROKER_URL')
     qaboard_host = os.environ.get('QABOARD_HOST', 'localhost')
     qaboard_protocol = os.environ.get('QABOARD_PROTOCOL', 'http')
 
     celery_env = "".join([
         f"export QABOARD_PROTOCOL={quote(qaboard_protocol)}\n",
         f"export QABOARD_HOST={quote(qaboard_host)}\n",
-        f"export CELERY_BROKER_URL={quote(broker_url)}\n" if broker_url else "",
         f"export no_proxy={quote(f'{qaboard_host},proxy,rabbitmq,qaboard')}\n",
     ])
     with qa_batch_path.open("r") as f:
@@ -531,7 +531,7 @@ def _dispatch_celery(qa_batch_path, log_dir):
     content = content.replace("#!/bin/bash\n", f"#!/bin/bash\n{celery_env}", 1)
     with qa_batch_path.open("w") as f:
         f.write(content)
-    _run_script(qa_batch_path, log_dir)
+    return _run_script(qa_batch_path, log_dir, command_id, celery=True)
 
 
 def parse_bsub_job_id(output: str):
@@ -905,7 +905,7 @@ def start_tuning(hexsha):
         # where the batches are defined: the command reads copies of the batch files
         "batch": data['selected_group'],
         "definitions": check["definitions"],
-        # local/celery: we wait for `qa batch` (it uses --no-wait), LSF/kubernetes: `qa batch` is an LSF job/a pod
+        # local/celery: `qa batch` runs detached on the server, LSF/kubernetes: `qa batch` is an LSF job/a pod
         "status": "submitting",
     }
     record_submission(batch, submission)
@@ -923,11 +923,10 @@ def start_tuning(hexsha):
             submission.update(_dispatch_kubernetes(qa_batch_path, log_dir, user, ci_commit, do_optimize, command_id))
             submission["status"] = "submitted"
         elif runner == 'celery':
-            _dispatch_celery(qa_batch_path, log_dir)
-            submission.update({"status": "done", "exit_code": 0})
+            # status: "submitted" while it runs, "done"/"failed" if it ended already
+            submission.update(_dispatch_celery(qa_batch_path, log_dir, command_id))
         else:
-            _dispatch_local(qa_batch_path, log_dir)
-            submission.update({"status": "done", "exit_code": 0})
+            submission.update(_dispatch_local(qa_batch_path, log_dir, command_id, ci_commit))
     except Exception as e:
         submission["status"] = "failed"
         if isinstance(e, subprocess.CalledProcessError):

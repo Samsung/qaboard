@@ -203,3 +203,32 @@ def test_redo_on_kubernetes(setup, dummy_app, monkeypatch):
     response, status = redo.redo_response(batch, [make_output()], {"user_name": "arthurf"})
   assert status == 500
   assert "namespace 'x'" in response.get_json()["error"]
+
+
+SLOW_QA = """#!/bin/bash
+echo "db=${{QABOARD_DB_PASSWORD:-none}} broker=${{CELERY_BROKER_URL:-none}} $*" >> "{calls}"
+sleep 600
+"""
+
+def test_redo_on_the_server_does_not_wait(setup, dummy_app, monkeypatch):
+  """Without the LSF bridge, `qa batch` runs on the server, detached: requests don't wait, harakiri doesn't kill it"""
+  from backend.local_jobs import refresh_status, stop_local_submissions
+  monkeypatch.setenv("QABOARD_LOCAL_START_WAIT", "1")
+  monkeypatch.setenv("QABOARD_DB_PASSWORD", "db-secret")
+  monkeypatch.setenv("CELERY_BROKER_URL", "pyamqp://qaboard:secret@rabbitmq//")
+  batch, calls = setup()
+  qa = Path(batch.ci_commit.artifacts_dir).parent / "bin" / "qa"
+  qa.write_text(SLOW_QA.format(calls=calls))
+  qa.chmod(qa.stat().st_mode | stat.S_IEXEC)
+  # a run first done with Celery: `qa batch` sends it to the workers again, it needs the broker
+  outputs = [make_output(data={"job_options": {"type": "celery"}})]
+  with dummy_app.test_request_context():
+    response = redo.redo_response(batch, outputs, {"user_name": "arthurf"})
+  submission = response.get_json()["submission"]
+  assert submission["status"] == "submitted" and submission["runner"] == "local", redo.log_tail(submission)
+  assert isinstance(submission["pid"], int) and isinstance(submission["pgid"], int) and submission["host"]
+  [call] = calls.read_text().splitlines()
+  assert call.startswith("db=none broker=pyamqp://qaboard:secret@rabbitmq// --label my label batch")
+  assert refresh_status(submission) == submission
+  assert stop_local_submissions(batch.data)["stopped"] == [submission["id"]]
+  assert refresh_status(submission)["status"] == "failed"

@@ -1,9 +1,11 @@
 import os
 import sys
 import time
+import signal
 import psutil
 import subprocess
 from typing import Optional
+from contextlib import contextmanager
 
 from celery import Celery, signals
 sys.path.append(os.path.dirname(__file__))
@@ -48,9 +50,8 @@ def start(self, job, cwd=None, env=None):
   # https://docs.celeryproject.org/en/stable/userguide/tasks.html#task-request-info
   print('Executing task id {0.id}, groupID: {0.group}'.format(self.request))
 
-  pipe = subprocess.PIPE
-  # print("job.run_context.command", job.run_context.command)
-  # print("env", env)
+  # The command runs in its own process group: when the task is revoked with terminate=True (stopping the batch),
+  # the worker's pool sends SIGTERM to the process that runs this task, and we stop all that the command started.
   with subprocess.Popen(job.run_context.command, shell=True,
                         encoding='utf-8',
                         # Avoid issues with code outputting malformed unicode
@@ -58,11 +59,62 @@ def start(self, job, cwd=None, env=None):
                         errors='surrogateescape',
                         cwd=cwd if cwd else job.run_context.job_options['cwd'],
                         env=env,
-                        stdout=pipe, stderr=pipe) as process:
-    for line in process.stdout:
-      print(line, end='')
-    process.wait()
+                        start_new_session=os.name != 'nt',
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as process:
+    with stopped_with_task(process):
+      for line in process.stdout:
+        print(line, end='')
+      process.wait()
     return process.returncode
+
+
+def kill_process_group(process: subprocess.Popen, grace: float = 5):
+  """Stops the command and what it started (its process group): SIGTERM, then SIGKILL after `grace` seconds"""
+  if os.name == 'nt' or process.poll() is not None:
+    return
+  try:
+    os.killpg(process.pid, signal.SIGTERM)
+  except OSError:
+    return
+  try:
+    process.wait(timeout=grace)
+  except subprocess.TimeoutExpired:
+    pass
+  try:
+    # also what's left in the group after the shell exited
+    os.killpg(process.pid, signal.SIGKILL)
+  except OSError:
+    pass
+
+
+@contextmanager
+def stopped_with_task(process: subprocess.Popen):
+  """When the task is terminated (SIGTERM, or billiard's TERM_SIGNAME), or fails, the command's process group is killed"""
+  term_signals = {signal.SIGTERM}
+  try:
+    from billiard.common import TERM_SIGNAL
+    term_signals.add(TERM_SIGNAL)
+  except ImportError:
+    pass
+
+  def terminate(signum, frame):
+    kill_process_group(process)
+    # then die like the pool expects
+    signal.signal(signum, signal.SIG_DFL)
+    os.kill(os.getpid(), signum)
+
+  previous = {}
+  for signum in term_signals:
+    try:
+      previous[signum] = signal.signal(signum, terminate)
+    except ValueError:  # not in the main thread (e.g. --pool=threads): termination isn't supported there anyway
+      pass
+  try:
+    yield
+  finally:
+    for signum, handler in previous.items():
+      signal.signal(signum, handler)
+    kill_process_group(process, grace=1)
 
 
 

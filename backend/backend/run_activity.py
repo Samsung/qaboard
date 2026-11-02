@@ -420,7 +420,7 @@ def starting_soon(filters: Filters, limit=100) -> list:
   for row in rows:
     submission = with_log_dir_url(row['submission'])
     answer.append({
-      **{k: submission.get(k) for k in ('id', 'created_at', 'user', 'runner', 'status', 'lsf_job_id', 'queue', 'kubernetes_job', 'namespace', 'batch', 'log_dir_url', 'exit_code', 'error')},
+      **{k: submission.get(k) for k in ('id', 'created_at', 'user', 'runner', 'status', 'lsf_job_id', 'queue', 'kubernetes_job', 'namespace', 'pid', 'host', 'batch', 'log_dir_url', 'exit_code', 'error')},
       **{k: row[k] for k in ('batch_id', 'batch_label', 'ci_commit_id', 'hexsha', 'branch', 'project_id')},
     })
   return answer

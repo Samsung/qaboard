@@ -47,6 +47,9 @@ export function batchSubmissions(batch) {
  * `report` is LSF's job report (from log.lsf.txt), `log` what we know of log.txt: {exists, tail}
  */
 export function submissionState(submission, { report = null, log = null } = {}) {
+  // users stopped the batch
+  if (submission.status === 'stopped')
+    return { state: 'stopped', report }
   if (submission.status === 'failed')
     return { state: 'failed', exit_code: submission.exit_code ?? null, error: submission.error ?? null, report }
   if (submission.status === 'done')
@@ -63,7 +66,19 @@ export function submissionState(submission, { report = null, log = null } = {}) 
   return { state: 'queued', report }
 }
 
-export const is_final = state => state === 'done' || state === 'failed'
+export const is_final = state => state === 'done' || state === 'failed' || state === 'stopped'
+
+
+// Where `qa batch` runs, in a few words, e.g. "LSF job 1234 (normal)"
+export function whereItRuns(submission) {
+  if (submission.lsf_job_id)
+    return `LSF job ${submission.lsf_job_id}${submission.queue ? ` (${submission.queue})` : ''}`
+  if (submission.kubernetes_job)
+    return `Kubernetes job ${submission.kubernetes_job}${submission.namespace ? ` in namespace ${submission.namespace}` : ''}`
+  if (submission.pid && (submission.runner === 'local' || submission.runner === 'celery'))
+    return `on the QA-Board server (pid ${submission.pid})${submission.runner === 'celery' ? ', runs sent to Celery workers' : ''}`
+  return null
+}
 
 
 // We only need the end of log.txt
@@ -103,7 +118,7 @@ function getStore(submission) {
 
 function startPolling(store, submission, interval) {
   const { log_dir_url, status: backend_status } = submission
-  if (store.controller || is_final(store.status.state) || !log_dir_url || backend_status === 'failed' || backend_status === 'done') return
+  if (store.controller || is_final(store.status.state) || !log_dir_url || ['failed', 'done', 'stopped'].includes(backend_status)) return
   const controller = new AbortController()
   store.controller = controller
   const is_lsf = submission.runner === 'lsf'

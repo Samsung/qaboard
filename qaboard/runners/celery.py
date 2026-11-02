@@ -8,16 +8,20 @@ from typing import List, Dict, Any, Iterable, Tuple
 from .base import BaseRunner
 from .job import Job
 from ..checks import Check
+# is_secret: imported from here by other modules
+from ..utils import is_secret, without_secrets  # noqa: F401
 
 
+# What `qa batch`, `qa doctor` and the QA-Board server add to the job options, that are not Celery settings
+QA_JOB_OPTIONS = ('type', 'command_id', 'user', 'project', 'batch_dir', 'cwd', 'bridge')
 
-secrets = ("TOKEN", "ACCESS", "AUTH", "SECRET")
-def is_secret(env_variable):
-  return any([s in env_variable for s in secrets])
+# Each task of a batch is stamped with its command id (a header), so that we can stop them all from it, from
+# anywhere that reaches the broker, without a result backend: see stop_jobs.
+COMMAND_ID_STAMP = 'qaboard_command_id'
 
-
-# What `qa batch` and `qa doctor` add to the job options, that are not Celery settings
-QA_JOB_OPTIONS = ('type', 'command_id', 'user', 'project', 'batch_dir', 'cwd')
+def task_id(command_id: str, index: int) -> str:
+  """The tasks of a batch have known ids: workers older than Celery 5.3 can't revoke them by stamp"""
+  return f"{command_id}-{index}"
 
 def doctor_settings(job_options: Dict[str, Any]) -> Tuple[Dict[str, Any], str, str]:
   """
@@ -109,7 +113,7 @@ def doctor_test_job(job_options: Dict[str, Any], timeout: float = 120) -> Iterab
     command = f'echo "user: $(id -un)" > "{result}"; echo "host: $(hostname)" >> "{result}"; echo "qa: $(command -v qa || echo not found)" >> "{result}"'
     # The task only needs the job's command and cwd
     job = SimpleNamespace(run_context=SimpleNamespace(command=command, job_options={'cwd': cwd}))
-    env = {k: v for k, v in os.environ.items() if not is_secret(k)}
+    env = without_secrets()
     async_result = start.apply_async(args=(job,), kwargs={'cwd': cwd, 'env': env})
     try:
       returncode = async_result.get(timeout=timeout)
@@ -155,12 +159,15 @@ class CeleryRunner(BaseRunner):
     if 'cwd' in job_options:
       os.chdir(job_options['cwd'])
 
-    env = {k:v for k, v in os.environ.items() if not is_secret(k)}
+    env = without_secrets()
 
     # https://docs.celeryproject.org/en/stable/userguide/canvas.html#canvas-group
-    g = group(start.s(job, cwd=cwd, env=env) for job in jobs)
-    # We set the group ID with our own UUID to make cancellation easier to manage
-    g.id = job_options['command_id']
+    command_id = job_options['command_id']
+    g = group(start.s(job, cwd=cwd, env=env).set(task_id=task_id(command_id, index)) for index, job in enumerate(jobs))
+    g.id = command_id
+    # stop_jobs revokes the tasks with this stamp
+    if hasattr(g, 'stamp'):  # celery>=5.3
+      g.stamp(**{COMMAND_ID_STAMP: command_id})
     result = g()
 
     # We could propagate=False to suppress exceptions, then
@@ -173,7 +180,8 @@ class CeleryRunner(BaseRunner):
       import signal
       def sigterm_handler(_signo, _stackframe):
         print('Aborted.')
-        g.revoke()
+        # the tasks that wait, and those that run
+        CeleryRunner.stop_jobs(jobs, job_options)
         sys.exit(1)
       signal.signal(signal.SIGTERM, sigterm_handler)
       signal.signal(signal.SIGINT, sigterm_handler)
@@ -238,8 +246,25 @@ class CeleryRunner(BaseRunner):
 
   @staticmethod
   def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
-    # FIXME: we should do something, e.g. revoke the group (start_jobs uses command_id as the group ID):
-    #   GroupResult.restore(job_options['command_id']).revoke()
-    # It may need result.save() in start_jobs, see
-    # https://docs.celeryproject.org/en/stable/reference/celery.result.html
-    return
+    """
+    Stops the tasks of a `qa batch` command (job_options['command_id']): the workers drop those that wait, and kill
+    those that run, with what they started (celery_app.start).
+    It only needs the broker: runners.celery in job_options, else $CELERY_BROKER_URL. The QA-Board server calls it
+    with only the type and command id, so it stops batches sent to its own broker (CELERY_BROKER_URL).
+    Workers remember revoked tasks in memory: a worker that starts after this may still run the batch's waiting tasks,
+    unless the workers keep their state (celery worker --statedb).
+    """
+    from celery import Celery
+    command_id = job_options['command_id']
+    settings, broker_url, _ = doctor_settings(job_options)
+    app = Celery('qaboard-stop', set_as_current=False)
+    app.conf.update({**settings, 'broker_url': broker_url, 'broker_connection_timeout': 10})
+    with app.connection_for_write() as connection:
+      # fail instead of retrying forever if the broker is down: the server waits for us
+      connection.ensure_connection(max_retries=2, timeout=10)
+      control = app.control
+      if hasattr(control, 'revoke_by_stamped_headers'):  # celery>=5.3
+        control.revoke_by_stamped_headers({COMMAND_ID_STAMP: command_id}, terminate=True, connection=connection)
+      # Workers older than Celery 5.3 don't know stamps. From `qa batch` we know the tasks.
+      if jobs:
+        control.revoke([task_id(command_id, index) for index in range(len(jobs))], terminate=True, connection=connection)

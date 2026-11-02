@@ -245,7 +245,7 @@ is waiting for LSF**: see [Batches started from QA-Board](/docs/user-guide/logs#
 | **Fix this to start** | What would make the batch fail, e.g. an unknown batch, an invalid automated tuning configuration, a platform the project doesn't have. |
 | **Before you start** | What to know first, e.g. missing artifacts QA-Board will restore. |
 | **Tuning may not work** | The project's CI only saves artifacts on some branches, and not on this commit's: the message gives the commands to save them yourself, with `qa save-artifacts`. |
-| **Please configure async runners** | The project has no task runner: runs execute on the QA-Board server, and may be killed if they take too long. Ask whoever integrated QA-Board in your project to [choose a runner](/docs/runners). |
+| **Runs will start on the QA-Board server** | The project has no runner for a cluster or task queue: runs execute on the QA-Board server, share its CPUs, and stop if it restarts. Ask whoever integrated QA-Board in your project to [choose a runner](/docs/runners). |
 | **Why the batch has no tests**, **Check the batch files** | Under the batch: see [every problem flagged](/docs/user-guide/available-tests#problems). |
 | Under the **Start** button | What's missing (a batch label, a batch with tests), parameters that are not valid JSON or a function that fails, or too many runs. |
 | **Started …**, after you click | It started, and where QA-Board will email you. **Show its logs** opens the Logs view. |
