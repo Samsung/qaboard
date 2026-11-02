@@ -33,6 +33,8 @@ export const usePrefsStore = create()(persist(
     imageAnalysisValues: 'display',
     // project => what users said of the sensor of its raw images: CFA, black level... (see the image viewer's `sensor`)
     imageSensor: {},
+    // project => the size of the differences users look for in "Where they differ": { min, max } in pixels, or null
+    imageDiffSize: {},
     // runs show only the settings of their configuration that not all runs share
     hide_shared_settings: true,
     // project => the last scope users picked on its page: "mine" or "all"
@@ -64,6 +66,7 @@ export const usePrefsStore = create()(persist(
     setImageAnalysis: view => set({ imageAnalysis: view }),
     setImageAnalysisValues: values => set({ imageAnalysisValues: values }),
     setImageSensor: (project, sensor) => set(state => ({ imageSensor: { ...state.imageSensor, [project]: sensor } })),
+    setImageDiffSize: (project, size) => set(state => ({ imageDiffSize: { ...state.imageDiffSize, [project]: size } })),
     setCommitListDensity: density => set({ commitListDensity: density === 'compact' ? 'compact' : 'comfortable' }),
     setGitEmails: emails => set({ git_emails: [...new Set(emails.map(e => e.trim().toLowerCase()).filter(e => e.includes('@')))] }),
     // `latest`: when the batch last got a run: it comes back if it runs again

@@ -77,7 +77,9 @@ const setup = async (page, { metadata = {}, manifests, qatools_config = default_
       const run = body.output_dir_url_new.split('/')[4].split('-')[1];
       const value = differences[run];
       if (diff_delay) await new Promise(resolve => setTimeout(resolve, diff_delay));
-      return route.fulfill({ json: value ? [{ x: 90, y: 90, w: 60, h: 60, peak_x: 120, peak_y: 120, value, diff: 1 }] : [] });
+      // the square's difference is 20 pixels wide
+      const fits = (!body.min_size || body.min_size <= 20) && (!body.max_size || body.max_size >= 20);
+      return route.fulfill({ json: value && fits ? [{ x: 90, y: 90, w: 60, h: 60, peak_x: 120, peak_y: 120, value, diff: 1, spot: { x: 110, y: 110, w: 20, h: 20 } }] : [] });
     }
     if (url.pathname === '/api/v1/output/image/pixels') {
       const [, , , , folder, , ...file] = url.searchParams.get('image_url').split('/');
@@ -527,8 +529,19 @@ test('finds where the images differ in all the runs, and ranks them', async ({ p
   await expect(card.locator('.qiv-regions')).toContainText('Where they differ: perceptual');
   await expect(card.locator('.qiv-region').first()).toContainText('#1 · 5.0%');
   // and so do the others, with what was found already
-  await expect(first.locator('.qiv-region').first()).toContainText('#1 · 30.0%');
+  await expect(first.locator('.qiv-region').first()).toContainText('#1 · 30.0% · 20×20 px');
   expect(diff_requests).toHaveLength(3);
+
+  // only the small differences: the viewer searches again
+  await first.getByLabel('Largest difference, in pixels').fill('10');
+  await first.getByLabel('Largest difference, in pixels').press('Enter');
+  await expect(first.locator('.qiv-regions')).toContainText('No difference of that size (≤ 10 px)');
+  expect(diff_requests.at(-1)).toMatchObject({ max_size: 10, min_size: null });
+  // the size is the project's: the other viewers that show where their images differ search again too
+  await expect(page.locator('.qiv-regions', { hasText: 'No difference of that size' })).toHaveCount(3);
+  await first.getByRole('button', { name: 'Any size' }).click();
+  await expect(first.locator('.qiv-region').first()).toContainText('#1 · 30.0%');
+  const requests = diff_requests.length;
 
   // on another page, nothing is compared until users ask
   await navigate(page, `/${project}/commit/ref?reference=new&selected_views=output-list`);
@@ -536,11 +549,11 @@ test('finds where the images differ in all the runs, and ranks them', async ({ p
   await expect(other.getByRole('button', { name: /^new 512×384/ })).toBeVisible();
   await page.waitForTimeout(1000);
   await expect(page.locator('.qiv-region')).toHaveCount(0);
-  expect(diff_requests).toHaveLength(3);
+  expect(diff_requests).toHaveLength(requests);
   // back on the page, what was found shows again
   await page.goBack();
   await expect(first.locator('.qiv-region').first()).toContainText('#1 · 30.0%');
-  expect(diff_requests).toHaveLength(3);
+  expect(diff_requests).toHaveLength(requests);
 });
 
 test('logged out: says to sign in for the images\' own values and to find where they differ', async ({ page }) => {

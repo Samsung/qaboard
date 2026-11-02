@@ -29,6 +29,9 @@ describe('differenceToRegion', () => {
   it('labels the regions found by the server with how much the images differ there', () => {
     expect(differenceToRegion('yiq')({ x: 90, y: 40, w: 20, h: 30, value: 0.0321, diff: 0.25 }, 2))
       .toMatchObject({ x: 90, y: 40, w: 20, h: 30, value: 0.0321, label: '#3 · 3.2%' });
+    // with the size of the difference itself
+    expect(differenceToRegion('yiq')({ x: 90, y: 40, w: 20, h: 30, value: 0.0321, diff: 0.25, spot: { x: 95, y: 50, w: 6, h: 4 } }, 0).label)
+      .toBe('#1 · 3.2% · 6×4 px');
     expect(formatDifference('ciede2000', 4.56)).toBe('ΔE 4.6');
     expect(formatDifference('ssim', 0.214)).toBe('1−SSIM 0.21');
   });

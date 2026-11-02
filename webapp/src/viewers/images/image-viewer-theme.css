@@ -28,3 +28,37 @@
   font-size: 12px;
   font-weight: 600;
 }
+
+/* The size of the differences to find (DiffSize.jsx): in the viewers' regions strip, and the dialog for all the runs */
+.qiv-diff-size {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--qiv-text-muted, var(--qa-text-muted, inherit));
+}
+.qiv-diff-size.qiv-active {
+  color: var(--qiv-accent, var(--qa-intent-primary, inherit));
+  font-weight: 600;
+}
+.qiv-diff-size-input {
+  width: 56px;
+  height: 22px;
+  padding: 0 4px;
+  border: 1px solid var(--qiv-border, var(--qa-border, #ccc));
+  border-radius: 3px;
+  background: var(--qiv-surface, transparent);
+  color: var(--qiv-text, inherit);
+  font-family: var(--qiv-mono, monospace);
+  font-size: 12px;
+  font-weight: 400;
+}
+.qiv-diff-size-clear {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}

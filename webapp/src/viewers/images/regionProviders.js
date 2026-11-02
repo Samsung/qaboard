@@ -15,7 +15,8 @@
 //     // What the viewer says when there are none, e.g. "No difference found" (by default "No regions")
 //     empty: 'No difference found',
 //   }
-// context: { output_new, output_ref, path, path_ref }. Regions are in the pixels of the image shown, or of an image of
+// context: { output_new, output_ref, path, path_ref, diff_size }, diff_size: the size of the differences users look for,
+// { min, max } in pixels (either can be null), for the providers that compare the images. Regions are in the pixels of the image shown, or of an image of
 // size imageWidth x imageHeight, e.g. the input's: the viewer scales them. A region's `value` (optional) says how
 // interesting it is, e.g. how much the images differ there: searches over all the runs of a page rank runs with it.
 // Results of `find` are kept by the page (regionSearch.js), for every viewer of the same files.
@@ -74,13 +75,14 @@ const FORMATS = {
 };
 export const formatDifference = (diff_type, value) => (FORMATS[diff_type] ?? (v => v.toFixed(2)))(value);
 
-// A region where the server found the images differ: { x, y, w, h, value, diff }, diff relative to the largest (1)
-export const differenceToRegion = diff_type => ({ x, y, w, h, value, diff }, index) => {
+// A region where the server found the images differ: { x, y, w, h, value, diff, spot }, diff relative to the largest
+// (1), spot: the difference itself, the region adds context around it
+export const differenceToRegion = diff_type => ({ x, y, w, h, value, diff, spot }, index) => {
   const amount = Math.max(0, Math.min(1, diff));
   const [red, green, blue] = colorAt('inferno', 1 - amount);
   return {
     x, y, w, h,
-    label: `#${index + 1} · ${formatDifference(diff_type, value)}`,
+    label: `#${index + 1} · ${formatDifference(diff_type, value)}${spot ? ` · ${spot.w}×${spot.h} px` : ''}`,
     color: `rgb(${red}, ${green}, ${blue})`,
     value,
   };
@@ -94,7 +96,9 @@ const autoRegions = (diff_type, label, description) => ({
   description,
   empty: 'No difference found',
   available: ({ output_ref }) => !!output_ref && !output_ref.deleted && !!output_ref.output_dir_url,
-  find: async ({ output_new, output_ref, path, path_ref }, { signal }) => {
+  // it finds the differences of the size users look for (context.diff_size)
+  sized: true,
+  find: async ({ output_new, output_ref, path, path_ref, diff_size }, { signal }) => {
     const { data } = await http.post('/api/v1/output/image/diff', {
       output_dir_url_new: output_new.output_dir_url,
       output_dir_url_ref: output_ref.output_dir_url,
@@ -102,6 +106,8 @@ const autoRegions = (diff_type, label, description) => ({
       path_ref: path_ref ?? path,
       diff_type,
       count: 20,
+      min_size: diff_size?.min ?? null,
+      max_size: diff_size?.max ?? null,
     }, { signal });
     return (data ?? []).map(differenceToRegion(diff_type));
   },

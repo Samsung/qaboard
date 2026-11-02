@@ -116,6 +116,12 @@ click on a thumbnail. **Full image** goes back to the whole image.
 - **Where they differ**: the server compares the full images, not what your screen shows, and finds the places where
   they differ most. Each region says how much, e.g. *#1 · 27.3%*, and darker swatches mark larger differences.
 
+**Look for differences of a size**, e.g. small defects rather than a sky whose noise changed everywhere: type the
+smallest and largest size in pixels next to the set's name above the regions (**Size … – … px**). The server searches
+again and keeps going past the differences of other sizes, so you still get up to 20 regions. Each region says the
+size of its difference, e.g. *#1 · 3.2% · 6×4 px*. The size is remembered for the project, and applies to every viewer
+of the page and to **Where they differ, in all N runs…**; **×** looks for any size again.
+
 Pick how the server compares them:
 
 | Regions | Measure | Use it for |
@@ -134,6 +140,9 @@ Pick how the server compares them:
 
 - The regions are spread over the image: an area that differs everywhere, like leaves, gives one region, not twenty.
   Each shows some context around the difference.
+- A difference's size is its longest side, around its peak, where it's over half of the peak's. It's measured on a grid
+  about 1000 cells wide: to 4 pixels on a 4000-pixel wide image. Differences larger than about a quarter of the image's
+  shorter side are found, but can't be measured, so a largest size leaves them out.
 - The first time the server reads an image takes a few seconds, then it's quick: the server keeps the results.
 - The set you pick applies to every viewer of the same file on the page, in all the runs' cards. **Where they differ**
   is for the page where you pick it: on another page, the viewers don't compare their images until you ask, since that
@@ -147,7 +156,8 @@ Pick how the server compares them:
 ### Which runs changed most {#which-runs-changed-most}
 In a batch of dozens of inputs, start where the images changed most. **Where they differ, in all N runs…**, in the
 regions menu, compares the image of every run of the page with its reference, and ranks the runs by their largest
-difference. Runs whose images didn't change at all are counted as *identical*.
+difference. Runs whose images didn't change at all are counted as *identical*. The size you
+look for applies here too, and you can change it at the top of the list.
 
 Pick how to compare at the top of the list (**perceptual**, **structure (SSIM)** or **ΔE 2000**). **Show** takes you to
 a run's card, zoomed on its region that differs most; every viewer of that file shows its own regions too.
@@ -347,13 +357,20 @@ A card above the views says what the sensor is, with a diagram of its pattern fr
 
 - **metadata**: the image's reader on the server, e.g. a raw file's header or its JSON sidecar,
 - **guessed**: the pixels. QA-Board finds the cell size (Bayer 1×1, Tetra 2×2, Nona 3×3, 4×4… up to 9×9) and where the
-  greens are from a patch at the center of the view. It can't tell red from blue in a single channel: **Swap R and B** if
-  they're the other way. Images where each pixel has only one of R, G and B set are read exactly,
+  greens are from the 256×256 pixels at the center of the view when the analysis first opens: the card says which. It
+  can't tell red from blue in a single channel: **Swap R and B** if they're the other way. Images where each pixel has
+  only one of R, G and B set are read exactly,
 - **yours**: what you set with the **Sensor** button: the pattern, the cell size, the offset, the black level. It
   applies to both images, and your browser remembers it for the project.
 
 When the metadata and the pixels disagree, the card says so. When the reference's metadata knows what you only guessed
 for the new image, **use its…** copies it.
+
+**Guess from the view**, in the **Sensor** dialog, guesses again from the pixels at the center of the view, and uses
+the guess over the metadata and what you set: zoom on a detailed area that isn't saturated first. **The pixels**, in
+the dialog, shows what they say and where they were read. When they show no mosaic (a flat or saturated area), the CFA
+stays as it was and the card says so. When the metadata says otherwise, the card offers to **use it**; **Back to
+automatic** also goes back to the metadata.
 
 <Shot id="commit/image-raw-values" />
 
