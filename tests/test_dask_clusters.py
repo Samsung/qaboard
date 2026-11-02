@@ -398,6 +398,7 @@ class TestStop(TempDirTestCase):
       self.stop(cluster_type='local')
     self.assertIn('driver.pid', secho.call_args[0][0])
 
+  @unittest.skipUnless(has_dask_kubernetes, "requires the dask-kubernetes extra")
   def test_kubernetes(self):
     """Deletes the batch's DaskCluster(s) and Jobs."""
     from kubernetes.client.rest import ApiException # type: ignore

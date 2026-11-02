@@ -169,7 +169,7 @@ k8s_excluded_env_prefixes = ('LC_', 'XDG_', 'SSH_', 'KUBERNETES_', 'CONDA_', 'DB
 def run_env(options: KubernetesOptions) -> Dict[str, str]:
   """The runs' environment. The pods run another image: what is specific to our machine (PATH, locale...) stays here."""
   home = os.environ.get('HOME', '')
-  home_is_shared = bool(home) and any(is_under(home, m.get('path', '')) for m in options.mounts)
+  home_is_shared = options.forward_env and bool(home) and any(is_under(home, m.get('path', '')) for m in options.mounts)
   env = {
     # click needs a UTF-8 locale, C.UTF-8 is in all images
     'LANG': 'C.UTF-8',
@@ -818,6 +818,38 @@ def wait_jobs(kube: Kube, created: List[BatchJob], selector: str):
     time.sleep(poll_interval)
 
 
+def wait_until_started(kube: Kube, namespace: str, job: Dict[str, Any], log_file: Path, polls: int = 10):
+  """
+  Nobody watches a detached job: we wait a little (polls * 2s) for its pod to start. If it's pending, we write why in
+  its log file, where users look. If it can't ever start, we delete it and raise.
+  """
+  name = job['metadata']['name']
+  selector = f'batch.kubernetes.io/job-name={name}'
+  diagnostics = PendingDiagnostics()
+  findings: List[Finding] = []
+  for _ in range(polls):
+    time.sleep(2)
+    pods = kube.call('core', 'list_namespaced_pod', namespace, label_selector=selector)['items']
+    if any(p.get('status', {}).get('phase') not in (None, 'Pending') for p in pods):
+      return
+    events = kube.call('core', 'list_namespaced_event', namespace)['items']
+    findings = diagnostics.check([job], pods, events)
+    if any(f.fatal for f in findings):
+      break
+  if not findings:
+    return
+  message = '\n'.join(str(f) for f in findings)
+  try:
+    with log_file.open('a') as f:
+      f.write(f"[qaboard] The Kubernetes Job {name} is pending:\n{message}\n")
+  except OSError:
+    pass
+  if any(f.fatal for f in findings):
+    delete_jobs(kube, namespace, [name])
+    raise Exception(f"The Kubernetes Job {name} can't start, we deleted it:\n{message}")
+  secho(f"Kubernetes: pending: {message}", fg='yellow', err=True)
+
+
 def report(finding: Finding, batch_job: BatchJob, reported: set, logged: set):
   """Prints why pods are pending, once, and writes it in their runs' log.k8s.txt so that it shows in QA-Board."""
   key = (finding.reason, finding.hint or finding.message)
@@ -1244,7 +1276,7 @@ class KubernetesRunner(BaseRunner):
     options = dict_to_KubernetesOptions(job_options)
     kube = connect(options)
     namespace = namespace_of(kube, options)
-    job_name = dns_name(f'qa-{name}')
+    job_name = dns_name(name if name.startswith('qa-') else f'qa-{name}')
     log_file = Path(log_file)
     run_sh = '\n'.join([
       f'mkdir -p {shlex.quote(str(log_file.parent))} && exec > {shlex.quote(str(log_file))} 2>&1',
@@ -1252,8 +1284,9 @@ class KubernetesRunner(BaseRunner):
       script,
     ]) + '\n'
     data = {'env.sh': env_script(run_env(options)), 'run.sh': run_sh}
-    create_job(kube, options, namespace, job_name, data, command=['bash', f'{scripts_dir}/run.sh'])
+    job = create_job(kube, options, namespace, job_name, data, command=['bash', f'{scripts_dir}/run.sh'])
     secho(f"Started the Kubernetes Job {job_name} in namespace {namespace}. Logs: {log_file}", err=True)
+    wait_until_started(kube, namespace, job, log_file)
     return {'kubernetes_job': job_name, 'namespace': namespace, **({'context': options.context} if options.context else {})}
 
   @classmethod

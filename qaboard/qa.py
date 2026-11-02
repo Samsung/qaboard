@@ -698,7 +698,7 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
     if runner == 'kubernetes':
       # so that the backend can stop the batch: it deletes its Jobs there
       from .runners.kubernetes import batch_target
-      command_data['kubernetes'] = batch_target({**config.get('runners', {}).get('kubernetes', {}), **runs_job_options})
+      command_data.update(batch_target({**config.get('runners', {}).get('kubernetes', {}), **runs_job_options}))
     job_url = getenvs(('BUILD_URL', 'CI_JOB_URL', 'CIRCLE_BUILD_URL', 'TRAVIS_BUILD_WEB_URL')) # jenkins, gitlabCI, circleCI, travisCI
     if job_url:
       command_data['job_url'] = job_url

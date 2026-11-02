@@ -584,6 +584,43 @@ class TestStop(KubernetesTestCase):
     KubernetesRunner.stop_jobs([], {'type': 'kubernetes', 'command_id': 'abcdefgh-1234'})
     self.assertEqual(self.kube.jobs, {})
 
+  def test_submit_detached_from_the_server(self):
+    """What the server sends: names already start with qa-, and its environment (with its secrets) stays out"""
+    from qaboard.runners.kubernetes import KubernetesRunner
+    with mock.patch.dict(os.environ, {'SERVER_SETTING': 'x', 'HOME': '/home/server'}):
+      result = KubernetesRunner.submit_detached('qa batch x', 'qa-abcdefgh-driver', self.root / 'log.txt', {
+        'type': 'kubernetes', 'command_id': 'abcdefgh-1234', 'namespace': 'algo', 'image': 'qa:1', 'forward_env': False, 'timeout': 0,
+        'run_as': {'uid': 1000, 'gid': 1000, 'groups': [2000]}, 'user': 'alice', 'project': 'algo/project', 'resources': {'cpu': '500m', 'memory': '2Gi'},
+        'mounts': [{'path': '/home', 'pvc': 'homes'}],
+      })
+    self.assertEqual(result, {'kubernetes_job': 'qa-abcdefgh-driver', 'namespace': 'algo'})
+    job = self.kube.jobs['qa-abcdefgh-driver']
+    self.assertEqual(job['metadata']['labels']['qaboard.io/project'], 'algo-project')
+    self.assertEqual(job['spec']['template']['spec']['securityContext']['supplementalGroups'], [2000])
+    env_sh = self.kube.configmaps['qa-abcdefgh-driver']['data']['env.sh']
+    self.assertNotIn('SERVER_SETTING', env_sh)
+    self.assertIn("HOME=/tmp", env_sh)
+
+  def test_submit_detached_that_cant_start(self):
+    from qaboard.runners.kubernetes import KubernetesRunner
+    log_file = self.root / 'log.txt'
+    def list_pods(namespace, label_selector=None):
+      return {'items': [{
+        'metadata': {'name': 'p', 'labels': {'batch.kubernetes.io/job-name': 'qa-abcdefgh-driver'}},
+        'status': {'phase': 'Pending', 'containerStatuses': [{'state': {'waiting': {'reason': 'CreateContainerConfigError', 'message': 'secret "qa" not found'}}}]},
+      }]}
+    self.kube.list_namespaced_pod = list_pods
+    with self.assertRaisesRegex(Exception, "(?s)can't start.*CreateContainerConfigError"):
+      KubernetesRunner.submit_detached('qa batch x', 'qa-abcdefgh-driver', log_file, {'command_id': 'abcdefgh-1234', 'image': 'qa:1'})
+    self.assertEqual(self.kube.jobs, {})
+    self.assertIn('secret "qa" not found', log_file.read_text())
+    # pending for a reason that can go away: we say so and return
+    self.kube.list_namespaced_pod = lambda namespace, label_selector=None: {'items': []}
+    self.kube.events = [{'type': 'Warning', 'reason': 'FailedCreate', 'message': 'forbidden: exceeded quota: q', 'involvedObject': {'kind': 'Job', 'name': 'qa-abcdefgh-driver'}}]
+    KubernetesRunner.submit_detached('qa batch x', 'qa-abcdefgh-driver', log_file, {'command_id': 'abcdefgh-1234', 'image': 'qa:1'})
+    self.assertIn('ResourceQuota', log_file.read_text())
+    self.assertIn('qa-abcdefgh-driver', self.kube.jobs)
+
 
 @unittest.skipUnless(has_kubernetes, "requires the kubernetes extra")
 class TestDoctor(KubernetesTestCase):

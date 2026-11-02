@@ -580,6 +580,19 @@ def _dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize):
     return {"lsf_job_id": parse_bsub_job_id(out.stdout), "queue": queue}
 
 
+def _dispatch_kubernetes(qa_batch_path, log_dir, user, ci_commit, do_optimize, command_id):
+    """
+    Run the batch script on Kubernetes, in a "driver" pod (a 1-pod Job named qa-<command_id[:8]>-driver) that runs as
+    the signed-in user, with the project's runners.kubernetes (image, mounts...) as far as the server allows it, see
+    backend/runner_jobs.py. Its `qa batch` starts the runs' Jobs with the pod's ServiceAccount
+    (QABOARD_KUBERNETES_SERVICE_ACCOUNT), and stopping the batch deletes them all: they have the batch's command id.
+    Returns {"kubernetes_job", "namespace"}. The pod writes its output in log_dir/log.txt, and so do we if it can't start.
+    `do_optimize`: the pod has no deadline either way, `qa optimize` runs as long as its experiment.
+    """
+    from ..runner_jobs import submit_driver
+    return submit_driver(qa_batch_path, log_dir, user, ci_commit, command_id)
+
+
 def find_commit(project_id, hexsha):
     return (CiCommit.query
             .filter(CiCommit.project_id == project_id, CiCommit.hexsha.startswith(hexsha))
@@ -892,7 +905,7 @@ def start_tuning(hexsha):
         # where the batches are defined: the command reads copies of the batch files
         "batch": data['selected_group'],
         "definitions": check["definitions"],
-        # local/celery: we wait for `qa batch` (it uses --no-wait), LSF: `qa batch` is an LSF job
+        # local/celery: we wait for `qa batch` (it uses --no-wait), LSF/kubernetes: `qa batch` is an LSF job/a pod
         "status": "submitting",
     }
     record_submission(batch, submission)
@@ -905,6 +918,9 @@ def start_tuning(hexsha):
     try:
         if runner == 'lsf':
             submission.update(_dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize))
+            submission["status"] = "submitted"
+        elif runner == 'kubernetes':
+            submission.update(_dispatch_kubernetes(qa_batch_path, log_dir, user, ci_commit, do_optimize, command_id))
             submission["status"] = "submitted"
         elif runner == 'celery':
             _dispatch_celery(qa_batch_path, log_dir)

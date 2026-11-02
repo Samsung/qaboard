@@ -175,3 +175,17 @@ app.kubernetes.io/component: {{ index . 1 }}
 - secretRef:
     name: {{ include "qaboard.secretName" . }}
 {{- end -}}
+
+{{/* The backend's ServiceAccount: backend.serviceAccount.name, else the one the chart creates. Empty: the namespace's default */}}
+{{- define "qaboard.backendServiceAccount" -}}
+{{- if .Values.backend.serviceAccount.name -}}
+{{ .Values.backend.serviceAccount.name }}
+{{- else if or .Values.backend.serviceAccount.create .Values.runners.kubernetes.enabled -}}
+{{ include "qaboard.fullname" . }}-backend
+{{- end -}}
+{{- end -}}
+
+{{/* How the pods the backend starts reach QA-Board: runners.kubernetes.serverUrl, else the proxy's Service */}}
+{{- define "qaboard.kubernetesServerUrl" -}}
+{{- .Values.runners.kubernetes.serverUrl | default (printf "http://%s-proxy.%s.svc" (include "qaboard.fullname" .) .Release.Namespace) -}}
+{{- end -}}

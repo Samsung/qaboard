@@ -5,6 +5,9 @@ We start a single `qa batch --runs-file` for all the runs we redo, so that the r
 to them together, e.g. how many runs are in flight (concurrency). Like other batches started from QA-Board,
 its script, the list of runs and the logs are saved in the batch directory, and users see them with the batch's logs.
 
+With QABOARD_TUNING_RUNNER=kubernetes, `qa batch` runs in a pod, like batches started from the web app
+(runner_jobs.submit_driver), and we don't wait for it. Otherwise we run it and wait, directly or via the LSF bridge.
+
 Note: almost everything used here comes from unauthenticated API calls (see shell_utils.py).
 """
 import os
@@ -42,9 +45,11 @@ _lsf_resources_re = re.compile(r'^[\w .,:;=<>\[\](){}|&!*+/#%@~-]*$')
 # The job options of the runs we redo. `qa batch` uses them to build shell commands (e.g. bsub),
 # so we keep only those needed to run like before, with safe values. Others come from the project's qaboard.yaml.
 SAFE_JOB_OPTIONS = {
-  "type": lambda value: value in ("lsf", "dask", "local", "celery"),
+  "type": lambda value: value in ("lsf", "dask", "local", "celery", "kubernetes"),
   "concurrency": _is_int,
   "timeout": _is_number,
+  # Kubernetes: the namespace, image... come from qaboard.yaml
+  "runs_per_pod": _is_int,
   # LSF
   "queue": _is_word,
   "project": _is_word,
@@ -112,7 +117,8 @@ def redo_script(ci_commit, user, command_id, batch_command) -> str:
 def redo_outputs(batch, outputs, user_info) -> dict:
   """
   Redo the `outputs` from `batch`, as `user_info` (the logged-in user who asked, g.user).
-  Returns the submission (see submissions.py): its status is "done" if `qa batch` could start the runs, "failed" otherwise.
+  Returns the submission (see submissions.py): its status is "done" if `qa batch` could start the runs, "failed" otherwise,
+  "submitted" when `qa batch` was started in a pod (QABOARD_TUNING_RUNNER=kubernetes).
   Raises ValueError (e.g. UnsafePathError) if the user name or folders are not safe to use.
   """
   user = safe_user_name(user_info['user_name'])
@@ -147,8 +153,9 @@ def redo_outputs(batch, outputs, user_info) -> dict:
   script_path = log_dir / 'redo.sh'
   with script_path.open('w') as f:
     f.write(script)
+  on_kubernetes = os.environ.get('QABOARD_TUNING_RUNNER') == 'kubernetes'
   # raises if the user or path are not safe to use in the LSF bridge
-  command = lsf_bridge_command(user, script_path)
+  command = None if on_kubernetes else lsf_bridge_command(user, script_path)
 
   submission = {
     "id": command_id,
@@ -156,8 +163,8 @@ def redo_outputs(batch, outputs, user_info) -> dict:
     "user": user,
     "kind": "redo",
     "runs": len(outputs),
-    # we run `qa batch` and wait for it, directly or via the LSF bridge
-    "runner": "bridge" if os.environ.get('QA_RUNNERS_LSF_BRIDGE') else "local",
+    # we run `qa batch` and wait for it, directly or via the LSF bridge, or start it in a pod
+    "runner": "kubernetes" if on_kubernetes else "bridge" if os.environ.get('QA_RUNNERS_LSF_BRIDGE') else "local",
     "command": batch_command,
     "log_dir": str(log_dir),
     "status": "submitting",
@@ -169,11 +176,16 @@ def redo_outputs(batch, outputs, user_info) -> dict:
   db_session.add(batch)
   db_session.commit()
 
-  print(command)
   try:
-    with (log_dir / 'log.txt').open('a') as log:
-      process = subprocess.run(command, shell=True, stdout=log, stderr=subprocess.STDOUT)
-    submission.update({"status": "done" if process.returncode == 0 else "failed", "exit_code": process.returncode})
+    if on_kubernetes:
+      from .runner_jobs import submit_driver
+      submission.update(submit_driver(script_path, log_dir, user, ci_commit, command_id))
+      submission["status"] = "submitted"
+    else:
+      print(command)
+      with (log_dir / 'log.txt').open('a') as log:
+        process = subprocess.run(command, shell=True, stdout=log, stderr=subprocess.STDOUT)
+      submission.update({"status": "done" if process.returncode == 0 else "failed", "exit_code": process.returncode})
   except Exception as e:
     submission.update({"status": "failed", "error": str(e)})
   # `qa batch` updated the batch meanwhile
