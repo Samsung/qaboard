@@ -193,7 +193,8 @@ def main():
       run('kubectl', 'delete', 'jobs', '-l', 'app.kubernetes.io/managed-by=qaboard', '--wait=true', check=False)
 
     log("runs succeed, 2 per pod, as the user")
-    returncode = qa_batch('ok', '--', 'cp {input_path} {output_dir}/out.txt && id -u > {output_dir}/uid.txt && echo from-the-run')
+    reused_command_id = str(uuid.uuid4())
+    returncode = qa_batch('ok', '--', 'cp {input_path} {output_dir}/out.txt && id -u > {output_dir}/uid.txt && echo from-the-run', command_id=reused_command_id)
     check(returncode == 0, "qa batch succeeds")
     for name in ('a', 'b', 'c'):
       out = output_dir(name)
@@ -206,6 +207,10 @@ def main():
     configmaps = kubectl_json('get', 'configmaps', '-l', 'app.kubernetes.io/managed-by=qaboard')['items']
     check(len(configmaps) == 1 and configmaps[0]['metadata']['ownerReferences'][0]['kind'] == 'Job', "the scripts' ConfigMap is owned by the Job")
     check(len(configmaps) == 1 and configmaps[0].get('immutable') is True, "and immutable")
+    # `qa optimize` runs batches with the same command id, while the previous Jobs are kept (TTL)
+    returncode = qa_batch('ok', '--', 'true', command_id=reused_command_id)
+    check(returncode == 0, "a batch with the same command id succeeds too")
+    check(len(kubectl_json('get', 'jobs', '-l', f'qaboard.io/command-id={reused_command_id}')['items']) == 2, "with its own Job")
     delete_jobs()
 
     log("a failed run fails the batch, the other run of its pod still runs")
@@ -249,7 +254,7 @@ def main():
     out = run(*python, '-c', submit, check=False, stdout=subprocess.PIPE, encoding='utf-8', cwd=project)
     print(out.stdout)
     info = json.loads(out.stdout.strip().splitlines()[-1]) if out.returncode == 0 else {}
-    check(info.get('kubernetes_job') == 'qa-abcdefgh-e2e-driver', "it returns the Job")
+    check(info.get('kubernetes_job', '').startswith('qa-abcdefgh-e2e-driver-'), "it returns the Job")
     for _ in range(90):
       if detached_log.is_file() and 'detached' in detached_log.read_text():
         break

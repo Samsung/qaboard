@@ -6,7 +6,7 @@ import re
 import hashlib
 
 MAX_LABEL_VALUE = 63
-_valid = re.compile(r'^([A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?)?$')
+_valid = re.compile(r'([A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?)?')
 _invalid_chars = re.compile(r'[^-A-Za-z0-9_.]')
 
 
@@ -18,7 +18,7 @@ def label_value(value) -> str:
       label_value("algo/project") == "algo-project-<8 hex digits>"
   """
   value = '' if value is None else str(value)
-  if len(value) <= MAX_LABEL_VALUE and _valid.match(value):
+  if len(value) <= MAX_LABEL_VALUE and _valid.fullmatch(value):
     return value
   digest = hashlib.sha256(value.encode('utf-8')).hexdigest()[:8]
   cleaned = _invalid_chars.sub('-', value)[:MAX_LABEL_VALUE - len(digest) - 1].strip('-_.')

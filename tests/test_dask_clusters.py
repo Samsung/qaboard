@@ -577,7 +577,7 @@ class TestKubernetesCluster(unittest.TestCase):
     self.assertEqual(worker['spec']['nodeSelector'], {"pool": "gpu"})
     self.assertEqual(worker['spec']['tolerations'], [{"key": "nvidia.com/gpu", "operator": "Exists"}])
     for pod in (worker['spec'], scheduler):
-      self.assertEqual(pod['securityContext'], {"runAsUser": 1000, "runAsGroup": 100})
+      self.assertEqual(pod['securityContext'], {"runAsUser": 1000, "runAsNonRoot": True, "runAsGroup": 100})
       self.assertEqual(pod['imagePullSecrets'], [{"name": "creds"}])
     # the scheduler doesn't need the workers' GPUs, nodes or files
     self.assertEqual(scheduler['containers'][0]['args'][:2], ['dask', 'scheduler'])
@@ -587,11 +587,21 @@ class TestKubernetesCluster(unittest.TestCase):
 
   def test_run_as(self):
     from qaboard.runners.dask_runner import kubernetes_cluster_spec, DaskOptions
-    spec, *_ = kubernetes_cluster_spec(self.options(), "abcdefgh-1234", nb_runs=1)
-    self.assertEqual(spec['spec']['worker']['spec']['securityContext']['runAsUser'], os.getuid())
-    self.assertEqual(spec['spec']['worker']['spec']['securityContext']['runAsGroup'], os.getgid())
+    # like the kubernetes runner's pods (the same code): our UID/GID, never root
+    with mock.patch('qaboard.runners.kubernetes.os.getuid', return_value=1234), mock.patch('qaboard.runners.kubernetes.os.getgid', return_value=500), \
+         mock.patch('qaboard.runners.dask_runner.current_user', return_value='someone'):
+      spec, *_ = kubernetes_cluster_spec(self.options(), "abcdefgh-1234", nb_runs=1)
+    self.assertEqual(spec['spec']['worker']['spec']['securityContext']['runAsUser'], 1234)
+    self.assertEqual(spec['spec']['worker']['spec']['securityContext']['runAsGroup'], 500)
+    with mock.patch('qaboard.runners.kubernetes.os.getuid', return_value=0):
+      with self.assertRaisesRegex(Exception, 'never start pods as root'):
+        kubernetes_cluster_spec(self.options(), "abcdefgh-1234", nb_runs=1)
     spec, *_ = kubernetes_cluster_spec(self.options(run_as='image'), "abcdefgh-1234", nb_runs=1)
     self.assertNotIn('securityContext', spec['spec']['worker']['spec'])
+    spec, *_ = kubernetes_cluster_spec(self.options(run_as='image', run_as_non_root=True, service_account='runs', priority_class='low'), "abcdefgh-1234", nb_runs=1)
+    for pod in (spec['spec']['worker']['spec'], spec['spec']['scheduler']['spec']):
+      self.assertEqual(pod['securityContext'], {'runAsNonRoot': True})
+      self.assertEqual((pod['serviceAccountName'], pod['priorityClassName']), ('runs', 'low'))
     with self.assertRaisesRegex(ValueError, 'image'):
       kubernetes_cluster_spec(DaskOptions(cluster={"type": "kubernetes"}), "abcdefgh-1234", nb_runs=1)
 
@@ -599,7 +609,7 @@ class TestKubernetesCluster(unittest.TestCase):
     from qaboard.runners.dask_runner import make_cluster
     with mock.patch('dask_kubernetes.operator.KubeCluster') as KubeCluster, mock.patch('qaboard.runners.dask_runner.secho'), \
          mock.patch('qaboard.runners.dask_runner.check_kubernetes_context') as check_context:
-      make_cluster(self.options(context="prod"), "abcdefgh-1234", nb_runs=10, log_directory=Path())
+      make_cluster(self.options(context="prod", run_as={"uid": 1000}), "abcdefgh-1234", nb_runs=10, log_directory=Path())
     check_context.assert_called_once_with("prod")
     kwargs = KubeCluster.call_args[1]
     self.assertEqual(kwargs['namespace'], 'algo')
@@ -623,8 +633,9 @@ class TestKubernetesCluster(unittest.TestCase):
       self.assertEqual(kubernetes_namespace("given", None), "given")
       self.assertEqual(kubernetes_namespace(None, None), "algo-dev")
       self.assertEqual(kubernetes_namespace(None, "prod"), "default")
-    config = {"runners": {"kubernetes": {"namespace": "algo", "image": "qa:1", "queue": "q", "job_template": "x.yaml"}}}
-    self.assertEqual(kubernetes_defaults(config), {"namespace": "algo", "image": "qa:1"})
+    config = {"runners": {"kubernetes": {"namespace": "algo", "image": "qa:1", "queue": "q", "job_template": "x.yaml", "service_account": "runs", "run_as_non_root": True, "priority_class": "low"}}}
+    # Kueue's queue doesn't apply to the operator's pods, nor a Job template
+    self.assertEqual(kubernetes_defaults(config), {"namespace": "algo", "image": "qa:1", "service_account": "runs", "run_as_non_root": True, "priority_class": "low"})
 
   def test_context(self):
     from qaboard.runners.dask_runner import check_kubernetes_context

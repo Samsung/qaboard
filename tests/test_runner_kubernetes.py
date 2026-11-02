@@ -67,11 +67,24 @@ class FakeKube():
     from qaboard.runners.kubernetes import ApiError
     return ApiError(404, f'"{name}" not found')
 
+  def already_exists(self, name):
+    from qaboard.runners.kubernetes import ApiError
+    return ApiError(409, f'"{name}" already exists')
+
   def create_namespaced_config_map(self, namespace, body):
+    if body['metadata']['name'] in self.configmaps:
+      raise self.already_exists(body['metadata']['name'])
     self.configmaps[body['metadata']['name']] = deepcopy(body)
     return body
 
+  def read_namespaced_config_map(self, name, namespace):
+    if name not in self.configmaps:
+      raise self.not_found(name)
+    return self.configmaps[name]
+
   def create_namespaced_job(self, namespace, body):
+    if body['metadata']['name'] in self.jobs:
+      raise self.already_exists(body['metadata']['name'])
     job = {**deepcopy(body), 'status': {}}
     job['metadata']['uid'] = f"uid-{body['metadata']['name']}"
     self.jobs[body['metadata']['name']] = job
@@ -85,6 +98,8 @@ class FakeKube():
   def read_namespaced_job(self, name, namespace):
     if self.on_list:
       self.on_list(self)
+    if name not in self.jobs:
+      raise self.not_found(name)
     return self.jobs[name]
 
   def list_namespaced_pod(self, namespace, label_selector=None):
@@ -156,6 +171,7 @@ class KubernetesTestCase(unittest.TestCase):
       mock.patch('qaboard.runners.kubernetes.os.getgroups', return_value=[500, 0, 600]),
       mock.patch('qaboard.runners.kubernetes.secho'),
       mock.patch('qaboard.runners.kubernetes.time.sleep'),
+      mock.patch('qaboard.runners.kubernetes.unique_suffix', return_value='r4nd'),
     ]
     for p in patches:
       p.start()
@@ -176,8 +192,8 @@ class KubernetesTestCase(unittest.TestCase):
 class TestSpec(KubernetesTestCase):
   def test_indexed_job(self):
     self.start(['qa run a', 'qa run b', 'qa run c'], concurrency=2, user='Alice Smith', project='algo/project', queue='gpu')
-    self.assertEqual(list(self.kube.jobs), ['qa-abcdefgh-0-0'])
-    job = self.kube.jobs['qa-abcdefgh-0-0']
+    self.assertEqual(list(self.kube.jobs), ['qa-abcdefgh-r4nd-0-0'])
+    job = self.kube.jobs['qa-abcdefgh-r4nd-0-0']
     spec = job['spec']
     self.assertEqual(job['metadata']['namespace'], 'team')
     self.assertEqual((spec['completionMode'], spec['completions'], spec['parallelism']), ('Indexed', 3, 2))
@@ -199,11 +215,11 @@ class TestSpec(KubernetesTestCase):
     container = pod['containers'][0]
     self.assertEqual(container['image'], 'qa:1')
     self.assertEqual(container['command'], ['sh', '-c', 'exec sh /etc/qaboard/run-$JOB_COMPLETION_INDEX.sh'])
-    self.assertIn({'name': 'qaboard-scripts', 'configMap': {'name': 'qa-abcdefgh-0-0'}}, pod['volumes'])
+    self.assertIn({'name': 'qaboard-scripts', 'configMap': {'name': 'qa-abcdefgh-r4nd-0-0'}}, pod['volumes'])
     # The ConfigMap has a script per pod, and is owned by the Job
-    configmap = self.kube.configmaps['qa-abcdefgh-0-0']
+    configmap = self.kube.configmaps['qa-abcdefgh-r4nd-0-0']
     self.assertEqual(sorted(configmap['data']), ['env.sh', 'run-0.sh', 'run-1.sh', 'run-2.sh'])
-    self.assertEqual(configmap['metadata']['ownerReferences'], [{'apiVersion': 'batch/v1', 'kind': 'Job', 'name': 'qa-abcdefgh-0-0', 'uid': 'uid-qa-abcdefgh-0-0'}])
+    self.assertEqual(configmap['metadata']['ownerReferences'], [{'apiVersion': 'batch/v1', 'kind': 'Job', 'name': 'qa-abcdefgh-r4nd-0-0', 'uid': 'uid-qa-abcdefgh-r4nd-0-0'}])
     self.assertEqual(configmap['metadata']['labels'], labels)
     self.assertTrue(configmap['immutable'])
     # owned from the start: no permission to patch ConfigMaps needed
@@ -233,7 +249,7 @@ class TestSpec(KubernetesTestCase):
 
   def test_no_concurrency_limit(self):
     self.start(['a', 'b', 'c'], concurrency=0, namespace='other')
-    job = self.kube.jobs['qa-abcdefgh-0-0']
+    job = self.kube.jobs['qa-abcdefgh-r4nd-0-0']
     self.assertEqual(job['spec']['parallelism'], 3)
     self.assertEqual(job['metadata']['namespace'], 'other')
 
@@ -243,7 +259,7 @@ class TestSpec(KubernetesTestCase):
     from kubernetes.client import ApiClient # type: ignore
     self.start(['a'], resources={'cpu': 2, 'memory': '4Gi'}, mounts=[{'path': '/algo', 'pvc': 'algo-nfs'}], tolerations=[{'key': 'k', 'operator': 'Exists'}],
                node_selector={'pool': 'gpu'}, image_pull_secrets=['creds'], priority_class='low', service_account='runs', timeout=60, queue='q')
-    body = deepcopy(self.kube.jobs['qa-abcdefgh-0-0'])
+    body = deepcopy(self.kube.jobs['qa-abcdefgh-r4nd-0-0'])
     body.pop('status')
     client = ApiClient()
     # deserialize()'s signature changed across versions, not this
@@ -327,8 +343,8 @@ class TestSpec(KubernetesTestCase):
     path = self.root / 'job.yaml'
     path.write_text(yaml.safe_dump(template))
     self.start(['a', 'b'], job_template=str(path), tolerations=[{'key': 'ours', 'operator': 'Exists'}], image='option-image', user='alice')
-    job = self.kube.jobs['qa-abcdefgh-0-0']
-    self.assertEqual(job['metadata']['name'], 'qa-abcdefgh-0-0')
+    job = self.kube.jobs['qa-abcdefgh-r4nd-0-0']
+    self.assertEqual(job['metadata']['name'], 'qa-abcdefgh-r4nd-0-0')
     self.assertEqual(job['metadata']['labels']['team'], 'algo')
     self.assertEqual(job['metadata']['labels']['qaboard.io/command-id'], 'abcdefgh-1234')
     self.assertEqual(job['metadata']['labels']['qaboard.io/user'], 'alice')
@@ -361,7 +377,7 @@ class TestSpec(KubernetesTestCase):
     with mock.patch('qaboard.runners.kubernetes.max_configmap_bytes', 3000):
       self.start([f'qa run --input {"x" * 300}{i}' for i in range(10)], concurrency=3, forward_env=False)
     self.assertGreater(len(self.kube.jobs), 1)
-    self.assertEqual(list(self.kube.jobs), [f'qa-abcdefgh-0-{i}' for i in range(len(self.kube.jobs))])
+    self.assertEqual(list(self.kube.jobs), [f'qa-abcdefgh-r4nd-0-{i}' for i in range(len(self.kube.jobs))])
     self.assertEqual(sum(j['spec']['completions'] for j in self.kube.jobs.values()), 10)
     for configmap in self.kube.configmaps.values():
       self.assertLess(sum(len(v) for v in configmap['data'].values()), 3000)
@@ -377,9 +393,131 @@ class TestSpec(KubernetesTestCase):
     jobs += make_jobs(['d', 'e'], self.root / 'serial', concurrency=1)
     group = JobGroup(jobs=jobs, job_options={"type": "kubernetes", "command_id": "abcdefgh-1234", "image": "qa:1"})
     KubernetesRunner.start_groups(group.groups(), blocking=False)
-    self.assertEqual({n: j['spec']['completions'] for n, j in self.kube.jobs.items()}, {'qa-abcdefgh-0-0': 2, 'qa-abcdefgh-0-1': 1, 'qa-abcdefgh-1-0': 2})
-    self.assertIn('resources', self.pod_spec('qa-abcdefgh-0-1')['containers'][0])
-    self.assertEqual(self.kube.jobs['qa-abcdefgh-1-0']['spec']['parallelism'], 1)
+    self.assertEqual({n: j['spec']['completions'] for n, j in self.kube.jobs.items()}, {'qa-abcdefgh-r4nd-0-0': 2, 'qa-abcdefgh-r4nd-0-1': 1, 'qa-abcdefgh-r4nd-1-0': 2})
+    self.assertIn('resources', self.pod_spec('qa-abcdefgh-r4nd-0-1')['containers'][0])
+    self.assertEqual(self.kube.jobs['qa-abcdefgh-r4nd-1-0']['spec']['parallelism'], 1)
+
+
+class TestRobustness(KubernetesTestCase):
+  def test_reused_command_id(self):
+    """`qa optimize` runs its batches with the same command id"""
+    with mock.patch('qaboard.runners.kubernetes.unique_suffix', side_effect=['a1b2', 'c3d4']):
+      self.start(['a'])
+      self.start(['a'])
+    self.assertEqual(sorted(self.kube.jobs), ['qa-abcdefgh-a1b2-0-0', 'qa-abcdefgh-c3d4-0-0'])
+
+  def test_retried_create(self):
+    """A create whose response was lost, then retried, gets 409: the object is ours"""
+    create_job, create_configmap = self.kube.create_namespaced_job, self.kube.create_namespaced_config_map
+    def twice(create):
+      def created_then_conflict(namespace, body):
+        create(namespace, body)
+        return create(namespace, body)
+      return created_then_conflict
+    self.kube.create_namespaced_job = twice(create_job)
+    self.kube.create_namespaced_config_map = twice(create_configmap)
+    self.start(['a'])
+    self.assertEqual(list(self.kube.jobs), ['qa-abcdefgh-r4nd-0-0'])
+    self.assertEqual(list(self.kube.configmaps), ['qa-abcdefgh-r4nd-0-0'])
+    # someone else's
+    self.kube.jobs['qa-abcdefgh-r4nd-0-0']['metadata']['labels']['qaboard.io/command-id'] = 'other'
+    self.kube.create_namespaced_job = create_job
+    with self.assertRaisesRegex(Exception, 'already exists'):
+      self.start(['a'])
+
+  def test_no_leaks_when_creation_fails(self):
+    """Jobs created before an error or Ctrl-C are deleted: their pods would wait forever"""
+    from qaboard.runners import JobGroup
+    from qaboard.runners.kubernetes import KubernetesRunner
+    create = self.kube.create_namespaced_job
+    for error in (KeyboardInterrupt(), Exception('boom')):
+      calls = []
+      def fails_second(namespace, body):
+        calls.append(body['metadata']['name'])
+        if len(calls) == 2:
+          raise error
+        return create(namespace, body)
+      self.kube.create_namespaced_job = fails_second
+      jobs = make_jobs(['a'], self.root) + make_jobs(['b'], self.root / 'serial', concurrency=1)
+      group = JobGroup(jobs=jobs, job_options={"type": "kubernetes", "command_id": "abcdefgh-1234", "image": "qa:1"})
+      with self.assertRaises(type(error)):
+        KubernetesRunner.start_groups(group.groups(), blocking=False)
+      self.assertEqual(self.kube.jobs, {})
+      self.assertEqual(self.kube.configmaps, {})
+    # submit_detached too
+    def interrupted(namespace, body):
+      create(namespace, body)
+      raise KeyboardInterrupt()
+    self.kube.create_namespaced_job = interrupted
+    with self.assertRaises(KeyboardInterrupt):
+      KubernetesRunner.submit_detached('true', 'x', self.root / 'log.txt', {'command_id': 'abcdefgh-1234', 'image': 'qa:1'})
+    self.assertEqual(self.kube.jobs, {})
+
+  def test_old_clusters(self):
+    """Before Kubernetes 1.29, backoffLimitPerIndex is dropped: one failed run would fail all"""
+    create = self.kube.create_namespaced_job
+    def drops_it(namespace, body):
+      job = create(namespace, body)
+      del job['spec']['backoffLimitPerIndex']
+      return job
+    self.kube.create_namespaced_job = drops_it
+    with self.assertRaisesRegex(Exception, '1.29'):
+      self.start(['a'])
+    self.assertEqual(self.kube.jobs, {})
+
+  def test_invalid_command_id(self):
+    from qaboard.runners.kubernetes import KubernetesRunner
+    jobs = make_jobs(['a'], self.root)
+    with self.assertRaisesRegex(ValueError, 'Invalid command id'):
+      KubernetesRunner.start_jobs(jobs, {**jobs[0].run_context.job_options, 'command_id': 'a b'}, blocking=False)
+    self.assertEqual(self.kube.calls, [])
+
+  def test_huge_pod(self):
+    with mock.patch('qaboard.runners.kubernetes.max_configmap_bytes', 3000):
+      with self.assertRaisesRegex(Exception, 'runs_per_pod'):
+        self.start([f'qa run --input {"x" * 300}{i}' for i in range(20)], runs_per_pod=20, forward_env=False)
+    self.assertEqual(self.kube.jobs, {})
+
+  def test_namespace_per_run_is_per_batch(self):
+    from qaboard.runners.kubernetes import KubernetesRunner
+    jobs = make_jobs(['a'], self.root) + make_jobs(['b'], self.root / 'other', namespace='elsewhere')
+    with mock.patch('qaboard.runners.kubernetes.secho') as secho:
+      KubernetesRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
+    self.assertIn('per batch', ' '.join(str(c) for c in secho.call_args_list))
+    self.assertEqual({j['metadata']['namespace'] for j in self.kube.jobs.values()}, {'team'})
+
+  def test_symlinks(self):
+    """The pods see the mounts' paths, which qa may have resolved"""
+    from qaboard.runners.kubernetes import logical_path, job_to_run
+    real = self.root / 'nfs2' / 'algo'
+    (real / 'project' / 'sub').mkdir(parents=True)
+    (self.root / 'algo').symlink_to(real)
+    with mock.patch.dict(os.environ, {'PWD': str(self.root / 'algo' / 'project' / 'sub')}):
+      self.assertEqual(logical_path(real / 'project'), str(self.root / 'algo' / 'project'))
+      self.assertEqual(logical_path(real / 'project' / 'output' / 'a'), str(self.root / 'algo' / 'project' / 'output' / 'a'))
+      self.assertEqual(logical_path('/elsewhere'), '/elsewhere')
+      job = make_jobs(['a'], real / 'project' / 'output')[0]
+      with mock.patch('qaboard.runners.kubernetes.os.getcwd', return_value=str(real / 'project')):
+        run = job_to_run(job)
+      self.assertEqual(run['cwd'], str(self.root / 'algo' / 'project'))
+      self.assertEqual(run['output_dir'], str(self.root / 'algo' / 'project' / 'output' / 'output0'))
+    with mock.patch.dict(os.environ, {'PWD': str(real / 'project')}):
+      self.assertEqual(logical_path(real / 'project'), str(real / 'project'))
+
+  def test_cant_read_pods(self):
+    """Without permissions to read pods or events, we just don't explain why pods are pending"""
+    from qaboard.runners.kubernetes import ApiError
+    polls = []
+    def on_list(kube):
+      polls.append(1)
+      if len(polls) == 3:
+        finish(kube)
+    self.kube.on_list = on_list
+    def forbidden(*args, **kwargs):
+      raise ApiError(403, 'pods is forbidden')
+    self.kube.list_namespaced_pod = forbidden
+    self.start(['a'], blocking=True)
+    self.assertEqual(len(polls), 3)
 
 
 class TestScripts(KubernetesTestCase):
@@ -395,13 +533,13 @@ class TestScripts(KubernetesTestCase):
     self.cwd.mkdir(exist_ok=True)
     with mock.patch('qaboard.runners.kubernetes.os.getcwd', return_value=str(self.cwd)):
       self.start(commands, runs_per_pod=runs_per_pod, env={'FROM_ENV': 'yes', 'PATH': f'{bin_dir}:/usr/bin:/bin'})
-    configmap = self.kube.configmaps['qa-abcdefgh-0-0']
+    configmap = self.kube.configmaps['qa-abcdefgh-r4nd-0-0']
     scripts_dir = self.root / 'etc-qaboard'
     scripts_dir.mkdir()
     for name, content in configmap['data'].items():
       (scripts_dir / name).write_text(content)
     results = []
-    for index in range(self.kube.jobs['qa-abcdefgh-0-0']['spec']['completions']):
+    for index in range(self.kube.jobs['qa-abcdefgh-r4nd-0-0']['spec']['completions']):
       out = subprocess.run(['sh', '-c', f'exec sh {scripts_dir}/run-$JOB_COMPLETION_INDEX.sh'], env={'JOB_COMPLETION_INDEX': str(index), 'PATH': '/usr/bin:/bin'},
                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', cwd=str(self.root))
       results.append(out)
@@ -463,6 +601,32 @@ class TestEnv(unittest.TestCase):
     out = subprocess.run(['sh', '-c', f'{script}\necho "$A"'], stdout=subprocess.PIPE, encoding='utf-8')
     self.assertEqual(out.stdout, "it's\n")
 
+  def test_secrets(self):
+    from qaboard.runners.env import is_secret, forwarded_env
+    for name, value in (('OPENAI_API_KEY', 'x'), ('DB_PASS', 'x'), ('GITHUB_TOKEN', 'x'), ('MY_JWT', 'x'), ('SESSION_COOKIE', 'x'),
+                        ('SSH_PRIVATE_KEY_PATH', 'x'), ('DATABASE_URL', 'postgres://user:pw@db:5432/x'),
+                        ('CI_REPOSITORY_URL', 'https://gitlab-ci-token:xyz@gitlab.example.com/a/b.git')):
+      self.assertTrue(is_secret(name, value), name)
+    for name, value in (('QA_BATCH_ROOT_COMMAND_ID', 'x'), ('KEYBOARD_LAYOUT', 'us'), ('OMP_NUM_THREADS', '4'), ('CI_PROJECT_URL', 'https://gitlab.example.com/a/b')):
+      self.assertFalse(is_secret(name, value), name)
+    with mock.patch.dict(os.environ, {'DATABASE_URL': 'postgres://u:pw@db/x', 'OK': 'https://example.com'}, clear=True):
+      self.assertEqual(forwarded_env(), {'OK': 'https://example.com'})
+      self.assertEqual(forwarded_env(keep_secrets=True), {'DATABASE_URL': 'postgres://u:pw@db/x', 'OK': 'https://example.com'})
+
+  def test_pods_defaults_win(self):
+    """What pods need wins over qa's environment, `env` wins over both"""
+    from qaboard.runners.kubernetes import run_env, dict_to_KubernetesOptions
+    environ = {'MPLBACKEND': 'MacOSX', 'DISPLAY': ':0', 'PYTHONPATH': '/home/me/lib:/algo/lib', 'USER': 'me'}
+    with mock.patch.dict(os.environ, environ, clear=True):
+      env = run_env(dict_to_KubernetesOptions({'mounts': [{'path': '/algo', 'pvc': 'x'}]}))
+      self.assertEqual(env['MPLBACKEND'], 'agg')
+      self.assertNotIn('DISPLAY', env)
+      # our PYTHONPATH would break the image's python, unless the pods see it all
+      self.assertNotIn('PYTHONPATH', env)
+      env = run_env(dict_to_KubernetesOptions({'mounts': [{'path': '/algo', 'pvc': 'x'}, {'path': '/home', 'pvc': 'y'}], 'env': {'MPLBACKEND': 'pdf'}}))
+      self.assertEqual(env['PYTHONPATH'], '/home/me/lib:/algo/lib')
+      self.assertEqual(env['MPLBACKEND'], 'pdf')
+
   def test_names(self):
     from qaboard.runners.kubernetes import dns_name
     from qaboard.runners.labels import label_value
@@ -502,11 +666,11 @@ class TestBlocking(KubernetesTestCase):
       with self.assertRaises(SystemExit):
         KubernetesRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=True)
     self.assertEqual(self.kube.jobs, {})
-    self.assertIn(('job', 'qa-abcdefgh-0-0', 'Background'), self.kube.deleted)
+    self.assertIn(('job', 'qa-abcdefgh-r4nd-0-0', 'Background'), self.kube.deleted)
 
   def pending_pod(self, index, waiting=None, unschedulable=None):
     return {
-      'metadata': {'name': f'qa-abcdefgh-0-0-{index}-xyz', 'labels': {'batch.kubernetes.io/job-name': 'qa-abcdefgh-0-0', 'batch.kubernetes.io/job-completion-index': str(index)}},
+      'metadata': {'name': f'qa-abcdefgh-r4nd-0-0-{index}-xyz', 'uid': f'pod-{index}', 'labels': {'batch.kubernetes.io/job-name': 'qa-abcdefgh-r4nd-0-0', 'batch.kubernetes.io/job-completion-index': str(index)}},
       'status': {
         'phase': 'Pending',
         'conditions': [{'type': 'PodScheduled', 'status': 'False', 'reason': 'Unschedulable', 'message': unschedulable}] if unschedulable else [],
@@ -530,6 +694,21 @@ class TestBlocking(KubernetesTestCase):
     self.assertEqual(log.count('pending'), 1)
     self.assertFalse((self.root / 'output0' / 'log.k8s.txt').exists())
 
+  def test_job_wide_findings_only_in_runs_not_started(self):
+    def on_list(kube):
+      job = kube.jobs['qa-abcdefgh-r4nd-0-0']
+      job['status'] = {'completedIndexes': '0', 'active': 0}
+      kube.pods = []
+      kube.events = [{'type': 'Warning', 'reason': 'FailedCreate', 'count': 1, 'message': 'pods "x" is forbidden: exceeded quota: q',
+                      'involvedObject': {'kind': 'Job', 'name': job['metadata']['name'], 'uid': job['metadata']['uid']}}]
+      if len(kube.calls) > 10:
+        finish(kube)
+    self.kube.on_list = on_list
+    self.start(['a', 'b', 'c'], blocking=True)
+    self.assertFalse((self.root / 'output0' / 'log.k8s.txt').exists())
+    for index in (1, 2):
+      self.assertIn('ResourceQuota', (self.root / f'output{index}' / 'log.k8s.txt').read_text())
+
   def test_fails_fast_when_runs_cant_start(self):
     def on_list(kube):
       kube.pods = [self.pending_pod(0, waiting={'reason': 'InvalidImageName', 'message': 'couldn\'t parse image name "Qa:1"'})]
@@ -545,10 +724,24 @@ class TestDiagnostics(unittest.TestCase):
     from qaboard.runners.kubernetes import classify
     self.assertTrue(classify('InvalidImageName', '')[1])
     self.assertTrue(classify('CreateContainerConfigError', 'secret "x" not found')[1])
-    self.assertTrue(classify('FailedCreate', 'pods "qa-x" is forbidden: violates PodSecurity "restricted:latest": hostPath volumes')[1])
-    hint, fatal = classify('FailedCreate', 'pods "qa-x" is forbidden: exceeded quota: compute, requested: cpu=4, used: cpu=8, limited: cpu=8')
+    # refusals: once they repeat
+    refused = 'pods "qa-x" is forbidden: violates PodSecurity "restricted:latest": hostPath volumes'
+    self.assertFalse(classify('FailedCreate', refused)[1])
+    self.assertTrue(classify('FailedCreate', refused, count=3)[1])
+    self.assertTrue(classify('FailedCreate', 'admission webhook "policy.example.com" denied the request: runAsUser', count=5)[1])
+    # errors that pass
+    for message in ('Internal error occurred: failed calling webhook "kueue": context deadline exceeded',
+                    'pods "qa-x" is forbidden: Internal error occurred: please try again'):
+      self.assertFalse(classify('FailedCreate', message, count=10)[1], message)
+    self.assertFalse(classify('FailedMount', 'MountVolume.SetUp failed for volume "x": configmap "y" is forbidden: no relationship found between node "n" and this object', count=10)[1])
+    hint, fatal = classify('FailedCreate', 'pods "qa-x" is forbidden: exceeded quota: compute, requested: cpu=4, used: cpu=8, limited: cpu=8', count=10)
     self.assertFalse(fatal)
     self.assertIn('ResourceQuota', hint)
+    # a quota that no pod could ever fit in
+    hint, fatal = classify('FailedCreate', 'pods "qa-x" is forbidden: exceeded quota: compute, requested: limits.memory=16Gi,requests.cpu=500m, used: limits.memory=0,requests.cpu=0, limited: limits.memory=8Gi,requests.cpu=2')
+    self.assertTrue(fatal)
+    self.assertIn('limits.memory', hint)
+    self.assertNotIn('requests.cpu', hint)
     hint, fatal = classify('FailedScheduling', "0/2 nodes are available: 1 node(s) didn't match Pod's node affinity/selector, 1 node(s) had untolerated taint {gpu: true}.")
     self.assertFalse(fatal)
     self.assertIn('node_selector', hint)
@@ -558,10 +751,10 @@ class TestDiagnostics(unittest.TestCase):
 
   def test_image_pull_fails_after_a_while(self):
     from qaboard.runners.kubernetes import PendingDiagnostics
-    jobs = [{'metadata': {'name': 'j', 'labels': {}}}]
-    pods = [{'metadata': {'name': 'j-0-x', 'labels': {'job-name': 'j'}}, 'status': {'phase': 'Pending', 'containerStatuses': [{'state': {'waiting': {'reason': 'ImagePullBackOff', 'message': 'Back-off pulling image "qa:1"'}}}]}}]
+    jobs = [{'metadata': {'name': 'j', 'uid': 'job-uid', 'labels': {}}}]
+    pods = [{'metadata': {'name': 'j-0-x', 'uid': 'pod-uid', 'labels': {'job-name': 'j'}}, 'status': {'phase': 'Pending', 'containerStatuses': [{'state': {'waiting': {'reason': 'ImagePullBackOff', 'message': 'Back-off pulling image "qa:1"'}}}]}}]
     # As in a real event, with the "spec.containers{qa}: " prefix
-    events = [{'type': 'Warning', 'reason': 'Failed', 'message': 'spec.containers{qa}: Failed to pull image "qa:1": not found', 'involvedObject': {'kind': 'Pod', 'name': 'j-0-x'}}]
+    events = [{'type': 'Warning', 'reason': 'Failed', 'message': 'spec.containers{qa}: Failed to pull image "qa:1": not found', 'involvedObject': {'kind': 'Pod', 'name': 'j-0-x', 'uid': 'pod-uid'}}]
     diagnostics = PendingDiagnostics()
     findings = diagnostics.check(jobs, pods, events, now=1000)
     self.assertEqual(len(findings), 1)
@@ -573,13 +766,22 @@ class TestDiagnostics(unittest.TestCase):
     diagnostics.check(jobs, [], [], now=1400)
     self.assertFalse(any(f.fatal for f in diagnostics.check(jobs, pods, [], now=1500)))
 
+  def test_events_of_previous_objects(self):
+    """Events of a deleted Job or pod with the same name aren't about ours"""
+    from qaboard.runners.kubernetes import PendingDiagnostics
+    jobs = [{'metadata': {'name': 'j', 'uid': 'new', 'labels': {}}}]
+    events = [{'type': 'Warning', 'reason': 'FailedCreate', 'count': 10, 'message': 'admission webhook "x" denied the request', 'involvedObject': {'kind': 'Job', 'name': 'j', 'uid': 'old'}}]
+    self.assertEqual(PendingDiagnostics().check(jobs, [], events), [])
+    events[0]['involvedObject']['uid'] = 'new'
+    self.assertTrue(PendingDiagnostics().check(jobs, [], events)[0].fatal)
+
   def test_kueue_and_job_events(self):
     from qaboard.runners.kubernetes import PendingDiagnostics
-    jobs = [{'metadata': {'name': 'j', 'labels': {'kueue.x-k8s.io/queue-name': 'gpu'}}, 'spec': {'suspend': True}}]
+    jobs = [{'metadata': {'name': 'j', 'uid': 'job-uid', 'labels': {'kueue.x-k8s.io/queue-name': 'gpu'}}, 'spec': {'suspend': True}}]
     events = [
-      {'type': 'Warning', 'reason': 'FailedCreate', 'message': 'Error creating: pods "j-0" is forbidden: exceeded quota: q', 'involvedObject': {'kind': 'Job', 'name': 'j'}},
-      {'type': 'Normal', 'reason': 'Suspended', 'message': 'Job suspended', 'involvedObject': {'kind': 'Job', 'name': 'j'}},
-      {'type': 'Warning', 'reason': 'FailedCreate', 'message': 'not ours', 'involvedObject': {'kind': 'Job', 'name': 'other'}},
+      {'type': 'Warning', 'reason': 'FailedCreate', 'message': 'Error creating: pods "j-0" is forbidden: exceeded quota: q', 'involvedObject': {'kind': 'Job', 'name': 'j', 'uid': 'job-uid'}},
+      {'type': 'Normal', 'reason': 'Suspended', 'message': 'Job suspended', 'involvedObject': {'kind': 'Job', 'name': 'j', 'uid': 'job-uid'}},
+      {'type': 'Warning', 'reason': 'FailedCreate', 'message': 'not ours', 'involvedObject': {'kind': 'Job', 'name': 'other', 'uid': 'other-uid'}},
     ]
     findings = PendingDiagnostics().check(jobs, [], events)
     self.assertEqual(sorted(f.reason for f in findings), ['FailedCreate', 'Kueue'])
@@ -593,10 +795,12 @@ class TestStop(KubernetesTestCase):
     self.start(['a', 'b'])
     self.kube.create_namespaced_job('team', {'metadata': {'name': 'qa-other-0-0', 'labels': {'qaboard.io/command-id': 'other'}}})
     # what the server knows
-    KubernetesRunner.stop_jobs([], {'type': 'kubernetes', 'command_id': 'abcdefgh-1234'})
+    self.assertEqual(KubernetesRunner.stop_jobs([], {'type': 'kubernetes', 'command_id': 'abcdefgh-1234'}), 1)
     self.assertEqual(list(self.kube.jobs), ['qa-other-0-0'])
     self.assertEqual(self.kube.configmaps, {})
     self.assertEqual(self.kube.calls[-3:], ['list_namespaced_job', 'delete_namespaced_job', 'delete_namespaced_config_map'])
+    # nothing left: we say so
+    self.assertEqual(KubernetesRunner.stop_jobs([], {'type': 'kubernetes', 'command_id': 'abcdefgh-1234'}), 0)
 
   def test_stop_by_project_and_command_id(self):
     from qaboard.runners.kubernetes import KubernetesRunner
@@ -624,8 +828,8 @@ class TestStop(KubernetesTestCase):
     result = KubernetesRunner.submit_detached('echo "driver $X"', 'abcdefgh_dask_driver', log_file, {
       'command_id': 'abcdefgh-1234', 'image': 'qa:1', 'service_account': 'qaboard-batches', 'run_as': {'uid': 1000, 'gid': 1000}, 'env': {'X': 'ok'}, 'timeout': 10,
     })
-    self.assertEqual(result, {'kubernetes_job': 'qa-abcdefgh-dask-driver', 'namespace': 'team'})
-    job = self.kube.jobs['qa-abcdefgh-dask-driver']
+    self.assertEqual(result, {'kubernetes_job': 'qa-abcdefgh-dask-driver-r4nd', 'namespace': 'team'})
+    job = self.kube.jobs['qa-abcdefgh-dask-driver-r4nd']
     self.assertEqual(job['spec']['completions'], 1)
     self.assertEqual(job['spec']['backoffLimit'], 0)
     self.assertNotIn('completionMode', job['spec'])
@@ -635,7 +839,7 @@ class TestStop(KubernetesTestCase):
     self.assertEqual(pod['securityContext']['runAsUser'], 1000)
     self.assertNotIn('activeDeadlineSeconds', pod)
     self.assertEqual(pod['containers'][0]['command'], ['bash', '/etc/qaboard/run.sh'])
-    data = self.kube.configmaps['qa-abcdefgh-dask-driver']['data']
+    data = self.kube.configmaps['qa-abcdefgh-dask-driver-r4nd']['data']
     scripts = self.root / 'scripts'
     scripts.mkdir()
     for name, content in data.items():
@@ -655,11 +859,11 @@ class TestStop(KubernetesTestCase):
         'run_as': {'uid': 1000, 'gid': 1000, 'groups': [2000]}, 'user': 'alice', 'project': 'algo/project', 'resources': {'cpu': '500m', 'memory': '2Gi'},
         'mounts': [{'path': '/home', 'pvc': 'homes'}],
       })
-    self.assertEqual(result, {'kubernetes_job': 'qa-abcdefgh-driver', 'namespace': 'algo'})
-    job = self.kube.jobs['qa-abcdefgh-driver']
+    self.assertEqual(result, {'kubernetes_job': 'qa-abcdefgh-driver-r4nd', 'namespace': 'algo'})
+    job = self.kube.jobs['qa-abcdefgh-driver-r4nd']
     self.assertRegex(job['metadata']['labels']['qaboard.io/project'], r'^algo-project-[0-9a-f]{8}$')
     self.assertEqual(job['spec']['template']['spec']['securityContext']['supplementalGroups'], [2000])
-    env_sh = self.kube.configmaps['qa-abcdefgh-driver']['data']['env.sh']
+    env_sh = self.kube.configmaps['qa-abcdefgh-driver-r4nd']['data']['env.sh']
     self.assertNotIn('SERVER_SETTING', env_sh)
     self.assertIn("HOME=/tmp", env_sh)
 
@@ -668,7 +872,7 @@ class TestStop(KubernetesTestCase):
     log_file = self.root / 'log.txt'
     def list_pods(namespace, label_selector=None):
       return {'items': [{
-        'metadata': {'name': 'p', 'labels': {'batch.kubernetes.io/job-name': 'qa-abcdefgh-driver'}},
+        'metadata': {'name': 'p', 'labels': {'batch.kubernetes.io/job-name': 'qa-abcdefgh-driver-r4nd'}},
         'status': {'phase': 'Pending', 'containerStatuses': [{'state': {'waiting': {'reason': 'CreateContainerConfigError', 'message': 'secret "qa" not found'}}}]},
       }]}
     self.kube.list_namespaced_pod = list_pods
@@ -678,10 +882,10 @@ class TestStop(KubernetesTestCase):
     self.assertIn('secret "qa" not found', log_file.read_text())
     # pending for a reason that can go away: we say so and return
     self.kube.list_namespaced_pod = lambda namespace, label_selector=None: {'items': []}
-    self.kube.events = [{'type': 'Warning', 'reason': 'FailedCreate', 'message': 'forbidden: exceeded quota: q', 'involvedObject': {'kind': 'Job', 'name': 'qa-abcdefgh-driver'}}]
+    self.kube.events = [{'type': 'Warning', 'reason': 'FailedCreate', 'message': 'forbidden: exceeded quota: q', 'involvedObject': {'kind': 'Job', 'name': 'qa-abcdefgh-driver-r4nd', 'uid': 'uid-qa-abcdefgh-driver-r4nd'}}]
     KubernetesRunner.submit_detached('qa batch x', 'qa-abcdefgh-driver', log_file, {'command_id': 'abcdefgh-1234', 'image': 'qa:1'})
     self.assertIn('ResourceQuota', log_file.read_text())
-    self.assertIn('qa-abcdefgh-driver', self.kube.jobs)
+    self.assertIn('qa-abcdefgh-driver-r4nd', self.kube.jobs)
 
 
 @unittest.skipUnless(has_kubernetes, "requires the kubernetes extra")
@@ -753,6 +957,13 @@ class TestDoctor(KubernetesTestCase):
     checks = {c.name: c for c in KubernetesRunner.doctor({'type': 'kubernetes'})}
     self.assertEqual(checks['Kubernetes: image'].status, ERROR)
     self.assertIn('image:', checks['Kubernetes: image'].fix)
+
+  def test_old_cluster(self):
+    self.kube.get_code = lambda: {'gitVersion': 'v1.28.9'}
+    checks = self.doctor()
+    self.assertEqual(checks['Kubernetes: API'].status, ERROR)
+    self.assertIn('1.29', checks['Kubernetes: API'].message)
+    self.assertNotIn('Kubernetes: permissions in namespace team', checks)
 
   def test_credential_plugin(self):
     checks = self.doctor(context='prod')
@@ -839,6 +1050,7 @@ class TestKube(unittest.TestCase):
     kube = Kube.__new__(Kube)
     import kubernetes as k
     kube.kubernetes = k
+    kube.retry_for = 0
     calls = []
     def connect():
       calls.append('connect')
@@ -855,6 +1067,41 @@ class TestKube(unittest.TestCase):
     with self.assertRaises(ApiError) as e:
       kube.call('batch', 'list_namespaced_job', 'ns')
     self.assertEqual(e.exception.status, 403)
+
+  def test_retries(self):
+    """A batch waits for hours: errors that pass don't stop it"""
+    import urllib3 # type: ignore
+    from kubernetes.client import ApiException # type: ignore
+    from qaboard.runners.kubernetes import Kube, ApiError
+    import kubernetes as k
+    kube = Kube.__new__(Kube)
+    kube.kubernetes = k
+    kube.retry_for = 300
+    kube.api_client = mock.Mock()
+    kube.api_client.sanitize_for_serialization.side_effect = lambda x: x
+    api = mock.Mock()
+    api.list_namespaced_job.side_effect = [
+      ApiException(status=503, reason='Unavailable'), ApiException(status=429, reason='Too Many Requests'),
+      ConnectionResetError('reset'), urllib3.exceptions.MaxRetryError(None, '/', 'refused'), {'items': ['ok']},
+    ]
+    kube.apis = {'batch': api}
+    clock = [0.0]
+    with mock.patch('qaboard.runners.kubernetes.time.sleep', side_effect=lambda s: clock.__setitem__(0, clock[0] + s)), \
+         mock.patch('qaboard.runners.kubernetes.time.monotonic', side_effect=lambda: clock[0]), mock.patch('qaboard.runners.kubernetes.secho'):
+      self.assertEqual(kube.call('batch', 'list_namespaced_job', 'ns'), {'items': ['ok']})
+      # until it's too long
+      api.list_namespaced_job.side_effect = ApiException(status=500, reason='Internal')
+      start = clock[0]
+      with self.assertRaises(ApiError) as e:
+        kube.call('batch', 'list_namespaced_job', 'ns')
+      self.assertEqual(e.exception.status, 500)
+      self.assertTrue(200 < clock[0] - start <= 300)
+      # other errors aren't retried
+      api.list_namespaced_job.side_effect = ApiException(status=404, reason='Not Found')
+      start = clock[0]
+      with self.assertRaises(ApiError):
+        kube.call('batch', 'list_namespaced_job', 'ns')
+      self.assertEqual(clock[0], start)
 
   def test_in_cluster(self):
     from qaboard.runners import kubernetes
