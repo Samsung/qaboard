@@ -25,8 +25,8 @@ config_has_error = False
 
 # Don't lots of verbose info if the users just wants the help, or start a new project
 ignore_config_errors = len(sys.argv)==1 or '--help' in sys.argv or 'init' in sys.argv
-# `qa auth` doesn't need a project: we don't even read qaboard.yaml, it may have errors
-is_auth_command = sys.argv[1:2] == ['auth']
+# `qa auth` and `qa runs` don't need a project: we don't even read qaboard.yaml, it may have errors
+is_auth_command = sys.argv[1:2] in (['auth'], ['runs'])
 ignore_config_errors = ignore_config_errors or is_auth_command
 # When the code is imported we care less about warnings...
 ignore_config_errors = ignore_config_errors or not sys.argv or not sys.argv[0].endswith('qa')

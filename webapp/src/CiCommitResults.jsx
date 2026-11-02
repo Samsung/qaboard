@@ -26,6 +26,7 @@ import { BatchesEditor } from "./components/tuning/BatchesEditor";
 import TuningExploration from "./components/tuning/TuningExploration";
 import { useViewerControls, controls_changes, controls_defaults, config_visualizations } from "./viewers/controls";
 import { ExportPlugin } from "./plugins/ExportPlugin";
+import { ScriptPlugin } from "./plugins/ScriptPlugin";
 import { humanFileSize, file_options as file_options_list, bit_accuracy_url_defaults } from "./viewers/bit_accuracy/utils";
 import { project_web_url } from "./utils";
 
@@ -277,6 +278,19 @@ const CiCommitResults = () => {
     .map(id => new_batch.outputs[id]?.data?.storage ?? 0)
     .reduce((running_total, storage) => running_total + storage, 0);
   const nb_runs = new_batch.filtered.outputs.length;
+  // the runs shown, from a script: the same selection as the export
+  const script_plugin = <ScriptPlugin
+    project={new_project}
+    commit_id={new_commit?.id ?? new_commit_id}
+    batch={selected_batch_new}
+    filter={filter_batch_new}
+    ref_project={ref_project}
+    ref_commit_id={ref_commit?.id ?? ref_commit_id}
+    batch_ref={selected_batch_ref}
+    filter_ref={filter_batch_ref}
+    nb_runs={nb_runs}
+  />;
+  const runs_actions = <>{export_plugin}{script_plugin}</>;
   // the commits' fixed headers
   const header_height = commit_header_height({ selected_views, references: comparison.references });
 
@@ -406,7 +420,7 @@ const CiCommitResults = () => {
              </ViewSection>}
 
             {views.includes('output-list') && <ViewSection>
-              <ViewTitle title="Visualizations" actions={visualizations.length > 0 && export_plugin}/>
+              <ViewTitle title="Visualizations" actions={visualizations.length > 0 ? runs_actions : script_plugin}/>
               {visualizations.length === 0
                 ? <NonIdealState
                     icon="heatmap"
@@ -418,7 +432,7 @@ const CiCommitResults = () => {
             </ViewSection>}
 
             {views.includes('bit-accuracy') && <ViewSection>
-                <ViewTitle title="Output Files" actions={export_plugin}>
+                <ViewTitle title="Output Files" actions={runs_actions}>
                   <p className={Classes.TEXT_MUTED}>Storage used by the {nb_runs} run{nb_runs === 1 ? '' : 's'} shown: {humanFileSize(storage, true)}</p>
                 </ViewTitle>
                 <OutputCardsList type='bit_accuracy' {...output_cards_props} onShowFileOptions={showFileOptions}/>

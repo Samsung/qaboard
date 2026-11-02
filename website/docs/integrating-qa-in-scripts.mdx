@@ -2,11 +2,69 @@
 id: apis
 sidebar_label: APIs
 title: Results in scripts
-description: Find runs' output directories with the qa CLI, and read commits, batches, runs and metrics with QA-Board's HTTP API.
+description: Work on the runs a web app page shows from Python with qaboard.runs(url) or qa runs, find runs' output directories with the qa CLI, and read commits, batches, runs and metrics with QA-Board's HTTP API.
 ---
 
-Scripts, notebooks and agents can use QA-Board's results: the `qa` CLI says where a batch's runs save their files,
-and the HTTP API gives the commits, batches, runs and metrics that the web app shows.
+Scripts, notebooks and agents can use QA-Board's results: `qaboard.runs(url)` gives the runs a web app page shows,
+the `qa` CLI says where a batch's runs save their files, and the HTTP API gives everything else.
+
+## Work on the runs you see in the web app {#runs-in-scripts}
+To post-process runs, e.g. to compute a metric on their images that the CI didn't, start from the web app: find the
+commit, pick the batch, filter the runs you want, and copy the page's address. `qaboard.runs()` reads the project,
+commit, batch and filter from it, and asks the server for those runs:
+
+```python
+# /// script
+# dependencies = ["qaboard", "numpy", "imageio"]
+# ///
+import imageio.v3 as iio
+import qaboard as qb
+
+url = "https://qaboard.example.com/kitefin/detector/commit/7622c337?batch=ci&filter=night%20-crash"
+for run in qb.runs(url):
+    image = iio.imread(run.dir / "output.png")
+    print(run.input, run.configurations, run.metrics["psnr"], image.mean())
+```
+
+In the **Visualizations** and **Output Files** views, **Script** shows this snippet with the page's address, ready to
+copy. The filter is applied like in the web app ([filter syntax](/docs/user-guide/finding-results#filter-syntax)),
+so the script works on exactly the runs you looked at. Each `Run` has:
+
+| Attribute | What it is |
+|---|---|
+| `input`, `database`, `input_path` | The input's path relative to its database, the database, and the full path. |
+| `configurations`, `params`, `parameters` | The configurations, the tuning parameters, and every parameter as the web app shows them. |
+| `metrics` | The metrics the run returned. |
+| `dir` | Where its files are, as a `Path`. |
+| `state`, `is_failed` | `pending`, `running` or `finished`; whether it failed. |
+| `id`, `commit`, `batch`, `project`, `url` | Where it is in QA-Board, and its link in the web app. |
+| `input_metadata`, `data`, `created_at`, `finished_at` | The input's metadata, what else the server knows (who ran it, where...), when. |
+
+You can also name the runs instead of giving a URL: `qb.runs(project="kitefin/detector", commit="main", batch="ci",
+filter="night")`. `commit` can be a branch or a tag; without it, you get the latest commit with results. Keyword
+arguments override what a URL says, and `reference=True` gives the runs of the reference bar (`?reference=`).
+
+From the shell, `qa runs <url>` prints the runs' folders, one per line, and `--json` everything above. It works
+outside a project, without a *qaboard.yaml*:
+
+```bash
+qa runs "https://qaboard.example.com/kitefin/detector/commit/7622c337?batch=ci&filter=night" | while read dir; do
+  python compute_sharpness.py "$dir"
+done
+```
+
+Reading needs the `qaboard` package (`pip install qaboard`) and, when the project isn't public, to be signed in:
+`qa auth login https://qaboard.example.com`, or a token in `QABOARD_TOKEN` (see [Authentication](#authentication)).
+When the server is behind a path prefix like `https://tools.example.com/qaboard/`, pass `server=` (`--server`): the
+address alone can't say where the project's name starts.
+
+:::note Writing to runs
+`run.log(...)` and `run.save_file(...)` are on the [roadmap](/docs/roadmap): QA-Board will merge the metrics you
+compute into the run and remember your script added them. Until then, compute new metrics with your project's
+`postprocess()`: `qa batch ci --action-on-existing postprocess` redoes it on existing results (see
+[Postprocessing](/docs/running-your-code#postprocess)). Runs' folders are shared: don't change or delete what the CI
+wrote.
+:::
 
 ## Find where runs save their outputs {#cli-api}
 `qa batch <batch> --list-output-dirs` prints the output directory of each run, one per line, without running

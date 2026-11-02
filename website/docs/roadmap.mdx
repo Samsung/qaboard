@@ -102,8 +102,10 @@ Today you wrap your code with `qa`: `qa run` for one input, `qa batch` for many 
 suites.
 
 <RoadmapItem status="next" title="A Python SDK">
-`qaboard.init()`, `run.log({...})`, `run.log_image()` and `run.finish()`, an API in the style of W&B's, from
-training loops, notebooks and pytest, without `qa run`. These runs show in the web app like any other.
+Reading is there: `qaboard.runs(url)` gives the runs a web app page shows, as `Run` objects
+([runs in scripts](/docs/apis#runs-in-scripts)). Next, writing: `run.log(...)` and `run.save_file(...)` to add
+metrics and files to existing runs, with QA-Board remembering which script added them; then `start_run(...)`, the
+same `Run` from training loops, notebooks and pytest, without `qa run`. These runs show in the web app like any other.
 </RoadmapItem>
 
 <RoadmapItem status="exploring" title="A wandb.log shim">
