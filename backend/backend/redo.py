@@ -44,8 +44,13 @@ _lsf_resources_re = re.compile(r'^[\w .,:;=<>\[\](){}|&!*+/#%@~-]*$')
 
 # The job options of the runs we redo. `qa batch` uses them to build shell commands (e.g. bsub),
 # so we keep only those needed to run like before, with safe values. Others come from the project's qaboard.yaml.
+def _is_runner(value) -> bool:
+  # Kubernetes runs only when the server starts `qa batch` there too: its pod's ServiceAccount, not the server's
+  # credentials, may create them. Otherwise they'd run as the server's user (run_as: user).
+  return value in ("lsf", "dask", "local", "celery") or (value == "kubernetes" and os.environ.get('QABOARD_TUNING_RUNNER') == 'kubernetes')
+
 SAFE_JOB_OPTIONS = {
-  "type": lambda value: value in ("lsf", "dask", "local", "celery", "kubernetes"),
+  "type": _is_runner,
   "concurrency": _is_int,
   "timeout": _is_number,
   # Kubernetes: the namespace, image... come from qaboard.yaml
@@ -179,7 +184,13 @@ def redo_outputs(batch, outputs, user_info) -> dict:
   try:
     if on_kubernetes:
       from .runner_jobs import submit_driver
-      submission.update(submit_driver(script_path, log_dir, user, ci_commit, command_id))
+      def record_driver(driver):
+        # before it's submitted: the batch can be stopped whatever happens next
+        submission.update(driver)
+        record_submission(batch, submission)
+        db_session.add(batch)
+        db_session.commit()
+      submission.update(submit_driver(script_path, log_dir, user_info, ci_commit, command_id, on_prepared=record_driver))
       submission["status"] = "submitted"
     else:
       print(command)

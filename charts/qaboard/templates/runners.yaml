@@ -25,7 +25,7 @@ automountServiceAccountToken: {{ .Values.runners.kubernetes.enabled }}
 {{- if not $backendServiceAccount }}
 {{- fail "runners.kubernetes.enabled needs a ServiceAccount for the backend: leave backend.serviceAccount.name empty to create one" }}
 {{- end }}
-{{- $runsServiceAccount := required "Set runners.kubernetes.serviceAccount, the ServiceAccount of the pods that start runs" .serviceAccount }}
+{{- $runsServiceAccount := include "qaboard.runsServiceAccount" $ }}
 {{- range $namespace := .namespaces }}
 ---
 # What the kubernetes runner needs (`qa doctor` checks it), for the backend and the pods that run `qa batch`
@@ -42,7 +42,7 @@ rules:
   # each Job's commands
   - apiGroups: [""]
     resources: [configmaps]
-    verbs: [create, get, patch, delete]
+    verbs: [create, get, delete]
   # why pods are pending, their logs
   - apiGroups: [""]
     resources: [pods, events]

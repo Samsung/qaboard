@@ -95,7 +95,7 @@ rules:
     verbs: ["create", "get", "list", "watch", "delete"]
   - apiGroups: [""]
     resources: ["configmaps"]
-    verbs: ["create", "get", "patch", "delete"]
+    verbs: ["create", "get", "delete"]
   - apiGroups: [""]
     resources: ["pods", "events"]
     verbs: ["get", "list", "watch"]
@@ -208,6 +208,14 @@ Without the annotations, the policy only refuses root. Check it with
 the Job controller creates: when it refuses them, `qa batch` reports the Job's `FailedCreate` event and stops.
 
 </details>
+
+### Batches started from the web app: one namespace per team {#namespace-trust}
+When QA-Board starts `qa batch` for you from the web app, it runs in a pod of the namespace, with a ServiceAccount
+shared by everyone who starts batches there: the `qa batch` of one user could create pods as another. **Everyone who
+can start batches from the web app in a namespace can act as anyone else in it.** Use one namespace per team, where
+people trust each other with their files. See
+[One namespace per team](/docs/backend-admin/runners#kubernetes-trust) for what QA-Board checks, and how admins can
+run all of a namespace's batches as a team account instead.
 
 ## Share the cluster: queues and quotas {#queues-and-quotas}
 The cluster's admins decide who gets what, with the cluster's own tools. QA-Board sets what they need on every Job and

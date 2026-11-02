@@ -26,6 +26,10 @@ def refresh_soon(batch_ids):
   refresh_soon(batch_ids)
 
 
+# Keys of batch.data that only the server writes: clients (POST /api/v1/batch, unauthenticated) can't send them in `data`
+SERVER_OWNED_BATCH_DATA = ('submitted_by', 'run_context', 'submissions', 'commands', 'best_iter')
+
+
 def find_batch(batch_id):
   """(the batch, None), or (None, a 404 response)"""
   try:
@@ -49,8 +53,9 @@ def update_batch():
   batch_data = data.get('data') or {}
   if not isinstance(batch_data, dict):
     return jsonify({"error": "`data` must be an object"}), 400
-  # only the server says who really sent results
-  batch_data = {k: v for k, v in batch_data.items() if k not in ('submitted_by', 'run_context')}
+  # Only the server writes these: who really sent results, the batches users started from QA-Board (Batch.stop deletes
+  # their Kubernetes jobs), and the commands (with `command`, below: they're merged, never replaced)
+  batch_data = {k: v for k, v in batch_data.items() if k not in SERVER_OWNED_BATCH_DATA}
   if error := invalid_project(data.get('project')):
     return error
   submitted_by, error = ingest_access(data.get('project'))
