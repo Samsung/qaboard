@@ -67,7 +67,9 @@ class LsfOptions():
   bridge: str = os.environ.get('QA_RUNNERS_LSF_BRIDGE', '')
   # as a format string, e.g.
   #   "ssh my-bridge-host {bsub_command}"
-  #   "sss my-bridge-host su {user} {bsub_command}"
+  #   "ssh account@my-bridge-host 'qaboard-as-user {user} {bsub_command}'"
+  # where qaboard-as-user is a site wrapper that runs the rest of its arguments as {user},
+  # see website/docs/lsf-cluster-integration.mdx (`su {user} {bsub_command}` does NOT work: su runs it as a script file)
     
 
 # We'll filter user-provided options, keeping only known ones
