@@ -23,11 +23,28 @@ from .site_config import site_config, site_qaboard_config, without_locations_fro
 # but first show all the errors that need to be fixed.
 config_has_error = False
 
+
+def invoked_command(argv: List[str]) -> Optional[str]:
+  """The `qa` command in argv, e.g. "batch" for `qa --share --label x batch my-batch`. None if there is none."""
+  # the options of the `qa` group that take a value
+  options_with_values = {'--platform', '-c', '--configuration', '--config', '-l', '--label', '--tuning', '--tuning-filepath', '--database', '--type'}
+  args = iter(argv[1:])
+  for arg in args:
+    if arg in options_with_values:
+      next(args, None)
+    elif not arg.startswith('-'):
+      return arg
+  return None
+
+
 # Don't lots of verbose info if the users just wants the help, or start a new project
 ignore_config_errors = len(sys.argv)==1 or '--help' in sys.argv or 'init' in sys.argv
 # `qa auth` doesn't need a project: we don't even read qaboard.yaml, it may have errors
 is_auth_command = sys.argv[1:2] == ['auth']
 ignore_config_errors = ignore_config_errors or is_auth_command
+# `qa doctor` says what's wrong in qaboard.yaml, the storage... with how to fix it: it starts even if they are wrong
+is_doctor_command = invoked_command(sys.argv) == 'doctor'
+ignore_config_errors = ignore_config_errors or is_doctor_command
 # When the code is imported we care less about warnings...
 ignore_config_errors = ignore_config_errors or not sys.argv or not sys.argv[0].endswith('qa')
 
@@ -59,7 +76,30 @@ def find_configs(path : Path) -> List[Tuple[Dict, Path]]:
 
 
 
-qatools_configsxpaths = find_configs(path=Path()) if not is_auth_command else []
+def unloadable_config(configsxpaths: List[Tuple[Dict, Path]]) -> Optional[str]:
+  """Why we can't load the project from these qaboard.yaml files (`qa doctor` reports it), None if we can."""
+  for qatools_config, path in configsxpaths:
+    if not isinstance(qatools_config, dict):
+      return f"{path} is not a mapping"
+    if 'include' in qatools_config and not (configsxpaths[0][1].parent / str(qatools_config['include'])).exists():
+      return f"{path} includes a missing file: {qatools_config['include']}"
+  root_project = configsxpaths[0][0].get('project')
+  if not isinstance(root_project, dict) or not isinstance(root_project.get('name'), str) or not isinstance(root_project.get('url'), str):
+    return f"{configsxpaths[0][1]} needs project.name and project.url"
+  return None
+
+# Why the project's qaboard.yaml could not be loaded, only for `qa doctor`: the other commands fail on it
+config_error: Optional[str] = None
+try:
+  qatools_configsxpaths = find_configs(path=Path()) if not is_auth_command else []
+except Exception as e: # e.g. invalid YAML
+  if not is_doctor_command:
+    raise
+  config_error, qatools_configsxpaths = str(e), []
+if is_doctor_command and qatools_configsxpaths:
+  config_error = unloadable_config(qatools_configsxpaths)
+  if config_error:
+    qatools_configsxpaths = []
 qatools_configs = [q[0] for q in qatools_configsxpaths]
 qatools_config_paths = [q[1] for q in qatools_configsxpaths]
 if not qatools_configsxpaths:
@@ -193,7 +233,10 @@ def storage_roots(config: Dict, project: Path, subproject: Path, user_name: Opti
       subproject_for_artifacts = Path()
     if not artifacts_root or not outputs_root:
       raise KeyError
-  except KeyError:
+  except (KeyError, ValueError) as e:
+    # e.g. a storage without a "linux" key. `qa doctor` reports it
+    if isinstance(e, ValueError) and not is_doctor_command:
+      raise
     artifacts_root = Path()
     outputs_root = Path()
     if not ignore_config_errors:
