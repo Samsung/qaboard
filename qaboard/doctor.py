@@ -729,6 +729,9 @@ def runner_job_options(runner: str, config: Dict[str, Any], project: Optional[Pa
       "project": lsf_config.get('project', default_project),
       **{k: v for k, v in lsf_config.items() if k in ('queue', 'project', 'resources', 'max_memory', 'options')},
     }
+    if isinstance(options.get('cluster'), dict) and options['cluster'].get('type') == 'kubernetes':
+      from .runners.dask_runner import kubernetes_defaults
+      options['kubernetes'] = kubernetes_defaults(config)
   else:
     options.setdefault('project', default_project)
   return options
