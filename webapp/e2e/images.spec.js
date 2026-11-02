@@ -228,7 +228,7 @@ test('compares images side by side, with a wipe, toggling, and as their differen
   await expect(page.getByRole('radio', { name: 'Side by side' })).toHaveAttribute('aria-checked', 'true');
 });
 
-test('pins a pixel on click: its values stay while the mouse moves, until it comes back to the images', async ({ page }) => {
+test('pins a pixel on click: its values stay while the mouse moves and modes change, until it leaves the viewer', async ({ page }) => {
   await setup(page);
   await expect(page.getByRole('button', { name: /^new 512×384/ })).toBeVisible();
   const box = await page.locator('.qiv-pane').first().boundingBox();
@@ -246,8 +246,16 @@ test('pins a pixel on click: its values stay while the mouse moves, until it com
   await page.mouse.move(line.x + 200, line.y + line.height / 2, { steps: 5 });
   await page.mouse.up();
   expect(await page.evaluate(() => String(window.getSelection()))).toContain(pinned);
-  // back on the images: it follows the pointer
+  // to the toolbar, to switch modes, and back on the images: still pinned
+  await page.getByRole('radio', { name: 'Wipe' }).click();
   await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.8, { steps: 5 });
+  await expect(page.locator('.qiv-pin-chip')).toBeVisible();
+  await expect(readout).toContainText(pinned);
+  await page.getByRole('radio', { name: 'Side by side' }).click();
+  // out of the viewer, and back on the images: it follows the pointer
+  const viewer = await page.locator('.qiv').first().boundingBox();
+  await page.mouse.move(viewer.x + viewer.width / 2, viewer.y + viewer.height + 40, { steps: 5 });
+  await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.8, { steps: 10 });
   await expect(page.locator('.qiv-pin-chip')).toHaveCount(0);
   await expect(readout).not.toContainText(pinned);
   // Esc
