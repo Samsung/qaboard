@@ -54,6 +54,16 @@ rules:
   - apiGroups: [kueue.x-k8s.io]
     resources: [localqueues]
     verbs: [get]
+  {{- if $.Values.runners.kubernetes.dask }}
+  # Dask clusters on Kubernetes (runners.dask.cluster.type: kubernetes), with the Dask operator
+  - apiGroups: [kubernetes.dask.org]
+    resources: [daskclusters, daskworkergroups, daskjobs, daskautoscalers]
+    verbs: [create, get, list, watch, patch, delete]
+  # the scheduler's Service
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [get, list, watch]
+  {{- end }}
   {{- with $.Values.runners.kubernetes.extraRules }}
   {{- toYaml . | nindent 2 }}
   {{- end }}

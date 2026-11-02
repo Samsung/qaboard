@@ -82,6 +82,11 @@ def allowed_namespace(namespace) -> str:
       "This QA-Board server can't start or stop runs on Kubernetes: its admins didn't set QABOARD_KUBERNETES_NAMESPACES, "
       "the namespaces where it may (comma-separated, with permissions for the server there: see runners.kubernetes in the helm chart)."
     )
+  if not namespace:
+    raise NotAllowed(
+      "QA-Board doesn't know in which Kubernetes namespace these runs are, so it can't start or stop them: "
+      f"set runners.kubernetes.namespace in qaboard.yaml (QA-Board may use: {', '.join(allowed)})."
+    )
   if not is_dns1123_label(namespace):
     raise NotAllowed(f"Invalid Kubernetes namespace: {namespace!r}")
   if namespace not in allowed:
@@ -154,7 +159,10 @@ def stop_job_options(command_id, command) -> Dict[str, Any]:
         raise ValueError(f"unknown Dask cluster type {cluster_type!r}")
       job_options['cluster_type'] = cluster_type
       if cluster_type == "kubernetes":
-        job_options.update(kubernetes_location(command))
+        # `qa batch` sends {"kubernetes": {"namespace", "context"}}, like the dask runner's job options
+        kubernetes = command.get('kubernetes')
+        job_options['kubernetes'] = kubernetes_location(kubernetes if isinstance(kubernetes, dict) else {})
+    # Other cluster types are stopped with their scheduler's command (scancel, qdel...): it must be installed on the server
   if runner == "kubernetes":
     job_options.update(kubernetes_location(command))
   return job_options

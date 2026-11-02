@@ -40,7 +40,8 @@ runners:
     enabled: true
     namespaces: [algo-qa, algo-gpu]
     allowHostPath: true
+    dask: true
     extraRules:
-      - apiGroups: [kubernetes.dask.org]
-        resources: [daskclusters]
-        verbs: [create, get, list, watch, patch, delete]
+      - apiGroups: [""]
+        resources: [persistentvolumeclaims]
+        verbs: [get]

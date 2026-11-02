@@ -125,15 +125,30 @@ def test_stop_options_of_kubernetes(fake_runners, monkeypatch):
 
 def test_stop_options_of_dask_clusters(fake_runners):
   assert runner_jobs.stop_job_options("abc", {"runner": "dask", "cluster_type": "slurm"})["cluster_type"] == "slurm"
-  assert runner_jobs.stop_job_options("abc", {"runner": "dask", "cluster_type": "kubernetes", "namespace": "algo-qa"}) == {
-    "type": "dask", "command_id": "abc", "bridge": "", "cluster_type": "kubernetes", "namespace": "algo-qa",
+  command = {"runner": "dask", "cluster_type": "kubernetes", "kubernetes": {"namespace": "algo-qa", "context": "laptop", "image": "evil"}}
+  assert runner_jobs.stop_job_options("abc", command) == {
+    "type": "dask", "command_id": "abc", "bridge": "", "cluster_type": "kubernetes", "kubernetes": {"namespace": "algo-qa"},
   }
-  with pytest.raises(NotAllowed):
-    runner_jobs.stop_job_options("abc", {"runner": "dask", "cluster_type": "kubernetes", "namespace": "kube-system"})
+  for kubernetes in ({"namespace": "kube-system"}, {"namespace": None}, {}, "algo-qa", None):
+    with pytest.raises(NotAllowed):
+      runner_jobs.stop_job_options("abc", {**command, "kubernetes": kubernetes})
   with pytest.raises(ValueError):
     runner_jobs.stop_job_options("abc", {"runner": "dask", "cluster_type": "evil"})
   # before qa sent it: LSF
   assert "cluster_type" not in runner_jobs.stop_job_options("abc", {"runner": "dask"})
+
+
+def test_the_dask_runner_stops_kubernetes_clusters_with_these_options(monkeypatch):
+  """The real DaskRunner.stop_jobs, with what the server forwards"""
+  import qaboard.runners.dask_runner as dask_runner
+  from qaboard.runners.job import JobGroup
+  monkeypatch.setenv("QABOARD_KUBERNETES_NAMESPACES", "algo-qa")
+  monkeypatch.setenv("QABOARD_KUBERNETES_CONTEXTS", "laptop")
+  calls = []
+  monkeypatch.setattr(dask_runner, "stop_kubernetes", lambda *args: calls.append(args))
+  command = {"runner": "dask", "cluster_type": "kubernetes", "kubernetes": {"namespace": "algo-qa", "context": "laptop"}}
+  JobGroup(job_options=runner_jobs.stop_job_options("0123456789", command)).stop()
+  assert calls == [("0123456789", "algo-qa", "laptop")]
 
 
 def test_stop_batch_jobs(fake_runners):

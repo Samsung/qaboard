@@ -253,14 +253,16 @@ runners:
     # Lets projects mount hostPath volumes (runners.kubernetes.mounts[].host_path) in the pods that run `qa batch`
     # (QABOARD_KUBERNETES_ALLOW_HOST_PATH). They need the namespace's "privileged" Pod Security level: avoid it.
     allowHostPath: false
-    # More rules for the Role, e.g. for Dask clusters on Kubernetes (runners.dask.cluster.type: kubernetes, with the Dask operator)
+    # Dask clusters on Kubernetes (runners.dask.cluster.type: kubernetes, needs the Dask operator in the cluster):
+    # the Role also allows daskclusters, daskworkergroups, daskjobs, daskautoscalers (create, get, list, watch, patch,
+    # delete) and services (get, list, watch). The backend deletes the DaskClusters of the batches users stop.
+    # Dask clusters on Slurm, PBS, SGE... are stopped with their command (scancel, qdel...): it must be in the backend's image.
+    dask: false
+    # More rules for the Role
     extraRules: []
-    #  - apiGroups: [kubernetes.dask.org]
-    #    resources: [daskclusters, daskworkergroups, daskautoscalers]
-    #    verbs: [create, get, list, watch, patch, delete]
     #  - apiGroups: [""]
-    #    resources: [services]
-    #    verbs: [get, list]
+    #    resources: [persistentvolumeclaims]
+    #    verbs: [get]
 
 # Only needed with QABOARD_TUNING_RUNNER=celery
 # Celery workers run the commands of the tasks they get: anyone who can connect to RabbitMQ can run commands on them.
