@@ -34,3 +34,13 @@ backup:
 results:
   enabled: true
   storageClass: nfs
+# Start and stop runs on Kubernetes, in two namespaces
+runners:
+  kubernetes:
+    enabled: true
+    namespaces: [algo-qa, algo-gpu]
+    allowHostPath: true
+    extraRules:
+      - apiGroups: [kubernetes.dask.org]
+        resources: [daskclusters]
+        verbs: [create, get, list, watch, patch, delete]

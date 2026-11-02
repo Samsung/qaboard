@@ -137,3 +137,14 @@ ingress:
 # Cantaloupe is hosted outside of QA-Board at SIRC
 cantaloupe:
   enabled: false
+
+# TODO(sirc): once we have namespaces for QA runs on the cluster, start the batches from the web app there instead of
+# LSF: remove QABOARD_TUNING_RUNNER from `config` above, then enable this. The pods run as the users' UIDs (from
+# QABOARD_ACCOUNTS_COMMAND, uncomment it above), so the namespaces need the same /algo, /stage... volumes: PVCs or NFS
+# (hostPath, like the backend's volumes, needs allowHostPath: true and a "privileged" namespace), and an image with
+# `qa` and the projects' dependencies (runners.kubernetes.image in their qaboard.yaml).
+# runners:
+#   kubernetes:
+#     enabled: true
+#     namespaces: [algo-qa]
+#     serverUrl: https://qa
