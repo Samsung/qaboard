@@ -30,7 +30,8 @@ export const itemsQuery = (group, filters, { sort = 'size', offset = 0 } = {}) =
   queryFn: async ({ signal }) => (await http.get('/api/v1/storage/items', {
     params: { group, ...whoseParams(filters), ...filterParams(filters), sort, offset, limit: items_page_size }, signal,
   })).data,
-  placeholderData: keepPreviousData,
+  // the previous page or filters while the next load, never another tab's: batches, commits and branches have other fields
+  placeholderData: (previous, previousQuery) => previousQuery?.queryKey[2] === group ? previous : undefined,
   staleTime: 30 * 1000,
 });
 
@@ -117,10 +118,12 @@ export const measureExport = async (queryClient, id) => {
   return data;
 };
 
-// What the latest storage scan found that QA-Board doesn't track, owned by the user: {scan, totals, entries}
-export const untrackedQuery = queryOptions({
-  queryKey: ['storage', 'untracked'],
-  queryFn: async ({ signal }) => (await http.get('/api/v1/storage/untracked', { signal })).data,
+// What the latest storage scan found that QA-Board doesn't track, owned by the user: {scan, totals, entries, user}.
+// Admins see everyone's (user: null) or someone's, like the runs.
+export const untrackedQuery = filters => queryOptions({
+  queryKey: ['storage', 'untracked', whoseParams(filters)],
+  queryFn: async ({ signal }) => (await http.get('/api/v1/storage/untracked', { params: whoseParams(filters), signal })).data,
+  placeholderData: keepPreviousData,
   staleTime: 60 * 1000,
 });
 

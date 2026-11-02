@@ -555,7 +555,7 @@ export const StorageUsage = ({ me, view, filters }) => {
       {group && <ItemsView group={group} filters={filters} setFilters={setFilters} selection={selection} setSelection={setSelection}/>}
       {selected_view.id === 'folders' && <FoldersView filters={filters} setFilters={setFilters} go={go} overview={overview} onDelete={setDeleting}/>}
       {selected_view.id === 'exports' && <ExportsView filters={filters} me={me}/>}
-      {selected_view.id === 'untracked' && <UntrackedView me={me}/>}
+      {selected_view.id === 'untracked' && <UntrackedView me={me} filters={filters}/>}
     </div>
 
     {group && (selection.all || selection.keys.size > 0) && <SelectionBar as="section" className={`${Classes.CARD} ${Classes.ELEVATION_3}`} aria-label="Selection">
