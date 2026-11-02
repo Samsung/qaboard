@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { Link, useLinkClickHandler, useRouter } from "./router";
-import { path_segment, project_url } from "./selection";
+import { path_segment, project_url, url_for_selection } from "./selection";
 import styled from "styled-components";
 
 import { colors, spacing, typography, borders, transitions, sidebar } from './design/tokens';
@@ -27,7 +27,7 @@ import { useHelpSheet, is_typing } from "./components/HelpSheet"
 import { PaletteButton } from "./palette/CommandPalette"
 import { LogsMenuItem, logs_hint_class } from "./AppSiderLogsItem"
 
-import { useCommitsList, useComparison, useProjects, useSiteConfig, useUser, updateSelected } from "./hooks"
+import { useCommitsList, useComparison, useProjects, useSiteConfig, useUser } from "./hooks"
 import { path_segments } from "./explore/tree"
 import { usePrefsStore } from "./stores/prefs"
 import { useIntegrationStatuses } from "./useIntegrationStatuses"
@@ -465,6 +465,15 @@ const MenuItemLink = ({ to, ...props }) => {
   return <MenuItem {...props} href={to} onClick={handleClick}/>
 }
 
+// A results view (Summary, Logs...): a link to the same page with that view, so ctrl/cmd+click opens it in a new tab
+const ViewMenuItem = ({ view, default_views, as: Item = MenuItem, ...props }) => {
+  const { location } = useRouter()
+  const { pathname, search } = url_for_selection({ selected_views: view }, location, { selected_views: default_views })
+  const to = search ? `${pathname}?${search}` : pathname
+  const handleClick = useLinkClickHandler(to)
+  return <Item {...props} href={to} onClick={handleClick}/>
+}
+
 // How much storage the project's runs use
 const StorageMenuItem = ({ user, project }) => {
   if (!user?.is_logged)
@@ -628,36 +637,35 @@ const results_integrations = ({ new_batch, commit, project_data }) =>
 const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, new_batch, ref_batch, selected_views, default_views, filter, ref_filter, ref_project, user, docs_root, ...integrationProps }) => {
   const has_optim = new_batch?.data?.optimization === true;
   const active = view => selected_views.includes(view);
-  const set = view => () => updateSelected({ selected_views: view }, { defaults: { selected_views: default_views } })
   return <>
     {/* Metrics Section */}
     <SectionHeader>Metrics</SectionHeader>
     <SiderHint name="Summary" content="The batch's metrics, aggregated over all its runs, compared with the reference.">
-      <MenuItem icon="dashboard" text="Summary" active={active('summary')} onClick={set('summary')}/>
+      <ViewMenuItem view='summary' default_views={default_views} icon="dashboard" text="Summary" active={active('summary')}/>
     </SiderHint>
     <SiderHint name="Metrics Table" content="The metrics of each run, colored by how they compare to their targets.">
-      <MenuItem icon="locate" text="Metrics Table" active={active('table-kpi')} onClick={set('table-kpi')} />
+      <ViewMenuItem view='table-kpi' default_views={default_views} icon="locate" text="Metrics Table" active={active('table-kpi')}/>
     </SiderHint>
     <SiderHint name="Metrics Diff" content="For each run, how the metrics changed versus the reference: find regressions.">
-      <MenuItem icon="heat-grid" text="Metrics Diff" active={active('table-compare')} onClick={set('table-compare')}/>
+      <ViewMenuItem view='table-compare' default_views={default_views} icon="heat-grid" text="Metrics Diff" active={active('table-compare')}/>
     </SiderHint>
 
     {/* Runs Section */}
     <SectionHeader>Runs</SectionHeader>
     <SiderHint name="Visualizations" content="Images, videos, plots, point clouds... of each run, side by side with the reference, as configured in qaboard.yaml.">
-      <MenuItem icon="media" text="Visualizations" active={active('output-list')} onClick={set('output-list')} />
+      <ViewMenuItem view='output-list' default_views={default_views} icon="media" text="Visualizations" active={active('output-list')}/>
     </SiderHint>
     <SiderHint name="Output Files" content="All the files each run created, and which differ from the reference (bit-accuracy).">
-      <MenuItem icon="folder-open" text="Output Files" active={active('bit-accuracy')} onClick={set('bit-accuracy')} />
+      <ViewMenuItem view='bit-accuracy' default_views={default_views} icon="folder-open" text="Output Files" active={active('bit-accuracy')}/>
     </SiderHint>
     <SiderHint name="Logs" content="The logs of each run, and of the batch's submission: why runs failed.">
-      <LogsMenuItem batch={new_batch} active={active('logs')} onClick={set('logs')} />
+      <ViewMenuItem as={LogsMenuItem} view='logs' default_views={default_views} batch={new_batch} active={active('logs')}/>
     </SiderHint>
 
     {/* Source Section */}
     <SectionHeader>Source</SectionHeader>
     <SiderHint name="Artifacts & Configs" content="The commit's build artifacts and qaboard.yaml configuration, diffed with the reference.">
-      <MenuItem icon="settings" text="Artifacts & Configs" active={active('parameters')} onClick={set('parameters')} />
+      <ViewMenuItem view='parameters' default_views={default_views} icon="settings" text="Artifacts & Configs" active={active('parameters')}/>
     </SiderHint>
     <CodeMenu project={project} project_data={project_data} commit={commit?.id ? commit : undefined} branch={commit?.branch}/>
     <IntegrationsMenus
@@ -679,13 +687,13 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
     {/* Tuning Section */}
     <SectionHeader>Tuning</SectionHeader>
     <SiderHint name="Available Tests" content="The batches of tests you can run: see and edit their definitions.">
-      <MenuItem icon="layout-group-by" active={active('groups')} text="Available Tests" onClick={set('groups')} />
+      <ViewMenuItem view='groups' default_views={default_views} icon="layout-group-by" active={active('groups')} text="Available Tests"/>
     </SiderHint>
     <SiderHint name="Run Tests / Tuning" content="Run this commit on more tests, or with other parameters, from the web app.">
-      <MenuItem icon="play" text="Run Tests / Tuning" active={active('tuning')} onClick={set('tuning')} />
+      <ViewMenuItem view='tuning' default_views={default_views} icon="play" text="Run Tests / Tuning" active={active('tuning')}/>
     </SiderHint>
     <SiderHint name="Tuning Analysis" content={has_optim ? "This batch is an automated tuning: see what it found, and what to do next." : "How the tuned parameters affect the metrics. Useful after tuning or automated tuning."}>
-      <MenuItem icon="predictive-analysis" intent={has_optim ? "primary" : undefined} active={active('optimization')} text="Tuning Analysis" onClick={set('optimization')}/>
+      <ViewMenuItem view='optimization' default_views={default_views} icon="predictive-analysis" intent={has_optim ? "primary" : undefined} active={active('optimization')} text="Tuning Analysis"/>
     </SiderHint>
 
     <SectionHeader>Milestones</SectionHeader>

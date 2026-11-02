@@ -61,6 +61,19 @@ test('ctrl+click still lets the browser open a new tab', async () => {
 });
 
 
+test("on a commit, the results views are links: a click switches view in the app, ctrl+click opens a new tab", async () => {
+  renderSider('/kitefin/camera-isp/commit/0123456789abcdef?batch=nightly');
+  const logs = await screen.findByRole('menuitem', { name: /Logs/ });
+  expect(logs).toHaveAttribute('href', '/kitefin/camera-isp/commit/0123456789abcdef?batch=nightly&selected_views=logs');
+  expect(fireEvent.click(logs, { ctrlKey: true })).toBe(true);
+  expect(window.location.search).toBe('?batch=nightly');
+  expect(fireEvent.click(logs)).toBe(false);
+  expect(window.location.search).toBe('?batch=nightly&selected_views=logs');
+  await vi.waitFor(() => expect(screen.getByRole('menuitem', { name: /Logs/ })).toHaveClass('bp6-active'));
+  // the default view drops from the URL
+  expect(screen.getByRole('menuitem', { name: /Summary/ })).toHaveAttribute('href', '/kitefin/camera-isp/commit/0123456789abcdef?batch=nightly');
+});
+
 describe('the Code menu', () => {
   const project_data = { data: { git: { web_url: 'https://github.com/kitefin/monorepo', path_with_namespace: 'kitefin/monorepo' } } };
   const commit = { id: '0123456789abcdef', branch: 'feature/x' };
