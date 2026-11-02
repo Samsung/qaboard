@@ -144,9 +144,10 @@ Keep results in S3, R2, GCS or MinIO instead of a file share. The upload protoco
 the image server, can read from S3.
 </RoadmapItem>
 
-<RoadmapItem status="exploring" title="A Kubernetes Job runner">
-Run each run of a `qa batch` as a Kubernetes Job, next to the existing runners: local, LSF, Celery, Dask and
-Jenkins.
+<RoadmapItem status="shipped" title="A Kubernetes Job runner">
+Run each run of a `qa batch` in a pod of a Kubernetes Job, or several short runs per pod, as your own user, within
+your cluster's queues and quotas. Start batches on the cluster from the web app. See
+[Run batches on Kubernetes](/docs/kubernetes-runner).
 </RoadmapItem>
 
 ## Enterprise

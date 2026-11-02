@@ -184,6 +184,12 @@ helm -n qaboard rollback qaboard   # to the previous revision
 - Read the [release notes](/release-notes) before upgrading, "Before you upgrade" first: settings to check and data to
   move before the migrations run.
 
+### Start batches from the web app
+To let users start, redo and stop batches on the cluster, as themselves, set `QABOARD_TUNING_RUNNER=kubernetes` in
+`config`, and bind the backend's ServiceAccount to the runner's Role in the namespaces where runs execute: see
+[Run batches from the web app](/docs/backend-admin/runners#kubernetes). Without it, the backend runs `qa batch` in
+its own pod.
+
 ### Differences with docker compose
 - **Old frontend bundles are not kept**: with compose, the bundles of previous versions stay in a volume, so clients that didn't reload keep working. On Kubernetes each proxy pod only has the current bundle, so a client with an old tab gets errors when it lazy-loads a page, until it reloads.
 - **The backend runs as root**: it can use `sudo` to delete outputs as their owner, and uwsgi drops privileges (`UWSGI_UID`). Namespaces with the *restricted* Pod Security Standard won't accept it: use *baseline*.

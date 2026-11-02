@@ -1,0 +1,348 @@
+---
+id: kubernetes-runner
+title: Run batches on Kubernetes
+sidebar_label: Kubernetes
+description: Run each run of qa batch as a pod of a Kubernetes Job, with your shared storage mounted, as your own user, within your cluster's queues and quotas.
+---
+
+With the `kubernetes` runner, `qa batch` runs each run in a pod of a Kubernetes Job, in your namespace, and waits for
+them. When pods stay pending, it tells you why: no node with a free GPU, a quota, an image it can't pull. For short
+runs, or when getting a GPU node is the slow part, each pod can do several runs.
+
+:::info What you need
+- **Kubernetes 1.29 or later**, and a namespace where you can create Jobs. `qa` uses your kubeconfig, like `kubectl`.
+- **An image with `qa` and your code's dependencies.** Your code itself comes from the shared storage.
+- **Your shared storage in the pods, at the same paths** as on the machine where you run `qa batch`: the folder where
+  you start it, your inputs, and the results storage.
+- On the machine where you run `qa batch`: `pip install "qaboard[kubernetes]"`.
+:::
+
+## Send your batches to Kubernetes {#setup}
+1. **Install the client**, in the environment where you run `qa`:
+
+   ```bash
+   pip install "qaboard[kubernetes]"
+   ```
+
+2. **Configure the runner**, in *qaboard.yaml*:
+
+   ```yaml title="qaboard.yaml"
+   runners:
+     default: kubernetes
+     kubernetes:
+       namespace: <your-namespace>
+       image: <your-image>
+       resources: {cpu: 4, memory: 16Gi}
+       concurrency: 50          # pods at the same time
+       mounts:                  # the shared storage, at the same paths in the pods
+         - path: /mnt/qaboard
+           pvc: <your-claim>
+   ```
+
+   `<your-namespace>` is your namespace, `<your-image>` an image with `qa` and your code's dependencies, and
+   `<your-claim>` the PersistentVolumeClaim of your shared storage in that namespace.
+
+3. **Check it**, with a test pod:
+
+   ```bash
+   qa doctor --runner kubernetes --test-job
+   ```
+
+   It checks your kubeconfig, your permissions in the namespace, the image pull secrets and the claims, then starts a
+   pod that checks the mounts and `qa` as the user your runs will use. See [qa doctor](/docs/doctor).
+
+4. **Run a batch**: `qa --share batch ci`. Each run is a pod; `qa batch` prints their progress, and why pods wait.
+
+Or keep another default runner, and choose Kubernetes for one command: `qa batch --runner kubernetes ci`.
+
+## Mount the shared storage {#mounts}
+Each item of `mounts` mounts a volume at `path`, the same path as on the machine where you run `qa batch`. The kind of
+volume decides which [Pod Security level](https://kubernetes.io/docs/concepts/security/pod-security-standards/) your
+namespace needs:
+
+| Volume | Example | Pod Security level |
+|---|---|---|
+| A PersistentVolumeClaim | `pvc: algo-nfs` | `restricted`: works everywhere |
+| An NFS share | `nfs: {server: nas.kitefin.example, path: /export/home}` | `baseline` |
+| A folder of the node | `host_path: /data` | `privileged`, or an exemption: avoid it |
+
+```yaml title="qaboard.yaml"
+runners:
+  kubernetes:
+    mounts:
+      - path: /mnt/qaboard
+        pvc: qaboard-results
+      - path: /home
+        nfs: {server: nas.kitefin.example, path: /export/home}
+```
+
+Prefer claims: your admins create a PersistentVolume for the share once, and every namespace's pods mount it without
+extra privileges. Clusters without a shared storage can't run batches yet: see the [roadmap](/docs/roadmap).
+
+## Get the permissions {#permissions}
+`qa` needs these permissions in your namespace, and none outside it. If you lack one, `qa doctor` says which, and
+prints this Role for your admins:
+
+```yaml title="qaboard-runs-role.yaml"
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: qaboard-runs
+  namespace: <your-namespace>
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create", "get", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods", "events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  # Only with a Kueue queue (`queue`)
+  - apiGroups: ["kueue.x-k8s.io"]
+    resources: ["localqueues"]
+    verbs: ["get"]
+```
+
+Your admins bind it to you, or to your team's group, with a RoleBinding. In a pod, like a CI job on the cluster, `qa`
+uses the pod's ServiceAccount: bind the Role to it.
+
+## Run as yourself {#run-as}
+On a shared filesystem, files belong to whoever writes them. By default (`run_as: user`), pods run with your UID, GID
+and groups, the ones of the account that runs `qa batch`: the outputs are yours, and the runs read what you can read.
+
+| `run_as` | Pods run as |
+|---|---|
+| `user` (default) | Your UID, GID and groups |
+| `image` | The image's user |
+| `{uid: 1000, gid: 1000}` | That UID and GID |
+
+QA-Board never sets `fsGroup`: it would change the owner of the files on shared volumes.
+
+<details>
+<summary>Enforce it: only let pods run as their user</summary>
+
+Anyone who can create Jobs in a namespace can choose `runAsUser`. To make sure pods run as the right user, give each
+user (or team) its own namespace, with the UIDs it may use, and refuse other pods with a
+[ValidatingAdmissionPolicy](https://kubernetes.io/docs/reference/access-authn-authz/validating-admission-policy/),
+built into Kubernetes 1.30 and later. This one refuses pods that run as root or don't set `runAsUser`, and those
+whose UID is outside the namespace's range:
+
+```yaml title="run-as-user-policy.yaml"
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: run-as-namespace-uids
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["pods"]
+  variables:
+    # The namespace's range of UIDs, from its annotations
+    - name: uidMin
+      expression: >-
+        has(namespaceObject.metadata.annotations) && 'uid-min' in namespaceObject.metadata.annotations
+        ? int(namespaceObject.metadata.annotations['uid-min']) : 1
+    - name: uidMax
+      expression: >-
+        has(namespaceObject.metadata.annotations) && 'uid-max' in namespaceObject.metadata.annotations
+        ? int(namespaceObject.metadata.annotations['uid-max']) : 2147483647
+    - name: podUid
+      expression: >-
+        has(object.spec.securityContext) && has(object.spec.securityContext.runAsUser)
+        ? object.spec.securityContext.runAsUser : -1
+    # Each container's UID: its own runAsUser, else the pod's (-1: none)
+    - name: uids
+      expression: >-
+        (object.spec.containers +
+         (has(object.spec.initContainers) ? object.spec.initContainers : []))
+        .map(c, has(c.securityContext) && has(c.securityContext.runAsUser)
+                ? c.securityContext.runAsUser : variables.podUid)
+  validations:
+    - expression: "variables.uids.all(uid, uid > 0)"
+      message: "Set runAsUser, and not to 0: pods in this namespace can't run as root."
+    - expression: "variables.uids.all(uid, uid >= variables.uidMin && uid <= variables.uidMax)"
+      messageExpression: >-
+        'runAsUser must be between ' + string(variables.uidMin) + ' and ' + string(variables.uidMax)
+        + ' in this namespace.'
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: run-as-namespace-uids
+spec:
+  policyName: run-as-namespace-uids
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        qaboard-runs: "true"
+```
+
+Then label the namespaces where runs execute, and give each the UIDs its users have, e.g. one namespace per user,
+bound only to that user:
+
+```yaml title="namespace.yaml"
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: qa-ines
+  labels:
+    qaboard-runs: "true"
+    pod-security.kubernetes.io/enforce: baseline   # for NFS volumes, else restricted
+  annotations:
+    uid-min: "41234"   # her UID: her pods can only run as her
+    uid-max: "41234"
+```
+
+Without the annotations, the policy only refuses root. Check it with
+`kubectl apply --dry-run=server -f <a pod>.yaml`: a refused pod prints the message. The policy checks pods, which
+the Job controller creates: when it refuses them, `qa batch` reports the Job's `FailedCreate` event and stops.
+
+</details>
+
+## Share the cluster: queues and quotas {#queues-and-quotas}
+The cluster's admins decide who gets what, with the cluster's own tools. QA-Board sets what they need on every Job and
+pod: resource requests, a queue, a priority, and labels with the user and the project.
+
+- **[Kueue](https://kueue.sigs.k8s.io/)**: set `queue` to a LocalQueue of your namespace. QA-Board adds the
+  `kueue.x-k8s.io/queue-name` label, and Kueue starts the Jobs when its quota allows. `qa batch` says that the Jobs
+  wait in the queue, which is normal.
+- **[ResourceQuota](https://kubernetes.io/docs/concepts/policy/resource-quotas/)**: a limit per namespace. Pods
+  over the quota are not created; `qa batch` prints the quota's message and keeps waiting.
+- **Priority**: `priority_class` sets the pods' PriorityClass, e.g. a low one for nightly batches.
+- **Labels**: every Job and pod has `app.kubernetes.io/managed-by: qaboard`, `qaboard.io/user`,
+  `qaboard.io/project` and `qaboard.io/command-id`, for your dashboards and per-team reports.
+
+```yaml title="qaboard.yaml"
+runners:
+  kubernetes:
+    queue: algo-gpu
+    priority_class: batch-low
+    resources: {cpu: 4, memory: 16Gi, nvidia.com/gpu: 1}
+    node_selector: {pool: gpu}
+    tolerations: [{key: nvidia.com/gpu, operator: Exists, effect: NoSchedule}]
+```
+
+`resources` are requests; memory and extended resources like GPUs are also limits.
+
+## Short runs and GPUs: several runs per pod {#runs-per-pod}
+Each pod pays for its start: scheduling, pulling the image, getting a GPU node. When runs take seconds, or when a GPU
+is hard to get, let each pod do several runs, one after the other:
+
+```yaml title="qaboard.yaml"
+runners:
+  kubernetes:
+    runs_per_pod: 20
+    concurrency: 4     # 4 pods, so 4 GPUs at most
+    timeout: 3600      # seconds, per pod: it must cover its 20 runs
+    resources: {nvidia.com/gpu: 1}
+```
+
+A batch of 200 runs then uses 10 pods, 4 at a time. For many short runs on a Dask cluster you already have, see
+[Dask on Kubernetes](/docs/dask-integration#other-schedulers).
+
+## Logs and stopping {#logs-and-stopping}
+- Each run writes what its pod prints in `log.k8s.txt`, in its output directory, live: it stays when the pod is gone.
+  The web app's **Logs** view shows it next to `log.txt`.
+- While pods are pending, `qa batch` prints why, once, and writes it in the pending runs' `log.k8s.txt`.
+- `Ctrl-C` on `qa batch` deletes the batch's Jobs. From the web app, **Stop runs** does the same, if your QA-Board
+  server can reach the cluster: see [Run batches from the web app](/docs/backend-admin/runners).
+- To find a batch's Jobs: `kubectl get jobs -l qaboard.io/command-id=<command-id>`.
+
+## Pods stay pending {#troubleshooting}
+Pending pods are the usual problem, not errors. `qa batch` reads the pods' events and says what to do. The most
+common:
+
+| What `qa batch` reports | What to do |
+|---|---|
+| `FailedScheduling`: Insufficient cpu, memory or `nvidia.com/gpu` | Wait, ask for less in `resources`, or check `node_selector` and `tolerations` against your nodes. |
+| `FailedScheduling`: didn't match node selector, untolerated taint | `node_selector` or `tolerations` don't match any node. |
+| exceeded quota | Your namespace's ResourceQuota is used up: wait, or lower `concurrency`. |
+| Waiting in a Kueue queue | Normal: the Jobs start when the queue has room. |
+| `ImagePullBackOff`, `ErrImagePull` | Check `image`, and give `image_pull_secrets` for a private registry. After 5 minutes, the batch fails. |
+| Refused by admission (Pod Security, a policy) | The message names the rule: a volume your namespace's level forbids, or a `runAsUser` your admins don't allow. |
+| `FailedMount`: a claim or ConfigMap not found | Create the claim in the namespace, or fix `mounts`. |
+
+Errors that won't fix themselves fail the batch: an image that can't be pulled for 5 minutes, an invalid image name,
+a container that can't be configured, a pod the namespace forbids. To look by yourself:
+
+```bash
+kubectl get pods -l qaboard.io/command-id=<command-id>
+kubectl describe pod <pod>
+```
+
+## Every setting {#settings}
+
+<details>
+<summary>All the settings of runners.kubernetes</summary>
+
+They can also be set per input type and per batch, like other runners: see
+[runner settings per batch](/docs/batches-running-on-multiple-inputs#runner-settings-per-batch).
+
+```yaml title="qaboard.yaml"
+runners:
+  default: kubernetes
+  kubernetes:
+    namespace: algo-qa          # default: the kubeconfig context's namespace, else "default"
+    context: my-cluster         # kubeconfig context, default: the current one. In a pod: its ServiceAccount
+    image: registry.kitefin.example/algo/qa-env:2026.11   # must have `qa` and your code's dependencies
+    image_pull_secrets: [registry-creds]
+    queue: algo-gpu             # Kueue LocalQueue
+    priority_class: batch-low
+    concurrency: 50             # pods at the same time, for a `qa batch`. 0: all
+    runs_per_pod: 1             # >1: each pod does several runs, one after the other
+    timeout: 3600               # seconds, per pod. 0: none
+    resources: {cpu: 4, memory: 16Gi, nvidia.com/gpu: 1}   # requests; memory and extended resources also limits
+    node_selector: {pool: gpu}
+    tolerations: [{key: nvidia.com/gpu, operator: Exists, effect: NoSchedule}]
+    run_as: user                # user (default): your UID/GID and groups | image | {uid: 1000, gid: 1000}
+    mounts:                     # the shared storage, at the same paths in the pods
+      - path: /algo
+        pvc: algo-nfs           # a PersistentVolumeClaim ("restricted")
+      - path: /home
+        nfs: {server: nas1, path: /export/home}    # "baseline"
+      - path: /data
+        host_path: /data        # needs "privileged" or an exemption: avoid
+    env: {OMP_NUM_THREADS: "4"}
+    forward_env: true           # forward qa's environment, without secrets and host-specific variables
+    job_template: k8s/qa-job.yaml   # optional: a batch/v1 Job merged under what QA-Board generates
+    ttl_seconds_after_finished: 86400
+```
+
+`job_template` is for what the settings don't cover, e.g. annotations your cluster requires, or a `securityContext`
+your namespace's Pod Security level asks for. QA-Board's settings win over the template's.
+
+</details>
+
+<details>
+<summary>How runs start</summary>
+
+- Each group of runs with the same settings is one [Indexed Job](https://kubernetes.io/docs/concepts/workloads/controllers/job/#completion-mode):
+  one pod per run (or per `runs_per_pod` runs), at most `concurrency` at a time. A failed pod isn't retried: the
+  run failed. A pod evicted from its node is retried.
+- The runs' commands are in a ConfigMap that belongs to the Job, deleted with it. Each pod `cd`s to the folder
+  where you started `qa batch`, and runs `qa run`.
+- The Job is named `qa-<command-id>-...`. Finished Jobs are deleted after `ttl_seconds_after_finished`.
+- A run's success comes from `qa run`, like with every runner, not from the pod's status.
+
+</details>
+
+## Where to go next
+
+<Cards>
+  <Card title="Check your setup" to="/docs/doctor">
+    `qa doctor --test-job` starts a pod and checks the mounts and the user it runs as.
+  </Card>
+  <Card title="Coming from another tool" to="/docs/coming-from-other-tools#kubernetes-jobs-argo-workflows-and-kueue">
+    Kubernetes Jobs, Argo Workflows, MLflow, W&B Launch, ClearML: the same in QA-Board.
+  </Card>
+</Cards>

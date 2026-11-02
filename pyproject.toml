@@ -49,7 +49,7 @@ dev = [
     "types-setuptools",
     "types-simplejson",
 ]
-# Runner that sends runs to a pool of dask workers, started on LSF with dask-jobqueue
+# Runner that sends runs to a pool of dask workers, started on LSF, Slurm, PBS... with dask-jobqueue
 dask = [
     "distributed; python_version >= '3.9'",
     "dask-jobqueue; python_version >= '3.9'",
@@ -57,6 +57,11 @@ dask = [
 # Runner that starts runs as Kubernetes Jobs (the `kubernetes` Python client)
 kubernetes = [
     "kubernetes>=31; python_version >= '3.9'",
+]
+# Dask workers on Kubernetes (runners.dask.cluster.type: kubernetes), with the Dask operator
+dask-kubernetes = [
+    "distributed; python_version >= '3.10'",
+    "dask-kubernetes; python_version >= '3.10'",
 ]
 # Unfortunately pip does not understand tool.uv.sources
 # and uv does not understand syntax with "qaboard-site-sirc @ file:deployements/sirc/cli"
