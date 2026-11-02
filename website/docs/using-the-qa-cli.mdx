@@ -29,7 +29,7 @@ Every command has its help: `qa --help`, `qa batch --help`...
 | `qa save-artifacts` | Saves what your runs need to be redone from the web app, e.g. your build. | [Artifacts](/docs/storage/artifacts) |
 | `qa check-bit-accuracy` | Compares a commit's output files with a reference's, byte for byte. | [Bit accuracy](/docs/bit-accuracy) |
 | `qa gate` | Experimental: fails the CI when metrics regress. | [Quality gate](/docs/quality-gate) |
-| `qa optimize` | Experimental: searches for the best parameters. | [Automated tuning](/docs/auto-optimization) |
+| `qa optimize` | Searches for the best parameters, and continues a search it saved. | [Automated tuning](/docs/auto-optimization) |
 
 ## See results in the web app: `--share` {#qa---share}
 From your computer, `qa run` and `qa batch` save results in `output/`, in your project: the web app doesn't see them.

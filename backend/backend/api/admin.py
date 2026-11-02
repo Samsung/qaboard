@@ -109,6 +109,11 @@ def checklist() -> list:
         "token": None}[ingest],
        "CI jobs need a token with the ingest scope, in QABOARD_TOKEN.")
 
+  anonymous_jobs = settings_lib.setting('jenkins.anonymous_jobs')
+  item('jenkins_anonymous_jobs', not anonymous_jobs, 'warning',
+       "Jenkins jobs start only with a token, or from a project's qaboard.yaml" if not anonymous_jobs else f"Anyone can start the Jenkins jobs matching {', '.join(anonymous_jobs)}",
+       "jenkins.anonymous_jobs lets callers without a token start these jobs with the server's Jenkins credentials. Empty it once their scripts send tokens.")
+
   from backend import app
   secure = bool(app.config.get('SESSION_COOKIE_SECURE'))
   item('https', secure, 'warning', "Cookies are only sent over HTTPS" if secure else "Cookies can be sent over plain HTTP",

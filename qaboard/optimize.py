@@ -3,11 +3,10 @@ import sys
 import uuid
 import yaml
 import json
-import numbers
 import datetime
 import subprocess
 from pathlib import Path
-from collections.abc import Iterable
+from typing import Any, Dict, Optional
 
 import click
 
@@ -26,13 +25,17 @@ seed = int(os.environ.get('QA_SEED', 101))
 ))
 @click.option('--batch', '-b', 'batches', required=True, multiple=True, help="Use the inputs+configs+database in those batches")
 @click.option('--batches-file', 'batches_files', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
-@click.option('--config-file', required=True, type=PathType(), help="YAML search space configuration file.")
-@click.option('--checkpoint', type=PathType(), help="Will save/load from this checkpoint to restart interrupted optimizations.")
-@click.option('--parallel-param-sampling', type=int, help="Parallel parameter sampling.")
+@click.option('--config-file', required=True, type=PathType(), help="YAML file with the search space, the objective and the number of evaluations.")
+@click.option('--checkpoint', type=PathType(), help="Where to save the search, to resume it if it's interrupted. Default: in the batch's directory.")
+@click.option('--parallel-param-sampling', type=int, help="How many parameter sets to evaluate at the same time (default: `parallel_sampling` in the config, or 1).")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 @saves_logs
 def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_param_sampling, forwarded_args):
+  """
+  Search for the parameters that optimize your metrics.
+  Each evaluation runs `qa batch` with the label <label>|iter<N>, the best one's runs end up in <label>.
+  """
   import random
   random.seed(seed)
   import numpy as np
@@ -66,185 +69,208 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
   print_url(ctx)
 
   from shutil import rmtree
-  from skopt.utils import dump
-  from joblib import Parallel, delayed
   from .api import aggregated_metrics
+  from .optimization import describe_search_space, parse_solver, run_optimization, sampler_name, study_summary
 
-  objective, optimizer, optim_config, dim_mapping = init_optimization(config_file, checkpoint, ctx)
-  previous_iterations = len(optimizer.yi)
-  if not parallel_param_sampling:
-    parallel_param_sampling = optim_config.get('parallel_sampling', 1)
+  try:
+    setup = init_optimization(config_file, checkpoint or optim_dir / 'optuna-journal.log', ctx, parallel_param_sampling)
+  except (ValueError, ImportError) as e:
+    raise click.ClickException(str(e))
+  objective, study, distributions, options, optim_config, dim_mapping, directions = setup
+  metric_names = options['objective_metrics']
+  pareto = options['pareto']
 
-  assert previous_iterations+1 < optim_config['evaluations'], f"Already done {previous_iterations} iterations, more than the evaluation budget ({optim_config['evaluations']})"
+  # What the web app shows about the search
+  def update_batch(**data):
+    notify_qa_database(object_type='batch', command=command, **ctx.obj, data={"optimization": True, **data})
 
-  notify_qa_database(
-    object_type='batch',
-    command=command,
-    **ctx.obj,
-    **{"data": {
-        "optimization": True,
-        "iteration": previous_iterations+1,
-        "iterations": optim_config['evaluations'],
-    }},
+  def objective_for_webapp():
+    """The objective's settings, with which way is better for each metric: when the code declares it, after a run"""
+    goals = directions.goals()
+    return {m: {**{k: v for k, v in o.items() if v is not None}, "goal": goals[m]} for m, o in options['objective'].items()}
+  optimization_config = {
+    "search_space": describe_search_space(distributions),
+    "objective": objective_for_webapp(),
+    "pareto": pareto,
+    "sampler": sampler_name(study),
+    # the first evaluations try random parameters
+    "n_startup_trials": parse_solver(optim_config.get('solver'))['n_startup_trials'],
+    "parallel_sampling": options['parallel_sampling'],
+    "early_stopping": options['patience'],
+    "preset_params": optim_config.get('preset_params') or {},
+    # to continue the search from the web app: the same config and batches, a bigger budget
+    "config": optim_config,
+    "batches": list(batches),
+  }
+
+  # trials left by an interrupted run keep their numbers: new iterations come after them
+  previous_trials = len(study.trials)
+  progress = {"iteration": max(1, previous_trials), "objective": optimization_config["objective"]}
+  update_batch(
+    # the server cleans up the iterations up to this one
+    iteration=progress["iteration"],
+    iterations=options['evaluations'],
+    optimization_status="running",
+    optimization_started_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    optimization_config=optimization_config,
+    **study_summary(study, metric_names if pareto else None),
   )
-  for iteration in range(previous_iterations, optim_config['evaluations'], parallel_param_sampling):
-      click.secho(f"Starting iteration {iteration}", fg='blue')
-      if parallel_param_sampling == 1:
-        suggested = optimizer.ask()
-      else:
-        click.secho(f"  {parallel_param_sampling} parallel samples", fg='blue')
-        suggested = optimizer.ask(n_points=parallel_param_sampling)
-      # print("suggested", suggested)
-      click.secho(f"Computing objective", fg='blue')
-      if parallel_param_sampling == 1:
-        y = objective([*suggested, iteration])
-      else:
-        y = Parallel(n_jobs=parallel_param_sampling, prefer='threads')(delayed(objective)([*s, iteration+idx]) for idx, s in enumerate(suggested))
+  if previous_trials:
+    click.secho(f"Resuming: {previous_trials} evaluations were already done", fg='blue', bold=True)
 
-      # print(f"y={y}", suggested)
-      click.secho(f"Updating optimizer", fg='blue')
-      results = optimizer.tell(suggested, y)
-      if checkpoint:
-        dump(results, checkpoint, compress=9)
-
-      click.secho(f"Updating QA-Board", fg='blue')
-      if parallel_param_sampling == 1:
-        suggested = [suggested]
-        y = [y]
-      for idx, y_iter in enumerate(y): 
-        iteration_batch_label = f"{ctx.obj['batch_label']}|iter{iteration+idx+1}"
-        iteration_batch_dir = batch_dir_for(iteration_batch_label)
-        metrics = tuple([m for m in optim_config['objective'].keys() if m != 'target'])
-        aggregated_metrics_ = aggregated_metrics(iteration_batch_label, metrics=metrics)
-        notify_qa_database(**{
-          **ctx.obj,
-          **{
-            "extra_parameters": dim_mapping(suggested[idx]),
-            # TODO: we really should to tuning/platform in make_batch_conf_dir
-            #       1. make change, 2. rename existing folders)
-            "output_directory": iteration_batch_dir,
-            'input_path': '|'.join(batches),
-            # we want to show in the summary tab the best results for the tuning experiment
-            # but in the exploration see the results per iteration....
-            "input_type": 'optim_iteration', # or... single ? don't show them in the UI
-            "is_pending": False,
-            "is_failed": False,
-            "metrics": {
-              "iteration": iteration+idx+1,
-              "objective": y_iter,
-              **aggregated_metrics_,
-            },
-          },
-        }, command=command)
-
-        # results
-        #    .x [float]: location of the minimum.
-        #    .fun [float]: function value at the minimum.
-        #    .models: surrogate models used for each iteration.
-        #    .x_iters [array]: location of function evaluation for each iteration.
-        #    .func_vals [array]: function value for each iteration.
-        #    .space [Space]: the optimization space.
-        #    .specs [dict]: parameters passed to the function.
-        is_best = results.func_vals[iteration+idx] <= results.fun or iteration+idx==0
-        if is_best:
-          click.secho(f'New best @iteration{iteration+idx+1}: {y} at iteration {iteration+idx+1}', fg='green')
-
-        is_best_data = {
-          "is_best_iter": True,
-          "best_params": dim_mapping(suggested[idx]),
-          "keep_all_best_iters": optim_config.get("keep_all_best_iters"),
-          "best_metrics": {
-            "objective": y_iter,
+  def on_trial(trial_number, params, losses, loss, is_best):
+    """Reports a finished evaluation to QA-Board, in iteration order (see run_optimization)."""
+    iteration = trial_number + 1
+    progress["iteration"] = iteration
+    failed = losses is None
+    iteration_batch_label = f"{ctx.obj['batch_label']}|iter{iteration}"
+    iteration_batch_dir = batch_dir_for(iteration_batch_label)
+    try:
+      aggregated_metrics_ = aggregated_metrics(iteration_batch_label, metrics=tuple(metric_names))
+    except Exception:
+      # a failed evaluation may have no results to aggregate: that must not stop the search
+      aggregated_metrics_ = {}
+    if failed:
+      click.secho(f'Iteration {iteration} failed: its runs are kept, check their logs', fg='red')
+    elif is_best:
+      click.secho(f'New best @iteration{iteration}: {loss}', fg='green')
+    try:
+      notify_qa_database(**{
+        **ctx.obj,
+        **{
+          "extra_parameters": dim_mapping(params),
+          # TODO: we really should to tuning/platform in make_batch_conf_dir
+          #       1. make change, 2. rename existing folders)
+          "output_directory": iteration_batch_dir,
+          'input_path': '|'.join(batches),
+          # we want to show in the summary tab the best results for the tuning experiment
+          # but in the exploration see the results per iteration....
+          "input_type": 'optim_iteration', # or... single ? don't show them in the UI
+          "is_pending": False,
+          "is_failed": failed,
+          "metrics": {
+            "iteration": iteration,
+            **({} if failed else {"objective": loss}),
             **aggregated_metrics_,
           },
-        } if is_best else {}
+        },
+      }, command=command)
+      # which way is better for metrics the code declared is known after their first run
+      objective_now = objective_for_webapp()
+      objective_changed = objective_now != progress["objective"]
+      progress["objective"] = objective_now
+      update_batch(
+        iteration=iteration,
+        iteration_label=iteration_batch_label,
+        **({"optimization_config": {**optimization_config, "objective": objective_now}} if objective_changed else {}),
+        **({
+          "is_best_iter": True,
+          "best_params": dim_mapping(params),
+          "keep_all_best_iters": optim_config.get("keep_all_best_iters"),
+          "best_metrics": {
+            "objective": loss,
+            **aggregated_metrics_,
+          },
+        } if is_best else {}),
+        **study_summary(study, metric_names if pareto else None),
+      )
+    except Exception as e:
+      click.secho(f"WARNING: could not update QA-Board for iteration {iteration}: {e}", fg='yellow', err=True)
+    if not is_best and not failed:
+      # We remove the results to make sure we don't waste disk space
+      # It is also be done server-side...
+      # Failed iterations are kept: their logs explain what went wrong.
+      print(f"RM {iteration_batch_dir}")
+      rmtree(iteration_batch_dir, ignore_errors=True)
 
-        notify_qa_database(
-          object_type='batch',
-          command=command,
-          **ctx.obj,
-          **{"data": {
-              "optimization": True,
-              "iteration": iteration+idx+1,
-              "iteration_label": iteration_batch_label,
-              **is_best_data,
-          }},
-        )
-
-        if is_best:
-          try:
-            click.secho(f'Creating plots', fg='blue')
-            make_plots(results, optim_dir)
-          except Exception:
-            pass
-        else:
-          # We remove the results to make sure we don't waste disk space
-          # It is also be done server-side...
-          print(f"RM {iteration_batch_dir}")
-          rmtree(iteration_batch_dir, ignore_errors=True)
-
-  print(results)
-  if not results.models: # needs at least n_initial_points(=5) evaluations!
-    return
-
-  # tuning plots are saved in the label directory
+  status = "interrupted"
+  error = None
   try:
-    make_plots(results, optim_dir)
-  except ImportError as e:
-    # matplotlib isn't one of our dependencies
-    click.secho(f"WARNING: No convergence plot ({e}). Install matplotlib to get it.", fg='yellow', err=True)
+    summary = run_optimization(
+      study,
+      distributions,
+      objective,
+      evaluations=options['evaluations'],
+      parallel_sampling=options['parallel_sampling'],
+      patience=options['patience'],
+      metric_names=metric_names if pareto else None,
+      on_trial=on_trial,
+      log=lambda message: click.secho(message, fg='blue'),
+    )
+    status = "stopped_early" if summary["early_stopped"] else "done"
+    if best_objective(study) is None:
+      status = "failed"
+  except ObjectiveError as e:
+    status, error = "failed", str(e)
+  finally:
+    try:
+      update_batch(
+        iteration=progress["iteration"],
+        optimization_status=status,
+        **({"optimization_error": error} if error else {}),
+        optimization_ended_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        **study_summary(study, metric_names if pareto else None),
+      )
+    except Exception as e:
+      click.secho(f"WARNING: could not update QA-Board: {e}", fg='yellow', err=True)
+
+  if error:
+    raise click.ClickException(error)
+  if status == "failed":
+    raise click.ClickException("qa optimize: no evaluation succeeded. Check the logs of the iterations' runs.")
+  if summary['early_stopped']:
+    click.secho(f"Stopped early after {summary['finished']} evaluations.", fg='blue', bold=True)
+  click.secho(f"Best objective: {best_objective(study)}", fg='green', bold=True)
+  if pareto:
+    click.secho(f"Pareto front: {len(study.best_trials)} trade-offs", fg='green', bold=True)
+    for t in sorted(study.best_trials, key=lambda t: t.number):
+      losses = ', '.join(f'{name}: {value:.6g}' for name, value in zip(metric_names, t.values))
+      click.secho(f"  iteration {t.number+1}: {losses}  {dim_mapping(t.params)}", fg='green')
+  else:
+    click.secho(f"Best parameters: {dim_mapping(study.best_params)}", fg='green')
 
 
+def best_objective(study):
+  """
+  Best (summed) objective value so far, or None if no evaluation succeeded yet.
+  `study.best_value` raises when every trial failed, and failures are expected here:
+  a single batch that does not compute its metrics should not stop the whole search.
+  """
+  from optuna.trial import TrialState
+  values = [sum(t.values) for t in study.trials if t.state == TrialState.COMPLETE]
+  return min(values) if values else None
 
 
-def init_optimization(optim_config_file, checkpoint, ctx):
+def init_optimization(optim_config_file, checkpoint, ctx, parallel_param_sampling=None):
+  from .optimization import check_resumable, make_storage, make_study, parse_options, parse_search_space, parse_solver
+
   with optim_config_file.open('r') as f:
     optim_config = yaml.load(f, Loader=yaml.SafeLoader)
+  options = parse_options(optim_config)
+  if parallel_param_sampling:
+    options['parallel_sampling'] = parallel_param_sampling
+  distributions = parse_search_space(optim_config.get('search_space'))
+  parse_solver(optim_config.get('solver'))
+  preset_params = optim_config.get('preset_params') or {}
+  # wrong metrics would only fail after the first evaluation, maybe hours later
+  directions = Directions(options['objective'])
+  check_objective(optim_config['objective'], directions)
 
-  # default settings
-  if "objective" not in optim_config:
-    raise ValueError('ERROR: the configuration must provide an `objective`.')
-  if "evaluations" not in optim_config:
-    raise ValueError('ERROR: the configuration must project a `evaluations` budget.')
-  optim_config = {
-    "solver": {},
-    "search_space": {},
-    "preset_params": {},
-    **optim_config,
-  }
-  optim_config['solver'] = {
-    "name": "scikit-optimize",
-    "random_state": seed,
-    **optim_config.get('solver', {}),
-  }
-  for dimension in optim_config['search_space']:
-    if 'Categorical' in dimension:
-      values = dimension['Categorical']['categories']
-      assert len(values) == len(set(values)), f"Repeated categorical values in {dimension['Categorical']['name']}: {values}"
-
-  from skopt.utils import Space
-  space = Space.from_yaml(optim_config_file, namespace='search_space')
-  preset_params = optim_config.get('preset_params', {})
   click.secho("Search space:", fg="blue", err=True)
-  click.secho(str(space), fg="blue", dim=True, err=True)
-  click.secho("Preset parameters:", fg="blue", err=True)
-  click.secho(str(preset_params), fg="blue", dim=True, err=True)
+  for name, distribution in distributions.items():
+    click.secho(f"  {name}: {distribution}", fg="blue", dim=True, err=True)
+  if preset_params:
+    click.secho("Preset parameters:", fg="blue", err=True)
+    click.secho(str(preset_params), fg="blue", dim=True, err=True)
 
-  # we use the iteration step in the objective function, to store results at the right place
-  from skopt.space import Integer
-  dim_iteration = Integer(name='iteration', low=0, high=2^16)
-  dims = [*space, dim_iteration]
-
-  from skopt.utils import use_named_args
-
-  @use_named_args(dims)
-  def objective(**opt_params):
-    params =  {**preset_params, **opt_params}
-
-    # From the UI we will want to see the iteration as a metric
-    del params["iteration"]
-
-    batch_label = f"{ctx.obj['raw_batch_label']}|iter{opt_params['iteration']+1}"
+  def objective(opt_params, trial_number):
+    """
+    Runs a batch with the suggested parameters, and returns the loss of each metric of the objective.
+    Returns None if they could not be computed: the evaluation counts as failed, and the search goes on.
+    """
+    iteration = trial_number + 1
+    params = {**preset_params, **opt_params}
+    batch_label = f"{ctx.obj['raw_batch_label']}|iter{iteration}"
     command = ' '.join([
       'qa',
       f"--label '{batch_label}'",
@@ -280,92 +306,179 @@ def init_optimization(optim_config_file, checkpoint, ctx):
 
     # Now that we finished computing all the results, we will download the results and
     # compute the objective function:
-    shared_batch_label = f"{ctx.obj['batch_label']}|iter{opt_params['iteration']+1}"
-    return batch_objective(project, commit_id, shared_batch_label, optim_config['objective'])
+    shared_batch_label = f"{ctx.obj['batch_label']}|iter{iteration}"
+    try:
+      return batch_objective_components(project, commit_id, shared_batch_label, optim_config['objective'], directions)
+    except ObjectiveError:
+      raise
+    except Exception as e:
+      click.secho(f"[ERROR] Iteration {iteration}: could not compute the objective: {e}", fg='red', bold=True)
+      return None
 
-  from skopt import Optimizer
-  del optim_config['solver']['name']
-  # For the full list of options, refer to:
-  # https://scikit-optimize.github.io/stable/modules/generated/skopt.optimizer.Optimizer.html#skopt.optimizer.Optimizer
-  optimizer = Optimizer(
-    space,
-    **optim_config['solver'],
+  # The search is saved as it goes: running the same experiment again resumes it
+  checkpoint = Path(checkpoint)
+  if checkpoint.suffix == '.pkl':
+    # Older QA-Board servers and docs give scikit-optimize's pickle (e.g. checkpoint.pkl): we can't resume
+    # from it, but we save next to it (e.g. checkpoint.optuna.log), and the same command resumes later.
+    checkpoint = checkpoint.with_suffix('.optuna.log')
+  if not options['resume'] and checkpoint.exists():
+    click.secho(f"Starting over (resume: false): removing {checkpoint}", fg='blue', err=True)
+    checkpoint.unlink()
+  if checkpoint.exists() and checkpoint.stat().st_size > 0:
+    with checkpoint.open('rb') as f:
+      if f.read(1) != b'{':
+        raise ValueError(
+          f"{checkpoint} was saved by an older qa optimize, which QA-Board can't resume from. "
+          "Remove it, or give another --checkpoint, to start over."
+        )
+  checkpoint.parent.mkdir(parents=True, exist_ok=True)
+  n_objectives = len(options['objective_metrics']) if options['pareto'] else 1
+  study = make_study(
+    {**(optim_config.get('solver') or {})},
+    storage=make_storage(checkpoint),
+    n_objectives=n_objectives,
+    parallel_sampling=options['parallel_sampling'],
   )
+  reason = check_resumable(study, {
+    "objective": options['objective'],
+    "pareto": options['pareto'],
+    "search_space": optim_config['search_space'],
+  })
+  if reason:
+    raise ValueError(reason)
 
-  if checkpoint and Path(checkpoint).exists():
-    from skopt.utils import load
-    print(f"Loading {checkpoint}")
-    res = load(checkpoint)
-    x0 = res.x_iters
-    y0 = res.func_vals
-    # same checks as in https://github.com/scikit-optimize/scikit-optimize/blob/de32b5f/skopt/optimizer/base.py#L223
-    # check x0: list-like, requirement of minimal points
-    if x0 is None:
-        x0 = []
-    elif not isinstance(x0[0], (list, tuple)):
-        x0 = [x0]
-    if not isinstance(x0, list):
-        raise ValueError("`x0` should be a list, but got %s" % type(x0))
-    # check y0: list-like, requirement of maximal calls
-    if isinstance(y0, Iterable):
-        y0 = list(y0)
-    elif isinstance(y0, numbers.Number):
-        y0 = [y0]
-    # check x0: element-wise data type, dimensionality
-    assert all(isinstance(p, Iterable) for p in x0)
-
-    if not all(len(p) == optimizer.space.n_dims for p in x0):
-        raise RuntimeError("Optimization space (%s) and initial points in x0 "
-                           "use inconsistent dimensions." % optimizer.space)
-    # record through tell function
-    if x0:
-        if not (isinstance(y0, Iterable) or isinstance(y0, numbers.Number)):
-            raise ValueError(
-                "`y0` should be an iterable or a scalar, got %s" % type(y0))
-        if len(x0) != len(y0):
-            raise ValueError("`x0` and `y0` should have the same length")
-        optimizer.tell(x0, y0)
-        # result.specs = specs
-
-    n_calls = len(y0)
-    print(f"Using {n_calls} previous iterations")
-
-  # in the optimization loop, `ask` gives us an array of values
-  # this wrapper converts it back to the actual named parameters
-  @use_named_args([*space])
-  def dim_mapping(**opt_params):
+  # `ask` gives us only the parameters being optimized,
+  # this wrapper adds back the parameters set to fixed values
+  def dim_mapping(opt_params):
     return {**preset_params, **opt_params}
 
-  return objective, optimizer, optim_config, dim_mapping
+  return objective, study, distributions, options, optim_config, dim_mapping, directions
 
 
+class ObjectiveError(Exception):
+  """The objective can't be computed for any evaluation: the search stops instead of failing every evaluation"""
+
+
+def code_definitions() -> Dict[str, Dict[str, Any]]:
+  """
+  The definitions of the metrics this commit's runs declared in code (qaboard.Metric, define_metric,
+  metrics_definitions.json), as QA-Board's server keeps them. {} if it can't tell.
+  """
+  import requests
+  from .api import api_prefix, api_verify, api_timeout, headers
+  try:
+    r = requests.get(f'{api_prefix}/commit/{commit_id}', params={
+      "project": Path(project).as_posix() if project else '',
+      "with_outputs": "false",
+      "metrics": json.dumps({"none-required": 0}),
+    }, headers=headers, verify=api_verify, timeout=api_timeout)
+    r.raise_for_status()
+    definitions = (r.json().get('data') or {}).get('metrics_definitions') or {}
+    return definitions if isinstance(definitions, dict) else {}
+  except Exception:
+    return {}
+
+
+def unknown_direction(metric: str) -> str:
+  return (
+    f"qa optimize doesn't know whether higher or lower values of {metric} are better. Say it in the objective: "
+    f"`{metric}: max` (higher is better) or `{metric}: min`. Or where your code computes it: "
+    f"`qaboard.Metric(value, smaller_is_better=...)`."
+  )
+
+
+def no_target(metric: str, loss: str) -> str:
+  return (
+    f"`objective.{metric}.loss: {loss}` compares {metric} to a target, and {metric} has none. "
+    f"Give it one with `objective.{metric}.target`, or compare to a reference batch with `objective.target`."
+  )
+
+
+class Directions:
+  """
+  Which way is better for each metric of the objective, and its target: what the configuration says, else what the
+  code that computes it declared, else the metrics file (outputs.metrics in qaboard.yaml). Code declares metrics when
+  it runs: until the first evaluation, the server may not know them.
+  """
+  def __init__(self, objective: Dict[str, Dict[str, Any]], code: Optional[Dict[str, Dict[str, Any]]] = None):
+    self.objective = objective
+    self.code = code if code is not None else {}
+
+  def refresh(self):
+    """Asks the server again, while a direction is unknown"""
+    if any(self.smaller_is_better(m) is None for m in self.objective):
+      self.code = code_definitions()
+
+  def declared(self, metric: str) -> bool:
+    return metric in self.code or metric in available_metrics
+
+  def smaller_is_better(self, metric: str) -> Optional[bool]:
+    goal = self.objective[metric]['goal']
+    if goal is not None:
+      return goal == 'min'
+    from .gate import smaller_is_better
+    declared = self.code.get(metric)
+    return smaller_is_better(metric, available_metrics, {"declared": True, **declared} if declared else None)
+
+  def goals(self) -> Dict[str, Optional[str]]:
+    """{metric: 'max', 'min' or None}, for the web app"""
+    directions = {m: self.smaller_is_better(m) for m in self.objective}
+    return {m: None if d is None else ('min' if d else 'max') for m, d in directions.items()}
+
+  def target(self, metric: str) -> Optional[float]:
+    for target in (
+      self.objective[metric]['target'],
+      (self.code.get(metric) or {}).get('target'),
+      (available_metrics.get(metric) or {}).get('target'),
+    ):
+      if target is not None:
+        return target
+    return None
+
+
+def compares_to_reference(config_objective: Dict[str, Any]) -> bool:
+  """`objective.target` names a reference batch: losses compare each run to the reference's"""
+  reference = config_objective.get('target') or {}
+  return 'id' in reference or 'branch' in reference or 'tag' in reference
+
+
+def check_objective(config_objective: Dict[str, Any], directions: Directions):
+  """
+  Raises if a metric of the objective can't be computed, before running anything. Metrics nothing declared yet may be
+  declared by the code when it runs: they are checked after the first evaluation.
+  """
+  directions.refresh()
+  for metric, options in directions.objective.items():
+    if directions.smaller_is_better(metric) is None:
+      if directions.declared(metric):
+        raise ValueError(unknown_direction(metric))
+      click.secho(f"qa optimize will read which way is better for {metric} from your runs, if they declare it.", fg='yellow', err=True)
+    compares_to_target = 'shift' in options['loss'] or 'relative' in options['loss']
+    if compares_to_target and not compares_to_reference(config_objective) and directions.target(metric) is None and directions.declared(metric):
+      raise ValueError(no_target(metric, options['loss']))
 
 
 relu = lambda x: x if x > 0 else 0
 
-def make_loss(metric, options):
+def make_loss(options, smaller_is_better: bool):
   """
   Return a loss function of the form: loss(metric, metric_target)
   """
-  loss = options.get('loss', 'identity')
-  from .gate import smaller_is_better as direction
-  smaller_is_better = direction(metric, available_metrics, None)
-  if smaller_is_better is None:
-    raise ValueError(
-      f"qa optimize: declare whether smaller values of {metric} are better in your metrics file (outputs.metrics in qaboard.yaml), "
-      f"with `smaller_is_better`, so that it knows what to minimize"
-    )
+  loss = options['loss']
   sign_inversion = (1 if smaller_is_better else -1)
-  if loss == 'identity':
+  if loss.endswith('identity'):
     loss_inner = lambda x, x_t: x * sign_inversion
-  elif 'shift' in loss:
+  elif loss.endswith('shift'):
     loss_inner = lambda x, x_t: (x - x_t) * sign_inversion
-  elif 'relative' in loss:
+  else:
     loss_inner = lambda x, x_t: (x - x_t) / x_t * sign_inversion
 
   if 'relu' in loss:
-    margin = options.get('margin', 0.0)
-    return lambda x, x_t: relu(loss_inner(x, x_t) + margin)
+    margin = options['margin']
+    loss_relu = lambda x, x_t: relu(loss_inner(x, x_t) + margin)
+    if 'square' in loss:
+      return lambda x, x_t: loss_relu(x, x_t)**2
+    return loss_relu
   if 'square' in loss:
     return lambda x, x_t: loss_inner(x, x_t)**2
   return loss_inner
@@ -376,17 +489,26 @@ def make_reduce(options):
   Return a reduce/aggregation function used to aggregate many losses from different tests into a single number.
   We normalize by the number of outputs to make it more easily human-understandable.
   """
-  reduce_type =  options.get('reduce', 'sum')
+  reduce_type = options['reduce']
   if reduce_type == 'sum':
     return lambda x: sum(x) / len(x)
   if reduce_type == 'relu':
     return lambda x: relu(sum(x)) / len(x)
-  if len(reduce_type) == 2:
-    from numpy.linalg import norm
-    return lambda x: norm(x, ord=int(reduce_type[1])) / len(x)
+  from numpy.linalg import norm
+  return lambda x: norm(x, ord=int(reduce_type[1:])) / len(x)
 
-def batch_objective(project, commit_id, batch_label, config_objective):
-  metrics = [m for m in config_objective.keys() if m != 'target']
+def batch_objective_components(project, commit_id, batch_label, config_objective, directions: Directions):
+  """
+  The loss of each metric of the objective for a batch, as {metric: weight * reduced loss}.
+  The objective is their sum; with `pareto: true` each is optimized on its own.
+  """
+  metrics = list(directions.objective)
+  # the runs may have declared metrics nothing knew before
+  directions.refresh()
+  smaller_is_better = {metric: directions.smaller_is_better(metric) for metric in metrics}
+  for metric, is_smaller_better in smaller_is_better.items():
+    if is_smaller_better is None:
+      raise ObjectiveError(unknown_direction(metric))
   this_batch_info = batch_info(
     reference=commit_id,
     is_branch=False,
@@ -394,123 +516,48 @@ def batch_objective(project, commit_id, batch_label, config_objective):
     project=project,
     metrics=metrics,
   )
-  # We can compare to KPI quality target defined
-  if 'target' in config_objective and config_objective['target']:
-    target = config_objective['target']
-    use_default_targets = not 'id' in target and not 'branch' in target
-    # or get reference results from historical data
-    if not use_default_targets:
-      target_batch_info = batch_info(
-        target.get('id', target.get('branch', target.get('tag', ''))),
-        batch=target.get('batch', 'default'),
-        is_branch='branch' in target, # for tag we need special care...
-        # the working directory changed...
-        project=project,
-        metrics=metrics,
-      )
-  else:
-    use_default_targets = True
+  # Compare to a reference's results, or to each metric's target
+  use_reference = compares_to_reference(config_objective)
+  if use_reference:
+    reference = config_objective['target']
+    target_batch_info = batch_info(
+      reference.get('id', reference.get('branch', reference.get('tag', ''))),
+      batch=reference.get('batch', 'default'),
+      is_branch='branch' in reference, # for tag we need special care...
+      # the working directory changed...
+      project=project,
+      metrics=metrics,
+    )
 
-  objective = 0
-  for metric, options in config_objective.items():
-    if metric == 'target': # this is a special key, not a metric 
-      continue
-    if options is None:
-      options = {}
-    loss_name = options.get('loss', 'identity')
-    loss = make_loss(metric, options)
+  components = {}
+  for metric, options in directions.objective.items():
+    loss_name = options['loss']
+    loss = make_loss(options, bool(smaller_is_better[metric]))
+    compares_to_target = 'shift' in loss_name or 'relative' in loss_name
+    if compares_to_target and not use_reference and directions.target(metric) is None:
+      raise ObjectiveError(no_target(metric, loss_name))
     losses = []
     for output in this_batch_info['outputs'].values():
-      if 'target' in config_objective and ('shift' in loss_name or 'relative' in loss_name):
-        if use_default_targets:
-          metric_target = (available_metrics.get(metric) or {}).get('target')
-          if metric_target is None:
-            raise ValueError(f"qa optimize: {metric} has no target in your metrics file (outputs.metrics in qaboard.yaml)")
-        else:
-          output_target = matching_output(RunContext.from_api_output(output), target_batch_info['outputs'].values())
-          if not output_target:
-            raise ValueError(f"Could not find an output for {output['test_input_path']} in the target batch")
-          metric_target = output_target['metrics'][metric]
-      else:
+      if not compares_to_target:
         metric_target = None
+      elif use_reference:
+        output_target = matching_output(RunContext.from_api_output(output), target_batch_info['outputs'].values())
+        if not output_target:
+          raise ValueError(f"Could not find an output for {output['test_input_path']} in the target batch")
+        metric_target = output_target['metrics'][metric]
+      else:
+        metric_target = directions.target(metric)
       if output['metrics'].get('is_failed'):
-        click.secho('Failed output', fg='red')        
+        click.secho('Failed output', fg='red')
         click.secho(output['output_dir_url'][2:], fg='red')
       else:
         try:
           losses.append(loss(output['metrics'][metric], metric_target) )
         except Exception:
-          click.secho(f'Could not find {metric}', fg='red')        
+          click.secho(f'Could not find {metric}', fg='red')
           click.secho(output['output_dir_url'][2:], fg='red')
     if not losses:
-      raise ValueError(f"Could not compute the loss function!")
+      raise ValueError(f"Could not compute the loss of {metric}: no run returned it.")
     partial_objective = make_reduce(options)(losses)
-    objective += options.get('weight', 1) * partial_objective
-  return objective
-
-
-
-
-
-
-def make_plots(results, dir):
-  # click.secho(str(dir), dim=True)
-  import matplotlib.pyplot as plt
-  # https://matplotlib.org/faq/usage_faq.html#non-interactive-example
-  # https://matplotlib.org/api/_as_gen/matplotlib.pyplot.savefig.html
-
-  if not dir.exists():
-    dir.mkdir(parents=True, exist_ok=True)
-
-  # WIP: there is currently no support for plotting categorical variables...
-  # You have to manually checkout this pull request:
-  #   git pr 675  # install https://github.com/tj/git-extras
-  #   git pull origin master 
-  # https://github.com/scikit-optimize/scikit-optimize/pull/675
-  from skopt.plots import plot_convergence
-  click.secho(f'. plot_convergence', fg='blue')
-  _ = plot_convergence(results)
-  plt.savefig(dir/'plot_convergence.png')
-
-  # Those plots can be VERY slow.
-  # TODO: create them in the  background
-  # from skopt.plots import plot_objective
-  # click.secho(f'. plot_objective', fg='blue')
-  # _ = plot_objective(results)
-  # plt.savefig(dir/'plot_objective.png')
-
-  # from skopt.plots import plot_regret
-  # click.secho(f'. plot_regret', fg='blue')
-  # _ = plot_regret(results)
-  # plt.savefig(dir/'plot_regret.png')
-
-  # from skopt.plots import plot_evaluations
-  # click.secho(f'. plot_evaluations', fg='blue')
-  # _ = plot_evaluations(results)
-  # plt.savefig(dir/'plot_evaluations.png')
-
-
-
-
-
-# compare convergence...
-# https://github.com/scikit-optimize/scikit-optimize/blob/master/examples/strategy-comparison.ipynb
-# for all runs...
-# from skopt.plots import plot_convergence
-# plot = plot_convergence(("dummy_minimize", dummy_res),
-#                         ("gp_minimize", gp_res),
-#                         ("forest_minimize('rf')", rf_res),
-#                         ("forest_minimize('et)", et_res), 
-#                         true_minimum=0.397887, yscale="log")
-# plot.legend(loc="best", prop={'size': 6}, numpoints=1);
-
-
-# checkpoints?
-# https://github.com/scikit-optimize/scikit-optimize/blob/master/examples/interruptible-optimization.ipynb
-# https://github.com/scikit-optimize/scikit-optimize/blob/master/examples/store-and-load-results.ipynb
-# poor man's solution:
-# import pickle
-# with open('my-optimizer.pkl', 'wb') as f:
-#     pickle.dump(opt, f)
-# with open('my-optimizer.pkl', 'rb') as f:
-#     opt_restored = pickle.load(f)
+    components[metric] = float(options['weight'] * partial_objective)
+  return components

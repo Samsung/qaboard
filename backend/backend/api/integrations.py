@@ -846,6 +846,22 @@ def jenkins_build_trigger():
   return response
 
 
+JENKINS_TOKEN_HELP = (
+  "With `qa`: run `qa auth login`, or set QABOARD_TOKEN in CI. "
+  "Scripts that call /api/v1/jenkins/build/trigger directly: send a token with the \"act\" scope "
+  "(web app: Settings → Access tokens) in an `Authorization: Bearer <token>` header, "
+  "or add the job to the project's qaboard.yaml."
+)
+
+def is_anonymous_jenkins_job(build_url) -> bool:
+  """The admins allow this job without a token, for now (jenkins.anonymous_jobs): its path contains one of the texts"""
+  path = urlparse(build_url.strip()).path
+  return any(pattern == '*' or pattern in path for pattern in setting('jenkins.anonymous_jobs') if pattern)
+
+def jenkins_jobs_owner(project_id):
+  return f"the qaboard.yaml of {project_id}" if project_id else "the projects' qaboard.yaml"
+
+
 def jenkins_trigger_access(data, checking=False):
   """None if the caller can start this Jenkins build (`checking`: check builds' status), else the response to return"""
   verb = "check" if checking else "start"
@@ -868,9 +884,14 @@ def jenkins_trigger_access(data, checking=False):
     }), 403
   build_url = data.get('build_url')
   if not checking and isinstance(build_url, str) and not is_declared_jenkins_job(build_url, project_id, data.get('commit')):
-    where = f"the qaboard.yaml of {project_id}" if project_id else "the projects' qaboard.yaml"
+    if is_anonymous_jenkins_job(build_url):
+      g.qaboard_warning = (
+        f"This Jenkins job isn't in {jenkins_jobs_owner(project_id)}: it was started without a token because the server "
+        "allows it for now (jenkins.anonymous_jobs). It will soon require a token. " + JENKINS_TOKEN_HELP
+      )
+      return None
     return jsonify({
-      "error": f"Without signing in, QA-Board only starts the Jenkins jobs of {where} (runners.jenkins.build_url, or jenkins integrations). Run `qa auth login`, or set QABOARD_TOKEN in CI.",
+      "error": f"Without signing in, QA-Board only starts the Jenkins jobs of {jenkins_jobs_owner(project_id)} (runners.jenkins.build_url, or jenkins integrations). " + JENKINS_TOKEN_HELP,
       "reason": "sign_in_required",
     }), 403
   if mode == 'warn':

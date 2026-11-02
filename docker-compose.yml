@@ -109,6 +109,8 @@ services:
     - QABOARD_ADMINS=${QABOARD_ADMINS:-}
     # off/warn/token: how runs sent by `qa` are authenticated. Empty: as set in the admin panel (default: off)
     - QABOARD_INGEST_AUTH=${QABOARD_INGEST_AUTH:-}
+    # Comma-separated: Jenkins jobs anyone can start without a token, by text in their path, e.g. ALGO. Empty: as set in the admin panel
+    - QABOARD_JENKINS_ANONYMOUS_JOBS=${QABOARD_JENKINS_ANONYMOUS_JOBS:-}
     # Set it for the proxy too: the runs' HTML files can't act as whoever opens them (website/docs/viewers.mdx)
     - QABOARD_SANDBOX_HTML=${QABOARD_SANDBOX_HTML:-}
     # Set in .env, not here (see above): single sign-on with OpenID Connect (QABOARD_OIDC_ISSUER, QABOARD_OIDC_CLIENT_ID,

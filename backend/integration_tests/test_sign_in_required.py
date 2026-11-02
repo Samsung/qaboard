@@ -478,6 +478,17 @@ def test_the_jenkins_trigger_without_a_user(client, logged_in, monkeypatch):
     response = client.post('/api/v1/jenkins/build/trigger/', json=data)
     assert response.status_code == 403 and "qaboard.yaml" in response.get_json()["error"]
   assert started == ["http://jenkins/job/windows", "http://jenkins/job/windows/"]
+  # scripts calling the API are told how to send a token
+  assert "Authorization: Bearer" in response.get_json()["error"]
+  # admins can allow other jobs for a while: by text in their path, with a warning
+  monkeypatch.setenv('QABOARD_JENKINS_ANONYMOUS_JOBS', 'ALGO, other')
+  response = client.post('/api/v1/jenkins/build/trigger/', json={"build_url": "http://jenkins/job/ALGO_nightly/"})
+  assert response.status_code == 200 and "jenkins.anonymous_jobs" in response.headers["X-QABoard-Warning"]
+  for build_url in ["http://jenkins/job/deploy", "http://jenkins/job/algo_nightly", "http://ALGO.host/job/deploy"]:
+    assert client.post('/api/v1/jenkins/build/trigger/', json={"build_url": build_url}).status_code == 403
+  monkeypatch.setenv('QABOARD_JENKINS_ANONYMOUS_JOBS', '*')
+  assert client.post('/api/v1/jenkins/build/trigger/', json={"build_url": "http://jenkins/job/deploy"}).status_code == 200
+  monkeypatch.delenv('QABOARD_JENKINS_ANONYMOUS_JOBS')
   # signed-in users can start any job, and the audit log says who did
   alice = logged_in('alice')
   assert alice.post('/api/v1/jenkins/build/trigger/', json={"build_url": "http://jenkins/job/deploy"}).status_code == 200
