@@ -260,7 +260,10 @@ def stop_batch_jobs(data, has_pending_runs: bool, project_id: Optional[str] = No
     if key not in done:
       done.add(key)
       try:
-        JobGroup(job_options=job_options).stop()
+        deleted = JobGroup(job_options=job_options).stop()
+        if runner == 'kubernetes' and deleted == 0 and not is_driver and has_pending_runs:
+          # e.g. the runs are in another cluster than the server's (kubeconfig context not allowed): they may still run
+          warnings.append(f"No Kubernetes job of {str(command_id)[:8]} was found in namespace {job_options.get('namespace')}: if its runs are still running, they are elsewhere.")
       except Exception as e:
         if not (is_driver and is_not_found(e)):
           print(e)

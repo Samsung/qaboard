@@ -175,4 +175,5 @@ class JobGroup():
   # Sadly it only knows about the command_id, not jobs....
   # TODO: make it stop_command to make usage clearer..
   def stop(self):
-    self.Runner.stop_jobs(self.jobs, self.job_options)
+    """Returns what the runner's stop_jobs returns, e.g. how many Kubernetes Jobs were deleted (None if it doesn't know)"""
+    return self.Runner.stop_jobs(self.jobs, self.job_options)

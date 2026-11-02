@@ -24,12 +24,14 @@ class FakeRunner:
   submitted: list = []
   fail_with = None
   stop_fails_with = None
+  deleted = None # what stop_jobs returns, e.g. how many Kubernetes Jobs it deleted
 
   @classmethod
   def stop_jobs(cls, jobs, job_options):
     if cls.stop_fails_with:
       raise cls.stop_fails_with
     cls.stopped.append(job_options)
+    return cls.deleted
 
   @classmethod
   def submit_detached(cls, script, name, log_file, job_options):
@@ -47,7 +49,7 @@ class NotFound(Exception):
 def fake_runners(monkeypatch):
   """The kubernetes and LSF runners are fakes, and the admins allow the algo-qa and algo-gpu namespaces"""
   from qaboard.runners import runners
-  FakeRunner.stopped, FakeRunner.submitted, FakeRunner.fail_with, FakeRunner.stop_fails_with = [], [], None, None
+  FakeRunner.stopped, FakeRunner.submitted, FakeRunner.fail_with, FakeRunner.stop_fails_with, FakeRunner.deleted = [], [], None, None, None
   monkeypatch.setenv("QABOARD_KUBERNETES_NAMESPACES", "algo-qa, algo-gpu")
   for name in ("QABOARD_KUBERNETES_CONTEXTS", "QABOARD_KUBERNETES_SERVICE_ACCOUNT", "QABOARD_KUBERNETES_SERVER_URL",
                "QABOARD_KUBERNETES_ALLOW_HOST_PATH", "QABOARD_KUBERNETES_DRIVER_RESOURCES", "QABOARD_HOST", "QABOARD_PROTOCOL",
@@ -202,6 +204,16 @@ def test_stop_batch_jobs(fake_runners):
   assert stopped["errors"] == [] and stopped["stopped_drivers"] == []
   assert len(stopped["warnings"]) == 3
   assert "kube-system" in stopped["warnings"][0]
+
+
+def test_stop_batch_jobs_warns_when_no_kubernetes_job_was_found(fake_runners):
+  """e.g. the runs are in another cluster than the server's: they may still run"""
+  fake_runners.deleted = 0
+  stopped = runner_jobs.stop_batch_jobs({"commands": {ID2: {"runner": "kubernetes", "namespace": "algo-qa"}}}, True, project_id="algo/project")
+  assert stopped["errors"] == []
+  assert "No Kubernetes job" in stopped["warnings"][0] and "algo-qa" in stopped["warnings"][0]
+  fake_runners.deleted = 2
+  assert runner_jobs.stop_batch_jobs({"commands": {ID2: {"runner": "kubernetes", "namespace": "algo-qa"}}}, True)["warnings"] == []
 
 
 def test_injected_commands_dont_keep_lsf_batches_from_stopping(fake_runners, monkeypatch):
