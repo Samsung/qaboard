@@ -247,6 +247,7 @@
         },
         "celery": {"$ref": "batches.schema.json#/$defs/celery_runner"},
         "dask": {"$ref": "batches.schema.json#/$defs/dask_runner"},
+        "kubernetes": {"$ref": "batches.schema.json#/$defs/kubernetes_runner"},
         "windows": {"$ref": "batches.schema.json#/$defs/windows_runner"},
         "jenkins": {
           "type": "object",

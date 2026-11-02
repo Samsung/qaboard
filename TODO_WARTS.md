@@ -134,6 +134,13 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   Running projects' code on the server trusts every project developer with what the server's account can read (the
   environment is scrubbed, files aren't). [M, behaviour]
 
+- Batches started from the web app get no QA-Board token, whatever the runner: on a server with `ingest.auth: token`,
+  their runs can't save results unless a shared HOME holds a `qa auth login`, or (Celery) the workers set
+  `QABOARD_TOKEN`. The server could mint a short-lived, project-scoped ingest token per batch. [M, API]
+- `runner_jobs.submit_driver` checks that the kubernetes runner exists, which can't fail (it's always registered):
+  check that the `kubernetes` package is installed instead, with the install hint. [S, behaviour]
+- The worker job script `qa doctor` shows for Dask is named `doctor_dask`, not the batch's real name. [S, no change]
+
 ### LSF
 - The bridge template wraps `{bsub_command}` in single quotes: a job script containing a single quote breaks on the
   bridge host. Send the script through ssh's stdin instead. [S, behaviour]

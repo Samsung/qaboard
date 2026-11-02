@@ -10,9 +10,10 @@ message broker, and waits for them. Workers run each `qa run` in the folder wher
 environment variables, except secrets (names with `TOKEN`, `ACCESS`, `AUTH`, `SECRET`, `PASSWORD`...): their machines
 need that folder, your inputs and the results storage at the same paths, e.g. on shared drives.
 
-The runs get the environment of `qa batch`, not the worker's own. To send results to a QA-Board server that requires
-a token, sign in once with `qa auth login` in a home folder that the workers' machines share: the runs get your
-`HOME`, and with it your login.
+The runs get the worker's environment, with the variables of `qa batch` on top: set what runs need that `qa batch`
+doesn't forward, like secrets or `CUDA_VISIBLE_DEVICES`, where the workers start. To send results to a QA-Board server
+that requires a token, either set `QABOARD_TOKEN` for the workers, or sign in once with `qa auth login` in a home
+folder that the workers' machines share: the runs get your `HOME`, and with it your login.
 
 ## Start workers and send them runs {#starting-celery-workers}
 1. **Get a broker.** QA-Board's Docker Compose deployment starts RabbitMQ on port `5672` (not the quickstart's),

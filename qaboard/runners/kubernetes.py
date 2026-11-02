@@ -43,8 +43,9 @@ Notes:
   To give runs a QA-Board token, use a Kubernetes Secret in `job_template` (env.valueFrom.secretKeyRef).
 - HOME is yours if it's under `mounts`, else /tmp. USER/LOGNAME are yours: pods' UIDs rarely are in the image's /etc/passwd.
   CA bundle variables (SSL_CERT_FILE...) are forwarded only if under `mounts`, proxies on localhost are not.
-- Names and labels: Jobs are named qa-<command_id[:8]>-<group>-<chunk>, labeled app.kubernetes.io/managed-by=qaboard,
-  qaboard.io/command-id, qaboard.io/user and qaboard.io/project. Stopping a batch deletes the Jobs with its command-id.
+- Names and labels: Jobs are named qa-<command_id[:8]>-<random>-<group>-<chunk> (the random part is per `qa batch`:
+  a command id can be reused, e.g. by `qa optimize`), labeled app.kubernetes.io/managed-by=qaboard, qaboard.io/command-id,
+  qaboard.io/user and qaboard.io/project. Stopping a batch deletes the Jobs with its command-id.
 """
 import os
 import re

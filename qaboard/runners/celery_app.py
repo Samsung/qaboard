@@ -58,7 +58,9 @@ def start(self, job, cwd=None, env=None):
                         # https://docs.python.org/3/library/codecs.html#error-handlers
                         errors='surrogateescape',
                         cwd=cwd if cwd else job.run_context.job_options['cwd'],
-                        env=env,
+                        # The worker's environment (its own secrets, CUDA_VISIBLE_DEVICES...), with qa batch's on top:
+                        # qa batch doesn't forward its secrets, workers can provide them.
+                        env={**os.environ, **env} if env is not None else None,
                         start_new_session=os.name != 'nt',
                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as process:
     with stopped_with_task(process):

@@ -36,8 +36,9 @@ LOCAL_RUNNERS = ('local', 'celery')
 # *TOKEN*, *PASSWORD*, *SECRET*, *AUTH*...). The server is stricter: `qa batch` doesn't need its keys.
 SERVER_SECRET_WORDS = ("KEY", "PRIVATE", "CREDENTIAL", "DSN", "DATABASE_URL", "PASS")
 
-def is_secret(name: str) -> bool:
-  return is_runner_secret(name) or any(word in name.upper() for word in SERVER_SECRET_WORDS)
+def is_secret(name: str, value: str = '') -> bool:
+  """From the name, or the value: URLs with credentials (user:password@host)"""
+  return is_runner_secret(name, value) or any(word in name.upper() for word in SERVER_SECRET_WORDS)
 
 # The server's settings with secrets or that only the server needs, besides those is_secret() finds from their names:
 # the database, LDAP, SMTP, sign-in, analytics, Sentry
@@ -57,7 +58,7 @@ def qa_environment(submission_id: str, celery: bool = False, environ: Optional[D
   environ = os.environ if environ is None else environ
   env = {
     k: v for k, v in environ.items()
-    if not is_secret(k) and not k.startswith(SERVER_ONLY_PREFIXES) and k not in CELERY_VARIABLES
+    if not is_secret(k, v) and not k.startswith(SERVER_ONLY_PREFIXES) and k not in CELERY_VARIABLES
   }
   if celery:
     env.update({k: environ[k] for k in CELERY_VARIABLES if k in environ})

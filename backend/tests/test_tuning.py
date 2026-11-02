@@ -517,6 +517,8 @@ def test_qa_environment_has_no_secrets():
         "JENKINS_AUTH": "x", "GITLAB_AUTH": "x", "GITHUB_TOKEN": "x", "SENTRY_DSN": "https://x@sentry", "POSTHOG_API_KEY": "x",
         "DATABASE_URL": "postgresql://x", "AWS_SECRET_ACCESS_KEY": "x", "GOOGLE_APPLICATION_CREDENTIALS": "/key.json",
         "CELERY_BROKER_URL": "pyamqp://qaboard:x@rabbitmq//", "CELERY_RESULT_BACKEND": "rpc://",
+        # credentials in a URL, whatever the name
+        "SOME_SERVICE_URL": "https://user:pw@service", "https_proxy": "http://user:pw@proxy:3128",
     }
     env = qa_environment("c0ffee00", environ=server)
     assert env == {
