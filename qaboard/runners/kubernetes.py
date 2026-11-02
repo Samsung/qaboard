@@ -985,9 +985,10 @@ def doctor_test_script(options: KubernetesOptions) -> str:
     path = shlex.quote(mount['path'])
     lines.append(f'if [ -d {path} ]; then echo "mount {mount["path"]}: ok"; else echo "mount {mount["path"]}: MISSING"; failed=1; fi')
   if options.batch_dir:
-    batch_dir = shlex.quote(options.batch_dir)
-    probe = shlex.quote(options.batch_dir + '/.qaboard-doctor-') + '"$HOSTNAME-$$"'
-    lines.append(f'if mkdir -p {batch_dir} && touch {probe} && rm {probe}; then echo "outputs {options.batch_dir}: writable"; else echo "outputs {options.batch_dir}: NOT writable"; failed=1; fi')
+    # In the closest folder that exists: we leave nothing behind
+    lines.append(f'd={shlex.quote(options.batch_dir)}; while [ ! -d "$d" ] && [ "$d" != / ]; do d=$(dirname "$d"); done')
+    lines.append('probe="$d/.qaboard-doctor-$HOSTNAME-$$"')
+    lines.append(f'if touch "$probe" && rm "$probe"; then echo "outputs: can write in $d"; else echo "outputs: can NOT write in $d (for {options.batch_dir})"; failed=1; fi')
   # Older qa have no --version
   lines.append('if qa --version 2>/dev/null || qa --help > /dev/null; then echo "qa: ok"; else echo "qa: NOT working in the image"; failed=1; fi')
   lines.append('exit $failed')
@@ -1196,7 +1197,7 @@ class Doctor():
     # The pods run where `qa batch` runs, and write the outputs: they must see both
     for what, path in (('the project', os.getcwd()), ('the outputs', self.options.batch_dir)):
       if path and not any(is_under(str(path), m.get('path', '')) for m in self.options.mounts):
-        yield Check('Kubernetes: mounts', WARNING, f"{what.capitalize()} ({path}) is not under `mounts`: the pods won't see it, unless it's in the image at the same path.",
+        yield Check('Kubernetes: mounts', WARNING, f"The pods won't see {what} ({path}): it's not under `mounts` (unless the image has it, at the same path).",
                     fix='Add the shared filesystem to runners.kubernetes.mounts, at the same path.')
 
   def check_run_as(self):

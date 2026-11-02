@@ -807,14 +807,16 @@ class TestDoctor(KubernetesTestCase):
     bin_dir.mkdir()
     (bin_dir / 'qa').write_text('#!/bin/sh\necho qa-help\n')
     (bin_dir / 'qa').chmod(0o755)
-    script = doctor_test_script(dict_to_KubernetesOptions({'mounts': [{'path': str(self.root), 'pvc': 'x'}, {'path': '/nope', 'pvc': 'y'}], 'batch_dir': str(self.root / 'out')}))
+    (self.root / 'outputs').mkdir()
+    script = doctor_test_script(dict_to_KubernetesOptions({'mounts': [{'path': str(self.root), 'pvc': 'x'}, {'path': '/nope', 'pvc': 'y'}], 'batch_dir': str(self.root / 'outputs' / 'not' / 'yet')}))
     out = subprocess.run(['sh', '-c', script], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', env={'PATH': f'{bin_dir}:/usr/bin:/bin', 'HOSTNAME': 'pod'})
     self.assertEqual(out.returncode, 1)
     self.assertIn(f'mount {self.root}: ok', out.stdout)
     self.assertIn('mount /nope: MISSING', out.stdout)
-    self.assertIn('writable', out.stdout)
+    self.assertIn(f'outputs: can write in {self.root}/outputs', out.stdout)
     self.assertIn('qa: ok', out.stdout)
-    self.assertEqual(list((self.root / 'out').iterdir()), [])
+    # it leaves nothing behind
+    self.assertEqual(list((self.root / 'outputs').iterdir()), [])
 
   def test_pending_test_job(self):
     def on_list(kube):
