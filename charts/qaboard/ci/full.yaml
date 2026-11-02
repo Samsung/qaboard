@@ -40,6 +40,7 @@ runners:
     enabled: true
     namespaces: [algo-qa, algo-gpu]
     allowHostPath: true
+    runAs: "5000:5000"
     dask: true
     extraRules:
       - apiGroups: [""]

@@ -131,9 +131,9 @@ class Batch(Base):
     # TODO: can we after the stop() just mark all outputs as is_pending:False ?
     # Batch.data.commands is written by unauthenticated API calls, and the runners use those options to build shell
     # commands (e.g. `bkill` via the LSF bridge) or to pick a cluster. So we only forward the few options needed to
-    # stop jobs, after validating them: see backend/runner_jobs.py.
+    # stop jobs, after validating them: see backend/runner_jobs.py. What we may not stop is a warning.
     from backend.runner_jobs import stop_batch_jobs, mark_drivers_stopped
-    stopped = stop_batch_jobs(self.data, any([o.is_pending for o in self.outputs]))
+    stopped = stop_batch_jobs(self.data, any([o.is_pending for o in self.outputs]), self.ci_commit.project_id)
     if stopped is None:
       return {}
     if stopped["stopped_drivers"]:
@@ -150,7 +150,7 @@ class Batch(Base):
           o.set_status(False, False)
           session.add(o)
       session.commit()
-      return {}
+      return {"warnings": stopped["warnings"]} if stopped["warnings"] else {}
 
   def delete(self, session, soft=False, only_failed=False, filter=None):
     """

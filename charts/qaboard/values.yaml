@@ -223,30 +223,40 @@ cantaloupe:
 
 # Start the batches users ask for in the web app on Kubernetes, and stop Kubernetes batches (the kubernetes runner).
 # `qa batch` runs in a pod (a Job) as the signed-in user's UID/GID (from the backend's accounts: /etc/passwd or
-# QABOARD_ACCOUNTS_COMMAND), with the project's runners.kubernetes (image, mounts...) from its qaboard.yaml, and starts
-# the runs' Jobs. The pods must see the code, inputs and results at the same paths as the backend (e.g. NFS or PVCs).
+# QABOARD_ACCOUNTS_COMMAND; only for users who sign in with the directory: LDAP, SAML, OIDC), with the commit's
+# runners.kubernetes (image, mounts...) from its qaboard.yaml, and starts the runs' Jobs. The pods must see the code,
+# inputs and results at the same paths as the backend (e.g. NFS or PVCs).
 # The chart creates, in each namespace (they must exist):
 # - a Role <release>-qaboard-runs with the runner's permissions: jobs (create, get, list, watch, delete), configmaps
-#   (create, get, patch, delete), pods and events (get, list, watch), pods/log (get), Kueue localqueues (get)
+#   (create, get, delete), pods and events (get, list, watch), pods/log (get), Kueue localqueues (get)
 # - a ServiceAccount (serviceAccount) for the pods that run `qa batch`, bound to it
 # - a RoleBinding for both, and for the backend's ServiceAccount (backend.serviceAccount)
 # and sets the backend's QABOARD_TUNING_RUNNER=kubernetes, QABOARD_KUBERNETES_NAMESPACES, QABOARD_KUBERNETES_SERVICE_ACCOUNT
 # and QABOARD_KUBERNETES_SERVER_URL (`config` wins). Installing it needs the permission to create Roles there.
-# Security: qaboard.yaml is written by whoever can push to the project, and `qa batch` runs the project's code with this
-# ServiceAccount: it can start any pod the namespace accepts. QA-Board starts `qa batch` as the user (never as root),
-# without job_template, the server's environment, or hostPath mounts (unless allowHostPath), but what runs may do
-# (which user, volumes, privileges) is up to the namespace: enforce it with Pod Security Admission (the "restricted"
-# or "baseline" level) and admission policies, e.g. a ValidatingAdmissionPolicy that ties runAsUser to the
-# qaboard.io/user label, and quotas with ResourceQuota or Kueue. See website/docs/backend-admin/kubernetes.mdx
+#
+# Security: A NAMESPACE IS A TRUST DOMAIN. `qa batch` runs the commit's code with the namespace's runs ServiceAccount,
+# which can create Jobs: any pod the namespace accepts, as any UID it accepts. Everyone who can start batches from the
+# web app in a namespace can act as anyone else in it (an admission policy on the qaboard.io/user label can't tell
+# them apart: they share the ServiceAccount). Use one namespace per team. QA-Board starts `qa batch` as the user (never
+# as root, nor as a UID from qaboard.yaml), without job_template, the server's environment, or hostPath mounts
+# (unless allowHostPath), but what runs may do (users, volumes, privileges) is up to the namespace: enforce it with Pod
+# Security Admission ("restricted" or "baseline") and admission policies, and quotas with ResourceQuota or Kueue.
+# With runAs: "<uid>:<gid>" (a team account) and a ValidatingAdmissionPolicy that pins runAsUser for the runs
+# ServiceAccount, a namespace's batches are isolated from other namespaces' users.
+# See website/docs/backend-admin/runners.mdx and website/docs/kubernetes-runner.mdx
 runners:
   kubernetes:
     enabled: false
-    # Where QA-Board may start and stop runs (QABOARD_KUBERNETES_NAMESPACES). Batches of projects whose
+    # Where QA-Board may start and stop runs (QABOARD_KUBERNETES_NAMESPACES). Batches of commits whose
     # runners.kubernetes.namespace is not set go to the first one.
     namespaces: []
     #  - algo-qa
-    # The ServiceAccount of the pods that run `qa batch`, created in each namespace (QABOARD_KUBERNETES_SERVICE_ACCOUNT)
-    serviceAccount: qaboard-runs
+    # The ServiceAccount of the pods that run `qa batch`, created in each namespace (QABOARD_KUBERNETES_SERVICE_ACCOUNT).
+    # Default: <release>-qaboard-runs
+    serviceAccount: ""
+    # Who the pods that run `qa batch` run as (QABOARD_KUBERNETES_RUN_AS): "" or "user", the signed-in user's UID/GID,
+    # or "<uid>:<gid>", one account for all the batches started from QA-Board.
+    runAs: ""
     # How those pods reach QA-Board (QABOARD_KUBERNETES_SERVER_URL). Default: the proxy's Service,
     # http://<release>-qaboard-proxy.<release namespace>.svc
     serverUrl: ""
