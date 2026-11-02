@@ -1,10 +1,11 @@
 // The analysis panel, under the images: the histogram of the view, the profiles of its rows and columns, or its
 // statistics. Users pick the view in its header; the channels shown are the same for all.
-import { useEffect, useEffectEvent, useState, useSyncExternalStore } from 'react';
+import { useEffect, useEffectEvent, useMemo, useState, useSyncExternalStore } from 'react';
 
 import { ANALYSES, STATS, alongImage, formatStat, formatStatDelta, profilesOf, statsOf, statsTsv } from './analysis';
 import { pixelDensityRatio } from './comparison';
 import { CHANNELS } from './histogram';
+import { highlightMask } from './imageAnalysis';
 import { CHANNEL_COLORS, CHANNEL_TITLES, ChannelButtons, Histogram, LineLegend, readHistograms } from './panels';
 import { ProfilePlot } from './profilePlot';
 import { GroupingPicker, ImageChannelButtons, ImageValuesView, SensorCard, useImageAnalysis } from './sensorPanel';
@@ -43,7 +44,7 @@ const VALUES = [
   { value: 'image', label: 'Image values', title: "The image's own values (raw, 10-bit, 16-bit…), at full resolution, per channel of the sensor: R, Gr, Gb, B" },
 ];
 
-export const AnalysisPanel = ({ controller, comparing, names, view, onViewChange, channels, onChannelsChange, range, onRangeChange, onGuideChange, values, onValuesChange, images, sizes, getPixels, imageValuesUnavailable, sensor, onSensorChange, sensorRemembered }) => {
+export const AnalysisPanel = ({ controller, comparing, names, view, onViewChange, channels, onChannelsChange, range, onRangeChange, imageRange = null, onImageRangeChange, onImageHighlightChange, onGuideChange, values, onValuesChange, images, sizes, getPixels, imageValuesUnavailable, sensor, onSensorChange, sensorRemembered }) => {
   const image_values = values === 'image' && !!getPixels;
   const state = useImageAnalysis({ controller, images, comparing, sizes, getPixels, setting: sensor, active: image_values });
   const [hidden, setHidden] = useState(() => new Set());
@@ -51,6 +52,17 @@ export const AnalysisPanel = ({ controller, comparing, names, view, onViewChange
   const pixel = image_values && pointer ? controller.imagePixel('a', pointer.point) : null;
   const marker = pixel ? { x: pixel.x + 0.5, y: pixel.y + 0.5 } : null;
   const analysis = state.results?.a ?? null;
+  // The pixels in the range picked on the histogram of the image values, for the viewers to highlight
+  const results = state.results;
+  const masks = useMemo(() => {
+    if (!image_values || view !== 'histogram' || !imageRange || !results?.a) return null;
+    const shown = channel => !hidden.has(channel.cell ?? channel.key);
+    return { a: highlightMask(results.a, imageRange, shown), b: comparing && results.b ? highlightMask(results.b, imageRange, shown) : null };
+  }, [image_values, view, imageRange, results, hidden, comparing]);
+  useEffect(() => {
+    onImageHighlightChange?.(masks);
+  }, [masks, onImageHighlightChange]);
+  useEffect(() => () => onImageHighlightChange?.(null), [onImageHighlightChange]);
   const values_options = VALUES.map(option => option.value === 'image' && !getPixels
     ? { ...option, title: imageValuesUnavailable ?? "The app doesn't read the image's own values" }
     : option);
@@ -76,7 +88,7 @@ export const AnalysisPanel = ({ controller, comparing, names, view, onViewChange
     </div>
     {image_values ? <>
       <SensorCard state={state} setting={sensor} onSettingChange={onSensorChange} names={names} comparing={comparing} remembered={sensorRemembered} />
-      <ImageValuesView view={view} state={state} names={names} comparing={comparing} hidden={hidden} marker={marker} onGuideChange={onGuideChange} />
+      <ImageValuesView view={view} state={state} names={names} comparing={comparing} hidden={hidden} marker={marker} onGuideChange={onGuideChange} range={imageRange} onRangeChange={onImageRangeChange} masks={masks} />
     </> : <>
       {view === 'histogram' && <Histogram controller={controller} comparing={comparing} names={names} channels={channels} range={range} onRangeChange={onRangeChange} />}
       {view === 'profiles' && <Profiles controller={controller} comparing={comparing} names={names} channels={channels} onGuideChange={onGuideChange} />}

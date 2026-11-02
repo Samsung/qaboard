@@ -1773,3 +1773,8 @@
   margin-top: 0;
   border-top: none;
 }
+.qiv-image-histogram-area {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+}
