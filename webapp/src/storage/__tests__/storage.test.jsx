@@ -19,8 +19,8 @@ const mockApi = routes => vi.spyOn(globalThis, 'fetch').mockImplementation((url,
   const { pathname } = new URL(url, 'http://localhost');
   const answer = routes[`${init.method ?? 'GET'} ${pathname}`];
   if (!answer) return json({});
-  const [data, status] = typeof answer === 'function' ? answer(url, init) : [answer, 200];
-  return json(data, status);
+  // a function can answer later: it returns a promise
+  return Promise.resolve(typeof answer === 'function' ? answer(url, init) : [answer, 200]).then(([data, status]) => json(data, status));
 });
 const calls = (fetch, method, path) => fetch.mock.calls.filter(([url, init]) => (init?.method ?? 'GET') === method && url.startsWith(path));
 const lastBody = (fetch, method, path) => JSON.parse(calls(fetch, method, path).at(-1)[1].body);
@@ -78,6 +78,25 @@ describe('Storage usage', () => {
     expect(history.location.search).toBe('?project=proj%2Fa');
   });
 
+  it("doesn't show your own total as everyone's while everyone's loads", async () => {
+    let answer_everyone;
+    mockApi({
+      'GET /api/v1/storage/overview': url => new URL(url, 'http://localhost').searchParams.get('scope') === 'all'
+        ? new Promise(resolve => { answer_everyone = () => resolve([{ ...overview, scope: 'all', totals: { ...overview.totals, bytes: 500 * GB } }, 200]); })
+        : [overview, 200],
+      'GET /api/v1/storage/jobs': { jobs: [] },
+    });
+    renderAt('/storage');
+    expect(await screen.findByTestId('total')).toHaveTextContent('39.0 GB');
+    fireEvent.click(screen.getByRole('radio', { name: "Everyone's" }));
+    expect(await screen.findByLabelText('Loading the storage usage')).toBeInTheDocument();
+    expect(screen.queryByTestId('total')).not.toBeInTheDocument();
+    expect(screen.queryByText('No runs')).not.toBeInTheDocument();
+    act(() => answer_everyone());
+    expect(await screen.findByTestId('total')).toHaveTextContent('500 GB');
+    expect(screen.getByText("used by everyone's runs")).toBeInTheDocument();
+  });
+
   it("shows the commits' message, author and date, and filters by project, branch or user in a click", async () => {
     const commit = { message: 'Tune the AWB', details: 'Tune the AWB\n\nWith more tests', author: 'Alice Doe', authored_at: '2026-06-30T00:00:00Z' };
     const fetch = mockApi({
@@ -95,8 +114,9 @@ describe('Storage usage', () => {
     await waitFor(() => expect(history.location.search).toBe('?scope=all&project=proj%2Fa&branch=feature'));
     fireEvent.click(within(row).getByRole('button', { name: 'bob' }));
     await waitFor(() => expect(history.location.search).toBe('?scope=user&user=bob&project=proj%2Fa&branch=feature'));
-    // clicking the row selects it
-    fireEvent.click(within(row).getByText('3'));
+    // bob's runs load: everyone's aren't shown as his meanwhile. Clicking the row selects it.
+    const [bobs] = within(await screen.findByRole('table', { name: 'Batches' })).getAllByTestId('storage-item');
+    fireEvent.click(within(bobs).getByText('3'));
     expect(screen.getByRole('region', { name: 'Selection' })).toHaveTextContent('1 batch selected');
     expect(calls(fetch, 'GET', '/api/v1/storage/items').length).toBeGreaterThan(0);
   });

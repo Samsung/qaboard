@@ -8,6 +8,7 @@ import { unstable_HistoryRouter as HistoryRouter } from 'react-router';
 import { history, RouteMatch } from '../../router';
 import { matchAppRoute } from '../../routes';
 import { ActivityPage, readFilters, activityUrl, commitUrl } from '../ActivityPage';
+import { overviewQuery, keepIfSameWhose, refresh_interval } from '../api';
 import { formatDuration } from '../format';
 import { renderWithProviders } from '../../test-utils';
 
@@ -91,6 +92,24 @@ describe('Runs activity', () => {
     await waitFor(() => expect(lastParams(fetch, 'GET', '/api/v1/activity/items').get('status')).toBe('failed'));
     // the overview counts every status
     expect(lastParams(fetch, 'GET', '/api/v1/activity/overview').get('status')).toBe(null);
+  });
+
+  it("shows the server's errors, and doesn't hide them behind a spinner when it refreshes", async () => {
+    mockApi(routes({ routes: { 'GET /api/v1/activity/overview': () => [{ error: 'Something broke' }, 500] } }));
+    renderAt('/activity');
+    expect(await screen.findByText('Something broke')).toBeInTheDocument();
+    // refreshing a query without data shows the spinner again: live pages stop refreshing after an error
+    const query = overviewQuery({}, { live: true });
+    expect(query.refetchInterval({ state: { status: 'error' } })).toBe(false);
+    expect(query.refetchInterval({ state: { status: 'success' } })).toBe(refresh_interval);
+    expect(overviewQuery({}, { live: false }).refetchInterval({ state: { status: 'success' } })).toBe(false);
+  });
+
+  it("shows the previous numbers while new ones load, but not someone else's", () => {
+    const keep = keepIfSameWhose({ scope: 'all' });
+    expect(keep('everyone', { queryKey: ['activity', 'overview', { scope: 'all' }, { window: '7d' }] })).toBe('everyone');
+    expect(keep('mine', { queryKey: ['activity', 'overview', { scope: 'me' }, {}] })).toBe(undefined);
+    expect(keep(undefined, undefined)).toBe(undefined);
   });
 
   it('groups runs by batch, and shows their runs with links', async () => {

@@ -550,7 +550,7 @@ export const StorageUsage = ({ me, view, filters }) => {
           onClick={() => setDeleting({ group: group ?? 'batch', keys: null, filters, label: `Everything that matches the filters in ${filters.project}` })}/>}
       </Toolbar>}
       <ActiveFilters filters={filters} setFilters={setFilters}/>
-      {selected_view.id === 'projects' && <ProjectsView overview={overview} filters={filters} go={go} setFilters={setFilters}/>}
+      {selected_view.id === 'projects' && overview && <ProjectsView overview={overview} filters={filters} go={go} setFilters={setFilters}/>}
       {selected_view.id === 'users' && <UsersView me={me} filters={filters} storageUrl={storageUrl} openUser={user => go('batches', { scope: 'user', user: user.user_name, page: '' })}/>}
       {group && <ItemsView group={group} filters={filters} setFilters={setFilters} selection={selection} setSelection={setSelection}/>}
       {selected_view.id === 'folders' && <FoldersView filters={filters} setFilters={setFilters} go={go} overview={overview} onDelete={setDeleting}/>}

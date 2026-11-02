@@ -1,5 +1,5 @@
 // Runs activity (api/activity.py): what waits and runs now, what ended recently, and the batches that start soon.
-import { queryOptions, keepPreviousData } from "@tanstack/react-query";
+import { queryOptions } from "@tanstack/react-query";
 
 import { http } from "../api/http";
 
@@ -14,16 +14,22 @@ export const filterParams = ({ project, window, status, search, option }) => ({
   option: option || undefined,
 });
 
-// Pages that show what runs now refresh by themselves, unless users pause it
+// Pages that show what runs now refresh by themselves, unless users pause it. Not after an error: each refresh of a
+// query without data shows the spinner again, and users would never see the error (they retry with its button).
 export const refresh_interval = 15 * 1000;
-const refreshing = live => live ? refresh_interval : false;
+const refreshing = live => query => live && query.state.status !== 'error' ? refresh_interval : false;
+
+// While new numbers load, we show the previous ones, but not someone else's: when users switch to everyone's runs,
+// their own numbers under "Everyone's" would be wrong.
+export const keepIfSameWhose = whose => (previous, previous_query) =>
+  previous_query?.queryKey.some(part => JSON.stringify(part) === JSON.stringify(whose)) ? previous : undefined;
 
 export const overviewQuery = (filters, { live = true } = {}) => queryOptions({
   queryKey: ['activity', 'overview', whoseParams(filters), filterParams({ ...filters, status: '', option: '' })],
   queryFn: async ({ signal }) => (await http.get('/api/v1/activity/overview', {
     params: { ...whoseParams(filters), ...filterParams({ ...filters, status: '', option: '' }) }, signal, background: true,
   })).data,
-  placeholderData: keepPreviousData,
+  placeholderData: keepIfSameWhose(whoseParams(filters)),
   staleTime: 5 * 1000,
   refetchInterval: refreshing(live),
 });
@@ -35,7 +41,7 @@ export const itemsQuery = (group, filters, { sort = 'active', offset = 0, live =
   queryFn: async ({ signal }) => (await http.get('/api/v1/activity/items', {
     params: { group, ...whoseParams(filters), ...filterParams(filters), sort, offset, limit: items_page_size }, signal, background: true,
   })).data,
-  placeholderData: keepPreviousData,
+  placeholderData: keepIfSameWhose(whoseParams(filters)),
   staleTime: 5 * 1000,
   refetchInterval: refreshing(live),
 });
@@ -48,7 +54,7 @@ export const runsQuery = (filters, { group, key, offset = 0, live = true } = {})
     params: { group: group || undefined, key: group ? key : undefined, ...whoseParams(filters), ...filterParams(filters), offset, limit: runs_page_size },
     signal, background: true,
   })).data,
-  placeholderData: keepPreviousData,
+  placeholderData: keepIfSameWhose(whoseParams(filters)),
   staleTime: 5 * 1000,
   refetchInterval: refreshing(live),
 });
