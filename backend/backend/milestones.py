@@ -3,7 +3,6 @@ What milestones are, without the database: validating what clients send, importi
 versions, and what we answer. The API is in api/milestones.py, the model in models/Milestone.py.
 """
 import re
-import json
 import datetime
 from typing import Optional, Tuple, Dict, Set, Iterable
 

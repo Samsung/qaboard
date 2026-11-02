@@ -1158,39 +1158,37 @@ qa.add_command(auth)
 @click.option('--filter', 'filter_', help="Keep the runs matching a filter, like the web app's filter box.")
 @click.option('--reference', is_flag=True, help="The runs of the URL's reference bar (?reference=&batch_ref=) instead of the compared ones.")
 @click.option('--server', help="The QA-Board server, when the URL doesn't say (e.g. served under a path prefix).")
-@click.option('--list-output-dirs', 'list_output_dirs', is_flag=True, help="Print each run's folder, one per line (the default).")
 @click.option('--json', 'as_json', is_flag=True, help="Print the runs as JSON: input, configurations, parameters, metrics, folder...")
 @click.option('--include-deleted', is_flag=True, help="Also list runs whose files were deleted.")
-def runs_command(url, project, commit, batch, filter_, reference, server, list_output_dirs, as_json, include_deleted):
+@click.option('--include-hidden', is_flag=True, help="Also list runs the web app doesn't show with the batch, like qa optimize's iterations.")
+def runs_command(url, project, commit, batch, filter_, reference, server, as_json, include_deleted, include_hidden):
   """
-  Lists the runs a web app page shows, from its URL: their folders (default) or everything as JSON.
+  Lists the runs a web app page shows, from its URL: their folders, one per line, or everything with --json.
 
       qa runs "https://qaboard/my/project/commit/abc123?batch=ci&filter=night"
 
-  It doesn't run anything, and works outside a project. From Python: `qaboard.runs(url)`.
+  Experimental. It doesn't run anything, and works outside a project (give `runs` first: `qa runs ...`).
+  From Python: `qaboard.runs(url)`.
   """
   from .results import runs, ResultsError
-  from dataclasses import asdict
   if not url and not project:
     raise click.UsageError("Give the address of a commit's page in the web app, or --project (and --commit, --batch).")
   try:
-    found = runs(url, project=project, commit=commit, batch=batch, filter=filter_, reference=reference, server=server, include_deleted=include_deleted)
+    found = runs(url, project=project, commit=commit, batch=batch, filter=filter_, reference=reference, server=server,
+                 include_deleted=include_deleted, include_hidden=include_hidden)
   except (ResultsError, ValueError) as e:
     click.secho(f"ERROR: {e}", fg='red', bold=True, err=True)
     sys.exit(1)
   if as_json:
-    def plain(run):
-      d = asdict(run)
-      d['dir'] = str(run.dir) if run.dir else None
-      d['state'] = run.state
-      d['url'] = run.url
-      return d
-    print(json.dumps([plain(r) for r in found], indent=2))
+    print(json.dumps([r.to_dict() for r in found], indent=2))
   else:
     if not found:
-      click.secho(f"No run matches ({found.side.project}, commit {found.commit or found.side.commit}, batch {found.side.batch!r}, filter {found.side.filter!r}).", fg='yellow', err=True)
+      click.secho(f"No run matches ({found.side.project}, commit {found.commit or found.side.commit or found.side.branch}, batch {found.side.batch!r}, filter {found.side.filter!r}).", fg='yellow', err=True)
     for run in found:
-      print(run.dir if run.dir else f"<no folder> {run}")
+      if run.output_dir:
+        print(run.output_dir)
+      else:
+        click.secho(f"<no folder> {run}", fg='yellow', err=True)
 
 
 @qa.command()

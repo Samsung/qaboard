@@ -28,7 +28,7 @@ qaboard_host = site_config('QABOARD_HOST')
 qaboard_url, qaboard_url_source = default_server()
 # Only when nothing says where the server is: QABOARD_URL=http://localhost:5151 is fine.
 # `qa auth status` says it too.
-if not qaboard_url_source and sys.argv[1:2] != ['auth']:
+if not qaboard_url_source and sys.argv[1:2] not in (['auth'], ['runs']):
   click.secho("WARNING: We are not sure where to find your QA-Board server.", fg='yellow', bold=True, err=True)
   click.secho(f"         We will default to {qaboard_url}", fg='yellow', bold=True, err=True)
   click.secho("         To remove this warning provide it as an environment variable (via QABOARD_HOST, e.g. 'qaboard-srv', 'qaboard-srv:443').", fg='yellow', err=True)

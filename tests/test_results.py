@@ -8,7 +8,7 @@ from contextlib import redirect_stderr
 from pathlib import Path, PurePosixPath
 from unittest import mock
 
-from qaboard.results import Run, Runs, Side, parse_url, runs, start_run, ResultsError, NotYetAvailable
+from qaboard.results import Run, Runs, _Side as Side, parse_url, runs, ResultsError
 
 FIXTURE = json.loads((Path(__file__).resolve().parent / 'fixtures' / 'filters.json').read_text())
 COMMIT = '7622c3371234567890abcdef1234567890abcdef'
@@ -34,7 +34,8 @@ class TestParseUrl(unittest.TestCase):
     s = parse_url('https://qaboard.example.com/kitefin/detector/commit/7622c337?batch=ci&filter=night%20-crash&view=summary')
     self.assertEqual(s.server, 'https://qaboard.example.com')
     self.assertEqual(s.new, Side(project='kitefin/detector', commit='7622c337', batch='ci', filter='night -crash'))
-    self.assertIsNone(s.reference)
+    # without ?reference=, the reference is the default one: the server picks it
+    self.assertEqual(s.reference, Side(project='kitefin/detector', commit=None, batch='default'))
 
   def test_defaults(self):
     s = parse_url('http://localhost:5151/group/subgroup/repo/subproject/commit/abc')
@@ -44,26 +45,42 @@ class TestParseUrl(unittest.TestCase):
 
   def test_latest_commit_and_branches(self):
     self.assertEqual(parse_url('http://qaboard/g/repo/commit').new, Side(project='g/repo', commit=None))
-    s = parse_url('http://qaboard/g/repo/commits/release%2F2.0?batch=nightly')
+    s = parse_url('http://qaboard/g/repo/commit?branch=release%2F2.0&batch=nightly')
     self.assertEqual(s.new, Side(project='g/repo', commit=None, branch='release/2.0', batch='nightly'))
+    # with a commit, ?branch= is only where the user came from
+    self.assertIsNone(parse_url('http://qaboard/g/repo/commit/abc?branch=dev').new.branch)
+    # tags and branches with slashes
+    self.assertEqual(parse_url('http://qaboard/g/repo/commit/release%2F2.0').new.commit, 'release/2.0')
+    self.assertEqual(parse_url('http://qaboard/g/repo/commit/release/2.0').new.commit, 'release/2.0')
+
+  def test_like_the_web_app(self):
+    # what selection.js reads too: legacy names, lists, other projects
+    s = parse_url('http://qaboard/g/repo/commit/abc?batch_new=ci&filter=night&filter=-crash&new_project=g%2Fother')
+    self.assertEqual(s.new, Side(project='g/other', commit='abc', batch='ci', filter='night -crash'))
+    self.assertEqual(s.reference.project, 'g/repo')
 
   def test_reference_bar(self):
     s = parse_url('http://qaboard/g/repo/commit/abc?batch=ci&reference=def&batch_ref=nightly&filter_ref=indoor')
     self.assertEqual(s.reference, Side(project='g/repo', commit='def', batch='nightly', filter='indoor'))
-    # the reference uses the same batch when the URL doesn't say
+    # like in the web app, the reference's batch is "default" when the URL doesn't say, not the new batch
     s = parse_url('http://qaboard/g/repo/commit/abc?batch=ci&reference=def')
-    self.assertEqual(s.reference, Side(project='g/repo', commit='def', batch='ci'))
+    self.assertEqual(s.reference, Side(project='g/repo', commit='def', batch='default'))
     # a reference in another project
     s = parse_url('http://qaboard/g/repo/commit/abc?reference=def&ref_project=g%2Fother')
     self.assertEqual(s.reference.project, 'g/other')
 
   def test_server_under_a_path_prefix(self):
-    s = parse_url('https://tools.example.com/qaboard/g/repo/commit/abc', server='https://tools.example.com/qaboard')
+    s = parse_url('https://tools.example.com/qaboard/g/repo/commit/abc', server='https://tools.example.com/qaboard/')
     self.assertEqual(s.server, 'https://tools.example.com/qaboard')
     self.assertEqual(s.new.project, 'g/repo')
+    # whole segments: /qa isn't a prefix of /qaboard
+    with self.assertRaises(ValueError):
+      parse_url('https://tools.example.com/qaboard/g/repo/commit/abc', server='https://tools.example.com/qa')
 
   def test_not_a_commit_page(self):
-    for url in ('https://qaboard/g/repo/history', 'https://qaboard/g/repo', 'https://qaboard/commit/abc', 'g/repo/commit/abc', ''):
+    # lists of commits are not runs: /commits/<branch> shows many commits
+    for url in ('https://qaboard/g/repo/history', 'https://qaboard/g/repo', 'https://qaboard/g/repo/commits', 'https://qaboard/g/repo/commits/main',
+                'https://qaboard/commit/abc', 'g/repo/commit/abc', ''):
       with self.subTest(url=url), self.assertRaises(ValueError):
         parse_url(url)
 
@@ -83,20 +100,27 @@ class TestRuns(unittest.TestCase):
     self.assertEqual(run.input, 'slices/outdoor/night-street.jpg')
     self.assertEqual(run.input_path, Path('/data/slices/outdoor/night-street.jpg'))
     self.assertEqual(run.configurations, ['base', 'night'])
+    self.assertEqual(run.extra_parameters, {'gain': 8})
     self.assertEqual(run.params, {'gain': 8})
-    self.assertEqual(run.parameters, {'gain': 8})
     self.assertEqual(run.state, 'finished')
     self.assertTrue(run.is_failed)
-    self.assertEqual(PurePosixPath(run.dir.as_posix()), PurePosixPath(f'/mnt/qaboard/kitefin/detector/{COMMIT[:8]}/ci/2'))
+    self.assertEqual(PurePosixPath(run.output_dir.as_posix()), PurePosixPath(f'/mnt/qaboard/kitefin/detector/{COMMIT[:8]}/ci/2'))
     self.assertEqual(run.commit, COMMIT)
-    self.assertEqual(run.url, f'https://qaboard/kitefin/detector/commit/{COMMIT}?batch=ci&filter=id%3A2')
+    # id:2 alone would also match id:23
+    self.assertEqual(run.url, f'https://qaboard/kitefin/detector/commit/{COMMIT}?batch=ci&filter=id%3A2%24')
     self.assertEqual(found[1].state, 'running')
+    # the configurations' objects are parameters too
+    self.assertEqual(found[0].params, {'gain': 8})
+    with mock_get(commit_response()):
+      kitchen, = runs('https://qaboard/g/repo/commit/abc?batch=ci&filter=kitchen')
+    self.assertEqual(kitchen.extra_parameters, {})
+    self.assertEqual(kitchen.params, {'gain': 2, 'isp': {'awb': 'auto'}})
 
   def test_effective_parameters_over_tuning_parameters(self):
     with mock_get(commit_response()):
       run, = runs('https://qaboard/g/repo/commit/abc?batch=ci&filter=id:4')
+    self.assertEqual(run.extra_parameters, {})
     self.assertEqual(run.params, {'gain': 4})
-    self.assertEqual(run.parameters, {'gain': 4})
     self.assertEqual(run.metrics, {})
 
   def test_keyword_arguments_override_the_url(self):
@@ -114,6 +138,25 @@ class TestRuns(unittest.TestCase):
     self.assertEqual(len(found), 4)
     with self.assertRaises(ValueError):
       runs()
+
+  def test_commit_and_branch_replace_the_urls(self):
+    with mock_get(commit_response(batches=('default',))) as get:
+      runs('https://qaboard/g/repo/commit/abc', branch='dev')
+    self.assertEqual(get.call_args[0][0], 'https://qaboard/api/v1/commit')
+    self.assertEqual(get.call_args[1]['params']['branch'], 'dev')
+    with mock_get(commit_response(batches=('default',))) as get:
+      runs('https://qaboard/g/repo/commit?branch=dev', commit='abc')
+    self.assertEqual(get.call_args[0][0], 'https://qaboard/api/v1/commit/abc')
+    self.assertNotIn('branch', get.call_args[1]['params'])
+
+  def test_hidden_runs(self):
+    # qa optimize's iterations are not shown with the batch's runs in the web app
+    outputs = {**FIXTURE['outputs'], '1': {**FIXTURE['outputs']['1'], 'output_type': 'optim_iteration'}}
+    with mock_get(commit_response(outputs)):
+      self.assertEqual([r.id for r in runs('https://qaboard/g/repo/commit/abc?batch=ci')], [2, 3, 4])
+      found = runs('https://qaboard/g/repo/commit/abc?batch=ci', include_hidden=True)
+    self.assertEqual([r.id for r in found], [1, 2, 3, 4])
+    self.assertEqual(found[0].type, 'optim_iteration')
 
   def test_reference_runs(self):
     with mock_get(commit_response(batches=('nightly',))) as get:
@@ -139,6 +182,18 @@ class TestRuns(unittest.TestCase):
       runs('https://qaboard/g/repo/commit/abc?batch=ci', token='other')
     self.assertEqual(get.call_args[1]['headers'], {'Authorization': 'Bearer other'})
 
+  def test_environment_tokens_only_go_to_the_configured_server(self):
+    # a pasted URL can name any server: QABOARD_TOKEN is for the one qa is configured for
+    stderr = io.StringIO()
+    with mock_get(commit_response()) as get, mock.patch('qaboard.results.resolve_token', return_value=('ci-token', 'QABOARD_TOKEN')), \
+         mock.patch('qaboard.results.default_server', return_value=('https://qaboard.example.com', '$QABOARD_URL')), \
+         mock.patch('qaboard.results.read_hosts', return_value={}), redirect_stderr(stderr):
+      runs('https://evil.example.com/g/repo/commit/abc?batch=ci')
+      self.assertEqual(get.call_args[1]['headers'], {})
+      runs('https://qaboard.example.com/g/repo/commit/abc?batch=ci')
+      self.assertEqual(get.call_args[1]['headers'], {'Authorization': 'Bearer ci-token'})
+    self.assertIn('not sending QABOARD_TOKEN to https://evil.example.com', stderr.getvalue())
+
   def test_errors_say_what_to_do(self):
     with mock_get(commit_response(batches=('default', 'nightly'))), self.assertRaises(ResultsError) as e:
       runs('https://qaboard/g/repo/commit/abc?batch=ci')
@@ -154,35 +209,35 @@ class TestRuns(unittest.TestCase):
 
 class TestRunContract(unittest.TestCase):
   """
-  `runs()` and `start_run()` give the same object: scripts that post-process runs and code that creates them
-  (training loops, evals) use one API. start_run() isn't implemented yet: this pins what it must return.
+  Runs read from the server and runs created from code (training loops, evals, once the SDK writes) are the same
+  object: `Run._new` is what `start_run()` will build. `to_dict()` is the JSON of `qa runs --json`: its keys are a
+  contract with scripts, pin them.
   """
-  PUBLIC = {'project', 'commit', 'batch', 'input', 'database', 'platform', 'configurations', 'params', 'metrics', 'id', 'dir',
-            'state', 'is_pending', 'is_running', 'is_failed', 'deleted', 'input_metadata', 'data', 'created_at', 'finished_at',
-            'server', 'url', 'parameters', 'input_path', 'log', 'save_file', 'series', 'from_api', 'new'}
+  JSON_KEYS = {'project', 'commit', 'batch', 'input', 'database', 'platform', 'configurations', 'extra_parameters', 'params',
+               'metrics', 'type', 'id', 'output_dir', 'is_pending', 'is_running', 'is_failed', 'deleted', 'input_metadata', 'data',
+               'created_at', 'finished_at', 'server', 'state', 'url'}
 
   def test_same_object_from_the_server_and_from_code(self):
     from_server = Run.from_api(FIXTURE['outputs']['1'], project='g/repo', commit=COMMIT, batch='ci', server='https://qaboard')
-    from_code = Run.new(project='g/repo', input='slices/indoor/kitchen.jpg', configurations=['base', {'gain': 2}], params={'lr': 0.1}, batch='exp-1')
+    from_code = Run._new(project='g/repo', input='slices/indoor/kitchen.jpg', configurations=['base', {'gain': 2}], extra_parameters={'lr': 0.1}, batch='exp-1')
     self.assertIs(type(from_server), type(from_code))
-    # the fields, and the properties and methods
-    public = set(Run.__dataclass_fields__) | {name for name in dir(Run) if not name.startswith('_')}
-    self.assertEqual(public, self.PUBLIC)
-    # the same attributes are set on both, whatever created the run
-    self.assertEqual({k for k, v in vars(from_server).items()}, {k for k, v in vars(from_code).items()})
+    self.assertEqual(set(from_server.to_dict()), self.JSON_KEYS)
+    self.assertEqual(set(from_code.to_dict()), self.JSON_KEYS)
+    json.dumps(from_server.to_dict()), json.dumps(from_code.to_dict()) # JSON-friendly
     self.assertEqual(from_code.state, 'pending')
     self.assertEqual(from_server.state, 'finished')
     self.assertIsNone(from_code.id)
-    self.assertEqual(from_code.parameters, {'gain': 2, 'lr': 0.1})
+    self.assertIsNone(from_code.url)
+    # the same meaning of params everywhere: the configurations' objects and the tuning parameters
+    self.assertEqual(from_code.params, {'gain': 2, 'lr': 0.1})
+    self.assertEqual(from_code.extra_parameters, {'lr': 0.1})
 
-  def test_writing_is_not_available_yet(self):
-    run = Run.from_api(FIXTURE['outputs']['1'], project='g/repo', commit=COMMIT, batch='ci')
-    for call in (lambda: run.log(psnr=1), lambda: run.save_file('a.txt', 'x'), lambda: run.series('loss'),
-                 lambda: start_run(input='a.jpg')):
-      with self.assertRaises(NotYetAvailable) as e:
-        call()
-      self.assertIsInstance(e.exception, NotImplementedError)
-      self.assertIn("isn't available yet", str(e.exception))
+  def test_nothing_writes_yet(self):
+    # no stubs in the public API: methods come when they work
+    for name in ('log', 'save_file', 'series', 'finish'):
+      self.assertFalse(hasattr(Run, name), name)
+    import qaboard
+    self.assertFalse(hasattr(qaboard, 'start_run'))
 
 
 class TestCli(unittest.TestCase):
@@ -204,8 +259,9 @@ class TestCli(unittest.TestCase):
     run, = json.loads(result.stdout)
     self.assertEqual(run['input'], 'videos/Drive (A).mp4')
     self.assertEqual(run['params'], {'gain': 4})
+    self.assertEqual(run['extra_parameters'], {})
     self.assertEqual(run['state'], 'finished')
-    self.assertTrue(run['dir'].endswith('4'))
+    self.assertTrue(run['output_dir'].endswith('4'))
 
   def test_errors(self):
     result = self.invoke()

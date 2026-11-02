@@ -65,8 +65,8 @@ def compute_runs(milestone):
   hexsha = milestone.commit_hexsha
   commit_filter = CiCommit.hexsha == hexsha if len(hexsha) >= 40 else CiCommit.hexsha.startswith(hexsha)
   rows = (db_session
-          .query(Output.output_type, Output.platform, Output.configurations, Output.extra_parameters, Output.data,
-                 Output.is_failed, Output.is_pending, TestInput.path, TestInput.database, TestInput.data)
+          .query(Output.id, Output.output_type, Output.platform, Output.configurations, Output.extra_parameters, Output.data,
+                 Output.is_failed, Output.is_pending, Output.is_running, TestInput.path, TestInput.database, TestInput.data)
           .join(Batch, Output.batch_id == Batch.id)
           .join(CiCommit, Batch.ci_commit_id == CiCommit.id)
           .outerjoin(TestInput, Output.test_input_id == TestInput.id)
@@ -74,10 +74,12 @@ def compute_runs(milestone):
           .filter(or_(Output.deleted == False, Output.deleted == None))
           .all())
   runs = [{
-    'output_type': output_type, 'platform': platform, 'configurations': configurations, 'extra_parameters': extra_parameters,
-    'batch': (data or {}).get('batch'), 'is_failed': is_failed, 'is_pending': is_pending,
+    'id': id, 'output_type': output_type, 'platform': platform, 'configurations': configurations,
+    # the web app shows the parameters a run reported over its tuning parameters: filters see them too
+    'extra_parameters': {**(extra_parameters or {}), **((data or {}).get('params') if isinstance((data or {}).get('params'), dict) else {})},
+    'batch': (data or {}).get('batch'), 'is_failed': is_failed, 'is_pending': is_pending, 'is_running': is_running,
     'path': path, 'database': database, 'metadata': (input_data or {}).get('metadata') or {},
-  } for output_type, platform, configurations, extra_parameters, data, is_failed, is_pending, path, database, input_data in rows]
+  } for id, output_type, platform, configurations, extra_parameters, data, is_failed, is_pending, is_running, path, database, input_data in rows]
   milestone.data = {**(milestone.data or {}), 'runs': summarize_runs(runs, milestone.filter)}
 
 

@@ -288,7 +288,6 @@ const CiCommitResults = () => {
     ref_commit_id={ref_commit?.id ?? ref_commit_id}
     batch_ref={selected_batch_ref}
     filter_ref={filter_batch_ref}
-    nb_runs={nb_runs}
   />;
   const runs_actions = <>{export_plugin}{script_plugin}</>;
   // the commits' fixed headers

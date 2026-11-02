@@ -4,25 +4,27 @@ import { Button, Classes, PopoverNext, SegmentedControl, Tooltip } from "@bluepr
 import styled from "styled-components";
 
 import { useSiteConfig } from "../hooks";
+import { path_segment } from "../selection";
 import { copyWithToast } from "../utils/clipboard";
 
 
 export const script_help = "Work on the runs shown from a script: copy a Python or shell snippet that lists them";
 
-// The address of what the page shows, as qaboard.runs(url) and `qa runs <url>` read it: the project, commit, batch and
-// filter, without the view, the sorting or the other settings of the page.
+// The address of what the page shows, as qaboard.runs(url) and `qa runs <url>` read it (like selection.js does): the
+// project, commit, batch and filter, without the view, the sorting or the other settings of the page.
 export const runs_url = ({ project, commit_id, batch, filter, ref_project, ref_commit_id, batch_ref, filter_ref, origin = window.location.origin }) => {
   const params = new URLSearchParams();
   if (batch) params.set('batch', batch);
   if (filter) params.set('filter', filter);
   if (ref_commit_id) {
     params.set('reference', ref_commit_id);
-    if (batch_ref && batch_ref !== batch) params.set('batch_ref', batch_ref);
+    // the reference's batch defaults to "default", not to the new batch
+    if (batch_ref && batch_ref !== 'default') params.set('batch_ref', batch_ref);
     if (filter_ref) params.set('filter_ref', filter_ref);
     if (ref_project && ref_project !== project) params.set('ref_project', ref_project);
   }
   const query = params.toString();
-  return `${origin}/${project}/commit/${commit_id ?? ''}${query ? `?${query}` : ''}`;
+  return `${origin}/${path_segment(project)}/commit/${commit_id ? path_segment(commit_id) : ''}${query ? `?${query}` : ''}`;
 };
 
 export const python_snippet = url => `# /// script
@@ -31,8 +33,8 @@ export const python_snippet = url => `# /// script
 import qaboard as qb
 
 for run in qb.runs("${url}"):
-    print(run.input, run.configurations, run.metrics)
-    # its files: run.dir / "output.png"
+    print(run.input, run.params, run.metrics)
+    # its files: run.output_dir / "output.png"
 `;
 
 export const shell_snippet = url => `qa runs "${url}"               # one folder per line
@@ -61,10 +63,9 @@ const ScriptPlugin = props => {
   const [language, setLanguage] = useState('python');
   const url = runs_url(props);
   const snippet = language === 'python' ? python_snippet(url) : shell_snippet(url);
-  const nb_runs = props.nb_runs;
   const content = <Content>
     <p className={Classes.TEXT_MUTED} style={{ marginBottom: 8 }}>
-      Lists the {nb_runs !== undefined ? `${nb_runs} ` : ''}runs shown, with their metrics and folders, as the page does: the filter is in the address.
+      Lists the runs shown, with their metrics and folders: the filter is in the address. Experimental: names may change.
       {' '}<a href={`${docs_root}docs/apis#runs-in-scripts`} target="_blank" rel="noopener noreferrer">Read the docs</a>
     </p>
     <SegmentedControl
@@ -76,7 +77,7 @@ const ScriptPlugin = props => {
     <Snippet className={Classes.CODE_BLOCK} data-testid="script-snippet">{snippet}</Snippet>
     <Button icon="duplicate" text="Copy" variant="outlined" size="small" onClick={() => copyWithToast(snippet, { what: 'the snippet' })}/>
     <p className={Classes.TEXT_MUTED} style={{ marginTop: 10, marginBottom: 0 }}>
-      Needs the <code>qaboard</code> package (<code>pip install qaboard</code>), signed in with <code>qa auth login</code> if the project isn't public.
+      Needs the <code>qaboard</code> package (<code>pip install qaboard</code>, or <code>uv run script.py</code> installs it), signed in with <code>qa auth login</code> if the project isn't public.
     </p>
   </Content>;
   return <PopoverNext content={content} placement="bottom-end">

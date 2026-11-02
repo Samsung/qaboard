@@ -2,7 +2,6 @@
 Implement the API used by the "Export to a shared directory" plugin.
 """
 import os
-import re
 import json
 import shutil
 import hashlib
