@@ -126,6 +126,7 @@ from click import secho
 
 from .base import BaseRunner
 from .job import Job
+from .labels import label_value
 from ..run import RunContext
 from ..checks import Check, OK, WARNING, ERROR, SKIPPED
 
@@ -204,16 +205,13 @@ def cluster_kwargs(options: DaskOptions) -> Dict[str, Any]:
 excluded_env = {'HOSTNAME', 'PWD', 'OLDPWD', 'SHLVL', 'TMPDIR', 'TMP', 'TEMP', 'CUDA_VISIBLE_DEVICES', '_'}
 # and of the --no-wait driver's job
 excluded_env_prefixes = ('LSB_', 'LSF_', 'DASK_', 'SLURM_', 'PBS_', 'SGE_', 'OAR_', '_CONDOR_')
-# Pods run an image: they keep its paths and user
-excluded_pod_env = {'PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LD_LIBRARY_PATH', 'VIRTUAL_ENV', 'CONDA_PREFIX', 'PYTHONHOME', 'KUBECONFIG'}
 def forwarded_env(cluster_type: str = 'lsf', kubernetes: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
   if cluster_type == 'kubernetes':
-    if not (kubernetes or {}).get('forward_env', True):
-      return {}
-    excluded = excluded_env | excluded_pod_env
-  else:
-    excluded = excluded_env
-  return {k: v for k, v in os.environ.items() if k not in excluded and not k.startswith(excluded_env_prefixes)}
+    # Pods run an image: like the kubernetes runner's, they keep its paths, and get what they need (HOME, USER...).
+    # Secrets stay: tasks go through Dask, not in a ConfigMap others can read, and runs need e.g. QABOARD_TOKEN.
+    from .kubernetes import run_env as pod_env, dict_to_KubernetesOptions
+    return pod_env(dict_to_KubernetesOptions(kubernetes or {}), keep_secrets=True)
+  return {k: v for k, v in os.environ.items() if k not in excluded_env and not k.startswith(excluded_env_prefixes)}
 
 
 def run_env(env: Dict[str, str]) -> Dict[str, str]:
@@ -458,21 +456,22 @@ OPERATOR_FIX = """Install the Dask operator in the cluster (needs cluster admin 
   helm install --repo https://helm.dask.org --create-namespace -n dask-operator --generate-name dask-kubernetes-operator"""
 
 
+# The options of runners.kubernetes that apply to Dask's pods (Kueue's `queue` doesn't: the operator creates them)
+kubernetes_pod_options = (
+  'namespace', 'context', 'image', 'image_pull_secrets', 'resources', 'run_as', 'run_as_non_root', 'service_account',
+  'priority_class', 'mounts', 'env', 'forward_env', 'node_selector', 'tolerations',
+)
+
 def kubernetes_defaults(config: Dict[str, Any]) -> Dict[str, Any]:
   """The job options' `kubernetes`, from qaboard.yaml's runners.kubernetes: what the workers' pods (and the --no-wait driver) use."""
   kubernetes_config = (config.get('runners') or {}).get('kubernetes') or {}
-  options = ('namespace', 'context', 'image', 'image_pull_secrets', 'resources', 'run_as', 'mounts', 'env', 'forward_env', 'node_selector', 'tolerations')
-  return {k: v for k, v in kubernetes_config.items() if k in options} if isinstance(kubernetes_config, dict) else {}
-
-
-def kubernetes_label_value(value: str) -> str:
-  value = re.sub(r'[^A-Za-z0-9_.-]', '-', value)[:63]
-  return re.sub(r'^[^A-Za-z0-9]+|[^A-Za-z0-9]+$', '', value)
+  return {k: v for k, v in kubernetes_config.items() if k in kubernetes_pod_options} if isinstance(kubernetes_config, dict) else {}
 
 
 def kubernetes_name_prefix(command_id: str) -> str:
   """DNS-1123 names of the batch's objects start with "qa-{command_id[:8]}", like the kubernetes runner's Jobs."""
-  return "qa-" + re.sub(r'[^a-z0-9-]', '-', command_id[:8].lower())
+  from .kubernetes import dns_name
+  return dns_name(f"qa-{command_id[:8]}")
 
 
 def kubernetes_cluster_name(command_id: str) -> str:
@@ -488,61 +487,16 @@ def current_user() -> str:
     return f"uid-{os.getuid()}" if hasattr(os, 'getuid') else 'unknown'
 
 
-def kubernetes_labels(command_id: str) -> Dict[str, str]:
-  return {
-    "app.kubernetes.io/managed-by": "qaboard",
-    "qaboard.io/command-id": kubernetes_label_value(command_id),
-    "qaboard.io/user": kubernetes_label_value(current_user()),
-  }
-
-
-def kubernetes_resources(resources: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-  """Like the kubernetes runner: {cpu: 4, memory: 16Gi, nvidia.com/gpu: 1} are requests, memory and extended resources also limits."""
-  if not resources:
-    return {}
-  if set(resources) <= {'requests', 'limits'}:
-    return resources
-  requests = {k: str(v) for k, v in resources.items()}
-  return {"requests": requests, "limits": {k: v for k, v in requests.items() if k != 'cpu'}}
-
-
-def kubernetes_security_context(run_as: Any) -> Dict[str, Any]:
-  """run_as: user (default, our UID/GID and groups) | image (the image's user) | {uid, gid}"""
-  if run_as in (None, 'user'):
-    if not hasattr(os, 'getuid'):
-      return {}
-    return {"runAsUser": os.getuid(), "runAsGroup": os.getgid(), "supplementalGroups": sorted(set(os.getgroups()))}
-  if run_as == 'image':
-    return {}
-  if isinstance(run_as, dict) and 'uid' in run_as:
-    context = {"runAsUser": int(run_as['uid'])}
-    if run_as.get('gid') is not None:
-      context["runAsGroup"] = int(run_as['gid'])
-    return context
-  raise ValueError(f"Unknown run_as: {run_as!r}. Use user, image, or {{uid: 1000, gid: 1000}}.")
-
-
-def kubernetes_mounts(mounts: Optional[List[Dict[str, Any]]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-  """The shared filesystem, at the same paths in the pods: [{path, pvc | nfs: {server, path} | host_path}] -> volumes, volumeMounts"""
-  volumes, volume_mounts = [], []
-  for index, mount in enumerate(mounts or []):
-    volume: Dict[str, Any] = {"name": f"qa-mount-{index}"}
-    if mount.get('pvc'):
-      volume['persistentVolumeClaim'] = {"claimName": mount['pvc']}
-    elif mount.get('nfs'):
-      volume['nfs'] = mount['nfs']
-    elif mount.get('host_path'):
-      volume['hostPath'] = {"path": mount['host_path']}
-    else:
-      raise ValueError(f"mounts[{index}]: set pvc, nfs or host_path: {mount}")
-    volumes.append(volume)
-    volume_mounts.append({"name": volume['name'], "mountPath": mount['path'], **({"readOnly": True} if mount.get('read_only') else {})})
-  return volumes, volume_mounts
+def kubernetes_labels(command_id: str, k8s: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+  """Like the kubernetes runner's objects"""
+  from .kubernetes import object_labels, dict_to_KubernetesOptions
+  return object_labels(dict_to_KubernetesOptions({"user": current_user(), **(k8s or {}), "command_id": command_id}))
 
 
 def kubernetes_cluster_spec(options: DaskOptions, command_id: str, nb_runs: int) -> Tuple[Dict[str, Any], Dict[str, Any], int, int]:
-  """The DaskCluster resource, the other KubeCluster kwargs, runs per worker, and how many workers."""
+  """The DaskCluster resource, the other KubeCluster kwargs, runs per worker, and how many workers. The pods are like the kubernetes runner's."""
   from dask_kubernetes.operator import make_cluster_spec # type: ignore
+  from .kubernetes import resources_spec, security_context, mounts_spec
   k8s = options.kubernetes
   kwargs = cluster_kwargs(options)
   threads = int(kwargs.pop('threads_per_worker', 1))
@@ -550,7 +504,7 @@ def kubernetes_cluster_spec(options: DaskOptions, command_id: str, nb_runs: int)
   image = kwargs.pop('image', None) or k8s.get('image')
   if not image:
     raise ValueError("Set runners.kubernetes.image (or runners.dask.cluster.image): an image with qa, distributed and your code's dependencies.")
-  resources = kubernetes_resources(kwargs.pop('resources', None) or k8s.get('resources'))
+  resources = resources_spec(kwargs.pop('resources', None) or k8s.get('resources'))
   env = {k: str(v) for k, v in {**(k8s.get('env') or {}), **(kwargs.pop('env', None) or {})}.items()}
   # dask-kubernetes' defaults, `dask-worker` and `dask-scheduler`, were removed from recent versions of distributed
   worker_command = kwargs.pop('worker_command', 'dask worker')
@@ -567,19 +521,25 @@ def kubernetes_cluster_spec(options: DaskOptions, command_id: str, nb_runs: int)
     idle_timeout=kwargs.pop('idle_timeout', 600),
     **{k: kwargs.pop(k) for k in ('scheduler_service_type',) if k in kwargs},
   )
-  spec['metadata']['labels'] = kubernetes_labels(command_id)
-  security_context = kubernetes_security_context(k8s.get('run_as', 'user'))
+  spec['metadata']['labels'] = kubernetes_labels(command_id, k8s)
+  pod_security_context = security_context(k8s.get('run_as', 'user'))
+  if k8s.get('run_as_non_root'):
+    pod_security_context['runAsNonRoot'] = True
   pull_secrets = [{"name": name} for name in k8s.get('image_pull_secrets') or []]
-  volumes, volume_mounts = kubernetes_mounts(k8s.get('mounts'))
+  volumes, volume_mounts = mounts_spec(k8s.get('mounts'))
   worker, scheduler = spec['spec']['worker']['spec'], spec['spec']['scheduler']['spec']
   scheduler_args = scheduler['containers'][0]['args']
   if scheduler_args[0] == 'dask-scheduler':
     scheduler['containers'][0]['args'] = ['dask', 'scheduler', *scheduler_args[1:]]
   for pod in (worker, scheduler):
-    if security_context:
-      pod['securityContext'] = security_context
+    if pod_security_context:
+      pod['securityContext'] = pod_security_context
     if pull_secrets:
       pod['imagePullSecrets'] = pull_secrets
+    if k8s.get('service_account'):
+      pod['serviceAccountName'] = k8s['service_account']
+    if k8s.get('priority_class'):
+      pod['priorityClassName'] = k8s['priority_class']
   # Only the workers run the runs: they need the files, and the nodes with e.g. GPUs
   if volumes:
     worker['volumes'] = volumes
@@ -963,34 +923,15 @@ def stop_jobqueue_jobs(cluster_type: str, command_id: str, user: Optional[str] =
 
 
 def kubernetes_api_client(context: Optional[str]):
-  """From the kubeconfig (and its context), else, in a pod (e.g. the QA-Board server), the ServiceAccount."""
-  from kubernetes import client, config # type: ignore
-  from kubernetes.config.config_exception import ConfigException # type: ignore
-  try:
-    return config.new_client_from_config(context=context)
-  except ConfigException:
-    if not os.environ.get('KUBERNETES_SERVICE_HOST'):
-      raise
-    config.load_incluster_config()
-    return client.ApiClient()
+  """From the kubeconfig (and its context), else, in a pod (e.g. the QA-Board server), the ServiceAccount: like the kubernetes runner."""
+  from .kubernetes import Kube
+  return Kube(context).api_client
 
 
 def kubernetes_namespace(namespace: Optional[str], context: Optional[str]) -> str:
   """The given namespace, else the kubeconfig context's, else, in a pod, the ServiceAccount's, else "default"."""
-  if namespace:
-    return namespace
-  try:
-    from kubernetes import config # type: ignore
-    contexts, active = config.list_kube_config_contexts()
-    current = next((c for c in contexts if c['name'] == context), None) if context else active
-    if current:
-      return current['context'].get('namespace') or 'default'
-  except Exception:
-    pass
-  service_account_namespace = Path('/var/run/secrets/kubernetes.io/serviceaccount/namespace')
-  if service_account_namespace.exists():
-    return service_account_namespace.read_text().strip()
-  return 'default'
+  from .kubernetes import batch_target
+  return batch_target({"namespace": namespace, "context": context}).get('namespace') or 'default'
 
 
 def delete_dask_clusters(command_id: str, namespace: Optional[str], context: Optional[str], api_client=None):
@@ -999,7 +940,7 @@ def delete_dask_clusters(command_id: str, namespace: Optional[str], context: Opt
   from kubernetes.client.rest import ApiException # type: ignore
   api_client = api_client or kubernetes_api_client(context)
   namespace = kubernetes_namespace(namespace, context)
-  label = kubernetes_label_value(command_id)
+  label = label_value(command_id)
   name_prefix = f"{kubernetes_name_prefix(command_id)}-dask-"
   custom: Any = client.CustomObjectsApi(api_client)
   try:
@@ -1021,7 +962,7 @@ def stop_kubernetes(command_id: str, namespace: Optional[str], context: Optional
   api_client = kubernetes_api_client(context)
   delete_dask_clusters(command_id, namespace, context, api_client)
   namespace = kubernetes_namespace(namespace, context)
-  label = kubernetes_label_value(command_id)
+  label = label_value(command_id)
   batch: Any = client.BatchV1Api(api_client)
   for job in batch.list_namespaced_job(namespace, label_selector=f"qaboard.io/command-id={label}").items:
     secho(f"Deleting Job {job.metadata.name} in namespace {namespace}", bold=True, err=True)
