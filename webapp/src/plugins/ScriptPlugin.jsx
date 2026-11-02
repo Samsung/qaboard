@@ -35,11 +35,11 @@ import qaboard as qb
 for run in qb.runs("${url}"):
     print(run.input, run.params, run.metrics)
     # its files: run.output_dir / "output.png"
-    # add what you computed: run.log({"sharpness": 0.4})
+    # add what you computed: run.log_metrics({"sharpness": 0.4})
 `;
 
 export const shell_snippet = url => `qa runs "${url}"               # one folder per line
-qa runs "${url}" --json        # inputs, configurations, metrics, folders...
+qa runs "${url}" --json        # inputs, configs, params, metrics, folders...
 `;
 
 const Snippet = styled.pre`
@@ -66,7 +66,7 @@ const ScriptPlugin = props => {
   const snippet = language === 'python' ? python_snippet(url) : shell_snippet(url);
   const content = <Content>
     <p className={Classes.TEXT_MUTED} style={{ marginBottom: 8 }}>
-      Lists the runs shown, with their metrics and folders: the filter is in the address. Experimental: names may change.
+      Lists the runs shown, with their metrics and folders: the filter is in the address.
       {' '}<a href={`${docs_root}docs/apis#runs-in-scripts`} target="_blank" rel="noopener noreferrer">Read the docs</a>
     </p>
     <SegmentedControl
