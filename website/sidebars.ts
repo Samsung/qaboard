@@ -145,21 +145,27 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Run batches',
+      collapsed: false,
       items: [
         "batches-running-on-multiple-inputs",
-        "batches-advanced",
-        "using-the-qa-cli",
+        // Where runs execute: the overview picks a runner, then one page per runner, from a laptop to a cluster
         {
           type: 'category',
-          label: 'Runners',
+          label: 'Where runs execute',
+          link: {type: 'doc', id: 'runners'},
           items: [
+            "coming-from-other-tools",
             "local-multiprocessing",
-            "celery-integration",
             "lsf-integration",
             "dask-integration",
+            "kubernetes-runner",
+            "celery-integration",
             "jenkins-integration",
+            "doctor",
           ],
         },
+        "batches-advanced",
+        "using-the-qa-cli",
       ],
     },
     {
@@ -202,6 +208,7 @@ const sidebars: SidebarsConfig = {
         "backend-admin/sign-in",
         "backend-admin/project-access",
         "backend-admin/storage",
+        "backend-admin/runners",
         "backend-admin/monitoring",
         "backend-admin/troubleshooting",
     ]
