@@ -75,7 +75,8 @@ export class Comparison {
     this.pointer = null;
     // where the mouse is over a pane: { name, clientX, clientY }
     this.hovered = null;
-    // whether the mouse left the images since users pinned a pixel: coming back follows it again
+    // whether the mouse left the viewer since users pinned a pixel: coming back on the images follows it again. Its
+    // controls (the toolbar, the values, the analysis) don't count: users switch modes or select the values there
     this.leftPinned = false;
     this.drawFrame = null;
   }
@@ -512,7 +513,7 @@ export class Comparison {
 
   hover(pane, clientX, clientY, element = null) {
     this.hovered = { pane, clientX, clientY, element };
-    // a pinned pixel stays while the mouse is on the images, until it leaves them and comes back
+    // a pinned pixel stays while the mouse is in the viewer, until it leaves the viewer and comes back
     if (this.pointer?.pinned) {
       if (!this.leftPinned) return;
       this.leftPinned = false;
@@ -569,18 +570,21 @@ export class Comparison {
 
   unhover() {
     this.hovered = null;
-    if (this.pointer?.pinned) {
-      this.leftPinned = true;
-      return;
-    }
+    if (this.pointer?.pinned) return;
     if (this.pointer && !this.pointer.remote) {
       this.setPointerState(null);
       this.group?.pointer(null);
     }
   }
 
-  // Users click a pixel to keep its values while they move the mouse away, e.g. to select them. Clicking the pinned
-  // pixel again or outside the image, or unpin(), follows the mouse again; so does leaving the images and coming back.
+  // The mouse left the viewer: back on the images, a pixel pinned follows the mouse again
+  leaveViewer() {
+    if (this.pointer?.pinned) this.leftPinned = true;
+  }
+
+  // Users click a pixel to keep its values while they move the mouse away, e.g. to select them or switch modes.
+  // Clicking the pinned pixel again or outside the image, or unpin(), follows the mouse again; so does leaving the
+  // viewer and coming back on the images.
   pin(pane, clientX, clientY, element = null) {
     const point = this.pointAt(pane, clientX, clientY, element);
     if (!point) return;

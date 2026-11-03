@@ -660,7 +660,10 @@ export const ImageViewer = ({
     data-theme={theme}
     style={{ ...imageColors(images.a, images.b), ...style }}
     onPointerEnter={() => { hovered_viewer = last_viewer = root.current; }}
-    onPointerLeave={() => { if (hovered_viewer === root.current) hovered_viewer = null; }}
+    onPointerLeave={() => {
+      if (hovered_viewer === root.current) hovered_viewer = null;
+      controller.leaveViewer();
+    }}
     onFocus={() => { last_viewer = root.current; }}
   >
     <svg className="qiv-filters" aria-hidden="true" width="0" height="0">
