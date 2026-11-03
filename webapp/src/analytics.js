@@ -12,12 +12,37 @@ export const track = (event, properties = {}, { project_id, client_time } = {}) 
   queueUsage(event, properties, { project_id, client_time });
 };
 
-// Errors caught by our error boundary, ignored without Sentry. Those that happen while Sentry downloads, or before
+// Whether errors are sent to Sentry: the error pages say so, and give their reference
+export const reportsErrors = config => !!(import.meta.env.PROD && config?.sentry_dsn);
+
+// Sentry's event ids: 32 hex characters. crypto.randomUUID only exists in secure contexts (QA-Board is also served over http)
+const event_id = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+
+// Errors caught by our error boundaries, ignored without Sentry. Those that happen while Sentry downloads, or before
 // we know if the site uses it (e.g. pages that fail on their first render), are reported once it's ready.
+// Returns the event's id: we choose it, so that error pages can show it right away, even before Sentry is ready.
+// context: Sentry's scope data, e.g. { contexts: { react: { componentStack } }, tags }
 let pending = [];
-export const captureException = (error, hint) => {
+export const captureException = (error, context) => {
+  const hint = { event_id: event_id(), captureContext: context };
   if (sentry) sentry.captureException(error, hint);
   else if (pending && pending.length < 10) pending.push([error, hint]);
+  return hint.event_id;
+};
+
+// What users say they were doing when an error happened, attached to its event
+export const captureFeedback = (message, associatedEventId) => {
+  if (!sentry) return false;
+  sentry.captureFeedback({ message, associatedEventId, url: window.location.href.replace(/([?&]token=)[^&#]*/g, '$1[Filtered]') });
+  return true;
+};
+
+// Who is signed in: their username, like the backend's events (see backend/sentry.py). null when signed out.
+const sentry_user = user => user?.is_logged && user.user_name ? { username: user.user_name } : null;
+let current_user = null;
+export const setUser = user => {
+  current_user = sentry_user(user);
+  sentry?.setUser(current_user);
 };
 
 // Requests to our API (same origin) carry the trace headers, so the backend's traces continue the web app's
@@ -60,6 +85,7 @@ export async function initSentry(config, routeName) {
     return;
   }
   client.init(sentryOptions(config, routeName, client));
+  client.setUser(current_user);
   sentry = client;
   pending?.forEach(([error, hint]) => client.captureException(error, hint));
   pending = null;

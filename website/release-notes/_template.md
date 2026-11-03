@@ -17,10 +17,14 @@ highlights:                # 0 to 4 (up to 8 for a big release), the changes wor
 ---
 <!-- truncate -->
 
-<!-- The body has the details, as bullets, under these sections in this order. Skip the empty ones.
+<!-- The body has the details, as bullets, under these sections in this order, each once. Skip the empty ones.
      Write for the reader, not the committer: what they can now do, what changed for them.
-     One bullet per change, starting with a verb. Link to the docs as [text](/docs/page-id).
-     With many changes in a section, group them by theme under ### headings (e.g. ### Comparing images, ### Logs). -->
+     One bullet per change, not per commit: 1-3 sentences, starting with a verb; the details are in the docs, linked as
+     [text](/docs/page-id). Before adding a bullet, read the section: if the period already has one on that feature,
+     edit it. Polish and fixes of something added in the same period aren't bullets (readers never saw the old
+     behavior), and don't go under Fixes either: Fixes is for what shipped before the period.
+     Past ~6 bullets, group a section by theme under ### headings named like the app's areas (### Image viewer,
+     ### Automated tuning, ### Logs), the biggest themes first; put a new bullet under its theme. -->
 
 ## Web app
 - Added ... You can now ...
@@ -38,5 +42,6 @@ highlights:                # 0 to 4 (up to 8 for a big release), the changes wor
 - Open ... in 0.5 s instead of 5 s ...
 
 ## Fixes
-<!-- With many fixes, group them by area under ### headings (e.g. ### Commit page and viewers, ### CLI) -->
+<!-- Only for behavior that shipped before this period. With many fixes, group them by area under ### headings
+     (e.g. ### Commit page and viewers, ### CLI, ### Server). -->
 - Fixed ...

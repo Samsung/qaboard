@@ -294,10 +294,7 @@ export const NotFoundPage = ({ project }) => {
   const { data: projects } = useProjects();
   // e.g. group/repo for group/repo/typo
   const closest = project && path_segments(project, projects).slice(0, -1).findLast(segment => segment.is_project)?.path;
-  useEffect(() => {
-    document.title = 'Page not found - QA-Board';
-  }, []);
-  return <PageShell>
+  return <PageShell tab_title="Page not found">
     <Page>
       <h1 className={Classes.HEADING}>
         <span className="qa-404-code">404</span>

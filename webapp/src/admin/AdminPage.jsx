@@ -75,7 +75,7 @@ export const AdminPage = () => {
   const scan_id = match.params?.scan_id;
   const section_id = user_id ? 'users' : group_id ? 'groups' : job_id || scan_id ? 'storage' : match.params?.section;
   const selected = sections.find(section => section.id === section_id) ?? sections[0];
-  return <PageShell title="Admin" wide>
+  return <PageShell title="Admin" tab_title={selected.title} wide>
     <RequireLogin what="administer QA-Board">
       {me => !me.is_admin ? <NotAdmin/> : <AdminSections me={me} selected={selected} user_id={user_id} group_id={group_id} job_id={job_id} scan_id={scan_id} history={history}/>}
     </RequireLogin>

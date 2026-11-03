@@ -6,13 +6,15 @@ const sentry = vi.hoisted(() => ({
   browserTracingIntegration: vi.fn(options => ({ name: 'BrowserTracing', options })),
   replayIntegration: vi.fn(() => ({ name: 'Replay' })),
   captureException: vi.fn(),
+  captureFeedback: vi.fn(),
+  setUser: vi.fn(),
 }));
 // initSentry imports them dynamically: mocked with factories, they need no transform when the test runs
 vi.mock('../sentry', () => sentry);
 vi.mock('../sentryReplay', () => sentry);
 // Imported up front, and never re-imported (no vi.resetModules): a dynamic import in a test counts in its timeout,
 // and cold ones can take seconds on busy machines
-import { sentryOptions, tracePropagationTargets, initSentry } from '../analytics';
+import { sentryOptions, tracePropagationTargets, initSentry, captureException, captureFeedback, setUser } from '../analytics';
 
 const config = {
   sentry_dsn: 'https://key@sentry.example.com/1',
@@ -65,9 +67,11 @@ describe('initSentry', () => {
     expect(sentry.init).not.toHaveBeenCalled();
   });
 
-  it('initializes once in production, with replays', async () => {
+  it('initializes once in production, with replays, the user, and the errors that happened before', async () => {
     vi.stubEnv('PROD', true);
     try {
+      // before Sentry is ready
+      setUser({ is_logged: true, user_name: 'jdoe', email: 'jdoe@example.com', full_name: 'J. Doe' });
       await initSentry({ ...config, sentry_dsn: null }, routeName);
       expect(sentry.init).not.toHaveBeenCalled();
       await initSentry(config, routeName);
@@ -75,6 +79,20 @@ describe('initSentry', () => {
       expect(sentry.init).toHaveBeenCalledTimes(1);
       expect(sentry.init.mock.calls[0][0].dsn).toBe(config.sentry_dsn);
       expect(sentry.addIntegration).toHaveBeenCalledWith({ name: 'Replay' });
+      // only their username, like the backend's events
+      expect(sentry.setUser).toHaveBeenCalledWith({ username: 'jdoe' });
+
+      // once ready
+      setUser({ is_logged: false, user_name: null });
+      expect(sentry.setUser).toHaveBeenLastCalledWith(null);
+      // we choose the events' ids: error pages show them even before Sentry is ready
+      const later = captureException(new Error('later'), { tags: { error_boundary: 'app' } });
+      expect(later).toMatch(/^[0-9a-f]{32}$/);
+      expect(sentry.captureException).toHaveBeenLastCalledWith(expect.objectContaining({ message: 'later' }),
+        { event_id: later, captureContext: { tags: { error_boundary: 'app' } } });
+      window.history.replaceState(null, '', '/p/commit/1?token=secret');
+      expect(captureFeedback('I clicked', later)).toBe(true);
+      expect(sentry.captureFeedback).toHaveBeenCalledWith({ message: 'I clicked', associatedEventId: later, url: expect.stringMatching(/\/p\/commit\/1\?token=\[Filtered\]$/) });
     } finally {
       vi.unstubAllEnvs();
     }
