@@ -22,6 +22,8 @@ describe('commit_title', () => {
   it('names the tab after the commit when nothing else is named', () => {
     expect(commit_title({ project, commit_id, branch: 'main' })).toBe('abcdef12 main · isp');
     expect(commit_title({ project })).toBe('Commit · isp');
+    // sub-projects: the last part of their path
+    expect(commit_title({ project: 'group/repo/sub/isp', commit_id, branch: 'main' })).toBe('abcdef12 main · isp');
   });
   it('prefers what users named, then milestones, then the batch', () => {
     expect(commit_title({ project, commit_id, branch: 'main', name_new: 'ISP v2', name_ref: 'baseline' })).toBe('ISP v2 vs baseline · isp');
