@@ -159,6 +159,8 @@ test('a reference has the same name in its tab and in the viewers, wherever it g
   expect(tab(3)).toHaveAttribute('aria-selected', 'true');
   expect(tab(3)).toHaveTextContent(/^ref 3/);
   expect(screen.getByTestId('labels')).toHaveTextContent('new vs ref 3 (');
+  // the menu closes with a transition: under load it's still there when the next opens
+  await waitFor(() => expect(screen.queryByRole('menuitem')).not.toBeInTheDocument());
 
   // moving it keeps its name, and it stays shown
   fireEvent.click(screen.getByRole('button', { name: 'Reference 3: more' }));
@@ -167,6 +169,7 @@ test('a reference has the same name in its tab and in the viewers, wherever it g
   expect(tab(2)).toHaveAttribute('aria-selected', 'true');
   expect(tab(3)).toHaveTextContent(/^ref 2/);
   expect(screen.getByTestId('labels')).toHaveTextContent('new vs ref 3 (');
+  await waitFor(() => expect(screen.queryByRole('menuitem')).not.toBeInTheDocument());
 
   // renaming from the menu: the tab and the viewers use the name
   fireEvent.click(screen.getByRole('button', { name: 'Reference 2: more' }));
