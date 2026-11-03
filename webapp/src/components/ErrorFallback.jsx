@@ -6,6 +6,7 @@ import { AnchorButton, Button, Callout, Classes, Collapse, Icon, Intent, Tag, Te
 import styled from "styled-components";
 
 import { captureFeedback, reportsErrors } from "../analytics";
+import { ErrorBoundary, useLocationKey } from "./ErrorBoundary";
 import { errorDetails, isChunkError, reportUrl } from "../errors";
 import { useSiteConfig } from "../hooks";
 import { history } from "../router";
@@ -213,12 +214,12 @@ export const PageErrorFallback = ({ error, componentStack, eventId, retry, retri
 };
 
 
-// In a run's card: the other viewers, cards and the page still work
-export const ViewerErrorFallback = ({ error, componentStack, eventId, retry, retries = 0, path }) => {
+// In the page: a viewer, a section, an editor... The rest of the page still works.
+export const InlineErrorFallback = ({ error, componentStack, eventId, retry, retries = 0, title, description }) => {
   const { reported, details, report_href } = useErrorReport({ error, componentStack, eventId });
-  return <Callout compact intent={Intent.DANGER} icon="error" style={{ margin: '5px 0' }} title={path ? <>Could not show <code>{path}</code></> : 'Could not show this file'}>
+  return <Callout compact intent={Intent.DANGER} icon="error" style={{ margin: '5px 0' }} title={title}>
     <p style={{ margin: '4px 0 8px' }}>
-      The viewer crashed: it's a bug in QA-Board. The other files and runs still show.
+      {description} It's a bug in QA-Board, not something you did.
       {reported && ' The maintainers were notified.'}
     </p>
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
@@ -229,4 +230,23 @@ export const ViewerErrorFallback = ({ error, componentStack, eventId, retry, ret
     </div>
     <TechnicalDetails details={details} small/>
   </Callout>;
+};
+
+// In a run's card: the other viewers, cards and the page still work
+export const ViewerErrorFallback = ({ path, ...props }) => <InlineErrorFallback
+  {...props}
+  title={path ? <>Could not show <code>{path}</code></> : 'Could not show this file'}
+  description="The viewer crashed. The other files and runs still show."
+/>;
+
+// A part of a page, e.g. a view of the commit page. It renders again when the URL changes, e.g. users select another batch.
+export const SectionErrorBoundary = ({ name = 'section', title, description = 'The rest of the page still works.', children }) => {
+  const location = useLocationKey();
+  return <ErrorBoundary
+    name={name}
+    resetKeys={[location]}
+    fallback={props => <InlineErrorFallback {...props} title={title ? `Could not show ${title}` : 'This part of the page crashed'} description={description}/>}
+  >
+    {children}
+  </ErrorBoundary>;
 };

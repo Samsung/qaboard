@@ -10,6 +10,7 @@ import {
 } from "@blueprintjs/core";
 
 import { Container, Section, commit_header_height, shows_reference_bar } from "./components/layout";
+import { SectionErrorBoundary } from "./components/ErrorFallback";
 import { MetricsSummary, MetricSelect } from "./components/metrics";
 import { CommitWarningMessages, BatchStatusMessages } from "./components/messages";
 
@@ -38,10 +39,14 @@ import { shared_configuration, reference_pairs, changes_in_all_runs } from "./co
 
 
 // Every view of the commit: its title (and maybe a few muted details) on one row above its content
-const ViewSection = styled(Section)`
+const ViewSectionBox = styled(Section)`
   margin-top: 0;
   margin-bottom: 32px;
 `;
+// a view that crashes doesn't take the others with it
+const ViewSection = ({ children, ...props }) => <ViewSectionBox {...props}>
+  <SectionErrorBoundary>{children}</SectionErrorBoundary>
+</ViewSectionBox>;
 const ViewHeader = styled.div`
   display: flex;
   align-items: baseline;

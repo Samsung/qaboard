@@ -49,6 +49,9 @@ export class ErrorBoundary extends Component {
 // The page's path, also outside the router: the app's boundary is around it
 export const usePathname = () => useSyncExternalStore(history.listen, () => history.location.pathname);
 
+// The page and what's selected on it (the query string, see selection.js)
+export const useLocationKey = () => useSyncExternalStore(history.listen, () => history.location.pathname + history.location.search);
+
 // Errors on a page are forgotten once users go to another page
 export const PageErrorBoundary = ({ name = 'page', fallback, children }) => {
   const pathname = usePathname();

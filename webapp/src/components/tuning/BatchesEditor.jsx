@@ -34,6 +34,9 @@ import { updateSelected } from "../../selection";
 import { usePrefsStore } from "../../stores/prefs";
 import { blob_url } from "../../git";
 import { analyzeBatches, newBatchSnippet, unusedBatchName } from "./batches_file";
+import { captureException } from "../../analytics";
+import { ErrorBoundary } from "../ErrorBoundary";
+import { InlineErrorFallback } from "../ErrorFallback";
 import { BatchDefinitions, BatchFiles, BatchWarnings } from "./BatchReport";
 
 
@@ -355,11 +358,43 @@ function BatchPreview({ project, commit, file_names, file_labels, batch, onRun, 
 }
 
 
+// People paste anything in the editor: when we can't make sense of it, they keep editing, and we hear about it.
+// Each error is reported once, not at each keystroke.
+const reported_analysis_errors = new Set();
+export function safeAnalyzeBatches(text, options) {
+  try {
+    return analyzeBatches(text, options);
+  } catch (error) {
+    const key = String(error);
+    if (!reported_analysis_errors.has(key)) {
+      reported_analysis_errors.add(key);
+      captureException(error, { tags: { error_boundary: 'batches-analysis' }, extra: { length: text?.length } });
+    }
+    return {
+      items: [],
+      problems: [{ severity: "warning", line: 1, column: 1, message: `QA-Board could not check this file (${error.message}). You can still edit and save it: the server checks it too.` }],
+    };
+  }
+}
+
 /**
  * Edits the shared and private files that define batches of tests.
  * Props: project, commit, config, git, web_url (the project's page on its git server), available_tests_files ({gr: "extra-batches", usr: user_name}), docs_root
  */
-export function BatchesEditor({ project, commit, config, git, web_url, available_tests_files, docs_root }) {
+// A crash of the editor, e.g. on text people pasted, only replaces it: the drafts are saved in the browser as people type
+export const BatchesEditor = props => <ErrorBoundary
+  name="batches-editor"
+  resetKeys={[props.project, props.commit?.id]}
+  fallback={fallback => <InlineErrorFallback
+    {...fallback}
+    title="The batches editor crashed"
+    description="Your unsaved changes are kept in this browser: they come back with the editor."
+  />}
+>
+  <BatchesEditorContent {...props}/>
+</ErrorBoundary>;
+
+function BatchesEditorContent({ project, commit, config, git, web_url, available_tests_files, docs_root }) {
   const queryClient = useQueryClient();
   const updateTuning = usePrefsStore(state => state.updateTuning);
   // the object is new at each render of the commit page: depend on the names, or we'd reload the files all the time
@@ -436,7 +471,7 @@ export function BatchesEditor({ project, commit, config, git, web_url, available
     return () => clearInterval(interval);
   }, []);
 
-  const analysis = useMemo(() => analyzeBatches(doc?.draft ?? "", { config }), [doc?.draft, config]);
+  const analysis = useMemo(() => safeAnalyzeBatches(doc?.draft ?? "", { config }), [doc?.draft, config]);
   const errors = analysis.problems.filter(p => p.severity === "error");
   const warnings = analysis.problems.filter(p => p.severity === "warning");
 
@@ -790,8 +825,10 @@ export function BatchesEditor({ project, commit, config, git, web_url, available
       icon="list-detail-view"
       title="Which tests run?"
     >
+      <ErrorBoundary key={preview.id} name="batch-preview" fallback={fallback => <div style={{ padding: 12 }}>
+        <InlineErrorFallback {...fallback} title="Could not list the tests" description="You can still edit and save the batches."/>
+      </div>}>
       <BatchPreview
-        key={preview.id}
         project={project}
         commit={commit}
         file_names={file_names}
@@ -800,6 +837,7 @@ export function BatchesEditor({ project, commit, config, git, web_url, available
         onRun={batch => { setPreview(p => ({ ...p, isOpen: false })); run(batch); }}
         unsaved={dirty_files.map(f => f.label)}
       />
+      </ErrorBoundary>
     </Drawer>
 
     <Alert
