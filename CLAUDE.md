@@ -91,9 +91,23 @@ website shows them at `/release-notes` (with RSS/Atom feeds).
   headings when there are many, in every section). If the month's file doesn't exist,
   create it as a draft: `website/release-notes/release_notes.py draft 2026-11 --write` (pre-filled from
   the git log, keeps `draft: true`). Skip refactors, CI-only and typo changes.
-- **Write for the reader**: one change per bullet, starting with a verb, saying what they can now do.
-  No commit shas, no names, no internal hostnames or ticket ids: the repo and website are public.
-  Link docs as `[text](/docs/page-id)`.
+- **Write for the reader**: one change per bullet, starting with a verb, saying what they can now do, in 1-3
+  sentences: the details are in the docs, linked as `[text](/docs/page-id)`. No commit shas, no names, no internal
+  hostnames or ticket ids: the repo and website are public.
+- **Keep the note organized as it grows**, so that publishing it is curation, not a rewrite:
+  - Each `##` section once, in the template's order (`release_notes.py check` fails on duplicates). Past ~6 bullets,
+    group a section by theme under `###` headings named like the app's areas (*Automated tuning*, *Image viewer*,
+    *Storage usage*), the biggest themes first, and put a new bullet under its theme.
+  - One bullet per change, not per commit: before adding one, read the section, and if the period already has a
+    bullet on that feature, edit it. Polish and bug fixes of something added in the same period aren't bullets at
+    all (readers never saw the old behavior), and don't go under `## Fixes` either: Fixes is for what shipped before
+    the period.
+  - Split a change by audience, not by commit: what people see goes under Web app, what integrators write
+    (qaboard.yaml, `qa` flags, code) under CLI and project setup, what admins install, configure or migrate under
+    Server and administration. A change that spans audiences gets one short bullet per audience, each saying only
+    what that audience does.
+  - A month with more than ~40 bullets is a big release: tighten it mid-month (merge, cut, add highlights), don't
+    wait for publication.
 - **Publishing** (maintainers, at the start of the next month or for a big release): curate the bullets,
   write `description` (1-2 sentences) and 2-4 `highlights` (up to 8 for a big release) (title, `audience`: users | project-integration |
   admins, a Blueprint `icon` name, plain-text `description` (backticks for code), optional `link: /docs/...`), set `date`
