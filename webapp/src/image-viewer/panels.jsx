@@ -148,7 +148,7 @@ export const PinnedTag = ({ onUnpin, what = 'image' }) => <button
   type="button"
   className="qiv-pin-chip"
   onClick={onUnpin}
-  title={`These values stay while you move the mouse away, e.g. to select them. Click here, press Esc, click the pixel again, or leave the ${what} and come back, to follow the pointer again`}
+  title={`These values stay while you move the mouse away, e.g. to select them or switch modes. Click here, press Esc, click the pixel again, or leave the ${what} viewer and come back, to follow the pointer again`}
 >
   <Icon icon="pin" size={12} />Pinned<span className="qiv-pin-chip-action"> · follow the pointer</span><span className="qiv-pin-chip-x" aria-hidden="true">×</span>
 </button>;
@@ -735,7 +735,7 @@ export const SHORTCUTS = [
   ['+ − 0', 'Zoom in / out / fit'],
   ['Wheel, pinch', 'Zoom'],
   ['Drag', 'Pan (drag the divider to wipe)'],
-  ['Click', 'Pin the pixel: its values stay while you move the mouse away, to select them (Shift+click in single mode). Esc, or leaving the image and coming back, follows the pointer again'],
+  ['Click', 'Pin the pixel: its values stay while you move the mouse away, to select them or switch modes (Shift+click in single mode). Esc, or leaving the viewer and coming back, follows the pointer again'],
   ['Double-click', 'Zoom in'],
   ['p', 'Show / hide the pixel values when zoomed in'],
   ['a', 'Show / hide the analysis of the view: histogram, row and column profiles, statistics'],

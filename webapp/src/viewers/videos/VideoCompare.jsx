@@ -175,7 +175,7 @@ export const VideoCompare = ({
   // where the pointer is: { x, y, pane } in pane coordinates
   const [pointer, setPointer] = useState(null);
   // The pixel users pinned with Shift+click, { u, v } in [0, 1] of the frames: its values stay while the mouse moves,
-  // e.g. to select them, until users unpin it or the mouse leaves the videos and comes back
+  // e.g. to select them or switch modes, until users unpin it or the mouse leaves the viewer and comes back
   const [pinned, setPinned] = useState(null);
   const left_pinned = useRef(false);
   const unpin = () => {
@@ -766,6 +766,8 @@ export const VideoCompare = ({
     onPointerLeave={() => {
       if (hovered_viewer === root.current) hovered_viewer = null;
       setPointer(null);
+      // back on the videos, a pixel pinned follows the mouse again. Not after the viewer's controls, e.g. its modes
+      if (pinned) left_pinned.current = true;
     }}
   >
     <svg className="qiv-filters" aria-hidden="true" width="0" height="0">
@@ -897,7 +899,6 @@ export const VideoCompare = ({
       aria-label="Videos: click to play or pause, Shift+click to pin a pixel's values, scroll to zoom, drag to pan"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
-      onPointerLeave={() => { if (pinned) left_pinned.current = true; }}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
       onContextMenu={event => gesture.current && event.preventDefault()}
