@@ -55,6 +55,10 @@ The image viewer (`webapp/src/image-viewer/`) is a standalone React component on
 from the app (a test checks it). QA-Board adapts it in `webapp/src/viewers/images/` (runs, image servers, pixel values,
 regions of interest providers). `npm start` then `/image-viewer.html` shows it alone, with generated images.
 The JUnit test report viewer (`webapp/src/viewers/junit/`) has its playground too: `/junit-viewer.html?tests=50000`.
+The "What's new" release notes popup is off with `npm start` (dev mode), so it doesn't cover the page when you
+drive the app; `QABOARD_RELEASE_NOTES_POPUP=1 npm start` turns it on to work on it. On a production build
+(`npm run preview`, e2e, a deployed server) it still pops up: mark the notes seen first, as the e2e tests do,
+`localStorage.setItem('qaboard.release-notes.last-seen', '9999-12-31')` (Playwright: `page.addInitScript`).
 
 ### Backend Development (Python Flask)
 ```bash
