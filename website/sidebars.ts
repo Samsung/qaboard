@@ -204,6 +204,7 @@ const sidebars: SidebarsConfig = {
         "backend-admin/storage",
         "backend-admin/annotations",
         "backend-admin/monitoring",
+        "backend-admin/usage-analytics",
         "backend-admin/troubleshooting",
     ]
   }

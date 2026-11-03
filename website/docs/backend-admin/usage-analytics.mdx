@@ -1,0 +1,116 @@
+---
+id: usage-analytics
+sidebar_label: Usage analytics
+title: Usage analytics
+description: "See who uses QA-Board and how: active users, commits looked at, tuning started from the web app and the CLI, per user, group and project. Export the numbers, or query them from Metabase."
+---
+QA-Board records what people do with it, so you can tell whether it's used, by whom, and for what: which projects
+teams look at, who starts tuning, who only reads results, and which projects get CI runs nobody opens. Admins see it
+in **Admin → Usage**; every table exports to CSV, and the data stays in your database, where Metabase or any SQL
+client can read it.
+
+## What is recorded
+Two things send events, both from where people act, never from the server's own automation:
+
+- **The web app**: the pages users open (page views), and the features they use: choosing a reference commit to
+  compare with, opening an output's viewer, the image viewer's tools (comparing, pinning a pixel, regions, the
+  histogram and analysis panels, annotations, colormaps and adjustments), starting tuning, "Run tests" and redos,
+  stopping or deleting a batch, exporting, saving a milestone, the command palette and the release notes.
+- **The `qa` CLI**: one event per command people run (`qa run`, `qa batch`, `qa get`...), with the command, the
+  `qaboard` version, Python and OS, the project, the runner, whether it was a dry run or a tuning, how long it took
+  and its exit code. **Never from CI**: `qa` sends nothing when it runs in a pipeline, or in the runs QA-Board starts.
+
+Each event has who did it, the project it's about, and a handful of properties. Users without a session or a token
+(the CLI before `qa auth login`) are recorded by the user name `qa` runs as, marked unverified, like
+[results sent without a token](/docs/backend-admin/user-management#results-sent-by-qa). With `ingest.auth` set
+to `token`, unverified events are dropped.
+
+Not recorded: IP addresses, user agents, URLs, file paths, input names, metric values or pixel values. The
+[audit log](/docs/backend-admin/user-management#admins-and-the-admin-panel) keeps the security events, with IPs,
+separately. Events are sent in the background, in batches: they never slow the web app or `qa` down, and are dropped
+when the server can't be reached.
+
+Users see their own numbers in **Settings → Activity**. Admins see everyone's.
+
+## Admin → Usage
+Pick a period (7 days, 30 days, 90 days, 12 months) and, optionally, a project or a product (the first part of the
+project ids, e.g. `group/repo`):
+
+- **Headline numbers**, with the previous period's for comparison: people active in the web app and in the CLI,
+  new users; commits looked at, comparisons, outputs opened, image viewer uses; batches started (tuning, automated
+  tuning, "Run tests", redos, `qa batch` from terminals), `qa` commands, exports, milestones; and the CI's runs, for
+  scale.
+- **Trends**: active users and commits looked at per day or week, batches started by kind.
+- **Leaderboards**: users, groups (from your directory or single sign-on, see
+  [Groups](/docs/backend-admin/project-access#groups)) and projects, with their active days, commits looked at,
+  batches started and `qa` commands. Each table has a **CSV** button.
+- **Adoption per project**: who looks, what they start, and a status: **active**, **CI only** (runs arrive but
+  nobody opened them in the period: a project to deprecate, or a team to show around), **quiet** (no runs and no
+  looks, but some before), **new** (its first event is in the period).
+
+Each user's page in **Admin → Users** has a **Usage** card: their last 30 days by event and by project.
+
+**Admin → Overview** gets a **Get more from QA-Board** list next to the security checklist: what isn't configured
+yet (email notifications, single sign-on, git host webhooks, Sentry, annotation sources, a storage cleaning
+schedule, project owners), and what the usage says: projects with CI runs nobody looked at in 90 days, and users
+active in the web app who never used the CLI.
+
+## Settings
+
+| Setting | Environment variable | Default | |
+|---|---|---|---|
+| `analytics.enabled` | `QABOARD_ANALYTICS_ENABLED` | `true` | Off: the server records nothing, and the web app doesn't send events. Change it in **Admin → Settings** |
+| `ingest.auth` | `QABOARD_INGEST_AUTH` | `off` | With `token`, events from the CLI without a token are dropped, like results ([details](/docs/backend-admin/user-management#results-sent-by-qa)) |
+
+Users can keep their `qa` quiet with `QA_NO_ANALYTICS=1` in their environment. `qa --offline` sends nothing either.
+
+Nothing is deleted: at a hundred users, a month of events is a few hundred thousand rows. A retention setting will
+come with the rollups, if a big server ever needs them.
+
+## Export and query the data
+- **CSV**: the **CSV** buttons of **Admin → Usage** export each table for the period, and
+  `/api/v1/admin/usage/events?since=2026-01-01&format=csv` the raw events (as an admin, or with a token with the
+  `admin` scope).
+- **From the server**:
+  ```bash
+  docker compose exec backend qaboard-admin usage export --since 2026-01-01 > usage.csv
+  docker compose exec backend qaboard-admin usage export --since 2026-01-01 --format json
+  ```
+- **SQL**: the `usage_events` table, and two views for dashboards (Metabase, Grafana...):
+  - `usage_events_v`: the events with the user's `user_name` and `full_name`, and `product`, the first part of the
+    project id;
+  - `usage_daily_v`: `day, user_name, product, project_id, source, event, count`, for most charts.
+
+  ```sql
+  -- Weekly active users, web app vs CLI
+  SELECT date_trunc('week', day) AS week, source, count(DISTINCT user_name)
+  FROM usage_daily_v GROUP BY 1, 2 ORDER BY 1;
+
+  -- Distinct commits looked at per product, last 30 days
+  SELECT product, count(DISTINCT project_id || '/' || (properties->>'commit_id'))
+  FROM usage_events_v WHERE event = 'page_view' AND properties ? 'commit_id' AND created_at > now() - interval '30 days'
+  GROUP BY 1 ORDER BY 2 DESC;
+  ```
+
+<details>
+<summary>The events and their properties</summary>
+
+| Event | Sent by | Properties |
+|---|---|---|
+| `page_view` | web app | `route` (commit, history, dashboard, milestone, branch, commits, settings, admin...), `commit_id`, `batch_label`, `has_reference`, `view` |
+| `commit_compare` | web app | `same_branch` |
+| `output_open` | web app | `viewer` (images, video, plotly, text, html, pointcloud, flame_graph, junit, bit_accuracy...) |
+| `image_viewer_use` | web app | `feature` (compare, pixel_pin, region, histogram, analysis, annotations, colormap, adjustments) |
+| `batch_start` | web app | `kind` (tuning, automated_tuning, run_tests, redo), `n_runs` |
+| `batch_stop`, `batch_delete`, `export_start`, `milestone_save` | web app | |
+| `command_palette_open`, `command_palette_select`, `release_notes_popup`, `release_notes_open` | web app | `via`, `section`, `has_query`, `slug` |
+| `cli_command` | `qa` | `command`, `version`, `python`, `os`, `share`, `tuning`, `dryrun`, `runner`, `n_batches`, `duration_s`, `exit_code` |
+
+Every event also has `source` (`webapp` or `cli`), `created_at`, `user_id`, `user_name`, `verified`, `project_id`,
+and `client_id`, a random id of the browser, to count anonymous visitors on servers that don't require signing in.
+
+</details>
+
+## PostHog
+If you also use [PostHog](https://posthog.com/), set `POSTHOG_API_KEY` and `POSTHOG_HOST`: the web app then sends
+it the same events, with its own script. The server's usage data doesn't depend on it.
