@@ -100,9 +100,13 @@ In a folder that existed before, QA-Board only adds files: it never replaces wha
 it skipped), and the folder isn't listed with your exports in **Storage usage**.
 
 ## Report a bug or ask for help {#bug-reports-and-support}
-- If the web app crashes, you'll see **Sorry, something went wrong!** with a **Report the bug** button. It opens an
-  email with the page's link and the error filled in, or your team's issue tracker: your admins choose where bug
-  reports go.
+- If part of the web app crashes, only that part is replaced by an error: a viewer in a run's card, or the page, with
+  the sidebar still there. **Try again** shows it again, **Go back** returns to the previous page, and going to any
+  other page works as usual. What you selected is in the URL: reloading the page brings you back to the same view.
+- When your server reports errors, the page says that the maintainers were notified, with your username: add what you
+  were doing in the box below, it goes with the report. Otherwise, **Report the problem** opens an email with the
+  page's link and the error filled in, or your team's issue tracker: your admins choose where bug reports go.
+  **Technical details** has everything to paste in a chat, with **Copy**.
 - For anything else, send the link of the page you're looking at to your QA-Board admins: with it, they see what you
   see.
 - Questions on how a project's results are produced (metrics, visualizations, inputs) go to that project's lead.

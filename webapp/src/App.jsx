@@ -13,14 +13,15 @@ import { queryClient, persistOptions, onCacheRestored } from "./api/queryClient"
 import { siteConfigQuery, userQuery } from "./api/queries";
 import { installLoginHandler } from "./components/authentication/login";
 import { toaster } from "./toaster";
-import { ComparisonProvider, useSelected, useSiteConfig } from "./hooks";
-import { initSentry, initPostHog } from "./analytics";
+import { ComparisonProvider, useSelected } from "./hooks";
+import { initSentry, initPostHog, setUser } from "./analytics";
 import { Layout } from "./components/layout";
 import ExplorePage from "./explore/ExplorePage";
 import HomePage from "./home/HomePage";
 import { useRecordProjectView } from "./explore/views";
-import ErrorPage from "./components/ErrorPage";
-import { ErrorBoundary } from "./components/ErrorBoundary";
+import { PageErrorBoundary } from "./components/ErrorBoundary";
+import { PageErrorFallback } from "./components/ErrorFallback";
+import { PageShell } from "./components/PageShell";
 import EmptyLoading from "./components/EmptyLoading";
 import Footer from "./components/Footer";
 import { ThemeSync } from "./theme";
@@ -63,21 +64,25 @@ const route_name = pathname => (matchAppRoute(pathname) ?? matchRoutes(routes, p
 
 
 
-// Monitoring and analytics, once we know the site's configuration
+// Monitoring and analytics, once we know the site's configuration. Errors say who they happened to.
 const Analytics = () => {
   const { data: config } = useQuery(siteConfigQuery);
+  const { data: user } = useQuery(userQuery);
   useEffect(() => {
     if (!config) return;
     initSentry(config, route_name);
     initPostHog(config);
   }, [config]);
+  useEffect(() => setUser(user), [user]);
   return null;
 }
 
-const Fallback = ({ error, componentStack }) => {
-  const { support_url } = useSiteConfig();
-  return <ErrorPage error={error} info={{ componentStack }} support_url={support_url}/>;
-}
+// Errors are caught as close as possible to where they happen, so that the rest keeps working:
+// in viewers (viewers/OutputViewer.jsx), in projects' pages (the sidebar and navbar still work), in the other pages,
+// and as a last resort, here, around everything.
+const appFallback = props => <PageErrorFallback {...props} scope="app"/>;
+const pageFallback = props => <PageShell><PageErrorFallback {...props}/></PageShell>;
+const projectPageFallback = props => <PageErrorFallback {...props}/>;
 
 
 const App = ({ persist = true }) => {
@@ -89,20 +94,22 @@ const App = ({ persist = true }) => {
     <PrefsSync/>
     {/* outside the error boundary: pages that fail before we know the site's configuration are still reported */}
     <Analytics/>
-    <ErrorBoundary fallback={props => <Fallback {...props}/>}>
+    <PageErrorBoundary name="app" fallback={appFallback}>
       <StyleSheetManager shouldForwardProp={shouldForwardProp}>
         <ReleaseNotesProvider>
           <HelpSheetProvider>
             <HistoryRouter history={history}>
               {/* Ctrl+K on every page: projects, app pages, Home and Explore */}
               <CommandPaletteProvider>
-                <Routes/>
+                <PageErrorBoundary name="routes" fallback={pageFallback}>
+                  <Routes/>
+                </PageErrorBoundary>
               </CommandPaletteProvider>
             </HistoryRouter>
           </HelpSheetProvider>
         </ReleaseNotesProvider>
       </StyleSheetManager>
-    </ErrorBoundary>
+    </PageErrorBoundary>
     <Suspense><ReactQueryDevtools buttonPosition="bottom-left"/></Suspense>
   </Provider>
 }
@@ -172,9 +179,11 @@ const ProjectApp = ({ pathname }) => {
         <div className="qa-content-area" style={{paddingLeft: sider_width, minHeight: '100vh', display: 'flex', flexDirection: 'column'}}>
           {/* projects users can't see say whom to ask */}
           <ProjectAccessGate>
-            <Suspense fallback={<EmptyLoading/>}>
-              <Main/>
-            </Suspense>
+            <PageErrorBoundary fallback={projectPageFallback}>
+              <Suspense fallback={<EmptyLoading/>}>
+                <Main/>
+              </Suspense>
+            </PageErrorBoundary>
           </ProjectAccessGate>
           <Footer/>
         </div>
