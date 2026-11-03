@@ -1,6 +1,6 @@
 // Explore: every project, as a tree of their paths. Groups collapse, quiet projects fade (see ./tree.js).
 // <ExploreList/> is the list alone, for other pages; <ExplorePage/> adds the navbar and the footer.
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "../router";
 import { project_url } from "../selection";
 
@@ -39,6 +39,7 @@ import { errorMessage } from "../api/http"
 import { project_web_url } from "../utils"
 import { build_tree, filter_projects, count_projects, is_listed, quiet_tooltip } from "./tree"
 import { Sparkline } from "./Sparkline"
+import { usePageTitle, app_title } from "../pageTitle";
 
 
 const activity_words = { human: 'last used', run: 'last run', commit: 'last commit' };
@@ -303,9 +304,7 @@ export const SiteNavbar = ({ via = "projects-list" }) => {
 };
 
 const ExplorePage = () => {
-  useEffect(() => {
-    document.title = 'Explore - QA-Board';
-  }, []);
+  usePageTitle(app_title('Explore'));
   return (
     <div style={{minHeight: '100vh', display: 'flex', flexDirection: 'column'}}>
       <SiteNavbar/>

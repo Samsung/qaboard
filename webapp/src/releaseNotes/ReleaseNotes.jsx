@@ -52,7 +52,8 @@ const loadHtml = () => import("virtual:release-notes-html")
   .then(m => m.default || m);
 
 
-export const ReleaseNotesProvider = ({ children, load = loadNotes, popupDelay = 1000 }) => {
+// autoPopup: false in development, see vite.config.js
+export const ReleaseNotesProvider = ({ children, load = loadNotes, popupDelay = 1000, autoPopup = import.meta.env.QABOARD_RELEASE_NOTES_POPUP }) => {
   const { docs_root } = useSiteConfig();
   const [notes, setNotes] = useState([]);
   // Notes not seen before this page load: they keep their "New" tag until the next one
@@ -74,7 +75,7 @@ export const ReleaseNotesProvider = ({ children, load = loadNotes, popupDelay = 
       setNotes(notes);
       setNewSlugs(new Set(unseenNotes(notes, lastSeen).map(n => n.slug)));
       setPopup(to_popup);
-      if (to_popup.length > 0 && window.location.hash !== HASH)
+      if (autoPopup && to_popup.length > 0 && window.location.hash !== HASH)
         timer = setTimeout(() => {
           // another tab may have shown the notes in the meantime
           if (popupNotes(notes, getLastSeen()).length === 0) return;
@@ -85,7 +86,7 @@ export const ReleaseNotesProvider = ({ children, load = loadNotes, popupDelay = 
         }, popupDelay);
     }).catch(error => console.warn("Could not load the release notes", error));
     return () => { cancelled = true; clearTimeout(timer) };
-  }, [load, popupDelay]);
+  }, [load, popupDelay, autoPopup]);
 
   const markSeen = useCallback(() => {
     const newest = lastSeenSlug(notes);

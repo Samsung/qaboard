@@ -80,7 +80,7 @@ def test_check_tuning_request(tmp_path):
     assert check["errors"] == []
     assert check["batches"] == ["smoke"]
     # the alias stands for a batch of the commit's batch file, named as in its qaboard.yaml
-    assert check["definitions"] == [{"name": "smoke", "files": ["sub/batches.yaml"]}]
+    assert check["definitions"] == [{"name": "smoke", "files": ["sub/batches.yaml"], "sources": ["commit"]}]
     # the entrypoint is missing from the artifacts
     assert any("entrypoint" in w for w in check["warnings"])
 
@@ -101,8 +101,8 @@ def test_check_tuning_request_says_where_batches_are_defined(tmp_path, monkeypat
     check = tuning.check_tuning_request(ci_commit, data)
     assert check["errors"] == []
     assert check["definitions"] == [
-        {"name": "night-1", "files": ["sub/batches.yaml"]},
-        {"name": "night-2", "files": ["sub/batches.yaml", "alice.yml"]},
+        {"name": "night-1", "files": ["sub/batches.yaml"], "sources": ["commit"]},
+        {"name": "night-2", "files": ["sub/batches.yaml", "alice.yml"], "sources": ["commit", "qaboard"]},
     ]
     # `qa batch` reads them in the same order as on the commit, QA-Board's last
     assert [f["path"] for f in check["batches_files"]] == ["sub/batches.yaml", "alice.yml"]
@@ -244,7 +244,7 @@ def list_tests(app, name, commit="94d909ca"):
 def test_lists_a_batch_and_where_it_is_defined(dummy_app, batches_setup):
     data = list_tests(dummy_app, "ci")
     assert data["tests"] == [{"input_path": "a", "configurations": []}]
-    assert data["definitions"] == [{"name": "ci", "files": ["qa/tests/tests.yaml"]}]
+    assert data["definitions"] == [{"name": "ci", "files": ["qa/tests/tests.yaml"], "sources": ["commit"]}]
     assert [(f["path"], f["status"]) for f in data["files"]] == [
         ("qa/tests/tests.yaml", "ok"),
         ("qa/tests/nightly.yaml", "missing"),
@@ -260,7 +260,7 @@ def test_lists_a_batch_and_where_it_is_defined(dummy_app, batches_setup):
 
 def test_the_last_file_defining_a_batch_wins_like_for_qa_batch(dummy_app, batches_setup):
     data = list_tests(dummy_app, "both")
-    assert data["definitions"] == [{"name": "both", "files": ["qa/tests/tests.yaml", "qa/tests/modes.yaml"]}]
+    assert data["definitions"] == [{"name": "both", "files": ["qa/tests/tests.yaml", "qa/tests/modes.yaml"], "sources": ["commit", "commit"]}]
     assert [t["input_path"] for t in data["tests"]] == ["a", "b"]
 
 
@@ -274,7 +274,7 @@ def test_says_when_a_batch_is_not_defined(dummy_app, batches_setup):
 def test_says_which_inputs_are_missing(dummy_app, batches_setup):
     data = list_tests(dummy_app, "broken")
     assert data["tests"] == []
-    assert data["definitions"] == [{"name": "broken", "files": ["qa/tests/tests.yaml"]}]
+    assert data["definitions"] == [{"name": "broken", "files": ["qa/tests/tests.yaml"], "sources": ["commit"]}]
     assert f"Inputs not found by the QA-Board server: `missing-input` under `{batches_setup.database}`." in data["warnings"]
 
 
@@ -339,7 +339,7 @@ def test_says_which_input_is_wrong(dummy_app, batches_setup):
     assert data["tests"] == []
     # the file as in qaboard.yaml, not its path in the artifacts
     assert data["error"] == 'qa/tests/tests.yaml:4: The batch "ci" has an empty input, after "a": a "-" with nothing after it. Remove the "-", or write the input after it.'
-    assert data["definitions"] == [{"name": "ci", "files": ["qa/tests/tests.yaml"]}]
+    assert data["definitions"] == [{"name": "ci", "files": ["qa/tests/tests.yaml"], "sources": ["commit"]}]
 
 
 def test_lists_a_batch_without_a_commit_with_the_projects_config(dummy_app, batches_setup):

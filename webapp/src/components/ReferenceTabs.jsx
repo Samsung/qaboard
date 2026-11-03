@@ -522,6 +522,21 @@ const ReferenceTab = ({ reference, project, details, actions, batch_counts, drag
   const prefetch = usePrefetchCommitPage(reference.project, reference.commit_id);
   const [renaming, setRenaming] = useState(null);
   const [menu_open, setMenuOpen] = useState(false);
+  // The menu gives the focus back to its button when users dismiss it (Esc, a click elsewhere), for keyboard users,
+  // but not after one of its items: the item moved them elsewhere, e.g. to the tab's name field, which closes when it
+  // loses the focus.
+  const [return_focus, setReturnFocus] = useState(true);
+  const act = fn => (...args) => {
+    setReturnFocus(false);
+    return fn?.(...args);
+  };
+  const openMenu = open => {
+    if (open) setReturnFocus(true);
+    setMenuOpen(open);
+  };
+  // ...and the name field opens once the menu has closed: while it closes, the menu keeps the focus
+  const [rename_after_close, setRenameAfterClose] = useState(false);
+  const renameFromMenu = () => menu_open ? setRenameAfterClose(true) : rename();
   const element = useRef(null);
   // keep the reference shown in view, e.g. after "r"
   useEffect(() => {
@@ -533,18 +548,18 @@ const ReferenceTab = ({ reference, project, details, actions, batch_counts, drag
   const { is_top } = reference;
   const what = is_top ? 'Top' : `Reference ${reference.number}`;
   // Only the two bars swap: the top results with the reference shown. Nothing is replaced or removed.
-  const swap = actions.swap && <MenuItem icon="swap-vertical" text="Swap the bars" label={`with ${actions.swap.name}`} disabled={!actions.swap.can} onClick={actions.swap.do}/>;
+  const swap = actions.swap && <MenuItem icon="swap-vertical" text="Swap the bars" label={`with ${actions.swap.name}`} disabled={!actions.swap.can} onClick={act(actions.swap.do)}/>;
   const menu = <Menu>
-    {!is_top && !reference.is_shown && <MenuItem icon="eye-open" text="Compare with it" onClick={actions.show}/>}
+    {!is_top && !reference.is_shown && <MenuItem icon="eye-open" text="Compare with it" onClick={act(actions.show)}/>}
     {swap}
-    <MenuItem icon="edit" text="Rename" onClick={rename}/>
-    <MenuItem icon="duplicate" text={is_top ? "Add a copy as a reference" : "Duplicate"} label="to change its batch or filter" onClick={actions.duplicate}/>
+    <MenuItem icon="edit" text="Rename" onClick={act(renameFromMenu)}/>
+    <MenuItem icon="duplicate" text={is_top ? "Add a copy as a reference" : "Duplicate"} label="to change its batch or filter" onClick={act(actions.duplicate)}/>
     {!is_top && <>
       <MenuDivider/>
-      <MenuItem icon="arrow-left" text="Move left" disabled={reference.index === 0} onClick={() => actions.move(reference.index - 1)}/>
-      <MenuItem icon="arrow-right" text="Move right" disabled={reference.index === actions.count - 1} onClick={() => actions.move(reference.index + 1)}/>
+      <MenuItem icon="arrow-left" text="Move left" disabled={reference.index === 0} onClick={act(() => actions.move(reference.index - 1))}/>
+      <MenuItem icon="arrow-right" text="Move right" disabled={reference.index === actions.count - 1} onClick={act(() => actions.move(reference.index + 1))}/>
       <MenuDivider/>
-      <MenuItem icon="cross" text="Remove" intent={Intent.DANGER} onClick={actions.remove}/>
+      <MenuItem icon="cross" text="Remove" intent={Intent.DANGER} onClick={act(actions.remove)}/>
     </>}
   </Menu>;
 
@@ -609,7 +624,14 @@ const ReferenceTab = ({ reference, project, details, actions, batch_counts, drag
           {details.map(d => <span key={d.key} className="qa-tab-detail" title={`${d.key}: ${d.text}`}><Icon icon={d.icon} size={11}/><span>{d.text}</span></span>)}
         </span>}
       </>}
-    <PopoverNext content={menu} placement="bottom-end" isOpen={menu_open} onInteraction={setMenuOpen}>
+    <PopoverNext content={menu} placement="bottom-end" isOpen={menu_open} onInteraction={openMenu}
+      shouldReturnFocusOnClose={return_focus}
+      onClosed={() => {
+        if (!rename_after_close) return;
+        setRenameAfterClose(false);
+        rename();
+      }}
+    >
       <Button
         className="qa-tab-menu"
         size="small"

@@ -31,7 +31,7 @@ export const app_paths = {
   // what waits and runs now, and what ran recently
   activity: "/activity",
   // the tabs of admin/AdminPage.jsx, its tests check they all have their URL
-  admin: "/admin/:section(overview|users|groups|requests|sign-in|tokens|service-accounts|storage|audit|settings)?",
+  admin: "/admin/:section(overview|usage|users|groups|requests|sign-in|tokens|service-accounts|storage|audit|settings)?",
   // the ways to sign in, ?next=<page> to go back to it (see login/LoginPage.jsx)
   login: "/login",
   // where `qa auth login` sends users to approve the login

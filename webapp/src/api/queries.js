@@ -19,6 +19,8 @@ export const default_site_config = {
   posthog_api_key: null,
   posthog_host: null,
   path_mappings: [],
+  // where the image viewer finds annotations (backend/backend/annotations.py)
+  annotation_sources: [],
   docs_root: '/',
   avatar_url_template: null,
   sentry_traces_sample_rate: 0.2,

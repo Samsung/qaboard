@@ -54,7 +54,7 @@ Hover a run's configuration tags and choose **Copy as a tuning search space**. P
 | Option | What it does |
 |---|---|
 | **Batch label** | The new batch's name: letters, digits and `_.@:=`, other characters become `-`. Reusing the label of an existing batch adds runs to it. |
-| **Batch of inputs+configurations** | A batch, or several with a pattern like `batch-*`. Below it: how many tests, and which file defines the batch. |
+| **Batch of inputs+configurations** | A batch, or several with a pattern like `batch-*`. Below it: how many tests, and the files that define the batch, e.g. *Defined in qa/batches.yaml*. Click a file to open it on your git server at this commit, or, for the shared and private batches, in **Available Tests** at the batch. When several files define a batch, the last one wins, and the form says which. |
 | Platforms | Shown when the project has several. The runs use `qa --platform` with the one you pick. |
 | **Start from an example** | **no tuning**: the tests with the commit's settings. **simple-combinations**: a grid. **list-of-combinations**: a list of parameter sets, each its own grid, whose runs add up. **1x2 matrix**: a parameter whose value is a matrix. **function**: a JavaScript function that returns the parameters, for ranges and loops. |
 | **All combinations** or **Sampling** | Every combination of the values (a grid), or a uniform sample of as many as you choose. |

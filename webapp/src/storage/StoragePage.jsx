@@ -581,9 +581,10 @@ export const StoragePage = () => {
   const { match } = useRouter();
   const location = useLocation();
   const filters = readFilters(location.search);
-  return <PageShell title="Storage usage" wide>
+  const view = match.params?.view ?? 'projects';
+  return <PageShell title="Storage usage" tab_title={views.find(v => v.id === view)?.title} wide>
     <RequireLogin what="see your storage usage">
-      {me => <StorageUsage me={me} view={match.params?.view ?? 'projects'} filters={filters}/>}
+      {me => <StorageUsage me={me} view={view} filters={filters}/>}
     </RequireLogin>
   </PageShell>;
 };

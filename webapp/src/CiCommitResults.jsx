@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import styled from "styled-components";
 
 import {
@@ -10,6 +10,7 @@ import {
 } from "@blueprintjs/core";
 
 import { Container, Section, commit_header_height, shows_reference_bar } from "./components/layout";
+import { SectionErrorBoundary } from "./components/ErrorFallback";
 import { MetricsSummary, MetricSelect } from "./components/metrics";
 import { CommitWarningMessages, BatchStatusMessages } from "./components/messages";
 
@@ -28,6 +29,8 @@ import { useViewerControls, controls_changes, controls_defaults, config_visualiz
 import { ExportPlugin } from "./plugins/ExportPlugin";
 import { humanFileSize, file_options as file_options_list, bit_accuracy_url_defaults } from "./viewers/bit_accuracy/utils";
 import { project_web_url } from "./utils";
+import { blob_url } from "./git";
+import { SHARED_BATCHES_FILE } from "./components/tuning/availableTests";
 
 import PrivateContent from "./components/authentication/PrivateContent"
 import ViewOptionsPanel from "./components/ViewOptionsPanel";
@@ -35,13 +38,18 @@ import { useSidePanelExpanded } from "./components/SidePanel";
 import { SharedConfigurationContext } from "./configurations/ConfigurationsTags";
 import { ConfigurationOverview } from "./configurations/ConfigurationOverview";
 import { shared_configuration, reference_pairs, changes_in_all_runs } from "./configurations/tokens";
+import { useCommitTab } from "./pageTitle";
 
 
 // Every view of the commit: its title (and maybe a few muted details) on one row above its content
-const ViewSection = styled(Section)`
+const ViewSectionBox = styled(Section)`
   margin-top: 0;
   margin-bottom: 32px;
 `;
+// a view that crashes doesn't take the others with it
+const ViewSection = ({ children, ...props }) => <ViewSectionBox {...props}>
+  <SectionErrorBoundary>{children}</SectionErrorBoundary>
+</ViewSectionBox>;
 const ViewHeader = styled.div`
   display: flex;
   align-items: baseline;
@@ -100,11 +108,8 @@ const CiCommitResults = () => {
   const user = useUser();
   const refreshCommit = useRefreshCommit();
 
-  useEffect(() => {
-    const name = project.split('/').slice(-1)[0];
-    if (!!new_commit_id)
-      document.title = `${new_commit_id.slice(0, 4)} - ${name}`;
-  }, [project, new_commit_id]);
+  // the tab's title and icon: what the page shows, and the status of its runs
+  useCommitTab();
 
   const [controls, setControls] = useViewerControls(config);
   // Registrations are reset when the commit or batch changes, or when the visualizations change.
@@ -185,7 +190,11 @@ const CiCommitResults = () => {
   const has_tuning = tuned_params.length > 0
   const show_ref_navbar = shows_reference_bar(selected_views)
   // TODO: migrate the availble-tests-files to DB
-  const available_tests_files = { gr: "extra-batches", usr: user.user_name ?? null };
+  const available_tests_files = { gr: SHARED_BATCHES_FILE, usr: user.user_name ?? null };
+  // the batch files of the commit, on the git server
+  const repo_file_url = (git?.web_url || git?.path_with_namespace) && new_commit?.id
+    ? path => blob_url(project_data, new_commit.id, path)
+    : undefined;
   const export_plugin = <ExportPlugin
     project={new_project}
     ref_project={ref_project}
@@ -361,6 +370,7 @@ const CiCommitResults = () => {
                     metrics={metrics}
                     commit={new_commit}
                     available_tests_files={available_tests_files}
+                    repo_file_url={repo_file_url}
                     />
                   </PrivateContent>
                 </Card>}
@@ -401,6 +411,8 @@ const CiCommitResults = () => {
                   project={new_project}
                   commit={new_commit}
                   batch={new_batch}
+                  available_tests_files={available_tests_files}
+                  repo_file_url={repo_file_url}
                   batch_label={new_batch.label}
                 />
              </ViewSection>}

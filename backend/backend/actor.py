@@ -39,6 +39,8 @@ PUBLIC_ENDPOINTS = {
 # The `qa` CLI sends results there: open unless ingest.auth is "token"
 INGEST_ENDPOINTS = {
   ('new_output_webhook', 'POST'), ('update_batch', 'POST'), ('api_ci_commit', 'POST'),
+  # usage events from the web app and the CLI (backend/usage.py), with the CLI's unverified user name
+  ('usage_events', 'POST'),
 }
 SAFE_METHODS = {'GET', 'HEAD', 'OPTIONS'}
 

@@ -25,6 +25,7 @@ import { OutputTags, StatusTag, RunBadges, style_skeleton } from '../components/
 import { RunInfoMenuItems } from '../components/RunInfoMenu'
 
 import { updateSelected } from "../hooks";
+import { track } from "../analytics";
 import { http, errorMessage } from "../api/http";
 import { output_files_stale_time, invalidateOutputFiles } from "../api/queries";
 import { at_most, is_same_data } from '../utils'
@@ -251,6 +252,16 @@ const OutputCard = memo(function OutputCard(props) {
   const { ref: in_view_ref, inView } = useInView({ triggerOnce: true, rootMargin: '100%', skip: !!props.viewable, fallbackInView: true });
   const viewable = !!props.viewable || inView;
   const [fullscreen, setFullscreen] = useState(false);
+  // Usage analytics: an output someone opened, i.e. took full screen (the cards of a list are all shown: showing
+  // them says nothing about what people looked at). Once per card.
+  const opened = useRef(false);
+  const updateFullscreen = state => {
+    setFullscreen(state);
+    if (state && !opened.current) {
+      opened.current = true;
+      track('output_open', { viewer: type ?? 'files' }, { project_id: project });
+    }
+  };
   // values selected in this card for the options that are not synced across outputs
   const [local_selected, setLocalSelected] = useState({});
   const [registration_error, setRegistrationError] = useState();
@@ -520,7 +531,7 @@ const OutputCard = memo(function OutputCard(props) {
 
   return <div style={container_style} className="output-card" data-output-id={output_new.id} ref={in_view_ref}>
     <FullScreenableSlimCard
-      updateFullscreen={setFullscreen}
+      updateFullscreen={updateFullscreen}
       viewable={viewable}
       className="output-card"
       style={{

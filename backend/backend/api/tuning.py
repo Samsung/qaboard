@@ -186,10 +186,10 @@ def read_batches_file(batches_file):
 def batch_definitions(files_batches):
   """
   Where each batch is defined, and the aliases, from [(file, batches)].
-  Returns ({batch: [the paths of the files defining it, in order]}, aliases).
+  Returns ({batch: [the files defining it, in order, as {"path", "source"}]}, aliases).
   Like for `qa batch`, the last file defining a batch wins.
   """
-  defined: Dict[str, List[str]] = {}
+  defined: Dict[str, List[Dict[str, str]]] = {}
   aliases: Dict[str, Any] = {}
   for batches_file, batches in files_batches:
     if not batches:
@@ -200,19 +200,25 @@ def batch_definitions(files_batches):
     names = [n for n in batches if isinstance(n, str) and not n.startswith('.') and n not in BATCH_FILE_SETTINGS]
     batches_file["batches"] = len(names)
     for name in names:
-      defined.setdefault(name, []).append(batches_file["path"])
+      defined.setdefault(name, []).append({"path": batches_file["path"], "source": batches_file["source"]})
   return defined, aliases
 
 
 def definitions_of(batches, defined):
   """
   Where the batches are defined, from batch_definitions(). `batches` can be patterns, like `qa batch --batch 'night-*'`.
-  Returns ([{"name", "files"}], the batches that are not defined).
+  Returns ([{"name", "files", "sources"}], the batches that are not defined).
+  `files` are the paths of the files defining the batch, and `sources` where each comes from:
+  "commit" for the commit's files (paths as in its qaboard.yaml), "qaboard" for QA-Board's shared and private files.
   """
   definitions, undefined = [], []
   for batch in batches:
     matches = [batch] if batch in defined else [n for n in defined if fnmatch.fnmatch(n, batch)]
-    definitions.extend({"name": m, "files": defined[m]} for m in matches)
+    definitions.extend({
+      "name": m,
+      "files": [f["path"] for f in defined[m]],
+      "sources": [f["source"] for f in defined[m]],
+    } for m in matches)
     if not matches:
       undefined.append(batch)
   return definitions, undefined
@@ -695,7 +701,7 @@ def check_tuning_request(ci_commit, data):
     """
     Checks a request to run a batch from QA-Board, before we start anything.
     Returns {errors, warnings, artifacts, batches, definitions, batches_files}: with errors we don't start.
-    `definitions` says in which files the batches that would run are defined: [{"name", "files"}].
+    `definitions` says in which files the batches that would run are defined: [{"name", "files", "sources"}].
     """
     from .commit import commit_artifacts_info
     errors, warnings = [], []

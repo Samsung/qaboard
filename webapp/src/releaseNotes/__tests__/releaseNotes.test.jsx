@@ -246,6 +246,18 @@ describe('the What\'s new popup', () => {
     expect(screen.queryByText('Fixes')).not.toBeInTheDocument();
   });
 
+  test('does not open when the popup is turned off (in development)', async () => {
+    renderWithProviders(
+      <ReleaseNotesProvider load={() => Promise.resolve([recent])} popupDelay={0} autoPopup={false}>
+        <WhatsNewButton />
+      </ReleaseNotesProvider>,
+      { siteConfig: { docs_root: '/' } }
+    );
+    expect(await screen.findByTestId('whats-new-unread')).toBeInTheDocument();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(screen.queryByText('Flying cars')).not.toBeInTheDocument();
+  });
+
   test('does not open for notes already seen', async () => {
     window.localStorage.setItem(LAST_SEEN_KEY, slug);
     renderApp();

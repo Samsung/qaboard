@@ -3,7 +3,7 @@
  * Run with: cd webapp && npm test -- BatchesEditor
  */
 import { screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { act } from 'react';
+import { act, useEffect } from 'react';
 
 import { BatchesEditor } from '../BatchesEditor';
 import { toaster } from '../../../toaster';
@@ -23,8 +23,9 @@ const fakeEditor = {
   focus: vi.fn(),
 };
 vi.mock('../../MonacoEditor', () => ({
-  default: ({ value, onChange, editorDidMount, path }) => {
-    editorDidMount?.(fakeEditor, undefined);
+  default: function FakeMonaco({ value, onChange, editorDidMount, path }) {
+    // like Monaco, once mounted
+    useEffect(() => { editorDidMount?.(fakeEditor, undefined); });
     return <textarea aria-label={`editor ${path}`} value={value} onChange={e => onChange(e.target.value)} />;
   },
   MonacoDiffEditor: ({ original, value }) => <div data-testid="diff">{original} =&gt; {value}</div>,
@@ -204,10 +205,16 @@ it('says why a batch has no tests, and which batch files the server read', async
   // not "No batch matches": the batch exists
   expect(screen.getByText(/The server found none of the inputs of/)).toBeInTheDocument();
   expect(screen.queryByText(/No batch matches/)).not.toBeInTheDocument();
-  expect(screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === 'my-batch is defined in sub/batches.yaml.')).toBeInTheDocument();
+  // one line, with a link to the file in the repository
+  const defined = screen.getByLabelText('Where the batch is defined');
+  expect(defined).toHaveTextContent(/^Defined in sub\/batches\.yaml$/);
+  expect(within(defined).getByRole('link')).toHaveAttribute('href', 'https://git/group/repo/-/blob/abc123/sub/batches.yaml');
 
   const files = screen.getByRole('list', { name: 'Batch files' });
   expect(within(files).getByText('3 batches')).toBeInTheDocument();
+  expect(within(files).getByRole('link', { name: 'sub/batches.yaml' })).toHaveAttribute('href', 'https://git/group/repo/-/blob/abc123/sub/batches.yaml');
+  // not in the artifacts: no link
+  expect(within(files).queryByRole('link', { name: 'sub/nightly.yaml' })).toBeNull();
   expect(within(files).getByText("not in the commit's artifacts")).toBeInTheDocument();
   expect(within(files).getByText('/mnt/qaboard/group/repo/ab/cd/sub/nightly.yaml')).toBeInTheDocument();
   expect(within(files).getByText('(Private)')).toBeInTheDocument();
@@ -226,4 +233,26 @@ it("says when a batch isn't defined", async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Check' }));
   expect(await screen.findByText(/No batch matches/)).toBeInTheDocument();
   expect(screen.getByText(/is not defined in the batch files QA-Board could read/)).toBeInTheDocument();
+});
+
+it('shows the file a batch is defined in, at the batch', async () => {
+  http.post.mockImplementation(() => Promise.resolve({ data: {
+    tests: [{ input_path: 'a.jpg', configurations: [] }],
+    definitions: [{ name: 'shared-batch', files: ['extra-batches.yml'], sources: ['qaboard'] }],
+    warnings: [],
+    files: [{ source: 'qaboard', path: 'extra-batches.yml', location: '/shared/extra-batches.yml', status: 'ok', batches: 1 }],
+  } }));
+  render(<BatchesEditor {...props} />);
+  await editor();
+  fakeEditor.revealLineInCenter.mockClear();
+  fireEvent.click(screen.getByText('Check any batch or pattern…'));
+  fireEvent.change(await screen.findByLabelText('Batch to check'), { target: { value: 'shared-batch' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Check' }));
+  const defined = await screen.findByLabelText('Where the batch is defined');
+  expect(defined).toHaveTextContent(/^Defined in Shared batches$/);
+  fireEvent.click(within(defined).getByRole('button', { name: /Shared batches/ }));
+  // the shared file's tab, at the batch's line
+  expect(await screen.findByLabelText('editor extra-batches.yml')).toBeInTheDocument();
+  await waitFor(() => expect(fakeEditor.revealLineInCenter).toHaveBeenCalledWith(1));
+  await waitFor(() => expect(screen.queryByText('Which tests run?')).toBeNull());
 });

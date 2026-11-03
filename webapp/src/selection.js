@@ -9,6 +9,7 @@ import { DateTime } from "luxon";
 import { history, useRouter, matchRoutes } from "./router";
 import { route_paths, app_paths } from "./route_paths";
 import { side_color_count } from "./sideColors";
+import { track } from "./analytics";
 
 
 // Names in the URL's query string
@@ -563,7 +564,26 @@ export const updateSelected = (selected = {}, { replace = false, defaults } = {}
   const url = url_for_selection(selected, window.location, defaults);
   if (url.pathname === window.location.pathname && `?${url.search}` === (window.location.search || '?'))
     return;
+  recordComparison(selected, replace);
   (replace ? history.replace : history.push)(url);
+};
+
+// Usage analytics: users chose another reference commit (the reference tabs, milestones, the history's chart,
+// switching new and reference). Not the default references, nor the full ids the page writes back (replace).
+const recordComparison = (selected, replace) => {
+  const chosen = selected.ref_commit_id;
+  if (replace || typeof chosen !== 'string' || !chosen) return;
+  const query = parse_query(window.location.search);
+  if (chosen === query[url_keys.ref_commit_id]) return;
+  const project = selected.ref_project ?? selected.new_project ?? project_of(window.location.pathname);
+  track('commit_compare', {}, { project_id: project || undefined });
+};
+
+// The project of a project page's URL, or undefined (the app's own pages)
+const project_of = pathname => {
+  const routes = Object.values(route_paths).map(path => ({ path }));
+  const matched = matchRoutes(routes, pathname);
+  return matched && !matchRoutes(app_routes, pathname) ? decode(matched.match.params?.project_id) : undefined;
 };
 
 // qs reads ?compare[0]=a&compare[1][commit]=b as a list with objects: "repeat" would write it compare=a&compare[commit]=b,

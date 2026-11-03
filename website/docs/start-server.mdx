@@ -455,7 +455,8 @@ Set them in `services.backend.environment` in your site overlay, and the secrets
 | `QABOARD_SKIP_METRICS_AGGREGATION` | _none_ | Comma-separated project ids, or their start (e.g. `group/` for all the projects of a group), whose commit lists don't show the batches' aggregated metrics (their median and average): for projects with so many runs per batch that computing them slows the lists down. Commit pages still show them |
 | `QABOARD_DOCS_ROOT`    | */* | Where the webapp's links to the docs point. By default, the docs served by this server at `/docs/`, which match its version |
 | `QABOARD_AVATAR_URL`   | _none_  | Avatar URL template with a `{user_name}` placeholder, e.g. from a company directory: for the logged-in user's menu, and for GitLab committers who didn't upload an avatar. For the user's menu it's only read from the environment, not from a site package |
-| `POSTHOG_API_KEY` / `POSTHOG_HOST` | _none_ | Enables [PostHog](https://posthog.com/) product analytics in the webapp |
+| `QABOARD_ANALYTICS_ENABLED` | `true` | Records how people use the web app and `qa`, for Admin → Usage. See [Usage analytics](/docs/backend-admin/usage-analytics) |
+| `POSTHOG_API_KEY` / `POSTHOG_HOST` | _none_ | Also sends the web app's events to [PostHog](https://posthog.com/) |
 | `REDIS_HOST` / `REDIS_PORT` | redis / 6379 (set in *docker-compose.yml*) | Redis cache shared by the backend replicas. The backend still works if it's unreachable |
 | `QABOARD_SUPPORT_URL` | GitHub issues | Where users report bugs and send feedback, can be a `mailto:` |
 | `QABOARD_LOGIN_HINT` | _none_ | Advice for users whose username or password is wrong, shown in the login dialog, e.g. `Use your Windows credentials.` |

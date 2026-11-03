@@ -35,6 +35,9 @@ export const usePrefsStore = create()(persist(
     imageSensor: {},
     // project => the size of the differences users look for in "Where they differ": { min, max } in pixels, or null
     imageDiffSize: {},
+    // annotation source => { [group id]: shown }: the groups of annotations users picked to see, e.g. IQE workspaces.
+    // Groups they didn't pick show if they're theirs.
+    annotationGroups: {},
     // runs show only the settings of their configuration that not all runs share
     hide_shared_settings: true,
     // project => the last scope users picked on its page: "mine" or "all"
@@ -66,6 +69,8 @@ export const usePrefsStore = create()(persist(
     setImageAnalysis: view => set({ imageAnalysis: view }),
     setImageAnalysisValues: values => set({ imageAnalysisValues: values }),
     setImageSensor: (project, sensor) => set(state => ({ imageSensor: { ...state.imageSensor, [project]: sensor } })),
+    // choices: { [group id]: shown }, merged
+    setAnnotationGroups: (source, choices) => set(state => ({ annotationGroups: { ...state.annotationGroups, [source]: { ...state.annotationGroups[source], ...choices } } })),
     setImageDiffSize: (project, size) => set(state => ({ imageDiffSize: { ...state.imageDiffSize, [project]: size } })),
     setCommitListDensity: density => set({ commitListDensity: density === 'compact' ? 'compact' : 'comfortable' }),
     setGitEmails: emails => set({ git_emails: [...new Set(emails.map(e => e.trim().toLowerCase()).filter(e => e.includes('@')))] }),
