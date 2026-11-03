@@ -34,6 +34,7 @@ import { track } from "../../analytics"
 
 import templates from './templates'
 import { BatchDefinitions, BatchWarnings } from './BatchReport'
+import { openInAvailableTests } from './availableTests'
 import OptimizeSetup from './OptimizeSetup'
 import { template as optimize_template, parse as parse_optimize, check as check_optimize, continuation } from './optimize_config'
 
@@ -352,7 +353,7 @@ const useTuningCheck = ({ project, commit_id, request, is_logged }) => {
 
 
 // Starts tuning experiments. What users enter is remembered per project.
-const TuningForm = ({ project, git, config, metrics, commit, available_tests_files }) => {
+const TuningForm = ({ project, git, config, metrics, commit, available_tests_files, repo_file_url }) => {
   const logged_user = useUser();
   const { docs_root, support_url, email_notifications } = useSiteConfig();
   const form = useTuningForm(project);
@@ -662,7 +663,7 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
               </ul>
             </div>}
             >
-          <span style={{borderBottom: '1px dotted currentColor', textDecoration: 'none'}}>{tests.length} tests. </span>
+          <span style={{borderBottom: '1px dotted currentColor', textDecoration: 'none'}}>{tests.length} test{tests.length === 1 ? '' : 's'}. </span>
         </PopoverNext>}
         <p style={{marginBottom: '5px'}}>
           {is_missing('selected_group', selected_group) && "Choose a batch. "}
@@ -686,7 +687,11 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
       />
     </FormGroup>
     {!!selected_group && !selected_group_info_loading && <>
-      <BatchDefinitions definitions={definitions} style={{ marginTop: '-10px' }} />
+      <BatchDefinitions
+        definitions={definitions}
+        context={{ shared: available_tests_files?.gr, user: available_tests_files?.usr, repoFileUrl: repo_file_url, onOpen: openInAvailableTests }}
+        style={{ margin: '-8px 0 15px' }}
+      />
       <BatchWarnings
         warnings={warnings}
         title={tests.length === 0 ? "Why the batch has no tests" : "Check the batch files"}
