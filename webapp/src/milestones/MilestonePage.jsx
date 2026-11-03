@@ -11,6 +11,7 @@ import { path_segment, useSelected } from "../selection";
 import { toaster } from "../toaster";
 import { milestoneQuery, milestone_id_from_path, milestone_name_from_path, milestone_location, milestone_name, milestone_path } from "./api";
 import { openManageMilestones } from "./ManageMilestones";
+import { usePageTitle, join_title, project_name } from "../pageTitle";
 
 
 // "the milestone “best denoiser” (#12)": what the link said about it
@@ -37,6 +38,7 @@ const MilestonePage = () => {
   const vs_path = typeof query.vs === 'string' ? query.vs : null;
   const id = milestone_id_from_path(path);
   const vs_id = milestone_id_from_path(vs_path);
+  usePageTitle(join_title(milestone_name_from_path(path) || 'Milestone', project_name(project)));
   const main = useQuery(milestoneQuery(id));
   const reference = useQuery(milestoneQuery(vs_id));
   const vs_problem = vs_path !== null && (vs_id === null || reference.error);

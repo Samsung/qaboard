@@ -40,6 +40,7 @@ import { LoginMenuItem } from "./authentication/login";
 import { toaster } from "../toaster"
 import { copyDirectory } from "./logs/DirectoryActions"
 import { hasPathMappings } from "../utils/paths"
+import { CopyLinkButton } from "./CopyLinkButton"
 
 
 // error: why we could not load the commit, e.g. "404 ..."
@@ -181,7 +182,8 @@ const confirmations = {
 // same_as_new: the reference shows the same results as the new commit, there is nothing to compare
 // references: for the reference, all those users selected (see useComparison), we show one at a time
 // side: what we compare, from useComparison().compared: its label, color, milestone...
-const CommitNavbar = ({ update, loading, commit, batch, filter, project, project_data, selected, type, same_as_new = false, references, side }) => {
+// link: {text, details} for the Copy link button, on the new commit's bar
+const CommitNavbar = ({ update, loading, commit, batch, filter, project, project_data, selected, type, same_as_new = false, references, side, link }) => {
   const queryClient = useQueryClient();
   const refreshCommit = useRefreshCommit();
   const [waiting, setWaiting] = useState(false);
@@ -606,6 +608,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
         hide_counts
       />
       {!!commit && <>
+        {!!link && <CopyLinkButton {...link}/>}
         <Tooltip content="Reload this commit's results">
           <Button
             className={Classes.TEXT_MUTED} minimal
