@@ -2,7 +2,7 @@
 // Everyone sees their role and why. Owners (and admins) change the visibility, the members and decide requests,
 // the others see the owners and can request a role. Owners also manage the project's service accounts (CI bots). Members given on a folder of projects, or on all projects,
 // are shown read-only: they're changed where they were given.
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert, AnchorButton, Button, Callout, Card, Classes, Dialog, DialogBody, DialogFooter, FormGroup, HTMLSelect, HTMLTable,
@@ -28,6 +28,7 @@ import {
   visibilityRank, viaText, SubjectName, subjectText,
 } from "./roles";
 import { projectAccessQuery, setVisibility, saveGrant, deleteGrant, requestAccess, decideRequest } from "./api";
+import { usePageTitle, join_title, project_name } from "../pageTitle";
 
 
 // Below the fixed navbar, like the other project pages
@@ -506,9 +507,7 @@ const ProjectAccess = ({ project }) => {
 export const AccessPage = () => {
   const { project } = useSelected();
   const { data: user = logged_out_user, isPending } = useQuery(userQuery);
-  useEffect(() => {
-    document.title = `Access - ${project.split('/').slice(-1)[0]}`;
-  }, [project]);
+  usePageTitle(join_title('Access', project_name(project)));
   return <Page>
     <h2 className={Classes.HEADING} style={{ marginBottom: 4 }}>Access</h2>
     <p className={`${Classes.TEXT_MUTED} qa-muted-line`} style={{ overflowWrap: 'anywhere' }}>

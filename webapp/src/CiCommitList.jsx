@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import styled from "styled-components";
 
 import { DateTime } from 'luxon';
@@ -30,6 +30,7 @@ import { RulesButton } from './storage/Rules'
 import { ListScopeToolbar } from './components/ListScope'
 import { BatchList, useBatchesList } from './BatchList'
 import { SubprojectsCard } from './explore/SubprojectsCard'
+import { usePageTitle, list_title } from "./pageTitle";
 
 
 
@@ -172,10 +173,7 @@ const CiCommitList = () => {
   const density = useCommitListDensity();
   const Days = density === 'compact' ? CompactDays : ComfortableDays;
 
-  useEffect(() => {
-    let name = project.split('/').slice(-1)[0];
-    document.title = `${branch || committer || project} - ${name}`;
-  }, [project, branch, committer]);
+  usePageTitle(list_title({ project, branch, committer }));
 
   const commits_by_day = useMemo(() => groupBy(commits, "authored_date"), [commits]);
 

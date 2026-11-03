@@ -6,6 +6,7 @@ import { useRouter } from "../router";
 import { NotAdmin } from "./states";
 import { PageShell, RequireLogin, ScrollingTabs } from "../components/PageShell";
 import { Overview } from "./Overview";
+import { Usage } from "./Usage";
 import { Users } from "./Users";
 import { UserDetail } from "./UserDetail";
 import { Groups, GroupDetail } from "./Groups";
@@ -26,6 +27,7 @@ const InstanceServiceAccounts = () => <ServiceAccounts project={null}/>;
 
 export const sections = [
   { id: 'overview', title: 'Overview', icon: 'dashboard', Panel: Overview },
+  { id: 'usage', title: 'Usage', icon: 'timeline-line-chart', Panel: Usage },
   { id: 'users', title: 'Users', icon: 'people', Panel: Users },
   { id: 'groups', title: 'Groups', icon: 'inherited-group', Panel: Groups },
   { id: 'requests', title: 'Access requests', icon: 'endorsed', Panel: AccessRequests },
@@ -73,7 +75,7 @@ export const AdminPage = () => {
   const scan_id = match.params?.scan_id;
   const section_id = user_id ? 'users' : group_id ? 'groups' : job_id || scan_id ? 'storage' : match.params?.section;
   const selected = sections.find(section => section.id === section_id) ?? sections[0];
-  return <PageShell title="Admin" wide>
+  return <PageShell title="Admin" tab_title={selected.title} wide>
     <RequireLogin what="administer QA-Board">
       {me => !me.is_admin ? <NotAdmin/> : <AdminSections me={me} selected={selected} user_id={user_id} group_id={group_id} job_id={job_id} scan_id={scan_id} history={history}/>}
     </RequireLogin>

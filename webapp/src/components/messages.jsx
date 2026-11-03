@@ -13,6 +13,7 @@ import { http, errorMessage, isArtifactsError } from "../api/http";
 import { useRefreshCommit, updateSelected, useUser } from "../hooks";
 import { pretty_label } from "../utils";
 import { toaster } from "../toaster"
+import { track } from "../analytics"
 import { SubmissionCallout } from "./logs/BatchSubmissions"
 import { ArtifactsCallout } from "./ArtifactsCallout"
 import { LoginHint } from "./authentication/login"
@@ -116,6 +117,7 @@ const BatchStatusMessages = ({ project, commit, batch }) => {
     http.post(`/api/v1/batch/stop/`, {id: batch.id})
       .then(() => {
         toaster.show({message: `Stopping the runs of ${pretty_label(batch)}`, intent: Intent.SUCCESS}, key);
+        track('batch_stop', { commit_id: commit?.id }, { project_id: project })
         refresh()
       })
       .catch(error => {
@@ -133,6 +135,7 @@ const BatchStatusMessages = ({ project, commit, batch }) => {
     http.post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: true})
       .then(({ data }) => {
         toaster.show({message: `Redoing the deleted runs of ${pretty_label(batch)}`, intent: Intent.SUCCESS, action: show_logs}, key);
+        track('batch_start', { kind: 'redo', commit_id: commit?.id, n_runs: typeof data?.submission?.runs === 'number' ? data.submission.runs : undefined }, { project_id: project })
         // e.g. only the source files of the artifacts could be restored
         if (data?.warning) toaster.show({message: data.warning, intent: Intent.WARNING, timeout: 15000});
       })

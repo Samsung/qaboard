@@ -152,3 +152,52 @@ test('says why a batch has no tests', async ({ page }) => {
   await expect(files.getByText("not in the commit's artifacts")).toBeVisible();
   await expect(files.getByText(`${artifacts}/qa/nightly.yaml`)).toBeVisible();
 });
+
+test('the tuning form says where the batch is defined, and links to it', async ({ page }) => {
+  const errors = [];
+  page.on('console', msg => msg.type() === 'error' && errors.push(msg.text()));
+  page.on('pageerror', error => errors.push(error.message));
+  const config = { ...qatools_config, artifacts: { binaries: { glob: 'build/*' } } };
+  const tuning_commit = { ...commit, data: { qatools_config: config } };
+  const routes = {
+    ...api,
+    // the project's data
+    '/api/v1/project': { qatools_config: config, git: { path_with_namespace: project, web_url: 'https://github.com/group/repo' } },
+    '/api/v1/commit': tuning_commit,
+    '/api/v1/commits': [tuning_commit],
+  };
+  // a batch split in many: the alias "nightly" stands for nightly-1, nightly-2...
+  const definitions = [
+    ...Array.from({ length: 8 }, (_, idx) => ({ name: `nightly-${idx + 1}`, files: ['qa/batches.yaml'], sources: ['commit'] })),
+    { name: 'nightly-hdr', files: ['qa/batches.yaml', 'extra-batches.yml'], sources: ['commit', 'qaboard'] },
+  ];
+  await page.route('**/api/**', route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/v1/tests/groups') {
+      const name = url.searchParams.get('name');
+      return route.fulfill({ body: name === 'extra-batches' ? '# shared\n\nnightly-hdr:\n  inputs: [images/HDR.jpg]\n' : '', contentType: 'text/html' });
+    }
+    if (url.pathname === '/api/v1/tests/group')
+      return route.fulfill({ json: { tests: [{ input_path: 'images/A.jpg', configurations: ['base'] }], definitions, warnings: [], files: [] } });
+    const key = Object.keys(routes).sort((a, b) => b.length - a.length).find(k => url.pathname.startsWith(k));
+    return route.fulfill({ json: key ? routes[key] : {} });
+  });
+
+  await page.goto(`/${project}/commit/abc123?selected_views=tuning`);
+  await page.getByLabel(/Batch of inputs/).fill('nightly');
+  const defined = page.getByLabel('Where the batch is defined');
+  // the files, not each of the batches
+  await expect(defined).toHaveText(/^Defined in qa\/batches\.yaml and Shared batches/);
+  await expect(defined).not.toContainText('nightly-1');
+  await expect(defined.getByRole('link', { name: /qa\/batches\.yaml/ })).toHaveAttribute('href', 'https://github.com/group/repo/blob/abc123/qa/batches.yaml');
+  await expect(defined).toContainText('the shared batches override nightly-hdr');
+
+  await defined.getByRole('button', { name: /Shared batches/ }).click();
+  await expect(page).toHaveURL(/selected_views=groups/);
+  await expect(page.getByRole('tab', { name: /Shared/ })).toHaveAttribute('aria-selected', 'true');
+  const editor = page.locator('.monaco-editor').first();
+  await expect(editor.locator('.view-lines')).toContainText('nightly-hdr');
+  // the cursor is on the batch
+  await expect(editor.locator('.active-line-number')).toHaveText('3');
+  expect(errors, 'errors in the browser console').toEqual([]);
+});

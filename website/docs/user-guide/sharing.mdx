@@ -7,9 +7,12 @@ description: Share what you see with a link, copy paths and images, export files
 Show a colleague what you see, give them the path to the files, or gather the images for a report.
 
 ## Copy the page's link {#links-are-shareable}
-Most of what you select is saved in the page's link. **Copy it from your browser's address bar** and send it: whoever
-opens it sees the same commits, reference, batches, filters and view as you, with the images compared the same way.
-The browser's back and forward buttons work too.
+Most of what you select is saved in the page's link. Click the **link button** in the commit's bar, next to the reload
+button (the commit list and the History page have it too), and paste. In Teams, Outlook or Confluence the link reads
+like the page's tab instead of a long URL, e.g. *ISP v2 vs baseline · isp: Faster denoising · 40 runs: 37 passed, 3
+failed*. Elsewhere it pastes as the URL. Copying your browser's address bar works too. Whoever opens the link sees the
+same commits, reference, batches, filters and view as you, with the images compared the same way. The browser's back
+and forward buttons work too.
 
 The link doesn't keep the viewers' zoom. To point at a spot, paste a copy of the image too (the copy button above the
 images, see [Copy and save](/docs/user-guide/image-viewer#copy-and-save)), or name the region, e.g. *Window frame
@@ -100,9 +103,13 @@ In a folder that existed before, QA-Board only adds files: it never replaces wha
 it skipped), and the folder isn't listed with your exports in **Storage usage**.
 
 ## Report a bug or ask for help {#bug-reports-and-support}
-- If the web app crashes, you'll see **Sorry, something went wrong!** with a **Report the bug** button. It opens an
-  email with the page's link and the error filled in, or your team's issue tracker: your admins choose where bug
-  reports go.
+- If part of the web app crashes, only that part is replaced by an error: a viewer in a run's card, or the page, with
+  the sidebar still there. **Try again** shows it again, **Go back** returns to the previous page, and going to any
+  other page works as usual. What you selected is in the URL: reloading the page brings you back to the same view.
+- When your server reports errors, the page says that the maintainers were notified, with your username: add what you
+  were doing in the box below, it goes with the report. Otherwise, **Report the problem** opens an email with the
+  page's link and the error filled in, or your team's issue tracker: your admins choose where bug reports go.
+  **Technical details** has everything to paste in a chat, with **Copy**.
 - For anything else, send the link of the page you're looking at to your QA-Board admins: with it, they see what you
   see.
 - Questions on how a project's results are produced (metrics, visualizations, inputs) go to that project's lead.

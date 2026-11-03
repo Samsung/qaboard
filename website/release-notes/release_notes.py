@@ -34,7 +34,7 @@ DOCS_DIR = REPO_ROOT / "website" / "docs"
 
 PERIOD_RE = re.compile(r"^(?P<year>\d{4})(?:-(?:(?P<month>0[1-9]|1[0-2])|q(?P<quarter>[1-4])))?$")
 AUDIENCES = ("users", "project-integration", "admins")
-# The body's sections, in this order. Other headings are allowed but `check` warns about them.
+# The body's sections, in this order, each once: `check` fails on duplicates, warns on other headings and on the order.
 SECTIONS = ("Web app", "CLI and project setup", "Server and administration", "Documentation", "Performance", "Fixes", "Notes")
 ALLOWED_KEYS = {"title", "date", "description", "version", "highlights", "draft", "period", "tags", "slug"}
 HIGHLIGHT_KEYS = {"title", "description", "audience", "icon", "link"}
@@ -286,9 +286,15 @@ def validate(note: Note, docs: set[str]) -> tuple[list[str], list[str]]:
     for link in re.findall(r"\]\((/docs/[^)\s#]*)", note.body):
         if link.rstrip("/") not in docs:
             errors.append(f"broken docs link {link}")
-    for heading in re.findall(r"^## (.+)$", note.body, re.MULTILINE):
-        if heading.strip() not in SECTIONS:
-            warnings.append(f"section '## {heading.strip()}' is not one of: {', '.join(SECTIONS)}")
+    headings = [h.strip() for h in re.findall(r"^## (.+)$", note.body, re.MULTILINE)]
+    for heading in dict.fromkeys(headings):  # each once
+        if heading not in SECTIONS:
+            warnings.append(f"section '## {heading}' is not one of: {', '.join(SECTIONS)}")
+        elif headings.count(heading) > 1:
+            errors.append(f"section '## {heading}' appears {headings.count(heading)} times: merge them, each section once")
+    known = [h for h in headings if h in SECTIONS]
+    if known != sorted(set(known), key=SECTIONS.index):
+        warnings.append(f"sections out of order: expected {', '.join(h for h in SECTIONS if h in known)}")
     if "<!-- truncate -->" not in note.body:
         warnings.append("missing `<!-- truncate -->` at the top of the body (the website lists only the highlights)")
     return errors, warnings

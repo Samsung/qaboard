@@ -18,6 +18,7 @@ import {
 } from "@blueprintjs/core";
 
 import { toaster } from "../toaster"
+import { track } from "../analytics"
 import { Link } from "../router"
 import { copyWithToast } from "../utils/clipboard"
 
@@ -74,6 +75,7 @@ const ExportPlugin = props => {
     // POST: it writes files, the server checks it comes from QA-Board's pages
     http.post('/api/v1/export/', undefined, { params })
       .then(({ data }) => {
+        track('export_start', { export_type: effective_export_type, n_runs: data.nb_outputs, n_files: data.nb_files_exported }, { project_id: props.project });
         const windows_export_dir = linux_to_windows(data.export_dir);
         copyWithToast(windows_export_dir, { what: 'the export directory' });
         setLoading(false);

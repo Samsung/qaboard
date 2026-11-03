@@ -137,6 +137,37 @@ def purge_audit(days):
 
 
 @cli.group()
+def usage():
+  """What people do in the web app and with qa (Admin > Usage)"""
+
+
+@usage.command('export')
+@click.option('--since', default=None, help="The first day, YYYY-MM-DD. By default 30 days before --until.")
+@click.option('--until', default=None, help="The last day, included, YYYY-MM-DD. By default today.")
+@click.option('--project', default=None, help="Only this project, or product (the first element of project ids).")
+@click.option('--format', 'format_', type=click.Choice(['csv', 'json']), default='csv', show_default=True, help="JSON is one event per line.")
+def usage_export(since, until, project, format_):
+  """Writes the raw usage events to stdout, oldest first"""
+  import csv
+  import json
+  from backend import usage as usage_lib
+  try:
+    period = usage_lib.Period(usage_lib.parse_date(since), usage_lib.parse_date(until, end_of_day=True))
+  except ValueError as e:
+    raise click.ClickException(str(e))
+  rows = usage_lib.events_rows(usage_lib.Filters(period, project))
+  if format_ == 'json':
+    for row in rows:
+      sys.stdout.write(json.dumps(usage_lib.event_as_json(row), sort_keys=True) + "\n")
+    return
+  from backend.api.usage import csv_cell
+  writer = csv.DictWriter(sys.stdout, fieldnames=usage_lib.EVENT_COLUMNS)
+  writer.writeheader()
+  for row in rows:
+    writer.writerow({k: csv_cell(v) for k, v in usage_lib.event_as_text(row).items()})
+
+
+@cli.group()
 def jobs():
   """Server jobs, e.g. hard-deleting deleted runs. Admins start and schedule them in the web app (Admin > Storage)."""
 

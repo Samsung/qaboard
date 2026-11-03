@@ -6,6 +6,8 @@ import {
 import { useComparison, useSiteConfig } from "../hooks";
 import { is_image } from "./images/utils"
 import { ViewerLoading } from "./ViewerStates"
+import { ErrorBoundary } from "../components/ErrorBoundary"
+import { ViewerErrorFallback } from "../components/ErrorFallback"
 
 
 const LoadableTextViewer = lazy(() => import('./textViewer' /* webpackChunkName: "text-viewer" */));
@@ -93,10 +95,14 @@ const OutputViewer = props_ => {
         viewer = <LoadableTextViewer {...props} type={type} output_ref={output_ref}/>
       }
     }
+  // a viewer that crashes, e.g. on a file it doesn't expect, doesn't take the run's card or the page with it.
+  // It renders again when it shows another file.
   return (
-    <Suspense fallback={<ViewerLoading height={props_.style?.height}/>}>
-      {viewer}
-    </Suspense>
+    <ErrorBoundary name="viewer" resetKeys={[props_.path, props_.path_ref, output_ref?.id, props_.output_new?.id]} fallback={fallback => <ViewerErrorFallback {...fallback} path={props_.path}/>}>
+      <Suspense fallback={<ViewerLoading height={props_.style?.height}/>}>
+        {viewer}
+      </Suspense>
+    </ErrorBoundary>
   );
 }
 

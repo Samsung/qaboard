@@ -91,6 +91,9 @@ export default defineConfig(({ mode }) => ({
   define: {
     // Not in the tests: they'd depend on the shell's environment (e.g. QABOARD_VERSION set by an .envrc)
     'import.meta.env.QABOARD_RELEASE': JSON.stringify(mode === 'test' ? '' : release ?? ''),
+    // With `npm start` the release notes don't pop up: they'd get in the way of development (and of agents
+    // driving the app). They still open from the sidebar. `QABOARD_RELEASE_NOTES_POPUP=1 npm start` to work on them.
+    'import.meta.env.QABOARD_RELEASE_NOTES_POPUP': JSON.stringify(mode !== 'development' || !!process.env.QABOARD_RELEASE_NOTES_POPUP),
   },
   server: {
     port: 3000,

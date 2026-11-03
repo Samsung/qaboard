@@ -257,7 +257,7 @@ export const LoginPage = () => {
       <Options next={next} local={local} error={error} user={user}/>
     </>;
 
-  return <PageShell account={false}>
+  return <PageShell account={false} tab_title="Sign in">
     <Column>
       {user.reason !== 'user_pending' && <h2 className={Classes.HEADING} style={{ margin: 0 }}>Sign in to QA-Board</h2>}
       {error && !(error === 'user_pending' && user.reason === 'user_pending') && <SignInError code={error} reference={reference} provider={provider_name}/>}

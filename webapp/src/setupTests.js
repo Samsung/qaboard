@@ -8,3 +8,6 @@ await Icons.loadAll();
 
 // Blueprint's toasts render in a portal with timers that can fire after a test's DOM is gone
 vi.mock('./toaster', () => ({ toaster: { show: vi.fn(), dismiss: vi.fn(), clear: vi.fn() } }));
+
+// jsdom has no canvas: the tab's icon (src/favicon.js) finds no 2d context and keeps the plain icon, silently
+HTMLCanvasElement.prototype.getContext = () => null;

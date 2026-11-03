@@ -16,6 +16,7 @@ import { loginUrl } from "../login/api";
 import { ThemeButton } from "./ThemeButton";
 import Footer from "./Footer";
 import EmptyLoading from "./EmptyLoading";
+import { usePageTitle, app_title } from "../pageTitle";
 
 
 // On narrow screens the bar's groups wrap on several rows instead of overflowing the page
@@ -70,7 +71,10 @@ const Content = styled.main`
 const nav_link_style = { color: '#fff' };
 
 // `account`: the account menu, or the "Sign in" button (not on the sign-in page itself)
-export const PageShell = ({ title, description, wide = false, account = true, children }) => <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--qa-background)', minWidth: 0 }}>
+// `tab_title`: what the browser's tab says before the title, e.g. the tab selected: "Profile · Settings · QA-Board"
+export const PageShell = ({ title, tab_title, description, wide = false, account = true, children }) => {
+  usePageTitle(app_title(tab_title, title));
+  return <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--qa-background)', minWidth: 0 }}>
   <WrappingNavbar className={Classes.DARK}>
     <NavbarGroup align={Alignment.LEFT}>
       <NavbarHeading><Link to="/" style={{ ...nav_link_style, fontWeight: 'bold' }}>QA-Board</Link></NavbarHeading>
@@ -91,6 +95,7 @@ export const PageShell = ({ title, description, wide = false, account = true, ch
   </Content>
   <Footer/>
 </div>;
+};
 
 
 // Signed-out users are checked again each time, like in PrivateContent

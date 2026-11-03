@@ -3,14 +3,22 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { Button, Classes, NonIdealState } from "@blueprintjs/core";
 
 import { QueryError, Loading } from "./states";
-import { userAuditQuery } from "./api";
+import { userAuditQuery, userUsageQuery } from "./api";
 import { AuditEvents } from "./AuditEvents";
+import { UsageCard } from "../admin/UsageCard";
 
 
 export const ActivityTab = ({ user }) => {
   const { data, isPending, error, refetch, hasNextPage, fetchNextPage, isFetchingNextPage } = useInfiniteQuery(userAuditQuery);
   const events = data?.pages.flatMap(page => page.events) ?? [];
   return <section aria-label="Activity">
+    <UsageCard
+      query={userUsageQuery}
+      title="Your usage, last 30 days"
+      what="your usage"
+      note="The pages you look at and what you start, in the web app and with the qa CLI. Admins see these numbers too, for everyone."
+    />
+    <h4 className={Classes.HEADING}>Sign-ins and tokens</h4>
     <p className={Classes.TEXT_MUTED} style={{ marginTop: 0 }}>
       Sign-ins, tokens and CLI sign-ins of your account. If something looks wrong, revoke your tokens and tell an admin.
     </p>
