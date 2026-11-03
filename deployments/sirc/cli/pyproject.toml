@@ -5,6 +5,7 @@ description = "QABoard site defaults for Samsung SIRC"
 requires-python = ">=3.7"
 dependencies = [
     "cde @ git+ssh://git@gitlab-srv/cde/cde-python",
+    "requests",
 ]
 
 [project.entry-points."qaboard.site"]
@@ -12,6 +13,10 @@ sirc = "qaboard_site_sirc:defaults"
 
 [project.entry-points."qaboard.hooks"]
 fix_permissions = "qaboard_site_sirc.hooks:fix_permissions"
+
+# The image viewer shows IQE's annotations
+[project.entry-points."qaboard.annotations"]
+iqe = "qaboard_site_sirc.iqe"
 
 [build-system]
 requires = ["hatchling"]

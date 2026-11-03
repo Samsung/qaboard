@@ -1,5 +1,5 @@
 // The viewer's panels: the values under the pointer, histograms, adjustments, regions of interest, legends.
-import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from 'react';
+import { Fragment, useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from 'react';
 
 import { ADJUSTMENT_SLIDERS, CHANNELS, DEFAULT_ADJUSTMENTS, FALSE_COLORS, changedAdjustments, normalizeAdjustments } from './adjustments';
 import { cssGradient } from './colormaps';
@@ -619,38 +619,66 @@ export const AdjustmentsPanel = ({ adjustments, onChange }) => {
 
 // --- Regions of interest ---
 
-// actions: the app's, e.g. finding the regions of other images too: [{ id, label, icon?, title?, onClick }]
-export const RegionsMenu = ({ sets, selected, actions = [], onSelect, onCopy, close }) => <div className="qiv-menu" role="menu">
-  <MenuItem text="Full image" icon="zoom-to-fit" active={!selected} onClick={() => { onSelect(null); close(); }} />
-  {sets.length > 0 && <MenuDivider title="Regions of interest" />}
-  {sets.map(set => <MenuItem
-    key={set.id}
-    text={set.label}
-    title={set.description}
-    active={selected === set.id}
-    icon={selected === set.id ? 'tick' : undefined}
-    label={set.loading ? <Spinner size={12} /> : set.regions ? `${set.regions.length}` : set.load ? 'find' : ''}
-    onClick={() => { onSelect(set.id); close(); }}
-  />)}
-  {actions.length > 0 && <MenuDivider />}
-  {actions.map(action => <MenuItem
-    key={action.id}
-    text={action.label}
-    title={action.title}
-    icon={action.icon}
-    onClick={() => { action.onClick(); close(); }}
-  />)}
-  <MenuDivider />
-  <MenuItem text="Copy the view as a region" icon="clipboard" onClick={() => { onCopy(); close(); }} />
-</div>;
+// The sets by section, e.g. "Annotations", then the regions of interest
+const REGIONS_SECTION = 'Regions of interest';
 
-export const RegionsStrip = ({ set, index, image, size, onSelect, onRetry }) => {
+// actions: the app's, e.g. finding the regions of other images too: [{ id, label, icon?, title?, onClick }]
+export const RegionsMenu = ({ sets, selected, actions = [], onSelect, onCopy, close }) => {
+  const sections = [...new Set(sets.map(set => set.section ?? REGIONS_SECTION))];
+  return <div className="qiv-menu" role="menu">
+    <MenuItem text="Full image" icon="zoom-to-fit" active={!selected} onClick={() => { onSelect(null); close(); }} />
+    {sections.map(section => <Fragment key={section}>
+      <MenuDivider title={section} />
+      {sets.filter(set => (set.section ?? REGIONS_SECTION) === section).map(set => <MenuItem
+        key={set.id}
+        text={set.label}
+        title={set.error ?? set.description}
+        active={selected === set.id}
+        icon={selected === set.id ? 'tick' : undefined}
+        label={set.loading ? <Spinner size={12} /> : set.error && !set.load ? <Icon icon="warning-sign" size={12} /> : set.regions ? `${set.regions.length}` : set.load ? 'find' : ''}
+        onClick={() => { onSelect(set.id); close(); }}
+      />)}
+    </Fragment>)}
+    {actions.length > 0 && <MenuDivider />}
+    {actions.map(action => <MenuItem
+      key={action.id}
+      text={action.label}
+      title={action.title}
+      icon={action.icon}
+      onClick={() => { action.onClick(); close(); }}
+    />)}
+    <MenuDivider />
+    <MenuItem text="Copy the view as a region" icon="clipboard" onClick={() => { onCopy(); close(); }} />
+  </div>;
+};
+
+// What a region says about itself, e.g. an annotation: { detail?, tags?, fields?, href?, hrefLabel? }
+export const RegionDetails = ({ region }) => {
+  const fields = Object.entries(region.fields ?? {});
+  if (!region.detail && !region.tags?.length && fields.length === 0 && !region.href) return null;
+  return <div className="qiv-region-details">
+    <span className="qiv-region-details-label">
+      {region.color && <span className="qiv-swatch" style={{ background: region.color }} />}
+      {region.label}
+    </span>
+    {fields.map(([name, value]) => <span key={name} className="qiv-region-field"><span className="qiv-muted">{name}</span> {typeof value === 'number' ? formatNumber(value) : String(value)}</span>)}
+    {region.tags?.map(tag => <span key={tag} className="qiv-chip">{tag}</span>)}
+    {region.detail && <span className="qiv-muted">{region.detail}</span>}
+    {region.href && <a href={region.href} target="_blank" rel="noopener noreferrer" className="qiv-region-link"><Icon icon="link" size={12} /> {region.hrefLabel ?? 'Open'}</a>}
+  </div>;
+};
+
+// index: the region shown, null: all of them, on the whole image (sets with `overview`)
+export const RegionsStrip = ({ set, index, image, size, onSelect, onRetry, outlines, onOutlinesChange }) => {
   const regions = set.regions ?? [];
   const strip = useRef(null);
   useEffect(() => {
     strip.current?.querySelector('.qiv-active')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   }, [index]);
-  return <div className="qiv-regions">
+  const step = delta => onSelect(index === null ? (delta > 0 ? 0 : regions.length - 1) : (index + delta + regions.length) % regions.length);
+  const active = index !== null ? regions[index] : null;
+  return <>
+  <div className="qiv-regions">
     <span className="qiv-regions-title" title={set.description}>{set.label}</span>
     {set.settings}
     {set.loading && <span className="qiv-muted"><Spinner size={12} /> Finding regions…</span>}
@@ -658,7 +686,20 @@ export const RegionsStrip = ({ set, index, image, size, onSelect, onRetry }) => 
     {!set.loading && !set.error && regions.length === 0 && <span className="qiv-muted">
       {set.regions ? set.empty ?? 'No regions' : set.load ? <Button text="Find regions" onClick={onRetry} /> : null}
     </span>}
-    {regions.length > 1 && <Button icon="chevron-left" title="Previous region" onClick={() => onSelect((index - 1 + regions.length) % regions.length)} />}
+    {regions.length > 0 && <Button
+      icon={outlines ? 'eye-open' : 'eye-off'}
+      title={`${outlines ? 'Hide' : 'Show'} the outlines of the regions on the images (o)`}
+      active={outlines}
+      aria-pressed={outlines}
+      onClick={() => onOutlinesChange(!outlines)}
+    />}
+    {set.overview && regions.length > 0 && <Button
+      text="All"
+      title={`All the ${regions.length} regions, on the whole image`}
+      className={index === null ? 'qiv-active' : ''}
+      onClick={() => onSelect(null)}
+    />}
+    {regions.length > 1 && <Button icon="chevron-left" title="Previous region ([)" onClick={() => step(-1)} />}
     <div className="qiv-regions-list" ref={strip}>
       {regions.map((region, i) => {
         const clipped = size?.width ? clipRegion(region, size) : region;
@@ -679,8 +720,10 @@ export const RegionsStrip = ({ set, index, image, size, onSelect, onRetry }) => 
         </button>;
       })}
     </div>
-    {regions.length > 1 && <Button icon="chevron-right" title="Next region" onClick={() => onSelect((index + 1) % regions.length)} />}
-  </div>;
+    {regions.length > 1 && <Button icon="chevron-right" title="Next region (])" onClick={() => step(1)} />}
+  </div>
+  {active && <RegionDetails region={active} />}
+  </>;
 };
 
 
@@ -699,6 +742,7 @@ export const SHORTCUTS = [
   ['c', 'Compare with the reference, or with the image picked last (from the vs menu)'],
   ['h', 'Blind test: the images in a random order, called A and B. h again reveals them, then ends it'],
   ['[ ]', 'Previous / next region of interest'],
+  ['o', 'Show / hide the outlines of the regions on the images'],
   ['f', 'Full screen, Esc or f again to leave'],
 ];
 

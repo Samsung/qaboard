@@ -72,6 +72,10 @@ services:
     - QABOARD_DEFAULT_USER=ispq
     - QA_LSF_SSH_TARGET=ispq@ispq-vdi
     - 'QABOARD_IMAGE_SERVERS={"default": "https://cantaloupe-svc.transchip.com/iiif/2/", "raw,hex": "https://iipsrv.transchip.com/fcgi-bin/iipsrv.fcgi?IIIF=/"}'
+    # The image viewer shows IQE's annotations (qaboard_site_sirc/iqe.py)
+    - QABOARD_IQE_URL=https://iqetool.transchip.com
+    # TODO(sirc): check the URL of IQE's workspace pages
+    - QABOARD_IQE_WORKSPACE_URL=https://iqetool.transchip.com/workspace/{id}
     - QABOARD_SUPPORT_URL=mailto:arthur.flam@samsung.com
     - QABOARD_LOGIN_HINT=Try your Windows credentials.
     # Links in emails and exports

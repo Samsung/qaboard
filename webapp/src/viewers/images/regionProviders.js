@@ -14,6 +14,11 @@
 //     available: context => boolean,
 //     // What the viewer says when there are none, e.g. "No difference found" (by default "No regions")
 //     empty: 'No difference found',
+//     // Optional: its section in the regions menu (by default "Regions of interest"). `auto`: `find` runs as soon as
+//     // the viewer shows, not when users pick the set (for cheap ones: the regions button says how many there are).
+//     // `overview`: picking the set shows the whole image with its regions outlined, not the first region.
+//     // `key(context)`: what its regions depend on, if not the image pair, `staleTime`: when to find them again.
+//     section: 'Annotations', auto: true, overview: true,
 //   }
 // context: { output_new, output_ref, path, path_ref, diff_size }, diff_size: the size of the differences users look for,
 // { min, max } in pixels (either can be null), for the providers that compare the images. Regions are in the pixels of the image shown, or of an image of
@@ -119,6 +124,48 @@ const providers = [
   autoRegions('ssim', 'Where they differ: structure (SSIM)', 'The server compares the full images by structural similarity (SSIM), about 1000 pixels wide, and finds where they differ most'),
   autoRegions('ciede2000', 'Where they differ: ΔE 2000', 'The server compares the full images by CIEDE2000 color difference, about 1000 pixels wide, and finds where they differ most'),
 ];
+
+
+// The annotations of the image in another app, from the site's sources (backend/backend/annotations.py): read-only, in
+// groups, e.g. who annotated, a task or a workspace. Fetched as soon as the viewer shows (they're cheap, the server
+// keeps them a few minutes): the regions button says how many there are.
+// source: { id, label, description, group_noun } (site config's annotation_sources)
+export const annotationProvider = ({ id, label, description, group_noun }) => ({
+  id: `annotations-${id}`,
+  label,
+  // what its groups are, e.g. "workspace"
+  group_noun: group_noun ?? 'group',
+  description: description ?? `The annotations of the image in ${label}`,
+  section: 'Annotations',
+  noun: 'annotations',
+  auto: true,
+  overview: true,
+  staleTime: 5 * 60 * 1000,
+  empty: `No annotations of this image in ${label}`,
+  available: ({ output_new }) => !output_new.deleted && !!output_new.output_dir_url,
+  key: ({ output_new, path }) => [output_new.output_dir_url, path],
+  find: async ({ output_new, path, md5 }, { signal }) => {
+    const { data } = await http.get(`/api/v1/output/image/annotations/${encodeURIComponent(id)}`, {
+      params: { output_dir_url: output_new.output_dir_url, path, md5 },
+      signal,
+    });
+    return annotationsToRegions(data, label);
+  },
+});
+
+// { groups, annotations } (from the server) as { groups, regions } (for the viewer)
+export const annotationsToRegions = ({ groups = [], annotations = [] }, source_label) => {
+  const group_of = Object.fromEntries(groups.map(group => [group.id, group]));
+  return {
+    groups: groups.map(group => ({ ...group, count: annotations.filter(a => a.group === group.id).length })),
+    regions: annotations.map(({ id, group, x, y, w, h, label, color, tags, fields, url }) => ({
+      id, group, x, y, w, h, label, color, tags, fields,
+      detail: group_of[group]?.label,
+      href: url,
+      hrefLabel: `Open in ${source_label}`,
+    })),
+  };
+};
 
 export const registerRegionProvider = provider => {
   const index = providers.findIndex(p => p.id === provider.id);

@@ -14,7 +14,7 @@ import { ALL_CHANNELS } from './histogram';
 import { ANALYSES, normalizeAnalysis } from './analysis';
 import { AnalysisPanel } from './analysisPanel';
 import { normalizeSensorSetting } from './imageAnalysis';
-import { Crosshair, DiffLayer, GuideLine, HighlightLayer, ImageHighlightLayer, Minimap, PixelValues } from './overlays';
+import { Crosshair, DiffLayer, GuideLine, HighlightLayer, ImageHighlightLayer, Minimap, PixelValues, RegionOutlines } from './overlays';
 import { AdjustmentsPanel, DiffLegend, DiffSettings, Readout, RegionsMenu, RegionsStrip, Shortcuts, ValuesBadge, ValuesPanel } from './panels';
 import { Button, FilterPrimitive, Icon, MenuDivider, MenuItem, Popover, Segmented, Spinner } from './ui';
 import './image-viewer.css';
@@ -349,12 +349,16 @@ export const ImageViewer = ({
   }, [controller, diff_between]);
 
   // Regions of interest: the set shown (controlled with onRegionSetChange, e.g. the same for several viewers, or not),
-  // and the region of the set
+  // and the region of the set. Sets with `overview` (e.g. annotations) first show the whole image with all their
+  // regions outlined: no region is active (index null) until users pick one.
   const [selected_set, setSelectedSet] = useControllable(region_set_prop, defaultRegionSet, onRegionSetChange);
-  const [region_index, setRegionIndex] = useState({ set: selected_set, index: 0 });
-  const index = region_index.set === selected_set ? region_index.index : 0;
   const active_set = selected_set ? regionSets.find(set => set.id === selected_set) ?? null : null;
-  const active_region = active_set?.regions?.[index] ?? null;
+  const first_index = set => set?.overview ? null : 0;
+  const [region_index, setRegionIndex] = useState({ set: selected_set, index: first_index(active_set) });
+  const index = region_index.set === selected_set ? region_index.index : first_index(active_set);
+  const active_region = index !== null ? active_set?.regions?.[index] ?? null : null;
+  // the regions are outlined on the images (o)
+  const [outlines, setOutlines] = useState(true);
   const region_key = active_region ? JSON.stringify([active_set.id, index, active_region]) : null;
   useEffect(() => {
     controller.setRegion(active_region);
@@ -372,19 +376,24 @@ export const ImageViewer = ({
   }, [active_set]);
   // Picking the region shown again shows it again, e.g. after zooming elsewhere
   const selectSet = id => {
+    const set = regionSets.find(s => s.id === id);
     setSelectedSet(id);
-    setRegionIndex({ set: id, index: 0 });
-    const first_region = regionSets.find(set => set.id === id)?.regions?.[0];
+    setRegionIndex({ set: id, index: first_index(set) });
+    if (set?.overview) return controller.fit();
+    const first_region = set?.regions?.[0];
     if (first_region) controller.fitRegion(first_region);
   };
+  // null: all the regions, on the whole image
   const selectRegion = next => {
     setRegionIndex({ set: selected_set, index: next });
+    if (next === null) return controller.fit();
     const region = active_set?.regions?.[next];
     if (region) controller.fitRegion(region);
   };
   const stepRegion = step => {
     const count = active_set?.regions?.length ?? 0;
-    if (count > 0) selectRegion((index + step + count) % count);
+    if (count === 0) return;
+    selectRegion(index === null ? (step > 0 ? 0 : count - 1) : (index + step + count) % count);
   };
 
   const notify = text => {
@@ -494,6 +503,11 @@ export const ImageViewer = ({
           if (!active_set?.regions?.length) return false;
           stepRegion(event.key === '[' ? -1 : 1);
           return true;
+        case 'o':
+          if (!active_set?.regions?.length) return false;
+          setOutlines(!outlines);
+          notify(outlines ? 'Outlines hidden (o)' : 'Regions outlined (o)');
+          return true;
         default:
           return false;
       }
@@ -578,6 +592,16 @@ export const ImageViewer = ({
     onDrawn={pane === values_pane ? setValuesDrawn : undefined}
   />;
 
+  const regionOutlines = name => outlines && active_set?.regions?.length > 0 && <RegionOutlines
+    controller={controller}
+    pane={name}
+    regions={active_set.regions}
+    active={index}
+    size={size_a}
+    paneSize={name === 'b' ? size_b : size_a}
+    onSelect={selectRegion}
+  />;
+
   // Whether a pane's image shows
   const shown = name => !comparing ? name === 'a'
     : mode === 'single' ? name === first
@@ -594,6 +618,7 @@ export const ImageViewer = ({
     <HighlightLayer controller={controller} pane={name} highlight={highlight} active={visible && shown(name)} width={pane_width} height={pane_height} />
     <ImageHighlightLayer controller={controller} pane={name} mask={show_analysis ? image_masks?.[name] : null} active={visible && shown(name)} width={pane_width} height={pane_height} />
     {pixelValues(name)}
+    {shown(name) && regionOutlines(name)}
     <Crosshair controller={controller} pane={name} />
     {show_analysis && <GuideLine controller={controller} guide={guide} />}
     {apart && label(name, 'left')}
@@ -624,6 +649,8 @@ export const ImageViewer = ({
   </div>;
 
   const zoom = useZoom(controller);
+  // sets that say when they have regions, e.g. annotations: the regions button tells users
+  const announced = regionSets.find(set => set.announce && set.regions?.length > 0) ?? null;
   const adjusted = changedAdjustments(adjustments).length > 0;
 
   return <div
@@ -714,10 +741,10 @@ export const ImageViewer = ({
       <Popover align="end" button={props => <Button
         {...props}
         icon="detection"
-        text={active_set ? active_set.label : undefined}
+        text={active_set ? active_set.label : announced ? `${announced.regions.length} ${announced.noun ?? 'regions'}` : undefined}
         label="Regions of interest"
-        title="Regions of interest"
-        className={active_set ? 'qiv-intent' : ''}
+        title={announced && !active_set ? `${announced.regions.length} ${announced.noun ?? 'regions'} in ${announced.label}: click to show them` : 'Regions of interest'}
+        className={active_set ? 'qiv-intent' : announced ? 'qiv-announce' : ''}
       />}>
         {({ close }) => <RegionsMenu sets={regionSets} selected={active_set?.id ?? null} actions={regionActions} onSelect={selectSet} onCopy={copyRegion} close={close} />}
       </Popover>
@@ -766,6 +793,8 @@ export const ImageViewer = ({
       size={size_a}
       onSelect={selectRegion}
       onRetry={() => active_set.load?.()}
+      outlines={outlines}
+      onOutlinesChange={setOutlines}
     />}
     <Readout
       controller={controller}
@@ -799,6 +828,7 @@ export const ImageViewer = ({
       >
         <DiffLayer controller={controller} order={[first, second]} diff={diff} active={visible} width={pane_width} height={pane_height} canvasRef={diff_canvas} onError={setDiffError} />
         {pixelValues('diff')}
+        {regionOutlines('diff')}
         <Crosshair controller={controller} pane="diff" />
         {show_analysis && <GuideLine controller={controller} guide={guide} />}
         {diff_between && <>

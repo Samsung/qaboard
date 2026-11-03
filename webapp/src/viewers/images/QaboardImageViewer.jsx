@@ -14,7 +14,8 @@ import { usePrefsStore } from '../../stores/prefs';
 import { at_most, is_same_data } from '../../utils';
 import { build_image_name, iiif_url } from './utils';
 import { COMPARE_SCOPES, comparedFor, compareCandidates, pickCompared } from './compareWith';
-import { regionProviders } from './regionProviders';
+import { annotationProvider, regionProviders } from './regionProviders';
+import { AnnotationGroups, useHiddenGroupsStore } from './AnnotationGroups';
 import { regionsQuery, sizeKey } from './regionSearch';
 import { DiffSizeFilter, describeDiffSize, useDiffSize } from './DiffSize';
 import { differenceProviders, RegionsTriage, usePagePairs } from './RegionsTriage';
@@ -165,13 +166,35 @@ const SIGN_IN_SEARCH = 'Sign in (in the sidebar) to find where the images differ
 // for all the runs fills each viewer.
 const useRegionSets = (context, signed_in, onDiffSizeChange) => {
   const queryClient = useQueryClient();
-  const providers = regionProviders().filter(provider => !provider.available || provider.available(context));
+  // the site's annotations, e.g. from the app where people mark defects
+  const { annotation_sources } = useSiteConfig();
+  const hidden_groups = useHiddenGroupsStore(state => state.hidden);
+  const providers = [...regionProviders(), ...(annotation_sources ?? []).map(annotationProvider)]
+    .filter(provider => !provider.available || provider.available(context));
   const finders = providers.filter(provider => !provider.regions && provider.find);
-  // what's found, without searching: only when users pick the set
-  const found = useQueries({ queries: finders.map(provider => ({ ...regionsQuery(provider, context), enabled: false })) });
+  // what's found, without searching: only when users pick the set. Annotations are fetched right away (auto).
+  const found = useQueries({ queries: finders.map(provider => ({ ...regionsQuery(provider, context), enabled: !!provider.auto })) });
   const sets = [];
   for (const provider of providers) {
-    const base = { id: provider.id, label: provider.label, description: provider.description };
+    const base = { id: provider.id, label: provider.label, description: provider.description, section: provider.section, overview: provider.overview };
+    if (provider.auto) {
+      const { data, error, fetchStatus } = found[finders.indexOf(provider)];
+      const hidden = hidden_groups[provider.id] ?? [];
+      const failed = error && !isAbort(error) ? errorMessage(error) : undefined;
+      sets.push({
+        ...base,
+        announce: true,
+        noun: provider.noun,
+        regions: data?.regions.filter(region => !hidden.includes(region.group)),
+        loading: fetchStatus === 'fetching' && !data,
+        error: failed,
+        empty: data?.regions.length ? `All its ${provider.group_noun}s are hidden` : provider.empty,
+        settings: data?.groups.length ? <AnnotationGroups set_id={provider.id} groups={data.groups} noun={provider.group_noun} source={provider.label} /> : undefined,
+        // only to retry: else it's not a search, and stays picked on other pages
+        load: failed ? () => queryClient.fetchQuery(regionsQuery(provider, context, 'high')).catch(() => {}) : undefined,
+      });
+      continue;
+    }
     if (provider.regions) {
       const regions = provider.regions(context);
       if (regions?.length) sets.push({ ...base, regions });
@@ -251,9 +274,11 @@ const ImageViewerForRuns = ({
   const signed_in = useUser().is_logged;
   // the regions where the images differ: of the image and the other image of the run, or its reference
   const [diff_size, setDiffSize] = useDiffSize();
+  // md5: for annotations, identifies the image (at SIRC md5_data is the hash of the pixels annotation apps use)
+  const md5 = manifests?.new?.[path]?.md5_data ?? manifests?.new?.[path]?.md5;
   const region_context = other
-    ? { output_new, output_ref: output_new, path, path_ref: other, diff_size }
-    : { output_new, output_ref: reference ? output_ref : null, path, path_ref, diff_size };
+    ? { output_new, output_ref: output_new, path, path_ref: other, diff_size, md5 }
+    : { output_new, output_ref: reference ? output_ref : null, path, path_ref, diff_size, md5 };
   const region_sets = useRegionSets(region_context, signed_in, setDiffSize);
   const page = usePageKey();
   const chosen = useRegionSetStore(state => state.by_path[path]);

@@ -108,7 +108,8 @@ from 11% back to 5%, and the halos fade.
 <Anchor id="regions-of-interest" />
 The regions button above the images (it shows the name of the set in view, e.g. **Presets**) zooms on regions of
 interest, with their thumbnails above the images. Step through them with <kbd>[</kbd> <kbd>]</kbd>, the arrows, or a
-click on a thumbnail. **Full image** goes back to the whole image.
+click on a thumbnail. **Full image** goes back to the whole image. The regions are outlined on the images: click a
+region's label to zoom on it, and hide the outlines with the eye button or <kbd>o</kbd>.
 
 - **Presets**: the regions set for the input, e.g. on the facade *Window frame (halos)*, *Leaves over a window* and
   *Flat wall (noise)*. The viewer opens on the first one. Whoever integrates the project defines them, see
@@ -175,6 +176,27 @@ a run's card, zoomed on its region that differs most; every viewer of that file 
   about the same time.
 - Closing the list doesn't stop the comparisons: **Stop** does, and **Compare the others** picks up where it stopped.
 - The menu item shows when you're signed in and the page has more than one run with a reference to compare.
+
+</details>
+
+## Annotations {#annotations}
+When your server is connected to an annotation app, the viewer shows the regions people marked on the image there,
+e.g. defects, read-only. When the image has some, the regions button says how many (**4 annotations**): click it, then
+the app's name under **Annotations**. The whole image shows with every annotation outlined, in the app's colors.
+
+- **Look at one**: click its thumbnail or its label on the image, or step with <kbd>[</kbd> <kbd>]</kbd>. A line under
+  the thumbnails says what it is: its type, importance, tags, scores, where it was made, and a link to open it in the
+  app. **All** goes back to the whole image.
+- **Pick whose annotations you see**: annotations come in groups, e.g. the app's workspaces. The button next to the
+  app's name lists them with their number of annotations: uncheck some, or show only one with the eye button. Each
+  has a link to open it in the app. Your choice applies to every viewer of the page.
+
+<details>
+<summary>Which image, and how fresh</summary>
+
+- Annotations are the new image's, also outlined on the reference at the same place, to compare.
+- The server asks the app again after a few minutes: reload the page to see annotations made since.
+- You see the annotations of the files you can see.
 
 </details>
 
@@ -486,6 +508,7 @@ text box. The keyboard button in the viewer's toolbar lists them.
 | <kbd>c</kbd> | Compare with the reference, or with the file you picked last in the **vs** menu. |
 | <kbd>h</kbd> | Start a blind test, then reveal which image is which, then end it. |
 | <kbd>[</kbd> <kbd>]</kbd> | Previous or next region of interest. |
+| <kbd>o</kbd> | Show or hide the outlines of the regions on the images. |
 | <kbd>f</kbd>, <kbd>Esc</kbd> | Full screen, and leave it. |
 | <kbd>←</kbd> <kbd>→</kbd> | On the wipe's divider or a histogram's range, once you've dragged it: move it (with <kbd>Shift</kbd>, the range moves by 16 values). |
 | <kbd>Esc</kbd> | On the histogram: clear the range. |

@@ -225,6 +225,19 @@ Users step through regions (with thumbnails for IIIF images), or copy the region
 />
 ```
 
+The regions of the set shown are outlined on the images, with their labels while there's room: a click on a label
+shows its region, <kbd>o</kbd> or the eye button hides the outlines. Sets of regions to look at together, e.g.
+annotations, take `overview: true`: picking them shows the whole image with all their regions outlined, until users
+pick one. Their regions can say more about themselves (`detail`, `tags`, `fields`, `href`), shown under the thumbnails.
+With `announce: true` the regions button says when the set has regions ("4 annotations", with `noun`), and `section`
+groups sets in the menu:
+
+```jsx
+{ id: 'defects', label: 'Defects', section: 'Annotations', overview: true, announce: true, noun: 'annotations', regions: [
+  { x: 10, y: 20, w: 30, h: 40, label: 'Noise', color: '#e5484d', tags: ['night'], fields: { Importance: 'High' }, href: 'https://…', hrefLabel: 'Open in Defects' },
+] }
+```
+
 Control the set shown (`regionSet`, `onRegionSetChange`) to show the same in several viewers, and add your own actions
 to the regions menu with `regionActions`: QA-Board's finds where the images differ for all the runs of a page, then
 ranks the runs.
@@ -288,7 +301,7 @@ resolution), and show a cross where the pointer is on the others. Viewers off-sc
 | `sensor`, `defaultSensor`, `onSensorChange` | `{ kind?, pattern?, block?, offset?, blackLevel?, grouping? }` | automatic | What users set about the sensor of raw images |
 | `sensorRemembered` | `string` | | Where it's remembered, shown to users, e.g. "for the project" |
 | `syncKey` | `string` | | Viewers with the same key are synced |
-| `regionSets` | `[{ id, label, regions?, loading?, error?, load?, empty?, settings? }]` | `[]` | Regions of interest |
+| `regionSets` | `[{ id, label, regions?, loading?, error?, load?, empty?, settings?, section?, overview?, announce?, noun? }]` | `[]` | Regions of interest |
 | `regionSet`, `defaultRegionSet`, `onRegionSetChange` | `string \| null` | | The set shown (`null`: the full image) |
 | `regionActions` | `[{ id, label, icon?, title?, onClick }]` | `[]` | Your actions in the regions menu |
 | `swapped`, `defaultSwapped`, `onSwappedChange` | `boolean` | `false` | The reference shows first. Control it to swap several viewers at once |
@@ -305,7 +318,7 @@ The types are in `index.d.ts`. The package also exports helpers: `iiifUrl`, `thu
 Anywhere on the page: for the viewer in full screen, else under the mouse, else that has the focus, else the one used
 last if it's in view, else the first in view. <kbd>1</kbd>–<kbd>4</kbd> the mode, <kbd>t</kbd> toggle: in single mode
 the other image (like a click on the image), else swap the sides (or the order of the difference alone), <kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd> zoom, <kbd>p</kbd> pixel values, <kbd>a</kbd> analysis panel,
-<kbd>h</kbd> blind test (then reveal, then end), <kbd>c</kbd> compare with the reference, or the image of `compareWith` picked last, <kbd>f</kbd> full screen (<kbd>Esc</kbd> leaves), <kbd>[</kbd> <kbd>]</kbd> previous / next region. The wheel or a pinch zooms, a drag pans, a
+<kbd>h</kbd> blind test (then reveal, then end), <kbd>c</kbd> compare with the reference, or the image of `compareWith` picked last, <kbd>f</kbd> full screen (<kbd>Esc</kbd> leaves), <kbd>[</kbd> <kbd>]</kbd> previous / next region, <kbd>o</kbd> the regions' outlines. The wheel or a pinch zooms, a drag pans, a
 double-click zooms in.
 
 

@@ -63,3 +63,21 @@ describe('region providers', () => {
     expect(charts[0].label).toBe('Charts');
   });
 });
+
+
+describe('annotations', () => {
+  it('are regions, in groups', async () => {
+    const { annotationProvider, annotationsToRegions } = await import('../regionProviders');
+    const found = annotationsToRegions({
+      groups: [{ id: '7', label: 'Workspace 7', url: 'https://app/7' }, { id: '8', label: 'Workspace 8' }],
+      annotations: [{ id: '1', group: '7', x: 1, y: 2, w: 3, h: 4, label: 'Noise', tags: ['night'], url: 'https://app/7' }],
+    }, 'IQE');
+    expect(found.groups.map(g => g.count)).toEqual([1, 0]);
+    expect(found.regions[0]).toMatchObject({ x: 1, label: 'Noise', group: '7', detail: 'Workspace 7', href: 'https://app/7', hrefLabel: 'Open in IQE' });
+    const provider = annotationProvider({ id: 'iqe', label: 'IQE', group_noun: 'workspace' });
+    expect(provider).toMatchObject({ id: 'annotations-iqe', section: 'Annotations', auto: true, overview: true, group_noun: 'workspace' });
+    // the image's, whatever it's compared with
+    expect(provider.key({ output_new: { output_dir_url: '/s/run' }, output_ref: { output_dir_url: '/s/ref' }, path: 'a.png' })).toEqual(['/s/run', 'a.png']);
+    expect(provider.available({ output_new: { deleted: true, output_dir_url: '/s/run' } })).toBe(false);
+  });
+});
