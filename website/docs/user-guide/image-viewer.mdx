@@ -180,23 +180,26 @@ a run's card, zoomed on its region that differs most; every viewer of that file 
 </details>
 
 ## Annotations {#annotations}
-When your server is connected to an annotation app, the viewer shows the regions people marked on the image there,
-e.g. defects, read-only. When the image has some, the regions button says how many (**4 annotations**): click it, then
-the app's name under **Annotations**. The whole image shows with every annotation outlined, in the app's colors.
+When your server is connected to an annotation app, the viewer shows the regions people marked on the run's input
+there, e.g. defects, read-only. When the input has some, the regions button says how many (**4 annotations**): click
+it, then the app's name under **Annotations**. The whole image shows with the annotations outlined, in the color of
+their workspace (or group).
 
+- **Pick the workspaces you see**: they're listed next to the app's name above the images, each in its color, with its
+  number of annotations. Click one to show or hide its annotations; the menu next to them lists them all, with **All**,
+  **None**, and a link to open each in the app. Your workspaces (marked with a person) show until you pick; the others
+  don't. What you pick is remembered in your browser, for every image.
 - **Look at one**: click its thumbnail or its label on the image, or step with <kbd>[</kbd> <kbd>]</kbd>. A line under
-  the thumbnails says what it is: its type, importance, tags, scores, where it was made, and a link to open it in the
-  app. **All** goes back to the whole image.
-- **Pick whose annotations you see**: annotations come in groups, e.g. the app's workspaces. The button next to the
-  app's name lists them with their number of annotations: uncheck some, or show only one with the eye button. Each
-  has a link to open it in the app. Your choice applies to every viewer of the page.
+  the thumbnails says what it is: its type, importance, tags, scores, who made it, its workspace, and a link to open it
+  in the app. **All** goes back to the whole image.
 
 <details>
 <summary>Which image, and how fresh</summary>
 
-- Annotations are the new image's, also outlined on the reference at the same place, to compare.
+- Annotations are made on the inputs: every image of the run shows them, at the same place on images of another size
+  when the input's metadata gives its `width` and `height`. They're also outlined on the reference, to compare.
 - The server asks the app again after a few minutes: reload the page to see annotations made since.
-- You see the annotations of the files you can see.
+- You see the annotations of the inputs you can see.
 
 </details>
 

@@ -5,15 +5,15 @@ title: Showing annotations from another app
 description: "Show the regions people mark on images in another app (defects, labels...) in QA-Board's image viewer, read-only, with an annotation source: a small Python package."
 ---
 If people mark regions on images in another app, e.g. defects for image quality reviews, the image viewer can show
-them on the runs' images, read-only: outlined on the images, with what each is, by group (e.g. the app's workspaces),
-with links to open them in the app. See what users get in the [user guide](/docs/user-guide/image-viewer#annotations).
+those of the runs' inputs on the runs' images, read-only: outlined on the images, with what each is, by group (e.g. the
+app's workspaces), with links to open them in the app. See what users get in the [user guide](/docs/user-guide/image-viewer#annotations).
 
 QA-Board asks your app through an **annotation source**: a Python module, in a package installed with the backend,
-that finds the annotations of an image.
+that finds the annotations of an input.
 
 ## Write a source
-The source gets the image's absolute path on the server, and its md5 when the run's manifest has one. It returns the
-groups of annotations and the annotations, in the image's pixels:
+The source gets the absolute path of the run's input on the server. It returns the groups of annotations and the
+annotations, in the input's pixels:
 
 ```python title="my_site/defects.py"
 import requests
@@ -22,15 +22,15 @@ label = "Defects"                  # what users pick in the viewer
 description = "From the defects app, by project"  # optional, on hover
 group_noun = "project"             # optional, what the groups are ("group" by default)
 
-def annotations(path, md5):
+def annotations(path):
   found = requests.get("https://defects.example.com/api/images", params={"path": path}, timeout=10).json()
   return {
-    "groups": [{"id": p["id"], "label": p["name"], "detail": f"by {p['owner']}", "url": p["url"]} for p in found["projects"]],
+    # users: whose they are. Users see theirs by default, the others when they pick them
+    "groups": [{"id": p["id"], "label": p["name"], "detail": f"by {p['owner']}", "url": p["url"], "users": [p["owner"]]} for p in found["projects"]],
     "annotations": [{
       "id": d["id"], "group": d["project_id"],
       "x": d["x"], "y": d["y"], "w": d["width"], "h": d["height"],
       "label": d["type"],                # e.g. "Noise"
-      "color": "#e5484d",                # optional, of its outline
       "tags": d["tags"],                 # optional
       "fields": {"Importance": d["importance"], "score": d["score"]},  # optional, shown as they are
       "url": d["url"],                   # optional, opens it in your app
@@ -38,8 +38,8 @@ def annotations(path, md5):
   }
 ```
 
-Only `x`, `y`, `w` and `h` are required. Groups without annotations are fine: e.g. other places where the image is
-used. Errors are shown to users in the viewer.
+Only `x`, `y`, `w` and `h` are required. The viewer colors annotations by group. Groups without annotations are fine.
+Errors are shown to users in the viewer.
 
 ## Install it
 Declare the source with an entry point, in the `qaboard.annotations` group, in your [site package](/docs/installation#with-your-organizations-site-package) or any package installed in the
@@ -57,10 +57,10 @@ installed side by side.
 <summary>How QA-Board calls it</summary>
 
 - The viewer asks as soon as an image shows, so that the regions button says how many annotations there are: keep the
-  lookup of one image fast. Viewers ask 3 at a time per page.
-- The backend keeps the answer of each image for 5 minutes (in Redis when it has one), and asks again when the file
-  changes.
+  lookup of one input fast. Runs of the same input share it, and viewers ask 3 at a time per page.
+- The backend keeps the answer for each input for 5 minutes (in Redis when it has one), and asks again when the file
+  changes. Whether groups are the user's (their `users`) is decided for each user, after.
 - Users see the annotations of the files they can see in QA-Board: the source doesn't need to check access.
-- The API is `GET /api/v1/output/image/annotations/<source>?output_dir_url=…&path=…&md5=…`.
+- The API is `GET /api/v1/output/image/annotations/<source>?path=<the input's absolute path>`.
 
 </details>

@@ -54,9 +54,10 @@ const rawValue = (image, x, y) => {
 };
 const RAW_SENSOR = { cfa: { pattern: 'GBRG', block: 1 }, bit_depth: 10, white_level: 1023, black_level: 64, fields: { pattern: 'GBRG', imageType: 'UI10', pedestal: 64 } };
 
-const setup = async (page, { metadata = {}, manifests, qatools_config = default_config, runs, differences = {}, diff_delay = 0, eight_bit = false, raw = false, signed_in = true } = {}) => {
+const setup = async (page, { metadata = {}, manifests, qatools_config = default_config, runs, differences = {}, diff_delay = 0, eight_bit = false, raw = false, signed_in = true, annotations = null } = {}) => {
   const api = {
-    '/api/v1/config': {},
+    '/api/v1/config': annotations ? { annotation_sources: [{ id: 'iqe', label: 'IQE', group_noun: 'workspace' }] } : {},
+    ...(annotations ? { '/api/v1/output/image/annotations/iqe': annotations } : {}),
     '/api/v1/user/me/': signed_in ? { is_authenticated: true, user_id: 1, user_name: 'alice', full_name: 'Alice', email: 'alice@example.com', login_type: 'local' } : { is_authenticated: false },
     '/api/v1/projects': { [project]: { data: { qatools_config }, latest_commit_datetime: '2026-09-01T10:00:00Z', total_commits: 2 } },
     '/api/v1/project': { qatools_config },
@@ -501,6 +502,55 @@ test('shows the regions of interest of the input', async ({ page }) => {
   await page.getByRole('menuitem', { name: 'Full image' }).click();
   await expect(regions).toHaveCount(0);
   await expect.poll(() => zoom(page)).toBeLessThan(200);
+});
+
+// The annotations of the input in an annotation app: 2 workspaces, one the user's
+const ANNOTATIONS = {
+  groups: [
+    { id: '1940', label: 'Benchmark night', detail: 'by bob', url: 'https://annotations.example.com/workspace/1940', users: ['bob'], mine: false },
+    { id: '12', label: 'Halo review', detail: 'by alice', url: 'https://annotations.example.com/workspace/12', users: ['alice'], mine: true },
+  ],
+  annotations: [
+    { id: '1', group: '12', x: 100, y: 100, w: 40, h: 40, label: 'Dark square', tags: ['DEFECT'], fields: { Importance: 'High', By: 'alice' }, url: 'https://annotations.example.com/workspace/12' },
+    { id: '2', group: '12', x: 300, y: 40, w: 120, h: 80, label: 'Banding', fields: { Importance: 'Medium' } },
+    { id: '3', group: '1940', x: 20, y: 250, w: 160, h: 100, label: 'Noise', fields: { Importance: 'Low', By: 'bob' } },
+  ],
+};
+
+test("shows the annotations of the input, the user's workspaces first, and remembers the workspaces picked", async ({ page }) => {
+  await setup(page, { annotations: ANNOTATIONS });
+  // the regions button says there are some
+  const button = page.getByRole('button', { name: 'Regions of interest' });
+  await expect(button).toContainText('3 annotations');
+  await button.click();
+  await page.getByRole('menuitem', { name: /IQE/ }).click();
+  const regions = page.locator('.qiv-regions');
+  // the user's workspace is shown, the other isn't
+  await expect(regions.getByRole('button', { name: /Halo review/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(regions.getByRole('button', { name: /Benchmark night/ })).toHaveAttribute('aria-pressed', 'false');
+  const outlines = page.locator('.qiv-pane').first().locator('.qiv-outline');
+  await expect(outlines).toHaveCount(2);
+  await regions.getByRole('button', { name: /Benchmark night/ }).click();
+  await expect(outlines).toHaveCount(3);
+  await page.waitForTimeout(600);
+  if (process.env.E2E_SCREENSHOTS) await page.locator('.qiv').first().screenshot({ path: `${process.env.E2E_SCREENSHOTS}/annotations-overview.png` });
+  // one annotation, and what it is
+  await page.locator('.qiv-pane').first().locator('.qiv-outline-label', { hasText: 'Dark square' }).click();
+  await expect(page.locator('.qiv-region-details')).toContainText('DEFECT');
+  await expect(page.locator('.qiv-region-details').getByRole('link', { name: 'Open in IQE' })).toHaveAttribute('href', 'https://annotations.example.com/workspace/12');
+  await settledZoom(page);
+  if (process.env.E2E_SCREENSHOTS) await page.locator('.qiv').first().screenshot({ path: `${process.env.E2E_SCREENSHOTS}/annotations-one.png` });
+  // remembered
+  await page.reload();
+  await page.getByRole('button', { name: 'Regions of interest' }).click();
+  await page.getByRole('menuitem', { name: /IQE/ }).click();
+  await expect(page.locator('.qiv-pane').first().locator('.qiv-outline')).toHaveCount(3);
+  // the list of workspaces
+  await page.locator('.qaboard-annotation-groups-inline .bp6-button').click();
+  await expect(page.locator('.qaboard-annotation-groups')).toContainText('2 workspaces annotated this input in IQE');
+  if (process.env.E2E_SCREENSHOTS) await page.locator('.qiv').first().screenshot({ path: `${process.env.E2E_SCREENSHOTS}/annotations-workspaces.png` });
+  await page.locator('.qaboard-annotation-groups').getByRole('button', { name: 'None' }).click();
+  await expect(page.locator('.qiv-regions')).toContainText('Pick the workspaces to show');
 });
 
 test('finds where the images differ in all the runs, and ranks them', async ({ page }) => {

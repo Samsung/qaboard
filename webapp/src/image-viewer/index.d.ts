@@ -104,6 +104,8 @@ export interface RegionSet {
   /** The regions button says when it has regions, e.g. "4 annotations" (noun, default "regions") */
   announce?: boolean;
   noun?: string;
+  /** How many regions it says it has, when it shows only some, e.g. the annotations of the groups users picked */
+  total?: number;
 }
 
 /** A blind test: what the image (`image`, not `reference`) is called, and whether users revealed which is which */

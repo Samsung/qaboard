@@ -126,46 +126,77 @@ const providers = [
 ];
 
 
-// The annotations of the image in another app, from the site's sources (backend/backend/annotations.py): read-only, in
-// groups, e.g. who annotated, a task or a workspace. Fetched as soon as the viewer shows (they're cheap, the server
-// keeps them a few minutes): the regions button says how many there are.
+// The absolute path of the run's input, or null (e.g. pipelines, inputs relative to the working directory)
+export const inputPath = output => {
+  const { test_input_database: database, test_input_path: path } = output ?? {};
+  if (!database?.startsWith('/') || !path || path === 'PIPELINE') return null;
+  return `${database.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+};
+
+// The annotations people made on the run's input in another app, from the site's sources
+// (backend/backend/annotations.py): read-only, in groups, e.g. the app's workspaces. Fetched as soon as the viewer
+// shows (the server keeps them a few minutes, and runs of the same input share them): the regions button says how many
+// there are. They're in the input's pixels: shown at the same place on images of another size.
 // source: { id, label, description, group_noun } (site config's annotation_sources)
 export const annotationProvider = ({ id, label, description, group_noun }) => ({
   id: `annotations-${id}`,
+  source: id,
   label,
   // what its groups are, e.g. "workspace"
   group_noun: group_noun ?? 'group',
-  description: description ?? `The annotations of the image in ${label}`,
+  description: description ?? `The annotations of the run's input in ${label}`,
   section: 'Annotations',
   noun: 'annotations',
   auto: true,
   overview: true,
   staleTime: 5 * 60 * 1000,
-  empty: `No annotations of this image in ${label}`,
-  available: ({ output_new }) => !output_new.deleted && !!output_new.output_dir_url,
-  key: ({ output_new, path }) => [output_new.output_dir_url, path],
-  find: async ({ output_new, path, md5 }, { signal }) => {
+  empty: `No annotations of this input in ${label}`,
+  available: ({ output_new }) => !output_new.deleted && !!inputPath(output_new),
+  key: ({ output_new }) => [inputPath(output_new)],
+  find: async ({ output_new }, { signal }) => {
     const { data } = await http.get(`/api/v1/output/image/annotations/${encodeURIComponent(id)}`, {
-      params: { output_dir_url: output_new.output_dir_url, path, md5 },
+      params: { path: inputPath(output_new) },
       signal,
     });
-    return annotationsToRegions(data, label);
+    const { width, height } = output_new.test_input_metadata ?? {};
+    return annotationsToRegions(data, label, width && height ? { imageWidth: width, imageHeight: height } : {});
   },
 });
 
-// { groups, annotations } (from the server) as { groups, regions } (for the viewer)
-export const annotationsToRegions = ({ groups = [], annotations = [] }, source_label) => {
-  const group_of = Object.fromEntries(groups.map(group => [group.id, group]));
+// Outlines of the groups, distinct on an image, and the same on most images: from a hash of the group, else the next
+const GROUP_COLORS = ['#4c90f0', '#fbb360', '#72ca9b', '#f5498b', '#bdadff', '#68c1ee', '#fbd065', '#d1f26d'];
+export const groupColors = groups => {
+  const used = new Set();
+  return Object.fromEntries(groups.map(({ id }) => {
+    let i = [...String(id)].reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) >>> 0, 7) % GROUP_COLORS.length;
+    for (let tries = 0; used.has(i) && tries < GROUP_COLORS.length; tries++) i = (i + 1) % GROUP_COLORS.length;
+    used.add(i);
+    return [id, GROUP_COLORS[i]];
+  }));
+};
+
+// { groups, annotations } (from the server) as { groups, regions } (for the viewer). Groups get a color, their count,
+// and the user's first (mine), then the largest
+export const annotationsToRegions = ({ groups = [], annotations = [] }, source_label, size = {}) => {
+  const counts = {};
+  for (const a of annotations) counts[a.group] = (counts[a.group] ?? 0) + 1;
+  const sorted = [...groups].sort((a, b) => (b.mine === true) - (a.mine === true) || (counts[b.id] ?? 0) - (counts[a.id] ?? 0));
+  const colors = groupColors(sorted);
+  const group_of = Object.fromEntries(sorted.map(group => [group.id, group]));
   return {
-    groups: groups.map(group => ({ ...group, count: annotations.filter(a => a.group === group.id).length })),
-    regions: annotations.map(({ id, group, x, y, w, h, label, color, tags, fields, url }) => ({
-      id, group, x, y, w, h, label, color, tags, fields,
+    groups: sorted.map(group => ({ ...group, count: counts[group.id] ?? 0, color: colors[group.id] })),
+    regions: annotations.map(({ id, group, x, y, w, h, label, tags, fields, url }) => ({
+      id, group, x, y, w, h, label, tags, fields, ...size,
+      color: colors[group],
       detail: group_of[group]?.label,
       href: url,
       hrefLabel: `Open in ${source_label}`,
     })),
   };
 };
+
+// The groups users see: what they picked, else theirs
+export const isGroupShown = (group, choices) => choices?.[group.id] ?? !!group.mine;
 
 export const registerRegionProvider = provider => {
   const index = providers.findIndex(p => p.id === provider.id);

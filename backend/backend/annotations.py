@@ -9,14 +9,14 @@ Sites add their sources with a package, like the site defaults (qaboard/site_con
     description = "From our app"      # optional, on hover
     group_noun = "project"            # optional, what the groups are (by default "group")
 
-    def annotations(path: str, md5: Optional[str]) -> dict:
-        # path: the image's absolute path on the server, md5: of the file if we know it
+    def annotations(path: str) -> dict:
+        # path: the absolute path of the run's input: annotations are made on inputs
         return {
-          # e.g. who annotated, or a task. The viewer filters by group and links to them.
-          "groups": [{"id": "12", "label": "Night scenes", "detail": "by alice", "url": "https://..."}],
-          # in the pixels of the image
+          # e.g. a task, or a workspace. Users pick the groups they see, by default those of the `users` they are.
+          "groups": [{"id": "12", "label": "Night scenes", "detail": "by alice", "url": "https://...", "users": ["alice"]}],
+          # in the pixels of the input
           "annotations": [{"id": "1", "group": "12", "x": 10, "y": 20, "w": 30, "h": 40, "label": "Noise",
-                           "color": "#e5484d", "tags": ["night"], "fields": {"Importance": "High"}, "url": "https://..."}],
+                           "tags": ["night"], "fields": {"Importance": "High"}, "url": "https://..."}],
         }
 
     [project.entry-points."qaboard.annotations"]
@@ -55,13 +55,22 @@ def describe_sources():
 
 # People annotate while others look: we ask again after a few minutes
 @hybrid_cache(ttl=5 * 60, maxsize=512)
-def annotations_of(source_id: str, path: str, md5: Optional[str], mtime_ns: int):
+def annotations_of(source_id: str, path: str, mtime_ns: int):
   """The annotations of the image, its version identified by mtime_ns"""
-  found = annotation_sources()[source_id].annotations(path, md5) or {}
+  found = annotation_sources()[source_id].annotations(path) or {}
   return {
     "groups": [{**group, "id": str(group["id"])} for group in found.get("groups", [])],
     "annotations": [
       {**annotation, "id": str(annotation.get("id", i)), "group": None if annotation.get("group") is None else str(annotation["group"])}
       for i, annotation in enumerate(found.get("annotations", []))
     ],
+  }
+
+
+def for_user(found, user_name: Optional[str]):
+  """The groups say whether they're the user's: the viewer shows them by default"""
+  name = (user_name or '').lower()
+  return {
+    **found,
+    "groups": [{**group, "mine": bool(name) and name in (u.lower() for u in group.get("users") or [])} for group in found["groups"]],
   }

@@ -425,7 +425,8 @@ export const regionBoxes = (regions, size, pane_size, transform) => {
 
 // Labels of every region while they're few and large enough on screen, else of the active and hovered ones
 const MAX_LABELED = 25;
-const MIN_LABELED_WIDTH = 48;
+const MIN_LABELED_WIDTH = 28;
+const LABEL_ROOM = 48;
 
 // The regions of the set shown, outlined on the images. The active one stands out, and the one under the pointer shows
 // its label. Clicking a label shows its region.
@@ -462,15 +463,16 @@ export const RegionOutlines = ({ controller, pane, regions, active, size, paneSi
         </g>;
       })}
     </svg>
-    {ordered.filter(({ index, w }) => index === active || index === hovered || (all_labels && w >= MIN_LABELED_WIDTH)).map(({ index, x, y }) => {
+    {ordered.filter(({ index, w }) => index === active || index === hovered || (all_labels && w >= MIN_LABELED_WIDTH)).map(({ index, x, y, h }) => {
       const region = regions[index];
+      // above the region, else inside it at its bottom: the top of the pane has the image's name
+      const top = y >= LABEL_ROOM ? y - 18 : Math.max(0, y + h - 18);
       return <button
         key={index}
         type="button"
         tabIndex={-1}
         className={`qiv-outline-label ${index === active ? 'qiv-active' : ''}`}
-        // above the region, or inside it at the top of the pane
-        style={{ left: Math.max(0, x), top: y >= 18 ? y - 18 : Math.max(0, y), borderLeftColor: region.color ?? 'var(--qiv-accent)' }}
+        style={{ left: Math.max(0, x), top, borderLeftColor: region.color ?? 'var(--qiv-accent)' }}
         title={region.label ?? `Region ${index + 1}`}
         onPointerDown={event => event.stopPropagation()}
         onClick={() => onSelect(index)}

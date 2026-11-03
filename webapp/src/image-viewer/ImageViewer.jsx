@@ -650,7 +650,8 @@ export const ImageViewer = ({
 
   const zoom = useZoom(controller);
   // sets that say when they have regions, e.g. annotations: the regions button tells users
-  const announced = regionSets.find(set => set.announce && set.regions?.length > 0) ?? null;
+  const announced = regionSets.find(set => set.announce && (set.total ?? set.regions?.length) > 0) ?? null;
+  const announced_count = announced ? announced.total ?? announced.regions.length : 0;
   const adjusted = changedAdjustments(adjustments).length > 0;
 
   return <div
@@ -741,9 +742,9 @@ export const ImageViewer = ({
       <Popover align="end" button={props => <Button
         {...props}
         icon="detection"
-        text={active_set ? active_set.label : announced ? `${announced.regions.length} ${announced.noun ?? 'regions'}` : undefined}
+        text={active_set ? active_set.label : announced ? `${announced_count} ${announced.noun ?? 'regions'}` : undefined}
         label="Regions of interest"
-        title={announced && !active_set ? `${announced.regions.length} ${announced.noun ?? 'regions'} in ${announced.label}: click to show them` : 'Regions of interest'}
+        title={announced && !active_set ? `${announced_count} ${announced.noun ?? 'regions'} in ${announced.label}: click to show them` : 'Regions of interest'}
         className={active_set ? 'qiv-intent' : announced ? 'qiv-announce' : ''}
       />}>
         {({ close }) => <RegionsMenu sets={regionSets} selected={active_set?.id ?? null} actions={regionActions} onSelect={selectSet} onCopy={copyRegion} close={close} />}
