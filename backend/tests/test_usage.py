@@ -55,6 +55,15 @@ def test_clean_event_texts_are_cut():
   assert event['project_id'] is None and event['client_id'] is None
 
 
+def test_clean_strings_postgresql_refuses():
+  # NUL in text and JSONB, lone surrogates (not UTF-8): a 500 and the whole request lost, otherwise
+  event = usage.clean_event({"event": "e", "project_id": "re\x00po", "client_id": "\ud800abc", "properties": {"a": "x\x00y", "b": ["\udc00", "ok"]}}, NOW)
+  assert event['project_id'] == "repo" and event['client_id'] == "\ufffdabc"
+  assert event['properties'] == {"a": "xy", "b": ["\ufffd", "ok"]}
+  assert usage.clean_text("\x00", 10) is None
+  assert usage.clean_string("é" * 300, 200) == "é" * 200
+
+
 def test_clean_properties_limits():
   properties = usage.clean_properties({
     "route": "commit", "n": 3, "ratio": 0.5, "flag": True, "nothing": None,
@@ -102,6 +111,14 @@ def test_period_defaults_and_previous():
   with pytest.raises(ValueError):
     usage.Period(NOW, NOW)
   assert period.describe() == {"since": "2026-10-04T12:00:00Z", "until": "2026-11-03T12:00:00Z"}
+  # an inclusive "today" ends now, not at midnight: trends compare periods of the same length
+  period = usage.Period(NOW - datetime.timedelta(days=7), NOW + datetime.timedelta(hours=12), now=NOW)
+  assert period.until == NOW and period.previous_since == NOW - datetime.timedelta(days=14)
+  with pytest.raises(ValueError):
+    usage.Period(datetime.datetime(1999, 12, 31), NOW, now=NOW)
+  with pytest.raises(ValueError):
+    usage.Period(datetime.datetime(2019, 1, 1), NOW, now=NOW)
+  assert usage.Period(datetime.datetime(2022, 1, 1), NOW, now=NOW).since == datetime.datetime(2022, 1, 1)
 
 
 def test_filters_select_a_project_or_a_product():
@@ -156,6 +173,7 @@ def test_store_builds_rows_for_one_insert(session):
 
 def test_store_unverified_cli_events_match_accounts_by_name(session, monkeypatch):
   monkeypatch.setattr(usage, "find_user_id", lambda name: 42 if name == 'bob' else None)
+  assert usage.find_user_id(None) is None and usage.find_user_id("") is None
   events = [usage.clean_event({"event": "cli_command"}, NOW)]
   usage.store(events, actor=None, source='cli', user_name_hint='bob', now=NOW)
   row = session.execute.call_args[0][1][0]
@@ -167,6 +185,11 @@ def test_store_unverified_cli_events_match_accounts_by_name(session, monkeypatch
   usage.store(events, actor=None, source='webapp', user_name_hint='carol', now=NOW)
   row = session.execute.call_args[0][1][0]
   assert (row['user_id'], row['user_name'], row['verified']) == (None, None, True)
+  # a blank or odd hint is nobody
+  for hint in ("   ", {}, 3, "\x00"):
+    usage.store(events, actor=None, source='cli', user_name_hint=hint, now=NOW)
+    row = session.execute.call_args[0][1][0]
+    assert (row['user_id'], row['user_name'], row['verified']) == (None, None, True), hint
   # a signed-in actor wins over the hint
   usage.store(events, actor=SimpleNamespace(user=SimpleNamespace(id=1, user_name='alice'), token=None), source='cli', user_name_hint='bob', now=NOW)
   row = session.execute.call_args[0][1][0]
@@ -184,6 +207,7 @@ def ingest(monkeypatch):
   monkeypatch.setattr(usage, "store", lambda events, **kwargs: stored.append((events, kwargs)) or len(events))
   monkeypatch.setattr(api, "db_session", MagicMock())
   monkeypatch.setattr(api, "client_ip", lambda: "10.0.0.1")
+  monkeypatch.setattr(api.time, "monotonic", lambda: 1000.0)
   api._rate_windows.clear()
 
   def post(dummy_app, body, actor=None, content_type='application/json', raw=None):
@@ -266,8 +290,36 @@ def test_rate_limit_window_slides():
   api._rate_windows.clear()
   assert not api.rate_limited("k", 600, now=1000)
   assert api.rate_limited("k", 600, now=1030)
-  # a minute after the first batch, it's forgotten
+  # refused events aren't counted: insisting doesn't make it worse
+  assert api.rate_limited("k", 600, now=1031)
+  # the minute before fades: 600 * (1 - 41/60) + 1 < 1000
   assert not api.rate_limited("k", 1, now=1061)
+  # two minutes later, it's forgotten
+  assert not api.rate_limited("k", 1000, now=1140)
+  # empty requests count for nothing, and stale keys are cleaned up (at most once a minute)
+  assert not api.rate_limited("other", 0, now=1140)
+  assert "other" not in api._rate_windows
+  api._rate_cleaned_at = 0
+  assert not api.rate_limited("fresh", 1, now=1300)
+  assert "k" not in api._rate_windows and "fresh" in api._rate_windows
+
+
+def test_a_failed_insert_is_not_the_clients_problem(dummy_app, ingest, monkeypatch):
+  def boom(events, **kwargs):
+    raise RuntimeError("DataError")
+  monkeypatch.setattr(usage, "store", boom)
+  api.app.logger = MagicMock()
+  assert ingest.post(dummy_app, {"events": [{"event": "page_view"}]}, actor=alice()) == 204
+  api.db_session.rollback.assert_called_once()
+
+
+def test_csv_cells():
+  assert api.csv_cell("=HYPERLINK(1)") == "'=HYPERLINK(1)"
+  assert api.csv_cell("+1") == "'+1" and api.csv_cell("-1") == "'-1" and api.csv_cell("@x") == "'@x" and api.csv_cell("\tx") == "'\tx"
+  assert api.csv_cell("repo/sub") == "repo/sub" and api.csv_cell(3) == 3 and api.csv_cell(None) is None
+  assert api.csv_cell({"b": 1, "a": 2}) == '{"a": 2, "b": 1}' and api.csv_cell(["=x"]) == '["=x"]'
+  lines = list(api.csv_lines([{"a": "=x", "b": 1}], ("a", "b")))
+  assert lines == ["a,b\r\n", "'=x,1\r\n"]
 
 
 # Admin > Usage, on PostgreSQL
@@ -289,7 +341,7 @@ def postgres(monkeypatch):
         source text NOT NULL, event text NOT NULL, user_id integer, user_name text, verified boolean NOT NULL DEFAULT true,
         client_id text, project_id text, properties jsonb NOT NULL DEFAULT '{}'
       ) ON COMMIT DROP;
-      CREATE TEMPORARY TABLE users (id serial PRIMARY KEY, user_name text, full_name text) ON COMMIT DROP;
+      CREATE TEMPORARY TABLE users (id serial PRIMARY KEY, user_name text, full_name text, kind text NOT NULL DEFAULT 'human', status text NOT NULL DEFAULT 'active') ON COMMIT DROP;
       CREATE TEMPORARY TABLE groups (id serial PRIMARY KEY, name text) ON COMMIT DROP;
       CREATE TEMPORARY TABLE group_members (id serial PRIMARY KEY, group_id integer, user_id integer) ON COMMIT DROP;
       CREATE TEMPORARY TABLE ci_commits (id serial PRIMARY KEY, project_id text) ON COMMIT DROP;
@@ -298,16 +350,19 @@ def postgres(monkeypatch):
     """)
 
     class Result:
-      def __init__(self, rows):
-        self.rows = rows
+      def __init__(self, rows, rowcount):
+        self.rows, self.rowcount = rows, rowcount
       def fetchall(self):
         return self.rows
 
     def execute(sql, params):
       # sqlalchemy.text's :name parameters, as psycopg2's %(name)s
       cursor.execute(re.sub(r'(?<![:\w]):(\w+)', r'%(\1)s', sql.replace('%', '%%')), params)
-      return Result([dict(row) for row in cursor.fetchall()])
+      return Result([dict(row) for row in cursor.fetchall()] if cursor.description else [], cursor.rowcount)
     monkeypatch.setattr(usage, "execute", execute)
+    # claim_events wraps its UPDATE in a savepoint of the session: the cursor's transaction is the test's
+    import sys
+    monkeypatch.setitem(sys.modules, 'backend.database', SimpleNamespace(db_session=MagicMock()))
     yield cursor
   finally:
     connection.rollback()
@@ -347,8 +402,9 @@ def sample(postgres):
   insert_event(cursor, 'export_start', 1, user_id=1, user_name='alice')
   insert_event(cursor, 'milestone_save', 1, user_id=1, user_name='alice')
   # bob uses the CLI without a token, carol has no account
-  insert_event(cursor, 'cli_command', 1, user_id=2, user_name='bob', source='cli', verified=False, command='batch')
-  insert_event(cursor, 'cli_command', 1, user_id=2, user_name='bob', source='cli', verified=False, command='batch', dryrun=True)
+  # a batch that ran (it has a runner), and a dry run: only the first counts as started
+  insert_event(cursor, 'cli_command', 1, user_id=2, user_name='bob', source='cli', verified=False, command='batch', runner='local')
+  insert_event(cursor, 'cli_command', 1, user_id=2, user_name='bob', source='cli', verified=False, command='batch', runner='local', dryrun=True)
   insert_event(cursor, 'cli_command', 2, user_id=2, user_name='bob', source='cli', verified=False, command='run')
   insert_event(cursor, 'cli_command', 1, user_name='carol', source='cli', verified=False, command='run', project_id='other/repo')
   # alice was already there 40 days ago, in another project
@@ -421,8 +477,8 @@ def test_groups_leaderboard(sample):
 
 def test_projects_and_their_status(sample):
   projects = usage.projects(usage.Filters(period()))
-  # old/repo: activity in the period before, nothing now
-  assert [(p['project_id'], p['status']) for p in projects] == [('repo/sub', 'new'), ('other/repo', 'quiet'), ('nobody/looks', 'ci_only'), ('old/repo', 'quiet')]
+  # other/repo: only carol's CLI, its first event ever; old/repo: activity in the period before, nothing now
+  assert [(p['project_id'], p['status']) for p in projects] == [('repo/sub', 'new'), ('other/repo', 'new'), ('nobody/looks', 'ci_only'), ('old/repo', 'quiet')]
   repo = projects[0]
   assert repo['product'] == 'repo' and repo['people'] == 1 and repo['commits_viewed'] == 2 and repo['ci_runs'] == 3 and repo['batches_started'] == 2
   # old/repo had activity before the period: quiet now
@@ -455,9 +511,135 @@ def test_events_rows_in_chunks(sample):
   assert [r['user_name'] for r in usage.events_rows(usage.Filters(period(), 'other/repo'))] == ['carol']
 
 
+def test_batch_help_is_not_a_batch_started(sample):
+  # `qa batch --help` and usage errors send a cli_command without a runner: it's a command, not a batch
+  before = usage.counts(usage.Filters(period()))
+  insert_event(sample, 'cli_command', 1, user_id=2, user_name='bob', source='cli', verified=False, command='batch')
+  after = usage.counts(usage.Filters(period()))
+  assert after['cli_commands'] == before['cli_commands'] + 1
+  assert after['batches_started'] == before['batches_started']
+
+
 def test_overview_helpers(sample):
   since = NOW - datetime.timedelta(days=90)
   assert usage.active_user_ids(since) == {1, 2}
   assert usage.ci_only_projects(since) == ['nobody/looks']
   assert usage.web_only_users(since) == [1]
-  assert usage.tuning_products(since) == {'old': False, 'repo': True}
+  assert usage.tuning_products(since) == {'old': False, 'other': False, 'repo': True}
+
+
+def test_anonymous_visitors_count_as_looking(sample):
+  # servers that don't require signing in: page views without a user, from a browser (client_id)
+  sample.execute("INSERT INTO usage_events (created_at, source, event, client_id, project_id, properties) VALUES (%s, 'webapp', 'page_view', 'browser-1', 'nobody/looks', %s)",
+                 (NOW - datetime.timedelta(days=1), '{"commit_id": "c9"}'))
+  statuses = {p['project_id']: (p['status'], p['people']) for p in usage.projects(usage.Filters(period()))}
+  assert statuses['nobody/looks'] == ('new', 1)
+  # the overview agrees: nobody/looks isn't CI-only anymore
+  assert usage.ci_only_projects(NOW - datetime.timedelta(days=90)) == []
+  # a project whose only looks are anonymous isn't "new" forever
+  sample.execute("INSERT INTO usage_events (created_at, source, event, client_id, project_id) VALUES (%s, 'webapp', 'page_view', 'browser-1', 'nobody/looks')",
+                 (NOW - datetime.timedelta(days=45),))
+  statuses = {p['project_id']: p['status'] for p in usage.projects(usage.Filters(period()))}
+  assert statuses['nobody/looks'] == 'active'
+  # anonymous visitors are not "users"
+  assert usage.counts(usage.Filters(period()))['web_users'] == 1
+
+
+def test_ci_only_projects_match_subprojects_exactly(sample):
+  # a page view of my_repo/sub says my_repo is looked at, but not myXrepo (LIKE's _ is escaped)
+  insert_ci_runs(sample, 'my_repo', 1)
+  insert_ci_runs(sample, 'myXrepo', 1)
+  insert_event(sample, 'page_view', 1, user_id=1, user_name='alice', route='commit', project_id='my_repo/sub')
+  assert usage.ci_only_projects(NOW - datetime.timedelta(days=90)) == ['myXrepo', 'nobody/looks']
+
+
+def test_a_new_account_claims_its_cli_events(sample):
+  # carol used the CLI before she had an account: once she signs up, she is one person
+  assert usage.counts(usage.Filters(period()))['users'] == 3
+  sample.execute("INSERT INTO users (id, user_name, full_name) VALUES (9, 'carol', 'Carol C')")
+  assert usage.claim_events(SimpleNamespace(id=9, user_name='carol', kind='human')) == 1
+  insert_event(sample, 'cli_command', 1, user_id=9, user_name='carol', source='cli', command='run', project_id='other/repo')
+  counts = usage.counts(usage.Filters(period()))
+  assert counts['users'] == 3 and counts['cli_users'] == 2 and counts['unverified_cli_users'] == 0 and counts['new_users'] == 2
+  carol = next(u for u in usage.users(usage.Filters(period())) if u['user_name'] == 'carol')
+  assert carol['user_id'] == 9 and carol['cli_commands'] == 2 and not carol['verified']  # one event is still unverified
+  assert usage.user_usage(9, period())['unverified'] == 1
+  # service accounts and nobody claim nothing
+  assert usage.claim_events(SimpleNamespace(id=10, user_name='bot', kind='service')) == 0
+  assert usage.claim_events(None) == 0
+
+
+def test_active_users_are_people_with_accounts(sample):
+  since = NOW - datetime.timedelta(days=90)
+  # an event of a deleted account, and of a service account
+  insert_event(sample, 'page_view', 1, user_id=77, user_name='gone')
+  sample.execute("INSERT INTO users (id, user_name, kind) VALUES (5, 'bot', 'service')")
+  insert_event(sample, 'cli_command', 1, user_id=5, user_name='bot', source='cli', command='run')
+  assert usage.active_user_ids(since) == {1, 2}
+  assert usage.users(usage.Filters(period()), limit=None)[0]['user_name'] == 'alice'
+
+
+# The admin endpoints, through their handlers
+
+def get(dummy_app, handler, query='', actor=None, **kwargs):
+  """Calls a GET handler with a query string: (status, the JSON or the text)"""
+  with dummy_app.test_request_context(f"/api/v1/admin/usage/x?{query}", method="GET"):
+    g.actor = actor
+    response = handler(**kwargs)
+    if isinstance(response, tuple):
+      return response[1], response[0].get_json()
+    text = response.get_data(as_text=True)
+    return response.status_code, (response.get_json() if response.mimetype == 'application/json' else text)
+
+
+def test_admin_summary_and_timeseries(dummy_app, sample):
+  status, data = get(dummy_app, api.admin_usage_summary, "since=2026-10-04&until=2026-11-02")
+  assert status == 200 and data['counts']['users'] == 3 and data['previous_counts']['users'] == 1
+  assert data['until'] == "2026-11-03T00:00:00Z"
+  status, data = get(dummy_app, api.admin_usage_timeseries, "since=2026-10-04&until=2026-11-02&bucket=week")
+  assert status == 200 and data['bucket'] == 'week' and len(data['buckets']) == 6
+  status, data = get(dummy_app, api.admin_usage_timeseries, "bucket=month")
+  assert status == 400 and 'bucket' in data['error']
+
+
+def test_admin_period_errors(dummy_app, sample):
+  assert get(dummy_app, api.admin_usage_summary, "since=last-week")[0] == 400
+  assert get(dummy_app, api.admin_usage_summary, "since=2026-11-02&until=2026-10-04")[0] == 400
+  # overflows, extremes
+  assert get(dummy_app, api.admin_usage_summary, "until=9999-12-31")[0] == 400
+  assert get(dummy_app, api.admin_usage_summary, "since=0001-01-02")[0] == 400
+  assert get(dummy_app, api.admin_usage_summary, "since=1000-01-01")[0] == 400
+  assert get(dummy_app, api.admin_usage_summary, "since=2000-01-01&until=2100-01-01")[0] == 400
+
+
+def test_admin_tables_as_csv(dummy_app, sample):
+  for handler, name in ((api.admin_usage_users, 'alice'), (api.admin_usage_groups, 'team'), (api.admin_usage_projects, 'repo/sub')):
+    status, data = get(dummy_app, handler, "since=2026-10-04&until=2026-11-02")
+    assert status == 200 and isinstance(data, dict)
+    status, text = get(dummy_app, handler, "since=2026-10-04&until=2026-11-02&format=csv")
+    lines = text.splitlines()
+    assert status == 200 and name in lines[1] and len(lines) >= 2
+  status, text = get(dummy_app, api.admin_usage_users, "format=csv")
+  assert text.splitlines()[0] == ",".join(api.USER_COLUMNS)
+
+
+def test_admin_events_export(dummy_app, sample):
+  status, text = get(dummy_app, api.admin_usage_events, "since=2026-10-04&until=2026-11-02")
+  lines = text.splitlines()
+  assert status == 200 and lines[0] == ",".join(usage.EVENT_COLUMNS) and len(lines) == 15
+  assert '"{""route"": ""commit""' in text or '""commit_id""' in text
+  status, text = get(dummy_app, api.admin_usage_events, "since=2026-10-04&until=2026-11-02&format=json&limit=2")
+  events = [json.loads(line) for line in text.splitlines()]
+  assert status == 200 and len(events) == 2 and isinstance(events[0]['properties'], dict) and events[0]['created_at'].endswith('Z')
+  assert get(dummy_app, api.admin_usage_events, "limit=0")[0] == 400
+  assert get(dummy_app, api.admin_usage_events, "limit=-1")[0] == 400
+  assert get(dummy_app, api.admin_usage_events, "limit=x")[0] == 400
+
+
+def test_user_usage_endpoints(dummy_app, sample):
+  status, data = get(dummy_app, api.admin_usage_user, "since=2026-10-04&until=2026-11-02", user_id=1)
+  assert status == 200 and data['user_id'] == 1 and data['total'] == 10 and data['unverified'] == 0
+  nobody = SimpleNamespace(user=SimpleNamespace(id=99, user_name='nobody'), token=None)
+  status, data = get(dummy_app, api.my_usage, "", actor=nobody)
+  assert status == 200 and data == {"user_id": 99, "since": data['since'], "until": data['until'], "total": 0, "unverified": 0,
+                                    "active_days": 0, "first_seen_at": None, "last_seen_at": None, "by_event": [], "by_project": []}

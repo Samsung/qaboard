@@ -27,6 +27,9 @@ MAX_CLIENT_ID = 64
 # How far from now an event may say it happened
 MAX_PAST = datetime.timedelta(days=1)
 MAX_FUTURE = datetime.timedelta(minutes=5)
+# Periods of the dashboard: not before, not longer
+EARLIEST = datetime.datetime(2000, 1, 1)
+MAX_PERIOD = datetime.timedelta(days=5 * 366)
 
 SOURCES = ('webapp', 'cli')
 EVENT_NAME = re.compile(r'^[a-z][a-z0-9_]{0,63}$')
@@ -53,11 +56,16 @@ def web_batch(alias: str = '') -> str:
 
 
 def cli_batch(alias: str = '') -> str:
-  """`qa batch` in a terminal, not a dry run"""
-  return f"{alias}event = 'cli_command' AND {alias}properties->>'command' = 'batch' AND {alias}properties->>'dryrun' IS DISTINCT FROM 'true'"
+  """`qa batch` in a terminal, not a dry run. `runner` is only there once the command really runs batches (not --help)"""
+  return f"{alias}event = 'cli_command' AND {alias}properties->>'command' = 'batch' AND {alias}properties ? 'runner' AND {alias}properties->>'dryrun' IS DISTINCT FROM 'true'"
 
 
-PERSON, COMMIT, WEB_BATCH, CLI_BATCH = person(), commit(), web_batch(), cli_batch()
+def viewer(alias: str = '') -> str:
+  """Who looked at a page: the person, or the anonymous browser (servers that don't require signing in)"""
+  return f"CASE WHEN {alias}event = 'page_view' THEN coalesce({person(alias)}, 'client:' || {alias}client_id) END"
+
+
+PERSON, COMMIT, WEB_BATCH, CLI_BATCH, VIEWER = person(), commit(), web_batch(), cli_batch(), viewer()
 
 DEFAULT_DAYS = 30
 
@@ -75,12 +83,22 @@ def iso(date: Optional[datetime.datetime]) -> Optional[str]:
 _dropped = object()
 
 
+def clean_string(value: str, max_length: int) -> str:
+  """Cut, without the characters PostgreSQL refuses: NUL (text and JSONB) and lone surrogates (not UTF-8)"""
+  value = value.replace('\x00', '')[:max_length]
+  try:
+    value.encode('utf-8')
+  except UnicodeEncodeError:
+    value = ''.join('\ufffd' if 0xD800 <= ord(c) <= 0xDFFF else c for c in value)
+  return value
+
+
 def clean_value(value):
   """A scalar (strings cut at MAX_STRING, finite numbers, booleans, None) or a short list of those, else `_dropped`"""
   if value is None or isinstance(value, bool):
     return value
   if isinstance(value, str):
-    return value[:MAX_STRING]
+    return clean_string(value, MAX_STRING)
   if isinstance(value, int):
     return value
   if isinstance(value, float):
@@ -130,7 +148,7 @@ def parse_timestamp(value, now: datetime.datetime) -> datetime.datetime:
 def clean_text(value, max_length: int) -> Optional[str]:
   if not isinstance(value, str):
     return None
-  value = value.strip()[:max_length]
+  value = clean_string(value.strip(), max_length).strip()
   return value or None
 
 
@@ -155,12 +173,33 @@ def clean_source(value) -> str:
   return value if value in SOURCES else 'webapp'
 
 
-def find_user_id(user_name: str) -> Optional[int]:
-  """The account with this name, for the CLI's unverified events"""
+def find_user_id(user_name: Optional[str]) -> Optional[int]:
+  """The person's account, for the CLI's unverified events: never a service account, nor a disabled one"""
+  if not user_name:
+    return None
   from .models import User
   from .database import db_session
-  row = db_session.query(User.id).filter(User.user_name == user_name).first()
+  row = db_session.query(User.id).filter(User.user_name == user_name, User.kind == 'human', User.status == 'active').first()
   return row[0] if row else None
+
+
+def claim_events(user) -> int:
+  """
+  A new account takes the events its name sent from the CLI before it existed, so that a person stays one person
+  in the dashboard. Called when accounts are created: it never raises, nobody should fail to sign in over this.
+  """
+  try:
+    if user is None or not user.user_name or getattr(user, 'kind', 'human') != 'human':
+      return 0
+    from .database import db_session
+    # a savepoint: a failure here (e.g. before the migration ran) doesn't abort the caller's transaction
+    with db_session.begin_nested():
+      result = execute("UPDATE usage_events SET user_id = :user_id WHERE user_id IS NULL AND user_name = :user_name",
+                       {"user_id": user.id, "user_name": user.user_name})
+    count = getattr(result, 'rowcount', None)
+    return count if isinstance(count, int) and count >= 0 else 0
+  except Exception:
+    return 0
 
 
 def store(events: List[dict], actor=None, source: str = 'webapp', user_name_hint: Optional[str] = None,
@@ -179,7 +218,7 @@ def store(events: List[dict], actor=None, source: str = 'webapp', user_name_hint
   user = actor.user if actor is not None else None
   if user is not None:
     user_id, user_name, verified = user.id, user.user_name, True
-  elif source == 'cli' and user_name_hint:
+  elif source == 'cli' and clean_text(user_name_hint, MAX_STRING):
     user_name = clean_text(user_name_hint, MAX_STRING)
     user_id, verified = find_user_id(user_name), False
   else:
@@ -207,10 +246,15 @@ class Period:
   def __init__(self, since: Optional[datetime.datetime] = None, until: Optional[datetime.datetime] = None,
                now: Optional[datetime.datetime] = None):
     now = now or utcnow()
-    self.until = until or now
+    # the period can't extend into the future: trends compare it with a period before of the same, real, length
+    self.until = min(until, now) if until else now
     self.since = since or self.until - datetime.timedelta(days=DEFAULT_DAYS)
     if self.since >= self.until:
       raise ValueError("`since` must be before `until`")
+    if self.since < EARLIEST:
+      raise ValueError(f"`since` can't be before {EARLIEST:%Y-%m-%d}")
+    if self.until - self.since > MAX_PERIOD:
+      raise ValueError("The period can't be longer than 5 years")
     self.previous_since = self.since - (self.until - self.since)
 
   def previous(self) -> 'Period':
@@ -240,6 +284,11 @@ def parse_date(value: Optional[str], end_of_day=False) -> Optional[datetime.date
 
 def like_escape(value: str) -> str:
   return value.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+
+
+def sql_like_escape(column: str) -> str:
+  """like_escape, in SQL, for a column's value: `col LIKE sql_like_escape(x) || '/%' ESCAPE '\\'`"""
+  return f"replace(replace(replace({column}, '\\', '\\\\'), '_', '\\_'), '%', '\\%')"
 
 
 def clean_project(value: Optional[str]) -> Optional[str]:
@@ -313,8 +362,9 @@ COUNTS = f"""
 
 NEW_USERS = f"""
   SELECT count(*) AS new_users FROM (
-    SELECT user_id, user_name FROM usage_events WHERE {{where}} AND (user_id IS NOT NULL OR user_name IS NOT NULL)
-    GROUP BY user_id, user_name
+    SELECT {PERSON} AS person, max(user_id) AS user_id, max(user_name) AS user_name
+    FROM usage_events WHERE {{where}} AND (user_id IS NOT NULL OR user_name IS NOT NULL)
+    GROUP BY 1
   ) p
   WHERE NOT EXISTS (
     SELECT 1 FROM usage_events e WHERE e.created_at < :since
@@ -391,7 +441,7 @@ def timeseries(filters: Filters, bucket: str = 'day') -> List[dict]:
 # Leaderboards
 
 USERS = f"""
-  SELECT {PERSON} AS person, max(user_id) AS user_id, max(user_name) AS user_name, bool_or(verified) AS verified,
+  SELECT {PERSON} AS person, max(user_id) AS user_id, max(user_name) AS user_name, bool_and(verified) AS verified,
     count(DISTINCT created_at::date) AS active_days,
     count(*) FILTER (WHERE source = 'webapp') AS web_events,
     count(*) FILTER (WHERE event = 'cli_command') AS cli_commands,
@@ -420,7 +470,8 @@ def accounts(user_ids: Iterable[int]) -> Dict[int, dict]:
   return {row['id']: row for row in rows}
 
 
-def users(filters: Filters, limit: int = 500) -> List[dict]:
+def users(filters: Filters, limit: Optional[int] = 500) -> List[dict]:
+  """The people of the period, most active first. `limit`: None for all of them (LIMIT NULL is no limit)"""
   rows = rows_of(USERS.format(where=filters.where()), {**filters.params(), "limit": limit})
   projects: Dict[str, list] = {}
   for row in rows_of(USER_PROJECTS.format(where=filters.where()), filters.params()):
@@ -480,7 +531,7 @@ def groups(filters: Filters) -> List[dict]:
 
 PROJECTS = f"""
   SELECT project_id,
-    count(DISTINCT CASE WHEN event = 'page_view' THEN {PERSON} END) AS people,
+    count(DISTINCT {VIEWER}) AS people,
     count(DISTINCT {COMMIT}) AS commits_viewed,
     count(*) FILTER (WHERE event = 'output_open') AS outputs_opened,
     count(*) FILTER (WHERE ({WEB_BATCH}) OR ({CLI_BATCH})) AS batches_started,
@@ -502,6 +553,21 @@ PROJECTS_CI_RUNS = """
 PROJECTS_SEEN_BEFORE = """
   SELECT DISTINCT project_id FROM usage_events WHERE created_at < :since AND project_id IN :projects
 """
+# The projects with CI runs since then that nobody looked at: the distinct projects first, then the (short) check
+CI_ONLY_PROJECTS = f"""
+  WITH ci AS (
+    SELECT DISTINCT c.project_id FROM outputs o
+    JOIN batches b ON b.id = o.batch_id
+    JOIN ci_commits c ON c.id = b.ci_commit_id
+    WHERE o.created_date >= :since AND b.origin = 'ci'
+  )
+  SELECT project_id FROM ci
+  WHERE NOT EXISTS (
+    SELECT 1 FROM usage_events e WHERE e.created_at >= :since AND e.event = 'page_view'
+    AND (e.project_id = ci.project_id OR e.project_id LIKE {sql_like_escape('ci.project_id')} || '/%' ESCAPE '\\')
+  )
+  ORDER BY 1
+"""
 
 PROJECT_STATUSES = ('active', 'ci_only', 'quiet', 'new')
 
@@ -513,26 +579,30 @@ def product_of(project_id: str) -> str:
 def projects(filters: Filters) -> List[dict]:
   """
   The projects with activity in the period or the one before, and how they're used:
-  `active` (people looked), `ci_only` (CI runs, nobody looked), `quiet` (nothing, but something before), `new` (active, first seen now).
+  `new` (their first event ever is in the period), `active` (people, or anonymous browsers, looked at them),
+  `ci_only` (CI runs, nobody looked), `quiet` (no events and no CI runs now, some in the period before).
   """
   current = {row['project_id']: row for row in rows_of(PROJECTS.format(where=filters.where()), filters.params())}
   ci_runs = {row['project_id']: int(row['ci_runs']) for row in rows_of(PROJECTS_CI_RUNS.format(where=filters.ci_where()), filters.params())}
   previous = {row['project_id'] for row in rows_of(PROJECTS.format(where=filters.where()), filters.params(previous=True))}
   previous |= {row['project_id'] for row in rows_of(PROJECTS_CI_RUNS.format(where=filters.ci_where()), filters.params(previous=True))}
   ids = sorted(set(current) | set(ci_runs) | previous)
-  active_ids = [p for p in ids if int(current.get(p, {}).get('people') or 0) > 0]
   seen_before = set()
-  if active_ids:
-    seen_before = {row['project_id'] for row in rows_of(PROJECTS_SEEN_BEFORE, {"since": filters.period.since, "projects": tuple(active_ids)})}
+  if current:
+    seen_before = {row['project_id'] for row in rows_of(PROJECTS_SEEN_BEFORE, {"since": filters.period.since, "projects": tuple(current)})}
   result = []
   for project_id in ids:
     row = current.get(project_id, {})
     people = int(row.get('people') or 0)
     runs = ci_runs.get(project_id, 0)
-    if people > 0:
-      status = 'new' if project_id not in seen_before else 'active'
+    if row and project_id not in seen_before:
+      status = 'new'
+    elif people > 0:
+      status = 'active'
     elif runs > 0:
       status = 'ci_only'
+    elif row:
+      status = 'active'  # e.g. only CLI commands: someone works on it
     else:
       status = 'quiet'
     result.append({
@@ -554,7 +624,7 @@ def projects(filters: Filters) -> List[dict]:
 # One person
 
 USER_USAGE = """
-  SELECT count(*) AS total, count(DISTINCT created_at::date) AS active_days,
+  SELECT count(*) AS total, count(*) FILTER (WHERE NOT verified) AS unverified, count(DISTINCT created_at::date) AS active_days,
     min(created_at) AS first_in_period, max(created_at) AS last_seen_at
   FROM usage_events WHERE {where} AND {who}
 """
@@ -572,6 +642,8 @@ def user_usage(user_id: int, period: Period) -> dict:
   return {
     **period.describe(),
     "total": int(totals.get('total') or 0),
+    # sent by the CLI without a token, as this user's name: anyone who can reach the server could have sent them
+    "unverified": int(totals.get('unverified') or 0),
     "active_days": int(totals.get('active_days') or 0),
     "first_seen_at": iso(first.get('first_seen_at')),
     "last_seen_at": iso(totals.get('last_seen_at')),
@@ -601,35 +673,31 @@ def events_rows(filters: Filters, chunk: int = 5000, limit: Optional[int] = None
     after_id = rows[-1]['id']
 
 
+def event_as_json(row: dict) -> dict:
+  """A row for JSON: dates in ISO, properties as they are"""
+  return {**row, "created_at": iso(row['created_at']), "received_at": iso(row['received_at'])}
+
+
 def event_as_text(row: dict) -> dict:
-  """A row for CSV: dates in ISO, properties as JSON"""
+  """A row for CSV: dates in ISO, properties as a JSON string"""
   import json
-  return {**row, "created_at": iso(row['created_at']), "received_at": iso(row['received_at']),
-          "properties": json.dumps(row['properties'], sort_keys=True)}
+  return {**event_as_json(row), "properties": json.dumps(row['properties'], sort_keys=True)}
 
 
 # For the admin overview
 
 def active_user_ids(since: datetime.datetime) -> set:
-  """The accounts with an event since then"""
-  rows = rows_of("SELECT DISTINCT user_id FROM usage_events WHERE created_at >= :since AND user_id IS NOT NULL", {"since": since})
+  """The people (human accounts that still exist) with an event since then"""
+  rows = rows_of("""
+    SELECT DISTINCT e.user_id FROM usage_events e JOIN users u ON u.id = e.user_id
+    WHERE e.created_at >= :since AND u.kind = 'human'
+  """, {"since": since})
   return {row['user_id'] for row in rows}
 
 
 def ci_only_projects(since: datetime.datetime) -> List[str]:
-  """Projects with CI runs since then that nobody looked at in the web app"""
-  rows = rows_of("""
-    SELECT DISTINCT c.project_id FROM outputs o
-    JOIN batches b ON b.id = o.batch_id
-    JOIN ci_commits c ON c.id = b.ci_commit_id
-    WHERE o.created_date >= :since AND b.origin = 'ci'
-    AND NOT EXISTS (
-      SELECT 1 FROM usage_events e WHERE e.created_at >= :since AND e.event = 'page_view'
-      AND (e.project_id = c.project_id OR e.project_id LIKE c.project_id || '/%')
-    )
-    ORDER BY 1
-  """, {"since": since})
-  return [row['project_id'] for row in rows]
+  """Projects with CI runs since then that nobody looked at in the web app (people, or anonymous browsers)"""
+  return [row['project_id'] for row in rows_of(CI_ONLY_PROJECTS, {"since": since})]
 
 
 def web_only_users(since: datetime.datetime) -> List[int]:
@@ -645,8 +713,9 @@ def tuning_products(since: datetime.datetime) -> dict:
   """{product: whether anyone started a tuning} for the products people looked at since then"""
   rows = rows_of("""
     SELECT split_part(project_id, '/', 1) AS product,
-      bool_or(event = 'batch_start' AND properties->>'kind' IN ('tuning', 'automated_tuning')) AS tuning
-    FROM usage_events WHERE created_at >= :since AND project_id IS NOT NULL AND source = 'webapp'
+      bool_or((event = 'batch_start' AND properties->>'kind' IN ('tuning', 'automated_tuning'))
+              OR (event = 'cli_command' AND (properties->>'tuning' = 'true' OR properties->>'command' = 'optimize'))) AS tuning
+    FROM usage_events WHERE created_at >= :since AND project_id IS NOT NULL
     GROUP BY 1
   """, {"since": since})
   return {row['product']: bool(row['tuning']) for row in rows}

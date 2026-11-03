@@ -185,13 +185,16 @@ def value_checklist() -> list:
 
   from ..sign_in import providers as providers_lib
   login_type = settings_lib.login_type()
-  sso = login_type in ('LDAP', 'SAML') or any(p.enabled for p in providers_lib.all_providers())
+  # the local provider is always there: the company's accounts are LDAP, SAML, or an OpenID Connect provider
+  sso = login_type in ('LDAP', 'SAML') or any(p.enabled and p.type not in ('local', 'ldap') for p in providers_lib.all_providers())
   item('single_sign_on', sso,
        "Users sign in with the company's accounts" if sso else "Users sign in with local accounts",
        "Add a single sign-on provider (Admin > Sign-in): no passwords to manage, and groups come from the directory.")
 
-  from ..git_hosts import git_hosts
-  hosts = bool(git_hosts.hosts)
+  # gitlab.com and github.com are always known: a host is configured when the settings name one, or give a token
+  from ..git_hosts import server_setting, server_secret
+  hosts = any(server_setting(name) for name in ('QABOARD_GIT_HOSTS', 'GITLAB_HOST', 'QABOARD_GITLAB_HOSTS', 'QABOARD_GITHUB_HOSTS')) \
+    or any(server_secret(name) for name in ('GITLAB_ACCESS_TOKEN', 'GITHUB_ACCESS_TOKEN'))
   item('git_hosts', hosts,
        "Git hosts are configured" if hosts else "No git host is configured",
        "Set QABOARD_GIT_HOSTS and their webhooks: commits, branches and messages then show up as they're pushed, before runs arrive.")

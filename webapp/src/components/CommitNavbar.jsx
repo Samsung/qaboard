@@ -283,14 +283,16 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
   const deleteBatch = ({ only_failed = false } = {}) => {
     const what = `${only_failed ? 'the failed runs' : 'all the runs'} of ${pretty_label(batch)}`
     const files = soft_delete ? 'the files of ' : ''
-    track('batch_delete', { files_only: soft_delete, only_failed, n_batches: 1 }, { project_id: project })
     return batchAction(() => http.delete(`/api/v1/batch/${batch.id}/`, {
       params: {...(only_failed ? {only_failed} : {}), soft: soft_delete, filter: files_delete_filter},
     }), {
       requested: `Deleting ${files}${what}…`,
       done: `Deleted ${files}${what}`,
       error_refresh: true,
-      onDone: () => update(`selected_batch_${type}`)('default'),
+      onDone: () => {
+        track('batch_delete', { files_only: soft_delete, only_failed, n_batches: 1 }, { project_id: project })
+        update(`selected_batch_${type}`)('default')
+      },
     })
   }
 
@@ -319,14 +321,14 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
       }))
     }
     const deleted = `${requests.length} batch${requests.length === 1 ? '' : 'es'}`
-    if (requests.length > 0) {
+    if (requests.length > 0)
       toaster.show({message: `Deleting ${deleted}…`, icon: 'time'}, 'delete-batches');
-      track('batch_delete', { files_only: soft_delete, n_batches: requests.length }, { project_id: project })
-    }
     Promise.all(requests)
       .then(() => {
-        if (requests.length > 0)
+        if (requests.length > 0) {
           toaster.show({message: `Deleted ${deleted}`, intent: Intent.SUCCESS}, 'delete-batches');
+          track('batch_delete', { files_only: soft_delete, n_batches: requests.length }, { project_id: project })
+        }
         refresh()
         // the selected batch was deleted
         if (isDeleteBatchSelected(selected[`selected_batch_${type}`])) {

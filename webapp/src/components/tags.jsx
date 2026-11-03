@@ -177,9 +177,11 @@ const RunActionsMenu = ({ output, project, commit, children }) => {
         minimal
         disabled={waiting || !is_logged}
         onClick={() => {
-          track('batch_start', { kind: 'redo', commit_id: commit?.id, n_runs: 1 }, { project_id: project })
           act(
-            () => http.post(`/api/v1/output/redo/${id}/`, {is_pending: false, is_running: false}),
+            () => http.post(`/api/v1/output/redo/${id}/`, {is_pending: false, is_running: false}).then(response => {
+              track('batch_start', { kind: 'redo', commit_id: commit?.id, n_runs: 1 }, { project_id: project })
+              return response
+            }),
             `Starting ${name} again…`,
             `Redoing ${name}`,
           )

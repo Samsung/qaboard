@@ -168,7 +168,7 @@ describe('usage cards', () => {
     const card = await screen.findByRole('region', { name: 'Usage, last 30 days' });
     expect(await within(card).findByText('14')).toBeInTheDocument();
     expect(within(card).getByText('Pages viewed')).toBeInTheDocument();
-    expect(within(card).getByText('`qa` commands')).toBeInTheDocument();
+    expect(within(card).getByText('qa commands')).toBeInTheDocument();
     expect(within(card).getByRole('link', { name: 'isp/hdr' })).toHaveAttribute('href', '/isp/hdr');
   });
 

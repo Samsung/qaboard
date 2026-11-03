@@ -30,7 +30,7 @@ export const event_labels = {
   batch_delete: 'Batches deleted',
   export_start: 'Exports',
   milestone_save: 'Milestones saved',
-  cli_command: '`qa` commands',
+  cli_command: 'qa commands',
   command_palette_open: 'Command palette',
   command_palette_select: 'Command palette picks',
   release_notes_open: 'Release notes',

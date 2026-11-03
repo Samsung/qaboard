@@ -6,8 +6,14 @@ import {
   reference_names, reference_colors, side_colors, switch_new_and_reference,
   project_url,
 } from '../selection';
+import { vi } from 'vitest';
 import { matchRoutes } from '../router';
 import { route_paths } from '../route_paths';
+import { history } from '../router';
+import { updateSelected } from '../selection';
+import { track } from '../analytics';
+
+vi.mock('../analytics', () => ({ track: vi.fn() }));
 
 const routes = Object.values(route_paths).map(path => ({ path }));
 
@@ -438,5 +444,21 @@ describe('project_url', () => {
     expect(project_url('settings')).toBe('/settings/commits');
     // only exact matches are the app's
     expect(project_url('projects/sub')).toBe('/projects/sub');
+  });
+});
+
+
+describe('usage analytics', () => {
+  test('choosing a reference commit is a comparison, writing its full id back is not', () => {
+    track.mockClear();
+    history.replace('/group/repo/commit/abc');
+    updateSelected({ ref_commit_id: 'def' });
+    expect(track).toHaveBeenCalledWith('commit_compare', {}, { project_id: 'group/repo' });
+    // the page resolves "def" to its full id, quietly
+    updateSelected({ ref_commit_id: 'def0123' }, { replace: true });
+    // the same reference again, or a batch: nothing
+    updateSelected({ ref_commit_id: 'def0123', selected_batch_ref: 'tuning' });
+    updateSelected({ ref_commit_id: '' });
+    expect(track).toHaveBeenCalledTimes(1);
   });
 });

@@ -84,7 +84,11 @@ const FLUSH_AT = 20;
 // the server refuses bigger requests: what's left waits for the next flush
 const MAX_PER_REQUEST = 100;
 
-let usage_enabled = false;
+// Until initUsage() says whether the server records events, we keep them (bounded): the first page view and the
+// release notes popup happen before the site's configuration is known.
+const MAX_PENDING = 50;
+let usage_state = 'unknown'; // unknown | on | off
+let usage_pending = [];
 let usage_queue = [];
 let usage_timer = null;
 let usage_listening = false;
@@ -140,40 +144,58 @@ export const flushUsage = ({ beacon = false } = {}) => {
 const onHide = () => {
   if (document.visibilityState === 'hidden') flushUsage({ beacon: true });
 };
+const onPageHide = () => flushUsage({ beacon: true });
+
+const enqueue = event => {
+  usage_queue.push(event);
+  if (usage_queue.length >= FLUSH_AT) flushUsage();
+  else if (!usage_timer) usage_timer = setTimeout(() => flushUsage(), FLUSH_EVERY_MS);
+};
 
 const queueUsage = (event, properties, { project_id, client_time } = {}) => {
-  if (!usage_enabled) return;
-  usage_queue.push({
+  if (usage_state === 'off') return;
+  const row = {
     event,
     properties: properties ?? {},
     project_id: project_id ?? undefined,
     client_id: clientId(),
     timestamp: (client_time ?? new Date()).toISOString(),
-  });
-  if (usage_queue.length >= FLUSH_AT) flushUsage();
-  else if (!usage_timer) usage_timer = setTimeout(() => flushUsage(), FLUSH_EVERY_MS);
-};
-
-// Starts sending usage events, unless the server turned them off (analytics.enabled)
-export const initUsage = config => {
-  if (!config || config.analytics_enabled === false) {
-    usage_enabled = false;
+  };
+  if (usage_state === 'unknown') {
+    if (usage_pending.length < MAX_PENDING) usage_pending.push(row);
     return;
   }
-  usage_enabled = true;
+  enqueue(row);
+};
+
+// Starts sending usage events, with those kept while we didn't know, unless the server turned them off (analytics.enabled)
+export const initUsage = config => {
+  if (!config || config.analytics_enabled === false) {
+    usage_state = 'off';
+    usage_pending = [];
+    return;
+  }
+  usage_state = 'on';
+  const pending = usage_pending;
+  usage_pending = [];
+  pending.forEach(enqueue);
   if (usage_listening || typeof document === 'undefined') return;
   usage_listening = true;
   document.addEventListener('visibilitychange', onHide);
-  window.addEventListener('pagehide', () => flushUsage({ beacon: true }));
+  window.addEventListener('pagehide', onPageHide);
 };
 
 export const _resetUsageForTests = () => {
   if (usage_timer) clearTimeout(usage_timer);
   usage_timer = null;
   usage_queue = [];
-  usage_enabled = false;
+  usage_pending = [];
+  usage_state = 'unknown';
   client_id = null;
-  if (usage_listening && typeof document !== 'undefined') document.removeEventListener('visibilitychange', onHide);
+  if (usage_listening && typeof document !== 'undefined') {
+    document.removeEventListener('visibilitychange', onHide);
+    window.removeEventListener('pagehide', onPageHide);
+  }
   usage_listening = false;
 };
 export const _usageQueueForTests = () => usage_queue;

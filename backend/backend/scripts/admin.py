@@ -155,15 +155,16 @@ def usage_export(since, until, project, format_):
     period = usage_lib.Period(usage_lib.parse_date(since), usage_lib.parse_date(until, end_of_day=True))
   except ValueError as e:
     raise click.ClickException(str(e))
-  rows = (usage_lib.event_as_text(row) for row in usage_lib.events_rows(usage_lib.Filters(period, project)))
+  rows = usage_lib.events_rows(usage_lib.Filters(period, project))
   if format_ == 'json':
     for row in rows:
-      sys.stdout.write(json.dumps(row, sort_keys=True) + "\n")
+      sys.stdout.write(json.dumps(usage_lib.event_as_json(row), sort_keys=True) + "\n")
     return
+  from backend.api.usage import csv_cell
   writer = csv.DictWriter(sys.stdout, fieldnames=usage_lib.EVENT_COLUMNS)
   writer.writeheader()
   for row in rows:
-    writer.writerow(row)
+    writer.writerow({k: csv_cell(v) for k, v in usage_lib.event_as_text(row).items()})
 
 
 @cli.group()

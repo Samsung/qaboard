@@ -11,7 +11,7 @@ import json
 import time
 import threading
 
-from flask import request, jsonify, g, Response
+from flask import request, jsonify, g, Response, stream_with_context
 
 from backend import app, db_session
 from .. import usage as usage_lib
@@ -23,23 +23,36 @@ from .auth import admin_required, login_required
 # Over this many events per minute, an actor is told to slow down (429): a loop in a client, not people
 EVENTS_PER_MINUTE = 1000
 _rate_lock = threading.Lock()
-# actor key => [(when, how many events)] in the last minute
+# actor key => [minute, events this minute, events the minute before]: two fixed windows, a few bytes per client
 _rate_windows = {}
+_rate_cleaned_at = 0.0
 
 
 def rate_limited(key: str, count: int, now: float = None) -> bool:
-  """Counts `count` events for `key`, and says whether it's over the limit for the last minute"""
+  """
+  Whether `count` more events from `key` go over the limit for the last minute: the events of this minute, and those
+  of the minute before weighted by how much of it is still in the window. Refused events aren't counted: a client
+  over the limit gets through again a minute later, however much it insisted.
+  """
+  global _rate_cleaned_at
+  if count <= 0:
+    return False
   now = time.monotonic() if now is None else now
+  minute, elapsed = divmod(now, 60)
   with _rate_lock:
-    window = [(when, n) for when, n in _rate_windows.get(key, []) if now - when < 60]
-    total = sum(n for _, n in window) + count
-    window.append((now, count))
-    _rate_windows[key] = window
-    if len(_rate_windows) > 10_000:
-      # a flood of anonymous clients: forget the oldest
-      for stale in [k for k, w in _rate_windows.items() if not w or now - w[-1][0] >= 60]:
-        _rate_windows.pop(stale, None)
-  return total > EVENTS_PER_MINUTE
+    window = _rate_windows.get(key)
+    if window is None or window[0] != minute:
+      previous = window[1] if window is not None and window[0] == minute - 1 else 0
+      window = _rate_windows[key] = [minute, 0, previous]
+    total = window[1] + window[2] * (1 - elapsed / 60) + count
+    if total > EVENTS_PER_MINUTE:
+      return True
+    window[1] += count
+    if now - _rate_cleaned_at >= 60:
+      _rate_cleaned_at = now
+      for stale in [k for k, w in _rate_windows.items() if w[0] < minute - 1]:
+        del _rate_windows[stale]
+  return False
 
 
 def actor_key(actor) -> str:
@@ -53,8 +66,13 @@ def actor_key(actor) -> str:
 def usage_events():
   if request.content_length and request.content_length > usage_lib.MAX_BODY_BYTES:
     return jsonify({"error": f"At most {usage_lib.MAX_BODY_BYTES // 1024} KiB of events per request."}), 413
+  # whatever the header says, we don't read more
+  request.max_content_length = usage_lib.MAX_BODY_BYTES
   # the web app's beacons are text/plain
-  body = request.get_json(force=True, silent=True)
+  try:
+    body = request.get_json(force=True, silent=True)
+  except Exception:  # the body is longer than the header said
+    return jsonify({"error": f"At most {usage_lib.MAX_BODY_BYTES // 1024} KiB of events per request."}), 413
   if not isinstance(body, dict) or not isinstance(body.get('events'), list):
     return jsonify({"error": "Send {\"events\": [{\"event\": ..., \"properties\": {...}}]}."}), 400
   if len(body['events']) > usage_lib.MAX_EVENTS:
@@ -72,8 +90,13 @@ def usage_events():
   now = usage_lib.utcnow()
   events = [e for e in (usage_lib.clean_event(raw, now) for raw in body['events']) if e is not None]
   if events:
-    usage_lib.store(events, actor=actor, source=source, user_name_hint=user_name, now=now)
-    db_session.commit()
+    try:
+      usage_lib.store(events, actor=actor, source=source, user_name_hint=user_name, now=now)
+      db_session.commit()
+    except Exception:
+      # a bad event is never an error for the client: it's dropped, and we hear about it
+      db_session.rollback()
+      app.logger.exception("Could not store %d usage events", len(events))
   return '', 204
 
 
@@ -85,6 +108,8 @@ def period_from_args():
     since = usage_lib.parse_date(request.args.get('since'))
     until = usage_lib.parse_date(request.args.get('until'), end_of_day=True)
     return usage_lib.Period(since, until), None
+  except OverflowError:
+    return None, (jsonify({"error": "The dates are out of range."}), 400)
   except ValueError as e:
     return None, (jsonify({"error": str(e)}), 400)
 
@@ -96,14 +121,32 @@ def filters_from_args():
   return usage_lib.Filters(period, request.args.get('project')), None
 
 
-def csv_response(rows, columns, filename: str):
-  """A CSV to download, from dicts"""
+def csv_cell(value):
+  """Lists and dicts as JSON. Spreadsheets run cells that start like formulas: those get a quote (anonymous clients choose project ids)"""
+  if isinstance(value, (list, dict)):
+    value = json.dumps(value, sort_keys=True)
+  if isinstance(value, str) and value[:1] in ('=', '+', '-', '@', '\t', '\r'):
+    return "'" + value
+  return value
+
+
+def csv_lines(rows, columns):
+  """The CSV, line by line: a generator, the exports can be long"""
   out = io.StringIO()
   writer = csv.DictWriter(out, fieldnames=columns, extrasaction='ignore')
   writer.writeheader()
+  yield out.getvalue()
   for row in rows:
-    writer.writerow({k: (json.dumps(v) if isinstance(v, (list, dict)) else v) for k, v in row.items()})
-  return Response(out.getvalue(), mimetype='text/csv', headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+    out.seek(0)
+    out.truncate()
+    writer.writerow({k: csv_cell(v) for k, v in row.items()})
+    yield out.getvalue()
+
+
+def csv_response(rows, columns, filename: str):
+  """A CSV to download, streamed from dicts"""
+  return Response(stream_with_context(csv_lines(rows, columns)), mimetype='text/csv',
+                  headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
 def wants_csv() -> bool:
@@ -147,10 +190,9 @@ def admin_usage_users():
   filters, error = filters_from_args()
   if error:
     return error
-  users = usage_lib.users(filters)
   if wants_csv():
-    return csv_response(users, USER_COLUMNS, f"qaboard-usage-users-{period_label(filters)}.csv")
-  return jsonify({**filters.period.describe(), "users": users})
+    return csv_response(usage_lib.users(filters, limit=None), USER_COLUMNS, f"qaboard-usage-users-{period_label(filters)}.csv")
+  return jsonify({**filters.period.describe(), "users": usage_lib.users(filters)})
 
 
 GROUP_COLUMNS = ('group_id', 'name', 'members', 'active_members', 'active_days', 'commits_viewed', 'batches_started', 'cli_commands', 'events')
@@ -195,12 +237,16 @@ def admin_usage_events():
     return error
   try:
     limit = int(request.args['limit']) if request.args.get('limit') else None
+    if limit is not None and limit < 1:
+      raise ValueError
   except ValueError:
-    return jsonify({"error": "`limit` must be a number"}), 400
-  rows = (usage_lib.event_as_text(row) for row in usage_lib.events_rows(filters, limit=limit))
+    return jsonify({"error": "`limit` must be a positive number"}), 400
+  rows = usage_lib.events_rows(filters, limit=limit)
   if request.args.get('format') == 'json':
-    return jsonify({**filters.period.describe(), "events": list(rows)})
-  return csv_response(rows, usage_lib.EVENT_COLUMNS, f"qaboard-usage-events-{period_label(filters)}.csv")
+    # one event per line (NDJSON): scripts read them as they come
+    lines = (json.dumps(usage_lib.event_as_json(row), sort_keys=True) + "\n" for row in rows)
+    return Response(stream_with_context(lines), mimetype='application/x-ndjson')
+  return csv_response((usage_lib.event_as_text(row) for row in rows), usage_lib.EVENT_COLUMNS, f"qaboard-usage-events-{period_label(filters)}.csv")
 
 
 @app.route('/api/v1/admin/usage/users/<int:user_id>', methods=['GET'])

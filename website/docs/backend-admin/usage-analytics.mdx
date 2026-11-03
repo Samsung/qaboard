@@ -13,7 +13,7 @@ client can read it.
 Two things send events, both from where people act, never from the server's own automation:
 
 - **The web app**: the pages users open (page views), and the features they use: choosing a reference commit to
-  compare with, opening an output's viewer, the image viewer's tools (comparing, pinning a pixel, regions, the
+  compare with, opening an output full screen, the image viewer's tools (comparing, pinning a pixel, regions, the
   histogram and analysis panels, annotations, colormaps and adjustments), starting tuning, "Run tests" and redos,
   stopping or deleting a batch, exporting, saving a milestone, the command palette and the release notes.
 - **The `qa` CLI**: one event per command people run (`qa run`, `qa batch`, `qa get`...), with the command, the
@@ -40,7 +40,7 @@ project ids, e.g. `group/repo`):
 - **Headline numbers**, with the previous period's for comparison: people active in the web app and in the CLI,
   new users; commits looked at, comparisons, outputs opened, image viewer uses; batches started (tuning, automated
   tuning, "Run tests", redos, `qa batch` from terminals), `qa` commands, exports, milestones; and the CI's runs, for
-  scale.
+  scale. "Outputs opened" counts the outputs people open full screen, not every run card shown.
 - **Trends**: active users and commits looked at per day or week, batches started and `qa` commands.
 - **Leaderboards**: users, groups (from your directory or single sign-on, see
   [Groups](/docs/backend-admin/project-access#groups)) and projects, with their active days, commits looked at,
@@ -100,7 +100,7 @@ come with the rollups, if a big server ever needs them.
 |---|---|---|
 | `page_view` | web app | `route` (commit, history, dashboard, milestone, branch, commits, settings, admin...), `commit_id`, `batch_label`, `has_reference`, `view` |
 | `commit_compare` | web app | `same_branch` |
-| `output_open` | web app | `viewer` (images, video, plotly, text, html, pointcloud, flame_graph, junit, bit_accuracy...) |
+| `output_open` | web app | `viewer` (images, video, plotly, text, html, pointcloud, flame_graph, junit, bit_accuracy...), when a run's output is opened full screen |
 | `image_viewer_use` | web app | `feature` (compare, pixel_pin, region, histogram, analysis, annotations, colormap, adjustments) |
 | `batch_start` | web app | `kind` (tuning, automated_tuning, run_tests, redo), `commit_id`, `n_runs` |
 | `batch_stop` | web app | `commit_id` |

@@ -13,8 +13,8 @@ import { queryClient, persistOptions, onCacheRestored } from "./api/queryClient"
 import { siteConfigQuery, userQuery } from "./api/queries";
 import { installLoginHandler } from "./components/authentication/login";
 import { toaster } from "./toaster";
-import { ComparisonProvider, useComparison, useSelected, useSiteConfig } from "./hooks";
-import { initSentry, initPostHog, initUsage, track } from "./analytics";
+import { ComparisonProvider, useSelected, useSiteConfig } from "./hooks";
+import { initSentry, initPostHog, initUsage } from "./analytics";
 import { PageViews } from "./usePageViews";
 import { Layout } from "./components/layout";
 import ExplorePage from "./explore/ExplorePage";
@@ -155,22 +155,6 @@ const RecordProjectView = () => {
   return null;
 }
 
-// Usage analytics: a comparison, each time the reference commit changes to one
-const RecordComparison = () => {
-  const { project, new_commit, ref_commit } = useComparison();
-  const ref_id = ref_commit?.id;
-  const new_branch = new_commit?.branch;
-  const ref_branch = ref_commit?.branch;
-  useEffect(() => {
-    if (!ref_id) return;
-    track('commit_compare', { same_branch: !!new_branch && new_branch === ref_branch }, { project_id: project });
-    // the branches only describe the comparison: a new reference is the event
-    // oxlint-disable-next-line react/exhaustive-deps
-  }, [project, ref_id]);
-  return null;
-}
-
-
 const ProjectApp = ({ pathname }) => {
   const matched = matchRoutes(routes, pathname);
   if (!matched) return null;
@@ -181,7 +165,6 @@ const ProjectApp = ({ pathname }) => {
     <ComparisonProvider>
     <ImportLegacyMilestones/>
     <RecordProjectView/>
-    <RecordComparison/>
     <MilestoneDialogHost/>
     <ManageMilestonesHost/>
     <Layout className={Classes.UI_TEXT}>

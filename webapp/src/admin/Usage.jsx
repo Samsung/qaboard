@@ -39,7 +39,8 @@ const writeFilters = ({ period, project }) => {
 };
 
 // The API's parameters for a period: the last N days, until today. Buckets are days, weeks past 90 days.
-export const paramsFor = ({ period, project }, now = DateTime.now()) => {
+// The server counts in UTC days: so do we, else the evening's events are missing west of Greenwich.
+export const paramsFor = ({ period, project }, now = DateTime.utc()) => {
   const { days } = periods.find(p => p.id === period) ?? periods[1];
   return {
     since: now.minus({ days: days - 1 }).toISODate(),
@@ -131,8 +132,9 @@ const Legend = ({ series }) => <div className={Classes.TEXT_MUTED} style={{ disp
 </div>;
 
 const Axes = ({ buckets, max, bucket }) => {
-  const ticks = [0, Math.round(max / 2), max];
-  const x_indices = buckets.length <= 1 ? [0] : [0, Math.floor((buckets.length - 1) / 2), buckets.length - 1];
+  // small maxima and short periods repeat ticks
+  const ticks = [...new Set([0, Math.round(max / 2), max])];
+  const x_indices = [...new Set(buckets.length <= 1 ? [0] : [0, Math.floor((buckets.length - 1) / 2), buckets.length - 1])];
   const x = i => pad.left + (buckets.length <= 1 ? 0 : i * (width - pad.left - pad.right) / (buckets.length - 1));
   return <g className={Classes.TEXT_MUTED} fontSize={11} fill="currentColor">
     {ticks.map(t => <text key={t} x={pad.left - 4} y={pad.top + (height - pad.top - pad.bottom) * (1 - t / max) + 4} textAnchor="end">{formatNumber(t)}</text>)}
@@ -202,7 +204,9 @@ const Charts = ({ params }) => {
   if (isPending) return <Loading label="Loading the trends"/>;
   if (error) return <AdminError error={error} refetch={refetch} what="the trends"/>;
   const buckets = data?.buckets ?? [];
-  if (buckets.length === 0) return <p className={Classes.TEXT_MUTED}>No usage events in this period.</p>;
+  // the server fills the empty buckets: no events is every value at 0
+  const empty = buckets.every(b => Object.entries(b).every(([key, value]) => key === 'start' || !value));
+  if (empty) return <p className={Classes.TEXT_MUTED}>No usage events in this period.</p>;
   const per = params.bucket === 'week' ? 'per week' : 'per day';
   return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24, marginBottom: 24 }}>
     <LineChart title={`Active users and commits looked at, ${per}`} buckets={buckets} bucket={params.bucket} series={[
@@ -329,6 +333,12 @@ const Leaderboards = ({ params }) => <>
 const Filters = ({ filters, setFilters }) => {
   // the URL changes a moment after users stop typing
   const [project, setProject] = useState(filters.project);
+  // the URL changed by itself (back, forward, a link): the input follows
+  const [from_url, setFromUrl] = useState(filters.project);
+  if (from_url !== filters.project) {
+    setFromUrl(filters.project);
+    setProject(filters.project);
+  }
   const latest = useRef(filters);
   useEffect(() => { latest.current = filters; });
   useEffect(() => {
