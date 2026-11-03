@@ -129,6 +129,40 @@ test('a reference has one name, in its tab, the reference bar and the viewers', 
   await page.waitForLoadState('networkidle');
 });
 
+test("a tab's menu doesn't take the focus back from what its item opened", async ({ page }) => {
+  await page.goto(`/${project}/commit/${a}?reference=${c}&compare=${d}`);
+  await expect(page.getByRole('tab')).toHaveCount(2);
+  // Rename: the tab's field keeps the focus once the menu has closed
+  await page.getByRole('tab', { name: /^Reference 2:/ }).hover();
+  await page.getByRole('button', { name: 'Reference 2: more' }).click();
+  await page.getByRole('menuitem', { name: 'Rename' }).click();
+  const field = page.getByRole('textbox', { name: 'Rename reference 2' });
+  await expect(field).toBeFocused();
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await page.waitForTimeout(500);
+  await expect(field).toBeFocused();
+  await field.fill('night');
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('tab', { name: /^Reference 2: night/ })).toBeVisible();
+  // Duplicate: the focus doesn't go back to the menu's button, e.g. while users rename the copy
+  await page.getByRole('tab', { name: /^Reference 1:/ }).hover();
+  await page.getByRole('button', { name: 'Reference 1: more' }).click();
+  await page.getByRole('menuitem', { name: /Duplicate/ }).click();
+  await expect(page.getByRole('tab')).toHaveCount(3);
+  await page.waitForTimeout(500);
+  await expect(page.getByRole('button', { name: 'Reference 1: more' })).not.toBeFocused();
+  // dismissed without picking anything: the focus goes back to the button, for keyboard users
+  await page.getByRole('tab', { name: /^Reference 1:/ }).hover();
+  await page.getByRole('button', { name: 'Reference 1: more' }).click();
+  await expect(page.getByRole('menu')).toBeVisible();
+  // once the menu has the focus: Esc closes it from there
+  await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest('.bp6-overlay'))).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Reference 1: more' })).toBeFocused();
+  await page.waitForLoadState('networkidle');
+});
+
 test('tabs say what tells references apart, and scroll when there are many', async ({ page }) => {
   // a milestone, two commits of master, a branch, copies with another batch and a filter
   const refs = [[d], [e], [f], [f, 'night'], [f, '', 'indoor'], [c]];

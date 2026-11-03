@@ -109,7 +109,8 @@ test('users reorder, rename and remove references from their tabs', async () => 
 
   // double-click renames, viewers use the name
   fireEvent.doubleClick(tab(2));
-  const input = screen.getByRole('textbox', { name: 'Rename reference 2' });
+  // the field opens once the menu has closed: it doesn't take the focus back from it
+  const input = await screen.findByRole('textbox', { name: 'Rename reference 2' });
   fireEvent.change(input, { target: { value: 'v1.0 tuned' } });
   fireEvent.keyDown(input, { key: 'Enter' });
   await waitFor(() => expect(query().get('label_ref')).toBe('v1.0 tuned'));
@@ -174,7 +175,8 @@ test('a reference has the same name in its tab and in the viewers, wherever it g
   // renaming from the menu: the tab and the viewers use the name
   fireEvent.click(screen.getByRole('button', { name: 'Reference 2: more' }));
   fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));
-  const input = screen.getByRole('textbox', { name: 'Rename reference 2' });
+  // the field opens once the menu has closed: it doesn't take the focus back from it
+  const input = await screen.findByRole('textbox', { name: 'Rename reference 2' });
   expect(input).toHaveValue('ref 3');
   fireEvent.change(input, { target: { value: 'tuned' } });
   fireEvent.keyDown(input, { key: 'Enter' });
@@ -189,7 +191,8 @@ test('milestones are called by their name, unless users call them something else
   // "ref 2" is a name we gave: the milestone's wins
   await waitFor(() => expect(tab(2)).toHaveTextContent(/^release 1\.0/));
   fireEvent.doubleClick(tab(2));
-  const input = screen.getByRole('textbox', { name: 'Rename reference 2' });
+  // the field opens once the menu has closed: it doesn't take the focus back from it
+  const input = await screen.findByRole('textbox', { name: 'Rename reference 2' });
   expect(input).toHaveValue('');
   expect(input).toHaveAttribute('placeholder', 'release 1.0');
   fireEvent.change(input, { target: { value: 'v1 tuned' } });
