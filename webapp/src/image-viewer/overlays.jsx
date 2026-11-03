@@ -8,6 +8,7 @@ import { drawHighlight } from './highlightRenderer';
 import { HIGHLIGHT } from './histogram';
 import { MASK } from './imageAnalysis';
 import { cellFont, formatNumber, formatSigned, MIN_CELL, textColorOn, visiblePixels } from './pixels';
+import { clipRegion } from './regions';
 import { imageKey, thumbnailUrl } from './sources';
 
 // Redraws after the viewers draw (once per frame), and when `deps` change
@@ -407,5 +408,75 @@ export const Minimap = ({ controller, image, size }) => {
       width: `${100 * region.w / size.width}%`,
       height: `${100 * region.h / size.height}%`,
     }} />
+  </div>;
+};
+
+
+// Where the regions are drawn in a pane, in CSS pixels: [{ index, x, y, w, h }], without those outside the image.
+// Regions are in the pixels of the first image (size), the pane's image may have another resolution (pane_size).
+export const regionBoxes = (regions, size, pane_size, transform) => {
+  if (!transform?.scale || !size?.width) return [];
+  const k = (pane_size?.width ? pane_size.width / size.width : 1) * transform.scale;
+  return regions.flatMap((region, index) => {
+    const clipped = clipRegion(region, size);
+    return clipped ? [{ index, x: transform.origin.x + clipped.x * k, y: transform.origin.y + clipped.y * k, w: clipped.w * k, h: clipped.h * k }] : [];
+  });
+};
+
+// Labels of every region while they're few and large enough on screen, else of the active and hovered ones
+const MAX_LABELED = 25;
+const MIN_LABELED_WIDTH = 28;
+const LABEL_ROOM = 48;
+
+// The regions of the set shown, outlined on the images. The active one stands out, and the one under the pointer shows
+// its label. Clicking a label shows its region.
+export const RegionOutlines = ({ controller, pane, regions, active, size, paneSize, onSelect }) => {
+  // where the image is drawn, as users zoom and pan
+  const [transform, setTransform] = useState(null);
+  useEffect(() => {
+    const update = () => {
+      const next = controller.imageTransform(controller.geometry(pane));
+      setTransform(previous => previous && next && previous.scale === next.scale && previous.origin.x === next.origin.x && previous.origin.y === next.origin.y ? previous : next);
+    };
+    update();
+    return controller.onDraw(update);
+  }, [controller, pane]);
+  const pointer = useSyncExternalStore(controller.subscribePointer, controller.getPointer);
+  const boxes = regions?.length ? regionBoxes(regions, size, paneSize, transform) : [];
+  if (boxes.length === 0) return null;
+  // the smallest under the pointer
+  const at = pointer && controller.screenPoint(pane, pointer.point);
+  const hovered = at ? boxes
+    .filter(box => at.x >= box.x && at.x <= box.x + box.w && at.y >= box.y && at.y <= box.y + box.h)
+    .sort((a, b) => a.w * a.h - b.w * b.h)[0]?.index ?? null : null;
+  const all_labels = boxes.length <= MAX_LABELED;
+  // the active one on top
+  const ordered = [...boxes].sort((a, b) => (a.index === active) - (b.index === active));
+  return <div className={`qiv-outlines ${active !== null && active !== undefined ? 'qiv-outlines-focus' : ''}`} aria-hidden="true">
+    <svg width="100%" height="100%">
+      {ordered.map(({ index, x, y, w, h }) => {
+        const color = regions[index].color ?? 'var(--qiv-accent)';
+        const state = index === active ? 'qiv-outline-active' : index === hovered ? 'qiv-outline-hovered' : '';
+        return <g key={index} className={`qiv-outline ${state}`}>
+          <rect className="qiv-outline-halo" x={x} y={y} width={w} height={h} />
+          <rect className="qiv-outline-line" x={x} y={y} width={w} height={h} style={{ stroke: color, fill: color }} />
+        </g>;
+      })}
+    </svg>
+    {ordered.filter(({ index, w }) => index === active || index === hovered || (all_labels && w >= MIN_LABELED_WIDTH)).map(({ index, x, y, h }) => {
+      const region = regions[index];
+      // above the region, else inside it at its bottom: the top of the pane has the image's name
+      const top = y >= LABEL_ROOM ? y - 18 : Math.max(0, y + h - 18);
+      return <button
+        key={index}
+        type="button"
+        tabIndex={-1}
+        className={`qiv-outline-label ${index === active ? 'qiv-active' : ''}`}
+        style={{ left: Math.max(0, x), top, borderLeftColor: region.color ?? 'var(--qiv-accent)' }}
+        title={region.label ?? `Region ${index + 1}`}
+        onPointerDown={event => event.stopPropagation()}
+        onClick={() => onSelect(index)}
+      >{region.label ?? index + 1}</button>;
+    })}
   </div>;
 };

@@ -83,6 +83,7 @@ import backend.api.integrations
 import backend.api.tuning
 import backend.api.export_to_folder
 import backend.api.image
+import backend.api.annotations
 import backend.api.video
 import backend.api.milestones
 import backend.api.auth

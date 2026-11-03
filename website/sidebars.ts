@@ -202,6 +202,7 @@ const sidebars: SidebarsConfig = {
         "backend-admin/sign-in",
         "backend-admin/project-access",
         "backend-admin/storage",
+        "backend-admin/annotations",
         "backend-admin/monitoring",
         "backend-admin/troubleshooting",
     ]

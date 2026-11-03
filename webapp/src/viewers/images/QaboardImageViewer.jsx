@@ -14,7 +14,8 @@ import { usePrefsStore } from '../../stores/prefs';
 import { at_most, is_same_data } from '../../utils';
 import { build_image_name, iiif_url } from './utils';
 import { COMPARE_SCOPES, comparedFor, compareCandidates, pickCompared } from './compareWith';
-import { regionProviders } from './regionProviders';
+import { annotationProvider, isGroupShown, regionProviders } from './regionProviders';
+import { AnnotationGroups } from './AnnotationGroups';
 import { regionsQuery, sizeKey } from './regionSearch';
 import { DiffSizeFilter, describeDiffSize, useDiffSize } from './DiffSize';
 import { differenceProviders, RegionsTriage, usePagePairs } from './RegionsTriage';
@@ -165,13 +166,40 @@ const SIGN_IN_SEARCH = 'Sign in (in the sidebar) to find where the images differ
 // for all the runs fills each viewer.
 const useRegionSets = (context, signed_in, onDiffSizeChange) => {
   const queryClient = useQueryClient();
-  const providers = regionProviders().filter(provider => !provider.available || provider.available(context));
+  // the site's annotations, e.g. from the app where people mark defects
+  const { annotation_sources } = useSiteConfig();
+  // the groups of annotations users see, e.g. workspaces
+  const group_choices = usePrefsStore(state => state.annotationGroups);
+  const providers = [...regionProviders(), ...(annotation_sources ?? []).map(annotationProvider)]
+    .filter(provider => !provider.available || provider.available(context));
   const finders = providers.filter(provider => !provider.regions && provider.find);
-  // what's found, without searching: only when users pick the set
-  const found = useQueries({ queries: finders.map(provider => ({ ...regionsQuery(provider, context), enabled: false })) });
+  // what's found, without searching: only when users pick the set. Annotations are fetched right away (auto).
+  const found = useQueries({ queries: finders.map(provider => ({ ...regionsQuery(provider, context), enabled: !!provider.auto })) });
   const sets = [];
   for (const provider of providers) {
-    const base = { id: provider.id, label: provider.label, description: provider.description };
+    const base = { id: provider.id, label: provider.label, description: provider.description, section: provider.section, overview: provider.overview };
+    if (provider.auto) {
+      const { data, error, fetchStatus } = found[finders.indexOf(provider)];
+      const shown = new Set(data?.groups.filter(group => isGroupShown(group, group_choices?.[provider.source])).map(group => group.id));
+      const failed = error && !isAbort(error) ? errorMessage(error) : undefined;
+      sets.push({
+        ...base,
+        announce: true,
+        noun: provider.noun,
+        // all of them, the regions button says how many there are
+        total: data?.regions.length,
+        regions: data?.regions.filter(region => shown.has(region.group)),
+        loading: fetchStatus === 'fetching' && !data,
+        error: failed,
+        empty: !data?.regions.length ? provider.empty
+          : shown.size === 0 ? `Pick the ${provider.group_noun}s to show`
+          : `No annotations in these ${provider.group_noun}s`,
+        settings: data?.groups.length ? <AnnotationGroups source={provider.source} groups={data.groups} noun={provider.group_noun} label={provider.label} /> : undefined,
+        // only to retry: else it's not a search, and stays picked on other pages
+        load: failed ? () => queryClient.fetchQuery(regionsQuery(provider, context, 'high')).catch(() => {}) : undefined,
+      });
+      continue;
+    }
     if (provider.regions) {
       const regions = provider.regions(context);
       if (regions?.length) sets.push({ ...base, regions });

@@ -1,0 +1,68 @@
+---
+id: annotations
+sidebar_label: Annotations
+title: Showing annotations from another app
+description: "Show the regions people mark on images in another app (defects, labels...) in QA-Board's image viewer, read-only, with an annotation source: a small Python package."
+---
+If people mark regions on images in another app, e.g. defects for image quality reviews, the image viewer can show
+those of the runs' inputs on the runs' images, read-only: outlined on the images, with what each is, by group (e.g. the
+app's workspaces), with links to open them in the app. See what users get in the [user guide](/docs/user-guide/image-viewer#annotations).
+
+QA-Board asks your app through an **annotation source**: a Python module, in a package installed with the backend,
+that finds the annotations of an input.
+
+## Write a source
+The source gets the absolute path of the run's input on the server. It returns the groups of annotations and the
+annotations, in the input's pixels:
+
+```python title="my_site/defects.py"
+import requests
+
+label = "Defects"                  # what users pick in the viewer
+description = "From the defects app, by project"  # optional, on hover
+group_noun = "project"             # optional, what the groups are ("group" by default)
+
+def annotations(path):
+  found = requests.get("https://defects.example.com/api/images", params={"path": path}, timeout=10).json()
+  return {
+    # users: whose they are. Users see theirs by default, the others when they pick them
+    "groups": [{"id": p["id"], "label": p["name"], "detail": f"by {p['owner']}", "url": p["url"], "users": [p["owner"]]} for p in found["projects"]],
+    "annotations": [{
+      "id": d["id"], "group": d["project_id"],
+      "x": d["x"], "y": d["y"], "w": d["width"], "h": d["height"],
+      "label": d["type"],                # e.g. "Noise"
+      "tags": d["tags"],                 # optional
+      "fields": {"Importance": d["importance"], "score": d["score"]},  # optional, shown as they are
+      "url": d["url"],                   # optional, opens it in your app
+    } for d in found["defects"]],
+  }
+```
+
+Only `x`, `y`, `w` and `h` are required. The viewer colors annotations by group. Groups without annotations are fine.
+Errors are shown to users in the viewer.
+
+## Install it
+Declare the source with an entry point, in the `qaboard.annotations` group, in your [site package](/docs/installation#with-your-organizations-site-package) or any package installed in the
+backend's image (with docker compose, the backend's `QABOARD_EXTRA` build argument installs `deployments/<site>/cli`):
+
+```toml title="pyproject.toml"
+[project.entry-points."qaboard.annotations"]
+defects = "my_site.defects"
+```
+
+Restart the backend: the viewer offers **Defects** under **Annotations** in the regions menu. Several sources can be
+installed side by side.
+
+<details>
+<summary>How QA-Board calls it</summary>
+
+- The viewer asks as soon as an image shows, so that the regions button says how many annotations there are: keep the
+  lookup of one input fast. Runs of the same input share it, and viewers ask 3 at a time per page.
+- The backend keeps the answer for each input for 5 minutes (in Redis when it has one), and asks again when the file
+  changes. Whether groups are the user's (their `users`) is decided for each user, after.
+- Users see the annotations of the files they can see in QA-Board: the source doesn't need to check access.
+- The backend also reads the input's size (from its header), and the viewer scales the annotations to the images shown.
+  For inputs it can't read (e.g. raw), the size in the input's metadata (`width`, `height`) is used, if any.
+- The API is `GET /api/v1/output/image/annotations/<source>?path=<the input's absolute path>`.
+
+</details>
