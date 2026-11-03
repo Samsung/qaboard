@@ -18,8 +18,8 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.635eb55a.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.f0087e9e.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.c45cfeda.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.82126cc5.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -72,6 +72,10 @@ uninstalling anything.</p></div></div>
 <table><thead><tr><th>Variable</th><th>Example</th><th></th></tr></thead><tbody><tr><td><code>QABOARD_URL</code></td><td><code>https://qaboard.kitefin.example</code></td><td>The server&#x27;s address.</td></tr><tr><td><code>QABOARD_HOST</code>, <code>QABOARD_PROTOCOL</code></td><td><code>qaboard.kitefin.example:5151</code>, <code>https</code></td><td>The host (and port), and the protocol: <code>http</code> by default. They win over <code>QABOARD_URL</code>.</td></tr><tr><td><code>QABOARD_HOSTNAME</code>, <code>QABOARD_PORT</code></td><td><code>qaboard.kitefin.example</code>, <code>5151</code></td><td>Both together win over the others.</td></tr></tbody></table>
 <p>Without any of them, <code>qa</code> uses <code>http://localhost:5151</code> and prints a warning. With <code>qa --offline</code>, it never contacts the
 server: your runs are only saved on disk.</p>
+<p>Outside CI, each <code>qa</code> command tells the server it ran: the command, your user name, the <code>qaboard</code> version, the project,
+the runner, how long it took and whether it failed, never your inputs or results. Admins see how QA-Board is used from it
+(<a class="" href="/qaboard/docs/backend-admin/usage-analytics">usage analytics</a>). It&#x27;s sent in the background, and adds at most a second when the
+server is slow. Set <code>QA_NO_ANALYTICS=1</code> to send nothing.</p>
 <p>If your server uses HTTPS with a certificate your machines don&#x27;t trust, e.g. from your company&#x27;s certificate
 authority, point <code>QABOARD_API_VERIFY</code> to the CA bundle, or turn off the checks of <code>qa</code>&#x27;s requests to the server:</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#393A34"><span class="token builtin class-name">export</span><span class="token plain"> </span><span class="token assign-left variable" style="color:#36acaa">QABOARD_API_VERIFY</span><span class="token operator" style="color:#393A34">=</span><span class="token plain">/etc/ssl/certs/internal-ca.pem</span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token builtin class-name">export</span><span class="token plain"> </span><span class="token assign-left variable" style="color:#36acaa">QABOARD_API_VERIFY</span><span class="token operator" style="color:#393A34">=</span><span class="token plain">false</span><br></div></code></pre></div></div>

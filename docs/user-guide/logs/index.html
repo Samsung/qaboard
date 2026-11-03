@@ -18,8 +18,8 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.635eb55a.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.f0087e9e.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.c45cfeda.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.82126cc5.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -130,8 +130,8 @@ turn on <strong>Overwrite previous identical runs</strong> in the
 </ul>
 <p>In the Logs view, <strong>Started from QA-Board</strong> lists these <code>qa batch</code> commands, most recent first (<strong>Show N older</strong> for
 more than three): their status (<strong>Queued</strong>, <strong>Running</strong>, <strong>Failed</strong>, <strong>Done</strong>), who started them and when, and the
-batch files their batches come from (e.g. <em>from qa/batches.yaml</em>, or your private batches&#x27; file). Open one for which file
-defines each batch, the command it ran and its log, live while it runs. <code>qa batch</code> reads copies of these files, saved
+batch files their batches come from (e.g. <em>from qa/batches.yaml</em>, or your private batches). Open one for the files,
+which link to your git server at the commit or to <strong>Available Tests</strong>, the command it ran and its log, live while it runs. <code>qa batch</code> reads copies of these files, saved
 in the <code>batches</code> folder next to its log so you can see what ran and run it again: like on your computer, it reads them in
 order, uses their file-level defaults (<code>database</code>, <code>configurations</code>, <code>platform</code>), and when several files define a batch,
 the last one wins. Its folder buttons copy the path of, or open, the folder with

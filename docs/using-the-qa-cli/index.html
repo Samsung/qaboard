@@ -18,8 +18,8 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.635eb55a.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.f0087e9e.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.c45cfeda.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.82126cc5.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -110,6 +110,9 @@ all runners forward to the runs (local, LSF, Dask and Celery).</li>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="qa---offline">Work without a server: <code>--offline</code><a href="#qa---offline" class="hash-link" aria-label="Direct link to qa---offline" title="Direct link to qa---offline" translate="no">​</a></h2>
 <p>With <code>qa --offline</code>, <code>qa</code> never contacts QA-Board: results are only saved on disk. To use another server, see
 <a class="" href="/qaboard/docs/installation#connecting-to-a-custom-qa-board-server">Connect to your server</a>.</p>
+<p>Outside CI, <code>qa</code> also tells the server which command ran, so that admins see how QA-Board is used
+(<a class="" href="/qaboard/docs/installation#connecting-to-a-custom-qa-board-server">what it sends</a>). <code>QA_NO_ANALYTICS=1</code> or <code>--offline</code> keep
+it quiet.</p>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="options-as-environment-variables">Options as environment variables<a href="#options-as-environment-variables" class="hash-link" aria-label="Direct link to Options as environment variables" title="Direct link to Options as environment variables" translate="no">​</a></h2>
 <p>Every option can be set in the environment: <code>QA_&lt;OPTION&gt;</code> for <code>qa</code>&#x27;s own options, <code>QA_&lt;COMMAND&gt;_&lt;OPTION&gt;</code> for a
 command&#x27;s, in capitals and with <code>_</code> for <code>-</code>:</p>
