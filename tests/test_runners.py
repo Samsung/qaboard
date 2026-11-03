@@ -361,6 +361,29 @@ class TestJobGroups(unittest.TestCase):
         group.start(blocking=False, qa_context={"share": True})
     notify.assert_not_called()
 
+  def test_empty_metrics_json_marks_pending_run_as_failed(self):
+    """A killed run can leave a 0-byte metrics.json: the pending run is marked failed, and the batch doesn't crash"""
+    from qaboard.api import dir_to_url
+    from qaboard.runners import JobGroup
+    from qaboard.runners.lsf import LsfRunner
+    killed, done = make_jobs('lsf', ['a', 'b'], self.root.resolve(), queue='q')
+    # like a run killed (SIGKILL) before it reported results
+    killed.run_context.output_dir.mkdir()
+    (killed.run_context.output_dir / 'metrics.json').write_text('')
+    done.run_context.output_dir.mkdir()
+    outputs = {
+      1: {"output_dir_url": dir_to_url(killed.run_context.output_dir), "is_pending": True, "is_failed": False},
+      2: {"output_dir_url": dir_to_url(done.run_context.output_dir), "is_pending": True, "is_failed": False},
+    }
+    group = JobGroup(jobs=[killed, done], job_options={"type": "lsf", "command_id": "abcdefgh-1234", "queue": "q"})
+    with mock.patch.object(LsfRunner, 'start_groups', side_effect=KeyboardInterrupt), \
+         mock.patch('qaboard.runners.job.get_outputs', return_value=outputs), \
+         mock.patch('qaboard.runners.job.notify_qa_database') as notify:
+      with self.assertRaises(KeyboardInterrupt):
+        group.start(blocking=True, qa_context={"share": True})  # no JSONDecodeError escapes
+    updates = {call.kwargs['output_dir']: (call.kwargs['is_pending'], call.kwargs['is_failed']) for call in notify.call_args_list}
+    self.assertEqual(updates, {killed.run_context.output_dir: (False, True), done.run_context.output_dir: (False, True)})
+
 
 class TestBuildPowershellEnv(unittest.TestCase):
   def env_lines(self, **context_env):

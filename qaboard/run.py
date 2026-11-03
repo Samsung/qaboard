@@ -75,11 +75,19 @@ class RunContext():
     def is_failed(self, verbose=False):
       metrics_path = self.output_dir / 'metrics.json'
       if metrics_path.exists():
-          with metrics_path.open() as f:
-            is_failed = json.load(f).get('is_failed', True)
-            if verbose and is_failed:
-                click.secho(f"[ERROR] Failed run! More info at: {self.output_directory}/log.txt", fg='red', err=True)
-            return is_failed
+          # try to load the metrics file
+          try:
+            with metrics_path.open() as f:
+              is_failed = json.load(f).get('is_failed', True)
+          except (OSError, ValueError): # empty/corrupt file (run killed before reporting), or a read race on the cluster
+            if verbose:
+              click.secho(f'[ERROR] Failed run! Could not parse {metrics_path}. It usually means that your run/job was killed before it got a chance to update QA-Board', fg='red', err=True)
+            return True
+
+          # report failure
+          if verbose and is_failed:
+            click.secho(f"[ERROR] Failed run! More info at: {self.output_directory}/log.txt", fg='red', err=True)
+          return is_failed
       else:
           if verbose:
             if not self.output_dir.exists():
