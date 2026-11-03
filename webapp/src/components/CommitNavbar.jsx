@@ -38,6 +38,7 @@ import { useRefreshCommit, useUrlText, updateSelected, useSiteConfig, useUser } 
 import { is_default_name, remove_reference, switch_new_and_reference } from "../selection";
 import { LoginMenuItem } from "./authentication/login";
 import { toaster } from "../toaster"
+import { track } from "../analytics"
 import { copyDirectory } from "./logs/DirectoryActions"
 import { hasPathMappings } from "../utils/paths"
 
@@ -263,6 +264,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
       .then(({ data }) => {
         setWaiting(false)
         const runs = data?.submission?.runs
+        track('batch_start', { kind: 'redo', commit_id: commit?.id, n_runs: typeof runs === 'number' ? runs : undefined }, { project_id: project })
         toaster.show({message: `Redoing ${runs ?? 'the'} run${runs === 1 ? '' : 's'} of ${pretty_label(batch)}`, intent: Intent.SUCCESS, action: show_logs}, key);
         // e.g. only the source files of the artifacts could be restored
         if (data?.warning) toaster.show({message: data.warning, intent: Intent.WARNING, timeout: 15000});
@@ -281,6 +283,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
   const deleteBatch = ({ only_failed = false } = {}) => {
     const what = `${only_failed ? 'the failed runs' : 'all the runs'} of ${pretty_label(batch)}`
     const files = soft_delete ? 'the files of ' : ''
+    track('batch_delete', { files_only: soft_delete, only_failed, n_batches: 1 }, { project_id: project })
     return batchAction(() => http.delete(`/api/v1/batch/${batch.id}/`, {
       params: {...(only_failed ? {only_failed} : {}), soft: soft_delete, filter: files_delete_filter},
     }), {
@@ -316,8 +319,10 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
       }))
     }
     const deleted = `${requests.length} batch${requests.length === 1 ? '' : 'es'}`
-    if (requests.length > 0)
+    if (requests.length > 0) {
       toaster.show({message: `Deleting ${deleted}…`, icon: 'time'}, 'delete-batches');
+      track('batch_delete', { files_only: soft_delete, n_batches: requests.length }, { project_id: project })
+    }
     Promise.all(requests)
       .then(() => {
         if (requests.length > 0)

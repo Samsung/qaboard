@@ -13,7 +13,8 @@ import { AuditEvents } from "../settings/AuditEvents";
 import { AdminError } from "./states";
 import { UserTags } from "./Users";
 import { RequestMessage } from "./AccessRequests";
-import { adminUserQuery, updateUser, revokeUserTokens, revokeUserSessions, adminRevokeToken } from "./api";
+import { adminUserQuery, usageUserQuery, updateUser, revokeUserTokens, revokeUserSessions, adminRevokeToken } from "./api";
+import { UsageCard } from "./UsageCard";
 
 
 // The actions that need a confirmation
@@ -163,6 +164,8 @@ export const UserDetail = ({ id, me }) => {
         <tr><th scope="row">Created</th><td><Time iso={user.created_date}/></td></tr>
       </tbody>
     </HTMLTable>
+
+    <UsageCard query={usageUserQuery(user.id)} note={<>What they did in the web app and with the CLI. Everyone's numbers are in <Link to="/admin/usage">Usage</Link>.</>}/>
 
     <h4 className={Classes.HEADING}>Tokens</h4>
     {tokens.length === 0

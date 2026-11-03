@@ -21,6 +21,7 @@ import { LoginMenuItem } from "./authentication/login";
 import { linux_to_windows } from '../utils'
 import { folder_url, hasPathMappings } from '../utils/paths'
 import { toaster } from "../toaster"
+import { track } from "../analytics"
 import { copyDirectory } from "./logs/DirectoryActions"
 import { hidden_keys } from "../configurations/tokens"
 import { ConfigurationsTags, ConfigurationDiff } from "../configurations/ConfigurationsTags"
@@ -175,11 +176,14 @@ const RunActionsMenu = ({ output, project, commit, children }) => {
         intent={Intent.WARNING}
         minimal
         disabled={waiting || !is_logged}
-        onClick={() => act(
-          () => http.post(`/api/v1/output/redo/${id}/`, {is_pending: false, is_running: false}),
-          `Starting ${name} again…`,
-          `Redoing ${name}`,
-        )}
+        onClick={() => {
+          track('batch_start', { kind: 'redo', commit_id: commit?.id, n_runs: 1 }, { project_id: project })
+          act(
+            () => http.post(`/api/v1/output/redo/${id}/`, {is_pending: false, is_running: false}),
+            `Starting ${name} again…`,
+            `Redoing ${name}`,
+          )
+        }}
       />}
       {id && !deleted && <MenuItem
         icon="trash"

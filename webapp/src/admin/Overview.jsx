@@ -46,26 +46,34 @@ const Check = styled.li`
   .detail { grid-column: 2; }
 `;
 
-// Where admins fix each item
+// Where admins fix each item. Items can also say where, with `link`.
 const item_links = {
   require_sign_in: '/admin/settings',
   ingest_auth: '/admin/settings',
   local_signup: '/admin/settings',
   legacy_tokens: '/admin/tokens',
+  // the "Get more from QA-Board" list (value_checklist, backend/api/admin.py). The others are server settings.
+  single_sign_on: '/admin/sign-in',
+  garbage_collect: '/admin/storage',
+  ci_only_projects: '/admin/usage?period=90d',
+  web_only_users: '/admin/usage?period=90d',
+  tuning_products: '/admin/usage?period=90d',
 };
+const item_link = item => item.link ?? item_links[item.id];
 // The settings named in the details, e.g. "Set auth.require_sign_in to...", link to the settings
 const setting_name = /\b((?:auth|ingest|tokens|audit|projects)\.[a-z_]+[a-z])\b/;
 export const Detail = ({ text }) => text.split(setting_name).map((part, i) => i % 2
   ? <Link key={i} to="/admin/settings"><code>{part}</code></Link>
   : part);
 
-// What's left to do first, then what's fine
-export const Checklist = ({ checklist }) => {
+// What's left to do first, then what's fine. `title`: the security checklist by default, or what to configure or
+// look at to get more from QA-Board (value_checklist); `todo_label`: what the count of items left says.
+export const Checklist = ({ checklist, title = 'Security checklist', todo_label = 'to review' }) => {
   const sorted = [...checklist].sort((a, b) => (a.ok - b.ok) || (severity_order[a.severity] ?? 3) - (severity_order[b.severity] ?? 3));
   const todo = checklist.filter(item => !item.ok).length;
-  return <section aria-label="Security checklist">
+  return <section aria-label={title}>
     <h4 className={Classes.HEADING}>
-      Security checklist {todo > 0 ? <Tag minimal intent={Intent.WARNING} round>{todo} to review</Tag> : <Tag minimal intent={Intent.SUCCESS} round>All good</Tag>}
+      {title} {todo > 0 ? <Tag minimal intent={Intent.WARNING} round>{todo} {todo_label}</Tag> : <Tag minimal intent={Intent.SUCCESS} round>All good</Tag>}
     </h4>
     <ul style={{ listStyle: 'none', margin: 0, padding: 0, maxWidth: 820 }}>
       {sorted.map(item => <Check key={item.id} data-testid={`check-${item.id}`}>
@@ -75,7 +83,7 @@ export const Checklist = ({ checklist }) => {
           aria-label={item.ok ? 'Done' : 'To review'}
         />
         <strong style={item.ok ? { fontWeight: 'normal' } : undefined}>
-          {item_links[item.id] ? <Link to={item_links[item.id]} style={{ color: 'inherit' }}>{item.title}</Link> : item.title}
+          {item_link(item) ? <Link to={item_link(item)} style={{ color: 'inherit' }}>{item.title}</Link> : item.title}
         </strong>
         {typeof item.detail === 'string' && item.detail && <span className={`detail ${Classes.TEXT_MUTED}`}><Detail text={item.detail}/></span>}
       </Check>)}
@@ -100,6 +108,9 @@ export const Overview = () => {
       })}
     </Counts>
     {(data?.checklist?.length ?? 0) > 0 && <Checklist checklist={data.checklist}/>}
+    {(data?.value_checklist?.length ?? 0) > 0 && <div style={{ marginTop: 28 }}>
+      <Checklist checklist={data.value_checklist} title="Get more from QA-Board" todo_label="to look at"/>
+    </div>}
     <div style={{ marginTop: 28 }}><InstanceRoles/></div>
   </>;
 };

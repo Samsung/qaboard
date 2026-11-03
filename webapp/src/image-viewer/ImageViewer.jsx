@@ -137,6 +137,8 @@ export const ImageViewer = ({
   onBlindTestChange,
   getPixels,
   imageValuesUnavailable,
+  // Told when users use a feature: 'pixel_pin', 'histogram' or 'analysis' (the panel opens). Apps count usage with it.
+  onUse,
   maxHeight = DEFAULT_MAX_HEIGHT,
   theme,
   notice,
@@ -218,6 +220,10 @@ export const ImageViewer = ({
   const setAnalysis = value => {
     last_analysis = value;
     setAnalysisSetting(value);
+  };
+  const toggleAnalysis = () => {
+    if (!show_analysis) onUse?.(analysis === 'histogram' ? 'histogram' : 'analysis');
+    setShowAnalysis(!show_analysis);
   };
   // The channels the analysis shows, and the range of values the histogram highlights on the images (with the channels shown)
   const [histogram_channels, setHistogramChannels] = useState(ALL_CHANNELS);
@@ -435,7 +441,10 @@ export const ImageViewer = ({
   useLayoutEffect(() => {
     controller.setOnClick((name, event, element) => {
       if (single && !event?.shiftKey) return flip();
-      if (event) controller.pin(name, event.clientX, event.clientY, element);
+      if (event) {
+        controller.pin(name, event.clientX, event.clientY, element);
+        onUse?.('pixel_pin');
+      }
     });
   });
 
@@ -484,7 +493,7 @@ export const ImageViewer = ({
           controller.unpin();
           return true;
         case 'a':
-          setShowAnalysis(!show_analysis);
+          toggleAnalysis();
           return true;
         case 'f':
           if (!can_fullscreen) return false;
@@ -766,7 +775,7 @@ export const ImageViewer = ({
         title={`${show_analysis ? 'Hide' : 'Show'} the analysis of the view: histogram, row and column profiles, statistics (a)`}
         active={show_analysis}
         aria-pressed={show_analysis}
-        onClick={() => setShowAnalysis(!show_analysis)}
+        onClick={toggleAnalysis}
       />
       <span className="qiv-group">
         <Button icon="zoom-out" title="Zoom out (−)" onClick={() => controller.zoomBy(1 / ZOOM_STEP)} />
