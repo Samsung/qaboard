@@ -169,6 +169,24 @@ def checklist() -> list:
 
 
 USAGE_LOOKBACK_DAYS = 90
+# The usage-based items read the last months of runs and events: computed at most every few minutes, per process
+USAGE_ITEMS_CACHE_SECONDS = 300
+_usage_items_cache = {'at': None, 'value': None}
+
+
+def usage_items() -> dict:
+  """{ci_only, web_only, products} of the last USAGE_LOOKBACK_DAYS days, cached for USAGE_ITEMS_CACHE_SECONDS"""
+  now = tokens_lib.utcnow()
+  if _usage_items_cache['at'] and (now - _usage_items_cache['at']).total_seconds() < USAGE_ITEMS_CACHE_SECONDS:
+    return _usage_items_cache['value']
+  since = now - datetime.timedelta(days=USAGE_LOOKBACK_DAYS)
+  value = {
+    "ci_only": usage_lib.ci_only_projects(since),
+    "web_only": usage_lib.web_only_users(since),
+    "products": usage_lib.tuning_products(since),
+  }
+  _usage_items_cache.update(at=now, value=value)
+  return value
 
 
 def value_checklist() -> list:
@@ -222,20 +240,20 @@ def value_checklist() -> list:
        "Projects have owners" if owners > 0 else ("No projects yet" if projects == 0 else "No project has an owner"),
        "Make the people in charge of each project its owners (Project > Access): they can then add their team, restrict who sees it, and get the access requests.")
 
-  since = tokens_lib.utcnow() - datetime.timedelta(days=USAGE_LOOKBACK_DAYS)
-  ci_only = usage_lib.ci_only_projects(since)
+  cached = usage_items()
+  ci_only = cached['ci_only']
   item('ci_only_projects', not ci_only,
        f"Every project with CI runs was looked at in the last {USAGE_LOOKBACK_DAYS} days" if not ci_only
        else f"{len(ci_only)} project{'s' if len(ci_only) > 1 else ''} get CI runs nobody looked at in {USAGE_LOOKBACK_DAYS} days",
        f"Show their teams around, or stop their CI jobs: {', '.join(ci_only[:5])}{'…' if len(ci_only) > 5 else ''} (Admin > Usage > Projects).")
 
-  web_only = usage_lib.web_only_users(since)
+  web_only = cached['web_only']
   item('web_only_users', not web_only,
        "Everyone active in the web app has used the CLI" if not web_only
        else f"{len(web_only)} user{'s' if len(web_only) > 1 else ''} active in the web app never used the CLI",
        "They only read results: `qa batch` from their terminal and `qa auth login` let them run and tune their own experiments (Admin > Usage > Users).")
 
-  products = usage_lib.tuning_products(since)
+  products = cached['products']
   without_tuning = sorted(product for product, tuning in products.items() if not tuning)
   item('tuning_products', not without_tuning,
        "Every product in use started a tuning" if not without_tuning
