@@ -1,13 +1,13 @@
 # Usage analytics: design and plan
 
-Status: proposal, 2026-11-03. To discuss before M1 starts.
+Status: decided 2026-11-03, M1-M3 in progress. Section 12 has the contract as built.
 
 ## TL;DR
 
 - **Own the events, in our PostgreSQL.** A single `usage_events` table, written by the backend, with a PostHog-shaped
-  event (`event`, who, `properties`, `timestamp`). Three producers: the web app (page views and feature events), the
-  backend itself (actions with server effects: batches started, exports, milestones), and the `qa` CLI (one event per
-  invocation by a person, never from CI). ~100 users at SIRC: that's tens of thousands of rows a day at most, nothing
+  event (`event`, who, `properties`, `timestamp`). Two producers: the web app (page views and feature events) and the
+  `qa` CLI (one event per invocation by a person, never from CI). The backend records nothing by itself: what the
+  server sees also includes automation, we want what people do. ~100 users at SIRC: that's tens of thousands of rows a day at most, nothing
   to shard or stream.
 - **Keep the door open to PostHog and friends** with a server-side *forwarder*: the backend can replay every event to
   a PostHog-compatible `capture` endpoint (or a Segment-compatible one) when a key is set. We don't take a dependency
@@ -58,11 +58,11 @@ Status: proposal, 2026-11-03. To discuss before M1 starts.
 3. **Events say what people did, not what the page showed.** Named after user intents (`commit_compare`,
    `tuning_start`, `image_viewer_pixel_pin`), with a short allowlist of properties. No free-text, no URLs with query
    strings, no pixel values, no file paths beyond the project. Sizes are capped server-side.
-4. **One owner per event.** Actions with server effects (batches started, exports, milestones) are recorded by the
-   backend where they happen: they count whoever triggers them, from the web app, the CLI or scripts. The web app
-   records views and interactions. Nothing is recorded twice.
-5. **Raw first, rollups when needed.** The dashboard queries the raw table with the right indexes. At our volume a
-   month is a few hundred thousand rows. A daily rollup table comes only if the dashboard gets slow (M4).
+4. **Producers record, the server stores.** The web app records views, interactions and the actions it starts
+   (batches, exports, milestones); the CLI records its invocations. The backend doesn't add events of its own:
+   server-side it can't tell people from automation. Nothing is recorded twice.
+5. **Raw, kept forever.** The dashboard queries the raw table with the right indexes. At our volume a month is a
+   few hundred thousand rows: no retention job and no rollups until a query is slow (M4).
 6. **Everything is exportable.** CSV from every table of the dashboard, SQL views for Metabase, an admin CLI command.
    Admins own the data; it doesn't leave the server unless they configure a forwarder.
 7. **Users see their own usage** (Settings → Activity). Admins see everyone's. Fair, and it makes "QA-Board records
@@ -94,9 +94,10 @@ Settings (`backend/settings.py`, overridable by the environment like the others)
 
 | Setting | Default | |
 |---|---|---|
-| `analytics.enabled` | `true` | Off: the endpoint answers 204 and records nothing, the web app and CLI don't send (they read it from `/api/v1/config`) |
-| `analytics.retention_days` | `400` | The worker deletes older raw events nightly (a year of trends, plus a margin) |
+| `analytics.enabled` | `true` | Off: the endpoint answers 204 and records nothing, the web app doesn't send (it reads `analytics_enabled` from `/api/v1/config`) |
 | `analytics.forward_url`, `$ANALYTICS_FORWARD_KEY` | none | M4: a PostHog-compatible `capture` endpoint, or Segment-compatible, that gets a copy of every event |
+
+No retention setting for now: the data is small, and we keep it all. One comes with the rollups if ever needed.
 
 Views for Metabase and SQL users, created by the migration and documented in the admin docs:
 
@@ -127,26 +128,15 @@ Properties in parentheses. Every event also gets `project_id` when it's about a 
 - `page_view` (route, project_id, commit_id, batch_label, has_reference, view: the commit page's tab)
   → active users, distinct commits looked at, which pages matter.
 
-**Web app, interactions** (where the feature is used; one event per feature per output opened, so holding a zoom
-key doesn't send 200 events):
+**Web app, interactions and actions** (where the feature is used; one event per feature per output opened, so
+holding a zoom key doesn't send 200 events):
 
-- `commit_compare` (same_branch, reference_is_milestone) when a reference is chosen or changed
-- `output_open` (viewer: images | video | plotly | text | html | pointcloud | flame_graph | junit | bit_accuracy | tof | slam)
-- `image_viewer_use` (feature: compare | diff | pixel_pin | region | histogram | analysis | annotations | colormap | adjustments | sync)
-- `filter_use` (kind: search | inputs | configurations | platforms)
-- `tuning_form_open` (kind: manual | automated)
-- `milestone_open`, `history_metric_select`, `dashboard_open`: covered by `page_view` + `route`, no extra event
-- `link_copy` (what: run | batch | commit | image_viewer)
+- `commit_compare` (same_branch) when a reference commit is chosen or changed
+- `output_open` (viewer: images | video | plotly | text | html | pointcloud | flame_graph | junit | bit_accuracy | tof | slam | ...)
+- `image_viewer_use` (feature: compare | pixel_pin | region | histogram | analysis | annotations | colormap | adjustments)
+- `batch_start` (kind: tuning | automated_tuning | run_tests | redo, n_runs) when the web app starts one
+- `batch_stop`, `batch_delete`, `export_start`, `milestone_save`
 - kept: `command_palette_open`, `command_palette_select`, `release_notes_popup`, `release_notes_open`
-
-**Backend** (`backend/usage.py`, in the endpoints):
-
-- `batch_start` (kind: tuning | automated_tuning | run_tests | redo, runner, n_runs, via: webapp | api)
-- `batch_stop`, `batch_delete`, `batch_rename_or_move`
-- `export_start` (format), `milestone_save` (kind: project | user), `annotations_save`
-- `runs_shared` (origin: local, n_runs): once per batch when a person's `qa --share` first sends runs to it
-  (CI runs are not events: they're in the batches table already)
-- `cli_sign_in` (`qa auth login` completes the device flow)
 
 **CLI** (`qaboard/analytics.py`, one per invocation, **only when not in CI**: `is_ci` is false, which also excludes
 the runs QA-Board starts, they set `CI`):
@@ -155,7 +145,8 @@ the runs QA-Board starts, they set `CI`):
   version, python, os, runner, share, tuning: bool, dryrun, n_batches, duration_s, exit_code)
 
 Not recorded: anything from `--offline` or `QA_NO_ANALYTICS=1`, Python API uses of `qaboard` without the CLI,
-hostnames, paths, input names, metric values.
+hostnames, paths, input names, metric values. `--share` is on by default in many repositories and semi-deprecated:
+the CLI event is sent whether or not results are, it's the only trace of `qa run` and `qa batch` on people's machines.
 
 ## 6. The clients
 
@@ -165,11 +156,12 @@ events, and on `visibilitychange: hidden` / `pagehide` with `navigator.sendBeaco
 for Sentry (`route_name`). Feature events are one-liners where the feature lives; the image viewer package stays
 free of the app (its adapter in `viewers/images/` gets an `onUse(feature)` callback, the way it gets its providers).
 
-**CLI.** `qa`'s group callback records the command and starts a timer; an `atexit` hook builds the event and sends
-it from a daemon thread with a 2 s timeout, joined for at most 0.3 s at exit. The sending reuses `api.headers_for`
-(so the token from `qa auth login`, `$QABOARD_TOKEN`...) and `api_verify`. It's skipped when `is_ci`, `--offline`,
-`QA_NO_ANALYTICS`, no server URL, or the server's `/api/v1/config` cached by `check_for_updates`'s daily check says
-`analytics.enabled` is false (we extend that cache file rather than add a request).
+**CLI.** `qa`'s group callback records the command and starts a timer; when the command ends (`main()` catches
+`SystemExit` to know the exit code), the event is sent from a daemon thread with 1 s connect and 2 s read timeouts,
+joined for at most 1 s so `qa` never hangs on a slow server. Nothing is printed, whatever happens. The sending reuses
+`api.headers_for` (the token from `qa auth login`, `$QABOARD_TOKEN`...) and `api_verify`. It's skipped when `is_ci`,
+`--offline`, `QA_NO_ANALYTICS`, or there is no server URL. The server drops the event when `analytics.enabled` is
+off (204): no extra request to ask first.
 
 **Forwarder (M4).** A worker-side loop (or the request's `after_request` with a bounded queue) POSTs batches to
 `analytics.forward_url` in PostHog's `batch` format (`api_key`, `batch: [{event, distinct_id, properties, timestamp}]`),
@@ -240,9 +232,8 @@ question for the SIRC deployment, not a code one.
 ## 10. Milestones
 
 **M1: the pipeline, and the web app** (backend + webapp, one PR each)
-- Migration, `UsageEvent` model, `backend/usage.py` (`track`, `record_batch`, validation, allowlists), `POST /api/v1/events`,
-  settings, nightly retention in the worker, server-side events in batch/export/milestones endpoints, tests with
-  the PostgreSQL fixtures.
+- Migration, `UsageEvent` model, `backend/usage.py` (validation, allowlists, inserts), `POST /api/v1/events`,
+  the `analytics.enabled` setting, tests with the PostgreSQL fixtures.
 - `webapp/src/analytics.js` queue + beacon, page views, the interaction events of section 5, `client_id`, tests.
 - Docs: admin page "Usage analytics" (what's recorded, settings, Metabase views), release note.
 
@@ -256,21 +247,73 @@ question for the SIRC deployment, not a code one.
 - The user guide and admin docs pages, release note highlights.
 
 **M4: later, as needed**
-- Forwarders (PostHog-compatible, Segment-compatible), daily rollups if the dashboard is slow, more events.
+- Forwarders (PostHog-compatible, Segment-compatible), daily rollups and a retention setting if the dashboard is
+  slow, more events, a `duration_s`/`exit_code` for the CLI if a second event turns out acceptable.
 
 Rough sizes: M1 is the largest (two days of work), M2 half a day, M3 two days, M4 a day. M1 and M2 can start together;
 M3 needs a week of real data to tune what's shown, the tables come first.
 
-## 11. Decisions for you
+## 11. Decisions (2026-11-03)
 
-1. **CLI: one event per invocation** (my pick: cheap, says which commands and runners people use, and the exit code
-   tells where `qa` fails for people) **or a daily ping** per user and machine (less data, same cost)?
-2. **CLI without a token**: record the user name it runs as, unverified (my pick: at SIRC `$USER` is the LDAP name,
-   and most people haven't run `qa auth login`), or only verified users (we'd miss most CLI use for months)?
-3. **Leaderboards of named users**: admin-only (my pick) or visible to everyone? A public one is a motivator in some
-   teams and a sore point in others. Users always see their own numbers.
-4. **Image viewer events**: the `feature` list of section 5, or fewer? Each is one line in the adapter.
-5. **Retention**: 400 days of raw events, and no rollups until needed?
-6. **Scope of M1**: with or without the server-side events (batches, exports, milestones)? Without, M1 is only the
-   web app's views and interactions, and "batches started" comes from the `batches` table (origin `webapp`), which
-   is enough for the dashboard's first version.
+1. CLI: one event per invocation, sent without blocking the command.
+2. CLI without a token: the user name it runs as, recorded unverified. A cloud version would require signing in anyway.
+3. Leaderboards: admin-only. Users see their own numbers.
+4. Image viewer and other feature events: the short list of section 5, no more for now.
+5. Retention: none, keep everything. The data is small.
+6. No server-side events: the producers (web app, CLI) send them. Server-side, people and automation look alike.
+
+## 12. The contract, as built
+
+**`POST /api/v1/events`** (and `/api/v1/events/`), JSON, also accepted as `text/plain` (what `sendBeacon` sends):
+
+```json
+{"source": "webapp", "events": [
+  {"event": "page_view", "timestamp": "2026-11-03T10:00:00.000Z", "project_id": "repo/sub",
+   "client_id": "9a1d…", "properties": {"route": "commit", "commit_id": "abc123", "has_reference": true}}
+]}
+```
+
+- `source`: `webapp` (default) or `cli`. The CLI also sends a top-level `user_name`, used only when the request
+  carries no session or token: the event is then `verified = false`, `user_id` is the account with that `user_name` if
+  any. With `ingest.auth = token`, unverified events are dropped.
+- Limits: 100 events and 64 KiB per request (413 above), 1000 events per minute per actor (429). Event names match
+  `^[a-z][a-z0-9_]{0,63}$`, properties have at most 40 keys matching `^[a-z_][a-z0-9_]{0,63}$`, values are strings
+  (cut at 200 chars), finite numbers, booleans, null, or lists of at most 20 of those. `project_id` is cut at 500
+  chars, `client_id` at 64. `timestamp` is ISO 8601, clamped to [now − 1 day, now + 5 min], missing means now.
+- Answers 204 when stored, or dropped (`analytics.enabled` off, unverified with `ingest.auth = token`); 400 when the
+  body isn't a JSON object with an `events` list. Never an error for a bad event: it's dropped.
+- The endpoint is in `INGEST_ENDPOINTS`: anonymous requests reach it when sign-in is required, like results do.
+
+**`GET /api/v1/config`** gets `analytics_enabled`.
+
+**Admin usage API** (admin only; `since`/`until` ISO dates, defaults: the last 30 days; `project` filters by project
+id or by product, the first path element; `format=csv` on the tables):
+
+- `GET /api/v1/admin/usage/summary` → `{since, until, counts, previous_counts}` with `users`, `web_users`,
+  `cli_users`, `new_users`, `unverified_cli_users`, `commits_viewed` (distinct project + commit of `page_view`),
+  `comparisons`, `outputs_opened`, `image_viewer_uses`, `batches_started` (web `batch_start` + CLI `batch` commands,
+  not dry runs), `batches_started_by_kind` (tuning, automated_tuning, run_tests, redo, cli), `cli_commands`,
+  `exports`, `milestones`, `ci_runs` (runs of batches with origin `ci`, from the `outputs` table).
+- `GET /api/v1/admin/usage/timeseries?bucket=day|week` → `{buckets: [{start, web_users, cli_users, commits_viewed,
+  outputs_opened, batches_started, cli_commands}]}`, weeks start on Monday.
+- `GET /api/v1/admin/usage/users` → `{users: [{user_id, user_name, full_name, verified, active_days, web_events,
+  cli_commands, commits_viewed, batches_started, last_seen_at, projects: [top 3 project ids]}]}`, most active first.
+- `GET /api/v1/admin/usage/groups` → `{groups: [{group_id, name, members, active_members, active_days, commits_viewed,
+  batches_started, cli_commands}]}`.
+- `GET /api/v1/admin/usage/projects` → `{projects: [{project_id, product, people, commits_viewed, outputs_opened,
+  batches_started, cli_commands, ci_runs, status}]}`, `status` ∈ `active` (people looked), `ci_only` (CI runs, nobody
+  looked), `quiet` (neither, but activity in the previous period), `new` (first event ever in the period).
+- `GET /api/v1/admin/usage/events?format=csv` → the raw events of the period, for spreadsheets.
+- `GET /api/v1/admin/usage/users/<user_id>` and, for users about themselves, `GET /api/v1/user/usage` →
+  `{since, until, total, active_days, first_seen_at, last_seen_at, by_event: [{event, count}],
+  by_project: [{project_id, count}]}`.
+- `GET /api/v1/admin/overview`: `counts.active_30d` becomes the users with a usage event or a sign-in in 30 days,
+  and `value_checklist` lists what to configure or look at (section 8), in the security checklist's item shape.
+- `qaboard-admin usage export --since --until [--format csv|json]` writes the raw events to stdout.
+
+**Web app**: `webapp/src/analytics.js` keeps `track(event, properties, {project_id})`: it feeds `posthog-js` when
+configured, and the queue to `/api/v1/events` when `analytics_enabled`. `/admin/usage` is the new admin tab,
+`/settings/activity` shows users their usage above their sign-ins, `/admin/users/:id` gets a Usage section.
+
+**CLI**: `qaboard/analytics.py`, `cli_command` with `command`, `version`, `python`, `os`, `share`, `tuning`,
+`dryrun`, `runner`, `n_batches`, `duration_s`, `exit_code`; `project_id` as the server knows the project.
