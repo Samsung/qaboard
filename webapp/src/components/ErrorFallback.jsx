@@ -10,6 +10,7 @@ import { ErrorBoundary, useLocationKey } from "./ErrorBoundary";
 import { errorDetails, isChunkError, reportUrl } from "../errors";
 import { useSiteConfig } from "../hooks";
 import { history } from "../router";
+import { app_title, usePageTitle } from "../pageTitle";
 import { copyText } from "../utils/clipboard";
 
 
@@ -153,6 +154,9 @@ const Feedback = ({ eventId, contact }) => {
 const can_go_back = () => (window.history.state?.idx ?? 0) > 0;
 
 
+// What the browser's tab says: "Something went wrong · QA-Board"
+export const error_tab_title = error => isChunkError(error) ? 'New version' : 'Something went wrong';
+
 // scope: 'page' (in the app, whose sidebar and navbar still work) or 'app' (nothing else renders)
 export const PageErrorFallback = ({ error, componentStack, eventId, retry, retries = 0, scope = 'page' }) => {
   const { reported, details, report_href } = useErrorReport({ error, componentStack, eventId });
@@ -160,13 +164,9 @@ export const PageErrorFallback = ({ error, componentStack, eventId, retry, retri
   const stale = isChunkError(error);
   const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
 
+  usePageTitle(app_title(error_tab_title(error)));
   // screen readers say what happened, keyboards start from here
-  useEffect(() => {
-    heading.current?.focus();
-    const title = document.title;
-    document.title = 'Something went wrong - QA-Board';
-    return () => { document.title = title; };
-  }, []);
+  useEffect(() => heading.current?.focus(), []);
 
   // trying again re-renders the page; when it failed again, reloading also loads its data and code again
   const reload = () => window.location.reload();

@@ -20,7 +20,7 @@ import ExplorePage from "./explore/ExplorePage";
 import HomePage from "./home/HomePage";
 import { useRecordProjectView } from "./explore/views";
 import { PageErrorBoundary } from "./components/ErrorBoundary";
-import { PageErrorFallback } from "./components/ErrorFallback";
+import { PageErrorFallback, error_tab_title } from "./components/ErrorFallback";
 import { PageShell } from "./components/PageShell";
 import EmptyLoading from "./components/EmptyLoading";
 import Footer from "./components/Footer";
@@ -81,7 +81,7 @@ const Analytics = () => {
 // in viewers (viewers/OutputViewer.jsx), in projects' pages (the sidebar and navbar still work), in the other pages,
 // and as a last resort, here, around everything.
 const appFallback = props => <PageErrorFallback {...props} scope="app"/>;
-const pageFallback = props => <PageShell><PageErrorFallback {...props}/></PageShell>;
+const pageFallback = props => <PageShell tab_title={error_tab_title(props.error)}><PageErrorFallback {...props}/></PageShell>;
 const projectPageFallback = props => <PageErrorFallback {...props}/>;
 
 

@@ -20,6 +20,7 @@ it('says what happened, and lets users try again', () => {
   const retry = vi.fn();
   renderWithProviders(<PageErrorFallback {...props} retry={retry}/>);
   expect(screen.getByRole('heading', { name: 'This page crashed' })).toHaveFocus();
+  expect(document.title).toBe('Something went wrong · QA-Board');
   expect(screen.getByText(/not something you did/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
   expect(retry).toHaveBeenCalled();
