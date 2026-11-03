@@ -95,9 +95,10 @@ uninstalling anything.
 Without any of them, `qa` uses `http://localhost:5151` and prints a warning. With `qa --offline`, it never contacts the
 server: your runs are only saved on disk.
 
-Outside CI, each `qa` command tells the server it ran (the command, the `qaboard` version, the project, how long it took:
-never your inputs or results), so that admins see how QA-Board is used ([usage analytics](/docs/backend-admin/usage-analytics)).
-It's sent in the background and never slows `qa` down. Set `QA_NO_ANALYTICS=1` to send nothing.
+Outside CI, each `qa` command tells the server it ran: the command, your user name, the `qaboard` version, the project,
+the runner, how long it took and whether it failed, never your inputs or results. Admins see how QA-Board is used from it
+([usage analytics](/docs/backend-admin/usage-analytics)). It's sent in the background, and adds at most a second when the
+server is slow. Set `QA_NO_ANALYTICS=1` to send nothing.
 
 If your server uses HTTPS with a certificate your machines don't trust, e.g. from your company's certificate
 authority, point `QABOARD_API_VERIFY` to the CA bundle, or turn off the checks of `qa`'s requests to the server:

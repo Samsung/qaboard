@@ -75,12 +75,12 @@ CREATE TABLE usage_events (
   id            BIGSERIAL PRIMARY KEY,
   created_at    TIMESTAMP NOT NULL,            -- when it happened (the client's time, clamped to ±1 day of receipt)
   received_at   TIMESTAMP NOT NULL DEFAULT now(),
-  source        TEXT NOT NULL,                 -- webapp | cli | server
+  source        TEXT NOT NULL,                 -- webapp | cli
   event         TEXT NOT NULL,                 -- snake_case, see the catalog
   user_id       INTEGER,                       -- no FK: events outlive accounts
   user_name     TEXT,                          -- as known at the time, or the CLI's unverified name
   verified      BOOLEAN NOT NULL DEFAULT true, -- false for CLI events sent without a token
-  client_id     TEXT,                          -- the browser's or machine's random id, to count distinct anonymous clients
+  client_id     TEXT,                          -- the browser's random id, to count distinct anonymous visitors (the CLI sends none)
   project_id    TEXT,                          -- repo/subproject, when the event is about a project
   properties    JSONB NOT NULL DEFAULT '{}'
 );
@@ -108,15 +108,13 @@ Views for Metabase and SQL users, created by the migration and documented in the
 ## 4. The ingestion API
 
 `POST /api/v1/events` with `{"events": [{event, properties, timestamp?, project_id?, client_id?}]}`, at most 100
-events and 64 KiB per request, answered with 204. The actor gives `user_id`/`user_name`; `source` is `cli` when the
-request carries the CLI's user agent (`qaboard/<version>`), else `webapp`. With `auth.require_sign_in` off, anonymous
-page views are recorded with no user and the browser's `client_id`.
+events and 64 KiB per request, answered with 204. The actor gives `user_id`/`user_name`; `source` is what the body
+says, `webapp` (default) or `cli`. With `auth.require_sign_in` off, anonymous page views are recorded with no user and
+the browser's `client_id`.
 
 From the CLI without a token, the body may carry `user_name`: recorded with `verified = false`. The endpoint is in
 `INGEST_ENDPOINTS` so it follows `ingest.auth`: with `token`, unverified events are dropped (204 anyway).
 
-Server-side events use `backend/usage.py`'s `track(event, project_id=..., **properties)`, same style as `audit()`:
-added to the request's session, committed with the change they describe, so a failed action records nothing.
 
 ## 5. Event catalog (first version)
 
@@ -238,8 +236,8 @@ question for the SIRC deployment, not a code one.
 - Docs: admin page "Usage analytics" (what's recorded, settings, Metabase views), release note.
 
 **M2: the CLI** (qaboard, one PR)
-- `qaboard/analytics.py`, hook in `qa.py`, cached `analytics.enabled`, `QA_NO_ANALYTICS`, tests (no network in tests:
-  the sender is injected), docs in the CLI reference and in the admin page, release note.
+- `qaboard/analytics.py`, hook in `qa.py`, `QA_NO_ANALYTICS`, nothing from the commands `qa batch` starts, tests (no
+  network in tests: the sender is injected), docs in the CLI reference and in the admin page, release note.
 
 **M3: Admin → Usage and the Overview list** (backend + webapp, two PRs)
 - `GET /api/v1/admin/usage/*`, CSV, `qaboard-admin usage export`; the tab, tiles, charts, leaderboards, adoption
@@ -248,7 +246,7 @@ question for the SIRC deployment, not a code one.
 
 **M4: later, as needed**
 - Forwarders (PostHog-compatible, Segment-compatible), daily rollups and a retention setting if the dashboard is
-  slow, more events, a `duration_s`/`exit_code` for the CLI if a second event turns out acceptable.
+  slow, more events.
 
 Rough sizes: M1 is the largest (two days of work), M2 half a day, M3 two days, M4 a day. M1 and M2 can start together;
 M3 needs a week of real data to tune what's shown, the tables come first.

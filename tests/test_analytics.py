@@ -41,6 +41,11 @@ class TestEnabled(unittest.TestCase):
       self.analytics.start('run', offline=True)
       self.assertFalse(self.analytics.enabled())
 
+  def test_not_from_the_commands_qa_batch_starts(self):
+    os.environ['QA_BATCH_ROOT_COMMAND_ID'] = 'abc'
+    with mock.patch('qaboard.config.is_ci', False), mock.patch('qaboard.api.qaboard_url_source', '$QABOARD_URL'):
+      self.assertFalse(self.analytics.enabled())
+
   def test_not_without_a_server(self):
     with mock.patch('qaboard.config.is_ci', False), mock.patch('qaboard.api.qaboard_url_source', None):
       self.assertFalse(self.analytics.enabled())
@@ -112,8 +117,9 @@ class TestSend(unittest.TestCase):
     with mock.patch('requests.post', side_effect=boom) as post:
       analytics.send({"source": "cli", "events": []})  # must not raise
     self.assertEqual(post.call_count, 1)
-    self.assertTrue(post.call_args.kwargs['url'] if 'url' in post.call_args.kwargs else post.call_args.args[0].endswith('/events'))
-    self.assertEqual(post.call_args.kwargs['timeout'], analytics.TIMEOUT)
+    args, kwargs = post.call_args
+    self.assertTrue((kwargs.get('url') or args[0]).endswith('/events'))
+    self.assertEqual(kwargs['timeout'], analytics.TIMEOUT)
 
 
 class TestFinish(unittest.TestCase):

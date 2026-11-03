@@ -27,8 +27,9 @@ to `token`, unverified events are dropped.
 
 Not recorded: IP addresses, user agents, URLs, file paths, input names, metric values or pixel values. The
 [audit log](/docs/backend-admin/user-management#admins-and-the-admin-panel) keeps the security events, with IPs,
-separately. Events are sent in the background, in batches: they never slow the web app or `qa` down, and are dropped
-when the server can't be reached.
+separately. Events are sent in the background, in batches, and dropped when the server can't be reached: the web app
+never waits for them, and `qa` waits at most a second for its event when the server is slow. The `qa run` and
+`qa batch` that `qa batch` and `qa optimize` start send nothing: one event per command people type.
 
 Users see their own numbers in **Settings → Activity**. Admins see everyone's.
 
@@ -40,7 +41,7 @@ project ids, e.g. `group/repo`):
   new users; commits looked at, comparisons, outputs opened, image viewer uses; batches started (tuning, automated
   tuning, "Run tests", redos, `qa batch` from terminals), `qa` commands, exports, milestones; and the CI's runs, for
   scale.
-- **Trends**: active users and commits looked at per day or week, batches started by kind.
+- **Trends**: active users and commits looked at per day or week, batches started and `qa` commands.
 - **Leaderboards**: users, groups (from your directory or single sign-on, see
   [Groups](/docs/backend-admin/project-access#groups)) and projects, with their active days, commits looked at,
   batches started and `qa` commands. Each table has a **CSV** button.
@@ -52,8 +53,8 @@ Each user's page in **Admin → Users** has a **Usage** card: their last 30 days
 
 **Admin → Overview** gets a **Get more from QA-Board** list next to the security checklist: what isn't configured
 yet (email notifications, single sign-on, git host webhooks, Sentry, annotation sources, a storage cleaning
-schedule, project owners), and what the usage says: projects with CI runs nobody looked at in 90 days, and users
-active in the web app who never used the CLI.
+schedule, project owners), and what the usage says: projects with CI runs nobody looked at in 90 days, users
+active in the web app who never used the CLI, and products in use where nobody started a tuning.
 
 ## Settings
 
@@ -101,10 +102,13 @@ come with the rollups, if a big server ever needs them.
 | `commit_compare` | web app | `same_branch` |
 | `output_open` | web app | `viewer` (images, video, plotly, text, html, pointcloud, flame_graph, junit, bit_accuracy...) |
 | `image_viewer_use` | web app | `feature` (compare, pixel_pin, region, histogram, analysis, annotations, colormap, adjustments) |
-| `batch_start` | web app | `kind` (tuning, automated_tuning, run_tests, redo), `n_runs` |
-| `batch_stop`, `batch_delete`, `export_start`, `milestone_save` | web app | |
+| `batch_start` | web app | `kind` (tuning, automated_tuning, run_tests, redo), `commit_id`, `n_runs` |
+| `batch_stop` | web app | `commit_id` |
+| `batch_delete` | web app | `files_only`, `only_failed`, `n_batches` |
+| `export_start` | web app | `export_type`, `n_runs`, `n_files` |
+| `milestone_save` | web app | `existing` |
 | `command_palette_open`, `command_palette_select`, `release_notes_popup`, `release_notes_open` | web app | `via`, `section`, `has_query`, `slug` |
-| `cli_command` | `qa` | `command`, `version`, `python`, `os`, `share`, `tuning`, `dryrun`, `runner`, `n_batches`, `duration_s`, `exit_code` |
+| `cli_command` | `qa` | `command` (run, batch, get, optimize, auth_login...), `version`, `python`, `os`, `share`, `tuning`, `dryrun`, `runner`, `n_batches`, `duration_s`, `exit_code` |
 
 Every event also has `source` (`webapp` or `cli`), `created_at`, `user_id`, `user_name`, `verified`, `project_id`,
 and `client_id`, a random id of the browser, to count anonymous visitors on servers that don't require signing in.

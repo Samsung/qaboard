@@ -131,7 +131,7 @@ DEFINITIONS = {
     'members', str, env='QABOARD_STORAGE_OTHERS_VISIBLE_TO', choices=('members', 'signed_in'),
   ),
   'analytics.enabled': Definition(
-    "Record what people do in the web app and with `qa` (Admin > Usage): page views, features used, commands run. Off: the clients send nothing, and whatever reaches the server is dropped.",
+    "Record what people do in the web app and with `qa` (Admin > Usage): page views, features used, commands run. Off: the web app sends nothing, and the server drops what reaches it.",
     True, bool, env='QABOARD_ANALYTICS_ENABLED', parse_env=env_flag,
   ),
   'storage.exports_root': Definition(

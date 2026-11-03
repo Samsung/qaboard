@@ -5,6 +5,7 @@ which commands people use, from which projects, on which versions, and where `qa
 It never gets in the way: the event is sent when the command ends, from a daemon thread with short timeouts, waited
 for at most a second, and nothing is printed whatever happens (except with QA_VERBOSE). Nothing is sent:
 - from CI (`config.is_ci`): CI runs are in QA-Board already, we want what people do,
+- from the `qa run` and `qa batch` that `qa batch` and `qa optimize` start (notify.is_nested),
 - with `qa --offline`, or QA_NO_ANALYTICS set to anything,
 - when nothing says where the server is (we don't send to the default localhost server).
 
@@ -40,6 +41,10 @@ def enabled(offline: Optional[bool] = None) -> bool:
     return False
   from .config import is_ci
   if is_ci:
+    return False
+  # the `qa run` and `qa batch` that `qa batch` and `qa optimize` start: one event per command people type
+  from .notify import is_nested
+  if is_nested():
     return False
   from .api import qaboard_url_source
   return bool(qaboard_url_source)
