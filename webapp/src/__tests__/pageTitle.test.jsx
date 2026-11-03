@@ -7,7 +7,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { unstable_HistoryRouter as HistoryRouter, useLocation } from 'react-router';
 
 import {
-  commit_title, list_title, history_title, app_title, runs_status, status_badge, useFinishedUnseen, useCommitTab,
+  commit_title, list_title, history_title, app_title, runs_status, status_badge, runs_summary, useFinishedUnseen, useCommitTab,
 } from '../pageTitle';
 import { ComparisonProvider } from '../hooks';
 import { history, matchRoutes, RouteMatch } from '../router';
@@ -63,24 +63,29 @@ describe('the status of the runs', () => {
     expect(runs_status(null)).toBeNull();
     expect(runs_status(batch({}))).toBeNull();
     expect(status_badge(null)).toEqual({ prefix: '', state: null });
+    expect(runs_summary(null)).toBe('');
   });
   it('counts the runs done while some are pending, red as soon as one failed', () => {
     const status = runs_status(batch({ valid_outputs: 10, failed_outputs: 2, pending_outputs: 28, running_outputs: 3 }));
     expect(status).toMatchObject({ done: 12, total: 40, pending: 28, failed: 2 });
     expect(status_badge(status)).toEqual({ prefix: '12/40 ', state: 'failed' });
     expect(status_badge(runs_status(batch({ valid_outputs: 12, pending_outputs: 28 })))).toEqual({ prefix: '12/40 ', state: 'running' });
+    expect(runs_summary(status)).toBe('12 of 40 runs done, 2 failed');
   });
   it('says how many failed once finished, and that it finished when nobody looked', () => {
     const failed = runs_status(batch({ valid_outputs: 37, failed_outputs: 3 }));
     expect(status_badge(failed)).toEqual({ prefix: '3✕ ', state: 'failed' });
+    expect(runs_summary(failed)).toBe('40 runs: 37 passed, 3 failed');
     const passed = runs_status(batch({ valid_outputs: 1 }));
     expect(status_badge(passed)).toEqual({ prefix: '', state: null });
     expect(status_badge(passed, { unseen: true })).toEqual({ prefix: '✓ ', state: 'finished' });
+    expect(runs_summary(passed)).toBe('1 run: 1 passed');
   });
   it('knows when qa batch is still starting, or failed to', () => {
     const submissions = status => ({ data: { submissions: { 1: { status, created_at: '2026-11-01' } } } });
     expect(status_badge(runs_status(batch(submissions('submitting'))))).toEqual({ prefix: '', state: 'running' });
     expect(status_badge(runs_status(batch(submissions('failed'))))).toEqual({ prefix: '✕ ', state: 'failed' });
+    expect(runs_summary(runs_status(batch(submissions('failed'))))).toBe('failed to start');
   });
 });
 
