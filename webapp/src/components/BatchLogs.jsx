@@ -210,7 +210,7 @@ const useFileExists = url => {
 /**
  * The logs of all the runs in a batch, and of the commands that started it.
  */
-export const BatchLogs = ({ batch, project, commit }) => {
+export const BatchLogs = ({ batch, project, commit, available_tests_files, repo_file_url }) => {
   const [filter, setFilter] = useState('all')
   const [expanded, setExpanded] = useState(() => new Set())
   const [limit, setLimit] = useState(PAGE_SIZE)
@@ -262,7 +262,14 @@ export const BatchLogs = ({ batch, project, commit }) => {
   }
 
   return <>
-    <BatchSubmissions key={batch.id} batch={batch} has_runs={Object.keys(batch.outputs ?? {}).length > 0} focus={focused_submission} />
+    <BatchSubmissions
+      key={batch.id}
+      batch={batch}
+      has_runs={Object.keys(batch.outputs ?? {}).length > 0}
+      focus={focused_submission}
+      available_tests_files={available_tests_files}
+      repo_file_url={repo_file_url}
+    />
     {has_submissions && <h3 className={Classes.HEADING}>Runs</h3>}
     {outputs.length > 0 && <ListToolbar>
       <SegmentedControl
