@@ -6,6 +6,7 @@ import { errorMessage } from "../api/http";
 import { useUser } from "../hooks";
 import { usePrefsStore } from "../stores/prefs";
 import { toaster } from "../toaster";
+import { track } from "../analytics";
 import {
   milestonesQuery, no_milestones, index_milestones, milestone_name,
   createMilestone, updateMilestone, deleteMilestone, setFavorite, setGroupFavorite, importMilestones,
@@ -34,6 +35,7 @@ export const useMilestoneActions = project => {
   const save = async (fields, existing) => {
     try {
       const saved = existing ? await updateMilestone(existing.id, fields) : await createMilestone({ project, ...fields });
+      track('milestone_save', { existing: !!existing }, { project_id: project });
       update(list => existing ? list.map(m => m.id === saved.id ? saved : m) : [saved, ...list]);
       queryClient.setQueryData(['milestone', saved.id], saved);
       toaster.show({

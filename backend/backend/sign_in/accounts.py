@@ -98,4 +98,7 @@ def oidc_account(provider, claims: dict, linking_user=None):
   db_session.flush()
   from ..audit import audit
   audit('user.create', 'user', user.id, user.user_name, user=user, meta={"provider": provider.id, "status": user.status})
+  # the `qa` commands they ran before signing in, as this name, are theirs (backend/usage.py)
+  from ..usage import claim_events
+  claim_events(user)
   return user, email

@@ -29,6 +29,7 @@ import {
   TabsExpander,
 } from "@blueprintjs/core";
 import { toaster } from "../../toaster"
+import { track } from "../../analytics"
 
 
 import templates from './templates'
@@ -472,6 +473,9 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
     http.post(`/api/v1/commit/${commit.id}/batch`, request, { params: { project } })
       .then(({ data }) => {
         setSubmitted(false);
+        // usage analytics: what people start from QA-Board
+        const kind = search_type === 'optimize' ? 'automated_tuning' : typeof combinations === 'number' && combinations > 1 ? 'tuning' : 'run_tests';
+        track('batch_start', { kind, commit_id: commit.id, n_runs: typeof data?.submission?.runs === 'number' ? data.submission.runs : undefined }, { project_id: project });
         // e.g. only the source files of the artifacts could be restored
         if (data?.warning) toaster.show({message: data.warning, intent: Intent.WARNING, timeout: 15000});
         if (data?.notification?.error) toaster.show({message: `No email when it ends: ${data.notification.error}`, intent: Intent.WARNING, timeout: 15000});

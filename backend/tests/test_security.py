@@ -450,6 +450,9 @@ UNAUTHENTICATED_ENDPOINTS = {
   ("sign_in.py", "my_access_request"),
   # the CLI sends results, checked by ingest_access: anonymous unless ingest.auth is "token" (see "Known issues" in SECURITY.md)
   ("outputs.py", "new_output_webhook"), ("batch.py", "update_batch"), ("commit.py", "api_ci_commit"),
+  # the web app and the CLI send usage events (backend/usage.py): the CLI's are unverified without a token, dropped
+  # when ingest.auth is "token", like results. Anonymous events have no user, they're counted and never resolved.
+  ("usage.py", "usage_events"),
   # the CLI's Jenkins runner triggers builds (anonymous unless sign-in is required). With a project (the web app): developers
   # and checks their status, the same way (jenkins_trigger_access)
   ("integrations.py", "jenkins_build_trigger"), ("integrations.py", "jenkins_build"),
@@ -1432,7 +1435,7 @@ UNCHECKED_PROJECT_ROUTES = {
   # admins: admin_required
   ("admin.py", "admin_audit"), ("admin_access.py", "admin_grants"), ("admin_access.py", "admin_delete_grant"),
   ("admin_jobs.py", "admin_estimate_job"), ("admin_jobs.py", "admin_jobs_projects"), ("admin_jobs.py", "admin_job_errors"),
-  ("admin_jobs.py", "admin_job_errors_csv"),
+  ("admin_jobs.py", "admin_job_errors_csv"), ("usage.py", "admin_usage_projects"),
   # storage usage: filters_from limits them to the projects users can read (allowed_projects), and users only
   # delete their own runs. Their deletions' errors are about their own runs.
   ("storage.py", "storage_overview"), ("storage.py", "storage_delete"), ("storage.py", "storage_job_errors"),

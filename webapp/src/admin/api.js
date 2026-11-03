@@ -1,7 +1,7 @@
 // The admin API (design/user-management.md, Appendix A.6). Writes go through http, then refresh the queries.
 import { queryOptions, infiniteQueryOptions, keepPreviousData } from "@tanstack/react-query";
 
-import { http } from "../api/http";
+import { http, buildUrl } from "../api/http";
 
 
 export const overviewQuery = queryOptions({
@@ -426,3 +426,31 @@ export const importScanRuns = async (queryClient, id, paths) => {
   invalidateScan(queryClient, id);
   return data;
 };
+
+
+// Admin → Usage: who uses QA-Board, how much, for what (docs/design/usage-analytics.md, section 12).
+// params: {since, until: ISO dates, project: a project id or a product (the first path element)}
+export const usageParams = ({ since, until, project } = {}) => ({ since: since || undefined, until: until || undefined, project: project || undefined });
+const usageQuery = (name, params, extra = {}) => queryOptions({
+  queryKey: ['admin', 'usage', name, { ...usageParams(params), ...extra }],
+  queryFn: async ({ signal }) => (await http.get(`/api/v1/admin/usage/${name}`, { params: { ...usageParams(params), ...extra }, signal })).data,
+  placeholderData: keepPreviousData,
+  staleTime: 60 * 1000,
+});
+// {since, until, counts, previous_counts}
+export const usageSummaryQuery = params => usageQuery('summary', params);
+// {buckets: [{start, web_users, cli_users, commits_viewed, outputs_opened, batches_started, cli_commands}]}
+export const usageTimeseriesQuery = (params, bucket = 'day') => usageQuery('timeseries', params, { bucket });
+// {users: [...]}, {groups: [...]}, {projects: [...]}: the leaderboards, most active first
+export const usageUsersQuery = params => usageQuery('users', params);
+export const usageGroupsQuery = params => usageQuery('groups', params);
+export const usageProjectsQuery = params => usageQuery('projects', params);
+// A user's last 30 days: {total, active_days, first_seen_at, last_seen_at, by_event, by_project}
+export const usageUserQuery = id => queryOptions({
+  queryKey: ['admin', 'usage', 'user', String(id)],
+  queryFn: async ({ signal }) => (await http.get(`/api/v1/admin/usage/users/${id}`, { signal })).data,
+  enabled: !!id,
+  staleTime: 60 * 1000,
+});
+// The same tables as CSV, for spreadsheets: users, groups, projects, or the raw events
+export const usageCsvUrl = (table, params) => buildUrl(`/api/v1/admin/usage/${table}`, { ...usageParams(params), format: 'csv' });

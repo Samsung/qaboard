@@ -99,6 +99,7 @@ import backend.api.admin_storage
 import backend.api.admin_services
 import backend.api.activity
 import backend.api.tasks
+import backend.api.usage
 import backend.api.files
 import backend.api.access
 import backend.api.admin_access

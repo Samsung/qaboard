@@ -511,7 +511,7 @@ def test_settings_list(admin):
     'auth.access_policy', 'auth.allowed_email_domains', 'auth.access_request_webhook', 'auth.sso_auto_redirect',
     'sessions.idle_days', 'sessions.max_days', 'projects.default_visibility', 'projects.signed_in_role',
     'storage.exports_root', 'storage.others_visible_to', 'jobs.failure_emails', 'jobs.failure_email_to',
-    'jenkins.anonymous_jobs',
+    'jenkins.anonymous_jobs', 'analytics.enabled',
   }
   assert all(s["source"] == "default" and s["editable"] and s["description"] for s in settings.values())
   assert settings["auth.require_sign_in"]["value"] is False and settings["auth.require_sign_in"]["env"] == "QABOARD_LOGIN_REQUIRED"
@@ -675,6 +675,62 @@ def test_overview(people, make_client):
   assert checklist["local_signup"]["ok"] is True
   # the test server has no QABOARD_WEBHOOK_SECRET
   assert checklist["webhook_secret"]["ok"] is False and "QABOARD_WEBHOOK_SECRET" in checklist["webhook_secret"]["detail"]
+
+
+# ---------------------------------------------------------------------------
+# Usage analytics: POST /api/v1/events, Admin > Usage, users' own usage
+# ---------------------------------------------------------------------------
+
+def test_usage_events_and_dashboard(people, make_client, logged_in):
+  admin = people
+  alice = login(make_client(), 'alice')
+  # the web app, signed in: who did it comes from the session, never from the body
+  response = alice.post('/api/v1/events', json={"source": "webapp", "user_name": "root", "events": [
+    {"event": "page_view", "project_id": "group/repo", "properties": {"route": "commit", "commit_id": "abc123", "has_reference": True}},
+    {"event": "batch_start", "project_id": "group/repo", "properties": {"kind": "tuning", "n_runs": 4}},
+    {"event": "not a name", "properties": {}},
+  ]})
+  assert response.status_code == 204
+  # a beacon: text/plain
+  response = alice.post('/api/v1/events', data='{"events": [{"event": "output_open", "project_id": "group/repo", "properties": {"viewer": "images"}}]}', content_type='text/plain')
+  assert response.status_code == 204
+  # the CLI without a token: recorded under the name it runs as, unverified, matched to the account
+  response = make_client().post('/api/v1/events', json={"source": "cli", "user_name": "bob", "events": [
+    {"event": "cli_command", "project_id": "group/repo", "properties": {"command": "batch", "runner": "local", "exit_code": 0}},
+  ]})
+  assert response.status_code == 204
+  assert make_client().post('/api/v1/events', json={"events": "nope"}).status_code == 400
+
+  summary = admin.get('/api/v1/admin/usage/summary?project=group').get_json()
+  assert summary["counts"]["web_users"] == 1 and summary["counts"]["cli_users"] == 1 and summary["counts"]["users"] == 2
+  assert summary["counts"]["commits_viewed"] == 1 and summary["counts"]["outputs_opened"] == 1
+  assert summary["counts"]["batches_started"] == 2 and summary["counts"]["batches_started_by_kind"]["tuning"] == 1
+  assert summary["counts"]["unverified_cli_users"] == 0
+  users = {u["user_name"]: u for u in admin.get('/api/v1/admin/usage/users').get_json()["users"]}
+  assert users["alice"]["verified"] is True and users["alice"]["commits_viewed"] == 1
+  assert users["bob"]["verified"] is False and users["bob"]["cli_commands"] == 1 and users["bob"]["user_id"] == user_id("bob")
+  projects = admin.get('/api/v1/admin/usage/projects').get_json()["projects"]
+  assert [p["project_id"] for p in projects] == ["group/repo"] and projects[0]["product"] == "group"
+  csv = admin.get('/api/v1/admin/usage/users?format=csv')
+  assert csv.status_code == 200 and csv.mimetype == 'text/csv' and 'alice' in csv.get_data(as_text=True)
+  buckets = admin.get('/api/v1/admin/usage/timeseries?bucket=day').get_json()["buckets"]
+  assert sum(b["web_users"] for b in buckets) == 1
+  assert admin.get('/api/v1/admin/usage/summary?since=2026-02-01&until=2026-01-01').status_code == 400
+  # users see their own usage, nobody else's
+  mine = alice.get('/api/v1/user/usage').get_json()
+  assert mine["total"] == 3 and mine["by_project"] == [{"project_id": "group/repo", "count": 3}]
+  assert alice.get('/api/v1/admin/usage/summary').status_code == 403
+  overview = admin.get('/api/v1/admin/overview').get_json()
+  assert {item["id"] for item in overview["value_checklist"]} >= {"email_notifications", "single_sign_on", "sentry", "ci_only_projects", "web_only_users"}
+  assert overview["counts"]["active_30d"] == 3
+
+
+def test_usage_can_be_turned_off(admin, make_client):
+  assert make_client().get('/api/v1/config').get_json()["analytics_enabled"] is True
+  assert admin.post('/api/v1/admin/settings', json={"analytics.enabled": False}).status_code == 200
+  assert make_client().get('/api/v1/config').get_json()["analytics_enabled"] is False
+  assert make_client().post('/api/v1/events', json={"source": "cli", "user_name": "bob", "events": [{"event": "cli_command"}]}).status_code == 204
+  assert admin.get('/api/v1/admin/usage/summary').get_json()["counts"]["events"] == 0
 
 
 def test_overview_checklist_follows_settings(admin, monkeypatch):

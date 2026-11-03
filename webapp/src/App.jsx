@@ -14,7 +14,8 @@ import { siteConfigQuery, userQuery } from "./api/queries";
 import { installLoginHandler } from "./components/authentication/login";
 import { toaster } from "./toaster";
 import { ComparisonProvider, useSelected } from "./hooks";
-import { initSentry, initPostHog, setUser } from "./analytics";
+import { initSentry, initPostHog, initUsage, setUser } from "./analytics";
+import { PageViews } from "./usePageViews";
 import { Layout } from "./components/layout";
 import ExplorePage from "./explore/ExplorePage";
 import HomePage from "./home/HomePage";
@@ -72,6 +73,7 @@ const Analytics = () => {
     if (!config) return;
     initSentry(config, route_name);
     initPostHog(config);
+    initUsage(config);
   }, [config]);
   useEffect(() => setUser(user), [user]);
   return null;
@@ -101,6 +103,8 @@ const App = ({ persist = true }) => {
             <HistoryRouter history={history}>
               {/* Ctrl+K on every page: projects, app pages, Home and Explore */}
               <CommandPaletteProvider>
+                {/* usage analytics: which pages people look at */}
+                <PageViews/>
                 <PageErrorBoundary name="routes" fallback={pageFallback}>
                   <Routes/>
                 </PageErrorBoundary>
@@ -157,7 +161,6 @@ const RecordProjectView = () => {
   useRecordProjectView(project);
   return null;
 }
-
 
 const ProjectApp = ({ pathname }) => {
   const matched = matchRoutes(routes, pathname);
