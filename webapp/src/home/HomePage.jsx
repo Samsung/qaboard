@@ -1,6 +1,6 @@
 // Home, for signed-in users: their projects, their batches (running, failed, recent) and their teammates', what's new.
 // Three columns on desktops, two on tablets, one on phones. Signed-out visitors get Explore instead (see App.jsx).
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import styled from "styled-components";
 
 import Footer from "../components/Footer";
@@ -9,6 +9,7 @@ import { useUser } from "../hooks";
 import { FromYourProjects, GetStarted, NeedsAttention, Recent, RunningNow, useFeed } from "./Feed";
 import { useMyProjects, YourProjects } from "./YourProjects";
 import { Learn, WhatsNew, YourStorage } from "./SideCards";
+import { usePageTitle, app_title } from "../pageTitle";
 
 
 const Grid = styled.main`
@@ -52,9 +53,7 @@ const PageTitle = styled.h1`
 const HomePage = () => {
   const user = useUser();
   const feed = useFeed();
-  useEffect(() => {
-    document.title = 'Home - QA-Board';
-  }, []);
+  usePageTitle(app_title('Home'));
   const my_batches = useMemo(() => [...(feed.running.data ?? []), ...(feed.recent.data ?? [])], [feed.running.data, feed.recent.data]);
   const { query: projects_query, projects } = useMyProjects(my_batches);
   const project_ids = useMemo(() => projects.slice(0, 50).map(p => p.id), [projects]);

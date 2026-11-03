@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { DateTime } from "luxon";
 import styled from "styled-components";
 
@@ -23,6 +23,7 @@ import { TableCompare, TableKpi } from "./components/tables";
 import { useCommitsList, useComparison, updateSelected, used_metrics_signature, with_used_metrics } from "./hooks";
 import { errorMessage } from "./api/http";
 import { metric_info, with_undeclared_metrics } from "./utils";
+import { usePageTitle, history_title } from "./pageTitle";
 
 
 // Like the views of the commit pages: the title on a row above the card
@@ -69,10 +70,7 @@ const Dashboard = () => {
   const table_labels = useMemo(() => [labels.new, labels.reference], [labels]);
   const { commits, error, refetch, isPending, isFetching, date_range, qatools_metrics } = useCommitsList();
 
-  useEffect(() => {
-    let name = project.split('/').slice(-1)[0];
-    document.title = `History - ${name}`;
-  }, [project]);
+  usePageTitle(history_title({ project, branch: selected.branch }));
 
   // On branches, the metrics configuration comes from the latest commit. All the metrics of the runs are shown, declared or not.
   const used_metrics = new_batch.used_metrics;

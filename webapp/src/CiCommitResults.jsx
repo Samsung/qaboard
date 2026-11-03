@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import styled from "styled-components";
 
 import {
@@ -36,6 +36,7 @@ import { useSidePanelExpanded } from "./components/SidePanel";
 import { SharedConfigurationContext } from "./configurations/ConfigurationsTags";
 import { ConfigurationOverview } from "./configurations/ConfigurationOverview";
 import { shared_configuration, reference_pairs, changes_in_all_runs } from "./configurations/tokens";
+import { useCommitTab } from "./pageTitle";
 
 
 // Every view of the commit: its title (and maybe a few muted details) on one row above its content
@@ -105,11 +106,8 @@ const CiCommitResults = () => {
   const user = useUser();
   const refreshCommit = useRefreshCommit();
 
-  useEffect(() => {
-    const name = project.split('/').slice(-1)[0];
-    if (!!new_commit_id)
-      document.title = `${new_commit_id.slice(0, 4)} - ${name}`;
-  }, [project, new_commit_id]);
+  // the tab's title and icon: what the page shows, and the status of its runs
+  useCommitTab();
 
   const [controls, setControls] = useViewerControls(config);
   // Registrations are reset when the commit or batch changes, or when the visualizations change.

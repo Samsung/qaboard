@@ -78,6 +78,21 @@ describe('CommitNavbar', () => {
     await waitFor(() => expect(fetch.mock.calls.some(([url, init]) => url.startsWith('/api/v1/batch/3/') && init.method === 'DELETE')).toBe(true));
   });
 
+  it('copies a link to the page that pastes as its name', async () => {
+    const write = vi.fn(async () => {});
+    Object.defineProperty(navigator, 'clipboard', { value: { write }, configurable: true });
+    vi.stubGlobal('isSecureContext', true);
+    vi.stubGlobal('ClipboardItem', class { constructor(items) { this.items = items; } });
+    renderNavbar({ link: { text: 'ISP v2 · p', details: 'Faster denoising' } });
+    fireEvent.click(screen.getByLabelText('Copy a link to this page'));
+    await waitFor(() => expect(write).toHaveBeenCalled());
+    const [item] = write.mock.calls[0][0];
+    const blobText = blob => new Promise(resolve => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.readAsText(blob); });
+    expect(await blobText(item.items['text/html'])).toBe(`<a href="${window.location.href}">ISP v2 · p</a>: Faster denoising`);
+    expect(await blobText(item.items['text/plain'])).toBe(window.location.href);
+    delete navigator.clipboard;
+  });
+
   it("doesn't show placeholders for a commit that failed to load", () => {
     const { container } = renderNavbar({ commit: { id: commit.id, batches: {}, is_loaded: true, error: '500 Internal Server Error' } });
     expect(screen.getByText('Could not load this commit')).toBeInTheDocument();
