@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.1ea43c36.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.635eb55a.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.f0087e9e.js" defer="defer"></script>
 </head>
 <body>
@@ -92,8 +92,9 @@ they may not match the committed code.</p>
 <p>On the commit page, open the <strong>Change</strong> menu of the reference&#x27;s bar and pick the release&#x27;s milestone. See
 <a class="" href="/qaboard/docs/user-guide/milestones">Milestones</a>.</p>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="how-do-i-show-a-colleague-what-i-see">How do I show a colleague what I see?<a href="#how-do-i-show-a-colleague-what-i-see" class="hash-link" aria-label="Direct link to How do I show a colleague what I see?" title="Direct link to How do I show a colleague what I see?" translate="no">​</a></h3>
-<p>Copy the page&#x27;s link from your browser: it holds the commits, batches, filters, the view and how images are compared,
-but not the zoom. See <a class="" href="/qaboard/docs/user-guide/sharing">Sharing</a>.</p>
+<p>Click the <strong>link button</strong> in the commit&#x27;s bar: in chats and documents the link reads like the page&#x27;s tab, with the
+commit and the runs&#x27; status. It holds the commits, batches, filters, the view and how images are compared, but not the
+zoom. See <a class="" href="/qaboard/docs/user-guide/sharing">Sharing</a>.</p>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="where-are-the-files">Where are the files?<a href="#where-are-the-files" class="hash-link" aria-label="Direct link to Where are the files?" title="Direct link to Where are the files?" translate="no">​</a></h3>
 <p>On a shared storage. Open a run&#x27;s folder with the folder icon of its card, copy paths from the ☰ menus, or see
 <a class="" href="/qaboard/docs/storage/where-is-the-data">Where is the data saved?</a>.</p>
@@ -123,6 +124,11 @@ viewer.</li>
 <details class="details_lb9f alert alert--info details_b_Ee" data-collapsed="true"><summary>Shortcuts of the other tools</summary><div><div class="collapsibleContent_i85q"><table><thead><tr><th>Key</th><th>Where</th><th>What it does</th></tr></thead><tbody><tr><td><kbd>Ctrl</kbd> / <kbd>Shift</kbd> + click</td><td>Output Files, Artifacts &amp; Configs</td><td>Select several files to diff.</td></tr><tr><td><kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>F</kbd></td><td>Logs</td><td>Search the log. <kbd>Enter</kbd> and <kbd>Shift</kbd> + <kbd>Enter</kbd> go to the next or previous match, <kbd>Esc</kbd> clears the search.</td></tr><tr><td><kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>S</kbd></td><td>Available Tests</td><td>Save the batches file.</td></tr><tr><td>↑ ↓ <kbd>Enter</kbd></td><td>Batch selector, search suggestions</td><td>Pick an item without the mouse.</td></tr><tr><td><kbd>F2</kbd>, <kbd>Delete</kbd>, <kbd>Alt</kbd> + <kbd>←</kbd> <kbd>→</kbd></td><td>A reference&#x27;s tab, when it has the focus</td><td>Rename it, remove it, move it left or right.</td></tr></tbody></table></div></div></details>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="tricks-worth-knowing">Tricks worth knowing<a href="#tricks-worth-knowing" class="hash-link" aria-label="Direct link to Tricks worth knowing" title="Direct link to Tricks worth knowing" translate="no">​</a></h2>
 <ul>
+<li class=""><strong>Tell your tabs apart</strong>: tabs are named after what they show, the names you gave the results, their milestone, the
+batch, else the commit and its branch, then the project (<em>ISP v2 vs baseline · isp</em>). While runs are pending, the
+title counts those done (<em>12/40</em>), then says how many failed (<em>3✕</em>), and the icon gets a dot: yellow while they run,
+red when some failed, green when they finished while you were in another tab. Background tabs keep up without
+downloading the results.</li>
 <li class=""><strong>Hover a run&#x27;s name</strong> on its card, then click <strong>History</strong>, to see the
 <a class="" href="/qaboard/docs/user-guide/history-and-dashboards">history</a> of that input.</li>
 <li class=""><strong>Hover almost anything</strong>: metric names show their description, values their exact number, <code>≠</code> tags explain
