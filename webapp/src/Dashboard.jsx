@@ -16,6 +16,7 @@ import {
 
 import CommitsEvolution from "./CommitsEvolution";
 import { Container, Section } from "./components/layout";
+import { SectionErrorBoundary } from "./components/ErrorFallback";
 import { MetricsSummary, MetricSelect } from "./components/metrics";
 import { TableCompare, TableKpi } from "./components/tables";
 
@@ -26,10 +27,14 @@ import { usePageTitle, history_title } from "./pageTitle";
 
 
 // Like the views of the commit pages: the title on a row above the card
-const ViewSection = styled(Section)`
+const ViewSectionBox = styled(Section)`
   margin-top: 0;
   margin-bottom: 32px;
 `;
+// a view that crashes doesn't take the others with it
+const ViewSection = ({ children, ...props }) => <ViewSectionBox {...props}>
+  <SectionErrorBoundary>{children}</SectionErrorBoundary>
+</ViewSectionBox>;
 const ViewHeader = styled.div`
   display: flex;
   align-items: baseline;
