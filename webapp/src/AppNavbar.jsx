@@ -24,8 +24,6 @@ import { commit_bar_height, shows_reference_bar } from "./components/layout";
 import { useBranches, useCommitsList, useComparison, useUrlText, updateSelected } from "./hooks";
 
 import { sider_width } from './AppSider'
-import { CopyLinkButton } from "./components/CopyLinkButton";
-import { useCommitTitleParts, commit_title, runs_status, runs_summary, list_title, history_title } from "./pageTitle";
 
 const DateRangeInput = lazy(() => import("./components/DateRangeInput"));
 
@@ -142,9 +140,6 @@ const CommitsNavbars = () => {
   }
   const show_ref_navbar = shows_reference_bar(selected_views)
   const [new_side, ref_side] = compared
-  // the link to the page, as it pastes in chats: its name, the commit, the runs
-  const title_parts = useCommitTitleParts()
-  const link = { text: commit_title(title_parts), details: [title_parts.message, runs_summary(runs_status(title_parts.batch))].filter(Boolean).join(' · ') }
   // e.g. the latest commit of the reference branch, compared to itself
   const same_as_new = !!new_commit?.id && new_commit.id === ref_commit?.id
     && (selected.new_project ?? project) === (selected.ref_project ?? project)
@@ -163,7 +158,6 @@ const CommitsNavbars = () => {
         selected={selected}
         type="new"
         side={new_side}
-        link={link}
       />
     </StyledNavbarNew>
     {show_ref_navbar && <StyledNavbarRef className="qa-ref-bar" style={{ '--side-color': ref_side.color.css }}>
@@ -253,7 +247,6 @@ const CommitsListNavbar = () => {
             <Button icon="refresh" aria-label="Check for new commits" disabled={list.isFetching} minimal onClick={() => list.refetch()}/>
           </Tooltip>
         </div>
-        <CopyLinkButton text={route.is_history ? history_title({ project, branch: selected.branch }) : list_title({ project, branch: selected.branch, committer: selected.committer })}/>
         {list.isFetching && <div style={{marginLeft: '15px'}}><Spinner size={16} /></div>}
       </NavbarGroup>
       <NavbarGroup align="right">

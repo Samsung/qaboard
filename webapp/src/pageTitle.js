@@ -83,18 +83,6 @@ export const status_badge = (status, { unseen = false } = {}) => {
   return unseen ? { prefix: '✓ ', state: 'finished' } : { prefix: '', state: null }
 }
 
-// "40 runs: 37 passed, 3 failed", "12 of 40 runs done, 2 failed"... for link previews. '' without runs.
-export const runs_summary = status => {
-  if (!status) return ''
-  if (status.failed_to_start) return 'failed to start'
-  if (status.starting) return 'starting'
-  const runs = n => `${n} run${n === 1 ? '' : 's'}`
-  const failed = status.failed > 0 ? `, ${status.failed} failed` : ''
-  if (status.pending > 0) return `${status.done} of ${runs(status.total)} done${failed}`
-  const passed = status.total - status.failed
-  return `${runs(status.total)}: ${passed} passed${failed}`
-}
-
 
 // Sets the tab's title. Every page calls it: a page that doesn't keeps the title of the previous one.
 export const usePageTitle = title => {
@@ -131,7 +119,7 @@ export const useFinishedUnseen = ({ key, pending }) => {
 // `side.label` is what users called the results, else their milestone's name, else "new" or "ref 2"
 const name_of = side => side && (side.milestone || side.label !== side.default_label) ? side.label : null
 
-export const useCommitTitleParts = () => {
+const useCommitTitleParts = () => {
   const { project, selected, new_commit, new_batch, selected_views, compared } = useComparison()
   const [new_side, ref_side] = compared ?? []
   const commit_id = new_commit?.id ?? selected.new_commit_id
@@ -139,7 +127,6 @@ export const useCommitTitleParts = () => {
     project, commit_id,
     name_new: name_of(new_side), name_ref: name_of(ref_side),
     branch: new_commit?.branch, batch: new_batch, views: selected_views ?? [],
-    message: (new_commit?.message ?? '').split('\n')[0].trim(),
   }
 }
 
