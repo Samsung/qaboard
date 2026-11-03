@@ -157,7 +157,15 @@ const App = () => {
     { x: 0, y: 213, w: 120, h: 107, label: 'Red patch' },
     { x: 0, y: 427, w: 80, h: 60, label: 'Lines' },
     { x: 520, y: 480, w: 400, h: 140, label: 'Text' },
-  ] }];
+  ] }, {
+    // like annotations from another app: the whole image with the regions outlined, details on the region picked
+    id: 'annotations', label: 'Annotations', section: 'Annotations', overview: true, announce: true, noun: 'annotations',
+    regions: [
+      { x: 30, y: 230, w: 60, h: 60, label: 'Color shift', color: '#e5484d', tags: ['chart'], fields: { Importance: 'High', score: 2.63 }, detail: 'Workspace 12', href: '#', hrefLabel: 'Open in the app' },
+      { x: 540, y: 500, w: 160, h: 60, label: 'Ringing edge', color: '#30a46c', fields: { Importance: 'Low' }, detail: 'Workspace 12' },
+      { x: 300, y: 60, w: 220, h: 120, label: 'Noise', fields: { Importance: 'Medium' }, detail: 'Workspace 3' },
+    ],
+  }];
   return <div style={{ padding: 16, fontFamily: 'system-ui, sans-serif', background: theme === 'dark' ? '#252a31' : '#fff', minHeight: '100vh' }}>
     <p>
       <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme} theme</button>

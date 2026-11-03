@@ -27,7 +27,7 @@ export const SettingsPage = () => {
   const { match, history } = useRouter();
   const selected = tabs.find(tab => tab.id === match.params?.tab) ?? tabs[0];
   const { Panel } = selected;
-  return <PageShell title="Settings">
+  return <PageShell title="Settings" tab_title={selected.title}>
     <RequireLogin what="see your settings">
       {user => <>
         <ScrollingTabs>

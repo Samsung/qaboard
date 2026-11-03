@@ -7,7 +7,7 @@ description: "Report the errors and traces of QA-Board's web app, backend, jobs 
 QA-Board can report errors and performance data to [Sentry](https://sentry.io), or to your own [self-hosted Sentry](https://develop.sentry.dev/self-hosted/):
 
 - **Backend**: errors, traces of the API requests with their database queries, and profiles (which functions take time).
-- **Web app**: errors with readable stack traces (if you upload the source maps), page loads and navigations with their web vitals (LCP, CLS, INP), the API calls they make, and session replays. The backend's traces continue the web app's, so you see a page load and the API requests it made in the same trace.
+- **Web app**: errors with readable stack traces (if you upload the source maps), page loads and navigations with their web vitals (LCP, CLS, INP), the API calls they make, and session replays. When a page or a viewer crashes, users see that the error was reported, and can add what they were doing: it comes as user feedback, linked to the error. The `error_boundary` tag says what crashed (`viewer`, `page`, `routes`, `app`). The backend's traces continue the web app's, so you see a page load and the API requests it made in the same trace.
 - **Celery workers**: errors and traces of the tasks.
 - **Jobs worker**: the server's jobs (Admin → Storage) that fail or go wrong, see [below](#jobs-worker).
 - **`qa` in CI**: errors, see [below](#the-qa-cli).

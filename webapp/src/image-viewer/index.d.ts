@@ -74,6 +74,13 @@ export interface Region {
   color?: string;
   imageWidth?: number;
   imageHeight?: number;
+  /** What it says about itself, under the thumbnails when it's shown, e.g. an annotation's */
+  detail?: string;
+  tags?: string[];
+  fields?: Record<string, string | number>;
+  /** A link, e.g. to the region in the app it comes from */
+  href?: string;
+  hrefLabel?: string;
 }
 
 export interface RegionSet {
@@ -90,6 +97,15 @@ export interface RegionSet {
   empty?: string;
   /** The app's settings of the set, shown next to its name above the regions, e.g. the size of the differences */
   settings?: ReactNode;
+  /** Its section in the regions menu. Default: "Regions of interest" */
+  section?: string;
+  /** Picking it shows the whole image with all its regions outlined, not its first region, e.g. annotations */
+  overview?: boolean;
+  /** The regions button says when it has regions, e.g. "4 annotations" (noun, default "regions") */
+  announce?: boolean;
+  noun?: string;
+  /** How many regions it says it has, when it shows only some, e.g. the annotations of the groups users picked */
+  total?: number;
 }
 
 /** A blind test: what the image (`image`, not `reference`) is called, and whether users revealed which is which */

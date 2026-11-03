@@ -53,10 +53,28 @@ for (const { name, path, text } of pages) {
     await page.goto(path);
     await expect(page.getByText('Alice').first()).toBeVisible();
     await expect(page.getByText(text).first()).toBeVisible();
-    await expect(page.getByText('Sorry, something went wrong')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: /crashed/ })).toHaveCount(0);
     await page.waitForLoadState('networkidle');
   });
 }
+
+// A page that crashes, here on a commit whose batches aren't an object, shows an error page instead of a blank app,
+// and the app works again on the next page
+test('crashes are caught, and users get back', async ({ page }, testInfo) => {
+  await page.route(url => /^\/api\/v1\/commit\/?$/.test(url.pathname), route => route.fulfill({ json: { ...commit, batches: 'not an object' } }));
+  await page.goto(`/${project}/commit/abc123?token=secret`);
+  await expect(page.getByRole('heading', { name: 'This page crashed' })).toBeVisible();
+  // without Sentry, users report it themselves, without the URL's secrets
+  const report = page.getByRole('button', { name: 'Report the problem' });
+  expect(decodeURIComponent(await report.getAttribute('href'))).toContain('token=[Filtered]');
+  await page.getByRole('button', { name: 'All projects' }).click();
+  await expect(page).toHaveURL(/\/projects$/);
+  await expect(page.getByRole('heading', { name: 'This page crashed' })).toHaveCount(0);
+  await expect(page.getByPlaceholder('Filter projects...')).toBeVisible();
+  // React logs the errors that boundaries catch
+  // (#520: React rendered again synchronously before the boundary caught it)
+  testInfo.errors_seen = testInfo.errors_seen.filter(message => !/reading 'match'|React error #520|able to recover/.test(message));
+});
 
 // Explore: groups, subprojects, quiet ones, and the sparklines, at phone width too
 test('explore', async ({ page }) => {
@@ -189,7 +207,7 @@ test('switch to a branch seen in a previous session', async ({ page }) => {
   await page.getByRole('link', { name: 'master', exact: true }).first().click();
   await expect(page).toHaveURL(new RegExp(`/${project}/commits/master`));
   await expect(page.getByText('Hello world').first()).toBeVisible();
-  await expect(page.getByText('Sorry, something went wrong')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: /crashed/ })).toHaveCount(0);
 });
 
 // The History page has the project's navigation too, and the sidebar navigates without reloading the app

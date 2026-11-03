@@ -28,6 +28,7 @@ from .auth import is_authorized_user, get_current_user, forbidden_project
 from ..mine import identity_of, commit_is_mine, batch_is_mine, batch_is_not_mine, batch_origin_in, parse_origins, SCOPES, BATCH_SCOPES
 from ..notifications.mail import email_enabled
 from ..settings import setting, sandbox_html
+from ..annotations import describe_sources
 
 to_datetime = lambda s: timezone.localize(datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ'))
 timezone = pytz.timezone("utc")
@@ -84,6 +85,8 @@ def get_site_config():
         "email_notifications": email_enabled(),
         # The runs' HTML runs apart from the app (its scripts in an origin of their own): see website/docs/viewers.mdx
         "sandbox_html": sandbox_html(),
+        # Where the image viewer finds annotations: [{id, label, description}] (backend/annotations.py)
+        "annotation_sources": describe_sources(),
     })
 
 

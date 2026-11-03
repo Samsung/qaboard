@@ -34,6 +34,7 @@ import {
   baseName, breadcrumbs, filterEntries, formatAbsoluteTime, formatRelativeTime, formatSize, formatSummary, iconName,
   joinPath, linuxPath, parentPath, parseLocation, pathFromUrl, sortEntries, summarize, urlFromPath, windowsPath,
 } from "./logic";
+import { usePageTitle, app_title } from "../pageTitle"
 
 
 const theme_icons = { system: <DesktopIcon/>, light: <FlashIcon/>, dark: <MoonIcon/> };
@@ -168,9 +169,7 @@ export default function FileBrowser() {
     return () => { cancelled = true }
   }, [path, reloads, getListing])
 
-  useEffect(() => {
-    document.title = `${baseName(path) || '/'} · QA-Board`
-  }, [path])
+  usePageTitle(app_title(baseName(path) || '/'))
 
   // Navigation without reloading the page
   const navigate = useCallback((to, { focus = null } = {}) => {

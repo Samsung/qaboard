@@ -23,11 +23,12 @@ import {
 import AuthButton from "../components/authentication/Auth";
 import { useUser } from "../hooks";
 import { pretty_label } from "../utils";
-import { copyWithToast } from "../utils/clipboard";
+import { copyLink } from "../utils/clipboard";
 import {
   milestone_name, milestone_url, owner_name, relative_date, results_project, dataset_label,
 } from "./api";
 import { useMilestones, useMilestoneActions } from "./hooks";
+import { join_title, project_name } from "../pageTitle";
 
 
 const Summary = styled.div`
@@ -274,7 +275,11 @@ const MilestoneForm = ({ project, milestone: existing, target: new_target, runs,
     </DialogBody>
     <DialogFooter
       actions={<>
-        {!!milestone && <Button icon="link" text="Copy link" variant="minimal" onClick={() => copyWithToast(milestone_url(milestone), { what: 'the link to the milestone' })}/>}
+        {!!milestone && <Button icon="link" text="Copy link" variant="minimal" onClick={() => copyLink({
+          url: milestone_url(milestone),
+          text: join_title(milestone_name(milestone), project_name(results_project(milestone))),
+          details: (milestone.notes ?? '').split('\n')[0].trim(),
+        }, { what: 'the link to the milestone' })}/>}
         <Button text={read_only ? 'Close' : 'Cancel'} onClick={onClose}/>
         {!read_only && <Button type="submit" intent={Intent.PRIMARY} icon="star" text={milestone ? 'Save' : 'Save milestone'} loading={saving} disabled={!label.trim()}/>}
       </>}

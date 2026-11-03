@@ -720,6 +720,94 @@
   white-space: nowrap;
 }
 
+/* What the active region says about itself, e.g. an annotation */
+.qiv-region-details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 2px 0 4px;
+  font-size: 12px;
+}
+.qiv-region-details-label {
+  font-weight: 600;
+}
+.qiv-region-field {
+  font-variant-numeric: tabular-nums;
+}
+.qiv-region-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--qiv-accent);
+}
+/* The regions button says when there are some, e.g. annotations */
+.qiv-announce {
+  color: var(--qiv-accent);
+  background: var(--qiv-pressed);
+}
+
+/* The regions outlined on the images */
+.qiv-outlines {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+.qiv-outlines svg {
+  display: block;
+}
+.qiv-outline-halo {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 3;
+}
+.qiv-outline-line {
+  fill-opacity: 0;
+  stroke-width: 1.5;
+}
+.qiv-outlines-focus .qiv-outline:not(.qiv-outline-active):not(.qiv-outline-hovered) {
+  opacity: 0.55;
+}
+.qiv-outline-hovered .qiv-outline-line {
+  fill-opacity: 0.08;
+}
+.qiv-outline-active .qiv-outline-halo {
+  stroke-width: 4.5;
+}
+.qiv-outline-active .qiv-outline-line {
+  stroke-width: 2.5;
+  fill-opacity: 0.06;
+}
+.qiv-outline-label {
+  position: absolute;
+  max-width: 180px;
+  height: 16px;
+  padding: 0 5px;
+  overflow: hidden;
+  border: 0;
+  border-left: 3px solid;
+  border-radius: 2px;
+  background: rgba(17, 20, 24, 0.82);
+  color: #fff;
+  font: inherit;
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.qiv-outline-label:hover,
+.qiv-outline-label.qiv-active {
+  z-index: 1;
+  background: rgba(17, 20, 24, 0.95);
+}
+.qiv-outlines-focus .qiv-outline-label:not(.qiv-active):not(:hover) {
+  opacity: 0.75;
+}
+
 /* The analysis panel: histogram, profiles, statistics */
 .qiv-analysis {
   margin-top: 6px;

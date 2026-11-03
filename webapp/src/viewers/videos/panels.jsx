@@ -292,7 +292,7 @@ export const FrameBadge = memo(({ controller, comparing, names, frameType }) => 
 
 export const SHORTCUTS = [
   ['Space, k', 'Play / pause (or click the video)'],
-  ['Shift+click', "Pin the pixel: its values stay while you move the mouse away, to select them. Esc, or leaving the video and coming back, follows the pointer again"],
+  ['Shift+click', "Pin the pixel: its values stay while you move the mouse away, to select them. Esc, or leaving the viewer and coming back, follows the pointer again"],
   ['← → , .', 'Previous / next frame'],
   ['Shift ← →', 'Back / forward 1 second'],
   ['Home End', 'First / last frame'],
