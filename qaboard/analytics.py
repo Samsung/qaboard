@@ -22,6 +22,8 @@ from typing import Any, Callable, Dict, Optional
 
 import click
 
+from .notify import is_nested
+
 
 # How long we wait for the server, and for the sending thread when the command ends
 TIMEOUT = (1, 2)
@@ -42,9 +44,9 @@ def enabled(offline: Optional[bool] = None) -> bool:
   from .config import is_ci
   if is_ci:
     return False
-  # the `qa run` and `qa batch` that `qa batch` and `qa optimize` start: one event per command people type
-  from .notify import is_nested
-  if is_nested():
+  # the `qa run` and `qa batch` that `qa batch` and `qa optimize` start: one event per command people type.
+  # As seen when the command started: `qa batch` marks its own environment for its children (QA_BATCH).
+  if _state.get('nested', is_nested()):
     return False
   from .api import qaboard_url_source
   return bool(qaboard_url_source)
@@ -56,6 +58,7 @@ def start(command: Optional[str], share: bool = False, tuning: bool = False, dry
   _state.update(
     command=command_name(command),
     started_at=time.monotonic(),
+    nested=is_nested(),
     share=bool(share), tuning=bool(tuning), dryrun=bool(dryrun), offline=bool(offline),
     properties={},
   )

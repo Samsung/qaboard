@@ -45,6 +45,15 @@ class TestEnabled(unittest.TestCase):
     os.environ['QA_BATCH_ROOT_COMMAND_ID'] = 'abc'
     with mock.patch('qaboard.config.is_ci', False), mock.patch('qaboard.api.qaboard_url_source', '$QABOARD_URL'):
       self.assertFalse(self.analytics.enabled())
+      self.analytics.start('run')
+      self.assertFalse(self.analytics.enabled())
+
+  def test_a_batch_someone_typed_is_tracked(self):
+    # `qa batch` marks its own environment for the runs it starts: what counts is the environment it started in
+    with mock.patch('qaboard.config.is_ci', False), mock.patch('qaboard.api.qaboard_url_source', '$QABOARD_URL'):
+      self.analytics.start('batch')
+      os.environ['QA_BATCH'] = 'true'
+      self.assertTrue(self.analytics.enabled())
 
   def test_not_without_a_server(self):
     with mock.patch('qaboard.config.is_ci', False), mock.patch('qaboard.api.qaboard_url_source', None):
