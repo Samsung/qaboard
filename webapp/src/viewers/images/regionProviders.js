@@ -136,7 +136,7 @@ export const inputPath = output => {
 // The annotations people made on the run's input in another app, from the site's sources
 // (backend/backend/annotations.py): read-only, in groups, e.g. the app's workspaces. Fetched as soon as the viewer
 // shows (the server keeps them a few minutes, and runs of the same input share them): the regions button says how many
-// there are. They're in the input's pixels: shown at the same place on images of another size.
+// there are. They're in the input's pixels: scaled to the images shown, whatever their size.
 // source: { id, label, description, group_noun } (site config's annotation_sources)
 export const annotationProvider = ({ id, label, description, group_noun }) => ({
   id: `annotations-${id}`,
@@ -158,7 +158,10 @@ export const annotationProvider = ({ id, label, description, group_noun }) => ({
       params: { path: inputPath(output_new) },
       signal,
     });
-    const { width, height } = output_new.test_input_metadata ?? {};
+    // the input's size: the viewer scales the annotations to the images shown, e.g. downscaled outputs
+    const metadata = output_new.test_input_metadata ?? {};
+    const width = data?.width ?? metadata.width;
+    const height = data?.height ?? metadata.height;
     return annotationsToRegions(data, label, width && height ? { imageWidth: width, imageHeight: height } : {});
   },
 });

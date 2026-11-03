@@ -30,8 +30,9 @@ class Source:
 def get(tmp_path, dummy_app):
   import backend.annotations as annotations
   import backend.api.annotations as api
-  for name in ('in.png', 'broken.png'):
-    (tmp_path / name).write_bytes(b'image')
+  from PIL import Image
+  Image.new('RGB', (40, 30)).save(tmp_path / 'in.png')
+  (tmp_path / 'broken.png').write_bytes(b'not an image')
   source = Source()
   annotations.annotation_sources.cache_clear()
   entry_point = SimpleNamespace(name='defects', load=lambda: source)
@@ -59,6 +60,8 @@ def test_annotations_of_an_image(get):
   assert response.get_json() == {
     'groups': [{'id': '12', 'label': 'Night scenes', 'users': ['Alice'], 'mine': True}, {'id': '13', 'label': 'Day', 'mine': False}],
     'annotations': [{'id': '0', 'x': 1, 'y': 2, 'w': 3, 'h': 4, 'group': '12', 'label': 'Noise'}],
+    # of the input, to place them on images of other sizes
+    'width': 40, 'height': 30,
   }
   assert get.source.calls[0].endswith('/in.png')
   # whose they are isn't cached

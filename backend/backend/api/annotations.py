@@ -6,7 +6,7 @@ from urllib.parse import quote
 from flask import request, jsonify
 
 from backend import app
-from ..annotations import annotation_sources, annotations_of, for_user
+from ..annotations import annotation_sources, annotations_of, for_user, image_size
 from .auth import get_current_user
 from .files import readable_file
 
@@ -14,7 +14,8 @@ from .files import readable_file
 @app.route("/api/v1/output/image/annotations/<source_id>", methods=['GET'])
 def get_annotations(source_id):
   """
-  The annotations of an image: {groups, annotations}, see backend/annotations.py. Groups say if they're the user's (mine).
+  The annotations of an image: {groups, annotations, width, height}, see backend/annotations.py. Groups say if they're
+  the user's (mine). width and height: of the input, to place the annotations on images of other sizes (null if unknown).
   Query: path, the absolute path of a run's input. Users see the annotations of the files they can see.
   """
   if source_id not in annotation_sources():
@@ -32,4 +33,5 @@ def get_annotations(source_id):
   except Exception as e:
     label = getattr(annotation_sources()[source_id], 'label', source_id)
     return jsonify({"error": f"Could not get the annotations from {label}: {e}"}), 502
-  return jsonify(for_user(found, get_current_user(to_jsonify=False).get('user_name')))
+  width, height = image_size(str(image_path))
+  return jsonify({**for_user(found, get_current_user(to_jsonify=False).get('user_name')), "width": width, "height": height})

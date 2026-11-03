@@ -61,6 +61,8 @@ installed side by side.
 - The backend keeps the answer for each input for 5 minutes (in Redis when it has one), and asks again when the file
   changes. Whether groups are the user's (their `users`) is decided for each user, after.
 - Users see the annotations of the files they can see in QA-Board: the source doesn't need to check access.
+- The backend also reads the input's size (from its header), and the viewer scales the annotations to the images shown.
+  For inputs it can't read (e.g. raw), the size in the input's metadata (`width`, `height`) is used, if any.
 - The API is `GET /api/v1/output/image/annotations/<source>?path=<the input's absolute path>`.
 
 </details>

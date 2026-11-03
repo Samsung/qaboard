@@ -504,16 +504,18 @@ test('shows the regions of interest of the input', async ({ page }) => {
   await expect.poll(() => zoom(page)).toBeLessThan(200);
 });
 
-// The annotations of the input in an annotation app: 2 workspaces, one the user's
+// The annotations of the input in an annotation app: 2 workspaces, one the user's. The input is twice as large as the
+// images shown: the annotations are scaled.
 const ANNOTATIONS = {
+  width: 1024, height: 768,
   groups: [
     { id: '1940', label: 'Benchmark night', detail: 'by bob', url: 'https://annotations.example.com/workspace/1940', users: ['bob'], mine: false },
     { id: '12', label: 'Halo review', detail: 'by alice', url: 'https://annotations.example.com/workspace/12', users: ['alice'], mine: true },
   ],
   annotations: [
-    { id: '1', group: '12', x: 100, y: 100, w: 40, h: 40, label: 'Dark square', tags: ['DEFECT'], fields: { Importance: 'High', By: 'alice' }, url: 'https://annotations.example.com/workspace/12' },
-    { id: '2', group: '12', x: 300, y: 40, w: 120, h: 80, label: 'Banding', fields: { Importance: 'Medium' } },
-    { id: '3', group: '1940', x: 20, y: 250, w: 160, h: 100, label: 'Noise', fields: { Importance: 'Low', By: 'bob' } },
+    { id: '1', group: '12', x: 200, y: 200, w: 80, h: 80, label: 'Dark square', tags: ['DEFECT'], fields: { Importance: 'High', By: 'alice' }, url: 'https://annotations.example.com/workspace/12' },
+    { id: '2', group: '12', x: 600, y: 80, w: 240, h: 160, label: 'Banding', fields: { Importance: 'Medium' } },
+    { id: '3', group: '1940', x: 40, y: 500, w: 320, h: 200, label: 'Noise', fields: { Importance: 'Low', By: 'bob' } },
   ],
 };
 
@@ -530,6 +532,10 @@ test("shows the annotations of the input, the user's workspaces first, and remem
   await expect(regions.getByRole('button', { name: /Benchmark night/ })).toHaveAttribute('aria-pressed', 'false');
   const outlines = page.locator('.qiv-pane').first().locator('.qiv-outline');
   await expect(outlines).toHaveCount(2);
+  // on the dark square of the image (100, 100, 40x40 of 512x384), not where the input's coordinates would put it
+  const pane = await page.locator('.qiv-pane').first().boundingBox();
+  const square = await page.locator('.qiv-pane').first().locator('.qiv-outline-label', { hasText: 'Dark square' }).boundingBox();
+  expect(Math.abs((square.x - pane.x) / pane.width - 100 / 512)).toBeLessThan(0.02);
   await regions.getByRole('button', { name: /Benchmark night/ }).click();
   await expect(outlines).toHaveCount(3);
   await page.waitForTimeout(600);

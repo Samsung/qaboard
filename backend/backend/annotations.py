@@ -14,7 +14,7 @@ Sites add their sources with a package, like the site defaults (qaboard/site_con
         return {
           # e.g. a task, or a workspace. Users pick the groups they see, by default those of the `users` they are.
           "groups": [{"id": "12", "label": "Night scenes", "detail": "by alice", "url": "https://...", "users": ["alice"]}],
-          # in the pixels of the input
+          # in the pixels of the input: the viewer scales them to the images shown
           "annotations": [{"id": "1", "group": "12", "x": 10, "y": 20, "w": 30, "h": 40, "label": "Noise",
                            "tags": ["night"], "fields": {"Importance": "High"}, "url": "https://..."}],
         }
@@ -74,3 +74,13 @@ def for_user(found, user_name: Optional[str]):
     **found,
     "groups": [{**group, "mine": bool(name) and name in (u.lower() for u in group.get("users") or [])} for group in found["groups"]],
   }
+
+
+def image_size(path: str):
+  """(width, height) of an image, reading only its header, else (None, None), e.g. for raw files"""
+  try:
+    from PIL import Image
+    with Image.open(path) as image:
+      return image.size
+  except Exception:
+    return None, None

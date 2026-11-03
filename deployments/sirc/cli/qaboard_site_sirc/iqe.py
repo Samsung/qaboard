@@ -52,10 +52,6 @@ def _cached(key, compute):
   return value
 
 
-def _first(data, *keys):
-  return next((data[k] for k in keys if isinstance(data, dict) and data.get(k)), None)
-
-
 def usernames():
   """{user id: user name}, empty without the service account"""
   if not (USER and PASSWORD):
@@ -65,14 +61,12 @@ def usernames():
       found = _request("GET", "/api/v1/users")
     except Exception:
       return {}
-    found = found.get("items", found) if isinstance(found, dict) else found
-    # they sign in to IQE as user@domain
-    return {u["id"]: str(_first(u, "username", "name", "email")).split("@")[0] for u in found if "id" in u}
+    return {u["id"]: u["username"] for u in found if u.get("username")}
   return _cached("users", compute)
 
 
 def workspace(id):
-  """{name, user_id} of a workspace, empty without the service account"""
+  """{name, user: {username}, ...} of a workspace, empty without the service account"""
   if not (USER and PASSWORD):
     return {}
   def compute():
@@ -107,10 +101,10 @@ def from_iqe(found, users, workspace):
     author = users.get(a.get("user_id"))
     if id not in groups:
       details = workspace(id)
-      owner = users.get(details.get("user_id"))
+      owner = (details.get("user") or {}).get("username")
       groups[id] = {
         "id": id,
-        "label": _first(details, "name", "workspaceName", "workspace_name", "title") or f"Workspace {id}",
+        "label": details.get("name") or f"Workspace {id}",
         "detail": f"by {owner}" if owner else None,
         "url": workspace_url(id),
         # users whose annotations these are: the viewer shows theirs first

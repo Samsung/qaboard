@@ -16,7 +16,8 @@ def annotation(**fields):
 def test_from_iqe(monkeypatch):
   monkeypatch.setattr(iqe, "IQE_WORKSPACE_URL", "https://iqe/workspace/{id}")
   users = {1: "alice", 2: "bob"}
-  workspaces = {7: {"name": "Night scenes", "user_id": 1}}
+  # as IQE returns them
+  workspaces = {7: {"id": 7, "name": "Night scenes", "user": {"username": "alice", "id": 1}, "images": [], "read_only": False}}
   found = iqe.from_iqe([
     annotation(id=1, importance="Low"),
     annotation(id=2, workspace_session_id=8, artifact=None, content={"name": "Sky"}, user_id=99),
