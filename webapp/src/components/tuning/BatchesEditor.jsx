@@ -38,6 +38,7 @@ import { captureException } from "../../analytics";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { InlineErrorFallback } from "../ErrorFallback";
 import { BatchDefinitions, BatchFiles, BatchWarnings } from "./BatchReport";
+import { clearAvailableTestsRequest, openInAvailableTests, useAvailableTestsRequest } from "./availableTests";
 
 
 
@@ -239,7 +240,7 @@ const item_meta = item => {
  * Lists the tests a batch (or pattern, or alias) resolves to, as `qa batch` would see them on this commit.
  * Also says where the batch is defined, which batch files the server read, and what may be wrong.
  */
-function BatchPreview({ project, commit, file_names, file_labels, batch, onRun, unsaved }) {
+function BatchPreview({ project, commit, file_names, file_labels, files_context, batch, onRun, unsaved }) {
   const [query, setQuery] = useState(batch);
   const [state, setState] = useState({ loading: false, tests: null, error: null, report: null });
   const [filter, setFilter] = useState("");
@@ -347,10 +348,10 @@ function BatchPreview({ project, commit, file_names, file_labels, batch, onRun, 
         )}
 
         {report && !state.loading && <div style={{ marginTop: 16 }}>
-          <BatchDefinitions definitions={report.definitions} style={{ marginBottom: 8 }} />
+          <BatchDefinitions definitions={report.definitions} context={files_context} style={{ marginBottom: 12 }} />
           {report.files.length > 0 && <>
             <h4 className={Classes.HEADING} style={{ marginBottom: 6 }}>Batch files read</h4>
-            <BatchFiles files={report.files} labels={file_labels} />
+            <BatchFiles files={report.files} labels={file_labels} repoFileUrl={files_context.repoFileUrl} />
           </>}
         </div>}
       </div>
@@ -406,6 +407,13 @@ function BatchesEditorContent({ project, commit, config, git, web_url, available
   ].filter(Boolean), [private_name, shared_name]);
   const file_names = useMemo(() => files.map(f => f.name).reverse(), [files]); // later files override earlier ones
   const file_labels = useMemo(() => Object.fromEntries(files.map(f => [`${f.name}.yml`, f.label])), [files]);
+  // links to the batch files: the commit's on the git server, and ours here
+  const files_context = {
+    shared: shared_name,
+    user: private_name,
+    repoFileUrl: web_url && commit?.id ? path => blob_url({ data: { git: { ...git, web_url } } }, commit.id, path) : undefined,
+    onOpen: ({ file, batch }) => openInAvailableTests({ file, batch, navigate: false }),
+  };
 
   // until users pick a tab, the first file: the private one, once we know who the user is
   const [selected, setSelected] = useState();
@@ -419,6 +427,9 @@ function BatchesEditorContent({ project, commit, config, git, web_url, available
   const [, setNow] = useState(0); // refreshes "saved 1 min ago"
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
+  const [editor_mounts, setEditorMounts] = useState(0); // Monaco loads lazily
+  // other views ask to show a file, at a batch: "Defined in Shared batches"
+  const request = useAvailableTestsRequest(state => state.request);
 
   const file = files.find(f => f.id === selected) ?? files[0];
   const doc = file ? docs[file.name] : undefined;
@@ -587,6 +598,36 @@ function BatchesEditorContent({ project, commit, config, git, web_url, available
 
   const openPreview = batch => setPreview(p => ({ isOpen: true, batch, id: p.id + 1 }));
 
+  // Show the file that was asked for, then its batch, once the editor shows the file
+  const request_file = request ? files.find(f => f.name === request.file) : undefined;
+  useEffect(() => {
+    if (!request) return;
+    if (!request_file) {
+      clearAvailableTestsRequest(request.id);
+      return;
+    }
+    // oxlint-disable-next-line react/set-state-in-effect -- it answers a request from another view
+    setPreview(p => p.isOpen ? { ...p, isOpen: false } : p);
+    if (file?.id !== request_file.id) {
+      setSelected(request_file.id);
+      setReviewing(false);
+      setOutlineFilter("");
+      return;
+    }
+    if (doc?.status === "error") {
+      clearAvailableTestsRequest(request.id);
+      return;
+    }
+    if (doc?.status !== "ready" || !editorRef.current) return;
+    const item = request.batch ? analysis.items.find(i => i.name === request.batch && i.kind !== "setting") : undefined;
+    // after the editor switched to the file's model
+    const timeout = setTimeout(() => {
+      clearAvailableTestsRequest(request.id);
+      if (item) goToLine(item.line);
+    });
+    return () => clearTimeout(timeout);
+  }, [request, request_file, file?.id, doc?.status, analysis, editor_mounts]); // oxlint-disable-line react-hooks/exhaustive-deps -- goToLine is a new function at each render
+
   const run = batch => {
     updateTuning(project, { selected_group: batch });
     updateSelected({ selected_views: "tuning" });
@@ -708,7 +749,11 @@ function BatchesEditorContent({ project, commit, config, git, web_url, available
                       options={editor_options}
                       value={doc.draft}
                       onChange={onChange}
-                      editorDidMount={(editor, monaco) => { editorRef.current = editor; monacoRef.current = monaco; }}
+                      editorDidMount={(editor, monaco) => {
+                        if (editorRef.current !== editor) setEditorMounts(n => n + 1);
+                        editorRef.current = editor;
+                        monacoRef.current = monaco;
+                      }}
                     />
                   : <div style={{ height: editor_height, display: "flex", alignItems: "center", justifyContent: "center" }}><Spinner /></div>}
               </div>
@@ -833,6 +878,7 @@ function BatchesEditorContent({ project, commit, config, git, web_url, available
         commit={commit}
         file_names={file_names}
         file_labels={file_labels}
+        files_context={files_context}
         batch={preview.batch}
         onRun={batch => { setPreview(p => ({ ...p, isOpen: false })); run(batch); }}
         unsaved={dirty_files.map(f => f.label)}
