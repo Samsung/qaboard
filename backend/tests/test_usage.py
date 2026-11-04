@@ -344,7 +344,7 @@ def postgres(monkeypatch):
       CREATE TEMPORARY TABLE users (id serial PRIMARY KEY, user_name text, full_name text, kind text NOT NULL DEFAULT 'human', status text NOT NULL DEFAULT 'active') ON COMMIT DROP;
       CREATE TEMPORARY TABLE groups (id serial PRIMARY KEY, name text) ON COMMIT DROP;
       CREATE TEMPORARY TABLE group_members (id serial PRIMARY KEY, group_id integer, user_id integer) ON COMMIT DROP;
-      CREATE TEMPORARY TABLE ci_commits (id serial PRIMARY KEY, project_id text) ON COMMIT DROP;
+      CREATE TEMPORARY TABLE ci_commits (id serial PRIMARY KEY, project_id text, latest_output_datetime timestamptz) ON COMMIT DROP;
       CREATE TEMPORARY TABLE batches (id serial PRIMARY KEY, ci_commit_id integer, origin text) ON COMMIT DROP;
       CREATE TEMPORARY TABLE outputs (id serial PRIMARY KEY, batch_id integer, created_date timestamp) ON COMMIT DROP;
     """)
@@ -376,7 +376,8 @@ def insert_event(cursor, event, days_ago=1, user_id=None, user_name=None, source
 
 
 def insert_ci_runs(cursor, project_id, n, days_ago=2):
-  cursor.execute("INSERT INTO ci_commits (project_id) VALUES (%s) RETURNING id", (project_id,))
+  # like api/outputs.py, the commit says when it last got runs
+  cursor.execute("INSERT INTO ci_commits (project_id, latest_output_datetime) VALUES (%s, %s) RETURNING id", (project_id, NOW - datetime.timedelta(days=days_ago)))
   commit_id = cursor.fetchone()['id']
   cursor.execute("INSERT INTO batches (ci_commit_id, origin) VALUES (%s, 'ci') RETURNING id", (commit_id,))
   batch_id = cursor.fetchone()['id']
@@ -551,6 +552,17 @@ def test_ci_only_projects_match_subprojects_exactly(sample):
   insert_ci_runs(sample, 'myXrepo', 1)
   insert_event(sample, 'page_view', 1, user_id=1, user_name='alice', route='commit', project_id='my_repo/sub')
   assert usage.ci_only_projects(NOW - datetime.timedelta(days=90)) == ['myXrepo', 'nobody/looks']
+
+
+def test_ci_only_projects_are_those_with_recent_ci_runs(sample):
+  # CI runs before the window don't count, and neither do the local batches
+  insert_ci_runs(sample, 'stale/repo', 2, days_ago=100)
+  insert_ci_runs(sample, 'local/repo', 1)
+  sample.execute("UPDATE batches SET origin = 'local' WHERE ci_commit_id = (SELECT id FROM ci_commits WHERE project_id = 'local/repo')")
+  assert usage.ci_only_projects(NOW - datetime.timedelta(days=90)) == ['nobody/looks']
+  # a commit that got CI runs again: its project is back
+  insert_ci_runs(sample, 'stale/repo', 1, days_ago=3)
+  assert usage.ci_only_projects(NOW - datetime.timedelta(days=90)) == ['nobody/looks', 'stale/repo']
 
 
 def test_a_new_account_claims_its_cli_events(sample):

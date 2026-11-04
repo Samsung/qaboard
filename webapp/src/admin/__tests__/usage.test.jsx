@@ -119,6 +119,21 @@ describe('Usage', () => {
     await waitFor(() => expect(urls(fetch, '/api/v1/admin/usage/summary').at(-1)).toMatch(/project=isp/));
   });
 
+  it("asks for the trends and the tables without waiting for the summary", async () => {
+    // the summary is the slowest to compute: the rest shows up as it comes
+    vi.spyOn(globalThis, 'fetch').mockImplementation(url => {
+      const { pathname } = new URL(url, 'http://localhost');
+      return pathname === '/api/v1/admin/usage/summary' ? new Promise(() => {}) : json(usage_api[`GET ${pathname}`] ?? {});
+    });
+    renderAt('/admin/usage', <Usage/>, { user: admin });
+    expect(await screen.findByRole('link', { name: 'Alice' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'ISP team' })).toBeInTheDocument();
+    expect(await screen.findByRole('img', { name: /Active users and commits looked at/ })).toBeInTheDocument();
+    // the summary is still loading
+    expect(screen.getByLabelText('Loading the usage')).toBeInTheDocument();
+    expect(screen.queryByText('Active users')).not.toBeInTheDocument();
+  });
+
   it('says when the server refuses', async () => {
     mockApi({ 'GET /api/v1/admin/usage/summary': () => [{ error: 'Only admins can do this.', reason: 'not_admin' }, 403] });
     renderAt('/admin/usage', <Usage/>, { user: admin });

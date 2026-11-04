@@ -16,6 +16,7 @@ from flask import request, jsonify, g, Response, stream_with_context
 from backend import app, db_session
 from .. import usage as usage_lib
 from ..audit import client_ip
+from ..hybrid_cache import hybrid_cache
 from ..settings import setting
 from .auth import admin_required, login_required
 
@@ -157,6 +158,34 @@ def period_label(filters) -> str:
   return f"{filters.period.since:%Y-%m-%d}_{filters.period.until:%Y-%m-%d}"
 
 
+# What Admin > Usage shows reads weeks to years of events, seconds of SQL: kept a few minutes, for all the server's
+# processes (Redis), keyed by the request's parameters as they are. Going back to a period, or reloading, is instant;
+# the last minutes' events show up a few minutes later.
+USAGE_CACHE_SECONDS = 300
+
+
+@hybrid_cache(ttl=USAGE_CACHE_SECONDS, maxsize=64)
+def cached_usage(name: str, since: str, until: str, project: str, bucket: str = None):
+  """The JSON of an Admin > Usage table. The arguments are the query string's: they were checked by filters_from_args"""
+  period = usage_lib.Period(usage_lib.parse_date(since), usage_lib.parse_date(until, end_of_day=True))
+  filters = usage_lib.Filters(period, project)
+  if name == 'summary':
+    return usage_lib.summary(filters)
+  if name == 'timeseries':
+    return {**period.describe(), "bucket": bucket, "buckets": usage_lib.timeseries(filters, bucket)}
+  if name == 'users':
+    return {**period.describe(), "users": usage_lib.users(filters)}
+  if name == 'groups':
+    return {**period.describe(), "groups": usage_lib.groups(filters)}
+  if name == 'projects':
+    return {**period.describe(), "projects": usage_lib.projects(filters)}
+  raise ValueError(name)
+
+
+def usage_of(name: str, bucket: str = None):
+  return cached_usage(name, request.args.get('since') or '', request.args.get('until') or '', request.args.get('project') or '', bucket)
+
+
 @app.route('/api/v1/admin/usage/summary', methods=['GET'])
 @app.route('/api/v1/admin/usage/summary/', methods=['GET'])
 @admin_required
@@ -164,7 +193,7 @@ def admin_usage_summary():
   filters, error = filters_from_args()
   if error:
     return error
-  return jsonify(usage_lib.summary(filters))
+  return jsonify(usage_of('summary'))
 
 
 @app.route('/api/v1/admin/usage/timeseries', methods=['GET'])
@@ -177,7 +206,7 @@ def admin_usage_timeseries():
   bucket = request.args.get('bucket', 'day')
   if bucket not in usage_lib.BUCKETS:
     return jsonify({"error": f"`bucket` must be one of {', '.join(usage_lib.BUCKETS)}"}), 400
-  return jsonify({**filters.period.describe(), "bucket": bucket, "buckets": usage_lib.timeseries(filters, bucket)})
+  return jsonify(usage_of('timeseries', bucket))
 
 
 USER_COLUMNS = ('user_id', 'user_name', 'full_name', 'verified', 'active_days', 'web_events', 'cli_commands', 'commits_viewed', 'batches_started', 'events', 'last_seen_at', 'projects')
@@ -191,8 +220,9 @@ def admin_usage_users():
   if error:
     return error
   if wants_csv():
+    # all of them, not the top 500 of the page: not cached
     return csv_response(usage_lib.users(filters, limit=None), USER_COLUMNS, f"qaboard-usage-users-{period_label(filters)}.csv")
-  return jsonify({**filters.period.describe(), "users": usage_lib.users(filters)})
+  return jsonify(usage_of('users'))
 
 
 GROUP_COLUMNS = ('group_id', 'name', 'members', 'active_members', 'active_days', 'commits_viewed', 'batches_started', 'cli_commands', 'events')
@@ -205,7 +235,7 @@ def admin_usage_groups():
   filters, error = filters_from_args()
   if error:
     return error
-  groups = usage_lib.groups(filters)
+  groups = usage_of('groups')['groups']
   if wants_csv():
     return csv_response(groups, GROUP_COLUMNS, f"qaboard-usage-groups-{period_label(filters)}.csv")
   return jsonify({**filters.period.describe(), "groups": groups})
@@ -221,7 +251,7 @@ def admin_usage_projects():
   filters, error = filters_from_args()
   if error:
     return error
-  projects = usage_lib.projects(filters)
+  projects = usage_of('projects')['projects']
   if wants_csv():
     return csv_response(projects, PROJECT_COLUMNS, f"qaboard-usage-projects-{period_label(filters)}.csv")
   return jsonify({**filters.period.describe(), "projects": projects})

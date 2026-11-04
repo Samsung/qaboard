@@ -90,10 +90,11 @@ def empty_database(app, monkeypatch):
   db_session.remove()
   settings.invalidate_cache()
   # /api/v1/projects keeps everyone's usage for a minute
-  from backend.api import api, admin
+  from backend.api import api, admin, usage
   api._usage_cache.update(at=None, value=None)
-  # the admin overview keeps its usage-based items for a few minutes
-  admin._usage_items_cache.update(at=None, value=None)
+  # the admin overview keeps its usage-based items for a few minutes, Admin > Usage its tables
+  admin.usage_items.cache_clear()
+  usage.cached_usage.cache_clear()
 
 
 @pytest.fixture

@@ -97,6 +97,19 @@ def hybrid_cache(ttl=60, maxsize=128):
 
             return result
 
+        def cache_clear():
+            """Forgets the results of the function: this thread's, and those in Redis (e.g. between tests)"""
+            caches = getattr(thread_local, "caches", None)
+            if caches is not None:
+                caches.pop(name, None)
+            try:
+                keys = list(redis_client.scan_iter(match=f"{name}:*"))
+                if keys:
+                    redis_client.delete(*keys)
+            except redis.RedisError:
+                pass
+
+        wrapper.cache_clear = cache_clear
         return wrapper
 
     return decorator
