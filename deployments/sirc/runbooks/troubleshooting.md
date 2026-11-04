@@ -56,6 +56,24 @@ docker compose --env-file deployments/sirc/production.env restart backend
 docker compose --env-file deployments/sirc/production.env restart
 ```
 
+### After a restart of docker or of the host
+Docker starts the containers itself, all at once: compose's `depends_on` order doesn't apply. And docker **never
+retries a container that failed to start**: restart policies only apply to containers that exited after they started.
+Symptom: the proxy restarts in a loop (`host not found in upstream "backend:3000"` in `compose logs proxy`): nginx
+doesn't start while a name it proxies to doesn't resolve, and docker's DNS only knows the running containers. The proxy
+itself recovers within a minute of the backend being up: if it doesn't, the backend didn't start. Why:
+```bash
+docker compose --env-file deployments/sirc/production.env ps -a
+# why a container that is not running didn't start, e.g. "failed to initialize logging driver" (fluentd, see prod.yml)
+docker inspect -f '{{.Name}} {{.State.Status}} {{.State.Error}}' $(docker ps -aq --filter label=com.docker.compose.project=qaboard_prod)
+journalctl -u docker --since "1 hour ago" | grep -i "failed to start"
+```
+Then start everything again, in order:
+```bash
+./at-sirc-before-up.py
+deployments/deploy.py deployments/sirc/production.env up
+```
+
 ### How to recreate all the containers
 ```bash
 # Redeploys the current version: only what changed is recreated, the backend without downtime
