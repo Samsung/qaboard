@@ -1,6 +1,6 @@
 ---
 name: qaboard-integration
-description: Integrate a project with QA-Board (experiment tracking with viewers for algorithm, ML and performance work) or change an existing integration. Use when asked to track results with QA-Board, add qaboard.yaml, write qa/main.py, declare metrics or visualizations, add batches, run `qa batch` in CI, or set up a quality gate.
+description: Integrate a project with QA-Board (quality tracking that compares each commit's outputs and metrics with a reference's, for algorithms, ML, performance, test suites and agents) or change an existing integration. Use when asked to track results with QA-Board, add qaboard.yaml, write qa/main.py, declare metrics or visualizations, add batches, run `qa batch` in CI, or set up a quality gate.
 ---
 
 # Integrate a project with QA-Board

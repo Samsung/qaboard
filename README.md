@@ -1,9 +1,12 @@
 <p align="center">
-  <img src="https://user-images.githubusercontent.com/2649055/86829138-bb6aef00-c09c-11ea-8b59-78b7fc44ebcf.png" alt="QA-Board logo" width="260">
+  <img src="website/static/img/qaboard-logo.svg" alt="" width="88">
+</p>
+<h1 align="center">QA-Board</h1>
+<p align="center">
 
-  <div align="center">Experiment tracking framework with advanced viewers.</div>
-  
-  <div align="center">Helps algo/ml/perf engineers share results, collaborate, and build better products.</div>
+  <div align="center"><b>Tests tell you it runs. QA-Board shows you it's better.</b></div>
+
+  <div align="center">Self-hosted quality tracking for people and agents: every commit's outputs and metrics next to the reference's.</div>
 </p>
 
 <p align="center">
@@ -12,22 +15,39 @@
   <a href="https://github.com/samsung/qaboard/actions?query=workflow%3ACI"><img src="https://github.com/samsung/qaboard/workflows/CI/badge.svg" alt="CI"/></a>
 </p>
 
-> It's an open-source project: https://github.com/samsung/qaboard
+Every change runs on your test set, whether a person or a coding agent wrote it. QA-Board puts its outputs and metrics
+next to the reference's (images, videos, point clouds, plots, flame graphs, test reports and logs) so everyone sees
+what changed, agrees it's better, and ships it. For camera and imaging pipelines, ML models, robotics, embedded code,
+performance, test suites and LLM agents: anything whose quality you measure.
 
-## Features
-- **Organize, View and Compare Results**, **Tuning/Optimization**
-- **Web-based:** sharable URLs, no install needed.
-- **Visualizations:** support for quantitative metrics, and many file formats: advanced image viewer, support for videos, plotly graphs, text, pointclouds, HTML...
-- **Integrations:** direct access from Git and CI tools, easily exportable results, API, links to the code, trigger gitlabCI/jenkins/webhooks...
-- **Agnostic** to your language/framework: run your existing code, write files, view them.
+> Screenshots, clips and use cases: [samsung.github.io/qaboard](https://samsung.github.io/qaboard).
 
-> For screenshots check [our website](https://samsung.github.io/qaboard).
+## In production at scale
+QA-Board has been Samsung's central quality platform since 2018: about 50 projects and more than 40 million runs.
+Running it is documented and tested in CI: zero-downtime upgrades and rollbacks, backups, and a Helm chart for
+Kubernetes. Users sign in with single sign-on or LDAP, project roles control access, and errors go to Sentry.
 
-## Benefits
-QA-Board across many projects enables us to:
-- **Scale R&D:** enable engineers to achieve more and be more productive.
-- **Faster Time-to-Market:** collaboration across teams, workflow integration..
-- **Quality:** uncover issues earlier, KPIs, tuning, reporting...
+## What you get
+- **Compare every commit with a reference:** the reference branch, a release or a milestone, metric by metric, with
+  regressions in red.
+- **Look at the outputs themselves:** images down to the pixel with synced zoom and diffs, videos, point clouds and
+  trajectories, plots, flame graphs, test reports, logs.
+- **Find the commit that changed it:** History follows a metric across commits, input by input.
+- **Tune from the browser:** parameter sweeps and automated tuning (`qa optimize`, with Optuna).
+- **People and agents together:** coding agents read the same results (`qaboard.runs(url)`, `qa runs`, the compare
+  API) and learn the conventions from [skills](https://github.com/Samsung/qaboard/tree/master/skills).
+  `qa gate` (experimental) fails CI when quality regresses, whoever wrote the change.
+- **Fits your stack:** wraps any executable, runs locally, on LSF, Dask or Celery, or in CI (GitHub Actions, GitLab
+  CI, Jenkins...). Open source (Apache 2.0) and self-hosted: your results stay on your network.
+
+## Get started, with our help
+We're looking for teams who track quality, and we help them get started: setting up a self-hosted server, integrating
+the first projects, planning upgrades and storage as results grow. Write to **arthur.flam@gmail.com**, or
+[open an issue](https://github.com/Samsung/qaboard/issues).
+
+- Try it on your computer: [the quickstart](https://samsung.github.io/qaboard/docs/get-started/quickstart).
+- Put your project on it: [the tutorial](https://samsung.github.io/qaboard/docs/get-started/tutorial).
+- Run it for your team: [Docker Compose or Kubernetes](https://samsung.github.io/qaboard/docs/deploy).
 
 ## Deployment
 
@@ -43,29 +63,13 @@ deployments/deploy.py deployments/sirc/production.env up
 docker compose -f docker-compose.yml -f production.yml -f deployments/dsk/dsk.yml up -d
 ```
 
-## Getting Started
-[Read the docs!](https://samsung.github.io/qaboard/docs/introduction) You will learn how to:
-- Start a QA-Board server
-- Wrap your code with QA-Board
-- View output files and KPIs
-- ...and setup parameter tuning, integrations with 3rd party tools, etc.
-
-If you want to learn about the code's organization, or how to contribute, read [CONTRIBUTING.md](CONTRIBUTING.md)
-
-
-## Feedback? Questions? Need Help? Found a bug?
-> Don't hesitate to get in touch! Contact arthur.flam@samsung.com, we'll be delighted to hear your insights.
-
-If you've got questions about setup, deploying, want to develop new features, or just want to chat with the developers, please feel free to [open an issue](https://github.com/Samsung/qaboard/issues)!
-
-Found a bug with QA-Board? Go ahead and [submit an issue](https://github.com/Samsung/qaboard/issues). And, of course, feel free to submit pull requests with bug fixes or changes to the `master` branch.
+## Contributing
+To learn about the code's organization, or how to contribute, read [CONTRIBUTING.md](CONTRIBUTING.md). Found a bug?
+[Submit an issue](https://github.com/Samsung/qaboard/issues), and feel free to send pull requests to `master`.
 
 ## Contributors
-QA-Board was started at [Samsung SIRC](https://www.linkedin.com/company/samsung-israel-r-d-center-sirc/) by [Arthur Flam](https://shapescience.xyz).
+QA-Board was started at [Samsung](https://www.linkedin.com/company/samsung-israel-r-d-center-sirc/) by [Arthur Flam](https://shapescience.xyz).
 
 Thanks to the following people for their contributions, testing, feedback or bug reports: Amir Fruchtman, Avi Schori, Yochay Doutsh, Itamar Persi, Amichay Amitay, Lena Grechikhin, Gal Hai, Rivka Emmanuel, Nadav Ofer. Thanks also to Sebastien Derhy, Elad Rozin, Nathan Levy, Shahaf Duenyas, Asaf Jazcilevich and Yoel Yaffe for supporting the project.
 
 > You don't see your name? Get in touch to be added to the list!
-
-## Credits
-- The logo is a the Poodle [twemoji](https://twemoji.twitter.com/) 🐩, recolored in Samsung Blue 🔵. *Copyright 2019 Twitter, Inc and other contributors. Code licensed under the [MIT License](http://opensource.org/licenses/MIT). Graphics licensed under [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/)*

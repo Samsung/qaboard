@@ -23,6 +23,10 @@ function loadSite(id?: string): Site | null {
 }
 const site = loadSite(process.env.QABOARD_SITE)
 
+// The maintainers' contact, for teams who want help to get started (the landing page's "Get in touch", the footer, the
+// announcement bar). Not in the builds for a site's own web app: its users get help from their site's admins.
+const contact = site ? null : 'arthur.flam@gmail.com'
+
 import {themes as prismThemes} from 'prism-react-renderer';
 
 // Screenshots and clips (<Shot>, <Clip>, <Compare>): see docs-media/README.md and plugins/media/
@@ -48,17 +52,19 @@ const redirects = [
   {from: 'creating-and-viewing-outputs-files', to: 'visualizations#output-files'},
 ].map(({from, to}) => ({from: docsPath(from), to: docsPath(to)}))
 
+// The mark: a new run (solid) laid over its reference (outlined). The favicons in img/favicon/ and webapp/public/ are
+// made from it, with thicker strokes at 16 and 32 px
 const logo = {
-  alt: 'QA-Board Logo',
-  // https://commons.wikimedia.org/wiki/File:Twemoji_1f429.svg
-  src: '/img/twemoji_poodle.svg',
+  alt: 'QA-Board',
+  src: '/img/qaboard-logo.svg',
+  srcDark: '/img/qaboard-logo-dark.svg',
 }
 
 
 /** @type {import('@docusaurus/types').Config} */
 let config: Config = {
   title: 'QA-Board',
-  customFields: {is_for_webapp, ...(site ? {site: {id: site.id, name: site.name, label: site.label}} : {})},
+  customFields: {is_for_webapp, contact, ...(site ? {site: {id: site.id, name: site.name, label: site.label}} : {})},
   tagline: "Tests tell you it runs. QA-Board shows you it's better.",
   url: 'https://samsung.github.io',
   onBrokenLinks: 'throw',
@@ -232,6 +238,7 @@ let config: Config = {
           {
             title: 'More',
             items: [
+              ...(contact ? [{label: 'Get in touch', to: '/#get-in-touch'}] : []),
               {
                 label: 'Blog',
                 to: '/blog',
@@ -251,8 +258,11 @@ let config: Config = {
         darkTheme: prismThemes.dracula,
       },
       announcementBar: {
-        id: 'supportus',
-        content: '⭐️ If you like QA-Board, give it a star on <a target="_blank" rel="noopener noreferrer" href="https://github.com/Samsung/qaboard">GitHub</a>! ⭐️',
+        // A new id shows the bar again to readers who closed the old one
+        id: contact ? 'get-started-with-us' : 'supportus',
+        content: contact
+          ? `Setting up QA-Board for your team? Write to the maintainers: <a href="mailto:${contact}?subject=QA-Board">${contact}</a>`
+          : 'If you like QA-Board, give it a star on <a target="_blank" rel="noopener noreferrer" href="https://github.com/Samsung/qaboard">GitHub</a>.',
         backgroundColor: '#1064d3',
         textColor: 'white',
       },
