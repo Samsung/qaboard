@@ -3,6 +3,9 @@ import { lazy, Suspense } from "react";
 import { Spinner } from "@blueprintjs/core";
 
 const PlotlyPlot = lazy(() => import("./PlotlyPlot"));
+// To show or hide a plot's hover label, e.g. from the keyboard. Plotly is loaded by then: the plot is drawn
+export const hoverPlot = (gd, where) => import("./PlotlyPlot").then(m => m.hover(gd, where));
+export const unhoverPlot = gd => import("./PlotlyPlot").then(m => m.unhover(gd));
 
 // Same size as the plot, so that the page doesn't jump when it shows
 const Placeholder = ({ style, layout }) => <div style={{ width: layout?.width, height: layout?.height, ...style, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
