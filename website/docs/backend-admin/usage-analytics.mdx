@@ -49,6 +49,10 @@ project ids, e.g. `group/repo`):
   nobody opened them in the period: a project to deprecate, or a team to show around), **quiet** (no runs and no
   looks, but some before), **new** (its first event is in the period).
 
+The numbers are computed at most every 5 minutes, for all the server's processes (in Redis): the latest events can
+take that long to show up. The first time a long period is shown, on a server with months of events, computing
+them can take a few seconds.
+
 Each user's page in **Admin → Users** has a **Usage** card: their last 30 days by event and by project.
 
 **Admin → Overview** gets a **Get more from QA-Board** list next to the security checklist: what isn't configured

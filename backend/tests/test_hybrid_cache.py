@@ -11,6 +11,12 @@ class FakeRedis:
     return self.values.get(key)
   def setex(self, key, ttl, value):
     self.values[key] = value
+  def scan_iter(self, match):
+    import fnmatch
+    return [key for key in self.values if fnmatch.fnmatchcase(key, match)]
+  def delete(self, *keys):
+    for key in keys:
+      self.values.pop(key, None)
 
 
 @pytest.fixture
@@ -67,3 +73,14 @@ def test_functions_with_the_same_name_dont_share_results(redis, clock):
   first(1)
   second(1)
   assert calls == [1]
+
+
+def test_cache_clear_forgets_the_results_of_one_function(redis, clock):
+  compute, calls = counted(name='summary')
+  other, other_calls = counted(name='summary_of_something_else')
+  compute(1)
+  other(1)
+  compute.cache_clear()
+  compute(1)
+  other(1)
+  assert calls == [1, 1] and other_calls == [1]

@@ -16,6 +16,7 @@ from ..audit import audit, diff, serialize as serialize_event
 from .. import settings as settings_lib
 from .. import tokens as tokens_lib
 from .. import usage as usage_lib
+from ..hybrid_cache import hybrid_cache
 from .auth import admin_required, is_login_restricted
 from .users import page_of_events
 from ..search import escape_like
@@ -169,24 +170,20 @@ def checklist() -> list:
 
 
 USAGE_LOOKBACK_DAYS = 90
-# The usage-based items read the last months of runs and events: computed at most every few minutes, per process
+# The usage-based items read the last months of runs and events: computed at most every few minutes, for all the
+# server's processes (Redis)
 USAGE_ITEMS_CACHE_SECONDS = 300
-_usage_items_cache = {'at': None, 'value': None}
 
 
+@hybrid_cache(ttl=USAGE_ITEMS_CACHE_SECONDS, maxsize=1)
 def usage_items() -> dict:
   """{ci_only, web_only, products} of the last USAGE_LOOKBACK_DAYS days, cached for USAGE_ITEMS_CACHE_SECONDS"""
-  now = tokens_lib.utcnow()
-  if _usage_items_cache['at'] and (now - _usage_items_cache['at']).total_seconds() < USAGE_ITEMS_CACHE_SECONDS:
-    return _usage_items_cache['value']
-  since = now - datetime.timedelta(days=USAGE_LOOKBACK_DAYS)
-  value = {
+  since = tokens_lib.utcnow() - datetime.timedelta(days=USAGE_LOOKBACK_DAYS)
+  return {
     "ci_only": usage_lib.ci_only_projects(since),
     "web_only": usage_lib.web_only_users(since),
     "products": usage_lib.tuning_products(since),
   }
-  _usage_items_cache.update(at=now, value=value)
-  return value
 
 
 def value_checklist() -> list:

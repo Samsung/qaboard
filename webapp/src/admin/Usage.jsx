@@ -378,7 +378,9 @@ export const Usage = () => {
     {summary.isPending && <Loading label="Loading the usage"/>}
     {summary.error && <AdminError error={summary.error} refetch={summary.refetch} what="the usage"/>}
     {summary.data && <Summary counts={summary.data.counts} previous={summary.data.previous_counts}/>}
-    {summary.data && <>
+    {/* requested at the same time as the summary, not after it: each has its loading state. Not when the summary
+        failed, e.g. the server refuses: one error is enough */}
+    {!summary.error && <>
       <Charts params={params}/>
       <Leaderboards params={params}/>
     </>}
