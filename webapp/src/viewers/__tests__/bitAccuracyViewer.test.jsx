@@ -53,6 +53,21 @@ describe('BitAccuracyViewer', () => {
     expect(screen.getByText('changed.txt')).toBeInTheDocument();
   });
 
+  it('collapses runs, and shows or hides the files of one run', () => {
+    const { rerender } = render(<BitAccuracyViewer manifests={manifests} output_new={output_new} output_ref={output_ref} collapse_runs />);
+    expect(screen.queryByText('removed.txt')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /3 files/ }));
+    expect(screen.getByText('removed.txt')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /3 files/ }));
+    expect(screen.queryByText('removed.txt')).not.toBeInTheDocument();
+    // changing the option resets what users chose per run
+    fireEvent.click(screen.getByRole('button', { name: /3 files/ }));
+    rerender(<BitAccuracyViewer manifests={manifests} output_new={output_new} output_ref={output_ref} collapse_runs={false} />);
+    expect(screen.getByText('removed.txt')).toBeInTheDocument();
+    rerender(<BitAccuracyViewer manifests={manifests} output_new={output_new} output_ref={output_ref} collapse_runs />);
+    expect(screen.queryByText('removed.txt')).not.toBeInTheDocument();
+  });
+
   it('filters files', () => {
     render(<BitAccuracyViewer manifests={manifests} output_new={output_new} output_ref={output_ref} files_filter="added" />);
     expect(screen.getByText('added.txt')).toBeInTheDocument();

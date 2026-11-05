@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 
-import { Tree, Classes, Intent, Spinner, Tag, Icon, PopoverNext, Menu, MenuItem, Tooltip } from "@blueprintjs/core";
+import { Tree, Button, Classes, Intent, Spinner, Tag, Icon, PopoverNext, Menu, MenuItem, Tooltip } from "@blueprintjs/core";
 import { OutputViewer } from "../OutputViewer"
 import { preloadMonaco } from "../../components/MonacoEditor"
 import { useIsDark } from "../../theme"
@@ -289,13 +289,23 @@ const decorate = (nodes, { is_expanded, selected }) => nodes?.map(node => {
 })
 
 
+const count_files = nodes => (nodes ?? []).reduce((count, node) => count + (node.childNodes === undefined ? 1 : count_files(node.childNodes)), 0);
+
+
 const BitAccuracyViewer = props_ => {
   const { type: _type, files_loading, ...props } = props_;
-  const { manifests, files_filter, show_all_files, hide_runs_without_files, expand_all, color_blind_friendly, output_new, output_ref, config } = props_;
+  const { manifests, files_filter, show_all_files, hide_runs_without_files, expand_all, collapse_runs, color_blind_friendly, output_new, output_ref, config } = props_;
   const bit_accuracy = config?.bit_accuracy;
   const [selected, setSelected] = useState([]);
   // folders users expanded (true) or collapsed (false)
   const [expanded, setExpanded] = useState({});
+  // the run's files are hidden with "Collapse runs", users show or hide them per run until the option changes
+  const [files_shown, setFilesShown] = useState(!collapse_runs);
+  const [files_shown_for, setFilesShownFor] = useState(!!collapse_runs);
+  if (files_shown_for !== !!collapse_runs) {
+    setFilesShownFor(!!collapse_runs);
+    setFilesShown(!collapse_runs);
+  }
   const is_dark = useIsDark();
   const labels = useLabels(props_.labels);
 
@@ -333,73 +343,87 @@ const BitAccuracyViewer = props_ => {
   const empty_message = has_filter ? 'No file matches the filter'
     : show_all_files ? 'No files'
     : 'No differences with the reference. Switch on “Show all files” to see them.'
+  const nb_files = count_files(tree);
   return <div className={(!has_files && hide_runs_without_files) ? "viewer-no-files" : undefined}>
-    {bit_accurate && <div><Tooltip content="All the checked files are identical to the reference">
-      <Tag minimal intent={Intent.SUCCESS} icon="tick" style={{marginBottom: '5px'}}>Bit-accurate</Tag>
-    </Tooltip></div>}
+    {(bit_accurate || has_files) && <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '5px' }}>
+      {has_files && <Button
+        size="small"
+        variant="minimal"
+        icon={files_shown ? 'chevron-down' : 'chevron-right'}
+        aria-expanded={files_shown}
+        title={files_shown ? "Hide the files" : "Show the files"}
+        onClick={() => setFilesShown(!files_shown)}
+      >
+        {nb_files} {nb_files === 1 ? 'file' : 'files'}
+      </Button>}
+      {bit_accurate && <Tooltip content="All the checked files are identical to the reference">
+        <Tag minimal intent={Intent.SUCCESS} icon="tick">Bit-accurate</Tag>
+      </Tooltip>}
+    </div>}
     {!has_files && <em className={Classes.TEXT_MUTED}>{empty_message}</em>}
-    <Tree
-     contents={contents}
-     onNodeClick={handleNodeClick}
-     // most files show in a text editor: load it before the click
-     onNodeMouseEnter={node => { if (node.childNodes === undefined) preloadMonaco() }}
-     onNodeCollapse={handleNodeCollapse}
-     onNodeExpand={handleNodeExpand}
-    />
-    {selected.map( filename => {
-      const has_same_data = is_same_data(filename, manifests?.new?.[filename], manifests?.reference?.[filename])
+    {files_shown && <>
+      <Tree
+       contents={contents}
+       onNodeClick={handleNodeClick}
+       // most files show in a text editor: load it before the click
+       onNodeMouseEnter={node => { if (node.childNodes === undefined) preloadMonaco() }}
+       onNodeCollapse={handleNodeCollapse}
+       onNodeExpand={handleNodeExpand}
+      />
+      {selected.map( filename => {
+        const has_same_data = is_same_data(filename, manifests?.new?.[filename], manifests?.reference?.[filename])
 
-      // For new side: fallback if file doesn't exist
-      let filename_new = filename
-      if (filename.match(/\.tiff?$/i)) {
-        // TIFF clicked but doesn't exist in new - try PNG fallback
-        if (!manifests?.new?.[filename]) {
-          const pngPath = filename.replace(/\.tiff?$/i, '.png')
-          if (manifests?.new?.[pngPath]) {
-            filename_new = pngPath
-          }
-        }
-      }
-
-      // For ref side: fallback if file doesn't exist
-      let filename_ref = filename
-      if (filename.endsWith('.png')) {
-        // PNG clicked but doesn't exist in ref - try TIFF then BMP
-        if (!manifests?.reference?.[filename]) {
-          const tiffPath = filename.replace(/\.png$/i, '.tiff')
-          if (manifests?.reference?.[tiffPath]) {
-            filename_ref = tiffPath
-          } else {
-            const bmpPath = filename.replace(/.png$/, '.bmp')
-            if (manifests?.reference?.[bmpPath]) {
-              filename_ref = bmpPath
+        // For new side: fallback if file doesn't exist
+        let filename_new = filename
+        if (filename.match(/\.tiff?$/i)) {
+          // TIFF clicked but doesn't exist in new - try PNG fallback
+          if (!manifests?.new?.[filename]) {
+            const pngPath = filename.replace(/\.tiff?$/i, '.png')
+            if (manifests?.new?.[pngPath]) {
+              filename_new = pngPath
             }
           }
         }
-      } else if (filename.match(/\.tiff?$/i)) {
-        // TIFF clicked but doesn't exist in ref - try PNG fallback
-        if (!manifests?.reference?.[filename]) {
-          const pngPath = filename.replace(/\.tiff?$/i, '.png')
-          if (manifests?.reference?.[pngPath]) {
-            filename_ref = pngPath
+
+        // For ref side: fallback if file doesn't exist
+        let filename_ref = filename
+        if (filename.endsWith('.png')) {
+          // PNG clicked but doesn't exist in ref - try TIFF then BMP
+          if (!manifests?.reference?.[filename]) {
+            const tiffPath = filename.replace(/\.png$/i, '.tiff')
+            if (manifests?.reference?.[tiffPath]) {
+              filename_ref = tiffPath
+            } else {
+              const bmpPath = filename.replace(/.png$/, '.bmp')
+              if (manifests?.reference?.[bmpPath]) {
+                filename_ref = bmpPath
+              }
+            }
+          }
+        } else if (filename.match(/\.tiff?$/i)) {
+          // TIFF clicked but doesn't exist in ref - try PNG fallback
+          if (!manifests?.reference?.[filename]) {
+            const pngPath = filename.replace(/\.tiff?$/i, '.png')
+            if (manifests?.reference?.[pngPath]) {
+              filename_ref = pngPath
+            }
           }
         }
-      }
 
-      return <div key={filename}>
-        {has_same_data && <Tooltip key={`same-${filename}`} content="The new and reference files have the same hash">
-          <Tag style={{marginTop: "5px"}} minimal icon="duplicate">Identical to the reference</Tag>
-        </Tooltip>}
-        <OutputViewer
-            key={filename}
-            path={filename_new}
-            path_ref={filename_ref}
-            max_lines={30}
-            {...props}
-        />
-      </div>
-    })}
-
+        return <div key={filename}>
+          {has_same_data && <Tooltip key={`same-${filename}`} content="The new and reference files have the same hash">
+            <Tag style={{marginTop: "5px"}} minimal icon="duplicate">Identical to the reference</Tag>
+          </Tooltip>}
+          <OutputViewer
+              key={filename}
+              path={filename_new}
+              path_ref={filename_ref}
+              max_lines={30}
+              {...props}
+          />
+        </div>
+      })}
+    </>}
   </div>
 }
 

@@ -234,6 +234,7 @@ const file_options = [
   { name: 'show_all_files', label: 'Show all files', short: 'all files', help: 'By default, only the checked files that are different, added or removed show.' },
   { name: 'hide_runs_without_files', label: 'Hide runs without files', short: 'runs without files hidden' },
   { name: 'expand_all', label: 'Expand all folders', short: 'folders expanded' },
+  { name: 'collapse_runs', label: 'Collapse runs', short: 'runs collapsed', help: 'Show only each run\'s header and status, to scroll through many runs. Click a run\'s files count to show them.' },
   { name: 'color_blind_friendly', label: 'Color-blind friendly', short: 'color-blind friendly' },
 ];
 
@@ -252,8 +253,8 @@ const FileOptionSwitches = ({ options, toggle }) => file_options.map(o => <Switc
 const files_toolbar = { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px 8px', marginBottom: '12px' };
 
 // The files filter, and the files options: a button that opens them, in the View options with `onShowOptions`
-const BitAccuracyForm = ({ show_all_files, hide_runs_without_files, expand_all, color_blind_friendly, files_filter, toggle, update, onShowOptions }) => {
-  const options = { show_all_files, hide_runs_without_files, expand_all, color_blind_friendly };
+const BitAccuracyForm = ({ show_all_files, hide_runs_without_files, expand_all, collapse_runs, color_blind_friendly, files_filter, toggle, update, onShowOptions }) => {
+  const options = { show_all_files, hide_runs_without_files, expand_all, collapse_runs, color_blind_friendly };
   const on = file_options_summary(options);
   const options_button = <Button
     icon="settings"
@@ -290,6 +291,6 @@ const BitAccuracyForm = ({ show_all_files, hide_runs_without_files, expand_all, 
 
 
 // The options of the bit-accuracy viewers are in the URL, but not when they have their default value
-const bit_accuracy_url_defaults = { show_all_files: false, hide_runs_without_files: false, expand_all: false, color_blind_friendly: false, files_filter: '' };
+const bit_accuracy_url_defaults = { show_all_files: false, hide_runs_without_files: false, expand_all: false, collapse_runs: false, color_blind_friendly: false, files_filter: '' };
 
 export { state_colors, bit_accuracy_url_defaults, file_options, file_options_summary, FileOptionSwitches, getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, humanFileSize, updateMissingFrom, BitAccuracyForm, bit_accuracy_help, humanElapsedTime }
