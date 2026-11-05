@@ -158,7 +158,9 @@ The **Visualizations** view has one card per run. A card starts with:
 
 - **the run's name**, usually its input. Hover it for its batch, input path and database (click to copy), metadata,
   compute time, date and storage, and **History**: this input's results over time, in
-  [History](/docs/user-guide/history-and-dashboards).
+  [History](/docs/user-guide/history-and-dashboards). The logs and the tables show the same when you hover a run's
+  name. When the runs shown come from several batches or databases, e.g. a batch that runs the same images with
+  different settings, names start with them: *night › kitti › scenes/0001.png* (see below).
 - **tags** for its platform and configuration, and how they differ from the reference run's: see
   [Reading configurations](/docs/user-guide/comparing-results#reading-configurations). Orange **Input**, **Config** or
   **Platform** tags (with a `≠`) mean the reference run is not exactly the same: see
@@ -174,9 +176,10 @@ tagged **Identical to the reference**. Cards load their files as you scroll to t
   caption="The facade's card: its PSNR, in red, still misses its 30 dB target, but its change, +5%, is green: better than the release. Then the regions saved for this photo, and both images, zoomed in together."
 />
 
-Next to the run's name, the menu (☰) opens the input's **History**, and redoes the run, or deletes it or only its
+Next to the run's name, the **⋯** menu has the same as hovering its name, then redoes the run, or deletes it or only its
 output files, once you're signed in: see
-[Redo, stop and clean up runs](/docs/user-guide/running-from-the-webapp#redo-stop-and-clean-up-runs).
+[Redo, stop and clean up runs](/docs/user-guide/running-from-the-webapp#redo-stop-and-clean-up-runs). It's the same
+menu in the logs.
 
 <Shot
   id="commit/run-name-menu"
@@ -189,6 +192,24 @@ screen.
 
 To gather files from all the runs in one folder, use **Export**, next to the view's title: see
 [Exporting files](/docs/user-guide/sharing#exporting-files).
+
+<details>
+<summary>Compact cards, and the batch and database in runs' names</summary>
+
+**Compact cards**: pick **Compact** next to the view's title (**Comfortable** brings the cards back as above). Each
+card's header is one line, like the runs in the logs: its name, its configuration as text (hover it for the tags, and
+how they differ from the reference), its compute time and its buttons. There is less room around the visualizations.
+It applies to the **Visualizations** and **Output Files** views, and is also in the View options' **Display** section
+and in [Settings → Preferences](/docs/user-guide/account#settings).
+
+**Batch and database in names**: by default, runs' names start with their batch and their database only when the runs
+shown come from several, e.g. *night › frames/0001.png* and *day › frames/0001.png*. Databases are shortened to the end
+of their path that tells them apart: hover them for the full path. When all the runs shown have the same input, names
+are only what differs, e.g. *night* and *day*: hover a name for its input. Filter the runs to one batch and the names
+are the inputs again. To always or never show them, use **Batch & database in names** in a run's menu or when hovering its
+name, the View options' **Display** section, or Settings → Preferences. It applies to the run cards, the logs and the
+tables.
+</details>
 
 ## Output Files {#output-files}
 Every file each run created, as a tree, compared with the reference run's files. Next to the view's title, the storage

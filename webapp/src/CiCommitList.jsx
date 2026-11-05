@@ -12,9 +12,7 @@ import {
   NonIdealState,
   Spinner,
   Card,
-  SegmentedControl,
   Tag,
-  Tooltip,
 } from "@blueprintjs/core";
 
 import CommitRow, { CompactCommitList, CompactListContainer, compact_columns_css } from "./components/CommitRow";
@@ -25,7 +23,8 @@ import { groupBy } from "./utils";
 
 import { useCommitsList, useProjectData, useSelected, useSiteConfig, useUser, updateSelected } from './hooks'
 import { errorMessage } from './api/http'
-import { useCommitListDensity, usePrefsStore } from './stores/prefs'
+import { useCommitListDensity } from './stores/prefs'
+import { CommitListDensityControl } from './components/DensityControl'
 import { RulesButton } from './storage/Rules'
 import { ListScopeToolbar } from './components/ListScope'
 import { BatchList, useBatchesList } from './BatchList'
@@ -71,25 +70,6 @@ const ReferenceHead = ({ project, project_data, commit, density }) => {
   </DayCard>;
 };
 
-
-const density_options = [
-  { value: 'comfortable', label: 'Comfortable', icon: 'list' },
-  { value: 'compact', label: 'Compact', icon: 'list-columns' },
-];
-
-const DensityControl = () => {
-  const density = useCommitListDensity();
-  const setDensity = usePrefsStore(state => state.setCommitListDensity);
-  return <Tooltip content="Comfortable: a few lines per commit. Compact: one line per commit, hover for details." placement="left" openOnTargetFocus={false}>
-    <SegmentedControl
-      aria-label="Commit list density"
-      size="small"
-      options={density_options}
-      value={density}
-      onValueChange={setDensity}
-    />
-  </Tooltip>;
-};
 
 // Compact rows line up across days: the days' cards and lists share the columns of this grid
 const CompactDays = styled.div`
@@ -196,7 +176,7 @@ const CiCommitList = () => {
     <Container style={{paddingTop: '50px'}}>
       {!branch && !committer && <SubprojectsCard project={project}/>}
       <ListScopeToolbar list={list} branch={branch} committer={committer} view={view}>
-        {some_commits_loaded && !error && !show_batches && <><RulesButton project={project}/><DensityControl/></>}
+        {some_commits_loaded && !error && !show_batches && <><RulesButton project={project}/><CommitListDensityControl/></>}
       </ListScopeToolbar>
       {fell_back && <Callout icon="info-sign" style={{marginBottom: '15px'}}>
         You have no commits or batches in this project yet: here is everyone's.

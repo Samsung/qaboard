@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 const empty = {};
+const run_name_origins = ['auto', 'always', 'never'];
 
 export const usePrefsStore = create()(persist(
   set => ({
@@ -23,6 +24,10 @@ export const usePrefsStore = create()(persist(
     theme: 'system',
     // how lists of commits look: "comfortable" (a few lines per commit) or "compact" (one line per commit)
     commitListDensity: 'comfortable',
+    // how run cards look: "comfortable" (their tags on their own lines) or "compact" (one line of header, less space)
+    outputCardDensity: 'comfortable',
+    // what runs' names start with: their batch and database. "auto" when the runs shown come from several, "always" or "never"
+    runNameOrigin: 'auto',
     // the app's sidebar shows only icons
     siderCollapsed: false,
     // the values the image viewers write on the pixels, when zoomed in: 'image' (their own), 'display' or 'off'
@@ -79,6 +84,8 @@ export const usePrefsStore = create()(persist(
     setAnnotationGroups: (source, choices) => set(state => ({ annotationGroups: { ...state.annotationGroups, [source]: { ...state.annotationGroups[source], ...choices } } })),
     setImageDiffSize: (project, size) => set(state => ({ imageDiffSize: { ...state.imageDiffSize, [project]: size } })),
     setCommitListDensity: density => set({ commitListDensity: density === 'compact' ? 'compact' : 'comfortable' }),
+    setOutputCardDensity: density => set({ outputCardDensity: density === 'compact' ? 'compact' : 'comfortable' }),
+    setRunNameOrigin: origin => set({ runNameOrigin: run_name_origins.includes(origin) ? origin : 'auto' }),
     setGitEmails: emails => set({ git_emails: [...new Set(emails.map(e => e.trim().toLowerCase()).filter(e => e.includes('@')))] }),
     // `latest`: when the batch last got a run: it comes back if it runs again
     dismissHomeBatch: (id, failed, latest = null, now = Date.now()) => set(state => ({
@@ -111,6 +118,9 @@ export const usePrefsStore = create()(persist(
 export const useTuningForm = project => usePrefsStore(state => state.tuning[project] ?? empty);
 // whatever was saved, "comfortable" or "compact"
 export const useCommitListDensity = () => usePrefsStore(state => state.commitListDensity === 'compact' ? 'compact' : 'comfortable');
+export const useOutputCardDensity = () => usePrefsStore(state => state.outputCardDensity === 'compact' ? 'compact' : 'comfortable');
+// "auto", "always" or "never"
+export const useRunNameOrigin = () => usePrefsStore(state => run_name_origins.includes(state.runNameOrigin) ? state.runNameOrigin : 'auto');
 
 
 // Until October 2026 those preferences were saved by redux-persist, in IndexedDB via localForage.

@@ -9,6 +9,7 @@ import {
   NonIdealState,
 } from "@blueprintjs/core";
 import { ConfigurationsTags } from './tags'
+import { RunName } from './runNames'
 import { http, errorMessage, isArtifactsError } from "../api/http";
 import { useRefreshCommit, updateSelected, useUser } from "../hooks";
 import { pretty_label, shows_only_failed, only_failed_filter, without_failed_filter, only_run_filter } from "../utils";
@@ -69,15 +70,8 @@ const CommitWarningMessages = ({ project, commit }) => {
 const SimpleOutputList = ({outputs, intent, link_logs = false, actions}) => {
   return <ul className={Classes.LIST}>
     {outputs.map(o => {
-      const has_metadata = !!o.test_input_metadata && (Object.keys(o.test_input_metadata).length > 0)
-      const has_label = has_metadata && !!o.test_input_metadata.label
-      let run_path = `${o.test_input_database === '/' ? '/' : ''}${o.test_input_path}`
-      if (o.output_type === "pipeline" || o.test_input_path === "PIPELINE") {
-        run_path = <span>{o.data.batch} <span className={Classes.TEXT_MUTED}>(pipeline)</span></span>
-      }
-      if (has_label) {
-        run_path = o.test_input_metadata.label
-      }
+      // after its batch and database when the runs come from several, like everywhere
+      const run_path = <RunName output={o} hover={false}/>
       return <li key={o.id}>
         <strong style={{paddingRight: '5px'}}>
           {link_logs && !!o.output_dir_url

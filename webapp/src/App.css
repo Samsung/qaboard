@@ -92,6 +92,14 @@ span.bp6-popover-target {
   padding: 5px;
   margin-bottom: 15px;
 }
+/* Compact run cards (Settings → Preferences, or above the cards): less room around the visualizations */
+.bp6-card.output-card.compact {
+  margin-bottom: 8px;
+}
+.output-card.compact .path-header {
+  margin-bottom: 4px;
+  padding: 2px 6px;
+}
 
 .viewer-cross {
   mix-blend-mode: exclusion;

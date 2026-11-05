@@ -18,6 +18,9 @@ import SidePanel from "./SidePanel";
 import { SharedSettings, useSharedConfiguration, useHideSharedSettings, useShortenLongSettings } from "../configurations/ConfigurationsTags";
 import { HideSharedSwitch, ShortenLongSettingsSwitch } from "../configurations/ConfigurationOverview";
 import { FileOptionSwitches, file_options_summary } from "../viewers/bit_accuracy/utils";
+import { usePrefsStore, useOutputCardDensity, useRunNameOrigin } from "../stores/prefs";
+import { run_name_origin_options } from "./RunInfoMenu";
+import { OutputCardDensityControl } from "./DensityControl";
 
 // The commit page's View options: what the views of the runs' results show, and in which order.
 // Docked on the right of the page (see SidePanel), they only list what changes the views selected.
@@ -158,6 +161,11 @@ const ViewOptionsPanel = ({
       setExpandedSections(prev => ({ ...prev, [revealSection.id]: true }));
     }
   }
+
+  // users' preferences, not the project's: not reset with the view options
+  const card_density = useOutputCardDensity();
+  const run_name_origin = useRunNameOrigin();
+  const setRunNameOrigin = usePrefsStore(state => state.setRunNameOrigin);
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
@@ -342,6 +350,7 @@ const ViewOptionsPanel = ({
       ...(shared?.collapse && !hide_shared ? ['Shared settings shown in each run'] : []),
       ...(!shorten_long ? ['Long settings shown in full'] : []),
     ],
+    display: [],
     files: file_options_on.map(option => `Output files: ${option}`),
     sorting: sort_changed ? [`Sorted by ${sort_label(sort_value)}, ${order_label}`] : [],
   };
@@ -418,6 +427,40 @@ const ViewOptionsPanel = ({
         </div>
         {shared.collapse && <HideSharedSwitch />}
         <ShortenLongSettingsSwitch style={{ marginTop: 6 }} />
+      </>,
+    },
+    {
+      id: 'display',
+      title: 'Display',
+      icon: 'list-detail-view',
+      summary: [
+        shows_cards && `${card_density === 'compact' ? 'Compact' : 'Comfortable'} cards`,
+        `batch & database in names: ${run_name_origin_options.find(o => o.value === run_name_origin)?.label.toLowerCase()}`,
+      ].filter(Boolean).join(', '),
+      content: <>
+        {shows_cards && <OptionGroup>
+          <OptionHeader>
+            <span className="option-label">Run cards</span>
+            <div className="option-actions"><OutputCardDensityControl/></div>
+          </OptionHeader>
+        </OptionGroup>}
+        <OptionGroup>
+          <OptionHeader>
+            <Explained
+              className="option-label"
+              label="Batch & database in names"
+              explanation="Runs' names can start with the batch and the database of their input, e.g. when one batch runs several batches of qaboard.yaml on the same images. Hover a run's name to see them."
+            />
+          </OptionHeader>
+          <HTMLSelect
+            value={run_name_origin}
+            onChange={event => setRunNameOrigin(event.target.value)}
+            aria-label="Batch and database in runs' names"
+            options={run_name_origin_options.map(({ value, label }) => ({ value, label }))}
+            fill
+          />
+          {run_name_origin === 'auto' && <Hint>When the runs shown come from several batches or databases. If they all have the same input, names show only those.</Hint>}
+        </OptionGroup>
       </>,
     },
     {

@@ -61,3 +61,34 @@ export const LazyPopover = ({ children, className, ...props }) => {
     {cloneElement(children, { 'aria-haspopup': props.popupKind ?? 'menu', 'aria-expanded': false })}
   </span>;
 };
+
+
+// A <PopoverNext> that opens on hover (or keyboard focus), e.g. what we know about a run when hovering its name.
+// Moving across a list creates none: only those users stay on. Clicks go through to the target's parents,
+// e.g. to expand a row.
+export const LazyHoverPopover = ({ children, className, hoverOpenDelay = 400, hoverCloseDelay = 300, ...props }) => {
+  const [reached, setReached, target] = useReached();
+  const timer = useRef(null);
+  if (reached)
+    return <PopoverNext
+      className={className}
+      interactionKind="hover"
+      hoverOpenDelay={hoverOpenDelay}
+      hoverCloseDelay={hoverCloseDelay}
+      lazy
+      defaultIsOpen={reached === 'hover' || reached === 'focus'}
+      {...props}
+    >
+      {cloneElement(children, { ref: target })}
+    </PopoverNext>;
+  return <span
+    className={wrapper_class(className)}
+    role="presentation"
+    onMouseEnter={() => { timer.current = setTimeout(() => setReached('hover'), hoverOpenDelay); }}
+    onMouseLeave={() => clearTimeout(timer.current)}
+    onPointerDown={event => event.pointerType !== 'touch' && clearTimeout(timer.current)}
+    onFocus={event => keyboard_focus(event) && setReached('focus')}
+  >
+    {cloneElement(children, { tabIndex: children.props.tabIndex ?? 0 })}
+  </span>;
+};

@@ -458,3 +458,21 @@ export const summarize_changes = pairs => {
   }
   return [...changes.values()].sort((a, b) => b.runs - a.runs);
 };
+
+
+// "lr=0.1 · base · config.yaml · isp: {...}": how the run is configured, as one line of text.
+// Rendering the configurations as tags is slow and wide when lists have 100s of runs.
+// The tuning parameters come first: when people tune, they tell runs apart, and long lines are cut at their end.
+export const configurationSummary = output => {
+  const parts = []
+  for (const [key, value] of Object.entries(output.extra_parameters ?? {}))
+    if (!hidden_keys.includes(key)) parts.push(`${key}=${JSON.stringify(value)}`)
+  if (output.platform && output.platform !== 'linux') parts.push(`@${output.platform}`)
+  for (const configuration of output.configurations ?? []) {
+    if (typeof configuration === 'string') parts.push(configuration)
+    else if (configuration && typeof configuration === 'object')
+      for (const [key, value] of Object.entries(configuration))
+        if (!hidden_keys.includes(key)) parts.push(`${key}: ${JSON.stringify(value)}`)
+  }
+  return parts.join(' · ')
+}

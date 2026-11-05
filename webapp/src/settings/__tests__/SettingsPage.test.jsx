@@ -2,7 +2,7 @@
  * /settings: tabs in the URL, the profile, preferences and activity.
  * Run with: cd webapp && npm test -- SettingsPage
  */
-import { act, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { unstable_HistoryRouter as HistoryRouter } from 'react-router';
 
 import { history, RouteMatch } from '../../router';
@@ -52,12 +52,16 @@ test('tabs scroll sideways on narrow screens, instead of the page', () => {
 
 test('preferences use the same store as the pages', async () => {
   vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({}));
-  const before = usePrefsStore.getState().commitListDensity;
+  const before = usePrefsStore.getState();
   renderAt('/settings/preferences');
   expect(screen.getByText(/follow you in every browser/)).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('radio', { name: 'Compact' }));
+  fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Commit list density' })).getByRole('radio', { name: 'Compact' }));
   expect(usePrefsStore.getState().commitListDensity).toBe('compact');
-  usePrefsStore.setState({ commitListDensity: before });
+  fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Run cards density' })).getByRole('radio', { name: 'Compact' }));
+  expect(usePrefsStore.getState().outputCardDensity).toBe('compact');
+  fireEvent.click(screen.getByRole('radio', { name: /^Never/ }));
+  expect(usePrefsStore.getState().runNameOrigin).toBe('never');
+  usePrefsStore.setState({ commitListDensity: before.commitListDensity, outputCardDensity: before.outputCardDensity, runNameOrigin: before.runNameOrigin });
 });
 
 test('activity loads older events on demand', async () => {

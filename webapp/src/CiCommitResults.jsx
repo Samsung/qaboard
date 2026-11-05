@@ -41,6 +41,8 @@ import { SharedConfigurationContext } from "./configurations/ConfigurationsTags"
 import { ConfigurationOverview } from "./configurations/ConfigurationOverview";
 import { shared_configuration, reference_pairs, changes_in_all_runs } from "./configurations/tokens";
 import { useCommitTab } from "./pageTitle";
+import { RunOriginsContext, useRunOriginsValue } from "./components/runNames";
+import { OutputCardDensityControl } from "./components/DensityControl";
 
 
 // Every view of the commit: its title (and maybe a few muted details) on one row above its content
@@ -250,6 +252,8 @@ const CiCommitResults = () => {
     () => shared_settings && { ...shared_settings, changes_in_all_runs: all_runs_changes },
     [shared_settings, all_runs_changes],
   );
+  // Runs' names start with their batch and database when the runs shown come from several
+  const run_origins = useRunOriginsValue(new_batch.filtered.outputs.map(id => new_batch.outputs[id]));
   const docs_link = <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/visualizations`}>Read the docs</a>;
 
   // Until the commit loads, if it doesn't exist, or if it has no results yet, views of its results would look empty
@@ -316,11 +320,14 @@ const CiCommitResults = () => {
     filter_ref={filter_batch_ref}
   />;
   const runs_actions = <>{export_plugin}{legacy_export_plugin}{script_plugin}</>;
+  // the cards can be compact, like the logs
+  const cards_actions = <><OutputCardDensityControl/>{runs_actions}</>;
   // the commits' fixed headers
   const header_height = commit_header_height({ selected_views, references: comparison.references });
 
   return (
     <SharedConfigurationContext value={shared}>
+    <RunOriginsContext value={run_origins}>
     <Container style={{ marginTop: 0, paddingTop: header_height + header_gap }}>
 
       {(!new_commit || !ref_commit) && show_ref_navbar && <Messages>
@@ -448,7 +455,7 @@ const CiCommitResults = () => {
              </ViewSection>}
 
             {views.includes('output-list') && <ViewSection>
-              <ViewTitle title="Visualizations" actions={visualizations.length > 0 ? runs_actions : script_plugin}/>
+              <ViewTitle title="Visualizations" actions={visualizations.length > 0 ? cards_actions : script_plugin}/>
               {visualizations.length === 0
                 ? <NonIdealState
                     icon="heatmap"
@@ -460,7 +467,7 @@ const CiCommitResults = () => {
             </ViewSection>}
 
             {views.includes('bit-accuracy') && <ViewSection>
-                <ViewTitle title="Output Files" actions={runs_actions}>
+                <ViewTitle title="Output Files" actions={cards_actions}>
                   <p className={Classes.TEXT_MUTED}>Storage used by the {nb_runs} run{nb_runs === 1 ? '' : 's'} shown: {humanFileSize(storage, true)}</p>
                 </ViewTitle>
                 <OutputCardsList type='bit_accuracy' {...output_cards_props} onShowFileOptions={showFileOptions}/>
@@ -521,6 +528,7 @@ const CiCommitResults = () => {
         />
       )}
     </Container>
+    </RunOriginsContext>
     </SharedConfigurationContext>
   );
 }

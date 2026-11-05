@@ -12,6 +12,7 @@ import {
 
 import { VirtualTbody } from "./VirtualTbody";
 import { PlatformTag, ConfigurationsTags, RunBadges, RunBadge, MismatchTags } from './tags'
+import { RunName } from './runNames'
 import { metric_formatter, percent_formatter, MetricHeader } from "./metrics"
 import { AddedMetricMark, addedMetricsHint } from "./AddedMetricMark"
 import { diff_cell, is_number } from "../utils/compare"
@@ -77,10 +78,9 @@ const ranker = values => {
 const RowHeaderCell = ({ output }) => {
   if (output === undefined || output === null)
     return <th scope="row" aria-label="No run"></th>
-  const test_input = output.test_input_metadata?.label ?? `${output.test_input_database === '/' ? '/' : ''}${output.test_input_path}`
   return (
     <th scope="row">
-      {test_input}{' '}
+      <RunName output={output}/>{' '}
       <RunBadges output={output}></RunBadges>
       <PlatformTag platform={output.platform}/>
       <ConfigurationsTags configurations={output.configurations} tuning={output.extra_parameters} mismatch={output.reference_mismatch}/>

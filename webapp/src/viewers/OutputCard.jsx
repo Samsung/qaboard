@@ -13,16 +13,17 @@ import {
   HTMLSelect,
   Tooltip,
   Button,
-  PopoverNext,
-  Menu,
-  PopoverInteractionKind,
 } from "@blueprintjs/core";
 
 import { OutputViewer } from "./OutputViewer";
 import { config_visualizations } from "./controls";
 import { MetricsTags } from "../components/metrics";
-import { OutputTags, StatusTag, RunBadges, style_skeleton } from '../components/tags'
-import { RunInfoMenuItems } from '../components/RunInfoMenu'
+import { ConfigurationsTags, OutputTags, PlatformTag, StatusTag, RunBadges, style_skeleton } from '../components/tags'
+import { runTime } from '../components/RunInfoMenu'
+import { RunName } from '../components/runNames'
+import { LazyHoverPopover } from '../components/LazyPopover'
+import { configurationSummary } from '../configurations/tokens'
+import { useOutputCardDensity } from '../stores/prefs'
 
 import { updateSelected } from "../hooks";
 import { track } from "../analytics";
@@ -137,9 +138,45 @@ const run_path_style = {
   verticalAlign: 'bottom',
 };
 
-const OutputHeader = ({ project, commit, output, output_ref, type, manifests, style, prefix, viewable, tags_first=false }) => {
-  const has_metadata = !!output.test_input_metadata && (Object.keys(output.test_input_metadata).length > 0)
-  const has_label = has_metadata && !!output.test_input_metadata.label
+// Compact cards: the header is one line, like the runs in the logs. The configuration is text, its tags on hover.
+const CompactHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 30px;
+  /* the full screen button is at the top right */
+  padding-right: 28px;
+  margin-bottom: 4px;
+  font-size: 13px;
+  & > * {
+    flex: none;
+  }
+  .run-name-target {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: ${props => props.$summary ? '65%' : 'none'};
+    font-weight: 600;
+  }
+  .summary {
+    flex: 1 1 0;
+    min-width: 0;
+    font-size: 12px;
+  }
+  .runtime {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .run-name-target, .summary, .runtime {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+`;
+
+const configuration_popover_style = { padding: 8, maxWidth: 600 };
+
+const OutputHeader = ({ project, commit, output, output_ref, type, manifests, style, prefix, viewable, compact }) => {
   const tags = <OutputTags
     output={output}
     project={project}
@@ -148,32 +185,45 @@ const OutputHeader = ({ project, commit, output, output_ref, type, manifests, st
     manifests={manifests}
     commit={commit}
     type={type}
-    style={{marginLeft: '5px', marginRight: '5px'}}
+    configuration={!compact}
+    style={compact ? undefined : {marginLeft: '5px', marginRight: '5px'}}
   />
-
-  let run_path = `${output.test_input_database === '/' ? '/' : ''}${output.test_input_path}`
-  if (output.output_type === "pipeline" || output.test_input_path === "PIPELINE") {
-    run_path = <span>{output.data.batch} <span className={Classes.TEXT_MUTED}>(pipeline)</span></span>
+  const name = <RunName
+    output={output}
+    project={project}
+    commit={commit}
+    type={type}
+    style={compact ? undefined : run_path_style}
+  />
+  if (compact) {
+    const summary = configurationSummary(output);
+    const runtime = runTime(output);
+    return <CompactHeader $summary={!!summary}>
+      {prefix}
+      {name}
+      <RunBadges output={output}/>
+      {summary
+        ? <LazyHoverPopover className="summary" placement="bottom-start" content={<div style={configuration_popover_style}>
+            <PlatformTag platform={output.platform}/>
+            <ConfigurationsTags configurations={output.configurations ?? []} tuning={output.extra_parameters} mismatch={output.reference_mismatch} collapse={false}/>
+          </div>}>
+            <span className={Classes.TEXT_MUTED}>{summary}</span>
+          </LazyHoverPopover>
+        : <span className="summary"/>}
+      {!!runtime && <span className={`runtime ${Classes.TEXT_MUTED}`} title="Compute time">{runtime}</span>}
+      {viewable && tags}
+    </CompactHeader>
   }
-  if (has_label) {
-    run_path = output.test_input_metadata.label
-  }
-  const popover_content = <Menu>
-    <RunInfoMenuItems project={project} commit={commit} output={output} type={type} />
-  </Menu>
+  const has_badges = (output.params?.badges ?? []).length > 0
   return <>
     <h5 className={Classes.HEADING} style={style} >
       {prefix}
-      {tags_first && viewable && tags}
-      {output.output_type !== "batch" && !viewable ?
-        <span key="batch-info" style={run_path_style}>{run_path}</span> : <PopoverNext hoverCloseDelay={1000} interactionKind={PopoverInteractionKind.HOVER} content={popover_content}>
-        <span key="batch-info" style={run_path_style}>{run_path}</span>
-      </PopoverNext>}
-      {!tags_first && viewable && tags}
+      {name}
+      {viewable && tags}
     </h5>
-    <p style={{maxWidth: '600px'}}>
+    {has_badges && <p style={{maxWidth: '600px'}}>
       <RunBadges output={output}></RunBadges>
-    </p>
+    </p>}
   </>
 }
 
@@ -245,6 +295,8 @@ const OutputCard = memo(function OutputCard(props) {
     onRegisterOutputOptions, onToggleDynamicOptionSync, onControlsChange, labels,
   } = props;
   const controls = props.controls ?? {};
+  // compact cards take less room around the visualizations, see the user's preferences
+  const compact = useOutputCardDensity() === 'compact';
   const sync_prefs = controls.dynamic_options_sync ?? no_options;
   const synced_values = controls.dynamic_options ?? no_options;
 
@@ -534,11 +586,11 @@ const OutputCard = memo(function OutputCard(props) {
     <FullScreenableSlimCard
       updateFullscreen={updateFullscreen}
       viewable={viewable}
-      className="output-card"
+      className={compact ? "output-card compact" : "output-card"}
       style={{
         ...maybe_style_skeleton,
-        paddingBottom: !viewable ? "100px" : undefined,
-        minHeight: type !== 'bit_accuracy' ? "400px" : undefined,
+        paddingBottom: !viewable ? (compact ? "40px" : "100px") : undefined,
+        minHeight: type !== 'bit_accuracy' ? (compact ? "200px" : "400px") : undefined,
       }}
     >
       {error.new && <span key="error-new">
@@ -573,7 +625,8 @@ const OutputCard = memo(function OutputCard(props) {
         manifests={manifests}
         type={type}
         style={condensed_header_style}
-        prefix={output_new.is_running && <StatusTag output={output_new} style={{ marginRight: '5px' }}/>}
+        compact={compact}
+        prefix={output_new.is_running && <StatusTag output={output_new} style={compact ? undefined : { marginRight: '5px' }}/>}
       />}
       {/* History shows cards as hover previews, without a logs view */}
       {output_new.is_failed && (no_header
