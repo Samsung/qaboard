@@ -7,9 +7,9 @@ change the other.
 
 A filter is a list of words. A run matches when its description contains every word (as a regular expression), and
 none of those starting with "-". The description is the input's path, the configurations, the input's metadata, the
-tuning parameters, the batch of qaboard.yaml it comes from, "fail crash" when it failed, "pending running" when it
-hasn't finished, "status:success" when it succeeded, the platform and "id:<run id>". Everything is lowercase, and
-"key=value" or "key: value" count as "key:value".
+tuning parameters, the batch of qaboard.yaml it comes from, "fail crash status:failed" when it failed, "pending running"
+when it hasn't finished, "status:success" when it succeeded, the platform and "id:<run id>". Everything is lowercase,
+and "key=value" or "key: value" count as "key:value". "id:12" is run 12, not 123.
 """
 import re
 from typing import Any, Callable, Dict, Iterable, List, Optional
@@ -23,6 +23,13 @@ def _safe_regex(token: str) -> "re.Pattern[str]":
     return re.compile(token)
   except re.error:
     return re.compile(re.sub(r'\W', '.', token))
+
+
+def _token_regex(token: str) -> "re.Pattern[str]":
+  """A word of a filter as a regular expression: "id:12" is run 12, not 123."""
+  if re.fullmatch(r'id:\d+', token):
+    return re.compile(rf'{token}(?!\d)')
+  return _safe_regex(token)
 
 
 def match_query(pattern: Optional[str]) -> Callable[[str], bool]:
@@ -40,11 +47,13 @@ def match_query(pattern: Optional[str]) -> Callable[[str], bool]:
   words = tokens.split(' ')
   negative = [t[1:] for t in words if t.startswith('-') and len(t) > 1]
   positive = [t for t in words if not t.startswith('-')]
-  positive_regexes = [_safe_regex(t) for t in positive]
+  positive_regexes = [_token_regex(t) for t in positive]
+  negative_ids = [_token_regex(t) for t in negative if re.fullmatch(r'id:\d+', t)]
+  negative = [t for t in negative if not re.fullmatch(r'id:\d+', t)]
 
   def matches(searched: str) -> bool:
     searched = re.sub(r'(=+|: )', ':', searched.lower()).replace('"', '')
-    if any(token in searched for token in negative):
+    if any(token in searched for token in negative) or any(r.search(searched) for r in negative_ids):
       return False
     # "" (from an empty filter, or spaces) matches everything, like in the web app
     return all(r.search(searched) for r in positive_regexes)
@@ -68,7 +77,7 @@ def searched_text(*, id: Any, test_input_path: str, platform: Optional[str], con
   `batch` is the batch of qaboard.yaml the run comes from (`data.batch`), not the batch label.
   """
   metadata = js_stringify(test_input_metadata) if test_input_metadata else ''
-  failed = 'fail crash' if is_failed else ''
+  failed = 'fail crash status:failed' if is_failed else ''
   pending = 'pending running' if is_pending else ''
   status = 'status:success' if not (is_failed or is_pending or is_running) else ''
   # JavaScript prints a missing batch as "undefined": nobody filters on it, we keep the texts identical

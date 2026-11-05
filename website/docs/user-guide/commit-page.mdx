@@ -71,8 +71,11 @@ Batches that are milestones are protected: see [What a milestone keeps](/docs/us
 <summary>The messages above the views</summary>
 
 - **N running** / **N pending**: hover to list the runs. **Stop runs** cancels them.
-- **N failed**: the failed runs, each name opens its log. **Open the logs** shows the [Logs](/docs/user-guide/logs)
-  view.
+- **N failed**: up to 5 failed runs are listed: each name opens its log, and the target button next to it adds
+  `id:<run id>` to the filter, to show only this run. When more failed, often for a
+  common reason, the list is collapsed: **List the N runs** opens it. **Show only the failed runs** adds
+  `status:failed` to the filter, **Show all the runs** removes it, and **Open the logs** shows the
+  [Logs](/docs/user-guide/logs) view.
 - **N of the runs below were deleted**: **Redo deleted runs** runs them again.
 - **Be careful, those are local runs**: they were started from someone's workspace, and may not match the committed
   code.

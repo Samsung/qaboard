@@ -215,14 +215,17 @@ const match_query = pattern => {
     .filter(t => t[0] === "-" && t.length > 1)
     .map(t => t.substring(1));
   const positive_tokens = tokens.filter(t => t[0] !== "-");
-  const positive_regexps = positive_tokens.map(t => safe_regex(t))
+  // id:12 is run 12, not 123
+  const token_regex = t => /^id:\d+$/.test(t) ? new RegExp(`${t}(?!\\d)`) : safe_regex(t)
+  const positive_regexps = positive_tokens.map(token_regex)
+  const negative_matchers = negative_tokens.map(t => /^id:\d+$/.test(t) ? s => token_regex(t).test(s) : s => s.includes(t))
   // console.log(positive_tokens, negative_tokens)
   // console.log(pattern, positive_regexps)
   return query => {
     // console.log("query", query)
     const searched = query.toLowerCase().replace(/(=+|: )/g, ":").replace(/"/g, "");
     // console.log("searched", searched)
-    if (negative_tokens.some(token => searched.includes(token)))
+    if (negative_matchers.some(matches => matches(searched)))
       return false;
     if (positive_tokens.length === 0)
       return true;
@@ -254,7 +257,7 @@ const filter_batch = (batch, filter_values) => {
 
   Object.entries(batch.outputs).forEach(([id, output]) => {
     let metadata = Object.keys(output.test_input_metadata ?? {}).length > 0 ? JSON.stringify(output.test_input_metadata ?? {}) : "";
-    let failed = output.is_failed ? 'fail crash' : '';
+    let failed = output.is_failed ? 'fail crash status:failed' : '';
     let pending = output.is_pending ? 'pending running' : ''
     let status = !output.is_failed && !output.is_pending && !output.is_running ? 'status:success' : '';
     let searched = `${output.test_input_path} ${output.configurations_str} ${metadata} ${JSON.stringify(output.params)} ${output.data?.batch} ${failed} ${pending} ${status} ${output.platform} id:${id}`;
@@ -276,6 +279,15 @@ const filter_batch = (batch, filter_values) => {
 
   return filtered;
 };
+
+// The filter that keeps the runs that failed, among those `filter` keeps, and back
+const failed_token = 'status:failed'
+const filter_tokens = filter => (filter ?? '').trim().split(/\s+/).filter(Boolean)
+const shows_only_failed = filter => filter_tokens(filter).some(t => t.toLowerCase() === failed_token)
+const only_failed_filter = filter => shows_only_failed(filter) ? (filter ?? '') : [...filter_tokens(filter), failed_token].join(' ')
+const without_failed_filter = filter => filter_tokens(filter).filter(t => t.toLowerCase() !== failed_token).join(' ')
+// ...that keeps only one of them
+const only_run_filter = (filter, id) => [...filter_tokens(filter).filter(t => !/^id:\d+$/i.test(t)), `id:${id}`].join(' ')
 
 const plotly_palette_colors = [
   '#1f77b4',  // muted blue
@@ -605,6 +617,10 @@ export {
   pretty_label,
   filter_batch,
   match_query,
+  shows_only_failed,
+  only_failed_filter,
+  without_failed_filter,
+  only_run_filter,
   hash_numeric,
   project_avatar_style,
   hash_color,

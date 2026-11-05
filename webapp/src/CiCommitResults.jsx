@@ -315,7 +315,7 @@ const CiCommitResults = () => {
             <Messages key="filters">
               {warning_messages}
               {/* the selected batch's runs are unrelated to editing batch definitions, and would push the editor down */}
-              {!selected_views.includes('groups') && <BatchStatusMessages project={new_project} commit={new_commit} batch={new_batch} />}
+              {!selected_views.includes('groups') && <BatchStatusMessages project={new_project} commit={new_commit} batch={new_batch} filter={filter_batch_new} />}
               {shows_runs && <ConfigurationOverview new_batch={new_batch} />}
             </Messages>
 
