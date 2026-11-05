@@ -113,3 +113,44 @@ describe('export names', () => {
     expect(example_name(plan.items[0], default_naming, '**/*.png', 'abcdef123456', 'default')).toBe('x_a__file__new.png');
   });
 });
+
+describe('crops and presets', () => {
+  it('names regions after their labels, else their source and rank, uniquely', async () => {
+    const { crop_regions, QUARTERS } = await import('../plan');
+    const regions = crop_regions([
+      ['presets', [{ x: 0, y: 0, w: 10, h: 10, label: 'Face', imageWidth: 100, imageHeight: 50 }, { x: 1, y: 1, w: 2, h: 2 }, { x: 1, y: 1, w: 2, h: 2, label: 'face' }]],
+      // labels of differences say how much images differ: not names
+      ['auto-yiq', [{ x: 5, y: 5, w: 4, h: 4, label: '#1 · 3.2%' }, { x: 0, y: 0, w: 0, h: 4 }], 'out.png'],
+      ['quarters', QUARTERS.slice(0, 1)],
+    ]);
+    expect(regions.map(r => r.name)).toEqual(['Face', 'roi-02', 'face-2', 'diff-01', 'top-left']);
+    expect(regions[0]).toEqual({ name: 'Face', x: 0, y: 0, w: 10, h: 10, image_width: 100, image_height: 50, label: 'Face', source: 'presets' });
+    expect(regions[3]).toMatchObject({ file: 'out.png', source: 'auto-yiq' });
+  });
+
+  it('gives references the regions of the new runs they are compared to', () => {
+    const { new_batch, ref_batch } = batches([[run('a.raw'), run('a.raw')]]);
+    const id = new_batch.filtered.outputs[0];
+    const plan = export_runs({ new_batch, ref_batch, regions: new Map([[id, [{ name: 'face', x: 0, y: 0, w: 1, h: 1 }]]]) });
+    expect(plan.items.map(i => i.regions?.[0]?.name)).toEqual(['face', 'face']);
+  });
+
+  it("disables presets that would give runs the same names, and says what's unused", async () => {
+    const { preset_fit } = await import('../plan');
+    const { new_batch, ref_batch } = batches([
+      [run('a.raw', { extra_parameters: { gain: 1 } }), null],
+      [run('a.raw', { extra_parameters: { gain: 2 } }), null],
+    ]);
+    expect(preset_fit({ settings_keys: ['iso'] }, { new_batch, ref_batch }))
+      .toEqual({ disabled: "Runs would get the same names: they don't say gain", notes: ["These runs don't differ by iso: names won't say it"] });
+    expect(preset_fit({}, { new_batch, ref_batch }).disabled).toBe(null);
+  });
+
+  it('colors names by field: each part says which field it comes from', async () => {
+    const { file_name_parts } = await import('../names');
+    const parts = file_name_parts('{side}/{input}__{settings}__{file}__{region}', { side: 'new', input: 'x/a', settings: '' }, 'out.png', '_', true, false);
+    expect(parts).toEqual([
+      { text: 'new', field: 'side' }, { text: '/', field: null, folder: true }, { text: 'x_a', field: 'input' }, { text: '.png', field: null },
+    ]);
+  });
+});

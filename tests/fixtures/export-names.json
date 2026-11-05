@@ -764,6 +764,42 @@
    "separator": "_",
    "windows": true,
    "name": "aux_x.png"
+  },
+  {
+   "template": "{input}__{file}__{region}__{side}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42",
+    "region": "diff-01"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "name": "scenes_night_img01__out__diff-01__new.png"
+  },
+  {
+   "template": "{input}__{file}__{region}__{side}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42",
+    "region": ""
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "name": "scenes_night_img01__out__new.png"
   }
  ],
  "inputs": [
