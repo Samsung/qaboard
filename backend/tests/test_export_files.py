@@ -262,6 +262,8 @@ def test_the_export_is_what_was_previewed(export_api, tmp_path, dummy_app, monke
   monkeypatch.setattr(export_api, 'Output', MagicMock())
   export_api.Output.query.options.return_value.filter.return_value.all.return_value = [a, b]
   monkeypatch.setattr(export_api, 'check_folder', lambda export_dir: (not export_dir.exists(), True))
+  # alice may act on the project: access rules are tested in test_security.py
+  monkeypatch.setattr(export_api, 'require_project_access', lambda *args, **kwargs: None)
   folder = tmp_path / 'export'
   body = {
     "project": "proj", "files": "*.png", "template": "{input}__{file}__{side}", "folder": {"path": str(folder), "id": "0123abcd"},
