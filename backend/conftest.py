@@ -93,6 +93,7 @@ def pytest_configure():
         setattr(models_mod, name, MagicMock())
     models_mod.batches_stats = MagicMock()
     models_mod.BatchNotification = MagicMock()
+    models_mod.UsageEvent = MagicMock()
     sys.modules['backend.models'] = models_mod
     sys.modules['backend.backend'] = types.ModuleType('backend.backend')
 
@@ -102,6 +103,8 @@ def pytest_configure():
     sa_orm.selectinload = MagicMock()
     if not hasattr(sa_mod, 'or_'):
         sa_mod.or_ = MagicMock()
+    if not hasattr(sa_mod, 'insert'):
+        sa_mod.insert = MagicMock()
 
     sa_attrs = types.ModuleType('sqlalchemy.orm.attributes')
     sa_attrs.flag_modified = MagicMock()

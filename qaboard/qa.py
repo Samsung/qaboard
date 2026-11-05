@@ -38,6 +38,7 @@ from .config import get_default_configuration, default_input_type
 from .config import commit_id, outputs_commit, artifacts_commit, root_qatools, artifacts_commit_root
 from .config import user, is_ci, on_windows, available_metrics
 from .metrics import split_metrics, run_definitions
+from . import analytics
 
 
 
@@ -59,6 +60,8 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   # http://click.pocoo.org/6/complex/
   if not ctx.obj:
     ctx.obj = {}
+  # One usage event per command, sent when it ends (qaboard/analytics.py), never from CI
+  analytics.start(ctx.invoked_subcommand, share=share, tuning=bool(tuning or tuning_filepath), dryrun=dryrun, offline=offline)
   # Signing in is global, per server: it doesn't need a project
   if ctx.invoked_subcommand in ('auth', 'runs'):
     return
@@ -638,6 +641,7 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
   if keeps_runs_runner and runs_job_options.get('type'):
     runner = runs_job_options['type']
 
+  analytics.note(runner=runner, n_batches=len(batches) if batches else None)
   print_url(ctx)
   # if the commit does not exist or there are network errors it will return empty data
   try:
@@ -667,6 +671,8 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
   os.environ['QA_BATCH']= 'true' # triggered runs will be less verbose than with just `qa run`
   os.environ['QA_BATCHES_FILES'] = json.dumps([str(b) for b in batches_files])
   dryrun = ctx.obj['dryrun'] or list_output_dirs or list_inputs or list_contexts
+  if dryrun:
+    analytics.note(dryrun=True)
   should_notify_qa_database = (is_ci or ctx.obj['share']) and not (dryrun or ctx.obj['offline'])
   # An email when the runs end, unless QA_NOTIFY=none
   notify = notify_channel(is_ci, nested, started_by_qaboard) if not dryrun else None
@@ -699,6 +705,8 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
 
 
   tuning_search, filetype = load_tuning_search(tuning_search_dict, tuning_search_file)
+  if tuning_search_dict or tuning_search_file:
+    analytics.note(tuning=True)
   
   # Separate base configuration from CLI overrides
   base_runner_options = {
@@ -1246,10 +1254,21 @@ def main():
   from .compat import ensure_cli_backward_compatibility
   ensure_cli_backward_compatibility()
   forwarded_args = split_dashdash()
-  qa(
-    obj={"forwarded_args": forwarded_args},
-    auto_envvar_prefix='QA',
-  )
+  # click exits with SystemExit: we read the exit code for the usage event, then exit the same way
+  exit_code = 0
+  try:
+    qa(
+      obj={"forwarded_args": forwarded_args},
+      auto_envvar_prefix='QA',
+    )
+  except SystemExit as e:
+    exit_code = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+    raise
+  except BaseException:
+    exit_code = 1
+    raise
+  finally:
+    analytics.finish(exit_code)
 
 if __name__ == '__main__':
   main()

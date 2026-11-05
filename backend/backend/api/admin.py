@@ -1,5 +1,6 @@
 """
-The admin panel's API: users, tokens, the audit log, settings, and a security checklist.
+The admin panel's API: users, tokens, the audit log, settings, a security checklist, and what to configure or look at
+to get more from QA-Board.
 Admins are users with `is_admin` and those in $QABOARD_ADMINS (see backend/admins.py).
 """
 import os
@@ -14,6 +15,7 @@ from ..admins import is_admin, is_env_admin, env_admins
 from ..audit import audit, diff, serialize as serialize_event
 from .. import settings as settings_lib
 from .. import tokens as tokens_lib
+from .. import usage as usage_lib
 from .auth import admin_required, is_login_restricted
 from .users import page_of_events
 from ..search import escape_like
@@ -76,15 +78,19 @@ def active_token_counts(user_ids) -> dict:
 @admin_required
 def admin_overview():
   now = tokens_lib.utcnow()
+  month_ago = now - datetime.timedelta(days=30)
+  # who used QA-Board: a usage event, or a sign-in (sessions last for days, so sign-ins alone undercount)
+  active = {u for (u,) in db_session.query(User.id).filter(User.last_login_at > month_ago, User.kind == 'human').all()}
+  active |= usage_lib.active_user_ids(month_ago)
   counts = {
     "users": User.query.filter(User.kind == 'human').count(),
-    "active_30d": User.query.filter(User.last_login_at > now - datetime.timedelta(days=30)).count(),
+    "active_30d": len(active),
     "admins": sum(1 for u in User.query.filter(User.status == 'active').all() if is_admin(u)),
     "pending": User.query.filter(User.status == 'pending').count(),
     "disabled": User.query.filter(User.status == 'disabled').count(),
     "active_tokens": sum(active_token_counts([u for (u,) in db_session.query(User.id).all()]).values()),
   }
-  return jsonify({"counts": counts, "checklist": checklist()})
+  return jsonify({"counts": counts, "checklist": checklist(), "value_checklist": value_checklist()})
 
 
 def checklist() -> list:
@@ -159,6 +165,100 @@ def checklist() -> list:
   if is_login_restricted:
     item('restrictions_yaml', True, 'info', "Project restrictions also come from QABOARD_LOGIN_RESTRICTED_YAML",
          "Its projects are private, and the users its rules match are their developers. Owners can add members in Project → Access.")
+  return items
+
+
+USAGE_LOOKBACK_DAYS = 90
+# The usage-based items read the last months of runs and events: computed at most every few minutes, per process
+USAGE_ITEMS_CACHE_SECONDS = 300
+_usage_items_cache = {'at': None, 'value': None}
+
+
+def usage_items() -> dict:
+  """{ci_only, web_only, products} of the last USAGE_LOOKBACK_DAYS days, cached for USAGE_ITEMS_CACHE_SECONDS"""
+  now = tokens_lib.utcnow()
+  if _usage_items_cache['at'] and (now - _usage_items_cache['at']).total_seconds() < USAGE_ITEMS_CACHE_SECONDS:
+    return _usage_items_cache['value']
+  since = now - datetime.timedelta(days=USAGE_LOOKBACK_DAYS)
+  value = {
+    "ci_only": usage_lib.ci_only_projects(since),
+    "web_only": usage_lib.web_only_users(since),
+    "products": usage_lib.tuning_products(since),
+  }
+  _usage_items_cache.update(at=now, value=value)
+  return value
+
+
+def value_checklist() -> list:
+  """What admins can configure, or look at, to get more from QA-Board: it's not about security"""
+  items = []
+  def item(id, ok, title, detail, ok_detail=None):
+    items.append({"id": id, "ok": ok, "severity": 'info', "title": title, "detail": ok_detail if ok else detail})
+
+  from ..notifications.mail import email_enabled
+  emails = email_enabled()
+  item('email_notifications', emails,
+       "Email notifications are on" if emails else "Email notifications aren't configured",
+       "Set QABOARD_SMTP_HOST (and QABOARD_EMAIL_FROM): users can then ask for an email when the batches they start end, and admins hear about failed jobs.")
+
+  from ..sign_in import providers as providers_lib
+  login_type = settings_lib.login_type()
+  # the local provider is always there: the company's accounts are LDAP, SAML, or an OpenID Connect provider
+  sso = login_type in ('LDAP', 'SAML') or any(p.enabled and p.type not in ('local', 'ldap') for p in providers_lib.all_providers())
+  item('single_sign_on', sso,
+       "Users sign in with the company's accounts" if sso else "Users sign in with local accounts",
+       "Add a single sign-on provider (Admin > Sign-in): no passwords to manage, and groups come from the directory.")
+
+  # gitlab.com and github.com are always known: a host is configured when the settings name one, or give a token
+  from ..git_hosts import server_setting, server_secret
+  hosts = any(server_setting(name) for name in ('QABOARD_GIT_HOSTS', 'GITLAB_HOST', 'QABOARD_GITLAB_HOSTS', 'QABOARD_GITHUB_HOSTS')) \
+    or any(server_secret(name) for name in ('GITLAB_ACCESS_TOKEN', 'GITHUB_ACCESS_TOKEN'))
+  item('git_hosts', hosts,
+       "Git hosts are configured" if hosts else "No git host is configured",
+       "Set QABOARD_GIT_HOSTS and their webhooks: commits, branches and messages then show up as they're pushed, before runs arrive.")
+
+  sentry = bool(os.environ.get('SENTRY_DSN'))
+  item('sentry', sentry, "Errors are reported to Sentry" if sentry else "Errors aren't reported anywhere",
+       "Set SENTRY_DSN: errors in users' browsers, in `qa` and in the server are then reported, with what led to them.")
+
+  from ..annotations import describe_sources
+  annotations = bool(describe_sources())
+  item('annotation_sources', annotations,
+       "The image viewer has annotation sources" if annotations else "No annotation sources",
+       "Configure QABOARD_ANNOTATION_SOURCES: the image viewer then shows the labels, boxes and regions of other tools over the runs' images.")
+
+  from ..models import JobSchedule
+  gc = JobSchedule.query.filter(JobSchedule.kind == 'garbage_collect', JobSchedule.enabled.is_(True)).count() > 0
+  item('garbage_collect', gc,
+       "Old results are deleted on a schedule" if gc else "Nothing deletes old results",
+       "Add a schedule for \"Delete old results\" (Admin > Storage > Schedules): the storage then stays in check without anyone remembering to clean it.")
+
+  from ..models import RoleGrant, Project
+  owners = RoleGrant.query.filter(RoleGrant.resource_type == 'project', RoleGrant.role == 'owner').count()
+  projects = Project.query.count()
+  item('project_owners', owners > 0 or projects == 0,
+       "Projects have owners" if owners > 0 else ("No projects yet" if projects == 0 else "No project has an owner"),
+       "Make the people in charge of each project its owners (Project > Access): they can then add their team, restrict who sees it, and get the access requests.")
+
+  cached = usage_items()
+  ci_only = cached['ci_only']
+  item('ci_only_projects', not ci_only,
+       f"Every project with CI runs was looked at in the last {USAGE_LOOKBACK_DAYS} days" if not ci_only
+       else f"{len(ci_only)} project{'s' if len(ci_only) > 1 else ''} get CI runs nobody looked at in {USAGE_LOOKBACK_DAYS} days",
+       f"Show their teams around, or stop their CI jobs: {', '.join(ci_only[:5])}{'…' if len(ci_only) > 5 else ''} (Admin > Usage > Projects).")
+
+  web_only = cached['web_only']
+  item('web_only_users', not web_only,
+       "Everyone active in the web app has used the CLI" if not web_only
+       else f"{len(web_only)} user{'s' if len(web_only) > 1 else ''} active in the web app never used the CLI",
+       "They only read results: `qa batch` from their terminal and `qa auth login` let them run and tune their own experiments (Admin > Usage > Users).")
+
+  products = cached['products']
+  without_tuning = sorted(product for product, tuning in products.items() if not tuning)
+  item('tuning_products', not without_tuning,
+       "Every product in use started a tuning" if not without_tuning
+       else f"{len(without_tuning)} product{'s' if len(without_tuning) > 1 else ''} in use never started a tuning",
+       f"Tuning from the web app may not be known there: {', '.join(without_tuning[:5])}{'…' if len(without_tuning) > 5 else ''}.")
   return items
 
 

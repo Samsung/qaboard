@@ -41,6 +41,14 @@ export const userAuditQuery = infiniteQueryOptions({
 });
 
 
+// The user's own usage of QA-Board, last 30 days: {total, active_days, first_seen_at, last_seen_at, by_event, by_project}
+export const userUsageQuery = queryOptions({
+  queryKey: ['usage', 'mine'],
+  queryFn: async ({ signal }) => (await http.get('/api/v1/user/usage', { signal })).data,
+  staleTime: 60 * 1000,
+});
+
+
 // The token's state, from the server's `status`, with what users need to act on
 export const days_until = iso => {
   const date = parseDate(iso);

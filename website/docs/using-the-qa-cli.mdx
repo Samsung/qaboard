@@ -151,6 +151,10 @@ run ends.
 With `qa --offline`, `qa` never contacts QA-Board: results are only saved on disk. To use another server, see
 [Connect to your server](/docs/installation#connecting-to-a-custom-qa-board-server).
 
+Outside CI, `qa` also tells the server which command ran, so that admins see how QA-Board is used
+([what it sends](/docs/installation#connecting-to-a-custom-qa-board-server)). `QA_NO_ANALYTICS=1` or `--offline` keep
+it quiet.
+
 ## Options as environment variables {#options-as-environment-variables}
 Every option can be set in the environment: `QA_<OPTION>` for `qa`'s own options, `QA_<COMMAND>_<OPTION>` for a
 command's, in capitals and with `_` for `-`:

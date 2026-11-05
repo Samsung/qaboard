@@ -130,6 +130,10 @@ DEFINITIONS = {
     "Who sees other people's storage usage (Storage usage > Everyone's, Users): \"members\" (the project's developers and owners, from a grant, a group or qaboard.yaml: not every signed-in user) or \"signed_in\" (everyone who can see the project). Admins see everything.",
     'members', str, env='QABOARD_STORAGE_OTHERS_VISIBLE_TO', choices=('members', 'signed_in'),
   ),
+  'analytics.enabled': Definition(
+    "Record what people do in the web app and with `qa` (Admin > Usage): page views, features used, commands run. Off: the web app sends nothing, and the server drops what reaches it.",
+    True, bool, env='QABOARD_ANALYTICS_ENABLED', parse_env=env_flag,
+  ),
   'storage.exports_root': Definition(
     "Where \"Export to a shared folder\" puts exports: <this folder>/<user>/<project>/<date>-<id>, all in one place where users find and delete them (Storage usage > Exports). Empty: in a share/ folder next to the commit's runs, as before. It must be in the storage (QABOARD_STORAGE_ROOTS).",
     None, str, env='QABOARD_EXPORTS_ROOT', nullable=True,

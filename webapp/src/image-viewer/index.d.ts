@@ -289,6 +289,8 @@ export interface ImageViewerProps {
   getPixels?: (image: ImageDescriptor, region: PixelRegion, options: { signal: AbortSignal }) => Promise<Pixels>;
   /** Without getPixels: why the images' own values aren't available, e.g. "Sign in to read the images' own values" */
   imageValuesUnavailable?: string;
+  /** Told when users use a feature: 'pixel_pin', 'histogram' or 'analysis' (the panel opens). Apps count usage with it */
+  onUse?: (feature: 'pixel_pin' | 'histogram' | 'analysis') => void;
 
   /** The highest the images can be, in CSS pixels, or a function of the window's height. Default: h => h - 160 */
   maxHeight?: number | ((windowHeight: number) => number);

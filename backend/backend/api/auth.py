@@ -419,6 +419,10 @@ def create_user(info):
     status=new_user_status(info.get("email"), verified=info["login_type"] != "LOCAL"),
   )
   db_session.add(user)
+  db_session.flush()
+  # the `qa` commands they ran before signing in, as this name, are theirs (backend/usage.py)
+  from ..usage import claim_events
+  claim_events(user)
   db_session.commit()
   print(f"[auth] Created the user @{user.user_name}" + (" (waiting for an admin)" if user.status == 'pending' else ""))
   return user

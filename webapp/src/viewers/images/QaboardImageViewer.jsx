@@ -1,7 +1,7 @@
 // The image viewer in QA-Board: compares an image of a run with the same image of its reference run, or with another
 // image of the run (e.g. its ground truth).
 // It maps runs, their files and the site's image servers to the viewer's props (src/image-viewer/README.md).
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Tag } from '@blueprintjs/core';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router';
@@ -9,6 +9,7 @@ import { create } from 'zustand';
 
 import { ImageViewer } from '../../image-viewer';
 import { errorMessage, http, isAbort } from '../../api/http';
+import { track } from '../../analytics';
 import { useComparison, useLabels, useSelected, useSiteConfig, useUser } from '../../hooks';
 import { usePrefsStore } from '../../stores/prefs';
 import { at_most, is_same_data } from '../../utils';
@@ -249,6 +250,13 @@ const ImageViewerForRuns = ({
   const setAnalysisValues = usePrefsStore(state => state.setImageAnalysisValues);
   // what users said of the sensor of the project's raw images
   const { project } = useSelected();
+  // Usage analytics: each feature once per viewer, so that holding a key doesn't send hundreds of events
+  const used_features = useRef(new Set());
+  const use = feature => {
+    if (used_features.current.has(feature)) return;
+    used_features.current.add(feature);
+    track('image_viewer_use', { feature }, { project_id: project });
+  };
   const sensor = usePrefsStore(state => state.imageSensor[project]);
   const setSensor = usePrefsStore(state => state.setImageSensor);
   const adjustments = useAdjustmentsStore(state => state.by_path[path]);
@@ -337,7 +345,7 @@ const ImageViewerForRuns = ({
     reference={reference}
     compareWith={compare_with}
     compared={compared}
-    onComparedChange={value => setCompared(path, output_new.id, value, compared_page)}
+    onComparedChange={value => { use('compare'); setCompared(path, output_new.id, value, compared_page); }}
     compareScopes={COMPARE_SCOPES}
     compareScope={compare_scope}
     onCompareScopeChange={setCompareScope}
@@ -347,7 +355,7 @@ const ImageViewerForRuns = ({
     diff={diff_settings}
     onDiffChange={value => onControlsChange ? onControlsChange({ image_diff: value }) : setLocalDiff(value)}
     adjustments={adjustments}
-    onAdjustmentsChange={value => setAdjustments(path, value)}
+    onAdjustmentsChange={value => { use(value?.falseColor !== adjustments?.falseColor ? 'colormap' : 'adjustments'); setAdjustments(path, value); }}
     pixelValues={pixel_values}
     onPixelValuesChange={setPixelValues}
     analysis={analysis}
@@ -361,7 +369,7 @@ const ImageViewerForRuns = ({
     syncKey={output_new.test_input_path ?? null}
     regionSets={region_sets}
     regionSet={region_set}
-    onRegionSetChange={setRegionSet}
+    onRegionSetChange={value => { if (value) use(String(value).startsWith('annotations-') ? 'annotations' : 'region'); setRegionSet(value); }}
     regionActions={region_actions}
     swapped={page_swapped !== shuffled}
     onSwappedChange={swapPage}
@@ -369,6 +377,7 @@ const ImageViewerForRuns = ({
     onBlindTestChange={blindTestPage}
     getPixels={signed_in ? getPixels : undefined}
     imageValuesUnavailable={signed_in ? undefined : SIGN_IN_VALUES}
+    onUse={use}
     maxHeight={height => height - (fullscreen ? 120 : 260)}
     notice={<>
       {label && <span className="qaboard-image-viewer-label">{label}</span>}

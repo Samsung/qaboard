@@ -11,7 +11,8 @@ import { RunList, Header, Content, INTERACTIVE } from "./RunLogs";
 import { batchSubmissions, is_final, useSubmissionStatus } from "./submissions";
 import { DirectoryActions } from "./DirectoryActions";
 import { copyWithToast } from "../../utils/clipboard";
-import { BatchDefinitions, definitionsFiles } from "../tuning/BatchReport";
+import { BatchDefinitions, batchFileInfo, definitionsFiles } from "../tuning/BatchReport";
+import { openInAvailableTests, SHARED_BATCHES_FILE } from "../tuning/availableTests";
 
 
 const Meta = styled.span`
@@ -98,11 +99,20 @@ const waitingHint = submission => submission.runner === 'lsf'
   ? "LSF hasn't started the job yet. The cluster may be busy."
   : "qa batch hasn't written logs yet."
 
+// Where the batch files of a submission are, see BatchDefinitions
+const filesContext = (submission, available_tests_files, repo_file_url) => ({
+  shared: available_tests_files?.gr ?? SHARED_BATCHES_FILE,
+  user: available_tests_files?.usr,
+  owner: submission.user,
+  repoFileUrl: repo_file_url,
+  onOpen: openInAvailableTests,
+})
+
 // The batch files the batch came from, in a few words
-const fromFiles = submission => {
-  const files = definitionsFiles(submission.definitions)
+const fromFiles = (submission, context) => {
+  const files = definitionsFiles(submission.definitions, context)
   if (!files.length) return null
-  return files.length === 1 ? `from ${files[0]}` : `from ${files.length} batch files`
+  return files.length === 1 ? `from ${batchFileInfo(files[0], context).short}` : `from ${files.length} batch files`
 }
 
 const lsfJob = submission => submission.lsf_job_id ? `LSF job ${submission.lsf_job_id}${submission.queue ? ` (${submission.queue})` : ''}` : null
@@ -115,7 +125,8 @@ const scrolled = new WeakSet()
  * A batch started from QA-Board: the status of `qa batch`, and its logs.
  * `focus` changes when users ask to see this submission: we scroll to it.
  */
-const SubmissionRow = ({ submission, expanded, onToggle, focus }) => {
+const SubmissionRow = ({ submission, expanded, onToggle, focus, available_tests_files, repo_file_url }) => {
+  const files_context = filesContext(submission, available_tests_files, repo_file_url)
   const status = useSubmissionStatus(submission)
   const ref = useRef(null)
   useEffect(() => {
@@ -153,7 +164,7 @@ const SubmissionRow = ({ submission, expanded, onToggle, focus }) => {
             submission.user && `by ${submission.user}`,
             relative(submission.created_at),
             lsfJob(submission),
-            fromFiles(submission),
+            fromFiles(submission, files_context),
           ].filter(Boolean).map((text, index) => <React.Fragment key={index}>
             {index > 0 && ' · '}
             {index === 1 ? <Tooltip content={absolute(submission.created_at)}>{text}</Tooltip> : text}
@@ -172,7 +183,7 @@ const SubmissionRow = ({ submission, expanded, onToggle, focus }) => {
               {!!status.last_error && <LastError>{status.last_error}</LastError>}
             </Callout>
         )}
-        <BatchDefinitions definitions={submission.definitions} style={{ margin: '0 0 6px 0' }} />
+        <BatchDefinitions definitions={submission.definitions} context={files_context} style={{ margin: '0 0 8px 0' }} />
         {!!submission.command && <Command className={Classes.MONOSPACE_TEXT}>
           <code>{submission.command}</code>
           <Tooltip content="Copy the command">
@@ -195,7 +206,7 @@ const SHOWN = 3
  * If the batch has no runs yet, we open the most recent: it's likely why.
  * `focus` ({id}, a new object each time) opens a submission's logs and scrolls to it. We ignore the requests made before we rendered.
  */
-export const BatchSubmissions = ({ batch, has_runs, focus }) => {
+export const BatchSubmissions = ({ batch, has_runs, focus, available_tests_files, repo_file_url }) => {
   const submissions = batchSubmissions(batch)
   const [expanded, setExpanded] = useState(() => new Set(!has_runs && submissions.length ? [submissions[0].id] : []))
   const [show_all, setShowAll] = useState(false)
@@ -226,6 +237,8 @@ export const BatchSubmissions = ({ batch, has_runs, focus }) => {
         expanded={expanded.has(submission.id)}
         onToggle={() => toggle(submission.id)}
         focus={focused?.id === submission.id ? focused : null}
+        available_tests_files={available_tests_files}
+        repo_file_url={repo_file_url}
       />)}
     </RunList>
     {submissions.length > SHOWN && <Button style={{ marginTop: 6 }} size="small" variant="minimal" onClick={() => setShowAll(!show_all)}>

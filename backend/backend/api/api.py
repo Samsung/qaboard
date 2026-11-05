@@ -87,6 +87,8 @@ def get_site_config():
         "sandbox_html": sandbox_html(),
         # Where the image viewer finds annotations: [{id, label, description}] (backend/annotations.py)
         "annotation_sources": describe_sources(),
+        # The web app sends usage events to /api/v1/events (backend/usage.py)
+        "analytics_enabled": setting('analytics.enabled'),
     })
 
 

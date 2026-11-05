@@ -2,7 +2,7 @@
  * Tests for the logs of a batch: where the logs of the commands that started it are.
  * Run with: cd webapp && npm test -- BatchLogs
  */
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { setupIntersectionMocking, resetIntersectionMocking } from 'react-intersection-observer/test-utils';
 
 import { renderWithProviders } from '../../test-utils';
@@ -103,11 +103,21 @@ describe('BatchLogs', () => {
     const one = { id: 's1', created_at: '2026-10-12T08:00:00Z', user: 'alice', runner: 'local', command: 'qa batch --batch nightly', status: 'done', log_dir_url: '/s/b/qaboard-batches/1',
       definitions: [{ name: 'nightly', files: ['qa/batches.yaml', 'alice.yml'] }] }
     const two = { ...one, id: 's2', created_at: '2026-10-11T08:00:00Z', log_dir_url: '/s/b/qaboard-batches/2', definitions: [{ name: 'ci', files: ['qa/batches.yaml'] }] }
-    renderLogs(makeBatch({ submissions: { s1: one, s2: two } }))
+    // recorded before the server said where the files come from: alice.yml is alice's private file
+    renderWithProviders(<BatchLogs
+      batch={makeBatch({ submissions: { s1: one, s2: two } })}
+      project="p"
+      commit={{ id: 'abc' }}
+      available_tests_files={{ gr: 'extra-batches', usr: 'alice' }}
+      repo_file_url={path => `https://git/p/blob/abc/${path}`}
+    />)
     expect(screen.getByText(/from 2 batch files/)).toBeInTheDocument()
     expect(screen.getByText(/from qa\/batches\.yaml/)).toBeInTheDocument()
     fireEvent.click(screen.getAllByLabelText('Show the logs')[0])
-    expect(await screen.findByText((_, el) => el?.tagName === 'P' && el.textContent === 'nightly is defined in qa/batches.yaml, then alice.yml.')).toBeInTheDocument()
+    const defined = await screen.findByLabelText('Where the batch is defined')
+    expect(defined).toHaveTextContent('Defined in qa/batches.yaml and Your private batches')
+    expect(defined).toHaveTextContent('your private batches override nightly')
+    expect(within(defined).getByRole('link')).toHaveAttribute('href', 'https://git/p/blob/abc/qa/batches.yaml')
   })
 
   it('shows the logs of older submissions, hidden by default', async () => {

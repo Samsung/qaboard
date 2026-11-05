@@ -296,6 +296,7 @@ resolution), and show a cross where the pointer is on the others. Viewers off-sc
 | `pixelValues`, `defaultPixelValues`, `onPixelValuesChange` | `'image' \| 'display' \| 'off'` | `'image'` | [Values](#pixel-values-the-images-or-the-displayed-ones) written on the pixels when zoomed in. `'image'` needs `getPixels`, else they're the displayed ones. |
 | `getPixels` | `(image, { x, y, w, h }, { signal }) => Promise<{ data, width, height, channels?, mode? } \| { values, mode? }>` | | The image's own values, by tiles of 64×64 |
 | `imageValuesUnavailable` | `string` | | Without `getPixels`, why the image's own values aren't available, e.g. "Log in to read the images' own values" |
+| `onUse` | `(feature) => void` | | Told when users pin a pixel (`'pixel_pin'`) or open the analysis panel (`'histogram'`, `'analysis'`), e.g. to count usage |
 | `analysis`, `defaultAnalysis`, `onAnalysisChange` | `'histogram' \| 'profiles' \| 'stats'` | the one picked last on the page | The view of the analysis panel under the images (<kbd>a</kbd> shows it) |
 | `analysisValues`, `defaultAnalysisValues`, `onAnalysisValuesChange` | `'display' \| 'image'` | `'display'` | What the analysis measures: the displayed values, or the [image's own](#raw-images-analysis-by-channel-of-the-sensor) (needs `getPixels`) |
 | `sensor`, `defaultSensor`, `onSensorChange` | `{ kind?, pattern?, block?, offset?, blackLevel?, grouping? }` | automatic | What users set about the sensor of raw images |

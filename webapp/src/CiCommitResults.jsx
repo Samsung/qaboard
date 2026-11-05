@@ -30,6 +30,8 @@ import { ExportPlugin } from "./plugins/ExportPlugin";
 import { ScriptPlugin } from "./plugins/ScriptPlugin";
 import { humanFileSize, file_options as file_options_list, bit_accuracy_url_defaults } from "./viewers/bit_accuracy/utils";
 import { project_web_url } from "./utils";
+import { blob_url } from "./git";
+import { SHARED_BATCHES_FILE } from "./components/tuning/availableTests";
 
 import PrivateContent from "./components/authentication/PrivateContent"
 import ViewOptionsPanel from "./components/ViewOptionsPanel";
@@ -189,7 +191,11 @@ const CiCommitResults = () => {
   const has_tuning = tuned_params.length > 0
   const show_ref_navbar = shows_reference_bar(selected_views)
   // TODO: migrate the availble-tests-files to DB
-  const available_tests_files = { gr: "extra-batches", usr: user.user_name ?? null };
+  const available_tests_files = { gr: SHARED_BATCHES_FILE, usr: user.user_name ?? null };
+  // the batch files of the commit, on the git server
+  const repo_file_url = (git?.web_url || git?.path_with_namespace) && new_commit?.id
+    ? path => blob_url(project_data, new_commit.id, path)
+    : undefined;
   const export_plugin = <ExportPlugin
     project={new_project}
     ref_project={ref_project}
@@ -377,6 +383,7 @@ const CiCommitResults = () => {
                     metrics={metrics}
                     commit={new_commit}
                     available_tests_files={available_tests_files}
+                    repo_file_url={repo_file_url}
                     />
                   </PrivateContent>
                 </Card>}
@@ -417,6 +424,8 @@ const CiCommitResults = () => {
                   project={new_project}
                   commit={new_commit}
                   batch={new_batch}
+                  available_tests_files={available_tests_files}
+                  repo_file_url={repo_file_url}
                   batch_label={new_batch.label}
                 />
              </ViewSection>}
