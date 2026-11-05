@@ -10,6 +10,13 @@ export const overviewQuery = queryOptions({
   staleTime: 30 * 1000,
 });
 
+// The overview's usage-based items, apart: they can take seconds when the server didn't compute them in the last hour
+export const overviewUsageQuery = queryOptions({
+  queryKey: ['admin', 'overview', 'usage'],
+  queryFn: async ({ signal }) => (await http.get('/api/v1/admin/overview/usage', { signal })).data?.items ?? [],
+  staleTime: 5 * 60 * 1000,
+});
+
 export const users_page_size = 50;
 // {search, status, admin, offset} => {users, total}
 export const usersQuery = ({ search = '', status = '', admin = false, offset = 0 }) => queryOptions({

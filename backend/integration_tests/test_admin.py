@@ -721,8 +721,12 @@ def test_usage_events_and_dashboard(people, make_client, logged_in):
   assert mine["total"] == 3 and mine["by_project"] == [{"project_id": "group/repo", "count": 3}]
   assert alice.get('/api/v1/admin/usage/summary').status_code == 403
   overview = admin.get('/api/v1/admin/overview').get_json()
-  assert {item["id"] for item in overview["value_checklist"]} >= {"email_notifications", "single_sign_on", "sentry", "ci_only_projects", "web_only_users"}
+  assert {item["id"] for item in overview["value_checklist"]} >= {"email_notifications", "single_sign_on", "sentry"}
   assert overview["counts"]["active_30d"] == 3
+  # the usage-based items come apart: the overview doesn't wait for them
+  usage_items = admin.get('/api/v1/admin/overview/usage').get_json()["items"]
+  assert {item["id"] for item in usage_items} == {"ci_only_projects", "web_only_users", "tuning_products"}
+  assert alice.get('/api/v1/admin/overview/usage').status_code == 403
 
 
 def test_usage_can_be_turned_off(admin, make_client):

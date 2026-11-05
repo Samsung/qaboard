@@ -8,7 +8,7 @@ import { DateTime } from 'luxon';
 
 import { history } from '../../router';
 import { matchAppRoute } from '../../routes';
-import { Usage, paramsFor, readFilters } from '../Usage';
+import { Usage, UsageChart, paramsFor, readFilters, usageFigure, bucket_label } from '../Usage';
 import { Overview } from '../Overview';
 import { UserDetail } from '../UserDetail';
 import { ActivityTab } from '../../settings/ActivityTab';
@@ -32,6 +32,19 @@ const renderAt = (pathname, ui, options) => {
 };
 
 afterEach(() => vi.restoreAllMocks());
+
+// Plotly doesn't run in jsdom: we check what would be plotted, a test id per trace. The real charts are in e2e/usage.spec.js
+const plotly = vi.hoisted(() => ({ hover: vi.fn(), unhover: vi.fn() }));
+vi.mock('../../components/Plot', () => ({
+  default: ({ data, onInitialized }) => {
+    onInitialized?.({}, plotly);
+    return <div data-testid="plot">
+      {data.map(trace => <span key={trace.meta} data-testid={`${trace.type === 'bar' ? 'bar' : 'line'}-${trace.meta}`} data-y={trace.y.join(',')}/>)}
+    </div>;
+  },
+  hoverPlot: (gd, where) => gd.hover(where),
+  unhoverPlot: gd => gd.unhover(),
+}));
 
 const admin = { is_logged: true, user_id: 1, user_name: 'root', full_name: 'Root', is_admin: true };
 
@@ -91,8 +104,12 @@ describe('Usage', () => {
     expect(screen.getByText('10 tuning, 2 automated tuning, 5 run tests, 3 redo, 5 qa batch')).toBeInTheDocument();
     // the charts
     expect(await screen.findByRole('img', { name: /Active users and commits looked at/ })).toBeInTheDocument();
-    expect(screen.getAllByTestId('line-web_users')).toHaveLength(1);
-    expect(screen.getAllByTestId('bar-cli_commands')).toHaveLength(3);
+    expect(screen.getByTestId('line-web_users')).toHaveAttribute('data-y', '10,12,8');
+    expect(screen.getByTestId('line-cli_users')).toHaveAttribute('data-y', '3,4,2');
+    expect(screen.getByTestId('line-commits_viewed')).toHaveAttribute('data-y', '40,50,30');
+    expect(screen.getByRole('img', { name: /Batches started and qa commands, per day/ })).toBeInTheDocument();
+    expect(screen.getByTestId('bar-batches_started')).toHaveAttribute('data-y', '2,3,1');
+    expect(screen.getByTestId('bar-cli_commands')).toHaveAttribute('data-y', '20,25,10');
     // the leaderboards link to the users, groups and projects
     expect(await screen.findByRole('link', { name: 'Alice' })).toHaveAttribute('href', '/admin/users/2');
     expect(screen.getByText('unverified')).toBeInTheDocument();
@@ -134,10 +151,77 @@ describe('Usage', () => {
     expect(screen.queryByText('Active users')).not.toBeInTheDocument();
   });
 
+  it('says when nothing happened in the period', async () => {
+    mockApi({ ...usage_api, 'GET /api/v1/admin/usage/timeseries': { buckets: timeseries.buckets.map(({ start }) => ({ start, web_users: 0, cli_users: 0, commits_viewed: 0, outputs_opened: 0, batches_started: 0, cli_commands: 0 })) } });
+    renderAt('/admin/usage', <Usage/>, { user: admin });
+    expect(await screen.findByText('No usage events in this period.')).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: /Active users and commits looked at/ })).not.toBeInTheDocument();
+  });
+
   it('says when the server refuses', async () => {
     mockApi({ 'GET /api/v1/admin/usage/summary': () => [{ error: 'Only admins can do this.', reason: 'not_admin' }, 403] });
     renderAt('/admin/usage', <Usage/>, { user: admin });
     expect(await screen.findByText('Admins only')).toBeInTheDocument();
+  });
+});
+
+
+describe('charts', () => {
+  const series = [
+    { key: 'web_users', label: 'Users in the web app', color: 'blue' },
+    { key: 'cli_commands', label: 'qa commands', color: 'orange' },
+  ];
+
+  it('plots each series over the dates, with every value in the hover label', () => {
+    const { data, layout } = usageFigure({ kind: 'line', buckets: timeseries.buckets, series, bucket: 'day' });
+    expect(data.map(t => [t.type, t.name, t.meta])).toEqual([['scatter', 'Users in the web app', 'web_users'], ['scatter', 'qa commands', 'cli_commands']]);
+    expect(data[0].x).toEqual(['2026-10-27', '2026-10-28', '2026-10-29']);
+    expect(data[1].y).toEqual([20, 25, 10]);
+    expect(data[0].line.color).toBe('blue');
+    expect(data[0].hovertemplate).toBe('<b>%{y:,}</b>  Users in the web app<extra></extra>');
+    // one label for the date, with every series, wherever the pointer is
+    expect(layout.hovermode).toBe('x unified');
+    expect(layout.hoverdistance).toBe(-1);
+    expect(layout.xaxis).toMatchObject({ type: 'date', hoverformat: '%a, %b %-d, %Y', showspikes: true });
+    expect(layout.yaxis).toMatchObject({ rangemode: 'tozero' });
+    // the y ticks: no 0.5 users
+    expect(layout.yaxis.dtick).toBeUndefined();
+    const few = usageFigure({ kind: 'line', buckets: [{ start: '2026-10-27', web_users: 2, cli_commands: 1 }], series, bucket: 'day' });
+    expect(few.layout.yaxis.dtick).toBe(1);
+  });
+
+  it('draws bars side by side, by week over 12 months', () => {
+    const buckets = Array.from({ length: 53 }, (_, i) => ({ start: DateTime.fromISO('2025-11-03', { zone: 'utc' }).plus({ weeks: i }).toISODate(), web_users: i, cli_commands: 2 * i }));
+    const { data, layout } = usageFigure({ kind: 'bar', buckets, series, bucket: 'week' });
+    expect(data.map(t => t.type)).toEqual(['bar', 'bar']);
+    expect(data[1].marker.color).toBe('orange');
+    expect(layout.xaxis.hoverformat).toBe('Week of %b %-d, %Y');
+    expect(bucket_label('2025-11-03', 'week')).toBe('Week of Nov 3, 2025');
+    expect(bucket_label('2026-10-27', 'day')).toBe('Tue, Oct 27, 2026');
+    // lines are dots only over short periods
+    expect(usageFigure({ kind: 'line', buckets, series, bucket: 'week' }).data[0].mode).toBe('lines');
+  });
+
+  it('reads the values with the arrow keys', () => {
+    plotly.hover.mockClear();
+    renderWithProviders(<UsageChart title="Users, per day" kind="line" buckets={timeseries.buckets} series={series} bucket="day"/>);
+    const chart = screen.getByRole('img', { name: 'Users, per day' });
+    expect(chart).toHaveAccessibleDescription(/arrow keys/);
+    chart.focus();
+    fireEvent.keyDown(chart, { key: 'ArrowRight' });
+    // the hover label at that date, and the same for screen readers
+    expect(plotly.hover).toHaveBeenLastCalledWith({ xval: Date.UTC(2026, 9, 27) });
+    expect(screen.getByTestId('chart-reading')).toHaveTextContent('Tue, Oct 27, 2026: Users in the web app 10, qa commands 20');
+    fireEvent.keyDown(chart, { key: 'ArrowRight' });
+    expect(screen.getByTestId('chart-reading')).toHaveTextContent('Wed, Oct 28, 2026: Users in the web app 12, qa commands 25');
+    fireEvent.keyDown(chart, { key: 'End' });
+    fireEvent.keyDown(chart, { key: 'ArrowRight' });
+    expect(plotly.hover).toHaveBeenLastCalledWith({ xval: Date.UTC(2026, 9, 29) });
+    fireEvent.keyDown(chart, { key: 'Home' });
+    expect(screen.getByTestId('chart-reading')).toHaveTextContent(/^Tue, Oct 27/);
+    fireEvent.keyDown(chart, { key: 'Escape' });
+    expect(plotly.unhover).toHaveBeenCalled();
+    expect(screen.getByTestId('chart-reading')).toHaveTextContent('');
   });
 });
 

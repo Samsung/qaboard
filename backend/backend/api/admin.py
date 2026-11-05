@@ -170,9 +170,9 @@ def checklist() -> list:
 
 
 USAGE_LOOKBACK_DAYS = 90
-# The usage-based items read the last months of runs and events: computed at most every few minutes, for all the
-# server's processes (Redis)
-USAGE_ITEMS_CACHE_SECONDS = 300
+# The usage-based items read the last months of events: computed at most every hour (they're about 90 days), for all
+# the server's processes (Redis). The overview doesn't wait for them: the web app asks /api/v1/admin/overview/usage.
+USAGE_ITEMS_CACHE_SECONDS = 3600
 
 
 @hybrid_cache(ttl=USAGE_ITEMS_CACHE_SECONDS, maxsize=1)
@@ -237,6 +237,15 @@ def value_checklist() -> list:
        "Projects have owners" if owners > 0 else ("No projects yet" if projects == 0 else "No project has an owner"),
        "Make the people in charge of each project its owners (Project > Access): they can then add their team, restrict who sees it, and get the access requests.")
 
+  return items
+
+
+def usage_checklist() -> list:
+  """The "Get more from QA-Board" items about how QA-Board is used, from the last USAGE_LOOKBACK_DAYS days of events"""
+  items = []
+  def item(id, ok, title, detail, ok_detail=None):
+    items.append({"id": id, "ok": ok, "severity": 'info', "title": title, "detail": ok_detail if ok else detail})
+
   cached = usage_items()
   ci_only = cached['ci_only']
   item('ci_only_projects', not ci_only,
@@ -246,17 +255,25 @@ def value_checklist() -> list:
 
   web_only = cached['web_only']
   item('web_only_users', not web_only,
-       "Everyone active in the web app has used the CLI" if not web_only
-       else f"{len(web_only)} user{'s' if len(web_only) > 1 else ''} active in the web app never used the CLI",
+       f"Everyone active in the web app used the CLI in the last {USAGE_LOOKBACK_DAYS} days" if not web_only
+       else f"{len(web_only)} user{'s' if len(web_only) > 1 else ''} active in the web app didn't use the CLI in {USAGE_LOOKBACK_DAYS} days",
        "They only read results: `qa batch` from their terminal and `qa auth login` let them run and tune their own experiments (Admin > Usage > Users).")
 
   products = cached['products']
   without_tuning = sorted(product for product, tuning in products.items() if not tuning)
   item('tuning_products', not without_tuning,
-       "Every product in use started a tuning" if not without_tuning
-       else f"{len(without_tuning)} product{'s' if len(without_tuning) > 1 else ''} in use never started a tuning",
+       f"Every product in use started a tuning in the last {USAGE_LOOKBACK_DAYS} days" if not without_tuning
+       else f"{len(without_tuning)} product{'s' if len(without_tuning) > 1 else ''} in use didn't start a tuning in {USAGE_LOOKBACK_DAYS} days",
        f"Tuning from the web app may not be known there: {', '.join(without_tuning[:5])}{'…' if len(without_tuning) > 5 else ''}.")
   return items
+
+
+@app.route('/api/v1/admin/overview/usage', methods=['GET'])
+@app.route('/api/v1/admin/overview/usage/', methods=['GET'])
+@admin_required
+def admin_overview_usage():
+  """The overview's usage-based items: apart, they can take seconds when they're not cached"""
+  return jsonify({"items": usage_checklist(), "lookback_days": USAGE_LOOKBACK_DAYS})
 
 
 @app.route('/api/v1/admin/users', methods=['GET'])
