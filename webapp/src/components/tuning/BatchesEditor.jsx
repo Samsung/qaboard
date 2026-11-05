@@ -52,7 +52,7 @@ const editor_options = {
   tabSize: 2,
   insertSpaces: true, // YAML forbids tabs for indentation
 };
-const diff_options = { readOnly: true, renderSideBySide: true, automaticLayout: true, minimap: { enabled: false } };
+const diff_options = { readOnly: true, renderSideBySide: true, automaticLayout: true, minimap: { enabled: false }, hideUnchangedRegions: { enabled: true } };
 const editor_height = "max(420px, calc(100vh - 290px))";
 
 const is_mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform ?? "");
