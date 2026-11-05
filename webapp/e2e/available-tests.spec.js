@@ -77,6 +77,11 @@ test('edit, check and save batches', async ({ page }) => {
   await page.keyboard.press('Delete');
   await page.keyboard.insertText('my-batch: {inputs: [images/A.jpg, images/B.jpg]}');
   await expect(page.getByRole('button', { name: /error/ })).toHaveCount(0);
+  // Keys that are shortcuts elsewhere ("/" opens the command palette) type in the editor.
+  // Keystrokes: insertText() sends no keydown. Monaco types in an EditContext <div> in Chromium, not a textarea.
+  await page.keyboard.type(' # a/b?');
+  await expect(editor.locator('.view-lines')).toContainText('# a/b?');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('button', { name: 'New batch' }).click();
   await expect(outline.getByText('my-new-batch')).toBeVisible();
   await expect(outline.getByText('1 input', { exact: true })).toBeVisible();
@@ -84,7 +89,7 @@ test('edit, check and save batches', async ({ page }) => {
   await page.keyboard.press('ControlOrMeta+s');
   await expect(page.getByText('Saved just now')).toBeVisible();
   expect(saved).toEqual(['alice']);
-  expect(files.alice).toBe('my-batch: {inputs: [images/A.jpg, images/B.jpg]}\n\nmy-new-batch:\n  inputs:\n  - path/to/an/input\n');
+  expect(files.alice).toBe('my-batch: {inputs: [images/A.jpg, images/B.jpg]} # a/b?\n\nmy-new-batch:\n  inputs:\n  - path/to/an/input\n');
 
   // Which tests run?
   await outline.getByText('my-batch').hover();

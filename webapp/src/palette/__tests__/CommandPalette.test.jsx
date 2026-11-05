@@ -45,6 +45,8 @@ const renderApp = (url = '/', { user = alice } = {}) => renderWithProviders(
       <HelpSheetProvider>
         <CommandPaletteProvider>
           <input aria-label="Some text box"/>
+          {/* Monaco, where browsers have the EditContext API: not a textarea */}
+          <div className="monaco-editor"><div className="native-edit-context" role="textbox" aria-multiline="true" tabIndex={0} aria-label="Some editor"/></div>
           <PaletteButton/>
           <Location/>
         </CommandPaletteProvider>
@@ -107,7 +109,11 @@ describe('the command palette', () => {
     fireEvent.keyDown(box, { key: '/' });
     fireEvent.keyDown(box, { key: 'k', ctrlKey: true });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    box.blur();
+    const editor = screen.getByLabelText('Some editor');
+    editor.focus();
+    fireEvent.keyDown(editor, { key: '/' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    editor.blur();
     press('/');
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
     press('Escape');
