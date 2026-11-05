@@ -40,6 +40,8 @@ export const usePrefsStore = create()(persist(
     annotationGroups: {},
     // runs show only the settings of their configuration that not all runs share
     hide_shared_settings: true,
+    // runs' long settings (paths, commands, lists) are shortened with "…": click one to see them all in full
+    shorten_long_settings: true,
     // project => the last scope users picked on its page: "mine" or "all"
     listScope: {},
     // other emails in users' git config: their commits are theirs too (the server reads it, see backend/mine.py)
@@ -84,6 +86,7 @@ export const usePrefsStore = create()(persist(
     })),
     setListScope: (project, scope) => set(state => ({ listScope: { ...state.listScope, [project]: scope } })),
     toggleHideSharedSettings: () => set(state => ({ hide_shared_settings: !state.hide_shared_settings })),
+    toggleShortenLongSettings: () => set(state => ({ shorten_long_settings: !state.shorten_long_settings })),
     updateTuning: (project, form) => set(state => ({
       tuning: { ...state.tuning, [project]: { ...state.tuning[project], ...form } },
     })),

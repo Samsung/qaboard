@@ -31,6 +31,8 @@ export const PreferencesTab = ({ user }) => {
   const setPixelValues = usePrefsStore(state => state.setImagePixelValues);
   const hide_shared = usePrefsStore(state => state.hide_shared_settings);
   const toggleHideShared = usePrefsStore(state => state.toggleHideSharedSettings);
+  const shorten_long = usePrefsStore(state => state.shorten_long_settings !== false);
+  const toggleShortenLong = usePrefsStore(state => state.toggleShortenLongSettings);
   const nb_favorites = usePrefsStore(state => Object.values(state.favorites).filter(Boolean).length);
 
   return <section aria-label="Preferences">
@@ -55,8 +57,9 @@ export const PreferencesTab = ({ user }) => {
           />)}
         </RadioGroup>
       </FormGroup>
-      <FormGroup label="Runs' settings">
+      <FormGroup label="Runs' settings" helperText="Click a shortened setting in any run to switch between shortened and full settings.">
         <Switch checked={!!hide_shared} onChange={toggleHideShared} label="Hide the settings all runs share, show them once above the runs"/>
+        <Switch checked={shorten_long} onChange={toggleShortenLong} label="Shorten long settings with …, e.g. paths, commands and lists. Hover them to see them in full"/>
       </FormGroup>
       <FormGroup label="Pinned projects">
         <span className={Classes.TEXT_MUTED}>
