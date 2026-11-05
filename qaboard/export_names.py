@@ -11,7 +11,9 @@ tests/fixtures/export-names.json. Change one, change the other.
   The template's own slashes are always folders: "{side}/{input}" gives a folder per side.
 - An empty field takes the separator next to it along: "{input}__{settings}__{file}" gives "a__out" without settings.
 - The file's extension always ends the name: templates don't write it.
-- Characters Windows doesn't allow in names become "-", spaces "_".
+- Spaces become "_". With `windows` (the default), names are ones Windows can open: characters it doesn't allow
+  become "-", names don't end with dots or spaces, and reserved names (CON, NUL, COM1...) get a "_" first. The server
+  also checks paths' lengths, and compares names regardless of case (backend/api/export_files.py).
 """
 import re
 from typing import Dict, List, Optional, Tuple
@@ -22,7 +24,9 @@ FIELDS = ('side', 'input', 'input_name', 'settings', 'file', 'platform', 'commit
 MAX_NAME_BYTES = 200
 
 _field = re.compile(r'\{([^{}]*)\}')
-_forbidden = re.compile(r'[<>:"|?*\x00-\x1f]')
+_forbidden_windows = re.compile(r'[<>:"|?*\x00-\x1f]')
+_forbidden = re.compile(r'[\x00-\x1f]')
+_reserved_windows = re.compile(r'^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])(\.|$)', re.IGNORECASE)
 _spaces = re.compile(r'\s+')
 _extension = re.compile(r'^\.[A-Za-z0-9]{1,8}$')
 # compressed files keep both extensions: "out.tar.gz"
@@ -78,15 +82,15 @@ def input_fields(test_input_path: str) -> Dict[str, str]:
   return {'input': stem, 'input_name': stem.rsplit('/', 1)[-1]}
 
 
-def clean(text: str, keep_slashes: bool, separator: str = '_') -> str:
+def clean(text: str, keep_slashes: bool, separator: str = '_', windows: bool = True) -> str:
   text = re.sub(r'\s*/\s*', '/', str(text).replace('\\', '/'))
   if not keep_slashes:
     text = text.strip('/').replace('/', separator)
-  text = _forbidden.sub('-', text)
+  text = (_forbidden_windows if windows else _forbidden).sub('-', text)
   return _spaces.sub('_', text)
 
 
-def render(template: str, fields: Dict[str, Optional[str]], separator: str = '_', extension: str = '') -> str:
+def render(template: str, fields: Dict[str, Optional[str]], separator: str = '_', extension: str = '', windows: bool = True) -> str:
   """The relative path of a file, e.g. "img01__gain=4__out__new.png". Raises ExportNameError"""
   if separator not in ('/', '_', '__', '-', '.', '+'):
     raise ExportNameError(f'Unknown separator "{separator}"')
@@ -94,10 +98,10 @@ def render(template: str, fields: Dict[str, Optional[str]], separator: str = '_'
   texts = []
   for kind, text in parts:
     if kind == 'literal':
-      texts.append(clean(text, keep_slashes=True))
+      texts.append(clean(text, keep_slashes=True, windows=windows))
     else:
       value = fields.get(text)
-      texts.append(clean(value, keep_slashes=separator == '/', separator=separator) if value not in (None, '') else '')
+      texts.append(clean(value, keep_slashes=separator == '/', separator=separator, windows=windows) if value not in (None, '') else '')
   # an empty field takes the separator before it along, else the one after it (not folders)
   dropped = set()
   for index, (kind, _) in enumerate(parts):
@@ -112,20 +116,23 @@ def render(template: str, fields: Dict[str, Optional[str]], separator: str = '_'
   for segment in path.split('/'):
     if segment in ('.', '..'):
       raise ExportNameError(f'"{segment}" can\'t be a file or folder name')
-    # Windows ignores trailing dots and spaces
-    segment = segment.rstrip('. ')
+    if windows:
+      # Windows ignores trailing dots and spaces
+      segment = segment.rstrip('. ')
     if segment:
       segments.append(segment)
   if not segments:
     raise ExportNameError("The name is empty: add fields like {input} and {file}")
-  segments[-1] += clean(extension, keep_slashes=False)
+  segments[-1] += clean(extension, keep_slashes=False, windows=windows)
+  if windows:
+    segments = ['_' + segment if _reserved_windows.match(segment) else segment for segment in segments]
   for segment in segments:
     if len(segment.encode('utf-8')) > MAX_NAME_BYTES:
       raise ExportNameError(f"Name too long ({len(segment.encode('utf-8'))} bytes, at most {MAX_NAME_BYTES}): {segment[:60]}…")
   return '/'.join(segments)
 
 
-def file_name(template: str, fields: Dict[str, Optional[str]], file: str, separator: str = '_') -> str:
+def file_name(template: str, fields: Dict[str, Optional[str]], file: str, separator: str = '_', windows: bool = True) -> str:
   """The name of a file of a run: `file` is its path in the run's folder"""
   stem, extension = split_extension(str(file).replace('\\', '/'))
-  return render(template, {**fields, 'file': stem}, separator=separator, extension=extension)
+  return render(template, {**fields, 'file': stem}, separator=separator, extension=extension, windows=windows)

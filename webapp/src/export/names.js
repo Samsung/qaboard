@@ -6,7 +6,9 @@
 //   The template's own slashes are always folders: "{side}/{input}" gives a folder per side.
 // - An empty field takes the separator next to it along: "{input}__{settings}__{file}" gives "a__out" without settings.
 // - The file's extension always ends the name: templates don't write it.
-// - Characters Windows doesn't allow in names become "-", spaces "_".
+// - Spaces become "_". With `windows` (the default), names are ones Windows can open: characters it doesn't allow
+//   become "-", names don't end with dots or spaces, and reserved names (CON, NUL, COM1...) get a "_" first. The server
+//   also checks paths' lengths, and compares names regardless of case.
 
 export const FIELDS = ['side', 'input', 'input_name', 'settings', 'file', 'platform', 'commit', 'batch', 'run'];
 export const SEPARATORS = ['/', '_', '__', '-', '.', '+'];
@@ -21,7 +23,10 @@ export class ExportNameError extends Error {
 
 const field_pattern = /\{([^{}]*)\}/g;
 // eslint-disable-next-line no-control-regex
-const forbidden = /[<>:"|?*\x00-\x1f]/g;
+const forbidden_windows = /[<>:"|?*\x00-\x1f]/g;
+// eslint-disable-next-line no-control-regex
+const forbidden = /[\x00-\x1f]/g;
+const reserved_windows = /^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])(\.|$)/i;
 const spaces = /\s+/g;
 const extension_pattern = /^\.[A-Za-z0-9]{1,8}$/;
 // compressed files keep both extensions: "out.tar.gz"
@@ -68,22 +73,22 @@ export const input_fields = test_input_path => {
   return { input: stem, input_name: stem.split('/').pop() };
 };
 
-const clean = (text, keep_slashes, separator = '_') => {
+const clean = (text, keep_slashes, separator = '_', windows = true) => {
   text = String(text).replaceAll('\\', '/').replace(/\s*\/\s*/g, '/');
   if (!keep_slashes) text = text.replace(/^\/+|\/+$/g, '').replaceAll('/', separator);
-  return text.replace(forbidden, '-').replace(spaces, '_');
+  return text.replace(windows ? forbidden_windows : forbidden, '-').replace(spaces, '_');
 };
 
 const utf8_length = text => new TextEncoder().encode(text).length;
 
 // The relative path of a file, e.g. "img01__gain=4__out__new.png". Throws ExportNameError
-export const render = (template, fields, separator = '_', extension = '') => {
+export const render = (template, fields, separator = '_', extension = '', windows = true) => {
   if (!SEPARATORS.includes(separator)) throw new ExportNameError(`Unknown separator "${separator}"`);
   const parts = parse_template(template);
   const texts = parts.map(({ kind, text }) => {
-    if (kind === 'literal') return clean(text, true);
+    if (kind === 'literal') return clean(text, true, '_', windows);
     const value = fields[text];
-    return value === undefined || value === null || value === '' ? '' : clean(value, separator === '/', separator);
+    return value === undefined || value === null || value === '' ? '' : clean(value, separator === '/', separator, windows);
   });
   // an empty field takes the separator before it along, else the one after it (not folders)
   const dropped = new Set();
@@ -101,11 +106,12 @@ export const render = (template, fields, separator = '_', extension = '') => {
   for (let segment of path.split('/')) {
     if (segment === '.' || segment === '..') throw new ExportNameError(`"${segment}" can't be a file or folder name`);
     // Windows ignores trailing dots and spaces
-    segment = segment.replace(/[. ]+$/, '');
+    if (windows) segment = segment.replace(/[. ]+$/, '');
     if (segment) segments.push(segment);
   }
   if (segments.length === 0) throw new ExportNameError('The name is empty: add fields like {input} and {file}');
-  segments[segments.length - 1] += clean(extension, false);
+  segments[segments.length - 1] += clean(extension, false, '_', windows);
+  if (windows) segments.forEach((segment, index) => { if (reserved_windows.test(segment)) segments[index] = `_${segment}`; });
   for (const segment of segments) {
     const bytes = utf8_length(segment);
     if (bytes > MAX_NAME_BYTES) throw new ExportNameError(`Name too long (${bytes} bytes, at most ${MAX_NAME_BYTES}): ${segment.slice(0, 60)}…`);
@@ -114,7 +120,7 @@ export const render = (template, fields, separator = '_', extension = '') => {
 };
 
 // The name of a file of a run: `file` is its path in the run's folder
-export const file_name = (template, fields, file, separator = '_') => {
+export const file_name = (template, fields, file, separator = '_', windows = true) => {
   const [stem, extension] = split_extension(String(file).replaceAll('\\', '/'));
-  return render(template, { ...fields, file: stem }, separator, extension);
+  return render(template, { ...fields, file: stem }, separator, extension, windows);
 };

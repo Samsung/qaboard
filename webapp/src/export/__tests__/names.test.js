@@ -4,12 +4,12 @@ import { file_name, input_fields, split_extension, parse_template, ExportNameErr
 
 // qaboard/export_names.py renders the names when the server exports: the same cases (tests/test_export_names.py)
 describe('export names, like the server', () => {
-  const cases = c => [c.template, c.file, c.separator, c];
-  it.each(fixture.names.filter(c => !c.error).map(cases))('%s %s %s', (template, file, separator, c) => {
-    expect(file_name(template, c.fields, file, separator)).toBe(c.name);
+  const cases = c => [c.template, c.file, c.separator, c.windows ? 'windows' : 'posix', c];
+  it.each(fixture.names.filter(c => !c.error).map(cases))('%s %s %s %s', (template, file, separator, _, c) => {
+    expect(file_name(template, c.fields, file, separator, c.windows)).toBe(c.name);
   });
-  it.each(fixture.names.filter(c => c.error).map(cases))('refuses %s %s %s', (template, file, separator, c) => {
-    expect(() => file_name(template, c.fields, file, separator)).toThrow(ExportNameError);
+  it.each(fixture.names.filter(c => c.error).map(cases))('refuses %s %s %s %s', (template, file, separator, _, c) => {
+    expect(() => file_name(template, c.fields, file, separator, c.windows)).toThrow(ExportNameError);
   });
 
   it('names inputs and splits extensions', () => {

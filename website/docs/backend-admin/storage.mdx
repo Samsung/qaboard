@@ -157,6 +157,17 @@ in one place with the `storage.exports_root` setting (**Admin → Settings**, or
 `<root>/<user>/<project>/<date>-<name>-<id>`. The folder must be on the same file system as the results for hard links, and
 under `QABOARD_STORAGE_ROOTS`.
 
+<details>
+<summary>The export APIs</summary>
+
+The web app previews and exports with `POST /api/v1/exports/preview` and `POST /api/v1/exports`: it sends the runs, and
+how to name their files (a template, and fields per run); the server lists the files and checks the names. The older
+`/api/v1/export` (query parameters), which scripts call, is deprecated but works as before, with its own names and
+`0.common.json`/`0.mappings.json`. Its answers carry a `Deprecation: true` header, so you can find its callers in your
+proxy's logs before it's removed.
+
+</details>
+
 ## What deleted runs leave
 When users delete runs, QA-Board keeps their manifests, and deletes only the files the manifests list: what the runs
 wrote after they ended stays. QA-Board measures what's left when it deletes runs, and users see it in **Storage

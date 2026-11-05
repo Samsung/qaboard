@@ -124,3 +124,29 @@ def test_folders_from_the_template(setup, storage):
   result = alice.post('/api/v1/exports?project=proj', json=request).get_json()
   folder = result["folder"]
   assert sorted(os.listdir(f"{folder}/new")) == sorted(os.listdir(f"{folder}/v1.0")) == ['scene-0__image.png', 'scene-1__image.png']
+
+
+def test_paths_windows_can_open(setup, storage):
+  """By default, paths must be short enough for Windows. Users who don't open them on Windows can turn it off"""
+  alice, new, ref = setup
+  deep = storage / ('very-long-folder-name-' * 10)
+  deep.mkdir()
+  request = body(new, ref, folder={"path": str(deep), "id": "5555eeee"})
+  plan = alice.post('/api/v1/exports/preview?project=proj', json=request).get_json()
+  assert plan["windows"] and plan["nb_too_long"] == 4 and plan["too_long"][0]["length"] > plan["max_path"]
+  response = alice.post('/api/v1/exports?project=proj', json=request)
+  assert response.status_code == 409 and 'too long for Windows' in response.get_json()["error"]
+  assert not any(p.name.endswith('.png') for p in deep.iterdir())
+  result = alice.post('/api/v1/exports?project=proj', json={**request, "windows": False}).get_json()
+  assert result["nb_too_long"] == 0 and result["nb_files_exported"] == 4
+
+
+def test_the_older_api_is_unchanged(setup, storage):
+  """Scripts still call /api/v1/export: same names, same files, and it says it's deprecated"""
+  alice, new, ref = setup
+  folder = storage / 'v1'
+  response = alice.post(f'/api/v1/export/?project=proj&new_commit_id={"a" * 40}&ref_commit_id={"b" * 40}&path=*.png&export_dir={folder}')
+  # the reference runs are on other inputs here: only the new runs are exported
+  assert response.status_code == 200 and response.get_json()["nb_files_exported"] == 2, response.get_json()
+  assert response.headers["Deprecation"] == "true" and '/api/v1/exports' in response.headers["Link"]
+  assert (folder / '0.common.json').exists() and not (folder / '0.export.csv').exists()

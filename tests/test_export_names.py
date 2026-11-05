@@ -18,9 +18,9 @@ class TestExportNames(unittest.TestCase):
       with self.subTest(template=case['template'], file=case['file'], separator=case['separator']):
         if case.get('error'):
           with self.assertRaises(ExportNameError):
-            file_name(case['template'], case['fields'], case['file'], case['separator'])
+            file_name(case['template'], case['fields'], case['file'], case['separator'], windows=case['windows'])
         else:
-          self.assertEqual(file_name(case['template'], case['fields'], case['file'], case['separator']), case['name'])
+          self.assertEqual(file_name(case['template'], case['fields'], case['file'], case['separator'], windows=case['windows']), case['name'])
 
   def test_inputs_and_extensions(self):
     for case in FIXTURE['inputs']:

@@ -48,8 +48,8 @@ def folder_name(name: str, key: str) -> str:
   return f"{utcnow():%Y-%m-%d}-{name + '-' if name else ''}{key[:8]}"
 
 
-def default_dir(user_name: str, project_id: str, name: str, key: str) -> Optional[Path]:
-  """Where an export goes, with `storage.exports_root`. None: as before, next to the runs"""
+def default_dir(user_name: str, project_id: str, key: str, name: str = '') -> Optional[Path]:
+  """Where an export goes, with `storage.exports_root`, <date>-<name>-<id>. None: as before, next to the runs"""
   root = setting('storage.exports_root')
   if not root:
     return None

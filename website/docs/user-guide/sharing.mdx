@@ -87,8 +87,8 @@ runs, new and reference, into a new folder, and shows you every file's name befo
 1. Filter the runs you want, e.g. `low-light` (see [Filter the runs](/docs/user-guide/finding-results#filter-syntax)).
 2. Click **Export** at the right of the view's title.
 3. Type a pattern, like `*.png`, `*.txt` or `**/*.jpg` (`**/` matches any number of folders).
-4. Pick how files are named. The **Preview** lists the names the export will use, and says if two files would get the
-   same name, or if files are already there.
+4. Pick how files are named, or load a preset you saved. The **Preview** lists the names the export will use, and says
+   if two files would get the same name, if paths are too long for Windows, or if files are already there.
 5. Click **Export**. The folder's Windows path is copied to your clipboard, and both its Windows and Linux paths show
    in the box, with what was exported.
 
@@ -106,6 +106,11 @@ configurations, for scripts.
 By default, the exported files are **links** to the original files: nothing is copied, so it's fast. Don't edit them:
 you'd edit the runs' files.
 
+:::tip You may not need an export
+To run your own code on the runs' files, use **Script** next to **Export**: it gives you the same runs in Python, with
+their folders, files and metrics, without copying or linking anything. See [Use the runs in a script](#runs-in-scripts).
+:::
+
 ### Choose how files are named {#export-names}
 - **One folder**: all files side by side, a run's new and reference files next to each other.
 - **A folder per side**: `new/` and `v1.2/` (the reference) have the same file names: open them in a diff tool, or
@@ -113,13 +118,33 @@ you'd edit the runs' files.
 - **Folders like the inputs**: the inputs' folders, then the runs' files.
 - **Custom**: edit the template, e.g. `{side}/{input_name}__{file}`. Click a field under it to add it.
 
-When several runs share an input, e.g. when you tune parameters, names say the **settings that differ** between them:
-`night_street__gain=4,iso=100__out__new.png`. Choose a **short id** or a **number** instead when settings are long:
-`0.export.csv` says what they stand for. You can also name runs by their settings **always**, or **never**.
+**Settings in names**, `{settings}`: the dialog lists what differs between the runs shown: their tuning parameters and
+the parameters of their configurations (`gain`, `isp.awb.mode`), their configurations' files (`night.yaml`), and their
+platform. Check the ones names should say. By default, it checks what differs between runs on the same input, e.g.
+when you tune parameters: without it, their files would get the same name. Each run says the value of each setting
+checked, and `default` if it doesn't set it: `street__gain=4,iso=default__out__new.png`. You choose:
+- how a parameter and its value are written: `gain=4`, `gain-4`, `gain_4`, or only `4`,
+- what goes between settings: `,`, `_`, `+` or `-`,
+- or a **short id** of the values (the same in every export) or a **number**, when names get too long: `0.export.csv`
+  says what they stand for.
+
 Reference files are named like the new runs they're compared to, so that each file has its reference next to it.
 
-If two files would get the same name, the preview says which, and offers fixes, like adding `{settings}` or the run's
-id: QA-Board doesn't export until names are unique. Your choices are remembered for your next exports.
+If two files would get the same name, the preview says which, and offers fixes, like adding a setting or the run's id:
+QA-Board doesn't export until names are unique.
+
+### Names Windows can open {#windows-names}
+By default, names are **Windows-compatible**: characters Windows doesn't allow (`\ / : * ? " < > |`) become `-`,
+names don't end with a dot or a space, reserved names like `CON` or `NUL` get a `_` first, and names that differ only by
+case are the same name. Full paths, as you'd open them from Windows, must be under 260 characters: Windows Explorer and
+many apps can't open longer ones. When paths are too long, the preview offers fixes: a short id for the settings
+(usually enough), the inputs' names rather than their paths, or turning Windows-compatible names off. If nobody opens
+the files on Windows, turn it off: paths can then be long, and names can use any character but `/`.
+
+### Save your export settings {#export-presets}
+Your last export's settings come back the next time you export from the project: the files, how they're named, links
+or copies, and the folder if you chose one. To export the way a script expects, again and again, **Save as preset…**,
+for all your projects or only this one, then pick it in **Saved settings**. Presets follow your account to any browser.
 
 <details>
 <summary>Every field of the template</summary>
@@ -129,7 +154,7 @@ id: QA-Board doesn't export until names are unique. Your choices are remembered 
 | `{side}` | What the page calls the new and reference results: `new`, the milestone's name, or what you type in the box. Empty without a reference. |
 | `{input}` | The input's path, without its extension: `scenes/night/street` |
 | `{input_name}` | The input's name: `street` |
-| `{settings}` | What tells runs on the same input apart (see above). Empty when nothing does. |
+| `{settings}` | The settings you checked (see above). Empty when there are none. |
 | `{file}` | The file's path in its run's folder, without its extension: `debug/mask` |
 | `{platform}`, `{commit}`, `{batch}`, `{run}` | The run's platform, commit (8 characters), batch, and id |
 
@@ -138,8 +163,7 @@ id: QA-Board doesn't export until names are unique. Your choices are remembered 
   **Folders in paths**), or stay folders with **Keep folders**.
 - An empty field takes the separator next to it along: `{input}__{settings}__{file}` gives `street__out` when runs
   don't need settings.
-- Characters Windows doesn't allow in names become `-`, and spaces `_`. Names differing only by case are the same name,
-  like on Windows shares.
+- Spaces become `_`. With Windows-compatible names, see [Names Windows can open](#windows-names).
 
 </details>
 

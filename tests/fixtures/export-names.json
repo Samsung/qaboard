@@ -14,6 +14,7 @@
    },
    "file": "out.png",
    "separator": "_",
+   "windows": true,
    "name": "scenes_night_img01__out__new.png"
   },
   {
@@ -30,6 +31,7 @@
    },
    "file": "out.png",
    "separator": "_",
+   "windows": true,
    "name": "scenes_night_img01__gain=4,iso=100__out__new.png"
   },
   {
@@ -46,6 +48,7 @@
    },
    "file": "out.png",
    "separator": "_",
+   "windows": true,
    "name": "scenes_night_img01__out.png"
   },
   {
@@ -62,6 +65,7 @@
    },
    "file": "debug/frames/out.png",
    "separator": "__",
+   "windows": true,
    "name": "scenes__night__img01__debug__frames__out__new.png"
   },
   {
@@ -78,6 +82,7 @@
    },
    "file": "debug/out.png",
    "separator": "/",
+   "windows": true,
    "name": "scenes/night/img01__debug/out__new.png"
   },
   {
@@ -94,6 +99,7 @@
    },
    "file": "out.png",
    "separator": "-",
+   "windows": true,
    "name": "scenes-night-img01__out__new.png"
   },
   {
@@ -110,6 +116,7 @@
    },
    "file": "out.png",
    "separator": "_",
+   "windows": true,
    "name": "new/scenes_night_img01__out.png"
   },
   {
@@ -126,6 +133,7 @@
    },
    "file": "out.png",
    "separator": "_",
+   "windows": true,
    "name": "scenes_night_img01__out.png"
   },
   {
@@ -142,6 +150,7 @@
    },
    "file": "out.png",
    "separator": "/",
+   "windows": true,
    "name": "scenes/night/img01/out_new.png"
   },
   {
@@ -158,6 +167,7 @@
    },
    "file": "out.tar.gz",
    "separator": "_",
+   "windows": true,
    "name": "img01_out_new.tar.gz"
   },
   {
@@ -174,6 +184,7 @@
    },
    "file": "README",
    "separator": "_",
+   "windows": true,
    "name": "img01_README"
   },
   {
@@ -190,6 +201,7 @@
    },
    "file": ".hidden",
    "separator": "_",
+   "windows": true,
    "name": "img01_.hidden"
   },
   {
@@ -206,6 +218,7 @@
    },
    "file": "data.v2.backup",
    "separator": "_",
+   "windows": true,
    "name": "img01_data.v2.backup"
   },
   {
@@ -222,6 +235,7 @@
    },
    "file": "out.png",
    "separator": "_",
+   "windows": true,
    "name": "out.png"
   },
   {
@@ -238,6 +252,7 @@
    },
    "file": "out.png",
    "separator": "_",
+   "windows": true,
    "name": "out.png"
   },
   {
@@ -254,6 +269,7 @@
    },
    "file": "out.png",
    "separator": "_",
+   "windows": true,
    "name": "out.png"
   },
   {
@@ -270,6 +286,7 @@
    },
    "file": "out.png",
    "separator": "_",
+   "windows": true,
    "error": true
   },
   {
@@ -286,6 +303,7 @@
    },
    "file": "out.png",
    "separator": "_",
+   "windows": true,
    "name": "scenes_night_img01.png"
   },
   {
@@ -302,6 +320,7 @@
    },
    "file": "out.png",
    "separator": "_",
+   "windows": true,
    "error": true
   },
   {
@@ -318,6 +337,7 @@
    },
    "file": "out.png",
    "separator": "_",
+   "windows": true,
    "error": true
   },
   {
@@ -334,6 +354,7 @@
    },
    "file": "out.png",
    "separator": "_",
+   "windows": true,
    "error": true
   },
   {
@@ -350,6 +371,7 @@
    },
    "file": "out.png",
    "separator": "_",
+   "windows": true,
    "name": "scenes_night_img01__out.png"
   },
   {
@@ -366,6 +388,7 @@
    },
    "file": "out.png",
    "separator": "_",
+   "windows": true,
    "name": "scenes_night_img01__out__Release_2.3_RC.png"
   },
   {
@@ -382,6 +405,7 @@
    },
    "file": "out.png",
    "separator": "_",
+   "windows": true,
    "name": "scenes_night_img01__out__a-b-c-d-e-f-g-h.png"
   },
   {
@@ -398,6 +422,7 @@
    },
    "file": "out.png",
    "separator": "_",
+   "windows": true,
    "name": "scenes_night_img01__out__ends_with_dot.png"
   },
   {
@@ -414,6 +439,7 @@
    },
    "file": "out.png",
    "separator": "_",
+   "windows": true,
    "name": "new/out.png"
   },
   {
@@ -430,6 +456,7 @@
    },
    "file": "passwd",
    "separator": "_",
+   "windows": true,
    "name": ".._.._etc__passwd"
   },
   {
@@ -446,6 +473,7 @@
    },
    "file": "passwd",
    "separator": "/",
+   "windows": true,
    "error": true
   },
   {
@@ -462,6 +490,7 @@
    },
    "file": "x.png",
    "separator": "/",
+   "windows": true,
    "name": "abs/path/x.png"
   },
   {
@@ -478,6 +507,7 @@
    },
    "file": "x.png",
    "separator": "_",
+   "windows": true,
    "name": "scenes_night_img01/x.png"
   },
   {
@@ -494,6 +524,7 @@
    },
    "file": "x.png",
    "separator": "_",
+   "windows": true,
    "name": "new/x.png"
   },
   {
@@ -510,6 +541,7 @@
    },
    "file": "x.png",
    "separator": "_",
+   "windows": true,
    "name": "1a2b3c4d-default-linux-42-x.png"
   },
   {
@@ -526,6 +558,7 @@
    },
    "file": "x.png",
    "separator": "+",
+   "windows": true,
    "name": "é+ü_字__x.png"
   },
   {
@@ -542,6 +575,7 @@
    },
    "file": "x.png",
    "separator": "%",
+   "windows": true,
    "error": true
   },
   {
@@ -558,6 +592,7 @@
    },
    "file": "x.png",
    "separator": "_",
+   "windows": true,
    "error": true
   },
   {
@@ -574,6 +609,7 @@
    },
    "file": "sub\\dir\\x.png",
    "separator": "_",
+   "windows": true,
    "name": "scenes_night_img01__sub_dir_x__new.png"
   },
   {
@@ -590,7 +626,144 @@
    },
    "file": "x.PNG",
    "separator": ".",
+   "windows": true,
    "name": "scenes.night.img01.x.PNG"
+  },
+  {
+   "template": "{input}__{file}__{side}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "a<b>c:d\"e|f?g*h",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": false,
+   "name": "scenes_night_img01__out__a<b>c:d\"e|f?g*h.png"
+  },
+  {
+   "template": "{input}__{file}__{side}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "ends with dot.",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": false,
+   "name": "scenes_night_img01__out__ends_with_dot..png"
+  },
+  {
+   "template": "{side}/{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "CON",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "name": "_CON/out.png"
+  },
+  {
+   "template": "{side}/{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "CON",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": false,
+   "name": "CON/out.png"
+  },
+  {
+   "template": "{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "nul.txt",
+   "separator": "_",
+   "windows": true,
+   "name": "_nul.txt"
+  },
+  {
+   "template": "{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "com1",
+   "separator": "_",
+   "windows": true,
+   "name": "_com1"
+  },
+  {
+   "template": "{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "console.txt",
+   "separator": "_",
+   "windows": true,
+   "name": "console.txt"
+  },
+  {
+   "template": "{side}_{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "aux",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "x.png",
+   "separator": "_",
+   "windows": true,
+   "name": "aux_x.png"
   }
  ],
  "inputs": [

@@ -1,59 +1,32 @@
 """
-"Export" on the commit page: links or copies of runs' files, gathered in a folder.
-
-The web app decides what goes where: it sends the runs to export, what each run's new and reference results are
-called, the settings that tell runs on the same input apart (`fields`), and a naming template. The server lists each
-run's files matching a pattern, names them with the same logic as the web app (qaboard/export_names.py), and:
-- POST /api/v1/exports/preview: says what the export would do, without writing anything: the names, the names used
-  by several files, the files already there, the errors.
-- POST /api/v1/exports: exports, into a new folder by default (one per export), and writes what it did next to the
-  files: 0.export.csv (each file, and where it comes from) and 0.export.json (with the runs' configurations).
-
-/api/v1/export (query parameters) is the older API, for scripts: it exports the runs of a batch and the reference runs
-they're compared to, with simple names, on the same code.
-
-In folders that were there before, we only add files: they're someone's, maybe not the user's.
-We replace files only in the folders of our exports, and never delete folders.
+The older export API, deprecated: scripts still call it, the web app uses /api/v1/exports (backend/api/export_files.py),
+where the caller says how to name files. Its behavior doesn't change until its callers moved: responses say it's
+deprecated (`Deprecation` header), with a link to the new API.
 """
 import os
-import re
-import csv
-import io
 import json
 import shutil
 import hashlib
-import datetime
 from pathlib import Path
-from collections import defaultdict
-from dataclasses import dataclass, field
 
 from requests.utils import quote
-from flask import request, jsonify, g
+from functools import wraps
+from flask import request, jsonify, g, make_response
 from sqlalchemy.orm import joinedload
 
 
 from qaboard.compat import windows_to_linux_path
+from qaboard.conventions import serialize_config
 from qaboard.matching import run_distance
 from qaboard.filters import match_query, searched_text
-from qaboard.export_names import FIELDS, ExportNameError, file_name, input_fields, parse_template
 from backend import app, db_session
 
 from backend.fs_utils import as_user, mkdir_shared
-from backend.storage import check_storage_path, check_inside, UnsafePathError
-from ..models import CiCommit, Batch, Output
+from backend.storage import check_storage_path, UnsafePathError
+from ..models import CiCommit, Batch, slugify_hash
 from ..config import qaboard_url
 from .auth import login_required, require_project_access
 from ..actor import is_same_origin, error as error_response
-
-
-# what the preview lists: the counts are always complete
-LISTED_FILES = 500
-LISTED_PROBLEMS = 50
-MAX_RUNS = 50_000
-DEFAULT_TEMPLATE = "{input}__{settings}__{file}__{side}"
-# **/**.png => Invalid pattern: '**' can only be an entire path component
-invalid_globstar = re.compile(r'(?:^|/)(\*\*(?!/?$|/))')
-folder_id = re.compile(r'^[0-9a-f]{8}$')
 
 
 def load_commit(project_id, commit_id):
@@ -129,455 +102,35 @@ def matching_output(output_reference, outputs):
   return valid_outputs[0]
 
 
-class ExportError(Exception):
-  """The request can't be done: a 4xx with this message"""
-  def __init__(self, message, status=400):
-    super().__init__(message)
-    self.status = status
+
+def commonprefix(m):
+  # https://github.com/python/cpython/blob/3.7/Lib/genericpath.py#L69
+  if not m: return []
+  def key(x):
+    return (len(x), str(x))
+  s1 = min(m, key=key)
+  s2 = max(m, key=key)
+  for i, c in enumerate(s1):
+    if c != s2[i]:
+      return s1[:i]
+  return s1
 
 
-@dataclass
-class Item:
-  """A run to export, under a name: the same reference run can be exported once per new run it's compared to"""
-  output: object
-  side: str
-  fields: dict = field(default_factory=dict)
-
-
-def default_fields(output) -> dict:
-  commit = output.batch.ci_commit
-  return {
-    **input_fields(str(output.test_input.path)),
-    'platform': output.platform or '',
-    'commit': (commit.hexsha or '')[:8],
-    'batch': output.batch.label or '',
-    'run': str(output.id),
-    'side': '',
-    'settings': '',
-  }
-
-
-def check_pattern(pattern: str) -> str:
-  pattern = (pattern or '').strip().replace('\\', '/')
-  if not pattern:
-    raise ExportError("Which files? Give a pattern, like *.png")
-  if pattern.startswith('/'):
-    raise ExportError("File patterns are relative to the runs' folders, like *.png or **/*.jpg")
-  if '..' in pattern.split('/'):
-    raise ExportError("File patterns can't go out of the runs' folders (..)")
-  if invalid_globstar.search(pattern):
-    raise ExportError("** must be a whole folder in patterns, like **/*.jpg")
-  return pattern
-
-
-def list_files(output, pattern):
-  """The run's files matching the pattern, and how many folders matched (we export files)"""
-  if output.deleted:
-    return [], 0
-  output_dir = output.output_dir
-  files, folders = [], 0
-  for path in sorted(output_dir.glob(pattern)):
-    if path.is_dir():
-      folders += 1
-    elif path.exists():
-      files.append(path)
-  return files, folders
-
-
-def make_plan(items, pattern, template, separator, export_dir=None):
-  """
-  What goes where: {files: [{to, source, file, item}], collisions, errors...}. Names are case-insensitive:
-  Windows shares can't have img.png and IMG.png.
-  """
-  parse_template(template)
-  files, errors = [], defaultdict(int)
-  listed, without_files, folders = {}, set(), 0
-  seen = set()
-  for index, item in enumerate(items):
-    output = item.output
-    if output.id not in listed:
-      try:
-        listed[output.id], run_folders = list_files(output, pattern)
-        folders += run_folders
-      except (OSError, ValueError) as e:
-        listed[output.id] = []
-        errors[f"Could not list the files of run {output.id}: {e}"] += 1
-    if not listed[output.id]:
-      without_files.add(output.id)
-      continue
-    output_dir = output.output_dir
-    fields = {**default_fields(output), **item.fields}
-    for path in listed[output.id]:
-      rel = path.relative_to(output_dir).as_posix()
-      try:
-        to = file_name(template, fields, rel, separator)
-      except ExportNameError as e:
-        errors[str(e)] += 1
-        continue
-      if (str(path), to) in seen:
-        continue
-      seen.add((str(path), to))
-      files.append({"to": to, "source": path, "file": rel, "item": index})
-  by_name = defaultdict(list)
-  for f in files:
-    by_name[f['to'].lower()].append(f)
-  collisions = [same for same in by_name.values() if len({str(f['source']) for f in same}) > 1]
-  for f in files:
-    f['exists'] = export_dir is not None and os.path.lexists(export_dir / f['to'])
-  existing = [f for f in files if f['exists']]
-  return {
-    "files": files,
-    "collisions": collisions,
-    "existing": existing,
-    "errors": errors,
-    "runs": len({item.output.id for item in items}),
-    "runs_without_files": len(without_files),
-    "folders_skipped": folders,
-  }
-
-
-def describe(plan, items, export_dir, ours, created):
-  """The plan, for the web app"""
-  def source(f):
-    item = items[f['item']]
-    return {"run": item.output.id, "side": item.side, "file": f['file']}
-  collisions = plan['collisions']
-  existing = plan['existing']
-  return {
-    "folder": str(export_dir) if export_dir else None,
-    # QA-Board creates it, or created it for an export: files there are replaced, else kept
-    "folder_exists": not created,
-    "ours": ours,
-    "nb_files": len(plan['files']),
-    "nb_runs": plan['runs'],
-    "runs_without_files": plan['runs_without_files'],
-    "folders_skipped": plan['folders_skipped'],
-    "files": [{"to": f['to'], **source(f), "exists": f['exists']} for f in plan['files'][:LISTED_FILES]],
-    "nb_collisions": len(collisions),
-    "collisions": [{"to": same[0]['to'], "sources": [source(f) for f in same[:5]], "count": len(same)} for same in collisions[:LISTED_PROBLEMS]],
-    "nb_existing": len(existing),
-    "existing": [f['to'] for f in existing[:LISTED_PROBLEMS]],
-    "errors": [f"{message} ({count} files)" if count > 1 else message for message, count in list(plan['errors'].items())[:LISTED_PROBLEMS]],
-    "nb_errors": sum(plan['errors'].values()),
-  }
-
-
-def export_file(source, dest, type, user=None):
-  if type == "link":
-    try:
-      os.link(str(source), str(dest))
-    except OSError:
-      os.symlink(str(source), str(dest))
-  elif type == "copy":
-    if user is None:
-      raise Exception("Need Login")
-    as_user(user.user_name, shutil.copyfile, str(source), str(dest))
-  else:
-    raise ValueError("Invalid type. Use 'link' or 'copy'.")
-
-
-def execute(plan, export_dir, type, user, replace):
-  """Links or copies the files. What's there is only replaced if it's a file, and `replace`. Returns (exported, skipped, errors)"""
-  exported, skipped, errors = [], [], []
-  for f in plan['files']:
-    dest = export_dir / f['to']
-    try:
-      check_inside(dest, export_dir)
-      if not dest.parent.is_dir():
-        mkdir_shared(dest.parent)
-        check_inside(dest, export_dir)
-      if os.path.lexists(dest):
-        if os.path.exists(dest) and os.path.samefile(dest, f['source']):
-          exported.append(f)  # already exported
-          continue
-        if not replace or (dest.is_dir() and not dest.is_symlink()):
-          skipped.append(f"{f['to']} already exists, QA-Board doesn't replace it")
-          continue
-        dest.unlink()
-      export_file(f['source'], dest, type, user=user)
-      exported.append(f)
-    except Exception as e:
-      errors.append(f"Error when exporting {f['file']} as {f['to']}: {e}")
-  return exported, skipped, errors
-
-
-def write_new(path, text, replace=False):
-  """Writes one of the export's own files, if it's not there. `replace`: in our exports' folders"""
-  if os.path.lexists(path):
-    if not replace:
-      return False
-    # e.g. a link someone put there: we remove the link, we don't write where it points
-    path.unlink()
-  with path.open('x') as f:
-    f.write(text)
-  return True
-
-
-def page_url(sides):
-  """The commit page the export comes from"""
-  new = sides.get('new') or {}
-  ref = sides.get('reference') or {}
-  hexsha = lambda side: side.get('commit') if re.match(r'^[0-9a-f]{7,40}$', str(side.get('commit') or '')) else None
-  if not new.get('project') or not hexsha(new):
-    return None
-  params = {
-    "batch": new.get('batch'),
-    "filter": new.get('filter'),
-    "reference": hexsha(ref),
-    "batch_ref": ref.get('batch') if hexsha(ref) else None,
-    "filter_ref": ref.get('filter') if hexsha(ref) else None,
-  }
-  query = '&'.join(f'{k}={quote(str(v), safe="")}' for k, v in params.items() if v)
-  return f"{qaboard_url}/{quote(str(new['project']), safe='/')}/commit/{hexsha(new)}{'?' + query if query else ''}"
-
-
-def write_link_to_the_page(export_dir, url, replace):
-  if not url:
-    return
-  redirect = f"""<!DOCTYPE HTML>
-  <html lang="en-US">
-      <head>
-          <meta charset="UTF-8">
-          <meta http-equiv="refresh" content="0; url={url}">
-          <script type="text/javascript">
-              window.location.href = "{url}"
-          </script>
-          <title>Page Redirection</title>
-      </head>
-      <body>
-          <!-- Note: don't tell people to `click` the link, just tell them that it is a link. -->
-          If you are not redirected automatically, follow this <a href='{url}'>link to the QA results</a>.
-      </body>
-  </html>"""
-  write_new(export_dir / '0.qa.html', redirect, replace=replace)
-  write_new(export_dir / '0.qa.url', f"[InternetShortcut]\nURL={url}\n", replace=replace)
-
-
-def write_mapping(export_dir, key, exported, items, details, replace):
-  """
-  0.export.csv: each file, and where it comes from. 0.export.json: the same, with the runs' configurations.
-  In a folder with an export already: 0.export-<id>.csv
-  """
-  base = '0.export'
-  if not replace and (os.path.lexists(export_dir / f'{base}.csv') or os.path.lexists(export_dir / f'{base}.json')):
-    base = f'0.export-{key}'
-  runs = {}
-  rows = []
-  for f in exported:
-    item = items[f['item']]
-    output = item.output
-    fields = {**default_fields(output), **item.fields}
-    runs[str(output.id)] = {
-      "project": output.batch.ci_commit.project_id,
-      "commit": output.batch.ci_commit.hexsha,
-      "batch": output.batch.label,
-      "input": str(output.test_input.path),
-      "database": str(output.test_input.database),
-      "platform": output.platform,
-      "configurations": output.configurations,
-      "extra_parameters": output.extra_parameters,
-      "folder": str(output.output_dir),
-    }
-    rows.append({"name": f['to'], "side": item.side, "side_label": fields.get('side', ''), "input": str(output.test_input.path),
-                 "settings": fields.get('settings', ''), "file": f['file'], "run": output.id, "source": str(f['source'])})
-  text = io.StringIO()
-  writer = csv.DictWriter(text, fieldnames=["name", "side", "side_label", "input", "settings", "file", "run", "source"], lineterminator='\n')
-  writer.writeheader()
-  writer.writerows(rows)
-  write_new(export_dir / f'{base}.csv', text.getvalue(), replace=replace)
-  write_new(export_dir / f'{base}.json', json.dumps({**details, "files": rows, "runs": runs}, indent=2, default=str), replace=replace)
-  return f'{base}.csv'
-
-
-def new_folder(user_name, project_id, commit, name, key):
-  """A new folder for each export: <date>-<name>-<id>, in storage.exports_root if admins chose it, else next to the commit's runs"""
-  from ..exports import default_dir, folder_name
-  return default_dir(user_name, project_id, name, key) or commit.repo_outputs_dir / 'share' / folder_name(name, key)
-
-
-def check_folder(export_dir):
-  """(created, ours): if QA-Board will create the folder, and if it's one of its exports' folders. Raises ExportError"""
-  from ..models import Export
-  from ..exports import in_chosen_folder
-  try:
-    check_storage_path(export_dir)
-  except UnsafePathError as e:
-    raise ExportError(f"ERROR: {e}", 403)
-  created = not os.path.lexists(export_dir)
-  if not created:
-    if not export_dir.is_dir() or export_dir.is_symlink():
-      raise ExportError(f"ERROR: '{export_dir}' is not a folder", 403)
-    if not os.access(export_dir, os.W_OK):
-      raise ExportError(f"The export folder need to be writable by all users. Call 'chmod a+w {export_dir}'", 403)
-  tracked = None if created else Export.query.filter(Export.path == str(export_dir), Export.deleted_at.is_(None)).first()
-  # an export a scan found in a folder someone chose isn't ours: users may have other files there
-  ours = created or (tracked is not None and not in_chosen_folder(tracked))
-  return created, ours
-
-
-def create_folder(export_dir):
-  try:
-    # all users write their exports there
-    mkdir_shared(export_dir)
-  except Exception as e:
-    raise ExportError(f"ERROR: When creating '{export_dir}': {e}", 403)
-
-
-def run_export(items, *, project_id, pattern, template, separator, export_type, export_dir, key, dry_run, details, sides):
-  """The plan (dry run), or the export. Returns the response's body"""
-  created, ours = check_folder(export_dir)
-  plan = make_plan(items, pattern, template, separator, export_dir=None if created else export_dir)
-  result = describe(plan, items, export_dir, ours, created)
-  result["existing_policy"] = "replace" if ours else "keep"
-  result["type"] = export_type
-  if dry_run:
-    return result
-  if plan['collisions']:
-    raise ExportError(f"{len(plan['collisions'])} names are used by several files, e.g. {plan['collisions'][0][0]['to']}: change how files are named", 409)
-  if created:
-    create_folder(export_dir)
-  exported, skipped, errors = execute(plan, export_dir, export_type, g.actor.user, replace=ours)
-  url = page_url(sides)
-  write_link_to_the_page(export_dir, url, replace=ours)
-  mapping = write_mapping(export_dir, key, exported, items, {**details, "qaboard": url, "folder": str(export_dir)}, replace=ours) if exported else None
-  # users see their exports, and their size, in "Storage usage" (backend/exports.py), and can delete them:
-  # not folders that were there before
-  export_id = None
-  new = sides.get('new') or {}
-  try:
-    from ..exports import record
-    export = record(export_dir, project_id=project_id, hexsha=new.get('commit'), batch_label=new.get('batch'), user_name=g.user.get('user_name'),
-                    export_type=export_type, filter=new.get('filter'), nb_files=len(exported),
-                    name=details.get('name'), details={"files_pattern": pattern, "template": template, "separator": separator, "runs": plan['runs']}) if ours else None
-    db_session.commit()
-    export_id = export.id if export else None
-  except Exception as e:
-    db_session.rollback()
-    print(f"WARNING: could not track the export {export_dir}: {e}")
-  return {
-    **result,
-    "export_id": export_id,
-    "nb_files_exported": len(exported),
-    "skipped": skipped[:LISTED_PROBLEMS],
-    "nb_skipped": len(skipped),
-    "errors": [*result['errors'], *errors[:LISTED_PROBLEMS]],
-    "mapping": mapping,
-  }
-
-
-def strings(d, keys):
-  return {k: str(v) for k, v in (d or {}).items() if k in keys and isinstance(v, (str, int, float)) and not isinstance(v, bool)}
-
-
-def check_runs_access(outputs, project_id):
-  """The project's runs: the user acts on them. Others' (e.g. the reference's): they read them"""
-  projects = {o.batch.ci_commit.project_id for o in outputs}
-  for project in sorted(projects):
-    if forbidden := require_project_access(g.user, project, 'runs.act' if project == project_id else 'project.read'):
-      return forbidden
-  return None
-
-
-def export_folder(body, user_name, project_id, commit):
-  folder = body.get('folder') or {}
-  if not isinstance(folder, dict):
-    raise ExportError("`folder`: {name, id} for a new folder, or {path}")
-  key = folder.get('id') or os.urandom(4).hex()
-  if not folder_id.match(str(key)):
-    raise ExportError("`folder.id`: 8 hexadecimal characters")
-  if folder.get('path'):
-    return windows_to_linux_path(Path(str(folder['path']))).resolve(), key
-  name = str(folder.get('name') or '')
-  return new_folder(user_name, project_id, commit, name, key), key
-
-
-@app.route("/api/v1/exports/preview", methods=['POST'])
-@app.route("/api/v1/exports", methods=['POST'])
-@login_required
-def export_runs():
-  dry_run = request.path.rstrip('/').endswith('/preview')
-  body = request.get_json(silent=True) or {}
-  project_id = body.get('project') or request.args.get('project')
-  if not project_id:
-    return jsonify({"error": "Which project? `project`"}), 400
-  runs = body.get('runs')
-  if not isinstance(runs, list) or not runs or not all(isinstance(r, dict) and isinstance(r.get('id'), int) for r in runs):
-    return jsonify({"error": "Which runs? `runs`: [{id, side, fields}]"}), 400
-  if len(runs) > MAX_RUNS:
-    return jsonify({"error": f"Too many runs: at most {MAX_RUNS}. Filter them."}), 400
-  # it creates links or copies in a folder: an action on the project's runs
-  if forbidden := require_project_access(g.user, project_id):
-    return forbidden
-  ids = sorted({r['id'] for r in runs})
-  outputs = {o.id: o for o in (Output.query
-    .options(joinedload(Output.batch).joinedload(Batch.ci_commit))
-    .filter(Output.id.in_(ids))
-    .all())}
-  if missing := [i for i in ids if i not in outputs]:
-    return jsonify({"error": f"Unknown runs: {', '.join(map(str, missing[:10]))}"}), 404
-  if forbidden := check_runs_access(outputs.values(), project_id):
-    return forbidden
-  user_fields = [f for f in FIELDS if f != 'file']
-  items = [Item(output=outputs[r['id']], side=str(r.get('side') or 'new'), fields=strings(r.get('fields'), user_fields)) for r in runs]
-  export_type = body.get('type', 'link')
-  if export_type not in ('link', 'copy'):
-    return jsonify({"error": "`type`: link or copy"}), 400
-  sides = {key: strings(side, ('project', 'commit', 'batch', 'filter', 'label')) for key, side in (body.get('sides') or {}).items() if key in ('new', 'reference') and isinstance(side, dict)}
-  try:
-    pattern = check_pattern(body.get('files'))
-    template = str(body.get('template') or DEFAULT_TEMPLATE)
-    separator = str(body.get('separator') or '_')
-    parse_template(template)
-    first = next((i.output for i in items if i.side == 'new'), items[0].output)
-    export_dir, key = export_folder(body, g.user['user_name'], project_id, first.batch.ci_commit)
-    details = {
-      "name": str((body.get('folder') or {}).get('name') or '') or None,
-      "exported_at": datetime.datetime.utcnow().isoformat() + 'Z',
-      "by": g.user.get('user_name'),
-      "project": project_id,
-      "files_pattern": pattern,
-      "template": template,
-      "separator": separator,
-      "type": export_type,
-      "sides": sides,
-    }
-    return jsonify(run_export(items, project_id=project_id, pattern=pattern, template=template, separator=separator, export_type=export_type,
-                              export_dir=export_dir, key=key, dry_run=dry_run, details=details, sides=sides))
-  except ExportNameError as e:
-    return jsonify({"error": str(e)}), 400
-  except ExportError as e:
-    return jsonify({"error": str(e)}), e.status
-
-
-def legacy_items(new_outputs, ref_outputs):
-  """
-  The older API's names: runs are called "new" and "reference" (when there's one), and when several runs of a side
-  share an input, a short id of their settings tells them apart. Reference runs are named like the new runs they're
-  compared to, so that they sort next to each other.
-  """
-  def settings_ids(outputs):
-    by_input = defaultdict(list)
-    for o in outputs:
-      by_input[str(o.test_input.path)].append(o)
-    needed = any(len(same) > 1 for same in by_input.values())
-    def short_id(o):
-      text = json.dumps([o.platform, o.configurations, o.extra_parameters], sort_keys=True, default=str)
-      return hashlib.md5(text.encode()).hexdigest()[:6]
-    return {o.id: short_id(o) if needed else '' for o in outputs}
-  settings = settings_ids(new_outputs)
-  has_reference = bool(ref_outputs)
-  items = []
-  for output in new_outputs:
-    items.append(Item(output, 'new', {'side': 'new' if has_reference else '', 'settings': settings[output.id]}))
-    reference = matching_output(output, ref_outputs) if has_reference else None
-    if reference is not None and reference.id != output.id:
-      items.append(Item(reference, 'reference', {'side': 'reference', 'settings': settings[output.id], **input_fields(str(output.test_input.path))}))
-  return items
+def deprecated(f):
+  """Responses tell clients to move to /api/v1/exports"""
+  @wraps(f)
+  def wrapper(*args, **kwargs):
+    response = make_response(f(*args, **kwargs))
+    response.headers['Deprecation'] = 'true'
+    response.headers['Link'] = '</api/v1/exports>; rel="successor-version"'
+    return response
+  return wrapper
 
 
 # POST: it writes in folders. GET for older web apps and scripts.
 @app.route("/api/v1/export", methods=['GET', 'POST'])
 @app.route("/api/v1/export/", methods=['GET', 'POST'])
+@deprecated
 @login_required
 def export_to_folder():
   # Cookies come with GETs from other websites' links: actor.py only checks the origin of other methods
@@ -598,10 +151,11 @@ def export_to_folder():
     return jsonify({"error": f"ERROR: Commit {new_commit_id} not found"}), 404
   new_batch_label = request.args.get('batch_new', 'default')
   new_batch = new_commit.get_or_create_batch(new_batch_label)
+  new_outputs = new_batch.outputs
+
   filter_new = request.args.get('filter_new')
   filter_ref = request.args.get('filter_ref')
 
-  ref_commit, ref_batch, ref_outputs = None, None, []
   if request.args.get('ref_commit_id'):
     ref_commit_id = request.args['ref_commit_id']
     ref_commit = load_commit(ref_project_id, ref_commit_id)
@@ -609,46 +163,271 @@ def export_to_folder():
       return jsonify({"error": f"ERROR: Commit {ref_commit_id} not found"}), 404
     ref_batch_label = request.args.get('batch_ref', 'default')
     ref_batch = ref_commit.get_or_create_batch(ref_batch_label)
+    ref_outputs = ref_batch.outputs
     same_ref_new = ref_project_id == project_id and ref_commit_id == new_commit_id and ref_batch_label == new_batch_label and filter_new == filter_ref
     if same_ref_new:
-      ref_commit, ref_batch = None, None
-    else:
-      ref_outputs = filter_outputs(filter_ref, ref_batch.outputs)
-  new_outputs = filter_outputs(filter_new, new_batch.outputs)
-
-  export_type = request.args.get('export_type', "link")
-  if export_type not in ('link', 'copy'):
-    return jsonify({"error": "export_type: link or copy"}), 400
-  key = os.urandom(4).hex()
-  if "export_dir" in request.args:
-    export_dir = windows_to_linux_path(Path(request.args['export_dir'])).resolve()
+      ref_commit = None
+      ref_batch = None
+      ref_outputs = []
   else:
-    export_dir = new_folder(g.user['user_name'], project_id, new_commit, '', key)
-  sides = {
-    "new": {"project": project_id, "commit": new_commit.hexsha, "batch": new_batch.label, "filter": filter_new or ''},
-    "reference": {"project": ref_project_id, "commit": ref_commit.hexsha, "batch": ref_batch.label, "filter": filter_ref or ''} if ref_commit else {},
-  }
-  items = legacy_items(new_outputs, ref_outputs)
+    ref_commit = None
+    ref_batch = None
+    ref_outputs = []
+
+  new_outputs = filter_outputs(filter_new, new_outputs)
+  ref_outputs = filter_outputs(filter_ref, ref_outputs)
+
+  # We save the links in a unique folder
+  query_string = f"{project_id} {new_commit.hexsha} {ref_commit.hexsha if ref_commit else ''} {new_batch.id} {ref_batch.id  if ref_batch else ''} {filter_new} {filter_ref}"
+  m = hashlib.md5(query_string.encode('utf-8')).hexdigest()
+
+  if "export_dir" in request.args:
+    export_dir = Path(request.args['export_dir'])
+    export_dir = windows_to_linux_path(export_dir).resolve()
+  else:
+    # all in one place if admins chose it (storage.exports_root), else next to the commit's runs
+    from ..exports import default_dir
+    export_dir = default_dir(g.user['user_name'], project_id, m) or new_commit.repo_outputs_dir / 'share' / m[:8]
   try:
-    pattern = check_pattern(request.args.get('path', '*'))
-    if not items:
-      created, ours = check_folder(export_dir)
-      if created:
-        create_folder(export_dir)
-      write_link_to_the_page(export_dir, page_url(sides), replace=ours)
-      result = {"folder": str(export_dir), "nb_files_exported": 0, "errors": [], "skipped": [], "export_id": None}
-    else:
-      details = {"exported_at": datetime.datetime.utcnow().isoformat() + 'Z', "by": g.user.get('user_name'), "project": project_id,
-                 "files_pattern": pattern, "template": DEFAULT_TEMPLATE, "separator": '_', "type": export_type, "sides": sides}
-      result = run_export(items, project_id=project_id, pattern=pattern, template=DEFAULT_TEMPLATE, separator='_', export_type=export_type,
-                          export_dir=export_dir, key=key, dry_run=False, details=details, sides=sides)
-  except ExportError as e:
-    return jsonify({"error": str(e)}), e.status
+    check_storage_path(export_dir)
+  except UnsafePathError as e:
+    return jsonify({"error": f"ERROR: {e}"}), 403
+
+  # In folders that were there before, we only add files: they're someone's, maybe not the user's.
+  # We replace files only in the folders of our exports, and never delete folders.
+  created = not os.path.lexists(export_dir)
+  if created:
+    try:
+      # all users write their exports there
+      mkdir_shared(export_dir)
+    except Exception as e:
+      return jsonify({"error": f"ERROR: When creating '{export_dir}': {e}"}), 403
+  elif not export_dir.is_dir() or export_dir.is_symlink():
+    return jsonify({"error": f"ERROR: '{export_dir}' is not a folder"}), 403
+  from ..models import Export
+  from ..exports import in_chosen_folder
+  tracked = Export.query.filter(Export.path == str(export_dir), Export.deleted_at.is_(None)).first()
+  # an export a scan found in a folder someone chose isn't ours: users may have other files there
+  ours = created or (tracked is not None and not in_chosen_folder(tracked))
+
+  is_export_dir_writable = os.access(export_dir, os.W_OK)
+  if not is_export_dir_writable:
+    return jsonify({"error": f"The export folder need to be writable by all users. Call 'chmod a+w {export_dir}'"}), 403
+
+  output_refs = {}
+  for output in new_outputs:
+    output_refs[output.id] = matching_output(output, ref_outputs)
+
+  # find common characteristics
+  common_data = {}
+  if not ref_commit or ref_commit.id == new_commit.id:
+    common_data['commit'] = new_commit.hexsha
+  all_outputs = [*new_outputs, *list(output_refs.values())]
+  all_outputs = [o for o in all_outputs if o] # remove None outputs
+  all_platforms = {o.platform for o in all_outputs}
+  if len(all_platforms) == 1:
+    common_data['platform'] = all_outputs[0].platform
+  all_configurations = {o.configuration for o in all_outputs}
+  if len(all_configurations) == 1:
+    common_data['configurations'] = all_outputs[0].configurations
+  elif len(all_configurations) > 1:
+    all_configurations = [o.configurations for o in all_outputs]
+    common_data['configurations_prefix'] = commonprefix(all_configurations)
+    all_reversed_configurations = [list(reversed(o.configurations)) for o in all_outputs]
+    common_data['configurations_suffix'] = list(reversed(commonprefix(all_reversed_configurations)))
+  all_databases = {o.test_input.database for o in all_outputs}
+  if len(all_databases) == 1:
+    common_data['database'] = all_outputs[0].test_input.database
+  # To be honest, we really should find what is common in each batch
+  # and use @new-* @ref-*. It gives more flexibility for comparing N batches, and can shorten things even more
+
+  all_extra_parameters = set()
+  common_extra_parameters = {}
+  for o in all_outputs:
+    all_extra_parameters.update(set(o.extra_parameters.keys()))
+  all_extra_parameters_prefix = commonprefix([p for p in all_extra_parameters])
+  for key in all_extra_parameters:
+    values = set()
+    for o in all_outputs:
+      if not o.extra_parameters: o.extra_parameters = {} 
+      o_value = [str(o.extra_parameters.get(key))]
+      values.update(set(o_value))
+    if len(values) == 1:
+      if not all_outputs[0].extra_parameters: all_outputs[0].extra_parameters = {} 
+      common_extra_parameters[key] = all_outputs[0].extra_parameters.get(key)
+  if common_extra_parameters:
+    common_data['extra_parameters'] = common_extra_parameters
+  write_new(export_dir / '0.common.json', json.dumps(common_data, sort_keys=True, indent=2, separators=(',', ': ')), replace=ours)
+
+
+  # we save a mapping label => full into
+  label_mappings = {
+    'extra_parameters': dict(),
+    'configurations': dict(),
+    'databases': dict(),
+  }
+
+  glob = request.args.get('path', '*')
+  nb_files_exported = 0
+  errors = []
+  for output in new_outputs:
+    output_ref = output_refs[output.id]
+    if not output_ref:
+      output_ref = output
+
+
+    def get_labels(output, label_mappings):
+      labels = []
+      if output.batch.ci_commit.hexsha != common_data.get("commit"):
+        labels.append(output.batch.ci_commit.hexsha[:4])
+      if output.platform != common_data.get("platform"):
+        labels.append(output.platform)
+      if not common_data.get("configurations"):
+        def strip_config(c):
+          c_prefix = serialize_config(common_data.get("configurations_prefix", 'placeholder-placeholder'))
+          c_suffix = serialize_config(common_data.get("configurations_suffix", 'placeholder-placeholder'))
+          return c.replace(c_prefix, '').replace(c_suffix, '').replace("crop", "").replace('workspace-configurations-', '')
+        c_formatted = strip_config(output.configuration)
+        stripped_config = slugify_hash(c_formatted)
+        # list of common SIRC-specific names
+        if stripped_config:
+          labels.append(stripped_config)
+        label_mappings['configurations'][stripped_config] = output.configurations
+      if not common_data.get("database"):
+        slugify_database = slugify_hash(output.test_input.database)
+        if slugify_database:
+          labels.append(slugify_database)
+        label_mappings['databases'][slugify_database] = output.test_input.database
+      if str(output.extra_parameters) != str(common_data.get("extra_parameters")):
+        tame = lambda o: set(((k.replace(all_extra_parameters_prefix, ''), str(v)) for k, v in o.items()))
+        p = tame(output.extra_parameters) - tame(common_extra_parameters)
+        extra_parameters_label = slugify_hash(str(p))
+        label_mappings['extra_parameters'][extra_parameters_label] = output.extra_parameters
+        if p: labels.append(extra_parameters_label)
+      stitch = lambda l: f"@{'@'.join(l)}" if l else ''
+      label = stitch(labels)
+      # TODO: do we want to raise exception if label is empty?
+      # if not label:
+      #   raise Exception("no label")
+      return label
+
+
+    label_new = get_labels(output, label_mappings)
+    label_ref = get_labels(output_ref, label_mappings)
+
+    export_type = request.args.get('export_type', "link")
+    for output_path in output.output_dir.glob(glob):
+      try:
+        output_path_rel = output_path.relative_to(output.output_dir)
+        copied_to_rel = copy_path_rel(output, output_path, label=label_new)
+        export_to(export_dir / copied_to_rel, output_path, type=export_type, user=g.actor.user, replace=ours)
+        if output_ref and output_ref.id != output.id:
+          output_path_ref = output_ref.output_dir / output_path_rel
+          if output_path_ref.exists():
+            copied_to_rel = copy_path_rel(output_ref, output_path_ref, label=label_ref)
+            export_to(export_dir / copied_to_rel, output_path_ref, type=export_type, user=g.actor.user, replace=ours)
+            nb_files_exported += 1
+        nb_files_exported += 1
+      except Exception as e:
+        error = f"WARNING: Error when trying to export {output_path.name}: {e}"
+        print(error)
+        errors.append(error)
+
+  if label_mappings['configurations'] or label_mappings['extra_parameters']:
+    write_new(export_dir / '0.mappings.json', json.dumps(label_mappings, indent=4, sort_keys=True))
+
+  params = {
+    "batch": new_batch.label,
+    "reference": ref_commit.hexsha if ref_commit else None,
+    "batch_ref": ref_batch.label if ref_batch else None,
+    "filter": filter_new if filter_new else None,
+    "filter_ref": filter_ref if filter_ref else None,
+  }
+  params = {k: quote(v) for k, v in params.items() if v}
+  url = f"{qaboard_url}/{project_id}/commit/{new_commit.hexsha}?{'&'.join(f'{k}={v}' for k, v in params.items())}"
+  redirect = f"""<!DOCTYPE HTML>
+  <html lang="en-US">
+      <head>
+          <meta charset="UTF-8">
+          <meta http-equiv="refresh" content="0; url={url}">
+          <script type="text/javascript">
+              window.location.href = "{url}"
+          </script>
+          <title>Page Redirection</title>
+      </head>
+      <body>
+          <!-- Note: don't tell people to `click` the link, just tell them that it is a link. -->
+          If you are not redirected automatically, follow this <a href='{url}'>link to the QA results</a>.
+      </body>
+  </html>"""
+  write_new(export_dir / '0.qa.html', redirect)
+  write_new(export_dir / '0.qa.url', f"[InternetShortcut]\nURL={url}\n")
+  # users see their exports, and their size, in "Storage usage" (backend/exports.py), and can delete them:
+  # not folders that were there before
+  export_id = None
+  try:
+    from ..exports import record
+    export = record(export_dir, project_id=project_id, hexsha=new_commit.hexsha, batch_label=new_batch.label, user_name=g.user.get('user_name'),
+                    export_type=request.args.get('export_type', 'link'), filter=filter_new, nb_files=nb_files_exported) if ours else None
+    db_session.commit()
+    export_id = export.id if export else None
+  except Exception as e:
+    db_session.rollback()
+    print(f"WARNING: could not track the export {export_dir}: {e}")
   return jsonify({
-    "export_id": result["export_id"],
-    "export_dir": result["folder"],
+    "export_id": export_id,
+  	"export_dir": str(export_dir),
     "nb_outputs": len(new_outputs),
     "nb_outputs_ref": len(ref_outputs),
-    "nb_files_exported": result["nb_files_exported"],
-    "errors": [*result["errors"], *result["skipped"]],
+    "nb_files_exported": nb_files_exported,
+    "errors": errors,
   })
+
+
+
+
+
+def write_new(path, text, replace=False):
+  """Writes one of the export's own files, if it's not there. `replace`: in our exports' folders"""
+  if os.path.lexists(path):
+    if not replace:
+      return
+    # e.g. a link someone put there: we remove the link, we don't write where it points
+    path.unlink()
+  with path.open('x') as f:
+    f.write(text)
+
+
+def export_to(path_from, path_to, type, user=None, replace=False):
+  """Links or copies `path_to` at `path_from`. What's there is only replaced if it's a file, and `replace`"""
+  if os.path.lexists(path_from):
+    if os.path.exists(path_from) and os.path.samefile(path_from, path_to):
+      return # already exported
+    if not replace or (path_from.is_dir() and not path_from.is_symlink()):
+      raise FileExistsError(f"{path_from} already exists, QA-Board doesn't replace it")
+    path_from.unlink()
+  if type == "link":
+    try:
+      os.link(str(path_to), str(path_from))
+    except:
+      os.symlink(str(path_to), str(path_from))
+  elif type == "copy":
+    if user is None:
+      raise Exception("Need Login")
+    as_user(user.user_name, shutil.copyfile, str(path_to), str(path_from))
+  else:
+    raise ValueError("Invalid type. Use 'link' or 'copy'.")
+
+
+def copy_path_rel(output, output_path, label):
+  try:
+    output_path_rel = output_path.relative_to(output.batch.output_dir)
+    # we remove the platform, configuration, and tuning hashes
+    levels_to_ignore = 2 if output.batch.label == 'default' else 4
+    copied_rel = Path(*output_path_rel.parts[levels_to_ignore:])
+  except:
+    output_path_rel = output.test_input.path / output_path.relative_to(output.output_dir)
+    copied_rel = output_path_rel
+  copied_rel = copied_rel.parent / f"{output_path_rel.stem}{label}{output_path_rel.suffix}" 
+  copied_rel = str(copied_rel).replace('/', '_') # or \ ? or just name .... ??
+  return copied_rel
