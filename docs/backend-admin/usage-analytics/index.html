@@ -18,8 +18,8 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.c45cfeda.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.82126cc5.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.17666eca.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.7846c33d.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -66,6 +66,9 @@ batches started and <code>qa</code> commands. Each table has a <strong>CSV</stro
 nobody opened them in the period: a project to deprecate, or a team to show around), <strong>quiet</strong> (no runs and no
 looks, but some before), <strong>new</strong> (its first event is in the period).</li>
 </ul>
+<p>The numbers are computed at most every 5 minutes, for all the server&#x27;s processes (in Redis): the latest events can
+take that long to show up. The first time a long period is shown, on a server with months of events, computing
+them can take a few seconds.</p>
 <p>Each user&#x27;s page in <strong>Admin → Users</strong> has a <strong>Usage</strong> card: their last 30 days by event and by project.</p>
 <p><strong>Admin → Overview</strong> gets a <strong>Get more from QA-Board</strong> list next to the security checklist: what isn&#x27;t configured
 yet (email notifications, single sign-on, git host webhooks, Sentry, annotation sources, a storage cleaning
