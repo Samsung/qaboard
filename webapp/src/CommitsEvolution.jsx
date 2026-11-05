@@ -369,6 +369,7 @@ const CommitsEvolutionPerTest = props => {
         type={show_bit_accuracy ? 'bit_accuracy' : undefined}
         show_all_files={props.show_all_files}
         expand_all={props.expand_all}
+        collapse_runs={props.collapse_runs}
         files_filter={props.files_filter}
         controls={controls}
         onControlsChange={changes => updateControls(controls => ({ ...controls, ...changes }))}
@@ -535,6 +536,7 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
         available_metrics={available_metrics}
         show_all_files={query.show_all_files === 'true'}
         expand_all={query.expand_all === 'true'}
+        collapse_runs={query.collapse_runs === 'true'}
         files_filter={query.files_filter || ''}
         onSelect={onSelect}
       />
@@ -542,6 +544,7 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
         show_all_files={query.show_all_files === 'true'}
         hide_runs_without_files={query.hide_runs_without_files === 'true'}
         expand_all={query.expand_all === 'true'}
+        collapse_runs={query.collapse_runs === 'true'}
         files_filter={files_filter}
         toggle={name => () => save(name, query[name] !== 'true')}
         update={name => name === 'files_filter' ? onFilesFilterChange : update(name)}
