@@ -116,9 +116,9 @@ any other folder you add) and finds, with the owner of every file:
 - **Untracked runs**: folders with a `run.json` or a manifest that QA-Board doesn't know (a failed upload, a run
   deleted for good while its folder stayed),
 - **Exports** QA-Board doesn't track, e.g. made before it tracked them: folders with an export's `0.qa.url`,
-  `0.qa.html` or `0.common.json`. Scans track them: their owners see them in **Storage usage → Exports**, with the
+  `0.qa.html`, `0.export.json`, `0.export.csv` or `0.common.json`. Scans track them: their owners see them in **Storage usage → Exports**, with the
   project, commit and batch their `0.qa.url` gives. Deleting an export deletes its folder, so when it isn't one
-  QA-Board made (`share/<id>` next to a commit's runs, or in `storage.exports_root`) but a folder someone chose, where
+  QA-Board made (`share/<date>-<name>-<id>` next to a commit's runs, or in `storage.exports_root`) but a folder someone chose, where
   they may have other files, only admins and whoever owns all its files can delete it,
 - what **deleted runs** and **deleted artifacts** left,
 - **other files**, e.g. copies, core dumps, users' own folders.
@@ -150,11 +150,23 @@ results, and the worker reads it as root. Files of uids the backend can't name s
 </details>
 
 ## Exports
-Exports from the web app are recorded with their folder, project, commit, batch, who made them and their size. By
-default they go to a `share/` folder next to the commit's results, which is hard to find among the results. Put them all
+Exports from the web app are recorded with their folder, name, project, commit, batch, who made them and their size.
+Each export gets a new folder, `<date>-<name>-<id>` (the name is optional). By default they go to a `share/` folder next
+to the commit's results, which is hard to find among the results. Put them all
 in one place with the `storage.exports_root` setting (**Admin → Settings**, or `QABOARD_EXPORTS_ROOT`):
-`<root>/<user>/<project>/<date>-<id>`. The folder must be on the same file system as the results for hard links, and
+`<root>/<user>/<project>/<date>-<name>-<id>`. The folder must be on the same file system as the results for hard links, and
 under `QABOARD_STORAGE_ROOTS`.
+
+<details>
+<summary>The export APIs</summary>
+
+The web app previews and exports with `POST /api/v1/exports/preview` and `POST /api/v1/exports`: it sends the runs, and
+how to name their files (a template, and fields per run); the server lists the files and checks the names. The older
+`/api/v1/export` (query parameters), which scripts call, is deprecated but works as before, with its own names and
+`0.common.json`/`0.mappings.json`. Its answers carry a `Deprecation: true` header, so you can find its callers in your
+proxy's logs before it's removed.
+
+</details>
 
 ## What deleted runs leave
 When users delete runs, QA-Board keeps their manifests, and deletes only the files the manifests list: what the runs

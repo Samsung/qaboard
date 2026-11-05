@@ -1,0 +1,860 @@
+{
+ "names": [
+  {
+   "template": "{input}__{settings}__{file}__{side}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "name": "scenes_night_img01__out__new.png"
+  },
+  {
+   "template": "{input}__{settings}__{file}__{side}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "gain=4,iso=100",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "name": "scenes_night_img01__gain=4,iso=100__out__new.png"
+  },
+  {
+   "template": "{input}__{settings}__{file}__{side}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "name": "scenes_night_img01__out.png"
+  },
+  {
+   "template": "{input}__{settings}__{file}__{side}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "debug/frames/out.png",
+   "separator": "__",
+   "windows": true,
+   "name": "scenes__night__img01__debug__frames__out__new.png"
+  },
+  {
+   "template": "{input}__{settings}__{file}__{side}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "debug/out.png",
+   "separator": "/",
+   "windows": true,
+   "name": "scenes/night/img01__debug/out__new.png"
+  },
+  {
+   "template": "{input}__{file}__{side}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "-",
+   "windows": true,
+   "name": "scenes-night-img01__out__new.png"
+  },
+  {
+   "template": "{side}/{input}__{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "name": "new/scenes_night_img01__out.png"
+  },
+  {
+   "template": "{side}/{input}__{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "name": "scenes_night_img01__out.png"
+  },
+  {
+   "template": "{input}/{file}_{side}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "/",
+   "windows": true,
+   "name": "scenes/night/img01/out_new.png"
+  },
+  {
+   "template": "{input_name}_{file}_{side}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.tar.gz",
+   "separator": "_",
+   "windows": true,
+   "name": "img01_out_new.tar.gz"
+  },
+  {
+   "template": "{input_name}_{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "README",
+   "separator": "_",
+   "windows": true,
+   "name": "img01_README"
+  },
+  {
+   "template": "{input_name}_{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": ".hidden",
+   "separator": "_",
+   "windows": true,
+   "name": "img01_.hidden"
+  },
+  {
+   "template": "{input_name}_{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "data.v2.backup",
+   "separator": "_",
+   "windows": true,
+   "name": "img01_data.v2.backup"
+  },
+  {
+   "template": "{settings}{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "name": "out.png"
+  },
+  {
+   "template": "{settings}__{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "name": "out.png"
+  },
+  {
+   "template": "{file}__{settings}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "name": "out.png"
+  },
+  {
+   "template": "{a}__{b}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "error": true
+  },
+  {
+   "template": "{input}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "name": "scenes_night_img01.png"
+  },
+  {
+   "template": "{settings}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "error": true
+  },
+  {
+   "template": "plain",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "error": true
+  },
+  {
+   "template": "{input}__{file",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "error": true
+  },
+  {
+   "template": "{ input }__{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "name": "scenes_night_img01__out.png"
+  },
+  {
+   "template": "{input}__{file}__{side}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "Release 2.3 / RC",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "name": "scenes_night_img01__out__Release_2.3_RC.png"
+  },
+  {
+   "template": "{input}__{file}__{side}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "a<b>c:d\"e|f?g*h",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "name": "scenes_night_img01__out__a-b-c-d-e-f-g-h.png"
+  },
+  {
+   "template": "{input}__{file}__{side}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "ends with dot.",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "name": "scenes_night_img01__out__ends_with_dot.png"
+  },
+  {
+   "template": "{side}./{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "name": "new/out.png"
+  },
+  {
+   "template": "{input}__{file}",
+   "fields": {
+    "input": "../../etc",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "passwd",
+   "separator": "_",
+   "windows": true,
+   "name": ".._.._etc__passwd"
+  },
+  {
+   "template": "{input}/{file}",
+   "fields": {
+    "input": "../../etc",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "passwd",
+   "separator": "/",
+   "windows": true,
+   "error": true
+  },
+  {
+   "template": "{input}/{file}",
+   "fields": {
+    "input": "/abs/path",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "x.png",
+   "separator": "/",
+   "windows": true,
+   "name": "abs/path/x.png"
+  },
+  {
+   "template": "{input}\\{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "x.png",
+   "separator": "_",
+   "windows": true,
+   "name": "scenes_night_img01/x.png"
+  },
+  {
+   "template": "{side}/{settings}/{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "x.png",
+   "separator": "_",
+   "windows": true,
+   "name": "new/x.png"
+  },
+  {
+   "template": "{commit}-{batch}-{platform}-{run}-{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "x.png",
+   "separator": "_",
+   "windows": true,
+   "name": "1a2b3c4d-default-linux-42-x.png"
+  },
+  {
+   "template": "{input}__{file}",
+   "fields": {
+    "input": "é/ü 字",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "x.png",
+   "separator": "+",
+   "windows": true,
+   "name": "é+ü_字__x.png"
+  },
+  {
+   "template": "{input}__{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "x.png",
+   "separator": "%",
+   "windows": true,
+   "error": true
+  },
+  {
+   "template": "{settings}_{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "x.png",
+   "separator": "_",
+   "windows": true,
+   "error": true
+  },
+  {
+   "template": "{input}__{file}__{side}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "sub\\dir\\x.png",
+   "separator": "_",
+   "windows": true,
+   "name": "scenes_night_img01__sub_dir_x__new.png"
+  },
+  {
+   "template": "{input}.{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "x.PNG",
+   "separator": ".",
+   "windows": true,
+   "name": "scenes.night.img01.x.PNG"
+  },
+  {
+   "template": "{input}__{file}__{side}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "a<b>c:d\"e|f?g*h",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": false,
+   "name": "scenes_night_img01__out__a<b>c:d\"e|f?g*h.png"
+  },
+  {
+   "template": "{input}__{file}__{side}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "ends with dot.",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": false,
+   "name": "scenes_night_img01__out__ends_with_dot..png"
+  },
+  {
+   "template": "{side}/{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "CON",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": true,
+   "name": "_CON/out.png"
+  },
+  {
+   "template": "{side}/{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "CON",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "out.png",
+   "separator": "_",
+   "windows": false,
+   "name": "CON/out.png"
+  },
+  {
+   "template": "{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "nul.txt",
+   "separator": "_",
+   "windows": true,
+   "name": "_nul.txt"
+  },
+  {
+   "template": "{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "com1",
+   "separator": "_",
+   "windows": true,
+   "name": "_com1"
+  },
+  {
+   "template": "{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "new",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "console.txt",
+   "separator": "_",
+   "windows": true,
+   "name": "console.txt"
+  },
+  {
+   "template": "{side}_{file}",
+   "fields": {
+    "input": "scenes/night/img01",
+    "input_name": "img01",
+    "side": "aux",
+    "settings": "",
+    "platform": "linux",
+    "commit": "1a2b3c4d",
+    "batch": "default",
+    "run": "42"
+   },
+   "file": "x.png",
+   "separator": "_",
+   "windows": true,
+   "name": "aux_x.png"
+  }
+ ],
+ "inputs": [
+  {
+   "path": "scenes/night/img01.dng",
+   "input": "scenes/night/img01",
+   "input_name": "img01"
+  },
+  {
+   "path": "img01.raw",
+   "input": "img01",
+   "input_name": "img01"
+  },
+  {
+   "path": "folder/sequence",
+   "input": "folder/sequence",
+   "input_name": "sequence"
+  },
+  {
+   "path": "a.b/c",
+   "input": "a.b/c",
+   "input_name": "c"
+  },
+  {
+   "path": "\\\\win\\path\\x.jpg",
+   "input": "win/path/x",
+   "input_name": "x"
+  },
+  {
+   "path": "/abs/x.tar.gz",
+   "input": "abs/x",
+   "input_name": "x"
+  },
+  {
+   "path": "scene.v2.1",
+   "input": "scene.v2",
+   "input_name": "scene.v2"
+  },
+  {
+   "path": ".hidden",
+   "input": ".hidden",
+   "input_name": ".hidden"
+  },
+  {
+   "path": "ends/",
+   "input": "ends",
+   "input_name": "ends"
+  }
+ ],
+ "extensions": [
+  {
+   "path": "out.png",
+   "split": [
+    "out",
+    ".png"
+   ]
+  },
+  {
+   "path": "a/b.c/d",
+   "split": [
+    "a/b.c/d",
+    ""
+   ]
+  },
+  {
+   "path": "x.",
+   "split": [
+    "x.",
+    ""
+   ]
+  },
+  {
+   "path": "README",
+   "split": [
+    "README",
+    ""
+   ]
+  },
+  {
+   "path": "a.toolongextension",
+   "split": [
+    "a.toolongextension",
+    ""
+   ]
+  },
+  {
+   "path": "a.tar.gz",
+   "split": [
+    "a",
+    ".tar.gz"
+   ]
+  }
+ ]
+}

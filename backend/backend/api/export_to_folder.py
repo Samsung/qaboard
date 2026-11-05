@@ -1,5 +1,7 @@
 """
-Implement the API used by the "Export to a shared directory" plugin.
+The older export API, deprecated: scripts still call it, the web app uses /api/v1/exports (backend/api/export_files.py),
+where the caller says how to name files. Its behavior doesn't change until its callers moved: responses say it's
+deprecated (`Deprecation` header), with a link to the new API.
 """
 import os
 import json
@@ -8,7 +10,8 @@ import hashlib
 from pathlib import Path
 
 from requests.utils import quote
-from flask import request, jsonify, g
+from functools import wraps
+from flask import request, jsonify, g, make_response
 from sqlalchemy.orm import joinedload
 
 
@@ -113,9 +116,21 @@ def commonprefix(m):
   return s1
 
 
+def deprecated(f):
+  """Responses tell clients to move to /api/v1/exports"""
+  @wraps(f)
+  def wrapper(*args, **kwargs):
+    response = make_response(f(*args, **kwargs))
+    response.headers['Deprecation'] = 'true'
+    response.headers['Link'] = '</api/v1/exports>; rel="successor-version"'
+    return response
+  return wrapper
+
+
 # POST: it writes in folders. GET for older web apps and scripts.
 @app.route("/api/v1/export", methods=['GET', 'POST'])
 @app.route("/api/v1/export/", methods=['GET', 'POST'])
+@deprecated
 @login_required
 def export_to_folder():
   # Cookies come with GETs from other websites' links: actor.py only checks the origin of other methods

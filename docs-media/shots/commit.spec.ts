@@ -551,13 +551,20 @@ shot('commit/output-filter', {
 shot('commit/export', {
   project: IQ,
   url: d => d.commitUrl(IQ, 'merge-bilateral', { reference: 'isp-4-1', view: 'output-list', filter: 'photos low-light' }),
-  alt: 'The filter box with "photos low-light" and 4 outputs; below, the Export button opened on a box with the pattern '
-    + '*.png, the Windows and Linux paths of the export folder, and "8 files exported from 4 runs".',
-  caption: 'Export gathers the files matching a pattern from the filtered runs into one folder, as links.',
+  alt: 'The Export dialog: the pattern *.png and how files are named on the left; on the right, the preview of the '
+    + 'names of the new and reference files, and the new folder they go to.',
+  caption: 'Export lists the names of the files before exporting them, and the folder they go to.',
   actions: async ui => {
-    // the button next to the view's title opens the export box
+    // the button next to the view's title opens the export dialog, its preview comes from the server
     await ui.click(ui.page.getByRole('button', { name: 'Export files', exact: true }));
-    const box = ui.page.locator('.bp6-popover', { has: ui.page.getByLabel(/Files to export/) });
+    const dialog = ui.page.locator('.bp6-dialog', { hasText: 'Export files' });
+    await dialog.getByRole('list', { name: 'Exported files' }).waitFor();
+    await ui.settle();
+    await ui.cursor.moveTo({ x: 1300, y: 860 });
+  },
+  target: page => [page.locator('.bp6-dialog', { hasText: 'Export files' })],
+  padding: 8,
+});
     await ui.click(box.getByRole('button', { name: 'Export', exact: true }));
     await ui.page.getByText(/files exported from/).waitFor();
     await ui.settle();

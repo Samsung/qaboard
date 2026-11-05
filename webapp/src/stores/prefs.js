@@ -49,6 +49,10 @@ export const usePrefsStore = create()(persist(
     // batch id => {failed, at}: the batches users dismissed from the home page's "Needs attention", with how many
     // runs had failed. They come back if more fail.
     homeDismissed: {},
+    // project => the settings of the last export: how files are named, the files, links or copies... (src/export/plan.js)
+    exportLast: {},
+    // export settings users saved: [{id, name, project (null: all projects), settings}]
+    exportPresets: [],
 
     toggleFavorite: project => set(state => ({
       favorites: { ...state.favorites, [project]: !state.favorites[project] },
@@ -85,6 +89,14 @@ export const usePrefsStore = create()(persist(
       },
     })),
     setListScope: (project, scope) => set(state => ({ listScope: { ...state.listScope, [project]: scope } })),
+    setExportLast: (project, settings) => set(state => ({ exportLast: { ...state.exportLast, [project]: settings } })),
+    // a preset with the same name, for the same projects, is replaced
+    saveExportPreset: ({ name, project = null, settings }) => set(state => {
+      const others = (state.exportPresets ?? []).filter(p => !(p.name === name && (p.project ?? null) === project));
+      const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      return { exportPresets: [...others, { id, name, project, settings }] };
+    }),
+    deleteExportPreset: id => set(state => ({ exportPresets: (state.exportPresets ?? []).filter(p => p.id !== id) })),
     toggleHideSharedSettings: () => set(state => ({ hide_shared_settings: !state.hide_shared_settings })),
     toggleShortenLongSettings: () => set(state => ({ shorten_long_settings: !state.shorten_long_settings })),
     updateTuning: (project, form) => set(state => ({

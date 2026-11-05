@@ -105,6 +105,7 @@ export const ExportsView = ({ filters, me }) => {
                 <div className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>{plural(item.files ?? 0, 'file')}</div>
               </td>
               <td style={{ minWidth: 220 }}>
+                {item.name && <div style={{ fontWeight: 600 }}>{item.name}</div>}
                 <Path path={item.path}/>
                 <div style={{ marginTop: 2, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   <LinkedTag item={item}/>

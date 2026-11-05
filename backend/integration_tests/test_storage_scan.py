@@ -144,12 +144,16 @@ def test_exports(alice, logged_in, admin, world, storage):
 
 
 def test_exports_root(admin, monkeypatch, storage):
-  from backend.exports import default_dir
+  from backend.exports import default_dir, made_by_qaboard
   assert default_dir('alice', 'group/proj', 'abcdef123456') is None
   assert admin.post('/api/v1/admin/settings', json={"storage.exports_root": "/not/in/the/storage"}).status_code == 400
   assert admin.post('/api/v1/admin/settings', json={"storage.exports_root": str(storage / 'exports')}).status_code == 200
   path = default_dir('alice', 'group/proj', 'abcdef123456')
   assert str(path).startswith(f"{storage}/exports/alice/group/proj/") and path.name.endswith('-abcdef12')
+  # what users call their exports is in their folder's name
+  named = default_dir('alice', 'group/proj', 'abcdef123456', name='night scenes / v2')
+  assert named.name.endswith('-night-scenes-v2-abcdef12'), named
+  assert made_by_qaboard(str(path), str(storage / 'exports')) and made_by_qaboard(str(named), str(storage / 'exports'))
 
 
 # ---------------------------------------------------------------------------
