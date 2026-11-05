@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="https://user-images.githubusercontent.com/2649055/86829138-bb6aef00-c09c-11ea-8b59-78b7fc44ebcf.png" alt="QA-Board logo" width="260">
+  <img src="website/static/img/qaboard-logo.svg" alt="" width="88">
+</p>
+<h1 align="center">QA-Board</h1>
+<p align="center">
 
   <div align="center"><b>Tests tell you it runs. QA-Board shows you it's better.</b></div>
 
@@ -70,6 +73,3 @@ QA-Board was started at [Samsung](https://www.linkedin.com/company/samsung-israe
 Thanks to the following people for their contributions, testing, feedback or bug reports: Amir Fruchtman, Avi Schori, Yochay Doutsh, Itamar Persi, Amichay Amitay, Lena Grechikhin, Gal Hai, Rivka Emmanuel, Nadav Ofer. Thanks also to Sebastien Derhy, Elad Rozin, Nathan Levy, Shahaf Duenyas, Asaf Jazcilevich and Yoel Yaffe for supporting the project.
 
 > You don't see your name? Get in touch to be added to the list!
-
-## Credits
-- The logo is the Poodle [twemoji](https://twemoji.twitter.com/) 🐩, recolored in Samsung Blue 🔵. *Copyright 2019 Twitter, Inc and other contributors. Code licensed under the [MIT License](http://opensource.org/licenses/MIT). Graphics licensed under [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/)*
