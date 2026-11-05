@@ -261,7 +261,7 @@ let config: Config = {
         // A new id shows the bar again to readers who closed the old one
         id: contact ? 'get-started-with-us' : 'supportus',
         content: contact
-          ? `Bringing QA-Board to your team? The maintainers help you get started: <a href="mailto:${contact}?subject=QA-Board">${contact}</a>. And if you like it, <a target="_blank" rel="noopener noreferrer" href="https://github.com/Samsung/qaboard">star it on GitHub</a>.`
+          ? `Setting up QA-Board for your team? Write to the maintainers: <a href="mailto:${contact}?subject=QA-Board">${contact}</a>`
           : 'If you like QA-Board, give it a star on <a target="_blank" rel="noopener noreferrer" href="https://github.com/Samsung/qaboard">GitHub</a>.',
         backgroundColor: '#1064d3',
         textColor: 'white',

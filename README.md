@@ -20,10 +20,9 @@ performance, test suites and LLM agents: anything whose quality you measure.
 > Screenshots, clips and use cases: [samsung.github.io/qaboard](https://samsung.github.io/qaboard).
 
 ## In production at scale
-QA-Board has been Samsung's central quality platform since 2018: about 50 projects, more than 40 million runs, and
-workflows teams depend on to ship. Running it is documented and tested: zero-downtime upgrades and rollbacks (the CI
-runs a rolling deploy), backups, a Helm chart that the CI installs on Kubernetes and runs a real batch against, single
-sign-on, LDAP and project roles, and Sentry monitoring.
+QA-Board has been Samsung's central quality platform since 2018: about 50 projects and more than 40 million runs.
+Running it is documented and tested in CI: zero-downtime upgrades and rollbacks, backups, and a Helm chart for
+Kubernetes. Users sign in with single sign-on or LDAP, project roles control access, and errors go to Sentry.
 
 ## What you get
 - **Compare every commit with a reference:** the reference branch, a release or a milestone, metric by metric, with
@@ -33,14 +32,14 @@ sign-on, LDAP and project roles, and Sentry monitoring.
 - **Find the commit that changed it:** History follows a metric across commits, input by input.
 - **Tune from the browser:** parameter sweeps and automated tuning (`qa optimize`, with Optuna).
 - **People and agents together:** coding agents read the same results (`qaboard.runs(url)`, `qa runs`, the compare
-  API) and learn the conventions from [skills](https://github.com/Samsung/qaboard/tree/master/skills). `qa gate` (experimental) fails CI when quality regresses,
-  whoever wrote the change.
+  API) and learn the conventions from [skills](https://github.com/Samsung/qaboard/tree/master/skills).
+  `qa gate` (experimental) fails CI when quality regresses, whoever wrote the change.
 - **Fits your stack:** wraps any executable, runs locally, on LSF, Dask or Celery, or in CI (GitHub Actions, GitLab
   CI, Jenkins...). Open source (Apache 2.0) and self-hosted: your results stay on your network.
 
 ## Get started, with our help
 We're looking for teams who track quality, and we help them get started: setting up a self-hosted server, integrating
-the first projects, keeping it upgraded as results grow. Write to **arthur.flam@gmail.com**, or
+the first projects, planning upgrades and storage as results grow. Write to **arthur.flam@gmail.com**, or
 [open an issue](https://github.com/Samsung/qaboard/issues).
 
 - Try it on your computer: [the quickstart](https://samsung.github.io/qaboard/docs/get-started/quickstart).

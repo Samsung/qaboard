@@ -120,7 +120,7 @@ function Hero() {
 const PROOF = [
   {title: '40M+ runs', text: 'Saved and reviewed in production at Samsung'},
   {title: '~50 projects', text: 'On Samsung’s central quality platform'},
-  {title: 'Since 2018', text: 'Hardened by years of daily use, at scale'},
+  {title: 'Since 2018', text: 'In daily use by Samsung’s teams'},
   {title: 'Open source', text: 'Apache 2.0, self-hosted: your results stay on your network'},
 ];
 
@@ -294,8 +294,8 @@ const COLLABORATION: Collaborator[] = [
     title: 'Read the same results',
     text: (
       <>
-        <code>qaboard.runs(url)</code> and <code>qa runs</code> give an agent the runs a page shows, the compare API
-        a verdict against the reference.
+        <code>qaboard.runs(url)</code> and <code>qa runs</code> give an agent the runs a page shows. The compare API
+        gives it a verdict against the reference.
       </>
     ),
     to: '/docs/apis#runs-in-scripts',
@@ -518,7 +518,7 @@ const PRODUCTION = [
   {title: 'Upgrades without downtime', items: ['Rolling deploys, tested in CI', 'Rollbacks', 'Database backups and restores'], to: '/docs/backend-admin/deployment'},
   {title: 'Kubernetes', items: ['A Helm chart, installed in CI with a real batch', 'Database failover with CloudNativePG'], to: '/docs/backend-admin/kubernetes'},
   {title: 'Access control', items: ['Single sign-on, LDAP, local accounts', 'Project roles, groups from your directory'], to: '/docs/backend-admin/project-access'},
-  {title: 'Monitoring', items: ['Errors and traces of the web app, server, jobs and qa', 'To Sentry, or your own Sentry'], to: '/docs/backend-admin/monitoring'},
+  {title: 'Monitoring', items: ['Errors and traces of the web app, server, jobs and qa', 'Sent to Sentry, hosted or self-hosted'], to: '/docs/backend-admin/monitoring'},
   {title: 'Storage at scale', items: ['What takes space, and whose it is', 'Old outputs deleted automatically'], to: '/docs/user-guide/storage-usage'},
   {title: 'Heavy outputs', items: ['113 MP images, zoomed to the pixel', 'Videos, point clouds, flame graphs'], to: '/docs/visualizations'},
 ];
@@ -528,8 +528,8 @@ function Production() {
     <section className={styles.section}>
       <div className="container">
         <SectionHeader eyebrow="Production-ready" title="Hardened at scale">
-          QA-Board has been Samsung&apos;s central quality platform since 2018: more than 40 million runs, about 50
-          projects, and workflows teams depend on to ship. Running it for your company is documented and tested.
+          QA-Board has been Samsung&apos;s central quality platform since 2018: about 50 projects and more than 40
+          million runs. Running it for your company is documented and tested.
         </SectionHeader>
         <ul className={styles.stackGrid}>
           {PRODUCTION.map(({title, items, to}) => (
@@ -658,7 +658,7 @@ function WhatsNew() {
 const HELP = [
   'Set up a self-hosted server on your own machines, with Docker Compose or Kubernetes',
   'Integrate your first projects: inputs, metrics, visualizations and CI',
-  'Keep your server upgraded, backed up and fast as your results grow',
+  'Plan upgrades, backups and storage as your results grow',
 ];
 
 function GetInTouch({contact}: {contact: string}) {
