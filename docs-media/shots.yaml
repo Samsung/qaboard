@@ -652,7 +652,7 @@ shots:
   - id: commit/export
     kind: still
     project: image-quality
-    shows: Export gathers `*.png` from the filtered runs; the export directory's paths are shown.
+    shows: The Export dialog previews the names of the `*.png` files of the filtered runs and their reference, and the new folder they go to.
     pages: [user-guide/sharing, recipes/export]
     phase: 2
     status: captured

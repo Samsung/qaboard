@@ -207,6 +207,9 @@ const CiCommitResults = () => {
     filter_batch_new={filter_batch_new}
     filter_batch_ref={filter_batch_ref}
     batch_dir_url={new_batch.batch_dir_url}
+    new_batch={new_batch}
+    ref_batch={ref_batch}
+    labels={comparison.labels}
   />;
   const output_cards_props = {
     project: new_project,

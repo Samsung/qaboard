@@ -47,6 +47,8 @@ export const usePrefsStore = create()(persist(
     // batch id => {failed, at}: the batches users dismissed from the home page's "Needs attention", with how many
     // runs had failed. They come back if more fail.
     homeDismissed: {},
+    // how exported files are named: the layout, template, settings... (see src/export/plan.js's default_naming)
+    exportNaming: {},
 
     toggleFavorite: project => set(state => ({
       favorites: { ...state.favorites, [project]: !state.favorites[project] },
@@ -83,6 +85,7 @@ export const usePrefsStore = create()(persist(
       },
     })),
     setListScope: (project, scope) => set(state => ({ listScope: { ...state.listScope, [project]: scope } })),
+    setExportNaming: naming => set(state => ({ exportNaming: { ...state.exportNaming, ...naming } })),
     toggleHideSharedSettings: () => set(state => ({ hide_shared_settings: !state.hide_shared_settings })),
     updateTuning: (project, form) => set(state => ({
       tuning: { ...state.tuning, [project]: { ...state.tuning[project], ...form } },

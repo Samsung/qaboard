@@ -80,27 +80,78 @@ Results live on a shared storage, so you often want a path rather than a link:
   [Copy and save images](/docs/user-guide/image-viewer#copy-and-save).
 
 ## Export files for a report {#exporting-files}
-To put the outputs of many runs in a slide deck or a script, gather them in one folder. In the **Visualizations** and
-**Output Files** views, **Export** collects the files matching a pattern from all the (filtered) runs, new and
-reference:
+To put the outputs of many runs in a slide deck, a diff tool or a script, gather them in one folder. In the
+**Visualizations** and **Output Files** views, **Export** collects the files matching a pattern from all the (filtered)
+runs, new and reference, into a new folder, and shows you every file's name before it exports:
 
 1. Filter the runs you want, e.g. `low-light` (see [Filter the runs](/docs/user-guide/finding-results#filter-syntax)).
 2. Click **Export** at the right of the view's title.
 3. Type a pattern, like `*.png`, `*.txt` or `**/*.jpg` (`**/` matches any number of folders).
-4. Click **Export** in the box, or press <kbd>Enter</kbd>. The export folder's Windows path is copied to your
-   clipboard, and both its Windows and Linux paths show in the box. They stay there if you close the box and open it
-   again.
-5. Open the folder to share or post-process the files.
+4. Pick how files are named. The **Preview** lists the names the export will use, and says if two files would get the
+   same name, or if files are already there.
+5. Click **Export**. The folder's Windows path is copied to your clipboard, and both its Windows and Linux paths show
+   in the box, with what was exported.
 
 <Shot
   id="commit/export"
-  caption="Export gathers the PNG files of the 4 filtered runs into one folder, and shows its Windows and Linux paths."
+  caption="Export lists the names of the files before exporting them, and the folder they go to."
 />
 
-By default, the exported files are **links** to the original files, in a shared folder: nothing is copied, so it's
-fast. Use **Edit where** to choose your own folder: files are then copied (or linked, if it's on the same filesystem).
-In a folder that existed before, QA-Board only adds files: it never replaces what's there (the box lists the files
-it skipped), and the folder isn't listed with your exports in **Storage usage**.
+Names are made of what you see on the page: the input, the file, and what the page calls the new and reference results,
+e.g. `night_street__out__new.png` and `night_street__out__v1.2.png`, or their milestones' names. Each export goes to a
+new folder: give it a name to find it later in [Storage usage](/docs/user-guide/storage-usage#exports). In the folder,
+`0.export.csv` lists each file and where it comes from (run, input, settings), and `0.export.json` adds the runs'
+configurations, for scripts.
+
+By default, the exported files are **links** to the original files: nothing is copied, so it's fast. Don't edit them:
+you'd edit the runs' files.
+
+### Choose how files are named {#export-names}
+- **One folder**: all files side by side, a run's new and reference files next to each other.
+- **A folder per side**: `new/` and `v1.2/` (the reference) have the same file names: open them in a diff tool, or
+  flip between them in an image viewer.
+- **Folders like the inputs**: the inputs' folders, then the runs' files.
+- **Custom**: edit the template, e.g. `{side}/{input_name}__{file}`. Click a field under it to add it.
+
+When several runs share an input, e.g. when you tune parameters, names say the **settings that differ** between them:
+`night_street__gain=4,iso=100__out__new.png`. Choose a **short id** or a **number** instead when settings are long:
+`0.export.csv` says what they stand for. You can also name runs by their settings **always**, or **never**.
+Reference files are named like the new runs they're compared to, so that each file has its reference next to it.
+
+If two files would get the same name, the preview says which, and offers fixes, like adding `{settings}` or the run's
+id: QA-Board doesn't export until names are unique. Your choices are remembered for your next exports.
+
+<details>
+<summary>Every field of the template</summary>
+
+| Field | What it is |
+| --- | --- |
+| `{side}` | What the page calls the new and reference results: `new`, the milestone's name, or what you type in the box. Empty without a reference. |
+| `{input}` | The input's path, without its extension: `scenes/night/street` |
+| `{input_name}` | The input's name: `street` |
+| `{settings}` | What tells runs on the same input apart (see above). Empty when nothing does. |
+| `{file}` | The file's path in its run's folder, without its extension: `debug/mask` |
+| `{platform}`, `{commit}`, `{batch}`, `{run}` | The run's platform, commit (8 characters), batch, and id |
+
+- The extension always ends the name.
+- Slashes in the template make folders. Slashes in the inputs' and files' paths become `_` (or what you choose in
+  **Folders in paths**), or stay folders with **Keep folders**.
+- An empty field takes the separator next to it along: `{input}__{settings}__{file}` gives `street__out` when runs
+  don't need settings.
+- Characters Windows doesn't allow in names become `-`, and spaces `_`. Names differing only by case are the same name,
+  like on Windows shares.
+
+</details>
+
+<details>
+<summary>Export into a folder you choose</summary>
+
+Pick **A folder I choose** and type its Linux or Windows path, on the shared storage. Files are copied, or linked if
+it's on the same filesystem as the runs. QA-Board only adds files there: it never replaces what's there (the preview
+lists the files it will skip), and the folder isn't listed with your exports in **Storage usage**. If an export is
+already there, the mapping is written as `0.export-<id>.csv`.
+
+</details>
 
 ## Use the runs in a script {#runs-in-scripts}
 To post-process the runs you see, e.g. compute a metric the CI didn't, align outputs, or redo a measurement, click
