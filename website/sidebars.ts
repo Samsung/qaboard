@@ -50,7 +50,7 @@ const sidebars: SidebarsConfig = {
         type: 'generated-index',
         slug: '/use-cases',
         title: 'Use cases',
-        description: 'QA-Board on demo projects of a fictional robotics company: the problem, the workflow, what you see in the web app, and the configuration that produces it.',
+        description: 'QA-Board on demo projects of a fictional robotics company, from image quality and models to latency, test suites and agents: the problem, the workflow, what you see in the web app, and the configuration that produces it.',
       },
       items: ['use-cases/image-quality', 'use-cases/serving-latency', 'use-cases/detection-eval', 'use-cases/robotics-3d', 'use-cases/agent-evals', 'use-cases/software-quality'],
     },

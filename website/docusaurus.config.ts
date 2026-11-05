@@ -23,6 +23,10 @@ function loadSite(id?: string): Site | null {
 }
 const site = loadSite(process.env.QABOARD_SITE)
 
+// The maintainers' contact, for teams who want help to get started (the landing page's "Get in touch", the footer, the
+// announcement bar). Not in the builds for a site's own web app: its users get help from their site's admins.
+const contact = site ? null : 'arthur.flam@gmail.com'
+
 import {themes as prismThemes} from 'prism-react-renderer';
 
 // Screenshots and clips (<Shot>, <Clip>, <Compare>): see docs-media/README.md and plugins/media/
@@ -58,7 +62,7 @@ const logo = {
 /** @type {import('@docusaurus/types').Config} */
 let config: Config = {
   title: 'QA-Board',
-  customFields: {is_for_webapp, ...(site ? {site: {id: site.id, name: site.name, label: site.label}} : {})},
+  customFields: {is_for_webapp, contact, ...(site ? {site: {id: site.id, name: site.name, label: site.label}} : {})},
   tagline: "Tests tell you it runs. QA-Board shows you it's better.",
   url: 'https://samsung.github.io',
   onBrokenLinks: 'throw',
@@ -232,6 +236,7 @@ let config: Config = {
           {
             title: 'More',
             items: [
+              ...(contact ? [{label: 'Get in touch', to: '/#get-in-touch'}] : []),
               {
                 label: 'Blog',
                 to: '/blog',
@@ -251,8 +256,11 @@ let config: Config = {
         darkTheme: prismThemes.dracula,
       },
       announcementBar: {
-        id: 'supportus',
-        content: '⭐️ If you like QA-Board, give it a star on <a target="_blank" rel="noopener noreferrer" href="https://github.com/Samsung/qaboard">GitHub</a>! ⭐️',
+        // A new id shows the bar again to readers who closed the old one
+        id: contact ? 'get-started-with-us' : 'supportus',
+        content: contact
+          ? `Bringing QA-Board to your team? The maintainers help you get started: <a href="mailto:${contact}?subject=QA-Board">${contact}</a>. And if you like it, <a target="_blank" rel="noopener noreferrer" href="https://github.com/Samsung/qaboard">star it on GitHub</a>.`
+          : 'If you like QA-Board, give it a star on <a target="_blank" rel="noopener noreferrer" href="https://github.com/Samsung/qaboard">GitHub</a>.',
         backgroundColor: '#1064d3',
         textColor: 'white',
       },

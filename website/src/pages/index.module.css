@@ -79,6 +79,12 @@
 }
 
 /* Who it's for: links to the use cases */
+.heroHelp {
+  margin: 1rem 0 0;
+  color: var(--ifm-color-emphasis-800);
+  font-size: 0.95rem;
+}
+
 .audience {
   display: flex;
   align-items: baseline;
@@ -486,6 +492,58 @@
   line-height: 1.6;
 }
 
+/* Get in touch: the maintainers' contact, on the dark stage */
+.getInTouch {
+  scroll-margin-top: var(--ifm-navbar-height);
+}
+
+.getInTouchInner {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 2.5rem;
+  align-items: center;
+}
+.getInTouchInner .sectionHeader {
+  margin-bottom: 1.25rem;
+}
+
+.helpList {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--ifm-color-emphasis-800);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.contactCard {
+  padding: 1.75rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: var(--ifm-card-border-radius, 8px);
+  background: var(--ifm-background-surface-color);
+}
+
+.contactLabel {
+  margin: 0 0 0.5rem;
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.contactEmail {
+  display: inline-block;
+  font-size: clamp(1.15rem, 1rem + 0.6vw, 1.45rem);
+  font-weight: 700;
+  word-break: break-all;
+}
+
+.contactNote {
+  margin: 1rem 0 0;
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.95rem;
+}
+
 /* The last call to action, and what's new */
 .finalCta {
   max-width: 40rem;
@@ -514,6 +572,10 @@
   .proofList,
   .painList {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .getInTouchInner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
   }
   .loop {
     grid-template-columns: minmax(0, 1fr);
