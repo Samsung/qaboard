@@ -118,7 +118,7 @@ function Hero() {
 
 // The numbers are the maintainers', from Samsung's production server
 const PROOF = [
-  {title: 'Tens of millions of runs', text: 'Saved and reviewed in production at Samsung'},
+  {title: '40M+ runs', text: 'Saved and reviewed in production at Samsung'},
   {title: '~50 projects', text: 'On Samsung’s central quality platform'},
   {title: 'Since 2018', text: 'Hardened by years of daily use, at scale'},
   {title: 'Open source', text: 'Apache 2.0, self-hosted: your results stay on your network'},
@@ -528,7 +528,7 @@ function Production() {
     <section className={styles.section}>
       <div className="container">
         <SectionHeader eyebrow="Production-ready" title="Hardened at scale">
-          QA-Board has been Samsung&apos;s central quality platform since 2018: tens of millions of runs, about 50
+          QA-Board has been Samsung&apos;s central quality platform since 2018: more than 40 million runs, about 50
           projects, and workflows teams depend on to ship. Running it for your company is documented and tested.
         </SectionHeader>
         <ul className={styles.stackGrid}>

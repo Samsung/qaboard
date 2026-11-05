@@ -52,10 +52,12 @@ const redirects = [
   {from: 'creating-and-viewing-outputs-files', to: 'visualizations#output-files'},
 ].map(({from, to}) => ({from: docsPath(from), to: docsPath(to)}))
 
+// The mark: a new run (solid) laid over its reference (outlined). The favicons in img/favicon/ and webapp/public/ are
+// made from it, with thicker strokes at 16 and 32 px
 const logo = {
-  alt: 'QA-Board Logo',
-  // https://commons.wikimedia.org/wiki/File:Twemoji_1f429.svg
-  src: '/img/twemoji_poodle.svg',
+  alt: 'QA-Board',
+  src: '/img/qaboard-logo.svg',
+  srcDark: '/img/qaboard-logo-dark.svg',
 }
 
 

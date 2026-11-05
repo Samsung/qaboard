@@ -31,7 +31,7 @@ overview pages:
   targets as people; a person decides what ships. Claim only what agents can do today (`qaboard.runs(url)`,
   `qa runs`, the compare API, the skills, `qa gate` labeled Experimental); the MCP server is on the roadmap.
 - **Proven in production, not "the best".** Earn trust with facts: Samsung's central quality platform since 2018,
-  about 50 projects, tens of millions of runs; zero-downtime upgrades and the Helm chart tested in CI. Say "Samsung",
+  about 50 projects, more than 40 million runs; zero-downtime upgrades and the Helm chart tested in CI. Say "Samsung",
   not the name of one of its R&D centers. No superlatives (see Voice): numbers convince, adjectives don't.
 - **We help teams get started.** The public site and the README invite teams to get in touch with the maintainers
   (the contact is `contact` in *docusaurus.config.ts*, nowhere else in the docs). The web app's docs for a site

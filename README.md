@@ -20,7 +20,7 @@ performance, test suites and LLM agents: anything whose quality you measure.
 > Screenshots, clips and use cases: [samsung.github.io/qaboard](https://samsung.github.io/qaboard).
 
 ## In production at scale
-QA-Board has been Samsung's central quality platform since 2018: about 50 projects, tens of millions of runs, and
+QA-Board has been Samsung's central quality platform since 2018: about 50 projects, more than 40 million runs, and
 workflows teams depend on to ship. Running it is documented and tested: zero-downtime upgrades and rollbacks (the CI
 runs a rolling deploy), backups, a Helm chart that the CI installs on Kubernetes and runs a real batch against, single
 sign-on, LDAP and project roles, and Sentry monitoring.
