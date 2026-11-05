@@ -89,6 +89,11 @@ export const applyTemplate = (layout, dark) => {
     delete layout.template;
 };
 
+// Shows the hover label as if the pointer were at {xval} (in data coordinates: milliseconds on date axes),
+// or for these points: [{curveNumber, pointNumber}]. E.g. from the keyboard
+export const hover = (gd, where) => Plotly.Fx.hover(gd, where);
+export const unhover = gd => Plotly.Fx.unhover(gd);
+
 const PlotlyPlot = props => {
   const dark = useIsDark();
   upgradeFigure(props.data, props.layout);
