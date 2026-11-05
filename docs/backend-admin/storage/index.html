@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.2fd77e6d.css">
-<script src="/qaboard/assets/js/runtime~main.2a23e51d.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.47c62a81.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.816f71b4.js" defer="defer"></script>
 </head>
 <body>
@@ -151,6 +151,9 @@ to the commit&#x27;s results, which is hard to find among the results. Put them 
 in one place with the <code>storage.exports_root</code> setting (<strong>Admin → Settings</strong>, or <code>QABOARD_EXPORTS_ROOT</code>):
 <code>&lt;root&gt;/&lt;user&gt;/&lt;project&gt;/&lt;date&gt;-&lt;name&gt;-&lt;id&gt;</code>. The folder must be on the same file system as the results for hard links, and
 under <code>QABOARD_STORAGE_ROOTS</code>.</p>
+<p>Exports of <strong>copies</strong> are made as the user who exports, so that they own the copies: the backend needs to run as root (or with
+the <code>SETUID</code>/<code>SETGID</code> capabilities), and to know the user&#x27;s account, see <a class="" href="/qaboard/docs/backend-admin/user-management#users-accounts">users&#x27; accounts</a>.
+Users it doesn&#x27;t know can only export links: the preview tells them.</p>
 <details class="details_lb9f alert alert--info details_b_Ee" data-collapsed="true"><summary>The export APIs</summary><div><div class="collapsibleContent_i85q"><p>The web app previews and exports with <code>POST /api/v1/exports/preview</code> and <code>POST /api/v1/exports</code>: it sends the runs, and
 how to name their files (a template, and fields per run); the server lists the files and checks the names. The older
 <code>/api/v1/export</code> (query parameters), which scripts call, is deprecated but works as before, with its own names and
