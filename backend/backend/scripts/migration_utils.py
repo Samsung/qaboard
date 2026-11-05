@@ -4,6 +4,8 @@ from pathlib import Path
 import requests
 import click
 
+from backend.fs_utils import owner as fs_owner
+
 
 
 
@@ -50,7 +52,7 @@ def get_username(ci_commit):
   except Exception as e:
     click.secho(str(e), fg='red')
     try:
-      owner = ci_commit.artifacts_dir.owner()
+      owner = fs_owner(ci_commit.artifacts_dir)
     except:
       owner = "sircdevops"
     print(f"??? {owner}")

@@ -5,13 +5,13 @@ Deal with filesystem common needs and issues
 # python backend/fs_utils.py 11611:10 ~/test.yaml
 """
 import os
-import pwd
 import sys
 import pickle
 import tempfile
 import traceback
 import subprocess
 from pathlib import Path
+from typing import List, Tuple
 
 
 
@@ -72,11 +72,63 @@ def rm_empty_parents(path: Path):
       break
 
 
+class UnknownAccountError(ValueError):
+  pass
+
+
+def _accounts():
+  try:
+    from . import accounts
+  except ImportError: # we run as a script, with sudo (see rmtree)
+    return None
+  return accounts
+
+
+def unix_identity(user) -> Tuple[int, int, List[int]]:
+  """
+  (uid, gid, groups) to act as `user`: an account name, or "uid:gid".
+  Names and groups come from backend/accounts.py ($QABOARD_ACCOUNTS_COMMAND...): the server's own /etc/passwd
+  often doesn't know the users, e.g. in containers, or with LDAP/SSSD.
+  """
+  accounts = _accounts()
+  if ":" in str(user):
+    uid, gid = (int(n) for n in str(user).split(':'))
+    name = accounts.user_name(uid) if accounts else None
+    account = accounts.account(name) if name else None
+    # the file's group, e.g. for rmtree, and the groups of its owner if we know them
+    groups = {gid, *(accounts.group_ids(name, account.gid) if account else ())}
+    return uid, gid, sorted(groups)
+  account = accounts.account(user) if accounts else None
+  if not account:
+    raise UnknownAccountError(
+      f"QA-Board doesn't know the Unix account of {user}, it can't act as them. "
+      "Admins: the accounts come from $QABOARD_ACCOUNTS_COMMAND, else the server's /etc/passwd"
+    )
+  return account.uid, account.gid, sorted(accounts.group_ids(account.name, account.gid))
+
+
+def owner(path) -> str:
+  """
+  Who owns a file: their account's name, or "uid 2041" if unknown (backend/accounts.py).
+  Unlike Path.owner(), it works when the server's /etc/passwd doesn't know the users.
+  """
+  from . import accounts
+  return accounts.owner_name(os.lstat(path).st_uid)
+
+
+def owner_ids(path) -> str:
+  """"uid:gid" of a file, to act as its owner with as_user(), even if we don't know their name"""
+  stat = os.lstat(path)
+  return f"{stat.st_uid}:{stat.st_gid}"
+
+
 def as_user(user, f, *args, **kwargs):
   """
   Call a function as a given user, assuming the current user can setuid/setgid (~root).
   Returns what it returns, raises what it raises, or an Exception if the child process fails.
   """
+  # in the parent: the child's errors are less clear, and the accounts may refresh in a background thread
+  uid, gid, groups = unix_identity(user)
   # the child sends its result in this file. It runs as the user: they must be able to write it
   fd, result_path = tempfile.mkstemp(prefix='qaboard-as-user-')
   os.close(fd)
@@ -86,17 +138,12 @@ def as_user(user, f, *args, **kwargs):
     if pid == 0:
       # child - do the work and exit
       try:
-        if ":" in user:
-          uid, gid = user.split(':')
-          uid = int(uid)
-          gid = int(gid)
-        else:
-          pwnam = pwd.getpwnam(user)
-          if user != pwnam.pw_name:
-            raise ValueError(f"Unknown user {user}")
-          uid = pwnam.pw_uid
-          gid = pwnam.pw_gid
-
+        # else the child keeps the server's groups, e.g. root's
+        try:
+          os.setgroups(groups)
+        except PermissionError: # e.g. tests, as the same user without CAP_SETGID
+          if uid != os.geteuid():
+            raise
         os.setegid(gid)
         os.seteuid(uid)
         print("as:", user)

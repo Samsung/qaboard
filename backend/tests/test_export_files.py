@@ -77,3 +77,14 @@ def test_windows_compatible_names(export_api, tmp_path):
   odd = [export_api.Item(new, 'new', {'settings': 'mode:"a|b"'})]
   assert export_api.make_plan(odd, '*.png', '{settings}_{file}', '_')['files'][0]['to'] == 'mode--a-b-_Out.png'
   assert export_api.make_plan(odd, '*.png', '{settings}_{file}', '_', windows=False)['files'][0]['to'] == 'mode:"a|b"_Out.png'
+
+
+def test_copies_need_the_users_unix_account(export_api, monkeypatch):
+  """Copies are made as the user: without their Unix account, the preview says so, before the export fails file after file"""
+  monkeypatch.setattr(export_api, "unix_identity", lambda name: (1000, 100, [100]) if name == "alice" else (_ for _ in ()).throw(export_api.UnknownAccountError(name)))
+  export_api.check_can_copy(SimpleNamespace(user_name="alice"))
+  with pytest.raises(export_api.ExportError, match="doesn't know their Unix account") as e:
+    export_api.check_can_copy(SimpleNamespace(user_name="ci[bot]"))
+  assert e.value.status == 403
+  with pytest.raises(export_api.ExportError):
+    export_api.check_can_copy(None)
