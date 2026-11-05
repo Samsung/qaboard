@@ -5,7 +5,7 @@ import tempfile
 
 import pytest
 
-from backend.fs_utils import as_user, mkdir_shared, chmod_shared
+from backend.fs_utils import as_user, mkdir_shared, chmod_shared, owner, owner_ids, unix_identity, UnknownAccountError
 
 
 @pytest.fixture
@@ -69,3 +69,50 @@ def test_chmod_shared(tmp_path, umask):
   assert mode(path) == 0o666
   # e.g. files of other users: we can't, it's fine
   chmod_shared(tmp_path / 'missing.json')
+
+
+@pytest.fixture
+def directory(tmp_path, monkeypatch):
+  """Accounts the server's /etc/passwd doesn't know, e.g. from LDAP with $QABOARD_ACCOUNTS_COMMAND (backend/accounts.py)"""
+  from backend import accounts
+  folder = tmp_path / 'accounts'
+  folder.mkdir()
+  (folder / 'passwd').write_text(f"ldap-alice:x:{os.getuid()}:{os.getgid()}:Alice:/home/alice:/bin/bash\n")
+  (folder / 'group').write_text(f"ldap-team:x:4242:ldap-alice\n")
+  monkeypatch.setattr(accounts, "accounts_dir", folder)
+  monkeypatch.setattr(accounts, "groups_command", "cat group") # its output is in the folder already
+  monkeypatch.setattr(accounts, "accounts_command", "")
+  monkeypatch.setattr(accounts, "_state", {"accounts": accounts.EMPTY, "mtimes": None, "checked": 0.0, "refreshing": False, "failed": None})
+  return accounts
+
+
+def test_as_user_knows_the_accounts_the_server_doesnt(directory, temp_dir):
+  # pwd.getpwnam() used to fail: "getpwnam(): name not found"
+  import pwd
+  with pytest.raises(KeyError):
+    pwd.getpwnam("ldap-alice")
+  assert unix_identity("ldap-alice") == (os.getuid(), os.getgid(), sorted({os.getgid(), 4242}))
+  assert as_user("ldap-alice", os.geteuid) == os.getuid()
+  if os.geteuid() == 0:
+    # the child has the user's groups, not the server's
+    assert sorted(as_user("ldap-alice", os.getgroups)) == sorted({os.getgid(), 4242})
+  # "uid:gid", e.g. to delete files: the file's group, and the groups of their owner
+  assert unix_identity(f"{os.getuid()}:777") == (os.getuid(), 777, sorted({777, os.getgid(), 4242}))
+  assert unix_identity("54321:777") == (54321, 777, [777])
+
+
+def test_as_user_unknown_accounts(directory, temp_dir):
+  with pytest.raises(UnknownAccountError, match="doesn't know the Unix account of nobody-we-know"):
+    as_user("nobody-we-know", lambda: None)
+  assert list(temp_dir.iterdir()) == []
+
+
+def test_owner(directory, tmp_path):
+  path = tmp_path / 'file.txt'
+  path.write_text('')
+  assert owner(path) == "ldap-alice"
+  assert owner_ids(path) == f"{os.getuid()}:{os.getgid()}"
+  if os.geteuid() == 0:
+    os.chown(path, 54321, 777)
+    assert owner(path) == "uid 54321" # Path.owner() raises KeyError
+    assert owner_ids(path) == "54321:777"

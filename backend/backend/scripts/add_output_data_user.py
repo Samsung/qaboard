@@ -17,6 +17,7 @@ from sqlalchemy import text
 
 from backend.models import Output
 from backend.database import db_session
+from backend.fs_utils import owner
 
 db_session.autoflush = False
 
@@ -30,7 +31,7 @@ start = time.time()
 
 def get_user(output):
   if output.output_dir.exists():
-    return output.output_dir.owner()
+    return owner(output.output_dir)
   # TODO: fix the changed location with (output.output_dir.parent / input_path.name)
   # if output.batch.ci_commit.artifacts_dir.exists():
   #   return output.batch.ci_commit.artifacts_dir.owner()

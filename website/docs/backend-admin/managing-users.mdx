@@ -373,7 +373,7 @@ Set `QABOARD_FILES_UNIX_PERMISSIONS` to the folders where it applies, separated 
 - ACLs are ignored.
 
 ### Users' accounts
-The file browser, storage scans, exports and jobs show who owns each file, and Unix permissions need users' groups. The backend reads the accounts in its own `/etc/passwd` and `/etc/group`. If you have complete files, mount them.
+The file browser, storage scans, exports and jobs show who owns each file, Unix permissions need users' groups, and exports of copies, like deletions of others' files, are made as the files' users. The backend reads the accounts in its own `/etc/passwd` and `/etc/group`. If you have complete files, mount them.
 
 With a directory service (LDAP, SSSD, NIS...), you usually don't: the backend can instead **run a command that prints the accounts**, in the `/etc/passwd` format, and another one for the groups (`/etc/group` format). For instance, through ssh to a host that sees your users:
 

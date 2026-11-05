@@ -37,7 +37,7 @@ from qaboard.compat import windows_to_linux_path, linux_to_windows
 from qaboard.export_names import FIELDS, ExportNameError, file_name, input_fields, parse_template
 from backend import app, db_session
 
-from backend.fs_utils import as_user, mkdir_shared
+from backend.fs_utils import as_user, mkdir_shared, unix_identity, UnknownAccountError
 from backend.storage import check_storage_path, check_inside, UnsafePathError
 from ..models import Batch, Output
 from ..config import qaboard_url
@@ -217,6 +217,17 @@ def export_file(source, dest, type, user=None):
     raise ValueError("Invalid type. Use 'link' or 'copy'.")
 
 
+def check_can_copy(user):
+  """Copies are made as the user, so that they own them: QA-Board needs their Unix account (backend/accounts.py)"""
+  if user is None:
+    raise ExportError("Log in to export copies", 401)
+  try:
+    unix_identity(user.user_name)
+  except UnknownAccountError:
+    raise ExportError(f"QA-Board can't copy files as {user.user_name}: it doesn't know their Unix account. "
+                      "Export links instead, or ask your QA-Board admins to check the server's accounts.", 403)
+
+
 def execute(plan, export_dir, type, user, replace):
   """Links or copies the files. What's there is only replaced if it's a file, and `replace`. Returns (exported, skipped, errors)"""
   exported, skipped, errors = [], [], []
@@ -372,6 +383,8 @@ def run_export(items, *, project_id, pattern, template, separator, windows, expo
   result["existing_policy"] = "replace" if ours else "keep"
   result["type"] = export_type
   result["windows"] = windows
+  if export_type == 'copy':
+    check_can_copy(g.actor.user)
   if dry_run:
     return result
   if plan['collisions']:

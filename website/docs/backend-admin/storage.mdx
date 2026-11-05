@@ -157,6 +157,10 @@ in one place with the `storage.exports_root` setting (**Admin → Settings**, or
 `<root>/<user>/<project>/<date>-<name>-<id>`. The folder must be on the same file system as the results for hard links, and
 under `QABOARD_STORAGE_ROOTS`.
 
+Exports of **copies** are made as the user who exports, so that they own the copies: the backend needs to run as root (or with
+the `SETUID`/`SETGID` capabilities), and to know the user's account, see [users' accounts](/docs/backend-admin/user-management#users-accounts).
+Users it doesn't know can only export links: the preview tells them.
+
 <details>
 <summary>The export APIs</summary>
 

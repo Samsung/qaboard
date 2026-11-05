@@ -10,7 +10,7 @@ import click
 from backend.models import Output
 from backend.database import db_session
 
-from backend.fs_utils import as_user
+from backend.fs_utils import as_user, owner_ids
 
 dryrun = '--dry-run' in sys.argv
 # Progress will be printed every batch/100
@@ -29,7 +29,7 @@ def check_output(output):
       output.delete(soft=False)
     except:
       delete = lambda o: o.delete(soft=False)
-      owner = output.output_dir.owner()
+      owner = owner_ids(output.output_dir)
       as_user(owner, delete, output)
 
 
