@@ -102,14 +102,14 @@ Today you wrap your code with `qa`: `qa run` for one input, `qa batch` for many 
 suites.
 
 <RoadmapItem status="shipped" title="Read results and add metrics from Python">
-`qaboard.runs(url)` gives the runs a web app page shows, as `Run` objects, and `run.log_metrics({...})` adds metrics
-to them, recording who, when and which script; `qa runs <url>` lists them from the shell
-([runs in scripts](/docs/apis#runs-in-scripts)).
+`qaboard.runs(url)` gives the runs a web app page shows, as `Run` objects; `run.log_metrics({...})` adds metrics
+to them, recording who, when and which script, and `run.log_artifact(name, file)` adds files; `qa runs <url>` lists
+them from the shell ([runs in scripts](/docs/apis#runs-in-scripts)).
 </RoadmapItem>
 
 <RoadmapItem status="next" title="A Python SDK that creates runs">
 `start_run(...)` from training loops, notebooks and pytest, without `qa run`: `log()` with a `step` for the values
-logged during training, `log_params()`, `log_artifact()`, `finish()`, with the method names people know from the usual
+logged during training, `log_params()`, `finish()`, with the method names people know from the usual
 experiment trackers. These runs show in the web app like any other. The design is in the repository,
 [`docs/rfcs/python-sdk-runs.md`](https://github.com/Samsung/qaboard/blob/master/docs/rfcs/python-sdk-runs.md).
 </RoadmapItem>

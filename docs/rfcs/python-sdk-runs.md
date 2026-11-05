@@ -2,7 +2,7 @@
 
 Status: draft for discussion, November 2026. Not implemented. Owner: the maintainers, with the MLOps team.
 Related: the roadmap's "Log from your code" section; `qaboard/results.py` (what shipped: `runs(url)`,
-`run.log_metrics()`); `docs/dag-pipelines-proposal.md`.
+`run.log_metrics()`, `run.log_artifact()`); `docs/dag-pipelines-proposal.md`.
 
 ## Why
 Today `qa` is the entrypoint: `qa run` calls your `run(context)` on one input and `qa batch` on many. That fits
@@ -61,8 +61,9 @@ with run:                                # or run.finish() / run.fail(error)
 - `log_metrics(values)`: the run's metrics, as today for finished runs. During a run, it updates them (the run is
   `running` until `finish()`).
 - `log_params(values)`: adds to `params` and to `data.params`, which the web app shows as configuration tags.
-- `log_artifact(name, path_or_bytes)`: copies or writes under `output_dir`, never overwrites, refreshes the manifest
-  on `finish()`. `log_image(name, array)` can come later as sugar.
+- `log_artifact(name, path_or_bytes)`: as shipped for finished runs (copies or writes under `output_dir`, never
+  overwrites); for an active run, the manifest refresh waits for `finish()`. `log_image(name, array)` can come later
+  as sugar.
 - `finish(status=None)`: flushes, marks `finished` (or `failed` with the exception's message in the log), refreshes
   the manifest. Exiting the `with` block calls it.
 - `qb.current_run()` for library code that logs from deep inside a model, set by `start_run`.

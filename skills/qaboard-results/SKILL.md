@@ -1,9 +1,9 @@
 ---
 name: qaboard-results
-description: Read QA-Board results from scripts and agents, and add metrics to runs: the runs a web app page shows (metrics, parameters, output files), run.log_metrics() to add what a script computed, a commit compared with its reference, and whether a change improved things. Use when given a QA-Board URL, when asked to post-process runs, compute a metric on existing outputs, or check a change before claiming it's better.
+description: Read QA-Board results from scripts and agents, and add metrics and files to runs: the runs a web app page shows (metrics, parameters, output files), run.log_metrics() to add what a script computed, a commit compared with its reference, and whether a change improved things. Use when given a QA-Board URL, when asked to post-process runs, compute a metric on existing outputs, or check a change before claiming it's better.
 ---
 
-# Read QA-Board results, add metrics to runs
+# Read QA-Board results, add metrics and files to runs
 
 QA-Board is an experiment tracker: **runs** (one input, some configurations) in **batches**, on **commits**, compared
 with the same runs on a **reference** commit. People pick runs in the web app; its URL names them exactly. Docs:
@@ -34,18 +34,24 @@ for run in qb.runs(url):
 - Auth: `qa auth login <server>` once, or `QABOARD_TOKEN` (only sent to the configured server). A server behind a
   path prefix needs `server="https://host/prefix"`.
 
-### Add metrics to runs
+### Add metrics and files to runs
 ```python
 from qaboard import Metric
 for run in qb.runs(url + "%20status:success", dry_run=True):   # finished runs only; dry_run prints, drop it to send
     run.log_metrics({"sharpness": Metric(measure(run.output_dir / "output.png"), smaller_is_better=False)})
+    run.log_artifact("sharpness/map.png", png_bytes_or_path)     # a file in the run's folder, shown in the web app
 ```
-The server merges the metrics into the run's and records who (the token's user), when and which script
-(`run.data["added_metrics"]`). Needs `qa auth login` (a token with the `ingest` scope, developer role). Values: finite
-numbers, booleans, short texts, None. A metric the run itself returned is refused unless `overwrite=True` (the run's
-value is kept as `replaced`); if the run runs again and returns the name, its value wins. Nothing is written in the
-run's folder: never write there yourself. For metrics the project's code should own, add them to `postprocess()` and
-run `qa batch <batch> --action-on-existing postprocess`.
+`log_metrics`: the server merges the metrics into the run's and records who (the token's user), when and which
+script (`run.data["added_metrics"]`, a pencil mark in the web app). Needs `qa auth login` (a token with the `ingest`
+scope, developer role). Values: finite numbers, booleans, short texts, None. A metric the run itself returned is
+refused unless `overwrite=True` (the run's value is kept as `replaced`); if the run runs again and returns the name,
+its value wins. `log_artifact`: writes under the run's folder as you (write access needed), never overwrites unless
+`overwrite=True`, keeps your files in a subfolder of their own; the web app lists them at once. Never write in runs'
+folders yourself. For metrics the project's code should own, add them to `postprocess()` and run
+`qa batch <batch> --action-on-existing postprocess`.
+
+The script's `# /// script` header must list the site's package next to `qaboard` when the server has one (the web
+app's **Script** button writes it; `GET /api/v1/config` gives `cli_requirements`).
 
 ## Did my change help? (before saying so)
 A change is better when its runs beat the *same* runs on the reference, not when a mean moved.

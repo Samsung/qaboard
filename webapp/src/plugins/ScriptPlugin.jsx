@@ -27,20 +27,26 @@ export const runs_url = ({ project, commit_id, batch, filter, ref_project, ref_c
   return `${origin}/${path_segment(project)}/commit/${commit_id ? path_segment(commit_id) : ''}${query ? `?${query}` : ''}`;
 };
 
-export const python_snippet = url => `# /// script
-# dependencies = ["qaboard"]
+// PEP 723 header: `uv run script.py` installs these. The server says what to install besides qaboard, e.g. a site package.
+const script_header = requirements => `# /// script
+# dependencies = [${requirements.map(r => JSON.stringify(r)).join(', ')}]
 # ///
-import qaboard as qb
+`;
 
-for run in qb.runs("${url}"):
-    print(run.input, run.params, run.metrics)
-    # its files: run.output_dir / "output.png"
-    # add what you computed: run.log_metrics({"sharpness": 0.4})
+export const python_snippet = (url, requirements = ['qaboard']) => `${script_header(requirements)}import qaboard as qb
+
+for run in qb.runs("${url}"):                       # the runs this page shows, with the filter
+    run.input, run.configs, run.params, run.metrics  # what each run is, and its metrics
+    run.output_dir / "output.png"                    # its files
+    # run.log_metrics({"sharpness": 0.4})            # add metrics: who, when and which script are recorded
+    # run.log_artifact("sharpness/map.png", path)    # add a file to the run
 `;
 
 export const shell_snippet = url => `qa runs "${url}"               # one folder per line
 qa runs "${url}" --json        # inputs, configs, params, metrics, folders...
 `;
+
+export const install_command = (requirements = ['qaboard']) => `pip install --upgrade ${requirements.map(r => (/[\s@#]/.test(r) ? `'${r}'` : r)).join(' ')}`;
 
 const Snippet = styled.pre`
   margin: 8px 0;
@@ -60,14 +66,15 @@ const Content = styled.div`
 
 // A snippet that lists the runs shown, for people who want to post-process them from a script
 const ScriptPlugin = props => {
-  const { docs_root } = useSiteConfig();
+  const { docs_root, cli_requirements } = useSiteConfig();
   const [language, setLanguage] = useState('python');
   const url = runs_url(props);
-  const snippet = language === 'python' ? python_snippet(url) : shell_snippet(url);
+  const requirements = cli_requirements?.length ? cli_requirements : ['qaboard'];
+  const snippet = language === 'python' ? python_snippet(url, requirements) : shell_snippet(url);
   const content = <Content>
     <p className={Classes.TEXT_MUTED} style={{ marginBottom: 8 }}>
-      Lists the runs shown, with their metrics and folders: the filter is in the address.
-      {' '}<a href={`${docs_root}docs/apis#runs-in-scripts`} target="_blank" rel="noopener noreferrer">Read the docs</a>
+      Work on the runs shown from a script: read their metrics and files, add metrics or files to them. The filter is in the address.
+      {' '}<a href={`${docs_root}docs/apis#runs-in-scripts`} target="_blank" rel="noopener noreferrer">All the APIs</a>
     </p>
     <SegmentedControl
       small
@@ -78,7 +85,8 @@ const ScriptPlugin = props => {
     <Snippet className={Classes.CODE_BLOCK} data-testid="script-snippet">{snippet}</Snippet>
     <Button icon="duplicate" text="Copy" variant="outlined" size="small" onClick={() => copyWithToast(snippet, { what: 'the snippet' })}/>
     <p className={Classes.TEXT_MUTED} style={{ marginTop: 10, marginBottom: 0 }}>
-      Needs the <code>qaboard</code> package (<code>pip install qaboard</code>, or <code>uv run script.py</code> installs it), signed in with <code>qa auth login</code> if the project isn't public.
+      Save it as <code>script.py</code> and run <code>uv run script.py</code>: the header installs what it needs. Or install it yourself,
+      {' '}<code data-testid="install-command">{install_command(requirements)}</code>. Sign in once with <code>qa auth login</code> to read private projects and to add metrics or files.
     </p>
   </Content>;
   return <PopoverNext content={content} placement="bottom-end">

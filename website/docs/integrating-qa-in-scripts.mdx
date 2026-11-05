@@ -2,12 +2,22 @@
 id: apis
 sidebar_label: APIs
 title: Results in scripts
-description: Work on the runs a web app page shows from Python with qaboard.runs(url) or qa runs, find runs' output directories with the qa CLI, and read commits, batches, runs and metrics with QA-Board's HTTP API.
+description: "Every way to use QA-Board's results from scripts: the runs a web app page shows with qaboard.runs(url) or qa runs, adding metrics and files to them, runs' folders with the qa CLI, the quality gate, and the HTTP API."
 ---
 
-Scripts, notebooks and agents can use QA-Board's results: `qaboard.runs(url)` gives the runs a web app page shows
-and `run.log_metrics()` adds what a script computed, the `qa` CLI says where a batch's runs save their files, and the
-HTTP API gives everything else.
+Scripts, notebooks and agents can use QA-Board's results, and add to them. Pick the way in that fits what you have:
+
+| You want to | Use | Where |
+|---|---|---|
+| Work on the runs you see in the web app: read their metrics and files, add metrics or files | `qaboard.runs(url)`, `run.log_metrics()`, `run.log_artifact()` (Python) | [below](#runs-in-scripts) |
+| The same from the shell: one folder per line, or JSON | `qa runs <url>` | [below](#runs-in-scripts) |
+| Where the runs of a batch of *your* checkout save their files, before or after running them | `qa batch <batch> --list-output-dirs`, `qa get` | [Find where runs save their outputs](#cli-api) |
+| Compute metrics for a whole batch with the project's own code | `postprocess()` and `qa batch --action-on-existing postprocess` | [Postprocessing](/docs/running-your-code#postprocess) |
+| Know whether a commit regressed against its reference | `qa gate --json`, `/api/v1/commit/<sha>/compare` | [Quality gate](/docs/quality-gate#from-scripts-and-agents) |
+| Everything else: commits, branches, projects, milestones | the HTTP API at `/api/v1` | [Read results over HTTP](#http-api) |
+| Create runs from a training loop or a notebook, without `qa run` | not yet: see the [roadmap](/docs/roadmap#log-from-your-code) | |
+
+Coding agents get the same, packaged as [skills](/docs/agents).
 
 ## Work on the runs you see in the web app {#runs-in-scripts}
 
@@ -28,11 +38,6 @@ for run in qb.runs(url):
     print(run.input, run.params, run.metrics.get("psnr"), image.mean())
 ```
 
-Save it as *sharpness.py* and run it with `uv run sharpness.py` (the header says what to install), or
-`pip install qaboard imageio` then `python sharpness.py`. In the web app's **Visualizations** and **Output Files**
-views, **Script** shows this snippet with the page's address, ready to copy. The filter is applied like in the web
-app ([filter syntax](/docs/user-guide/finding-results#filter-syntax)), so the script works on exactly the runs you
-looked at. Add `status:success` to the filter to skip failed and unfinished runs, which may have no files or metrics.
 Each `Run` has:
 
 | Attribute | What it is |
@@ -56,6 +61,18 @@ says, and `side="reference"` gives the runs of the reference bar (`?reference=`)
 (`side="new"`, the default). Runs whose files were deleted, and
 the iterations of [automated tunings](/docs/auto-optimization), are left out unless you ask
 (`include_deleted`, `include_hidden`).
+
+Save it as *sharpness.py* and run `uv run sharpness.py`: the `# /// script` header says what to install, and `uv`
+does it in a throwaway environment. Or install the packages yourself (`pip install qaboard imageio`) and run
+`python sharpness.py`. **The header must list your site's package too** when your QA-Board has one, next to
+`qaboard`: it tells `qa` where your server and storage are. The web app's **Script** button writes the right header
+for your server, so start from it; admins set it with `QABOARD_CLI_REQUIREMENTS`
+([server settings](/docs/deploy#optional-environment-variables)).
+
+In the web app's **Visualizations** and **Output Files** views, **Script** shows this snippet with the page's
+address, ready to copy, and the shell version. The filter is applied like in the web app
+([filter syntax](/docs/user-guide/finding-results#filter-syntax)), so the script works on exactly the runs you looked
+at. Add `status:success` to the filter to skip failed and unfinished runs, which may have no files or metrics.
 
 From the shell, `qa runs <url>` prints the runs' folders, one per line, and `--json` everything above
 (`--side reference` for the reference bar's). It works
@@ -104,10 +121,30 @@ for run in qb.runs(url):
   `qa batch ci --action-on-existing postprocess` redoes it on existing results
   ([Postprocessing](/docs/running-your-code#postprocess)).
 
-Adding files to runs, and creating runs from your own code (training loops, notebooks), are on the
+### Add files to runs {#log-artifact}
+A script can also add files to a run, e.g. a sharpness map next to the output it was computed from, with
+`run.log_artifact(name, file)`: `name` is the file's path in the run's folder (subfolders are created), `file` a path
+to copy or `bytes` to write. The web app then lists it with the run's files, and opens it with the viewer its
+extension picks (images side by side with the reference's, plots, text diffed...):
+
+```python
+for run in qb.runs(url):
+    heatmap = sharpness_map(run.output_dir / "output.png")
+    run.log_artifact("sharpness/map.png", encode_png(heatmap))
+    run.log_artifact("sharpness/report.html", report_path)
+```
+
+- Nothing is overwritten: a name that exists fails, unless you pass `overwrite=True`. Keep your files in a folder of
+  their own (`sharpness/`), and leave what the run wrote alone: runs' folders are shared with everyone.
+- The file is written as you, in the shared storage, like `qa run --share` does: you need write access to the run's
+  folder. The run's manifest is then refreshed on the server, so the file shows in the web app at once.
+- `dry_run=True` prints what would be written.
+- To show the file on run cards for every run, declare it in *qaboard.yaml*'s `outputs.visualizations`
+  ([visualizations](/docs/visualizations)); otherwise it's in **Output Files**.
+
+Creating runs from your own code (training loops, notebooks), with values logged at each step, is on the
 [roadmap](/docs/roadmap#log-from-your-code): the method names follow those of the usual experiment trackers
-(`log_metrics`, `log_params`, `log_artifact`, `log` with a `step`). Runs' folders are shared: don't change or delete
-what the CI wrote.
+(`log` with a `step`, `log_params`, `finish`).
 
 
 ## Find where runs save their outputs {#cli-api}

@@ -22,6 +22,8 @@ export const default_site_config = {
   // where the image viewer finds annotations (backend/backend/annotations.py)
   annotation_sources: [],
   docs_root: '/',
+  // what scripts install to use qa here: qaboard, and the site's package if any (the server says)
+  cli_requirements: ['qaboard'],
   avatar_url_template: null,
   sentry_traces_sample_rate: 0.2,
   sentry_environment: 'production',

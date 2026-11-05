@@ -2,9 +2,9 @@
  * Tests for the "Script" button: a snippet that lists the runs shown, from Python or the shell.
  * Run with: cd webapp && npm test -- ScriptPlugin
  */
-import { screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 
-import { ScriptPlugin, runs_url, python_snippet } from '../ScriptPlugin';
+import { ScriptPlugin, runs_url, python_snippet, install_command } from '../ScriptPlugin';
 import { renderWithProviders } from '../../test-utils';
 
 vi.mock('copy-to-clipboard', () => ({ default: vi.fn() }));
@@ -44,6 +44,20 @@ describe('ScriptPlugin', () => {
     expect(snippet.textContent).toBe(python_snippet(url));
     fireEvent.click(screen.getByRole('radio', { name: 'Shell' }));
     expect(screen.getByTestId('script-snippet')).toHaveTextContent(`qa runs "${url}"`);
+  });
+
+  it('lists what the site installs, e.g. its site package', async () => {
+    const requirements = ['qaboard', 'qaboard-site-acme @ git+ssh://git@git.example.com/infra/qaboard#subdirectory=deployments/acme/cli'];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(url => String(url).includes('/api/v1/config')
+      ? Promise.resolve(new Response(JSON.stringify({ cli_requirements: requirements }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      : Promise.resolve(new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    renderWithProviders(<ScriptPlugin project="g/repo" commit_id="abc" batch="ci"/>);
+    fireEvent.click(screen.getByRole('button', { name: 'Use the runs in a script' }));
+    const snippet = await screen.findByTestId('script-snippet');
+    await waitFor(() => expect(snippet.textContent).toContain('qaboard-site-acme @ git+ssh'));
+    expect(snippet.textContent.startsWith('# /// script\n# dependencies = ["qaboard", "qaboard-site-acme @ git+ssh://git@git.example.com/infra/qaboard#subdirectory=deployments/acme/cli"]\n# ///\n')).toBe(true);
+    expect(screen.getByTestId('install-command')).toHaveTextContent("pip install --upgrade qaboard 'qaboard-site-acme @ git+ssh://git@git.example.com/infra/qaboard#subdirectory=deployments/acme/cli'");
+    expect(install_command(['qaboard'])).toBe('pip install --upgrade qaboard');
   });
 
   it('copies the snippet', async () => {

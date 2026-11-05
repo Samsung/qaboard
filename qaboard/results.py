@@ -10,7 +10,7 @@ The URL is the one in the browser: `runs()` reads the project, commit, batch and
 `qa runs <url>` does the same from the shell.
 
 `run.log_metrics({...})` adds metrics to a run: the server merges them and remembers who added them, with which
-script. `Run` is also what runs created without `qa` as the entrypoint (training loops, evals) will be made of, once
+script. `run.log_artifact(name, file)` adds a file to the run's folder, without overwriting anything. `Run` is also what runs created without `qa` as the entrypoint (training loops, evals) will be made of, once
 the SDK can create runs (docs/rfcs/python-sdk-runs.md). Its attributes are named like the `context` your `run()`
 function gets (qaboard/run.py): `configs`, `params`, `output_dir`, `input_path`...
 
@@ -20,11 +20,12 @@ like the rest of qa (qaboard/credentials.py).
 import hashlib
 import math
 import os
+import shutil
 import sys
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 from urllib.parse import parse_qs, quote, unquote, urlencode, urlsplit
 
 from .compat import url_to_dir
@@ -296,6 +297,48 @@ class Run:
     if isinstance(answer.get('data'), dict):
       self.data = MappingProxyType(dict(answer['data']))
     return answer.get('added') or {}
+
+  def log_artifact(self, name: Union[str, Path], source: Union[str, Path, bytes], *, overwrite: bool = False, dry_run: Optional[bool] = None) -> Optional[Path]:
+    """
+    Adds a file to the run, e.g. a map your script computed: `run.log_artifact("sharpness/map.png", path_or_bytes)`.
+
+    `name` is the file's path in the run's folder (subfolders are created); `source` a file to copy (`str`/`Path`),
+    or the content to write (`bytes`). Nothing is overwritten unless `overwrite=True`: runs'
+    folders are shared, and the run's own files stay the run's. The web app then lists the file with the run's
+    (its manifest is refreshed), and shows it with the viewer its extension picks. Returns the file's path.
+
+    Writes in the shared storage as you, like `qa run --share`: you need write access to the run's folder.
+    `dry_run=True` (or `runs(url, dry_run=True)`) prints what it would write instead.
+    """
+    if not self.output_dir:
+      raise ResultsError(f"{self!r} has no folder (its files were deleted?): nothing to add a file to")
+    relative = Path(name)
+    if relative.is_absolute() or '..' in relative.parts or not relative.name:
+      raise ValueError(f"log_artifact() takes a path inside the run's folder, like 'sharpness/map.png', not {str(name)!r}")
+    target = self.output_dir / relative
+    if isinstance(source, bytes):
+      source_path, content = None, source
+    else:
+      source_path, content = Path(source), b''
+      if not source_path.is_file():
+        raise ValueError(f"{source!r} is not a file to copy. To write text, pass bytes: log_artifact(name, text.encode())")
+    if self._dry_run if dry_run is None else dry_run:
+      what = f"copy {source_path}" if source_path else f"write {len(content)} bytes"
+      print(f"[dry run] would {what} to {target}", file=sys.stderr)
+      return None
+    if target.exists() and not overwrite:
+      raise ResultsError(f"{target} exists: pass overwrite=True to replace it (not for files the run itself wrote)")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if source_path:
+      shutil.copyfile(source_path, target)
+    else:
+      target.write_bytes(content)
+    if self.id is not None and self.server:
+      try:
+        _request(self.server, f"output/{self.id}/manifest", params={'refresh': '1'}, token=self._token)
+      except ResultsError as e:
+        print(f"WARNING: {target} is written, but the web app may not list it yet: {e}", file=sys.stderr)
+    return target
 
   def to_dict(self) -> Dict[str, Any]:
     """The run as JSON-friendly data: what `qa runs --json` prints"""

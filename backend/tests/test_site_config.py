@@ -119,3 +119,14 @@ def test_site_texts_default(dummy_app, reload_config, monkeypatch):
     config = api.get_site_config().get_json()
   assert config['login_hint'] is None
   assert config['webcde_installer'] is None
+
+
+def test_cli_requirements(dummy_app, reload_config, monkeypatch):
+  """What scripts install besides qaboard, e.g. a site package: the web app's Script snippets use it"""
+  monkeypatch.delenv('QABOARD_CLI_REQUIREMENTS', raising=False)
+  api = reload_config({})
+  with dummy_app.test_request_context('/api/v1/config'):
+    assert api.get_site_config().get_json()['cli_requirements'] == ['qaboard']
+  monkeypatch.setenv('QABOARD_CLI_REQUIREMENTS', ' qaboard-site-acme @ git+ssh://git@git.example.com/infra/qaboard#subdirectory=deployments/acme/cli , qaboard,extra ')
+  with dummy_app.test_request_context('/api/v1/config'):
+    assert api.get_site_config().get_json()['cli_requirements'] == ['qaboard', 'qaboard-site-acme @ git+ssh://git@git.example.com/infra/qaboard#subdirectory=deployments/acme/cli', 'extra']
