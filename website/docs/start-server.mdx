@@ -443,6 +443,7 @@ Set them in `services.backend.environment` in your site overlay, and the secrets
 | `POSTHOG_API_KEY` / `POSTHOG_HOST` | _none_ | Also sends the web app's events to [PostHog](https://posthog.com/) |
 | `REDIS_HOST` / `REDIS_PORT` | redis / 6379 (set in *docker-compose.yml*) | Redis cache shared by the backend replicas. The backend still works if it's unreachable |
 | `QABOARD_SUPPORT_URL` | GitHub issues | Where users report bugs and send feedback, can be a `mailto:` |
+| `QABOARD_CLI_REQUIREMENTS` | _none_ | What scripts install besides `qaboard` to use `qa` here, comma-separated pip requirements, e.g. your [site package](/docs/project-init#site-defaults). The web app's **Script** snippets list them ([results in scripts](/docs/apis#runs-in-scripts)). |
 | `QABOARD_LOGIN_HINT` | _none_ | Advice for users whose username or password is wrong, shown in the login dialog, e.g. `Use your Windows credentials.` |
 | `QABOARD_SMTP_HOST` | _none_ | SMTP server QA-Board sends emails with, e.g. when batches users started end. Without it, users can't ask for emails. See [Emails](#emails) |
 | `QABOARD_SMTP_PORT` | 25, or 587 with `starttls`, 465 with `ssl` | SMTP port |

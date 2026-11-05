@@ -39,6 +39,8 @@ config:
   QABOARD_IQE_URL: https://iqetool.transchip.com
   QABOARD_IQE_WORKSPACE_URL: https://iqetool.transchip.com/workspace/{id}
   QABOARD_SUPPORT_URL: mailto:arthur.flam@samsung.com
+  # What scripts install besides qaboard (the web app's Script snippets, the docs): SIRC's site package
+  QABOARD_CLI_REQUIREMENTS: 'qaboard-site-sirc @ git+ssh://git@gitlab-srv/common-infrastructure/qaboard#subdirectory=deployments/sirc/cli'
   QABOARD_LOGIN_HINT: Try your Windows credentials.
   QABOARD_WEBCDE_INSTALLER: '\\netapp\Joint\WebCDE\WebCDE_Setup.exe'
   QABOARD_IMAGE_CACHE_DIR: /algo/qa_db/image_cache

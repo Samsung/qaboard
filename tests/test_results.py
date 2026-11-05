@@ -286,11 +286,11 @@ class TestRunContract(unittest.TestCase):
     self.assertNotIn('x', run.metrics)
     self.assertEqual(json.loads(json.dumps(d)), d)
 
-  def test_only_log_metrics_writes_yet(self):
+  def test_what_writes(self):
     # no stubs in the public API: methods come when they work
-    for name in ('log', 'save_file', 'log_artifact', 'series', 'finish'):
+    for name in ('log', 'save_file', 'log_params', 'series', 'finish'):
       self.assertFalse(hasattr(Run, name), name)
-    self.assertTrue(callable(Run.log_metrics))
+    self.assertTrue(callable(Run.log_metrics) and callable(Run.log_artifact))
     import qaboard
     self.assertFalse(hasattr(qaboard, 'start_run'))
 
@@ -455,6 +455,72 @@ class TestLog(unittest.TestCase):
     with mock.patch('requests.request', return_value=refused), self.assertRaises(ResultsError) as e:
       run.log_metrics({'x': 1})
     self.assertIn('ingest scope', str(e.exception))
+
+
+class TestLogArtifact(unittest.TestCase):
+  """run.log_artifact(name, file): a file added to the run's folder, never overwriting, then the manifest refreshed"""
+  URL = 'https://qaboard/g/repo/commit/abc?batch=ci&filter=kitchen'
+
+  def run_in(self, folder, **kwargs):
+    import tempfile
+    outputs = {'1': {**FIXTURE['outputs']['1']}}
+    with mock_get({'id': COMMIT, 'batches': {'ci': {'outputs': {k: {**o, 'output_dir_url': f"/s{folder}"} for k, o in outputs.items()}}}}):
+      run, = runs(self.URL, **kwargs)
+    return run
+
+  def test_copies_a_file_and_refreshes_the_manifest(self):
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+      folder = Path(tmp) / 'run'
+      folder.mkdir()
+      source = Path(tmp) / 'map.png'
+      source.write_bytes(b'PNG')
+      run = self.run_in(folder, token='tok')
+      refreshed = mock.Mock(status_code=200)
+      refreshed.json.return_value = {}
+      with mock.patch('requests.request', return_value=refreshed) as request:
+        target = run.log_artifact('sharpness/map.png', source)
+      self.assertEqual(target, folder / 'sharpness' / 'map.png')
+      self.assertEqual(target.read_bytes(), b'PNG')
+      method, url = request.call_args[0]
+      self.assertEqual((method, url), ('GET', 'https://qaboard/api/v1/output/1/manifest'))
+      self.assertEqual(request.call_args[1]['params'], {'refresh': '1'})
+      self.assertEqual(request.call_args[1]['headers'], {'Authorization': 'Bearer tok'})
+      # bytes are written; nothing is overwritten unless asked
+      with mock.patch('requests.request', return_value=refreshed):
+        run.log_artifact('notes.txt', b'hello')
+        self.assertEqual((folder / 'notes.txt').read_bytes(), b'hello')
+        with self.assertRaises(ResultsError):
+          run.log_artifact('notes.txt', b'again')
+        run.log_artifact('notes.txt', b'again', overwrite=True)
+        self.assertEqual((folder / 'notes.txt').read_bytes(), b'again')
+
+  def test_stays_in_the_runs_folder(self):
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+      run = self.run_in(Path(tmp))
+      for bad in ('../escape.txt', '/etc/passwd', 'a/../../b', ''):
+        with self.assertRaises(ValueError):
+          run.log_artifact(bad, b'x')
+      with self.assertRaises(ValueError):
+        run.log_artifact('x.txt', Path(tmp) / 'missing.png')
+      self.assertEqual(sorted(p.name for p in Path(tmp).iterdir()), [])
+
+  def test_dry_run_writes_nothing(self):
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+      run = self.run_in(Path(tmp), dry_run=True)
+      stderr = io.StringIO()
+      with mock.patch('requests.request') as request, redirect_stderr(stderr):
+        self.assertIsNone(run.log_artifact('x.txt', b'x'))
+      request.assert_not_called()
+      self.assertIn('would write 1 bytes', stderr.getvalue())
+      self.assertEqual(list(Path(tmp).iterdir()), [])
+
+  def test_a_run_without_a_folder(self):
+    run = Run._new(project='g/repo', input='a.jpg')
+    with self.assertRaises(ResultsError):
+      run.log_artifact('x.txt', b'x')
 
 
 class TestCli(unittest.TestCase):

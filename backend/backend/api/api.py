@@ -44,6 +44,12 @@ def _parse_json_env(key, default):
 _image_servers = _parse_json_env('QABOARD_IMAGE_SERVERS', '{"default": "/iiif/2/"}')
 
 
+def cli_requirements(environ=os.environ) -> list:
+    """The pip requirements of scripts using qa here: `qaboard`, plus the site's packages (QABOARD_CLI_REQUIREMENTS)"""
+    extra = [r.strip() for r in environ.get('QABOARD_CLI_REQUIREMENTS', '').split(',') if r.strip()]
+    return ['qaboard', *[r for r in extra if r != 'qaboard']]
+
+
 @app.route("/api/v1/config")
 def get_site_config():
     """Return runtime site configuration for the frontend."""
@@ -70,6 +76,9 @@ def get_site_config():
         "path_mappings": _path_mappings,
         # The docs served by this server at /docs/ match its version. Can be e.g. https://samsung.github.io/qaboard/
         "docs_root": os.environ.get('QABOARD_DOCS_ROOT', '/'),
+        # What scripts install to use qa and the SDK here: pip requirements, e.g. a site package next to qaboard
+        # (QABOARD_CLI_REQUIREMENTS, comma-separated). The web app's snippets and install hints use them.
+        "cli_requirements": cli_requirements(),
         "avatar_url_template": os.environ.get('QABOARD_AVATAR_URL'),
         # Fallback web URL for git links, when a project doesn't define project.url in qaboard.yaml
         "git_web_url": git_hosts.default.url,

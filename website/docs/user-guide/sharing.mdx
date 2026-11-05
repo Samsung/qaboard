@@ -103,10 +103,12 @@ In a folder that existed before, QA-Board only adds files: it never replaces wha
 it skipped), and the folder isn't listed with your exports in **Storage usage**.
 
 ## Use the runs in a script {#runs-in-scripts}
-To post-process the runs you see, e.g. compute a metric the CI didn't, click **Script** next to **Export**: it shows
-a Python snippet (or shell command) that lists those runs, with their metrics and folders, from the page's address.
-Copy it, and change what it does with each run. The filter applies, so the script sees exactly the runs shown. It's
-new and may change: see [Work on the runs you see](/docs/apis#runs-in-scripts) for what each run gives.
+To post-process the runs you see, e.g. compute a metric the CI didn't, align outputs, or redo a measurement, click
+**Script** next to **Export**: it shows a Python snippet (or shell command) that lists those runs, with their metrics
+and folders, from the page's address. Copy it and write what to do with each run: your script can read the runs'
+metrics and files, add metrics to them (they show with a pencil mark saying who added them) and add files to them.
+The filter applies, so the script sees exactly the runs shown. See [Results in scripts](/docs/apis#runs-in-scripts)
+for everything a script can do.
 
 ## Report a bug or ask for help {#bug-reports-and-support}
 - If part of the web app crashes, only that part is replaced by an error: a viewer in a run's card, or the page, with
