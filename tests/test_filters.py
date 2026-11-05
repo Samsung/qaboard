@@ -50,6 +50,13 @@ class TestMatchQuery(unittest.TestCase):
     # a lone "-" is a word to search, not a negation of nothing
     self.assertTrue(match_query('-')('low-light'))
 
+  def test_run_ids_are_exact(self):
+    self.assertTrue(match_query('id:12')('a.jpg id:12'))
+    self.assertFalse(match_query('id:12')('a.jpg id:123'))
+    self.assertFalse(match_query('id:1')('a.jpg id:123'))
+    self.assertTrue(match_query('-id:12')('a.jpg id:123'))
+    self.assertFalse(match_query('-id:12')('a.jpg id:12'))
+
 
 if __name__ == '__main__':
   unittest.main()

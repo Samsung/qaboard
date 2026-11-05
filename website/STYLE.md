@@ -17,6 +17,27 @@ engineer, a team lead. Explain QA-Board's words in plain language the first time
 parameters, JSON, regular expressions) in tips or collapsed details. Do use the precise terms of their field in
 examples (PSNR, ΔE 2000, chroma subsampling, p99, mAP, loop closure): they show the tool is used for real work.
 
+## Positioning
+How we describe QA-Board, on the landing page, the README, titles and descriptions, and the first paragraph of
+overview pages:
+
+- **What it is: quality tracking, for people and agents.** Every change's outputs and metrics next to a
+  reference's, so the team sees what changed and agrees it's better. The tagline stays: "Tests tell you it runs.
+  QA-Board shows you it's better."
+- **For anyone who measures quality**, not only algorithm teams: camera and imaging, ML, robotics, embedded,
+  performance, test suites and coverage, LLM agents. Name a field in examples; don't narrow the product to one
+  ("for algorithm teams", "for algo engineers").
+- **People and coding agents review together.** Agents run the same tests, read the same results and meet the same
+  targets as people; a person decides what ships. Claim only what agents can do today (`qaboard.runs(url)`,
+  `qa runs`, the compare API, the skills, `qa gate` labeled Experimental); the MCP server is on the roadmap.
+- **Proven in production, not "the best".** Earn trust with facts: Samsung's central quality platform since 2018,
+  about 50 projects, more than 40 million runs; zero-downtime upgrades and the Helm chart tested in CI. Say "Samsung",
+  not the name of one of its R&D centers. No superlatives (see Voice): numbers convince, adjectives don't.
+- **We help teams get started.** The public site and the README invite teams to get in touch with the maintainers
+  (the contact is `contact` in *docusaurus.config.ts*, nowhere else in the docs). The web app's docs for a site
+  (`QABOARD_SITE`) don't show it: their readers ask their own admins. Don't mention pricing, plans or services.
+- Professional and precise in tone: plain words, concrete outcomes, no mascots or jokes in product copy.
+
 ## Page structure
 A guide, not a data sheet: readers should get their task done from the first screen, and find every detail when they
 need it.
@@ -46,8 +67,8 @@ need it.
 ## Voice
 - **Confident and concrete.** Say what the reader can do and what they'll see: "Hover a point to see its commit", not
   "QA-Board offers powerful hover capabilities".
-- **Second person, present tense, active voice.** "You", "QA-Board shows". "We" only for the maintainers' plans, on
-  the roadmap page and the blog.
+- **Second person, present tense, active voice.** "You", "QA-Board shows". "We" only for the maintainers: their
+  plans on the roadmap page and the blog, and their offer to help on the landing page and the README.
 - **Short sentences, one idea each.** Lead with the point; details after.
 - **Write for the reader, not the committer** (the release notes' rule, see `CLAUDE.md`): what changed for them, not
   how it was built. In release notes, one change per bullet, starting with a verb.
@@ -76,7 +97,7 @@ Name things the way the web app does, and the same way every time.
 | reference branch | master branch | |
 | tuning, a tuning experiment, automated tuning | auto-tuning, hyper-parameter search | automated tuning is `qa optimize` |
 | quality gate, `qa gate` | | Experimental, see below |
-| results review | experiment tracking | how we describe the product |
+| quality tracking, results review | experiment tracking | how we describe the product, see Positioning |
 | self-hosted | on-prem | |
 
 **UI labels** are written exactly as the app shows them, in bold. The source of truth is the code
@@ -184,7 +205,8 @@ At most one per section, never two in a row. A title only when it adds informati
   `<your-qaboard>`, `kitefin.example`, and `/mnt/qaboard`.
 - Names of real people (colleagues, users, customers), except credited quotes with their permission.
 - Ticket, issue or merge request ids from internal trackers, commit shas.
-- Secrets, tokens, personal emails.
+- Secrets, tokens, personal emails (the maintainers' contact is the exception, from `contact` in
+  *docusaurus.config.ts*).
 
 ## Page checklist
 - Frontmatter: `id`, `title`, `sidebar_label`, and a one-sentence `description`.

@@ -2,13 +2,17 @@
 // Media ids are literals, so the docs build checks them (plugins/media); unpublished ones show as placeholders.
 // Budgets: the hero poster is the LCP element, media have their size before they load (no layout shift), clips only
 // load and play when in view, and in the loop and the viewers' tabs, only the selected tab's media is in the page.
-// Order: who it's for and what they see (hero), proof, the problem, the loop, the viewers, the details, use cases,
-// then the stack, the roadmap and how to start.
+// Positioning (website/STYLE.md, "Positioning"): quality tracking for anything teams measure, reviewed by people and
+// coding agents alike, proven in production at Samsung.
+// Order: who it's for and what they see (hero), proof, the problem, the loop, people and agents, the viewers, the
+// details, use cases, production, the stack, the roadmap, then how to start and how to reach the maintainers.
 import React, {type ReactNode} from 'react';
 import clsx from 'clsx';
 import Layout from '@theme/Layout';
 import Link from '@docusaurus/Link';
 import useGlobalData from '@docusaurus/useGlobalData';
+import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
+import useBrokenLinks from '@docusaurus/useBrokenLinks';
 import Shot from '@site/src/components/Shot';
 import Clip from '@site/src/components/Clip';
 import StatusBadge from '@site/src/components/StatusBadge';
@@ -18,6 +22,13 @@ import {useTabs} from '@site/src/components/landing/useTabs';
 import styles from './index.module.css';
 
 const GITHUB = 'https://github.com/Samsung/qaboard';
+
+// The maintainers' contact (docusaurus.config.ts customFields.contact): null in the builds for a site's own web app
+// (QABOARD_SITE), whose users get help from their site's admins
+function useContact(): string | null {
+  const {siteConfig} = useDocusaurusContext();
+  return (siteConfig.customFields?.contact as string | null | undefined) ?? null;
+}
 
 function GitHubIcon() {
   return (
@@ -47,21 +58,24 @@ const AUDIENCES = [
   {label: 'Robotics', to: '/docs/use-cases/robotics-3d'},
   {label: 'Embedded', to: '/docs/bit-accuracy'},
   {label: 'Performance', to: '/docs/use-cases/serving-latency'},
+  {label: 'Software quality', to: '/docs/use-cases/software-quality'},
+  {label: 'LLM agents', to: '/docs/use-cases/agent-evals'},
 ];
 
 function Hero() {
+  const contact = useContact();
   return (
     <header className={styles.hero}>
       <div className={clsx('container', styles.heroInner)}>
         <div className={styles.heroText}>
-          <p className={styles.eyebrow}>Results review for algorithm teams</p>
+          <p className={styles.eyebrow}>Quality tracking for people and agents</p>
           <h1 className={styles.heroTitle}>
             Tests tell you it runs. <span className={styles.heroAccent}>QA-Board shows you it&apos;s better.</span>
           </h1>
           <p className={styles.heroLead}>
-            Every commit runs on your test set. QA-Board puts its outputs next to the reference&apos;s (images, videos,
-            point clouds, plots, flame graphs, logs and metrics) so your team sees what changed, agrees it&apos;s
-            better, and ships it.
+            Every change runs on your test set, whether a person or a coding agent wrote it. QA-Board puts its outputs
+            and metrics next to the reference&apos;s (images, videos, point clouds, plots, flame graphs, test reports
+            and logs) so everyone sees what changed, agrees it&apos;s better, and ships it.
           </p>
           <div className={styles.audience}>
             <span className={styles.audienceLabel} id="hero-audience">
@@ -75,7 +89,7 @@ function Hero() {
               ))}
             </ul>
           </div>
-          <p className={styles.heroTags}>Self-hosted · git-native · built for heavy data</p>
+          <p className={styles.heroTags}>Open source · self-hosted · git-native</p>
           <div className={styles.ctas}>
             <Link className="button button--primary button--lg" to="/docs/get-started/quickstart">
               Run it locally
@@ -88,6 +102,11 @@ function Hero() {
               Star on GitHub
             </Link>
           </div>
+          {contact && (
+            <p className={styles.heroHelp}>
+              Setting it up for your team? The maintainers help you get started: <a href="#get-in-touch">get in touch</a>.
+            </p>
+          )}
         </div>
         <div className={styles.heroMedia}>
           <Clip id="landing/hero" priority caption="" />
@@ -97,11 +116,12 @@ function Hero() {
   );
 }
 
+// The numbers are the maintainers', from Samsung's production server
 const PROOF = [
-  {title: 'Open source', text: 'Apache 2.0, on GitHub'},
-  {title: 'Self-hosted', text: 'Your results stay on your network'},
-  {title: 'Since 2018', text: 'Born at Samsung Israel R&D Center'},
-  {title: '~50 projects', text: 'In production there, on the central quality platform'},
+  {title: '40M+ runs', text: 'Saved and reviewed in production at Samsung'},
+  {title: '~50 projects', text: 'On Samsung’s central quality platform'},
+  {title: 'Since 2018', text: 'In daily use by Samsung’s teams'},
+  {title: 'Open source', text: 'Apache 2.0, self-hosted: your results stay on your network'},
 ];
 
 function ProofStrip() {
@@ -120,10 +140,10 @@ function ProofStrip() {
 }
 
 const PAINS = [
-  'A script that renders an HTML page of images, and an output folder per run that nobody cleans up.',
   'Metrics pasted into a spreadsheet, a week after someone ran them.',
   'Screenshots in a chat thread, to argue which version looks better.',
   'A dashboard someone maintains on weekends, for one project.',
+  'A coding agent that says its change is better, with nothing to check it against.',
 ];
 
 function InHouse() {
@@ -131,7 +151,7 @@ function InHouse() {
     <section className={styles.section}>
       <div className="container">
         <SectionHeader title="You already built half of this">
-          Every algorithm team ends up with its own tools to look at results. They fit, at first.
+          Every team that cares about quality ends up with its own tools to look at results. They fit, at first.
         </SectionHeader>
         <ul className={styles.painList}>
           {PAINS.map(pain => (
@@ -142,7 +162,8 @@ function InHouse() {
         </ul>
         <p className={styles.painAnswer}>
           QA-Board is what those tools become after years of use on dozens of projects: one place where each
-          commit&apos;s outputs and metrics sit next to the reference&apos;s, for everyone on the team.
+          commit&apos;s outputs and metrics sit next to the reference&apos;s, for everyone on the team and for their
+          agents.
         </p>
       </div>
     </section>
@@ -225,7 +246,8 @@ function Loop() {
     <section className={clsx(styles.section, styles.sectionAlt)}>
       <div className="container">
         <SectionHeader eyebrow="The loop" title="Run, compare, look, find, tune, gate">
-          The same review loop for every algorithm: camera pipelines, models, servers, embedded code.
+          The same review loop for anything you measure: camera pipelines, models, servers, embedded code, test
+          suites, agents.
         </SectionHeader>
         <div className={styles.loop}>
           <div className={styles.loopTabs} {...tabListProps}>
@@ -253,6 +275,73 @@ function Loop() {
             </div>
           </div>
         </div>
+      </div>
+    </section>
+  );
+}
+
+type Collaborator = {audience: string; title: string; text: ReactNode; to: string; experimental?: boolean};
+
+const COLLABORATION: Collaborator[] = [
+  {
+    audience: 'People',
+    title: 'Review in the web app',
+    text: 'Every commit’s outputs next to the reference’s, behind a link you can share. Milestones, History and tuning, from the browser.',
+    to: '/docs/user-guide/overview',
+  },
+  {
+    audience: 'Agents',
+    title: 'Read the same results',
+    text: (
+      <>
+        <code>qaboard.runs(url)</code> and <code>qa runs</code> give an agent the runs a page shows. The compare API
+        gives it a verdict against the reference.
+      </>
+    ),
+    to: '/docs/apis#runs-in-scripts',
+  },
+  {
+    audience: 'Agents',
+    title: 'Learn the conventions',
+    text: 'Two skills teach coding agents to integrate a project with QA-Board, and to check the results before they call a change better.',
+    to: '/docs/agents',
+  },
+  {
+    audience: 'People and agents',
+    title: 'Meet the same targets',
+    text: (
+      <>
+        <code>qa gate</code> fails a change that regresses, whoever wrote it, and links to the Metrics Diff that shows
+        why.
+      </>
+    ),
+    to: '/docs/quality-gate',
+    experimental: true,
+  },
+];
+
+function PeopleAndAgents() {
+  return (
+    <section className={styles.section}>
+      <div className="container">
+        <SectionHeader eyebrow="People and agents" title="One view of quality, for people and agents">
+          Coding agents write a growing share of changes. With QA-Board they run the same tests, read the same results
+          and meet the same targets as people, and a person decides what ships.
+        </SectionHeader>
+        <ul className={styles.cards}>
+          {COLLABORATION.map(({audience, title, text, to, experimental}) => (
+            <li key={title} className={styles.card}>
+              <span className={styles.cardAudience}>{audience}</span>
+              <h3 className={styles.cardTitle}>
+                <Link to={to} className={styles.cardLink}>
+                  {title}
+                </Link>
+              </h3>
+              {experimental && <StatusBadge status="experimental" />}
+              <p className={styles.cardText}>{text}</p>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );
@@ -301,9 +390,9 @@ function UseCases() {
   return (
     <section className={clsx(styles.section, styles.sectionAlt)}>
       <div className="container">
-        <SectionHeader eyebrow="Use cases" title="For outputs that pass/fail tests can't judge">
-          Each use case follows a demo project: the problem, the workflow, and the configuration that produces what you
-          see.
+        <SectionHeader eyebrow="Use cases" title="For quality that pass/fail tests can't judge">
+          Images, models, trajectories, latency, test suites, agents. Each use case follows a demo project: the problem,
+          the workflow, and the configuration that produces what you see.
         </SectionHeader>
         <ul className={clsx(styles.cards, styles.cardsThree)}>
           {USE_CASES.map(({audience, title, text, to}) => (
@@ -424,18 +513,55 @@ function ViewersSection() {
   );
 }
 
+// Each item is in the docs it links to; the CI tests the rolling deploy and the Helm chart (.github/workflows/ci.yaml)
+const PRODUCTION = [
+  {title: 'Upgrades without downtime', items: ['Rolling deploys, tested in CI', 'Rollbacks', 'Database backups and restores'], to: '/docs/backend-admin/deployment'},
+  {title: 'Kubernetes', items: ['A Helm chart, installed in CI with a real batch', 'Database failover with CloudNativePG'], to: '/docs/backend-admin/kubernetes'},
+  {title: 'Access control', items: ['Single sign-on, LDAP, local accounts', 'Project roles, groups from your directory'], to: '/docs/backend-admin/project-access'},
+  {title: 'Monitoring', items: ['Errors and traces of the web app, server, jobs and qa', 'Sent to Sentry, hosted or self-hosted'], to: '/docs/backend-admin/monitoring'},
+  {title: 'Storage at scale', items: ['What takes space, and whose it is', 'Old outputs deleted automatically'], to: '/docs/user-guide/storage-usage'},
+  {title: 'Heavy outputs', items: ['113 MP images, zoomed to the pixel', 'Videos, point clouds, flame graphs'], to: '/docs/visualizations'},
+];
+
+function Production() {
+  return (
+    <section className={styles.section}>
+      <div className="container">
+        <SectionHeader eyebrow="Production-ready" title="Hardened at scale">
+          QA-Board has been Samsung&apos;s central quality platform since 2018: about 50 projects and more than 40
+          million runs. Running it for your company is documented and tested.
+        </SectionHeader>
+        <ul className={styles.stackGrid}>
+          {PRODUCTION.map(({title, items, to}) => (
+            <li key={title} className={styles.stackItem}>
+              <h3 className={styles.stackTitle}>
+                <Link to={to}>{title}</Link>
+              </h3>
+              <ul className={styles.stackList}>
+                {items.map(item => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
 const STACK = [
   {title: 'Your code', items: ['Python', 'Any executable: C++, shell...'], to: '/docs/running-your-code'},
   {title: 'Git and CI', items: ['GitHub and GitLab webhooks', 'GitHub Actions, GitLab CI, Jenkins', 'CircleCI, Travis CI...'], to: '/docs/ci-integration'},
   {title: 'Runners', items: ['Local processes', 'LSF', 'Dask', 'Celery'], to: '/docs/batches-running-on-multiple-inputs'},
   {title: 'Servers', items: ['Docker Compose', 'Kubernetes (Helm)', 'Air-gapped installs'], to: '/docs/deploy'},
-  {title: 'Sign-in', items: ['Local accounts', 'LDAP', 'SAML'], to: '/docs/backend-admin/user-management'},
+  {title: 'Sign-in', items: ['Single sign-on (OpenID Connect)', 'LDAP, SAML', 'Local accounts'], to: '/docs/backend-admin/sign-in'},
   {title: 'Storage', items: ['A shared folder (NFS, SMB...)', 'Mounted at the same path everywhere'], to: '/docs/storage/where-is-the-data'},
 ];
 
 function FitsYourStack() {
   return (
-    <section className={styles.section}>
+    <section className={clsx(styles.section, styles.sectionAlt)}>
       <div className="container">
         <SectionHeader eyebrow="Integrations" title="Fits your stack">
           QA-Board wraps the code you have, where it runs today. It doesn&apos;t need to be the entrypoint of your build or
@@ -483,7 +609,7 @@ const ROADMAP = [
 
 function Roadmap() {
   return (
-    <section className={clsx(styles.section, styles.sectionAlt)}>
+    <section className={styles.section}>
       <div className="container">
         <SectionHeader eyebrow="Roadmap" title="Where we're going" />
         <ul className={clsx(styles.cards, styles.cardsThree)}>
@@ -529,6 +655,45 @@ function WhatsNew() {
   );
 }
 
+const HELP = [
+  'Set up a self-hosted server on your own machines, with Docker Compose or Kubernetes',
+  'Integrate your first projects: inputs, metrics, visualizations and CI',
+  'Plan upgrades, backups and storage as your results grow',
+];
+
+function GetInTouch({contact}: {contact: string}) {
+  // The footer and the hero link to it: tell the build's link checker it exists
+  useBrokenLinks().collectAnchor('get-in-touch');
+  return (
+    <section id="get-in-touch" className={clsx(styles.section, styles.stage, styles.getInTouch)}>
+      <div className="container">
+        <div className={styles.getInTouchInner}>
+          <div>
+            <SectionHeader eyebrow="Get in touch" title="Bring QA-Board to your team">
+              We&apos;re looking for teams who track quality, and we help them get started. Tell us what you measure
+              and where your code runs, and we&apos;ll help you:
+            </SectionHeader>
+            <ul className={styles.helpList}>
+              {HELP.map(item => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+          <div className={styles.contactCard}>
+            <p className={styles.contactLabel}>Write to the maintainers</p>
+            <a className={styles.contactEmail} href={`mailto:${contact}?subject=QA-Board`}>
+              {contact}
+            </a>
+            <p className={styles.contactNote}>
+              Or open a <Link href={`${GITHUB}/issues`}>GitHub issue</Link> for bugs and feature requests.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function FinalCta() {
   return (
     <section className={styles.section}>
@@ -554,20 +719,24 @@ function FinalCta() {
 }
 
 export default function Home() {
+  const contact = useContact();
   return (
     <Layout
-      title="Results review for algorithm teams"
-      description="Tests tell you it runs. QA-Board shows you it's better: every commit's outputs (images, videos, plots, flame graphs) and metrics next to the reference's. Open source and self-hosted.">
+      title="Quality tracking for people and agents"
+      description="Tests tell you it runs. QA-Board shows you it's better: every change's outputs (images, videos, plots, flame graphs, test reports) and metrics next to the reference's, for people and coding agents. Open source, self-hosted, in production at Samsung since 2018.">
       <Hero />
       <main>
         <ProofStrip />
         <InHouse />
         <Loop />
+        <PeopleAndAgents />
         <ViewersSection />
         <Details />
         <UseCases />
+        <Production />
         <FitsYourStack />
         <Roadmap />
+        {contact && <GetInTouch contact={contact} />}
         <FinalCta />
       </main>
     </Layout>

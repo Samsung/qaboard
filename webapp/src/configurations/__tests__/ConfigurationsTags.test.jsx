@@ -14,7 +14,7 @@ const runs = {
 const shared = shared_configuration(Object.values(runs));
 const withShared = (ui, value = shared) => render(<SharedConfigurationContext value={value}>{ui}</SharedConfigurationContext>);
 
-beforeEach(() => act(() => usePrefsStore.setState({ hide_shared_settings: true })));
+beforeEach(() => act(() => usePrefsStore.setState({ hide_shared_settings: true, shorten_long_settings: true })));
 
 describe('ConfigurationsTags', () => {
   it('shows all the settings of a run shown alone, with its tuning parameters', () => {
@@ -154,5 +154,56 @@ describe('lists', () => {
 
   it('copies a setting of a list of objects as JSON', () => {
     expect(qa_options([{ layers: [{ stride: 2 }] }])).toBe(`-c '{"layers":[{"stride":2}]}'`);
+  });
+});
+
+describe('long settings', () => {
+  const command = `--cmd "python tools/run_pipeline.py --input scenes/night --output out/night --threads 8 --verbose"`;
+  const lut = Array.from({ length: 256 }, (_, i) => i);
+
+  it('shortens them, and shows them all in full on click, as a preference', () => {
+    const { container } = render(<ConfigurationsTags configurations={[command, { lut }, 'base']} />);
+    expect(container.textContent).not.toContain(command);
+    expect(container.textContent).toContain('256 values');
+    fireEvent.click(screen.getByText(/^--cmd/));
+    expect(usePrefsStore.getState().shorten_long_settings).toBe(false);
+    expect(container.textContent).toContain(command);
+    expect(container.textContent).toContain(`lut: [${lut.join(', ')}]`);
+    // they wrap instead of being cut by the tag
+    expect(screen.getByText(command).closest(`.${Classes.TAG}`)).not.toHaveTextContent('…');
+    fireEvent.click(screen.getByText(command));
+    expect(usePrefsStore.getState().shorten_long_settings).toBe(true);
+    expect(container.textContent).not.toContain(command);
+  });
+
+  it('switches from the hover menu, which still copies the setting', async () => {
+    render(<ConfigurationsTags configurations={[command]} />);
+    fireEvent.mouseEnter(screen.getByText(/^--cmd/).closest('.bp6-popover-target'));
+    fireEvent.click(await screen.findByText('Show long settings in full'));
+    expect(usePrefsStore.getState().shorten_long_settings).toBe(false);
+    expect(screen.getByText(command)).toBeInTheDocument();
+  });
+
+  it("does nothing when clicking a setting we don't shorten", () => {
+    render(<ConfigurationsTags configurations={['base', command]} />);
+    fireEvent.click(screen.getByText('base'));
+    expect(usePrefsStore.getState().shorten_long_settings).toBe(true);
+  });
+
+  it('shows in full the strings whose start all runs share', () => {
+    const scene = name => `conf/projects/camera/scenes/${name}.yaml`;
+    const shared = shared_configuration([{ configurations: [scene('night')] }, { configurations: [scene('day')] }]);
+    const { container } = withShared(<ConfigurationsTags configurations={[scene('night')]} />, shared);
+    expect(container.textContent).toBe('…scenes/night.yaml');
+    act(() => usePrefsStore.setState({ shorten_long_settings: false }));
+    expect(container.textContent).toBe(scene('night'));
+  });
+
+  it('shows in full the changes of long settings', () => {
+    const changed = command.replace('--threads 8', '--threads 16');
+    const { container } = render(<ConfigurationsTags configurations={[changed]} mismatch={{ configurations: [command] }} />);
+    expect(container.textContent).toMatch(/^…/);
+    act(() => usePrefsStore.setState({ shorten_long_settings: false }));
+    expect(container.textContent).toBe(changed.replace('16', '8→16'));
   });
 });
