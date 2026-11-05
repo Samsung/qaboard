@@ -137,3 +137,132 @@ def test_pending_outputs_cant_be_deleted(outputs_api, dummy_app, monkeypatch):
     g.user = {"user_name": "alice"}
     response, status = outputs_api.update_output(7)
   assert status == 409 and "wait" in response["error"]
+
+
+# ---------------------------------------------------------------- metrics added by scripts (run.log() in the SDK)
+
+ALICE = {"user_name": "alice", "user_id": 1, "via": "token", "token_name": "laptop"}
+
+
+@pytest.fixture
+def added_metrics_env(outputs_api, monkeypatch):
+  """A signed-in developer, alice, and a finished run with its own psnr"""
+  import backend.api.auth as auth
+  monkeypatch.setattr(auth.ingest_access, "return_value", (ALICE, None))
+  monkeypatch.setattr(auth.is_authorized_user, "return_value", True)
+  monkeypatch.setattr(outputs_api, "save_metrics_definitions", MagicMock())
+  output = SimpleNamespace(id=7, data={}, metrics={"psnr": 30, "is_failed": False}, is_pending=False, is_running=False, is_failed=False, deleted=False,
+                           batch=MagicMock(), output_dir=Path("/storage/project/output/7"))
+  output.batch.ci_commit.project_id = "group/project"
+  output.batch.ci_commit.branch = "main"
+  output.batch.ci_commit.project.data = {"qatools_config": {"project": {"reference_branch": "main"}}}
+  output.to_dict = lambda: {"metrics": output.metrics, "data": output.data}
+  outputs_api.Output.query.filter.return_value.with_for_update.return_value.one.return_value = output
+  return output
+
+
+def add_metrics(outputs_api, dummy_app, body):
+  with dummy_app.test_request_context("/api/v1/output/7/metrics", method="PATCH", json=body):
+    return outputs_api.add_output_metrics(7)
+
+
+def test_scripts_add_metrics_with_provenance(outputs_api, dummy_app, added_metrics_env):
+  output = added_metrics_env
+  response = add_metrics(outputs_api, dummy_app, {
+    "metrics": {"sharpness": 0.4, "ok": True, "label": "blurry", "nothing": None},
+    "metrics_definitions": {"sharpness": {"smaller_is_better": False}, "psnr": {"smaller_is_better": True}},
+    "source": {"script": "sharpness.py", "script_sha256": "abc123", "qaboard_version": "1.1.1", "user": "mallory", "secret": "no"},
+  })
+  body = response.get_json()
+  # merged, the run's other metrics untouched
+  assert output.metrics == {"psnr": 30, "is_failed": False, "sharpness": 0.4, "ok": True, "label": "blurry", "nothing": None}
+  added = output.data["added_metrics"]
+  assert set(added) == {"sharpness", "ok", "label", "nothing"}
+  entry = added["sharpness"]
+  assert entry["value"] == 0.4 and entry["script"] == "sharpness.py" and entry["script_sha256"] == "abc123"
+  # who: the token's user, never what the script claims
+  assert entry["user"] == "alice" and entry["token"] == "laptop" and "secret" not in entry and "replaced" not in entry
+  assert entry["at"].startswith("20")
+  assert body["added"] == added and "added_metrics_file" not in body
+  # the run's own metrics are locked while we change them
+  outputs_api.Output.query.filter.return_value.with_for_update.assert_called()
+  # definitions: only for the metrics added, with the project's reference branch
+  saved = outputs_api.save_metrics_definitions.call_args.args[2]
+  assert saved["metrics_definitions"] == {"sharpness": {"smaller_is_better": False}}
+  assert saved["commit_branch"] == "main" and saved["qaboard_config"] == {"project": {"reference_branch": "main"}}
+
+
+def test_the_runs_own_metrics_are_not_replaced_silently(outputs_api, dummy_app, added_metrics_env):
+  output = added_metrics_env
+  response, status = add_metrics(outputs_api, dummy_app, {"metrics": {"psnr": 31, "sharpness": 0.4}})
+  assert status == 409 and response.get_json()["metrics"] == ["psnr"]
+  assert output.metrics == {"psnr": 30, "is_failed": False}
+  add_metrics(outputs_api, dummy_app, {"metrics": {"psnr": 31}, "overwrite": True})
+  assert output.metrics["psnr"] == 31 and output.data["added_metrics"]["psnr"]["replaced"] == 30
+  # logging again replaces the script's value, and keeps the run's original
+  add_metrics(outputs_api, dummy_app, {"metrics": {"psnr": 32}})
+  assert output.metrics["psnr"] == 32 and output.data["added_metrics"]["psnr"]["replaced"] == 30
+
+
+def test_added_metrics_need_a_token_and_the_project(outputs_api, dummy_app, added_metrics_env, monkeypatch):
+  import backend.api.auth as auth
+  output = added_metrics_env
+  # the server's ingest.auth doesn't matter: this endpoint always needs a token with the ingest scope
+  monkeypatch.setattr(auth.ingest_access, "return_value", (None, (dummy_app.response_class('{"error": "sign in"}', status=401, content_type='application/json'), 401)))
+  _, status = add_metrics(outputs_api, dummy_app, {"metrics": {"x": 1}})
+  assert status == 401 and output.metrics == {"psnr": 30, "is_failed": False}
+  assert auth.ingest_access.call_args.kwargs == {"require_token": True}
+  # who can't see the project learns nothing, not even that the run exists
+  monkeypatch.setattr(auth.ingest_access, "return_value", (ALICE, None))
+  monkeypatch.setattr(auth.is_authorized_user, "return_value", False)
+  response, status = add_metrics(outputs_api, dummy_app, {"metrics": {"x": 1}})
+  assert status == 403
+  outputs_api.Output.query.filter.return_value.with_for_update.return_value.one.side_effect = outputs_api.NoResultFound
+  response, status = add_metrics(outputs_api, dummy_app, {"metrics": {"x": 1}})
+  assert status == 404
+
+
+@pytest.mark.parametrize("body, message", [
+  ({}, "`metrics` must be an object"),
+  ({"metrics": {}}, "`metrics` must be an object"),
+  ({"metrics": {"is_failed": True}}, "only the run itself sets is_failed"),
+  ({"metrics": {"x": float("nan")}}, "not a finite number"),
+  ({"metrics": {"x": float("inf")}}, "not a finite number"),
+  ({"metrics": {"x": {"nested": 1}}}, "not dict"),
+  ({"metrics": {"x": [1, 2]}}, "not list"),
+  ({"metrics": {"__proto__": 1}}, "invalid metric name"),
+  ({"metrics": {"": 1}}, "invalid metric name"),
+  ({"metrics": {"x" * 201: 1}}, "invalid metric name"),
+  ({"metrics": {"x": "y" * 501}}, "limited to 500"),
+  ({"metrics": {f"m{i}": i for i in range(501)}}, "at most 500"),
+])
+def test_added_metrics_values_are_checked(outputs_api, dummy_app, added_metrics_env, body, message):
+  output = added_metrics_env
+  response, status = add_metrics(outputs_api, dummy_app, body)
+  assert status == 400 and message in response.get_json()["error"]
+  assert output.metrics == {"psnr": 30, "is_failed": False}
+
+
+def test_added_metrics_need_a_finished_run(outputs_api, dummy_app, added_metrics_env):
+  output = added_metrics_env
+  output.is_pending = True
+  _, status = add_metrics(outputs_api, dummy_app, {"metrics": {"x": 1}})
+  assert status == 409
+  output.is_pending, output.deleted = False, True
+  _, status = add_metrics(outputs_api, dummy_app, {"metrics": {"x": 1}})
+  assert status == 409
+
+
+def test_added_metrics_survive_a_rerun_unless_the_run_computes_them(outputs_api, dummy_app):
+  output = outputs_api.test_output
+  output.id = 7
+  added = {"sharpness": {"value": 0.4, "at": "2026-11-02T10:00:00+00:00", "script": "sharpness.py"},
+           "psnr": {"value": 31, "at": "2026-11-02T10:00:00+00:00", "replaced": 30}}
+  # the database's copy is what counts, read under a lock: a script may have logged while the run ran
+  output.data["added_metrics"] = {"stale": {"value": 1}}
+  outputs_api.db_session.query.return_value.filter.return_value.with_for_update.return_value.scalar.return_value = {"added_metrics": added}
+  result = notify(outputs_api, dummy_app, is_pending=False, metrics={"psnr": 30})
+  assert result["is_failed"] is False
+  assert output.metrics == {"sharpness": 0.4, "psnr": 30}
+  # the run computes psnr itself now: its value wins and the addition is forgotten
+  assert set(output.data["added_metrics"]) == {"sharpness"}

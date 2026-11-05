@@ -12,7 +12,7 @@ See _template.md and CLAUDE.md for how to write them.
 
   ./release_notes.py changelog 2026-09        # commits of the period, grouped by area
   ./release_notes.py draft 2026-10 --write    # new release note pre-filled from the commits
-  ./release_notes.py check                    # validate the notes and their links to the docs
+  ./release_notes.py check                    # validate the notes and their links to the docs, and the skills' links (skills/)
 
 The web app shows the published notes (not `draft: true`) in its "What's new" panel: vite reads them when it
 builds or serves the app (webapp/releaseNotes.js). The website renders them at /release-notes.
@@ -246,6 +246,22 @@ def doc_urls() -> set[str]:
     return urls
 
 
+SKILLS_DIR = REPO_ROOT / "skills"
+DOCS_SITE = "https://samsung.github.io/qaboard"
+
+
+def check_skills(docs: set[str]) -> int:
+    """The skills for agents (skills/) link to the docs site: every page they name must exist. Returns the number of errors."""
+    n_errors = 0
+    for path in sorted(SKILLS_DIR.rglob("*.md")) if SKILLS_DIR.exists() else []:
+        text = path.read_text(encoding="utf-8")
+        for url in re.findall(re.escape(DOCS_SITE) + r"/docs/([\w/-]+)", text):
+            if f"/docs/{url}".rstrip("/") not in docs:
+                print(f"ERROR   {path.relative_to(REPO_ROOT)}: no docs page /docs/{url}")
+                n_errors += 1
+    return n_errors
+
+
 def validate(note: Note, docs: set[str]) -> tuple[list[str], list[str]]:
     errors, warnings = [], []
     meta = note.meta
@@ -353,7 +369,9 @@ def main() -> int:
         for e in errors:
             print(f"ERROR   {path.name}: {e}")
         n_errors += len(errors)
-    print(f"{len(periods)} release notes, {n_errors} errors")
+    n_skill_errors = check_skills(docs)
+    n_errors += n_skill_errors
+    print(f"{len(periods)} release notes, {n_errors} errors" + (f" ({n_skill_errors} in skills/)" if n_skill_errors else ""))
     return 1 if n_errors else 0
 
 

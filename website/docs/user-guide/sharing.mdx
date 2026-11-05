@@ -102,6 +102,12 @@ fast. Use **Edit where** to choose your own folder: files are then copied (or li
 In a folder that existed before, QA-Board only adds files: it never replaces what's there (the box lists the files
 it skipped), and the folder isn't listed with your exports in **Storage usage**.
 
+## Use the runs in a script {#runs-in-scripts}
+To post-process the runs you see, e.g. compute a metric the CI didn't, click **Script** next to **Export**: it shows
+a Python snippet (or shell command) that lists those runs, with their metrics and folders, from the page's address.
+Copy it, and change what it does with each run. The filter applies, so the script sees exactly the runs shown. It's
+new and may change: see [Work on the runs you see](/docs/apis#runs-in-scripts) for what each run gives.
+
 ## Report a bug or ask for help {#bug-reports-and-support}
 - If part of the web app crashes, only that part is replaced by an error: a viewer in a run's card, or the page, with
   the sidebar still there. **Try again** shows it again, **Go back** returns to the previous page, and going to any

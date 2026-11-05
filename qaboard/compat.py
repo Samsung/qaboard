@@ -120,6 +120,15 @@ def linux_to_windows(path : str) -> str:
   return path
 
 
+def url_to_dir(url: str) -> Path:
+  """The API gives file locations as `/s<path>`: the path on the shared storage, as the server mounts it."""
+  from urllib.parse import unquote
+  path = unquote(url)[2:]
+  if os.name == 'nt':
+    path = linux_to_windows(path)
+  return Path(path)
+
+
 def windows_to_linux_path(path : Path) -> Path:
   return Path(windows_to_linux(str(path)))
 

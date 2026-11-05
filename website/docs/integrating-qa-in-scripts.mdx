@@ -2,11 +2,113 @@
 id: apis
 sidebar_label: APIs
 title: Results in scripts
-description: Find runs' output directories with the qa CLI, and read commits, batches, runs and metrics with QA-Board's HTTP API.
+description: Work on the runs a web app page shows from Python with qaboard.runs(url) or qa runs, find runs' output directories with the qa CLI, and read commits, batches, runs and metrics with QA-Board's HTTP API.
 ---
 
-Scripts, notebooks and agents can use QA-Board's results: the `qa` CLI says where a batch's runs save their files,
-and the HTTP API gives the commits, batches, runs and metrics that the web app shows.
+Scripts, notebooks and agents can use QA-Board's results: `qaboard.runs(url)` gives the runs a web app page shows
+and `run.log_metrics()` adds what a script computed, the `qa` CLI says where a batch's runs save their files, and the
+HTTP API gives everything else.
+
+## Work on the runs you see in the web app {#runs-in-scripts}
+
+To post-process runs, e.g. to compute a metric on their images that the CI didn't, start from the web app: find the
+commit, pick the batch, filter the runs you want, and copy the page's address. `qaboard.runs()` reads the project,
+commit, batch and filter from it, and asks the server for those runs:
+
+```python
+# /// script
+# dependencies = ["qaboard", "imageio"]
+# ///
+import imageio.v3 as iio
+import qaboard as qb
+
+url = "https://qaboard.example.com/kitefin/detector/commit/7622c337?batch=ci&filter=night%20status:success"
+for run in qb.runs(url):
+    image = iio.imread(run.output_dir / "output.png")
+    print(run.input, run.params, run.metrics.get("psnr"), image.mean())
+```
+
+Save it as *sharpness.py* and run it with `uv run sharpness.py` (the header says what to install), or
+`pip install qaboard imageio` then `python sharpness.py`. In the web app's **Visualizations** and **Output Files**
+views, **Script** shows this snippet with the page's address, ready to copy. The filter is applied like in the web
+app ([filter syntax](/docs/user-guide/finding-results#filter-syntax)), so the script works on exactly the runs you
+looked at. Add `status:success` to the filter to skip failed and unfinished runs, which may have no files or metrics.
+Each `Run` has:
+
+| Attribute | What it is |
+|---|---|
+| `input`, `database`, `input_path` | The input's path relative to its database (as in batches and `qa run --input`), the database, and the full path. |
+| `configs` | The configurations (`qa --config`), strings and mappings, then the tuning parameters: like `context.configs` in `run()`. |
+| `params` | The mappings of `configs` merged, and the parameters the run reported: like `context.params`. Usually all you need. |
+| `metrics` | The run's metrics: those it returned, and those [added](#log) by scripts. |
+| `output_dir` | Where its files are, as a `Path`: like `context.output_dir`. |
+| `state`, `is_failed` | `pending`, `running` or `finished`; whether it failed. |
+| `id`, `commit`, `batch`, `project`, `url` | Where it is in QA-Board, and its link in the web app. |
+| `type`, `input_metadata`, `data`, `created_at`, `finished_at` | The input's type and metadata, what else the server knows (who ran it, where...), when. |
+| `extra_parameters`, `rel_input_path` | The tuning parameters alone (they're the last of `configs`), and `input` as a `Path`: rarely needed, named like in `run()`. |
+
+Runs are read-only: `params`, `metrics` and the other mappings are read-only views, and changing them is an error,
+since it would change nothing on the server (copy them with `dict(run.metrics)`). `run.to_dict()` gives all of it as
+plain data. You can also name the runs instead of giving a URL:
+`qb.runs(project="kitefin/detector", commit="main", batch="ci", filter="night")`. `commit` can be a branch or a tag;
+without it, you get the latest commit with results (`branch=` picks the branch). Keyword arguments override what a URL
+says, and `side="reference"` gives the runs of the reference bar (`?reference=`) instead of the compared ones
+(`side="new"`, the default). Runs whose files were deleted, and
+the iterations of [automated tunings](/docs/auto-optimization), are left out unless you ask
+(`include_deleted`, `include_hidden`).
+
+From the shell, `qa runs <url>` prints the runs' folders, one per line, and `--json` everything above
+(`--side reference` for the reference bar's). It works
+outside a project, without a *qaboard.yaml*:
+
+```bash
+qa runs "https://qaboard.example.com/kitefin/detector/commit/7622c337?batch=ci&filter=night" | while read dir; do
+  python compute_sharpness.py "$dir"
+done
+```
+
+Reading needs the `qaboard` package (`pip install qaboard`) and, when the project isn't public, to be signed in:
+`qa auth login https://qaboard.example.com`, or a token in `QABOARD_TOKEN` (see [Authentication](#authentication)).
+A token from the environment is only sent to the server `qa` is configured for, not to any server a pasted URL names.
+When the server is behind a path prefix like `https://tools.example.com/qaboard/`, pass `server=` (`--server`): the
+address alone can't say where the project's name starts.
+
+### Add metrics to runs {#log}
+Your script can add what it computed to the runs, with `run.log_metrics()`: the server merges the metrics into the run's, and
+remembers who added each one, when and with which script. Wrap values in `Metric(...)` to say their unit and which
+way is better, like in `run()`:
+
+```python
+from qaboard import Metric
+
+for run in qb.runs(url):
+    sharpness = measure(run.output_dir / "output.png")
+    run.log_metrics({"sharpness": Metric(sharpness, smaller_is_better=False, target=0.3)})
+```
+
+- Try it first with `qb.runs(url, dry_run=True)` (or `run.log_metrics(..., dry_run=True)`): it prints what it would add.
+- You need to be signed in (`qa auth login`, or `QABOARD_TOKEN` with the `ingest` scope) with the developer role on
+  the project, whatever the server's policy for results sent by `qa`. The added metrics are recorded under the
+  token's user, not what the script says.
+- The added metrics show in the web app like the others, and count in the Summary, the Metrics Diff and
+  [quality gates](/docs/quality-gate). The run's `data["added_metrics"]` (`qa runs --json`) says who added each one,
+  when and with which script. The run's own *metrics.json* is not changed, and nothing is written in its folder.
+- Values are finite numbers, booleans, short texts or `None`. `is_failed` and `compute_time` can't be added: the run
+  sets them.
+- Metrics the run itself returned are refused, unless you pass `overwrite=True`: the run's value is then kept as
+  `replaced` in the provenance. Logging the same name again replaces your previous value.
+- If the run is run again and its code now returns a metric of the same name, the run's value wins and the addition
+  is forgotten. The other added metrics stay, with the date they were added: they were computed from the previous
+  run's files.
+- To recompute many metrics with the project's own code instead, use your `postprocess()`:
+  `qa batch ci --action-on-existing postprocess` redoes it on existing results
+  ([Postprocessing](/docs/running-your-code#postprocess)).
+
+Adding files to runs, and creating runs from your own code (training loops, notebooks), are on the
+[roadmap](/docs/roadmap#log-from-your-code): the method names follow those of the usual experiment trackers
+(`log_metrics`, `log_params`, `log_artifact`, `log` with a `step`). Runs' folders are shared: don't change or delete
+what the CI wrote.
+
 
 ## Find where runs save their outputs {#cli-api}
 `qa batch <batch> --list-output-dirs` prints the output directory of each run, one per line, without running

@@ -62,6 +62,8 @@ export const normalize_output = output => {
     extra_parameters_str: JSON.stringify(extra_parameters),
     params,
     metrics: output.metrics ?? {},
+    // metrics scripts added after the run, with who added them, when and with which script (components/AddedMetricMark.jsx)
+    added_metrics: output.data?.added_metrics ?? {},
   };
 };
 

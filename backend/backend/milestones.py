@@ -3,9 +3,10 @@ What milestones are, without the database: validating what clients send, importi
 versions, and what we answer. The API is in api/milestones.py, the model in models/Milestone.py.
 """
 import re
-import json
 import datetime
 from typing import Optional, Tuple, Dict, Set, Iterable
+
+from qaboard.filters import match_query, searched_text
 
 
 MAX_LABEL = 200
@@ -209,32 +210,17 @@ MAX_VALUES = 50
 def run_matcher(query: str):
   """
   Whether a run matches a filter of the web app's commit page, e.g. "indoor -night gain:3".
-  Like `filter_batch` (webapp/src/utils.js) and `filter_outputs` (api/export_to_folder.py): tokens are regular
-  expressions searched in the run's path, platform, configurations, parameters, batch, metadata and status
-  (not its database, like the web app).
+  The same matching as the web app and `qaboard.runs()` (qaboard/filters.py): tokens are regular expressions searched
+  in the run's path, platform, configurations, parameters, batch, metadata and status (not its database).
   """
-  query = re.sub(r'(=+|: +)', ':', (query or '').strip().lower().replace('"', ''))
-  tokens = query.split()
-  negative = [t[1:] for t in tokens if t.startswith('-') and len(t) > 1]
-  positive = [t for t in tokens if not t.startswith('-')]
-
-  def search(token, text):
-    try:
-      return re.search(token, text) is not None
-    except re.error:
-      return token in text
-
-  def matches(run: dict) -> bool:
-    compact = lambda value: json.dumps(value or {}, separators=(',', ':'))
-    searched = ' '.join([
-      str(run.get('path') or ''), str(run.get('platform') or ''),
-      compact(run.get('configurations')), compact(run.get('extra_parameters')), str(run.get('batch') or ''),
-      compact(run.get('metadata')), 'fail crash' if run.get('is_failed') else '', 'pending running' if run.get('is_pending') else '',
-    ]).replace('"', '').lower()
-    if any(search(t, searched) for t in negative):
-      return False
-    return all(search(t, searched) for t in positive)
-  return matches
+  matches = match_query(query or '')
+  def matches_run(run: dict) -> bool:
+    return matches(searched_text(
+      id=run.get('id'), test_input_path=str(run.get('path') or ''), platform=run.get('platform'),
+      configurations=run.get('configurations'), extra_parameters=run.get('extra_parameters'), test_input_metadata=run.get('metadata'),
+      batch=run.get('batch'), is_failed=bool(run.get('is_failed')), is_pending=bool(run.get('is_pending')), is_running=bool(run.get('is_running')),
+    ))
+  return matches_run
 
 
 def summarize_runs(runs: Iterable[dict], filter_: str = '') -> dict:

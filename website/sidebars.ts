@@ -170,6 +170,7 @@ const sidebars: SidebarsConfig = {
         "quality-gate",
         "triggering-third-party-tools",
         "apis",
+        "agents",
         "metadata-integration-external-databases",
       ],
     },

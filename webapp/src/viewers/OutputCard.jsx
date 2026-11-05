@@ -513,6 +513,7 @@ const OutputCard = memo(function OutputCard(props) {
         selected_metrics={main_metrics}
         available_metrics={available_metrics}
         metrics_new={output_new.metrics ?? {}}
+        added_metrics={output_new.added_metrics}
         metrics_ref={output_ref?.metrics && output_ref.id !== output_new.id ? output_ref.metrics : {}}
       />
       {views.map(render_view)}

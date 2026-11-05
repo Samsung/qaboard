@@ -63,7 +63,7 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   # One usage event per command, sent when it ends (qaboard/analytics.py), never from CI
   analytics.start(ctx.invoked_subcommand, share=share, tuning=bool(tuning or tuning_filepath), dryrun=dryrun, offline=offline)
   # Signing in is global, per server: it doesn't need a project
-  if ctx.invoked_subcommand == 'auth':
+  if ctx.invoked_subcommand in ('auth', 'runs'):
     return
   # Local runs save their results in output/: only some commands need the storage
   storage_is_missing = report_missing_storage(storage_needed_by(ctx.invoked_subcommand, share, is_ci))
@@ -1158,6 +1158,47 @@ from .auth import auth
 qa.add_command(auth)
 
 
+@qa.command(name='runs')
+@click.argument('url', required=False)
+@click.option('--project', help="The project, when not giving a URL, e.g. group/repo")
+@click.option('--commit', help="A commit id, branch or tag. Default: the latest commit with results, or what the URL says.")
+@click.option('--batch', help="The batch of runs. Default: what the URL says, or 'default'.")
+@click.option('--filter', 'filter_', help="Keep the runs matching a filter, like the web app's filter box.")
+@click.option('--side', type=click.Choice(['new', 'reference']), default='new', show_default=True, help="Which runs of the URL: the compared ones (new), or those of the reference bar (?reference=&batch_ref=).")
+@click.option('--server', help="The QA-Board server, when the URL doesn't say (e.g. served under a path prefix).")
+@click.option('--json', 'as_json', is_flag=True, help="Print the runs as JSON: input, configs, params, metrics, output_dir...")
+@click.option('--include-deleted', is_flag=True, help="Also list runs whose files were deleted.")
+@click.option('--include-hidden', is_flag=True, help="Also list runs the web app doesn't show with the batch, like qa optimize's iterations.")
+def runs_command(url, project, commit, batch, filter_, side, server, as_json, include_deleted, include_hidden):
+  """
+  Lists the runs a web app page shows, from its URL: their folders, one per line, or everything with --json.
+
+      qa runs "https://qaboard/my/project/commit/abc123?batch=ci&filter=night"
+
+  It doesn't run anything, and works outside a project (give `runs` first: `qa runs ...`).
+  From Python: `qaboard.runs(url)`.
+  """
+  from .results import runs, ResultsError
+  if not url and not project:
+    raise click.UsageError("Give the address of a commit's page in the web app, or --project (and --commit, --batch).")
+  try:
+    found = runs(url, project=project, commit=commit, batch=batch, filter=filter_, side=side, server=server,
+                 include_deleted=include_deleted, include_hidden=include_hidden)
+  except (ResultsError, ValueError) as e:
+    click.secho(f"ERROR: {e}", fg='red', bold=True, err=True)
+    sys.exit(1)
+  if as_json:
+    print(json.dumps([r.to_dict() for r in found], indent=2))
+  else:
+    if not found:
+      click.secho(f"No run matches ({found.side.project}, commit {found.commit or found.side.commit or found.side.branch}, batch {found.side.batch!r}, filter {found.side.filter!r}).", fg='yellow', err=True)
+    for run in found:
+      if run.output_dir:
+        print(run.output_dir)
+      else:
+        click.secho(f"<no folder> {run}", fg='yellow', err=True)
+
+
 @qa.command()
 @click.pass_context
 def init(ctx):
@@ -1206,6 +1247,9 @@ def init_sentry():
 
 
 def main():
+  # not on `import qaboard`: scripts using the package shouldn't wait for PyPI
+  from .check_for_updates import check_for_updates
+  check_for_updates()
   init_sentry()
   from .compat import ensure_cli_backward_compatibility
   ensure_cli_backward_compatibility()
