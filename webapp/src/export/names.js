@@ -10,7 +10,7 @@
 //   become "-", names don't end with dots or spaces, and reserved names (CON, NUL, COM1...) get a "_" first. The server
 //   also checks paths' lengths, and compares names regardless of case.
 
-export const FIELDS = ['side', 'input', 'input_name', 'settings', 'file', 'platform', 'commit', 'batch', 'run'];
+export const FIELDS = ['side', 'input', 'input_name', 'settings', 'file', 'platform', 'commit', 'batch', 'run', 'region'];
 export const SEPARATORS = ['/', '_', '__', '-', '.', '+'];
 export const MAX_NAME_BYTES = 200;
 
@@ -81,8 +81,9 @@ const clean = (text, keep_slashes, separator = '_', windows = true) => {
 
 const utf8_length = text => new TextEncoder().encode(text).length;
 
-// The relative path of a file, e.g. "img01__gain=4__out__new.png". Throws ExportNameError
-export const render = (template, fields, separator = '_', extension = '', windows = true) => {
+// The relative path of a file, as parts: [{text, field}], `field` is null for the template's own text, folders' slashes
+// and the extension. Joined, they're the path (render). The web app colors names with them. Throws ExportNameError
+export const render_parts = (template, fields, separator = '_', extension = '', windows = true) => {
   if (!SEPARATORS.includes(separator)) throw new ExportNameError(`Unknown separator "${separator}"`);
   const parts = parse_template(template);
   const texts = parts.map(({ kind, text }) => {
@@ -101,26 +102,58 @@ export const render = (template, fields, separator = '_', extension = '', window
       }
     }
   });
-  const path = texts.filter((_, index) => !dropped.has(index)).join('');
+  // the characters of the path, and the field each comes from
+  const chars = [];
+  parts.forEach((part, index) => {
+    if (dropped.has(index)) return;
+    for (const c of texts[index]) chars.push([c, part.kind === 'field' ? part.text : null]);
+  });
   const segments = [];
-  for (let segment of path.split('/')) {
-    if (segment === '.' || segment === '..') throw new ExportNameError(`"${segment}" can't be a file or folder name`);
+  let segment = [];
+  const flush = () => {
+    const text = segment.map(([c]) => c).join('');
+    if (text === '.' || text === '..') throw new ExportNameError(`"${text}" can't be a file or folder name`);
     // Windows ignores trailing dots and spaces
-    if (windows) segment = segment.replace(/[. ]+$/, '');
-    if (segment) segments.push(segment);
+    if (windows) while (segment.length && /[. ]/.test(segment.at(-1)[0])) segment.pop();
+    if (segment.length) segments.push(segment);
+    segment = [];
+  };
+  for (const char of chars) {
+    if (char[0] === '/') flush();
+    else segment.push(char);
   }
+  flush();
   if (segments.length === 0) throw new ExportNameError('The name is empty: add fields like {input} and {file}');
-  segments[segments.length - 1] += clean(extension, false, '_', windows);
-  if (windows) segments.forEach((segment, index) => { if (reserved_windows.test(segment)) segments[index] = `_${segment}`; });
-  for (const segment of segments) {
-    const bytes = utf8_length(segment);
-    if (bytes > MAX_NAME_BYTES) throw new ExportNameError(`Name too long (${bytes} bytes, at most ${MAX_NAME_BYTES}): ${segment.slice(0, 60)}…`);
+  for (const c of clean(extension, false, '_', windows)) segments.at(-1).push([c, null]);
+  const text = s => s.map(([c]) => c).join('');
+  if (windows) segments.forEach((s, index) => { if (reserved_windows.test(text(s))) segments[index] = [['_', null], ...s]; });
+  for (const s of segments) {
+    const bytes = utf8_length(text(s));
+    if (bytes > MAX_NAME_BYTES) throw new ExportNameError(`Name too long (${bytes} bytes, at most ${MAX_NAME_BYTES}): ${text(s).slice(0, 60)}…`);
   }
-  return segments.join('/');
+  // runs of characters from the same field, folders' slashes between segments
+  const out = [];
+  const push = (c, field) => {
+    const last = out.at(-1);
+    if (last && last.field === field) last.text += c;
+    else out.push({ text: c, field });
+  };
+  segments.forEach((s, index) => {
+    if (index > 0) out.push({ text: '/', field: null, folder: true });
+    for (const [c, field] of s) push(c, field);
+  });
+  return out;
 };
 
+// The relative path of a file, e.g. "img01__gain=4__out__new.png". Throws ExportNameError
+export const render = (template, fields, separator = '_', extension = '', windows = true) =>
+  render_parts(template, fields, separator, extension, windows).map(p => p.text).join('');
+
 // The name of a file of a run: `file` is its path in the run's folder
-export const file_name = (template, fields, file, separator = '_', windows = true) => {
+// With `with_file` false, names leave the file out (runs have one file each): its extension still ends the name.
+export const file_name_parts = (template, fields, file, separator = '_', windows = true, with_file = true) => {
   const [stem, extension] = split_extension(String(file).replaceAll('\\', '/'));
-  return render(template, { ...fields, file: stem }, separator, extension, windows);
+  return render_parts(template, { ...fields, file: with_file ? stem : '' }, separator, extension, windows);
 };
+export const file_name = (template, fields, file, separator = '_', windows = true, with_file = true) =>
+  file_name_parts(template, fields, file, separator, windows, with_file).map(p => p.text).join('');

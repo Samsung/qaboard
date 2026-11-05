@@ -19,7 +19,7 @@ import re
 from typing import Dict, List, Optional, Tuple
 
 
-FIELDS = ('side', 'input', 'input_name', 'settings', 'file', 'platform', 'commit', 'batch', 'run')
+FIELDS = ('side', 'input', 'input_name', 'settings', 'file', 'platform', 'commit', 'batch', 'run', 'region')
 # a file name's bytes: most filesystems allow 255, we keep some room
 MAX_NAME_BYTES = 200
 

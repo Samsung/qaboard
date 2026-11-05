@@ -8,6 +8,7 @@ import {
   Tag,
   Callout,
   Checkbox,
+  Collapse,
   FormGroup,
   InputGroup,
   HTMLSelect,
@@ -15,6 +16,11 @@ import {
   Dialog,
   DialogBody,
   DialogFooter,
+  Menu,
+  MenuDivider,
+  MenuItem,
+  PopoverNext,
+  ProgressBar,
   SegmentedControl,
   Switch,
   Spinner,
@@ -29,11 +35,14 @@ import { Link } from "../router"
 import { copyWithToast } from "../utils/clipboard"
 import { usePrefsStore } from "../stores/prefs";
 import { useSiteConfig } from "../hooks";
-import { parse_template, FIELDS } from "../export/names";
+import { parse_template, file_name_parts, FIELDS } from "../export/names";
 import {
-  LAYOUTS, SEPARATORS, SETTINGS_FORMATS, SETTINGS_ASSIGN, SETTINGS_JOIN, CONFIGURATIONS, PLATFORM, ABSENT,
-  default_naming, layout_of, export_runs, request_runs, example_name, saved_settings, presets_for,
+  LAYOUTS, SEPARATORS, SETTINGS_FORMATS, SETTINGS_ASSIGN, SETTINGS_JOIN, CONFIGURATIONS, PLATFORM, BATCH, DATABASE, ABSENT,
+  default_naming, layout_of, export_runs, request_runs, item_fields, example_file, guess_file_in_names, crop_template,
+  saved_settings, presets_for, preset_fit, may_be_images,
 } from "../export/plan";
+import { FieldDot, NameAnatomy, NameParts } from "../export/NameParts";
+import { useCrops, useShownRegionSets } from "../export/useCrops";
 import { runs_url, python_snippet } from "./ScriptPlugin";
 
 
@@ -41,8 +50,17 @@ import { runs_url, python_snippet } from "./ScriptPlugin";
 const default_path = (config, path) => {
   const visualization_path = config?.outputs?.visualizations?.[0]?.path;
   // for projects using dynamic outputs
-  if (visualization_path) return visualization_path.replace(/:[a-zA-Z0-9_]+/, '*');
+  if (visualization_path) return visualization_path.replace(/:[a-zA-Z0-9_]+/g, '*');
   return path || '*.png';
+};
+// The visualizations' files, to pick them in one click: [{label, path}]
+const visualization_files = config => {
+  const seen = new Set();
+  return (config?.outputs?.visualizations ?? [])
+    .filter(v => v?.path && typeof v.path === 'string')
+    .map(v => ({ label: v.name || v.path, path: v.path.replace(/:[a-zA-Z0-9_]+/g, '*') }))
+    .filter(v => !seen.has(v.path) && seen.add(v.path))
+    .slice(0, 8);
 };
 
 export const export_help = "Gather the files matching a pattern from all the runs shown, new and reference, into a new folder";
@@ -51,12 +69,13 @@ const FIELD_HELP = {
   side: 'What the page calls the new and reference results',
   input: 'The input\'s path, without its extension',
   input_name: 'The input\'s name, without its folders',
-  settings: 'The settings you pick below',
+  settings: 'What tells runs on the same input apart',
   file: 'The file\'s path in its run\'s folder',
   platform: 'The run\'s platform',
   commit: 'The commit, 8 characters',
   batch: 'The batch',
   run: 'The run\'s id',
+  region: 'The region of interest, for crops',
 };
 
 // **/**.png => Invalid pattern: '**' can only be an entire path component
@@ -115,8 +134,33 @@ const Row = styled.div`
   gap: 4px 16px;
   align-items: flex-start;
 `;
+// The steps of the form: what to export, how it's named, crops, where
+const Step = styled.section`
+  margin-bottom: 18px;
+  > h4 { margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+`;
+// What each part of the names says
+const Parts = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  .part { display: flex; gap: 8px; align-items: flex-start; }
+  .part-body { flex: 1; min-width: 0; line-height: 20px; }
+  .part-name { font-weight: 600; margin-right: 6px; }
+  .part-values code { white-space: nowrap; }
+  .part-action { margin-left: 4px; vertical-align: baseline; }
+`;
 
 const plural = (n, word, words) => `${n} ${n === 1 ? word : (words ?? `${word}s`)}`;
+// a few values, and how many more
+const Values = ({ values, max = 4, color }) => {
+  const shown = values.slice(0, max);
+  return <span className="part-values">
+    {shown.map((v, index) => <span key={v}><code style={{ color, overflowWrap: 'anywhere' }}>{v}</code>{index < shown.length - 1 ? ', ' : ''}</span>)}
+    {values.length > max && <span className={Classes.TEXT_MUTED}> and {values.length - max} more</span>}
+  </span>;
+};
 
 const Paths = ({ folder }) => {
   const windows = linux_to_windows(folder);
@@ -133,18 +177,19 @@ const template_fields = template => {
 };
 
 // How to make names unique: [{text, fix}], `fix` changes the settings
-const collision_fixes = (naming, candidates, picked) => {
+const collision_fixes = (naming, candidates, picked, has_reference) => {
   const out = [];
   const fields = template_fields(naming.template);
   const add = field => ({ template: `${naming.template}__{${field}}` });
   if (!fields.includes('file')) out.push({ text: <>Add <code>{'{file}'}</code>: runs have several files matching the pattern</>, fix: add('file') });
+  else if (naming.file_in_names !== true) out.push({ text: <>Always say the file</>, fix: { file_in_names: true } });
   if (!fields.includes('input') && !fields.includes('input_name')) out.push({ text: <>Add <code>{'{input}'}</code></>, fix: add('input') });
   if (fields.includes('input_name') && !fields.includes('input'))
     out.push({ text: <>Use <code>{'{input}'}</code>, not <code>{'{input_name}'}</code>: inputs in different folders have the same name</>, fix: { template: naming.template.replaceAll('{input_name}', '{input}') } });
   const unpicked = candidates.filter(c => !picked.includes(c.key));
   if (!fields.includes('settings') && candidates.length > 0) out.push({ text: <>Add <code>{'{settings}'}</code>, to tell runs on the same input apart</>, fix: add('settings') });
   else if (unpicked.length > 0) out.push({ text: <>Say all the settings that differ: {unpicked.map(c => c.key).join(', ')}</>, fix: { settings_keys: candidates.map(c => c.key) } });
-  if (!fields.includes('side')) out.push({ text: <>Add <code>{'{side}'}</code>: new and reference files have the same names</>, fix: add('side') });
+  if (!fields.includes('side') && has_reference) out.push({ text: <>Add <code>{'{side}'}</code>: new and reference files have the same names</>, fix: add('side') });
   if (!fields.includes('run')) out.push({ text: <>Add <code>{'{run}'}</code>, the run's id: always unique</>, fix: add('run') });
   return out;
 };
@@ -170,26 +215,41 @@ const ProblemList = ({ items, more }) => <ul style={{ margin: '4px 0', paddingLe
   {more > 0 && <li className={Classes.TEXT_MUTED}>and {more} more</li>}
 </ul>;
 
-// Saved export settings: pick one, save the form as one, delete one
-const Presets = ({ project, settings, onLoad }) => {
+
+// Saved export settings: a menu of the presets, with those that don't fit these runs disabled, and why. Save the form
+// as one, delete the one loaded.
+const Presets = ({ project, settings, onLoad, fit_context }) => {
   const presets = usePrefsStore(state => state.exportPresets);
   const save = usePrefsStore(state => state.saveExportPreset);
   const remove = usePrefsStore(state => state.deleteExportPreset);
-  const [selected, setSelected] = useState('');
+  const [loaded, setLoaded] = useState(null);
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState('');
   const [this_project, setThisProject] = useState(false);
   const available = presets_for(presets, project);
-  const current = available.find(p => p.id === selected);
-  return <FormGroup label="Saved settings" helperText={saving ? null : 'Your last export\'s settings come back by themselves. Save presets for what your scripts expect.'}>
-    <Row style={{ alignItems: 'center' }}>
-      <HTMLSelect aria-label="Saved settings" value={selected} onChange={e => {
-        setSelected(e.target.value);
-        const preset = available.find(p => p.id === e.target.value);
-        if (preset) onLoad(preset.settings);
-      }} options={[{ value: '', label: available.length ? 'Load a preset…' : 'No presets yet' }, ...available.map(p => ({ value: p.id, label: p.project ? `${p.name} (this project)` : p.name }))]}/>
-      {!saving && <Button size="small" variant="outlined" icon="floppy-disk" text="Save as preset…" onClick={() => { setSaving(true); setName(current?.name ?? ''); }}/>}
-      {current && !saving && <Button size="small" variant="minimal" icon="trash" aria-label={`Delete the preset ${current.name}`} onClick={() => { remove(current.id); setSelected(''); }}/>}
+  const current = available.find(p => p.id === loaded);
+  const menu = <Menu aria-label="Presets" style={{ maxWidth: 420 }}>
+    {available.length === 0 && <MenuItem disabled text="No presets yet" multiline
+      label={null} labelElement={null} icon="info-sign"/>}
+    {available.map(preset => {
+      const fit = preset_fit(preset.settings, fit_context);
+      return <MenuItem key={preset.id} icon={preset.id === loaded ? 'tick' : 'bookmark'} multiline disabled={!!fit.disabled}
+        label={preset.project ? 'this project' : undefined} onClick={() => { setLoaded(preset.id); onLoad(preset.settings); }}
+        text={<span>
+          {preset.name}
+          {fit.disabled && <span className={Classes.TEXT_MUTED} style={{ display: 'block', fontSize: 12 }}>Doesn't fit these runs. {fit.disabled}.</span>}
+          {!fit.disabled && fit.notes.map(note => <span key={note} className={Classes.TEXT_MUTED} style={{ display: 'block', fontSize: 12 }}>{note}</span>)}
+        </span>}/>;
+    })}
+    <MenuDivider/>
+    <MenuItem icon="floppy-disk" text="Save these settings as a preset…" onClick={() => { setSaving(true); setName(current?.name ?? ''); }}/>
+  </Menu>;
+  return <div style={{ marginBottom: 14 }}>
+    <Row style={{ alignItems: 'center', gap: 8 }}>
+      <PopoverNext content={menu} placement="bottom-start">
+        <Button size="small" variant="outlined" icon="bookmark" endIcon="caret-down" text={current ? `Preset: ${current.name}` : 'Presets'}/>
+      </PopoverNext>
+      {current && !saving && <Button size="small" variant="minimal" icon="trash" aria-label={`Delete the preset ${current.name}`} onClick={() => { remove(current.id); setLoaded(null); }}/>}
     </Row>
     {saving && <Row style={{ alignItems: 'center', marginTop: 6 }}>
       <InputGroup small autoFocus aria-label="Preset name" placeholder="e.g. For the IQ report script" value={name} onChange={e => setName(e.target.value)}
@@ -203,7 +263,88 @@ const Presets = ({ project, settings, onLoad }) => {
         }}/>
       <Button size="small" variant="minimal" text="Cancel" onClick={() => setSaving(false)}/>
     </Row>}
-  </FormGroup>;
+  </div>;
+};
+
+
+// Which settings names say, and how
+const SettingsPicker = ({ plan, naming, update, onToggle }) => <div style={{ margin: '6px 0 2px' }}>
+  <div role="group" aria-label="Settings in names" style={{ display: 'flex', flexWrap: 'wrap', gap: '0 16px' }}>
+    {plan.candidates.map(c => <Checkbox key={c.key} inline style={{ margin: '2px 0' }} checked={plan.picked.includes(c.key)} onChange={() => onToggle(c.key)}
+      labelElement={<Tooltip content={`${plural(c.values, 'value')}${c.needed ? ', differs between runs on the same input' : ', only differs between inputs'}`} placement="top" hoverOpenDelay={300}>
+        <span>{[CONFIGURATIONS, PLATFORM, BATCH, DATABASE].includes(c.key) ? c.key : <code>{c.key}</code>}{c.needed && <span className={Classes.TEXT_MUTED}> (needed)</span>}</span>
+      </Tooltip>}/>)}
+  </div>
+  {plan.picked.length > 0 && <Row style={{ marginTop: 6 }}>
+    <HTMLSelect aria-label="How settings show" value={naming.settings_format} onChange={e => update({ settings_format: e.target.value })}
+      options={SETTINGS_FORMATS.map(s => ({ value: s.value, label: s.label }))}/>
+    {naming.settings_format === 'values' && <>
+      <HTMLSelect aria-label="Parameters and their values" value={naming.settings_assign} onChange={e => update({ settings_assign: e.target.value })}
+        options={SETTINGS_ASSIGN.map(s => ({ value: s.value, label: s.label }))}/>
+      <HTMLSelect aria-label="Between settings" value={naming.settings_join} onChange={e => update({ settings_join: e.target.value })}
+        options={SETTINGS_JOIN.map(s => ({ value: s.value, label: `Joined: ${s.label}` }))}/>
+    </>}
+  </Row>}
+  <p className={Classes.TEXT_MUTED} style={{ margin: '4px 0 0', fontSize: 12 }}>
+    {plan.picked.length > 0 && SETTINGS_FORMATS.find(s => s.value === naming.settings_format)?.description} A run that doesn't set a parameter says <code>{ABSENT}</code>.
+  </p>
+</div>;
+
+
+// The regions of interest to crop, from the image viewer: presets, where the images differ, annotations, quarters
+const CropsStep = ({ crops, picked, enabled, whole, shown, onChange }) => {
+  const usable = crops.sources.filter(s => !s.disabled);
+  const unusable = crops.sources.filter(s => s.disabled);
+  const toggle = (source, checked) => {
+    const next = checked ? [...picked.filter(id => id !== source.id), source.id] : picked.filter(id => id !== source.id);
+    onChange({ crop_sources: next });
+    // finding them is what users asked for
+    if (checked && source.kind === 'find') crops.start(source.id);
+  };
+  const source_row = source => {
+    const is_picked = picked.includes(source.id);
+    const done = source.kind !== 'find' || source.searched >= source.total;
+    return <div key={source.id} style={{ marginBottom: 4 }}>
+      <Checkbox style={{ margin: 0 }} checked={is_picked && !source.disabled} disabled={!!source.disabled} onChange={e => toggle(source, e.target.checked)}
+        labelElement={<span>
+          <Tooltip content={source.disabled ?? source.description} placement="top" hoverOpenDelay={300}><span>{source.label}</span></Tooltip>
+          {source.experimental && <Tag minimal style={{ marginLeft: 6 }}>Experimental</Tag>}
+          {shown.includes(source.id) && <Tag minimal intent="primary" style={{ marginLeft: 6 }} title="The regions shown in the image viewers">shown in the viewers</Tag>}
+          {' '}<span className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>
+            {source.disabled ? source.disabled
+              : source.kind === 'quarters' ? 'top-left, top-right, bottom-left, bottom-right'
+              : source.kind === 'known' ? `${plural(source.regions, 'region')} in ${plural(source.runs, 'run')}`
+              : source.searched === 0 ? (is_picked ? '' : `in ${plural(source.total, 'run')}`)
+              : `${plural(source.regions, 'region')} in ${plural(source.runs, 'run')}${done ? '' : `, ${source.searched}/${source.total} runs searched`}`}
+          </span>
+        </span>}/>
+      {is_picked && source.kind === 'find' && !source.disabled && !done && <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 0 4px 26px' }}>
+        <div style={{ flex: 1, maxWidth: 220 }}><ProgressBar value={source.total ? source.searched / source.total : 0} animate={source.fetching > 0} stripes={source.fetching > 0} intent="primary"/></div>
+        {source.fetching > 0
+          ? <><span className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>Finding… {source.searched}/{source.total}</span><Button size="small" variant="minimal" icon="stop" text="Stop" onClick={() => crops.stop(source.id)}/></>
+          : <Button size="small" variant="minimal" icon="search" text={source.searched ? `Find in the ${source.total - source.searched} others` : `Find in the ${plural(source.total, 'run')}`} onClick={() => crops.start(source.id)}/>}
+        {source.failed > 0 && <span className="bp6-text-danger" style={{ fontSize: 12 }}>{source.failed} failed</span>}
+      </div>}
+    </div>;
+  };
+  return <Step aria-label="Regions of interest">
+    <h4 className={Classes.HEADING}>Regions of interest <span className={Classes.TEXT_MUTED} style={{ fontWeight: 400, fontSize: 13 }}>(optional)</span></h4>
+    <Switch checked={enabled} onChange={e => onChange({ crops: e.target.checked })} style={{ marginBottom: enabled ? 8 : 0 }}
+      label="Also export crops of the images' regions of interest"/>
+    {enabled && <div style={{ paddingLeft: 26 }}>
+      {usable.map(source_row)}
+      {unusable.length > 0 && <details style={{ margin: '2px 0 6px' }}>
+        <summary className={Classes.TEXT_MUTED} style={{ cursor: 'pointer', fontSize: 12 }}>{plural(unusable.length, 'other source')} can't be used here</summary>
+        {unusable.map(source_row)}
+      </details>}
+      <Checkbox style={{ margin: '6px 0 0' }} checked={whole} label="Export the whole images too" onChange={e => onChange({ whole_files: e.target.checked })}/>
+      <p className={Classes.TEXT_MUTED} style={{ fontSize: 12, margin: '4px 0 0' }}>
+        Crops are named after their <span style={{ color: 'var(--qa-export-region)' }}>region</span>: its label when it has a short one, e.g. <code>face</code>,
+        else <code>diff-01</code>, <code>diff-02</code>… (the largest difference first) or <code>roi-01</code>. Reference images are cropped at the same place.
+        Crops are new files, even when files are exported as links. <code>0.export.csv</code> says where each crop comes from.
+      </p>
+    </div>}
+  </Step>;
 };
 
 
@@ -225,6 +366,9 @@ const ExportDialog = ({
   const [folder_id, setFolderId] = useState(new_folder_id);
   const [is_exporting, setExporting] = useState(false);
   const [result, setResult] = useState(null);
+  // what's open: the settings picker, renaming new and reference, more options
+  const [open_part, setOpenPart] = useState(null);
+  const [more, setMore] = useState(false);
   const path_id = useId();
   const template_id = useId();
   const path_input = useRef(null);
@@ -235,22 +379,26 @@ const ExportDialog = ({
   const folder_mode = settings.folder_mode ?? 'new';
   const folder_path = settings.folder_path ?? '';
 
+  // crops: the sources users picked, else what the viewers show, else the presets
+  const images = may_be_images(path);
+  const crops_enabled = images && !!settings.crops;
+  const shown_sets = useShownRegionSets(path);
+  // what users picked in this dialog, else what the viewers show, else what they picked last time
+  const [sources_picked, setSourcesPicked] = useState(false);
+  const chosen_sources = sources_picked || shown_sets.length === 0 ? (settings.crop_sources ?? null) : null;
+  const crops = useCrops({ enabled: crops_enabled, picked: chosen_sources, shown: shown_sets, files: path, new_batch, ref_batch });
+  const crop_sources = crops.picked;
+  const whole_files = settings.whole_files ?? true;
+
   const label_new = label_overrides.new.trim() || labels?.new || 'new';
   const label_ref = label_overrides.reference.trim() || labels?.reference || 'reference';
-  const plan = export_runs({ new_batch, ref_batch, labels: { new: label_new, reference: label_ref }, naming });
+  const plan = export_runs({ new_batch, ref_batch, labels: { new: label_new, reference: label_ref }, naming, regions: crops.regions });
   const has_reference = plan.counts.reference > 0;
   const fields = template_fields(naming.template);
+  const nb_regions = crops_enabled ? plan.items.filter(i => i.side === 'new').reduce((n, i) => n + (i.regions?.length ?? 0), 0) : 0;
 
   let template_error = null;
   try { parse_template(naming.template); } catch (e) { template_error = e.message; }
-  // e.g. the names of a new run's file and its reference's. Until the server lists the files, with the pattern as file
-  let examples = [];
-  try {
-    if (!template_error) examples = [
-      example_name(plan.items[0], naming, path, new_commit_id, selected_batch_new),
-      has_reference && example_name(plan.items.find(i => i.side === 'reference'), naming, path, ref_commit_id, selected_batch_ref),
-    ].filter(Boolean);
-  } catch (e) { template_error = e.message; }
 
   // links only work on the same filesystem
   const batch_dir = (batch_dir_url ?? '').slice(2);
@@ -265,6 +413,8 @@ const ExportDialog = ({
     template: naming.template,
     separator: naming.separator,
     windows: naming.windows,
+    file_in_names: naming.file_in_names === 'auto' ? 'auto' : true,
+    ...(crops_enabled && nb_regions > 0 ? { whole_files } : {}),
     type,
     folder: folder_mode === 'path' ? { path: folder_path.trim(), id: folder_id } : { name: folder_name.trim(), id: folder_id },
     sides: {
@@ -287,6 +437,32 @@ const ExportDialog = ({
   const p = can_preview ? preview.data : null;
   const checking = can_preview && (!is_current || preview.isFetching);
 
+  // the names, as colored parts: the server's when it listed the files, else an example from the pattern
+  const side_fields = item => item_fields(item, item?.side === 'reference'
+    ? { commit_id: ref_commit_id, batch_label: selected_batch_ref }
+    : { commit_id: new_commit_id, batch_label: selected_batch_new });
+  const file_in_names = p && is_current && typeof p.file_in_names === 'boolean' ? p.file_in_names : guess_file_in_names(naming, path);
+  const parts_of = f => {
+    const item = plan.items[f.item];
+    if (!is_current || !item || item.id !== f.run) return null;
+    try {
+      const parts = file_name_parts(f.region ? crop_template(naming.template) : naming.template, { ...side_fields(item), region: f.region ?? '' }, f.file, naming.separator, naming.windows, file_in_names);
+      return parts.map(x => x.text).join('') === f.to ? parts : null;
+    } catch { return null; }
+  };
+  const example_parts = (item, region = '') => {
+    if (!item || template_error) return null;
+    try {
+      return file_name_parts(region ? crop_template(naming.template) : naming.template, { ...side_fields(item), region }, example_file(path), naming.separator, naming.windows, file_in_names);
+    } catch (e) { return { error: e.message }; }
+  };
+  const listed = p && is_current ? p.files : [];
+  const first_new = listed.find(f => f.side === 'new' && !f.region) ?? listed.find(f => f.side === 'new');
+  const first_item = plan.items.find(i => i.side === 'new');
+  const example = (first_new && parts_of(first_new)) ?? example_parts(first_item, crops_enabled && !whole_files ? first_item?.regions?.[0]?.name : '');
+  if (example?.error && !template_error) template_error = example.error;
+  const example_side = 'new';
+
   const setLayout = key => {
     const layout = LAYOUTS.find(l => l.key === key);
     if (layout) update({ layout: key, template: layout.template, separator: layout.separator });
@@ -306,12 +482,13 @@ const ExportDialog = ({
     update({ settings_keys: plan.candidates.map(c => c.key).filter(k => picked.has(k)) });
   };
 
-  const can_export = can_preview && is_current && !preview.isFetching && !preview.error && p && p.nb_files > 0 && p.nb_collisions === 0 && !(p.nb_too_long > 0);
+  const finding = crops_enabled ? crops.finding : [];
+  const can_export = can_preview && is_current && !preview.isFetching && !preview.error && p && p.nb_files > 0 && p.nb_collisions === 0 && !(p.nb_too_long > 0) && finding.length === 0;
   const doExport = () => {
     setExporting(true);
     http.post('/api/v1/exports', body, { params: { project } })
       .then(({ data }) => {
-        track('export_start', { export_type: type, n_runs: data.nb_runs, n_files: data.nb_files_exported, layout: layout_of(naming.template, naming.separator), windows: naming.windows }, { project_id: project });
+        track('export_start', { export_type: type, n_runs: data.nb_runs, n_files: data.nb_files_exported, layout: layout_of(naming.template, naming.separator), windows: naming.windows, crops: data.nb_crops ?? 0, crop_sources: crops_enabled ? crop_sources.join(',') : '' }, { project_id: project });
         copyWithToast(linux_to_windows(data.folder), { what: 'the export folder' });
         setResult({ ...data, at: new Date() });
         // the next export starts with these settings, and goes to a new folder. Which settings names say depends on
@@ -328,15 +505,139 @@ const ExportDialog = ({
   };
 
   const layout = layout_of(naming.template, naming.separator);
-  if (p && is_current && p.files.length > 0)
-    examples = [p.files.find(f => f.side === 'new'), p.files.find(f => f.side === 'reference')].filter(Boolean).map(f => f.to);
-  // a new file's name, and its reference's when they're short enough to read both
-  const example = examples.join(', ').length > 140 ? examples[0] : examples.join(', ');
   const same_name = name => naming.windows ? name.toLowerCase() : name;
   const collided = new Set((p?.collisions ?? []).map(c => same_name(c.to)));
   const too_long = new Set((p?.too_long ?? []).map(t => t.to));
   const requirements = cli_requirements?.length ? cli_requirements : ['qaboard'];
   const snippet = python_snippet(runs_url({ project, commit_id: new_commit_id, batch: selected_batch_new, filter: filter_batch_new, ref_project, ref_commit_id, batch_ref: selected_batch_ref, filter_ref: filter_batch_ref }), requirements);
+  const sides = labels?.colors;
+  const quick_files = visualization_files(config).filter(v => v.path !== path);
+
+  // the values each part takes
+  const new_items = plan.items.filter(i => i.side === 'new');
+  const inputs = [...new Set(new_items.map(i => i.fields.input))];
+  const settings_values = [...new Set(new_items.map(i => i.fields.settings).filter(Boolean))];
+  const files_listed = [...new Set(listed.filter(f => !f.region).map(f => f.file))];
+  const region_names = [...new Set(new_items.flatMap(i => (i.regions ?? []).map(r => r.name)))];
+  const needed = plan.candidates.filter(c => c.needed);
+
+  // What each part of the names says, and the values it takes. The parts names don't need say why.
+  const part = (field, { title, body, muted, action, children }) => <div className="part" key={field}>
+    <FieldDot field={field} side="new" sides={sides} muted={muted}/>
+    <div className="part-body" style={muted ? { color: 'var(--qa-text-muted)' } : undefined}>
+      <span className="part-name" style={!muted && ['settings', 'file', 'region'].includes(field) ? { color: `var(--qa-export-${field})` } : undefined}>{title}</span>
+      {body}
+      {action}
+      {children}
+    </div>
+  </div>;
+  const has = field => fields.includes(field);
+  const parts_list = <Parts aria-label="What names say">
+    {(has('input') || has('input_name')) && part(has('input') ? 'input' : 'input_name', {
+      title: has('input') ? 'Input' : 'Input\'s name',
+      body: <>{has('input') ? 'the input\'s path, without its extension' : 'the input\'s name, without its folders'}: {inputs.length > 1 ? <>{plural(inputs.length, 'input')}, </> : null}<Values values={inputs.map(i => has('input') ? i : i.split('/').pop())}/></>,
+    })}
+    {has('settings') && (plan.picked.length > 0
+      ? part('settings', {
+          title: 'Settings',
+          body: <>what tells runs on the same input apart: <Values values={settings_values} color="var(--qa-export-settings)"/></>,
+          action: <Button className="part-action" size="small" variant="minimal" intent="primary" text={open_part === 'settings' ? 'Done' : 'Change'} onClick={() => setOpenPart(open_part === 'settings' ? null : 'settings')}/>,
+          children: open_part === 'settings' && <SettingsPicker plan={plan} naming={naming} update={update} onToggle={toggleSetting}/>,
+        })
+      : part('settings', {
+          title: 'Settings', muted: true,
+          body: plan.candidates.length === 0
+            ? 'not needed: the runs have the same settings.'
+            : needed.length === 0 ? 'not needed: settings only differ between inputs.' : 'not in names: runs on the same input will get the same names.',
+          action: plan.candidates.length > 0 && <Button className="part-action" size="small" variant="minimal" intent="primary" text={open_part === 'settings' ? 'Done' : 'Pick some'} onClick={() => setOpenPart(open_part === 'settings' ? null : 'settings')}/>,
+          children: open_part === 'settings' && <SettingsPicker plan={plan} naming={naming} update={update} onToggle={toggleSetting}/>,
+        }))}
+    {has('file') && (file_in_names
+      ? part('file', {
+          title: 'File',
+          body: <>the file's path in its run's folder{files_listed.length > 0 && <>: <Values values={files_listed} color="var(--qa-export-file)"/></>}{naming.file_in_names === 'auto' && <span className={Classes.TEXT_MUTED}> (runs have several files)</span>}</>,
+        })
+      : part('file', {
+          title: 'File', muted: true,
+          body: <>left out: each run has one file matching <code>{path}</code>. Its extension ends the name.</>,
+          action: <Button className="part-action" size="small" variant="minimal" intent="primary" text="Always say it" onClick={() => update({ file_in_names: true })}/>,
+        }))}
+    {crops_enabled && region_names.length > 0 && part('region', {
+      title: 'Region',
+      body: <>crops only: <Values values={region_names} color="var(--qa-export-region)"/></>,
+    })}
+    {has('side') && (has_reference
+      ? part('side', {
+          title: 'New or reference',
+          body: <>what the page calls them: <code style={{ color: sides?.new?.css ?? 'var(--qa-side-0)', fontWeight: 600 }}>{plan.labels.new}</code> for the new results,{' '}
+            <code style={{ color: sides?.reference?.css ?? 'var(--qa-side-1)', fontWeight: 600 }}>{plan.labels.reference}</code> for the reference</>,
+          action: <Button className="part-action" size="small" variant="minimal" intent="primary" text={open_part === 'side' ? 'Done' : 'Rename'} onClick={() => setOpenPart(open_part === 'side' ? null : 'side')}/>,
+          children: open_part === 'side' && <Row style={{ marginTop: 4 }}>
+            <FormGroup label="New results" labelFor={`${template_id}-new`} style={{ margin: 0 }}>
+              <InputGroup id={`${template_id}-new`} small value={label_overrides.new} placeholder={labels?.new || 'new'} onChange={e => setLabelOverrides(l => ({ ...l, new: e.target.value }))}/>
+            </FormGroup>
+            <FormGroup label="Reference" labelFor={`${template_id}-ref`} style={{ margin: 0 }}>
+              <InputGroup id={`${template_id}-ref`} small value={label_overrides.reference} placeholder={labels?.reference || 'reference'} onChange={e => setLabelOverrides(l => ({ ...l, reference: e.target.value }))}/>
+            </FormGroup>
+          </Row>,
+        })
+      : part('side', {
+          title: 'New or reference', muted: true,
+          body: 'not needed: there\'s no reference, you export one version.',
+        }))}
+  </Parts>;
+
+  // the options most people don't need, and how many differ from the defaults
+  const layout_info = LAYOUTS.find(l => l.key === layout);
+  const changed = [
+    type !== 'link', folder_mode !== 'new', !naming.windows, naming.file_in_names !== 'auto', !naming.pair_references,
+    layout === 'custom', layout_info && naming.separator !== layout_info.separator,
+  ].filter(Boolean).length;
+  const more_options = <>
+    <FormGroup label="As" helperText={type === 'link'
+      ? 'Links: nothing is copied, the exported files are the runs\' files. Don\'t edit them.'
+      : folder_mode === 'path' && !path_is_same_fs && folder_path ? `Copies: links only work on the same filesystem (${batch_output_fs}).` : 'Copies: they take space of their own.'}>
+      <SegmentedControl aria-label="As" small value={type} onValueChange={value => update({ type: value })}
+        options={[{ label: 'Links', value: 'link', disabled: folder_mode === 'path' && !path_is_same_fs }, { label: 'Copies', value: 'copy' }]}/>
+    </FormGroup>
+    <FormGroup label="Where">
+      <SegmentedControl aria-label="Where" small value={folder_mode} onValueChange={mode => update({ folder_mode: mode })}
+        options={[{ label: 'A new folder', value: 'new' }, { label: 'A folder I choose', value: 'path' }]}/>
+    </FormGroup>
+    {folder_mode === 'path' && <FormGroup label="Folder" labelFor={`${template_id}-folder`} helperText="On the shared storage. QA-Board adds files there, it doesn't replace what's there.">
+      <InputGroup id={`${template_id}-folder`} value={folder_path} placeholder="/linux or \\windows path on the shared storage" onChange={e => update({ folder_path: e.target.value })}/>
+    </FormGroup>}
+    <Row>
+      <FormGroup label="The file in names">
+        <HTMLSelect aria-label="The file in names" value={naming.file_in_names === 'auto' ? 'auto' : 'always'} onChange={e => update({ file_in_names: e.target.value === 'auto' ? 'auto' : true })}
+          options={[{ value: 'auto', label: 'When runs have several files' }, { value: 'always', label: 'Always' }]}/>
+      </FormGroup>
+      <FormGroup label="Folders in paths" labelFor={`${template_id}-separator`}>
+        <HTMLSelect id={`${template_id}-separator`} value={naming.separator} onChange={e => update({ separator: e.target.value })}
+          options={SEPARATORS.map(s => ({ value: s.value, label: s.label }))}/>
+      </FormGroup>
+    </Row>
+    <FormGroup helperText={naming.windows
+      ? 'No \\ / : * ? " < > |, paths under 260 characters, names that differ only by case are the same.'
+      : 'Names only for Linux: paths can be long, and use any character but /.'}>
+      <Switch checked={naming.windows} label="Windows-compatible names" style={{ marginBottom: 0 }} onChange={e => update({ windows: e.target.checked })}/>
+    </FormGroup>
+    {has_reference && <FormGroup>
+      <Switch checked={naming.pair_references} style={{ marginBottom: 0 }} onChange={e => update({ pair_references: e.target.checked })}
+        labelElement={<Tooltip content="A reference run compared to several new runs is exported once per new run, with its input and settings: files pair up." placement="top">
+          <span>Name reference files like the new runs they're compared to</span>
+        </Tooltip>}/>
+    </FormGroup>}
+    <FormGroup label="Template" labelFor={template_id} helperText={template_error
+      ? <span style={{ color: 'var(--bp-intent-danger-text, #c23030)' }}>{template_error}</span>
+      : <>Fields in braces, the extension is added. Empty fields leave out the separator next to them. Add a field:{' '}
+        {FIELDS.map(f => <Tooltip key={f} content={FIELD_HELP[f]} placement="bottom" hoverOpenDelay={300}>
+          <Button size="small" variant="minimal" style={{ fontFamily: 'monospace', padding: '0 4px' }} onClick={() => insertField(f)}>{`{${f}}`}</Button>
+        </Tooltip>)}</>}>
+      <InputGroup id={template_id} inputRef={template_input} value={naming.template} intent={template_error ? 'danger' : undefined}
+        style={{ fontFamily: 'monospace' }} onChange={e => update({ template: e.target.value })}/>
+    </FormGroup>
+  </>;
 
   const preview_block = !can_preview ? null : <section aria-label="Preview" style={{ marginTop: 4 }}>
     <h4 className={Classes.HEADING} style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 6px' }}>
@@ -345,21 +646,24 @@ const ExportDialog = ({
     {preview.error && !preview.isFetching && <Callout intent="danger" icon="error">{errorMessage(preview.error)}</Callout>}
     {p && <div style={{ opacity: is_current ? 1 : 0.6 }}>
       <p style={{ marginBottom: 6 }}>
-        <strong>{plural(p.nb_files, 'file')}</strong> from {plural(p.nb_runs, 'run')} into{' '}
+        <strong>{plural(p.nb_files, 'file')}</strong>{p.nb_crops > 0 && <> ({plural(p.nb_crops, 'crop')})</>} from {plural(p.nb_runs, 'run')} into{' '}
         {p.folder_exists ? 'the folder' : 'a new folder'} <code style={{ wordBreak: 'break-all' }}>{p.folder}</code>
         {type === 'link' ? ', as links to the runs\' files.' : ', as copies.'}
       </p>
       {p.runs_without_files > 0 && <p className={Classes.TEXT_MUTED} style={{ marginBottom: 6 }}>
         {plural(p.runs_without_files, 'run has', 'runs have')} no file matching <code>{path}</code>.
       </p>}
+      {p.nb_not_croppable > 0 && <p className={Classes.TEXT_MUTED} style={{ marginBottom: 6 }}>
+        {plural(p.nb_not_croppable, 'file isn\'t an image', 'files aren\'t images')} QA-Board can crop (PNG, JPEG, TIFF, BMP, WebP), e.g. <code>{p.not_croppable?.[0]}</code>: exported whole.
+      </p>}
       {p.nb_files === 0 && <Callout intent="warning" icon="search">No file matches <code>{path}</code> in these runs: check the pattern, e.g. <code>**/*.png</code> looks in subfolders too.</Callout>}
       {p.nb_collisions > 0 && <Callout intent="danger" icon="duplicate" title={`${plural(p.nb_collisions, 'name is', 'names are')} used by several files`} style={{ marginBottom: 8 }}>
         <ProblemList more={p.nb_collisions - p.collisions.length} items={p.collisions.slice(0, 5).map(c => <span key={c.to}>
-          <code>{c.to}</code>: {c.sources.map(s => `run ${s.run} (${s.side}) ${s.file}`).join(', ')}{c.count > c.sources.length ? '…' : ''}
+          <code>{c.to}</code>: {c.sources.map(s => `run ${s.run} (${s.side}) ${s.file}${s.region ? ` ${s.region}` : ''}`).join(', ')}{c.count > c.sources.length ? '…' : ''}
         </span>)}/>
         {naming.windows && <p className={Classes.TEXT_MUTED} style={{ margin: '4px 0' }}>Names that differ only by case are the same name on Windows.</p>}
         <p style={{ margin: '6px 0 0' }}>To make names unique:</p>
-        <Fixes fixes={collision_fixes(naming, plan.candidates, plan.picked)} onFix={update}/>
+        <Fixes fixes={collision_fixes(naming, plan.candidates, plan.picked, has_reference)} onFix={update}/>
       </Callout>}
       {p.nb_too_long > 0 && <Callout intent="danger" icon="widget-button" style={{ marginBottom: 8 }}
         title={`${plural(p.nb_too_long, 'path is', 'paths are')} too long for Windows`}>
@@ -378,15 +682,18 @@ const ExportDialog = ({
         <ProblemList items={p.errors.map(e => <code key={e}>{e}</code>)}/>
       </Callout>}
       {p.folders_skipped > 0 && <p className={Classes.TEXT_MUTED}>{plural(p.folders_skipped, 'folder matches', 'folders match')} the pattern: QA-Board exports files, e.g. <code>folder/**/*</code>.</p>}
-      {p.files.length > 0 && <div role="list" aria-label="Exported files" style={{ maxHeight: 'min(440px, 45vh)', overflow: 'auto', border: '1px solid var(--qa-border)', borderRadius: 3, padding: '4px 8px', fontFamily: 'var(--bp-typography-family-mono, monospace)', fontSize: 12 }}>
-        {p.files.map((f, index) => <div role="listitem" key={index} style={{ display: 'flex', gap: 8, alignItems: 'baseline', padding: '1px 0' }} title={`run ${f.run}, ${f.file}`}>
-          <span style={{ flex: 1, minWidth: 0, wordBreak: 'break-all' }}>{f.to}</span>
-          {collided.has(same_name(f.to)) && <Tag minimal intent="danger">same name</Tag>}
-          {too_long.has(f.to) && <Tag minimal intent="danger">too long</Tag>}
-          {f.exists && <Tag minimal intent={p.existing_policy === 'replace' ? 'warning' : 'primary'}>{p.existing_policy === 'replace' ? 'replaced' : 'kept'}</Tag>}
-          <span className={Classes.TEXT_MUTED} style={{ whiteSpace: 'nowrap' }}>{f.side === 'reference' ? 'ref' : 'new'}</span>
-        </div>)}
-        {p.nb_files > p.files.length && <div className={Classes.TEXT_MUTED}>and {p.nb_files - p.files.length} more</div>}
+      {p.files.length > 0 && <div role="list" aria-label="Exported files" style={{ maxHeight: 'min(440px, 45vh)', overflow: 'auto', border: '1px solid var(--qa-border)', borderRadius: 3, padding: '4px 0', fontFamily: 'var(--bp-typography-family-mono, monospace)', fontSize: 12 }}>
+        {p.files.map((f, index) => {
+          const parts = parts_of(f);
+          return <div role="listitem" key={index} title={`run ${f.run} (${f.side}), ${f.file}${f.region ? `, region ${f.region}` : ''}`}
+            style={{ display: 'flex', gap: 8, alignItems: 'baseline', padding: '1px 8px', background: index % 2 ? 'var(--qa-surface-alt)' : undefined }}>
+            <span style={{ flex: 1, minWidth: 0, wordBreak: 'break-all', paddingLeft: f.region ? 12 : 0 }}>{parts ? <NameParts parts={parts} side={f.side} sides={sides}/> : f.to}</span>
+            {collided.has(same_name(f.to)) && <Tag minimal intent="danger">same name</Tag>}
+            {too_long.has(f.to) && <Tag minimal intent="danger">too long</Tag>}
+            {f.exists && <Tag minimal intent={p.existing_policy === 'replace' ? 'warning' : 'primary'}>{p.existing_policy === 'replace' ? 'replaced' : 'kept'}</Tag>}
+          </div>;
+        })}
+        {p.nb_files > p.files.length && <div className={Classes.TEXT_MUTED} style={{ padding: '0 8px' }}>and {p.nb_files - p.files.length} more</div>}
       </div>}
     </div>}
   </section>;
@@ -404,107 +711,64 @@ const ExportDialog = ({
         </Callout>}
   </section>;
 
-  const settings_section = <FormGroup label="Settings in names" labelInfo={<code>{'{settings}'}</code>} helperText={plan.candidates.length === 0
-    ? 'All the runs shown have the same settings: names don\'t need them.'
-    : <>What differs between the runs shown. Checked by default: what differs between runs on the same input, or their files would get the same names. A run that doesn't set a parameter says <code>{ABSENT}</code>.{!fields.includes('settings') && <> Add <code>{'{settings}'}</code> to the template to use them.</>}</>}>
-    {plan.candidates.length > 0 && <>
-      <div role="group" aria-label="Settings in names" style={{ display: 'flex', flexWrap: 'wrap', gap: '0 16px' }}>
-        {plan.candidates.map(c => <Checkbox key={c.key} inline style={{ margin: '2px 0' }} checked={plan.picked.includes(c.key)} onChange={() => toggleSetting(c.key)}
-          labelElement={<Tooltip content={`${plural(c.values, 'value')}${c.needed ? ', differs between runs on the same input' : ''}`} placement="top" hoverOpenDelay={300}>
-            <span>{c.key === CONFIGURATIONS ? 'configurations' : c.key === PLATFORM ? 'platform' : <code>{c.key}</code>}{c.needed && <span className={Classes.TEXT_MUTED}> (differs on an input)</span>}</span>
-          </Tooltip>}/>)}
-      </div>
-      {plan.picked.length > 0 && <Row style={{ marginTop: 6 }}>
-        <HTMLSelect aria-label="How settings show" value={naming.settings_format} onChange={e => update({ settings_format: e.target.value })}
-          options={SETTINGS_FORMATS.map(s => ({ value: s.value, label: s.label }))}/>
-        {naming.settings_format === 'values' && <>
-          <HTMLSelect aria-label="Parameters and their values" value={naming.settings_assign} onChange={e => update({ settings_assign: e.target.value })}
-            options={SETTINGS_ASSIGN.map(s => ({ value: s.value, label: s.label }))}/>
-          <HTMLSelect aria-label="Between settings" value={naming.settings_join} onChange={e => update({ settings_join: e.target.value })}
-            options={SETTINGS_JOIN.map(s => ({ value: s.value, label: `Joined: ${s.label}` }))}/>
-        </>}
-      </Row>}
-      {plan.picked.length > 0 && <p className={Classes.TEXT_MUTED} style={{ margin: '4px 0 0', fontSize: 12 }}>
-        {SETTINGS_FORMATS.find(s => s.value === naming.settings_format)?.description} e.g. <code>{plan.items.find(i => i.fields.settings)?.fields.settings}</code>
-      </p>}
-    </>}
-  </FormGroup>;
+  const layouts = LAYOUTS.filter(l => !l.needs_reference || has_reference || layout === l.key);
+  const export_text = finding.length > 0
+    ? `Finding regions… ${finding.reduce((n, s) => n + s.searched, 0)}/${finding.reduce((n, s) => n + s.total, 0)}`
+    : p && is_current ? `Export ${plural(p.nb_files, 'file')}` : 'Export';
 
   return <Dialog isOpen={isOpen} onClose={onClose} title="Export files" icon="export" style={{ width: 'min(1180px, calc(100vw - 32px))' }}
     onOpened={() => path_input.current?.focus()}>
     <DialogBody>
-      <Callout icon="code" style={{ marginBottom: 12 }}>
-        Running your own code on these files? You may not need an export: <strong>Script</strong>, next to Export, gives you
-        these runs in Python, with their folders, files and metrics.{' '}
-        <Button size="small" variant="minimal" icon="duplicate" text="Copy the Python snippet" onClick={() => copyWithToast(snippet, { what: 'the snippet' })}/>
-        <a href={`${docs_root}docs/user-guide/sharing#runs-in-scripts`} target="_blank" rel="noopener noreferrer">How</a>
-      </Callout>
       <Columns>
         <div>
-          <Presets project={project} settings={{ ...settings, files: path }} onLoad={preset => setSettings({ ...default_naming, ...preset })}/>
-          <FormGroup label="Files" labelFor={path_id} labelInfo="(pattern)" helperText={problem
-            ? <span style={{ color: 'var(--bp-intent-warning-text, #935610)' }}>{problem}</span>
-            : <>In each run's folder, e.g. <code>*.png</code>, <code>**/*.jpg</code> (<code>**/</code> matches any folders). {plural(plan.counts.new, 'run')}{has_reference && <> and {plural(plan.counts.reference, 'reference run')}</>}{plan.counts.without_reference > 0 && has_reference && <>, {plan.counts.without_reference} without a reference</>}.</>}>
+          <Presets project={project} settings={{ ...settings, files: path }} onLoad={preset => setSettings({ ...default_naming, ...preset })}
+            fit_context={{ new_batch, ref_batch, labels: { new: label_new, reference: label_ref } }}/>
+
+          <Step aria-label="Files">
+            <h4 className={Classes.HEADING}><label htmlFor={path_id}>Which files</label></h4>
             <InputGroup id={path_id} inputRef={path_input} value={path} placeholder="*.png" intent={problem ? 'warning' : undefined}
+              aria-label="Files" style={{ fontFamily: 'monospace' }}
               onChange={e => update({ files: e.target.value })}
               onKeyDown={e => { if (e.key === 'Enter' && can_export && !is_exporting) doExport(); }}/>
-          </FormGroup>
+            <div className={Classes.FORM_HELPER_TEXT} style={{ marginTop: 4 }}>
+              {problem
+                ? <span style={{ color: 'var(--bp-intent-warning-text, #935610)' }}>{problem}</span>
+                : <>In each run's folder, e.g. <code>*.png</code>, <code>**/*.jpg</code> (<code>**/</code>: in any folder). From {plural(plan.counts.new, 'run')}{has_reference && <> and {plural(plan.counts.reference, 'reference run')}</>}{plan.counts.without_reference > 0 && has_reference && <> ({plan.counts.without_reference} without a reference)</>}.</>}
+            </div>
+            {quick_files.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6, alignItems: 'center' }}>
+              <span className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>Visualizations:</span>
+              {quick_files.map(v => <Tag key={v.path} minimal interactive round icon="media" title={v.path} onClick={() => update({ files: v.path })}>{v.label}</Tag>)}
+            </div>}
+          </Step>
 
-          <FormGroup label="Names" helperText={LAYOUTS.find(l => l.key === layout)?.description ?? 'Your own template.'}>
-            <SegmentedControl aria-label="Layout" small options={[...LAYOUTS.map(l => ({ label: l.label, value: l.key })), { label: 'Custom', value: 'custom', disabled: layout !== 'custom' }]}
-              value={layout} onValueChange={setLayout}/>
-          </FormGroup>
-          <FormGroup label="Template" labelFor={template_id} helperText={template_error
-            ? <span style={{ color: 'var(--bp-intent-danger-text, #c23030)' }}>{template_error}</span>
-            : <>{example && <>e.g. <code style={{ wordBreak: 'break-all' }}>{example}</code>. </>}The extension is added. Add a field:{' '}
-              {FIELDS.map(f => <Tooltip key={f} content={FIELD_HELP[f]} placement="bottom" hoverOpenDelay={300}>
-                <Button size="small" variant="minimal" style={{ fontFamily: 'monospace', padding: '0 4px' }} onClick={() => insertField(f)}>{`{${f}}`}</Button>
-              </Tooltip>)}</>}>
-            <InputGroup id={template_id} inputRef={template_input} value={naming.template} intent={template_error ? 'danger' : undefined}
-              style={{ fontFamily: 'monospace' }} onChange={e => update({ template: e.target.value })}/>
-          </FormGroup>
-          {settings_section}
-          <Row>
-            <FormGroup label="Folders in paths" labelFor={`${template_id}-separator`}>
-              <HTMLSelect id={`${template_id}-separator`} value={naming.separator} onChange={e => update({ separator: e.target.value })}
-                options={SEPARATORS.map(s => ({ value: s.value, label: s.label }))}/>
-            </FormGroup>
-            <FormGroup label="Windows" helperText={naming.windows
-              ? 'No \\ / : * ? " < > |, paths under 260 characters, names that differ only by case are the same.'
-              : 'Names only for Linux: paths can be long, and use any character but /.'}>
-              <Switch checked={naming.windows} label="Windows-compatible names" style={{ marginBottom: 0 }} onChange={e => update({ windows: e.target.checked })}/>
-            </FormGroup>
-          </Row>
-          {has_reference && <Row>
-            <FormGroup label={<>New results are called <code>{'{side}'}</code> =</>} labelFor={`${template_id}-new`}>
-              <InputGroup id={`${template_id}-new`} small value={label_overrides.new} placeholder={labels?.new || 'new'} onChange={e => setLabelOverrides(l => ({ ...l, new: e.target.value }))}/>
-            </FormGroup>
-            <FormGroup label="the reference" labelFor={`${template_id}-ref`}>
-              <InputGroup id={`${template_id}-ref`} small value={label_overrides.reference} placeholder={labels?.reference || 'reference'} onChange={e => setLabelOverrides(l => ({ ...l, reference: e.target.value }))}/>
-            </FormGroup>
-            <Switch checked={naming.pair_references} onChange={e => update({ pair_references: e.target.checked })}
-              labelElement={<Tooltip content="A reference run compared to several new runs is exported once per new run, with its input and settings: files pair up." placement="top">
-                <span>Name reference files like the new runs they're compared to</span>
-              </Tooltip>}/>
-          </Row>}
+          <Step aria-label="Names">
+            <h4 className={Classes.HEADING}>Names</h4>
+            {example && !example.error && <NameAnatomy parts={example} side={example_side} sides={sides}/>}
+            {parts_list}
+            <div style={{ marginTop: 10 }}>
+              <SegmentedControl aria-label="Layout" small options={[...layouts.map(l => ({ label: l.label, value: l.key })), ...(layout === 'custom' ? [{ label: 'Custom', value: 'custom' }] : [])]}
+                value={layout} onValueChange={setLayout}/>
+              <div className={Classes.FORM_HELPER_TEXT} style={{ marginTop: 4 }}>{layout_info?.description ?? 'Your own template, in More options.'}</div>
+            </div>
+          </Step>
 
-          <FormGroup label="Where">
-            <SegmentedControl aria-label="Where" small value={folder_mode} onValueChange={mode => update({ folder_mode: mode })}
-              options={[{ label: 'A new folder', value: 'new' }, { label: 'A folder I choose', value: 'path' }]}/>
-          </FormGroup>
-          {folder_mode === 'new'
-            ? <FormGroup label="Name of the export" labelInfo="(optional)" labelFor={`${template_id}-name`} helperText="In the folder's name, after the date: find it later in Storage usage → Exports.">
-                <InputGroup id={`${template_id}-name`} value={folder_name} placeholder="e.g. night-scenes-for-review" onChange={e => setFolderName(e.target.value)}/>
-              </FormGroup>
-            : <FormGroup label="Folder" labelFor={`${template_id}-folder`} helperText="On the shared storage. QA-Board adds files there, it doesn't replace what's there.">
-                <InputGroup id={`${template_id}-folder`} value={folder_path} placeholder="/linux or \\windows path on the shared storage" onChange={e => update({ folder_path: e.target.value })}/>
-              </FormGroup>}
-          <FormGroup label="As" helperText={type === 'link'
-            ? 'Hard links: nothing is copied, the exported files are the runs\' files.'
-            : folder_mode === 'path' && !path_is_same_fs && folder_path ? `Copies: links only work on the same filesystem (${batch_output_fs}).` : 'Copies: they take space of their own.'}>
-            <SegmentedControl aria-label="As" small value={type} onValueChange={value => update({ type: value })}
-              options={[{ label: 'Links', value: 'link', disabled: folder_mode === 'path' && !path_is_same_fs }, { label: 'Copies', value: 'copy' }]}/>
-          </FormGroup>
+          {images && <CropsStep crops={crops} picked={crop_sources} enabled={crops_enabled} whole={whole_files} shown={shown_sets}
+            onChange={changes => { if (changes.crop_sources) setSourcesPicked(true); update(changes); }}/>}
+
+          <Step aria-label="Where">
+            {folder_mode === 'new'
+              ? <FormGroup label={<strong>Name of the export</strong>} labelInfo="(optional)" labelFor={`${template_id}-name`} helperText="In the new folder's name, after the date: find it later in Storage usage → Exports." style={{ marginBottom: 0 }}>
+                  <InputGroup id={`${template_id}-name`} value={folder_name} placeholder="e.g. night-scenes-for-review" onChange={e => setFolderName(e.target.value)}/>
+                </FormGroup>
+              : <p style={{ margin: 0 }}>Into <code>{folder_path || '…'}</code>, the folder you chose in More options.</p>}
+          </Step>
+
+          <Button variant="minimal" size="small" icon={more ? 'chevron-down' : 'chevron-right'} onClick={() => setMore(!more)} aria-expanded={more}>
+            More options{changed > 0 && <Tag minimal round style={{ marginLeft: 6 }}>{changed} changed</Tag>}
+          </Button>
+          <Collapse isOpen={more} keepChildrenMounted>
+            <div style={{ padding: '10px 0 0 22px' }}>{more_options}</div>
+          </Collapse>
         </div>
         <div className="export-preview">
           {result_block}
@@ -515,10 +779,13 @@ const ExportDialog = ({
     </DialogBody>
     <DialogFooter actions={<>
       <Button text="Close" onClick={onClose}/>
-      <Button intent="primary" icon="export" loading={is_exporting} disabled={!can_export}
-        text={p && is_current ? `Export ${plural(p.nb_files, 'file')}` : 'Export'} onClick={doExport}/>
+      <Button intent="primary" icon="export" loading={is_exporting} disabled={!can_export} text={export_text} onClick={doExport}/>
     </>}>
-      <a className={Classes.TEXT_SMALL} target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/user-guide/sharing#exporting-files`}>How names work</a>
+      <span className={Classes.TEXT_SMALL}>
+        <span className={Classes.TEXT_MUTED}>Running your own code on these files? You may not need an export:</span>{' '}
+        <Button size="small" variant="minimal" icon="code" text="Copy a Python snippet" onClick={() => copyWithToast(snippet, { what: 'the snippet' })}/>
+        <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/user-guide/sharing#exporting-files`}>How exports work</a>
+      </span>
     </DialogFooter>
   </Dialog>;
 };

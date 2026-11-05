@@ -551,9 +551,9 @@ shot('commit/output-filter', {
 shot('commit/export', {
   project: IQ,
   url: d => d.commitUrl(IQ, 'merge-bilateral', { reference: 'isp-4-1', view: 'output-list', filter: 'photos low-light' }),
-  alt: 'The Export dialog: the pattern *.png and how files are named on the left; on the right, the preview of the '
-    + 'names of the new and reference files, and the new folder they go to.',
-  caption: 'Export lists the names of the files before exporting them, and the folder they go to.',
+  alt: 'The Export dialog: on the left, the files and an example name, each part in its color with its name under it, '
+    + 'and what each part says; on the right, the preview of the new and reference files\' names in the same colors, and the new folder they go to.',
+  caption: 'Export shows what each part of the names says, every file\'s name in color, and the folder they go to.',
   actions: async ui => {
     // the button next to the view's title opens the export dialog, its preview comes from the server
     await ui.click(ui.page.getByRole('button', { name: 'Export files', exact: true }));

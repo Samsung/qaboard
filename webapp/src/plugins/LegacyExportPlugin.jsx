@@ -203,7 +203,7 @@ const LegacyExportPlugin = props => {
   return <PopoverNext content={form} placement="bottom-end" onOpened={() => path_input.current?.focus()}>
     {/* the focus comes back to the button when the popover closes: that shouldn't open the tooltip */}
     <Tooltip content={legacy_export_help} placement="top" openOnTargetFocus={false}>
-      <Button variant="minimal" icon="history" text="Export (legacy)" aria-label="Export files (legacy)"/>
+      <Button variant="outlined" icon="history" text="Export (legacy)" aria-label="Export files (legacy)"/>
     </Tooltip>
   </PopoverNext>
 };

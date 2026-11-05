@@ -86,25 +86,33 @@ runs, new and reference, into a new folder, and shows you every file's name befo
 
 1. Filter the runs you want, e.g. `low-light` (see [Filter the runs](/docs/user-guide/finding-results#filter-syntax)).
 2. Click **Export** at the right of the view's title.
-3. Type a pattern, like `*.png`, `*.txt` or `**/*.jpg` (`**/` matches any number of folders).
-4. Pick how files are named, or load a preset you saved. The **Preview** lists the names the export will use, and says
-   if two files would get the same name, if paths are too long for Windows, or if files are already there.
+3. Under **Which files**, type a pattern, like `*.png`, `*.txt` or `**/*.jpg` (`**/` matches any number of folders),
+   or click one of the visualizations under it.
+4. Check the names: the dialog shows an example, each part in its color with its name under it, and what each part
+   says. The **Preview** lists every file's name in the same colors, and says if two files would get the same name, if
+   paths are too long for Windows, or if files are already there.
 5. Click **Export**. The folder's Windows path is copied to your clipboard, and both its Windows and Linux paths show
    in the box, with what was exported.
 
 <Shot
   id="commit/export"
-  caption="Export lists the names of the files before exporting them, and the folder they go to."
+  caption="Export shows what each part of the names says, every file's name in color, and the folder they go to."
 />
 
-Names are made of what you see on the page: the input, the file, and what the page calls the new and reference results,
-e.g. `night_street__out__new.png` and `night_street__out__v1.2.png`, or their milestones' names. Each export goes to a
-new folder: give it a name to find it later in [Storage usage](/docs/user-guide/storage-usage#exports). In the folder,
-`0.export.csv` lists each file and where it comes from (run, input, settings), and `0.export.json` adds the runs'
-configurations, for scripts.
+Names only say what tells the files apart. Most of the time that's the input: `night_street.png`. They add, only when
+needed:
+- the **settings** that tell runs on the same input apart, e.g. when you tune parameters: `night_street__gain=4.png`,
+- the **file**, when runs have several files matching the pattern: `night_street__debug_mask.png`,
+- **new or reference**: what the page calls the new and reference results, e.g. `new` and `v1.2`, or their milestones'
+  names. Without a reference, you export one version, and names don't say it.
+
+Click **Change** next to the settings to pick them, **Rename** next to new or reference to call them something else.
+Each export goes to a new folder: give it a name to find it later in
+[Storage usage](/docs/user-guide/storage-usage#exports). In the folder, `0.export.csv` lists each file and where it
+comes from (run, input, settings, region), and `0.export.json` adds the runs' configurations, for scripts.
 
 By default, the exported files are **links** to the original files: nothing is copied, so it's fast. Don't edit them:
-you'd edit the runs' files.
+you'd edit the runs' files. To copy them, or export into a folder you choose, open **More options**.
 
 :::note The previous export
 **Export (legacy)**, next to **Export**, is the previous export, with the same names and folders as before: keep using
@@ -116,22 +124,43 @@ To run your own code on the runs' files, use **Script** next to **Export**: it g
 their folders, files and metrics, without copying or linking anything. See [Use the runs in a script](#runs-in-scripts).
 :::
 
+### Export crops of regions of interest {#export-crops}
+For images, turn on **Also export crops of the images' regions of interest**, and pick where the regions come from:
+- the regions shown in the image viewers, checked for you (tagged *shown in the viewers*),
+- **Presets**: the regions of the inputs' metadata and of the configurations,
+- **Where they differ**: QA-Board compares each image with its reference and finds where they differ most, like in
+  the [image viewer](/docs/user-guide/image-viewer). It searches all the runs as soon as you check it, and the viewers
+  show what it found. It needs one file, e.g. `out.png`, not a pattern,
+- your site's annotations, if it has some,
+- **Quarters** (experimental): the 4 quarters of each image.
+
+Crops are named after their region: its label when it has a short one, e.g. `night_street__face__new.png`, else
+`diff-01`, `diff-02`… (the largest difference first) or `roi-01`. Reference images are cropped at the same place, so
+crops pair up. Uncheck **Export the whole images too** to export only the crops. Crops are new files, even when the
+other files are links; QA-Board crops PNG, JPEG, TIFF, BMP and WebP images. In `0.export.csv`, the `crop` column says
+where each crop is, in the image's pixels: `x,y,w,h`.
+
 ### Choose how files are named {#export-names}
 - **One folder**: all files side by side, a run's new and reference files next to each other.
-- **A folder per side**: `new/` and `v1.2/` (the reference) have the same file names: open them in a diff tool, or
-  flip between them in an image viewer.
+- **A folder for new, one for reference**: `new/` and `v1.2/` have the same file names: open them in a diff tool, or
+  flip between them in an image viewer. Only with a reference.
 - **Folders like the inputs**: the inputs' folders, then the runs' files.
-- **Custom**: edit the template, e.g. `{side}/{input_name}__{file}`. Click a field under it to add it.
+- **Custom**: in **More options**, edit the template, e.g. `{side}/{input_name}__{file}`. Click a field under it to
+  add it.
 
-**Settings in names**, `{settings}`: the dialog lists what differs between the runs shown: their tuning parameters and
-the parameters of their configurations (`gain`, `isp.awb.mode`), their configurations' files (`night.yaml`), and their
-platform. Check the ones names should say. By default, it checks what differs between runs on the same input, e.g.
-when you tune parameters: without it, their files would get the same name. Each run says the value of each setting
-checked, and `default` if it doesn't set it: `street__gain=4,iso=default__out__new.png`. You choose:
+**Settings**, `{settings}`: click **Change** to see what differs between the runs shown: their batches of
+`qaboard.yaml` and databases when they come from several, their tuning parameters and the parameters of their
+configurations (`gain`, `isp.awb.mode`), their configurations' files (`night.yaml`), and their platform. Check the
+ones names should say. By default, it checks what differs between runs on the same input: without it, their files would
+get the same name. Each run says the value of each setting checked, and `default` if it doesn't set it:
+`street__gain=4,iso=default__new.png`. You choose:
 - how a parameter and its value are written: `gain=4`, `gain-4`, `gain_4`, or only `4`,
 - what goes between settings: `,`, `_`, `+` or `-`,
 - or a **short id** of the values (the same in every export) or a **number**, when names get too long: `0.export.csv`
   says what they stand for.
+
+**The file**: names say it when runs have several files matching the pattern. To always say it, click **Always say
+it**, or pick it in **More options**.
 
 Reference files are named like the new runs they're compared to, so that each file has its reference next to it.
 
@@ -148,8 +177,11 @@ the files on Windows, turn it off: paths can then be long, and names can use any
 
 ### Save your export settings {#export-presets}
 Your last export's settings come back the next time you export from the project: the files, how they're named, links
-or copies, and the folder if you chose one. To export the way a script expects, again and again, **Save as preset…**,
-for all your projects or only this one, then pick it in **Saved settings**. Presets follow your account to any browser.
+or copies, crops, and the folder if you chose one. To export the way a script expects, again and again, open
+**Presets**, **Save these settings as a preset…**, for all your projects or only this one, then pick it in **Presets**.
+Presets follow your account to any browser. A preset that would give several files the same name on this page is
+disabled, and says why, e.g. it doesn't say the settings these runs differ by; one that says settings these runs don't
+have says so.
 
 <details>
 <summary>Every field of the template</summary>
@@ -160,14 +192,15 @@ for all your projects or only this one, then pick it in **Saved settings**. Pres
 | `{input}` | The input's path, without its extension: `scenes/night/street` |
 | `{input_name}` | The input's name: `street` |
 | `{settings}` | The settings you checked (see above). Empty when there are none. |
-| `{file}` | The file's path in its run's folder, without its extension: `debug/mask` |
+| `{file}` | The file's path in its run's folder, without its extension: `debug/mask`. Empty when runs have one file each, unless you choose to always say it. |
+| `{region}` | For crops, the region's name: `face`, `diff-01`, `top-left`. Empty for whole files. Templates without it end with `__{region}` for crops. |
 | `{platform}`, `{commit}`, `{batch}`, `{run}` | The run's platform, commit (8 characters), batch, and id |
 
 - The extension always ends the name.
 - Slashes in the template make folders. Slashes in the inputs' and files' paths become `_` (or what you choose in
   **Folders in paths**), or stay folders with **Keep folders**.
-- An empty field takes the separator next to it along: `{input}__{settings}__{file}` gives `street__out` when runs
-  don't need settings.
+- An empty field takes the separator next to it along: `{input}__{settings}__{file}__{region}__{side}` gives `street.png`
+  when runs don't need settings, have one file each, without crops or a reference.
 - Spaces become `_`. With Windows-compatible names, see [Names Windows can open](#windows-names).
 
 </details>
@@ -175,7 +208,7 @@ for all your projects or only this one, then pick it in **Saved settings**. Pres
 <details>
 <summary>Export into a folder you choose</summary>
 
-Pick **A folder I choose** and type its Linux or Windows path, on the shared storage. Files are copied, or linked if
+In **More options**, pick **A folder I choose** and type its Linux or Windows path, on the shared storage. Files are copied, or linked if
 it's on the same filesystem as the runs. QA-Board only adds files there: it never replaces what's there (the preview
 lists the files it will skip), and the folder isn't listed with your exports in **Storage usage**. If an export is
 already there, the mapping is written as `0.export-<id>.csv`.

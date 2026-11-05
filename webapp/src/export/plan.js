@@ -8,21 +8,28 @@
 // their files would otherwise get the same names. Each run then says the value of each picked parameter, `default`
 // if it doesn't set it: "gain=4,iso=default".
 import { output_tokens, format_value } from '../configurations/tokens';
-import { input_fields, file_name } from './names';
+import { input_fields, file_name, parse_template } from './names';
+import { databaseLabels } from '../components/runNames';
 
 // How files are named. Each sets a template and how slashes in inputs' and files' paths become names.
+// Empty fields take their separator along: without a reference, settings that differ, crops or several files per run,
+// names are only the input, e.g. "scenes_a.png". `previous`: the template before {region}, saved in settings.
 export const LAYOUTS = [
   {
-    key: 'flat', label: 'One folder', template: '{input}__{settings}__{file}__{side}', separator: '_',
-    description: 'All files in one folder: a run\'s new and reference files sort next to each other.',
+    key: 'flat', label: 'One folder', template: '{input}__{settings}__{file}__{region}__{side}', separator: '_',
+    previous: '{input}__{settings}__{file}__{side}',
+    description: 'All the files in one folder: new and reference files sort next to each other.',
   },
   {
-    key: 'by-side', label: 'A folder per side', template: '{side}/{input}__{settings}__{file}', separator: '_',
-    description: 'The same names in each side\'s folder: compare the folders with a diff tool.',
+    key: 'by-side', label: 'A folder for new, one for reference', short: 'Folder per side', template: '{side}/{input}__{settings}__{file}__{region}', separator: '_',
+    previous: '{side}/{input}__{settings}__{file}',
+    description: 'The same names in both folders: compare them side by side, or with a diff tool.',
+    needs_reference: true,
   },
   {
-    key: 'like-inputs', label: 'Folders like the inputs', template: '{input}/{settings}__{file}__{side}', separator: '/',
-    description: 'Folders like the inputs\' and the runs\' files.',
+    key: 'like-inputs', label: 'Folders like the inputs', short: 'Like the inputs', template: '{input}/{settings}__{file}__{region}__{side}', separator: '/',
+    previous: '{input}/{settings}__{file}__{side}',
+    description: 'A folder per input, like where the inputs are.',
   },
 ];
 
@@ -71,10 +78,12 @@ export const default_naming = {
   pair_references: true,
   // names and paths Windows can open (see names.js), the server checks paths' lengths
   windows: true,
+  // "auto": names say the file only when runs have several files matching the pattern (the server knows), or true
+  file_in_names: 'auto',
 };
 
 export const layout_of = (template, separator) =>
-  LAYOUTS.find(l => l.template === template && l.separator === separator)?.key ?? 'custom';
+  LAYOUTS.find(l => (l.template === template || l.previous === template) && l.separator === separator)?.key ?? 'custom';
 
 
 // A short, stable id: FNV-1a
@@ -93,8 +102,15 @@ const value_text = token => typeof token.value === 'string' ? token.value : form
 
 export const CONFIGURATIONS = 'configurations';
 export const PLATFORM = 'platform';
+// the batch of qaboard.yaml the run comes from, and its input's database: when runs come from several
+export const BATCH = 'batch';
+export const DATABASE = 'database';
+const VALUE_ONLY = [CONFIGURATIONS, PLATFORM, BATCH, DATABASE];
+const batch_of = o => o.data?.batch || null;
+const database_of = o => o.test_input_database && o.test_input_database !== '/' ? o.test_input_database : null;
 
-// What differs between runs, that names can say: [{key, kind: "configurations" | "parameter" | "platform", needed, values}]
+// What differs between runs, that names can say: [{key, kind: "batch" | "database" | "configurations" | "parameter" | "platform", needed, values}]
+// - batch and database: when runs come from several batches of qaboard.yaml, or databases,
 // - configurations: the strings of their configurations (e.g. "conf/night.yaml") that not all runs have,
 // - parameters: from their configurations' objects and tuning parameters, by key ("isp.gain"), with different
 //   values or that not all runs set,
@@ -118,6 +134,8 @@ export const settings_candidates = outputs => {
   const varying_strings = new Set([...string_counts].filter(([, n]) => n < outputs.length).map(([full]) => full));
   // what tells each run apart, by candidate
   const value_of = new Map();
+  if (new Set(outputs.map(batch_of)).size > 1) value_of.set(BATCH, index => batch_of(outputs[index]));
+  if (new Set(outputs.map(database_of)).size > 1) value_of.set(DATABASE, index => database_of(outputs[index]));
   if (varying_strings.size > 0)
     value_of.set(CONFIGURATIONS, index => lists[index].filter(t => t.kind === 'string' && varying_strings.has(t.full)).map(t => t.text).join('\u0000'));
   for (const [key, values] of params) {
@@ -134,7 +152,7 @@ export const settings_candidates = outputs => {
   });
   return [...value_of].map(([key, value]) => ({
     key,
-    kind: key === CONFIGURATIONS ? 'configurations' : key === PLATFORM ? 'platform' : 'parameter',
+    kind: VALUE_ONLY.includes(key) ? key : 'parameter',
     needed: [...groups.values()].some(indices => indices.length > 1 && new Set(indices.map(value)).size > 1),
     values: new Set(outputs.map((_, index) => value(index))).size,
   }));
@@ -170,15 +188,21 @@ export const settings_labels = (outputs, naming = default_naming, keys = null) =
     for (const text of new Set(tokens.filter(t => t.kind === 'string').map(t => t.text))) counts.set(text, (counts.get(text) ?? 0) + 1);
   const varying = new Set([...counts].filter(([, n]) => n < outputs.length).map(([text]) => text));
   const short_strings = shorten(varying, short_string);
-  const params = picked.filter(k => k !== CONFIGURATIONS && k !== PLATFORM);
+  const params = picked.filter(k => !VALUE_ONLY.includes(k));
+  const databases = databaseLabels(outputs.map(database_of));
   const short_keys = shorten(new Set(params), key => key.split('.').pop());
 
-  // the same picked settings, always in the same order: "configurations, parameters..., platform"
+  // the same picked settings, always in the same order: "batch, database, configurations, parameters..., platform"
   const parts = o => {
     const tokens = lists.get(o.id);
     const out = [];
     for (const key of picked) {
-      if (key === CONFIGURATIONS) {
+      if (key === BATCH) {
+        out.push([BATCH, batch_of(o) ?? ABSENT]);
+      } else if (key === DATABASE) {
+        const database = database_of(o);
+        out.push([DATABASE, database ? databases.get(database) : ABSENT]);
+      } else if (key === CONFIGURATIONS) {
         const strings = tokens.filter(t => t.kind === 'string' && varying.has(t.text)).map(t => short_strings.get(t.text));
         out.push([CONFIGURATIONS, strings.length ? strings.join('+') : ABSENT]);
       } else if (key === PLATFORM) {
@@ -191,7 +215,7 @@ export const settings_labels = (outputs, naming = default_naming, keys = null) =
     return out;
   };
   const texts = new Map(outputs.map(o => [o.id, parts(o).map(([key, value]) =>
-    key === CONFIGURATIONS || key === PLATFORM || settings_assign === '' ? value : `${key}${settings_assign}${value}`
+    VALUE_ONLY.includes(key) || settings_assign === '' ? value : `${key}${settings_assign}${value}`
   ).join(settings_join)]));
   if (settings_format === 'values') return texts;
   if (settings_format === 'id') {
@@ -209,7 +233,9 @@ export const settings_labels = (outputs, naming = default_naming, keys = null) =
 // The runs to export, and the fields of their names: [{id, side: "new" | "reference", fields}].
 // `labels`: what the page calls the new and reference results (their milestones' names, "new", "ref"...).
 // Also what differs between the new runs (`candidates`), and the settings names say (`picked`).
-export const export_runs = ({ new_batch, ref_batch, labels = {}, naming = default_naming }) => {
+// `regions`: Map(new run's id => [regions to crop]), see crop_regions: a reference run gets the regions of the new run
+// it's compared to (of the first one when it's exported once).
+export const export_runs = ({ new_batch, ref_batch, labels = {}, naming = default_naming, regions = null }) => {
   const outputs = (new_batch?.filtered?.outputs ?? []).map(id => new_batch.outputs[id]).filter(Boolean);
   const reference_of = o => {
     // comparing a batch with itself: no reference
@@ -245,34 +271,154 @@ export const export_runs = ({ new_batch, ref_batch, labels = {}, naming = defaul
       fields: { side: label_ref, settings: ref_settings.get(r.id) ?? '', ...input_fields(r.test_input_path) },
     });
   }
+  if (regions) {
+    const first_new = new Map();
+    outputs.forEach((o, index) => { if (references[index] && !first_new.has(references[index].id)) first_new.set(references[index].id, o.id); });
+    for (const item of items) {
+      const of = item.side === 'new' ? item.id : (item.paired_with ?? first_new.get(item.id));
+      const list = regions.get(of);
+      if (list?.length) item.regions = list;
+    }
+  }
   return {
     items,
     candidates,
     picked,
+    has_reference,
     labels: { new: label_new, reference: has_reference ? label_ref : '' },
     counts: { new: outputs.length, reference: unique_references.length, without_reference: references.filter(r => !r).length },
   };
 };
 
 // What the server needs: no outputs
-export const request_runs = items => items.map(({ id, side, fields }) => ({ id, side, fields }));
+export const request_runs = items => items.map(({ id, side, fields, regions }) => ({ id, side, fields, ...(regions ? { regions } : {}) }));
+
+// A run's fields, as the server fills them (backend/api/export_files.py default_fields): for names on the page
+export const item_fields = (item, { commit_id, batch_label } = {}) => ({
+  platform: item?.output?.platform ?? '', commit: (commit_id ?? '').slice(0, 8), batch: batch_label ?? '', run: String(item?.id ?? ''),
+  ...item?.fields,
+});
+
+// The file in example names, before the server lists the files: the pattern, e.g. "out.png", "*.png" => "file.png"
+export const example_file = files => (files || 'file').replace(/\*\*\//g, '').replace(/\*/g, 'file') || 'file';
+// Whether names would say the file, before the server knows how many files runs have: a pattern without wildcards
+// matches one file per run
+export const guess_file_in_names = (naming, files) => naming.file_in_names !== 'auto' || /[*?[]/.test(files ?? '');
+
+// The server adds {region} at the end of templates without it, for crops
+export const crop_template = template => template.includes('{region}') ? template : `${template}__{region}`;
 
 // An example name, before the server lists the files: with the pattern as the file, e.g. "out.png" or "*.png"
-export const example_name = (item, { template, separator, windows = true }, files, commit_id, batch_label) => {
+export const example_name = (item, { template, separator, windows = true }, files, commit_id, batch_label, with_file = true, region = '') => {
   if (!item) return null;
-  const file = (files || 'file').replace(/\*\*\//g, '').replace(/\*/g, 'file') || 'file';
-  const fields = {
-    platform: item.output?.platform ?? '', commit: (commit_id ?? '').slice(0, 8), batch: batch_label ?? '', run: String(item.id),
-    ...item.fields,
-  };
-  return file_name(template, fields, file, separator, windows);
+  return file_name(region ? crop_template(template) : template, { ...item_fields(item, { commit_id, batch_label }), region }, example_file(files), separator, windows, with_file);
 };
 
+
+// Crops of regions of interest, for images. The regions come from the image viewer's providers (presets, where the
+// images differ, annotations...), and quarters. Each crop is named after its region: its label when it has a short one,
+// else the source and its rank, e.g. "diff-01" (the largest difference first), "roi-02".
+export const QUARTERS = [
+  { name: 'top-left', x: 0, y: 0, w: 0.5, h: 0.5 },
+  { name: 'top-right', x: 0.5, y: 0, w: 0.5, h: 0.5 },
+  { name: 'bottom-left', x: 0, y: 0.5, w: 0.5, h: 0.5 },
+  { name: 'bottom-right', x: 0.5, y: 0.5, w: 0.5, h: 0.5 },
+].map(q => ({ ...q, unit: 'fraction', source: 'quarters' }));
+
+// what regions without a usable label are called, by source
+export const region_prefix = source => source === 'presets' ? 'roi'
+  : source?.startsWith('auto-') ? 'diff'
+  : source?.startsWith('annotations-') ? 'annotation'
+  : String(source ?? 'region').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'region';
+const slug = text => String(text ?? '').trim().replace(/[\s/\\]+/g, '-').replace(/[^\p{L}\p{N}._=+-]+/gu, '').replace(/^[-.]+|[-.]+$/g, '');
+// labels that make good names: short, e.g. "face" or "chart_3". Labels of differences say how much they differ: no.
+const usable_label = (label, source) => {
+  if (!label || source?.startsWith('auto-')) return null;
+  const s = slug(label);
+  return s && s.length <= 32 ? s : null;
+};
+
+// The regions of a run to crop, named, unique: [{name, x, y, w, h, unit?, image_width?, image_height?, file?, label?, source}]
+// by_source: [[source id, regions (as the viewer's providers give them), file (null: any)]]
+export const crop_regions = by_source => {
+  const out = [];
+  const used = new Map();
+  const unique = name => {
+    const key = name.toLowerCase();
+    const n = (used.get(key) ?? 0) + 1;
+    used.set(key, n);
+    return n === 1 ? name : `${name}-${n}`;
+  };
+  for (const [source, regions, file] of by_source) {
+    (regions ?? []).forEach((r, index) => {
+      if (![r.x, r.y, r.w, r.h].every(Number.isFinite) || r.w <= 0 || r.h <= 0) return;
+      const name = r.name ?? usable_label(r.label, source) ?? `${region_prefix(source)}-${String(index + 1).padStart(2, '0')}`;
+      out.push({
+        name: unique(name), x: r.x, y: r.y, w: r.w, h: r.h,
+        ...(r.unit ? { unit: r.unit } : {}),
+        ...(r.imageWidth ? { image_width: r.imageWidth } : {}),
+        ...(r.imageHeight ? { image_height: r.imageHeight } : {}),
+        ...(file ? { file } : {}),
+        ...(r.label ? { label: String(r.label) } : {}),
+        source,
+      });
+    });
+  }
+  return out;
+};
+
+// Patterns as regular expressions, to know which viewers show the files exported: "**/" any folders, "*" and "?"
+export const glob_regex = pattern => new RegExp(`^${String(pattern ?? '').split(/(\*\*\/|\*|\?)/).map(part =>
+  part === '**/' ? '(?:.*/)?' : part === '*' ? '[^/]*' : part === '?' ? '[^/]' : part.replace(/[.+^${}()|[\]\\]/g, '\\$&')).join('')}$`);
+export const is_single_file = pattern => !!pattern && !/[*?[]/.test(pattern);
+export const IMAGE_EXTENSIONS = /\.(png|jpe?g|tiff?|bmp|webp)$/i;
+// Patterns whose files can be images that the server crops
+export const may_be_images = pattern => !!pattern && (IMAGE_EXTENSIONS.test(pattern) || pattern.endsWith('*'));
+
+
+// Whether a preset fits the runs shown: {disabled: why not, or null, notes: [what to know]}.
+// It doesn't fit when runs would get the same names, e.g. runs on the same input differ by settings it doesn't say.
+export const preset_fit = (preset_settings, { new_batch, ref_batch, labels }) => {
+  const naming = { ...default_naming, ...preset_settings };
+  const notes = [];
+  let plan;
+  try {
+    parse_template(naming.template);
+    plan = export_runs({ new_batch, ref_batch, labels, naming });
+  } catch (e) {
+    return { disabled: e.message, notes };
+  }
+  const candidates = new Set(plan.candidates.map(c => c.key));
+  const unused = (preset_settings.settings_keys ?? []).filter(k => !candidates.has(k));
+  if (unused.length) notes.push(`These runs don't differ by ${unused.join(', ')}: names won't say ${unused.length === 1 ? 'it' : 'them'}`);
+  if (naming.folder_mode === 'path' && naming.folder_path) notes.push(`Exports into ${naming.folder_path}`);
+  // the same name for different runs, with one file per run
+  const seen = new Map();
+  const missing = new Set();
+  for (const item of plan.items) {
+    let name;
+    try { name = file_name(naming.template, item_fields(item), 'file.png', naming.separator, naming.windows); } catch (e) { return { disabled: e.message, notes }; }
+    const key = naming.windows ? name.toLowerCase() : name;
+    const other = seen.get(key);
+    if (other && other.id !== item.id) {
+      if (other.side !== item.side) missing.add('new or reference');
+      else if (other.fields.input === item.fields.input) {
+        const says_settings = /\{settings\}/.test(naming.template);
+        missing.add(plan.candidates.filter(c => c.needed && (!says_settings || !plan.picked.includes(c.key))).map(c => c.key).join(', ') || 'the settings that differ');
+      }
+      else missing.add('the input');
+    }
+    else seen.set(key, item);
+  }
+  if (missing.size) return { disabled: `Runs would get the same names: they don't say ${[...missing].join(', ')}`, notes };
+  return { disabled: null, notes };
+};
 
 // Saved export settings (user preferences, synced to their account): the last export's, per project, and presets
 // users name, for all projects or one. What's saved: how files are named, the files, links or copies, and a folder
 // users chose (e.g. what their scripts read).
-export const SAVED_KEYS = [...Object.keys(default_naming), 'files', 'type', 'folder_mode', 'folder_path'];
+// Crops too: if users export them, the regions they're from, and whether whole files go with them.
+export const SAVED_KEYS = [...Object.keys(default_naming), 'files', 'type', 'folder_mode', 'folder_path', 'crops', 'crop_sources', 'whole_files'];
 export const saved_settings = settings => Object.fromEntries(SAVED_KEYS.filter(k => settings[k] !== undefined).map(k => [k, settings[k]]));
 // the presets that apply to a project, theirs first
 export const presets_for = (presets, project) => (presets ?? [])
