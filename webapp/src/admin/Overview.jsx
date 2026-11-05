@@ -1,13 +1,12 @@
 // Admin → Overview: how many users and tokens, and what to fix to make the server safer
 import { useQuery } from "@tanstack/react-query";
-import { Card, Classes, Colors, Icon, Intent, Tag } from "@blueprintjs/core";
+import { Card, Classes, Colors, Icon, Intent, Spinner, Tag } from "@blueprintjs/core";
 import styled from "styled-components";
 
 import { Link } from "../router";
-import { Loading } from "../settings/states";
 import { AdminError } from "./states";
 import { InstanceRoles } from "./InstanceRoles";
-import { overviewQuery } from "./api";
+import { overviewQuery, overviewUsageQuery } from "./api";
 
 
 const Counts = styled.div`
@@ -68,12 +67,13 @@ export const Detail = ({ text }) => text.split(setting_name).map((part, i) => i 
 
 // What's left to do first, then what's fine. `title`: the security checklist by default, or what to configure or
 // look at to get more from QA-Board (value_checklist); `todo_label`: what the count of items left says.
-export const Checklist = ({ checklist, title = 'Security checklist', todo_label = 'to review' }) => {
+// `pending`: what is still loading, said in a last row (e.g. the usage-based items)
+export const Checklist = ({ checklist, title = 'Security checklist', todo_label = 'to review', pending }) => {
   const sorted = [...checklist].sort((a, b) => (a.ok - b.ok) || (severity_order[a.severity] ?? 3) - (severity_order[b.severity] ?? 3));
   const todo = checklist.filter(item => !item.ok).length;
   return <section aria-label={title}>
     <h4 className={Classes.HEADING}>
-      {title} {todo > 0 ? <Tag minimal intent={Intent.WARNING} round>{todo} {todo_label}</Tag> : <Tag minimal intent={Intent.SUCCESS} round>All good</Tag>}
+      {title} {todo > 0 ? <Tag minimal intent={Intent.WARNING} round>{todo} {todo_label}</Tag> : !pending && <Tag minimal intent={Intent.SUCCESS} round>All good</Tag>}
     </h4>
     <ul style={{ listStyle: 'none', margin: 0, padding: 0, maxWidth: 820 }}>
       {sorted.map(item => <Check key={item.id} data-testid={`check-${item.id}`}>
@@ -87,29 +87,41 @@ export const Checklist = ({ checklist, title = 'Security checklist', todo_label 
         </strong>
         {typeof item.detail === 'string' && item.detail && <span className={`detail ${Classes.TEXT_MUTED}`}><Detail text={item.detail}/></span>}
       </Check>)}
+      {pending && <Check aria-busy="true">
+        <Spinner size={16} aria-label={pending}/>
+        <span className={Classes.TEXT_MUTED}>{pending}</span>
+      </Check>}
     </ul>
   </section>;
 };
 
 
+// The page shows up at once: the counts fill in when they arrive, and the usage-based items, slower, after them
 export const Overview = () => {
-  const { data, isPending, error, refetch } = useQuery(overviewQuery);
-  if (isPending) return <Loading label="Loading the overview"/>;
-  if (error) return <AdminError error={error} refetch={refetch} what="the overview"/>;
+  const { data, error, refetch } = useQuery(overviewQuery);
+  const usage = useQuery(overviewUsageQuery);
+  const value_checklist = [...(data?.value_checklist ?? []), ...(usage.data ?? [])];
   return <>
-    <Counts>
+    {error && <AdminError error={error} refetch={refetch} what="the overview"/>}
+    <Counts aria-busy={!data && !error}>
       {counts.map(({ key, label, to, intent }) => {
         const value = data?.counts?.[key];
         const content = <>
-          <div className="count" style={intent && value > 0 ? { color: Colors.ORANGE3 } : undefined}>{value ?? '—'}</div>
+          <div className={`count${data || error ? '' : ` ${Classes.SKELETON}`}`} style={intent && value > 0 ? { color: Colors.ORANGE3 } : undefined}>{value ?? '—'}</div>
           <div className={Classes.TEXT_MUTED}>{label}</div>
         </>;
         return <Card key={key} compact>{to ? <Link to={to} style={{ color: 'inherit', textDecoration: 'none' }}>{content}</Link> : content}</Card>;
       })}
     </Counts>
     {(data?.checklist?.length ?? 0) > 0 && <Checklist checklist={data.checklist}/>}
-    {(data?.value_checklist?.length ?? 0) > 0 && <div style={{ marginTop: 28 }}>
-      <Checklist checklist={data.value_checklist} title="Get more from QA-Board" todo_label="to look at"/>
+    {data && <div style={{ marginTop: 28 }}>
+      <Checklist
+        checklist={value_checklist}
+        title="Get more from QA-Board"
+        todo_label="to look at"
+        pending={usage.isPending ? 'Looking at the last 90 days of usage…' : undefined}
+      />
+      {usage.error && <AdminError error={usage.error} refetch={usage.refetch} what="what the usage says"/>}
     </div>}
     <div style={{ marginTop: 28 }}><InstanceRoles/></div>
   </>;

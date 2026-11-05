@@ -666,14 +666,14 @@ PROJECTS_SEEN_BEFORE = """
   SELECT p.project_id FROM unnest(CAST(:projects AS text[])) AS p(project_id)
   WHERE EXISTS (SELECT 1 FROM usage_events e WHERE e.project_id = p.project_id AND e.created_at < :since)
 """
-# The projects with CI runs since then. Not from the runs of the period, there are millions: their commits got runs
-# since then (latest_output_datetime, set when runs are sent, a day earlier to be safe), and one of the CI batches of
-# those commits has a run since then.
+# The projects with CI runs since then, without reading the runs (there are millions, and reading them from disk can
+# take a minute): their commits got runs since then (latest_output_datetime, set when runs are sent, a day earlier
+# for servers whose timezone isn't UTC), and have a batch from the CI. Close enough for a hint: a commit of the CI
+# that only got other runs lately counts too.
 CI_PROJECTS_SINCE = """
   SELECT DISTINCT c.project_id FROM ci_commits c
-  JOIN batches b ON b.ci_commit_id = c.id
-  WHERE c.latest_output_datetime >= :since_commits AND b.origin = 'ci'
-  AND EXISTS (SELECT 1 FROM outputs o WHERE o.batch_id = b.id AND o.created_date >= :since)
+  WHERE c.latest_output_datetime >= :since_commits
+  AND EXISTS (SELECT 1 FROM batches b WHERE b.ci_commit_id = c.id AND b.origin = 'ci')
 """
 # The projects people (or anonymous browsers) looked at since then
 VIEWED_PROJECTS_SINCE = """
@@ -800,9 +800,10 @@ def event_as_text(row: dict) -> dict:
 
 def active_user_ids(since: datetime.datetime) -> set:
   """The people (human accounts that still exist) with an event since then"""
+  # an index lookup per account, not every event of the period
   rows = rows_of("""
-    SELECT DISTINCT e.user_id FROM usage_events e JOIN users u ON u.id = e.user_id
-    WHERE e.created_at >= :since AND u.kind = 'human'
+    SELECT u.id AS user_id FROM users u
+    WHERE u.kind = 'human' AND EXISTS (SELECT 1 FROM usage_events e WHERE e.user_id = u.id AND e.created_at >= :since)
   """, {"since": since})
   return {row['user_id'] for row in rows}
 
@@ -819,12 +820,11 @@ def ci_only_projects(since: datetime.datetime) -> List[str]:
 
 
 def web_only_users(since: datetime.datetime) -> List[int]:
-  """The accounts active in the web app since then that never used the CLI"""
+  """The accounts active in the web app since then that didn't use the CLI since then. One pass over the period:
+  "ever" read all the past events of each of them"""
   rows = rows_of("""
-    SELECT user_id FROM (
-      SELECT DISTINCT user_id FROM usage_events WHERE created_at >= :since AND source = 'webapp' AND user_id IS NOT NULL
-    ) w
-    WHERE NOT EXISTS (SELECT 1 FROM usage_events c WHERE c.user_id = w.user_id AND c.source = 'cli')
+    SELECT user_id FROM usage_events WHERE created_at >= :since AND user_id IS NOT NULL
+    GROUP BY user_id HAVING bool_or(source = 'webapp') AND NOT bool_or(source = 'cli')
     ORDER BY 1
   """, {"since": since})
   return [row['user_id'] for row in rows]

@@ -79,8 +79,9 @@ describe('AdminPage', () => {
       ],
     } });
     renderPage('/admin', admin);
+    // the page shows up before its numbers
     expect(await screen.findByText('Active in the last 30 days')).toBeInTheDocument();
-    expect(screen.getByText('12')).toBeInTheDocument();
+    expect(await screen.findByText('12')).toBeInTheDocument();
     expect(screen.getByText('1 to review')).toBeInTheDocument();
     // what's left to do comes first
     const items = screen.getAllByRole('listitem').map(item => item.textContent);
@@ -90,6 +91,35 @@ describe('AdminPage', () => {
     expect(screen.getByRole('link', { name: 'ingest.auth' })).toHaveAttribute('href', '/admin/settings');
     // nothing to say about what's fine
     expect(items[1]).toBe('Cookies are only sent over HTTPS');
+  });
+
+  it("shows the overview without waiting for what the usage says", async () => {
+    // the usage-based items can take seconds when the server didn't compute them lately
+    let answer_usage;
+    const routes = {
+      'GET /api/v1/admin/overview': {
+        counts: { users: 12, active_30d: 8, admins: 1, pending: 0, disabled: 1, active_tokens: 5 },
+        checklist: [],
+        value_checklist: [{ id: 'sentry', ok: true, severity: 'info', title: 'Errors are reported to Sentry', detail: null }],
+      },
+      'GET /api/v1/admin/overview/usage': () => new Promise(resolve => { answer_usage = resolve; }),
+    };
+    vi.spyOn(globalThis, 'fetch').mockImplementation((url, init = {}) => {
+      const answer = routes[`${init.method ?? 'GET'} ${new URL(url, 'http://localhost').pathname}`];
+      return typeof answer === 'function' ? answer() : json(answer ?? {});
+    });
+    renderPage('/admin', admin);
+    expect(await screen.findByText('12')).toBeInTheDocument();
+    expect(screen.getByText('Errors are reported to Sentry')).toBeInTheDocument();
+    expect(screen.getByLabelText('Looking at the last 90 days of usage…')).toBeInTheDocument();
+    // not "All good" before we know
+    expect(screen.queryByText('All good')).not.toBeInTheDocument();
+    await act(async () => answer_usage(new Response(JSON.stringify({ items: [
+      { id: 'web_only_users', ok: false, severity: 'info', title: "2 users active in the web app didn't use the CLI in 90 days", detail: 'They only read results.' },
+    ] }), { headers: { 'Content-Type': 'application/json' } })));
+    expect(await screen.findByText("2 users active in the web app didn't use the CLI in 90 days")).toBeInTheDocument();
+    expect(screen.getByText('1 to look at')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Looking at the last 90 days of usage…')).not.toBeInTheDocument();
   });
 
   it('says when the server refuses: not an admin anymore', async () => {

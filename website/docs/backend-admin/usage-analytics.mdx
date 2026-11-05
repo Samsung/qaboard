@@ -57,8 +57,9 @@ Each user's page in **Admin → Users** has a **Usage** card: their last 30 days
 
 **Admin → Overview** gets a **Get more from QA-Board** list next to the security checklist: what isn't configured
 yet (email notifications, single sign-on, git host webhooks, Sentry, annotation sources, a storage cleaning
-schedule, project owners), and what the usage says: projects with CI runs nobody looked at in 90 days, users
-active in the web app who never used the CLI, and products in use where nobody started a tuning.
+schedule, project owners), and what the last 90 days of usage say: projects with CI runs nobody looked at, users
+active in the web app who didn't use the CLI, and products in use where nobody started a tuning. Those three are
+computed at most every hour.
 
 ## Settings
 
