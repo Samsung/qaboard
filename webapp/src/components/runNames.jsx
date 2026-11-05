@@ -10,7 +10,7 @@ import { Classes, Menu } from "@blueprintjs/core";
 import { useRunNameOrigin } from "../stores/prefs";
 import { LazyHoverPopover } from "./LazyPopover";
 import { RunInfoMenuItems } from "./RunInfoMenu";
-import { runName } from "./tags";
+import { runName } from "../utils/runName";
 
 
 const is_pipeline = output => output.output_type === "pipeline" || output.test_input_path === "PIPELINE";

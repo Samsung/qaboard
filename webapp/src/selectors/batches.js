@@ -1,9 +1,8 @@
 // Derived data about the batches we compare. Pure functions: they never modify their inputs,
 // so the cached server data stays intact and React sees changes.
-import { get as _get } from "es-toolkit/compat";
-
 import { filter_batch, matching_output, index_outputs } from "../utils";
 import { empty_batch } from "../defaults";
+import { default_sort_by, effective_sort_order, sorted_ids } from "./sorting";
 
 
 // The batch to show: the selected one if the commit has it, else its only/first batch
@@ -33,22 +32,6 @@ export const compute_config = ({ new_batch, new_commit, project_data, selected }
     metrics: { ...defaults, ...metrics },
     selected_metrics: selected?.selected_metrics ?? metrics.main_metrics ?? [],
   };
-};
-
-
-const sort_value = (output, id, sort_by) =>
-  output.metrics?.[sort_by] ?? output.params?.[sort_by] ?? _get(output.params, sort_by) ?? _get(output, sort_by) ?? id;
-
-const sorted_ids = (ids, outputs, sort_by, sort_order) => {
-  const values = new Map(ids.map(id => [id, sort_value(outputs[id], id, sort_by)]));
-  return [...ids].sort((ka, kb) => {
-    const a = values.get(ka);
-    const b = values.get(kb);
-    if (a === undefined || a === null) return 1;
-    if (a > b) return sort_order;
-    if (a < b) return -sort_order;
-    return 0;
-  });
 };
 
 
@@ -106,8 +89,11 @@ export const compute_batches = ({ new_commit, ref_commit, selected, metrics }) =
   const ref_batch = with_filter(raw_ref, selected.filter_batch_ref);
   const new_filtered = with_filter(raw_new, selected.filter_batch_new);
 
-  const sort_by = selected.sort_by || metrics?.default_metric || 'input_test_path';
-  const filtered_ids = sorted_ids(new_filtered.filtered.outputs, new_filtered.outputs, sort_by, selected.sort_order ?? -1);
+  // the default depends on the runs, not on the filter: the order doesn't change while users type one
+  const default_by = default_sort_by(Object.values(new_filtered.outputs), metrics?.default_metric);
+  const sort_by = selected.sort_by || default_by;
+  const sort_order = effective_sort_order(sort_by, selected.sort_order);
+  const filtered_ids = sorted_ids(new_filtered.filtered.outputs, new_filtered.outputs, sort_by, sort_order);
 
   // we find the matching outputs once
   const index = index_outputs(ref_batch);
@@ -136,5 +122,7 @@ export const compute_batches = ({ new_commit, ref_commit, selected, metrics }) =
     used_metrics,
     metrics_with_refs,
   };
-  return { selected_batch_new, selected_batch_ref, new_batch, ref_batch };
+  // how the runs are sorted: { by, order, default_by }
+  const sorting = { by: sort_by, order: sort_order, default_by };
+  return { selected_batch_new, selected_batch_ref, new_batch, ref_batch, sorting };
 };

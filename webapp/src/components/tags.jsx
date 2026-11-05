@@ -27,6 +27,7 @@ import { hidden_keys } from "../configurations/tokens"
 import { ConfigurationsTags, ConfigurationDiff } from "../configurations/ConfigurationsTags"
 import { RunInfoMenuItems } from "./RunInfoMenu"
 import { LazyPopover } from "./LazyPopover"
+import { runName } from "../utils/runName"
 
 
 const style_skeleton = {
@@ -118,13 +119,6 @@ const RunBadge = ({badge}) => {
 }
 
 
-
-// How QA-Board names a run: its label, else its input path
-const runName = output => {
-  if (output.test_input_metadata?.label) return output.test_input_metadata.label
-  if (output.output_type === "pipeline" || output.test_input_path === "PIPELINE") return `${output.data?.batch} (pipeline)`
-  return `${output.test_input_database === '/' ? '/' : ''}${output.test_input_path}`
-}
 
 // What users can do with a run: redo it, mark it as failed, delete it...
 // `children`: menu items shown before the actions, e.g. what we know about the run (see RunInfoMenu)

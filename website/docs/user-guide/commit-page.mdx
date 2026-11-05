@@ -102,8 +102,9 @@ Press <kbd>o</kbd> to show or hide it. It lists only what applies to the view yo
   one at a time, or their difference. Then the project's own switches, if it has some.
 - **Configuration**: the settings all the runs shown share, **Hide them in each run**, and **Shorten long settings
   with …**.
-- **Sort runs**: by name, run id, storage, a tuning parameter or a metric, for the tables and the run cards. Until you
-  choose, runs are sorted by the project's default metric, marked *(default)*.
+- **Sort runs**: by name, batch, database, status, configuration, run id, storage, a tuning parameter or a metric, for
+  the tables, the run cards and the logs. Until you choose, runs are sorted by the project's default metric, else by
+  batch when they come from several, else by name, marked *(default)*.
 
 **Reset** goes back to the project's defaults, except for the sorting.
 
@@ -123,8 +124,10 @@ Press <kbd>o</kbd> to show or hide it. It lists only what applies to the view yo
   closest one, with a note on its card. **Per run** lets you choose in each card instead. Changing an option keeps the
   image viewers' zoom and region.
 - **Compare images** can also be set above any image, or with the keys <kbd>1</kbd> to <kbd>4</kbd>.
-- **Sort runs**: the order reads like the values: *Highest first*, *A to Z*, *Newest first*... It sorts by the new
-  runs' values. The Summary doesn't use it.
+- **Sort runs**: the order reads like the values: *Highest first*, *A to Z*, *Newest first*, *Failed first*... Each
+  starts in its natural order: names A to Z, failed runs first, metrics highest first. Names are sorted "naturally"
+  (`frame2` before `frame10`), runs without a value come last, and ties are sorted by name. **Batch** and **Database**
+  are listed when the runs come from several. It sorts by the new runs' values. The Summary doesn't use it.
 
 </details>
 

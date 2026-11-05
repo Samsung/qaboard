@@ -131,6 +131,24 @@ test('the sorting shows the default, e.g. the main metric, before users choose',
 });
 
 
+test('runs can be sorted by batch when they come from several, names A to Z by default', () => {
+  const outputs = { 1: { data: { batch: 'night' } }, 2: { data: { batch: 'day' } } };
+  const { unmount } = panel({}, { sort_by: undefined, sort_order: undefined, default_sort_by: 'data.batch', new_batch: { used_metrics: [], outputs } });
+  expect(screen.getByRole('combobox', { name: 'Sort runs by' })).toHaveValue('data.batch');
+  expect(screen.getByRole('option', { name: 'Batch (default)' })).toBeInTheDocument();
+  expect(screen.getByRole('option', { name: 'Status' })).toBeInTheDocument();
+  expect(screen.getByRole('option', { name: 'Configuration' })).toBeInTheDocument();
+  // all the runs have the same database
+  expect(screen.queryByRole('option', { name: 'Database' })).toBeNull();
+  expect(screen.getByRole('combobox', { name: 'Sort order' })).toHaveDisplayValue('A to Z');
+  unmount();
+  // with one batch, sorting by it would do nothing
+  panel({}, { sort_by: undefined, new_batch: { used_metrics: [], outputs: { 1: { data: { batch: 'night' } } } } });
+  expect(screen.queryByRole('option', { name: /^Batch/ })).toBeNull();
+  expect(screen.getByRole('option', { name: 'Name (default)' })).toBeInTheDocument();
+});
+
+
 describe('the docked panel', () => {
   const space = () => content_area.style.getPropertyValue('--qa-side-panel-space');
 

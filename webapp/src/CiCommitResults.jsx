@@ -175,7 +175,9 @@ const CiCommitResults = () => {
 
   const update = attribute => e => {
     const value = (e?.target && e.target.value !== undefined) ? e.target.value : e;
-    updateSelected({ [attribute]: value }, { replace: attribute.startsWith('filter') || attribute.startsWith('sort') })
+    // sorting by something else starts in its own default order, e.g. names A to Z but metrics highest first
+    const changes = attribute === 'sort_by' ? { sort_by: value, sort_order: undefined } : { [attribute]: value };
+    updateSelected(changes, { replace: attribute.startsWith('filter') || attribute.startsWith('sort') })
   }
 
   // The metrics shown in tables
@@ -503,7 +505,7 @@ const CiCommitResults = () => {
           new_batch={new_batch}
           available_metrics={available_metrics}
           sort_by={selected.sort_by}
-          default_sort_by={metrics.default_metric}
+          default_sort_by={comparison.sorting?.default_by ?? metrics.default_metric}
           sort_order={selected.sort_order}
           onToggle={toggle}
           onUpdateControls={updateControls}
