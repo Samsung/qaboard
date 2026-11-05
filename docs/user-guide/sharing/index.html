@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.17666eca.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.4cc1f277.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.7846c33d.js" defer="defer"></script>
 </head>
 <body>
@@ -87,10 +87,12 @@ fast. Use <strong>Edit where</strong> to choose your own folder: files are then 
 In a folder that existed before, QA-Board only adds files: it never replaces what&#x27;s there (the box lists the files
 it skipped), and the folder isn&#x27;t listed with your exports in <strong>Storage usage</strong>.</p>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="runs-in-scripts">Use the runs in a script<a href="#runs-in-scripts" class="hash-link" aria-label="Direct link to Use the runs in a script" title="Direct link to Use the runs in a script" translate="no">​</a></h2>
-<p>To post-process the runs you see, e.g. compute a metric the CI didn&#x27;t, click <strong>Script</strong> next to <strong>Export</strong>: it shows
-a Python snippet (or shell command) that lists those runs, with their metrics and folders, from the page&#x27;s address.
-Copy it, and change what it does with each run. The filter applies, so the script sees exactly the runs shown. It&#x27;s
-new and may change: see <a class="" href="/qaboard/docs/apis#runs-in-scripts">Work on the runs you see</a> for what each run gives.</p>
+<p>To post-process the runs you see, e.g. compute a metric the CI didn&#x27;t, align outputs, or redo a measurement, click
+<strong>Script</strong> next to <strong>Export</strong>: it shows a Python snippet (or shell command) that lists those runs, with their metrics
+and folders, from the page&#x27;s address. Copy it and write what to do with each run: your script can read the runs&#x27;
+metrics and files, add metrics to them (they show with a pencil mark saying who added them) and add files to them.
+The filter applies, so the script sees exactly the runs shown. See <a class="" href="/qaboard/docs/apis#runs-in-scripts">Results in scripts</a>
+for everything a script can do.</p>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="bug-reports-and-support">Report a bug or ask for help<a href="#bug-reports-and-support" class="hash-link" aria-label="Direct link to Report a bug or ask for help" title="Direct link to Report a bug or ask for help" translate="no">​</a></h2>
 <ul>
 <li class="">If part of the web app crashes, only that part is replaced by an error: a viewer in a run&#x27;s card, or the page, with

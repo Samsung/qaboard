@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.17666eca.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.4cc1f277.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.7846c33d.js" defer="defer"></script>
 </head>
 <body>
@@ -76,11 +76,11 @@ worse.</p></div></div>
 <p>Today you wrap your code with <code>qa</code>: <code>qa run</code> for one input, <code>qa batch</code> for many (see
 <a class="" href="/qaboard/docs/running-your-code">Running your code</a>). Some code doesn&#x27;t fit a wrapper: training loops, notebooks, test
 suites.</p>
-<div class="item_wEMw"><div class="status_wPfY"><span class="badge_iR2u shipped_J_ht" title="Released and documented: use it today.">Shipped</span></div><div class="body_nqgO"><h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI title_nL88" id="read-results-and-add-metrics-from-python">Read results and add metrics from Python<a href="#read-results-and-add-metrics-from-python" class="hash-link" aria-label="Direct link to Read results and add metrics from Python" title="Direct link to Read results and add metrics from Python" translate="no">​</a></h3><p><code>qaboard.runs(url)</code> gives the runs a web app page shows, as <code>Run</code> objects, and <code>run.log_metrics({...})</code> adds metrics
-to them, recording who, when and which script; <code>qa runs &lt;url&gt;</code> lists them from the shell
-(<a class="" href="/qaboard/docs/apis#runs-in-scripts">runs in scripts</a>).</p></div></div>
+<div class="item_wEMw"><div class="status_wPfY"><span class="badge_iR2u shipped_J_ht" title="Released and documented: use it today.">Shipped</span></div><div class="body_nqgO"><h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI title_nL88" id="read-results-and-add-metrics-from-python">Read results and add metrics from Python<a href="#read-results-and-add-metrics-from-python" class="hash-link" aria-label="Direct link to Read results and add metrics from Python" title="Direct link to Read results and add metrics from Python" translate="no">​</a></h3><p><code>qaboard.runs(url)</code> gives the runs a web app page shows, as <code>Run</code> objects; <code>run.log_metrics({...})</code> adds metrics
+to them, recording who, when and which script, and <code>run.log_artifact(name, file)</code> adds files; <code>qa runs &lt;url&gt;</code> lists
+them from the shell (<a class="" href="/qaboard/docs/apis#runs-in-scripts">runs in scripts</a>).</p></div></div>
 <div class="item_wEMw"><div class="status_wPfY"><span class="badge_iR2u next_LvKC" title="What we&#x27;re building now or next.">Next</span></div><div class="body_nqgO"><h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI title_nL88" id="a-python-sdk-that-creates-runs">A Python SDK that creates runs<a href="#a-python-sdk-that-creates-runs" class="hash-link" aria-label="Direct link to A Python SDK that creates runs" title="Direct link to A Python SDK that creates runs" translate="no">​</a></h3><p><code>start_run(...)</code> from training loops, notebooks and pytest, without <code>qa run</code>: <code>log()</code> with a <code>step</code> for the values
-logged during training, <code>log_params()</code>, <code>log_artifact()</code>, <code>finish()</code>, with the method names people know from the usual
+logged during training, <code>log_params()</code>, <code>finish()</code>, with the method names people know from the usual
 experiment trackers. These runs show in the web app like any other. The design is in the repository,
 <a href="https://github.com/Samsung/qaboard/blob/master/docs/rfcs/python-sdk-runs.md" target="_blank" rel="noopener noreferrer" class=""><code>docs/rfcs/python-sdk-runs.md</code></a>.</p></div></div>
 <div class="item_wEMw"><div class="status_wPfY"><span class="badge_iR2u exploring_GXdl" title="We want it and are working out how. Tell us if you need it.">Exploring</span></div><div class="body_nqgO"><h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI title_nL88" id="a-wandb-log-shim">A wandb.log shim<a href="#a-wandb-log-shim" class="hash-link" aria-label="Direct link to A wandb.log shim" title="Direct link to A wandb.log shim" translate="no">​</a></h3><p>Mirror your existing <code>wandb.log</code> calls to QA-Board, without changing your code.</p></div></div>
