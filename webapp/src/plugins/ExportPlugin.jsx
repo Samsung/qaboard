@@ -271,7 +271,7 @@ const Presets = ({ project, settings, onLoad, fit_context }) => {
 const SettingsPicker = ({ plan, naming, update, onToggle }) => <div style={{ margin: '6px 0 2px' }}>
   <div role="group" aria-label="Settings in names" style={{ display: 'flex', flexWrap: 'wrap', gap: '0 16px' }}>
     {plan.candidates.map(c => <Checkbox key={c.key} inline style={{ margin: '2px 0' }} checked={plan.picked.includes(c.key)} onChange={() => onToggle(c.key)}
-      labelElement={<Tooltip content={`${plural(c.values, 'value')}${c.needed ? ', differs between runs on the same input' : ', only differs between inputs'}`} placement="top" hoverOpenDelay={300}>
+      labelElement={<Tooltip content={`${plural(c.values, 'value')}${c.needed ? ', tells runs on the same input apart' : c.on_input ? ', differs between runs on the same input, but the settings checked tell them apart already' : ', only differs between inputs'}`} placement="top" hoverOpenDelay={300}>
         <span>{[CONFIGURATIONS, PLATFORM, BATCH, DATABASE].includes(c.key) ? c.key : <code>{c.key}</code>}{c.needed && <span className={Classes.TEXT_MUTED}> (needed)</span>}</span>
       </Tooltip>}/>)}
   </div>
@@ -322,7 +322,7 @@ const CropsStep = ({ crops, picked, enabled, whole, shown, onChange }) => {
         <div style={{ flex: 1, maxWidth: 220 }}><ProgressBar value={source.total ? source.searched / source.total : 0} animate={source.fetching > 0} stripes={source.fetching > 0} intent="primary"/></div>
         {source.fetching > 0
           ? <><span className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>Finding… {source.searched}/{source.total}</span><Button size="small" variant="minimal" icon="stop" text="Stop" onClick={() => crops.stop(source.id)}/></>
-          : <Button size="small" variant="minimal" icon="search" text={source.searched ? `Find in the ${source.total - source.searched} others` : `Find in the ${plural(source.total, 'run')}`} onClick={() => crops.start(source.id)}/>}
+          : <Button size="small" variant="minimal" icon="search" text={source.searched ? `Find in the ${source.total - source.searched === 1 ? 'last run' : `other ${source.total - source.searched}`}` : `Find in the ${plural(source.total, 'run')}`} onClick={() => crops.start(source.id)}/>}
         {source.failed > 0 && <span className="bp6-text-danger" style={{ fontSize: 12 }}>{source.failed} failed</span>}
       </div>}
     </div>;

@@ -146,12 +146,15 @@ describe('ExportPlugin', () => {
     };
     open({ new_batch: tuning, ref_batch: { outputs: {} } });
     const parts = await screen.findByLabelText('What names say');
-    expect(parts).toHaveTextContent('what tells runs on the same input apart: gain=1,iso=100, gain=2,iso=default');
+    // gain is enough to tell them apart
+    expect(parts).toHaveTextContent('what tells runs on the same input apart: gain=1, gain=2');
     fireEvent.click(within(parts).getByRole('button', { name: 'Change' }));
     expect(screen.getByRole('group', { name: 'Settings in names' })).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: /gain/ })).toBeChecked();
-    expect(screen.getByRole('checkbox', { name: /iso/ })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /iso/ })).not.toBeChecked();
     const sent = () => previews(fetch).at(-1).runs.map(r => r.fields.settings);
+    await waitFor(() => expect(sent()).toEqual(['gain=1', 'gain=2']));
+    fireEvent.click(screen.getByRole('checkbox', { name: /iso/ }));
     await waitFor(() => expect(sent()).toEqual(['gain=1,iso=100', 'gain=2,iso=default']));
     fireEvent.click(screen.getByRole('checkbox', { name: /iso/ }));
     fireEvent.change(screen.getByLabelText('Parameters and their values'), { target: { value: '-' } });
