@@ -64,7 +64,8 @@ def get_site_config():
         # how `qa` authenticates the results it sends: off, warn or token
         "ingest_auth": setting('ingest.auth'),
         # what the web app offers when users create tokens
-        "tokens": {"default_lifetime_days": setting('tokens.default_lifetime_days'), "max_lifetime_days": setting('tokens.max_lifetime_days')},
+        "tokens": {"default_lifetime_days": setting('tokens.default_lifetime_days'), "max_lifetime_days": setting('tokens.max_lifetime_days'),
+                   "ci_lifetime_minutes": setting('tokens.ci_lifetime_minutes')},
         # The web app can report to its own Sentry project (where its source maps are uploaded)
         "sentry_dsn": os.environ.get('SENTRY_FRONTEND_DSN') or os.environ.get('SENTRY_DSN'),
         "sentry_environment": os.environ.get('SENTRY_ENVIRONMENT') or 'production',

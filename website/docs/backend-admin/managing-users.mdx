@@ -63,6 +63,7 @@ the panel then shows the setting as "set by the environment", and you change it 
 | `tokens.default_lifetime_days` | | `90` | The default lifetime of the tokens users create |
 | `tokens.max_lifetime_days` | | none | The longest lifetime users may choose. Empty: tokens may never expire |
 | `tokens.cli_idle_expiry_days` | | `180` | Tokens created by `qa auth login` expire after this many days without use |
+| `tokens.ci_lifetime_minutes` | | `360` | How long the tokens of trusted CI jobs work (5 to 1440 minutes) |
 | `audit.retention_days` | | `730` | `qaboard-admin purge-audit` deletes older audit events |
 | `auth.access_policy` | `QABOARD_ACCESS_POLICY` | `open` | Who gets an account: `open`, `domains`, `approval` (see [Decide who gets an account](/docs/backend-admin/sign-in#decide-who-gets-an-account)) |
 | `auth.allowed_email_domains` | `QABOARD_ALLOWED_EMAIL_DOMAINS` | none | With `domains`: the email domains whose users get an account right away |
@@ -187,9 +188,21 @@ only browser sessions create them. Service accounts can't sign in, are never adm
 batches' origins. Deleting one revokes its tokens and removes its roles; its name stays taken, so runs keep saying who
 sent them. Like any signed-in user, they get `projects.signed_in_role` on internal and public projects.
 
+**Trusted CI jobs**: a service account can trust GitHub Actions or GitLab CI jobs of some repositories (and branches,
+environments), that then get its tokens without a stored secret (see
+[Upload from CI without a secret](/docs/ci-integration#ci-without-secrets)). `qa` sends the job's OIDC ID token to
+`POST /api/v1/auth/token-exchange`, rate-limited by nginx like sign-ins. QA-Board checks it with the keys of the CI's
+issuer, and only fetches the issuers a service account trusts. Projects' owners can trust GitHub, GitLab.com and the
+git hosts in your server's configuration (`QABOARD_GIT_HOSTS`, a self-hosted GitLab or GitHub Enterprise); only admins
+add other issuers, since the server fetches their keys. The server must reach
+`token.actions.githubusercontent.com` for GitHub, your GitLab for GitLab CI (through `HTTPS_PROXY` if needed). The
+tokens look like `qab_tmp_…`, work `tokens.ci_lifetime_minutes`, and are audited as `token.exchange`.
+
 The API: `GET/POST /api/v1/service-accounts` (`?project=group/repo` for a project's), `POST` and `DELETE
 /api/v1/service-accounts/<id>` (its `role`), and `POST /api/v1/service-accounts/<id>/tokens`, `DELETE
-/api/v1/service-accounts/<id>/tokens/<token id>`.
+/api/v1/service-accounts/<id>/tokens/<token id>`. Trusted CI jobs: `POST /api/v1/service-accounts/<id>/ci-trust`
+(`{provider: github|gitlab|other, issuer?, repository, ref?, environment?, conditions?}`), `DELETE
+/api/v1/service-accounts/<id>/ci-trust/<policy id>`.
 
 ## Results sent by qa
 Until now, anyone who could reach the server could send results. `ingest.auth` (or `QABOARD_INGEST_AUTH`) decides:

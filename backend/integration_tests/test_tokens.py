@@ -203,11 +203,11 @@ def test_the_config_says_how_long_tokens_last(client):
   from backend.database import db_session
   from backend.models import Setting
   from backend import settings
-  assert client.get('/api/v1/config').get_json()["tokens"] == {"default_lifetime_days": 90, "max_lifetime_days": None}
+  assert client.get('/api/v1/config').get_json()["tokens"] == {"default_lifetime_days": 90, "max_lifetime_days": None, "ci_lifetime_minutes": 360}
   db_session.add(Setting(key='tokens.max_lifetime_days', value={"value": 30}))
   db_session.commit()
   settings.invalidate_cache()
-  assert client.get('/api/v1/config').get_json()["tokens"] == {"default_lifetime_days": 90, "max_lifetime_days": 30}
+  assert client.get('/api/v1/config').get_json()["tokens"] == {"default_lifetime_days": 90, "max_lifetime_days": 30, "ci_lifetime_minutes": 360}
 
 
 def test_errors_say_when_tokens_expired(logged_in, make_client):

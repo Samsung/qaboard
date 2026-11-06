@@ -90,6 +90,10 @@ DEFINITIONS = {
     "Tokens created by `qa auth login` expire after this many days without being used.",
     180, int, minimum=1,
   ),
+  'tokens.ci_lifetime_minutes': Definition(
+    "How long the tokens that CI jobs get without a stored secret (trusted CI jobs of service accounts) work, in minutes.",
+    360, int, minimum=5, maximum=1440,
+  ),
   'auth.access_policy': Definition(
     "Who gets an account when they first sign in: \"open\" (everyone a sign-in method accepts), \"domains\" (emails in auth.allowed_email_domains, the others wait for an admin), \"approval\" (everyone waits for an admin).",
     'open', str, env='QABOARD_ACCESS_POLICY', choices=('open', 'domains', 'approval'),

@@ -20,6 +20,7 @@ import {
   serviceAccountsQuery, serviceAccountQuery, createServiceAccount, setServiceAccountRole, deleteServiceAccount,
   createServiceAccountToken, revokeServiceAccountToken,
 } from "./serviceAccounts";
+import { CiTrust } from "./CiTrust";
 
 
 const showError = error => toaster.show({ message: errorMessage(error), intent: Intent.DANGER, timeout: 8000 });
@@ -140,6 +141,7 @@ const TokensDialog = ({ account, onClose }) => {
             label={`Show revoked and expired tokens (${tokens.length - active.length})`}
           />}
         </>)}
+      {data && <CiTrust account={data}/>}
     </DialogBody>
     <DialogFooter actions={<Button text="Close" onClick={onClose}/>}/>
     {account && <CreateTokenDialog

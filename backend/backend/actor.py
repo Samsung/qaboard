@@ -31,7 +31,7 @@ LAST_USED_EVERY = datetime.timedelta(minutes=5)
 PUBLIC_ENDPOINTS = {
   'get_site_config', 'health',
   # signing in
-  'get_current_user', 'auth_post', 'signup', 'logout', 'saml_auth', 'device_code', 'device_token',
+  'get_current_user', 'auth_post', 'signup', 'logout', 'saml_auth', 'device_code', 'device_token', 'token_exchange',
   'sign_in_providers', 'oidc_start', 'oidc_callback', 'my_access_request',
   # nginx asks it whether users may read files, it answers 401 itself
   'authorize_files',
