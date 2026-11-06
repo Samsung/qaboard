@@ -2,9 +2,9 @@
 import { Classes, FormGroup, HTMLTable, Tag, TagInput } from "@blueprintjs/core";
 
 import { Link } from "../router";
-import { Avatar } from "../components/avatars";
+import { Avatar, userAvatarUrl } from "../components/avatars";
 import { useSiteConfig } from "../hooks";
-import { AdminTag, loginTypeLabel } from "./format";
+import { AdminTag, Time, loginTypeLabel, profileLine } from "./format";
 import { usePrefsStore } from "../stores/prefs";
 
 
@@ -35,17 +35,24 @@ const GitEmails = ({ user }) => {
 export const ProfileTab = ({ user }) => {
   const { avatar_url_template } = useSiteConfig();
   const display_name = user.full_name || user.user_name;
-  const avatar_url = avatar_url_template ? avatar_url_template.replace('{user_name}', user.user_name) : null;
   const login_type = (user.login_type ?? '').toUpperCase();
+  const profile = user.profile ?? {};
+  const job = profileLine(profile);
+  // the picture and the job come from the sign-in (SSO, LDAP, SAML)
+  const source = profile.picture_source || ((user.avatar_url || job) && login_type !== 'LOCAL' ? loginTypeLabel(user.login_type) : null);
   return <section aria-label="Profile">
     <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
-      <Avatar src={avatar_url} name={display_name} size="64px"/>
-      <div>
+      <Avatar src={userAvatarUrl(user, avatar_url_template)} name={display_name} size="96px"/>
+      <div style={{ minWidth: 0 }}>
         <h3 className={Classes.HEADING} style={{ margin: 0 }}>{display_name}</h3>
+        {job && <div style={{ marginTop: 4 }}>{job}</div>}
         <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
           {user.is_admin && <AdminTag/>}
           {user.kind === 'service' && <Tag minimal icon="automatic-updates">Service account</Tag>}
         </div>
+        {source && <div className={Classes.TEXT_MUTED} style={{ fontSize: 12, marginTop: 6 }} data-testid="profile-source">
+          From {source}, updated at each sign-in.{profile.updated_at && <> Last updated <Time iso={profile.updated_at}/>.</>}
+        </div>}
       </div>
     </div>
     <HTMLTable compact style={{ maxWidth: '100%' }}>
@@ -60,7 +67,7 @@ export const ProfileTab = ({ user }) => {
     <p className={Classes.TEXT_MUTED} style={{ marginTop: 16, maxWidth: 600 }}>
       {login_type === 'LOCAL'
         ? "Ask an admin to change your name or email."
-        : "Your name and email come from your company's directory: change them there."}
+        : "Your name, email and picture come from your company's directory: change them there."}
     </p>
     {user.kind !== 'service' && <GitEmails user={user}/>}
   </section>;

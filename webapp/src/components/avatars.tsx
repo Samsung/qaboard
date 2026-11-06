@@ -3,10 +3,12 @@
 // Then we show initials on a color derived from the name, so people and projects keep the same color everywhere.
 import { useState } from "react";
 import type { CSSProperties, MouseEventHandler } from "react";
+import { useQuery } from "@tanstack/react-query";
 import styled from "styled-components";
 import { Classes, Colors } from "@blueprintjs/core";
 
 import { Link } from "../router";
+import { siteConfigQuery } from "../api/queries";
 import { project_avatar_style } from "../utils";
 import { image_url } from "../git";
 
@@ -92,9 +94,11 @@ type AvatarProps = {
   style?: CSSProperties,
   // only for pictures, e.g. to tint subprojects' avatars
   img_style?: CSSProperties | null,
+  // the name by default. "" when the name is written next to it, so that it isn't read twice
+  alt?: string,
 };
 
-export function Avatar({ name, src, href, onClick, size = "45px", className, style, img_style }: AvatarProps) {
+export function Avatar({ name, src, href, onClick, size = "45px", className, style, img_style, alt }: AvatarProps) {
   // We try again if the URL changes
   const [failed_src, setFailedSrc] = useState<string | null>(null);
   const has_image = !!src && src !== failed_src;
@@ -103,7 +107,7 @@ export function Avatar({ name, src, href, onClick, size = "45px", className, sty
   const avatar = <AvatarImg
     $size={size}
     src={has_image ? src : initialsImage(name, max_letters)}
-    alt={name ?? ""}
+    alt={alt ?? name ?? ""}
     title={name ?? undefined}
     style={has_image ? img_style ?? undefined : undefined}
     onError={has_image ? () => setFailedSrc(src) : undefined}
@@ -113,6 +117,28 @@ export function Avatar({ name, src, href, onClick, size = "45px", className, sty
   return <AvatarCell $size={size} className={className} style={style}>
     {href ? <Link to={href} onClick={onClick}>{avatar}</Link> : avatar}
   </AvatarCell>;
+}
+
+
+type AvatarUser = {
+  user_name?: string | null,
+  full_name?: string | null,
+  // same-origin, served by the backend, when QA-Board has the user's picture (from their sign-in)
+  avatar_url?: string | null,
+};
+
+// Users' pictures: the one QA-Board has, else the site's avatar_url_template (e.g. the company directory's photos,
+// "https://directory.example.com/photos/{user_name}.jpg"), else null: the initials.
+export const userAvatarUrl = (user?: AvatarUser | null, template?: string | null): string | null => {
+  if (user?.avatar_url) return user.avatar_url;
+  if (template && user?.user_name) return template.replace('{user_name}', user.user_name);
+  return null;
+};
+
+// A user's avatar, with the site's template
+export function UserAvatar({ user, ...props }: { user?: AvatarUser | null } & Omit<AvatarProps, "name" | "src">) {
+  const { data: template } = useQuery({ ...siteConfigQuery, select: (config: { avatar_url_template?: string | null } | undefined) => config?.avatar_url_template ?? null });
+  return <Avatar name={user?.full_name || user?.user_name} src={userAvatarUrl(user, template)} {...props}/>;
 }
 
 

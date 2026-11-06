@@ -20,7 +20,7 @@ import { requestLogin } from "./login";
 import { accessRequestsQuery } from "../../admin/api";
 import { history } from "../../router";
 import { toaster } from "./../../toaster"
-import { Avatar } from '../avatars';
+import { Avatar, userAvatarUrl } from '../avatars';
 import { colors, spacing, typography, borders, shadows, transitions } from '../../design/tokens';
 
 // Modern styled components for user menu  
@@ -221,7 +221,7 @@ const navigate = path => event => {
 // that opens on click, under its button, so that it doesn't hide it.
 const UserMenu = ({ user, logout, avatar_url_template, appSider = false }) => {
   const display_name = user.full_name || user.user_name;
-  const avatarUrl = avatar_url_template ? avatar_url_template.replace('{user_name}', user.user_name) : null;
+  const avatarUrl = userAvatarUrl(user, avatar_url_template);
   // admins see how many users wait for them
   const { data: requests } = useQuery({ ...accessRequestsQuery('pending', { background: true }), enabled: !!user.is_admin });
   const nb_pending = user.is_admin ? requests?.length ?? 0 : 0;

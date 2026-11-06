@@ -41,6 +41,21 @@ def new_user_status(email: Optional[str], verified: bool = True) -> str:
   return initial_status(email if verified else None)
 
 
+def refresh_name(user, provider, claims: dict):
+  """
+  Keeps an account's name and email up to date with the IdP's. Only verified emails, that no other account uses:
+  emails decide who is an admin ($QABOARD_ADMINS) and the `domains` access policy. Doesn't commit.
+  """
+  from ..models import User
+  full_name = claims.get(provider.claim('name'))
+  if isinstance(full_name, str) and full_name.strip() and full_name.strip() != user.full_name:
+    user.full_name = full_name.strip()
+  email = claims.get(provider.claim('email'))
+  if isinstance(email, str) and email and email != user.email and claims.get('email_verified') in (True, 'true'):
+    if User.query.filter(User.email == email, User.id != user.id).count() == 0:
+      user.email = email
+
+
 def oidc_account(provider, claims: dict, linking_user=None):
   """
   The account of an OIDC sign-in: its identity, else the user it matches (`match_users`), else a new one.

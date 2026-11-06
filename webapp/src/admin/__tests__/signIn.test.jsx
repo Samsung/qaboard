@@ -128,8 +128,80 @@ describe('Sign-in', () => {
     const [[, init]] = calls(fetch, 'POST', '/api/v1/admin/sign-in/providers');
     expect(JSON.parse(init.body)).toMatchObject({
       id: 'okta', name: 'Okta', issuer: 'https://okta.example.com', client_id: 'abc', client_secret: 's3cret',
-      scopes: ['openid', 'profile', 'email'], match_users: 'email', enabled: true, recommended: false,
+      scopes: ['openid', 'profile', 'email'], match_users: 'email', enabled: true, recommended: false, picture_url: '',
     });
+    // the order is chosen on the cards
+    expect(JSON.parse(init.body)).not.toHaveProperty('position');
+    expect(dialog.queryByLabelText('Position')).not.toBeInTheDocument();
+  });
+
+  it("reads users' picture and job: claims, or a picture URL fetched with their access token", async () => {
+    const fetch = mockApi({
+      'GET /api/v1/admin/sign-in': sign_in(),
+      'POST /api/v1/admin/sign-in/providers/keycloak': (url, init) => [{ ...keycloak, ...JSON.parse(init.body) }, 200],
+    });
+    renderAt('/admin/sign-in', <SignIn/>);
+    fireEvent.click(within(await screen.findByTestId('provider-keycloak')).getByRole('button', { name: 'Edit' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    fireEvent.click(dialog.getByRole('button', { name: 'Advanced' }));
+    for (const [label, placeholder] of [['Picture claim', 'picture'], ['Job title claim', 'title'], ['Department claim', 'department'], ['Organization claim', 'organization']])
+      expect(dialog.getByLabelText(label)).toHaveAttribute('placeholder', placeholder);
+    expect(dialog.getByText('A URL or a data: URI. QA-Board downloads it and serves it itself.')).toBeInTheDocument();
+    expect(dialog.getByText(/QA-Board downloads the user's photo from this URL with their access token/)).toBeInTheDocument();
+
+    fireEvent.change(dialog.getByLabelText('Picture URL'), { target: { value: 'not a url' } });
+    fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
+    expect(dialog.getByText('A URL, or leave it empty.')).toBeInTheDocument();
+    expect(calls(fetch, 'POST', '/api/v1/admin/sign-in/providers/keycloak')).toHaveLength(0);
+
+    fireEvent.change(dialog.getByLabelText('Picture URL'), { target: { value: 'https://graph.microsoft.com/v1.0/me/photo/$value' } });
+    fireEvent.change(dialog.getByLabelText('Department claim'), { target: { value: 'dept' } });
+    fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/admin/sign-in/providers/keycloak')).toHaveLength(1));
+    const body = JSON.parse(calls(fetch, 'POST', '/api/v1/admin/sign-in/providers/keycloak')[0][1].body);
+    expect(body.picture_url).toBe('https://graph.microsoft.com/v1.0/me/photo/$value');
+    expect(body.claims).toMatchObject({ department: 'dept', picture: '', title: '', organization: '' });
+  });
+
+  it('moves sign-in methods up and down, the environment\'s too', async () => {
+    const fetch = mockApi({
+      'GET /api/v1/admin/sign-in': sign_in(),
+      'POST /api/v1/admin/sign-in/order': (url, init) => {
+        const { order } = JSON.parse(init.body);
+        const by_id = { sso: env_sso, ldap, keycloak };
+        return [sign_in({ providers: order.map(id => by_id[id]) }), 200];
+      },
+    });
+    const { queryClient } = renderAt('/admin/sign-in', <SignIn/>);
+    await screen.findByTestId('provider-sso');
+    expect(screen.getByText(/in the order of the sign-in page/)).toBeInTheDocument();
+    // disabled at the ends
+    expect(screen.getByRole('button', { name: 'Move Company SSO up' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Move Company SSO down' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Move Keycloak down' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move Keycloak up' }));
+    await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/admin/sign-in/order')).toHaveLength(1));
+    expect(JSON.parse(calls(fetch, 'POST', '/api/v1/admin/sign-in/order')[0][1].body)).toEqual({ order: ['sso', 'keycloak', 'ldap'] });
+    await waitFor(() => expect(screen.getAllByTestId(/^provider-/).map(card => card.dataset.testid)).toEqual(['provider-sso', 'provider-keycloak', 'provider-ldap']));
+    expect(queryClient.getQueryData(['admin', 'sign-in']).providers.map(provider => provider.id)).toEqual(['sso', 'keycloak', 'ldap']);
+    expect(screen.getByRole('button', { name: 'Move Keycloak down' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Move Directory account (LDAP) down' })).toBeDisabled();
+    // the focus follows the card
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Move Keycloak up' })).toHaveFocus());
+    // the server's answer, not another request
+    expect(calls(fetch, 'GET', '/api/v1/admin/sign-in')).toHaveLength(1);
+  });
+
+  it('says when a move fails', async () => {
+    mockApi({
+      'GET /api/v1/admin/sign-in': sign_in(),
+      'POST /api/v1/admin/sign-in/order': () => [{ error: 'Unknown provider okta.' }, 400],
+    });
+    renderAt('/admin/sign-in', <SignIn/>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Move Company SSO down' }));
+    await waitFor(() => expect(toaster.show).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('Could not move Company SSO') })));
+    expect(screen.getAllByTestId(/^provider-/).map(card => card.dataset.testid)).toEqual(['provider-sso', 'provider-ldap', 'provider-keycloak']);
   });
 
   it('without an encryption key, secrets come from the environment', async () => {
@@ -184,13 +256,14 @@ const request = props => ({
 describe('Access requests', () => {
   it('lists the pending users with their message, and approves them', async () => {
     const fetch = mockApi({
-      'GET /api/v1/admin/access-requests': { requests: [request()] },
+      'GET /api/v1/admin/access-requests': { requests: [request({ user: { ...request().user, avatar_url: '/api/v1/users/7/picture?v=ab12cd34' } })] },
       'POST /api/v1/admin/users/7': { id: 7, user_name: 'carol', status: 'active' },
     });
     renderAt('/admin/requests', <AccessRequests/>);
     const card = within(await screen.findByTestId('request-5'));
     expect(card.getByText('I join the camera team next week')).toBeInTheDocument();
     expect(card.getByRole('link', { name: 'Carol' })).toHaveAttribute('href', '/admin/users/7');
+    expect(screen.getByTestId('request-5').querySelector('img')).toHaveAttribute('src', '/api/v1/users/7/picture?v=ab12cd34');
     fireEvent.click(card.getByRole('button', { name: 'Approve carol' }));
     await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/admin/users/7')).toHaveLength(1));
     expect(JSON.parse(calls(fetch, 'POST', '/api/v1/admin/users/7')[0][1].body)).toEqual({ status: 'active' });

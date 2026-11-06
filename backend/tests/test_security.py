@@ -446,6 +446,8 @@ UNAUTHENTICATED_ENDPOINTS = {
   ("auth.py", "signup"), ("auth.py", "auth_post"), ("auth.py", "logout"), ("auth.py", "saml_auth"),
   # the device flow of `qa auth login`: the CLI isn't logged-in yet, approving it needs a session (session_required)
   ("tokens.py", "device_code"), ("tokens.py", "device_token"),
+  # CI jobs exchange their OIDC ID token for a token: the ID token is the credential, checked by backend/ci_trust.py
+  ("ci_trust.py", "token_exchange"),
   # users waiting for an admin say why they need access: it checks their pending session itself
   ("sign_in.py", "my_access_request"),
   # the CLI sends results, checked by ingest_access: anonymous unless ingest.auth is "token" (see "Known issues" in SECURITY.md)
@@ -1453,6 +1455,8 @@ UNCHECKED_PROJECT_ROUTES = {
   ("auth.py", "get_current_user"), ("sign_in.py", "my_access_request"), ("tokens.py", "new_token"),
   # users and groups to pick from: it leaves out projects' service accounts, it reads no project
   ("access.py", "directory"),
+  # it reads no project: it says which projects the token it mints is restricted to (the service account's)
+  ("ci_trust.py", "token_exchange"),
   # login_required checks ?project=, the only project it reads
   ("tuning.py", "check_tuning"), ("integrations.py", "proxy_webook"),
 }

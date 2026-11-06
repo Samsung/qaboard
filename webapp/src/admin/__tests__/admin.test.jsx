@@ -153,6 +153,19 @@ describe('Users', () => {
     await waitFor(() => expect(calls(fetch, 'GET', '/api/v1/admin/users').at(-1)[0]).toBe('/api/v1/admin/users?status=disabled&admin=true&limit=50&offset=0'));
   });
 
+  it("shows users' pictures, else their initials", async () => {
+    mockApi({ 'GET /api/v1/admin/users': { users: [
+      user({ avatar_url: '/api/v1/users/2/picture?v=ab12cd34' }),
+      user({ id: 3, user_name: 'bob', full_name: null, avatar_url: null }),
+    ], total: 2 } });
+    renderAt('/admin/users', <Users/>);
+    const alice = (await screen.findByRole('link', { name: 'Alice' })).closest('tr');
+    expect(alice.querySelector('img')).toHaveAttribute('src', '/api/v1/users/2/picture?v=ab12cd34');
+    // next to their name: not read twice
+    expect(alice.querySelector('img')).toHaveAttribute('alt', '');
+    expect(screen.getByRole('link', { name: 'bob' }).closest('tr').querySelector('img').getAttribute('src')).toMatch(/^data:image\/svg\+xml/);
+  });
+
   it('searches a moment after typing', async () => {
     const fetch = mockApi({ 'GET /api/v1/admin/users': { users: [], total: 0 } });
     renderAt('/admin/users', <Users/>);
@@ -185,6 +198,14 @@ describe('UserDetail', () => {
     expect(await screen.findByRole('heading', { name: 'Alice' })).toBeInTheDocument();
     expect(screen.getByText('qab_pat_abcd…')).toBeInTheDocument();
     expect(screen.getByText('Created a token')).toBeInTheDocument();
+  });
+
+  it('shows their picture and job, from their sign-in', async () => {
+    mockApi({ 'GET /api/v1/admin/users/2': detail({ avatar_url: '/api/v1/users/2/picture?v=ab12cd34', profile: { title: 'Engineer', organization: 'Example Corp' } }) });
+    renderAt('/admin/users/2', <UserDetail id="2" me={admin}/>);
+    const page = await screen.findByRole('region', { name: 'User alice' });
+    expect(page.querySelector('img[src="/api/v1/users/2/picture?v=ab12cd34"]')).toBeInTheDocument();
+    expect(screen.getByText('Engineer · Example Corp')).toBeInTheDocument();
   });
 
   it('disables users after asking, and makes them admins after asking', async () => {

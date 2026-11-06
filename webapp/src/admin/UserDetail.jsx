@@ -6,7 +6,8 @@ import { Alert, Button, Callout, Classes, Dialog, DialogBody, DialogFooter, HTML
 import { Link } from "../router";
 import { errorMessage } from "../api/http";
 import { toaster } from "../toaster";
-import { Time, loginTypeLabel } from "../settings/format";
+import { UserAvatar } from "../components/avatars";
+import { Time, loginTypeLabel, profileLine } from "../settings/format";
 import { Loading } from "../settings/states";
 import { TokensTable } from "../settings/tokens";
 import { AuditEvents } from "../settings/AuditEvents";
@@ -170,9 +171,13 @@ export const UserDetail = ({ id, me }) => {
   return <section aria-label={`User ${user.user_name}`}>
     <p style={{ marginTop: 0 }}><Link to="/admin/users">← All users</Link></p>
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 16 }}>
-      <div>
-        <h3 className={Classes.HEADING} style={{ marginBottom: 6 }}>{user.full_name || user.user_name}</h3>
-        <UserTags user={user}/>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+        <UserAvatar user={user} size="48px" alt=""/>
+        <div style={{ minWidth: 0 }}>
+          <h3 className={Classes.HEADING} style={{ marginBottom: 6 }}>{user.full_name || user.user_name}</h3>
+          {profileLine(user.profile) && <div style={{ marginBottom: 6 }}>{profileLine(user.profile)}</div>}
+          <UserTags user={user}/>
+        </div>
       </div>
       <Actions user={user} me={me}/>
     </div>

@@ -43,6 +43,10 @@ In the **Access** tab, as an owner:
 2. Click **New token**, choose its scopes (`read` and `ingest` to send results) and its expiry, and copy it: it's shown
    once. Save it in your CI's secrets as `QABOARD_TOKEN` (see [CI integration](/docs/ci-integration#tokens)).
 
+With GitHub Actions or GitLab CI, you don't even need a token: in **Tokens**, click **Trust CI jobs** and choose
+the repository (and optionally the branch) whose jobs may act as the service account (see
+[Upload from CI without a secret](/docs/ci-integration#ci-without-secrets)).
+
 Runs it sends show `group/repo/ci[bot]`. Its tokens only work on the project and the projects under it, whatever
 roles it's given elsewhere. Change its role in the list, revoke its tokens from **Tokens**, or delete it: its tokens
 stop working at once.

@@ -11,6 +11,12 @@ from ..tokens import utcnow, iso
 DROPPED_CLAIMS = {'at_hash', 'c_hash', 'nonce', 'sid', 'session_state', 'jti'}
 
 
+def kept_claims(claims: Optional[dict]) -> dict:
+  """The claims we store: no credentials, no pictures as data: URIs (they're in user_pictures)"""
+  return {k: v for k, v in (claims or {}).items()
+          if k not in DROPPED_CLAIMS and not (isinstance(v, str) and v.startswith('data:') and len(v) > 1000)}
+
+
 def find(provider_id: str, subject: str):
   from ..models import UserIdentity
   return UserIdentity.query.filter(UserIdentity.provider_id == provider_id, UserIdentity.subject == subject).one_or_none()
@@ -34,7 +40,7 @@ def record(user, provider_id: str, subject: str, email: Optional[str] = None, cl
       db_session.add(identity)
     identity.subject = subject
   identity.email = email or identity.email
-  identity.claims = {k: v for k, v in (claims or {}).items() if k not in DROPPED_CLAIMS}
+  identity.claims = kept_claims(claims)
   identity.last_login_at = utcnow()
   identity.claims_refreshed_at = identity.last_login_at
   if refresh_token:

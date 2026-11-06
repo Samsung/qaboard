@@ -1,7 +1,7 @@
 import datetime
 
 from flask_login import UserMixin
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, LargeBinary
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
@@ -39,6 +39,9 @@ class User(Base, UserMixin):
   # the web app's preferences that follow users from browser to browser
   preferences = Column(JSONB(), nullable=False, default=dict, server_default='{}')
   preferences_updated_at = Column(DateTime(), nullable=True)
+  # what the sign-in methods say about them, refreshed at each sign-in and daily (backend/sign_in/profiles.py):
+  # {title, department, organization, source, updated_at, picture: {sha256, source, updated_at}}
+  profile = Column(JSONB(), nullable=False, default=dict, server_default='{}')
 
 
   def __repr__(self):
@@ -74,6 +77,23 @@ class User(Base, UserMixin):
       if data:
         self.data = data
       # FIXME: what about the kwargs?
+
+
+
+class UserPicture(Base):
+  """A user's picture, from their sign-in method (an OIDC claim or photo URL, LDAP's thumbnailPhoto, a SAML attribute)"""
+  __tablename__ = 'user_pictures'
+
+  user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
+  # image/jpeg, image/png, image/gif or image/webp: never SVG (scripts)
+  content_type = Column(String(), nullable=False)
+  data = Column(LargeBinary(), nullable=False)
+  sha256 = Column(String(64), nullable=False)
+  # the provider it came from, e.g. sso, ldap, saml
+  source = Column(String(), nullable=True)
+  # where we downloaded it, to download it again only when it changes
+  source_url = Column(Text(), nullable=True)
+  updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
 
 
 

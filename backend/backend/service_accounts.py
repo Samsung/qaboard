@@ -4,6 +4,7 @@ Service accounts: bot users (kind "service") that only use tokens, for CI and sc
 - the instance: admins manage them, and give them a role on all projects, or on some projects from their Access page;
 - a project: its owners manage them, they have a role on the project, and their tokens can't reach outside of it.
 Their tokens start with `qab_svc_`. A service account never has more than its role gives it, like users.
+The CI jobs it trusts get short-lived `qab_tmp_` tokens of it, without a stored secret (backend/ci_trust.py).
 Deleting one disables it (runs keep saying who sent them), revokes its tokens and removes its grants.
 """
 import re
@@ -170,6 +171,9 @@ def serialize(user, with_tokens: bool = False) -> dict:
     "active_tokens": sum(1 for t in tokens if tokens_lib.status(t) == 'active'),
     "last_used_at": tokens_lib.iso(max((t.last_used_at for t in tokens if t.last_used_at), default=None)),
   }
+  from .ci_trust import policies_of, serialize_policy
+  info["ci_trust"] = [serialize_policy(p) for p in policies_of(user)]
   if with_tokens:
-    info["tokens"] = [tokens_lib.serialize(t) for t in tokens]
+    # CI jobs get a token each (backend/ci_trust.py): once expired, they're only noise
+    info["tokens"] = [tokens_lib.serialize(t) for t in tokens if t.kind not in tokens_lib.TEMPORARY_KINDS or tokens_lib.status(t) == 'active']
   return info

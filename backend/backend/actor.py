@@ -33,7 +33,7 @@ PUBLIC_ENDPOINTS = {
   # the API's description and its docs page: they describe the API, not the data
   'openapi_json', 'api_docs', 'api_docs_redirect',
   # signing in
-  'get_current_user', 'auth_post', 'signup', 'logout', 'saml_auth', 'device_code', 'device_token',
+  'get_current_user', 'auth_post', 'signup', 'logout', 'saml_auth', 'device_code', 'device_token', 'token_exchange',
   'sign_in_providers', 'oidc_start', 'oidc_callback', 'my_access_request',
   # a new server's first admin (backend/first_admin.py)
   'setup_status', 'setup_first_admin',

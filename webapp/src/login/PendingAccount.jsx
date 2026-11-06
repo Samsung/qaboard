@@ -7,6 +7,7 @@ import { Button, Callout, Card, Classes, FormGroup, Icon, Intent, Tag, TextArea 
 import { errorMessage } from "../api/http";
 import { toaster } from "../toaster";
 import { Time } from "../settings/format";
+import { UserAvatar } from "../components/avatars";
 import { sendAccessRequest, signOut } from "./api";
 
 
@@ -56,12 +57,15 @@ export const PendingAccount = ({ user, style }) => {
     <h3 className={Classes.HEADING} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <Icon icon="time" intent={Intent.WARNING} size={20}/>Your account is waiting for approval
     </h3>
-    <p>
-      {who ? <>You're signed in as <strong>{who}</strong>{pending.email ? <> ({pending.email})</> : null}. </> : null}
-      An admin needs to approve your account before you can use QA-Board.
-      {reviewers.length > 0 && <> {names(reviewers)} {reviewers.length === 1 ? 'reviews' : 'review'} requests.</>}
-      {' '}You'll get an email when they decide, if this server sends emails.
-    </p>
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+      {who && <UserAvatar user={{ user_name: pending.user_name || user.user_name, full_name: pending.full_name, avatar_url: pending.avatar_url }} size="40px" alt="" style={{ alignSelf: 'flex-start' }}/>}
+      <p style={{ minWidth: 0 }}>
+        {who ? <>You're signed in as <strong>{who}</strong>{pending.email ? <> ({pending.email})</> : null}. </> : null}
+        An admin needs to approve your account before you can use QA-Board.
+        {reviewers.length > 0 && <> {names(reviewers)} {reviewers.length === 1 ? 'reviews' : 'review'} requests.</>}
+        {' '}You'll get an email when they decide, if this server sends emails.
+      </p>
+    </div>
 
     {request && <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 12 }} data-testid="access-request">
       {status_tags[request.status] ?? <Tag minimal>{request.status}</Tag>}

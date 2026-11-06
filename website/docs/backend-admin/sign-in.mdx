@@ -77,6 +77,9 @@ Users who already have an account (LDAP, local) don't get a new one by default: 
 | `QABOARD_OIDC_GROUPS_CLAIM` | `groups` | Recorded in the audit log at each sign-in. [Group rules](/docs/backend-admin/project-access#groups) can read any claim |
 | `QABOARD_OIDC_REFRESH_GROUPS` | `false` | `true` reads users' claims again every day, with refresh tokens (needs `QABOARD_ENCRYPTION_KEY`, see [groups](/docs/backend-admin/project-access#groups)) |
 | `QABOARD_OIDC_REDIRECT_URI` | `$QABOARD_URL/api/v1/auth/oidc/callback` | Only if the IdP has another URI registered for QA-Board |
+| `QABOARD_OIDC_PICTURE_CLAIM` | `picture` | The users' pictures: an URL or a `data:` URI (see [Pictures and profiles](#pictures-and-profiles)) |
+| `QABOARD_OIDC_PICTURE_URL` | _empty_ | An URL QA-Board reads users' photos from, with their access token. Entra ID: `https://graph.microsoft.com/v1.0/me/photo/$value` |
+| `QABOARD_OIDC_TITLE_CLAIM`, `_DEPARTMENT_CLAIM`, `_ORGANIZATION_CLAIM` | `title`, `department`, `organization` | Shown in users' profiles |
 
 </details>
 
@@ -90,6 +93,11 @@ redirect URI, `$QABOARD_URL/api/v1/auth/oidc/<id>/callback`, shown in the panel.
 Providers from the environment are read-only in the panel. Users link more sign-in methods to their account in
 **Settings → Sign-in methods**.
 
+**Reorder sign-in methods** with **Move up** and **Move down** on their cards in **Admin → Sign-in**, those from the
+environment too: the sign-in page lists them in that order (`auth.provider_order`, or `QABOARD_SIGN_IN_ORDER=sso,ldap,local`
+in the environment). Until you do, *Recommended* providers come first. The first single sign-on is the main button
+when it's *Recommended*.
+
 ### Existing accounts
 At their first SSO sign-in, users are recognized by the provider's id for them (`sub`). For users who already have an
 account, the provider's `match_users` decides:
@@ -102,6 +110,39 @@ account, the provider's `match_users` decides:
 
 With LDAP and its service account (`QABOARD_LDAP_BIND_DN`), SSO sign-ins matched by user name also refresh the user's
 directory attributes, which the rules of `QABOARD_LOGIN_RESTRICTED_YAML` can use.
+
+## Pictures and profiles
+At each sign-in, QA-Board updates users' name, verified email, picture, job title, department and organization from
+what the sign-in method says, and shows the pictures next to their names. The daily *Users' groups* job updates them
+too: everything for LDAP accounts, all but the picture for OIDC providers that refresh groups. QA-Board serves the
+pictures itself, to signed-in users: browsers don't need to reach your IdP. Only JPEG, PNG, GIF and WebP pictures up to
+1 MB are kept. Without one, the user menu uses `QABOARD_AVATAR_URL` (`{user_name}` in it), else initials.
+
+Which claim or attribute holds what:
+
+| Sign-in | Picture | Title, department, organization |
+|---|---|---|
+| OpenID Connect | The `picture` claim (an URL QA-Board downloads, or a `data:` URI), or `QABOARD_OIDC_PICTURE_URL` | `title`, `department`, `organization` claims (`QABOARD_OIDC_*_CLAIM`) |
+| LDAP | `thumbnailPhoto`, else `jpegPhoto` (`QABOARD_LDAP_ATTRIBUTE_PICTURE`) | `title`, `department`, `company` or `o` (`QABOARD_LDAP_ATTRIBUTE_TITLE`, `_DEPARTMENT`, `_ORGANIZATION`) |
+| SAML | `picture` or `thumbnailPhoto`: an URL, a `data:` URI or base64 (`QABOARD_SAML_ATTRIBUTE_PICTURE`) | `title` or `jobtitle`, `department`, `organization` or `company` (`QABOARD_SAML_ATTRIBUTE_*`) |
+
+The variables take a comma-separated list: the first attribute the user has wins. Providers added in **Admin →
+Sign-in** have the same claims and *Picture URL* in their *Advanced* settings.
+
+<details>
+<summary>Microsoft Entra ID, Keycloak, Google</summary>
+
+- **Entra ID** doesn't put pictures in ID tokens: set the picture URL to
+  `https://graph.microsoft.com/v1.0/me/photo/$value` (it needs the `User.Read` permission, granted by default). Job
+  titles and departments need [optional claims](https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims)
+  or directory extensions mapped to the claim names above.
+- **Keycloak**: the `profile` scope sends `picture` when users have that attribute. Add user attribute mappers for the
+  others. Its organizations' `organization` claim works as is.
+- **Google** and **GitLab** send `picture` in the `profile` scope.
+
+QA-Board only sends the access token to the IdP's own hosts (its issuer, its userinfo endpoint, the picture URL), and
+downloads a picture URL again at most once a day.
+</details>
 
 ## Decide who gets an account
 `auth.access_policy`, in **Admin → Settings**:

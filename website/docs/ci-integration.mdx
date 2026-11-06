@@ -91,8 +91,59 @@ server requires tokens to send results, or requires signing in (see
    variable named `QABOARD_TOKEN`.
 
 For CI jobs that send results to many projects, admins create service accounts for the whole server, in
-**Admin → Service accounts**, that projects' owners add as members. Tokens tied to the CI itself (no stored secret)
-are coming next.
+**Admin → Service accounts**, that projects' owners add as members.
+
+## Upload from CI without a secret {#ci-without-secrets}
+GitHub Actions and GitLab CI give jobs an ID token that says which repository and branch they run for. A service
+account can trust those jobs: `qa` then exchanges the job's ID token for a token of the service account, valid a few
+hours, and there's no secret to store, rotate or leak.
+1. In your project's **Access** tab, open the service account's **Tokens** (create one first, e.g. `ci` as a
+   developer), and click **Trust CI jobs**.
+2. Choose the CI and the repository (`camera-algo/isp`, or `camera-algo/*` for all its repositories). Optionally, only
+   a branch (`main`, `release/*`) or a deployment environment.
+3. Let the job get an ID token, as below. `qa` does the rest: runs say they were sent by the service account, with
+   the job's repository and branch.
+
+**GitHub Actions**: give the job the `id-token: write` permission.
+
+```yaml title=".github/workflows/qaboard.yml"
+jobs:
+  qa:
+    permissions:
+      id-token: write  # qa exchanges the job's ID token for a QA-Board token
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - run: qa batch ci
+```
+
+**GitLab CI**: ask for an ID token named `QABOARD_ID_TOKEN`, for your QA-Board server's URL. The web app shows the
+exact `aud` to use. For a self-hosted GitLab, choose *Self-hosted GitLab* and give its URL: if it isn't one of the
+git hosts your server knows, ask a QA-Board admin to add the trusted jobs.
+
+```yaml title=".gitlab-ci.yml"
+qa:
+  id_tokens:
+    QABOARD_ID_TOKEN:
+      aud: https://qaboard.example.com
+  script:
+    - qa batch ci
+```
+
+<details>
+<summary>When it doesn't work</summary>
+
+- `qa` prints why the server refused the job's ID token, e.g. no service account trusts this repository or branch,
+  and sends results without a token. When `QABOARD_TOKEN` is set, `qa` uses it and doesn't exchange anything.
+- When several service accounts trust the same job, choose one with `QABOARD_SERVICE_ACCOUNT`, e.g.
+  `group/repo/ci[bot]`.
+- The ID token's audience must be your server's URL as the web app shows it. On GitHub, `qa` asks for the URL it
+  sends results to: if it reaches the server at another address, set `QABOARD_ID_TOKEN_AUDIENCE` to the URL shown
+  in the web app.
+- The token lasts `tokens.ci_lifetime_minutes` (6 hours by default): longer jobs need a stored token.
+- Jenkins and other CIs without ID tokens use a service account's token in `QABOARD_TOKEN`.
+
+</details>
 
 ## GitHub Actions {#example-with-github-actions}
 `qa` reads the commit from `GITHUB_SHA`, and the branch from `GITHUB_HEAD_REF` or `GITHUB_REF_NAME`. For tags, it

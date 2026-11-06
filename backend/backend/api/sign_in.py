@@ -9,9 +9,9 @@ from flask import request, jsonify, redirect, g, session
 from backend import app, db_session
 from ..settings import setting
 from ..audit import audit
-from ..sign_in import providers as providers_lib, sessions, identities, oidc
+from ..sign_in import providers as providers_lib, sessions, identities, oidc, profiles
 from ..sign_in.oidc import SignInError
-from ..sign_in.accounts import finish as finish_sign_in, oidc_account
+from ..sign_in.accounts import finish as finish_sign_in, oidc_account, refresh_name
 from ..sign_in.access import request_access, serialize as serialize_request
 from ..access.groups import groups_overage
 from .auth import login_required, session_required, safe_redirect_url, is_login_restricted, is_authorized_user, ldap_lookup, update_user, login_type
@@ -81,7 +81,7 @@ def oidc_callback(provider_id=None):
       raise SignInError('sso_failed', f"The IdP answered {request.args['error']}: {request.args.get('error_description', '')}")
     if not request.args.get('code'):
       raise SignInError('sso_failed', "The IdP sent no code")
-    claims, refresh_token = oidc.exchange_code(provider, request.args['code'], saved)
+    claims, refresh_token, access_token = oidc.exchange_code(provider, request.args['code'], saved)
     # kept to refresh the groups daily, if the provider does
     refresh_token = refresh_token if provider.config.get('refresh_groups') else None
     linking_user = g.actor.user if saved.get('link') and g.actor.token is None else None
@@ -89,11 +89,14 @@ def oidc_callback(provider_id=None):
     if user.status == 'disabled':
       raise SignInError('user_disabled', f"{user.user_name} is disabled")
     groups = claims.get(provider.claim('groups'))
+    # their title, department, organization and picture, at each sign-in
+    profiles.from_oidc(user, provider, claims, access_token=access_token, document=oidc.metadata(provider))
     if linking_user is not None:
       identities.record(user, provider.id, claims['sub'], email=email, claims=claims, refresh_token=refresh_token)
       audit('identity.link', 'user', user.id, user.user_name, meta={"provider": provider.id})
       db_session.commit()
       return redirect(safe_redirect_url(saved.get('next')))
+    refresh_name(user, provider, claims)
     # the directory's attributes of accounts matched by user name (QABOARD_LOGIN_RESTRICTED_YAML's rules read them)
     if login_type == "LDAP" and (provider.config.get('match_users') or '') == 'username':
       try:

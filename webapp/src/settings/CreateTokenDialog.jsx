@@ -37,7 +37,7 @@ const default_scopes = ['read', 'ingest'];
 
 
 // Commands that use the token, each with a copy button
-const Snippet = ({ title, code, what }) => <div style={{ marginBottom: 12 }}>
+export const Snippet = ({ title, code, what }) => <div style={{ marginBottom: 12 }}>
   <div className={Classes.TEXT_MUTED} style={{ fontSize: 12, marginBottom: 4 }}>{title}</div>
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
     <pre className={Classes.CODE_BLOCK} style={{ flex: 1, margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{code}</pre>

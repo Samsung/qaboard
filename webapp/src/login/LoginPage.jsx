@@ -1,4 +1,4 @@
-// /login?next=<page>: single sign-on buttons first (the recommended one first), then "or", then one user name and
+// /login?next=<page>: single sign-on buttons first (in the order admins chose), then "or", then one user name and
 // password form (LDAP or local accounts). Everything that needs users to sign in comes here (see
 // components/authentication/login.jsx), and the server sends failed single sign-ons back with ?error=<code>&ref=<id>.
 // With auth.sso_auto_redirect the page goes straight to the only single sign-on, unless there is an error (no loops);
@@ -210,7 +210,7 @@ const Options = ({ next, local, error, user }) => {
         size="large"
         fill
         icon="log-in"
-        // one main action: the recommended single sign-on, else the only way to sign in
+        // one main action: the first single sign-on, when it's recommended or there is no password form
         intent={index === 0 && (provider.recommended || !data.password_form) ? Intent.PRIMARY : undefined}
         variant={index === 0 && (provider.recommended || !data.password_form) ? undefined : 'outlined'}
         text={provider.name}

@@ -84,6 +84,9 @@ const login_type_labels = {
 };
 export const loginTypeLabel = login_type => login_type ? login_type_labels[String(login_type).toUpperCase()] ?? login_type : null;
 
+// Users' job, from their sign-in (`profile` of /api/v1/user/me/ and of admin users): "Engineer · Imaging · Example Corp"
+export const profileLine = profile => [profile?.title, profile?.department, profile?.organization].filter(Boolean).join(' · ');
+
 // The same everywhere: the profile, the users list, a user's page
 export const AdminTag = ({ from_env = false }) => <Tag minimal intent={Intent.PRIMARY} icon="shield">Admin{from_env ? ' (env)' : ''}</Tag>;
 
