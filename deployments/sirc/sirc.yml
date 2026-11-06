@@ -182,7 +182,8 @@ services:
       args:
         <<: *sirc-build-args
         NODE_TLS_REJECT_UNAUTHORIZED: "0"
-        # Uploads the source maps to Sentry if SENTRY_AUTH_TOKEN is set (a secret, in .env on the build host)
+        # Uploads the source maps to Sentry if SENTRY_AUTH_TOKEN is set: a masked GitLab CI/CD variable, that
+        # build:images exports. Not in .env: with --env-file, docker compose doesn't read .env for ${...}
         SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN:-}
         SENTRY_ORG: ${SENTRY_ORG:-sentry}
         SENTRY_PROJECT: ${SENTRY_PROJECT:-qaboard-frontend}
