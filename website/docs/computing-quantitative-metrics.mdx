@@ -98,10 +98,12 @@ All the fields are optional:
 
 [Quality gates](/docs/quality-gate) use the definitions too: rules about regressions need to know which way is better.
 
+Only the metrics a run returns get a definition. `Metric` is the simplest way to say how to show a metric: the
+definition stays next to the value, and goes away with it.
+
 ### Once, next to the code that computes them {#once-next-to-the-code-that-computes-them}
-The best place to declare a metric is where your code computes it, so that the metric and its definition change
-together. When a function computes the same metric in many places, or when a module computes many metrics, declare
-them once with `define_metric`, at the top of the module:
+When a function computes the same metric in many places, or when a module computes many metrics, declare them once
+with `define_metric`, e.g. at the top of the module:
 
 ```python title="my_algo/quality.py"
 from qaboard import define_metric
@@ -113,9 +115,13 @@ def quality_metrics(output, reference):
     return {"psnr": psnr(output, reference), "ssim": ssim(output, reference)}
 ```
 
-`define_metric` only counts when it runs in `qa`'s process: the module must be imported, directly or not, by your
-*qa/main.py*. Calls in other processes, like a subprocess or `multiprocessing` workers, are not seen. If the module is
-also used without `qa`, keep the import optional:
+`define_metric` doesn't add a metric: it says how to show it **if a run returns it**. Declaring metrics that a run
+doesn't return, e.g. in a module shared by many projects, is harmless: they get no definition, in QA-Board or in the
+run's files.
+
+`define_metric` only counts when it runs in `qa`'s process before the run ends, e.g. when *qa/main.py* imports the
+module, directly or not. Calls in other processes, like a subprocess or `multiprocessing` workers, are not seen. If the
+module is also used without `qa`, keep the import optional:
 
 ```python
 try:
@@ -125,8 +131,8 @@ except ImportError:
 ```
 
 ### From any language: metrics_definitions.json {#from-any-language-metrics_definitionsjson}
-If a program in another language computes the metrics, it can write a *metrics_definitions.json* file next to its
-*metrics.json*, in `context.output_dir`:
+If a program in another language computes the metrics, it can write a *metrics_definitions.json* file in
+`context.output_dir`, like its *metrics.json*:
 
 ```json title="metrics_definitions.json"
 {
@@ -139,14 +145,19 @@ Editors can check the file and complete its fields with its
 [JSON schema](pathname:///metrics_definitions.schema.json):
 `https://samsung.github.io/qaboard/metrics_definitions.schema.json`.
 
+In Python, use `Metric` or `define_metric` instead: `qa` writes this file at the end of each run.
+
 <details>
 <summary>How QA-Board combines the definitions</summary>
 
 <Anchor id="how-it-works" />
 
-At the end of each run, `qa` gathers the definitions of the metrics the run returned, field by field: from
-`define_metric`, then *metrics_definitions.json*, then `Metric`, the last one winning. Fields with a wrong type are
-left out, with a warning. `qa` sends the definitions to QA-Board with the run's metrics.
+At the end of each run, after `run()` and `postprocess()`, `qa` gathers the definitions of the metrics the run
+returned, and only those, field by field: from the *metrics_definitions.json* your program wrote, then
+`define_metric`, then `Metric`, the last one winning, like the values `run()` returns win over those of
+*metrics.json*. Fields with a wrong type are left out, with a warning. `qa` saves them in the run's
+*metrics_definitions.json*, next to *metrics.json*, and sends both to QA-Board. `qa sync` and `qa postprocess`, which
+doesn't call `run()`, read them from there.
 
 QA-Board keeps them with the commit: commit pages show the metrics as they were defined at the time. Lists of commits
 use the definitions from the latest runs on the reference branch, and the History page those of its latest commit.
