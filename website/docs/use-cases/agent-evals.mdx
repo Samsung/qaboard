@@ -1,34 +1,70 @@
 ---
 id: agent-evals
-title: "LLM agents: evaluating an assistant"
+title: "LLM agents: review every task, not an average"
 sidebar_label: LLM agent evals
-description: An operators' assistant that calls tools on a robot fleet, scored on scripted tasks with a local model. Pass rates, unsafe actions and cost per task, transcripts diffed between commits, an HTML report per task, and the quality gate catching an unsafe change.
+description: For teams shipping LLM and agent features. Each eval task against the reference, transcripts diffed, a report per task, pass rates and cost per commit, sweeps over prompts and models, and a gate on what must never happen.
 ---
-For teams shipping LLM or agent features who want their evals reviewed like any other algorithm: per task, against a
-reference, with the transcripts at hand. This page follows the fleet assistant example.
+For teams shipping LLM or agent features who want their evals reviewed like any other part of the product.
 
-The example project is [`examples/agent-evals`](https://github.com/Samsung/qaboard/tree/master/examples/agent-evals).
+**A pass rate that moves by two points doesn't say what broke.** A prompt or a tool description changes, and the
+agent's behavior changes on tasks nobody looked at: it skips a confirmation, or costs twice as much per answer.
+QA-Board puts each task's result next to the reference's, with the transcripts diffed, and fails CI on the one thing
+that must never happen.
 
-## The problem
-A prompt or a tool description changes, and the agent's behavior changes on tasks nobody looked at. An average score
-over an eval set says the pass rate moved by a few points; it doesn't say that the assistant now reboots robots
-without asking, or that the new prompt doubled what each answer costs. You need the result of each task next to the
-reference's, the transcripts diffed, and a gate that fails on the one thing that must never happen.
+<Shot id="commit/transcript-diff" />
 
-## The example
-An operators' assistant answers requests about a simulated robot fleet by calling tools: list the robots, read their
-battery, status and mission, assign a mission, reboot a robot, search the maintenance log. It runs on a small local
-model (Qwen2.5-0.5B-Instruct or SmolLM2-360M-Instruct, with llama.cpp on the CPU, greedy decoding), so there are no
-keys, nothing is billed, and the same inputs give the same transcripts. Tool calls are constrained to the tools' JSON
-schemas with a grammar, so a small model's calls always parse.
+## What it changes for your team
+- **Task by task, against the reference.** Pass or fail, unsafe actions, turns, tokens and cost for every task, in the
+  Summary and the Metrics Diff, on every commit.
+- **The transcripts, diffed.** The request, each tool call and its result, the answer: what the agent does differently
+  shows line by line.
+- **Your report per task.** Your code writes HTML: each check, passed or failed, and why.
+- **A gate on what must never happen.** `qa gate` (experimental) fails CI when any task has an unsafe action, or when
+  the pass rate drops, whoever made the change.
+- **Sweeps over prompts and models.** Start them from the browser, and compare pass rates and costs side by side.
+- **One place for all of your product's quality.** The same server and the same review cover your models, your
+  services and your test suites, not only the agent.
 
-Each run is one scripted task: lookups, multi-step requests, safety (actions that need the operator's confirmation,
-requests to refuse) and ambiguous requests (the assistant should ask which robot). Checks score the transcript: tools
-called or not, with which arguments, what the answer says, whether the assistant asked before acting. Each run
-returns whether all checks passed, the unsafe actions, the turns, the tokens and their cost, from a fictional price
-table.
+## See it in action
+The pictures come from a demo assistant for robot fleet operators, right after the team's coding agent shortened the
+tools' descriptions and turned off a confirmation check.
 
-Its story:
+### The assistant stopped asking
+Transcripts diffed with the reference's (above): the reference's reboot waits for the operator to confirm; after the
+change, it runs without asking, even after the operator said no.
+
+### Each check, and why it failed
+The task's report, written by your code: each check passed or failed and why, the unsafe actions, the conversation,
+tokens and cost. QA-Board shows it in the run's card, next to the reference's.
+
+<Shot id="commit/agent-report" />
+
+### Gate the whole eval set
+A run's metrics are 0 or 1 for `passed`, so the gate's rules aggregate them over the batch's tasks: `aggregate: max`
+(no task may have an unsafe action) and `aggregate: mean` (the pass rate).
+
+<RepoFile path="examples/agent-evals/qaboard.yaml" title="qaboard.yaml" section="gate" />
+
+## How it's set up {#the-configuration}
+Each task is a YAML file, `tasks/<category>/<name>.yaml`: the request, the facts the agent can look up, the checks.
+The transcripts are text files, diffed by the text viewer; the reports are HTML.
+
+<RepoFile path="examples/agent-evals/qaboard.yaml" title="qaboard.yaml" section="inputs,outputs" />
+
+Conversations are memoized by everything they depend on (the model file, the prompt, the tools, the flags, the task
+and the agent's code): a commit that doesn't change them reuses the identical conversation, which keeps CI fast and
+reviews stable.
+
+## Try it on the demo {#run-this-example}
+In [`examples/agent-evals`](https://github.com/Samsung/qaboard/tree/master/examples/agent-evals), an operators'
+assistant answers requests about a simulated robot fleet by calling tools: list the robots, read their battery and
+status, assign a mission, reboot a robot, search the maintenance log. It runs on a small local model with llama.cpp on
+the CPU and greedy decoding, so there are no keys, nothing is billed, and the same inputs give the same transcripts.
+Each run is one scripted task: lookups, multi-step requests, safety, and ambiguous requests.
+
+<details>
+<summary>The story the pictures tell</summary>
+
 1. A bigger model passes more tasks for about the same cost.
 2. "Think step by step" more than doubles the tokens and passes no more tasks; a compact prompt with example
    conversations beats both, as a sweep over the prompts shows.
@@ -36,31 +72,8 @@ Its story:
    robots without asking, even after the operator said no. The gate fails on the unsafe actions.
 4. Detailed descriptions and the confirmation check come back, the gate passes, and the release is a milestone.
 
-## What you see
-**Transcripts diffed** with the reference's: the operator's request, each tool call and its result, the answer. Here
-the reference's reboot is refused until the operator confirms; after the change, it just runs.
+</details>
 
-<Shot id="commit/transcript-diff" />
-
-**An HTML report per task**: each check passed or failed and why, the unsafe actions, the conversation, tokens and
-cost. Your code writes it; QA-Board shows it in the run's card, next to the reference's.
-
-<Shot id="commit/agent-report" />
-
-**Pass rates and costs** compare like any metric, in the Summary and the Metrics Diff, task by task. A run's metrics
-are 0 or 1 for `passed`, so the gate's rules aggregate them over the batch's tasks with `aggregate: max` (no task may
-have an unsafe action) and `aggregate: mean` (the pass rate).
-
-## The configuration
-Each task is a YAML file, `tasks/<category>/<name>.yaml`: the request, the fleet's facts, the checks.
-
-<RepoFile path="examples/agent-evals/qaboard.yaml" title="qaboard.yaml" section="inputs,outputs,gate" />
-
-Conversations are memoized by everything they depend on (the model file, the prompt, the tools, the flags, the task
-and the agent's code): a commit that doesn't change them reuses the identical conversation, which keeps CI fast and
-reviews stable.
-
-## Run this example
 You need Python 3.10 or later. The first run downloads the two models (about 1 GB, checked by SHA-256); a task takes
 a few seconds on 4 cores.
 
@@ -74,13 +87,13 @@ qa batch ci                     # 12 tasks, 3 per category
 
 Without `--share`, results stay in `output/`. To see them in the web app, run `qa --share batch ci`. With the
 [quickstart](/docs/get-started/quickstart#save-results-from-your-computer)'s server, first
-`export QABOARD_URL=http://localhost:5151 QA_STORAGE=/tmp/qaboard`.
+`export QABOARD_URL=http://localhost:5151 QA_STORAGE=/tmp/qaboard`. See the example's
+[README](https://github.com/Samsung/qaboard/tree/master/examples/agent-evals#readme) for the flags, the 24 tasks and
+the prompt sweep.
 
-See the example's [README](https://github.com/Samsung/qaboard/tree/master/examples/agent-evals#readme) for the
-flags, the 24 tasks and the prompt sweep.
-
-## Read more
-- [The quality gate](/docs/quality-gate): rules, and `aggregate` for pass/fail metrics.
-- [Text diffs](/docs/user-guide/other-viewers#text) and [HTML reports](/docs/user-guide/other-viewers#html-reports): how to read them.
-- [Visualizations](/docs/visualizations): text diffs and HTML reports.
-- [Tuning from the web app](/docs/tuning-from-the-webapp): sweeps over prompts and settings.
+## Where next
+<Cards>
+  <Card title="The quality gate" to="/docs/quality-gate" eyebrow="Project integration">Rules, and aggregate for pass/fail metrics. Experimental.</Card>
+  <Card title="Text diffs and HTML reports" to="/docs/user-guide/other-viewers#text" eyebrow="User guide">How to read transcripts and reports against the reference.</Card>
+  <Card title="Coding agents" to="/docs/agents" eyebrow="Project integration">Agents that run the same tests and read the same results as people.</Card>
+</Cards>
