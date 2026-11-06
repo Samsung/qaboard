@@ -1,21 +1,22 @@
 """
-Metrics declared where they are computed, instead of in a metrics file.
+How QA-Board shows a run's metrics (label, unit, target, which way is better), declared in code.
 
-Return values with their definition:
-    from qaboard import Metric
-    def run(context):
-      return {"latency": Metric(12.3, suffix=" ms", smaller_is_better=True, target=15)}
+Three ways, for the metrics a run returns:
+    from qaboard import Metric, define_metric
+    return {"latency": Metric(12.3, suffix=" ms", smaller_is_better=True)}   # with the value
+    define_metric("psnr", label="PSNR", suffix=" dB", smaller_is_better=False)  # once, e.g. at a module's top
+    output_dir/metrics_definitions.json, written by a program in any language: {"latency": {"suffix": " ms"}}
 
-Or declare them once, e.g. next to the code that computes them:
-    from qaboard import define_metric
-    define_metric("psnr", label="PSNR", suffix=" dB", smaller_is_better=False)
+When things happen:
+1. `define_metric` only records, in memory, how to show a metric *if a run returns it*. It writes and sends nothing:
+   a metric that no run returns has no definition anywhere, so declaring more than a run returns is harmless.
+2. run() and postprocess() return values, plain or as `Metric`.
+3. At the end of the run, `qa` keeps the metrics the run returned and their definitions, field by field:
+   metrics_definitions.json < define_metric < Metric (like metrics.json, which run()'s values override: code wins).
+   It writes the values in metrics.json and the definitions in metrics_definitions.json, and sends both to QA-Board.
 
-Or, from any language, write next to metrics.json a metrics_definitions.json:
-    {"latency": {"suffix": " ms", "smaller_is_better": true}}
-
-At the end of each run, `qa` merges them (define_metric < metrics_definitions.json < Metric), keeps those of the metrics
-the run returned, and sends them to QA-Board with the run. It doesn't write metrics_definitions.json: that file is the
-run's, `qa postprocess` and `qa sync` read it again.
+The run's folder then says how to show its metrics, even those declared with `Metric`: `qa sync`, and `qa postprocess`
+which doesn't call run(), read the definitions from it.
 The fields are those of the metrics file (qaboard/schemas/metrics.schema.json), checked by `clean_definition`, which
 the server uses too. Docs: /docs/computing-quantitative-metrics
 """
@@ -107,7 +108,9 @@ def define_metric(key: str, *, label: str = UNSET, short_label: str = UNSET, des
                   smaller_is_better: Optional[bool] = UNSET, target: float = UNSET, target_passfail: bool = UNSET,
                   scale: float = UNSET, suffix: str = UNSET, precision: int = UNSET, plot_scale: str = UNSET) -> None:
   """
-  Declares how QA-Board shows a metric. Call it at import time, e.g. at the top of the module that computes the metric.
+  Says how QA-Board shows a metric, for the runs that return it. Call it anywhere before the run ends, usually at the
+  top of the module that computes the metric. It only records the definition: nothing is written or sent for metrics
+  a run doesn't return.
   - smaller_is_better: which way is better (True, False). Leave it out, or None, when neither is.
   - target: the value to reach. Results are colored by how they compare to it.
   - suffix, scale, precision: how values are shown, e.g. suffix="%", scale=100.
@@ -166,7 +169,7 @@ def split_metrics(metrics: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Di
 
 
 def read_definitions_file(output_dir: Path) -> Dict[str, Dict[str, Any]]:
-  """The definitions a run wrote in its output directory, in metrics_definitions.json"""
+  """The definitions in the run's metrics_definitions.json, written by its code or by `qa` at the end of the run"""
   path = Path(output_dir) / DEFINITIONS_FILE
   if not path.exists():
     return {}
@@ -181,25 +184,41 @@ def read_definitions_file(output_dir: Path) -> Dict[str, Dict[str, Any]]:
   return {str(k): v for k, v in definitions.items() if isinstance(v, dict)}
 
 
-def run_definitions(metrics: Dict[str, Any], inline: Dict[str, Dict[str, Any]], output_dir: Path,
-                    metrics_file: Optional[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+def resolve_definitions(metrics: Dict[str, Any], inline: Dict[str, Dict[str, Any]], output_dir: Path) -> Dict[str, Dict[str, Any]]:
   """
-  The definitions of the metrics a run returned: define_metric < metrics_definitions.json < Metric.
-  Those of metrics that are not in the metrics file (`metrics_file`, its available_metrics) and don't say which way
-  is better get smaller_is_better: null: in metrics files, leaving it out means "smaller is better".
-  Invalid fields are left out, with a warning.
+  The definitions of the metrics a run returned, field by field: metrics_definitions.json < define_metric < Metric
+  (`inline`). Metrics the run didn't return are left out, whoever declared them. Invalid fields too, with a warning.
   """
-  metrics_file = metrics_file or {}
   from_file = read_definitions_file(output_dir)
   definitions = {}
   for key in metrics:
-    definition, invalid = clean_definition({**_declared.get(key, {}), **from_file.get(key, {}), **inline.get(key, {})})
+    definition, invalid = clean_definition({**from_file.get(key, {}), **_declared.get(key, {}), **inline.get(key, {})})
     if invalid:
       import click
       click.secho(f'WARNING: invalid or unknown fields in the definition of the metric {key}, ignored: {", ".join(sorted(invalid))}', fg='yellow', err=True)
-    if not definition:
-      continue
-    if key not in metrics_file and 'smaller_is_better' not in definition:
-      definition['smaller_is_better'] = None
-    definitions[key] = definition
+    if definition:
+      definitions[key] = definition
   return definitions
+
+
+def write_definitions_file(output_dir: Path, definitions: Dict[str, Dict[str, Any]]) -> None:
+  """
+  Saves the run's definitions next to its metrics.json, so that the run's folder says how to show its metrics.
+  Runs that declare nothing get no file.
+  """
+  path = Path(output_dir) / DEFINITIONS_FILE
+  if definitions or path.exists():
+    path.write_text(json.dumps(definitions, sort_keys=True, indent=2, separators=(',', ': ')))
+
+
+def with_default_direction(definitions: Dict[str, Dict[str, Any]], metrics_file: Optional[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+  """
+  The definitions to send to QA-Board. Those of metrics that are not in the metrics file (`metrics_file`, its
+  available_metrics) and don't say which way is better get smaller_is_better: null, because in metrics files, leaving
+  it out means "smaller is better". It's not written in metrics_definitions.json: the metrics file can change.
+  """
+  metrics_file = metrics_file or {}
+  return {
+    key: {**definition, 'smaller_is_better': None} if key not in metrics_file and 'smaller_is_better' not in definition else dict(definition)
+    for key, definition in definitions.items()
+  }

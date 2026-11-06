@@ -125,6 +125,7 @@ encryption key. The page shows them read-only, in their group, with why: see the
 | `auth.allowed_email_domains` | `QABOARD_ALLOWED_EMAIL_DOMAINS` | none | With auth.access_policy "domains": the email domains whose users get an account right away, e.g. example.com. |
 | `auth.access_request_webhook` (secret) | `QABOARD_ACCESS_REQUEST_WEBHOOK` | none | An incoming webhook (Slack, Teams, Mattermost...) told when users wait for an admin. QA-Board sends `{"text": "..."}`. |
 | `auth.local_signup` | `QABOARD_DISABLE_SIGNUP` | On when QABOARD_LOGIN_TYPE is LOCAL, off with LDAP or SAML | Anyone can create a local account with a password. Off by default with LDAP or SAML: local accounts could take the names of directory users. |
+| `auth.provider_order` | `QABOARD_SIGN_IN_ORDER` | none | The order of the sign-in methods on the sign-in page, by id (e.g. sso, keycloak, ldap, local). Admin → Sign-in sets it with its arrows. Methods not listed come after, in their default order. |
 | `auth.sso_auto_redirect` | `QABOARD_SSO_AUTO_REDIRECT` | `false` | When signing in is required and there is a single single sign-on method, the sign-in page goes straight to it. `/login?local=1` still shows the password form. |
 | `auth.login_hint` | `QABOARD_LOGIN_HINT` | none | Shown in the sign-in dialog to users whose user name or password is wrong, e.g. "Use your Windows credentials." |
 | `sessions.idle_days` |  | `30` days | Browser sessions end after this many days without activity. |
@@ -146,6 +147,7 @@ encryption key. The page shows them read-only, in their group, with why: see the
 | `tokens.default_lifetime_days` |  | `90` days | The default lifetime of the tokens users create in the web app. |
 | `tokens.max_lifetime_days` |  | No maximum: tokens may never expire | The longest lifetime users may choose for their tokens. Empty: no maximum, and tokens without an expiry date are allowed. |
 | `tokens.cli_idle_expiry_days` |  | `180` days | Tokens created by `qa auth login` expire after this many days without being used. |
+| `tokens.ci_lifetime_minutes` |  | `360` minutes | How long the tokens that CI jobs get without a stored secret (trusted CI jobs of service accounts) work. |
 
 **Git hosts**
 

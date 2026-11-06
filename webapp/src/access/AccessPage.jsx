@@ -402,8 +402,8 @@ export const Owners = ({ owners }) => <section aria-label="Owners">
   <h4 className={Classes.HEADING}>Owners</h4>
   {owners.length === 0
     ? <p className={Classes.TEXT_MUTED} style={{ margin: 0 }}>This project has no owners yet: ask a QA-Board admin.</p>
-    : <ul style={{ margin: 0, paddingLeft: 20 }}>
-      {owners.map(owner => <li key={`${owner.type}:${owner.id}`}><SubjectName subject={owner}/></li>)}
+    : <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+      {owners.map(owner => <li key={`${owner.type}:${owner.id}`} style={{ padding: '2px 0' }}><SubjectName subject={owner}/></li>)}
     </ul>}
 </section>;
 

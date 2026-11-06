@@ -54,6 +54,15 @@ def skip_metrics_aggregation() -> tuple:
     return tuple(setting('metrics.skip_aggregation') or ())
 
 
+def _setup_required() -> bool:
+    from ..first_admin import setup_open
+    try:
+        return setup_open()
+    except Exception:
+        db_session.rollback()
+        return False
+
+
 @app.route("/api/v1/config")
 def get_site_config():
     """Return runtime site configuration for the frontend."""
@@ -65,10 +74,13 @@ def get_site_config():
         "login_required": setting('auth.require_sign_in'),
         "require_sign_in": setting('auth.require_sign_in'),
         "local_signup": setting('auth.local_signup'),
+        # a new server, without accounts: the web app sends people to /setup (backend/first_admin.py)
+        "setup_required": _setup_required(),
         # how `qa` authenticates the results it sends: off, warn or token
         "ingest_auth": setting('ingest.auth'),
         # what the web app offers when users create tokens
-        "tokens": {"default_lifetime_days": setting('tokens.default_lifetime_days'), "max_lifetime_days": setting('tokens.max_lifetime_days')},
+        "tokens": {"default_lifetime_days": setting('tokens.default_lifetime_days'), "max_lifetime_days": setting('tokens.max_lifetime_days'),
+                   "ci_lifetime_minutes": setting('tokens.ci_lifetime_minutes')},
         # The web app can report to its own Sentry project (where its source maps are uploaded)
         "sentry_dsn": os.environ.get('SENTRY_FRONTEND_DSN') or os.environ.get('SENTRY_DSN'),
         "sentry_environment": os.environ.get('SENTRY_ENVIRONMENT') or 'production',

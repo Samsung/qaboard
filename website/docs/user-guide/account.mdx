@@ -26,8 +26,9 @@ the theme and your other preferences.
 ## Settings
 Open **Settings** from your account menu, at the bottom of the sidebar (or the top right of your home page), next to
 **Runs activity** and **Storage usage**:
-- **Profile**: your name, email and user name, as your server knows them. Add **Your other git emails**, so that the
-  commits you made with them count as yours.
+- **Profile**: your name, email and user name, as your server knows them. Your picture and job title come from your
+  company's sign-in (single sign-on, LDAP or SAML), updated each time you sign in. Add **Your other git emails**, so
+  that the commits you made with them count as yours.
 - **Preferences**: the theme (**Same as your system**, **Light** or **Dark**), **Compact** or **Comfortable** commit
   lists and run cards, whether runs' names start with their batch and database, the values written on the pixels,
   the runs' settings... When you're signed in, your preferences and pinned
@@ -36,7 +37,9 @@ Open **Settings** from your account menu, at the bottom of the sidebar (or the t
 - **Sessions**: the browsers where you're signed in. Sign out of the ones you don't use anymore, or of all the
   others at once.
 - **Sign-in methods**: the ways you sign in to this account. Add your company's single sign-on to the account you
-  already have, so you don't get a second one, or remove a method you don't use (you keep at least one).
+  already have, so you don't get a second one, or remove a method you don't use (you keep at least one). With a
+  QA-Board account (a local account, e.g. one an admin created for you), **Change your password** there: your other
+  browsers are signed out. If you forgot it, ask your admins: they give you a new one.
 - **CLI sign-ins**: the computers where you ran `qa auth login`. Revoke the ones you don't use anymore.
 - **Activity**: your usage of QA-Board in the last 30 days (the pages you opened, what you started, the `qa`
   commands you ran: your admins see these numbers too), then your recent sign-ins, the tokens you created or revoked,
@@ -56,7 +59,7 @@ The token is shown **once**: copy it then, and store it like a password, e.g. in
 The list shows when and from where each token was last used. Revoke a token as soon as you don't need it, or if it
 may have leaked: it stops working at once.
 
-See [CI integration](/docs/ci-integration#tokens) and [APIs](/docs/apis#authentication) for how to use tokens.
+See [CI integration](/docs/ci-integration#tokens) and the [HTTP API](/docs/http-api#authentication) for how to use tokens.
 
 ## Signing in from the qa CLI
 Run `qa auth login`, open the link it prints in any browser (it also works when `qa` runs on a server you reach over

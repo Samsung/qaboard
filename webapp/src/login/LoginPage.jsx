@@ -1,4 +1,4 @@
-// /login?next=<page>: single sign-on buttons first (the recommended one first), then "or", then one user name and
+// /login?next=<page>: single sign-on buttons first (in the order admins chose), then "or", then one user name and
 // password form (LDAP or local accounts). Everything that needs users to sign in comes here (see
 // components/authentication/login.jsx), and the server sends failed single sign-ons back with ?error=<code>&ref=<id>.
 // With auth.sso_auto_redirect the page goes straight to the only single sign-on, unless there is an error (no loops);
@@ -195,7 +195,13 @@ const Options = ({ next, local, error, user }) => {
     </Card>;
 
   const nothing = buttons.length === 0 && !data.password_form;
-  return <Card>
+  return <>
+  {/* a new server: nobody can sign in yet */}
+  {data.setup_required && <Callout intent={Intent.PRIMARY} icon="wrench" title="QA-Board isn't set up yet">
+    <p>This server has no accounts yet. If you run it, create its first admin.</p>
+    <Link to="/setup" className={`${Classes.BUTTON} ${Classes.INTENT_PRIMARY}`}>Set up QA-Board</Link>
+  </Callout>}
+  <Card>
     {nothing && <p className={Classes.TEXT_MUTED} style={{ margin: 0 }}>There is no way to sign in to this server yet. Tell your admins.</p>}
     {buttons.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {buttons.map((provider, index) => <AnchorButton
@@ -204,7 +210,7 @@ const Options = ({ next, local, error, user }) => {
         size="large"
         fill
         icon="log-in"
-        // one main action: the recommended single sign-on, else the only way to sign in
+        // one main action: the first single sign-on, when it's recommended or there is no password form
         intent={index === 0 && (provider.recommended || !data.password_form) ? Intent.PRIMARY : undefined}
         variant={index === 0 && (provider.recommended || !data.password_form) ? undefined : 'outlined'}
         text={provider.name}
@@ -213,14 +219,15 @@ const Options = ({ next, local, error, user }) => {
     </div>}
     {buttons.length > 0 && data.password_form && <Or>or</Or>}
     {data.password_form && <PasswordForm primary={buttons.length === 0} onSignedIn={onSignedIn}/>}
-    {data.local_signup && <p style={{ margin: '16px 0 0', textAlign: 'center' }}>
+    {data.local_signup && !data.setup_required && <p style={{ margin: '16px 0 0', textAlign: 'center' }}>
       No account yet? <Button variant="minimal" intent={Intent.PRIMARY} size="small" text="Create one" onClick={() => setMode('sign-up')}/>
     </p>}
     {/* break-glass admins, when single sign-on is down */}
     {!data.password_form && buttons.length > 0 && <p style={{ margin: '16px 0 0', textAlign: 'center', fontSize: 12 }}>
       <Link to={loginUrl(next, { local: 1 })} className={Classes.TEXT_MUTED}>Admins: sign in with a local account</Link>
     </p>}
-  </Card>;
+  </Card>
+  </>;
 };
 
 

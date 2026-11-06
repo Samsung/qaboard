@@ -44,8 +44,8 @@ describe('export names', () => {
     const plan = export_runs({ new_batch, ref_batch, labels: { new: 'new', reference: 'ref' } });
     // gain tells runs on a.raw apart, iso only differs between inputs: it's listed, not in names
     expect(plan.candidates).toEqual([
-      { key: 'gain', kind: 'parameter', needed: true, values: 2 },
-      { key: 'iso', kind: 'parameter', needed: false, values: 2 },
+      { key: 'gain', kind: 'parameter', needed: true, on_input: true, values: 2 },
+      { key: 'iso', kind: 'parameter', needed: false, on_input: false, values: 2 },
     ]);
     expect(plan.picked).toEqual(['gain']);
     // the reference run is named like each new run it's compared to: files pair up
@@ -61,6 +61,20 @@ describe('export names', () => {
     expect(none.items.map(i => i.fields.settings).every(s => s === '')).toBe(true);
   });
 
+  it('says only the fewest settings that tell runs on the same input apart', () => {
+    // runs of 3 batches of qaboard.yaml on the same image, configured and run differently: the batch is enough
+    const outputs = [
+      run('a', { configurations: ['base'], platform: 'linux' }), run('a', { configurations: ['base', 'low-light'], platform: 'linux' }), run('a', { configurations: ['base'], platform: 'hw-model' }),
+    ];
+    ['ci', 'night', 'bitexact'].forEach((batch, i) => { outputs[i].data = { batch }; });
+    const candidates = settings_candidates(outputs);
+    expect(candidates.map(c => [c.key, c.needed, c.on_input])).toEqual([['batch', true, true], ['configurations', false, true], ['platform', false, true]]);
+    expect([...settings_labels(outputs).values()]).toEqual(['ci', 'night', 'bitexact']);
+    // a 2x2 sweep needs both parameters
+    const sweep = [[1, 1], [1, 2], [2, 1], [2, 2]].map(([gain, iso]) => run('a', { extra_parameters: { gain, iso } }));
+    expect([...settings_labels(sweep).values()]).toEqual(['gain=1,iso=1', 'gain=1,iso=2', 'gain=2,iso=1', 'gain=2,iso=2']);
+  });
+
   it('says "default" for runs that do not set a parameter', () => {
     const outputs = [run('a', { extra_parameters: { gain: 4 } }), run('a'), run('a', { extra_parameters: { gain: 4, iso: 100 } })];
     expect([...settings_labels(outputs).values()]).toEqual(['gain=4,iso=default', 'gain=default,iso=default', 'gain=4,iso=100']);
@@ -73,7 +87,10 @@ describe('export names', () => {
       run('a', { configurations: ['base', { isp: { awb: { mode: 'manual' } }, denoise: { mode: 3 } }] }),
     ];
     expect(settings_candidates(outputs).map(c => c.key)).toEqual(['configurations', 'isp.awb.mode', 'denoise.mode']);
-    expect([...settings_labels(outputs).values()]).toEqual(['day,isp.awb.mode=auto,denoise.mode=1', 'night,isp.awb.mode=manual,denoise.mode=2', 'default,isp.awb.mode=manual,denoise.mode=3']);
+    // the configurations tell them apart already
+    expect([...settings_labels(outputs).values()]).toEqual(['day', 'night', 'default']);
+    const all = { ...default_naming, settings_keys: ['configurations', 'isp.awb.mode', 'denoise.mode'] };
+    expect([...settings_labels(outputs, all).values()]).toEqual(['day,isp.awb.mode=auto,denoise.mode=1', 'night,isp.awb.mode=manual,denoise.mode=2', 'default,isp.awb.mode=manual,denoise.mode=3']);
     const one_key = [run('a', { extra_parameters: { isp: { gain: [1, 2] } } }), run('a', { extra_parameters: { isp: { gain: [1, 3] } } })];
     expect([...settings_labels(one_key).values()]).toEqual(['gain=[1,2]', 'gain=[1,3]']);
     const platforms = [run('a', { platform: 'linux' }), run('a', { platform: 'arm' })];
@@ -82,7 +99,7 @@ describe('export names', () => {
 
   it('lets users choose how settings show', () => {
     const outputs = [run('a', { extra_parameters: { gain: 1, iso: 5 } }), run('a', { extra_parameters: { gain: 2, iso: 6 } }), run('b', { extra_parameters: { gain: 3, iso: 7 } })];
-    const show = naming => [...settings_labels(outputs, { ...default_naming, ...naming }).values()];
+    const show = naming => [...settings_labels(outputs, { ...default_naming, settings_keys: ['gain', 'iso'], ...naming }).values()];
     expect(show({ settings_assign: '-', settings_join: '_' })).toEqual(['gain-1_iso-5', 'gain-2_iso-6', 'gain-3_iso-7']);
     expect(show({ settings_assign: '' })).toEqual(['1,5', '2,6', '3,7']);
     const ids = show({ settings_format: 'id' });

@@ -13,6 +13,11 @@ import { useDiffSize } from '../viewers/images/DiffSize';
 import { QUARTERS, crop_regions, glob_regex, is_single_file } from './plan';
 
 export const QUARTERS_ID = 'quarters';
+// Regions found automatically, e.g. where images differ, can be many: by default the export keeps the largest 5 of each
+// image (they come largest first). Presets and annotations are regions people chose: all of them.
+export const DEFAULT_MAX_FOUND = 5;
+export const MAX_FOUND = 20;
+export const is_found_automatically = provider => !!(provider.diff_type || provider.sized);
 
 // [{ output_new, output_ref }] for the runs shown
 const run_contexts = (new_batch, ref_batch) => (new_batch?.filtered?.outputs ?? [])
@@ -39,11 +44,12 @@ export const useShownRegionSets = files => {
 /**
  * The sources of regions, and the regions to crop of each new run.
  * picked: the ids of the sources users picked, or null: the sets the viewers show (`shown`), else the presets.
+ * max_found: how many regions found automatically (where images differ) to keep per image, the largest first.
  * Returns {picked, sources, regions: Map(run id => [regions]), finding, start(id), stop(id)}
  * sources: [{id, label, description, kind: 'known' | 'find' | 'quarters', section, disabled (why), runs (with regions),
  *            regions (count), searched, total, fetching, failed}]
  */
-export const useCrops = ({ enabled, picked: chosen, shown = [], files, new_batch, ref_batch }) => {
+export const useCrops = ({ enabled, picked: chosen, shown = [], files, new_batch, ref_batch, max_found = DEFAULT_MAX_FOUND }) => {
   const { annotation_sources } = useSiteConfig();
   const signed_in = useUser().is_logged;
   const [diff_size] = useDiffSize();
@@ -101,19 +107,22 @@ export const useCrops = ({ enabled, picked: chosen, shown = [], files, new_batch
     }
     if (!provider.find) continue;
     const mine = queries.map((q, i) => [q, results[i]]).filter(([q]) => q.provider === provider);
-    let runs = 0, count = 0, searched = 0, fetching = 0, failed = 0;
+    let runs = 0, count = 0, found = 0, searched = 0, fetching = 0, failed = 0;
+    const automatic = is_found_automatically(provider);
     for (const [{ context }, result] of mine) {
       if (result.fetchStatus === 'fetching') fetching++;
       if (result.data) {
         searched++;
-        const list = as_regions(result.data);
+        const all = as_regions(result.data);
+        const list = automatic ? all.slice(0, max_found) : all;
+        found += all.length;
         if (list.length) { runs++; count += list.length; }
         // where two images differ: regions of that file
         add(context.output_new.id, provider.id, list, provider.diff_type ? files : null);
       } else if (result.error) failed++;
     }
     const total = contexts.filter(c => !provider.available || provider.available(c)).length;
-    sources.push({ ...base, runs, regions: count, searched, total, fetching, failed });
+    sources.push({ ...base, automatic, runs, regions: count, found, searched, total, fetching, failed });
   }
   sources.push({
     id: QUARTERS_ID, label: 'Quarters', kind: 'quarters', experimental: true, disabled: null,

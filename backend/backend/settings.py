@@ -241,6 +241,11 @@ DEFINITIONS = {
     label="Local sign-up", group='sign_in',
     default_text="On when QABOARD_LOGIN_TYPE is LOCAL, off with LDAP or SAML.",
   ),
+  'auth.provider_order': Definition(
+    "The order of the sign-in methods on the sign-in page, by id (e.g. sso, keycloak, ldap, local). Admin → Sign-in sets it with its arrows. Methods not listed come after, in their default order.",
+    [], list, env='QABOARD_SIGN_IN_ORDER', parse_env=env_list,
+    label="Order of the sign-in methods", group='sign_in', placeholder="sso", docs="/docs/backend-admin/sign-in",
+  ),
   'auth.sso_auto_redirect': Definition(
     "When signing in is required and there is a single single sign-on method, the sign-in page goes straight to it. /login?local=1 still shows the password form.",
     False, bool, env='QABOARD_SSO_AUTO_REDIRECT', parse_env=env_flag,
@@ -295,6 +300,10 @@ DEFINITIONS = {
   'tokens.cli_idle_expiry_days': Definition(
     "Tokens created by `qa auth login` expire after this many days without being used.",
     180, int, minimum=1, label="Unused CLI tokens expire after", group='tokens', unit='days',
+  ),
+  'tokens.ci_lifetime_minutes': Definition(
+    "How long the tokens that CI jobs get without a stored secret (trusted CI jobs of service accounts) work.",
+    360, int, minimum=5, maximum=1440, label="CI jobs' tokens last", group='tokens', unit='minutes',
   ),
 
   # ---- Git hosts

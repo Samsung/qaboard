@@ -130,7 +130,8 @@ For images, turn on **Also export crops of the images' regions of interest**, an
 - **Presets**: the regions of the inputs' metadata and of the configurations,
 - **Where they differ**: QA-Board compares each image with its reference and finds where they differ most, like in
   the [image viewer](/docs/user-guide/image-viewer). It searches all the runs as soon as you check it, and the viewers
-  show what it found. It needs one file, e.g. `out.png`, not a pattern,
+  show what it found. It needs one file, e.g. `out.png`, not a pattern. The export keeps the **5 largest differences**
+  of each image: type another number, up to 20, next to *the largest differences of each image*,
 - your site's annotations, if it has some,
 - **Quarters** (experimental): the 4 quarters of each image.
 
@@ -151,8 +152,9 @@ where each crop is, in the image's pixels: `x,y,w,h`.
 **Settings**, `{settings}`: click **Change** to see what differs between the runs shown: their batches of
 `qaboard.yaml` and databases when they come from several, their tuning parameters and the parameters of their
 configurations (`gain`, `isp.awb.mode`), their configurations' files (`night.yaml`), and their platform. Check the
-ones names should say. By default, it checks what differs between runs on the same input: without it, their files would
-get the same name. Each run says the value of each setting checked, and `default` if it doesn't set it:
+ones names should say. By default, it checks the fewest settings that tell runs on the same input apart, e.g. only
+their batch when runs of several batches also differ by configuration and platform: without them, their files would get
+the same name. Each run says the value of each setting checked, and `default` if it doesn't set it:
 `street__gain=4,iso=default__new.png`. You choose:
 - how a parameter and its value are written: `gain=4`, `gain-4`, `gain_4`, or only `4`,
 - what goes between settings: `,`, `_`, `+` or `-`,

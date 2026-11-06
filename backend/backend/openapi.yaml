@@ -1,0 +1,1175 @@
+# The OpenAPI description of QA-Board's HTTP API, served at /api/v1/openapi.json, and browsed at /api/v1/docs.
+#
+# Written by hand, for the endpoints scripts and agents use to read results: tests/test_openapi.py checks that each
+# path is a route of the backend. Other endpoints serve the web app and may change without notice.
+# When the backend moves to FastAPI, this document will be generated from the code.
+# The docs: website/docs/http-api.mdx
+openapi: 3.1.0
+info:
+  title: QA-Board API
+  version: "1"
+  summary: Read a project's commits, batches, runs, metrics and comparisons with a reference.
+  description: |
+    QA-Board's web app reads everything from this API, and so can your scripts and agents.
+
+    - **Authentication**: reading is anonymous unless your server requires signing in, or the project is private.
+      Otherwise send a token: `Authorization: Bearer <token>`. Create tokens in the web app, in **Settings → Access
+      tokens**, or use `qa auth token`. In this page, signed-in users are already authenticated by their session.
+    - **Errors** are JSON: `{"error": "<what went wrong>", "reason": "<a stable code, when there is one>"}`.
+    - Runs are called *outputs* in the API.
+
+    This document covers the endpoints for reading results. Others serve the web app and may change. It is written
+    by hand for now: it will be generated from the code when the backend moves to FastAPI.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+externalDocs:
+  description: The HTTP API guide
+  url: https://samsung.github.io/qaboard/docs/http-api
+# Replaced by the server with its own address (api/openapi.py)
+servers:
+  - url: /api/v1
+security:
+  - {}
+  - bearerAuth: []
+tags:
+  - name: Projects
+    description: Projects and their branches.
+  - name: Commits
+    description: Commits with results, their batches and runs.
+  - name: Runs
+    description: A run (an *output* in the API), its files, and metrics added by scripts.
+  - name: Compare
+    description: A commit's runs against a reference, like the **Summary** and **Metrics Diff** views.
+  - name: Milestones
+    description: Saved references.
+  - name: Account
+    description: Who you are, and which token you use.
+  - name: Server
+    description: The server's health.
+
+paths:
+  /projects:
+    get:
+      tags: [Projects]
+      operationId: listProjects
+      summary: List the projects you can read
+      description: The projects with results, sorted by name, as an object keyed by project id.
+      parameters:
+        - name: summary
+          in: query
+          description: >-
+            `true` gives only what lists of projects need from their `data` (git info, *qaboard.yaml*'s `project`
+            section): much smaller. Use `GET /project` for the rest.
+          schema: {type: boolean, default: false}
+      responses:
+        "200":
+          description: The projects, by id.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {$ref: "#/components/schemas/ProjectSummary"}
+              example:
+                kitefin/detector:
+                  data: {git: {name: detector, default_branch: main}, qatools_config: {project: {reference_branch: main}}}
+                  latest_output_datetime: "2026-11-05T14:02:11.391000"
+                  latest_commit_datetime: "2026-11-05T13:58:40+00:00"
+                  total_commits: 412
+                  latest_human_activity: "2026-11-05T09:12:03"
+                  activity: [3, 0, 5, 2, 0, 0, 1, 4, 2, 3, 0, 0, 2, 6, 3, 1, 0, 0, 2, 4, 5, 3, 1, 0, 0, 2, 3, 4, 2, 1]
+                  views_90d: 14
+                  my_last_view: null
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /project:
+    get:
+      tags: [Projects]
+      operationId: getProject
+      summary: Get a project's data
+      description: >-
+        The project's data: its latest *qaboard.yaml* (`qatools_config`), metrics definitions (`qatools_metrics`),
+        and what the git host said about it (`git`).
+      parameters:
+        - $ref: "#/components/parameters/project"
+      responses:
+        "200":
+          description: The project's data.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ProjectData"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /project/branches:
+    get:
+      tags: [Projects]
+      operationId: listBranches
+      summary: List a project's branches with results
+      description: >-
+        By default every branch, sorted by name. With `q` or `limit`, the most recently active branches first.
+      parameters:
+        - $ref: "#/components/parameters/project"
+        - name: q
+          in: query
+          description: Only branches whose name contains this text (case-insensitive).
+          schema: {type: string}
+        - name: limit
+          in: query
+          description: At most this many branches (default 50 with `q`).
+          schema: {type: integer, minimum: 1, maximum: 1000}
+      responses:
+        "200":
+          description: Branch names.
+          content:
+            application/json:
+              schema: {type: array, items: {type: string}}
+              example: [main, quant/int8, release/2.4]
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
+  /commits:
+    get:
+      tags: [Commits]
+      operationId: listCommits
+      summary: List commits with results
+      description: |
+        The commits with results, newest first: by default those of the last days with commits, or of `from`/`to`.
+        Without `limit`, at most 1000 commits and no `X-Has-More` header.
+      parameters:
+        - $ref: "#/components/parameters/project"
+        - $ref: "#/components/parameters/commitsQuery"
+        - $ref: "#/components/parameters/committer"
+        - $ref: "#/components/parameters/from"
+        - $ref: "#/components/parameters/to"
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/offset"
+        - $ref: "#/components/parameters/batchFilter"
+        - $ref: "#/components/parameters/onlyCiBatches"
+        - $ref: "#/components/parameters/withOutputsFalse"
+        - $ref: "#/components/parameters/metricsToAggregate"
+        - $ref: "#/components/parameters/scope"
+      responses:
+        "200": {$ref: "#/components/responses/Commits"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
+  /commits/{branch}:
+    get:
+      tags: [Commits]
+      operationId: listBranchCommits
+      summary: List a branch's commits with results
+      description: Like `GET /commits`, for one branch. Branch names can contain `/`.
+      parameters:
+        - name: branch
+          in: path
+          required: true
+          schema: {type: string}
+          example: main
+        - $ref: "#/components/parameters/project"
+        - $ref: "#/components/parameters/commitsQuery"
+        - $ref: "#/components/parameters/committer"
+        - $ref: "#/components/parameters/from"
+        - $ref: "#/components/parameters/to"
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/offset"
+        - $ref: "#/components/parameters/batchFilter"
+        - $ref: "#/components/parameters/onlyCiBatches"
+        - $ref: "#/components/parameters/withOutputsFalse"
+        - $ref: "#/components/parameters/metricsToAggregate"
+      responses:
+        "200": {$ref: "#/components/responses/Commits"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
+  /commit/{commit}:
+    get:
+      tags: [Commits]
+      operationId: getCommit
+      summary: Get a commit, its batches and runs
+      description: |
+        A commit with all its batches, and by default all their runs. `commit` is a sha (or its start), a branch
+        (its latest commit with results) or a tag.
+
+        The runs are in `batches.<label>.outputs`, keyed by run id. The CI batch's label is `default`.
+      parameters:
+        - name: commit
+          in: path
+          required: true
+          description: A commit sha or its start (at least 7 characters is safest), a branch or a tag.
+          schema: {type: string}
+          example: 7622c337
+        - $ref: "#/components/parameters/project"
+        - name: batch
+          in: query
+          description: Only this batch.
+          schema: {type: string}
+          example: default
+        - name: with_outputs
+          in: query
+          description: >-
+            `false` leaves out the runs: only the batches' counts and aggregated metrics. Faster on commits with
+            thousands of runs.
+          schema: {type: boolean, default: true}
+        - $ref: "#/components/parameters/metricsToAggregate"
+      responses:
+        "200":
+          description: The commit.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CommitWithRuns"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /commit:
+    get:
+      tags: [Commits]
+      operationId: getLatestCommit
+      summary: Get a branch's latest commit with results
+      description: >-
+        The latest commit of the branch whose runs didn't all fail (among its 20 latest commits), with its batches and
+        runs. Default branch: the project's `reference_branch`.
+      parameters:
+        - $ref: "#/components/parameters/project"
+        - name: branch
+          in: query
+          schema: {type: string}
+          example: main
+        - name: batch
+          in: query
+          description: Only commits with successful runs in this batch, and only this batch.
+          schema: {type: string}
+        - $ref: "#/components/parameters/metricsToAggregate"
+      responses:
+        "200":
+          description: The commit.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CommitWithRuns"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /batches:
+    get:
+      tags: [Commits]
+      operationId: listBatches
+      summary: List the latest batches
+      description: >-
+        Batches, the latest first (by their latest run), each with its commit: what people ran, rather than commits.
+        Give `project`, `projects`, or `scope=mine` for your batches in every project.
+      parameters:
+        - name: project
+          in: query
+          schema: {type: string}
+          example: kitefin/detector
+        - name: projects
+          in: query
+          description: Comma-separated project ids (at most 200). Those you can't read are skipped.
+          schema: {type: string}
+        - name: scope
+          in: query
+          description: "`mine`: the batches you started; `others`: the others'. Needs to be signed in."
+          schema: {type: string, enum: [all, mine, others], default: all}
+        - name: origin
+          in: query
+          description: "Comma-separated: where the batches were started, among `webapp`, `local` and `ci`."
+          schema: {type: string}
+          example: webapp,local
+        - name: branch
+          in: query
+          schema: {type: string}
+        - name: status
+          in: query
+          description: "`pending`: with runs that wait or run; `failed`: with failed runs."
+          schema: {type: string, enum: [pending, failed]}
+        - name: since_days
+          in: query
+          description: Only batches with runs in the last days.
+          schema: {type: integer, minimum: 1, maximum: 3650}
+        - name: metrics
+          in: query
+          description: >-
+            Metrics to aggregate over each batch's runs, as in `GET /commits`, or `default` for each project's
+            default metric.
+          schema: {type: string}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+        - name: offset
+          in: query
+          schema: {type: integer, minimum: 0, maximum: 10000, default: 0}
+      responses:
+        "200":
+          description: Batches. The `X-Has-More` header says if there are more.
+          headers:
+            X-Has-More: {$ref: "#/components/headers/X-Has-More"}
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/BatchWithCommit"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
+  /output/{output_id}:
+    get:
+      tags: [Runs]
+      operationId: getRun
+      summary: Get a run
+      parameters:
+        - $ref: "#/components/parameters/outputId"
+      responses:
+        "200":
+          description: The run.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Run"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /output/{output_id}/manifest:
+    get:
+      tags: [Runs]
+      operationId: getRunFiles
+      summary: List a run's files
+      description: >-
+        The files in the run's folder, by path relative to it. Download them from
+        `<server><output_dir_url>/<path>`.
+      parameters:
+        - $ref: "#/components/parameters/outputId"
+        - name: refresh
+          in: query
+          description: List the folder again, instead of reading the saved list.
+          schema: {type: boolean}
+      responses:
+        "200":
+          description: The files.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    st_size: {type: integer, description: Size in bytes.}
+                    md5: {type: string, description: Present when the run's files were hashed.}
+                  required: [st_size]
+              example:
+                output.png: {st_size: 1843211, md5: 9b2c1e0f4f6d3a8c7e5b1a2d3c4e5f60}
+                detections.json: {st_size: 20480, md5: 2f1e0d9c8b7a6f5e4d3c2b1a09f8e7d6}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /output/{output_id}/metrics:
+    patch:
+      tags: [Runs]
+      operationId: addRunMetrics
+      summary: Add metrics to a finished run
+      description: |
+        Merges metrics computed by a script into the run's (what `run.log_metrics()` calls in Python). QA-Board records
+        who added each one, when and with which script, in the run's `data.added_metrics`. Nothing is written in the
+        run's folder.
+
+        Needs a token with the `ingest` scope, and the developer role on the project.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/outputId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [metrics]
+              properties:
+                metrics:
+                  type: object
+                  description: At most 500. Values are finite numbers, booleans, texts (500 characters at most) or null.
+                  additionalProperties:
+                    type: [number, boolean, string, "null"]
+                overwrite:
+                  type: boolean
+                  default: false
+                  description: Replace metrics the run itself returned. Its values are kept as `replaced`.
+                source:
+                  type: object
+                  description: What the script says about itself, saved with each metric.
+                  properties:
+                    script: {type: string}
+                    script_sha256: {type: string}
+                    qaboard_version: {type: string}
+                    note: {type: string}
+                metrics_definitions:
+                  type: object
+                  description: How to show the added metrics, as in a metrics file (label, suffix, smaller_is_better, target...).
+                  additionalProperties: {$ref: "#/components/schemas/MetricDefinition"}
+            example:
+              metrics: {sharpness: 0.42}
+              source: {script: sharpness.py, note: "Laplacian variance"}
+      responses:
+        "200":
+          description: The run, and what was added.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Run"
+                  - type: object
+                    properties:
+                      added:
+                        type: object
+                        additionalProperties: {$ref: "#/components/schemas/AddedMetric"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409":
+          description: >-
+            The run hasn't finished, its files were deleted, or it returned some of these metrics itself
+            (`reason: metrics_exist`, use `overwrite`).
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+
+  /commit/{commit}/compare:
+    get:
+      tags: [Compare]
+      operationId: compareCommit
+      summary: Compare a commit's runs with a reference
+      description: |
+        The numbers of the commit page's **Summary** and **Metrics Diff**: each metric's median against the
+        reference's, and each run against its reference run. `qa gate` uses it.
+
+        Check `status` first: the numbers are final only when it is `complete`.
+      parameters:
+        - name: commit
+          in: path
+          required: true
+          description: A commit sha, or its start.
+          schema: {type: string, pattern: "^[0-9a-fA-F]{4,64}$"}
+          example: 7622c337
+        - $ref: "#/components/parameters/project"
+        - name: batch
+          in: query
+          description: The batch label. `ci` also names the CI batch.
+          schema: {type: string, default: default}
+        - name: reference
+          in: query
+          description: >-
+            A shared milestone's label (or `#<id>` for any milestone), a commit sha, or a branch: its latest commit
+            with runs in the batch, other than this one. Default: `gate.reference` in the commit's *qaboard.yaml*, else
+            `project.reference_branch`.
+          schema: {type: string}
+          example: main
+        - name: reference_batch
+          in: query
+          description: "The reference's batch label. Default: `batch`, or a milestone's batch."
+          schema: {type: string}
+        - name: metrics
+          in: query
+          description: "Comma-separated metrics to compare. Default: all those with numbers in the commit's runs."
+          schema: {type: string}
+          example: mAP,latency_ms
+        - name: bit_accuracy
+          in: query
+          description: "`true` also compares the runs' files, like `qa check-bit-accuracy`."
+          schema: {type: boolean, default: false}
+      responses:
+        "200":
+          description: The comparison.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Comparison"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /milestones:
+    get:
+      tags: [Milestones]
+      operationId: listMilestones
+      summary: List a project's milestones
+      description: The shared milestones, and yours when you're authenticated, the most recently updated first.
+      parameters:
+        - $ref: "#/components/parameters/project"
+      responses:
+        "200":
+          description: The milestones.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  milestones:
+                    type: array
+                    items: {$ref: "#/components/schemas/Milestone"}
+                  favorite_groups:
+                    type: array
+                    description: The milestone groups you starred.
+                    items:
+                      type: object
+                      properties:
+                        section: {type: string}
+                        group: {type: string}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
+  /user/me/:
+    get:
+      tags: [Account]
+      operationId: whoAmI
+      summary: Who is calling
+      description: Your account, and with a token, which token it is, its scopes and projects. Check your token with it.
+      responses:
+        "200":
+          description: >-
+            You. Anonymous calls get `is_authenticated: false`, and `reason`/`error` when a session couldn't be used.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Me"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /auth/token-exchange:
+    post:
+      tags: [Account]
+      operationId: exchangeCiToken
+      summary: Exchange a CI job's ID token for a token
+      description: >-
+        GitHub Actions and GitLab CI jobs send their OIDC ID token, and get a short-lived token (`qab_tmp_…`) of the
+        service account that trusts the job, with its role and projects. `qa` does it by itself
+        ([upload from CI without a secret](/docs/ci-integration#ci-without-secrets)). Errors are OAuth's:
+        `{error, error_description}`.
+      security:
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: &tokenExchange
+              type: object
+              required: [grant_type, subject_token]
+              properties:
+                grant_type: {type: string, const: "urn:ietf:params:oauth:grant-type:token-exchange"}
+                subject_token: {type: string, description: The CI job's ID token, for the audience the service account expects (the server's URL by default).}
+                subject_token_type:
+                  type: string
+                  enum: ["urn:ietf:params:oauth:token-type:id_token", "urn:ietf:params:oauth:token-type:jwt"]
+                service_account: {type: string, description: "Which service account, when several trust the job ($QABOARD_SERVICE_ACCOUNT)."}
+          application/x-www-form-urlencoded:
+            schema: *tokenExchange
+      responses:
+        "200":
+          description: The token, valid for `tokens.ci_lifetime_minutes` (6 hours by default).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token: {type: string}
+                  issued_token_type: {type: string, const: "urn:ietf:params:oauth:token-type:access_token"}
+                  token_type: {type: string, const: Bearer}
+                  expires_in: {type: integer, description: Seconds.}
+                  service_account: {type: string}
+                  scopes: {type: array, items: {type: string}}
+                  projects: {type: array, items: {type: string}}
+        "400": {description: "Not a token exchange, not a JWT, or several service accounts trust the job: say which."}
+        "401": {description: "The ID token is invalid or expired."}
+        "403": {description: "No service account trusts this job, issuer or audience."}
+        "503": {description: "The CI's issuer can't be reached."}
+
+  /health:
+    get:
+      tags: [Server]
+      operationId: health
+      summary: Check the server is up
+      security:
+        - {}
+      responses:
+        "200":
+          description: The server and its database are up.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, const: ok}
+        "503":
+          description: The database can't be reached.
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: >-
+        A QA-Board access token (`qab_pat_…`, or `qab_svc_…` for a service account). Create one in the web app, in
+        **Settings → Access tokens**, or print the CLI's with `qa auth token`. Tokens have scopes: `read`, `ingest`
+        (send results), `act` (redo runs, start or delete batches, save milestones), `admin`. Tokens in the URL
+        (`?token=`) are only accepted for GET requests.
+
+  headers:
+    X-Has-More:
+      description: "`true` when there are more items after this page."
+      schema: {type: string, enum: ["true", "false"]}
+
+  parameters:
+    project:
+      name: project
+      in: query
+      required: true
+      description: The project id, as in the web app's URLs.
+      schema: {type: string}
+      example: kitefin/detector
+    outputId:
+      name: output_id
+      in: path
+      required: true
+      description: The run's id (`id` in the commit's `outputs`).
+      schema: {type: integer}
+      example: 184467
+    commitsQuery:
+      name: q
+      in: query
+      description: >-
+        Search all the project's commits, with the syntax of the web app's search box, e.g. `branch:release -wip`
+        or `committer:arjun`. Ignores the date range, unless you give `from` or `to`.
+      schema: {type: string}
+    committer:
+      name: committer
+      in: query
+      description: Only this committer's commits (their exact name).
+      schema: {type: string}
+    from:
+      name: from
+      in: query
+      description: Commits authored after this date (UTC).
+      schema: {type: string, format: date-time}
+      example: "2026-10-01T00:00:00.000Z"
+    to:
+      name: to
+      in: query
+      description: Commits authored before this date (UTC).
+      schema: {type: string, format: date-time}
+      example: "2026-11-01T00:00:00.000Z"
+    limit:
+      name: limit
+      in: query
+      description: Page size. With it, the `X-Has-More` header says if there are more.
+      schema: {type: integer, minimum: 1, maximum: 1000}
+    offset:
+      name: offset
+      in: query
+      schema: {type: integer, minimum: 0, default: 0}
+    batchFilter:
+      name: batch
+      in: query
+      description: Only this batch of each commit.
+      schema: {type: string}
+    onlyCiBatches:
+      name: only_ci_batches
+      in: query
+      description: Only the CI batch of each commit (label `default`).
+      schema: {type: boolean, default: false}
+    withOutputsFalse:
+      name: with_outputs
+      in: query
+      description: "`true` adds each batch's runs. Can be big."
+      schema: {type: boolean, default: false}
+    metricsToAggregate:
+      name: metrics
+      in: query
+      description: >-
+        Metrics to aggregate over each batch's valid runs, as JSON `{"<metric>": <target>}`: each batch's
+        `aggregated_metrics` gets `<metric>_median`, `<metric>_average` and `<metric>_sum`. At most 20.
+      schema: {type: string}
+      example: '{"mAP": 0.5}'
+    scope:
+      name: scope
+      in: query
+      description: "`mine`: only commits you wrote or have batches in. Needs to be signed in."
+      schema: {type: string, enum: [all, mine], default: all}
+
+  responses:
+    Commits:
+      description: Commits, newest first.
+      headers:
+        X-Has-More: {$ref: "#/components/headers/X-Has-More"}
+      content:
+        application/json:
+          schema:
+            type: array
+            items: {$ref: "#/components/schemas/Commit"}
+    BadRequest:
+      description: A parameter is invalid.
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    Unauthorized:
+      description: >-
+        Not authenticated: the server or the project requires signing in (`sign_in_required`), or the token can't be
+        used (`token_invalid`, `token_expired`, `token_idle_expired`, `token_revoked`, `token_in_url`).
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+          example: {error: "This token expired on 2026-10-01.", reason: token_expired}
+    Forbidden:
+      description: >-
+        You can't read this project (`missing_role`, `forbidden_project`), your token lacks a scope
+        (`missing_scope`, with the scope in `required`), or it is restricted to other projects (`token_project`).
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+          example: {error: "Forbidden: You don't have permission to access this project", reason: forbidden_project}
+    NotFound:
+      description: Not found.
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: {type: string, description: What went wrong, for people.}
+        reason: {type: string, description: "A stable code for scripts, when there is one, e.g. `token_expired`."}
+      required: [error]
+
+    MetricDefinition:
+      type: object
+      description: How to show a metric, from the project's metrics file or the code that returns it.
+      properties:
+        label: {type: string}
+        short_label: {type: string}
+        smaller_is_better: {type: [boolean, "null"], description: "null: QA-Board doesn't know which way is better."}
+        target: {type: [number, "null"]}
+        suffix: {type: string, description: "A unit, e.g. ` ms`."}
+        scale: {type: number, description: Values are multiplied by it before they're shown.}
+      additionalProperties: true
+
+    ProjectSummary:
+      type: object
+      properties:
+        data:
+          type: object
+          description: >-
+            The project's data: with `summary=true`, only `git` (name, description, web URL, avatar, default branch...)
+            and `qatools_config.project` (the `project` section of its *qaboard.yaml*).
+          additionalProperties: true
+        latest_output_datetime: {type: [string, "null"], format: date-time}
+        latest_commit_datetime: {type: string, format: date-time}
+        total_commits: {type: integer}
+        latest_human_activity:
+          type: [string, "null"]
+          format: date-time
+          description: When a batch from the web app or someone's terminal last got a run, in the last 90 days.
+        activity:
+          type: [array, "null"]
+          items: {type: integer}
+          description: Batches that got runs on each of the last 30 days (UTC), oldest first.
+        views_90d: {type: integer, description: Users who viewed it in the last 90 days.}
+        my_last_view: {type: [string, "null"], format: date-time}
+        my_latest_activity:
+          type: [string, "null"]
+          format: date-time
+          description: Your latest batch or commit in the last 90 days. Only for signed-in users.
+
+    ProjectData:
+      type: object
+      properties:
+        qatools_config: {type: object, description: The project's latest *qaboard.yaml*, as JSON., additionalProperties: true}
+        qatools_metrics:
+          type: object
+          description: The project's metrics definitions.
+          properties:
+            available_metrics:
+              type: object
+              additionalProperties: {$ref: "#/components/schemas/MetricDefinition"}
+            default_metric: {type: string}
+            summary_metrics: {type: array, items: {type: string}}
+            main_metrics: {type: array, items: {type: string}}
+          additionalProperties: true
+        git: {type: object, description: What the git host says about the repository., additionalProperties: true}
+      additionalProperties: true
+
+    Commit:
+      type: object
+      properties:
+        id: {type: string, description: The full commit sha.}
+        branch: {type: string, description: "The branch, without `origin/`. Empty when the client didn't know it."}
+        message: {type: string}
+        committer_name: {type: string}
+        committer_avatar_url: {type: [string, "null"]}
+        authored_datetime: {type: string, format: date-time}
+        authored_date: {type: string, format: date}
+        latest_output_datetime: {type: [string, "null"], format: date-time}
+        deleted: {type: [boolean, "null"], description: Whether the commit's artifacts were deleted.}
+        data:
+          type: object
+          description: >-
+            What QA-Board and clients saved with the commit: its *qaboard.yaml* (`qatools_config`), metrics definitions
+            (`qatools_metrics`), who sent it (`submitted_by`), and any metadata clients add.
+          additionalProperties: true
+        outputs_url: {type: string, description: Where the commit's runs are saved, as a path on the server (`/s/...`).}
+        artifacts_url: {type: string, description: Where the commit's artifacts (builds, configurations) are saved.}
+        repo_artifacts_url: {type: string, description: The artifacts of the git repository, for sub-projects.}
+        batches:
+          type: object
+          description: The commit's batches, by label. The CI batch's label is `default`.
+          additionalProperties: {$ref: "#/components/schemas/Batch"}
+
+    CommitWithRuns:
+      allOf:
+        - $ref: "#/components/schemas/Commit"
+        - type: object
+          properties:
+            artifacts:
+              type: object
+              description: Whether the commit's artifacts are there, to run tests from the web app.
+              properties:
+                ok: {type: boolean}
+                problems: {type: array, items: {type: string}}
+              additionalProperties: true
+          example:
+            id: 7622c33790d16cf1a04ad6a5c7b1a1d2a3b4c5d6
+            branch: quant/int8
+            message: "feat(quant): percentile calibration (99.99)"
+            committer_name: Arjun Sethuraman
+            committer_avatar_url: null
+            authored_datetime: "2026-11-05T13:58:40+00:00"
+            authored_date: "2026-11-05"
+            latest_output_datetime: "2026-11-05T14:02:11.391000"
+            deleted: false
+            data: {qatools_config: {project: {reference_branch: main}}}
+            outputs_url: /s/mnt/qaboard/kitefin/detector/outputs/7622c337
+            artifacts_url: /s/mnt/qaboard/kitefin/detector/artifacts/7622c337
+            repo_artifacts_url: /s/mnt/qaboard/kitefin/detector/artifacts/7622c337
+            batches:
+              default:
+                id: 1204
+                commit_id: 7622c33790d16cf1a04ad6a5c7b1a1d2a3b4c5d6
+                label: default
+                created_date: "2026-11-05T13:59:02.120000"
+                origin: ci
+                user_name: ci-runner
+                latest_output_datetime: "2026-11-05T14:02:11.391000"
+                data: {}
+                batch_dir_url: /s/mnt/qaboard/kitefin/detector/outputs/7622c337/default
+                valid_outputs: 1
+                pending_outputs: 0
+                running_outputs: 0
+                failed_outputs: 0
+                deleted_outputs: 0
+                aggregated_metrics: {}
+                outputs:
+                  "184467":
+                    id: 184467
+                    output_type: ""
+                    platform: linux
+                    configurations: [fp32, size-320]
+                    extra_parameters: {}
+                    metrics: {mAP: 0.612, latency_ms: 18.4, is_failed: false}
+                    is_failed: false
+                    is_pending: false
+                    is_running: false
+                    data: {}
+                    deleted: false
+                    created_date: "2026-11-05T13:59:02.381000"
+                    queued_at: "2026-11-05T13:59:02Z"
+                    started_at: "2026-11-05T13:59:30Z"
+                    finished_at: "2026-11-05T14:02:11Z"
+                    output_dir_url: /s/mnt/qaboard/kitefin/detector/outputs/7622c337/default/slices-indoor
+                    test_input_database: /mnt/datasets/kitefin
+                    test_input_path: slices/indoor
+                    test_input_metadata: {}
+            artifacts: {ok: true, problems: []}
+
+    Batch:
+      type: object
+      description: >-
+        A batch: runs started together with the same label, e.g. by the CI (`default`) or from the web app.
+      properties:
+        id: {type: integer}
+        commit_id: {type: string, description: The commit's sha.}
+        label: {type: string, description: "`default` for the CI batch, shown as **CI** in the web app."}
+        created_date: {type: string, format: date-time}
+        origin: {type: [string, "null"], description: "Where it was started: `ci`, `webapp` or `local`."}
+        user_name: {type: [string, "null"], description: Who started it.}
+        latest_output_datetime: {type: [string, "null"], format: date-time}
+        data: {type: object, description: The batch's settings and bookkeeping., additionalProperties: true}
+        batch_dir_url: {type: string, description: "Where its runs are saved, as a path on the server (`/s/...`)."}
+        valid_outputs: {type: integer, description: Runs that finished without failing.}
+        pending_outputs: {type: integer, description: Runs that wait or run.}
+        running_outputs: {type: integer}
+        failed_outputs: {type: integer}
+        deleted_outputs: {type: integer, description: Runs whose files were deleted.}
+        aggregated_metrics:
+          type: object
+          description: "With the `metrics` parameter: `<metric>_median`, `<metric>_average` and `<metric>_sum`."
+          additionalProperties: {type: number}
+        outputs:
+          type: object
+          description: The runs, by id. Only when runs are asked for.
+          additionalProperties: {$ref: "#/components/schemas/Run"}
+
+    BatchWithCommit:
+      allOf:
+        - $ref: "#/components/schemas/Batch"
+        - type: object
+          properties:
+            project: {type: string}
+            commit:
+              type: object
+              properties:
+                id: {type: string}
+                branch: {type: string}
+                message: {type: string}
+                committer_name: {type: string}
+                authored_datetime: {type: [string, "null"], format: date-time}
+            default_metric: {type: [string, "null"], description: "With `metrics=default`: the project's default metric."}
+            default_metric_info:
+              description: "With `metrics=default`: how to show it."
+              oneOf:
+                - $ref: "#/components/schemas/MetricDefinition"
+                - type: "null"
+
+    Run:
+      type: object
+      description: A run of the code on an input with configurations (an *output* in the API).
+      properties:
+        id: {type: integer}
+        output_type:
+          type: string
+          description: "`optim_iteration` for the evaluations of automated tunings, else usually empty."
+        test_input_database: {type: string, description: "The input's database, e.g. a dataset's folder."}
+        test_input_path: {type: string, description: The input's path, relative to its database.}
+        test_input_metadata: {type: object, description: The input's metadata, from the batch definition., additionalProperties: true}
+        platform: {type: string}
+        configurations:
+          type: array
+          description: "The configurations (`qa --config`): strings and mappings."
+          items: {}
+        extra_parameters: {type: object, description: The tuning parameters., additionalProperties: true}
+        metrics:
+          type: object
+          description: The run's metrics, and those added by scripts.
+          additionalProperties: true
+        is_pending: {type: boolean, description: The run waits or runs.}
+        is_running: {type: boolean}
+        is_failed: {type: boolean}
+        deleted: {type: [boolean, "null"], description: The run's files were deleted.}
+        data:
+          type: object
+          description: >-
+            What else the server knows: e.g. who sent it (`submitted_by`), the parameters the run reported
+            (`params`), metrics added by scripts and who added them (`added_metrics`).
+          additionalProperties: true
+        created_date: {type: string, format: date-time}
+        queued_at: {type: [string, "null"], format: date-time}
+        started_at: {type: [string, "null"], format: date-time}
+        finished_at: {type: [string, "null"], format: date-time}
+        output_dir_url:
+          type: string
+          description: "The run's folder, as a path on the server: download files from `<server><output_dir_url>/<file>`."
+
+    AddedMetric:
+      type: object
+      properties:
+        value: {type: [number, boolean, string, "null"]}
+        at: {type: string, format: date-time}
+        user: {type: string, description: "The token's user: who added it."}
+        token: {type: string, description: The token's name.}
+        script: {type: string}
+        script_sha256: {type: string}
+        qaboard_version: {type: string}
+        note: {type: string}
+        replaced: {description: The value it replaced.}
+
+    ComparedCommit:
+      type: object
+      properties:
+        id: {type: [string, "null"], description: "The sha, `null` when no reference was found."}
+        branch: {type: string}
+        message: {type: string}
+        committer_name: {type: string}
+        authored_datetime: {type: [string, "null"], format: date-time}
+        batch: {type: string}
+        runs:
+          type: object
+          properties:
+            total: {type: integer}
+            valid: {type: integer}
+            failed: {type: integer}
+            pending: {type: integer}
+            running: {type: integer}
+
+    Comparison:
+      type: object
+      properties:
+        project: {type: string}
+        status:
+          type: string
+          enum: [complete, running, missing]
+          description: >-
+            `complete`: the numbers are final. `running`: some runs aren't finished. `missing`: runs or the reference
+            are missing, `messages` says what.
+        messages: {type: array, items: {type: string}, description: Why the comparison is incomplete, and warnings.}
+        commit: {$ref: "#/components/schemas/ComparedCommit"}
+        reference:
+          allOf:
+            - $ref: "#/components/schemas/ComparedCommit"
+            - type: object
+              properties:
+                requested: {type: string, description: The reference you asked for, or the default.}
+                type: {type: string, enum: [milestone, commit, branch]}
+                milestone: {type: [string, "null"], description: The milestone's label.}
+        metrics:
+          type: object
+          description: The **Summary**'s numbers, by metric.
+          additionalProperties:
+            type: object
+            properties:
+              label: {type: string}
+              short_label: {type: string}
+              suffix: {type: string}
+              scale: {type: number}
+              smaller_is_better: {type: [boolean, "null"], description: "null: QA-Board doesn't know which way is better."}
+              target: {type: [number, "null"]}
+              declared: {type: boolean, description: Whether the metric has a definition.}
+              new: {$ref: "#/components/schemas/MetricStats"}
+              ref: {$ref: "#/components/schemas/MetricStats"}
+              delta: {type: [number, "null"], description: New median minus reference median.}
+              delta_relative: {type: [number, "null"], description: "`delta` divided by the reference median's absolute value."}
+        tests:
+          type: array
+          description: The **Metrics Diff**'s rows, one per run of the commit.
+          items:
+            type: object
+            properties:
+              id: {type: integer, description: The run's id.}
+              reference_id: {type: [integer, "null"], description: The reference run it's compared with.}
+              reference_mismatch:
+                type: [object, "null"]
+                description: >-
+                  `null` when the reference run is the same test. Otherwise what differs (`test_input_path`,
+                  `configurations`, `platform`, `extra_parameters`), with the reference run's value.
+                additionalProperties: true
+              test_input_path: {type: string}
+              test_input_database: {type: string}
+              label: {type: [string, "null"]}
+              platform: {type: string}
+              configurations: {type: array, items: {}}
+              extra_parameters: {type: object, additionalProperties: true}
+              is_failed: {type: boolean}
+              metrics:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    new: {type: number}
+                    ref: {type: [number, "null"]}
+                    delta: {type: [number, "null"]}
+                    delta_relative: {type: [number, "null"]}
+              bit_accurate: {type: [boolean, "null"], description: "With `bit_accuracy=true`: whether the files are the same."}
+              bit_accuracy_mismatch: {type: array, items: {type: string}, description: The files that differ.}
+        bit_accuracy:
+          type: [object, "null"]
+          description: "With `bit_accuracy=true`: how many runs were checked, mismatched, or couldn't be checked."
+          properties:
+            checked: {type: integer}
+            mismatched: {type: integer}
+            unavailable: {type: integer}
+
+    MetricStats:
+      type: object
+      properties:
+        median: {type: [number, "null"]}
+        count: {type: integer, description: Runs with a number for this metric.}
+        pass_rate: {type: [number, "null"], description: Share of runs that meet the target (0 to 1).}
+
+    Milestone:
+      type: object
+      properties:
+        id: {type: integer}
+        project: {type: string}
+        label: {type: string}
+        group: {type: string}
+        notes: {type: string}
+        shared: {type: boolean}
+        commit: {type: string, description: The commit's sha.}
+        commit_project: {type: [string, "null"], description: The commit's project, when it's another project's.}
+        batch: {type: string}
+        filter: {type: string, description: "The runs' filter, as in the web app's filter box."}
+        branch: {type: [string, "null"]}
+        committer_name: {type: [string, "null"]}
+        message: {type: [string, "null"]}
+        runs: {type: [object, "null"], description: What its runs used (datasets, batches, platforms)., additionalProperties: true}
+        owner:
+          type: [object, "null"]
+          properties:
+            user_name: {type: string}
+            full_name: {type: [string, "null"]}
+        is_mine: {type: boolean}
+        can_edit: {type: boolean}
+        is_favorite: {type: boolean}
+        slug: {type: string}
+        created_at: {type: [string, "null"], format: date-time}
+        updated_at: {type: [string, "null"], format: date-time}
+
+    Me:
+      type: object
+      properties:
+        is_authenticated: {type: boolean}
+        is_anonymous: {type: boolean}
+        user_id: {type: integer}
+        user_name: {type: string}
+        full_name: {type: [string, "null"]}
+        email: {type: [string, "null"]}
+        login_type: {type: [string, "null"]}
+        kind: {type: string, description: "`human`, or `service` for service accounts."}
+        status: {type: string}
+        is_admin: {type: boolean}
+        avatar_url:
+          type: [string, "null"]
+          description: >-
+            Your picture, from your sign-in method, served by QA-Board to signed-in users (`/api/v1/users/<id>/picture?v=…`).
+            `null` when it has none.
+        profile:
+          type: object
+          description: What your sign-in method says about you, updated at each sign-in.
+          properties:
+            title: {type: string}
+            department: {type: string}
+            organization: {type: string}
+            source: {type: string, description: The sign-in method these fields come from.}
+            updated_at: {type: string, format: date-time}
+            picture_source: {type: string, description: The sign-in method the picture comes from.}
+            picture_updated_at: {type: string, format: date-time}
+        token:
+          type: object
+          description: The token you sent, if any.
+          properties:
+            id: {type: integer}
+            name: {type: string}
+            prefix: {type: string, description: The token's first characters, to recognize it.}
+            kind: {type: string}
+            scopes: {type: array, items: {type: string, enum: [read, ingest, act, admin]}}
+            projects: {type: array, items: {type: string}, description: "The projects it's restricted to, empty: all."}
+            expires_at: {type: [string, "null"], format: date-time}
+            idle_expiry_days: {type: [integer, "null"]}
+            last_used_at: {type: [string, "null"], format: date-time, description: Before this request.}
+        reason: {type: string}
+        error: {type: string}
+      required: [is_authenticated]

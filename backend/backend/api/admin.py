@@ -20,6 +20,7 @@ from ..hybrid_cache import hybrid_cache
 from .auth import admin_required, is_login_restricted
 from .users import page_of_events
 from ..search import escape_like
+from ..sign_in.profiles import avatar_url, public as public_profile
 
 
 USER_STATUSES = ('active', 'pending', 'disabled')
@@ -46,6 +47,7 @@ def serialize_user(user, active_tokens=None) -> dict:
     "created_date": tokens_lib.iso(user.created_date),
     "last_login_at": tokens_lib.iso(user.last_login_at),
     "active_tokens": active_tokens,
+    "avatar_url": avatar_url(user),
   }
 
 
@@ -141,8 +143,8 @@ def checklist() -> list:
   item('local_signup', not risky_signup, 'danger' if login_type != 'LOCAL' else 'warning',
        "Local sign-up is off" if not local_signup else ("Anyone can create a local account" if login_type != 'LOCAL' else "Anyone can create an account"),
        "With LDAP or SAML, local accounts could take the names of directory users who never signed in. Turn auth.local_signup off."
-       if login_type != 'LOCAL' else "Sign-in is required, but anyone can create an account: turn auth.local_signup off, and create accounts with qaboard-admin create-admin --password.",
-       "Turn auth.local_signup off if only admins should create accounts (qaboard-admin create-admin --password)." if local_signup else None)
+       if login_type != 'LOCAL' else "Sign-in is required, but anyone can create an account: turn auth.local_signup off, and create accounts in Admin → Users (New user), or with qaboard-admin create-admin --password.",
+       "Turn auth.local_signup off if only admins should create accounts (Admin → Users → New user)." if local_signup else None)
 
   from ..git_hosts import git_hosts
   webhooks_signed = git_hosts.has_webhook_secrets()
@@ -348,6 +350,65 @@ def get_user_or_404(user_id):
   return user, None
 
 
+@app.route('/api/v1/admin/users', methods=['POST'])
+@app.route('/api/v1/admin/users/', methods=['POST'])
+@admin_required
+def admin_create_user():
+  """
+  {user_name, full_name?, email?, password?, is_admin?}: a local account, active right away.
+  Without a password, we generate one: the answer has it, once, for the admin to give to its owner.
+  """
+  from .. import first_admin
+  body = request.get_json(silent=True) or {}
+  user_name = body.get('user_name')
+  user_name = user_name.strip() if isinstance(user_name, str) else user_name
+  email = (body.get('email') or '').strip() or None
+  full_name = (body.get('full_name') or '').strip() or None
+  make_admin = body.get('is_admin', False)
+  if not isinstance(make_admin, bool):
+    return jsonify({"error": "is_admin must be true or false", "field": "is_admin"}), 400
+  generated = not body.get('password')
+  password = first_admin.generate_password() if generated else body.get('password')
+  for field, problem in [('user_name', first_admin.user_name_problem(user_name)), ('email', first_admin.email_problem(email)),
+                         ('password', None if generated else first_admin.password_problem(password))]:
+    if problem:
+      return jsonify({"error": problem, "field": field}), 400
+  user = first_admin.new_local_user(user_name, password, full_name=full_name, email=email, is_admin=make_admin)
+  audit('user.create', 'user', user.id, user.user_name, meta={"login_type": "LOCAL", "is_admin": make_admin, "generated_password": generated})
+  db_session.commit()
+  return jsonify({"user": serialize_user(user, 0), **({"password": password} if generated else {})}), 201
+
+
+@app.route('/api/v1/admin/users/<int:user_id>/password', methods=['POST'])
+@app.route('/api/v1/admin/users/<int:user_id>/password/', methods=['POST'])
+@admin_required
+def admin_reset_password(user_id):
+  """
+  {password?}: a new password for a local account, generated without one (the answer has it, once).
+  Its owner is signed out of every browser. Their tokens keep working: revoke them apart.
+  """
+  from .. import first_admin
+  from ..sign_in.sessions import revoke_all
+  user, error = get_user_or_404(user_id)
+  if error:
+    return error
+  if user.kind != 'human' or (user.login_type or '').upper() != 'LOCAL':
+    return jsonify({"error": f"{user.user_name} doesn't have a local account: they sign in with {user.login_type or 'single sign-on'}, whose password QA-Board doesn't know."}), 400
+  if user.id == g.actor.user.id:
+    return jsonify({"error": "Change your own password in Settings → Sign-in methods."}), 400
+  body = request.get_json(silent=True) or {}
+  generated = not body.get('password')
+  password = first_admin.generate_password() if generated else body.get('password')
+  if not generated and (problem := first_admin.password_problem(password)):
+    return jsonify({"error": problem, "field": "password"}), 400
+  from .auth import generate_password_hash
+  user.password = generate_password_hash(password)
+  signed_out = revoke_all(user.id)
+  audit('user.password_reset', 'user', user.id, user.user_name, meta={"generated_password": generated, "sessions_revoked": signed_out})
+  db_session.commit()
+  return jsonify({"signed_out": signed_out, **({"password": password} if generated else {})})
+
+
 @app.route('/api/v1/admin/users/<int:user_id>', methods=['GET'])
 @app.route('/api/v1/admin/users/<int:user_id>/', methods=['GET'])
 @admin_required
@@ -364,7 +425,7 @@ def admin_user(user_id):
   from ..sign_in.access import serialize as serialize_request
   access_request = AccessRequest.query.filter(AccessRequest.user_id == user.id).order_by(AccessRequest.id.desc()).first()
   return jsonify({
-    "user": serialize_user(user, counts.get(user.id, 0)),
+    "user": {**serialize_user(user, counts.get(user.id, 0)), "profile": public_profile(user)},
     "tokens": [tokens_lib.serialize(t) for t in tokens],
     "audit": [serialize_event(e) for e in events],
     # the latest, pending or decided

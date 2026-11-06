@@ -2,6 +2,8 @@
 // Shared by the project's Access page and the admin pages.
 import { Classes, Icon, Intent, Tag, Tooltip } from "@blueprintjs/core";
 
+import { UserAvatar } from "../components/avatars";
+
 
 // Ordered levels: each role can do what the ones before can
 export const roles = [
@@ -46,25 +48,33 @@ export const viaText = (via, { visibility } = {}) => ({
 })[via] ?? null;
 
 
-// "Alice (alice)", or a group's name with its icon
+// Groups and service accounts have an icon, as wide as users' pictures
+const SubjectIcon = ({ icon, label }) => <span style={{ display: 'inline-flex', justifyContent: 'center', flex: '0 0 20px' }}>
+  <Icon icon={icon} size={14} aria-label={label} className={Classes.TEXT_MUTED}/>
+</span>;
+
+// "Alice (alice)" with their picture, or a group's name with its icon
 export const SubjectName = ({ subject }) => {
   if (!subject) return <span className={Classes.TEXT_MUTED}>Deleted</span>;
   if (subject.type === 'group')
     return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-      <Icon icon="people" size={14} aria-label="Group" className={Classes.TEXT_MUTED}/>
+      <SubjectIcon icon="people" label="Group"/>
       <strong style={{ overflowWrap: 'anywhere' }}>{subject.name ?? `Group #${subject.id}`}</strong>
     </span>;
   const user_name = subject.user_name ?? subject.name;
   // service accounts are named by their user name, e.g. ci[bot]
   if (subject.kind === 'service')
     return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-      <Icon icon="build" size={14} aria-label="Service account" className={Classes.TEXT_MUTED}/>
+      <SubjectIcon icon="build" label="Service account"/>
       <strong style={{ overflowWrap: 'anywhere' }}>{user_name ?? `User #${subject.id}`}</strong>
     </span>;
   const full_name = subject.full_name && subject.full_name !== user_name ? subject.full_name : null;
-  return <span style={{ minWidth: 0 }}>
-    <strong style={{ overflowWrap: 'anywhere' }}>{full_name ?? user_name ?? `User #${subject.id}`}</strong>
-    {full_name && user_name && <span className={Classes.TEXT_MUTED}> {user_name}</span>}
+  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+    <UserAvatar user={{ user_name, full_name: subject.full_name, avatar_url: subject.avatar_url }} size="20px" alt=""/>
+    <span style={{ minWidth: 0 }}>
+      <strong style={{ overflowWrap: 'anywhere' }}>{full_name ?? user_name ?? `User #${subject.id}`}</strong>
+      {full_name && user_name && <span className={Classes.TEXT_MUTED}> {user_name}</span>}
+    </span>
   </span>;
 };
 

@@ -87,7 +87,8 @@ Base: `$QABOARD_URL/api/v1`. Reading is anonymous unless the server restricts th
 | Milestones | `GET /milestones?project=<p>` |
 | Projects, branches | `GET /projects?summary=true`, `GET /project/branches?project=<p>` |
 
-Details: https://samsung.github.io/qaboard/docs/apis#http-api. Starting runs or batches needs a token with the `act`
+Every parameter and field: `$QABOARD_URL/api/v1/openapi.json` (OpenAPI 3.1), or the guide
+https://samsung.github.io/qaboard/docs/http-api. Starting runs or batches needs a token with the `act`
 scope: prefer `qa batch` from a checkout.
 
 ## Don'ts

@@ -153,6 +153,19 @@ describe('Users', () => {
     await waitFor(() => expect(calls(fetch, 'GET', '/api/v1/admin/users').at(-1)[0]).toBe('/api/v1/admin/users?status=disabled&admin=true&limit=50&offset=0'));
   });
 
+  it("shows users' pictures, else their initials", async () => {
+    mockApi({ 'GET /api/v1/admin/users': { users: [
+      user({ avatar_url: '/api/v1/users/2/picture?v=ab12cd34' }),
+      user({ id: 3, user_name: 'bob', full_name: null, avatar_url: null }),
+    ], total: 2 } });
+    renderAt('/admin/users', <Users/>);
+    const alice = (await screen.findByRole('link', { name: 'Alice' })).closest('tr');
+    expect(alice.querySelector('img')).toHaveAttribute('src', '/api/v1/users/2/picture?v=ab12cd34');
+    // next to their name: not read twice
+    expect(alice.querySelector('img')).toHaveAttribute('alt', '');
+    expect(screen.getByRole('link', { name: 'bob' }).closest('tr').querySelector('img').getAttribute('src')).toMatch(/^data:image\/svg\+xml/);
+  });
+
   it('searches a moment after typing', async () => {
     const fetch = mockApi({ 'GET /api/v1/admin/users': { users: [], total: 0 } });
     renderAt('/admin/users', <Users/>);
@@ -185,6 +198,14 @@ describe('UserDetail', () => {
     expect(await screen.findByRole('heading', { name: 'Alice' })).toBeInTheDocument();
     expect(screen.getByText('qab_pat_abcd…')).toBeInTheDocument();
     expect(screen.getByText('Created a token')).toBeInTheDocument();
+  });
+
+  it('shows their picture and job, from their sign-in', async () => {
+    mockApi({ 'GET /api/v1/admin/users/2': detail({ avatar_url: '/api/v1/users/2/picture?v=ab12cd34', profile: { title: 'Engineer', organization: 'Example Corp' } }) });
+    renderAt('/admin/users/2', <UserDetail id="2" me={admin}/>);
+    const page = await screen.findByRole('region', { name: 'User alice' });
+    expect(page.querySelector('img[src="/api/v1/users/2/picture?v=ab12cd34"]')).toBeInTheDocument();
+    expect(screen.getByText('Engineer · Example Corp')).toBeInTheDocument();
   });
 
   it('disables users after asking, and makes them admins after asking', async () => {
@@ -486,5 +507,82 @@ describe('Checklist', () => {
   it('says when all is good', () => {
     renderWithProviders(<Checklist checklist={[{ id: 'a', ok: true, severity: 'info', title: 'Fine' }]}/>);
     expect(screen.getByText('All good')).toBeInTheDocument();
+  });
+});
+
+
+describe('Local accounts', () => {
+  it('creates a user with a generated password, shown once', async () => {
+    const fetch = mockApi({
+      'GET /api/v1/admin/users': { users: [user()], total: 1 },
+      'POST /api/v1/admin/users': (url, init) => [{ user: user({ id: 3, ...JSON.parse(init.body), login_type: 'LOCAL' }), password: 'Generated123456x' }, 201],
+    });
+    renderAt('/admin/users', <Users/>);
+    fireEvent.click(await screen.findByRole('button', { name: 'New user' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    fireEvent.change(dialog.getByLabelText('User name'), { target: { value: ' bob ' } });
+    fireEvent.change(dialog.getByLabelText(/Email/), { target: { value: 'bob@example.com' } });
+    fireEvent.click(dialog.getByRole('button', { name: 'Create the account' }));
+    await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/admin/users')).toHaveLength(1));
+    expect(JSON.parse(calls(fetch, 'POST', '/api/v1/admin/users')[0][1].body)).toEqual(expect.objectContaining({ user_name: 'bob', email: 'bob@example.com', is_admin: false }));
+    expect(JSON.parse(calls(fetch, 'POST', '/api/v1/admin/users')[0][1].body).password).toBeUndefined();
+    expect(await screen.findByDisplayValue('Generated123456x')).toBeInTheDocument();
+    expect(screen.getByText('Copy the password now')).toBeInTheDocument();
+  });
+
+  it('creates an admin with a chosen password, checked first', async () => {
+    const fetch = mockApi({
+      'GET /api/v1/admin/users': { users: [], total: 0 },
+      'POST /api/v1/admin/users': (url, init) => [{ user: user({ id: 3, ...JSON.parse(init.body), login_type: 'LOCAL' }) }, 201],
+    });
+    renderAt('/admin/users', <Users/>);
+    // also in the empty state
+    fireEvent.click((await screen.findAllByRole('button', { name: 'New user' }))[0]);
+    const dialog = within(await screen.findByRole('dialog'));
+    fireEvent.change(dialog.getByLabelText('User name'), { target: { value: 'carol' } });
+    fireEvent.click(dialog.getByLabelText('Choose one'));
+    fireEvent.change(dialog.getByLabelText('Their password'), { target: { value: 'short' } });
+    fireEvent.click(dialog.getByLabelText(/^Admin/));
+    fireEvent.click(dialog.getByRole('button', { name: 'Create the account' }));
+    expect(await dialog.findByText('Passwords need at least 8 characters.')).toBeInTheDocument();
+    expect(calls(fetch, 'POST', '/api/v1/admin/users')).toHaveLength(0);
+    fireEvent.change(dialog.getByLabelText('Their password'), { target: { value: 'long-enough' } });
+    fireEvent.click(dialog.getByRole('button', { name: 'Create the account' }));
+    await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/admin/users')).toHaveLength(1));
+    expect(JSON.parse(calls(fetch, 'POST', '/api/v1/admin/users')[0][1].body)).toEqual(expect.objectContaining({ user_name: 'carol', password: 'long-enough', is_admin: true }));
+    expect(await screen.findByText(/the password you chose/)).toBeInTheDocument();
+  });
+
+  it('shows the server\'s errors next to their field', async () => {
+    mockApi({
+      'GET /api/v1/admin/users': { users: [user()], total: 1 },
+      'POST /api/v1/admin/users': () => [{ error: 'This user name is already taken.', field: 'user_name' }, 400],
+    });
+    renderAt('/admin/users', <Users/>);
+    fireEvent.click(await screen.findByRole('button', { name: 'New user' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    fireEvent.change(dialog.getByLabelText('User name'), { target: { value: 'alice' } });
+    fireEvent.click(dialog.getByRole('button', { name: 'Create the account' }));
+    expect(await dialog.findByText('This user name is already taken.')).toBeInTheDocument();
+  });
+
+  it('resets the password of local accounts after asking', async () => {
+    const fetch = mockApi({
+      'GET /api/v1/admin/users/2': { user: user({ login_type: 'LOCAL' }), tokens: [], audit: [] },
+      'POST /api/v1/admin/users/2/password': { signed_out: 1, password: 'NewGenerated12345' },
+    });
+    renderAt('/admin/users/2', <UserDetail id="2" me={admin}/>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Reset password' }));
+    const alert = within(await screen.findByRole('alertdialog'));
+    fireEvent.click(alert.getByRole('button', { name: 'Reset the password' }));
+    await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/admin/users/2/password')).toHaveLength(1));
+    expect(await screen.findByDisplayValue('NewGenerated12345')).toBeInTheDocument();
+  });
+
+  it('offers no password reset to directory accounts', async () => {
+    mockApi({ 'GET /api/v1/admin/users/2': { user: user({ login_type: 'LDAP' }), tokens: [], audit: [] } });
+    renderAt('/admin/users/2', <UserDetail id="2" me={admin}/>);
+    expect(await screen.findByRole('heading', { name: 'Alice' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reset password' })).not.toBeInTheDocument();
   });
 });

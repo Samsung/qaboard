@@ -73,7 +73,7 @@ export function organize({ settings = [], server = [], groups = [] }, { query = 
 
 
 // Values as text, e.g. in the provenance popover
-export const unit_labels = { days: ['day', 'days'], seconds: ['second', 'seconds'], GB: ['GB', 'GB'] };
+export const unit_labels = { days: ['day', 'days'], minutes: ['minute', 'minutes'], seconds: ['second', 'seconds'], GB: ['GB', 'GB'] };
 export const withUnit = (value, unit) => {
   if (!unit || typeof value !== 'number') return null;
   const [one, many] = unit_labels[unit] ?? [unit, unit];

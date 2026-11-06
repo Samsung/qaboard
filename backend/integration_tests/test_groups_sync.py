@@ -133,7 +133,8 @@ def test_ldap_reads_nested_groups(monkeypatch):
       return [("CN=camera-algo,OU=Groups,DC=example,DC=com", {}), ("CN=algo,OU=Groups,DC=example,DC=com", {})]
   details = auth.ldap_details(Connection(), 'alice')
   assert details[0][1]["memberOf"] == [b"CN=camera-algo,OU=Groups,DC=example,DC=com", b"CN=algo,OU=Groups,DC=example,DC=com"]
-  assert searches[0] == ('(sAMAccountName=alice)', ['cn', 'mail', 'memberOf'])
+  # and the profile's: picture, title, department, organization (backend/sign_in/profiles.py)
+  assert searches[0] == ('(sAMAccountName=alice)', ['cn', 'mail', 'memberOf', 'thumbnailPhoto', 'jpegPhoto', 'title', 'department', 'company', 'o'])
   assert searches[1][0] == '(member:1.2.840.113556.1.4.1941:=CN=alice,DC=example,DC=com)'
 
 

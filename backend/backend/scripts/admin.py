@@ -2,6 +2,8 @@
 """
 Administration from the server's shell, e.g. to create the first admin:
   docker compose exec backend qaboard-admin create-admin alice
+or to show the token of the setup page, that creates it from the web app:
+  docker compose exec backend qaboard-admin setup-token
 Everything is audited as done by "qaboard-admin".
 """
 import sys
@@ -57,6 +59,18 @@ def create_admin(user_name, with_password, email, full_name):
     system_audit('user.update', target_type='user', target_id=user.id, target_label=user.user_name, changes=changes)
   db_session.commit()
   click.echo(f"{user.user_name} is an admin.")
+
+
+@cli.command('setup-token')
+def setup_token():
+  """Shows the token of the setup page, that creates the first admin of a new server"""
+  from backend import first_admin
+  if not first_admin.setup_enabled():
+    raise click.ClickException("The setup page is off (QABOARD_SETUP=off): create the first admin with `qaboard-admin create-admin <user_name> --password`.")
+  if not first_admin.setup_open():
+    raise click.ClickException("QA-Board is already set up: it has accounts. Make someone an admin with `qaboard-admin create-admin <user_name>`.")
+  click.echo(f"Open {first_admin.setup_url()} and enter this setup token:")
+  click.echo(first_admin.setup_token())
 
 
 @cli.command('remove-admin')

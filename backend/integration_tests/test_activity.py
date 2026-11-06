@@ -114,6 +114,43 @@ def test_groups(alice, world):
   assert alice.get('/api/v1/activity/items?group=option').status_code == 400
 
 
+def test_filters(alice, world):
+  """Users click a batch, a queue, a branch...: only its runs"""
+  ids = setup_runs(world)
+
+  def runs(**params):
+    query = '&'.join(f"{k}={v}" for k, v in params.items())
+    answer = alice.get(f'/api/v1/activity/runs?scope=all&{query}')
+    assert answer.status_code == 200, answer.get_json()
+    return sorted(r["id"] for r in answer.get_json()["runs"])
+  assert runs(batch=ids["ci"]) == [ids["bob"]]
+  assert runs(queue='gpu', status='active') == sorted([ids["waiting"], ids["running"]])
+  assert runs(runner='local') == [ids["bob"]]
+  assert runs(branch='master') == [ids["failed"]]
+  assert runs(option='project', option_value='isp', status='active') == sorted([ids["waiting"], ids["running"]])
+  assert runs(command='cmd-1', status='ended') == [ids["done"]]
+  assert runs(platform='nope') == []
+  # pending for over a day: the run pending for 20 days
+  assert runs(status='long') == [ids["stuck"]]
+  # the runs pending the longest first
+  oldest = alice.get('/api/v1/activity/runs?scope=all&sort=oldest').get_json()["runs"]
+  assert [r["id"] for r in oldest[:2]] == [ids["stuck"], ids["running"]]
+  assert alice.get('/api/v1/activity/items?scope=all&group=branch').get_json()["total"] == 2
+  assert alice.get('/api/v1/activity/runs?batch=nope').status_code == 400
+  assert alice.get('/api/v1/activity/runs?option_value=isp').status_code == 400
+
+  # the overview's numbers follow the filters, and name the batch
+  overview = alice.get(f'/api/v1/activity/overview?scope=all&batch={ids["tuning"]}').get_json()
+  assert (overview["totals"]["waiting"], overview["totals"]["running"]) == (1, 2)
+  assert overview["matched"]["batch"]["batch_label"] == 'tuning'
+  assert alice.get(f'/api/v1/activity/overview?scope=all&queue=gpu').get_json()["totals"]["running"] == 1
+
+  # marking as failed what's pending for long leaves the rest: alice's runs of the batch are pending for an hour
+  def failing(**filters):
+    return alice.post('/api/v1/activity/fail', json={"group": 'batch', "key": ids["tuning"], "filters": filters, "dry_run": True}).get_json()["runs"]
+  assert (failing(), failing(status='long'), failing(queue='gpu'), failing(queue='cpu')) == (2, 0, 2, 0)
+
+
 def test_commands(alice, world):
   from sqlalchemy.orm.attributes import flag_modified
   ids = setup_runs(world)

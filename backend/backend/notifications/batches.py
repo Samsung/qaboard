@@ -38,7 +38,7 @@ def request_batch_notification(session, command_id, ci_commit, batch, user_name,
   """
   settings = email_settings()
   if not settings.enabled:
-    return None, "This QA-Board server can't send emails. Ask its administrators to configure it (QABOARD_SMTP_HOST)."
+    return None, "This QA-Board server can't send emails. Ask its administrators to set its SMTP server (Admin → Settings → Email)."
   recipient = recipient_for(user_name, email, settings)
   if not recipient:
     return None, f"QA-Board doesn't know the email address of {user_name}."

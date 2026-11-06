@@ -36,8 +36,8 @@ export const NoProjectAccess = ({ project, error }) => {
       {user.is_logged && <p>{required ? `You need the ${required} role to see it.` : "Its owners decide who can see it."}</p>}
       {owners.length > 0 && <>
         <p style={{ marginBottom: 4 }}>Ask {owners.length === 1 ? 'its owner' : 'one of its owners'}:</p>
-        <ul aria-label="Owners" style={{ display: 'inline-block', textAlign: 'left', margin: 0, paddingLeft: 20 }}>
-          {owners.map(owner => <li key={`${owner.type}:${owner.id}`}><SubjectName subject={owner}/></li>)}
+        <ul aria-label="Owners" style={{ display: 'inline-block', textAlign: 'left', margin: 0, padding: 0, listStyle: 'none' }}>
+          {owners.map(owner => <li key={`${owner.type}:${owner.id}`} style={{ padding: '2px 0' }}><SubjectName subject={owner}/></li>)}
         </ul>
       </>}
       {!user.is_logged && <p className={Classes.TEXT_MUTED}>Sign in to see who owns it.</p>}

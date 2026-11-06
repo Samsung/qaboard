@@ -5,7 +5,9 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
-import { Avatar, CommitAvatar, ProjectAvatar, avatar_colors, avatarColor, initials, initialsImage } from '../avatars';
+import { Avatar, CommitAvatar, ProjectAvatar, UserAvatar, avatar_colors, avatarColor, initials, initialsImage, userAvatarUrl } from '../avatars';
+import { makeQueryClient, renderWithProviders } from '../../test-utils';
+import { siteConfigQuery, default_site_config } from '../../api/queries';
 
 
 // What the fallback image shows
@@ -148,5 +150,39 @@ describe('ProjectAvatar', () => {
   it('shows initials without git data', () => {
     render(<ProjectAvatar project="group/repo" data={undefined} />);
     expect(svg(screen.getByRole('img', { name: 'group/repo' }))).toContain('>R</text>');
+  });
+});
+
+
+describe('userAvatarUrl', () => {
+  const template = 'https://directory.example.com/photos/{user_name}.jpg';
+  it("prefers the picture QA-Board has, then the site's template", () => {
+    expect(userAvatarUrl({ user_name: 'alice', avatar_url: '/api/v1/users/12/picture?v=ab12cd34' }, template)).toBe('/api/v1/users/12/picture?v=ab12cd34');
+    expect(userAvatarUrl({ user_name: 'alice', avatar_url: null }, template)).toBe('https://directory.example.com/photos/alice.jpg');
+    expect(userAvatarUrl({ user_name: 'alice' }, null)).toBeNull();
+    expect(userAvatarUrl(null, template)).toBeNull();
+  });
+});
+
+describe('UserAvatar', () => {
+  // the site's config, as the app loads it
+  const withTemplate = (avatar_url_template: string | null) => {
+    const queryClient = makeQueryClient();
+    queryClient.setQueryData(siteConfigQuery.queryKey, { ...default_site_config, avatar_url_template });
+    return { queryClient };
+  };
+
+  it("uses the site's template without a picture, else initials", () => {
+    renderWithProviders(<>
+      <UserAvatar user={{ user_name: 'alice', full_name: 'Alice Martin' }} />
+      <UserAvatar user={{ user_name: 'bob', avatar_url: '/api/v1/users/3/picture?v=1' }} />
+    </>, withTemplate('https://directory.example.com/photos/{user_name}.jpg'));
+    expect(screen.getByRole('img', { name: 'Alice Martin' })).toHaveAttribute('src', 'https://directory.example.com/photos/alice.jpg');
+    expect(screen.getByRole('img', { name: 'bob' })).toHaveAttribute('src', '/api/v1/users/3/picture?v=1');
+  });
+
+  it('shows initials without any picture', () => {
+    renderWithProviders(<UserAvatar user={{ user_name: 'alice', full_name: 'Alice Martin' }} />, withTemplate(null));
+    expect(svg(screen.getByRole('img', { name: 'Alice Martin' }))).toContain('>AM</text>');
   });
 });

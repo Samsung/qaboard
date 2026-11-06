@@ -90,6 +90,7 @@ import backend.api.milestones
 import backend.api.auth
 import backend.api.tokens
 import backend.api.service_accounts
+import backend.api.ci_trust
 import backend.api.users
 import backend.api.admin
 import backend.api.admin_settings
@@ -105,6 +106,14 @@ import backend.api.usage
 import backend.api.files
 import backend.api.access
 import backend.api.admin_access
+import backend.api.openapi
+import backend.api.setup
+
+# A new server: QABOARD_ADMIN_PASSWORD's admin, else the setup token in the logs (backend/first_admin.py)
+@app.before_request
+def first_start():
+    from .first_admin import first_start
+    first_start()
 
 # Who is calling, and whether they may call the API at all: see backend/actor.py
 from .actor import register as register_actor

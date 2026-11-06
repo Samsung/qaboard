@@ -68,7 +68,10 @@ class AuthTestCase(unittest.TestCase):
     tmp = tempfile.TemporaryDirectory()
     self.addCleanup(tmp.cleanup)
     self.dir = Path(tmp.name)
-    hidden = ('QABOARD_TOKEN', 'QA_TOKEN', 'QABOARD_HOST', 'QABOARD_HOSTNAME', 'QABOARD_PORT', 'QA_AUTH_WARNING_SHOWN')
+    hidden = ('QABOARD_TOKEN', 'QA_TOKEN', 'QABOARD_HOST', 'QABOARD_HOSTNAME', 'QABOARD_PORT', 'QA_AUTH_WARNING_SHOWN',
+              # CI jobs' ID tokens (exchanged for a token)
+              'QABOARD_ID_TOKEN', 'ACTIONS_ID_TOKEN_REQUEST_URL', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN', 'QABOARD_SERVICE_ACCOUNT',
+              'QABOARD_ID_TOKEN_AUDIENCE', 'QA_CI_TOKEN_EXCHANGE_FAILED')
     env = {k: v for k, v in os.environ.items() if k not in hidden}
     env['XDG_CONFIG_HOME'] = str(self.dir / 'config')
     # the server qa sends results to: the legacy token in secrets.yaml is only sent to it
@@ -82,6 +85,7 @@ class AuthTestCase(unittest.TestCase):
       mock.patch('qaboard.config.is_ci', False),
       mock.patch('qaboard.auth._warnings_shown', set()),
       mock.patch('qaboard.api.results_refused', None),
+      mock.patch.dict('qaboard.credentials._exchanged', {}, clear=True),
     ]:
       patcher.start()
       self.addCleanup(patcher.stop)
@@ -195,6 +199,71 @@ class TestStorage(AuthTestCase):
     self.save({'user': 'alice', 'token': 'saved'})
     self.assertEqual(headers_for(SERVER)['Authorization'], 'Bearer saved')
     self.assertNotIn('Authorization', headers_for('http://other.test'))
+
+
+EXCHANGED = {"access_token": "qab_tmp_ci", "issued_token_type": "urn:ietf:params:oauth:token-type:access_token",
+             "token_type": "Bearer", "expires_in": 21600, "service_account": "group/repo/ci[bot]"}
+
+
+class TestCiIdToken(AuthTestCase):
+  """CI jobs' OIDC ID tokens, exchanged for a service account's token (backend/ci_trust.py)"""
+  def resolve(self, server, url=SERVER):
+    with mock.patch('requests.request', server), redirect_stderr(io.StringIO()) as stderr:
+      found = self.auth.resolve_token(url)
+    return found, stderr.getvalue()
+
+  def test_gitlab(self):
+    server = FakeServer({('POST', '/api/v1/auth/token-exchange'): [response(200, EXCHANGED)]})
+    with mock.patch.dict(os.environ, {'QABOARD_ID_TOKEN': 'the.id.token', 'QABOARD_SERVICE_ACCOUNT': 'ci'}):
+      found, stderr = self.resolve(server)
+      self.assertEqual(found, ('qab_tmp_ci', 'ci-id-token'))
+      self.assertEqual(stderr, '')
+      method, path, headers, body = server.calls[0]
+      self.assertEqual(body, {'grant_type': 'urn:ietf:params:oauth:grant-type:token-exchange', 'subject_token': 'the.id.token',
+                              'subject_token_type': 'urn:ietf:params:oauth:token-type:id_token', 'service_account': 'ci'})
+      # once per process, and for the processes it starts
+      self.assertEqual(self.resolve(server)[0], ('qab_tmp_ci', 'ci-id-token'))
+      self.assertEqual(len(server.calls), 1)
+      self.assertEqual(os.environ['QABOARD_TOKEN'], 'qab_tmp_ci')
+
+  def test_github(self):
+    server = FakeServer({
+      ('GET', '/id-token'): [response(200, {"value": "the.github.token"})],
+      ('POST', '/api/v1/auth/token-exchange'): [response(200, EXCHANGED)],
+    })
+    env = {'ACTIONS_ID_TOKEN_REQUEST_URL': 'https://actions.test/id-token?api-version=2.0', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN': 'request-token'}
+    with mock.patch.dict(os.environ, env):
+      found, _ = self.resolve(server)
+    self.assertEqual(found, ('qab_tmp_ci', 'ci-id-token'))
+    (_, _, headers, _), (_, _, _, body) = server.calls
+    self.assertEqual(headers['Authorization'], 'bearer request-token')
+    self.assertEqual(body['subject_token'], 'the.github.token')
+
+  def test_explicit_tokens_win(self):
+    server = FakeServer({})
+    with mock.patch.dict(os.environ, {'QABOARD_ID_TOKEN': 'the.id.token', 'QABOARD_TOKEN': 'qab_svc_mine'}):
+      self.assertEqual(self.resolve(server)[0], ('qab_svc_mine', 'QABOARD_TOKEN'))
+    self.assertEqual(server.calls, [])
+
+  def test_refusals_fall_back_to_no_token(self):
+    refused = {"error": "invalid_grant", "error_description": "No service account trusts this job (GitHub Actions: repository a/b)."}
+    server = FakeServer({('POST', '/api/v1/auth/token-exchange'): [response(403, refused)]})
+    with mock.patch.dict(os.environ, {'QABOARD_ID_TOKEN': 'the.id.token'}):
+      found, stderr = self.resolve(server)
+      self.assertEqual(found, (None, None))
+      self.assertIn("QA-Board refused the CI job's ID token: No service account trusts this job", stderr)
+      self.assertNotIn('the.id.token', stderr)
+      # the processes it starts don't try again
+      from qaboard import credentials
+      credentials._exchanged.clear()
+      self.assertEqual(self.resolve(server), ((None, None), ''))
+    self.assertEqual(len(server.calls), 1)
+
+  def test_unreachable_server(self):
+    with mock.patch.dict(os.environ, {'QABOARD_ID_TOKEN': 'the.id.token'}), \
+         mock.patch('requests.request', side_effect=requests.ConnectionError('refused')), redirect_stderr(io.StringIO()) as stderr:
+      self.assertEqual(self.auth.resolve_token(SERVER), (None, None))
+    self.assertIn("Could not exchange the CI job's ID token", stderr.getvalue())
 
 
 class TestLogin(AuthTestCase):

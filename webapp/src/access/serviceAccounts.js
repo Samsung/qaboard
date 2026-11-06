@@ -5,7 +5,8 @@ import { queryOptions } from "@tanstack/react-query";
 import { http } from "../api/http";
 
 
-// [{id, name, user_name, description, owner_type, project, role, status, created_at, created_by, active_tokens, last_used_at}]
+// [{id, name, user_name, description, owner_type, project, role, status, created_at, created_by, active_tokens, last_used_at,
+//   ci_trust: [{id, provider, issuer, audience, conditions: {claim: [patterns]}, created_by, created_at, last_used_at}]}]
 export const serviceAccountsQuery = project => queryOptions({
   queryKey: ['service-accounts', project ?? null],
   queryFn: async ({ signal }) => {
@@ -60,6 +61,20 @@ export const createServiceAccountToken = async (queryClient, account, token) => 
 
 export const revokeServiceAccountToken = async (queryClient, account, token_id) => {
   const { data } = await http.delete(`/api/v1/service-accounts/${account.id}/tokens/${token_id}`);
+  await invalidate(queryClient, account.project);
+  return data;
+};
+
+// The CI jobs it trusts, that get its tokens without a stored secret (backend/ci_trust.py).
+// {provider: github|gitlab|other, issuer?, repository, ref?, environment?} => the account, with its `ci_trust`
+export const addCiTrust = async (queryClient, account, policy) => {
+  const { data } = await http.post(`/api/v1/service-accounts/${account.id}/ci-trust`, policy);
+  await invalidate(queryClient, account.project);
+  return data;
+};
+
+export const removeCiTrust = async (queryClient, account, policy_id) => {
+  const { data } = await http.delete(`/api/v1/service-accounts/${account.id}/ci-trust/${policy_id}`);
   await invalidate(queryClient, account.project);
   return data;
 };

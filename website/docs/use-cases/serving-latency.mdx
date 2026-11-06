@@ -1,72 +1,75 @@
 ---
 id: serving-latency
-title: "Serving latency: an inference gateway"
-sidebar_label: Serving latency
-description: An inference server where a shared cache saves CPU, halves capacity and makes requests wait seconds under load. Latency distributions, flame graph diffs, History to find a regression, a tuning sweep's frontier and the quality gate.
+title: "Performance: catch tail latency before users do"
+sidebar_label: Performance
+description: For backend and performance teams, and anyone who reviews "it's faster" claims, including coding agents'. Latency distributions under the same load on every commit, flame graph diffs, History to find a regression, tuning frontiers and a gate on p99.
 ---
 For backend and performance engineers, and for anyone who reviews "it's faster" claims, including the ones coding
-agents make. This page follows the inference gateway example.
+agents make.
 
-The example project is [`examples/serving-latency`](https://github.com/Samsung/qaboard/tree/master/examples/serving-latency).
-
-## The problem
-Latency is a distribution, not a number. A change can save CPU, or make the median faster, and still make the tail much
-slower, and the tail is what users and timeouts see. Measurements are noisy, so one run proves little: you need repeats, the same load
-profiles on every commit, and a way to see where the time went.
-
-## The example
-A small inference gateway, in Rust: a request queue, dynamic batching, a pool of workers running a CPU model, and a
-result cache. An open-loop load generator sends it requests at a fixed rate, with steady, bursty, heavy-tailed and
-ramping profiles. Each run measures the latency percentiles from p50 to p99.9, throughput, CPU per request, and how
-long requests waited in the queue, for a batch or for a lock, and records CPU samples for a flame graph.
-
-Its story:
-1. The team's coding agent adds a shared result cache. Its commit message says it saves CPU, and it does, about a third
-   per request. But the workers keep the cache's one lock while they run the model and render responses, so the
-   server does one batch at a time. Its capacity halves: at 6,000 requests/s, requests queue for the lock and wait
-   seconds. The quality gate fails.
-2. The flame graph diff shows the responses rendered under the cache's lock, and the model work the cache saves.
-3. Sharding the cache by key fixes p99 and makes the median faster. A tuning sweep then picks the batching settings.
-4. Later, a commit that copies payloads makes p99 worse on the heavy-tailed profile only: the median over all
-   profiles barely moves, and History finds it.
-
-## What you see
-**Latency percentiles** on a log scale, new over the reference: at 6,000 requests/s, with the shared cache, every
-percentile is a hundred times slower or more.
+**Latency is a distribution, not a number.** A change can save CPU, make the median faster, and still make the tail
+seconds slower, and the tail is what users and timeouts see. QA-Board runs the same load profiles on every commit and
+shows the whole distribution against the reference, where the time went, and the commit that changed it.
 
 <Shot id="commit/latency-cdf" />
 
-**Throughput against p99**, from the ramping profile: with the shared cache, p99 takes off at a lower throughput.
+## What it changes for your team
+- **Distributions, not averages.** Percentiles from p50 to p99.9, under the same load profiles on every commit, the
+  new run's over the reference's.
+- **Where the time went.** Flame graph diffs show which code got slower, faster or new; CPU per core shows what the
+  workers did.
+- **The commit that did it.** History follows p99 profile by profile, so a regression on one traffic shape doesn't
+  hide in the overall median.
+- **Settings backed by data.** Sweep the server's settings from the browser and pick from the frontier of CPU against
+  p99.
+- **"It's faster" gets checked.** `qa gate` (experimental) fails CI when p99 or throughput regress, whether a person
+  or a coding agent wrote the change.
+
+## See it in action
+The pictures come from a demo inference gateway, right after the team's coding agent added a shared result cache. Its
+commit message says it saves CPU. It does, and the gateway's capacity halves.
+
+### Capacity, not only latency
+The ramping profile raises the load step by step: with the shared cache, p99 takes off at a lower throughput.
 
 <Shot id="commit/throughput-p99" />
 
-**Flame graph diff**: frames that got slower are red, faster ones blue, new ones orange. Rendering responses under the
-cache's lock is new.
+### Where the time went
+In the flame graph diff, rendering responses under the cache's lock is new (orange), and the model runs less (blue):
+cache hits skip it.
 
 <Shot id="commit/flame-diff" />
 
-**CPU per core** over time, side by side, and the batch sizes.
+### What the cores did
+The gateway now runs one batch at a time: its cores idle while requests queue for the lock.
 
 <Shot id="commit/core-heatmap" />
 
-**The tuning sweep's frontier** of CPU per request against p99, with the chosen batching settings on it. (Under a
-fixed, open-loop load, throughput is the load itself.) With batching off, the maximum delay changes nothing: those
-runs land apart only by noise, which shows how far apart two configurations must be to differ.
-
-<Shot id="tuning/frontier" />
-
-**History** finds the payload copy: filtered on the heavy-tailed profile, the p99 line jumps at that commit, and
-hovering along it shows each commit's results next to the commit before.
-
-<Clip id="history/find-regression" />
-
-**The quality gate** (experimental) fails CI on the agent's commit: p99 is over its limit.
+### Fail the change in CI
+`qa gate` compares the commit's CI batch with the reference, rule by rule, and fails the job: p99 is dozens of times its
+reference's, where the rule allows 10% more.
 
 <Clip id="cli/gate" />
 
-See [Quality gate](/docs/quality-gate) to set rules on your own metrics.
+### Find a regression the median hides
+Weeks later, a commit that copies payloads makes p99 worse on the heavy-tailed profile only. Filtered on that profile,
+History shows the step; hovering along the line shows each commit's results next to the commit before.
 
-## The configuration
+<Clip id="history/find-regression" />
+
+### Pick settings from the frontier
+A tuning sweep over the batching settings: each configuration's CPU per request against its p99, and the defaults
+picked on the frontier. Configurations that only differ by noise land apart too, which shows how far apart two must be
+to differ.
+
+<Shot id="tuning/frontier" />
+
+### When a run crashes
+A crashed run's log opens on its last lines; search it to jump to the panic and the line of code it names.
+
+<Shot id="logs/crash" />
+
+## How it's set up {#the-configuration}
 Plots set their traces' colors, so the web app draws the reference dashed and faded when `side_by_side: false` overlays
 them. The gate's rules are on p99 and throughput.
 
@@ -75,7 +78,26 @@ them. The gate's rules are on p99 and throughput.
 Runs execute one at a time, so they don't measure each other, and each run repeats its measurement: reported
 percentiles are the median over repeats.
 
-## Run this example
+## Try it on the demo {#run-this-example}
+[`examples/serving-latency`](https://github.com/Samsung/qaboard/tree/master/examples/serving-latency) is a small
+inference gateway in Rust: a request queue, dynamic batching, a pool of workers running a CPU model, and a result
+cache. An open-loop load generator sends it requests at a fixed rate, with steady, bursty, heavy-tailed and ramping
+profiles. Each run measures latency percentiles, throughput, CPU per request and queueing, and records CPU samples for
+a flame graph.
+
+<details>
+<summary>The story the pictures tell</summary>
+
+1. The team's coding agent adds a shared result cache. It saves about a third of the CPU per request, but the workers
+   keep the cache's one lock while they run the model and render responses. Capacity halves: at 6,000 requests/s,
+   requests wait seconds. The quality gate fails.
+2. The flame graph diff shows the responses rendered under the cache's lock, and the model work the cache saves.
+3. Sharding the cache by key fixes p99 and makes the median faster. A tuning sweep then picks the batching settings.
+4. Later, a commit that copies payloads makes p99 worse on the heavy-tailed profile only: the median over all
+   profiles barely moves, and History finds it.
+
+</details>
+
 You need [Rust](https://rustup.rs) (stable) and a Linux machine with 4 CPUs or more. The first run builds the gateway
 and sizes its model to your machine, so the load levels mean the same thing everywhere.
 
@@ -93,8 +115,9 @@ Without `--share`, results stay in `output/`. To see them in the web app, run `q
 Close what you can while it runs: a busy laptop makes for a slow gateway and noisy tails. See the example's
 [README](https://github.com/Samsung/qaboard/tree/master/examples/serving-latency#readme) for the other batches.
 
-## Read more
-- [Flame graphs](/docs/user-guide/other-viewers#flame-graphs) and [plots](/docs/user-guide/other-viewers#plots): how to read them against the reference.
-- [Visualizations](/docs/visualizations): Plotly figures and flame graphs.
-- [History](/docs/user-guide/history-and-dashboards): metrics across commits.
-- [Tuning from the web app](/docs/tuning-from-the-webapp).
+## Where next
+<Cards>
+  <Card title="Flame graphs and plots" to="/docs/user-guide/other-viewers#flame-graphs" eyebrow="User guide">How to read them against the reference.</Card>
+  <Card title="History" to="/docs/user-guide/history-and-dashboards" eyebrow="User guide">Metrics across commits, per test or aggregated.</Card>
+  <Card title="The quality gate" to="/docs/quality-gate" eyebrow="Project integration">Fail CI when a metric regresses. Experimental.</Card>
+</Cards>
