@@ -17,9 +17,9 @@
 
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
-<link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.2fd77e6d.css">
-<script src="/qaboard/assets/js/runtime~main.47c62a81.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.816f71b4.js" defer="defer"></script>
+<link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.0469eb56.css">
+<script src="/qaboard/assets/js/runtime~main.d6defd11.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.8dcbefa8.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -38,7 +38,8 @@ model&#x27;s, with <a class="" href="/qaboard/docs/visualizations">synced viewer
 <li class="">Can someone else try it on new inputs? People <a class="" href="/qaboard/docs/tuning-from-the-webapp">run more tests from the web app</a>.</li>
 </ul>
 <p>The <a class="" href="/qaboard/docs/use-cases/detection-eval">detector use case</a> shows it on an int8 quantization: the model is 72% smaller,
-and the metrics per slice and object size show what it loses.</p>
+and the metrics per slice and object size show what it loses.
+<a class="" href="/qaboard/docs/alternatives#experiment-trackers">QA-Board compared with other tools</a> says what each kind of tool does best.</p>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="workflows">Show each run&#x27;s model and link to its training<a href="#workflows" class="hash-link" aria-label="Direct link to Show each run&#x27;s model and link to its training" title="Direct link to Show each run&#x27;s model and link to its training" translate="no">​</a></h2>
 <p>Have <code>run()</code> return the model&#x27;s details as <code>params</code>: QA-Board shows them on the run&#x27;s card, as configuration tags,
 and <code>badges</code> as links, for instance to the model&#x27;s card or its training page. The detector does it for each model it

@@ -17,9 +17,9 @@
 
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
-<link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.2fd77e6d.css">
-<script src="/qaboard/assets/js/runtime~main.47c62a81.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.816f71b4.js" defer="defer"></script>
+<link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.0469eb56.css">
+<script src="/qaboard/assets/js/runtime~main.d6defd11.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.8dcbefa8.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -54,7 +54,7 @@ and a filter. They&#x27;re shared with everyone on the project, or private. See
 shared milestone, by its name (see <a class="" href="/qaboard/docs/quality-gate#set-the-rules">Quality gate</a>). <code>#12</code> names the milestone
 whose link is <code>/&lt;project&gt;/milestone/12-...</code>, shared or not.</li>
 <li class=""><strong>Read them from scripts:</strong> <code>GET /api/v1/milestones?project=&lt;project&gt;</code> lists the shared milestones (and yours, with
-your <a class="" href="/qaboard/docs/apis#authentication">API token</a>): each with its <code>label</code>, <code>group</code>, <code>notes</code>, <code>commit</code>, <code>batch</code> and
+your <a class="" href="/qaboard/docs/http-api#authentication">API token</a>): each with its <code>label</code>, <code>group</code>, <code>notes</code>, <code>commit</code>, <code>batch</code> and
 <code>filter</code>.</li>
 <li class=""><strong>Link to them:</strong> each milestone has a link, <code>/&lt;project&gt;/milestone/&lt;id&gt;-&lt;name&gt;</code>, that anyone who can see the
 project can open. Renaming a milestone keeps its link.</li>

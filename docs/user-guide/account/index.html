@@ -17,9 +17,9 @@
 
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
-<link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.2fd77e6d.css">
-<script src="/qaboard/assets/js/runtime~main.47c62a81.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.816f71b4.js" defer="defer"></script>
+<link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.0469eb56.css">
+<script src="/qaboard/assets/js/runtime~main.d6defd11.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.8dcbefa8.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -43,8 +43,9 @@ the theme and your other preferences.</p>
 <p>Open <strong>Settings</strong> from your account menu, at the bottom of the sidebar (or the top right of your home page), next to
 <strong>Runs activity</strong> and <strong>Storage usage</strong>:</p>
 <ul>
-<li class=""><strong>Profile</strong>: your name, email and user name, as your server knows them. Add <strong>Your other git emails</strong>, so that the
-commits you made with them count as yours.</li>
+<li class=""><strong>Profile</strong>: your name, email and user name, as your server knows them. Your picture and job title come from your
+company&#x27;s sign-in (single sign-on, LDAP or SAML), updated each time you sign in. Add <strong>Your other git emails</strong>, so
+that the commits you made with them count as yours.</li>
 <li class=""><strong>Preferences</strong>: the theme (<strong>Same as your system</strong>, <strong>Light</strong> or <strong>Dark</strong>), <strong>Compact</strong> or <strong>Comfortable</strong> commit
 lists and run cards, whether runs&#x27; names start with their batch and database, the values written on the pixels,
 the runs&#x27; settings... When you&#x27;re signed in, your preferences and pinned
@@ -53,7 +54,9 @@ projects follow you to other browsers and computers.</li>
 <li class=""><strong>Sessions</strong>: the browsers where you&#x27;re signed in. Sign out of the ones you don&#x27;t use anymore, or of all the
 others at once.</li>
 <li class=""><strong>Sign-in methods</strong>: the ways you sign in to this account. Add your company&#x27;s single sign-on to the account you
-already have, so you don&#x27;t get a second one, or remove a method you don&#x27;t use (you keep at least one).</li>
+already have, so you don&#x27;t get a second one, or remove a method you don&#x27;t use (you keep at least one). With a
+QA-Board account (a local account, e.g. one an admin created for you), <strong>Change your password</strong> there: your other
+browsers are signed out. If you forgot it, ask your admins: they give you a new one.</li>
 <li class=""><strong>CLI sign-ins</strong>: the computers where you ran <code>qa auth login</code>. Revoke the ones you don&#x27;t use anymore.</li>
 <li class=""><strong>Activity</strong>: your usage of QA-Board in the last 30 days (the pages you opened, what you started, the <code>qa</code>
 commands you ran: your admins see these numbers too), then your recent sign-ins, the tokens you created or revoked,
@@ -72,7 +75,7 @@ redoes runs, starts or deletes batches and edits milestones. Give it only what i
 <p>The token is shown <strong>once</strong>: copy it then, and store it like a password, e.g. in your CI&#x27;s secrets as <code>QABOARD_TOKEN</code>.
 The list shows when and from where each token was last used. Revoke a token as soon as you don&#x27;t need it, or if it
 may have leaked: it stops working at once.</p>
-<p>See <a class="" href="/qaboard/docs/ci-integration#tokens">CI integration</a> and <a class="" href="/qaboard/docs/apis#authentication">APIs</a> for how to use tokens.</p>
+<p>See <a class="" href="/qaboard/docs/ci-integration#tokens">CI integration</a> and the <a class="" href="/qaboard/docs/http-api#authentication">HTTP API</a> for how to use tokens.</p>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="signing-in-from-the-qa-cli">Signing in from the qa CLI<a href="#signing-in-from-the-qa-cli" class="hash-link" aria-label="Direct link to Signing in from the qa CLI" title="Direct link to Signing in from the qa CLI" translate="no">​</a></h2>
 <p>Run <code>qa auth login</code>, open the link it prints in any browser (it also works when <code>qa</code> runs on a server you reach over
 SSH), check that the code is the one in your terminal, and approve. See <a class="" href="/qaboard/docs/installation#signing-in">Signing in</a>.</p>

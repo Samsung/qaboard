@@ -17,9 +17,9 @@
 
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
-<link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.2fd77e6d.css">
-<script src="/qaboard/assets/js/runtime~main.47c62a81.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.816f71b4.js" defer="defer"></script>
+<link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.0469eb56.css">
+<script src="/qaboard/assets/js/runtime~main.d6defd11.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.8dcbefa8.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -60,6 +60,9 @@ In the <strong>Access</strong> tab, as an owner:</p>
 <li class="">Click <strong>New token</strong>, choose its scopes (<code>read</code> and <code>ingest</code> to send results) and its expiry, and copy it: it&#x27;s shown
 once. Save it in your CI&#x27;s secrets as <code>QABOARD_TOKEN</code> (see <a class="" href="/qaboard/docs/ci-integration#tokens">CI integration</a>).</li>
 </ol>
+<p>With GitHub Actions or GitLab CI, you don&#x27;t even need a token: in <strong>Tokens</strong>, click <strong>Trust CI jobs</strong> and choose
+the repository (and optionally the branch) whose jobs may act as the service account (see
+<a class="" href="/qaboard/docs/ci-integration#ci-without-secrets">Upload from CI without a secret</a>).</p>
 <p>Runs it sends show <code>group/repo/ci[bot]</code>. Its tokens only work on the project and the projects under it, whatever
 roles it&#x27;s given elsewhere. Change its role in the list, revoke its tokens from <strong>Tokens</strong>, or delete it: its tokens
 stop working at once.</p>

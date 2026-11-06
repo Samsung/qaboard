@@ -17,9 +17,9 @@
 
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
-<link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.2fd77e6d.css">
-<script src="/qaboard/assets/js/runtime~main.47c62a81.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.816f71b4.js" defer="defer"></script>
+<link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.0469eb56.css">
+<script src="/qaboard/assets/js/runtime~main.d6defd11.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.8dcbefa8.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -48,6 +48,9 @@ Uploading outputs over HTTP is on the <a class="" href="/qaboard/docs/roadmap#ht
 the server&#x27;s API.</li>
 <li class=""><strong>The web app compares.</strong> It shows a commit&#x27;s runs next to the reference&#x27;s: by default, the latest results of your
 reference branch.</li>
+<li class=""><strong>Scripts and agents read the same results.</strong> The web app reads them from the server&#x27;s HTTP API, and so can your
+scripts, CI jobs and agents: from Python with <code>qaboard.runs(url)</code> (<a class="" href="/qaboard/docs/apis">results in scripts</a>), or from any
+language (<a class="" href="/qaboard/docs/http-api">HTTP API</a>).</li>
 <li class=""><em><strong>qaboard.yaml</strong></em>, at the root of your repository, tells <code>qa</code> how to run your code, where your inputs are, and how
 to show your metrics and files.</li>
 </ul>
