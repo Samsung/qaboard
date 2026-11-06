@@ -1,0 +1,437 @@
+---
+id: http-api
+sidebar_label: HTTP API
+title: HTTP API
+description: "Read QA-Board's results over HTTP from any language: authenticate with a token, get a commit's batches, runs, metrics and files, and compare them with a reference. The OpenAPI document is at /api/v1/openapi.json, with a page to try requests at /api/v1/docs."
+---
+
+The web app reads everything from QA-Board's HTTP API, and your scripts, CI jobs and agents can too, in any
+language. This page shows how to authenticate, get everything about one commit, and read the answers.
+
+| Your server's | Address |
+|---|---|
+| API | `<your-qaboard>/api/v1` |
+| API reference, to browse and try requests | [`<your-qaboard>/api/v1/docs`](#reference) |
+| OpenAPI document | `<your-qaboard>/api/v1/openapi.json` |
+
+`<your-qaboard>` is the address of your QA-Board, the one you open in a browser, like `https://qaboard.example.com`.
+
+:::tip Python and the shell
+From Python, `qaboard.runs(url)` gets the runs a web app page shows, and `qa gate --json` compares a commit with its
+reference: they call this API for you. See [Results in scripts](/docs/apis). Use HTTP from other languages, or for
+what they don't cover.
+:::
+
+## Your first request {#first-request}
+Ask for the latest commits of a project that have results:
+
+```bash
+QABOARD_URL=https://qaboard.example.com
+curl "$QABOARD_URL/api/v1/commits?project=kitefin/detector&limit=5" | jq '.[] | {id, branch, message}'
+```
+
+```text
+{
+  "id": "7622c33790d16cf1a04ad6a5c7b1a1d2a3b4c5d6",
+  "branch": "quant/int8",
+  "message": "feat(quant): percentile calibration (99.99)\n\nMinmax let a few outliers set the scale..."
+}
+...
+```
+
+`project` is the project's id, as in the web app's URLs: `<your-qaboard>/kitefin/detector/commit/7622c337`.
+
+If you get `401` and `"reason": "sign_in_required"`, your server or the project requires signing in: send a token,
+as below.
+
+## Authenticate {#authentication}
+Reading is anonymous, unless your server [requires signing in](/docs/backend-admin/user-management#blocking-anonymous-users)
+or the project isn't public. Changing things needs a token, except sending results when your server still accepts
+them anonymously. To get one:
+
+1. In the web app, open **Settings → Access tokens** and create a token
+   ([how](/docs/user-guide/account#access-tokens)). Give it only the scopes it needs: **Read** to read results.
+   For a CI job, prefer a [service account](/docs/user-guide/project-access#service-accounts)'s token: it keeps working
+   when people leave.
+2. Keep it in an environment variable, never in your code or in URLs. If you signed in with `qa auth login`,
+   `qa auth token` prints yours.
+   ```bash
+   export QABOARD_TOKEN=qab_pat_...
+   ```
+3. Send it in the `Authorization` header:
+   ```bash
+   curl -H "Authorization: Bearer $QABOARD_TOKEN" "$QABOARD_URL/api/v1/user/me/"
+   ```
+   ```json
+   {
+     "is_authenticated": true,
+     "user_name": "arjun",
+     "token": {"name": "nightly report", "scopes": ["read"], "projects": ["kitefin/*"], "expires_at": "2027-02-04T00:00:00Z"}
+   }
+   ```
+   `/user/me/` says who you are and which token you use: check your setup with it.
+
+A token can do what its scopes allow, on the projects its user can see, and only on the projects it's restricted to,
+if any:
+
+| Scope | Lets the token |
+|---|---|
+| `read` | Read projects, commits, runs and files. |
+| `ingest` | Send results (`qa run`, `qa batch`), and [add metrics to runs](#add-metrics). |
+| `act` | Redo runs, start or delete batches, save milestones. |
+| `admin` | Use the admin API (admins only). |
+
+<details>
+<summary>When a token is refused: the reasons</summary>
+
+Errors are JSON, with what went wrong in `error` and a stable code in `reason`:
+
+```json
+{"error": "This token expired on 2026-10-01.", "reason": "token_expired"}
+```
+
+| Status | `reason` | What to do |
+|---|---|---|
+| 401 | `sign_in_required` | Send a token. |
+| 401 | `token_invalid` | The token is mistyped, or was deleted: check it, or create another. |
+| 401 | `token_expired`, `token_idle_expired`, `token_revoked` | Create another token. |
+| 401 | `token_in_url` | Send the token in the `Authorization` header: `?token=` is only accepted to read. |
+| 403 | `missing_scope` | The token needs the scope in `required`. |
+| 403 | `token_project` | The token is restricted to other projects. |
+| 403 | `missing_role`, `forbidden_project` | You can't see or change this project. With `missing_role`, `owners` lists whom to ask. |
+| 403 | `cross_site_write` | A browser sent a change from another website, with your session: use a token. |
+
+</details>
+
+<details>
+<summary>From a browser, a token in a URL</summary>
+
+- In a browser signed in to QA-Board, requests to the API use your session: the [API reference](#reference) page
+  works without a token.
+- Changes sent with a session from other websites are refused (`cross_site_write`). Pages on another site send a
+  token instead.
+- `?token=<token>` is accepted for `GET` requests to the API, for tools that can't send headers. Avoid it: URLs end up
+  in logs and browser histories. Files under `/s/` only accept the header.
+
+</details>
+
+## Everything about one commit {#a-commit}
+The four requests most scripts need, for a commit's CI batch. In the API, runs are called **outputs**, and the CI
+batch's label is `default` (the web app shows it as **CI**).
+
+### 1. Get the commit, its batches and runs {#get-a-commit}
+
+```bash
+curl -H "Authorization: Bearer $QABOARD_TOKEN" \
+  "$QABOARD_URL/api/v1/commit/7622c337?project=kitefin/detector&batch=default"
+```
+
+The commit can be a sha or its first characters, a branch (its latest commit with results), or a tag. Without
+`batch`, you get all the commit's batches. The answer, shortened:
+
+```json
+{
+  "id": "7622c33790d16cf1a04ad6a5c7b1a1d2a3b4c5d6",
+  "branch": "quant/int8",
+  "message": "feat(quant): percentile calibration (99.99)",
+  "committer_name": "Arjun Sethuraman",
+  "authored_datetime": "2026-11-05T13:58:40+00:00",
+  "outputs_url": "/s/mnt/qaboard/kitefin/detector/outputs/7622c337",
+  "data": {"qatools_config": {"project": {"reference_branch": "main"}}},
+  "batches": {
+    "default": {
+      "id": 1204,
+      "label": "default",
+      "origin": "ci",
+      "valid_outputs": 7,
+      "pending_outputs": 0,
+      "failed_outputs": 1,
+      "outputs": {
+        "184467": {
+          "id": 184467,
+          "test_input_database": "/mnt/datasets/kitefin",
+          "test_input_path": "slices/indoor",
+          "configurations": ["fp32", "size-320"],
+          "extra_parameters": {},
+          "platform": "linux",
+          "metrics": {"mAP": 0.612, "latency_ms": 18.4},
+          "is_pending": false,
+          "is_failed": false,
+          "output_dir_url": "/s/mnt/qaboard/kitefin/detector/outputs/7622c337/default/slices-indoor"
+        }
+      }
+    }
+  }
+}
+```
+
+Get a run's metrics with `.batches.default.outputs[] | {test_input_path, metrics}` in `jq`. A run has finished when
+`is_pending` is `false`; it succeeded when `is_failed` is also `false`. All the fields are [below](#shapes).
+
+:::tip Big commits
+A batch can have thousands of runs. `with_outputs=false` leaves them out: you get the batches' counts, and with
+`metrics={"mAP": 0.5}`, each batch's median, average and sum of these metrics (`aggregated_metrics.mAP_median`).
+:::
+
+### 2. List a run's files {#run-files}
+
+```bash
+curl -H "Authorization: Bearer $QABOARD_TOKEN" "$QABOARD_URL/api/v1/output/184467/manifest"
+```
+
+```json
+{
+  "output.png": {"st_size": 1843211, "md5": "9b2c1e0f4f6d3a8c7e5b1a2d3c4e5f60"},
+  "detections.json": {"st_size": 20480, "md5": "2f1e0d9c8b7a6f5e4d3c2b1a09f8e7d6"}
+}
+```
+
+### 3. Download a file {#download}
+The `*_url` fields are paths on your server. Add your server's address before them, and the file's path after:
+
+```bash
+curl -H "Authorization: Bearer $QABOARD_TOKEN" -O \
+  "$QABOARD_URL/s/mnt/qaboard/kitefin/detector/outputs/7622c337/default/slices-indoor/detections.json"
+```
+
+On the machines that mount the storage, the same file is at the path after `/s`:
+`/mnt/qaboard/kitefin/detector/...`. Read it there instead of downloading large files.
+
+### 4. Compare with the reference {#compare}
+The numbers of the **Summary** and **Metrics Diff** views: each metric's median against the reference's, and each run
+against the reference run of the same test. [`qa gate`](/docs/quality-gate) decides from them.
+
+```bash
+curl -H "Authorization: Bearer $QABOARD_TOKEN" \
+  "$QABOARD_URL/api/v1/commit/7622c337/compare?project=kitefin/detector&batch=default&reference=main"
+```
+
+```json
+{
+  "status": "complete",
+  "messages": [],
+  "commit": {"id": "7622c337...", "batch": "default", "runs": {"total": 8, "valid": 7, "failed": 1, "pending": 0, "running": 0}},
+  "reference": {"requested": "main", "type": "branch", "id": "51f0e2a9...", "batch": "default", "runs": {"total": 8, "valid": 8, "failed": 0, "pending": 0, "running": 0}},
+  "metrics": {
+    "mAP": {
+      "smaller_is_better": false,
+      "target": 0.55,
+      "new": {"median": 0.612, "count": 7, "pass_rate": 0.86},
+      "ref": {"median": 0.598, "count": 8, "pass_rate": 0.75},
+      "delta": 0.014,
+      "delta_relative": 0.023
+    }
+  },
+  "tests": [
+    {
+      "id": 184467,
+      "reference_id": 183902,
+      "reference_mismatch": null,
+      "test_input_path": "slices/indoor",
+      "is_failed": false,
+      "metrics": {"mAP": {"new": 0.612, "ref": 0.601, "delta": 0.011, "delta_relative": 0.018}}
+    }
+  ]
+}
+```
+
+- **Check `status` first.** The numbers are final only when it's `complete`. `running` means some runs aren't done;
+  `missing` means runs or the reference are missing, and `messages` says what.
+- `reference` is a branch (its latest commit with runs in the batch), a commit sha, or a shared
+  [milestone](/docs/references-and-milestones)'s label. Without it, the commit's `gate.reference` in *qaboard.yaml*,
+  else the project's `reference_branch`.
+- Whether a change is better depends on `smaller_is_better`. When it's `null`, QA-Board doesn't know which way is
+  better: don't call the change an improvement or a regression.
+- `reference_mismatch` isn't `null` when the reference run isn't the same test (another input, configuration or
+  platform): it says what differs.
+
+All the parameters are in the [quality gate's docs](/docs/quality-gate#from-scripts-and-agents).
+
+### The same from Python {#python-example}
+A script that prints, for each test of a commit's CI batch, its metric and the reference's. Save it as *compare.py*
+and run `uv run compare.py 7622c337`:
+
+```python title="compare.py"
+# /// script
+# dependencies = ["requests"]
+# ///
+import os
+import sys
+
+import requests
+
+server = os.environ.get("QABOARD_URL", "https://qaboard.example.com")
+api = requests.Session()
+if os.environ.get("QABOARD_TOKEN"):
+    api.headers["Authorization"] = f"Bearer {os.environ['QABOARD_TOKEN']}"
+
+
+def get(path, **params):
+    response = api.get(f"{server}/api/v1/{path}", params=params, timeout=60)
+    if not response.ok:
+        sys.exit(f"{response.status_code} {path}: {response.json().get('error', response.text)}")
+    return response.json()
+
+
+project, commit = "kitefin/detector", sys.argv[1]
+comparison = get(f"commit/{commit}/compare", project=project, batch="default", reference="main")
+if comparison["status"] != "complete":
+    sys.exit(f"Not comparable yet ({comparison['status']}): {comparison['messages']}")
+
+metric = "mAP"
+info = comparison["metrics"][metric]
+print(f"{metric}: {info['new']['median']} vs {info['ref']['median']} (smaller is better: {info['smaller_is_better']})")
+for test in comparison["tests"]:
+    cell = test["metrics"].get(metric) or {}
+    print(f"{test['test_input_path']:<30} {cell.get('new')} vs {cell.get('ref')}")
+```
+
+## Read the answers {#shapes}
+Each run, batch and commit has these fields. The [API reference](#reference) has them all, with their types.
+
+<details>
+<summary>A run (an "output")</summary>
+
+| Field | What it is |
+|---|---|
+| `id` | The run's id: use it with `/output/<id>`. |
+| `test_input_database`, `test_input_path` | The input: its database, and its path in it. |
+| `test_input_metadata` | The input's metadata, from the batch's definition. |
+| `configurations` | The configurations (`qa --config`): strings and mappings. |
+| `extra_parameters` | The tuning parameters. |
+| `platform` | Where it ran, e.g. `linux`. |
+| `metrics` | Its metrics: those it returned, and those [added by scripts](#add-metrics). |
+| `is_pending`, `is_running`, `is_failed` | Waiting or running; running; failed. |
+| `deleted` | Its files were deleted. |
+| `output_type` | `optim_iteration` for the evaluations of an [automated tuning](/docs/auto-optimization). |
+| `output_dir_url` | Its folder, as a path on the server: see [Download a file](#download). |
+| `data` | What else the server knows: who sent it (`submitted_by`), the parameters it reported (`params`), who added which metrics (`added_metrics`). |
+| `created_date`, `queued_at`, `started_at`, `finished_at` | When. |
+
+</details>
+
+<details>
+<summary>A batch</summary>
+
+| Field | What it is |
+|---|---|
+| `id`, `label` | The batch, and its label: `default` for the CI batch. |
+| `commit_id` | Its commit's sha. |
+| `origin`, `user_name` | Where it was started (`ci`, `webapp` or `local`), and by whom. |
+| `valid_outputs`, `pending_outputs`, `running_outputs`, `failed_outputs`, `deleted_outputs` | How many runs succeeded, wait or run, run, failed, had their files deleted. |
+| `aggregated_metrics` | With `metrics={"<name>": <target>}`: `<name>_median`, `<name>_average`, `<name>_sum` over its successful runs. |
+| `outputs` | Its runs, by id, when you ask for them. |
+| `batch_dir_url` | Where its runs are saved, as a path on the server. |
+| `created_date`, `latest_output_datetime` | When it was created, and got its latest run. |
+| `data` | Its settings and bookkeeping. |
+
+</details>
+
+<details>
+<summary>A commit</summary>
+
+| Field | What it is |
+|---|---|
+| `id` | The full sha. |
+| `branch`, `message`, `committer_name`, `committer_avatar_url` | From git. `branch` is empty when the client that sent results didn't know it. |
+| `authored_datetime`, `authored_date` | When it was authored. |
+| `latest_output_datetime` | When it got its latest run. |
+| `batches` | Its batches, by label. |
+| `data` | Its *qaboard.yaml* (`qatools_config`), metrics definitions (`qatools_metrics`), who sent it (`submitted_by`), and the metadata clients saved. |
+| `outputs_url`, `artifacts_url`, `repo_artifacts_url` | Where its runs and artifacts are saved, as paths on the server. |
+| `deleted` | Its artifacts were deleted. |
+| `artifacts` | From `/commit/<sha>` only: whether its artifacts are there, to run tests from the web app. |
+
+</details>
+
+**Dates** are ISO 8601. Those without a time zone, like `2026-11-05T14:02:11.391000`, are in UTC.
+
+## Other requests {#other-requests}
+
+### Lists of commits, branches and projects {#lists}
+- `GET /commits?project=<project>`: the commits with results, newest first. By default those of the last days with
+  commits, or of `from` and `to` (`2026-10-01T00:00:00.000Z`). `/commits/<branch>` for a branch's,
+  `committer=<name>` for a committer's.
+  - `limit` (at most 1000) and `offset` give pages: the `X-Has-More` response header (`true` or `false`) says if
+    there are more.
+  - `q` searches the whole history, with the syntax of the web app's
+    [search box](/docs/user-guide/finding-results#searching-commits), e.g. `q=branch:release -wip`.
+  - `only_ci_batches=true` or `batch=<label>` keep one batch per commit; `with_outputs=true` adds their runs.
+- `GET /commit?project=<project>&branch=<branch>`: the branch's latest commit with successful runs, with its runs.
+- `GET /project/branches?project=<project>`: the branches with results (`q=quant` for those whose name contains it).
+- `GET /projects?summary=true`: the projects you can read, by id. `GET /project?project=<project>` for one's
+  *qaboard.yaml* and metrics definitions.
+- `GET /batches?project=<project>`: the latest batches, each with its commit; `scope=mine` for yours in every
+  project.
+
+```bash
+curl -i "$QABOARD_URL/api/v1/commits?project=kitefin/detector&q=committer:arjun&limit=50&offset=50"
+```
+
+### Milestones {#milestones}
+`GET /milestones?project=<project>` lists the shared [milestones](/docs/references-and-milestones), and yours when you
+send a token: each with its `label`, `group`, `notes`, `commit`, `batch` and `filter`. Compare with one with
+`reference=<label>`.
+
+### Add metrics to a run {#add-metrics}
+A script can add the metrics it computed to a finished run. It needs a token with the `ingest` scope and the developer
+role on the project:
+
+```bash
+curl -X PATCH -H "Authorization: Bearer $QABOARD_TOKEN" -H "Content-Type: application/json" \
+  -d '{"metrics": {"sharpness": 0.42}, "source": {"script": "sharpness.py"}}' \
+  "$QABOARD_URL/api/v1/output/184467/metrics"
+```
+
+QA-Board records who added each metric, when and with which script, in the run's `data.added_metrics`. Metrics the
+run returned itself are refused (`409`, `metrics_exist`) unless you send `"overwrite": true`. From Python,
+`run.log_metrics()` does it: see [Add metrics to runs](/docs/apis#log).
+
+### Starting runs and batches {#act}
+Redoing runs and starting batches from the API needs a token with the `act` scope. These endpoints serve the web app,
+aren't in the reference yet, and may change: from scripts, prefer `qa batch` in a checkout of the project, or start
+your CI.
+
+QA-Board can start Jenkins builds with its own Jenkins credentials
+([Jenkins builds](/docs/triggering-third-party-tools#trigger-jenkins-builds)). From a script, send a token with the
+`act` scope:
+
+```bash
+curl -X POST -H "Authorization: Bearer $QABOARD_TOKEN" -H "Content-Type: application/json" \
+  -d '{"build_url": "https://jenkins.example.com/job/my-job", "params": {"key": "value"}}' \
+  "$QABOARD_URL/api/v1/jenkins/build/trigger/"
+```
+
+Without a token, QA-Board only starts the jobs listed in the project's *qaboard.yaml*.
+
+## API reference {#reference}
+Your server describes its API at:
+
+- **`<your-qaboard>/api/v1/docs`**: the reference, to browse the endpoints, their parameters and answers, and try
+  them. If you're signed in to QA-Board in the same browser, requests use your session; otherwise click
+  **Authorize** and paste a token.
+- **`<your-qaboard>/api/v1/openapi.json`**: the same as an [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0)
+  document, for client generators, Postman, and agents.
+
+Both are public, also when the server requires signing in: they describe the API, not your data.
+
+The reference covers the endpoints on this page: those to read results, and to add metrics to runs. The others serve
+the web app and may change without notice. The document is written by hand for now; generating it from the backend's
+code is on the [roadmap](/docs/roadmap#generated-api-reference).
+
+## For coding agents {#agents}
+Agents use the same API. What helps them get it right:
+
+- Fetch `<your-qaboard>/api/v1/openapi.json` first: it has every parameter and field, with descriptions.
+- To judge a change, use [`/commit/<sha>/compare`](#compare): check `status`, then read `smaller_is_better` before
+  calling a change better. Report the tests that regressed, not only medians.
+- Read the token from `QABOARD_TOKEN`, send it in the header, never in a URL or a log.
+- Read files on the storage, never change them: runs' folders are shared with everyone.
+
+The [`qaboard-results` skill](/docs/agents) teaches agents all of this, with the Python SDK and `qa gate`.
+
+<Cards>
+  <Card title="Results in scripts" to="/docs/apis">The runs a page shows from Python, and adding metrics and files.</Card>
+  <Card title="Quality gate" to="/docs/quality-gate">Fail the CI when metrics regress.</Card>
+  <Card title="Coding agents" to="/docs/agents">Skills that teach agents to read results.</Card>
+</Cards>
