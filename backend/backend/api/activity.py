@@ -36,6 +36,8 @@ def filters_from(source: dict, user, **overrides) -> activity.Filters:
       "status": source.get('status') or 'all',
       "search": source.get('search') or None,
       "option": source.get('option') or None,
+      # only the runs of a queue, a batch...: `queue=gpu`, `batch=<id>`, `option_value` with `option`
+      "match": {name: source.get('option_value' if name == 'option' else name) or None for name in activity.MATCHES},
       **overrides,
     })
   except ValueError as e:
@@ -74,9 +76,26 @@ def activity_overview():
   }
   if who['user'] is None:
     answer["users"] = activity.breakdown(filters, 'user')
+  answer["matched"] = matched(filters)
   if is_admin():
     answer["stuck"]["schedule"] = stuck_schedule()
   return jsonify(answer)
+
+
+def matched(filters: activity.Filters) -> dict:
+  """What the batch, commit or `qa batch` command users filter on are, to name them"""
+  from sqlalchemy import text
+  answer = {}
+  if 'batch' in filters.match:
+    row = db_session.execute(text("""SELECT b.id, b.label, c.id, c.hexsha, c.branch, c.project_id FROM batches b
+      JOIN ci_commits c ON c.id = b.ci_commit_id WHERE b.id = :id"""), {"id": filters.match['batch']}).first()
+    if row and (filters.allowed_projects is None or row[5] in filters.allowed_projects):
+      answer['batch'] = dict(zip(('batch_id', 'batch_label', 'ci_commit_id', 'hexsha', 'branch', 'project_id'), row))
+  if 'commit' in filters.match:
+    row = db_session.execute(text("SELECT id, hexsha, branch, project_id FROM ci_commits WHERE id = :id"), {"id": filters.match['commit']}).first()
+    if row and (filters.allowed_projects is None or row[3] in filters.allowed_projects):
+      answer['commit'] = dict(zip(('ci_commit_id', 'hexsha', 'branch', 'project_id'), row))
+  return answer
 
 
 def group_and_key(source):
@@ -114,7 +133,7 @@ def activity_runs():
   filters = filters_from(request.args, who['user'], group=group, key=key)
   limit = min(int_or_none(request.args.get('limit'), 'limit') or 50, 500)
   offset = int_or_none(request.args.get('offset'), 'offset') or 0
-  return jsonify(activity.runs(filters, limit=limit, offset=offset))
+  return jsonify(activity.runs(filters, limit=limit, offset=offset, sort=request.args.get('sort') or 'status'))
 
 
 @app.route('/api/v1/activity/fail', methods=['POST'])

@@ -504,6 +504,8 @@ const ActivityMenuItem = ({ user, project }) => {
     icon="pulse"
     text="Runs activity"
     title="What waits and runs now, and what ran recently"
+    // In a portal, like the sidebar's other submenus: else the sidebar's scrolling cuts it off, or flips it off-screen on the left
+    popoverProps={{ usePortal: true, hoverCloseDelay: 300 }}
   >
     <MenuItemLink to={mine} icon="person" text="Your runs in this project"/>
     <MenuItemLink to={`/activity?scope=all&project=${encodeURIComponent(project ?? '')}`} icon="people" text="Everyone's runs in this project"/>

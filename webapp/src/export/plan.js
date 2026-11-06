@@ -115,7 +115,8 @@ const database_of = o => o.test_input_database && o.test_input_database !== '/' 
 // - parameters: from their configurations' objects and tuning parameters, by key ("isp.gain"), with different
 //   values or that not all runs set,
 // - platform.
-// `needed`: runs on the same input differ by it. `values`: how many different values it has.
+// `needed`: names need it to tell runs on the same input apart (the fewest such settings). `on_input`: runs on the same
+// input differ by it. `values`: how many different values it has.
 export const settings_candidates = outputs => {
   outputs = outputs.filter(Boolean);
   if (outputs.length < 2) return [];
@@ -150,10 +151,33 @@ export const settings_candidates = outputs => {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(index);
   });
+  // the pairs of runs on the same input, and the settings that tell each pair apart
+  const pairs = [];
+  for (const indices of groups.values())
+    for (let a = 0; a < indices.length; a++)
+      for (let b = a + 1; b < indices.length; b++) pairs.push([indices[a], indices[b]]);
+  const splits = new Map([...value_of].map(([key, value]) => [key, new Set(pairs.map((pair, i) => value(pair[0]) !== value(pair[1]) ? i : -1).filter(i => i >= 0))]));
+  // needed: the fewest settings that tell all those runs apart, e.g. only the batch when runs of several batches also
+  // differ by their configurations and platform. Each time, the one that tells most pairs apart, in the listed order.
+  const needed = new Set();
+  const left = new Set(pairs.keys());
+  while (left.size > 0) {
+    let best = null, best_count = 0;
+    for (const [key, split] of splits) {
+      if (needed.has(key)) continue;
+      const count = [...split].filter(i => left.has(i)).length;
+      if (count > best_count) { best = key; best_count = count; }
+    }
+    if (!best) break;
+    needed.add(best);
+    for (const i of splits.get(best)) left.delete(i);
+  }
   return [...value_of].map(([key, value]) => ({
     key,
     kind: VALUE_ONLY.includes(key) ? key : 'parameter',
-    needed: [...groups.values()].some(indices => indices.length > 1 && new Set(indices.map(value)).size > 1),
+    needed: needed.has(key),
+    // it differs between runs on the same input, even if other settings tell them apart already
+    on_input: splits.get(key).size > 0,
     values: new Set(outputs.map((_, index) => value(index))).size,
   }));
 };
@@ -418,7 +442,7 @@ export const preset_fit = (preset_settings, { new_batch, ref_batch, labels }) =>
 // users name, for all projects or one. What's saved: how files are named, the files, links or copies, and a folder
 // users chose (e.g. what their scripts read).
 // Crops too: if users export them, the regions they're from, and whether whole files go with them.
-export const SAVED_KEYS = [...Object.keys(default_naming), 'files', 'type', 'folder_mode', 'folder_path', 'crops', 'crop_sources', 'whole_files'];
+export const SAVED_KEYS = [...Object.keys(default_naming), 'files', 'type', 'folder_mode', 'folder_path', 'crops', 'crop_sources', 'crop_max', 'whole_files'];
 export const saved_settings = settings => Object.fromEntries(SAVED_KEYS.filter(k => settings[k] !== undefined).map(k => [k, settings[k]]));
 // the presets that apply to a project, theirs first
 export const presets_for = (presets, project) => (presets ?? [])

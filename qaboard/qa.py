@@ -37,7 +37,7 @@ from .config import default_batches_files, get_default_database, default_batch_l
 from .config import get_default_configuration, default_input_type
 from .config import commit_id, outputs_commit, artifacts_commit, root_qatools, artifacts_commit_root
 from .config import user, is_ci, on_windows, available_metrics
-from .metrics import split_metrics, run_definitions
+from .metrics import split_metrics, resolve_definitions, write_definitions_file, with_default_direction
 from . import analytics
 
 
@@ -359,15 +359,18 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
         **previous_metrics,
         **metrics,
       }
-  # Metrics can come with their definition, e.g. Metric(12.3, suffix=" ms"), see qaboard/metrics.py
+  # The run's metrics are final: save their values, and how to show them, e.g. Metric(12.3, suffix=" ms") or
+  # define_metric, only for the metrics the run returned. See qaboard/metrics.py
   metrics, inline_definitions = split_metrics(metrics)
   with (run_context.output_dir / 'metrics.json').open('w') as f:
       json.dump(metrics, f, sort_keys=True, indent=2, separators=(',', ': '))
   metrics_definitions = {}
   try:
-    metrics_definitions = run_definitions(metrics, inline_definitions, run_context.output_dir, available_metrics)
+    definitions = resolve_definitions(metrics, inline_definitions, run_context.output_dir)
+    write_definitions_file(run_context.output_dir, definitions)
+    metrics_definitions = with_default_direction(definitions, available_metrics)
   except Exception as e:
-    click.secho(f'WARNING: When reading the definitions of the metrics: {e}', fg="yellow", bold=True, err=True)
+    click.secho(f'WARNING: When saving the definitions of the metrics: {e}', fg="yellow", bold=True, err=True)
 
   # To help identify if input files change, we compute and save some metadata.
   manifest_inputs = run_context.obj.get('manifest-inputs', [run_context.input_path])
@@ -510,9 +513,9 @@ def sync(ctx, input_path, output_path):
   if (run_context.output_dir / 'metrics.json').exists():
     with (run_context.output_dir / 'metrics.json').open('r') as f:
       metrics = json.load(f)
-    # those of define_metric() run when the entrypoint is imported
+    # the run saved its definitions in metrics_definitions.json, define_metric() calls run when the entrypoint is imported
     entrypoint_module(config)
-    metrics_definitions = run_definitions(metrics, {}, run_context.output_dir, available_metrics)
+    metrics_definitions = with_default_direction(resolve_definitions(metrics, {}, run_context.output_dir), available_metrics)
     notify_qa_database(**ctx.obj, metrics=metrics, metrics_definitions=metrics_definitions, is_pending=False, is_running=False)
     click.secho(str(metrics), fg='green')      
 

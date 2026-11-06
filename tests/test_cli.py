@@ -137,6 +137,34 @@ class TestQaCli(unittest.TestCase):
     self.assertEqual({k: notify.call_args.kwargs[k] for k in ('is_failed', 'is_pending', 'is_running')}, {'is_failed': True, 'is_pending': False, 'is_running': False})
     self.assertEqual(notify.call_args.kwargs['metrics'], {"is_failed": True, "partial": 1})
 
+  def test_run_saves_the_definitions_of_its_metrics(self):
+    """Metric(...) definitions outlive the run: qa sync, and qa postprocess which doesn't call run(), still have them"""
+    import tempfile
+    from types import SimpleNamespace
+    from unittest import mock
+    from qaboard.metrics import Metric
+    self.qa('--help') # loads the modules
+    qa_module = import_module('qaboard.qa') # qaboard.qa is the click command
+    entrypoint = SimpleNamespace(run=lambda context: {"latency": Metric(12.0, suffix=" ms", smaller_is_better=True), "frames": 3, "is_failed": False})
+    with tempfile.TemporaryDirectory() as tmp, \
+         mock.patch.object(qa_module, 'entrypoint_module', return_value=entrypoint), \
+         mock.patch.object(qa_module, 'notify_qa_database') as notify:
+      output_dir = Path(tmp)
+      result = self.qa('run', '-i', 'cli_tests/a.jpg', '-o', tmp, reload_modules=False)
+      assert result.exit_code == 0, result.output
+      metrics = json.loads((output_dir / 'metrics.json').read_text())
+      self.assertEqual({k: metrics[k] for k in ('latency', 'frames')}, {"latency": 12.0, "frames": 3})
+      saved = {"latency": {"suffix": " ms", "smaller_is_better": True}}
+      self.assertEqual(json.loads((output_dir / 'metrics_definitions.json').read_text()), saved)
+
+      result = self.qa('postprocess', '-i', 'cli_tests/a.jpg', '-o', tmp, reload_modules=False)
+      assert result.exit_code == 0, result.output
+      self.assertEqual(json.loads((output_dir / 'metrics_definitions.json').read_text()), saved)
+
+      result = self.qa('sync', '-i', 'cli_tests/a.jpg', '-o', tmp, reload_modules=False)
+      assert result.exit_code == 0, result.output
+      self.assertEqual(notify.call_args.kwargs['metrics_definitions'], saved)
+
   def test_run_in_ci_when_the_server_refuses_results(self):
     from unittest import mock
     from tests.test_auth import response

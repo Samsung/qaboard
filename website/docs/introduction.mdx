@@ -50,6 +50,9 @@ like images with synced zoom and their difference.
   the server's API.
 - **The web app compares.** It shows a commit's runs next to the reference's: by default, the latest results of your
   reference branch.
+- **Scripts and agents read the same results.** The web app reads them from the server's HTTP API, and so can your
+  scripts, CI jobs and agents: from Python with `qaboard.runs(url)` ([results in scripts](/docs/apis)), or from any
+  language ([HTTP API](/docs/http-api)).
 - ***qaboard.yaml***, at the root of your repository, tells `qa` how to run your code, where your inputs are, and how
   to show your metrics and files.
 

@@ -2,7 +2,11 @@
 # charts/qaboard/kind.yaml) and check the shot ids (docs-media/shots.yaml). Dockerfile.dockerignore keeps the rest of
 # the repository out of the build context.
 #   docker build -f website/Dockerfile .
-FROM node:22-alpine
+# Stages:
+# - dev: node_modules and the sources, used by development.yml (`yarn start`)
+# - build: the static site
+# - production (default): only the site, copied to the /builds volume served by nginx
+FROM node:22-alpine AS dev
 WORKDIR /website
 
 # Proxy/cert configuration — no-ops when args are empty (open-source builds)
@@ -16,21 +20,7 @@ ENV HTTP_PROXY=${PROXY_URL} http_proxy=${PROXY_URL} \
 ARG NODE_TLS_REJECT_UNAUTHORIZED=""
 ENV NODE_TLS_REJECT_UNAUTHORIZED=${NODE_TLS_REJECT_UNAUTHORIZED}
 
-# Switch apk repos to http when behind proxy
-RUN if [ -n "$PROXY_URL" ]; then \
-      sed -i 's/https/http/g' /etc/apk/repositories; \
-    fi
-RUN apk update && apk add --no-cache \
-    # needed for node-gyp.. some do it with npm install in one layer
-    # https://github.com/mhart/alpine-node/issues/27
-    # https://github.com/nodejs/docker-node/issues/384
-    # https://github.com/nodejs/docker-node/issues/282
-    g++ make python3 \
-    rsync \
-    autoconf automake libtool build-base \
-    && rm -rf /var/cache/apk/*
-
-ENV PATH /app/node_modules/.bin:$PATH
+# No toolchain (g++, make, python3...): the dependencies have no native code to compile
 RUN if [ -n "$PROXY_URL" ]; then \
       yarn config set strict-ssl false; \
     fi
@@ -55,7 +45,7 @@ COPY website/ ./
 # On the website we have algolia for the search, but the baseURL (/qaboard) is different than
 # when running from the application (/docs). So we don't use algolia for the app...
 # RUN yarn run swizzle docusaurus-lunr-search SearchBar
-ENV QABOARD_DOCS_FOR_WEBAPP true
+ENV QABOARD_DOCS_FOR_WEBAPP=true
 ARG QABOARD_URL
 ENV QABOARD_URL=$QABOARD_URL
 # Adds the docs for the users of your site, from site-docs/$QABOARD_SITE/ (e.g. sirc)
@@ -69,7 +59,21 @@ ARG QABOARD_MEDIA=""
 ARG QABOARD_MEDIA_BASE_URL=""
 ARG QABOARD_MEDIA_MISSING=""
 ENV QABOARD_MEDIA=$QABOARD_MEDIA QABOARD_MEDIA_BASE_URL=$QABOARD_MEDIA_BASE_URL QABOARD_MEDIA_MISSING=$QABOARD_MEDIA_MISSING
+
+
+FROM dev AS build
 RUN yarn build
+
+
+# Only rsync and the site: the same small base as the web app's image, so they share its layers
+FROM alpine:3.21 AS production
+
+# Proxy configuration — needed for apk add rsync. Behind a proxy, use HTTP repos (SIRC's proxy breaks HTTPS/SSL)
+ARG PROXY_URL=""
+RUN if [ -n "$PROXY_URL" ]; then \
+      sed -i 's/https/http/g' /etc/apk/repositories; \
+    fi && \
+    http_proxy="$PROXY_URL" https_proxy="$PROXY_URL" apk add --no-cache rsync
 
 # When upgrading, we want to enable clients to continue using a previous bundle
 # without the application crashing and asking for a refresh
@@ -77,4 +81,6 @@ RUN yarn build
 VOLUME /builds
 # When we start the app, we  copy the bundle over there and ensure new clients
 # get the new version.
+WORKDIR /website
+COPY --from=build /website/build build
 CMD ["rsync", "-r", "build/", "/builds"]

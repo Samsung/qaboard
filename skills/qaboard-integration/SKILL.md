@@ -71,13 +71,16 @@ def run(context):
   the configurations' mappings and tuning parameters), `context.configs` (the list), `context.platform`,
   `context.forwarded_args`. Full list: https://samsung.github.io/qaboard/docs/running-your-code#useful-context-properties-reference
 - `qa/main.py`'s folder is on the import path: keep helpers next to it, import the project's own code.
-- Return a flat dict of numbers. Wrap them in `Metric(...)` where they're computed, or call
-  `define_metric("psnr", ...)` once at module level: the web app then knows the unit, the target and which way is
-  better, and the gate can use them. Strings become tags; `"params": {...}` adds configuration tags (e.g. the model
-  evaluated), `"badges": [...]` links (model card, training run).
+- Return a flat dict of numbers. Wrap them in `Metric(...)` where they're returned (the default), or call
+  `define_metric("psnr", ...)` once at module level for a metric returned from many places: the web app then knows the
+  unit, the target and which way is better, and the gate can use them. Only the metrics a run returns get definitions:
+  `define_metric` for a metric the run doesn't return does nothing. Don't write `metrics_definitions.json` from
+  Python: `qa` writes it at the end of the run. Strings become tags; `"params": {...}` adds configuration tags (e.g.
+  the model evaluated), `"badges": [...]` links (model card, training run).
 - Return `"is_failed": True` when the output is unusable; don't raise for expected failures.
 - Code in another language: run it with `subprocess`, stream its output (it goes to the run's `log.txt`), and read
-  its `metrics.json` from `output_dir` (`qa` merges it). It can write `metrics_definitions.json` next to it.
+  its `metrics.json` from `output_dir` (`qa` merges it). It can write `metrics_definitions.json` next to it (your
+  Python's `Metric`/`define_metric` win over it).
 - Expensive metrics from files: put them in `postprocess(runtime_metrics, context)`, which `qa postprocess` and
   `qa batch --action-on-existing postprocess` can redo without rerunning. Metrics a one-off script adds to existing
   runs (`run.log_metrics()`, see the `qaboard-results` skill) don't belong in the project's code; metrics the project should

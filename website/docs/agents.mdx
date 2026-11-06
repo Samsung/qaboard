@@ -39,12 +39,14 @@ called better. Start from
 
 ## What agents can read {#what-agents-read}
 Agents use the same APIs as scripts: [`qaboard.runs(url)`](/docs/apis#runs-in-scripts) for the runs a web app page
-shows, the [compare API](/docs/quality-gate#from-scripts-and-agents) and `qa gate --json` for a verdict against the
-reference, and the [HTTP API](/docs/apis#http-api) for everything else. An MCP server and JSON output from every `qa`
-command are on the [roadmap](/docs/roadmap#agents).
+shows, the [compare API](/docs/http-api#compare) and `qa gate --json` for a verdict against the reference, and the
+[HTTP API](/docs/http-api) for everything else, from any language. Point agents at your server's OpenAPI document,
+`<your-qaboard>/api/v1/openapi.json`: it describes each endpoint's parameters and answers. An MCP server and JSON
+output from every `qa` command are on the [roadmap](/docs/roadmap#agents).
 
 <Cards>
   <Card title="Project setup" to="/docs/project-init">What the agent will create: qaboard.yaml and the entrypoint.</Card>
   <Card title="Results in scripts" to="/docs/apis">The runs a page shows, from Python and the shell.</Card>
+  <Card title="HTTP API" to="/docs/http-api">Results from any language, and the API's OpenAPI document.</Card>
   <Card title="Quality gate" to="/docs/quality-gate">Fail the CI when metrics regress.</Card>
 </Cards>
