@@ -32,7 +32,36 @@ Admins see **Admin** in the user menu, at `/admin`:
 
 <Shot id="admin/users" />
 
-**The first admins** come from the environment: `QABOARD_ADMINS` lists user names (exactly, case included), or
+## The first admin {#the-first-admin}
+**On a new server**, with no accounts yet, the web app opens **Set up QA-Board**: it creates the first admin, a
+local account. It asks for a **setup token**, that the backend prints in its logs when it starts, so that only the
+people who run the server can set it up, not whoever reaches it first:
+
+```bash
+docker compose logs backend | grep -A1 "setup token"      # Kubernetes: kubectl logs deploy/<release>-backend
+# or ask the backend
+docker compose exec backend qaboard-admin setup-token
+```
+
+Until the setup is done, nobody can sign up for a local account: the first account is the admin's. Once it's done,
+the admin adds people in **Admin → Users** (see [Local accounts](#local-accounts)), connects
+[single sign-on or LDAP](/docs/backend-admin/sign-in), and the **Overview** says what to look at next. The setup page
+closes as soon as the server has an account: from then on, admins come from the ways below.
+
+<details>
+<summary>Automated installs: create the first admin from the environment</summary>
+
+| Environment variable | What it does |
+|---|---|
+| `QABOARD_ADMIN_PASSWORD` | When the server starts without admins, creates a local admin with this password (at least 8 characters). Put it in `.env` or in the chart's secret. Later changes don't change the password: change it in the web app. |
+| `QABOARD_ADMIN_PASSWORD_FILE` | The same, read from a file, e.g. a Docker or Kubernetes secret. |
+| `QABOARD_ADMIN_USER` | The admin's user name, by default `admin`. If a user with this name exists and isn't an admin, nothing happens: it never takes over an account. |
+| `QABOARD_SETUP_TOKEN` | Your own setup token. By default, it's derived from `SECRET_KEY`: all the replicas agree on it. |
+| `QABOARD_SETUP` | `off` turns the setup page off: admins then come from `QABOARD_ADMINS` or `qaboard-admin create-admin`. |
+
+</details>
+
+**Admins from the environment**: `QABOARD_ADMINS` lists user names (exactly, case included), or
 verified emails: those of LDAP/SAML accounts, or of single sign-on accounts whose identity provider says the email is
 verified (`email_verified`), comma-separated. Local accounts' emails aren't verified, and local sign-up refuses the
 user names listed. With docker compose, set it in your site overlay, not in `.env` (see [where each setting goes](/docs/deploy#4-write-the-env-file-and-the-secrets)). They're admins whatever the
@@ -92,15 +121,24 @@ user name and password form for `LOCAL` and `LDAP`.
   caption="With local or LDAP accounts, users sign in with their user name and password."
 />
 
-**Local accounts** are created:
+### Local accounts {#local-accounts}
+**Local accounts** have a password that QA-Board keeps (hashed). They're created:
+- by admins, in **Admin → Users → New user**: a user name, an optional name and email, and whether they're an admin.
+  QA-Board generates the password (you copy it once, and give it to them), or you choose one. They change it in
+  **Settings → Sign-in methods**. To create accounts only this way, turn `auth.local_signup` off.
 - by users, with **Create one** on the sign-in page, when `auth.local_signup` is on (the default with `LOCAL`),
-- by admins, with `qaboard-admin create-admin <user_name> --password` in the backend's container (it also makes them
+- from the server, with `qaboard-admin create-admin <user_name> --password` in the backend's container (it also makes them
   admins),
 - by scripts, with the sign-up endpoint, when `auth.local_signup` is on:
 
   ```bash
   curl -d "user_name=<user_name>&password=<password>&email=<user_email>&full_name=<user_full_name>" -X POST '<qaboard_url>/api/v1/user/signup/'
   ```
+
+**Forgotten passwords**: open the user in **Admin → Users** and **Reset password**. QA-Board generates a new one for
+you to give them, and signs them out of every browser; their tokens keep working (revoke them apart if the account
+leaked). Accounts from LDAP, SAML or single sign-on have no password in QA-Board: they change it where your company
+manages it.
 
 ### Environment variables
 :::note

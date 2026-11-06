@@ -466,6 +466,8 @@ UNAUTHENTICATED_ENDPOINTS = {
   ("api.py", "post_project_view"),
   # authenticated with the git host's webhook secret (QABOARD_WEBHOOK_SECRET by default)
   ("webhooks.py", "gitlab_webhook"), ("webhooks.py", "github_webhook"), ("webhooks.py", "gitea_webhook"), ("webhooks.py", "bitbucket_webhook"),
+  # a new server's first admin: only while it has no accounts, with the setup token from the server's logs (backend/first_admin.py)
+  ("setup.py", "setup_first_admin"),
 }
 # Decorators that check who is calling
 AUTH_DECORATORS = {"login_required", "session_required", "admin_required", "authenticated"}

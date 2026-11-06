@@ -34,6 +34,8 @@ export const app_paths = {
   admin: "/admin/:section(overview|usage|users|groups|requests|sign-in|tokens|service-accounts|storage|audit|settings)?",
   // the ways to sign in, ?next=<page> to go back to it (see login/LoginPage.jsx)
   login: "/login",
+  // a new server's first admin (see login/SetupPage.jsx)
+  setup: "/setup",
   // where `qa auth login` sends users to approve the login
   device: "/device",
   // every project, as a tree (also at / for signed-out visitors, signed-in users get their home page there)
