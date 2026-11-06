@@ -39,19 +39,22 @@ const plan = (overrides = {}) => ({
   ...overrides,
 });
 
+// where two images differ: 8 regions, the largest first
+const differences = Array.from({ length: 8 }, (_, i) => ({ x: 10 * i, y: 0, w: 8, h: 8, value: 1 - i / 10, diff: 1 - i / 10 }));
 const server = ({ preview = plan(), exported } = {}) => vi.spyOn(globalThis, 'fetch').mockImplementation((url, init) => {
+  if (url.startsWith('/api/v1/output/image/diff')) return json(differences);
   if (url.startsWith('/api/v1/exports/preview')) return json(typeof preview === 'function' ? preview(JSON.parse(init.body)) : preview);
   if (url.startsWith('/api/v1/exports')) return json(exported ?? { ...plan(), nb_files_exported: 4, export_id: 7, mapping: '0.export.csv', skipped: [], nb_skipped: 0 });
   return json({});
 });
 const previews = fetch => fetch.mock.calls.filter(([url]) => url.startsWith('/api/v1/exports/preview')).map(([, init]) => JSON.parse(init.body));
 
-const open = props => {
+const open = (props, options) => {
   renderWithProviders(<HistoryRouter history={history}>
     <ExportPlugin project="p" new_commit_id="abc" ref_commit_id="def" selected_batch_new="default" selected_batch_ref="default"
       config={{ outputs: { visualizations: [{ path: 'debug/:frame/out.png' }] } }}
       new_batch={new_batch} ref_batch={ref_batch} labels={{ new: 'new', reference: 'v1.0' }} {...props}/>
-  </HistoryRouter>);
+  </HistoryRouter>, options);
   fireEvent.click(screen.getByRole('button', { name: 'Export files' }));
 };
 const moreOptions = () => fireEvent.click(screen.getByRole('button', { name: /More options/ }));
@@ -221,6 +224,27 @@ describe('ExportPlugin', () => {
     });
     // finding where images differ is for one file: here, it's one
     expect(screen.getByLabelText('What names say')).toHaveTextContent('crops only: face, top-left, top-right');
+  });
+
+  it('crops the 5 largest differences of each image, or as many as users want', async () => {
+    const fetch = server();
+    const with_dirs = batch => ({ ...batch, outputs: Object.fromEntries(Object.entries(batch.outputs).map(([id, o]) => [id, { ...o, output_dir_url: `/s/runs/${id}` }])) });
+    open({ new_batch: with_dirs(new_batch), ref_batch: with_dirs(ref_batch), config: { outputs: { visualizations: [{ path: 'out.png' }] } } },
+      { user: { is_logged: true, user_name: 'alice' } });
+    fireEvent.click(await screen.findByRole('checkbox', { name: /crops of the images' regions of interest/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /Where they differ: perceptual/ }));
+    const diffs = run => previews(fetch).at(-1)?.runs.find(r => r.id === run)?.regions?.map(r => r.name);
+    await waitFor(() => expect(diffs(1)).toEqual(['diff-01', 'diff-02', 'diff-03', 'diff-04', 'diff-05']), { timeout: 3000 });
+    // the reference is cropped at the same places
+    expect(diffs(11)).toEqual(diffs(1));
+    expect(screen.getByRole('checkbox', { name: /Where they differ: perceptual/ }).closest('label')).toHaveTextContent('10 regions in 2 runs (of 16 found)');
+    fireEvent.change(screen.getByLabelText('Differences per image'), { target: { value: '2' } });
+    await waitFor(() => expect(diffs(2)).toEqual(['diff-01', 'diff-02']), { timeout: 3000 });
+    // what they don't mean yet isn't applied
+    fireEvent.change(screen.getByLabelText('Differences per image'), { target: { value: '' } });
+    expect(screen.getByLabelText('Differences per image')).toHaveValue(null);
+    fireEvent.blur(screen.getByLabelText('Differences per image'));
+    expect(screen.getByLabelText('Differences per image')).toHaveValue(2);
   });
 
   it('says a script may be all users need', async () => {

@@ -442,7 +442,7 @@ export const preset_fit = (preset_settings, { new_batch, ref_batch, labels }) =>
 // users name, for all projects or one. What's saved: how files are named, the files, links or copies, and a folder
 // users chose (e.g. what their scripts read).
 // Crops too: if users export them, the regions they're from, and whether whole files go with them.
-export const SAVED_KEYS = [...Object.keys(default_naming), 'files', 'type', 'folder_mode', 'folder_path', 'crops', 'crop_sources', 'whole_files'];
+export const SAVED_KEYS = [...Object.keys(default_naming), 'files', 'type', 'folder_mode', 'folder_path', 'crops', 'crop_sources', 'crop_max', 'whole_files'];
 export const saved_settings = settings => Object.fromEntries(SAVED_KEYS.filter(k => settings[k] !== undefined).map(k => [k, settings[k]]));
 // the presets that apply to a project, theirs first
 export const presets_for = (presets, project) => (presets ?? [])
