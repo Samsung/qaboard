@@ -104,6 +104,7 @@ import backend.api.usage
 import backend.api.files
 import backend.api.access
 import backend.api.admin_access
+import backend.api.openapi
 
 # Who is calling, and whether they may call the API at all: see backend/actor.py
 from .actor import register as register_actor

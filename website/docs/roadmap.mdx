@@ -248,9 +248,18 @@ floor, a limit for each test), a summary in the CI job, and a commit status that
 [Quality gate](/docs/quality-gate).
 </RoadmapItem>
 
-<RoadmapItem status="next" title="OpenAPI spec and JSON output">
-A documented HTTP API, and JSON output from `qa` commands, so that scripts and agents read results without parsing
-text.
+<RoadmapItem status="shipped" title="An OpenAPI description of the HTTP API">
+Your server describes the endpoints to read results at `/api/v1/openapi.json`, with a page to try them at
+`/api/v1/docs`. See [HTTP API](/docs/http-api).
+</RoadmapItem>
+
+<RoadmapItem status="next" title="A generated API reference" id="generated-api-reference">
+The backend moves to FastAPI, and the OpenAPI document is generated from its code: every endpoint is described, and
+the description can't drift from what the server does.
+</RoadmapItem>
+
+<RoadmapItem status="next" title="JSON output from qa commands">
+JSON output from every `qa` command, so that scripts and agents read results without parsing text.
 </RoadmapItem>
 
 <RoadmapItem status="next" title="An MCP server, read-only first">

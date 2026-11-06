@@ -30,6 +30,8 @@ LAST_USED_EVERY = datetime.timedelta(minutes=5)
 # Endpoints anonymous users can call when the server requires signing in
 PUBLIC_ENDPOINTS = {
   'get_site_config', 'health',
+  # the API's description and its docs page: they describe the API, not the data
+  'openapi_json', 'api_docs', 'api_docs_redirect',
   # signing in
   'get_current_user', 'auth_post', 'signup', 'logout', 'saml_auth', 'device_code', 'device_token',
   'sign_in_providers', 'oidc_start', 'oidc_callback', 'my_access_request',
