@@ -61,7 +61,7 @@ For integrators:
   shared milestone, by its name (see [Quality gate](/docs/quality-gate#set-the-rules)). `#12` names the milestone
   whose link is `/<project>/milestone/12-...`, shared or not.
 - **Read them from scripts:** `GET /api/v1/milestones?project=<project>` lists the shared milestones (and yours, with
-  your [API token](/docs/apis#authentication)): each with its `label`, `group`, `notes`, `commit`, `batch` and
+  your [API token](/docs/http-api#authentication)): each with its `label`, `group`, `notes`, `commit`, `batch` and
   `filter`.
 - **Link to them:** each milestone has a link, `/<project>/milestone/<id>-<name>`, that anyone who can see the
   project can open. Renaming a milestone keeps its link.

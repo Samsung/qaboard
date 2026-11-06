@@ -203,7 +203,7 @@ aren't saved: `qa` says why and what to do, and in CI, `qa run` and `qa batch` f
 The server starts Jenkins builds with its own Jenkins credentials (`JENKINS_AUTH`). Callers without a token, like
 `qa`'s Windows runner or scripts that call `/api/v1/jenkins/build/trigger`, can only start the jobs listed in a
 project's *qaboard.yaml* (`runners.jenkins.build_url`, or a Jenkins integration). Other jobs need a token with the
-`act` scope (or `ingest`, with the project), see [Authentication](/docs/apis#authentication).
+`act` scope (or `ingest`, with the project), see [Starting runs and batches](/docs/http-api#act).
 
 While scripts move to tokens, `jenkins.anonymous_jobs` (or `QABOARD_JENKINS_ANONYMOUS_JOBS=ALGO,nightly`) lets anyone
 start the jobs whose path (`/job/...`) contains one of the texts, case-sensitive (`*` allows every job on the
