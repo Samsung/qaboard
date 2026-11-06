@@ -20,6 +20,7 @@ from ..hybrid_cache import hybrid_cache
 from .auth import admin_required, is_login_restricted
 from .users import page_of_events
 from ..search import escape_like
+from ..sign_in.profiles import avatar_url, public as public_profile
 
 
 USER_STATUSES = ('active', 'pending', 'disabled')
@@ -46,6 +47,7 @@ def serialize_user(user, active_tokens=None) -> dict:
     "created_date": tokens_lib.iso(user.created_date),
     "last_login_at": tokens_lib.iso(user.last_login_at),
     "active_tokens": active_tokens,
+    "avatar_url": avatar_url(user),
   }
 
 
@@ -331,7 +333,7 @@ def admin_user(user_id):
   from ..sign_in.access import serialize as serialize_request
   access_request = AccessRequest.query.filter(AccessRequest.user_id == user.id).order_by(AccessRequest.id.desc()).first()
   return jsonify({
-    "user": serialize_user(user, counts.get(user.id, 0)),
+    "user": {**serialize_user(user, counts.get(user.id, 0)), "profile": public_profile(user)},
     "tokens": [tokens_lib.serialize(t) for t in tokens],
     "audit": [serialize_event(e) for e in events],
     # the latest, pending or decided

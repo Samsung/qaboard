@@ -1,12 +1,13 @@
 // Picks a user or a group from the directory (/api/v1/directory), e.g. to add members.
 //   <SubjectPicker id="new-member" value={subject} onChange={setSubject}/>
-// Subjects are {type: "user"|"group", id, name, user_name?, full_name?}. `types={['user']}` only offers users.
+// Subjects are {type: "user"|"group", id, name, user_name?, full_name?, avatar_url?}. `types={['user']}` only offers users.
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MenuItem, Spinner } from "@blueprintjs/core";
 import { Suggest } from "@blueprintjs/select";
 
 import { errorMessage } from "../api/http";
+import { UserAvatar } from "../components/avatars";
 import { directoryQuery } from "./api";
 
 
@@ -17,7 +18,7 @@ const subjectLabel = subject => subject.type === 'group'
 
 // The server searches: we show what it answers, users first
 export const directorySubjects = (data, types = ['user', 'group']) => [
-  ...(types.includes('user') ? (data?.users ?? []).map(user => ({ type: 'user', id: user.id, user_name: user.user_name, full_name: user.full_name, name: user.user_name, kind: user.kind })) : []),
+  ...(types.includes('user') ? (data?.users ?? []).map(user => ({ type: 'user', id: user.id, user_name: user.user_name, full_name: user.full_name, name: user.user_name, kind: user.kind, avatar_url: user.avatar_url ?? null })) : []),
   ...(types.includes('group') ? (data?.groups ?? []).map(group => ({ type: 'group', id: group.id, name: group.name })) : []),
 ];
 
@@ -29,7 +30,7 @@ const renderSubject = (subject, { handleClick, handleFocus, modifiers, ref }) =>
     roleStructure="listoption"
     active={modifiers.active}
     disabled={modifiers.disabled}
-    icon={subject.type === 'group' ? 'people' : 'person'}
+    icon={subject.type === 'group' ? 'people' : subject.kind === 'service' ? 'build' : <UserAvatar user={subject} size="20px" alt=""/>}
     text={subject.type === 'group' ? subject.name : (subject.full_name || subject.user_name)}
     label={subject.type === 'group' ? 'Group' : subject.full_name ? subject.user_name : undefined}
     onClick={handleClick}

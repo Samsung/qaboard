@@ -14,7 +14,11 @@ from ..settings import login_type, env_list
 
 ENV_OIDC_ID = 'sso'
 # what users and admins can tell the claims are
-DEFAULT_CLAIMS = {"username": "preferred_username", "email": "email", "name": "name", "groups": "groups"}
+DEFAULT_CLAIMS = {
+  "username": "preferred_username", "email": "email", "name": "name", "groups": "groups",
+  # the user's profile (backend/sign_in/profiles.py): a picture's URL or data: URI, and text fields
+  "picture": "picture", "title": "title", "department": "department", "organization": "organization",
+}
 
 
 @dataclass
@@ -82,6 +86,8 @@ def env_oidc() -> Optional[Provider]:
       # the IdP is federated to the same directory as LDAP: its user names are the same accounts
       "match_users": (os.environ.get('QABOARD_OIDC_MATCH_USERS') or 'none').strip().lower(),
       "redirect_uri": os.environ.get('QABOARD_OIDC_REDIRECT_URI') or None,
+      # users' photos, read with their access token, e.g. https://graph.microsoft.com/v1.0/me/photo/$value (Entra ID)
+      "picture_url": os.environ.get('QABOARD_OIDC_PICTURE_URL', '').strip() or None,
       # read users' claims daily with refresh tokens (backend/jobs/groups.py)
       "refresh_groups": os.environ.get('QABOARD_OIDC_REFRESH_GROUPS', '').strip().lower() in ('1', 'true', 'yes') or None,
     },
@@ -116,9 +122,19 @@ def database_providers() -> List[Provider]:
 
 
 def all_providers() -> List[Provider]:
+  """In the sign-in page's order: auth.provider_order (Admin → Sign-in's arrows), then recommended first, then their positions"""
+  from ..settings import setting
   env = env_providers()
   taken = {p.id for p in env}
-  return sorted(env + [p for p in database_providers() if p.id not in taken], key=lambda p: (p.position, p.id))
+  # by default, recommended ones first (the sign-in page put them first before the order could be set)
+  found = sorted(env + [p for p in database_providers() if p.id not in taken], key=lambda p: (not p.recommended, p.position, p.id))
+  try:
+    order = setting('auth.provider_order') or []
+  except Exception:
+    order = []
+  rank = {provider_id: index for index, provider_id in enumerate(order)}
+  # sorted() is stable: unlisted providers keep their order, after the listed ones
+  return sorted(found, key=lambda p: rank.get(p.id, len(rank)))
 
 
 def get(provider_id: str) -> Optional[Provider]:

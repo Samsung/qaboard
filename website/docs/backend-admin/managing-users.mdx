@@ -136,11 +136,15 @@ The sign-in policy is set via environment variables such as `QABOARD_LOGIN_*`, `
 | `QABOARD_LDAP_GROUP_ATTRIBUTES`   | _memberOf_    | The attributes [group rules](/docs/backend-admin/project-access#groups) can read, separated by commas, e.g. `memberOf,department` |
 | `QABOARD_LDAP_NESTED_GROUPS`   | _false_    | Active Directory: `true` adds the groups of users' groups to `memberOf` (`LDAP_MATCHING_RULE_IN_CHAIN`) |
 | `QABOARD_LDAP_GROUP_BASE`   | `QABOARD_LDAP_USER_BASE`    | Where to search the nested groups |
+| `QABOARD_LDAP_ATTRIBUTE_PICTURE`   | _thumbnailPhoto,jpegPhoto_ | Users' pictures (see [Pictures and profiles](/docs/backend-admin/sign-in#pictures-and-profiles)) |
+| `QABOARD_LDAP_ATTRIBUTE_TITLE`, `_DEPARTMENT`, `_ORGANIZATION` | _title_, _department_, _company,o_ | Shown in users' profiles |
 | `QABOARD_SAML_DIR`   | _none_  | The path to the directory with the SAML configuration files, as in the [python-saml](https://github.com/SAML-Toolkits/python-saml) docs |
 | `QABOARD_SAML_ATTRIBUTE_EMAIL`         | _none_  |                                            |
 | `QABOARD_SAML_ATTRIBUTE_COMMON_NAME`         | _none_  |                                            |
 | `QABOARD_SAML_ATTRIBUTE_USER_NAME`   | _none_    |                                            |
 | `QABOARD_SAML_ATTRIBUTE_ID`   | _none_    |                                            |
+| `QABOARD_SAML_ATTRIBUTE_PICTURE`   | _picture,thumbnailPhoto_ | Users' pictures: an URL, a `data:` URI or base64 |
+| `QABOARD_SAML_ATTRIBUTE_TITLE`, `_DEPARTMENT`, `_ORGANIZATION` | _title,jobtitle_, _department_, _organization,company_ | Shown in users' profiles |
 
 ## Blocking anonymous users
 To block anonymous users, who are not signed in, from accessing any content on QA-Board, turn on `auth.require_sign_in`

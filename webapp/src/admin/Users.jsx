@@ -5,6 +5,7 @@ import { Button, Classes, HTMLSelect, HTMLTable, InputGroup, Intent, NonIdealSta
 import { useLocation } from "react-router";
 
 import { history, Link } from "../router";
+import { UserAvatar } from "../components/avatars";
 import { Time, AdminTag, loginTypeLabel } from "../settings/format";
 import { Loading } from "../settings/states";
 import { AdminError } from "./states";
@@ -111,8 +112,13 @@ export const Users = () => {
             <tbody>
               {users.map(user => <tr key={user.id} onClick={event => { if (!event.target.closest('a')) history.push(`/admin/users/${user.id}`); }} style={{ cursor: 'pointer' }}>
                 <td>
-                  <Link to={`/admin/users/${user.id}`}><strong>{user.full_name || user.user_name}</strong></Link>
-                  {user.full_name && <div className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>{user.user_name}</div>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <UserAvatar user={user} size="24px" alt=""/>
+                    <div style={{ minWidth: 0 }}>
+                      <Link to={`/admin/users/${user.id}`}><strong>{user.full_name || user.user_name}</strong></Link>
+                      {user.full_name && <div className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>{user.user_name}</div>}
+                    </div>
+                  </div>
                 </td>
                 <td>{user.email || <span className={Classes.TEXT_MUTED}>—</span>}</td>
                 <td>{loginTypeLabel(user.login_type) ?? '—'}</td>

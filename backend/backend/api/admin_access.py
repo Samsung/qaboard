@@ -7,6 +7,7 @@ from backend import app, db_session
 from ..audit import audit
 from ..access.grants import AccessError, set_grant, serialize as serialize_grant, changed
 from ..tokens import iso, utcnow
+from ..sign_in.profiles import avatar_url
 from .auth import admin_required
 
 
@@ -23,7 +24,7 @@ def serialize_group(group, members=None, rules=None) -> dict:
   }
   if members is not None:
     body["members"] = [{
-      "user": {"id": m.user.id, "user_name": m.user.user_name, "full_name": m.user.full_name, "email": m.user.email} if m.user else None,
+      "user": {"id": m.user.id, "user_name": m.user.user_name, "full_name": m.user.full_name, "email": m.user.email, "avatar_url": avatar_url(m.user)} if m.user else None,
       "source": m.source, "added_at": iso(m.added_at),
     } for m in members]
   if rules is not None:

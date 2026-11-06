@@ -143,13 +143,11 @@ export const accessRequestsQuery = (status = 'pending', { background = false } =
 });
 
 
-// Admin → Sign-in: {providers, can_encrypt: whether secrets can be stored here (QABOARD_ENCRYPTION_KEY), public_url}
+// Admin → Sign-in: {providers (in the sign-in page's order), can_encrypt: whether secrets can be stored here (QABOARD_ENCRYPTION_KEY), public_url}
+const signInAdmin = data => ({ providers: data?.providers ?? [], can_encrypt: !!data?.can_encrypt, public_url: data?.public_url ?? '' });
 export const signInAdminQuery = queryOptions({
   queryKey: ['admin', 'sign-in'],
-  queryFn: async ({ signal }) => {
-    const { data } = await http.get('/api/v1/admin/sign-in', { signal });
-    return { providers: data?.providers ?? [], can_encrypt: !!data?.can_encrypt, public_url: data?.public_url ?? '' };
-  },
+  queryFn: async ({ signal }) => signInAdmin((await http.get('/api/v1/admin/sign-in', { signal })).data),
   staleTime: 30 * 1000,
 });
 
@@ -171,6 +169,15 @@ export const deleteProvider = async (queryClient, id) => {
   const { data } = await http.delete(`/api/v1/admin/sign-in/providers/${encodeURIComponent(id)}`);
   invalidateProviders(queryClient);
   return data;
+};
+
+// The order of the sign-in page, of every provider (the environment's too): their ids. => the new Admin → Sign-in
+export const reorderProviders = async (queryClient, order) => {
+  const { data } = await http.post('/api/v1/admin/sign-in/order', { order });
+  const sign_in = signInAdmin(data);
+  queryClient.setQueryData(signInAdminQuery.queryKey, sign_in);
+  queryClient.invalidateQueries({ queryKey: ['auth', 'providers'] });
+  return sign_in;
 };
 
 // The checks of `qaboard-admin check-sign-in`: {checks: [{check, ok, detail}], ok}. `user_name`: for LDAP, a user to look up.

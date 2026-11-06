@@ -48,12 +48,9 @@ export const providersQuery = ({ next = null, local = false } = {}) => queryOpti
   staleTime: 60 * 1000,
 });
 
-// The buttons, the recommended ones first (else in the server's order)
+// The buttons, in the server's order: admins choose it (Admin → Sign-in)
 export const redirectProviders = providers => providers
-  .filter(provider => provider.kind === 'redirect' && provider.start_url)
-  .map((provider, index) => ({ provider, index }))
-  .sort((a, b) => (!!b.provider.recommended - !!a.provider.recommended) || a.index - b.index)
-  .map(({ provider }) => provider);
+  .filter(provider => provider.kind === 'redirect' && provider.start_url);
 
 
 // Full-page navigations (to the identity provider), in one place so that tests can follow them.

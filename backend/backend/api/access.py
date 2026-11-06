@@ -11,6 +11,7 @@ from ..access.grants import AccessError, clean_path, set_grant, grants_on, seria
 from ..access.policy import ROLES, LEVELS
 from ..sign_in.access import notify, public_url, serialize as serialize_request
 from ..tokens import utcnow
+from ..sign_in.profiles import avatar_url
 from .auth import authenticated, login_required
 
 
@@ -255,7 +256,7 @@ def directory():
            .order_by(User.user_name).limit(10).all())
   groups = Group.query.filter(Group.name.ilike(pattern, escape='\\')).order_by(Group.name).limit(10).all()
   return jsonify({
-    "users": [{"id": u.id, "user_name": u.user_name, "full_name": u.full_name, "kind": u.kind} for u in users],
+    "users": [{"id": u.id, "user_name": u.user_name, "full_name": u.full_name, "kind": u.kind, "avatar_url": avatar_url(u)} for u in users],
     "groups": [{"id": group.id, "name": group.name, "description": group.description} for group in groups],
   })
 

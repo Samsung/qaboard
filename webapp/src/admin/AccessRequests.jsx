@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, Classes, HTMLSelect, Intent, NonIdealState, Tag } from "@blueprintjs/core";
 
 import { Link } from "../router";
+import { UserAvatar } from "../components/avatars";
 import { errorMessage } from "../api/http";
 import { toaster } from "../toaster";
 import { Time } from "../settings/format";
@@ -87,15 +88,18 @@ export const AccessRequests = () => {
       : <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {requests.map(request => <Card compact key={request.id} data-testid={`request-${request.id}`}>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-            <div style={{ minWidth: 0 }}>
-              {request.user
-                ? <Link to={`/admin/users/${request.user.id}`}><strong>{request.user.full_name || request.user.user_name}</strong></Link>
-                : <strong className={Classes.TEXT_MUTED}>Deleted user</strong>}
-              <div className={Classes.TEXT_MUTED} style={{ fontSize: 12, overflowWrap: 'anywhere' }}>
-                {request.user?.full_name && <>{request.user.user_name} · </>}
-                {request.user?.email && <>{request.user.email} · </>}
-                asked <Time iso={request.created_at}/>
-                {request.decided_at && <> · decided <Time iso={request.decided_at}/></>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+              {request.user && <UserAvatar user={request.user} size="32px" alt=""/>}
+              <div style={{ minWidth: 0 }}>
+                {request.user
+                  ? <Link to={`/admin/users/${request.user.id}`}><strong>{request.user.full_name || request.user.user_name}</strong></Link>
+                  : <strong className={Classes.TEXT_MUTED}>Deleted user</strong>}
+                <div className={Classes.TEXT_MUTED} style={{ fontSize: 12, overflowWrap: 'anywhere' }}>
+                  {request.user?.full_name && <>{request.user.user_name} · </>}
+                  {request.user?.email && <>{request.user.email} · </>}
+                  asked <Time iso={request.created_at}/>
+                  {request.decided_at && <> · decided <Time iso={request.decided_at}/></>}
+                </div>
               </div>
             </div>
             {request.status === 'pending' && request.user

@@ -102,6 +102,10 @@ DEFINITIONS = {
     "An incoming webhook (Slack, Teams, Mattermost...) told when users wait for an admin. QA-Board sends {\"text\": \"...\"}.",
     None, str, env='QABOARD_ACCESS_REQUEST_WEBHOOK', nullable=True, secret=True,
   ),
+  'auth.provider_order': Definition(
+    "The order of the sign-in methods on the sign-in page, by id (e.g. sso, keycloak, ldap, local). Admin → Sign-in sets it with its arrows. Methods not listed come after, in their default order.",
+    [], list, env='QABOARD_SIGN_IN_ORDER', parse_env=env_list,
+  ),
   'auth.sso_auto_redirect': Definition(
     "When signing in is required and there is a single single sign-on method, the sign-in page goes straight to it. /login?local=1 still shows the password form.",
     False, bool, env='QABOARD_SSO_AUTO_REDIRECT', parse_env=env_flag,

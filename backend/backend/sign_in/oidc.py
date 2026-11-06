@@ -169,8 +169,8 @@ def error_of(response):
 
 def exchange_code(provider: Provider, code: str, saved: dict):
   """
-  The code for tokens, server-to-server. Returns the ID token's claims (and userinfo's, for missing claims), and the
-  refresh token if the IdP sent one.
+  The code for tokens, server-to-server. Returns the ID token's claims (and userinfo's, for missing claims), the
+  refresh token if the IdP sent one, and the access token (only used right away, for the user's picture).
   """
   document = metadata(provider)
   response = token_request(provider, document, {"grant_type": "authorization_code", "code": code, "redirect_uri": saved['redirect_uri'], "code_verifier": saved['verifier']})
@@ -180,10 +180,10 @@ def exchange_code(provider: Provider, code: str, saved: dict):
   if not tokens.get('id_token'):
     raise SignInError('sso_misconfigured', "The IdP sent no ID token: is `openid` in the scopes?")
   claims = verify_id_token(provider, tokens['id_token'], saved['nonce'])
-  missing = [provider.claim(name) for name in ('username', 'email', 'name') if provider.claim(name) not in claims]
+  missing = [provider.claim(name) for name in ('username', 'email', 'name', 'picture') if provider.claim(name) not in claims]
   if missing and tokens.get('access_token') and document.get('userinfo_endpoint'):
     claims = {**userinfo(document['userinfo_endpoint'], tokens['access_token'], claims['sub']), **claims}
-  return claims, tokens.get('refresh_token')
+  return claims, tokens.get('refresh_token'), tokens.get('access_token')
 
 
 def refresh_claims(provider: Provider, subject: str, refresh_token: str):

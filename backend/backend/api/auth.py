@@ -18,12 +18,13 @@ except Exception as e:
   print(f"WARNING: Could not import onelogin.saml2: {e}")
 from backend import app, db_session
 from ..models import User
-from ..settings import setting
+from ..settings import setting, env_list
 from ..audit import audit
 from ..admins import is_admin
 from ..actor import unauthenticated
 from ..sign_in import sessions
 from ..sign_in.accounts import finish as finish_sign_in, new_user_status
+from ..sign_in.profiles import avatar_url, public as public_profile
 from .. import tokens as tokens_lib
 from ..access import can
 
@@ -76,6 +77,19 @@ elif login_type == "SAML":
   saml_attr_user_name = os.environ.get('QABOARD_SAML_ATTRIBUTE_USER_NAME')
   saml_attr_common_name = os.environ.get('QABOARD_SAML_ATTRIBUTE_COMMON_NAME')
   # saml_attr_id = os.environ.get('QABOARD_SAML_ATTRIBUTE_ID')
+
+
+# The attributes with the user's profile (backend/sign_in/profiles.py): the first of each list that the user has.
+# SAML pictures are an URL, a data: URI or base64.
+PROFILE_ATTRIBUTES = {
+  "LDAP": {"picture": 'thumbnailPhoto,jpegPhoto', "title": 'title', "department": 'department', "organization": 'company,o'},
+  "SAML": {"picture": 'picture,thumbnailPhoto', "title": 'title,jobtitle', "department": 'department', "organization": 'organization,company'},
+}
+
+def profile_attributes(kind: str) -> dict:
+  """{field: [attribute names]}, from QABOARD_LDAP_ATTRIBUTE_PICTURE, QABOARD_SAML_ATTRIBUTE_TITLE..."""
+  return {field: env_list(os.environ.get(f'QABOARD_{kind}_ATTRIBUTE_{field.upper()}') or default)
+          for field, default in PROFILE_ATTRIBUTES[kind].items()}
 
 
 # Don't add the user's info: with LDAP and SAML it holds everything the directory knows about them
@@ -202,6 +216,7 @@ def get_current_user(to_jsonify=True):
         "user_name": pending_user.user_name,
         "full_name": pending_user.full_name,
         "email": pending_user.email,
+        "avatar_url": avatar_url(pending_user),
         "request": serialize_request(request_row) if request_row else None,
         "reviewers": [u.full_name or u.user_name for u in reviewers()][:5],
       }
@@ -215,7 +230,11 @@ def get_current_user(to_jsonify=True):
       "kind": getattr(user, 'kind', 'human'),
       "status": getattr(user, 'status', 'active'),
       "is_admin": is_admin(user),
+      "avatar_url": avatar_url(user),
     })
+    if to_jsonify:
+      # what the sign-in methods say about them (backend/sign_in/profiles.py)
+      info["profile"] = public_profile(user)
     if login_type == "SAML" and to_jsonify is False:
       # the SAML attributes are used by the restrictions of QABOARD_LOGIN_RESTRICTED_YAML. Never sent to clients.
       # Not LDAP's: it's a list of [dn, attributes] that matches_rules can't read (they're checked at login).
@@ -420,6 +439,7 @@ def create_user(info):
   )
   db_session.add(user)
   db_session.flush()
+  apply_profile(user, info)
   # the `qa` commands they ran before signing in, as this name, are theirs (backend/usage.py)
   from ..usage import claim_events
   claim_events(user)
@@ -441,9 +461,17 @@ def update_user(user, info):
     "password": generate_password_hash(info["password"]) if "password" in info else None,
   }
   user.update(**user_info)
+  apply_profile(user, info)
   db_session.add(user)
   db_session.commit()
   return user
+
+
+def apply_profile(user, info: dict):
+  """The title, department, organization and picture a directory gave (LDAP, SAML), see backend/sign_in/profiles.py"""
+  if info.get("profile") or info.get("picture") is not None:
+    from ..sign_in import profiles
+    profiles.apply(user, info.get("profile"), info.get("picture"), 'saml' if (info.get("login_type") or '').upper() == 'SAML' else 'ldap')
 
 
 def restrictions(section: str) -> dict:
@@ -575,7 +603,22 @@ def ldap_search(user_name: str) -> str:
 
 
 def ldap_attributes() -> list:
-  return [ldap_attr_common_name, ldap_attr_email, *ldap_group_attributes]
+  profile = [name for names in profile_attributes('LDAP').values() for name in names]
+  return list(dict.fromkeys([ldap_attr_common_name, ldap_attr_email, *ldap_group_attributes, *profile]))
+
+
+def directory_profile(attributes: dict, names: dict):
+  """
+  ({title, department, organization}, picture) from a directory's attributes. Removes the picture's attributes:
+  they're binary (LDAP) or big, and users.data and the session cookie (SAML) keep the others.
+  """
+  from ..sign_in.profiles import first_value
+  values = {key: first_value(attributes, names[key])[1] for key in names if key != 'picture'}
+  picture = first_value(attributes, names['picture'])[1]
+  lower = {name.lower() for name in names['picture']}
+  for key in [k for k in attributes if k.lower() in lower]:
+    del attributes[key]
+  return values, picture
 
 
 # Active Directory's LDAP_MATCHING_RULE_IN_CHAIN: the groups that contain the user, also through other groups
@@ -598,6 +641,7 @@ def ldap_details(ldap_connect, user_name: str) -> list:
 def ldap_user_info(details, user_info):
   """Fills user_info from the directory's answer"""
   user_ldap = details[0][1]
+  user_info["profile"], user_info["picture"] = directory_profile(user_ldap, profile_attributes('LDAP'))
   user_info["full_name"] = str(user_ldap[ldap_attr_common_name][0], 'utf-8') if ldap_attr_common_name in user_ldap else None
   if ldap_attr_email not in user_ldap:
     user_info["email"] = None
@@ -718,7 +762,9 @@ def saml_auth():
             if 'AuthNRequestID' in session:
                 del session['AuthNRequestID']
 
-            session['samlUserdata'] = auth.get_attributes()
+            saml_attributes = dict(auth.get_attributes())
+            saml_profile, saml_picture = directory_profile(saml_attributes, profile_attributes('SAML'))
+            session['samlUserdata'] = saml_attributes
             session['samlNameId'] = auth.get_nameid()
             session['samlNameIdFormat'] = auth.get_nameid_format()
             session['samlNameIdNameQualifier'] = auth.get_nameid_nq()
@@ -739,6 +785,8 @@ def saml_auth():
               "full_name": samlUserdata.get(saml_attr_common_name, [])[0],
               "email": samlUserdata.get(saml_attr_email, [])[0],
               "data": dict(samlUserdata),
+              "profile": saml_profile,
+              "picture": saml_picture,
               }
               if is_login_restricted and not is_authorized_user(user_info):
                 print(f"[auth] Unauthorized login @{user_info['user_name']}")
