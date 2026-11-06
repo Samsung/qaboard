@@ -293,12 +293,12 @@ def settings_group():
 def settings_list(changed):
   """Every setting, its value and where it comes from"""
   from backend import settings as settings_lib
-  for setting in settings_lib.describe_all():
-    if changed and setting["source"] == 'default':
+  for described in settings_lib.describe_all():
+    if changed and described["source"] == 'default':
       continue
-    source = {"env": f"${setting['env']}", "database": "saved", "default": "default"}[setting["source"]]
-    value = json.dumps(setting["value"], ensure_ascii=False)
-    click.echo(f"{setting['key']:<32} {source:<32} {value}" + (f"  ERROR: {setting['error']}" if setting["error"] else ''))
+    source = {"env": f"${described['env']}", "database": "saved", "default": "default"}[described["source"]]
+    value = json.dumps(described["value"], ensure_ascii=False)
+    click.echo(f"{described['key']:<32} {source:<32} {value}" + (f"  ERROR: {described['error']}" if described["error"] else ''))
 
 
 @settings_group.command('set')

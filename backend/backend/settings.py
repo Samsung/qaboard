@@ -160,6 +160,28 @@ def _check_url(value, schemes=('http', 'https'), what="a URL"):
     raise ValueError(f"must be {what}, e.g. {'https://example.com' if 'https' in schemes else schemes[0] + ':...'}")
 
 
+def _check_not_local(host: str):
+  """
+  Hosts the server sends requests to, on behalf of anyone (the image proxy, Jenkins): not itself or the cloud's
+  metadata service. Private networks are fine: that's where companies' servers are.
+  """
+  import ipaddress
+  name = host.strip().strip('[]').lower()
+  if name in ('localhost', 'localhost.localdomain') or name.endswith('.localhost'):
+    raise ValueError(f"can't be {host}: the server would send requests to itself")
+  try:
+    ip = ipaddress.ip_address(name)
+  except ValueError:
+    return
+  if ip.is_loopback or ip.is_link_local or ip.is_unspecified or ip.is_multicast:
+    raise ValueError(f"can't be {host}: the server would send requests to itself or its cloud's metadata service")
+
+
+def _check_hosts(values):
+  for value in values:
+    _check_not_local(urlparse(f"//{value}").hostname or value)
+
+
 def _check_timezone(value):
   import pytz
   try:
@@ -421,7 +443,7 @@ DEFINITIONS = {
   'web.proxy_hosts': Definition(
     "Hostnames the web app may load images from through the server (it adds no credentials), besides the git hosts, the avatars' host and gravatar: the hosts of projects' avatar_url and integrations' images.",
     [], list, env='QABOARD_PROXY_HOSTS', parse_env=env_list,
-    label="Other image hosts", group='web_app', placeholder="badges.example.com",
+    label="Other image hosts", group='web_app', placeholder="badges.example.com", check=_check_hosts,
   ),
 
   # ---- Usage analytics
@@ -744,6 +766,10 @@ def _validate_field(key: str, field: Field, value):
     hostname = urlparse(value).hostname if '//' in value else value.split('/')[0].split(':')[0]
     if not hostname or ' ' in hostname:
       raise ValueError(f"{where} must be a hostname, e.g. jenkins.example.com")
+    try:
+      _check_not_local(hostname)
+    except ValueError as e:
+      raise ValueError(f"{where} {e}")
     return hostname.lower()
   if field.type == 'url':
     value = value.rstrip('/')

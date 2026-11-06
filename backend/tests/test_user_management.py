@@ -163,3 +163,15 @@ def test_client_ip_behind_another_proxy(dummy_app, monkeypatch):
   monkeypatch.setattr(backend.audit, "trusted_proxy_hops", 1)
   with dummy_app.test_request_context('/', headers={"X-Forwarded-For": "1.2.3.4, 10.0.0.1"}, environ_base={"REMOTE_ADDR": "172.17.0.1"}):
     assert client_ip() == "10.0.0.1"
+
+
+def test_hosts_the_server_calls_cant_be_itself():
+  """The image proxy and Jenkins send requests for anyone: not to the server itself or the cloud's metadata service"""
+  for value in (['localhost'], ['169.254.169.254'], ['127.0.0.1:8080'], ['[::1]']):
+    with pytest.raises(ValueError):
+      settings.validate('web.proxy_hosts', value)
+  assert settings.validate('web.proxy_hosts', ['badges.example.com', '10.0.0.5']) == ['badges.example.com', '10.0.0.5']
+  with pytest.raises(ValueError, match="itself"):
+    settings.validate('jenkins.servers', [{"hostname": "http://127.0.0.1:8080/", "user": "u", "token": "t"}])
+  [server] = settings.validate('jenkins.servers', [{"hostname": "https://Jenkins.example.com/job/x", "user": "u", "token": "t"}])
+  assert server["hostname"] == "jenkins.example.com"

@@ -10,7 +10,6 @@ see website/docs/start-server.mdx:
   email.reply_to        QABOARD_EMAIL_REPLY_TO  e.g. the team supporting QA-Board
   email.domain          QABOARD_EMAIL_DOMAIN    users without an email address get emails at <user_name>@<domain>
 """
-import os
 import re
 import socket
 import smtplib

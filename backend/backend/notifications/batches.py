@@ -9,7 +9,6 @@ How we know a batch is over, cheaply even for batches with thousands of runs:
   there is none). If there is one, we check whether the command has pending runs left, with an index of
   the pending runs only. When none are left, we claim the notification and send it, exactly once.
 """
-import os
 import datetime
 from urllib.parse import urljoin
 
