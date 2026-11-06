@@ -87,6 +87,9 @@ not_authorized_error = "The user is not authorized, please contact QA-Board admi
 
 @app.route('/api/v1/user/signup/', methods=['POST'])
 def signup():
+  from ..first_admin import setup_open
+  if setup_open():
+    return jsonify({"error": "QA-Board isn't set up yet: its first account is the admin's, created on the setup page.", "reason": "setup_required"}), 403
   if not setting('auth.local_signup'):
     return jsonify({"error": "Signing up is disabled on this server: sign in with your usual account, or ask an admin.", "reason": "signup_disabled"}), 403
   user_name = request.form.get('user_name')
@@ -808,3 +811,28 @@ def prepare_flask_request(request):
         # 'lowercase_urlencoding': True,
         'post_data': request.form.copy()
     }
+
+
+@app.route('/api/v1/user/password', methods=['POST'])
+@app.route('/api/v1/user/password/', methods=['POST'])
+@session_required
+def change_password():
+  """{current_password, new_password}: local accounts change their password, from the web app. Their other browsers are signed out."""
+  from ..first_admin import password_problem
+  user = g.actor.user
+  if (user.login_type or '').upper() != 'LOCAL' or not user.password:
+    return jsonify({"error": "You don't have a local account: change your password where your company manages it.", "reason": "not_local"}), 400
+  body = request.get_json(silent=True) or {}
+  current_password, new_password = body.get('current_password'), body.get('new_password')
+  if not isinstance(current_password, str) or not current_password or not check_password_hash(user.password, current_password):
+    audit('user.password_change_failed', 'user', user.id, user.user_name)
+    db_session.commit()
+    return jsonify({"error": "Your current password is wrong.", "reason": "invalid_credentials", "field": "current_password"}), 403
+  if problem := password_problem(new_password):
+    return jsonify({"error": problem, "field": "new_password"}), 400
+  user.password = generate_password_hash(new_password)
+  current = g.get('session_row')
+  signed_out = sessions.revoke_all(user.id, except_id=current.id if current is not None else None)
+  audit('user.password_change', 'user', user.id, user.user_name, meta={"sessions_revoked": signed_out})
+  db_session.commit()
+  return jsonify({"signed_out": signed_out})

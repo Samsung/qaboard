@@ -197,12 +197,17 @@ projects yet. If something is wrong, see [Troubleshooting](/docs/backend-admin/t
 ## 6. Make yourself an admin {#6-make-yourself-an-admin}
 Admins see **Admin** in the user menu: users, sign-in, settings, and the jobs that clean the storage.
 
-- The user names in `QABOARD_ADMINS` ([step 3](#3-describe-your-site)) are admins as soon as they sign in.
-- To sign in before LDAP or single sign-on work, create a local admin account. It asks for the password:
+- **The setup page**: open QA-Board, it shows **Set up QA-Board** on a new server. Paste the setup token from the
+  backend's logs, choose a user name and a password: you're the first admin, signed in.
 
   ```bash
-  deployments/deploy.py deployments/mysite/production.env compose exec backend qaboard-admin create-admin admin --password
+  deployments/deploy.py deployments/mysite/production.env compose logs backend | grep -A1 "setup token"
   ```
+- **Or from the environment**, for automated installs: `QABOARD_ADMIN_PASSWORD` in `.env` creates the local admin
+  `admin` when the server starts without admins (see [the first admin](/docs/backend-admin/user-management#the-first-admin)).
+- The user names in `QABOARD_ADMINS` ([step 3](#3-describe-your-site)) are admins as soon as they sign in, e.g. with LDAP or
+  single sign-on.
+- From the server's shell, `qaboard-admin create-admin <user_name> --password` creates a local admin. It asks for the password.
 
 **Check it worked:** sign in with **Sign in**, at the top right, and open **Admin**. Its **Overview** has a security
 checklist of what to look at next. More in [User management](/docs/backend-admin/user-management).
@@ -210,7 +215,8 @@ checklist of what to look at next. More in [User management](/docs/backend-admin
 ## 7. Choose how users sign in {#7-choose-how-users-sign-in}
 <Anchor id="managing-access-rights-and-users" />
 
-By default, users have local accounts, and anyone can create one from the sign-in page (**Create one**). Instead:
+By default, users have local accounts: admins create them in **Admin → Users → New user**, and anyone can create one
+from the sign-in page (**Create one**) until you turn `auth.local_signup` off. Instead:
 - **Single sign-on** with OpenID Connect (Keycloak, Entra ID, Okta, Google...): see
   [Sign-in and single sign-on](/docs/backend-admin/sign-in).
 - **LDAP** or **SAML**: set `QABOARD_LOGIN_TYPE` and their settings in the overlay, see

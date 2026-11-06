@@ -54,6 +54,20 @@ export const updateUser = async (queryClient, id, changes) => {
   return data;
 };
 
+// Local accounts. {user_name, full_name, email, password?, is_admin} => {user, password: when the server generated it}
+export const createUser = async (queryClient, body) => {
+  const { data } = await http.post('/api/v1/admin/users', body);
+  invalidateUsers(queryClient);
+  return data;
+};
+
+// A local account's new password, generated without `password`. => {signed_out, password?}
+export const resetPassword = async (queryClient, id, password) => {
+  const { data } = await http.post(`/api/v1/admin/users/${id}/password`, password ? { password } : {});
+  invalidateUsers(queryClient);
+  return data;
+};
+
 // => {revoked: n}
 export const revokeUserTokens = async (queryClient, id) => {
   const { data } = await http.post(`/api/v1/admin/users/${id}/revoke-tokens`);

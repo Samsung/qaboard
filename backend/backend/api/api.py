@@ -50,6 +50,15 @@ def cli_requirements(environ=os.environ) -> list:
     return ['qaboard', *[r for r in extra if r != 'qaboard']]
 
 
+def _setup_required() -> bool:
+    from ..first_admin import setup_open
+    try:
+        return setup_open()
+    except Exception:
+        db_session.rollback()
+        return False
+
+
 @app.route("/api/v1/config")
 def get_site_config():
     """Return runtime site configuration for the frontend."""
@@ -61,6 +70,8 @@ def get_site_config():
         "login_required": setting('auth.require_sign_in'),
         "require_sign_in": setting('auth.require_sign_in'),
         "local_signup": setting('auth.local_signup'),
+        # a new server, without accounts: the web app sends people to /setup (backend/first_admin.py)
+        "setup_required": _setup_required(),
         # how `qa` authenticates the results it sends: off, warn or token
         "ingest_auth": setting('ingest.auth'),
         # what the web app offers when users create tokens

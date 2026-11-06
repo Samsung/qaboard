@@ -1,7 +1,7 @@
 // Admin → Users → a user: who they are, their tokens, what they did, and what admins can do about it
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Callout, Classes, HTMLTable, Intent, NonIdealState, Tooltip } from "@blueprintjs/core";
+import { Alert, Button, Callout, Classes, Dialog, DialogBody, DialogFooter, HTMLTable, Intent, NonIdealState, Tooltip } from "@blueprintjs/core";
 
 import { Link } from "../router";
 import { errorMessage } from "../api/http";
@@ -13,7 +13,8 @@ import { AuditEvents } from "../settings/AuditEvents";
 import { AdminError } from "./states";
 import { UserTags } from "./Users";
 import { RequestMessage } from "./AccessRequests";
-import { adminUserQuery, usageUserQuery, updateUser, revokeUserTokens, revokeUserSessions, adminRevokeToken } from "./api";
+import { adminUserQuery, usageUserQuery, updateUser, revokeUserTokens, revokeUserSessions, adminRevokeToken, resetPassword } from "./api";
+import { PasswordToGive } from "./CreateUserDialog";
 import { UsageCard } from "./UsageCard";
 
 
@@ -46,12 +47,22 @@ const confirmations = {
     text: user => <p>Remove the admin role of <strong>{user.user_name}</strong>?</p>,
     button: 'Remove admin',
   },
+  reset_password: {
+    text: user => <p>Give <strong>{user.user_name}</strong> a new password? QA-Board generates it, you give it to them. Their current password stops working, and they're signed out of every browser. Their tokens keep working.</p>,
+    button: 'Reset the password',
+    icon: 'lock',
+  },
 };
+
+// Only local accounts have a password QA-Board knows
+const isLocal = user => user.kind !== 'service' && (user.login_type ?? '').toUpperCase() === 'LOCAL';
 
 const Actions = ({ user, me }) => {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(null);
   const [busy, setBusy] = useState(null);
+  // the password "Reset password" generated, shown once
+  const [new_password, setNewPassword] = useState(null);
   const is_me = String(user.id) === String(me.user_id);
 
   const run = (action, call, success) => {
@@ -76,6 +87,10 @@ const Actions = ({ user, me }) => {
       const n = result?.revoked ?? 0;
       return n === 0 ? `${user.user_name} wasn't signed in anywhere` : `Signed ${user.user_name} out of ${n} session${n === 1 ? '' : 's'}`;
     }),
+    reset_password: () => run('reset_password', () => resetPassword(queryClient, user.id).then(result => {
+      setNewPassword(result?.password ?? null);
+      return result;
+    }), () => `${user.user_name} has a new password`),
     revoke_tokens: () => run('revoke_tokens', () => revokeUserTokens(queryClient, user.id), result => {
       const n = result?.revoked ?? 0;
       return n === 0 ? `${user.user_name} had no active tokens` : `Revoked ${n} token${n === 1 ? '' : 's'} of ${user.user_name}`;
@@ -109,6 +124,9 @@ const Actions = ({ user, me }) => {
     <Tooltip content="Except this browser: sign out from your menu." disabled={!is_me}>
       <Button icon="log-out" text="Sign out everywhere" intent={Intent.DANGER} variant="outlined" loading={busy === 'revoke_sessions'} onClick={() => setConfirming('revoke_sessions')}/>
     </Tooltip>
+    {isLocal(user) && <Tooltip content="Change your own password in Settings → Sign-in methods." disabled={!is_me}>
+      <Button icon="lock" text="Reset password" disabled={is_me} loading={busy === 'reset_password'} onClick={() => setConfirming('reset_password')}/>
+    </Tooltip>}
     <Button icon="key" text="Revoke all tokens" intent={Intent.DANGER} variant="outlined" disabled={!user.active_tokens} loading={busy === 'revoke_tokens'} onClick={() => setConfirming('revoke_tokens')}/>
     <Alert
       isOpen={!!confirming}
@@ -123,6 +141,10 @@ const Actions = ({ user, me }) => {
     >
       {confirming && confirmations[confirming].text(user)}
     </Alert>
+    <Dialog isOpen={!!new_password} onClose={() => setNewPassword(null)} title={`${user.user_name}'s new password`} icon="lock" canOutsideClickClose={false}>
+      <DialogBody>{new_password && <PasswordToGive user_name={user.user_name} password={new_password} label="Their new password"/>}</DialogBody>
+      <DialogFooter actions={<Button intent={Intent.PRIMARY} text="Done" onClick={() => setNewPassword(null)}/>}/>
+    </Dialog>
   </div>;
 };
 

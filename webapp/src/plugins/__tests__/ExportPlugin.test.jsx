@@ -262,7 +262,8 @@ describe('ExportPlugin', () => {
     fireEvent.change(screen.getByLabelText('Template'), { target: { value: '{input}__{nope}' } });
     expect(await screen.findByText(/Unknown field \{nope\}/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('radio', { name: 'A folder for new, one for reference' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Export 4 files' }));
+    // the button says how many files once the preview is back, after its debounce: like above, slow CI runners need time
+    fireEvent.click(await screen.findByRole('button', { name: 'Export 4 files' }, { timeout: 3000 }));
     await waitFor(() => expect(usePrefsStore.getState().exportLast.p).toMatchObject({ layout: 'by-side', template: '{side}/{input}__{settings}__{file}__{region}', files: 'debug/*/out.png', settings_keys: null, file_in_names: 'auto' }));
   });
 });

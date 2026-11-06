@@ -16,6 +16,7 @@ from ..sign_in.access import request_access, serialize as serialize_request
 from ..access.groups import groups_overage
 from .auth import login_required, session_required, safe_redirect_url, is_login_restricted, is_authorized_user, ldap_lookup, update_user, login_type
 from .tokens import public_url
+from ..first_admin import setup_open
 
 
 @app.route('/api/v1/auth/providers', methods=['GET'])
@@ -28,6 +29,8 @@ def sign_in_providers():
     "providers": [p.public(next_url) for p in options],
     "password_form": any(p.kind == 'password' for p in options),
     "local_signup": setting('auth.local_signup'),
+    # a new server: the first account is the admin's, on the setup page
+    "setup_required": setup_open(),
     # go straight to the only single sign-on
     "auto_redirect": bool(setting('auth.sso_auto_redirect') and setting('auth.require_sign_in') and len(redirects) == 1 and request.args.get('local') not in ('1', 'true')),
   })
