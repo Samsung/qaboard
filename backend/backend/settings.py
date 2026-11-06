@@ -91,6 +91,8 @@ class Definition(NamedTuple):
   fields: tuple = ()
   # the field that identifies a record, unique, e.g. hostname
   record_key: Optional[str] = None
+  # what a record is, for people: "Jenkins server"
+  record_noun: Optional[str] = None
   # secrets that are URLs are shown as https://hooks.slack.com/…, the others not at all
   mask: str = 'hidden'
   # extra checks, raises ValueError with a sentence for people
@@ -277,7 +279,7 @@ DEFINITIONS = {
   'git.hosts': Definition(
     "The git hosts of your projects, with their tokens (to clone private repositories and call their API) and the secrets their webhooks send. github.com is always known. GITLAB_HOST, GITLAB_ACCESS_TOKEN, GITHUB_ACCESS_TOKEN and QABOARD_WEBHOOK_SECRET, if set, still apply on top.",
     [], Records, env='QABOARD_GIT_HOSTS', parse_env=_parse_git_hosts,
-    label="Git hosts", group='git', docs="/docs/backend-admin/git-hosts", record_key='url',
+    label="Git hosts", group='git', docs="/docs/backend-admin/git-hosts", record_key='url', record_noun="git host",
     default_text="gitlab.com and github.com, without tokens (or GITLAB_HOST).",
     fields=(
       Field('type', "Type", 'choice', required=True, choices=('gitlab', 'github', 'gitea', 'forgejo', 'bitbucket', 'generic'), default='gitlab'),
@@ -299,7 +301,7 @@ DEFINITIONS = {
     "Accounts QA-Board signs in to GitLab's web pages with, to show users the images of private repositories (projects' avatars and badges): GitLab's API can't serve them.",
     [], Records, env='GITLAB_AUTH', record_key='hostname',
     parse_env=_json_records('GITLAB_AUTH', lambda hostname, e: {"hostname": hostname, "user": e.get('user'), "password": e.get('password'), "type": e.get('type', 'user'), "http": bool(e.get('http'))}),
-    label="GitLab accounts for images", group='git',
+    label="GitLab accounts for images", group='git', record_noun="GitLab account",
     fields=(
       Field('hostname', "Hostname", 'hostname', required=True, placeholder="gitlab.example.com"),
       Field('user', "User", required=True),
@@ -314,7 +316,7 @@ DEFINITIONS = {
     "The Jenkins servers QA-Board starts builds on and reads their statuses from, with a user's API token. QA-Board only sends these credentials to these hosts.",
     [], Records, env='JENKINS_AUTH', record_key='hostname',
     parse_env=_json_records('JENKINS_AUTH', lambda hostname, e: {"hostname": hostname, "user": e.get('user'), "token": e.get('token'), "crumb": e.get('crumb')}),
-    label="Jenkins servers", group='jenkins', docs="/docs/triggering-third-party-tools#trigger-jenkins-builds",
+    label="Jenkins servers", group='jenkins', docs="/docs/triggering-third-party-tools#trigger-jenkins-builds", record_noun="Jenkins server",
     fields=(
       Field('hostname', "Hostname", 'hostname', required=True, placeholder="jenkins.example.com", help="As in the jobs' build_url. You can paste a URL."),
       Field('user', "User", required=True),
@@ -1009,6 +1011,7 @@ def describe(key: str, user_names=None) -> dict:
     "multiline": definition.multiline,
     "fields": [field._asdict() for field in definition.fields] or None,
     "record_key": definition.record_key,
+    "record_noun": definition.record_noun,
     # the environment wins: changing the database value would have no effect
     "editable": current_source != 'env',
     # what each layer says: the environment wins over the database, that wins over the default

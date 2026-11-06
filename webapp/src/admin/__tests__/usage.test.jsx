@@ -243,8 +243,8 @@ describe('Overview', () => {
     expect(screen.getByText('3 to look at')).toBeInTheDocument();
     expect(screen.getByText('All good')).toBeInTheDocument();
     // where to go: by id, or as the item says
-    // email notifications are a server variable: no link. Single sign-on is set up in Admin → Sign-in
-    expect(screen.queryByRole('link', { name: "Email notifications aren't configured" })).not.toBeInTheDocument();
+    // email is set up in Admin → Settings → Email, single sign-on in Admin → Sign-in
+    expect(screen.getByRole('link', { name: "Email notifications aren't configured" })).toHaveAttribute('href', '/admin/settings?group=email');
     expect(screen.getByRole('link', { name: 'Users sign in with local accounts' })).toHaveAttribute('href', '/admin/sign-in');
     expect(screen.getByRole('link', { name: '3 projects get CI runs nobody looks at' })).toHaveAttribute('href', '/admin/usage?period=90d');
   });

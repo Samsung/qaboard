@@ -87,8 +87,8 @@ describe('AdminPage', () => {
     const items = screen.getAllByRole('listitem').map(item => item.textContent);
     expect(items[0]).toMatch(/Anyone who can reach the server can send results/);
     // where to fix it
-    expect(screen.getByRole('link', { name: 'Anyone who can reach the server can send results' })).toHaveAttribute('href', '/admin/settings');
-    expect(screen.getByRole('link', { name: 'ingest.auth' })).toHaveAttribute('href', '/admin/settings');
+    expect(screen.getByRole('link', { name: 'Anyone who can reach the server can send results' })).toHaveAttribute('href', '/admin/settings?setting=ingest.auth');
+    expect(screen.getByRole('link', { name: 'ingest.auth' })).toHaveAttribute('href', '/admin/settings?setting=ingest.auth');
     // nothing to say about what's fine
     expect(items[1]).toBe('Cookies are only sent over HTTPS');
   });
@@ -263,82 +263,188 @@ describe('UserDetail', () => {
 
 describe('Settings', () => {
   // backend/settings.py describe()
-  const setting = props => ({ value: null, default: null, source: 'default', env: null, description: '', type: 'str', choices: null, nullable: false, editable: true, ...props });
-  const settings = [
-    setting({ key: 'auth.require_sign_in', value: true, default: false, source: 'env', env: 'QABOARD_LOGIN_REQUIRED', type: 'bool', editable: false,
-      description: 'Anonymous users can\'t see anything.' }),
-    setting({ key: 'auth.local_signup', value: true, default: true, env: 'QABOARD_DISABLE_SIGNUP', type: 'bool', description: 'Anyone can create a local account.' }),
-    setting({ key: 'ingest.auth', value: 'off', default: 'off', env: 'QABOARD_INGEST_AUTH', type: 'str', choices: ['off', 'warn', 'token'],
-      description: 'How runs sent by `qa` are authenticated.' }),
-    setting({ key: 'tokens.default_lifetime_days', value: 90, default: 90, type: 'int', description: 'How long new tokens live.' }),
-    setting({ key: 'tokens.max_lifetime_days', value: null, default: null, type: 'int', nullable: true, description: 'The longest lifetime.' }),
-    setting({ key: 'auth.allowed_origins', value: ['https://a.example'], default: [], source: 'database', env: 'QABOARD_ALLOWED_ORIGINS', type: 'list', description: 'Other origins.' }),
+  const layers = props => ({ env: { name: props.env ?? null, set: false, value: null, error: null }, database: { set: false, value: null, updated_by: null, updated_at: null, error: null }, default: { value: props.default ?? null, text: null } });
+  const setting = props => ({
+    value: null, default: null, source: 'default', env: null, description: '', type: 'str', choices: null, nullable: false, editable: true,
+    label: props.key, group: 'tokens', layers: layers(props), ...props,
+  });
+  const groups = [
+    { id: 'sign_in', title: 'Sign-in', icon: 'log-in', description: 'Who can sign in.' },
+    { id: 'tokens', title: 'API tokens and results', icon: 'key', description: 'How `qa` authenticates.' },
+    { id: 'jenkins', title: 'Jenkins', icon: 'build', description: 'Jenkins servers.' },
+    { id: 'security', title: 'Security', icon: 'shield', description: 'Encryption.' },
   ];
+  const jenkins_fields = [
+    { name: 'hostname', label: 'Hostname', type: 'hostname', required: true, secret: false },
+    { name: 'user', label: 'User', type: 'str', required: true, secret: false },
+    { name: 'token', label: 'API token', type: 'str', required: true, secret: true },
+  ];
+  const initial = () => [
+    setting({ key: 'auth.require_sign_in', label: 'Require signing in', group: 'sign_in', value: true, default: false, source: 'env', env: 'QABOARD_LOGIN_REQUIRED', type: 'bool', editable: false,
+      description: 'Anonymous users see nothing.', can_import_env: true, layers: { ...layers({ env: 'QABOARD_LOGIN_REQUIRED', default: false }), env: { name: 'QABOARD_LOGIN_REQUIRED', set: true, value: true, error: null } } }),
+    setting({ key: 'auth.local_signup', label: 'Local sign-up', group: 'sign_in', value: true, default: true, env: 'QABOARD_DISABLE_SIGNUP', type: 'bool', description: 'Anyone can create a local account.' }),
+    setting({ key: 'ingest.auth', label: 'Authenticate results sent by qa', value: 'off', default: 'off', env: 'QABOARD_INGEST_AUTH', type: 'str', choices: ['off', 'warn', 'token'],
+      description: 'How `qa` sends results.' }),
+    setting({ key: 'tokens.default_lifetime_days', label: 'Default token lifetime', value: 90, default: 90, type: 'int', unit: 'days', minimum: 1, description: 'How long new tokens live.' }),
+    setting({ key: 'tokens.max_lifetime_days', label: 'Longest token lifetime', value: null, default: null, type: 'int', nullable: true, unit: 'days', description: 'The longest lifetime.' }),
+    setting({ key: 'auth.allowed_origins', label: 'Other allowed origins', group: 'security', value: ['https://a.example'], default: [], source: 'database', env: 'QABOARD_ALLOWED_ORIGINS', type: 'list', description: 'Other origins.',
+      layers: { ...layers({}), database: { set: true, value: ['https://a.example'], updated_by: 'alice', updated_at: '2026-11-01T10:00:00Z', error: null } } }),
+    setting({ key: 'jenkins.build_token', label: 'Remote build token', group: 'jenkins', secret: true, nullable: true, env: 'JENKINS_BUILD_TOKEN', description: 'The token.' }),
+    setting({ key: 'jenkins.servers', label: 'Jenkins servers', group: 'jenkins', type: 'records', record_key: 'hostname', record_noun: 'Jenkins server', fields: jenkins_fields, default: [], source: 'database', env: 'JENKINS_AUTH',
+      value: [{ id: 'abc', hostname: 'jenkins.example.com', user: 'qa', token: true }], description: 'The Jenkins servers.' }),
+  ];
+  const server = [
+    { key: 'QABOARD_STORAGE_ROOTS', kind: 'environment', label: 'Storage roots', group: 'security', value: '/mnt/qaboard', is_set: true, source: 'env', description: 'Where results are.', why: 'A security boundary.', editable: false },
+  ];
+  const encryption = { key: { id: 'a1b2c3d4e5f6', source: 'generated', origin: '/var/qaboard/encryption_key', created_at: '2026-11-01T00:00:00Z' }, can_encrypt: true, previous_keys: [],
+    secrets: { total: 2, by_key: { a1b2c3d4e5f6: 2 }, unreadable: [], plaintext: 0, to_rotate: 0 }, weak: false, problems: [] };
+  let settings;
+  beforeEach(() => { settings = initial(); });
   const mockSettings = () => mockApi({
-    'GET /api/v1/admin/settings': { settings },
+    'GET /api/v1/admin/settings': () => [{ settings, groups, server, encryption }, 200],
     'POST /api/v1/admin/settings': (url, init) => {
       const [[key, value]] = Object.entries(JSON.parse(init.body));
-      return [{ settings: settings.map(s => s.key === key ? { ...s, value: value ?? s.default, source: value === null ? 'default' : 'database' } : s) }, 200];
+      if (key === 'jenkins.servers' && value.some(r => r.token === null)) return [{ error: 'jenkins.servers: API token is required' }, 400];
+      settings = settings.map(s => s.key === key ? { ...s, value: value ?? s.default, source: value === null ? 'default' : 'database' } : s);
+      return [{ settings, groups, server, encryption }, 200];
     },
   });
   const posted = fetch => calls(fetch, 'POST', '/api/v1/admin/settings').map(([, init]) => JSON.parse(init.body));
+  const renderSettings = (path = '/admin/settings') => renderAt(path, <Settings me={admin}/>);
 
-  it('shows where values come from: settings from the environment are read-only, with their variable', async () => {
+  it('groups the settings, and says where values come from', async () => {
     mockSettings();
-    renderWithProviders(<Settings/>);
-    const env_row = within(await screen.findByTestId('setting-auth.require_sign_in'));
-    expect(env_row.getByText('environment')).toBeInTheDocument();
-    expect(env_row.getByText('QABOARD_LOGIN_REQUIRED')).toBeInTheDocument();
-    expect(env_row.getByLabelText('Value of auth.require_sign_in')).toBeDisabled();
-    expect(env_row.queryByRole('button', { name: /Edit/ })).not.toBeInTheDocument();
-    expect(within(screen.getByTestId('setting-auth.allowed_origins')).getByText('database')).toBeInTheDocument();
+    renderSettings();
+    expect(await screen.findByRole('heading', { name: 'Jenkins' })).toBeInTheDocument();
+    const env_row = within(screen.getByTestId('setting-auth.require_sign_in'));
+    expect(env_row.getByText('Environment')).toBeInTheDocument();
+    expect(env_row.getByText(/Set by/)).toHaveTextContent('Set by $QABOARD_LOGIN_REQUIRED');
+    expect(env_row.getByRole('button', { name: 'Save it here' })).toBeInTheDocument();
+    // read-only: no switch
+    expect(env_row.queryByLabelText('Value of auth.require_sign_in')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('setting-auth.allowed_origins')).getByText('Saved here')).toBeInTheDocument();
     // `code` in descriptions
     expect(within(screen.getByTestId('setting-ingest.auth')).getByText('qa').tagName).toBe('CODE');
-    // empty values say so, the same way
-    expect(within(screen.getByTestId('setting-tokens.max_lifetime_days')).getByText('Not set')).toBeInTheDocument();
+    // the popover tells each layer
+    fireEvent.click(within(screen.getByTestId('setting-auth.allowed_origins')).getByText('Saved here'));
+    const popover = within(await screen.findByTestId('provenance'));
+    expect(popover.getByText('alice')).toBeInTheDocument();
+    expect(popover.getByText('in use')).toBeInTheDocument();
+    // the variables only the environment sets, and the encryption key
+    expect(within(screen.getByTestId('variable-QABOARD_STORAGE_ROOTS')).getByText('/mnt/qaboard')).toBeInTheDocument();
+    expect(within(screen.getByTestId('encryption-panel')).getByText('a1b2c3d4e5f6')).toBeInTheDocument();
+    expect(screen.getByText('Back up this key')).toBeInTheDocument();
+  });
+
+  it('searches and filters, in the URL', async () => {
+    mockSettings();
+    renderSettings('/admin/settings?filter=changed');
+    expect(await screen.findByTestId('setting-auth.allowed_origins')).toBeInTheDocument();
+    expect(screen.queryByTestId('setting-ingest.auth')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Changed/ })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: /^All/ }));
+    expect(history.location.search).toBe('');
+    fireEvent.change(screen.getByLabelText('Search settings'), { target: { value: 'jenkins token' } });
+    await waitFor(() => expect(history.location.search).toBe('?q=jenkins+token'), { timeout: 5000 });
+    expect(screen.getByTestId('setting-jenkins.build_token')).toBeInTheDocument();
+    expect(screen.queryByTestId('setting-ingest.auth')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Search settings'), { target: { value: 'nothing like this' } });
+    expect(await screen.findByText('No settings match', {}, { timeout: 5000 })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show all the settings' }));
+    expect(await screen.findByTestId('setting-ingest.auth')).toBeInTheDocument();
   });
 
   it('switches booleans and picks choices right away', async () => {
     const fetch = mockSettings();
-    renderWithProviders(<Settings/>);
+    renderSettings();
     fireEvent.click(await screen.findByLabelText('Value of auth.local_signup'));
     await waitFor(() => expect(posted(fetch)).toEqual([{ 'auth.local_signup': false }]));
-    fireEvent.change(screen.getByRole('combobox', { name: 'Value of ingest.auth' }), { target: { value: 'warn' } });
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Value of ingest.auth' })).getByRole('radio', { name: 'warn' }));
     await waitFor(() => expect(posted(fetch)).toHaveLength(2));
     expect(posted(fetch)[1]).toEqual({ 'ingest.auth': 'warn' });
   });
 
   it('edits numbers, empty means not set when it can be', async () => {
     const fetch = mockSettings();
-    renderWithProviders(<Settings/>);
+    renderSettings();
     const row = within(await screen.findByTestId('setting-tokens.default_lifetime_days'));
-    fireEvent.click(row.getByRole('button', { name: 'Edit tokens.default_lifetime_days' }));
     fireEvent.change(row.getByLabelText('Value of tokens.default_lifetime_days'), { target: { value: '1.5' } });
     fireEvent.click(row.getByRole('button', { name: 'Save' }));
     expect(row.getByRole('alert')).toHaveTextContent('Type a whole number.');
     fireEvent.change(row.getByLabelText('Value of tokens.default_lifetime_days'), { target: { value: '30' } });
     fireEvent.click(row.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(posted(fetch)).toEqual([{ 'tokens.default_lifetime_days': 30 }]));
-    expect(await row.findByText('database')).toBeInTheDocument();
+    expect(await row.findByText('Saved here')).toBeInTheDocument();
+    expect(row.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
 
     const max = within(screen.getByTestId('setting-tokens.max_lifetime_days'));
-    fireEvent.click(max.getByRole('button', { name: 'Edit tokens.max_lifetime_days' }));
+    // not set: nothing to save until something is typed
+    fireEvent.change(max.getByLabelText('Value of tokens.max_lifetime_days'), { target: { value: '' } });
+    expect(max.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+    fireEvent.change(max.getByLabelText('Value of tokens.max_lifetime_days'), { target: { value: '60' } });
     fireEvent.click(max.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(posted(fetch)).toHaveLength(2));
-    expect(posted(fetch)[1]).toEqual({ 'tokens.max_lifetime_days': null });
+    expect(posted(fetch)[1]).toEqual({ 'tokens.max_lifetime_days': 60 });
+    await waitFor(() => expect(max.getByLabelText('Value of tokens.max_lifetime_days')).toHaveValue('60'));
+    fireEvent.change(max.getByLabelText('Value of tokens.max_lifetime_days'), { target: { value: '' } });
+    expect(max.getByText(/Empty: not set/)).toBeInTheDocument();
+    fireEvent.click(max.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(posted(fetch)).toHaveLength(3));
+    expect(posted(fetch)[2]).toEqual({ 'tokens.max_lifetime_days': null });
   });
 
-  it('edits lists as comma-separated text, and resets settings to their default', async () => {
+  it('edits lists as tags, and resets settings to their default', async () => {
     const fetch = mockSettings();
-    renderWithProviders(<Settings/>);
+    renderSettings();
     const row = within(await screen.findByTestId('setting-auth.allowed_origins'));
-    fireEvent.click(row.getByRole('button', { name: 'Edit auth.allowed_origins' }));
-    fireEvent.change(row.getByLabelText('Value of auth.allowed_origins'), { target: { value: 'https://a.example, https://b.example' } });
+    const input = row.getByLabelText('Value of auth.allowed_origins');
+    fireEvent.change(input, { target: { value: 'https://b.example' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
     fireEvent.click(row.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(posted(fetch)).toEqual([{ 'auth.allowed_origins': ['https://a.example', 'https://b.example'] }]));
     fireEvent.click(await row.findByRole('button', { name: 'Reset auth.allowed_origins to its default' }));
     await waitFor(() => expect(posted(fetch)).toHaveLength(2));
     expect(posted(fetch)[1]).toEqual({ 'auth.allowed_origins': null });
+  });
+
+  it('never shows secrets: admins replace them', async () => {
+    const fetch = mockSettings();
+    renderSettings();
+    const row = within(await screen.findByTestId('setting-jenkins.build_token'));
+    fireEvent.click(row.getByRole('button', { name: 'Set jenkins.build_token' }));
+    const input = row.getByLabelText('Value of jenkins.build_token');
+    expect(input).toHaveAttribute('type', 'password');
+    fireEvent.change(input, { target: { value: 's3cret' } });
+    fireEvent.click(row.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(posted(fetch)).toEqual([{ 'jenkins.build_token': 's3cret' }]));
+  });
+
+  it('edits records in a dialog, keeping their secrets', async () => {
+    const fetch = mockSettings();
+    renderSettings();
+    const row = within(await screen.findByTestId('setting-jenkins.servers'));
+    expect(row.getByText('jenkins.example.com')).toBeInTheDocument();
+    fireEvent.click(row.getByRole('button', { name: 'Edit jenkins.example.com' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    expect(dialog.getByLabelText('API token')).toHaveValue('');
+    fireEvent.change(dialog.getByLabelText(/^User/), { target: { value: 'qa-bot' } });
+    fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
+    // the token is kept: `true`
+    await waitFor(() => expect(posted(fetch)).toEqual([{ 'jenkins.servers': [{ id: 'abc', hostname: 'jenkins.example.com', user: 'qa-bot', token: true }] }]));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add a Jenkins server' }));
+    const added = within(await screen.findByRole('dialog'));
+    fireEvent.change(added.getByLabelText(/^Hostname/), { target: { value: 'other' } });
+    fireEvent.click(added.getByRole('button', { name: 'Add' }));
+    expect(added.getByText('User is required.')).toBeInTheDocument();
+    expect(added.getByText('API token is required.')).toBeInTheDocument();
+    expect(posted(fetch)).toHaveLength(1);
+  });
+
+  it('links to a setting', async () => {
+    mockSettings();
+    renderSettings('/admin/settings?setting=jenkins.build_token');
+    expect(await screen.findByTestId('setting-jenkins.build_token')).toHaveClass('highlighted');
   });
 });
 
