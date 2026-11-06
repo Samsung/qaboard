@@ -58,8 +58,9 @@ def stuck_schedule():
 @app.route('/api/v1/activity/overview/', methods=['GET'])
 @login_required
 def activity_overview():
+  activity.no_jit()
   who = whose(request.args)
-  filters = filters_from(request.args, who['user'])
+  filters = activity.snapshot(filters_from(request.args, who['user']))
   answer = {
     **who,
     "me": me(),
@@ -111,6 +112,7 @@ def group_and_key(source):
 @login_required
 def activity_items():
   """The runs grouped by project, commit, batch, user, `qa batch` command, runner, queue, platform, job option or status"""
+  activity.no_jit()
   who = whose(request.args)
   group = request.args.get('group') or 'batch'
   if group not in activity.GROUPS:
@@ -128,6 +130,7 @@ def activity_items():
 @login_required
 def activity_runs():
   """The runs themselves, maybe only one group's (`group` and `key`)"""
+  activity.no_jit()
   who = whose(request.args)
   group, key = group_and_key(request.args)
   filters = filters_from(request.args, who['user'], group=group, key=key)
