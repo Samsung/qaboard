@@ -40,10 +40,11 @@ shot('admin/settings', {
   project: null,
   login: ADMIN,
   url: d => `${d.baseUrl}/admin/settings`,
-  alt: 'Admin → Settings: requiring sign-in and local sign-up are switches, ingest.auth is "off", set by '
-    + 'QABOARD_INGEST_AUTH in the environment, and the projects\' default visibility and role of signed-in users are '
-    + 'menus, each with its description.',
-  caption: 'Change settings without restarting the server: those set in its environment can only be changed there.',
+  alt: 'Admin → Settings: a search box and filters (All, Changed, From the environment, Secrets), the groups of '
+    + 'settings on the left (Sign-in, Projects and access, Git hosts, Jenkins, Email...), and the Sign-in settings: '
+    + 'each with its description, its variable, where its value comes from (Default, Saved here, Environment) and a '
+    + 'switch, choices or a text field.',
+  caption: 'Change settings without restarting the server. Click a badge to see where a value comes from: those set in the server\'s environment can only be changed there.',
   actions: async ui => {
     await ui.page.getByTestId('setting-ingest.auth').waitFor();
     await ui.cursor.moveTo(away);
@@ -51,8 +52,8 @@ shot('admin/settings', {
   },
   target: page => between(
     page.getByRole('region', { name: 'Settings' }).locator('p').first(),
-    page.getByTestId('setting-projects.signed_in_role'),
-    page.getByRole('table', { name: 'Settings' }),
+    page.getByTestId('setting-auth.allowed_email_domains'),
+    page.getByRole('region', { name: 'Settings' }),
   ),
 });
 

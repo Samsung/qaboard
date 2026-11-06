@@ -9,7 +9,16 @@ QA-Board works with repositories on **GitHub** (github.com and GitHub Enterprise
 - links to the code, shows committers' avatars,
 - shows and starts CI jobs: GitHub Actions workflows, GitLab CI manual jobs (see [integrations](/docs/triggering-third-party-tools)).
 
-## Connect one GitHub or GitLab
+## Connect your git hosts
+In **Admin → Settings → Git hosts**, click **Add a git host**: its type (GitHub, GitLab, Gitea, Forgejo, Bitbucket),
+its URL and an access token. Then set a **Webhook secret**, and add a webhook to each repository (see
+[Webhooks](#webhooks)). The tokens and secrets are encrypted in the database ([secrets](/docs/backend-admin/settings#secrets-and-the-encryption-key)),
+and the hosts apply within seconds, without a deploy. github.com is always known, even without a token.
+
+The environment variables below still work, and win: the settings page shows them read-only, and **Save it here**
+copies them to the database, so that you can remove them.
+
+## Or with environment variables
 For a single host, a token and a webhook secret are enough. With docker compose, put them in `.env`, next to
 *docker-compose.yml* (with the Helm chart, in its secret):
 
@@ -27,7 +36,7 @@ Deploy again, then add a webhook to each repository (see [Webhooks](#webhooks)).
 Gitea, Forgejo or Bitbucket, use `QABOARD_GIT_HOSTS`.
 
 ## Configuration
-List your hosts in `QABOARD_GIT_HOSTS`, as a JSON list, or as the path to a JSON or YAML file with the list (e.g. a mounted secret):
+Each host has the keys below, in **Admin → Settings → Git hosts** or in `QABOARD_GIT_HOSTS`. With the environment, list your hosts in `QABOARD_GIT_HOSTS`, as a JSON list, or as the path to a JSON or YAML file with the list (e.g. a mounted secret):
 ```bash
 QABOARD_GIT_HOSTS='[
   {"type": "github", "url": "https://github.com", "token": "github_pat_..."},

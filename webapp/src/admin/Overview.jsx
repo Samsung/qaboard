@@ -47,22 +47,33 @@ const Check = styled.li`
 
 // Where admins fix each item. Items can also say where, with `link`.
 const item_links = {
-  require_sign_in: '/admin/settings',
-  ingest_auth: '/admin/settings',
-  local_signup: '/admin/settings',
+  require_sign_in: '/admin/settings?setting=auth.require_sign_in',
+  ingest_auth: '/admin/settings?setting=ingest.auth',
+  local_signup: '/admin/settings?setting=auth.local_signup',
+  jenkins_anonymous_jobs: '/admin/settings?setting=jenkins.anonymous_jobs',
+  signed_in_role: '/admin/settings?setting=projects.signed_in_role',
+  webhook_secret: '/admin/settings?setting=git.webhook_secret',
   legacy_tokens: '/admin/tokens',
+  encryption_unreadable: '/admin/settings?group=security',
+  encryption_problem: '/admin/settings?group=security',
+  encryption_generated: '/admin/settings?group=security',
+  encryption_weak: '/admin/settings?group=security',
+  encryption_rotate: '/admin/settings?group=security',
   // the "Get more from QA-Board" list (value_checklist, backend/api/admin.py). The others are server settings.
+  email_notifications: '/admin/settings?group=email',
+  git_hosts: '/admin/settings?group=git',
   single_sign_on: '/admin/sign-in',
   garbage_collect: '/admin/storage',
   ci_only_projects: '/admin/usage?period=90d',
   web_only_users: '/admin/usage?period=90d',
   tuning_products: '/admin/usage?period=90d',
 };
-const item_link = item => item.link ?? item_links[item.id];
+// invalid_env:<key>, undecryptable:<key>: the setting
+const item_link = item => item.link ?? item_links[item.id] ?? (/^(invalid_env|undecryptable):/.test(item.id) ? `/admin/settings?setting=${encodeURIComponent(item.id.split(':')[1])}` : undefined);
 // The settings named in the details, e.g. "Set auth.require_sign_in to...", link to the settings
-const setting_name = /\b((?:auth|ingest|tokens|audit|projects)\.[a-z_]+[a-z])\b/;
+const setting_name = /\b((?:auth|ingest|tokens|audit|projects|sessions|jenkins|git|email|web|analytics|storage|metrics|jobs)\.[a-z_]+[a-z])\b/;
 export const Detail = ({ text }) => text.split(setting_name).map((part, i) => i % 2
-  ? <Link key={i} to="/admin/settings"><code>{part}</code></Link>
+  ? <Link key={i} to={`/admin/settings?setting=${part}`}><code>{part}</code></Link>
   : part);
 
 // What's left to do first, then what's fine. `title`: the security checklist by default, or what to configure or

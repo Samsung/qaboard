@@ -75,7 +75,7 @@ Users who already have an account (LDAP, local) don't get a new one by default: 
 | `QABOARD_OIDC_EMAIL_CLAIM` | `email` | |
 | `QABOARD_OIDC_NAME_CLAIM` | `name` | |
 | `QABOARD_OIDC_GROUPS_CLAIM` | `groups` | Recorded in the audit log at each sign-in. [Group rules](/docs/backend-admin/project-access#groups) can read any claim |
-| `QABOARD_OIDC_REFRESH_GROUPS` | `false` | `true` reads users' claims again every day, with refresh tokens (needs `QABOARD_ENCRYPTION_KEY`, see [groups](/docs/backend-admin/project-access#groups)) |
+| `QABOARD_OIDC_REFRESH_GROUPS` | `false` | `true` reads users' claims again every day, with refresh tokens, encrypted (see [the encryption key](/docs/backend-admin/settings#secrets-and-the-encryption-key) and [groups](/docs/backend-admin/project-access#groups)) |
 | `QABOARD_OIDC_REDIRECT_URI` | `$QABOARD_URL/api/v1/auth/oidc/callback` | Only if the IdP has another URI registered for QA-Board |
 | `QABOARD_OIDC_PICTURE_CLAIM` | `picture` | The users' pictures: an URL or a `data:` URI (see [Pictures and profiles](#pictures-and-profiles)) |
 | `QABOARD_OIDC_PICTURE_URL` | _empty_ | An URL QA-Board reads users' photos from, with their access token. Entra ID: `https://graph.microsoft.com/v1.0/me/photo/$value` |
@@ -87,8 +87,8 @@ Users who already have an account (LDAP, local) don't get a new one by default: 
 Admins add more OpenID Connect providers in **Admin → Sign-in**: say, a partner's IdP next to yours. Each has its own
 redirect URI, `$QABOARD_URL/api/v1/auth/oidc/<id>/callback`, shown in the panel. Its secret is either:
 - the name of an environment variable that holds it (nothing secret in the database), or
-- stored encrypted in the database: set `QABOARD_ENCRYPTION_KEY` on the server first, to any long random text
-  (`openssl rand -base64 32`). Keep it: without it, the stored secrets can't be read.
+- stored encrypted in the database, with the server's encryption key: `QABOARD_ENCRYPTION_KEY`, or a key the server
+  generates. Back it up: without it, the stored secrets can't be read (see [the encryption key](/docs/backend-admin/settings#secrets-and-the-encryption-key)).
 
 Providers from the environment are read-only in the panel. Users link more sign-in methods to their account in
 **Settings → Sign-in methods**.

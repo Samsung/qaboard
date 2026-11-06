@@ -15,6 +15,10 @@
   --qa-sider-background: #1c2127;
   /* Blueprint's primary intent, e.g. what differs from the defaults */
   --qa-intent-primary: #2d72d2;
+  /* errors in text, e.g. a setting's invalid value */
+  --qa-text-danger: #ac2f33;
+  /* a row just linked to, e.g. /admin/settings?setting=key */
+  --qa-highlight: rgba(251, 179, 96, 0.22);
   /* What we compare (src/sideColors.js): the new results, then each reference. No red, green or orange: they say
      better, worse or warnings. Checked for color blindness: each reference against new, and against each other. */
   --qa-side-0: #2d72d2;
@@ -40,6 +44,8 @@
   --qa-hover: rgba(138, 187, 255, 0.1);
   --qa-sider-background: #111418;
   --qa-intent-primary: #4c90f0;
+  --qa-text-danger: #fa999c;
+  --qa-highlight: rgba(251, 179, 96, 0.16);
   --qa-side-0: #4c90f0;
   --qa-side-1: #9c4bf5;
   --qa-side-2: #f438a6;

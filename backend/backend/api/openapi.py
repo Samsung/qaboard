@@ -9,7 +9,6 @@ API, not the data. The requests made from Swagger UI are authenticated like the 
 the token users paste in "Authorize". We don't keep that token in the browser's storage: the origin also serves the
 users' HTML files.
 """
-import os
 import copy
 import json
 import html
@@ -122,6 +121,7 @@ def api_docs(filename=None):
     response.headers['Cache-Control'] = 'public, max-age=86400'
     return response
   assets = '.' if dist is not None else SWAGGER_UI_CDN
-  # The docs this server serves match its version (QABOARD_DOCS_ROOT, like the web app's links)
-  docs = os.environ.get('QABOARD_DOCS_ROOT', '/').rstrip('/') + '/docs/http-api'
+  # The docs this server serves match its version (web.docs_root, like the web app's links)
+  from ..settings import setting
+  docs = (setting('web.docs_root') or '/').rstrip('/') + '/docs/http-api'
   return Response(DOCS_PAGE.format(assets=assets, docs=html.escape(docs, quote=True)), mimetype='text/html')

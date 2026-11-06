@@ -169,17 +169,26 @@ integrations:
 
 Clicking starts the build: users need to be developers of the project. In the job's configuration, enable
 **Trigger builds remotely (e.g., from scripts)**. The QA-Board server triggers the build with the credentials of the
-Jenkins host in its `JENKINS_AUTH` environment variable:
+Jenkins host that admins add in **Admin → Settings → Jenkins**: its hostname, a user, and an API token of that user,
+created in their Jenkins settings. The token is encrypted in the database
+([secrets](/docs/backend-admin/settings#secrets-and-the-encryption-key)).
+
+<details>
+<summary>With an environment variable: <code>JENKINS_AUTH</code></summary>
 
 ```json
 {"jenkins.kitefin.example": {"user": "<user>", "token": "<api-token>", "crumb": "<crumb>"}}
 ```
 
-`<api-token>` is an API token of that Jenkins user, created in their Jenkins settings, and `<crumb>` the answer of
-`<jenkins>/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,":",//crumb)`, which handles
-[Jenkins' CSRF protection](https://www.jenkins.io/doc/book/security/csrf-protection/). See the
+`<crumb>` is only needed by Jenkins servers that require a CSRF crumb with API tokens: the answer of
+`<jenkins>/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,":",//crumb)`
+([Jenkins' CSRF protection](https://www.jenkins.io/doc/book/security/csrf-protection/)). The variable wins over the
+settings page, where **Save it here** copies it to the database. See the
 [server's environment variables](/docs/deploy#optional-environment-variables).
-To check the builds' status, the server only uses these credentials on the hosts of `JENKINS_AUTH`, on the default
+
+</details>
+
+To check the builds' status, the server only uses these credentials on their Jenkins hosts, on the default
 ports of http and https, or with the scheme and port of a Jenkins job of the projects' *qaboard.yaml* (e.g.
 `http://jenkins:8080/job/x`).
 

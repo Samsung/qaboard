@@ -77,33 +77,10 @@ docker compose exec backend qaboard-admin revoke-tokens bob   # e.g. after a lea
 ```
 
 ## Settings
-Settings are stored in the database and changed in **Admin → Settings**. An environment variable, when set, wins:
-the panel then shows the setting as "set by the environment", and you change it where you deploy.
-
-<Shot id="admin/settings" />
-
-| Setting | Environment variable | Default | What it does |
-|---|---|---|---|
-| `auth.require_sign_in` | `QABOARD_LOGIN_REQUIRED` | `false` | Anonymous users can't see anything (see [Blocking anonymous users](#blocking-anonymous-users)) |
-| `auth.local_signup` | `QABOARD_DISABLE_SIGNUP` (`true` turns it off) | on with `LOCAL`, off with LDAP or SAML | Anyone can create a local account with a password |
-| `ingest.auth` | `QABOARD_INGEST_AUTH` | `off` | How results sent by `qa` are authenticated (see [Results sent by qa](#results-sent-by-qa)) |
-| `jenkins.anonymous_jobs` | `QABOARD_JENKINS_ANONYMOUS_JOBS` (comma-separated) | none | Jenkins jobs anyone can start without a token, for now (see [Jenkins jobs started without a token](#jenkins-jobs-started-without-a-token)) |
-| `auth.allowed_origins` | `QABOARD_ALLOWED_ORIGINS` (comma-separated) | none | Other websites allowed to make changes with users' cookies |
-| `tokens.default_lifetime_days` | | `90` | The default lifetime of the tokens users create |
-| `tokens.max_lifetime_days` | | none | The longest lifetime users may choose. Empty: tokens may never expire |
-| `tokens.cli_idle_expiry_days` | | `180` | Tokens created by `qa auth login` expire after this many days without use |
-| `tokens.ci_lifetime_minutes` | | `360` | How long the tokens of trusted CI jobs work (5 to 1440 minutes) |
-| `audit.retention_days` | | `730` | `qaboard-admin purge-audit` deletes older audit events |
-| `auth.access_policy` | `QABOARD_ACCESS_POLICY` | `open` | Who gets an account: `open`, `domains`, `approval` (see [Decide who gets an account](/docs/backend-admin/sign-in#decide-who-gets-an-account)) |
-| `auth.allowed_email_domains` | `QABOARD_ALLOWED_EMAIL_DOMAINS` | none | With `domains`: the email domains whose users get an account right away |
-| `auth.access_request_webhook` | `QABOARD_ACCESS_REQUEST_WEBHOOK` | none | A Slack, Teams or Mattermost incoming webhook told when users wait for an admin |
-| `auth.sso_auto_redirect` | `QABOARD_SSO_AUTO_REDIRECT` | `false` | The sign-in page goes straight to the only single sign-on, when signing in is required |
-| `sessions.idle_days` | | `30` | Browser sessions end after this many days without activity |
-| `sessions.max_days` | | `180` | Browser sessions end after this many days in any case (365 at most) |
-| `projects.default_visibility` | `QABOARD_DEFAULT_VISIBILITY` | `public` | The visibility of projects whose owners didn't choose (see [Project access and roles](/docs/backend-admin/project-access)) |
-| `projects.signed_in_role` | `QABOARD_SIGNED_IN_ROLE` | `developer` | The role of signed-in users on public and internal projects: `viewer` or `developer` |
-
-Empty environment variables count as unset.
+Settings are changed in **Admin → Settings**, and an environment variable, when set, wins: see
+[Settings and secrets](/docs/backend-admin/settings), with [every setting](/docs/backend-admin/settings#every-setting).
+The settings about users: `auth.require_sign_in`, `auth.local_signup`, `auth.access_policy`, `ingest.auth`, the
+lifetime of tokens (`tokens.*`) and sessions (`sessions.*`), `projects.default_visibility` and `projects.signed_in_role`.
 
 ## Authentication Providers
 `QABOARD_LOGIN_TYPE` chooses the password accounts, or SAML:

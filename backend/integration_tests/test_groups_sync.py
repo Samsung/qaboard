@@ -203,8 +203,13 @@ def test_sso_groups_refresh_daily(idp, root, make_client, monkeypatch):
   assert members(root, camera) == [('alice', 'rule')]
 
 
-def test_refreshing_groups_needs_the_encryption_key(root, monkeypatch):
+def test_refreshing_groups_needs_an_encryption_key(root, monkeypatch):
+  # the server can't generate one: e.g. its data folder isn't writable
   monkeypatch.delenv('QABOARD_ENCRYPTION_KEY', raising=False)
+  from backend import encryption
+  monkeypatch.setattr(encryption, "can_encrypt", lambda: False)
+  import backend.api.admin_sign_in as admin_sign_in
+  monkeypatch.setattr(admin_sign_in, "can_encrypt", lambda: False)
   response = root.post('/api/v1/admin/sign-in/providers', json={
     "id": "keycloak", "name": "Keycloak", "issuer": "https://idp.example.com/realms/x", "client_id": "qaboard", "refresh_groups": True,
   })

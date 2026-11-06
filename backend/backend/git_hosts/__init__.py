@@ -32,7 +32,9 @@ Backward compatible with the variables we used before:
   If QABOARD_GIT_HOSTS lists those hosts without a token, they get those tokens.
 The default host, for projects we know nothing about, is GITLAB_HOST if set, else the first in QABOARD_GIT_HOSTS.
 
-The server reads tokens and webhook secrets from its environment only, not from the CLI's shared secrets (QA_SECRETS):
+Admins can also configure them in the web app, Admin → Settings → Git hosts (git.hosts, git.webhook_secret, with their
+tokens encrypted in the database): used when the environment doesn't set QABOARD_GIT_HOSTS, QABOARD_WEBHOOK_SECRET.
+The server reads tokens and webhook secrets from its environment and those settings only, not from the CLI's shared secrets (QA_SECRETS):
 they may have e.g. a CI token that is not meant for the server. Other settings can also come from the site package.
 Invalid settings don't stop the server (or migrations): we log them, ignore what's invalid,
 and refuse webhooks until they're fixed (see `GitHosts.errors`).
@@ -59,6 +61,7 @@ use `git_hosts.for_repo(git)` to know their host.
 import os
 import sys
 import json
+import threading
 from pathlib import Path
 from urllib.parse import urlparse, unquote
 
@@ -136,11 +139,11 @@ class GitHosts:
       if host:
         return self.with_scheme_of(host, git.get('web_url'))
     if git.get('web_url') and hosting_type not in (None, 'gitlab'):
-      raise UntrustedHost(f"Unknown {hosting_type} host: {git['web_url']}. Add it to QABOARD_GIT_HOSTS.")
+      raise UntrustedHost(f"Unknown {hosting_type} host: {git['web_url']}. Add it in Admin → Settings → Git hosts (or QABOARD_GIT_HOSTS).")
     # Before hosts were configurable, all repositories were on GITLAB_HOST, except GitHub's.
     host = self.of_type(hosting_type) if hosting_type else self.default
     if not host:
-      raise UntrustedHost(f"No {hosting_type} host is configured. Add one to QABOARD_GIT_HOSTS.")
+      raise UntrustedHost(f"No {hosting_type} host is configured. Add one in Admin → Settings → Git hosts (or QABOARD_GIT_HOSTS).")
     return host
 
   def with_scheme_of(self, host, web_url):
@@ -226,14 +229,52 @@ def server_secret(name, default=None):
   return os.environ.get(name, default)
 
 
+# The admin panel's settings (backend/settings.py) for the variables, when the environment (or site package) doesn't set them
+SETTINGS_OF_VARIABLES = {
+  'QABOARD_GIT_HOSTS': 'git.hosts',
+  'QABOARD_WEBHOOK_SECRET': 'git.webhook_secret',
+  'QABOARD_AVATAR_URL': 'web.avatar_url',
+}
+
+
+def _from_settings(name, default):
+  from .. import settings
+  key = SETTINGS_OF_VARIABLES.get(name)
+  if not key:
+    return default
+  value = settings.setting(key)
+  if key == 'git.hosts':
+    # the saved records, without their ids
+    return [{k: v for k, v in record.items() if k != 'id' and v not in (None, '', [])} for record in value or []] or default
+  return value or default
+
+
+def setting_or_variable(name, default=None):
+  """Environment variables > site package > the admin panel's settings"""
+  value = server_setting(name)
+  return value if value not in (None, '') else _from_settings(name, default)
+
+
+def secret_or_variable(name, default=None):
+  """Environment variables > the admin panel's settings"""
+  value = server_secret(name)
+  return value if value not in (None, '') else _from_settings(name, default)
+
+
+def hosts_configured() -> bool:
+  """Whether admins said where their repositories are, or gave tokens: gitlab.com and github.com are always known"""
+  return any(setting_or_variable(name) for name in ('QABOARD_GIT_HOSTS', 'GITLAB_HOST', 'QABOARD_GITLAB_HOSTS', 'QABOARD_GITHUB_HOSTS')) \
+    or any(server_secret(name) for name in ('GITLAB_ACCESS_TOKEN', 'GITHUB_ACCESS_TOKEN'))
+
+
 def load_git_hosts(get=None, get_secret=None, strict=False):
   """
-  get(name, default): reads the settings. Default: environment variables > site package.
-  get_secret(name, default): reads tokens and webhook secrets. Default: environment variables. In tests: `get`.
+  get(name, default): reads the settings. Default: environment variables > site package > Admin → Settings.
+  get_secret(name, default): reads tokens and webhook secrets. Default: environment variables > Admin → Settings. In tests: `get`.
   strict: raise ValueError for invalid settings, instead of logging and ignoring them (see GitHosts.errors).
   """
   if get is None:
-    get, get_secret = server_setting, get_secret or server_secret
+    get, get_secret = setting_or_variable, get_secret or secret_or_variable
   get_secret = get_secret or get
   errors = []
   def invalid(message):
@@ -326,7 +367,38 @@ def load_git_hosts(get=None, get_secret=None, strict=False):
   return GitHosts(hosts, default, webhook_secret, errors)
 
 
-git_hosts = load_git_hosts()
+class LiveGitHosts:
+  """
+  The git hosts, as configured now: rebuilt when admins change them in Admin → Settings (git.hosts...).
+  Behaves like GitHosts. Nothing is read when it's imported: only when it's first used.
+  """
+
+  def __init__(self, load=load_git_hosts):
+    self._load = load
+    self._hosts = None
+    self._version = None
+    self._lock = threading.Lock()
+
+  def current(self) -> GitHosts:
+    from .. import settings
+    version = settings.version()
+    if self._hosts is None or version != self._version:
+      with self._lock:
+        if self._hosts is None or version != self._version:
+          self._hosts, self._version = self._load(), version
+    return self._hosts
+
+  def __getattr__(self, name):
+    return getattr(self.current(), name)
+
+  def __iter__(self):
+    return iter(self.current())
+
+  def __repr__(self):
+    return repr(self.current())
+
+
+git_hosts = LiveGitHosts()
 
 
 def committer_avatar_url(name, git=None, project_url=None):

@@ -93,6 +93,7 @@ import backend.api.service_accounts
 import backend.api.ci_trust
 import backend.api.users
 import backend.api.admin
+import backend.api.admin_settings
 import backend.api.sign_in
 import backend.api.admin_sign_in
 import backend.api.admin_jobs

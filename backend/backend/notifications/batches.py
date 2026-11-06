@@ -9,7 +9,6 @@ How we know a batch is over, cheaply even for batches with thousands of runs:
   there is none). If there is one, we check whether the command has pending runs left, with an index of
   the pending runs only. When none are left, we claim the notification and send it, exactly once.
 """
-import os
 import datetime
 from urllib.parse import urljoin
 
@@ -39,7 +38,7 @@ def request_batch_notification(session, command_id, ci_commit, batch, user_name,
   """
   settings = email_settings()
   if not settings.enabled:
-    return None, "This QA-Board server can't send emails. Ask its administrators to configure it (QABOARD_SMTP_HOST)."
+    return None, "This QA-Board server can't send emails. Ask its administrators to set its SMTP server (Admin → Settings → Email)."
   recipient = recipient_for(user_name, email, settings)
   if not recipient:
     return None, f"QA-Board doesn't know the email address of {user_name}."
@@ -130,14 +129,16 @@ def command_runs(session, notification):
 
 
 def docs_url(page):
-  docs_root = os.environ.get('QABOARD_DOCS_ROOT', '/')
+  from ..settings import setting
+  docs_root = setting('web.docs_root') or '/'
   return urljoin(urljoin(qaboard_url.rstrip('/') + '/', docs_root.lstrip('/') if not docs_root.startswith('http') else docs_root), page)
 
 
 def format_time(date):
-  """In QABOARD_EMAIL_TIMEZONE (e.g. Asia/Jerusalem), else UTC"""
+  """In the email.timezone setting (e.g. Asia/Jerusalem, QABOARD_EMAIL_TIMEZONE), else UTC"""
   import pytz
-  name = os.environ.get('QABOARD_EMAIL_TIMEZONE') or 'UTC'
+  from ..settings import setting
+  name = setting('email.timezone') or 'UTC'
   try:
     timezone = pytz.timezone(name)
   except pytz.UnknownTimeZoneError:

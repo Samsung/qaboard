@@ -245,7 +245,7 @@ class TestCommitsMetrics:
 
   def test_skipped_for_the_projects_of_the_setting(self, dummy_app, api, monkeypatch):
     # QABOARD_SKIP_METRICS_AGGREGATION=group/big,huge/
-    monkeypatch.setattr(api, 'skip_metrics_aggregation', ('group/big', 'huge/'))
+    monkeypatch.setattr(api, 'skip_metrics_aggregation', lambda: ('group/big', 'huge/'))
     assert self.aggregated(dummy_app, api, 'group/big') == {}
     assert self.aggregated(dummy_app, api, 'group/big/subproject') == {}
     assert self.aggregated(dummy_app, api, 'huge/isp') == {}
@@ -254,12 +254,13 @@ class TestCommitsMetrics:
 
 
 def test_skip_metrics_aggregation_setting(monkeypatch):
-  import backend.config
+  import backend.settings as settings
+  monkeypatch.setattr(settings, "_database_rows", lambda: {})
   monkeypatch.setenv('QABOARD_SKIP_METRICS_AGGREGATION', ' group/big, huge/ ,')
-  config = importlib.reload(backend.config)
-  assert config.skip_metrics_aggregation == ('group/big', 'huge/')
+  from backend.api import api
+  assert api.skip_metrics_aggregation() == ('group/big', 'huge/')
   monkeypatch.delenv('QABOARD_SKIP_METRICS_AGGREGATION')
-  assert importlib.reload(backend.config).skip_metrics_aggregation == ()
+  assert api.skip_metrics_aggregation() == ()
 
 
 class TestBranches:

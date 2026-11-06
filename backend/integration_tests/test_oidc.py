@@ -346,11 +346,23 @@ def test_admins_add_providers(idp, logged_in, make_client, monkeypatch):
   assert root.post('/api/v1/admin/sign-in/providers', json={"id": "Bad Id", "issuer": ISSUER, "client_id": "x"}).status_code == 400
 
 
-def test_secrets_need_the_encryption_key(logged_in, monkeypatch):
+def test_secrets_without_an_encryption_key(logged_in, monkeypatch):
+  """Without $QABOARD_ENCRYPTION_KEY, the server generates a key in its data folder"""
   monkeypatch.setenv('QABOARD_ADMINS', 'root')
   monkeypatch.delenv('QABOARD_ENCRYPTION_KEY', raising=False)
-  response = logged_in('root').post('/api/v1/admin/sign-in/providers', json={"id": "k", "issuer": ISSUER, "client_id": "x", "client_secret": "s"})
-  assert response.status_code == 400 and "QABOARD_ENCRYPTION_KEY" in response.get_json()["error"]
+  from backend import encryption
+  encryption.key_file().unlink(missing_ok=True)
+  root = logged_in('root')
+  response = root.post('/api/v1/admin/sign-in/providers', json={"id": "k", "issuer": ISSUER, "client_id": "x", "client_secret": "s"})
+  assert response.status_code == 201
+  from backend.models import AuthProvider
+  stored = AuthProvider.query.filter(AuthProvider.id == 'k').one().secret_encrypted
+  assert encryption.key_id_of(stored) == encryption.generated_key().id and encryption.decrypt(stored) == "s"
+  assert oct(encryption.key_file().stat().st_mode & 0o777) == '0o600'
+  # a key file that can't be read stops it
+  monkeypatch.setenv('QABOARD_ENCRYPTION_KEY_FILE', '/no/such/key')
+  response = root.post('/api/v1/admin/sign-in/providers', json={"id": "k2", "issuer": ISSUER, "client_id": "x", "client_secret": "s"})
+  assert response.status_code == 400 and "QABOARD_ENCRYPTION_KEY_FILE" in response.get_json()["error"]
 
 
 def test_the_doctor(idp, logged_in, monkeypatch):

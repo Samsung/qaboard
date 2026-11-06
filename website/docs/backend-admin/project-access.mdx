@@ -94,7 +94,7 @@ to add the groups of their groups: it costs one more query per user.
 
 Identity providers send the groups when users sign in. To keep them up to date between sign-ins, enable **Refresh
 groups daily** on the provider (`QABOARD_OIDC_REFRESH_GROUPS=true` for the environment's): QA-Board asks for
-`offline_access`, keeps each user's refresh token encrypted (it needs `QABOARD_ENCRYPTION_KEY`), and reads their claims
+`offline_access`, keeps each user's refresh token encrypted ([the encryption key](/docs/backend-admin/settings#secrets-and-the-encryption-key)), and reads their claims
 again every day. When the provider refuses a refresh token, e.g. the user was disabled, the groups it gave end, and
 the user's QA-Board sessions from that provider too: signing in again gives the groups back.
 
