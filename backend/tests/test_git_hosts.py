@@ -408,7 +408,7 @@ def integrations(monkeypatch, tmp_path):
     "group/gitlab-repo": {"git": {"path_with_namespace": "group/gitlab-repo", "web_url": "https://gitlab.example.com/group/gitlab-repo"}, "qatools_config": GITHUB_PROJECT["qatools_config"]},
   })
   module.can = lambda permission, project: project != "secret"
-  module.setting = MagicMock(side_effect=lambda key: {"ingest.auth": "off", "auth.allowed_origins": [], "jenkins.anonymous_jobs": []}[key])
+  module.setting = MagicMock(side_effect=lambda key: {"ingest.auth": "off", "auth.allowed_origins": [], "jenkins.anonymous_jobs": [], "jenkins.build_token": None}[key])
   module.audit = MagicMock()
   module.db_session = MagicMock()
   # Without a user, only the Jenkins jobs the projects' qaboard.yaml list can be started
@@ -566,7 +566,7 @@ def test_gitlab_jobs(integrations, dummy_app, monkeypatch):
 
 def test_jenkins_build_urls_use_the_configured_host(integrations, dummy_app, monkeypatch):
   # Jenkins answers with its configured root URL, here a FQDN, while JENKINS_AUTH and build_url use a short name
-  monkeypatch.setattr(integrations, "jenkins_credentials", {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
+  monkeypatch.setattr(integrations, "jenkins_credentials", lambda: {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
   queue = response(json_data={"url": "queue/item/7/", "executable": {"url": "http://jenkins.example.com:8080/job/x/12/"}})
   trigger = response(status_code=201)
   trigger.headers = {"location": "http://jenkins.example.com:8080/queue/item/7/"}
@@ -594,7 +594,7 @@ def test_jenkins_build_urls_use_the_configured_host(integrations, dummy_app, mon
 
 
 def test_jenkins_build_token(integrations, dummy_app, monkeypatch):
-  monkeypatch.setattr(integrations, "jenkins_credentials", {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
+  monkeypatch.setattr(integrations, "jenkins_credentials", lambda: {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
   trigger = response(status_code=201)
   trigger.headers = {"location": "http://jenkins/queue/item/7/"}
   requests = MagicMock()
@@ -612,10 +612,10 @@ def test_jenkins_build_token(integrations, dummy_app, monkeypatch):
   # The integration's token ("Trigger builds remotely" in the job's configuration)
   assert sent_token(token="job-token") == "job-token"
   # Without one, none: the Jenkins user's credentials are enough to build the job
-  monkeypatch.setattr(integrations, "jenkins_build_token", None)
+  monkeypatch.setattr(integrations, "jenkins_build_token", lambda: None)
   assert sent_token() is None
   # ...unless the server has a default: JENKINS_BUILD_TOKEN
-  monkeypatch.setattr(integrations, "jenkins_build_token", "server-token")
+  monkeypatch.setattr(integrations, "jenkins_build_token", lambda: "server-token")
   assert sent_token() == "server-token"
   assert sent_token(token="job-token") == "job-token"
   # `token: null` or "" sends none, e.g. the Windows runner without a token
@@ -624,7 +624,7 @@ def test_jenkins_build_token(integrations, dummy_app, monkeypatch):
 
 
 def test_jenkins_build_trigger_errors(integrations, dummy_app, monkeypatch):
-  monkeypatch.setattr(integrations, "jenkins_credentials", {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
+  monkeypatch.setattr(integrations, "jenkins_credentials", lambda: {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
   requests = MagicMock()
   monkeypatch.setattr(integrations, "requests", requests)
   job = {"property": [{"_class": "jenkins.model.BuildDiscarderProperty"}]}
@@ -655,7 +655,7 @@ def test_jenkins_build_trigger_errors(integrations, dummy_app, monkeypatch):
 
   # Errors say what Jenkins said, not its whole HTML page
   for answer, expected in [
-    (jenkins(403, "<html><head><style>body {}</style><title>Error 403</title></head><body>Access Denied: u is missing the Job/Build permission</body></html>"), "HTTP 403 from POST http://jenkins/job/x/buildWithParameters (check the user and token in JENKINS_AUTH, and that the user can build the job): Error 403 Access Denied: u is missing the Job/Build permission"),
+    (jenkins(403, "<html><head><style>body {}</style><title>Error 403</title></head><body>Access Denied: u is missing the Job/Build permission</body></html>"), "HTTP 403 from POST http://jenkins/job/x/buildWithParameters (check the server's user and API token in Admin → Settings → Jenkins, and that the user can build the job): Error 403 Access Denied: u is missing the Job/Build permission"),
     (jenkins(302, location="http://jenkins/login"), "redirected to http://jenkins/login"),
   ]:
     requests.post.side_effect = [answer]
@@ -668,7 +668,7 @@ def test_jenkins_build_trigger_access(integrations, dummy_app, monkeypatch):
   """It uses the server's Jenkins credentials: without a user, only for the jobs that projects list"""
   from types import SimpleNamespace
   from flask import g
-  monkeypatch.setattr(integrations, "jenkins_credentials", {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
+  monkeypatch.setattr(integrations, "jenkins_credentials", lambda: {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
   monkeypatch.setattr(integrations, "_declared_jenkins_jobs", {"at": None, "build_urls": set()})
   started = MagicMock(side_effect=lambda data: integrations.jsonify({"status": "pending"}))
   monkeypatch.setattr(integrations, "trigger_jenkins_build", started)
@@ -706,7 +706,7 @@ def test_jenkins_build_trigger_access(integrations, dummy_app, monkeypatch):
   assert trigger({"build_url": "http://jenkins/job/windows", "project": "unknown"})[1] == 403
   assert not checked
   # When the server requires tokens to send results, it requires a user here too
-  integrations.setting.side_effect = lambda key: {"ingest.auth": "token", "auth.allowed_origins": []}[key]
+  integrations.setting.side_effect = lambda key: {"ingest.auth": "token", "auth.allowed_origins": [], "jenkins.build_token": None}[key]
   response, status = trigger({"build_url": "http://jenkins/job/x"})
   assert status == 403 and response.get_json()["reason"] == "ingest_token_required"
 

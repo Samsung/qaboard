@@ -130,14 +130,16 @@ def command_runs(session, notification):
 
 
 def docs_url(page):
-  docs_root = os.environ.get('QABOARD_DOCS_ROOT', '/')
+  from ..settings import setting
+  docs_root = setting('web.docs_root') or '/'
   return urljoin(urljoin(qaboard_url.rstrip('/') + '/', docs_root.lstrip('/') if not docs_root.startswith('http') else docs_root), page)
 
 
 def format_time(date):
-  """In QABOARD_EMAIL_TIMEZONE (e.g. Asia/Jerusalem), else UTC"""
+  """In the email.timezone setting (e.g. Asia/Jerusalem, QABOARD_EMAIL_TIMEZONE), else UTC"""
   import pytz
-  name = os.environ.get('QABOARD_EMAIL_TIMEZONE') or 'UTC'
+  from ..settings import setting
+  name = setting('email.timezone') or 'UTC'
   try:
     timezone = pytz.timezone(name)
   except pytz.UnknownTimeZoneError:

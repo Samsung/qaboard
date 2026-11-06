@@ -82,7 +82,7 @@ def test_clean_project_patterns():
 @pytest.fixture
 def no_database(monkeypatch):
   values = {}
-  monkeypatch.setattr(settings, "_database_values", lambda: values)
+  monkeypatch.setattr(settings, "_database_rows", lambda: {k: {"value": v, "updated_by_id": None, "updated_at": None} for k, v in values.items()})
   for definition in settings.DEFINITIONS.values():
     if definition.env:
       monkeypatch.delenv(definition.env, raising=False)

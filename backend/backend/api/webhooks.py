@@ -78,7 +78,7 @@ def hosts_without_webhook_secret():
   return [host.url for host in git_hosts]
 
 if hosts_without_webhook_secret():
-  print(f"[webhooks] WARNING: anyone who can reach the server can send push events to /webhook/<host>, as {', '.join(hosts_without_webhook_secret())}: set QABOARD_WEBHOOK_SECRET (or webhook_secret in QABOARD_GIT_HOSTS), and the same secret in the git hosts' webhooks.", file=sys.stderr)
+  print(f"[webhooks] WARNING: anyone who can reach the server can send push events to /webhook/<host>, as {', '.join(hosts_without_webhook_secret())}: set a webhook secret in Admin → Settings → Git hosts (or QABOARD_WEBHOOK_SECRET), and the same secret in the git hosts' webhooks.", file=sys.stderr)
 
 
 # GitHub caps push payloads at 25MB, and the other hosts send less: we never refuse a real push.
@@ -112,7 +112,7 @@ def receive_push(host_type):
   if not host:
     if not is_push: # e.g. GitHub's "ping" for organization webhooks
       return jsonify({"status": "ignored", "reason": "not a push event"})
-    return jsonify({"error": f"Unknown git host for {repo_url}. Add it to QABOARD_GIT_HOSTS."}), 403
+    return jsonify({"error": f"Unknown git host for {repo_url}. Admins add it in Admin → Settings → Git hosts (or QABOARD_GIT_HOSTS)."}), 403
   if not host.webhook_secret and git_hosts.has_webhook_secrets():
     return jsonify({"error": f"Other git hosts have a webhook secret, but not {host.url}: set its webhook_secret in QABOARD_GIT_HOSTS."}), 401
   if not host_class.is_webhook_authentic(request.headers, body, host.webhook_secret):

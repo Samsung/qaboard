@@ -7,7 +7,7 @@ from backend import app, db_session
 from ..audit import audit, diff
 from ..tokens import utcnow
 from ..sign_in import providers as providers_lib, doctor, sessions
-from ..sign_in.crypto import can_encrypt, encrypt, NoEncryptionKey
+from ..sign_in.crypto import can_encrypt, encrypt, NoEncryptionKey, KeyMismatch
 from ..sign_in.access import serialize as serialize_request
 from .auth import admin_required
 from .sign_in import callback_url
@@ -76,7 +76,7 @@ def provider_fields(body: dict, existing=None):
   if body.get('client_secret'):
     try:
       fields['secret_encrypted'] = encrypt(body['client_secret'])
-    except NoEncryptionKey as e:
+    except (NoEncryptionKey, KeyMismatch) as e:
       return None, str(e)
   return fields, None
 

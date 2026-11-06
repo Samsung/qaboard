@@ -78,7 +78,9 @@ def gitlab_session_cookie(hostname, user, password, user_type="user"):
         return s.cookies.get('_gitlab_session')
 
 
-gitlab_credentials = json.loads(os.environ.get('GITLAB_AUTH', '{}'))
+def gitlab_credentials() -> dict:
+  """{hostname: {user, password, type, http}}: accounts we sign in to GitLab's web pages with (git.gitlab_web_logins, or $GITLAB_AUTH)"""
+  return {r['hostname']: r for r in setting('git.gitlab_web_logins') or [] if r.get('hostname')}
 # Session cookies for the gitlab hosts we have auth for, to proxy e.g. image requests.
 # We sign in when we first need them (not at startup: a slow GitLab would delay every worker),
 # and cache them for all the workers in:
@@ -93,12 +95,13 @@ gitlab_cookie_failures = {}
 GITLAB_COOKIE_RETRY_SECONDS = 600
 
 def gitlab_cookie(hostname):
-  """The session cookie for a GitLab host with GITLAB_AUTH credentials, None for other hosts or if we can't sign in"""
-  if gitlab_cookies.get(hostname) or hostname not in gitlab_credentials:
+  """The session cookie for a GitLab host we have an account for (git.gitlab_web_logins), None for other hosts or if we can't sign in"""
+  credentials = gitlab_credentials()
+  if gitlab_cookies.get(hostname) or hostname not in credentials:
     return gitlab_cookies.get(hostname)
   if time.time() - gitlab_cookie_failures.get(hostname, 0) < GITLAB_COOKIE_RETRY_SECONDS:
     return None
-  auth = gitlab_credentials[hostname]
+  auth = credentials[hostname]
   print("[gitlab-proxy] Getting gitlab cookie for", hostname)
   url = f"https://{hostname}" if not auth.get('http') else f"http://{hostname}"
   try:
@@ -128,22 +131,26 @@ def integration_error(e):
 
 
 
-jenkins_credentials = json.loads(os.environ.get('JENKINS_AUTH', '{}'))
-# The token of "Trigger builds remotely" sent to jobs whose integration doesn't give one
-jenkins_build_token = os.environ.get('JENKINS_BUILD_TOKEN')
+def jenkins_credentials() -> dict:
+  """{hostname: {user, token, crumb}}: the Jenkins servers we have credentials for (jenkins.servers, or $JENKINS_AUTH)"""
+  return {r['hostname'].lower(): r for r in setting('jenkins.servers') or [] if r.get('hostname')}
+
+def jenkins_build_token():
+  """The token of "Trigger builds remotely" sent to jobs whose integration doesn't give one"""
+  return setting('jenkins.build_token')
+
 def jenkins_hostname_credentials(build_url):
-  hostname = urlparse(build_url).hostname
-  if hostname not in jenkins_credentials:
+  hostname = (urlparse(build_url).hostname or '').lower()
+  credentials = jenkins_credentials().get(hostname)
+  if not credentials:
     return None
-  credentials = jenkins_credentials[hostname]
   return {
     "auth": HTTPBasicAuth(
       credentials['user'],
       credentials['token'],
     ),
-    "headers": {
-      "Jenkins-Crumb": credentials['crumb'],
-    },
+    # only for servers that need it with API tokens
+    "headers": {"Jenkins-Crumb": credentials['crumb']} if credentials.get('crumb') else {},
   }
 
 def jenkins_same_host(url, build_url):
@@ -152,15 +159,15 @@ def jenkins_same_host(url, build_url):
   the one in build_url (e.g. a FQDN vs a short name). We'd have no credentials for it to check the build status,
   so we use build_url's scheme and host.
   """
-  if urlparse(url).hostname in jenkins_credentials:
+  if (urlparse(url).hostname or '').lower() in jenkins_credentials():
     return url
   base = urlparse(build_url)
   return urlparse(url)._replace(scheme=base.scheme, netloc=base.netloc).geturl()
 
-def jenkins_job_is_parameterized(build_url, jenkins_credentials):
+def jenkins_job_is_parameterized(build_url, credentials):
   """True unless Jenkins says the job has no parameters"""
   try:
-    r = requests.get(f"{build_url}/api/json", params={"tree": "property[parameterDefinitions[name]]"}, timeout=30, **jenkins_credentials)
+    r = requests.get(f"{build_url}/api/json", params={"tree": "property[parameterDefinitions[name]]"}, timeout=30, **credentials)
     r.raise_for_status()
     return any(p.get('parameterDefinitions') for p in r.json().get('property', []))
   except Exception as e:
@@ -170,8 +177,8 @@ def jenkins_job_is_parameterized(build_url, jenkins_credentials):
 def jenkins_error(r, url):
   """Explains a Jenkins error response, whose body is usually a whole HTML page"""
   hints = {
-    401: "check the user and token in JENKINS_AUTH",
-    403: "check the user and token in JENKINS_AUTH, and that the user can build the job",
+    401: "check the server's user and API token in Admin → Settings → Jenkins",
+    403: "check the server's user and API token in Admin → Settings → Jenkins, and that the user can build the job",
     404: "check build_url, jobs in folders look like http://jenkins/job/folder/job/name",
     409: "is the job disabled?",
   }
@@ -199,19 +206,20 @@ def git_hosts_proxied_hostnames():
 
 # The web app loads git hosts' avatars and badges through this proxy, that adds our gitlab session cookie.
 # So that users can't make the server fetch other URLs (e.g. internal services), it only fetches from:
-proxy_hosts = {urlparse(f"//{h.strip()}").hostname for h in [
-  *git_hosts_proxied_hostnames(),
-  *gitlab_credentials.keys(),
-  # avatars of committers without an avatar on their git host (see git_hosts/base.py)
-  "gravatar.com", "www.gravatar.com", "secure.gravatar.com", "avatars.githubusercontent.com",
-  *os.environ.get('QABOARD_PROXY_HOSTS', '').split(','),
-] if h and h.strip()}
+def proxy_hosts() -> set:
+  return {urlparse(f"//{h.strip()}").hostname for h in [
+    *git_hosts_proxied_hostnames(),
+    *gitlab_credentials().keys(),
+    # avatars of committers without an avatar on their git host (see git_hosts/base.py)
+    "gravatar.com", "www.gravatar.com", "secure.gravatar.com", "avatars.githubusercontent.com",
+    *(setting('web.proxy_hosts') or []),
+  ] if h and h.strip()}
 # Headers we pass back: e.g. not Set-Cookie, or Content-Encoding since r.content is decoded
 proxy_response_headers = ['Content-Type', 'Cache-Control', 'Expires', 'ETag', 'Last-Modified']
 
 def is_proxy_allowed(url):
   parsed = urlparse(url)
-  return parsed.scheme in ('http', 'https') and parsed.hostname in proxy_hosts
+  return parsed.scheme in ('http', 'https') and parsed.hostname in proxy_hosts()
 
 
 # TODO: get password for gitlab-adm to avoid any auth and password changes
@@ -221,7 +229,7 @@ def is_proxy_allowed(url):
 @login_required
 def proxy_gitlab():
   """
-  Proxies images (avatars, CI badges...), with a session on GitLab hosts that have GITLAB_AUTH credentials.
+  Proxies images (avatars, CI badges...), with a session on GitLab hosts we have an account for (git.gitlab_web_logins).
   """
   url = request.args['url']
   for _ in range(5):
@@ -314,7 +322,7 @@ def configs_of(project_id, commit_id=None):
 
 def webhook_allowed_hosts(project_id=None, commit_id=None):
   """(hostnames, hostname templates) the webhook proxy can call"""
-  hosts = {*proxy_hosts, *(h.lower() for h in jenkins_credentials)}
+  hosts = {*proxy_hosts(), *jenkins_credentials()}
   # our own pages, at the URL admins configured (the Host header is the client's choice)
   for url in [os.environ.get('QABOARD_URL'), *(setting('auth.allowed_origins') or [])]:
     hostname = urlparse(url).hostname if isinstance(url, str) and '//' in url else None
@@ -744,10 +752,10 @@ def jenkins_build():
   else:
     url = data.get('url')
   if not isinstance(url, str) or not jenkins_status_url_allowed(url):
-    return jsonify({"error": f"ERROR: {url} is not on a Jenkins host of JENKINS_AUTH (with the scheme and port of the Jenkins jobs projects use)"}), 403
-  jenkins_credentials = jenkins_hostname_credentials(url)
-  if not jenkins_credentials:
-    return jsonify({"error": f"ERROR: No credentials for {urlparse(url).hostname} in JENKINS_AUTH, to check {url}"}), 403
+    return jsonify({"error": f"ERROR: {url} is not on a Jenkins server QA-Board has credentials for (with the scheme and port of the Jenkins jobs projects use)"}), 403
+  credentials = jenkins_hostname_credentials(url)
+  if not credentials:
+    return jsonify({"error": f"ERROR: QA-Board has no credentials for the Jenkins server {urlparse(url).hostname}, to check {url}. Admins add it in Admin → Settings → Jenkins."}), 403
   try:
     # TODO: add something proper to do retriess
     # https://urllib3.readthedocs.io/en/latest/reference/urllib3.util.html#urllib3.util.Retry
@@ -761,7 +769,7 @@ def jenkins_build():
     def fetch():
       # https://docs.python-requests.org/en/master/user/advanced/#timeouts
       # not redirects: they could go anywhere, with the credentials
-      return requests.get(url, timeout=(60, 3.5*60), allow_redirects=False, **jenkins_credentials)
+      return requests.get(url, timeout=(60, 3.5*60), allow_redirects=False, **credentials)
     # LOL Jenkins is super unstable... WIP until we add something proper...
     import time
     try:
@@ -951,17 +959,18 @@ def url_origin(url):
 
 def jenkins_status_url_allowed(url) -> bool:
   """
-  We send JENKINS_AUTH's credentials to its hosts, on the default port of http(s), or with the scheme and port of a
-  Jenkins job of the projects' qaboard.yaml (on a JENKINS_AUTH host): not to other services on the same machines.
+  We send the Jenkins servers' credentials (jenkins.servers) to their hosts, on the default port of http(s), or with the
+  scheme and port of a Jenkins job of the projects' qaboard.yaml (on one of those hosts): not to other services on the same machines.
   """
   origin = url_origin(url)
-  if origin is None or origin[1] not in jenkins_credentials:
+  servers = jenkins_credentials()
+  if origin is None or origin[1] not in servers:
     return False
   scheme, _, port = origin
   if port == DEFAULT_PORTS[scheme]:
     return True
   declared = [url_origin(job) for job in declared_jenkins_jobs()]
-  return any(d is not None and d[1] in jenkins_credentials and (d[0], d[2]) == (scheme, port) for d in declared)
+  return any(d is not None and d[1] in servers and (d[0], d[2]) == (scheme, port) for d in declared)
 
 
 def trigger_jenkins_build(data):
@@ -971,9 +980,9 @@ def trigger_jenkins_build(data):
   """
   if 'build_url' not in data:
       return jsonify({"error": f"ERROR: the integration is missing `build_url` (in your qaboard.yaml)"}), 400
-  jenkins_credentials = jenkins_hostname_credentials(data['build_url'])
-  if not jenkins_credentials:
-    return jsonify({"error": f"ERROR: No credentials for {urlparse(data['build_url']).hostname} in JENKINS_AUTH, to trigger {data['build_url']}"}), 403
+  credentials = jenkins_hostname_credentials(data['build_url'])
+  if not credentials:
+    return jsonify({"error": f"ERROR: QA-Board has no credentials for the Jenkins server {urlparse(data['build_url']).hostname}, to trigger {data['build_url']}. Admins add it in Admin → Settings → Jenkins."}), 403
   build_url = re.sub("/$", "", data['build_url'])
   params = {
     "cause": data.get('cause', "Triggered via QA-Board"),
@@ -982,20 +991,20 @@ def trigger_jenkins_build(data):
   }
   # The job's token ("Trigger builds remotely"): the integration's, else the server's JENKINS_BUILD_TOKEN.
   # `token: null` or "" sends none (the Windows runner sends null when it has no token).
-  token = data["token"] if "token" in data else jenkins_build_token
+  token = data["token"] if "token" in data else jenkins_build_token()
   if token:
     params["token"] = token
 
   def post(build_trigger_url):
     # Jenkins answers "201 Created" with the queue item in `location`. We don't follow redirects:
     # they lead to HTML pages (login, job page...) and would hide what went wrong.
-    return requests.post(build_trigger_url, params=params, allow_redirects=False, timeout=60, **jenkins_credentials)
+    return requests.post(build_trigger_url, params=params, allow_redirects=False, timeout=60, **credentials)
   build_trigger_url = f"{build_url}/buildWithParameters"
   try:
     r_build = post(build_trigger_url)
     # Jenkins refuses buildWithParameters for jobs without parameters, but only tells admins why:
     # others get "A problem occurred while processing the request"
-    if not r_build.ok and not jenkins_job_is_parameterized(build_url, jenkins_credentials):
+    if not r_build.ok and not jenkins_job_is_parameterized(build_url, credentials):
       build_trigger_url = f"{build_url}/build"
       r_build = post(build_trigger_url)
   except Exception as e:
@@ -1026,7 +1035,7 @@ def trigger_jenkins_build(data):
       r_get = requests.get(
         build_queue_location,
         timeout=60,
-        **jenkins_credentials,
+        **credentials,
       )
       r_get.raise_for_status()
       error = None

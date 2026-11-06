@@ -1153,7 +1153,8 @@ def test_git_proxy_avatar_url_template(monkeypatch, tmp_path):
 
 def test_git_proxy_keeps_the_session_cookie_on_its_host(integrations, dummy_app, monkeypatch):
   # e.g. avatars redirect to object storage: the session cookie stays on GitLab
-  monkeypatch.setattr(integrations, "proxy_hosts", {*integrations.proxy_hosts, "storage.example.com"})
+  proxy_hosts = integrations.proxy_hosts()
+  monkeypatch.setattr(integrations, "proxy_hosts", lambda: {*proxy_hosts, "storage.example.com"})
   monkeypatch.setitem(integrations.gitlab_cookies, "gitlab.example.com", "session-cookie")
   get = MagicMock(side_effect=[
     fake_response(302, {"Location": "https://storage.example.com/avatar.png"}),
@@ -1206,8 +1207,9 @@ INTEGRATIONS_PROJECT = {
 def webhook_proxy(monkeypatch, tmp_path):
   """The real backend/api/integrations.py, the project "group/repo", and what the proxy sends"""
   integrations = load_integrations(monkeypatch, tmp_path, {"GITLAB_HOST": "https://gitlab.example.com"})
-  monkeypatch.setattr(integrations, "jenkins_credentials", {"jenkins.example.com": {}})
-  monkeypatch.setattr(integrations, "setting", lambda key: {"auth.allowed_origins": ["https://qa.example.com"]}[key])
+  monkeypatch.setattr(integrations, "jenkins_credentials", lambda: {"jenkins.example.com": {}})
+  real_setting = integrations.setting
+  monkeypatch.setattr(integrations, "setting", lambda key: ["https://qa.example.com"] if key == "auth.allowed_origins" else real_setting(key))
   monkeypatch.delenv("QABOARD_URL", raising=False)
   monkeypatch.setattr(integrations, "Project", FakeProjects({"group/repo": INTEGRATIONS_PROJECT}))
   commit = SimpleNamespace(data={"qatools_config": {"integrations": [{"text": "Branch", "href": "https://branch.example.com"}]}},

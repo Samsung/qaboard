@@ -148,12 +148,19 @@ def checklist() -> list:
   webhooks_signed = git_hosts.has_webhook_secrets()
   item('webhook_secret', webhooks_signed, 'warning',
        "Git hosts' webhooks must send a secret" if webhooks_signed else "Anyone can send push webhooks",
-       "Without a webhook secret, anyone who can reach the server can send fake push events: they change the projects' git data and make the server fetch repositories. Set QABOARD_WEBHOOK_SECRET (or webhook_secret in QABOARD_GIT_HOSTS), and the same secret in the git hosts' webhooks.")
+       "Without a webhook secret, anyone who can reach the server can send fake push events: they change the projects' git data and make the server fetch repositories. Set one in Admin → Settings → Git hosts, and the same secret in the git hosts' webhooks.")
 
   for key, problem in settings_lib.invalid_env().items():
     definition = settings_lib.DEFINITIONS[key]
+    used = settings_lib.masked(key, settings_lib.setting(key))
     item(f'invalid_env:{key}', False, 'danger', f"${definition.env} is invalid: it's ignored",
-         f"{problem}. QA-Board uses {key} = {settings_lib.setting(key)!r} instead: fix the server's environment.")
+         f"{problem}. QA-Board uses {key} = {used!r} instead: fix the server's environment.")
+
+  for key, problem in settings_lib.undecryptable().items():
+    item(f'undecryptable:{key}', False, 'danger', f"{settings_lib.DEFINITIONS[key].label or key} can't be decrypted",
+         f"{problem} Until then, QA-Board uses the default (Admin → Settings).")
+
+  items.extend(encryption_items())
 
   from ..models import RoleGrant
   signed_in_role = settings_lib.setting('projects.signed_in_role')
@@ -166,6 +173,33 @@ def checklist() -> list:
   if is_login_restricted:
     item('restrictions_yaml', True, 'info', "Project restrictions also come from QABOARD_LOGIN_RESTRICTED_YAML",
          "Its projects are private, and the users its rules match are their developers. Owners can add members in Project → Access.")
+  return items
+
+
+def encryption_items() -> list:
+  """The security checklist's items about the key that encrypts the secrets stored in the database"""
+  from .admin_settings import encryption_status
+  status = encryption_status()
+  secrets = status.get("secrets") or {}
+  key = status.get("key")
+  items = []
+  def item(id, severity, title, detail):
+    items.append({"id": id, "ok": False, "severity": severity, "title": title, "detail": detail})
+  unreadable = secrets.get("unreadable") or []
+  if unreadable:
+    item('encryption_unreadable', 'danger', f"{len(unreadable)} stored secret{'s' if len(unreadable) > 1 else ''} can't be decrypted",
+         "They were encrypted with another key than this server's: restore that key ($QABOARD_ENCRYPTION_KEY, or $QABOARD_ENCRYPTION_KEY_PREVIOUS while you rotate), or enter them again (Admin → Settings → Security).")
+  for problem in status.get("problems") or []:
+    item('encryption_problem', 'danger', "The encryption key can't be read", problem)
+  if key and key["source"] == 'generated' and secrets.get("total"):
+    item('encryption_generated', 'warning', "Back up the encryption key the server generated",
+         f"The secrets stored in the database can only be decrypted with the key in {key['origin']}, and database backups don't include it. Copy it to your secret store as QABOARD_ENCRYPTION_KEY: `qaboard-admin encryption show-key`.")
+  if status.get("weak"):
+    item('encryption_weak', 'warning', "The encryption key is short",
+         "Use at least 32 random characters, e.g. `openssl rand -base64 32`, then `qaboard-admin encryption rotate` with the old key in $QABOARD_ENCRYPTION_KEY_PREVIOUS.")
+  if secrets.get("to_rotate") and not unreadable:
+    item('encryption_rotate', 'info', f"{secrets['to_rotate']} stored secret{'s' if secrets['to_rotate'] > 1 else ''} use{'' if secrets['to_rotate'] > 1 else 's'} an older key",
+         "Re-encrypt them with the current key (Admin → Settings → Security, or `qaboard-admin encryption rotate`), then remove the old key.")
   return items
 
 
@@ -196,7 +230,7 @@ def value_checklist() -> list:
   emails = email_enabled()
   item('email_notifications', emails,
        "Email notifications are on" if emails else "Email notifications aren't configured",
-       "Set QABOARD_SMTP_HOST (and QABOARD_EMAIL_FROM): users can then ask for an email when the batches they start end, and admins hear about failed jobs.")
+       "Set the SMTP server in Admin → Settings → Email: users can then ask for an email when the batches they start end, and admins hear about failed jobs.")
 
   from ..sign_in import providers as providers_lib
   login_type = settings_lib.login_type()
@@ -207,12 +241,11 @@ def value_checklist() -> list:
        "Add a single sign-on provider (Admin > Sign-in): no passwords to manage, and groups come from the directory.")
 
   # gitlab.com and github.com are always known: a host is configured when the settings name one, or give a token
-  from ..git_hosts import server_setting, server_secret
-  hosts = any(server_setting(name) for name in ('QABOARD_GIT_HOSTS', 'GITLAB_HOST', 'QABOARD_GITLAB_HOSTS', 'QABOARD_GITHUB_HOSTS')) \
-    or any(server_secret(name) for name in ('GITLAB_ACCESS_TOKEN', 'GITHUB_ACCESS_TOKEN'))
+  from ..git_hosts import hosts_configured
+  hosts = hosts_configured()
   item('git_hosts', hosts,
        "Git hosts are configured" if hosts else "No git host is configured",
-       "Set QABOARD_GIT_HOSTS and their webhooks: commits, branches and messages then show up as they're pushed, before runs arrive.")
+       "Add your git hosts in Admin → Settings → Git hosts, and their webhooks: commits, branches and messages then show up as they're pushed, before runs arrive.")
 
   sentry = bool(os.environ.get('SENTRY_DSN'))
   item('sentry', sentry, "Errors are reported to Sentry" if sentry else "Errors aren't reported anywhere",
@@ -462,39 +495,4 @@ def admin_audit_actions():
   return jsonify({"actions": actions})
 
 
-@app.route('/api/v1/admin/settings', methods=['GET'])
-@app.route('/api/v1/admin/settings/', methods=['GET'])
-@admin_required
-def admin_settings():
-  return jsonify({"settings": settings_lib.describe_all()})
-
-
-@app.route('/api/v1/admin/settings', methods=['POST'])
-@app.route('/api/v1/admin/settings/', methods=['POST'])
-@admin_required
-def admin_update_settings():
-  body = request.get_json(silent=True)
-  if not isinstance(body, dict) or not body:
-    return jsonify({"error": "Send {\"setting.key\": value}, null resets a setting to its default."}), 400
-  # all valid, or nothing changes
-  values = {}
-  for key, value in body.items():
-    if key not in settings_lib.DEFINITIONS:
-      return jsonify({"error": f"Unknown setting: {key}"}), 400
-    if settings_lib.source(key) == 'env':
-      env = settings_lib.DEFINITIONS[key].env
-      return jsonify({"error": f"{key} is set by ${env}: change it in the server's environment."}), 400
-    if value is not None and value == settings_lib.masked(key, settings_lib.setting(key)) and settings_lib.DEFINITIONS[key].secret:
-      return jsonify({"error": f"Type the whole new value of {key}: the current one is hidden."}), 400
-    try:
-      values[key] = None if value is None else settings_lib.validate(key, value)
-    except ValueError as e:
-      return jsonify({"error": str(e)}), 400
-  for key, value in values.items():
-    before = settings_lib.setting(key)
-    after = settings_lib.save(key, value, by=g.actor.user)
-    if before != after:
-      audit('setting.update', 'setting', key, key, changes={"value": {"from": settings_lib.masked(key, before), "to": settings_lib.masked(key, after)}})
-  db_session.commit()
-  settings_lib.invalidate_cache()
-  return jsonify({"settings": settings_lib.describe_all()})
+# Settings: see api/admin_settings.py
