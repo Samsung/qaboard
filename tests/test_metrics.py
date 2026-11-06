@@ -50,33 +50,44 @@ class TestMetrics(unittest.TestCase):
     self.assertIs(type(values["latency"]), float)
     self.assertEqual(definitions, {"latency": {"suffix": " ms"}})
 
+  def sent(self, metrics, inline=None, metrics_file=None):
+    """What `qa` sends to QA-Board at the end of a run"""
+    m = metrics_module()
+    return m.with_default_direction(m.resolve_definitions(metrics, inline or {}, self.output_dir), metrics_file)
+
   def test_precedence(self):
+    # field by field, code wins: metrics_definitions.json < define_metric < Metric
     m = metrics_module()
     m.define_metric("latency", label="Latency", suffix=" s", smaller_is_better=True)
     m.define_metric("latency", target=15)  # adds to the previous declaration
-    (self.output_dir / 'metrics_definitions.json').write_text(json.dumps({"latency": {"suffix": " ms"}, "psnr": {"suffix": " dB", "smaller_is_better": False}}))
-    definitions = m.run_definitions(
+    (self.output_dir / 'metrics_definitions.json').write_text(json.dumps({
+      "latency": {"suffix": " ms", "description": "p99"},
+      "psnr": {"suffix": " dB", "smaller_is_better": False},
+    }))
+    definitions = m.resolve_definitions(
       {"latency": 12.0, "psnr": 30.0, "frames": 10, "is_failed": False},
-      {"latency": {"precision": 2}},
+      {"latency": {"precision": 2, "label": "p99 latency"}},
       self.output_dir,
-      metrics_file={},
     )
     self.assertEqual(definitions, {
-      "latency": {"label": "Latency", "suffix": " ms", "smaller_is_better": True, "target": 15, "precision": 2},
+      "latency": {"label": "p99 latency", "description": "p99", "suffix": " s", "smaller_is_better": True, "target": 15, "precision": 2},
       "psnr": {"suffix": " dB", "smaller_is_better": False},
     })
 
   def test_only_returned_metrics(self):
+    # declaring more metrics than a run returns is harmless: the others are neither sent nor written
     m = metrics_module()
     m.define_metric("psnr", smaller_is_better=False)
-    self.assertEqual(m.run_definitions({"latency": 1.0}, {}, self.output_dir, metrics_file={}), {})
+    (self.output_dir / 'metrics_definitions.json').write_text('{"ssim": {"smaller_is_better": false}}')
+    self.assertEqual(self.sent({"latency": 1.0}, metrics_file={}), {})
+    self.assertEqual(m.resolve_definitions({"latency": 1.0}, {}, self.output_dir), {})
 
   def test_unknown_direction(self):
-    m = metrics_module()
     # in metrics files, leaving out smaller_is_better means "smaller is better": metrics only declared in code say null
+    m = metrics_module()
     m.define_metric("frames", label="Frames")
     m.define_metric("loss", label="Loss")
-    definitions = m.run_definitions({"frames": 10, "loss": 0.1}, {}, self.output_dir, metrics_file={"loss": {"target": 0.05}})
+    definitions = self.sent({"frames": 10, "loss": 0.1}, metrics_file={"loss": {"target": 0.05}})
     self.assertEqual(definitions, {"frames": {"label": "Frames", "smaller_is_better": None}, "loss": {"label": "Loss"}})
 
   def test_invalid_fields_are_left_out(self):
@@ -90,7 +101,7 @@ class TestMetrics(unittest.TestCase):
     self.assertEqual(m.clean_definition(None), ({}, ["(not an object)"]))
     # what the run sends
     m.define_metric("psnr", target="30", suffix=" dB")  # type: ignore
-    self.assertEqual(m.run_definitions({"psnr": 1.0}, {}, self.output_dir, metrics_file={}), {"psnr": {"suffix": " dB", "smaller_is_better": None}})
+    self.assertEqual(self.sent({"psnr": 1.0}, metrics_file={}), {"psnr": {"suffix": " dB", "smaller_is_better": None}})
 
   def test_numpy_values(self):
     try:
@@ -98,7 +109,7 @@ class TestMetrics(unittest.TestCase):
     except ImportError:
       self.skipTest("numpy is not installed")
     m = metrics_module()
-    definitions = m.run_definitions({"psnr": 1.0}, {"psnr": m.Metric(np.float32(30.5), target=np.float32(2), precision=np.int64(2)).definition}, self.output_dir, metrics_file={})
+    definitions = self.sent({"psnr": 1.0}, {"psnr": m.Metric(np.float32(30.5), target=np.float32(2), precision=np.int64(2)).definition}, metrics_file={})
     self.assertEqual(definitions, {"psnr": {"target": 2.0, "precision": 2, "smaller_is_better": None}})
     self.assertEqual(json.dumps(definitions["psnr"]["target"]), "2.0")
 
@@ -106,16 +117,27 @@ class TestMetrics(unittest.TestCase):
     # `available_metrics:` with nothing under it is null
     m = metrics_module()
     m.define_metric("psnr", smaller_is_better=False)
-    self.assertEqual(m.run_definitions({"psnr": 1.0}, {}, self.output_dir, metrics_file=None), {"psnr": {"smaller_is_better": False}})
+    self.assertEqual(self.sent({"psnr": 1.0}, metrics_file=None), {"psnr": {"smaller_is_better": False}})
 
-  def test_the_runs_file_is_not_changed(self):
-    # qa postprocess reads it again: it must still say what the run wrote, not what qa merged
+  def test_the_run_saves_its_definitions(self):
+    # what the run declared, written next to metrics.json: qa sync and qa postprocess read it again
     m = metrics_module()
     path = self.output_dir / 'metrics_definitions.json'
-    path.write_text('{"latency": {"suffix": " ms"}}')
+    m.write_definitions_file(self.output_dir, m.resolve_definitions({"is_failed": False}, {}, self.output_dir))
+    self.assertFalse(path.exists())  # runs that declare nothing get no file
     m.define_metric("latency", smaller_is_better=True)
-    m.run_definitions({"latency": 1.0}, {"latency": {"precision": 2}}, self.output_dir, metrics_file={})
-    self.assertEqual(path.read_text(), '{"latency": {"suffix": " ms"}}')
+    m.define_metric("unused", smaller_is_better=True)
+    m.write_definitions_file(self.output_dir, m.resolve_definitions({"latency": 1.0, "frames": 3}, {"frames": {"label": "Frames"}}, self.output_dir))
+    self.assertEqual(json.loads(path.read_text()), {"latency": {"smaller_is_better": True}, "frames": {"label": "Frames"}})
+    # without the code that declared them, e.g. `qa postprocess` doesn't call run()
+    m._declared.clear()
+    self.assertEqual(self.sent({"latency": 1.0, "frames": 3}, metrics_file={}), {
+      "latency": {"smaller_is_better": True},
+      "frames": {"label": "Frames", "smaller_is_better": None},  # not saved: the metrics file can declare it later
+    })
+    # and the code can change them
+    m.define_metric("latency", smaller_is_better=False)
+    self.assertEqual(self.sent({"latency": 1.0}), {"latency": {"smaller_is_better": False}})
 
   def test_definitions_file(self):
     m = metrics_module()

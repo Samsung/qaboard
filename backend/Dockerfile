@@ -1,7 +1,13 @@
 # https://pythonspeed.com/articles/base-image-python-docker-images/
 # TODO: 3.14 when pillow ships in binary https://pillow.readthedocs.io/en/latest/installation/platform-support.html
 #       -slim-trixie when python-ldap binary links with the updated libldap..
-FROM python:3.13-slim-bookworm
+# Stages:
+# - base: Python, git, the shared libraries the dependencies link to, uv
+# - build-deps: + compilers and headers, the Python dependencies (some are compiled: uwsgi, lxml, xmlsec, python-ldap, psycopg2)
+# - site: site-specific packages (QABOARD_EXTRA, CDE_PACKAGE)
+# - dev: used by development.yml, which mounts the code: the compilers stay, for `uv run`
+# - production (default): base + the dependencies + the code, without the compilers and headers
+FROM python:3.13-slim-bookworm AS base
 
 LABEL maintainer="arthurf.flam@samsung.com"
 
@@ -19,8 +25,20 @@ ENV HTTP_PROXY=${PROXY_URL} http_proxy=${PROXY_URL} \
     HTTPS_PROXY=${PROXY_URL} https_proxy=${PROXY_URL} \
     NO_PROXY=${NO_PROXY}
 
+# What the server needs at runtime, in one layer:
+# - git (and ssh, for the repositories cloned with ssh), sudo (at SIRC we need to be able to turn into any user to
+#   delete their output files), procps (ps, top...)
+# - the shared libraries of the dependencies compiled in build-deps: libpq (psycopg2), libldap and libsasl
+#   (python-ldap), libxml2, libxslt and libxmlsec1 (lxml, xmlsec)
 RUN apt-get update -qq && \
-    apt-get install -y ca-certificates wget && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates wget \
+      git openssh-client less \
+      sudo procps \
+      libpq5 \
+      libldap-2.5-0 libldap-common libsasl2-2 libsasl2-modules \
+      libxml2 libxslt1.1 libxmlsec1 libxmlsec1-openssl && \
+    rm -rf /var/lib/apt/lists/* && \
     if [ -n "$CA_CERT_URL" ]; then \
       wget "$CA_CERT_URL" -P /usr/local/share/ca-certificates/ && \
       update-ca-certificates; \
@@ -43,14 +61,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONWARNINGS="ignore:Unverified HTTPS request"
 
 
-# Git: debian ships a recent enough version without requiring an alternative PPA
 ARG GIT_SSL_VERIFY="true"
-RUN apt-get install -y git && \
-    if [ -n "$PROXY_URL" ]; then \
+RUN if [ -n "$PROXY_URL" ]; then \
       git config --global http.proxy "$PROXY_URL"; \
-    fi
-
-RUN if [ "$GIT_SSL_VERIFY" = "false" ]; then \
+    fi && \
+    if [ "$GIT_SSL_VERIFY" = "false" ]; then \
       git config --global http.sslVerify false; \
     fi && \
     # gc tends to take time in our big repos and the locks slow everything down
@@ -65,35 +80,6 @@ RUN --mount=type=ssh \
     if [ -n "$GIT_SERVER" ]; then \
       ssh -T -o StrictHostKeyChecking=no git@$GIT_SERVER; \
     fi
-
-RUN apt-get update -qq && \
-    apt-get install -y \
-    # https://www.psycopg.org/docs/install.html#install-from-source
-    # https://www.psycopg.org/docs/faq.html#faq-compile
-    libpq-dev build-essential gcc \
-    # for Ldap Authentication
-    libsasl2-dev libldap2-dev \
-    # At SIRC we need to be able to turn into any user to delete their output files
-    sudo \
-    # procps is a set of command line and full-screen utilities that
-    # provide information out of the pseudo-filesystem.
-    # https://github.com/warmchang/procps
-    procps
-    # If we want uwsgi's routing support we need libpcre
-    # https://uwsgi-docs.readthedocs.io/en/latest/InternalRouting.html
-    # we used to have libpcre3 but it is not shipped as part of recent debian
-    # https://launchpad.net/ubuntu/+source/uwsgi/+changelog
-    # and this breaks at link-time
-    # libpcre2-dev
-
-# Required to build some projects from source
-RUN apt-get update -qq && \
-    apt-get install -y \
-    # for scipy if python is very recent
-    gfortran pkg-config libopenblas-dev liblapack-dev \
-    # required for python3-saml for python-xmlsec https://xmlsec.readthedocs.io/en/stable/install.html
-    libxml2-dev libxmlsec1-dev libxmlsec1-openssl libz-dev \
-    libxslt1-dev
 
 
 # References:
@@ -111,6 +97,33 @@ ENV UV_SYSTEM_PYTHON=1 \
     UV_COMPILE_BYTECODE=1 \
     # Prevent uv from accidentally downloading isolated Python builds
     UV_PYTHON_DOWNLOADS=never
+
+ENV QA_NO_CHECK_FOR_UPDATES=1
+
+# Where we keep a cache of application data (e.g. git clones)
+# It's useful to make it world-writable so that
+# we can run as a non-root user during dev and clone without issues
+RUN mkdir -p /var/qaboard/git && chmod -R 777 /var/qaboard/git
+
+
+FROM base AS build-deps
+# To compile the dependencies without binary wheels (see tool.uv.no-binary-package in backend/pyproject.toml)
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+      build-essential pkg-config \
+      # https://www.psycopg.org/docs/install.html#install-from-source
+      libpq-dev \
+      # for Ldap Authentication
+      libsasl2-dev libldap2-dev \
+      # required for python3-saml for python-xmlsec https://xmlsec.readthedocs.io/en/stable/install.html
+      libxml2-dev libxmlsec1-dev libxslt1-dev zlib1g-dev && \
+    rm -rf /var/lib/apt/lists/*
+    # If we want uwsgi's routing support we need libpcre
+    # https://uwsgi-docs.readthedocs.io/en/latest/InternalRouting.html
+    # we used to have libpcre3 but it is not shipped as part of recent debian
+    # https://launchpad.net/ubuntu/+source/uwsgi/+changelog
+    # and this breaks at link-time
+    # libpcre2-dev
 
 # Make it possible to resolve dependencies of the CLI package
 # README.md is only needed later to build the qaboard package: copying it here would mean that
@@ -136,9 +149,47 @@ RUN --mount=type=ssh \
     --no-install-project \
     --no-install-package qaboard
 
+
+# Install site-specific extras (e.g. QABOARD_EXTRA=sirc) in their own stage: they are installed again only when
+# deployments/ or the args change, not with each change of the code
+FROM base AS site
+WORKDIR /qaboard/backend
+ARG QABOARD_EXTRA=""
+ARG CDE_PACKAGE=""
+# deployments/ is only mounted during the build: images don't contain other sites' configuration
+RUN --mount=type=ssh \
+    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=deployments,target=/qaboard/deployments,rw \
+    mkdir -p /opt/site-packages && \
+    if [ -n "$QABOARD_EXTRA" ]; then \
+      ## Cannot work as uv requires to resolve even extras...
+      # uv sync --extra "$QABOARD_EXTRA" --refresh-package qaboard; \
+      ## Annoying for dev and when managing lock-files
+      # uv pip install "qaboard-site-$QABOARD_EXTRA @ file:../deployments/$QABOARD_EXTRA/cli" "$CDE_PACKAGE"; \
+      uv pip install --no-deps --target /opt/site-packages \
+        "qaboard-site-$QABOARD_EXTRA @ file:../deployments/$QABOARD_EXTRA/cli" "$CDE_PACKAGE"; \
+    fi
+
+
+# For development.yml: it mounts the code, and `uv run` may compile dependencies
+FROM build-deps AS dev
+COPY --from=site /opt/site-packages /opt/site-packages
+ENV PYTHONPATH="/opt/site-packages:${PYTHONPATH}"
+ARG QABOARD_EXTRA=""
+ARG CDE_PACKAGE=""
+ENV CDE_PACKAGE=${CDE_PACKAGE} QABOARD_EXTRA=${QABOARD_EXTRA}
+VOLUME /var/qaboard
+CMD ["/qaboard/backend/init.sh"]
+
+
+FROM base AS production
+# The dependencies, without the compilers and headers they were built with
+COPY --from=build-deps /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+COPY --from=build-deps /usr/local/bin /usr/local/bin
+
 # Backend
 WORKDIR /qaboard
-COPY README.md ./
+COPY pyproject.toml README.md ./
 WORKDIR /qaboard/backend
 ADD backend .
 # CLI package
@@ -153,29 +204,20 @@ WORKDIR /qaboard/backend
 # with a shared cache across builds
 RUN --mount=type=ssh \
     --mount=type=cache,target=/root/.cache/uv \
-    uv sync --refresh-package qaboard
+    uv sync --refresh-package qaboard && \
+    # The backend is installed in editable mode, so uv doesn't compile it (UV_COMPILE_BYTECODE): with
+    # PYTHONDONTWRITEBYTECODE, each process would compile it again when it starts (uwsgi, the jobs worker, migrations...)
+    python -m compileall -q backend
     #FIXME: when we fix the xml bugs and issues then we can uncomment --locked
     # --locked
 
-# Install site-specific extras (e.g. QABOARD_EXTRA=sirc)
+COPY --from=site /opt/site-packages /opt/site-packages
 ENV PYTHONPATH="/opt/site-packages:${PYTHONPATH}"
 ARG QABOARD_EXTRA=""
 ARG CDE_PACKAGE=""
 # Useful if we need to dev...
 ENV CDE_PACKAGE=${CDE_PACKAGE}
 ENV QABOARD_EXTRA=${QABOARD_EXTRA}
-# deployments/ is only mounted during the build: images don't contain other sites' configuration
-RUN --mount=type=ssh \
-    --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=deployments,target=/qaboard/deployments,rw \
-    if [ -n "$QABOARD_EXTRA" ]; then \
-      ## Cannot work as uv requires to resolve even extras... 
-      # uv sync --extra "$QABOARD_EXTRA" --refresh-package qaboard; \
-      ## Annoying for dev and when managing lock-files
-      # uv pip install "qaboard-site-$QABOARD_EXTRA @ file:../deployments/$QABOARD_EXTRA/cli" "$CDE_PACKAGE"; \
-      uv pip install --no-deps --target /opt/site-packages \
-        "qaboard-site-$QABOARD_EXTRA @ file:../deployments/$QABOARD_EXTRA/cli" "$CDE_PACKAGE"; \
-    fi
 
 # TODO: Ideally clear proxy env so it doesn't leak into runtime containers
 # but for dev it is not a good experience
@@ -183,13 +225,8 @@ RUN --mount=type=ssh \
 #     HTTPS_PROXY="" https_proxy=""
 #     # we keep NO_PROXY however!
 
-ENV QA_NO_CHECK_FOR_UPDATES=1
-
 # Where we keep a cache of application data (e.g. git clones)
 VOLUME /var/qaboard
-# It's useful to make it world-writable so that
-# we can run as a non-root user during dev and clone without issues
-RUN mkdir -p /var/qaboard/git && chmod -R 777 /var/qaboard/git
 
 # More CAs to trust: space-separated *.crt paths in the build context, e.g. an intermediate certificate that the IdP
 # doesn't send (browsers find it, requests doesn't: "unable to get local issuer certificate"). Late: it reads the context

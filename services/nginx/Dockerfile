@@ -1,5 +1,5 @@
 # Adapted from https://github.com/nginxinc/docker-nginx/blob/master/mainline/buster/Dockerfile
-FROM debian:buster-slim
+FROM debian:bookworm-slim
 
 # Proxy/cert configuration — no-ops when args are empty (open-source builds)
 ARG PROXY_URL=""
@@ -19,24 +19,16 @@ RUN addgroup --system --gid 101 nginx \
     && adduser --system --disabled-login --ingroup nginx --no-create-home --home /nonexistent --gecos "nginx user" --shell /bin/false --uid 101 nginx
 
 ENV DEBIAN_FRONTEND=noninteractive
-# Use the Debian Archive since Buster is EOL
-RUN sed -i 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' /etc/apt/sources.list && \
-    sed -i 's|http://security.debian.org|http://archive.debian.org|g' /etc/apt/sources.list && \
-    echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99no-check-valid-until
-
+# nginx (the server, with its built-in modules) and the WebDAV extension (modules-enabled/), not nginx-full or
+# nginx-core: nginx.conf loads no other dynamic module, and theirs (image-filter: libgd and video codecs, geoip, xslt...)
+# would make the image bigger
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
 # https://wiki.debian.org/Nginx
-# https://packages.debian.org/fr/sid/nginx-full
 # For https://github.com/arut/nginx-dav-ext-module
-    nginx-full \
+    nginx libnginx-mod-http-dav-ext \
 # envsubst
     gettext-base \
-    && apt-get remove --purge --auto-remove -y && rm -rf /var/lib/apt/lists/* \
-# if we have leftovers from building, let's purge them (including extra, unnecessary build deps)
-    && if [ -n "$tempDir" ]; then \
-        apt-get purge -y --auto-remove \
-        && rm -rf "$tempDir" /etc/apt/sources.list.d/temp.list; \
-    fi \
+    && rm -rf /var/lib/apt/lists/* \
 # forward request and error logs to docker log collector
     && ln -sf /dev/stdout /var/log/nginx/access.log \
     && ln -sf /dev/stderr /var/log/nginx/error.log
