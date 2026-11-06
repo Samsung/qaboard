@@ -47,6 +47,8 @@ STATUSES = ('waiting', 'running', 'done', 'failed')
 STATUS_FILTERS = {
   'all': STATUSES,
   'active': ('waiting', 'running'),
+  # pending for over a day (LONG): maybe stuck
+  'long': ('waiting', 'running'),
   'ended': ('done', 'failed'),
   **{status: (status,) for status in STATUSES},
 }
@@ -70,11 +72,15 @@ GROUPS = {
   'runner': ("coalesce(o.data->'job_options'->>'type', '')", "runner"),
   'queue': ("coalesce(o.data->'job_options'->>'queue', '')", "queue"),
   'platform': ("coalesce(o.platform, '')", "platform"),
+  'branch': ("coalesce(c.branch, '')", "branch"),
   # any job option, e.g. LSF's project or memory: `option`
   'option': ("coalesce(o.data->'job_options'->>:option, '')", "job_option"),
   'status': (STATUS, "status"),
 }
 INTEGER_GROUPS = ('commit', 'batch')
+# What users filter the runs on, besides their user, project and status: e.g. only the runs of a queue, of a batch.
+# The filters are values of GROUPS: users click a group to see only its runs.
+MATCHES = ('commit', 'batch', 'command', 'runner', 'queue', 'platform', 'branch', 'option')
 
 # How long `qa run` says the run computed: a number of seconds in its metrics (JSON), within reason
 COMPUTE_TIME = """CASE WHEN json_typeof(metrics->'compute_time') = 'number'
@@ -119,7 +125,7 @@ class Filters:
   """Whose runs, in which projects, which statuses, how far back, and maybe only one group's (`group` and `key`)"""
   def __init__(self, user: Optional[str] = None, projects: Optional[List[str]] = None, allowed_projects: Optional[List[str]] = None,
                window: str = DEFAULT_WINDOW, status: str = 'all', search: Optional[str] = None, option: Optional[str] = None,
-               group: Optional[str] = None, key=None, now: Optional[datetime.datetime] = None):
+               group: Optional[str] = None, key=None, now: Optional[datetime.datetime] = None, match: Optional[dict] = None):
     if window not in WINDOWS:
       raise ValueError(f"`window` must be one of {', '.join(WINDOWS)}")
     if status not in STATUS_FILTERS:
@@ -133,6 +139,20 @@ class Filters:
         key = int(key)
       except (TypeError, ValueError):
         raise ValueError(f"`key` must be the id of a {group}")
+    match = {k: v for k, v in (match or {}).items() if v is not None}
+    for name, value in match.items():
+      if name not in MATCHES:
+        raise ValueError(f"Runs can't be filtered on `{name}`: only on {', '.join(MATCHES)}")
+      if name == 'option' and not (option or '').strip():
+        raise ValueError("Which job option? `option`, e.g. queue or project")
+      if name in INTEGER_GROUPS:
+        try:
+          match[name] = int(value)
+        except (TypeError, ValueError):
+          raise ValueError(f"`{name}` must be the id of a {name}")
+      else:
+        match[name] = str(value)
+    self.match = match
     self.user = user
     self.projects = projects or []
     self.allowed_projects = allowed_projects  # None: all
@@ -143,10 +163,13 @@ class Filters:
     self.group = group
     self.key = key
     self.now = now or utcnow()
-    self.since = self.now - WINDOWS[window][0]
+    # the timeline's bars start at whole steps, e.g. on the hour: the window starts at most a step later
+    window_length, step = WINDOWS[window]
+    epoch = datetime.datetime(1970, 1, 1)
+    self.since = self.now - window_length + step - (self.now - epoch) % step
 
   def but(self, **changes) -> 'Filters':
-    values = {k: getattr(self, k) for k in ('user', 'projects', 'allowed_projects', 'window', 'status', 'search', 'option', 'group', 'key', 'now')}
+    values = {k: getattr(self, k) for k in ('user', 'projects', 'allowed_projects', 'window', 'status', 'search', 'option', 'group', 'key', 'now', 'match')}
     return Filters(**{**values, **changes})
 
   def where(self):
@@ -164,6 +187,12 @@ class Filters:
     if self.status != 'all':
       conditions.append(f"({STATUS}) = ANY(:statuses)")
       params['statuses'] = list(STATUS_FILTERS[self.status])
+    if self.status == 'long':
+      conditions.append("coalesce(o.started_at, o.queued_at, o.created_date) < :long_ago")
+      params['long_ago'] = self.now - LONG
+    for name, value in self.match.items():
+      conditions.append(f"{GROUPS[name][0]} = :match_{name}")
+      params[f'match_{name}'] = value
     if self.search:
       conditions.append("(c.project_id ILIKE :search ESCAPE '\\' OR c.branch ILIKE :search ESCAPE '\\' OR b.label ILIKE :search ESCAPE '\\' "
                         "OR c.hexsha LIKE :search_sha ESCAPE '\\' OR o.data->>'user' ILIKE :search ESCAPE '\\')")
@@ -344,8 +373,11 @@ def add_commands(items: list) -> None:
 STATUS_ORDER = "CASE r.status WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 WHEN 'failed' THEN 2 ELSE 3 END"
 
 
-def runs(filters: Filters, limit=50, offset=0) -> dict:
-  """The runs themselves: what they ran, where, since when. Running and waiting first, then the latest."""
+def runs(filters: Filters, limit=50, offset=0, sort='status') -> dict:
+  """
+  The runs themselves: what they ran, where, since when. Running and waiting first, then the latest.
+  `sort='oldest'`: the runs pending the longest first, e.g. to find stuck runs.
+  """
   sql, params = filters.runs_sql()
   query = f"""
     WITH r AS ({sql})
@@ -353,7 +385,8 @@ def runs(filters: Filters, limit=50, offset=0) -> dict:
            o.data->'job_options' AS job_options, o.data->>'failed_reason' AS failed_reason
     FROM r JOIN outputs o ON o.id = r.id LEFT JOIN test_inputs t ON t.id = r.test_input_id"""
   total = db_session.execute(text(f"WITH r AS ({sql}) SELECT count(*) FROM r"), params).scalar()
-  rows = db_session.execute(text(f"{query} ORDER BY {STATUS_ORDER}, coalesce(r.finished_at, r.started_at, r.queued_at, r.created_date) DESC, r.id DESC LIMIT :limit OFFSET :offset"),
+  order = (f"r.status IN ('waiting', 'running') DESC, CASE WHEN r.status IN ('waiting', 'running') THEN {SINCE} END ASC, " if sort == 'oldest' else f"{STATUS_ORDER}, ")
+  rows = db_session.execute(text(f"{query} ORDER BY {order}coalesce(r.finished_at, r.started_at, r.queued_at, r.created_date) DESC, r.id DESC LIMIT :limit OFFSET :offset"),
                             {**params, "limit": limit, "offset": offset}).mappings().all()
   dirs = output_dir_urls([r['id'] for r in rows])
   answer = []
@@ -399,6 +432,14 @@ def starting_soon(filters: Filters, limit=100) -> list:
   if filters.allowed_projects is not None:
     conditions.append("c.project_id = ANY(:allowed_projects)")
     params['allowed_projects'] = filters.allowed_projects
+  # batches that didn't start have no runs yet: we don't know their platform, command or job options but the queue
+  if any(name in filters.match for name in ('platform', 'command', 'option')):
+    return []
+  for name, expression in (('batch', 'b.id'), ('commit', 'c.id'), ('branch', "coalesce(c.branch, '')"),
+                           ('runner', "coalesce(s.value->>'runner', '')"), ('queue', "coalesce(s.value->>'queue', '')")):
+    if name in filters.match:
+      conditions.append(f"{expression} = :match_{name}")
+      params[f'match_{name}'] = filters.match[name]
   if filters.search:
     conditions.append("(c.project_id ILIKE :search ESCAPE '\\' OR c.branch ILIKE :search ESCAPE '\\' OR b.label ILIKE :search ESCAPE '\\' "
                       "OR c.hexsha LIKE :search_sha ESCAPE '\\' OR s.value->>'user' ILIKE :search ESCAPE '\\')")
@@ -432,7 +473,8 @@ def fail_runs(filters: Filters, reason: str, before: Optional[datetime.datetime]
   still runs, it saves its results when it ends. `before`: only those pending since before then.
   Returns how many, per project, and their ids.
   """
-  runs_sql, params = filters.but(status='active').runs_sql()
+  # whatever the status filter, only pending runs: those pending for long if users chose them
+  runs_sql, params = filters.but(status='long' if filters.status == 'long' else 'active').runs_sql()
   conditions = [f"{SINCE} < :before"] if before else []
   if ids is not None:
     conditions.append("r.id = ANY(:ids)")
