@@ -604,14 +604,19 @@ def _database_rows() -> dict:
   now = time.monotonic()
   if _cache["rows"] is not None and now - _cache["loaded_at"] < CACHE_SECONDS:
     return _cache["rows"]
+  from backend import db_session
   from .models import Setting
   try:
-    rows = {s.key: {"value": (s.value or {}).get('value'), "updated_by_id": s.updated_by_id, "updated_at": s.updated_at} for s in Setting.query.all()}
+    # On a connection of our own, not the caller's session: reading settings must never open, keep or roll back the
+    # caller's transaction. E.g. when uWSGI's master imports the app (backend/api/webhooks.py reads the git hosts),
+    # a transaction left open in its session would be inherited by every forked worker, on the same connection.
+    from sqlalchemy import select
+    with db_session.get_bind().connect() as connection:
+      result = connection.execute(select(Setting.key, Setting.value, Setting.updated_by_id, Setting.updated_at))
+      rows = {key: {"value": (value or {}).get('value'), "updated_by_id": by, "updated_at": at} for key, value, by, at in result}
   except Exception as e:
     # e.g. before the migrations ran: the defaults are safe
     print(f"[settings] WARNING: could not read the settings: {type(e).__name__}")
-    from backend import db_session
-    db_session.rollback()
     rows = {}
   try:
     signature = json.dumps({k: r["value"] for k, r in rows.items()}, sort_keys=True, default=str)

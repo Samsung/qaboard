@@ -282,3 +282,21 @@ def test_settings_export_and_import():
   assert settings.setting('jenkins.servers')[0]["token"] == "t"
   listed = run('settings', 'list', '--changed').output
   assert "ingest.auth" in listed and "build-token" not in listed
+
+
+def test_reading_settings_leaves_the_session_alone(admin):
+  """
+  uWSGI's master imports the app, which reads the settings (the git hosts): a transaction left open in its session
+  would be inherited by the forked workers, on the same connection ("DECLARE CURSOR can only be used in transaction
+  blocks"). Settings are read on a connection of their own.
+  """
+  assert admin.post('/api/v1/admin/settings', json={"ingest.auth": "warn"}).status_code == 200
+  from backend.database import db_session, engine
+  from backend import settings
+  db_session.remove()
+  settings.invalidate_cache()
+  assert settings.setting('ingest.auth') == 'warn'
+  from backend.git_hosts import git_hosts
+  assert git_hosts.default
+  assert not (db_session.registry.has() and db_session().in_transaction())
+  assert engine.pool.checkedout() == 0
