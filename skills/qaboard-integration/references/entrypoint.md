@@ -62,6 +62,10 @@ def run(context):
   target=, target_passfail=, plot_scale=)`, or once with `define_metric(key, ...)` at module level, or in the metrics
   file under `available_metrics`, or from another language with `metrics_definitions.json`. Without
   `smaller_is_better`, changes show in neutral colors and gate regression rules fail.
+- Definitions only apply to the metrics the run returns: `define_metric` records how to show a metric *if* it's
+  returned, and declaring more is harmless. At the end of the run (after `postprocess()`), `qa` merges them
+  (`metrics_definitions.json` < `define_metric` < `Metric`) and writes them to `output_dir/metrics_definitions.json`,
+  next to `metrics.json`: `qa postprocess` and `qa sync` read them from there.
 - `qa` adds `compute_time`. Don't name metrics `is_failed`, `params`, `badges`, `compute_time`.
 - `postprocess(runtime_metrics, context)` runs after `run()`, and alone with `qa postprocess` /
   `qa batch --action-on-existing postprocess`: put slow or often-changed metric code there, reading the files `run()`
