@@ -35,7 +35,8 @@ Kubernetes. Users sign in with single sign-on or LDAP, project roles control acc
 - **Find the commit that changed it:** History follows a metric across commits, input by input.
 - **Tune from the browser:** parameter sweeps and automated tuning (`qa optimize`, with Optuna).
 - **People and agents together:** coding agents read the same results (`qaboard.runs(url)`, `qa runs`, the compare
-  API) and learn the conventions from [skills](https://github.com/Samsung/qaboard/tree/master/skills).
+  API, the [HTTP API](https://samsung.github.io/qaboard/docs/http-api) and its OpenAPI document) and learn the
+  conventions from [skills](https://github.com/Samsung/qaboard/tree/master/skills).
   `qa gate` (experimental) fails CI when quality regresses, whoever wrote the change.
 - **Fits your stack:** wraps any executable, runs locally, on LSF, Dask or Celery, or in CI (GitHub Actions, GitLab
   CI, Jenkins...). Open source (Apache 2.0) and self-hosted: your results stay on your network.

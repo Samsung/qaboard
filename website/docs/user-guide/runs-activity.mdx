@@ -14,16 +14,19 @@ The cards at the top count your runs:
 - **Batches start soon**: batches you started from QA-Board whose `qa batch` waits for the cluster, e.g. a queued LSF
   job. Their runs show up once it starts. They're listed below, with their LSF job and a link to their logs.
 - **Waiting**: runs `qa batch` sent to a queue (LSF, Celery…) that didn't start yet.
-- **Running**: runs that started and didn't end yet. *Pending for over a day* warns about runs whose job may have died.
+- **Running**: runs that started and didn't end yet.
+- **Pending for over a day**: runs waiting or running for over a day, whose job may have died. Click it to list them,
+  the oldest first.
 - **Ended** and **Failed**: the runs that ended in the time window (the last 24 hours by default).
 
 Click **Waiting**, **Running**, **Ended** or **Failed** to list only those runs. The timeline shows how many runs
-waited and ran over the window, and below it how many ended. **Busiest projects**, **queues** and, with
-*Everyone's*, **users** say who and what loads the cluster: click a project or a user to see its runs, a queue to
-group the runs by queue. The page refreshes every 15 seconds: switch off **Live** to pause it.
+waited and ran over the window, and below it how many ended (hover a bar for its numbers). **Busiest projects**,
+**queues** and, with *Everyone's*, **users** say who and what loads the cluster: click one to see only its runs. The
+page refreshes every 15 seconds: switch off **Live** to pause it.
 
-**Your runs** or **Everyone's**: by default you see your own runs. *Everyone's* shows all the runs of the projects
-you can see, and who started them.
+**Your runs**, **Everyone's** or **Someone…**: by default you see your own runs. *Everyone's* shows all the runs of
+the projects you can see, and who started them. *Someone…* shows one person's: search for their name, or type the user
+name their runs were made with.
 
 ## Group runs as you like
 **Group by** the batch (the default), commit, project, user, `qa batch` command, runner, queue, platform, status, or
@@ -36,6 +39,17 @@ to their results, their log and their files. Search filters projects, branches, 
 see the runs pending the longest, the latest news, or the most failures first.
 
 Everything you choose is in the page's address: bookmark it, or share it.
+
+## Find where runs come from
+Lots of runs pending since this morning? Click what they have in common to see only their runs: the whole page follows,
+the cards, the timeline and the lists.
+- In a row: the filter button next to a batch, commit, branch, queue, runner or `qa batch` command, its project or
+  branch, its queue tag, or **Only these runs** in its menu (**⋯**).
+- In a run: its user, runner, queue, project, or the filter button next to its batch.
+- **Status** → *Pending for over a day*, and, for the runs themselves, **Pending the longest first**.
+
+Each filter shows as a tag at the top: remove it to see all the runs again. Then group what's left by user, queue or
+command to see who is affected and what started them.
 
 ## Clean up runs that are stuck
 When LSF kills a job, or its machine reboots, the run can't tell QA-Board it ended: it shows as running forever.

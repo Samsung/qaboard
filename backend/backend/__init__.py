@@ -104,6 +104,7 @@ import backend.api.usage
 import backend.api.files
 import backend.api.access
 import backend.api.admin_access
+import backend.api.openapi
 import backend.api.setup
 
 # A new server: QABOARD_ADMIN_PASSWORD's admin, else the setup token in the logs (backend/first_admin.py)
