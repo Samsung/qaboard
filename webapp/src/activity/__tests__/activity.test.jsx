@@ -82,7 +82,7 @@ describe('Runs activity', () => {
     const fetch = mockApi(routes());
     renderAt('/activity');
     expect(await screen.findByTestId('total-running')).toHaveTextContent('3');
-    expect(screen.getByTestId('total-running')).toHaveTextContent('1 run pending for over a day');
+    expect(screen.getByTestId('total-long')).toHaveTextContent('1pending for over a day');
     expect(screen.getByTestId('total-waiting')).toHaveTextContent('2');
     expect(screen.getByTestId('total-ended')).toHaveTextContent('13');
     expect(screen.getByTestId('total-soon')).toHaveTextContent('1');
@@ -150,6 +150,58 @@ describe('Runs activity', () => {
     expect(lastParams(fetch, 'GET', '/api/v1/activity/items').get('group')).toBe('option');
   });
 
+  it('filters the page on whatever users click: a batch, a branch, a queue, a user, the runs pending for long', async () => {
+    const fetch = mockApi(routes({ overview: { matched: { batch: { batch_id: 7, batch_label: 'tuning', project_id: 'isp/denoise', hexsha: 'a'.repeat(40) } } } }));
+    renderAt('/activity?scope=all');
+    const rows = await screen.findAllByTestId('activity-item');
+    fireEvent.click(within(rows[0]).getByRole('button', { name: 'Only the runs of Batch tuning' }));
+    await waitFor(() => expect(history.location.search).toBe('?scope=all&batch=7'));
+    await waitFor(() => expect(lastParams(fetch, 'GET', '/api/v1/activity/items').get('batch')).toBe('7'));
+    // the overview filters too: its totals, timeline and busiest are about these runs
+    expect(lastParams(fetch, 'GET', '/api/v1/activity/overview').get('batch')).toBe('7');
+    // the filter is a tag, named after the batch
+    const tag = await screen.findByText(/Batch tuning/, { selector: '.bp6-tag *' });
+    fireEvent.click(within(tag.closest('.bp6-tag')).getByRole('button'));
+    await waitFor(() => expect(history.location.search).toBe('?scope=all'));
+
+    fireEvent.click(within((await screen.findAllByTestId('activity-item'))[0]).getByTitle('Only the branch feature'));
+    await waitFor(() => expect(history.location.search).toBe('?scope=all&branch=feature'));
+    fireEvent.click(within((await screen.findAllByTestId('activity-item'))[0]).getByText('gpu'));
+    await waitFor(() => expect(history.location.search).toBe('?scope=all&branch=feature&queue=gpu'));
+    expect(screen.getByText('Queue gpu')).toBeInTheDocument();
+
+    // the runs: their user, runner and queue filter too
+    fireEvent.click(within((await screen.findAllByTestId('activity-item'))[0]).getByRole('button', { name: 'Show the runs: Batch tuning' }));
+    const run = (await screen.findAllByTestId('run'))[0];
+    fireEvent.click(within(run).getByTitle('Only the runs started with lsf'));
+    await waitFor(() => expect(history.location.search).toBe('?scope=all&branch=feature&runner=lsf&queue=gpu'));
+    fireEvent.click(within((await screen.findAllByTestId('run'))[0]).getByTitle('Only the runs of alice'));
+    await waitFor(() => expect(history.location.search).toBe('?scope=user&user=alice&branch=feature&runner=lsf&queue=gpu'));
+
+    // runs pending for over a day, the oldest first
+    fireEvent.click(await screen.findByTestId('total-long'));
+    await waitFor(() => expect(history.location.search).toContain('status=long&sort=oldest'));
+    await waitFor(() => expect(lastParams(fetch, 'GET', '/api/v1/activity/items').get('status')).toBe('long'));
+  });
+
+  it("shows someone's runs, picked from the directory or typed", async () => {
+    const fetch = mockApi(routes({ routes: { 'GET /api/v1/directory': { users: [{ id: 3, user_name: 'bob', full_name: 'Bob Builder' }], groups: [] } } }));
+    renderAt('/activity');
+    fireEvent.click(await screen.findByRole('radio', { name: 'Someone…' }));
+    const input = screen.getByRole('combobox', { name: 'Whose runs' });
+    fireEvent.change(input, { target: { value: 'bo' } });
+    fireEvent.click(await screen.findByText('Bob Builder'));
+    await waitFor(() => expect(history.location.search).toBe('?scope=user&user=bob'));
+    await waitFor(() => expect(lastParams(fetch, 'GET', '/api/v1/activity/overview').get('user')).toBe('bob'));
+    // not an account: runs say who ran them with their name on the machine
+    const again = screen.getByRole('combobox', { name: 'Whose runs' });
+    fireEvent.focus(again);
+    fireEvent.click(again);
+    fireEvent.change(again, { target: { value: 'carol' } });
+    fireEvent.click(await screen.findByText('carol', { selector: 'strong' }));
+    await waitFor(() => expect(history.location.search).toBe('?scope=user&user=carol'));
+  });
+
   it('lists the batches that start soon, with their logs', async () => {
     mockApi(routes());
     renderAt('/activity');
@@ -192,7 +244,7 @@ describe('Runs activity', () => {
     expect(stuck).toHaveTextContent('12 runs pending for over a week');
     expect(stuck).toHaveTextContent('No schedule marks them as failed.');
     fireEvent.click(within(stuck).getByRole('button', { name: 'Show them' }));
-    await waitFor(() => expect(history.location.search).toBe('?scope=all&status=active&sort=oldest'));
+    await waitFor(() => expect(history.location.search).toBe('?scope=all&status=long&sort=oldest'));
     fireEvent.click(within(screen.getByTestId('stuck')).getByRole('button', { name: 'Do it every night…' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByRole('combobox', { name: 'Job' })).toHaveValue('fail_stuck_runs');
@@ -214,6 +266,22 @@ describe('Runs activity', () => {
     renderAt('/activity');
     fireEvent.click(await screen.findByRole('button', { name: "See everyone's runs" }));
     await waitFor(() => expect(history.location.search).toBe('?scope=all'));
+  });
+
+  it('says clearly when there are no runs, and how to see some', async () => {
+    const zero = { waiting: 0, running: 0, done: 0, failed: 0, active_users: 0, active_projects: 0, active_batches: 0, active_since: null, long_active: 0 };
+    mockApi(routes({ overview: { totals: zero, starting_soon: [], projects: [], queues: [] }, routes: { 'GET /api/v1/activity/items': { items: [], total: 0, group: 'batch' } } }));
+    renderAt('/activity?queue=gpu');
+    const empty = await screen.findByTestId('no-runs');
+    expect(empty).toHaveTextContent('No runs match the filters');
+    // no empty chart, no empty table
+    expect(screen.queryAllByTestId('timeline-bar')).toHaveLength(0);
+    expect(screen.queryByRole('combobox', { name: 'Group by' })).toBeNull();
+    fireEvent.click(within(empty).getByRole('button', { name: 'Clear the filters' }));
+    await waitFor(() => expect(history.location.search).toBe(''));
+    expect(await screen.findByTestId('no-runs')).toHaveTextContent('No runs in the last 24 hours');
+    fireEvent.click(within(screen.getByTestId('no-runs')).getByRole('button', { name: 'Last 7 days' }));
+    await waitFor(() => expect(history.location.search).toBe('?window=7d'));
   });
 
   it('says when older runs were created, since their end is unknown', async () => {

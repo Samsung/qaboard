@@ -12,19 +12,18 @@ import { usersQuery } from "./api";
 import { formatBytes, formatNumber, plural, SizeBar, Ellipsis } from "./format";
 
 
-const medals = ['#d99e0b', '#a7b6c2', '#c87619'];
-
 export const UsersView = ({ me, filters, storageUrl, openUser }) => {
   const [search, setSearch] = useState('');
-  const { data, isPending, error, refetch, isFetching } = useQuery(usersQuery(filters));
+  const { data, isPending, error, refetch, isPlaceholderData } = useQuery(usersQuery(filters));
   if (isPending) return <Loading label="Loading who uses the most"/>;
   if (error) return <QueryError error={error} refetch={refetch} what="who uses the most"/>;
   if (data.can_see_others === 'none') return <NonIdealState icon="lock" title="Only your own usage"
     description="Admins, and a project's developers and owners, see who uses the most storage in their projects."/>;
   const users = data.users.map((user, index) => ({ ...user, rank: index + 1 }));
   if (users.length === 0) return <NonIdealState icon="people" title="Nobody's runs take storage here" description="No runs match the filters."/>;
-  const max = users[0].bytes;
   const total = data.totals.bytes;
+  // the bars are everyone's share of the total, like the Share column
+  const max = total || users[0].bytes;
   const shown = search ? users.filter(u => (u.user_name || 'unknown').toLowerCase().includes(search.toLowerCase())) : users;
   const runsOf = user => storageUrl('batches', { ...filters, scope: 'user', user: user.user_name, page: '' });
   return <>
@@ -35,9 +34,9 @@ export const UsersView = ({ me, filters, storageUrl, openUser }) => {
         {' '}{me.is_admin ? "Open someone's runs to delete them." : "Open someone's runs to see them: they, or an admin, delete them."}
       </span>
     </div>
-    <div style={{ overflowX: 'auto', opacity: isFetching ? 0.7 : 1 }}>
+    <div style={{ overflowX: 'auto', opacity: isPlaceholderData ? 0.6 : 1 }}>
       <HTMLTable compact interactive style={{ width: '100%' }} aria-label="Users">
-        <thead><tr><th style={{ width: 36 }}>#</th><th>User</th><th>Size</th><th>Share</th><th>Runs</th><th>Batches</th><th>Biggest project</th><th>Latest run</th><th aria-label="Actions"/></tr></thead>
+        <thead><tr><th style={{ width: 36 }}>#</th><th>User</th><th>Size</th><th style={{ textAlign: 'right' }}>Share</th><th style={{ textAlign: 'right' }}>Runs</th><th style={{ textAlign: 'right' }}>Batches</th><th>Biggest project</th><th>Latest run</th><th aria-label="Actions"/></tr></thead>
         <tbody>
           {shown.map(user => {
             const name = user.user_name || 'unknown';
@@ -45,18 +44,21 @@ export const UsersView = ({ me, filters, storageUrl, openUser }) => {
             const selected = filters.scope === 'user' && filters.user === user.user_name;
             return <tr key={user.user_name} data-testid="storage-user" onClick={event => { if (!event.target.closest('a, button')) openUser(user); }}
               style={{ cursor: 'pointer', ...(selected ? { background: 'rgba(45, 114, 210, 0.15)' } : {}) }}>
-              <td style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: medals[user.rank - 1] }}>{user.rank}</td>
+              <td className={Classes.TEXT_MUTED} style={{ fontVariantNumeric: 'tabular-nums' }}>{user.rank}</td>
               <td style={{ minWidth: 180 }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                  <Avatar name={name} size="24px"/>
-                  <Link to={runsOf(user)}><strong>{name}</strong></Link>
+                  {user.user_name
+                    ? <><Avatar name={name} size="24px"/><Link to={runsOf(user)}><strong>{name}</strong></Link></>
+                    : <Tooltip content="Runs from older qa versions don't say who ran them" hoverOpenDelay={200}>
+                      <Link to={runsOf(user)} className={Classes.TEXT_MUTED} style={{ fontStyle: 'italic' }}>(unknown user)</Link>
+                    </Tooltip>}
                   {is_me && <Tag minimal round>you</Tag>}
                 </span>
               </td>
               <td><SizeBar bytes={user.bytes} max={max}/></td>
-              <td style={{ fontVariantNumeric: 'tabular-nums' }}>{total ? `${(100 * user.bytes / total).toFixed(user.bytes / total < 0.1 ? 1 : 0)}%` : '—'}</td>
-              <td>{formatNumber(user.runs)}</td>
-              <td>{formatNumber(user.batches)}</td>
+              <td style={{ fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>{!total ? '—' : user.bytes / total < 0.001 ? '<0.1%' : `${(100 * user.bytes / total).toFixed(user.bytes / total < 0.1 ? 1 : 0)}%`}</td>
+              <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{formatNumber(user.runs)}</td>
+              <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{formatNumber(user.batches)}</td>
               <td style={{ maxWidth: 280 }}>
                 {user.top_project?.project_id && <>
                   <Ellipsis title={user.top_project.project_id} style={{ direction: 'rtl', textAlign: 'left' }}>

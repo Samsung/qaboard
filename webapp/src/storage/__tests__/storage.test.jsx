@@ -97,6 +97,21 @@ describe('Storage usage', () => {
     expect(screen.getByText("used by everyone's runs")).toBeInTheDocument();
   });
 
+  it("shows one person's usage, picked from the directory", async () => {
+    const fetch = mockApi({
+      'GET /api/v1/storage/overview': overview,
+      'GET /api/v1/storage/jobs': { jobs: [] },
+      'GET /api/v1/directory': { users: [{ id: 3, user_name: 'bob', full_name: 'Bob Builder' }], groups: [] },
+    });
+    renderAt('/storage');
+    fireEvent.click(await screen.findByRole('radio', { name: 'Someone…' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Whose runs' }), { target: { value: 'bob' } });
+    fireEvent.click(await screen.findByText('Bob Builder'));
+    await waitFor(() => expect(history.location.search).toBe('?scope=user&user=bob'));
+    await waitFor(() => expect(calls(fetch, 'GET', '/api/v1/storage/overview').at(-1)[0]).toContain('user=bob'));
+    expect(screen.getByRole('radio', { name: 'Someone…' })).toBeChecked();
+  });
+
   it("shows the commits' message, author and date, and filters by project, branch or user in a click", async () => {
     const commit = { message: 'Tune the AWB', details: 'Tune the AWB\n\nWith more tests', author: 'Alice Doe', authored_at: '2026-06-30T00:00:00Z' };
     const fetch = mockApi({
