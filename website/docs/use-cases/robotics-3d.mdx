@@ -1,59 +1,49 @@
 ---
 id: robotics-3d
-title: "Robotics: odometry and mapping"
+title: "Robotics: see where the trajectory went wrong"
 sidebar_label: Robotics and 3D
-description: Depth and IMU odometry with loop closures, on simulated warehouse runs with exact ground truth. 6DoF trajectories against the ground truth, point clouds, videos played in sync, error over time, and History and the gate on a trajectory metric.
+description: For robotics, perception and automotive teams. Trajectories against the ground truth, maps in 3D and sensor videos in sync with the reference's, per sequence, on every commit, with History and a gate on trajectory metrics.
 ---
-For robotics, perception and automotive engineers whose outputs are trajectories, maps and sensor streams. This page
-follows the odometry example.
+For robotics, perception and automotive engineers whose outputs are trajectories, maps and sensor streams.
 
-The example project is [`examples/robotics-3d`](https://github.com/Samsung/qaboard/tree/master/examples/robotics-3d).
-
-## The problem
-An odometry change is judged on a few recorded sequences, and its effect depends on how the robot moves: a change that
-helps slow, careful driving can make fast turns drift. One average error over the sequences hides that, and the error
-alone doesn't say why: you need to see the trajectory against the ground truth, the map it built, and what the sensors
-saw when it went wrong, next to the reference's.
-
-## The example
-A warehouse robot drives six simulated sequences: aisles, a loop around shelves, two figure-8s (one twice as fast), a
-docking approach and a long corridor. Its depth camera (160x120, 15 fps, 1% depth noise) and IMU (200 Hz, with
-drifting biases) are simulated, so the ground truth is exact. The odometry registers each depth frame to the last
-keyframe with point-to-plane ICP, started from the IMU's prediction; loop closures match keyframes when the robot
-comes back to a place, and solve a pose graph. Each run measures the absolute trajectory error (ATE), the relative
-pose error per meter, the drift at the end and the time per frame.
-
-Its story:
-1. The first release has no loop closure.
-2. Loop closure lands with a threshold that accepts matches with 30% overlap: they slide along the rows of identical
-   shelf bays, and on the figure-8s the trajectory jumps meters away. The quality gate fails; raising the threshold to
-   60% keeps the real loop closures, which cut the error on the loops.
-3. A change that trusts ICP over the IMU makes the figure-8s drift in their turns. History on the figure-8 shows the
-   step, the gate fails, and the change is reverted.
-4. Keyframes every 0.6 m instead of 0.3 m make it faster and better; a tuning sweep backs the choice.
-
-## What you see
-**Trajectories against the ground truth**: each axis over time and the path in 3D, the new run and the reference
-next to the ground truth in green (the legend names each line). Here a false loop closure pulls the new trajectory
-away.
-
-<Shot id="commit/trajectory-6dof" />
-
-**The map in 3D**: the points the robot mapped, where its trajectory put them, against where they really are. Drag to
-orbit, show or hide each cloud.
-
-<Shot id="commit/pointcloud" />
-
-**Videos in sync**: the depth camera next to the path so far, the new run's and the reference's playing together,
-frame by frame. The moment the new path leaves the true one is the moment to look at.
+**An average error doesn't say where the robot got lost, or why.** A change that helps slow, careful driving can make
+fast turns drift, and one number over a few recorded sequences hides it. QA-Board shows each sequence's trajectory
+against the ground truth and the reference's, the map it built, and what the sensors saw when it went wrong.
 
 <Clip id="commit/video-sync" />
 
-**The error over time** is a Plotly figure with the reference's curve dashed on the same axes, and a top-down map over
-the true layout is an image, compared with the image viewer. **History** follows the ATE of one sequence commit after
-commit, so the step where the figure-8 started drifting shows; see [History](/docs/user-guide/history-and-dashboards).
+## What it changes for your team
+- **Every sequence, against the ground truth and the reference.** Trajectories per axis and in 3D, with the error
+  over time, for each sequence, on every commit.
+- **The map, in 3D.** Orbit the point cloud the robot built, against where the points really are.
+- **The sensors, in sync with the result.** Sensor videos play next to the reference's, frame by frame, so
+  you see the moment the estimate leaves the truth.
+- **Regressions caught per sequence.** History follows a trajectory metric commit after commit; `qa gate`
+  (experimental) fails CI when one sequence gets much worse, even when the average doesn't.
 
-## The configuration
+## See it in action
+The pictures come from a demo warehouse robot whose odometry has new loop closures, with a threshold that accepts
+matches between identical shelf bays.
+
+### The trajectory, against the truth
+Each axis over time and the path in 3D: the new run, the reference and the ground truth. A false loop closure pulls the
+new trajectory away.
+
+<Shot id="commit/trajectory-6dof" />
+
+### The map it built
+The points the robot mapped, where its trajectory put them, against where they really are: false loop closures put
+shelves meters away. Drag to orbit, show or hide each cloud.
+
+<Shot id="commit/pointcloud" />
+
+### And everything else your code writes
+The error over time is a Plotly figure with the reference's curve dashed on the same axes; a top-down map over the
+true layout is an image, compared with the [image viewer](/docs/user-guide/image-viewer). **History** follows the
+error of one sequence across commits, so the step where the fast figure-8 started drifting shows. See
+[History](/docs/user-guide/history-and-dashboards).
+
+## How it's set up {#the-configuration}
 Each sequence is a folder with a `sequence.yaml`: the path and the warehouse's seed. The 6DoF viewer reads tab-separated
 poses, with the ground truth in `GT_final.txt`; the point cloud viewer reads PCD files, with an optional ground truth.
 
@@ -62,7 +52,27 @@ poses, with the ground truth in `GT_final.txt`; the point cloud viewer reads PCD
 A run is memoized by the code, the flags, the sequence and the seed: a commit that doesn't change the odometry reuses
 the identical run, which keeps CI fast. Do the same for long simulations, and say so in the run's log.
 
-## Run this example
+## Try it on the demo {#run-this-example}
+In [`examples/robotics-3d`](https://github.com/Samsung/qaboard/tree/master/examples/robotics-3d), a warehouse robot
+drives six simulated sequences: aisles, a loop around shelves, two figure-8s (one twice as fast), a docking approach
+and a long corridor. Its depth camera and IMU are simulated, so the ground truth is exact. The odometry registers each
+depth frame with point-to-plane ICP, started from the IMU's prediction, and closes loops with a pose graph. Each run
+measures the absolute trajectory error (ATE), the relative pose error per meter, the drift at the end and the time per
+frame.
+
+<details>
+<summary>The story the pictures tell</summary>
+
+1. The first release has no loop closure.
+2. Loop closure lands with a threshold that accepts matches with 30% overlap: they slide along the rows of identical
+   shelf bays, and on the figure-8s the trajectory jumps meters away. The quality gate fails; raising the threshold to
+   60% keeps the real loop closures, which cut the error on the loops.
+3. A change that trusts ICP over the IMU makes the figure-8s drift in their turns. History on the figure-8 shows the
+   step, the gate fails, and the change is reverted.
+4. Keyframes every 0.6 m instead of 0.3 m make it faster and better; a tuning sweep backs the choice.
+
+</details>
+
 You need Python 3.10 or later and FFmpeg (for the videos). The first run generates the sequences' ground truth (about
 20 s); a run takes 15-40 s.
 
@@ -75,13 +85,13 @@ qa batch ci                     # the 6 sequences
 
 Without `--share`, results stay in `output/`. To see them in the web app, run `qa --share batch ci`. With the
 [quickstart](/docs/get-started/quickstart#save-results-from-your-computer)'s server, first
-`export QABOARD_URL=http://localhost:5151 QA_STORAGE=/tmp/qaboard`.
+`export QABOARD_URL=http://localhost:5151 QA_STORAGE=/tmp/qaboard`. See the example's
+[README](https://github.com/Samsung/qaboard/tree/master/examples/robotics-3d#readme) for the flags and the tuning
+sweep.
 
-See the example's [README](https://github.com/Samsung/qaboard/tree/master/examples/robotics-3d#readme) for the
-flags and the tuning sweep.
-
-## Read more
-- [Point clouds and trajectories](/docs/user-guide/other-viewers#point-clouds-and-trajectories) and [the video viewer](/docs/user-guide/video-viewer): how to read and compare them.
-- [Viewers and file formats](/docs/viewers#point-clouds-and-trajectories): the files they read.
-- [The quality gate](/docs/quality-gate): per-test rules catch one sequence getting much worse.
-- [Tuning from the web app](/docs/tuning-from-the-webapp).
+## Where next
+<Cards>
+  <Card title="Point clouds and trajectories" to="/docs/user-guide/other-viewers#point-clouds-and-trajectories" eyebrow="User guide">How to read and compare them.</Card>
+  <Card title="Viewers and file formats" to="/docs/viewers#point-clouds-and-trajectories" eyebrow="Project integration">The files the 3D viewers read.</Card>
+  <Card title="The video viewer" to="/docs/user-guide/video-viewer" eyebrow="User guide">Videos in sync, frame by frame.</Card>
+</Cards>

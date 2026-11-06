@@ -391,8 +391,8 @@ function UseCases() {
     <section className={clsx(styles.section, styles.sectionAlt)}>
       <div className="container">
         <SectionHeader eyebrow="Use cases" title="For quality that pass/fail tests can't judge">
-          Images, models, trajectories, latency, test suites, agents. Each use case follows a demo project: the problem,
-          the workflow, and the configuration that produces what you see.
+          Images, models, trajectories, latency, test suites, agents. Each use case shows a regression that averages
+          miss, what your team sees in QA-Board to catch it, and the demo project to try it on.
         </SectionHeader>
         <ul className={clsx(styles.cards, styles.cardsThree)}>
           {USE_CASES.map(({audience, title, text, to}) => (
