@@ -371,6 +371,34 @@ class TestDriver(TempDirTestCase):
       DaskRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
     self.assertFalse((self.root / 'other').exists())
 
+  def test_kubernetes_paths(self):
+    """On Kubernetes, the runs and the driver use the paths the pods see: $PWD's, with its symlinks (like the kubernetes runner)"""
+    from qaboard.runners import runners, BaseRunner
+    from qaboard.runners.dask_runner import DaskRunner, job_to_task
+    real = self.root / 'nfs2' / 'algo'
+    real.mkdir(parents=True)
+    link = self.root / 'algo'
+    link.symlink_to(real)
+    submitted = []
+    class FakeKubernetesRunner(BaseRunner):
+      type = 'kubernetes'
+      @classmethod
+      def submit_detached(cls, script, name, log_file, job_options):
+        submitted.append((script, log_file))
+        return {}
+    with mock.patch.dict(os.environ, {'PWD': str(link)}), mock.patch('os.getcwd', return_value=str(real)):
+      jobs = make_jobs(['echo run'], real, cluster={"type": "kubernetes"}, batch_dir=str(real / 'batch'))
+      task = job_to_task(jobs[0], jobs[0].run_context.job_options)
+      self.assertEqual((task['cwd'], task['output_dir']), (str(link), str(link / 'output0')))
+      with mock.patch.dict(runners, {'kubernetes': FakeKubernetesRunner}):
+        DaskRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
+      script, log_file = submitted[0]
+      self.assertIn(f'cd "{link}" && python3 -m qaboard.runners.dask_runner "{link}/batch/dask/abcdefgh/tasks.json"', script)
+      self.assertEqual(log_file, link / 'batch' / 'dask' / 'abcdefgh' / 'driver.k8s.log')
+      # elsewhere, as before
+      jobs = make_jobs(['echo run'], link, cluster={"type": "slurm"})
+      self.assertEqual(job_to_task(jobs[0], jobs[0].run_context.job_options)['output_dir'], str(real / 'output0'))
+
   def test_existing_cluster_without_scheduler(self):
     """With a scheduler_address but no sbatch here, all runs are sent at once."""
     from distributed import LocalCluster
@@ -423,7 +451,7 @@ class TestStartup(TempDirTestCase):
     with mock.patch('qaboard.runners.dask_runner.make_cluster', side_effect=SystemExit(1)), \
          mock.patch('qaboard.runners.dask_runner.delete_dask_clusters') as delete_dask_clusters:
       self.run_batch(cluster={"type": "kubernetes"}, kubernetes={"namespace": "algo", "context": "prod"})
-    delete_dask_clusters.assert_called_once_with("abcdefgh-1234", "algo", "prod")
+    delete_dask_clusters.assert_called_once_with("abcdefgh-1234", {"namespace": "algo", "context": "prod"}, None)
 
 
 @unittest.skipUnless(has_dask, "requires the dask extra")
@@ -431,7 +459,7 @@ class TestStop(TempDirTestCase):
   """The server stops batches with few job options: type, command_id, bridge, cluster_type..."""
   def stop(self, **job_options):
     from qaboard.runners.dask_runner import DaskRunner
-    DaskRunner.stop_jobs([], {"type": "dask", "command_id": "abcdefgh-1234", "bridge": "", **job_options})
+    return DaskRunner.stop_jobs([], {"type": "dask", "command_id": "abcdefgh-1234", "bridge": "", **job_options})
 
   def test_jobqueue(self):
     tools = {'slurm': ['scancel'], 'sge': ['qdel'], 'pbs': ['qselect', 'qdel'], 'moab': ['qselect', 'qdel'], 'oar': ['oardel'], 'htcondor': ['condor_rm']}
@@ -499,33 +527,63 @@ class TestStop(TempDirTestCase):
 
   @unittest.skipUnless(has_dask_kubernetes, "requires the dask-kubernetes extra")
   def test_kubernetes(self):
-    """Deletes the batch's DaskCluster(s) and Jobs."""
-    from kubernetes.client.rest import ApiException # type: ignore
-    clusters = {"items": [
-      {"metadata": {"name": "qa-abcdefgh-dask-0a1b2c", "labels": {"qaboard.io/command-id": "abcdefgh-1234"}}},
-      {"metadata": {"name": "qa-abcdefgh-dask-3d4e5f"}}, # labels lost: by name
-      {"metadata": {"name": "qa-12345678-dask-0a1b2c", "labels": {"qaboard.io/command-id": "12345678-0000"}}},
-      {"metadata": {"name": "someone-else"}},
-    ]}
-    job = mock.Mock()
-    job.metadata.name = 'qa-abcdefgh-dask-driver'
-    with mock.patch('qaboard.runners.dask_runner.kubernetes_api_client') as api_client, \
-         mock.patch('kubernetes.client.CustomObjectsApi') as CustomObjectsApi, mock.patch('kubernetes.client.BatchV1Api') as BatchV1Api, \
-         mock.patch('qaboard.runners.dask_runner.secho'):
-      CustomObjectsApi.return_value.list_namespaced_custom_object.return_value = clusters
-      BatchV1Api.return_value.list_namespaced_job.return_value.items = [job]
-      self.stop(cluster_type='kubernetes', kubernetes={"namespace": "algo", "context": "prod"})
-      api_client.assert_called_once_with('prod')
-      self.assertEqual([c[0] for c in CustomObjectsApi.return_value.delete_namespaced_custom_object.call_args_list], [
-        ('kubernetes.dask.org', 'v1', 'algo', 'daskclusters', 'qa-abcdefgh-dask-0a1b2c'),
-        ('kubernetes.dask.org', 'v1', 'algo', 'daskclusters', 'qa-abcdefgh-dask-3d4e5f'),
-      ])
-      BatchV1Api.return_value.list_namespaced_job.assert_called_once_with('algo', label_selector='qaboard.io/command-id=abcdefgh-1234')
-      BatchV1Api.return_value.delete_namespaced_job.assert_called_once_with('qa-abcdefgh-dask-driver', 'algo', propagation_policy='Background')
-
-      # Without the operator there is no DaskCluster to delete
-      CustomObjectsApi.return_value.list_namespaced_custom_object.side_effect = ApiException(status=404)
+    """Deletes the batch's DaskCluster(s) and Jobs, by labels: its command id, and its project when the server gives it."""
+    from qaboard.runners.kubernetes import ApiError
+    from qaboard.runners.labels import label_value
+    def labels(command_id, project=None):
+      return {"qaboard.io/command-id": command_id, **({"qaboard.io/project": label_value(project)} if project else {})}
+    def matches(object_labels, selector):
+      return all(object_labels.get(k) == v for k, v in (part.split('=') for part in selector.split(',')))
+    class FakeKube():
+      def __init__(self):
+        self.clusters = [
+          {"metadata": {"name": "qa-abcdefgh-dask-0a1b2c", "labels": labels("abcdefgh-1234", "algo/project")}},
+          # same command id, another project
+          {"metadata": {"name": "qa-abcdefgh-dask-3d4e5f", "labels": labels("abcdefgh-1234", "other/project")}},
+          # same name prefix, another batch: never by name
+          {"metadata": {"name": "qa-abcdefgh-dask-999999", "labels": labels("abcdefgh-9999", "algo/project")}},
+        ]
+        self.jobs = [
+          {"metadata": {"name": "qa-abcdefgh-dask-driver-0123", "labels": labels("abcdefgh-1234", "algo/project")}},
+          {"metadata": {"name": "qa-abcdefgh-dask-driver-4567", "labels": labels("abcdefgh-1234", "other/project")}},
+        ]
+        self.deleted, self.calls = [], []
+        self.operator = True
+      def call(self, api, method, *args, **kwargs):
+        self.calls.append((method, args, kwargs))
+        if method == 'list_namespaced_custom_object':
+          if not self.operator:
+            raise ApiError(404, 'the server could not find the requested resource')
+          return {"items": [c for c in self.clusters if matches(c['metadata']['labels'], kwargs['label_selector'])]}
+        if method == 'list_namespaced_job':
+          return {"items": [j for j in self.jobs if matches(j['metadata']['labels'], kwargs['label_selector'])]}
+        if method in ('delete_namespaced_custom_object', 'delete_namespaced_job'):
+          self.deleted.append(args[-1] if method == 'delete_namespaced_custom_object' else args[0])
+          return {}
+        if method == 'delete_namespaced_config_map':
+          return {}
+        raise AssertionError(method)
+    kube = FakeKube()
+    with mock.patch('qaboard.runners.dask_runner.kubernetes_kube', return_value=kube) as kubernetes_kube, mock.patch('qaboard.runners.dask_runner.secho'):
+      # what the server gives
+      self.assertEqual(self.stop(cluster_type='kubernetes', kubernetes={"namespace": "algo", "context": "prod", "project": "algo/project"}, api_retry_seconds=15), 2)
+      self.assertEqual(kube.deleted, ['qa-abcdefgh-dask-0a1b2c', 'qa-abcdefgh-dask-driver-0123'])
+      self.assertEqual(kubernetes_kube.call_args[0][0], {"namespace": "algo", "context": "prod", "project": "algo/project", "api_retry_seconds": 15})
+      self.assertEqual(kube.calls[0], ('list_namespaced_custom_object', ('kubernetes.dask.org', 'v1', 'algo', 'daskclusters'), {
+        'label_selector': f'qaboard.io/command-id=abcdefgh-1234,qaboard.io/project={label_value("algo/project")}'}))
+      # without a project, all of the command id's
+      kube.deleted.clear()
       self.stop(cluster_type='kubernetes', kubernetes={"namespace": "algo"})
+      self.assertEqual(sorted(kube.deleted), ['qa-abcdefgh-dask-0a1b2c', 'qa-abcdefgh-dask-3d4e5f', 'qa-abcdefgh-dask-driver-0123', 'qa-abcdefgh-dask-driver-4567'])
+      # Without the operator there is no DaskCluster to delete
+      kube.operator = False
+      kube.deleted.clear()
+      self.stop(cluster_type='kubernetes', kubernetes={"namespace": "algo"})
+      self.assertEqual(sorted(kube.deleted), ['qa-abcdefgh-dask-driver-0123', 'qa-abcdefgh-dask-driver-4567'])
+      # never a selector from raw input
+      from qaboard.runners.dask_runner import stop_kubernetes
+      stop_kubernetes('x,qaboard.io/user!=y', {"namespace": "algo"})
+      self.assertRegex(kube.calls[-1][2]['label_selector'], r'^qaboard.io/command-id=x-qaboard.io-user--y-[0-9a-f]{8}$')
 
 
 @unittest.skipUnless(has_dask_kubernetes, "requires the dask-kubernetes extra")
@@ -576,8 +634,10 @@ class TestKubernetesCluster(unittest.TestCase):
     ])
     self.assertEqual(worker['spec']['nodeSelector'], {"pool": "gpu"})
     self.assertEqual(worker['spec']['tolerations'], [{"key": "nvidia.com/gpu", "operator": "Exists"}])
+    # like the kubernetes runner's pods
     for pod in (worker['spec'], scheduler):
-      self.assertEqual(pod['securityContext'], {"runAsUser": 1000, "runAsNonRoot": True, "runAsGroup": 100})
+      self.assertEqual(pod['securityContext'], {"seccompProfile": {"type": "RuntimeDefault"}, "runAsUser": 1000, "runAsNonRoot": True, "runAsGroup": 100})
+      self.assertEqual(pod['containers'][0]['securityContext'], {"allowPrivilegeEscalation": False, "capabilities": {"drop": ["ALL"]}})
       self.assertEqual(pod['imagePullSecrets'], [{"name": "creds"}])
     # the scheduler doesn't need the workers' GPUs, nodes or files
     self.assertEqual(scheduler['containers'][0]['args'][:2], ['dask', 'scheduler'])
@@ -596,11 +656,15 @@ class TestKubernetesCluster(unittest.TestCase):
     with mock.patch('qaboard.runners.kubernetes.os.getuid', return_value=0):
       with self.assertRaisesRegex(Exception, 'never start pods as root'):
         kubernetes_cluster_spec(self.options(), "abcdefgh-1234", nb_runs=1)
-    spec, *_ = kubernetes_cluster_spec(self.options(run_as='image'), "abcdefgh-1234", nb_runs=1)
-    self.assertNotIn('securityContext', spec['spec']['worker']['spec'])
-    spec, *_ = kubernetes_cluster_spec(self.options(run_as='image', run_as_non_root=True, service_account='runs', priority_class='low'), "abcdefgh-1234", nb_runs=1)
+    spec, *_ = kubernetes_cluster_spec(self.options(run_as='image', image_pull_secrets='creds'), "abcdefgh-1234", nb_runs=1)
+    self.assertEqual(spec['spec']['worker']['spec']['securityContext'], {'seccompProfile': {'type': 'RuntimeDefault'}})
+    self.assertEqual(spec['spec']['worker']['spec']['imagePullSecrets'], [{'name': 'creds'}])
+    spec, *_ = kubernetes_cluster_spec(self.options(run_as='image', run_as_non_root=True, service_account='runs', priority_class='low', project='algo/project'), "abcdefgh-1234", nb_runs=1)
+    from qaboard.runners.labels import label_value
+    # the server stops the batch by command id and project
+    self.assertEqual(spec['metadata']['labels']['qaboard.io/project'], label_value('algo/project'))
     for pod in (spec['spec']['worker']['spec'], spec['spec']['scheduler']['spec']):
-      self.assertEqual(pod['securityContext'], {'runAsNonRoot': True})
+      self.assertEqual(pod['securityContext'], {'seccompProfile': {'type': 'RuntimeDefault'}, 'runAsNonRoot': True})
       self.assertEqual((pod['serviceAccountName'], pod['priorityClassName']), ('runs', 'low'))
     with self.assertRaisesRegex(ValueError, 'image'):
       kubernetes_cluster_spec(DaskOptions(cluster={"type": "kubernetes"}), "abcdefgh-1234", nb_runs=1)

@@ -166,7 +166,7 @@ Every run has its `log.txt`, written by `qa run`. Runners add what they see, in 
 |---|---|---|
 | `lsf` | `log.lsf.txt` | Everything the job printed, then LSF's report: exit code, memory, why LSF killed it |
 | `dask` | `log.dask.txt` | Everything the run printed; worker logs are in the batch's folder |
-| `kubernetes` | `log.k8s.txt` | Everything the pod printed, and why it waited, e.g. no node with a free GPU |
+| `kubernetes` | `log.k8s.txt`, `log.pending.txt` | Everything the pod printed. While the pod waits, why, e.g. no node with a free GPU |
 
 The web app's **Logs** view shows them, next to `log.txt`.
 

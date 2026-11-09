@@ -156,16 +156,58 @@ runners:
       threads_per_worker: 4      # runs per worker pod (default: 1)
 ```
 
-- Each `qa batch` creates its own DaskCluster, `qa-<batch-prefix>-dask-<random>`, labeled with the batch's command id,
-  and deletes it when the batch ends. If `qa batch` dies, the operator deletes it once idle for `idle_timeout`
-  (600 seconds by default).
+- Each `qa batch` creates its own DaskCluster, `qa-<batch-prefix>-dask-<random>`, labeled like the kubernetes
+  runner's Jobs, with the batch's command id, user and project (the operator puts the labels on the pods too), and
+  deletes it when the batch ends. If `qa batch` dies, the operator deletes it once idle for `idle_timeout` (600
+  seconds by default). Stopping the batch from QA-Board deletes the DaskClusters and the driver's Job that have its
+  command id and project.
 - The scheduler pod asks for 1 CPU and 2Gi of memory, without the mounts, node selector and tolerations of the
-  workers.
+  workers. All the pods get the kubernetes runner's security context: no privilege escalation, no capabilities, the
+  default seccomp profile, and `runAsNonRoot` when they run as a UID.
+- Runs execute where you started `qa batch`, at the paths you see, like with the kubernetes runner: a folder you
+  reach through a symbolic link keeps the link's path, the one the pods mount.
 - Dask uses your kubeconfig's current context (in a pod, its ServiceAccount): `qa batch` stops if
   `runners.kubernetes.context` names another one.
 - The runs get your environment variables, secrets included (they go to the workers through Dask, not in a
   ConfigMap), without those of your machine like `PATH` and `HOME`.
 - Your permissions in the namespace: `qa doctor` checks them, and prints the Role to ask your admins for.
+
+:::caution The Dask scheduler has no authentication
+Anyone who can reach the scheduler's pod can send it tasks, which run on the workers as your user, with your files,
+and read the tasks it holds: they carry the runs' environment, secrets included. Restrict who can reach the
+DaskClusters' pods with a [NetworkPolicy](https://kubernetes.io/docs/concepts/services-networking/network-policies/),
+if your cluster enforces them:
+
+```yaml title="dask-network-policy.yaml"
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: qaboard-dask
+  namespace: <your-namespace>
+spec:
+  # the schedulers and workers of QA-Board's DaskClusters
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/managed-by: qaboard
+    matchExpressions:
+      - {key: dask.org/cluster-name, operator: Exists}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        # QA-Board's pods in the namespace: workers, schedulers, --no-wait drivers
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/managed-by: qaboard
+        # the Dask operator, which checks if schedulers are idle
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: dask-operator
+```
+
+`qa batch` outside the cluster reaches the scheduler with a port-forward through the API server, which needs the
+`pods/portforward` permission and isn't blocked by the policy. Other users' batches in the namespace match the policy
+too: like for the kubernetes runner, [the namespace is the trust boundary](/docs/kubernetes-runner#namespace-trust).
+:::
 
 For one pod per run, or several runs per pod, without Dask, see the [kubernetes runner](/docs/kubernetes-runner).
 

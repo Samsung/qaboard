@@ -111,7 +111,15 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   applies to each Job (with a warning). [M, behaviour]
 - Kubernetes ≥ 1.29 only (per-index retries, `backoffLimitPerIndex`): older clusters are refused, by `qa doctor` and
   when a Job loses the field. [S, no change]
-- Image pulls that keep failing fail the batch after 5 minutes; waiting in a Kueue queue is never fatal. [S, behaviour]
+- Image pulls that keep failing for a pod fail the batch after 5 minutes, unless pods of its Job run or ran (a node's
+  problem); waiting in a Kueue queue is never fatal. A fatal problem deletes all the batch's Jobs, also the groups
+  whose pods run fine: the batch fails as a whole, like with Ctrl-C. [S, behaviour]
+- The per-run `timeout` needs `timeout -k` (GNU coreutils) in the image: no portable fallback (killing `qa run` and
+  what it started needs a process group). `qa doctor --test-job` checks it, and runs fail saying so. [S, behaviour]
+- Why pods are pending is in the runs' `log.pending.txt` (and `log.pending.txt` next to a detached job's `log.txt`):
+  the web app's run and submission logs don't list it, nor `log.k8s.txt`, yet. When the pods run as another user
+  than `qa batch`, it only writes there if the output directory exists (creating it would make it ours). A note
+  written just as the pod starts can stay behind (the pod deletes the file when it starts). [S, behaviour]
 - The server only stops batches in namespaces listed in `QABOARD_KUBERNETES_NAMESPACES` (otherwise a warning), and the
   pending driver pod is only watched for 20s after it's submitted. [S, behaviour]
 
@@ -123,6 +131,9 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   stays unless `walltime` is set (`qa doctor` warns). [S, behaviour]
 - Dask on Kubernetes needs the Dask operator; `KubeCluster` can't pick a kubeconfig context (only the current one);
   the scheduler pod asks for 1 CPU and 2Gi. [S, behaviour]
+- The Dask scheduler is unauthenticated, and the tasks it holds carry the runs' environment, secrets included: the
+  docs give a NetworkPolicy, which only helps on clusters that enforce them, and not between users of a namespace.
+  Real fix: distributed's TLS security (a certificate per batch, in a Secret the pods mount). [M, behaviour]
 
 ### Celery and runs on the server
 - From the server, stopping Celery batches only reaches the server's broker (`CELERY_BROKER_URL`): batches sent to a

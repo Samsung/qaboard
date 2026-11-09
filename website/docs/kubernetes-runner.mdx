@@ -11,7 +11,8 @@ runs, or when getting a GPU node is the slow part, each pod can do several runs.
 
 :::info What you need
 - **Kubernetes 1.29 or later**, and a namespace where you can create Jobs. `qa` uses your kubeconfig, like `kubectl`.
-- **An image with `qa`, a shell and your code's dependencies.** Your code itself comes from the shared storage.
+- **An image with `qa`, a shell (`sh`) and your code's dependencies.** Your code itself comes from the shared storage.
+  With a per-run `timeout`, the image also needs the `timeout` command of GNU coreutils.
 - **Your shared storage in the pods, at the same paths** as on the machine where you run `qa batch`: the folder where
   you start it, your inputs, and the results storage.
 - On the machine where you run `qa batch`: `pip install "qaboard[kubernetes]"`.
@@ -135,6 +136,10 @@ and groups, the ones of the account that runs `qa batch`: the outputs are yours,
 
 QA-Board never sets `fsGroup`: it would change the owner of the files on shared volumes. `service_account` sets the
 pods' ServiceAccount, e.g. one that can read what your runs need from the cluster.
+
+When pods run as another user than `qa batch` (`image`, or a UID), they must be able to write in the output
+folders: `qa batch` doesn't create them for the pods, and writes why pods are pending in a file of its own,
+`log.pending.txt`. A pod that can't write its log fails at once, and says why in its pod's logs.
 
 <details>
 <summary>Enforce it: only let pods run as their user</summary>
@@ -319,25 +324,30 @@ is hard to get, let each pod do several runs, one after the other:
 runners:
   kubernetes:
     runs_per_pod: 20
-    concurrency: 4     # 4 pods, so 4 GPUs at most
-    timeout: 3600      # seconds, per pod: it must cover its 20 runs
+    concurrency: 4      # 4 pods, so 4 GPUs at most
+    timeout: 300        # seconds, per run
+    pod_timeout: 7200   # seconds, per pod: it must cover its 20 runs
     resources: {nvidia.com/gpu: 1}
 ```
 
 A batch of 200 runs then uses 10 pods, 4 at a time. Each pod does its runs one after the other, even when one
-fails, and each run's success comes from its own `qa run`. A pod isn't retried: if it's killed, e.g. at its
-`timeout` or out of memory, its runs that didn't end fail. For many short runs, a Dask cluster can also keep a few
-pods busy: see [Dask on Kubernetes](/docs/dask-integration#kubernetes).
+fails, and each run's success comes from its own `qa run`. A run that takes longer than `timeout` fails, and the pod
+goes on with its next run: `timeout` needs the `timeout` command of GNU coreutils in the image (`qa doctor
+--test-job` checks it). A pod isn't retried: if it's killed, at its `pod_timeout` or out of memory, its runs that
+didn't end fail. For many short runs, a Dask cluster can also keep a few pods busy: see
+[Dask on Kubernetes](/docs/dask-integration#kubernetes).
 
 ## Logs and stopping {#logs-and-stopping}
 - Each run writes what its pod prints in `log.k8s.txt`, in its output directory, live: it stays when the pod is gone.
   The web app's **Logs** view shows it next to `log.txt`.
-- While pods are pending, `qa batch` prints why, once, and writes it in the pending runs' `log.k8s.txt`.
-- `Ctrl-C` on `qa batch` deletes the batch's Jobs, and the runs that didn't end fail. From the web app, **Stop runs**
-  does the same, if your QA-Board server may use the namespace: see
+- While pods are pending, `qa batch` prints why, once, and writes it in the pending runs' `log.pending.txt`, next to
+  `log.k8s.txt`. The pod deletes it when it starts.
+- `Ctrl-C` on `qa batch` deletes the batch's Jobs, and the runs that didn't end fail. If the cluster doesn't answer,
+  it gives up after 15 seconds; a second `Ctrl-C` quits at once, and prints the `kubectl delete` command for what is
+  left. From the web app, **Stop runs** does the same, if your QA-Board server may use the namespace: see
   [Run batches from the web app](/docs/backend-admin/runners#kubernetes).
 - `qa batch` prints the command that lists the batch's Jobs: `kubectl get jobs -n <namespace> -l
-  qaboard.io/command-id=<command-id>`. Jobs are named `qa-<first 8 characters of the command id>-<random>-...`.
+  qaboard.io/command-id=<command-id>`. Jobs are named `qa-<first 8 characters of the command id>-<12 random hex digits>-...`.
 - When runs fail, `qa batch` prints the command that shows the end of the pods' logs.
 
 ## Pods stay pending {#troubleshooting}
@@ -350,15 +360,15 @@ common:
 | `FailedScheduling`: didn't match node selector, untolerated taint | `node_selector` or `tolerations` don't match any node. |
 | exceeded quota | Your namespace's ResourceQuota is used up: wait, or lower `concurrency`. |
 | Waiting in a Kueue queue | Normal: the Jobs start when the queue has room. |
-| `ImagePullBackOff`, `ErrImagePull` | Check `image`, and give `image_pull_secrets` for a private registry. After 5 minutes, the batch fails. |
+| `ImagePullBackOff`, `ErrImagePull` | Check `image`, and give `image_pull_secrets` for a private registry. After 5 minutes for a pod, the batch fails, unless other pods of its Job could pull the image. |
 | Refused by admission (Pod Security, a policy) | The message names the rule: a volume your namespace's level forbids, or a `runAsUser` your admins don't allow. |
 | `FailedMount`, `FailedScheduling`: a claim not found or not bound | Create the claim in the namespace, or fix `mounts`. |
 | `CreateContainerConfigError` | A Secret or ConfigMap the pod uses is missing, or the image runs as root while the pod must not. |
 
-Errors that won't fix themselves fail the batch, and `qa batch` deletes its Jobs: an invalid image name, an image that
-can't be pulled for 5 minutes, a container that can't be configured, a pod that asks for more than the quota allows at
-all, and pods the cluster keeps refusing (Pod Security, admission policies). Waiting, in a Kueue queue or for free
-nodes, is never fatal. To look by yourself:
+Errors that won't fix themselves fail the batch: an invalid image name, an image that can't be pulled for 5 minutes,
+a container that can't be configured, a pod that asks for more than the quota allows at all, and pods the cluster
+keeps refusing (Pod Security, admission policies). Then `qa batch` deletes **all** the batch's Jobs, also those whose
+pods run fine, and fails. Waiting, in a Kueue queue or for free nodes, is never fatal. To look by yourself:
 
 ```bash
 kubectl get pods -n <namespace> -l qaboard.io/command-id=<command-id>
@@ -380,13 +390,15 @@ runners:
     namespace: algo-qa          # default: the kubeconfig context's namespace, else "default"
     context: my-cluster         # kubeconfig context, default: the current one. In a pod: its ServiceAccount
     image: registry.kitefin.example/algo/qa-env:2026.11   # must have `qa` and your code's dependencies
-    image_pull_secrets: [registry-creds]
+    image_pull_secrets: [registry-creds]   # or one, as a string
     queue: algo-gpu             # Kueue LocalQueue
     priority_class: batch-low
     concurrency: 50             # pods at the same time, for a `qa batch`. 0: all
     runs_per_pod: 1             # >1: each pod does several runs, one after the other
-    timeout: 3600               # seconds, per pod. 0: none
+    timeout: 600                # seconds, per run (needs GNU coreutils' `timeout` in the image). 0: none
+    pod_timeout: 3600           # seconds, per pod, for all its runs. 0: none
     resources: {cpu: 4, memory: 16Gi, nvidia.com/gpu: 1}   # requests; memory and extended resources also limits
+    # resources: {requests: {cpu: 4, memory: 16Gi}, limits: {memory: 32Gi}}   # or exactly these
     node_selector: {pool: gpu}
     tolerations: [{key: nvidia.com/gpu, operator: Exists, effect: NoSchedule}]
     run_as: user                # user (default): your UID/GID and groups | image | {uid: 1000, gid: 1000, groups: [...]}
@@ -405,10 +417,13 @@ runners:
     forward_env: true           # forward qa's environment, without secrets and host-specific variables
     job_template: k8s/qa-job.yaml   # optional: a batch/v1 Job merged under what QA-Board generates
     ttl_seconds_after_finished: 86400   # seconds before finished Jobs are deleted
+    api_retry_seconds: 300      # how long API calls are retried when the cluster doesn't answer
 ```
 
-Only `concurrency`, `runs_per_pod` and `timeout` can differ between the batches of a `qa batch`: batches with their own
-get their own Jobs. `namespace` and `context` are the same for all of a `qa batch`'s runs.
+`concurrency`, `runs_per_pod` and `pod_timeout` can differ between the batches of a `qa batch`: batches with their own
+get their own Jobs. `timeout` can differ for each run. `namespace` and `context` are the same for all of a
+`qa batch`'s runs. `resources` are either requests (`{cpu: 4, memory: 16Gi}`), or `requests` and `limits`, not both
+in the same mapping. `qa doctor` reports settings of the wrong type.
 
 `job_template` is for what the settings don't cover, e.g. annotations your cluster requires, init containers,
 affinities, or environment variables from Secrets. Its first container is the one that runs `qa run`. The settings
@@ -426,11 +441,12 @@ Relative paths are relative to the project's root.
   Kubernetes 1.29: `qa batch` stops if the cluster ignores it.
 - Large batches, and runs with different pod settings (e.g. per input type), get several Jobs. `concurrency` then
   applies to each Job, and `qa batch` warns about it.
-- The runs' commands are in an immutable ConfigMap that belongs to the Job, deleted with it. Each pod `cd`s to the
-  folder where you started `qa batch`, and runs `qa run`.
-- Jobs are named `qa-<first 8 characters of the command id>-<random>-<group>-<index>`: a new part each time
-  `qa batch` runs, since `qa optimize` reuses command ids. Finished Jobs are deleted after
-  `ttl_seconds_after_finished`.
+- The runs' commands are in an immutable ConfigMap that belongs to the Job, deleted with it. Each pod runs them with
+  `sh`: for each run, it sends its output to `log.k8s.txt` (or fails at once if it can't), `cd`s to the folder
+  where you started `qa batch`, and runs `qa run`, with `timeout` if you set one.
+- Jobs are named `qa-<first 8 characters of the command id>-<12 random hex digits>-<group>-<index>`: a new part
+  each time `qa batch` runs, since `qa optimize` reuses command ids. Finished Jobs are deleted after
+  `ttl_seconds_after_finished`. If a Job with the same name exists anyway, `qa batch` fails rather than use it.
 - A run's success comes from `qa run`, like with every runner, not from the pod's status.
 
 </details>

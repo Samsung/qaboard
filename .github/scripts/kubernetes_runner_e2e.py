@@ -14,9 +14,13 @@ Needs docker, kind and kubectl.
 3. Checks that, with run_as: user (your UID; as root, an explicit UID, since pods never run as root as "user"):
    - runs succeed, 2 per pod (runs_per_pod), their outputs are owned by the user, their output in log.k8s.txt
    - a failed run fails `qa batch`, and the other run of its pod still runs
-   - pods that can't start (invalid image) fail the batch quickly, and say why in the runs' log.k8s.txt
+   - a run that takes longer than `timeout` fails, the other run of its pod still runs
+   - pods that can't start (invalid image) fail the batch quickly, and say why in the runs' log.pending.txt
+   - pods that are pending for a while (a node_selector no node matches, until we label the node) say why in
+     log.pending.txt, written by `qa batch` (as root, when the pods run as uid 1000), then run and write their logs
+   - a Job whose name is taken, with the same command id, isn't reused (create_job refuses it)
    - `qa batch --no-wait`, then KubernetesRunner.stop_jobs (what the server calls) deletes the Jobs
-   - KubernetesRunner.submit_detached runs a script in a pod
+   - KubernetesRunner.submit_detached runs a script in a pod, also after a pending phase (why: in log.pending.txt)
    - KubernetesRunner.doctor(..., test_job=True) has no errors, and its test pod ran as the user
 Behind a TLS-intercepting proxy, the CA bundle at $SSL_CERT_FILE (or $PIP_CERT) is added to the image build.
 """
@@ -35,6 +39,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 CLUSTER = "qaboard-runner-e2e"
 IMAGE = "qaboard-runner-e2e:dev"  # not :latest, so that pods don't try to pull it
+NODE = f"{CLUSTER}-control-plane"
+# Pods with node_selector {NODE_LABEL: ready} are pending until we label the node
+NODE_LABEL = "qaboard-e2e"
 
 # The node sees `shared` at the same path.
 # - failCgroupV1: kubelets >=1.35 refuse cgroup v1 hosts by default
@@ -129,6 +136,8 @@ def make_project(shared: Path, kubernetes: dict) -> Path:
     # in the same pod
     f"fails: {{database: {database}, inputs: [fail.txt, ok.txt]}}",
     f"slow: {{database: {database}, inputs: [a.txt]}}",
+    f"pending: {{database: {database}, inputs: [ok.txt], kubernetes: {{node_selector: {{{NODE_LABEL}: ready}}}}}}",
+    f"timeout: {{database: {database}, inputs: [fail.txt, ok.txt], kubernetes: {{timeout: 5}}}}",
     f"invalid-image: {{database: {database}, inputs: [a.txt], kubernetes: {{image: 'INVALID::image'}}}}",
     '',
   ]))
@@ -163,7 +172,9 @@ def main():
     'concurrency': 2,
     'resources': {'cpu': '100m', 'memory': '256Mi'},
     'mounts': [{'path': str(shared), 'host_path': str(shared)}],
-    'timeout': 600,
+    # per run
+    'timeout': 120,
+    'pod_timeout': 600,
   }
   env = {**os.environ, 'QA_OFFLINE': 'true', 'QA_BATCH_QUIET': '1'}
   env.pop('QA_TESTING', None)
@@ -195,6 +206,17 @@ def main():
     def delete_jobs():
       run('kubectl', 'delete', 'jobs', '-l', 'app.kubernetes.io/managed-by=qaboard', '--wait=true', check=False)
 
+    def label_node(ready: bool):
+      run('kubectl', 'label', 'node', NODE, f'{NODE_LABEL}=ready' if ready else f'{NODE_LABEL}-', '--overwrite')
+
+    def wait_for(condition, seconds):
+      deadline = time.time() + seconds
+      while time.time() < deadline:
+        if condition():
+          return True
+        time.sleep(2)
+      return condition()
+
     log("runs succeed, 2 per pod, as the user")
     reused_command_id = str(uuid.uuid4())
     returncode = qa_batch('ok', '--', 'cp {input_path} {output_dir}/out.txt && id -u > {output_dir}/uid.txt && echo from-the-run', command_id=reused_command_id)
@@ -223,13 +245,67 @@ def main():
     check((output_dir('fail') / 'log.k8s.txt').is_file(), "the failed run has its log.k8s.txt")
     delete_jobs()
 
+    log("a run longer than `timeout` fails, the other run of its pod still runs")
+    start = time.time()
+    returncode = qa_batch('timeout', '--', 'if grep -q fail {input_path}; then sleep 600; fi; cp {input_path} {output_dir}/out.txt')
+    check(returncode != 0 and time.time() - start < 300, "qa batch fails, without waiting for the slow run")
+    log_k8s = output_dir('fail') / 'log.k8s.txt'
+    check(log_k8s.is_file() and 'timed out after 5s' in log_k8s.read_text(), "the run's log.k8s.txt says it timed out")
+    check((output_dir('ok') / 'out.txt').is_file(), "the run after it, in the same pod, ran")
+    delete_jobs()
+
     log("pods that can't start fail the batch, and say why")
     start = time.time()
     returncode = qa_batch('invalid-image', '--', 'true')
     check(returncode != 0 and time.time() - start < 180, "qa batch fails quickly")
-    log_k8s = output_dir('a') / 'log.k8s.txt'
-    check(log_k8s.is_file() and 'InvalidImageName' in log_k8s.read_text(), "the run's log.k8s.txt says why its pod is pending")
+    pending_log = output_dir('a') / 'log.pending.txt'
+    check(pending_log.is_file() and 'InvalidImageName' in pending_log.read_text(), "the run's log.pending.txt says why its pod is pending")
     check(not kubectl_json('get', 'jobs', '-l', 'app.kubernetes.io/managed-by=qaboard')['items'], "its Jobs were deleted")
+
+    log("pods pending for a while say why in log.pending.txt, then run")
+    label_node(True)
+    returncode = qa_batch('pending', '--', 'cp {input_path} {output_dir}/out.txt && echo from-the-run')
+    check(returncode == 0, "the batch runs on the labeled node")
+    out = output_dir('ok')
+    # e.g. the pods run as another user than `qa batch`: it must not create the file they write
+    (out / 'log.k8s.txt').unlink(missing_ok=True)
+    label_node(False)
+    process = subprocess.Popen([*python, '-m', 'qaboard', 'batch', '--batches-file', 'e2e.batches.yaml', 'pending', '--', 'cp {input_path} {output_dir}/out.txt && echo from-the-run-again'], cwd=project, env=env)
+    pending_log = out / 'log.pending.txt'
+    check(wait_for(pending_log.is_file, 120), "qa batch wrote why the pod is pending in log.pending.txt")
+    check(pending_log.is_file() and 'node_selector' in pending_log.read_text(), "it says to check node_selector")
+    label_node(True)
+    try:
+      returncode = process.wait(timeout=300)
+    except subprocess.TimeoutExpired:
+      process.kill()
+      returncode = -1
+    check(returncode == 0, "then the run ran, and succeeded")
+    log_k8s = out / 'log.k8s.txt'
+    check(log_k8s.is_file() and 'from-the-run-again' in log_k8s.read_text(), "and wrote its log.k8s.txt")
+    check(log_k8s.is_file() and log_k8s.stat().st_uid == uid, f"as uid {uid}")
+    check(not pending_log.exists(), "the pod deleted log.pending.txt")
+    label_node(False)
+    delete_jobs()
+
+    log("a Job whose name is taken isn't reused, even with the same command id")
+    taken = "\n".join([
+      "from qaboard.runners.kubernetes import connect, create_job, dict_to_KubernetesOptions",
+      f"options = dict_to_KubernetesOptions({{**{kubernetes!r}, 'command_id': 'e2e-same-name'}})",
+      "kube = connect(options)",
+      "create_job(kube, options, 'default', 'qa-e2e-same-name', {'run.sh': 'echo old'}, ['sh', '/etc/qaboard/run.sh'])",
+      "try:",
+      "  create_job(kube, options, 'default', 'qa-e2e-same-name', {'run.sh': 'echo new'}, ['sh', '/etc/qaboard/run.sh'])",
+      "  print('REUSED')",
+      "except Exception as e:",
+      "  print('REFUSED', e)",
+    ])
+    out = run(*python, '-c', taken, check=False, stdout=subprocess.PIPE, encoding='utf-8', cwd=project)
+    print(out.stdout)
+    check('REFUSED' in out.stdout and 'already exists' in out.stdout, "the second create_job is refused")
+    configmap = kubectl_json('get', 'configmap', 'qa-e2e-same-name')
+    check(configmap['data'] == {'run.sh': 'echo old'}, "the existing Job and its scripts are left as they were")
+    delete_jobs()
 
     log("qa batch --no-wait, then the server stops it")
     command_id = str(uuid.uuid4())
@@ -265,6 +341,29 @@ def main():
     check(detached_log.is_file() and f'detached as {uid}' in detached_log.read_text(), "its script ran, and wrote its log")
     out = run(*python, '-c', stop, check=False, cwd=project)
     check(not kubectl_json('get', 'jobs', '-l', selector)['items'], "stop_jobs deletes it too")
+
+    log("submit_detached, pending for a while, as another user than the submitter")
+    # like the server's log directories
+    detached_dir = shared / 'detached-pending'
+    detached_dir.mkdir()
+    detached_dir.chmod(0o777)
+    detached_log = detached_dir / 'log.txt'
+    submit = "\n".join([
+      "import json; from pathlib import Path; from qaboard.runners.kubernetes import KubernetesRunner",
+      f"options = {{**{kubernetes!r}, 'command_id': {command_id!r}, 'node_selector': {{{NODE_LABEL!r}: 'ready'}}}}",
+      f"print(json.dumps(KubernetesRunner.submit_detached('#!/bin/bash\\necho \"detached with bash $BASH_VERSION as $(id -u)\"', 'qa-abcdefgh-driver', Path({str(detached_log)!r}), options)))",
+    ])
+    out = run(*python, '-c', submit, check=False, stdout=subprocess.PIPE, encoding='utf-8', cwd=project)
+    check(out.returncode == 0, "it returns while the pod is pending")
+    detached_pending = detached_dir / 'log.pending.txt'
+    check(detached_pending.is_file() and 'node_selector' in detached_pending.read_text(), "why it's pending is in log.pending.txt")
+    check(not detached_log.exists(), "not in log.txt")
+    label_node(True)
+    check(wait_for(lambda: detached_log.is_file() and 'detached with bash' in detached_log.read_text(), 180), "then its script ran, with bash")
+    check(detached_log.is_file() and f'as {uid}' in detached_log.read_text() and detached_log.stat().st_uid == uid, f"as uid {uid}, and wrote its log")
+    check(not detached_pending.exists(), "the pod deleted log.pending.txt")
+    label_node(False)
+    run(*python, '-c', stop, check=False, cwd=project)
 
     log("doctor, with a test job")
     doctor = "\n".join([

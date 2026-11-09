@@ -50,13 +50,15 @@ runners:
     namespace: algo-qa          # default: the kubeconfig context's namespace, else "default"
     context: my-cluster         # kubeconfig context, default: current. In a pod: the in-cluster ServiceAccount
     image: registry.example.com/algo/qa-env:2026.11   # must have `qa` and your code's dependencies
-    image_pull_secrets: [registry-creds]
+    image_pull_secrets: [registry-creds]   # or one, as a string
     queue: algo-gpu             # Kueue LocalQueue
     priority_class: batch-low
     concurrency: 50             # pods at the same time, for a `qa batch` (Job parallelism). 0: all
     runs_per_pod: 1             # >1: each pod does several runs, one after the other
-    timeout: 3600               # seconds, per pod (activeDeadlineSeconds). 0: none
+    timeout: 600                # seconds, per run (`timeout -k 60` of GNU coreutils, in the pods' script). 0: none
+    pod_timeout: 3600           # seconds, per pod, for all its runs (activeDeadlineSeconds). 0: none
     resources: {cpu: 4, memory: 16Gi, nvidia.com/gpu: 1}   # requests; memory and extended resources also as limits
+    # or exactly: {requests: {...}, limits: {...}}. Both forms in one mapping are refused.
     node_selector: {pool: gpu}
     tolerations: [{key: nvidia.com/gpu, operator: Exists, effect: NoSchedule}]
     run_as: user                # user (default): your UID/GID and groups | image | {uid: 1000, gid: 1000, groups: [...]}
@@ -73,21 +75,30 @@ runners:
     forward_env: true           # forward qa's environment (minus secrets and host-specific variables, see below)
     job_template: k8s/qa-job.yaml   # optional, a batch/v1 Job merged under what QA-Board generates
     ttl_seconds_after_finished: 86400
+    api_retry_seconds: 300      # how long API calls are retried (429, 5xx, network). The server passes 15
 ```
+The options' types are checked (`option_errors`) before anything is created, and by `qa doctor`. Empty keys
+(`runners.kubernetes:`, `runners.dask:`) are empty settings.
 
 ### How runs start
-- `JobGroup` groups (`group_options = ('concurrency', 'runs_per_pod', 'timeout')`) become one Indexed Job each
+- `JobGroup` groups (`group_options = ('concurrency', 'runs_per_pod', 'pod_timeout')`) become one Indexed Job each
   (`completionMode: Indexed`, `completions` = number of pods, `parallelism` = concurrency, `backoffLimitPerIndex: 0`,
   `maxFailedIndexes` = completions, `podFailurePolicy` ignoring disruptions so evicted pods are retried).
   Large groups are split in several Jobs so that each ConfigMap stays under ~900 KiB.
 - The commands go in a ConfigMap owned by the Job (deleted with it): `run-<index>.sh` per pod, and `env.sh`. The pod
-  runs `sh /etc/qaboard/run-$JOB_COMPLETION_INDEX.sh`: no Python needed in the entrypoint. Each run's script `cd`s
-  where `qa batch` runs, sends its output live to `<output_dir>/log.k8s.txt` (pod logs vanish with the pod, like
-  LSF's `log.lsf.txt`), and runs the `qa run` command.
-- Names and labels: Job `qa-<command_id[:8]>-<rand4>-<group>-<chunk>`, with a random part per `qa batch`
-  (`qa optimize` reuses command ids, and a 409 on create is ours only if the object has our command id). Detached
-  Jobs: `qa-<name>-<rand4>` (server driver `qa-<id8>-driver-<rand4>`, Dask driver `qa-<id8>-dask-driver-<rand4>`,
-  doctor `qa-<id8>-doctor-<rand4>`). Labels `app.kubernetes.io/managed-by: qaboard`, `qaboard.io/command-id`,
+  runs `sh /etc/qaboard/run-$JOB_COMPLETION_INDEX.sh`: no Python needed in the entrypoint, only a POSIX `sh`. Each
+  run's script checks it can write `<output_dir>/log.k8s.txt`, else fails the run at once saying why on stderr (in
+  the pod's logs; a failed `exec >` exits sh but not bash), sends its output there live (pod logs vanish with the
+  pod, like LSF's `log.lsf.txt`), deletes `log.pending.txt`, `cd`s where `qa batch` runs, and runs the `qa run`
+  command, under `timeout -k 60 <timeout> sh -c ...` with a per-run `timeout` (it signals the process group; no
+  portable fallback: the image needs GNU coreutils, `qa doctor --test-job` checks it).
+- Names and labels: Job `qa-<command_id[:8]>-<rand12>-<group>-<chunk>`, with 48 random bits per `qa batch`:
+  `qa optimize`'s iterations reuse command ids, and finished Jobs are kept a day. Each create_job call puts a nonce
+  in the Job's and ConfigMap's `qaboard.io/invocation` annotation: a 409 AlreadyExists (a retried create whose
+  response was lost) is ours only with this nonce, otherwise we fail without touching the object (an old Job with
+  the same name would run its old scripts). Detached
+  Jobs: `qa-<name>-<rand12>` (server driver `qa-<id8>-driver-<rand12>`, Dask driver `qa-<id8>-dask-driver-<rand12>`,
+  doctor `qa-<id8>-doctor-<rand12>`). Labels `app.kubernetes.io/managed-by: qaboard`, `qaboard.io/command-id`,
   `qaboard.io/user`, `qaboard.io/project` (`qaboard/runners/labels.py`, shared with the server). Stopping a batch
   deletes the Jobs with its `command-id` (and project, from the server), propagation `Background`.
 - The runs' environment (`run_env`): qa's, minus secrets (`runners/env.py`: the ConfigMap is readable by the
@@ -101,12 +112,20 @@ runners:
   are Complete or Failed, and print progress. A run's success comes from `qa run` (QA-Board), not from Kubernetes.
 - **Help when it's stuck**: pods that stay Pending are the usual problem, not errors. We read their events and print
   them once (FailedScheduling, quota exceeded, ImagePullBackOff, admission refused, missing ConfigMap/PVC...) with what
-  to do, and write them in the pending runs' `log.k8s.txt` so they show in QA-Board. Errors that won't fix themselves
-  (ErrImagePull for 5 minutes, InvalidImageName, CreateContainerConfigError, a quota the pod can never fit, a
-  FailedCreate refused by admission 3 times) fail the batch. Waiting on a Kueue queue or for nodes is never fatal.
-- SIGINT/SIGTERM deletes the batch's Jobs, then exits (JobGroup marks the stopped runs as failed).
-- `submit_detached()` starts one pod (a 1-completion Job) running a bash script: used by the dask driver and by the
-  server for batches started from the web app. It watches the pod ~20s and deletes it if it can never start.
+  to do, and write them in the pending runs' `log.pending.txt` so they show in QA-Board: not in `log.k8s.txt`, which
+  the pods replace, maybe as another user than `qa batch` (a file we create with our umask, they couldn't). We only
+  create output directories when the pods run as us. Errors that won't fix themselves (ErrImagePull for 5 minutes
+  for a pod, unless pods of its Job run or ran; InvalidImageName, CreateContainerConfigError, a quota the pod can
+  never fit, a FailedCreate refused by admission 3 times and again since we last looked, by the events' server
+  timestamps) fail the batch, and delete all its Jobs, also the healthy groups': like Ctrl-C, the batch fails as a
+  whole. Waiting on a Kueue queue or for nodes is never fatal.
+- SIGINT/SIGTERM deletes the batch's Jobs, then exits (JobGroup marks the stopped runs as failed). While cleaning up,
+  API calls are retried 15s, not 300s, and a second signal exits at once, printing the `kubectl delete` command.
+- `submit_detached()` starts one pod (a 1-completion Job) running a script with `sh`, or with the interpreter of its
+  `#!` line (the server's: bash): used by the dask driver and by the server for batches started from the web app. It
+  watches the pod ~20s: it writes why it's pending in `pending_log(log_file)` (`log.txt` -> `log.pending.txt`), deletes
+  it if it can never start, raises with its logs if it fails right away (e.g. it can't write its log file), and
+  returns once it ran for 2 polls.
 - Clusters that drop `backoffLimitPerIndex` (<1.29): `create_job` deletes the Job and fails; `qa doctor` checks the
   version.
 
@@ -128,14 +147,18 @@ runners:
   elsewhere (SGE and Torque want a letter first, Torque keeps 15 characters). Jobqueue defaults: 1 core, 4GB, no
   walltime directive (except OAR: 30 minutes, doctor warns). `worker_start_timeout`: 900s on kubernetes/local, else 0.
 - `kubernetes`: `dask_kubernetes.operator.KubeCluster` (needs the Dask operator, `qaboard[dask-kubernetes]`, Python
-  3.10+). Pods default from `runners.kubernetes`; DaskCluster `qa-<id8>-dask-<rand6>`, `idle_timeout` 600s; only the
-  current kubeconfig context; secrets are forwarded (they go through Dask, not a ConfigMap).
+  3.10+). Pods default from `runners.kubernetes`, with its security context; DaskCluster `qa-<id8>-dask-<rand6>`,
+  labeled like the runner's Jobs (command id, user, project: the operator copies them to the pods), `idle_timeout`
+  600s; only the current kubeconfig context; secrets are forwarded (they go through Dask, not a ConfigMap). Tasks
+  and the driver use `logical_path`s, like the runner. The scheduler is unauthenticated: the docs give a
+  NetworkPolicy that only lets QA-Board's pods (and the operator) reach the DaskClusters' pods.
 - `local`: `distributed.LocalCluster`, for tests and big machines.
 - The `--no-wait` driver is sent with the matching runner's `submit_detached()` when it has one (`lsf`, `kubernetes`),
   otherwise with the scheduler's own submit command via dask-jobqueue's job class (`sbatch`, `qsub`...).
 - Stopping: the scheduler's cancel command by job name, and by user from the server (`bkill -J`, `scancel --name`,
-  `qselect`+`qdel`, `oardel --sql`, `condor_rm -constraint`), or deleting the `DaskCluster` and driver Job on
-  Kubernetes. The backend image doesn't ship the HPC commands.
+  `qselect`+`qdel`, `oardel --sql`, `condor_rm -constraint`), or deleting the `DaskCluster`s and driver Job on
+  Kubernetes, selected by labels: command id, and project when the server gives it (`kubernetes.project`), never by
+  name. The backend image doesn't ship the HPC commands.
 
 ## `qa doctor`
 `qa doctor [--runner X] [--test-job]`. Prints each check (ok / warning / error / skipped) with how to fix it, exits 1
@@ -144,8 +167,10 @@ signed in / token, role; no version check yet), storage (outputs root exists or 
 then the runner's `doctor()`: local (concurrency), LSF (`bsub` or the bridge, queue exists), Celery (broker reachable,
 workers answer), Dask (packages, scheduler reachable or cluster class), Jenkins (URL, credentials), Kubernetes
 (client installed, kubeconfig and context, auth plugin on PATH, API reachable and >= 1.29, namespace, permissions,
-Kueue queue, image, image pull secret, mounts' PVCs and coverage of the project/outputs, run-as vs Pod Security). `--test-job` runs a pod/job that prints its user, checks that the mounts and
-the outputs directory are there and writable as that user, and that `qa --version` works in the image.
+Kueue queue, image, image pull secret, mounts' PVCs and coverage of the project/outputs, run-as vs Pod Security; first, the
+options' types). `--test-job` runs a pod/job that prints its user, checks that the mounts and
+the outputs directory are there and writable as that user, that `qa --version` works in the image, and with a
+`timeout`, that `timeout -k` works.
 
 ## The server: batches started from the web app
 `QABOARD_TUNING_RUNNER=kubernetes`: the server starts `qa batch` in a driver pod (`submit_detached`), as the signed-in
