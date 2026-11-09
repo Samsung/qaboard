@@ -25,6 +25,7 @@ from .conventions import serialize_config, deserialize_config, get_settings
 from .utils import PathType, entrypoint_module, load_tuning_search
 from .utils import save_outputs_manifest, total_storage
 from .utils import redirect_std_streams, clean_output_dir, interrupted_by_sigterm, ignored_signals
+from . import attempts
 from .utils import getenvs
 from .api import url_to_dir, print_url
 from .api import get_outputs, notify_qa_database, serialize_paths, exit_if_results_refused, ResultsUnreadable, print_auth_error
@@ -165,6 +166,15 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   ctx.obj['color'] = is_ci or share
 
 
+def saves_attempts(qa_context, custom_output=None) -> bool:
+  """
+  Whether a run that is done again is saved in a new directory (qaboard/attempts.py): results saved in the storage
+  (CI, --share), unless the project opts out (outputs.reruns: in-place). Local runs, in the working directory's
+  output/, and runs with their own --output are done again in place.
+  """
+  return bool(is_ci or qa_context.get('share')) and not custom_output and attempts.reruns_mode(config) != attempts.IN_PLACE
+
+
 @qa.command()
 @click.option('-i', '--input', 'input_path', type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
 @click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path.')
@@ -214,12 +224,20 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
       *ctx.obj.get("forwarded_args", []),
     ]
     run_context = RunContext.from_click_run_context(ctx, config)
+    keep_previous = keep_previous or 'QABOARD_RUN_KEEP' in os.environ
+
+    # Results saved in the storage are not replaced in place: a run that is done again gets its own directory,
+    # the one `qa batch` reserved if it started us, and the previous attempt's files are removed
+    if saves_attempts(ctx.obj, custom_output=output_path) and not keep_previous:
+      run_context.output_dir = attempts.reserve_or_keep(run_context.output_dir)
+      ctx.obj["output_directory"] = run_context.output_dir
+      attempts.remove_previous(run_context.output_dir)
 
     if run_context.output_dir.exists():
     # Usually we want to remove any files already present in the output directory.
     # It avoids issues with remaining state... This said,
     # In some cases users want to debug long, multi-stepped runs, for which they have their own caching
-      if not (keep_previous or 'QABOARD_RUN_KEEP' in os.environ):
+      if not keep_previous:
         # TODO: check in the database the status of the run?
         # Keeps the log files runners redirected our output to (e.g. log.lsf.txt with LSF job arrays)
         clean_output_dir(run_context.output_dir)
@@ -839,6 +857,9 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
       from qaboard.conventions import output_dirs_for_input_part
       # print("batch_conf_dir", batch_conf_dir)
       run_context.output_dir = batch_conf_dir / output_dirs_for_input_part(run_context.rel_input_path, run_context.database, config)
+      if not prefix_outputs_path:
+        # a run that was done again is in its latest attempt's directory
+        run_context.output_dir = attempts.latest_dir(run_context.output_dir)
       if input_forwarded_args:
         run_forwarded_args = [a for a in input_forwarded_args if not a in ("--keep-previous", "--no-postprocess", "--save-manifests-in-database")]
         if run_forwarded_args:
@@ -916,6 +937,14 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
           tuning_cli =  f'--tuning {escaped_for_cli(tuning_str)}'
 
 
+      # The runs we start get a directory of their own when they were done before (qaboard/attempts.py). We reserve
+      # it, to tell QA-Board and the runners where the run will be: the job's `qa run` then reserves the same one.
+      # Not for pending runs: we may only wait for them, and if they have to run, their `qa run` reserves it.
+      starts_run = should_run or action_on_existing in ('skip', 'assert-exists')
+      keeps_previous = 'QABOARD_RUN_KEEP' in os.environ or '--keep-previous' in (input_forwarded_args or [])
+      if starts_run and not is_pending and not dryrun and not keeps_previous and saves_attempts(ctx.obj, custom_output=prefix_outputs_path):
+        run_context.output_dir = attempts.reserve_or_keep(run_context.output_dir)
+
       platform_cli =None
       Runner = runners[run_context.job_options['type']]
       if getattr(Runner, "platform", default_platform) != default_platform:
@@ -974,8 +1003,9 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
           job.id = db_output["id"]
       if is_pending:
         wait_command = f"qa wait --output-id {matching_existing_output['id']}"
+        # we find the run's results by its id: if it has to run again, it will be in another directory
+        job.id = matching_existing_output['id']
         if action_on_pending=="sync":
-          job.id = matching_existing_output['id']
           job.run_context.command = wait_command
         elif action_on_pending=="wait":
           job.run_context.command = f"{wait_command} || {job.run_context.command}"

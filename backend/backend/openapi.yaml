@@ -974,7 +974,9 @@ components:
           type: object
           description: >-
             What else the server knows: e.g. who sent it (`submitted_by`), the parameters the run reported
-            (`params`), metrics added by scripts and who added them (`added_metrics`).
+            (`params`), metrics added by scripts and who added them (`added_metrics`). When the run was done again,
+            `attempt` is the number of the attempt these results are from, and `previous_attempts` says how the
+            earlier ones ended (`attempt`, `status`: success, failed or unfinished, `started_at`, `finished_at`, `user`).
           additionalProperties: true
         created_date: {type: string, format: date-time}
         queued_at: {type: [string, "null"], format: date-time}

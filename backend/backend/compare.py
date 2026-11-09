@@ -268,7 +268,7 @@ def run_counts(outputs: List[Dict]) -> Dict[str, int]:
 # ---------------------------------------------------------------------------- bit accuracy, like `qa check-bit-accuracy`
 
 # files that change from run to run, always ignored (see `is_bit_accurate` in qaboard/bit_accuracy.py)
-IGNORED_FILES = ['manifest.inputs.json', 'run.json', 'log.txt', 'log.lsf.txt', 'metrics.json', 'metrics_definitions.json', '.nfs000*']
+IGNORED_FILES = ['manifest.inputs.json', 'run.json', 'log.txt', 'log.lsf.txt', 'metrics.json', 'metrics_definitions.json', 'latest_attempt.txt', '.nfs000*']
 CHECKED_CDE_ATTRS = ["width", "height", "format", "imageType", "md5_data"]
 
 

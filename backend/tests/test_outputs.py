@@ -266,3 +266,77 @@ def test_added_metrics_survive_a_rerun_unless_the_run_computes_them(outputs_api,
   assert output.metrics == {"sharpness": 0.4, "psnr": 30}
   # the run computes psnr itself now: its value wins and the addition is forgotten
   assert set(output.data["added_metrics"]) == {"sharpness"}
+
+
+def test_a_run_done_again_in_a_new_directory_keeps_a_trace_of_its_attempts(outputs_api, dummy_app):
+  """`qa` saves each attempt of a run in its own directory (qaboard/attempts.py): the row keeps the latest's results"""
+  import datetime
+  output = outputs_api.test_output
+  # the first time: nothing to remember
+  output.id, output.output_dir_override = None, None
+  notify(outputs_api, dummy_app, is_pending=False, metrics={"is_failed": True})
+  assert "attempt" not in output.data and "previous_attempts" not in output.data
+  assert output.output_dir_override == "/storage/project/output"
+
+  # done again, by someone else: `qa batch` says where it will be, then `qa run` that it started and ended
+  output.id, output.is_failed = 7, True
+  output.started_at, output.finished_at = datetime.datetime(2026, 11, 3, 10, 12), datetime.datetime(2026, 11, 3, 10, 14)
+  for status in ({"is_pending": True}, {"is_pending": True, "is_running": True}, {"is_pending": False, "metrics": {}}):
+    notify(outputs_api, dummy_app, output_directory="/storage/project/output_attempt2", user="alice", **status)
+  assert output.output_dir_override == "/storage/project/output_attempt2"
+  assert output.data["attempt"] == 2
+  assert output.data["previous_attempts"] == [
+    {"attempt": 1, "status": "failed", "started_at": "2026-11-03T10:12:00Z", "finished_at": "2026-11-03T10:14:00Z", "user": "ci"},
+  ]
+
+  # again, while the second attempt never said how it ended
+  output.is_pending, output.started_at, output.finished_at = True, None, None
+  notify(outputs_api, dummy_app, output_directory="/storage/project/output_attempt3", is_pending=True, is_running=True)
+  assert output.data["attempt"] == 3
+  assert [(a["attempt"], a["status"], a.get("user")) for a in output.data["previous_attempts"]] == [(1, "failed", "ci"), (2, "unfinished", "alice")]
+
+  # clients can't rewrite it
+  notify(outputs_api, dummy_app, output_directory="/storage/project/output_attempt3", is_pending=False, metrics={},
+         data={"attempt": 1, "previous_attempts": [], "storage": 10})
+  assert output.data["attempt"] == 3 and len(output.data["previous_attempts"]) == 2
+  assert output.data["storage"] == 10
+
+
+def test_only_the_last_attempts_are_remembered():
+  from backend.attempts import record_attempt, MAX_PREVIOUS_ATTEMPTS
+  output = SimpleNamespace(id=7, data={}, output_dir_override="/storage/output", is_pending=False, is_failed=False)
+  for attempt in range(2, MAX_PREVIOUS_ATTEMPTS + 5):
+    record_attempt(output, f"/storage/output_attempt{attempt}")
+    output.output_dir_override = f"/storage/output_attempt{attempt}"
+  assert output.data["attempt"] == MAX_PREVIOUS_ATTEMPTS + 4
+  assert [a["attempt"] for a in output.data["previous_attempts"]] == list(range(4, MAX_PREVIOUS_ATTEMPTS + 4))
+  # runs done again in place, or that don't say where they are, change nothing
+  before = dict(output.data)
+  record_attempt(output, output.output_dir_override)
+  record_attempt(output, None)
+  assert output.data == before
+  # back in a directory without a number, e.g. a custom --output: no attempt number
+  record_attempt(output, "/elsewhere/output")
+  assert "attempt" not in output.data
+
+
+def test_hard_deletes_remove_the_folder_that_says_where_the_latest_attempt_is(tmp_path, monkeypatch):
+  import backend.fs_utils as fs_utils
+  from backend.attempts import forget_attempts
+  first = tmp_path / "commit" / "output" / "linux" / "a"
+  latest = first.with_name("a_attempt3")
+  first.mkdir(parents=True)
+  (first / "latest_attempt.txt").write_text("3\n")
+  removed_parents = []
+  monkeypatch.setattr(fs_utils, "rm_empty_parents", removed_parents.append)
+  # the latest attempt's folder was removed: nothing is left of the run
+  forget_attempts(latest)
+  assert not first.exists()
+  assert removed_parents == [first]
+  # runs done once, or with other files left: nothing to do
+  forget_attempts(first)
+  first.mkdir()
+  (first / "latest_attempt.txt").write_text("3\n")
+  (first / "left.txt").write_text("")
+  forget_attempts(latest)
+  assert first.exists() and removed_parents == [first]

@@ -56,7 +56,8 @@ sends them.
 ## What `qa` does around `run()` {#wrapping-your-code}
 1. It reads *qaboard.yaml* and imports the file named by `project.entrypoint`. That file's folder is on Python's
    import path, so `qa/main.py` can import the modules next to it.
-2. It creates `context.output_dir`, empties it, and calls `run(context)`.
+2. It creates `context.output_dir`, empties it, and calls `run(context)`. A shared or CI run that is done again
+   gets a [new folder](/docs/storage/where-is-the-data#reruns).
 3. It saves the metrics `run()` returns in *metrics.json*, everything printed in *log.txt*, and the lists of input and
    output files in *manifest.inputs.json* and *manifest.outputs.json*.
 4. With `--share` or in CI, it sends the metrics to QA-Board, which shows the output files from where they are.

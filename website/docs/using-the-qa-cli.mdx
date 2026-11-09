@@ -71,7 +71,8 @@ your name and 🏠.
 
 :::tip
 To keep the previous output files of a run, e.g. when your code caches intermediate results while you debug a long
-run, use `qa run --keep-previous` (or `export QABOARD_RUN_KEEP=true`).
+run, use `qa run --keep-previous` (or `export QABOARD_RUN_KEEP=true`). Otherwise a local run starts from an empty
+folder, and a shared or CI run that is done again gets a [new folder](/docs/storage/where-is-the-data#reruns).
 :::
 
 ## Preview: `--dryrun` {#qa---dryrun}

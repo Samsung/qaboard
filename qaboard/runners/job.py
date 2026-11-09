@@ -47,6 +47,20 @@ class Job():
 
 
 
+def output_finder(outputs: Dict[Any, Any]):
+  """
+  Finds a job's run among those QA-Board knows (as the API returns them): by its id, else by its directory.
+  The id comes first: a run that is done again gets a new directory (qaboard/attempts.py), that `qa batch` reserves,
+  but its `qa run` may have used another, e.g. it runs with another version of qaboard, or LSF started the job twice.
+  """
+  by_id = {str(o['id']): o for o in outputs.values() if o.get('id') is not None}
+  by_dir = {url_to_dir(o['output_dir_url']): o for o in outputs.values()}
+  def find(job: 'Job') -> Optional[Dict[str, Any]]:
+    output = by_id.get(str(job.id)) if job.id is not None else None
+    return output or by_dir.get(job.run_context.output_dir)
+  return find
+
+
 @dataclass
 class JobGroup():
   jobs: List[Job] = field(default_factory=list)
@@ -119,18 +133,19 @@ class JobGroup():
       return any(job.run_context.is_failed(verbose=True) for job in self.jobs)
 
     # Here we add the matching outputs as job.qaboard_output
-    outputdir_to_qaboard_output = {url_to_dir(o['output_dir_url']): o for o in finished_outputs.values()}
+    find_output = output_finder(finished_outputs)
 
     is_failed = False
     # If runs are SIGKILL'ed, they never get a chance to update that they are done
     # it happens often when users use a lot of memory and some task queue manager gets angry 
     jobs_with_pending_outputs = []
     for job in self.jobs:
+      output = find_output(job)
       # we still fallback to the server-less check, in case the server was down during part of the runs...
-      if job.run_context.output_dir not in outputdir_to_qaboard_output:
+      if not output:
         is_failed = is_failed or job.run_context.is_failed(verbose=True)
       else:
-        job.qaboard_output = outputdir_to_qaboard_output[job.run_context.output_dir]
+        job.qaboard_output = output
         assert job.qaboard_output
         is_failed = is_failed or job.qaboard_output["is_failed"]
         if job.qaboard_output['is_pending']:
@@ -143,6 +158,9 @@ class JobGroup():
   @staticmethod
   def settle_pending_run(job: Job, qa_context: Optional[Dict[str, Any]]) -> bool:
     """Tells QA-Board that a run QA-Board shows as pending ended, failed unless it saved successful metrics. Returns whether it failed."""
+    # where the run said it was, if we found it by its id
+    if job.qaboard_output and job.qaboard_output.get('output_dir_url'):
+      job.run_context.output_dir = url_to_dir(job.qaboard_output['output_dir_url'])
     job_is_failed = job.run_context.is_failed(verbose=True)
     if not job_is_failed:
       print("[INFO] Job status was 'pending':", job.run_context, job.qaboard_output)
@@ -164,9 +182,9 @@ class JobGroup():
         outputs = get_outputs(qa_context, ignore_errors=True)
       except Exception:
         return
-      outputdir_to_qaboard_output = {url_to_dir(o['output_dir_url']): o for o in outputs.values()}
+      find_output = output_finder(outputs)
       for job in self.jobs:
-        output = outputdir_to_qaboard_output.get(job.run_context.output_dir)
+        output = find_output(job)
         if output and output['is_pending']:
           job.qaboard_output = output
           self.settle_pending_run(job, qa_context)

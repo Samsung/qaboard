@@ -90,7 +90,10 @@ No migration: runs keep their row, and the server already saves the directory ea
 - `data.previous_attempts`: when a run reports a new directory, what the row said of the attempt it replaces:
   its number, when it started and ended, whether it failed or never finished, and who ran it. The last 10. No
   metrics: an earlier attempt's metrics are not a sample of the latest's.
-- When a run is hard-deleted, the first attempt's directory goes too if it only holds `latest_attempt.txt`.
+- When a run is hard-deleted, the first attempt's directory goes too if it only holds `latest_attempt.txt`. A run
+  done again after that starts from its first attempt.
+- Admins can't add an earlier attempt's leftover folder as a run from a storage scan ("Add runs to QA-Board"): the
+  run's row already has its latest attempt.
 
 The web app shows "Attempt 3" on the run, with the earlier attempts on hover.
 
@@ -126,6 +129,14 @@ The web app shows "Attempt 3" on the run, with the earlier attempts on hover.
 
 ## What ships
 - `qaboard/attempts.py`, used by `qa run`, `qa batch`, `qa postprocess`, `qa sync`, `qa get`, `qa check-bit-accuracy`.
+  `qa batch` finds its runs' results by their id first (`qaboard/runners/job.py`).
 - `outputs.reruns` in *qaboard.yaml*, `QA_RERUNS`.
-- The server's `data.attempt` and `data.previous_attempts`, the clean-up on hard deletes, the attempt in the web app.
-- Docs: "Running your code" (where results are saved), the storage pages, the release note.
+- The server's `data.attempt` and `data.previous_attempts` (`backend/attempts.py`), the clean-up on hard deletes, the
+  **attempt N** tag on run cards (`webapp/src/components/AttemptTag.jsx`).
+- Docs: [Where is the data saved?](../../website/docs/storage/where-is-the-data-saved.mdx) ("When a run is done
+  again"), the run cards' page of the user guide, the admins' storage page, the agents' `qaboard-results` skill, the
+  release note.
+
+Tested: unit tests (`tests/test_attempts.py`, `tests/test_cli.py`, `tests/test_runners.py`,
+`backend/tests/test_outputs.py`), and on a real database `backend/integration_tests/test_ingest.py`. Not tested on a
+cluster: LSF job arrays, the Jenkins Windows runner and Windows clients only through the unit tests.

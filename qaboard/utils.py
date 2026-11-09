@@ -13,7 +13,7 @@ from pathlib import Path
 from itertools import chain
 from fnmatch import fnmatch
 from contextlib import contextmanager
-from typing import Optional, Dict, Iterable, Tuple, Union
+from typing import Optional, Dict, Iterable, Sequence, Tuple, Union
 
 import yaml
 import click
@@ -90,12 +90,13 @@ class RedirectStream():
     self.stream.flush()
 
 
-def clean_output_dir(output_dir: Path):
+def clean_output_dir(output_dir: Path, keep: Sequence[str] = ()):
   """
   Removes everything in output_dir, except the files our STDOUT/STDERR are redirected to.
   Runners often redirect a run's output to its output directory, *before* `qa run` starts
   (e.g. log.lsf.txt with LSF job arrays, log.dask.txt with dask). If we deleted those files,
   the rest of the output would be written to a deleted inode and lost, including errors.
+  `keep`: names of files directly in output_dir that stay, e.g. latest_attempt.txt (qaboard/attempts.py).
   """
   own_logs = set()
   for fd in (1, 2):
@@ -106,10 +107,13 @@ def clean_output_dir(output_dir: Path):
     if S_ISREG(fd_stat.st_mode):
       own_logs.add((fd_stat.st_dev, fd_stat.st_ino))
 
-  def clean(directory: Path) -> bool:
+  def clean(directory: Path, top=False) -> bool:
     """Returns True if the directory is now empty."""
     is_empty = True
     for path in directory.iterdir():
+      if top and path.name in keep:
+        is_empty = False
+        continue
       try:
         if path.is_dir() and not path.is_symlink():
           if clean(path):
@@ -126,11 +130,11 @@ def clean_output_dir(output_dir: Path):
         is_empty = False
     return is_empty
 
-  if not own_logs:
+  if not own_logs and not keep:
     shutil.rmtree(output_dir, ignore_errors=True)
   else:
     try:
-      clean(output_dir)
+      clean(output_dir, top=True)
     except OSError:
       pass
 
@@ -498,7 +502,8 @@ def outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -
       if path.name in ("run.json", "metrics.json", "manifest.outputs.json", "runme_csg.bat") or "Config" in path.parts:
         return False
     # avoid logs with timestamps and temporary NFS files
-    illegal_file = path.name == 'log.txt' or path.name.startswith('.nfs00000')
+    # nor which attempt of the run is the latest (qaboard/attempts.py): it's not an output
+    illegal_file = path.name in ('log.txt', 'latest_attempt.txt') or path.name.startswith('.nfs00000')
     # avoid source-controled files and logs in HW_ALG
     if config is not None and config.get("project", {}).get("name", "").startswith("CDE-Users/HW_ALG"):
       illegal_file = illegal_file or \
