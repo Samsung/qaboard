@@ -241,6 +241,35 @@ def test_compare_finished_batches(compare_api, dummy_app):
   assert data['bit_accuracy'] is None
 
 
+def test_compare_says_which_runs_were_done_again_and_the_references_gate(compare_api, dummy_app):
+  """Reviewers want to know when green took several attempts, and when a change loosens the gate's rules"""
+  outputs = [dict(o) for o in fixture_outputs('new') if not o['is_pending'] and o.get('output_type') != 'optim_iteration']
+  passed, failed, in_place = [o for o in outputs if not o['is_failed']][:2] + [o for o in outputs if not o['is_failed']][2:3]
+  passed['data'] = {**(passed.get('data') or {}), 'attempt': 3, 'previous_attempts': [{'attempt': 1, 'status': 'failed'}, {'attempt': 2, 'status': 'unfinished'}]}
+  failed['data'] = {**(failed.get('data') or {}), 'attempt': 2, 'previous_attempts': [{'attempt': 1, 'status': 'unfinished'}]}
+  in_place['data'] = {**(in_place.get('data') or {}), 'previous_attempts': [{'attempt': 1, 'status': 'success', 'in_place': True}]}
+  new = make_commit(HEXSHA, {'default': outputs})
+  gate = {'rules': [{'metric': 'psnr', 'max_regression': '1%'}]}
+  ref = make_commit(REF_HEXSHA, {'default': [o for o in fixture_outputs('ref') if not o['is_pending']]}, id=2,
+                    data={'qatools_config': {'project': {'name': 'p'}, 'gate': gate}})
+  data = call(compare_api, dummy_app, {HEXSHA: new, REF_HEXSHA: ref}, f'project=p&reference={REF_HEXSHA[:8]}&metrics=psnr').get_json()
+  assert data['commit']['reruns'] == {'runs': 3, 'after_failure': 1, 'after_unfinished': 1}
+  attempts = {t['id']: t.get('attempts') for t in data['tests']}
+  assert attempts[passed['id']] == {'attempt': 3, 'previous': ['failed', 'unfinished'], 'in_place': False}
+  assert attempts[in_place['id']] == {'attempt': 1, 'previous': ['success'], 'in_place': True}
+  assert sum(1 for a in attempts.values() if a) == 3
+  assert data['reference']['gate'] == gate
+  # a reference whose configuration we don't have: no rules to compare with, not the project's latest
+  ref.data = {}
+  ref.project = SimpleNamespace(id='p', data={'qatools_config': {'gate': gate}})
+  data = call(compare_api, dummy_app, {HEXSHA: new, REF_HEXSHA: ref}, f'project=p&reference={REF_HEXSHA[:8]}&metrics=psnr').get_json()
+  assert data['reference']['gate'] is None
+  # a reference without a gate section had no rules
+  ref.data = {'qatools_config': {'project': {'name': 'p'}}}
+  data = call(compare_api, dummy_app, {HEXSHA: new, REF_HEXSHA: ref}, f'project=p&reference={REF_HEXSHA[:8]}&metrics=psnr').get_json()
+  assert data['reference']['gate'] == {}
+
+
 def test_ci_names_the_ci_batch(compare_api, dummy_app):
   new = make_commit(HEXSHA, {'default': fixture_outputs('new'), 'tuning': []})
   ref = make_commit(REF_HEXSHA, {'default': fixture_outputs('ref')}, id=2)

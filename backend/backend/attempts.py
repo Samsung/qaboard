@@ -85,6 +85,42 @@ def record_attempt(output, output_directory: Optional[str], is_pending: bool = F
   output.data = data
 
 
+def reruns_of(output: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+  """
+  For comparisons and the gate: how many times a run (as the API describes it, Output.to_dict) was done, and how its
+  earlier attempts ended. None for runs done once.
+  """
+  data = output.get('data') or {}
+  previous = [a for a in data.get('previous_attempts') or [] if isinstance(a, dict)]
+  attempt = data.get('attempt') if isinstance(data.get('attempt'), int) else 1
+  if attempt <= 1 and not previous:
+    return None
+  return {
+    "attempt": max(attempt, 1),
+    "previous": [a.get('status') or 'unknown' for a in previous],
+    "in_place": any(a.get('in_place') for a in previous),
+  }
+
+
+def rerun_counts(outputs) -> Dict[str, int]:
+  """
+  Among runs (as the API describes them): how many were done again, and how many of those succeeded after an attempt
+  that failed, or that never said how it ended. Reviewers want to know when green took several tries.
+  """
+  counts = {"runs": 0, "after_failure": 0, "after_unfinished": 0}
+  for output in outputs:
+    reruns = reruns_of(output)
+    if not reruns:
+      continue
+    counts["runs"] += 1
+    succeeded = not output.get('is_pending') and not output.get('is_failed')
+    if succeeded and 'failed' in reruns['previous']:
+      counts["after_failure"] += 1
+    elif succeeded and 'unfinished' in reruns['previous']:
+      counts["after_unfinished"] += 1
+  return counts
+
+
 def forget_attempts(output_dir) -> None:
   """After a run's folder was removed for good: the first attempt's folder goes too, if only latest_attempt.txt is left in it."""
   from .fs_utils import rm_empty_parents

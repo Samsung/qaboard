@@ -21,8 +21,9 @@ quality-gate:
   # also when runs failed, so that the gate reports them
   when: always
   script:
-    # posts a commit status with GITLAB_ACCESS_TOKEN (a masked CI/CD variable, scope api)
-    - qa gate --post-status gitlab
+    # posts a commit status, and a comment on the commit's merge request, with GITLAB_ACCESS_TOKEN
+    # (a masked CI/CD variable, scope api)
+    - qa gate --post-status gitlab --post-comment gitlab
   # optional: when the gate can't decide (exit code 2), warn instead of failing the pipeline
   allow_failure:
     exit_codes: 2

@@ -336,6 +336,106 @@ def evaluate_batch(data: Dict[str, Any], gate: GateConfig, local_metrics: Dict[s
   return {'verdict': verdict, 'checks': checks}
 
 
+# How many runs we name when we list them
+MAX_LISTED = 10
+
+
+def reruns_summary(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+  """
+  The runs of the batch that were done again, as the server knows them (older servers don't say). It doesn't change
+  the verdict: it's for whoever reads it, e.g. when runs only passed after a failed attempt.
+  """
+  counts = (data.get('commit') or {}).get('reruns') or {}
+  if not counts.get('runs'):
+    return None
+  tests = data.get('tests') or []
+  done_again = [t for t in tests if t.get('attempts')]
+  # those that ended well after an attempt that didn't come first
+  done_again.sort(key=lambda t: (bool(t.get('is_failed')), 'failed' not in t['attempts'].get('previous', []), 'unfinished' not in t['attempts'].get('previous', [])))
+  return {
+    'runs': counts['runs'],
+    'after_failure': counts.get('after_failure', 0),
+    'after_unfinished': counts.get('after_unfinished', 0),
+    'tests': [{'test': name_of_test(t, tests), 'is_failed': bool(t.get('is_failed')), **t['attempts']} for t in done_again[:MAX_LISTED]],
+  }
+
+
+def describe_reruns(reruns: Optional[Dict[str, Any]]) -> List[str]:
+  """Sentences about the runs that were done again: a headline, then a line per run"""
+  if not reruns:
+    return []
+  runs = reruns['runs']
+  parts = []
+  if reruns.get('after_failure'):
+    parts.append(f"{reruns['after_failure']} passed after a failed attempt")
+  if reruns.get('after_unfinished'):
+    parts.append(f"{reruns['after_unfinished']} passed after an attempt that didn't finish")
+  lines = [f"{runs} run{'s were' if runs > 1 else ' was'} done again" + (f": {', '.join(parts)}" if parts else '') + '.']
+  status_text = {'failed': 'failed', 'unfinished': "didn't finish", 'success': 'succeeded'}
+  for test in reruns.get('tests') or []:
+    previous = ', '.join(status_text.get(status, status) for status in test.get('previous') or [])
+    attempt = f"attempt {test['attempt']}" if test.get('attempt', 1) > 1 else 'done again in place'
+    lines.append(f"{test['test']}: {attempt}{' (failed)' if test.get('is_failed') else ''}" + (f", earlier: {previous}" if previous else ''))
+  if runs > len(reruns.get('tests') or []):
+    lines.append(f"and {runs - len(reruns.get('tests') or [])} more")
+  return lines
+
+
+def rule_label(rule: Rule) -> str:
+  if rule.kind == 'per_test_max_regression':
+    return f"{rule.metric}, each test"
+  return f"{rule.metric}, {rule.aggregate or 'median'}, {rule.kind.replace('_', ' ')}"
+
+
+def rule_limit(rule: Rule) -> str:
+  return format_percent(rule.limit) if rule.kind in ('max_regression', 'per_test_max_regression') else f"{rule.limit:g}"
+
+
+def rules_changes(gate: GateConfig, reference_gate: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+  """
+  How the gate's rules differ from those of the reference's qaboard.yaml: [{'text', 'looser'}].
+  Loosening a rule is a legitimate change, and the cheapest way to turn a red gate green: reviewers should see it.
+  [] when the server doesn't have the reference's configuration, or can't be read as rules.
+  """
+  if not isinstance(reference_gate, dict):
+    return []
+  try:
+    before = parse_config({'gate': {k: v for k, v in reference_gate.items() if k in GATE_KEYS}})
+  except GateConfigError:
+    return []
+  def by_key(rules: List[Rule]) -> Dict[Tuple[str, str, Optional[str]], Rule]:
+    return {(r.metric, r.kind, r.aggregate): r for r in rules}
+  old_rules, new_rules = by_key(before.rules), by_key(gate.rules)
+  changes: List[Dict[str, Any]] = []
+  for key, rule in old_rules.items():
+    if key not in new_rules:
+      changes.append({'text': f"{rule_label(rule)}: removed (was {rule_limit(rule)})", 'looser': True})
+  for key, rule in new_rules.items():
+    old = old_rules.get(key)
+    if old is None:
+      changes.append({'text': f"{rule_label(rule)}: new ({rule_limit(rule)})", 'looser': False})
+    elif abs(old.limit - rule.limit) > EPSILON:
+      # a floor is looser when it goes down, the other limits when they go up
+      looser = rule.limit < old.limit if rule.kind == 'min' else rule.limit > old.limit
+      changes.append({'text': f"{rule_label(rule)}: {rule_limit(old)} → {rule_limit(rule)}", 'looser': looser})
+  if before.max_failed_runs != gate.max_failed_runs:
+    show = lambda value: 'any number' if value is None else str(value)
+    looser = gate.max_failed_runs is None or (before.max_failed_runs is not None and gate.max_failed_runs > before.max_failed_runs)
+    changes.append({'text': f"failed runs allowed: {show(before.max_failed_runs)} → {show(gate.max_failed_runs)}", 'looser': looser})
+  if before.require_bit_accuracy != gate.require_bit_accuracy:
+    changes.append({'text': f"bit accuracy required: {'yes' if before.require_bit_accuracy else 'no'} → {'yes' if gate.require_bit_accuracy else 'no'}",
+                    'looser': not gate.require_bit_accuracy})
+  return changes
+
+
+def describe_rules_changes(changes: List[Dict[str, Any]]) -> List[str]:
+  if not changes:
+    return []
+  looser = any(change['looser'] for change in changes)
+  headline = "This commit loosens the gate's rules, compared with the reference's:" if looser else "This commit changes the gate's rules, compared with the reference's:"
+  return [headline, *[f"{change['text']}{' (looser)' if change['looser'] else ''}" for change in changes]]
+
+
 def overall_verdict(verdicts: List[str]) -> str:
   if 'fail' in verdicts:
     return 'fail'
@@ -441,6 +541,115 @@ def post_commit_status(forge: str, result: Dict[str, Any], context: str, project
     details = f" {response.text[:300]}" if response is not None else ''
     return f"could not post the commit status to {forge}: {e}{details}"
   return None
+
+
+# One comment per pull request and gate (a subproject has its own): we find ours by this hidden line, and update it
+def comment_marker(context: str) -> str:
+  return f"<!-- {context} -->"
+
+
+# GitHub refuses comments over 65,536 characters, GitLab over 1,000,000
+MAX_COMMENT_LENGTH = 60_000
+MAX_PULL_REQUESTS = 3
+MAX_COMMENT_PAGES = 20
+
+
+def comment_body(result: Dict[str, Any], context: str) -> str:
+  """The Markdown of the comment: the gate's tables, what reviewers should know, and which commit it's about."""
+  body = render_markdown(result)
+  if len(body) > MAX_COMMENT_LENGTH:
+    body = body[:MAX_COMMENT_LENGTH].rsplit('\n', 1)[0] + '\n\n…the rest is in the Metrics Diff.\n'
+  commit = str(result.get('commit') or '')[:10]
+  return f"{comment_marker(context)}\n{body}\n<sub>For commit {commit}. `qa gate` updates this comment when new results come in.</sub>\n"
+
+
+def github_pull_requests(session, api: str, repository: str, sha: str) -> List[int]:
+  """The open pull requests the commit belongs to: the one of the workflow's event, else those GitHub knows for the commit"""
+  import re
+  match = re.match(r'refs/pull/(\d+)/', os.environ.get('GITHUB_REF', ''))
+  if match:
+    return [int(match.group(1))]
+  r = session.get(f"{api}/repos/{repository}/commits/{sha}/pulls", params={'per_page': 100}, timeout=60)
+  r.raise_for_status()
+  return [pull['number'] for pull in r.json() if pull.get('state') == 'open'][:MAX_PULL_REQUESTS]
+
+
+def gitlab_merge_requests(session, api: str, project_id: str, sha: str) -> List[int]:
+  if os.environ.get('CI_MERGE_REQUEST_IID'):
+    return [int(os.environ['CI_MERGE_REQUEST_IID'])]
+  r = session.get(f"{api}/projects/{project_id}/repository/commits/{sha}/merge_requests", timeout=60)
+  r.raise_for_status()
+  return [mr['iid'] for mr in r.json() if mr.get('state') == 'opened'][:MAX_PULL_REQUESTS]
+
+
+def find_comment(session, url: str, marker: str) -> Optional[Dict[str, Any]]:
+  """Our comment among those `url` lists, page by page"""
+  for page in range(1, MAX_COMMENT_PAGES + 1):
+    r = session.get(url, params={'per_page': 100, 'page': page}, timeout=60)
+    r.raise_for_status()
+    comments = r.json()
+    for comment in comments:
+      if marker in (comment.get('body') or ''):
+        return comment
+    if len(comments) < 100:
+      break
+  return None
+
+
+def post_comment(forge: str, result: Dict[str, Any], context: str, project_root: str) -> Tuple[List[str], Optional[str]]:
+  """
+  Posts the gate's result as a comment on the commit's open pull requests (GitLab: merge requests), or updates the
+  comment it posted before: reviewers read one comment, about the latest results.
+  Returns (the pull requests commented, like "#12", and why it could not, or None).
+  """
+  import requests
+  from .site_config import site_config
+  sha = result['commit']
+  body, marker = comment_body(result, context), comment_marker(context)
+  session = requests.Session()
+  commented: List[str] = []
+  try:
+    if forge == 'github':
+      token, repository = os.environ.get('GITHUB_TOKEN'), os.environ.get('GITHUB_REPOSITORY')
+      if not token or not repository:
+        return [], "--post-comment github needs GITHUB_TOKEN and GITHUB_REPOSITORY (set by GitHub Actions)"
+      api = os.environ.get('GITHUB_API_URL', 'https://api.github.com').rstrip('/')
+      session.headers.update({'Authorization': f'Bearer {token}', 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'})
+      for number in github_pull_requests(session, api, repository, sha):
+        comments_url = f"{api}/repos/{repository}/issues/{number}/comments"
+        comment = find_comment(session, comments_url, marker)
+        if comment:
+          r = session.patch(f"{api}/repos/{repository}/issues/comments/{comment['id']}", json={'body': body}, timeout=60)
+        else:
+          r = session.post(comments_url, json={'body': body}, timeout=60)
+        r.raise_for_status()
+        commented.append(f"#{number}")
+    else:
+      token = site_config('GITLAB_ACCESS_TOKEN')
+      if not token:
+        return [], "--post-comment gitlab needs a token with the `api` scope in GITLAB_ACCESS_TOKEN"
+      api = os.environ.get('CI_API_V4_URL') or f"{site_config('GITLAB_HOST', 'https://gitlab.com').rstrip('/')}/api/v4"
+      project_id = os.environ.get('CI_PROJECT_ID') or quote(project_root, safe='')
+      session.headers.update({'PRIVATE-TOKEN': token})
+      for iid in gitlab_merge_requests(session, api, project_id, sha):
+        notes_url = f"{api}/projects/{project_id}/merge_requests/{iid}/notes"
+        note = find_comment(session, notes_url, marker)
+        if note:
+          r = session.put(f"{notes_url}/{note['id']}", json={'body': body}, timeout=60)
+        else:
+          r = session.post(notes_url, json={'body': body}, timeout=60)
+        r.raise_for_status()
+        commented.append(f"!{iid}")
+  except Exception as e:
+    response = getattr(e, 'response', None)
+    details = f" {response.text[:300]}" if response is not None else ''
+    hint = ''
+    if response is not None and response.status_code in (401, 403):
+      hint = " The workflow needs `pull-requests: write`; pull requests from forks only get a read-only token." if forge == 'github' else " The token needs the `api` scope, and the Reporter role or more."
+    return commented, f"could not comment on {forge}: {e}{details}{hint}"
+  if not commented:
+    return [], f"no open {'pull' if forge == 'github' else 'merge'} request has the commit {sha[:10]}: nothing to comment"
+  return commented, None
 
 
 # ---------------------------------------------------------------------------- output
@@ -555,8 +764,14 @@ def render_text(result: Dict[str, Any]) -> str:
         lines.append(f"    {check['metric']} on {test['test']}: {format_regression(test['regression'])}")
       for test in check.get('differing_tests') or []:
         lines.append(f"    {test['test']}: {', '.join(test['files'] or [])}")
+    reruns = describe_reruns(batch.get('reruns'))
+    if reruns:
+      lines += [f"  {reruns[0]}", *[f"    {line}" for line in reruns[1:]]]
     if batch.get('url'):
       lines.append(f"Metrics Diff: {batch['url']}")
+  changes = describe_rules_changes(result.get('rules_changes') or [])
+  if changes:
+    lines += ['', changes[0], *[f"  {line}" for line in changes[1:]]]
   return '\n'.join(lines)
 
 
@@ -579,6 +794,20 @@ def render_markdown(result: Dict[str, Any]) -> str:
       for row in rows:
         lines.append('| ' + ' | '.join(markdown_cell(cell) for cell in row) + ' |')
     lines.append('')
+    details = []
+    for check in batch['checks']:
+      for test in check.get('over_limit_tests') or []:
+        details.append(f"{check['metric']} on {test['test']}: {format_regression(test['regression'])}")
+      for test in check.get('differing_tests') or []:
+        details.append(f"{test['test']}: {', '.join(test['files'] or [])}")
+    if details:
+      lines += [*[f"- {markdown_cell(line)}" for line in details], '']
+    reruns = describe_reruns(batch.get('reruns'))
+    if reruns:
+      lines += [f"🔁 {markdown_cell(reruns[0])}", *[f"- {markdown_cell(line)}" for line in reruns[1:]], '']
+  changes = describe_rules_changes(result.get('rules_changes') or [])
+  if changes:
+    lines += [f"⚠️ **{markdown_cell(changes[0])}**", *[f"- {markdown_cell(line)}" for line in changes[1:]], '']
   lines.append(f"<sub>{EXPERIMENTAL_NOTICE}</sub>")
   return '\n'.join(lines) + '\n'
 
@@ -610,7 +839,7 @@ def run_gate(gate: GateConfig, project: str, commit: str, fetch: Callable[[str],
   result: Dict[str, Any] = {
     'verdict': 'undecidable', 'exit_code': 2, 'experimental': True,
     'project': project, 'commit': commit, 'reference': gate.reference, 'rules': [r.to_dict() for r in gate.rules],
-    'batches': [], 'errors': [],
+    'batches': [], 'errors': [], 'rules_changes': [],
   }
   for label in gate.batches:
     data, error = fetch(label)
@@ -631,8 +860,12 @@ def run_gate(gate: GateConfig, project: str, commit: str, fetch: Callable[[str],
       'reference': reference,
       'checks': evaluation['checks'],
       'bit_accuracy': data.get('bit_accuracy'),
+      'reruns': reruns_summary(data),
       'url': url,
     })
+    # the reference is the same for every batch
+    if not result['rules_changes']:
+      result['rules_changes'] = rules_changes(gate, reference.get('gate'))
   result['verdict'] = overall_verdict([b['verdict'] for b in result['batches']])
   result['exit_code'] = EXIT_CODES[result['verdict']]
   return result
@@ -648,9 +881,10 @@ def run_gate(gate: GateConfig, project: str, commit: str, fetch: Callable[[str],
 @click.option('--timeout', type=float, default=1800, show_default=True, help="With --wait, give up after this many seconds.")
 @click.option('--interval', type=float, default=30, show_default=True, help="With --wait, seconds between checks.")
 @click.option('--post-status', type=click.Choice(['github', 'gitlab']), help="Post a commit status that links to the Metrics Diff.")
+@click.option('--post-comment', 'comment_on', type=click.Choice(['github', 'gitlab']), help="Post the result as a comment on the commit's open pull request (merge request), or update the one posted before.")
 @click.option('--server', help="The QA-Board URL, e.g. http://localhost:5151. Default: from QABOARD_URL or your site's settings.")
 @click.pass_context
-def gate(ctx, reference, batches, commit, output_format, as_json, wait, timeout, interval, post_status, server):
+def gate(ctx, reference, batches, commit, output_format, as_json, wait, timeout, interval, post_status, comment_on, server):
   """Fail when quality regresses vs a reference (experimental). Exit codes: 0 pass, 1 fail, 2 undecidable."""
   from .config import config, available_metrics, commit_id, project, project_root, subproject
   from . import api
@@ -706,9 +940,19 @@ def gate(ctx, reference, batches, commit, output_format, as_json, wait, timeout,
         f.write(render_markdown(result))
     except OSError as e:
       click.secho(f"WARNING: could not write the job summary: {e}", fg='yellow', err=True)
+  context = 'qaboard/gate' + (f"/{Path(subproject).as_posix()}" if subproject and Path(subproject) != Path('.') else '')
+  forge_project = Path(project_root).as_posix() if project_root else project_name
   if post_status:
-    context = 'qaboard/gate' + (f"/{Path(subproject).as_posix()}" if subproject and Path(subproject) != Path('.') else '')
-    error = post_commit_status(post_status, result, context, Path(project_root).as_posix() if project_root else project_name)
+    error = post_commit_status(post_status, result, context, forge_project)
     if error:
+      click.secho(f"WARNING: {error}", fg='yellow', err=True)
+  if comment_on:
+    commented, error = post_comment(comment_on, result, context, forge_project)
+    if commented:
+      click.secho(f"Commented on {', '.join(commented)}", dim=True, err=True)
+    if error and not commented and error.startswith('no open'):
+      # a push without a pull request is not a problem
+      click.secho(error, dim=True, err=True)
+    elif error:
       click.secho(f"WARNING: {error}", fg='yellow', err=True)
   sys.exit(result['exit_code'])
