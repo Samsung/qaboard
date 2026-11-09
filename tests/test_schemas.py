@@ -127,6 +127,17 @@ class TestSchemas(unittest.TestCase):
       with self.subTest(value):
         self.assertNotEqual(self.errors('qaboard.schema.json', value), [])
 
+  def test_kubernetes_runner(self):
+    for kubernetes in ({'image_pull_secrets': 'creds', 'timeout': 60, 'pod_timeout': 3600, 'api_retry_seconds': 15},
+                       {'resources': {'cpu': 4, 'memory': '16Gi', 'nvidia.com/gpu': 1}},
+                       {'resources': {'requests': {'cpu': 4}, 'limits': {'memory': '32Gi'}}}, {'resources': {'limits': {'nvidia.com/gpu': 1}}}):
+      with self.subTest(kubernetes):
+        self.assertEqual(self.errors('qaboard.schema.json', {'runners': {'kubernetes': kubernetes}}), [])
+    # an empty key, or both forms of resources
+    for kubernetes in (None, {'resources': {'cpu': 4, 'limits': {'memory': '1Gi'}}}, {'resources': {'requests': 4}}, {'concurrency': '4'}):
+      with self.subTest(kubernetes):
+        self.assertNotEqual(self.errors('qaboard.schema.json', {'runners': {'kubernetes': kubernetes}}), [])
+
 
 if __name__ == '__main__':
   unittest.main()

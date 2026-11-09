@@ -232,13 +232,38 @@
         "namespace": {"type": "string", "description": "Default: the kubeconfig context's namespace, else the pod's when qa runs in a pod."},
         "context": {"type": "string", "description": "The kubeconfig context. Default: the current one."},
         "image": {"type": "string", "description": "The pods' image: it needs `qa` and your code's dependencies."},
-        "image_pull_secrets": {"type": "array", "items": {"type": "string"}},
+        "image_pull_secrets": {"description": "Secret names, or one as a string.", "anyOf": [{"type": "array", "items": {"type": "string"}}, {"type": "string"}]},
         "queue": {"type": "string", "description": "A Kueue LocalQueue."},
         "priority_class": {"type": "string"},
         "concurrency": {"type": "integer", "description": "Pods at the same time for a `qa batch`. 0: all."},
         "runs_per_pod": {"type": "integer", "description": "Runs each pod does, one after the other: for short runs, or when getting a node is the slow part (GPUs)."},
-        "timeout": {"type": "number", "description": "Seconds per pod. 0: none."},
-        "resources": {"type": "object", "description": "Requests, e.g. `{cpu: 4, memory: 16Gi, nvidia.com/gpu: 1}`. Memory and extended resources are also limits."},
+        "timeout": {"type": "number", "description": "Seconds per run, enforced in the pod with `timeout` (GNU coreutils in the image). 0: none."},
+        "pod_timeout": {"type": "number", "description": "Seconds per pod, for all its runs (activeDeadlineSeconds). 0: none."},
+        "resources": {
+          "description": "Requests, e.g. `{cpu: 4, memory: 16Gi, nvidia.com/gpu: 1}`: memory and extended resources are also limits. Or `{requests: {...}, limits: {...}}`, used as they are.",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "requests": {"type": "object", "additionalProperties": {"type": ["string", "number"]}},
+                "limits": {"type": "object", "additionalProperties": {"type": ["string", "number"]}}
+              },
+              "required": ["requests"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {"limits": {"type": "object", "additionalProperties": {"type": ["string", "number"]}}},
+              "required": ["limits"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "not": {"anyOf": [{"required": ["requests"]}, {"required": ["limits"]}]},
+              "additionalProperties": {"type": ["string", "number"]}
+            }
+          ]
+        },
         "node_selector": {"type": "object"},
         "tolerations": {"type": "array", "items": {"type": "object"}},
         "run_as": {
@@ -266,7 +291,8 @@
         "env": {"type": "object", "additionalProperties": {"type": ["string", "number", "boolean"]}},
         "forward_env": {"type": "boolean", "description": "Forward qa's environment to the pods, minus secrets and host-specific variables. Default: true."},
         "job_template": {"type": "string", "description": "A batch/v1 Job (YAML file) merged under what QA-Board generates."},
-        "ttl_seconds_after_finished": {"type": "integer"}
+        "ttl_seconds_after_finished": {"type": "integer"},
+        "api_retry_seconds": {"type": "number", "description": "How long Kubernetes API calls are retried on errors that pass (429, 5xx, network). Default: 300."}
       },
       "additionalProperties": true
     },

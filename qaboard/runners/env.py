@@ -16,7 +16,8 @@ secrets = ("TOKEN", "ACCESS", "AUTH", "SECRET", "PASSWORD", "PASSWD", "CREDENTIA
 # ...or with one of these words (OPENAI_API_KEY, DB_PASS...): as substrings they would match too much (KEYBOARD...)
 secret_words = {"KEY", "PASS", "PW", "SESSION"}
 # and values with credentials in URLs: postgres://user:password@host, https://gitlab-ci-token:xxx@gitlab/...
-credentials_in_url = re.compile(r'://[^/@\s]+@')
+# A user name alone is no secret (ssh://git@host/..., https://user@host), unless it's long like a token (https://ghp_...@github.com)
+credentials_in_url = re.compile(r'://(?:[^/@\s:]*:[^/@\s]*|[A-Za-z0-9_-]{24,})@')
 
 def is_secret(name: str, value: str = '') -> bool:
   upper = name.upper()

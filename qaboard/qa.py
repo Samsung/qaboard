@@ -565,7 +565,7 @@ default_lsf_resources = lsf_config.get('resources', None)
 default_lsf_priority = lsf_config.get('priority')
 default_lsf_options = lsf_config.get('options')
 default_lsf_concurrency = lsf_config.get('concurrency', 0)
-dask_config = config.get('runners', {}).get('dask', {})
+dask_config = (config.get('runners') or {}).get('dask') or {}
 default_dask_concurrency = dask_config.get('concurrency')
 
 def env_number(parse, value, default):
@@ -712,7 +712,7 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
       command_data['cluster_type'] = dask_cluster.get('type', 'lsf')
       if command_data['cluster_type'] == 'kubernetes':
         from .runners.dask_runner import kubernetes_namespace
-        kubernetes_config = runs_job_options.get('kubernetes', config.get('runners', {}).get('kubernetes')) or {}
+        kubernetes_config = runs_job_options.get('kubernetes', (config.get('runners') or {}).get('kubernetes')) or {}
         command_data['kubernetes'] = {
           # Resolved: the server doesn't have our kubeconfig's default namespace
           "namespace": kubernetes_namespace(dask_cluster.get('namespace') or kubernetes_config.get('namespace'), kubernetes_config.get('context')),
@@ -721,7 +721,7 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
     if runner == 'kubernetes':
       # so that the backend can stop the batch: it deletes its Jobs there
       from .runners.kubernetes import batch_target
-      command_data.update(batch_target({**config.get('runners', {}).get('kubernetes', {}), **runs_job_options}))
+      command_data.update(batch_target({**((config.get('runners') or {}).get('kubernetes') or {}), **runs_job_options}))
     job_url = getenvs(('BUILD_URL', 'CI_JOB_URL', 'CIRCLE_BUILD_URL', 'TRAVIS_BUILD_WEB_URL')) # jenkins, gitlabCI, circleCI, travisCI
     if job_url:
       command_data['job_url'] = job_url
@@ -818,7 +818,8 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
     # On Kubernetes, the workers' pods (and the --no-wait driver) are like the kubernetes runner's
     if (dask_config.get('cluster') or {}).get('type') == 'kubernetes':
       from .runners.dask_runner import kubernetes_defaults
-      base_runner_options['kubernetes'] = kubernetes_defaults(config)
+      # The project labels the DaskCluster and driver Job: the server stops the batch by command id and project
+      base_runner_options['kubernetes'] = {**kubernetes_defaults(config), **({"project": project.as_posix()} if project else {})}
     # We save logs there
     base_runner_options['batch_dir'] = str(ctx.obj['batch_dir'])
     if given('dask_concurrency', dask_concurrency, default_dask_concurrency):
@@ -826,7 +827,7 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
 
   if runner == 'kubernetes':
     # namespace, image, mounts, run_as... (see qaboard/runners/kubernetes.py)
-    base_runner_options.update(config.get('runners', {}).get('kubernetes', {}))
+    base_runner_options.update((config.get('runners') or {}).get('kubernetes') or {})
     base_runner_options['batch_dir'] = str(ctx.obj['batch_dir'])
     # Labels on the Jobs, e.g. for quotas and dashboards per user or project
     cli_runner_overrides.update({

@@ -16,9 +16,13 @@ Where the workers run: `cluster.type`
   to `runners.kubernetes` (`cluster` can override image, namespace, resources, env). The image needs qa and distributed.
   The rest of `cluster` are KubeCluster kwargs (e.g. resource_timeout, idle_timeout, scheduler_service_type).
   `threads_per_worker` (default 1) runs per worker pod. The DaskCluster is named "qa-{command_id[:8]}-dask-{random}"
-  (we never connect to an existing one) and labeled qaboard.io/command-id. If `qa batch` dies without deleting it,
+  (we never connect to an existing one) and labeled like the kubernetes runner's Jobs (qaboard.io/command-id,
+  qaboard.io/project...): the operator puts the labels on its pods too. If `qa batch` dies without deleting it,
   the operator deletes it once idle for `idle_timeout` (default 600s).
-  The scheduler pod requests 1 CPU and 2Gi, without the workers' mounts or node_selector.
+  The scheduler pod requests 1 CPU and 2Gi, without the workers' mounts or node_selector. The pods get the kubernetes
+  runner's security context (no privilege escalation, no capabilities, seccomp RuntimeDefault).
+  The scheduler is unauthenticated, and the tasks it sends carry the runs' environment: restrict who can reach it
+  with a NetworkPolicy (docs: dask-integration).
   KubeCluster always uses the current kubeconfig context (in a pod, its ServiceAccount): a different `context` is an error.
   Runs get qa's environment, minus PATH, HOME... (none with `runners.kubernetes.forward_env: false`).
   `pip install qaboard[dask-kubernetes]` (Python 3.10+).
@@ -53,7 +57,8 @@ Stopping a batch (from QA-Board, which calls stop_jobs with the command's `clust
   runs on Torque/PBS). oar: `oardel --sql` on the job names. htcondor: `condor_rm -constraint` on JobBatchName.
   With the job options' `user` (the server gives it), only that user's jobs: `--user`, `-u`, job_user, Owner.
   These run where stop_jobs runs: the QA-Board server needs the scheduler's command line tools.
-- kubernetes: deletes the batch's DaskCluster(s) and its Jobs (the driver), by label `qaboard.io/command-id`.
+- kubernetes: deletes the batch's DaskCluster(s) and its Jobs (the driver), by labels: `qaboard.io/command-id`, and
+  `qaboard.io/project` when the job options' `kubernetes` has `project` (the server gives it).
 - local: can't be stopped remotely, kill the driver (driver.pid) or `qa batch`.
 
 Logs (driver, workers, list of runs) are saved in the batch directory, under dask/{command_id[:8]}.
@@ -119,8 +124,9 @@ import signal
 import threading
 import subprocess
 from pathlib import Path
+from copy import deepcopy
 from dataclasses import dataclass, field, replace, fields
-from typing import Optional, List, Dict, Any, Set, Tuple, Iterable, Iterator
+from typing import Optional, List, Dict, Any, Set, Tuple, Iterable, Iterator, Union
 
 from click import secho
 
@@ -496,7 +502,7 @@ def kubernetes_labels(command_id: str, k8s: Optional[Dict[str, Any]] = None) -> 
 def kubernetes_cluster_spec(options: DaskOptions, command_id: str, nb_runs: int) -> Tuple[Dict[str, Any], Dict[str, Any], int, int]:
   """The DaskCluster resource, the other KubeCluster kwargs, runs per worker, and how many workers. The pods are like the kubernetes runner's."""
   from dask_kubernetes.operator import make_cluster_spec # type: ignore
-  from .kubernetes import resources_spec, security_context, mounts_spec
+  from .kubernetes import resources_spec, pod_security_context, container_security_defaults, mounts_spec
   k8s = options.kubernetes
   kwargs = cluster_kwargs(options)
   threads = int(kwargs.pop('threads_per_worker', 1))
@@ -521,19 +527,21 @@ def kubernetes_cluster_spec(options: DaskOptions, command_id: str, nb_runs: int)
     idle_timeout=kwargs.pop('idle_timeout', 600),
     **{k: kwargs.pop(k) for k in ('scheduler_service_type',) if k in kwargs},
   )
+  # The operator puts them on the pods too
   spec['metadata']['labels'] = kubernetes_labels(command_id, k8s)
-  pod_security_context = security_context(k8s.get('run_as', 'user'))
-  if k8s.get('run_as_non_root'):
-    pod_security_context['runAsNonRoot'] = True
-  pull_secrets = [{"name": name} for name in k8s.get('image_pull_secrets') or []]
+  # Like the kubernetes runner's pods
+  security_context = pod_security_context(k8s.get('run_as', 'user'), bool(k8s.get('run_as_non_root')))
+  pull_secrets_option = k8s.get('image_pull_secrets') or []
+  pull_secrets = [{"name": name} for name in ([pull_secrets_option] if isinstance(pull_secrets_option, str) else pull_secrets_option)]
   volumes, volume_mounts = mounts_spec(k8s.get('mounts'))
   worker, scheduler = spec['spec']['worker']['spec'], spec['spec']['scheduler']['spec']
   scheduler_args = scheduler['containers'][0]['args']
   if scheduler_args[0] == 'dask-scheduler':
     scheduler['containers'][0]['args'] = ['dask', 'scheduler', *scheduler_args[1:]]
   for pod in (worker, scheduler):
-    if pod_security_context:
-      pod['securityContext'] = pod_security_context
+    pod['securityContext'] = security_context
+    for container in pod['containers']:
+      container['securityContext'] = {**deepcopy(container_security_defaults), **(container.get('securityContext') or {})}
     if pull_secrets:
       pod['imagePullSecrets'] = pull_secrets
     if k8s.get('service_account'):
@@ -610,15 +618,27 @@ def close_cluster(cluster):
 ###
 ### What runs in `qa batch`
 ###
+def task_path(path: Union[str, Path], cluster_type: str) -> str:
+  """
+  A path as the workers see it. On Kubernetes, the pods see the mounts' paths: like the kubernetes runner, the path
+  as the user sees it, with $PWD's symlinks (e.g. /algo, not where it points). Elsewhere, resolved.
+  """
+  if cluster_type == 'kubernetes':
+    from .kubernetes import logical_path
+    return logical_path(path)
+  return str(Path(path).resolve())
+
+
 def job_to_task(job: Job, job_options: Dict[str, Any]) -> Dict[str, Any]:
   """What we need to execute a run. Plain data, so that the --no-wait driver can read it from a JSON file."""
   output_dir = job.run_context.output_dir
+  cluster_type = get_cluster_type(dict_to_DaskOptions(job_options))
   return {
     "command": job.run_context.command,
     # Like other runners, we run where `qa batch` runs: the root of the project (it changes directory there).
     # Commands start with "cd {subproject}" if needed. Note: job_options['cwd'] is where the user called `qa` from.
-    "cwd": os.getcwd(),
-    "output_dir": str(output_dir.resolve()) if output_dir else None,
+    "cwd": os.getcwd() if cluster_type != 'kubernetes' else task_path(os.getcwd(), cluster_type),
+    "output_dir": task_path(output_dir, cluster_type) if output_dir else None,
   }
 
 
@@ -661,7 +681,7 @@ def run_tasks(tasks: List[Dict[str, Any]], job_options: Dict[str, Any], env: Opt
     elif cluster_type == 'kubernetes' and not options.scheduler_address:
       # We were stopped while KubeCluster was starting the DaskCluster
       try:
-        delete_dask_clusters(command_id, options.cluster.get('namespace') or options.kubernetes.get('namespace'), options.kubernetes.get('context'))
+        delete_dask_clusters(command_id, options.kubernetes, options.cluster.get('namespace'))
       except Exception as e:
         secho(f"WARNING: Could not delete the DaskCluster: {e}", fg='yellow', err=True)
 
@@ -855,6 +875,10 @@ def start_driver(tasks: List[Dict[str, Any]], job_options: Dict[str, Any]) -> Di
   directory = logs_dir(options, command_id)
   tasks_path = directory / 'tasks.json'
   write_tasks(tasks_path, {"tasks": tasks, "job_options": job_options})
+  # The paths the driver sees
+  cwd, pod_directory = os.getcwd(), str(directory)
+  if cluster_type == 'kubernetes':
+    cwd, pod_directory = task_path(cwd, cluster_type), task_path(directory, cluster_type)
 
   if cluster_type == 'local':
     info = start_local_driver(tasks_path, directory)
@@ -864,7 +888,7 @@ def start_driver(tasks: List[Dict[str, Any]], job_options: Dict[str, Any]) -> Di
   # Pods use the image's python
   python = 'python3' if cluster_type == 'kubernetes' else f'"{sys.executable}"'
   # The driver writes its own logs: on LSF the job's output is only written at the end
-  script = f'cd "{os.getcwd()}" && {python} -m qaboard.runners.dask_runner "{tasks_path}" > "{directory}/driver.log" 2>&1'
+  script = f'cd "{cwd}" && {python} -m qaboard.runners.dask_runner "{pod_directory}/tasks.json" > "{pod_directory}/driver.log" 2>&1'
   if Runner is not None and cluster_type == 'lsf':
     name = job_names(cluster_type, command_id)[1]
     info = Runner.submit_detached(script, name, directory / 'driver.lsf.log', {**options.lsf, **options.driver, "command_id": command_id})
@@ -872,7 +896,7 @@ def start_driver(tasks: List[Dict[str, Any]], job_options: Dict[str, Any]) -> Di
     # Like the server's driver pods, a DNS-1123 name
     name = f"{kubernetes_name_prefix(command_id)}-dask-driver"
     driver_options = {"type": "kubernetes", **options.kubernetes, **options.driver, "command_id": command_id}
-    info = Runner.submit_detached(script, name, directory / 'driver.k8s.log', driver_options)
+    info = Runner.submit_detached(script, name, Path(pod_directory) / 'driver.k8s.log', driver_options)
   else:
     name = job_names(cluster_type, command_id)[1]
     info = submit_jobqueue_driver(options, cluster_type, script, name, directory)
@@ -928,45 +952,65 @@ def kubernetes_api_client(context: Optional[str]):
   return Kube(context).api_client
 
 
+def kubernetes_kube(k8s: Dict[str, Any]):
+  """The kubernetes runner's API client, for the `kubernetes` job options (context, api_retry_seconds)"""
+  from .kubernetes import connect, dict_to_KubernetesOptions
+  return connect(dict_to_KubernetesOptions(k8s))
+
+
+def kubernetes_selector(command_id: str, project: Optional[str] = None) -> str:
+  """The batch's objects: its command id, and its project if we know it (the server does)"""
+  from .kubernetes import batch_selector
+  return batch_selector(label_value(command_id), project)
+
+
 def kubernetes_namespace(namespace: Optional[str], context: Optional[str]) -> str:
   """The given namespace, else the kubeconfig context's, else, in a pod, the ServiceAccount's, else "default"."""
   from .kubernetes import batch_target
   return batch_target({"namespace": namespace, "context": context}).get('namespace') or 'default'
 
 
-def delete_dask_clusters(command_id: str, namespace: Optional[str], context: Optional[str], api_client=None):
-  """Deletes the batch's DaskCluster(s): the operator deletes their pods."""
-  from kubernetes import client # type: ignore
-  from kubernetes.client.rest import ApiException # type: ignore
-  api_client = api_client or kubernetes_api_client(context)
-  namespace = kubernetes_namespace(namespace, context)
-  label = label_value(command_id)
-  name_prefix = f"{kubernetes_name_prefix(command_id)}-dask-"
-  custom: Any = client.CustomObjectsApi(api_client)
+def delete_dask_clusters(command_id: str, k8s: Dict[str, Any], namespace: Optional[str] = None, kube=None) -> int:
+  """
+  Deletes the batch's DaskCluster(s), selected by labels (command id, and `project` if in `k8s`, the job options'
+  `kubernetes`): the operator deletes their pods. Returns how many.
+  """
+  from .kubernetes import ApiError
+  selector = kubernetes_selector(command_id, k8s.get('project')) # before connecting: it may come from the server
+  kube = kube or kubernetes_kube(k8s)
+  namespace = kubernetes_namespace(namespace or k8s.get('namespace'), k8s.get('context'))
   try:
-    clusters = custom.list_namespaced_custom_object(DASK_GROUP, DASK_VERSION, namespace, DASK_PLURAL)['items']
-  except ApiException as e:
+    clusters = kube.call('custom', 'list_namespaced_custom_object', DASK_GROUP, DASK_VERSION, namespace, DASK_PLURAL, label_selector=selector)['items']
+  except ApiError as e:
     if e.status != 404: # 404: the operator isn't installed, so there is no DaskCluster
       raise
     clusters = []
   for cluster in clusters:
-    metadata = cluster['metadata']
-    if (metadata.get('labels') or {}).get('qaboard.io/command-id') == label or metadata['name'].startswith(name_prefix):
-      secho(f"Deleting DaskCluster {metadata['name']} in namespace {namespace}", bold=True, err=True)
-      custom.delete_namespaced_custom_object(DASK_GROUP, DASK_VERSION, namespace, DASK_PLURAL, metadata['name'])
+    name = cluster['metadata']['name']
+    secho(f"Deleting DaskCluster {name} in namespace {namespace}", bold=True, err=True)
+    try:
+      kube.call('custom', 'delete_namespaced_custom_object', DASK_GROUP, DASK_VERSION, namespace, DASK_PLURAL, name)
+    except ApiError as e:
+      if e.status != 404:
+        raise
+  return len(clusters)
 
 
-def stop_kubernetes(command_id: str, namespace: Optional[str], context: Optional[str]):
-  """Deletes the batch's DaskCluster(s) and its Jobs (the --no-wait driver)."""
-  from kubernetes import client # type: ignore
-  api_client = kubernetes_api_client(context)
-  delete_dask_clusters(command_id, namespace, context, api_client)
-  namespace = kubernetes_namespace(namespace, context)
-  label = label_value(command_id)
-  batch: Any = client.BatchV1Api(api_client)
-  for job in batch.list_namespaced_job(namespace, label_selector=f"qaboard.io/command-id={label}").items:
-    secho(f"Deleting Job {job.metadata.name} in namespace {namespace}", bold=True, err=True)
-    batch.delete_namespaced_job(job.metadata.name, namespace, propagation_policy='Background')
+def stop_kubernetes(command_id: str, k8s: Dict[str, Any], namespace: Optional[str] = None) -> int:
+  """
+  Deletes the batch's DaskCluster(s) and its Jobs (the --no-wait driver), by labels: the command id, and the project
+  if `k8s` (the job options' `kubernetes`: namespace, context, project, api_retry_seconds) has it. Returns how many.
+  """
+  from .kubernetes import delete_jobs
+  selector = kubernetes_selector(command_id, k8s.get('project'))
+  kube = kubernetes_kube(k8s)
+  deleted = delete_dask_clusters(command_id, k8s, namespace, kube)
+  namespace = kubernetes_namespace(namespace or k8s.get('namespace'), k8s.get('context'))
+  names = [job['metadata']['name'] for job in kube.call('batch', 'list_namespaced_job', namespace, label_selector=selector)['items']]
+  for name in names:
+    secho(f"Deleting Job {name} in namespace {namespace}", bold=True, err=True)
+  delete_jobs(kube, namespace, names)
+  return deleted + len(names)
 
 
 ###
@@ -1219,7 +1263,8 @@ class DaskRunner(BaseRunner):
   def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
     """
     Also called by the QA-Board server, with few job options: type, command_id, bridge, maybe user,
-    scheduler_address (if trusted), cluster_type, and for kubernetes {"kubernetes": {namespace, context}}.
+    scheduler_address (if trusted), cluster_type, and for kubernetes {"kubernetes": {namespace, context, project, api_retry_seconds}}.
+    Returns, on Kubernetes, how many DaskClusters and Jobs were deleted.
     """
     options = dict_to_DaskOptions(job_options)
     command_id = job_options['command_id']
@@ -1239,8 +1284,8 @@ class DaskRunner(BaseRunner):
       lsf_options = {**job_options, 'bridge': job_options.get('bridge') or os.environ.get('QA_RUNNERS_LSF_BRIDGE', '')}
       LsfRunner.stop_jobs(jobs, lsf_options)
     elif cluster_type == 'kubernetes':
-      namespace = options.cluster.get('namespace') or options.kubernetes.get('namespace')
-      stop_kubernetes(command_id, namespace, options.kubernetes.get('context'))
+      k8s = {**options.kubernetes, **({'api_retry_seconds': job_options['api_retry_seconds']} if job_options.get('api_retry_seconds') is not None and 'api_retry_seconds' not in options.kubernetes else {})}
+      return stop_kubernetes(command_id, k8s, options.cluster.get('namespace'))
     elif cluster_type == 'local':
       # Like the local runner, we don't raise: the server then marks the pending runs as stopped.
       secho("Dask local clusters run on the machine that started them: stop `qa batch`, or kill the --no-wait driver (its PID is in driver.pid, in the batch's dask logs).", fg='yellow', err=True)
