@@ -36,7 +36,10 @@ from backend.config import qaboard_data_dir
 image_cache_dir = Path(os.environ.get('QABOARD_IMAGE_CACHE_DIR', qaboard_data_dir / 'cache' / 'images'))
 image_cache_dir.mkdir(exist_ok=True, parents=True)
 # The disk space they can use: we remove the least recently used
-image_cache_bytes = float(os.environ.get('QABOARD_IMAGE_CACHE_GB', '20')) * 1e9
+def image_cache_bytes() -> float:
+  """The size of the cache: storage.image_cache_gb (QABOARD_IMAGE_CACHE_GB)"""
+  from ..settings import setting
+  return float(setting('storage.image_cache_gb')) * 1e9
 # The regions where two images differ, once found: keyed by the files (and when they changed) and how they're compared
 regions_cache_dir = image_cache_dir / 'regions'
 regions_cache_dir.mkdir(exist_ok=True)
@@ -63,7 +66,8 @@ def _image_lock(hash):
 
 
 def clear_memmapped_cache_dir(keep=None):
-  """Removes the least recently used images until the cache fits in image_cache_bytes"""
+  """Removes the least recently used images until the cache fits in image_cache_bytes()"""
+  limit = image_cache_bytes()
   entries = []
   for data in image_cache_dir.glob('*.dat'):
     try: # other processes may have deleted it
@@ -73,7 +77,7 @@ def clear_memmapped_cache_dir(keep=None):
     entries.append((stat.st_mtime, stat.st_size, data))
   total = sum(size for _, size, _ in entries)
   for _, size, data in sorted(entries): # least recently used first
-    if total <= image_cache_bytes:
+    if total <= limit:
       break
     if data.stem == keep:
       continue

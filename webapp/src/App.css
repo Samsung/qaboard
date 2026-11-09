@@ -15,6 +15,10 @@
   --qa-sider-background: #1c2127;
   /* Blueprint's primary intent, e.g. what differs from the defaults */
   --qa-intent-primary: #2d72d2;
+  /* errors in text, e.g. a setting's invalid value */
+  --qa-text-danger: #ac2f33;
+  /* a row just linked to, e.g. /admin/settings?setting=key */
+  --qa-highlight: rgba(251, 179, 96, 0.22);
   /* What we compare (src/sideColors.js): the new results, then each reference. No red, green or orange: they say
      better, worse or warnings. Checked for color blindness: each reference against new, and against each other. */
   --qa-side-0: #2d72d2;
@@ -23,6 +27,10 @@
   --qa-side-3: #0ea2ac;
   --qa-side-4: #5e17cd;
   --qa-side-other: #738091;
+  /* The parts of exported files' names (src/export/): the input is the text's color, new and reference the sides' */
+  --qa-export-settings: #8a5d00;
+  --qa-export-file: #00756a;
+  --qa-export-region: #a3365f;
 }
 .bp6-dark {
   --qa-background: #1c2127;
@@ -36,12 +44,17 @@
   --qa-hover: rgba(138, 187, 255, 0.1);
   --qa-sider-background: #111418;
   --qa-intent-primary: #4c90f0;
+  --qa-text-danger: #fa999c;
+  --qa-highlight: rgba(251, 179, 96, 0.16);
   --qa-side-0: #4c90f0;
   --qa-side-1: #9c4bf5;
   --qa-side-2: #f438a6;
   --qa-side-3: #12e0d8;
   --qa-side-4: #dc96fe;
   --qa-side-other: #8f99a8;
+  --qa-export-settings: #f0b726;
+  --qa-export-file: #3fd2c0;
+  --qa-export-region: #ff7eb0;
 }
 
 /* The content area (the window minus the sidebar) makes room for a panel docked on its right, e.g. the commit
@@ -91,6 +104,14 @@ span.bp6-popover-target {
 .bp6-card.output-card {
   padding: 5px;
   margin-bottom: 15px;
+}
+/* Compact run cards (Settings → Preferences, or above the cards): less room around the visualizations */
+.bp6-card.output-card.compact {
+  margin-bottom: 8px;
+}
+.output-card.compact .path-header {
+  margin-bottom: 4px;
+  padding: 2px 6px;
 }
 
 .viewer-cross {

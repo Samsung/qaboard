@@ -33,6 +33,8 @@ services:
       - QABOARD_TUNING_RUNNER=local
       # The fleet platform's tech lead runs the server: the admin panel's shots (docs-media/shots/admin.spec.ts)
       - QABOARD_ADMINS=adaeze
+      # The seeder signs its people up on an empty server: no setup page first (backend/first_admin.py)
+      - QABOARD_SETUP=off
       # The seeder and the shots' qa commands send results without a token: whatever the admin panel says. The admin
       # panel's Settings show it as set by the environment (admin/settings)
       - QABOARD_INGEST_AUTH=off

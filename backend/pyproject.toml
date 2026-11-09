@@ -43,6 +43,8 @@ dependencies = [
     "pytz>=2026.1.post1",
     "flower>=2.1.0",
     "authlib>=1.9.1",
+    # Swagger UI's files, for the API docs page at /api/v1/docs (api/openapi.py)
+    "flask-swagger-ui>=5.17",
 ]
 
 [tool.setuptools.packages.find]
@@ -53,6 +55,8 @@ exclude = ["smoke_tests*"]
 [tool.setuptools.package-data]
 # the emails' templates
 "backend.notifications" = ["templates/*"]
+# the API's description, served at /api/v1/openapi.json
+"backend" = ["openapi.yaml"]
 
 [tool.uv]
 package = true
@@ -111,4 +115,6 @@ dev = [
     "pytest-cov>=7.0.0",
     "diff-cover>=9.0.0",
     "responses>=0.26.3",
+    # tests/test_openapi.py
+    "openapi-spec-validator",
 ]

@@ -1,15 +1,17 @@
 import React, { memo, useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useInView } from "react-intersection-observer";
-import { Button, Classes, Collapse, Colors, PopoverNext } from "@blueprintjs/core";
+import { Button, Classes, Collapse, Colors } from "@blueprintjs/core";
 
-import { hidden_keys, ConfigurationsTags, PlatformTag, RunActionsMenu, RunBadges, StatusTag, runName } from "../tags";
+import { ConfigurationsTags, PlatformTag, RunBadges, RunMenuButton, StatusTag } from "../tags";
+import { configurationSummary } from "../../configurations/tokens";
+import { RunName } from "../runNames";
 import { LogViewer } from "./LogViewer";
 import { LsfReport, LsfTag } from "./LsfReport";
 import { fetchLsfReport, lsfKilled } from "./lsf";
 import { fileExists } from "./fetchRange";
 import { DirectoryActions } from "./DirectoryActions";
-import { RunInfoMenuItems, runTime } from "../RunInfoMenu";
+import { runTime } from "../RunInfoMenu";
 
 
 // A list of runs, each with its logs
@@ -51,7 +53,7 @@ export const Header = styled.div`
       background: ${Colors.DARK_GRAY3};
     }
   }
-  & > .${Classes.BUTTON}, & > .${Classes.TAG}, & > .${Classes.POPOVER_TARGET} {
+  & > .${Classes.BUTTON}, & > .${Classes.TAG}, & > .${Classes.POPOVER_TARGET}:not(.run-name-target) {
     flex: none;
   }
   h5 {
@@ -61,7 +63,7 @@ export const Header = styled.div`
     font-weight: 500;
     overflow-wrap: anywhere;
   }
-  .name {
+  .run-name-target {
     flex: 0 1 auto;
     min-width: 0;
     max-width: ${props => props.$summary ? '65%' : 'none'};
@@ -78,7 +80,7 @@ export const Header = styled.div`
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
-  .name, .summary {
+  .run-name-target, .summary {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -112,33 +114,27 @@ const Details = styled.div`
   }
 `
 
-// Don't toggle the logs when users click links, buttons, tags...
-export const INTERACTIVE = `a, button, input, [role="button"], .${Classes.POPOVER_TARGET}`
+// Don't toggle the logs when users click links, buttons, tags... Clicking the run's name does: hovering it shows what we know about the run
+export const INTERACTIVE = `a, button, input, [role="button"], .${Classes.POPOVER_TARGET}:not(.run-name-target)`
 
-// "lr=0.1 · base · config.yaml · isp: {...}": how the run is configured, as one line of text.
-// Rendering the configurations as tags is slow and wide when lists have 100s of runs.
-// The tuning parameters come first: when people tune, they tell runs apart, and long lines are cut at their end.
-export const configurationSummary = output => {
-  const parts = []
-  for (const [key, value] of Object.entries(output.extra_parameters ?? {}))
-    if (!hidden_keys.includes(key)) parts.push(`${key}=${JSON.stringify(value)}`)
-  if (output.platform && output.platform !== 'linux') parts.push(`@${output.platform}`)
-  for (const configuration of output.configurations ?? []) {
-    if (typeof configuration === 'string') parts.push(configuration)
-    else if (configuration && typeof configuration === 'object')
-      for (const [key, value] of Object.entries(configuration))
-        if (!hidden_keys.includes(key)) parts.push(`${key}: ${JSON.stringify(value)}`)
-  }
-  return parts.join(' · ')
-}
+// how the run is configured, as one line of text
+export { configurationSummary }
 
 
-// The configuration as tags (to copy it), with the full input path
+// the input's full path, in its database
+const input_path = output => output.test_input_database
+  ? `${output.test_input_database.replace(/\/+$/, '')}/${output.test_input_path}`
+  : output.test_input_path
+
+// The configuration as tags (to copy it), with the batch and the full input path
 const RunDetails = ({ output }) => {
   const has_configurations = (output.configurations ?? []).length > 0 || Object.keys(output.extra_parameters ?? {}).length > 0
   const has_badges = (output.params?.badges ?? []).length > 0
   return <Details>
-    <span className={`input ${Classes.TEXT_MUTED}`}>{output.test_input_path}</span>
+    <span className={`input ${Classes.TEXT_MUTED}`}>
+      {!!output.data?.batch && <span title="Batch">{output.data.batch} › </span>}
+      <span title="Input path">{input_path(output)}</span>
+    </span>
     {has_configurations && <span className={`label ${Classes.TEXT_MUTED}`}>Configuration</span>}
     <PlatformTag platform={output.platform} />
     {has_configurations && <ConfigurationsTags configurations={output.configurations ?? []} tuning={output.extra_parameters} collapse={false} />}
@@ -236,7 +232,7 @@ export const RunLogs = memo(function RunLogs({ id, output, project, commit, expa
       {!is_batch && <StatusTag output={output} />}
       {title
         ? <h5 className={Classes.HEADING}>{title}</h5>
-        : <span className="name" title={output.test_input_path}>{runName(output)}</span>
+        : <RunName output={output} project={project} commit={commit} />
       }
       <LsfTag report={lsf.report} onClick={showLsfLog} />
       {summary
@@ -246,11 +242,7 @@ export const RunLogs = memo(function RunLogs({ id, output, project, commit, expa
       <span className="actions">
         {/* the batch's section has them */}
         {!!base && !is_batch && <DirectoryActions url={base} />}
-        {!is_batch && !!output.id && <PopoverNext placement="bottom-end" content={<RunActionsMenu output={output} project={project} commit={commit}>
-          <RunInfoMenuItems project={project} commit={commit} output={output} />
-        </RunActionsMenu>}>
-          <Button size="small" variant="minimal" icon="more" aria-label="Run actions" title="Run info, history and actions" />
-        </PopoverNext>}
+        {!is_batch && !!output.id && <RunMenuButton output={output} project={project} commit={commit} />}
       </span>
     </Header>
     <Collapse isOpen={expanded} transitionDuration={150}>

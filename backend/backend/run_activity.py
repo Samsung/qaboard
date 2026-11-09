@@ -47,6 +47,8 @@ STATUSES = ('waiting', 'running', 'done', 'failed')
 STATUS_FILTERS = {
   'all': STATUSES,
   'active': ('waiting', 'running'),
+  # pending for over a day (LONG): maybe stuck
+  'long': ('waiting', 'running'),
   'ended': ('done', 'failed'),
   **{status: (status,) for status in STATUSES},
 }
@@ -70,11 +72,15 @@ GROUPS = {
   'runner': ("coalesce(o.data->'job_options'->>'type', '')", "runner"),
   'queue': ("coalesce(o.data->'job_options'->>'queue', '')", "queue"),
   'platform': ("coalesce(o.platform, '')", "platform"),
+  'branch': ("coalesce(c.branch, '')", "branch"),
   # any job option, e.g. LSF's project or memory: `option`
   'option': ("coalesce(o.data->'job_options'->>:option, '')", "job_option"),
   'status': (STATUS, "status"),
 }
 INTEGER_GROUPS = ('commit', 'batch')
+# What users filter the runs on, besides their user, project and status: e.g. only the runs of a queue, of a batch.
+# The filters are values of GROUPS: users click a group to see only its runs.
+MATCHES = ('commit', 'batch', 'command', 'runner', 'queue', 'platform', 'branch', 'option')
 
 # How long `qa run` says the run computed: a number of seconds in its metrics (JSON), within reason
 COMPUTE_TIME = """CASE WHEN json_typeof(metrics->'compute_time') = 'number'
@@ -95,6 +101,14 @@ RUNS = """
          {option} AS job_option
   FROM (
     SELECT outputs.*, NULL::float AS compute_time FROM outputs WHERE is_pending
+    {ended}
+  ) o
+  JOIN batches b ON b.id = o.batch_id
+  JOIN ci_commits c ON c.id = b.ci_commit_id
+  WHERE {where}
+"""
+# the runs that ended in the window: not needed when we only look at pending runs
+ENDED = """
     UNION ALL
     SELECT outputs.*, NULL::float FROM outputs WHERE finished_at >= :since AND is_pending IS NOT TRUE
     UNION ALL
@@ -104,11 +118,15 @@ RUNS = """
       WHERE created_date >= CAST(:since AS timestamp) - interval '1 day' AND finished_at IS NULL AND is_pending IS NOT TRUE
       OFFSET 0
     ) older WHERE created_date + coalesce(compute_time, 0) * interval '1 second' >= :since
-  ) o
-  JOIN batches b ON b.id = o.batch_id
-  JOIN ci_commits c ON c.id = b.ci_commit_id
-  WHERE {where}
 """
+
+
+def no_jit():
+  """
+  Our queries read many rows, so PostgreSQL compiles them (JIT), which with 7 days of runs takes longer than running them.
+  Until the end of the transaction, e.g. of the request.
+  """
+  db_session.execute(text("SET LOCAL jit = off"))
 
 
 def like_escape(value: str) -> str:
@@ -119,7 +137,8 @@ class Filters:
   """Whose runs, in which projects, which statuses, how far back, and maybe only one group's (`group` and `key`)"""
   def __init__(self, user: Optional[str] = None, projects: Optional[List[str]] = None, allowed_projects: Optional[List[str]] = None,
                window: str = DEFAULT_WINDOW, status: str = 'all', search: Optional[str] = None, option: Optional[str] = None,
-               group: Optional[str] = None, key=None, now: Optional[datetime.datetime] = None):
+               group: Optional[str] = None, key=None, now: Optional[datetime.datetime] = None, match: Optional[dict] = None,
+               snapshot: Optional[str] = None):
     if window not in WINDOWS:
       raise ValueError(f"`window` must be one of {', '.join(WINDOWS)}")
     if status not in STATUS_FILTERS:
@@ -133,6 +152,22 @@ class Filters:
         key = int(key)
       except (TypeError, ValueError):
         raise ValueError(f"`key` must be the id of a {group}")
+    match = {k: v for k, v in (match or {}).items() if v is not None}
+    for name, value in match.items():
+      if name not in MATCHES:
+        raise ValueError(f"Runs can't be filtered on `{name}`: only on {', '.join(MATCHES)}")
+      if name == 'option' and not (option or '').strip():
+        raise ValueError("Which job option? `option`, e.g. queue or project")
+      if name in INTEGER_GROUPS:
+        try:
+          match[name] = int(value)
+        except (TypeError, ValueError):
+          raise ValueError(f"`{name}` must be the id of a {name}")
+      else:
+        match[name] = str(value)
+    self.match = match
+    # the runs already read, in this temporary table (see snapshot)
+    self.snapshot = snapshot
     self.user = user
     self.projects = projects or []
     self.allowed_projects = allowed_projects  # None: all
@@ -143,10 +178,13 @@ class Filters:
     self.group = group
     self.key = key
     self.now = now or utcnow()
-    self.since = self.now - WINDOWS[window][0]
+    # the timeline's bars start at whole steps, e.g. on the hour: the window starts at most a step later
+    window_length, step = WINDOWS[window]
+    epoch = datetime.datetime(1970, 1, 1)
+    self.since = self.now - window_length + step - (self.now - epoch) % step
 
   def but(self, **changes) -> 'Filters':
-    values = {k: getattr(self, k) for k in ('user', 'projects', 'allowed_projects', 'window', 'status', 'search', 'option', 'group', 'key', 'now')}
+    values = {k: getattr(self, k) for k in ('user', 'projects', 'allowed_projects', 'window', 'status', 'search', 'option', 'group', 'key', 'now', 'match', 'snapshot')}
     return Filters(**{**values, **changes})
 
   def where(self):
@@ -164,6 +202,12 @@ class Filters:
     if self.status != 'all':
       conditions.append(f"({STATUS}) = ANY(:statuses)")
       params['statuses'] = list(STATUS_FILTERS[self.status])
+    if self.status == 'long':
+      conditions.append("coalesce(o.started_at, o.queued_at, o.created_date) < :long_ago")
+      params['long_ago'] = self.now - LONG
+    for name, value in self.match.items():
+      conditions.append(f"{GROUPS[name][0]} = :match_{name}")
+      params[f'match_{name}'] = value
     if self.search:
       conditions.append("(c.project_id ILIKE :search ESCAPE '\\' OR c.branch ILIKE :search ESCAPE '\\' OR b.label ILIKE :search ESCAPE '\\' "
                         "OR c.hexsha LIKE :search_sha ESCAPE '\\' OR o.data->>'user' ILIKE :search ESCAPE '\\')")
@@ -175,9 +219,33 @@ class Filters:
     return " AND ".join(conditions), params
 
   def runs_sql(self):
+    if self.snapshot:
+      conditions, params = ["TRUE"], {"since": self.since, "now": self.now}
+      if self.status != 'all':
+        conditions.append("status = ANY(:statuses)")
+        params['statuses'] = list(STATUS_FILTERS[self.status])
+      if self.status == 'long':
+        conditions.append(f"{SINCE} < :long_ago")
+        params['long_ago'] = self.now - LONG
+      return f"SELECT * FROM {self.snapshot} r WHERE {' AND '.join(conditions)}", params
     where, params = self.where()
     option = "coalesce(o.data->'job_options'->>:option, '')" if self.option else "''"
-    return RUNS.format(where=where, option=option), params
+    ended = '' if set(STATUS_FILTERS[self.status]) <= {'waiting', 'running'} else ENDED
+    return RUNS.format(where=where, option=option, ended=ended), params
+
+
+def snapshot(filters: Filters) -> Filters:
+  """
+  The overview's totals, timeline and breakdowns all look at the same runs: we read them once, in a temporary table
+  dropped at the end of the transaction, e.g. of the request. Whatever the status filter.
+  """
+  runs, params = filters.but(status='all').runs_sql()
+  db_session.execute(text("DROP TABLE IF EXISTS activity_runs"))
+  # only what the overview reads: each value from the runs' JSON data costs
+  db_session.execute(text(f"""CREATE TEMP TABLE activity_runs ON COMMIT DROP AS
+    SELECT id, batch_id, project_id, status, created_date, queued_at, started_at, finished_at, user_name, queue FROM ({runs}) r"""), params)
+  db_session.execute(text("ANALYZE activity_runs"))
+  return filters.but(snapshot='activity_runs')
 
 
 def totals(filters: Filters) -> dict:
@@ -228,9 +296,10 @@ def timeline(filters: Filters) -> dict:
   nb = int(window / step)
   runs, params = filters.but(status='all').runs_sql()
   params = {**params, "step": step.total_seconds(), "nb": nb}
-  bar = lambda date: f"floor(extract(epoch FROM ({date}) - :since) / :step)::int"
+  # date_part: a float, faster than extract's numeric
+  bar = lambda date: f"floor(date_part('epoch', ({date}) - :since) / :step)::int"
   intervals = db_session.execute(text(f"""
-    WITH r AS ({runs}),
+    WITH r AS (SELECT status, created_date, queued_at, started_at, finished_at FROM ({runs}) runs),
     intervals AS (
       SELECT 'waiting' AS kind,
              CASE WHEN status = 'waiting' THEN coalesce(queued_at, created_date) ELSE queued_at END AS start,
@@ -243,13 +312,13 @@ def timeline(filters: Filters) -> dict:
       FROM r
     ),
     bars AS (
-      SELECT kind, greatest(0, {bar('start')}) AS first, least(:nb - 1, {bar('stop')}) AS last
-      FROM intervals WHERE start IS NOT NULL AND stop IS NOT NULL AND stop >= :since
+      SELECT kind, greatest(0, {bar('start')}) AS first, least(:nb - 1, {bar('stop')}) AS last, count(*) AS n
+      FROM intervals WHERE start IS NOT NULL AND stop IS NOT NULL AND stop >= :since GROUP BY 1, 2, 3
     )
     SELECT kind, bar, sum(change) FROM (
-      SELECT kind, first AS bar, 1 AS change FROM bars WHERE last >= first
+      SELECT kind, first AS bar, n AS change FROM bars WHERE last >= first
       UNION ALL
-      SELECT kind, last + 1, -1 FROM bars WHERE last >= first AND last + 1 < :nb
+      SELECT kind, last + 1, -n FROM bars WHERE last >= first AND last + 1 < :nb
     ) changes GROUP BY kind, bar"""), params).all()
   ended = db_session.execute(text(f"""
     WITH r AS ({runs})
@@ -301,13 +370,14 @@ def items(filters: Filters, group='batch', sort='active', limit=50, offset=0) ->
            avg(extract(epoch FROM r.finished_at - r.started_at)) FILTER (WHERE status IN ('done', 'failed') AND r.started_at IS NOT NULL) AS run_seconds,
            avg(extract(epoch FROM coalesce(r.started_at, :now) - r.queued_at)) FILTER (WHERE r.queued_at IS NOT NULL AND (r.started_at IS NOT NULL OR status = 'waiting')) AS wait_seconds
     FROM r GROUP BY r.{column}"""
-  total = db_session.execute(text(f"SELECT count(*) FROM ({query}) g"), params).scalar()
   # ORDER BY can't compute with the columns' names: in a subquery it can
-  rows = db_session.execute(text(f"SELECT * FROM ({query}) g ORDER BY {SORTS.get(sort, SORTS['active'])}, key LIMIT :limit OFFSET :offset"),
+  # the total with the page: the groups are computed once
+  rows = db_session.execute(text(f"SELECT *, count(*) OVER () AS total FROM ({query}) g ORDER BY {SORTS.get(sort, SORTS['active'])}, key LIMIT :limit OFFSET :offset"),
                             {**params, "limit": limit, "offset": offset}).mappings().all()
+  total = rows[0]['total'] if rows else (db_session.execute(text(f"SELECT count(*) FROM ({query}) g"), params).scalar() if offset else 0)
   answer = []
   for row in rows:
-    item = {k: iso(v) if isinstance(v, datetime.datetime) else v for k, v in row.items()}
+    item = {k: iso(v) if isinstance(v, datetime.datetime) else v for k, v in row.items() if k != 'total'}
     for k in ('run_seconds', 'wait_seconds'):
       item[k] = round(float(item[k])) if item[k] is not None else None
     answer.append(item)
@@ -344,21 +414,25 @@ def add_commands(items: list) -> None:
 STATUS_ORDER = "CASE r.status WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 WHEN 'failed' THEN 2 ELSE 3 END"
 
 
-def runs(filters: Filters, limit=50, offset=0) -> dict:
-  """The runs themselves: what they ran, where, since when. Running and waiting first, then the latest."""
+def runs(filters: Filters, limit=50, offset=0, sort='status') -> dict:
+  """
+  The runs themselves: what they ran, where, since when. Running and waiting first, then the latest.
+  `sort='oldest'`: the runs pending the longest first, e.g. to find stuck runs.
+  """
   sql, params = filters.runs_sql()
   query = f"""
     WITH r AS ({sql})
-    SELECT r.*, t.path AS input_path, t.database AS input_database, o.configurations, o.extra_parameters,
+    SELECT r.*, count(*) OVER () AS total, t.path AS input_path, t.database AS input_database, o.configurations, o.extra_parameters,
            o.data->'job_options' AS job_options, o.data->>'failed_reason' AS failed_reason
     FROM r JOIN outputs o ON o.id = r.id LEFT JOIN test_inputs t ON t.id = r.test_input_id"""
-  total = db_session.execute(text(f"WITH r AS ({sql}) SELECT count(*) FROM r"), params).scalar()
-  rows = db_session.execute(text(f"{query} ORDER BY {STATUS_ORDER}, coalesce(r.finished_at, r.started_at, r.queued_at, r.created_date) DESC, r.id DESC LIMIT :limit OFFSET :offset"),
+  order = (f"r.status IN ('waiting', 'running') DESC, CASE WHEN r.status IN ('waiting', 'running') THEN {SINCE} END ASC, " if sort == 'oldest' else f"{STATUS_ORDER}, ")
+  rows = db_session.execute(text(f"{query} ORDER BY {order}coalesce(r.finished_at, r.started_at, r.queued_at, r.created_date) DESC, r.id DESC LIMIT :limit OFFSET :offset"),
                             {**params, "limit": limit, "offset": offset}).mappings().all()
+  total = rows[0]['total'] if rows else (db_session.execute(text(f"WITH r AS ({sql}) SELECT count(*) FROM r"), params).scalar() if offset else 0)
   dirs = output_dir_urls([r['id'] for r in rows])
   answer = []
   for row in rows:
-    run = {k: iso(v) if isinstance(v, datetime.datetime) else v for k, v in row.items() if k not in ('test_input_id', 'job_option')}
+    run = {k: iso(v) if isinstance(v, datetime.datetime) else v for k, v in row.items() if k not in ('test_input_id', 'job_option', 'total')}
     job_options = row['job_options'] if isinstance(row['job_options'], dict) else {}
     # what users chose, not what qa sets for itself
     run['job_options'] = {k: v for k, v in job_options.items() if k not in ('command_id', 'cwd', 'batch_dir', 'bridge')}
@@ -399,6 +473,14 @@ def starting_soon(filters: Filters, limit=100) -> list:
   if filters.allowed_projects is not None:
     conditions.append("c.project_id = ANY(:allowed_projects)")
     params['allowed_projects'] = filters.allowed_projects
+  # batches that didn't start have no runs yet: we don't know their platform, command or job options but the queue
+  if any(name in filters.match for name in ('platform', 'command', 'option')):
+    return []
+  for name, expression in (('batch', 'b.id'), ('commit', 'c.id'), ('branch', "coalesce(c.branch, '')"),
+                           ('runner', "coalesce(s.value->>'runner', '')"), ('queue', "coalesce(s.value->>'queue', '')")):
+    if name in filters.match:
+      conditions.append(f"{expression} = :match_{name}")
+      params[f'match_{name}'] = filters.match[name]
   if filters.search:
     conditions.append("(c.project_id ILIKE :search ESCAPE '\\' OR c.branch ILIKE :search ESCAPE '\\' OR b.label ILIKE :search ESCAPE '\\' "
                       "OR c.hexsha LIKE :search_sha ESCAPE '\\' OR s.value->>'user' ILIKE :search ESCAPE '\\')")
@@ -432,7 +514,8 @@ def fail_runs(filters: Filters, reason: str, before: Optional[datetime.datetime]
   still runs, it saves its results when it ends. `before`: only those pending since before then.
   Returns how many, per project, and their ids.
   """
-  runs_sql, params = filters.but(status='active').runs_sql()
+  # whatever the status filter, only pending runs: those pending for long if users chose them
+  runs_sql, params = filters.but(status='long' if filters.status == 'long' else 'active').runs_sql()
   conditions = [f"{SINCE} < :before"] if before else []
   if ids is not None:
     conditions.append("r.id = ANY(:ids)")

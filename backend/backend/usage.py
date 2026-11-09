@@ -45,11 +45,6 @@ def person(alias: str = '') -> str:
   return f"coalesce({alias}user_id::text, 'name:' || {alias}user_name)"
 
 
-def commit(alias: str = '') -> str:
-  """A commit someone looked at: `page_view` events say which"""
-  return f"CASE WHEN {alias}event = 'page_view' AND {alias}properties ? 'commit_id' THEN coalesce({alias}project_id, '') || '@' || ({alias}properties->>'commit_id') END"
-
-
 def web_batch(alias: str = '') -> str:
   """A batch started from the web app"""
   return f"{alias}event = 'batch_start'"
@@ -60,12 +55,10 @@ def cli_batch(alias: str = '') -> str:
   return f"{alias}event = 'cli_command' AND {alias}properties->>'command' = 'batch' AND {alias}properties ? 'runner' AND {alias}properties->>'dryrun' IS DISTINCT FROM 'true'"
 
 
-def viewer(alias: str = '') -> str:
-  """Who looked at a page: the person, or the anonymous browser (servers that don't require signing in)"""
-  return f"CASE WHEN {alias}event = 'page_view' THEN coalesce({person(alias)}, 'client:' || {alias}client_id) END"
+# A commit someone looked at: `page_view` events say which (properties.commit_id), of a project
+VIEWED_COMMIT = "event = 'page_view' AND properties->>'commit_id' IS NOT NULL"
 
-
-PERSON, COMMIT, WEB_BATCH, CLI_BATCH, VIEWER = person(), commit(), web_batch(), cli_batch(), viewer()
+PERSON, WEB_BATCH, CLI_BATCH = person(), web_batch(), cli_batch()
 
 DEFAULT_DAYS = 30
 
@@ -286,11 +279,6 @@ def like_escape(value: str) -> str:
   return value.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
 
 
-def sql_like_escape(column: str) -> str:
-  """like_escape, in SQL, for a column's value: `col LIKE sql_like_escape(x) || '/%' ESCAPE '\\'`"""
-  return f"replace(replace(replace({column}, '\\', '\\\\'), '_', '\\_'), '%', '\\%')"
-
-
 def clean_project(value: Optional[str]) -> Optional[str]:
   value = (value or '').strip().strip('/')
   return value or None
@@ -342,12 +330,13 @@ def one_of(sql: str, params: dict) -> dict:
 
 # The counts of Admin > Usage
 
-COUNTS = f"""
-  count(DISTINCT CASE WHEN source = 'webapp' THEN user_id END) AS web_users,
-  count(DISTINCT CASE WHEN source = 'cli' THEN {PERSON} END) AS cli_users,
-  count(DISTINCT {PERSON}) AS users,
-  count(DISTINCT CASE WHEN source = 'cli' AND NOT verified AND user_id IS NULL THEN user_name END) AS unverified_cli_users,
-  count(DISTINCT {COMMIT}) AS commits_viewed,
+# How the queries below count distinct things (people, commits, days...): count(DISTINCT x) sorts all the period's
+# events, once per distinct count, which takes tens of seconds on a year of events. They GROUP BY instead, by the
+# columns themselves: PostgreSQL knows from their statistics how many groups to expect (a few thousand people), and
+# hashes them. Grouped by an expression like PERSON, it can expect millions of groups, and sorts.
+
+# The totals of a period (or of each bucket of the timeseries)
+TOTALS = f"""
   count(*) FILTER (WHERE event = 'commit_compare') AS comparisons,
   count(*) FILTER (WHERE event = 'output_open') AS outputs_opened,
   count(*) FILTER (WHERE event = 'image_viewer_use') AS image_viewer_uses,
@@ -360,16 +349,57 @@ COUNTS = f"""
   count(*) AS events
 """
 
-NEW_USERS = f"""
-  SELECT count(*) AS new_users FROM (
-    SELECT {PERSON} AS person, max(user_id) AS user_id, max(user_name) AS user_name
-    FROM usage_events WHERE {{where}} AND (user_id IS NOT NULL OR user_name IS NOT NULL)
-    GROUP BY 1
-  ) p
-  WHERE NOT EXISTS (
-    SELECT 1 FROM usage_events e WHERE e.created_at < :since
-    AND ((p.user_id IS NOT NULL AND e.user_id = p.user_id) OR (p.user_id IS NULL AND e.user_id IS NULL AND e.user_name = p.user_name))
-  )
+# The people of a period (or of each bucket of the timeseries: `by_bucket`), and whether they used the web app, the
+# CLI, unverified: grouped by account and name first, then by PERSON (an account's name can change)
+def people_sql(by_bucket=False) -> str:
+  start, key = ("date_trunc(:bucket, created_at) AS start, ", "start, ") if by_bucket else ('', '')
+  return f"""
+    SELECT {key}count(*) AS users, count(*) FILTER (WHERE web) AS web_users, count(*) FILTER (WHERE cli) AS cli_users,
+      count(*) FILTER (WHERE unverified) AS unverified_cli_users
+    FROM (
+      SELECT {key}{PERSON} AS person, bool_or(web) AS web, bool_or(cli) AS cli, bool_or(unverified) AS unverified
+      FROM (
+        SELECT {start}user_id, user_name,
+          bool_or(source = 'webapp' AND user_id IS NOT NULL) AS web,
+          bool_or(source = 'cli') AS cli,
+          bool_or(source = 'cli' AND NOT verified AND user_id IS NULL) AS unverified
+        FROM usage_events WHERE {{where}} AND (user_id IS NOT NULL OR user_name IS NOT NULL)
+        GROUP BY {key}user_id, user_name
+      ) a
+      GROUP BY {key}{PERSON}
+    ) p
+    {"GROUP BY start" if by_bucket else ''}
+  """
+
+
+# The commits looked at (VIEWED_COMMIT), grouped by project and commit
+def commits_sql(by_bucket=False) -> str:
+  start, key = ("date_trunc(:bucket, created_at) AS start, ", "start, ") if by_bucket else ('', '')
+  return f"""
+    SELECT {key}count(*) AS commits_viewed FROM (
+      SELECT {start}project_id, properties->>'commit_id' AS commit_id
+      FROM usage_events WHERE {{where}} AND {VIEWED_COMMIT}
+      GROUP BY {key}project_id, properties->>'commit_id'
+    ) c
+    {"GROUP BY start" if by_bucket else ''}
+  """
+
+
+COUNTS = f"""
+  SELECT * FROM ({people_sql()}) p, ({commits_sql()}) c, (SELECT {TOTALS} FROM usage_events WHERE {{where}}) t
+"""
+
+# People (PERSON) whose first event ever is in the period. Accounts and unverified names are counted apart, so that
+# each check is one lookup in the (user_id, created_at) or (user_name, created_at) index: with an OR between them,
+# PostgreSQL reads every event before the period for each person.
+NEW_USERS = """
+  SELECT
+    (SELECT count(*) FROM (SELECT DISTINCT user_id FROM usage_events WHERE {where} AND user_id IS NOT NULL) p
+     WHERE NOT EXISTS (SELECT 1 FROM usage_events e WHERE e.user_id = p.user_id AND e.created_at < :since))
+    +
+    (SELECT count(*) FROM (SELECT DISTINCT user_name FROM usage_events WHERE {where} AND user_id IS NULL AND user_name IS NOT NULL) p
+     WHERE NOT EXISTS (SELECT 1 FROM usage_events e WHERE e.user_name = p.user_name AND e.user_id IS NULL AND e.created_at < :since))
+  AS new_users
 """
 
 CI_RUNS = """
@@ -382,7 +412,7 @@ CI_RUNS = """
 
 def counts(filters: Filters, previous=False) -> dict:
   params = filters.params(previous)
-  row = one_of(f"SELECT {COUNTS} FROM usage_events WHERE {filters.where()}", params)
+  row = one_of(COUNTS.format(where=filters.where()), params)
   row = {k: int(v or 0) for k, v in row.items()}
   by_kind = {kind: row.pop(f'batches_{kind}', 0) for kind in BATCH_KINDS}
   by_kind['cli'] = row.pop('cli_batches', 0)
@@ -402,16 +432,13 @@ def summary(filters: Filters) -> dict:
 
 BUCKETS = ('day', 'week')
 
-TIMESERIES = f"""
+TIMESERIES_TOTALS = f"""
   SELECT date_trunc(:bucket, created_at) AS start,
-    count(DISTINCT CASE WHEN source = 'webapp' THEN user_id END) AS web_users,
-    count(DISTINCT CASE WHEN source = 'cli' THEN {PERSON} END) AS cli_users,
-    count(DISTINCT {COMMIT}) AS commits_viewed,
     count(*) FILTER (WHERE event = 'output_open') AS outputs_opened,
     count(*) FILTER (WHERE ({WEB_BATCH}) OR ({CLI_BATCH})) AS batches_started,
     count(*) FILTER (WHERE event = 'cli_command') AS cli_commands
   FROM usage_events WHERE {{where}}
-  GROUP BY 1 ORDER BY 1
+  GROUP BY 1
 """
 TIMESERIES_FIELDS = ('web_users', 'cli_users', 'commits_viewed', 'outputs_opened', 'batches_started', 'cli_commands')
 
@@ -427,7 +454,11 @@ def timeseries(filters: Filters, bucket: str = 'day') -> List[dict]:
   """One row per bucket of the period, also the empty ones"""
   if bucket not in BUCKETS:
     raise ValueError(f"`bucket` must be one of {', '.join(BUCKETS)}")
-  found = {row['start']: row for row in rows_of(TIMESERIES.format(where=filters.where()), {**filters.params(), "bucket": bucket})}
+  params = {**filters.params(), "bucket": bucket}
+  found: Dict[datetime.datetime, dict] = {}
+  for sql in (people_sql(by_bucket=True), commits_sql(by_bucket=True), TIMESERIES_TOTALS):
+    for row in rows_of(sql.format(where=filters.where()), params):
+      found.setdefault(row['start'], {}).update(row)
   buckets = []
   start = bucket_start(filters.period.since, bucket)
   step = datetime.timedelta(days=7 if bucket == 'week' else 1)
@@ -440,16 +471,39 @@ def timeseries(filters: Filters, bucket: str = 'day') -> List[dict]:
 
 # Leaderboards
 
+# Each person's days (totals by account, name and day, then by person and day), and the commits they looked at
 USERS = f"""
-  SELECT {PERSON} AS person, max(user_id) AS user_id, max(user_name) AS user_name, bool_and(verified) AS verified,
-    count(DISTINCT created_at::date) AS active_days,
-    count(*) FILTER (WHERE source = 'webapp') AS web_events,
-    count(*) FILTER (WHERE event = 'cli_command') AS cli_commands,
-    count(DISTINCT {COMMIT}) AS commits_viewed,
-    count(*) FILTER (WHERE ({WEB_BATCH}) OR ({CLI_BATCH})) AS batches_started,
-    count(*) AS events, max(created_at) AS last_seen_at
-  FROM usage_events WHERE {{where}} AND (user_id IS NOT NULL OR user_name IS NOT NULL)
-  GROUP BY 1 ORDER BY active_days DESC, events DESC, last_seen_at DESC
+  WITH days AS (
+    SELECT {PERSON} AS person, day, max(user_id) AS user_id, max(user_name) AS user_name, bool_and(verified) AS verified,
+      sum(web_events) AS web_events, sum(cli_commands) AS cli_commands, sum(batches_started) AS batches_started,
+      sum(events) AS events, max(last_seen_at) AS last_seen_at
+    FROM (
+      SELECT user_id, user_name, created_at::date AS day, bool_and(verified) AS verified,
+        count(*) FILTER (WHERE source = 'webapp') AS web_events,
+        count(*) FILTER (WHERE event = 'cli_command') AS cli_commands,
+        count(*) FILTER (WHERE ({WEB_BATCH}) OR ({CLI_BATCH})) AS batches_started,
+        count(*) AS events, max(created_at) AS last_seen_at
+      FROM usage_events WHERE {{where}} AND (user_id IS NOT NULL OR user_name IS NOT NULL)
+      GROUP BY user_id, user_name, day
+    ) a
+    GROUP BY 1, 2
+  ), commits AS (
+    SELECT person, count(*) AS commits_viewed FROM (
+      SELECT {PERSON} AS person, project_id, commit_id FROM (
+        SELECT user_id, user_name, project_id, properties->>'commit_id' AS commit_id
+        FROM usage_events WHERE {{where}} AND (user_id IS NOT NULL OR user_name IS NOT NULL) AND {VIEWED_COMMIT}
+        GROUP BY user_id, user_name, project_id, properties->>'commit_id'
+      ) a
+      GROUP BY 1, 2, 3
+    ) c
+    GROUP BY 1
+  )
+  SELECT d.person, max(d.user_id) AS user_id, max(d.user_name) AS user_name, bool_and(d.verified) AS verified,
+    count(*) AS active_days, sum(d.web_events) AS web_events, sum(d.cli_commands) AS cli_commands,
+    coalesce(max(c.commits_viewed), 0) AS commits_viewed, sum(d.batches_started) AS batches_started,
+    sum(d.events) AS events, max(d.last_seen_at) AS last_seen_at
+  FROM days d LEFT JOIN commits c ON c.person = d.person
+  GROUP BY d.person ORDER BY active_days DESC, events DESC, last_seen_at DESC
   LIMIT :limit
 """
 
@@ -498,18 +552,42 @@ def users(filters: Filters, limit: Optional[int] = 500) -> List[dict]:
   return result
 
 
+# Each account's days and the commits it looked at, then those of each group's members. The commits are counted
+# distinct over the group: members look at the same commits.
 GROUPS = f"""
-  SELECT g.id AS group_id, g.name, count(DISTINCT gm.user_id) AS members,
-    count(DISTINCT e.user_id) AS active_members,
-    count(DISTINCT (e.user_id, e.created_at::date)) FILTER (WHERE e.id IS NOT NULL) AS active_days,
-    count(DISTINCT {commit('e.')}) AS commits_viewed,
-    count(e.id) FILTER (WHERE ({web_batch('e.')}) OR ({cli_batch('e.')})) AS batches_started,
-    count(e.id) FILTER (WHERE e.event = 'cli_command') AS cli_commands,
-    count(e.id) AS events
+  WITH days AS (
+    SELECT user_id, created_at::date AS day,
+      count(*) FILTER (WHERE ({WEB_BATCH}) OR ({CLI_BATCH})) AS batches_started,
+      count(*) FILTER (WHERE event = 'cli_command') AS cli_commands,
+      count(*) AS events
+    FROM usage_events e WHERE {{where}} AND user_id IS NOT NULL
+    GROUP BY 1, 2
+  ), commits AS (
+    SELECT user_id, project_id, properties->>'commit_id' AS commit_id
+    FROM usage_events e WHERE {{where}} AND user_id IS NOT NULL AND {VIEWED_COMMIT}
+    GROUP BY 1, 2, 3
+  ), activity AS (
+    SELECT gm.group_id, count(DISTINCT d.user_id) AS active_members, count(*) AS active_days,
+      sum(d.batches_started) AS batches_started, sum(d.cli_commands) AS cli_commands, sum(d.events) AS events
+    FROM days d JOIN group_members gm ON gm.user_id = d.user_id
+    GROUP BY 1
+  ), group_commits AS (
+    SELECT group_id, count(*) AS commits_viewed FROM (
+      SELECT gm.group_id, c.project_id, c.commit_id FROM commits c JOIN group_members gm ON gm.user_id = c.user_id
+      GROUP BY 1, 2, 3
+    ) gc
+    GROUP BY 1
+  ), members AS (
+    SELECT group_id, count(*) AS members FROM group_members GROUP BY 1
+  )
+  SELECT g.id AS group_id, g.name, coalesce(m.members, 0) AS members,
+    coalesce(a.active_members, 0) AS active_members, coalesce(a.active_days, 0) AS active_days,
+    coalesce(c.commits_viewed, 0) AS commits_viewed, coalesce(a.batches_started, 0) AS batches_started,
+    coalesce(a.cli_commands, 0) AS cli_commands, coalesce(a.events, 0) AS events
   FROM groups g
-  LEFT JOIN group_members gm ON gm.group_id = g.id
-  LEFT JOIN usage_events e ON e.user_id = gm.user_id AND {{where}}
-  GROUP BY g.id, g.name
+  LEFT JOIN members m ON m.group_id = g.id
+  LEFT JOIN activity a ON a.group_id = g.id
+  LEFT JOIN group_commits c ON c.group_id = g.id
   ORDER BY active_members DESC, events DESC, g.name
 """
 
@@ -529,17 +607,44 @@ def groups(filters: Filters) -> List[dict]:
   } for row in rows]
 
 
+# Each project's totals, commits looked at, and viewers: who looked at its pages, the person, or the anonymous browser
+# (servers that don't require signing in), grouped by account, name and browser first
 PROJECTS = f"""
-  SELECT project_id,
-    count(DISTINCT {VIEWER}) AS people,
-    count(DISTINCT {COMMIT}) AS commits_viewed,
-    count(*) FILTER (WHERE event = 'output_open') AS outputs_opened,
-    count(*) FILTER (WHERE ({WEB_BATCH}) OR ({CLI_BATCH})) AS batches_started,
-    count(*) FILTER (WHERE event = 'cli_command') AS cli_commands,
-    count(*) AS events
-  FROM usage_events WHERE {{where}} AND project_id IS NOT NULL
-  GROUP BY 1
+  WITH totals AS (
+    SELECT project_id,
+      count(*) FILTER (WHERE event = 'output_open') AS outputs_opened,
+      count(*) FILTER (WHERE ({WEB_BATCH}) OR ({CLI_BATCH})) AS batches_started,
+      count(*) FILTER (WHERE event = 'cli_command') AS cli_commands,
+      count(*) AS events
+    FROM usage_events WHERE {{where}} AND project_id IS NOT NULL
+    GROUP BY 1
+  ), viewers AS (
+    SELECT project_id, count(*) AS people FROM (
+      SELECT project_id, coalesce({PERSON}, 'client:' || client_id) AS viewer FROM (
+        SELECT project_id, user_id, user_name, client_id
+        FROM usage_events WHERE {{where}} AND project_id IS NOT NULL AND event = 'page_view'
+        GROUP BY 1, 2, 3, 4
+      ) a
+      WHERE coalesce({PERSON}, 'client:' || client_id) IS NOT NULL
+      GROUP BY 1, 2
+    ) v
+    GROUP BY 1
+  ), commits AS (
+    SELECT project_id, count(*) AS commits_viewed FROM (
+      SELECT project_id, properties->>'commit_id' FROM usage_events
+      WHERE {{where}} AND project_id IS NOT NULL AND {VIEWED_COMMIT}
+      GROUP BY 1, 2
+    ) c
+    GROUP BY 1
+  )
+  SELECT t.project_id, coalesce(v.people, 0) AS people, coalesce(c.commits_viewed, 0) AS commits_viewed,
+    t.outputs_opened, t.batches_started, t.cli_commands, t.events
+  FROM totals t
+  LEFT JOIN viewers v ON v.project_id = t.project_id
+  LEFT JOIN commits c ON c.project_id = t.project_id
 """
+# The projects with events in a period (the one before, to find the quiet projects)
+PROJECT_IDS = "SELECT DISTINCT project_id FROM usage_events WHERE {where} AND project_id IS NOT NULL"
 
 PROJECTS_CI_RUNS = """
   SELECT c.project_id, count(*) AS ci_runs FROM outputs o
@@ -549,24 +654,30 @@ PROJECTS_CI_RUNS = """
   GROUP BY 1
 """
 
-# Which of these projects had events before the period: the others are new
-PROJECTS_SEEN_BEFORE = """
-  SELECT DISTINCT project_id FROM usage_events WHERE created_at < :since AND project_id IN :projects
+PROJECTS_CI_IDS = """
+  SELECT DISTINCT c.project_id FROM outputs o
+  JOIN batches b ON b.id = o.batch_id
+  JOIN ci_commits c ON c.id = b.ci_commit_id
+  WHERE {where}
 """
-# The projects with CI runs since then that nobody looked at: the distinct projects first, then the (short) check
-CI_ONLY_PROJECTS = f"""
-  WITH ci AS (
-    SELECT DISTINCT c.project_id FROM outputs o
-    JOIN batches b ON b.id = o.batch_id
-    JOIN ci_commits c ON c.id = b.ci_commit_id
-    WHERE o.created_date >= :since AND b.origin = 'ci'
-  )
-  SELECT project_id FROM ci
-  WHERE NOT EXISTS (
-    SELECT 1 FROM usage_events e WHERE e.created_at >= :since AND e.event = 'page_view'
-    AND (e.project_id = ci.project_id OR e.project_id LIKE {sql_like_escape('ci.project_id')} || '/%' ESCAPE '\\')
-  )
-  ORDER BY 1
+
+# Which of these projects had events before the period, the others are new: an index lookup per project
+PROJECTS_SEEN_BEFORE = """
+  SELECT p.project_id FROM unnest(CAST(:projects AS text[])) AS p(project_id)
+  WHERE EXISTS (SELECT 1 FROM usage_events e WHERE e.project_id = p.project_id AND e.created_at < :since)
+"""
+# The projects with CI runs since then, without reading the runs (there are millions, and reading them from disk can
+# take a minute): their commits got runs since then (latest_output_datetime, set when runs are sent, a day earlier
+# for servers whose timezone isn't UTC), and have a batch from the CI. Close enough for a hint: a commit of the CI
+# that only got other runs lately counts too.
+CI_PROJECTS_SINCE = """
+  SELECT DISTINCT c.project_id FROM ci_commits c
+  WHERE c.latest_output_datetime >= :since_commits
+  AND EXISTS (SELECT 1 FROM batches b WHERE b.ci_commit_id = c.id AND b.origin = 'ci')
+"""
+# The projects people (or anonymous browsers) looked at since then
+VIEWED_PROJECTS_SINCE = """
+  SELECT DISTINCT project_id FROM usage_events WHERE created_at >= :since AND event = 'page_view' AND project_id IS NOT NULL
 """
 
 PROJECT_STATUSES = ('active', 'ci_only', 'quiet', 'new')
@@ -584,12 +695,13 @@ def projects(filters: Filters) -> List[dict]:
   """
   current = {row['project_id']: row for row in rows_of(PROJECTS.format(where=filters.where()), filters.params())}
   ci_runs = {row['project_id']: int(row['ci_runs']) for row in rows_of(PROJECTS_CI_RUNS.format(where=filters.ci_where()), filters.params())}
-  previous = {row['project_id'] for row in rows_of(PROJECTS.format(where=filters.where()), filters.params(previous=True))}
-  previous |= {row['project_id'] for row in rows_of(PROJECTS_CI_RUNS.format(where=filters.ci_where()), filters.params(previous=True))}
+  # the period before: only which projects had activity
+  previous = {row['project_id'] for row in rows_of(PROJECT_IDS.format(where=filters.where()), filters.params(previous=True))}
+  previous |= {row['project_id'] for row in rows_of(PROJECTS_CI_IDS.format(where=filters.ci_where()), filters.params(previous=True))}
   ids = sorted(set(current) | set(ci_runs) | previous)
   seen_before = set()
   if current:
-    seen_before = {row['project_id'] for row in rows_of(PROJECTS_SEEN_BEFORE, {"since": filters.period.since, "projects": tuple(current)})}
+    seen_before = {row['project_id'] for row in rows_of(PROJECTS_SEEN_BEFORE, {"since": filters.period.since, "projects": sorted(current)})}
   result = []
   for project_id in ids:
     row = current.get(project_id, {})
@@ -688,23 +800,32 @@ def event_as_text(row: dict) -> dict:
 
 def active_user_ids(since: datetime.datetime) -> set:
   """The people (human accounts that still exist) with an event since then"""
+  # an index lookup per account, not every event of the period
   rows = rows_of("""
-    SELECT DISTINCT e.user_id FROM usage_events e JOIN users u ON u.id = e.user_id
-    WHERE e.created_at >= :since AND u.kind = 'human'
+    SELECT u.id AS user_id FROM users u
+    WHERE u.kind = 'human' AND EXISTS (SELECT 1 FROM usage_events e WHERE e.user_id = u.id AND e.created_at >= :since)
   """, {"since": since})
   return {row['user_id'] for row in rows}
 
 
 def ci_only_projects(since: datetime.datetime) -> List[str]:
   """Projects with CI runs since then that nobody looked at in the web app (people, or anonymous browsers)"""
-  return [row['project_id'] for row in rows_of(CI_ONLY_PROJECTS, {"since": since})]
+  ci = {row['project_id'] for row in rows_of(CI_PROJECTS_SINCE, {"since": since, "since_commits": since - datetime.timedelta(days=1)})}
+  # looking at a subproject is looking at the project: every viewed project id and its parents
+  viewed = set()
+  for row in rows_of(VIEWED_PROJECTS_SINCE, {"since": since}):
+    parts = row['project_id'].split('/')
+    viewed.update('/'.join(parts[:i]) for i in range(1, len(parts) + 1))
+  return sorted(project_id for project_id in ci if project_id not in viewed)
 
 
 def web_only_users(since: datetime.datetime) -> List[int]:
-  """The accounts active in the web app since then that never used the CLI"""
+  """The accounts active in the web app since then that didn't use the CLI since then. One pass over the period:
+  "ever" read all the past events of each of them"""
   rows = rows_of("""
-    SELECT DISTINCT user_id FROM usage_events w WHERE created_at >= :since AND source = 'webapp' AND user_id IS NOT NULL
-    AND NOT EXISTS (SELECT 1 FROM usage_events c WHERE c.user_id = w.user_id AND c.source = 'cli')
+    SELECT user_id FROM usage_events WHERE created_at >= :since AND user_id IS NOT NULL
+    GROUP BY user_id HAVING bool_or(source = 'webapp') AND NOT bool_or(source = 'cli')
+    ORDER BY 1
   """, {"since": since})
   return [row['user_id'] for row in rows]
 

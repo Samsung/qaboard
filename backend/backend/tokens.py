@@ -2,7 +2,8 @@
 API tokens: their format, how we store and check them.
 
 Format: `qab_pat_` + 40 random base62 characters + a 6-character base62 checksum (crc32 of the random part).
-Service accounts' tokens start with `qab_svc_` (backend/service_accounts.py).
+Service accounts' tokens start with `qab_svc_` (backend/service_accounts.py), and the short-lived tokens the server
+issues (CI jobs' token exchange, backend/ci_trust.py) with `qab_tmp_`.
 - The prefix tells what it is, so secret scanners (and people) recognize leaked QA-Board tokens.
 - The checksum rejects typos and random strings without a database lookup.
 We only store sha256(token): it has ~238 random bits, a salt or a slow hash wouldn't make it harder to guess.
@@ -18,6 +19,9 @@ from typing import Optional, List
 
 PREFIX = 'qab_pat_'
 SERVICE_PREFIX = 'qab_svc_'
+TEMPORARY_PREFIX = 'qab_tmp_'
+# token kinds that the server issues for a short time
+TEMPORARY_KINDS = ('ci',)
 BASE62 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 RANDOM_LENGTH = 40
 CHECKSUM_LENGTH = 6
@@ -54,7 +58,7 @@ def generate(prefix: str = PREFIX) -> str:
   return f"{prefix}{random_part}{checksum(random_part)}"
 
 
-TOKEN_RE = re.compile(rf'^(?:{PREFIX}|{SERVICE_PREFIX})([0-9A-Za-z]{{{RANDOM_LENGTH}}})([0-9A-Za-z]{{{CHECKSUM_LENGTH}}})$')
+TOKEN_RE = re.compile(rf'^(?:{PREFIX}|{SERVICE_PREFIX}|{TEMPORARY_PREFIX})([0-9A-Za-z]{{{RANDOM_LENGTH}}})([0-9A-Za-z]{{{CHECKSUM_LENGTH}}})$')
 LEGACY_RE = re.compile(r'^[0-9a-f]{64}$')
 
 def is_well_formed(token: str) -> bool:
@@ -168,15 +172,16 @@ def iso(date: Optional[datetime.datetime]) -> Optional[str]:
 
 def mint(user, name: str, scopes: List[str], kind: str = 'personal', projects: Optional[List[str]] = None,
          expires_at: Optional[datetime.datetime] = None, idle_expiry_days: Optional[int] = None,
-         created_by=None, data: Optional[dict] = None, actor=None):
+         created_by=None, data: Optional[dict] = None, actor=None, audit_action: str = 'token.create',
+         audit_meta: Optional[dict] = None):
   """
-  Creates a token for the user, added to the database session (the caller commits) and audited.
-  Returns (token, secret): the secret is only known now.
+  Creates a token for the user, added to the database session (the caller commits) and audited (`audit_action`, e.g.
+  token.exchange for CI jobs' tokens, with `audit_meta`). Returns (token, secret): the secret is only known now.
   """
   from backend import db_session
   from .models import Token
   from .audit import audit
-  secret = generate(SERVICE_PREFIX if kind == 'service' else PREFIX)
+  secret = generate(SERVICE_PREFIX if kind == 'service' else TEMPORARY_PREFIX if kind in TEMPORARY_KINDS else PREFIX)
   token = Token(
     token_hash=hash_token(secret),
     prefix=display_prefix(secret),
@@ -195,9 +200,9 @@ def mint(user, name: str, scopes: List[str], kind: str = 'personal', projects: O
   )
   db_session.add(token)
   db_session.flush()
-  audit('token.create', 'token', token.id, name, meta={
+  audit(audit_action, 'token', token.id, name, meta={
     "user": user.user_name, "kind": kind, "scopes": token.scopes, "projects": token.projects,
-    "expires_at": iso(expires_at), "idle_expiry_days": idle_expiry_days,
+    "expires_at": iso(expires_at), "idle_expiry_days": idle_expiry_days, **(audit_meta or {}),
   }, actor=actor)
   return token, secret
 

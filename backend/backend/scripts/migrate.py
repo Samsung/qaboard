@@ -79,7 +79,7 @@ from sqlalchemy import text
 
 from backend.models import CiCommit, Batch, Output
 from backend.database import db_session
-from backend.fs_utils import as_user, rm_empty_parents
+from backend.fs_utils import as_user, owner_ids, rm_empty_parents
 
 from migration_utils import get_username
 
@@ -240,7 +240,7 @@ def migrate_output(output):
       if not exists:
         storage = 0
       else:
-        owner = as_user(users["sircdevops"], lambda: output.output_dir.owner())
+        owner = as_user(users["sircdevops"], lambda: owner_ids(output.output_dir))
         # print(f"> {owner}")
         # owner = output.output_dir.owner()
         # print("output_dir owner:", owner)

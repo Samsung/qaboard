@@ -1,5 +1,6 @@
 // What we know about a run, as menu items: where its input is, who ran it, how long it took... and a link to the
-// input's History. Shown by the run cards (hovering their name) and by the runs' menus, e.g. in the logs.
+// input's History. The same everywhere: hovering runs' names (see RunName), and in their menus (see RunMenuButton),
+// in the run cards, the logs and the tables.
 import { Classes, MenuDivider, MenuItem } from "@blueprintjs/core";
 import { DateTime } from 'luxon';
 
@@ -10,6 +11,7 @@ import { date_range_from_query, parse_query, path_segment, stringify_query } fro
 import { linux_to_windows } from '../utils'
 import { hasPathMappings } from '../utils/paths'
 import { copyWithToast } from "../utils/clipboard"
+import { usePrefsStore, useRunNameOrigin } from "../stores/prefs"
 
 
 const on_copy = text => () => copyWithToast(text, {
@@ -67,6 +69,27 @@ export const runTime = output => output?.metrics?.compute_time !== undefined && 
   ? humanElapsedTime(output.metrics.compute_time)
   : null;
 
+// Whether runs' names start with their batch and database: chosen where users see them, also in Settings and the View options
+export const run_name_origin_options = [
+  { value: 'auto', label: 'When runs differ', description: 'when the runs shown come from several batches or databases. If they all have the same input, only those' },
+  { value: 'always', label: 'Always' },
+  { value: 'never', label: 'Never' },
+];
+export const RunNameOriginMenuItem = () => {
+  const origin = useRunNameOrigin();
+  const setOrigin = usePrefsStore(state => state.setRunNameOrigin);
+  return <MenuItem icon="label" text="Batch & database in names" label={run_name_origin_options.find(o => o.value === origin)?.label}>
+    {run_name_origin_options.map(option => <MenuItem
+      key={option.value}
+      roleStructure="listoption"
+      selected={origin === option.value}
+      text={option.label}
+      htmlTitle={option.description}
+      onClick={() => setOrigin(option.value)}
+    />)}
+  </MenuItem>;
+};
+
 export const RunInfoMenuItems = ({ project, commit, output, type, history: with_history = true }) => {
   const has_metadata = !!output.test_input_metadata && (Object.keys(output.test_input_metadata).length > 0)
   const has_label = has_metadata && !!output.test_input_metadata.label
@@ -103,5 +126,9 @@ export const RunInfoMenuItems = ({ project, commit, output, type, history: with_
       icon="calendar"
     />}
     {!!output?.data?.storage && <MenuItem key="storage" text={humanFileSize(output.data.storage, true)} label="storage" icon="folder-close" />}
+    {(!!output.data?.batch || (!!output.test_input_database && output.test_input_database !== '/')) && <>
+      <MenuDivider key="display" title="Display" />
+      <RunNameOriginMenuItem />
+    </>}
   </>;
 };

@@ -49,12 +49,14 @@ else:
     'QABOARD_STORAGE_ROOTS': str(storage_dir),
     'SECRET_KEY': 'integration-tests',
     'QABOARD_HOST': 'localhost:5151',
+    # tests sign up on an empty database: test_first_admin.py turns the setup page on
+    'QABOARD_SETUP': 'off',
     # tests of the jobs worker don't want its default jobs (test_storage_usage.py does)
     'QABOARD_STORAGE_USAGE_AUTO': '0',
     'QABOARD_GROUPS_SYNC_AUTO': '0',
   })
   for name in ['QABOARD_LOGIN_TYPE', 'QABOARD_LOGIN_REQUIRED', 'QABOARD_DISABLE_SIGNUP', 'QABOARD_INGEST_AUTH',
-               'QABOARD_ADMINS', 'QABOARD_LOGIN_RESTRICTED', 'QABOARD_URL', 'QABOARD_ALLOWED_ORIGINS', 'SENTRY_DSN']:
+               'QABOARD_ADMINS', 'QABOARD_ADMIN_USER', 'QABOARD_ADMIN_PASSWORD', 'QABOARD_ADMIN_PASSWORD_FILE', 'QABOARD_SETUP_TOKEN', 'QABOARD_LOGIN_RESTRICTED', 'QABOARD_URL', 'QABOARD_ALLOWED_ORIGINS', 'SENTRY_DSN']:
     os.environ.pop(name, None)
 
 
@@ -90,10 +92,11 @@ def empty_database(app, monkeypatch):
   db_session.remove()
   settings.invalidate_cache()
   # /api/v1/projects keeps everyone's usage for a minute
-  from backend.api import api, admin
+  from backend.api import api, admin, usage
   api._usage_cache.update(at=None, value=None)
-  # the admin overview keeps its usage-based items for a few minutes
-  admin._usage_items_cache.update(at=None, value=None)
+  # the admin overview keeps its usage-based items for a few minutes, Admin > Usage its tables
+  admin.usage_items.cache_clear()
+  usage.cached_usage.cache_clear()
 
 
 @pytest.fixture

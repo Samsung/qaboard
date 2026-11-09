@@ -9,13 +9,6 @@ import { is_same_data } from "../utils"
 import { ViewerError } from "./ViewerStates";
 import { useLabels } from "../hooks";
 
-// TODO: Implement a way to hide identical lines in the diff viewer
-// 1. We could use the diffNavigator
-// https://microsoft.github.io/monaco-editor/playground.html#creating-the-diffeditor-navigating-a-diff
-// https://github.com/react-monaco-editor/react-monaco-editor/issues/84
-// https://github.com/react-monaco-editor/react-monaco-editor#how-to-get-value-of-editor
-// 2. Or try to the get the diff and remove everything bu those lines...
-
 const ansi_pattern = [
   '[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\\u0007)',
   '(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~]))'
@@ -44,6 +37,16 @@ const editor_options = {
   readOnly: true,
 };
 
+// Diffs collapse the lines that didn't change, with a few lines of context: click a fold to expand it.
+const diff_options = {
+  ...editor_options,
+  hideUnchangedRegions: { enabled: true },
+  // the editor fits the diff: no space under the last line
+  scrollBeyondLastLine: false,
+  // what the button says, even in a narrow card (Monaco switches to inline under 900 px by default)
+  useInlineViewWhenSpaceIsLimited: false,
+};
+
 
 // Files are cached: switching between views doesn't fetch them again.
 // The key includes the response type, since other viewers may parse the same file as JSON.
@@ -68,6 +71,8 @@ const editor_height = (data, max_lines, inline) => {
   const lines = inline ? count_lines(data.new) + count_lines(data.reference) : Math.max(count_lines(data.new), count_lines(data.reference));
   return 18 * Math.min(lines, max_lines) + 10;
 };
+// Once the diff collapsed the unchanged lines, it is shorter: fit it, up to max_lines
+const fit_height = (estimate, content_height, max_lines) => content_height === null ? estimate : Math.min(content_height + 10, 18 * max_lines + 10);
 
 
 function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideBySide: side_by_side_default, always_show_diff, only_diff, manifests, width, max_lines = 40, language: language_prop, is_running, labels: labels_ }) {
@@ -82,6 +87,8 @@ function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideByS
   const [shown_left, setShownLeft] = useState("reference");
   const [renderSideBySide, setRenderSideBySide] = useState(side_by_side_default ?? true);
   const editor = useRef(null);
+  // height of the diff's content, known once Monaco computed the diff and collapsed the unchanged lines
+  const [content_height, setContentHeight] = useState(null);
 
   // Press "t" to switch new and reference
   useEffect(() => {
@@ -111,7 +118,8 @@ function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideByS
   const no_reference = !text_url_ref || !data.reference || (!!text_url_new && text_url_new === text_url_ref);
   const show_diff = !no_reference || always_show_diff;
 
-  const height = editor_height(data, max_lines, show_diff && !renderSideBySide);
+  const estimated_height = editor_height(data, max_lines, show_diff && !renderSideBySide);
+  const height = show_diff ? fit_height(estimated_height, content_height, max_lines) : estimated_height;
   const editor_language = language_prop || language(filename);
   const editor_element = show_diff
     ? <MonacoDiffEditor
@@ -121,13 +129,15 @@ function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideByS
         language={editor_language}
         value={shown_left==='reference' ? data.new : data.reference}
         original={shown_left==='reference' ? data.reference : data.new}
-        options={{
-          ...editor_options,
-          renderSideBySide,
-          // what the button says, even in a narrow card (Monaco switches to inline under 900 px by default)
-          useInlineViewWhenSpaceIsLimited: false,
+        options={{ ...diff_options, renderSideBySide }}
+        editorDidMount={instance => {
+          editor.current = instance;
+          // Side by side, Monaco pads the sides to align them: the right side has the diff's height. Inline, it has the removed lines too.
+          const modified = instance.getModifiedEditor();
+          const fit = () => setContentHeight(modified.getContentHeight());
+          modified.onDidContentSizeChange(fit);
+          fit();
         }}
-        editorDidMount={instance => { editor.current = instance }}
       />
     : <MonacoEditor
         readonly

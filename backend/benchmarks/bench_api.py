@@ -94,8 +94,9 @@ def setup_environment(args):
     'REDIS_HOST': os.environ.get('REDIS_HOST', '127.0.0.1'),
   })
   # Not needed for those endpoints, and they need system libraries to build
-  for name in ['ldap', 'onelogin', 'onelogin.saml2', 'onelogin.saml2.auth', 'onelogin.saml2.utils']:
+  for name in ['ldap', 'ldap.filter', 'onelogin', 'onelogin.saml2', 'onelogin.saml2.auth', 'onelogin.saml2.utils']:
     sys.modules[name] = types.ModuleType(name)
+  sys.modules['ldap'].filter = sys.modules['ldap.filter']
   sys.modules['onelogin.saml2.auth'].OneLogin_Saml2_Auth = None
   sys.modules['onelogin.saml2.utils'].OneLogin_Saml2_Utils = None
   # The backend imports qaboard (the CLI package) from the repository

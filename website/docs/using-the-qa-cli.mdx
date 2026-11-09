@@ -27,6 +27,7 @@ Every command has its help: `qa --help`, `qa batch --help`...
 | `qa postprocess --input <input>` | Redoes only your `postprocess()` function, on a run's files. | [Postprocessing](/docs/running-your-code#postprocess) |
 | `qa sync --input <input>` | Sends a run's *metrics.json* to QA-Board again, with `--share` or in CI. | |
 | `qa get <setting>` | Prints a setting, e.g. `qa get config`, `qa get --input A.jpg output_dir`. | [API](/docs/apis) |
+| `qa runs <url>` | Lists the runs a web app page shows: their folders, or everything with `--json`. | [Runs in scripts](/docs/apis#runs-in-scripts) |
 | `qa save-artifacts` | Saves what your runs need to be redone from the web app, e.g. your build. | [Artifacts](/docs/storage/artifacts) |
 | `qa check-bit-accuracy` | Compares a commit's output files with a reference's, byte for byte. | [Bit accuracy](/docs/bit-accuracy) |
 | `qa gate` | Experimental: fails the CI when metrics regress. | [Quality gate](/docs/quality-gate) |

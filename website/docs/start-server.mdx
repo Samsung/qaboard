@@ -197,12 +197,17 @@ projects yet. If something is wrong, see [Troubleshooting](/docs/backend-admin/t
 ## 6. Make yourself an admin {#6-make-yourself-an-admin}
 Admins see **Admin** in the user menu: users, sign-in, settings, and the jobs that clean the storage.
 
-- The user names in `QABOARD_ADMINS` ([step 3](#3-describe-your-site)) are admins as soon as they sign in.
-- To sign in before LDAP or single sign-on work, create a local admin account. It asks for the password:
+- **The setup page**: open QA-Board, it shows **Set up QA-Board** on a new server. Paste the setup token from the
+  backend's logs, choose a user name and a password: you're the first admin, signed in.
 
   ```bash
-  deployments/deploy.py deployments/mysite/production.env compose exec backend qaboard-admin create-admin admin --password
+  deployments/deploy.py deployments/mysite/production.env compose logs backend | grep -A1 "setup token"
   ```
+- **Or from the environment**, for automated installs: `QABOARD_ADMIN_PASSWORD` in `.env` creates the local admin
+  `admin` when the server starts without admins (see [the first admin](/docs/backend-admin/user-management#the-first-admin)).
+- The user names in `QABOARD_ADMINS` ([step 3](#3-describe-your-site)) are admins as soon as they sign in, e.g. with LDAP or
+  single sign-on.
+- From the server's shell, `qaboard-admin create-admin <user_name> --password` creates a local admin. It asks for the password.
 
 **Check it worked:** sign in with **Sign in**, at the top right, and open **Admin**. Its **Overview** has a security
 checklist of what to look at next. More in [User management](/docs/backend-admin/user-management).
@@ -210,7 +215,8 @@ checklist of what to look at next. More in [User management](/docs/backend-admin
 ## 7. Choose how users sign in {#7-choose-how-users-sign-in}
 <Anchor id="managing-access-rights-and-users" />
 
-By default, users have local accounts, and anyone can create one from the sign-in page (**Create one**). Instead:
+By default, users have local accounts: admins create them in **Admin → Users → New user**, and anyone can create one
+from the sign-in page (**Create one**) until you turn `auth.local_signup` off. Instead:
 - **Single sign-on** with OpenID Connect (Keycloak, Entra ID, Okta, Google...): see
   [Sign-in and single sign-on](/docs/backend-admin/sign-in).
 - **LDAP** or **SAML**: set `QABOARD_LOGIN_TYPE` and their settings in the overlay, see
@@ -406,16 +412,20 @@ READMEs of the [backend](https://github.com/Samsung/qaboard/tree/master/backend)
 ## Environment variables {#optional-environment-variables}
 Set them in `services.backend.environment` in your site overlay, and the secrets in `.env`: see
 [where each setting goes](#4-write-the-env-file-and-the-secrets). With the Helm chart, in `config` and the secret
-([Kubernetes](/docs/backend-admin/kubernetes#on-a-real-cluster)). Many settings can also be changed in
-**Admin → Settings**, without a deploy: see [settings](/docs/backend-admin/user-management#settings).
+([Kubernetes](/docs/backend-admin/kubernetes#on-a-real-cluster)).
+
+Most settings that aren't about deploying the server are easier in **Admin → Settings**, without a deploy: git hosts
+and their tokens, Jenkins servers, email, the web app's links and texts... Their secrets are encrypted in the database.
+When a variable is set, it wins, and the page shows it read-only: see [settings and secrets](/docs/backend-admin/settings).
 
 
 | ENV Variable           | Default | Usage                                                |
 -------------------------|-------- |------------------------------------------------------|
 | `QABOARD_URL` | `http://qaboard` | The address users open, e.g. `https://qaboard.example.com`: links in emails, single sign-on redirects. With `https://`, session cookies are only sent over HTTPS |
 | `SECRET_KEY`           | _generated_ | Signs the sessions. If unset, a key is generated once and saved in the backend's data volume. With several hosts/kubernetes, set the same value everywhere. |
+| `QABOARD_ENCRYPTION_KEY` | _generated_ | Encrypts the secrets saved in Admin → Settings (any long random text, e.g. `openssl rand -base64 32`). Or `QABOARD_ENCRYPTION_KEY_FILE`, a file holding it. If unset, a key is generated once in the backend's data volume: back it up apart from the database. `QABOARD_ENCRYPTION_KEY_PREVIOUS` when you [change it](/docs/backend-admin/settings#change-the-key) |
 | `QABOARD_ADMINS` | _none_ | User names of admins, or emails of directory and single sign-on accounts, comma-separated. See [user management](/docs/backend-admin/user-management) |
-| `QABOARD_GIT_HOSTS`    | _none_  | Your git hosts (GitHub, GitLab, Gitea/Forgejo, Bitbucket...) with their tokens and webhook secrets: a JSON list, or the path to a JSON/YAML file. See [Git hosts](/docs/backend-admin/git-hosts) |
+| `QABOARD_GIT_HOSTS`    | _none_  | Or **Admin → Settings → Git hosts**. Your git hosts (GitHub, GitLab, Gitea/Forgejo, Bitbucket...) with their tokens and webhook secrets: a JSON list, or the path to a JSON/YAML file. See [Git hosts](/docs/backend-admin/git-hosts) |
 | `GITLAB_HOST`          | *https://gitlab.com*, if `QABOARD_GIT_HOSTS` isn't set either | Your GitLab, e.g. *https://gitlab.example.com*. It's the default git host: for projects that don't say where they are hosted, and for pushes to `/webhook/gitlab` from hostnames the server doesn't know. **Keep it set when you upgrade**, see [Git hosts](/docs/backend-admin/git-hosts#upgrading-from-older-versions) |
 | `GITLAB_ACCESS_TOKEN`  | _none_  | Token for `GITLAB_HOST`: `read_repository` scope to clone private repositories, `read_api` to show GitLab CI job statuses and committers' avatars, `api` to play manual jobs, and to retry the jobs that [recreate deleted artifacts](/docs/storage/deleting-old-data#recreating-artifacts) |
 | `GITHUB_ACCESS_TOKEN`  | _none_  | Token for github.com (always known, even without a token) and the hosts of `QABOARD_GITHUB_HOSTS`: to clone private repositories, look up committers' avatars and use GitHub Actions (see [GitHub integration](/docs/project-init#github)) |
@@ -434,13 +444,13 @@ Set them in `services.backend.environment` in your site overlay, and the secrets
 | `QABOARD_DB_PORT`      | 5432    | Connect to a non-default database port. Read by docker compose: set it in the env file |
 | `QABOARD_DB_USER` / `QABOARD_DB_PASSWORD` / `QABOARD_DB_NAME` | qaboard / password / qaboard | The database's credentials and name. Keep the password in `.env` |
 | `QABOARD_DB_POOL_SIZE` / `QABOARD_DB_MAX_OVERFLOW` | 4 / 2 | Database connections kept open by each uwsgi process (it runs 4 threads), and extra ones it may open. PostgreSQL's `max_connections` must cover them, see [Database settings](/docs/backend-admin/deployment#database-settings) |
-| `JENKINS_AUTH`         | _none_  | Credentials used to [trigger jenkins jobs](/docs/triggering-third-party-tools) on 1 or many jenkins servers. The format is a JSON string looking like `{"hostname_1": {"user": "jenkinsuser", "token": "xxxxx", "crumb": "yyy"}}` (see [Jenkins builds](/docs/triggering-third-party-tools#trigger-jenkins-builds) for the token and crumb)               |
+| `JENKINS_AUTH`         | _none_  | Or **Admin → Settings → Jenkins**. Credentials used to [trigger jenkins jobs](/docs/triggering-third-party-tools) on 1 or many jenkins servers. The format is a JSON string looking like `{"hostname_1": {"user": "jenkinsuser", "token": "xxxxx", "crumb": "yyy"}}` (see [Jenkins builds](/docs/triggering-third-party-tools#trigger-jenkins-builds) for the token and crumb)               |
 | `JENKINS_BUILD_TOKEN`  | _none_  | The authentication token of **Trigger builds remotely** sent to the Jenkins jobs whose integration has no `token`. Without it, they get none. Older versions sent `qaboard`: if your jobs expect it, set `JENKINS_BUILD_TOKEN=qaboard` |
 | `QABOARD_LOGIN_TYPE`   | _LOCAL_  | `LOCAL`, `LDAP` or `SAML`. Single sign-on (`QABOARD_OIDC_*`) comes on top of any of them. See [user management](/docs/backend-admin/user-management#authentication-providers) |
 | `QABOARD_LOGIN_REQUIRED`   | _empty_  | `true` blocks anonymous users, `false` allows them. Empty: as set in **Admin → Settings** (`auth.require_sign_in`) |
 | `QABOARD_DISABLE_SIGNUP`   | _empty_  | `true` disables the sign-up of local accounts, `false` enables it. Empty: as set in **Admin → Settings** (`auth.local_signup`, on with `LOCAL`, off with LDAP or SAML) |
 | `QABOARD_LDAP_*`, `QABOARD_SAML_*`, `QABOARD_OIDC_*`, `QABOARD_LOGIN_RESTRICTED*`... | | Sign-in: see the [sign-in variables](/docs/backend-admin/user-management#environment-variables) and [single sign-on](/docs/backend-admin/sign-in) |
-| `QABOARD_INGEST_AUTH`, `QABOARD_ACCESS_POLICY`... | | Settings you can also change in **Admin → Settings**: see [settings](/docs/backend-admin/user-management#settings) |
+| `QABOARD_INGEST_AUTH`, `QABOARD_ACCESS_POLICY`... | | Settings you can also change in **Admin → Settings**: see [every setting](/docs/backend-admin/settings#every-setting) |
 | `QABOARD_TUNING_RUNNER` | local  | Where the server runs `qa batch` for batches started from the web app: `local`, `lsf`, `kubernetes` or `celery`. See [Run batches from the web app](/docs/backend-admin/runners) |
 | `QA_RUNNERS_LSF_BRIDGE` | _none_ | The command template that runs LSF commands as `{user}` on a host with LSF, to start, redo and stop batches: see [On LSF](/docs/backend-admin/runners#lsf) |
 | `QABOARD_LOCAL_START_WAIT` | 3 | With `QABOARD_TUNING_RUNNER=local` or `celery`, how many seconds the server waits for `qa batch` before it answers, so users see right away when it fails to start |
@@ -459,8 +469,9 @@ Set them in `services.backend.environment` in your site overlay, and the secrets
 | `POSTHOG_API_KEY` / `POSTHOG_HOST` | _none_ | Also sends the web app's events to [PostHog](https://posthog.com/) |
 | `REDIS_HOST` / `REDIS_PORT` | redis / 6379 (set in *docker-compose.yml*) | Redis cache shared by the backend replicas. The backend still works if it's unreachable |
 | `QABOARD_SUPPORT_URL` | GitHub issues | Where users report bugs and send feedback, can be a `mailto:` |
+| `QABOARD_CLI_REQUIREMENTS` | _none_ | What scripts install besides `qaboard` to use `qa` here, comma-separated pip requirements, e.g. your [site package](/docs/project-init#site-defaults). The web app's **Script** snippets list them ([results in scripts](/docs/apis#runs-in-scripts)). |
 | `QABOARD_LOGIN_HINT` | _none_ | Advice for users whose username or password is wrong, shown in the login dialog, e.g. `Use your Windows credentials.` |
-| `QABOARD_SMTP_HOST` | _none_ | SMTP server QA-Board sends emails with, e.g. when batches users started end. Without it, users can't ask for emails. See [Emails](#emails) |
+| `QABOARD_SMTP_HOST` | _none_ | Or **Admin → Settings → Email**, like the other `QABOARD_SMTP_*` and `QABOARD_EMAIL_*`. SMTP server QA-Board sends emails with, e.g. when batches users started end. Without it, users can't ask for emails. See [Emails](#emails) |
 | `QABOARD_SMTP_PORT` | 25, or 587 with `starttls`, 465 with `ssl` | SMTP port |
 | `QABOARD_SMTP_SECURITY` | none | `none`, `starttls` or `ssl` |
 | `QABOARD_SMTP_USER` / `QABOARD_SMTP_PASSWORD` | _none_ | If the SMTP server needs a login. Keep the password in `.env`, not in `environment` |
@@ -478,7 +489,9 @@ Set them in `services.backend.environment` in your site overlay, and the secrets
 
 
 ### Emails
-QA-Board can email users when the batches they start end, from the web app or with `qa --share batch` ([what users get](/docs/user-guide/running-from-the-webapp#emails-when-batches-end)). Once the backend has an SMTP server, everyone gets them, except in CI. Users turn them off in the terminal with `QA_NOTIFY=none`. Configure it in your overlay, and the SMTP password, if any, in `.env`:
+QA-Board can email users when the batches they start end, from the web app or with `qa --share batch` ([what users get](/docs/user-guide/running-from-the-webapp#emails-when-batches-end)). Once the backend has an SMTP server, everyone gets them, except in CI. Users turn them off in the terminal with `QA_NOTIFY=none`.
+
+Set the SMTP server in **Admin → Settings → Email**, then click **Send a test email**: it says what the SMTP server answered. Or configure it in your overlay, and the SMTP password, if any, in `.env` (the variables win over the settings page):
 
 ```yaml title="deployments/mysite/mysite.yml"
 services:
@@ -494,5 +507,5 @@ services:
 
 - The emails are designed for Outlook 2016/2019 as well as recent clients, in HTML with a plain text version. They are marked as automated (`Auto-Submitted`), so out-of-office replies aren't sent back, and have `X-QABoard-Project`, `X-QABoard-Batch` and `X-QABoard-Status` headers for mail rules.
 - They're sent by the backend when it saves the last run of a batch. If the SMTP server fails, the error is in the backend's logs and in the `batch_notifications` table, and the run is saved anyway.
-- To check how they look, or test your SMTP settings, run `uv run backend/backend/notifications/preview.py`: it renders examples, and `--send you@example.com` emails them to you.
+- To check how they look, run `uv run backend/backend/notifications/preview.py`: it renders examples, and `--send you@example.com` emails them to you.
 - Like results, the requests to email users when their `qa batch` ends come from the CLI without a login: anyone who can reach the server could have QA-Board email a user about a batch. QA-Board only emails the address of the user's account (or `<username>@$QABOARD_EMAIL_DOMAIN`), and at most once per `qa batch`.

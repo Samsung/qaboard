@@ -1,15 +1,15 @@
 """
-Sending emails. Configured with environment variables, see website/docs/start-server.mdx:
-  QABOARD_SMTP_HOST          enables emails
-  QABOARD_SMTP_PORT          default: 465 with ssl, 587 with starttls, else 25
-  QABOARD_SMTP_SECURITY      none (default), starttls or ssl
-  QABOARD_SMTP_USER / QABOARD_SMTP_PASSWORD   if the server needs a login
-  QABOARD_SMTP_TIMEOUT       seconds, default 15
-  QABOARD_EMAIL_FROM         default "QA-Board <qaboard@$QABOARD_EMAIL_DOMAIN>"
-  QABOARD_EMAIL_REPLY_TO     e.g. the team supporting QA-Board
-  QABOARD_EMAIL_DOMAIN       users without an email address get emails at <user_name>@<domain>
+Sending emails. Configured in Admin → Settings → Email, or with environment variables (they win),
+see website/docs/start-server.mdx:
+  email.smtp_host       QABOARD_SMTP_HOST       enables emails
+  email.smtp_port       QABOARD_SMTP_PORT       default: 465 with ssl, 587 with starttls, else 25
+  email.smtp_security   QABOARD_SMTP_SECURITY   none (default), starttls or ssl
+  email.smtp_user / email.smtp_password         QABOARD_SMTP_USER / QABOARD_SMTP_PASSWORD, if the server needs a login
+  email.smtp_timeout    QABOARD_SMTP_TIMEOUT    seconds, default 15
+  email.from            QABOARD_EMAIL_FROM      default "QA-Board <qaboard@<email.domain>>"
+  email.reply_to        QABOARD_EMAIL_REPLY_TO  e.g. the team supporting QA-Board
+  email.domain          QABOARD_EMAIL_DOMAIN    users without an email address get emails at <user_name>@<domain>
 """
-import os
 import re
 import socket
 import smtplib
@@ -36,30 +36,42 @@ class EmailSettings:
     return bool(self.host)
 
 
-def email_settings(environ=os.environ) -> EmailSettings:
-  security = (environ.get('QABOARD_SMTP_SECURITY') or 'none').strip().lower()
+def email_settings(environ=None, overrides=None) -> EmailSettings:
+  """
+  From the settings (Admin → Settings → Email, the environment winning).
+  environ: {variable: value} instead, e.g. in tests. overrides: {setting: value} over them, e.g. to test new values.
+  """
+  if environ is None:
+    from ..settings import setting
+    get = setting
+  else:
+    from ..settings import DEFINITIONS
+    get = lambda key: environ.get(DEFINITIONS[key].env)
+  if overrides:
+    base, get = get, lambda key: overrides[key] if key in overrides else base(key)
+  security = (get('email.smtp_security') or 'none').strip().lower()
   if security not in ('none', 'starttls', 'ssl'):
     print(f"WARNING: QABOARD_SMTP_SECURITY must be none, starttls or ssl, not {security!r}: using none")
     security = 'none'
   default_port = {'ssl': 465, 'starttls': 587}.get(security, 25)
   try:
-    port = int(environ.get('QABOARD_SMTP_PORT') or default_port)
+    port = int(get('email.smtp_port') or default_port)
   except ValueError:
     port = default_port
   try:
-    timeout = float(environ.get('QABOARD_SMTP_TIMEOUT') or 15)
+    timeout = float(get('email.smtp_timeout') or 15)
   except ValueError:
     timeout = 15
-  domain = (environ.get('QABOARD_EMAIL_DOMAIN') or '').strip().lstrip('@') or None
+  domain = (get('email.domain') or '').strip().lstrip('@') or None
   return EmailSettings(
-    host=(environ.get('QABOARD_SMTP_HOST') or '').strip() or None,
+    host=(get('email.smtp_host') or '').strip() or None,
     port=port,
     security=security,
-    user=environ.get('QABOARD_SMTP_USER') or None,
-    password=environ.get('QABOARD_SMTP_PASSWORD') or None,
+    user=get('email.smtp_user') or None,
+    password=get('email.smtp_password') or None,
     timeout=timeout,
-    sender=environ.get('QABOARD_EMAIL_FROM') or f"QA-Board <qaboard@{domain or socket.getfqdn()}>",
-    reply_to=environ.get('QABOARD_EMAIL_REPLY_TO') or None,
+    sender=get('email.from') or f"QA-Board <qaboard@{domain or socket.getfqdn()}>",
+    reply_to=get('email.reply_to') or None,
     domain=domain,
   )
 
@@ -115,7 +127,7 @@ def send_email(to, subject, html, text, headers=None, settings=None):
   """Raises if the email could not be sent."""
   settings = settings or email_settings()
   if not settings.enabled:
-    raise RuntimeError("Emails are not configured: set QABOARD_SMTP_HOST")
+    raise RuntimeError("Emails are not configured: set the SMTP server in Admin → Settings → Email (or QABOARD_SMTP_HOST)")
   message = build_message(to, subject, html, text, settings, headers)
   smtp_class = smtplib.SMTP_SSL if settings.security == 'ssl' else smtplib.SMTP
   with smtp_class(settings.host, settings.port, timeout=settings.timeout) as smtp:

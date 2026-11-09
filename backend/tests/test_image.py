@@ -277,7 +277,7 @@ def test_cache_removes_the_least_recently_used(tmp_path, cache_dir):
     Image.new('L', (100, 100), color=i).save(path)
     paths.append(path)
   # room for two 100x100 8-bit images
-  with patch.object(image_api, 'image_cache_dir', cache_dir), patch.object(image_api, 'image_cache_bytes', 25_000):
+  with patch.object(image_api, 'image_cache_dir', cache_dir), patch.object(image_api, 'image_cache_bytes', lambda: 25_000):
     image_api.decoded_image(paths[0])
     image_api.decoded_image(paths[1])
     # the first is used again: the second is now the least recently used

@@ -56,7 +56,8 @@ describe('reading the selection from the URL', () => {
     expect(s.ref_commit_id).toBe(null);
     expect(s.selected_batch_new).toBe('default');
     expect(s.filter_batch_new).toBe('');
-    expect(s.sort_order).toBe(-1);
+    // the default order of what runs are sorted by, see selectors/sorting.js
+    expect(s.sort_order).toBeUndefined();
     expect(s.selected_views).toBeUndefined();
     expect(s.selected_metrics).toBeUndefined();
   });
@@ -127,10 +128,12 @@ describe('changing the selection', () => {
 
   test('defaults are not in the URL', () => {
     const { url, selected } = roundtrip('/p/commit/a?batch=x&batch_ref=y&filter=f&sort_order=1&search=s', {
-      selected_batch_new: 'default', selected_batch_ref: 'default', filter_batch_new: '', search: '', sort_order: '-1',
+      selected_batch_new: 'default', selected_batch_ref: 'default', filter_batch_new: '', search: '', sort_order: undefined,
     });
     expect(url).toBe('/p/commit/a?');
-    expect(selected).toMatchObject({ selected_batch_new: 'default', filter_batch_new: '', sort_order: -1 });
+    expect(selected).toMatchObject({ selected_batch_new: 'default', filter_batch_new: '', sort_order: undefined });
+    // an order users chose stays, whatever it is
+    expect(roundtrip('/p/commit/a', { sort_order: -1 }).url).toBe('/p/commit/a?sort_order=-1');
     // '' still means "no commit selected"
     expect(roundtrip('/p/commit/a', { ref_commit_id: '' }).url).toBe('/p/commit/a?reference=');
   });

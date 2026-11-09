@@ -1,9 +1,9 @@
 // Admin → Sign-in: the ways to sign in (design/user-management.md, Appendix C.6). The environment's providers are
 // read-only, admins add OIDC providers here. "Test" runs the checks of `qaboard-admin check-sign-in`.
 // Then the settings about who gets an account and how long sessions last.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Callout, Card, Classes, Icon, InputGroup, Intent, NonIdealState, Spinner, Tag, Tooltip } from "@blueprintjs/core";
+import { Alert, Button, ButtonGroup, Callout, Card, Classes, Icon, InputGroup, Intent, NonIdealState, Spinner, Tag, Tooltip } from "@blueprintjs/core";
 import styled from "styled-components";
 
 import { errorMessage } from "../api/http";
@@ -13,7 +13,7 @@ import { Loading } from "../settings/states";
 import { AdminError } from "./states";
 import { SettingsTable } from "./Settings";
 import { ProviderDialog, match_users_options } from "./ProviderDialog";
-import { signInAdminQuery, settingsQuery, deleteProvider, testProvider } from "./api";
+import { signInAdminQuery, settingsQuery, deleteProvider, testProvider, reorderProviders } from "./api";
 
 
 const type_labels = { oidc: 'OIDC', ldap: 'LDAP', saml: 'SAML', local: 'Local accounts' };
@@ -80,7 +80,16 @@ const CopyValue = ({ value, what }) => <span style={{ display: 'inline-flex', al
 </span>;
 
 
-const ProviderCard = ({ provider, onEdit, onDelete }) => {
+// `onMove(provider, -1 | 1)`: up or down on the sign-in page. `focus_move`: {direction} after it moved, to keep the focus on its button.
+const ProviderCard = ({ provider, onEdit, onDelete, onMove, is_first, is_last, focus_move }) => {
+  const up = useRef(null);
+  const down = useRef(null);
+  // the card moved in the page: the focus stays on its button, or the other one at the ends
+  useEffect(() => {
+    if (!focus_move) return;
+    const wanted = focus_move.direction < 0 ? (is_first ? down : up) : (is_last ? up : down);
+    wanted.current?.focus();
+  }, [focus_move, is_first, is_last]);
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState(null);
   const [test_error, setTestError] = useState(null);
@@ -111,6 +120,10 @@ const ProviderCard = ({ provider, onEdit, onDelete }) => {
         </Tooltip>
         : <Tag minimal intent={Intent.PRIMARY}>database</Tag>}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginLeft: 'auto' }}>
+        <ButtonGroup>
+          <Button ref={up} size="small" icon="arrow-up" aria-label={`Move ${provider.name} up`} title="Move up" disabled={is_first} onClick={() => onMove(provider, -1)}/>
+          <Button ref={down} size="small" icon="arrow-down" aria-label={`Move ${provider.name} down`} title="Move down" disabled={is_last} onClick={() => onMove(provider, 1)}/>
+        </ButtonGroup>
         {provider.type === 'ldap' && <InputGroup
           size="small"
           value={user_name}
@@ -132,6 +145,7 @@ const ProviderCard = ({ provider, onEdit, onDelete }) => {
         ? <>From <code>${config.client_secret_env}</code></>
         : provider.has_secret ? 'Stored encrypted' : <span style={{ color: 'var(--qa-text-muted)' }}>Not set</span>}</dd></>}
       {is_oidc && config.scopes && <><dt>Scopes</dt><dd><code>{config.scopes.join(' ')}</code></dd></>}
+      {is_oidc && config.picture_url && <><dt>Picture URL</dt><dd><code>{config.picture_url}</code></dd></>}
       {is_oidc && <><dt>Existing accounts</dt><dd>{match_labels[config.match_users ?? 'none'] ?? config.match_users}</dd></>}
       {is_oidc && provider.redirect_uri && <><dt>Redirect URI</dt><dd><CopyValue value={provider.redirect_uri} what="redirect URI"/></dd></>}
       {from_env && <><dt>Set up</dt><dd>In the server's environment{provider.type === 'oidc' ? <> (<code>QABOARD_OIDC_*</code>)</> : provider.type === 'local' ? ': always there, for local accounts and admins' : <> (<code>QABOARD_LOGIN_TYPE</code>)</>}.</dd></>}
@@ -154,6 +168,8 @@ export const SignIn = () => {
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [moving, setMoving] = useState(false);
+  const [moved, setMoved] = useState(null);
 
   if (isPending) return <Loading label="Loading the sign-in methods"/>;
   if (error) return <AdminError error={error} refetch={refetch} what="the sign-in methods"/>;
@@ -172,11 +188,26 @@ export const SignIn = () => {
       });
   };
 
+  const move = (provider, direction) => {
+    if (moving) return;
+    const order = providers.map(p => p.id);
+    const from = order.indexOf(provider.id);
+    const to = from + direction;
+    if (from < 0 || to < 0 || to >= order.length) return;
+    [order[from], order[to]] = [order[to], order[from]];
+    setMoving(true);
+    reorderProviders(queryClient, order)
+      .then(() => setMoved({ id: provider.id, direction }))
+      .catch(error => toaster.show({ message: `Could not move ${provider.name}: ${errorMessage(error)}`, intent: Intent.DANGER, timeout: 8000 }))
+      .finally(() => setMoving(false));
+  };
+
   return <section aria-label="Sign-in">
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 16 }}>
       <p className={Classes.TEXT_MUTED} style={{ margin: 0, maxWidth: 680 }}>
-        The ways users sign in, in the order of the sign-in page. Methods from the server's environment can only be
-        changed there. Add OpenID Connect providers here, e.g. Keycloak, Okta or Microsoft Entra ID.
+        The ways users sign in, in the order of the sign-in page: move them up or down to change it. Methods from the
+        server's environment can only be changed there. Add OpenID Connect providers here, e.g. Keycloak, Okta or
+        Microsoft Entra ID.
       </p>
       <Button intent={Intent.PRIMARY} icon="plus" text="Add OIDC provider" onClick={() => setEditing('new')}/>
     </div>
@@ -184,7 +215,16 @@ export const SignIn = () => {
     {providers.length === 0
       ? <NonIdealState icon="log-in" title="No sign-in methods" description="Add an OIDC provider."/>
       : <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {providers.map(provider => <ProviderCard key={provider.id} provider={provider} onEdit={setEditing} onDelete={setDeleting}/>)}
+        {providers.map((provider, index) => <ProviderCard
+          key={provider.id}
+          provider={provider}
+          onEdit={setEditing}
+          onDelete={setDeleting}
+          onMove={move}
+          is_first={index === 0}
+          is_last={index === providers.length - 1}
+          focus_move={moved?.id === provider.id ? moved : null}
+        />)}
       </div>}
 
     {shown_settings.length > 0 && <>

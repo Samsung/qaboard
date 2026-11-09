@@ -1,12 +1,152 @@
 ---
 id: apis
-sidebar_label: APIs
+sidebar_label: Results in scripts
 title: Results in scripts
-description: Find runs' output directories with the qa CLI, and read commits, batches, runs and metrics with QA-Board's HTTP API.
+description: "Every way to use QA-Board's results from scripts: the runs a web app page shows with qaboard.runs(url) or qa runs, adding metrics and files to them, runs' folders with the qa CLI, the quality gate, and the HTTP API from any language."
 ---
 
-Scripts, notebooks and agents can use QA-Board's results: the `qa` CLI says where a batch's runs save their files,
-and the HTTP API gives the commits, batches, runs and metrics that the web app shows.
+Scripts, notebooks and agents can use QA-Board's results, and add to them, from Python, the shell, or any language
+over HTTP. Pick the way in that fits what you have:
+
+| You want to | Use | Where |
+|---|---|---|
+| Work on the runs you see in the web app: read their metrics and files, add metrics or files | `qaboard.runs(url)`, `run.log_metrics()`, `run.log_artifact()` (Python) | [below](#runs-in-scripts) |
+| The same from the shell: one folder per line, or JSON | `qa runs <url>` | [below](#runs-in-scripts) |
+| Where the runs of a batch of *your* checkout save their files, before or after running them | `qa batch <batch> --list-output-dirs`, `qa get` | [Find where runs save their outputs](#cli-api) |
+| Compute metrics for a whole batch with the project's own code | `postprocess()` and `qa batch --action-on-existing postprocess` | [Postprocessing](/docs/running-your-code#postprocess) |
+| Know whether a commit regressed against its reference | `qa gate --json`, `/api/v1/commit/<sha>/compare` | [Quality gate](/docs/quality-gate#from-scripts-and-agents), [HTTP API](/docs/http-api#compare) |
+| Everything else, from any language: commits, branches, projects, a run's files, milestones | the HTTP API at `/api/v1` | [HTTP API](/docs/http-api) |
+| Create runs from a training loop or a notebook, without `qa run` | not yet: see the [roadmap](/docs/roadmap#log-from-your-code) | |
+
+Coding agents get the same, packaged as [skills](/docs/agents).
+
+## Work on the runs you see in the web app {#runs-in-scripts}
+
+To post-process runs, e.g. to compute a metric on their images that the CI didn't, start from the web app: find the
+commit, pick the batch, filter the runs you want, and copy the page's address. `qaboard.runs()` reads the project,
+commit, batch and filter from it, and asks the server for those runs:
+
+```python
+# /// script
+# dependencies = ["qaboard", "imageio"]
+# ///
+import imageio.v3 as iio
+import qaboard as qb
+
+url = "https://qaboard.example.com/kitefin/detector/commit/7622c337?batch=ci&filter=night%20status:success"
+for run in qb.runs(url):
+    image = iio.imread(run.output_dir / "output.png")
+    print(run.input, run.params, run.metrics.get("psnr"), image.mean())
+```
+
+Each `Run` has:
+
+| Attribute | What it is |
+|---|---|
+| `input`, `database`, `input_path` | The input's path relative to its database (as in batches and `qa run --input`), the database, and the full path. |
+| `configs` | The configurations (`qa --config`), strings and mappings, then the tuning parameters: like `context.configs` in `run()`. |
+| `params` | The mappings of `configs` merged, and the parameters the run reported: like `context.params`. Usually all you need. |
+| `metrics` | The run's metrics: those it returned, and those [added](#log) by scripts. |
+| `output_dir` | Where its files are, as a `Path`: like `context.output_dir`. |
+| `state`, `is_failed` | `pending`, `running` or `finished`; whether it failed. |
+| `id`, `commit`, `batch`, `project`, `url` | Where it is in QA-Board, and its link in the web app. |
+| `type`, `input_metadata`, `data`, `created_at`, `finished_at` | The input's type and metadata, what else the server knows (who ran it, where...), when. |
+| `extra_parameters`, `rel_input_path` | The tuning parameters alone (they're the last of `configs`), and `input` as a `Path`: rarely needed, named like in `run()`. |
+
+Runs are read-only: `params`, `metrics` and the other mappings are read-only views, and changing them is an error,
+since it would change nothing on the server (copy them with `dict(run.metrics)`). `run.to_dict()` gives all of it as
+plain data. You can also name the runs instead of giving a URL:
+`qb.runs(project="kitefin/detector", commit="main", batch="ci", filter="night")`. `commit` can be a branch or a tag;
+without it, you get the latest commit with results (`branch=` picks the branch). Keyword arguments override what a URL
+says, and `side="reference"` gives the runs of the reference bar (`?reference=`) instead of the compared ones
+(`side="new"`, the default). Runs whose files were deleted, and
+the iterations of [automated tunings](/docs/auto-optimization), are left out unless you ask
+(`include_deleted`, `include_hidden`).
+
+Save it as *sharpness.py* and run `uv run sharpness.py`: the `# /// script` header says what to install, and `uv`
+does it in a throwaway environment. Or install the packages yourself (`pip install qaboard imageio`) and run
+`python sharpness.py`. **The header must list your site's package too** when your QA-Board has one, next to
+`qaboard`: it tells `qa` where your server and storage are. The web app's **Script** button writes the right header
+for your server, so start from it; admins set it with `QABOARD_CLI_REQUIREMENTS`
+([server settings](/docs/deploy#optional-environment-variables)).
+
+In the web app's **Visualizations** and **Output Files** views, **Script** shows this snippet with the page's
+address, ready to copy, and the shell version. The filter is applied like in the web app
+([filter syntax](/docs/user-guide/finding-results#filter-syntax)), so the script works on exactly the runs you looked
+at. Add `status:success` to the filter to skip failed and unfinished runs, which may have no files or metrics.
+
+From the shell, `qa runs <url>` prints the runs' folders, one per line, and `--json` everything above
+(`--side reference` for the reference bar's). It works
+outside a project, without a *qaboard.yaml*:
+
+```bash
+qa runs "https://qaboard.example.com/kitefin/detector/commit/7622c337?batch=ci&filter=night" | while read dir; do
+  python compute_sharpness.py "$dir"
+done
+```
+
+Reading needs the `qaboard` package (`pip install qaboard`) and, when the project isn't public, to be signed in:
+`qa auth login https://qaboard.example.com`, or a token in `QABOARD_TOKEN` (see [Authentication](#authentication)).
+A token from the environment is only sent to the server `qa` is configured for, not to any server a pasted URL names.
+When the server is behind a path prefix like `https://tools.example.com/qaboard/`, pass `server=` (`--server`): the
+address alone can't say where the project's name starts.
+
+### Add metrics to runs {#log}
+Your script can add what it computed to the runs, with `run.log_metrics()`: the server merges the metrics into the run's, and
+remembers who added each one, when and with which script. Wrap values in `Metric(...)` to say their unit and which
+way is better, like in `run()`:
+
+```python
+from qaboard import Metric
+
+for run in qb.runs(url):
+    sharpness = measure(run.output_dir / "output.png")
+    run.log_metrics({"sharpness": Metric(sharpness, smaller_is_better=False, target=0.3)})
+```
+
+- Try it first with `qb.runs(url, dry_run=True)` (or `run.log_metrics(..., dry_run=True)`): it prints what it would add.
+- You need to be signed in (`qa auth login`, or `QABOARD_TOKEN` with the `ingest` scope) with the developer role on
+  the project, whatever the server's policy for results sent by `qa`. The added metrics are recorded under the
+  token's user, not what the script says.
+- The added metrics show in the web app like the others, and count in the Summary, the Metrics Diff and
+  [quality gates](/docs/quality-gate). The run's `data["added_metrics"]` (`qa runs --json`) says who added each one,
+  when and with which script. The run's own *metrics.json* is not changed, and nothing is written in its folder.
+- Values are finite numbers, booleans, short texts or `None`. `is_failed` and `compute_time` can't be added: the run
+  sets them.
+- Metrics the run itself returned are refused, unless you pass `overwrite=True`: the run's value is then kept as
+  `replaced` in the provenance. Logging the same name again replaces your previous value.
+- If the run is run again and its code now returns a metric of the same name, the run's value wins and the addition
+  is forgotten. The other added metrics stay, with the date they were added: they were computed from the previous
+  run's files.
+- To recompute many metrics with the project's own code instead, use your `postprocess()`:
+  `qa batch ci --action-on-existing postprocess` redoes it on existing results
+  ([Postprocessing](/docs/running-your-code#postprocess)).
+
+### Add files to runs {#log-artifact}
+A script can also add files to a run, e.g. a sharpness map next to the output it was computed from, with
+`run.log_artifact(name, file)`: `name` is the file's path in the run's folder (subfolders are created), `file` a path
+to copy or `bytes` to write. The web app then lists it with the run's files, and opens it with the viewer its
+extension picks (images side by side with the reference's, plots, text diffed...):
+
+```python
+for run in qb.runs(url):
+    heatmap = sharpness_map(run.output_dir / "output.png")
+    run.log_artifact("sharpness/map.png", encode_png(heatmap))
+    run.log_artifact("sharpness/report.html", report_path)
+```
+
+- Nothing is overwritten: a name that exists fails, unless you pass `overwrite=True`. Keep your files in a folder of
+  their own (`sharpness/`), and leave what the run wrote alone: runs' folders are shared with everyone.
+- The file is written as you, in the shared storage, like `qa run --share` does: you need write access to the run's
+  folder. The run's manifest is then refreshed on the server, so the file shows in the web app at once.
+- `dry_run=True` prints what would be written.
+- To show the file on run cards for every run, declare it in *qaboard.yaml*'s `outputs.visualizations`
+  ([visualizations](/docs/visualizations)); otherwise it's in **Output Files**.
+
+Creating runs from your own code (training loops, notebooks), with values logged at each step, is on the
+[roadmap](/docs/roadmap#log-from-your-code): the method names follow those of the usual experiment trackers
+(`log` with a `step`, `log_params`, `finish`).
+
 
 ## Find where runs save their outputs {#cli-api}
 `qa batch <batch> --list-output-dirs` prints the output directory of each run, one per line, without running
@@ -57,125 +197,27 @@ qa get --input slices/indoor output_dir
 ```
 
 ## Read results over HTTP {#http-api}
-The web app reads everything from the API at `/api/v1`, and so can your scripts. For instance, the latest commits of
-the detector, with their CI batch:
+Everything the web app shows comes from QA-Board's HTTP API, which any language can call: commits, branches,
+projects, a commit's batches and runs, a run's files, comparisons with a reference, milestones. For instance, the
+latest commits of the detector, with their CI batch:
 
 ```bash
-base_url=http://localhost:5151/api/v1
-curl "$base_url/commits?project=kitefin/detector&only_ci_batches=true&limit=10" | jq
+curl "https://qaboard.example.com/api/v1/commits?project=kitefin/detector&only_ci_batches=true&limit=10" | jq
 ```
 
-<details>
-<summary>The answer: a list of commits</summary>
-
-```js
-[
-  {
-    "id": "<sha>",
-    "branch": "quant/int8",
-    "message": "feat(quant): percentile calibration (99.99)\n\nMinmax let a few outliers set the scale...",
-    "committer_name": "Arjun Sethuraman",
-    "committer_avatar_url": null,
-    "authored_datetime": "<date>",
-    "authored_date": "<day>",
-    "data": {
-      "qatools_config": {/* the commit's qaboard.yaml */},
-      "qatools_metrics": {/* its metrics file */}
-    },
-    "outputs_url": "/s/mnt/qaboard/kitefin/detector/...",
-    "artifacts_url": "/s/mnt/qaboard/kitefin/detector/...",
-    "batches": {
-      "default": {
-        "id": 1204,
-        "label": "default",
-        "created_date": "<date>",
-        "batch_dir_url": "/s/mnt/qaboard/kitefin/detector/...",
-        "valid_outputs": 8,
-        "pending_outputs": 0,
-        "running_outputs": 0,
-        "failed_outputs": 0,
-        "deleted_outputs": 0,
-        "aggregated_metrics": {}
-      }
-    }
-  }
-]
-```
-
-The `*_url` fields are paths on the server: add your server's address before them to download files, like
-`http://localhost:5151/s/mnt/qaboard/.../metrics.json`.
-
-</details>
-
-### Lists of commits, branches and projects {#lists-of-commits-branches-and-projects}
-`/commits` gives the commits with results, newest first: by default those of the last days with commits, or of
-`?from=&to=` (dates). Use `/commits/<branch>` for a branch's, `?committer=<name>` for a committer's. It accepts:
-- `?limit=` (at most 1000) and `?offset=`, to get pages. The `X-Has-More` response header (`true` or `false`) tells
-  if there are more.
-- `?q=` to search all the project's commits, with the
-  [syntax of the web app's search box](/docs/user-guide/finding-results#searching-commits), e.g.
-  `q=branch:release -wip`. Searches ignore the date range, unless you give `from` or `to`.
-- `?batch=<label>` for only that batch of each commit, or `?only_ci_batches=true` for the CI batch.
-- `?with_outputs=true` to add each batch's runs.
-
-Without `limit`, it answers with at most 1000 commits, and no `X-Has-More` header.
-
-```bash
-curl -i "$base_url/commits?project=kitefin/detector&q=committer:arjun&limit=50&offset=50"
-```
-
-`/project/branches?project=kitefin/detector` lists all the branches with results, by name. With `&q=quant`
-(branches whose name contains it) or `&limit=` (default 50, at most 1000), you get the most recently active branches
-first.
-
-`/projects` gives the projects with results that you can access, with their data. With `?summary=true`, it only
-gives what lists of projects need (git info, *qaboard.yaml*'s `project` section): it's much smaller. Use
-`/project?project=kitefin/detector` for the rest.
-
-### A commit's runs and metrics {#a-commits-runs}
-`/commit/<sha>?project=<project>` gives a commit with all its batches and their runs:
-
-```bash
-curl "$base_url/commit/<sha>?project=kitefin/detector" | jq '.batches.default.outputs'
-```
-
-Each run (an "output" in the API) has its input (`test_input_path`, `test_input_database`, `test_input_metadata`),
-its `configurations`, `extra_parameters` (the tuning parameters) and `platform`, its `metrics`, its state
-(`is_pending`, `is_running`, `is_failed`) and its `output_dir_url`.
-
-### Compare with a reference {#compare}
-`/commit/<sha>/compare` gives the numbers of the **Summary** and **Metrics Diff** views: each metric's median
-against a reference, and each run against its reference run. It's experimental, see
-[Quality gate](/docs/quality-gate#from-scripts-and-agents).
-
-### Milestones {#milestones}
-`/milestones?project=<project>` lists the project's shared milestones, and yours when you send a token: each with
-its `label`, `group`, `notes`, `commit`, `batch` and `filter`. See
-[References and milestones](/docs/references-and-milestones#milestones).
-
-There is no OpenAPI description of the API yet: see the [roadmap](/docs/roadmap).
+See [HTTP API](/docs/http-api): authentication, the requests for everything about one commit, and the shape of the
+answers. Your server also has the API's reference, to try requests, at `<your-qaboard>/api/v1/docs`, and its OpenAPI
+document at `<your-qaboard>/api/v1/openapi.json`.
 
 ## Authentication {#authentication}
-Reading data doesn't need to be signed in (unless the server
-[blocks anonymous users](/docs/backend-admin/user-management#blocking-anonymous-users)). Some actions do, like
-starting tuning runs. From scripts, use an API token: create one in the web app, in **Settings → Access tokens** (or
-use the one of `qa auth token`), then send it with an `Authorization: Bearer` header:
+Reading results doesn't need to be signed in, unless your server
+[requires it](/docs/backend-admin/user-management#blocking-anonymous-users) or the project isn't public. Adding
+metrics or files does, and so do some actions, like starting tuning runs.
 
-```bash
-curl -H "Authorization: Bearer $QABOARD_TOKEN" "$base_url/user/me/"
-```
-
-- Give tokens only the **scopes** they need: `read`, `ingest` (send results), `act` (redo runs, start or delete
-  batches, save milestones). You can also restrict them to some projects, e.g. `group/repo` or `group/*`.
-- When a token can't be used, the answer says why, e.g.
-  `{"error": "This token expired...", "reason": "token_expired"}`. `/user/me/` says which token you use and its scopes.
-- Tokens in URLs (`?token=`) are only accepted to read: URLs end up in logs.
-- To start a Jenkins build through QA-Board with its Jenkins credentials, send a token with the `act` scope:
-  ```bash
-  curl -X POST -H "Authorization: Bearer $QABOARD_TOKEN" -H "Content-Type: application/json" \
-       -d '{"build_url": "https://jenkins/job/my-job", "params": {"key": "value"}}' \
-       "$base_url/jenkins/build/trigger/"
-  ```
-  Without a token, QA-Board only starts the jobs listed in a project's *qaboard.yaml*.
-- The `qa` CLI sends its token automatically (see [Sign in](/docs/installation#signing-in)).
-
+- `qa` and `qaboard.runs()` use your login: run `qa auth login https://qaboard.example.com` once
+  (see [Sign in](/docs/installation#signing-in)).
+- In CI and scripts, set `QABOARD_TOKEN` to a token: create one in the web app, in **Settings → Access tokens**
+  ([how](/docs/user-guide/account#access-tokens)), or use the one of `qa auth token`. Give it only the **scopes** it
+  needs: `read`, `ingest` (send results, add metrics), `act` (redo runs, start or delete batches, save milestones).
+- Over HTTP, send the token in an `Authorization: Bearer` header: see [Authenticate](/docs/http-api#authentication),
+  with the reasons a token can be refused.

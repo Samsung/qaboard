@@ -46,13 +46,18 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Use cases',
       collapsible: false,
-      link: {
-        type: 'generated-index',
-        slug: '/use-cases',
-        title: 'Use cases',
-        description: 'QA-Board on demo projects of a fictional robotics company: the problem, the workflow, what you see in the web app, and the configuration that produces it.',
-      },
-      items: ['use-cases/image-quality', 'use-cases/serving-latency', 'use-cases/detection-eval', 'use-cases/robotics-3d', 'use-cases/agent-evals', 'use-cases/software-quality'],
+      // The overview (slug /use-cases) shows each use case's problem with a screenshot
+      link: {type: 'doc', id: 'use-cases/overview'},
+      items: [
+        'use-cases/image-quality',
+        'use-cases/detection-eval',
+        'use-cases/serving-latency',
+        'use-cases/robotics-3d',
+        'use-cases/agent-evals',
+        'use-cases/software-quality',
+        // Where QA-Board fits next to experiment trackers, LLM eval platforms and test dashboards
+        'alternatives',
+      ],
     },
     // The other sidebars (links, so these pages keep their own sidebar)
     {
@@ -176,6 +181,8 @@ const sidebars: SidebarsConfig = {
         "quality-gate",
         "triggering-third-party-tools",
         "apis",
+        "http-api",
+        "agents",
         "metadata-integration-external-databases",
       ],
     },
@@ -205,6 +212,7 @@ const sidebars: SidebarsConfig = {
         "backend-admin/deployment",
         "backend-admin/kubernetes",
         "backend-admin/user-management",
+        "backend-admin/settings",
         "backend-admin/sign-in",
         "backend-admin/project-access",
         "backend-admin/storage",

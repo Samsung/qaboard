@@ -1,0 +1,52 @@
+---
+id: agents
+title: Integrate with a coding agent
+sidebar_label: Coding agents
+description: Skills that teach coding agents to wrap a project with qa, declare metrics and visualizations, set up CI and the gate, and to read results before claiming a change is better.
+---
+
+Coding agents integrate projects with QA-Board well when they know its conventions: what `run()` returns, how metrics
+are declared, what a batch is, and that a change is better only once its runs beat the reference's. Two skills in the
+repository say that, in the agents' format. Point your agent at them instead of pasting the docs.
+
+:::note
+The skills are new. Tell us what your agent got wrong, and we'll fix the skill.
+:::
+
+## Install the skills {#install}
+Copy them into your project, where your agent looks for skills (`.claude/skills/` for Claude Code), or reference them
+from your `AGENTS.md`:
+
+```bash
+git clone --depth 1 https://github.com/Samsung/qaboard.git /tmp/qaboard
+mkdir -p .claude/skills
+cp -r /tmp/qaboard/skills/qaboard-integration /tmp/qaboard/skills/qaboard-results .claude/skills/
+```
+
+| Skill | What the agent learns |
+|---|---|
+| [`qaboard-integration`](https://github.com/Samsung/qaboard/tree/master/skills/qaboard-integration) | To wrap a project: the shape to pick (wrap, import, evaluate a model), *qaboard.yaml*, `run()` and `postprocess()`, metrics with `Metric`/`define_metric`, visualizations, batches, the CI job and the gate, and a checklist before saying it's done. |
+| [`qaboard-results`](https://github.com/Samsung/qaboard/tree/master/skills/qaboard-results) | To read results: `qaboard.runs(url)` and `qa runs` for the runs a page shows, the compare API and `qa gate --json` to check a change against the reference, and what not to touch on the storage. |
+
+Then ask: *"Integrate this project with QA-Board; the inputs are in `data/slices`, the CI should run the 4 small
+slices"*, or *"Did my change improve the detector? Check with QA-Board."*
+
+## Tell agents how your project uses QA-Board {#agents-md}
+The integration skill ends by adding a section to your project's `AGENTS.md` or `CLAUDE.md`: how to run the batch,
+the metrics that matter and their direction, and that results must be compared with the reference before a change is
+called better. Start from
+[`templates/AGENTS.md`](https://github.com/Samsung/qaboard/blob/master/skills/qaboard-integration/templates/AGENTS.md).
+
+## What agents can read {#what-agents-read}
+Agents use the same APIs as scripts: [`qaboard.runs(url)`](/docs/apis#runs-in-scripts) for the runs a web app page
+shows, the [compare API](/docs/http-api#compare) and `qa gate --json` for a verdict against the reference, and the
+[HTTP API](/docs/http-api) for everything else, from any language. Point agents at your server's OpenAPI document,
+`<your-qaboard>/api/v1/openapi.json`: it describes each endpoint's parameters and answers. An MCP server and JSON
+output from every `qa` command are on the [roadmap](/docs/roadmap#agents).
+
+<Cards>
+  <Card title="Project setup" to="/docs/project-init">What the agent will create: qaboard.yaml and the entrypoint.</Card>
+  <Card title="Results in scripts" to="/docs/apis">The runs a page shows, from Python and the shell.</Card>
+  <Card title="HTTP API" to="/docs/http-api">Results from any language, and the API's OpenAPI document.</Card>
+  <Card title="Quality gate" to="/docs/quality-gate">Fail the CI when metrics regress.</Card>
+</Cards>

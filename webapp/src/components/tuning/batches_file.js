@@ -1,6 +1,6 @@
 // Understands the YAML files that define batches of tests, to give feedback while they are edited.
 // It mirrors how `qa batch` reads them (qaboard/iterators.py:iter_inputs), with PyYAML's YAML 1.1.
-import { parseDocument, LineCounter, isMap, isSeq, isScalar, isAlias, visit } from "yaml";
+import { parseDocument, LineCounter, isMap, isSeq, isScalar, isAlias, isNode, visit } from "yaml";
 import batchesSchema from "qaboard-schemas/batches.schema.json";
 import { makeValidator, formatPath, didYouMean } from "../../utils/jsonSchema";
 
@@ -27,7 +27,26 @@ const usedAnchors = doc => {
 const isReusedValue = (node, used) => !!node?.anchor && used.has(node.anchor)
   && !(isMap(node) && node.items.some(p => p.key && BATCH_KEYS.has(key_name(p.key))));
 
-const resolve = (node, doc) => isAlias(node) ? node.resolve(doc) : node;
+// What each alias points to: like the yaml package's alias.resolve(doc), the last node with its anchor before it.
+// alias.resolve(doc) walks the whole document each time: with an alias per batch (`<<: *defaults`), large files
+// froze the editor for seconds at each keystroke. We walk it once per document.
+const alias_targets = new WeakMap();
+const aliasTargets = doc => {
+  let targets = alias_targets.get(doc);
+  if (!targets) {
+    targets = new Map();
+    const anchors = new Map();
+    visit(doc, {
+      Node: (_, node) => {
+        if (isAlias(node)) targets.set(node, anchors.get(node.source));
+        else if (isNode(node) && node.anchor) anchors.set(node.anchor, node);
+      },
+    });
+    alias_targets.set(doc, targets);
+  }
+  return targets;
+};
+const resolve = (node, doc) => isAlias(node) ? aliasTargets(doc).get(node) : node;
 
 // Returns {line, column, endLine, endColumn} (1-based) for a [start, end] offset range
 const position = (range, lineCounter) => {
@@ -64,7 +83,7 @@ const toPython = doc => {
     locations[formatPath(path)] = { key, node };
     if (isAlias(node)) {
       if (++aliases > 10000) throw new Error("Too many aliases");
-      node = node.resolve(doc);
+      node = resolve(node, doc);
     }
     if (!node) return null;
     if (isMap(node)) {

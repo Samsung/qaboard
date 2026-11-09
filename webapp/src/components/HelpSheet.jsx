@@ -10,9 +10,10 @@ import { useReleaseNotes } from "../releaseNotes/ReleaseNotes";
 const HelpSheetContext = createContext({ open: () => {}, isOpen: false });
 export const useHelpSheet = () => useContext(HelpSheetContext);
 
-// Typing "?" in a text box, a select or an editor (Monaco types in a textarea) must type it
+// Typing "?" in a text box, a select or an editor must type it.
+// Monaco types in a <div class="native-edit-context"> where browsers have the EditContext API (Chrome, Edge), in a textarea elsewhere.
 export const is_typing = target => target instanceof Element
-  && !!target.closest('input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]), textarea, select, [contenteditable=""], [contenteditable="true"]');
+  && !!target.closest('input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]), textarea, select, [contenteditable=""], [contenteditable="true"], .monaco-editor');
 
 export const HelpSheetProvider = ({ children }) => {
   const [isOpen, setOpen] = useState(false);

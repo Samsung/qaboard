@@ -21,6 +21,7 @@ import { MetricsSummary, MetricSelect } from "./components/metrics";
 import { TableCompare, TableKpi } from "./components/tables";
 
 import { useCommitsList, useComparison, updateSelected, used_metrics_signature, with_used_metrics } from "./hooks";
+import { order_labels, run_sort_keys } from "./selectors/sorting";
 import { errorMessage } from "./api/http";
 import { metric_info, with_undeclared_metrics } from "./utils";
 import { usePageTitle, history_title } from "./pageTitle";
@@ -65,7 +66,7 @@ const history_metrics = (commits, batch_label, available_metrics) => {
 };
 
 const Dashboard = () => {
-  const { project, project_data, selected, new_commit, ref_commit, new_batch, ref_batch, selected_batch_new, labels } = useComparison();
+  const { project, project_data, selected, new_commit, ref_commit, new_batch, ref_batch, selected_batch_new, labels, sorting } = useComparison();
   // what the tables call the new and reference results
   const table_labels = useMemo(() => [labels.new, labels.reference], [labels]);
   const { commits, error, refetch, isPending, isFetching, date_range, qatools_metrics } = useCommitsList();
@@ -241,20 +242,19 @@ const Dashboard = () => {
             <TabsExpander />
             <HTMLSelect
               aria-label="Sort by"
-              value={selected.sort_by ?? metrics.default_metric ?? 'test_input_path'}
-              onChange={e => updateSelected({ sort_by: e.target.value }, { replace: true })}
+              value={sorting?.by ?? selected.sort_by ?? metrics.default_metric ?? 'test_input_path'}
+              onChange={e => updateSelected({ sort_by: e.target.value, sort_order: undefined }, { replace: true })}
             >
-              <option value="test_input_path">Sort by Name</option>
-              <option value="id">Sort by ID</option>
+              {Object.entries(run_sort_keys).map(([key, { label }]) => <option key={key} value={key}>Sort by {label}</option>)}
               {Object.values(available_metrics).filter(m => used_metrics.has(m.key)).map(m => (
                 <option key={m.key} value={m.key}>
                   Sort by {m.label}
                 </option>
               ))}
             </HTMLSelect>
-            <HTMLSelect aria-label="Sort order" value={selected.sort_order} onChange={e => updateSelected({ sort_order: e.target.value }, { replace: true })}>
-              <option value={-1}>descending</option>
-              <option value={1}>ascending</option>
+            <HTMLSelect aria-label="Sort order" value={sorting?.order ?? -1} onChange={e => updateSelected({ sort_order: e.target.value }, { replace: true })}>
+              <option value={-1}>{order_labels(sorting?.by)[1].toLowerCase()}</option>
+              <option value={1}>{order_labels(sorting?.by)[0].toLowerCase()}</option>
             </HTMLSelect>
           </Tabs>
         </Card>

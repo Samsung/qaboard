@@ -79,3 +79,29 @@ def my_audit_events():
   ))
   answer, error = page_of_events(query)
   return error or jsonify(answer)
+
+
+@app.route('/api/v1/users/<int:user_id>/picture', methods=['GET'])
+@app.route('/api/v1/users/<int:user_id>/picture/', methods=['GET'])
+@login_required
+def user_picture(user_id):
+  """
+  Users' pictures, from their sign-in method (backend/sign_in/profiles.py), for signed-in users. The web app links them
+  with ?v=<hash>, so browsers keep them a day and ask again with the ETag.
+  """
+  from flask import make_response
+  from ..models import UserPicture
+  row = db_session.get(UserPicture, user_id)
+  if row is None:
+    return jsonify({"error": "This user has no picture."}), 404
+  etag = f'"{row.sha256[:32]}"'
+  if request.if_none_match and etag.strip('"') in request.if_none_match:
+    response = make_response('', 304)
+  else:
+    response = make_response(row.data)
+    response.headers['Content-Type'] = row.content_type
+  response.headers['ETag'] = etag
+  response.headers['Cache-Control'] = 'private, max-age=86400'
+  response.headers['X-Content-Type-Options'] = 'nosniff'
+  response.headers['Content-Security-Policy'] = "default-src 'none'; sandbox"
+  return response

@@ -3,18 +3,63 @@
 // ?error=<code>&ref=<id> when it failed (api/sign_in.py).
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, AnchorButton, Button, Callout, Classes, HTMLTable, Intent, NonIdealState, Tooltip } from "@blueprintjs/core";
+import { Alert, AnchorButton, Button, Callout, Classes, FormGroup, HTMLTable, InputGroup, Intent, NonIdealState, Tooltip } from "@blueprintjs/core";
 import { useLocation } from "react-router";
 
 import { errorMessage } from "../api/http";
 import { toaster } from "../toaster";
-import { identitiesQuery, unlinkIdentity, linkUrl } from "../login/api";
+import { identitiesQuery, unlinkIdentity, linkUrl, changePassword } from "../login/api";
+import { useUser } from "../hooks";
 import { SignInError } from "../login/SignInError";
 import { QueryError, Loading } from "./states";
 import { Time } from "./format";
 
 
 const only_one = "It's your only way to sign in: link another one first.";
+const MIN_PASSWORD_LENGTH = 8;
+
+// Local accounts: e.g. after an admin created the account, or reset its password
+export const ChangePassword = () => {
+  const queryClient = useQueryClient();
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const submit = event => {
+    event.preventDefault();
+    const form_element = event.target;
+    const form = Object.fromEntries(new FormData(form_element));
+    if ((form.new_password ?? '').length < MIN_PASSWORD_LENGTH)
+      return setError({ field: 'new_password', message: `Passwords need at least ${MIN_PASSWORD_LENGTH} characters.` });
+    if (form.new_password !== form.new_password_again)
+      return setError({ field: 'new_password_again', message: "The passwords don't match." });
+    setBusy(true);
+    setError(null);
+    changePassword(queryClient, { current_password: form.current_password, new_password: form.new_password })
+      .then(result => {
+        form_element.reset();
+        const n = result?.signed_out ?? 0;
+        toaster.show({ message: `Changed your password${n ? `, and signed out ${n} other browser${n === 1 ? '' : 's'}` : ''}`, intent: Intent.SUCCESS, icon: 'tick', timeout: 4000 });
+      })
+      .catch(error => setError({ field: error.response?.data?.field ?? null, message: error.response?.data?.error || errorMessage(error) }))
+      .finally(() => setBusy(false));
+  };
+  const fieldError = field => error?.field === field ? { intent: Intent.DANGER, helperText: error.message } : {};
+  const other_error = error && !['current_password', 'new_password', 'new_password_again'].includes(error.field);
+  return <form onSubmit={submit} aria-label="Change your password" style={{ maxWidth: 360, marginTop: 24 }}>
+    <h4 className={Classes.HEADING}>Change your password</h4>
+    <p className={Classes.TEXT_MUTED} style={{ marginTop: 0 }}>For your local account. Your other browsers are signed out; your tokens keep working.</p>
+    {other_error && <Callout intent={Intent.DANGER} style={{ marginBottom: 12 }} role="alert">{error.message}</Callout>}
+    <FormGroup label="Current password" labelFor="current-password" {...fieldError('current_password')}>
+      <InputGroup id="current-password" name="current_password" type="password" autoComplete="current-password" required intent={fieldError('current_password').intent}/>
+    </FormGroup>
+    <FormGroup label="New password" labelFor="new-password" {...fieldError('new_password')} helperText={fieldError('new_password').helperText ?? `At least ${MIN_PASSWORD_LENGTH} characters.`}>
+      <InputGroup id="new-password" name="new_password" type="password" autoComplete="new-password" required intent={fieldError('new_password').intent}/>
+    </FormGroup>
+    <FormGroup label="New password, again" labelFor="new-password-again" {...fieldError('new_password_again')}>
+      <InputGroup id="new-password-again" name="new_password_again" type="password" autoComplete="new-password" required intent={fieldError('new_password_again').intent}/>
+    </FormGroup>
+    <Button type="submit" text="Change the password" loading={busy}/>
+  </form>;
+};
 
 export const SignInTab = () => {
   const queryClient = useQueryClient();
@@ -25,6 +70,7 @@ export const SignInTab = () => {
   const [unlinking, setUnlinking] = useState(null);
   const [busy, setBusy] = useState(false);
   const [unlink_error, setUnlinkError] = useState(null);
+  const user = useUser();
   const identities = data?.identities ?? [];
   const linkable = data?.linkable ?? [];
   const last = identities.length <= 1;
@@ -116,6 +162,7 @@ export const SignInTab = () => {
     >
       {unlinking && <p>Unlink <strong>{unlinking.provider_name}</strong>? You won't be able to sign in with it anymore, unless you link it again.</p>}
     </Alert>
+    {(user?.login_type ?? '').toUpperCase() === 'LOCAL' && <ChangePassword/>}
   </section>;
 };
 

@@ -27,12 +27,18 @@ services:
     environment:
       - FLUENTD_CONF=fluentd.conf
 
+  # fluentd-async: without it, docker can't start a container while fluentd doesn't accept connections yet ("failed to
+  # initialize logging driver"). That's the case after a restart of docker, which starts all the containers at once.
+  # docker never retries a container that failed to start (restart policies only apply to containers that exited):
+  # the db and the backend stayed down, and the proxy restarted in a loop since "backend" didn't resolve.
+  # With it, containers start anyway and their logs are sent when fluentd is up. Needs Docker Engine >= 20.10.
   db:
     logging:
       driver: "fluentd"
       options:
         tag: qaboard.db
         fluentd-address: "0.0.0.0:24224"
+        fluentd-async: "true"
 
   backend:
     logging:
@@ -40,6 +46,7 @@ services:
       options:
         tag: qaboard.backend
         fluentd-address: "0.0.0.0:24224"
+        fluentd-async: "true"
 
   cron-backup-db:
     volumes:
@@ -54,3 +61,4 @@ services:
       options:
         tag: qaboard.cron-backup-db
         fluentd-address: "0.0.0.0:24224"
+        fluentd-async: "true"

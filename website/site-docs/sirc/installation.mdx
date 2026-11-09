@@ -19,4 +19,7 @@ The site package configures `qa` for SIRC, you don't need to set environment var
 - Windows paths of the shared storage (`\\netapp\...`, `\\mars\...`) are converted to their Linux paths.
 - Every project's *qaboard.yaml* is merged on top of SIRC's defaults (`qaboard_site_sirc/qaboard.yaml` in the site package): run `qa get config` to see the configuration a project ends up with. See [site defaults](/docs/project-init#site-defaults).
 
+Scripts that use QA-Board's results ([results in scripts](/docs/apis#runs-in-scripts)) need the site package too: the
+**Script** button in the web app writes a header that installs both, for `uv run script.py`.
+
 Environment variables still override the site package, e.g. `QABOARD_URL` to try another server. For the rest, follow the [client installation](/docs/installation) docs.

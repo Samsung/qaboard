@@ -2,7 +2,7 @@
  * /settings: tabs in the URL, the profile, preferences and activity.
  * Run with: cd webapp && npm test -- SettingsPage
  */
-import { act, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { unstable_HistoryRouter as HistoryRouter } from 'react-router';
 
 import { history, RouteMatch } from '../../router';
@@ -37,6 +37,28 @@ test('shows the profile by default, and tabs change the URL', async () => {
   expect(history.location.pathname).toBe('/settings/tokens');
 });
 
+test("shows users' picture and job from their sign-in, and where they come from", async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tokens: [] }));
+  renderAt('/settings', {
+    ...alice, login_type: 'OIDC', avatar_url: '/api/v1/users/1/picture?v=ab12cd34',
+    profile: { title: 'Image quality engineer', department: 'Camera', organization: 'Example Corp', picture_source: 'Single sign-on', updated_at: '2026-11-01T10:00:00Z' },
+  });
+  const profile = within(screen.getByRole('region', { name: 'Profile' }));
+  expect(profile.getByRole('img', { name: 'Alice' })).toHaveAttribute('src', '/api/v1/users/1/picture?v=ab12cd34');
+  expect(profile.getByText('Image quality engineer · Camera · Example Corp')).toBeInTheDocument();
+  expect(profile.getByTestId('profile-source')).toHaveTextContent(/^From Single sign-on, updated at each sign-in\. Last updated/);
+});
+
+test("without a picture, uses the site's template, else initials", async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tokens: [] }));
+  act(() => history.replace('/settings'));
+  renderWithProviders(<HistoryRouter history={history}><Page/></HistoryRouter>, { user: { ...alice, avatar_url: null }, siteConfig: { avatar_url_template: 'https://directory.example.com/{user_name}.jpg' } });
+  const profile = within(screen.getByRole('region', { name: 'Profile' }));
+  expect(profile.getByRole('img', { name: 'Alice' })).toHaveAttribute('src', 'https://directory.example.com/alice.jpg');
+  // nothing from the sign-in: nothing to explain
+  expect(profile.queryByTestId('profile-source')).not.toBeInTheDocument();
+});
+
 // else /settings/<tab> would be a project's page
 test('each tab has its URL', () => {
   for (const { id } of tabs)
@@ -52,12 +74,16 @@ test('tabs scroll sideways on narrow screens, instead of the page', () => {
 
 test('preferences use the same store as the pages', async () => {
   vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({}));
-  const before = usePrefsStore.getState().commitListDensity;
+  const before = usePrefsStore.getState();
   renderAt('/settings/preferences');
   expect(screen.getByText(/follow you in every browser/)).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('radio', { name: 'Compact' }));
+  fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Commit list density' })).getByRole('radio', { name: 'Compact' }));
   expect(usePrefsStore.getState().commitListDensity).toBe('compact');
-  usePrefsStore.setState({ commitListDensity: before });
+  fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Run cards density' })).getByRole('radio', { name: 'Compact' }));
+  expect(usePrefsStore.getState().outputCardDensity).toBe('compact');
+  fireEvent.click(screen.getByRole('radio', { name: /^Never/ }));
+  expect(usePrefsStore.getState().runNameOrigin).toBe('never');
+  usePrefsStore.setState({ commitListDensity: before.commitListDensity, outputCardDensity: before.outputCardDensity, runNameOrigin: before.runNameOrigin });
 });
 
 test('activity loads older events on demand', async () => {

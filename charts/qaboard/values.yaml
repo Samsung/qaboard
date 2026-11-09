@@ -85,11 +85,13 @@ demoData:
 
 # Secret backend settings: SECRET_KEY (signs sessions, must be the same for all replicas),
 # QABOARD_DB_PASSWORD (unless database.cnpg.enabled), GITLAB_ACCESS_TOKEN, GITHUB_ACCESS_TOKEN, QABOARD_LDAP_PASSWORD,
-# QABOARD_OIDC_CLIENT_SECRET, QABOARD_ENCRYPTION_KEY (for the secrets of sign-in providers added in the admin panel)...
+# QABOARD_OIDC_CLIENT_SECRET, QABOARD_ENCRYPTION_KEY (encrypts the secrets saved in Admin → Settings and Sign-in),
+# QABOARD_ADMIN_PASSWORD (the local admin "admin", created when the server starts without admins; else the web app
+# asks for the setup token the backend logs)...
 secret:
   # Recommended: create the secret yourself (e.g. with sealed-secrets/external-secrets) and reference it
   existingSecret: ""
-  # Or let the chart create it (a random SECRET_KEY is generated once and kept across upgrades)
+  # Or let the chart create it (a random SECRET_KEY and QABOARD_ENCRYPTION_KEY are generated once and kept across upgrades)
   values: {}
 
 database:

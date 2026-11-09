@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 const empty = {};
+const run_name_origins = ['auto', 'always', 'never'];
 
 export const usePrefsStore = create()(persist(
   set => ({
@@ -23,6 +24,10 @@ export const usePrefsStore = create()(persist(
     theme: 'system',
     // how lists of commits look: "comfortable" (a few lines per commit) or "compact" (one line per commit)
     commitListDensity: 'comfortable',
+    // how run cards look: "comfortable" (their tags on their own lines) or "compact" (one line of header, less space)
+    outputCardDensity: 'comfortable',
+    // what runs' names start with: their batch and database. "auto" when the runs shown come from several, "always" or "never"
+    runNameOrigin: 'auto',
     // the app's sidebar shows only icons
     siderCollapsed: false,
     // the values the image viewers write on the pixels, when zoomed in: 'image' (their own), 'display' or 'off'
@@ -40,6 +45,8 @@ export const usePrefsStore = create()(persist(
     annotationGroups: {},
     // runs show only the settings of their configuration that not all runs share
     hide_shared_settings: true,
+    // runs' long settings (paths, commands, lists) are shortened with "…": click one to see them all in full
+    shorten_long_settings: true,
     // project => the last scope users picked on its page: "mine" or "all"
     listScope: {},
     // other emails in users' git config: their commits are theirs too (the server reads it, see backend/mine.py)
@@ -47,6 +54,10 @@ export const usePrefsStore = create()(persist(
     // batch id => {failed, at}: the batches users dismissed from the home page's "Needs attention", with how many
     // runs had failed. They come back if more fail.
     homeDismissed: {},
+    // project => the settings of the last export: how files are named, the files, links or copies... (src/export/plan.js)
+    exportLast: {},
+    // export settings users saved: [{id, name, project (null: all projects), settings}]
+    exportPresets: [],
 
     toggleFavorite: project => set(state => ({
       favorites: { ...state.favorites, [project]: !state.favorites[project] },
@@ -73,6 +84,8 @@ export const usePrefsStore = create()(persist(
     setAnnotationGroups: (source, choices) => set(state => ({ annotationGroups: { ...state.annotationGroups, [source]: { ...state.annotationGroups[source], ...choices } } })),
     setImageDiffSize: (project, size) => set(state => ({ imageDiffSize: { ...state.imageDiffSize, [project]: size } })),
     setCommitListDensity: density => set({ commitListDensity: density === 'compact' ? 'compact' : 'comfortable' }),
+    setOutputCardDensity: density => set({ outputCardDensity: density === 'compact' ? 'compact' : 'comfortable' }),
+    setRunNameOrigin: origin => set({ runNameOrigin: run_name_origins.includes(origin) ? origin : 'auto' }),
     setGitEmails: emails => set({ git_emails: [...new Set(emails.map(e => e.trim().toLowerCase()).filter(e => e.includes('@')))] }),
     // `latest`: when the batch last got a run: it comes back if it runs again
     dismissHomeBatch: (id, failed, latest = null, now = Date.now()) => set(state => ({
@@ -83,7 +96,16 @@ export const usePrefsStore = create()(persist(
       },
     })),
     setListScope: (project, scope) => set(state => ({ listScope: { ...state.listScope, [project]: scope } })),
+    setExportLast: (project, settings) => set(state => ({ exportLast: { ...state.exportLast, [project]: settings } })),
+    // a preset with the same name, for the same projects, is replaced
+    saveExportPreset: ({ name, project = null, settings }) => set(state => {
+      const others = (state.exportPresets ?? []).filter(p => !(p.name === name && (p.project ?? null) === project));
+      const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      return { exportPresets: [...others, { id, name, project, settings }] };
+    }),
+    deleteExportPreset: id => set(state => ({ exportPresets: (state.exportPresets ?? []).filter(p => p.id !== id) })),
     toggleHideSharedSettings: () => set(state => ({ hide_shared_settings: !state.hide_shared_settings })),
+    toggleShortenLongSettings: () => set(state => ({ shorten_long_settings: !state.shorten_long_settings })),
     updateTuning: (project, form) => set(state => ({
       tuning: { ...state.tuning, [project]: { ...state.tuning[project], ...form } },
     })),
@@ -96,6 +118,9 @@ export const usePrefsStore = create()(persist(
 export const useTuningForm = project => usePrefsStore(state => state.tuning[project] ?? empty);
 // whatever was saved, "comfortable" or "compact"
 export const useCommitListDensity = () => usePrefsStore(state => state.commitListDensity === 'compact' ? 'compact' : 'comfortable');
+export const useOutputCardDensity = () => usePrefsStore(state => state.outputCardDensity === 'compact' ? 'compact' : 'comfortable');
+// "auto", "always" or "never"
+export const useRunNameOrigin = () => usePrefsStore(state => run_name_origins.includes(state.runNameOrigin) ? state.runNameOrigin : 'auto');
 
 
 // Until October 2026 those preferences were saved by redux-persist, in IndexedDB via localForage.

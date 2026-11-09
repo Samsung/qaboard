@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## QA-Board Architecture
 
-QA-Board is an experiment tracking framework with advanced viewers for algorithm, ML, and performance engineers. It consists of:
+QA-Board is a self-hosted quality tracking platform: every commit's outputs and metrics next to a reference's, with advanced viewers, reviewed by people and coding agents alike (positioning: "Positioning" in `website/STYLE.md`). It consists of:
 
 - **`qaboard/`** - Python CLI package that wraps user code and manages experiments
 - **`backend/`** - Flask API with PostgreSQL database for managing runs and data  

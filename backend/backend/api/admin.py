@@ -16,9 +16,11 @@ from ..audit import audit, diff, serialize as serialize_event
 from .. import settings as settings_lib
 from .. import tokens as tokens_lib
 from .. import usage as usage_lib
+from ..hybrid_cache import hybrid_cache
 from .auth import admin_required, is_login_restricted
 from .users import page_of_events
 from ..search import escape_like
+from ..sign_in.profiles import avatar_url, public as public_profile
 
 
 USER_STATUSES = ('active', 'pending', 'disabled')
@@ -45,6 +47,7 @@ def serialize_user(user, active_tokens=None) -> dict:
     "created_date": tokens_lib.iso(user.created_date),
     "last_login_at": tokens_lib.iso(user.last_login_at),
     "active_tokens": active_tokens,
+    "avatar_url": avatar_url(user),
   }
 
 
@@ -140,19 +143,26 @@ def checklist() -> list:
   item('local_signup', not risky_signup, 'danger' if login_type != 'LOCAL' else 'warning',
        "Local sign-up is off" if not local_signup else ("Anyone can create a local account" if login_type != 'LOCAL' else "Anyone can create an account"),
        "With LDAP or SAML, local accounts could take the names of directory users who never signed in. Turn auth.local_signup off."
-       if login_type != 'LOCAL' else "Sign-in is required, but anyone can create an account: turn auth.local_signup off, and create accounts with qaboard-admin create-admin --password.",
-       "Turn auth.local_signup off if only admins should create accounts (qaboard-admin create-admin --password)." if local_signup else None)
+       if login_type != 'LOCAL' else "Sign-in is required, but anyone can create an account: turn auth.local_signup off, and create accounts in Admin → Users (New user), or with qaboard-admin create-admin --password.",
+       "Turn auth.local_signup off if only admins should create accounts (Admin → Users → New user)." if local_signup else None)
 
   from ..git_hosts import git_hosts
   webhooks_signed = git_hosts.has_webhook_secrets()
   item('webhook_secret', webhooks_signed, 'warning',
        "Git hosts' webhooks must send a secret" if webhooks_signed else "Anyone can send push webhooks",
-       "Without a webhook secret, anyone who can reach the server can send fake push events: they change the projects' git data and make the server fetch repositories. Set QABOARD_WEBHOOK_SECRET (or webhook_secret in QABOARD_GIT_HOSTS), and the same secret in the git hosts' webhooks.")
+       "Without a webhook secret, anyone who can reach the server can send fake push events: they change the projects' git data and make the server fetch repositories. Set one in Admin → Settings → Git hosts, and the same secret in the git hosts' webhooks.")
 
   for key, problem in settings_lib.invalid_env().items():
     definition = settings_lib.DEFINITIONS[key]
+    used = settings_lib.masked(key, settings_lib.setting(key))
     item(f'invalid_env:{key}', False, 'danger', f"${definition.env} is invalid: it's ignored",
-         f"{problem}. QA-Board uses {key} = {settings_lib.setting(key)!r} instead: fix the server's environment.")
+         f"{problem}. QA-Board uses {key} = {used!r} instead: fix the server's environment.")
+
+  for key, problem in settings_lib.undecryptable().items():
+    item(f'undecryptable:{key}', False, 'danger', f"{settings_lib.DEFINITIONS[key].label or key} can't be decrypted",
+         f"{problem} Until then, QA-Board uses the default (Admin → Settings).")
+
+  items.extend(encryption_items())
 
   from ..models import RoleGrant
   signed_in_role = settings_lib.setting('projects.signed_in_role')
@@ -168,25 +178,48 @@ def checklist() -> list:
   return items
 
 
+def encryption_items() -> list:
+  """The security checklist's items about the key that encrypts the secrets stored in the database"""
+  from .admin_settings import encryption_status
+  status = encryption_status()
+  secrets = status.get("secrets") or {}
+  key = status.get("key")
+  items = []
+  def item(id, severity, title, detail):
+    items.append({"id": id, "ok": False, "severity": severity, "title": title, "detail": detail})
+  unreadable = secrets.get("unreadable") or []
+  if unreadable:
+    item('encryption_unreadable', 'danger', f"{len(unreadable)} stored secret{'s' if len(unreadable) > 1 else ''} can't be decrypted",
+         "They were encrypted with another key than this server's: restore that key ($QABOARD_ENCRYPTION_KEY, or $QABOARD_ENCRYPTION_KEY_PREVIOUS while you rotate), or enter them again (Admin → Settings → Security).")
+  for problem in status.get("problems") or []:
+    item('encryption_problem', 'danger', "The encryption key can't be read", problem)
+  if key and key["source"] == 'generated' and secrets.get("total"):
+    item('encryption_generated', 'warning', "Back up the encryption key the server generated",
+         f"The secrets stored in the database can only be decrypted with the key in {key['origin']}, and database backups don't include it. Copy it to your secret store as QABOARD_ENCRYPTION_KEY: `qaboard-admin encryption show-key`.")
+  if status.get("weak"):
+    item('encryption_weak', 'warning', "The encryption key is short",
+         "Use at least 32 random characters, e.g. `openssl rand -base64 32`, then `qaboard-admin encryption rotate` with the old key in $QABOARD_ENCRYPTION_KEY_PREVIOUS.")
+  if secrets.get("to_rotate") and not unreadable:
+    item('encryption_rotate', 'info', f"{secrets['to_rotate']} stored secret{'s' if secrets['to_rotate'] > 1 else ''} use{'' if secrets['to_rotate'] > 1 else 's'} an older key",
+         "Re-encrypt them with the current key (Admin → Settings → Security, or `qaboard-admin encryption rotate`), then remove the old key.")
+  return items
+
+
 USAGE_LOOKBACK_DAYS = 90
-# The usage-based items read the last months of runs and events: computed at most every few minutes, per process
-USAGE_ITEMS_CACHE_SECONDS = 300
-_usage_items_cache = {'at': None, 'value': None}
+# The usage-based items read the last months of events: computed at most every hour (they're about 90 days), for all
+# the server's processes (Redis). The overview doesn't wait for them: the web app asks /api/v1/admin/overview/usage.
+USAGE_ITEMS_CACHE_SECONDS = 3600
 
 
+@hybrid_cache(ttl=USAGE_ITEMS_CACHE_SECONDS, maxsize=1)
 def usage_items() -> dict:
   """{ci_only, web_only, products} of the last USAGE_LOOKBACK_DAYS days, cached for USAGE_ITEMS_CACHE_SECONDS"""
-  now = tokens_lib.utcnow()
-  if _usage_items_cache['at'] and (now - _usage_items_cache['at']).total_seconds() < USAGE_ITEMS_CACHE_SECONDS:
-    return _usage_items_cache['value']
-  since = now - datetime.timedelta(days=USAGE_LOOKBACK_DAYS)
-  value = {
+  since = tokens_lib.utcnow() - datetime.timedelta(days=USAGE_LOOKBACK_DAYS)
+  return {
     "ci_only": usage_lib.ci_only_projects(since),
     "web_only": usage_lib.web_only_users(since),
     "products": usage_lib.tuning_products(since),
   }
-  _usage_items_cache.update(at=now, value=value)
-  return value
 
 
 def value_checklist() -> list:
@@ -199,7 +232,7 @@ def value_checklist() -> list:
   emails = email_enabled()
   item('email_notifications', emails,
        "Email notifications are on" if emails else "Email notifications aren't configured",
-       "Set QABOARD_SMTP_HOST (and QABOARD_EMAIL_FROM): users can then ask for an email when the batches they start end, and admins hear about failed jobs.")
+       "Set the SMTP server in Admin → Settings → Email: users can then ask for an email when the batches they start end, and admins hear about failed jobs.")
 
   from ..sign_in import providers as providers_lib
   login_type = settings_lib.login_type()
@@ -210,12 +243,11 @@ def value_checklist() -> list:
        "Add a single sign-on provider (Admin > Sign-in): no passwords to manage, and groups come from the directory.")
 
   # gitlab.com and github.com are always known: a host is configured when the settings name one, or give a token
-  from ..git_hosts import server_setting, server_secret
-  hosts = any(server_setting(name) for name in ('QABOARD_GIT_HOSTS', 'GITLAB_HOST', 'QABOARD_GITLAB_HOSTS', 'QABOARD_GITHUB_HOSTS')) \
-    or any(server_secret(name) for name in ('GITLAB_ACCESS_TOKEN', 'GITHUB_ACCESS_TOKEN'))
+  from ..git_hosts import hosts_configured
+  hosts = hosts_configured()
   item('git_hosts', hosts,
        "Git hosts are configured" if hosts else "No git host is configured",
-       "Set QABOARD_GIT_HOSTS and their webhooks: commits, branches and messages then show up as they're pushed, before runs arrive.")
+       "Add your git hosts in Admin → Settings → Git hosts, and their webhooks: commits, branches and messages then show up as they're pushed, before runs arrive.")
 
   sentry = bool(os.environ.get('SENTRY_DSN'))
   item('sentry', sentry, "Errors are reported to Sentry" if sentry else "Errors aren't reported anywhere",
@@ -240,6 +272,15 @@ def value_checklist() -> list:
        "Projects have owners" if owners > 0 else ("No projects yet" if projects == 0 else "No project has an owner"),
        "Make the people in charge of each project its owners (Project > Access): they can then add their team, restrict who sees it, and get the access requests.")
 
+  return items
+
+
+def usage_checklist() -> list:
+  """The "Get more from QA-Board" items about how QA-Board is used, from the last USAGE_LOOKBACK_DAYS days of events"""
+  items = []
+  def item(id, ok, title, detail, ok_detail=None):
+    items.append({"id": id, "ok": ok, "severity": 'info', "title": title, "detail": ok_detail if ok else detail})
+
   cached = usage_items()
   ci_only = cached['ci_only']
   item('ci_only_projects', not ci_only,
@@ -249,17 +290,25 @@ def value_checklist() -> list:
 
   web_only = cached['web_only']
   item('web_only_users', not web_only,
-       "Everyone active in the web app has used the CLI" if not web_only
-       else f"{len(web_only)} user{'s' if len(web_only) > 1 else ''} active in the web app never used the CLI",
+       f"Everyone active in the web app used the CLI in the last {USAGE_LOOKBACK_DAYS} days" if not web_only
+       else f"{len(web_only)} user{'s' if len(web_only) > 1 else ''} active in the web app didn't use the CLI in {USAGE_LOOKBACK_DAYS} days",
        "They only read results: `qa batch` from their terminal and `qa auth login` let them run and tune their own experiments (Admin > Usage > Users).")
 
   products = cached['products']
   without_tuning = sorted(product for product, tuning in products.items() if not tuning)
   item('tuning_products', not without_tuning,
-       "Every product in use started a tuning" if not without_tuning
-       else f"{len(without_tuning)} product{'s' if len(without_tuning) > 1 else ''} in use never started a tuning",
+       f"Every product in use started a tuning in the last {USAGE_LOOKBACK_DAYS} days" if not without_tuning
+       else f"{len(without_tuning)} product{'s' if len(without_tuning) > 1 else ''} in use didn't start a tuning in {USAGE_LOOKBACK_DAYS} days",
        f"Tuning from the web app may not be known there: {', '.join(without_tuning[:5])}{'…' if len(without_tuning) > 5 else ''}.")
   return items
+
+
+@app.route('/api/v1/admin/overview/usage', methods=['GET'])
+@app.route('/api/v1/admin/overview/usage/', methods=['GET'])
+@admin_required
+def admin_overview_usage():
+  """The overview's usage-based items: apart, they can take seconds when they're not cached"""
+  return jsonify({"items": usage_checklist(), "lookback_days": USAGE_LOOKBACK_DAYS})
 
 
 @app.route('/api/v1/admin/users', methods=['GET'])
@@ -301,6 +350,65 @@ def get_user_or_404(user_id):
   return user, None
 
 
+@app.route('/api/v1/admin/users', methods=['POST'])
+@app.route('/api/v1/admin/users/', methods=['POST'])
+@admin_required
+def admin_create_user():
+  """
+  {user_name, full_name?, email?, password?, is_admin?}: a local account, active right away.
+  Without a password, we generate one: the answer has it, once, for the admin to give to its owner.
+  """
+  from .. import first_admin
+  body = request.get_json(silent=True) or {}
+  user_name = body.get('user_name')
+  user_name = user_name.strip() if isinstance(user_name, str) else user_name
+  email = (body.get('email') or '').strip() or None
+  full_name = (body.get('full_name') or '').strip() or None
+  make_admin = body.get('is_admin', False)
+  if not isinstance(make_admin, bool):
+    return jsonify({"error": "is_admin must be true or false", "field": "is_admin"}), 400
+  generated = not body.get('password')
+  password = first_admin.generate_password() if generated else body.get('password')
+  for field, problem in [('user_name', first_admin.user_name_problem(user_name)), ('email', first_admin.email_problem(email)),
+                         ('password', None if generated else first_admin.password_problem(password))]:
+    if problem:
+      return jsonify({"error": problem, "field": field}), 400
+  user = first_admin.new_local_user(user_name, password, full_name=full_name, email=email, is_admin=make_admin)
+  audit('user.create', 'user', user.id, user.user_name, meta={"login_type": "LOCAL", "is_admin": make_admin, "generated_password": generated})
+  db_session.commit()
+  return jsonify({"user": serialize_user(user, 0), **({"password": password} if generated else {})}), 201
+
+
+@app.route('/api/v1/admin/users/<int:user_id>/password', methods=['POST'])
+@app.route('/api/v1/admin/users/<int:user_id>/password/', methods=['POST'])
+@admin_required
+def admin_reset_password(user_id):
+  """
+  {password?}: a new password for a local account, generated without one (the answer has it, once).
+  Its owner is signed out of every browser. Their tokens keep working: revoke them apart.
+  """
+  from .. import first_admin
+  from ..sign_in.sessions import revoke_all
+  user, error = get_user_or_404(user_id)
+  if error:
+    return error
+  if user.kind != 'human' or (user.login_type or '').upper() != 'LOCAL':
+    return jsonify({"error": f"{user.user_name} doesn't have a local account: they sign in with {user.login_type or 'single sign-on'}, whose password QA-Board doesn't know."}), 400
+  if user.id == g.actor.user.id:
+    return jsonify({"error": "Change your own password in Settings → Sign-in methods."}), 400
+  body = request.get_json(silent=True) or {}
+  generated = not body.get('password')
+  password = first_admin.generate_password() if generated else body.get('password')
+  if not generated and (problem := first_admin.password_problem(password)):
+    return jsonify({"error": problem, "field": "password"}), 400
+  from .auth import generate_password_hash
+  user.password = generate_password_hash(password)
+  signed_out = revoke_all(user.id)
+  audit('user.password_reset', 'user', user.id, user.user_name, meta={"generated_password": generated, "sessions_revoked": signed_out})
+  db_session.commit()
+  return jsonify({"signed_out": signed_out, **({"password": password} if generated else {})})
+
+
 @app.route('/api/v1/admin/users/<int:user_id>', methods=['GET'])
 @app.route('/api/v1/admin/users/<int:user_id>/', methods=['GET'])
 @admin_required
@@ -317,7 +425,7 @@ def admin_user(user_id):
   from ..sign_in.access import serialize as serialize_request
   access_request = AccessRequest.query.filter(AccessRequest.user_id == user.id).order_by(AccessRequest.id.desc()).first()
   return jsonify({
-    "user": serialize_user(user, counts.get(user.id, 0)),
+    "user": {**serialize_user(user, counts.get(user.id, 0)), "profile": public_profile(user)},
     "tokens": [tokens_lib.serialize(t) for t in tokens],
     "audit": [serialize_event(e) for e in events],
     # the latest, pending or decided
@@ -448,39 +556,4 @@ def admin_audit_actions():
   return jsonify({"actions": actions})
 
 
-@app.route('/api/v1/admin/settings', methods=['GET'])
-@app.route('/api/v1/admin/settings/', methods=['GET'])
-@admin_required
-def admin_settings():
-  return jsonify({"settings": settings_lib.describe_all()})
-
-
-@app.route('/api/v1/admin/settings', methods=['POST'])
-@app.route('/api/v1/admin/settings/', methods=['POST'])
-@admin_required
-def admin_update_settings():
-  body = request.get_json(silent=True)
-  if not isinstance(body, dict) or not body:
-    return jsonify({"error": "Send {\"setting.key\": value}, null resets a setting to its default."}), 400
-  # all valid, or nothing changes
-  values = {}
-  for key, value in body.items():
-    if key not in settings_lib.DEFINITIONS:
-      return jsonify({"error": f"Unknown setting: {key}"}), 400
-    if settings_lib.source(key) == 'env':
-      env = settings_lib.DEFINITIONS[key].env
-      return jsonify({"error": f"{key} is set by ${env}: change it in the server's environment."}), 400
-    if value is not None and value == settings_lib.masked(key, settings_lib.setting(key)) and settings_lib.DEFINITIONS[key].secret:
-      return jsonify({"error": f"Type the whole new value of {key}: the current one is hidden."}), 400
-    try:
-      values[key] = None if value is None else settings_lib.validate(key, value)
-    except ValueError as e:
-      return jsonify({"error": str(e)}), 400
-  for key, value in values.items():
-    before = settings_lib.setting(key)
-    after = settings_lib.save(key, value, by=g.actor.user)
-    if before != after:
-      audit('setting.update', 'setting', key, key, changes={"value": {"from": settings_lib.masked(key, before), "to": settings_lib.masked(key, after)}})
-  db_session.commit()
-  settings_lib.invalidate_cache()
-  return jsonify({"settings": settings_lib.describe_all()})
+# Settings: see api/admin_settings.py

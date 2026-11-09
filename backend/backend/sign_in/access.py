@@ -9,6 +9,7 @@ from typing import Optional
 
 from ..settings import setting
 from ..tokens import utcnow, iso
+from .profiles import avatar_url
 
 
 def initial_status(email: Optional[str]) -> str:
@@ -126,5 +127,5 @@ def serialize(request_row) -> dict:
     # project requests: which project, which role
     "project": request_row.resource_id,
     "role": request_row.role,
-    "user": {"id": user.id, "user_name": user.user_name, "full_name": user.full_name, "email": user.email} if user else None,
+    "user": {"id": user.id, "user_name": user.user_name, "full_name": user.full_name, "email": user.email, "avatar_url": avatar_url(user)} if user else None,
   }

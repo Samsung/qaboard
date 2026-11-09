@@ -179,7 +179,7 @@ Run `qa --share batch import-standard-benchmark`, then make that batch a
 | Property | What it is |
 |---|---|
 | `input_path` | The input's absolute path. |
-| `rel_input_path` | The input's path relative to the database, as you give it to `qa run --input` and in batches. |
+| `rel_input_path`, `input` | The input's path relative to the database, as you give it to `qa run --input` and in batches: as a `Path`, and as a string. |
 | `database` | The folder with your inputs (absolute), see [Inputs](/docs/inputs#the-database). |
 | `type` | The input type, see [input types](/docs/inputs#advanced-handling-multiple-input-types). |
 | `input_metadata` | The input's metadata, if your entrypoint has a `metadata()` function: see [Metadata](/docs/metadata-integration-external-databases). |
@@ -190,7 +190,9 @@ Run `qa --share batch import-standard-benchmark`, then make that batch a
 | `output_dir` | Where to save the output files. `qa` creates it, and empties it before the run. |
 | `dryrun` | `True` with `qa --dryrun run`: print what you would do, without doing it. |
 | `id` | The run's id in QA-Board. `None` when results aren't sent: without `--share` outside CI, with `--offline`, or when the server can't be reached. |
-| `configurations`, `extra_parameters` | `configs` in two parts: the configurations, and the tuning parameters with the forwarded arguments. |
+| `configurations`, `extra_parameters` | `configs` in two parts: the configurations, and the tuning parameters with the forwarded arguments. Rarely needed. |
+
+The runs you read back from scripts have the same names ([results in scripts](/docs/apis#runs-in-scripts)).
 
 ### Environment variables {#environment-variables}
 - `qa` sets `QA_LABEL` to the run's label (from `qa --label`), e.g. for your code's own logs.

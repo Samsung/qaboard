@@ -11,8 +11,13 @@ Sign-ins are saved per server, not per project, in hosts.yaml in the user's conf
       created_at: '2026-10-20T08:00:00+00:00'
 
 Requests to a server use the first token found (see `resolve_token`):
-    $QABOARD_TOKEN > $QA_TOKEN (alias) > hosts.yaml's sign-in for the server
+    $QABOARD_TOKEN > $QA_TOKEN (alias) > the CI job's OIDC ID token, exchanged > hosts.yaml's sign-in for the server
     > QA_TOKEN in ~/.qaboard/secrets.yaml (legacy, only for the default server)
+
+CI without stored secrets: GitHub Actions (with `permissions: id-token: write`) and GitLab CI (with `id_tokens:
+QABOARD_ID_TOKEN`) give jobs an ID token. qa exchanges it once for a short-lived token of the service account that
+trusts the job ($QABOARD_SERVICE_ACCOUNT picks one when several do), and puts it in $QABOARD_TOKEN for the qa
+processes it starts (backend/ci_trust.py on the server).
 """
 import os
 import re
@@ -26,6 +31,11 @@ import yaml
 from .site_config import site_config, secrets, user_secrets, user_secrets_path, user_config_dir, _load_secrets, _site_defaults
 
 ENV_TOKENS = ('QABOARD_TOKEN', 'QA_TOKEN')
+# GitLab CI: `id_tokens: {QABOARD_ID_TOKEN: {aud: <server URL>}}`
+ID_TOKEN_ENV = 'QABOARD_ID_TOKEN'
+# Set once an exchange failed, so that the qa processes it starts don't try again (and repeat the warning)
+EXCHANGE_FAILED_ENV = 'QA_CI_TOKEN_EXCHANGE_FAILED'
+CI_TOKEN_SOURCE = 'ci-id-token'
 # Set once qa printed a warning about signing in, so that the runs `qa batch` starts don't repeat it
 WARNING_SHOWN_ENV = 'QA_AUTH_WARNING_SHOWN'
 DEFAULT_SERVER = 'http://localhost:5151'
@@ -159,16 +169,95 @@ def forget_login(server_url: str):
     write_hosts(hosts)
 
 
+# the tokens we got for CI jobs' ID tokens, by server
+_exchanged: Dict[str, Optional[str]] = {}
+
+
+def ci_id_token(audience: str) -> Tuple[Optional[str], Optional[str]]:
+  """(the CI job's OIDC ID token, None), (None, None) without one, or (None, why) when the CI didn't give it."""
+  import requests
+  token = os.environ.get(ID_TOKEN_ENV, '').strip()
+  if token:
+    return token, None
+  url, request_token = os.environ.get('ACTIONS_ID_TOKEN_REQUEST_URL'), os.environ.get('ACTIONS_ID_TOKEN_REQUEST_TOKEN')
+  if not url or not request_token:
+    return None, None
+  try:
+    r = requests.request('GET', url, params={'audience': audience}, headers={'Authorization': f"bearer {request_token}"}, timeout=30)
+    value = json_body(r).get('value') if r.status_code == 200 else None
+  except requests.RequestException as e:
+    return None, f"GitHub didn't give the job an ID token: {type(e).__name__}"
+  if not isinstance(value, str) or not value:
+    return None, f"GitHub didn't give the job an ID token ({r.status_code})"
+  return value, None
+
+
+def exchange_ci_token(server_url: str) -> Optional[str]:
+  """
+  In CI jobs with an OIDC ID token, a short-lived token of the service account that trusts the job, once per process.
+  Prints why when it fails, and returns None: the server then says what it needs.
+  """
+  import click
+  import requests
+  key = normalize_url(server_url)
+  if key in _exchanged:
+    return _exchanged[key]
+  if os.environ.get(EXCHANGE_FAILED_ENV):
+    return None
+  audience = os.environ.get('QABOARD_ID_TOKEN_AUDIENCE', '').strip() or key
+  id_token, problem = ci_id_token(audience)
+  if not id_token and not problem:
+    return None
+  _exchanged[key] = None
+  def failed(message):
+    os.environ[EXCHANGE_FAILED_ENV] = '1'
+    click.secho(f"WARNING: {message}", fg='yellow', err=True)
+  if problem:
+    failed(f"{problem}: qa sends results without a token.")
+    return None
+  from .site_config import as_requests_verify
+  prefix = site_config('QABOARD_API_PREFIX') if same_server(server_url, default_server()[0]) else None
+  url = f"{(prefix or f'{key}/api/v1').rstrip('/')}/auth/token-exchange"
+  body = {
+    'grant_type': 'urn:ietf:params:oauth:grant-type:token-exchange',
+    'subject_token': id_token,
+    'subject_token_type': 'urn:ietf:params:oauth:token-type:id_token',
+  }
+  hint = os.environ.get('QABOARD_SERVICE_ACCOUNT', '').strip()
+  if hint:
+    body['service_account'] = hint
+  try:
+    r = requests.request('POST', url, json=body, headers={'Accept': 'application/json'}, timeout=30,
+                         verify=as_requests_verify(site_config('QABOARD_API_VERIFY')))
+  except requests.RequestException as e:
+    failed(f"Could not exchange the CI job's ID token for a QA-Board token ({describe_network_error(e)}): qa sends results without a token.")
+    return None
+  token = json_body(r).get('access_token') if r.status_code == 200 else None
+  if not isinstance(token, str) or not token:
+    failed(f"QA-Board refused the CI job's ID token: {describe_body(r) or r.status_code} qa sends results without a token.")
+    return None
+  _exchanged[key] = token
+  # the qa processes we start (qa batch => qa run) reuse it
+  os.environ['QABOARD_TOKEN'] = token
+  return token
+
+
 def resolve_token(server_url: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
   """
   The token to send to a server, and where it comes from: QABOARD_TOKEN or QA_TOKEN (environment variables, for every server),
-  hosts.yaml, or secrets.yaml (the legacy ~/.qaboard/secrets.yaml, only for the default server). (None, None) without a token.
+  the CI job's exchanged ID token, hosts.yaml, or secrets.yaml (the legacy ~/.qaboard/secrets.yaml, only for the default
+  server). (None, None) without a token.
   """
+  if server_url and _exchanged.get(normalize_url(server_url)):
+    return _exchanged[normalize_url(server_url)], CI_TOKEN_SOURCE
   for name in ENV_TOKENS:
     token = os.environ.get(name, '').strip()
     if token:
       return token, name
   if server_url:
+    exchanged = exchange_ci_token(server_url)
+    if exchanged:
+      return exchanged, CI_TOKEN_SOURCE
     _, login = find_login(read_hosts(), server_url)
     if login and login.get('token'):
       return str(login['token']).strip(), 'hosts.yaml'
@@ -181,6 +270,8 @@ def resolve_token(server_url: Optional[str]) -> Tuple[Optional[str], Optional[st
 def describe_source(source: Optional[str]) -> str:
   if source in ENV_TOKENS:
     return f"the {source} environment variable"
+  if source == CI_TOKEN_SOURCE:
+    return "the CI job's ID token, exchanged for a service account's token"
   if source == 'hosts.yaml':
     return str(hosts_path())
   if source == 'secrets.yaml':
@@ -236,6 +327,8 @@ def fix_for(refused: Dict[str, Any], token_source: Optional[str] = None, ci: boo
       return f"Create a token with {scope} in {ACCESS_TOKENS_PAGE}, and set ${env_name} to it."
     return f"Create a token with {scope} in {ACCESS_TOKENS_PAGE}, then sign in with it: `qa auth login --with-token`."
   if reason.startswith('token_'):
+    if token_source == CI_TOKEN_SOURCE:
+      return "qa got this token for the CI job's ID token, and such tokens only last a few hours: run the job again."
     if token_source in ENV_TOKENS:
       return f"Replace ${token_source} with a valid token ({ACCESS_TOKENS_PAGE})."
     if ci:

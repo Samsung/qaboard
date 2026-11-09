@@ -1,3 +1,4 @@
+import { Alias } from 'yaml';
 import { analyzeBatches, newBatchSnippet, unusedBatchName } from '../batches_file';
 
 
@@ -128,6 +129,25 @@ describe('checks against the schema', () => {
       [7, expect.stringContaining('defined twice')],
       [9, 'Unknown key "confgs" in "a". Did you mean "configs"?'],
     ]);
+  });
+
+  it('reads an alias as the last anchor defined before it, like PyYAML', () => {
+    const { problems } = analyzeBatches([
+      '.a: &tpl {inputs: [a]}',       // 1
+      'first: *tpl',                  // 2
+      '.b: &tpl {inptus: [b]}',       // 3: redefines the anchor
+      'second: *tpl',                 // 4
+    ].join('\n'));
+    expect(problems.map(p => [p.line, p.message])).toEqual([[3, expect.stringContaining('Unknown key "inptus" in "second"')]]);
+  });
+
+  // alias.resolve() walks the whole document: once per alias, large files froze the editor for seconds
+  it('resolves the aliases in one pass over the document', () => {
+    const resolve = vi.spyOn(Alias.prototype, 'resolve');
+    const text = '.base: &base {configs: [base]}\n' + Array.from({ length: 50 }, (_, i) => `b${i}:\n  <<: *base\n  inputs: [x]\n`).join('');
+    expect(analyzeBatches(text).problems).toEqual([]);
+    expect(resolve).not.toHaveBeenCalled();
+    resolve.mockRestore();
   });
 
   it("doesn't repeat the problems it explains better", () => {

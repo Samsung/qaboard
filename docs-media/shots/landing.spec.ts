@@ -248,7 +248,7 @@ shot('landing/pixel-values', {
 // tagline (templates/social-card.html), and a crop of the commit page like the hero's, the facade's run and the difference
 const SOCIAL_CARD = { width: 1200, height: 630 };
 const TEMPLATES = path.join(import.meta.dirname, 'templates');
-const LOGO = path.join(import.meta.dirname, '..', '..', 'website', 'static', 'img', 'twemoji_poodle.svg');
+const LOGO = path.join(import.meta.dirname, '..', '..', 'website', 'static', 'img', 'qaboard-logo.svg');
 
 shot('landing/social-card', {
   project: IQ,

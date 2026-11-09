@@ -1,22 +1,26 @@
 """
-Implement the API used by the "Export to a shared directory" plugin.
+The older export API, deprecated: scripts still call it, the web app uses /api/v1/exports (backend/api/export_files.py),
+where the caller says how to name files. Its behavior doesn't change until its callers moved: responses say it's
+deprecated (`Deprecation` header), with a link to the new API.
 """
 import os
-import re
 import json
 import shutil
 import hashlib
 from pathlib import Path
 
 from requests.utils import quote
-from flask import request, jsonify, g
+from functools import wraps
+from flask import request, jsonify, g, make_response
 from sqlalchemy.orm import joinedload
 
 
 from qaboard.compat import windows_to_linux_path
 from qaboard.conventions import serialize_config
 from qaboard.matching import run_distance
+from qaboard.filters import match_query, searched_text
 from backend import app, db_session
+
 from backend.fs_utils import as_user, mkdir_shared
 from backend.storage import check_storage_path, UnsafePathError
 from ..models import CiCommit, Batch, slugify_hash
@@ -45,35 +49,29 @@ def load_commit(project_id, commit_id):
 
 
 
-# no need to make a copy - we don't reuse the outputs
 def filter_outputs(query, outputs):
-  if not query:
+  """The runs a filter of the web app's filter box keeps: the same matching as the web app and `qaboard.runs()` (qaboard/filters.py)"""
+  if not query or not query.strip():
     return outputs
-
-  query = query.strip().lower().replace('"', '')
-  query = re.sub(r'(=+|: +)', ':', query)
-
-  tokens = query = query.split()
-  negative_tokens = [t[1:] for t in tokens if t.startswith('-')]
-  positive_tokens = [t for t in tokens if not t.startswith('-')]
-
-  def match(output):
-    # in the web application, json is serialized tight without extra whitespace
-    extra_parameters = json.dumps(output.extra_parameters, separators=(',', ':'))
-    configurations = json.dumps(output.configurations, separators=(',', ':'))
-    input_metadata = output.test_input.data['metadata'] if (output.test_input.data and 'metadata' in output.test_input.data) else {}
-    input_metadata = json.dumps(input_metadata, separators=(',', ':'))
-    failed = 'fail crash' if output.is_failed else ''
-    pending = 'pending running' if output.is_pending else ''
-    batch = output.data.get("batch") or ''
-    searched = f"{output.test_input.path} {output.platform} {configurations} {extra_parameters} {batch} {input_metadata} {failed} {pending}".replace('"', '').lower()
-    # not using output.test_input_tags.join() like in the JS
-    if any([re.search(t, searched) for t in negative_tokens]):
-      return False
-    found = all([re.search(t, searched) for t in positive_tokens])
-    return (not positive_tokens or found)
-  outputs = [o for o in outputs if match(o)]
-  return outputs
+  matches = match_query(query)
+  def searched(output):
+    data = output.data if isinstance(output.data, dict) else {}
+    extra_parameters = output.extra_parameters or {}
+    if isinstance(data.get('params'), dict):
+      extra_parameters = {**extra_parameters, **data['params']}
+    return searched_text(
+      id=output.id,
+      test_input_path=str(output.test_input.path),
+      platform=output.platform,
+      configurations=output.configurations,
+      extra_parameters=extra_parameters,
+      test_input_metadata=output.test_input.data.get('metadata') if output.test_input.data else None,
+      batch=data.get('batch'),
+      is_failed=bool(output.is_failed),
+      is_pending=bool(output.is_pending),
+      is_running=bool(output.is_running),
+    )
+  return [o for o in outputs if matches(searched(o))]
 
 
 def compatible(o1, o2):
@@ -118,9 +116,21 @@ def commonprefix(m):
   return s1
 
 
+def deprecated(f):
+  """Responses tell clients to move to /api/v1/exports"""
+  @wraps(f)
+  def wrapper(*args, **kwargs):
+    response = make_response(f(*args, **kwargs))
+    response.headers['Deprecation'] = 'true'
+    response.headers['Link'] = '</api/v1/exports>; rel="successor-version"'
+    return response
+  return wrapper
+
+
 # POST: it writes in folders. GET for older web apps and scripts.
 @app.route("/api/v1/export", methods=['GET', 'POST'])
 @app.route("/api/v1/export/", methods=['GET', 'POST'])
+@deprecated
 @login_required
 def export_to_folder():
   # Cookies come with GETs from other websites' links: actor.py only checks the origin of other methods

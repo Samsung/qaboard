@@ -6,7 +6,7 @@ import { Button, Classes, Icon, Intent, Switch, Tag } from "@blueprintjs/core";
 import { usePrefsStore } from "../stores/prefs";
 import { copyWithToast } from "../utils/clipboard";
 import { summarize_changes, reference_pairs } from "./tokens";
-import { SettingText, SharedSettings, useSharedConfiguration, useHideSharedSettings } from "./ConfigurationsTags";
+import { SettingTag, SharedSettings, useSharedConfiguration, useHideSharedSettings, useShortenLongSettings } from "./ConfigurationsTags";
 
 
 const Box = styled.div`
@@ -38,12 +38,6 @@ const Row = styled.div`
   }
 `;
 
-const op_tags = {
-  added: { intent: Intent.SUCCESS, icon: 'plus' },
-  removed: { intent: Intent.DANGER, icon: 'minus' },
-  changed: { intent: Intent.WARNING },
-};
-
 const shown_settings = 8;
 const shown_changes = 4;
 
@@ -54,6 +48,13 @@ export const HideSharedSwitch = ({ label = "Hide them in each run", style }) => 
   const hide = useHideSharedSettings();
   const toggle = usePrefsStore(state => state.toggleHideSharedSettings);
   return <Switch checked={hide} onChange={toggle} label={label} style={{ marginBottom: 0, ...style }} />;
+};
+
+// Also in Settings → Preferences, and clicking a shortened setting switches it
+export const ShortenLongSettingsSwitch = ({ label = "Shorten long settings with …", style }) => {
+  const shorten = useShortenLongSettings();
+  const toggle = usePrefsStore(state => state.toggleShortenLongSettings);
+  return <Switch checked={shorten} onChange={toggle} label={label} style={{ marginBottom: 0, ...style }} />;
 };
 
 
@@ -92,6 +93,8 @@ const ReferenceRow = ({ compared, pairs, ambiguous }) => {
   const changes = useMemo(() => summarize_changes(pairs), [pairs]);
   const shown = expanded ? changes : changes.slice(0, shown_changes);
   const more = changes.length - shown.length;
+  // settings shown in full can be long: they wrap
+  const shorten = useShortenLongSettings();
   return <Row>
     <span className="label">
       <Icon icon="comparison" size={14} className={Classes.TEXT_MUTED} style={{ marginRight: 6 }} />
@@ -107,10 +110,8 @@ const ReferenceRow = ({ compared, pairs, ambiguous }) => {
             {pairs.length === compared ? `All ${compared}` : `${pairs.length} of ${compared}`} runs
             are compared to a reference run with other settings:
           </span>
-          {shown.map(change => <span key={`${change.op}${change.token.full}${change.ref?.full}`} style={{ whiteSpace: 'nowrap', marginRight: 10 }}>
-            <Tag round minimal {...op_tags[change.op]} style={{ marginRight: 4, maxWidth: '100%' }}>
-              <SettingText d={change} />
-            </Tag>
+          {shown.map(change => <span key={`${change.op}${change.token.full}${change.ref?.full}`} style={{ whiteSpace: shorten ? 'nowrap' : undefined, marginRight: 10 }}>
+            <SettingTag d={change} style={{ marginRight: 4, marginBottom: 0 }} />
             <span className={Classes.TEXT_MUTED}>{change.runs === pairs.length ? (pairs.length > 1 ? 'in all' : '') : `in ${change.runs}`}</span>
           </span>)}
           {(more > 0 || expanded) && <Tag round minimal interactive icon={expanded ? 'chevron-up' : 'more'} onClick={() => setExpanded(!expanded)}>

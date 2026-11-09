@@ -72,20 +72,35 @@ export const StatusBar = ({ counts, style }) => {
 };
 
 
-const Bars = styled.div`
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: ${props => props.$height}px;
-  > div {
-    flex: 1 1 0;
-    min-width: 3px;
-    height: 100%;
-    display: flex;
-    flex-direction: column-reverse;
-    border-radius: 2px 2px 0 0;
-    overflow: hidden;
-  }
+// Status colors are for fills: as text, the light ones (orange) are hard to read. This is the text.
+const text_colors = {
+  waiting: [Colors.ORANGE2, Colors.ORANGE5],
+  running: [Colors.BLUE2, Colors.BLUE5],
+  done: [Colors.GREEN2, Colors.GREEN5],
+  failed: [Colors.RED2, Colors.RED5],
+};
+export const StatusText = styled.span`
+  color: ${props => text_colors[props.$status]?.[0] ?? 'inherit'};
+  .bp6-dark & { color: ${props => text_colors[props.$status]?.[1] ?? 'inherit'}; }
+`;
+
+
+const Chart = styled.figure`
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 6px;
+  .axis { font-size: 11px; font-variant-numeric: tabular-nums; text-align: right; display: flex; flex-direction: column; justify-content: space-between; }
+  .plot { position: relative; min-width: 0; }
+  .columns { display: flex; gap: 2px; }
+  .column { flex: 1 1 0; min-width: 3px; display: flex; flex-direction: column; }
+  .load, .ended { display: flex; overflow: hidden; }
+  .load { flex-direction: column-reverse; border-radius: 2px 2px 0 0; border-bottom: 1px solid var(--qa-border, ${Colors.GRAY4}); }
+  .ended { flex-direction: column; border-radius: 0 0 2px 2px; }
+  .column:hover .load, .column:hover .ended { filter: brightness(1.15); }
+  .gridline { position: absolute; left: 0; right: 0; top: 0; border-top: 1px dashed var(--qa-border, ${Colors.LIGHT_GRAY1}); pointer-events: none; }
+  .ticks { position: relative; height: 16px; font-size: 11px; margin-top: 2px; }
+  .ticks > span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
 `;
 
 const bar_time = (iso, step_seconds) => {
@@ -96,43 +111,73 @@ const bar_time = (iso, step_seconds) => {
   return `${date.toLocaleString(DateTime.DATETIME_SHORT)} – ${end.toLocaleString(same_day ? DateTime.TIME_SIMPLE : DateTime.DATETIME_SHORT)}`;
 };
 
+// A few readable times under the bars, in local time: hours, or days for long windows
+const ticks = (bars, step_seconds) => {
+  const total = bars.length * step_seconds;
+  const every = total <= 3 * 3600 ? 15 * 60 : total <= 12 * 3600 ? 2 * 3600 : total <= 48 * 3600 ? 6 * 3600 : 24 * 3600;
+  const start = parseDate(bars[0]?.at);
+  if (!start?.isValid) return [];
+  const answer = [];
+  for (let date = start.startOf('day'); date.diff(start, 'seconds').seconds < total; date = date.plus({ seconds: every })) {
+    const offset = date.diff(start, 'seconds').seconds;
+    // not too close to the edges, where the label would be cut
+    if (offset < total * 0.03 || offset > total * 0.97) continue;
+    const midnight = date.hour === 0 && date.minute === 0;
+    answer.push({ left: 100 * offset / total, text: every >= 24 * 3600 ? date.toFormat('ccc d') : midnight ? date.toFormat('ccc') : date.toFormat('HH:mm') });
+  }
+  return answer;
+};
+
+// a bar for a few failures still shows
+const height = (count, max) => count > 0 ? `max(2px, ${100 * count / max}%)` : '0';
+
 // The load over the window: runs that waited and ran during each bar (above), and the runs that ended (below)
-export const Timeline = ({ timeline, height = 90 }) => {
+export const Timeline = ({ timeline, height: plot_height = 90 }) => {
   const bars = timeline?.bars ?? [];
   if (!bars.length) return null;
   const max_load = Math.max(1, ...bars.map(b => b.waiting + b.running));
   const max_ended = Math.max(1, ...bars.map(b => b.done + b.failed));
+  const ended_height = Math.round(plot_height / 3);
   const tooltip = bar => <div style={{ fontVariantNumeric: 'tabular-nums' }}>
     <div style={{ marginBottom: 4 }}>{bar_time(bar.at, timeline.step_seconds)}</div>
     <div>{formatNumber(bar.running)} running, {formatNumber(bar.waiting)} waiting</div>
     <div>{formatNumber(bar.done)} done, {formatNumber(bar.failed)} failed</div>
   </div>;
-  return <figure style={{ margin: 0 }} aria-label="Runs over time">
-    <Bars $height={height} role="img" aria-label="Runs waiting and running over time">
-      {bars.map(bar => <div key={bar.at}>
-        <Tooltip content={tooltip(bar)} hoverOpenDelay={50} targetTagName="div" targetProps={{ style: { height: '100%', display: 'flex', flexDirection: 'column-reverse' } }}>
-          <div data-testid="timeline-bar" style={{ height: '100%', display: 'flex', flexDirection: 'column-reverse' }}>
-            <div style={{ height: `${100 * bar.running / max_load}%`, background: statuses.running.color }}/>
-            <div style={{ height: `${100 * bar.waiting / max_load}%`, background: statuses.waiting.color }}/>
+  const legend = s => <span key={s} style={{ whiteSpace: 'nowrap' }}>
+    <span aria-hidden="true" style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: statuses[s].color, marginRight: 4 }}/>
+    {statuses[s].label}
+  </span>;
+  return <Chart aria-label="Runs over time">
+    <div className={`axis ${Classes.TEXT_MUTED}`} style={{ height: plot_height }} aria-hidden="true">
+      <span title="The most runs waiting and running at once">{formatNumber(max_load)}</span><span>0</span>
+    </div>
+    <div className="plot">
+      <div className="gridline" aria-hidden="true"/>
+      <div className="columns" role="img" aria-label="Runs waiting and running over time">
+        {bars.map(bar => <Tooltip key={bar.at} content={tooltip(bar)} hoverOpenDelay={50} targetTagName="div" targetProps={{ className: 'column' }}>
+          <div data-testid="timeline-bar" style={{ display: 'contents' }}>
+            <div className="load" style={{ height: plot_height }}>
+              <div style={{ height: height(bar.running, max_load), background: statuses.running.color, flexShrink: 0 }}/>
+              <div style={{ height: height(bar.waiting, max_load), background: statuses.waiting.color, flexShrink: 0 }}/>
+            </div>
+            <div className="ended" style={{ height: ended_height, marginTop: 1 }}>
+              <div style={{ height: height(bar.failed, max_ended), background: statuses.failed.color, flexShrink: 0 }}/>
+              <div style={{ height: height(bar.done, max_ended), background: statuses.done.color, opacity: 0.7, flexShrink: 0 }}/>
+            </div>
           </div>
-        </Tooltip>
-      </div>)}
-    </Bars>
-    <Bars $height={Math.round(height / 3)} aria-hidden="true" style={{ alignItems: 'flex-start', marginTop: 2 }}>
-      {bars.map(bar => <div key={bar.at} style={{ flexDirection: 'column', borderRadius: '0 0 2px 2px' }}>
-        <div style={{ height: `${100 * bar.done / max_ended}%`, background: statuses.done.color, opacity: 0.7 }}/>
-        <div style={{ height: `${100 * bar.failed / max_ended}%`, background: statuses.failed.color }}/>
-      </div>)}
-    </Bars>
-    <figcaption className={Classes.TEXT_MUTED} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginTop: 4, gap: 8, flexWrap: 'wrap' }}>
-      <span>{parseDate(bars[0].at)?.toRelative()}</span>
-      <span>
-        {['running', 'waiting', 'done', 'failed'].map(s => <span key={s} style={{ marginRight: 10, whiteSpace: 'nowrap' }}>
-          <span aria-hidden="true" style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: statuses[s].color, marginRight: 4 }}/>
-          {s === 'running' || s === 'waiting' ? `${statuses[s].label}` : `${statuses[s].label} (below)`}
-        </span>)}
+        </Tooltip>)}
+      </div>
+      <div className={`ticks ${Classes.TEXT_MUTED}`} aria-hidden="true">
+        {ticks(bars, timeline.step_seconds).map(t => <span key={t.left} style={{ left: `${t.left}%` }}>{t.text}</span>)}
+      </div>
+    </div>
+    <span/>
+    <figcaption className={Classes.TEXT_MUTED} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, gap: 8, flexWrap: 'wrap' }}>
+      <span style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <span>Pending:</span>{legend('running')}{legend('waiting')}
+        <span style={{ marginLeft: 6 }}>Ended (below):</span>{legend('done')}{legend('failed')}
       </span>
-      <span>now</span>
+      <span title={`Each bar is ${formatDuration(timeline.step_seconds)}`}>{formatDuration(timeline.step_seconds)} bars</span>
     </figcaption>
-  </figure>;
+  </Chart>;
 };

@@ -997,3 +997,51 @@ Audit: `grant.create|update|delete`, `visibility.update`, `group.*`, `group_memb
   The LDAP search only fetched `cn` and `mail` before: `memberOf` rules could never match.
 - **Not yet** (D.7): the YAML import (left to admins), `auth.reauthenticate_after`, the GitLab job endpoints' mapping
   to projects, SCIM (M6: push-based, instead of daily pulls).
+
+## Appendix F: profiles, pictures and the order of sign-in methods (2026-11)
+- **Profiles**: `users.profile` (title, department, organization, which picture) and `user_pictures` (the bytes),
+  in `backend/sign_in/profiles.py`. Every sign-in refreshes them, and the name and verified email of OIDC accounts,
+  which used to be set only when the account was created. The daily *Users' groups* job refreshes LDAP accounts
+  entirely, and the text fields of OIDC accounts with refresh tokens (pictures need the access token).
+- **Which claim or attribute**: OIDC claims `picture`, `title`, `department`, `organization` (configurable like the
+  other claims), or `picture_url`, read with the access token (Entra ID's Microsoft Graph photo). LDAP and SAML:
+  `QABOARD_{LDAP,SAML}_ATTRIBUTE_{PICTURE,TITLE,DEPARTMENT,ORGANIZATION}`, comma-separated, the first one present wins.
+- **Pictures are served by QA-Board** (`/api/v1/users/<id>/picture`, signed-in users), not linked: LDAP's are bytes,
+  Entra's need a token, and browsers may not reach the IdP. JPEG, PNG, GIF, WebP only (sniffed, never SVG), 1 MB at
+  most, `nosniff` and a sandbox CSP. The access token only goes to the IdP's hosts. URLs are fetched at most daily.
+  Pictures stay out of `users.data`, the identities' claims and the SAML session cookie.
+- **Order**: the `auth.provider_order` setting (Admin → Sign-in's arrows, `QABOARD_SIGN_IN_ORDER`) orders every
+  provider, the environment's too. Without it, recommended providers first, then `position`.
+- **Not done**: committers' avatars still come from the git hosts, without falling back to QA-Board's pictures.
+
+## Appendix E: CI trust as built (2026-11)
+§11.3, done before M5, without a new table:
+- **Policies belong to service accounts**, not to projects: `users.data['ci_trust']` (no migration). A service account
+  (the instance's, managed by admins, or a project's, managed by its owners) lists the CI jobs that may act as it. A
+  job's rights are then exactly the account's: its role, its project restriction, its audit trail and
+  `submitted_by`. A `ci_trust(project_id, ...)` table would have needed a second authorization path.
+- **Policy**: `{id, provider (github|gitlab|other), issuer, audience (default: the server's public URL),
+  conditions: {claim: [glob patterns]}, created_by, created_at, last_used_at}`. Claims are AND-ed, a claim's patterns
+  OR-ed. The web app's form fills `repository`/`project_path` (`sub` for other issuers), `ref` (GitHub's
+  `main` becomes `refs/heads/main`) and `environment`; the API takes any other claim too.
+- **Refused policies**: none that doesn't pin the repository (`repository`, `repository_id`, `repository_owner_id`
+  for GitHub, `project_path`, `project_id` for GitLab, `sub` for others), patterns that are only wildcards, an
+  owner part that's a wildcard (`*/isp`), conditions on `iss`, `aud`, `exp`...
+- **Issuers**: projects' owners can trust GitHub, GitLab.com and the server's git hosts (`QABOARD_GIT_HOSTS`, also
+  as GitHub Enterprise's `<url>/_services/token`); other issuers need an admin, since the server fetches their keys
+  (no SSRF through policies).
+- **`POST /api/v1/auth/token-exchange`** (backend/ci_trust.py, api/ci_trust.py), form or JSON, anonymous and
+  rate-limited like sign-ins: the token's unverified `iss` only selects the policies; only issuers some active
+  account's policy names are fetched (discovery, then JWKS, cached an hour, refetched once on an unknown key). Then the
+  signature (asymmetric algorithms), `iss`, `exp`/`nbf`/`iat` (60 s leeway, `iat` less than 24 h ago), the policy's
+  audience, its conditions. Several matching accounts: a 400 asking for `service_account` (`$QABOARD_SERVICE_ACCOUNT`).
+- **The token**: kind `ci`, `qab_tmp_`, the account's scopes (`read ingest act`), restricted to its project for a
+  project's account, valid `tokens.ci_lifetime_minutes` (360, 5 to 1440). Named "GitHub Actions: org/repo@main", with
+  the job's repository, ref, run and URL in `data`: runs show it through `submitted_by.token_name`. Audited once, as
+  `token.exchange`. Expired `ci` tokens are hidden from the account's token list.
+- **The CLI** exchanges once per process when no `$QABOARD_TOKEN`/`$QA_TOKEN` is set: GitHub's
+  `ACTIONS_ID_TOKEN_REQUEST_URL` (audience: the server URL, or `$QABOARD_ID_TOKEN_AUDIENCE`), or GitLab's
+  `$QABOARD_ID_TOKEN`. It exports the token as `$QABOARD_TOKEN` for the `qa` processes it starts. On failure it
+  prints one warning and sends no token.
+- **Not done**: replay protection (an ID token can be exchanged several times until it expires: GitHub's last
+  minutes), purging expired `ci` tokens (one row per job), per-project policies once namespaces exist (M4).

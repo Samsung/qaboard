@@ -5,10 +5,12 @@ import { Button, Classes, HTMLSelect, HTMLTable, InputGroup, Intent, NonIdealSta
 import { useLocation } from "react-router";
 
 import { history, Link } from "../router";
+import { UserAvatar } from "../components/avatars";
 import { Time, AdminTag, loginTypeLabel } from "../settings/format";
 import { Loading } from "../settings/states";
 import { AdminError } from "./states";
 import { usersQuery, users_page_size } from "./api";
+import { CreateUserDialog } from "./CreateUserDialog";
 
 
 export const UserTags = ({ user }) => <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4 }}>
@@ -62,6 +64,7 @@ export const Users = () => {
     return () => clearTimeout(timer);
   }, [search]);
 
+  const [creating, setCreating] = useState(false);
   const { data, isPending, isFetching, error, refetch } = useQuery(usersQuery(filters));
   const users = data?.users ?? [];
   const total = data?.total ?? 0;
@@ -83,7 +86,9 @@ export const Users = () => {
       <span style={{ marginLeft: 'auto' }} className={Classes.TEXT_MUTED}>
         {!isPending && !error && `${total} user${total === 1 ? '' : 's'}`}
       </span>
+      <Button icon="new-person" intent={Intent.PRIMARY} text="New user" onClick={() => setCreating(true)}/>
     </div>
+    <CreateUserDialog isOpen={creating} onClose={() => setCreating(false)}/>
 
     {isPending && <Loading label="Loading users"/>}
     {error && <AdminError error={error} refetch={refetch} what="the users"/>}
@@ -91,8 +96,10 @@ export const Users = () => {
       ? <NonIdealState
         icon={filtered ? 'search' : 'people'}
         title={filtered ? 'No matching users' : 'No users yet'}
-        description={filtered ? 'Change the filters to see more users.' : 'Users appear here once they sign in.'}
-        action={filtered ? <Button icon="cross" text="Clear the filters" onClick={() => { setSearch(''); writeFilters({}); }}/> : undefined}
+        description={filtered ? 'Change the filters to see more users.' : 'Users appear here once they sign in, or once you create their account.'}
+        action={filtered
+          ? <Button icon="cross" text="Clear the filters" onClick={() => { setSearch(''); writeFilters({}); }}/>
+          : <Button icon="new-person" intent={Intent.PRIMARY} text="New user" onClick={() => setCreating(true)}/>}
       />
       : <>
         <div style={{ overflowX: 'auto', opacity: isFetching ? 0.7 : 1 }}>
@@ -111,8 +118,13 @@ export const Users = () => {
             <tbody>
               {users.map(user => <tr key={user.id} onClick={event => { if (!event.target.closest('a')) history.push(`/admin/users/${user.id}`); }} style={{ cursor: 'pointer' }}>
                 <td>
-                  <Link to={`/admin/users/${user.id}`}><strong>{user.full_name || user.user_name}</strong></Link>
-                  {user.full_name && <div className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>{user.user_name}</div>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <UserAvatar user={user} size="24px" alt=""/>
+                    <div style={{ minWidth: 0 }}>
+                      <Link to={`/admin/users/${user.id}`}><strong>{user.full_name || user.user_name}</strong></Link>
+                      {user.full_name && <div className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>{user.user_name}</div>}
+                    </div>
+                  </div>
                 </td>
                 <td>{user.email || <span className={Classes.TEXT_MUTED}>—</span>}</td>
                 <td>{loginTypeLabel(user.login_type) ?? '—'}</td>

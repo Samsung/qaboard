@@ -446,10 +446,14 @@ UNAUTHENTICATED_ENDPOINTS = {
   ("auth.py", "signup"), ("auth.py", "auth_post"), ("auth.py", "logout"), ("auth.py", "saml_auth"),
   # the device flow of `qa auth login`: the CLI isn't logged-in yet, approving it needs a session (session_required)
   ("tokens.py", "device_code"), ("tokens.py", "device_token"),
+  # CI jobs exchange their OIDC ID token for a token: the ID token is the credential, checked by backend/ci_trust.py
+  ("ci_trust.py", "token_exchange"),
   # users waiting for an admin say why they need access: it checks their pending session itself
   ("sign_in.py", "my_access_request"),
   # the CLI sends results, checked by ingest_access: anonymous unless ingest.auth is "token" (see "Known issues" in SECURITY.md)
   ("outputs.py", "new_output_webhook"), ("batch.py", "update_batch"), ("commit.py", "api_ci_commit"),
+  # scripts add metrics to runs (run.log_metrics() in the SDK): a token with the ingest scope is always required (ingest_access(require_token=True))
+  ("outputs.py", "add_output_metrics"),
   # the web app and the CLI send usage events (backend/usage.py): the CLI's are unverified without a token, dropped
   # when ingest.auth is "token", like results. Anonymous events have no user, they're counted and never resolved.
   ("usage.py", "usage_events"),
@@ -464,6 +468,8 @@ UNAUTHENTICATED_ENDPOINTS = {
   ("api.py", "post_project_view"),
   # authenticated with the git host's webhook secret (QABOARD_WEBHOOK_SECRET by default)
   ("webhooks.py", "gitlab_webhook"), ("webhooks.py", "github_webhook"), ("webhooks.py", "gitea_webhook"), ("webhooks.py", "bitbucket_webhook"),
+  # a new server's first admin: only while it has no accounts, with the setup token from the server's logs (backend/first_admin.py)
+  ("setup.py", "setup_first_admin"),
 }
 # Decorators that check who is calling
 AUTH_DECORATORS = {"login_required", "session_required", "admin_required", "authenticated"}
@@ -1151,7 +1157,8 @@ def test_git_proxy_avatar_url_template(monkeypatch, tmp_path):
 
 def test_git_proxy_keeps_the_session_cookie_on_its_host(integrations, dummy_app, monkeypatch):
   # e.g. avatars redirect to object storage: the session cookie stays on GitLab
-  monkeypatch.setattr(integrations, "proxy_hosts", {*integrations.proxy_hosts, "storage.example.com"})
+  proxy_hosts = integrations.proxy_hosts()
+  monkeypatch.setattr(integrations, "proxy_hosts", lambda: {*proxy_hosts, "storage.example.com"})
   monkeypatch.setitem(integrations.gitlab_cookies, "gitlab.example.com", "session-cookie")
   get = MagicMock(side_effect=[
     fake_response(302, {"Location": "https://storage.example.com/avatar.png"}),
@@ -1204,8 +1211,9 @@ INTEGRATIONS_PROJECT = {
 def webhook_proxy(monkeypatch, tmp_path):
   """The real backend/api/integrations.py, the project "group/repo", and what the proxy sends"""
   integrations = load_integrations(monkeypatch, tmp_path, {"GITLAB_HOST": "https://gitlab.example.com"})
-  monkeypatch.setattr(integrations, "jenkins_credentials", {"jenkins.example.com": {}})
-  monkeypatch.setattr(integrations, "setting", lambda key: {"auth.allowed_origins": ["https://qa.example.com"]}[key])
+  monkeypatch.setattr(integrations, "jenkins_credentials", lambda: {"jenkins.example.com": {}})
+  real_setting = integrations.setting
+  monkeypatch.setattr(integrations, "setting", lambda key: ["https://qa.example.com"] if key == "auth.allowed_origins" else real_setting(key))
   monkeypatch.delenv("QABOARD_URL", raising=False)
   monkeypatch.setattr(integrations, "Project", FakeProjects({"group/repo": INTEGRATIONS_PROJECT}))
   commit = SimpleNamespace(data={"qatools_config": {"integrations": [{"text": "Branch", "href": "https://branch.example.com"}]}},
@@ -1449,6 +1457,8 @@ UNCHECKED_PROJECT_ROUTES = {
   ("auth.py", "get_current_user"), ("sign_in.py", "my_access_request"), ("tokens.py", "new_token"),
   # users and groups to pick from: it leaves out projects' service accounts, it reads no project
   ("access.py", "directory"),
+  # it reads no project: it says which projects the token it mints is restricted to (the service account's)
+  ("ci_trust.py", "token_exchange"),
   # login_required checks ?project=, the only project it reads
   ("tuning.py", "check_tuning"), ("integrations.py", "proxy_webook"),
 }

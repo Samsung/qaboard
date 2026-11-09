@@ -1,0 +1,135 @@
+---
+id: alternatives
+title: QA-Board compared with other tools
+sidebar_label: Compared with other tools
+description: Where QA-Board fits next to experiment trackers, LLM eval platforms, test dashboards, benchmarking tools and in-house dashboards. What each does best, where QA-Board differs, and when teams use both.
+---
+Choosing how your team tracks quality? This page says where QA-Board fits next to the tools you may be comparing it
+with: what each does best, where QA-Board differs, and when to use both. It describes these tools as of November 2026.
+
+QA-Board answers one question, for every change: **is it better than what we ship, on every input of our test set,
+and if not, where and why?** Other tools answer neighboring questions, and some answer them better than QA-Board does.
+Most teams end up with QA-Board next to one of them, not instead of it.
+
+## The short answer
+| If your main question is... | Reach for | Where QA-Board fits |
+|---|---|---|
+| Is this change better than what we ship, on every input, and why? | **QA-Board** | What it's built for. |
+| Which training run converged best? | An experiment tracker: Weights & Biases, MLflow, TensorBoard | After training: the checkpoint you'd ship, against the model you shipped, input by input. |
+| How does our LLM app behave with real users? | An LLM observability platform: Langfuse, LangSmith, Arize Phoenix | Before release: your eval suite, task by task, on every commit. |
+| Which of our 50,000 tests are flaky? | Test analytics: ReportPortal, Develocity, your CI's test insights | Suites next to your other metrics, tests against the reference's, a gate on deleted tests. |
+| Is this function 3% slower? | Continuous benchmarking: CodSpeed, Bencher, asv | End-to-end: latency distributions under load, flame graph diffs, History. |
+| Is production healthy right now? | Monitoring and APM | Not QA-Board's job: it catches regressions before they ship. |
+
+## What QA-Board does differently
+<Clip id="landing/hero" caption="Metrics, then the outputs behind them: the new denoiser wins PSNR, and the images show the halos it adds." />
+
+1. **The commit is the unit of review.** Every run belongs to a commit, and every commit is compared with the latest
+   results of your reference branch, or with a release saved as a milestone, with no setup. Trackers collect runs that
+   you then tag and filter; QA-Board opens on "what did this change do?".
+2. **The outputs, not only the numbers.** Viewers built for heavy data put the new run next to the reference, in sync:
+   images down to the pixel values your code saved, with deep zoom on 100-megapixel images, videos frame by frame,
+   point clouds and trajectories, flame graph diffs, plots overlaid, test reports, logs, and the HTML your code writes.
+3. **Anything you measure.** Your `run()` returns numbers and writes files. Camera pipelines, models, servers, embedded
+   code, robots, test suites and LLM agents get the same review, on the same server.
+4. **Your compute, your storage, your network.** `qa` runs where your code already runs: a laptop, CI, LSF, Celery,
+   Dask, Jenkins. Outputs aren't copied to a service: the web app reads them where your code wrote them. The server
+   is self-hosted and open source (Apache 2.0), with every feature, including on networks without internet access.
+5. **The whole team, from the browser.** Anyone can rerun tests with other parameters, start a sweep or an automated
+   tuning, and read what it found, without a terminal.
+6. **Built for releases.** Milestones for what shipped, bit-accuracy checks before a hardware handoff, and a quality
+   gate in CI (`qa gate`, experimental). Coding agents run the same tests and meet the same targets as people.
+7. **Proven in production.** Samsung's central quality platform since 2018: about 50 projects and more than 40
+   million runs.
+
+## Experiment trackers, for deep learning {#experiment-trackers}
+**If your team's daily work is training deep networks, keep your experiment tracker: today it's the better tool for
+that job.** Weights & Biases, MLflow, TensorBoard, Comet, ClearML and Aim are built around the training loop, and do
+it very well:
+- Two lines of code log a training script or a notebook, with nothing to configure first.
+- Live training curves, per step, for hundreds of runs at once, with GPU and system metrics.
+- Hyperparameter sweeps that stop bad trials early.
+- Model registries and lineage: which data and code produced which checkpoint.
+- Hosted services (Weights & Biases, Comet, managed MLflow), or open source you run yourself (MLflow, TensorBoard,
+  Aim, ClearML).
+
+QA-Board's place is **after training**, when the question becomes "should we ship this model?":
+- **Against the release, on every slice.** The candidate next to the model you shipped, per slice, class and object
+  size, on every commit: see [model evaluation](/docs/use-cases/detection-eval).
+- **The outputs, at full size.** Trackers log images and media too, and some compare them across runs in tables.
+  QA-Board goes further for heavy outputs: synced deep zoom, image and video differences, the pixel values your code
+  saved, point clouds and trajectories.
+- **The code around the model.** Pre- and post-processing, quantization, the runtime on the device: the whole
+  pipeline is evaluated per commit, like the rest of your product.
+- **Your data stays in place.** Evaluations run on your cluster and read your test set where it is.
+
+| | Experiment trackers | QA-Board, November 2026 |
+|---|---|---|
+| Training curves, logged per step | Their core | Not yet: final metrics per run |
+| Logging from any script or notebook | Two lines of code | Wrap your code with `qa run`, or add metrics to existing runs from Python |
+| Comparing hundreds of runs at once | Their core | Two at a time, with stacked references; a tuning experiment's runs in **Tuning Analysis** |
+| Hosted service | Weights & Biases, Comet, managed MLflow | Self-hosted only |
+| Model registry and lineage | Yes | No: runs link to your registry with badges |
+| Each commit against the release, by default | By convention | Yes |
+| Heavy outputs in sync with the reference: 100 MP images, videos, point clouds, flame graphs | Media panels and tables | Yes, down to pixel values |
+| Starting evaluations from the browser, on your own cluster | Some, with job launchers | Yes: on the server, Celery or LSF |
+| Beyond ML: imaging, performance, robotics, tests | Possible, not the focus | The same review for anything measured |
+| Open source, with every feature | MLflow, TensorBoard, Aim, ClearML | Yes, Apache 2.0 |
+
+Many teams use both: the tracker for training, QA-Board to evaluate what they'd ship, each run linking to its
+training page. See [deep learning and MLOps](/docs/deep-learning). Giving QA-Board the core of an experiment tracker,
+logging from training loops and notebooks, then metrics per step and importers from W&B, MLflow and TensorBoard, is
+on the [roadmap](/docs/roadmap#deep-learning).
+
+## LLM and agent evaluation platforms {#llm-evals}
+Langfuse, LangSmith, Braintrust and Arize Phoenix are built for LLM applications, and do what QA-Board doesn't:
+- traces of every model and tool call, in development and in production;
+- monitoring of production traffic, and eval datasets built from it;
+- libraries of LLM-as-judge scorers, annotation queues for human review, prompt playgrounds.
+
+QA-Board treats your eval suite like any other test set: each task against the reference, transcripts diffed, the
+report your code writes, pass rates and cost per commit, and a gate that fails CI on an unsafe action, whoever wrote
+the change (see [LLM agent evals](/docs/use-cases/agent-evals)). Eval runners like promptfoo or Inspect fit inside
+your `run()`: QA-Board tracks what they score, commit after commit. Use an observability platform for production,
+and QA-Board when the agent is one part of a product whose other parts you already review there.
+
+## Test reports and coverage dashboards {#test-dashboards}
+Allure Report, ReportPortal, Develocity and Codecov follow tests at scale: one test's history over thousands of
+builds, failures grouped by cause, flaky tests across an organization, coverage comments on pull requests.
+
+QA-Board follows each suite as a run: counts, failures, flaky and skipped tests and coverage over time, next to your
+other quality metrics, with each suite's tests compared with the reference's and a gate that catches tests deleted to
+get a green CI (see [tests and coverage](/docs/use-cases/software-quality)). It has no history of a single test case,
+and doesn't comment on pull requests.
+
+## Benchmarking and profiling tools {#benchmarking}
+CodSpeed, Bencher and asv run microbenchmarks on every change, with measurements stable enough to flag a few
+percent, and comment on pull requests. Continuous profilers and APM tools watch production.
+
+QA-Board is for end-to-end performance: latency distributions under the same load profiles on every commit, flame
+graph diffs, CPU per core, History per profile, and tuning frontiers (see [performance](/docs/use-cases/serving-latency)).
+It doesn't decide whether a change is noise: repeat your measurements, and set the gate's thresholds above the noise.
+
+## Notebooks, spreadsheets and in-house dashboards {#in-house}
+A notebook answers a new question in an afternoon, and nothing replaces that. Then results get pasted into a
+spreadsheet, screenshots into a chat thread, and someone maintains a dashboard for one project. QA-Board is what
+those tools become after years of use on dozens of projects: one place, the same for every project, for everyone on
+the team. Notebooks stay useful next to it: `qaboard.runs(url)` gives a script or a notebook the runs a page shows
+(see [runs in scripts](/docs/apis#runs-in-scripts)).
+
+## What QA-Board doesn't do {#non-features}
+- **CI.** Call `qa` from the CI you have: GitHub Actions, GitLab CI, Jenkins (see [CI integration](/docs/ci-integration)).
+- **Production monitoring.** QA-Board compares commits before they ship.
+- **Data versioning.** Keep your datasets in DVC, lakeFS or your own storage: QA-Board reads inputs where they are.
+- **A model registry.** Runs can link to it with badges.
+- **A hosted service.** You run the server: Docker Compose or Kubernetes (see [deploy](/docs/deploy)). Today `qa`
+  writes outputs to a storage that the server mounts, like an NFS share, so it fits best next to your own CI runners
+  and cluster.
+
+## Where next
+<Cards>
+  <Card title="Use cases" to="/docs/use-cases" eyebrow="See it">The regressions QA-Board catches, in images, models, latency, robotics, tests and agents.</Card>
+  <Card title="Deep learning and MLOps" to="/docs/deep-learning" eyebrow="Project integration">Evaluate models next to the training tracker you already use.</Card>
+  <Card title="Coming from another tool" to="/docs/coming-from-other-tools" eyebrow="Project integration">Run the batches you run with MLflow Projects, W&B Launch, ClearML, job arrays or Kubernetes Jobs today.</Card>
+  <Card title="Roadmap" to="/docs/roadmap" eyebrow="What's next">What we're building, with the status of each item.</Card>
+</Cards>

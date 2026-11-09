@@ -12,6 +12,7 @@ from sqlalchemy import text
 
 from backend.models import Output
 from backend.database import db_session
+from backend.fs_utils import owner
 
 
 
@@ -37,7 +38,7 @@ def migrate_output(output):
     return
 
   output.output_dir_override = str(tentative_output_dir)
-  output.data["user"] = tentative_output_dir.owner()
+  output.data["user"] = owner(tentative_output_dir)
   click.secho(f"  ✔ {output.data['user']} {output.output_dir_override}", fg='green')
   # exit(0)
 

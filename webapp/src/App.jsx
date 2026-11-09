@@ -119,8 +119,20 @@ const App = ({ persist = true }) => {
 }
 
 
+// A new server, without accounts: its first admin comes first (login/SetupPage.jsx). Not from the sign-in page, that
+// says so itself, nor from `qa auth login`'s page.
+const setup_exempt = ['/setup', '/login', '/device'];
+
+const SetupRedirect = () => {
+  useEffect(() => { history.replace('/setup'); }, []);
+  return <EmptyLoading/>;
+}
+
 const Routes = () => {
   const { pathname } = useLocation();
+  const { data: config } = useQuery(siteConfigQuery);
+  if (config?.setup_required && !setup_exempt.includes(pathname))
+    return <SetupRedirect/>
   if (pathname === "/")
     return <RootPage/>
   // settings, admin...: they check by themselves who users are

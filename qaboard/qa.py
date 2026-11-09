@@ -37,7 +37,7 @@ from .config import default_batches_files, get_default_database, default_batch_l
 from .config import get_default_configuration, default_input_type
 from .config import commit_id, outputs_commit, artifacts_commit, root_qatools, artifacts_commit_root
 from .config import user, is_ci, on_windows, available_metrics
-from .metrics import split_metrics, run_definitions
+from .metrics import split_metrics, resolve_definitions, write_definitions_file, with_default_direction
 from . import analytics
 
 
@@ -63,7 +63,7 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   # One usage event per command, sent when it ends (qaboard/analytics.py), never from CI
   analytics.start(ctx.invoked_subcommand, share=share, tuning=bool(tuning or tuning_filepath), dryrun=dryrun, offline=offline)
   # Signing in is global, per server: it doesn't need a project
-  if ctx.invoked_subcommand == 'auth':
+  if ctx.invoked_subcommand in ('auth', 'runs'):
     return
   # Local runs save their results in output/: only some commands need the storage
   storage_is_missing = report_missing_storage(storage_needed_by(ctx.invoked_subcommand, share, is_ci))
@@ -361,15 +361,18 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
         **previous_metrics,
         **metrics,
       }
-  # Metrics can come with their definition, e.g. Metric(12.3, suffix=" ms"), see qaboard/metrics.py
+  # The run's metrics are final: save their values, and how to show them, e.g. Metric(12.3, suffix=" ms") or
+  # define_metric, only for the metrics the run returned. See qaboard/metrics.py
   metrics, inline_definitions = split_metrics(metrics)
   with (run_context.output_dir / 'metrics.json').open('w') as f:
       json.dump(metrics, f, sort_keys=True, indent=2, separators=(',', ': '))
   metrics_definitions = {}
   try:
-    metrics_definitions = run_definitions(metrics, inline_definitions, run_context.output_dir, available_metrics)
+    definitions = resolve_definitions(metrics, inline_definitions, run_context.output_dir)
+    write_definitions_file(run_context.output_dir, definitions)
+    metrics_definitions = with_default_direction(definitions, available_metrics)
   except Exception as e:
-    click.secho(f'WARNING: When reading the definitions of the metrics: {e}', fg="yellow", bold=True, err=True)
+    click.secho(f'WARNING: When saving the definitions of the metrics: {e}', fg="yellow", bold=True, err=True)
 
   # To help identify if input files change, we compute and save some metadata.
   manifest_inputs = run_context.obj.get('manifest-inputs', [run_context.input_path])
@@ -512,9 +515,9 @@ def sync(ctx, input_path, output_path):
   if (run_context.output_dir / 'metrics.json').exists():
     with (run_context.output_dir / 'metrics.json').open('r') as f:
       metrics = json.load(f)
-    # those of define_metric() run when the entrypoint is imported
+    # the run saved its definitions in metrics_definitions.json, define_metric() calls run when the entrypoint is imported
     entrypoint_module(config)
-    metrics_definitions = run_definitions(metrics, {}, run_context.output_dir, available_metrics)
+    metrics_definitions = with_default_direction(resolve_definitions(metrics, {}, run_context.output_dir), available_metrics)
     notify_qa_database(**ctx.obj, metrics=metrics, metrics_definitions=metrics_definitions, is_pending=False, is_running=False)
     click.secho(str(metrics), fg='green')      
 
@@ -1199,6 +1202,47 @@ from .auth import auth
 qa.add_command(auth)
 
 
+@qa.command(name='runs')
+@click.argument('url', required=False)
+@click.option('--project', help="The project, when not giving a URL, e.g. group/repo")
+@click.option('--commit', help="A commit id, branch or tag. Default: the latest commit with results, or what the URL says.")
+@click.option('--batch', help="The batch of runs. Default: what the URL says, or 'default'.")
+@click.option('--filter', 'filter_', help="Keep the runs matching a filter, like the web app's filter box.")
+@click.option('--side', type=click.Choice(['new', 'reference']), default='new', show_default=True, help="Which runs of the URL: the compared ones (new), or those of the reference bar (?reference=&batch_ref=).")
+@click.option('--server', help="The QA-Board server, when the URL doesn't say (e.g. served under a path prefix).")
+@click.option('--json', 'as_json', is_flag=True, help="Print the runs as JSON: input, configs, params, metrics, output_dir...")
+@click.option('--include-deleted', is_flag=True, help="Also list runs whose files were deleted.")
+@click.option('--include-hidden', is_flag=True, help="Also list runs the web app doesn't show with the batch, like qa optimize's iterations.")
+def runs_command(url, project, commit, batch, filter_, side, server, as_json, include_deleted, include_hidden):
+  """
+  Lists the runs a web app page shows, from its URL: their folders, one per line, or everything with --json.
+
+      qa runs "https://qaboard/my/project/commit/abc123?batch=ci&filter=night"
+
+  It doesn't run anything, and works outside a project (give `runs` first: `qa runs ...`).
+  From Python: `qaboard.runs(url)`.
+  """
+  from .results import runs, ResultsError
+  if not url and not project:
+    raise click.UsageError("Give the address of a commit's page in the web app, or --project (and --commit, --batch).")
+  try:
+    found = runs(url, project=project, commit=commit, batch=batch, filter=filter_, side=side, server=server,
+                 include_deleted=include_deleted, include_hidden=include_hidden)
+  except (ResultsError, ValueError) as e:
+    click.secho(f"ERROR: {e}", fg='red', bold=True, err=True)
+    sys.exit(1)
+  if as_json:
+    print(json.dumps([r.to_dict() for r in found], indent=2))
+  else:
+    if not found:
+      click.secho(f"No run matches ({found.side.project}, commit {found.commit or found.side.commit or found.side.branch}, batch {found.side.batch!r}, filter {found.side.filter!r}).", fg='yellow', err=True)
+    for run in found:
+      if run.output_dir:
+        print(run.output_dir)
+      else:
+        click.secho(f"<no folder> {run}", fg='yellow', err=True)
+
+
 @qa.command()
 @click.pass_context
 def init(ctx):
@@ -1275,6 +1319,9 @@ def init_sentry():
 
 
 def main():
+  # not on `import qaboard`: scripts using the package shouldn't wait for PyPI
+  from .check_for_updates import check_for_updates
+  check_for_updates()
   init_sentry()
   from .compat import ensure_cli_backward_compatibility
   ensure_cli_backward_compatibility()

@@ -129,6 +129,11 @@ services:
 
 After each successful daily backup (`YYYY-MM-DD.dump`), the daily backups older than `QABOARD_BACKUP_RETENTION_DAYS` days (default 14, `0` keeps them all) are deleted, but never the newest 3. Other dumps, like `before-upgrade.dump`, are never deleted: remove them yourself. Before upgrading from an older version, move the old daily backups you want to keep to another name or folder.
 
+The backups include the settings of **Admin → Settings**, but their secrets (tokens, passwords) are encrypted with a
+key that is never in the database: keep a copy of `QABOARD_ENCRYPTION_KEY` in your secret store, or of the key the
+server generated (`qaboard-admin encryption show-key`). A backup restored without it has everything but those
+secrets ([the encryption key](/docs/backend-admin/settings#secrets-and-the-encryption-key)).
+
 To restore a backup (the backend is stopped meanwhile):
 ```bash
 deployments/deploy.py deployments/mysite/production.env restore-db 2026-10-01.dump   # or "latest"

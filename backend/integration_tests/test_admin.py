@@ -507,12 +507,20 @@ def test_settings_list(admin):
   settings = settings_by_key(admin)
   assert set(settings) == {
     'auth.require_sign_in', 'auth.local_signup', 'auth.allowed_origins', 'ingest.auth',
-    'tokens.default_lifetime_days', 'tokens.max_lifetime_days', 'tokens.cli_idle_expiry_days', 'audit.retention_days',
-    'auth.access_policy', 'auth.allowed_email_domains', 'auth.access_request_webhook', 'auth.sso_auto_redirect',
+    'tokens.default_lifetime_days', 'tokens.max_lifetime_days', 'tokens.cli_idle_expiry_days', 'tokens.ci_lifetime_minutes', 'audit.retention_days',
+    'auth.access_policy', 'auth.allowed_email_domains', 'auth.access_request_webhook', 'auth.provider_order', 'auth.sso_auto_redirect',
     'sessions.idle_days', 'sessions.max_days', 'projects.default_visibility', 'projects.signed_in_role',
     'storage.exports_root', 'storage.others_visible_to', 'jobs.failure_emails', 'jobs.failure_email_to',
     'jenkins.anonymous_jobs', 'analytics.enabled',
+    'auth.login_hint', 'git.hosts', 'git.webhook_secret', 'git.gitlab_web_logins', 'jenkins.servers', 'jenkins.build_token',
+    'email.smtp_host', 'email.smtp_security', 'email.smtp_port', 'email.smtp_user', 'email.smtp_password', 'email.smtp_timeout',
+    'email.from', 'email.reply_to', 'email.domain', 'email.timezone', 'web.support_url', 'web.docs_root', 'web.avatar_url',
+    'web.cli_requirements', 'web.webcde_installer', 'web.proxy_hosts', 'analytics.posthog_api_key', 'analytics.posthog_host',
+    'storage.image_cache_gb', 'metrics.skip_aggregation',
   }
+  groups = {g["id"] for g in admin.get('/api/v1/admin/settings').get_json()["groups"]}
+  assert {s["group"] for s in settings.values()} <= groups
+  assert all(s["label"] != s["key"] for s in settings.values())
   assert all(s["source"] == "default" and s["editable"] and s["description"] for s in settings.values())
   assert settings["auth.require_sign_in"]["value"] is False and settings["auth.require_sign_in"]["env"] == "QABOARD_LOGIN_REQUIRED"
   assert settings["ingest.auth"]["value"] == "off" and settings["ingest.auth"]["choices"] == ["off", "warn", "token"]
@@ -607,8 +615,9 @@ def test_settings_from_env_are_read_only(admin, monkeypatch):
   response = admin.post('/api/v1/admin/settings', json={"ingest.auth": "off"})
   assert response.status_code == 400
   assert "$QABOARD_INGEST_AUTH" in response.get_json()["error"]
+  # null deletes what's saved here, if anything: the environment still wins
   response = admin.post('/api/v1/admin/settings', json={"ingest.auth": None})
-  assert response.status_code == 400
+  assert response.status_code == 200
   from backend.models import Setting
   assert Setting.query.count() == 0
 
@@ -673,8 +682,8 @@ def test_overview(people, make_client):
   assert checklist["secret_key"]["ok"] is True
   assert checklist["legacy_tokens"]["ok"] is True
   assert checklist["local_signup"]["ok"] is True
-  # the test server has no QABOARD_WEBHOOK_SECRET
-  assert checklist["webhook_secret"]["ok"] is False and "QABOARD_WEBHOOK_SECRET" in checklist["webhook_secret"]["detail"]
+  # the test server has no webhook secret
+  assert checklist["webhook_secret"]["ok"] is False and "Admin → Settings → Git hosts" in checklist["webhook_secret"]["detail"]
 
 
 # ---------------------------------------------------------------------------
@@ -721,8 +730,12 @@ def test_usage_events_and_dashboard(people, make_client, logged_in):
   assert mine["total"] == 3 and mine["by_project"] == [{"project_id": "group/repo", "count": 3}]
   assert alice.get('/api/v1/admin/usage/summary').status_code == 403
   overview = admin.get('/api/v1/admin/overview').get_json()
-  assert {item["id"] for item in overview["value_checklist"]} >= {"email_notifications", "single_sign_on", "sentry", "ci_only_projects", "web_only_users"}
+  assert {item["id"] for item in overview["value_checklist"]} >= {"email_notifications", "single_sign_on", "sentry"}
   assert overview["counts"]["active_30d"] == 3
+  # the usage-based items come apart: the overview doesn't wait for them
+  usage_items = admin.get('/api/v1/admin/overview/usage').get_json()["items"]
+  assert {item["id"] for item in usage_items} == {"ci_only_projects", "web_only_users", "tuning_products"}
+  assert alice.get('/api/v1/admin/overview/usage').status_code == 403
 
 
 def test_usage_can_be_turned_off(admin, make_client):

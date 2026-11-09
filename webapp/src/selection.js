@@ -446,7 +446,8 @@ export const selection_from_url = (match, search) => {
     hide_ci: query.hide_ci === '1' || query.hide_ci === 'true',
     // the project page lists batches or commits, null for the default
     list_view: ['batches', 'commits'].includes(query.view) ? query.view : null,
-    sort_order: Number(query.sort_order ?? -1),
+    // 1: ascending, -1: descending, undefined: the default for what runs are sorted by (see selectors/sorting.js)
+    sort_order: [1, -1].includes(Number(query.sort_order)) ? Number(query.sort_order) : undefined,
     sort_by: query.sort_by || undefined, // undefined: we use the default metric
     selected_views,
     selected_metrics: as_list(query.selected_metrics),
@@ -468,7 +469,6 @@ const selection_defaults = {
   filter_batch_new: '',
   filter_batch_ref: '',
   search: '',
-  sort_order: -1,
   ref_index: 0,
   label_new: '',
   label_ref: '',

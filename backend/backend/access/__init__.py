@@ -198,8 +198,9 @@ def subject_of(subject_type: str, subject_id: int) -> dict:
   from ..models import User, Group
   if subject_type == 'user':
     user = User.query.filter(User.id == subject_id).one_or_none()
+    from ..sign_in.profiles import avatar_url
     return {"type": "user", "id": subject_id, "name": user.user_name if user else f"#{subject_id}", "full_name": (user.full_name if user else None),
-            "kind": user.kind if user else None}
+            "kind": user.kind if user else None, "avatar_url": avatar_url(user)}
   group = Group.query.filter(Group.id == subject_id).one_or_none()
   return {"type": "group", "id": subject_id, "name": group.name if group else f"#{subject_id}"}
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from backend.models import Output
 from backend.database import db_session
-from backend.fs_utils import as_user, rmtree
+from backend.fs_utils import as_user, owner_ids, rmtree
 
 
 
@@ -23,7 +23,7 @@ def delete(output_dir: Path):
     for path in output_dir.iterdir():
         if path.name == output_dir_file:
             continue
-        owner = path.owner()
+        owner = owner_ids(path)
         def _delete(path):
             if path.is_dir():
                 shutil.rmtree(path)
@@ -33,7 +33,7 @@ def delete(output_dir: Path):
             _delete(path)
         except:
             as_user(owner, _delete, path)
-    as_user((output_dir / output_dir_file).owner(), lambda p: p.unlink(), output_dir / output_dir_file)
+    as_user(owner_ids(output_dir / output_dir_file), lambda p: p.unlink(), output_dir / output_dir_file)
     # it causes the glob to fail...
     # rm_empty_parents(path)
 

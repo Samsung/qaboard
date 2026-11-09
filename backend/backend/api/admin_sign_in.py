@@ -7,7 +7,7 @@ from backend import app, db_session
 from ..audit import audit, diff
 from ..tokens import utcnow
 from ..sign_in import providers as providers_lib, doctor, sessions
-from ..sign_in.crypto import can_encrypt, encrypt, NoEncryptionKey
+from ..sign_in.crypto import can_encrypt, encrypt, NoEncryptionKey, KeyMismatch
 from ..sign_in.access import serialize as serialize_request
 from .auth import admin_required
 from .sign_in import callback_url
@@ -22,11 +22,42 @@ CLAIMS = tuple(providers_lib.DEFAULT_CLAIMS)
 @app.route('/api/v1/admin/sign-in/', methods=['GET'])
 @admin_required
 def admin_sign_in():
+  return sign_in_answer()
+
+
+def sign_in_answer():
   return jsonify({
     "providers": [{**p.describe(), **({"redirect_uri": callback_url(p)} if p.type == 'oidc' else {})} for p in providers_lib.all_providers()],
     "can_encrypt": can_encrypt(),
     "public_url": public_url(),
   })
+
+
+@app.route('/api/v1/admin/sign-in/order', methods=['POST'])
+@app.route('/api/v1/admin/sign-in/order/', methods=['POST'])
+@admin_required
+def admin_sign_in_order():
+  """{order: [provider ids]}: the sign-in page's order, the environment's providers too (setting auth.provider_order)"""
+  from .. import settings as settings_lib
+  body = request.get_json(silent=True) or {}
+  order = body.get('order')
+  known = [p.id for p in providers_lib.all_providers()]
+  if not isinstance(order, list) or not all(isinstance(i, str) for i in order) or len(set(order)) != len(order):
+    return jsonify({"error": "order is the list of the providers' ids, e.g. [\"sso\", \"ldap\", \"local\"]"}), 400
+  unknown = [i for i in order if i not in known]
+  if unknown:
+    return jsonify({"error": f"Unknown sign-in methods: {', '.join(unknown)}"}), 400
+  if settings_lib.source('auth.provider_order') == 'env':
+    return jsonify({"error": "The order is set by $QABOARD_SIGN_IN_ORDER: change it in the server's environment."}), 400
+  before = settings_lib.setting('auth.provider_order')
+  # the ones not listed keep their place at the end
+  order = order + [i for i in known if i not in order]
+  after = settings_lib.save('auth.provider_order', order, by=g.actor.user)
+  if before != after:
+    audit('setting.update', 'setting', 'auth.provider_order', 'auth.provider_order', changes={"value": {"from": before, "to": after}})
+  db_session.commit()
+  settings_lib.invalidate_cache()
+  return sign_in_answer()
 
 
 def provider_fields(body: dict, existing=None):
@@ -54,9 +85,11 @@ def provider_fields(body: dict, existing=None):
     if body['match_users'] not in MATCH_USERS:
       return None, f"match_users is one of {', '.join(MATCH_USERS)}"
     config['match_users'] = body['match_users']
-  for key in ('client_secret_env', 'redirect_uri'):
+  for key in ('client_secret_env', 'redirect_uri', 'picture_url'):
     if key in body:
       config[key] = (body[key] or '').strip() or None
+  if config.get('picture_url') and not config['picture_url'].startswith(('https://', 'http://')):
+    return None, "The picture URL is an URL, e.g. https://graph.microsoft.com/v1.0/me/photo/$value"
   if 'recommended' in body:
     config['recommended'] = bool(body['recommended'])
   if 'refresh_groups' in body:
@@ -76,7 +109,7 @@ def provider_fields(body: dict, existing=None):
   if body.get('client_secret'):
     try:
       fields['secret_encrypted'] = encrypt(body['client_secret'])
-    except NoEncryptionKey as e:
+    except (NoEncryptionKey, KeyMismatch) as e:
       return None, str(e)
   return fields, None
 

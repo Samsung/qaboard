@@ -1,7 +1,8 @@
 // Runs' settings as tags: one per setting of their configuration, then of their tuning parameters.
 // Runs shown together only show what's specific to them: what all runs share is behind a "··· N shared" tag.
 // Compared to a reference run, settings are marked as added (+), removed (−) or changed (old → new),
-// and hovering any tag explains it.
+// and hovering any tag explains it. Long settings are shortened with "…": clicking one shows them all in full,
+// a preference users keep (see useShortenLongSettings).
 import { createContext, useContext, useState } from "react";
 import styled from "styled-components";
 import {
@@ -25,6 +26,8 @@ import { run_tokens, reference_tokens, diff_tokens, count_changes, string_change
 export const SharedConfigurationContext = createContext(null);
 export const useSharedConfiguration = () => useContext(SharedConfigurationContext);
 export const useHideSharedSettings = () => usePrefsStore(state => state.hide_shared_settings);
+// Some users pass whole commands as settings, and want to read them: they can turn shortening off
+export const useShortenLongSettings = () => usePrefsStore(state => state.shorten_long_settings !== false);
 
 
 // The settings in the format of tuning's search spaces
@@ -52,9 +55,16 @@ export const qa_options = (configurations, tuning) => [
 
 const has_tuning = tuning => !!tuning && Object.keys(tuning).length > 0;
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-const shorten = (text, n = 60) => text.length > n ? `${text.slice(0, n - 1)}…` : text;
-const shorten_start = (text, n = 24) => text.length > n ? `…${text.slice(-(n - 4))}` : text;
-const shorten_end = (text, n = 24) => text.length > n ? `${text.slice(0, n - 4)}…` : text;
+// How much of long settings we show (see can_shorten)
+const max_text_length = 60;
+// a changed string shows this much around the change, and a changed value a little less: its key comes first
+const max_context_length = 24;
+const max_value_context_length = 16;
+// a changed value that short shows in full: old → new
+const max_change_length = 24;
+const shorten = (text, n = max_text_length) => text.length > n ? `${text.slice(0, n - 1)}…` : text;
+const shorten_start = (text, n = max_context_length) => text.length > n ? `…${text.slice(-(n - 4))}` : text;
+const shorten_end = (text, n = max_context_length) => text.length > n ? `${text.slice(0, n - 4)}…` : text;
 export const setting_text = token => token.kind === 'param' ? `${token.key}: ${token.display}` : token.text;
 // "isp.nr.strength": 2 as {"isp": {"nr": {"strength": 2}}}, "layers[1].type" as {"layers": [null, {"type": ...}]}
 const setting_json = token => {
@@ -112,26 +122,41 @@ const Key = ({ token }) => {
   </>;
 };
 
+// If SettingText shortens a setting when it's not asked to show it in full: the same rules
+export const can_shorten = (d, elide = 0) => {
+  const { op, token, ref } = d;
+  if (token.source === 'tuning') return false;
+  const cut = ({ prefix, before, after, suffix }, context) => prefix.length > context || suffix.length > context
+    || before.length > max_text_length || after.length > max_text_length;
+  if (op === 'changed' && token.kind === 'param')
+    return Math.max(ref.display.length, token.display.length) > max_change_length
+      && cut(string_change(ref.display, token.display, value_separator), max_value_context_length);
+  if (op === 'changed') return cut(string_change(ref.display, token.display), max_context_length);
+  return elide > 0 || (token.kind === 'param' ? token.display.length > max_value_length : token.text.length > max_text_length);
+};
+
 // A setting, or how it changed. `elide`: hide that many characters of a string, e.g. a long folder all runs share
 // `value_only`: a changed setting's value, without its key
+// `full`: never shortened, else they are unless users turned it off
 export const SettingText = ({ d, full: full_asked = false, elide = 0, value_only = false }) => {
   const { op, token, ref } = d;
+  const shorten_long = useShortenLongSettings();
   // when people tune, the tuning parameters are what they look at: their values are never cut short
-  const full = full_asked || token.source === 'tuning';
+  const full = full_asked || !shorten_long || token.source === 'tuning';
   const short = full ? (x => x) : shorten;
   // long values, e.g. lists: only where they changed, [1, 0.98, 0.95 → 0.9]
   const key = !value_only && token.kind === 'param' && <Key token={token} />;
-  if (op === 'changed' && token.kind === 'param' && Math.max(ref.display.length, token.display.length) <= 24)
+  if (op === 'changed' && token.kind === 'param' && Math.max(ref.display.length, token.display.length) <= max_change_length)
     return <>{key}<Was>{ref.display}</Was><Arrow /><Now>{token.display}</Now></>;
   if (op === 'changed' && token.kind === 'param') {
     const { prefix, before, after, suffix } = string_change(ref.display, token.display, value_separator);
     return <>
       {key}
-      {full ? prefix : shorten_start(prefix, 16)}
+      {full ? prefix : shorten_start(prefix, max_value_context_length)}
       {before && <Was>{short(before)}</Was>}
       {before && after && <Arrow />}
       {after && <Now>{short(after)}</Now>}
-      {full ? suffix : shorten_end(suffix, 16)}
+      {full ? suffix : shorten_end(suffix, max_value_context_length)}
     </>;
   }
   if (op === 'changed') {
@@ -156,16 +181,35 @@ const op_style = {
   changed: { intent: Intent.WARNING },
 };
 
+// Clicking a shortened setting shows all the settings in full, everywhere, and clicking again shortens them
+const useShortenToggle = (d, elide = 0) => {
+  const shortened = useShortenLongSettings();
+  const toggle = usePrefsStore(state => state.toggleShortenLongSettings);
+  const shortenable = can_shorten(d, elide);
+  const onClick = event => {
+    // users selecting the text to copy it
+    const selection = window.getSelection?.();
+    if (selection && !selection.isCollapsed && event.currentTarget.contains(selection.anchorNode)) return;
+    // e.g. table rows that open the run
+    event.stopPropagation();
+    toggle();
+  };
+  return { shortened, shortenable, toggle, onClick: shortenable ? onClick : undefined };
+};
+const toggle_text = shortened => shortened ? 'Show long settings in full' : 'Shorten long settings';
+
 // What hovering a setting tells
 const Explanation = ({ d, shared, elided }) => {
   const { op, token, ref } = d;
+  const shortened = useShortenLongSettings();
   const status = {
     added: [Intent.SUCCESS, 'plus', 'Added', "The reference run doesn't have this setting."],
     removed: [Intent.DANGER, 'minus', 'Removed', 'Only the reference run has this setting.'],
     changed: [Intent.WARNING, 'exchange', 'Changed', 'The reference run has another value.'],
   }[op] ?? (shared ? [Intent.NONE, 'people', 'Shared', `All ${shared.runs} runs have this setting.`] : null);
   const tuning = token.source === 'tuning';
-  const long = elided || token.display.length > max_value_length || (ref?.display.length ?? 0) > max_value_length;
+  // shortened: the full text
+  const long = shortened && (elided || token.display.length > max_value_length || (ref?.display.length ?? 0) > max_value_length);
   if (!status && !long && !tuning) return null;
   return <div style={{ padding: '6px 8px', maxWidth: 420 }}>
     {status && <p style={{ margin: 0 }}>
@@ -215,11 +259,18 @@ const CopyAllItems = ({ configurations, tuning }) => {
   </>;
 };
 
-const CopyMenu = ({ d, configurations, tuning, shared, elided }) => {
+const CopyMenu = ({ d, configurations, tuning, shared, elided, shortened, shortenable, toggle }) => {
   const { token } = d;
   const explanation = <Explanation d={d} shared={shared} elided={elided} />;
   return <Menu>
     {explanation}
+    {shortenable && <MenuItem
+      icon={shortened ? 'maximize' : 'minimize'}
+      text={toggle_text(shortened)}
+      label="or click it"
+      title="In all runs. Settings → Preferences remembers it."
+      onClick={toggle}
+    />}
     <MenuDivider title={d.op === 'removed' ? "This setting (the reference's)" : "This setting"} />
     <MenuItem icon="duplicate" text="Copy" label={<code>{shorten(setting_text(token), 30)}</code>} onClick={() => copyWithToast(setting_text(token))} />
     {token.kind === 'param' && <MenuItem icon="duplicate" text="Copy as JSON" onClick={() => copyWithToast(setting_json(token))} />}
@@ -230,32 +281,65 @@ const CopyMenu = ({ d, configurations, tuning, shared, elided }) => {
 
 
 const wrapper_style = { marginRight: '5px', marginBottom: '3px', fontWeight: 400, maxWidth: '100%' };
+// settings shown in full wrap, even long paths or commands without spaces
+const full_style = { ...wrapper_style, overflowWrap: 'anywhere' };
+const tag_style = shortened => shortened ? wrapper_style : full_style;
+
+// A setting, without the hover menu
+export const SettingTag = ({ d, style, ...props }) => {
+  const { shortened, shortenable, onClick } = useShortenToggle(d);
+  return <Tag
+    round
+    minimal
+    multiline={!shortened || d.token.source === 'tuning'}
+    {...op_style[d.op]}
+    interactive={shortenable}
+    onClick={onClick}
+    title={shortenable ? `Click: ${toggle_text(shortened).toLowerCase()}` : undefined}
+    style={{ ...tag_style(shortened), ...style }}
+    {...props}
+  >
+    <SettingText d={d} />
+  </Tag>;
+};
 
 const Setting = ({ d, configurations, tuning, intent, inverted, interactive, muted, shared }) => {
   const { icon, intent: op_intent } = op_style[d.op] ?? {};
   const elide = d.token.kind === 'string' ? shared?.elided?.get(d.token.text) ?? 0 : 0;
+  const shown_elide = d.op === 'changed' ? 0 : elide;
+  const { shortened, shortenable, toggle, onClick } = useShortenToggle(d, shown_elide);
   // their values are never cut short (see SettingText): long ones wrap
   const is_tuning = d.token.source === 'tuning';
   const Component = muted && !op_intent ? SharedTag : Tag;
   const tag = <Component
     round
-    multiline={is_tuning}
+    multiline={is_tuning || !shortened}
     minimal={!inverted}
     interactive={interactive}
+    onClick={interactive ? onClick : undefined}
     intent={op_intent ?? (muted ? Intent.NONE : intent)}
     icon={icon}
-    style={wrapper_style}
+    style={tag_style(shortened)}
     // the browser's search (Ctrl+F) finds it, and the hover menu explains
     aria-label={d.op === 'same' ? undefined : `${d.op}: ${setting_text(d.token)}`}
   >
-    <SettingText d={d} elide={d.op === 'changed' ? 0 : elide} />
+    <SettingText d={d} elide={shown_elide} />
   </Component>;
   if (!interactive) return tag;
   return <PopoverNext
     placement="bottom"
     hoverCloseDelay={200}
     interactionKind="hover"
-    content={<CopyMenu d={d} configurations={configurations} tuning={tuning} shared={muted ? shared : null} elided={elide > 0} />}
+    content={<CopyMenu
+      d={d}
+      configurations={configurations}
+      tuning={tuning}
+      shared={muted ? shared : null}
+      elided={elide > 0}
+      shortened={shortened}
+      shortenable={shortenable}
+      toggle={toggle}
+    />}
   >
     {tag}
   </PopoverNext>;
@@ -288,14 +372,12 @@ const GapTag = styled(Tag)`
 export const SharedSettings = ({ tokens, limit }) => {
   const shown = limit ? tokens.slice(0, limit) : tokens;
   return <>
-    {shown.map(token => <Tag key={token.full} round minimal multiline={token.source === 'tuning'} style={wrapper_style}>
-      <SettingText d={{ op: 'same', token }} />
-    </Tag>)}
+    {shown.map(token => <SettingTag key={token.full} d={{ op: 'same', token }} />)}
   </>;
 };
 
 const ChangesInAllRuns = ({ changes }) => <>
-  {changes.map((d, i) => <Tag key={i} round minimal {...op_style[d.op]} style={wrapper_style}><SettingText d={d} /></Tag>)}
+  {changes.map((d, i) => <SettingTag key={i} d={d} />)}
 </>;
 
 // What we hide in a run: hover to see it, click to show it

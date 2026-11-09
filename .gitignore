@@ -533,3 +533,6 @@ users_restrict.yml
 
 # The CLI tests glob *.jpg under the sample project: the inputs are real tracked fixtures
 !/qaboard/sample_project/cli_tests/**/*.jpg
+
+# git worktrees of Claude Code agents
+.claude/worktrees/

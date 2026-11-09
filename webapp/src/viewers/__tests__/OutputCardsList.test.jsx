@@ -9,6 +9,7 @@ import { MemoryRouter } from 'react-router';
 import { renderWithProviders } from '../../test-utils';
 
 import { OutputCardsList } from '../OutputCardsList';
+import { usePrefsStore } from '../../stores/prefs';
 
 
 const make_output = (id, extra) => ({
@@ -74,6 +75,32 @@ describe('OutputCardsList', () => {
     act(() => mockAllIsIntersecting(true));
     expect(screen.getAllByLabelText('Full screen')).toHaveLength(2);
     expect(cards(container)).toHaveLength(2);
+  });
+
+  it('has compact cards: one line per run, the configuration as text, the same menu as the logs', async () => {
+    usePrefsStore.setState({ outputCardDensity: 'compact' });
+    try {
+      const outputs = { 1: make_output(1, { configurations: ['base'], extra_parameters: { lr: 0.1 }, metrics: { compute_time: 125 } }) };
+      const { container } = render_list({ ...props, new_batch: { outputs, filtered: { outputs: [1] } }, ref_batch: { outputs: {} } });
+      act(() => mockAllIsIntersecting(true));
+      expect(container.querySelector('.bp6-card.output-card')).toHaveClass('compact');
+      expect(screen.getByText('lr=0.1 · base')).toBeInTheDocument();
+      expect(screen.getByTitle('Compute time')).toHaveTextContent('2min5s');
+      fireEvent.click(screen.getByLabelText('Run actions'));
+      expect(await screen.findByText('Input path')).toBeInTheDocument();
+      expect(screen.getByText('Redo')).toBeInTheDocument();
+    } finally {
+      act(() => usePrefsStore.setState({ outputCardDensity: 'comfortable' }));
+    }
+  });
+
+  it('shows the run info in the cards\' menus too, like in the logs', async () => {
+    render_list({ ...props, ...batches(1) });
+    act(() => mockAllIsIntersecting(true));
+    expect(screen.getByText('input_0').closest('.bp6-heading')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Run actions'));
+    expect(await screen.findByText('Input path')).toBeInTheDocument();
+    expect(screen.getByText('History')).toBeInTheDocument();
   });
 
   it('renders the cards of big batches incrementally, as users scroll', async () => {

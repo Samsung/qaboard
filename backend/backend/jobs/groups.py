@@ -11,6 +11,7 @@ Updates users' groups, daily (the worker schedules it), and after admins change 
 from ..database import db_session
 from ..models import User, UserIdentity, Group, GroupRule
 from ..tokens import utcnow
+from ..sign_in import profiles
 from . import params as p
 from .report import Reporter
 
@@ -63,13 +64,16 @@ def sync_ldap(report: Reporter) -> None:
       user.full_name = info['full_name']
     if info.get('email'):
       user.email = info['email']
+    profiles.apply(user, info.get('profile'), info.get('picture'), 'ldap')
   report.add(ldap_accounts=len(users) - len(missing), ldap_unknown=len(missing))
   db_session.commit()
 
 
 def sync_oidc(report: Reporter) -> None:
   from ..sign_in import providers as providers_lib, oidc, sessions
-  from ..sign_in.identities import store_refresh_token, DROPPED_CLAIMS
+  from ..sign_in.identities import store_refresh_token, kept_claims
+  from ..sign_in.profiles import from_oidc
+  from ..sign_in.accounts import refresh_name
   from ..sign_in.crypto import can_encrypt, decrypt
   providers = [provider for provider in providers_lib.all_providers() if provider.type == 'oidc' and provider.enabled and provider.config.get('refresh_groups')]
   if not providers:
@@ -100,8 +104,11 @@ def sync_oidc(report: Reporter) -> None:
         db_session.rollback()
         continue
       report.add(sso_refreshed=1)
-      identity.claims = {k: v for k, v in claims.items() if k not in DROPPED_CLAIMS}
+      identity.claims = kept_claims(claims)
       identity.claims_refreshed_at = utcnow()
+      # their title, department... (pictures are refreshed at sign-ins: they need the access token)
+      from_oidc(identity.user, provider, claims, pictures=False)
+      refresh_name(identity.user, provider, claims)
       store_refresh_token(identity, refresh_token)
       db_session.commit()
 

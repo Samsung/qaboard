@@ -27,6 +27,8 @@ import { BatchesEditor } from "./components/tuning/BatchesEditor";
 import TuningExploration from "./components/tuning/TuningExploration";
 import { useViewerControls, controls_changes, controls_defaults, config_visualizations } from "./viewers/controls";
 import { ExportPlugin } from "./plugins/ExportPlugin";
+import { LegacyExportPlugin } from "./plugins/LegacyExportPlugin";
+import { ScriptPlugin } from "./plugins/ScriptPlugin";
 import { humanFileSize, file_options as file_options_list, bit_accuracy_url_defaults } from "./viewers/bit_accuracy/utils";
 import { project_web_url } from "./utils";
 import { blob_url } from "./git";
@@ -39,6 +41,8 @@ import { SharedConfigurationContext } from "./configurations/ConfigurationsTags"
 import { ConfigurationOverview } from "./configurations/ConfigurationOverview";
 import { shared_configuration, reference_pairs, changes_in_all_runs } from "./configurations/tokens";
 import { useCommitTab } from "./pageTitle";
+import { RunOriginsContext, useRunOriginsValue } from "./components/runNames";
+import { OutputCardDensityControl } from "./components/DensityControl";
 
 
 // Every view of the commit: its title (and maybe a few muted details) on one row above its content
@@ -171,7 +175,9 @@ const CiCommitResults = () => {
 
   const update = attribute => e => {
     const value = (e?.target && e.target.value !== undefined) ? e.target.value : e;
-    updateSelected({ [attribute]: value }, { replace: attribute.startsWith('filter') || attribute.startsWith('sort') })
+    // sorting by something else starts in its own default order, e.g. names A to Z but metrics highest first
+    const changes = attribute === 'sort_by' ? { sort_by: value, sort_order: undefined } : { [attribute]: value };
+    updateSelected(changes, { replace: attribute.startsWith('filter') || attribute.startsWith('sort') })
   }
 
   // The metrics shown in tables
@@ -196,6 +202,22 @@ const CiCommitResults = () => {
     ? path => blob_url(project_data, new_commit.id, path)
     : undefined;
   const export_plugin = <ExportPlugin
+    project={new_project}
+    ref_project={ref_project}
+    config={config}
+    new_commit_id={new_commit?.id ?? new_commit_id}
+    ref_commit_id={ref_commit?.id ?? ref_commit_id}
+    selected_batch_new={selected_batch_new}
+    selected_batch_ref={selected_batch_ref}
+    filter_batch_new={filter_batch_new}
+    filter_batch_ref={filter_batch_ref}
+    batch_dir_url={new_batch.batch_dir_url}
+    new_batch={new_batch}
+    ref_batch={ref_batch}
+    labels={comparison.labels}
+  />;
+  // the previous export, while people move to the new one
+  const legacy_export_plugin = <LegacyExportPlugin
     project={new_project}
     ref_project={ref_project}
     config={config}
@@ -232,6 +254,8 @@ const CiCommitResults = () => {
     () => shared_settings && { ...shared_settings, changes_in_all_runs: all_runs_changes },
     [shared_settings, all_runs_changes],
   );
+  // Runs' names start with their batch and database when the runs shown come from several
+  const run_origins = useRunOriginsValue(new_batch.filtered.outputs.map(id => new_batch.outputs[id]));
   const docs_link = <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/visualizations`}>Read the docs</a>;
 
   // Until the commit loads, if it doesn't exist, or if it has no results yet, views of its results would look empty
@@ -286,11 +310,26 @@ const CiCommitResults = () => {
     .map(id => new_batch.outputs[id]?.data?.storage ?? 0)
     .reduce((running_total, storage) => running_total + storage, 0);
   const nb_runs = new_batch.filtered.outputs.length;
+  // the runs shown, from a script: the same selection as the export
+  const script_plugin = <ScriptPlugin
+    project={new_project}
+    commit_id={new_commit?.id ?? new_commit_id}
+    batch={selected_batch_new}
+    filter={filter_batch_new}
+    ref_project={ref_project}
+    ref_commit_id={ref_commit?.id ?? ref_commit_id}
+    batch_ref={selected_batch_ref}
+    filter_ref={filter_batch_ref}
+  />;
+  const runs_actions = <>{export_plugin}{legacy_export_plugin}{script_plugin}</>;
+  // the cards can be compact, like the logs
+  const cards_actions = <><OutputCardDensityControl/>{runs_actions}</>;
   // the commits' fixed headers
   const header_height = commit_header_height({ selected_views, references: comparison.references });
 
   return (
     <SharedConfigurationContext value={shared}>
+    <RunOriginsContext value={run_origins}>
     <Container style={{ marginTop: 0, paddingTop: header_height + header_gap }}>
 
       {(!new_commit || !ref_commit) && show_ref_navbar && <Messages>
@@ -302,7 +341,7 @@ const CiCommitResults = () => {
             <Messages key="filters">
               {warning_messages}
               {/* the selected batch's runs are unrelated to editing batch definitions, and would push the editor down */}
-              {!selected_views.includes('groups') && <BatchStatusMessages project={new_project} commit={new_commit} batch={new_batch} />}
+              {!selected_views.includes('groups') && <BatchStatusMessages project={new_project} commit={new_commit} batch={new_batch} filter={filter_batch_new} />}
               {shows_runs && <ConfigurationOverview new_batch={new_batch} />}
             </Messages>
 
@@ -418,7 +457,7 @@ const CiCommitResults = () => {
              </ViewSection>}
 
             {views.includes('output-list') && <ViewSection>
-              <ViewTitle title="Visualizations" actions={visualizations.length > 0 && export_plugin}/>
+              <ViewTitle title="Visualizations" actions={visualizations.length > 0 ? cards_actions : script_plugin}/>
               {visualizations.length === 0
                 ? <NonIdealState
                     icon="heatmap"
@@ -430,7 +469,7 @@ const CiCommitResults = () => {
             </ViewSection>}
 
             {views.includes('bit-accuracy') && <ViewSection>
-                <ViewTitle title="Output Files" actions={export_plugin}>
+                <ViewTitle title="Output Files" actions={cards_actions}>
                   <p className={Classes.TEXT_MUTED}>Storage used by the {nb_runs} run{nb_runs === 1 ? '' : 's'} shown: {humanFileSize(storage, true)}</p>
                 </ViewTitle>
                 <OutputCardsList type='bit_accuracy' {...output_cards_props} onShowFileOptions={showFileOptions}/>
@@ -466,7 +505,7 @@ const CiCommitResults = () => {
           new_batch={new_batch}
           available_metrics={available_metrics}
           sort_by={selected.sort_by}
-          default_sort_by={metrics.default_metric}
+          default_sort_by={comparison.sorting?.default_by ?? metrics.default_metric}
           sort_order={selected.sort_order}
           onToggle={toggle}
           onUpdateControls={updateControls}
@@ -491,6 +530,7 @@ const CiCommitResults = () => {
         />
       )}
     </Container>
+    </RunOriginsContext>
     </SharedConfigurationContext>
   );
 }

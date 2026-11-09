@@ -25,7 +25,7 @@ export const loginUrl = (next = `${window.location.pathname}${window.location.se
 };
 
 
-// {providers: [{id, type, kind: "password"|"redirect", name, recommended, start_url}], password_form, local_signup, auto_redirect}
+// {providers: [{id, type, kind: "password"|"redirect", name, recommended, start_url}], password_form, local_signup, auto_redirect, setup_required}
 // `start_url` comes back to `next` once signed in. `local`: also the password form, for break-glass admins.
 export const providersQuery = ({ next = null, local = false } = {}) => queryOptions({
   queryKey: ['auth', 'providers', { next, local }],
@@ -43,17 +43,16 @@ export const providersQuery = ({ next = null, local = false } = {}) => queryOpti
       password_form: data?.password_form ?? true,
       local_signup: !!data?.local_signup,
       auto_redirect: !!data?.auto_redirect,
+      // a new server: its first account is the admin's, on /setup
+      setup_required: !!data?.setup_required,
     };
   },
   staleTime: 60 * 1000,
 });
 
-// The buttons, the recommended ones first (else in the server's order)
+// The buttons, in the server's order: admins choose it (Admin → Sign-in)
 export const redirectProviders = providers => providers
-  .filter(provider => provider.kind === 'redirect' && provider.start_url)
-  .map((provider, index) => ({ provider, index }))
-  .sort((a, b) => (!!b.provider.recommended - !!a.provider.recommended) || a.index - b.index)
-  .map(({ provider }) => provider);
+  .filter(provider => provider.kind === 'redirect' && provider.start_url);
 
 
 // Full-page navigations (to the identity provider), in one place so that tests can follow them.
@@ -147,4 +146,35 @@ export const unlinkIdentity = async (queryClient, id) => {
 export const linkUrl = provider => {
   const start = provider.start_url || `/api/v1/auth/oidc/${encodeURIComponent(provider.id)}/start`;
   return `${start}${start.includes('?') ? '&' : '?'}link=1`;
+};
+
+
+// A new server, without accounts: the setup page creates its first admin (backend/first_admin.py).
+// => {open, default_user_name, min_password_length}
+export const setupQuery = queryOptions({
+  queryKey: ['setup'],
+  queryFn: async ({ signal }) => (await http.get('/api/v1/setup', { signal })).data,
+  staleTime: 0,
+});
+
+// {token, user_name, password, full_name, email} => the new admin, signed in
+export const setUp = async (queryClient, body) => {
+  const { data } = await http.post('/api/v1/setup', body);
+  const { user_id, user_name, full_name, email } = data ?? {};
+  setUser(queryClient, { ...logged_out_user, is_logged: true, user_name, email, login_type: 'LOCAL', full_name, user_id, is_admin: true });
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: userQuery.queryKey }),
+    queryClient.invalidateQueries({ queryKey: ['config'] }),
+    queryClient.invalidateQueries({ queryKey: ['setup'] }),
+    queryClient.invalidateQueries({ queryKey: ['auth', 'providers'] }),
+  ]);
+  return data;
+};
+
+// Local accounts: {current_password, new_password} => {signed_out: the other browsers}
+export const changePassword = async (queryClient, body) => {
+  const { data } = await http.post('/api/v1/user/password', body);
+  queryClient.invalidateQueries({ queryKey: ['sessions'] });
+  queryClient.invalidateQueries({ queryKey: ['audit'] });
+  return data;
 };

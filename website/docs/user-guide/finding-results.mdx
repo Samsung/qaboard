@@ -321,10 +321,10 @@ and the **?** icon in the box recalls the syntax.
 | `-gradient` | **not** matching "gradient" |
 | `facade\|foliage` | matching either word |
 | `denoise_strength:1.6` | with the tuning parameter `denoise_strength` equal to 1.6 (also `denoise_strength=1.6`) |
-| `fail` or `crash` | that failed |
+| `status:failed` | that failed. `-status:failed` keeps the others. (`fail` or `crash` work too, but also match inputs named like that) |
 | `pending` or `running` | that are not finished |
 | `status:success` | that succeeded (not failed, pending or running). `-status:success` keeps the others |
-| `id:1234` | with this run id |
+| `id:1234` | with this run id (not 12345) |
 
 <Shot
   id="commit/output-filter"

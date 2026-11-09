@@ -93,7 +93,7 @@ shots:
     kind: tape
     project: image-quality
     shows: "`qa check-bit-accuracy` on the hw-model platform fails and lists the files that changed; on a commit that didn't touch the fixed-point code, it passes."
-    pages: [bit-accuracy, use-cases/image-quality, recipes/bit-accuracy-handoff]
+    pages: [bit-accuracy, recipes/bit-accuracy-handoff]
     needs: fxp-round-half-even (fails), a filler commit (passes)
     phase: 2
     status: captured
@@ -225,7 +225,7 @@ shots:
     kind: still
     project: detection-eval
     shows: 'The int8 runs against the fp32 release, per slice, with Model size added: model size -72% green everywhere, mAP -35% and AP small -34% orange on indoor, AP small -7% on small-objects and -15% outdoor; warehouse gets better.'
-    pages: [get-started/tutorial, use-cases/detection-eval, user-guide/metrics]
+    pages: [get-started/tutorial, user-guide/metrics, use-cases/detection-eval, use-cases/overview]
     needs: int8-minmax
     phase: 2
     status: captured
@@ -233,7 +233,7 @@ shots:
     kind: clip
     project: detection-eval
     shows: 'From the Summary (int8 runs against the fp32 release) to the Metrics Diff, then sorting by mAP, ascending, in the View options brings the worst slice, indoor (-35%), to the top.'
-    pages: [user-guide/metrics, landing]
+    pages: [user-guide/metrics, landing, use-cases/detection-eval]
     needs: int8-minmax
     phase: 2
     status: captured
@@ -327,7 +327,7 @@ shots:
     kind: still
     project: image-quality
     shows: Run cards with their main metrics and changes, the output images new and reference side by side.
-    pages: [running-your-code, use-cases/image-quality, user-guide/commit-page, user-guide/first-review, visualizations]
+    pages: [running-your-code, user-guide/commit-page, user-guide/first-review, visualizations]
     needs: merge-bilateral vs isp-4-1
     phase: 1
     status: published
@@ -361,7 +361,7 @@ shots:
     kind: still
     project: image-quality
     shows: "New and reference on each side of their difference, its maximum raised: halos stand out around edges, from yellow through orange and purple to black, the flat wall fades to white."
-    pages: [user-guide/first-review, user-guide/image-viewer]
+    pages: [user-guide/first-review, user-guide/image-viewer, use-cases/overview]
     features: [image-diff]
     needs: merge-bilateral vs isp-4-1
     phase: 1
@@ -395,7 +395,7 @@ shots:
     kind: still
     project: image-quality
     shows: The runs of the merge-bilateral commit ranked by how much their images differ from the release's, from the photos with halos to the identical ones.
-    pages: [user-guide/first-review, user-guide/image-viewer, landing]
+    pages: [user-guide/first-review, user-guide/image-viewer, landing, use-cases/image-quality]
     features: [auto-roi]
     phase: 1
     status: published
@@ -411,7 +411,7 @@ shots:
     kind: still
     project: image-quality
     shows: 'A blind test in progress on the leaves over the facade''s window: the two images side by side, labelled A and B in gray, a pixel hovered (its values for A and B above them), and the toolbar''s Reveal button. Which is new is left to the app''s coin, pinned by the spec so that every capture shows the same order.'
-    pages: [user-guide/image-viewer]
+    pages: [user-guide/image-viewer, use-cases/image-quality]
     features: [blind-test]
     needs: merge-bilateral vs isp-4-1
     phase: 3
@@ -474,7 +474,7 @@ shots:
     kind: still
     project: image-quality
     shows: 'The slanted edge chart at 800%, the pointer on the near-vertical edge (x 366, y 408), crosshairs on both images; the analysis panel''s Row / column on Row and column under the pointer: Row 408 crosses the edge, Column 366 runs along it, new solid and isp-4.1 dashed, the new image higher on the bright side and lower on the dark side (the overshoot), with markers at the pointer.'
-    pages: [user-guide/image-viewer]
+    pages: [user-guide/image-viewer, use-cases/image-quality]
     features: [image-analysis]
     needs: merge-bilateral vs isp-4-1
     phase: 3
@@ -595,7 +595,7 @@ shots:
     kind: still
     project: serving-latency
     shows: A differential flame graph where the response rendering under the shared cache's lock is new (orange), the skipped model work blue.
-    pages: [use-cases/serving-latency, user-guide/other-viewers, viewers, landing, recipes/flame-graphs, tutorials/perf-regression]
+    pages: [user-guide/other-viewers, viewers, landing, recipes/flame-graphs, tutorials/perf-regression, use-cases/overview, use-cases/serving-latency]
     features: [flame-diff]
     needs: cache-shared vs batch-overflow-fix
     phase: 2
@@ -652,7 +652,7 @@ shots:
   - id: commit/export
     kind: still
     project: image-quality
-    shows: Export gathers `*.png` from the filtered runs; the export directory's paths are shown.
+    shows: The Export dialog previews the names of the `*.png` files of the filtered runs and their reference, and the new folder they go to.
     pages: [user-guide/sharing, recipes/export]
     phase: 2
     status: captured
@@ -701,7 +701,7 @@ shots:
     kind: still
     project: robotics-3d
     shows: The figure8-fast trajectory against the ground truth and the reference's, per axis and in 3D, in the sides' colors (new blue, reference purple, ground truth green); a false loop closure pulls it away.
-    pages: [use-cases/robotics-3d, user-guide/other-viewers, viewers]
+    pages: [user-guide/other-viewers, viewers, use-cases/overview, use-cases/robotics-3d]
     features: [trajectory-6dof]
     needs: merge-loop-closure vs fw-26-08
     phase: 3
@@ -710,7 +710,7 @@ shots:
     kind: still
     project: agent-evals
     shows: Two transcripts diffed; the new one reboots a robot without asking for confirmation.
-    pages: [use-cases/agent-evals, user-guide/other-viewers, landing]
+    pages: [user-guide/other-viewers, landing, use-cases/agent-evals, use-cases/overview]
     features: [text-diff]
     needs: short-tools vs merge-verbose-prompt
     phase: 3
@@ -719,7 +719,7 @@ shots:
     kind: still
     project: software-quality
     shows: "The test viewer on the missions suite of the coding agent's change against main, filtered on the removed tests: 0 failed, none fixed, 12 removed, 2 newly skipped."
-    pages: [use-cases/software-quality, viewers, user-guide/other-viewers]
+    pages: [viewers, user-guide/other-viewers, use-cases/overview, use-cases/software-quality]
     features: [junit-viewer]
     needs: green-ci vs closest-robot
     phase: 3
@@ -755,7 +755,7 @@ shots:
     kind: still
     project: serving-latency
     shows: 'The crashed run open in the Logs view (Open failed runs), its log searched for "panicked": the panic highlighted with its source line, then the backtrace.'
-    pages: [user-guide/logs]
+    pages: [user-guide/logs, use-cases/serving-latency]
     needs: batch-overflow
     phase: 2
     status: captured
@@ -961,7 +961,7 @@ shots:
     kind: clip
     project: image-quality
     shows: "A 16 s loop: the Metrics Diff (PSNR and edge overshoot up), then synced zoom on the facade, the difference between the images and its maximum, and back to the Metrics Diff."
-    pages: [introduction, user-guide/first-review, user-guide/overview, landing]
+    pages: [introduction, user-guide/first-review, user-guide/overview, landing, alternatives, use-cases/image-quality]
     features: [image-synced-zoom, image-diff]
     needs: merge-bilateral vs isp-4-1
     phase: 2

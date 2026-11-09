@@ -32,7 +32,36 @@ Admins see **Admin** in the user menu, at `/admin`:
 
 <Shot id="admin/users" />
 
-**The first admins** come from the environment: `QABOARD_ADMINS` lists user names (exactly, case included), or
+## The first admin {#the-first-admin}
+**On a new server**, with no accounts yet, the web app opens **Set up QA-Board**: it creates the first admin, a
+local account. It asks for a **setup token**, that the backend prints in its logs when it starts, so that only the
+people who run the server can set it up, not whoever reaches it first:
+
+```bash
+docker compose logs backend | grep -A1 "setup token"      # Kubernetes: kubectl logs deploy/<release>-backend
+# or ask the backend
+docker compose exec backend qaboard-admin setup-token
+```
+
+Until the setup is done, nobody can sign up for a local account: the first account is the admin's. Once it's done,
+the admin adds people in **Admin → Users** (see [Local accounts](#local-accounts)), connects
+[single sign-on or LDAP](/docs/backend-admin/sign-in), and the **Overview** says what to look at next. The setup page
+closes as soon as the server has an account: from then on, admins come from the ways below.
+
+<details>
+<summary>Automated installs: create the first admin from the environment</summary>
+
+| Environment variable | What it does |
+|---|---|
+| `QABOARD_ADMIN_PASSWORD` | When the server starts without admins, creates a local admin with this password (at least 8 characters). Put it in `.env` or in the chart's secret. Later changes don't change the password: change it in the web app. |
+| `QABOARD_ADMIN_PASSWORD_FILE` | The same, read from a file, e.g. a Docker or Kubernetes secret. |
+| `QABOARD_ADMIN_USER` | The admin's user name, by default `admin`. If a user with this name exists and isn't an admin, nothing happens: it never takes over an account. |
+| `QABOARD_SETUP_TOKEN` | Your own setup token. By default, it's derived from `SECRET_KEY`: all the replicas agree on it. |
+| `QABOARD_SETUP` | `off` turns the setup page off: admins then come from `QABOARD_ADMINS` or `qaboard-admin create-admin`. |
+
+</details>
+
+**Admins from the environment**: `QABOARD_ADMINS` lists user names (exactly, case included), or
 verified emails: those of LDAP/SAML accounts, or of single sign-on accounts whose identity provider says the email is
 verified (`email_verified`), comma-separated. Local accounts' emails aren't verified, and local sign-up refuses the
 user names listed. With docker compose, set it in your site overlay, not in `.env` (see [where each setting goes](/docs/deploy#4-write-the-env-file-and-the-secrets)). They're admins whatever the
@@ -48,32 +77,10 @@ docker compose exec backend qaboard-admin revoke-tokens bob   # e.g. after a lea
 ```
 
 ## Settings
-Settings are stored in the database and changed in **Admin → Settings**. An environment variable, when set, wins:
-the panel then shows the setting as "set by the environment", and you change it where you deploy.
-
-<Shot id="admin/settings" />
-
-| Setting | Environment variable | Default | What it does |
-|---|---|---|---|
-| `auth.require_sign_in` | `QABOARD_LOGIN_REQUIRED` | `false` | Anonymous users can't see anything (see [Blocking anonymous users](#blocking-anonymous-users)) |
-| `auth.local_signup` | `QABOARD_DISABLE_SIGNUP` (`true` turns it off) | on with `LOCAL`, off with LDAP or SAML | Anyone can create a local account with a password |
-| `ingest.auth` | `QABOARD_INGEST_AUTH` | `off` | How results sent by `qa` are authenticated (see [Results sent by qa](#results-sent-by-qa)) |
-| `jenkins.anonymous_jobs` | `QABOARD_JENKINS_ANONYMOUS_JOBS` (comma-separated) | none | Jenkins jobs anyone can start without a token, for now (see [Jenkins jobs started without a token](#jenkins-jobs-started-without-a-token)) |
-| `auth.allowed_origins` | `QABOARD_ALLOWED_ORIGINS` (comma-separated) | none | Other websites allowed to make changes with users' cookies |
-| `tokens.default_lifetime_days` | | `90` | The default lifetime of the tokens users create |
-| `tokens.max_lifetime_days` | | none | The longest lifetime users may choose. Empty: tokens may never expire |
-| `tokens.cli_idle_expiry_days` | | `180` | Tokens created by `qa auth login` expire after this many days without use |
-| `audit.retention_days` | | `730` | `qaboard-admin purge-audit` deletes older audit events |
-| `auth.access_policy` | `QABOARD_ACCESS_POLICY` | `open` | Who gets an account: `open`, `domains`, `approval` (see [Decide who gets an account](/docs/backend-admin/sign-in#decide-who-gets-an-account)) |
-| `auth.allowed_email_domains` | `QABOARD_ALLOWED_EMAIL_DOMAINS` | none | With `domains`: the email domains whose users get an account right away |
-| `auth.access_request_webhook` | `QABOARD_ACCESS_REQUEST_WEBHOOK` | none | A Slack, Teams or Mattermost incoming webhook told when users wait for an admin |
-| `auth.sso_auto_redirect` | `QABOARD_SSO_AUTO_REDIRECT` | `false` | The sign-in page goes straight to the only single sign-on, when signing in is required |
-| `sessions.idle_days` | | `30` | Browser sessions end after this many days without activity |
-| `sessions.max_days` | | `180` | Browser sessions end after this many days in any case (365 at most) |
-| `projects.default_visibility` | `QABOARD_DEFAULT_VISIBILITY` | `public` | The visibility of projects whose owners didn't choose (see [Project access and roles](/docs/backend-admin/project-access)) |
-| `projects.signed_in_role` | `QABOARD_SIGNED_IN_ROLE` | `developer` | The role of signed-in users on public and internal projects: `viewer` or `developer` |
-
-Empty environment variables count as unset.
+Settings are changed in **Admin → Settings**, and an environment variable, when set, wins: see
+[Settings and secrets](/docs/backend-admin/settings), with [every setting](/docs/backend-admin/settings#every-setting).
+The settings about users: `auth.require_sign_in`, `auth.local_signup`, `auth.access_policy`, `ingest.auth`, the
+lifetime of tokens (`tokens.*`) and sessions (`sessions.*`), `projects.default_visibility` and `projects.signed_in_role`.
 
 ## Authentication Providers
 `QABOARD_LOGIN_TYPE` chooses the password accounts, or SAML:
@@ -92,15 +99,24 @@ user name and password form for `LOCAL` and `LDAP`.
   caption="With local or LDAP accounts, users sign in with their user name and password."
 />
 
-**Local accounts** are created:
+### Local accounts {#local-accounts}
+**Local accounts** have a password that QA-Board keeps (hashed). They're created:
+- by admins, in **Admin → Users → New user**: a user name, an optional name and email, and whether they're an admin.
+  QA-Board generates the password (you copy it once, and give it to them), or you choose one. They change it in
+  **Settings → Sign-in methods**. To create accounts only this way, turn `auth.local_signup` off.
 - by users, with **Create one** on the sign-in page, when `auth.local_signup` is on (the default with `LOCAL`),
-- by admins, with `qaboard-admin create-admin <user_name> --password` in the backend's container (it also makes them
+- from the server, with `qaboard-admin create-admin <user_name> --password` in the backend's container (it also makes them
   admins),
 - by scripts, with the sign-up endpoint, when `auth.local_signup` is on:
 
   ```bash
   curl -d "user_name=<user_name>&password=<password>&email=<user_email>&full_name=<user_full_name>" -X POST '<qaboard_url>/api/v1/user/signup/'
   ```
+
+**Forgotten passwords**: open the user in **Admin → Users** and **Reset password**. QA-Board generates a new one for
+you to give them, and signs them out of every browser; their tokens keep working (revoke them apart if the account
+leaked). Accounts from LDAP, SAML or single sign-on have no password in QA-Board: they change it where your company
+manages it.
 
 ### Environment variables
 :::note
@@ -136,11 +152,15 @@ The sign-in policy is set via environment variables such as `QABOARD_LOGIN_*`, `
 | `QABOARD_LDAP_GROUP_ATTRIBUTES`   | _memberOf_    | The attributes [group rules](/docs/backend-admin/project-access#groups) can read, separated by commas, e.g. `memberOf,department` |
 | `QABOARD_LDAP_NESTED_GROUPS`   | _false_    | Active Directory: `true` adds the groups of users' groups to `memberOf` (`LDAP_MATCHING_RULE_IN_CHAIN`) |
 | `QABOARD_LDAP_GROUP_BASE`   | `QABOARD_LDAP_USER_BASE`    | Where to search the nested groups |
+| `QABOARD_LDAP_ATTRIBUTE_PICTURE`   | _thumbnailPhoto,jpegPhoto_ | Users' pictures (see [Pictures and profiles](/docs/backend-admin/sign-in#pictures-and-profiles)) |
+| `QABOARD_LDAP_ATTRIBUTE_TITLE`, `_DEPARTMENT`, `_ORGANIZATION` | _title_, _department_, _company,o_ | Shown in users' profiles |
 | `QABOARD_SAML_DIR`   | _none_  | The path to the directory with the SAML configuration files, as in the [python-saml](https://github.com/SAML-Toolkits/python-saml) docs |
 | `QABOARD_SAML_ATTRIBUTE_EMAIL`         | _none_  |                                            |
 | `QABOARD_SAML_ATTRIBUTE_COMMON_NAME`         | _none_  |                                            |
 | `QABOARD_SAML_ATTRIBUTE_USER_NAME`   | _none_    |                                            |
 | `QABOARD_SAML_ATTRIBUTE_ID`   | _none_    |                                            |
+| `QABOARD_SAML_ATTRIBUTE_PICTURE`   | _picture,thumbnailPhoto_ | Users' pictures: an URL, a `data:` URI or base64 |
+| `QABOARD_SAML_ATTRIBUTE_TITLE`, `_DEPARTMENT`, `_ORGANIZATION` | _title,jobtitle_, _department_, _organization,company_ | Shown in users' profiles |
 
 ## Blocking anonymous users
 To block anonymous users, who are not signed in, from accessing any content on QA-Board, turn on `auth.require_sign_in`
@@ -183,9 +203,21 @@ only browser sessions create them. Service accounts can't sign in, are never adm
 batches' origins. Deleting one revokes its tokens and removes its roles; its name stays taken, so runs keep saying who
 sent them. Like any signed-in user, they get `projects.signed_in_role` on internal and public projects.
 
+**Trusted CI jobs**: a service account can trust GitHub Actions or GitLab CI jobs of some repositories (and branches,
+environments), that then get its tokens without a stored secret (see
+[Upload from CI without a secret](/docs/ci-integration#ci-without-secrets)). `qa` sends the job's OIDC ID token to
+`POST /api/v1/auth/token-exchange`, rate-limited by nginx like sign-ins. QA-Board checks it with the keys of the CI's
+issuer, and only fetches the issuers a service account trusts. Projects' owners can trust GitHub, GitLab.com and the
+git hosts in your server's configuration (`QABOARD_GIT_HOSTS`, a self-hosted GitLab or GitHub Enterprise); only admins
+add other issuers, since the server fetches their keys. The server must reach
+`token.actions.githubusercontent.com` for GitHub, your GitLab for GitLab CI (through `HTTPS_PROXY` if needed). The
+tokens look like `qab_tmp_…`, work `tokens.ci_lifetime_minutes`, and are audited as `token.exchange`.
+
 The API: `GET/POST /api/v1/service-accounts` (`?project=group/repo` for a project's), `POST` and `DELETE
 /api/v1/service-accounts/<id>` (its `role`), and `POST /api/v1/service-accounts/<id>/tokens`, `DELETE
-/api/v1/service-accounts/<id>/tokens/<token id>`.
+/api/v1/service-accounts/<id>/tokens/<token id>`. Trusted CI jobs: `POST /api/v1/service-accounts/<id>/ci-trust`
+(`{provider: github|gitlab|other, issuer?, repository, ref?, environment?, conditions?}`), `DELETE
+/api/v1/service-accounts/<id>/ci-trust/<policy id>`.
 
 ## Results sent by qa
 Until now, anyone who could reach the server could send results. `ingest.auth` (or `QABOARD_INGEST_AUTH`) decides:
@@ -203,7 +235,7 @@ aren't saved: `qa` says why and what to do, and in CI, `qa run` and `qa batch` f
 The server starts Jenkins builds with its own Jenkins credentials (`JENKINS_AUTH`). Callers without a token, like
 `qa`'s Windows runner or scripts that call `/api/v1/jenkins/build/trigger`, can only start the jobs listed in a
 project's *qaboard.yaml* (`runners.jenkins.build_url`, or a Jenkins integration). Other jobs need a token with the
-`act` scope (or `ingest`, with the project), see [Authentication](/docs/apis#authentication).
+`act` scope (or `ingest`, with the project), see [Starting runs and batches](/docs/http-api#act).
 
 While scripts move to tokens, `jenkins.anonymous_jobs` (or `QABOARD_JENKINS_ANONYMOUS_JOBS=ALGO,nightly`) lets anyone
 start the jobs whose path (`/job/...`) contains one of the texts, case-sensitive (`*` allows every job on the
@@ -373,7 +405,7 @@ Set `QABOARD_FILES_UNIX_PERMISSIONS` to the folders where it applies, separated 
 - ACLs are ignored.
 
 ### Users' accounts
-The file browser, storage scans, exports and jobs show who owns each file, and Unix permissions need users' groups. The backend reads the accounts in its own `/etc/passwd` and `/etc/group`. If you have complete files, mount them.
+The file browser, storage scans, exports and jobs show who owns each file, Unix permissions need users' groups, and exports of copies, like deletions of others' files, are made as the files' users. The backend reads the accounts in its own `/etc/passwd` and `/etc/group`. If you have complete files, mount them.
 
 With a directory service (LDAP, SSSD, NIS...), you usually don't: the backend can instead **run a command that prints the accounts**, in the `/etc/passwd` format, and another one for the groups (`/etc/group` format). For instance, through ssh to a host that sees your users:
 

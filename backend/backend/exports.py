@@ -3,8 +3,9 @@ Exports ("Export to a shared folder"): folders of links or copies of runs' files
 don't account for them, and they can be big, so we track them (models/Export.py): users see and delete theirs in
 "Storage usage", and storage scans find the ones we didn't track.
 
-- With `storage.exports_root` (a setting), exports all go to <root>/<user>/<project>/<date>-<id>, instead of a share/
-  folder next to the commit's runs: easy to find, and not lost among the runs.
+- Each export goes to a new folder, <date>-<name>-<id> (the name is optional, users give it when they export).
+  With `storage.exports_root` (a setting), in <root>/<user>/<project>/, else in a share/ folder next to the commit's
+  runs. In <root>, they're easy to find, and not lost among the runs. Users can also choose a folder.
 - "link" exports are hard links: they share their space with the runs' files. Deleting the runs doesn't free it while
   the export exists, and deleting the export doesn't free it while the runs exist (`linked_bytes`).
 - Scans track the exports they find, e.g. made before QA-Board tracked them (`found`). Deleting an export deletes its
@@ -26,10 +27,11 @@ from . import accounts
 
 EXPORTS_KEPT = 20  # the latest exports into a folder, in Export.data
 # files that exports write next to the runs' files: scans recognize exports by them
-MARKERS = ('0.qa.url', '0.qa.html', '0.common.json')
-# the folders QA-Board makes for exports: share/<8 hex> next to a commit's runs, <date>-<8 hex> in `storage.exports_root`
-own_folder = re.compile(r'/share/[0-9a-f]{8}$')
-own_folder_in_root = re.compile(r'/\d{4}-\d{2}-\d{2}-[0-9a-f]{8}$')
+MARKERS = ('0.qa.url', '0.qa.html', '0.export.json', '0.export.csv', '0.common.json')
+# the folders QA-Board makes for exports: share/<date>-<name>-<8 hex> next to a commit's runs (share/<8 hex> before),
+# <date>-<name>-<8 hex> in `storage.exports_root`. The name is optional.
+own_folder = re.compile(r'/share/(?:\d{4}-\d{2}-\d{2}-(?:[A-Za-z0-9._-]+-)?)?[0-9a-f]{8}$')
+own_folder_in_root = re.compile(r'/\d{4}-\d{2}-\d{2}-(?:[A-Za-z0-9._-]+-)?[0-9a-f]{8}$')
 
 
 def utcnow():
@@ -40,13 +42,19 @@ def safe(name: str) -> str:
   return re.sub(r'[^A-Za-z0-9._-]+', '_', name or 'unknown').strip('._') or 'unknown'
 
 
-def default_dir(user_name: str, project_id: str, key: str) -> Optional[Path]:
-  """Where an export goes, with `storage.exports_root`. None: as before, next to the runs"""
+def folder_name(name: str, key: str) -> str:
+  """<date>-<name>-<id>: the export's own folder. The name is what users called the export, if they did"""
+  name = re.sub(r'[^A-Za-z0-9._-]+', '-', name or '').strip('._-')[:60].strip('._-')
+  return f"{utcnow():%Y-%m-%d}-{name + '-' if name else ''}{key[:8]}"
+
+
+def default_dir(user_name: str, project_id: str, key: str, name: str = '') -> Optional[Path]:
+  """Where an export goes, with `storage.exports_root`, <date>-<name>-<id>. None: as before, next to the runs"""
   root = setting('storage.exports_root')
   if not root:
     return None
   project = '/'.join(safe(part) for part in project_id.split('/'))
-  return Path(root) / safe(user_name) / project / f"{utcnow():%Y-%m-%d}-{key[:8]}"
+  return Path(root) / safe(user_name) / project / folder_name(name, key)
 
 
 def owner_name(uid: int) -> str:
@@ -70,8 +78,9 @@ def measure_export(export: Export) -> Export:
   return export
 
 
-def record(path, project_id=None, hexsha=None, batch_label=None, user_name=None, export_type=None, filter=None, nb_files=None) -> Export:
-  """After exporting: the folder is tracked, with its size. The caller commits."""
+def record(path, project_id=None, hexsha=None, batch_label=None, user_name=None, export_type=None, filter=None, nb_files=None,
+           name=None, details=None) -> Export:
+  """After exporting: the folder is tracked, with its size. `name`: what users called the export. The caller commits."""
   path = str(path)
   export = Export.query.filter(Export.path == path).one_or_none()
   now = utcnow()
@@ -82,8 +91,10 @@ def record(path, project_id=None, hexsha=None, batch_label=None, user_name=None,
   export.deleted_at, export.deleted_by = None, None
   history = list((export.data or {}).get('exports') or [])
   history.append({"at": now.isoformat() + 'Z', "by": user_name, "project": project_id, "commit": hexsha, "batch": batch_label,
-                  "type": export_type, "filter": filter, "files": nb_files})
+                  "type": export_type, "filter": filter, "files": nb_files, **(details or {})})
   export.data = {**(export.data or {}), "exports": history[-EXPORTS_KEPT:]}
+  if name:
+    export.data = {**export.data, "name": name}
   try:
     measure_export(export)
   except Exception as e:
@@ -153,6 +164,7 @@ def serialize(export: Export) -> dict:
   return {
     "id": export.id,
     "path": export.path,
+    "name": (export.data or {}).get('name'),
     "project_id": export.project_id,
     "hexsha": export.hexsha,
     "batch_label": export.batch_label,

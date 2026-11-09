@@ -1,6 +1,6 @@
 // Admin → Usage: who uses QA-Board, how much, and for what, from the usage events the web app and the `qa` CLI send
 // (docs/design/usage-analytics.md). The period and the project filter are in the URL (?period=30d&project=).
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { AnchorButton, Button, ButtonGroup, Card, Classes, Colors, HTMLTable, InputGroup, Intent, Tag, Tooltip } from "@blueprintjs/core";
@@ -8,10 +8,12 @@ import { DateTime } from "luxon";
 import styled from "styled-components";
 
 import { history, Link } from "../router";
+import Plot, { hoverPlot, unhoverPlot } from "../components/Plot";
 import { Loading } from "../settings/states";
 import { Time } from "../settings/format";
 import { formatNumber } from "../activity/format";
 import { project_url } from "../selection";
+import { useIsDark } from "../theme";
 import { AdminError } from "./states";
 import { usageSummaryQuery, usageTimeseriesQuery, usageUsersQuery, usageGroupsQuery, usageProjectsQuery, usageCsvUrl } from "./api";
 
@@ -116,86 +118,148 @@ const Summary = ({ counts, previous }) => tiles.map(({ section, items }) => <sec
 </section>);
 
 
-// Charts: plain SVG, the data is small (a point per day or week)
-const chart_colors = [Colors.BLUE3, Colors.VIOLET3, Colors.GREEN3, Colors.ORANGE3];
-const width = 600, height = 160, pad = { left: 36, right: 8, top: 8, bottom: 22 };
+// Charts: Plotly, for the hover label (the date and every series' value there), the legend that hides series, and
+// axes that pick their own ticks. It is downloaded with the first chart (components/Plot) and follows the theme.
+// The colors are in a fixed order, told apart by color-blind readers too: a series keeps its color in every chart.
+export const chart_colors = [Colors.BLUE3, Colors.ORANGE3, Colors.TURQUOISE3];
 
-const bucket_label = (start, bucket) => {
-  const date = DateTime.fromISO(start);
-  return date.isValid ? (bucket === 'week' ? `w/c ${date.toFormat('MMM d')}` : date.toFormat('MMM d')) : start;
+const activity_series = [
+  { key: 'web_users', label: 'Users in the web app', color: chart_colors[0] },
+  { key: 'cli_users', label: 'Users with the CLI', color: chart_colors[1] },
+  { key: 'commits_viewed', label: 'Commits looked at', color: chart_colors[2] },
+];
+const work_series = [
+  { key: 'batches_started', label: 'Batches started', color: chart_colors[0] },
+  { key: 'cli_commands', label: 'qa commands', color: chart_colors[1] },
+];
+
+// Buckets are UTC days, or weeks that start on Mondays
+export const bucket_label = (start, bucket) => {
+  const date = DateTime.fromISO(start, { zone: 'utc' });
+  if (!date.isValid) return start;
+  return bucket === 'week' ? `Week of ${date.toFormat('MMM d, yyyy')}` : date.toFormat('ccc, MMM d, yyyy');
 };
 
-const Legend = ({ series }) => <div className={Classes.TEXT_MUTED} style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 12, marginTop: 4 }}>
-  {series.map(s => <span key={s.key} style={{ whiteSpace: 'nowrap' }}>
-    <span aria-hidden="true" style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: s.color, marginRight: 4 }}/>{s.label}
-  </span>)}
-</div>;
-
-const Axes = ({ buckets, max, bucket }) => {
-  // small maxima and short periods repeat ticks
-  const ticks = [...new Set([0, Math.round(max / 2), max])];
-  const x_indices = [...new Set(buckets.length <= 1 ? [0] : [0, Math.floor((buckets.length - 1) / 2), buckets.length - 1])];
-  const x = i => pad.left + (buckets.length <= 1 ? 0 : i * (width - pad.left - pad.right) / (buckets.length - 1));
-  return <g className={Classes.TEXT_MUTED} fontSize={11} fill="currentColor">
-    {ticks.map(t => <text key={t} x={pad.left - 4} y={pad.top + (height - pad.top - pad.bottom) * (1 - t / max) + 4} textAnchor="end">{formatNumber(t)}</text>)}
-    {x_indices.map(i => <text key={i} x={x(i)} y={height - 6} textAnchor={i === 0 ? 'start' : i === buckets.length - 1 ? 'end' : 'middle'}>{bucket_label(buckets[i].start, bucket)}</text>)}
-    <line x1={pad.left} x2={width - pad.right} y1={height - pad.bottom} y2={height - pad.bottom} stroke="currentColor" strokeOpacity={0.3}/>
-  </g>;
+// kind: "line" or "bar" (side by side). series: [{key, label, color}], over the buckets
+export const usageFigure = ({ kind, buckets, series, bucket, dark = false }) => {
+  const x = buckets.map(b => b.start);
+  const max = Math.max(0, ...buckets.flatMap(b => series.map(s => b[s.key] ?? 0)));
+  const data = series.map(s => ({
+    type: kind === 'bar' ? 'bar' : 'scatter',
+    name: s.label,
+    meta: s.key,
+    x,
+    y: buckets.map(b => b[s.key] ?? 0),
+    ...(kind === 'bar'
+      ? { marker: { color: s.color } }
+      // a dot per day, as long as they don't crowd the line
+      : { mode: buckets.length <= 31 ? 'lines+markers' : 'lines', line: { color: s.color, width: 2 }, marker: { color: s.color, size: 6 } }),
+    // the value first: readers know the series, they want the number
+    hovertemplate: `<b>%{y:,}</b>  ${s.label}<extra></extra>`,
+  }));
+  const layout = {
+    autosize: true,
+    height: 240,
+    // the axes and the legend take the room they need
+    margin: { l: 4, r: 8, t: 4, b: 4 },
+    font: { family: 'inherit', size: 12 },
+    // on the page's background. Plotly outlines the hover line with the plot's background, white if transparent
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: dark ? Colors.DARK_GRAY1 : 'rgba(0,0,0,0)',
+    hovermode: 'x unified',
+    // the nearest day or week, wherever the pointer is: not only near the points
+    hoverdistance: -1,
+    spikedistance: -1,
+    // the dark theme has its own (components/PlotlyPlot), the default would be transparent like the background
+    hoverlabel: dark ? { font: { size: 12 } } : { bgcolor: Colors.WHITE, bordercolor: Colors.LIGHT_GRAY1, font: { size: 12, color: Colors.DARK_GRAY1 } },
+    // no zoom: the period buttons pick the dates, and on phones the page scrolls over the charts
+    dragmode: false,
+    legend: { orientation: 'h', x: 0, xanchor: 'left', y: 1.02, yanchor: 'bottom' },
+    xaxis: {
+      type: 'date', fixedrange: true, automargin: true, showgrid: false, ticks: 'outside', ticklen: 4,
+      // the hover label's title
+      hoverformat: bucket === 'week' ? 'Week of %b %-d, %Y' : '%a, %b %-d, %Y',
+      showspikes: true, spikemode: 'across', spikesnap: 'hovered data', spikethickness: 1, spikedash: 'solid', spikecolor: Colors.GRAY3,
+    },
+    yaxis: {
+      fixedrange: true, automargin: true, rangemode: 'tozero', zeroline: false, separatethousands: true,
+      // counts: no half ticks, and an axis when everything is 0
+      ...(max <= 5 ? { dtick: 1 } : {}),
+      ...(max === 0 ? { range: [0, 1] } : {}),
+    },
+    bargap: 0.25,
+    bargroupgap: 0.1,
+    barcornerradius: 2,
+  };
+  return { data, layout };
 };
 
-// series: [{key, label, color}], one line each, over the buckets
-export const LineChart = ({ title, buckets, series, bucket }) => {
+const config = { displayModeBar: false, displaylogo: false, scrollZoom: false, doubleClick: false, showTips: false };
+// On phones Plotly counts a tap, and the mouse events that the browser sends after it, as a double click: that hides
+// the hover label, and isolates a series in the legend instead of hiding it
+const touch_config = { ...config, doubleClickDelay: 0 };
+const isTouch = () => typeof window !== 'undefined' && !!window.matchMedia?.('(hover: none)').matches;
+const visually_hidden = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', margin: -1, padding: 0, border: 0 };
+
+// What the hover label says, for screen readers
+export const describeBucket = (b, series, bucket) => `${bucket_label(b.start, bucket)}: ${series.map(s => `${s.label} ${formatNumber(b[s.key] ?? 0)}`).join(', ')}`;
+
+// The pointer shows the hover label, and so do the arrow keys when the chart has the focus
+export const UsageChart = ({ title, kind, buckets, series, bucket }) => {
+  const id = useId();
+  const dark = useIsDark();
+  const figure = useMemo(() => usageFigure({ kind, buckets: buckets ?? [], series, bucket, dark }), [kind, buckets, series, bucket, dark]);
+  // the bucket read with the keyboard, and the one under the pointer: the keys continue from there
+  const [index, setIndex] = useState(null);
+  const hovered = useRef(null);
+  const graph = useRef(null);
   if (!buckets?.length) return null;
-  const max = Math.max(1, ...buckets.flatMap(b => series.map(s => b[s.key] ?? 0)));
-  const x = i => pad.left + (buckets.length <= 1 ? 0 : i * (width - pad.left - pad.right) / (buckets.length - 1));
-  const y = v => pad.top + (height - pad.top - pad.bottom) * (1 - (v ?? 0) / max);
+  const show = i => {
+    setIndex(i);
+    hovered.current = i;
+    // at the date, for the hover label of every series
+    if (graph.current) hoverPlot(graph.current, { xval: DateTime.fromISO(buckets[i].start, { zone: 'utc' }).toMillis() });
+  };
+  const hide = () => {
+    setIndex(null);
+    if (graph.current) unhoverPlot(graph.current);
+  };
+  const onKeyDown = event => {
+    const last = buckets.length - 1;
+    const current = index ?? hovered.current;
+    const next = {
+      ArrowRight: current === null ? 0 : Math.min(last, current + 1),
+      ArrowLeft: current === null ? last : Math.max(0, current - 1),
+      Home: 0,
+      End: last,
+    }[event.key];
+    if (next !== undefined) {
+      event.preventDefault();
+      show(next);
+    } else if (event.key === 'Escape') hide();
+  };
   return <figure style={{ margin: 0, minWidth: 0 }}>
-    <figcaption className={Classes.HEADING} style={{ fontSize: 14, marginBottom: 4 }}>{title}</figcaption>
-    <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title} style={{ width: '100%', height: 'auto', display: 'block' }}>
-      <Axes buckets={buckets} max={max} bucket={bucket}/>
-      {series.map(s => <polyline
-        key={s.key}
-        data-testid={`line-${s.key}`}
-        fill="none"
-        stroke={s.color}
-        strokeWidth={2}
-        strokeLinejoin="round"
-        points={buckets.map((b, i) => `${x(i)},${y(b[s.key])}`).join(' ')}
-      >
-        <title>{s.label}: {buckets.map(b => `${bucket_label(b.start, bucket)} ${formatNumber(b[s.key] ?? 0)}`).join(', ')}</title>
-      </polyline>)}
-    </svg>
-    <Legend series={series}/>
-  </figure>;
-};
-
-// series side by side in each bucket
-export const BarChart = ({ title, buckets, series, bucket }) => {
-  if (!buckets?.length) return null;
-  const max = Math.max(1, ...buckets.flatMap(b => series.map(s => b[s.key] ?? 0)));
-  const slot = (width - pad.left - pad.right) / buckets.length;
-  const bar = Math.max(1, (slot * 0.8) / series.length);
-  const y = v => pad.top + (height - pad.top - pad.bottom) * (1 - (v ?? 0) / max);
-  return <figure style={{ margin: 0, minWidth: 0 }}>
-    <figcaption className={Classes.HEADING} style={{ fontSize: 14, marginBottom: 4 }}>{title}</figcaption>
-    <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title} style={{ width: '100%', height: 'auto', display: 'block' }}>
-      <Axes buckets={buckets} max={max} bucket={bucket}/>
-      {buckets.map((b, i) => series.map((s, j) => {
-        const value = b[s.key] ?? 0;
-        return <rect
-          key={`${b.start}-${s.key}`}
-          data-testid={`bar-${s.key}`}
-          x={pad.left + i * slot + slot * 0.1 + j * bar}
-          y={y(value)}
-          width={bar}
-          height={height - pad.bottom - y(value)}
-          fill={s.color}
-        >
-          <title>{bucket_label(b.start, bucket)}: {formatNumber(value)} {s.label.toLowerCase()}</title>
-        </rect>;
-      }))}
-    </svg>
-    <Legend series={series}/>
+    <figcaption id={`${id}-title`} className={Classes.HEADING} style={{ fontSize: 14, marginBottom: 4 }}>{title}</figcaption>
+    {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex -- a chart to read with the arrow keys, like with the pointer */}
+    <div role="img" aria-labelledby={`${id}-title`} aria-describedby={`${id}-hint`} tabIndex={0} onKeyDown={onKeyDown} onBlur={hide} style={{ borderRadius: 3, WebkitTapHighlightColor: 'transparent' }}>
+      <Plot
+        data={figure.data}
+        layout={figure.layout}
+        config={isTouch() ? touch_config : config}
+        useResizeHandler
+        style={{ width: '100%', height: figure.layout.height }}
+        onInitialized={(_, gd) => { graph.current = gd; }}
+        onHover={event => { hovered.current = event.points?.[0]?.pointIndex ?? null; }}
+        // The label where people tap, and for screen readers. After Plotly's own: on phones it computes it again
+        // from the end of the touch, that has no position, and hides it (its hover labels wait 50 ms between updates)
+        onClick={event => {
+          const i = event.points?.[0]?.pointIndex;
+          if (i !== undefined) setTimeout(() => show(i), 100);
+        }}
+      />
+    </div>
+    <span id={`${id}-hint`} style={visually_hidden}>The arrow keys read each {bucket === 'week' ? 'week' : 'day'}: its date and every value.</span>
+    <span aria-live="polite" style={visually_hidden} data-testid="chart-reading">{index !== null && buckets[index] ? describeBucket(buckets[index], series, bucket) : ''}</span>
   </figure>;
 };
 
@@ -208,16 +272,9 @@ const Charts = ({ params }) => {
   const empty = buckets.every(b => Object.entries(b).every(([key, value]) => key === 'start' || !value));
   if (empty) return <p className={Classes.TEXT_MUTED}>No usage events in this period.</p>;
   const per = params.bucket === 'week' ? 'per week' : 'per day';
-  return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24, marginBottom: 24 }}>
-    <LineChart title={`Active users and commits looked at, ${per}`} buckets={buckets} bucket={params.bucket} series={[
-      { key: 'web_users', label: 'Users in the web app', color: chart_colors[0] },
-      { key: 'cli_users', label: 'Users with the CLI', color: chart_colors[1] },
-      { key: 'commits_viewed', label: 'Commits looked at', color: chart_colors[2] },
-    ]}/>
-    <BarChart title={`Batches started and qa commands, ${per}`} buckets={buckets} bucket={params.bucket} series={[
-      { key: 'batches_started', label: 'Batches started', color: chart_colors[0] },
-      { key: 'cli_commands', label: 'qa commands', color: chart_colors[3] },
-    ]}/>
+  return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))', gap: 24, marginBottom: 24 }}>
+    <UsageChart kind="line" title={`Active users and commits looked at, ${per}`} buckets={buckets} bucket={params.bucket} series={activity_series}/>
+    <UsageChart kind="bar" title={`Batches started and qa commands, ${per}`} buckets={buckets} bucket={params.bucket} series={work_series}/>
   </div>;
 };
 
@@ -378,7 +435,9 @@ export const Usage = () => {
     {summary.isPending && <Loading label="Loading the usage"/>}
     {summary.error && <AdminError error={summary.error} refetch={summary.refetch} what="the usage"/>}
     {summary.data && <Summary counts={summary.data.counts} previous={summary.data.previous_counts}/>}
-    {summary.data && <>
+    {/* requested at the same time as the summary, not after it: each has its loading state. Not when the summary
+        failed, e.g. the server refuses: one error is enough */}
+    {!summary.error && <>
       <Charts params={params}/>
       <Leaderboards params={params}/>
     </>}

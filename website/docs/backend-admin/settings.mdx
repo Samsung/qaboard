@@ -1,0 +1,221 @@
+---
+id: settings
+sidebar_label: Settings
+title: Settings and secrets
+description: "Change QA-Board's settings in Admin → Settings, without a deploy: Jenkins and git host tokens, email, sign-in... Where each value comes from, how secrets are encrypted, and the encryption key."
+---
+Admins change how the server works in **Admin → Settings**, without a deploy: sign-in, git hosts and their tokens,
+Jenkins servers, email, what the web app shows. Changes apply to every replica within a few seconds, are audited,
+and live in the database, so they're in its backups.
+
+<Shot id="admin/settings" />
+
+## Change a setting
+Settings are grouped by what they're about: **Sign-in**, **Git hosts**, **Jenkins**, **Email**, **Security**...
+Search them by name, description or environment variable (press <kbd>/</kbd>), or show only those **Changed**,
+**From the environment**, the **Secrets**, or what **Needs attention**. The search and filter are in the URL, and
+`/admin/settings?setting=email.smtp_host` links to a setting.
+
+- Switches and choices save at once, and the toast offers to **Undo**.
+- Texts, numbers and lists show **Save** and **Cancel** once you change them. <kbd>Enter</kbd> saves, <kbd>Esc</kbd> cancels.
+- Lists of servers, like the Jenkins servers or the git hosts, are edited in a dialog, one at a time.
+- **Reset to default** deletes what's saved: the default applies again.
+
+## Where a value comes from
+Each setting has three layers, and the first one set wins:
+
+1. **Environment**: the setting's environment variable, e.g. `QABOARD_INGEST_AUTH`. The page shows it read-only:
+   change it where the server is deployed. An invalid value is ignored, and the page and the
+   [security checklist](/docs/backend-admin/user-management#admins-and-the-admin-panel) say why.
+2. **Saved here**: what admins saved in the database, from this page or `qaboard-admin settings set`.
+3. **Default**: some depend on something else, e.g. local sign-up is on with `QABOARD_LOGIN_TYPE=LOCAL`, and the
+   page says so.
+
+Click a setting's badge (**Default**, **Saved here**, **Environment**) to see what each layer says, who saved the
+value and when.
+
+### Move a setting from the environment to the database
+Settings that used to need an environment variable, sometimes as JSON (`JENKINS_AUTH`, `GITLAB_AUTH`,
+`QABOARD_GIT_HOSTS`...), are easier to manage here. For each one the environment still sets:
+
+1. Click **Save it here**: the server copies the environment's value to the database, secrets encrypted.
+2. The page says **The same value is saved here**. Remove the variable from the server's environment (`.env`, your
+   site overlay, the Helm values) and redeploy.
+
+The setting now shows **Saved here**, and you change it from the page.
+
+## Secrets and the encryption key {#secrets-and-the-encryption-key}
+Tokens and passwords (the Jenkins API tokens, git host tokens, webhook secrets, the SMTP password, sign-in providers'
+client secrets...) are encrypted before they're saved, and never sent back to the browser: the page says **Set**,
+and you can only replace or clear them. The audit log records that they changed, never their value.
+
+They're encrypted with the server's **encryption key**, that is **never stored in the database**: a dump, a backup or
+a staging copy of the database would otherwise hold both the secrets and what decrypts them. The server takes, in
+this order:
+
+1. `QABOARD_ENCRYPTION_KEY`: any long random text, e.g. from `openssl rand -base64 32`. **Recommended**, and
+   needed when the replicas don't share a data folder.
+2. `QABOARD_ENCRYPTION_KEY_FILE`: a file holding the key, e.g. a Docker or Kubernetes secret mounted as a file.
+3. Else, a key it **generates** the first time a secret is saved, in its data folder (`$QABOARD_DATA_DIR/encryption_key`,
+   readable only by the server), like the generated `SECRET_KEY`. Nothing to configure, but you must back it up.
+
+**Security → Encryption of the stored secrets** shows the key's fingerprint (it identifies the key without
+revealing it), where it comes from, and how many secrets it decrypts. The Helm chart generates
+`QABOARD_ENCRYPTION_KEY` once and keeps it across upgrades.
+
+### Back up the key
+Database backups don't include the key: keep a copy apart from them, in your secret store. If the server generated
+it, print it from the server's shell and save it as `QABOARD_ENCRYPTION_KEY`:
+
+```bash
+docker compose exec backend qaboard-admin encryption show-key
+```
+
+### When the key changes or is lost
+Every stored secret says which key encrypted it. When the server's key can't decrypt some of them (a restore on
+another server, a new key without the old one), QA-Board uses their defaults, and the page, the security checklist
+and `qaboard-admin encryption status` list them: restore the key, or enter them again.
+
+A server that generated its own key never encrypts new secrets while the database holds secrets it can't decrypt:
+that's what happens when replicas don't share their data folder, and each would encrypt with its own key. It asks
+you to set `QABOARD_ENCRYPTION_KEY` on every replica instead.
+
+### Change the key
+1. Set the new key in `QABOARD_ENCRYPTION_KEY`, and the old one in `QABOARD_ENCRYPTION_KEY_PREVIOUS`. Deploy: every
+   secret still decrypts. The generated key, if there was one, always decrypts too: moving it to
+   `QABOARD_ENCRYPTION_KEY` needs no other step.
+2. Click **Re-encrypt** in **Security**, or run `qaboard-admin encryption rotate`.
+3. Remove `QABOARD_ENCRYPTION_KEY_PREVIOUS`.
+
+Secrets saved before they were encrypted (the access requests webhook of older versions) are encrypted the same way.
+
+## From the command line
+`qaboard-admin`, in the backend's container, reads and changes the same settings, audited as done by `qaboard-admin`:
+
+```bash
+qaboard-admin settings list --changed            # where each value comes from
+qaboard-admin settings set ingest.auth warn
+qaboard-admin settings set jenkins.build_token   # secrets are read from the terminal or stdin
+qaboard-admin settings reset ingest.auth
+qaboard-admin settings export > settings.json    # e.g. to copy them to a staging server
+qaboard-admin settings import settings.json
+qaboard-admin encryption status
+```
+
+`settings export` leaves the secrets out. With `--include-secrets` it exports them encrypted: they can only be
+imported on a server with the same key.
+
+## What only the environment sets
+Some settings are needed before the server reaches its database (the database itself, `QABOARD_URL`,
+`QABOARD_DATA_DIR`), or are security boundaries that someone who takes over an admin's session must not be able to
+move: the storage roots, the admins of `QABOARD_ADMINS`, the commands the server runs, `SECRET_KEY` and the
+encryption key. The page shows them read-only, in their group, with why: see the
+[environment variables](/docs/deploy#optional-environment-variables).
+
+## Every setting
+<details>
+<summary>Every setting, its variable and its default</summary>
+
+**Sign-in**
+
+| Setting | Environment variable | Default | What it does |
+|---|---|---|---|
+| `auth.require_sign_in` | `QABOARD_LOGIN_REQUIRED` | `false` | Anonymous users can't see anything: the API answers 401 except for signing in, and for ingest unless ingest.auth is "token". |
+| `auth.access_policy` | `QABOARD_ACCESS_POLICY` | `open` | Who gets an account when they first sign in: "open" (everyone a sign-in method accepts), "domains" (emails in auth.allowed_email_domains, the others wait for an admin), "approval" (everyone waits for an admin). |
+| `auth.allowed_email_domains` | `QABOARD_ALLOWED_EMAIL_DOMAINS` | none | With auth.access_policy "domains": the email domains whose users get an account right away, e.g. example.com. |
+| `auth.access_request_webhook` (secret) | `QABOARD_ACCESS_REQUEST_WEBHOOK` | none | An incoming webhook (Slack, Teams, Mattermost...) told when users wait for an admin. QA-Board sends `{"text": "..."}`. |
+| `auth.local_signup` | `QABOARD_DISABLE_SIGNUP` | On when QABOARD_LOGIN_TYPE is LOCAL, off with LDAP or SAML | Anyone can create a local account with a password. Off by default with LDAP or SAML: local accounts could take the names of directory users. |
+| `auth.provider_order` | `QABOARD_SIGN_IN_ORDER` | none | The order of the sign-in methods on the sign-in page, by id (e.g. sso, keycloak, ldap, local). Admin → Sign-in sets it with its arrows. Methods not listed come after, in their default order. |
+| `auth.sso_auto_redirect` | `QABOARD_SSO_AUTO_REDIRECT` | `false` | When signing in is required and there is a single single sign-on method, the sign-in page goes straight to it. `/login?local=1` still shows the password form. |
+| `auth.login_hint` | `QABOARD_LOGIN_HINT` | none | Shown in the sign-in dialog to users whose user name or password is wrong, e.g. "Use your Windows credentials." |
+| `sessions.idle_days` |  | `30` days | Browser sessions end after this many days without activity. |
+| `sessions.max_days` |  | `180` days | Browser sessions end after this many days, active or not: users sign in again. |
+
+**Projects and access**
+
+| Setting | Environment variable | Default | What it does |
+|---|---|---|---|
+| `projects.default_visibility` | `QABOARD_DEFAULT_VISIBILITY` | `public` | Who can see the projects whose owners didn't choose: "public" (anyone who can open QA-Board), "internal" (signed-in users), "private" (only their members). |
+| `projects.signed_in_role` | `QABOARD_SIGNED_IN_ROLE` | `developer` | The role of signed-in users on public and internal projects: "developer" (they can send results and act on runs, as before project roles) or "viewer". Members of a project, and private projects, follow their grants. |
+| `storage.others_visible_to` | `QABOARD_STORAGE_OTHERS_VISIBLE_TO` | `members` | Who sees other people's storage usage (Storage usage > Everyone's, Users): "members" (the project's developers and owners, from a grant, a group or qaboard.yaml: not every signed-in user) or "signed_in" (everyone who can see the project). Admins see everything. |
+
+**API tokens and results**
+
+| Setting | Environment variable | Default | What it does |
+|---|---|---|---|
+| `ingest.auth` | `QABOARD_INGEST_AUTH` | `off` | How runs, batches and commits sent by `qa` are authenticated: "off" accepts anonymous results (they're marked unverified), "warn" also warns the senders, "token" requires a token with the ingest scope. |
+| `tokens.default_lifetime_days` |  | `90` days | The default lifetime of the tokens users create in the web app. |
+| `tokens.max_lifetime_days` |  | No maximum: tokens may never expire | The longest lifetime users may choose for their tokens. Empty: no maximum, and tokens without an expiry date are allowed. |
+| `tokens.cli_idle_expiry_days` |  | `180` days | Tokens created by `qa auth login` expire after this many days without being used. |
+| `tokens.ci_lifetime_minutes` |  | `360` minutes | How long the tokens that CI jobs get without a stored secret (trusted CI jobs of service accounts) work. |
+
+**Git hosts**
+
+| Setting | Environment variable | Default | What it does |
+|---|---|---|---|
+| `git.hosts` (secret) | `QABOARD_GIT_HOSTS` | gitlab.com and github.com, without tokens (or GITLAB_HOST) | The git hosts of your projects, with their tokens (to clone private repositories and call their API) and the secrets their webhooks send. github.com is always known. GITLAB_HOST, GITLAB_ACCESS_TOKEN, GITHUB_ACCESS_TOKEN and QABOARD_WEBHOOK_SECRET, if set, still apply on top. |
+| `git.webhook_secret` (secret) | `QABOARD_WEBHOOK_SECRET` | none | The secret push webhooks must send (GitLab's "Secret token", GitHub's "Secret"...), for git hosts without their own. Without it, anyone who can reach the server can send fake push events. |
+| `git.gitlab_web_logins` (secret) | `GITLAB_AUTH` | none | Accounts QA-Board signs in to GitLab's web pages with, to show users the images of private repositories (projects' avatars and badges): GitLab's API can't serve them. |
+
+**Jenkins**
+
+| Setting | Environment variable | Default | What it does |
+|---|---|---|---|
+| `jenkins.servers` (secret) | `JENKINS_AUTH` | none | The Jenkins servers QA-Board starts builds on and reads their statuses from, with a user's API token. QA-Board only sends these credentials to these hosts. |
+| `jenkins.build_token` (secret) | `JENKINS_BUILD_TOKEN` | none | The authentication token of "Trigger builds remotely", sent to the jobs whose integration has no `token`. Older versions sent "qaboard": set it to that if your jobs expect it. |
+| `jenkins.anonymous_jobs` | `QABOARD_JENKINS_ANONYMOUS_JOBS` | none | Jenkins jobs that callers without a token can start even if no project's qaboard.yaml lists them: a job matches when its path (`/job/...`) contains one of these texts (case-sensitive), "*" matches all. A way out while scripts move to tokens: they get a warning. Ignored when ingest.auth is "token". |
+
+**Email**
+
+| Setting | Environment variable | Default | What it does |
+|---|---|---|---|
+| `email.smtp_host` | `QABOARD_SMTP_HOST` | none | The SMTP server QA-Board sends emails with. Without it, no emails are sent, and users can't ask for them. |
+| `email.smtp_security` | `QABOARD_SMTP_SECURITY` | `none` | How the connection to the SMTP server is secured: "none", "starttls" or "ssl". |
+| `email.smtp_port` | `QABOARD_SMTP_PORT` | 25, or 587 with starttls, 465 with ssl | The SMTP server's port. |
+| `email.smtp_user` | `QABOARD_SMTP_USER` | none | If the SMTP server needs a login. |
+| `email.smtp_password` (secret) | `QABOARD_SMTP_PASSWORD` | none | The SMTP user's password. |
+| `email.smtp_timeout` | `QABOARD_SMTP_TIMEOUT` | `15` seconds | How long QA-Board waits for the SMTP server. |
+| `email.from` | `QABOARD_EMAIL_FROM` | `QA-Board <qaboard@…>`, at the email domain below, else at the server's hostname | The sender of the emails. |
+| `email.reply_to` | `QABOARD_EMAIL_REPLY_TO` | none | Where replies go, e.g. the team that supports QA-Board. |
+| `email.domain` | `QABOARD_EMAIL_DOMAIN` | none | Users whose account has no email address get emails at `<user name>@<this domain>`, e.g. example.com with LDAP user names. |
+| `email.timezone` | `QABOARD_EMAIL_TIMEZONE` | `UTC` | The time zone of the times in emails. |
+| `jobs.failure_emails` | `QABOARD_JOBS_FAILURE_EMAILS` | `true` | Email when a scheduled job (Admin > Storage > Schedules) fails or ends with errors. Requires an SMTP server. |
+| `jobs.failure_email_to` | `QABOARD_JOBS_FAILURE_EMAIL_TO` | The admins | Who gets the emails about scheduled jobs that went wrong: user names or emails. Empty: the admins. |
+
+**Web app**
+
+| Setting | Environment variable | Default | What it does |
+|---|---|---|---|
+| `web.support_url` | `QABOARD_SUPPORT_URL` | `https://github.com/Samsung/qaboard/issues` | Where users report bugs and send feedback: a web page, or a mailto: link. |
+| `web.docs_root` | `QABOARD_DOCS_ROOT` | `/` | Where the web app's links to the docs point. By default, the docs served by this server at /docs/, which match its version. |
+| `web.avatar_url` | `QABOARD_AVATAR_URL` | none | Users' avatars, e.g. from a company directory, with `{user_name}`: in the user menu, and for GitLab committers who didn't upload one. |
+| `web.cli_requirements` | `QABOARD_CLI_REQUIREMENTS` | none | What scripts install besides qaboard to use `qa` here, as pip requirements, e.g. your site package. The web app's Script snippets list them. |
+| `web.webcde_installer` | `QABOARD_WEBCDE_INSTALLER` | none | Runs whose outputs have a cde.sh get a button to open them in WebCDE, a desktop app. When it isn't running, users are told to install it from here. |
+| `web.proxy_hosts` | `QABOARD_PROXY_HOSTS` | none | Hostnames the web app may load images from through the server (it adds no credentials), besides the git hosts, the avatars' host and gravatar: the hosts of projects' avatar_url and integrations' images. |
+
+**Usage analytics**
+
+| Setting | Environment variable | Default | What it does |
+|---|---|---|---|
+| `analytics.enabled` | `QABOARD_ANALYTICS_ENABLED` | `true` | Record what people do in the web app and with `qa` (Admin > Usage): page views, features used, commands run. Off: the web app sends nothing, and the server drops what reaches it. |
+| `analytics.posthog_api_key` | `POSTHOG_API_KEY` | none | Also send the web app's events to PostHog, with this project API key (it's public: browsers send it). |
+| `analytics.posthog_host` | `POSTHOG_HOST` | none | PostHog's address, if it's not PostHog Cloud's. |
+
+**Storage and performance**
+
+| Setting | Environment variable | Default | What it does |
+|---|---|---|---|
+| `storage.exports_root` | `QABOARD_EXPORTS_ROOT` | A share/ folder next to each commit's runs | Where "Export to a shared folder" puts exports: `<this folder>/<user>/<project>/<date>-<id>`, all in one place where users find and delete them (Storage usage > Exports). Empty: in a share/ folder next to the commit's runs, as before. It must be in the storage (QABOARD_STORAGE_ROOTS). |
+| `storage.image_cache_gb` | `QABOARD_IMAGE_CACHE_GB` | `20` GB | The disk space of the decoded images users read pixel values of, or compare with "Where they differ": the least recently used are removed. A 12 MP 16-bit RGB image takes 72 MB. |
+| `metrics.skip_aggregation` | `QABOARD_SKIP_METRICS_AGGREGATION` | none | Projects whose commit lists don't show the batches' aggregated metrics (median, average): for projects with so many runs that computing them slows the lists down. Project ids, or their start, e.g. group/ for all the projects of a group. Commit pages still show them. |
+
+**Security**
+
+| Setting | Environment variable | Default | What it does |
+|---|---|---|---|
+| `auth.allowed_origins` | `QABOARD_ALLOWED_ORIGINS` | none | Other origins (e.g. https://dashboards.example.com) allowed to make changes with the users' cookies. The server's own origin is always allowed. |
+| `audit.retention_days` |  | `730` days | Audit events older than this are deleted by `qaboard-admin purge-audit` (run it from a scheduled job). |
+
+Empty environment variables count as unset. Settings marked *secret* are encrypted.
+
+</details>

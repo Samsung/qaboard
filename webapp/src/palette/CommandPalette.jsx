@@ -72,7 +72,7 @@ export const CommandPaletteProvider = ({ children }) => {
         event.preventDefault();
         return;
       }
-      // text boxes and editors (Monaco types in a textarea) keep their keys, except the palette's own box: Ctrl+K closes it
+      // text boxes and editors keep their keys, except the palette's own box: Ctrl+K closes it
       if (is_typing(event.target) && !(ctrl_k && in_palette)) return;
       event.preventDefault();
       if (ctrl_k && open_ref.current) {

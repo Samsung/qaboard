@@ -13,7 +13,8 @@ Kaito changed how the inference gateway fills its batches. On his commit, the CI
 `bursty-high` load profile.
 
 1. Open the commit. The sidebar's **Logs** item is red, with the number of failed runs, and a **N failed** message
-   above the views lists them. Click **Logs**, or **Open the logs** in the message.
+   above the views lists them (when more than 5 failed, **Show only the failed runs** filters the page to them).
+   Click **Logs**, or **Open the logs** in the message.
 2. Above the list of runs, click **Failed** to keep only the failed ones, then **Open failed runs** to show their logs.
 3. Each log opens on its last lines, where crashes usually are. Error lines are highlighted in red: click the
    **N errors** button to jump from one to the next.
@@ -68,7 +69,9 @@ Click a run to open it. Above its log, its input path and full configuration: ho
 Each run's line says how long it ran, and has buttons to copy the path of its output directory, open it in the
 [file browser](/docs/user-guide/files), and a **⋯** menu: its input's **History**, its batch, input path and database
 (click to copy), who ran it, its compute time, date and storage, and the actions to redo, mark as failed or delete
-the run.
+the run. Hover the run's name to see the same, without the actions, like on the
+[run cards](/docs/user-guide/commit-page#run-cards). When the runs come from several batches or databases, their names
+start with them.
 
 <Shot
   id="logs/runs"

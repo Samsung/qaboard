@@ -52,6 +52,10 @@ const action_labels = {
   'user.create': 'Created a user',
   'user.update': 'Updated a user',
   'setting.update': 'Changed a setting',
+  'setting.import_env': 'Saved a setting from the environment',
+  'setting.test_email': 'Sent a test email',
+  'encryption.rotate': 'Re-encrypted the stored secrets',
+  'encryption.show_key': 'Printed the encryption key',
   'audit.purge': 'Deleted old audit events',
   'batch.delete': 'Deleted a batch',
   'jenkins.build': 'Started a Jenkins build',
@@ -83,6 +87,9 @@ const login_type_labels = {
   SAML: 'SAML',
 };
 export const loginTypeLabel = login_type => login_type ? login_type_labels[String(login_type).toUpperCase()] ?? login_type : null;
+
+// Users' job, from their sign-in (`profile` of /api/v1/user/me/ and of admin users): "Engineer · Imaging · Example Corp"
+export const profileLine = profile => [profile?.title, profile?.department, profile?.organization].filter(Boolean).join(' · ');
 
 // The same everywhere: the profile, the users list, a user's page
 export const AdminTag = ({ from_env = false }) => <Tag minimal intent={Intent.PRIMARY} icon="shield">Admin{from_env ? ' (env)' : ''}</Tag>;

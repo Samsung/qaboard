@@ -9,6 +9,7 @@ import { setupIntersectionMocking, resetIntersectionMocking } from 'react-inters
 import { toaster } from '../../../toaster';
 import { RunLogs, configurationSummary } from '../RunLogs';
 import { runName } from '../../tags';
+import { RunOriginsContext } from '../../runNames';
 
 
 const output = {
@@ -83,6 +84,23 @@ describe('RunLogs', () => {
     onToggle.mockClear()
     fireEvent.click(screen.getByLabelText('Run actions'))
     expect(onToggle).not.toHaveBeenCalled()
+  })
+
+  it('starts the name with the batch when runs come from several; clicking it still opens the logs, hovering it says more', async () => {
+    const onToggle = vi.fn()
+    const night = { ...output, data: { batch: 'night' } }
+    const origins = { batches: ['day', 'night'], databases: ['/db'], database_labels: new Map([['/db', 'db']]) }
+    renderWithProviders(<RunOriginsContext value={origins}>
+      <RunLogs id={7} output={night} project="p" commit={{ id: 'abc' }} expanded={false} onToggle={onToggle} />
+    </RunOriginsContext>, { siteConfig: {} })
+    const name = screen.getByText('scenes/indoor/sequence_7.mp4')
+    expect(name.closest('.run-name')).toHaveTextContent('night › scenes/indoor/sequence_7.mp4')
+    fireEvent.click(name)
+    expect(onToggle).toHaveBeenCalledWith(7)
+    // the same as hovering a run card's name
+    fireEvent.mouseEnter(name.closest('.bp6-popover-target'))
+    expect(await screen.findByText('Input path', {}, { timeout: 2000 })).toBeInTheDocument()
+    expect(screen.getByText('Batch & database in names')).toBeInTheDocument()
   })
 
   it('has the run actions in a menu', async () => {

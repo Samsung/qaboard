@@ -12,9 +12,9 @@ to their docs. No dates, no promised timelines.
 import {StatusLegend} from '@site/src/components/StatusBadge';
 import RoadmapItem from '@site/src/components/RoadmapItem';
 
-QA-Board started at Samsung Israel R&D Center in 2018. It's still the central platform there, for about 50 projects
-in production. This page says where we're taking it: the principles we hold to, then what we're building, theme by
-theme. Each item has a status:
+QA-Board started at Samsung in 2018. It's still the central quality platform there, for about 50 projects in
+production and more than 40 million runs. This page says where we're taking it: the principles we hold to, then what
+we're building, theme by theme. Each item has a status:
 
 <StatusLegend />
 
@@ -101,9 +101,17 @@ Today you wrap your code with `qa`: `qa run` for one input, `qa batch` for many 
 [Running your code](/docs/running-your-code)). Some code doesn't fit a wrapper: training loops, notebooks, test
 suites.
 
-<RoadmapItem status="next" title="A Python SDK">
-`qaboard.init()`, `run.log({...})`, `run.log_image()` and `run.finish()`, an API in the style of W&B's, from
-training loops, notebooks and pytest, without `qa run`. These runs show in the web app like any other.
+<RoadmapItem status="shipped" title="Read results and add metrics from Python">
+`qaboard.runs(url)` gives the runs a web app page shows, as `Run` objects; `run.log_metrics({...})` adds metrics
+to them, recording who, when and which script, and `run.log_artifact(name, file)` adds files; `qa runs <url>` lists
+them from the shell ([runs in scripts](/docs/apis#runs-in-scripts)).
+</RoadmapItem>
+
+<RoadmapItem status="next" title="A Python SDK that creates runs">
+`start_run(...)` from training loops, notebooks and pytest, without `qa run`: `log()` with a `step` for the values
+logged during training, `log_params()`, `finish()`, with the method names people know from the usual
+experiment trackers. These runs show in the web app like any other. The design is in the repository,
+[`docs/rfcs/python-sdk-runs.md`](https://github.com/Samsung/qaboard/blob/master/docs/rfcs/python-sdk-runs.md).
 </RoadmapItem>
 
 <RoadmapItem status="exploring" title="A wandb.log shim">
@@ -241,18 +249,28 @@ floor, a limit for each test), a summary in the CI job, and a commit status that
 [Quality gate](/docs/quality-gate).
 </RoadmapItem>
 
-<RoadmapItem status="next" title="OpenAPI spec and JSON output">
-A documented HTTP API, and JSON output from `qa` commands, so that scripts and agents read results without parsing
-text.
+<RoadmapItem status="shipped" title="An OpenAPI description of the HTTP API">
+Your server describes the endpoints to read results at `/api/v1/openapi.json`, with a page to try them at
+`/api/v1/docs`. See [HTTP API](/docs/http-api).
+</RoadmapItem>
+
+<RoadmapItem status="next" title="A generated API reference" id="generated-api-reference">
+The backend moves to FastAPI, and the OpenAPI document is generated from its code: every endpoint is described, and
+the description can't drift from what the server does.
+</RoadmapItem>
+
+<RoadmapItem status="next" title="JSON output from qa commands">
+JSON output from every `qa` command, so that scripts and agents read results without parsing text.
 </RoadmapItem>
 
 <RoadmapItem status="next" title="An MCP server, read-only first">
 `qa mcp` lets agents read results, Metrics Diffs, failing tests and image crops. Starting batches comes later.
 </RoadmapItem>
 
-<RoadmapItem status="exploring" title="An agent kit">
-An `AGENTS.md` and skill template for your project, telling agents to run the batch and read the Metrics Diff before
-they claim a change is better.
+<RoadmapItem status="experimental" title="Skills for coding agents">
+Two skills in the repository, `qaboard-integration` and `qaboard-results`, teach agents to wrap a project and to read
+results before they claim a change is better, with an `AGENTS.md` template for your project. See
+[Coding agents](/docs/agents).
 </RoadmapItem>
 
 <RoadmapItem status="exploring" title="Runs labeled by agents">

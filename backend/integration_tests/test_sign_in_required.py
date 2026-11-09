@@ -469,7 +469,7 @@ def test_the_jenkins_trigger_without_a_user(client, logged_in, monkeypatch):
   db_session.add(Project(id='group/windows', data={"qatools_config": {"runners": {"jenkins": {"build_url": "http://jenkins/job/windows"}}}}))
   db_session.commit()
   monkeypatch.setattr(integrations, "_declared_jenkins_jobs", {"at": None, "build_urls": set()})
-  monkeypatch.setattr(integrations, "jenkins_credentials", {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
+  monkeypatch.setattr(integrations, "jenkins_credentials", lambda: {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
   started = []
   monkeypatch.setattr(integrations, "trigger_jenkins_build", lambda data: started.append(data['build_url']) or integrations.jsonify({"status": "pending"}))
   for data in [{"build_url": "http://jenkins/job/windows"}, {"build_url": "http://jenkins/job/windows/", "project": "group/windows", "commit": "abc"}]:
@@ -510,7 +510,7 @@ def test_the_jenkins_build_status(client, logged_in, monkeypatch):
   db_session.add(Project(id='group/windows', data={"qatools_config": {"runners": {"jenkins": {"build_url": "http://jenkins:8080/job/windows"}}}}))
   db_session.commit()
   monkeypatch.setattr(integrations, "_declared_jenkins_jobs", {"at": None, "build_urls": set()})
-  monkeypatch.setattr(integrations, "jenkins_credentials", {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
+  monkeypatch.setattr(integrations, "jenkins_credentials", lambda: {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
   fetched, answer = [], {"json": {"building": False, "result": "SUCCESS"}}
   def get(url, **kwargs):
     fetched.append(url)

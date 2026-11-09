@@ -18,6 +18,7 @@ import { MultiSelect } from "@blueprintjs/select";
 import { logTickValues } from "./logTicks";
 import { box_stats, linear_ticks, jittered_points } from "./boxPlots";
 import { RunBadge } from "./tags";
+import { AddedMetricMark } from "./AddedMetricMark";
 import { format, plotly_palette, match_query, metric_info, with_undeclared_metrics } from "../utils";
 import { summary_outputs, metric_values, summary_stats, mixed_parameters, changed_metrics } from "../utils/compare";
 import { useLabels, useSiteConfig } from "../hooks";
@@ -61,7 +62,8 @@ const MetricHeader = ({short_label, label, description, condensed=false, suffix,
     </Tooltip>
 }
 
-const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
+// `added_metrics`: the run's metrics that scripts added after it ran (normalize_output)
+const MetricTag = ({ metrics_new, metrics_ref, metric_info, added_metrics }) => {
   if (metric_info.key === 'is_failed')
     return <span/>;
   const value = metrics_new[metric_info.key]
@@ -100,13 +102,14 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
     leftContent={<MetricHeader condensed {...metric_info_rest}/>}
   >
     {value_component}
+    <AddedMetricMark added={added_metrics?.[metric_info.key]} metric={metric_info}/>
     {compare_tag}
   </CompoundTag>;
 };
 
 
 // The run's metrics, declared or not. By default, the first few.
-const MetricsTags = memo(({ metrics_new, metrics_ref, available_metrics = {}, selected_metrics }) => {
+const MetricsTags = memo(({ metrics_new, metrics_ref, available_metrics = {}, selected_metrics, added_metrics }) => {
   const keys = selected_metrics?.length > 0
     ? selected_metrics
     : Object.keys(with_undeclared_metrics(available_metrics, Object.keys(metrics_new))).filter(key => metrics_new[key] !== undefined).slice(0, 6);
@@ -117,6 +120,7 @@ const MetricsTags = memo(({ metrics_new, metrics_ref, available_metrics = {}, se
         metrics_new={metrics_new}
         metrics_ref={metrics_ref}
         metric_info={metric_info(available_metrics, key)}
+        added_metrics={added_metrics}
       />
     );
 });

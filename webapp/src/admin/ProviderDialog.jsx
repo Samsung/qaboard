@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  Button, Callout, Classes, Collapse, Dialog, DialogBody, DialogFooter, FormGroup, InputGroup, Intent, NumericInput, Radio,
+  Button, Callout, Classes, Collapse, Dialog, DialogBody, DialogFooter, FormGroup, InputGroup, Intent, Radio,
   RadioGroup, Switch,
 } from "@blueprintjs/core";
 
@@ -15,8 +15,20 @@ import { saveProvider } from "./api";
 // providers.py valid_id(): the environment's providers and the callback route take these
 const reserved_ids = ['local', 'ldap', 'saml', 'sso', 'callback'];
 // providers.py DEFAULT_CLAIMS
-const default_claims = { username: 'preferred_username', email: 'email', name: 'name', groups: 'groups' };
-const claim_labels = { username: 'User name', email: 'Email', name: 'Full name', groups: 'Groups' };
+const default_claims = {
+  username: 'preferred_username', email: 'email', name: 'name', groups: 'groups',
+  picture: 'picture', title: 'title', department: 'department', organization: 'organization',
+};
+const claim_labels = {
+  username: 'User name', email: 'Email', name: 'Full name', groups: 'Groups',
+  picture: 'Picture', title: 'Job title', department: 'Department', organization: 'Organization',
+};
+const claim_helpers = {
+  picture: "A URL or a data: URI. QA-Board downloads it and serves it itself.",
+};
+
+// Microsoft Graph: the signed-in user's photo
+const entra_picture_url = 'https://graph.microsoft.com/v1.0/me/photo/$value';
 
 export const match_users_options = [
   { value: 'none', label: "Don't match: new accounts", description: "Users get a new QA-Board account the first time they sign in with it, unless they link it to their account in their settings." },
@@ -38,10 +50,10 @@ const fromProvider = provider => {
     match_users: config.match_users ?? 'none',
     claims: { ...Object.fromEntries(Object.keys(default_claims).map(key => [key, ''])), ...config.claims },
     redirect_uri: config.redirect_uri ?? '',
+    picture_url: config.picture_url ?? '',
     enabled: provider?.enabled ?? true,
     recommended: !!provider?.recommended,
     refresh_groups: !!config.refresh_groups,
-    position: provider?.position ?? 0,
   };
 };
 
@@ -61,6 +73,7 @@ export const validateProvider = (form, { create, can_encrypt, has_secret }) => {
   if (form.secret_mode === 'stored' && can_encrypt && !form.client_secret && !has_secret)
     errors.client_secret = "The client secret the provider gave you.";
   if (form.redirect_uri.trim() && !/^https?:\/\/\S+$/.test(form.redirect_uri.trim())) errors.redirect_uri = "A URL, or leave it empty.";
+  if (form.picture_url?.trim() && !/^https?:\/\/\S+$/.test(form.picture_url.trim())) errors.picture_url = "A URL, or leave it empty.";
   return errors;
 };
 
@@ -74,10 +87,10 @@ const toBody = (form, { create }) => ({
   match_users: form.match_users,
   claims: Object.fromEntries(Object.entries(form.claims).map(([key, value]) => [key, value.trim()])),
   redirect_uri: form.redirect_uri.trim(),
+  picture_url: form.picture_url.trim(),
   enabled: form.enabled,
   recommended: form.recommended,
   refresh_groups: form.refresh_groups,
-  position: Number(form.position) || 0,
   client_secret_env: form.secret_mode === 'env' ? form.client_secret_env.trim() : '',
   ...(form.secret_mode === 'stored' && form.client_secret ? { client_secret: form.client_secret } : {}),
 });
@@ -113,7 +126,7 @@ const ProviderForm = ({ provider, onClose, can_encrypt, public_url }) => {
   const [errors, setErrors] = useState({});
   const [server_error, setServerError] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [advanced, setAdvanced] = useState(() => !!(provider?.config?.redirect_uri || Object.keys(provider?.config?.claims ?? {}).length));
+  const [advanced, setAdvanced] = useState(() => !!(provider?.config?.redirect_uri || provider?.config?.picture_url || Object.keys(provider?.config?.claims ?? {}).length));
   const set = changes => setForm(form => ({ ...form, ...changes }));
   const field = name => ({
     id: `provider-${name}`,
@@ -133,8 +146,8 @@ const ProviderForm = ({ provider, onClose, can_encrypt, public_url }) => {
     setErrors(found);
     setServerError(null);
     if (Object.keys(found).length) {
-      // the claims and the redirect URI are in "Advanced"
-      if (found.redirect_uri) setAdvanced(true);
+      // the claims and the redirect and picture URIs are in "Advanced"
+      if (found.redirect_uri || found.picture_url) setAdvanced(true);
       return;
     }
     setBusy(true);
@@ -236,7 +249,7 @@ const ProviderForm = ({ provider, onClose, can_encrypt, public_url }) => {
         <div style={{ paddingTop: 8 }}>
           <p className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>The claims QA-Board reads in the ID token. Leave them empty for the defaults.</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', columnGap: 16 }}>
-            {Object.keys(default_claims).map(claim => <FormGroup key={claim} label={`${claim_labels[claim]} claim`} labelFor={`provider-claim-${claim}`}>
+            {Object.keys(default_claims).map(claim => <FormGroup key={claim} label={`${claim_labels[claim]} claim`} labelFor={`provider-claim-${claim}`} helperText={claim_helpers[claim]}>
               <InputGroup
                 id={`provider-claim-${claim}`}
                 value={form.claims[claim] ?? ''}
@@ -250,8 +263,12 @@ const ProviderForm = ({ provider, onClose, can_encrypt, public_url }) => {
           <FormGroup label="Redirect URI" {...group('redirect_uri', <>Leave it empty for <code style={{ overflowWrap: 'anywhere' }}>{default_redirect_uri}</code>. Change it only when the provider sees the server under another URL.</>)}>
             <InputGroup {...field('redirect_uri')} type="url" placeholder={default_redirect_uri}/>
           </FormGroup>
-          <FormGroup label="Position" labelFor="provider-position" helperText="Lower comes first. The server's single sign-on is at -1, LDAP and SAML at 0, QA-Board accounts at 100.">
-            <NumericInput id="provider-position" value={form.position} onValueChange={(_, text) => set({ position: text })} minorStepSize={null} style={{ width: 100 }}/>
+          <FormGroup label="Picture URL" {...group('picture_url', <>
+            Optional. QA-Board downloads the user's photo from this URL with their access token, at each sign-in.
+            Microsoft Entra ID: <code style={{ overflowWrap: 'anywhere' }}>{entra_picture_url}</code> (scope <code>User.Read</code>).
+            Leave empty to use the picture claim.
+          </>)}>
+            <InputGroup {...field('picture_url')} type="url" spellCheck={false}/>
           </FormGroup>
         </div>
       </Collapse>

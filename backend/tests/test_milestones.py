@@ -285,8 +285,8 @@ def test_run_filter_is_the_web_apps():
   assert run_matcher('-street')(RUNS[0]) and not run_matcher('-street')(RUNS[2])
   assert run_matcher('light:low')(RUNS[0])
   assert run_matcher('fail')(RUNS[1]) and not run_matcher('fail')(RUNS[0])
-  # not a valid regular expression: searched as text
-  assert not run_matcher('gain[')(RUNS[0])
+  # not a valid regular expression: like in the web app, its non-word characters match anything
+  assert run_matcher('gain[')(RUNS[0]) and run_matcher('gain[')(RUNS[1]) and not run_matcher('street[')(RUNS[0])
 
 
 def test_summarize_runs():

@@ -15,9 +15,13 @@ import { DEFAULT_MODE, MODES } from "../image-viewer/modes";
 import DynamicOptionControl from "./DynamicOptionControl";
 import { defaultRule, optionLabel, resolveOptionValue } from "../utils/dynamicOptions";
 import SidePanel from "./SidePanel";
-import { SharedSettings, useSharedConfiguration, useHideSharedSettings } from "../configurations/ConfigurationsTags";
-import { HideSharedSwitch } from "../configurations/ConfigurationOverview";
+import { SharedSettings, useSharedConfiguration, useHideSharedSettings, useShortenLongSettings } from "../configurations/ConfigurationsTags";
+import { HideSharedSwitch, ShortenLongSettingsSwitch } from "../configurations/ConfigurationOverview";
 import { FileOptionSwitches, file_options_summary } from "../viewers/bit_accuracy/utils";
+import { usePrefsStore, useOutputCardDensity, useRunNameOrigin } from "../stores/prefs";
+import { run_name_origin_options } from "./RunInfoMenu";
+import { OutputCardDensityControl } from "./DensityControl";
+import { order_labels, run_sort_keys, default_sort_order, effective_sort_order } from "../selectors/sorting";
 
 // The commit page's View options: what the views of the runs' results show, and in which order.
 // Docked on the right of the page (see SidePanel), they only list what changes the views selected.
@@ -80,14 +84,6 @@ const Explained = ({ label, explanation, className }) => explanation
     </Tooltip>
   : <span className={className}>{label}</span>;
 
-// How to read the sort order, depending on what we sort by
-const order_labels = sort_by => {
-  if (sort_by === 'test_input_path') return ['A to Z', 'Z to A'];
-  if (sort_by === 'id') return ['Oldest first', 'Newest first'];
-  if (sort_by === 'data.storage') return ['Smallest first', 'Largest first'];
-  return ['Lowest first', 'Highest first'];
-};
-
 const ViewOptionsPanel = ({
   controls,
   visualizations,
@@ -141,6 +137,7 @@ const ViewOptionsPanel = ({
   // what all the runs shown share, hidden in each run (see ConfigurationsTags)
   const shared = useSharedConfiguration();
   const hide_shared = useHideSharedSettings();
+  const shorten_long = useShortenLongSettings();
 
   const [prev_reveal_files, setPrevRevealFiles] = useState(revealFiles);
   if (revealFiles !== prev_reveal_files) {
@@ -157,6 +154,11 @@ const ViewOptionsPanel = ({
       setExpandedSections(prev => ({ ...prev, [revealSection.id]: true }));
     }
   }
+
+  // users' preferences, not the project's: not reset with the view options
+  const card_density = useOutputCardDensity();
+  const run_name_origin = useRunNameOrigin();
+  const setRunNameOrigin = usePrefsStore(state => state.setRunNameOrigin);
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
@@ -309,15 +311,21 @@ const ViewOptionsPanel = ({
     );
   });
 
-  // The default sort, e.g. the project's main metric, is marked as such
-  const sort_value = sort_by ?? default_sort_by ?? 'test_input_path';
-  const default_mark = key => key === (default_sort_by ?? 'test_input_path') ? ' (default)' : '';
+  // The default sort, e.g. the project's main metric, or the batches when runs come from several, is marked as such
+  const default_by = default_sort_by ?? 'test_input_path';
+  const sort_value = sort_by ?? default_by;
+  const default_mark = key => key === default_by ? ' (default)' : '';
   const [ascending_label, descending_label] = order_labels(sort_value);
+  const order = effective_sort_order(sort_value, sort_order);
+  // what runs can be sorted by: batches and databases when they differ, or when sorted by them
+  const run_values = key => new Set(Object.values(new_batch.outputs ?? {}).map(o => key === 'data.batch' ? o.data?.batch : o.test_input_database).filter(Boolean)).size;
+  const run_keys = Object.keys(run_sort_keys)
+    .filter(key => !['data.batch', 'test_input_database'].includes(key) || key === sort_value || run_values(key) > 1);
 
   // What differs from the project's defaults, whatever the view: counted in the header, a dot on the rail's icons
-  const sort_label = key => ({ test_input_path: 'Name', id: 'Run id', 'data.storage': 'Storage' })[key] ?? available_metrics[key]?.label ?? key;
-  const order_label = (Number(sort_order) === 1 ? ascending_label : descending_label).toLowerCase();
-  const sort_changed = (sort_by !== undefined && sort_by !== (default_sort_by ?? 'test_input_path')) || Number(sort_order) !== -1;
+  const sort_label = key => run_sort_keys[key]?.label ?? available_metrics[key]?.label ?? key;
+  const order_label = (order === 1 ? ascending_label : descending_label).toLowerCase();
+  const sort_changed = (sort_by !== undefined && sort_by !== default_by) || order !== default_sort_order(sort_value);
   const changes = {
     visualizations: visualizations
       .filter(view => isVisualizationEnabled(view) === !!view.default_hidden)
@@ -337,7 +345,11 @@ const ViewOptionsPanel = ({
         .filter(control => !!controls[control.name] !== !!control.default)
         .map(control => `${control.label || humanize(control.name)} ${controls[control.name] ? 'on' : 'off'}`),
     ],
-    configuration: shared?.collapse && !hide_shared ? ['Shared settings shown in each run'] : [],
+    configuration: [
+      ...(shared?.collapse && !hide_shared ? ['Shared settings shown in each run'] : []),
+      ...(!shorten_long ? ['Long settings shown in full'] : []),
+    ],
+    display: [],
     files: file_options_on.map(option => `Output files: ${option}`),
     sorting: sort_changed ? [`Sorted by ${sort_label(sort_value)}, ${order_label}`] : [],
   };
@@ -413,6 +425,41 @@ const ViewOptionsPanel = ({
           <SharedSettings tokens={shared.tokens} />
         </div>
         {shared.collapse && <HideSharedSwitch />}
+        <ShortenLongSettingsSwitch style={{ marginTop: 6 }} />
+      </>,
+    },
+    {
+      id: 'display',
+      title: 'Display',
+      icon: 'list-detail-view',
+      summary: [
+        shows_cards && `${card_density === 'compact' ? 'Compact' : 'Comfortable'} cards`,
+        `batch & database in names: ${run_name_origin_options.find(o => o.value === run_name_origin)?.label.toLowerCase()}`,
+      ].filter(Boolean).join(', '),
+      content: <>
+        {shows_cards && <OptionGroup>
+          <OptionHeader>
+            <span className="option-label">Run cards</span>
+            <div className="option-actions"><OutputCardDensityControl/></div>
+          </OptionHeader>
+        </OptionGroup>}
+        <OptionGroup>
+          <OptionHeader>
+            <Explained
+              className="option-label"
+              label="Batch & database in names"
+              explanation="Runs' names can start with the batch and the database of their input, e.g. when one batch runs several batches of qaboard.yaml on the same images. Hover a run's name to see them."
+            />
+          </OptionHeader>
+          <HTMLSelect
+            value={run_name_origin}
+            onChange={event => setRunNameOrigin(event.target.value)}
+            aria-label="Batch and database in runs' names"
+            options={run_name_origin_options.map(({ value, label }) => ({ value, label }))}
+            fill
+          />
+          {run_name_origin === 'auto' && <Hint>When the runs shown come from several batches or databases. If they all have the same input, names show only those.</Hint>}
+        </OptionGroup>
       </>,
     },
     {
@@ -430,9 +477,9 @@ const ViewOptionsPanel = ({
             aria-label="Sort runs by"
             fill
           >
-            <option value="test_input_path">Name{default_mark('test_input_path')}</option>
-            <option value="id">Run id{default_mark('id')}</option>
-            <option value="data.storage">Storage{default_mark('data.storage')}</option>
+            <optgroup label="Runs">
+              {run_keys.map(key => <option key={key} value={key}>{run_sort_keys[key].label}{default_mark(key)}</option>)}
+            </optgroup>
             {has_tuning && <optgroup label="Tuning parameters">
               {tuned_params.map(param =>
                 <option key={param} value={param}>
@@ -451,7 +498,7 @@ const ViewOptionsPanel = ({
             </optgroup>
           </HTMLSelect>
           <HTMLSelect
-            value={sort_order}
+            value={order}
             onChange={onUpdate('sort_order')}
             aria-label="Sort order"
             style={{ minWidth: 118 }}

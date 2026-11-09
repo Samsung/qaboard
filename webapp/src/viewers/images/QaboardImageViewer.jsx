@@ -18,6 +18,7 @@ import { COMPARE_SCOPES, comparedFor, compareCandidates, pickCompared } from './
 import { annotationProvider, isGroupShown, regionProviders } from './regionProviders';
 import { AnnotationGroups } from './AnnotationGroups';
 import { regionsQuery, sizeKey } from './regionSearch';
+import { useRegionSetStore } from './regionSetStore';
 import { DiffSizeFilter, describeDiffSize, useDiffSize } from './DiffSize';
 import { differenceProviders, RegionsTriage, usePagePairs } from './RegionsTriage';
 import './image-viewer-theme.css';
@@ -139,14 +140,6 @@ export const coin = (seed, key) => {
   h ^= h >>> 13;
   return (h & 1) === 1;
 };
-
-// The region set shown is the same for the viewers of a visualization, e.g. where the images differ. Searches (sets
-// found on demand) are opt-in on each page: on the next, they'd compare the images of all its runs again.
-const useRegionSetStore = create(set => ({
-  // { [path]: { id, page } }
-  by_path: {},
-  set: (path, id, page) => set(state => ({ by_path: { ...state.by_path, [path]: { id, page } } })),
-}));
 
 // The page, for the region sets: the commits, batches... it compares
 const usePageKey = () => {
