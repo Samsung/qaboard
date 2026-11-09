@@ -458,12 +458,16 @@ class FakeSession:
   def __init__(self, routes):
     self.routes, self.calls, self.headers = routes, [], {}
   def request(self, method, url, **kwargs):
+    import requests
     self.calls.append((method, url, kwargs.get('json')))
     answer = self.routes.get((method, url), [])
     if isinstance(answer, Exception):
       raise answer
-    response = mock.Mock(status_code=200)
+    # an int is the status code of a refusal
+    response = mock.Mock(status_code=answer if isinstance(answer, int) else 200, text='refused')
     response.json.return_value = answer
+    if isinstance(answer, int):
+      response.raise_for_status.side_effect = requests.HTTPError(f'{answer} Client Error', response=response)
     return response
   def get(self, url, **kwargs): return self.request('GET', url, **kwargs)
   def post(self, url, **kwargs): return self.request('POST', url, **kwargs)
@@ -506,6 +510,22 @@ class TestGateComments(unittest.TestCase):
       g.post_comment('gitlab', self.result(), 'qaboard/gate/isp', 'kitefin/camera-isp')
     self.assertEqual(session.calls[-1][0], 'POST')
     self.assertTrue(session.calls[-1][2]['body'].startswith('<!-- qaboard/gate/isp -->'))
+
+  def test_someone_elses_comment_with_our_marker(self):
+    """Anyone can write the marker in a comment: we can't edit theirs, and still post ours"""
+    g = gate_module()
+    api = 'https://api.github.com/repos/o/r'
+    env = {'GITHUB_TOKEN': 'token', 'GITHUB_REPOSITORY': 'o/r', 'GITHUB_REF': 'refs/pull/12/merge'}
+    comments = [{'id': 1, 'body': '<!-- qaboard/gate -->\n### Quality gate: pass (trust me)'}, {'id': 2, 'body': '<!-- qaboard/gate -->\nours'}]
+    session = FakeSession({('GET', f'{api}/issues/12/comments'): comments, ('PATCH', f'{api}/issues/comments/1'): 403})
+    with mock.patch.dict(os.environ, env, clear=True), mock.patch('requests.Session', return_value=session):
+      self.assertEqual(g.post_comment('github', self.result(), 'qaboard/gate', 'o/r'), (['#12'], None))
+    self.assertEqual([(m, u) for m, u, _ in session.calls[1:]], [('PATCH', f'{api}/issues/comments/1'), ('PATCH', f'{api}/issues/comments/2')])
+    # only theirs: a new comment
+    session = FakeSession({('GET', f'{api}/issues/12/comments'): comments[:1], ('PATCH', f'{api}/issues/comments/1'): 403})
+    with mock.patch.dict(os.environ, env, clear=True), mock.patch('requests.Session', return_value=session):
+      self.assertEqual(g.post_comment('github', self.result(), 'qaboard/gate', 'o/r'), (['#12'], None))
+    self.assertEqual(session.calls[-1][:2], ('POST', f'{api}/issues/12/comments'))
 
   def test_errors_are_warnings(self):
     import requests

@@ -582,18 +582,31 @@ def gitlab_merge_requests(session, api: str, project_id: str, sha: str) -> List[
   return [mr['iid'] for mr in r.json() if mr.get('state') == 'opened'][:MAX_PULL_REQUESTS]
 
 
-def find_comment(session, url: str, marker: str) -> Optional[Dict[str, Any]]:
-  """Our comment among those `url` lists, page by page"""
+def find_comments(session, url: str, marker: str) -> List[Dict[str, Any]]:
+  """The comments with our marker among those `url` lists, page by page"""
+  found = []
   for page in range(1, MAX_COMMENT_PAGES + 1):
     r = session.get(url, params={'per_page': 100, 'page': page}, timeout=60)
     r.raise_for_status()
     comments = r.json()
-    for comment in comments:
-      if marker in (comment.get('body') or ''):
-        return comment
+    found += [comment for comment in comments if marker in (comment.get('body') or '')]
     if len(comments) < 100:
       break
-  return None
+  return found
+
+
+def update_or_post(comments: List[Dict[str, Any]], update: Callable[[Dict[str, Any]], Any], post: Callable[[], Any]) -> None:
+  """
+  Updates the first comment we're allowed to edit, else posts a new one. Anyone can write our marker in a comment
+  of their own: we can't edit theirs (403, or 404), and that must not keep the gate's comment away.
+  """
+  for comment in comments:
+    r = update(comment)
+    if r.status_code in (403, 404):
+      continue
+    r.raise_for_status()
+    return
+  post().raise_for_status()
 
 
 def post_comment(forge: str, result: Dict[str, Any], context: str, project_root: str) -> Tuple[List[str], Optional[str]]:
@@ -617,12 +630,11 @@ def post_comment(forge: str, result: Dict[str, Any], context: str, project_root:
       session.headers.update({'Authorization': f'Bearer {token}', 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'})
       for number in github_pull_requests(session, api, repository, sha):
         comments_url = f"{api}/repos/{repository}/issues/{number}/comments"
-        comment = find_comment(session, comments_url, marker)
-        if comment:
-          r = session.patch(f"{api}/repos/{repository}/issues/comments/{comment['id']}", json={'body': body}, timeout=60)
-        else:
-          r = session.post(comments_url, json={'body': body}, timeout=60)
-        r.raise_for_status()
+        update_or_post(
+          find_comments(session, comments_url, marker),
+          lambda comment: session.patch(f"{api}/repos/{repository}/issues/comments/{comment['id']}", json={'body': body}, timeout=60),
+          lambda: session.post(comments_url, json={'body': body}, timeout=60),
+        )
         commented.append(f"#{number}")
     else:
       token = site_config('GITLAB_ACCESS_TOKEN')
@@ -633,12 +645,11 @@ def post_comment(forge: str, result: Dict[str, Any], context: str, project_root:
       session.headers.update({'PRIVATE-TOKEN': token})
       for iid in gitlab_merge_requests(session, api, project_id, sha):
         notes_url = f"{api}/projects/{project_id}/merge_requests/{iid}/notes"
-        note = find_comment(session, notes_url, marker)
-        if note:
-          r = session.put(f"{notes_url}/{note['id']}", json={'body': body}, timeout=60)
-        else:
-          r = session.post(notes_url, json={'body': body}, timeout=60)
-        r.raise_for_status()
+        update_or_post(
+          find_comments(session, notes_url, marker),
+          lambda note: session.put(f"{notes_url}/{note['id']}", json={'body': body}, timeout=60),
+          lambda: session.post(notes_url, json={'body': body}, timeout=60),
+        )
         commented.append(f"!{iid}")
   except Exception as e:
     response = getattr(e, 'response', None)
