@@ -158,8 +158,8 @@ namespace where batches run:
 - The commit's `namespace`, `context` (only those in `QABOARD_KUBERNETES_CONTEXTS`), `image`, `image_pull_secrets`,
   `queue`, `priority_class`, `node_selector`, `tolerations`, `ttl_seconds_after_finished`, `env` and `mounts`.
 - Not the commit's `job_template`, `forward_env` (the pod doesn't get the server's environment), `resources` (it gets
-  `QABOARD_KUBERNETES_DRIVER_RESOURCES`), `timeout` (none: `qa optimize` runs as long as its experiment), nor `run_as`
-  (`image` only if you allow it, with `QABOARD_KUBERNETES_ALLOW_RUN_AS_IMAGE`).
+  `QABOARD_KUBERNETES_DRIVER_RESOURCES`), `timeout` and `pod_timeout` (none: `qa optimize` runs as long as its
+  experiment), nor `run_as` (`image` only if you allow it, with `QABOARD_KUBERNETES_ALLOW_RUN_AS_IMAGE`).
 - No QA-Board token: if the server requires one to save results (`ingest.auth` set to `token`), the runs need one, see
   [give the runs a token](/docs/kubernetes-runner#token).
 - The server retries the Kubernetes API for about 15 seconds when it starts or stops a batch, so that users don't wait

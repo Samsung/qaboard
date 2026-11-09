@@ -111,6 +111,37 @@ describe('useSubmissionStatus', () => {
 })
 
 
+describe('pending Kubernetes drivers', () => {
+  afterEach(() => vi.unstubAllGlobals())
+  const driver = { id: 'abcdef12-0001', created_at: '2026-11-05T10:00:00Z', user: 'roee', runner: 'kubernetes', status: 'submitted',
+    kubernetes_job: 'qa-abcdef12-driver', namespace: 'algo-qa', log_dir_url: '/s/batch/qaboard-batches/20261105-100000-abcdef12' }
+
+  it('says why the pod waits, from log.pending.txt, until qa batch writes logs', async () => {
+    const files = { 'log.pending.txt': 'The pod waits: 0/3 nodes are available: 3 Insufficient nvidia.com/gpu.\n' }
+    vi.stubGlobal('fetch', vi.fn(async url => {
+      const name = url.split('/').pop()
+      if (!(name in files)) return new Response('Not Found', { status: 404 })
+      const bytes = new TextEncoder().encode(files[name])
+      return new Response(bytes, { status: 206, headers: { 'Content-Range': `bytes 0-${bytes.byteLength - 1}/${bytes.byteLength}` } })
+    }))
+    const { result } = renderHook(() => useSubmissionStatus(driver, { interval: 10 }))
+    await waitFor(() => expect(result.current.pending).toBe('The pod waits: 0/3 nodes are available: 3 Insufficient nvidia.com/gpu.'))
+    expect(result.current.state).toBe('queued')
+    files['log.txt'] = '+ qa batch\n'
+    await waitFor(() => expect(result.current.state).toBe('running'))
+    expect(result.current.pending).toBeUndefined()
+  })
+
+  it('shows it in the callout, or what the server says', () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('Not Found', { status: 404 })))
+    const batch = { data: { submissions: { a: { ...driver, pending_note: 'Pulling the image registry.example.com/qa:1' } } } }
+    render(<SubmissionCallout batch={batch} has_runs={false} />)
+    expect(screen.getByText('Your batch is waiting for Kubernetes')).toBeInTheDocument()
+    expect(screen.getByText('Pulling the image registry.example.com/qa:1')).toBeInTheDocument()
+  })
+})
+
+
 describe('SubmissionCallout', () => {
   it('says why the batch failed, and links to the logs', () => {
     window.history.replaceState(null, '', '/p/commit/abc?batch=nightly')

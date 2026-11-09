@@ -18,14 +18,13 @@ import json
 import uuid
 import datetime
 import subprocess
-from pathlib import Path
 
 from backend import db_session
 from .shell_utils import quote, is_shell_safe, safe_user_name, lsf_bridge_command
 from .storage import check_storage_path
 from .fs_utils import mkdir_shared
 from .artifacts import ArtifactsUnavailable
-from .submissions import record_submission, user_batch_dir, submission_dir
+from .submissions import record_submission, user_batch_dir, submission_dir, startup_logs
 
 
 def _is_int(value) -> bool:
@@ -223,10 +222,10 @@ def redo_outputs(batch, outputs, user_info) -> dict:
 def log_tail(submission, size=4000) -> str:
   """The end of the logs, to tell users why the runs failed to start"""
   try:
-    with (Path(submission['log_dir']) / 'log.txt').open(errors='replace') as f:
-      return f.read()[-size:]
-  except OSError:
-    return submission.get('error', '')
+    logs = startup_logs(submission['log_dir'], size=size)
+  except (KeyError, TypeError):
+    logs = None
+  return submission.get('error', '') if logs is None else logs
 
 
 def redo_response(batch, outputs, user_info):

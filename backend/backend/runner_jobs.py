@@ -422,8 +422,8 @@ def driver_job_options(config: dict, user_info: dict, command_id: str, project_i
     "run_as_non_root": run_as_non_root,
     # The server's environment has its secrets
     "forward_env": False,
-    # `qa optimize` runs as long as its experiment
-    "timeout": 0,
+    # no deadline for the pod: `qa optimize` runs as long as its experiment
+    "pod_timeout": 0,
     # it only starts the runs
     "resources": driver_resources(),
     # the server answers a request: it doesn't wait minutes for the Kubernetes API
@@ -617,9 +617,10 @@ def submit_driver(script_path: Path, log_dir: Path, user_info: dict, ci_commit, 
       "namespace": result.get('namespace', record['namespace']),
     }
   except Exception as e:
-    # Users see this log in QA-Board. Before the pod started, nothing else writes in it.
-    with log_path.open('a') as log:
-      log.write(f"ERROR: Could not start `qa batch` on Kubernetes: {e}\n")
+    # Users see this log in QA-Board. Before the pod started, nothing else writes in it (if it did, maybe as another
+    # UID, we may not write: the error is still raised)
+    from .submissions import append_log
+    append_log(log_dir, f"ERROR: Could not start `qa batch` on Kubernetes: {e}\n")
     if Runner is not None and job_options is not None:
       # It may have been created before it failed
       try:

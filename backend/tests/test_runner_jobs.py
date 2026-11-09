@@ -189,7 +189,10 @@ def test_the_dask_runner_stops_kubernetes_clusters_with_these_options(monkeypatc
   monkeypatch.setattr(dask_runner, "stop_kubernetes", lambda *args: calls.append(args))
   command = {"runner": "dask", "cluster_type": "kubernetes", "kubernetes": {"namespace": "algo-qa", "context": "laptop"}}
   JobGroup(job_options=runner_jobs.stop_job_options(ID1, command, "algo/project")).stop()
-  assert calls == [(ID1, "algo-qa", "laptop")]
+  [(command_id, k8s, namespace)] = calls
+  assert command_id == ID1
+  # only the batch's project, in a namespace and context the server may use, and the server doesn't wait minutes
+  assert k8s == {"namespace": "algo-qa", "context": "laptop", "project": "algo/project", "api_retry_seconds": 15}
 
 
 def test_stop_batch_jobs(fake_runners):
@@ -363,7 +366,7 @@ def test_driver_job_options(fake_runners, account, monkeypatch):
     "run_as": {"uid": 1234, "gid": 100, "groups": [2000]},
     "run_as_non_root": True,
     "forward_env": False,
-    "timeout": 0,
+    "pod_timeout": 0,
     "resources": {"cpu": "500m", "memory": "2Gi"},
     "api_retry_seconds": 15,
     "service_account": "qaboard-runs",
@@ -610,6 +613,23 @@ def test_submit_driver_failures_are_in_the_logs(fake_runners, account, tmp_path)
   fake_runners.stop_fails_with = RuntimeError("connection refused")
   with pytest.raises(RuntimeError, match="Forbidden"):
     runner_jobs.submit_driver(script_path, tmp_path, ARTHUR, make_commit({}), ID1)
+  # and if we can't write the log (e.g. the pod created it as another UID): the real error, not an OSError
+  other = tmp_path / "other"
+  (other / "log.txt").mkdir(parents=True)
+  with pytest.raises(RuntimeError, match="Forbidden"):
+    runner_jobs.submit_driver(script_path, other, ARTHUR, make_commit({}), ID1)
+
+
+def test_startup_logs(tmp_path):
+  """Why `qa batch` failed to start: why it was pending (its runner says), then its logs"""
+  from backend.submissions import startup_logs, append_log
+  assert startup_logs(tmp_path) is None
+  (tmp_path / "log.pending.txt").write_text("The pod is pending: ErrImagePull\n")
+  assert startup_logs(tmp_path) == "The pod is pending: ErrImagePull\n"
+  assert append_log(tmp_path, "ERROR: Could not start `qa batch`\n")
+  assert startup_logs(tmp_path) == "The pod is pending: ErrImagePull\nERROR: Could not start `qa batch`\n"
+  assert startup_logs(tmp_path, size=10) == "qa batch`\n"
+  assert not append_log(tmp_path / "missing", "x")
 
 
 def test_submit_driver_without_the_runner(account, tmp_path, monkeypatch):
@@ -629,7 +649,7 @@ def test_dispatch_kubernetes(fake_runners, account, tmp_path):
   script_path.write_text("#!/bin/bash\nqa batch\n")
   record = tuning._dispatch_kubernetes(script_path, tmp_path, ARTHUR, make_commit({}), True, DRIVER_ID)
   assert record == {"kubernetes_job": "qa-0123abcd-driver", "namespace": "algo-qa"}
-  assert fake_runners.submitted[0]["job_options"]["timeout"] == 0
+  assert fake_runners.submitted[0]["job_options"]["pod_timeout"] == 0
 
 
 def test_the_driver_is_the_batch_command(tmp_path):

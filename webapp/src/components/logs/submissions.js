@@ -44,9 +44,10 @@ export function batchSubmissions(batch) {
  * - done: `qa batch` exited successfully
  * - failed: we could not submit the job, `qa batch` failed, or LSF killed it
  *
- * `report` is LSF's job report (from log.lsf.txt), `log` what we know of log.txt: {exists, tail}
+ * `report` is LSF's job report (from log.lsf.txt), `log` what we know of log.txt: {exists, tail}, `pending` why
+ * its runner says it waits (log.pending.txt, e.g. its Kubernetes pod is pending), else the server's `pending_note`.
  */
-export function submissionState(submission, { report = null, log = null } = {}) {
+export function submissionState(submission, { report = null, log = null, pending = null } = {}) {
   // users stopped the batch
   if (submission.status === 'stopped')
     return { state: 'stopped', report }
@@ -63,7 +64,7 @@ export function submissionState(submission, { report = null, log = null } = {}) 
     return { state: exit_code === 0 ? 'done' : 'failed', exit_code, report, last_error: exit_code ? lastErrorLine(log?.tail) : null }
   if (log?.exists || submission.status === 'submitting')
     return { state: 'running', report }
-  return { state: 'queued', report }
+  return { state: 'queued', report, pending: pending || submission.pending_note || null }
 }
 
 export const is_final = state => state === 'done' || state === 'failed' || state === 'stopped'
@@ -107,7 +108,7 @@ async function readReport(url, signal) {
 // Several components show the status of the same submission: they share the polling.
 const stores = new Map()
 
-const storeKey = submission => `${submission.status} ${submission.log_dir_url}`
+const storeKey = submission => `${submission.status} ${submission.log_dir_url} ${submission.pending_note ?? ''}`
 
 function getStore(submission) {
   const key = storeKey(submission)
@@ -128,7 +129,11 @@ function startPolling(store, submission, interval) {
         readLogTail(`${log_dir_url}/log.txt`, controller.signal),
         is_lsf ? readReport(`${log_dir_url}/log.lsf.txt`, controller.signal) : null,
       ])
-      store.status = submissionState({ status: backend_status }, { log, report })
+      // Until `qa batch` writes logs, the kubernetes runner says why its pod waits
+      const pending = !log.exists && submission.runner === 'kubernetes'
+        ? (await readLogTail(`${log_dir_url}/log.pending.txt`, controller.signal)).tail.trim() || null
+        : null
+      store.status = submissionState({ status: backend_status, pending_note: submission.pending_note }, { log, report, pending })
       store.listeners.forEach(listener => listener())
       if (is_final(store.status.state)) {
         store.controller = null
@@ -154,8 +159,8 @@ function stopPolling(store) {
  */
 export function useSubmissionStatus(submission, { interval = 10000 } = {}) {
   // The submission object changes with each refresh of the batch, not the fields we need
-  const { status, log_dir_url, runner, exit_code, error } = submission
-  const fields = useMemo(() => ({ status, log_dir_url, runner, exit_code, error }), [status, log_dir_url, runner, exit_code, error])
+  const { status, log_dir_url, runner, exit_code, error, pending_note } = submission
+  const fields = useMemo(() => ({ status, log_dir_url, runner, exit_code, error, pending_note }), [status, log_dir_url, runner, exit_code, error, pending_note])
   const subscribe = useCallback(listener => {
     const store = getStore(fields)
     store.listeners.add(listener)

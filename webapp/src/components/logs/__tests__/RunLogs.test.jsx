@@ -131,6 +131,15 @@ describe('RunLogs', () => {
     expect(screen.getByText('The run may have failed before it started, or its files were deleted.')).toBeInTheDocument()
   })
 
+  it('shows the logs of the kubernetes runner when there are', async () => {
+    vi.stubGlobal('fetch', vi.fn(async url => ['/s/out/7/log.k8s.txt', '/s/out/7/log.pending.txt'].includes(url)
+      ? new Response('', { status: 200 }) : new Response('Not Found', { status: 404 })))
+    renderRun({ expanded: true })
+    expect(await screen.findByText('log.k8s.txt')).toBeInTheDocument()
+    expect(screen.getByText('log.pending.txt')).toBeInTheDocument()
+    expect(screen.queryByText('log.dask.txt')).not.toBeInTheDocument()
+  })
+
   it('says when the output files of a run were deleted', async () => {
     renderRun({ expanded: true, output: { ...output, deleted: true } })
     expect(await screen.findByText("The run's output files were deleted.")).toBeInTheDocument()

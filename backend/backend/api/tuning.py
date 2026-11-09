@@ -32,7 +32,7 @@ from ..models import CiCommit, Project
 from ..config import qaboard_data_shared_dir
 from ..shell_utils import safe_user_name, lsf_bridge_command
 from ..storage import check_storage_path, UnsafePathError
-from ..submissions import record_submission, MAX_SUBMISSIONS, user_batch_dir, submission_dir # noqa: F401
+from ..submissions import record_submission, MAX_SUBMISSIONS, user_batch_dir, submission_dir, append_log, startup_logs # noqa: F401
 from ..artifacts import ArtifactsUnavailable
 from ..notifications.batches import request_batch_notification, cancel_batch_notification
 from .auth import login_required, require_project_access, is_authorized_user, forbidden_project
@@ -580,8 +580,7 @@ def _dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize):
     print(out.stdout)
     if out.returncode != 0:
         # Users see this log in QA-Board
-        with (log_dir / 'log.txt').open('a') as log:
-            log.write(f"ERROR: Could not submit the job to LSF (exit code {out.returncode}):\n{out.stdout}\n")
+        append_log(log_dir, f"ERROR: Could not submit the job to LSF (exit code {out.returncode}):\n{out.stdout}\n")
     out.check_returncode()
     return {"lsf_job_id": parse_bsub_job_id(out.stdout), "queue": queue}
 
@@ -954,7 +953,8 @@ def start_tuning(hexsha):
 
     if submission["status"] == "failed":
         cancel_batch_notification(db_session, command_id, "The batch failed to start")
-        error_log = (log_dir / 'log.txt').read_text() if (log_dir / 'log.txt').exists() else submission.get("error", "Failed to start batch")
+        # what `qa batch` wrote, and why it waited (e.g. its Kubernetes pod was pending)
+        error_log = startup_logs(log_dir) or submission.get("error", "Failed to start batch")
         return jsonify({"error": error_log, "cmd": runner, "submission": submission}), 500
     return jsonify({"cmd": runner, "stdout": "OK", "submission": submission, "warning": restored_message, "notification": notification})
 

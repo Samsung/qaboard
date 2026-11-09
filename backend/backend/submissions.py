@@ -49,6 +49,37 @@ def pending_note(submission) -> Optional[str]:
   return note or None
 
 
+def append_log(log_dir, text: str) -> bool:
+  """
+  Tells users in log_dir/log.txt what went wrong. Never raises: e.g. a Kubernetes pod already created the file as
+  another UID, and this error would hide the one we report. Returns whether it was written.
+  """
+  try:
+    with (Path(log_dir) / 'log.txt').open('a') as log:
+      log.write(text)
+    return True
+  except OSError as e:
+    print(f"WARNING: could not write in {log_dir}/log.txt: {e}\n{text}")
+    return False
+
+
+def startup_logs(log_dir, size: Optional[int] = None) -> Optional[str]:
+  """
+  Why `qa batch` was pending (log_dir/log.pending.txt, from its runner) then what it wrote (log.txt), to tell users
+  why it failed to start. None if there is neither. With `size`, only the end.
+  """
+  parts = []
+  for name in (PENDING_NOTE_FILE, 'log.txt'):
+    try:
+      parts.append((Path(log_dir) / name).read_text(errors='replace'))
+    except OSError:
+      continue
+  if not parts:
+    return None
+  text = "\n".join(part.rstrip('\n') for part in parts if part) + ("\n" if any(parts) else "")
+  return text[-size:] if size else text
+
+
 # We keep the history of the last batches started from QA-Board
 MAX_SUBMISSIONS = 20
 
