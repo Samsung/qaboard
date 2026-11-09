@@ -5,7 +5,8 @@ Where the reruns of a run are saved: each attempt has its own directory (docs/rf
     output/<configurations>/<input>/latest_attempt.txt  "3": written when the run is done again
     output/<configurations>/<input>_attempt3/           the third attempt
 
-A run has one result, its latest attempt's: earlier attempts' files are removed when a new attempt starts.
+A run has one result, its latest attempt's: earlier attempts' files are removed when a new attempt starts, except
+their logs, kept in the new attempt's directory as log.attempt1.txt, log.attempt2.txt...
 Everything here only reads and writes the storage, so that it works offline, and from the server.
 
 The names of run directories only have 0-9 a-z . = - (conventions.slugify_hash): the "_" of the suffix can't come
@@ -14,7 +15,7 @@ from an input's name, and needs no quoting in shells, on Windows or in URLs.
 import os
 import re
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import click
 
@@ -26,6 +27,23 @@ ATTEMPT_DIR = re.compile(rf'^(?P<first>.+){SUFFIX}(?P<attempt>[1-9][0-9]*)$')
 # (in the web app, by retention rules) keeps its manifest. Runners' logs and scripts, written before, don't.
 STARTED_MARKERS = ('run.json', 'manifest.outputs.json')
 IN_PLACE, NEW_DIRECTORY = 'in-place', 'new-directory'
+# The log of a run, and those of its earlier attempts, kept in the latest attempt's directory: the last MAX_KEPT_LOGS
+LOG = 'log.txt'
+ATTEMPT_LOG = re.compile(r'^log\.attempt(?P<attempt>[1-9][0-9]*)\.txt$')
+MAX_KEPT_LOGS = 10
+
+
+def attempt_log(attempt: int) -> str:
+  return f"log.attempt{attempt}.txt"
+
+
+def kept_logs(output_dir: Path) -> List[int]:
+  """The earlier attempts whose logs are in the directory"""
+  try:
+    names = os.listdir(output_dir)
+  except OSError:
+    return []
+  return sorted(int(match['attempt']) for match in map(ATTEMPT_LOG.match, names) if match)
 
 
 def attempt_dir(first_dir: Path, attempt: int) -> Path:
@@ -92,10 +110,37 @@ def reserve(first_dir: Path) -> Path:
   return attempt_dir(first_dir, attempt)
 
 
+def move_file(source: Path, destination: Path) -> bool:
+  """Best effort: the file may belong to someone else, then we copy it."""
+  import shutil
+  try:
+    os.replace(source, destination)
+    return True
+  except OSError:
+    try:
+      shutil.copyfile(source, destination)
+      return True
+    except OSError:
+      return False
+
+
+def keep_previous_logs(previous: Path, output_dir: Path, previous_attempt: int) -> None:
+  """
+  Moves the log of the previous attempt to the new attempt's directory, as log.attempt<N>.txt, with the logs it
+  kept from the attempts before it. A failed attempt's log is often all that says why a run was done again.
+  """
+  logs = {attempt: previous / attempt_log(attempt) for attempt in kept_logs(previous) if attempt < previous_attempt}
+  if (previous / LOG).is_file():
+    logs[previous_attempt] = previous / LOG
+  for attempt in sorted(logs)[-MAX_KEPT_LOGS:]:
+    move_file(logs[attempt], output_dir / attempt_log(attempt))
+
+
 def remove_previous(output_dir: Path) -> None:
   """
-  Removes the files of the attempt before `output_dir`'s, when a new attempt starts: best effort, like the rerun in
-  place that emptied the directory. The first attempt's directory stays, for latest_attempt.txt.
+  When a new attempt starts in `output_dir`: keeps the logs of the attempt before it (and those it kept), then
+  removes its files. Best effort, like the rerun in place that emptied the directory.
+  The first attempt's directory stays, for latest_attempt.txt.
   """
   from .utils import clean_output_dir
   first_dir, attempt = split(output_dir)
@@ -105,6 +150,11 @@ def remove_previous(output_dir: Path) -> None:
   if not previous.is_dir():
     return
   is_first = previous == first_dir
+  try:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    keep_previous_logs(previous, output_dir, attempt - 1)
+  except OSError as e:
+    click.secho(f"WARNING: Could not keep the log of the previous attempt. [{e}]", fg='yellow', err=True)
   # Not rmtree: a job that LSF started again has its output redirected to a log in the previous attempt
   clean_output_dir(previous, keep=(POINTER,) if is_first else ())
   if is_first:

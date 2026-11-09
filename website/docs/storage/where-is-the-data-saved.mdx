@@ -72,21 +72,26 @@ wouldn't find the artifacts that the CI saved.
 
 ## When a run is done again {#reruns}
 Shared and CI results are not replaced in place: when the same run (commit, batch, input, configuration) is done
-again, `qa` saves it in a new folder, and removes the files of the previous attempt.
+again, `qa` saves it in a new folder, and removes the files of the previous attempt, except its log.
 
 ```
-output/<configuration>/<input>/                     the first attempt
-output/<configuration>/<input>/latest_attempt.txt   "3": the run was done again, its results are in...
-output/<configuration>/<input>_attempt3/            ...the third attempt's folder
+output/<configuration>/<input>/                         the first attempt
+output/<configuration>/<input>/latest_attempt.txt       "3": the run was done again, its results are in...
+output/<configuration>/<input>_attempt3/                ...the third attempt's folder
+output/<configuration>/<input>_attempt3/log.attempt2.txt    with the logs of the attempts before it
 ```
 
 - A run that is never done again is where it always was. Existing results need no change.
-- The web app shows the latest attempt, tagged **attempt 3**: hover the tag to see when the earlier attempts ran,
-  who ran them and whether they failed. Images from an earlier attempt can't show up from a cache: the paths are new.
+- The web app shows the latest attempt, tagged **attempt 3**. QA-Board keeps a record of the earlier attempts: when
+  they ran, who ran them, how they ended and their metrics, on the tag, and their logs in the Logs view. It doesn't
+  average attempts: people run again after they fixed something, so an earlier attempt often measured something else.
+- Images from an earlier attempt can't show up from a cache: the paths are new.
 - `qa postprocess`, `qa sync`, `qa batch --action-on-existing` and `qa check-bit-accuracy` find the latest attempt,
   also with `--offline`: they read *latest_attempt.txt*.
 - With `--keep-previous`, a run continues in its latest attempt's folder.
-- Local runs, in your project's `output/`, are still done again in place, like runs with `--output <folder>`.
+- Local runs, in your project's `output/`, are still done again in place, like runs with `--output <folder>`. When
+  the web app shows a run that was done again in place, it remembers the earlier run too, and the image viewer
+  warns that images [may be stale](/docs/user-guide/image-viewer#new-and-reference).
 
 <details>
 <summary>Scripts that build the paths of results themselves</summary>

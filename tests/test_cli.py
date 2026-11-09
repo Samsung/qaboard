@@ -122,6 +122,11 @@ class TestQaCli(unittest.TestCase):
       assert [p.name for p in first.iterdir()] == ['latest_attempt.txt']
       assert (first / 'latest_attempt.txt').read_text() == '3\n'
       assert not first.with_name(f'{first.name}_attempt2').exists()
+      # but their logs are kept with the latest attempt's, and listed with its files
+      for previous in (1, 2): # logs start with the command that ran
+        assert f'attempt {previous}' in (output_dir / f'log.attempt{previous}.txt').read_text()
+      assert 'attempt 2' not in (output_dir / 'log.txt').read_text()
+      assert json.loads((output_dir / 'manifest.outputs.json').read_text()).keys() >= {'log.attempt1.txt', 'log.attempt2.txt'}
       # later commands find the latest attempt
       result = self.qa('--share', 'postprocess', '-i', 'cli_tests/a.jpg')
       assert f"Outputs: {output_dir}\n" in click.unstyle(result.output)

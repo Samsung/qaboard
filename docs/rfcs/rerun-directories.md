@@ -1,6 +1,7 @@
 # RFC: reruns get their own directory
 
-Status: accepted for a first version, November 2026. Implemented with this RFC: see "What ships" at the end.
+Status: accepted, November 2026. Implemented with this RFC: see "What ships" at the end. A second step made it
+a ledger: the earlier attempts' logs, status and metrics are kept.
 Related: `docs/rfcs/python-sdk-runs.md` (open question 3, "replace or keep attempts"), the roadmap's "Agents" section.
 
 ## Why
@@ -20,9 +21,11 @@ A rerun is not a repeated measurement. People rerun because they changed their c
 result, because a machine or a license server failed, or because a dependency outside the repository changed. The
 new result often measures something else than the previous one.
 
-So this RFC gives reruns a directory and a number, and nothing more:
+So this RFC gives reruns a directory, a number and a record, and nothing more:
 - **A run still has one result: its latest attempt's.** The web app, the gate, History and the APIs see what they
   see today. There is still one row per run in the database.
+- **Earlier attempts are a record, not samples.** We keep how each ended, its metrics and its log, to answer "what
+  happened before this passed?". Nothing is computed over them.
 - **QA-Board doesn't aggregate attempts.** Projects that repeat measurements do it inside `run()`, with the tool
   they trust (hyperfine, their benchmark harness), and return the statistics they want as metrics. What a run's
   metrics mean stays the project's business.
@@ -60,7 +63,7 @@ output/<configurations>/<input>_attempt3/           the third attempt
 |---|---|---|
 | **latest** | The directory `latest_attempt.txt` points to, else the first attempt's. | `qa postprocess`, `qa sync`, `qa get output_dir`, `qa batch --list-output-dirs`, `--action-on-existing`, `qa check-bit-accuracy`, `--keep-previous` |
 | **reserve** | If the latest attempt never started (it has no `run.json`), that directory. Otherwise the next number, written to `latest_attempt.txt`. | `qa batch` for the runs it starts, `qa run` |
-| **remove the previous attempt's files** | Best effort. The first attempt's directory stays, with `latest_attempt.txt` only. | `qa run`, when it starts |
+| **replace the previous attempt** | Its `log.txt` moves to the new attempt's directory as `log.attempt<N>.txt`, with the logs it kept itself (the last 10). Its other files are removed, best effort. The first attempt's directory stays, with `latest_attempt.txt` only. | `qa run`, when it starts |
 
 - **`qa batch` and `qa run` agree without telling each other.** `qa batch` reserves a directory for each run it
   starts: it tells QA-Board where the run will be, and runners (LSF, dask, Jenkins) send their logs there before
@@ -68,8 +71,11 @@ output/<configurations>/<input>_attempt3/           the third attempt
   finds the directory its batch reserved. A job that never starts leaves a reserved directory, which the next
   attempt uses.
 - **The previous attempt's files are removed when the new attempt starts**, as today, where `qa run` empties the
-  directory. The storage used doesn't change. If they can't be removed (they belong to someone else), they stay:
-  the storage scan lists them as an untracked run, that its owner or an admin deletes.
+  directory. The storage used doesn't change, but for the logs. If they can't be removed (they belong to someone
+  else), they stay: the storage scan lists them as an untracked run, that its owner or an admin deletes.
+- **Logs are kept**, because a failed attempt's log is often the only evidence of a flaky machine or test. They are
+  in the run's manifest, so they're deleted with its files and counted in its storage, and bit-accuracy checks
+  ignore them. `qa` tells the server which ones it has (`data.attempt_logs`).
 - **If `latest_attempt.txt` can't be written** (the first attempt's directory belongs to someone else), `qa` warns
   and reruns in place, as before.
 
@@ -87,15 +93,20 @@ output/<configurations>/<input>_attempt3/           the third attempt
 No migration: runs keep their row, and the server already saves the directory each run reports
 (`outputs.output_dir_override`).
 - `data.attempt`: the number in the directory's name, when it's over 1.
-- `data.previous_attempts`: when a run reports a new directory, what the row said of the attempt it replaces:
-  its number, when it started and ended, whether it failed or never finished, and who ran it. The last 10. No
-  metrics: an earlier attempt's metrics are not a sample of the latest's.
+- `data.previous_attempts`: when a run starts a new attempt, what the row said of the attempt it replaces: its
+  number, when it started and ended, whether it failed or never finished, who ran it, and its metrics (plain
+  values, at most 300). The last 10.
+- **Runs done again in place are recorded too**: a finished run that says it's pending again, in the same
+  directory, starts a new attempt, kept with `in_place: true`. `qa batch` saying "pending" then its `qa run` saying
+  "running" is one attempt.
 - When a run is hard-deleted, the first attempt's directory goes too if it only holds `latest_attempt.txt`. A run
   done again after that starts from its first attempt.
 - Admins can't add an earlier attempt's leftover folder as a run from a storage scan ("Add runs to QA-Board"): the
   run's row already has its latest attempt.
 
-The web app shows "Attempt 3" on the run, with the earlier attempts on hover.
+The web app shows "attempt 3" on the run, with the earlier attempts and their metrics on hover, and their logs
+in the Logs view. For a run done again in place, the image viewer warns that the image may be stale: the browser,
+the viewer and the image server all cache by path, and we can't clear them all.
 
 ## Migration
 - **Existing results**: nothing to do. A directory without `latest_attempt.txt` is a first attempt.
@@ -111,28 +122,28 @@ The web app shows "Attempt 3" on the run, with the earlier attempts on hover.
   `latest_attempt.txt`, or the project opts out.
 
 ## Not in this version, on purpose
-- **Keeping the files of earlier attempts.** It's what an audit of "what did the failed attempt look like" needs,
-  and it multiplies the storage of people who iterate. It needs storage usage, retention rules and deletions to
-  know about attempts first. `outputs.reruns` can get a third value later.
+- **Keeping the output files of earlier attempts**, beyond their logs. It multiplies the storage of people who
+  iterate, and needs storage usage, retention rules and deletions to know about attempts first. `outputs.reruns`
+  can get a third value later.
 - **A database row per attempt.** Every query on runs would have to ignore earlier attempts. `previous_attempts`
   answers "how many times, who, did it fail" without it.
 - **New directories for local runs.** See above. Possible later behind the same setting.
 - **Statistics over attempts.** See "What a rerun is, and is not".
 
-## Open questions
-1. Should CI keep the log of a failed earlier attempt? It's often the only evidence of a flaky environment. A cheap
-   version: move `log.txt` into the new attempt as `log.attempt1.txt`.
-2. Should the gate's summary say that some runs passed after several attempts? The data is there
-   (`data.attempt`): it's a question of what reviewers want to read.
-3. `start_run()` (the Python SDK RFC) should reserve its directory with the same operations: a training run started
-   twice is two attempts.
+## Decided after the first version
+1. **Logs of earlier attempts are kept**, for every attempt, not only failed ones in CI: see above.
+2. **The gate says when runs passed after being done again**: in its summary and in the comment it posts on pull
+   requests (`docs/quality-ledger-plan.md`, item 3).
+3. **`start_run()` reserves its directory with the same operations** (`docs/rfcs/python-sdk-runs.md`): a training run
+   started twice is two attempts.
 
 ## What ships
 - `qaboard/attempts.py`, used by `qa run`, `qa batch`, `qa postprocess`, `qa sync`, `qa get`, `qa check-bit-accuracy`.
   `qa batch` finds its runs' results by their id first (`qaboard/runners/job.py`).
 - `outputs.reruns` in *qaboard.yaml*, `QA_RERUNS`.
 - The server's `data.attempt` and `data.previous_attempts` (`backend/attempts.py`), the clean-up on hard deletes, the
-  **attempt N** tag on run cards (`webapp/src/components/AttemptTag.jsx`).
+  **attempt N** tag on run cards (`webapp/src/components/AttemptTag.jsx`), the earlier logs in the Logs view, and the
+  image viewer's **may be stale** tag.
 - Docs: [Where is the data saved?](../../website/docs/storage/where-is-the-data-saved.mdx) ("When a run is done
   again"), the run cards' page of the user guide, the admins' storage page, the agents' `qaboard-results` skill, the
   release note.

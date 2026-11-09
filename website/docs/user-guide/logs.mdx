@@ -64,7 +64,9 @@ Click a run to open it. Above its log, its input path and full configuration: ho
   the search box;
 - the buttons on the right wrap lines, make the log taller, copy it, download it, or open the raw file;
 - when a run has several logs, switch between them at the top left: *log.txt*, and *log.lsf.txt* or *log.dask.txt*
-  when the run used LSF or Dask.
+  when the run used LSF or Dask. When the run was [done again](/docs/user-guide/commit-page#run-cards), the logs of
+  its earlier attempts are there too, *log.attempt2.txt*, *log.attempt1.txt*: often the only place that says why an
+  attempt failed.
 
 Each run's line says how long it ran, and has buttons to copy the path of its output directory, open it in the
 [file browser](/docs/user-guide/files), and a **⋯** menu: its input's **History**, its batch, input path and database
@@ -190,6 +192,8 @@ Each run writes its logs in its output directory:
 - *log.lsf.txt*: on LSF, everything the job printed, then LSF's job report. See
   [LSF integration](/docs/lsf-integration#logs).
 - *log.dask.txt*: with the [Dask runner](/docs/dask-integration).
+- *log.attempt1.txt*, *log.attempt2.txt*...: the *log.txt* of the earlier attempts of a shared or CI run that was
+  [done again](/docs/storage/where-is-the-data#reruns), the last 10.
 
 Batches started from a terminal with `qa --share batch` save what `qa batch` prints in the batch directory, under
 *qa-batch-logs/* (see [`qa --share`](/docs/using-the-qa-cli#qa---share)). In the CI, the CI job keeps them.

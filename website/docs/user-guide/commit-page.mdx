@@ -169,8 +169,10 @@ The **Visualizations** view has one card per run. A card starts with:
   **Platform** tags (with a `≠`) mean the reference run is not exactly the same: see
   [How runs are matched](/docs/user-guide/comparing-results#how-runs-are-matched).
 - **attempt 2**, **attempt 3**... when the run was done again, e.g. after a machine failed or someone retried a CI
-  job. The card shows the latest attempt's results. Hover the tag to see when the earlier attempts ran, who ran them
-  and how they ended: it's orange when one of them failed.
+  job. The card shows the latest attempt's results. Hover the tag to see when the earlier attempts ran, who ran them,
+  how they ended and what they measured: it's orange when one of them failed. Their logs are in the
+  [Logs view](/docs/user-guide/logs#reading-a-log). Runs done again in the same folder, like those of older versions
+  of `qa`, are tagged **done again**.
 - **its main metrics**, each with its change against the reference run, colored when it gets better or worse: see
   [what the colors mean](/docs/user-guide/metrics#colors).
 

@@ -368,8 +368,8 @@ def new_output_webhook():
                                          test_input=test_input,
                                         )
   output.output_type = data.get('input_type', '')
-  # A run that is done again is saved in a new directory: we remember the attempt it replaces
-  record_attempt(output, output_directory)
+  # A run that is done again, in a new directory or in place: we remember the attempt it replaces
+  record_attempt(output, output_directory, is_pending=bool(data.get('is_pending') or data.get('is_running')))
 
   if not output.data:
     output.data = {}

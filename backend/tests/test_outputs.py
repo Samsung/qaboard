@@ -285,8 +285,10 @@ def test_a_run_done_again_in_a_new_directory_keeps_a_trace_of_its_attempts(outpu
     notify(outputs_api, dummy_app, output_directory="/storage/project/output_attempt2", user="alice", **status)
   assert output.output_dir_override == "/storage/project/output_attempt2"
   assert output.data["attempt"] == 2
+  # with its metrics: a record of what the attempt measured, not a sample of the new one
   assert output.data["previous_attempts"] == [
-    {"attempt": 1, "status": "failed", "started_at": "2026-11-03T10:12:00Z", "finished_at": "2026-11-03T10:14:00Z", "user": "ci"},
+    {"attempt": 1, "status": "failed", "started_at": "2026-11-03T10:12:00Z", "finished_at": "2026-11-03T10:14:00Z", "user": "ci",
+     "metrics": {"is_failed": True}},
   ]
 
   # again, while the second attempt never said how it ended
@@ -300,6 +302,27 @@ def test_a_run_done_again_in_a_new_directory_keeps_a_trace_of_its_attempts(outpu
          data={"attempt": 1, "previous_attempts": [], "storage": 10})
   assert output.data["attempt"] == 3 and len(output.data["previous_attempts"]) == 2
   assert output.data["storage"] == 10
+
+
+def test_a_run_done_again_in_place_keeps_a_trace_too(outputs_api, dummy_app):
+  """Local runs, projects that opt out and older `qa` replace the run's files where they are: viewers warn about caches"""
+  output = outputs_api.test_output
+  output.id, output.output_dir_override, output.is_failed = 7, "/storage/project/output", False
+  output.metrics = {"psnr": 30, "notes": "x" * 500, "curve": [1, 2]}
+  # `qa batch` says the run is pending, its `qa run` that it runs, then how it ended: one new attempt
+  for status in ({"is_pending": True}, {"is_pending": True, "is_running": True}, {"is_pending": False, "metrics": {"psnr": 31}}):
+    notify(outputs_api, dummy_app, **status)
+  previous, = output.data["previous_attempts"]
+  # plain values only
+  assert previous == {"attempt": 1, "status": "success", "in_place": True, "metrics": {"psnr": 30}}, previous
+  assert "attempt" not in output.data
+  # updates of a finished run are not attempts: qa postprocess, qa sync
+  notify(outputs_api, dummy_app, is_pending=False, metrics={"psnr": 32})
+  assert len(output.data["previous_attempts"]) == 1
+  # a run without its own directory, from very old clients
+  notify(outputs_api, dummy_app, without=("output_directory",), is_pending=True, is_running=True)
+  assert [a.get("in_place") for a in output.data["previous_attempts"]] == [True, True]
+  assert output.data["previous_attempts"][1]["metrics"]["psnr"] == 32
 
 
 def test_only_the_last_attempts_are_remembered():

@@ -471,6 +471,7 @@ def is_bit_accurate(dir_new, dir_ref, run_context: RunContext, strict=False, man
     ignore.append('run.json')             # qa-board data, not relevant
     ignore.append('log.txt')              # contains timestamps
     ignore.append('log.lsf.txt')          # contains timestamps
+    ignore.append('log.attempt')          # the logs of the run's earlier attempts: log.attempt1.txt...
     ignore.append('metrics.json')         # contains measured run time
     ignore.append('metrics_definitions.json') # how to show metrics, not outputs
     ignore.append('latest_attempt.txt')   # which attempt of the run is the latest (qaboard/attempts.py)

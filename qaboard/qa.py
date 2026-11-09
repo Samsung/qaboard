@@ -228,10 +228,10 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
 
     # Results saved in the storage are not replaced in place: a run that is done again gets its own directory,
     # the one `qa batch` reserved if it started us, and the previous attempt's files are removed
-    if saves_attempts(ctx.obj, custom_output=output_path) and not keep_previous:
+    new_attempt = saves_attempts(ctx.obj, custom_output=output_path) and not keep_previous
+    if new_attempt:
       run_context.output_dir = attempts.reserve_or_keep(run_context.output_dir)
       ctx.obj["output_directory"] = run_context.output_dir
-      attempts.remove_previous(run_context.output_dir)
 
     if run_context.output_dir.exists():
     # Usually we want to remove any files already present in the output directory.
@@ -242,6 +242,9 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
         # Keeps the log files runners redirected our output to (e.g. log.lsf.txt with LSF job arrays)
         clean_output_dir(run_context.output_dir)
     run_context.output_dir.mkdir(parents=True, exist_ok=True)
+    if new_attempt:
+      # the previous attempt's log is kept here, as log.attempt<N>.txt
+      attempts.remove_previous(run_context.output_dir)
 
     with (run_context.output_dir / 'run.json').open('w') as f:
       json.dump({
@@ -265,7 +268,7 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
       print_url(ctx)
 
       if not ctx.obj['offline']:
-          qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True)
+          qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True, data={"attempt_logs": attempts.kept_logs(run_context.output_dir)})
           if qa_run_data:
             run_context.id = qa_run_data["id"]
           # in CI, results QA-Board refuses are lost: don't compute them
@@ -427,6 +430,8 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
   if 'params' in metrics:
     output_data['params'] = metrics['params']
     del metrics['params']
+  # the earlier attempts whose logs are next to the run's (qaboard/attempts.py)
+  output_data['attempt_logs'] = attempts.kept_logs(run_context.output_dir)
 
 
   if save_manifests_in_database:

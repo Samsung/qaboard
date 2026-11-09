@@ -290,21 +290,34 @@ def test_runs_done_again_keep_one_row_and_a_trace_of_their_attempts(client, monk
   assert (previous["attempt"], previous["status"], previous["user"]) == (1, "failed", "alice")
   assert previous["started_at"] and previous["finished_at"]
 
-  # a third attempt replaces one that never said how it ended
-  third = first.with_name("inputs-a_attempt3")
-  report(second, is_pending=True, is_running=True, user="bob")
-  latest = report(third, is_pending=True, is_running=True)
-  assert latest["data"]["attempt"] == 3
-  assert [(a["attempt"], a["status"], a["user"]) for a in latest["data"]["previous_attempts"]] == [(1, "failed", "alice"), (2, "unfinished", "bob")]
+  # the ledger keeps what the earlier attempts measured
+  assert previous["metrics"] == {"loss": 1.0, "is_failed": True}
+
+  # a third attempt, that a fourth replaces before it says how it ended
+  third, fourth = first.with_name("inputs-a_attempt3"), first.with_name("inputs-a_attempt4")
+  report(third, is_pending=True, is_running=True)
+  latest = report(fourth, is_pending=True, is_running=True)
+  assert latest["data"]["attempt"] == 4
+  attempts = latest["data"]["previous_attempts"]
+  assert [(a["attempt"], a["status"], a["user"]) for a in attempts] == [(1, "failed", "alice"), (2, "success", "bob"), (3, "unfinished", "alice")]
+  assert attempts[1]["metrics"] == {"loss": 0.5} and "metrics" not in attempts[2]
+  assert not any(a.get("in_place") for a in attempts)
+
+  # done again in the same folder, e.g. with --keep-previous: recorded too, viewers warn that files were replaced
+  report(fourth, metrics={"loss": 0.2})
+  in_place = report(fourth, is_pending=True, is_running=True)["data"]
+  assert in_place["attempt"] == 4
+  assert (in_place["previous_attempts"][-1]["in_place"], in_place["previous_attempts"][-1]["metrics"]) == (True, {"loss": 0.2})
+  assert len(in_place["previous_attempts"]) == 4
 
   # deleting the run for good removes the latest attempt's folder, and the first attempt's that said where it was
   first.mkdir(parents=True)
-  (first / "latest_attempt.txt").write_text("3\n")
-  third.mkdir()
-  (third / "out.txt").write_text("")
+  (first / "latest_attempt.txt").write_text("4\n")
+  fourth.mkdir()
+  (fourth / "out.txt").write_text("")
   output = Output.query.one()
   output.delete(soft=False)
-  assert not third.exists() and not first.exists()
+  assert not fourth.exists() and not first.exists()
 
 
 def test_output_directory_outside_storage(client):

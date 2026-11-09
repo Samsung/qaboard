@@ -107,6 +107,36 @@ class TestAttemptDirs(unittest.TestCase):
     attempts.remove_previous(self.first)
     attempts.remove_previous(third)
 
+  def test_the_logs_of_earlier_attempts_are_kept(self):
+    """A failed attempt's log is often all that says why a run was done again"""
+    run_in(self.first, **{'log.txt': 'one', 'out.txt': ''})
+    second = attempts.reserve(self.first)
+    attempts.remove_previous(second)
+    self.assertEqual((second / 'log.attempt1.txt').read_text(), 'one')
+    self.assertEqual([p.name for p in self.first.iterdir()], [POINTER])
+    run_in(second, **{'log.txt': 'two'})
+    third = attempts.reserve(self.first)
+    attempts.remove_previous(third)
+    self.assertEqual(attempts.kept_logs(third), [1, 2])
+    self.assertEqual((third / 'log.attempt1.txt').read_text(), 'one')
+    self.assertEqual((third / 'log.attempt2.txt').read_text(), 'two')
+    self.assertFalse(second.exists())
+    # only the last ones, and an attempt without a log (it never started) leaves none
+    run_in(third, **{'log.txt': 'three'})
+    fourth = attempts.reserve(self.first)
+    with mock.patch.object(attempts, 'MAX_KEPT_LOGS', 2):
+      attempts.remove_previous(fourth)
+    self.assertEqual(attempts.kept_logs(fourth), [2, 3])
+    run_in(fourth)
+    fifth = attempts.reserve(self.first)
+    attempts.remove_previous(fifth)
+    self.assertEqual(attempts.kept_logs(fifth), [2, 3])
+    self.assertEqual(attempts.kept_logs(self.first / 'missing'), [])
+    # other files named like logs are not ours
+    (fifth / 'log.attempt.txt').write_text('')
+    (fifth / 'log.attempt02.txt').write_text('')
+    self.assertEqual(attempts.kept_logs(fifth), [2, 3])
+
   @unittest.skipIf(os.name == 'nt' or (hasattr(os, 'geteuid') and os.geteuid() == 0), "needs permissions that hold")
   def test_files_that_cant_be_removed_stay(self):
     run_in(self.first)
