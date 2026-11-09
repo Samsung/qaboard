@@ -215,6 +215,7 @@ const CiCommitResults = () => {
     new_batch={new_batch}
     ref_batch={ref_batch}
     labels={comparison.labels}
+    nb_references={comparison.references?.length ?? 1}
   />;
   // the previous export, while people move to the new one
   const legacy_export_plugin = <LegacyExportPlugin

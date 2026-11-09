@@ -101,13 +101,19 @@ runs, new and reference, into a new folder, and shows you every file's name befo
 
 Names only say what tells the files apart. Most of the time that's the input: `night_street.png`. They add, only when
 needed:
-- the **settings** that tell runs on the same input apart, e.g. when you tune parameters: `night_street__gain=4.png`,
+- the **settings** that tell runs on the same input apart, e.g. when you tune parameters: `night_street__gain=4.png`.
+  Only the runs that need them say them: if one image ran twice, with and without a crop, you get `street.png` and
+  `street__crop=center.png`, and the other images keep their plain names,
 - the **file**, when runs have several files matching the pattern: `night_street__debug_mask.png`,
 - **new or reference**: what the page calls the new and reference results, e.g. `new` and `v1.2`, or their milestones'
   names. Without a reference, you export one version, and names don't say it.
 
-Click **Change** next to the settings to pick them, **Rename** next to new or reference to call them something else.
-Each export goes to a new folder: give it a name to find it later in
+To export one side only, pick **Only new** or **Only** the reference under the pattern: names don't say new or
+reference then. If the page compares with several references, the export takes the one shown.
+
+Click **Change** next to the settings to pick them. Click **Rename** next to new or reference to call them something
+else, only for this export (the page and its milestones keep their names), and to choose what's before them, e.g. `@`:
+`night_street@new.png`. Each export goes to a new folder: give it a name to find it later in
 [Storage usage](/docs/user-guide/storage-usage#exports). In the folder, `0.export.csv` lists each file and where it
 comes from (run, input, settings, region), and `0.export.json` adds the runs' configurations, for scripts.
 
@@ -115,8 +121,9 @@ By default, the exported files are **links** to the original files: nothing is c
 you'd edit the runs' files. To copy them, or export into a folder you choose, open **More options**.
 
 :::note The previous export
-**Export (legacy)**, next to **Export**, is the previous export, with the same names and folders as before: keep using
-it while your scripts move to the new names. It will be removed: tell your admins what you miss in the new one.
+**Export (legacy)**, next to **Export**, is the previous export, unchanged, with the same names and folders as before:
+scripts that read them keep working. It stays until the new export does what you need. After an export, **Tell us**
+sends your feedback: what's missing, what's confusing, what was better before.
 :::
 
 :::tip You may not need an export
@@ -154,7 +161,9 @@ where each crop is, in the image's pixels: `x,y,w,h`.
 configurations (`gain`, `isp.awb.mode`), their configurations' files (`night.yaml`), and their platform. Check the
 ones names should say. By default, it checks the fewest settings that tell runs on the same input apart, e.g. only
 their batch when runs of several batches also differ by configuration and platform: without them, their files would get
-the same name. Each run says the value of each setting checked, and `default` if it doesn't set it:
+the same name. A run's name says a setting only if another run on the same input has another value for it, and a
+parameter only if the run sets it. For scripts that expect the same fields in every name, uncheck **Only in the names
+that need them**: every name then says every setting checked, and `default` for the runs that don't set it:
 `street__gain=4,iso=default__new.png`. You choose:
 - how a parameter and its value are written: `gain=4`, `gain-4`, `gain_4`, or only `4`,
 - what goes between settings: `,`, `_`, `+` or `-`,

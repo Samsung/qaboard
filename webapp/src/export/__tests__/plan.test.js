@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { export_runs, settings_labels, settings_candidates, default_naming, layout_of, example_name, presets_for, saved_settings, LAYOUTS } from '../plan';
+import { export_runs, settings_labels, settings_candidates, default_naming, layout_of, example_name, presets_for, saved_settings, side_separator, with_side_separator, LAYOUTS } from '../plan';
 import { file_name } from '../names';
 
 let next_id = 1;
@@ -49,14 +49,21 @@ describe('export names', () => {
     ]);
     expect(plan.picked).toEqual(['gain']);
     // the reference run is named like each new run it's compared to: files pair up
-    expect(names(plan)).toEqual(['a__gain=1__out__new.png', 'a__gain=2__out__new.png', 'b__gain=1__out__new.png', 'a__gain=1__out__ref.png', 'a__gain=2__out__ref.png']);
+    // ...and only the runs that share their input say it: b.raw has one run
+    expect(names(plan)).toEqual(['a__gain=1__out__new.png', 'a__gain=2__out__new.png', 'b__out__new.png', 'a__gain=1__out__ref.png', 'a__gain=2__out__ref.png']);
+    // or every name says it, for scripts that expect the same fields everywhere
+    const everywhere = export_runs({ new_batch, ref_batch, labels: { new: 'new', reference: 'ref' }, naming: { ...default_naming, settings_where: 'all' } });
+    expect(names(everywhere).slice(0, 3)).toEqual(['a__gain=1__out__new.png', 'a__gain=2__out__new.png', 'b__gain=1__out__new.png']);
     expect(plan.counts).toEqual({ new: 3, reference: 1, without_reference: 1 });
     // or once, saying the same settings, with its own values
     const once = export_runs({ new_batch, ref_batch, labels: { new: 'new', reference: 'ref' }, naming: { ...default_naming, pair_references: false } });
-    expect(names(once).slice(3)).toEqual(['a__gain=default__out__ref.png']);
+    expect(names(once).slice(3)).toEqual(['a__out__ref.png']);
     // users pick the settings
     const both = export_runs({ new_batch, ref_batch, labels: {}, naming: { ...default_naming, settings_keys: ['iso', 'gain'] } });
-    expect(both.items.slice(0, 3).map(i => i.fields.settings)).toEqual(['gain=1,iso=100', 'gain=2,iso=100', 'gain=1,iso=200']);
+    // gain where runs share an input; iso only differs between inputs, so every run says it
+    expect(both.items.slice(0, 3).map(i => i.fields.settings)).toEqual(['gain=1,iso=100', 'gain=2,iso=100', 'iso=200']);
+    const both_everywhere = export_runs({ new_batch, ref_batch, labels: {}, naming: { ...default_naming, settings_keys: ['iso', 'gain'], settings_where: 'all' } });
+    expect(both_everywhere.items.slice(0, 3).map(i => i.fields.settings)).toEqual(['gain=1,iso=100', 'gain=2,iso=100', 'gain=1,iso=200']);
     const none = export_runs({ new_batch, ref_batch, labels: {}, naming: { ...default_naming, settings_keys: [] } });
     expect(none.items.map(i => i.fields.settings).every(s => s === '')).toBe(true);
   });
@@ -75,9 +82,59 @@ describe('export names', () => {
     expect([...settings_labels(sweep).values()]).toEqual(['gain=1,iso=1', 'gain=1,iso=2', 'gain=2,iso=1', 'gain=2,iso=2']);
   });
 
-  it('says "default" for runs that do not set a parameter', () => {
+  it('leaves parameters out of the names of the runs that do not set them, or says "default"', () => {
     const outputs = [run('a', { extra_parameters: { gain: 4 } }), run('a'), run('a', { extra_parameters: { gain: 4, iso: 100 } })];
-    expect([...settings_labels(outputs).values()]).toEqual(['gain=4,iso=default', 'gain=default,iso=default', 'gain=4,iso=100']);
+    expect([...settings_labels(outputs).values()]).toEqual(['gain=4', '', 'gain=4,iso=100']);
+    expect([...settings_labels(outputs, { ...default_naming, settings_where: 'all' }).values()]).toEqual(['gain=4,iso=default', 'gain=default,iso=default', 'gain=4,iso=100']);
+    // values without their names need a place for each: "default"
+    expect([...settings_labels(outputs, { ...default_naming, settings_assign: '' }).values()]).toEqual(['4,default', 'default,default', '4,100']);
+  });
+
+  it('says a setting only for the runs that need it: one image with a non-standard crop', () => {
+    // 3 images; one ran twice, with and without a crop
+    const outputs = [run('a.raw'), run('b.raw'), run('c.raw'), run('c.raw', { extra_parameters: { crop: 'center' } })];
+    const batch = { filtered: { outputs: outputs.map(o => o.id) }, outputs: Object.fromEntries(outputs.map(o => [o.id, o])) };
+    const plan = export_runs({ new_batch: batch, ref_batch: { outputs: {} } });
+    expect(plan.picked).toEqual(['crop']);
+    expect(names(plan)).toEqual(['a__out.png', 'b__out.png', 'c__out.png', 'c__crop=center__out.png']);
+    // short ids and numbers too
+    expect(export_runs({ new_batch: batch, ref_batch: { outputs: {} }, naming: { ...default_naming, settings_format: 'number' } }).items.map(i => i.fields.settings)).toEqual(['', '', '', 's1']);
+  });
+
+  it('exports one side alone, named like a page without a reference', () => {
+    const ref = run('a.raw');
+    const { new_batch, ref_batch } = batches([
+      [run('a.raw', { extra_parameters: { gain: 1 } }), ref],
+      [run('a.raw', { extra_parameters: { gain: 2 } }), ref],
+      [run('b.raw'), run('b.raw')],
+    ]);
+    const labels = { new: 'new', reference: 'v1' };
+    const only_new = export_runs({ new_batch, ref_batch, labels, sides: 'new' });
+    expect(names(only_new)).toEqual(['a__gain=1__out.png', 'a__gain=2__out.png', 'b__out.png']);
+    expect(only_new).toMatchObject({ has_reference: true, both: false, side: 'new', labels: { new: '', reference: '' } });
+    // the reference runs, once each, with their own settings: here they don't differ
+    const only_ref = export_runs({ new_batch, ref_batch, labels, sides: 'reference', regions: new Map([[new_batch.filtered.outputs[0], [{ name: 'face' }]]]) });
+    expect(names(only_ref)).toEqual(['a__out.png', 'b__out.png']);
+    expect(only_ref.items.map(i => [i.side, i.id, i.regions?.[0].name])).toEqual([['reference', ref.id, 'face'], ['reference', ref_batch.outputs[new_batch.outputs[new_batch.filtered.outputs[2]].reference_id].id, undefined]]);
+    expect(only_ref.counts).toEqual({ new: 3, reference: 2, without_reference: 0 });
+    // without a reference on the page, it's the new runs
+    expect(export_runs({ new_batch, ref_batch: { outputs: {} }, sides: 'reference' }).items.every(i => i.side === 'new')).toBe(true);
+  });
+
+  it('puts what users want before new or reference, e.g. @', () => {
+    const flat = LAYOUTS[0].template;
+    expect(side_separator(flat)).toBe('__');
+    const at = with_side_separator(flat, '@');
+    expect(at).toBe('{input}__{settings}__{file}__{region}@{side}');
+    expect(layout_of(at, '_')).toBe('flat');
+    const plan = export_runs({ ...batches([[run('x/a.raw'), run('x/a.raw')]]), labels: { new: 'new', reference: 'ref' } });
+    expect(names(plan, { ...default_naming, template: at })).toEqual(['x_a__out@new.png', 'x_a__out@ref.png']);
+    // one side alone: nothing to separate
+    const alone = export_runs({ ...batches([[run('x/a.raw'), null]]) });
+    expect(names(alone, { ...default_naming, template: at })).toEqual(['x_a__out.png']);
+    // a folder per side has no separator
+    expect(side_separator(LAYOUTS[1].template)).toBe(null);
+    expect(with_side_separator(LAYOUTS[1].template, '@')).toBe(LAYOUTS[1].template);
   });
 
   it('names configurations, nested parameters and platforms briefly, unless that would be ambiguous', () => {
@@ -99,7 +156,7 @@ describe('export names', () => {
 
   it('lets users choose how settings show', () => {
     const outputs = [run('a', { extra_parameters: { gain: 1, iso: 5 } }), run('a', { extra_parameters: { gain: 2, iso: 6 } }), run('b', { extra_parameters: { gain: 3, iso: 7 } })];
-    const show = naming => [...settings_labels(outputs, { ...default_naming, settings_keys: ['gain', 'iso'], ...naming }).values()];
+    const show = naming => [...settings_labels(outputs, { ...default_naming, settings_keys: ['gain', 'iso'], settings_where: 'all', ...naming }).values()];
     expect(show({ settings_assign: '-', settings_join: '_' })).toEqual(['gain-1_iso-5', 'gain-2_iso-6', 'gain-3_iso-7']);
     expect(show({ settings_assign: '' })).toEqual(['1,5', '2,6', '3,7']);
     const ids = show({ settings_format: 'id' });
