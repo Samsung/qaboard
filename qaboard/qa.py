@@ -544,9 +544,10 @@ def wait(ctx, output_id):
   sys.exit(0 if not output["is_failed"] else 1)
 
 
-lsf_config = config['lsf'] if 'lsf' in config else config.get('runners', {}).get('lsf', {})
+# `runners:` or `runners.lsf:` left empty in qaboard.yaml are None
+runners_config = config.get('runners') or {}
+lsf_config = (config['lsf'] if 'lsf' in config else runners_config.get('lsf')) or {}
 
-runners_config = config.get('runners', {})
 if 'default' in runners_config:
   default_runner = runners_config['default']
 else:
@@ -556,7 +557,7 @@ if 'lsf' in config:
   default_runner = 'lsf'
 if default_runner ==  'lsf' and os.name=='nt':
   default_runner = 'local'
-local_config = config.get('runners', {}).get('local', {})
+local_config = runners_config.get('local') or {}
 
 default_lsf_queue = lsf_config.get('queue')
 default_lsf_max_threads = lsf_config.get('max_threads', 0)
