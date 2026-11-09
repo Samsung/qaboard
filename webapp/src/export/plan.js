@@ -80,10 +80,25 @@ export const default_naming = {
   windows: true,
   // "auto": names say the file only when runs have several files matching the pattern (the server knows), or true
   file_in_names: 'auto',
+  // "needed": a run's name says a setting only if another run on the same input has another value, and a parameter only
+  // if the run sets it. "all": every name says every setting picked, `default` for runs that don't set it (for scripts
+  // that expect the same fields in every name).
+  settings_where: 'needed',
 };
 
-export const layout_of = (template, separator) =>
-  LAYOUTS.find(l => (l.template === template || l.previous === template) && l.separator === separator)?.key ?? 'custom';
+// What's between names and their new or reference label, e.g. "@" in "{file}@{side}": null if {side} doesn't follow
+// a separator (it's a folder, or starts the name)
+export const SIDE_SEPARATORS = ['__', '_', '-', '@', '.', '+'];
+const before_side = /\}([^{}/]+)\{side\}/;
+export const side_separator = template => before_side.exec(template ?? '')?.[1] ?? null;
+export const with_side_separator = (template, separator) => side_separator(template) === null ? template
+  : template.replace(before_side, () => `}${separator}{side}`);
+
+// The layout of a template, whatever its separator before new or reference
+export const layout_of = (template, separator) => {
+  const normal = with_side_separator(template, '__');
+  return LAYOUTS.find(l => (l.template === normal || l.previous === normal) && l.separator === separator)?.key ?? 'custom';
+};
 
 
 // A short, stable id: FNV-1a
@@ -238,48 +253,82 @@ export const settings_labels = (outputs, naming = default_naming, keys = null) =
     }
     return out;
   };
-  const texts = new Map(outputs.map(o => [o.id, parts(o).map(([key, value]) =>
+  // Only where needed: a run says a setting if another run on the same input has another value: their files can't
+  // be told apart without it. Parameters written `key=value` are left out of the names of the runs that don't set
+  // them: "street" and "street__crop=center", not "street__crop=default".
+  let needed = parts;
+  if (naming.settings_where !== 'all') {
+    const groups = new Map();
+    for (const o of outputs) {
+      const key = o.test_input_path ?? '';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(parts(o));
+    }
+    const named = settings_assign !== '';
+    const differs = (group, index) => new Set(group.map(other => other[index][1])).size > 1;
+    // a setting users picked that never differs on an input, only between inputs: every run says it
+    const between_inputs = picked.map((_, index) => ![...groups.values()].some(group => differs(group, index)));
+    needed = o => {
+      const group = groups.get(o.test_input_path ?? '');
+      return parts(o).filter(([key, value], index) =>
+        (between_inputs[index] || differs(group, index)) && !(value === ABSENT && named && !VALUE_ONLY.includes(key)));
+    };
+  }
+  const texts = new Map(outputs.map(o => [o.id, needed(o).map(([key, value]) =>
     VALUE_ONLY.includes(key) || settings_assign === '' ? value : `${key}${settings_assign}${value}`
   ).join(settings_join)]));
   if (settings_format === 'values') return texts;
   if (settings_format === 'id') {
     // the same id for the same values, whatever their separators
-    for (const o of outputs) labels.set(o.id, short_hash(JSON.stringify(parts(o))));
+    for (const o of outputs) labels.set(o.id, texts.get(o.id) ? short_hash(JSON.stringify(needed(o))) : '');
     return labels;
   }
   // numbers, in the order of the values
-  const numbers = new Map([...new Set(texts.values())].sort().map((text, index) => [text, `s${index + 1}`]));
-  for (const o of outputs) labels.set(o.id, numbers.get(texts.get(o.id)));
+  const numbers = new Map([...new Set(texts.values())].filter(Boolean).sort().map((text, index) => [text, `s${index + 1}`]));
+  for (const o of outputs) labels.set(o.id, numbers.get(texts.get(o.id)) ?? '');
   return labels;
 };
 
 
 // The runs to export, and the fields of their names: [{id, side: "new" | "reference", fields}].
 // `labels`: what the page calls the new and reference results (their milestones' names, "new", "ref"...).
-// Also what differs between the new runs (`candidates`), and the settings names say (`picked`).
+// `sides`: "both" (the runs shown and the reference runs they're compared to), or only "new" or "reference". One side
+// alone is named like a page without a reference: names don't say new or reference, and the reference runs say their
+// own settings.
+// Also what differs between the runs exported (`candidates`), and the settings names say (`picked`).
 // `regions`: Map(new run's id => [regions to crop]), see crop_regions: a reference run gets the regions of the new run
 // it's compared to (of the first one when it's exported once).
-export const export_runs = ({ new_batch, ref_batch, labels = {}, naming = default_naming, regions = null }) => {
-  const outputs = (new_batch?.filtered?.outputs ?? []).map(id => new_batch.outputs[id]).filter(Boolean);
+export const export_runs = ({ new_batch, ref_batch, labels = {}, naming = default_naming, regions = null, sides = 'both' }) => {
+  const new_outputs = (new_batch?.filtered?.outputs ?? []).map(id => new_batch.outputs[id]).filter(Boolean);
   const reference_of = o => {
     // comparing a batch with itself: no reference
     if (!o.reference_id || o.reference_id === o.id) return null;
     return ref_batch?.outputs?.[o.reference_id] ?? null;
   };
-  const references = outputs.map(reference_of);
-  const has_reference = references.some(Boolean);
-  // without a reference, names don't need to say "new"
-  const label_new = has_reference ? (labels.new || 'new') : '';
+  const new_references = new_outputs.map(reference_of);
+  const unique_references = [...new Map(new_references.filter(Boolean).map(r => [r.id, r])).values()];
+  // the first new run each reference run is compared to
+  const first_new = new Map();
+  new_outputs.forEach((o, index) => { if (new_references[index] && !first_new.has(new_references[index].id)) first_new.set(new_references[index].id, o.id); });
+  const has_reference = unique_references.length > 0;
+  const only_reference = sides === 'reference' && has_reference;
+  const both = sides === 'both' && has_reference;
+
+  // the runs named after themselves, and their side
+  const outputs = only_reference ? unique_references : new_outputs;
+  const side = only_reference ? 'reference' : 'new';
+  const references = both ? new_references : outputs.map(() => null);
+  // one side alone: names don't need to say which
+  const label_new = both ? (labels.new || 'new') : '';
   const label_ref = labels.reference || 'reference';
   const candidates = settings_candidates(outputs);
   const picked = picked_settings(candidates, naming.settings_keys).map(c => c.key);
   const settings = settings_labels(outputs, naming, picked);
   const items = outputs.map(o => ({
-    id: o.id, side: 'new', output: o,
+    id: o.id, side, output: o,
     fields: { side: label_new, settings: settings.get(o.id) ?? '', ...input_fields(o.test_input_path) },
   }));
-  const unique_references = [...new Map(references.filter(Boolean).map(r => [r.id, r])).values()];
-  if (naming.pair_references) {
+  if (both && naming.pair_references) {
     outputs.forEach((o, index) => {
       const r = references[index];
       if (r) items.push({
@@ -287,7 +336,7 @@ export const export_runs = ({ new_batch, ref_batch, labels = {}, naming = defaul
         fields: { side: label_ref, settings: settings.get(o.id) ?? '', ...input_fields(o.test_input_path) },
       });
     });
-  } else {
+  } else if (both) {
     // the reference runs say the same settings, with their own values
     const ref_settings = settings_labels(unique_references, naming, picked);
     for (const r of unique_references) items.push({
@@ -296,8 +345,6 @@ export const export_runs = ({ new_batch, ref_batch, labels = {}, naming = defaul
     });
   }
   if (regions) {
-    const first_new = new Map();
-    outputs.forEach((o, index) => { if (references[index] && !first_new.has(references[index].id)) first_new.set(references[index].id, o.id); });
     for (const item of items) {
       const of = item.side === 'new' ? item.id : (item.paired_with ?? first_new.get(item.id));
       const list = regions.get(of);
@@ -308,9 +355,12 @@ export const export_runs = ({ new_batch, ref_batch, labels = {}, naming = defaul
     items,
     candidates,
     picked,
+    // the page compares with a reference, and the export has both sides
     has_reference,
-    labels: { new: label_new, reference: has_reference ? label_ref : '' },
-    counts: { new: outputs.length, reference: unique_references.length, without_reference: references.filter(r => !r).length },
+    both,
+    side,
+    labels: { new: label_new, reference: both ? label_ref : '' },
+    counts: { new: new_outputs.length, reference: unique_references.length, without_reference: new_references.filter(r => !r).length },
   };
 };
 

@@ -296,3 +296,33 @@ def test_the_export_is_what_was_previewed(export_api, tmp_path, dummy_app, monke
   monkeypatch.setattr(export_api, 'MAX_CROPS', 0)
   status, error = post('/api/v1/exports/preview', body)
   assert status == 400 and 'Too many crops' in error['error']
+
+
+def test_reference_from_another_project(export_api, tmp_path, dummy_app, monkeypatch):
+  """Runs compared with a reference from another project: both are exported, and the link back keeps the comparison"""
+  from flask import g
+  new = stored_run(tmp_path, 1, 'scenes/a.raw')
+  ref = stored_run(tmp_path, 2, 'scenes/a.raw', hexsha='b' * 40)
+  ref.batch.ci_commit.project_id = 'other/proj'
+  # users act on the project's runs, and only need to see the reference's
+  asked = []
+  monkeypatch.setattr(export_api, 'require_project_access', lambda user, project, permission='runs.act': asked.append((project, permission)))
+  monkeypatch.setattr(export_api, 'Output', MagicMock())
+  export_api.Output.query.options.return_value.filter.return_value.all.return_value = [new, ref]
+  monkeypatch.setattr(export_api, 'check_folder', lambda export_dir: (not export_dir.exists(), True))
+  sides = {"new": {"project": "proj", "commit": "a" * 40, "batch": "default"},
+           "reference": {"project": "other/proj", "commit": "b" * 40, "batch": "default"}}
+  body = {
+    "project": "proj", "files": "*.png", "folder": {"path": str(tmp_path / 'export'), "id": "0123abcd"}, "sides": sides,
+    "runs": [{"id": 1, "side": "new", "fields": {"side": "new"}}, {"id": 2, "side": "reference", "fields": {"side": "v1"}}],
+  }
+  with dummy_app.test_request_context('/api/v1/exports', method='POST', json=body):
+    g.user = {"user_name": "alice"}
+    g.actor = SimpleNamespace(user=None)
+    result = export_api.export_runs().get_json()
+  assert [f['to'] for f in result['files']] == ['scenes_a__out__new.png', 'scenes_a__out__v1.png'] and result['nb_files_exported'] == 2
+  assert ('proj', 'runs.act') in asked and ('other/proj', 'project.read') in asked and ('other/proj', 'runs.act') not in asked
+  url = (tmp_path / 'export' / '0.qa.url').read_text()
+  assert f"reference={'b' * 40}" in url and 'ref_project=other%2Fproj' in url
+  # in the same project, the link doesn't say it
+  assert 'ref_project' not in export_api.page_url({**sides, "reference": {**sides['reference'], "project": "proj"}})

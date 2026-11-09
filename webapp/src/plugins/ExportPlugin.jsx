@@ -39,8 +39,9 @@ import { parse_template, file_name_parts, FIELDS } from "../export/names";
 import {
   LAYOUTS, SEPARATORS, SETTINGS_FORMATS, SETTINGS_ASSIGN, SETTINGS_JOIN, CONFIGURATIONS, PLATFORM, BATCH, DATABASE, ABSENT,
   default_naming, layout_of, export_runs, request_runs, item_fields, example_file, guess_file_in_names, crop_template,
-  saved_settings, presets_for, preset_fit, may_be_images,
+  saved_settings, presets_for, preset_fit, may_be_images, SIDE_SEPARATORS, side_separator, with_side_separator,
 } from "../export/plan";
+import { reportUrl } from "../errors";
 import { FieldDot, NameAnatomy, NameParts } from "../export/NameParts";
 import { useCrops, useShownRegionSets, DEFAULT_MAX_FOUND, MAX_FOUND } from "../export/useCrops";
 import { runs_url, python_snippet } from "./ScriptPlugin";
@@ -61,6 +62,12 @@ const visualization_files = config => {
     .map(v => ({ label: v.name || v.path, path: v.path.replace(/:[a-zA-Z0-9_]+/g, '*') }))
     .filter(v => !seen.has(v.path) && seen.add(v.path))
     .slice(0, 8);
+};
+
+// "ISP stage (1 raw, 2 demosaic...)" => "ISP stage": the tags stay on a line or two, the full label shows on hover
+const short_label = label => {
+  const short = String(label).replace(/\s*\(.*$/, '');
+  return short.length > 24 ? `${short.slice(0, 23)}…` : short || label;
 };
 
 export const export_help = "Gather the files matching a pattern from all the runs shown, new and reference, into a new folder";
@@ -285,9 +292,15 @@ const SettingsPicker = ({ plan, naming, update, onToggle }) => <div style={{ mar
         options={SETTINGS_JOIN.map(s => ({ value: s.value, label: `Joined: ${s.label}` }))}/>
     </>}
   </Row>}
-  <p className={Classes.TEXT_MUTED} style={{ margin: '4px 0 0', fontSize: 12 }}>
-    {plan.picked.length > 0 && SETTINGS_FORMATS.find(s => s.value === naming.settings_format)?.description} A run that doesn't set a parameter says <code>{ABSENT}</code>.
-  </p>
+  {plan.picked.length > 0 && <Checkbox style={{ margin: '8px 0 0' }} checked={naming.settings_where !== 'all'} onChange={e => update({ settings_where: e.target.checked ? 'needed' : 'all' })}
+    labelElement={<span>Only in the names that need them <span className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>
+      {naming.settings_where !== 'all'
+        ? 'A run says a setting if another run on the same input has another value.'
+        : <>Every name says every setting checked, <code>{ABSENT}</code> for runs that don't set it: for scripts that read them.</>}
+    </span></span>}/>}
+  {plan.picked.length > 0 && naming.settings_format !== 'values' && <p className={Classes.TEXT_MUTED} style={{ margin: '4px 0 0', fontSize: 12 }}>
+    {SETTINGS_FORMATS.find(s => s.value === naming.settings_format)?.description}
+  </p>}
 </div>;
 
 
@@ -366,8 +379,9 @@ const CropsStep = ({ crops, picked, enabled, whole, shown, max_found, onChange }
 const ExportDialog = ({
   isOpen, onClose, project, ref_project, config, new_batch, ref_batch, labels, batch_dir_url,
   new_commit_id, ref_commit_id, selected_batch_new, selected_batch_ref, filter_batch_new, filter_batch_ref, path: config_path,
+  nb_references = 1,
 }) => {
-  const { docs_root, cli_requirements } = useSiteConfig();
+  const { docs_root, cli_requirements, support_url } = useSiteConfig();
   // the last export's settings in this project
   const last = usePrefsStore(state => state.exportLast?.[project]);
   const setLast = usePrefsStore(state => state.setExportLast);
@@ -375,6 +389,8 @@ const ExportDialog = ({
   const update = changes => setSettings(s => ({ ...s, ...changes }));
   const naming = { ...default_naming, ...settings };
   const [label_overrides, setLabelOverrides] = useState({ new: '', reference: '' });
+  // "both": the runs shown and their reference, or only "new" or "reference". Each export starts with both.
+  const [sides_choice, setSides] = useState('both');
   const [folder_name, setFolderName] = useState('');
   const [folder_id, setFolderId] = useState(new_folder_id);
   const [is_exporting, setExporting] = useState(false);
@@ -406,10 +422,13 @@ const ExportDialog = ({
 
   const label_new = label_overrides.new.trim() || labels?.new || 'new';
   const label_ref = label_overrides.reference.trim() || labels?.reference || 'reference';
-  const plan = export_runs({ new_batch, ref_batch, labels: { new: label_new, reference: label_ref }, naming, regions: crops.regions });
-  const has_reference = plan.counts.reference > 0;
+  const plan = export_runs({ new_batch, ref_batch, labels: { new: label_new, reference: label_ref }, naming, regions: crops.regions, sides: sides_choice });
+  // the page compares with a reference, and the export has both sides: names say which
+  const { has_reference, both } = plan;
   const fields = template_fields(naming.template);
-  const nb_regions = crops_enabled ? plan.items.filter(i => i.side === 'new').reduce((n, i) => n + (i.regions?.length ?? 0), 0) : 0;
+  // the runs named after themselves: the new ones, or the reference's when it's exported alone
+  const main_items = plan.items.filter(i => i.side === plan.side);
+  const nb_regions = crops_enabled ? main_items.reduce((n, i) => n + (i.regions?.length ?? 0), 0) : 0;
 
   let template_error = null;
   try { parse_template(naming.template); } catch (e) { template_error = e.message; }
@@ -471,15 +490,21 @@ const ExportDialog = ({
     } catch (e) { return { error: e.message }; }
   };
   const listed = p && is_current ? p.files : [];
-  const first_new = listed.find(f => f.side === 'new' && !f.region) ?? listed.find(f => f.side === 'new');
-  const first_item = plan.items.find(i => i.side === 'new');
-  const example = (first_new && parts_of(first_new)) ?? example_parts(first_item, crops_enabled && !whole_files ? first_item?.regions?.[0]?.name : '');
+  // the example: the name that says the most, e.g. the run that needs its settings
+  const fields_in = parts => new Set(parts?.filter(x => x.field).map(x => x.field)).size;
+  const richest = candidates => candidates.reduce((best, parts) => fields_in(parts) > fields_in(best) ? parts : best, null);
+  const listed_main = listed.filter(f => f.side === plan.side);
+  const whole_listed = listed_main.filter(f => !f.region);
+  const first_item = main_items.find(i => i.fields.settings) ?? main_items[0];
+  const example = richest((whole_listed.length ? whole_listed : listed_main).slice(0, 200).map(parts_of))
+    ?? example_parts(first_item, crops_enabled && !whole_files ? first_item?.regions?.[0]?.name : '');
   if (example?.error && !template_error) template_error = example.error;
-  const example_side = 'new';
+  const example_side = plan.side;
 
   const setLayout = key => {
     const layout = LAYOUTS.find(l => l.key === key);
-    if (layout) update({ layout: key, template: layout.template, separator: layout.separator });
+    // with what users put before new or reference, e.g. @
+    if (layout) update({ layout: key, template: with_side_separator(layout.template, side_separator(naming.template) ?? '__'), separator: layout.separator });
   };
   const insertField = name => {
     const input = template_input.current;
@@ -502,7 +527,7 @@ const ExportDialog = ({
     setExporting(true);
     http.post('/api/v1/exports', body, { params: { project } })
       .then(({ data }) => {
-        track('export_start', { export_type: type, n_runs: data.nb_runs, n_files: data.nb_files_exported, layout: layout_of(naming.template, naming.separator), windows: naming.windows, crops: data.nb_crops ?? 0, crop_sources: crops_enabled ? crop_sources.join(',') : '' }, { project_id: project });
+        track('export_start', { export_type: type, n_runs: data.nb_runs, n_files: data.nb_files_exported, layout: layout_of(naming.template, naming.separator), windows: naming.windows, crops: data.nb_crops ?? 0, crop_sources: crops_enabled ? crop_sources.join(',') : '', sides: both ? 'both' : plan.side }, { project_id: project });
         copyWithToast(linux_to_windows(data.folder), { what: 'the export folder' });
         setResult({ ...data, at: new Date() });
         // the next export starts with these settings, and goes to a new folder. Which settings names say depends on
@@ -528,9 +553,10 @@ const ExportDialog = ({
   const quick_files = visualization_files(config).filter(v => v.path !== path);
 
   // the values each part takes
-  const new_items = plan.items.filter(i => i.side === 'new');
+  const new_items = main_items;
   const inputs = [...new Set(new_items.map(i => i.fields.input))];
   const settings_values = [...new Set(new_items.map(i => i.fields.settings).filter(Boolean))];
+  const with_settings = new_items.filter(i => i.fields.settings).length;
   const files_listed = [...new Set(listed.filter(f => !f.region).map(f => f.file))];
   const region_names = [...new Set(new_items.flatMap(i => (i.regions ?? []).map(r => r.name)))];
   const needed = plan.candidates.filter(c => c.needed);
@@ -546,59 +572,74 @@ const ExportDialog = ({
     </div>
   </div>;
   const has = field => fields.includes(field);
+  const settings_picker = <SettingsPicker plan={plan} naming={naming} update={update} onToggle={toggleSetting}/>;
+  const settings_action = text => <Button className="part-action" size="small" variant="minimal" intent="primary" text={open_part === 'settings' ? 'Done' : text} onClick={() => setOpenPart(open_part === 'settings' ? null : 'settings')}/>;
+  // The parts names don't need, on one line, and why
+  const left_out = [
+    has('settings') && with_settings === 0 && {
+      name: 'settings',
+      why: plan.candidates.length === 0 ? 'the runs have the same'
+        : needed.length === 0 ? 'they only differ between inputs' : 'none picked: runs on the same input get the same names',
+      action: plan.candidates.length > 0 && settings_action('Pick some'),
+    },
+    has('file') && !file_in_names && {
+      name: 'file',
+      why: <>one <code>{path}</code> per run</>,
+      action: <Button className="part-action" size="small" variant="minimal" intent="primary" text="Always say it" onClick={() => update({ file_in_names: true })}/>,
+    },
+    has('side') && !both && {
+      name: 'new or reference',
+      why: has_reference ? `only ${plan.side === 'reference' ? 'the reference' : 'the new results'} exported` : 'no reference: one version',
+    },
+  ].filter(Boolean);
   const parts_list = <Parts aria-label="What names say">
     {(has('input') || has('input_name')) && part(has('input') ? 'input' : 'input_name', {
       title: has('input') ? 'Input' : 'Input\'s name',
-      body: <>{has('input') ? 'the input\'s path, without its extension' : 'the input\'s name, without its folders'}: {inputs.length > 1 ? <>{plural(inputs.length, 'input')}, </> : null}<Values values={inputs.map(i => has('input') ? i : i.split('/').pop())}/></>,
+      body: <>{has('input') ? 'the input\'s path' : 'the input\'s name, without its folders'}: <Values max={2} values={inputs.map(i => has('input') ? i : i.split('/').pop())}/></>,
     })}
-    {has('settings') && (plan.picked.length > 0
-      ? part('settings', {
-          title: 'Settings',
-          body: <>what tells runs on the same input apart: <Values values={settings_values} color="var(--qa-export-settings)"/></>,
-          action: <Button className="part-action" size="small" variant="minimal" intent="primary" text={open_part === 'settings' ? 'Done' : 'Change'} onClick={() => setOpenPart(open_part === 'settings' ? null : 'settings')}/>,
-          children: open_part === 'settings' && <SettingsPicker plan={plan} naming={naming} update={update} onToggle={toggleSetting}/>,
-        })
-      : part('settings', {
-          title: 'Settings', muted: true,
-          body: plan.candidates.length === 0
-            ? 'not needed: the runs have the same settings.'
-            : needed.length === 0 ? 'not needed: settings only differ between inputs.' : 'not in names: runs on the same input will get the same names.',
-          action: plan.candidates.length > 0 && <Button className="part-action" size="small" variant="minimal" intent="primary" text={open_part === 'settings' ? 'Done' : 'Pick some'} onClick={() => setOpenPart(open_part === 'settings' ? null : 'settings')}/>,
-          children: open_part === 'settings' && <SettingsPicker plan={plan} naming={naming} update={update} onToggle={toggleSetting}/>,
-        }))}
-    {has('file') && (file_in_names
-      ? part('file', {
-          title: 'File',
-          body: <>the file's path in its run's folder{files_listed.length > 0 && <>: <Values values={files_listed} color="var(--qa-export-file)"/></>}{naming.file_in_names === 'auto' && <span className={Classes.TEXT_MUTED}> (runs have several files)</span>}</>,
-        })
-      : part('file', {
-          title: 'File', muted: true,
-          body: <>left out: each run has one file matching <code>{path}</code>. Its extension ends the name.</>,
-          action: <Button className="part-action" size="small" variant="minimal" intent="primary" text="Always say it" onClick={() => update({ file_in_names: true })}/>,
-        }))}
+    {has('settings') && with_settings > 0 && part('settings', {
+      title: 'Settings',
+      body: <>{with_settings < new_items.length
+        ? <>only for the {plural(with_settings, 'run')} of {new_items.length} that share{with_settings === 1 ? 's' : ''} an input with another</>
+        : <>what tells runs on the same input apart</>}: <Values max={3} values={settings_values} color="var(--qa-export-settings)"/></>,
+      action: settings_action('Change'),
+      children: open_part === 'settings' && settings_picker,
+    })}
+    {has('file') && file_in_names && part('file', {
+      title: 'File',
+      body: <>the file's path in its run's folder{files_listed.length > 0 && <>: <Values values={files_listed} color="var(--qa-export-file)"/></>}{naming.file_in_names === 'auto' && <span className={Classes.TEXT_MUTED}> (runs have several files)</span>}</>,
+    })}
     {crops_enabled && region_names.length > 0 && part('region', {
       title: 'Region',
       body: <>crops only: <Values values={region_names} color="var(--qa-export-region)"/></>,
     })}
-    {has('side') && (has_reference
-      ? part('side', {
-          title: 'New or reference',
-          body: <>what the page calls them: <code style={{ color: sides?.new?.css ?? 'var(--qa-side-0)', fontWeight: 600 }}>{plan.labels.new}</code> for the new results,{' '}
-            <code style={{ color: sides?.reference?.css ?? 'var(--qa-side-1)', fontWeight: 600 }}>{plan.labels.reference}</code> for the reference</>,
-          action: <Button className="part-action" size="small" variant="minimal" intent="primary" text={open_part === 'side' ? 'Done' : 'Rename'} onClick={() => setOpenPart(open_part === 'side' ? null : 'side')}/>,
-          children: open_part === 'side' && <Row style={{ marginTop: 4 }}>
-            <FormGroup label="New results" labelFor={`${template_id}-new`} style={{ margin: 0 }}>
-              <InputGroup id={`${template_id}-new`} small value={label_overrides.new} placeholder={labels?.new || 'new'} onChange={e => setLabelOverrides(l => ({ ...l, new: e.target.value }))}/>
-            </FormGroup>
-            <FormGroup label="Reference" labelFor={`${template_id}-ref`} style={{ margin: 0 }}>
-              <InputGroup id={`${template_id}-ref`} small value={label_overrides.reference} placeholder={labels?.reference || 'reference'} onChange={e => setLabelOverrides(l => ({ ...l, reference: e.target.value }))}/>
-            </FormGroup>
-          </Row>,
-        })
-      : part('side', {
-          title: 'New or reference', muted: true,
-          body: 'not needed: there\'s no reference, you export one version.',
-        }))}
+    {has('side') && both && part('side', {
+      title: 'New or reference',
+      body: <><code style={{ color: sides?.new?.css ?? 'var(--qa-side-0)', fontWeight: 600 }}>{plan.labels.new}</code> and{' '}
+        <code style={{ color: sides?.reference?.css ?? 'var(--qa-side-1)', fontWeight: 600 }}>{plan.labels.reference}</code>{label_overrides.new.trim() || label_overrides.reference.trim() ? '' : ', as on the page'}</>,
+      action: <Button className="part-action" size="small" variant="minimal" intent="primary" text={open_part === 'side' ? 'Done' : 'Rename'} onClick={() => setOpenPart(open_part === 'side' ? null : 'side')}/>,
+      children: open_part === 'side' && <Row style={{ marginTop: 4 }}>
+        <FormGroup label="New results" labelFor={`${template_id}-new`} style={{ margin: 0 }}>
+          <InputGroup id={`${template_id}-new`} small value={label_overrides.new} placeholder={labels?.new || 'new'} onChange={e => setLabelOverrides(l => ({ ...l, new: e.target.value }))}/>
+        </FormGroup>
+        <FormGroup label="Reference" labelFor={`${template_id}-ref`} style={{ margin: 0 }}>
+          <InputGroup id={`${template_id}-ref`} small value={label_overrides.reference} placeholder={labels?.reference || 'reference'} onChange={e => setLabelOverrides(l => ({ ...l, reference: e.target.value }))}/>
+        </FormGroup>
+        {side_separator(naming.template) !== null && <FormGroup label="Before it" labelFor={`${template_id}-side-separator`} style={{ margin: 0 }}>
+          <HTMLSelect id={`${template_id}-side-separator`} value={side_separator(naming.template)} onChange={e => update({ template: with_side_separator(naming.template, e.target.value) })}
+            options={[...new Set([...SIDE_SEPARATORS, side_separator(naming.template)])].map(sep => ({ value: sep, label: `${sep}${plan.labels.new}` }))}/>
+        </FormGroup>}
+        <p className={Classes.TEXT_MUTED} style={{ flexBasis: '100%', margin: '2px 0 0', fontSize: 12 }}>These names are only for this export: the page and its milestones keep theirs.</p>
+      </Row>,
+    })}
+    {left_out.length > 0 && <div className="part" aria-label="Not in names">
+      <FieldDot field="input" muted/>
+      <div className="part-body" style={{ color: 'var(--qa-text-muted)' }}>
+        Not needed here:{' '}
+        {left_out.map((item, index) => <span key={item.name}>{index > 0 && ' · '}<strong>{item.name}</strong> ({item.why}){item.action}</span>)}
+        {open_part === 'settings' && with_settings === 0 && settings_picker}
+      </div>
+    </div>}
   </Parts>;
 
   // the options most people don't need, and how many differ from the defaults
@@ -636,7 +677,7 @@ const ExportDialog = ({
       : 'Names only for Linux: paths can be long, and use any character but /.'}>
       <Switch checked={naming.windows} label="Windows-compatible names" style={{ marginBottom: 0 }} onChange={e => update({ windows: e.target.checked })}/>
     </FormGroup>
-    {has_reference && <FormGroup>
+    {both && <FormGroup>
       <Switch checked={naming.pair_references} style={{ marginBottom: 0 }} onChange={e => update({ pair_references: e.target.checked })}
         labelElement={<Tooltip content="A reference run compared to several new runs is exported once per new run, with its input and settings: files pair up." placement="top">
           <span>Name reference files like the new runs they're compared to</span>
@@ -677,7 +718,7 @@ const ExportDialog = ({
         </span>)}/>
         {naming.windows && <p className={Classes.TEXT_MUTED} style={{ margin: '4px 0' }}>Names that differ only by case are the same name on Windows.</p>}
         <p style={{ margin: '6px 0 0' }}>To make names unique:</p>
-        <Fixes fixes={collision_fixes(naming, plan.candidates, plan.picked, has_reference)} onFix={update}/>
+        <Fixes fixes={collision_fixes(naming, plan.candidates, plan.picked, both)} onFix={update}/>
       </Callout>}
       {p.nb_too_long > 0 && <Callout intent="danger" icon="widget-button" style={{ marginBottom: 8 }}
         title={`${plural(p.nb_too_long, 'path is', 'paths are')} too long for Windows`}>
@@ -712,6 +753,10 @@ const ExportDialog = ({
     </div>}
   </section>;
 
+  const feedback_url = reportUrl(support_url, {
+    subject: 'Feedback on the new Export',
+    body: `What worked, what's missing or confusing?\n\n\n--\nPage: ${window.location.href}`,
+  });
   const result_block = result && <section aria-label="Last export" style={{ marginBottom: 12 }}>
     {result.error
       ? <Callout intent="danger" icon="error" title="The export failed">{result.error}</Callout>
@@ -722,10 +767,11 @@ const ExportDialog = ({
           {result.export_id && <p style={{ margin: '4px 0 0' }} className={Classes.TEXT_MUTED}>Find your exports, their size, and delete them in <Link to="/storage/exports">Storage usage → Exports</Link>.</p>}
           {result.nb_skipped > 0 && <ProblemList more={result.nb_skipped - result.skipped.length} items={result.skipped.map(s => <code key={s}>{s}</code>)}/>}
           {result.errors?.length > 0 && <ProblemList items={result.errors.map(e => <code key={e}>{e}</code>)}/>}
+          {support_url && <p style={{ margin: '8px 0 0' }}>This export is new. Something missing, confusing, or better before? <a href={feedback_url} target="_blank" rel="noopener noreferrer">Tell us</a>: it shapes what comes next.</p>}
         </Callout>}
   </section>;
 
-  const layouts = LAYOUTS.filter(l => !l.needs_reference || has_reference || layout === l.key);
+  const layouts = LAYOUTS.filter(l => !l.needs_reference || both || layout === l.key);
   const export_text = finding.length > 0
     ? `Finding regions… ${finding.reduce((n, s) => n + s.searched, 0)}/${finding.reduce((n, s) => n + s.total, 0)}`
     : p && is_current ? `Export ${plural(p.nb_files, 'file')}` : 'Export';
@@ -747,11 +793,23 @@ const ExportDialog = ({
             <div className={Classes.FORM_HELPER_TEXT} style={{ marginTop: 4 }}>
               {problem
                 ? <span style={{ color: 'var(--bp-intent-warning-text, #935610)' }}>{problem}</span>
-                : <>In each run's folder, e.g. <code>*.png</code>, <code>**/*.jpg</code> (<code>**/</code>: in any folder). From {plural(plan.counts.new, 'run')}{has_reference && <> and {plural(plan.counts.reference, 'reference run')}</>}{plan.counts.without_reference > 0 && has_reference && <> ({plan.counts.without_reference} without a reference)</>}.</>}
+                : <>In each run's folder, e.g. <code>*.png</code>, <code>**/*.jpg</code> (<code>**/</code>: in any folder).{!has_reference && <> From {plural(plan.counts.new, 'run')}.</>}</>}
             </div>
             {quick_files.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6, alignItems: 'center' }}>
               <span className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>Visualizations:</span>
-              {quick_files.map(v => <Tag key={v.path} minimal interactive round icon="media" title={v.path} onClick={() => update({ files: v.path })}>{v.label}</Tag>)}
+              {quick_files.map(v => <Tag key={v.path} minimal interactive round title={`${v.label}: ${v.path}`} onClick={() => update({ files: v.path })}>{short_label(v.label)}</Tag>)}
+            </div>}
+            {has_reference && <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 10px', marginTop: 10 }}>
+              <span>From</span>
+              <SegmentedControl aria-label="What to export" small value={sides_choice} onValueChange={setSides} options={[
+                { value: 'both', label: `${plural(plan.counts.new, 'run')} + ${plural(plan.counts.reference, 'reference run')}` },
+                { value: 'new', label: `Only ${labels?.new || 'new'}` },
+                { value: 'reference', label: `Only ${labels?.reference || 'the reference'}` },
+              ]}/>
+              {both && plan.counts.without_reference > 0 && <span className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>{plural(plan.counts.without_reference, 'run has', 'runs have')} no reference</span>}
+            </div>}
+            {has_reference && nb_references > 1 && sides_choice !== 'new' && <div className={Classes.FORM_HELPER_TEXT} style={{ marginTop: 4 }}>
+              The page compares with {nb_references} references: the export takes the one shown, <strong>{labels?.reference || 'the reference'}</strong>. Show another on the page to export it.
             </div>}
           </Step>
 
@@ -762,7 +820,7 @@ const ExportDialog = ({
             <div style={{ marginTop: 10 }}>
               <SegmentedControl aria-label="Layout" small options={[...layouts.map(l => ({ label: l.label, value: l.key })), ...(layout === 'custom' ? [{ label: 'Custom', value: 'custom' }] : [])]}
                 value={layout} onValueChange={setLayout}/>
-              <div className={Classes.FORM_HELPER_TEXT} style={{ marginTop: 4 }}>{layout_info?.description ?? 'Your own template, in More options.'}</div>
+              <div className={Classes.FORM_HELPER_TEXT} style={{ marginTop: 4 }}>{!layout_info ? 'Your own template, in More options.' : layout === 'flat' && !both ? 'All the files in one folder.' : layout_info.description}</div>
             </div>
           </Step>
 
