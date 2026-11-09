@@ -144,15 +144,21 @@ class TestQaCli(unittest.TestCase):
 
   def test_local_runs_are_done_again_in_place(self):
     """Runs saved in the working directory keep their path: people's editors and viewers are open on it"""
-    result = self.qa('get', '-i', 'cli_tests/a.jpg', 'output_dir')
-    output_dir = Path(result.stdout.splitlines()[-1])
-    self.addCleanup(shutil.rmtree, output_dir, ignore_errors=True)
-    for attempt in (1, 2):
-      result = self.qa('run', '-i', 'cli_tests/a.jpg', f'echo "attempt {attempt}" > "{{output_dir}}/out.txt"')
-      assert result.exit_code == 0, result.output
-      assert (output_dir / 'out.txt').read_text().strip() == f'attempt {attempt}'
-    assert not (output_dir / 'latest_attempt.txt').exists()
-    assert not output_dir.with_name(f'{output_dir.name}_attempt2').exists()
+    from unittest import mock
+    from qaboard.config import ci_env_variables
+    # in CI, runs are saved in the storage, like shared runs
+    not_ci = {k: v for k, v in os.environ.items() if k not in ci_env_variables}
+    with mock.patch.dict(os.environ, not_ci, clear=True):
+      result = self.qa('get', '-i', 'cli_tests/a.jpg', 'output_dir')
+      output_dir = Path(result.stdout.splitlines()[-1])
+      assert Path('output').resolve() in output_dir.resolve().parents
+      self.addCleanup(shutil.rmtree, output_dir, ignore_errors=True)
+      for attempt in (1, 2):
+        result = self.qa('run', '-i', 'cli_tests/a.jpg', f'echo "attempt {attempt}" > "{{output_dir}}/out.txt"')
+        assert result.exit_code == 0, result.output
+        assert (output_dir / 'out.txt').read_text().strip() == f'attempt {attempt}'
+      assert not (output_dir / 'latest_attempt.txt').exists()
+      assert not output_dir.with_name(f'{output_dir.name}_attempt2').exists()
 
   def test_batch_reserves_the_directories_of_the_runs_it_starts(self):
     """`qa batch` says where runs will be before they start, and their `qa run` uses the same directory"""
