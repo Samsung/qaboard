@@ -6,6 +6,7 @@ QABOARD_TUNING_RUNNER=local (the default) or celery (api/tuning.py), and redoing
   `harakiri` (300s) doesn't kill them and requests don't wait for them. Their submission (submissions.py) records
   {"pid", "pgid", "host"}, with the status "submitted". When the script ends, its exit code is written in
   <log_dir>/exit_code: refresh_status() reads it, and the web app reads the logs' "[qaboard] qa batch exited with code".
+  Once read, the final status is recorded in the submission (persist_final_status): we stop reading the storage.
 - Stopping the batch (Batch.stop) kills them and what they started (stop_local_submissions), if they run on this host:
   with several replicas of the backend, they may run on another, and we say so.
 - Their environment is the server's, minus its secrets (qa_environment). It's defense in depth: they run the project's
@@ -179,6 +180,35 @@ def refresh_status(submission, submission_id: Optional[str] = None):
       return {**submission, "status": "done" if exit_code == 0 else "failed", "exit_code": exit_code}
     return {**submission, "status": "failed", "error": "qa batch stopped without an exit code: it was killed, maybe when the QA-Board server restarted."}
   return submission
+
+
+FINAL_STATUS_FIELDS = ('status', 'exit_code', 'error')
+
+def persist_final_status(batch_id, submission) -> bool:
+  """
+  Records in batch.data the final status of a `qa batch` the server ran (from refresh_status), so that later reads
+  don't look at the storage for its exit code. In its own transaction, only if the submission is still "submitted",
+  and only if nothing holds the batch's row (e.g. the request's own session, that changed the batch): then we skip it
+  and record it next time. Returns whether it was recorded.
+  """
+  submission_id = submission.get('id') if isinstance(submission, dict) else None
+  if batch_id is None or not isinstance(submission_id, str) or submission.get('status') == 'submitted':
+    return False
+  patch = {k: submission[k] for k in FINAL_STATUS_FIELDS if k in submission}
+  import json
+  from sqlalchemy import text
+  from backend.database import engine
+  try:
+    with engine.begin() as connection:
+      result = connection.execute(text("""
+        UPDATE batches SET data = jsonb_set(data, ARRAY['submissions', :submission_id], (data->'submissions'->:submission_id) || CAST(:patch AS jsonb))
+        WHERE id IN (SELECT id FROM batches WHERE id = :batch_id FOR UPDATE SKIP LOCKED)
+          AND data->'submissions'->:submission_id->>'status' = 'submitted'
+      """), {"batch_id": batch_id, "submission_id": submission_id, "patch": json.dumps(patch)})
+      return result.rowcount > 0
+  except Exception as e:
+    print(f"WARNING: could not record the status of the `qa batch` {submission_id} of batch {batch_id}: {e}")
+    return False
 
 
 def _kill(submission_id: str, submission: dict, grace: float = 3) -> None:

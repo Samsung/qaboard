@@ -100,7 +100,10 @@ export function failureSummary(submission, status) {
   return 'qa batch failed.'
 }
 
-const waitingHint = submission => submission.runner === 'lsf'
+// Why `qa batch` didn't write logs yet: what its runner said (e.g. why its pod is pending, from the server), else a guess
+export const waitingHint = submission => submission.pending_note
+  ? submission.pending_note
+  : submission.runner === 'lsf'
   ? "LSF hasn't started the job yet. The cluster may be busy."
   : submission.runner === 'kubernetes'
   ? "Kubernetes hasn't started the pod yet. The cluster may be busy."

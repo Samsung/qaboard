@@ -29,8 +29,10 @@ The admins' settings:
 - QABOARD_KUBERNETES_MIN_UID (default 1000): with `user`, users whose UID is lower can't start batches on Kubernetes.
 - QABOARD_KUBERNETES_TRUST_LOCAL_ACCOUNTS=1: with `user`, also map the UIDs of local accounts (anyone may sign up and
   pick a user name). By default only users who signed in with the directory (LDAP, SAML, OIDC) are mapped to its UIDs.
-- QABOARD_KUBERNETES_ALLOW_RUN_AS_IMAGE=1: projects with `run_as: image` may run as the image's user even if it's
-  root. By default their pods get runAsNonRoot.
+- QABOARD_KUBERNETES_ALLOW_RUN_AS_IMAGE=1: projects with `run_as: image` run their driver pods as the image's user
+  (never root: runAsNonRoot). Whoever can push to a project then picks the UID, with the project's mounts: only where
+  the namespace's admission policies pin the UIDs. By default `run_as: image` is refused, and the server's checks on
+  who users are (directory sign-in) apply to it too.
 - QABOARD_KUBERNETES_ALLOW_HOST_PATH=1: allows `host_path` mounts in driver pods. Off by default.
 - QABOARD_KUBERNETES_DRIVER_RESOURCES: the driver pod's resources requests, as JSON. Default: {"cpu": "500m", "memory": "2Gi"}
 
@@ -44,8 +46,8 @@ ValidatingAdmissionPolicy that pins runAsUser for the runs ServiceAccount, isola
 namespaces' users.
 
 What the server still checks, since qaboard.yaml is written by whoever can push to the project: driver pods never run
-as root or as a UID/GID from qaboard.yaml; the commit's `job_template` and `forward_env` (the server's environment
-has its secrets) are not used; mounts are only PVCs and NFS (host_path with QABOARD_KUBERNETES_ALLOW_HOST_PATH=1);
+as root or as a UID/GID from qaboard.yaml (nor as the image's user, unless QABOARD_KUBERNETES_ALLOW_RUN_AS_IMAGE);
+the commit's `job_template` and `forward_env` (the server's environment has its secrets) are not used; mounts are only PVCs and NFS (host_path with QABOARD_KUBERNETES_ALLOW_HOST_PATH=1);
 env can't change how bash, Python, `qa` or the Kubernetes client behave. What runs may do (users, volumes,
 privileges) must be enforced by the admins with the namespace's Pod Security Standard and admission policies, and
 quotas with ResourceQuota or Kueue.
@@ -147,6 +149,9 @@ def kubernetes_location(options: dict, notes: Optional[List[str]] = None) -> Dic
 # ==========================================
 
 STOPPABLE_RUNNERS = ("lsf", "dask", "local", "celery", "kubernetes")
+# The kubernetes runner retries the Kubernetes API for 5 minutes by default (`qa batch` can wait): the server answers
+# requests, it gives up sooner. For the kubernetes runner, and Dask's on Kubernetes.
+SERVER_API_RETRY_SECONDS = 15
 # runners.dask.cluster.type
 DASK_CLUSTER_TYPES = ("lsf", "slurm", "pbs", "sge", "htcondor", "oar", "moab", "kubernetes", "local")
 
@@ -173,6 +178,8 @@ def stop_job_options(command_id, command, project_id: Optional[str] = None) -> D
   }
   if command.get('user'):
     job_options['user'] = safe_user_name(command['user'])
+  if runner in ("dask", "kubernetes"):
+    job_options['api_retry_seconds'] = SERVER_API_RETRY_SECONDS
   if runner == "dask":
     # We only connect to Dask schedulers we trust
     trusted_schedulers = env_list("QABOARD_DASK_SCHEDULERS")
@@ -261,7 +268,8 @@ def stop_batch_jobs(data, has_pending_runs: bool, project_id: Optional[str] = No
       done.add(key)
       try:
         deleted = JobGroup(job_options=job_options).stop()
-        if runner == 'kubernetes' and deleted == 0 and not is_driver and has_pending_runs:
+        # The kubernetes runner says how many Jobs it deleted: only exactly 0 means none (other runners return None)
+        if runner == 'kubernetes' and type(deleted) is int and deleted == 0 and not is_driver and has_pending_runs:
           # e.g. the runs are in another cluster than the server's (kubeconfig context not allowed): they may still run
           warnings.append(f"No Kubernetes job of {str(command_id)[:8]} was found in namespace {job_options.get('namespace')}: if its runs are still running, they are elsewhere.")
       except Exception as e:
@@ -339,8 +347,8 @@ def fixed_run_as() -> Optional[Dict[str, int]]:
 def driver_run_as(config: dict, user_info: dict, notes: List[str]) -> Tuple[Any, bool]:
   """
   The run_as and run_as_non_root job options of driver pods: QABOARD_KUBERNETES_RUN_AS's account, else the signed-in
-  user's UID/GID (and groups) if their identity comes from the directory, or "image" if the commit asks.
-  Raises NotAllowed.
+  user's UID/GID (and groups) if their identity comes from the directory, or "image" if the commit asks and the admins
+  allow it (QABOARD_KUBERNETES_ALLOW_RUN_AS_IMAGE), never as root. Raises NotAllowed.
   """
   user = user_info['user_name']
   run_as = config.get('run_as', 'user')
@@ -349,11 +357,17 @@ def driver_run_as(config: dict, user_info: dict, notes: List[str]) -> Tuple[Any,
     if run_as != 'user':
       notes.append(f"runners.kubernetes.run_as={json.dumps(run_as)} is ignored: this QA-Board server starts batches as uid {fixed['uid']}.")
     return fixed, True
-  if run_as == 'image':
-    # unless the admins allow it, the image's user must not be root
-    return 'image', not env_flag('QABOARD_KUBERNETES_ALLOW_RUN_AS_IMAGE')
-  if run_as != 'user':
+  allow_image = env_flag('QABOARD_KUBERNETES_ALLOW_RUN_AS_IMAGE')
+  if run_as == 'image' and not allow_image:
+    # the image's user can be any UID baked in an image, with the project's mounts
+    raise NotAllowed(
+      "This QA-Board server doesn't start batches on Kubernetes as the image's user (runners.kubernetes.run_as: image "
+      f"in qaboard.yaml): they run as their user, {user}. Remove `run_as: image`, or ask your QA-Board admins "
+      "(QABOARD_KUBERNETES_ALLOW_RUN_AS_IMAGE=1, if the namespace's admission policies pin the UIDs, or QABOARD_KUBERNETES_RUN_AS)."
+    )
+  if run_as not in ('user', 'image'):
     notes.append(f"runners.kubernetes.run_as={json.dumps(run_as)} is ignored for batches started from QA-Board: they run as {user}.")
+  # Also with `run_as: image`: the pod runs the project's code in the namespace, for this user
   login_type = str(user_info.get('login_type') or 'LOCAL').upper()
   if login_type not in DIRECTORY_LOGIN_TYPES and not env_flag('QABOARD_KUBERNETES_TRUST_LOCAL_ACCOUNTS'):
     raise NotAllowed(
@@ -362,13 +376,16 @@ def driver_run_as(config: dict, user_info: dict, notes: List[str]) -> Tuple[Any,
       "Sign in with the directory, or ask your QA-Board admins (QABOARD_KUBERNETES_TRUST_LOCAL_ACCOUNTS=1 if they "
       "create the local accounts themselves, or QABOARD_KUBERNETES_RUN_AS)."
     )
+  if run_as == 'image':
+    # the admins allow it, but never as root
+    return 'image', True
   from . import accounts
   account = accounts.account(user)
   if not account:
     raise NotAllowed(
       f"QA-Board doesn't know the Unix account of {user}: it starts batches on Kubernetes as their user (UID/GID), "
-      "from its accounts (/etc/passwd or QABOARD_ACCOUNTS_COMMAND). Ask your QA-Board admins, "
-      "or set `run_as: image` in runners.kubernetes in qaboard.yaml to run as the image's user."
+      "from its accounts (/etc/passwd or QABOARD_ACCOUNTS_COMMAND). Ask your QA-Board admins"
+      + (", or set `run_as: image` in runners.kubernetes in qaboard.yaml to run as the image's user." if allow_image else ".")
     )
   try:
     min_uid = int(os.environ.get('QABOARD_KUBERNETES_MIN_UID', 1000))
@@ -409,6 +426,8 @@ def driver_job_options(config: dict, user_info: dict, command_id: str, project_i
     "timeout": 0,
     # it only starts the runs
     "resources": driver_resources(),
+    # the server answers a request: it doesn't wait minutes for the Kubernetes API
+    "api_retry_seconds": SERVER_API_RETRY_SECONDS,
   }
   service_account = os.environ.get('QABOARD_KUBERNETES_SERVICE_ACCOUNT')
   if service_account:
@@ -604,7 +623,7 @@ def submit_driver(script_path: Path, log_dir: Path, user_info: dict, ci_commit, 
     if Runner is not None and job_options is not None:
       # It may have been created before it failed
       try:
-        stop_options = {k: job_options[k] for k in ('type', 'command_id', 'namespace', 'context', 'project', 'user') if k in job_options}
+        stop_options = {k: job_options[k] for k in ('type', 'command_id', 'namespace', 'context', 'project', 'user', 'api_retry_seconds') if k in job_options}
         Runner.stop_jobs([], stop_options)
       except Exception as cleanup_error:
         print(f"WARNING: could not delete {driver_name(command_id)}: {cleanup_error}")

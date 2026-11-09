@@ -21,10 +21,21 @@ from backend.storage import UnsafePathError
 
 
 
-def with_log_dir_url(submission):
-  """Where the webapp can read the logs of a batch started from QA-Board (and if `qa batch` ended, when it ran on the server)"""
-  from backend.local_jobs import refresh_status
-  submission = refresh_status(submission)
+def with_log_dir_url(submission, batch_id=None):
+  """
+  Where the webapp can read the logs of a batch started from QA-Board, and if `qa batch` ended, when it ran on the
+  server: with `batch_id`, that final status is recorded in the batch, so we read it from storage only once.
+  While `qa batch` waits to start, `pending_note` says why, if its runner wrote it.
+  """
+  from backend.local_jobs import refresh_status, persist_final_status
+  from backend.submissions import pending_note
+  refreshed = refresh_status(submission)
+  if batch_id is not None and isinstance(submission, dict) and refreshed.get('status') != submission.get('status'):
+    persist_final_status(batch_id, refreshed)
+  submission = refreshed
+  note = pending_note(submission)
+  if note:
+    submission = {**submission, 'pending_note': note}
   try:
     return {**submission, 'log_dir_url': dir_to_url(Path(submission['log_dir']))}
   except Exception:
@@ -102,7 +113,7 @@ class Batch(Base):
       stats = batches_stats(session, [self.id], with_aggregation).get(self.id, no_stats)
     data = self.data if self.data else {} # None check for old batches (todo: migrate them properly)
     if data.get('submissions'):
-      data = {**data, 'submissions': {id: with_log_dir_url(s) for id, s in data['submissions'].items()}}
+      data = {**data, 'submissions': {id: with_log_dir_url(s, self.id) for id, s in data['submissions'].items()}}
     return {
         'id': self.id,
         'commit_id': self.ci_commit.hexsha,

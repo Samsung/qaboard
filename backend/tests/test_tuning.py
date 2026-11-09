@@ -31,6 +31,30 @@ def test_record_submission_keeps_the_most_recent():
     assert "s0" not in ids and f"s{MAX_SUBMISSIONS + 4}" in ids
 
 
+def test_pending_note(tmp_path):
+    """While `qa batch` waits to start (e.g. its pod is pending), the runner says why in log.pending.txt"""
+    from backend.submissions import pending_note, PENDING_NOTE_MAX_BYTES
+    submission = {"id": "s1", "runner": "kubernetes", "status": "submitted", "log_dir": str(tmp_path)}
+    assert pending_note(submission) is None
+    (tmp_path / "log.pending.txt").write_text("The pod is pending: 0/3 nodes have a free GPU.\n")
+    assert pending_note(submission) == "The pod is pending: 0/3 nodes have a free GPU."
+    assert pending_note({**submission, "status": "submitting"}) == "The pod is pending: 0/3 nodes have a free GPU."
+    # an empty log is no log
+    (tmp_path / "log.txt").write_text("")
+    assert pending_note(submission) is not None
+    # once `qa batch` started, or ended, its logs say the rest
+    (tmp_path / "log.txt").write_text("qa batch started\n")
+    assert pending_note(submission) is None
+    (tmp_path / "log.txt").unlink()
+    for status in ("done", "failed", "stopped"):
+        assert pending_note({**submission, "status": status}) is None
+    # bounded, and whatever is in the file
+    (tmp_path / "log.pending.txt").write_bytes(b"\xff" + b"x" * 10 * PENDING_NOTE_MAX_BYTES)
+    assert len(pending_note(submission)) == PENDING_NOTE_MAX_BYTES
+    for invalid in (None, "x", {"status": "submitted"}, {"status": "submitted", "log_dir": 7}):
+        assert pending_note(invalid) is None
+
+
 def test_check_tuning_search():
     from backend.api.tuning import check_tuning_search
     assert check_tuning_search({"search_type": "grid", "parameter_search": [{"a": 1}, {"a": 2}]}) == []

@@ -7,8 +7,8 @@ description: Send the runs of qa batch to Celery workers through a message broke
 
 With the `celery` runner, `qa batch` sends its runs to [Celery](https://docs.celeryq.dev/) workers through a
 message broker, and waits for them. Workers run each `qa run` in the folder where you started `qa batch`, with your
-environment variables, except secrets (names with `TOKEN`, `ACCESS`, `AUTH`, `SECRET`, `PASSWORD`...): their machines
-need that folder, your inputs and the results storage at the same paths, e.g. on shared drives.
+environment variables, except those that look like secrets (see [secrets](#secrets)): their machines need that
+folder, your inputs and the results storage at the same paths, e.g. on shared drives.
 
 The runs get the worker's environment, with the variables of `qa batch` on top: set what runs need that `qa batch`
 doesn't forward, like secrets or `CUDA_VISIBLE_DEVICES`, where the workers start. To send results to a QA-Board server
@@ -66,9 +66,37 @@ broker (its `CELERY_BROKER_URL`): batches sent to another broker, or another vir
 <summary>What workers need, and the limits</summary>
 
 - Celery 5.3 or later, and the default `prefork` pool: with the `threads` or `solo` pools, workers can't stop running
-  tasks. Older workers only stop batches from `Ctrl+C`, not from the web app.
+  tasks, they finish (and when such a worker gets SIGTERM, its warm shutdown waits for them too). Older workers only
+  stop batches from `Ctrl+C`, not from the web app.
 - Workers remember stopped batches in memory. A worker that starts afterwards may still run their waiting tasks,
   unless the workers save their state: `celery -A qaboard.runners.celery_app worker --statedb=/var/lib/celery/worker.state`.
+
+</details>
+
+## Give the runs secrets {#secrets}
+`qa batch` doesn't send the variables that look like secrets to the workers: set them where the workers start, the
+runs get them. To send some anyway, e.g. a key that each user has, name them in *qaboard.yaml*:
+
+```yaml title="qaboard.yaml"
+runners:
+  celery:
+    forward_secrets: [WANDB_API_KEY, HF_TOKEN]
+```
+
+They travel in the tasks' messages: anyone who can read the broker's queues can read them, see
+[sharing the broker](#sharing-the-servers-broker-between-teams).
+
+<details>
+<summary>The variables `qa batch` doesn't forward</summary>
+
+The same as the [Kubernetes runner](/docs/kubernetes-runner):
+
+- Names that contain `TOKEN`, `ACCESS`, `AUTH`, `SECRET`, `PASSWORD`, `PASSWD`, `CREDENTIAL`, `PRIVATE`, `COOKIE`,
+  `JWT` or `APIKEY`, in any case.
+- Names with one of the words `KEY`, `PASS`, `PW` or `SESSION`, between `_` or other characters that aren't letters
+  or digits: `OPENAI_API_KEY`, `DB_PASS` or `SESSION_ID`, but not `KEYBOARD` or `PASSAGE`.
+- Values with credentials in a URL, anything between `://` and `@`: `https://user:password@host/...`,
+  `https://gitlab-ci-token:xxx@gitlab.example.com/...`.
 
 </details>
 
@@ -106,7 +134,7 @@ admins at `http://<your-qaboard>/flower/`, where `<your-qaboard>` is your server
 shut the workers down. It shows the default virtual host only. See also Celery's [monitoring guide](https://docs.celeryq.dev/en/stable/userguide/monitoring.html).
 
 ## Celery settings {#advanced-celery-configuration}
-Settings under `runners.celery` are given to Celery:
+Settings under `runners.celery` are given to Celery, except QA-Board's own `forward_secrets` ([secrets](#secrets)):
 
 ```yaml title="qaboard.yaml"
 runners:

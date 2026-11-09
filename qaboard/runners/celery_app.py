@@ -89,9 +89,32 @@ def kill_process_group(process: subprocess.Popen, grace: float = 5):
     pass
 
 
+def in_pool_process() -> bool:
+  """
+  Whether the task runs in one of the prefork pool's processes: only there does a SIGTERM mean "terminate this task"
+  (revoke(terminate=True) signals the pool process that runs it). With --pool=solo or threads, tasks run in the
+  worker's main process, where SIGTERM is the worker's warm shutdown: it waits for the running tasks, we let them
+  finish (and those pools can't terminate tasks). Like Celery's own signal handlers, we tell from the process's name.
+  """
+  try:
+    from billiard.process import current_process
+    return current_process().name != 'MainProcess'
+  except Exception:
+    return False
+
+
 @contextmanager
 def stopped_with_task(process: subprocess.Popen):
-  """When the task is terminated (SIGTERM, or billiard's TERM_SIGNAME), or fails, the command's process group is killed"""
+  """
+  When the task is terminated (SIGTERM, or billiard's TERM_SIGNAME), or fails, the command's process group is killed.
+  Only in the prefork pool's processes: elsewhere SIGTERM is the worker's, see in_pool_process.
+  """
+  if not in_pool_process():
+    try:
+      yield
+    finally:
+      kill_process_group(process, grace=1)
+    return
   term_signals = {signal.SIGTERM}
   try:
     from billiard.common import TERM_SIGNAL

@@ -1,9 +1,10 @@
 import os
 import re
 import sys
+import uuid
 import socket
 import fnmatch
-from typing import List, Dict, Any, Iterable, Tuple
+from typing import List, Dict, Any, Iterable, Optional, Tuple
 
 from .base import BaseRunner
 from .job import Job
@@ -12,21 +13,53 @@ from ..checks import Check
 from .env import is_secret
 
 
-def without_secrets() -> Dict[str, str]:
-  """qa's environment, minus the variables that likely hold secrets: the runs get it"""
-  return {k: v for k, v in os.environ.items() if not is_secret(k)}
+def without_secrets(forward_secrets: Optional[Iterable[str]] = None) -> Dict[str, str]:
+  """
+  qa's environment, minus the variables that likely hold secrets (env.py's is_secret, from their name or value):
+  the runs get it. `forward_secrets` (runners.celery.forward_secrets) names variables to forward anyway.
+  """
+  env = {k: v for k, v in os.environ.items() if not is_secret(k, v)}
+  for name in forward_secrets or ():
+    if name in os.environ:
+      env[name] = os.environ[name]
+  return env
 
 
-# What `qa batch`, `qa doctor` and the QA-Board server add to the job options, that are not Celery settings
-QA_JOB_OPTIONS = ('type', 'command_id', 'user', 'project', 'batch_dir', 'cwd', 'bridge')
+def forward_secrets_option(job_options: Dict[str, Any]) -> List[str]:
+  """runners.celery.forward_secrets: the names of variables to forward even if they look like secrets"""
+  value = job_options.get('forward_secrets')
+  if value is None:
+    from ..config import config
+    from .celery_settings import qaboard_settings
+    value = qaboard_settings(config).get('forward_secrets')
+  if value is None:
+    return []
+  if isinstance(value, str):
+    value = [value]
+  if not isinstance(value, (list, tuple)) or not all(isinstance(name, str) for name in value):
+    print(f"WARNING: runners.celery.forward_secrets should be a list of variable names, not {value!r}: no secrets are forwarded.", file=sys.stderr)
+    return []
+  return list(value)
+
+
+# What `qa batch`, `qa doctor` and the QA-Board server add to the job options, and the runner's own settings
+# (celery_settings.QABOARD_SETTINGS): they are not Celery settings
+QA_JOB_OPTIONS = ('type', 'command_id', 'user', 'project', 'batch_dir', 'cwd', 'bridge', 'forward_secrets')
 
 # Each task of a batch is stamped with its command id (a header), so that we can stop them all from it, from
 # anywhere that reaches the broker, without a result backend: see stop_jobs.
 COMMAND_ID_STAMP = 'qaboard_command_id'
 
-def task_id(command_id: str, index: int) -> str:
-  """The tasks of a batch have known ids: workers older than Celery 5.3 can't revoke them by stamp"""
-  return f"{command_id}-{index}"
+def task_id(command_id: str, nonce: str, index: int) -> str:
+  """
+  The tasks of a batch have known ids: workers older than Celery 5.3 can't revoke them by stamp. Each `qa batch`
+  (or each `qa optimize` iteration, that reuses the command id) has its own nonce: with a result backend that keeps
+  results, waiting for a task must not find the result of a task from before with the same id.
+  """
+  return f"{command_id}-{nonce}-{index}"
+
+# The tasks this process sent, per command id: Ctrl+C and stop_jobs from `qa batch` revoke them by id
+sent_task_ids: Dict[str, List[str]] = {}
 
 def doctor_settings(job_options: Dict[str, Any]) -> Tuple[Dict[str, Any], str, str]:
   """
@@ -118,7 +151,7 @@ def doctor_test_job(job_options: Dict[str, Any], timeout: float = 120) -> Iterab
     command = f'echo "user: $(id -un)" > "{result}"; echo "host: $(hostname)" >> "{result}"; echo "qa: $(command -v qa || echo not found)" >> "{result}"'
     # The task only needs the job's command and cwd
     job = SimpleNamespace(run_context=SimpleNamespace(command=command, job_options={'cwd': cwd}))
-    env = without_secrets()
+    env = without_secrets(forward_secrets_option(job_options))
     async_result = start.apply_async(args=(job,), kwargs={'cwd': cwd, 'env': env})
     try:
       returncode = async_result.get(timeout=timeout)
@@ -157,19 +190,22 @@ class CeleryRunner(BaseRunner):
   def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True):
     from celery import group
     from .celery_app import app, start
-    app.conf.update(**job_options)
+    app.conf.update(**{k: v for k, v in job_options.items() if k != 'forward_secrets'})
 
     # same as for the  local runner, but not sure it's necessary
     cwd = os.getcwd()
     if 'cwd' in job_options:
       os.chdir(job_options['cwd'])
 
-    env = without_secrets()
+    env = without_secrets(forward_secrets_option(job_options))
 
     # https://docs.celeryproject.org/en/stable/userguide/canvas.html#canvas-group
     command_id = job_options['command_id']
-    g = group(start.s(job, cwd=cwd, env=env).set(task_id=task_id(command_id, index)) for index, job in enumerate(jobs))
-    g.id = command_id
+    nonce = uuid.uuid4().hex[:8]
+    ids = [task_id(command_id, nonce, index) for index in range(len(jobs))]
+    sent_task_ids.setdefault(command_id, []).extend(ids)
+    g = group(start.s(job, cwd=cwd, env=env).set(task_id=id) for id, job in zip(ids, jobs))
+    g.id = f"{command_id}-{nonce}"
     # stop_jobs revokes the tasks with this stamp
     if hasattr(g, 'stamp'):  # celery>=5.3
       g.stamp(**{COMMAND_ID_STAMP: command_id})
@@ -188,10 +224,16 @@ class CeleryRunner(BaseRunner):
         # the tasks that wait, and those that run
         CeleryRunner.stop_jobs(jobs, job_options)
         sys.exit(1)
-      signal.signal(signal.SIGTERM, sigterm_handler)
-      signal.signal(signal.SIGINT, sigterm_handler)
-
-      result.get()
+      previous = {signum: signal.signal(signum, sigterm_handler) for signum in (signal.SIGTERM, signal.SIGINT)}
+      try:
+        result.get()
+        # they're done: nothing to revoke anymore
+        done = set(ids)
+        sent_task_ids[command_id] = [id for id in sent_task_ids.get(command_id, []) if id not in done]
+      finally:
+        # e.g. `qa optimize` starts batches one after the other
+        for signum, handler in previous.items():
+          signal.signal(signum, handler)
     os.chdir(cwd)
 
 
@@ -270,6 +312,7 @@ class CeleryRunner(BaseRunner):
       control = app.control
       if hasattr(control, 'revoke_by_stamped_headers'):  # celery>=5.3
         control.revoke_by_stamped_headers({COMMAND_ID_STAMP: command_id}, terminate=True, connection=connection)
-      # Workers older than Celery 5.3 don't know stamps. From `qa batch` we know the tasks.
-      if jobs:
-        control.revoke([task_id(command_id, index) for index in range(len(jobs))], terminate=True, connection=connection)
+      # Workers older than Celery 5.3 don't know stamps. From the `qa batch` that sent them (Ctrl+C), we know the tasks.
+      ids = sent_task_ids.get(command_id)
+      if ids:
+        control.revoke(list(ids), terminate=True, connection=connection)

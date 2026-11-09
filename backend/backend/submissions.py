@@ -5,6 +5,7 @@ users follow them with the batch's logs.
 """
 import os
 from pathlib import Path
+from typing import Optional
 
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -18,6 +19,34 @@ def user_batch_dir(batch_dir, user) -> Path:
 def submission_dir(batch_dir, created_at, command_id) -> Path:
   """Where we save the scripts and logs of a `qa batch` started from QA-Board"""
   return Path(batch_dir) / 'qaboard-batches' / f"{created_at.strftime('%Y%m%d-%H%M%S')}-{command_id[:8]}"
+
+
+# While `qa batch` waits to start, e.g. its Kubernetes driver pod is pending, the runner says why in this file, next
+# to its log.txt (the kubernetes runner's submit_detached)
+PENDING_NOTE_FILE = 'log.pending.txt'
+PENDING_NOTE_MAX_BYTES = 4096
+
+def pending_note(submission) -> Optional[str]:
+  """
+  Why `qa batch` didn't start yet (log_dir/log.pending.txt), while the submission waits and wrote no logs.
+  None if there is none, or once `qa batch` started.
+  """
+  if not isinstance(submission, dict) or submission.get('status') not in ('submitting', 'submitted'):
+    return None
+  if not isinstance(submission.get('log_dir'), str) or not submission['log_dir']:
+    return None
+  log_dir = Path(submission['log_dir'])
+  try:
+    if (log_dir / 'log.txt').stat().st_size > 0:
+      return None
+  except OSError:
+    pass
+  try:
+    with (log_dir / PENDING_NOTE_FILE).open('rb') as f:
+      note = f.read(PENDING_NOTE_MAX_BYTES).decode('utf-8', errors='replace').strip()
+  except (OSError, TypeError, ValueError):
+    return None
+  return note or None
 
 
 # We keep the history of the last batches started from QA-Board

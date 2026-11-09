@@ -500,9 +500,9 @@ def starting_soon(filters: Filters, limit=100) -> list:
   from .models.Batch import with_log_dir_url
   answer = []
   for row in rows:
-    submission = with_log_dir_url(row['submission'])
+    submission = with_log_dir_url(row['submission'], row['batch_id'])
     answer.append({
-      **{k: submission.get(k) for k in ('id', 'created_at', 'user', 'runner', 'status', 'lsf_job_id', 'queue', 'kubernetes_job', 'namespace', 'pid', 'host', 'batch', 'log_dir_url', 'exit_code', 'error')},
+      **{k: submission.get(k) for k in ('id', 'created_at', 'user', 'runner', 'status', 'lsf_job_id', 'queue', 'kubernetes_job', 'namespace', 'pid', 'host', 'batch', 'log_dir_url', 'exit_code', 'error', 'pending_note')},
       **{k: row[k] for k in ('batch_id', 'batch_label', 'ci_commit_id', 'hexsha', 'branch', 'project_id')},
     })
   return answer

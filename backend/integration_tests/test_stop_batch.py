@@ -62,8 +62,8 @@ def test_stop_a_kubernetes_batch(logged_in, world, runners):
   # JSONB doesn't keep the order of keys. Kubernetes objects: only those of the batch's project
   assert sorted(runners.stopped, key=lambda options: options["command_id"]) == [
     {"type": "lsf", "command_id": LSF_ID, "bridge": "", "user": "alice"},
-    {"type": "kubernetes", "command_id": K8S_ID, "bridge": "", "namespace": "algo-qa", "project": "proj/a"},
-    {"type": "kubernetes", "command_id": DRIVER_ID, "bridge": "", "user": "alice", "namespace": "algo-qa", "project": "proj/a"},
+    {"type": "kubernetes", "command_id": K8S_ID, "bridge": "", "namespace": "algo-qa", "project": "proj/a", "api_retry_seconds": 15},
+    {"type": "kubernetes", "command_id": DRIVER_ID, "bridge": "", "user": "alice", "namespace": "algo-qa", "project": "proj/a", "api_retry_seconds": 15},
   ]
   db_session.expire_all()
   batch = db_session.get(Batch, batch_id)
@@ -178,3 +178,55 @@ def test_stop_a_batch_started_on_the_server(logged_in, world, tmp_path, monkeypa
   assert answer.status_code == 200, answer.get_json()
   db_session.expire_all()
   assert db_session.query(Output).filter(Output.batch_id == batch_id).one().is_failed
+
+
+def test_the_final_status_of_qa_batch_on_the_server_is_recorded(world, tmp_path):
+  """Once `qa batch` ended, its status is read from storage once, then from the database"""
+  from sqlalchemy import text
+  from sqlalchemy.orm.attributes import flag_modified
+  from backend.database import db_session
+  from backend.models import Batch
+  batch = world.batch('proj/a')
+  log_dir = tmp_path / 'logs'
+  log_dir.mkdir()
+  submission = {"id": "local-1", "runner": "local", "status": "submitted", "pid": 1, "pgid": 1, "host": "other-replica",
+                "log_dir": str(log_dir), "created_at": "2026-11-01T00:00:00Z"}
+  batch.data = {"label_color": "red", "submissions": {"local-1": submission, "other-1": {**submission, "id": "other-1", "log_dir": str(tmp_path / 'x')}}}
+  flag_modified(batch, "data")
+  world.db.commit()
+  batch_id = batch.id
+  (log_dir / 'exit_code').write_text('3\n')
+
+  # while the request's session holds the batch's row, we don't wait for it: next time
+  db_session.execute(text("SELECT id FROM batches WHERE id = :id FOR UPDATE"), {"id": batch_id})
+  assert db_session.get(Batch, batch_id).to_dict(db_session)["data"]["submissions"]["local-1"]["status"] == "failed"
+  db_session.rollback()
+  db_session.expire_all()
+  assert db_session.get(Batch, batch_id).data["submissions"]["local-1"]["status"] == "submitted"
+
+  serialized = db_session.get(Batch, batch_id).to_dict(db_session)["data"]["submissions"]["local-1"]
+  assert (serialized["status"], serialized["exit_code"]) == ("failed", 3)
+  db_session.expire_all()
+  data = db_session.get(Batch, batch_id).data
+  assert data["submissions"]["local-1"] == {**submission, "status": "failed", "exit_code": 3}
+  # the rest is as it was
+  assert data["submissions"]["other-1"]["status"] == "submitted" and data["label_color"] == "red"
+  # we don't read the storage anymore
+  (log_dir / 'exit_code').write_text('0\n')
+  assert db_session.get(Batch, batch_id).to_dict(db_session)["data"]["submissions"]["local-1"]["exit_code"] == 3
+
+
+def test_submissions_say_why_qa_batch_waits(world, tmp_path):
+  """The runner of a driver that waits (e.g. a pending pod) says why in log.pending.txt: the web app shows it"""
+  from sqlalchemy.orm.attributes import flag_modified
+  from backend.database import db_session
+  from backend.models import Batch
+  batch = world.batch('proj/a')
+  batch.data = {"submissions": {DRIVER_ID: {"id": DRIVER_ID, "runner": "kubernetes", "status": "submitted", "kubernetes_job": "qa-33333333-driver",
+                                            "namespace": "algo-qa", "log_dir": str(tmp_path), "created_at": "2026-11-01T00:00:00Z"}}}
+  flag_modified(batch, "data")
+  world.db.commit()
+  (tmp_path / 'log.pending.txt').write_text("The pod waits for a node with a GPU.\n")
+  assert batch.to_dict(db_session)["data"]["submissions"][DRIVER_ID]["pending_note"] == "The pod waits for a node with a GPU."
+  (tmp_path / 'log.txt').write_text("qa batch\n")
+  assert "pending_note" not in batch.to_dict(db_session)["data"]["submissions"][DRIVER_ID]

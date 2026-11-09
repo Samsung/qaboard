@@ -132,6 +132,7 @@ def test_stop_options_of_other_runners_are_unchanged(fake_runners, monkeypatch):
   monkeypatch.setenv("QABOARD_DASK_SCHEDULERS", "tcp://trusted:8786")
   assert runner_jobs.stop_job_options(ID1, {"runner": "dask", "scheduler_address": "tcp://trusted:8786"}) == {
     "type": "dask", "command_id": ID1, "bridge": "ssh host bsub_su {user} {bsub_command}", "scheduler_address": "tcp://trusted:8786",
+    "api_retry_seconds": 15,
   }
   assert "scheduler_address" not in runner_jobs.stop_job_options(ID1, {"runner": "dask", "scheduler_address": "tcp://attacker:8786"})
   for runner in ("local", "celery"):
@@ -147,6 +148,8 @@ def test_stop_options_of_kubernetes(fake_runners, monkeypatch):
   # unknown contexts: the server's default cluster. Only the batch's project, as the server knows it
   assert runner_jobs.stop_job_options(ID1, command, "algo/project") == {
     "type": "kubernetes", "command_id": ID1, "bridge": "", "user": "arthurf", "namespace": "algo-gpu", "project": "algo/project",
+    # the server doesn't wait 5 minutes for the Kubernetes API
+    "api_retry_seconds": 15,
   }
   monkeypatch.setenv("QABOARD_KUBERNETES_CONTEXTS", "laptop")
   assert runner_jobs.stop_job_options(ID1, command)["context"] == "laptop"
@@ -165,6 +168,7 @@ def test_stop_options_of_dask_clusters(fake_runners):
   command = {"runner": "dask", "cluster_type": "kubernetes", "kubernetes": {"namespace": "algo-qa", "context": "laptop", "image": "evil"}}
   assert runner_jobs.stop_job_options(ID1, command, "algo/project") == {
     "type": "dask", "command_id": ID1, "bridge": "", "cluster_type": "kubernetes", "kubernetes": {"namespace": "algo-qa", "project": "algo/project"},
+    "api_retry_seconds": 15,
   }
   for kubernetes in ({"namespace": "kube-system"}, {"namespace": None}, {}, "algo-qa", None):
     with pytest.raises(NotAllowed):
@@ -214,6 +218,40 @@ def test_stop_batch_jobs_warns_when_no_kubernetes_job_was_found(fake_runners):
   assert "No Kubernetes job" in stopped["warnings"][0] and "algo-qa" in stopped["warnings"][0]
   fake_runners.deleted = 2
   assert runner_jobs.stop_batch_jobs({"commands": {ID2: {"runner": "kubernetes", "namespace": "algo-qa"}}}, True)["warnings"] == []
+  # only exactly 0 means none: not None (runners that don't count), nor False
+  for deleted in (None, False):
+    fake_runners.deleted = deleted
+    assert runner_jobs.stop_batch_jobs({"commands": {ID2: {"runner": "kubernetes", "namespace": "algo-qa"}}}, True)["warnings"] == []
+  # other runners never get it
+  fake_runners.deleted = 0
+  assert runner_jobs.stop_batch_jobs({"commands": {ID1: {"runner": "lsf"}}}, True)["warnings"] == []
+
+
+def test_server_requests_dont_wait_minutes_for_the_kubernetes_api(fake_runners, account, tmp_path):
+  """The kubernetes runner retries API calls for 5 minutes by default: the server asks for 15s, to stop and to start"""
+  data = {
+    "commands": {
+      ID1: {"runner": "kubernetes", "namespace": "algo-qa"},
+      ID2: {"runner": "dask", "cluster_type": "kubernetes", "kubernetes": {"namespace": "algo-qa"}},
+      ID3: {"runner": "lsf"},
+    },
+    "submissions": {ID4: {"id": ID4, "runner": "kubernetes", "status": "submitted", "kubernetes_job": "x", "namespace": "algo-gpu"}},
+  }
+  runner_jobs.stop_batch_jobs(data, True, project_id="algo/project")
+  retries = {(o["type"], o["command_id"]): o.get("api_retry_seconds") for o in fake_runners.stopped}
+  assert retries == {("kubernetes", ID1): 15, ("dask", ID2): 15, ("lsf", ID3): None, ("kubernetes", ID4): 15}
+
+  script = tmp_path / "script.sh"
+  script.write_text("#!/bin/bash\nqa batch\n")
+  ci_commit = SimpleNamespace(project_id="algo/project", data={}, project=SimpleNamespace(data={}))
+  runner_jobs.submit_driver(script, tmp_path, ARTHUR, ci_commit, DRIVER_ID)
+  assert fake_runners.submitted[-1]["job_options"]["api_retry_seconds"] == 15
+  # and when it cleans up after a failure
+  fake_runners.stopped.clear()
+  fake_runners.fail_with = RuntimeError("the API is down")
+  with pytest.raises(RuntimeError):
+    runner_jobs.submit_driver(script, tmp_path, ARTHUR, ci_commit, DRIVER_ID)
+  assert fake_runners.stopped[-1]["api_retry_seconds"] == 15
 
 
 def test_injected_commands_dont_keep_lsf_batches_from_stopping(fake_runners, monkeypatch):
@@ -327,6 +365,7 @@ def test_driver_job_options(fake_runners, account, monkeypatch):
     "forward_env": False,
     "timeout": 0,
     "resources": {"cpu": "500m", "memory": "2Gi"},
+    "api_retry_seconds": 15,
     "service_account": "qaboard-runs",
     "image": "registry.example.com/algo/qa-env:2026.11",
     "image_pull_secrets": ["registry-creds"],
@@ -367,12 +406,7 @@ def test_drivers_run_as_the_user(fake_runners, account, monkeypatch):
   options, notes = runner_jobs.driver_job_options({"run_as": {"uid": 0, "gid": 0}}, ARTHUR, ID1, "project")
   assert options["run_as"] == {"uid": 1234, "gid": 100, "groups": [2000]} and options["run_as_non_root"]
   assert "ignored" in notes[0]
-  # or as the image's user, if the project asks, but not as root unless the admins allow it
-  options = runner_jobs.driver_job_options({"run_as": "image"}, {"user_name": "nobody"}, ID1, "project")[0]
-  assert (options["run_as"], options["run_as_non_root"]) == ("image", True)
-  monkeypatch.setenv("QABOARD_KUBERNETES_ALLOW_RUN_AS_IMAGE", "1")
-  assert runner_jobs.driver_job_options({"run_as": "image"}, {"user_name": "nobody"}, ID1, "project")[0]["run_as_non_root"] is False
-  with pytest.raises(NotAllowed, match="doesn't know the Unix account of nobody"):
+  with pytest.raises(NotAllowed, match="doesn't know the Unix account of nobody.* Ask your QA-Board admins.$"):
     runner_jobs.driver_job_options({}, {"user_name": "nobody", "login_type": "SAML"}, ID1, "project")
   for root in ("root", "rootgroup"):
     with pytest.raises(NotAllowed, match="root"):
@@ -382,6 +416,26 @@ def test_drivers_run_as_the_user(fake_runners, account, monkeypatch):
   monkeypatch.setenv("QABOARD_KUBERNETES_MIN_UID", "1300")
   with pytest.raises(NotAllowed, match="below 1300"):
     runner_jobs.driver_job_options({}, ARTHUR, ID1, "project")
+
+
+def test_drivers_run_as_the_image_only_if_the_admins_allow_it(fake_runners, account, monkeypatch):
+  """`run_as: image` would run as any non-root UID baked in an image, with the project's mounts"""
+  nobody = {"user_name": "nobody", "login_type": "LDAP"}
+  for user_info in (nobody, ARTHUR, {"user_name": "alice", "login_type": "LOCAL"}):
+    with pytest.raises(NotAllowed, match="QABOARD_KUBERNETES_ALLOW_RUN_AS_IMAGE"):
+      runner_jobs.driver_job_options({"run_as": "image"}, user_info, ID1, "project")
+  monkeypatch.setenv("QABOARD_KUBERNETES_ALLOW_RUN_AS_IMAGE", "1")
+  # users the server has no Unix account for, but never as root
+  options, notes = runner_jobs.driver_job_options({"run_as": "image"}, nobody, ID1, "project")
+  assert (options["run_as"], options["run_as_non_root"], notes) == ("image", True, [])
+  with pytest.raises(NotAllowed, match="or set `run_as: image`"):
+    runner_jobs.driver_job_options({}, nobody, ID1, "project")
+  # only for users who signed in with the directory, like `run_as: user`
+  for user_info in ({"user_name": "alice", "login_type": "LOCAL"}, {"user_name": "alice"}):
+    with pytest.raises(NotAllowed, match="QABOARD_KUBERNETES_TRUST_LOCAL_ACCOUNTS"):
+      runner_jobs.driver_job_options({"run_as": "image"}, user_info, ID1, "project")
+  monkeypatch.setenv("QABOARD_KUBERNETES_TRUST_LOCAL_ACCOUNTS", "1")
+  assert runner_jobs.driver_job_options({"run_as": "image"}, {"user_name": "alice"}, ID1, "project")[0]["run_as"] == "image"
 
 
 def test_local_accounts_are_not_mapped_to_uids(fake_runners, account, monkeypatch):
@@ -551,7 +605,7 @@ def test_submit_driver_failures_are_in_the_logs(fake_runners, account, tmp_path)
     runner_jobs.submit_driver(script_path, tmp_path, ARTHUR, make_commit({}), ID1, on_prepared=prepared.append)
   assert "Forbidden" in (tmp_path / "log.txt").read_text()
   assert prepared == [{"kubernetes_job": "qa-00000000-driver", "namespace": "algo-qa"}]
-  assert fake_runners.stopped == [{"type": "kubernetes", "command_id": ID1, "namespace": "algo-qa", "project": "algo/project", "user": "arthurf"}]
+  assert fake_runners.stopped == [{"type": "kubernetes", "command_id": ID1, "namespace": "algo-qa", "project": "algo/project", "user": "arthurf", "api_retry_seconds": 15}]
   # even if that fails too
   fake_runners.stop_fails_with = RuntimeError("connection refused")
   with pytest.raises(RuntimeError, match="Forbidden"):

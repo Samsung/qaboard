@@ -5,7 +5,7 @@
 import { render, screen, renderHook, waitFor, fireEvent } from '@testing-library/react';
 
 import { batchSubmissions, is_final, lastErrorLine, parseExitMarker, submissionState, useSubmissionStatus, whereItRuns } from '../submissions';
-import { SubmissionCallout, failureSummary } from '../BatchSubmissions';
+import { SubmissionCallout, failureSummary, waitingHint } from '../BatchSubmissions';
 import { parseLsfReport } from '../lsf';
 
 
@@ -62,6 +62,14 @@ describe('submissionState', () => {
     expect(whereItRuns({ runner: 'celery', pid: 4321 })).toBe('on the QA-Board server (pid 4321), runs sent to Celery workers')
     // older submissions: qa batch ran during the request
     expect(whereItRuns({ runner: 'local', status: 'done' })).toBeNull()
+  })
+
+  it('says why qa batch waits', () => {
+    expect(waitingHint(lsf_submission)).toBe("LSF hasn't started the job yet. The cluster may be busy.")
+    // the server reads what the runner said, e.g. why the driver pod is pending
+    const pending_note = 'The pod waits for a node: 0/3 nodes are available: 3 Insufficient nvidia.com/gpu.'
+    expect(waitingHint({ runner: 'kubernetes', status: 'submitted', pending_note })).toBe(pending_note)
+    expect(waitingHint({ runner: 'kubernetes', status: 'submitted' })).toBe("Kubernetes hasn't started the pod yet. The cluster may be busy.")
   })
 
   it('knows stopped batches', () => {

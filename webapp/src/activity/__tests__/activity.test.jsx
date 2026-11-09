@@ -211,6 +211,14 @@ describe('Runs activity', () => {
     expect(within(row).getByRole('link', { name: 'Logs' })).toHaveAttribute('href', `/isp/denoise/commit/${'c'.repeat(40)}?batch=sweep&selected_views=logs`);
   });
 
+  it('says why a batch waits to start, when its runner said', async () => {
+    const pending_note = 'The pod waits for a node with a GPU.';
+    const starting_soon = [{ ...overview().starting_soon[0], runner: 'kubernetes', lsf_job_id: null, kubernetes_job: 'qa-s1-driver', pending_note }];
+    mockApi(routes({ overview: { starting_soon } }));
+    renderAt('/activity');
+    expect(await screen.findByTestId('starting-soon')).toHaveTextContent(pending_note);
+  });
+
   it('marks the runs of a batch as failed, after saying how many', async () => {
     const fetch = mockApi(routes({ routes: {
       'POST /api/v1/activity/fail': (url, init) => [JSON.parse(init.body).dry_run
