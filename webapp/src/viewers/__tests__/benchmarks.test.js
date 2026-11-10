@@ -73,6 +73,14 @@ describe('parseBenchmarks', () => {
     expect(parseBenchmarks(read('hyperfine.json'), { format: 'hyperfine' }).source).toBe('hyperfine');
   });
 
+  it("reads NaN and Infinity, that Python's json module writes, as missing", () => {
+    const text = '{"machine_info": {"node": "n"}, "benchmarks": [{"name": "test_a", "fullname": "t.py::test_a", '
+      + '"stats": {"mean": 1e-3, "stddev": NaN, "rounds": 1, "ops": Infinity, "min": -Infinity}}]}';
+    const { benchmarks, error } = parseBenchmarks(text);
+    expect(error).toBeNull();
+    expect(benchmarks[0].stats).toEqual({ mean: 1e-3, rounds: 1 });
+  });
+
   it('keeps names unique', () => {
     const { benchmarks } = parseBenchmarks(JSON.stringify({ results: [{ command: 'sleep 0.1', mean: 0.1 }, { command: 'sleep 0.1', mean: 0.2 }] }));
     expect(benchmarks.map(b => b.name)).toEqual(['sleep 0.1', 'sleep 0.1 #2']);

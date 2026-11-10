@@ -374,16 +374,27 @@ const PARSERS = {
 
 const isObject = data => !!data && typeof data === 'object' && !Array.isArray(data);
 
+// JSON, or undefined. Python's json module writes NaN and Infinity, that JSON.parse refuses (pytest-benchmark's stats
+// can have them): they're read as null, like the Python package reads them as not numbers.
+const NON_FINITE = /([:,[]\s*)-?(?:NaN|Infinity)(?=\s*[,\]}])/g;
+function parseJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    if (!/NaN|Infinity/.test(text)) return undefined;
+    try {
+      return JSON.parse(text.replace(NON_FINITE, '$1null'));
+    } catch {
+      return undefined;
+    }
+  }
+}
+
 function parse(text, format) {
   if (format && !FORMATS.includes(format))
     throw new FormatError(`unknown benchmark format "${format}", expected one of ${FORMATS.join(', ')}`);
-  let data;
-  try {
-    data = JSON.parse(text);
-    if (data === null) data = undefined;
-  } catch {
-    data = undefined;
-  }
+  let data = parseJson(text);
+  if (data === null) data = undefined;
   format = format || detectFormat(data, text);
   if (!format) throw new FormatError(`unknown benchmark file: expected one of ${FORMATS.join(', ')}`);
   if (format === 'go') return parseGo(text);
