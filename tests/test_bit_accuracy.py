@@ -197,6 +197,32 @@ class TestOptInNormalizesEverywhere(unittest.TestCase):
       self.assertEqual(info['md5'], hashlib.md5(CRLF_CONTENT).hexdigest())
       self.assertEqual(info['st_size'], len(CRLF_CONTENT))
 
+  def test_project_config_classifying_hex_binary_stays_raw_even_with_opt_in(self):
+    # the compat branch in is_plaintext() is what defeated cac377a: a project
+    # config (bit_accuracy.binary) re-classifies .hex as binary, and the opt-in
+    # must not override the project's explicit classification — on any platform
+    config = {'bit_accuracy': {'binary': ['.hex']}}
+    with mock.patch.dict(os.environ, {'QA_RECORD_EOL_NORMALIZED': '1'}), tempfile.TemporaryDirectory() as tmp:
+      path = Path(tmp) / 'noise.hex'
+      path.write_bytes(CRLF_CONTENT)
+      with mock.patch.object(qaboard_utils, 'os', FakeLinuxOs()):
+        linux_info = file_info(path, config=config)
+      with mock.patch.object(qaboard_utils, 'os', FakeWindowsOs()):
+        windows_info = file_info(path, config=config)
+      self.assertEqual(linux_info['md5'], hashlib.md5(CRLF_CONTENT).hexdigest())
+      self.assertEqual(windows_info, linux_info)
+
+  def test_windows_is_unchanged_by_the_opt_in(self):
+    # on Windows the opt-in is a no-op: normalization was already the behavior
+    with tempfile.TemporaryDirectory() as tmp:
+      path = Path(tmp) / 'noise.hex'
+      path.write_bytes(CRLF_CONTENT)
+      with mock.patch.dict(os.environ, {'QA_RECORD_EOL_NORMALIZED': '1'}), mock.patch.object(qaboard_utils, 'os', FakeWindowsOs()):
+        with_opt_in = file_info(path)
+      with no_opt_in_env(), mock.patch.object(qaboard_utils, 'os', FakeWindowsOs()):
+        without_opt_in = file_info(path)
+      self.assertEqual(with_opt_in, without_opt_in)
+
   def test_normalize_eof_false_keeps_raw_even_with_opt_in(self):
     with mock.patch.dict(os.environ, {'QA_RECORD_EOL_NORMALIZED': '1'}), tempfile.TemporaryDirectory() as tmp:
       path = Path(tmp) / 'regs.txt'
