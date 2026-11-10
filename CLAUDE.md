@@ -55,6 +55,10 @@ The image viewer (`webapp/src/image-viewer/`) is a standalone React component on
 from the app (a test checks it). QA-Board adapts it in `webapp/src/viewers/images/` (runs, image servers, pixel values,
 regions of interest providers). `npm start` then `/image-viewer.html` shows it alone, with generated images.
 The JUnit test report viewer (`webapp/src/viewers/junit/`) has its playground too: `/junit-viewer.html?tests=50000`.
+So does the benchmark viewer (`webapp/src/viewers/benchmarks/`): `/benchmark-viewer.html?benchmarks=5000`. Its parser
+and `qaboard/benchmarks.py` read the same formats: both are tested on `tests/fixtures/benchmarks/`.
+The flame graph viewer (`webapp/src/viewers/flamegraph/`, the formats it reads in `formats.js`) too: `/flame-graph-viewer.html?stacks=300000`,
+with a new and a reference profile that differ in known ways (`generate.js`); `qaboard/flamegraphs.py` converts `perf script` and pprof.
 The "What's new" release notes popup is off with `npm start` (dev mode), so it doesn't cover the page when you
 drive the app; `QABOARD_RELEASE_NOTES_POPUP=1 npm start` turns it on to work on it. On a production build
 (`npm run preview`, e2e, a deployed server) it still pops up: mark the notes seen first, as the e2e tests do,
@@ -80,6 +84,15 @@ yarn build              # Build static site
 # Development dependencies include testing tools
 uv sync --extra dev     # Install with dev dependencies
 ```
+
+### Runners
+`qa batch` starts runs with a runner (`qaboard/runners/`): local, lsf, celery, dask (workers on LSF, Slurm, PBS, SGE,
+HTCondor, OAR, Moab, Kubernetes or local, `runners.dask.cluster.type`), kubernetes (Indexed Jobs), windows (Jenkins).
+Optional dependencies are extras: `uv sync --extra dev --extra celery --extra dask --extra kubernetes --extra dask-kubernetes`
+(CI's python 3.13 job installs them all, 3.11 none). `qa doctor [--runner X] [--test-job]` checks a setup and prints
+fixes (runners implement `doctor()`). The server starts/stops batches with `QABOARD_TUNING_RUNNER` (`backend/backend/runner_jobs.py`,
+`local_jobs.py`). Design and trust model: `docs/design/kubernetes-runner.md`; known limits: `TODO_WARTS.md` (Runners).
+Kubernetes end-to-end test on kind: `.github/scripts/kubernetes_runner_e2e.py`.
 
 ## Release notes and docs (communicating with users)
 

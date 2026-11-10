@@ -1,0 +1,334 @@
+---
+id: coming-from-other-tools
+title: Coming from another tool
+sidebar_label: Coming from another tool
+description: Run the evaluations you run with MLflow Projects, W&B Launch, ClearML Agent, Slurm or LSF job arrays, Kubernetes Jobs, Ray, Dask or CI matrices with QA-Board, and see what you gain.
+---
+
+You already run evaluations at scale: MLflow Projects on Kubernetes, W&B Launch, ClearML agents, job arrays on Slurm
+or LSF, Kubernetes Jobs, CI matrices. This page maps what you have to *qaboard.yaml*, tool by tool, so your batches run
+on the same compute. What you gain: every commit's results compared with your reference branch, input by input,
+with viewers for images, videos, plots and reports, and tuning from the web app.
+
+Jump to your tool: [MLflow Projects](#mlflow-projects), [W&B Launch](#wandb-launch),
+[ClearML Agent](#clearml-agent), [Slurm and LSF job arrays](#job-arrays),
+[Kubernetes Jobs, Argo and Kueue](#kubernetes-jobs-argo-workflows-and-kueue), [Ray and Dask](#ray-and-dask),
+[CI matrices](#ci-matrices).
+
+## Wrap your evaluation once {#wrap-your-evaluation}
+Whatever tool you come from, the first two steps are the same. Say your evaluation is `eval.py`, which evaluates a
+model on a slice of your test set:
+
+1. **Call it from `run()`**, in *qa/main.py*. `qa` calls `run()` once per input and configuration, with where to
+   write the outputs, and records the metrics it returns:
+
+   ```python title="qa/main.py"
+   import json
+   import subprocess
+
+
+   def run(context):
+       model = "int8" if "int8" in context.configs else "fp32"
+       command = ["python", "eval.py", "--model", model, "--slice", str(context.input_path),
+                  "--output", str(context.output_dir)]
+       # Tuning parameters, e.g. {"score_threshold": 0.3} from the web app
+       for name, value in context.params.items():
+           command += [f"--{name.replace('_', '-')}", str(value)]
+       process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+       print(process.stdout)  # saved in the run's log
+       if process.returncode != 0:
+           return {"is_failed": True}
+       metrics = json.loads((context.output_dir / "metrics.json").read_text())
+       return {**metrics, "is_failed": False}
+   ```
+
+2. **List what to run** in a batch, instead of a list of jobs, an array or a matrix:
+
+   ```yaml title="qa/batches.yaml"
+   ci:
+     inputs:
+     - slices/indoor
+     - slices/outdoor
+     - slices/warehouse
+     - slices/small-objects
+     configs: ['${matrix.model}']
+     matrix:
+       model: [fp32, int8]
+   ```
+
+3. **Pick the runner** that sends the runs where your tool sent them: the sections below.
+
+4. **Run it**: `qa --share batch ci`. The 8 runs execute on your compute, and `qa` prints the link to their results.
+
+`qa init` creates *qaboard.yaml* and *qa/*: see [Set up a project](/docs/project-init), and
+[Run your code](/docs/running-your-code) for `run()`.
+
+## The words, from one tool to the other {#concepts}
+
+| You know | In QA-Board |
+|---|---|
+| A project, an entry point, a script | `run()` in *qa/main.py*: your code on one input |
+| A job, a task, a launched run | A run: one input with one configuration |
+| A sweep, a job array, a CI matrix | A [batch](/docs/batches-running-on-multiple-inputs): inputs × configurations, with a `matrix` |
+| Parameters (`-P`, `--args`, `${...}` variables) | [Configurations](/docs/specifying-configurations), and tuning parameters in `context.params` |
+| A queue, a backend, a resource | A [runner](/docs/runners), with its queue, namespace or worker queue |
+| A job template, a queue configuration | The runner's settings, and `runners.kubernetes.job_template` |
+| Logged metrics | What `run()` returns |
+| Artifacts | The output files a run writes in `context.output_dir` |
+| A hyperparameter search | [Tuning from the web app](/docs/tuning-from-the-webapp), and `qa optimize` |
+
+## MLflow Projects on Kubernetes {#mlflow-projects}
+**You have** an *MLproject* file, and you run it as Kubernetes Jobs with
+`mlflow run . --backend kubernetes --backend-config kubernetes_config.json -P slice=slices/indoor`. MLflow builds an
+image with your project, pushes it to `repository-uri`, and creates a Job from your template:
+
+```yaml title="MLproject"
+name: detector-eval
+docker_env:
+  image: registry.kitefin.example/algo/eval-env:2026.11
+entry_points:
+  main:
+    parameters:
+      slice: path
+      model: {type: string, default: fp32}
+    command: "python eval.py --model {model} --slice {slice}"
+```
+
+```json title="kubernetes_config.json"
+{
+  "kube-context": "my-cluster",
+  "repository-uri": "registry.kitefin.example/algo/detector-eval",
+  "kube-job-template-path": "kubernetes_job_template.yaml"
+}
+```
+
+**In QA-Board**, the entry point's command goes in `run()`, each `-P` combination is a run of a batch, and the
+backend configuration becomes the [kubernetes runner](/docs/kubernetes-runner)'s settings:
+
+```yaml title="qaboard.yaml"
+runners:
+  default: kubernetes
+  kubernetes:
+    context: my-cluster                                   # kube-context
+    image: registry.kitefin.example/algo/eval-env:2026.11 # docker_env.image: it isn't rebuilt
+    job_template: k8s/eval-job.yaml                        # your Job template, without the placeholders
+    mounts:
+      - path: /mnt/qaboard
+        pvc: qaboard-results
+```
+
+**What differs:** QA-Board doesn't build or push an image per run. Pods use your image for the dependencies, and read
+your code and inputs from the shared storage. Remove the `{replaced-with-...}` placeholders from your template:
+QA-Board sets the name, image and command. Your environment variables reach the pods, but not secrets like
+`MLFLOW_TRACKING_TOKEN`: add them to the template from a Secret, see
+[give the runs a token](/docs/kubernetes-runner#token). MLflow's tracking stays useful for training; QA-Board
+compares the outputs of every input, commit after commit.
+
+## W&B Launch {#wandb-launch}
+**You have** a launch queue whose configuration is a Kubernetes Job spec, with variables like `${image_uri}`, a launch
+agent in the cluster (the `launch-agent` Helm chart, or `wandb launch-agent -q <queue> -j <max-jobs>`), and you push
+jobs with `wandb launch -j <job> -q <queue> -c config.json`.
+
+**In QA-Board:**
+
+| W&B Launch | QA-Board |
+|---|---|
+| The queue's Job spec | `runners.kubernetes.job_template`, and settings like `resources`, `node_selector`, `tolerations` |
+| The queue | The runner, its `namespace`, and a Kueue `queue` |
+| The agent's `max_jobs` | `concurrency` |
+| `resource_args` in a launch config | [Runner settings per batch](/docs/batches-running-on-multiple-inputs#runner-settings-per-batch) |
+| `wandb launch -q <queue>` | `qa --share batch <batch>`, or **Run Tests / Tuning** in the web app |
+| Sweeps | Batches with a `matrix`, tuning from the web app, `qa optimize` |
+
+**What differs:** there is no agent. `qa batch` creates the Jobs with your kubeconfig, so users need
+[permissions in a namespace](/docs/kubernetes-runner#permissions): see [Run batches on Kubernetes](/docs/kubernetes-runner).
+People without them start batches from the web app: the QA-Board server starts `qa batch` in a pod of the namespace,
+as them, and that pod creates the Jobs with a ServiceAccount the admins set up, see
+[Run batches from the web app](/docs/backend-admin/runners#kubernetes). Like a launch queue, a namespace is shared by
+a team: its users trust each other. Launch builds images from your code; QA-Board uses one image and the shared
+storage.
+
+## ClearML Agent {#clearml-agent}
+**You have** agents on your GPU machines (`clearml-agent daemon --queue default --docker --gpus 0`), or the ClearML
+Kubernetes glue that turns queued tasks into pods from a template. You enqueue tasks from the ClearML UI, or with
+`clearml-task --project <project> --name <name> --script eval.py --queue default --args model=int8`.
+
+**In QA-Board:**
+
+- **Agents on your machines** become [Celery workers](/docs/celery-integration), listening to a queue, e.g. one
+  run at a time on each GPU machine:
+
+  ```bash
+  celery -A qaboard.runners.celery_app worker --concurrency=1 --queues gpu
+  ```
+
+  ```yaml title="qaboard.yaml"
+  runners:
+    default: celery
+    celery:
+      broker_url: pyamqp://camera:${QA_CELERY_PASSWORD}@<your-qaboard-host>:5672/camera
+      task_routes:
+        qaboard: gpu
+  ```
+
+  `<your-qaboard-host>` is your QA-Board server, whose RabbitMQ can give each team its own account, `camera` here:
+  see [sharing the broker](/docs/celery-integration#sharing-the-servers-broker-between-teams). Unlike an agent's
+  tasks, the runs get the environment of `qa batch`, without its secrets, not the worker's.
+
+- **The Kubernetes glue** becomes the [kubernetes runner](/docs/kubernetes-runner), with your pod template as
+  `job_template`.
+- **Enqueuing from the UI, cloning a task and editing its hyperparameters** becomes **Run Tests / Tuning** on a commit
+  page: pick a batch, write the parameters to try, start. See
+  [Running from the web app](/docs/user-guide/running-from-the-webapp).
+
+**What differs:** a ClearML agent clones your repository and installs its requirements for each task. QA-Board runs
+in an environment you prepared: the commit's [artifacts](/docs/storage/artifacts), like your build, on the shared
+storage, and its *.envrc* or your image.
+
+## Slurm and LSF job arrays {#job-arrays}
+**You have** a job array script, with a list of inputs and a limit on how many run at once:
+
+```bash title="eval.sbatch"
+#!/bin/bash
+#SBATCH --array=0-99%20
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+INPUT=$(sed -n "$((SLURM_ARRAY_TASK_ID + 1))p" inputs.txt)
+python eval.py --model int8 --slice "$INPUT" --output "results/$SLURM_ARRAY_TASK_ID"
+```
+
+On LSF, the same with `bsub -J "eval[1-100]%20"` and `$LSB_JOBINDEX`.
+
+**In QA-Board**, *inputs.txt* becomes a batch, `%20` becomes `concurrency`, and `qa` names the output folders:
+
+<Tabs>
+<TabItem value="lsf" label="LSF">
+
+The [LSF runner](/docs/lsf-integration) sends job arrays itself, with the same slot limit:
+
+```yaml title="qaboard.yaml"
+runners:
+  default: lsf
+  lsf:
+    queue: <your-queue>
+    concurrency: 20
+    max_threads: 4
+    max_memory: 16000  # MB
+```
+
+</TabItem>
+<TabItem value="slurm" label="Slurm">
+
+The [Dask runner](/docs/dask-integration#other-schedulers) starts a few workers as Slurm jobs, and keeps 20 runs in
+flight on them:
+
+```yaml title="qaboard.yaml"
+runners:
+  default: dask
+  dask:
+    concurrency: 20
+    cluster:
+      type: slurm
+      queue: <your-partition>
+      cores: 4       # runs per worker job
+      memory: 64GB   # per worker job: for its 4 runs
+      walltime: "08:00:00"
+```
+
+</TabItem>
+</Tabs>
+
+**What you gain:** no index arithmetic or output naming; failed runs you redo from the web app; LSF's
+reason for killing a run, like its memory limit, shown next to its log.
+**What differs on Slurm:** each Slurm job is a Dask worker that does several runs, not one run: size its `memory`
+for `cores` runs at once.
+
+## Kubernetes Jobs, Argo Workflows and Kueue {#kubernetes-jobs-argo-workflows-and-kueue}
+**You have** an Indexed Job whose pods pick their input from `$JOB_COMPLETION_INDEX`, an Argo Workflow that fans out
+with `withItems` or `withParam`, or Jobs labeled with `kueue.x-k8s.io/queue-name` to wait in a Kueue queue.
+
+**In QA-Board**, the [kubernetes runner](/docs/kubernetes-runner) creates the same Indexed Jobs for you:
+
+| Your Job or workflow | *qaboard.yaml* |
+|---|---|
+| `completions`, the list of inputs | The batch |
+| `parallelism`, Argo's `parallelism` | `concurrency` |
+| Your Job's YAML | `job_template`, merged under what QA-Board generates |
+| `volumes` and `volumeMounts` | `mounts` |
+| `kueue.x-k8s.io/queue-name` | `queue` |
+| `priorityClassName`, `nodeSelector`, `tolerations`, `resources` | `priority_class`, `node_selector`, `tolerations`, `resources` |
+| `securityContext.runAsUser` | `run_as: user`, your UID by default |
+
+Keep Argo for what it does well, like build, then test, then deploy: run `qa batch ci` in the test step, from a pod
+that mounts the storage. `qa` then uses the pod's ServiceAccount to create the runs' Jobs: bind it to
+[the runner's Role](/docs/kubernetes-runner#permissions). The runner needs Kubernetes 1.29 or later.
+
+## Ray and Dask {#ray-and-dask}
+**You have** a Dask cluster and `client.map(evaluate, inputs)`, or Ray tasks (`@ray.remote`) that evaluate each
+input.
+
+**In QA-Board**, the [Dask runner](/docs/dask-integration#using-an-existing-dask-cluster) sends the runs to your
+scheduler, at most `concurrency` at a time:
+
+```yaml title="qaboard.yaml"
+runners:
+  default: dask
+  dask:
+    scheduler_address: tcp://<your-scheduler>:8786
+    concurrency: 20
+```
+
+Or let `qa batch` start the Dask workers itself, on your HPC scheduler or on Kubernetes: see
+[Dask on HPC schedulers](/docs/dask-integration#other-schedulers).
+
+**What differs:** there is no Ray runner. On a Ray cluster on Kubernetes, use the kubernetes runner on the same nodes,
+or keep Ray inside `run()`, for the parallelism of one run.
+
+## CI matrices {#ci-matrices}
+**You have** a CI job per combination, with a matrix:
+
+<Tabs>
+<TabItem value="github-actions" label="GitHub Actions">
+
+<RepoFile path="website/snippets/ci/github-actions-matrix.yml" title=".github/workflows/evaluate.yml" untested />
+
+</TabItem>
+<TabItem value="gitlab-ci" label="GitLab CI">
+
+<RepoFile path="website/snippets/ci/gitlab-ci-matrix.yml" title=".gitlab-ci.yml" untested />
+
+</TabItem>
+</Tabs>
+
+**In QA-Board**, the matrix moves to the batch, [as above](#wrap-your-evaluation), and one CI job runs
+`qa batch ci`: the [runner](/docs/runners) fans the runs out to your cluster, and the CI job waits for them. The CI keeps doing what
+it's for: building, and starting the evaluation on every push. See [CI integration](/docs/ci-integration).
+
+**What you gain:** one CI job instead of one per combination; every commit's results compared with the reference
+branch's, and shown on the commit page; a CI that fails when metrics regress, with the
+[quality gate](/docs/quality-gate) (experimental).
+
+## What differs from all of them {#what-differs}
+Compared in November 2026, with the tools' public docs.
+
+- **A shared storage, at the same paths.** The machines that run your code read it, and your inputs, from a shared
+  storage, and write their outputs there. QA-Board doesn't build an image for each run or copy your code: it runs a
+  commit's [artifacts](/docs/storage/artifacts). Clusters without a shared storage can't run batches yet: see the
+  [roadmap](/docs/roadmap).
+- **Your cluster's scheduler, not a queue of its own.** QA-Board sends the runs to LSF, Slurm, Kubernetes or Celery,
+  and leaves the quotas and priorities to them, e.g. to Kueue. W&B Launch and ClearML have queues served by their
+  agents.
+- **Results of each input, for each commit.** Tracking tools excel at logging a training run's metrics as it goes.
+  QA-Board compares the final metrics and output files of every input, between commits, branches and experiments,
+  with viewers for images, videos, point clouds and reports.
+
+## Where to go next
+
+<Cards>
+  <Card title="Choose where runs execute" to="/docs/runners">
+    Every runner, what it needs, and what the web app can do with its runs.
+  </Card>
+  <Card title="Check your setup" to="/docs/doctor">
+    `qa doctor --test-job` checks the config, the server, the storage and the runner.
+  </Card>
+</Cards>

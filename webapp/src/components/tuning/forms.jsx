@@ -606,9 +606,8 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
   const cannot_tune_on_branch = !!commit?.branch && Array.isArray(tuning_branches) && !branch_matches(commit.branch, tuning_branches, subproject)
     
   return <>
-    {!any_runner_configured && <Callout intent={Intent.WARNING} title="Please configure async runners" icon="warning-sign" style={{marginBottom: '15px'}}>
-      <p>The simplest way to <a href={`${docs_root}docs/celery-integration`}>get started with async runners is to use Celery</a>.</p>
-      <p>Otherwise, your runs may be killed if they take too long.</p>
+    {!any_runner_configured && <Callout intent={Intent.WARNING} title="Runs will start on the QA-Board server" icon="warning-sign" style={{marginBottom: '15px'}}>
+      <p>This project has no runner for a cluster or task queue: runs share the server's CPUs, and stop if it restarts. <a href={`${docs_root}docs/runners`}>Choose where runs execute</a>, and see <a href={`${docs_root}docs/backend-admin/runners`}>what the server needs</a>.</p>
     </Callout>}
     {check_warnings.length > 0 && <Callout intent={Intent.WARNING} title="Before you start" icon="warning-sign" style={{marginBottom: '15px'}} data-testid="tuning-check-warnings">
       <ul className={Classes.LIST}>{check_warnings.map(w => <li key={w}>{w}</li>)}</ul>

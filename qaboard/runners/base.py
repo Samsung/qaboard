@@ -1,7 +1,9 @@
-from typing import List, Dict, Any, Tuple
+from pathlib import Path
+from typing import List, Dict, Any, Tuple, Iterable, Optional
 
 from .job import Job
-from ..run import RunContext 
+from ..run import RunContext
+from ..checks import Check
 
 
 class BaseRunner():
@@ -14,7 +16,7 @@ class BaseRunner():
     self.run_context = run_context
 
   # Right now we don't call start directly, only start_jobs, so feel free to add parameters
-  # if need be, we'll refactor all runners later. 
+  # if need be, we'll refactor all runners later.
   def start(self, blocking=True):
     raise NotImplementedError
 
@@ -29,5 +31,42 @@ class BaseRunner():
       cls.start_jobs(jobs, job_options, blocking)
 
   @staticmethod
-  def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
+  def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]) -> Optional[int]:
+    """
+    Stops the jobs of a `qa batch` (job_options['command_id']). The server calls it with few job options (see each
+    runner). Returns how many jobs it stopped if it knows (e.g. kubernetes: the number of deleted Jobs), else None.
+    """
     raise NotImplementedError
+
+  @classmethod
+  def submit_detached(cls, script: str, name: str, log_file: Path, job_options: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Starts `script`, a shell script, as a single job that outlives the caller, and returns right away.
+    Used for what must keep running after `qa` or the server returns: the dask --no-wait driver,
+    batches started from the web app...
+    - `script` runs with `sh`, unless it starts with a #! line (e.g. #!/bin/bash): then with that interpreter.
+    - `name` identifies the job, and starts with job_options['command_id'][:8]: the batch's stop_jobs() stops it too.
+      The job's name is based on it: LSF uses it as is, Kubernetes as qa-<name>-<random> (<name>-<random> if it
+      starts with qa-), so that the same name can be submitted again.
+    - The job's output (stdout and stderr) goes to `log_file`, live. If the job can't write it, it fails (exit 1, why
+      on stderr: in the scheduler's logs for the job). While it waits to start, Kubernetes writes why in
+      `log.pending.txt` for `log.txt` (kubernetes.pending_log), not in `log_file`: the job may run as another user.
+    - job_options are the runner's usual job options (queue, namespace, image, run_as, api_retry_seconds...).
+    Returns what identifies the job:
+    - lsf: {"lsf_job_id": "1234"} (or {} if bsub's output has no job id)
+    - kubernetes: {"kubernetes_job": "qa-abcdefgh-driver-0123456789ab", "namespace": "algo", "context": ...},
+      "context" only if job_options has one.
+    Raises if the job could not be submitted, with a message that says why and how to fix it.
+    """
+    raise NotImplementedError(f"The {cls.type} runner can't start detached jobs.")
+
+  @classmethod
+  def doctor(cls, job_options: Dict[str, Any], test_job: bool = False) -> Iterable[Check]:
+    """
+    Checks that this runner can start runs with these job options (from qaboard.yaml and the CLI), for `qa doctor`.
+    Yields Checks, from the most basic (is the tool installed, can we authenticate) to the most specific.
+    Each failed check says how to fix it: a command, a qaboard.yaml snippet, or what to ask the admins.
+    With `test_job`, also starts a small job to check it really runs (where, as who, what it can access).
+    Checks must not raise: an unexpected exception becomes an ERROR check.
+    """
+    return []

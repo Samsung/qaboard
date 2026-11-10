@@ -24,6 +24,14 @@ Do the integration right rather than fast: the people reviewing results will liv
     pipelines, simulators, benchmarks: anything that processes an input and writes files.
   - **Import**: results already exist (a benchmark, a vendor's outputs): `run()` copies or links them and computes
     metrics. See https://samsung.github.io/qaboard/docs/running-your-code#import-existing-results
+  - **Import a benchmark suite**: the project has pytest-benchmark, Google Benchmark, hyperfine, Criterion, JMH or
+    `go test -bench`. Don't convert results by hand: `run()` runs the harness, saves its file in `output_dir`, and
+    returns `benchmark_metrics(path)` (`from qaboard.benchmarks import benchmark_metrics`); list the file in
+    `outputs.visualizations` (names like `pytest.benchmarks.json` are detected, else `type: benchmarks`). One input
+    per suite or binary is enough. Configure the harness for stable numbers (repetitions, e.g.
+    `--benchmark_repetitions=10`): QA-Board shows its spread and calls smaller changes noise, it doesn't repeat runs.
+    Other harnesses: `write_benchmarks(path, [{"name": ..., "value": ..., "unit": "ms", "stats": {...}}])`.
+    https://samsung.github.io/qaboard/docs/viewers#benchmarks
   - **Training loops and notebooks** don't fit a wrapper yet: evaluate the trained model with a `run()` that takes
     the model id as a tuning parameter (https://samsung.github.io/qaboard/docs/deep-learning). Creating runs from code
     (`start_run`) is on the roadmap.
@@ -110,7 +118,7 @@ into `context.params`). Check with `qa --dryrun batch ci`, then run `qa batch ci
 ## 4. Visualizations
 List the files `run()` writes that people should see, in `outputs.visualizations`. The extension picks the viewer:
 images (`.png`, `.jpg`, `.tif`...), videos, Plotly plots (`*.plotly.json`: `{"data": [...], "layout": {...}}`), flame
-graphs (`*.flame.json`), HTML reports (no scripts), point clouds (`.pcd`), text (diffed). `path: "frames/:frame.png"`
+graphs (`*.flame.json`), benchmark files (`*.benchmarks.json`, `bench.json`...), HTML reports (no scripts), point clouds (`.pcd`), text (diffed). `path: "frames/:frame.png"`
 makes one visualization with a slider over the files; `default_hidden: true` for debug files.
 https://samsung.github.io/qaboard/docs/visualizations
 

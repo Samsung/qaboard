@@ -1,0 +1,76 @@
+{
+  "$schema": "https://samsung.github.io/qaboard/benchmarks.schema.json",
+  "qaboard_benchmarks": 1,
+  "source": "pytest-benchmark",
+  "context": {
+    "machine": "ci-runner-07",
+    "cpu": "AMD EPYC 7763 64-Core Processor",
+    "cpu_count": 8,
+    "os": "Linux 6.8.0-45-generic",
+    "arch": "x86_64",
+    "date": "2026-11-02T09:15:02.418935+00:00",
+    "harness": "pytest-benchmark 5.1.0"
+  },
+  "benchmarks": [
+    {
+      "name": "tests/test_codec.py::test_encode[64]",
+      "group": "codec",
+      "params": {
+        "size": 64
+      },
+      "value": 1.9787212836584707e-06,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 1.9787212836584707e-06,
+        "median": 1.9200000044809e-06,
+        "stddev": 4.1832917362291124e-07,
+        "min": 1.8400000017390994e-06,
+        "max": 4.023000006129732e-05,
+        "iqr": 3.000000106112566e-08,
+        "rounds": 52083,
+        "iterations": 10,
+        "ops": 505376.6713813297
+      }
+    },
+    {
+      "name": "tests/test_codec.py::test_encode[4096]",
+      "group": "codec",
+      "params": {
+        "size": 4096
+      },
+      "value": 8.539451210373088e-05,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 8.539451210373088e-05,
+        "median": 8.400000002764864e-05,
+        "stddev": 6.212305214830016e-06,
+        "min": 8.130000002593495e-05,
+        "max": 0.00021430000001664666,
+        "iqr": 2.1000000006438325e-06,
+        "rounds": 10457,
+        "iterations": 1,
+        "ops": 11710.32118937219
+      }
+    },
+    {
+      "name": "tests/test_frames.py::test_parse_frame",
+      "group": "tests/test_frames.py",
+      "value": 0.003284172413793297,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 0.003284172413793297,
+        "median": 0.003215300000001093,
+        "stddev": 0.00021946411578214716,
+        "min": 0.0031148000000030063,
+        "max": 0.004318600000001834,
+        "iqr": 0.00012102500000078014,
+        "rounds": 290,
+        "iterations": 1,
+        "ops": 304.4910318004219
+      }
+    }
+  ]
+}

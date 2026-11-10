@@ -1,0 +1,59 @@
+{
+  "$schema": "https://samsung.github.io/qaboard/benchmarks.schema.json",
+  "qaboard_benchmarks": 1,
+  "source": "criterion",
+  "context": {
+    "harness": "Criterion"
+  },
+  "benchmarks": [
+    {
+      "name": "varint/encode/64",
+      "group": "varint",
+      "value": 6.213077e-08,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 6.213077e-08,
+        "median": 6.207861e-08,
+        "mad": 1.2883e-10,
+        "iterations": 44400,
+        "samples": 5
+      },
+      "throughput": {
+        "value": 1030085415.0045139,
+        "unit": "B/s"
+      }
+    },
+    {
+      "name": "varint/decode/64",
+      "group": "varint",
+      "value": 9.987342e-08,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 9.987342e-08,
+        "median": 9.979902e-08,
+        "mad": 2.9318e-10,
+        "iterations": 27150,
+        "samples": 5
+      },
+      "throughput": {
+        "value": 640811138.7394164,
+        "unit": "B/s"
+      }
+    },
+    {
+      "name": "plan_route",
+      "value": 0.00017221370000000002,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 0.00017221370000000002,
+        "median": 0.00017203110000000001,
+        "mad": 5.1231e-07,
+        "iterations": 60,
+        "samples": 3
+      }
+    }
+  ]
+}

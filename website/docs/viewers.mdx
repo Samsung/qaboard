@@ -139,23 +139,133 @@ Figures saved as HTML, e.g. with `fig.write_html('graph.plotly.html')`, show sid
 can't be drawn on the same axes.
 
 ## Flame graphs {#flame-graphs}
-**Files:** *.flame.json*, a tree in [d3-flame-graph](https://github.com/spiermar/d3-flame-graph)'s format:
-`{"name": "main", "value": 1200, "children": [...]}`, where `value` includes the children's.
+**Files:** what profilers write, saved in the run's output directory as they are. The viewer reads the file's content;
+the name tells QA-Board to use it:
+
+| Format | File names | Written by |
+|---|---|---|
+| Folded stacks, `main;parse;read 12` per line | *\*.folded*, *\*.collapsed*, *\*.stacks.txt*, gzipped too (*.gz*) | `stackcollapse-*.pl`, inferno, `py-spy --format raw`, async-profiler, `qaboard.flamegraphs` |
+| speedscope JSON, sampled or evented | *\*.speedscope.json* | `py-spy --format speedscope`, rbspy, speedscope's converters |
+| Chrome/V8 CPU profile | *\*.cpuprofile* | `node --cpu-prof`, Chrome DevTools |
+| A tree, `{"name": "main", "value": 1200, "children": [...]}`, `value` including the children's | *\*flame.json* | d3-flame-graph, your code |
+
+Other names need `type: flame/folded` (any `flame/...` type) on the visualization. `perf script`'s text and pprof
+files are too big or binary for the browser: `qaboard.flamegraphs` turns them into folded stacks (see the recipes below).
 
 The viewer shows the new run's profile, colored by how each frame changed against the reference: a
-[differential flame graph](https://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html). It matches
-frames by their path of names, so:
-- keep the names stable between runs: no addresses, hashes or thread numbers;
-- use values that compare across runs, e.g. microseconds of CPU per 1,000 requests rather than samples.
-
-The [serving latency example](/docs/use-cases/serving-latency) turns `perf`'s folded stacks into this file, in
-[`qa/flame.py`](https://github.com/Samsung/qaboard/blob/master/examples/serving-latency/qa/flame.py). To record
-profiles, see the [flame graphs blog post](/blog/2020/06/24/flame-graphs).
+[differential flame graph](https://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html), with a search
+and a table of the top functions. How people use it: [Flame graphs](/docs/user-guide/other-viewers#flame-graphs).
 
 <Shot
   id="commit/flame-diff"
   caption="Rendering responses under the shared cache's lock is new (orange); the model's forward pass runs less (blue): cache hits skip it."
 />
+
+- **Keep frame names stable between runs**: the viewer matches frames by their path of names. No addresses, hashes,
+  thread or process ids: `py-spy --nolineno` leaves line numbers out, and `perf` stacks start with the command's name,
+  without its pid.
+- **Shares or absolute values.** Two runs rarely take the same number of samples: by default the viewer compares each
+  function's share of its profile. To compare absolute values too, save values that compare across runs, e.g.
+  microseconds of CPU per 1,000 requests (`total=` below).
+- **The unit**: a `# unit: nanoseconds` line in folded stacks (other tools skip it), or the visualization's `unit`
+  option, which wins over the file's. Units the viewer formats: `samples` (the default), `nanoseconds`, `microseconds`, `milliseconds`, `seconds`,
+  `bytes`; any other word shows as is. Words after the unit describe it: `microseconds of CPU per 1,000 requests`.
+  speedscope and `.cpuprofile` files have their own unit.
+
+```yaml title="qaboard.yaml"
+outputs:
+  visualizations:
+    - name: CPU flame graph
+      path: cpu.folded
+    - name: Allocations
+      path: heap.collapsed
+      unit: bytes          # the values' unit
+```
+
+### Record a profile in your run {#flame-graph-recipes}
+`qaboard.flamegraphs.save_flame_graph(path, source)` saves a profile as folded stacks, from `perf script`'s output, a
+pprof file (`.pb.gz`), folded stacks, or a `{"outer;...;inner": value}` dict your code collected. It returns the stacks,
+so `profile.share("lock")` can be a metric. With `total=`, values are rescaled to add up to it; `unit=` says what they
+are.
+
+<Tabs>
+<TabItem value="perf" label="perf (C, C++, Rust...)" default>
+
+```python title="qa/main.py"
+import subprocess
+from qaboard.flamegraphs import save_flame_graph
+
+def run(context):
+  perf_data = context.output_dir / 'perf.data'
+  subprocess.run(['perf', 'record', '-F', '99', '-g', '-o', perf_data, '--', './my-binary', context.input_path], check=True)
+  script = subprocess.run(['perf', 'script', '-i', perf_data], check=True, capture_output=True).stdout
+  save_flame_graph(context.output_dir / 'cpu.folded', script)
+  perf_data.unlink()
+```
+
+Like `stackcollapse-perf.pl`: the command's name first, offsets and C++ arguments removed, unknown functions shown as
+their module (`[libc.so.6]`). `pid=True`, `tid=True` and `annotate=True` (`_[k]` after kernel frames) are options.
+
+</TabItem>
+<TabItem value="py-spy" label="py-spy (Python)">
+
+```python title="qa/main.py"
+import subprocess
+
+def run(context):
+  subprocess.run(['py-spy', 'record', '--format', 'raw', '--nolineno', '-o', context.output_dir / 'cpu.folded',
+                  '--', 'python', 'my_script.py', context.input_path], check=True)
+```
+
+`--format speedscope -o cpu.speedscope.json` works too: the viewer merges the threads, and lets people pick one.
+
+</TabItem>
+<TabItem value="async-profiler" label="async-profiler (JVM)">
+
+```bash
+asprof -d 30 -e cpu -o collapsed -f <output_dir>/cpu.collapsed <pid>
+```
+
+`<output_dir>` is the run's output directory (`context.output_dir`), `<pid>` the JVM's process id. For allocations, `-e alloc` and `unit: bytes` on the visualization.
+
+</TabItem>
+<TabItem value="go" label="Go pprof">
+
+```python title="qa/main.py"
+import subprocess
+from qaboard.flamegraphs import save_flame_graph
+
+def run(context):
+  profile = context.output_dir / 'cpu.pb.gz'
+  subprocess.run(['go', 'test', './...', '-run', 'TestLoad', '-cpuprofile', profile], check=True)
+  save_flame_graph(context.output_dir / 'cpu.folded', profile)   # in nanoseconds
+```
+
+Heap profiles: `sample_type='alloc_space'` (bytes) or `'inuse_space'` (the default). The reader is a small decoder of
+pprof's protobuf, with no dependency.
+
+</TabItem>
+<TabItem value="node" label="Node.js">
+
+```python title="qa/main.py"
+import subprocess
+
+def run(context):
+  subprocess.run(['node', '--cpu-prof', '--cpu-prof-dir', context.output_dir, '--cpu-prof-name', 'cpu.cpuprofile',
+                  'server.js', context.input_path], check=True)
+```
+
+</TabItem>
+</Tabs>
+
+The [serving latency example](/docs/use-cases/serving-latency) saves its profiler's folded stacks, and rescales them to
+microseconds of CPU per 1,000 requests, in
+[`qa/main.py`](https://github.com/Samsung/qaboard/blob/master/examples/serving-latency/qa/main.py):
+
+```python
+save_flame_graph(output_dir / 'cpu.folded', output_dir / 'cpu.folded', unit='microseconds of CPU per 1,000 requests',
+                 total=bench['profiled_cpu_s'] * 1e6 / bench['profiled_requests'] * 1000)
+```
 
 ## Test reports {#test-reports}
 **Files:** *junit.xml*, *\*.junit.xml*, *\*-junit.xml*, *TEST-\*.xml* (Maven Surefire and Gradle), or any file with
@@ -194,6 +304,128 @@ outputs:
   [software quality example](https://github.com/Samsung/qaboard/blob/master/examples/software-quality/qa/main.py)
   does it for pytest.
 - **Skipped tests** are those with `<skipped>`, and GoogleTest's `DISABLED_` tests.
+
+## Benchmarks {#benchmarks}
+**Files:** *benchmarks.json*, *bench.json*, *\*.benchmarks.json*, *\*-bench.json*, *\*_benchmark.json* (and the same
+names in *.jsonl*), or any file with `type: benchmarks`, written by one of these harnesses:
+
+| Harness | Writes its results with | Headline value |
+|---|---|---|
+| pytest-benchmark | `pytest --benchmark-json=pytest.benchmarks.json` | mean, ± stddev |
+| Google Benchmark | `./bench --benchmark_out=gbench.benchmarks.json --benchmark_out_format=json` | mean of the repetitions with `--benchmark_repetitions`, ± their stddev |
+| hyperfine | `hyperfine --export-json hyperfine.benchmarks.json '...'` | mean, ± stddev |
+| Criterion (Rust) | `cargo criterion --message-format=json > criterion.benchmarks.jsonl` | mean, ± median absolute deviation |
+| JMH (Java) | `java -jar benchmarks.jar -rf json -rff jmh.benchmarks.json` | score, ± its error |
+| `go test` | `go test -bench=. -count=5 > bench.txt` (with `type: benchmarks`) | mean of the `-count` lines, ± their stddev |
+| Anything else | `write_benchmarks()` from Python, or JSON in [our format](#benchmarks-format) | yours |
+
+Your `run()` runs the harness and saves its file in the run's output directory. The viewer shows each benchmark next to
+the reference run's, with the change in %, the spread the harness measured, and what got slower or faster beyond it.
+How people use it: [Benchmarks](/docs/user-guide/other-viewers#benchmarks).
+
+```yaml title="qaboard.yaml"
+outputs:
+  visualizations:
+    - name: Benchmarks
+      path: pytest.benchmarks.json
+      height: 440      # the table's height, in pixels
+    - name: Go benchmarks
+      path: bench.txt
+      type: benchmarks # names that don't say "bench": benchmarks/go forces the format
+```
+
+QA-Board doesn't run, repeat or stabilize benchmarks: the numbers and their spread are those of the file. Configure
+the harness for stable measurements (repetitions, warm-up, pinned CPUs), and run the batch on the same machines for the
+new and reference commits: the viewer warns when the files say they come from different CPUs.
+
+### Each benchmark as a metric {#benchmark-metrics}
+`benchmark_metrics` turns the file into metrics, one per benchmark, to return from `run()`. They show in the
+Metrics Diff and History, and the [quality gate](/docs/quality-gate) can check them:
+
+```python title="qa/main.py, with pytest-benchmark"
+import subprocess
+from qaboard.benchmarks import benchmark_metrics
+
+def run(context):
+    path = context.output_dir / "pytest.benchmarks.json"
+    subprocess.run(["pytest", "benchmarks/", f"--benchmark-json={path}"], check=True)
+    return benchmark_metrics(path)
+```
+
+```python title="qa/main.py, with a compiled Google Benchmark harness"
+import subprocess
+from qaboard.benchmarks import benchmark_metrics
+
+def run(context):
+    path = context.output_dir / "gbench.benchmarks.json"
+    subprocess.run([
+        "build/bench/codec_bench", "--benchmark_repetitions=10",
+        f"--benchmark_out={path}", "--benchmark_out_format=json",
+    ], check=True)
+    return benchmark_metrics(path, prefix="codec_")
+```
+
+- **Keys** are the benchmarks' names in snake_case, like `bm_encode_64` or `tests_test_codec_py_test_encode_64`:
+  keep names stable across commits. `prefix=` tells suites apart.
+- **Values** are in seconds, shown in the suite's typical unit (` µs`, ` ms`...) with the metric's `scale`, and
+  `smaller_is_better=True`. JMH throughputs are in operations per second, larger is better. `unit="ms"` picks the unit.
+- `statistic="median"` returns another statistic from the file; benchmarks without it are left out.
+
+### Other harnesses, and Criterion's directory {#benchmarks-format}
+`write_benchmarks` writes our format, *\*.benchmarks.json*, that the viewer reads: from benchmarks you read with
+`read_benchmarks`, or from dicts. Criterion's `target/criterion` directory has one file per benchmark, so convert it:
+
+```python
+from qaboard.benchmarks import read_benchmarks, write_benchmarks, benchmark_metrics
+
+benchmarks = read_benchmarks("target/criterion")   # or any file above: the format is detected
+write_benchmarks(context.output_dir / "criterion.benchmarks.json", benchmarks)
+return benchmark_metrics(benchmarks)
+
+# your own harness: times in ns, us, ms or s
+write_benchmarks(context.output_dir / "tiles.benchmarks.json", [
+    {"name": "render/tile_256", "group": "render", "value": 4.21, "unit": "ms",
+     "stats": {"stddev": 0.12, "rounds": 30}},
+], context={"cpu": "AMD EPYC 7763", "cpu_count": 8})
+```
+
+<details>
+<summary>The format, and how files are read</summary>
+
+```json title="tiles.benchmarks.json"
+{
+  "$schema": "https://samsung.github.io/qaboard/benchmarks.schema.json",
+  "qaboard_benchmarks": 1,
+  "source": "kitefin-bench 2.3",
+  "context": {"machine": "ci-runner-07", "cpu": "AMD EPYC 7763 64-Core Processor", "cpu_count": 8, "date": "2026-11-02T09:40:00Z"},
+  "benchmarks": [
+    {"name": "render/tile_256", "group": "render", "params": {"tile": 256}, "value": 4.21, "unit": "ms",
+     "statistic": "median", "stats": {"median": 4.21, "iqr": 0.12, "rounds": 30}},
+    {"name": "ingest/messages", "value": 182000, "unit": "msg/s", "smaller_is_better": false, "stats": {"stddev": 2100}}
+  ]
+}
+```
+
+- `name` and `value` are required. Times in `ns`, `us`, `ms` or `s` are converted to seconds; other units are shown as
+  they are. Set `smaller_is_better: false` for throughputs.
+- `stats` can hold `mean`, `median`, `stddev`, `min`, `max`, `iqr`, `mad` (median absolute deviation), `error` (half a
+  confidence interval), `rounds`, `iterations`, `samples`, `ops`, `cpu_time`, `bytes_per_op`, `allocs_per_op`. The
+  spread is `stddev`, else `iqr`, `mad` or `error`.
+- The [JSON schema](pathname:///benchmarks.schema.json) checks the file in your editor.
+- **Formats are detected from the content**, not the name: `read_benchmarks(path, format="hyperfine")` and
+  `type: benchmarks/hyperfine` force one (`pytest-benchmark`, `google-benchmark`, `hyperfine`, `criterion`, `jmh`, `go`,
+  `qaboard`).
+- **Names:** pytest-benchmark's `fullname`, Google Benchmark's run name (its family is the group, `name:value`
+  arguments are parameters), hyperfine's command or `--command-name`, Criterion's id, JMH's benchmark with its
+  parameters, Go's package and benchmark. A name seen twice gets ` #2`.
+- **Google Benchmark:** the `mean`, `median` and `stddev` aggregates when there are repetitions, the real time
+  otherwise; `BigO`, `RMS` and benchmarks that report an error are skipped. `bytes_per_second` or `items_per_second`
+  is the throughput.
+- **Context:** the machine, CPU, CPU count, OS, date and harness version, as far as the file says. Google Benchmark and
+  hyperfine don't name the CPU.
+- The web app and the `qa` package read the same formats the same way: they are tested on the same files.
+
+</details>
 
 ## Text {#text}
 **Files:** any file no other viewer opens, like *.txt*, *.json*, *.yaml* or *.log*, or `type: text/plain`.

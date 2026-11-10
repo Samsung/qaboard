@@ -45,7 +45,7 @@ instructions as a metric covers it.
 | # | Item | Status |
 |---|---|---|
 | 1 | **Noise-aware gate and Metrics Diff.** First a static floor per metric (`noise: 2%` in its definition), used by the gate and to gray out changes within it. Then a floor from the metric's history on the reference branch (robust spread: MAD or IQR, same input, configuration and platform). A test on samples only once runs can carry them. | Not started. Waits for the design of what runs return (see principles). The static floor can go first. |
-| 2 | **Benchmark files: viewers and metrics.** pytest-benchmark and Google Benchmark JSON first, then Criterion and hyperfine: a table against the reference, each benchmark a metric. An "import a benchmark suite" shape in the integration skill. Still inside `run()`; the HTTP API will later make "upload one file" easy. | Next, after the gate work. Use Opus subagents, one per format. |
+| 2 | **Benchmark files: viewers and metrics.** pytest-benchmark and Google Benchmark JSON first, then Criterion and hyperfine: a table against the reference, each benchmark a metric. An "import a benchmark suite" shape in the integration skill. Still inside `run()`; the HTTP API will later make "upload one file" easy. | Done: `qaboard/benchmarks.py` (`benchmark_metrics`, `read_benchmarks`, `write_benchmarks` and a `*.benchmarks.json` format) and the benchmark viewer (`webapp/src/viewers/benchmarks/`), for pytest-benchmark, Google Benchmark, hyperfine, Criterion (messages and `target/criterion`), JMH and `go test -bench`. "Within noise" uses the files' own spread; item 1's floors can refine it. |
 | 3 | **The gate's table as a pull request comment**, updated in place, saying when runs passed after being done again. | Done: `qa gate --post-comment github\|gitlab`. Experimental, like the gate. |
 | 4 | **Regression alerts.** After each CI batch of the reference branch, flag metrics that stepped against their trailing window, mark them in History, list them per project, notify (Slack, Teams, email). | Not started. Needs the project admin page to configure it. |
 | 5 | **Testbed fingerprint.** `qa` records the CPU model, cores, memory and kernel; History and the gate compare within one; the Metrics Diff warns when the reference ran elsewhere. | Not started. |
@@ -58,6 +58,10 @@ Also asked for:
   Next: the gate's verdict recorded on the server, then **Alerts** (emails, a chat webhook).
 - **Flame graphs without the busywork.** Today projects convert profiles to our JSON by hand. Accept the usual
   formats (perf script, collapsed stacks, speedscope, pprof, py-spy), and make the diff and the search need no setup.
+  Done: the viewer reads folded stacks, speedscope and `.cpuprofile` files as profilers write them;
+  `qaboard.flamegraphs` converts `perf script` and pprof; diffs compare shares by default; search, top functions
+  table, playground `/flame-graph-viewer.html`. Not yet: Chrome's trace-event JSON (DevTools' Performance panel),
+  syncing zoom between the "After & Before" graphs.
 - **Good docs** for all of it: a user guide page per task, the integration pages, the use case.
 
 ## Agents track
@@ -76,6 +80,7 @@ Order: A, then C with item 3, then B, D, E, F.
 ## Order of work
 1. Reruns in their own directory, with the log, status and metrics of earlier attempts. Done.
 2. The gate's table as a PR comment, with reruns and rule changes (item 3 and C). Done.
-3. The project admin page and the Admin menu; the gate's and alerts' settings there. Step 1 (gate) done, verdicts and alerts next.
-4. Benchmark files (item 2), then flame graph formats.
+3. The project admin page and the Admin menu; the gate's and alerts' settings there. Step 1 (gate) done, with rules per
+   batch and label and the shared comment (`docs/rfcs/gate-scopes-and-comments.md`); verdicts and alerts next.
+4. Benchmark files (item 2) and flame graph formats: done.
 5. Checkpoint: noise (item 1) once the SDK's design says what runs return.

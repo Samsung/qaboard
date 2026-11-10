@@ -37,7 +37,7 @@ qa --label nightly batch nightly                # every profile, 3 repeats each
 | `qaboard.yaml` | Project name, inputs (`inputs/profiles/*.yaml`), visualizations, the quality gate's rules |
 | `qa/main.py` | `run(context)`: runs `gateway-bench` with the commit's flags and the input's profile, then the metrics and plots |
 | `qa/build.py` | Builds `gateway-bench` and sizes requests for the machine |
-| `qa/plots.py`, `qa/flame.py` | Plotly figures (latency percentiles on a log tail, breakdown, timeline...), and the flame graph's JSON |
+| `qa/plots.py` | Plotly figures (latency percentiles on a log tail, breakdown, timeline...) |
 | `qa/make_profiles.py` | Writes the load profiles: steady, bursty and heavy-tail at 2,000, 4,000 and 6,000 requests/s, and a ramp |
 | `qa/metrics.yaml`, `qa/batches.yaml` | Metrics (labels, units, targets) and batches (`ci`, `capacity`, `nightly`, `sweep-batching`) |
 | `gateway/` | The Rust crate: `src/gateway.rs` (ingress and workers), `src/batcher.rs` (queue policies), `src/cache.rs`, `src/model.rs` (the MLP, fp32 and int8), `src/bench.rs` (the load generator, repeats, measurements) |

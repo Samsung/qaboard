@@ -78,6 +78,12 @@ them. The gate's rules are on p99 and throughput.
 Runs execute one at a time, so they don't measure each other, and each run repeats its measurement: reported
 percentiles are the median over repeats.
 
+:::tip Microbenchmarks too
+If the project also has microbenchmarks (Criterion, Google Benchmark, pytest-benchmark...), a run can save the
+harness's file: the [benchmark viewer](/docs/viewers#benchmarks) shows each one against the reference, and
+`benchmark_metrics` returns them as metrics.
+:::
+
 ## Try it on the demo {#run-this-example}
 [`examples/serving-latency`](https://github.com/Samsung/qaboard/tree/master/examples/serving-latency) is a small
 inference gateway in Rust: a request queue, dynamic batching, a pool of workers running a CPU model, and a result

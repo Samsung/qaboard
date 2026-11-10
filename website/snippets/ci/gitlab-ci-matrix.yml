@@ -1,0 +1,10 @@
+# An evaluation fanned out with a CI matrix: one CI job per model and slice of the test set.
+# docs/coming-from-other-tools.mdx shows how the matrix moves to a QA-Board batch.
+evaluate:
+  tags: [gpu]
+  parallel:
+    matrix:
+      - MODEL: [fp32, int8]
+        SLICE: [indoor, outdoor, warehouse, small-objects]
+  script:
+    - python eval.py --model "$MODEL" --slice "slices/$SLICE"

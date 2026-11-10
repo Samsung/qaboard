@@ -1,0 +1,76 @@
+{
+  "$schema": "https://samsung.github.io/qaboard/benchmarks.schema.json",
+  "qaboard_benchmarks": 1,
+  "source": "google-benchmark",
+  "context": {
+    "machine": "ci-runner-07",
+    "cpu_count": 8,
+    "date": "2026-11-02T09:20:11+00:00",
+    "harness": "Google Benchmark v1.9.1"
+  },
+  "benchmarks": [
+    {
+      "name": "BM_Encode/64",
+      "group": "BM_Encode",
+      "value": 6.23180124123396e-08,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 6.23180124123396e-08,
+        "iterations": 11201431,
+        "cpu_time": 6.229018401932346e-08
+      },
+      "throughput": {
+        "value": 1027460193.5106051,
+        "unit": "B/s"
+      }
+    },
+    {
+      "name": "BM_Encode/4096",
+      "group": "BM_Encode",
+      "value": 3.633401718637199e-06,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 3.633401718637199e-06,
+        "iterations": 192712,
+        "cpu_time": 3.630912989341588e-06
+      },
+      "throughput": {
+        "value": 1128102549.1307802,
+        "unit": "B/s"
+      }
+    },
+    {
+      "name": "BM_RouteLookup/size:1024/threads:4",
+      "group": "BM_RouteLookup",
+      "params": {
+        "size": "1024",
+        "threads": "4"
+      },
+      "value": 2.451299810409546e-07,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 2.451299810409546e-07,
+        "iterations": 2873216,
+        "cpu_time": 9.779023170471192e-07
+      },
+      "throughput": {
+        "value": 4089421.3462194004,
+        "unit": "items/s"
+      }
+    },
+    {
+      "name": "BM_Checksum",
+      "value": 0.0012034519910812378,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 0.0012034519910812378,
+        "iterations": 1000,
+        "cpu_time": 0.0012030510000000001
+      }
+    }
+  ]
+}

@@ -23,11 +23,40 @@ from .site_config import site_config, site_qaboard_config, without_locations_fro
 # but first show all the errors that need to be fixed.
 config_has_error = False
 
+
+def invoked_command(argv: List[str]) -> Optional[str]:
+  """The `qa` command in argv, e.g. "batch" for `qa --share --label x batch my-batch`. None if there is none."""
+  # the options of the `qa` group that take a value
+  options_with_values = {'--platform', '-c', '--configuration', '--config', '-l', '--label', '--tuning', '--tuning-filepath', '--database', '--type'}
+  args = iter(argv[1:])
+  for arg in args:
+    if arg in options_with_values:
+      next(args, None)
+    elif not arg.startswith('-'):
+      return arg
+  return None
+
+
+def is_qa_program(argv: List[str]) -> bool:
+  """Whether the program is `qa` (or `python -m qaboard`), not another program that imports qaboard."""
+  if not argv:
+    return False
+  program = Path(argv[0])
+  return program.stem in ('qa', 'qa-script') or (program.name == '__main__.py' and program.parent.name == 'qaboard')
+
+
 # Don't lots of verbose info if the users just wants the help, or start a new project
 ignore_config_errors = len(sys.argv)==1 or '--help' in sys.argv or 'init' in sys.argv
 # `qa auth` and `qa runs` don't need a project: we don't even read qaboard.yaml, it may have errors
 is_auth_command = sys.argv[1:2] in (['auth'], ['runs'])
 ignore_config_errors = ignore_config_errors or is_auth_command
+# `qa doctor` says what's wrong in qaboard.yaml, the storage... with how to fix it: it starts even if they are wrong
+is_doctor_command = is_qa_program(sys.argv) and invoked_command(sys.argv) == 'doctor'
+ignore_config_errors = ignore_config_errors or is_doctor_command
+# The errors in the configuration that make `qa` commands refuse to run, and how to fix them: `qa doctor` reports them
+config_errors: List[Tuple[str, str]] = []
+# What qa warns about in the configuration, and how to fix it
+config_warnings: List[Tuple[str, str]] = []
 # When the code is imported we care less about warnings...
 ignore_config_errors = ignore_config_errors or not sys.argv or not sys.argv[0].endswith('qa')
 
@@ -59,7 +88,88 @@ def find_configs(path : Path) -> List[Tuple[Dict, Path]]:
 
 
 
-qatools_configsxpaths = find_configs(path=Path()) if not is_auth_command else []
+def unloadable_config(configsxpaths: List[Tuple[Dict, Path]]) -> Optional[str]:
+  """Why we can't load the project from these qaboard.yaml files (`qa doctor` reports it), None if we can."""
+  for qatools_config, path in configsxpaths:
+    if not isinstance(qatools_config, dict):
+      return f"{path} is not a mapping"
+    if not isinstance(qatools_config.get('project') or {}, dict):
+      return f"project in {path} is not a mapping"
+    if 'include' in qatools_config:
+      include = configsxpaths[0][1].parent / str(qatools_config['include'])
+      if not include.exists():
+        return f"{path} includes a missing file: {qatools_config['include']}"
+      try:
+        with include.open() as f:
+          included = yaml.load(f, Loader=yaml.SafeLoader)
+      except Exception as e:
+        return f"Can't read {include}, included by {path}: {e}"
+      if not isinstance(included, dict) or not isinstance(included.get('project') or {}, dict):
+        return f"{include}, included by {path}, is not a mapping of settings"
+  root_project = configsxpaths[0][0].get('project')
+  if not isinstance(root_project, dict) or not isinstance(root_project.get('name'), str) or not isinstance(root_project.get('url'), str):
+    return f"{configsxpaths[0][1]} needs project.name and project.url"
+  return None
+
+
+# The type of the settings `qa` reads when it starts: path, types. None is always allowed (empty).
+SETTING_TYPES: List[Tuple[Tuple[str, ...], tuple]] = [
+  (('inputs',), (dict,)),
+  (('inputs', 'types'), (dict,)),
+  (('inputs', 'batches'), (str, list)),
+  (('inputs', 'groups'), (str, list)),
+  (('inputs', 'database'), (str, dict)),
+  (('outputs',), (dict,)),
+  (('outputs', 'metrics'), (str,)),
+  (('storage',), (str, dict)),
+  (('ci_root',), (str, dict)),
+  (('runners',), (dict,)),
+  (('runners', 'default'), (str,)),
+  (('lsf',), (dict,)),
+]
+
+def invalid_settings(config: Dict) -> List[Tuple[Tuple[str, ...], Any, tuple]]:
+  """The settings of a qaboard.yaml whose type `qa` can't use: [(path, value, expected types)]"""
+  invalid = []
+  for path, types in SETTING_TYPES:
+    parent: Any = config
+    for key in path[:-1]:
+      parent = parent.get(key) if isinstance(parent, dict) else None
+    if not isinstance(parent, dict) or parent.get(path[-1]) is None:
+      continue
+    value = parent[path[-1]]
+    if not isinstance(value, types):
+      invalid.append((path, value, types))
+    elif isinstance(value, list) and not all(isinstance(v, (str, dict)) for v in value):
+      invalid.append((path, value, types))
+  runners = config.get('runners')
+  if isinstance(runners, dict):
+    for name, settings in runners.items():
+      if name != 'default' and settings is not None and not isinstance(settings, dict):
+        invalid.append((('runners', str(name)), settings, (dict,)))
+  return invalid
+
+
+def drop_invalid_settings(config: Dict):
+  """For `qa doctor`: removes the settings qa can't use, so that it can start, and say what's wrong with them."""
+  for path, _, _ in invalid_settings(config):
+    parent = config
+    for key in path[:-1]:
+      parent = parent[key]
+    del parent[path[-1]]
+
+# Why the project's qaboard.yaml could not be loaded, only for `qa doctor`: the other commands fail on it
+config_error: Optional[str] = None
+try:
+  qatools_configsxpaths = find_configs(path=Path()) if not is_auth_command else []
+except Exception as e: # e.g. invalid YAML
+  if not is_doctor_command:
+    raise
+  config_error, qatools_configsxpaths = str(e), []
+if is_doctor_command and qatools_configsxpaths:
+  config_error = unloadable_config(qatools_configsxpaths)
+  if config_error:
+    qatools_configsxpaths = []
 qatools_configs = [q[0] for q in qatools_configsxpaths]
 qatools_config_paths = [q[1] for q in qatools_configsxpaths]
 if not qatools_configsxpaths:
@@ -117,11 +227,17 @@ else:
         c_include = yaml.load(f, Loader=yaml.SafeLoader)
       c = merge(c_include, c)
     config = merge(c, config)
+  if is_doctor_command:
+    drop_invalid_settings(config)
 
   # We check for consistency
   if root_qatools_config and config:
     if root_qatools_config.get('project', {}).get('url') != config.get('project', {}).get('url'):
       config_has_error = True
+      config_errors.append((
+        f"The subproject's qaboard.yaml ({qatools_config_paths[-1]}) changes project.url, from {root_qatools_config.get('project', {}).get('url')} to {config.get('project', {}).get('url')}: qa refuses to run.",
+        f"Remove project.url from {qatools_config_paths[-1]}: subprojects use the root qaboard.yaml's ({qatools_config_paths[0]}).",
+      ))
       if not ignore_config_errors:
         click.secho(f"ERROR: Don't redefine the project's URL in ./qaboard.yaml.", fg='red', bold=True, err=True)
         click.secho(f"Changed from {root_qatools_config.get('project', {}).get('url')} to {config.get('project', {}).get('url')}", fg='red')
@@ -142,6 +258,10 @@ else:
   uncoherent_name = config['project']['name'] not in [root_qatools_config['project']['name'], project]
   if uncoherent_name:
     config_has_error = True
+    config_errors.append((
+      f"The subproject's qaboard.yaml ({qatools_config_paths[-1]}) changes project.name, from {root_qatools_config['project']['name']} to {config['project']['name']}: qa refuses to run.",
+      f"Remove project.name from {qatools_config_paths[-1]}: subprojects are named after their folder, e.g. {project.as_posix()}.",
+    ))
     if not ignore_config_errors:
       click.secho(f"ERROR: Don't redefine <project.name> in ./qaboard.yaml", fg='red', bold=True, err=True)
       click.secho(f"Changed from {root_qatools_config['project']['name']} to {config['project']['name']})", fg='red')
@@ -162,8 +282,11 @@ user = os.environ.get('QA_USER', getuser())
 local_commit_placeholder = f'<local:{user}>'
 
 
-def storage_roots(config: Dict, project: Path, subproject: Path, user_name: Optional[str] = None) -> Tuple[Path, Path, Path]:
-  """`user_name` replaces {user} in the storage settings, by default the current user."""
+def storage_roots(config: Dict, project: Path, subproject: Path, user_name: Optional[str] = None, raise_errors: bool = False) -> Tuple[Path, Path, Path]:
+  """
+  `user_name` replaces {user} in the storage settings, by default the current user.
+  Invalid settings raise ValueError or TypeError, except for `qa doctor` (it reports them), unless `raise_errors`.
+  """
   if user_name is not None:
     user_ = user_name
   # useful when migration results to a new default location
@@ -193,9 +316,13 @@ def storage_roots(config: Dict, project: Path, subproject: Path, user_name: Opti
       subproject_for_artifacts = Path()
     if not artifacts_root or not outputs_root:
       raise KeyError
-  except KeyError:
+  except (KeyError, ValueError, TypeError) as e:
+    # e.g. a storage without a "linux" key. `qa doctor` reports it
+    if not isinstance(e, KeyError) and (raise_errors or not is_doctor_command):
+      raise
     artifacts_root = Path()
     outputs_root = Path()
+    subproject_for_artifacts = Path()
     if not ignore_config_errors:
       click.secho('ERROR: Could not find the storage settings that define where outputs & artifacts are saved.', fg='red', err=True)
       click.secho('Consider adding to qaboard.yaml:\n```storage:\n  linux: /mnt/qaboard\n  windows: "\\\\server\\share\\qaboard"\n```', fg='red', err=True, dim=True)
@@ -208,6 +335,9 @@ def storage_roots(config: Dict, project: Path, subproject: Path, user_name: Opti
 missing_storage: List[Path] = []
 
 def mkdir(path: Path):
+  # `qa doctor` changes nothing: it says whether qa could create it
+  if is_doctor_command:
+    return
   if not path.exists():
     try:
       path.mkdir(parents=True)
@@ -534,6 +664,8 @@ metrics_file = config.get('outputs', {}).get('metrics')
 if metrics_file:
   metrics_file_path = Path(root_qatools / metrics_file)
   if not metrics_file_path.exists():
+    config_warnings.append((f"The metrics file {metrics_file} doesn't exist (outputs.metrics in qaboard.yaml): QA-Board shows your metrics without their names and units.",
+                            f"Create it, or fix outputs.metrics in qaboard.yaml. `qa init` writes an example: qa/metrics.yaml"))
     if not ignore_config_errors:
       click.secho(f'WARNING: Could not find the file containing metrics ({metrics_file})', fg='yellow', err=True)
       click.secho(f'         It is defined in qaboard.yaml under outputs.metrics', fg='yellow', err=True, dim=True)
@@ -544,10 +676,17 @@ if metrics_file:
         _metrics = yaml.load(f, Loader=yaml.SafeLoader)
       except Exception as e:
         config_has_error = True
+        config_errors.append((f"Can't parse the metrics file {metrics_file}: {e}", f"Fix the YAML syntax in {metrics_file_path}."))
         if not ignore_config_errors:
           click.secho(f'ERROR: Unable to parse {metrics_file}', fg='red', err=True, bold=True)
           click.secho(f'{e}', fg='red', err=True)
           ignore_config_errors = False
+      if _metrics is not None and not isinstance(_metrics, dict):
+        config_has_error = True
+        config_errors.append((f"The metrics file {metrics_file} must be a mapping, with available_metrics: and main_metrics:.", f"Fix {metrics_file_path}. `qa init` writes an example."))
+        if not ignore_config_errors:
+          click.secho(f'ERROR: The metrics file {metrics_file} must be a mapping, with available_metrics: and main_metrics:', fg='red', err=True, bold=True)
+        _metrics = {}
       # an empty file, or `available_metrics:` with only comments under it, are null
       available_metrics = (_metrics or {}).get('available_metrics') or {}
       main_metrics = (_metrics or {}).get('main_metrics') or []

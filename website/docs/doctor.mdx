@@ -1,0 +1,105 @@
+---
+id: doctor
+title: Check your setup with qa doctor
+sidebar_label: Check your setup
+description: Run qa doctor to check everything a batch needs, from qaboard.yaml to the runner's permissions, and get how to fix each problem.
+---
+
+`qa doctor` checks everything `qa batch` needs, in the order a batch uses it: *qaboard.yaml*, the QA-Board server,
+the results storage, then the runner. For each problem, it prints how to fix it. Run it when you set up a project or
+a runner, and whenever a batch doesn't start.
+
+## Check your project {#check-your-project}
+In your project's folder, where you run `qa batch`:
+
+```bash
+qa doctor
+```
+
+Each check prints ✔ (ok), `!` (warning), ✘ (error) or `-` (skipped), with what it found. Every failed check is
+followed by its fix: a command to run, a snippet for *qaboard.yaml*, or what to ask your admins. `qa doctor` exits
+with code `1` when a check failed, and `0` otherwise, so a CI job or a script can run it first.
+
+Here is the end of the output for a project that sends its runs to a test Kubernetes cluster: the claim of its
+storage is missing in the namespace, and the pods won't see the project's folder. The other problem, above, is the
+server.
+
+```text
+[...]
+Runner: kubernetes
+  ✔ Kubernetes: Python client: kubernetes 37.0.1
+  ✔ Kubernetes: kubeconfig: context kind-qaboard-runner-e2e (cluster kind-qaboard-runner-e2e, user kind-qaboard-runner-e2e), namespace default
+  ✔ Kubernetes: API: Kubernetes v1.36.1 at https://127.0.0.1:37817
+  ✔ Kubernetes: namespace default: exists
+  ✔ Kubernetes: permissions in namespace default: kubernetes-admin can create and watch Jobs
+  ✔ Kubernetes: image: registry.kitefin.example/algo/qa-env:2026.11
+  ✘ Kubernetes: mount /mnt/qaboard (PVC qaboard-results): No PersistentVolumeClaim qaboard-results in namespace default.
+      List them with `kubectl get pvc -n default`, or ask your admins to create it.
+  ! Kubernetes: mounts: The pods won't see the project (/home/ines/sample_project): it's not under `mounts` (unless the image has it, at the same path).
+      Add the shared filesystem to runners.kubernetes.mounts, at the same path.
+  ✔ Kubernetes: run as: Pods run as uid 1000, gid 1000
+
+✘ 2 problems to fix, 2 warnings: see above how to fix them, then run `qa doctor` again.
+```
+
+With `qa --offline doctor`, it only checks what runs need when their results stay on your machine: no server, and a
+local `output/` folder instead of the results storage.
+
+## Start a test job {#test-job}
+A setup can pass every check and still fail on the cluster: the pods don't mount the storage, the image lacks `qa`,
+the jobs run as another user. `--test-job` also starts a small job with your runner:
+
+```bash
+qa doctor --test-job
+```
+
+The job says where it ran and as which user, checks that it sees your project and can write in the results
+storage, and that `qa` works where your runs execute. With Kubernetes, the test pod asks for the runs' resources and
+also checks your mounts. It can take a few minutes, e.g. waiting for a slot, and `qa doctor` deletes what it
+started.
+
+## Check another runner {#check-another-runner}
+`qa doctor` checks your default runner, `runners.default` in *qaboard.yaml*. To check another one before you switch
+to it:
+
+```bash
+qa doctor --runner kubernetes --test-job
+```
+
+## What qa doctor checks {#what-qa-doctor-checks}
+
+<details>
+<summary>Every check, in order</summary>
+
+| Area | Checks |
+|---|---|
+| `qa` and *qaboard.yaml* | `qa`'s version and Python's; *qaboard.yaml* is found, valid YAML, and matches its schema; the entrypoint exists and compiles; the batches files; the git commit. |
+| QA-Board server | It answers and reaches its database; you're signed in or have a token, with the scopes, projects and expiry it needs; your role in the project. |
+| Storage | The results storage exists or can be created, is writable, and has free space; the server reads it; the artifacts storage; each input type's inputs database is readable. |
+| `local` | The concurrency and the timeout are valid; `qa` is on the `PATH`. `--test-job`: runs `qa --help`. |
+| `lsf` | `bsub` is on the `PATH`, or the bridge in `QA_RUNNERS_LSF_BRIDGE` is valid; `bwait`; the queue exists and is open; `bjobs` answers. `--test-job`: an LSF job writes in the results storage. |
+| `celery` | Celery is installed; the broker answers and accepts the account; workers reply; a worker listens to the runs' queue. `--test-job`: a worker runs a task. |
+| `dask` | `distributed` is installed. With `scheduler_address`: the scheduler answers, and has workers. Otherwise, per `cluster.type`: dask-jobqueue and the scheduler's submit command, and the worker job script it would send (OAR: the `walltime`); dask-kubernetes, the image, the kubeconfig context, the Dask operator and your permissions. `--test-job`: a worker runs `id; hostname`. |
+| `windows` | The Jenkins job's URL; Jenkins answers; the token; the Windows path of your project. `--test-job`: a build. |
+| `kubernetes` | The settings have the right types (e.g. `resources`, `mounts`); the Python client is installed; the kubeconfig and its context (in a pod: its ServiceAccount); the credential plugin is on your `PATH`; the API answers, and Kubernetes is 1.29 or later; the namespace; your permissions in it; the Kueue queue; the image; the image pull secrets; the mounts, their PersistentVolumeClaims, and that they cover the project and the results; the user pods run as, against the namespace's Pod Security level. `--test-job`: a pod checks the mounts, that it can write the results as its user, `qa`, and, with a `timeout`, the image's `timeout` command. |
+
+`qa doctor` reads the runner's settings from *qaboard.yaml* and the environment: options of `qa batch` like
+`--lsf-queue` aren't checked.
+
+</details>
+
+:::tip Send the output to your admins
+When a fix needs your cluster's admins, like permissions on Kubernetes, `qa doctor` prints what to ask them, e.g. the
+Role you need in your namespace. Send them its output.
+:::
+
+## Where to go next
+
+<Cards>
+  <Card title="Choose where runs execute" to="/docs/runners">
+    Local, LSF, Slurm and other HPC schedulers, Kubernetes, Celery, Windows.
+  </Card>
+  <Card title="Run batches on Kubernetes" to="/docs/kubernetes-runner">
+    Permissions, shared storage, quotas, and what to do when pods stay pending.
+  </Card>
+</Cards>

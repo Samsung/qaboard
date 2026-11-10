@@ -15,7 +15,7 @@ import { history, Link } from "../router";
 import { PageShell, RequireLogin } from "../components/PageShell";
 import { Time } from "../settings/format";
 import { Loading, QueryError } from "../settings/states";
-import { useSubmissionStatus } from "../components/logs/submissions";
+import { useSubmissionStatus, whereItRuns } from "../components/logs/submissions";
 import { JobDialog, ScheduleDialog } from "../admin/JobForm";
 import { overviewQuery, itemsQuery, runsQuery, failRuns, stopBatch, items_page_size, runs_page_size, match_keys } from "./api";
 import { WhoseRuns } from "../components/WhoseRuns";
@@ -584,7 +584,11 @@ const SoonRow = ({ submission, show_users }) => {
       <Meta>{submission.project_id} · {submission.branch || 'no branch'} · <code>{submission.hexsha?.slice(0, 8)}</code></Meta>
     </td>
     {show_users && <td>{submission.user}</td>}
-    <td style={{ fontSize: 12 }}>{submission.runner}{submission.lsf_job_id ? ` · job ${submission.lsf_job_id}` : ''}{submission.queue ? ` · queue ${submission.queue}` : ''}</td>
+    <td style={{ fontSize: 12 }}>
+      {submission.runner}{whereItRuns(submission) ? ` · ${whereItRuns(submission)}` : ''}
+      {/* why it waits, if its runner said (the server sends it until qa batch writes logs): e.g. its pod is pending */}
+      {submission.pending_note && <Meta style={{ whiteSpace: 'pre-line' }}>{submission.pending_note}</Meta>}
+    </td>
     <td>Submitted <Time iso={submission.created_at}/></td>
     <td style={{ textAlign: 'right' }}><Link to={logsUrl(submission)} className={`${Classes.BUTTON} ${Classes.SMALL} ${Classes.MINIMAL}`}><Icon icon="console"/><span className={Classes.BUTTON_TEXT}>Logs</span></Link></td>
   </tr>;

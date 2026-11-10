@@ -80,7 +80,96 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - `api/tuning.py` and `qaboard/runners/celeryconfig.py` default to `pyamqp://guest:guest@qaboard:5672//`: read
   `CELERY_BROKER_URL` only, and fail clearly when it's unset with `QABOARD_TUNING_RUNNER=celery`. [S, behaviour]
 
+## Runners (Kubernetes, Dask on any scheduler, `qa doctor`, November 2026)
+
+Design and follow-ups: [docs/design/kubernetes-runner.md](docs/design/kubernetes-runner.md). Security boundaries are
+documented for admins in `website/docs/backend-admin/runners.mdx`: we rely on the cluster's own tools (namespaces,
+Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementing them.
+
+### What was verified, what wasn't
+- Real: the Kubernetes runner on a kind cluster (`.github/scripts/kubernetes_runner_e2e.py`, CI job
+  `kubernetes-runner-e2e`), Dask with `cluster.type: local`, a real Celery worker for stopping batches
+  (`tests/test_celery_stop.py`), backend integration tests on Postgres for stop/tuning/redo.
+- Only with fakes/mocks: LSF, Slurm, PBS, SGE, HTCondor, OAR and Moab commands (submit, cancel), Jenkins, Dask on
+  Kubernetes (`KubeCluster`), the server starting batches on a real cluster. Try them on a real cluster before
+  advertising them. `run_as: user` with a non-root UID first runs for real in CI. [M, no change]
+
+### Kubernetes
+- **A namespace is a trust domain** for batches started from the web app: the driver pod runs the project's code with
+  a ServiceAccount that can create Jobs, so users who start batches in a namespace can act as each other (documented;
+  `QABOARD_KUBERNETES_RUN_AS=<uid>:<gid>` runs them all as one account). Real per-user isolation: the backend creates
+  the run Jobs itself, the driver calls back with a per-batch credential (design doc, "Follow-ups"). [L, API]
+- No shared filesystem, no runs: pods must see the code, inputs and outputs at the same paths. HTTP upload
+  (`docs/design/http-upload.md`) then an image per commit remove that. [L, API]
+- Secrets aren't forwarded to pods (they'd be stored in ConfigMaps): runs that send results to a server that requires a
+  token need a Secret through `job_template` (`env.valueFrom.secretKeyRef`) or a shared HOME after `qa auth login`.
+  An `env_from_secret` option would be simpler. [S, API]
+- The pods' PID 1 is `sh`, which doesn't forward SIGTERM to `qa run`: stopped runs are marked failed by `qa batch` or
+  the server rather than by `qa run` itself. Use `exec`/a tiny init when there's one run per pod. [S, behaviour]
+- One namespace and kubeconfig context per batch: runs whose input type sets another one get a warning and use the
+  batch's. When a group needs several Jobs (different pod specs, or too many runs for one ConfigMap), `concurrency`
+  applies to each Job (with a warning). [M, behaviour]
+- Kubernetes ≥ 1.29 only (per-index retries, `backoffLimitPerIndex`): older clusters are refused, by `qa doctor` and
+  when a Job loses the field. [S, no change]
+- Image pulls that keep failing for a pod fail the batch after 5 minutes, unless pods of its Job run or ran (a node's
+  problem); waiting in a Kueue queue is never fatal. A fatal problem deletes all the batch's Jobs, also the groups
+  whose pods run fine: the batch fails as a whole, like with Ctrl-C. [S, behaviour]
+- The per-run `timeout` needs GNU coreutils' `timeout` in the image (BusyBox's is refused: it signals only its child):
+  no portable fallback (killing `qa run` and what it started needs a process group). `qa doctor --test-job` checks
+  it, and runs fail saying so. [S, behaviour]
+- Why pods are pending is in the runs' `log.pending.txt` (and `log.pending.txt` next to a detached job's `log.txt`).
+  When the pods run as another user than `qa batch`, it only writes there if the output directory exists (creating it
+  would make it ours). A note written just as the pod starts can stay behind (the pod deletes the file when it
+  starts). The server shows a driver's note only for a day after it's submitted: it doesn't follow drivers, whose
+  submissions stay "submitted". [S, behaviour]
+- The server only stops batches in namespaces listed in `QABOARD_KUBERNETES_NAMESPACES` (otherwise a warning), and the
+  pending driver pod is only watched for 20s after it's submitted. When the driver fails to start in those 20s, the
+  server deletes only its Job (`qaboard.io/role=driver`), like after: run Jobs its `qa batch` may have created keep
+  running until the batch is stopped. [S, behaviour]
+
+### Dask on other schedulers
+- `--no-wait` and server-side stops on Slurm/PBS/SGE/HTCondor/OAR/Moab need those commands where the driver or the
+  server runs; the backend image doesn't ship them. Old Torque truncates job names over 15 characters; Moab is assumed
+  to run on Torque/PBS. [M, no change]
+- OAR: the driver can't receive the environment (OAR has no option for it), and dask-jobqueue's 30-minute walltime
+  stays unless `walltime` is set (`qa doctor` warns). [S, behaviour]
+- Dask on Kubernetes needs the Dask operator; `KubeCluster` can't pick a kubeconfig context (only the current one);
+  the scheduler pod asks for 1 CPU and 2Gi. [S, behaviour]
+- The Dask scheduler is unauthenticated, and the tasks it holds carry the runs' environment, secrets included: the
+  docs give a NetworkPolicy, which only helps on clusters that enforce them, and not between users of a namespace.
+  Real fix: distributed's TLS security (a certificate per batch, in a Secret the pods mount). [M, behaviour]
+
+### Celery and runs on the server
+- From the server, stopping Celery batches only reaches the server's broker (`CELERY_BROKER_URL`): batches sent to a
+  team's own broker or vhost keep running (broker URLs from batch data can't be trusted). [M, behaviour]
+- Workers remember revoked tasks in memory: a worker started after a stop may still run the batch's queued tasks,
+  unless workers use `--statedb`. Terminating running tasks needs Celery 5.3+ and the prefork pool. [S, behaviour]
+- `qa batch` started by the server (`QABOARD_TUNING_RUNNER=local`/`celery`, and redo without the LSF bridge) runs as a
+  detached process of the backend container: another replica can't stop it, and redeploying the backend kills it.
+  Running projects' code on the server trusts every project developer with what the server's account can read (the
+  environment is scrubbed, files aren't). [M, behaviour]
+
+- Batches started from the web app get no QA-Board token, whatever the runner: on a server with `ingest.auth: token`,
+  their runs can't save results unless a shared HOME holds a `qa auth login`, or (Celery) the workers set
+  `QABOARD_TOKEN`. The server could mint a short-lived, project-scoped ingest token per batch. [M, API]
+- `runner_jobs.submit_driver` checks that the kubernetes runner exists, which can't fail (it's always registered):
+  check that the `kubernetes` package is installed instead, with the install hint. [S, behaviour]
+- The worker job script `qa doctor` shows for Dask is named `doctor_dask`, not the batch's real name. [S, no change]
+
+### LSF
+- The bridge template wraps `{bsub_command}` in single quotes: a job script containing a single quote breaks on the
+  bridge host. Send the script through ssh's stdin instead. [S, behaviour]
+- SIRC's `bsub_su` wrapper isn't in the repo (`deployments/sirc/runbooks/lsf-bridge.md`). The bridge path's
+  environment isn't scrubbed like local dispatches. [S, no change]
+
+### `qa doctor`
+- No server version compatibility check (the server doesn't expose its version). CLI overrides like `--lsf-queue`
+  and `QA_BATCH_LSF_*` aren't reflected in its checks. [S, behaviour]
+
 ## Webapp
+
+- `AppNavbar.test.jsx` ("arrow keys then Enter") failed once under load in the full run and passes alone: a timing
+  assumption in the test. [S, no change]
 
 - 81 "[Blueprint] <Popover> positions content incorrectly under React 19" warnings in the tests: some components still
   use `<Popover>` instead of `<PopoverNext>`. [S, behaviour]

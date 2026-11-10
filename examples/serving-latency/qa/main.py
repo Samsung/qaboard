@@ -15,10 +15,10 @@ import sys
 from pathlib import Path
 
 import yaml
+from qaboard.flamegraphs import save_flame_graph
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build  # noqa: E402
-import flame  # noqa: E402
 import plots  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -115,7 +115,11 @@ def run(context):
     plots.cores(output_dir / 'cores.plotly.json', median['cores'])
     plots.batch_sizes(output_dir / 'batch_sizes.plotly.json', bench['batch_sizes'])
     plots.latency_histogram(output_dir / 'latency_hist.plotly.json', bench['histogram'])
-    flame.write(output_dir / 'cpu.folded', output_dir / 'cpu.flame.json', bench['profiled_cpu_s'], bench['profiled_requests'])
+    # gateway-bench writes the CPU samples as folded stacks: the flame graph viewer reads them. We turn samples into
+    # µs of CPU per 1,000 requests, so that runs of different lengths and loads compare in absolute values too.
+    if bench['profiled_requests']:
+        save_flame_graph(output_dir / 'cpu.folded', output_dir / 'cpu.folded', unit='microseconds of CPU per 1,000 requests',
+                         total=bench['profiled_cpu_s'] * 1e6 / bench['profiled_requests'] * 1000)
     print(' | '.join(f'{k} {v:.4g}' for k, v in metrics.items() if k != 'is_failed'), flush=True)
     return metrics
 

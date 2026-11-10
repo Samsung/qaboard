@@ -116,9 +116,10 @@ interest, with their thumbnails above the images. Step through them with <kbd>[<
 click on a thumbnail. **Full image** goes back to the whole image. The regions are outlined on the images: click a
 region's label to zoom on it, and hide the outlines with the eye button or <kbd>o</kbd>.
 
-- **Presets**: the regions set for the input, e.g. on the facade *Window frame (halos)*, *Leaves over a window* and
-  *Flat wall (noise)*. The viewer opens on the first one. Whoever integrates the project defines them, see
-  [regions of interest](/docs/visualizations#regions-of-interest).
+- **Presets**: the regions the project saved for this run, e.g. on the facade *Window frame (halos)*, *Leaves over a
+  window* and *Flat wall (noise)*. The viewer opens on the first one. They come with the run's input (its metadata) or
+  with its batch (a configuration), so the runs of a page can each have their own. Whoever integrates the project
+  defines them: see [preset regions of interest](/docs/visualizations#regions-of-interest), with examples of both.
 - **Where they differ**: the server compares the full images, not what your screen shows, and finds the places where
   they differ most. Each region says how much, e.g. *#1 · 27.3%*, and darker swatches mark larger differences.
 
@@ -155,7 +156,7 @@ Pick how the server compares them:
   compares all its runs again.
 - The server compares images for signed-in users only: signed out, the viewer asks you to sign in.
 - **Copy the view as a region**, at the bottom of the menu, copies the coordinates of what you see, in the format of
-  presets: send them to whoever maintains the project's presets.
+  presets: send them to whoever maintains the project's presets, or [add them yourself](/docs/visualizations#copy-a-region).
 
 </details>
 

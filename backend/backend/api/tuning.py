@@ -32,7 +32,7 @@ from ..models import CiCommit, Project
 from ..config import qaboard_data_shared_dir
 from ..shell_utils import safe_user_name, lsf_bridge_command
 from ..storage import check_storage_path, UnsafePathError
-from ..submissions import record_submission, MAX_SUBMISSIONS, user_batch_dir, submission_dir # noqa: F401
+from ..submissions import record_submission, MAX_SUBMISSIONS, user_batch_dir, submission_dir, append_log, startup_logs # noqa: F401
 from ..artifacts import ArtifactsUnavailable
 from ..notifications.batches import request_batch_notification, cancel_batch_notification
 from .auth import login_required, require_project_access, is_authorized_user, forbidden_project
@@ -505,31 +505,31 @@ def _generate_batch_script(ci_commit, user, working_directory, command_id, batch
     return script
 
 
-def _run_script(qa_batch_path, log_dir):
-    """Run a bash script, appending its output to log_dir/log.txt"""
-    cmd = ['bash', str(qa_batch_path)]
-    print(cmd)
-    with (Path(log_dir) / 'log.txt').open('a') as log:
-        out = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT)
-    out.check_returncode()
+def _run_script(qa_batch_path, log_dir, command_id, celery=False):
+    """
+    Runs the bash script on the server, detached: it outlives the request (see local_jobs.py), with the server's
+    environment minus its secrets, and its output appended to log_dir/log.txt.
+    Returns the submission's {"status", "pid", "pgid", "host"}, and "exit_code" if it already ended.
+    """
+    from ..local_jobs import start_detached, qa_environment
+    return start_detached(qa_batch_path, log_dir, qa_environment(command_id, celery=celery))
 
 
-def _dispatch_local(qa_batch_path, log_dir):
-    """Run batch script locally via subprocess."""
-    _run_script(qa_batch_path, log_dir)
+def _dispatch_local(qa_batch_path, log_dir, command_id, ci_commit=None):
+    """Run batch script locally, detached. It gets the broker if the project's runner may be celery."""
+    from ..local_jobs import project_uses_celery
+    return _run_script(qa_batch_path, log_dir, command_id, celery=project_uses_celery(ci_commit))
 
 
-def _dispatch_celery(qa_batch_path, log_dir):
-    """Run batch script via celery worker. Injects broker URL into script."""
+def _dispatch_celery(qa_batch_path, log_dir, command_id):
+    """Run batch script locally, detached, with the broker's URL (in its environment, not in the script: it has the password)."""
     # if it's not set, `qa` uses qaboard/runners/celeryconfig.py's default (qaboard.yaml's runners.celery wins anyway)
-    broker_url = os.environ.get('CELERY_BROKER_URL')
     qaboard_host = os.environ.get('QABOARD_HOST', 'localhost')
     qaboard_protocol = os.environ.get('QABOARD_PROTOCOL', 'http')
 
     celery_env = "".join([
         f"export QABOARD_PROTOCOL={quote(qaboard_protocol)}\n",
         f"export QABOARD_HOST={quote(qaboard_host)}\n",
-        f"export CELERY_BROKER_URL={quote(broker_url)}\n" if broker_url else "",
         f"export no_proxy={quote(f'{qaboard_host},proxy,rabbitmq,qaboard')}\n",
     ])
     with qa_batch_path.open("r") as f:
@@ -537,7 +537,7 @@ def _dispatch_celery(qa_batch_path, log_dir):
     content = content.replace("#!/bin/bash\n", f"#!/bin/bash\n{celery_env}", 1)
     with qa_batch_path.open("w") as f:
         f.write(content)
-    _run_script(qa_batch_path, log_dir)
+    return _run_script(qa_batch_path, log_dir, command_id, celery=True)
 
 
 def parse_bsub_job_id(output: str):
@@ -580,10 +580,23 @@ def _dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize):
     print(out.stdout)
     if out.returncode != 0:
         # Users see this log in QA-Board
-        with (log_dir / 'log.txt').open('a') as log:
-            log.write(f"ERROR: Could not submit the job to LSF (exit code {out.returncode}):\n{out.stdout}\n")
+        append_log(log_dir, f"ERROR: Could not submit the job to LSF (exit code {out.returncode}):\n{out.stdout}\n")
     out.check_returncode()
     return {"lsf_job_id": parse_bsub_job_id(out.stdout), "queue": queue}
+
+
+def _dispatch_kubernetes(qa_batch_path, log_dir, user_info, ci_commit, do_optimize, command_id, on_prepared=None):
+    """
+    Run the batch script on Kubernetes, in a "driver" pod (a 1-pod Job named qa-<command_id[:8]>-driver) that runs as
+    the signed-in user (`user_info`, g.user), with the commit's runners.kubernetes (image, mounts...) as far as the
+    server allows it, see backend/runner_jobs.py. Its `qa batch` starts the runs' Jobs with the pod's ServiceAccount
+    (QABOARD_KUBERNETES_SERVICE_ACCOUNT), and stopping the batch deletes them all: they have the batch's command id.
+    `on_prepared({"kubernetes_job", "namespace"})` is called before the job is submitted, to record it.
+    Returns {"kubernetes_job", "namespace"}. The pod writes its output in log_dir/log.txt, and so do we if it can't start.
+    `do_optimize`: the pod has no deadline either way, `qa optimize` runs as long as its experiment.
+    """
+    from ..runner_jobs import submit_driver
+    return submit_driver(qa_batch_path, log_dir, user_info, ci_commit, command_id, on_prepared=on_prepared)
 
 
 def find_commit(project_id, hexsha):
@@ -898,7 +911,7 @@ def start_tuning(hexsha):
         # where the batches are defined: the command reads copies of the batch files
         "batch": data['selected_group'],
         "definitions": check["definitions"],
-        # local/celery: we wait for `qa batch` (it uses --no-wait), LSF: `qa batch` is an LSF job
+        # local/celery: `qa batch` runs detached on the server, LSF/kubernetes: `qa batch` is an LSF job/a pod
         "status": "submitting",
     }
     record_submission(batch, submission)
@@ -912,12 +925,20 @@ def start_tuning(hexsha):
         if runner == 'lsf':
             submission.update(_dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize))
             submission["status"] = "submitted"
+        elif runner == 'kubernetes':
+            def record_driver(driver):
+                # before it's submitted: the batch can be stopped whatever happens next
+                submission.update(driver)
+                record_submission(batch, submission)
+                db_session.add(batch)
+                db_session.commit()
+            submission.update(_dispatch_kubernetes(qa_batch_path, log_dir, g.user, ci_commit, do_optimize, command_id, on_prepared=record_driver))
+            submission["status"] = "submitted"
         elif runner == 'celery':
-            _dispatch_celery(qa_batch_path, log_dir)
-            submission.update({"status": "done", "exit_code": 0})
+            # status: "submitted" while it runs, "done"/"failed" if it ended already
+            submission.update(_dispatch_celery(qa_batch_path, log_dir, command_id))
         else:
-            _dispatch_local(qa_batch_path, log_dir)
-            submission.update({"status": "done", "exit_code": 0})
+            submission.update(_dispatch_local(qa_batch_path, log_dir, command_id, ci_commit))
     except Exception as e:
         submission["status"] = "failed"
         if isinstance(e, subprocess.CalledProcessError):
@@ -932,7 +953,8 @@ def start_tuning(hexsha):
 
     if submission["status"] == "failed":
         cancel_batch_notification(db_session, command_id, "The batch failed to start")
-        error_log = (log_dir / 'log.txt').read_text() if (log_dir / 'log.txt').exists() else submission.get("error", "Failed to start batch")
+        # what `qa batch` wrote, and why it waited (e.g. its Kubernetes pod was pending)
+        error_log = startup_logs(log_dir) or submission.get("error", "Failed to start batch")
         return jsonify({"error": error_log, "cmd": runner, "submission": submission}), 500
     return jsonify({"cmd": runner, "stdout": "OK", "submission": submission, "warning": restored_message, "notification": notification})
 

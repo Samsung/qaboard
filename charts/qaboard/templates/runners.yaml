@@ -1,0 +1,99 @@
+{{- /*
+The backend's ServiceAccount, and with runners.kubernetes.enabled what it needs to start and stop runs on Kubernetes:
+in each namespace of runners.kubernetes.namespaces, a Role with the kubernetes runner's permissions, bound to the
+backend's ServiceAccount and to a ServiceAccount for the pods that run `qa batch` (they create the runs' Jobs).
+*/ -}}
+{{- $backendServiceAccount := include "qaboard.backendServiceAccount" . }}
+{{- if and $backendServiceAccount (not .Values.backend.serviceAccount.name) }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $backendServiceAccount }}
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+  {{- with .Values.backend.serviceAccount.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
+# Only the Kubernetes runner needs the backend to talk to the API server
+automountServiceAccountToken: {{ .Values.runners.kubernetes.enabled }}
+{{- end }}
+{{- with .Values.runners.kubernetes }}
+{{- if .enabled }}
+{{- if not .namespaces }}
+{{- fail "runners.kubernetes.enabled: list the namespaces where QA-Board starts and stops runs in runners.kubernetes.namespaces" }}
+{{- end }}
+{{- if not $backendServiceAccount }}
+{{- fail "runners.kubernetes.enabled needs a ServiceAccount for the backend: leave backend.serviceAccount.name empty to create one" }}
+{{- end }}
+{{- $runsServiceAccount := include "qaboard.runsServiceAccount" $ }}
+{{- range $namespace := .namespaces }}
+---
+# What the kubernetes runner needs (`qa doctor` checks it), for the backend and the pods that run `qa batch`
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "qaboard.fullname" $ }}-runs
+  namespace: {{ $namespace }}
+  labels: {{- include "qaboard.labels" $ | nindent 4 }}
+rules:
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [create, get, list, watch, delete]
+  # each Job's commands
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [create, get, delete]
+  # why pods are pending, their logs
+  - apiGroups: [""]
+    resources: [pods, events]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [pods/log]
+    verbs: [get]
+  # runners.kubernetes.queue (Kueue)
+  - apiGroups: [kueue.x-k8s.io]
+    resources: [localqueues]
+    verbs: [get]
+  {{- if $.Values.runners.kubernetes.dask }}
+  # Dask clusters on Kubernetes (runners.dask.cluster.type: kubernetes), with the Dask operator
+  - apiGroups: [kubernetes.dask.org]
+    resources: [daskclusters, daskworkergroups, daskjobs, daskautoscalers]
+    verbs: [create, get, list, watch, patch, delete]
+  # the scheduler's Service
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [get, list, watch]
+  {{- end }}
+  {{- with $.Values.runners.kubernetes.extraRules }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+---
+# The pods that run `qa batch` for QA-Board (QABOARD_KUBERNETES_SERVICE_ACCOUNT) create the runs' Jobs with it
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $runsServiceAccount }}
+  namespace: {{ $namespace }}
+  labels: {{- include "qaboard.labels" $ | nindent 4 }}
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "qaboard.fullname" $ }}-runs
+  namespace: {{ $namespace }}
+  labels: {{- include "qaboard.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "qaboard.fullname" $ }}-runs
+subjects:
+  - kind: ServiceAccount
+    name: {{ $backendServiceAccount }}
+    namespace: {{ $.Release.Namespace }}
+  - kind: ServiceAccount
+    name: {{ $runsServiceAccount }}
+    namespace: {{ $namespace }}
+{{- end }}
+{{- end }}
+{{- end }}

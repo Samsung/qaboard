@@ -1,0 +1,37 @@
+{
+  "$schema": "https://samsung.github.io/qaboard/benchmarks.schema.json",
+  "qaboard_benchmarks": 1,
+  "source": "kitefin-bench 2.3",
+  "context": {
+    "machine": "ci-runner-07",
+    "cpu": "AMD EPYC 7763 64-Core Processor",
+    "cpu_count": 8,
+    "os": "Linux 6.8.0-45-generic",
+    "date": "2026-11-02T09:40:00+00:00"
+  },
+  "benchmarks": [
+    {
+      "name": "render/tile_256",
+      "group": "render",
+      "params": {"tile": 256, "simd": true},
+      "value": 4.21,
+      "unit": "ms",
+      "statistic": "median",
+      "stats": {"median": 4.21, "iqr": 0.12, "min": 4.02, "max": 5.3, "rounds": 30}
+    },
+    {
+      "name": "ingest/messages",
+      "group": "ingest",
+      "value": 182000,
+      "unit": "msg/s",
+      "smaller_is_better": false,
+      "stats": {"mean": 182000, "stddev": 2100, "rounds": 10}
+    },
+    {
+      "name": "startup",
+      "value": 0.412,
+      "statistic": "mean",
+      "stats": {"mean": 0.412, "stddev": 0.009, "rounds": 5}
+    }
+  ]
+}

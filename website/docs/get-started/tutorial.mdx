@@ -291,7 +291,7 @@ The [quality gate](/docs/quality-gate) page lists the rules, the exit codes and 
 
 ## 8. Scale out
 By default `qa batch` runs on the machine where you start it. Other runners send the runs elsewhere: the machines that
-run them need the results storage too.
+run them need the results storage too. To pick one, see [Choose where runs execute](/docs/runners).
 
 <Tabs groupId="runner" queryString>
 <TabItem value="local" label="Local" default>
@@ -335,7 +335,26 @@ runners:
     concurrency: 20
 ```
 
-See [Dask integration](/docs/dask-integration).
+See [Dask integration](/docs/dask-integration). Dask can also start its workers on Slurm, PBS, SGE or Kubernetes.
+
+</TabItem>
+<TabItem value="kubernetes" label="Kubernetes">
+
+Run each run in a pod, at most 50 at a time, with the results storage mounted at the same path:
+
+```yaml title="qaboard.yaml"
+runners:
+  default: kubernetes
+  kubernetes:
+    namespace: <your-namespace>
+    image: <your-image>
+    concurrency: 50
+    mounts:
+      - path: /mnt/qaboard
+        pvc: <your-claim>
+```
+
+See [Run batches on Kubernetes](/docs/kubernetes-runner).
 
 </TabItem>
 <TabItem value="celery" label="Celery">
@@ -355,7 +374,9 @@ See [Celery integration](/docs/celery-integration).
 </Tabs>
 
 `<your-queue>`, `<your-scheduler>` and `<your-qaboard-host>` are your LSF queue, your Dask scheduler's host and your
-QA-Board server's hostname.
+QA-Board server's hostname. `<your-namespace>`, `<your-image>` and `<your-claim>` are your Kubernetes namespace, an
+image with `qa` and your code's dependencies, and the PersistentVolumeClaim of the results storage. Check the setup
+with `qa doctor --test-job`: see [Check your setup](/docs/doctor).
 
 ## Next steps
 - [Your first review](/docs/user-guide/first-review): the web app, step by step, on a demo project.

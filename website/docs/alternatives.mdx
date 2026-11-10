@@ -112,6 +112,12 @@ The gate's verdict goes to the pull request too, as [a comment](/docs/quality-ga
 says when runs only passed after being done again. It doesn't decide whether a change is noise: repeat your
 measurements, and set the gate's thresholds above the noise.
 
+QA-Board reads the files of the usual benchmark harnesses: pytest-benchmark, Google Benchmark, hyperfine, Criterion,
+JMH and `go test` (Bencher reads more). Each benchmark shows next to the reference's, gray when the change is within the
+spread the harness reported, and becomes a metric in one line (see [benchmarks](/docs/viewers#benchmarks)). It still
+doesn't run, repeat or stabilize benchmarks, and doesn't estimate noise from past runs: that's the harness's job, and
+those tools' strength.
+
 ## Notebooks, spreadsheets and in-house dashboards {#in-house}
 A notebook answers a new question in an afternoon, and nothing replaces that. Then results get pasted into a
 spreadsheet, screenshots into a chat thread, and someone maintains a dashboard for one project. QA-Board is what
@@ -132,5 +138,6 @@ the team. Notebooks stay useful next to it: `qaboard.runs(url)` gives a script o
 <Cards>
   <Card title="Use cases" to="/docs/use-cases" eyebrow="See it">The regressions QA-Board catches, in images, models, latency, robotics, tests and agents.</Card>
   <Card title="Deep learning and MLOps" to="/docs/deep-learning" eyebrow="Project integration">Evaluate models next to the training tracker you already use.</Card>
+  <Card title="Coming from another tool" to="/docs/coming-from-other-tools" eyebrow="Project integration">Run the batches you run with MLflow Projects, W&B Launch, ClearML, job arrays or Kubernetes Jobs today.</Card>
   <Card title="Roadmap" to="/docs/roadmap" eyebrow="What's next">What we're building, with the status of each item.</Card>
 </Cards>

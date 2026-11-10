@@ -1,0 +1,48 @@
+{
+  "$schema": "https://samsung.github.io/qaboard/benchmarks.schema.json",
+  "qaboard_benchmarks": 1,
+  "source": "google-benchmark",
+  "context": {
+    "machine": "ci-runner-07",
+    "cpu_count": 8,
+    "date": "2026-11-02T09:31:47+00:00",
+    "harness": "Google Benchmark v1.9.1"
+  },
+  "benchmarks": [
+    {
+      "name": "BM_PlanRoute/grid:256",
+      "group": "BM_PlanRoute",
+      "params": {
+        "grid": "256"
+      },
+      "value": 0.00016988605421661398,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 0.00016988605421661398,
+        "median": 0.000169142120934517,
+        "stddev": 1.8721385327415998e-06,
+        "rounds": 3,
+        "iterations": 4127,
+        "cpu_time": 0.00016977335725078501
+      }
+    },
+    {
+      "name": "BM_PlanRoute/grid:1024",
+      "group": "BM_PlanRoute",
+      "params": {
+        "grid": "1024"
+      },
+      "value": 0.0031027713012695296,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 0.0031027713012695296,
+        "median": 0.00309981402587891,
+        "stddev": 1.4410273361206099e-05,
+        "rounds": 3,
+        "cpu_time": 0.00310120341015625
+      }
+    }
+  ]
+}

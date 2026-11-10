@@ -1,0 +1,40 @@
+# ========
+# captured on    : Tue Nov 10 09:12:44 2026
+# cmdline : /usr/bin/perf record -F 99 -g -- ./gateway-bench
+# ========
+#
+gateway-bench 31204 [002] 81234.101010:   10101010 cpu-clock:pppH:
+	    55d0c1a2b3c4 gateway::model::dot_i8+0x24 (/srv/gateway/target/release/gateway-bench)
+	    55d0c1a2b400 gateway::model::dense_int8+0x88 (/srv/gateway/target/release/gateway-bench)
+	    55d0c1a2b500 gateway::gateway::worker+0x1f0 (/srv/gateway/target/release/gateway-bench)
+	    7f3a2c094ac3 start_thread+0x2f3 (/usr/lib/x86_64-linux-gnu/libc.so.6)
+
+gateway-bench 31204 [002] 81234.111111:   10101010 cpu-clock:pppH:
+	    55d0c1a2b3c4 gateway::model::dot_i8+0x30 (/srv/gateway/target/release/gateway-bench)
+	    55d0c1a2b400 gateway::model::dense_int8+0x88 (/srv/gateway/target/release/gateway-bench)
+	    55d0c1a2b500 gateway::gateway::worker+0x1f0 (/srv/gateway/target/release/gateway-bench)
+	    7f3a2c094ac3 start_thread+0x2f3 (/usr/lib/x86_64-linux-gnu/libc.so.6)
+
+gateway worker 31204/31207 [003] 81234.121212:   10101010 cpu-clock:pppH:
+	ffffffff9a8f1c2e _raw_spin_unlock_irqrestore+0xe ([kernel.kallsyms])
+	ffffffff9a1e4d30 futex_wake+0x150 ([kernel.kallsyms])
+	    7f3a2c0912e5 __lll_lock_wake+0x15 (/usr/lib/x86_64-linux-gnu/libc.so.6)
+	    55d0c1a2c010 std::sync::Mutex<T>::lock(std::sync::Mutex<T> const&)+0x40 (/srv/gateway/target/release/gateway-bench)
+	    55d0c1a2c200 <gateway::cache::Shared>::respond+0x61 (/srv/gateway/target/release/gateway-bench)
+	    55d0c1a2b500 gateway::gateway::worker+0x2a0 (/srv/gateway/target/release/gateway-bench)
+
+gateway worker 31204/31207 [003] 81234.131313:   10101010 cpu-clock:pppH:
+	    7f3a2c0aa1b2 [unknown] (/usr/lib/x86_64-linux-gnu/libc.so.6)
+	    55d0c1a2c200 <gateway::cache::Shared>::respond+0x61 (/srv/gateway/target/release/gateway-bench)
+	    55d0c1a2b500 gateway::gateway::worker+0x2a0 (/srv/gateway/target/release/gateway-bench)
+
+swapper     0 [000] 81234.141414:   10101010 cpu-clock:pppH:
+	ffffffff9a8f2b4d default_idle+0x1d ([kernel.kallsyms])
+	ffffffff9a0e1c55 do_idle+0x1f5 ([kernel.kallsyms])
+
+gateway-bench 31204 [001] 81234.151515:   10101010 cpu-clock:pppH:
+	                0 [unknown] ([unknown])
+	    55d0c1a2b500 gateway::gateway::worker+0x1f0 (/srv/gateway/target/release/gateway-bench)
+
+gateway-bench 31204 [001] 81234.161616:    2000000 page-faults:
+	    55d0c1a2b500 gateway::gateway::worker+0x1f0 (/srv/gateway/target/release/gateway-bench)

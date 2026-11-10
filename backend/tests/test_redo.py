@@ -163,3 +163,80 @@ def test_redo_tells_what_could_not_be_restored(setup, dummy_app):
   with dummy_app.test_request_context():
     response = redo.redo_response(batch, [make_output()], {"user_name": "arthurf"})
   assert response.get_json()["warning"] == "Build outputs (e.g. binaries) can't be restored this way."
+
+
+def test_safe_job_options_of_kubernetes_runs(monkeypatch):
+  options = {"type": "kubernetes", "concurrency": 10, "runs_per_pod": 4, "namespace": "kube-system", "run_as": {"uid": 0}}
+  # Kubernetes runs only when the server starts `qa batch` on Kubernetes: else they'd use the server's credentials
+  monkeypatch.delenv("QABOARD_TUNING_RUNNER", raising=False)
+  assert redo.safe_job_options(options) == {"concurrency": 10, "runs_per_pod": 4}
+  monkeypatch.setenv("QABOARD_TUNING_RUNNER", "kubernetes")
+  assert redo.safe_job_options(options) == {"type": "kubernetes", "concurrency": 10, "runs_per_pod": 4}
+
+
+def test_redo_on_kubernetes(setup, dummy_app, monkeypatch):
+  """With QABOARD_TUNING_RUNNER=kubernetes, `qa batch` runs in a pod as the user, and we don't wait for it"""
+  import backend.runner_jobs as runner_jobs
+  batch, calls = setup()
+  batch.ci_commit.project_id = "project"
+  batch.ci_commit.project = SimpleNamespace(data={"qatools_config": {"runners": {"kubernetes": {"namespace": "algo-qa"}}}})
+  monkeypatch.setenv("QABOARD_TUNING_RUNNER", "kubernetes")
+  # it doesn't go through the LSF bridge
+  monkeypatch.setenv("QA_RUNNERS_LSF_BRIDGE", "false {user} {command}")
+  submitted = []
+  user_info = {"user_name": "arthurf", "login_type": "LDAP"}
+  def submit_driver(script_path, log_dir, user_info, ci_commit, command_id, on_prepared=None):
+    record = {"kubernetes_job": f"qa-{command_id[:8]}-driver", "namespace": "algo-qa"}
+    on_prepared(record)
+    # it's recorded before it's submitted
+    assert batch.data["submissions"][command_id]["kubernetes_job"] == record["kubernetes_job"]
+    submitted.append((Path(script_path).name, log_dir, user_info, ci_commit, command_id))
+    return record
+  monkeypatch.setattr(runner_jobs, "submit_driver", submit_driver)
+  with dummy_app.test_request_context():
+    response = redo.redo_response(batch, [make_output()], user_info)
+  submission = response.get_json()["submission"]
+  assert submission["status"] == "submitted" and submission["runner"] == "kubernetes"
+  assert submission["kubernetes_job"] == f"qa-{submission['id'][:8]}-driver" and submission["namespace"] == "algo-qa"
+  [(script, log_dir, user, ci_commit, command_id)] = submitted
+  assert (script, str(log_dir), user, ci_commit, command_id) == ("redo.sh", submission["log_dir"], user_info, batch.ci_commit, submission["id"])
+  assert batch.data["submissions"][submission["id"]] == submission
+  assert not calls.exists()
+
+  # Users see why it could not start
+  def refused(*args, **kwargs):
+    raise runner_jobs.NotAllowed("QA-Board may not start or stop runs in the Kubernetes namespace 'x'")
+  monkeypatch.setattr(runner_jobs, "submit_driver", refused)
+  with dummy_app.test_request_context():
+    response, status = redo.redo_response(batch, [make_output()], user_info)
+  assert status == 500
+  assert "namespace 'x'" in response.get_json()["error"]
+
+
+SLOW_QA = """#!/bin/bash
+echo "db=${{QABOARD_DB_PASSWORD:-none}} broker=${{CELERY_BROKER_URL:-none}} $*" >> "{calls}"
+sleep 600
+"""
+
+def test_redo_on_the_server_does_not_wait(setup, dummy_app, monkeypatch):
+  """Without the LSF bridge, `qa batch` runs on the server, detached: requests don't wait, harakiri doesn't kill it"""
+  from backend.local_jobs import refresh_status, stop_local_submissions
+  monkeypatch.setenv("QABOARD_LOCAL_START_WAIT", "1")
+  monkeypatch.setenv("QABOARD_DB_PASSWORD", "db-secret")
+  monkeypatch.setenv("CELERY_BROKER_URL", "pyamqp://qaboard:secret@rabbitmq//")
+  batch, calls = setup()
+  qa = Path(batch.ci_commit.artifacts_dir).parent / "bin" / "qa"
+  qa.write_text(SLOW_QA.format(calls=calls))
+  qa.chmod(qa.stat().st_mode | stat.S_IEXEC)
+  # a run first done with Celery: `qa batch` sends it to the workers again, it needs the broker
+  outputs = [make_output(data={"job_options": {"type": "celery"}})]
+  with dummy_app.test_request_context():
+    response = redo.redo_response(batch, outputs, {"user_name": "arthurf"})
+  submission = response.get_json()["submission"]
+  assert submission["status"] == "submitted" and submission["runner"] == "local", redo.log_tail(submission)
+  assert isinstance(submission["pid"], int) and isinstance(submission["pgid"], int) and submission["host"]
+  [call] = calls.read_text().splitlines()
+  assert call.startswith("db=none broker=pyamqp://qaboard:secret@rabbitmq// --label my label batch")
+  assert refresh_status(submission) == submission
+  assert stop_local_submissions(batch.data)["stopped"] == [submission["id"]]
+  assert refresh_status(submission)["status"] == "failed"

@@ -8,7 +8,7 @@ description: Send each run of qa batch to an LSF cluster as a job, choose its qu
 With the `lsf` runner, `qa batch` sends each run to your [IBM Spectrum LSF](https://www.ibm.com/docs/en/spectrum-lsf)
 cluster as a job (`bsub`), and waits for them to end. The cluster's nodes must mount your inputs and the results
 storage at the same paths as the machine where you start `qa batch`. For other runners, see
-[runners](/docs/using-the-qa-cli#batch-runners).
+[Choose where runs execute](/docs/runners).
 
 ## Send your batches to LSF {#lsf-project-options}
 1. Make `lsf` the default runner in *qaboard.yaml*, and give it your queue:
@@ -22,7 +22,9 @@ storage at the same paths as the machine where you start `qa batch`. For other r
 
    `<your-queue>` is one of your cluster's queues (`bqueues` lists them). Without `queue`, jobs go to the cluster's
    default queue.
-2. Run a batch. `qa` sends its runs as LSF jobs, then waits for them to end:
+2. Check it: `qa doctor --runner lsf --test-job` checks `bsub`, `bwait` and the queue, then sends a job that writes
+   in the results storage. See [qa doctor](/docs/doctor).
+3. Run a batch. `qa` sends its runs as LSF jobs, then waits for them to end:
 
    ```bash
    qa --share batch ci
@@ -158,8 +160,32 @@ command that runs `{bsub_command}` there, in an environment variable:
 
 ```bash
 export QA_RUNNERS_LSF_BRIDGE='ssh <lsf-host> {bsub_command}'
-export QA_RUNNERS_LSF_BRIDGE='ssh <lsf-host> su {user} {bsub_command}'   # as the user who started the runs
 ```
+
+`qa` replaces `{bsub_command}` with the whole LSF command line (`bsub`, `bwait` or `bkill`, with its options, and
+for `bsub` the job's script as a here-document), and `{user}` with the user who started the runs. To send the jobs
+as that user, e.g. from the QA-Board server, the bridge host needs a command that runs the rest of its arguments as
+`{user}`. A wrapper script is the most robust, since `sudo` alone drops the LSF environment and doesn't accept the
+`VAR=value` prefixes of the command line:
+
+```bash
+export QA_RUNNERS_LSF_BRIDGE="ssh <account>@<lsf-host> 'qaboard-as-user {user} {bsub_command}'"
+```
+
+```bash title="/usr/local/bin/qaboard-as-user, on the bridge host"
+#!/bin/bash
+# Runs "$@" as the user given first, in a login shell so that LSF's environment is loaded.
+# Standard input (the job's script) passes through. Needs a sudo rule for <account>, e.g.
+#   <account> ALL=(ALL,!root) NOPASSWD: /bin/bash
+set -eu
+user="$1"; shift
+exec sudo -n -u "$user" -- /bin/bash -lc 'exec env "$@"' bash "$@"
+```
+
+Adapt it to your site: some sites provide their own wrapper for this. Check the template by hand from where `qa`
+runs, with `bjobs -w` in place of `{bsub_command}`, then run `qa doctor --runner lsf --test-job`. With a template that
+puts `{bsub_command}` in single quotes, like the one above, commands that contain a single quote break on the bridge
+host.
 
 `<lsf-host>` is a host that can send LSF jobs. The jobs run in the folder where you started `qa batch`: `qa` gives it
 to LSF, so the bridge doesn't need to `cd` there.

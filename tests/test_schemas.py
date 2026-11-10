@@ -1,5 +1,5 @@
 """
-The JSON schemas of qaboard.yaml, the batch and metrics files (qaboard/schemas/) are valid, and accept the repository's files.
+The JSON schemas of qaboard.yaml, the batch, metrics and benchmarks files (qaboard/schemas/) are valid, and accept the repository's files.
 The web app checks the batch files with them too (webapp/src/components/tuning/batches_file.js).
 """
 import re
@@ -36,7 +36,7 @@ class TestSchemas(unittest.TestCase):
 
   def test_schemas_are_valid(self):
     from jsonschema import Draft202012Validator
-    self.assertEqual(set(self.schemas), {'batches.schema.json', 'qaboard.schema.json', 'metrics.schema.json', 'metrics_definitions.schema.json'})
+    self.assertEqual(set(self.schemas), {'batches.schema.json', 'qaboard.schema.json', 'metrics.schema.json', 'metrics_definitions.schema.json', 'benchmarks.schema.json'})
     for name, schema in self.schemas.items():
       with self.subTest(name):
         Draft202012Validator.check_schema(schema)
@@ -84,6 +84,18 @@ class TestSchemas(unittest.TestCase):
     for value in [{'available_metric': {}}, {'available_metrics': {'loss': {'lable': 'Loss'}}}, {'main_metrics': 'loss'}]:
       with self.subTest(value):
         self.assertNotEqual(self.errors('metrics.schema.json', value), [])
+
+  def test_benchmarks(self):
+    # what qaboard.benchmarks.write_benchmarks writes, and the benchmark viewer reads
+    paths = sorted((root_dir / 'tests/fixtures/benchmarks').glob('*.benchmarks.json'))
+    self.assertTrue(paths)
+    for path in paths:
+      with self.subTest(path.name):
+        self.assertEqual(self.errors('benchmarks.schema.json', json.loads(path.read_text())), [])
+    for value in [{'benchmarks': []}, {'qaboard_benchmarks': 1, 'benchmarks': [{'name': 'a'}]},
+                  {'qaboard_benchmarks': 1, 'benchmarks': [{'name': 'a', 'value': 1, 'stats': {'stdev': 1}}]}]:
+      with self.subTest(value):
+        self.assertNotEqual(self.errors('benchmarks.schema.json', value), [])
 
   def test_batches(self):
     valid = {
@@ -135,6 +147,17 @@ class TestSchemas(unittest.TestCase):
     for value in [{'projet': {}}, {'project': {'entrypont': 'a.py'}}, {'runners': {'default': 'slurm'}}, {'outputs': {'action_on_existing': 'redo'}}]:
       with self.subTest(value):
         self.assertNotEqual(self.errors('qaboard.schema.json', value), [])
+
+  def test_kubernetes_runner(self):
+    for kubernetes in ({'image_pull_secrets': 'creds', 'timeout': 60, 'pod_timeout': 3600, 'api_retry_seconds': 15},
+                       {'resources': {'cpu': 4, 'memory': '16Gi', 'nvidia.com/gpu': 1}},
+                       {'resources': {'requests': {'cpu': 4}, 'limits': {'memory': '32Gi'}}}, {'resources': {'limits': {'nvidia.com/gpu': 1}}}):
+      with self.subTest(kubernetes):
+        self.assertEqual(self.errors('qaboard.schema.json', {'runners': {'kubernetes': kubernetes}}), [])
+    # an empty key, or both forms of resources
+    for kubernetes in (None, {'resources': {'cpu': 4, 'limits': {'memory': '1Gi'}}}, {'resources': {'requests': 4}}, {'concurrency': '4'}):
+      with self.subTest(kubernetes):
+        self.assertNotEqual(self.errors('qaboard.schema.json', {'runners': {'kubernetes': kubernetes}}), [])
 
 
 if __name__ == '__main__':
