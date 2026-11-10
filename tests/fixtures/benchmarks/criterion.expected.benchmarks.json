@@ -1,0 +1,54 @@
+{
+  "$schema": "https://samsung.github.io/qaboard/benchmarks.schema.json",
+  "qaboard_benchmarks": 1,
+  "source": "criterion",
+  "context": {
+    "harness": "Criterion"
+  },
+  "benchmarks": [
+    {
+      "name": "fib/iterative/20",
+      "group": "fib",
+      "value": 1.294012e-08,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 1.294012e-08,
+        "median": 1.2905440000000002e-08,
+        "stddev": 2.1102000000000004e-10,
+        "mad": 5.0120000000000004e-11
+      },
+      "throughput": {
+        "value": 1545580721.044318,
+        "unit": "elements/s"
+      }
+    },
+    {
+      "name": "fib/recursive/20",
+      "group": "fib",
+      "value": 2.471502236e-05,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 2.471502236e-05,
+        "median": 2.465087108e-05,
+        "stddev": 4.6110392000000005e-07,
+        "mad": 1.4821043e-07,
+        "iterations": 3045,
+        "samples": 5
+      }
+    },
+    {
+      "name": "plan_route",
+      "value": 0.00017221370000000002,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 0.00017221370000000002,
+        "median": 0.00017203110000000001,
+        "stddev": 1.2107000000000001e-06,
+        "mad": 5.1231e-07
+      }
+    }
+  ]
+}
