@@ -102,13 +102,15 @@ it prints the comment, and says why it couldn't look the pull request up.
   the job's summary.
 - **GitLab:** in GitLab CI, `qa gate` uses `CI_API_V4_URL` and `CI_PROJECT_ID`. Elsewhere it uses `GITLAB_HOST`
   (default `https://gitlab.com`) and the project's name from *qaboard.yaml*. In merge request pipelines the comment
-  goes to that merge request (`CI_MERGE_REQUEST_IID`), otherwise to the open merge requests GitLab lists for the
-  commit, three at most.
-- `qa gate` finds its comment by a hidden marker. When the token can't edit the comment posted before, e.g. another
-  token wrote it, `qa gate` posts a new one: keep the same token.
+  goes to that merge request (`CI_MERGE_REQUEST_IID`), in the project it targets when the pipeline runs in a fork;
+  otherwise to the open merge requests GitLab lists for the commit, three at most.
+- `qa gate` finds its comment by a hidden marker at its start: comments that quote it are left alone. When the token
+  can't edit the comment posted before, e.g. another token wrote it, `qa gate` posts a new one: keep the same token.
+- Names of tests, metrics, labels and batches are shown as text: Markdown, HTML and `@mentions` in them do nothing.
 - Very long comments are cut section by section, so that every label keeps its table.
 - Requests to GitHub and GitLab are tried once more when they answer 429 (too many requests), a rate limit, or a
-  server error.
+  server error. Not when the wait they ask for is over a minute, and a request that creates a comment isn't sent
+  again after a server error: it could post it twice.
 
 </details>
 

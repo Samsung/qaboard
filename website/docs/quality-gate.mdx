@@ -194,8 +194,10 @@ The other keys of the `gate:` section:
 <summary>Which numbers the gate compares</summary>
 
 The gate uses the numbers of the commit page, so that what it says is what reviewers see:
-- **Medians**, as in the **Summary**: over the finished runs checked, including failed runs that returned the metric
-  (tuning iterations are left out), and over the reference's runs on the same inputs.
+- **Medians**, as in the **Summary**: over the commit's finished runs, including failed runs that returned the metric
+  (its tuning iterations are left out), and over the reference's runs on the same inputs.
+- **Means, minimums and maximums, and rules with `batch`**: over the tests that have both a run and a reference run,
+  so a scoped median can differ from the Summary's.
 - **Each test**, as in the **Metrics Diff**: each run is compared with the reference run that matches it best (the
   same input, then the closest configuration and tuning parameters, then the same platform).
 - The table shows each check's values, and how much worse or better they are.
@@ -207,7 +209,7 @@ The gate uses the numbers of the commit page, so that what it says is what revie
 | Code | Verdict | When |
 |---|---|---|
 | `0` | pass | Every rule passes. |
-| `1` | fail | A rule fails, or the `gate:` section has an error. |
+| `1` | fail | A rule fails, the `gate:` section has an error, or the project's rules need a newer `qa`. |
 | `2` | undecidable | The gate can't decide yet: see [below](#undecidable). |
 
 With `--wait`, `qa gate` checks again every `--interval` seconds (30) while it's undecidable, until `--timeout`
@@ -228,6 +230,7 @@ and the comment say why:
 | some runs have no manifest.outputs.json to compare | `require_bit_accuracy` compares the runs' *manifest.outputs.json*: some runs, new or reference, don't have one. Run them again. |
 | QA-Board doesn't have the reference's qaboard.yaml to compare the rules with | The project [fails commits that loosen their rules](#project-rules), and the reference's results came without a *qaboard.yaml*, or with a `gate:` section `qa gate` can't read: run the reference's CI again. |
 | could not reach QA-Board, or a sign-in error | Check `QABOARD_URL` or `--server`, and the CI's token (see [CI integration](/docs/ci-integration#tokens)). |
+| QA-Board's server doesn't have the comparisons `qa gate` needs | The gate needs a server from October 2026: ask your admins to upgrade it. |
 
 ## Report on pull requests {#pull-request-comments}
 <Anchor id="commit-statuses" /><Anchor id="several-jobs" /><Anchor id="dry-run" />

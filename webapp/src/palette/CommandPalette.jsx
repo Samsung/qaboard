@@ -11,7 +11,7 @@ import { DateTime } from "luxon";
 
 import { http } from "../api/http";
 import { matchRoutes } from "../router";
-import { app_paths, route_paths } from "../route_paths";
+import { app_paths, project_routes } from "../route_paths";
 import { useProjects, useSiteConfig, useUser } from "../hooks";
 import { usePrefsStore } from "../stores/prefs";
 import { useIsDark } from "../theme";
@@ -137,7 +137,6 @@ const useDebounced = (value, delay) => {
 };
 
 // The project whose page we're on, if any (the app's own pages are matched first, like in App.jsx)
-const project_routes = Object.values(route_paths).map(path => ({ path }));
 const app_routes = Object.values(app_paths).map(path => ({ path, exact: true }));
 export const current_project = pathname => {
   if (pathname === '/' || matchRoutes(app_routes, pathname)) return null;

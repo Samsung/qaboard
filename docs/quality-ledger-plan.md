@@ -120,6 +120,29 @@ Item 1 of the performance track, cut so that QA-Board still computes nothing acr
 - **A review inbox** (E): batches awaiting a decision, ranked by what moved beyond noise (step 3) and what failed.
 - **An evidence pack** (F) for a read-only MCP server: the gate's comment is its first renderer.
 
+### Small things the November review left open
+Found by the reviews of the gate, the server and the viewers; none blocks the steps above.
+- **Gate, comment**: a job of an older commit that finishes last replaces the newer commit's sections (skip the
+  write when the pull request's head moved on). Two jobs that finish together can still lose a section or post two
+  comments: GitHub and GitLab have no conditional update.
+- **Gate, verdicts**: rules with only `min`/`max` are undecidable without a reference, they don't need one.
+  `on_looser_rules: fail` stays undecidable when the server never got the reference's *qaboard.yaml*. Project
+  settings a `qa` doesn't know fail the gate (exit 1): exit 2 would keep old CI jobs from going red after a server
+  upgrade. `max_regression: 5` means 500%: warn above 1.
+- **Gate, numbers**: unscoped medians are the Summary's (every reference run on the same inputs, the reference's
+  tuning iterations included); scoped rules and means, min, max use paired runs only. Pick one, in `compare.py` and
+  `webapp/src/utils/compare.js` together.
+- **Gate, forges**: GitLab's `PRIVATE-TOKEN` header follows redirects to other hosts (use `Authorization: Bearer`
+  or refuse redirects); GitLab's status for undecidable is `failed`. Neither forge was tried live: mocked in tests.
+- **Project settings**: two owners saving at once, the last wins silently (send `gate_updated.at`, answer 409). The
+  endpoints aren't in `openapi.yaml`. Earlier attempts keep up to 300 metrics each: 50 would do.
+- **Attempts on NFS**: after a stale read `reserve()` can skip a directory `qa batch` reserved; a requeued LSF or
+  Kubernetes job that had started gets a new attempt.
+- **Words**: the web app's selector says "Batch" for what `qa --label` sets, and the compare API's messages say
+  `batch "default"`: the docs say label.
+- **Viewers**: parsing happens on the main thread (a worker for files over ~20 MB); cards narrower than 450 px clip
+  the benchmark table; `qaboard.flamegraphs`' folded reader is stricter than the web app's.
+
 ### Later, or when someone asks
 - Regression alerts on the reference branch (item 4): a metric that stepped against its trailing window.
 - The machine each run ran on (item 5), and bisect (item 6).
