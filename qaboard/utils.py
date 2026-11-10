@@ -419,8 +419,8 @@ def file_info(path, normalize_eof=True, config=None, compute_hashes=True, has_fo
   """Return metadata about a file."""
   path = Path(path)
 
-  # windows always normalizes plaintext EOLs before hashing; other platforms join it with QA_RECORD_EOL_NORMALIZED=1 (RDI-2127)
-  normalize_eol = os.name == 'nt' or os.environ.get('QA_RECORD_EOL_NORMALIZED') == '1'
+  # plaintext EOLs are normalized before hashing on every platform when the project opts in with QA_RECORD_EOL_NORMALIZED=1 (RDI-2127)
+  normalize_eol = os.environ.get('QA_RECORD_EOL_NORMALIZED') == '1'
   if normalize_eol and is_plaintext(path, config=config) and normalize_eof:
     normalized_file = eol_normalized_copy(path)
     try:

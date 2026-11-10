@@ -32,13 +32,13 @@ class TestRedirectStdStreams(unittest.TestCase):
 
 class TestFileInfo(unittest.TestCase):
   def test_windows_line_endings(self):
-    """On Windows, text files are compared with unix line endings, via a temporary file we must delete"""
+    """With the opt-in, text files are hashed with unix line endings on Windows too, via a temporary file we must delete"""
     from qaboard import utils
     on_windows = types.SimpleNamespace(**{**vars(os), 'name': 'nt'})
     with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as tempdir:
       path = Path(tmp) / 'out.txt'
       path.write_bytes(b'a\r\nb\r\n')
-      with mock.patch.object(utils, 'os', on_windows), mock.patch.object(tempfile, 'tempdir', tempdir):
+      with mock.patch.dict(os.environ, {'QA_RECORD_EOL_NORMALIZED': '1'}), mock.patch.object(utils, 'os', on_windows), mock.patch.object(tempfile, 'tempdir', tempdir):
         info = utils.file_info(path)
       self.assertEqual(info['md5'], hashlib.md5(b'a\nb\n').hexdigest())
       self.assertEqual(os.listdir(tempdir), [])
