@@ -107,6 +107,12 @@ to them, recording who, when and which script, and `run.log_artifact(name, file)
 them from the shell ([runs in scripts](/docs/apis#runs-in-scripts)).
 </RoadmapItem>
 
+<RoadmapItem status="shipped" title="Benchmark files">
+Save a pytest-benchmark, Google Benchmark, hyperfine, Criterion, JMH or `go test` file in a run: the web app shows each
+benchmark against the reference's, beyond noise or within it, and `benchmark_metrics` returns them as metrics (see
+[benchmarks](/docs/viewers#benchmarks)).
+</RoadmapItem>
+
 <RoadmapItem status="next" title="A Python SDK that creates runs">
 `start_run(...)` from training loops, notebooks and pytest, without `qa run`: `log()` with a `step` for the values
 logged during training, `log_params()`, `finish()`, with the method names people know from the usual
