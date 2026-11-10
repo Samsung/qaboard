@@ -464,7 +464,7 @@ def check_rule(rule: Rule, data: Dict[str, Any], local_metrics: Dict[str, Any]) 
   worst_regression, worst, cell = regressions[0]
   over = [r for r in regressions if r[0] > rule.limit + EPSILON]
   check.update(
-    new=cell['new'], ref=cell['ref'], change=cell.get('delta_relative'), regression=worst_regression,
+    new=cell.get('new'), ref=cell.get('ref'), change=cell.get('delta_relative'), regression=worst_regression,
     worst={'id': worst.get('id'), 'reference_id': worst.get('reference_id'), 'test': name_of_test(worst, all_tests)},
     tests_compared=len(regressions), over_limit=len(over),
     over_limit_tests=[{'test': name_of_test(t, all_tests), 'regression': r} for r, t, _ in over[:10]],
@@ -738,7 +738,8 @@ def fetch_comparison(api_prefix: str, project: str, commit: str, reference: Opti
   try:
     r = requests.get(url, params=params, headers=headers, verify=verify, timeout=300)
   except requests.RequestException as e:
-    return None, f"could not reach QA-Board at {url}: {e}"
+    # e.g. requests' InvalidHeader quotes the header, with the token
+    return None, redact(f"could not reach QA-Board at {url}: {e}", headers.get('Authorization'))
   if r.status_code == 404:
     return None, f"QA-Board has no results for {commit[:10]} in {project} yet"
   try:
@@ -750,7 +751,7 @@ def fetch_comparison(api_prefix: str, project: str, commit: str, reference: Opti
     hint = auth_error_hint(r, token_source, ci=bool(is_ci), project=project)
     if hint:
       return None, hint.replace('\n', ' ')
-    return None, f"QA-Board answered {r.status_code}: {r.text[:300]}"
+    return None, redact(f"QA-Board answered {r.status_code}: {r.text[:300]}", headers.get('Authorization'))
 
 
 def undecidable_reasons(batch: Dict[str, Any]) -> List[str]:
@@ -774,6 +775,26 @@ def status_description(result: Dict[str, Any]) -> str:
   return f"pass: {checks} checks vs {result['reference'] or 'the reference'}"[:140]
 
 
+def forge_token(forge: str) -> Optional[str]:
+  """The token for GitHub's or GitLab's API. Without the whitespace secrets often end with: requests would refuse
+  the header, and quote it, token included, in its error"""
+  from .site_config import site_config
+  token = os.environ.get('GITHUB_TOKEN') if forge == 'github' else site_config('GITLAB_ACCESS_TOKEN')
+  return str(token).strip() or None if token else None
+
+
+def redact(text: str, *secrets: Any) -> str:
+  """Errors we print can quote what we sent: never the tokens"""
+  for secret in secrets:
+    if not secret:
+      continue
+    for value in {str(secret), str(secret).strip(), *str(secret).split()}:
+      # not the short words of headers' values, like "Bearer"
+      if len(value) >= 8 and value.lower() not in ('bearer', 'private-token'):
+        text = text.replace(value, '***')
+  return text
+
+
 def post_commit_status(forge: str, result: Dict[str, Any], context: str, project_root: str) -> Optional[str]:
   """Posts a commit status that links to the Metrics Diff. Returns an error message, or None."""
   import requests
@@ -786,7 +807,7 @@ def post_commit_status(forge: str, result: Dict[str, Any], context: str, project
   sha = result['commit']
   try:
     if forge == 'github':
-      token, repository = os.environ.get('GITHUB_TOKEN'), os.environ.get('GITHUB_REPOSITORY')
+      token, repository = forge_token('github'), os.environ.get('GITHUB_REPOSITORY')
       if not token or not repository:
         return "--post-status github needs GITHUB_TOKEN and GITHUB_REPOSITORY (set by GitHub Actions)"
       api = os.environ.get('GITHUB_API_URL', 'https://api.github.com').rstrip('/')
@@ -798,7 +819,7 @@ def post_commit_status(forge: str, result: Dict[str, Any], context: str, project
         timeout=60,
       ))
     else:
-      token = site_config('GITLAB_ACCESS_TOKEN')
+      token = forge_token('gitlab')
       if not token:
         return "--post-status gitlab needs a token with the `api` scope in GITLAB_ACCESS_TOKEN"
       api = os.environ.get('CI_API_V4_URL') or f"{site_config('GITLAB_HOST', 'https://gitlab.com').rstrip('/')}/api/v4"
@@ -814,7 +835,7 @@ def post_commit_status(forge: str, result: Dict[str, Any], context: str, project
   except Exception as e:
     response = getattr(e, 'response', None)
     details = f" {response.text[:300]}" if response is not None else ''
-    return f"could not post the commit status to {forge}: {e}{details}"
+    return redact(f"could not post the commit status to {forge}: {e}{details}", forge_token(forge))
   return None
 
 
@@ -844,11 +865,16 @@ def section_end(context: str) -> str:
 
 
 def comment_sections(body: Optional[str], context: str) -> List[Dict[str, str]]:
-  """The sections of a comment we wrote: [{label, verdict, commit, body}]"""
+  """
+  The sections of a comment we wrote: [{label, verdict, commit, body}]. Markers are lines of their own: what we
+  write inside sections can't start a line with `<!--` (see markdown_text). Comments edited in the forges' web
+  pages come back with Windows' line ends.
+  """
   from urllib.parse import unquote
   if not body:
     return []
-  pattern = re.compile(rf"<!-- {re.escape(context)} section (?P<attrs>[^>]*?) -->\n(?P<body>.*?){re.escape(section_end(context))}", re.S)
+  body = body.replace('\r\n', '\n')
+  pattern = re.compile(rf"^<!-- {re.escape(context)} section (?P<attrs>[^>\n]*?) -->\n(?P<body>.*?)^{re.escape(section_end(context))}$", re.S | re.M)
   sections = []
   for match in pattern.finditer(body):
     attrs = dict(part.split('=', 1) for part in match.group('attrs').split() if '=' in part)
@@ -883,11 +909,12 @@ def comment_body(result: Dict[str, Any], context: str, existing: Optional[str] =
   sections: List[Dict[str, Any]] = sorted([*kept, *ours], key=lambda s: (s['label'] != 'default', s['label']))
   verdict = overall_verdict([s['verdict'] for s in sections])
 
+  # the marker comes first: it's how we tell our comment from those that quote it (find_comments)
   head = [comment_marker(context), f"### Quality gate: {verdict}", '']
   if len(sections) > 1:
-    head += [' · '.join(f"**{markdown_cell('CI' if s['label'] == 'default' else s['label'])}**: {s['verdict']}" for s in sections), '']
+    head += [' · '.join(f"**{markdown_text('CI' if s['label'] == 'default' else s['label'])}**: {s['verdict']}" for s in sections), '']
   tail = [*markdown_rules_changes(result), f"<sub>{EXPERIMENTAL_NOTICE}</sub>", '',
-          f"<sub>For commit {sha[:10]}. `qa gate` updates this comment when new results come in.</sub>"]
+          f"<sub>For commit {markdown_text(sha[:10])}. `qa gate` updates this comment when new results come in.</sub>"]
 
   def render(details: bool) -> List[str]:
     return [s['body'] if 'body' in s else '\n'.join(markdown_section(s['batch'], project, details=details)) + '\n' for s in sections]
@@ -917,14 +944,19 @@ RETRY_DELAY = 5.0
 MAX_RETRY_DELAY = 60.0
 
 
+def is_rate_limited(r: Any) -> bool:
+  """The request wasn't done: try again later. GitHub's secondary rate limits answer 403 (or 429) with Retry-After,
+  or with no requests left"""
+  status = getattr(r, 'status_code', None)
+  headers = response_headers(r)
+  return status == 429 or (status == 403 and (headers.get('Retry-After') is not None or headers.get('X-RateLimit-Remaining') == '0'))
+
+
 def should_retry(r: Any) -> bool:
   status = getattr(r, 'status_code', None)
   if not isinstance(status, int):
     return False
-  headers = response_headers(r)
-  # GitHub's secondary rate limits answer 403 (or 429) with Retry-After, or with no requests left
-  rate_limited = status == 403 and (headers.get('Retry-After') is not None or headers.get('X-RateLimit-Remaining') == '0')
-  return status == 429 or status >= 500 or rate_limited
+  return is_rate_limited(r) or status >= 500
 
 
 def response_headers(r: Any) -> Mapping[str, Any]:
@@ -932,18 +964,37 @@ def response_headers(r: Any) -> Mapping[str, Any]:
   return headers if isinstance(headers, Mapping) else {}
 
 
-def retry_delay(r: Any) -> float:
+def retry_delay(r: Any) -> Optional[float]:
+  """How long to wait before trying again, as the forge says. None when it's longer than we wait: a CI job
+  shouldn't sleep for the rate limit's hour, and trying sooner would only be refused again."""
+  headers = response_headers(r)
   try:
-    return max(0.0, min(float(response_headers(r)['Retry-After']), MAX_RETRY_DELAY))
+    delay = float(headers['Retry-After'])
   except (KeyError, TypeError, ValueError):
+    # Retry-After can also be a date: we don't parse those, we wait our usual delay
+    delay = None
+  if delay is None and headers.get('X-RateLimit-Remaining') == '0':
+    try:
+      delay = float(headers['X-RateLimit-Reset']) - time.time()
+    except (KeyError, TypeError, ValueError):
+      delay = None
+  if delay is None:
     return RETRY_DELAY
+  delay = max(0.0, delay)
+  return delay if delay <= MAX_RETRY_DELAY else None
 
 
-def with_retry(send: Callable[[], Any]) -> Any:
-  """Sends a request to GitHub or GitLab, and once again after a rate limit or a server error"""
+def with_retry(send: Callable[[], Any], idempotent: bool = True) -> Any:
+  """
+  Sends a request to GitHub or GitLab, and once more after a rate limit or a server error. Requests that create
+  something (a comment) aren't sent again after a server error: it may have been created anyway.
+  """
   r = send()
-  if should_retry(r):
-    time.sleep(retry_delay(r))
+  if should_retry(r) and (idempotent or is_rate_limited(r)):
+    delay = retry_delay(r)
+    if delay is None:
+      return r
+    time.sleep(delay)
     r = send()
   return r
 
@@ -956,7 +1007,7 @@ class Forge:
     self.kind = 'pull request' if name == 'github' else 'merge request'
 
   def request(self, method: str, url: str, **kwargs) -> Any:
-    return with_retry(lambda: self.session.request(method, url, timeout=60, **kwargs))
+    return with_retry(lambda: self.session.request(method, url, timeout=60, **kwargs), idempotent=method != 'POST')
 
   def pull_requests(self, sha: str) -> List[int]:
     if self.name == 'github':
@@ -1000,19 +1051,21 @@ def make_forge(forge: str, project_root: str) -> Tuple[Optional[Forge], Optional
   from .site_config import site_config
   session = requests.Session()
   if forge == 'github':
-    token, repository = os.environ.get('GITHUB_TOKEN'), os.environ.get('GITHUB_REPOSITORY')
+    token, repository = forge_token('github'), os.environ.get('GITHUB_REPOSITORY')
     if not token or not repository:
       return None, "--post-comment github needs GITHUB_TOKEN and GITHUB_REPOSITORY (set by GitHub Actions)"
     # GitHub Enterprise Server: GitHub Actions sets its API's URL
     api = os.environ.get('GITHUB_API_URL', 'https://api.github.com').rstrip('/')
     session.headers.update({'Authorization': f'Bearer {token}', 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'})
     return Forge('github', session, api, repository), None
-  token = site_config('GITLAB_ACCESS_TOKEN')
+  token = forge_token('gitlab')
   if not token:
     return None, "--post-comment gitlab needs a token with the `api` scope in GITLAB_ACCESS_TOKEN"
   # self-hosted GitLab: its CI sets the API's URL, elsewhere GITLAB_HOST
   api = os.environ.get('CI_API_V4_URL') or f"{site_config('GITLAB_HOST', 'https://gitlab.com').rstrip('/')}/api/v4"
-  project_id = os.environ.get('CI_PROJECT_ID') or quote(project_root, safe='')
+  # A merge request's number is its target project's: a merge request from a fork can run its pipeline in the fork
+  merge_request_project = os.environ.get('CI_MERGE_REQUEST_PROJECT_ID') if os.environ.get('CI_MERGE_REQUEST_IID') else None
+  project_id = merge_request_project or os.environ.get('CI_PROJECT_ID') or quote(project_root, safe='')
   session.headers.update({'PRIVATE-TOKEN': token})
   return Forge('gitlab', session, api, project_id), None
 
@@ -1057,6 +1110,10 @@ def gitlab_merge_requests(forge: Forge, sha: str) -> List[int]:
   return [mr['iid'] for mr in r.json() if mr.get('state') == 'opened'][:MAX_PULL_REQUESTS]
 
 
+def is_our_comment(body: Any, marker: str) -> bool:
+  return isinstance(body, str) and body.lstrip().startswith(marker)
+
+
 def find_comments(forge: Forge, url: str, marker: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
   """The comments with our marker among those `url` lists, page by page: by the Link header's next page when there is one"""
   found: List[Dict[str, Any]] = []
@@ -1067,8 +1124,9 @@ def find_comments(forge: Forge, url: str, marker: str, params: Optional[Dict[str
     r = forge.request('GET', next_url, params=next_params)
     r.raise_for_status()
     comments = r.json()
-    # GitLab's notes include those it writes itself ("added 1 commit")
-    found += [c for c in comments if isinstance(c, dict) and not c.get('system') and marker in (c.get('body') or '')]
+    # GitLab's notes include those it writes itself ("added 1 commit"). Ours start with the marker: someone who
+    # quotes it, or pastes it in a longer comment, keeps their comment (a maintainer's token could edit it)
+    found += [c for c in comments if isinstance(c, dict) and not c.get('system') and is_our_comment(c.get('body'), marker)]
     links = getattr(r, 'links', None)
     link = links.get('next', {}).get('url') if isinstance(links, dict) else None
     if link:
@@ -1104,7 +1162,8 @@ def post_comment(forge: str, result: Dict[str, Any], context: str, project_root:
       for comment in client.comments(number, marker):
         # Another job may have written its section since we listed the comments: what we keep is what's there now
         fresh = client.read(number, comment)
-        if fresh is None:
+        # gone, or edited into someone's own comment
+        if fresh is None or not is_our_comment(fresh.get('body'), marker):
           continue
         body = comment_body(result, context, fresh.get('body'))
         if dryrun:
@@ -1132,7 +1191,7 @@ def post_comment(forge: str, result: Dict[str, Any], context: str, project_root:
     hint = ''
     if response is not None and response.status_code in (401, 403):
       hint = " The workflow needs `pull-requests: write`; pull requests from forks only get a read-only token." if forge == 'github' else " The token needs the `api` scope, and the Reporter role or more."
-    return commented, f"could not comment on {forge}: {e}{details}{hint}"
+    return commented, redact(f"could not comment on {forge}: {e}{details}{hint}", forge_token(forge))
   if not commented:
     message = f"no open {client.kind} has the commit {sha[:10]}: nothing to comment"
     if dryrun:
@@ -1281,22 +1340,58 @@ def render_text(result: Dict[str, Any]) -> str:
   return '\n'.join(lines)
 
 
-def markdown_cell(text: str) -> str:
-  return text.replace('|', '\\|').replace('\n', ' ')
+# Our texts put commands in code spans (`qa batch perf`): kept, inert. Elsewhere, names come from users (tests,
+# metrics, labels, batches) or the server (messages): no Markdown or HTML of theirs may render.
+CODE_SPAN = re.compile(r'`[^`]+`')
+# Outside code spans, what could render as something else than text: HTML (comments that hide what follows, tags),
+# entities, emphasis, links and images, the cells' separator, the backslash that would escape ours
+MARKDOWN_SPECIAL = re.compile(r'[\\`*~|&<>]|\]\(|\]\[|!\[|(?<![0-9A-Za-z])_|_(?![0-9A-Za-z])')
+HTML_ENTITIES = {'&': '&amp;', '<': '&lt;', '>': '&gt;'}
+
+
+def escape_markdown(text: str) -> str:
+  def escape(match: Any) -> str:
+    special = match.group(0)
+    if special in HTML_ENTITIES:
+      return HTML_ENTITIES[special]
+    # `](`: escaping the second character is enough to keep it from being a link
+    return f"{special[0]}\\{special[1]}" if len(special) == 2 else f"\\{special}"
+  # `@name` would notify them: a zero-width space after `@` keeps it from being a mention (an entity for `@`
+  # wouldn't, mentions are found in the rendered text)
+  return MARKDOWN_SPECIAL.sub(escape, text).replace('@', '@&#8203;')
+
+
+def markdown_text(text: Any) -> str:
+  """
+  Text in one line of Markdown, as it is: whatever a test, metric, label name or a server's message has, it can't
+  break a table, open an HTML comment that hides what follows, forge our sections' markers, link elsewhere, or
+  notify people. Our texts' code spans (`qa batch perf`) stay code: nothing renders in them.
+  """
+  text = re.sub(r'[\r\n]+', ' ', str(text))
+  parts, start = [], 0
+  for match in CODE_SPAN.finditer(text):
+    parts.append(escape_markdown(text[start:match.start()]))
+    # in tables, `|` would still end the cell
+    parts.append(match.group(0).replace('|', '\\|'))
+    start = match.end()
+  parts.append(escape_markdown(text[start:]))
+  return ''.join(parts)
 
 
 def markdown_section(batch: Dict[str, Any], project: str, details: bool = True) -> List[str]:
   """The Markdown of one label's results: its title, the table, then what reviewers should know. `details`: the
   lists of tests, which a long comment leaves out first"""
   title = batch_title(batch, project)
-  lines = [f"**{markdown_cell(title)}**" + (f" · [Metrics Diff]({batch['url']})" if batch.get('url') else ''), '']
-  lines += [f"- {markdown_cell(message)}" for message in batch.get('messages') or []]
+  lines = [f"**{markdown_text(title)}**" + (f" · [Metrics Diff]({batch['url']})" if batch.get('url') else ''), '']
+  lines += [f"- {markdown_text(message)}" for message in batch.get('messages') or []]
+  if batch.get('messages'):
+    lines.append('')
   rows = table_rows(batch)
   if rows:
     lines.append('| ' + ' | '.join(HEADER) + ' |')
     lines.append('|' + '---|' * len(HEADER))
     for row in rows:
-      lines.append('| ' + ' | '.join(markdown_cell(cell) for cell in row) + ' |')
+      lines.append('| ' + ' | '.join(markdown_text(cell) for cell in row) + ' |')
   lines.append('')
   tests = []
   for check in batch['checks']:
@@ -1305,10 +1400,10 @@ def markdown_section(batch: Dict[str, Any], project: str, details: bool = True) 
     for test in check.get('differing_tests') or []:
       tests.append(f"{test['test']}: {', '.join(test['files'] or [])}")
   if tests and details:
-    lines += [*[f"- {markdown_cell(line)}" for line in tests], '']
+    lines += [*[f"- {markdown_text(line)}" for line in tests], '']
   reruns = describe_reruns(batch.get('reruns'))
   if reruns:
-    lines += [f"🔁 {markdown_cell(reruns[0])}", *([f"- {markdown_cell(line)}" for line in reruns[1:]] if details else []), '']
+    lines += [f"🔁 {markdown_text(reruns[0])}", *([f"- {markdown_text(line)}" for line in reruns[1:]] if details else []), '']
   return lines
 
 
@@ -1316,13 +1411,13 @@ def markdown_rules_changes(result: Dict[str, Any]) -> List[str]:
   changes = describe_rules_changes(result.get('rules_changes') or [])
   if not changes:
     return []
-  return [f"⚠️ **{markdown_cell(changes[0])}**", *[f"- {markdown_cell(line)}" for line in changes[1:]], '']
+  return [f"⚠️ **{markdown_text(changes[0])}**", *[f"- {markdown_text(line)}" for line in changes[1:]], '']
 
 
 def render_markdown(result: Dict[str, Any]) -> str:
   lines = [f"### Quality gate: {result['verdict']}", '']
   for error in result.get('errors') or []:
-    lines.append(f"- {markdown_cell(error)}")
+    lines.append(f"- {markdown_text(error)}")
   for batch in result['batches']:
     lines += markdown_section(batch, result['project'])
   lines += markdown_rules_changes(result)
