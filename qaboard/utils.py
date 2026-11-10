@@ -363,10 +363,7 @@ def copy(src, destination):
 
 
 
-# .hex is deliberately excluded from plaintext, since SIRC hex files contain CRLF, and every stored reference manifest records their raw hash.
-# Normalizing hex breaks cross-platform bit-accuracy.
-# Projects that want EOL-insensitive hex should opt in via bit_accuracy.plaintext.
-default_plaintext = set(['.txt', '.cde', '.iir', '.dvs'])
+default_plaintext = set(['.txt', '.cde', '.hex', '.iir', '.dvs'])
 def is_plaintext(path, config=None):
   if not config:
     config = {}
@@ -423,8 +420,14 @@ def file_info(path, normalize_eof=True, config=None, compute_hashes=True, has_fo
   path = Path(path)
 
   # For bit-accuracy checks to work on text files between UNIX/windows,
-  # we need to convert end-of-lines on Windows
-  if os.name == 'nt' and is_plaintext(path, config=config) and normalize_eof:
+  # we need to convert end-of-lines before hashing. Windows always has
+  # (its historical behavior); the other platforms join it when the project
+  # opts in with QA_RECORD_EOL_NORMALIZED=1, so that every platform records
+  # the same normalized hashes for plaintext files whose content contains
+  # CRLF (RDI-2127: e.g. SIRC .hex files have CRLF even when generated on
+  # Linux, and raw-Linux vs normalized-Windows manifests never match).
+  eol_recording_normalized = os.environ.get('QA_RECORD_EOL_NORMALIZED') == '1'
+  if (eol_recording_normalized or os.name == 'nt') and is_plaintext(path, config=config) and normalize_eof:
     normalized_file = eol_normalized_copy(path)
     try:
       return file_info(normalized_file, normalize_eof=False, has_footer=has_footer)

@@ -2,12 +2,14 @@
 Regression tests for cross-platform bit-accuracy hashing (RDI-2127).
 
 `qaboard.utils.file_info` records:
-- raw md5/st_size for `.hex` files on EVERY platform: their CRLF is part of the
-  data format (SIRC hex files contain CRLF even when generated on Linux), and
-  every stored reference manifest (committed TVs, CI outputs) has raw hashes.
-  Normalizing hex made the Windows delivery legs fail against Linux references.
-- EOL-normalized md5/st_size for true text files (.txt...) on Windows only,
-  so they match the raw LF hashes the Linux references record.
+- by default, EOL-normalized md5/st_size for plaintext files on Windows only,
+  and raw md5/st_size on the other platforms. A plaintext file whose content
+  contains CRLF (SIRC .hex files have CRLF even when generated on Linux) thus
+  records different hashes on Linux and Windows — the original RDI-2127 bug
+  behind the delivery #5457 mismatches.
+- with QA_RECORD_EOL_NORMALIZED=1, every platform records the normalized form,
+  so all manifests share one convention and strict comparison passes (the
+  decided migration, PLAN_MIGRATE_CRLF). Comparison itself stays strict.
 
 Note: we never patch the global `os.name` — Python 3.14's pathlib picks the
 path flavour from it, which breaks tempfile paths. The "windows" simulations
@@ -47,61 +49,28 @@ class FakeLinuxOs:
     return getattr(os, item)
 
 
-class TestHexFilesAreAlwaysRaw(unittest.TestCase):
-  """`.hex` is data, not text: its hash must never depend on the platform (RDI-2127)."""
-
-  def test_crlf_hex_records_raw_hash(self):
-    with tempfile.TemporaryDirectory() as tmp:
-      path = Path(tmp) / 'noise.hex'
-      path.write_bytes(CRLF_CONTENT)
-      info = file_info(path)
-      self.assertEqual(info['md5'], hashlib.md5(CRLF_CONTENT).hexdigest())
-      self.assertEqual(info['st_size'], len(CRLF_CONTENT))
-
-  def test_crlf_hex_identical_on_windows_and_linux(self):
-    # A CRLF hex file must record the same md5/st_size on Windows and Linux,
-    # and both must be the raw bytes' hash — this is what makes the Windows
-    # delivery legs bit-accurate against the Linux-committed reference manifests.
-    with tempfile.TemporaryDirectory() as tmp:
-      path = Path(tmp) / 'noise.hex'
-      path.write_bytes(CRLF_CONTENT)
-      with mock.patch.object(qaboard_utils, 'os', FakeWindowsOs()):
-        windows_info = file_info(path)
-      with mock.patch.object(qaboard_utils, 'os', FakeLinuxOs()):
-        linux_info = file_info(path)
-      self.assertEqual(windows_info, linux_info)
-      self.assertEqual(windows_info['md5'], hashlib.md5(CRLF_CONTENT).hexdigest())
-
-  def test_crlf_hex_matches_a_raw_linux_reference_manifest(self):
-    # Simulates the delivery comparison: a reference manifest recorded on Linux
-    # (raw md5 of the CRLF bytes) versus a fresh manifest computed on Windows.
-    with tempfile.TemporaryDirectory() as tmp:
-      reference = Path(tmp) / 'reference.hex'
-      reference.write_bytes(CRLF_CONTENT)
-      stored = {'md5': hashlib.md5(CRLF_CONTENT).hexdigest(), 'st_size': len(CRLF_CONTENT)}
-      with mock.patch.object(qaboard_utils, 'os', FakeWindowsOs()):
-        fresh = file_info(reference)
-      self.assertEqual(fresh['md5'], stored['md5'])
-      self.assertEqual(fresh['st_size'], stored['st_size'])
+def no_opt_in_env():
+  """The test environment without the opt-in, whatever the caller's shell had set"""
+  environ = {k: v for k, v in os.environ.items() if k != 'QA_RECORD_EOL_NORMALIZED'}
+  return mock.patch.dict(os.environ, environ, clear=True)
 
 
-class TestTextFilesNormalizeOnWindowsOnly(unittest.TestCase):
-  """True text files: Windows normalizes EOLs so its manifests match the raw
-  LF hashes Linux records; Linux records raw bytes."""
+class TestDefaultRecordingConvention(unittest.TestCase):
+  """Without QA_RECORD_EOL_NORMALIZED, only Windows normalizes EOLs (its historical
+  behavior): a CRLF-content plaintext file records different hashes on Linux and
+  Windows — the original RDI-2127 bug."""
 
   def test_crlf_txt_normalizes_on_windows(self):
-    with tempfile.TemporaryDirectory() as tmp:
+    with no_opt_in_env(), tempfile.TemporaryDirectory() as tmp:
       crlf = Path(tmp) / 'regs.txt'
-      lf = Path(tmp) / 'regs_lf.txt'
       crlf.write_bytes(CRLF_CONTENT)
-      lf.write_bytes(LF_CONTENT)
       with mock.patch.object(qaboard_utils, 'os', FakeWindowsOs()):
         windows_info = file_info(crlf)
       self.assertEqual(windows_info['md5'], hashlib.md5(LF_CONTENT).hexdigest())
       self.assertEqual(windows_info['st_size'], len(LF_CONTENT))
 
   def test_txt_records_raw_on_linux(self):
-    with tempfile.TemporaryDirectory() as tmp:
+    with no_opt_in_env(), tempfile.TemporaryDirectory() as tmp:
       path = Path(tmp) / 'regs.txt'
       path.write_bytes(CRLF_CONTENT)
       with mock.patch.object(qaboard_utils, 'os', FakeLinuxOs()):
@@ -109,8 +78,29 @@ class TestTextFilesNormalizeOnWindowsOnly(unittest.TestCase):
       self.assertEqual(info['md5'], hashlib.md5(CRLF_CONTENT).hexdigest())
       self.assertEqual(info['st_size'], len(CRLF_CONTENT))
 
+  def test_crlf_hex_records_raw_on_linux(self):
+    with no_opt_in_env(), tempfile.TemporaryDirectory() as tmp:
+      path = Path(tmp) / 'noise.hex'
+      path.write_bytes(CRLF_CONTENT)
+      with mock.patch.object(qaboard_utils, 'os', FakeLinuxOs()):
+        info = file_info(path)
+      self.assertEqual(info['md5'], hashlib.md5(CRLF_CONTENT).hexdigest())
+      self.assertEqual(info['st_size'], len(CRLF_CONTENT))
+
+  def test_crlf_hex_is_normalized_on_windows(self):
+    # .hex is plaintext (default_plaintext, and project configs classify it so via
+    # bit_accuracy.binary): Windows normalizing it while Linux records raw is
+    # exactly the mismatch the opt-in fixes.
+    with no_opt_in_env(), tempfile.TemporaryDirectory() as tmp:
+      path = Path(tmp) / 'noise.hex'
+      path.write_bytes(CRLF_CONTENT)
+      with mock.patch.object(qaboard_utils, 'os', FakeWindowsOs()):
+        info = file_info(path)
+      self.assertEqual(info['md5'], hashlib.md5(LF_CONTENT).hexdigest())
+      self.assertEqual(info['st_size'], len(LF_CONTENT))
+
   def test_lf_txt_is_stable_across_platforms(self):
-    with tempfile.TemporaryDirectory() as tmp:
+    with no_opt_in_env(), tempfile.TemporaryDirectory() as tmp:
       path = Path(tmp) / 'regs.txt'
       path.write_bytes(LF_CONTENT)
       with mock.patch.object(qaboard_utils, 'os', FakeWindowsOs()):
@@ -120,7 +110,7 @@ class TestTextFilesNormalizeOnWindowsOnly(unittest.TestCase):
       self.assertEqual(windows_info, linux_info)
 
   def test_non_plaintext_files_are_not_normalized(self):
-    with tempfile.TemporaryDirectory() as tmp:
+    with no_opt_in_env(), tempfile.TemporaryDirectory() as tmp:
       path = Path(tmp) / 'noise.bin'
       path.write_bytes(CRLF_CONTENT)
       info = file_info(path)
@@ -128,7 +118,7 @@ class TestTextFilesNormalizeOnWindowsOnly(unittest.TestCase):
       self.assertEqual(info['md5'], hashlib.md5(CRLF_CONTENT).hexdigest())
 
   def test_normalize_eof_false_keeps_raw(self):
-    with tempfile.TemporaryDirectory() as tmp:
+    with no_opt_in_env(), tempfile.TemporaryDirectory() as tmp:
       path = Path(tmp) / 'regs.txt'
       path.write_bytes(CRLF_CONTENT)
       with mock.patch.object(qaboard_utils, 'os', FakeWindowsOs()):
@@ -136,10 +126,85 @@ class TestTextFilesNormalizeOnWindowsOnly(unittest.TestCase):
       self.assertEqual(info['md5'], hashlib.md5(CRLF_CONTENT).hexdigest())
       self.assertEqual(info['st_size'], len(CRLF_CONTENT))
 
-  def test_hex_stays_raw_even_with_plaintext_opt_in_shape(self):
-    # hex is not in default_plaintext anymore: without project config it must
-    # be hashed raw even though it once was in the defaults.
-    self.assertNotIn('.hex', qaboard_utils.default_plaintext)
+  def test_hex_is_plaintext_by_default(self):
+    # revert of cac377a: excluding .hex from the defaults was defeated anyway by
+    # project configs re-classifying it as plaintext (bit_accuracy.binary)
+    self.assertIn('.hex', qaboard_utils.default_plaintext)
+
+
+class TestOptInNormalizesEverywhere(unittest.TestCase):
+  """QA_RECORD_EOL_NORMALIZED=1: every platform records the normalized form, so
+  Linux- and Windows-recorded manifests of the same file share one convention."""
+
+  def test_crlf_txt_normalizes_on_linux(self):
+    with mock.patch.dict(os.environ, {'QA_RECORD_EOL_NORMALIZED': '1'}), tempfile.TemporaryDirectory() as tmp:
+      path = Path(tmp) / 'regs.txt'
+      path.write_bytes(CRLF_CONTENT)
+      with mock.patch.object(qaboard_utils, 'os', FakeLinuxOs()):
+        info = file_info(path)
+      self.assertEqual(info['md5'], hashlib.md5(LF_CONTENT).hexdigest())
+      self.assertEqual(info['st_size'], len(LF_CONTENT))
+
+  def test_crlf_hex_normalizes_on_linux(self):
+    with mock.patch.dict(os.environ, {'QA_RECORD_EOL_NORMALIZED': '1'}), tempfile.TemporaryDirectory() as tmp:
+      path = Path(tmp) / 'noise.hex'
+      path.write_bytes(CRLF_CONTENT)
+      with mock.patch.object(qaboard_utils, 'os', FakeLinuxOs()):
+        info = file_info(path)
+      self.assertEqual(info['md5'], hashlib.md5(LF_CONTENT).hexdigest())
+      self.assertEqual(info['st_size'], len(LF_CONTENT))
+
+  def test_crlf_hex_identical_on_windows_and_linux(self):
+    # The delivery scenario: both legs record the normalized form of the same
+    # unchanged CRLF hex file, so their manifests match under strict comparison.
+    with mock.patch.dict(os.environ, {'QA_RECORD_EOL_NORMALIZED': '1'}), tempfile.TemporaryDirectory() as tmp:
+      path = Path(tmp) / 'noise.hex'
+      path.write_bytes(CRLF_CONTENT)
+      with mock.patch.object(qaboard_utils, 'os', FakeWindowsOs()):
+        windows_info = file_info(path)
+      with mock.patch.object(qaboard_utils, 'os', FakeLinuxOs()):
+        linux_info = file_info(path)
+      self.assertEqual(windows_info, linux_info)
+      self.assertEqual(windows_info['md5'], hashlib.md5(LF_CONTENT).hexdigest())
+
+  def test_crlf_hex_matches_a_normalized_reference_manifest(self):
+    # Simulates the migrated delivery: the stored reference manifest holds the
+    # normalized hashes, and a fresh recording on any platform matches it.
+    with mock.patch.dict(os.environ, {'QA_RECORD_EOL_NORMALIZED': '1'}), tempfile.TemporaryDirectory() as tmp:
+      reference = Path(tmp) / 'reference.hex'
+      reference.write_bytes(CRLF_CONTENT)
+      stored = {'md5': hashlib.md5(LF_CONTENT).hexdigest(), 'st_size': len(LF_CONTENT)}
+      with mock.patch.object(qaboard_utils, 'os', FakeLinuxOs()):
+        fresh = file_info(reference)
+      self.assertEqual(fresh['md5'], stored['md5'])
+      self.assertEqual(fresh['st_size'], stored['st_size'])
+
+  def test_opt_in_requires_exactly_1(self):
+    # cheap reversal is the point of the env var: only '1' opts in
+    for value in ('0', 'true', 'yes', ''):
+      with mock.patch.dict(os.environ, {'QA_RECORD_EOL_NORMALIZED': value}), tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / 'regs.txt'
+        path.write_bytes(CRLF_CONTENT)
+        with mock.patch.object(qaboard_utils, 'os', FakeLinuxOs()):
+          info = file_info(path)
+        self.assertEqual(info['md5'], hashlib.md5(CRLF_CONTENT).hexdigest(), f'value={value!r} must not opt in')
+
+  def test_binaries_stay_raw_even_with_opt_in(self):
+    with mock.patch.dict(os.environ, {'QA_RECORD_EOL_NORMALIZED': '1'}), tempfile.TemporaryDirectory() as tmp:
+      path = Path(tmp) / 'noise.bin'
+      path.write_bytes(CRLF_CONTENT)
+      info = file_info(path)
+      self.assertEqual(info['md5'], hashlib.md5(CRLF_CONTENT).hexdigest())
+      self.assertEqual(info['st_size'], len(CRLF_CONTENT))
+
+  def test_normalize_eof_false_keeps_raw_even_with_opt_in(self):
+    with mock.patch.dict(os.environ, {'QA_RECORD_EOL_NORMALIZED': '1'}), tempfile.TemporaryDirectory() as tmp:
+      path = Path(tmp) / 'regs.txt'
+      path.write_bytes(CRLF_CONTENT)
+      with mock.patch.object(qaboard_utils, 'os', FakeLinuxOs()):
+        info = file_info(path, normalize_eof=False)
+      self.assertEqual(info['md5'], hashlib.md5(CRLF_CONTENT).hexdigest())
+      self.assertEqual(info['st_size'], len(CRLF_CONTENT))
 
 
 class TestIgnore(unittest.TestCase):
