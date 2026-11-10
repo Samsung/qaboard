@@ -150,7 +150,7 @@ describe('BenchmarksViewer', () => {
 
   it('shows files picked by their name that are not benchmark files as text, as before the viewer', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('{"threads": 4, "cache": "on"}', { headers: { 'Content-Type': 'text/plain' } })));
-    renderWithProviders(<BenchmarksViewer path="bench.json" output_new={{ output_dir_url: '/s/new' }} fallback_to_text/>);
+    renderWithProviders(<BenchmarksViewer path="benchmarks.json" output_new={{ output_dir_url: '/s/new' }} fallback_to_text/>);
     expect(await screen.findByText(/Not a benchmark file the viewer reads \(unknown benchmark file.*\): shown as text/)).toBeInTheDocument();
   });
 
@@ -164,7 +164,8 @@ describe('BenchmarksViewer', () => {
 
 describe('is_benchmarks', () => {
   it('recognizes the names of benchmark files', () => {
-    expect(['benchmarks.json', 'out/bench.json', 'pytest.benchmarks.json', 'codec-bench.jsonl', 'gbench_benchmark.json'].every(is_benchmarks)).toBe(true);
-    expect(['results.json', 'benchmarks.json.bak', 'workbench.json'].some(is_benchmarks)).toBe(false);
+    expect(['benchmarks.json', 'out/benchmark.json', 'pytest.benchmarks.json', 'codec-bench.jsonl', 'gbench_benchmark.json', 'a/b/perf.bench.ndjson'].every(is_benchmarks)).toBe(true);
+    // a bare bench.json isn't picked: projects had files with that name before the viewer
+    expect(['results.json', 'benchmarks.json.bak', 'workbench.json', 'bench.json', 'out/bench.json', 'benchmarks.txt'].some(is_benchmarks)).toBe(false);
   });
 });

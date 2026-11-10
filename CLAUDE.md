@@ -59,6 +59,9 @@ So does the benchmark viewer (`webapp/src/viewers/benchmarks/`): `/benchmark-vie
 and `qaboard/benchmarks.py` read the same formats: both are tested on `tests/fixtures/benchmarks/`.
 The flame graph viewer (`webapp/src/viewers/flamegraph/`, the formats it reads in `formats.js`) too: `/flame-graph-viewer.html?stacks=300000`,
 with a new and a reference profile that differ in known ways (`generate.js`); `qaboard/flamegraphs.py` converts `perf script` and pprof.
+Like the image viewer, `viewers/benchmarks/` and `viewers/flamegraph/` are standalone: they import nothing from the app, which
+only loads their adapters (`viewers/benchmarks-viewer.jsx`, `viewers/flame-graph.jsx`), lazily. `viewers/__tests__/isolation.test.js`
+checks it, and `TestIsolation` in the Python tests checks that `qaboard/benchmarks.py` and `flamegraphs.py` import nothing from `qaboard`.
 The "What's new" release notes popup is off with `npm start` (dev mode), so it doesn't cover the page when you
 drive the app; `QABOARD_RELEASE_NOTES_POPUP=1 npm start` turns it on to work on it. On a production build
 (`npm run preview`, e2e, a deployed server) it still pops up: mark the notes seen first, as the e2e tests do,

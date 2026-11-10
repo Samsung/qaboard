@@ -54,8 +54,9 @@ The viewer and `benchmark_metrics` read these files as the harness writes them:
 | `go test` | `go test -bench=. -count=5 > bench.txt` (with `type: benchmarks`) | mean of the `-count` lines, ± their stddev |
 | Anything else | `write_benchmarks()` from Python, or JSON in [QA-Board's format](#benchmarks-format) | yours |
 
-The file's name tells the web app to use the benchmark viewer: *benchmarks.json*, *bench.json*,
-*\*.benchmarks.json*, *\*-bench.json*, *\*_benchmark.json*, and the same names in *.jsonl*. Other names need
+The file's name tells the web app to use the benchmark viewer: *benchmarks.json*, *\*.benchmarks.json*,
+*\*-bench.json*, *\*_benchmark.json*, and the same names in *.jsonl*. A file with one of those names that isn't a
+benchmark file is shown as text, with a line that says why. Other names (a bare *bench.json* too) need
 `type: benchmarks`:
 
 ```yaml title="qaboard.yaml"
@@ -163,6 +164,7 @@ write_benchmarks(context.output_dir / "tiles.benchmarks.json", [
 - **Context:** the machine, CPU, CPU count, OS, date and harness version, as far as the file says. Google Benchmark and
   hyperfine don't name the CPU.
 - The web app and the `qaboard` package read the same formats the same way: they are tested on the same files.
+- The web app reads files up to 100 MB, and says so for larger ones.
 
 </details>
 

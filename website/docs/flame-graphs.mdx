@@ -133,6 +133,9 @@ Other names need `type: flame/folded` (any `flame/...` type) on the visualizatio
 files are too big or binary for the browser: `save_flame_graph` turns them into folded stacks
 ([recipes](#flame-graph-recipes)).
 
+The viewer reads profiles up to 200 MB (after decompression), and draws the first 1,000 levels of a stack: the search
+and the table of functions count deeper frames too.
+
 ## Get profiles you can compare {#comparable-profiles}
 - **Keep frame names stable between runs**: the viewer matches frames by their path of names. No addresses, hashes,
   thread or process ids: `py-spy --nolineno` leaves line numbers out, and `perf` stacks start with the command's name,
@@ -143,7 +146,8 @@ files are too big or binary for the browser: `save_flame_graph` turns them into 
 - **The unit**: a `# unit: nanoseconds` line in folded stacks (other tools skip it), or the visualization's `unit`
   option, which wins over the file's. Units the viewer formats: `samples` (the default), `nanoseconds`,
   `microseconds`, `milliseconds`, `seconds`, `bytes`; any other word shows as is. Words after the unit describe it:
-  `microseconds of CPU per 1,000 requests`. speedscope and *.cpuprofile* files have their own unit.
+  `microseconds of CPU per 1,000 requests`. speedscope and *.cpuprofile* files say their unit themselves; the `unit`
+  option still wins.
 
 ```yaml title="qaboard.yaml"
 outputs:
