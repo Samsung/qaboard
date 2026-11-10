@@ -602,13 +602,13 @@ def test_submit_driver_failures_are_in_the_logs(fake_runners, account, tmp_path)
   assert "ERROR: Could not start `qa batch` on Kubernetes: QA-Board may not start or stop runs in the Kubernetes namespace 'kube-system'" in (tmp_path / "log.txt").read_text()
   assert fake_runners.submitted == [] and prepared == [] and fake_runners.stopped == []
 
-  # it may have been created: we delete it
+  # it may have been created: we delete it, only it (role=driver): not the runs' Jobs it may have started
   fake_runners.fail_with = RuntimeError("Forbidden: jobs.batch is forbidden: User system:serviceaccount:qaboard:qaboard-backend cannot create")
   with pytest.raises(RuntimeError):
     runner_jobs.submit_driver(script_path, tmp_path, ARTHUR, make_commit({}), ID1, on_prepared=prepared.append)
   assert "Forbidden" in (tmp_path / "log.txt").read_text()
   assert prepared == [{"kubernetes_job": "qa-00000000-driver", "namespace": "algo-qa"}]
-  assert fake_runners.stopped == [{"type": "kubernetes", "command_id": ID1, "namespace": "algo-qa", "project": "algo/project", "user": "arthurf", "api_retry_seconds": 15}]
+  assert fake_runners.stopped == [{"type": "kubernetes", "command_id": ID1, "namespace": "algo-qa", "project": "algo/project", "user": "arthurf", "api_retry_seconds": 15, "role": "driver"}]
   # even if that fails too
   fake_runners.stop_fails_with = RuntimeError("connection refused")
   with pytest.raises(RuntimeError, match="Forbidden"):

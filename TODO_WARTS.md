@@ -114,14 +114,18 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
 - Image pulls that keep failing for a pod fail the batch after 5 minutes, unless pods of its Job run or ran (a node's
   problem); waiting in a Kueue queue is never fatal. A fatal problem deletes all the batch's Jobs, also the groups
   whose pods run fine: the batch fails as a whole, like with Ctrl-C. [S, behaviour]
-- The per-run `timeout` needs `timeout -k` (GNU coreutils) in the image: no portable fallback (killing `qa run` and
-  what it started needs a process group). `qa doctor --test-job` checks it, and runs fail saying so. [S, behaviour]
-- Why pods are pending is in the runs' `log.pending.txt` (and `log.pending.txt` next to a detached job's `log.txt`):
-  the web app's run and submission logs don't list it, nor `log.k8s.txt`, yet. When the pods run as another user
-  than `qa batch`, it only writes there if the output directory exists (creating it would make it ours). A note
-  written just as the pod starts can stay behind (the pod deletes the file when it starts). [S, behaviour]
+- The per-run `timeout` needs GNU coreutils' `timeout` in the image (BusyBox's is refused: it signals only its child):
+  no portable fallback (killing `qa run` and what it started needs a process group). `qa doctor --test-job` checks
+  it, and runs fail saying so. [S, behaviour]
+- Why pods are pending is in the runs' `log.pending.txt` (and `log.pending.txt` next to a detached job's `log.txt`).
+  When the pods run as another user than `qa batch`, it only writes there if the output directory exists (creating it
+  would make it ours). A note written just as the pod starts can stay behind (the pod deletes the file when it
+  starts). The server shows a driver's note only for a day after it's submitted: it doesn't follow drivers, whose
+  submissions stay "submitted". [S, behaviour]
 - The server only stops batches in namespaces listed in `QABOARD_KUBERNETES_NAMESPACES` (otherwise a warning), and the
-  pending driver pod is only watched for 20s after it's submitted. [S, behaviour]
+  pending driver pod is only watched for 20s after it's submitted. When the driver fails to start in those 20s, the
+  server deletes only its Job (`qaboard.io/role=driver`), like after: run Jobs its `qa batch` may have created keep
+  running until the batch is stopped. [S, behaviour]
 
 ### Dask on other schedulers
 - `--no-wait` and server-side stops on Slurm/PBS/SGE/HTCondor/OAR/Moab need those commands where the driver or the

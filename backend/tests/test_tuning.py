@@ -33,8 +33,10 @@ def test_record_submission_keeps_the_most_recent():
 
 def test_pending_note(tmp_path):
     """While `qa batch` waits to start (e.g. its pod is pending), the runner says why in log.pending.txt"""
+    import datetime
     from backend.submissions import pending_note, PENDING_NOTE_MAX_BYTES
-    submission = {"id": "s1", "runner": "kubernetes", "status": "submitted", "log_dir": str(tmp_path)}
+    created_at = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat() + 'Z'
+    submission = {"id": "s1", "runner": "kubernetes", "status": "submitted", "log_dir": str(tmp_path), "created_at": created_at}
     assert pending_note(submission) is None
     (tmp_path / "log.pending.txt").write_text("The pod is pending: 0/3 nodes have a free GPU.\n")
     assert pending_note(submission) == "The pod is pending: 0/3 nodes have a free GPU."
@@ -51,8 +53,32 @@ def test_pending_note(tmp_path):
     # bounded, and whatever is in the file
     (tmp_path / "log.pending.txt").write_bytes(b"\xff" + b"x" * 10 * PENDING_NOTE_MAX_BYTES)
     assert len(pending_note(submission)) == PENDING_NOTE_MAX_BYTES
-    for invalid in (None, "x", {"status": "submitted"}, {"status": "submitted", "log_dir": 7}):
+    for invalid in (None, "x", {"status": "submitted"}, {"status": "submitted", "log_dir": 7}, {**submission, "created_at": "yesterday"}, {**submission, "created_at": 7}):
         assert pending_note(invalid) is None
+
+
+def test_pending_note_reads_the_storage_only_for_recent_kubernetes_submissions(tmp_path, monkeypatch):
+    """Batches are serialized often, and LSF or Kubernetes submissions stay "submitted": we don't read the storage for each"""
+    import datetime
+    from pathlib import Path
+    from backend.submissions import pending_note
+    (tmp_path / "log.pending.txt").write_text("The pod is pending\n")
+    now = datetime.datetime(2026, 11, 10, 12, 0, tzinfo=datetime.timezone.utc)
+    submission = {"id": "s1", "runner": "kubernetes", "status": "submitted", "log_dir": str(tmp_path), "created_at": "2026-11-10T09:00:00.123456Z"}
+    assert pending_note(submission, now=now) == "The pod is pending"
+    assert pending_note({**submission, "created_at": "2026-11-09T12:30:00Z"}, now=now) == "The pod is pending"
+    def no_storage(*args, **kwargs):
+        raise AssertionError("the storage was read")
+    monkeypatch.setattr(Path, "stat", no_storage)
+    monkeypatch.setattr(Path, "open", no_storage)
+    for runner in ("lsf", "bridge", "local", "celery", None):
+        assert pending_note({**submission, "runner": runner}, now=now) is None
+    # after a day it started, or never will
+    assert pending_note({**submission, "created_at": "2026-11-09T11:59:00Z"}, now=now) is None
+    assert pending_note({**submission, "created_at": "2026-10-01T09:00:00Z"}, now=now) is None
+    # from before we recorded when, or from the future
+    assert pending_note({k: v for k, v in submission.items() if k != "created_at"}, now=now) is None
+    assert pending_note({**submission, "created_at": "2026-11-11T09:00:00Z"}, now=now) is None
 
 
 def test_check_tuning_search():

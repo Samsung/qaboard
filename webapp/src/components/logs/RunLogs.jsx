@@ -143,8 +143,8 @@ const RunDetails = ({ output }) => {
 }
 
 
-// Logs of some runners, next to log.txt: Dask's, why Kubernetes pods were pending (log.k8s.txt), and why the
-// --no-wait driver was (log.pending.txt)
+// Logs of some runners, next to log.txt: Dask's (log.dask.txt), the run's output from its Kubernetes pod (log.k8s.txt),
+// and why its pod, or the --no-wait driver's, is pending (log.pending.txt)
 const OTHER_LOGS = ['log.dask.txt', 'log.k8s.txt', 'log.pending.txt']
 
 

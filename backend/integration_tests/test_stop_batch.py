@@ -218,15 +218,25 @@ def test_the_final_status_of_qa_batch_on_the_server_is_recorded(world, tmp_path)
 
 def test_submissions_say_why_qa_batch_waits(world, tmp_path):
   """The runner of a driver that waits (e.g. a pending pod) says why in log.pending.txt: the web app shows it"""
+  import datetime
   from sqlalchemy.orm.attributes import flag_modified
   from backend.database import db_session
   from backend.models import Batch
   batch = world.batch('proj/a')
+  created_at = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=10)).replace(tzinfo=None).isoformat() + 'Z'
   batch.data = {"submissions": {DRIVER_ID: {"id": DRIVER_ID, "runner": "kubernetes", "status": "submitted", "kubernetes_job": "qa-33333333-driver",
-                                            "namespace": "algo-qa", "log_dir": str(tmp_path), "created_at": "2026-11-01T00:00:00Z"}}}
+                                            "namespace": "algo-qa", "log_dir": str(tmp_path), "created_at": created_at}}}
   flag_modified(batch, "data")
   world.db.commit()
   (tmp_path / 'log.pending.txt').write_text("The pod waits for a node with a GPU.\n")
   assert batch.to_dict(db_session)["data"]["submissions"][DRIVER_ID]["pending_note"] == "The pod waits for a node with a GPU."
+  # after a day, it started or never will: we stop reading the storage
+  batch.data["submissions"][DRIVER_ID]["created_at"] = "2026-11-01T00:00:00Z"
+  flag_modified(batch, "data")
+  world.db.commit()
+  assert "pending_note" not in batch.to_dict(db_session)["data"]["submissions"][DRIVER_ID]
+  batch.data["submissions"][DRIVER_ID]["created_at"] = created_at
+  flag_modified(batch, "data")
+  world.db.commit()
   (tmp_path / 'log.txt').write_text("qa batch\n")
   assert "pending_note" not in batch.to_dict(db_session)["data"]["submissions"][DRIVER_ID]

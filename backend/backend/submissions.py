@@ -4,6 +4,7 @@ Their scripts and logs are saved in the batch directory, and we remember them in
 users follow them with the batch's logs.
 """
 import os
+import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -25,15 +26,37 @@ def submission_dir(batch_dir, created_at, command_id) -> Path:
 # to its log.txt (the kubernetes runner's submit_detached)
 PENDING_NOTE_FILE = 'log.pending.txt'
 PENDING_NOTE_MAX_BYTES = 4096
+# Batches are serialized often, and their submissions stay "submitted" (the server doesn't follow Kubernetes drivers,
+# nor LSF jobs): we look at the storage only for recent ones, that may still wait to start
+PENDING_NOTE_MAX_AGE = datetime.timedelta(hours=24)
 
-def pending_note(submission) -> Optional[str]:
+def submission_created_at(submission) -> Optional[datetime.datetime]:
+  """When the submission was created (its "created_at", e.g. 2026-11-10T09:00:00.123456Z), in UTC. None if unknown"""
+  value = submission.get('created_at') if isinstance(submission, dict) else None
+  if not isinstance(value, str):
+    return None
+  try:
+    parsed = datetime.datetime.fromisoformat(value.replace('Z', '+00:00'))
+  except ValueError:
+    return None
+  return parsed if parsed.tzinfo else parsed.replace(tzinfo=datetime.timezone.utc)
+
+
+def pending_note(submission, now: Optional[datetime.datetime] = None) -> Optional[str]:
   """
   Why `qa batch` didn't start yet (log_dir/log.pending.txt), while the submission waits and wrote no logs.
-  None if there is none, or once `qa batch` started.
+  None if there is none, or once `qa batch` started. Only for Kubernetes drivers created in the last
+  PENDING_NOTE_MAX_AGE: for others, we don't read the storage.
   """
   if not isinstance(submission, dict) or submission.get('status') not in ('submitting', 'submitted'):
     return None
+  if submission.get('runner') != 'kubernetes':
+    return None
   if not isinstance(submission.get('log_dir'), str) or not submission['log_dir']:
+    return None
+  created = submission_created_at(submission)
+  now = now or datetime.datetime.now(datetime.timezone.utc)
+  if created is None or not (now - PENDING_NOTE_MAX_AGE <= created <= now + datetime.timedelta(minutes=5)):
     return None
   log_dir = Path(submission['log_dir'])
   try:

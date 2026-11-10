@@ -622,10 +622,11 @@ def submit_driver(script_path: Path, log_dir: Path, user_info: dict, ci_commit, 
     from .submissions import append_log
     append_log(log_dir, f"ERROR: Could not start `qa batch` on Kubernetes: {e}\n")
     if Runner is not None and job_options is not None:
-      # It may have been created before it failed
+      # It may have been created before it failed. Only the driver's Job (role=driver): the runs' Jobs its `qa batch`
+      # may have started have the same command id, and are stopped with the batch, like after the driver started.
       try:
         stop_options = {k: job_options[k] for k in ('type', 'command_id', 'namespace', 'context', 'project', 'user', 'api_retry_seconds') if k in job_options}
-        Runner.stop_jobs([], stop_options)
+        Runner.stop_jobs([], {**stop_options, "role": "driver"})
       except Exception as cleanup_error:
         print(f"WARNING: could not delete {driver_name(command_id)}: {cleanup_error}")
     raise
