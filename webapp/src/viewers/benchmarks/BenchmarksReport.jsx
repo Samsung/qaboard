@@ -2,16 +2,16 @@
 // the spread the harness measured, and what got slower or faster beyond it. It reads pytest-benchmark, Google
 // Benchmark, hyperfine, Criterion, JMH, `go test -bench` and QA-Board's *.benchmarks.json (see parse.js), and stays
 // fast with thousands of benchmarks: only the rows in view are rendered.
+//
+// A standalone component, given the files' text: it imports nothing from the app (a test checks it). QA-Board's
+// adapter, ../benchmarks-viewer.jsx, downloads the files; the playground (/benchmark-viewer.html) generates them.
+// Colors come from the theme's CSS variables (--qa-text, --qa-border...), with Blueprint's dark theme class.
 import { memo, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Button, Callout, HTMLSelect, Icon, InputGroup, Intent, NonIdealState, Switch, Tag, Tooltip,
 } from "@blueprintjs/core";
 
-import { fileQuery } from "../../api/queries";
-import { ViewerError, ViewerLoading } from "../ViewerStates";
-import { useLabels } from "../../hooks";
 import { FORMATS, parseBenchmarks, STATS } from "./parse";
 import {
   NOISE_RULE, SORTS, STATUSES, STATUS_ORDER, changeDomain, compareBenchmarks, contextDifferences, formatAmount,
@@ -19,6 +19,7 @@ import {
 } from "./model";
 import "./benchmarks.css";
 
+const DEFAULT_LABELS = { new: 'new', reference: 'reference', colors: {} };
 const ROW_HEIGHT = 28;
 const plural = (n, one, many = `${one}s`) => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
 
@@ -253,8 +254,12 @@ function Table({ items, header, empty, columns, domain, labels, height, selected
   </div>;
 }
 
-export function BenchmarksReport({ text, ref_text, labels: labels_, height = 440, path, format: format_ }) {
-  const labels = useLabels(labels_) ?? { new: 'new', reference: 'reference', colors: {} };
+// - text, ref_text: the files' content (ref_text: null without a reference)
+// - labels: {new, reference, colors: {new, reference}}: what to call each side, colors with a `css` field
+// - format: one of FORMATS, else it's detected from the content
+// - fallback(message): what to show instead of a warning when the file can't be read
+export function BenchmarksReport({ text, ref_text, labels: labels_, height = 440, path, format: format_, fallback }) {
+  const labels = labels_ ?? DEFAULT_LABELS;
   // `type: benchmarks/go` forces a format; `benchmarks/json` and the like don't
   const format = FORMATS.includes(format_) ? format_ : undefined;
   const parsed = useMemo(() => parseBenchmarks(text, { format }), [text, format]);
@@ -294,6 +299,8 @@ export function BenchmarksReport({ text, ref_text, labels: labels_, height = 440
     [has_reference, parsed, parsed_ref],
   );
 
+  if (parsed.error && fallback)
+    return fallback(parsed.error);
   if (parsed.error)
     return <Callout compact intent={Intent.WARNING} icon="warning-sign">Could not read <code>{path}</code>: {parsed.error}</Callout>;
 
@@ -371,19 +378,4 @@ export function BenchmarksReport({ text, ref_text, labels: labels_, height = 440
   </div>;
 }
 
-// The visualization: the run's file, and the reference run's
-const BenchmarksViewer = ({ output_new, output_ref, path, labels, height, format }) => {
-  const url_new = output_new?.output_dir_url && path ? `${output_new.output_dir_url}/${path}` : undefined;
-  const url_ref = url_new && output_ref?.output_dir_url ? `${output_ref.output_dir_url}/${path}` : undefined;
-  const query_new = useQuery(fileQuery(url_new, { is_running: output_new?.is_running, responseType: 'text' }));
-  // without the reference's file, we show the new one alone
-  const query_ref = useQuery(fileQuery(url_ref, { is_running: output_ref?.is_running, responseType: 'text' }));
-  if (query_new.isError) return <ViewerError path={path} error={query_new.error}/>;
-  if (!url_new || query_new.isPending || (url_ref && query_ref.isPending)) return <ViewerLoading height={height}/>;
-  return <BenchmarksReport
-    text={query_new.data} ref_text={query_ref.isSuccess ? query_ref.data : null} labels={labels} path={path} format={format}
-    height={height ? parseInt(height, 10) || undefined : undefined}
-  />;
-};
-
-export default BenchmarksViewer;
+export default BenchmarksReport;

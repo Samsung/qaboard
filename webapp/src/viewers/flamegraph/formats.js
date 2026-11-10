@@ -6,12 +6,8 @@
 // - a tree in d3-flame-graph's format, {name, value, children}, with inclusive values: QA-Board's *.flame.json.
 // What browsers can't reasonably read, `perf script`'s text and pprof's protobuf, gets a message that says how to
 // convert it with `qaboard.flamegraphs` (qaboard/flamegraphs.py).
+// The files the web app opens with this viewer without a `type` in qaboard.yaml: is_flame_graph in ../OutputViewer.jsx.
 import { childNamed, mergeTrees, newNode, parseUnit, sumValues } from './profile';
-
-export const FLAME_GRAPH_FILES = /(flame\.json|\.folded|\.collapsed|\.stacks\.txt|\.speedscope\.json|\.cpuprofile)(\.gz)?$/i;
-
-// Files the web app shows with the flame graph viewer, without a `type` in qaboard.yaml
-export const is_flame_graph = path => FLAME_GRAPH_FILES.test(path || '');
 
 export class ProfileFormatError extends Error {}
 

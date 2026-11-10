@@ -9,21 +9,13 @@ import { cwd } from 'node:process';
 import { gzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 
-import { decodeProfileBytes, detectFormat, is_flame_graph, parseProfile, selectTree } from '../formats';
+import { decodeProfileBytes, detectFormat, parseProfile, selectTree } from '../formats';
 import { findPath } from '../profile';
 
 // vitest runs in webapp/
 const fixture = name => readFileSync(resolve(cwd(), '../tests/fixtures/flamegraphs', name), 'utf-8');
 
 describe('profile formats', () => {
-  it('picks the viewer for profile files', () => {
-    for (const path of ['cpu.folded', 'out/cpu.collapsed', 'cpu.folded.gz', 'perf.stacks.txt', 'cpu.flame.json',
-      'py-spy.speedscope.json', 'CPU.20261110.cpuprofile'])
-      expect(is_flame_graph(path)).toBe(true);
-    for (const path of ['plot.json', 'log.txt', 'cpu.pb.gz', 'folded.png'])
-      expect(is_flame_graph(path)).toBe(false);
-  });
-
   it('reads folded stacks, with their unit', () => {
     const profile = parseProfile(fixture('py-spy.folded'), 'py-spy.folded');
     expect(profile.format).toBe('folded');
