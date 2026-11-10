@@ -41,6 +41,17 @@ runner must mount it. Use a self-hosted runner. See the [roadmap](/docs/roadmap#
 To find a run's files, `qa batch <batch> --list-output-dirs` prints the output directory of each run (see
 [APIs](/docs/apis)), and in the web app, a run's card has **Copy output directory**.
 
+## My script doesn't find a run's files after it was done again {#rerun-folders}
+A shared or CI run that is done again is saved in a new folder, `<run>_attempt2`, `_attempt3`..., and the first
+folder only keeps *latest_attempt.txt*. Ask `qa` for the folder (`qa batch <batch> --list-output-dirs`,
+`qa get --input <input> output_dir`), or read *latest_attempt.txt*. See
+[When a run is done again](/docs/storage/where-is-the-data#reruns).
+
+## The quality gate says "undecidable" {#gate-undecidable}
+`qa gate` exits with 2 when the results to compare aren't all there: no reference results yet, runs still running,
+or a batch it waits for hasn't run. The message says which: see
+[when the gate can't decide](/docs/quality-gate#undecidable).
+
 ## Can I export the data, or use another viewer? {#can-i-export-the-data-or-use-a-third-party-viewer}
 Yes. All the outputs are files, under the storage: open them with any tool. To get them out:
 - the commit page's **Export** gathers the files matching a pattern from the runs you filtered into one folder (see

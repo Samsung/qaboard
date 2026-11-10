@@ -25,13 +25,11 @@ Do the integration right rather than fast: the people reviewing results will liv
   - **Import**: results already exist (a benchmark, a vendor's outputs): `run()` copies or links them and computes
     metrics. See https://samsung.github.io/qaboard/docs/running-your-code#import-existing-results
   - **Import a benchmark suite**: the project has pytest-benchmark, Google Benchmark, hyperfine, Criterion, JMH or
-    `go test -bench`. Don't convert results by hand: `run()` runs the harness, saves its file in `output_dir`, and
-    returns `benchmark_metrics(path)` (`from qaboard.benchmarks import benchmark_metrics`); list the file in
-    `outputs.visualizations` (names like `pytest.benchmarks.json` are detected, else `type: benchmarks`). One input
-    per suite or binary is enough. Configure the harness for stable numbers (repetitions, e.g.
-    `--benchmark_repetitions=10`): QA-Board shows its spread and calls smaller changes noise, it doesn't repeat runs.
-    Other harnesses: `write_benchmarks(path, [{"name": ..., "value": ..., "unit": "ms", "stats": {...}}])`.
-    https://samsung.github.io/qaboard/docs/viewers#benchmarks
+    `go test -bench`. Don't convert results by hand: `run()` runs the harness, saves its file in `output_dir`, lists
+    it in `outputs.visualizations`, and returns `benchmark_metrics(path)` (`from qaboard.benchmarks import
+    benchmark_metrics`). One input per suite or binary is enough. Configure the harness to repeat measurements:
+    QA-Board calls changes within the reported spread noise, it doesn't repeat runs.
+    https://samsung.github.io/qaboard/docs/benchmarks
   - **Training loops and notebooks** don't fit a wrapper yet: evaluate the trained model with a `run()` that takes
     the model id as a tuning parameter (https://samsung.github.io/qaboard/docs/deep-learning). Creating runs from code
     (`start_run`) is on the roadmap.
@@ -118,9 +116,11 @@ into `context.params`). Check with `qa --dryrun batch ci`, then run `qa batch ci
 ## 4. Visualizations
 List the files `run()` writes that people should see, in `outputs.visualizations`. The extension picks the viewer:
 images (`.png`, `.jpg`, `.tif`...), videos, Plotly plots (`*.plotly.json`: `{"data": [...], "layout": {...}}`), flame
-graphs (`*.flame.json`), benchmark files (`*.benchmarks.json`, `bench.json`...), HTML reports (no scripts), point clouds (`.pcd`), text (diffed). `path: "frames/:frame.png"`
-makes one visualization with a slider over the files; `default_hidden: true` for debug files.
-https://samsung.github.io/qaboard/docs/visualizations
+graphs (profilers' files as they are: `*.folded`, `*.speedscope.json`, `*.cpuprofile`; `perf script` and pprof through
+`qaboard.flamegraphs.save_flame_graph`, https://samsung.github.io/qaboard/docs/flame-graphs), benchmark files
+(`*.benchmarks.json`, `bench.json`...), HTML reports (no scripts), point clouds (`.pcd`), text (diffed).
+`path: "frames/:frame.png"` makes one visualization with a slider over the files; `default_hidden: true` for debug
+files. https://samsung.github.io/qaboard/docs/visualizations
 
 Write the files people need to judge a run next to the reference's: the output, the input, an error map or a plot.
 Don't write hundreds of MB per run by default.
@@ -140,12 +140,11 @@ gate:
     - {metric: map, min: 0.15}
     - {metric: ap_small, max_regression: 10%}
     - {metric: map, per_test_max_regression: 25%}
-    - {metric: latency_p99, max_regression: 10%, batch: perf}   # only the runs of `qa batch perf`
   max_failed_runs: 0
 ```
-Rules about regressions need the metric's `smaller_is_better`. `batches:` is the older name of `labels:`. With
-several CI jobs, each `qa gate --post-comment` writes its label's section of the same pull request comment.
-https://samsung.github.io/qaboard/docs/quality-gate
+Rules about regressions need the metric's `smaller_is_better`. A rule with `batch: perf` checks only the runs of
+`qa batch perf`: the gate can't decide until those exist. `qa gate --post-status github --post-comment github`
+reports on the pull request. https://samsung.github.io/qaboard/docs/quality-gate
 
 ## 6. Tell the agents of the project
 Add the snippet in `templates/AGENTS.md` to the project's `AGENTS.md` or `CLAUDE.md`: how to run the batch, and that a
