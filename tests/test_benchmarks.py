@@ -5,6 +5,7 @@ change one, change the other.
 """
 import json
 import math
+import os
 import re
 import tempfile
 import unittest
@@ -212,6 +213,44 @@ class TestBenchmarks(unittest.TestCase):
     self.assertEqual(keys['Decode'], 'decode')
     # stable
     self.assertEqual(metric_keys(['encode/64', 'encode.64']), metric_keys(['encode.64', 'encode/64']))
+
+
+def imported_modules(path: Path):
+  """The modules a file imports, relative imports as '.name'"""
+  import ast
+  names = set()
+  for node in ast.walk(ast.parse(path.read_text())):
+    if isinstance(node, ast.Import):
+      names.update(alias.name for alias in node.names)
+    elif isinstance(node, ast.ImportFrom):
+      names.add('.' * node.level + (node.module or ''))
+  return names
+
+
+def loaded_by_the_cli():
+  """The qaboard modules `import qaboard` and the `qa` CLI's module load, in a fresh interpreter"""
+  import subprocess
+  import sys
+  import tempfile
+  code = "import sys, qaboard, qaboard.qa; print(' '.join(m for m in sys.modules if m.startswith('qaboard')))"
+  with tempfile.TemporaryDirectory() as tmp:
+    process = subprocess.run([sys.executable, '-c', code], cwd=tmp, capture_output=True, text=True, check=True,
+                             env={**os.environ, 'QA_NO_CHECK_FOR_UPDATES': '1'})
+  return set(process.stdout.split())
+
+
+class TestIsolation(unittest.TestCase):
+  """Projects import qaboard.benchmarks from their run(): it doesn't weigh on `import qaboard` or the `qa` CLI, and needs
+  only the standard library and qaboard.metrics."""
+  def test_imports_only_the_standard_library(self):
+    import sys
+    path = Path(__file__).resolve().parent.parent / 'qaboard' / 'benchmarks.py'
+    allowed = set(sys.stdlib_module_names) | {'.metrics'}
+    for name in imported_modules(path):
+      self.assertTrue((name if name.startswith('.') else name.split('.')[0]) in allowed, f'benchmarks.py imports {name}')
+
+  def test_not_loaded_by_import_qaboard_or_the_cli(self):
+    self.assertNotIn('qaboard.benchmarks', loaded_by_the_cli())
 
 
 if __name__ == '__main__':

@@ -104,9 +104,12 @@ def read_folded(text: str, unit: Optional[str] = None) -> Profile:
 # "V8 WorkerThread 24636/25607 [000] 94564.109216: 100 cycles:": the command can have spaces, then pid/tid or tid
 _PERF_HEADER = re.compile(r'^(\S.*?)\s+(\d+)(?:/(\d+))?(?:\s|$)')
 _PERF_EVENT = re.compile(r':\s*(\d+)?\s+(\S+?):?\s*$')
-# "\tffffffff8105f6c4 native_write_msr_safe+0x4 ([kernel.kallsyms])": address, function, module
-_PERF_FRAME = re.compile(r'^\s+([0-9a-fA-F]+)\s+(.+?)\s+\((.*)\)\s*$')
-_PERF_FRAME_NO_ADDRESS = re.compile(r'^\s+(.+?)\s+\((.*)\)\s*$')
+# "\tffffffff8105f6c4 native_write_msr_safe+0x4 ([kernel.kallsyms])": address, function, module. The module is the
+# last parenthesis: C++ functions can have " (" in them (`std::function<void (int)>::operator()`,
+# `f<int, (anonymous namespace)::T>`), and modules can end with " (deleted)".
+_PERF_MODULE = r'\(((?:[^()]|\([^()]*\))*)\)'
+_PERF_FRAME = re.compile(r'^\s+([0-9a-fA-F]+)\s+(.+)\s+' + _PERF_MODULE + r'\s*$')
+_PERF_FRAME_NO_ADDRESS = re.compile(r'^\s+(.+)\s+' + _PERF_MODULE + r'\s*$')
 
 
 def _tidy(function: str, module: str, annotate: bool) -> str:
@@ -117,7 +120,7 @@ def _tidy(function: str, module: str, annotate: bool) -> str:
   # ';' separates frames. C++ arguments make names long and break the matching between runs if they change
   function = function.replace(';', ':').replace('"', '').replace("'", '')
   if '(anonymous namespace)' not in function and not function.startswith('['):
-    function = re.sub(r'\(.*', '', function) or function
+    function = re.sub(r'\(.*', '', function).rstrip() or function
   if function.startswith('L') and '/' in function:  # Java: Ljava/util/HashMap;::get
     function = function[1:]
   if annotate:
