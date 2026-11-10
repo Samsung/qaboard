@@ -109,10 +109,14 @@ const sidebars: SidebarsConfig = {
         'user-guide/sharing',
         'user-guide/files',
         'user-guide/storage-usage',
-        'user-guide/account',
-        'user-guide/project-access',
-        'user-guide/project-gate',
       ],
+    },
+    {
+      // A project's Admin pages (Access, Quality gate) and your own account
+      type: 'category',
+      label: 'Account and projects',
+      collapsed: false,
+      items: ['user-guide/account', 'user-guide/project-access', 'user-guide/project-gate'],
     },
     {
       type: 'category',
@@ -145,6 +149,9 @@ const sidebars: SidebarsConfig = {
         "computing-quantitative-metrics",
         "visualizations",
         "viewers",
+        // Performance results in the files harnesses and profilers write
+        "benchmarks",
+        "flame-graphs",
         "references-and-milestones",
       ],
     },
@@ -180,6 +187,7 @@ const sidebars: SidebarsConfig = {
       items: [
         "ci-integration",
         "quality-gate",
+        "quality-gate-pull-requests",
         "triggering-third-party-tools",
         "apis",
         "http-api",

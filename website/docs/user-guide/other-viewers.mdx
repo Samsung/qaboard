@@ -94,6 +94,9 @@ profile, colored by what changed.
 - **Click** a function to zoom into it and what it calls. **Zoom Out**, or <kbd>Esc</kbd> in the graph, goes back.
 - The line under the graph says what's compared, and each profile's total.
 
+To get flame graphs in your project's runs, integrators save what their profiler writes: see
+[Profiles and flame graphs](/docs/flame-graphs).
+
 ### Find what got slower in the table
 Below the graph, **Top functions** lists every function with its **Self** and **Total** time, over all the stacks it's
 in, and its **Change** against the reference, the biggest increase first. Click a column to sort by it. Click a
@@ -136,14 +139,12 @@ first. The table only lists the matching functions.
   and its neighbors, <kbd>Enter</kbd> zooms, <kbd>Esc</kbd> zooms out. Each function says its times when it's focused.
 - In the table, a function's **Total** counts each stack once, also when the function is recursive. Functions are
   merged by name, wherever they're called from.
-- Functions are matched between the two profiles by their call stack: the same function, called from somewhere else,
-  is another bar.
 - Frames narrower than 0.002% of the profile aren't drawn, but they count in the search, the tooltips and the table.
 - When a profile has several threads (speedscope files from py-spy), they're merged: a menu next to the comparison's
   picks one.
 - Without a reference profile, the flame graph shows alone, by function.
 - In the inference gateway example, widths are microseconds of CPU per 1,000 requests: the profile's unit is what your
-  project records. Integrators: see [which files the viewer reads](/docs/viewers#flame-graphs).
+  project records.
 - Read Brendan Gregg's [flame graphs](http://www.brendangregg.com/flamegraphs.html) and
   [differential flame graphs](http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html).
 
@@ -203,6 +204,7 @@ Click in the list, then:
 ## Benchmarks {#benchmarks}
 When a run saves a benchmark harness's results, its card shows each benchmark next to the reference run's: how long
 it took, the change in %, and whether that change is larger than the noise the harness measured.
+Integrators: see [Benchmark suites](/docs/benchmarks) to bring a suite in, and follow each benchmark as a metric.
 
 To review a change's performance:
 1. **Read the line at the top**: how many benchmarks, then how many are **slower**, **faster**, **within noise**,
@@ -240,8 +242,7 @@ Google Benchmark's `--benchmark_repetitions`.
 - Without a reference file, the run's benchmarks show alone, sorted by name.
 - <kbd>↑</kbd> <kbd>↓</kbd> move between benchmarks once you clicked the table, <kbd>Esc</kbd> closes the details.
 - The table stays fast with thousands of benchmarks: only the rows you see are drawn.
-- Your project can return each benchmark as a metric too, to follow it in History (see
-  [Benchmarks](/docs/viewers#benchmark-metrics)).
+- Your project can return each benchmark as a metric too, to follow it in History.
 
 </details>
 

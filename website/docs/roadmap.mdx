@@ -110,7 +110,13 @@ them from the shell ([runs in scripts](/docs/apis#runs-in-scripts)).
 <RoadmapItem status="shipped" title="Benchmark files">
 Save a pytest-benchmark, Google Benchmark, hyperfine, Criterion, JMH or `go test` file in a run: the web app shows each
 benchmark against the reference's, beyond noise or within it, and `benchmark_metrics` returns them as metrics (see
-[benchmarks](/docs/viewers#benchmarks)).
+[benchmark suites](/docs/benchmarks)).
+</RoadmapItem>
+
+<RoadmapItem status="shipped" title="Flame graphs from your profiler's files">
+Save what perf, py-spy, async-profiler, Go's pprof or Node.js record in a run: the web app draws a differential flame
+graph against the reference's profile, with a table of the top functions (see
+[profiles and flame graphs](/docs/flame-graphs)).
 </RoadmapItem>
 
 <RoadmapItem status="next" title="A Python SDK that creates runs">
@@ -291,7 +297,7 @@ An agent reads a tuning analysis and proposes the next experiment, for a person 
 <RoadmapItem status="experimental" title="The gate's verdict on pull requests">
 `qa gate --post-comment` posts the gate's table on the commit's pull request or merge request, and updates it on each
 push. It says when runs only passed after being done again, and when the commit loosens the gate's rules. See
-[Comment on pull requests](/docs/quality-gate#pull-request-comments).
+[The gate on pull requests](/docs/quality-gate-pull-requests).
 </RoadmapItem>
 
 <RoadmapItem status="experimental" title="Rules a commit can't change">
