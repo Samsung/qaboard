@@ -154,24 +154,90 @@ With regular expressions:
 </details>
 
 ## Preset regions of interest {#regions-of-interest}
-The image viewer shows thumbnails of regions of interest above the images, to jump to the details that matter: the
-input's presets, and the regions where the images differ most. Give the presets in the
-[input's metadata](/docs/metadata-integration-external-databases), or in a configuration, as a list under `roi`. The
-camera ISP example reads each photo's metadata from a YAML file next to it:
-
-<RepoFile path="examples/image-quality/inputs/photos/facade.metadata.yaml" title="inputs/photos/facade.metadata.yaml" />
+The image and video viewers show thumbnails of regions of interest above the images, to jump to the details that
+matter: your presets, and the regions where the images differ most. The viewer opens on the first preset.
 
 <Shot
   id="commit/auto-roi"
   caption="The input's preset regions, and below them the regions where the server finds that the images differ most."
 />
 
-Regions are in the pixels of the image shown. When the image is smaller than the input, e.g. downscaled, give the
-input's size in its metadata (`width`, `height`), or the size of the image a region refers to
-(`image_width`, `image_height`): the viewer scales the regions. A region can also have a `color`.
+Presets are a list of regions under the key `roi`. Each run gets its own, from two places:
 
-To write new presets, zoom on a region in the web app, then pick **Copy the view as a region** in the regions menu:
-you get its coordinates in this format. How people use regions: [the image viewer](/docs/user-guide/image-viewer#find-where-images-differ).
+| Where | Use it for | The same for |
+|---|---|---|
+| [The input's metadata](#regions-per-input) | What matters in this input: a face, a window frame, a chart's patches. | Every run on the input. |
+| [A configuration](#regions-per-batch) | What a test looks at, whatever the input: the corners, the center. | Every run of the batch. |
+
+A run with both shows both, the input's first. Runs on other inputs, or of other batches, show their own on the
+same page: you don't need a *qaboard.yaml* per batch.
+
+### Regions of an input, in its metadata {#regions-per-input}
+Your entrypoint's `metadata(context)` returns what you know about an input, as a dict: put the regions under `roi`.
+The camera ISP example reads them from a YAML file next to each photo, when there is one:
+
+<RepoFile path="examples/image-quality/qa/main.py" title="qa/main.py" lines="57-60" />
+
+<RepoFile path="examples/image-quality/inputs/photos/facade.metadata.yaml" title="inputs/photos/facade.metadata.yaml" />
+
+The regions can come from anywhere `metadata()` can read: a file next to the input, a spreadsheet, your database of
+test charts. More on metadata: [Input metadata](/docs/metadata-integration-external-databases).
+
+### Regions of a batch, in a configuration {#regions-per-batch}
+Add a mapping with a `roi` key to the batch's configurations. This batch checks the corners of every photo:
+
+```yaml title="qa/batches.yaml"
+corners:
+  inputs:
+  - photos/*.png
+  configs:
+  - base
+  - roi:
+    - {x: 0, y: 0, w: 200, h: 200, label: Top left}
+    - {x: 1024, y: 616, w: 200, h: 200, label: Bottom right}
+```
+
+With `qa run`, give the mapping as JSON: `qa --config base --config '{"roi": [{"x": 0, "y": 0, "w": 200, "h": 200}]}' run ...`.
+
+- The web app doesn't show `roi` in the runs' configuration tags, and ignores it when it matches runs with the
+  reference's.
+- Like any mapping in the configurations, your code gets it too, as `context.params['roi']`.
+- The regions are part of the runs' configuration: with other regions, `qa batch` makes new runs. For regions that
+  change often, prefer the input's metadata.
+
+### What a region is {#region-format}
+
+| Key | What it is |
+|---|---|
+| `x`, `y` | The region's top-left corner, in pixels from the image's top-left corner. |
+| `w`, `h` | Its width and height, in pixels. |
+| `label` | Optional: its name, on its thumbnail and its outline. |
+| `color` | Optional: the color of its outline, as in CSS (`orange`, `#f5498b`). |
+| `image_width`, `image_height` | Optional: the size of the image the region was drawn on, when it's not the image shown. |
+
+Regions are in the pixels of the image shown. When that image is smaller than the one the regions were drawn on,
+e.g. a downscaled output, the viewer scales them if it knows the original size: give `image_width` and
+`image_height` on a region, or `width` and `height` in the input's metadata, for all the input's regions.
+
+```yaml title="An input's metadata, for outputs smaller than the input"
+width: 4896     # the regions below are in the pixels of the 4896x3264 raw photo
+height: 3264
+roi:
+- {x: 400, y: 160, w: 640, h: 800, label: Window frame (halos), color: orange}
+```
+
+### Write presets from the web app {#copy-a-region}
+Zoom on what you want to keep, then pick **Copy the view as a region** in the regions menu. You get the size of the
+image and the region's line:
+
+```yaml
+width: 1224
+height: 816
+- {x: 100, y: 40, w: 160, h: 200, label: ""}
+```
+
+Paste the line under `roi`, and give it a label. Regions are saved with the runs: they show on the runs made after
+you add them. How people use regions: [the image viewer](/docs/user-guide/image-viewer#find-where-images-differ).
 
 ## Make room on the cards {#styles}
 <Anchor id="custom-styles" />

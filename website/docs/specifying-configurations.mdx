@@ -76,6 +76,10 @@ def run(context):
     return my_code(context.input_path, context.output_dir, parameters)
 ```
 
+The web app reads one key of the mappings itself: `roi`, a list of regions of interest that the image viewer presets
+for the runs, e.g. the corners for a batch that checks vignetting. See
+[regions of a batch](/docs/visualizations#regions-per-batch).
+
 The detector example's configurations name the model and its input size, `int8` and `size-320`. The inference
 gateway's are mappings: `{repeats: 3, duration_s: 4}` says how long to measure.
 
