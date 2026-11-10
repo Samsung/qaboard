@@ -239,8 +239,10 @@ def compare_commit(commit_id):
 
   new_dicts = [o.to_dict() for o in new_outputs]
   ref_dicts = [o.to_dict() for o in ref_outputs]
+  # Tuning iterations aren't runs of the batch, in the reference neither: one still running made the comparison,
+  # and `qa gate`, wait for it
   new_counts = run_counts([o for o in new_dicts if o.get('output_type') != 'optim_iteration'])
-  ref_counts = run_counts(ref_dicts)
+  ref_counts = run_counts([o for o in ref_dicts if o.get('output_type') != 'optim_iteration'])
   if messages:
     status = 'missing'
   elif new_counts['pending'] or ref_counts['pending']:

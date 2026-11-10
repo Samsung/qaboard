@@ -5,6 +5,7 @@ The quality gate's settings are stored as written, in qaboard.yaml's format, and
 one vocabulary, one validation. `qa gate` gets them with the numbers it compares (api/compare.py), and checks the
 project's rules on top of the commit's own: a commit can't change them.
 """
+import json
 from typing import Any, Dict, List, Optional, Tuple
 
 from qaboard.gate import parse_config, GateConfigError, Rule
@@ -15,6 +16,8 @@ GATE_KEYS = ('rules', 'max_failed_runs', 'require_bit_accuracy', 'on_looser_rule
 # When a commit's own rules are looser than the reference's: say so, or fail the gate
 ON_LOOSER_RULES = ('warn', 'fail')
 MAX_RULES = 200
+# `qa gate` gets them with each comparison, the page with the project's settings: they stay small
+MAX_GATE_BYTES = 64 * 1024
 
 
 class SettingsError(ValueError):
@@ -52,7 +55,10 @@ def clean_gate(gate: Any) -> Optional[Dict[str, Any]]:
     parse_config({'gate': cleaned})
   except GateConfigError as e:
     raise SettingsError(str(e))
-  return {**cleaned, 'on_looser_rules': on_looser_rules}
+  cleaned = {**cleaned, 'on_looser_rules': on_looser_rules}
+  if len(json.dumps(cleaned)) > MAX_GATE_BYTES:
+    raise SettingsError(f"gate: too long, at most {MAX_GATE_BYTES // 1024} KB: fewer rules, or shorter names and patterns")
+  return cleaned
 
 
 def rule_row(rule: Rule) -> Dict[str, Any]:

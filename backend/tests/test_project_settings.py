@@ -25,6 +25,8 @@ def test_clean_gate():
     ({"rules": [{"metric": "psnr", "aggregate": "mean", "per_test_max_regression": "5%"}]}, "per_test_max_regression checks each test"),
     ({"rules": [{"metric": "psnr", "min": 1}] * 201}, "at most 200 rules"),
     ({"require_bit_accuracy": "yes"}, "gate.require_bit_accuracy"),
+    # every comparison sends them: not megabytes of names
+    ({"rules": [{"metric": "psnr", "min": 1, "batch": ["x" * 1000] * 100}]}, "too long, at most 64 KB"),
   ]:
     with pytest.raises(SettingsError) as error:
       clean_gate(bad)
