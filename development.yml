@@ -115,6 +115,7 @@ services:
     - ./charts:/charts:ro
     - ./examples:/examples:ro
     - ./docs-media/shots.yaml:/docs-media/shots.yaml:ro
+    - ./docs-media/standins:/docs-media/standins:ro
     environment:
       # to access the server from outside the docker environment
       - HOST=0.0.0.0
