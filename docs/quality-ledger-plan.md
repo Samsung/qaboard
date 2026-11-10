@@ -77,10 +77,52 @@ Also asked for:
 
 Order: A, then C with item 3, then B, D, E, F.
 
-## Order of work
-1. Reruns in their own directory, with the log, status and metrics of earlier attempts. Done.
-2. The gate's table as a PR comment, with reruns and rule changes (item 3 and C). Done.
-3. The project admin page and the Admin menu; the gate's and alerts' settings there. Step 1 (gate) done, with rules per
-   batch and label and the shared comment (`docs/rfcs/gate-scopes-and-comments.md`); verdicts and alerts next.
-4. Benchmark files (item 2) and flame graph formats: done.
-5. Checkpoint: noise (item 1) once the SDK's design says what runs return.
+## Done so far
+1. Reruns in their own directory, with the log, status and metrics of earlier attempts (`docs/rfcs/rerun-directories.md`).
+2. The gate's table as a comment on pull requests, with reruns and rule changes (item 3 and C).
+3. The project's Admin pages, step 1: **Quality gate** with project rules (`docs/rfcs/project-admin.md`), rules per
+   batch and label, `expect_batches`, and one comment shared by several jobs (`docs/rfcs/gate-scopes-and-comments.md`).
+4. Benchmark files (item 2) and flame graphs from profilers' files.
+
+## Next steps, in order
+Each step is small enough for one pull request, and useful without the ones after it.
+
+### 1. The gate's verdict, kept by the server
+The ledger's second column. Today the verdict is an exit code, a commit status and a comment: QA-Board doesn't have it.
+- `qa gate` reports its result (`POST /api/v1/commit/<sha>/gate`, with the permission to send results); the server
+  keeps it with the batch: verdict, checks, reference, rule changes, reruns, when, and who sent it.
+- The commit page and the list of commits show it: pass, fail, undecidable, with the table on click.
+- First slice: the endpoint, the tag on the commit page, the API to read it. No new table: the batch's data.
+- Unlocks: alerts (2), the rule changes on the commit page (C), the review inbox (E).
+
+### 2. Alerts: **Admin → Alerts**
+Designed in `docs/rfcs/project-admin.md` (step 2).
+- Who: email addresses, and one chat webhook (Slack, Teams, Mattermost), stored encrypted in a `secrets` column of
+  `project_settings`, registered for key rotation, shown masked. A **Send a test alert** button.
+- About what, first: *the gate failed*, on the reference branch or on any branch. One alert per commit and label,
+  not one per `qa gate` call.
+- Then: *the gate recovered*, and *a batch of the reference branch has failed runs*.
+- Needs step 1. Reuses `backend/notifications/mail.py` and the webhook code of sign-in access requests.
+
+### 3. Noise, the simple way
+Item 1 of the performance track, cut so that QA-Board still computes nothing across runs.
+- **A noise floor per metric**, in its definition: `noise: 2%` in the metrics file, or `Metric(value, noise=0.02)`
+  from code. The Metrics Diff grays changes within it; the gate's regression rules pass them, and say "within noise".
+- **From the harness, for free**: `benchmark_metrics()` sets each metric's `noise` from the spread its file reports.
+  Benchmark suites then get the same "within noise" in the Metrics Diff, History and the gate as in the viewer.
+- Not yet: a floor from the metric's history on the reference branch, and tests on samples. They wait for what
+  runs can carry (`docs/rfcs/python-sdk-runs.md`).
+
+### 4. The ledger, for people who review at scale
+- **Provenance on every run** (B): a badge and a filter for verified CI, an agent's name and task, a dirty tree.
+- **Rule changes on the commit page** (the rest of C), from the verdict of step 1.
+- **Record the decision** (D): "approve as the new reference", with who, when, and the verdict they saw.
+- **A review inbox** (E): batches awaiting a decision, ranked by what moved beyond noise (step 3) and what failed.
+- **An evidence pack** (F) for a read-only MCP server: the gate's comment is its first renderer.
+
+### Later, or when someone asks
+- Regression alerts on the reference branch (item 4): a metric that stepped against its trailing window.
+- The machine each run ran on (item 5), and bisect (item 6).
+- Viewers: Chrome's trace-event JSON in the flame graph viewer, synced zoom between two graphs, a rule for
+  benchmark files that report no spread, and a regenerated flame graph screenshot for the docs.
+- Keeping the output files of earlier attempts, not only their logs (`docs/rfcs/rerun-directories.md`).
