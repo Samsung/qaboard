@@ -118,7 +118,7 @@ List the files `run()` writes that people should see, in `outputs.visualizations
 images (`.png`, `.jpg`, `.tif`...), videos, Plotly plots (`*.plotly.json`: `{"data": [...], "layout": {...}}`), flame
 graphs (profilers' files as they are: `*.folded`, `*.speedscope.json`, `*.cpuprofile`; `perf script` and pprof through
 `qaboard.flamegraphs.save_flame_graph`, https://samsung.github.io/qaboard/docs/flame-graphs), benchmark files
-(`*.benchmarks.json`, `bench.json`...), HTML reports (no scripts), point clouds (`.pcd`), text (diffed).
+(`*.benchmarks.json`, `*-bench.json`...), HTML reports (no scripts), point clouds (`.pcd`), text (diffed).
 `path: "frames/:frame.png"` makes one visualization with a slider over the files; `default_hidden: true` for debug
 files. https://samsung.github.io/qaboard/docs/visualizations
 
