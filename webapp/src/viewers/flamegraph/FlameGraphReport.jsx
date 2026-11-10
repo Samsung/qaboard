@@ -256,7 +256,7 @@ export const FlameGraphReport = ({ text_new, text_ref, path = '', path_ref, unit
         {has_ref
           ? <>{mode === 'share' ? 'Comparing shares of each profile' : 'Comparing absolute values'}: {label_new} {formatValue(total_new, unit_name)}, {label_ref} {formatValue(total_ref, unit_name)}</>
           : <>{formatValue(total_new, unit_name)}</>}
-        {profile_new.note && ` · ${unit_name} ${profile_new.note}`}
+        {profile_new.note && ` · values in ${unit_name} ${profile_new.note}`}
       </span>
       {parsed_ref.error && <span>The reference's profile could not be read: {parsed_ref.error.message}</span>}
     </div>

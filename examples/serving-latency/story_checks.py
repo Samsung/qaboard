@@ -29,7 +29,7 @@ def _share(runs, pattern):
 
 def flame_share(ctx, match, min_share, parent_max_share=None, inputs=None):
     """
-    In the commit's CPU profiles (cpu.folded, the data of cpu.flame.json), frames matching `match` take at least
+    In the commit's CPU profiles (cpu.folded, the flame graph's folded stacks), frames matching `match` take at least
     `min_share` of the samples, and at most `parent_max_share` in its parent's.
     """
     runs = [r for r in ctx.runs(inputs=inputs) if not r.failed]
