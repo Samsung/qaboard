@@ -43,10 +43,15 @@ export const sumValues = root => {
   return root;
 };
 
-// Adds a tree into another (e.g. a speedscope file's threads), by path of names
+// Adds a tree into another (e.g. a speedscope file's threads), by path of names. Iterative, like all the walks of
+// whole trees here: stacks can be thousands of frames deep.
 export const mergeInto = (target, tree) => {
-  target.self += tree.self;
-  for (const child of tree.children) mergeInto(childNamed(target, child.name), child);
+  const stack = [[target, tree]];
+  while (stack.length) {
+    const [into, node] = stack.pop();
+    into.self += node.self;
+    for (const child of node.children) stack.push([childNamed(into, child.name), child]);
+  }
   return target;
 };
 
@@ -143,6 +148,8 @@ export const formatDelta = (delta, unit) => {
 // Frames narrower than this share of the profile are not drawn: they'd be under a pixel wide until zoomed 50 times,
 // and d3-flame-graph slows down with the number of nodes. Search, tooltips and the table use the whole tree.
 export const MIN_SHARE_DRAWN = 2e-5;
+// Nor deeper frames: d3-flame-graph walks its tree recursively, and deeper stacks overflow the browser's call stack.
+export const MAX_DEPTH_DRAWN = 1000;
 
 // What d3-flame-graph draws: a copy of the tree, without the frames too narrow to see, where each node knows its
 // match in the other profile:
@@ -154,32 +161,43 @@ export const MIN_SHARE_DRAWN = 2e-5;
 // - mode 'share' (the default): the other profile's values are scaled by total / other total before they're
 //   subtracted: we compare shares of each profile, since two runs rarely take the same number of samples.
 //   With 'absolute', raw values are subtracted.
-export const drawnTree = (tree, other, { mode = 'share', minShare = MIN_SHARE_DRAWN, side = 'new' } = {}) => {
+export const drawnTree = (tree, other, { mode = 'share', minShare = MIN_SHARE_DRAWN, side = 'new', maxDepth = MAX_DEPTH_DRAWN } = {}) => {
   const total = tree.value;
   const scale = other && mode === 'share' && other.value ? total / other.value : 1;
   const sign = side === 'reference' ? -1 : 1;
   const min = total * minShare;
-  const walk = (node, match, key) => {
+  const copy = (node, match, key) => {
     const out = { name: node.name, value: node.value, self: node.self, key, children: [] };
-    let delta = 0;
     if (other) {
       out.other_value = match?.value;
       out.other_self = match?.self;
       if (!match) out.missing = side === 'reference' ? 'removed' : 'new';
-      delta = sign * (node.value - (match?.value ?? 0) * scale);
-      out.delta = delta;
+      out.delta = sign * (node.value - (match?.value ?? 0) * scale);
+      // not enumerable: d3-flame-graph doesn't need it
+      Object.defineProperty(out, 'delta_inclusive', { value: out.delta, enumerable: false });
+    }
+    return out;
+  };
+  const root = copy(tree, other, tree.name);
+  // iterative, depth first: [node, its match, its copy, depth]
+  const stack = [[tree, other, root, 0]];
+  while (stack.length) {
+    const [node, match, out, depth] = stack.pop();
+    if (depth >= maxDepth) {
+      // said under the graph; not enumerable: d3-flame-graph doesn't need it
+      if (node.children.length && !root.too_deep) Object.defineProperty(root, 'too_deep', { value: true, enumerable: false });
+      continue;
     }
     for (const child of node.children) {
       if (child.value < min || child.value <= 0) continue;
-      const drawn = walk(child, match ? findChild(match, child.name) : undefined, `${key};${child.name}`);
+      const child_match = match ? findChild(match, child.name) : undefined;
+      const drawn = copy(child, child_match, `${out.key};${child.name}`);
       out.children.push(drawn);
       if (other) out.delta -= drawn.delta_inclusive;
+      stack.push([child, child_match, drawn, depth + 1]);
     }
-    // not enumerable: d3-flame-graph doesn't need it
-    if (other) Object.defineProperty(out, 'delta_inclusive', { value: delta, enumerable: false });
-    return out;
-  };
-  return walk(tree, other, tree.name);
+  }
+  return root;
 };
 
 // The frame with this path of names ("all;main;parse"), or undefined
@@ -232,7 +250,15 @@ export const matchedValue = (tree, matches) => {
 export const functionTotals = tree => {
   const totals = new Map();
   const onPath = new Map();
-  const visit = node => {
+  // iterative: entering a node, then leaving it ({leave: name}) once its children are done
+  const stack = [...tree.children].reverse();
+  while (stack.length) {
+    const item = stack.pop();
+    if ('leave' in item) {
+      onPath.set(item.leave, onPath.get(item.leave) - 1);
+      continue;
+    }
+    const node = item;
     let entry = totals.get(node.name);
     if (!entry) {
       entry = { self: 0, total: 0 };
@@ -242,10 +268,9 @@ export const functionTotals = tree => {
     const depth = onPath.get(node.name) ?? 0;
     if (depth === 0) entry.total += node.value;
     onPath.set(node.name, depth + 1);
-    for (const child of node.children) visit(child);
-    onPath.set(node.name, depth);
-  };
-  for (const child of tree.children) visit(child);
+    stack.push({ leave: node.name });
+    for (let i = node.children.length - 1; i >= 0; i--) stack.push(node.children[i]);
+  }
   return totals;
 };
 

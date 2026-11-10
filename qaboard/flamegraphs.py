@@ -389,7 +389,9 @@ def detect_format(data: bytes, name: str = '') -> str:
     return 'pprof'
   text = data[:65536].decode('utf-8', errors='replace')
   stripped = text.lstrip()
-  if stripped.startswith(('{', '[')):
+  # folded stacks can start with a bracket: "[unknown];main 3", "[kernel.kallsyms];do_syscall_64 1"
+  folded_bracket = re.match(r'\[[^\s",[\]{}]+\](;|\s+[\d.e+]+\s*$)', stripped.split('\n', 1)[0])
+  if stripped.startswith(('{', '[')) and not folded_bracket:
     if 'speedscope' in text[:2000] or '"shared"' in text:
       return 'speedscope'
     if '"callFrame"' in text:

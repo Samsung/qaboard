@@ -141,6 +141,12 @@ class TestFolded(unittest.TestCase):
     self.assertAlmostEqual(profile.share('lock'), 0.3)
     self.assertAlmostEqual(profile.share('^main$'), 1.0)
 
+  def test_folded_stacks_that_start_with_a_bracket(self):
+    data = b'[unknown];main;parse 3\n[unknown];main 1\n'
+    self.assertEqual(detect_format(data, 'cpu.folded'), 'folded')
+    self.assertEqual(read_profile(data).total, 4)
+    self.assertEqual(detect_format(b'[{"name": "all"}]', 'x.json'), 'json')
+
   def test_formats_the_viewer_reads(self):
     self.assertEqual(detect_format((FIXTURES / 'py-spy.speedscope.json').read_bytes()), 'speedscope')
     self.assertEqual(detect_format((FIXTURES / 'node.cpuprofile').read_bytes()), 'cpuprofile')

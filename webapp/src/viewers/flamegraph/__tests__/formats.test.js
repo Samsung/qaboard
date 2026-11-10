@@ -92,6 +92,12 @@ describe('profile formats', () => {
     expect(findPath(tree, 'gateway-bench;worker')).toMatchObject({ value: 90, self: 40 });
   });
 
+  it('reads folded stacks whose first frame starts with a bracket', () => {
+    const profile = parseProfile('[unknown];main;parse 3\n[unknown];main 1\n', 'cpu.folded');
+    expect(findPath(selectTree(profile), 'all;[unknown];main;parse')).toMatchObject({ value: 3 });
+    expect(() => parseProfile('{"name": "all", "value": 3', 'cpu.flame.json')).toThrow(/Not a profile/);
+  });
+
   it('says how to convert what the browser does not read', () => {
     expect(detectFormat(fixture('perf.script.txt'))).toBe('perf-script');
     expect(() => parseProfile(fixture('perf.script.txt'))).toThrow(/qaboard.flamegraphs.save_flame_graph/);

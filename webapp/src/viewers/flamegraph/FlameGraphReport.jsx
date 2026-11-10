@@ -20,7 +20,7 @@ import {
 import FlameChart from './FlameChart';
 import { TopFunctions } from './TopFunctions';
 import { parseProfile, selectTree } from './formats';
-import { drawnTree, formatDelta, formatPoints, formatShare, formatValue, makeMatcher, matchedValue, topFunctions } from './profile';
+import { MAX_DEPTH_DRAWN, drawnTree, formatDelta, formatPoints, formatShare, formatValue, makeMatcher, matchedValue, topFunctions } from './profile';
 
 
 const parse = (text, path, unit) => {
@@ -258,6 +258,7 @@ export const FlameGraphReport = ({ text_new, text_ref, path = '', path_ref, unit
           : <>{formatValue(total_new, unit_name)}</>}
         {profile_new.note && ` · values in ${unit_name} ${profile_new.note}`}
       </span>
+      {main_tree?.too_deep && <span>Frames deeper than {MAX_DEPTH_DRAWN.toLocaleString('en-US')} are not drawn: the search and the table count them.</span>}
       {parsed_ref.error && <span>The reference's profile could not be read: {parsed_ref.error.message}</span>}
     </div>
 

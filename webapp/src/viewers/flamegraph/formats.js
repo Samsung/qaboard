@@ -179,7 +179,9 @@ const PERF_SCRIPT = /^\S.*?\s+\d+(\/\d+)?\s.*:\s*(\d+\s+)?\S+:\s*$[\r\n]+^\s+[0-
 // path: a hint, the content decides
 export const detectFormat = (text, path = '') => {
   const start = text.slice(0, 4096).trimStart();
-  if (start.startsWith('{') || start.startsWith('[')) {
+  // folded stacks can start with a bracket: "[unknown];main 3", "[kernel.kallsyms];do_syscall_64 1"
+  const folded_bracket = /^\[[^\s",[\]{}]+\](;|\s+[\d.e+]+\s*$)/.test(start.split('\n', 1)[0]);
+  if ((start.startsWith('{') || start.startsWith('[')) && !folded_bracket) {
     if (/speedscope/.test(start.slice(0, 400)) || /"shared"\s*:/.test(start)) return 'speedscope';
     if (/"callFrame"\s*:/.test(start) || /\.cpuprofile$/i.test(path)) return 'cpuprofile';
     return 'json';
