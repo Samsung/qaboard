@@ -390,7 +390,12 @@ function parseJson(text) {
   }
 }
 
+// Larger files would take seconds and gigabytes to show: 50,000 benchmarks are about 12 MB, read in 0.3 s.
+export const MAX_FILE_LENGTH = 100e6;
+
 function parse(text, format) {
+  if (text.length > MAX_FILE_LENGTH)
+    throw new FormatError(`the file is too large to show (${Math.round(text.length / 1e6)} MB, the viewer reads up to ${MAX_FILE_LENGTH / 1e6} MB)`);
   if (format && !FORMATS.includes(format))
     throw new FormatError(`unknown benchmark format "${format}", expected one of ${FORMATS.join(', ')}`);
   let data = parseJson(text);

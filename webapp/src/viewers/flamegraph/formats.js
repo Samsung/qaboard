@@ -201,7 +201,12 @@ export const detectFormat = (text, path = '') => {
 const HELPER = 'qaboard.flamegraphs.save_flame_graph';
 
 // {format, unit, note, profiles: [{name, unit, tree}], active}: speedscope files can have several profiles (threads)
+// Larger files would take seconds and gigabytes to show: 300,000 stacks are about 45 MB, read in half a second.
+export const MAX_PROFILE_LENGTH = 200e6;
+
 export const parseProfile = (text, path = '', { unit: unit_option } = {}) => {
+  if (text.length > MAX_PROFILE_LENGTH)
+    throw new ProfileFormatError(`The profile is too large to show (${Math.round(text.length / 1e6)} MB, the viewer reads up to ${MAX_PROFILE_LENGTH / 1e6} MB): save fewer stacks, e.g. without the thread ids, or merge the smallest ones.`);
   const format = detectFormat(text, path);
   let profile;
   if (format === 'perf-script')

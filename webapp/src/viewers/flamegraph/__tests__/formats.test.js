@@ -99,6 +99,7 @@ describe('profile formats', () => {
   });
 
   it('says how to convert what the browser does not read', () => {
+    expect(() => parseProfile(' '.repeat(200e6 + 1), 'cpu.folded')).toThrow(/too large to show \(200 MB/);
     expect(detectFormat(fixture('perf.script.txt'))).toBe('perf-script');
     expect(() => parseProfile(fixture('perf.script.txt'))).toThrow(/qaboard.flamegraphs.save_flame_graph/);
     expect(() => parseProfile('\n\u0012\u0008samples\u0000\u0001', 'cpu.pb.gz')).toThrow(/pprof/);

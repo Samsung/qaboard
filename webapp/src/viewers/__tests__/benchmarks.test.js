@@ -69,6 +69,7 @@ describe('parseBenchmarks', () => {
     expect(parseBenchmarks('{"qaboard_benchmarks": 1, "benchmarks": [{"name": "a"}]}').error).toMatch(/benchmarks\[0\]/);
     expect(parseBenchmarks('{"qaboard_benchmarks": 2, "benchmarks": []}').error).toMatch(/unsupported version/);
     expect(parseBenchmarks('{"reason": "benchmark-complete"}\n{oops').error).toBeTruthy();
+    expect(parseBenchmarks(' '.repeat(100e6 + 1)).error).toMatch(/too large to show \(100 MB/);
     // forced
     expect(parseBenchmarks(read('hyperfine.json'), { format: 'hyperfine' }).source).toBe('hyperfine');
   });
