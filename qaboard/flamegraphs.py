@@ -104,9 +104,12 @@ def read_folded(text: str, unit: Optional[str] = None) -> Profile:
 # "V8 WorkerThread 24636/25607 [000] 94564.109216: 100 cycles:": the command can have spaces, then pid/tid or tid
 _PERF_HEADER = re.compile(r'^(\S.*?)\s+(\d+)(?:/(\d+))?(?:\s|$)')
 _PERF_EVENT = re.compile(r':\s*(\d+)?\s+(\S+?):?\s*$')
-# "\tffffffff8105f6c4 native_write_msr_safe+0x4 ([kernel.kallsyms])": address, function, module
-_PERF_FRAME = re.compile(r'^\s+([0-9a-fA-F]+)\s+(.+?)\s+\((.*)\)\s*$')
-_PERF_FRAME_NO_ADDRESS = re.compile(r'^\s+(.+?)\s+\((.*)\)\s*$')
+# "\tffffffff8105f6c4 native_write_msr_safe+0x4 ([kernel.kallsyms])": address, function, module. The module is the
+# last parenthesis: C++ functions can have " (" in them (`std::function<void (int)>::operator()`,
+# `f<int, (anonymous namespace)::T>`), and modules can end with " (deleted)".
+_PERF_MODULE = r'\(((?:[^()]|\([^()]*\))*)\)'
+_PERF_FRAME = re.compile(r'^\s+([0-9a-fA-F]+)\s+(.+)\s+' + _PERF_MODULE + r'\s*$')
+_PERF_FRAME_NO_ADDRESS = re.compile(r'^\s+(.+)\s+' + _PERF_MODULE + r'\s*$')
 
 
 def _tidy(function: str, module: str, annotate: bool) -> str:
@@ -117,7 +120,7 @@ def _tidy(function: str, module: str, annotate: bool) -> str:
   # ';' separates frames. C++ arguments make names long and break the matching between runs if they change
   function = function.replace(';', ':').replace('"', '').replace("'", '')
   if '(anonymous namespace)' not in function and not function.startswith('['):
-    function = re.sub(r'\(.*', '', function) or function
+    function = re.sub(r'\(.*', '', function).rstrip() or function
   if function.startswith('L') and '/' in function:  # Java: Ljava/util/HashMap;::get
     function = function[1:]
   if annotate:
@@ -386,7 +389,9 @@ def detect_format(data: bytes, name: str = '') -> str:
     return 'pprof'
   text = data[:65536].decode('utf-8', errors='replace')
   stripped = text.lstrip()
-  if stripped.startswith(('{', '[')):
+  # folded stacks can start with a bracket: "[unknown];main 3", "[kernel.kallsyms];do_syscall_64 1"
+  folded_bracket = re.match(r'\[[^\s",[\]{}]+\](;|\s+[\d.e+]+\s*$)', stripped.split('\n', 1)[0])
+  if stripped.startswith(('{', '[')) and not folded_bracket:
     if 'speedscope' in text[:2000] or '"shared"' in text:
       return 'speedscope'
     if '"callFrame"' in text:

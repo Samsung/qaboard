@@ -9,21 +9,13 @@ import { cwd } from 'node:process';
 import { gzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 
-import { decodeProfileBytes, detectFormat, is_flame_graph, parseProfile, selectTree } from '../formats';
+import { decodeProfileBytes, detectFormat, parseProfile, selectTree } from '../formats';
 import { findPath } from '../profile';
 
 // vitest runs in webapp/
 const fixture = name => readFileSync(resolve(cwd(), '../tests/fixtures/flamegraphs', name), 'utf-8');
 
 describe('profile formats', () => {
-  it('picks the viewer for profile files', () => {
-    for (const path of ['cpu.folded', 'out/cpu.collapsed', 'cpu.folded.gz', 'perf.stacks.txt', 'cpu.flame.json',
-      'py-spy.speedscope.json', 'CPU.20261110.cpuprofile'])
-      expect(is_flame_graph(path)).toBe(true);
-    for (const path of ['plot.json', 'log.txt', 'cpu.pb.gz', 'folded.png'])
-      expect(is_flame_graph(path)).toBe(false);
-  });
-
   it('reads folded stacks, with their unit', () => {
     const profile = parseProfile(fixture('py-spy.folded'), 'py-spy.folded');
     expect(profile.format).toBe('folded');
@@ -100,7 +92,14 @@ describe('profile formats', () => {
     expect(findPath(tree, 'gateway-bench;worker')).toMatchObject({ value: 90, self: 40 });
   });
 
+  it('reads folded stacks whose first frame starts with a bracket', () => {
+    const profile = parseProfile('[unknown];main;parse 3\n[unknown];main 1\n', 'cpu.folded');
+    expect(findPath(selectTree(profile), 'all;[unknown];main;parse')).toMatchObject({ value: 3 });
+    expect(() => parseProfile('{"name": "all", "value": 3', 'cpu.flame.json')).toThrow(/Not a profile/);
+  });
+
   it('says how to convert what the browser does not read', () => {
+    expect(() => parseProfile(' '.repeat(200e6 + 1), 'cpu.folded')).toThrow(/too large to show \(200 MB/);
     expect(detectFormat(fixture('perf.script.txt'))).toBe('perf-script');
     expect(() => parseProfile(fixture('perf.script.txt'))).toThrow(/qaboard.flamegraphs.save_flame_graph/);
     expect(() => parseProfile('\n\u0012\u0008samples\u0000\u0001', 'cpu.pb.gz')).toThrow(/pprof/);

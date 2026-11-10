@@ -6,12 +6,8 @@
 // - a tree in d3-flame-graph's format, {name, value, children}, with inclusive values: QA-Board's *.flame.json.
 // What browsers can't reasonably read, `perf script`'s text and pprof's protobuf, gets a message that says how to
 // convert it with `qaboard.flamegraphs` (qaboard/flamegraphs.py).
+// The files the web app opens with this viewer without a `type` in qaboard.yaml: is_flame_graph in ../OutputViewer.jsx.
 import { childNamed, mergeTrees, newNode, parseUnit, sumValues } from './profile';
-
-export const FLAME_GRAPH_FILES = /(flame\.json|\.folded|\.collapsed|\.stacks\.txt|\.speedscope\.json|\.cpuprofile)(\.gz)?$/i;
-
-// Files the web app shows with the flame graph viewer, without a `type` in qaboard.yaml
-export const is_flame_graph = path => FLAME_GRAPH_FILES.test(path || '');
 
 export class ProfileFormatError extends Error {}
 
@@ -183,7 +179,9 @@ const PERF_SCRIPT = /^\S.*?\s+\d+(\/\d+)?\s.*:\s*(\d+\s+)?\S+:\s*$[\r\n]+^\s+[0-
 // path: a hint, the content decides
 export const detectFormat = (text, path = '') => {
   const start = text.slice(0, 4096).trimStart();
-  if (start.startsWith('{') || start.startsWith('[')) {
+  // folded stacks can start with a bracket: "[unknown];main 3", "[kernel.kallsyms];do_syscall_64 1"
+  const folded_bracket = /^\[[^\s",[\]{}]+\](;|\s+[\d.e+]+\s*$)/.test(start.split('\n', 1)[0]);
+  if ((start.startsWith('{') || start.startsWith('[')) && !folded_bracket) {
     if (/speedscope/.test(start.slice(0, 400)) || /"shared"\s*:/.test(start)) return 'speedscope';
     if (/"callFrame"\s*:/.test(start) || /\.cpuprofile$/i.test(path)) return 'cpuprofile';
     return 'json';
@@ -203,7 +201,12 @@ export const detectFormat = (text, path = '') => {
 const HELPER = 'qaboard.flamegraphs.save_flame_graph';
 
 // {format, unit, note, profiles: [{name, unit, tree}], active}: speedscope files can have several profiles (threads)
+// Larger files would take seconds and gigabytes to show: 300,000 stacks are about 45 MB, read in half a second.
+export const MAX_PROFILE_LENGTH = 200e6;
+
 export const parseProfile = (text, path = '', { unit: unit_option } = {}) => {
+  if (text.length > MAX_PROFILE_LENGTH)
+    throw new ProfileFormatError(`The profile is too large to show (${Math.round(text.length / 1e6)} MB, the viewer reads up to ${MAX_PROFILE_LENGTH / 1e6} MB): save fewer stacks, e.g. without the thread ids, or merge the smallest ones.`);
   const format = detectFormat(text, path);
   let profile;
   if (format === 'perf-script')

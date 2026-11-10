@@ -4,6 +4,7 @@ The fixtures in tests/fixtures/flamegraphs/ are real profiles (py-spy, Go's runt
 perf.script.txt, written like `perf script` prints. The web app's tests read them too (webapp/src/viewers/flamegraph/).
 """
 import gzip
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -72,6 +73,16 @@ class TestPerfScript(unittest.TestCase):
     text = 'python3 812\n\t7f00aa10 PyEval_EvalFrameDefault (/usr/bin/python3.11)\n\t7f00aa00 main (/usr/bin/python3.11)\n'
     self.assertEqual(collapse_perf_script(text).stacks, {'python3;main;PyEval_EvalFrameDefault': 1})
 
+  def test_cpp_functions_with_parentheses(self):
+    # the module is the last parenthesis: C++ names can have " (" in them, modules can be "(deleted)"
+    text = ('app 812 1.0: 1 cycles:\n'
+            '\t7f00aa30 std::_Function_handler<void (int), Task>::_M_invoke+0x10 (/usr/bin/app)\n'
+            '\t7f00aa20 void run<int, (anonymous namespace)::Job>(int) (/usr/bin/app)\n'
+            '\t7f00aa10 work (/tmp/app (deleted))\n'
+            '\t7f00aa00 main (/usr/bin/app)\n')
+    stacks = collapse_perf_script(text).stacks
+    self.assertEqual(list(stacks), ['app;main;work;void run<int, (anonymous namespace)::Job>(int);std::_Function_handler<void'])
+
   def test_detected(self):
     self.assertEqual(detect_format(self.text.encode(), 'perf.script.txt'), 'perf-script')
     self.assertEqual(read_profile(FIXTURES / 'perf.script.txt').total, 6)
@@ -130,6 +141,12 @@ class TestFolded(unittest.TestCase):
     self.assertAlmostEqual(profile.share('lock'), 0.3)
     self.assertAlmostEqual(profile.share('^main$'), 1.0)
 
+  def test_folded_stacks_that_start_with_a_bracket(self):
+    data = b'[unknown];main;parse 3\n[unknown];main 1\n'
+    self.assertEqual(detect_format(data, 'cpu.folded'), 'folded')
+    self.assertEqual(read_profile(data).total, 4)
+    self.assertEqual(detect_format(b'[{"name": "all"}]', 'x.json'), 'json')
+
   def test_formats_the_viewer_reads(self):
     self.assertEqual(detect_format((FIXTURES / 'py-spy.speedscope.json').read_bytes()), 'speedscope')
     self.assertEqual(detect_format((FIXTURES / 'node.cpuprofile').read_bytes()), 'cpuprofile')
@@ -165,3 +182,41 @@ class TestSave(unittest.TestCase):
       save_flame_graph(path, FIXTURES / 'perf.script.txt', scale=10)
       self.assertEqual(read_profile(path).total, 60)
       self.assertEqual(detect_format(path.read_bytes(), path.name), 'folded')
+
+
+def imported_modules(path: Path):
+  """The modules a file imports, relative imports as '.name'"""
+  import ast
+  names = set()
+  for node in ast.walk(ast.parse(path.read_text())):
+    if isinstance(node, ast.Import):
+      names.update(alias.name for alias in node.names)
+    elif isinstance(node, ast.ImportFrom):
+      names.add('.' * node.level + (node.module or ''))
+  return names
+
+
+def loaded_by_the_cli():
+  """The qaboard modules `import qaboard` and the `qa` CLI's module load, in a fresh interpreter"""
+  import subprocess
+  import sys
+  import tempfile
+  code = "import sys, qaboard, qaboard.qa; print(' '.join(m for m in sys.modules if m.startswith('qaboard')))"
+  with tempfile.TemporaryDirectory() as tmp:
+    process = subprocess.run([sys.executable, '-c', code], cwd=tmp, capture_output=True, text=True, check=True,
+                             env={**os.environ, 'QA_NO_CHECK_FOR_UPDATES': '1'})
+  return set(process.stdout.split())
+
+
+class TestIsolation(unittest.TestCase):
+  """Projects import qaboard.flamegraphs from their run(): it doesn't weigh on `import qaboard` or the `qa` CLI, and needs
+  only the standard library."""
+  def test_imports_only_the_standard_library(self):
+    import sys
+    path = Path(__file__).resolve().parent.parent / 'qaboard' / 'flamegraphs.py'
+    allowed = set(sys.stdlib_module_names)
+    for name in imported_modules(path):
+      self.assertTrue((name if name.startswith('.') else name.split('.')[0]) in allowed, f'flamegraphs.py imports {name}')
+
+  def test_not_loaded_by_import_qaboard_or_the_cli(self):
+    self.assertNotIn('qaboard.flamegraphs', loaded_by_the_cli())

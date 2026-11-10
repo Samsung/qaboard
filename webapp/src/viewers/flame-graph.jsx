@@ -21,7 +21,7 @@ const profileQuery = (url, is_running) => {
   return { ...query, queryKey: [...query.queryKey, 'gzip'], queryFn: context => query.queryFn(context).then(decodeProfileBytes) };
 };
 
-// unit: the values' unit, from the visualization's options in qaboard.yaml, if the file doesn't say it
+// unit: the values' unit, from the visualization's options in qaboard.yaml: it wins over the file's `# unit:` line
 const FlameGraphViewer = ({ output_new, output_ref, path, labels: labels_, unit }) => {
   const labels = useLabels(labels_);
   const url_new = output_new?.output_dir_url && path ? `${output_new.output_dir_url}/${path}` : undefined;

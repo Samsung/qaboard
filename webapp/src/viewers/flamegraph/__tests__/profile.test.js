@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { parseFolded } from '../formats';
 import { generateFolded } from '../generate';
 import {
-  drawnTree, findPath, formatPoints, formatShare, formatValue, functionTotals, makeMatcher, matchedValue, parseUnit,
+  MAX_DEPTH_DRAWN, drawnTree, findPath, formatPoints, mergeTrees, formatShare, formatValue, functionTotals, makeMatcher, matchedValue, parseUnit,
   topFunctions,
 } from '../profile';
 
@@ -125,5 +125,19 @@ describe('units', () => {
     expect(parseUnit('µs of CPU per 1,000 requests')).toEqual({ unit: 'microseconds', note: 'of CPU per 1,000 requests' });
     expect(parseUnit('none')).toEqual({ unit: 'samples', note: '' });
     expect(parseUnit('cycles')).toEqual({ unit: 'cycles', note: '' });
+  });
+});
+
+describe('deep stacks', () => {
+  it('handles stacks deeper than the call stack, and draws them up to MAX_DEPTH_DRAWN', () => {
+    const deep = tree(`${Array.from({ length: 50000 }, (_, i) => `f${i % 3}`).join(';')} 10\nmain 5\n`);
+    expect(topFunctions(deep, deep).find(r => r.name === 'f0')).toMatchObject({ total: 10, change: 0 });
+    expect(mergeTrees([deep, deep]).value).toBe(30);
+    const drawn = drawnTree(deep, deep);
+    let depth = 0;
+    for (let node = drawn; node.children.length; node = node.children[0]) depth++;
+    expect(depth).toBe(MAX_DEPTH_DRAWN);
+    expect(drawn.too_deep).toBe(true);
+    expect(drawnTree(now, reference).too_deep).toBeUndefined();
   });
 });

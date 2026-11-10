@@ -69,8 +69,17 @@ describe('parseBenchmarks', () => {
     expect(parseBenchmarks('{"qaboard_benchmarks": 1, "benchmarks": [{"name": "a"}]}').error).toMatch(/benchmarks\[0\]/);
     expect(parseBenchmarks('{"qaboard_benchmarks": 2, "benchmarks": []}').error).toMatch(/unsupported version/);
     expect(parseBenchmarks('{"reason": "benchmark-complete"}\n{oops').error).toBeTruthy();
+    expect(parseBenchmarks(' '.repeat(100e6 + 1)).error).toMatch(/too large to show \(100 MB/);
     // forced
     expect(parseBenchmarks(read('hyperfine.json'), { format: 'hyperfine' }).source).toBe('hyperfine');
+  });
+
+  it("reads NaN and Infinity, that Python's json module writes, as missing", () => {
+    const text = '{"machine_info": {"node": "n"}, "benchmarks": [{"name": "test_a", "fullname": "t.py::test_a", '
+      + '"stats": {"mean": 1e-3, "stddev": NaN, "rounds": 1, "ops": Infinity, "min": -Infinity}}]}';
+    const { benchmarks, error } = parseBenchmarks(text);
+    expect(error).toBeNull();
+    expect(benchmarks[0].stats).toEqual({ mean: 1e-3, rounds: 1 });
   });
 
   it('keeps names unique', () => {

@@ -4,7 +4,8 @@
  */
 import { fireEvent, screen, within } from '@testing-library/react';
 
-import BenchmarksViewer, { BenchmarksReport } from '../benchmarks/BenchmarksViewer';
+import BenchmarksViewer from '../benchmarks-viewer';
+import { BenchmarksReport } from '../benchmarks/BenchmarksReport';
 import { is_benchmarks } from '../OutputViewer';
 import { renderWithProviders } from '../../test-utils';
 
@@ -145,6 +146,19 @@ describe('BenchmarksViewer', () => {
   it('downloads the run\'s file and the reference\'s', async () => {
     renderWithProviders(<BenchmarksViewer path="pytest.benchmarks.json" output_new={{ output_dir_url: '/s/new' }} output_ref={{ output_dir_url: '/s/ref' }}/>);
     expect(await screen.findByRole('toolbar', { name: 'Summary' })).toHaveTextContent('1 slower');
+  });
+
+  it('shows files picked by their name that are not benchmark files as text, as before the viewer', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{"threads": 4, "cache": "on"}', { headers: { 'Content-Type': 'text/plain' } })));
+    renderWithProviders(<BenchmarksViewer path="bench.json" output_new={{ output_dir_url: '/s/new' }} fallback_to_text/>);
+    expect(await screen.findByText(/Not a benchmark file the viewer reads \(unknown benchmark file.*\): shown as text/)).toBeInTheDocument();
+  });
+
+  it('says why it cannot read a file it was told to read', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{"threads": 4}', { headers: { 'Content-Type': 'text/plain' } })));
+    renderWithProviders(<BenchmarksViewer path="results.json" output_new={{ output_dir_url: '/s/new' }}/>);
+    expect(await screen.findByText(/unknown benchmark file/)).toBeInTheDocument();
+    expect(screen.queryByText(/shown as text/)).not.toBeInTheDocument();
   });
 });
 

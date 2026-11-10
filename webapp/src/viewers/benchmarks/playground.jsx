@@ -10,7 +10,7 @@ import "@blueprintjs/core/lib/css/blueprint.css";
 import "@blueprintjs/icons/lib/css/blueprint-icons.css";
 import "../../App.css";
 
-import { BenchmarksReport } from './BenchmarksViewer';
+import { BenchmarksReport } from './BenchmarksReport';
 import { side_color } from '../../sideColors';
 
 const params = new URLSearchParams(window.location.search);

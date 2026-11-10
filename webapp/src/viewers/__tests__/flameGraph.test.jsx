@@ -5,6 +5,7 @@
 import { fireEvent, screen, within } from '@testing-library/react';
 
 import FlameGraphViewer from '../flame-graph';
+import { is_flame_graph } from '../OutputViewer';
 import { renderWithProviders } from '../../test-utils';
 
 // d3-flame-graph draws SVGs that jsdom can't lay out: we check what users pick from, and what it's given
@@ -103,5 +104,15 @@ describe('FlameGraphViewer', () => {
     files['/s/new/perf.stacks.txt'] = 'java 25607 4794564.109216: 1 cycles: \n\t7f00aa10 main (/usr/bin/java)\n\n';
     render({ path: 'perf.stacks.txt', output_ref: undefined });
     expect(await screen.findByText(/qaboard.flamegraphs.save_flame_graph/)).toBeInTheDocument();
+  });
+});
+
+describe('is_flame_graph', () => {
+  it('picks the viewer for profile files', () => {
+    for (const path of ['cpu.folded', 'out/cpu.collapsed', 'cpu.folded.gz', 'perf.stacks.txt', 'cpu.flame.json', 'flame.json',
+      'py-spy.speedscope.json', 'CPU.20261110.cpuprofile'])
+      expect(is_flame_graph(path)).toBe(true);
+    for (const path of ['plot.json', 'log.txt', 'cpu.pb.gz', 'folded.png', 'flame.json.bak'])
+      expect(is_flame_graph(path)).toBe(false);
   });
 });
