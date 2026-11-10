@@ -64,13 +64,16 @@ A change is better when its runs beat the *same* runs on the reference, not when
    `batches[].reruns` for the runs that only passed after being done again, and `rules_changes` when the commit
    changed the gate's rules: report both, and never loosen a rule to make the gate pass without saying so.
    Checks with `"source": "project"` are the project owners' rules, set in the web app: nothing in the repository
-   changes them, so fix the regression or ask an owner.
+   changes them, so fix the regression or ask an owner. A check with `batch` only looked at the runs of those
+   `qa batch` names; `unknown` with "no runs from `qa batch perf` yet" means the results aren't complete: wait or run
+   that batch, don't conclude. `qa gate --label nightly` checks other results (`gate.labels`).
 3. For other batches or labels, use the compare API the gate uses:
    ```bash
    curl "$QABOARD_URL/api/v1/commit/<sha>/compare?project=<project>&reference=main&batch=<label>"
    ```
    `metrics[<name>]`: new and reference medians, `delta`, `delta_relative`, share of runs meeting the target.
-   `tests[]`: each run, its reference run and the change per metric; `reference_mismatch` when the pairing isn't exact.
+   `tests[]`: each run, its reference run and the change per metric, and its `batch` (the `qa batch` name);
+   `reference_mismatch` when the pairing isn't exact.
    `status` must be `complete`; `running`/`missing` say why.
 4. Report per test: which inputs improved, which regressed, which failed; the metric's direction
    (`smaller_is_better`); and the link to the Metrics Diff

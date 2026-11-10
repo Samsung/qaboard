@@ -18,6 +18,10 @@ median over the runs, or each test) and the limit, then how many runs may fail a
 bit-accurate. A commit is checked against the rules in its own *qaboard.yaml*, so a branch can differ: these are
 the rules it starts from.
 
+When a rule only checks some runs, the table has a **Runs** column: *only `qa batch perf`* for the runs of one batch
+of tests, *only the label nightly* for the results of one label, *every run* for the others. **Waits for runs
+from** lists the batches that must have runs before the gate decides.
+
 To change them, edit *qaboard.yaml*: see [Quality gate](/docs/quality-gate#rules).
 
 ## Add rules no commit can change {#project-rules}
@@ -30,9 +34,15 @@ of its own rules, and only owners change them, here.
    percentage of the reference's, *each test may get worse by at most* a percentage, or a value it must stay
    *at least* or *at most*.
 4. Type the **limit**: `5%` for the first two, a number in the metric's unit for the others.
-5. Optionally, set how many **failed runs** are allowed, and whether **outputs must be bit-accurate**. The stricter
+5. Optionally, click **Only for…** (the filter button) to check only some runs: type the **batches**, as named
+   after `qa batch` (`perf`, or `unit, integration`), or the **labels** of the results (`nightly`). Separate several
+   with commas; patterns like `perf-*` work too. Click it again to check every run.
+6. Optionally, set how many **failed runs** are allowed, and whether **outputs must be bit-accurate**. The stricter
    of your setting and the commit's applies.
-6. **Save.**
+7. Optionally, in **Wait for runs from**, list the batches that must have runs before the gate decides, e.g.
+   `ci, perf`: until then it can't decide. For one label only, write `default: ci, perf; nightly: all`. They're
+   added to those the commit's *qaboard.yaml* waits for.
+8. **Save.**
 
 In the gate's table, in CI and on pull requests, your rules are marked `[project rule]`. The page says who changed
 them last; the server's admins see every change in the audit log.
@@ -51,7 +61,9 @@ higher allowed regression, a lower floor, a removed rule.
   the reference branch when people decide to merge them.
 
 ## Good to know
-- Project rules need a version of `qa` that reads them, in your CI: older versions ignore them.
+- Project rules need a version of `qa` that reads them, in your CI: older versions ignore them. Rules for some
+  batches or labels, and batches to wait for, need a version from November 2026: older ones stop with an error
+  that asks to upgrade, rather than check part of the rules.
 - Rules are per project. In a repository with several projects, each has its own.
 - The gate runs in your CI: see [what project rules guarantee](/docs/quality-gate#project-rules).
 

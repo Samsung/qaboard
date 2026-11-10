@@ -1,8 +1,12 @@
 # RFC: the gate per label and per batch, and one comment that several jobs share
 
-Status: accepted for implementation, November 2026. Extends `website/docs/quality-gate.mdx` (experimental) and
-`docs/rfcs/project-admin.md` (project rules). What the gate compares doesn't change: a commit's results against the
-reference's, as today.
+Status: implemented, November 2026 (`qaboard/gate.py`, `tests[].batch` in `backend/backend/compare.py`, the Quality
+gate page). Extends `website/docs/quality-gate.mdx` (experimental) and `docs/rfcs/project-admin.md` (project rules).
+What the gate compares doesn't change: a commit's results against the reference's, as today. Decided while building
+it: a rule's `label` isn't shown in the tables (the section is the label's); `expect_batches` is one check per label
+("batches with runs"); a mapping's keys are labels or patterns; `pull_request_target` events comment on their pull
+request, closed ones get no comment; GitHub's 403 answers that are rate limits are retried like 429s. Not verified against live GitHub or GitLab
+(mocked in the tests); the backend integration test was written but not run here.
 
 ## Why
 Projects organize their tests in two ways, and the gate has to speak both:

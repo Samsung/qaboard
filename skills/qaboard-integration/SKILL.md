@@ -126,14 +126,18 @@ Then `qa gate` after `qa batch`, with rules in `qaboard.yaml` (experimental):
 ```yaml
 gate:
   reference: main
-  batches: [default]           # the CI batch's label is "default"
+  labels: [default]            # the results to check (`qa --label`); the CI's label is "default"
+  expect_batches: [ci]         # undecidable until `qa batch ci` has runs
   rules:
     - {metric: map, min: 0.15}
     - {metric: ap_small, max_regression: 10%}
     - {metric: map, per_test_max_regression: 25%}
+    - {metric: latency_p99, max_regression: 10%, batch: perf}   # only the runs of `qa batch perf`
   max_failed_runs: 0
 ```
-Rules about regressions need the metric's `smaller_is_better`. https://samsung.github.io/qaboard/docs/quality-gate
+Rules about regressions need the metric's `smaller_is_better`. `batches:` is the older name of `labels:`. With
+several CI jobs, each `qa gate --post-comment` writes its label's section of the same pull request comment.
+https://samsung.github.io/qaboard/docs/quality-gate
 
 ## 6. Tell the agents of the project
 Add the snippet in `templates/AGENTS.md` to the project's `AGENTS.md` or `CLAUDE.md`: how to run the batch, and that a
