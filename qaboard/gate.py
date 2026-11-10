@@ -148,6 +148,9 @@ class GateConfig:
 
 
 ON_LOOSER_RULES = ('warn', 'fail')
+# What the project's settings can have (the server validates them with this module: one list). Not `reference` or
+# `labels`: those say what a commit is compared with.
+PROJECT_GATE_KEYS = ('rules', 'max_failed_runs', 'require_bit_accuracy', 'on_looser_rules', 'expect_batches')
 
 
 def apply_project_gate(gate: GateConfig, project_gate: Any) -> bool:
@@ -159,7 +162,7 @@ def apply_project_gate(gate: GateConfig, project_gate: Any) -> bool:
   if not isinstance(project_gate, dict):
     return False
   asked_metrics, asked_bit_accuracy = set(gate.metrics), gate.needs_bit_accuracy
-  unknown = set(project_gate) - {'rules', 'max_failed_runs', 'require_bit_accuracy', 'on_looser_rules', 'expect_batches'}
+  unknown = set(project_gate) - set(PROJECT_GATE_KEYS)
   if unknown:
     raise GateConfigError(f"the project's gate settings have keys this version of qa doesn't know ({', '.join(sorted(unknown))}): upgrade qaboard")
   try:

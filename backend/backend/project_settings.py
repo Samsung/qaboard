@@ -6,15 +6,13 @@ one vocabulary, one validation. `qa gate` gets them with the numbers it compares
 project's rules on top of the commit's own: a commit can't change them.
 """
 import json
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
-from qaboard.gate import parse_config, GateConfigError, Rule
+from qaboard.gate import parse_config, GateConfigError, Rule, ON_LOOSER_RULES, PROJECT_GATE_KEYS as GATE_KEYS
 
-# What a project's gate settings can have. Not `reference` or `labels`: those say what a commit is compared with.
-# `expect_batches`: the batches that must have runs, on top of those the commit's qaboard.yaml expects.
-GATE_KEYS = ('rules', 'max_failed_runs', 'require_bit_accuracy', 'on_looser_rules', 'expect_batches')
-# When a commit's own rules are looser than the reference's: say so, or fail the gate
-ON_LOOSER_RULES = ('warn', 'fail')
+# GATE_KEYS: what a project's gate settings can have, as `qa gate` reads them. `expect_batches`: the batches that
+# must have runs, on top of those the commit's qaboard.yaml expects. ON_LOOSER_RULES: when a commit's own rules
+# are looser than the reference's, say so (warn), or fail the gate.
 MAX_RULES = 200
 # `qa gate` gets them with each comparison, the page with the project's settings: they stay small
 MAX_GATE_BYTES = 64 * 1024
@@ -136,8 +134,3 @@ def gate_changes(before: Optional[Dict[str, Any]], after: Optional[Dict[str, Any
   """For the audit log: {field: {from, to}} for what changed"""
   before, after = before or {}, after or {}
   return {key: {'from': before.get(key), 'to': after.get(key)} for key in GATE_KEYS if before.get(key) != after.get(key)}
-
-
-def rules_summary(rules: List[Dict[str, Any]]) -> List[str]:
-  """Rules as short texts, e.g. for the audit log's labels"""
-  return [' '.join(f"{k}={v}" for k, v in rule.items()) for rule in rules if isinstance(rule, dict)]
