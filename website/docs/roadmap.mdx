@@ -311,6 +311,16 @@ commit, on top of the commit's own, and can fail commits that loosen their rules
 project's owners chose, in **Admin → Alerts**.
 </RoadmapItem>
 
+<RoadmapItem status="next" title="A noise floor per metric">
+A metric says how much it moves between identical runs (`noise: 2%`, or the spread a benchmark harness reported): the
+Metrics Diff grays changes within it, and the gate doesn't fail on them. QA-Board still doesn't repeat runs for you.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="A record of who decided, on what evidence">
+For every change: where its runs came from (a verified CI job, an agent, a laptop), the gate's verdict, and who
+approved it as the new reference, with a list of the batches that wait for a decision.
+</RoadmapItem>
+
 <RoadmapItem status="shipped" title="A record of every attempt">
 A shared or CI run that is done again no longer erases what came before: QA-Board keeps how each earlier attempt
 ended, its metrics and its log, and shows the latest. See
