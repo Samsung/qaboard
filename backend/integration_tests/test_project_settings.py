@@ -69,9 +69,26 @@ def test_the_page_shows_the_rules_of_qaboard_yaml(team, client):
   reference = settings(team['carol'])["reference"]
   assert (reference["branch"], reference["has_gate"], reference["max_failed_runs"], reference["error"]) == ("main", True, 2, None)
   assert reference["rules"] == [
-    {"metric": "loss", "kind": "max_regression", "limit": 0.1, "aggregate": "median"},
-    {"metric": "loss", "kind": "per_test_max_regression", "limit": 0.25, "aggregate": None},
+    {"metric": "loss", "kind": "max_regression", "limit": 0.1, "aggregate": "median", "batch": None, "label": None},
+    {"metric": "loss", "kind": "per_test_max_regression", "limit": 0.25, "aggregate": None, "batch": None, "label": None},
   ]
+
+
+def test_rules_for_some_batches(team):
+  """docs/rfcs/gate-scopes-and-comments.md: project rules on the runs of some `qa batch`, and the batches to wait for"""
+  alice, bob = team['alice'], team['bob']
+  gate = {"rules": [{"metric": "loss", "max_regression": "5%", "batch": "perf"}, {"metric": "loss", "max": 2, "label": ["nightly"]}],
+          "max_failed_runs": None, "require_bit_accuracy": False, "expect_batches": {"default": ["ci", "perf"]}, "on_looser_rules": "warn"}
+  response = save(alice, gate)
+  assert response.status_code == 200, response.get_json()
+  assert response.get_json()["gate"] == gate
+  assert save(alice, {**gate, "expect_batches": {"default": [1.5]}}).status_code == 400
+  # `qa gate` gets them, and which batch each run comes from
+  assert ingest(bob, rel_input_path="inputs/b.txt", batch="perf").status_code == 200
+  compare = bob.get(f'/api/v1/commit/{SHA}/compare?project={PROJECT}').get_json()
+  assert compare["project_gate"] == gate
+  batches = {t["test_input_path"]: t["batch"] for t in compare["tests"]}
+  assert batches == {"inputs/a.txt": None, "inputs/b.txt": "perf"}
 
 
 def test_changes_are_audited(team):

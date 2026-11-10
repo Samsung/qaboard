@@ -7,7 +7,7 @@ import { http } from "../api/http";
 
 const no_reference = {
   exists: false, branch: null, has_config: false, has_gate: false, error: null,
-  reference: null, batches: [], rules: [], max_failed_runs: null, require_bit_accuracy: false,
+  reference: null, labels: [], batches: [], expect_batches: {}, rules: [], max_failed_runs: null, require_bit_accuracy: false,
 };
 
 // What both calls answer, with defaults for what the server doesn't say
@@ -24,9 +24,11 @@ const settingsKey = project => ['project-settings', project];
 
 // {project, can_manage, gate, gate_updated: {at, by}, reference}
 // - gate: the project rules, as qaboard.yaml writes them: {rules: [{metric, max_regression, per_test_max_regression,
-//   min, max, aggregate}], max_failed_runs, require_bit_accuracy, on_looser_rules: warn | fail}, or null
+//   min, max, aggregate, batch, label}], max_failed_runs, require_bit_accuracy, on_looser_rules: warn | fail,
+//   expect_batches: [batches] or {label: [batches]}}, or null
 // - reference: the gate: section of the reference branch's qaboard.yaml, as `qa gate` reads it:
-//   {exists, branch, has_config, has_gate, error, rules: [{metric, kind, limit, aggregate}], max_failed_runs, require_bit_accuracy}
+//   {exists, branch, has_config, has_gate, error, rules: [{metric, kind, limit, aggregate, batch, label}],
+//   max_failed_runs, require_bit_accuracy, labels, expect_batches: {label or '*' for all: [batches]}}
 export const projectSettingsQuery = project => queryOptions({
   queryKey: settingsKey(project),
   queryFn: async ({ signal }) => {

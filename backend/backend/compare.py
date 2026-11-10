@@ -243,6 +243,9 @@ def compare_outputs(new_outputs: List[Dict], ref_outputs: List[Dict], available_
       'configurations': o.get('configurations'),
       'extra_parameters': o.get('extra_parameters'),
       'is_failed': bool(o.get('is_failed')),
+      # the batch of qaboard.yaml the run comes from (`qa batch <name>`), for the gate's rules on some batches.
+      # Not a number of the views: the web app's helpers (compare.js) have nothing to mirror.
+      'batch': o['data'].get('batch') if isinstance(o.get('data'), dict) else None,
       'metrics': cells,
       # filled in by compare_bit_accuracy()
       'bit_accurate': None,

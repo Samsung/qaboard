@@ -33,31 +33,96 @@ export const limit_text = (kind, limit) => {
   return Number.isFinite(fraction) ? percent(fraction) : String(limit);
 };
 
+// A rule's `batch` and `label`: a name, a list, or shell patterns ("perf-*"). null: every run, every label
+export const names_of = value => {
+  if (value === null || value === undefined || value === '') return null;
+  const names = (Array.isArray(value) ? value : [value]).map(name => String(name).trim()).filter(name => name !== '');
+  return names.length > 0 ? names : null;
+};
+
+// Which runs a rule checks, for people: "only `qa batch perf`", "only the label nightly", null for all
+export const scope_parts = ({ batch, label }) => {
+  const batches = names_of(batch);
+  const labels = names_of(label);
+  return [
+    ...(batches ? [{ what: 'batch', text: 'only ', names: batches.map(name => `qa batch ${name}`) }] : []),
+    ...(labels ? [{ what: 'label', text: labels.length > 1 ? 'only the labels ' : 'only the label ', names: labels }] : []),
+  ];
+};
+export const scope_text = rule => {
+  const parts = scope_parts(rule);
+  if (parts.length === 0) return null;
+  return parts.map(part => part.text + part.names.join(part.what === 'batch' ? ' or ' : ', ')).join(', ');
+};
+
 // Saved rules can have several limits ({metric, max_regression, min}): one row per limit, with the value as written
 export const rule_rows = rules => (Array.isArray(rules) ? rules : [])
   .filter(rule => rule && typeof rule === 'object')
   .flatMap(rule => {
     const kinds = rule_kinds.filter(kind => kind in rule);
     // a rule without a limit isn't valid: still a row, to give it one
+    const batch = names_of(rule.batch);
+    const label = names_of(rule.label);
     return (kinds.length > 0 ? kinds : [rule_kinds[0]]).map(kind => ({
       metric: String(rule.metric ?? ''),
       kind,
       limit: rule[kind] ?? '',
       aggregate: has_aggregate(kind) ? rule.aggregate ?? default_aggregate : null,
+      // only for rules on some batches or labels
+      ...(batch ? { batch } : {}),
+      ...(label ? { label } : {}),
     }));
   });
 
 
+// `expect_batches`, the batches that must have runs: a list for every label ("ci, perf"), or a list per label
+// ("default: ci, perf; nightly: all"), as owners type them
+export const expect_batches_text = expect => {
+  if (Array.isArray(expect) || typeof expect === 'string') return (names_of(expect) ?? []).join(', ');
+  if (!expect || typeof expect !== 'object') return '';
+  const entries = Object.entries(expect).map(([label, batches]) => [label, names_of(batches) ?? []]).filter(([, batches]) => batches.length > 0);
+  // what qa gate reads from a list: every label ('*')
+  if (entries.length === 1 && entries[0][0] === '*') return entries[0][1].join(', ');
+  return entries.map(([label, batches]) => `${label}: ${batches.join(', ')}`).join('; ');
+};
+
+const split_names = text => text.split(',').map(name => name.trim()).filter(name => name !== '');
+
+export const expect_batches_from_text = text => {
+  const trimmed = text.trim();
+  if (trimmed === '') return null;
+  if (!trimmed.includes(':')) return split_names(trimmed);
+  const expect = {};
+  for (const part of trimmed.split(';')) {
+    const [label, ...rest] = part.split(':');
+    if (label.trim() === '' && rest.length === 0) continue;
+    expect[label.trim()] = split_names(rest.join(':'));
+  }
+  return expect;
+};
+
+
 // What the editor holds: the limits and the failed runs as the text owners type
-export const new_rule = () => ({ metric: '', kind: 'max_regression', limit: '', aggregate: default_aggregate });
+export const new_rule = () => ({ metric: '', kind: 'max_regression', limit: '', aggregate: default_aggregate, batch: '', label: '' });
 
 export const form_from_gate = gate => ({
-  rules: rule_rows(gate?.rules).map(row => ({ ...row, limit: String(row.limit), aggregate: row.aggregate ?? default_aggregate })),
+  rules: rule_rows(gate?.rules).map(row => ({
+    ...row, limit: String(row.limit), aggregate: row.aggregate ?? default_aggregate,
+    batch: (row.batch ?? []).join(', '), label: (row.label ?? []).join(', '),
+  })),
   // empty: no limit from the project
   max_failed_runs: gate?.max_failed_runs === null || gate?.max_failed_runs === undefined ? '' : String(gate.max_failed_runs),
   require_bit_accuracy: !!gate?.require_bit_accuracy,
   on_looser_rules: gate?.on_looser_rules === 'fail' ? 'fail' : 'warn',
+  expect_batches: expect_batches_text(gate?.expect_batches),
 });
+
+// "perf" for one name, as qaboard.yaml usually writes it, a list for several
+const names_value = text => {
+  const names = split_names(text ?? '');
+  if (names.length === 0) return null;
+  return names.length === 1 ? names[0] : names;
+};
 
 // Numbers as numbers. What isn't one is sent as typed: the server says what's wrong with it
 const number_or_text = text => {
@@ -66,17 +131,28 @@ const number_or_text = text => {
 };
 
 // The settings to save, in qaboard.yaml's format: one rule per row. Rows left empty are skipped.
-export const gate_from_form = form => ({
-  rules: form.rules
-    .map(row => ({ ...row, metric: row.metric.trim(), limit: row.limit.trim() }))
-    .filter(row => row.metric !== '' || row.limit !== '')
-    .map(({ metric, kind, limit, aggregate }) => ({
-      metric,
-      [kind]: is_regression_kind(kind) ? limit : number_or_text(limit),
-      // the median is the default
-      ...(has_aggregate(kind) && aggregate && aggregate !== default_aggregate ? { aggregate } : {}),
-    })),
-  max_failed_runs: form.max_failed_runs.trim() === '' ? null : number_or_text(form.max_failed_runs.trim()),
-  require_bit_accuracy: form.require_bit_accuracy,
-  on_looser_rules: form.on_looser_rules,
-});
+// Rules without a scope, and settings without expect_batches, are written as before.
+export const gate_from_form = form => {
+  const expect_batches = expect_batches_from_text(form.expect_batches ?? '');
+  return {
+    rules: form.rules
+      .map(row => ({ ...row, metric: row.metric.trim(), limit: row.limit.trim() }))
+      .filter(row => row.metric !== '' || row.limit !== '')
+      .map(({ metric, kind, limit, aggregate, batch, label }) => {
+        const batches = names_value(batch);
+        const labels = names_value(label);
+        return {
+          metric,
+          [kind]: is_regression_kind(kind) ? limit : number_or_text(limit),
+          // the median is the default
+          ...(has_aggregate(kind) && aggregate && aggregate !== default_aggregate ? { aggregate } : {}),
+          ...(batches ? { batch: batches } : {}),
+          ...(labels ? { label: labels } : {}),
+        };
+      }),
+    max_failed_runs: form.max_failed_runs.trim() === '' ? null : number_or_text(form.max_failed_runs.trim()),
+    require_bit_accuracy: form.require_bit_accuracy,
+    on_looser_rules: form.on_looser_rules,
+    ...(expect_batches ? { expect_batches } : {}),
+  };
+};

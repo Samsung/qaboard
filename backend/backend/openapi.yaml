@@ -1094,6 +1094,11 @@ components:
               configurations: {type: array, items: {}}
               extra_parameters: {type: object, additionalProperties: true}
               is_failed: {type: boolean}
+              batch:
+                type: [string, "null"]
+                description: >-
+                  The batch of *qaboard.yaml* the run comes from (`qa batch <name>`), `null` if it doesn't say.
+                  `qa gate` uses it for the rules on some batches and `expect_batches`.
               attempts:
                 type: object
                 description: Only for runs that were done again.

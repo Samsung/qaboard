@@ -14,7 +14,7 @@ import { toaster } from '../../toaster';
 import { ProjectAccessGate } from '../../access/NoProjectAccess';
 import { GatePage } from '../GatePage';
 import { projectSettingsQuery } from '../api';
-import { check_text, limit_text, rule_rows, form_from_gate, gate_from_form } from '../rules';
+import { check_text, limit_text, rule_rows, form_from_gate, gate_from_form, scope_text, expect_batches_text, expect_batches_from_text } from '../rules';
 
 const json = (data, status = 200) => Promise.resolve(new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }));
 
@@ -134,6 +134,33 @@ describe('Quality gate page, for viewers', () => {
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add a rule' })).not.toBeInTheDocument();
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+
+  it('says which runs a rule checks, and which batches the gate waits for', async () => {
+    renderPage({
+      [`GET ${settings_api}`]: settings({
+        reference: reference({
+          rules: [
+            { metric: 'psnr', kind: 'max_regression', limit: 0.01, aggregate: 'median', batch: null, label: null },
+            { metric: 'latency_p99', kind: 'max_regression', limit: 0.1, aggregate: 'median', batch: ['perf'], label: null },
+            { metric: 'coverage', kind: 'min', limit: 80, aggregate: 'median', batch: ['unit', 'integration-*'], label: ['nightly'] },
+          ],
+          expect_batches: { '*': ['ci', 'perf'] },
+        }),
+        gate: project_gate({ rules: [{ metric: 'accuracy', min: 0.9, label: 'nightly' }], expect_batches: { default: ['ci'], nightly: ['all'] } }),
+      }),
+    }, { user: bob });
+    const yaml = await screen.findByRole('table', { name: 'Rules in qaboard.yaml' });
+    expect(within(yaml).getAllByRole('columnheader').map(th => th.textContent)).toEqual(['Metric', 'Check', 'Limit', 'Runs']);
+    expect(rows_of(yaml)).toEqual([
+      ['psnr', 'median may get worse by at most', '1%', 'every run'],
+      ['latency_p99', 'median may get worse by at most', '10%', 'only qa batch perf'],
+      ['coverage', 'median is at least', '80', 'only qa batch unit or qa batch integration-*, only the label nightly'],
+    ]);
+    expect(within(yaml).getByText('qa batch perf').tagName).toBe('CODE');
+    expect(screen.getByRole('region', { name: 'Rules in qaboard.yaml' })).toHaveTextContent('Waits for runs from: ci, perf');
+    expect(rows_of(screen.getByRole('table', { name: 'Project rules' }))).toEqual([['accuracy', 'median is at least', '0.9', 'only the label nightly']]);
+    expect(screen.getByRole('region', { name: 'Project rules' })).toHaveTextContent('Waits for runs from: default: ci; nightly: all');
   });
 
   it('says so when the project has no rules of its own', async () => {
@@ -395,6 +422,37 @@ describe('Quality gate page, for owners', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
+  it('limits rules to some batches or labels, and sets the batches the gate waits for', async () => {
+    const { fetch } = renderPage({
+      [`GET ${settings_api}`]: manager({ gate: project_gate({ rules: [{ metric: 'psnr', max_regression: '1%' }, { metric: 'latency', max: 12, batch: 'perf' }] }) }),
+      [`POST ${gate_api}`]: manager(),
+    });
+    const save = await screen.findByRole('button', { name: 'Save' });
+    // a rule on every run: closed, without clutter
+    expect(rule(1).getByRole('button', { name: 'Only for…' })).toHaveAttribute('aria-expanded', 'false');
+    expect(rule(1).queryByLabelText('Only the batches')).not.toBeInTheDocument();
+    // a scoped rule: open, with its batches
+    expect(rule(2).getByRole('button', { name: 'Only for…' })).toHaveAttribute('aria-expanded', 'true');
+    expect(rule(2).getByLabelText('Only the batches')).toHaveValue('perf');
+    expect(rule(2).getByLabelText('Only the labels')).toHaveValue('');
+    expect(screen.getByLabelText('Wait for runs from')).toHaveValue('');
+    // opening isn't a change, a batch is
+    fireEvent.click(rule(1).getByRole('button', { name: 'Only for…' }));
+    expect(save).toBeDisabled();
+    fireEvent.change(rule(1).getByLabelText('Only the batches'), { target: { value: ' unit, integration-* ' } });
+    fireEvent.change(rule(1).getByLabelText('Only the labels'), { target: { value: 'nightly' } });
+    // closing it checks every run again
+    fireEvent.click(rule(2).getByRole('button', { name: 'Only for…' }));
+    expect(rule(2).queryByLabelText('Only the batches')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Wait for runs from'), { target: { value: 'ci, perf' } });
+    fireEvent.click(save);
+    await waitFor(() => expect(calls(fetch, 'POST', gate_api)).toHaveLength(1));
+    expect(body(calls(fetch, 'POST', gate_api)[0]).gate).toStrictEqual({
+      rules: [{ metric: 'psnr', max_regression: '1%', batch: ['unit', 'integration-*'], label: 'nightly' }, { metric: 'latency', max: 12 }],
+      max_failed_runs: 0, require_bit_accuracy: false, on_looser_rules: 'warn', expect_batches: ['ci', 'perf'],
+    });
+  });
+
   it("says which role is missing when the server doesn't let them", async () => {
     renderPage({ [`GET ${settings_api}`]: manager(), [`POST ${gate_api}`]: () => [{ error: 'Forbidden', reason: 'missing_role', required: 'owner', project }, 403] });
     await screen.findByRole('button', { name: 'Save' });
@@ -447,5 +505,27 @@ describe('gate rules', () => {
       { metric: '', kind: 'max', limit: ' ', aggregate: 'median' },
     ] };
     expect(gate_from_form(form).rules).toStrictEqual([{ metric: 'psnr', min: 30 }, { metric: 'ssim', per_test_max_regression: '0.1' }]);
+  });
+
+  it('writes scopes and the batches to wait for back as it read them', () => {
+    const gate = {
+      rules: [{ metric: 'latency', max_regression: '10%', batch: 'perf' }, { metric: 'coverage', min: 80, batch: ['unit', 'integration-*'], label: ['nightly', 'weekly'] }],
+      max_failed_runs: null, require_bit_accuracy: false, on_looser_rules: 'warn', expect_batches: { default: ['ci', 'perf'], nightly: ['all'] },
+    };
+    const form = form_from_gate(gate);
+    expect(form.rules.map(({ batch, label }) => [batch, label])).toEqual([['perf', ''], ['unit, integration-*', 'nightly, weekly']]);
+    expect(form.expect_batches).toBe('default: ci, perf; nightly: all');
+    expect(gate_from_form(form)).toStrictEqual(gate);
+    expect(gate_from_form(form_from_gate({ ...gate, expect_batches: ['ci', 'perf'] })).expect_batches).toStrictEqual(['ci', 'perf']);
+    // as qa gate reads a list: for every label
+    expect(expect_batches_text({ '*': ['ci', 'perf'] })).toBe('ci, perf');
+    expect(expect_batches_text('perf')).toBe('perf');
+    expect(expect_batches_text(null)).toBe('');
+    expect(expect_batches_from_text(' ')).toBe(null);
+    expect(expect_batches_from_text('nightly: all')).toStrictEqual({ nightly: ['all'] });
+    expect(scope_text({ batch: ['perf'] })).toBe('only qa batch perf');
+    expect(scope_text({ label: 'nightly' })).toBe('only the label nightly');
+    expect(scope_text({ batch: null, label: [] })).toBe(null);
+    expect(rule_rows([{ metric: 'a', min: 1, batch: 'perf' }])).toEqual([{ metric: 'a', kind: 'min', limit: 1, aggregate: 'median', batch: ['perf'] }]);
   });
 });

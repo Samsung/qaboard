@@ -9,8 +9,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from qaboard.gate import parse_config, GateConfigError, Rule
 
-# What a project's gate settings can have. Not `reference` or `batches`: those say what a commit is compared with.
-GATE_KEYS = ('rules', 'max_failed_runs', 'require_bit_accuracy', 'on_looser_rules')
+# What a project's gate settings can have. Not `reference` or `labels`: those say what a commit is compared with.
+# `expect_batches`: the batches that must have runs, on top of those the commit's qaboard.yaml expects.
+GATE_KEYS = ('rules', 'max_failed_runs', 'require_bit_accuracy', 'on_looser_rules', 'expect_batches')
 # When a commit's own rules are looser than the reference's: say so, or fail the gate
 ON_LOOSER_RULES = ('warn', 'fail')
 MAX_RULES = 200
@@ -27,7 +28,7 @@ def clean_gate(gate: Any) -> Optional[Dict[str, Any]]:
   if gate is None:
     return None
   if not isinstance(gate, dict):
-    raise SettingsError("gate: expected an object with `rules`, `max_failed_runs`, `require_bit_accuracy`, `on_looser_rules`")
+    raise SettingsError("gate: expected an object with `rules`, `max_failed_runs`, `require_bit_accuracy`, `on_looser_rules`, `expect_batches`")
   unknown = set(gate) - set(GATE_KEYS)
   if unknown:
     raise SettingsError(f"gate: unknown keys {', '.join(sorted(unknown))}. Use: {', '.join(GATE_KEYS)}")
@@ -43,6 +44,10 @@ def clean_gate(gate: Any) -> Optional[Dict[str, Any]]:
     'max_failed_runs': gate.get('max_failed_runs'),
     'require_bit_accuracy': gate.get('require_bit_accuracy') or False,
   }
+  # Only when set: settings saved before it existed, and older `qa`, don't have it. A list, or a list per label.
+  expect_batches = gate.get('expect_batches')
+  if expect_batches not in (None, [], {}):
+    cleaned['expect_batches'] = expect_batches
   try:
     parse_config({'gate': cleaned})
   except GateConfigError as e:
@@ -51,7 +56,8 @@ def clean_gate(gate: Any) -> Optional[Dict[str, Any]]:
 
 
 def rule_row(rule: Rule) -> Dict[str, Any]:
-  return {'metric': rule.metric, 'kind': rule.kind, 'limit': rule.limit, 'aggregate': rule.aggregate}
+  """A limit of a rule, and which runs it checks: `batch` and `label` are names or patterns, None for all"""
+  return {'metric': rule.metric, 'kind': rule.kind, 'limit': rule.limit, 'aggregate': rule.aggregate, 'batch': rule.batch, 'label': rule.label}
 
 
 def describe_yaml_gate(config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -59,11 +65,13 @@ def describe_yaml_gate(config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
   The `gate:` section of a qaboard.yaml, as the Quality gate page shows it: one row per limit, as `qa gate` reads them.
   `has_config`: whether we have a configuration at all (projects that never sent results don't).
   """
+  # `batches`: the labels checked, by their older name. `expect_batches`: {label or pattern, '*' for all: [batches]}
+  empty = {'rules': [], 'max_failed_runs': None, 'require_bit_accuracy': False, 'reference': None, 'labels': [], 'batches': [],
+           'expect_batches': {}, 'error': None}
   if not isinstance(config, dict):
-    return {'has_config': False, 'has_gate': False, 'rules': [], 'max_failed_runs': None, 'require_bit_accuracy': False, 'reference': None, 'batches': [], 'error': None}
+    return {'has_config': False, 'has_gate': False, **empty}
   gate = config.get('gate')
-  described: Dict[str, Any] = {'has_config': True, 'has_gate': isinstance(gate, dict) and bool(gate), 'rules': [], 'max_failed_runs': None,
-                               'require_bit_accuracy': False, 'reference': None, 'batches': [], 'error': None}
+  described: Dict[str, Any] = {'has_config': True, 'has_gate': isinstance(gate, dict) and bool(gate), **empty}
   try:
     parsed = parse_config({'gate': gate, 'project': config.get('project') if isinstance(config.get('project'), dict) else {}})
   except GateConfigError as e:
@@ -74,7 +82,9 @@ def describe_yaml_gate(config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     max_failed_runs=parsed.max_failed_runs if described['has_gate'] else None,
     require_bit_accuracy=parsed.require_bit_accuracy,
     reference=parsed.reference,
-    batches=parsed.batches,
+    labels=parsed.labels,
+    batches=parsed.labels,
+    expect_batches=parsed.expect_batches,
   )
   return described
 

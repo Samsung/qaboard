@@ -123,6 +123,15 @@ class TestSchemas(unittest.TestCase):
       'runners': {'default': 'lsf', 'lsf': {'queue': 'normal'}, 'local': {'concurrency': -1}},
       'storage': {'outputs': '/mnt/qaboard', 'garbage': {'after': '1month'}},
     }), [])
+    # the quality gate: labels, the batches it waits for, and rules for some batches or labels
+    self.assertEqual(self.errors('qaboard.schema.json', {'gate': {
+      'labels': ['default', 'nightly'], 'expect_batches': {'default': ['ci', 'perf'], 'nightly': 'all'},
+      'rules': [{'metric': 'latency', 'max_regression': '10%', 'batch': 'perf'}, {'metric': 'accuracy', 'min': 0.9, 'label': ['nightly'], 'batch': ['perf-*']}],
+    }}), [])
+    self.assertEqual(self.errors('qaboard.schema.json', {'gate': {'batches': 'ci', 'expect_batches': ['ci']}}), [])
+    for value in [{'gate': {'rules': [{'metric': 'a', 'min': 1, 'batch': []}]}}, {'gate': {'expect_batches': {'default': [1]}}}, {'gate': {'label': 'x'}}]:
+      with self.subTest(value):
+        self.assertNotEqual(self.errors('qaboard.schema.json', value), [])
     for value in [{'projet': {}}, {'project': {'entrypont': 'a.py'}}, {'runners': {'default': 'slurm'}}, {'outputs': {'action_on_existing': 'redo'}}]:
       with self.subTest(value):
         self.assertNotEqual(self.errors('qaboard.schema.json', value), [])

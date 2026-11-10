@@ -21,7 +21,7 @@ import { ProjectAdminTabs } from "./ProjectAdminTabs";
 import { projectSettingsQuery, saveGate } from "./api";
 import {
   rule_kinds, aggregates, is_regression_kind, has_aggregate, check_text, limit_text, rule_rows, new_rule,
-  form_from_gate, gate_from_form,
+  form_from_gate, gate_from_form, scope_parts, expect_batches_text,
 } from "./rules";
 
 
@@ -59,54 +59,84 @@ const Checks = styled.ul`
   }
 `;
 
-// One rule per line: the metric, what is checked, the limit, how tests are aggregated
+// One rule per line: the metric, what is checked, the limit, how tests are aggregated, then "Only for…" opens a
+// second line with the batches and labels it checks
 const RuleRow = styled.div`
   display: grid;
-  grid-template-columns: minmax(140px, 1.5fr) minmax(200px, 1.5fr) minmax(80px, 0.6fr) minmax(100px, 0.6fr) 30px;
+  grid-template-columns: minmax(140px, 1.5fr) minmax(200px, 1.5fr) minmax(80px, 0.6fr) minmax(100px, 0.6fr) 30px 30px;
+  grid-template-areas: "metric check limit aggregate scope remove" "scopes scopes scopes scopes scopes scopes";
   gap: 8px;
   align-items: center;
-  max-width: 860px;
+  max-width: 900px;
   margin-bottom: 8px;
+  > .qa-rule-metric { grid-area: metric; }
+  > .qa-rule-check { grid-area: check; }
+  > .qa-rule-limit { grid-area: limit; }
+  > .qa-rule-aggregate { grid-area: aggregate; }
+  > .qa-rule-scope { grid-area: scope; }
+  > .qa-rule-remove { grid-area: remove; }
+  > .qa-rule-scopes {
+    grid-area: scopes;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+    margin-bottom: 4px;
+  }
 
-  /* narrow pages: two lines per rule */
+  /* narrow pages: two lines per rule, and its scope under them */
   @media (max-width: 760px) {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 30px;
-    grid-template-areas: "metric check remove" "limit aggregate .";
+    grid-template-areas: "metric check remove" "limit aggregate scope" "scopes scopes scopes";
     padding-bottom: 8px;
     border-bottom: 1px solid var(--qa-border);
-    > :nth-child(1) { grid-area: metric; }
-    > :nth-child(2) { grid-area: check; }
-    > :nth-child(3) { grid-area: limit; }
-    > :nth-child(4) { grid-area: aggregate; }
-    > :nth-child(5) { grid-area: remove; }
+    > .qa-rule-scopes { grid-template-columns: minmax(0, 1fr); }
   }
 `;
 
 const showSuccess = message => toaster.show({ message, intent: Intent.SUCCESS, icon: 'tick', timeout: 3000 });
 
 
-// Rules, one per limit: {metric, kind, limit, aggregate}. Limits are fractions, or as qaboard.yaml writes them ("5%")
-export const RulesTable = ({ rules, label }) => <div style={{ overflowX: 'auto' }}>
-  <HTMLTable compact aria-label={label}>
-    <thead>
-      <tr><th>Metric</th><th>Check</th><th>Limit</th></tr>
-    </thead>
-    <tbody>
-      {rules.map((rule, index) => <tr key={index}>
-        <td><code style={{ overflowWrap: 'anywhere' }}>{rule.metric}</code></td>
-        <td>{check_text(rule.kind, rule.aggregate)}</td>
-        <td style={{ whiteSpace: 'nowrap' }}>{limit_text(rule.kind, rule.limit)}</td>
-      </tr>)}
-    </tbody>
-  </HTMLTable>
-</div>;
+// "only `qa batch perf`, only the label nightly"
+const Scope = ({ rule }) => {
+  const parts = scope_parts(rule);
+  if (parts.length === 0) return <span className={Classes.TEXT_MUTED}>every run</span>;
+  return parts.map((part, index) => <span key={part.what}>
+    {index > 0 && ', '}{part.text}
+    {part.names.map((name, i) => <span key={name}>{i > 0 && (part.what === 'batch' ? ' or ' : ', ')}<code>{name}</code></span>)}
+  </span>);
+};
+
+// Rules, one per limit: {metric, kind, limit, aggregate, batch, label}. Limits are fractions, or as qaboard.yaml
+// writes them ("5%"). Which runs they check only when a rule doesn't check them all.
+export const RulesTable = ({ rules, label }) => {
+  const scoped = rules.some(rule => scope_parts(rule).length > 0);
+  return <div style={{ overflowX: 'auto' }}>
+    <HTMLTable compact aria-label={label}>
+      <thead>
+        <tr><th>Metric</th><th>Check</th><th>Limit</th>{scoped && <th>Runs</th>}</tr>
+      </thead>
+      <tbody>
+        {rules.map((rule, index) => <tr key={index}>
+          <td><code style={{ overflowWrap: 'anywhere' }}>{rule.metric}</code></td>
+          <td>{check_text(rule.kind, rule.aggregate)}</td>
+          <td style={{ whiteSpace: 'nowrap' }}>{limit_text(rule.kind, rule.limit)}</td>
+          {scoped && <td><Scope rule={rule}/></td>}
+        </tr>)}
+      </tbody>
+    </HTMLTable>
+  </div>;
+};
 
 // What the gate checks besides metrics. `none`: what no limit on failed runs means
-const OtherChecks = ({ max_failed_runs, require_bit_accuracy, none, children }) => <Checks>
-  <li>Failed runs allowed: <strong>{max_failed_runs ?? none}</strong></li>
-  {require_bit_accuracy && <li>Outputs must be bit-accurate.</li>}
-  {children}
-</Checks>;
+const OtherChecks = ({ max_failed_runs, require_bit_accuracy, expect_batches, none, children }) => {
+  const expected = expect_batches_text(expect_batches);
+  return <Checks>
+    <li>Failed runs allowed: <strong>{max_failed_runs ?? none}</strong></li>
+    {require_bit_accuracy && <li>Outputs must be bit-accurate.</li>}
+    {expected && <li>Waits for runs from: <strong>{expected}</strong></li>}
+    {children}
+  </Checks>;
+};
 
 
 // The gate: section of the reference branch's qaboard.yaml, as `qa gate` reads it. Read-only: it belongs to the commits.
@@ -132,7 +162,7 @@ export const YamlRules = ({ reference }) => {
       {rules.length > 0
         ? <RulesTable rules={rules} label="Rules in qaboard.yaml"/>
         : <p className={Classes.TEXT_MUTED} style={{ margin: 0 }}>No rules on metrics.</p>}
-      <OtherChecks max_failed_runs={reference.max_failed_runs} require_bit_accuracy={reference.require_bit_accuracy} none="not checked"/>
+      <OtherChecks max_failed_runs={reference.max_failed_runs} require_bit_accuracy={reference.require_bit_accuracy} expect_batches={reference.expect_batches} none="not checked"/>
     </>;
   return <section aria-label="Rules in qaboard.yaml">
     <h4 className={Classes.HEADING}>Rules in qaboard.yaml</h4>
@@ -158,7 +188,7 @@ export const ProjectRulesSummary = ({ gate }) => {
     {rules.length > 0
       ? <RulesTable rules={rules} label="Project rules"/>
       : <p className={Classes.TEXT_MUTED} style={{ margin: 0 }}>No project rules.</p>}
-    <OtherChecks max_failed_runs={gate.max_failed_runs} require_bit_accuracy={!!gate.require_bit_accuracy} none="no project limit">
+    <OtherChecks max_failed_runs={gate.max_failed_runs} require_bit_accuracy={!!gate.require_bit_accuracy} expect_batches={gate.expect_batches} none="no project limit">
       <li>When a commit loosens its own rules: <strong>{on_looser_rules.label.toLowerCase()}</strong></li>
     </OtherChecks>
   </>;
@@ -209,15 +239,21 @@ export const GateEditor = ({ project, gate }) => {
     setError(null);
   };
 
+  // The "Only for…" line is open for rules with a scope, and those owners opened. Closing it checks every run again.
+  const scope_shown = rule => !!rule.scope_open || rule.batch.trim() !== '' || rule.label.trim() !== '';
+  const toggleScope = (rule, index) => updateRule(index, scope_shown(rule) ? { scope_open: false, batch: '', label: '' } : { scope_open: true });
+
   return <form onSubmit={submit} aria-label="Project rules">
     {form.rules.map((rule, index) => <RuleRow key={index} role="group" aria-label={`Rule ${index + 1}`}>
       <InputGroup
+        className="qa-rule-metric"
         aria-label="Metric"
         placeholder="metric, e.g. psnr"
         value={rule.metric}
         onChange={e => updateRule(index, { metric: e.target.value })}
       />
       <HTMLSelect
+        className="qa-rule-check"
         aria-label="Check"
         fill
         value={rule.kind}
@@ -225,6 +261,7 @@ export const GateEditor = ({ project, gate }) => {
         options={rule_kinds.map(kind => ({ value: kind, label: check_text(kind, rule.aggregate) }))}
       />
       <InputGroup
+        className="qa-rule-limit"
         aria-label="Limit"
         placeholder={is_regression_kind(rule.kind) ? "5%" : "0.42"}
         value={rule.limit}
@@ -232,6 +269,7 @@ export const GateEditor = ({ project, gate }) => {
       />
       {has_aggregate(rule.kind)
         ? <HTMLSelect
+          className="qa-rule-aggregate"
           aria-label="Aggregate"
           title="How the tests' values are aggregated"
           fill
@@ -240,8 +278,32 @@ export const GateEditor = ({ project, gate }) => {
           options={aggregates}
         />
         // each test is checked: nothing to aggregate
-        : <span/>}
-      <Button variant="minimal" icon="cross" aria-label="Remove the rule" onClick={() => removeRule(index)}/>
+        : <span className="qa-rule-aggregate"/>}
+      <Button
+        className="qa-rule-scope"
+        variant="minimal"
+        icon="filter"
+        active={scope_shown(rule)}
+        aria-expanded={scope_shown(rule)}
+        aria-label="Only for…"
+        title={scope_shown(rule) ? "Check every run again" : "Only for some batches or labels"}
+        onClick={() => toggleScope(rule, index)}
+      />
+      <Button className="qa-rule-remove" variant="minimal" icon="cross" aria-label="Remove the rule" onClick={() => removeRule(index)}/>
+      {scope_shown(rule) && <div className="qa-rule-scopes">
+        <InputGroup
+          aria-label="Only the batches"
+          placeholder="only the runs of qa batch…, e.g. perf, unit-*"
+          value={rule.batch}
+          onChange={e => updateRule(index, { batch: e.target.value })}
+        />
+        <InputGroup
+          aria-label="Only the labels"
+          placeholder="only when checking the labels…, e.g. nightly"
+          value={rule.label}
+          onChange={e => updateRule(index, { label: e.target.value })}
+        />
+      </div>}
     </RuleRow>)}
     {form.rules.length === 0 && <p className={Classes.TEXT_MUTED} style={{ margin: '0 0 8px' }}>No project rules.</p>}
     <Button icon="plus" text="Add a rule" onClick={() => update({ rules: [...form.rules, new_rule()] })}/>
@@ -260,6 +322,19 @@ export const GateEditor = ({ project, gate }) => {
         value={form.max_failed_runs}
         onChange={e => update({ max_failed_runs: e.target.value })}
         style={{ maxWidth: 120 }}
+      />
+    </FormGroup>
+    <FormGroup
+      label="Wait for runs from"
+      labelFor="gate-expect-batches"
+      helperText={<>The batches (<code>qa batch …</code>) that must have runs before the gate decides, comma-separated. Per label: <code>default: ci, perf; nightly: all</code>.</>}
+      style={{ margin: '0 0 12px', maxWidth: 560 }}
+    >
+      <InputGroup
+        id="gate-expect-batches"
+        placeholder="e.g. ci, perf"
+        value={form.expect_batches}
+        onChange={e => update({ expect_batches: e.target.value })}
       />
     </FormGroup>
     <Switch

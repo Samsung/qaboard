@@ -76,6 +76,18 @@ def test_the_order_of_the_runs_does_not_matter():
   check_diff(comparison['tests'], FIXTURE['expected']['diff'])
 
 
+def test_each_test_says_its_batch():
+  """For the gate's rules on the runs of some `qa batch`: the batch of qaboard.yaml each run comes from"""
+  new = [{**o, 'data': {**(o.get('data') or {}), 'batch': 'perf'}} if o['test_input_path'].startswith('photos/') else o for o in fixture_outputs('new')]
+  comparison = compare_outputs(new, fixture_outputs('ref'), FIXTURE['available_metrics'])
+  batches = {t['test_input_path']: t['batch'] for t in comparison['tests']}
+  assert batches['photos/night.jpg'] == 'perf' and batches['charts/edge.png'] is None
+  assert all('batch' in t for t in comparison['tests'])
+  # the numbers don't change
+  check_summary(comparison['metrics'], FIXTURE['expected']['summary'])
+  check_diff(comparison['tests'], FIXTURE['expected']['diff'])
+
+
 def test_metrics_definitions():
   comparison = compare_outputs(fixture_outputs('new'), fixture_outputs('ref'), FIXTURE['available_metrics'], metrics=['psnr', 'unknown'])
   assert set(comparison['metrics']) == {'psnr', 'unknown'}
