@@ -741,6 +741,14 @@ def fetch_comparison(api_prefix: str, project: str, commit: str, reference: Opti
     # e.g. requests' InvalidHeader quotes the header, with the token
     return None, redact(f"could not reach QA-Board at {url}: {e}", headers.get('Authorization'))
   if r.status_code == 404:
+    # The endpoint says why in JSON. A server from before October 2026 doesn't have it: its 404 is a web page,
+    # waiting for results would never end
+    try:
+      knows_compare = isinstance(r.json(), dict)
+    except ValueError:
+      knows_compare = False
+    if not knows_compare:
+      return None, f"QA-Board's server at {api_prefix} doesn't have the comparisons qa gate needs: upgrade it"
     return None, f"QA-Board has no results for {commit[:10]} in {project} yet"
   try:
     r.raise_for_status()
@@ -1457,7 +1465,11 @@ def run_gate(gate: GateConfig, project: str, commit: str, fetch: Callable[[str],
   }
   if gate.expect_batches:
     result['expect_batches'] = gate.expect_batches
+  # `ci` and `default` are the same results: checked once, else the comment would get two sections for them
+  labels: Dict[str, str] = {}
   for label in gate.labels:
+    labels.setdefault(section_label(label), label)
+  for label in labels.values():
     data, error = fetch(label)
     # The project's rules come with the numbers. When they need more than we asked for (other metrics, the
     # comparison of the runs' files), we ask again: `fetch` reads what the gate needs.

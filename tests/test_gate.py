@@ -392,6 +392,18 @@ class TestGateRun(unittest.TestCase):
     self.assertIn('QA-Board has no results for c0ffee0000', gate_module().render(result, 'text'))
     self.assertTrue(gate_module().status_description(result).startswith('undecidable: QA-Board has no results'))
 
+  def test_ci_and_default_are_checked_once(self):
+    asked = []
+    responses = {'ci': (fixture_comparison(), None), 'nightly': (fixture_comparison(), None)}
+    def fetch(label):
+      asked.append(label)
+      return responses[label]
+    g = gate_module()
+    config = g.parse_config({'gate': {'labels': ['ci', 'nightly', 'default', 'CI']}})
+    result = g.run_gate(config, 'kitefin/camera-isp', SHA, fetch, {}, 'http://localhost:5151')
+    self.assertEqual(asked, ['ci', 'nightly'])
+    self.assertEqual(len(result['batches']), 2)
+
 
 class TestProjectGate(unittest.TestCase):
   """The rules a project's owners set in the web app (docs/rfcs/project-admin.md): checked on top of the commit's"""
@@ -500,8 +512,14 @@ class TestGateServer(unittest.TestCase):
     self.assertEqual(get.call_args.kwargs['headers'], {'Authorization': 'Bearer t'})
 
     response = mock.Mock(status_code=404)
+    response.json.return_value = {'error': f'No results for commit {SHA} in project p'}
     with mock.patch('requests.get', return_value=response):
       self.assertEqual(g.fetch_comparison('http://qa/api/v1', 'p', SHA, None, 'default', [], False, {}, True), (None, 'QA-Board has no results for c0ffee0000 in p yet'))
+    # servers from before the endpoint: their 404 is a page
+    response.json.side_effect = ValueError('not JSON')
+    with mock.patch('requests.get', return_value=response):
+      data, error = g.fetch_comparison('http://qa/api/v1', 'p', SHA, None, 'default', [], False, {}, True)
+    self.assertIn("doesn't have the comparisons qa gate needs: upgrade it", error)
     with mock.patch('requests.get', side_effect=requests.ConnectionError('refused')):
       data, error = g.fetch_comparison('http://qa/api/v1', 'p', SHA, None, 'default', [], False, {}, True)
     self.assertIn('could not reach QA-Board', error)
