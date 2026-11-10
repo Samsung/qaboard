@@ -333,6 +333,16 @@ const user_management_api = {
     ],
     requests: [{ id: 3, user: { id: 2, user_name: 'bob', full_name: 'Bob' }, role: 'developer', message: 'I run the benchmarks.', status: 'pending', created_at: '2026-09-01T10:00:00Z' }],
   },
+  '/api/v1/project/settings': {
+    project, can_manage: true,
+    gate: { rules: [{ metric: 'latency_p99', max_regression: '10%' }], max_failed_runs: 0, require_bit_accuracy: false, on_looser_rules: 'warn' },
+    gate_updated: { at: '2026-09-01T10:00:00Z', by: 'alice' },
+    reference: {
+      exists: true, branch: 'master', has_config: true, has_gate: true, error: null, reference: 'master', batches: ['default'],
+      rules: [{ metric: 'psnr', kind: 'max_regression', limit: 0.01, aggregate: 'median' }],
+      max_failed_runs: 0, require_bit_accuracy: false,
+    },
+  },
   '/api/v1/directory': { users: [{ id: 2, user_name: 'bob', full_name: 'Bob' }], groups: [{ id: 7, name: 'camera-team' }] },
   '/api/v1/admin/groups': { groups: [{ id: 7, name: 'camera-team', description: 'Camera algorithms', member_count: 4, rule_count: 1 }] },
   '/api/v1/admin/grants': { grants: [{ id: 4, subject: { type: 'group', id: 8, name: 'qa' }, role: 'viewer', granted_at: '2026-09-01T10:00:00Z' }] },
@@ -370,11 +380,30 @@ test.describe('user management pages', () => {
   test('project access', async ({ page }) => {
     await page.goto(`/${project}/access`);
     await expect(page.getByRole('table', { name: 'Members' }).getByText('camera-team')).toBeVisible();
-    await expect(page.getByRole('navigation').getByRole('menuitem', { name: 'Access' })).toHaveClass(/active/);
+    // Access is one of the project's Admin pages: the sidebar highlights Admin, the page's tabs say which one
+    await expect(page.getByRole('navigation', { name: 'Navigation' }).getByRole('menuitem', { name: /^Admin/ }).locator('a')).toHaveClass(/active/);
+    await expect(page.getByRole('navigation', { name: 'Project admin' }).getByRole('link', { name: 'Access' })).toHaveAttribute('aria-current', 'page');
     await expect(page.getByText('I run the benchmarks.')).toBeVisible();
     await page.getByRole('button', { name: 'Add member' }).click();
     await page.getByRole('dialog').getByLabel('User or group').fill('bo');
     await expect(page.getByRole('option', { name: /Bob/ })).toBeVisible();
+    await page.waitForLoadState('networkidle');
+  });
+
+  test('project quality gate', async ({ page }) => {
+    await page.goto(`/${project}/access`);
+    // from the sidebar's Admin menu
+    await page.getByRole('navigation', { name: 'Navigation' }).getByRole('menuitem', { name: /^Admin/ }).hover();
+    await page.getByRole('menuitem', { name: 'Quality gate' }).click();
+    await expect(page).toHaveURL(new RegExp(`/${project}/admin/gate$`));
+    await expect(page.getByRole('navigation', { name: 'Project admin' }).getByRole('link', { name: 'Quality gate' })).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('table', { name: 'Rules in qaboard.yaml' }).getByText('median may get worse by at most')).toBeVisible();
+    // owners edit the project rules
+    const rule = page.getByRole('group', { name: 'Rule 1' });
+    await expect(rule.getByLabel('Metric')).toHaveValue('latency_p99');
+    await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled();
+    await rule.getByLabel('Limit').fill('20%');
+    await expect(page.getByRole('button', { name: 'Save' })).toBeEnabled();
     await page.waitForLoadState('networkidle');
   });
 
@@ -388,7 +417,7 @@ test.describe('user management pages', () => {
 
   test('narrow screens: no sideways scrolling', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    for (const path of ['/settings/tokens', '/admin/users', '/admin/groups', '/admin', '/', `/${project}/access`]) {
+    for (const path of ['/settings/tokens', '/admin/users', '/admin/groups', '/admin', '/', `/${project}/access`, `/${project}/admin/gate`]) {
       await page.goto(path);
       await page.waitForLoadState('networkidle');
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

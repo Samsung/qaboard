@@ -29,6 +29,7 @@ import {
 } from "./roles";
 import { projectAccessQuery, setVisibility, saveGrant, deleteGrant, requestAccess, decideRequest } from "./api";
 import { usePageTitle, join_title, project_name } from "../pageTitle";
+import { ProjectAdminTabs } from "../projectAdmin/ProjectAdminTabs";
 
 
 // Below the fixed navbar, like the other project pages
@@ -509,6 +510,7 @@ export const AccessPage = () => {
   const { data: user = logged_out_user, isPending } = useQuery(userQuery);
   usePageTitle(join_title('Access', project_name(project)));
   return <Page>
+    <ProjectAdminTabs project={project} current="access"/>
     <h2 className={Classes.HEADING} style={{ marginBottom: 4 }}>Access</h2>
     <p className={`${Classes.TEXT_MUTED} qa-muted-line`} style={{ overflowWrap: 'anywhere' }}>
       Who can see <strong>{project}</strong>, upload runs and act on them.

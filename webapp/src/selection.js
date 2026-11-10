@@ -35,15 +35,18 @@ const url_keys = {
 const route_names = Object.fromEntries(Object.entries(route_paths).map(([name, path]) => [path, name]));
 const page_routes = Object.values(route_paths).map(path => ({ path }));
 
-// What kind of page a route pattern is
-export const route_info = path => {
+// What kind of page a route pattern is. `params`: what the pattern matched, for the pages that have sections
+export const route_info = (path, params = {}) => {
   const name = route_names[path];
   const is_committer = name === 'committer';
   const is_commits = ['project', 'commits', 'branch'].includes(name);
   const is_commit = ['commit', 'latest_commit'].includes(name);
   const is_history = ['history', 'history_branch', 'dashboard', 'dashboard_branch'].includes(name);
   const is_access = name === 'access';
-  return { is_committer, is_commits, is_commit, is_history, is_access, is_list: is_commits || is_committer };
+  // the project's Admin pages besides Access: `section` says which (gate)
+  const is_project_admin = name === 'project_admin';
+  const section = is_project_admin ? params.section ?? null : null;
+  return { is_committer, is_commits, is_commit, is_history, is_access, is_project_admin, section, is_list: is_commits || is_committer };
 };
 
 const decode = value => {
@@ -385,7 +388,7 @@ const text_param = value => (value == null ? "" : typeof value === 'string' ? va
 export const selection_from_url = (match, search) => {
   const { path, params } = match;
   const query = parse_query(search);
-  const route = route_info(path);
+  const route = route_info(path, params);
   const project = decode(params.project_id) ?? query.project ?? null;
 
   // '' is a special value: nothing should be selected
@@ -488,7 +491,7 @@ export const url_for_selection = (selected, { pathname, search }, defaults = {})
   defaults = { ...selection_defaults, ...defaults };
   const query = parse_query(search);
   const matched = matchRoutes(page_routes, pathname);
-  const route = route_info(matched?.route.path ?? '');
+  const route = route_info(matched?.route.path ?? '', matched?.match.params);
   const project = decode(matched?.match.params.project_id);
   const project_path = `/${path_segment(project)}`;
   const on_commit_page = route.is_commit;
