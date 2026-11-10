@@ -57,7 +57,8 @@ jobs:
           python-version: ${{ matrix.python }}
           enable-cache: true
       - name: Install dependencies
-        run: uv sync --locked --extra dev
+        # 3.13 also gets the runners' optional dependencies, so their tests run; 3.11 checks qa works without them
+        run: uv sync --locked --extra dev ${{ matrix.python == '3.13' && '--extra celery --extra dask --extra kubernetes --extra dask-kubernetes' || '' }}
       - name: Lint with flake8
         # syntax errors, undefined names, unused imports and variables (see .flake8)
         run: uv run --no-sync flake8 backend qaboard --count --show-source --statistics
@@ -450,6 +451,29 @@ jobs:
             echo "::endgroup::"
           done
           cat /tmp/port-forward.log
+
+  # The kubernetes runner for real, on a kind cluster, without a QA-Board server: `qa batch --runner kubernetes`
+  # in a folder the node mounts at the same path, stopping a batch, submit_detached, the doctor's test job
+  kubernetes-runner-e2e:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    timeout-minutes: 30
+    env:
+      KIND_VERSION: v0.32.0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install kind
+        run: |
+          curl -sSfLo kind "https://kind.sigs.k8s.io/dl/$KIND_VERSION/kind-linux-amd64"
+          sudo install kind /usr/local/bin/ && rm kind
+          kind version && kubectl version --client
+      - name: qa batch on kind
+        run: |
+          uv sync --locked --extra kubernetes
+          python3 .github/scripts/kubernetes_runner_e2e.py --python "$PWD/.venv/bin/python"
 
   # The images are only "latest" once everything passed. A release's images get its version.
   publish-docker-images:

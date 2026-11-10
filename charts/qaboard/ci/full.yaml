@@ -34,3 +34,16 @@ backup:
 results:
   enabled: true
   storageClass: nfs
+# Start and stop runs on Kubernetes, in two namespaces
+runners:
+  kubernetes:
+    enabled: true
+    namespaces: [algo-qa, algo-gpu]
+    allowHostPath: true
+    allowRunAsImage: true
+    runAs: "5000:5000"
+    dask: true
+    extraRules:
+      - apiGroups: [""]
+        resources: [persistentvolumeclaims]
+        verbs: [get]

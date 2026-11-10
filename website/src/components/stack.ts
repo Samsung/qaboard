@@ -48,6 +48,7 @@ export const STACK_GROUPS: StackGroupInfo[] = [
       {value: 'local', label: 'Local'},
       {value: 'lsf', label: 'LSF'},
       {value: 'dask', label: 'Dask'},
+      {value: 'kubernetes', label: 'Kubernetes'},
       {value: 'celery', label: 'Celery'},
     ],
   },

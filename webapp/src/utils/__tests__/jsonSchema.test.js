@@ -58,7 +58,7 @@ describe('makeValidator', () => {
   });
 
   it('reports enums and deprecations', () => {
-    expect(messages({ a: { runner: 'lfs' } })).toEqual(['"a.runner" should be "local", "lsf", "celery", "dask" or "windows", not "lfs". Did you mean "lsf"?']);
+    expect(messages({ a: { runner: 'lfs' } })).toEqual(['"a.runner" should be "local", "lsf", "celery", "dask", "kubernetes" or "windows", not "lfs". Did you mean "lsf"?']);
     expect(messages({ a: { tests: ['x'] } })).toEqual(['"a.tests" is deprecated: Old name of `inputs`.']);
   });
 

@@ -32,7 +32,8 @@ dependencies = [
     "rich",
     "simplejson",
     "redis",
-    "qaboard",
+    # kubernetes: to start and stop runs on Kubernetes (QABOARD_TUNING_RUNNER=kubernetes, backend/runner_jobs.py)
+    "qaboard[kubernetes]",
     # see https://github.com/xmlsec/python-xmlsec/issues/320
     "lxml",
     "xmlsec",

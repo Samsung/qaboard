@@ -15,7 +15,7 @@ import datetime
 import click
 
 
-def latest_qaboard_version():
+def latest_qaboard_version(quiet=False):
   # Everybody install their own local version of qaboard,
   # at a different place on Windows, Linux...
   # We simple need a way to let them know they are using an old version
@@ -26,8 +26,9 @@ def latest_qaboard_version():
     r = requests.get(url, timeout=1)
     r.raise_for_status()
   except Exception as e:
-    click.secho(f'WARNING: Unable to find latest qaboard version', fg='yellow', bold=True, err=True)
-    click.secho(str(e), fg='yellow', err=True)
+    if not quiet:
+      click.secho(f'WARNING: Unable to find latest qaboard version', fg='yellow', bold=True, err=True)
+      click.secho(str(e), fg='yellow', err=True)
     return None
   try:
     return r.json()['info']['version']
@@ -53,6 +54,11 @@ def version_key(version: str):
   suffix = match.group(2).split('+')[0].lstrip('.-_').lower()
   rank = 2 if suffix.startswith('post') else 1 if not suffix else 0
   return (release, rank)
+
+
+def upgrade_command() -> str:
+  from .site_config import site_config
+  return site_config('QABOARD_UPGRADE_COMMAND', 'pip install --upgrade qaboard')
 
 
 def check_for_updates():
@@ -100,6 +106,4 @@ def check_for_updates():
     newer_version_available = current_key is not None and latest_key is not None and current_key < latest_key
     if newer_version_available:
       click.secho(f'[INFO] A new version of qaboard is available! Upgrade to {latest_version}:', fg='yellow', bold=True, err=True)
-      from .site_config import site_config
-      upgrade_command = site_config('QABOARD_UPGRADE_COMMAND', 'pip install --upgrade qaboard')
-      click.secho(f'       $ {upgrade_command}', fg='yellow', err=True)
+      click.secho(f'       $ {upgrade_command()}', fg='yellow', err=True)

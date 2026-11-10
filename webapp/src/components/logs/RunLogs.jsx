@@ -144,6 +144,11 @@ const RunDetails = ({ output }) => {
 }
 
 
+// Logs of some runners, next to log.txt: Dask's (log.dask.txt), the run's output from its Kubernetes pod (log.k8s.txt),
+// and why its pod, or the --no-wait driver's, is pending (log.pending.txt)
+const OTHER_LOGS = ['log.dask.txt', 'log.k8s.txt', 'log.pending.txt']
+
+
 // Why a finished run has no log
 const emptyHints = output => ({
   "log.txt": output.deleted ? "The run's output files were deleted." : "The run may have failed before it started, or its files were deleted.",
@@ -161,7 +166,7 @@ const emptyHints = output => ({
 export const RunLogs = memo(function RunLogs({ id, output, project, commit, expanded, onToggle, title }) {
   const { ref, inView } = useInView({ triggerOnce: true, rootMargin: '300px 0px' })
   const [lsf, setLsf] = useState({ status: 'unknown', report: null })
-  const [has_dask_log, setHasDaskLog] = useState(false)
+  const [other_logs, setOtherLogs] = useState([])
   const [file, setFile] = useState('log.txt')
   const base = output.output_dir_url
   const is_pending = !!output.is_pending
@@ -196,20 +201,19 @@ export const RunLogs = memo(function RunLogs({ id, output, project, commit, expa
     return () => clearTimeout(timer)
   }, [expanded, is_pending, lsf.status])
 
-  // The dask runner saves logs too
+  // The dask and kubernetes runners save logs too
   useEffect(() => {
     if (!expanded || !base) return
     const controller = new AbortController()
-    fileExists(`${base}/log.dask.txt`, { signal: controller.signal })
-      .then(exists => { if (exists) setHasDaskLog(true) })
-      .catch(() => {})
+    Promise.all(OTHER_LOGS.map(name => fileExists(`${base}/${name}`, { signal: controller.signal }).catch(() => false)))
+      .then(exists => { if (!controller.signal.aborted) setOtherLogs(OTHER_LOGS.filter((_, index) => exists[index])) })
     return () => controller.abort()
   }, [expanded, base])
 
   const files = [
     { name: 'log.txt', url: `${base}/log.txt` },
     ...(lsf.status === 'present' ? [{ name: 'log.lsf.txt', url: `${base}/log.lsf.txt` }] : []),
-    ...(has_dask_log ? [{ name: 'log.dask.txt', url: `${base}/log.dask.txt` }] : []),
+    ...other_logs.map(name => ({ name, url: `${base}/${name}` })),
     // the run was done again: the logs of its earlier attempts, the latest first
     ...attemptLogs(output).map(({ name }) => ({ name, url: `${base}/${name}` })),
   ]
