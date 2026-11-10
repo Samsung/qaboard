@@ -30,7 +30,26 @@ function loadManifest(siteDir) {
 }
 
 /**
- * The shot list, as {id: {kind, shows, status, anchors}}, or null when the file isn't there
+ * A planned still's stand-in (docs-media/README.md#stand-ins): an image made without the demo stack, shown until the
+ * shot is captured and published. {light, dark, width, height, alt, caption}: absolute paths, CSS px.
+ */
+function standinOf(shot, docsMediaDir) {
+  const {light, dark, width, height, alt, caption} = shot.standin;
+  if (shot.kind !== 'still')
+    throw new Error(`[qaboard-media] shots.yaml: ${shot.id} has a stand-in, but only stills can`);
+  if (!light || !Number.isFinite(width) || !Number.isFinite(height) || !alt)
+    throw new Error(`[qaboard-media] shots.yaml: ${shot.id}'s stand-in needs light, width, height and alt`);
+  const resolve = file => {
+    const absolute = path.join(docsMediaDir, file);
+    if (!/\.(webp|png)$/.test(file) || !fs.existsSync(absolute))
+      throw new Error(`[qaboard-media] shots.yaml: ${shot.id}'s stand-in ${file} isn't a .webp or .png in docs-media/`);
+    return absolute;
+  };
+  return {light: resolve(light), dark: dark ? resolve(dark) : null, width, height, alt: String(alt).trim(), caption: caption ? String(caption).trim() : undefined};
+}
+
+/**
+ * The shot list, as {id: {kind, shows, status, anchors, standin}}, or null when the file isn't there
  * (e.g. an image built with website/ as its context).
  */
 function loadShotList(siteDir) {
@@ -51,6 +70,7 @@ function loadShotList(siteDir) {
       shows: String(shot.shows ?? '').trim(),
       status: shot.status ?? 'planned',
       anchors: Array.isArray(shot.anchors) ? shot.anchors.map(String) : [],
+      ...(shot.standin ? {standin: standinOf(shot, path.dirname(file))} : {}),
     };
   }
   return shots;

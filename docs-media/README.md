@@ -60,7 +60,8 @@ website/
   `^[a-z0-9]+(-[a-z0-9]+)*/[a-z0-9]+(-[a-z0-9]+)*$`, at most 80 characters.
 - **Areas** (adding one means editing this list): `quickstart`, `cli`, `ci`, `projects`, `commits`, `integrations`,
   `commit`, `logs`, `history`, `tuning`, `files`, `whats-new`, `auth`, `landing`, `activity` (Runs activity),
-  `storage` (Storage usage), `account` (Settings), `access` (a project's Access tab), `admin` (the admin panel).
+  `storage` (Storage usage), `account` (Settings), `access` (a project's Access tab), `project-admin` (a project's
+  other Admin pages: Quality gate), `admin` (the admin panel).
   The area is where the shot is taken in the app (or `cli`/`quickstart`/`ci` for terminals and CI), not the doc page.
 - The subject names what's shown, not how: `commit/flame-diff`, not `commit/flame-graph-2`.
 - An id is permanent. If what it shows changes meaning, retire it (`status: retired` in `shots.yaml`) and pick a new id.
@@ -480,6 +481,28 @@ shot('commit/pixel-tooltip', {
   accuracy metrics are the same from one recording to the next, its latency isn't: the clip's `dedupeTolerance` is 0.01.
 - **`cli/batch`** shares a batch (`--label my-batch`) on the camera ISP's head of `main`, and deletes it in its hidden
   teardown. It ends while the runs run: its `dedupe_mask` hides their logs.
+
+### Stand-ins
+A planned still can show a **stand-in** until it's captured: an image made without the demo stack, e.g. the web app
+with its API mocked, a playground on files measured elsewhere, or a template on `qa`'s real output. The docs build
+(local mode) serves it in place of the placeholder; `yarn start` still shows the placeholder, and strict builds still
+fail on the planned shot. Once the shot is published in `website/media.json`, the stand-in is ignored: delete its
+files and its `standin:` key in the same pull request.
+
+```yaml
+  - id: ci/pr-comment
+    status: planned
+    standin:
+      light: standins/ci/pr-comment.webp      # relative to docs-media/: .webp or .png, at scale 2
+      dark: standins/ci/pr-comment-dark.webp  # optional
+      width: 880                              # CSS px (the image's pixels / 2)
+      height: 470
+      alt: ...                                # what this image shows, its own numbers included
+      caption: ...
+```
+
+Say in a comment how it was made and how it differs from the capture (other numbers, mocked data). Stand-ins follow
+the same rules as captures: the demo world only, real outputs and measurements, never a made-up number.
 
 ## Budgets
 
