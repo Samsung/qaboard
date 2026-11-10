@@ -7,7 +7,7 @@ import qs from "qs";
 import { DateTime } from "luxon";
 
 import { history, useRouter, matchRoutes } from "./router";
-import { route_paths, app_paths } from "./route_paths";
+import { route_paths, app_paths, project_routes } from "./route_paths";
 import { side_color_count } from "./sideColors";
 import { track } from "./analytics";
 
@@ -33,7 +33,7 @@ const url_keys = {
 };
 
 const route_names = Object.fromEntries(Object.entries(route_paths).map(([name, path]) => [path, name]));
-const page_routes = Object.values(route_paths).map(path => ({ path }));
+const page_routes = project_routes;
 
 // What kind of page a route pattern is. `params`: what the pattern matched, for the pages that have sections
 export const route_info = (path, params = {}) => {
@@ -584,8 +584,7 @@ const recordComparison = (selected, replace) => {
 
 // The project of a project page's URL, or undefined (the app's own pages)
 const project_of = pathname => {
-  const routes = Object.values(route_paths).map(path => ({ path }));
-  const matched = matchRoutes(routes, pathname);
+  const matched = matchRoutes(project_routes, pathname);
   return matched && !matchRoutes(app_routes, pathname) ? decode(matched.match.params?.project_id) : undefined;
 };
 

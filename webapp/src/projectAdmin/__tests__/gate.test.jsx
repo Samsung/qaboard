@@ -96,6 +96,21 @@ describe('routes', () => {
     expect(matchRoutes(routes, '/group/admin/commits/main').route.name).toBe('branch');
     expect(matchRoutes(routes, '/group/admin/admin/gate').match.params).toMatchObject({ project_id: 'group/admin', section: 'gate' });
   });
+
+  it("keeps the URLs of projects with admin or access in their ids", () => {
+    const page = pathname => {
+      const { route, match } = matchRoutes(routes, pathname);
+      return [route.name, match.params.project_id];
+    };
+    expect(page('/admin/tools')).toEqual(['project', 'admin/tools']);
+    expect(page('/team/admin/tools/commits')).toEqual(['commits', 'team/admin/tools']);
+    expect(page('/team/access/tools')).toEqual(['project', 'team/access/tools']);
+    expect(page('/team/access/tools/commit/abc')).toEqual(['commit', 'team/access/tools']);
+    expect(page('/team/admin/settings')).toEqual(['project', 'team/admin/settings']);
+    // only `admin/gate` is a page: `admin/<anything else>` stays the project's
+    expect(page('/team/admin/gates')).toEqual(['project', 'team/admin/gates']);
+    expect(page('/admin/gate')).toEqual(['project', 'admin/gate']);
+  });
 });
 
 
@@ -278,6 +293,21 @@ describe('Quality gate page, for owners', () => {
     expect(screen.getAllByRole('group', { name: /^Rule \d+$/ })).toHaveLength(1);
     expect(rule(1).getByLabelText('Limit')).toHaveValue('1%');
     expect(save).toBeDisabled();
+  });
+
+  it('warns before the page is closed with unsaved changes', async () => {
+    renderPage({ [`GET ${settings_api}`]: manager() });
+    await screen.findByRole('button', { name: 'Save' });
+    const leave = () => {
+      const event = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(leave()).toBe(false);
+    fireEvent.change(rule(1).getByLabelText('Limit'), { target: { value: '2%' } });
+    expect(leave()).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+    expect(leave()).toBe(false);
   });
 
   it('starts empty without project rules', async () => {

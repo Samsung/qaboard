@@ -2,7 +2,7 @@
 // Everyone who sees the project reads them: the gate: section of the reference branch's qaboard.yaml, and the project
 // rules. Owners (and admins) edit the project rules: `qa gate` checks them on top of the commit's own, and no commit
 // can change them.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Button, Callout, Classes, FormGroup, HTMLSelect, HTMLTable, InputGroup, Intent, Radio, RadioGroup, Switch,
@@ -215,6 +215,14 @@ export const GateEditor = ({ project, gate }) => {
   const to_save = gate_from_form(form);
   // rows left empty aren't a change
   const changed = !same(to_save, gate_from_form(saved));
+
+  // Warn before closing or reloading the page with unsaved rules, like the tuning page's editor
+  useEffect(() => {
+    if (!changed) return;
+    const onBeforeUnload = e => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [changed]);
 
   const update = changes => setForm(form => ({ ...form, ...changes }));
   const updateRule = (index, changes) => setForm(form => ({ ...form, rules: form.rules.map((rule, i) => i === index ? { ...rule, ...changes } : rule) }));

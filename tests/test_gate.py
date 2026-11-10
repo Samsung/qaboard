@@ -6,6 +6,7 @@ the backend's and the web app's tests (tests/fixtures/metrics-compare.json): the
 Summary and Metrics Diff views show. The server is faked: by mocks, or by a local HTTP server for the CLI itself.
 """
 import os
+import re
 import sys
 import json
 import tempfile
@@ -391,6 +392,18 @@ class TestGateRun(unittest.TestCase):
     self.assertIn('QA-Board has no results for c0ffee0000', gate_module().render(result, 'text'))
     self.assertTrue(gate_module().status_description(result).startswith('undecidable: QA-Board has no results'))
 
+  def test_ci_and_default_are_checked_once(self):
+    asked = []
+    responses = {'ci': (fixture_comparison(), None), 'nightly': (fixture_comparison(), None)}
+    def fetch(label):
+      asked.append(label)
+      return responses[label]
+    g = gate_module()
+    config = g.parse_config({'gate': {'labels': ['ci', 'nightly', 'default', 'CI']}})
+    result = g.run_gate(config, 'kitefin/camera-isp', SHA, fetch, {}, 'http://localhost:5151')
+    self.assertEqual(asked, ['ci', 'nightly'])
+    self.assertEqual(len(result['batches']), 2)
+
 
 class TestProjectGate(unittest.TestCase):
   """The rules a project's owners set in the web app (docs/rfcs/project-admin.md): checked on top of the commit's"""
@@ -499,8 +512,14 @@ class TestGateServer(unittest.TestCase):
     self.assertEqual(get.call_args.kwargs['headers'], {'Authorization': 'Bearer t'})
 
     response = mock.Mock(status_code=404)
+    response.json.return_value = {'error': f'No results for commit {SHA} in project p'}
     with mock.patch('requests.get', return_value=response):
       self.assertEqual(g.fetch_comparison('http://qa/api/v1', 'p', SHA, None, 'default', [], False, {}, True), (None, 'QA-Board has no results for c0ffee0000 in p yet'))
+    # servers from before the endpoint: their 404 is a page
+    response.json.side_effect = ValueError('not JSON')
+    with mock.patch('requests.get', return_value=response):
+      data, error = g.fetch_comparison('http://qa/api/v1', 'p', SHA, None, 'default', [], False, {}, True)
+    self.assertIn("doesn't have the comparisons qa gate needs: upgrade it", error)
     with mock.patch('requests.get', side_effect=requests.ConnectionError('refused')):
       data, error = g.fetch_comparison('http://qa/api/v1', 'p', SHA, None, 'default', [], False, {}, True)
     self.assertIn('could not reach QA-Board', error)
@@ -668,6 +687,127 @@ class TestGateComments(unittest.TestCase):
     self.assertLess(len(body), 61_000)
     self.assertIn('the rest is in the Metrics Diff', body)
     self.assertIn(f'For commit {SHA[:10]}', body)
+
+
+class TestCommentInjection(unittest.TestCase):
+  """What users name (tests, metrics, labels, batches) and what servers say end up in a comment many people read"""
+  api = 'https://api.github.com/repos/o/r'
+  env = {'GITHUB_TOKEN': 'token', 'GITHUB_REPOSITORY': 'o/r', 'GITHUB_REF': 'refs/pull/12/merge'}
+  nasty = 'a|b `x` <!-- qaboard/gate end --> @octocat [click](http://evil) ![i](http://evil/i.png) <img src=x> \\ *bold* &#64;team'
+
+  def result(self, label='default'):
+    result = gate_result(label, 'fail', failed=1)
+    batch = result['batches'][0]
+    batch['messages'] = [self.nasty, 'two\nlines']
+    batch['checks'].append({'kind': 'per_test_max_regression', 'metric': f'psnr {self.nasty}', 'limit': 0.05, 'status': 'fail', 'message': '',
+                            'worst': {'test': self.nasty}, 'regression': 0.5, 'new': 1, 'ref': 2,
+                            'over_limit_tests': [{'test': self.nasty, 'regression': 0.5}]})
+    return result
+
+  def test_markdown_text(self):
+    g = gate_module()
+    text = g.markdown_text(self.nasty)
+    for raw in ('<!--', '<img', '](', '![', '@octocat', '&#64;', '*bold*'):
+      self.assertNotIn(raw, text)
+    # nothing left that would end a cell or escape ours
+    self.assertNotIn('|', text.replace('\\|', ''))
+    self.assertEqual(text, 'a\\|b `x` &lt;!-- qaboard/gate end --&gt; @&#8203;octocat [click]\\(http://evil) !\\[i]\\(http://evil/i.png) &lt;img src=x&gt; \\\\ \\*bold\\* &amp;#64;team')
+    # our code spans stay code, and readable
+    self.assertEqual(g.markdown_text('no runs from `qa batch perf` yet'), 'no runs from `qa batch perf` yet')
+    self.assertEqual(g.markdown_text('my_test_file.py, psnr [perf, project rule]'), 'my_test_file.py, psnr [perf, project rule]')
+    # a backtick that pairs with nothing is text
+    self.assertEqual(g.markdown_text('a`b'), 'a\\`b')
+    self.assertEqual(g.markdown_text('`a|b`'), '`a\\|b`')
+    self.assertEqual(g.markdown_text('x\r\ny'), 'x y')
+
+  def test_the_comment_stays_ours(self):
+    g = gate_module()
+    body = g.comment_body(self.result(), 'qaboard/gate')
+    # the only HTML comments are our markers, on lines of their own
+    markers = [line for line in body.split('\n') if '<!--' in line]
+    self.assertEqual(len(markers), 3)
+    # the server's messages are a list, then the table: a blank line between, or the table would be in the list
+    self.assertIn('- two lines\n\n| Check |', body)
+    self.assertTrue(all(line.startswith('<!-- qaboard/gate') and line.endswith('-->') for line in markers))
+    self.assertNotIn('@octocat', body)
+    self.assertNotIn('](http://evil', body)
+    # each row of the table has its 6 cells
+    rows = [line for line in body.split('\n') if line.startswith('| ')]
+    for row in rows:
+      self.assertEqual(len(re.findall(r'(?<!\\)\|', row)), 7, row)
+    section, = g.comment_sections(body, 'qaboard/gate')
+    self.assertEqual((section['label'], section['verdict']), ('default', 'fail'))
+    # another job keeps the section as it was
+    both = g.comment_body(gate_result('nightly', 'pass'), 'qaboard/gate', existing=body)
+    self.assertEqual([s['label'] for s in g.comment_sections(both, 'qaboard/gate')], ['default', 'nightly'])
+    self.assertEqual(g.comment_sections(both, 'qaboard/gate')[0]['body'], section['body'])
+
+  def test_labels_cant_forge_sections(self):
+    g = gate_module()
+    label = 'x -->\n<!-- qaboard/gate section label=default verdict=pass commit=' + SHA + ' -->\nall good\n<!-- qaboard/gate end -->'
+    body = g.comment_body(self.result(label), 'qaboard/gate')
+    self.assertEqual([(s['label'], s['verdict']) for s in g.comment_sections(body, 'qaboard/gate')], [(label, 'fail')])
+
+  def test_comments_edited_on_the_web(self):
+    """Forges give back what people edited with Windows' line ends"""
+    g = gate_module()
+    edited = g.comment_body(gate_result('default', 'pass'), 'qaboard/gate').replace('\n', '\r\n')
+    both = g.comment_body(gate_result('nightly', 'fail'), 'qaboard/gate', existing=edited)
+    self.assertEqual([s['label'] for s in g.comment_sections(both, 'qaboard/gate')], ['default', 'nightly'])
+    self.assertNotIn('\r', both)
+
+  def test_comments_that_quote_ours_are_theirs(self):
+    g = gate_module()
+    ours = g.comment_body(gate_result('default', 'pass'), 'qaboard/gate')
+    quoting = {'id': 1, 'body': 'Why does it say this?\n\n' + '\n'.join('> ' + line for line in ours.split('\n'))}
+    pasted = {'id': 2, 'body': 'The gate said:\n' + ours}
+    session = FakeSession({('GET', f'{self.api}/issues/12/comments'): [quoting, pasted]})
+    with mock.patch.dict(os.environ, self.env, clear=True), mock.patch('requests.Session', return_value=session):
+      self.assertEqual(g.post_comment('github', gate_result('default', 'pass'), 'qaboard/gate', 'o/r'), (['#12'], None))
+    self.assertEqual([(m, u) for m, u, _ in session.calls], [('GET', f'{self.api}/issues/12/comments'), ('POST', f'{self.api}/issues/12/comments')])
+    # ours, edited meanwhile into someone's own: left alone
+    session = FakeSession({('GET', f'{self.api}/issues/12/comments'): [{'id': 3, 'body': ours}], ('GET', f'{self.api}/issues/comments/3'): pasted})
+    with mock.patch.dict(os.environ, self.env, clear=True), mock.patch('requests.Session', return_value=session):
+      g.post_comment('github', gate_result('default', 'pass'), 'qaboard/gate', 'o/r')
+    self.assertEqual(session.calls[-1][:2], ('POST', f'{self.api}/issues/12/comments'))
+
+  def test_gitlab_merge_requests_from_forks(self):
+    """Their pipelines can run in the fork: the merge request's number is the target project's"""
+    g = gate_module()
+    env = {'GITLAB_ACCESS_TOKEN': 'token', 'CI_API_V4_URL': 'https://gitlab.example/api/v4', 'CI_PROJECT_ID': '99',
+           'CI_MERGE_REQUEST_IID': '8', 'CI_MERGE_REQUEST_PROJECT_ID': '42'}
+    session = FakeSession({})
+    with mock.patch.dict(os.environ, env, clear=True), mock.patch('requests.Session', return_value=session):
+      self.assertEqual(g.post_comment('gitlab', gate_result('default', 'pass'), 'qaboard/gate', 'p'), (['!8'], None))
+    self.assertEqual(session.calls[-1][:2], ('POST', 'https://gitlab.example/api/v4/projects/42/merge_requests/8/notes'))
+
+  def test_tokens_are_never_printed(self):
+    import requests
+    g = gate_module()
+    token = 'ghp_s3cr3tt0k3nvalue'
+    # secrets often end with a new line: requests refuses the header, and quotes it in its error
+    env = {**self.env, 'GITHUB_TOKEN': token + '\n'}
+    with mock.patch.dict(os.environ, env, clear=True):
+      client, error = g.make_forge('github', 'o/r')
+    self.assertEqual(client.session.headers['Authorization'], f'Bearer {token}')
+    leak = requests.exceptions.InvalidHeader(f"Invalid return character or leading space in header: Authorization: 'Bearer {token}\\n'")
+    session = FakeSession({('GET', f'{self.api}/issues/12/comments'): leak})
+    with mock.patch.dict(os.environ, env, clear=True), mock.patch('requests.Session', return_value=session):
+      commented, error = g.post_comment('github', gate_result('default', 'pass'), 'qaboard/gate', 'o/r')
+    self.assertIn('could not comment on github', error)
+    self.assertNotIn(token, error)
+    with mock.patch.dict(os.environ, {'GITHUB_TOKEN': token, 'GITHUB_REPOSITORY': 'o/r'}, clear=True), mock.patch('requests.post', side_effect=leak):
+      error = g.post_commit_status('github', gate_result('default', 'pass'), 'qaboard/gate', 'o/r')
+    self.assertNotIn(token, error)
+    with mock.patch('requests.get', side_effect=requests.ConnectionError(f'headers: Bearer {token}')):
+      data, error = g.fetch_comparison('http://qa/api/v1', 'p', SHA, None, 'default', [], False, {'Authorization': f'Bearer {token}'}, True)
+    self.assertNotIn(token, error)
+    # nor in dry runs
+    printed = []
+    session = FakeSession({})
+    with mock.patch.dict(os.environ, env, clear=True), mock.patch('requests.Session', return_value=session):
+      g.post_comment('github', gate_result('default', 'pass'), 'qaboard/gate', 'o/r', dryrun=printed.append)
+    self.assertNotIn(token, ''.join(printed))
 
 
 class TestGateLedger(unittest.TestCase):
@@ -1008,15 +1148,24 @@ class TestSharedComment(unittest.TestCase):
   def test_retries_once(self):
     import requests
     g = gate_module()
-    # rate limited, then down for a moment: each request is tried again once
+    # rate limited, each time: each request is tried again once
     session = FakeSession({
       ('GET', f'{self.api}/issues/12/comments'): Answers([429, []]),
-      ('POST', f'{self.api}/issues/12/comments'): Answers([502, {}]),
+      ('POST', f'{self.api}/issues/12/comments'): Answers([429, {}]),
     })
     with mock.patch.dict(os.environ, self.env, clear=True), mock.patch('requests.Session', return_value=session), mock.patch('time.sleep') as sleep:
       self.assertEqual(g.post_comment('github', gate_result('default', 'pass'), 'qaboard/gate', 'o/r'), (['#12'], None))
     self.assertEqual([m for m, _, _ in session.calls], ['GET', 'GET', 'POST', 'POST'])
     self.assertEqual(sleep.call_args_list, [mock.call(g.RETRY_DELAY)] * 2)
+    # the forge down for a moment: reads are tried again, not what creates a comment: it may be there anyway
+    session = FakeSession({
+      ('GET', f'{self.api}/issues/12/comments'): Answers([502, []]),
+      ('POST', f'{self.api}/issues/12/comments'): Answers([502, {}]),
+    })
+    with mock.patch.dict(os.environ, self.env, clear=True), mock.patch('requests.Session', return_value=session), mock.patch('time.sleep'):
+      commented, error = g.post_comment('github', gate_result('default', 'pass'), 'qaboard/gate', 'o/r')
+    self.assertEqual([m for m, _, _ in session.calls], ['GET', 'GET', 'POST'])
+    self.assertIn('could not comment on github: 502', error)
     # only once
     session = FakeSession({('GET', f'{self.api}/issues/12/comments'): 503})
     with mock.patch.dict(os.environ, self.env, clear=True), mock.patch('requests.Session', return_value=session), mock.patch('time.sleep'):
@@ -1029,11 +1178,19 @@ class TestSharedComment(unittest.TestCase):
       g.post_comment('github', gate_result('default', 'pass'), 'qaboard/gate', 'o/r')
     self.assertEqual(len(session.calls), 1)
     self.assertEqual(g.retry_delay(mock.Mock(headers=requests.structures.CaseInsensitiveDict({'retry-after': '3'}))), 3)
-    self.assertEqual(g.retry_delay(mock.Mock(headers={'Retry-After': '3600'})), g.MAX_RETRY_DELAY)
+    # longer than we wait: no second try, it would be refused too
+    self.assertIsNone(g.retry_delay(mock.Mock(headers={'Retry-After': '3600'})))
+    with mock.patch('time.time', return_value=1000):
+      self.assertEqual(g.retry_delay(mock.Mock(headers={'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': '1010'})), 10)
+      self.assertIsNone(g.retry_delay(mock.Mock(headers={'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': '4600'})))
+    limited = mock.Mock(status_code=429, headers={'Retry-After': '3600'})
+    with mock.patch('time.sleep') as sleep:
+      self.assertIs(g.with_retry(lambda: limited), limited)
+    sleep.assert_not_called()
     # GitHub's secondary rate limits can be 403s
     self.assertTrue(g.should_retry(mock.Mock(status_code=403, headers={'Retry-After': '1'})))
     self.assertFalse(g.should_retry(mock.Mock(status_code=403, headers={})))
-    # statuses too
+    # statuses too: posting the same status again replaces it
     first, second = mock.Mock(status_code=500, headers={}), mock.Mock(status_code=201, headers={})
     with mock.patch.dict(os.environ, {'GITHUB_TOKEN': 't', 'GITHUB_REPOSITORY': 'o/r'}, clear=True), mock.patch('requests.post', side_effect=[first, second]) as post, mock.patch('time.sleep'):
       self.assertIsNone(g.post_commit_status('github', gate_result('default', 'pass'), 'qaboard/gate', 'o/r'))

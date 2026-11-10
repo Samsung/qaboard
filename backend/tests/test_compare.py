@@ -253,6 +253,12 @@ def test_compare_finished_batches(compare_api, dummy_app):
   assert data['reference']['type'] == 'commit' and data['reference']['id'] == REF_HEXSHA
   assert list(data['metrics']) == ['psnr']
   assert data['bit_accuracy'] is None
+  # a tuning iteration still running in the reference is not one of its runs: nothing to wait for
+  iteration = {**[o for o in fixture_outputs('ref') if not o['is_pending']][0], 'id': 999, 'output_type': 'optim_iteration', 'is_pending': True, 'is_running': True}
+  ref = make_commit(REF_HEXSHA, {'default': [o for o in fixture_outputs('ref') if not o['is_pending']] + [iteration]}, id=2)
+  data = call(compare_api, dummy_app, {HEXSHA: new, REF_HEXSHA: ref}, f'project=p&reference={REF_HEXSHA[:8]}&metrics=psnr').get_json()
+  assert data['status'] == 'complete'
+  assert data['reference']['runs']['pending'] == 0
 
 
 def test_compare_says_which_runs_were_done_again_and_the_references_gate(compare_api, dummy_app):
