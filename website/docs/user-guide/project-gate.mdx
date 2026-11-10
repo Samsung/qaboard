@@ -35,8 +35,9 @@ of its own rules, and only owners change them, here.
    *at least* or *at most*.
 4. Type the **limit**: `5%` for the first two, a number in the metric's unit for the others.
 5. Optionally, click **Only for…** (the filter button) to check only some runs: type the **batches**, as named
-   after `qa batch` (`perf`, or `unit, integration`), or the **labels** of the results (`nightly`). Separate several
-   with commas; patterns like `perf-*` work too. Click it again to check every run.
+   after `qa batch` (`perf`, or `unit, integration`), or the **labels** of the results, as the batch selector shows
+   them (`nightly`; the CI's is `default`). Separate several with commas; patterns like `perf-*` work too. Click it
+   again to check every run.
 6. Optionally, set how many **failed runs** are allowed, and whether **outputs must be bit-accurate**. The stricter
    of your setting and the commit's applies.
 7. Optionally, in **Wait for runs from**, list the batches that must have runs before the gate decides, e.g.
