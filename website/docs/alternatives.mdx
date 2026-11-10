@@ -99,8 +99,8 @@ builds, failures grouped by cause, flaky tests across an organization, coverage 
 
 QA-Board follows each suite as a run: counts, failures, flaky and skipped tests and coverage over time, next to your
 other quality metrics, with each suite's tests compared with the reference's and a gate that catches tests deleted to
-get a green CI (see [tests and coverage](/docs/use-cases/software-quality)). It has no history of a single test case,
-and doesn't comment on pull requests.
+get a green CI (see [tests and coverage](/docs/use-cases/software-quality)). The gate comments on pull requests with
+its verdict (experimental). QA-Board has no history of a single test case.
 
 ## Benchmarking and profiling tools {#benchmarking}
 CodSpeed, Bencher and asv run microbenchmarks on every change, with measurements stable enough to flag a few
@@ -108,7 +108,9 @@ percent, and comment on pull requests. Continuous profilers and APM tools watch 
 
 QA-Board is for end-to-end performance: latency distributions under the same load profiles on every commit, flame
 graph diffs, CPU per core, History per profile, and tuning frontiers (see [performance](/docs/use-cases/serving-latency)).
-It doesn't decide whether a change is noise: repeat your measurements, and set the gate's thresholds above the noise.
+The gate's verdict goes to the pull request too, as [a comment](/docs/quality-gate#pull-request-comments) that also
+says when runs only passed after being done again. It doesn't decide whether a change is noise: repeat your
+measurements, and set the gate's thresholds above the noise.
 
 ## Notebooks, spreadsheets and in-house dashboards {#in-house}
 A notebook answers a new question in an afternoon, and nothing replaces that. Then results get pasted into a

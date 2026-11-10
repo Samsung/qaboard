@@ -76,8 +76,7 @@ describe('ExportPlugin', () => {
     expect(within(files).getAllByTitle('input')[0]).toHaveTextContent('scenes_a');
     // what each part says, with the values it takes
     const parts = screen.getByLabelText('What names say');
-    expect(parts).toHaveTextContent('for the new results');
-    expect(parts).toHaveTextContent('v1.0 for the reference');
+    expect(parts).toHaveTextContent('New or referencenew and v1.0, as on the page');
     const body = previews(fetch)[0];
     expect(body).toMatchObject({ project: 'p', files: 'debug/*/out.png', template: '{input}__{settings}__{file}__{region}__{side}', separator: '_', type: 'link', windows: true, file_in_names: 'auto' });
     expect(body.runs).toEqual([
@@ -103,9 +102,9 @@ describe('ExportPlugin', () => {
     const alone = { ...new_batch, outputs: { 1: { ...new_batch.outputs[1], reference_id: null }, 2: { ...new_batch.outputs[2], reference_id: null } } };
     open({ new_batch: alone, ref_batch: { outputs: {} }, config: { outputs: { visualizations: [{ path: 'out.png' }] } } });
     const parts = await screen.findByLabelText('What names say');
-    expect(parts).toHaveTextContent("not needed: there's no reference, you export one version");
+    expect(parts).toHaveTextContent('new or reference (no reference: one version)');
     expect(screen.queryByRole('radio', { name: 'A folder for new, one for reference' })).not.toBeInTheDocument();
-    await waitFor(() => expect(parts).toHaveTextContent('left out: each run has one file matching out.png'));
+    await waitFor(() => expect(parts).toHaveTextContent('file (one out.png per run)'));
     expect(previews(fetch)[0].runs.map(r => r.fields.side)).toEqual(['', '']);
     // users can always say it
     fireEvent.click(screen.getByRole('button', { name: 'Always say it' }));
@@ -157,11 +156,49 @@ describe('ExportPlugin', () => {
     expect(screen.getByRole('checkbox', { name: /iso/ })).not.toBeChecked();
     const sent = () => previews(fetch).at(-1).runs.map(r => r.fields.settings);
     await waitFor(() => expect(sent()).toEqual(['gain=1', 'gain=2']));
+    // a run only says the parameters it sets...
     fireEvent.click(screen.getByRole('checkbox', { name: /iso/ }));
+    await waitFor(() => expect(sent()).toEqual(['gain=1,iso=100', 'gain=2']));
+    // ...unless every name should say every setting, for scripts
+    fireEvent.click(screen.getByRole('checkbox', { name: /Only in the names that need them/ }));
     await waitFor(() => expect(sent()).toEqual(['gain=1,iso=100', 'gain=2,iso=default']));
+    fireEvent.click(screen.getByRole('checkbox', { name: /Only in the names that need them/ }));
     fireEvent.click(screen.getByRole('checkbox', { name: /iso/ }));
     fireEvent.change(screen.getByLabelText('Parameters and their values'), { target: { value: '-' } });
     await waitFor(() => expect(sent()).toEqual(['gain-1', 'gain-2']));
+  });
+
+  it('exports only the new results or only the reference, renames them, and puts @ before them', async () => {
+    const fetch = server();
+    open({ nb_references: 2 });
+    const runs = () => previews(fetch).at(-1)?.runs.map(r => [r.id, r.side, r.fields.side]);
+    await waitFor(() => expect(runs()).toHaveLength(4));
+    // several references on the page: the one shown is exported
+    expect(screen.getByText(/The page compares with 2 references/)).toHaveTextContent('the export takes the one shown, v1.0');
+    // names only for this export, and what's before them
+    fireEvent.click(within(screen.getByLabelText('What names say')).getByRole('button', { name: 'Rename' }));
+    fireEvent.change(screen.getByLabelText('Reference'), { target: { value: 'baseline' } });
+    fireEvent.change(screen.getByLabelText('Before it'), { target: { value: '@' } });
+    await waitFor(() => {
+      expect(previews(fetch).at(-1).template).toBe('{input}__{settings}__{file}__{region}@{side}');
+      expect(runs()).toEqual([[1, 'new', 'new'], [2, 'new', 'new'], [11, 'reference', 'baseline'], [12, 'reference', 'baseline']]);
+    });
+    // it's still the layout "One folder"
+    expect(screen.getByRole('radio', { name: 'One folder' })).toBeChecked();
+    fireEvent.click(screen.getByRole('radio', { name: 'Only new' }));
+    await waitFor(() => expect(runs()).toEqual([[1, 'new', ''], [2, 'new', '']]));
+    expect(screen.getByLabelText('What names say')).toHaveTextContent('new or reference (only the new results exported)');
+    expect(screen.queryByRole('radio', { name: 'A folder for new, one for reference' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: 'Only v1.0' }));
+    await waitFor(() => expect(runs()).toEqual([[11, 'reference', ''], [12, 'reference', '']]));
+  });
+
+  it('asks for feedback after an export', async () => {
+    server();
+    open({}, { siteConfig: { support_url: 'mailto:qaboard@example.com' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Export 4 files' }));
+    const link = await screen.findByRole('link', { name: 'Tell us' });
+    expect(link.getAttribute('href')).toMatch(/^mailto:qaboard@example\.com\?subject=Feedback%20on%20the%20new%20Export&body=/);
   });
 
   it('separates runs from different batches of qaboard.yaml on the same input', async () => {

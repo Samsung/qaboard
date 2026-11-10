@@ -26,6 +26,7 @@ import { copyDirectory } from "./logs/DirectoryActions"
 import { hidden_keys } from "../configurations/tokens"
 import { ConfigurationsTags, ConfigurationDiff } from "../configurations/ConfigurationsTags"
 import { RunInfoMenuItems } from "./RunInfoMenu"
+import { AttemptTag } from "./AttemptTag"
 import { LazyPopover } from "./LazyPopover"
 import { runName } from "../utils/runName"
 
@@ -279,6 +280,7 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
       <PlatformTag platform={platform} />
       <ConfigurationsTags configurations={configurations} tuning={output.extra_parameters} mismatch={mismatch} />
     </>}
+    <AttemptTag data={output.data} style={{ marginLeft: "5px" }}/>
 
     {output_type !== "batch" && <RunMenuButton output={output} project={project} commit={commit} type={type} style={{ marginLeft: "5px" }}/>}
 

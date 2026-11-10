@@ -60,7 +60,9 @@ A change is better when its runs beat the *same* runs on the reference, not when
    `qa --share --label <topic> batch ci` (prints the results URL). Local-only: `qa batch ci` writes to `output/`.
 2. Ask the gate: `qa gate --json` compares the current commit's CI batch with the reference (`gate:` in
    `qaboard.yaml`, else `project.reference_branch`). Exit `0` pass, `1` fail, `2` can't decide (reference missing or
-   still running). Read `batches[].checks[]` for each rule's `status` (pass/fail/skip), new and reference values.
+   still running). Read `batches[].checks[]` for each rule's `status` (pass/fail/skip), new and reference values,
+   `batches[].reruns` for the runs that only passed after being done again, and `rules_changes` when the commit
+   changed the gate's rules: report both, and never loosen a rule to make the gate pass without saying so.
 3. For other batches or labels, use the compare API the gate uses:
    ```bash
    curl "$QABOARD_URL/api/v1/commit/<sha>/compare?project=<project>&reference=main&batch=<label>"
@@ -94,6 +96,14 @@ scope: prefer `qa batch` from a checkout.
 ## Don'ts
 - Don't modify or delete anything under the results storage (`/mnt/qaboard`-like paths from `output_dir`): folders
   are shared with everyone; write your own outputs elsewhere.
+- Don't build the paths of results yourself: a shared run that was done again is in `<folder>_attempt2`, `_attempt3`...
+  (`<folder>/latest_attempt.txt` has the number). `run.output_dir`, `qa batch --list-output-dirs` and
+  `qa get --input <input> output_dir` give the latest attempt's folder.
+- Don't read reruns as repeated measurements: `run.data.get("attempt")` and `run.data.get("previous_attempts")` say a
+  run was done again and how earlier attempts ended (status, metrics, who, when), e.g. after a retry; their logs are
+  `run.output_dir / "log.attempt<N>.txt"`. Say so when you report a run that passed on a later attempt, and read
+  the failed attempt's log before you call it flaky. For statistics, repeat the measurement inside `run()` and
+  return what you computed.
 - Don't compute statistics across runs with different inputs or configurations as if they were the same test.
 - Don't claim "better" from a single run or from `compute_time` alone; latency needs a quiet machine and repeats.
 - Don't paste tokens into URLs (`?token=` is read-only and logged).

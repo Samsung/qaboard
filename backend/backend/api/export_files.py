@@ -507,6 +507,8 @@ def page_url(sides):
     "reference": hexsha(ref),
     "batch_ref": ref.get('batch') if hexsha(ref) else None,
     "filter_ref": ref.get('filter') if hexsha(ref) else None,
+    # a reference from another project: the page looks for it there
+    "ref_project": ref.get('project') if hexsha(ref) and ref.get('project') and ref.get('project') != new['project'] else None,
   }
   query = '&'.join(f'{k}={quote(str(v), safe="")}' for k, v in params.items() if v)
   return f"{qaboard_url}/{quote(str(new['project']), safe='/')}/commit/{hexsha(new)}{'?' + query if query else ''}"

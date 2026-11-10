@@ -25,13 +25,14 @@ describe('LegacyExportPlugin', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Export files (legacy)' }));
     expect(await screen.findByDisplayValue('debug/*/out.png')).toBeInTheDocument();
     // it says it's going away
-    expect(screen.getByText(/This is the previous export/)).toBeInTheDocument();
+    expect(screen.getByText(/The previous export, unchanged/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Export' }));
     expect(await screen.findByText(/3 files exported from 2 runs/)).toBeInTheDocument();
-    const url = new URL(fetch.mock.calls[0][0], 'http://localhost');
+    const exported = fetch.mock.calls.find(([called]) => called.startsWith('/api/v1/export/'));
+    const url = new URL(exported[0], 'http://localhost');
     expect(url.pathname).toBe('/api/v1/export/');
     // it writes files: not a GET, that other websites' links could send
-    expect(fetch.mock.calls[0][1].method).toBe('POST');
+    expect(exported[1].method).toBe('POST');
     expect(Object.fromEntries(url.searchParams)).toMatchObject({ path: 'debug/*/out.png', project: 'p', new_commit_id: 'abc', export_type: 'link' });
     expect(url.searchParams.has('export_dir')).toBe(false);
   });

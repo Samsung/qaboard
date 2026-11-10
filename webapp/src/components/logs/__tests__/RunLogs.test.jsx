@@ -140,6 +140,14 @@ describe('RunLogs', () => {
     expect(screen.queryByText('log.dask.txt')).not.toBeInTheDocument()
   })
 
+  it('offers the logs of the earlier attempts of a run that was done again', async () => {
+    renderRun({ expanded: true, output: { ...output, data: { attempt: 3, attempt_logs: [1, 2] } } })
+    // the latest first, after the run's own log
+    expect(screen.getAllByRole('radio').map(radio => radio.textContent)).toEqual(['log.txt', 'log.attempt2.txt', 'log.attempt1.txt'])
+    fireEvent.click(screen.getByRole('radio', { name: 'log.attempt1.txt' }))
+    await waitFor(() => expect(screen.getByLabelText('Download')).toHaveAttribute('href', '/s/out/7/log.attempt1.txt'))
+  })
+
   it('says when the output files of a run were deleted', async () => {
     renderRun({ expanded: true, output: { ...output, deleted: true } })
     expect(await screen.findByText("The run's output files were deleted.")).toBeInTheDocument()

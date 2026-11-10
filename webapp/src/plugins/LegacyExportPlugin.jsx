@@ -21,6 +21,8 @@ import { toaster } from "../toaster"
 import { track } from "../analytics"
 import { Link } from "../router"
 import { copyWithToast } from "../utils/clipboard"
+import { useSiteConfig } from "../hooks";
+import { reportUrl } from "../errors";
 
 
 // By default we export the files of the first visualization
@@ -33,7 +35,7 @@ const default_path = (config, path) => {
 
 const no_errors = [];
 
-export const legacy_export_help = "The previous export, unchanged while people move to the new one: same names and folders as before. It will be removed.";
+export const legacy_export_help = "The previous export, unchanged: same names and folders as before. It stays until the new Export does what you need.";
 
 // The previous export (POST /api/v1/export, deprecated), kept while people move to the new one (ExportPlugin.jsx):
 // scripts that read its names and folders keep working. Remove it with the older API.
@@ -50,6 +52,11 @@ const LegacyExportPlugin = props => {
 
   const path_input = useRef(null);
   const input_id = useId();
+  const { support_url } = useSiteConfig();
+  const feedback_url = reportUrl(support_url, {
+    subject: 'Feedback on the new Export',
+    body: `What do you miss in the new Export?\n\n\n--\nPage: ${window.location.href}`,
+  });
   const path = edited_path ?? default_path(config, props.path);
   const batch_dir = (batch_dir_url ?? '').slice(2);
   const batch_output_fs = extract_drive_and_folder(linux_to_windows(batch_dir));
@@ -107,9 +114,11 @@ const LegacyExportPlugin = props => {
   const can_export = !path_has_invalid_globs && path.length > 0
 
   const form = <div style={{ padding: '15px 15px 5px', width: 'min(540px, calc(100vw - 40px))', boxSizing: 'border-box' }}>
-    <Callout intent="warning" icon="history" style={{ marginBottom: 12 }}>
-      This is the previous export, kept for a while for scripts that read its names and folders. It will be removed:
-      try <strong>Export</strong>, and tell us what you miss.
+    <Callout icon="history" style={{ marginBottom: 12 }}>
+      The previous export, unchanged: your scripts that read its names and folders keep working. It stays until the
+      new <strong>Export</strong> does what you need{support_url
+        ? <>: <a href={feedback_url} target="_blank" rel="noopener noreferrer">tell us what's missing</a>.</>
+        : ': tell your admins what\'s missing.'}
     </Callout>
     <FormGroup
       label="Files to export"

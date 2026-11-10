@@ -22,6 +22,7 @@ import click
 from click import secho
 
 from .conventions import batch_folder_name, get_commit_dirs, output_dirs_for_input_part, run_dir_in_commit
+from .attempts import latest_dir
 from .iterators import iter_inputs
 from .matching import run_distance
 from .run import RunContext
@@ -330,6 +331,8 @@ class CommitRuns:
     found = [self.local_dir / run_dir] if self.local_dir is not None and (self.local_dir / run_dir).is_dir() else []
     if not found:
       found = [d / run_dir for d in self.storage_dirs() if (d / run_dir).is_dir()]
+    # runs that were done again are in their latest attempt's directory
+    found = [latest_dir(output_dir) for output_dir in found]
     if not found and self.match == 'closest':
       return self.closest_saved_runs(run_context)
     return [(output_dir, run_settings(run_context)) for output_dir in found]
@@ -339,16 +342,18 @@ class CommitRuns:
     from .config import config
     # the platform, configurations and tuning parameters are hashed in the folder between the label's and the input's
     input_dir = output_dirs_for_input_part(run_context.rel_input_path, Path(run_context.database), config)
-    pattern = Path(glob.escape(str(root / batch_folder_name(self.batch_label)))) / '*' / glob.escape(str(input_dir)) / 'run.json'
+    pattern = Path(glob.escape(str(root / batch_folder_name(self.batch_label)))) / '*' / glob.escape(str(input_dir))
     runs = []
-    for run_path in sorted(glob.glob(str(pattern))):
+    for first_dir in sorted(glob.glob(str(pattern))):
+      # runs that were done again are in their latest attempt's directory
+      output_dir = latest_dir(Path(first_dir))
       try:
-        run_info = json.loads(Path(run_path).read_text())
+        run_info = json.loads((output_dir / 'run.json').read_text())
       except (OSError, ValueError):
         continue
       # inputs whose folder have the same name, e.g. a.jpg and a.png
       if Path(run_info.get('input_path', '')).as_posix() == run_context.rel_input_path.as_posix():
-        runs.append((Path(run_path).parent, run_settings(run_info)))
+        runs.append((output_dir, run_settings(run_info)))
     return runs
 
   def closest_saved_runs(self, run_context: RunContext) -> List[Tuple[Path, Dict]]:
@@ -466,8 +471,10 @@ def is_bit_accurate(dir_new, dir_ref, run_context: RunContext, strict=False, man
     ignore.append('run.json')             # qa-board data, not relevant
     ignore.append('log.txt')              # contains timestamps
     ignore.append('log.lsf.txt')          # contains timestamps
+    ignore.append('log.attempt')          # the logs of the run's earlier attempts: log.attempt1.txt...
     ignore.append('metrics.json')         # contains measured run time
     ignore.append('metrics_definitions.json') # how to show metrics, not outputs
+    ignore.append('latest_attempt.txt')   # which attempt of the run is the latest (qaboard/attempts.py)
     ignore.append('.nfs000*')             # NFS temporary files
 
     missing_runs = False

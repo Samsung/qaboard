@@ -129,8 +129,11 @@ Creating runs needs what `qa run --share` needs. The SDK sends the token `qa aut
    or `summary` for the final values. Which reads best to someone coming from another tracker?
 2. **Series storage format.** JSON lines per key is simple and streams; Parquet is compact and fast to read back but
    needs a dependency and can't be appended. Start with JSONL and a size cap?
-3. **Replace or keep attempts.** Same `(input, configs)` on the same commit replaces the previous run. Is a visible
-   attempt number enough, or do training teams need every attempt kept by default?
+3. **Replace or keep attempts.** Decided with `docs/rfcs/rerun-directories.md`: same `(input, configs)` on the same
+   commit is a new attempt of the same run. `start_run()` reserves its directory with `qaboard/attempts.py`, like
+   `qa run`: shared runs get `<run>_attemptN`, the row keeps the latest attempt's results and a record of the earlier
+   ones (status, metrics, logs). Still open: do training teams need the earlier attempts' files kept, e.g. their
+   checkpoints?
 4. **Runs without an input.** Some training jobs have no meaningful "input" path. A synthetic input per batch
    (`"train"`) works but shows up in the inputs table; the coming richer inputs table may give a better home
    (a dataset record with its version).
