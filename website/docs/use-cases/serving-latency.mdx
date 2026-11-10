@@ -43,7 +43,7 @@ The ramping profile raises the load step by step: with the shared cache, p99 tak
 In the flame graph diff, rendering responses under the cache's lock is new (orange), and the model runs less (blue):
 cache hits skip it. Under the graph, **Top functions** ranks every function by how much its share of the profile
 changed. The gateway saves its CPU samples as folded stacks, the format most profilers can write: there is no
-conversion code (see [flame graph formats](/docs/viewers#flame-graphs)).
+conversion code (see [flame graph formats](/docs/flame-graphs#formats)).
 
 <Shot id="commit/flame-top-functions" />
 
@@ -59,7 +59,7 @@ dozens of times its reference's, where the rule allows 10% more.
 <Clip id="cli/gate" />
 
 With `--post-comment github` (or `gitlab`), the same table goes to the pull request, where the agent's change is
-reviewed, and is updated on each push (see [comment on pull requests](/docs/quality-gate#pull-request-comments)):
+reviewed, and is updated on each push (see [comment on pull requests](/docs/quality-gate-pull-requests)):
 
 <Shot id="ci/pr-comment" />
 
@@ -68,7 +68,7 @@ When a run saves a benchmark harness's file, its card compares each benchmark wi
 %, the spread both files report, and a count of what got slower, faster, or stayed within noise. A change smaller than
 the spread stays gray, never red or green, and a warning says when the two files come from different CPUs. The
 geometric mean of the changes sums the suite up, and `benchmark_metrics` returns each benchmark as a metric, for
-History and the gate (see [benchmarks](/docs/viewers#benchmarks)). The demo gateway has no microbenchmarks yet:
+History and the gate (see [benchmarks](/docs/benchmarks)). The demo gateway has no microbenchmarks yet:
 [reading benchmarks](/docs/user-guide/other-viewers#benchmarks) walks through the viewer.
 
 ### Find a regression the median hides
@@ -99,7 +99,7 @@ Runs execute one at a time, so they don't measure each other, and each run repea
 percentiles are the median over repeats.
 
 To add microbenchmarks, have `run()` start the harness and save its file in the output directory, list it in
-`outputs.visualizations`, and return `benchmark_metrics(path)`: see [benchmarks](/docs/viewers#benchmarks) for each
+`outputs.visualizations`, and return `benchmark_metrics(path)`: see [benchmarks](/docs/benchmarks) for each
 harness's command.
 
 ## What QA-Board doesn't do (yet) {#limits}
@@ -151,7 +151,7 @@ Close what you can while it runs: a busy laptop makes for a slow gateway and noi
 ## Where next
 <Cards>
   <Card title="Flame graphs and benchmarks" to="/docs/user-guide/other-viewers#flame-graphs" eyebrow="User guide">How to read them against the reference.</Card>
-  <Card title="Profiles and benchmark files" to="/docs/viewers#flame-graph-recipes" eyebrow="Project integration">Save what your profiler and your harness write.</Card>
+  <Card title="Profiles and benchmark files" to="/docs/flame-graphs" eyebrow="Project integration">Save what your profiler and your harness write.</Card>
   <Card title="History" to="/docs/user-guide/history-and-dashboards" eyebrow="User guide">Metrics across commits, per test or aggregated.</Card>
   <Card title="The quality gate" to="/docs/quality-gate" eyebrow="Project integration">Fail CI when a metric regresses. Experimental.</Card>
 </Cards>

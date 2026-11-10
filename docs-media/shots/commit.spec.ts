@@ -565,19 +565,6 @@ shot('commit/export', {
   target: page => [page.locator('.bp6-dialog', { hasText: 'Export files' })],
   padding: 8,
 });
-    await ui.click(box.getByRole('button', { name: 'Export', exact: true }));
-    await ui.page.getByText(/files exported from/).waitFor();
-    await ui.settle();
-    await ui.cursor.moveTo({ x: 1300, y: 860 });
-  },
-  // the commit bars' filter box, the Export button and its box
-  target: page => [
-    filterBox(page, 'new'),
-    page.getByRole('button', { name: 'Export files', exact: true }),
-    page.locator('.bp6-popover', { has: page.getByLabel(/Files to export/) }),
-  ],
-  padding: 8,
-});
 
 // Several references (webapp/src/components/ReferenceTabs.jsx): tabs below the commit bars, one compared at a time.
 // The URL stacks them (webapp/src/selection.js): `reference` is the one shown, `compare` the others

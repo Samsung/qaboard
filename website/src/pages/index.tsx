@@ -315,7 +315,7 @@ const COLLABORATION: Collaborator[] = [
         table and links to the Metrics Diff that shows why.
       </>
     ),
-    to: '/docs/quality-gate#pull-request-comments',
+    to: '/docs/quality-gate-pull-requests',
     experimental: true,
   },
   {
