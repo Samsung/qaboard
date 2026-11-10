@@ -46,7 +46,7 @@ instructions as a metric covers it.
 |---|---|---|
 | 1 | **Noise-aware gate and Metrics Diff.** First a static floor per metric (`noise: 2%` in its definition), used by the gate and to gray out changes within it. Then a floor from the metric's history on the reference branch (robust spread: MAD or IQR, same input, configuration and platform). A test on samples only once runs can carry them. | Not started. Waits for the design of what runs return (see principles). The static floor can go first. |
 | 2 | **Benchmark files: viewers and metrics.** pytest-benchmark and Google Benchmark JSON first, then Criterion and hyperfine: a table against the reference, each benchmark a metric. An "import a benchmark suite" shape in the integration skill. Still inside `run()`; the HTTP API will later make "upload one file" easy. | Next, after the gate work. Use Opus subagents, one per format. |
-| 3 | **The gate's table as a pull request comment**, updated in place, saying when runs passed after being done again. | In progress. |
+| 3 | **The gate's table as a pull request comment**, updated in place, saying when runs passed after being done again. | Done: `qa gate --post-comment github\|gitlab`. Experimental, like the gate. |
 | 4 | **Regression alerts.** After each CI batch of the reference branch, flag metrics that stepped against their trailing window, mark them in History, list them per project, notify (Slack, Teams, email). | Not started. Needs the project admin page to configure it. |
 | 5 | **Testbed fingerprint.** `qa` records the CPU model, cores, memory and kernel; History and the gate compare within one; the Metrics Diff warns when the reference ran elsewhere. | Not started. |
 | 6 | **Bisect**, from History or `qa bisect`: good and bad commits, QA-Board runs the batch on the midpoints. | Not started. |
@@ -63,7 +63,7 @@ Also asked for:
 |---|---|---|
 | A | **Attempts are kept.** A rerun no longer erases what came before: its directory, status, metrics and log. | Done: `docs/rfcs/rerun-directories.md`. |
 | B | **Provenance on every run.** Who or what started it (an agent's name and task), a dirty tree, verified CI or not, as a badge and a filter. The CI token exchange already says which job on which repository and ref. | Not started. |
-| C | **Flag changes to the gate's rules.** Loosening a threshold to pass is the obvious failure: say so on the commit page and in the PR comment. | Not started. Fits item 3's comment. |
+| C | **Flag changes to the gate's rules.** Loosening a threshold to pass is the obvious failure: say so on the commit page and in the PR comment. | Done in `qa gate`'s output and comment (`rules_changes`). Not on the commit page yet. |
 | D | **Record the decision.** "Approve as the new reference": who, when, with the verdict and the Metrics Diff they saw. | Not started. |
 | E | **A review inbox.** Batches awaiting a decision, ranked by what moved beyond noise, new failures, outputs that changed. | Not started. Needs D and item 1. |
 | F | **An evidence pack**, for a read-only MCP server and the PR comment alike: compare, explain a regression with the worst tests and image crops, history, a Markdown summary. | Not started. Item 3 is its first renderer. |
@@ -73,7 +73,7 @@ Order: A, then C with item 3, then B, D, E, F.
 
 ## Order of work
 1. Reruns in their own directory, with the log, status and metrics of earlier attempts. Done.
-2. The gate's table as a PR comment, with reruns (item 3, and C when cheap).
+2. The gate's table as a PR comment, with reruns and rule changes (item 3 and C). Done.
 3. The project admin page and the Admin menu; the gate's and alerts' settings there.
 4. Benchmark files (item 2), then flame graph formats.
 5. Checkpoint: noise (item 1) once the SDK's design says what runs return.

@@ -47,15 +47,15 @@ the change sees why.
    <Tabs groupId="ci" queryString>
    <TabItem value="github-actions" label="GitHub Actions" default>
 
-   <RepoFile path="website/snippets/ci/github-actions-gate.yml" title=".github/workflows/qaboard.yml" highlight="23-25" untested />
+   <RepoFile path="website/snippets/ci/github-actions-gate.yml" title=".github/workflows/qaboard.yml" highlight="24-27" untested />
 
    </TabItem>
    <TabItem value="gitlab-ci" label="GitLab CI">
 
-   <RepoFile path="website/snippets/ci/gitlab-ci-gate.yml" title=".gitlab-ci.yml" highlight="19-28" untested />
+   <RepoFile path="website/snippets/ci/gitlab-ci-gate.yml" title=".gitlab-ci.yml" highlight="19-29" untested />
 
-   To post the commit status, add a project access token with the `api` scope (role Developer or more) as a masked
-   CI/CD variable named `GITLAB_ACCESS_TOKEN`.
+   To post the commit status and the comment, add a project access token with the `api` scope (role Developer or
+   more) as a masked CI/CD variable named `GITLAB_ACCESS_TOKEN`.
 
    </TabItem>
    <TabItem value="jenkins" label="Jenkins">
@@ -67,8 +67,8 @@ the change sees why.
 
    `<your-qaboard>` is your server's URL, like `http://localhost:5151`.
 
-4. **Push a commit.** When a rule breaks, the job fails. In GitHub Actions, the gate's table is also in the job's
-   summary:
+4. **Push a commit.** When a rule breaks, the job fails. The gate's table is also in a
+   [comment on the pull request](#pull-request-comments), and in GitHub Actions in the job's summary:
 
 <Shot
   id="ci/step-summary"
@@ -170,6 +170,36 @@ last commit instead, for the results and the status. Check it out too, see
 [GitHub Actions](/docs/ci-integration#example-with-github-actions). `on: push` is usually enough.
 :::
 
+## Comment on pull requests {#pull-request-comments}
+With `--post-comment github` (or `gitlab`), `qa gate` writes its result where the change is reviewed: one comment on
+the commit's open pull request (merge request), with the gate's tables and the links to the Metrics Diff. Later runs
+update that comment, so reviewers read one comment, about the latest results.
+
+```bash
+qa gate --post-status github --post-comment github
+```
+
+- **GitHub:** set `GITHUB_TOKEN`, and give the workflow `pull-requests: write`. With `on: pull_request`, the comment
+  goes to the event's pull request; with `on: push`, to the open pull requests GitHub lists for the commit. Pull
+  requests from forks get a read-only token: `qa gate` warns, and the table is still in the job's summary.
+- **GitLab:** set `GITLAB_ACCESS_TOKEN`, as for commit statuses. In merge request pipelines the comment goes to
+  that merge request (`CI_MERGE_REQUEST_IID`), otherwise to the open merge requests GitLab lists for the commit.
+- A commit without an open pull request gets no comment, and no warning: e.g. pushes to your main branch.
+- In a [subproject](/docs/monorepo-subprojects), the gate has its own comment.
+- Failing to comment never changes the exit code: it stays the gate's verdict.
+
+The comment, like the terminal's output and the job's summary, also says what a reviewer should know and that
+doesn't change the verdict:
+
+- **Runs that were done again.** "3 runs were done again: 1 passed after a failed attempt", then each of them with
+  how its earlier attempts ended. A result that took several tries may be a flaky test or a retried CI job: the
+  earlier attempts' metrics are on the run's **attempt** tag, and their logs in the Logs view (see
+  [run cards](/docs/user-guide/commit-page#run-cards)).
+- **Rules that changed.** When the commit's `gate:` rules differ from those of the reference's *qaboard.yaml*, the
+  comment lists them, e.g. `psnr, median, max regression: 1% → 5% (looser)`. Loosening a rule can be the right
+  call, and it's also the cheapest way to make a red gate green, for people and coding agents alike: it should be
+  seen. `qa gate` compares with the configuration the reference's results were sent with.
+
 ## Options
 
 | Option | Meaning |
@@ -180,13 +210,16 @@ last commit instead, for the results and the status. Check it out too, see
 | `--format text\|markdown\|json`, `--json` | The output: a table (default), a Markdown table, or JSON for scripts and agents. |
 | `--wait`, `--timeout`, `--interval` | Check again while undecidable, see [exit codes](#exit-codes). |
 | `--post-status github\|gitlab` | Post a commit status, see [commit statuses](#commit-statuses). |
+| `--post-comment github\|gitlab` | Post or update a comment on the commit's pull request, see [comment on pull requests](#pull-request-comments). |
 | `--server <url>` | The QA-Board server, instead of `QABOARD_URL` or your site's settings. |
 
 `qa gate` prints a reminder that it's experimental on stderr: stdout only has the result.
 
 ## From scripts and agents
-`qa gate --json` prints the verdict, each check with its values, and the link to the Metrics Diff. The numbers come
-from an HTTP API that you can use too:
+`qa gate --json` prints the verdict, each check with its values, and the link to the Metrics Diff. It also has
+`rules_changes`, how the rules differ from the reference's (each with `looser`), and for each batch `reruns`: how
+many runs were done again, how many passed after a failed attempt, and which. The numbers come from an HTTP API that
+you can use too:
 
 ```bash
 curl "http://localhost:5151/api/v1/commit/<sha>/compare?project=<project>&reference=main&batch=default"
@@ -206,7 +239,8 @@ The answer has the `status` of the comparison (`complete`, `running`, or `missin
 - `metrics`: for each metric, the median, the number of values and the share of runs that meet the target, for the
   new and the reference runs, and the change (`delta`, `delta_relative`);
 - `tests`: each run, its reference run (`reference_id`, and `reference_mismatch` when they don't have the same input,
-  configuration, platform or parameters), and the change of each metric.
+  configuration, platform or parameters), the change of each metric, and `attempts` when the run was done again;
+- `commit.reruns`, the counts of runs that were done again, and `reference.gate`, the reference's rules.
 
 Like the rest of the API, reading doesn't need a login unless your server restricts the project. Scripts can send
 an API token, see [the HTTP API](/docs/http-api#authentication).

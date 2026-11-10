@@ -1030,7 +1030,18 @@ components:
             `complete`: the numbers are final. `running`: some runs aren't finished. `missing`: runs or the reference
             are missing, `messages` says what.
         messages: {type: array, items: {type: string}, description: Why the comparison is incomplete, and warnings.}
-        commit: {$ref: "#/components/schemas/ComparedCommit"}
+        commit:
+          allOf:
+            - $ref: "#/components/schemas/ComparedCommit"
+            - type: object
+              properties:
+                reruns:
+                  type: object
+                  description: The runs of the batch that were done again.
+                  properties:
+                    runs: {type: integer, description: How many runs were done again.}
+                    after_failure: {type: integer, description: Those that succeeded after an attempt that failed.}
+                    after_unfinished: {type: integer, description: Those that succeeded after an attempt that never said how it ended.}
         reference:
           allOf:
             - $ref: "#/components/schemas/ComparedCommit"
@@ -1039,6 +1050,12 @@ components:
                 requested: {type: string, description: The reference you asked for, or the default.}
                 type: {type: string, enum: [milestone, commit, branch]}
                 milestone: {type: [string, "null"], description: The milestone's label.}
+                gate:
+                  type: [object, "null"]
+                  description: >-
+                    The `gate:` section of the *qaboard.yaml* the reference's results were sent with, `{}` if it had
+                    none, `null` if QA-Board doesn't have it. `qa gate` says when a commit loosens the rules.
+                  additionalProperties: true
         metrics:
           type: object
           description: The **Summary**'s numbers, by metric.
@@ -1077,6 +1094,13 @@ components:
               configurations: {type: array, items: {}}
               extra_parameters: {type: object, additionalProperties: true}
               is_failed: {type: boolean}
+              attempts:
+                type: object
+                description: Only for runs that were done again.
+                properties:
+                  attempt: {type: integer, description: The attempt these results are from.}
+                  previous: {type: array, items: {type: string, enum: [success, failed, unfinished, unknown]}, description: "How the earlier attempts ended, the oldest first."}
+                  in_place: {type: boolean, description: Whether the run was done again in the same folder.}
               metrics:
                 type: object
                 additionalProperties:

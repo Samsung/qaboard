@@ -5,7 +5,8 @@ name: QA-Board
 on: push
 permissions:
   contents: read
-  statuses: write  # for qa batch's commit status, and qa gate --post-status
+  statuses: write       # for qa batch's commit status, and qa gate --post-status
+  pull-requests: write  # for qa gate --post-comment
 
 jobs:
   qaboard:
@@ -20,6 +21,7 @@ jobs:
           python-version: "3.12"
       - run: pip install qaboard -r requirements.txt
       - run: qa batch ci
-      # Also when runs failed, so that the gate reports them. Its table goes to the job's summary.
-      - run: qa gate --post-status github
+      # Also when runs failed, so that the gate reports them. Its table goes to the job's summary,
+      # and to a comment on the commit's pull request, updated on each push.
+      - run: qa gate --post-status github --post-comment github
         if: ${{ !cancelled() }}

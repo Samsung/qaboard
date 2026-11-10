@@ -244,8 +244,8 @@ differences. See [Bit accuracy](/docs/bit-accuracy).
 
 <RoadmapItem status="experimental" title="Quality gate" id="quality-gate">
 `qa gate` fails CI when quality regresses against the reference: rules per metric (a maximum regression, an absolute
-floor, a limit for each test), a summary in the CI job, and a commit status that links to the Metrics Diff. See
-[Quality gate](/docs/quality-gate).
+floor, a limit for each test), a summary in the CI job, a commit status that links to the Metrics Diff, and a comment
+on the pull request. See [Quality gate](/docs/quality-gate).
 </RoadmapItem>
 
 <RoadmapItem status="shipped" title="An OpenAPI description of the HTTP API">
@@ -281,8 +281,20 @@ agent.
 An agent reads a tuning analysis and proposes the next experiment, for a person to start.
 </RoadmapItem>
 
+<RoadmapItem status="experimental" title="The gate's verdict on pull requests">
+`qa gate --post-comment` posts the gate's table on the commit's pull request or merge request, and updates it on each
+push. It says when runs only passed after being done again, and when the commit loosens the gate's rules. See
+[Comment on pull requests](/docs/quality-gate#pull-request-comments).
+</RoadmapItem>
+
+<RoadmapItem status="shipped" title="A record of every attempt">
+A shared or CI run that is done again no longer erases what came before: QA-Board keeps how each earlier attempt
+ended, its metrics and its log, and shows the latest. See
+[When a run is done again](/docs/storage/where-is-the-data#reruns).
+</RoadmapItem>
+
 <RoadmapItem status="exploring" title="Metrics Diff summaries on pull requests">
-A comment on each pull request with the metrics that changed, and links to the outputs.
+Beyond the gate's rules: the metrics that changed most and the outputs behind them, with image crops, in the comment.
 </RoadmapItem>
 
 ## Polish

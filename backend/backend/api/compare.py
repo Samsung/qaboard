@@ -16,6 +16,7 @@ Query parameters:
 """
 import re
 import json
+from typing import Optional
 
 from flask import request, jsonify
 
@@ -25,6 +26,7 @@ from ..models import CiCommit, Batch, Milestone
 from ..compare import compare_outputs, run_counts, manifests_mismatch
 from ..metrics_definitions import available_metrics
 from ..storage import is_storage_path
+from ..attempts import reruns_of, rerun_counts
 
 
 def is_ci_alias(label: str) -> bool:
@@ -106,6 +108,15 @@ def find_milestone(project_id: str, reference: str):
 
 def commit_config(commit) -> dict:
   return (commit.data or {}).get('qatools_config') or (commit.project.data or {}).get('qatools_config') or {}
+
+
+def own_gate_config(commit) -> Optional[dict]:
+  """The `gate:` section of the qaboard.yaml the commit's results were sent with, None if we don't have it."""
+  config = (commit.data or {}).get('qatools_config') if commit is not None else None
+  if not isinstance(config, dict):
+    return None
+  gate = config.get('gate')
+  return gate if isinstance(gate, dict) else {}
 
 
 def default_reference(commit) -> str:
@@ -255,16 +266,26 @@ def compare_commit(commit_id):
   if request.args.get('bit_accuracy', '').lower() in ('1', 'true', 'yes'):
     bit_accuracy = compare_bit_accuracy(comparison['tests'], new_outputs, ref_outputs, commit_config(commit))
 
+  # Runs that were done again: reviewers want to know when a result took several attempts (backend/attempts.py)
+  compared_dicts = [o for o in new_dicts if o.get('output_type') != 'optim_iteration']
+  reruns_by_id = {o['id']: reruns_of(o) for o in compared_dicts}
+  for test in comparison['tests']:
+    if reruns_by_id.get(test['id']):
+      test['attempts'] = reruns_by_id[test['id']]
+
   return jsonify({
     'project': project_id,
     'status': status,
     'messages': messages,
-    'commit': {**describe_commit(commit), 'batch': batch.label if batch else label, 'runs': new_counts},
+    'commit': {**describe_commit(commit), 'batch': batch.label if batch else label, 'runs': new_counts, 'reruns': rerun_counts(compared_dicts)},
     'reference': {
       **ref_info,
       **(describe_commit(ref_commit) if ref_commit else {'id': None}),
       'batch': ref_batch.label if ref_batch else ref_label,
       'runs': ref_counts,
+      # The gate's rules at the reference, as its qaboard.yaml had them: `qa gate` says when a change loosens them.
+      # Only the commit's own configuration: the project's latest would be someone else's rules.
+      'gate': own_gate_config(ref_commit),
     },
     'metrics': comparison['metrics'],
     'tests': comparison['tests'],

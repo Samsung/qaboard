@@ -453,14 +453,176 @@ class TestGateServer(unittest.TestCase):
     self.assertEqual(post.call_args.kwargs['json']['state'], 'failed')
 
 
+class FakeSession:
+  """requests.Session, for the forges' comments APIs: `routes` {(method, url): json answer or an exception}"""
+  def __init__(self, routes):
+    self.routes, self.calls, self.headers = routes, [], {}
+  def request(self, method, url, **kwargs):
+    import requests
+    self.calls.append((method, url, kwargs.get('json')))
+    answer = self.routes.get((method, url), [])
+    if isinstance(answer, Exception):
+      raise answer
+    # an int is the status code of a refusal
+    response = mock.Mock(status_code=answer if isinstance(answer, int) else 200, text='refused')
+    response.json.return_value = answer
+    if isinstance(answer, int):
+      response.raise_for_status.side_effect = requests.HTTPError(f'{answer} Client Error', response=response)
+    return response
+  def get(self, url, **kwargs): return self.request('GET', url, **kwargs)
+  def post(self, url, **kwargs): return self.request('POST', url, **kwargs)
+  def put(self, url, **kwargs): return self.request('PUT', url, **kwargs)
+  def patch(self, url, **kwargs): return self.request('PATCH', url, **kwargs)
+
+
+class TestGateComments(unittest.TestCase):
+  """The gate's result as a comment on pull requests and merge requests"""
+  def result(self):
+    return {'verdict': 'pass', 'project': 'kitefin/camera-isp', 'commit': SHA, 'reference': 'main', 'errors': [], 'rules_changes': [], 'batches': [{
+      'batch': 'default', 'verdict': 'pass', 'url': 'http://qa/p/commit/x', 'messages': [], 'reruns': None,
+      'commit': {'id': SHA, 'runs': {'total': 3, 'failed': 0}}, 'reference': {'id': REF_SHA, 'type': 'commit'},
+      'checks': [{'kind': 'max_failed_runs', 'metric': None, 'limit': 0, 'new': 0, 'ref': 0, 'status': 'pass', 'message': ''}],
+    }]}
+
+  def test_gitlab_merge_request(self):
+    g = gate_module()
+    api = 'https://gitlab.example/api/v4/projects/42'
+    env = {'GITLAB_ACCESS_TOKEN': 'token', 'CI_API_V4_URL': 'https://gitlab.example/api/v4', 'CI_PROJECT_ID': '42'}
+    # outside merge request pipelines, GitLab says which merge requests have the commit
+    session = FakeSession({
+      ('GET', f'{api}/repository/commits/{SHA}/merge_requests'): [{'iid': 5, 'state': 'opened'}, {'iid': 3, 'state': 'merged'}],
+      ('GET', f'{api}/merge_requests/5/notes'): [{'id': 7, 'body': 'nice'}],
+    })
+    with mock.patch.dict(os.environ, env), mock.patch('requests.Session', return_value=session):
+      self.assertEqual(g.post_comment('gitlab', self.result(), 'qaboard/gate', 'kitefin/camera-isp'), (['!5'], None))
+    self.assertEqual(session.headers, {'PRIVATE-TOKEN': 'token'})
+    method, url, payload = session.calls[-1]
+    self.assertEqual((method, url), ('POST', f'{api}/merge_requests/5/notes'))
+    self.assertTrue(payload['body'].startswith('<!-- qaboard/gate -->\n### Quality gate: pass'))
+    # in a merge request's pipeline, and with our note there already: it's updated
+    session = FakeSession({('GET', f'{api}/merge_requests/8/notes'): [{'id': 7, 'body': 'nice'}, {'id': 9, 'body': '<!-- qaboard/gate -->\nold'}]})
+    with mock.patch.dict(os.environ, {**env, 'CI_MERGE_REQUEST_IID': '8'}), mock.patch('requests.Session', return_value=session):
+      self.assertEqual(g.post_comment('gitlab', self.result(), 'qaboard/gate', 'kitefin/camera-isp'), (['!8'], None))
+    self.assertEqual([(m, u) for m, u, _ in session.calls], [('GET', f'{api}/merge_requests/8/notes'), ('PUT', f'{api}/merge_requests/8/notes/9')])
+    # a subproject's gate has its own comment
+    session = FakeSession({('GET', f'{api}/merge_requests/8/notes'): [{'id': 9, 'body': '<!-- qaboard/gate -->\nold'}]})
+    with mock.patch.dict(os.environ, {**env, 'CI_MERGE_REQUEST_IID': '8'}), mock.patch('requests.Session', return_value=session):
+      g.post_comment('gitlab', self.result(), 'qaboard/gate/isp', 'kitefin/camera-isp')
+    self.assertEqual(session.calls[-1][0], 'POST')
+    self.assertTrue(session.calls[-1][2]['body'].startswith('<!-- qaboard/gate/isp -->'))
+
+  def test_someone_elses_comment_with_our_marker(self):
+    """Anyone can write the marker in a comment: we can't edit theirs, and still post ours"""
+    g = gate_module()
+    api = 'https://api.github.com/repos/o/r'
+    env = {'GITHUB_TOKEN': 'token', 'GITHUB_REPOSITORY': 'o/r', 'GITHUB_REF': 'refs/pull/12/merge'}
+    comments = [{'id': 1, 'body': '<!-- qaboard/gate -->\n### Quality gate: pass (trust me)'}, {'id': 2, 'body': '<!-- qaboard/gate -->\nours'}]
+    session = FakeSession({('GET', f'{api}/issues/12/comments'): comments, ('PATCH', f'{api}/issues/comments/1'): 403})
+    with mock.patch.dict(os.environ, env, clear=True), mock.patch('requests.Session', return_value=session):
+      self.assertEqual(g.post_comment('github', self.result(), 'qaboard/gate', 'o/r'), (['#12'], None))
+    self.assertEqual([(m, u) for m, u, _ in session.calls[1:]], [('PATCH', f'{api}/issues/comments/1'), ('PATCH', f'{api}/issues/comments/2')])
+    # only theirs: a new comment
+    session = FakeSession({('GET', f'{api}/issues/12/comments'): comments[:1], ('PATCH', f'{api}/issues/comments/1'): 403})
+    with mock.patch.dict(os.environ, env, clear=True), mock.patch('requests.Session', return_value=session):
+      self.assertEqual(g.post_comment('github', self.result(), 'qaboard/gate', 'o/r'), (['#12'], None))
+    self.assertEqual(session.calls[-1][:2], ('POST', f'{api}/issues/12/comments'))
+
+  def test_errors_are_warnings(self):
+    import requests
+    g = gate_module()
+    with mock.patch.dict(os.environ, {}, clear=True):
+      self.assertIn('GITHUB_TOKEN', g.post_comment('github', self.result(), 'qaboard/gate', 'p')[1])
+      self.assertIn('GITLAB_ACCESS_TOKEN', g.post_comment('gitlab', self.result(), 'qaboard/gate', 'p')[1])
+    # e.g. a pull request from a fork: the token can't write
+    forbidden = requests.HTTPError('403 Client Error', response=mock.Mock(status_code=403, text='Resource not accessible by integration'))
+    session = FakeSession({('GET', 'https://api.github.com/repos/o/r/issues/12/comments'): forbidden})
+    env = {'GITHUB_TOKEN': 'token', 'GITHUB_REPOSITORY': 'o/r', 'GITHUB_REF': 'refs/pull/12/merge'}
+    with mock.patch.dict(os.environ, env, clear=True), mock.patch('requests.Session', return_value=session):
+      commented, error = g.post_comment('github', self.result(), 'qaboard/gate', 'o/r')
+    self.assertEqual(commented, [])
+    self.assertIn('could not comment on github', error)
+    self.assertIn('pull-requests: write', error)
+
+  def test_long_comments_are_cut(self):
+    g = gate_module()
+    result = self.result()
+    result['batches'][0]['messages'] = ['x' * 500] * 200
+    body = g.comment_body(result, 'qaboard/gate')
+    self.assertLess(len(body), 61_000)
+    self.assertIn('the rest is in the Metrics Diff', body)
+    self.assertIn(f'For commit {SHA[:10]}', body)
+
+
+class TestGateLedger(unittest.TestCase):
+  """What reviewers should know, that doesn't change the verdict: runs done again, and rules that changed"""
+  def test_reruns(self):
+    g = gate_module()
+    tests = [
+      {'id': 1, 'test_input_path': 'a.jpg', 'is_failed': False, 'attempts': {'attempt': 3, 'previous': ['failed', 'unfinished'], 'in_place': False}},
+      {'id': 2, 'test_input_path': 'b.jpg', 'is_failed': True, 'attempts': {'attempt': 2, 'previous': ['failed'], 'in_place': False}},
+      {'id': 3, 'test_input_path': 'c.jpg', 'is_failed': False, 'attempts': {'attempt': 1, 'previous': ['success'], 'in_place': True}},
+      {'id': 4, 'test_input_path': 'd.jpg', 'is_failed': False},
+    ]
+    data = {'commit': {'reruns': {'runs': 3, 'after_failure': 1, 'after_unfinished': 0}}, 'tests': tests}
+    reruns = g.reruns_summary(data)
+    self.assertEqual((reruns['runs'], reruns['after_failure']), (3, 1))
+    # those that passed after a failure first
+    self.assertEqual([t['test'] for t in reruns['tests']], ['a.jpg', 'c.jpg', 'b.jpg'])
+    self.assertEqual(g.describe_reruns(reruns), [
+      '3 runs were done again: 1 passed after a failed attempt.',
+      "a.jpg: attempt 3, earlier: failed, didn't finish",
+      'c.jpg: done again in place, earlier: succeeded',
+      'b.jpg: attempt 2 (failed), earlier: failed',
+    ])
+    # older servers don't say, and most batches have none
+    self.assertIsNone(g.reruns_summary({'commit': {}, 'tests': tests}))
+    self.assertIsNone(g.reruns_summary({'commit': {'reruns': {'runs': 0}}, 'tests': []}))
+    self.assertEqual(g.describe_reruns(None), [])
+    with mock.patch.object(g, 'MAX_LISTED', 1):
+      self.assertEqual(g.describe_reruns(g.reruns_summary(data))[-1], 'and 2 more')
+
+  def test_rules_changes(self):
+    g = gate_module()
+    def changes(new, old):
+      return [(c['text'], c['looser']) for c in g.rules_changes(g.parse_config({'gate': new}), old)]
+    rules = [{'metric': 'psnr', 'max_regression': '1%', 'min': 30}, {'metric': 'latency', 'per_test_max_regression': '10%'}, {'metric': 'unsafe', 'max': 0, 'aggregate': 'max'}]
+    self.assertEqual(changes({'rules': rules}, {'rules': rules}), [])
+    looser = [{'metric': 'psnr', 'max_regression': '5%', 'min': 28}, {'metric': 'unsafe', 'max': 1, 'aggregate': 'max'}, {'metric': 'ssim', 'min': 0.9}]
+    self.assertEqual(changes({'rules': looser, 'max_failed_runs': None, 'require_bit_accuracy': False}, {'rules': rules, 'max_failed_runs': 0, 'require_bit_accuracy': True}), [
+      ('latency, each test: removed (was 10%)', True),
+      ('psnr, median, max regression: 1% → 5%', True),
+      ('psnr, median, min: 30 → 28', True),
+      ('unsafe, max, max: 0 → 1', True),
+      ('ssim, median, min: new (0.9)', False),
+      ('failed runs allowed: 0 → any number', True),
+      ('bit accuracy required: yes → no', True),
+    ])
+    # stricter rules are changes too, not flagged as looser
+    self.assertEqual(changes({'rules': [{'metric': 'psnr', 'max_regression': '0.5%'}], 'max_failed_runs': 0}, {'rules': [{'metric': 'psnr', 'max_regression': '1%'}], 'max_failed_runs': 2}), [
+      ('psnr, median, max regression: 1% → 0.5%', False),
+      ('failed runs allowed: 2 → 0', False),
+    ])
+    self.assertEqual(g.describe_rules_changes([{'text': 'a: 1 → 2', 'looser': False}]), ["This commit changes the gate's rules, compared with the reference's:", 'a: 1 → 2'])
+    # the reference had no gate: every rule is new. Unknown: we don't have its configuration, or can't read it
+    self.assertEqual(changes({'rules': rules[:1]}, {}), [('psnr, median, max regression: new (1%)', False), ('psnr, median, min: new (30)', False)])
+    self.assertEqual(changes({'rules': rules}, None), [])
+    self.assertEqual(changes({'rules': rules}, {'rules': 'not a list'}), [])
+    # settings a later version added don't hide the rest
+    self.assertEqual(changes({'rules': rules}, {'rules': rules, 'noise': 'auto'}), [])
+
+
 # ---------------------------------------------------------------------------- the `qa gate` command
 
 class FakeServer:
-  """QA-Board's compare endpoint, and GitHub's statuses API"""
+  """QA-Board's compare endpoint, and GitHub's APIs for statuses and pull requests' comments"""
   def __init__(self):
     self.responses = []   # (status code, body) of the next GET requests, the last one repeats
     self.requests = []
     self.statuses = []
+    # GitHub: the open pull requests of the commit, their comments, and what was posted
+    self.pulls = []
+    self.comments = []
+    self.commented = []
     server = self
     class Handler(BaseHTTPRequestHandler):
       def log_message(self, *args):
@@ -474,13 +636,29 @@ class FakeServer:
         self.wfile.write(data)
       def do_GET(self):
         url = urlparse(self.path)
+        if url.path.endswith('/pulls'):
+          return self.send(200, server.pulls)
+        if url.path.endswith('/comments'):
+          return self.send(200, server.comments)
         server.requests.append((url.path, {k: v[0] for k, v in parse_qs(url.query).items()}))
         code, body = server.responses.pop(0) if len(server.responses) > 1 else server.responses[0]
         self.send(code, body)
       def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
-        server.statuses.append((self.path, self.headers['Authorization'], body))
+        if self.path.endswith('/comments'):
+          server.comments.append({'id': 100 + len(server.comments), **body})
+          server.commented.append(('POST', self.path, body))
+        else:
+          server.statuses.append((self.path, self.headers['Authorization'], body))
         self.send(201, {})
+      def do_PATCH(self):
+        body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+        comment_id = int(self.path.rsplit('/', 1)[1])
+        for comment in server.comments:
+          if comment['id'] == comment_id:
+            comment.update(body)
+        server.commented.append(('PATCH', self.path, body))
+        self.send(200, {})
     self.httpd = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     self.url = f'http://127.0.0.1:{self.httpd.server_address[1]}'
     threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
@@ -555,6 +733,54 @@ class TestGateCommand(unittest.TestCase):
     self.assertEqual((path, authorization), (f'/repos/kitefin/camera-isp/statuses/{SHA}', 'Bearer token'))
     self.assertEqual(status['state'], 'failure')
     self.assertEqual(status['target_url'], result['batches'][0]['url'])
+
+  def test_comment_on_the_pull_request(self):
+    """The gate's table goes to the commit's pull request, in one comment that later runs update"""
+    comparison = fixture_comparison()
+    comparison['commit']['reruns'] = {'runs': 1, 'after_failure': 1, 'after_unfinished': 0}
+    comparison['tests'][0]['attempts'] = {'attempt': 2, 'previous': ['failed'], 'in_place': False}
+    # the reference allowed less: someone loosened the rule
+    comparison['reference']['gate'] = {'rules': [{'metric': 'psnr', 'max_regression': '0.5%'}, {'metric': 'psnr', 'per_test_max_regression': '25%'}], 'max_failed_runs': 1}
+    self.server.responses = [(200, comparison)]
+    self.server.pulls = [{'number': 12, 'state': 'open'}, {'number': 9, 'state': 'closed'}]
+    self.server.comments = [{'id': 1, 'body': 'LGTM'}]
+    env = {'GITHUB_TOKEN': 'token', 'GITHUB_REPOSITORY': 'kitefin/camera-isp', 'GITHUB_API_URL': self.server.url}
+    process = self.qa_gate('--post-comment', 'github', **env)
+    self.assertEqual(process.returncode, 0, process.stderr)
+    self.assertIn('Commented on #12', process.stderr)
+    (method, path, comment), = self.server.commented
+    self.assertEqual((method, path), ('POST', '/repos/kitefin/camera-isp/issues/12/comments'))
+    body = comment['body']
+    self.assertTrue(body.startswith('<!-- qaboard/gate -->\n### Quality gate: pass'))
+    self.assertIn('| psnr, median | 30.5 dB | 29.75 dB | 2.5% better | 1% worse | pass |', body)
+    self.assertIn('1 run was done again: 1 passed after a failed attempt.', body)
+    self.assertIn("This commit loosens the gate's rules, compared with the reference's:", body)
+    self.assertIn('psnr, median, max regression: 0.5% → 1% (looser)', body)
+    self.assertIn(f'For commit {SHA[:10]}', body)
+    # the terminal says it too
+    self.assertIn('1 run was done again', process.stdout)
+    self.assertIn("loosens the gate's rules", process.stdout)
+
+    # again, e.g. after a push: the same comment is updated
+    process = self.qa_gate('--post-comment', 'github', **env)
+    self.assertEqual(process.returncode, 0, process.stderr)
+    self.assertEqual([(m, p) for m, p, _ in self.server.commented[1:]], [('PATCH', '/repos/kitefin/camera-isp/issues/comments/101')])
+    self.assertEqual(len(self.server.comments), 2)
+
+    # on `pull_request` events, GitHub says which pull request it is
+    self.server.commented.clear()
+    process = self.qa_gate('--post-comment', 'github', GITHUB_REF='refs/pull/34/merge', **env)
+    self.assertEqual(self.server.commented[0][1], '/repos/kitefin/camera-isp/issues/comments/101')  # our fake has one list of comments
+    self.assertIn('Commented on #34', process.stderr)
+
+    # a push without a pull request: nothing to do, not a warning
+    self.server.pulls = []
+    self.server.commented.clear()
+    process = self.qa_gate('--post-comment', 'github', **env)
+    self.assertEqual(process.returncode, 0, process.stderr)
+    self.assertEqual(self.server.commented, [])
+    self.assertIn('no open pull request has the commit', process.stderr)
+    self.assertNotIn('WARNING', process.stderr)
 
   def test_undecidable_and_wait(self):
     self.server.responses = [(404, {'error': 'unknown commit'})]
