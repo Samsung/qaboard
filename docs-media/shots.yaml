@@ -115,6 +115,24 @@ shots:
     phase: 2
     status: captured
     experimental: true
+  - id: ci/pr-comment
+    kind: still
+    project: serving-latency
+    shows: 'The comment `qa gate --post-comment github` posts on the shared cache''s pull request (`qa --dryrun gate`, rendered with github-markdown-css in templates/pr-comment.html, a neutral frame with the pull request''s title and branches): "Quality gate: fail", the link to the Metrics Diff, p99 far over its 10% limit.'
+    pages: [landing, use-cases/serving-latency]
+    needs: cache-shared vs batch-overflow-fix
+    phase: 3
+    status: planned
+    experimental: true
+    standin:
+      # qaboard.gate's run_gate() and comment_body() on `qa batch ci` runs of the example measured on a 4-CPU VM
+      # (the flags of both commits), not on the demo stack: its numbers differ from the snapshot's
+      light: standins/ci/pr-comment.webp
+      dark: standins/ci/pr-comment-dark.webp
+      width: 880
+      height: 470
+      alt: 'A pull request comment on the shared cache''s branch, "Quality gate: fail": the commit against main with a link to the Metrics Diff, and the table of checks: p99''s median 378.2 ms against 24.23 ms, 1461.0% worse for a 10% limit, FAIL; throughput 2.4% worse for 5%, pass; no failed runs, pass.'
+      caption: With --post-comment, qa gate posts its table on the pull request and updates it on each push.
 
   # Projects and commits
   # The home page was the projects list until October 2026; signed in, it's now about you (Explore is projects/explore)
@@ -600,6 +618,41 @@ shots:
     needs: cache-shared vs batch-overflow-fix
     phase: 2
     status: captured
+  - id: commit/flame-top-functions
+    kind: still
+    project: serving-latency
+    shows: The steady-high run's flame graph diff with the shared cache, rooted at "all", and its Top functions table under it, the biggest increase of share first.
+    pages: [landing, use-cases/overview, use-cases/serving-latency]
+    features: [flame-diff]
+    needs: cache-shared vs batch-overflow-fix
+    phase: 3
+    status: planned
+    standin:
+      # The web app's flame graph playground (webapp/flame-graph-viewer.html) on the cpu.folded files of the example's
+      # steady-high runs, measured on a 4-CPU VM with the flags of both commits, not on the demo stack
+      light: standins/commit/flame-top-functions.webp
+      dark: standins/commit/flame-top-functions-dark.webp
+      width: 1212
+      height: 1213
+      alt: 'A differential CPU flame graph of the gateway''s steady-high run, rooted at "all": under ingress and worker, the shared cache''s lookup and respond and the response rendering are new, in orange; the model''s forward pass is blue, a smaller share. Under it, the Top functions table: self and total time per function, in ms and in %, and the change in percentage points against main, the biggest increase first.'
+      caption: 'The flame graph diff of the shared cache: new code in orange, a smaller share in blue. Top functions, under it, ranks what takes a bigger share of the profile.'
+  - id: commit/attempt-tag
+    kind: still
+    project: serving-latency
+    shows: 'A run done three times: its card tagged "attempt 3", the tag''s tooltip listing attempt 1 (failed) and attempt 2 (succeeded, with its metrics), and that their logs are in the Logs view.'
+    pages: [landing]
+    needs: a run done again in a story (seed.py has no reruns yet)
+    phase: 3
+    status: planned
+    standin:
+      # The web app (npm start) with the API mocked: the run, its metrics and its attempts are three real `qa run` of
+      # the example's steady-high on a 4-CPU VM, the first stopped after 6 s, as the server would record them
+      light: standins/commit/attempt-tag.webp
+      dark: standins/commit/attempt-tag-dark.webp
+      width: 640
+      height: 351
+      alt: 'A run card of the gateway''s steady-high profile, tagged "attempt 3". Its tooltip: the run was done again, these are its latest attempt''s results; attempt 1 failed, attempt 2 succeeded, with its metrics (cpu_per_req 357.2, goodput 3811...), and the logs of earlier attempts are in the Logs view.'
+      caption: A run done again shows its latest attempt; the tag says how the earlier ones ended and what they measured.
   - id: commit/core-heatmap
     kind: still
     project: serving-latency
@@ -794,6 +847,23 @@ shots:
     needs: cache-sharded (tune-batching)
     phase: 2
     status: captured
+  - id: logs/attempts
+    kind: still
+    project: serving-latency
+    shows: 'The Logs view of a run done three times: its log, log.attempt2.txt and log.attempt1.txt, the first attempt''s open with the errors that ended it.'
+    pages: [landing]
+    needs: a run done again in a story (seed.py has no reruns yet)
+    phase: 3
+    status: planned
+    standin:
+      # The web app (npm start) with the API mocked, on three real `qa run` of the example on a 4-CPU VM (see
+      # commit/attempt-tag). The log's "Outputs:" line printed the VM's scratch folder: it shows the demo's path
+      light: standins/logs/attempts.webp
+      dark: standins/logs/attempts-dark.webp
+      width: 700
+      height: 438
+      alt: 'The Logs view of the gateway''s steady-high run, cropped for a landing tile: three logs, log.txt, log.attempt2.txt and log.attempt1.txt. The first attempt''s is open: the gateway-bench command, the load, a first repeat at p99 8.29 ms, then two errors highlighted, a missed deadline and "The run was aborted: marked as failed."'
+      caption: A run done again keeps its earlier attempts' logs, next to its own.
 
   # History
   - id: history/performance-over-time
@@ -1115,3 +1185,23 @@ shots:
     needs: the demo stack's admin (QABOARD_ADMINS in docs-media/compose.demo.yml); the specs set and undo the state they need (shots/demoState.ts)
     phase: 3
     status: published
+
+  # A project's Admin pages (Access has its own area)
+  - id: project-admin/gate
+    kind: still
+    project: serving-latency
+    shows: 'Admin → Quality gate of the inference gateway, as its owner: the rules of the reference''s qaboard.yaml, then the project rules (p99 for every run, throughput only for `qa batch capacity`), the batches the gate waits for, and "Fail the gate" when a commit loosens its own rules.'
+    pages: [use-cases/software-quality, user-guide/project-gate]
+    needs: the demo stack's admin; project-admin.spec.ts saves the project rules before the shot and removes them after
+    phase: 3
+    status: planned
+    experimental: true
+    standin:
+      # The web app (npm start) with the API mocked: the reference's rules are the example's qaboard.yaml, the project
+      # rules the same settings project-admin.spec.ts saves
+      light: standins/project-admin/gate.webp
+      dark: standins/project-admin/gate-dark.webp
+      width: 1100
+      height: 1083
+      alt: 'The Quality gate tab of kitefin/inference-gateway, as an owner: the rules of the reference''s qaboard.yaml (p99 and throughput may get 10% and 5% worse, no failed run), then the project rules no commit can change: p99 10% for every run, throughput 5% only for qa batch capacity, no failed run, waiting for the ci batch, and "Fail the gate" selected for commits that loosen their own rules.'
+      caption: Owners add rules that every commit is held to, whatever its qaboard.yaml says, here one only for the capacity batch.

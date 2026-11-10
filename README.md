@@ -32,12 +32,18 @@ Kubernetes. Users sign in with single sign-on or LDAP, project roles control acc
   regressions in red.
 - **Look at the outputs themselves:** images down to the pixel with synced zoom and diffs, videos, point clouds and
   trajectories, plots, flame graphs, test reports, logs.
+- **Performance, from the files you have:** flame graph diffs from what profilers write (folded stacks, speedscope,
+  `.cpuprofile`; `perf` and pprof through a helper), with a table of the functions that changed. Benchmark results from
+  pytest-benchmark, Google Benchmark, hyperfine, Criterion, JMH and `go test`, each against the reference's, gray when
+  within the spread the harness measured.
 - **Find the commit that changed it:** History follows a metric across commits, input by input.
 - **Tune from the browser:** parameter sweeps and automated tuning (`qa optimize`, with Optuna).
 - **People and agents together:** coding agents read the same results (`qaboard.runs(url)`, `qa runs`, the compare
   API, the [HTTP API](https://samsung.github.io/qaboard/docs/http-api) and its OpenAPI document) and learn the
   conventions from [skills](https://github.com/Samsung/qaboard/tree/master/skills).
-  `qa gate` (experimental) fails CI when quality regresses, whoever wrote the change.
+  `qa gate` (experimental) fails CI when quality regresses, whoever wrote the change, comments on the pull request,
+  and checks rules a project's owners set in the web app, out of the commits' reach. A run done again keeps its
+  earlier attempts' status, metrics and logs.
 - **Fits your stack:** wraps any executable, runs locally, on LSF, Dask or Celery, or in CI (GitHub Actions, GitLab
   CI, Jenkins...). Open source (Apache 2.0) and self-hosted: your results stay on your network.
 

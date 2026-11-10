@@ -1,7 +1,7 @@
 // A page with the flame graph viewer alone, with generated profiles: npm start, then open /flame-graph-viewer.html
 // ?stacks=300000 for bigger profiles, ?dark for the dark theme, ?new=<url>&ref=<url> for your own profiles
-// (e.g. files in webapp/public/, any format the viewer reads). The generated profiles differ in known ways: see
-// generate.js.
+// (e.g. files in webapp/public/, any format the viewer reads), &name= the file name to show, &new_label= and
+// &ref_label= the names of the commits. The generated profiles differ in known ways: see generate.js.
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Classes } from '@blueprintjs/core';
@@ -40,12 +40,12 @@ console.log(`parsed in ${Math.round(performance.now() - t0)} ms`);
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <div style={{ padding: 16, maxWidth: 1212, margin: '0 auto', background: 'var(--qa-background)', minHeight: '100vh' }}>
-      <h3 style={{ marginTop: 0, color: 'var(--qa-text)' }}>{path}</h3>
+      <h3 style={{ marginTop: 0, color: 'var(--qa-text)' }}>{params.get('name') || path}</h3>
       <FlameGraphReport
         text_new={text_new}
         text_ref={text_ref}
         path={path}
-        labels={{ new: 'cache/shared', reference: 'main', colors: { new: side_color(0), reference: side_color(1) } }}
+        labels={{ new: params.get('new_label') || 'cache/shared', reference: params.get('ref_label') || 'main', colors: { new: side_color(0), reference: side_color(1) } }}
       />
     </div>
   </StrictMode>,

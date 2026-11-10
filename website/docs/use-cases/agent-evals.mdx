@@ -45,6 +45,12 @@ A run's metrics are 0 or 1 for `passed`, so the gate's rules aggregate them over
 
 <RepoFile path="examples/agent-evals/qaboard.yaml" title="qaboard.yaml" section="gate" />
 
+The verdict goes where the coding agent's change is reviewed: with `--post-comment github` (or `gitlab`), `qa gate`
+posts its table on the pull request, and says when the change loosens the gate's own rules or when tasks only passed
+after being run again. Rules your project's owners set in the web app hold whatever the commit says (see
+[comment on pull requests](/docs/quality-gate#pull-request-comments) and
+[rules a commit can't change](/docs/quality-gate#project-rules)).
+
 ## How it's set up {#the-configuration}
 Each task is a YAML file, `tasks/<category>/<name>.yaml`: the request, the facts the agent can look up, the checks.
 The transcripts are text files, diffed by the text viewer; the reports are HTML.

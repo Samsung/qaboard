@@ -2,7 +2,7 @@
 id: software-quality
 title: "Software quality: what a green CI doesn't tell you"
 sidebar_label: Tests and coverage
-description: For teams that follow their tests in CI. Test counts, failures, flaky and skipped tests and coverage per suite over time, each suite's tests compared with the reference's, and a gate that catches tests deleted to get a green CI.
+description: For teams that follow their tests in CI. Test counts, failures, flaky and skipped tests and coverage per suite over time, each suite's tests compared with the reference's, and a gate that catches tests deleted to get a green CI and comments on the pull request.
 ---
 For teams that follow their unit and integration tests in CI: how many tests there are, which fail, which are flaky
 or skipped, how much code they cover, and whether that's going the right way. It works with any test runner that
@@ -21,7 +21,10 @@ disappear, whether a person or a coding agent removed them.
 - **Which tests changed, against which reference.** The test viewer compares each suite's tests with the reference's:
   fixed, broken, removed, skipped, with the failure messages at hand.
 - **A green CI you can trust.** `qa gate` (experimental) fails a change that deletes or skips tests, not only one
-  that fails them.
+  that fails them, and posts its table on the pull request. Owners can add rules in the web app that no commit can
+  loosen.
+- **Retries on record.** A run done again keeps how its earlier attempts ended, their metrics and their logs, and the
+  gate's comment lists the runs that only passed after a retry: a retried CI job doesn't hide a flaky suite.
 - **Your runners, as they are.** pytest, GoogleTest, CTest, Maven Surefire: anything that writes JUnit XML. Coverage
   from coverage.py, gcov, llvm-cov or JaCoCo.
 
@@ -56,6 +59,20 @@ The gate fails: the missions suite has fewer tests and more skipped tests than i
 `failed` uses `aggregate: max`, so that one failing test in any suite fails the gate; a median over the suites would
 hide it. Flaky tests are reported, not gated: gate on them once you have none. See
 [Quality gate](/docs/quality-gate) for the rules.
+
+With `--post-comment github` (or `gitlab`), the gate's table goes to the pull request, where the change is reviewed,
+and is updated on each push. It also says which runs only passed after being done again, and which rules the commit
+loosened compared with the reference's *qaboard.yaml* (see
+[comment on pull requests](/docs/quality-gate#pull-request-comments)).
+
+### Rules a commit can't loosen
+An agent asked to get CI green can also edit *qaboard.yaml*. A project's owners can set rules in the web app
+(experimental, like the gate), under **Admin → Quality gate**: `qa gate` checks them on every commit, whatever the
+commit says, and can fail a commit that loosens its own rules (see
+[set a project's gate rules](/docs/user-guide/project-gate)). The gate runs in your CI, which a commit can change too:
+project rules make loosening the gate a visible act, not an impossible one.
+
+<Shot id="project-admin/gate" />
 
 ## Track more than test counts {#other-quality-metrics}
 Return any number your tools compute, and declare which way is better
