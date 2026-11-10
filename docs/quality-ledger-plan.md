@@ -56,6 +56,10 @@ Also asked for:
   from the web app. Today only access is there.
 - **Flame graphs without the busywork.** Today projects convert profiles to our JSON by hand. Accept the usual
   formats (perf script, collapsed stacks, speedscope, pprof, py-spy), and make the diff and the search need no setup.
+  Done: the viewer reads folded stacks, speedscope and `.cpuprofile` files as profilers write them;
+  `qaboard.flamegraphs` converts `perf script` and pprof; diffs compare shares by default; search, top functions
+  table, playground `/flame-graph-viewer.html`. Not yet: Chrome's trace-event JSON (DevTools' Performance panel),
+  syncing zoom between the "After & Before" graphs.
 - **Good docs** for all of it: a user guide page per task, the integration pages, the use case.
 
 ## Agents track
@@ -75,5 +79,5 @@ Order: A, then C with item 3, then B, D, E, F.
 1. Reruns in their own directory, with the log, status and metrics of earlier attempts. Done.
 2. The gate's table as a PR comment, with reruns and rule changes (item 3 and C). Done.
 3. The project admin page and the Admin menu; the gate's and alerts' settings there.
-4. Benchmark files (item 2), then flame graph formats.
+4. Benchmark files (item 2), then flame graph formats (done).
 5. Checkpoint: noise (item 1) once the SDK's design says what runs return.

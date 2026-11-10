@@ -45,7 +45,7 @@ The extension picks the viewer. Set `type` when it doesn't say, e.g. `type: 6dof
 | *.raw*, *.dng*, *.hex* | `image/*` | **Image**, if the image server reads these raw formats (not included) | [The image viewer](/docs/user-guide/image-viewer) |
 | *.mp4*, *.webm*, *.mov*, *.mkv*..., animated *.webp* and *.gif* | `video/*` | **Video**: in sync, frame by frame | [The video viewer](/docs/user-guide/video-viewer) |
 | *.plotly.json*, *.plotly.html* | `plotly/json`, `plotly/html` | **Plot**, side by side or on the same axes | [Plots](/docs/user-guide/other-viewers#plots) |
-| *.flame.json* | `flame/json` | **Flame graph**, differential | [Flame graphs](/docs/user-guide/other-viewers#flame-graphs) |
+| *.folded*, *.collapsed*, *.stacks.txt*, *.speedscope.json*, *.cpuprofile*, *.flame.json* ([formats](/docs/viewers#flame-graphs)) | `flame/json`, any `flame/...` | **Flame graph**, differential, with the top functions | [Flame graphs](/docs/user-guide/other-viewers#flame-graphs) |
 | *.html* | `text/html` | **HTML**, in a frame, without scripts | [HTML reports](/docs/user-guide/other-viewers#html-reports) |
 | *.pcd* | `pointcloud/pcd` | **Point cloud** in 3D, with the reference's and a ground truth | [Point clouds](/docs/user-guide/other-viewers#point-clouds-and-trajectories) |
 | any, e.g. *.tsv* | `6dof/txt` | **6DoF trajectory**, with the reference's and the ground truth | [Trajectories](/docs/user-guide/other-viewers#point-clouds-and-trajectories) |

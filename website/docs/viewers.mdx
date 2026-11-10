@@ -139,23 +139,133 @@ Figures saved as HTML, e.g. with `fig.write_html('graph.plotly.html')`, show sid
 can't be drawn on the same axes.
 
 ## Flame graphs {#flame-graphs}
-**Files:** *.flame.json*, a tree in [d3-flame-graph](https://github.com/spiermar/d3-flame-graph)'s format:
-`{"name": "main", "value": 1200, "children": [...]}`, where `value` includes the children's.
+**Files:** what profilers write, saved in the run's output directory as they are. The viewer reads the file's content;
+the name tells QA-Board to use it:
+
+| Format | File names | Written by |
+|---|---|---|
+| Folded stacks, `main;parse;read 12` per line | *\*.folded*, *\*.collapsed*, *\*.stacks.txt*, gzipped too (*.gz*) | `stackcollapse-*.pl`, inferno, `py-spy --format raw`, async-profiler, `qaboard.flamegraphs` |
+| speedscope JSON, sampled or evented | *\*.speedscope.json* | `py-spy --format speedscope`, rbspy, speedscope's converters |
+| Chrome/V8 CPU profile | *\*.cpuprofile* | `node --cpu-prof`, Chrome DevTools |
+| A tree, `{"name": "main", "value": 1200, "children": [...]}`, `value` including the children's | *\*flame.json* | d3-flame-graph, your code |
+
+Other names need `type: flame/folded` (any `flame/...` type) on the visualization. `perf script`'s text and pprof
+files are too big or binary for the browser: `qaboard.flamegraphs` turns them into folded stacks (see the recipes below).
 
 The viewer shows the new run's profile, colored by how each frame changed against the reference: a
-[differential flame graph](https://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html). It matches
-frames by their path of names, so:
-- keep the names stable between runs: no addresses, hashes or thread numbers;
-- use values that compare across runs, e.g. microseconds of CPU per 1,000 requests rather than samples.
-
-The [serving latency example](/docs/use-cases/serving-latency) turns `perf`'s folded stacks into this file, in
-[`qa/flame.py`](https://github.com/Samsung/qaboard/blob/master/examples/serving-latency/qa/flame.py). To record
-profiles, see the [flame graphs blog post](/blog/2020/06/24/flame-graphs).
+[differential flame graph](https://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html), with a search
+and a table of the top functions. How people use it: [Flame graphs](/docs/user-guide/other-viewers#flame-graphs).
 
 <Shot
   id="commit/flame-diff"
   caption="Rendering responses under the shared cache's lock is new (orange); the model's forward pass runs less (blue): cache hits skip it."
 />
+
+- **Keep frame names stable between runs**: the viewer matches frames by their path of names. No addresses, hashes,
+  thread or process ids: `py-spy --nolineno` leaves line numbers out, and `perf` stacks start with the command's name,
+  without its pid.
+- **Shares or absolute values.** Two runs rarely take the same number of samples: by default the viewer compares each
+  function's share of its profile. To compare absolute values too, save values that compare across runs, e.g.
+  microseconds of CPU per 1,000 requests (`total=` below).
+- **The unit**: a `# unit: nanoseconds` line in folded stacks (other tools skip it), or the visualization's `unit`
+  option, which wins over the file's. Units the viewer formats: `samples` (the default), `nanoseconds`, `microseconds`, `milliseconds`, `seconds`,
+  `bytes`; any other word shows as is. Words after the unit describe it: `microseconds of CPU per 1,000 requests`.
+  speedscope and `.cpuprofile` files have their own unit.
+
+```yaml title="qaboard.yaml"
+outputs:
+  visualizations:
+    - name: CPU flame graph
+      path: cpu.folded
+    - name: Allocations
+      path: heap.collapsed
+      unit: bytes          # the values' unit
+```
+
+### Record a profile in your run {#flame-graph-recipes}
+`qaboard.flamegraphs.save_flame_graph(path, source)` saves a profile as folded stacks, from `perf script`'s output, a
+pprof file (`.pb.gz`), folded stacks, or a `{"outer;...;inner": value}` dict your code collected. It returns the stacks,
+so `profile.share("lock")` can be a metric. With `total=`, values are rescaled to add up to it; `unit=` says what they
+are.
+
+<Tabs>
+<TabItem value="perf" label="perf (C, C++, Rust...)" default>
+
+```python title="qa/main.py"
+import subprocess
+from qaboard.flamegraphs import save_flame_graph
+
+def run(context):
+  perf_data = context.output_dir / 'perf.data'
+  subprocess.run(['perf', 'record', '-F', '99', '-g', '-o', perf_data, '--', './my-binary', context.input_path], check=True)
+  script = subprocess.run(['perf', 'script', '-i', perf_data], check=True, capture_output=True).stdout
+  save_flame_graph(context.output_dir / 'cpu.folded', script)
+  perf_data.unlink()
+```
+
+Like `stackcollapse-perf.pl`: the command's name first, offsets and C++ arguments removed, unknown functions shown as
+their module (`[libc.so.6]`). `pid=True`, `tid=True` and `annotate=True` (`_[k]` after kernel frames) are options.
+
+</TabItem>
+<TabItem value="py-spy" label="py-spy (Python)">
+
+```python title="qa/main.py"
+import subprocess
+
+def run(context):
+  subprocess.run(['py-spy', 'record', '--format', 'raw', '--nolineno', '-o', context.output_dir / 'cpu.folded',
+                  '--', 'python', 'my_script.py', context.input_path], check=True)
+```
+
+`--format speedscope -o cpu.speedscope.json` works too: the viewer merges the threads, and lets people pick one.
+
+</TabItem>
+<TabItem value="async-profiler" label="async-profiler (JVM)">
+
+```bash
+asprof -d 30 -e cpu -o collapsed -f <output_dir>/cpu.collapsed <pid>
+```
+
+`<output_dir>` is the run's output directory (`context.output_dir`), `<pid>` the JVM's process id. For allocations, `-e alloc` and `unit: bytes` on the visualization.
+
+</TabItem>
+<TabItem value="go" label="Go pprof">
+
+```python title="qa/main.py"
+import subprocess
+from qaboard.flamegraphs import save_flame_graph
+
+def run(context):
+  profile = context.output_dir / 'cpu.pb.gz'
+  subprocess.run(['go', 'test', './...', '-run', 'TestLoad', '-cpuprofile', profile], check=True)
+  save_flame_graph(context.output_dir / 'cpu.folded', profile)   # in nanoseconds
+```
+
+Heap profiles: `sample_type='alloc_space'` (bytes) or `'inuse_space'` (the default). The reader is a small decoder of
+pprof's protobuf, with no dependency.
+
+</TabItem>
+<TabItem value="node" label="Node.js">
+
+```python title="qa/main.py"
+import subprocess
+
+def run(context):
+  subprocess.run(['node', '--cpu-prof', '--cpu-prof-dir', context.output_dir, '--cpu-prof-name', 'cpu.cpuprofile',
+                  'server.js', context.input_path], check=True)
+```
+
+</TabItem>
+</Tabs>
+
+The [serving latency example](/docs/use-cases/serving-latency) saves its profiler's folded stacks, and rescales them to
+microseconds of CPU per 1,000 requests, in
+[`qa/main.py`](https://github.com/Samsung/qaboard/blob/master/examples/serving-latency/qa/main.py):
+
+```python
+save_flame_graph(output_dir / 'cpu.folded', output_dir / 'cpu.folded', unit='microseconds of CPU per 1,000 requests',
+                 total=bench['profiled_cpu_s'] * 1e6 / bench['profiled_requests'] * 1000)
+```
 
 ## Test reports {#test-reports}
 **Files:** *junit.xml*, *\*.junit.xml*, *\*-junit.xml*, *TEST-\*.xml* (Maven Surefire and Gradle), or any file with

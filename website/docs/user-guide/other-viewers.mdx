@@ -86,13 +86,35 @@ profile, colored by what changed.
   caption="The inference gateway's workers now render responses under the shared cache's lock (orange, new), and the model's forward pass runs less (blue): cache hits skip it."
 />
 
-- **Red** functions take more time than in the reference, **blue** ones less: the darker, the bigger the change.
-  **Orange** ones are new. Light gray ones didn't change. Look for the wide red and orange bars first: that's where the
-  time went.
-- **Hover** a function: its name, its share of the samples and their number show below the graph.
-- **Click** a function to zoom into it and what it calls. **Zoom Out** goes back.
-- Type a function's name in **Highlight frames**: the bars that match turn magenta, and below the graph, you read what
-  share of the samples they take.
+- **Red** functions take a bigger share of the profile than in the reference, **blue** ones a smaller share: the
+  darker, the bigger the change. **Orange** ones are new. Light gray ones didn't change. Look for the wide red and
+  orange bars first: that's where the time went.
+- **Hover** a function: its total time (with what it calls) and its self time (in the function itself), in the
+  profile's unit and in %, and the same in the reference.
+- **Click** a function to zoom into it and what it calls. **Zoom Out**, or <kbd>Esc</kbd> in the graph, goes back.
+- The line under the graph says what's compared, and each profile's total.
+
+### Find what got slower in the table
+Below the graph, **Top functions** lists every function with its **Self** and **Total** time, over all the stacks it's
+in, and its **Change** against the reference, the biggest increase first. Click a column to sort by it. Click a
+function to highlight it in the flame graph; click it again to clear.
+
+### Compare shares or absolute values
+Two runs rarely record the same number of samples: a longer run has more of everything. By default, colors and
+changes compare each function's **share** of its profile: "+2.3 pp" means it went from, say, 5% to 7.3% of the
+profile. **Absolute** compares the values themselves: use it when your project saves values that compare across runs,
+like the inference gateway example's microseconds of CPU per 1,000 requests.
+
+### Search
+Type in **Highlight frames**: the frames that match turn magenta, and next to the box you read how many there are and
+what share of each profile they take. <kbd>Enter</kbd> and the arrows zoom on the next or previous match, the biggest
+first. The table only lists the matching functions.
+
+### Change the layout
+- **Icicle** (the default) draws the program's entry point on top; **Flame** draws it at the bottom, like most flame
+  graphs.
+- **By name** (the default) orders the functions alphabetically, so the same function is in the same place in both
+  profiles; **Heaviest first** puts the widest on the left.
 - The menu below the graph picks what to draw:
 
 | Choice | Widths | Colors |
@@ -107,12 +129,22 @@ profile, colored by what changed.
 
 - Functions are matched between the two profiles by their call stack: the same function, called from somewhere else,
   is another bar.
-- **Highlight frames** is case-sensitive, and reads regular expressions: `lock|wait` highlights both.
+- **Highlight frames** reads regular expressions (`lock|wait` highlights both), and ignores case. The **.\*** button
+  turns regular expressions off, to search for text like `Vec<u8>::push(`; **Aa** matches case. Text that isn't a
+  valid regular expression is searched as text.
+- With the keyboard: <kbd>Tab</kbd> to the graph, the arrow keys move between a function, its callers, what it calls
+  and its neighbors, <kbd>Enter</kbd> zooms, <kbd>Esc</kbd> zooms out. Each function says its times when it's focused.
+- In the table, a function's **Total** counts each stack once, also when the function is recursive. Functions are
+  merged by name, wherever they're called from.
+- Functions are matched between the two profiles by their call stack: the same function, called from somewhere else,
+  is another bar.
+- Frames narrower than 0.002% of the profile aren't drawn, but they count in the search, the tooltips and the table.
+- When a profile has several threads (speedscope files from py-spy), they're merged: a menu next to the comparison's
+  picks one.
 - Without a reference profile, the flame graph shows alone, by function.
 - In the inference gateway example, widths are microseconds of CPU per 1,000 requests: the profile's unit is what your
-  project records.
-- To record flame graphs with your code, read
-  [Creating and viewing flame graphs](/blog/2020/06/24/flame-graphs), and Brendan Gregg's
+  project records. Integrators: see [which files the viewer reads](/docs/viewers#flame-graphs).
+- Read Brendan Gregg's [flame graphs](http://www.brendangregg.com/flamegraphs.html) and
   [differential flame graphs](http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html).
 
 </details>
