@@ -1094,6 +1094,11 @@ components:
               configurations: {type: array, items: {}}
               extra_parameters: {type: object, additionalProperties: true}
               is_failed: {type: boolean}
+              batch:
+                type: [string, "null"]
+                description: >-
+                  The batch of *qaboard.yaml* the run comes from (`qa batch <name>`), `null` if it doesn't say.
+                  `qa gate` uses it for the rules on some batches and `expect_batches`.
               attempts:
                 type: object
                 description: Only for runs that were done again.
@@ -1119,6 +1124,13 @@ components:
             checked: {type: integer}
             mismatched: {type: integer}
             unavailable: {type: integer}
+        project_gate:
+          type: [object, "null"]
+          description: >-
+            The gate settings the project's owners set in the web app (**Admin → Quality gate**), `null` if they set
+            none: `rules` in *qaboard.yaml*'s format, `max_failed_runs`, `require_bit_accuracy`, and `on_looser_rules`
+            (`warn` or `fail`). `qa gate` checks them on top of the commit's own rules.
+          additionalProperties: true
 
     MetricStats:
       type: object

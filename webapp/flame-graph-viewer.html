@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flame graph viewer playground</title>
+  </head>
+  <body>
+    <!-- The flame graph viewer on its own, for its development: npm start, then open /flame-graph-viewer.html.
+         Not in the build. ?stacks=300000 makes bigger profiles, ?dark for the dark theme,
+         ?new=<url>&ref=<url> for your own profiles (e.g. files in webapp/public/). -->
+    <div id="root"></div>
+    <script type="module" src="/src/viewers/flamegraph/playground.jsx"></script>
+  </body>
+</html>

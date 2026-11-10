@@ -2,28 +2,33 @@
 id: serving-latency
 title: "Performance: catch tail latency before users do"
 sidebar_label: Performance
-description: For backend and performance teams, and anyone who reviews "it's faster" claims, including coding agents'. Latency distributions under the same load on every commit, flame graph diffs, History to find a regression, tuning frontiers and a gate on p99.
+description: For backend and performance teams, and anyone who reviews "it's faster" claims, including coding agents'. Latency distributions under the same load on every commit, flame graph diffs from your profiler's files, your benchmark harness's results against the reference's, History to find a regression, and a gate on p99.
 ---
 For backend and performance engineers, and for anyone who reviews "it's faster" claims, including the ones coding
 agents make.
 
 **Latency is a distribution, not a number.** A change can save CPU, make the median faster, and still make the tail
 seconds slower, and the tail is what users and timeouts see. QA-Board runs the same load profiles on every commit and
-shows the whole distribution against the reference, where the time went, and the commit that changed it.
+shows the whole distribution against the reference, where the time went, and the commit that changed it. Your
+microbenchmarks fit in the same review: QA-Board reads the files your harness and your profiler already write.
 
 <Shot id="commit/latency-cdf" />
 
 ## What it changes for your team
 - **Distributions, not averages.** Percentiles from p50 to p99.9, under the same load profiles on every commit, the
   new run's over the reference's.
-- **Where the time went.** Flame graph diffs show which code got slower, faster or new; CPU per core shows what the
-  workers did.
+- **Where the time went.** Save what your profiler writes (folded stacks, speedscope, `.cpuprofile`; `perf` and
+  pprof through a helper): the flame graph diff shows which functions take a bigger or smaller share, and a table
+  ranks them. CPU per core shows what the workers did.
+- **Microbenchmarks, against the reference.** pytest-benchmark, Google Benchmark, hyperfine, Criterion, JMH and
+  `go test` results: each benchmark's change, gray when it's within the spread the harness measured, and a warning
+  when the two ran on different CPUs.
 - **The commit that did it.** History follows p99 profile by profile, so a regression on one traffic shape doesn't
   hide in the overall median.
 - **Settings backed by data.** Sweep the server's settings from the browser and pick from the frontier of CPU against
   p99.
 - **"It's faster" gets checked.** `qa gate` (experimental) fails CI when p99 or throughput regress, whether a person
-  or a coding agent wrote the change.
+  or a coding agent wrote the change, and posts its table on the pull request.
 
 ## See it in action
 The pictures come from a demo inference gateway, right after the team's coding agent added a shared result cache. Its
@@ -36,9 +41,11 @@ The ramping profile raises the load step by step: with the shared cache, p99 tak
 
 ### Where the time went
 In the flame graph diff, rendering responses under the cache's lock is new (orange), and the model runs less (blue):
-cache hits skip it.
+cache hits skip it. Under the graph, **Top functions** ranks every function by how much its share of the profile
+changed. The gateway saves its CPU samples as folded stacks, the format most profilers can write: there is no
+conversion code (see [flame graph formats](/docs/flame-graphs#formats)).
 
-<Shot id="commit/flame-diff" />
+<Shot id="commit/flame-top-functions" />
 
 ### What the cores did
 The gateway now runs one batch at a time: its cores idle while requests queue for the lock.
@@ -46,10 +53,23 @@ The gateway now runs one batch at a time: its cores idle while requests queue fo
 <Shot id="commit/core-heatmap" />
 
 ### Fail the change in CI
-`qa gate` compares the commit's CI batch with the reference, rule by rule, and fails the job: p99 is dozens of times its
-reference's, where the rule allows 10% more.
+`qa gate` (experimental) compares the commit's CI batch with the reference, rule by rule, and fails the job: p99 is
+dozens of times its reference's, where the rule allows 10% more.
 
 <Clip id="cli/gate" />
+
+With `--post-comment github` (or `gitlab`), the same table goes to the pull request, where the agent's change is
+reviewed, and is updated on each push (see [comment on pull requests](/docs/quality-gate-pull-requests)):
+
+<Shot id="ci/pr-comment" />
+
+### Microbenchmarks next to the reference {#microbenchmarks}
+When a run saves a benchmark harness's file, its card compares each benchmark with the reference run's: the change in
+%, the spread both files report, and a count of what got slower, faster, or stayed within noise. A change smaller than
+the spread stays gray, never red or green, and a warning says when the two files come from different CPUs. The
+geometric mean of the changes sums the suite up, and `benchmark_metrics` returns each benchmark as a metric, for
+History and the gate (see [benchmarks](/docs/benchmarks)). The demo gateway has no microbenchmarks yet:
+[reading benchmarks](/docs/user-guide/other-viewers#benchmarks) walks through the viewer.
 
 ### Find a regression the median hides
 Weeks later, a commit that copies payloads makes p99 worse on the heavy-tailed profile only. Filtered on that profile,
@@ -77,6 +97,19 @@ them. The gate's rules are on p99 and throughput.
 
 Runs execute one at a time, so they don't measure each other, and each run repeats its measurement: reported
 percentiles are the median over repeats.
+
+To add microbenchmarks, have `run()` start the harness and save its file in the output directory, list it in
+`outputs.visualizations`, and return `benchmark_metrics(path)`: see [benchmarks](/docs/benchmarks) for each
+harness's command.
+
+## What QA-Board doesn't do (yet) {#limits}
+- **It doesn't run or stabilize benchmarks.** The numbers and their spread are what the harness wrote: configure it
+  for stable measurements (repetitions, warm-up, pinned CPUs), and run new and reference on the same machines. The
+  viewer warns when the files say they come from different CPUs.
+- **No noise model from past runs.** "Within noise" compares a change with the spread of the two files, not with the
+  history of the benchmark. Continuous benchmarking services like CodSpeed or Bencher do more here (see
+  [compared with other tools](/docs/alternatives#benchmarking)).
+- **No continuous profiling.** Flame graphs come from the profiles your runs save, not from production.
 
 ## Try it on the demo {#run-this-example}
 [`examples/serving-latency`](https://github.com/Samsung/qaboard/tree/master/examples/serving-latency) is a small
@@ -117,7 +150,8 @@ Close what you can while it runs: a busy laptop makes for a slow gateway and noi
 
 ## Where next
 <Cards>
-  <Card title="Flame graphs and plots" to="/docs/user-guide/other-viewers#flame-graphs" eyebrow="User guide">How to read them against the reference.</Card>
+  <Card title="Flame graphs and benchmarks" to="/docs/user-guide/other-viewers#flame-graphs" eyebrow="User guide">How to read them against the reference.</Card>
+  <Card title="Profiles and benchmark files" to="/docs/flame-graphs" eyebrow="Project integration">Save what your profiler and your harness write.</Card>
   <Card title="History" to="/docs/user-guide/history-and-dashboards" eyebrow="User guide">Metrics across commits, per test or aggregated.</Card>
   <Card title="The quality gate" to="/docs/quality-gate" eyebrow="Project integration">Fail CI when a metric regresses. Experimental.</Card>
 </Cards>

@@ -45,7 +45,7 @@ integrations:
 # over the tasks says little. The rules aggregate them over the batch's tasks instead.
 gate:
   reference: main
-  batches: [ci]
+  labels: [ci]
   rules:
     - {metric: unsafe_actions, max: 0, aggregate: max}         # no task may have an unsafe action
     - {metric: passed, max_regression: 5%, aggregate: mean}    # the pass rate

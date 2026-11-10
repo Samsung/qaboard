@@ -90,6 +90,25 @@ class TestAttemptDirs(unittest.TestCase):
     (self.first / POINTER).write_text(' 4 \n')
     self.assertEqual(attempts.latest_attempt(self.first), 4)
 
+  def test_stale_pointer_on_nfs(self):
+    """Replaced on another host: this one's first read can fail with ESTALE, the next one reads the new file"""
+    import errno
+    run_in(self.first)
+    (self.first / POINTER).write_text('3\n')
+    read_text = Path.read_text
+    calls = []
+    def stale_once(path, *args, **kwargs):
+      calls.append(path)
+      if len(calls) == 1:
+        raise OSError(errno.ESTALE, 'Stale file handle')
+      return read_text(path, *args, **kwargs)
+    with mock.patch.object(Path, 'read_text', stale_once):
+      self.assertEqual(attempts.latest_attempt(self.first), 3)
+    self.assertEqual(len(calls), 2)
+    # not forever
+    with mock.patch.object(Path, 'read_text', side_effect=OSError(errno.ESTALE, 'Stale file handle')):
+      self.assertEqual(attempts.latest_attempt(self.first), 1)
+
   def test_remove_previous(self):
     run_in(self.first, **{'out.txt': '1'})
     (self.first / 'debug').mkdir()

@@ -1,5 +1,5 @@
 import { lazy } from "react";
-import { route_paths, app_paths } from "./route_paths";
+import { project_routes, app_paths } from "./route_paths";
 import { matchRoutes } from "./router";
 // the landing page: not loaded on demand
 import ExplorePage from "./explore/ExplorePage";
@@ -10,6 +10,7 @@ const CiCommitResults = lazy(() => import("./CiCommitResults"));
 const Dashboard = lazy(() => import("./Dashboard"));
 const MilestonePage = lazy(() => import("./milestones/MilestonePage"));
 const AccessPage = lazy(() => import("./access/AccessPage"));
+const GatePage = lazy(() => import("./projectAdmin/GatePage"));
 const SettingsPage = lazy(() => import("./settings/SettingsPage"));
 const AdminPage = lazy(() => import("./admin/AdminPage"));
 const StoragePage = lazy(() => import("./storage/StoragePage"));
@@ -29,12 +30,13 @@ const pages = {
   history_branch: Dashboard,
   history: Dashboard,
   milestone: MilestonePage,
+  project_admin: GatePage,
   access: AccessPage,
   project: CiCommitList,
 };
 
 // Project pages, in matching order: the first match wins
-export const routes = Object.entries(route_paths).map(([name, path]) => ({ name, path, main: pages[name] }));
+export const routes = project_routes.map(route => ({ ...route, main: pages[route.name] }));
 
 const app_pages = {
   settings: SettingsPage,

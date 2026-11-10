@@ -69,6 +69,11 @@ export async function requestAccess(d: Demo, user: string, project: string, role
   }
 }
 
+/** Sets the project rules of the quality gate (Admin → Quality gate), or removes them with null */
+export async function setProjectGate(manager: APIRequestContext, project: string, gate: Record<string, unknown> | null) {
+  await json(await manager.post('/api/v1/project/settings/gate', { data: { project, gate } }), `set the gate rules of ${project}`);
+}
+
 /** Waits until the jobs worker has computed the storage usage: it does when the backend first starts on a database */
 export async function storageUsageReady(admin: APIRequestContext, timeoutMs = 120_000) {
   const deadline = Date.now() + timeoutMs;

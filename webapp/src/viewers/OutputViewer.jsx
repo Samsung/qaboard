@@ -20,10 +20,21 @@ const LoadableTofViewer = lazy(() => import('./tof/TofOutputCard' /* webpackChun
 const LoadablePointCloudViewer = lazy(() => import('./pointcloud/PointCloudViewer' /* webpackChunkName: "pointcloud-viewer" */));
 const LoadableSlamViewer = lazy(() => import('./slam/SlamOutputCard' /* webpackChunkName: "slam-viewer" */));
 const LoadableFlameGraphViewer = lazy(() => import('./flame-graph' /* webpackChunkName: "flame-graph-viewer" */));
+// Profiles the flame graph viewer reads (flamegraph/formats.js): QA-Board's *flame.json, folded stacks, speedscope,
+// Chrome's .cpuprofile, gzipped or not. Other names need `type: flame`
+export const is_flame_graph = path => /(flame\.json|\.folded|\.collapsed|\.stacks\.txt|\.speedscope\.json|\.cpuprofile)(\.gz)?$/i.test(path || '');
 const LoadableJunitViewer = lazy(() => import('./junit/JunitViewer'));
 
 // JUnit XML test reports: junit.xml, report.junit.xml, Maven's and Gradle's TEST-*.xml
 export const is_junit = path => /(^|\/)(junit|[^/]*[._-]junit|TEST-[^/]*)\.xml$/i.test(path || '');
+
+// The viewers in their own folder (src/image-viewer, benchmarks, flamegraph) are standalone components: the app only loads
+// their adapters, lazily, and they import nothing from the app (viewers/__tests__/isolation.test.js)
+const LoadableBenchmarksViewer = lazy(() => import('./benchmarks-viewer'));
+// Benchmark files: benchmarks.json, pytest.benchmarks.json, codec-bench.jsonl... Not a bare bench.json: projects had
+// files with that name before the viewer. Other names need `type: benchmarks`. Files picked by their name that aren't
+// benchmark files are shown as text, as before.
+export const is_benchmarks = path => /(^|\/)(([^/]*[._-])?benchmarks?|[^/]*[._-]bench)\.(json|jsonl|ndjson)$/i.test(path || '');
 
 // labels: what the viewers call the new and reference results, and their colors, by default those of the page
 // (useComparison().labels): milestones' names, what users called them...
@@ -68,10 +79,12 @@ const OutputViewer = props_ => {
         viewer = <LoadableTextViewer {...props} type={type} output_ref={output_ref}/>
       else if (type === 'text/html')
         viewer = <LoadableHtmlViewer {...props} type={type} output_ref={maybe_output_ref}/>
-      else if (type === 'flame/json')
+      else if (type.startsWith('flame'))  // flame/json, flame/folded...: the viewer reads the content
         viewer = <LoadableFlameGraphViewer {...props} type={type} output_ref={maybe_output_ref}/>
       else if (type === 'junit/xml')
         viewer = <LoadableJunitViewer {...props} type={type} output_ref={maybe_output_ref}/>
+      else if (type === 'benchmarks' || type.startsWith('benchmarks/'))
+        viewer = <LoadableBenchmarksViewer {...props} format={type.split('/')[1]} output_ref={maybe_output_ref}/>
       else if (type === 'files/bit-accuracy')
         viewer = <LoadableBitAccuracyViewer {...props} type={type} output_ref={output_ref}/>
       else viewer = <p>
@@ -83,10 +96,12 @@ const OutputViewer = props_ => {
         viewer = <LoadablePlotlyViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (path.endsWith('.pcd')) {
         viewer = <LoadablePointCloudViewer {...props} output_ref={maybe_output_ref}/>
-      } else if (path.endsWith('flame.json')) {
+      } else if (is_flame_graph(path)) {
         viewer = <LoadableFlameGraphViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (is_junit(path)) {
         viewer = <LoadableJunitViewer {...props} type={type} output_ref={maybe_output_ref}/>
+      } else if (is_benchmarks(path)) {
+        viewer = <LoadableBenchmarksViewer {...props} output_ref={maybe_output_ref} fallback_to_text/>
       } else if (path.endsWith('html')) {
         viewer = <LoadableHtmlViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (/\.(mp4|m4v|mov|webm|mkv|ogv|webp|gif)$/i.test(path)) {

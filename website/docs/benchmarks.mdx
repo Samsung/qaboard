@@ -1,0 +1,182 @@
+---
+id: benchmarks
+title: Benchmark suites
+sidebar_label: Benchmark suites
+description: Bring a pytest-benchmark, Google Benchmark, hyperfine, Criterion, JMH or go test suite into QA-Board, see each benchmark against the reference's, and follow it as a metric.
+---
+
+Bring a benchmark suite you already have into QA-Board: your `run()` runs the harness and saves the file it writes.
+The web app shows each benchmark next to the reference run's, with the change in %, the spread the harness measured,
+and what got slower or faster beyond it. Each benchmark can be a metric too, followed in History and checked by the
+[quality gate](/docs/quality-gate).
+
+## Show a suite's results next to the reference's {#quick-start}
+With pytest-benchmark:
+
+1. **Run the harness in `run()`, save its file in the run's output directory, and return its benchmarks as
+   metrics:**
+
+   ```python title="qa/main.py"
+   import subprocess
+   from qaboard.benchmarks import benchmark_metrics
+
+   def run(context):
+       path = context.output_dir / "pytest.benchmarks.json"
+       subprocess.run(["pytest", "benchmarks/", f"--benchmark-json={path}"], check=True)
+       return benchmark_metrics(path)
+   ```
+
+2. **Show the file** in the run cards:
+
+   ```yaml title="qaboard.yaml"
+   outputs:
+     visualizations:
+       - name: Benchmarks
+         path: pytest.benchmarks.json
+   ```
+
+3. **Run a batch**, e.g. `qa batch ci`, on this commit and on the reference. One input per suite or per benchmark
+   binary is enough.
+
+The **Visualizations** view shows the table: how people read it is in the user guide,
+[Benchmarks](/docs/user-guide/other-viewers#benchmarks).
+
+## Harnesses QA-Board reads {#harnesses}
+The viewer and `benchmark_metrics` read these files as the harness writes them:
+
+| Harness | Write its results with | Headline value |
+|---|---|---|
+| pytest-benchmark | `pytest --benchmark-json=pytest.benchmarks.json` | mean, ± stddev |
+| Google Benchmark | `./bench --benchmark_out=gbench.benchmarks.json --benchmark_out_format=json` | mean of the repetitions with `--benchmark_repetitions`, ± their stddev |
+| hyperfine | `hyperfine --export-json hyperfine.benchmarks.json '...'` | mean, ± stddev |
+| Criterion (Rust) | `cargo criterion --message-format=json > criterion.benchmarks.jsonl` | mean, ± median absolute deviation |
+| JMH (Java) | `java -jar benchmarks.jar -rf json -rff jmh.benchmarks.json` | score, ± its error |
+| `go test` | `go test -bench=. -count=5 > bench.txt` (with `type: benchmarks`) | mean of the `-count` lines, ± their stddev |
+| Anything else | `write_benchmarks()` from Python, or JSON in [QA-Board's format](#benchmarks-format) | yours |
+
+The file's name tells the web app to use the benchmark viewer: *benchmarks.json*, *\*.benchmarks.json*,
+*\*-bench.json*, *\*_benchmark.json*, and the same names in *.jsonl*. A file with one of those names that isn't a
+benchmark file is shown as text, with a line that says why. Other names (a bare *bench.json* too) need
+`type: benchmarks`:
+
+```yaml title="qaboard.yaml"
+outputs:
+  visualizations:
+    - name: Go benchmarks
+      path: bench.txt
+      type: benchmarks   # benchmarks/go forces the format
+      height: 440        # the table's height, in pixels
+```
+
+## Get numbers you can compare {#stable-numbers}
+QA-Board doesn't run, repeat or stabilize benchmarks: the numbers and their spread are those of the file. A change
+smaller than the spread shows as **within noise**, so a harness that measures once makes every change count.
+
+- **Repeat measurements in the harness**: pytest-benchmark's rounds, Google Benchmark's `--benchmark_repetitions`,
+  hyperfine's `--runs`, `go test -count`.
+- **Warm up and pin**: the harness's warm-up options, pinned CPUs, no other load on the machine.
+- **Run the new and the reference commits on the same machines**, e.g. a dedicated runner. The viewer warns when the
+  two files say they come from different CPUs or CPU counts.
+
+## Each benchmark as a metric {#benchmark-metrics}
+`benchmark_metrics` turns the file into metrics, one per benchmark, to return from `run()`. They show in the
+**Metrics Diff** and **History**, and the quality gate can check them. With a compiled Google Benchmark harness:
+
+```python title="qa/main.py"
+import subprocess
+from qaboard.benchmarks import benchmark_metrics
+
+def run(context):
+    path = context.output_dir / "gbench.benchmarks.json"
+    subprocess.run([
+        "build/bench/codec_bench", "--benchmark_repetitions=10",
+        f"--benchmark_out={path}", "--benchmark_out_format=json",
+    ], check=True)
+    return benchmark_metrics(path, prefix="codec_")
+```
+
+- **Keys** are the benchmarks' names in snake_case, like `codec_bm_encode_64` or
+  `tests_test_codec_py_test_encode_64`: keep names stable across commits. `prefix=` tells suites apart.
+- **Values** are in seconds, shown in the suite's typical unit (` µs`, ` ms`...), with `smaller_is_better=True`.
+  JMH throughputs are in operations per second, larger is better. `unit="ms"` picks the unit shown.
+- `statistic="median"` returns another statistic from the file; benchmarks without it are left out.
+
+:::caution The gate doesn't know the spread
+A [gate rule](/docs/quality-gate#rules) like `{metric: codec_bm_encode_64, max_regression: 5%}` compares the values,
+not their noise: set limits larger than the spread your harness reports, or the gate fails on noise.
+:::
+
+## Other harnesses, and Criterion's directory {#benchmarks-format}
+`write_benchmarks` writes QA-Board's format, *\*.benchmarks.json*, that the viewer reads: from benchmarks you read with
+`read_benchmarks`, or from dicts. Criterion's `target/criterion` directory has one file per benchmark, so convert it:
+
+```python title="qa/main.py"
+from qaboard.benchmarks import read_benchmarks, write_benchmarks, benchmark_metrics
+
+def run(context):
+    # --snip-- run cargo bench
+    benchmarks = read_benchmarks("target/criterion")   # or any file above: the format is detected
+    write_benchmarks(context.output_dir / "criterion.benchmarks.json", benchmarks)
+    return benchmark_metrics(benchmarks)
+```
+
+Your own harness, with times in `ns`, `us`, `ms` or `s`:
+
+```python
+write_benchmarks(context.output_dir / "tiles.benchmarks.json", [
+    {"name": "render/tile_256", "group": "render", "value": 4.21, "unit": "ms",
+     "stats": {"stddev": 0.12, "rounds": 30}},
+], context={"cpu": "AMD EPYC 7763", "cpu_count": 8})
+```
+
+<details>
+<summary>The format, and how files are read</summary>
+
+```json title="tiles.benchmarks.json"
+{
+  "$schema": "https://samsung.github.io/qaboard/benchmarks.schema.json",
+  "qaboard_benchmarks": 1,
+  "source": "kitefin-bench 2.3",
+  "context": {"machine": "ci-runner-07", "cpu": "AMD EPYC 7763 64-Core Processor", "cpu_count": 8, "date": "2026-11-02T09:40:00Z"},
+  "benchmarks": [
+    {"name": "render/tile_256", "group": "render", "params": {"tile": 256}, "value": 4.21, "unit": "ms",
+     "statistic": "median", "stats": {"median": 4.21, "iqr": 0.12, "rounds": 30}},
+    {"name": "ingest/messages", "value": 182000, "unit": "msg/s", "smaller_is_better": false, "stats": {"stddev": 2100}}
+  ]
+}
+```
+
+- `name` and `value` are required. Times in `ns`, `us`, `ms` or `s` are converted to seconds; other units are shown as
+  they are. Set `smaller_is_better: false` for throughputs.
+- `stats` can hold `mean`, `median`, `stddev`, `min`, `max`, `iqr`, `mad` (median absolute deviation), `error` (half a
+  confidence interval), `rounds`, `iterations`, `samples`, `ops`, `cpu_time`, `bytes_per_op`, `allocs_per_op`. The
+  spread is `stddev`, else `iqr`, `mad` or `error`.
+- The [JSON schema](pathname:///benchmarks.schema.json) checks the file in your editor.
+- **Formats are detected from the content**, not the name: `read_benchmarks(path, format="hyperfine")` and
+  `type: benchmarks/hyperfine` force one (`pytest-benchmark`, `google-benchmark`, `hyperfine`, `criterion`, `jmh`, `go`,
+  `qaboard`).
+- **Names:** pytest-benchmark's `fullname`, Google Benchmark's run name (its family is the group, `name:value`
+  arguments are parameters), hyperfine's command or `--command-name`, Criterion's id, JMH's benchmark with its
+  parameters, Go's package and benchmark. A name seen twice gets ` #2`.
+- **Google Benchmark:** the `mean`, `median` and `stddev` aggregates when there are repetitions, the real time
+  otherwise; `BigO`, `RMS` and benchmarks that report an error are skipped. `bytes_per_second` or `items_per_second`
+  is the throughput.
+- **Context:** the machine, CPU, CPU count, OS, date and harness version, as far as the file says. Google Benchmark and
+  hyperfine don't name the CPU.
+- The web app and the `qaboard` package read the same formats the same way: they are tested on the same files.
+- The web app reads files up to 100 MB, and says so for larger ones.
+
+</details>
+
+## Where to go next
+<Cards>
+  <Card title="Read the benchmark table" to="/docs/user-guide/other-viewers#benchmarks" eyebrow="User guide">
+    Slower, faster, within noise: what reviewers see, and how they filter and sort.
+  </Card>
+  <Card title="Profiles and flame graphs" to="/docs/flame-graphs">
+    See where the time went, against the reference's profile.
+  </Card>
+  <Card title="Quality gate" to="/docs/quality-gate">
+    Fail the CI when a benchmark gets slower than you allow.
+  </Card>
+</Cards>

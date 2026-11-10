@@ -27,7 +27,7 @@ outputs:
       path: sweep.plotly.json            # ramp runs only: achieved req/s vs p99, one point per step
       side_by_side: false
     - name: CPU flame graph
-      path: cpu.flame.json               # µs of CPU per 1,000 requests
+      path: cpu.folded                   # CPU samples as folded stacks, in µs of CPU per 1,000 requests
     - name: CPU per core
       path: cores.plotly.json            # heatmap, cores x time, % busy
       default_hidden: true
@@ -59,7 +59,7 @@ integrations:
 # Experimental: may change without notice
 gate:
   reference: main
-  batches: [ci]
+  labels: [ci]
   rules:
     - {metric: latency_p99, max_regression: 10%}
     - {metric: throughput, max_regression: 5%}

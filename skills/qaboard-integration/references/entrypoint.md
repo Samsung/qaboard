@@ -75,7 +75,8 @@ def run(context):
 - Write everything under `context.output_dir`. Keep names stable across commits: the web app pairs a run's files with
   the reference's by name.
 - Plotly: write `{"data": [traces], "layout": {...}}` to `*.plotly.json`. HTML reports: static HTML (scripts are
-  stripped). Flame graphs: `*.flame.json` (d3-flame-graph's tree format). Point clouds: `.pcd`. Trajectories:
+  stripped). Flame graphs: what the profiler writes (`*.folded`, `*.speedscope.json`,
+  `*.cpuprofile`), or `qaboard.flamegraphs.save_flame_graph()` for `perf script` and pprof. Point clouds: `.pcd`. Trajectories:
   text with a `type: 6dof/txt` visualization.
 - Formats and viewer options: https://samsung.github.io/qaboard/docs/viewers
 

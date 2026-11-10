@@ -565,19 +565,6 @@ shot('commit/export', {
   target: page => [page.locator('.bp6-dialog', { hasText: 'Export files' })],
   padding: 8,
 });
-    await ui.click(box.getByRole('button', { name: 'Export', exact: true }));
-    await ui.page.getByText(/files exported from/).waitFor();
-    await ui.settle();
-    await ui.cursor.moveTo({ x: 1300, y: 860 });
-  },
-  // the commit bars' filter box, the Export button and its box
-  target: page => [
-    filterBox(page, 'new'),
-    page.getByRole('button', { name: 'Export files', exact: true }),
-    page.locator('.bp6-popover', { has: page.getByLabel(/Files to export/) }),
-  ],
-  padding: 8,
-});
 
 // Several references (webapp/src/components/ReferenceTabs.jsx): tabs below the commit bars, one compared at a time.
 // The URL stacks them (webapp/src/selection.js): `reference` is the one shown, `compare` the others
@@ -1477,11 +1464,37 @@ shot('commit/flame-diff', {
     await mouseAway(ui);
     await ui.settle();
   },
-  // the run's name and metrics, the flame graph (narrower than the card) and the comparison picker under it
+  // the run's name and metrics, the flame graph's toolbar, graph, legend and the comparison picker under it
+  // (webapp/src/viewers/flamegraph/FlameGraphReport.jsx), without the Top functions table
   target: page => [
     runTitle(page, 'steady-high'),
-    viewer(cards(page).first(), 4).locator('.flame-graph svg').first(),
-    viewer(cards(page).first(), 4).locator('select').first(),
+    viewer(cards(page).first(), 4).locator('.qa-flame-graph > .qa-flame-toolbar').first(),
+    viewer(cards(page).first(), 4).locator('.qa-flame-legend').first(),
+    viewer(cards(page).first(), 4).locator('.qa-flame-graph select').first(),
+  ],
+  padding: 8,
+});
+
+// The same diff with the Top functions table under it (webapp/src/viewers/flamegraph/TopFunctions.jsx)
+shot('commit/flame-top-functions', {
+  project: SL,
+  url: d => sharedCache(d, 'steady-high', only('flame')),
+  alt: 'A differential CPU flame graph of the steady-high run, rooted at "all": the shared cache\'s lookup and respond, '
+    + 'with the response rendering under them, are new, in orange, the model\'s forward pass is blue. Under it, the Top '
+    + 'functions table lists each function\'s self and total time, in the profile\'s unit and in %, and its change in '
+    + 'percentage points against main, the biggest increase first.',
+  caption: 'The flame graph diff of the shared cache, and under it Top functions: what takes a bigger share of the '
+    + 'profile, the biggest increase first.',
+  viewport: { width: 1760, height: 1400 },
+  actions: async ui => {
+    await showCard(ui);
+    await mouseAway(ui);
+    await ui.settle();
+  },
+  // the run's name and metrics, and the whole flame graph viewer: toolbar, graph, legend, picker and table
+  target: page => [
+    runTitle(page, 'steady-high'),
+    viewer(cards(page).first(), 4).locator('.qa-flame-graph').first(),
   ],
   padding: 8,
 });

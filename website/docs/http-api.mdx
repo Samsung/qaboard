@@ -237,15 +237,34 @@ curl -H "Authorization: Bearer $QABOARD_TOKEN" \
 
 - **Check `status` first.** The numbers are final only when it's `complete`. `running` means some runs aren't done;
   `missing` means runs or the reference are missing, and `messages` says what.
-- `reference` is a branch (its latest commit with runs in the batch), a commit sha, or a shared
-  [milestone](/docs/references-and-milestones)'s label. Without it, the commit's `gate.reference` in *qaboard.yaml*,
+- `reference` is a branch (its latest commit with runs with the label), a commit sha, or a shared
+  [milestone](/docs/references-and-milestones)'s name. Without it, the commit's `gate.reference` in *qaboard.yaml*,
   else the project's `reference_branch`.
 - Whether a change is better depends on `smaller_is_better`. When it's `null`, QA-Board doesn't know which way is
   better: don't call the change an improvement or a regression.
 - `reference_mismatch` isn't `null` when the reference run isn't the same test (another input, configuration or
   platform): it says what differs.
 
-All the parameters are in the [quality gate's docs](/docs/quality-gate#from-scripts-and-agents).
+<details>
+<summary>Every parameter, and the rest of the answer</summary>
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `project` | required | The project's name, as in *qaboard.yaml*. |
+| `batch` | `default` | The label of the runs to compare, as `qa --label` sets it: `default` for the CI's. |
+| `reference` | the commit's `gate.reference`, else `project.reference_branch` | A shared milestone's name (or `#<id>`), a commit or a branch. |
+| `reference_batch` | `batch` | The reference's label, to compare runs with two different labels. |
+| `metrics` | all | Metrics to compare, separated by commas. |
+| `bit_accuracy` | `false` | `true` compares the runs' output files. |
+
+Besides `status`, `messages`, `metrics` and `tests`, the answer has:
+- in `tests`, each run's `batch`, the name after `qa batch` that started it (servers from November 2026), and
+  `attempts` when the run was [done again](/docs/storage/where-is-the-data#reruns);
+- `commit.reruns`, the counts of runs that were done again;
+- `reference.gate`, the `gate:` section of the reference's *qaboard.yaml*, and `project_gate`, the
+  [rules the project's owners set](/docs/user-guide/project-gate) in the web app.
+
+</details>
 
 ### The same from Python {#python-example}
 A script that prints, for each test of a commit's CI batch, its metric and the reference's. Save it as *compare.py*

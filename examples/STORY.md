@@ -131,7 +131,7 @@ checks:
   - name: lock contention is visible in the flame graph
     commit: cache-shared
     hook: flame_share
-    args: {path: cpu.flame.json, match: "lock_contended|lock_slow", min_share: 0.08}
+    args: {path: cpu.folded, match: "lock_contended|lock_slow", min_share: 0.08}
   - name: the gate fails on the shared cache
     commit: cache-shared
     expect: {gate: fail}

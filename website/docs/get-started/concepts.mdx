@@ -30,10 +30,11 @@ uses, in the order you meet them.
   platform.
 - **Run**: your code from one commit, on one input, with one configuration, on one platform. A run has output files,
   metrics and a log. An input with its configuration is a **test**, as in the web app's **Available Tests**.
-- **Batch**: a group of runs of the same commit, with a label. `qa batch ci` runs the inputs and configurations listed
-  under `ci` in your batches file. The batch CI runs has the label `default`, and the web app shows it as **CI**.
-  Tuning experiments and your own runs get their own batches. See
-  [Batches of inputs](/docs/batches-running-on-multiple-inputs).
+- **Batch**: the inputs and configurations listed under a name in your batches file: `qa batch ci` runs those listed
+  under `ci`. See [Batches of inputs](/docs/batches-running-on-multiple-inputs).
+- **Label**: the name of a group of a commit's runs, set with `qa --label`. CI runs have the label `default`, shown
+  as **CI**; tuning experiments and your own runs get their own labels. The web app's batch selector picks a label:
+  the runs of several `qa batch` commands with the same label show together.
 
 ## What you see
 - **Metrics**: numbers each run returns: quality, speed, errors. The web app shows them all. Your code can declare

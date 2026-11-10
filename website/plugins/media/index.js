@@ -165,8 +165,25 @@ module.exports = function qaboardMediaPlugin(context, options = {}) {
           content.base = `${baseUrl}/`;
         }
       }
+      // Planned stills with a stand-in show it until they're published, in local mode (builds): served with the
+      // downloaded media, at media/standins/<id>/. Strict builds already failed on planned shots.
+      const standins = config.mode === 'local' ? ids.filter(id => !manifest.shots[id] && shotList?.[id]?.standin) : [];
+      for (const id of standins) {
+        const {light, dark, width, height, alt, caption} = shotList[id].standin;
+        const serve = (file, name) => {
+          const key = `standins/${id}/${name}${path.extname(file)}`;
+          fs.mkdirSync(path.dirname(path.join(cacheDir, key)), {recursive: true});
+          fs.copyFileSync(file, path.join(cacheDir, key));
+          return {[path.extname(file).slice(1)]: key};
+        };
+        content.base = `/${SERVED_PREFIX}/`;
+        content.shots[id] = {kind: 'still', width, height, lqip: '', alt, caption, files: serve(light, 'light'),
+          ...(dark ? {dark: {lqip: '', files: serve(dark, 'dark')}} : {})};
+      }
+      if (standins.length)
+        logger.warn(`[qaboard-media] ${standins.length} planned shots show their stand-in until they're captured: ${standins.join(', ')}`);
       // Without shots.yaml, the kind of a planned shot isn't known: the component says what it expects
-      ids.filter(id => !manifest.shots[id] && (shotList?.[id] || planned.has(id)))
+      ids.filter(id => !manifest.shots[id] && !content.shots[id] && (shotList?.[id] || planned.has(id)))
         .forEach(id => (content.planned[id] = shotList?.[id] ? plannedEntry(null, shotList[id]) : {shows: ''}));
       if (config.isBuild) {
         const placeholders = Object.keys(content.planned).length;

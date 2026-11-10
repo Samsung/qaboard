@@ -26,6 +26,7 @@ import { ThemeButton } from "./components/ThemeButton"
 import { useHelpSheet, is_typing } from "./components/HelpSheet"
 import { PaletteButton } from "./palette/CommandPalette"
 import { LogsMenuItem, logs_hint_class } from "./AppSiderLogsItem"
+import { project_admin_pages } from "./projectAdmin/ProjectAdminTabs"
 
 import { useCommitsList, useComparison, useProjects, useSiteConfig, useUser } from "./hooks"
 import { path_segments } from "./explore/tree"
@@ -367,14 +368,15 @@ const Sider = styled.div`
 // Hovering a view says what it's for: QA-Board has many, and their names are short
 const hint_delay = 600;
 // Collapsed, the hint also names the view, and opens sooner: it's the only label
-const SiderHint = ({ name, content, children }) => {
+// `placement`: items with a submenu open it on their right, their hint goes elsewhere
+const SiderHint = ({ name, content, placement = "right", children }) => {
   const collapsed = useContext(SiderCollapsedContext);
   return <Tooltip
     content={<span style={{display: 'inline-block', maxWidth: 260}}>
       {collapsed && name && <><strong>{name}</strong>{content ? <br/> : null}</>}
       {content}
     </span>}
-    placement="right"
+    placement={placement}
     hoverOpenDelay={collapsed ? 150 : hint_delay}
     targetTagName="div"
     fill
@@ -513,6 +515,25 @@ const ActivityMenuItem = ({ user, project }) => {
   </MenuItemLink>
 }
 
+// The project's Admin pages (docs/rfcs/project-admin.md): a click opens Access, hovering lists them all
+const AdminMenuItem = ({ project, route }) => {
+  const pages = project_admin_pages(project)
+  const current = route.is_access ? 'access' : route.is_project_admin ? route.section : null
+  // the hint above the item: on the right, it would cover the submenu
+  return <SiderHint name="Admin" content="Who can access the project, and the rules its quality gate holds every commit to." placement="top-start">
+    <MenuItemLink
+      to={pages[0].to}
+      active={current !== null}
+      icon="cog"
+      text="Admin"
+      // In a portal, like the sidebar's other submenus: else the sidebar's scrolling cuts it off, or flips it off-screen on the left
+      popoverProps={{ usePortal: true, hoverCloseDelay: 300 }}
+    >
+      {pages.map(({ id, text, icon, to }) => <MenuItemLink key={id} to={to} active={id === current} icon={icon} text={text}/>)}
+    </MenuItemLink>
+  </SiderHint>
+}
+
 // Milestones: a menu to pick any of them, and the user's favorites one click away
 const max_sider_favorites = 6;
 const SiderMilestones = ({ project, project_data, docs_root }) => {
@@ -591,7 +612,8 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
   let reference_branch = qatools_config.project?.reference_branch;
 
   const is_history = selected.route.is_history;
-  const is_access = selected.route.is_access;
+  // the project's Admin pages: Access, Quality gate
+  const is_admin = selected.route.is_access || selected.route.is_project_admin;
   const is_branch = !!selected.branch;
   const is_project_home = selected.route.is_commits && !is_branch;
   const tag = selected.branch ?? selected.committer ?? reference_branch;
@@ -601,7 +623,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
   return <>
     {/* The branch's commits: highlighted on their page, a link elsewhere */}
     <SiderHint name={branch ? `Commits on ${branch}` : tag && !is_branch && !(is_project_home || is_history) ? `Commits by ${tag}` : 'All commits'}>
-      {(is_project_home || is_history || is_access)
+      {(is_project_home || is_history || is_admin)
         ? <MenuItemLink to={commits_url} text={(is_branch || project_data.is_loaded) ? branch ?? 'All commits' : <span className={Classes.SKELETON}>branch</span>} title={branch ? `Commits on ${branch}` : 'Commits on all branches'} icon='git-branch'/>
         : <MenuItem icon={is_branch ? "git-branch" : 'user'} active text={tag ?? 'All commits'} title={is_branch ? `Commits on ${tag}` : tag && `Commits by ${tag}`}/>
       }
@@ -626,9 +648,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
     <SiderMilestones project={project} project_data={project_data} docs_root={docs_root}/>
     <ActivityMenuItem user={user} project={project} />
     <StorageMenuItem user={user} project={project} />
-    <SiderHint name="Access" content="Who can see the project, upload runs and act on them. Request access, or manage it.">
-      <MenuItemLink to={`/${path_segment(project)}/access`} active={is_access} icon="people" text="Access"/>
-    </SiderHint>
+    <AdminMenuItem project={project} route={selected.route}/>
   </>
 }
 
@@ -783,9 +803,9 @@ const AppSider = () => {
         <ProjectSideAvatar project={project} project_data={project_data} />
       </SiderSection>
 
-      {/* Navigation Section: views of the results on commit pages, else (commit lists, history) the project's pages */}
+      {/* Navigation Section: views of the results on commit pages, else (commit lists, history, admin) the project's pages */}
       <SiderSection>
-        {(route.is_list || route.is_history || route.is_access) && (
+        {(route.is_list || route.is_history || route.is_access || route.is_project_admin) && (
           <>
             <SiderMenu>
               <ProjectSideCommitList

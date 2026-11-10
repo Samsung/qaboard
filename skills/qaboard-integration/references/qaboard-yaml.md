@@ -54,9 +54,11 @@ What `qa save-artifacts` stores per commit so that runs can be started from the 
 files): `{build: {glob: 'build/*.so'}}`. https://samsung.github.io/qaboard/docs/storage/artifacts
 
 ## gate (experimental)
-`reference` (branch, commit or shared milestone), `batches` (labels; the CI batch is `default`), `rules`
-(`metric` with `max_regression`, `per_test_max_regression`, `min`, `max`, `aggregate`), `max_failed_runs`,
-`require_bit_accuracy`. https://samsung.github.io/qaboard/docs/quality-gate
+`reference` (branch, commit or shared milestone), `labels` (the results to check, as `qa --label` sets them; the
+CI's is `default`; `batches` is its older name), `expect_batches` (the `qa batch` names that must have runs before
+the gate decides: a list, or a list per label), `rules` (`metric` with `max_regression`, `per_test_max_regression`,
+`min`, `max`, `aggregate`, and optionally `batch` and `label`: a name, a list or patterns, to check only those runs),
+`max_failed_runs`, `require_bit_accuracy`. https://samsung.github.io/qaboard/docs/quality-gate
 
 ## bit_accuracy
 Which output files `qa check-bit-accuracy` compares byte for byte with the reference's: `patterns`, `ignore`,

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://samsung.github.io/qaboard/benchmarks.schema.json",
+  "qaboard_benchmarks": 1,
+  "source": "go",
+  "context": {
+    "cpu": "AMD EPYC 7763 64-Core Processor",
+    "cpu_count": 8,
+    "os": "linux",
+    "arch": "amd64",
+    "harness": "go test"
+  },
+  "benchmarks": [
+    {
+      "name": "example.com/kitefin/telemetry/codec.BenchmarkEncode/size=64",
+      "group": "example.com/kitefin/telemetry/codec",
+      "value": 6.545333333333334e-08,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 6.545333333333334e-08,
+        "stddev": 5.553677460326031e-10,
+        "min": 6.491e-08,
+        "max": 6.602e-08,
+        "rounds": 3,
+        "bytes_per_op": 64.0,
+        "allocs_per_op": 1.0
+      },
+      "throughput": {
+        "value": 977843333.3333334,
+        "unit": "B/s"
+      }
+    },
+    {
+      "name": "example.com/kitefin/telemetry/codec.BenchmarkDecode",
+      "group": "example.com/kitefin/telemetry/codec",
+      "value": 2.4506666666666664e-07,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 2.4506666666666664e-07,
+        "stddev": 1.3503086067019613e-09,
+        "min": 2.437e-07,
+        "max": 2.4640000000000004e-07,
+        "rounds": 3
+      }
+    },
+    {
+      "name": "example.com/kitefin/telemetry/route.BenchmarkLookup",
+      "group": "example.com/kitefin/telemetry/route",
+      "value": 0.00010351800000000001,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 0.00010351800000000001,
+        "iterations": 10000,
+        "bytes_per_op": 12288.0,
+        "allocs_per_op": 48.0
+      }
+    }
+  ]
+}
