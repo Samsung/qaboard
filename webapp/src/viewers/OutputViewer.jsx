@@ -5,6 +5,7 @@ import {
 
 import { useComparison, useSiteConfig } from "../hooks";
 import { is_image } from "./images/utils"
+import { is_flame_graph } from "./flamegraph/formats"
 import { ViewerLoading } from "./ViewerStates"
 import { ErrorBoundary } from "../components/ErrorBoundary"
 import { ViewerErrorFallback } from "../components/ErrorFallback"
@@ -73,7 +74,7 @@ const OutputViewer = props_ => {
         viewer = <LoadableTextViewer {...props} type={type} output_ref={output_ref}/>
       else if (type === 'text/html')
         viewer = <LoadableHtmlViewer {...props} type={type} output_ref={maybe_output_ref}/>
-      else if (type === 'flame/json')
+      else if (type.startsWith('flame'))  // flame/json, flame/folded...: the viewer reads the content
         viewer = <LoadableFlameGraphViewer {...props} type={type} output_ref={maybe_output_ref}/>
       else if (type === 'junit/xml')
         viewer = <LoadableJunitViewer {...props} type={type} output_ref={maybe_output_ref}/>
@@ -90,7 +91,7 @@ const OutputViewer = props_ => {
         viewer = <LoadablePlotlyViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (path.endsWith('.pcd')) {
         viewer = <LoadablePointCloudViewer {...props} output_ref={maybe_output_ref}/>
-      } else if (path.endsWith('flame.json')) {
+      } else if (is_flame_graph(path)) {
         viewer = <LoadableFlameGraphViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (is_junit(path)) {
         viewer = <LoadableJunitViewer {...props} type={type} output_ref={maybe_output_ref}/>
