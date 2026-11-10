@@ -165,6 +165,8 @@ def compare_api(monkeypatch):
   module = importlib.util.module_from_spec(spec)
   spec.loader.exec_module(module)
   module.milestones_of = lambda project_id, milestone_id=None: []
+  # the rules the project's owners set in the web app: none
+  module.gate_settings = lambda session, project_id: None
   return module
 
 
@@ -259,6 +261,11 @@ def test_compare_says_which_runs_were_done_again_and_the_references_gate(compare
   assert attempts[in_place['id']] == {'attempt': 1, 'previous': ['success'], 'in_place': True}
   assert sum(1 for a in attempts.values() if a) == 3
   assert data['reference']['gate'] == gate
+  assert data['project_gate'] is None
+  # with the rules the project's owners set in the web app, that no commit can change
+  compare_api.gate_settings = lambda session, project_id: {'rules': [{'metric': 'psnr', 'min': 30}], 'on_looser_rules': 'fail'} if project_id == 'p' else None
+  data = call(compare_api, dummy_app, {HEXSHA: new, REF_HEXSHA: ref}, f'project=p&reference={REF_HEXSHA[:8]}&metrics=psnr').get_json()
+  assert data['project_gate'] == {'rules': [{'metric': 'psnr', 'min': 30}], 'on_looser_rules': 'fail'}
   # a reference whose configuration we don't have: no rules to compare with, not the project's latest
   ref.data = {}
   ref.project = SimpleNamespace(id='p', data={'qatools_config': {'gate': gate}})

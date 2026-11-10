@@ -97,6 +97,8 @@ def endpoints(batch_id, output_id):
     "export": (("POST", f'/api/v1/export?project={PROJECT}&new_commit_id={SHA}', None), (403, 403, "ok")),
     "milestone": (("POST", '/api/v1/milestones', {"project": PROJECT, "label": "m", "commit_hexsha": SHA, "commit_project_id": PROJECT, "batch": "default"}), (403, 403, "ok")),
     "visibility": (("POST", '/api/v1/project/access/visibility', {"project": PROJECT, "visibility": "private"}), (403, 403, 403)),
+    "settings": (("GET", f'/api/v1/project/settings?project={PROJECT}', None), (403, "ok", "ok")),
+    "gate settings": (("POST", '/api/v1/project/settings/gate', {"project": PROJECT, "gate": {"rules": []}}), (403, 403, 403)),
   }
 
 

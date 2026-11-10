@@ -392,6 +392,97 @@ class TestGateRun(unittest.TestCase):
     self.assertTrue(gate_module().status_description(result).startswith('undecidable: QA-Board has no results'))
 
 
+class TestProjectGate(unittest.TestCase):
+  """The rules a project's owners set in the web app (docs/rfcs/project-admin.md): checked on top of the commit's"""
+  def run_gate(self, comparison, rules, project_gate, reference_gate='unknown', **gate):
+    g = gate_module()
+    comparison = {**comparison, 'project_gate': project_gate}
+    if reference_gate != 'unknown':
+      comparison['reference'] = {**comparison['reference'], 'gate': reference_gate}
+    config = g.parse_config({'project': {'reference_branch': 'main'}, 'gate': {'rules': rules, **gate}})
+    self.asked = []
+    def fetch(label):
+      self.asked.append((list(config.metrics), config.needs_bit_accuracy))
+      return comparison, None
+    return g.run_gate(config, 'kitefin/camera-isp', SHA, fetch, {}, 'http://localhost:5151')
+
+  def test_project_rules_are_checked_too(self):
+    g = gate_module()
+    # the commit's own rule passes, the project's is stricter: PSNR must not get worse on any test
+    project_gate = {'rules': [{'metric': 'psnr', 'per_test_max_regression': '5%'}], 'max_failed_runs': 0, 'on_looser_rules': 'warn'}
+    result = self.run_gate(fixture_comparison(), [{'metric': 'psnr', 'max_regression': '1%'}], project_gate, max_failed_runs=3)
+    checks = result['batches'][0]['checks']
+    self.assertEqual([(c['kind'], c.get('source'), c['status']) for c in checks], [
+      ('max_regression', None, 'pass'), ('per_test_max_regression', 'project', 'fail'), ('max_failed_runs', 'project', 'fail'),
+    ])
+    self.assertEqual(result['verdict'], 'fail')
+    self.assertEqual(result['project_rules'], [{'metric': 'psnr', 'kind': 'per_test_max_regression', 'limit': 0.05}])
+    text = g.render(result, 'text')
+    self.assertRegex(text, r'psnr, each test \(worst: photos/night\.jpg\) \[project rule\] +20 dB')
+    self.assertRegex(text, r'failed runs \[project rule\] +1 +0 +at most 0 +FAIL')
+    self.assertIn('| failed runs [project rule] | 1 | 0 |  | at most 0 | FAIL |', g.render(result, 'markdown'))
+    # one request: the project's rules use the metric we asked for
+    self.assertEqual(self.asked, [(['psnr'], False)])
+
+  def test_the_stricter_limit_on_failed_runs_applies(self):
+    # the commit's own is stricter: not a project rule
+    result = self.run_gate(fixture_comparison(), [], {'rules': [], 'max_failed_runs': 5}, max_failed_runs=0)
+    check, = result['batches'][0]['checks']
+    self.assertEqual((check['limit'], check.get('source'), check['status']), (0, None, 'fail'))
+    # the project has no limit, the commit doesn't check
+    result = self.run_gate(fixture_comparison(), [], {'rules': []}, max_failed_runs=None)
+    self.assertEqual(result['batches'][0]['checks'], [])
+    # no settings: as before
+    result = self.run_gate(fixture_comparison(), [], None, max_failed_runs=1)
+    self.assertNotIn('project_rules', result)
+    self.assertEqual(result['verdict'], 'pass')
+
+  def test_asks_again_for_what_the_project_rules_need(self):
+    project_gate = {'rules': [{'metric': 'ssim', 'min': 0.5}], 'require_bit_accuracy': True}
+    result = self.run_gate(fixture_comparison(), [{'metric': 'psnr', 'max_regression': '1%'}], project_gate)
+    self.assertEqual(self.asked, [(['psnr'], False), (['psnr', 'ssim'], True)])
+    kinds = [(c['kind'], c.get('source')) for c in result['batches'][0]['checks']]
+    self.assertIn(('min', 'project'), kinds)
+    self.assertIn(('require_bit_accuracy', 'project'), kinds)
+    # without rules of its own, the commit asked for every metric already
+    self.run_gate(fixture_comparison(), [], {'rules': [{'metric': 'ssim', 'min': 0.5}]})
+    self.assertEqual(len(self.asked), 1)
+
+  def test_commits_that_loosen_their_rules(self):
+    g = gate_module()
+    rules = [{'metric': 'psnr', 'max_regression': '5%'}]
+    stricter_reference = {'rules': [{'metric': 'psnr', 'max_regression': '1%'}], 'max_failed_runs': None}
+    # by default the gate says so, and passes
+    result = self.run_gate(fixture_comparison(), rules, {'rules': []}, reference_gate=stricter_reference, max_failed_runs=None)
+    self.assertEqual((result['verdict'], result['on_looser_rules'], len(result['rules_changes'])), ('pass', 'warn', 1))
+    # the project's owners can make it fail
+    policy = {'rules': [], 'on_looser_rules': 'fail'}
+    result = self.run_gate(fixture_comparison(), rules, policy, reference_gate=stricter_reference, max_failed_runs=None)
+    check = result['batches'][0]['checks'][-1]
+    self.assertEqual((check['kind'], check['status'], check['source'], check['looser']), ('rules', 'fail', 'project', ['psnr, median, max regression: 1% → 5%']))
+    self.assertEqual(result['verdict'], 'fail')
+    text = g.render(result, 'text')
+    self.assertRegex(text, r"the gate's rules \[project rule\] +1 looser +not looser than the reference's +FAIL")
+    self.assertEqual(g.status_description(result), "fail: the gate's rules [project rule]: 1 looser (limit: not looser than the reference's)")
+    # the same rules, or stricter ones: fine
+    result = self.run_gate(fixture_comparison(), rules, policy, reference_gate={'rules': rules, 'max_failed_runs': None}, max_failed_runs=None)
+    self.assertEqual((result['batches'][0]['checks'][-1]['status'], result['verdict']), ('pass', 'pass'))
+    # the server doesn't have the reference's qaboard.yaml: we can't tell
+    result = self.run_gate(fixture_comparison(), rules, policy, reference_gate=None, max_failed_runs=None)
+    self.assertEqual((result['batches'][0]['checks'][-1]['status'], result['verdict']), ('unknown', 'undecidable'))
+
+  def test_settings_this_version_cant_read(self):
+    g = gate_module()
+    for project_gate, message in [
+      ({'rules': [{'metric': 'psnr'}]}, "the project's gate settings, set in the web app: gate.rules[0]"),
+      ({'rules': [], 'noise': 'auto'}, "keys this version of qa doesn't know (noise): upgrade qaboard"),
+      ({'rules': [], 'on_looser_rules': 'approve'}, "on_looser_rules is 'approve'"),
+    ]:
+      with self.assertRaises(g.GateConfigError) as error:
+        self.run_gate(fixture_comparison(), [], project_gate)
+      self.assertIn(message, str(error.exception))
+
+
 class TestGateServer(unittest.TestCase):
   """Requests to QA-Board, GitHub and GitLab"""
 

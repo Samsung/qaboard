@@ -1119,6 +1119,13 @@ components:
             checked: {type: integer}
             mismatched: {type: integer}
             unavailable: {type: integer}
+        project_gate:
+          type: [object, "null"]
+          description: >-
+            The gate settings the project's owners set in the web app (**Admin → Quality gate**), `null` if they set
+            none: `rules` in *qaboard.yaml*'s format, `max_failed_runs`, `require_bit_accuracy`, and `on_looser_rules`
+            (`warn` or `fail`). `qa gate` checks them on top of the commit's own rules.
+          additionalProperties: true
 
     MetricStats:
       type: object

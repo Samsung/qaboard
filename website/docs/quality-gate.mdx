@@ -119,6 +119,27 @@ from a pass rate of 80%, `max_regression: 5%` allows 76%. When the reference's a
 worse fails. `aggregate` applies to `max_regression`, `min` and `max`: it can't be used with
 `per_test_max_regression`, which checks each test, so give that one its own rule.
 
+## Rules a commit can't change {#project-rules}
+The rules above are in the commit they check: a change can loosen a rule in the same commit that breaks it. A
+project's owners can set rules that hold whatever the commit says, from the web app: **Admin → Quality gate**, in
+the project's sidebar (see [Set a project's gate rules](/docs/user-guide/project-gate)).
+
+- **Project rules** use the same limits as *qaboard.yaml*'s. `qa gate` checks them on every commit, after the
+  commit's own rules, and marks them `[project rule]` in its table. A metric can have a rule in both: each is
+  checked with its own limit.
+- **Failed runs and bit accuracy**: the stricter of the commit's and the project's settings applies.
+- **When a commit loosens its own rules**, compared with the rules of the reference's *qaboard.yaml*, the gate says
+  so. Owners can make it fail instead: the looser rules then reach the reference branch when people decide to
+  merge them, not with the commit that needs them.
+
+`qa gate` gets the project's settings from the server with the numbers it compares: there is nothing to add to the
+CI job. Versions of `qa` from before project rules ignore them.
+
+:::note
+`qa gate` runs in your CI, which a commit can change too. Project rules don't make the gate tamper-proof: they make
+loosening it a visible act, in a place commits don't reach, with the change in the server's audit log.
+:::
+
 ## Choose the reference and the batches {#set-the-rules}
 The other keys of the `gate:` section:
 
@@ -218,8 +239,9 @@ doesn't change the verdict:
 ## From scripts and agents
 `qa gate --json` prints the verdict, each check with its values, and the link to the Metrics Diff. It also has
 `rules_changes`, how the rules differ from the reference's (each with `looser`), and for each batch `reruns`: how
-many runs were done again, how many passed after a failed attempt, and which. The numbers come from an HTTP API that
-you can use too:
+many runs were done again, how many passed after a failed attempt, and which. Checks that come from the
+[project's rules](#project-rules) have `"source": "project"`, and `project_rules` lists them. The numbers come from
+an HTTP API that you can use too:
 
 ```bash
 curl "http://localhost:5151/api/v1/commit/<sha>/compare?project=<project>&reference=main&batch=default"
@@ -240,7 +262,8 @@ The answer has the `status` of the comparison (`complete`, `running`, or `missin
   new and the reference runs, and the change (`delta`, `delta_relative`);
 - `tests`: each run, its reference run (`reference_id`, and `reference_mismatch` when they don't have the same input,
   configuration, platform or parameters), the change of each metric, and `attempts` when the run was done again;
-- `commit.reruns`, the counts of runs that were done again, and `reference.gate`, the reference's rules.
+- `commit.reruns`, the counts of runs that were done again, `reference.gate`, the reference's rules, and
+  `project_gate`, the settings the project's owners set in the web app.
 
 Like the rest of the API, reading doesn't need a login unless your server restricts the project. Scripts can send
 an API token, see [the HTTP API](/docs/http-api#authentication).

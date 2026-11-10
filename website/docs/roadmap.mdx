@@ -287,6 +287,17 @@ push. It says when runs only passed after being done again, and when the commit 
 [Comment on pull requests](/docs/quality-gate#pull-request-comments).
 </RoadmapItem>
 
+<RoadmapItem status="experimental" title="Rules a commit can't change">
+A project's owners set gate rules from the web app, in **Admin → Quality gate**: `qa gate` checks them on every
+commit, on top of the commit's own, and can fail commits that loosen their rules. See
+[Set a project's gate rules](/docs/user-guide/project-gate).
+</RoadmapItem>
+
+<RoadmapItem status="next" title="The gate's verdict in QA-Board, and alerts">
+`qa gate` reports its verdict to the server, which shows it on the commit and tells the people and chat channels a
+project's owners chose, in **Admin → Alerts**.
+</RoadmapItem>
+
 <RoadmapItem status="shipped" title="A record of every attempt">
 A shared or CI run that is done again no longer erases what came before: QA-Board keeps how each earlier attempt
 ended, its metrics and its log, and shows the latest. See

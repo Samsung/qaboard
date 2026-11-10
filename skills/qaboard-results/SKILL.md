@@ -63,6 +63,8 @@ A change is better when its runs beat the *same* runs on the reference, not when
    still running). Read `batches[].checks[]` for each rule's `status` (pass/fail/skip), new and reference values,
    `batches[].reruns` for the runs that only passed after being done again, and `rules_changes` when the commit
    changed the gate's rules: report both, and never loosen a rule to make the gate pass without saying so.
+   Checks with `"source": "project"` are the project owners' rules, set in the web app: nothing in the repository
+   changes them, so fix the regression or ask an owner.
 3. For other batches or labels, use the compare API the gate uses:
    ```bash
    curl "$QABOARD_URL/api/v1/commit/<sha>/compare?project=<project>&reference=main&batch=<label>"

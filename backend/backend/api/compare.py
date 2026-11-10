@@ -27,6 +27,7 @@ from ..compare import compare_outputs, run_counts, manifests_mismatch
 from ..metrics_definitions import available_metrics
 from ..storage import is_storage_path
 from ..attempts import reruns_of, rerun_counts
+from ..project_settings import gate_settings
 
 
 def is_ci_alias(label: str) -> bool:
@@ -290,4 +291,7 @@ def compare_commit(commit_id):
     'metrics': comparison['metrics'],
     'tests': comparison['tests'],
     'bit_accuracy': bit_accuracy,
+    # The rules the project's owners set in the web app (docs/rfcs/project-admin.md): `qa gate` checks them on top of
+    # the commit's own, and no commit can change them. None if they set none.
+    'project_gate': gate_settings(db_session, project_id),
   })

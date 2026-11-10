@@ -53,7 +53,9 @@ instructions as a metric covers it.
 
 Also asked for:
 - **A project admin page**, with a new Admin menu that groups it with **Access**: configure the gate and the alerts
-  from the web app. Today only access is there.
+  from the web app. Design: `docs/rfcs/project-admin.md`. Step 1 is done: the Admin menu, **Quality gate** with
+  project rules that `qa gate` checks and no commit can change, and failing commits that loosen their rules.
+  Next: the gate's verdict recorded on the server, then **Alerts** (emails, a chat webhook).
 - **Flame graphs without the busywork.** Today projects convert profiles to our JSON by hand. Accept the usual
   formats (perf script, collapsed stacks, speedscope, pprof, py-spy), and make the diff and the search need no setup.
 - **Good docs** for all of it: a user guide page per task, the integration pages, the use case.
@@ -74,6 +76,6 @@ Order: A, then C with item 3, then B, D, E, F.
 ## Order of work
 1. Reruns in their own directory, with the log, status and metrics of earlier attempts. Done.
 2. The gate's table as a PR comment, with reruns and rule changes (item 3 and C). Done.
-3. The project admin page and the Admin menu; the gate's and alerts' settings there.
+3. The project admin page and the Admin menu; the gate's and alerts' settings there. Step 1 (gate) done, verdicts and alerts next.
 4. Benchmark files (item 2), then flame graph formats.
 5. Checkpoint: noise (item 1) once the SDK's design says what runs return.

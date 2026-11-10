@@ -59,10 +59,61 @@ class GateConfig:
   rules: List[Rule] = field(default_factory=list)
   max_failed_runs: Optional[int] = 0
   require_bit_accuracy: bool = False
+  # What the project's owners set in the web app (docs/rfcs/project-admin.md), learned from the server with the
+  # numbers: rules checked on top of ours, that no commit can change. None until we know, or if they set none.
+  project: Optional['GateConfig'] = None
+  # When our rules are looser than the reference's: 'warn' says so, 'fail' fails the gate. The project decides.
+  on_looser_rules: str = 'warn'
 
   @property
   def metrics(self) -> List[str]:
-    return list(dict.fromkeys(rule.metric for rule in self.rules))
+    """The metrics the rules need, ours and the project's"""
+    rules = [*self.rules, *(self.project.rules if self.project else [])]
+    return list(dict.fromkeys(rule.metric for rule in rules))
+
+  @property
+  def needs_bit_accuracy(self) -> bool:
+    return self.require_bit_accuracy or bool(self.project and self.project.require_bit_accuracy)
+
+  @property
+  def failed_runs_limit(self) -> Tuple[Optional[int], Optional[str]]:
+    """How many runs may fail: the stricter of our limit and the project's, and 'project' when it's the project's"""
+    ours, project = self.max_failed_runs, self.project.max_failed_runs if self.project else None
+    if project is not None and (ours is None or project < ours):
+      return project, 'project'
+    return ours, None
+
+
+ON_LOOSER_RULES = ('warn', 'fail')
+
+
+def apply_project_gate(gate: GateConfig, project_gate: Any) -> bool:
+  """
+  Adds the project's settings, as the server gives them, to the gate. Returns whether we must ask the server again:
+  the project's rules need metrics we didn't ask for, or the comparison of the runs' files.
+  Raises GateConfigError if we can't read them: a newer server's settings must not be half-applied.
+  """
+  if not isinstance(project_gate, dict):
+    return False
+  asked_metrics, asked_bit_accuracy = set(gate.metrics), gate.needs_bit_accuracy
+  unknown = set(project_gate) - {'rules', 'max_failed_runs', 'require_bit_accuracy', 'on_looser_rules'}
+  if unknown:
+    raise GateConfigError(f"the project's gate settings have keys this version of qa doesn't know ({', '.join(sorted(unknown))}): upgrade qaboard")
+  try:
+    project = parse_config({'gate': {
+      'rules': project_gate.get('rules') or [],
+      'max_failed_runs': project_gate.get('max_failed_runs'),
+      'require_bit_accuracy': bool(project_gate.get('require_bit_accuracy')),
+    }})
+  except GateConfigError as e:
+    raise GateConfigError(f"the project's gate settings, set in the web app: {e}")
+  on_looser_rules = project_gate.get('on_looser_rules') or 'warn'
+  if on_looser_rules not in ON_LOOSER_RULES:
+    raise GateConfigError(f"the project's gate settings: on_looser_rules is {on_looser_rules!r}, this version of qa knows {', '.join(ON_LOOSER_RULES)}: upgrade qaboard")
+  gate.project, gate.on_looser_rules = project, on_looser_rules
+  # without rules of our own we asked for every metric
+  needs_metrics = bool(asked_metrics) and not set(gate.metrics) <= asked_metrics
+  return needs_metrics or (gate.needs_bit_accuracy and not asked_bit_accuracy)
 
 
 def parse_fraction(value: Any, where: str) -> float:
@@ -301,20 +352,38 @@ def check_rule(rule: Rule, data: Dict[str, Any], local_metrics: Dict[str, Any]) 
   return {**check, 'status': 'fail' if over else 'pass'}
 
 
-def evaluate_batch(data: Dict[str, Any], gate: GateConfig, local_metrics: Dict[str, Any]) -> Dict[str, Any]:
-  """The checks of one batch, and its verdict: pass, fail or undecidable"""
+def evaluate_batch(data: Dict[str, Any], gate: GateConfig, local_metrics: Dict[str, Any], changes: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+  """
+  The checks of one batch, and its verdict: pass, fail or undecidable.
+  `changes`: how our rules differ from the reference's (rules_changes), None when we can't tell.
+  """
   checks = [check_rule(rule, data, local_metrics) for rule in gate.rules]
+  # the project's rules, set by its owners in the web app: checked like ours, whatever ours say
+  if gate.project:
+    checks += [{**check_rule(rule, data, local_metrics), 'source': 'project'} for rule in gate.project.rules]
   runs = (data.get('commit') or {}).get('runs') or {}
-  if gate.max_failed_runs is not None:
+  max_failed_runs, max_failed_runs_source = gate.failed_runs_limit
+  if max_failed_runs is not None:
     failed = runs.get('failed', 0)
     checks.append({
-      'kind': 'max_failed_runs', 'metric': None, 'limit': gate.max_failed_runs, 'new': failed,
+      'kind': 'max_failed_runs', 'metric': None, 'limit': max_failed_runs, 'new': failed,
       'ref': ((data.get('reference') or {}).get('runs') or {}).get('failed'),
-      'status': 'pass' if failed <= gate.max_failed_runs else 'fail', 'message': '',
+      'status': 'pass' if failed <= max_failed_runs else 'fail', 'message': '',
+      **({'source': max_failed_runs_source} if max_failed_runs_source else {}),
     })
-  if gate.require_bit_accuracy:
+  if gate.on_looser_rules == 'fail':
+    # the project doesn't let a commit loosen its own rules: its owners change the reference's
+    looser = [change['text'] for change in changes or [] if change.get('looser')]
+    check: Dict[str, Any] = {'kind': 'rules', 'metric': None, 'limit': None, 'looser': looser, 'source': 'project', 'message': ''}
+    if changes is None:
+      check.update(status='unknown', message="QA-Board doesn't have the reference's qaboard.yaml to compare the rules with")
+    else:
+      check['status'] = 'fail' if looser else 'pass'
+    checks.append(check)
+  if gate.needs_bit_accuracy:
     counts = data.get('bit_accuracy') or {}
-    check = {'kind': 'require_bit_accuracy', 'metric': None, 'limit': None, **counts, 'message': ''}
+    check = {'kind': 'require_bit_accuracy', 'metric': None, 'limit': None, **counts, 'message': '',
+             **({'source': 'project'} if not gate.require_bit_accuracy else {})}
     if counts.get('mismatched'):
       differ = [t for t in data.get('tests') or [] if t.get('bit_accurate') is False]
       check.update(status='fail', differing_tests=[{'test': name_of_test(t, data['tests']), 'files': t.get('bit_accuracy_mismatch')} for t in differ[:10]])
@@ -395,14 +464,12 @@ def rules_changes(gate: GateConfig, reference_gate: Optional[Dict[str, Any]]) ->
   """
   How the gate's rules differ from those of the reference's qaboard.yaml: [{'text', 'looser'}].
   Loosening a rule is a legitimate change, and the cheapest way to turn a red gate green: reviewers should see it.
-  [] when the server doesn't have the reference's configuration, or can't be read as rules.
+  [] when the server doesn't have the reference's configuration, or can't be read as rules: see reference_rules_known.
   """
-  if not isinstance(reference_gate, dict):
+  if not reference_rules_known(reference_gate):
     return []
-  try:
-    before = parse_config({'gate': {k: v for k, v in reference_gate.items() if k in GATE_KEYS}})
-  except GateConfigError:
-    return []
+  assert isinstance(reference_gate, dict)
+  before = parse_config({'gate': {k: v for k, v in reference_gate.items() if k in GATE_KEYS}})
   def by_key(rules: List[Rule]) -> Dict[Tuple[str, str, Optional[str]], Rule]:
     return {(r.metric, r.kind, r.aggregate): r for r in rules}
   old_rules, new_rules = by_key(before.rules), by_key(gate.rules)
@@ -426,6 +493,17 @@ def rules_changes(gate: GateConfig, reference_gate: Optional[Dict[str, Any]]) ->
     changes.append({'text': f"bit accuracy required: {'yes' if before.require_bit_accuracy else 'no'} → {'yes' if gate.require_bit_accuracy else 'no'}",
                     'looser': not gate.require_bit_accuracy})
   return changes
+
+
+def reference_rules_known(reference_gate: Optional[Dict[str, Any]]) -> bool:
+  """Whether the server gave the gate of the reference's qaboard.yaml, in a form we can read"""
+  if not isinstance(reference_gate, dict):
+    return False
+  try:
+    parse_config({'gate': {k: v for k, v in reference_gate.items() if k in GATE_KEYS}})
+  except GateConfigError:
+    return False
+  return True
 
 
 def describe_rules_changes(changes: List[Dict[str, Any]]) -> List[str]:
@@ -690,15 +768,20 @@ def format_percent(fraction: float) -> str:
 
 
 def check_label(check: Dict[str, Any]) -> str:
+  """What a check is about. Those the project's owners set in the web app say so: no commit can change them."""
   kind = check['kind']
   if kind == 'max_failed_runs':
-    return 'failed runs'
-  if kind == 'require_bit_accuracy':
-    return 'bit accuracy'
-  if kind == 'per_test_max_regression':
+    label = 'failed runs'
+  elif kind == 'require_bit_accuracy':
+    label = 'bit accuracy'
+  elif kind == 'rules':
+    label = "the gate's rules"
+  elif kind == 'per_test_max_regression':
     worst = check.get('worst')
-    return f"{check['metric']}, each test" + (f" (worst: {worst['test']})" if worst else '')
-  return f"{check['metric']}, {check.get('aggregate') or 'median'}"
+    label = f"{check['metric']}, each test" + (f" (worst: {worst['test']})" if worst else '')
+  else:
+    label = f"{check['metric']}, {check.get('aggregate') or 'median'}"
+  return f"{label} [project rule]" if check.get('source') == 'project' else label
 
 
 def check_limit(check: Dict[str, Any]) -> str:
@@ -711,10 +794,15 @@ def check_limit(check: Dict[str, Any]) -> str:
     return f"at most {format_value(check['limit'], check)}"
   if kind == 'max_failed_runs':
     return f"at most {check['limit']}"
+  if kind == 'rules':
+    return "not looser than the reference's"
   return 'identical outputs'
 
 
 def check_new(check: Dict[str, Any]) -> str:
+  if check['kind'] == 'rules':
+    looser = check.get('looser') or []
+    return f"{len(looser)} looser" if looser else ('' if check['status'] == 'unknown' else 'not looser')
   if check['kind'] == 'require_bit_accuracy':
     if check['status'] == 'unknown':
       return f"{check.get('unavailable', '?')} runs not compared"
@@ -737,7 +825,7 @@ def table_rows(batch: Dict[str, Any]) -> List[List[str]]:
     result = {'pass': 'pass', 'fail': 'FAIL', 'skip': 'skipped', 'unknown': 'unknown'}[check['status']]
     if check.get('message'):
       result = f"{result}: {check['message']}"
-    ref = '' if check['kind'] in ('min', 'max', 'require_bit_accuracy') else format_value(check.get('ref'), check)
+    ref = '' if check['kind'] in ('min', 'max', 'require_bit_accuracy', 'rules') else format_value(check.get('ref'), check)
     rows.append([check_label(check), check_new(check), ref, format_regression(check.get('regression')), check_limit(check), result])
   return rows
 
@@ -854,12 +942,17 @@ def run_gate(gate: GateConfig, project: str, commit: str, fetch: Callable[[str],
   }
   for label in gate.batches:
     data, error = fetch(label)
+    # The project's rules come with the numbers. When they need more than we asked for (other metrics, the
+    # comparison of the runs' files), we ask again: `fetch` reads what the gate needs.
+    if data is not None and gate.project is None and apply_project_gate(gate, data.get('project_gate')):
+      data, error = fetch(label)
     if data is None:
       result['errors'].append(error)
       result['batches'].append({'batch': label, 'verdict': 'undecidable', 'status': 'missing', 'messages': [error], 'checks': [], 'url': None})
       continue
-    evaluation = evaluate_batch(data, gate, local_metrics)
     reference = data.get('reference') or {}
+    changes = rules_changes(gate, reference.get('gate')) if reference_rules_known(reference.get('gate')) else None
+    evaluation = evaluate_batch(data, gate, local_metrics, changes)
     new_label = (data.get('commit') or {}).get('batch') or label
     url = metrics_diff_url(qaboard_url, project, data['commit']['id'], reference.get('id'), new_label, reference.get('batch') or new_label) if data.get('commit') else None
     result['batches'].append({
@@ -876,7 +969,10 @@ def run_gate(gate: GateConfig, project: str, commit: str, fetch: Callable[[str],
     })
     # the reference is the same for every batch
     if not result['rules_changes']:
-      result['rules_changes'] = rules_changes(gate, reference.get('gate'))
+      result['rules_changes'] = changes or []
+  if gate.project is not None:
+    result['project_rules'] = [r.to_dict() for r in gate.project.rules]
+    result['on_looser_rules'] = gate.on_looser_rules
   result['verdict'] = overall_verdict([b['verdict'] for b in result['batches']])
   result['exit_code'] = EXIT_CODES[result['verdict']]
   return result
@@ -927,8 +1023,9 @@ def gate(ctx, reference, batches, commit, output_format, as_json, wait, timeout,
   headers = api.headers_for(qaboard_url) if server else api.headers
   token_source = resolve_token(qaboard_url)[1] if server else api.qa_token_source
   def fetch(label):
+    # what the gate needs now: after the first answer, also for the project's rules
     return fetch_comparison(api_prefix, project_name, commit, gate_config.reference, label, gate_config.metrics,
-                            gate_config.require_bit_accuracy, headers, api.api_verify, token_source)
+                            gate_config.needs_bit_accuracy, headers, api.api_verify, token_source)
 
   deadline = time.monotonic() + timeout
   while True:

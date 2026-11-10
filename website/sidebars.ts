@@ -111,6 +111,7 @@ const sidebars: SidebarsConfig = {
         'user-guide/storage-usage',
         'user-guide/account',
         'user-guide/project-access',
+        'user-guide/project-gate',
       ],
     },
     {
