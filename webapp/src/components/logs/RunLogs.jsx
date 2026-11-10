@@ -12,6 +12,7 @@ import { fetchLsfReport, lsfKilled } from "./lsf";
 import { fileExists } from "./fetchRange";
 import { DirectoryActions } from "./DirectoryActions";
 import { runTime } from "../RunInfoMenu";
+import { attemptLogs } from "../../utils/attempts";
 
 
 // A list of runs, each with its logs
@@ -147,6 +148,7 @@ const RunDetails = ({ output }) => {
 const emptyHints = output => ({
   "log.txt": output.deleted ? "The run's output files were deleted." : "The run may have failed before it started, or its files were deleted.",
   "log.lsf.txt": "Only runs on LSF have it.",
+  ...Object.fromEntries(attemptLogs(output).map(({ name }) => [name, "This attempt's log was deleted with the run's files."])),
 })
 
 
@@ -208,6 +210,8 @@ export const RunLogs = memo(function RunLogs({ id, output, project, commit, expa
     { name: 'log.txt', url: `${base}/log.txt` },
     ...(lsf.status === 'present' ? [{ name: 'log.lsf.txt', url: `${base}/log.lsf.txt` }] : []),
     ...(has_dask_log ? [{ name: 'log.dask.txt', url: `${base}/log.dask.txt` }] : []),
+    // the run was done again: the logs of its earlier attempts, the latest first
+    ...attemptLogs(output).map(({ name }) => ({ name, url: `${base}/${name}` })),
   ]
 
   const toggle = event => {

@@ -94,6 +94,14 @@ scope: prefer `qa batch` from a checkout.
 ## Don'ts
 - Don't modify or delete anything under the results storage (`/mnt/qaboard`-like paths from `output_dir`): folders
   are shared with everyone; write your own outputs elsewhere.
+- Don't build the paths of results yourself: a shared run that was done again is in `<folder>_attempt2`, `_attempt3`...
+  (`<folder>/latest_attempt.txt` has the number). `run.output_dir`, `qa batch --list-output-dirs` and
+  `qa get --input <input> output_dir` give the latest attempt's folder.
+- Don't read reruns as repeated measurements: `run.data.get("attempt")` and `run.data.get("previous_attempts")` say a
+  run was done again and how earlier attempts ended (status, metrics, who, when), e.g. after a retry; their logs are
+  `run.output_dir / "log.attempt<N>.txt"`. Say so when you report a run that passed on a later attempt, and read
+  the failed attempt's log before you call it flaky. For statistics, repeat the measurement inside `run()` and
+  return what you computed.
 - Don't compute statistics across runs with different inputs or configurations as if they were the same test.
 - Don't claim "better" from a single run or from `compute_time` alone; latency needs a quiet machine and repeats.
 - Don't paste tokens into URLs (`?token=` is read-only and logged).

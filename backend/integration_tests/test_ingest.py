@@ -260,6 +260,66 @@ def test_output_directory_in_storage(client, monkeypatch, tmp_path):
   assert Output.query.one().output_dir_override == str(output_dir)
 
 
+def test_runs_done_again_keep_one_row_and_a_trace_of_their_attempts(client, monkeypatch, tmp_path):
+  """`qa` saves each attempt of a run in its own directory (qaboard/attempts.py): the run's row follows the latest"""
+  import backend.storage
+  from backend.database import db_session
+  from backend.models import Output
+  monkeypatch.setattr(backend.storage, 'storage_roots', [tmp_path])
+  first = tmp_path / "outputs" / "linux" / "inputs-a"
+  def report(output_dir, **extra):
+    response = send(client, 'output', output_directory=str(output_dir), **extra)
+    assert response.status_code == 200, response.get_data(as_text=True)
+    db_session.remove()
+    return response.get_json()
+
+  run = report(first, metrics={"loss": 1.0, "is_failed": True})
+  assert "attempt" not in run["data"] and "previous_attempts" not in run["data"]
+
+  # `qa batch` says where the second attempt will be, then its `qa run` that it started and how it ended
+  second = first.with_name("inputs-a_attempt2")
+  report(second, is_pending=True, user="bob")
+  report(second, is_pending=True, is_running=True, user="bob")
+  again = report(second, metrics={"loss": 0.5}, user="bob", data={"attempt": 7, "previous_attempts": [], "storage": 10})
+  assert again["id"] == run["id"] and Output.query.count() == 1
+  assert again["output_dir_url"].endswith("/outputs/linux/inputs-a_attempt2")
+  assert again["metrics"] == {"loss": 0.5} and again["is_failed"] is False
+  # clients can't rewrite the attempts
+  assert again["data"]["attempt"] == 2 and again["data"]["storage"] == 10
+  previous, = again["data"]["previous_attempts"]
+  assert (previous["attempt"], previous["status"], previous["user"]) == (1, "failed", "alice")
+  assert previous["started_at"] and previous["finished_at"]
+
+  # the ledger keeps what the earlier attempts measured
+  assert previous["metrics"] == {"loss": 1.0, "is_failed": True}
+
+  # a third attempt, that a fourth replaces before it says how it ended
+  third, fourth = first.with_name("inputs-a_attempt3"), first.with_name("inputs-a_attempt4")
+  report(third, is_pending=True, is_running=True)
+  latest = report(fourth, is_pending=True, is_running=True)
+  assert latest["data"]["attempt"] == 4
+  attempts = latest["data"]["previous_attempts"]
+  assert [(a["attempt"], a["status"], a["user"]) for a in attempts] == [(1, "failed", "alice"), (2, "success", "bob"), (3, "unfinished", "alice")]
+  assert attempts[1]["metrics"] == {"loss": 0.5} and "metrics" not in attempts[2]
+  assert not any(a.get("in_place") for a in attempts)
+
+  # done again in the same folder, e.g. with --keep-previous: recorded too, viewers warn that files were replaced
+  report(fourth, metrics={"loss": 0.2})
+  in_place = report(fourth, is_pending=True, is_running=True)["data"]
+  assert in_place["attempt"] == 4
+  assert (in_place["previous_attempts"][-1]["in_place"], in_place["previous_attempts"][-1]["metrics"]) == (True, {"loss": 0.2})
+  assert len(in_place["previous_attempts"]) == 4
+
+  # deleting the run for good removes the latest attempt's folder, and the first attempt's that said where it was
+  first.mkdir(parents=True)
+  (first / "latest_attempt.txt").write_text("4\n")
+  fourth.mkdir()
+  (fourth / "out.txt").write_text("")
+  output = Output.query.one()
+  output.delete(soft=False)
+  assert not fourth.exists() and not first.exists()
+
+
 def test_output_directory_outside_storage(client):
   """Elsewhere it's refused, before anything is saved"""
   response = send(client, 'output', output_directory='/etc')

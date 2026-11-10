@@ -17,6 +17,7 @@ from ..metrics_definitions import MAX_KEY_LENGTH, FORBIDDEN_KEYS
 from ..redo import redo_response
 from ..metrics_definitions import save_metrics_definitions
 from ..notifications.batches import on_run_ended
+from ..attempts import record_attempt
 from ..access import invalid_project
 from .auth import login_required, is_authorized_user, ingest_access, forbidden_project, require_project_access
 
@@ -24,7 +25,8 @@ from .auth import login_required, is_authorized_user, ingest_access, forbidden_p
 # - optimization_best allows `qa optimize` to replace this run (see api/batch.py)
 # - submitted_by is who really sent it (api/auth.py:ingest_access)
 # - added_metrics records the metrics scripts added after the run (add_output_metrics)
-SERVER_KEYS = {'optimization_best', 'submitted_by', 'added_metrics'}
+# - attempt and previous_attempts say how many times the run was done (backend/attempts.py)
+SERVER_KEYS = {'optimization_best', 'submitted_by', 'added_metrics', 'attempt', 'previous_attempts'}
 # Metrics that only the run itself sets
 RUN_ONLY_METRICS = {'is_failed', 'compute_time'}
 # What scripts can say about themselves when they add metrics
@@ -366,6 +368,8 @@ def new_output_webhook():
                                          test_input=test_input,
                                         )
   output.output_type = data.get('input_type', '')
+  # A run that is done again, in a new directory or in place: we remember the attempt it replaces
+  record_attempt(output, output_directory, is_pending=bool(data.get('is_pending') or data.get('is_running')))
 
   if not output.data:
     output.data = {}

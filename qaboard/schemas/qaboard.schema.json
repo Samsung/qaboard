@@ -144,7 +144,11 @@
           "enum": ["wait", "sync", "skip", "run"],
           "description": "What `qa batch` does when the runs are already pending. Default: wait."
         },
-        "output_dir_uses_database": {"type": "boolean", "description": "Include the database in the runs' output directories."}
+        "output_dir_uses_database": {"type": "boolean", "description": "Include the database in the runs' output directories."},
+        "reruns": {
+          "enum": ["new-directory", "in-place"],
+          "description": "Where results saved in the storage (CI, --share) go when a run is done again. new-directory (default): in <run>_attempt2, _attempt3..., and <run>/latest_attempt.txt has the latest attempt's number. in-place: in the same directory. $QA_RERUNS overrides it."
+        }
       },
       "additionalProperties": false
     },
