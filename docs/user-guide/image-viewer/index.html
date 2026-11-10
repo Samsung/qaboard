@@ -18,8 +18,8 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.0469eb56.css">
-<script src="/qaboard/assets/js/runtime~main.41d26d3f.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.8dcbefa8.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.aeea5eaa.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.a973cd1e.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -45,6 +45,10 @@ When you <a class="" href="/qaboard/docs/user-guide/comparing-results#naming-wha
 name, the labels use those names. They also give each image&#x27;s size, e.g. <em>1224×816</em>.</p>
 <p>The swap button next to the modes, or <kbd>t</kbd>, swaps the sides in every viewer of the page at once, so that they all
 show the same one first. When both runs saved the same file, you see one image, tagged <em>same as the reference</em>.</p>
+<p>An orange <strong>may be stale</strong> tag means the run, or its reference, was done again in the same folder: your browser and
+the image server keep images by their path, so you may be looking at the previous run&#x27;s image. Reload the page without
+its cache (<kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>R</kbd>) if the image doesn&#x27;t match the metrics. Shared and CI runs
+don&#x27;t have the problem: they&#x27;re <a class="" href="/qaboard/docs/storage/where-is-the-data#reruns">saved in a new folder</a> each time.</p>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="synced-zoom-and-pan">Zoom and pan, in sync<a href="#synced-zoom-and-pan" class="hash-link" aria-label="Direct link to Zoom and pan, in sync" title="Direct link to Zoom and pan, in sync" translate="no">​</a></h3>
 <p>Scroll (or pinch, or press <kbd>+</kbd> <kbd>-</kbd>) to zoom, drag to pan: the other image follows. So do the other
 images of the same input on the page, in the other runs&#x27; cards and the run&#x27;s other visualizations, as long as their
@@ -96,9 +100,10 @@ interest, with their thumbnails above the images. Step through them with <kbd>[<
 click on a thumbnail. <strong>Full image</strong> goes back to the whole image. The regions are outlined on the images: click a
 region&#x27;s label to zoom on it, and hide the outlines with the eye button or <kbd>o</kbd>.</p>
 <ul>
-<li class=""><strong>Presets</strong>: the regions set for the input, e.g. on the facade <em>Window frame (halos)</em>, <em>Leaves over a window</em> and
-<em>Flat wall (noise)</em>. The viewer opens on the first one. Whoever integrates the project defines them, see
-<a class="" href="/qaboard/docs/visualizations#regions-of-interest">regions of interest</a>.</li>
+<li class=""><strong>Presets</strong>: the regions the project saved for this run, e.g. on the facade <em>Window frame (halos)</em>, <em>Leaves over a
+window</em> and <em>Flat wall (noise)</em>. The viewer opens on the first one. They come with the run&#x27;s input (its metadata) or
+with its batch (a configuration), so the runs of a page can each have their own. Whoever integrates the project
+defines them: see <a class="" href="/qaboard/docs/visualizations#regions-of-interest">preset regions of interest</a>, with examples of both.</li>
 <li class=""><strong>Where they differ</strong>: the server compares the full images, not what your screen shows, and finds the places where
 they differ most. Each region says how much, e.g. <em>#1 · 27.3%</em>, and darker swatches mark larger differences.</li>
 </ul>
@@ -122,7 +127,7 @@ is for the page where you pick it: on another page, the viewers don&#x27;t compa
 compares all its runs again.</li>
 <li class="">The server compares images for signed-in users only: signed out, the viewer asks you to sign in.</li>
 <li class=""><strong>Copy the view as a region</strong>, at the bottom of the menu, copies the coordinates of what you see, in the format of
-presets: send them to whoever maintains the project&#x27;s presets.</li>
+presets: send them to whoever maintains the project&#x27;s presets, or <a class="" href="/qaboard/docs/visualizations#copy-a-region">add them yourself</a>.</li>
 </ul></div></div></details>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="which-runs-changed-most">Which runs changed most<a href="#which-runs-changed-most" class="hash-link" aria-label="Direct link to Which runs changed most" title="Direct link to Which runs changed most" translate="no">​</a></h3>
 <p>In a batch of dozens of inputs, start where the images changed most. <strong>Where they differ, in all N runs…</strong>, in the

@@ -18,8 +18,8 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.0469eb56.css">
-<script src="/qaboard/assets/js/runtime~main.41d26d3f.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.8dcbefa8.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.aeea5eaa.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.a973cd1e.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -136,6 +136,11 @@ different settings, names start with them: <em>night › kitti › scenes/0001.p
 <a class="" href="/qaboard/docs/user-guide/comparing-results#reading-configurations">Reading configurations</a>. Orange <strong>Input</strong>, <strong>Config</strong> or
 <strong>Platform</strong> tags (with a <code>≠</code>) mean the reference run is not exactly the same: see
 <a class="" href="/qaboard/docs/user-guide/comparing-results#how-runs-are-matched">How runs are matched</a>.</li>
+<li class=""><strong>attempt 2</strong>, <strong>attempt 3</strong>... when the run was done again, e.g. after a machine failed or someone retried a CI
+job. The card shows the latest attempt&#x27;s results. Hover the tag to see when the earlier attempts ran, who ran them,
+how they ended and what they measured: it&#x27;s orange when one of them failed. Their logs are in the
+<a class="" href="/qaboard/docs/user-guide/logs#reading-a-log">Logs view</a>. Runs done again in the same folder, like those of older versions
+of <code>qa</code>, are tagged <strong>done again</strong>.</li>
 <li class=""><strong>its main metrics</strong>, each with its change against the reference run, colored when it gets better or worse: see
 <a class="" href="/qaboard/docs/user-guide/metrics#colors">what the colors mean</a>.</li>
 </ul>

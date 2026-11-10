@@ -18,8 +18,8 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.0469eb56.css">
-<script src="/qaboard/assets/js/runtime~main.41d26d3f.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.8dcbefa8.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.aeea5eaa.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.a973cd1e.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -80,7 +80,9 @@ failed, so that you can redo it.</p>
 the search box;</li>
 <li class="">the buttons on the right wrap lines, make the log taller, copy it, download it, or open the raw file;</li>
 <li class="">when a run has several logs, switch between them at the top left: <em>log.txt</em>, and <em>log.lsf.txt</em> or <em>log.dask.txt</em>
-when the run used LSF or Dask.</li>
+when the run used LSF or Dask. When the run was <a class="" href="/qaboard/docs/user-guide/commit-page#run-cards">done again</a>, the logs of
+its earlier attempts are there too, <em>log.attempt2.txt</em>, <em>log.attempt1.txt</em>: often the only place that says why an
+attempt failed.</li>
 </ul>
 <p>Each run&#x27;s line says how long it ran, and has buttons to copy the path of its output directory, open it in the
 <a class="" href="/qaboard/docs/user-guide/files">file browser</a>, and a <strong>⋯</strong> menu: its input&#x27;s <strong>History</strong>, its batch, input path and database
@@ -132,9 +134,10 @@ turn on <strong>Overwrite previous identical runs</strong> in the
 <a class="" href="/qaboard/docs/user-guide/running-from-the-webapp#running-tests-and-tuning">form</a>.</li>
 </ul>
 <p>In the Logs view, <strong>Started from QA-Board</strong> lists these <code>qa batch</code> commands, most recent first (<strong>Show N older</strong> for
-more than three): their status (<strong>Queued</strong>, <strong>Running</strong>, <strong>Failed</strong>, <strong>Done</strong>), who started them and when, and the
-batch files their batches come from (e.g. <em>from qa/batches.yaml</em>, or your private batches). Open one for the files,
-which link to your git server at the commit or to <strong>Available Tests</strong>, the command it ran and its log, live while it runs. <code>qa batch</code> reads copies of these files, saved
+more than three): their status (<strong>Queued</strong>, <strong>Running</strong>, <strong>Failed</strong>, <strong>Done</strong>, <strong>Stopped</strong>), who started them and when,
+where they run (e.g. an LSF job, a Kubernetes job, or the QA-Board server itself), and the batch files their batches
+come from (e.g. <em>from qa/batches.yaml</em>, or your private batches). Open one for the files, which link to your git
+server at the commit or to <strong>Available Tests</strong>, the command it ran and its log, live while it runs. <code>qa batch</code> reads copies of these files, saved
 in the <code>batches</code> folder next to its log so you can see what ran and run it again: like on your computer, it reads them in
 order, uses their file-level defaults (<code>database</code>, <code>configurations</code>, <code>platform</code>), and when several files define a batch,
 the last one wins. Its folder buttons copy the path of, or open, the folder with
@@ -160,6 +163,8 @@ open the job&#x27;s page and its logs: see <a class="" href="/qaboard/docs/user-
 <li class=""><em>log.lsf.txt</em>: on LSF, everything the job printed, then LSF&#x27;s job report. See
 <a class="" href="/qaboard/docs/lsf-integration#logs">LSF integration</a>.</li>
 <li class=""><em>log.dask.txt</em>: with the <a class="" href="/qaboard/docs/dask-integration">Dask runner</a>.</li>
+<li class=""><em>log.attempt1.txt</em>, <em>log.attempt2.txt</em>...: the <em>log.txt</em> of the earlier attempts of a shared or CI run that was
+<a class="" href="/qaboard/docs/storage/where-is-the-data#reruns">done again</a>, the last 10.</li>
 </ul><p>Batches started from a terminal with <code>qa --share batch</code> save what <code>qa batch</code> prints in the batch directory, under
 <em>qa-batch-logs/</em> (see <a class="" href="/qaboard/docs/using-the-qa-cli#qa---share"><code>qa --share</code></a>). In the CI, the CI job keeps them.</p></div></div></details>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="where-to-go-next">Where to go next<a href="#where-to-go-next" class="hash-link" aria-label="Direct link to Where to go next" title="Direct link to Where to go next" translate="no">​</a></h2>

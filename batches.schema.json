@@ -62,6 +62,7 @@
         "lsf": {"$ref": "#/$defs/lsf_runner"},
         "celery": {"$ref": "#/$defs/celery_runner"},
         "dask": {"$ref": "#/$defs/dask_runner"},
+        "kubernetes": {"$ref": "#/$defs/kubernetes_runner"},
         "windows": {"$ref": "#/$defs/windows_runner"}
       },
       "additionalProperties": false
@@ -115,6 +116,7 @@
             "lsf": {"$ref": "#/$defs/lsf_runner"},
             "celery": {"$ref": "#/$defs/celery_runner"},
             "dask": {"$ref": "#/$defs/dask_runner"},
+            "kubernetes": {"$ref": "#/$defs/kubernetes_runner"},
             "windows": {"$ref": "#/$defs/windows_runner"}
           },
           "additionalProperties": true
@@ -181,7 +183,7 @@
     },
 
     "runner_name": {
-      "enum": ["local", "lsf", "celery", "dask", "windows"]
+      "enum": ["local", "lsf", "celery", "dask", "kubernetes", "windows"]
     },
     "local_runner": {
       "type": "object",
@@ -216,11 +218,79 @@
     "celery_runner": {
       "type": "object",
       "description": "Settings of the Celery runner. Docs: https://samsung.github.io/qaboard/docs/celery-integration",
+      "properties": {
+        "forward_secrets": {"type": "array", "items": {"type": "string"}, "description": "Environment variables to give the runs although their names look like secrets, e.g. `WANDB_API_KEY`. Anyone who can read the broker can read them."}
+      },
       "additionalProperties": true
     },
     "dask_runner": {
       "type": "object",
       "description": "Settings of the Dask runner. Docs: https://samsung.github.io/qaboard/docs/dask-integration",
+      "additionalProperties": true
+    },
+    "kubernetes_runner": {
+      "type": "object",
+      "description": "Settings of the Kubernetes runner: each run is a pod of an Indexed Job. Docs: https://samsung.github.io/qaboard/docs/kubernetes-runner",
+      "properties": {
+        "namespace": {"type": "string", "description": "Default: the kubeconfig context's namespace, else the pod's when qa runs in a pod."},
+        "context": {"type": "string", "description": "The kubeconfig context. Default: the current one."},
+        "image": {"type": "string", "description": "The pods' image: it needs `qa` and your code's dependencies."},
+        "image_pull_secrets": {"description": "Secret names, or one as a string.", "anyOf": [{"type": "array", "items": {"type": "string"}}, {"type": "string"}]},
+        "queue": {"type": "string", "description": "A Kueue LocalQueue."},
+        "priority_class": {"type": "string"},
+        "concurrency": {"type": "integer", "description": "Pods at the same time for a `qa batch`. 0: all."},
+        "runs_per_pod": {"type": "integer", "description": "Runs each pod does, one after the other: for short runs, or when getting a node is the slow part (GPUs)."},
+        "timeout": {"type": "number", "description": "Seconds per run, enforced in the pod with `timeout` (GNU coreutils in the image). 0: none."},
+        "pod_timeout": {"type": "number", "description": "Seconds per pod, for all its runs (activeDeadlineSeconds). 0: none."},
+        "resources": {
+          "description": "Requests, e.g. `{cpu: 4, memory: 16Gi, nvidia.com/gpu: 1}`: memory and extended resources are also limits. Or `{requests: {...}, limits: {...}}`, used as they are.",
+          "anyOf": [
+            {
+              "type": "object",
+              "patternProperties": {"^(?!requests$|limits$)": {"type": ["string", "number"]}},
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "minProperties": 1,
+              "properties": {
+                "requests": {"type": "object", "additionalProperties": {"type": ["string", "number"]}},
+                "limits": {"type": "object", "additionalProperties": {"type": ["string", "number"]}}
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "node_selector": {"type": "object"},
+        "tolerations": {"type": "array", "items": {"type": "object"}},
+        "run_as": {
+          "description": "`user` (default): your UID, GID and groups. `image`: the image's user. Or `{uid, gid, groups}`.",
+          "anyOf": [{"enum": ["user", "image"]}, {"type": "object"}]
+        },
+        "run_as_non_root": {"type": "boolean"},
+        "service_account": {"type": "string"},
+        "mounts": {
+          "type": "array",
+          "description": "The shared filesystem, at the same paths in the pods.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {"type": "string"},
+              "pvc": {"type": "string"},
+              "nfs": {"type": "object", "properties": {"server": {"type": "string"}, "path": {"type": "string"}}},
+              "host_path": {"type": "string"},
+              "read_only": {"type": "boolean"},
+              "sub_path": {"type": "string"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "env": {"type": "object", "additionalProperties": {"type": ["string", "number", "boolean"]}},
+        "forward_env": {"type": "boolean", "description": "Forward qa's environment to the pods, minus secrets and host-specific variables. Default: true."},
+        "job_template": {"type": "string", "description": "A batch/v1 Job (YAML file) merged under what QA-Board generates."},
+        "ttl_seconds_after_finished": {"type": "integer"},
+        "api_retry_seconds": {"type": "number", "description": "How long Kubernetes API calls are retried on errors that pass (429, 5xx, network). Default: 300."}
+      },
       "additionalProperties": true
     },
     "windows_runner": {
