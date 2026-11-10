@@ -218,6 +218,9 @@
     "celery_runner": {
       "type": "object",
       "description": "Settings of the Celery runner. Docs: https://samsung.github.io/qaboard/docs/celery-integration",
+      "properties": {
+        "forward_secrets": {"type": "array", "items": {"type": "string"}, "description": "Environment variables to give the runs although their names look like secrets, e.g. `WANDB_API_KEY`. Anyone who can read the broker can read them."}
+      },
       "additionalProperties": true
     },
     "dask_runner": {
@@ -244,23 +247,17 @@
           "anyOf": [
             {
               "type": "object",
+              "patternProperties": {"^(?!requests$|limits$)": {"type": ["string", "number"]}},
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "minProperties": 1,
               "properties": {
                 "requests": {"type": "object", "additionalProperties": {"type": ["string", "number"]}},
                 "limits": {"type": "object", "additionalProperties": {"type": ["string", "number"]}}
               },
-              "required": ["requests"],
               "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "properties": {"limits": {"type": "object", "additionalProperties": {"type": ["string", "number"]}}},
-              "required": ["limits"],
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "not": {"anyOf": [{"required": ["requests"]}, {"required": ["limits"]}]},
-              "additionalProperties": {"type": ["string", "number"]}
             }
           ]
         },
