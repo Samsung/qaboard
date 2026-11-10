@@ -41,6 +41,15 @@ def make_jobs(commands, output_root: Path, **job_options):
   return jobs
 
 
+# Like BusyBox's timeout: no --version (it prints its usage, exit 1), and it only signals the command it runs
+busybox_timeout = '''#!/bin/sh
+case "$1" in --version|--help) echo "BusyBox v1.36.1 (2024-06-10 07:11:47 UTC) multi-call binary." >&2; echo "Usage: timeout [-s SIG] [-k KILL_SECS] SECS PROG ARGS" >&2; exit 1;; esac
+[ "$1" = -k ] && shift 2
+shift
+exec "$@"
+'''
+
+
 def matches(labels, selector):
   return all(labels.get(k) == v for k, v in (part.split('=') for part in selector.split(',')))
 
@@ -577,9 +586,12 @@ class TestRobustness(KubernetesTestCase):
 
 class TestScripts(KubernetesTestCase):
   """The pods' scripts, executed with sh"""
-  def run_pods(self, commands, runs_per_pod, **job_options):
+  def run_pods(self, commands, runs_per_pod, bin_files=None, **job_options):
     bin_dir = self.root / 'bin'
     bin_dir.mkdir()
+    for name, content in (bin_files or {}).items():
+      (bin_dir / name).write_text(content)
+      (bin_dir / name).chmod(0o755)
     # A fake `qa`: prints where it runs and its environment, fails for the "fail" input
     qa = bin_dir / 'qa'
     qa.write_text('#!/bin/sh\necho "qa $* in $(pwd) with MPLBACKEND=$MPLBACKEND FROM_ENV=$FROM_ENV"\necho "to stderr" >&2\ncase "$*" in *fail*) exit 3;; esac\n')
@@ -634,6 +646,16 @@ class TestScripts(KubernetesTestCase):
     self.assertIn('run 1/2 failed with exit code 124', results[0].stdout)
     self.assertIn('the run timed out after 1s', (self.root / 'output0' / 'log.k8s.txt').read_text())
     self.assertNotIn('timed out', (self.root / 'output1' / 'log.k8s.txt').read_text())
+
+  def test_timeout_needs_coreutils(self):
+    """BusyBox's timeout may accept `-k`, but doesn't signal the process group, nor always exit with 124: we refuse it"""
+    results = self.run_pods(['qa run --input a', 'qa run --input b'], runs_per_pod=2, timeout=5, bin_files={'timeout': busybox_timeout})
+    self.assertEqual(results[0].returncode, 1)
+    self.assertIn('run 1/2 failed with exit code 1', results[0].stdout)
+    for index in (0, 1):
+      log = (self.root / f'output{index}' / 'log.k8s.txt').read_text()
+      self.assertIn("[qaboard] ERROR: runners.kubernetes.timeout needs the timeout command of GNU coreutils in the image, not BusyBox's", log)
+      self.assertNotIn('qa run', log)
 
   def test_missing_cwd(self):
     results = self.run_pods(['qa run --input a', 'qa run --input b'], runs_per_pod=2)
@@ -819,7 +841,10 @@ class TestBlocking(KubernetesTestCase):
     self.assertIn('Deleting all its 1 Kubernetes Job(s)', '\n'.join(str(c[0][0]) for c in secho.call_args_list))
 
   def test_abort_is_quick(self):
-    """Stopped, we delete the Jobs retrying API calls briefly. Stopped again, we exit at once."""
+    """
+    Stopped, we delete the Jobs retrying API calls briefly. Stopped again, we exit at once, unless it's within 2s:
+    LSF and some supervisors send SIGINT and SIGTERM together.
+    """
     from qaboard.runners.kubernetes import KubernetesRunner
     jobs = make_jobs(['a', 'b'], self.root)
     handlers = {}
@@ -827,18 +852,29 @@ class TestBlocking(KubernetesTestCase):
       previous = handlers.get(signo.name)
       handlers[signo.name] = handler
       return previous
-    retry_for = []
+    clock = [1000.0]
+    retry_for, survived = [], []
     def deleting(name, namespace, propagation_policy=None):
       retry_for.append(self.kube.retry_for)
+      # with the signal that stopped us
+      clock[0] += 0.1
+      handlers['SIGINT']()
+      clock[0] += 1.5
+      handlers['SIGTERM']()
+      survived.append(clock[0])
+      # later: users want to quit now
+      clock[0] += 0.5
       handlers['SIGINT']()
     self.kube.delete_namespaced_job = deleting
     def wait(kube, created, selector):
       handlers['SIGTERM']()
     with mock.patch('signal.signal', side_effect=set_handler), mock.patch('qaboard.runners.kubernetes.wait_jobs', wait), \
+         mock.patch('qaboard.runners.kubernetes.time.monotonic', side_effect=lambda: clock[0]), \
          mock.patch('qaboard.runners.kubernetes.os._exit', side_effect=SystemExit(1)) as exit_now, mock.patch('sys.stderr'), mock.patch('builtins.print'):
       with self.assertRaises(SystemExit):
         KubernetesRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=True)
     exit_now.assert_called_once_with(1)
+    self.assertEqual(survived, [1001.6])
     self.assertEqual(retry_for, [15])
     self.assertEqual(self.kube.retry_for, 300)
 
@@ -910,6 +946,31 @@ class TestDiagnostics(unittest.TestCase):
     self.assertIn("node's problem", findings[0].hint)
     jobs[0]['status'] = {'completedIndexes': '2'}
     self.assertFalse(any(f.fatal for f in diagnostics.check(jobs, [pod(0)], [], now=1700)))
+
+  def test_image_pulls_are_reported_once(self):
+    """How long a pull has been failing changes every minute: it's not what tells if we already said it"""
+    from qaboard.runners.kubernetes import PendingDiagnostics, BatchJob, report
+    with tempfile.TemporaryDirectory() as tmp:
+      output_dir = Path(tmp) / 'output0'
+      jobs = [{'metadata': {'name': 'j', 'uid': 'job-uid', 'labels': {}}, 'status': {}}]
+      pulling = {'metadata': {'name': 'j-0', 'uid': 'pod-0', 'labels': {'job-name': 'j', 'batch.kubernetes.io/job-completion-index': '0'}},
+                 'status': {'phase': 'Pending', 'containerStatuses': [{'state': {'waiting': {'reason': 'ErrImagePull', 'message': 'rpc error'}}}]}}
+      running = {'metadata': {'name': 'j-1', 'uid': 'pod-1', 'labels': {'job-name': 'j', 'batch.kubernetes.io/job-completion-index': '1'}}, 'status': {'phase': 'Running'}}
+      batch_job = BatchJob('team', 'j', [[{'output_dir': str(output_dir)}], [{'output_dir': str(Path(tmp) / 'output1')}]])
+      diagnostics = PendingDiagnostics()
+      reported, logged, printed = set(), set(), []
+      with mock.patch('qaboard.runners.kubernetes.secho', side_effect=lambda message, **kwargs: printed.append(message)):
+        for now in range(1000, 1000 + 15 * 60, 60):
+          findings = diagnostics.check(jobs, [pulling, running], [], now=now)
+          self.assertEqual(len(findings), 1)
+          self.assertFalse(findings[0].fatal)
+          report(findings[0], batch_job, reported, logged, started={1})
+      # before the grace period, then after it: a node's problem, since another pod could pull it
+      self.assertEqual(len(printed), 2, printed)
+      self.assertNotIn('Failing for', printed[0])
+      self.assertIn("node's problem. Failing for 5 minutes.", printed[1])
+      self.assertIn('Failing for 14 minutes.', str(findings[0]))
+      self.assertEqual(len((output_dir / 'log.pending.txt').read_text().splitlines()), 4)
 
   def test_old_events_are_not_fatal(self):
     """Refusals are fatal once they repeat, if they still happen: an event from before we last looked isn't"""
@@ -1019,6 +1080,27 @@ class TestStop(KubernetesTestCase):
     self.assertFalse((log_file.parent / 'driver.pending.log').exists())
     # the batch's stop deletes it
     KubernetesRunner.stop_jobs([], {'type': 'kubernetes', 'command_id': 'abcdefgh-1234'})
+    self.assertEqual(self.kube.jobs, {})
+
+  def test_stop_only_the_driver(self):
+    """When the server's driver fails to start, it deletes only its Job (role=driver), not the runs' Jobs it started"""
+    from qaboard.runners.kubernetes import KubernetesRunner
+    KubernetesRunner.submit_detached('qa batch x', 'qa-abcdefgh-driver', self.root / 'log.txt', {'command_id': 'abcdefgh-1234', 'image': 'qa:1'})
+    driver = self.kube.jobs['qa-abcdefgh-driver-r4nd']
+    self.assertEqual(driver['metadata']['labels']['qaboard.io/role'], 'driver')
+    self.assertEqual(driver['spec']['template']['metadata']['labels']['qaboard.io/role'], 'driver')
+    self.assertEqual(self.kube.configmaps['qa-abcdefgh-driver-r4nd']['metadata']['labels']['qaboard.io/role'], 'driver')
+    self.start(['a', 'b'])
+    runs = [name for name in self.kube.jobs if name != 'qa-abcdefgh-driver-r4nd']
+    self.assertEqual(len(runs), 1)
+    self.assertNotIn('qaboard.io/role', self.kube.jobs[runs[0]]['metadata']['labels'])
+    self.assertEqual(KubernetesRunner.stop_jobs([], {'type': 'kubernetes', 'command_id': 'abcdefgh-1234', 'role': 'driver'}), 1)
+    self.assertEqual(list(self.kube.jobs), runs)
+    for role in ('driver,qaboard.io/user!=x', ['driver'], 'x' * 64):
+      with self.assertRaisesRegex(ValueError, 'Invalid role'):
+        KubernetesRunner.stop_jobs([], {'type': 'kubernetes', 'command_id': 'abcdefgh-1234', 'role': role})
+    # the batch's stop deletes them all
+    self.assertEqual(KubernetesRunner.stop_jobs([], {'type': 'kubernetes', 'command_id': 'abcdefgh-1234'}), 1)
     self.assertEqual(self.kube.jobs, {})
 
   def write_scripts(self, data, name='scripts'):
@@ -1265,6 +1347,13 @@ class TestDoctor(KubernetesTestCase):
     (bin_dir / 'sh').symlink_to(shutil.which('sh'))
     out = subprocess.run([str(bin_dir / 'sh'), '-c', script], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', env={'PATH': str(bin_dir)})
     self.assertIn('timeout: MISSING', out.stdout)
+    self.assertEqual(out.returncode, 1)
+    # a timeout that isn't coreutils'
+    (bin_dir / 'sh').unlink()
+    (bin_dir / 'timeout').write_text(busybox_timeout)
+    (bin_dir / 'timeout').chmod(0o755)
+    out = subprocess.run(['sh', '-c', script], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', env={'PATH': f'{bin_dir}:/usr/bin:/bin'})
+    self.assertIn("timeout: MISSING: runners.kubernetes.timeout needs the timeout command of GNU coreutils in the image, not BusyBox's", out.stdout)
     self.assertEqual(out.returncode, 1)
 
   def test_invalid_options(self):

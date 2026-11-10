@@ -12,7 +12,7 @@ runs, or when getting a GPU node is the slow part, each pod can do several runs.
 :::info What you need
 - **Kubernetes 1.29 or later**, and a namespace where you can create Jobs. `qa` uses your kubeconfig, like `kubectl`.
 - **An image with `qa`, a shell (`sh`) and your code's dependencies.** Your code itself comes from the shared storage.
-  With a per-run `timeout`, the image also needs the `timeout` command of GNU coreutils.
+  With a per-run `timeout`, the image also needs the `timeout` command of GNU coreutils (not BusyBox's).
 - **Your shared storage in the pods, at the same paths** as on the machine where you run `qa batch`: the folder where
   you start it, your inputs, and the results storage.
 - On the machine where you run `qa batch`: `pip install "qaboard[kubernetes]"`.

@@ -47,7 +47,8 @@ Notes:
   CA bundle variables (SSL_CERT_FILE...) are forwarded only if under `mounts`, proxies on localhost are not.
 - Names and labels: Jobs are named qa-<command_id[:8]>-<random>-<group>-<chunk> (the random part is per `qa batch`:
   a command id can be reused, e.g. by `qa optimize`), labeled app.kubernetes.io/managed-by=qaboard, qaboard.io/command-id,
-  qaboard.io/user and qaboard.io/project. Stopping a batch deletes the Jobs with its command-id.
+  qaboard.io/user and qaboard.io/project (detached jobs, e.g. the server's drivers, also qaboard.io/role=driver).
+  Stopping a batch deletes the Jobs with its command-id.
   They're annotated with qaboard.io/invocation, a nonce per create: a 409 AlreadyExists is ours only if it's the same.
 """
 import os
@@ -216,12 +217,17 @@ def batch_selector(command_id: str, project: Optional[str] = None) -> str:
     selector += f',qaboard.io/project={label_value(project)}'
   return selector
 
-def object_labels(options: KubernetesOptions) -> Dict[str, str]:
+# On the Jobs of submit_detached: role=driver. The server deletes only the driver when it fails to start (stop_jobs's `role`)
+role_label = 'qaboard.io/role'
+driver_role = 'driver'
+
+def object_labels(options: KubernetesOptions, role: str = '') -> Dict[str, str]:
   labels = {
     'app.kubernetes.io/managed-by': 'qaboard',
     'qaboard.io/command-id': label_value(options.command_id),
     'qaboard.io/user': label_value(options.user or ''),
     'qaboard.io/project': label_value(options.project or ''),
+    role_label: label_value(role),
   }
   return {k: v for k, v in labels.items() if v}
 
@@ -320,6 +326,10 @@ def redirect_output(log_file: str, pending_file: str) -> List[str]:
     f'rm -f {shlex.quote(pending_file)} 2>/dev/null',
   ]
 
+# sh: is `timeout` GNU coreutils' (`timeout (GNU coreutils) 9.4`, or uutils'), not e.g. BusyBox's?
+has_coreutils_timeout = 'timeout --version 2>/dev/null | grep -q coreutils'
+timeout_missing = "runners.kubernetes.timeout needs the timeout command of GNU coreutils in the image, not BusyBox's"
+
 def run_script(runs: List[Dict[str, Any]]) -> str:
   """
   Runs a pod's runs one after the other, each with its output live in <output_dir>/log.k8s.txt, even if one fails.
@@ -343,8 +353,9 @@ def run_script(runs: List[Dict[str, Any]]) -> str:
       lines.extend(f'  {line}' for line in redirect_output(os.path.join(output_dir, 'log.k8s.txt'), os.path.join(output_dir, pending_log_name)))
     lines.append(f'  cd {shlex.quote(run["cwd"])} || {{ echo "[qaboard] ERROR: can not cd to" {shlex.quote(run["cwd"])}": is it under runners.kubernetes.mounts?" >&2; exit 1; }}')
     if timeout > 0:
-      # coreutils' timeout signals the process group (qa run and what it started), and kills it if it's still there 60s later
-      lines.append('  command -v timeout > /dev/null || { echo "[qaboard] ERROR: runners.kubernetes.timeout needs the timeout command (GNU coreutils) in the image" >&2; exit 1; }')
+      # coreutils' timeout signals the process group (qa run and what it started), and kills it if it's still there
+      # 60s later. Not BusyBox's: it may accept -k, but signals only its child, and its exit code isn't always 124
+      lines.append(f'  {has_coreutils_timeout} || {{ echo "[qaboard] ERROR: {timeout_missing}" >&2; exit 1; }}')
       lines.append(f'  timeout -k 60 {timeout} sh -c {shlex.quote(run["command"])}')
       lines.append(f'  code=$?; if [ "$code" -eq 124 ]; then echo "[qaboard] ERROR: the run timed out after {timeout}s (runners.kubernetes.timeout)" >&2; fi; exit "$code"')
     else:
@@ -508,7 +519,7 @@ def mounts_spec(mounts: Optional[List[Dict[str, Any]]]) -> Tuple[List[Dict[str, 
     })
   return volumes, volume_mounts
 
-def job_body(options: KubernetesOptions, name: str, namespace: str, command: List[str], completions: int = 1, indexed: bool = False, deadline: float = 0, invocation: str = '') -> Dict[str, Any]:
+def job_body(options: KubernetesOptions, name: str, namespace: str, command: List[str], completions: int = 1, indexed: bool = False, deadline: float = 0, invocation: str = '', role: str = '') -> Dict[str, Any]:
   """
   The Job we create. With a `job_template`, from lowest to highest precedence:
   1. QA-Board's defaults: no retries (except when pods are evicted), TTL, a restricted-compatible security context...
@@ -518,11 +529,12 @@ def job_body(options: KubernetesOptions, name: str, namespace: str, command: Lis
   Objects are merged recursively, lists of named objects (containers, volumes, env) by name. Our container is the
   template's first container.
   `deadline`: the pods' activeDeadlineSeconds (0: none). `invocation`: our nonce for this create, see create_job.
+  `role`: the `role_label`, e.g. "driver" for submit_detached.
   """
   template = load_job_template(options.job_template)
   template_containers = template.get('spec', {}).get('template', {}).get('spec', {}).get('containers') or []
   container_name = template_containers[0].get('name', 'qa') if template_containers else 'qa'
-  labels = object_labels(options)
+  labels = object_labels(options, role)
 
   pod_failure_policy = {'rules': [
     # Evicted or preempted pods (node drained, Kueue preemption...) are retried
@@ -731,10 +743,15 @@ def connect(options: KubernetesOptions, retry_for: Optional[float] = None) -> Ku
   return Kube(options.context, retry_for=retry_seconds if retry_for is None else min(retry_for, retry_seconds))
 
 
+# While we clean up, signals that come this soon after it started are ignored: LSF and some supervisors send SIGINT
+# and SIGTERM together (see utils.ignored_signals), and only the first one meant "stop"
+cleanup_signal_grace = 2 # seconds
+
 class cleaning_up():
   """
   While we delete what we created because we're stopped or failed: API calls are retried briefly (users wait), and
-  a second Ctrl-C/SIGTERM exits right away, saying how to delete what's left. Signals can only be handled in the main thread.
+  a second Ctrl-C/SIGTERM exits right away, saying how to delete what's left, unless it comes in the first
+  `cleanup_signal_grace` seconds. Signals can only be handled in the main thread.
   """
   def __init__(self, kube: Kube, what: str):
     self.kube, self.what = kube, what
@@ -743,7 +760,10 @@ class cleaning_up():
   def __enter__(self):
     self.previous_retry_for = self.kube.retry_for
     self.kube.retry_for = min(self.kube.retry_for, abort_retry_seconds)
+    started = time.monotonic()
     def exit_now(_signo=None, _stackframe=None):
+      if time.monotonic() - started < cleanup_signal_grace:
+        return
       sys.stderr.write(f"\nStopped before the cleanup was done. To delete what is left: {self.what}\n")
       sys.stderr.flush()
       os._exit(1)
@@ -812,10 +832,17 @@ class Finding():
   fatal: bool = False
   # The pod it's about, if any
   pod_uid: Optional[str] = None
+  # For how long it's been failing (image pulls), shown but not in `hint`: what we print once must not change
+  failing_minutes: Optional[int] = None
 
   def __str__(self):
     where = f'{self.job}' + (f' (pod {self.index})' if self.index is not None else '')
-    return f'{where}: {self.reason}: {self.message}' + (f'\n  → {self.hint}' if self.hint else '')
+    hint = ' '.join(part for part in (self.hint, f'Failing for {self.failing_minutes} minutes.' if self.failing_minutes is not None else '') if part)
+    return f'{where}: {self.reason}: {self.message}' + (f'\n  → {hint}' if hint else '')
+
+  def key(self) -> Tuple[str, str, bool]:
+    """What it says, without what changes as it goes on: we print and log each once"""
+    return (self.reason, self.hint or self.message, self.fatal)
 
 image_pull_reasons = ('ErrImagePull', 'ImagePullBackOff')
 
@@ -1003,12 +1030,13 @@ class PendingDiagnostics():
   def finding(self, job: str, index: Optional[int], reason: str, message: str, now: float, count: int = 1, pod_uid: Optional[str] = None) -> Finding:
     message = clean_message(message)
     hint, fatal = classify(reason, message, count)
+    failing_minutes = None
     if reason in image_pull_reasons:
       since = self.image_pull_since.setdefault(pod_uid or f'{job}/{index}', now)
       if now - since >= image_pull_grace:
         fatal = True
-        hint = f'{hint} (failing for {int(now - since) // 60} minutes)'
-    return Finding(job, index, reason, message, hint, fatal, pod_uid)
+        failing_minutes = int(now - since) // 60
+    return Finding(job, index, reason, message, hint, fatal, pod_uid, failing_minutes)
 
 
 ###
@@ -1030,7 +1058,7 @@ class BatchJob():
     return self.pods[index] if 0 <= index < len(self.pods) else []
 
 
-def create_job(kube: Kube, options: KubernetesOptions, namespace: str, name: str, data: Dict[str, str], command: List[str], completions: int = 1, indexed: bool = False, parallelism: Optional[int] = None, deadline: float = 0) -> Dict[str, Any]:
+def create_job(kube: Kube, options: KubernetesOptions, namespace: str, name: str, data: Dict[str, str], command: List[str], completions: int = 1, indexed: bool = False, parallelism: Optional[int] = None, deadline: float = 0, role: str = '') -> Dict[str, Any]:
   """
   Creates the Job, then its scripts' ConfigMap, owned by the Job (deleted with it), and immutable.
   The pods wait for the ConfigMap a moment: creating it first would need a patch to set its owner.
@@ -1040,7 +1068,7 @@ def create_job(kube: Kube, options: KubernetesOptions, namespace: str, name: str
   `qa optimize`'s iterations), and an old Job with the same name would run its old scripts instead of ours.
   """
   invocation = uuid.uuid4().hex
-  body = job_body(options, name, namespace, command, completions=completions, indexed=indexed, deadline=deadline, invocation=invocation)
+  body = job_body(options, name, namespace, command, completions=completions, indexed=indexed, deadline=deadline, invocation=invocation, role=role)
   if parallelism:
     body['spec']['parallelism'] = parallelism
   try:
@@ -1056,7 +1084,7 @@ def create_job(kube: Kube, options: KubernetesOptions, namespace: str, name: str
     raise Exception("This Kubernetes cluster ignores backoffLimitPerIndex: the kubernetes runner needs Kubernetes 1.29 or later.")
   owner = {'apiVersion': 'batch/v1', 'kind': 'Job', 'name': name, 'uid': job['metadata']['uid']}
   try:
-    kube.call('core', 'create_namespaced_config_map', namespace, configmap_body(name, namespace, object_labels(options), data, owner, invocation))
+    kube.call('core', 'create_namespaced_config_map', namespace, configmap_body(name, namespace, object_labels(options, role), data, owner, invocation))
   except ApiError as e:
     if not (e.status == 409 and read_own(kube, 'read_namespaced_config_map', name, namespace, invocation)):
       delete_quietly(kube, 'batch', 'delete_namespaced_job', name, namespace, propagation_policy='Background')
@@ -1300,7 +1328,7 @@ def report(finding: Finding, batch_job: BatchJob, reported: set, logged: set, st
   Not in log.k8s.txt: the pods may run as another user, who couldn't replace our file. They delete it when they start.
   About the whole Job (e.g. it can't create pods): only in the runs whose pod didn't start (`started` indexes).
   """
-  key = (finding.reason, finding.hint or finding.message)
+  key = finding.key()
   if key not in reported:
     reported.add(key)
     color = 'red' if finding.fatal else ('blue' if finding.reason == 'Kueue' else 'yellow')
@@ -1396,9 +1424,9 @@ def doctor_test_script(options: KubernetesOptions) -> str:
     lines.append(f'if touch "$probe" && rm "$probe"; then echo "outputs: can write in $d"; else echo "outputs: can NOT write in $d (for {batch_dir})"; failed=1; fi')
   # Older qa have no --version
   lines.append('if qa --version 2>/dev/null || qa --help > /dev/null; then echo "qa: ok"; else echo "qa: NOT working in the image"; failed=1; fi')
-  # Runs with a timeout need `timeout -k` (GNU coreutils)
+  # Runs with a timeout need GNU coreutils' timeout
   if options.timeout:
-    lines.append('if timeout -k 1 5 true 2>/dev/null; then echo "timeout: ok"; else echo "timeout: MISSING: runners.kubernetes.timeout needs the timeout command of GNU coreutils in the image"; failed=1; fi')
+    lines.append(f'if {has_coreutils_timeout}; then echo "timeout: ok"; else echo "timeout: MISSING: {timeout_missing}"; failed=1; fi')
   lines.append('exit $failed')
   return '\n'.join(lines) + '\n'
 
@@ -1752,11 +1780,17 @@ class KubernetesRunner(BaseRunner):
   def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]) -> int:
     """
     Deletes the Jobs with the batch's command-id (and project, if given), and returns how many there were.
-    The server calls it with few options: type, command_id, maybe namespace, context, project, api_retry_seconds.
+    The server calls it with few options: type, command_id, maybe namespace, context, project, api_retry_seconds,
+    and `role` ("driver": only the Job of submit_detached).
     """
     options = dict_to_KubernetesOptions(job_options)
     # before connecting: the command id may come from untrusted input
     selector = batch_selector(options.command_id, options.project)
+    role = job_options.get('role')
+    if role:
+      if not isinstance(role, str) or label_value(role) != role:
+        raise ValueError(f'Invalid role: {role!r}')
+      selector += f',{role_label}={role}'
     kube = connect(options)
     namespace = namespace_of(kube, options)
     batch_jobs = kube.call('batch', 'list_namespaced_job', namespace, label_selector=selector)['items']
@@ -1795,7 +1829,7 @@ class KubernetesRunner(BaseRunner):
     ]) + '\n'
     data = {'env.sh': env_script(run_env(options)), 'run.sh': run_sh, 'script': script}
     try:
-      job = create_job(kube, options, namespace, job_name, data, command=['sh', f'{scripts_dir}/run.sh'])
+      job = create_job(kube, options, namespace, job_name, data, command=['sh', f'{scripts_dir}/run.sh'], role=driver_role)
     except NameTaken:
       raise
     except BaseException:
