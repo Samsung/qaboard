@@ -19,6 +19,12 @@ export const route_paths = {
   project: "/:project_id+",
 };
 
+// Pages with nothing after their name in the URL, matched exactly: /team/access/tools is the project
+// "team/access/tools", not the Access page of "team" (the other pages' URLs go on, with branches and commits)
+export const exact_route_names = ['project_admin', 'access'];
+// The projects' pages, as matchRoutes reads them, in matching order
+export const project_routes = Object.entries(route_paths).map(([name, path]) => ({ name, path, exact: exact_route_names.includes(name) }));
+
 // Pages of the app itself, matched before the projects' pages, exactly: they don't take over projects that would
 // have the same name, e.g. /admin/commits stays the commits of a project named "admin".
 export const app_paths = {

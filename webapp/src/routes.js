@@ -1,5 +1,5 @@
 import { lazy } from "react";
-import { route_paths, app_paths } from "./route_paths";
+import { project_routes, app_paths } from "./route_paths";
 import { matchRoutes } from "./router";
 // the landing page: not loaded on demand
 import ExplorePage from "./explore/ExplorePage";
@@ -36,7 +36,7 @@ const pages = {
 };
 
 // Project pages, in matching order: the first match wins
-export const routes = Object.entries(route_paths).map(([name, path]) => ({ name, path, main: pages[name] }));
+export const routes = project_routes.map(route => ({ ...route, main: pages[route.name] }));
 
 const app_pages = {
   settings: SettingsPage,
