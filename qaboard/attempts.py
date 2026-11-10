@@ -14,6 +14,8 @@ from an input's name, and needs no quoting in shells, on Windows or in URLs.
 """
 import os
 import re
+import uuid
+import errno
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -65,10 +67,18 @@ def attempt_of(output_dir) -> int:
 
 
 def latest_attempt(first_dir: Path) -> int:
-  try:
-    return max(1, int((first_dir / POINTER).read_text().strip()))
-  except (OSError, ValueError): # no file: the run wasn't done again
-    return 1
+  for tries in (1, 2):
+    try:
+      return max(1, int((first_dir / POINTER).read_text().strip()))
+    except OSError as e:
+      # NFS: latest_attempt.txt was replaced on another host, and this one still had the old file's handle. Once
+      # more gets the new file, else we'd say attempt 1, and runs would be read from, or saved to, the wrong one
+      if e.errno == errno.ESTALE and tries == 1:
+        continue
+      return 1  # no file: the run wasn't done again
+    except ValueError:
+      return 1
+  return 1
 
 
 def latest_dir(first_dir: Path) -> Path:
@@ -97,7 +107,8 @@ def reserve(first_dir: Path) -> Path:
   while attempt_dir(first_dir, attempt).exists():
     attempt += 1
   # atomic: readers see the previous attempt or this one
-  temporary = first_dir / f"{POINTER}.{os.getpid()}.tmp"
+  # unique: on shared storage, processes on two hosts can have the same pid
+  temporary = first_dir / f"{POINTER}.{uuid.uuid4().hex}.tmp"
   try:
     temporary.write_text(f"{attempt}\n")
     os.replace(temporary, first_dir / POINTER)
