@@ -25,6 +25,11 @@ const LoadableJunitViewer = lazy(() => import('./junit/JunitViewer'));
 // JUnit XML test reports: junit.xml, report.junit.xml, Maven's and Gradle's TEST-*.xml
 export const is_junit = path => /(^|\/)(junit|[^/]*[._-]junit|TEST-[^/]*)\.xml$/i.test(path || '');
 
+const LoadableBenchmarksViewer = lazy(() => import('./benchmarks/BenchmarksViewer'));
+// Benchmark files: benchmarks.json, bench.json, pytest.benchmarks.json, codec-bench.jsonl... Other names need
+// `type: benchmarks`
+export const is_benchmarks = path => /(^|\/)([^/]*[._-])?(bench|benchmarks?)\.(json|jsonl|ndjson)$/i.test(path || '');
+
 // labels: what the viewers call the new and reference results, and their colors, by default those of the page
 // (useComparison().labels): milestones' names, what users called them...
 const OutputViewer = props_ => {
@@ -72,6 +77,8 @@ const OutputViewer = props_ => {
         viewer = <LoadableFlameGraphViewer {...props} type={type} output_ref={maybe_output_ref}/>
       else if (type === 'junit/xml')
         viewer = <LoadableJunitViewer {...props} type={type} output_ref={maybe_output_ref}/>
+      else if (type === 'benchmarks' || type.startsWith('benchmarks/'))
+        viewer = <LoadableBenchmarksViewer {...props} format={type.split('/')[1]} output_ref={maybe_output_ref}/>
       else if (type === 'files/bit-accuracy')
         viewer = <LoadableBitAccuracyViewer {...props} type={type} output_ref={output_ref}/>
       else viewer = <p>
@@ -87,6 +94,8 @@ const OutputViewer = props_ => {
         viewer = <LoadableFlameGraphViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (is_junit(path)) {
         viewer = <LoadableJunitViewer {...props} type={type} output_ref={maybe_output_ref}/>
+      } else if (is_benchmarks(path)) {
+        viewer = <LoadableBenchmarksViewer {...props} output_ref={maybe_output_ref}/>
       } else if (path.endsWith('html')) {
         viewer = <LoadableHtmlViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (/\.(mp4|m4v|mov|webm|mkv|ogv|webp|gif)$/i.test(path)) {

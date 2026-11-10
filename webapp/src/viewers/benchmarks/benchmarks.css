@@ -1,0 +1,173 @@
+/* The benchmark viewer (BenchmarksViewer.jsx). Colors are Blueprint's, and follow the theme. */
+.qa-bench {
+  --bench-slower: #cd4246;
+  --bench-faster: #238551;
+  --bench-noise: #8f99a8;
+  --bench-added: #2d72d2;
+  --bench-missing: #c87619;
+  --bench-row-selected: rgba(45, 114, 210, 0.16);
+  --bench-noise-band: rgba(143, 153, 168, 0.28);
+  font-size: 13px;
+  color: var(--qa-text);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  container-type: inline-size;
+}
+.bp6-dark .qa-bench {
+  --bench-slower: #fa999c;
+  --bench-faster: #72ca9b;
+  --bench-noise: #abb3bf;
+  --bench-added: #8abbff;
+  --bench-missing: #fbb360;
+  --bench-row-selected: rgba(76, 144, 240, 0.25);
+  --bench-noise-band: rgba(171, 179, 191, 0.25);
+}
+
+.qa-bench-muted { color: var(--qa-text-muted); }
+.qa-bench-slower { color: var(--bench-slower); }
+.qa-bench-faster { color: var(--bench-faster); }
+.qa-bench-noise, .qa-bench-same { color: var(--bench-noise); }
+.qa-bench-added { color: var(--bench-added); }
+.qa-bench-missing-count { color: var(--bench-missing); }
+.qa-bench-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 4px;
+  vertical-align: baseline;
+  flex: none;
+}
+.qa-bench-help { border-bottom: 1px dotted currentColor; cursor: help; }
+.qa-bench-tooltip { max-width: 340px; }
+
+.qa-bench-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.qa-bench-summary > strong { font-size: 14px; margin-right: 4px; }
+.qa-bench-chip { font-variant-numeric: tabular-nums; }
+.qa-bench-contexts { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.qa-bench-context { overflow-wrap: anywhere; }
+.qa-bench-note { font-size: 12px; display: flex; align-items: center; gap: 4px; }
+.qa-bench-warning { font-size: 12px; }
+
+.qa-bench-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.qa-bench-search { flex: 1 1 220px; max-width: 380px; }
+.qa-bench-switch { margin: 0 !important; }
+.qa-bench-spacer { flex: 1; }
+.qa-bench-shown { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* The table: a header, then the rows in view */
+.qa-bench-table {
+  border: 1px solid var(--qa-border);
+  border-radius: 4px;
+  background: var(--qa-surface);
+  overflow: hidden;
+  contain: inline-size;
+}
+.qa-bench-scroll { overflow: auto; contain: strict; }
+.qa-bench-rows { position: relative; width: 100%; }
+.qa-bench-empty { display: flex; align-items: center; justify-content: center; min-height: 160px; }
+
+.qa-bench-row {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  gap: 10px;
+  white-space: nowrap;
+  border-bottom: 1px solid transparent;
+  cursor: default;
+}
+.qa-bench-rows .qa-bench-row:hover { background: var(--qa-hover); }
+.qa-bench-selected, .qa-bench-rows .qa-bench-selected:hover { background: var(--bench-row-selected); }
+.qa-bench-header {
+  background: var(--qa-surface-alt);
+  border-bottom: 1px solid var(--qa-border);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--qa-text-muted);
+}
+.qa-bench-group { font-weight: 600; cursor: pointer; background: var(--qa-surface-alt); }
+.qa-bench-group .qa-bench-col-name { gap: 6px; }
+.qa-bench-group-count { font-weight: 400; font-size: 12px; }
+.qa-bench-group-change { font-weight: 400; font-size: 12px; }
+
+.qa-bench-cell { overflow: hidden; text-overflow: ellipsis; flex: none; font-variant-numeric: tabular-nums; }
+.qa-bench-num { text-align: right; }
+.qa-bench-col-name { flex: 1 1 0; min-width: 120px; display: flex; align-items: center; gap: 8px; }
+.qa-bench-indent { padding-left: 20px; }
+.qa-bench-name { overflow: hidden; text-overflow: ellipsis; min-width: 40px; }
+.qa-bench-params {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--qa-text-muted);
+  font-size: 12px;
+  font-family: var(--bp-typography-family-mono, monospace);
+}
+.qa-bench-missing .qa-bench-name { text-decoration: line-through; color: var(--qa-text-muted); }
+.qa-bench-col-new, .qa-bench-col-ref { width: 84px; }
+.qa-bench-col-change { width: 74px; }
+.qa-bench-col-spread { width: 100px; }
+.qa-bench-col-rounds { width: 92px; font-size: 12px; }
+.qa-bench-col-throughput { width: 92px; }
+.qa-bench-col-bar { width: 128px; display: flex; justify-content: space-between; }
+.qa-bench-change { font-weight: 600; }
+.qa-bench-change.qa-bench-noise, .qa-bench-change.qa-bench-same { font-weight: 400; }
+.qa-bench-approx { margin-right: 2px; }
+.qa-bench-kind { font-size: 11px; }
+.qa-bench-ref-spread { font-size: 12px; }
+.qa-bench-tag { font-size: 11px; }
+
+/* The change bar: centered, right is worse */
+.qa-bench-bar {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 12px;
+}
+.qa-bench-bar-axis { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--qa-border); }
+.qa-bench-bar-noise { position: absolute; top: 2px; bottom: 2px; background: var(--bench-noise-band); border-radius: 2px; }
+.qa-bench-bar-change { position: absolute; top: 3px; bottom: 3px; min-width: 1px; background: currentColor; border-radius: 1px; }
+.qa-bench-bar-clip { position: absolute; top: 0; bottom: 0; width: 2px; background: currentColor; }
+
+/* The selected benchmark */
+.qa-bench-details {
+  border: 1px solid var(--qa-border);
+  border-radius: 4px;
+  background: var(--qa-surface-alt);
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.qa-bench-details-title { display: flex; align-items: flex-start; gap: 6px; }
+.qa-bench-wrap { overflow-wrap: anywhere; flex: 1; }
+.qa-bench-facts { align-self: flex-start; border-spacing: 16px 2px; margin-left: -16px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.qa-bench-facts th { text-align: right; font-weight: 600; white-space: nowrap; }
+.qa-bench-facts th:first-child { text-align: left; font-weight: 400; }
+.qa-bench-table:focus { outline: none; }
+.qa-bench-table:focus-visible { outline: 2px solid var(--qa-intent-primary); outline-offset: 1px; }
+.qa-bench-facts td { text-align: right; }
+.qa-bench-facts td:first-child { text-align: left; color: var(--qa-text-muted); }
+
+/* Narrow cards: the essentials */
+@container (max-width: 760px) {
+  .qa-bench-col-rounds, .qa-bench-col-throughput { display: none; }
+}
+@container (max-width: 560px) {
+  .qa-bench-col-bar, .qa-bench-col-spread { display: none; }
+}
