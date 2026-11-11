@@ -1362,7 +1362,7 @@ class TestGateCommand(unittest.TestCase):
     self.summary = self.dir / 'step-summary.md'
 
   def qa_gate(self, *args, qa_args=(), **env):
-    clean_env = {k: v for k, v in os.environ.items() if not k.startswith(('QABOARD_', 'QA_', 'GITHUB_', 'CI', 'GITLAB_'))}
+    clean_env = {k: v for k, v in os.environ.items() if k == 'QABOARD_IGNORE_SITE' or not k.startswith(('QABOARD_', 'QA_', 'GITHUB_', 'CI', 'GITLAB_'))}
     # The fake server is on 127.0.0.1: a web proxy would refuse to reach it
     clean_env = {k: v for k, v in clean_env.items() if k.lower() not in ('http_proxy', 'https_proxy', 'all_proxy', 'no_proxy')}
     environment = {
