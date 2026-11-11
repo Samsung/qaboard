@@ -227,8 +227,11 @@ the runs shown use.
   files: `match:name` lists identical files, `diff:name` different ones.
 - **File options**, next to the filter, opens their options in the [View options](#view-options): **Show all files**,
   **Hide runs without files**, **Expand all folders**, **Collapse runs** and **Color-blind friendly**. The button says which are on.
-- **Collapse runs** to scroll through many runs: each run shows only its header, how many files it lists and
-  whether it's bit-accurate. Click a run's **N files** to show or hide its files, also when the option is off.
+- Runs with many files list their first ones, differences and folders first, then a row like **40 more files
+  ✕ 27 different + 5 added − 8 removed**: click it to list them all. Filtering, **Expand all folders**, or opening one of
+  the run's folders lists them all too, and <kbd>Ctrl</kbd>+<kbd>F</kbd> still finds the files that aren't listed.
+- **Collapse runs** to scroll through many runs: each run says only how many files it has, how they differ, and
+  whether it's bit-accurate. Click a run's **N files** to show or hide them.
 - **Click a file** to see its diff with the reference's. <kbd>Ctrl</kbd>-click or <kbd>Shift</kbd>-click to diff
   several. **Next diff** jumps to the next change.
 - **Help** explains the icons and colors: bit-accurate, different, missing in the reference, only in the reference...
