@@ -19,7 +19,7 @@ function OutputCardsList({ type, project, config, metrics, new_commit, new_batch
   // onShowFileOptions: opens where users change them (the View options), else they're in a popover
   const { query, filter_batch_new } = useSelected();
   const flag = name => query[name] === 'true';
-  const [show_all_files, hide_runs_without_files, expand_all, color_blind_friendly] = ['show_all_files', 'hide_runs_without_files', 'expand_all', 'color_blind_friendly'].map(flag);
+  const [show_all_files, hide_runs_without_files, expand_all, collapse_runs, color_blind_friendly] = ['show_all_files', 'hide_runs_without_files', 'expand_all', 'collapse_runs', 'color_blind_friendly'].map(flag);
   const save = (name, value) => updateSelected({ [name]: value }, { replace: true, defaults: bit_accuracy_url_defaults });
   const [files_filter, onFilesFilterChange] = useUrlText(query.files_filter || '', value => save('files_filter', value));
   const update = name => name === 'files_filter' ? onFilesFilterChange : e => save(name, e?.target?.value ?? e);
@@ -62,6 +62,7 @@ function OutputCardsList({ type, project, config, metrics, new_commit, new_batch
                                    show_all_files={show_all_files}
                                    hide_runs_without_files={hide_runs_without_files}
                                    expand_all={expand_all}
+                                   collapse_runs={collapse_runs}
                                    files_filter={files_filter}
                                    color_blind_friendly={color_blind_friendly}
                                    toggle={toggle}
@@ -93,6 +94,7 @@ function OutputCardsList({ type, project, config, metrics, new_commit, new_batch
           hide_runs_without_files={hide_runs_without_files}
           files_filter={files_filter}
           expand_all={expand_all}
+          collapse_runs={collapse_runs}
           color_blind_friendly={color_blind_friendly}
           onRegisterOutputOptions={onRegisterOutputOptions}
           onToggleDynamicOptionSync={onToggleDynamicOptionSync}

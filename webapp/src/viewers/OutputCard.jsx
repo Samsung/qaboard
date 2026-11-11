@@ -291,7 +291,7 @@ const PathHeader = styled.div`
 const OutputCard = memo(function OutputCard(props) {
   const {
     project, commit, config, metrics, type, output_new, output_ref, files_filter, no_header,
-    show_all_files, hide_runs_without_files, expand_all, color_blind_friendly,
+    show_all_files, hide_runs_without_files, expand_all, collapse_runs, color_blind_friendly,
     onRegisterOutputOptions, onToggleDynamicOptionSync, onControlsChange, labels,
   } = props;
   const controls = props.controls ?? {};
@@ -553,6 +553,7 @@ const OutputCard = memo(function OutputCard(props) {
       show_all_files={show_all_files}
       hide_runs_without_files={hide_runs_without_files}
       expand_all={expand_all}
+      collapse_runs={collapse_runs}
       color_blind_friendly={color_blind_friendly}
       files_filter={files_filter}
       labels={labels}
