@@ -9,6 +9,7 @@
 !examples/*/qa/*.py
 !examples/*/inputs/**/*.metadata.yaml
 !docs-media/shots.yaml
+!docs-media/standins/
 !qaboard/schemas/
 website/node_modules/
 website/build/

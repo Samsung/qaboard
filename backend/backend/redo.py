@@ -5,6 +5,11 @@ We start a single `qa batch --runs-file` for all the runs we redo, so that the r
 to them together, e.g. how many runs are in flight (concurrency). Like other batches started from QA-Board,
 its script, the list of runs and the logs are saved in the batch directory, and users see them with the batch's logs.
 
+With QABOARD_TUNING_RUNNER=kubernetes, `qa batch` runs in a pod, like batches started from the web app
+(runner_jobs.submit_driver), and we don't wait for it. With the LSF bridge, we run it there and wait. Otherwise it runs on
+the server, detached like batches started from the web app with the local runner (local_jobs.py): the request doesn't
+wait for it, and it gets the server's environment minus its secrets.
+
 Note: almost everything used here comes from unauthenticated API calls (see shell_utils.py).
 """
 import os
@@ -13,14 +18,13 @@ import json
 import uuid
 import datetime
 import subprocess
-from pathlib import Path
 
 from backend import db_session
 from .shell_utils import quote, is_shell_safe, safe_user_name, lsf_bridge_command
 from .storage import check_storage_path
 from .fs_utils import mkdir_shared
 from .artifacts import ArtifactsUnavailable
-from .submissions import record_submission, user_batch_dir, submission_dir
+from .submissions import record_submission, user_batch_dir, submission_dir, startup_logs
 
 
 def _is_int(value) -> bool:
@@ -41,10 +45,17 @@ _lsf_resources_re = re.compile(r'^[\w .,:;=<>\[\](){}|&!*+/#%@~-]*$')
 
 # The job options of the runs we redo. `qa batch` uses them to build shell commands (e.g. bsub),
 # so we keep only those needed to run like before, with safe values. Others come from the project's qaboard.yaml.
+def _is_runner(value) -> bool:
+  # Kubernetes runs only when the server starts `qa batch` there too: its pod's ServiceAccount, not the server's
+  # credentials, may create them. Otherwise they'd run as the server's user (run_as: user).
+  return value in ("lsf", "dask", "local", "celery") or (value == "kubernetes" and os.environ.get('QABOARD_TUNING_RUNNER') == 'kubernetes')
+
 SAFE_JOB_OPTIONS = {
-  "type": lambda value: value in ("lsf", "dask", "local", "celery"),
+  "type": _is_runner,
   "concurrency": _is_int,
   "timeout": _is_number,
+  # Kubernetes: the namespace, image... come from qaboard.yaml
+  "runs_per_pod": _is_int,
   # LSF
   "queue": _is_word,
   "project": _is_word,
@@ -74,6 +85,11 @@ def run_spec(output) -> dict:
     "batch": data.get("batch"),
     "job_options": safe_job_options(data.get("job_options")),
   }
+
+
+def output_runner(output):
+  job_options = (output.data or {}).get("job_options")
+  return job_options.get("type") if isinstance(job_options, dict) else None
 
 
 def redo_script(ci_commit, user, command_id, batch_command) -> str:
@@ -112,7 +128,8 @@ def redo_script(ci_commit, user, command_id, batch_command) -> str:
 def redo_outputs(batch, outputs, user_info) -> dict:
   """
   Redo the `outputs` from `batch`, as `user_info` (the logged-in user who asked, g.user).
-  Returns the submission (see submissions.py): its status is "done" if `qa batch` could start the runs, "failed" otherwise.
+  Returns the submission (see submissions.py): its status is "done" if `qa batch` could start the runs, "failed" otherwise,
+  "submitted" when `qa batch` was started in a pod (QABOARD_TUNING_RUNNER=kubernetes) or still runs on the server.
   Raises ValueError (e.g. UnsafePathError) if the user name or folders are not safe to use.
   """
   user = safe_user_name(user_info['user_name'])
@@ -147,8 +164,9 @@ def redo_outputs(batch, outputs, user_info) -> dict:
   script_path = log_dir / 'redo.sh'
   with script_path.open('w') as f:
     f.write(script)
+  on_kubernetes = os.environ.get('QABOARD_TUNING_RUNNER') == 'kubernetes'
   # raises if the user or path are not safe to use in the LSF bridge
-  command = lsf_bridge_command(user, script_path)
+  command = None if on_kubernetes else lsf_bridge_command(user, script_path)
 
   submission = {
     "id": command_id,
@@ -156,8 +174,8 @@ def redo_outputs(batch, outputs, user_info) -> dict:
     "user": user,
     "kind": "redo",
     "runs": len(outputs),
-    # we run `qa batch` and wait for it, directly or via the LSF bridge
-    "runner": "bridge" if os.environ.get('QA_RUNNERS_LSF_BRIDGE') else "local",
+    # we run `qa batch` via the LSF bridge and wait for it, or start it on the server (detached) or in a pod
+    "runner": "kubernetes" if on_kubernetes else "bridge" if os.environ.get('QA_RUNNERS_LSF_BRIDGE') else "local",
     "command": batch_command,
     "log_dir": str(log_dir),
     "status": "submitting",
@@ -169,11 +187,28 @@ def redo_outputs(batch, outputs, user_info) -> dict:
   db_session.add(batch)
   db_session.commit()
 
-  print(command)
   try:
-    with (log_dir / 'log.txt').open('a') as log:
-      process = subprocess.run(command, shell=True, stdout=log, stderr=subprocess.STDOUT)
-    submission.update({"status": "done" if process.returncode == 0 else "failed", "exit_code": process.returncode})
+    if on_kubernetes:
+      from .runner_jobs import submit_driver
+      def record_driver(driver):
+        # before it's submitted: the batch can be stopped whatever happens next
+        submission.update(driver)
+        record_submission(batch, submission)
+        db_session.add(batch)
+        db_session.commit()
+      submission.update(submit_driver(script_path, log_dir, user_info, ci_commit, command_id, on_prepared=record_driver))
+      submission["status"] = "submitted"
+    elif os.environ.get('QA_RUNNERS_LSF_BRIDGE'):
+      print(command)
+      with (log_dir / 'log.txt').open('a') as log:
+        process = subprocess.run(command, shell=True, stdout=log, stderr=subprocess.STDOUT)
+      submission.update({"status": "done" if process.returncode == 0 else "failed", "exit_code": process.returncode})
+    else:
+      from .local_jobs import start_detached, qa_environment, project_uses_celery
+      # the runs are done again with their runner: they may need the broker
+      celery = (os.environ.get('QABOARD_TUNING_RUNNER') == 'celery' or project_uses_celery(ci_commit)
+                or any(output_runner(output) == 'celery' for output in outputs))
+      submission.update(start_detached(script_path, log_dir, qa_environment(command_id, celery=celery)))
   except Exception as e:
     submission.update({"status": "failed", "error": str(e)})
   # `qa batch` updated the batch meanwhile
@@ -187,10 +222,10 @@ def redo_outputs(batch, outputs, user_info) -> dict:
 def log_tail(submission, size=4000) -> str:
   """The end of the logs, to tell users why the runs failed to start"""
   try:
-    with (Path(submission['log_dir']) / 'log.txt').open(errors='replace') as f:
-      return f.read()[-size:]
-  except OSError:
-    return submission.get('error', '')
+    logs = startup_logs(submission['log_dir'], size=size)
+  except (KeyError, TypeError):
+    logs = None
+  return submission.get('error', '') if logs is None else logs
 
 
 def redo_response(batch, outputs, user_info):

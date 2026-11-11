@@ -54,7 +54,7 @@ integrations:
 # Experimental: may change without notice
 gate:
   reference: main
-  batches: [ci]
+  labels: [ci]
   rules:
     - {metric: ate_rmse, max_regression: 15%}                  # median over the sequences
     - {metric: ate_rmse, per_test_max_regression: 50%}         # no sequence much worse than in the reference

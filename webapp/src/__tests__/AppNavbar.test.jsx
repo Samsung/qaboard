@@ -8,6 +8,7 @@ import { MemoryRouter } from 'react-router';
 import AppNavbar from '../AppNavbar';
 import { ComparisonProvider } from '../hooks';
 import { history, matchRoutes, RouteMatch } from '../router';
+import { routes } from '../routes';
 import { renderWithProviders } from '../test-utils';
 
 
@@ -65,4 +66,14 @@ test('Picking a commit with the arrow keys, then Enter, goes to it', async () =>
   press(input, 'ArrowDown');
   press(input, 'Enter');
   expect(history.push).toHaveBeenCalledWith(`/${project}/commit/abc123`);
+});
+
+test.each([`/${project}/access`, `/${project}/admin/gate`])('%s has nothing to search: the navbar is empty', url => {
+  const { match } = matchRoutes(routes, url);
+  renderWithProviders(
+    <MemoryRouter initialEntries={[url]}><RouteMatch match={match}><ComparisonProvider><AppNavbar/></ComparisonProvider></RouteMatch></MemoryRouter>,
+    { siteConfig: {} },
+  );
+  expect(screen.queryByPlaceholderText(/Search commits/)).toBeNull();
+  expect(screen.queryByRole('textbox')).toBeNull();
 });

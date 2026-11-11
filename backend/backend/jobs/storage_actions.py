@@ -15,6 +15,7 @@ from ..database import db_session
 from ..models import Export, Output, TestInput, StorageScanEntry, Batch
 from ..storage import check_storage_path
 from ..fs_utils import rmtree, rm_empty_parents
+from qaboard.attempts import split as split_attempt, latest_attempt
 from .. import storage_usage, accounts
 from . import params as p
 from .common import quiet
@@ -178,6 +179,11 @@ class ImportRuns:
         continue
       if Output.query.filter(Output.output_dir_override == path).first():
         entry.action = 'imported'
+        continue
+      # What `qa` couldn't remove of a run that was done again (qaboard/attempts.py): its row has the latest attempt
+      first_dir, attempt = split_attempt(path)
+      if latest_attempt(first_dir) > attempt:
+        report.error('other', f"{path} is an earlier attempt of a run that was done again: delete it", path=path)
         continue
       run_info = read_json(Path(path) / 'run.json')
       if not isinstance(run_info, dict) or not run_info.get('input_path'):

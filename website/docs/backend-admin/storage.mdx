@@ -128,7 +128,8 @@ size you chose (*Details down to*, 50 MB by default: smaller items are counted w
 lists them anywhere, by kind, owner or age. Click an owner to see only theirs. Then select entries and:
 - **Delete…** them: only folders without anything QA-Board uses (runs, batches' files, artifacts) can be selected,
 - **Add runs to QA-Board**: untracked runs in a batch's folder are added to their batch, from their `run.json`,
-  manifest and metrics.
+  manifest and metrics. Not the earlier attempts of runs that were [done again](/docs/storage/where-is-the-data#reruns),
+  whose files `qa` couldn't remove: delete those.
 
 Users see what they own in **Storage usage → Not tracked**, from the latest scan, and can delete the folders whose
 files are all theirs. Admins see everyone's there when they choose *Everyone's*, or someone's from the *Users* tab.

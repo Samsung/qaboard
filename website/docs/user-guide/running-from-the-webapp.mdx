@@ -15,7 +15,7 @@ From a commit's page, you can run its code again without a terminal:
   **Sign in** button. You also need the developer role on the project: see
   [Project access](/docs/user-guide/project-access).
 - The commit's **artifacts**: the build and configuration files your CI saved. If they were deleted, QA-Board can bring them back first (see [If runs don't start](#if-runs-dont-start)).
-- A **task runner** for your project, like a compute cluster. If there is none, the form says so: ask whoever integrated QA-Board in your project.
+- A **task runner** for your project, like a compute cluster, that your QA-Board server can start runs on. If there is none, the form says so: ask whoever integrated QA-Board in your project to [choose one](/docs/runners), and your QA-Board admins to [let the server use it](/docs/backend-admin/runners).
 :::
 
 ## Run tests or a tuning experiment {#running-tests-and-tuning}
@@ -234,7 +234,8 @@ Runs start from the commit's artifacts. When some are missing, a message above t
 </details>
 
 Until the runs of a batch you started show up, a message at the top of the page says how it's going, e.g. **Your batch
-is waiting for LSF**: see [Batches started from QA-Board](/docs/user-guide/logs#started-from-qa-board).
+is waiting for LSF**: see [Batches started from QA-Board](/docs/user-guide/logs#started-from-qa-board). On Kubernetes,
+the batch's logs say why its pod waits, e.g. no node with a free GPU, and the runs' logs why theirs wait.
 
 <details>
 <summary>Every message of the Run Tests / Tuning form</summary>
@@ -245,7 +246,7 @@ is waiting for LSF**: see [Batches started from QA-Board](/docs/user-guide/logs#
 | **Fix this to start** | What would make the batch fail, e.g. an unknown batch, an invalid automated tuning configuration, a platform the project doesn't have. |
 | **Before you start** | What to know first, e.g. missing artifacts QA-Board will restore. |
 | **Tuning may not work** | The project's CI only saves artifacts on some branches, and not on this commit's: the message gives the commands to save them yourself, with `qa save-artifacts`. |
-| **Please configure async runners** | The project has no task runner: runs may be killed if they take too long. |
+| **Runs will start on the QA-Board server** | The project has no runner for a cluster or task queue: runs execute on the QA-Board server, share its CPUs, and stop if it restarts. Ask whoever integrated QA-Board in your project to [choose a runner](/docs/runners). |
 | **Why the batch has no tests**, **Check the batch files** | Under the batch: see [every problem flagged](/docs/user-guide/available-tests#problems). |
 | Under the **Start** button | What's missing (a batch label, a batch with tests), parameters that are not valid JSON or a function that fails, or too many runs. |
 | **Started …**, after you click | It started, and where QA-Board will email you. **Show its logs** opens the Logs view. |

@@ -4,8 +4,8 @@
  */
 import { render, screen, renderHook, waitFor, fireEvent } from '@testing-library/react';
 
-import { batchSubmissions, lastErrorLine, parseExitMarker, submissionState, useSubmissionStatus } from '../submissions';
-import { SubmissionCallout, failureSummary } from '../BatchSubmissions';
+import { batchSubmissions, is_final, lastErrorLine, parseExitMarker, submissionState, useSubmissionStatus, whereItRuns } from '../submissions';
+import { SubmissionCallout, failureSummary, waitingHint } from '../BatchSubmissions';
 import { parseLsfReport } from '../lsf';
 
 
@@ -55,6 +55,30 @@ describe('submissionState', () => {
     expect(batchSubmissions({ data: {} })).toEqual([])
   })
 
+  it('says where qa batch runs', () => {
+    expect(whereItRuns(lsf_submission)).toBe('LSF job 1234 (normal)')
+    expect(whereItRuns({ runner: 'kubernetes', kubernetes_job: 'qa-abcdef12-driver', namespace: 'algo-qa' })).toBe('Kubernetes job qa-abcdef12-driver in namespace algo-qa')
+    expect(whereItRuns({ runner: 'local', pid: 4321 })).toBe('on the QA-Board server (pid 4321)')
+    expect(whereItRuns({ runner: 'celery', pid: 4321 })).toBe('on the QA-Board server (pid 4321), runs sent to Celery workers')
+    // older submissions: qa batch ran during the request
+    expect(whereItRuns({ runner: 'local', status: 'done' })).toBeNull()
+  })
+
+  it('says why qa batch waits', () => {
+    expect(waitingHint(lsf_submission)).toBe("LSF hasn't started the job yet. The cluster may be busy.")
+    // the server reads what the runner said, e.g. why the driver pod is pending
+    const pending_note = 'The pod waits for a node: 0/3 nodes are available: 3 Insufficient nvidia.com/gpu.'
+    expect(waitingHint({ runner: 'kubernetes', status: 'submitted', pending_note })).toBe(pending_note)
+    expect(waitingHint({ runner: 'kubernetes', status: 'submitted' })).toBe("Kubernetes hasn't started the pod yet. The cluster may be busy.")
+  })
+
+  it('knows stopped batches', () => {
+    expect(submissionState({ runner: 'local', status: 'stopped', pid: 1 }).state).toBe('stopped')
+    expect(is_final('stopped')).toBe(true)
+    // killed on the server: the backend says why
+    expect(failureSummary({ runner: 'local', pid: 1 }, { error: 'qa batch stopped without an exit code' })).toBe('qa batch stopped without an exit code')
+  })
+
   it('failureSummary', () => {
     expect(failureSummary(lsf_submission, { report: memlimit })).toMatch(/^LSF: out of memory\. The run used more memory.*definition of the batch/)
     expect(failureSummary(lsf_submission, { exit_code: 1 })).toBe('qa batch exited with code 1.')
@@ -83,6 +107,37 @@ describe('useSubmissionStatus', () => {
     const calls = fetch.mock.calls.length
     await new Promise(resolve => setTimeout(resolve, 50))
     expect(fetch.mock.calls.length).toBe(calls)
+  })
+})
+
+
+describe('pending Kubernetes drivers', () => {
+  afterEach(() => vi.unstubAllGlobals())
+  const driver = { id: 'abcdef12-0001', created_at: '2026-11-05T10:00:00Z', user: 'roee', runner: 'kubernetes', status: 'submitted',
+    kubernetes_job: 'qa-abcdef12-driver', namespace: 'algo-qa', log_dir_url: '/s/batch/qaboard-batches/20261105-100000-abcdef12' }
+
+  it('says why the pod waits, from log.pending.txt, until qa batch writes logs', async () => {
+    const files = { 'log.pending.txt': 'The pod waits: 0/3 nodes are available: 3 Insufficient nvidia.com/gpu.\n' }
+    vi.stubGlobal('fetch', vi.fn(async url => {
+      const name = url.split('/').pop()
+      if (!(name in files)) return new Response('Not Found', { status: 404 })
+      const bytes = new TextEncoder().encode(files[name])
+      return new Response(bytes, { status: 206, headers: { 'Content-Range': `bytes 0-${bytes.byteLength - 1}/${bytes.byteLength}` } })
+    }))
+    const { result } = renderHook(() => useSubmissionStatus(driver, { interval: 10 }))
+    await waitFor(() => expect(result.current.pending).toBe('The pod waits: 0/3 nodes are available: 3 Insufficient nvidia.com/gpu.'))
+    expect(result.current.state).toBe('queued')
+    files['log.txt'] = '+ qa batch\n'
+    await waitFor(() => expect(result.current.state).toBe('running'))
+    expect(result.current.pending).toBeUndefined()
+  })
+
+  it('shows it in the callout, or what the server says', () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('Not Found', { status: 404 })))
+    const batch = { data: { submissions: { a: { ...driver, pending_note: 'Pulling the image registry.example.com/qa:1' } } } }
+    render(<SubmissionCallout batch={batch} has_runs={false} />)
+    expect(screen.getByText('Your batch is waiting for Kubernetes')).toBeInTheDocument()
+    expect(screen.getByText('Pulling the image registry.example.com/qa:1')).toBeInTheDocument()
   })
 })
 

@@ -26,6 +26,24 @@ data:
   # The web app gets image tiles from /iiif/2/<path of the image> (see cantaloupe.yaml)
   QABOARD_IMAGE_SERVERS: '{"default": "/iiif/2/"}'
   {{- end }}
+  {{- with .Values.runners.kubernetes }}
+  {{- if .enabled }}
+  {{- $kubernetes := dict
+        "QABOARD_TUNING_RUNNER" "kubernetes"
+        "QABOARD_KUBERNETES_NAMESPACES" (join "," .namespaces)
+        "QABOARD_KUBERNETES_SERVICE_ACCOUNT" (include "qaboard.runsServiceAccount" $)
+        "QABOARD_KUBERNETES_SERVER_URL" (include "qaboard.kubernetesServerUrl" $) }}
+  {{- if .allowHostPath }}{{ $_ := set $kubernetes "QABOARD_KUBERNETES_ALLOW_HOST_PATH" "1" }}{{ end }}
+  {{- if .allowRunAsImage }}{{ $_ := set $kubernetes "QABOARD_KUBERNETES_ALLOW_RUN_AS_IMAGE" "1" }}{{ end }}
+  {{- if .runAs }}{{ $_ := set $kubernetes "QABOARD_KUBERNETES_RUN_AS" (toString .runAs) }}{{ end }}
+  # runners.kubernetes: batches started from the web app run on Kubernetes (backend/backend/runner_jobs.py). config wins
+  {{- range $key, $value := $kubernetes }}
+  {{- if not (hasKey $.Values.config $key) }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  {{- end }}
+  {{- end }}
+  {{- end }}
   {{- range $key, $value := .Values.config }}
   {{ $key }}: {{ $value | quote }}
   {{- end }}

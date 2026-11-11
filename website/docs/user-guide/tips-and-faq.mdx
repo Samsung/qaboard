@@ -47,6 +47,17 @@ Its reference run is not exactly the same test: the closest match used another c
 one, or pick a reference batch with the same tests. See
 [How runs are matched](/docs/user-guide/comparing-results#how-runs-are-matched).
 
+### Why does a run say "attempt 3"? {#attempts}
+The run was done again, e.g. after a machine failed or someone retried a CI job, and the card shows the latest
+attempt. Hover the tag to see how the earlier attempts ended and what they measured; their logs are in the **Logs**
+view. A run that only passed on a later attempt may be flaky. See [run cards](/docs/user-guide/commit-page#run-cards).
+
+### What does the quality gate's comment on my pull request say? {#gate-comment}
+Your project's CI checks each commit's metrics against the reference with `qa gate`, and posts the result on the
+pull request: which rules pass or fail, with a link to the **Metrics Diff**. *Undecidable* means the results to
+compare aren't all there yet. See [The gate on pull requests](/docs/quality-gate-pull-requests#what-the-comment-says),
+and the [rules your project's owners set](/docs/user-guide/project-gate).
+
 ### The page says "No results" or "Error"
 - **No results**: the commit's CI batch has no finished runs. Check the CI pipeline, or pick another batch in the
   batch selector: the commit may only have tuning or local runs.

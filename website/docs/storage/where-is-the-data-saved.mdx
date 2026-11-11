@@ -70,6 +70,68 @@ Don't use `{user}` in the artifacts' path: runs started from the web app run as 
 wouldn't find the artifacts that the CI saved.
 :::
 
+## When a run is done again {#reruns}
+Shared and CI results are not replaced in place: when the same run (commit, label, input, configuration) is done
+again, `qa` saves it in a new folder. It removes the files of the previous attempt, and moves its log to the new
+folder.
+
+```text
+output/<configuration>/<input>/                         the first attempt's folder
+output/<configuration>/<input>/latest_attempt.txt       "3": the run was done again, its results are in...
+output/<configuration>/<input>_attempt3/                ...the third attempt's folder
+output/<configuration>/<input>_attempt3/log.attempt2.txt    with the logs of the attempts before it, the last 10
+```
+
+`output/` is the CI's results (label `default`); other labels are in `output/<label>/`. After a run is done again,
+the first attempt's folder only keeps *latest_attempt.txt*.
+
+- A run that is never done again is where it always was. Existing results need no change.
+- The web app shows the latest attempt, tagged **attempt 3**. QA-Board keeps a record of the earlier attempts: when
+  they ran, who ran them, how they ended and their metrics, on the tag, and their logs in the Logs view. It doesn't
+  average attempts: people run again after they fixed something, so an earlier attempt often measured something else.
+- Images from an earlier attempt can't show up from a cache: the paths are new.
+- `qa postprocess`, `qa sync`, `qa batch --action-on-existing` and `qa check-bit-accuracy` find the latest attempt,
+  also with `--offline`: they read *latest_attempt.txt*.
+- With `--keep-previous`, a run continues in its latest attempt's folder.
+- Local runs, in your project's `output/`, are still done again in place, like runs with `--output <folder>`. When
+  the web app shows a run that was done again in place, it remembers the earlier run too, and the image viewer
+  warns that images [may be stale](/docs/user-guide/image-viewer#new-and-reference).
+
+<details>
+<summary>Scripts that build the paths of results themselves</summary>
+
+Prefer asking `qa`: [`qa batch --list-output-dirs`, `qa get --input <input> output_dir`](/docs/apis#cli-api)
+and `qaboard.runs()` give the latest attempt's folder. Otherwise, read *latest_attempt.txt*:
+
+```bash
+dir=output/$configuration/$input
+[ -f "$dir/latest_attempt.txt" ] && dir="${dir}_attempt$(cat "$dir/latest_attempt.txt")"
+```
+
+To keep runs in one folder while you update such scripts, opt out for the project, or for one job with
+`export QA_RERUNS=in-place`:
+
+```yaml title="qaboard.yaml"
+outputs:
+  reruns: in-place
+```
+
+</details>
+
+<details>
+<summary>When things go wrong</summary>
+
+- **The previous attempt's files can't be removed**, e.g. they belong to someone else: `qa` warns and goes on.
+  They show in **Storage usage → Not tracked** after the next scan of the storage, for their owner or an admin to
+  delete.
+- ***latest_attempt.txt* can't be written**, e.g. the first attempt's folder belongs to someone else: `qa` warns and
+  does the run again in place.
+- **`qa batch` starts runs on machines with another version of `qaboard`**: upgrade them together. Until then,
+  `qa batch` and its runs can disagree on where a run that is done again is saved. `qa batch` reports the status
+  QA-Board has, so it needs the server.
+
+</details>
+
 ## Find a commit's folders from scripts {#accessing-storage-locations-programmatically}
 `qa get` prints them, e.g. `qa get outputs_commit`. Python code can import them from `qaboard.config`:
 

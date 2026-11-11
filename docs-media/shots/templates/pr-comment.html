@@ -1,0 +1,37 @@
+<!doctype html>
+<!-- The quality gate's comment as a code host renders it (ci/pr-comment): the comment's Markdown, rendered with
+     github-markdown-css, in a neutral frame that names the pull request. No code host's branding, logo or layout.
+     Filled by ci.spec.ts: {{css}} (github-markdown.css, which follows prefers-color-scheme), {{title}}, {{branches}}, {{author}}, {{body}}. -->
+<html>
+<head>
+<meta charset="utf-8">
+<title>Pull request comment</title>
+<style>
+{{css}}
+:root { --page: #f6f7f9; --card: #ffffff; --line: #d6dbe1; --muted: #5f6b7a; --text: #1c2127; --chip: #e8ecf1; }
+@media (prefers-color-scheme: dark) { :root { --page: #111418; --card: #0d1117; --line: #30363d; --muted: #8b949e; --text: #e6edf3; --chip: #21262d; } }
+body { margin: 0; background: var(--page); font: 14px/1.5 Roboto, "DejaVu Sans", sans-serif; color: var(--text); }
+.pr { width: 880px; padding: 20px 24px 24px; box-sizing: border-box; }
+.pr-title { font-size: 20px; font-weight: 500; margin: 0 0 4px; }
+.pr-meta { color: var(--muted); margin-bottom: 16px; }
+.pr-meta code { background: var(--chip); border-radius: 4px; padding: 1px 6px; font-size: 12px; }
+.comment { border: 1px solid var(--line); border-radius: 8px; background: var(--card); overflow: hidden; }
+.comment-head { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--line);
+  background: var(--chip); color: var(--muted); }
+.comment-head strong { color: var(--text); font-weight: 500; }
+.avatar { width: 20px; height: 20px; border-radius: 50%; background: #2d72d2; color: #fff; font-size: 10px;
+  display: inline-flex; align-items: center; justify-content: center; font-weight: 700; }
+.markdown-body { padding: 16px 20px 12px; background: var(--card) !important; font-size: 14px; }
+</style>
+</head>
+<body>
+<main class="pr">
+  <h1 class="pr-title">{{title}}</h1>
+  <div class="pr-meta">{{branches}}</div>
+  <article class="comment">
+    <div class="comment-head"><span class="avatar" aria-hidden="true">CI</span><strong>{{author}}</strong> commented</div>
+    <div class="markdown-body">{{body}}</div>
+  </article>
+</main>
+</body>
+</html>

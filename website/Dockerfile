@@ -39,6 +39,8 @@ COPY charts/ /charts/
 COPY deployments/quickstart/compose.yml /deployments/quickstart/compose.yml
 COPY examples/ /examples/
 COPY docs-media/shots.yaml /docs-media/shots.yaml
+# the pictures shown until planned shots are captured (docs-media/README.md, "Stand-ins"): the shot list names them
+COPY docs-media/standins/ /docs-media/standins/
 COPY qaboard/schemas/ /qaboard/schemas/
 COPY website/ ./
 

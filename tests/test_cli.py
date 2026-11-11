@@ -11,6 +11,11 @@ from click.testing import CliRunner
 
 os.environ['QA_TESTING'] = 'true'
 
+
+def mock_environ(**env):
+  from unittest import mock
+  return mock.patch.dict(os.environ, env)
+
 # Missing:
 # - tests with --share
 # - tests with CI=ON CI_COMMIT=XXXXXX
@@ -93,6 +98,103 @@ class TestQaCli(unittest.TestCase):
     assert result.exit_code == 0
     assert '/dev/null =>' in result.output
     assert "'is_failed': False" in result.output
+
+  def shared_output_dir(self, *qa_args):
+    result = self.qa('--share', *qa_args, 'get', '-i', 'cli_tests/a.jpg', 'output_dir')
+    assert result.exit_code == 0, result.output
+    return Path(result.stdout.splitlines()[-1])
+
+  def test_shared_runs_done_again_get_a_new_directory(self):
+    """Results saved in the storage are not replaced in place (qaboard/attempts.py), also offline"""
+    import tempfile
+    with tempfile.TemporaryDirectory() as storage, self.bit_accuracy_env(storage):
+      first = self.shared_output_dir()
+      assert Path(storage) / 'me' in first.parents
+      for attempt in (1, 2, 3):
+        result = self.qa('--share', 'run', '-i', 'cli_tests/a.jpg', f'echo "attempt {attempt}" > "{{output_dir}}/out.txt"')
+        assert result.exit_code == 0, result.output
+        output_dir = self.shared_output_dir()
+        assert output_dir == (first if attempt == 1 else first.with_name(f'{first.name}_attempt{attempt}'))
+        assert f"Outputs: {output_dir}\n" in click.unstyle(result.output)
+        assert (output_dir / 'out.txt').read_text().strip() == f'attempt {attempt}'
+        assert json.loads((output_dir / 'manifest.outputs.json').read_text()).keys() >= {'out.txt', 'run.json'}
+      # the previous attempts' files are removed, the first attempt's directory says where the run is
+      assert [p.name for p in first.iterdir()] == ['latest_attempt.txt']
+      assert (first / 'latest_attempt.txt').read_text() == '3\n'
+      assert not first.with_name(f'{first.name}_attempt2').exists()
+      # but their logs are kept with the latest attempt's, and listed with its files
+      for previous in (1, 2): # logs start with the command that ran
+        assert f'attempt {previous}' in (output_dir / f'log.attempt{previous}.txt').read_text()
+      assert 'attempt 2' not in (output_dir / 'log.txt').read_text()
+      assert json.loads((output_dir / 'manifest.outputs.json').read_text()).keys() >= {'log.attempt1.txt', 'log.attempt2.txt'}
+      # later commands find the latest attempt
+      result = self.qa('--share', 'postprocess', '-i', 'cli_tests/a.jpg')
+      assert f"Outputs: {output_dir}\n" in click.unstyle(result.output)
+      # --keep-previous continues in the latest attempt's directory, with its files
+      result = self.qa('--share', 'run', '-i', 'cli_tests/a.jpg', '--keep-previous', 'cat "{output_dir}/out.txt"')
+      assert result.exit_code == 0, result.output
+      assert self.shared_output_dir() == output_dir
+      assert (output_dir / 'out.txt').read_text().strip() == 'attempt 3'
+      # projects can opt out: the run is done again in place
+      with mock_environ(QA_RERUNS='in-place'):
+        result = self.qa('--share', 'run', '-i', 'cli_tests/a.jpg', 'echo "in place" > "{output_dir}/out.txt"')
+        assert result.exit_code == 0, result.output
+        assert self.shared_output_dir() == output_dir
+        assert (output_dir / 'out.txt').read_text().strip() == 'in place'
+
+  def test_local_runs_are_done_again_in_place(self):
+    """Runs saved in the working directory keep their path: people's editors and viewers are open on it"""
+    from unittest import mock
+    from qaboard.config import ci_env_variables
+    # in CI, runs are saved in the storage, like shared runs
+    not_ci = {k: v for k, v in os.environ.items() if k not in ci_env_variables}
+    with mock.patch.dict(os.environ, not_ci, clear=True):
+      result = self.qa('get', '-i', 'cli_tests/a.jpg', 'output_dir')
+      output_dir = Path(result.stdout.splitlines()[-1])
+      assert Path('output').resolve() in output_dir.resolve().parents
+      self.addCleanup(shutil.rmtree, output_dir, ignore_errors=True)
+      for attempt in (1, 2):
+        result = self.qa('run', '-i', 'cli_tests/a.jpg', f'echo "attempt {attempt}" > "{{output_dir}}/out.txt"')
+        assert result.exit_code == 0, result.output
+        assert (output_dir / 'out.txt').read_text().strip() == f'attempt {attempt}'
+      assert not (output_dir / 'latest_attempt.txt').exists()
+      assert not output_dir.with_name(f'{output_dir.name}_attempt2').exists()
+
+  def test_batch_reserves_the_directories_of_the_runs_it_starts(self):
+    """`qa batch` says where runs will be before they start, and their `qa run` uses the same directory"""
+    import tempfile
+    batch = ('--share', 'batch', '--batches-file', 'image.batches.yaml', 'images')
+    def output_dirs(*args):
+      result = self.qa(*batch, '--list-output-dirs', *args)
+      assert result.exit_code == 0, result.output
+      return [Path(d) for d in result.stdout.splitlines()[-3:]]
+    with tempfile.TemporaryDirectory() as storage, self.bit_accuracy_env(storage, QA_BATCH_QUIET='true'):
+      first = output_dirs()
+      # listing reserves nothing
+      assert not any(d.exists() for d in first)
+      self.qa('--share', 'run', '-i', 'cli_tests/a.jpg', 'echo first')
+      started = []
+      def start_jobs(jobs, job_options, blocking=True):
+        started.extend(job.run_context.output_dir for job in jobs)
+      from unittest import mock
+      self.qa(*batch, '--list') # loads the modules we patch
+      with mock.patch('qaboard.runners.local.LocalRunner.start_jobs', side_effect=start_jobs):
+        result = self.qa(*batch, reload_modules=False)
+      # a.jpg ran before: it gets a new directory, the others their first
+      a_again = first[0].with_name(f'{first[0].name}_attempt2')
+      assert started == [a_again, first[1], first[2]], result.output
+      assert (first[0] / 'latest_attempt.txt').read_text() == '2\n'
+      assert output_dirs() == started
+      # the job's `qa run` finds the directory its batch reserved, and removes the previous attempt's files
+      result = self.qa('--share', 'run', '-i', 'cli_tests/a.jpg', 'echo again > "{output_dir}/out.txt"')
+      assert f"Outputs: {a_again}\n" in click.unstyle(result.output)
+      assert [p.name for p in first[0].iterdir()] == ['latest_attempt.txt']
+      # runs that only do the postprocessing again stay where they are
+      with mock.patch('qaboard.runners.local.LocalRunner.start_jobs', side_effect=start_jobs):
+        started.clear()
+        self.qa(*batch, '--action-on-existing', 'postprocess', reload_modules=False)
+      assert started[0] == a_again
+      assert (first[0] / 'latest_attempt.txt').read_text() == '2\n'
 
   @unittest.skipIf(os.name == 'nt', "no SIGTERM")
   def test_aborted_run_is_failed(self):
@@ -407,6 +509,42 @@ class TestQaCli(unittest.TestCase):
       assert result.exit_code == 1
       assert checked(result) == [False, False] + 4 * [True] # write_runs changes both manifests
       assert 'Mismatch' in result.output
+
+  def test_check_bit_accuracy_finds_runs_done_again(self):
+    """Runs that were done again are in their latest attempt's directory (qaboard/attempts.py)"""
+    import tempfile
+    def done_again(first_dir, md5='same', run_info=None):
+      first_dir.mkdir(parents=True, exist_ok=True)
+      for path in first_dir.iterdir():
+        path.unlink()
+      (first_dir / 'latest_attempt.txt').write_text('2\n')
+      self.addCleanup(shutil.rmtree, first_dir, ignore_errors=True)
+      latest = first_dir.with_name(f'{first_dir.name}_attempt2')
+      self.write_runs([latest], md5)
+      if run_info:
+        (latest / 'run.json').write_text(json.dumps(run_info))
+    with tempfile.TemporaryDirectory() as storage, self.bit_accuracy_env(storage):
+      output_dirs, reference_dirs = self.list_output_dirs(), self.reference_dirs(storage)
+      self.write_runs(output_dirs)
+      self.write_runs(reference_dirs[1:])
+      done_again(reference_dirs[0])
+      result = self.check_bit_accuracy()
+      assert result.exit_code == 0, result.output
+      assert result.output.count('✔️') == 6
+      done_again(reference_dirs[0], md5='other')
+      result = self.check_bit_accuracy()
+      assert result.exit_code == 1
+      assert 'cli_tests/a.jpg  ["base"]  @manifest.outputs.json' in result.unstyled_output
+    # also when looking for the reference's closest run
+    with tempfile.TemporaryDirectory() as storage, self.bit_accuracy_env(storage):
+      ours = ['--configuration', 'delta-v1']
+      self.write_runs(self.list_output_dirs(*ours))
+      inputs = ['cli_tests/a.jpg', 'cli_tests/b.jpg', 'cli_tests/dir/c.jpg']
+      for d, input in zip(self.reference_dirs(storage, '--configuration', 'delta-v2'), inputs):
+        done_again(d, run_info={"database": ".", "input_path": input, "configurations": ["base", "delta-v2"], "extra_parameters": {}, "platform": "linux"})
+      result = self.check_bit_accuracy(*ours, args=['--reference-match', 'closest'])
+      assert result.exit_code == 0, result.output
+      assert result.output.count('✔️') == 6
 
   def test_check_bit_accuracy_closest_reference(self):
     """--reference-match closest compares with the reference's closest run on each input, like the web app"""

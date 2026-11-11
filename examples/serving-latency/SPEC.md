@@ -138,7 +138,7 @@ outputs:
       path: sweep.plotly.json          # ramp runs only: achieved req/s vs p99, one point per step
       side_by_side: false
     - name: CPU flame graph
-      path: cpu.flame.json
+      path: cpu.folded                 # folded stacks, in µs of CPU per 1,000 requests
     - name: CPU per core
       path: cores.plotly.json          # heatmap, cores x time, % busy
       default_hidden: true
@@ -158,19 +158,19 @@ outputs:
 - Plotly traces set `line.color` explicitly: with `side_by_side: false`, the web app then draws the reference dashed
   and faded (`webapp/src/viewers/plotly.jsx`). Runs without a file (only `ramp` has `sweep.plotly.json`) hide that
   visualization.
-- **`cpu.flame.json`** is the [d3-flame-graph](https://github.com/spiermar/d3-flame-graph) JSON the viewer reads
-  (`webapp/src/viewers/flame-graph.jsx`): a tree of `{"name": str, "value": int, "children": [...]}`.
-  - `value` is inclusive: a node's own samples plus its children's.
-  - The viewer matches new and reference nodes by their path of names, so names must be stable: demangled Rust
-    symbols without the hash suffix (`<gateway::cache::Shared>::respond`), no addresses; siblings with the same name
-    are merged; thread names lose their index (`worker-2` → `worker`), and are the root's children.
-  - The viewer subtracts raw values, so `value` is CPU time in µs **per 1,000 requests**, comparable across runs of
-    different lengths: samples × (the process's CPU time in the measured windows ÷ samples) ÷ requests answered in
-    them × 1,000. The profiler asks for 997 Hz, but the kernel's timer delivers fewer samples per CPU second:
-    weighting each sample by the measured CPU time keeps the values right.
+- **`cpu.folded`** is what gateway-bench's profiler writes: folded stacks (`thread;outer::frame;...;inner::frame
+  value` per line), which the flame graph viewer reads as they are (`webapp/src/viewers/flamegraph/formats.js`).
+  - The viewer matches new and reference frames by their path of names, so names must be stable: demangled Rust
+    symbols without the hash suffix (`<gateway::cache::Shared>::respond`), no addresses; thread names lose their
+    index (`worker-2` → `worker`), and are the stacks' first frames.
+  - `qa/main.py` rescales the samples with `qaboard.flamegraphs.save_flame_graph` to CPU time in µs **per 1,000
+    requests**, comparable across runs of different lengths, and says so in a `# unit:` line: samples × (the
+    process's CPU time in the measured windows ÷ samples) ÷ requests answered in them × 1,000. The profiler asks for
+    997 Hz, but the kernel's timer delivers fewer samples per CPU second: weighting each sample by the measured CPU
+    time keeps the values right. The viewer compares shares of each profile by default, and these values with
+    **Absolute**.
   - Sampling starts with the repeat (starting it costs a stall), and only the samples taken in the measured window
     count (counts at its end minus counts at its start).
-  - Nodes under 0.1% of the root are folded into their parent; the file stays under 1 MB.
 
 ## Batches (`qa/batches.yaml`)
 

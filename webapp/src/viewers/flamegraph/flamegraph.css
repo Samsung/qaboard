@@ -1,0 +1,157 @@
+/* The flame graph viewer (FlameChart.jsx, FlameGraphReport.jsx): d3-flame-graph's styles, following the theme */
+.flame-graph .d3-flame-graph rect {
+  stroke: var(--qa-surface, #ffffff);
+  fill-opacity: 0.85;
+}
+.flame-graph .d3-flame-graph g.frame {
+  outline: none;
+}
+.flame-graph .d3-flame-graph rect:hover {
+  stroke: #474747;
+  stroke-width: 0.5;
+  cursor: pointer;
+}
+.bp6-dark .flame-graph .d3-flame-graph rect:hover {
+  stroke: #f6f7f9;
+}
+.flame-graph .d3-flame-graph g.frame:focus-visible rect {
+  stroke: var(--qa-intent-primary, #2d72d2);
+  stroke-width: 2;
+}
+.flame-graph .d3-flame-graph-label {
+  pointer-events: none;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  font-size: 12px;
+  font-family: -apple-system, "BlinkMacSystemFont", "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
+  margin: 0 4px;
+  line-height: 18px;
+  color: #000000;
+}
+.flame-graph .d3-flame-graph .fade {
+  opacity: 0.6 !important;
+}
+.flame-graph .d3-flame-graph .title {
+  font-size: 16px;
+  fill: var(--qa-text-muted, #5f6b7c);
+}
+
+.qa-flame-graph {
+  color: var(--qa-text);
+  font-size: 13px;
+  min-width: 0;
+}
+.qa-flame-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.qa-flame-muted {
+  color: var(--qa-text-muted);
+}
+.qa-flame-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  align-items: center;
+  margin: 4px 0;
+  color: var(--qa-text-muted);
+}
+.qa-flame-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 4px;
+  vertical-align: -1px;
+  border-radius: 2px;
+}
+
+.qa-flame-tooltip {
+  display: none;
+  position: absolute;
+  z-index: 30;
+  max-width: 520px;
+  padding: 6px 10px;
+  border-radius: 3px;
+  background: #1c2127;
+  color: #f6f7f9;
+  font-size: 12px;
+  line-height: 1.5;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(17, 20, 24, 0.3);
+}
+.bp6-dark .qa-flame-tooltip {
+  background: #f6f7f9;
+  color: #1c2127;
+}
+.qa-flame-tooltip-name {
+  font-family: monospace;
+  font-weight: 600;
+  word-break: break-all;
+  margin-bottom: 2px;
+}
+.qa-flame-tooltip th {
+  text-align: left;
+  font-weight: normal;
+  opacity: 0.75;
+  padding-right: 12px;
+}
+
+.qa-flame-table-scroll {
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid var(--qa-border);
+  border-radius: 3px;
+}
+.qa-flame-table {
+  width: 100%;
+}
+.qa-flame-table th {
+  position: sticky;
+  top: 0;
+  background: var(--qa-surface);
+  z-index: 1;
+  white-space: nowrap;
+}
+.qa-flame-table td.qa-flame-number, .qa-flame-table th.qa-flame-number {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.qa-flame-table td.qa-flame-function {
+  font-family: monospace;
+  word-break: break-all;
+}
+.qa-flame-table tbody tr {
+  cursor: pointer;
+}
+.qa-flame-table tbody tr:hover, .qa-flame-table tbody tr:focus-visible {
+  background: var(--qa-hover);
+}
+.qa-flame-table tbody tr.qa-flame-selected {
+  background: var(--qa-highlight);
+}
+.qa-flame-slower {
+  color: #cd4246;
+}
+.qa-flame-faster {
+  color: #2d72d2;
+}
+.bp6-dark .qa-flame-slower {
+  color: #fa999c;
+}
+.bp6-dark .qa-flame-faster {
+  color: #8abbff;
+}
+.qa-flame-sort {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+}

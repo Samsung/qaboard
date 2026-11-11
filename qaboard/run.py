@@ -8,6 +8,7 @@ from typing import List, Dict, Optional, Any
 import click
 
 from .conventions import serialize_config, output_dirs_for_input_part
+from .attempts import latest_dir
 from .utils import merge, input_metadata
 
 
@@ -150,6 +151,8 @@ class RunContext():
             )
             # we don't want people using ../ in the input causing issues 
             assert output_dir.resolve().relative_to(ctx.obj['batch_conf_dir'].resolve())
+            # a run that was done again is in its latest attempt's directory: `qa run` reserves the next
+            output_dir = latest_dir(output_dir)
         else:
             output_dir = ctx.params.get('output_path')
 

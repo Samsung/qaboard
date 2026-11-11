@@ -112,16 +112,27 @@ const VIEWERS: Viewer[] = [
   {
     name: 'Performance',
     icon: icon(<path d="M12 3c.6 3.2 4.8 5.2 4.8 10a4.8 4.8 0 0 1-9.6 0c0-2.4 1.3-3.9 2.4-5 .2 1.5.9 2.5 1.8 3 .2-2.7-.4-5.4.6-8z" />),
-    title: 'Flame graphs and latency tails',
-    lead: 'See which functions changed, not only that p99 did. In a differential flame graph, new frames are orange, slower ones red, faster ones blue.',
+    title: 'Flame graphs, benchmarks, latency tails',
+    lead: 'See which functions changed, not only that p99 did. Save what your profiler writes: the flame graph diff colors functions that take a bigger share red, a smaller one blue, new ones orange, and a table ranks them.',
     points: [
+      {
+        term: 'Profilers’ files',
+        text: (
+          <>
+            Folded stacks, speedscope and Chrome’s <code>.cpuprofile</code>; <code>perf script</code> and pprof with a
+            helper. Search frames, see the share they take in each profile.
+          </>
+        ),
+      },
+      {
+        term: 'Benchmark harnesses’ files',
+        text: 'pytest-benchmark, Google Benchmark, hyperfine, Criterion, JMH, go test: each benchmark against the reference, gray when within the spread the harness measured.',
+      },
       {term: 'Latency percentiles', text: 'Your percentile plots, with the reference’s line on the same axes, out to the far tail.'},
-      {term: 'Any figure your benchmark draws', text: 'CPU per core, throughput against p99: new next to reference, or overlaid.'},
-      {term: 'Text outputs, diffed', text: 'Percentile distributions, logs or any text file, line by line against the reference’s.'},
     ],
     link: '/docs/user-guide/other-viewers#flame-graphs',
-    linkLabel: 'Flame graphs',
-    media: <Shot id="commit/flame-diff" caption="" />,
+    linkLabel: 'Flame graphs and benchmarks',
+    media: <Shot id="commit/flame-top-functions" caption="" />,
   },
   {
     name: 'Plots and reports',

@@ -26,6 +26,7 @@ from ..database import db_session
 from ..models import Project, CiCommit, Batch, Output
 from ..storage import check_storage_path
 from ..fs_utils import rmtree, rm_empty_parents
+from ..attempts import forget_attempts
 from . import params as p
 from .common import matching_projects, quiet, Folders, StorageUnavailable, Protection
 from .report import Reporter, utcnow
@@ -108,6 +109,8 @@ def delete_files(path: Path):
   with quiet():
     rmtree(path)
     rm_empty_parents(path)
+    # a run that was done again leaves its first attempt's folder, with only the latest attempt's number
+    forget_attempts(path)
 
 
 def chunks(items: list, size: int):

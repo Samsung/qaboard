@@ -109,9 +109,14 @@ const sidebars: SidebarsConfig = {
         'user-guide/sharing',
         'user-guide/files',
         'user-guide/storage-usage',
-        'user-guide/account',
-        'user-guide/project-access',
       ],
+    },
+    {
+      // A project's Admin pages (Access, Quality gate) and your own account
+      type: 'category',
+      label: 'Account and projects',
+      collapsed: false,
+      items: ['user-guide/account', 'user-guide/project-access', 'user-guide/project-gate'],
     },
     {
       type: 'category',
@@ -144,27 +149,36 @@ const sidebars: SidebarsConfig = {
         "computing-quantitative-metrics",
         "visualizations",
         "viewers",
+        // Performance results in the files harnesses and profilers write
+        "benchmarks",
+        "flame-graphs",
         "references-and-milestones",
       ],
     },
     {
       type: 'category',
       label: 'Run batches',
+      collapsed: false,
       items: [
         "batches-running-on-multiple-inputs",
-        "batches-advanced",
-        "using-the-qa-cli",
+        // Where runs execute: the overview picks a runner, then one page per runner, from a laptop to a cluster
         {
           type: 'category',
-          label: 'Runners',
+          label: 'Where runs execute',
+          link: {type: 'doc', id: 'runners'},
           items: [
+            "coming-from-other-tools",
             "local-multiprocessing",
-            "celery-integration",
             "lsf-integration",
             "dask-integration",
+            "kubernetes-runner",
+            "celery-integration",
             "jenkins-integration",
+            "doctor",
           ],
         },
+        "batches-advanced",
+        "using-the-qa-cli",
       ],
     },
     {
@@ -173,6 +187,7 @@ const sidebars: SidebarsConfig = {
       items: [
         "ci-integration",
         "quality-gate",
+        "quality-gate-pull-requests",
         "triggering-third-party-tools",
         "apis",
         "http-api",
@@ -210,6 +225,7 @@ const sidebars: SidebarsConfig = {
         "backend-admin/sign-in",
         "backend-admin/project-access",
         "backend-admin/storage",
+        "backend-admin/runners",
         "backend-admin/annotations",
         "backend-admin/monitoring",
         "backend-admin/usage-analytics",

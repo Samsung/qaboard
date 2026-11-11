@@ -10,6 +10,7 @@ from .Milestone import *
 from .BatchNotification import *
 from .AuditEvent import *
 from .Setting import *
+from .ProjectSettings import *
 from .SignIn import *
 from .Access import *
 from .Job import *

@@ -64,6 +64,18 @@ describe('Access page, for owners', () => {
     expect(match.params.project_id).toBe('a/b/c');
   });
 
+  it('starts with the tabs of the Admin pages', async () => {
+    mockApi({ 'GET /api/v1/project/access': manager_access() });
+    renderAt(`/${project}/access`, <AccessPage/>, { user: alice });
+    const tabs = within(screen.getByRole('navigation', { name: 'Project admin' }));
+    expect(tabs.getByRole('link', { name: 'Access' })).toHaveAttribute('aria-current', 'page');
+    expect(tabs.getByRole('link', { name: 'Quality gate' })).toHaveAttribute('href', `/${project}/admin/gate`);
+    // above the page's title
+    const title = screen.getByRole('heading', { name: 'Access', level: 2 });
+    expect(tabs.getByRole('link', { name: 'Access' }).compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await screen.findByRole('table', { name: 'Members' });
+  });
+
   it('lists the members, inherited ones read-only', async () => {
     mockApi({ 'GET /api/v1/project/access': manager_access() });
     renderAt(`/${project}/access`, <AccessPage/>, { user: alice });

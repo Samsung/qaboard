@@ -77,7 +77,7 @@ integrations:
 # Experimental: may change without notice
 gate:
   reference: main
-  batches: [ci]
+  labels: [ci]
   rules:
     - {metric: psnr, max_regression: 1%}
     - {metric: overshoot, max_regression: 20%}

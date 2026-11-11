@@ -1,0 +1,65 @@
+{
+  "$schema": "https://samsung.github.io/qaboard/benchmarks.schema.json",
+  "qaboard_benchmarks": 1,
+  "source": "jmh",
+  "context": {
+    "harness": "JMH 1.37 (OpenJDK 64-Bit Server VM 21.0.4)"
+  },
+  "benchmarks": [
+    {
+      "name": "com.kitefin.telemetry.CodecBenchmark.encode[size=64]",
+      "group": "com.kitefin.telemetry.CodecBenchmark",
+      "params": {
+        "size": "64"
+      },
+      "value": 5.821346719213751e-08,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 5.821346719213751e-08,
+        "median": 5.818930217091323e-08,
+        "min": 5.7701221031282134e-08,
+        "max": 5.880137715210041e-08,
+        "error": 1.0423107713004386e-09,
+        "rounds": 6,
+        "samples": 6
+      }
+    },
+    {
+      "name": "com.kitefin.telemetry.CodecBenchmark.encode[size=4096]",
+      "group": "com.kitefin.telemetry.CodecBenchmark",
+      "params": {
+        "size": "4096"
+      },
+      "value": 3.4121053214218703e-06,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 3.4121053214218703e-06,
+        "median": 3.4101820131771703e-06,
+        "min": 3.3803211201938003e-06,
+        "max": 3.4502188211830125e-06,
+        "error": 8.133201110223049e-08,
+        "rounds": 6,
+        "samples": 6
+      }
+    },
+    {
+      "name": "com.kitefin.telemetry.RouteBenchmark.lookup",
+      "group": "com.kitefin.telemetry.RouteBenchmark",
+      "value": 41203812.20517381,
+      "unit": "ops/s",
+      "statistic": "mean",
+      "smaller_is_better": false,
+      "stats": {
+        "mean": 41203812.20517381,
+        "median": 41188301.72201811,
+        "min": 41011209.812031224,
+        "max": 41420110.271892324,
+        "error": 612208.1127041802,
+        "rounds": 5,
+        "samples": 5
+      }
+    }
+  ]
+}

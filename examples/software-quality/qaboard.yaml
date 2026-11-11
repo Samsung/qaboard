@@ -52,7 +52,7 @@ integrations:
 # suite couldn't run at all (max_failed_runs).
 gate:
   reference: main
-  batches: [ci]
+  labels: [ci]
   rules:
     - {metric: failed, max: 0, aggregate: max}          # no suite has a failing test (flaky ones are reported, not gated)
     - {metric: errors, max: 0, aggregate: max}          # nor errors in fixtures or collection

@@ -139,23 +139,16 @@ Figures saved as HTML, e.g. with `fig.write_html('graph.plotly.html')`, show sid
 can't be drawn on the same axes.
 
 ## Flame graphs {#flame-graphs}
-**Files:** *.flame.json*, a tree in [d3-flame-graph](https://github.com/spiermar/d3-flame-graph)'s format:
-`{"name": "main", "value": 1200, "children": [...]}`, where `value` includes the children's.
+<Anchor id="flame-graph-recipes" />
 
-The viewer shows the new run's profile, colored by how each frame changed against the reference: a
-[differential flame graph](https://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html). It matches
-frames by their path of names, so:
-- keep the names stable between runs: no addresses, hashes or thread numbers;
-- use values that compare across runs, e.g. microseconds of CPU per 1,000 requests rather than samples.
+**Files:** what profilers write, as they are: folded stacks (*\*.folded*, *\*.collapsed*, *\*.stacks.txt*, gzipped
+too), speedscope files (*\*.speedscope.json*), Chrome/V8 CPU profiles (*\*.cpuprofile*), d3-flame-graph trees
+(*\*flame.json*), or any file with `type: flame/...`. `qaboard.flamegraphs` converts `perf script`'s output and pprof
+files.
 
-The [serving latency example](/docs/use-cases/serving-latency) turns `perf`'s folded stacks into this file, in
-[`qa/flame.py`](https://github.com/Samsung/qaboard/blob/master/examples/serving-latency/qa/flame.py). To record
-profiles, see the [flame graphs blog post](/blog/2020/06/24/flame-graphs).
-
-<Shot
-  id="commit/flame-diff"
-  caption="Rendering responses under the shared cache's lock is new (orange); the model's forward pass runs less (blue): cache hits skip it."
-/>
+The viewer draws the new run's profile as a differential flame graph against the reference's. How to record a profile
+with perf, py-spy, async-profiler, Go or Node.js, the formats and the `unit` option:
+[Profiles and flame graphs](/docs/flame-graphs).
 
 ## Test reports {#test-reports}
 **Files:** *junit.xml*, *\*.junit.xml*, *\*-junit.xml*, *TEST-\*.xml* (Maven Surefire and Gradle), or any file with
@@ -194,6 +187,17 @@ outputs:
   [software quality example](https://github.com/Samsung/qaboard/blob/master/examples/software-quality/qa/main.py)
   does it for pytest.
 - **Skipped tests** are those with `<skipped>`, and GoogleTest's `DISABLED_` tests.
+
+## Benchmarks {#benchmarks}
+<Anchor id="benchmark-metrics" /><Anchor id="benchmarks-format" />
+
+**Files:** what pytest-benchmark, Google Benchmark, hyperfine, Criterion, JMH and `go test -bench` write, named like
+*benchmarks.json*, *\*.benchmarks.json*, *\*-bench.json* or *\*_benchmark.json* (or *.jsonl*), or any file
+with `type: benchmarks`.
+
+The viewer shows each benchmark next to the reference run's, with the change and the spread the harness measured.
+The harnesses' commands, `benchmark_metrics` to make each benchmark a metric, and QA-Board's own format:
+[Benchmark suites](/docs/benchmarks).
 
 ## Text {#text}
 **Files:** any file no other viewer opens, like *.txt*, *.json*, *.yaml* or *.log*, or `type: text/plain`.

@@ -1,0 +1,187 @@
+---
+id: runners
+title: Choose where runs execute
+sidebar_label: Where runs execute
+description: Pick the runner that sends the runs of qa batch to your computer, an HPC cluster, Kubernetes, Celery workers or Windows hosts, and know what each one needs.
+---
+
+`qa batch` hands its runs to a *runner*: your computer, an HPC cluster, Kubernetes, a pool of workers. Pick the
+runner that matches the compute you already have, set it in *qaboard.yaml*, and every batch goes there. Whatever the
+runner, the runs are the same `qa run` commands, and the web app shows their results the same way.
+
+## Pick a runner {#pick-a-runner}
+
+| Where you have compute | Runner | Each run is | Read |
+|---|---|---|---|
+| Your computer, or one big machine | `local` | a process, several at a time | [Your machine](/docs/local-multiprocessing) |
+| An LSF cluster | `lsf` | an LSF job, in job arrays with a limit on how many run at once | [LSF](/docs/lsf-integration) |
+| A Slurm, PBS, SGE, HTCondor, OAR or Moab cluster | `dask` | a task on a few worker jobs that `qa batch` starts on the cluster | [Dask on HPC schedulers](/docs/dask-integration) |
+| Many short runs on an HPC cluster | `dask` | the same: workers start once, and the runs don't wait for the scheduler | [Dask on HPC schedulers](/docs/dask-integration) |
+| A Kubernetes cluster | `kubernetes` | a pod of a Kubernetes Job, or several runs one after the other in each pod | [Kubernetes](/docs/kubernetes-runner) |
+| A Kubernetes cluster, with many short runs | `dask` | a task on Dask workers that run as pods | [Dask on Kubernetes](/docs/dask-integration#kubernetes) |
+| Machines that are always on (GPU boxes, lab machines) | `celery` | a task that a Celery worker picks up | [Celery](/docs/celery-integration) |
+| Windows machines, through Jenkins | `windows` | a build of a Jenkins job | [Windows with Jenkins](/docs/jenkins-integration) |
+
+Already running batches with MLflow, W&B Launch, ClearML, Slurm job arrays or Kubernetes Jobs? See
+[Coming from another tool](/docs/coming-from-other-tools): each one, mapped to *qaboard.yaml*.
+
+:::info What every runner needs
+- **The same files at the same paths.** The machines that do the runs read your code in the folder where you start
+  `qa batch`, your inputs, and write to the results storage, at the same paths as the machine where you start it,
+  e.g. on an NFS share. With Kubernetes, you mount them in the pods.
+- **The same environment.** They run `qa run` with your code's dependencies: the same Python environment on a shared
+  drive, or an image that has them.
+- **Your environment variables.** Runners forward them to the runs. Celery and Kubernetes leave out secrets (names
+  with `TOKEN`, `PASSWORD`, `SECRET`...), Dask and Kubernetes those specific to a host, like `CUDA_VISIBLE_DEVICES`.
+  Kubernetes also leaves out `PATH`, `HOME` and the paths the pods don't mount: see
+  [the runs' environment](/docs/kubernetes-runner#environment).
+:::
+
+Some runners need optional packages, where you run `qa`: `pip install "qaboard[kubernetes]"`,
+`"qaboard[dask]"` (`"qaboard[dask-kubernetes]"` for Dask workers on Kubernetes) or `"qaboard[celery]"`.
+
+## Set the runner {#set-the-runner}
+Set the default runner in *qaboard.yaml*, with its settings:
+
+<Tabs groupId="runner" queryString>
+<TabItem value="local" label="Local" default>
+
+```yaml title="qaboard.yaml"
+runners:
+  default: local
+  local:
+    concurrency: -1  # one run per CPU
+```
+
+See [Run batches on your machine](/docs/local-multiprocessing).
+
+</TabItem>
+<TabItem value="lsf" label="LSF">
+
+```yaml title="qaboard.yaml"
+runners:
+  default: lsf
+  lsf:
+    queue: <your-queue>
+    concurrency: 20  # at most 20 runs at the same time
+```
+
+See [Run batches on an LSF cluster](/docs/lsf-integration).
+
+</TabItem>
+<TabItem value="dask" label="Dask">
+
+```yaml title="qaboard.yaml"
+runners:
+  default: dask
+  dask:
+    concurrency: 20
+    cluster:
+      type: slurm          # or lsf (the default), pbs, sge, htcondor, oar, moab, kubernetes, local
+      queue: <your-queue>
+      cores: 4
+      memory: 16GB
+```
+
+See [Dask on HPC schedulers](/docs/dask-integration).
+
+</TabItem>
+<TabItem value="kubernetes" label="Kubernetes">
+
+```yaml title="qaboard.yaml"
+runners:
+  default: kubernetes
+  kubernetes:
+    namespace: <your-namespace>
+    image: <your-image>
+    mounts:
+      - path: /mnt/qaboard
+        pvc: <your-claim>
+```
+
+See [Run batches on Kubernetes](/docs/kubernetes-runner).
+
+</TabItem>
+<TabItem value="celery" label="Celery">
+
+```yaml title="qaboard.yaml"
+runners:
+  default: celery
+  celery:
+    broker_url: pyamqp://guest:guest@<your-qaboard-host>:5672//
+```
+
+See [Run batches on Celery workers](/docs/celery-integration).
+
+</TabItem>
+</Tabs>
+
+`<your-queue>`, `<your-namespace>`, `<your-image>`, `<your-claim>` and `<your-qaboard-host>` are your scheduler's
+queue, your Kubernetes namespace, an image with `qa` and your code's dependencies, the PersistentVolumeClaim of your
+shared storage, and your QA-Board server's hostname.
+
+Then check the setup, and run a batch:
+
+```bash
+qa doctor --test-job
+qa --share batch ci
+```
+
+[`qa doctor`](/docs/doctor) checks *qaboard.yaml*, the server, the storage and the runner, and says how to fix what
+doesn't work. To use another runner for one command: `qa batch --runner local ci`.
+
+<details>
+<summary>How qa picks the runner, and settings per batch</summary>
+
+- `--runner` wins, then `runners.default`. Without `runners.default`, `qa batch` uses the first runner configured
+  under `runners` other than `local`, else `local`.
+- Every runner setting can also be set per input type, per batch and on the command line: see
+  [runner settings per batch](/docs/batches-running-on-multiple-inputs#runner-settings-per-batch).
+- A batch can't choose its runner yet: `runner:` in a batch is ignored.
+
+</details>
+
+## Compare the runners {#compare-the-runners}
+What changes from one runner to the other: whether `qa batch --no-wait` returns once the runs are sent, and what the
+web app can do with them.
+
+| Runner | `--no-wait` | Stop runs from the web app | Start and redo runs from the web app |
+|---|---|---|---|
+| `local` | No: `qa batch` waits for the runs | Yes when the server started them, on the server itself. Started elsewhere: marks them as failed, the runs go on | Yes, where the server runs `qa batch`: by default on the server itself, for small batches |
+| `lsf` | Yes | Yes, with `bkill` | Yes, as the user who starts them |
+| `dask` | Yes: a driver job keeps the runs going | Yes, except with `cluster.type: local`. Slurm, PBS, SGE, HTCondor and OAR need their commands on the server; an existing cluster, its scheduler in the server's settings | Yes |
+| `kubernetes` | Yes | Yes: deletes the batch's Jobs | Yes, as the user who starts them |
+| `celery` | Yes | Yes: revokes the tasks, when they were sent to the server's broker, with Celery 5.3 or later | Yes |
+| `windows` | Yes | No | Redo isn't supported |
+
+Stopping and starting runs from the web app needs settings on the server: your QA-Board admins follow
+[Run batches from the web app](/docs/backend-admin/runners).
+
+<details>
+<summary>Logs of each runner</summary>
+
+Every run has its `log.txt`, written by `qa run`. Runners add what they see, in the run's output directory:
+
+| Runner | Extra log | What it has |
+|---|---|---|
+| `lsf` | `log.lsf.txt` | Everything the job printed, then LSF's report: exit code, memory, why LSF killed it |
+| `dask` | `log.dask.txt` | Everything the run printed; worker logs are in the batch's folder |
+| `kubernetes` | `log.k8s.txt`, `log.pending.txt` | Everything the pod printed. While the pod waits, why, e.g. no node with a free GPU |
+
+The web app's **Logs** view shows them, next to `log.txt`.
+
+</details>
+
+## Where to go next
+
+<Cards>
+  <Card title="Check your setup" to="/docs/doctor">
+    `qa doctor` checks everything a batch needs, and prints how to fix each problem.
+  </Card>
+  <Card title="Coming from another tool" to="/docs/coming-from-other-tools">
+    MLflow, W&B Launch, ClearML, Slurm arrays, Kubernetes Jobs, Ray, CI matrices: the same in QA-Board.
+  </Card>
+  <Card title="Run batches from the web app" to="/docs/backend-admin/runners" eyebrow="Admin">
+    What the server needs to start, redo and stop runs for your users.
+  </Card>
+</Cards>

@@ -1,0 +1,19 @@
+goos: linux
+goarch: amd64
+pkg: example.com/kitefin/telemetry/codec
+cpu: AMD EPYC 7763 64-Core Processor
+BenchmarkEncode/size=64-8         	18271582	        65.43 ns/op	 978.15 MB/s	      64 B/op	       1 allocs/op
+BenchmarkEncode/size=64-8         	18402211	        64.91 ns/op	 985.98 MB/s	      64 B/op	       1 allocs/op
+BenchmarkEncode/size=64-8         	18120473	        66.02 ns/op	 969.40 MB/s	      64 B/op	       1 allocs/op
+BenchmarkDecode-8                 	 4887216	       245.1 ns/op
+BenchmarkDecode-8                 	 4901730	       243.7 ns/op
+BenchmarkDecode-8                 	 4873122	       246.4 ns/op
+PASS
+ok  	example.com/kitefin/telemetry/codec	9.812s
+goos: linux
+goarch: amd64
+pkg: example.com/kitefin/telemetry/route
+cpu: AMD EPYC 7763 64-Core Processor
+BenchmarkLookup-8                 	   10000	    103518 ns/op	   12288 B/op	      48 allocs/op
+PASS
+ok  	example.com/kitefin/telemetry/route	1.204s

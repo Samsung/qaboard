@@ -309,8 +309,8 @@ const CommitsListNavbar = () => {
 
 const AppNavbar = () => {
   const { selected } = useComparison();
-  // the Access page has nothing to search or filter
-  if (selected.route.is_access) return <StyledNavbar aria-hidden="true"/>;
+  // the Access page and the project's other Admin pages have nothing to search or filter
+  if (selected.route.is_access || selected.route.is_project_admin) return <StyledNavbar aria-hidden="true"/>;
   return selected.route.is_commit ? <CommitsNavbars/> : <CommitsListNavbar/>;
 }
 

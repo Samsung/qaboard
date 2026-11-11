@@ -165,6 +165,14 @@ backend:
     minReplicas: 2
     maxReplicas: 6
     targetCPUUtilizationPercentage: 70
+  # The backend's ServiceAccount. By default the backend uses the namespace's default ServiceAccount, without its token.
+  # The chart creates <release>-qaboard-backend when `create` is true or with runners.kubernetes.enabled (the token is
+  # only mounted then). `name`: an existing ServiceAccount to use instead, e.g. with permissions you manage.
+  serviceAccount:
+    create: false
+    name: ""
+    # e.g. for workload identity
+    annotations: {}
 
 # Database migrations run in a Job before each upgrade (and after the first install)
 migrations:
@@ -214,6 +222,63 @@ cantaloupe:
   # It reads /iiif/2/<path> from /repository/<path>
   extraVolumes: []
   extraVolumeMounts: []
+
+# Start the batches users ask for in the web app on Kubernetes, and stop Kubernetes batches (the kubernetes runner).
+# `qa batch` runs in a pod (a Job) as the signed-in user's UID/GID (from the backend's accounts: /etc/passwd or
+# QABOARD_ACCOUNTS_COMMAND; only for users who sign in with the directory: LDAP, SAML, OIDC), with the commit's
+# runners.kubernetes (image, mounts...) from its qaboard.yaml, and starts the runs' Jobs. The pods must see the code,
+# inputs and results at the same paths as the backend (e.g. NFS or PVCs).
+# The chart creates, in each namespace (they must exist):
+# - a Role <release>-qaboard-runs with the runner's permissions: jobs (create, get, list, watch, delete), configmaps
+#   (create, get, delete), pods and events (get, list, watch), pods/log (get), Kueue localqueues (get)
+# - a ServiceAccount (serviceAccount) for the pods that run `qa batch`, bound to it
+# - a RoleBinding for both, and for the backend's ServiceAccount (backend.serviceAccount)
+# and sets the backend's QABOARD_TUNING_RUNNER=kubernetes, QABOARD_KUBERNETES_NAMESPACES, QABOARD_KUBERNETES_SERVICE_ACCOUNT
+# and QABOARD_KUBERNETES_SERVER_URL (`config` wins). Installing it needs the permission to create Roles there.
+#
+# Security: A NAMESPACE IS A TRUST DOMAIN. `qa batch` runs the commit's code with the namespace's runs ServiceAccount,
+# which can create Jobs: any pod the namespace accepts, as any UID it accepts. Everyone who can start batches from the
+# web app in a namespace can act as anyone else in it (an admission policy on the qaboard.io/user label can't tell
+# them apart: they share the ServiceAccount). Use one namespace per team. QA-Board starts `qa batch` as the user (never
+# as root, nor as a UID from qaboard.yaml or the image's user unless allowRunAsImage), without job_template, the server's environment, or hostPath mounts
+# (unless allowHostPath), but what runs may do (users, volumes, privileges) is up to the namespace: enforce it with Pod
+# Security Admission ("restricted" or "baseline") and admission policies, and quotas with ResourceQuota or Kueue.
+# With runAs: "<uid>:<gid>" (a team account) and a ValidatingAdmissionPolicy that pins runAsUser for the runs
+# ServiceAccount, a namespace's batches are isolated from other namespaces' users.
+# See website/docs/backend-admin/runners.mdx and website/docs/kubernetes-runner.mdx
+runners:
+  kubernetes:
+    enabled: false
+    # Where QA-Board may start and stop runs (QABOARD_KUBERNETES_NAMESPACES). Batches of commits whose
+    # runners.kubernetes.namespace is not set go to the first one.
+    namespaces: []
+    #  - algo-qa
+    # The ServiceAccount of the pods that run `qa batch`, created in each namespace (QABOARD_KUBERNETES_SERVICE_ACCOUNT).
+    # Default: <release>-qaboard-runs
+    serviceAccount: ""
+    # Who the pods that run `qa batch` run as (QABOARD_KUBERNETES_RUN_AS): "" or "user", the signed-in user's UID/GID,
+    # or "<uid>:<gid>", one account for all the batches started from QA-Board.
+    runAs: ""
+    # How those pods reach QA-Board (QABOARD_KUBERNETES_SERVER_URL). Default: the proxy's Service,
+    # http://<release>-qaboard-proxy.<release namespace>.svc
+    serverUrl: ""
+    # Lets projects mount hostPath volumes (runners.kubernetes.mounts[].host_path) in the pods that run `qa batch`
+    # (QABOARD_KUBERNETES_ALLOW_HOST_PATH). They need the namespace's "privileged" Pod Security level: avoid it.
+    allowHostPath: false
+    # Lets projects with runners.kubernetes.run_as: image run the pods that run `qa batch` as their image's user, never
+    # root (QABOARD_KUBERNETES_ALLOW_RUN_AS_IMAGE). Whoever can push to a project then picks the UID its batches run
+    # as, with its mounts: only where admission policies pin the UIDs. Off: those batches are refused.
+    allowRunAsImage: false
+    # Dask clusters on Kubernetes (runners.dask.cluster.type: kubernetes, needs the Dask operator in the cluster):
+    # the Role also allows daskclusters, daskworkergroups, daskjobs, daskautoscalers (create, get, list, watch, patch,
+    # delete) and services (get, list, watch). The backend deletes the DaskClusters of the batches users stop.
+    # Dask clusters on Slurm, PBS, SGE... are stopped with their command (scancel, qdel...): it must be in the backend's image.
+    dask: false
+    # More rules for the Role
+    extraRules: []
+    #  - apiGroups: [""]
+    #    resources: [persistentvolumeclaims]
+    #    verbs: [get]
 
 # Only needed with QABOARD_TUNING_RUNNER=celery
 # Celery workers run the commands of the tasks they get: anyone who can connect to RabbitMQ can run commands on them.

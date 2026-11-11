@@ -17,8 +17,8 @@ Most teams end up with QA-Board next to one of them, not instead of it.
 | Is this change better than what we ship, on every input, and why? | **QA-Board** | What it's built for. |
 | Which training run converged best? | An experiment tracker: Weights & Biases, MLflow, TensorBoard | After training: the checkpoint you'd ship, against the model you shipped, input by input. |
 | How does our LLM app behave with real users? | An LLM observability platform: Langfuse, LangSmith, Arize Phoenix | Before release: your eval suite, task by task, on every commit. |
-| Which of our 50,000 tests are flaky? | Test analytics: ReportPortal, Develocity, your CI's test insights | Suites next to your other metrics, tests against the reference's, a gate on deleted tests. |
-| Is this function 3% slower? | Continuous benchmarking: CodSpeed, Bencher, asv | End-to-end: latency distributions under load, flame graph diffs, History. |
+| Which of our 50,000 tests are flaky? | Test analytics: ReportPortal, Develocity, your CI's test insights | Suites next to your other metrics, tests against the reference's, a gate on deleted tests, retries on record. |
+| Is this function 3% slower? | Continuous benchmarking: CodSpeed, Bencher, asv | Your harness's files against the reference's, within its spread or not; end to end, latency under load and flame graph diffs. |
 | Is production healthy right now? | Monitoring and APM | Not QA-Board's job: it catches regressions before they ship. |
 
 ## What QA-Board does differently
@@ -38,7 +38,9 @@ Most teams end up with QA-Board next to one of them, not instead of it.
 5. **The whole team, from the browser.** Anyone can rerun tests with other parameters, start a sweep or an automated
    tuning, and read what it found, without a terminal.
 6. **Built for releases.** Milestones for what shipped, bit-accuracy checks before a hardware handoff, and a quality
-   gate in CI (`qa gate`, experimental). Coding agents run the same tests and meet the same targets as people.
+   gate in CI (`qa gate`, experimental) that comments on the pull request, with rules a project's owners set out of
+   the commits' reach. Coding agents run the same tests and meet the same targets as people, and a run done again
+   keeps the record of its earlier attempts.
 7. **Proven in production.** Samsung's central quality platform since 2018: about 50 projects and more than 40
    million runs.
 
@@ -99,16 +101,27 @@ builds, failures grouped by cause, flaky tests across an organization, coverage 
 
 QA-Board follows each suite as a run: counts, failures, flaky and skipped tests and coverage over time, next to your
 other quality metrics, with each suite's tests compared with the reference's and a gate that catches tests deleted to
-get a green CI (see [tests and coverage](/docs/use-cases/software-quality)). It has no history of a single test case,
-and doesn't comment on pull requests.
+get a green CI (see [tests and coverage](/docs/use-cases/software-quality)). The gate (experimental) comments on pull
+requests with its verdict, and lists the runs that only passed after a retry: a run done again keeps how its earlier
+attempts ended and their logs. QA-Board has no history of a single test case, and doesn't group failures by cause
+across builds.
 
 ## Benchmarking and profiling tools {#benchmarking}
 CodSpeed, Bencher and asv run microbenchmarks on every change, with measurements stable enough to flag a few
 percent, and comment on pull requests. Continuous profilers and APM tools watch production.
 
-QA-Board is for end-to-end performance: latency distributions under the same load profiles on every commit, flame
-graph diffs, CPU per core, History per profile, and tuning frontiers (see [performance](/docs/use-cases/serving-latency)).
-It doesn't decide whether a change is noise: repeat your measurements, and set the gate's thresholds above the noise.
+QA-Board puts performance next to the rest of a change's review: latency distributions under the same load profiles
+on every commit, flame graph diffs from the files your profiler writes (folded stacks, speedscope, `.cpuprofile`), CPU
+per core, History per profile, and tuning frontiers (see [performance](/docs/use-cases/serving-latency)). The gate's
+verdict goes to the pull request too, as [a comment](/docs/quality-gate-pull-requests) (experimental) that
+also says when runs only passed after being done again. The gate doesn't decide whether a change is noise: repeat your
+measurements, and set its thresholds above the noise.
+
+QA-Board reads the files of the usual benchmark harnesses: pytest-benchmark, Google Benchmark, hyperfine, Criterion,
+JMH and `go test` (Bencher reads more). Each benchmark shows next to the reference's, gray when the change is within the
+spread the harness reported, and becomes a metric in one line (see [benchmarks](/docs/benchmarks)). It still
+doesn't run, repeat or stabilize benchmarks, and doesn't estimate noise from past runs: that's the harness's job, and
+those tools' strength.
 
 ## Notebooks, spreadsheets and in-house dashboards {#in-house}
 A notebook answers a new question in an afternoon, and nothing replaces that. Then results get pasted into a
@@ -130,5 +143,6 @@ the team. Notebooks stay useful next to it: `qaboard.runs(url)` gives a script o
 <Cards>
   <Card title="Use cases" to="/docs/use-cases" eyebrow="See it">The regressions QA-Board catches, in images, models, latency, robotics, tests and agents.</Card>
   <Card title="Deep learning and MLOps" to="/docs/deep-learning" eyebrow="Project integration">Evaluate models next to the training tracker you already use.</Card>
+  <Card title="Coming from another tool" to="/docs/coming-from-other-tools" eyebrow="Project integration">Run the batches you run with MLflow Projects, W&B Launch, ClearML, job arrays or Kubernetes Jobs today.</Card>
   <Card title="Roadmap" to="/docs/roadmap" eyebrow="What's next">What we're building, with the status of each item.</Card>
 </Cards>

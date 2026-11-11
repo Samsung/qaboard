@@ -74,8 +74,8 @@ function Hero() {
           </h1>
           <p className={styles.heroLead}>
             Every change runs on your test set, whether a person or a coding agent wrote it. QA-Board puts its outputs
-            and metrics next to the reference&apos;s (images, videos, point clouds, plots, flame graphs, test reports
-            and logs) so everyone sees what changed, agrees it&apos;s better, and ships it.
+            and metrics next to the reference&apos;s (images, videos, point clouds, plots, flame graphs, benchmarks,
+            test reports and logs) so everyone sees what changed, agrees it&apos;s better, and ships it.
           </p>
           <div className={styles.audience}>
             <span className={styles.audienceLabel} id="hero-audience">
@@ -224,7 +224,7 @@ const STEPS: Step[] = [
     text: (
       <>
         <code>qa gate</code> checks a commit against rules on your metrics, for changes made by people or by coding
-        agents. Experimental: it may change without notice.
+        agents, and posts its table on the pull request. Experimental: it may change without notice.
       </>
     ),
     link: '/docs/quality-gate',
@@ -311,12 +311,30 @@ const COLLABORATION: Collaborator[] = [
     title: 'Meet the same targets',
     text: (
       <>
-        <code>qa gate</code> fails a change that regresses, whoever wrote it, and links to the Metrics Diff that shows
-        why.
+        <code>qa gate</code> fails a change that regresses, whoever wrote it. Its comment on the pull request has the
+        table and links to the Metrics Diff that shows why.
       </>
     ),
-    to: '/docs/quality-gate',
+    to: '/docs/quality-gate-pull-requests',
     experimental: true,
+  },
+  {
+    audience: 'Project owners',
+    title: 'Rules a commit can’t loosen',
+    text: (
+      <>
+        Owners add gate rules in the web app, out of the commits’ reach. The comment also lists the rules a commit
+        loosened in its own <em>qaboard.yaml</em>.
+      </>
+    ),
+    to: '/docs/user-guide/project-gate',
+    experimental: true,
+  },
+  {
+    audience: 'Reviewers',
+    title: 'Every attempt on record',
+    text: 'A run done again keeps its earlier attempts’ status, metrics and logs: its card says “attempt 3”, and the gate’s comment lists the runs that passed only after a retry.',
+    to: '/docs/user-guide/commit-page#run-cards',
   },
 ];
 
@@ -326,9 +344,10 @@ function PeopleAndAgents() {
       <div className="container">
         <SectionHeader eyebrow="People and agents" title="One view of quality, for people and agents">
           Coding agents write a growing share of changes. With QA-Board they run the same tests, read the same results
-          and meet the same targets as people, and a person decides what ships.
+          and meet the same targets as people, and a person decides what ships, with a record of how each result was
+          reached.
         </SectionHeader>
-        <ul className={styles.cards}>
+        <ul className={clsx(styles.cards, styles.cardsThree)}>
           {COLLABORATION.map(({audience, title, text, to, experimental}) => (
             <li key={title} className={styles.card}>
               <span className={styles.cardAudience}>{audience}</span>
@@ -342,6 +361,11 @@ function PeopleAndAgents() {
             </li>
           ))}
         </ul>
+        {/* The evidence a reviewer reads: the gate's comment, and a run's earlier attempts */}
+        <div className={styles.evidence}>
+          <Shot id="ci/pr-comment" caption="The gate’s comment on a coding agent’s pull request: p99 is far over its limit, with the link to the Metrics Diff. Experimental." />
+          <Shot id="commit/attempt-tag" caption="A run done again: its card shows the latest attempt, the tag says how the earlier ones ended and what they measured." />
+        </div>
       </div>
     </section>
   );
@@ -367,16 +391,16 @@ const USE_CASES = [
     to: '/docs/use-cases/robotics-3d',
   },
   {
-    audience: 'Embedded, HW/SW co-design',
-    title: 'Bit accuracy',
-    text: 'Check in CI that a change left every output file identical, before you hand a fixed-point model over to a hardware team.',
-    to: '/docs/bit-accuracy',
+    audience: 'Performance engineering',
+    title: 'Latency and benchmarks',
+    text: 'A shared cache saves CPU and takes p99 from milliseconds to seconds: latency tails, flame graph diffs from your profiler’s files, your benchmark harness’s results, History.',
+    to: '/docs/use-cases/serving-latency',
   },
   {
-    audience: 'Performance engineering',
-    title: 'Serving latency',
-    text: 'A shared cache saves CPU and takes p99 from milliseconds to seconds: latency tails, flame graph diffs, History, a tuning frontier.',
-    to: '/docs/use-cases/serving-latency',
+    audience: 'Software quality',
+    title: 'Tests and coverage',
+    text: 'Asked to get CI green, a coding agent deletes the failing tests: test counts and coverage per suite over time, tests against the reference’s, a gate on deleted tests.',
+    to: '/docs/use-cases/software-quality',
   },
   {
     audience: 'LLM agents',
@@ -466,15 +490,10 @@ const DETAILS: Detail[] = [
     media: <Clip id="logs/live-tail" caption="" />,
   },
   {
-    title: 'File browser',
-    text: (
-      <>
-        Every run’s folder in the browser, from the keyboard: <kbd>j</kbd> <kbd>k</kbd> to move, <kbd>/</kbd> to filter,{' '}
-        <kbd>c</kbd> to copy a path.
-      </>
-    ),
-    media: <Clip id="files/keyboard" caption="" />,
-    fit: 'left',
+    title: 'Earlier attempts’ logs',
+    text: 'A run done again keeps the log of each earlier attempt: in the Logs view, switch to the first one to read why it failed.',
+    media: <Shot id="logs/attempts" caption="" />,
+    fit: 'top',
   },
 ];
 

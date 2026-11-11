@@ -25,6 +25,7 @@ from .conventions import serialize_config, deserialize_config, get_settings
 from .utils import PathType, entrypoint_module, load_tuning_search
 from .utils import save_outputs_manifest, total_storage
 from .utils import redirect_std_streams, clean_output_dir, interrupted_by_sigterm, ignored_signals
+from . import attempts
 from .utils import getenvs
 from .api import url_to_dir, print_url
 from .api import get_outputs, notify_qa_database, serialize_paths, exit_if_results_refused, ResultsUnreadable, print_auth_error
@@ -105,7 +106,9 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   ctx.obj['platform'] = platform
 
   ctx.obj['input_type'] = input_type
-  ctx.obj['inputs_settings'] = get_settings(input_type, config)
+  # `qa doctor` says when the input type is unknown
+  known_type = input_type == 'default' or input_type in ((config.get('inputs') or {}).get('types') or {})
+  ctx.obj['inputs_settings'] = get_settings(input_type if known_type or ctx.invoked_subcommand != 'doctor' else 'default', config)
   ctx.obj['database'] = database if database else get_default_database(ctx.obj['inputs_settings'])
   # configuration singular is for backward compatibility to a time where there was a single str config
   ctx.obj['configuration'] = ':'.join(configurations) if configurations else get_default_configuration(ctx.obj['inputs_settings'])
@@ -165,6 +168,15 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   ctx.obj['color'] = is_ci or share
 
 
+def saves_attempts(qa_context, custom_output=None) -> bool:
+  """
+  Whether a run that is done again is saved in a new directory (qaboard/attempts.py): results saved in the storage
+  (CI, --share), unless the project opts out (outputs.reruns: in-place). Local runs, in the working directory's
+  output/, and runs with their own --output are done again in place.
+  """
+  return bool(is_ci or qa_context.get('share')) and not custom_output and attempts.reruns_mode(config) != attempts.IN_PLACE
+
+
 @qa.command()
 @click.option('-i', '--input', 'input_path', type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
 @click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path.')
@@ -214,16 +226,27 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
       *ctx.obj.get("forwarded_args", []),
     ]
     run_context = RunContext.from_click_run_context(ctx, config)
+    keep_previous = keep_previous or 'QABOARD_RUN_KEEP' in os.environ
+
+    # Results saved in the storage are not replaced in place: a run that is done again gets its own directory,
+    # the one `qa batch` reserved if it started us, and the previous attempt's files are removed
+    new_attempt = saves_attempts(ctx.obj, custom_output=output_path) and not keep_previous
+    if new_attempt:
+      run_context.output_dir = attempts.reserve_or_keep(run_context.output_dir)
+      ctx.obj["output_directory"] = run_context.output_dir
 
     if run_context.output_dir.exists():
     # Usually we want to remove any files already present in the output directory.
     # It avoids issues with remaining state... This said,
     # In some cases users want to debug long, multi-stepped runs, for which they have their own caching
-      if not (keep_previous or 'QABOARD_RUN_KEEP' in os.environ):
+      if not keep_previous:
         # TODO: check in the database the status of the run?
         # Keeps the log files runners redirected our output to (e.g. log.lsf.txt with LSF job arrays)
         clean_output_dir(run_context.output_dir)
     run_context.output_dir.mkdir(parents=True, exist_ok=True)
+    if new_attempt:
+      # the previous attempt's log is kept here, as log.attempt<N>.txt
+      attempts.remove_previous(run_context.output_dir)
 
     with (run_context.output_dir / 'run.json').open('w') as f:
       json.dump({
@@ -247,7 +270,7 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
       print_url(ctx)
 
       if not ctx.obj['offline']:
-          qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True)
+          qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True, data={"attempt_logs": attempts.kept_logs(run_context.output_dir)})
           if qa_run_data:
             run_context.id = qa_run_data["id"]
           # in CI, results QA-Board refuses are lost: don't compute them
@@ -409,6 +432,8 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
   if 'params' in metrics:
     output_data['params'] = metrics['params']
     del metrics['params']
+  # the earlier attempts whose logs are next to the run's (qaboard/attempts.py)
+  output_data['attempt_logs'] = attempts.kept_logs(run_context.output_dir)
 
 
   if save_manifests_in_database:
@@ -542,9 +567,10 @@ def wait(ctx, output_id):
   sys.exit(0 if not output["is_failed"] else 1)
 
 
-lsf_config = config['lsf'] if 'lsf' in config else config.get('runners', {}).get('lsf', {})
+# `runners:` or `runners.lsf:` left empty in qaboard.yaml are None
+runners_config = config.get('runners') or {}
+lsf_config = (config['lsf'] if 'lsf' in config else runners_config.get('lsf')) or {}
 
-runners_config = config.get('runners', {})
 if 'default' in runners_config:
   default_runner = runners_config['default']
 else:
@@ -554,7 +580,7 @@ if 'lsf' in config:
   default_runner = 'lsf'
 if default_runner ==  'lsf' and os.name=='nt':
   default_runner = 'local'
-local_config = config.get('runners', {}).get('local', {})
+local_config = runners_config.get('local') or {}
 
 default_lsf_queue = lsf_config.get('queue')
 default_lsf_max_threads = lsf_config.get('max_threads', 0)
@@ -563,12 +589,22 @@ default_lsf_resources = lsf_config.get('resources', None)
 default_lsf_priority = lsf_config.get('priority')
 default_lsf_options = lsf_config.get('options')
 default_lsf_concurrency = lsf_config.get('concurrency', 0)
-dask_config = config.get('runners', {}).get('dask', {})
+dask_config = (config.get('runners') or {}).get('dask') or {}
 default_dask_concurrency = dask_config.get('concurrency')
 
+def env_number(parse, value, default):
+  """A number from the environment. `qa doctor` reports invalid ones instead of failing to start."""
+  from .config import is_doctor_command
+  try:
+    return parse(value)
+  except (TypeError, ValueError):
+    if not is_doctor_command:
+      raise
+    return default
+
 # An int like --local-concurrency's: a string would differ from it, and count as given on the command line
-default_local_concurrency = int(os.environ['QA_BATCH_CONCURRENCY']) if os.environ.get('QA_BATCH_CONCURRENCY') else local_config.get('concurrency')
-default_local_timeout = float(os.environ.get('QA_BATCH_TIMEOUT', local_config.get('timeout', 0)))
+default_local_concurrency = env_number(int, os.environ['QA_BATCH_CONCURRENCY'], None) if os.environ.get('QA_BATCH_CONCURRENCY') else local_config.get('concurrency')
+default_local_timeout = env_number(float, os.environ.get('QA_BATCH_TIMEOUT', local_config.get('timeout', 0)), 0)
 default_action_on_existing = config.get('outputs', {}).get('action_on_existing', "run")
 default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "wait")
 @qa.command(context_settings=dict(
@@ -691,10 +727,25 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
     }
     if log:
       command_data['log'] = log['path'] # relative to the batch directory
-    scheduler_address = runs_job_options.get('scheduler_address', dask_config.get('scheduler_address'))
-    if runner == 'dask' and scheduler_address:
+    if runner == 'dask':
       # so that the backend can stop the batch
-      command_data['scheduler_address'] = scheduler_address
+      scheduler_address = runs_job_options.get('scheduler_address', dask_config.get('scheduler_address'))
+      if scheduler_address:
+        command_data['scheduler_address'] = scheduler_address
+      dask_cluster = runs_job_options.get('cluster', dask_config.get('cluster')) or {}
+      command_data['cluster_type'] = dask_cluster.get('type', 'lsf')
+      if command_data['cluster_type'] == 'kubernetes':
+        from .runners.dask_runner import kubernetes_namespace
+        kubernetes_config = runs_job_options.get('kubernetes', (config.get('runners') or {}).get('kubernetes')) or {}
+        command_data['kubernetes'] = {
+          # Resolved: the server doesn't have our kubeconfig's default namespace
+          "namespace": kubernetes_namespace(dask_cluster.get('namespace') or kubernetes_config.get('namespace'), kubernetes_config.get('context')),
+          "context": kubernetes_config.get('context'),
+        }
+    if runner == 'kubernetes':
+      # so that the backend can stop the batch: it deletes its Jobs there
+      from .runners.kubernetes import batch_target
+      command_data.update(batch_target({**((config.get('runners') or {}).get('kubernetes') or {}), **runs_job_options}))
     job_url = getenvs(('BUILD_URL', 'CI_JOB_URL', 'CIRCLE_BUILD_URL', 'TRAVIS_BUILD_WEB_URL')) # jenkins, gitlabCI, circleCI, travisCI
     if job_url:
       command_data['job_url'] = job_url
@@ -781,17 +832,32 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
       base_runner_options['timeout'] = local_timeout
 
   if runner == 'dask':
-    # scheduler_address, cluster (dask_jobqueue.LSFCluster kwargs)...
+    # scheduler_address, cluster (its type and kwargs for its class, e.g. dask_jobqueue.LSFCluster)...
     base_runner_options.update(dask_config)
     # By default dask workers are LSF jobs, sent with the same queue/project... as the LSF runner
     base_runner_options['lsf'] = {
       "project": lsf_config.get('project', str(project) if project else "qaboard"),
       **{k: v for k, v in lsf_config.items() if k in ('queue', 'project', 'resources', 'max_memory', 'options')},
     }
+    # On Kubernetes, the workers' pods (and the --no-wait driver) are like the kubernetes runner's
+    if (dask_config.get('cluster') or {}).get('type') == 'kubernetes':
+      from .runners.dask_runner import kubernetes_defaults
+      # The project labels the DaskCluster and driver Job: the server stops the batch by command id and project
+      base_runner_options['kubernetes'] = {**kubernetes_defaults(config), **({"project": project.as_posix()} if project else {})}
     # We save logs there
     base_runner_options['batch_dir'] = str(ctx.obj['batch_dir'])
     if given('dask_concurrency', dask_concurrency, default_dask_concurrency):
       cli_runner_overrides["concurrency"] = dask_concurrency
+
+  if runner == 'kubernetes':
+    # namespace, image, mounts, run_as... (see qaboard/runners/kubernetes.py)
+    base_runner_options.update((config.get('runners') or {}).get('kubernetes') or {})
+    base_runner_options['batch_dir'] = str(ctx.obj['batch_dir'])
+    # Labels on the Jobs, e.g. for quotas and dashboards per user or project
+    cli_runner_overrides.update({
+      "user": ctx.obj['user'],
+      "project": project.as_posix() if project else None,
+    })
 
   if runner == 'local' or runner == 'celery':
     cli_runner_overrides["cwd"] = ctx.obj['previous_cwd'] if 'previous_cwd' in ctx.obj else os.getcwd()
@@ -839,6 +905,9 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
       from qaboard.conventions import output_dirs_for_input_part
       # print("batch_conf_dir", batch_conf_dir)
       run_context.output_dir = batch_conf_dir / output_dirs_for_input_part(run_context.rel_input_path, run_context.database, config)
+      if not prefix_outputs_path:
+        # a run that was done again is in its latest attempt's directory
+        run_context.output_dir = attempts.latest_dir(run_context.output_dir)
       if input_forwarded_args:
         run_forwarded_args = [a for a in input_forwarded_args if not a in ("--keep-previous", "--no-postprocess", "--save-manifests-in-database")]
         if run_forwarded_args:
@@ -916,6 +985,14 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
           tuning_cli =  f'--tuning {escaped_for_cli(tuning_str)}'
 
 
+      # The runs we start get a directory of their own when they were done before (qaboard/attempts.py). We reserve
+      # it, to tell QA-Board and the runners where the run will be: the job's `qa run` then reserves the same one.
+      # Not for pending runs: we may only wait for them, and if they have to run, their `qa run` reserves it.
+      starts_run = should_run or action_on_existing in ('skip', 'assert-exists')
+      keeps_previous = 'QABOARD_RUN_KEEP' in os.environ or '--keep-previous' in (input_forwarded_args or [])
+      if starts_run and not is_pending and not dryrun and not keeps_previous and saves_attempts(ctx.obj, custom_output=prefix_outputs_path):
+        run_context.output_dir = attempts.reserve_or_keep(run_context.output_dir)
+
       platform_cli =None
       Runner = runners[run_context.job_options['type']]
       if getattr(Runner, "platform", default_platform) != default_platform:
@@ -974,8 +1051,9 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
           job.id = db_output["id"]
       if is_pending:
         wait_command = f"qa wait --output-id {matching_existing_output['id']}"
+        # we find the run's results by its id: if it has to run again, it will be in another directory
+        job.id = matching_existing_output['id']
         if action_on_pending=="sync":
-          job.id = matching_existing_output['id']
           job.run_context.command = wait_command
         elif action_on_pending=="wait":
           job.run_context.command = f"{wait_command} || {job.run_context.command}"
@@ -1208,6 +1286,34 @@ def init(ctx):
   """Provide a sample qaboard.yaml configuration."""
   from .init import qa_init
   qa_init(ctx)
+
+
+@qa.command()
+@click.option('--runner', default=default_runner, show_default=True, help="The runner to check: local, lsf, celery, dask, windows... By default, the one `qa batch` uses.")
+@click.option('--test-job', is_flag=True, help="Also start a small job with the runner, to check that it runs, where, as who, and what it can access. It can take a few minutes, e.g. waiting for a slot.")
+@click.pass_context
+def doctor(ctx, runner, test_job):
+  """
+  Check that you can run batches, and say how to fix what's wrong.
+
+  \b
+  It checks, and says what to do about each problem:
+  - qa and qaboard.yaml: version, configuration, entrypoint, batches, git
+  - the QA-Board server: reachable, signed in, your role in the project
+  - the storage: the results' folder is writable and the server sees it, the inputs are there
+  - the runner: e.g. for LSF that bsub works and the queue exists, for Celery that workers answer
+
+  \b
+  It checks what runs whose results show in QA-Board need, like `qa --share batch`.
+  With `qa --offline doctor`, only what local runs need. Exits with 1 if something must be fixed.
+
+  \b
+  Examples:
+    qa doctor
+    qa doctor --runner lsf --test-job
+  """
+  from .doctor import run_doctor
+  sys.exit(run_doctor(ctx.obj, runner=runner, test_job=test_job))
 
 
 

@@ -2,7 +2,6 @@
 Represents runs belonging to the same commit.
 It might by a CI job, or tuning experiments.
 """
-import os
 import datetime
 from pathlib import Path
 
@@ -18,13 +17,25 @@ from qaboard.api import dir_to_url
 
 from backend.models import Base, Output
 from backend.metrics_aggregation import metric_names
-from backend.shell_utils import shell_safe, safe_user_name
 from backend.storage import UnsafePathError
 
 
 
-def with_log_dir_url(submission):
-  """Where the webapp can read the logs of a batch started from QA-Board"""
+def with_log_dir_url(submission, batch_id=None):
+  """
+  Where the webapp can read the logs of a batch started from QA-Board, and if `qa batch` ended, when it ran on the
+  server: with `batch_id`, that final status is recorded in the batch, so we read it from storage only once.
+  While `qa batch` waits to start, `pending_note` says why, if its runner wrote it.
+  """
+  from backend.local_jobs import refresh_status, persist_final_status
+  from backend.submissions import pending_note
+  refreshed = refresh_status(submission)
+  if batch_id is not None and isinstance(submission, dict) and refreshed.get('status') != submission.get('status'):
+    persist_final_status(batch_id, refreshed)
+  submission = refreshed
+  note = pending_note(submission)
+  if note:
+    submission = {**submission, 'pending_note': note}
   try:
     return {**submission, 'log_dir_url': dir_to_url(Path(submission['log_dir']))}
   except Exception:
@@ -102,7 +113,7 @@ class Batch(Base):
       stats = batches_stats(session, [self.id], with_aggregation).get(self.id, no_stats)
     data = self.data if self.data else {} # None check for old batches (todo: migrate them properly)
     if data.get('submissions'):
-      data = {**data, 'submissions': {id: with_log_dir_url(s) for id, s in data['submissions'].items()}}
+      data = {**data, 'submissions': {id: with_log_dir_url(s, self.id) for id, s in data['submissions'].items()}}
     return {
         'id': self.id,
         'commit_id': self.ci_commit.hexsha,
@@ -129,44 +140,29 @@ class Batch(Base):
     db_session.commit()
 
   def stop(self, session):
-    if not any([o.is_pending for o in self.outputs]):
-      return {}
-
     # TODO: it's a bit overkill to stop everything, and may even yield errors...
     # TODO: can we after the stop() just mark all outputs as is_pending:False ?
-    errors = []
-    for command_id, command in self.data.get('commands', {}).items():
-      print(f"stopping {command.get('runner')} {command_id}")
-      from qaboard.runners.job import JobGroup
-      # Batch.data.commands is written by unauthenticated API calls, and the runners
-      # use those options to build shell commands (e.g. `bkill` via the LSF bridge).
-      # So we only forward the few options needed to stop jobs, after validating them.
-      runner = command.get('runner')
-      if runner not in ("lsf", "dask", "local", "celery"):
-        print(f"WARNING: cannot stop jobs for runner {runner!r}")
-        continue
-      try:
-        job_options = {
-          "type": runner,
-          "command_id": shell_safe(command_id, "command_id"),
-          "bridge": os.environ.get("QA_RUNNERS_LSF_BRIDGE", ""),
-        }
-        if command.get('user'):
-          job_options['user'] = safe_user_name(command['user'])
-      except ValueError as e:
-        print(f"WARNING: cannot stop jobs for command {command_id!r}: {e}")
-        continue
-      # We only connect to Dask schedulers we trust
-      trusted_schedulers = [s for s in os.environ.get("QABOARD_DASK_SCHEDULERS", "").split(",") if s]
-      if runner == "dask" and command.get('scheduler_address') in trusted_schedulers:
-        job_options['scheduler_address'] = command['scheduler_address']
-      jobs = JobGroup(job_options=job_options)
-      try:
-        jobs.stop()
-      except Exception as e:
-        print(e)
-        errors.append(str(e))
-        continue
+    # Batch.data.commands is written by unauthenticated API calls, and the runners use those options to build shell
+    # commands (e.g. `bkill` via the LSF bridge) or to pick a cluster. So we only forward the few options needed to
+    # stop jobs, after validating them: see backend/runner_jobs.py. What we may not stop is a warning.
+    from backend.runner_jobs import stop_batch_jobs, mark_drivers_stopped
+    from backend.local_jobs import stop_local_submissions
+    # first the `qa batch` that run on the server, so that they don't start more runs. Those on another replica of
+    # the server are errors, not warnings: their runs go on, and stopping again may reach that replica.
+    local = stop_local_submissions(self.data)
+    if local["stopped"]:
+      self.data = mark_drivers_stopped(self.data, local["stopped"])
+      session.add(self)
+      session.commit()
+    stopped = stop_batch_jobs(self.data, any([o.is_pending for o in self.outputs]), self.ci_commit.project_id)
+    if stopped is None:
+      return {"error": local["errors"]} if local["errors"] else {}
+    stopped["errors"] = local["errors"] + stopped["errors"]
+    if stopped["stopped_drivers"]:
+      self.data = mark_drivers_stopped(self.data, stopped["stopped_drivers"])
+      session.add(self)
+      session.commit()
+    errors = stopped["errors"]
     if errors:
       return {"error": errors}
     else:
@@ -176,7 +172,7 @@ class Batch(Base):
           o.set_status(False, False)
           session.add(o)
       session.commit()
-      return {}
+      return {"warnings": stopped["warnings"]} if stopped["warnings"] else {}
 
   def delete(self, session, soft=False, only_failed=False, filter=None):
     """

@@ -28,10 +28,10 @@ and the settings on that frontier became the new defaults.
    [artifacts](/docs/storage/artifacts): the files your code needs to run, like a build, saved by
    `qa save-artifacts` (see [CI integration](/docs/ci-integration#saving-artifacts)). *qaboard.yaml*, *qa/* and the
    batches files are always saved.
-2. **Choose where the runs execute.** The server starts each batch with the runner set by its
-   `QABOARD_TUNING_RUNNER` environment variable: `local` (the default, on the server itself), `celery` or `lsf` (via
-   `QA_RUNNERS_LSF_BRIDGE`). See [Celery](/docs/celery-integration), [LSF](/docs/lsf-integration) and the
-   [server's environment variables](/docs/deploy#optional-environment-variables).
+2. **Choose where the runs execute.** The runs go to your project's runner, `runners.default` in *qaboard.yaml*
+   (see [Choose where runs execute](/docs/runners)). The server starts the `qa batch` command where its admins chose:
+   on the server itself by default, in an LSF job, or in a Kubernetes pod. See
+   [Run batches from the web app](/docs/backend-admin/runners).
 3. **Log in.** Starting runs needs a logged-in user, and runs are started as that user. See
    [user management](/docs/backend-admin/user-management).
 4. *(Optional)* **Emails.** If the server can send emails, people get one when the batches they start end: see

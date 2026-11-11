@@ -406,6 +406,38 @@ class TestJobGroups(unittest.TestCase):
     self.assertEqual((notify.call_args.kwargs['is_pending'], notify.call_args.kwargs['is_failed']), (False, True))
 
 
+  def test_runs_are_found_by_their_id_when_they_moved(self):
+    """A run that is done again gets a new directory: if its `qa run` didn't use the one `qa batch` expected
+    (another version of qaboard, a job LSF started twice), the batch still reports the run's real status"""
+    import json
+    from qaboard.api import dir_to_url
+    from qaboard.runners import JobGroup
+    from qaboard.runners.lsf import LsfRunner
+    moved, killed, same = make_jobs('lsf', ['a', 'b', 'c'], self.root.resolve(), queue='q')
+    moved.id, killed.id = 1, 2
+    moved_to = moved.run_context.output_dir.with_name('a_attempt2')
+    killed_in = killed.run_context.output_dir.with_name('b_attempt2')
+    killed_in.mkdir()
+    (killed_in / 'metrics.json').write_text(json.dumps({"is_failed": False}))
+    outputs = {
+      "1": {"id": 1, "output_dir_url": dir_to_url(moved_to), "is_pending": False, "is_failed": False},
+      "2": {"id": 2, "output_dir_url": dir_to_url(killed_in), "is_pending": True, "is_failed": False},
+      "3": {"id": 3, "output_dir_url": dir_to_url(same.run_context.output_dir), "is_pending": False, "is_failed": False},
+    }
+    group = JobGroup(jobs=[moved, killed, same], job_options={"type": "lsf", "command_id": "abcdefgh-1234", "queue": "q"})
+    with mock.patch.object(LsfRunner, 'start_groups'), \
+         mock.patch('qaboard.runners.job.get_outputs', return_value=outputs), \
+         mock.patch('qaboard.runners.job.notify_qa_database') as notify:
+      # by their directories, `moved` and `killed` would be missing, so failed
+      self.assertFalse(group.start(blocking=True, qa_context={"share": True}))
+    self.assertEqual(moved.qaboard_output['id'], 1)
+    self.assertEqual(same.qaboard_output['id'], 3)
+    # the run QA-Board still shows as pending is settled where it said it was, not where we expected it
+    notify.assert_called_once()
+    self.assertEqual(notify.call_args.kwargs['output_dir'], killed_in)
+    self.assertEqual((notify.call_args.kwargs['is_pending'], notify.call_args.kwargs['is_failed']), (False, False))
+
+
 class TestBuildPowershellEnv(unittest.TestCase):
   def env_lines(self, **context_env):
     from qaboard.runners.jenkins_windows import build_powershell_env

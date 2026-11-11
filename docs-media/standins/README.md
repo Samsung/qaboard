@@ -1,0 +1,6 @@
+# Stand-ins
+Pictures shown in the docs until a planned shot is captured from the demo stack: see "Stand-ins" in
+[`../README.md`](../README.md). A shot's `standin:` key in `../shots.yaml` names its files here.
+
+When a shot is published, delete its files and its `standin:` key in the same pull request. Keep this folder, even
+empty: the docs image copies it (`website/Dockerfile`).

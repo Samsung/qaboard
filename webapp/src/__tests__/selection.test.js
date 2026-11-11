@@ -78,6 +78,9 @@ describe('reading the selection from the URL', () => {
     expect(route_info("/:project_id+/committer/:committer+")).toMatchObject({ is_committer: true, is_commit: false });
     expect(route_info("/:project_id+/commit/:name+")).toMatchObject({ is_commit: true, is_list: false });
     expect(route_info("/:project_id+/history/:name+")).toMatchObject({ is_history: true, is_commit: false });
+    expect(route_info("/:project_id+/access")).toMatchObject({ is_access: true, is_project_admin: false, section: null, is_list: false });
+    // the project's other Admin pages, with the section the URL gives
+    expect(route_info("/:project_id+/admin/:section(gate)", { project_id: 'group/repo', section: 'gate' })).toMatchObject({ is_project_admin: true, section: 'gate', is_access: false, is_list: false });
   });
 });
 

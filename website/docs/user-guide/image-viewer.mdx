@@ -41,6 +41,11 @@ name, the labels use those names. They also give each image's size, e.g. *1224×
 The swap button next to the modes, or <kbd>t</kbd>, swaps the sides in every viewer of the page at once, so that they all
 show the same one first. When both runs saved the same file, you see one image, tagged *same as the reference*.
 
+An orange **may be stale** tag means the run, or its reference, was done again in the same folder: your browser and
+the image server keep images by their path, so you may be looking at the previous run's image. Reload the page without
+its cache (<kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>R</kbd>) if the image doesn't match the metrics. Shared and CI runs
+don't have the problem: they're [saved in a new folder](/docs/storage/where-is-the-data#reruns) each time.
+
 ### Zoom and pan, in sync {#synced-zoom-and-pan}
 Scroll (or pinch, or press <kbd>+</kbd> <kbd>-</kbd>) to zoom, drag to pan: the other image follows. So do the other
 images of the same input on the page, in the other runs' cards and the run's other visualizations, as long as their
@@ -111,9 +116,10 @@ interest, with their thumbnails above the images. Step through them with <kbd>[<
 click on a thumbnail. **Full image** goes back to the whole image. The regions are outlined on the images: click a
 region's label to zoom on it, and hide the outlines with the eye button or <kbd>o</kbd>.
 
-- **Presets**: the regions set for the input, e.g. on the facade *Window frame (halos)*, *Leaves over a window* and
-  *Flat wall (noise)*. The viewer opens on the first one. Whoever integrates the project defines them, see
-  [regions of interest](/docs/visualizations#regions-of-interest).
+- **Presets**: the regions the project saved for this run, e.g. on the facade *Window frame (halos)*, *Leaves over a
+  window* and *Flat wall (noise)*. The viewer opens on the first one. They come with the run's input (its metadata) or
+  with its batch (a configuration), so the runs of a page can each have their own. Whoever integrates the project
+  defines them: see [preset regions of interest](/docs/visualizations#regions-of-interest), with examples of both.
 - **Where they differ**: the server compares the full images, not what your screen shows, and finds the places where
   they differ most. Each region says how much, e.g. *#1 · 27.3%*, and darker swatches mark larger differences.
 
@@ -150,7 +156,7 @@ Pick how the server compares them:
   compares all its runs again.
 - The server compares images for signed-in users only: signed out, the viewer asks you to sign in.
 - **Copy the view as a region**, at the bottom of the menu, copies the coordinates of what you see, in the format of
-  presets: send them to whoever maintains the project's presets.
+  presets: send them to whoever maintains the project's presets, or [add them yourself](/docs/visualizations#copy-a-region).
 
 </details>
 

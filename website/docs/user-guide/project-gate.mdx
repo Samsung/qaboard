@@ -1,0 +1,80 @@
+---
+id: project-gate
+title: Set a project's gate rules
+sidebar_label: Project gate rules
+description: As a project's owner, set the quality rules every commit must meet, that no commit can change, and decide what happens when a commit loosens its own rules.
+---
+
+A project's **quality gate** fails a commit in CI when its results regress against the reference: a metric gets
+worse than allowed, runs fail, outputs stop being identical. Most of its rules live with the code, in the project's
+*qaboard.yaml*. As an owner, you can add rules that hold whatever a commit says.
+
+Open **Admin → Quality gate** in the project's sidebar. Everyone who can see the project can read the page; owners
+change it.
+
+## See what commits are checked against
+**Rules in qaboard.yaml** lists the rules of the project's reference branch: for each metric, what is checked (its
+median over the runs, or each test) and the limit, then how many runs may fail and whether outputs must be
+bit-accurate. A commit is checked against the rules in its own *qaboard.yaml*, so a branch can differ: these are
+the rules it starts from.
+
+When a rule only checks some runs, the table has a **Runs** column: *only `qa batch perf`* for the runs of one batch
+of tests, *only the label nightly* for the results of one label, *every run* for the others. **Waits for runs
+from** lists the batches that must have runs before the gate decides.
+
+To change them, edit *qaboard.yaml*: see [Quality gate](/docs/quality-gate#rules).
+
+## Add rules no commit can change {#project-rules}
+A commit can loosen a rule in the same change that breaks it. **Project rules** are checked on every commit, on top
+of its own rules, and only owners change them, here.
+
+1. Click **Add a rule**.
+2. Type the **metric**'s name, as your runs return it, e.g. `latency_p99`.
+3. Choose what to check: the median (or the mean, the smallest, the largest value) *may get worse by at most* a
+   percentage of the reference's, *each test may get worse by at most* a percentage, or a value it must stay
+   *at least* or *at most*.
+4. Type the **limit**: `5%` for the first two, a number in the metric's unit for the others.
+5. Optionally, click **Only for…** (the filter button) to check only some runs: type the **batches**, as named
+   after `qa batch` (`perf`, or `unit, integration`), or the **labels** of the results, as the batch selector shows
+   them (`nightly`; the CI's is `default`). Separate several with commas; patterns like `perf-*` work too. Click it
+   again to check every run.
+6. Optionally, set how many **failed runs** are allowed, and whether **outputs must be bit-accurate**. The stricter
+   of your setting and the commit's applies.
+7. Optionally, in **Wait for runs from**, list the batches that must have runs before the gate decides, e.g.
+   `ci, perf`: until then it can't decide. For one label only, write `default: ci, perf; nightly: all`. They're
+   added to those the commit's *qaboard.yaml* waits for.
+8. **Save.**
+
+The page warns you before you leave it with rules you didn't save. When two owners edit at the same time, the last
+one to save wins.
+
+In the gate's table, in CI and on pull requests, your rules are marked `[project rule]`. The page says who changed
+them last; the server's admins see every change in the audit log.
+
+:::tip
+Start with the few rules that must never break: no unsafe action, no run failing, a floor on your main metric. Keep
+the thresholds people tune in *qaboard.yaml*, where they're reviewed with the code.
+:::
+
+## Decide what happens when a commit loosens its rules {#looser-rules}
+The gate compares a commit's rules with those of the reference's *qaboard.yaml*, and says when they're looser: a
+higher allowed regression, a lower floor, a removed rule.
+
+- **Say so in the gate's output and comment** (default): reviewers see it on the pull request.
+- **Fail the gate**: the commit fails until its rules are no looser than the reference's. The looser rules reach
+  the reference branch when people decide to merge them.
+
+## Good to know
+- Project rules need a version of `qa` that reads them, in your CI: older versions ignore them. Rules for some
+  batches or labels, and batches to wait for, need a version from November 2026: older ones stop with an error
+  that asks to upgrade, rather than check part of the rules.
+- Rules are per project. In a repository with several projects, each has its own.
+- The gate runs in your CI: see [what project rules guarantee](/docs/quality-gate#project-rules).
+
+## Where to go next
+
+<Cards>
+  <Card title="Quality gate" to="/docs/quality-gate" eyebrow="Project integration">The rules in qaboard.yaml, and the CI job.</Card>
+  <Card title="The gate on pull requests" to="/docs/quality-gate-pull-requests" eyebrow="Project integration">The comment and the commit status reviewers see.</Card>
+  <Card title="Who can access a project" to="/docs/user-guide/project-access">Roles, and how owners manage members.</Card>
+</Cards>

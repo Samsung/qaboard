@@ -53,7 +53,7 @@ integrations:
 # Experimental: may change without notice
 gate:
   reference: main
-  batches: [ci]
+  labels: [ci]
   rules:
     - {metric: map, min: 0.15}                       # median over the batch's runs
     - {metric: ap_small, max_regression: 10%}

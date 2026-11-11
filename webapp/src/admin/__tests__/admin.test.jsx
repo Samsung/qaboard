@@ -367,8 +367,9 @@ describe('Settings', () => {
     expect(history.location.search).toBe('');
     fireEvent.change(screen.getByLabelText('Search settings'), { target: { value: 'jenkins token' } });
     await waitFor(() => expect(history.location.search).toBe('?q=jenkins+token'), { timeout: 5000 });
+    // the list is filtered when the page renders with the new URL, after the URL changed
+    await waitFor(() => expect(screen.queryByTestId('setting-ingest.auth')).not.toBeInTheDocument());
     expect(screen.getByTestId('setting-jenkins.build_token')).toBeInTheDocument();
-    expect(screen.queryByTestId('setting-ingest.auth')).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Search settings'), { target: { value: 'nothing like this' } });
     expect(await screen.findByText('No settings match', {}, { timeout: 5000 })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Show all the settings' }));

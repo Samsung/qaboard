@@ -1,0 +1,44 @@
+{
+  "$schema": "https://samsung.github.io/qaboard/benchmarks.schema.json",
+  "qaboard_benchmarks": 1,
+  "source": "hyperfine",
+  "context": {
+    "harness": "hyperfine"
+  },
+  "benchmarks": [
+    {
+      "name": "kitefin-pack --threads 1 frames/",
+      "params": {
+        "threads": "1"
+      },
+      "value": 0.84211736494,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 0.84211736494,
+        "median": 0.8389150829400001,
+        "stddev": 0.012703516349003467,
+        "min": 0.83115220194,
+        "max": 0.86290418594,
+        "rounds": 6
+      }
+    },
+    {
+      "name": "kitefin-pack --threads 4 frames/",
+      "params": {
+        "threads": "4"
+      },
+      "value": 0.25530198894,
+      "unit": "s",
+      "statistic": "mean",
+      "stats": {
+        "mean": 0.25530198894,
+        "median": 0.25437114794,
+        "stddev": 0.004181937510254376,
+        "min": 0.25027405594,
+        "max": 0.26203190694,
+        "rounds": 5
+      }
+    }
+  ]
+}

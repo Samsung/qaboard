@@ -192,6 +192,15 @@
   margin: 1.5rem 0 0;
 }
 
+/* Screenshots that prove a section's cards: two side by side, stacked on phones */
+.evidence {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  align-items: start;
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
 /* The viewers, on a dark stage in both themes: the colors the section's text and controls use, redefined */
 .stage {
   --ifm-font-color-base: #e4e8ef;

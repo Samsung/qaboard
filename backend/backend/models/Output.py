@@ -21,6 +21,7 @@ from qaboard.api import dir_to_url
 from backend.models import Base
 from backend.fs_utils import rm_empty_parents, rmtree, mkdir_shared, chmod_shared
 from backend.storage import check_storage_path, check_inside
+from backend.attempts import forget_attempts
 
 
 
@@ -289,6 +290,8 @@ class Output(Base):
         return
       rmtree(output_dir)
       rm_empty_parents(output_dir)
+      # a run that was done again leaves its first attempt's folder, with only the latest attempt's number
+      forget_attempts(output_dir)
     else:
       # If a run crashes, or in case of network issues, the manifests may not be updated...
       manifest_path = output_dir / 'manifest.outputs.json'

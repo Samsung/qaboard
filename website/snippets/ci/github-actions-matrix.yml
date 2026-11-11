@@ -1,0 +1,18 @@
+# An evaluation fanned out with a CI matrix: one CI job per model and slice of the test set.
+# docs/coming-from-other-tools.mdx shows how the matrix moves to a QA-Board batch.
+name: Evaluate
+on: push
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: [self-hosted, linux]
+    strategy:
+      max-parallel: 4
+      matrix:
+        model: [fp32, int8]
+        slice: [indoor, outdoor, warehouse, small-objects]
+    steps:
+      - uses: actions/checkout@v4
+      - run: python eval.py --model "${{ matrix.model }}" --slice "slices/${{ matrix.slice }}"

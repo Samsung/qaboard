@@ -58,7 +58,7 @@ In `run()`, `from qaboard.config import project, project_root, subproject` tells
 Run each subproject's batch from its folder: `cd isp/denoise && qa batch ci`. What the CI sees carries the folder:
 - `qa batch`'s commit status is `QA denoise`, with the name of the subproject's folder (see
   [CI integration](/docs/ci-integration#commit-statuses));
-- `qa gate --post-status`'s is `qaboard/gate/isp/denoise` (see [Quality gate](/docs/quality-gate#commit-statuses));
+- `qa gate --post-status`'s is `qaboard/gate/isp/denoise` (see [the gate on pull requests](/docs/quality-gate-pull-requests#commit-statuses));
 - `qa check-bit-accuracy` waits for the job named `<bit_accuracy.failed_ci_job_name> denoise` (see
   [Bit accuracy](/docs/bit-accuracy#which-reference)).
 

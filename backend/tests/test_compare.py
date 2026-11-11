@@ -76,6 +76,18 @@ def test_the_order_of_the_runs_does_not_matter():
   check_diff(comparison['tests'], FIXTURE['expected']['diff'])
 
 
+def test_each_test_says_its_batch():
+  """For the gate's rules on the runs of some `qa batch`: the batch of qaboard.yaml each run comes from"""
+  new = [{**o, 'data': {**(o.get('data') or {}), 'batch': 'perf'}} if o['test_input_path'].startswith('photos/') else o for o in fixture_outputs('new')]
+  comparison = compare_outputs(new, fixture_outputs('ref'), FIXTURE['available_metrics'])
+  batches = {t['test_input_path']: t['batch'] for t in comparison['tests']}
+  assert batches['photos/night.jpg'] == 'perf' and batches['charts/edge.png'] is None
+  assert all('batch' in t for t in comparison['tests'])
+  # the numbers don't change
+  check_summary(comparison['metrics'], FIXTURE['expected']['summary'])
+  check_diff(comparison['tests'], FIXTURE['expected']['diff'])
+
+
 def test_metrics_definitions():
   comparison = compare_outputs(fixture_outputs('new'), fixture_outputs('ref'), FIXTURE['available_metrics'], metrics=['psnr', 'unknown'])
   assert set(comparison['metrics']) == {'psnr', 'unknown'}
@@ -165,6 +177,8 @@ def compare_api(monkeypatch):
   module = importlib.util.module_from_spec(spec)
   spec.loader.exec_module(module)
   module.milestones_of = lambda project_id, milestone_id=None: []
+  # the rules the project's owners set in the web app: none
+  module.gate_settings = lambda session, project_id: None
   return module
 
 
@@ -239,6 +253,46 @@ def test_compare_finished_batches(compare_api, dummy_app):
   assert data['reference']['type'] == 'commit' and data['reference']['id'] == REF_HEXSHA
   assert list(data['metrics']) == ['psnr']
   assert data['bit_accuracy'] is None
+  # a tuning iteration still running in the reference is not one of its runs: nothing to wait for
+  iteration = {**[o for o in fixture_outputs('ref') if not o['is_pending']][0], 'id': 999, 'output_type': 'optim_iteration', 'is_pending': True, 'is_running': True}
+  ref = make_commit(REF_HEXSHA, {'default': [o for o in fixture_outputs('ref') if not o['is_pending']] + [iteration]}, id=2)
+  data = call(compare_api, dummy_app, {HEXSHA: new, REF_HEXSHA: ref}, f'project=p&reference={REF_HEXSHA[:8]}&metrics=psnr').get_json()
+  assert data['status'] == 'complete'
+  assert data['reference']['runs']['pending'] == 0
+
+
+def test_compare_says_which_runs_were_done_again_and_the_references_gate(compare_api, dummy_app):
+  """Reviewers want to know when green took several attempts, and when a change loosens the gate's rules"""
+  outputs = [dict(o) for o in fixture_outputs('new') if not o['is_pending'] and o.get('output_type') != 'optim_iteration']
+  passed, failed, in_place = [o for o in outputs if not o['is_failed']][:2] + [o for o in outputs if not o['is_failed']][2:3]
+  passed['data'] = {**(passed.get('data') or {}), 'attempt': 3, 'previous_attempts': [{'attempt': 1, 'status': 'failed'}, {'attempt': 2, 'status': 'unfinished'}]}
+  failed['data'] = {**(failed.get('data') or {}), 'attempt': 2, 'previous_attempts': [{'attempt': 1, 'status': 'unfinished'}]}
+  in_place['data'] = {**(in_place.get('data') or {}), 'previous_attempts': [{'attempt': 1, 'status': 'success', 'in_place': True}]}
+  new = make_commit(HEXSHA, {'default': outputs})
+  gate = {'rules': [{'metric': 'psnr', 'max_regression': '1%'}]}
+  ref = make_commit(REF_HEXSHA, {'default': [o for o in fixture_outputs('ref') if not o['is_pending']]}, id=2,
+                    data={'qatools_config': {'project': {'name': 'p'}, 'gate': gate}})
+  data = call(compare_api, dummy_app, {HEXSHA: new, REF_HEXSHA: ref}, f'project=p&reference={REF_HEXSHA[:8]}&metrics=psnr').get_json()
+  assert data['commit']['reruns'] == {'runs': 3, 'after_failure': 1, 'after_unfinished': 1}
+  attempts = {t['id']: t.get('attempts') for t in data['tests']}
+  assert attempts[passed['id']] == {'attempt': 3, 'previous': ['failed', 'unfinished'], 'in_place': False}
+  assert attempts[in_place['id']] == {'attempt': 1, 'previous': ['success'], 'in_place': True}
+  assert sum(1 for a in attempts.values() if a) == 3
+  assert data['reference']['gate'] == gate
+  assert data['project_gate'] is None
+  # with the rules the project's owners set in the web app, that no commit can change
+  compare_api.gate_settings = lambda session, project_id: {'rules': [{'metric': 'psnr', 'min': 30}], 'on_looser_rules': 'fail'} if project_id == 'p' else None
+  data = call(compare_api, dummy_app, {HEXSHA: new, REF_HEXSHA: ref}, f'project=p&reference={REF_HEXSHA[:8]}&metrics=psnr').get_json()
+  assert data['project_gate'] == {'rules': [{'metric': 'psnr', 'min': 30}], 'on_looser_rules': 'fail'}
+  # a reference whose configuration we don't have: no rules to compare with, not the project's latest
+  ref.data = {}
+  ref.project = SimpleNamespace(id='p', data={'qatools_config': {'gate': gate}})
+  data = call(compare_api, dummy_app, {HEXSHA: new, REF_HEXSHA: ref}, f'project=p&reference={REF_HEXSHA[:8]}&metrics=psnr').get_json()
+  assert data['reference']['gate'] is None
+  # a reference without a gate section had no rules
+  ref.data = {'qatools_config': {'project': {'name': 'p'}}}
+  data = call(compare_api, dummy_app, {HEXSHA: new, REF_HEXSHA: ref}, f'project=p&reference={REF_HEXSHA[:8]}&metrics=psnr').get_json()
+  assert data['reference']['gate'] == {}
 
 
 def test_ci_names_the_ci_batch(compare_api, dummy_app):

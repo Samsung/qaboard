@@ -74,6 +74,59 @@ test("on a commit, the results views are links: a click switches view in the app
   expect(screen.getByRole('menuitem', { name: /Summary/ })).toHaveAttribute('href', '/kitefin/camera-isp/commit/0123456789abcdef?batch=nightly');
 });
 
+describe('the Admin menu', () => {
+  // Items with a submenu are the submenu's target, around their link
+  const link = item => item.closest('a') ?? item.querySelector('a');
+  const admin = async () => link(await screen.findByRole('menuitem', { name: /^Admin/ }));
+  // its pages are in a submenu, that opens on hover
+  const open = async () => {
+    fireEvent.mouseEnter(screen.getByRole('menuitem', { name: /^Admin/ }));
+    return { access: await screen.findByRole('menuitem', { name: 'Access' }), gate: await screen.findByRole('menuitem', { name: 'Quality gate' }) };
+  };
+
+  test('links to the Access page, and lists the Admin pages on hover', async () => {
+    renderSider('/kitefin/camera-isp/commits');
+    const item = await admin();
+    expect(item).toHaveAttribute('href', '/kitefin/camera-isp/access');
+    expect(item).not.toHaveClass('bp6-active');
+    expect(screen.queryByRole('menuitem', { name: 'Quality gate' })).toBeNull();
+    const { access, gate } = await open();
+    expect(access).toHaveAttribute('href', '/kitefin/camera-isp/access');
+    expect(gate).toHaveAttribute('href', '/kitefin/camera-isp/admin/gate');
+    expect(access).not.toHaveClass('bp6-active');
+    // without reloading the app
+    expect(fireEvent.click(gate)).toBe(false);
+    expect(window.location.pathname).toBe('/kitefin/camera-isp/admin/gate');
+  });
+
+  test('a click on Admin opens the Access page', async () => {
+    renderSider('/kitefin/camera-isp/commits');
+    expect(fireEvent.click(await admin())).toBe(false);
+    expect(window.location.pathname).toBe('/kitefin/camera-isp/access');
+  });
+
+  test('on the Quality gate page, the project menu stays, with Admin and its page highlighted', async () => {
+    renderSider('/kitefin/camera-isp/admin/gate');
+    expect(await admin()).toHaveClass('bp6-active');
+    const { access, gate } = await open();
+    expect(gate).toHaveClass('bp6-active');
+    expect(access).not.toHaveClass('bp6-active');
+    // the branch's commits are a link, like on the Access page
+    const branch = await screen.findByRole('menuitem', { name: 'main' });
+    expect(branch).toHaveAttribute('href', '/kitefin/camera-isp/commits/main');
+    expect(branch).not.toHaveClass('bp6-active');
+    expect(screen.getByRole('menuitem', { name: /History/ })).not.toHaveClass('bp6-active');
+  });
+
+  test('on the Access page, Admin and Access are highlighted', async () => {
+    renderSider('/kitefin/camera-isp/access');
+    expect(await admin()).toHaveClass('bp6-active');
+    const { access, gate } = await open();
+    expect(access).toHaveClass('bp6-active');
+    expect(gate).not.toHaveClass('bp6-active');
+  });
+});
+
 describe('the Code menu', () => {
   const project_data = { data: { git: { web_url: 'https://github.com/kitefin/monorepo', path_with_namespace: 'kitefin/monorepo' } } };
   const commit = { id: '0123456789abcdef', branch: 'feature/x' };
