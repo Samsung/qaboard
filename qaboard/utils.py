@@ -387,7 +387,7 @@ def is_plaintext(path, config=None):
 
 def eol_normalized_copy(path) -> Path:
   """A temp copy of a plaintext file with universal-newline EOLs (CRLF/CR -> LF):
-  the exact transform file_info() applies to plaintext files on Windows before hashing."""
+  the transform file_info() applies to plaintext files before hashing. The caller deletes it."""
   path = Path(path)
   try:
     with path.open(newline=None, encoding="utf-8", errors='surrogateescape') as raw_file: # newline=None: universal newlines — \r\n, \r and \n are all line endings
@@ -422,7 +422,8 @@ def file_info(path, normalize_eof=True, config=None, compute_hashes=True, has_fo
   # plaintext EOLs are normalized before hashing on every platform; HW_ALG records raw until it opts in with QA_RECORD_EOL_NORMALIZED=1 (RDI-2127)
   is_hw_alg = (config or {}).get('project', {}).get('name', '').startswith('CDE-Users/HW_ALG')
   normalize_eol = os.environ.get('QA_RECORD_EOL_NORMALIZED') == '1' if is_hw_alg else True
-  if normalize_eol and is_plaintext(path, config=config) and normalize_eof:
+  # without hashes there is nothing to compare: skip the copy (the server refreshes running outputs' manifests this way)
+  if compute_hashes and normalize_eol and is_plaintext(path, config=config) and normalize_eof:
     normalized_file = eol_normalized_copy(path)
     try:
       return file_info(normalized_file, normalize_eof=False, has_footer=has_footer)

@@ -136,6 +136,17 @@ class TestDefaultRecordingConvention(unittest.TestCase):
       self.assertEqual(info['md5'], hashlib.md5(CRLF_CONTENT).hexdigest())
       self.assertEqual(info['st_size'], len(CRLF_CONTENT))
 
+  def test_no_copy_without_hashes(self):
+    # the server refreshes running outputs' manifests without hashes, often:
+    # plaintext files must not be copied and hashed there
+    with no_opt_in_env(), tempfile.TemporaryDirectory() as tmp:
+      path = Path(tmp) / 'regs.txt'
+      path.write_bytes(CRLF_CONTENT)
+      with mock.patch.object(qaboard_utils, 'eol_normalized_copy') as copy:
+        info = file_info(path, compute_hashes=False)
+      copy.assert_not_called()
+      self.assertEqual(info, {'st_size': len(CRLF_CONTENT)})
+
   def test_project_config_classifying_hex_binary_stays_raw(self):
     # a project config (bit_accuracy.binary) re-classifies .hex as binary, and
     # the normalization must not override the project's explicit classification

@@ -89,11 +89,26 @@ bit_accuracy:
 The web app's **Output Files** and the [quality gate](/docs/quality-gate)'s `require_bit_accuracy` check the same
 files.
 
-:::note
-If you work with text files on both Linux and Windows, line endings can make identical files differ. Say which files
-are text with `bit_accuracy.plaintext`, *or* which are binary with `bit_accuracy.binary`, like the camera ISP's
-`plaintext: ['*.txt']`.
-:::
+### Line endings {#line-endings}
+`qa` hashes text files with Unix line endings (`\n`), on every platform: a file with Windows line endings (`\r\n`)
+records the same manifest on Linux and Windows. By default, text files are *.txt*, *.cde*, *.hex*, *.iir* and *.dvs*.
+Say which files are text with `bit_accuracy.plaintext`, *or* which are binary with `bit_accuracy.binary`, like the
+camera ISP's `plaintext: ['*.txt']`:
+
+```yaml title="qaboard.yaml"
+bit_accuracy:
+  plaintext: ['*.txt', '*.csv']
+  # or, everything is text except:
+  # binary: ['*.hex']
+```
+
+<details>
+<summary>References recorded before November 2026</summary>
+
+Before, only Windows changed the line endings: Linux hashed text files as they were. If your references have text
+outputs with Windows line endings, recorded on Linux, they differ once from your new runs: record them again, or mark
+those files binary.
+</details>
 
 ## Which reference {#which-reference}
 `qa check-bit-accuracy --batch <batch>` compares the results of `qa batch <batch>` with:
