@@ -227,7 +227,8 @@ class TestCleanOutputDirKeeps(unittest.TestCase):
       clean_output_dir(output_dir, keep=(POINTER,))
       self.assertEqual([p.name for p in output_dir.iterdir()], [POINTER])
       clean_output_dir(output_dir)
-      self.assertFalse(output_dir.exists())
+      # the directory itself stays when our output goes to a file (it may be in it), e.g. in CI
+      self.assertEqual(list(output_dir.iterdir()) if output_dir.exists() else [], [])
 
 
 if __name__ == '__main__':

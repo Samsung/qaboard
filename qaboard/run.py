@@ -1,3 +1,4 @@
+import os
 import sys
 import json
 import copy
@@ -80,6 +81,14 @@ class RunContext():
 
     def is_failed(self, verbose=False):
       metrics_path = self.output_dir / 'metrics.json'
+      if not metrics_path.exists():
+        # NFS: a job on another host wrote the files, and this host may still remember that they didn't exist, e.g.
+        # when `qa batch` looked for the attempt's directory before starting the job. Reading the folders asks the server.
+        for directory in (self.output_dir.parent, self.output_dir):
+          try:
+            os.listdir(directory)
+          except OSError:
+            pass
       if metrics_path.exists():
           # try to load the metrics file
           try:
