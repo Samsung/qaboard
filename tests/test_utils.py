@@ -4,6 +4,7 @@ Tests for qaboard/utils.py
 import os
 import sys
 import types
+import errno
 import hashlib
 import tempfile
 import unittest
@@ -31,7 +32,7 @@ class TestRedirectStdStreams(unittest.TestCase):
 
 class TestFileInfo(unittest.TestCase):
   def test_windows_line_endings(self):
-    """On Windows, text files are compared with unix line endings, via a temporary file we must delete"""
+    """Text files are hashed with unix line endings on every platform (normalization is always on), via a temporary file we must delete"""
     from qaboard import utils
     on_windows = types.SimpleNamespace(**{**vars(os), 'name': 'nt'})
     with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as tempdir:
@@ -40,6 +41,54 @@ class TestFileInfo(unittest.TestCase):
       with mock.patch.object(utils, 'os', on_windows), mock.patch.object(tempfile, 'tempdir', tempdir):
         info = utils.file_info(path)
       self.assertEqual(info['md5'], hashlib.md5(b'a\nb\n').hexdigest())
+      self.assertEqual(os.listdir(tempdir), [])
+
+
+class TestEolNormalizedCopy(unittest.TestCase):
+  def test_cleanup_on_write_failure(self):
+    """When writing the temp copy fails (e.g. no space left), the helper leaves nothing behind in the temp directory"""
+    import builtins
+    from qaboard import utils
+    real_open = builtins.open
+
+    def open_with_failing_write(*args, **kwargs):
+      f = real_open(*args, **kwargs)
+      if len(args) >= 2 and args[1] == 'w': # only the temp copy's write pass
+        def no_space_left(*a, **k):
+          raise OSError(28, 'No space left on device')
+        f.write = no_space_left
+      return f
+
+    with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as tempdir:
+      path = Path(tmp) / 'out.txt'
+      path.write_bytes(b'a\r\nb\r\n')
+      with mock.patch.object(tempfile, 'tempdir', tempdir), mock.patch('builtins.open', open_with_failing_write):
+        with self.assertRaises(OSError) as ctx:
+          utils.eol_normalized_copy(path)
+      self.assertEqual(ctx.exception.errno, errno.ENOSPC)
+      self.assertEqual(os.listdir(tempdir), [])
+
+  def test_cleanup_on_close_failure(self):
+    """When closing the temp copy fails after a successful write, the helper still leaves nothing behind"""
+    import builtins
+    from qaboard import utils
+    real_open = builtins.open
+
+    def open_with_failing_close(*args, **kwargs):
+      f = real_open(*args, **kwargs)
+      if len(args) >= 2 and args[1] == 'w': # only the temp copy's writer
+        def no_space_left(*a, **k):
+          raise OSError(errno.ENOSPC, 'No space left on device')
+        f.flush = no_space_left # close() flushes first, so this is the close/flush-failure path
+      return f
+
+    with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as tempdir:
+      path = Path(tmp) / 'out.txt'
+      path.write_bytes(b'a\r\nb\r\n')
+      with mock.patch.object(tempfile, 'tempdir', tempdir), mock.patch('builtins.open', open_with_failing_close):
+        with self.assertRaises(OSError) as ctx:
+          utils.eol_normalized_copy(path)
+      self.assertEqual(ctx.exception.errno, errno.ENOSPC)
       self.assertEqual(os.listdir(tempdir), [])
 
 
