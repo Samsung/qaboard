@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Tree, Button, Classes, Intent, Spinner, Tag, Icon, PopoverNext, Menu, MenuItem, Tooltip } from "@blueprintjs/core";
 import { OutputViewer } from "../OutputViewer"
@@ -6,6 +6,7 @@ import { preloadMonaco } from "../../components/MonacoEditor"
 import { useIsDark } from "../../theme"
 import { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, updateMissingFrom, humanFileSize, state_colors } from "./utils"
 import { bitAccuracyChecker, markChecked, bitAccuracySummary } from "./checked"
+import { previewTree, countStates, countFiles } from "./preview"
 import { match_query, is_same_data } from "../../utils"
 import { useLabels } from "../../hooks"
 
@@ -289,7 +290,36 @@ const decorate = (nodes, { is_expanded, selected }) => nodes?.map(node => {
 })
 
 
-const count_files = nodes => (nodes ?? []).reduce((count, node) => count + (node.childNodes === undefined ? 1 : count_files(node.childNodes)), 0);
+// A row like the tree's, that shows or hides files, and says what they are: "47 more files ✕ 12 different + 35 added"
+const files_row_style = { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 10px', minHeight: 30 };
+const FilesRow = ({ files, text, icon, expanded, title, has_reference, colors, onClick }) => {
+  const states = countStates(files, has_reference);
+  return <div style={files_row_style}>
+    <Button size="small" variant="minimal" icon={icon} aria-expanded={expanded} title={title} onClick={onClick}>
+      {text}
+    </Button>
+    {states.map(({ state, label, icon, count }) => <span key={state} className={Classes.TEXT_MUTED} style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      <Icon icon={icon} size={12} style={{ color: colors[state] }}/>{count} {label}
+    </span>)}
+  </div>
+};
+
+// The rows the preview hides stay on the page for the browser's search: Ctrl+F finds them, and shows the run's files
+const HiddenUntilFound = ({ rows, onFound }) => {
+  const ref = useRef();
+  useEffect(() => {
+    const element = ref.current;
+    // React only renders `hidden`: browsers that don't know "until-found" keep them hidden, like the search would
+    element?.setAttribute('hidden', 'until-found');
+    element?.addEventListener('beforematch', onFound);
+    return () => element?.removeEventListener('beforematch', onFound);
+  }, [onFound]);
+  return <div ref={ref} hidden data-testid="hidden-files">
+    {rows.map(node => <div key={node.id}>{node.id}</div>)}
+  </div>;
+};
+
+const plural = (count, word) => `${count.toLocaleString()} ${word}${count === 1 ? '' : 's'}`;
 
 
 const BitAccuracyViewer = props_ => {
@@ -299,12 +329,12 @@ const BitAccuracyViewer = props_ => {
   const [selected, setSelected] = useState([]);
   // folders users expanded (true) or collapsed (false)
   const [expanded, setExpanded] = useState({});
-  // the run's files are hidden with "Collapse runs", users show or hide them per run until the option changes
-  const [files_shown, setFilesShown] = useState(!collapse_runs);
-  const [files_shown_for, setFilesShownFor] = useState(!!collapse_runs);
-  if (files_shown_for !== !!collapse_runs) {
-    setFilesShownFor(!!collapse_runs);
-    setFilesShown(!collapse_runs);
+  // users asked to see all the run's files, until "Collapse runs" changes
+  const [show_all, setShowAll] = useState(false);
+  const [show_all_for, setShowAllFor] = useState(!!collapse_runs);
+  if (show_all_for !== !!collapse_runs) {
+    setShowAllFor(!!collapse_runs);
+    setShowAll(false);
   }
   const is_dark = useIsDark();
   const labels = useLabels(props_.labels);
@@ -324,6 +354,12 @@ const BitAccuracyViewer = props_ => {
     is_expanded: node => expanded[node.id] ?? (!!expand_all || has_filter),
     selected,
   }), [tree, expanded, expand_all, has_filter, selected]);
+  // - "Collapse runs": only what the files are, users click to see them
+  // - by default: the first files, and what the others are. When users ask for more files (a filter,
+  //   "Expand all folders", or they open a folder), they see them all.
+  const mode = show_all ? 'all' : collapse_runs ? 'summary' : (has_filter || expand_all) ? 'all' : 'preview';
+  const preview = useMemo(() => previewTree(contents, { is_expanded: node => node.isExpanded }), [contents]);
+  const all_files = useMemo(() => countFiles(tree), [tree]);
 
   const handleNodeClick = (node, _nodePath, e) => {
     const is_folder = node.childNodes !== undefined;
@@ -332,8 +368,12 @@ const BitAccuracyViewer = props_ => {
     const kept = (e.shiftKey || e.ctrlKey) ? selected : [];
     setSelected(was_selected ? kept.filter(id => id !== node.id) : [...kept, node.id]);
   };
+  const showAllFiles = () => setShowAll(true);
   const handleNodeCollapse = node => setExpanded(expanded => ({ ...expanded, [node.id]: false }));
-  const handleNodeExpand = node => setExpanded(expanded => ({ ...expanded, [node.id]: true }));
+  const handleNodeExpand = node => {
+    setExpanded(expanded => ({ ...expanded, [node.id]: true }));
+    if (mode === 'preview') setShowAll(true);
+  };
 
   // the list of the run's files is still loading
   if (files_loading)
@@ -343,33 +383,48 @@ const BitAccuracyViewer = props_ => {
   const empty_message = has_filter ? 'No file matches the filter'
     : show_all_files ? 'No files'
     : 'No differences with the reference. Switch on “Show all files” to see them.'
-  const nb_files = count_files(tree);
+  const has_reference = !!manifests?.reference;
+  const colors = state_colors(is_dark);
+  const row_props = { has_reference, colors };
+  const is_truncated = preview.hidden_files.length > 0;
   return <div className={(!has_files && hide_runs_without_files) ? "viewer-no-files" : undefined}>
-    {(bit_accurate || has_files) && <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '5px' }}>
-      {has_files && <Button
-        size="small"
-        variant="minimal"
-        icon={files_shown ? 'chevron-down' : 'chevron-right'}
-        aria-expanded={files_shown}
-        title={files_shown ? "Hide the files" : "Show the files"}
-        onClick={() => setFilesShown(!files_shown)}
-      >
-        {nb_files} {nb_files === 1 ? 'file' : 'files'}
-      </Button>}
-      {bit_accurate && <Tooltip content="All the checked files are identical to the reference">
-        <Tag minimal intent={Intent.SUCCESS} icon="tick">Bit-accurate</Tag>
-      </Tooltip>}
-    </div>}
+    {bit_accurate && <div><Tooltip content="All the checked files are identical to the reference">
+      <Tag minimal intent={Intent.SUCCESS} icon="tick" style={{marginBottom: '5px'}}>Bit-accurate</Tag>
+    </Tooltip></div>}
     {!has_files && <em className={Classes.TEXT_MUTED}>{empty_message}</em>}
-    {files_shown && <>
+    {has_files && collapse_runs && <FilesRow
+      {...row_props}
+      files={all_files}
+      text={plural(all_files.length, 'file')}
+      icon={mode === 'summary' ? 'chevron-right' : 'chevron-down'}
+      expanded={mode !== 'summary'}
+      title={mode === 'summary' ? "Show the files" : "Hide the files"}
+      onClick={() => setShowAll(!show_all)}
+    />}
+    {has_files && mode !== 'summary' && <>
       <Tree
-       contents={contents}
+       contents={mode === 'preview' ? preview.nodes : contents}
        onNodeClick={handleNodeClick}
        // most files show in a text editor: load it before the click
        onNodeMouseEnter={node => { if (node.childNodes === undefined) preloadMonaco() }}
        onNodeCollapse={handleNodeCollapse}
        onNodeExpand={handleNodeExpand}
       />
+      {mode === 'preview' && is_truncated && <FilesRow
+        {...row_props}
+        files={preview.hidden_files}
+        text={plural(preview.hidden_files.length, 'more file')}
+        icon="chevron-down"
+        expanded={false}
+        title="Show all the files"
+        onClick={() => setShowAll(true)}
+      />}
+      {mode === 'preview' && is_truncated && <HiddenUntilFound rows={preview.hidden_rows} onFound={showAllFiles}/>}
+      {show_all && !collapse_runs && !has_filter && !expand_all && is_truncated && <div style={files_row_style}>
+        <Button size="small" variant="minimal" icon="chevron-up" aria-expanded title="Show only the first files" onClick={() => setShowAll(false)}>
+          Show fewer files
+        </Button>
+      </div>}
       {selected.map( filename => {
         const has_same_data = is_same_data(filename, manifests?.new?.[filename], manifests?.reference?.[filename])
 

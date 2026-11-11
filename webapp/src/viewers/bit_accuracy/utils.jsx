@@ -234,7 +234,7 @@ const file_options = [
   { name: 'show_all_files', label: 'Show all files', short: 'all files', help: 'By default, only the checked files that are different, added or removed show.' },
   { name: 'hide_runs_without_files', label: 'Hide runs without files', short: 'runs without files hidden' },
   { name: 'expand_all', label: 'Expand all folders', short: 'folders expanded' },
-  { name: 'collapse_runs', label: 'Collapse runs', short: 'runs collapsed', help: 'Show only each run\'s header and status, to scroll through many runs. Click a run\'s files count to show them.' },
+  { name: 'collapse_runs', label: 'Collapse runs', short: 'runs collapsed', help: 'Each run says only how many files it has and how they differ, to scroll through many runs. Click to list them.' },
   { name: 'color_blind_friendly', label: 'Color-blind friendly', short: 'color-blind friendly' },
 ];
 
