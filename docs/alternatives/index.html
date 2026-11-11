@@ -17,9 +17,9 @@
 
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
-<link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.0469eb56.css">
-<script src="/qaboard/assets/js/runtime~main.aeea5eaa.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.a973cd1e.js" defer="defer"></script>
+<link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.a0fe5e86.css">
+<script src="/qaboard/assets/js/runtime~main.38e8b716.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.c19c7fc1.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -31,7 +31,7 @@ with: what each does best, where QA-Board differs, and when to use both. It desc
 and if not, where and why?</strong> Other tools answer neighboring questions, and some answer them better than QA-Board does.
 Most teams end up with QA-Board next to one of them, not instead of it.</p>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="the-short-answer">The short answer<a href="#the-short-answer" class="hash-link" aria-label="Direct link to The short answer" title="Direct link to The short answer" translate="no">​</a></h2>
-<table><thead><tr><th>If your main question is...</th><th>Reach for</th><th>Where QA-Board fits</th></tr></thead><tbody><tr><td>Is this change better than what we ship, on every input, and why?</td><td><strong>QA-Board</strong></td><td>What it&#x27;s built for.</td></tr><tr><td>Which training run converged best?</td><td>An experiment tracker: Weights &amp; Biases, MLflow, TensorBoard</td><td>After training: the checkpoint you&#x27;d ship, against the model you shipped, input by input.</td></tr><tr><td>How does our LLM app behave with real users?</td><td>An LLM observability platform: Langfuse, LangSmith, Arize Phoenix</td><td>Before release: your eval suite, task by task, on every commit.</td></tr><tr><td>Which of our 50,000 tests are flaky?</td><td>Test analytics: ReportPortal, Develocity, your CI&#x27;s test insights</td><td>Suites next to your other metrics, tests against the reference&#x27;s, a gate on deleted tests.</td></tr><tr><td>Is this function 3% slower?</td><td>Continuous benchmarking: CodSpeed, Bencher, asv</td><td>End-to-end: latency distributions under load, flame graph diffs, History.</td></tr><tr><td>Is production healthy right now?</td><td>Monitoring and APM</td><td>Not QA-Board&#x27;s job: it catches regressions before they ship.</td></tr></tbody></table>
+<table><thead><tr><th>If your main question is...</th><th>Reach for</th><th>Where QA-Board fits</th></tr></thead><tbody><tr><td>Is this change better than what we ship, on every input, and why?</td><td><strong>QA-Board</strong></td><td>What it&#x27;s built for.</td></tr><tr><td>Which training run converged best?</td><td>An experiment tracker: Weights &amp; Biases, MLflow, TensorBoard</td><td>After training: the checkpoint you&#x27;d ship, against the model you shipped, input by input.</td></tr><tr><td>How does our LLM app behave with real users?</td><td>An LLM observability platform: Langfuse, LangSmith, Arize Phoenix</td><td>Before release: your eval suite, task by task, on every commit.</td></tr><tr><td>Which of our 50,000 tests are flaky?</td><td>Test analytics: ReportPortal, Develocity, your CI&#x27;s test insights</td><td>Suites next to your other metrics, tests against the reference&#x27;s, a gate on deleted tests, retries on record.</td></tr><tr><td>Is this function 3% slower?</td><td>Continuous benchmarking: CodSpeed, Bencher, asv</td><td>Your harness&#x27;s files against the reference&#x27;s, within its spread or not; end to end, latency under load and flame graph diffs.</td></tr><tr><td>Is production healthy right now?</td><td>Monitoring and APM</td><td>Not QA-Board&#x27;s job: it catches regressions before they ship.</td></tr></tbody></table>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="what-qa-board-does-differently">What QA-Board does differently<a href="#what-qa-board-does-differently" class="hash-link" aria-label="Direct link to What QA-Board does differently" title="Direct link to What QA-Board does differently" translate="no">​</a></h2>
 <figure class="figure_SMyr" style="max-width:1440px"><div class="frame_gpSn videoFrame_ASb1"><video class="video_VeD9" width="1440" height="900" poster="/qaboard/media/shots/landing/hero/593a3d9e7ed953dc.webp" preload="none" muted="" playsinline="" loop="" controls="" tabindex="0" aria-label="The Metrics Diff of a new denoiser: PSNR up, edge overshoot up 163%. In the facade&#x27;s images, zooming into one zooms the other, their difference shows between them, and a higher maximum leaves only the halos; then back to the Metrics Diff."><source src="/qaboard/media/shots/landing/hero/2892cfa6875ba376.webm" type="video/webm"><source src="/qaboard/media/shots/landing/hero/2ea69e95e81cd3f1.mp4" type="video/mp4"><track kind="captions" src="/qaboard/media/shots/landing/hero/77a4ae38629db7df.vtt" srclang="en" label="English" default=""></video></div><figcaption class="caption_G95k"><span>Metrics, then the outputs behind them: the new denoiser wins PSNR, and the images show the halos it adds.</span></figcaption></figure>
 <ol>
@@ -49,7 +49,9 @@ is self-hosted and open source (Apache 2.0), with every feature, including on ne
 <li class=""><strong>The whole team, from the browser.</strong> Anyone can rerun tests with other parameters, start a sweep or an automated
 tuning, and read what it found, without a terminal.</li>
 <li class=""><strong>Built for releases.</strong> Milestones for what shipped, bit-accuracy checks before a hardware handoff, and a quality
-gate in CI (<code>qa gate</code>, experimental). Coding agents run the same tests and meet the same targets as people.</li>
+gate in CI (<code>qa gate</code>, experimental) that comments on the pull request, with rules a project&#x27;s owners set out of
+the commits&#x27; reach. Coding agents run the same tests and meet the same targets as people, and a run done again
+keeps the record of its earlier attempts.</li>
 <li class=""><strong>Proven in production.</strong> Samsung&#x27;s central quality platform since 2018: about 50 projects and more than 40
 million runs.</li>
 </ol>
@@ -98,16 +100,24 @@ and QA-Board when the agent is one part of a product whose other parts you alrea
 builds, failures grouped by cause, flaky tests across an organization, coverage comments on pull requests.</p>
 <p>QA-Board follows each suite as a run: counts, failures, flaky and skipped tests and coverage over time, next to your
 other quality metrics, with each suite&#x27;s tests compared with the reference&#x27;s and a gate that catches tests deleted to
-get a green CI (see <a class="" href="/qaboard/docs/use-cases/software-quality">tests and coverage</a>). The gate comments on pull requests with
-its verdict (experimental). QA-Board has no history of a single test case.</p>
+get a green CI (see <a class="" href="/qaboard/docs/use-cases/software-quality">tests and coverage</a>). The gate (experimental) comments on pull
+requests with its verdict, and lists the runs that only passed after a retry: a run done again keeps how its earlier
+attempts ended and their logs. QA-Board has no history of a single test case, and doesn&#x27;t group failures by cause
+across builds.</p>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="benchmarking">Benchmarking and profiling tools<a href="#benchmarking" class="hash-link" aria-label="Direct link to Benchmarking and profiling tools" title="Direct link to Benchmarking and profiling tools" translate="no">​</a></h2>
 <p>CodSpeed, Bencher and asv run microbenchmarks on every change, with measurements stable enough to flag a few
 percent, and comment on pull requests. Continuous profilers and APM tools watch production.</p>
-<p>QA-Board is for end-to-end performance: latency distributions under the same load profiles on every commit, flame
-graph diffs, CPU per core, History per profile, and tuning frontiers (see <a class="" href="/qaboard/docs/use-cases/serving-latency">performance</a>).
-The gate&#x27;s verdict goes to the pull request too, as <a class="" href="/qaboard/docs/quality-gate#pull-request-comments">a comment</a> that also
-says when runs only passed after being done again. It doesn&#x27;t decide whether a change is noise: repeat your
-measurements, and set the gate&#x27;s thresholds above the noise.</p>
+<p>QA-Board puts performance next to the rest of a change&#x27;s review: latency distributions under the same load profiles
+on every commit, flame graph diffs from the files your profiler writes (folded stacks, speedscope, <code>.cpuprofile</code>), CPU
+per core, History per profile, and tuning frontiers (see <a class="" href="/qaboard/docs/use-cases/serving-latency">performance</a>). The gate&#x27;s
+verdict goes to the pull request too, as <a class="" href="/qaboard/docs/quality-gate-pull-requests">a comment</a> (experimental) that
+also says when runs only passed after being done again. The gate doesn&#x27;t decide whether a change is noise: repeat your
+measurements, and set its thresholds above the noise.</p>
+<p>QA-Board reads the files of the usual benchmark harnesses: pytest-benchmark, Google Benchmark, hyperfine, Criterion,
+JMH and <code>go test</code> (Bencher reads more). Each benchmark shows next to the reference&#x27;s, gray when the change is within the
+spread the harness reported, and becomes a metric in one line (see <a class="" href="/qaboard/docs/benchmarks">benchmarks</a>). It still
+doesn&#x27;t run, repeat or stabilize benchmarks, and doesn&#x27;t estimate noise from past runs: that&#x27;s the harness&#x27;s job, and
+those tools&#x27; strength.</p>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="in-house">Notebooks, spreadsheets and in-house dashboards<a href="#in-house" class="hash-link" aria-label="Direct link to Notebooks, spreadsheets and in-house dashboards" title="Direct link to Notebooks, spreadsheets and in-house dashboards" translate="no">​</a></h2>
 <p>A notebook answers a new question in an afternoon, and nothing replaces that. Then results get pasted into a
 spreadsheet, screenshots into a chat thread, and someone maintains a dashboard for one project. QA-Board is what

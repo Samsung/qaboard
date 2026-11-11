@@ -17,9 +17,9 @@
 
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
-<link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.0469eb56.css">
-<script src="/qaboard/assets/js/runtime~main.aeea5eaa.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.a973cd1e.js" defer="defer"></script>
+<link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.a0fe5e86.css">
+<script src="/qaboard/assets/js/runtime~main.38e8b716.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.c19c7fc1.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -52,10 +52,11 @@ parameters on top, shown as <code>key: value</code> tags. See <a class="" href="
 platform.</li>
 <li class=""><strong>Run</strong>: your code from one commit, on one input, with one configuration, on one platform. A run has output files,
 metrics and a log. An input with its configuration is a <strong>test</strong>, as in the web app&#x27;s <strong>Available Tests</strong>.</li>
-<li class=""><strong>Batch</strong>: a group of runs of the same commit, with a label. <code>qa batch ci</code> runs the inputs and configurations listed
-under <code>ci</code> in your batches file. The batch CI runs has the label <code>default</code>, and the web app shows it as <strong>CI</strong>.
-Tuning experiments and your own runs get their own batches. See
-<a class="" href="/qaboard/docs/batches-running-on-multiple-inputs">Batches of inputs</a>.</li>
+<li class=""><strong>Batch</strong>: the inputs and configurations listed under a name in your batches file: <code>qa batch ci</code> runs those listed
+under <code>ci</code>. See <a class="" href="/qaboard/docs/batches-running-on-multiple-inputs">Batches of inputs</a>.</li>
+<li class=""><strong>Label</strong>: the name of a group of a commit&#x27;s runs, set with <code>qa --label</code>. CI runs have the label <code>default</code>, shown
+as <strong>CI</strong>; tuning experiments and your own runs get their own labels. The web app&#x27;s batch selector picks a label:
+the runs of several <code>qa batch</code> commands with the same label show together.</li>
 </ul>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="what-you-see">What you see<a href="#what-you-see" class="hash-link" aria-label="Direct link to What you see" title="Direct link to What you see" translate="no">​</a></h2>
 <ul>

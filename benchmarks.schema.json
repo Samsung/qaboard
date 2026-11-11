@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://samsung.github.io/qaboard/benchmarks.schema.json",
+  "title": "QA-Board benchmarks (*.benchmarks.json)",
+  "description": "A benchmark harness's results, for the web app's benchmark viewer and qaboard.benchmarks.benchmark_metrics. QA-Board also reads pytest-benchmark, Google Benchmark, hyperfine, Criterion, JMH and go test -bench files: write this format for other harnesses (qaboard.benchmarks.write_benchmarks). Docs: https://samsung.github.io/qaboard/docs/viewers#benchmarks",
+  "type": "object",
+  "required": ["qaboard_benchmarks", "benchmarks"],
+  "properties": {
+    "$schema": {"type": "string"},
+    "qaboard_benchmarks": {"const": 1, "description": "The version of this format"},
+    "source": {"type": "string", "description": "The harness or format the results come from, e.g. criterion"},
+    "context": {
+      "type": "object",
+      "description": "Where the benchmarks ran. The viewer warns when the new and reference files have different CPUs or CPU counts.",
+      "properties": {
+        "machine": {"type": "string", "description": "The host's name"},
+        "cpu": {"type": "string", "description": "The CPU's model"},
+        "cpu_count": {"type": "integer", "minimum": 1},
+        "os": {"type": "string"},
+        "arch": {"type": "string"},
+        "date": {"type": "string", "description": "When the benchmarks ran, ISO 8601"},
+        "harness": {"type": "string", "description": "The harness and its version"}
+      }
+    },
+    "benchmarks": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/benchmark"}
+    }
+  },
+  "$defs": {
+    "benchmark": {
+      "type": "object",
+      "required": ["name", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "description": "Unique in the file and stable across commits: benchmarks are matched with the reference's by name"},
+        "group": {"type": ["string", "null"], "description": "The benchmark's module, class or family, to group them"},
+        "params": {
+          "type": "object",
+          "additionalProperties": {"type": ["string", "number", "boolean", "null"]}
+        },
+        "value": {"type": "number", "description": "The headline number, in `unit`: usually the mean time per iteration"},
+        "unit": {"type": "string", "default": "s", "description": "Times in ns, us, ms or s are converted to seconds. Other units (ops/s, B...) are shown as they are."},
+        "statistic": {"type": "string", "description": "Which statistic `value` is: mean, median, min..."},
+        "smaller_is_better": {"type": "boolean", "default": true, "description": "false for throughputs"},
+        "stats": {
+          "type": "object",
+          "description": "What the harness measured, times in `unit`. The viewer's spread is stddev, else iqr, mad or error.",
+          "additionalProperties": false,
+          "properties": {
+            "mean": {"type": "number"},
+            "median": {"type": "number"},
+            "stddev": {"type": "number", "minimum": 0},
+            "min": {"type": "number"},
+            "max": {"type": "number"},
+            "iqr": {"type": "number", "minimum": 0, "description": "Interquartile range"},
+            "mad": {"type": "number", "minimum": 0, "description": "Median absolute deviation"},
+            "error": {"type": "number", "minimum": 0, "description": "Half-width of a confidence interval, e.g. JMH's score error"},
+            "rounds": {"type": "integer", "minimum": 0, "description": "Repetitions, or rounds, measured"},
+            "iterations": {"type": "integer", "minimum": 0, "description": "Iterations per round"},
+            "samples": {"type": "integer", "minimum": 0},
+            "ops": {"type": "number", "description": "Operations per second"},
+            "cpu_time": {"type": "number", "description": "CPU time per iteration"},
+            "bytes_per_op": {"type": "number"},
+            "allocs_per_op": {"type": "number"}
+          }
+        },
+        "throughput": {
+          "type": "object",
+          "required": ["value", "unit"],
+          "additionalProperties": false,
+          "properties": {
+            "value": {"type": "number"},
+            "unit": {"type": "string", "description": "e.g. B/s, items/s, elements/s"}
+          }
+        }
+      }
+    }
+  }
+}
