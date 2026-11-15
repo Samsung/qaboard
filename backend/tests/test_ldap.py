@@ -136,3 +136,18 @@ def test_ldap_over_tls(ldap_auth, dummy_app, monkeypatch, host, port, start_tls,
   assert ldap_auth.directory.uri == uri
   # before sending passwords
   assert ldap_auth.directory.started_tls is bool(start_tls)
+
+
+def test_ldap_sign_in_response_is_json(ldap_auth, dummy_app, monkeypatch):
+  """The directory's picture is bytes: the sign-in response must not include it (TypeError: bytes is not JSON serializable)"""
+  import json
+  monkeypatch.setitem(ALICE, "jpegPhoto", [b"\xff\xd8\xff\xe0 not utf-8"])
+  monkeypatch.setattr(ldap_auth, "is_admin", lambda user: False)
+  with dummy_app.test_request_context("/api/v1/user/auth/", method="POST"):
+    info = ldap_auth.auth_ldap("alice", "secret")
+  assert isinstance(info["picture"], bytes)
+  response = ldap_auth.sign_in_response(info, MagicMock(id=1, status="active"))
+  assert json.loads(json.dumps(response)) == {
+    "login_success": True, "user_name": "alice", "full_name": "Alice", "email": "alice@example.com", "login_type": "LDAP",
+    "status": "active", "is_admin": False, "user_id": 1,
+  }
