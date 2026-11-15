@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.96dbde19.css">
-<script src="/qaboard/assets/js/runtime~main.ec72eb19.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.f54b0e85.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.db5e5d01.js" defer="defer"></script>
 </head>
 <body>
@@ -179,7 +179,12 @@ the runs shown use.</p>
 <li class="">By default, only the files that are <strong>different, added or removed</strong> are listed. Filter them by path above the
 files: <code>match:name</code> lists identical files, <code>diff:name</code> different ones.</li>
 <li class=""><strong>File options</strong>, next to the filter, opens their options in the <a href="#view-options" class="">View options</a>: <strong>Show all files</strong>,
-<strong>Hide runs without files</strong>, <strong>Expand all folders</strong> and <strong>Color-blind friendly</strong>. The button says which are on.</li>
+<strong>Hide runs without files</strong>, <strong>Expand all folders</strong>, <strong>Collapse runs</strong> and <strong>Color-blind friendly</strong>. The button says which are on.</li>
+<li class="">Runs with many differences list their first ones, folders first, then a row like <strong>40 more files
+✕ 27 different + 5 added − 8 removed</strong>: click it to list them all. Filtering, <strong>Show all files</strong>, <strong>Expand all folders</strong>,
+or opening one of the run&#x27;s folders lists them all too, and <kbd>Ctrl</kbd>+<kbd>F</kbd> still finds the files that aren&#x27;t listed.</li>
+<li class=""><strong>Collapse runs</strong> to scroll through many runs: each run says only how many files it has, how they differ, and
+whether it&#x27;s bit-accurate. Click a run&#x27;s <strong>N files</strong> to show or hide them.</li>
 <li class=""><strong>Click a file</strong> to see its diff with the reference&#x27;s. <kbd>Ctrl</kbd>-click or <kbd>Shift</kbd>-click to diff
 several. <strong>Next diff</strong> jumps to the next change.</li>
 <li class=""><strong>Help</strong> explains the icons and colors: bit-accurate, different, missing in the reference, only in the reference...</li>
