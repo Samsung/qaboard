@@ -69,6 +69,8 @@ const loadDraft = (project, name) => {
     return null;
   }
 };
+// Whether a file has changes that were not saved: writing the file elsewhere would conflict with them
+export const hasUnsavedDraft = (project, name) => loadDraft(project, name) !== null;
 const storeDraft = (project, name, doc) => {
   try {
     if (doc.draft === doc.base) localStorage.removeItem(draft_key(project, name));

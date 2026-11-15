@@ -62,6 +62,10 @@ with a new and a reference profile that differ in known ways (`generate.js`); `q
 The parallel coordinates of Tuning Analysis (`webapp/src/viewers/parallel/`, drawn on a canvas, no Plotly) too: `/parallel-coordinates.html?rows=2000&columns=30`;
 `components/tuning/ParallelCoordinatesPlot.jsx` loads it lazily. Tuning Analysis itself is `components/tuning/TuningAnalysis.jsx`: `OptimizationReport.jsx`
 for `qa optimize` batches, `TuningReport.jsx` for the others (logic in `optimization.js` and `analysis.js`), with explanations in `learn.jsx`.
+Run Tests / Tuning is `components/tuning/forms.jsx`: `BatchPicker.jsx` lists the commit's batches and their tests (and edits them in a drawer),
+`ParametersTable.jsx` is the table over the JSON of the values to try (`parameters.js`), `OptimizeSetup.jsx` the guided automated tuning, and
+`StartFrom.jsx` fills the form from a previous batch (`history.js`). The draft is a synced preference (`stores/prefs.js` `tuning`); what was
+started is saved by the server with each submission (`backend/backend/submissions.py`, `GET /api/v1/tuning/history`).
 Like the image viewer, `viewers/benchmarks/` and `viewers/flamegraph/` are standalone: they import nothing from the app, which
 only loads their adapters (`viewers/benchmarks-viewer.jsx`, `viewers/flame-graph.jsx`), lazily. `viewers/__tests__/isolation.test.js`
 checks it, and `TestIsolation` in the Python tests checks that `qaboard/benchmarks.py` and `flamegraphs.py` import nothing from `qaboard`.

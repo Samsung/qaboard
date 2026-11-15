@@ -28,11 +28,12 @@ from qaboard.iterators import iter_inputs, resolve_aliases, recording_missing_in
 from qaboard.conventions import deserialize_config, location_from_spec
 
 from backend import app, db_session
-from ..models import CiCommit, Project
+from ..models import CiCommit, Project, Batch
 from ..config import qaboard_data_shared_dir
 from ..shell_utils import safe_user_name, lsf_bridge_command
 from ..storage import check_storage_path, UnsafePathError
 from ..submissions import record_submission, MAX_SUBMISSIONS, user_batch_dir, submission_dir, append_log, startup_logs # noqa: F401
+from ..submissions import submission_request, history_entry
 from ..artifacts import ArtifactsUnavailable
 from ..notifications.batches import request_batch_notification, cancel_batch_notification
 from .auth import login_required, require_project_access, is_authorized_user, forbidden_project
@@ -241,7 +242,7 @@ def batches_warnings(name, files, defined, aliases, tests, missing_inputs, artif
     if f["status"] == "invalid":
       warnings.append(f"Could not read `{f['path']}`: {f['error']}")
 
-  definitions, undefined = definitions_of(resolve_aliases([name], aliases), defined)
+  definitions, undefined = definitions_of(list(resolve_aliases(name if isinstance(name, list) else [name], aliases)), defined)
   # Names that are not batches are used as input paths, like with `qa batch`
   used_as_paths = any(getattr(t, 'batch', None) is None for t in tests)
   if undefined and not used_as_paths:
@@ -319,9 +320,11 @@ def get_group():
     Besides the tests, explains what was used to find them: the batch files ("files") and their status,
     where the batch is defined ("definitions"), and what may be wrong ("warnings").
     """
-    name = request.args.get("name")
-    if not name:
+    # several batches: ?name=a&name=b, or name[]= like the web app writes lists
+    names = [n for n in [*request.args.getlist("name"), *request.args.getlist("name[]")] if n]
+    if not names:
         return jsonify({"tests": []})
+    name = names if len(names) > 1 else names[0]
 
     project_id = request.args["project"]
     # it may run `qa batch --list` in the commit's artifacts
@@ -364,7 +367,7 @@ def get_group():
     files_batches = [(f, read_batches_file(f)) for f in files]
     defined, aliases = batch_definitions(files_batches)
     batches_paths = [f["location"] for f, batches in files_batches if batches is not None]
-    print(f"[tests/group] {project_id} {commit_id} {name}: {[(f['path'], f['status']) for f in files]}", file=sys.stderr)
+    print(f"[tests/group] {project_id} {commit_id} {names}: {[(f['path'], f['status']) for f in files]}", file=sys.stderr)
 
     def as_in_qaboard_yaml(message):
         """Errors name batch files by their path in the artifacts: show them as users wrote them."""
@@ -416,7 +419,7 @@ def get_group():
             'batch',
             *list(itertools.chain.from_iterable((('--batches-file', quote(str(f))) for f in batches_paths))),
             '--list',
-            '--batch=' + quote(name),
+            *('--batch=' + quote(n) for n in names),
         ])
         cmd = '\n'.join([*envrcs, cmd])
         print(cmd)
@@ -456,7 +459,7 @@ def get_group():
         with recording_missing_inputs() as missing:
             tests = list(
                 iter_inputs(
-                    [name],                  # batches
+                    names,                   # batches
                     batches_paths,           # batches_files,
                     default_database,        # database
                     default_configurations,  # default_configuration
@@ -470,6 +473,176 @@ def get_group():
         print(f'Error: {e}', file=sys.stderr)
         return response([], [], error=as_in_qaboard_yaml(str(e)) or f"{type(e).__name__} while listing the tests, see the server's logs")
     return response(tests, missing)
+
+
+# What makes a top-level mapping of a batch file a batch, rather than a value reused in batches, like
+# `lab-db: &lab-db {linux: /mnt/lab, windows: //lab}`
+BATCH_KEYS = (
+    'inputs', 'tests', 'configs', 'configurations', 'configuration', 'database', 'platform', 'type', 'runner',
+    'matrix', 'only', 'exclude', 'globs', 'glob', 'use_parent_folder',
+)
+
+def describe_batches(files_batches):
+    """
+    The batches and aliases people can run, from [(file, batches)] in the order `qa batch` reads the files:
+    [{"name", "kind": "batch"|"alias", "files", "sources", "inputs"?: how many it lists, "batches"?: an alias's}].
+    Like for `qa batch` the last file wins. Names that start with "." are templates, not listed.
+    """
+    defined, aliases = batch_definitions(files_batches)
+    merged: Dict[str, Any] = {}
+    for _, batches in files_batches:
+        if batches:
+            merged.update({k: v for k, v in batches.items() if isinstance(k, str)})
+    described = []
+    for name, files in defined.items():
+        definition = merged.get(name)
+        if not isinstance(definition, dict) or not any(key in definition for key in BATCH_KEYS):
+            continue
+        inputs = definition.get('inputs', definition.get('tests'))
+        configurations = next((definition[k] for k in ('configs', 'configurations', 'configuration') if k in definition), None)
+        described.append({
+            "name": name,
+            "kind": "batch",
+            "files": [f["path"] for f in files],
+            "sources": [f["source"] for f in files],
+            **({"inputs": len(inputs)} if isinstance(inputs, (list, dict)) else {"inputs": 1} if isinstance(inputs, str) else {}),
+            **({"configurations": len(configurations)} if isinstance(configurations, list) else {}),
+            **({"type": str(definition['type'])} if definition.get('type') else {}),
+        })
+    for name, members in aliases.items():
+        if not isinstance(name, str) or name.startswith('.'):
+            continue
+        members = [members] if isinstance(members, str) else members
+        if not isinstance(members, (list, tuple)):
+            continue
+        described.append({
+            "name": name,
+            "kind": "alias",
+            "batches": [str(b) for b in resolve_aliases(list(members), aliases)],
+        })
+    return described
+
+
+def batch_definition(files_batches, name):
+    """
+    A batch's definition as `qa batch` reads it, to copy it to another file: the last file defining it wins, and its
+    file's defaults (platform, database, configurations) apply when the batch doesn't set them. None if it's not a batch.
+    """
+    definition = None
+    for _, batches in files_batches:
+        if not batches or not isinstance(batches.get(name), dict):
+            continue
+        definition = dict(batches[name])
+        if definition.get('type') != 'pipeline':
+            for attr in ('platform', 'database', 'configurations', 'configs'):
+                if attr in batches and attr not in definition:
+                    definition[attr] = batches[attr]
+    return definition
+
+
+@app.route("/api/v1/tests/batches", methods=["POST"])
+@login_required
+def list_batches():
+    """
+    Lists the batches people can run on a commit: those of its batch files, and of QA-Board's shared and private files
+    (`groups`). Returns {"batches": see describe_batches(), "files": the batch files and their status, "warnings"}.
+    With ?definition=name, also that batch's "definition": see batch_definition().
+    """
+    project_id = request.args["project"]
+    if forbidden := require_project_access(None, project_id):
+        return forbidden
+    data = request.get_json(silent=True) or {}
+    try:
+        files = [{"source": "qaboard", "path": f"{group}.yml", "location": get_groups_path(project_id, name=group, create=False), "exists": True} for group in list(data.get("groups") or [])]
+    except (ValueError, TypeError) as e:
+        return jsonify({"error": f"Invalid groups: {e}"}), 400
+    for f in files:
+        f["exists"] = f["location"].exists()
+    # nobody saved them yet: not an error
+    files = [f for f in files if f["exists"]]
+
+    warnings = []
+    commit_id = request.args.get("commit")
+    artifacts_dir = None
+    if commit_id:
+        try:
+            ci_commit = CiCommit.query.filter(CiCommit.project_id == project_id, CiCommit.hexsha.startswith(commit_id)).one()
+        except NoResultFound:
+            return jsonify({"error": "The commit was not found"}), 404
+        artifacts_dir = ci_commit.repo_artifacts_dir
+        files = [*commit_batches_files(ci_commit, commit_qaboard_config(ci_commit)), *files]
+    files_batches = [(f, read_batches_file(f)) for f in files]
+    not_saved = [f"`{f['path']}`" for f in files if f["source"] == "commit" and f["status"] == "missing"]
+    if not_saved:
+        warnings.append(f"Not in this commit's artifacts (`{artifacts_dir}`): {', '.join(not_saved)}. Run `qa save-artifacts` on this commit: it saves the files listed in `inputs.batches`.")
+    warnings.extend(f"Could not read `{f['path']}`: {f['error']}" for f in files if f["status"] == "invalid")
+    definition = {}
+    if request.args.get("definition"):
+        definition = {"definition": batch_definition(files_batches, request.args["definition"])}
+    return jsonify({
+        **definition,
+        "batches": describe_batches(files_batches),
+        "files": [{"source": f["source"], "path": f["path"], "status": f["status"], **{k: f[k] for k in ("error", "batches") if k in f}} for f in files],
+        "warnings": warnings,
+    })
+
+
+# How many batches with submissions we look at for a project's history, and how many submissions we return
+HISTORY_BATCHES = 200
+HISTORY_LIMIT = 50
+
+def tuning_history_entries(batches, user=None, limit=HISTORY_LIMIT):
+    """
+    The batches started from QA-Board, the most recent first, from [(batch, ci_commit)]: see history_entry().
+    With `user`, only what they started.
+    """
+    entries = []
+    for batch, ci_commit in batches:
+        submissions = (batch.data or {}).get('submissions')
+        if not isinstance(submissions, dict):
+            continue
+        for submission in submissions.values():
+            if user and (not isinstance(submission, dict) or submission.get('user') != user):
+                continue
+            entry = history_entry(
+                submission,
+                batch_label=batch.label,
+                commit_id=ci_commit.hexsha,
+                branch=ci_commit.branch,
+                message=(ci_commit.message or '').split('\n')[0][:120],
+            )
+            if entry:
+                entries.append(entry)
+    entries.sort(key=lambda e: e.get('created_at') or '', reverse=True)
+    return entries[:limit]
+
+
+@app.route("/api/v1/tuning/history", methods=["GET"])
+@login_required
+def tuning_history():
+    """
+    What people started from QA-Board in a project, on any commit, to start from it again: {"history": [...]}.
+    ?scope=mine (default): what the user started, ?scope=all: everyone's.
+    """
+    from sqlalchemy import func
+    project_id = request.args["project"]
+    if not is_authorized_user(None, project_id):
+        return forbidden_project(project_id)
+    user = None
+    if request.args.get("scope", "mine") != "all":
+        try:
+            user = safe_user_name(g.user['user_name'])
+        except (ValueError, KeyError, TypeError):
+            return jsonify({"history": []})
+    batches = (
+        db_session.query(Batch, CiCommit)
+        .join(CiCommit, Batch.ci_commit_id == CiCommit.id)
+        .filter(CiCommit.project_id == project_id, Batch.data.has_key('submissions'))  # noqa: W601
+        .order_by(func.coalesce(Batch.latest_output_datetime, Batch.created_date).desc())
+        .limit(HISTORY_BATCHES)
+        .all()
+    )
+    return jsonify({"history": tuning_history_entries(batches, user=user)})
 
 
 def _generate_batch_script(ci_commit, user, working_directory, command_id, batch_command, data):
@@ -696,6 +869,16 @@ def check_tuning_search(tuning_search) -> list:
     return []
 
 
+def requested_batches(data) -> List[str]:
+    """The batches to run: `batches` when the web app sends several, or the name in `selected_group`."""
+    data = data or {}
+    batches = data.get('batches')
+    if isinstance(batches, list) and batches:
+        return [str(b).strip() for b in batches if str(b).strip()]
+    selected_group = str(data.get('selected_group') or '').strip()
+    return [selected_group] if selected_group else []
+
+
 def check_tuning_request(ci_commit, data):
     """
     Checks a request to run a batch from QA-Board, before we start anything.
@@ -743,7 +926,8 @@ def check_tuning_request(ci_commit, data):
         warnings.append(f"The project's entrypoint ({entrypoint}) is not in the artifacts: runs will likely fail. Check `artifacts` in qaboard.yaml.")
 
     batches, definitions, batches_files = [], [], []
-    selected_group = str(data.get('selected_group') or '').strip()
+    selected = requested_batches(data)
+    selected_group = ', '.join(selected)
     groups = data.get('groups') or []
     if not isinstance(groups, list):
         errors.append("`groups` should be a list.")
@@ -753,7 +937,7 @@ def check_tuning_request(ci_commit, data):
     else:
         merged_batches, batches_errors, defined, batches_files = load_batches(ci_commit, ci_commit.project_id, groups)
         warnings.extend(batches_errors)
-        batches = list(resolve_aliases(selected_group, merged_batches['aliases']))
+        batches = list(resolve_aliases(selected, merged_batches['aliases']))
         batches = pipeline_batches(batches, merged_batches)
         definitions, _ = definitions_of(batches, defined)
         # `qa batch` also accepts wildcards (batch-*), and input paths (semi-deprecated)
@@ -887,7 +1071,7 @@ def start_tuning(hexsha):
         f"--label {quote(str(data['batch_label']))}",
         "optimize" if do_optimize else "batch",
         *(f"--batches-file {quote(str(path))}" for path in batches_files),
-        f"--batch {quote(str(data['selected_group']))}",
+        *(f"--batch {quote(b)}" for b in requested_batches(data)),
         # f"--runner=local", # uncomment if testing from Samsung SIRC where LSF is the default
         config_option,
         f"{overwrite} --no-wait" if not do_optimize else '',
@@ -909,8 +1093,10 @@ def start_tuning(hexsha):
         "command": batch_command,
         "log_dir": str(log_dir),
         # where the batches are defined: the command reads copies of the batch files
-        "batch": data['selected_group'],
+        "batch": ', '.join(requested_batches(data)),
         "definitions": check["definitions"],
+        # to start from it again: "Start from a previous batch"
+        "request": submission_request(data),
         # local/celery: `qa batch` runs detached on the server, LSF/kubernetes: `qa batch` is an LSF job/a pod
         "status": "submitting",
     }
