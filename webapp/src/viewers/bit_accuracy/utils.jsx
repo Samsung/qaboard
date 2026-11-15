@@ -231,7 +231,7 @@ const bit_accuracy_help = <PopoverNext content={<BitAccuracyHelp/>} placement="b
 // The options of the output files views. Users change them once in a while: they're in the commit page's
 // View options (or a popover elsewhere), while the filter, used all the time, stays above the files.
 const file_options = [
-  { name: 'show_all_files', label: 'Show all files', short: 'all files', help: 'By default, only the checked files that are different, added or removed show.' },
+  { name: 'show_all_files', label: 'Show all files', short: 'all files', help: 'All the files of every run, identical ones too. By default, only the checked files that are different, added or removed show, the first ones when there are many.' },
   { name: 'hide_runs_without_files', label: 'Hide runs without files', short: 'runs without files hidden' },
   { name: 'expand_all', label: 'Expand all folders', short: 'folders expanded' },
   { name: 'collapse_runs', label: 'Collapse runs', short: 'runs collapsed', help: 'Each run says only how many files it has and how they differ, to scroll through many runs. Click to list them.' },

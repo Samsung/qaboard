@@ -292,7 +292,7 @@ const decorate = (nodes, { is_expanded, selected }) => nodes?.map(node => {
 
 // A row like the tree's, that shows or hides files, and says what they are: "47 more files ✕ 12 different + 35 added"
 const files_row_style = { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 10px', minHeight: 30 };
-const FilesRow = ({ files, text, icon, expanded, title, has_reference, colors, onClick }) => {
+const FilesRow = ({ files, text, icon, expanded, title, has_reference, colors, onClick, children }) => {
   const states = countStates(files, has_reference);
   return <div style={files_row_style}>
     <Button size="small" variant="minimal" icon={icon} aria-expanded={expanded} title={title} onClick={onClick}>
@@ -301,6 +301,7 @@ const FilesRow = ({ files, text, icon, expanded, title, has_reference, colors, o
     {states.map(({ state, label, icon, count }) => <span key={state} className={Classes.TEXT_MUTED} style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
       <Icon icon={icon} size={12} style={{ color: colors[state] }}/>{count} {label}
     </span>)}
+    {children}
   </div>
 };
 
@@ -356,8 +357,8 @@ const BitAccuracyViewer = props_ => {
   }), [tree, expanded, expand_all, has_filter, selected]);
   // - "Collapse runs": only what the files are, users click to see them
   // - by default: the first files, and what the others are. When users ask for more files (a filter,
-  //   "Expand all folders", or they open a folder), they see them all.
-  const mode = show_all ? 'all' : collapse_runs ? 'summary' : (has_filter || expand_all) ? 'all' : 'preview';
+  //   "Show all files", "Expand all folders", or they open a folder), they see them all.
+  const mode = show_all ? 'all' : collapse_runs ? 'summary' : (has_filter || show_all_files || expand_all) ? 'all' : 'preview';
   const preview = useMemo(() => previewTree(contents, { is_expanded: node => node.isExpanded }), [contents]);
   const all_files = useMemo(() => countFiles(tree), [tree]);
 
@@ -387,12 +388,15 @@ const BitAccuracyViewer = props_ => {
   const colors = state_colors(is_dark);
   const row_props = { has_reference, colors };
   const is_truncated = preview.hidden_files.length > 0;
+  const bit_accurate_tag = bit_accurate && <Tooltip content="All the checked files are identical to the reference">
+    <Tag minimal intent={Intent.SUCCESS} icon="tick">Bit-accurate</Tag>
+  </Tooltip>;
+  // with "Collapse runs", it's in the files row: a run takes one line
+  const files_row = has_files && collapse_runs;
   return <div className={(!has_files && hide_runs_without_files) ? "viewer-no-files" : undefined}>
-    {bit_accurate && <div><Tooltip content="All the checked files are identical to the reference">
-      <Tag minimal intent={Intent.SUCCESS} icon="tick" style={{marginBottom: '5px'}}>Bit-accurate</Tag>
-    </Tooltip></div>}
+    {bit_accurate && !files_row && <div style={{ marginBottom: '5px' }}>{bit_accurate_tag}</div>}
     {!has_files && <em className={Classes.TEXT_MUTED}>{empty_message}</em>}
-    {has_files && collapse_runs && <FilesRow
+    {files_row && <FilesRow
       {...row_props}
       files={all_files}
       text={plural(all_files.length, 'file')}
@@ -400,7 +404,9 @@ const BitAccuracyViewer = props_ => {
       expanded={mode !== 'summary'}
       title={mode === 'summary' ? "Show the files" : "Hide the files"}
       onClick={() => setShowAll(!show_all)}
-    />}
+    >
+      {bit_accurate_tag}
+    </FilesRow>}
     {has_files && mode !== 'summary' && <>
       <Tree
        contents={mode === 'preview' ? preview.nodes : contents}
@@ -420,7 +426,7 @@ const BitAccuracyViewer = props_ => {
         onClick={() => setShowAll(true)}
       />}
       {mode === 'preview' && is_truncated && <HiddenUntilFound rows={preview.hidden_rows} onFound={showAllFiles}/>}
-      {show_all && !collapse_runs && !has_filter && !expand_all && is_truncated && <div style={files_row_style}>
+      {show_all && !collapse_runs && !has_filter && !show_all_files && !expand_all && is_truncated && <div style={files_row_style}>
         <Button size="small" variant="minimal" icon="chevron-up" aria-expanded title="Show only the first files" onClick={() => setShowAll(false)}>
           Show fewer files
         </Button>

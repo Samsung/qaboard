@@ -102,6 +102,20 @@ describe('BitAccuracyViewer, with many files', () => {
     expect(screen.getByText('file19.txt')).toBeInTheDocument();
   });
 
+  it('lists every file with "Show all files"', () => {
+    render(<BitAccuracyViewer {...props} show_all_files/>);
+    expect(screen.getByText('file19.txt')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /more files|Show fewer/ })).not.toBeInTheDocument();
+  });
+
+  it('with "Collapse runs", says only what the files are, on one line with "Bit-accurate"', () => {
+    const identical = { new: many, reference: many };
+    const { container } = render(<BitAccuracyViewer manifests={identical} output_new={output_new} output_ref={output_ref} show_all_files collapse_runs/>);
+    const button = screen.getByRole('button', { name: /20 files/ });
+    expect(button.parentElement).toContainElement(screen.getByText('Bit-accurate'));
+    expect(container.querySelector('.bp6-tree')).not.toBeInTheDocument();
+  });
+
   it('with "Collapse runs", says only what the files are', () => {
     render(<BitAccuracyViewer {...props} collapse_runs/>);
     expect(screen.queryByText('dir')).not.toBeInTheDocument();
