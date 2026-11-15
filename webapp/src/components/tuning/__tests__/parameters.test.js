@@ -50,6 +50,8 @@ describe('the table over the text', () => {
     expect(parse_value('[[0, 1], [1, 0]]')).toEqual([[0, 1], [1, 0]]);
     // registers
     expect(parse_value('[1 2 3]')).toEqual([1, 2, 3]);
+    expect(parse_value('[1 2\n 3 4]')).toEqual([[1, 2], [3, 4]]);
+    expect(split_values('[1 2\n3 4], 5').map(parse_value)).toEqual([[[1, 2], [3, 4]], 5]);
     expect(parse_value('{"a": 1}')).toEqual({ a: 1 });
     expect(parse_value('[not json')).toBe('[not json');
     expect(split_values('1, 2,[3, 4]; "a, b"\n{"k": [1, 2]}')).toEqual(['1', '2', '[3, 4]', '"a, b"', '{"k": [1, 2]}']);

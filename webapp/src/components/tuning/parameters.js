@@ -78,10 +78,11 @@ export const parse_value = text => {
     try {
       return JSON.parse(trimmed);
     } catch {
-      // registers are often pasted as [1 2 3]
+      // registers are often pasted as [1 2 3], matrices with a row per line
       if (/^\[[^[\]{}",]*\]$/.test(trimmed)) {
-        const items = trimmed.slice(1, -1).trim().split(/\s+/).filter(Boolean);
-        if (items.length > 0 && items.every(item => number_pattern.test(item))) return items.map(Number);
+        const rows = trimmed.slice(1, -1).split(/\r?\n/).map(row => row.trim().split(/\s+/).filter(Boolean)).filter(row => row.length > 0);
+        if (rows.length > 0 && rows.flat().every(item => number_pattern.test(item)))
+          return rows.length === 1 ? rows[0].map(Number) : rows.map(row => row.map(Number));
       }
       return trimmed;
     }

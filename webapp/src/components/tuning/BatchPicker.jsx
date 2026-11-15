@@ -211,7 +211,10 @@ export const BatchPicker = ({ project, commit, value, onChange, tests, available
                   ? <Tooltip content={<div style={{ maxWidth: 360, overflowWrap: 'anywhere' }}>{(batch.batches ?? []).join(', ')}</div>} hoverOpenDelay={200} compact>
                       <span className={`qa-batches-meta ${Classes.TEXT_MUTED}`} style={{ borderBottom: '1px dotted currentColor', cursor: 'help' }}>{describe(batch)}</span>
                     </Tooltip>
-                  : <span className={`qa-batches-meta ${Classes.TEXT_MUTED}`}>{batch.kind === 'other' ? (/[*?[]/.test(batch.name) ? 'pattern' : data ? 'not in the batch files' : '') : describe(batch)}</span>}
+                  : <span
+                      className={`qa-batches-meta ${Classes.TEXT_MUTED}`}
+                      title={batch.kind === 'batch' && batch.inputs !== undefined ? 'As listed in the batch file: a folder or a glob counts once, and may hold many inputs. Tick the batch to see its tests.' : undefined}
+                    >{batch.kind === 'other' ? (/[*?[]/.test(batch.name) ? 'pattern' : data ? 'not in the batch files' : '') : describe(batch)}</span>}
                 {batch.kind === 'batch' && user && <span className="qa-batches-actions">
                   {editable
                     ? <Tooltip content="Edit this batch" compact hoverOpenDelay={300}>
