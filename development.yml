@@ -19,6 +19,8 @@ services:
 
   backend:
     # With the compilers: `uv run` installs the dependencies in backend/.venv
+    # Build the dev target, never pull the published production image under the same tag
+    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:backend-dev"
     build:
       target: dev
     volumes:
@@ -26,6 +28,7 @@ services:
     - ./backend:/qaboard/backend
     - ${HOME}:${HOME}
     - ./pyproject.toml:/qaboard/pyproject.toml
+    - ./README.md:/qaboard/README.md:ro
     environment:
     - FLASK_APP=backend
     - FLASK_ENV=development
@@ -72,6 +75,7 @@ services:
     #   driver: json-file
 
   frontend:
+    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:frontend-dev"
     build:
       target: dev
     volumes:
@@ -106,6 +110,7 @@ services:
   
   website:
     # The default target only has the built site
+    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:website-dev"
     build:
       target: dev
     command: yarn start
