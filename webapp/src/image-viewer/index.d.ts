@@ -243,6 +243,8 @@ export interface ImageViewerProps {
    */
   analysis?: AnalysisView;
   defaultAnalysis?: AnalysisView;
+  /** Whether the analysis panel is open when the viewer first shows. Default: false */
+  defaultShowAnalysis?: boolean;
   onAnalysisChange?: (view: AnalysisView) => void;
   /** What the analysis measures: the displayed values, or the image's own ('image', needs getPixels), per channel of its sensor. Default: 'display' */
   analysisValues?: 'display' | 'image';

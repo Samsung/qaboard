@@ -97,6 +97,74 @@ describe('ExportPlugin', () => {
     await waitFor(() => expect(new Set(previews(fetch).map(b => b.folder.id)).size).toBe(2));
   });
 
+  it("says once what went wrong when nothing was exported, with what to do and a reference for admins", async () => {
+    const problem = (count, overrides = {}) => ({
+      step: 'folder', actor: 'alice', code: 'EACCES', about: 'destination', count,
+      message: "Your account (alice) can't write in the export's folder (creating folders).",
+      hint: 'Check that you can write in /exports/alice/p/2026-11-05-abcd1234, or export into a new folder.',
+      examples: [{ file: 'out.png', to: 'new/scenes_a__out.png', side: 'new', error: "Permission denied: '/exports/alice/p/2026-11-05-abcd1234/new'" }],
+      ...overrides,
+    });
+    const failed = { ...plan(), type: 'copy', nb_files_exported: 0, export_id: 7, mapping: null, skipped: [], nb_skipped: 0,
+      nb_failed: 50, nb_not_attempted: 30, reference: '0123456789ab', problems: [problem(50)],
+      errors: ["Your account (alice) can't write in the export's folder (creating folders). (50 files) E.g. new/scenes_a__out.png: Permission denied"] };
+    server({ exported: failed });
+    open(undefined, { siteConfig: { support_url: 'mailto:qa-admins@example.com' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Export 4 files' }));
+    const result = await screen.findByRole('region', { name: 'Last export' });
+    expect(within(result).getByText('Nothing was exported')).toBeInTheDocument();
+    expect(result).not.toHaveTextContent('files exported from');
+    // one line for the 50 files, what to do, and why the others weren't tried
+    expect(within(result).getAllByText(/can't write in the export's folder/)).toHaveLength(1);
+    expect(result).toHaveTextContent('50 files');
+    expect(result).toHaveTextContent('Check that you can write in');
+    expect(result).toHaveTextContent("QA-Board stopped after the first 50 files failed: the other 30 files weren't tried.");
+    expect(result).toHaveTextContent('Reference 0123456789ab');
+    const report = within(result).getByRole('link', { name: 'Report it' });
+    expect(decodeURIComponent(report.getAttribute('href'))).toContain('Reference: 0123456789ab');
+    // the server's error, for those who look
+    expect(within(result).getByText('Examples')).toBeInTheDocument();
+    // no success message, no "copied" toast
+    expect(screen.queryByText(/Copied the export folder/)).not.toBeInTheDocument();
+  });
+
+  it("checks what the user's account can do before copying, and offers links instead", async () => {
+    const fetch = server({ preview: body => body.type === 'copy'
+      ? plan({ type: 'copy', copy_check: { user: 'alice', groups_known: false, nb_checked: 4, error: null, folder_error: "Permission denied: '/exports/alice/p/2026-11-05-abcd1234'",
+          unreadable: [{ side: 'reference', error: "Permission denied: '/runs/ref/out.png'" }] } })
+      : plan() });
+    open();
+    moreOptions();
+    fireEvent.click(await screen.findByRole('radio', { name: 'Copies' }));
+    expect(await screen.findByText("You can't write in this folder")).toBeInTheDocument();
+    expect(screen.getByText("Your account can't read some runs' files")).toBeInTheDocument();
+    expect(screen.getByText(/1 of the 4 files checked can't be read by your account \(alice\), from the reference runs/)).toBeInTheDocument();
+    expect(screen.getByText(/QA-Board only knows your account's primary group/)).toBeInTheDocument();
+    // the copies would fail: no export
+    expect(screen.getByRole('button', { name: 'Export 4 files' })).toBeDisabled();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Export links instead' })[0]);
+    expect(screen.getByRole('radio', { name: 'Links' })).toBeChecked();
+    expect(previews(fetch).some(body => body.type === 'copy')).toBe(true);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Export 4 files' })).toBeEnabled());
+    expect(screen.queryByText("You can't write in this folder")).not.toBeInTheDocument();
+  });
+
+  it('says how many files failed when others were exported', async () => {
+    server({ exported: { ...plan(), nb_files_exported: 3, export_id: 7, mapping: '0.export.csv', skipped: [], nb_skipped: 0, nb_failed: 1, nb_not_attempted: 0,
+      reference: 'abcdefabcdef', errors: ['The storage is full. E.g. scenes_b__out__new.png: No space left on device'],
+      problems: [{ step: 'link', actor: 'server', code: 'ENOSPC', about: 'destination', count: 1, message: 'The storage is full.', hint: 'Free some space.', examples: [] }] } });
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: 'Export 4 files' }));
+    const result = await screen.findByRole('region', { name: 'Last export' });
+    expect(result).toHaveTextContent('3 files exported from 4 runs, 1 file failed');
+    expect(result).toHaveTextContent('The storage is full.');
+    expect(result).toHaveTextContent('1 file');
+    // the problem's line in `errors` isn't shown twice
+    expect(result).not.toHaveTextContent('No space left on device');
+    // with the default support address, QA-Board's public issue tracker, no report link: it has the folders' paths
+    expect(within(result).queryByRole('link', { name: 'Report it' })).not.toBeInTheDocument();
+  });
+
   it("says the file only when runs have several, and doesn't talk about new and reference without a reference", async () => {
     const fetch = server({ preview: plan({ file_in_names: false, files: [{ to: 'scenes_a.png', run: 1, item: 0, side: 'new', file: 'out.png', region: null, exists: false }] }) });
     const alone = { ...new_batch, outputs: { 1: { ...new_batch.outputs[1], reference_id: null }, 2: { ...new_batch.outputs[2], reference_id: null } } };
@@ -109,6 +177,50 @@ describe('ExportPlugin', () => {
     // users can always say it
     fireEvent.click(screen.getByRole('button', { name: 'Always say it' }));
     await waitFor(() => expect(previews(fetch).at(-1).file_in_names).toBe(true));
+  });
+
+  it('names a batch exported alone, e.g. after its tuning', async () => {
+    const fetch = server();
+    const alone = { ...new_batch, outputs: { 1: { ...new_batch.outputs[1], reference_id: null }, 2: { ...new_batch.outputs[2], reference_id: null } } };
+    open({ new_batch: alone, ref_batch: { outputs: {} }, selected_batch_new: 'tuning-gain' });
+    const parts = await screen.findByLabelText('What names say');
+    fireEvent.click(within(parts).getByRole('button', { name: 'Name them' }));
+    fireEvent.click(within(parts).getByRole('button', { name: /The batch: tuning-gain/ }));
+    expect(screen.getByLabelText('Label in names')).toHaveValue('tuning-gain');
+    await waitFor(() => expect(previews(fetch).at(-1).runs.map(r => r.fields.side)).toEqual(['tuning-gain', 'tuning-gain']));
+    expect(previews(fetch).at(-1).sides.new.label).toBe('tuning-gain');
+    expect(parts).not.toHaveTextContent('no reference: one version');
+    fireEvent.click(within(parts).getByRole('button', { name: 'Remove' }));
+    expect(parts).toHaveTextContent('no reference: one version');
+  });
+
+  it('exports the folders the pattern matches, with their files', async () => {
+    const fetch = server({ preview: body => body.folders
+      ? plan({ nb_folders: 1, nb_in_folders: 2, files: [
+        { to: 'scenes_a__dma_out__new/frame_0.bin', run: 1, item: 0, side: 'new', file: 'dma_out/frame_0.bin', folder: { to: 'scenes_a__dma_out__new', file: 'dma_out' }, region: null, exists: false },
+      ] })
+      : plan({ folders_skipped: 2, nb_files: 0, files: [] }) });
+    open({ config: { outputs: { visualizations: [{ path: 'dma_out' }] } } });
+    expect(await screen.findByText(/1 folder with the 2 files in it/)).toBeInTheDocument();
+    expect(previews(fetch)[0].folders).toBe(true);
+    // the folder's name in colors, then its file
+    const list = await screen.findByRole('list', { name: 'Exported files' });
+    await waitFor(() => expect(within(list).getByTitle('file')).toHaveTextContent('dma_out'));
+    expect(list).toHaveTextContent('scenes_a__dma_out__new/frame_0.bin');
+    fireEvent.click(screen.getByRole('button', { name: 'Only files' }));
+    expect(await screen.findByText(/2 folders match the pattern, not exported/)).toBeInTheDocument();
+    expect(previews(fetch).at(-1).folders).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Export them with their files' }));
+    // the preview of the folders, again (cached)
+    expect(await screen.findByText(/1 folder with the 2 files in it/)).toBeInTheDocument();
+  });
+
+  it('says when links are symbolic: Windows may not open them', async () => {
+    server({ exported: { ...plan(), nb_files_exported: 4, nb_symlinks: 4, export_id: 7, mapping: '0.export.csv', skipped: [], nb_skipped: 0 } });
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: 'Export 4 files' }));
+    const result = await screen.findByRole('region', { name: 'Last export' });
+    expect(result).toHaveTextContent('4 files are symbolic links');
   });
 
   it("doesn't export names used by several files, and says how to fix them", async () => {

@@ -418,6 +418,7 @@ QABOARD_GROUPS_COMMAND=ssh qaboard@some-host getent group
 - If a command fails, or prints less than half of the accounts it printed last time, the backend keeps the previous accounts, and tries again 10 minutes later. Errors show in its logs (`[accounts]`).
 - Only lines in the right format count: ssh banners (sent to stderr) and messages printed by shell startup files are ignored.
 - Accounts the commands don't know are looked up in `/etc/passwd` and `/etc/group`. Owners that neither knows show as `uid 2041`.
+- Users whose groups neither knows only have their primary group when the backend acts as them: export copies of files they read through another group fail. The export preview says so.
 - Storage scans wait for the accounts before they start. Owners that earlier scans saved as `uid 2041` get their names once the accounts know them.
 - With SSSD, `getent passwd` alone only lists all users if enumeration is enabled (`enumerate = true`), which is often not the case. Check the number of lines, or use a command that queries the directory itself, e.g. `ldapsearch`, formatted as `name:x:uid:gid:gecos:home:shell`.
 - The command runs with the backend's environment, e.g. the ssh key used for the LSF bridge, and its own user's permissions.

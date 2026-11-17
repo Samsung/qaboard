@@ -18,6 +18,7 @@ They used to be pages of the public docs website. The website now only has the g
 | [optimization-loop.md](optimization-loop.md) | Reproducing and debugging a tuning (`qa optimize`) of a project |
 | [sso.md](sso.md) | Single sign-on with Keycloak: asking IT for the clients, configuring, checking, rolling back |
 | [lsf-bridge.md](lsf-bridge.md) | How the server sends LSF jobs as users (`QA_RUNNERS_LSF_BRIDGE`, `bsub_su` on `ispq-vdi`), checking it |
+| [accounts.md](accounts.md) | Users' Unix accounts and groups (`QABOARD_ACCOUNTS_COMMAND`): export copies made as users, checking them |
 | [celery.md](celery.md) | RabbitMQ accounts for teams' Celery workers, who still uses guest, stopping guest from the network |
 
 Keep them in sync with the generic pages: when a change is not SIRC-specific, document it on the website too.

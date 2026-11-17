@@ -1,7 +1,7 @@
 /**
- * The benchmark and flame graph viewers are standalone components, like the image viewer (src/image-viewer/): they
- * import only third-party packages and their own files, the app reaches them only through their adapter, loaded
- * lazily by OutputViewer.jsx, and their styles don't leak to the rest of the page.
+ * The benchmark, flame graph and parallel coordinates viewers are standalone components, like the image viewer
+ * (src/image-viewer/): they import only third-party packages and their own files, the app reaches them only through
+ * their adapter, they are loaded lazily, and their styles don't leak to the rest of the page.
  * Run with: cd webapp && npm test -- isolation
  */
 import { readdirSync, readFileSync } from 'node:fs';
@@ -24,6 +24,9 @@ const imports = source => [
 ].map(m => m[1]);
 
 // The playgrounds (playground.jsx) are development pages, outside the build: they may use the app's CSS.
+// - adapter: the only file of the app that imports from the viewer's folder,
+// - lazy: where the viewer's code is split from the app's: the file that has the dynamic import(), and what it imports.
+//   OutputViewer.jsx loads the adapters of the viewers of output files; an adapter can also load its viewer itself.
 const viewers = {
   benchmarks: {
     sources: import.meta.glob(['../benchmarks/*.{js,jsx}', '!../benchmarks/playground.jsx'], { query: '?raw', import: 'default', eager: true }),
@@ -31,6 +34,7 @@ const viewers = {
     packages: ['react', '@blueprintjs/core', '@tanstack/react-virtual'],
     prefixes: ['qa-bench'],
     adapter: '../benchmarks-viewer.jsx',
+    lazy: { file: '../OutputViewer.jsx', specifier: './benchmarks-viewer' },
   },
   flamegraph: {
     sources: import.meta.glob(['../flamegraph/*.{js,jsx}', '!../flamegraph/playground.jsx'], { query: '?raw', import: 'default', eager: true }),
@@ -39,13 +43,23 @@ const viewers = {
     // d3-flame-graph's own classes are only styled under .flame-graph
     prefixes: ['qa-flame', 'flame-graph'],
     adapter: '../flame-graph.jsx',
+    lazy: { file: '../OutputViewer.jsx', specifier: './flame-graph' },
+  },
+  parallel: {
+    sources: import.meta.glob(['../parallel/*.{js,jsx}', '!../parallel/playground.jsx'], { query: '?raw', import: 'default', eager: true }),
+    css: stylesheets('parallel'),
+    packages: ['react', '@blueprintjs/core'],
+    prefixes: ['qa-parallel'],
+    // the plot of Tuning Analysis: its adapter loads it when a report shows it
+    adapter: '../../components/tuning/ParallelCoordinatesPlot.jsx',
+    lazy: { file: '../../components/tuning/ParallelCoordinatesPlot.jsx', specifier: '../../viewers/parallel/ParallelCoordinates' },
   },
 };
 
 // Everything else in the app, but the viewers' own folders and the tests
-const app = import.meta.glob(['../../**/*.{js,jsx}', '!../../**/__tests__/**', '!../../**/*.test.{js,jsx}', '!../benchmarks/**', '!../flamegraph/**'], { query: '?raw', import: 'default', eager: true });
+const app = import.meta.glob(['../../**/*.{js,jsx}', '!../../**/__tests__/**', '!../../**/*.test.{js,jsx}', '!../benchmarks/**', '!../flamegraph/**', '!../parallel/**'], { query: '?raw', import: 'default', eager: true });
 
-describe.each(Object.entries(viewers))('the %s viewer', (folder, { sources, css, packages, prefixes, adapter }) => {
+describe.each(Object.entries(viewers))('the %s viewer', (folder, { sources, css, packages, prefixes, adapter, lazy }) => {
   it("imports nothing from the app", () => {
     expect(Object.keys(sources).length).toBeGreaterThan(2);
     for (const [file, source] of Object.entries(sources))
@@ -59,10 +73,15 @@ describe.each(Object.entries(viewers))('the %s viewer', (folder, { sources, css,
       if (file === adapter) continue;
       expect([file, inside]).toEqual([file, []]);
     }
-    const output_viewer = app['../OutputViewer.jsx'];
-    const adapter_name = adapter.replace('../', './').replace(/\.jsx$/, '');
-    expect(output_viewer).toContain(`import('${adapter_name}'`);
-    expect(output_viewer).not.toMatch(new RegExp(`^\\s*import\\s[^'"]*['"]${adapter_name.replace('.', '\\.')}['"]`, 'm'));
+    expect(app[adapter]).toBeDefined();
+    // split from the app's code: imported with import(), and not statically, where the viewer says it is
+    const loader = app[lazy.file];
+    const specifier = lazy.specifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    expect(loader).toMatch(new RegExp(`\\bimport\\(\\s*['"]${specifier}['"]`));
+    expect(loader).not.toMatch(new RegExp(`^\\s*import\\s[^'"]*['"]${specifier}['"]`, 'm'));
+    // ... and what it loads is the adapter, or the viewer from its adapter
+    const loaded = lazy.file === adapter ? lazy.specifier.includes(`${folder}/`) : lazy.specifier.replace(/^\.\//, '../') === adapter.replace(/\.jsx$/, '');
+    expect([lazy.file, lazy.specifier, loaded]).toEqual([lazy.file, lazy.specifier, true]);
   });
 
   it("styles only its own elements", () => {

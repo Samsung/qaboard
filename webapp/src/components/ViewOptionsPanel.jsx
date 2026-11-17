@@ -4,6 +4,7 @@ import {
   Classes,
   HTMLSelect,
   Switch,
+  Tag,
   Button,
   Icon,
   InputGroup,
@@ -11,6 +12,7 @@ import {
   Tooltip,
 } from "@blueprintjs/core";
 import { is_image } from "../viewers/images/utils";
+import { has_run_view, run_shown } from "../viewers/runView";
 import { DEFAULT_MODE, MODES } from "../image-viewer/modes";
 import DynamicOptionControl from "./DynamicOptionControl";
 import { defaultRule, optionLabel, resolveOptionValue } from "../utils/dynamicOptions";
@@ -203,15 +205,41 @@ const ViewOptionsPanel = ({
     .filter(([, option]) => option.values?.length > 0)
     .filter(([, option]) => isForDisplayedVisualization(option) || !option.views || option.views.length === 0);
 
+  // Runs can ask for their own view (viewers/runView.js): the visualizations they show by default, viewer options.
+  // The switches below are the project's defaults and what users chose, which wins over what runs ask for.
+  const runs = shows_cards ? Object.values(new_batch.outputs ?? {}) : [];
+  const nb_runs_with_view = runs.filter(has_run_view).length;
+  const run_views_on = controls.run_views !== false;
+  const asked_by = new Map();
+  if (shows_visualizations && run_views_on)
+    for (const run of runs)
+      for (const name of run_shown(run, visualizations) ?? [])
+        asked_by.set(name, (asked_by.get(name) ?? 0) + 1);
+  const run_views_switch = nb_runs_with_view > 0 && <Switch
+    key="run-views"
+    checked={run_views_on}
+    onChange={() => onUpdateControls({ run_views: run_views_on ? false : undefined })}
+    labelElement={<Explained
+      label="Each test's own view"
+      explanation={`${nb_runs_with_view} of the ${runs.length} runs say what to show by default: their visualizations, how their images open. What you turn on or off below still applies to all runs. Turn this off to show every run the same way.`}
+    />}
+  />;
+
   const filter = visualizationFilter.toLowerCase();
   const visualization_switches = visualizations_in_runs
     .filter(view => !filter || (view.label || view.name || view.path).toLowerCase().includes(filter))
-    .map((view, idx) => <Switch
-      key={view.name ?? idx}
-      checked={isVisualizationEnabled(view)}
-      onChange={onToggleShow(view.name)}
-      label={view.label || view.name || view.path}
-    />);
+    .map((view, idx) => {
+      const nb_asking = asked_by.get(view.name) ?? 0;
+      return <Switch
+        key={view.name ?? idx}
+        checked={isVisualizationEnabled(view)}
+        onChange={onToggleShow(view.name)}
+        labelElement={<>
+          {view.label || view.name || view.path}
+          {nb_asking > 0 && <Tag minimal style={{ marginLeft: 6 }} title={`${nb_asking} run${nb_asking === 1 ? ' shows' : 's show'} it by default: their own view`}>{nb_asking} run{nb_asking === 1 ? '' : 's'}</Tag>}
+        </>}
+      />;
+    });
 
   const viewer_switches = [
     ...(has_images ? [<OptionHeader key="image_mode" style={{ marginBottom: 8 }}>
@@ -329,7 +357,8 @@ const ViewOptionsPanel = ({
   const changes = {
     visualizations: visualizations
       .filter(view => isVisualizationEnabled(view) === !!view.default_hidden)
-      .map(view => `${view.label || view.name || view.path} ${isVisualizationEnabled(view) ? 'shown' : 'hidden'}`),
+      .map(view => `${view.label || view.name || view.path} ${isVisualizationEnabled(view) ? 'shown' : 'hidden'}`)
+      .concat(nb_runs_with_view > 0 && !run_views_on ? ["Each test's own view off"] : []),
     dynamic_options: [
       ...Object.entries(controls.dynamic_options ?? {})
         .map(([name, value]) => [name, [].concat(value ?? [])[0]])
@@ -377,6 +406,7 @@ const ViewOptionsPanel = ({
           size="small"
           style={{ marginBottom: 8 }}
         />}
+        {run_views_switch}
         {visualization_switches}
         {filter && visualization_switches.length === 0 && <Hint>No visualizations match “{visualizationFilter}”</Hint>}
         {visualizations_without_files.length > 0 && <Hint>

@@ -35,7 +35,7 @@ import { Link } from "../router"
 import { copyWithToast } from "../utils/clipboard"
 import { usePrefsStore } from "../stores/prefs";
 import { useSiteConfig } from "../hooks";
-import { parse_template, file_name_parts, FIELDS } from "../export/names";
+import { parse_template, file_name_parts, render_parts, FIELDS } from "../export/names";
 import {
   LAYOUTS, SEPARATORS, SETTINGS_FORMATS, SETTINGS_ASSIGN, SETTINGS_JOIN, CONFIGURATIONS, PLATFORM, BATCH, DATABASE, ABSENT,
   default_naming, layout_of, export_runs, request_runs, item_fields, example_file, guess_file_in_names, crop_template,
@@ -43,6 +43,7 @@ import {
 } from "../export/plan";
 import { reportUrl } from "../errors";
 import { FieldDot, NameAnatomy, NameParts } from "../export/NameParts";
+import { ExportProblems } from "../export/ExportProblems";
 import { useCrops, useShownRegionSets, DEFAULT_MAX_FOUND, MAX_FOUND } from "../export/useCrops";
 import { runs_url, python_snippet } from "./ScriptPlugin";
 
@@ -217,6 +218,29 @@ const Fixes = ({ fixes, onFix }) => <div style={{ display: 'flex', flexDirection
   {fixes.map((f, index) => <Button key={index} size="small" variant="outlined" icon="wrench" onClick={() => onFix(f.fix)}>{f.text}</Button>)}
 </div>;
 
+// What the user's account can do, for copies: they're made as the user (backend/api/export_files.py, check_copies)
+const CopyCheck = ({ check, folder, fixes, onFix }) => {
+  const unreadable = check.unreadable ?? [];
+  const sides = [...new Set(unreadable.map(u => u.side))];
+  const all = unreadable.length > 0 && unreadable.length === check.nb_checked;
+  const groups = check.groups_known === false && <p className={Classes.TEXT_MUTED} style={{ margin: '4px 0 0' }}>
+    QA-Board only knows your account's primary group: copies of files you can read only through another group fail. Ask your QA-Board admins to give it your groups.
+  </p>;
+  return <>
+    {check.folder_error && <Callout intent="danger" icon="lock" title="You can't write in this folder" style={{ marginBottom: 8 }}>
+      Copies are made as you, and your account ({check.user}) can't write in <code style={{ wordBreak: 'break-all' }}>{folder}</code>.
+      <Fixes fixes={fixes} onFix={onFix}/>
+    </Callout>}
+    {unreadable.length > 0 && <Callout intent={all ? 'danger' : 'warning'} icon="lock" title={`Your account can't read ${all ? "these runs' files" : "some runs' files"}`} style={{ marginBottom: 8 }}>
+      Copies are made as you: {unreadable.length} of the {plural(check.nb_checked, 'file')} checked can't be read by your account ({check.user}), from the {sides.join(' and ')} runs, e.g. <code style={{ wordBreak: 'break-all' }}>{unreadable[0].error}</code>. {all ? 'The copies would fail.' : 'Their copies would fail.'}
+      {groups}
+      <Fixes fixes={fixes.filter(f => f.fix.type)} onFix={onFix}/>
+    </Callout>}
+    {!unreadable.length && groups}
+    {check.error && <p className={Classes.TEXT_MUTED} style={{ margin: '4px 0' }}>QA-Board couldn't check what your account can copy: {check.error}</p>}
+  </>;
+};
+
 const ProblemList = ({ items, more }) => <ul style={{ margin: '4px 0', paddingLeft: 18 }}>
   {items.map((item, index) => <li key={index}>{item}</li>)}
   {more > 0 && <li className={Classes.TEXT_MUTED}>and {more} more</li>}
@@ -389,6 +413,8 @@ const ExportDialog = ({
   const update = changes => setSettings(s => ({ ...s, ...changes }));
   const naming = { ...default_naming, ...settings };
   const [label_overrides, setLabelOverrides] = useState({ new: '', reference: '' });
+  // exporting one side alone: names don't say new or reference, unless users name it, e.g. after the tuning batch
+  const [label_alone, setLabelAlone] = useState('');
   // "both": the runs shown and their reference, or only "new" or "reference". Each export starts with both.
   const [sides_choice, setSides] = useState('both');
   const [folder_name, setFolderName] = useState('');
@@ -419,10 +445,12 @@ const ExportDialog = ({
   const crops = useCrops({ enabled: crops_enabled, picked: chosen_sources, shown: shown_sets, files: path, new_batch, ref_batch, max_found });
   const crop_sources = crops.picked;
   const whole_files = settings.whole_files ?? true;
+  // the folders the pattern matches, with their files
+  const folders = settings.folders ?? true;
 
   const label_new = label_overrides.new.trim() || labels?.new || 'new';
   const label_ref = label_overrides.reference.trim() || labels?.reference || 'reference';
-  const plan = export_runs({ new_batch, ref_batch, labels: { new: label_new, reference: label_ref }, naming, regions: crops.regions, sides: sides_choice });
+  const plan = export_runs({ new_batch, ref_batch, labels: { new: label_new, reference: label_ref, alone: label_alone }, naming, regions: crops.regions, sides: sides_choice });
   // the page compares with a reference, and the export has both sides: names say which
   const { has_reference, both } = plan;
   const fields = template_fields(naming.template);
@@ -448,6 +476,7 @@ const ExportDialog = ({
     windows: naming.windows,
     file_in_names: naming.file_in_names === 'auto' ? 'auto' : true,
     ...(crops_enabled && nb_regions > 0 ? { whole_files } : {}),
+    folders,
     type,
     folder: folder_mode === 'path' ? { path: folder_path.trim(), id: folder_id } : { name: folder_name.trim(), id: folder_id },
     sides: {
@@ -478,6 +507,12 @@ const ExportDialog = ({
   const parts_of = f => {
     const item = plan.items[f.item];
     if (!is_current || !item || item.id !== f.run) return null;
+    // a file in a folder exported whole: the folder's name, then the file's path in it
+    if (f.folder) try {
+      const parts = render_parts(naming.template, { ...side_fields(item), file: file_in_names ? f.folder.file : '', region: '' }, naming.separator, '', naming.windows);
+      if (parts.map(x => x.text).join('') !== f.folder.to) return null;
+      return [...parts, { text: f.to.slice(f.folder.to.length), field: null }];
+    } catch { return null; }
     try {
       const parts = file_name_parts(f.region ? crop_template(naming.template) : naming.template, { ...side_fields(item), region: f.region ?? '' }, f.file, naming.separator, naming.windows, file_in_names);
       return parts.map(x => x.text).join('') === f.to ? parts : null;
@@ -522,13 +557,18 @@ const ExportDialog = ({
   };
 
   const finding = crops_enabled ? crops.finding : [];
-  const can_export = can_preview && is_current && !preview.isFetching && !preview.error && p && p.nb_files > 0 && p.nb_collisions === 0 && !(p.nb_too_long > 0) && finding.length === 0;
+  // copies are made as the user: the server checks what their account can do (copy_check)
+  const copy_check = type === 'copy' ? p?.copy_check : null;
+  const can_export = can_preview && is_current && !preview.isFetching && !preview.error && p && p.nb_files > 0 && p.nb_collisions === 0 && !(p.nb_too_long > 0) && finding.length === 0 && !copy_check?.folder_error;
   const doExport = () => {
     setExporting(true);
     http.post('/api/v1/exports', body, { params: { project } })
       .then(({ data }) => {
-        track('export_start', { export_type: type, n_runs: data.nb_runs, n_files: data.nb_files_exported, layout: layout_of(naming.template, naming.separator), windows: naming.windows, crops: data.nb_crops ?? 0, crop_sources: crops_enabled ? crop_sources.join(',') : '', sides: both ? 'both' : plan.side }, { project_id: project });
-        copyWithToast(linux_to_windows(data.folder), { what: 'the export folder' });
+        track('export_start', { export_type: type, n_runs: data.nb_runs, n_files: data.nb_files_exported, n_failed: data.nb_failed ?? 0, layout: layout_of(naming.template, naming.separator), windows: naming.windows, crops: data.nb_crops ?? 0, crop_sources: crops_enabled ? crop_sources.join(',') : '', sides: both ? 'both' : plan.side }, { project_id: project });
+        if (data.nb_files_exported === 0 && data.nb_failed > 0)
+          toaster.show({ message: 'Nothing was exported: the dialog says why.', intent: Intent.DANGER });
+        else
+          copyWithToast(linux_to_windows(data.folder), { what: 'the export folder' });
         setResult({ ...data, at: new Date() });
         // the next export starts with these settings, and goes to a new folder. Which settings names say depends on
         // the runs: the next export picks what it needs (presets keep them, for scripts that expect them)
@@ -557,7 +597,7 @@ const ExportDialog = ({
   const inputs = [...new Set(new_items.map(i => i.fields.input))];
   const settings_values = [...new Set(new_items.map(i => i.fields.settings).filter(Boolean))];
   const with_settings = new_items.filter(i => i.fields.settings).length;
-  const files_listed = [...new Set(listed.filter(f => !f.region).map(f => f.file))];
+  const files_listed = [...new Set(listed.filter(f => !f.region).map(f => f.folder ? `${f.folder.file}/` : f.file))];
   const region_names = [...new Set(new_items.flatMap(i => (i.regions ?? []).map(r => r.name)))];
   const needed = plan.candidates.filter(c => c.needed);
 
@@ -572,6 +612,8 @@ const ExportDialog = ({
     </div>
   </div>;
   const has = field => fields.includes(field);
+  // the batch of the side exported alone, to name it after: tuning batches have names, "default" doesn't say much
+  const alone_batch = [plan.side === 'reference' ? selected_batch_ref : selected_batch_new].find(b => b && b !== 'default') ?? '';
   const settings_picker = <SettingsPicker plan={plan} naming={naming} update={update} onToggle={toggleSetting}/>;
   const settings_action = text => <Button className="part-action" size="small" variant="minimal" intent="primary" text={open_part === 'settings' ? 'Done' : text} onClick={() => setOpenPart(open_part === 'settings' ? null : 'settings')}/>;
   // The parts names don't need, on one line, and why
@@ -587,9 +629,10 @@ const ExportDialog = ({
       why: <>one <code>{path}</code> per run</>,
       action: <Button className="part-action" size="small" variant="minimal" intent="primary" text="Always say it" onClick={() => update({ file_in_names: true })}/>,
     },
-    has('side') && !both && {
+    has('side') && !both && !label_alone.trim() && {
       name: 'new or reference',
       why: has_reference ? `only ${plan.side === 'reference' ? 'the reference' : 'the new results'} exported` : 'no reference: one version',
+      action: open_part !== 'alone' && <Button className="part-action" size="small" variant="minimal" intent="primary" text="Name them" onClick={() => setOpenPart('alone')}/>,
     },
   ].filter(Boolean);
   const parts_list = <Parts aria-label="What names say">
@@ -630,6 +673,18 @@ const ExportDialog = ({
             options={[...new Set([...SIDE_SEPARATORS, side_separator(naming.template)])].map(sep => ({ value: sep, label: `${sep}${plan.labels.new}` }))}/>
         </FormGroup>}
         <p className={Classes.TEXT_MUTED} style={{ flexBasis: '100%', margin: '2px 0 0', fontSize: 12 }}>These names are only for this export: the page and its milestones keep theirs.</p>
+      </Row>,
+    })}
+    {has('side') && !both && (label_alone.trim() || open_part === 'alone') && part('side', {
+      title: 'Label',
+      body: label_alone.trim()
+        ? <>after the {plan.side === 'reference' ? 'reference' : 'new'} results: <code style={{ color: plan.side === 'reference' ? sides?.reference?.css : sides?.new?.css, fontWeight: 600 }}>{label_alone.trim()}</code></>
+        : <>what to call the {plan.side === 'reference' ? 'reference' : 'new'} results in names, e.g. the batch's name</>,
+      children: <Row style={{ marginTop: 4, alignItems: 'center' }}>
+        <InputGroup aria-label="Label in names" small autoFocus={!label_alone} value={label_alone} placeholder={alone_batch || 'e.g. tuning-gain'} onChange={e => setLabelAlone(e.target.value)}/>
+        {alone_batch && label_alone.trim() !== alone_batch && <Button size="small" variant="minimal" intent="primary" text={<>The batch: <code>{alone_batch}</code></>} onClick={() => setLabelAlone(alone_batch)}/>}
+        {label_alone && <Button size="small" variant="minimal" text="Remove" onClick={() => { setLabelAlone(''); setOpenPart(null); }}/>}
+        <p className={Classes.TEXT_MUTED} style={{ flexBasis: '100%', margin: '2px 0 0', fontSize: 12 }}>Only for this export. In the template, <code>{'{side}'}</code> says it.</p>
       </Row>,
     })}
     {left_out.length > 0 && <div className="part" aria-label="Not in names">
@@ -736,7 +791,18 @@ const ExportDialog = ({
       {p.errors.length > 0 && <Callout intent="danger" icon="issue" title="Errors" style={{ marginBottom: 8 }}>
         <ProblemList items={p.errors.map(e => <code key={e}>{e}</code>)}/>
       </Callout>}
-      {p.folders_skipped > 0 && <p className={Classes.TEXT_MUTED}>{plural(p.folders_skipped, 'folder matches', 'folders match')} the pattern: QA-Board exports files, e.g. <code>folder/**/*</code>.</p>}
+      {copy_check && <CopyCheck check={copy_check} folder={p.folder} onFix={update} fixes={[
+        !(folder_mode === 'path' && !path_is_same_fs) && { text: 'Export links instead', fix: { type: 'link' } },
+        folder_mode === 'path' && copy_check.folder_error && { text: 'Export into a new folder', fix: { folder_mode: 'new' } },
+      ].filter(Boolean)}/>}
+      {p.nb_folders > 0 && <p className={Classes.TEXT_MUTED} style={{ marginBottom: 6 }}>
+        {plural(p.nb_folders, 'folder')} with the {plural(p.nb_in_folders, 'file')} in {p.nb_folders === 1 ? 'it' : 'them'}: each folder is named like a file, and its files keep their names and subfolders.{' '}
+        <Button size="small" variant="minimal" intent="primary" text="Only files" onClick={() => update({ folders: false })}/>
+      </p>}
+      {p.folders_skipped > 0 && <p className={Classes.TEXT_MUTED} style={{ marginBottom: 6 }}>
+        {plural(p.folders_skipped, 'folder matches', 'folders match')} the pattern, not exported.{' '}
+        <Button size="small" variant="minimal" intent="primary" text="Export them with their files" onClick={() => update({ folders: true })}/>
+      </p>}
       {p.files.length > 0 && <div role="list" aria-label="Exported files" style={{ maxHeight: 'min(440px, 45vh)', overflow: 'auto', border: '1px solid var(--qa-border)', borderRadius: 3, padding: '4px 0', fontFamily: 'var(--bp-typography-family-mono, monospace)', fontSize: 12 }}>
         {p.files.map((f, index) => {
           const parts = parts_of(f);
@@ -757,16 +823,30 @@ const ExportDialog = ({
     subject: 'Feedback on the new Export',
     body: `What worked, what's missing or confusing?\n\n\n--\nPage: ${window.location.href}`,
   });
+  // the server groups what failed (`problems`); `errors` ends with a line per problem, after the plan's own errors
+  const nb_failed = result?.nb_failed ?? 0;
+  const other_errors = result?.problems ? (result.errors ?? []).slice(0, (result.errors ?? []).length - result.problems.length) : (result?.errors ?? []);
   const result_block = result && <section aria-label="Last export" style={{ marginBottom: 12 }}>
     {result.error
       ? <Callout intent="danger" icon="error" title="The export failed">{result.error}</Callout>
-      : <Callout intent={result.errors?.length || result.nb_skipped ? 'warning' : 'success'} icon="tick" title={`${plural(result.nb_files_exported, 'file')} exported from ${plural(result.nb_runs, 'run')}`}>
+      : result.nb_files_exported === 0 && nb_failed > 0
+      ? <Callout intent="danger" icon="error" title="Nothing was exported">
+          <p style={{ margin: 0 }}>None of the {plural(nb_failed + (result.nb_not_attempted ?? 0), 'file')} could be {result.type === 'copy' ? 'copied' : 'linked'} into <code style={{ wordBreak: 'break-all' }}>{result.folder}</code>.</p>
+          <ExportProblems result={result} support_url={support_url}/>
+          {other_errors.length > 0 && <ProblemList items={other_errors.map(e => <code key={e}>{e}</code>)}/>}
+        </Callout>
+      : <Callout intent={nb_failed || other_errors.length || result.nb_skipped ? 'warning' : 'success'} icon={nb_failed ? 'warning-sign' : 'tick'}
+          title={`${plural(result.nb_files_exported, 'file')} exported from ${plural(result.nb_runs, 'run')}${nb_failed ? `, ${plural(nb_failed, 'file')} failed` : ''}`}>
           <Paths folder={result.folder}/>
           {result.mapping && <p style={{ margin: '6px 0 0' }}><code>{result.mapping}</code> in the folder lists each file and where it comes from: its run, input and settings (with the runs' configurations in <code>{result.mapping.replace(/\.csv$/, '.json')}</code>).</p>}
           {result.type === 'link' && <p style={{ margin: '4px 0 0' }} className={Classes.TEXT_MUTED}>The files are links to the runs' files, not copies: don't edit them.</p>}
+          {result.nb_symlinks > 0 && <p style={{ margin: '4px 0 0' }}>
+            {plural(result.nb_symlinks, 'file is a symbolic link', 'files are symbolic links')}: the runs' files are on another filesystem, where hard links can't go. Windows often can't open symbolic links: if they don't open, export copies.
+          </p>}
           {result.export_id && <p style={{ margin: '4px 0 0' }} className={Classes.TEXT_MUTED}>Find your exports, their size, and delete them in <Link to="/storage/exports">Storage usage → Exports</Link>.</p>}
           {result.nb_skipped > 0 && <ProblemList more={result.nb_skipped - result.skipped.length} items={result.skipped.map(s => <code key={s}>{s}</code>)}/>}
-          {result.errors?.length > 0 && <ProblemList items={result.errors.map(e => <code key={e}>{e}</code>)}/>}
+          <ExportProblems result={result} support_url={support_url}/>
+          {other_errors.length > 0 && <ProblemList items={other_errors.map(e => <code key={e}>{e}</code>)}/>}
           {support_url && <p style={{ margin: '8px 0 0' }}>This export is new. Something missing, confusing, or better before? <a href={feedback_url} target="_blank" rel="noopener noreferrer">Tell us</a>: it shapes what comes next.</p>}
         </Callout>}
   </section>;

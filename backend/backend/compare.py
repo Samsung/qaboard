@@ -3,7 +3,8 @@ Compares the runs of two batches with the same numbers as the web app's views:
 - **Summary** (`webapp/src/components/metrics.jsx`): the median of each metric over the runs, the change vs the
   reference, and the share of runs that meet the metric's target;
 - **Metrics Diff** (`webapp/src/components/tables.jsx`): each run next to its reference run, matched like the web app
-  does (`matching_output` in `webapp/src/utils.js`).
+  does by default (`matching_output` in `webapp/src/matching/match.js`, without the rules users add in the web app's
+  URL, see `webapp/src/matching/rules.js`).
 The web app's own helpers are in `webapp/src/utils/compare.js`. Both are tested against the same fixture,
 `tests/fixtures/metrics-compare.json`: change one, change the other.
 

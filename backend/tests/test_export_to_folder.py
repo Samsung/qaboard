@@ -53,3 +53,22 @@ def test_matching_output_like_the_web_app(export_api):
   same_platform, other_platform = run('a.jpg'), run('a.jpg')
   other_platform.platform = 'windows'
   assert export_api.matching_output(run('a.jpg'), [other_platform, same_platform]) is same_platform
+
+
+def test_folders_are_real_folders(export_api, tmp_path):
+  """Not a symbolic link to the run's folder, that Windows shares can't open: a folder of links, with the same subfolders"""
+  source = tmp_path / 'run' / 'dma_out'
+  (source / 'sub').mkdir(parents=True)
+  (source / 'a.bin').write_text('a')
+  (source / 'sub' / 'b.bin').write_text('b')
+  export = tmp_path / 'export'
+  export.mkdir()
+  # an earlier export's symbolic link: replaced in our folders
+  (export / 'dma_out@new').symlink_to(source)
+  with pytest.raises(FileExistsError):
+    export_api.export_to(export / 'dma_out@new', source, type='link', replace=False)
+  export_api.export_to(export / 'dma_out@new', source, type='link', replace=True)
+  assert not (export / 'dma_out@new').is_symlink()
+  assert (export / 'dma_out@new' / 'sub' / 'b.bin').samefile(source / 'sub' / 'b.bin')
+  # again: already there
+  export_api.export_to(export / 'dma_out@new', source, type='link', replace=False)

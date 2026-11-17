@@ -7,7 +7,10 @@
 // config_distance is ported to Python in qaboard/matching.py, both are tested against tests/fixtures/config-distance.json.
 
 // Some configuration keys are used and shown by viewers - we don't display them as settings
-export const hidden_keys = ["badges", "roi", "auto_rois"];
+export const hidden_keys = ["badges", "roi", "auto_rois", "view"];
+// `view` is what a run asks to show (viewers/runView.js) when it's a mapping: else it's a project's own parameter
+export const is_hidden = (key, value) => hidden_keys.includes(key)
+  && (key !== 'view' || (value !== null && typeof value === 'object' && !Array.isArray(value)));
 
 // Values as people write them: [1, 0.98, 0.95] rather than JSON's [1,0.98,0.95]
 export const format_value = value => {
@@ -37,7 +40,7 @@ const has_objects = array => array.some(v => is_object(v) && Object.keys(v).leng
 const visit = (value, path, item, source, tokens) => {
   if (is_object(value) && Object.keys(value).length > 0) {
     for (const [key, v] of Object.entries(value)) {
-      if (!path && hidden_keys.includes(key)) continue;
+      if (!path && is_hidden(key, v)) continue;
       visit(v, path ? `${path}.${key}` : key, item, source, tokens);
     }
   } else if (Array.isArray(value) && has_objects(value)) {
@@ -224,7 +227,7 @@ export const config_distance = (configurations_a, configurations_b) =>
   tokens_distance(config_tokens(configurations_a), config_tokens(configurations_b));
 
 
-const string_separator = /[\s/\\.,:;=_\-@|+()[\]{}"']/;
+export const string_separator = /[\s/\\.,:;=_\-@|+()[\]{}"']/;
 // In values like [1, 0.98, -0.5], numbers are words: 0.7 → 0.635, not 0.[7 → 635]
 export const value_separator = /[\s,:[\]{}"]/;
 
@@ -414,7 +417,7 @@ export const shared_configuration = outputs => {
 export const change_key = d => `${d.op}\u0000${d.token.full}\u0000${d.ref?.full ?? ''}`;
 
 // The runs that are compared to a reference run, and those compared to a reference with other settings,
-// as [settings, reference settings]. Also how many runs had several reference runs as close.
+// as [settings, reference settings]
 export const reference_pairs = new_batch => {
   const outputs = (new_batch?.filtered?.outputs ?? []).map(id => new_batch.outputs[id]).filter(o => !!o?.reference_id);
   const pairs = [];
@@ -422,7 +425,7 @@ export const reference_pairs = new_batch => {
     const reference = reference_tokens(o);
     if (reference) pairs.push([output_tokens(o), reference]);
   }
-  return { compared: outputs.length, pairs, ambiguous: outputs.filter(o => o.reference_mismatch?.alternatives > 0).length };
+  return { compared: outputs.length, pairs };
 };
 
 const all_runs_results = new Map();
@@ -466,13 +469,13 @@ export const summarize_changes = pairs => {
 export const configurationSummary = output => {
   const parts = []
   for (const [key, value] of Object.entries(output.extra_parameters ?? {}))
-    if (!hidden_keys.includes(key)) parts.push(`${key}=${JSON.stringify(value)}`)
+    if (!is_hidden(key, value)) parts.push(`${key}=${JSON.stringify(value)}`)
   if (output.platform && output.platform !== 'linux') parts.push(`@${output.platform}`)
   for (const configuration of output.configurations ?? []) {
     if (typeof configuration === 'string') parts.push(configuration)
     else if (configuration && typeof configuration === 'object')
       for (const [key, value] of Object.entries(configuration))
-        if (!hidden_keys.includes(key)) parts.push(`${key}: ${JSON.stringify(value)}`)
+        if (!is_hidden(key, value)) parts.push(`${key}: ${JSON.stringify(value)}`)
   }
   return parts.join(' · ')
 }

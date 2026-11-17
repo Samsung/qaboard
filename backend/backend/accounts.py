@@ -269,6 +269,20 @@ def account(name: str) -> Optional[Account]:
   return Account(name, entry.pw_uid, entry.pw_gid)
 
 
+def groups_known(name: str) -> bool:
+  """
+  Whether we know the groups of a user besides their primary group: from QABOARD_GROUPS_COMMAND, or the server's
+  /etc/group. Else, acting as them (fs_utils.as_user, e.g. export copies), we only have their primary group.
+  """
+  accounts = _load()
+  if groups_command and name in accounts.by_name:
+    return True
+  try:
+    return any(name in g.gr_mem for g in grp.getgrall())
+  except OSError:
+    return False
+
+
 def group_ids(name: str, gid: int) -> FrozenSet[int]:
   """The groups of a user: their primary group, and those they are a member of"""
   accounts = _load()

@@ -116,3 +116,17 @@ def test_owner(directory, tmp_path):
     os.chown(path, 54321, 777)
     assert owner(path) == "uid 54321" # Path.owner() raises KeyError
     assert owner_ids(path) == "54321:777"
+
+
+def test_as_user_keeps_the_childs_traceback(me, temp_dir):
+  """Logs and Sentry see where the child failed, not only where the parent raised it again"""
+  def fails_in_the_child():
+    raise ValueError("in the child")
+  with pytest.raises(ValueError, match="in the child") as e:
+    as_user(me, fails_in_the_child)
+  notes = '\n'.join(getattr(e.value, '__notes__', []))
+  assert f'Raised in a child process, as {me}' in notes and 'in fails_in_the_child' in notes
+  # what the OS complained about: exports tell the runs' files from the exported ones
+  with pytest.raises(FileNotFoundError) as e:
+    as_user(me, open, '/missing/file')
+  assert e.value.filename == '/missing/file'

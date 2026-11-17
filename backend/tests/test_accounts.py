@@ -4,6 +4,7 @@ Tests for backend/accounts.py: users' accounts from commands (e.g. `ssh host get
 import os
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -159,3 +160,14 @@ def test_refresh_never_fails_when_the_folder_isnt_writable(commands, monkeypatch
   monkeypatch.setattr(accounts, "accounts_dir", blocked / "accounts")
   assert accounts.refresh() is False
   assert "could not update the accounts" in capsys.readouterr().out
+
+
+def test_groups_known(commands, monkeypatch):
+  """Acting as users without their groups (e.g. export copies) fails on what they read through their groups: we say it"""
+  assert accounts.refresh()
+  reload()
+  assert accounts.groups_known("alice")
+  # without the groups command, from the server's /etc/group: users it doesn't list are only in their primary group
+  monkeypatch.setattr(accounts, "groups_command", "")
+  monkeypatch.setattr(accounts.grp, "getgrall", lambda: [SimpleNamespace(gr_name="algo", gr_gid=2000, gr_mem=["bob"])])
+  assert accounts.groups_known("bob") and not accounts.groups_known("alice")

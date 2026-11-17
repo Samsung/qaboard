@@ -134,7 +134,7 @@ class TestMissingStorage(unittest.TestCase):
   @classmethod
   def qa(cls, *args, **environ):
     """Runs `qa` in the project, outside CI and without our settings, or the site's"""
-    env = {k: v for k, v in os.environ.items() if not k.startswith(('QA_', 'QABOARD_')) and k not in ('CI', 'GIT_COMMIT')}
+    env = {k: v for k, v in os.environ.items() if (k == 'QABOARD_IGNORE_SITE' or not k.startswith(('QA_', 'QABOARD_'))) and k not in ('CI', 'GIT_COMMIT')}
     env.update({
       'QA_NO_CHECK_FOR_UPDATES': 'true', 'QA_OFFLINE': 'true',
       'QABOARD_URL': 'http://localhost:5151', 'QABOARD_SITE_CONFIG': '',

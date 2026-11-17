@@ -202,7 +202,8 @@ ones are the quantized model's reference arithmetic (below). Latency isn't.
   also the same with no graph optimization, basic or extended; with all of them, ONNX Runtime's NCHWc fp32 kernels
   sum in another order (0.0889064).
 - **The regression, as measured**: the first int8 model (minmax, one scale per tensor, everything quantized) loses 40%
-  of the indoor slice's mAP (0.109 to 0.065: people indoors almost disappear) and 6% of AP small on `small-objects`
+  of the indoor slice's mAP here (0.109 to 0.065: people indoors almost disappear; 35% on GitHub's runners, where the
+  demo data comes from, so the story and the docs say "over a third" or 35%) and 6% of AP small on `small-objects`
   (0.368 to 0.346). Per-channel weights bring indoor back to 0.089 (+37%), percentile calibration to 0.111, fp32's
   level. Small objects stay 7% below fp32 at the same commit. `tune-int8` (`qa optimize`, 20 evaluations, the
   objective also penalizes model size) found percentile 99.999, the first convolution in fp32 (it costs nothing),

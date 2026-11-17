@@ -158,9 +158,15 @@ in one place with the `storage.exports_root` setting (**Admin → Settings**, or
 `<root>/<user>/<project>/<date>-<name>-<id>`. The folder must be on the same file system as the results for hard links, and
 under `QABOARD_STORAGE_ROOTS`.
 
-Exports of **copies** are made as the user who exports, so that they own the copies: the backend needs to run as root (or with
-the `SETUID`/`SETGID` capabilities), and to know the user's account, see [users' accounts](/docs/backend-admin/user-management#users-accounts).
-Users it doesn't know can only export links: the preview tells them.
+Exports of **copies** are made as the user who exports, so that they own the copies, and the folders they go in (e.g. `new/`
+and `reference/` with a folder per side): the backend needs to run as root (or with
+the `SETUID`/`SETGID` capabilities), and to know the user's account and groups (`QABOARD_GROUPS_COMMAND`, or the server's
+`/etc/group`), see [users' accounts](/docs/backend-admin/user-management#users-accounts). Without their groups, copies
+only have the user's primary group, and fail for files they read through other groups.
+Users it doesn't know can only export links. Before copying, the preview checks, as the user, that they can write in
+the folder and read the runs' files, and says what they can't, and when QA-Board only knows their primary group.
+When files fail, users see what went wrong, and a reference to find the details in the logs and Sentry: see
+[monitoring exports](/docs/backend-admin/monitoring#exports).
 
 <details>
 <summary>The export APIs</summary>

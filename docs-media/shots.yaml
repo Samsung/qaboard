@@ -31,6 +31,7 @@ features:
   plotly-overlay: Plotly plots with the reference overlaid
   flame-diff: Differential flame graphs
   text-diff: Monaco text diff with Next Diff
+  benchmarks: Benchmark suites (pytest-benchmark, Google Benchmark, hyperfine...) against the reference's, with what changed beyond noise
   junit-viewer: JUnit XML test reports as a tree against the reference's, with filters, search and the failures
   video-sync: Videos played in sync with the reference
   video-compare: Videos compared frame by frame, side by side, with a wipe, one at a time (Single) or as their difference, synced zoom
@@ -613,7 +614,9 @@ shots:
     kind: still
     project: serving-latency
     shows: A differential flame graph where the response rendering under the shared cache's lock is new (orange), the skipped model work blue.
-    pages: [user-guide/other-viewers, viewers, landing, recipes/flame-graphs, tutorials/perf-regression, use-cases/overview, use-cases/serving-latency]
+    # Published from the viewer before November 2026 (no toolbar, legend or table): the pages show
+    # commit/flame-top-functions until it's captured again. The spec below targets the new viewer.
+    pages: []
     features: [flame-diff]
     needs: cache-shared vs batch-overflow-fix
     phase: 2
@@ -622,14 +625,15 @@ shots:
     kind: still
     project: serving-latency
     shows: The steady-high run's flame graph diff with the shared cache, rooted at "all", and its Top functions table under it, the biggest increase of share first.
-    pages: [landing, use-cases/overview, use-cases/serving-latency]
+    pages: [landing, user-guide/other-viewers, flame-graphs, use-cases/overview, use-cases/serving-latency]
     features: [flame-diff]
     needs: cache-shared vs batch-overflow-fix
     phase: 3
     status: planned
     standin:
-      # The web app's flame graph playground (webapp/flame-graph-viewer.html) on the cpu.folded files of the example's
-      # steady-high runs, measured on a 4-CPU VM with the flags of both commits, not on the demo stack
+      # `uv run docs-media/standins/make.py commit/flame-top-functions`: the web app's flame graph playground on the
+      # cpu.folded files of the example's steady-high runs, measured on a 4-CPU VM with the flags of both commits, not
+      # on the demo stack
       light: standins/commit/flame-top-functions.webp
       dark: standins/commit/flame-top-functions-dark.webp
       width: 1212
@@ -640,7 +644,7 @@ shots:
     kind: still
     project: serving-latency
     shows: 'A run done three times: its card tagged "attempt 3", the tag''s tooltip listing attempt 1 (failed) and attempt 2 (succeeded, with its metrics), and that their logs are in the Logs view.'
-    pages: [landing]
+    pages: [user-guide/commit-page]
     needs: a run done again in a story (seed.py has no reruns yet)
     phase: 3
     status: planned
@@ -777,6 +781,25 @@ shots:
     needs: green-ci vs closest-robot
     phase: 3
     status: published
+  - id: commit/benchmarks
+    kind: still
+    project: software-quality
+    shows: "The benchmark viewer on the fleet SDK's pytest-benchmark suite, the commit that decodes frames with the deprecated parse() against the one before: dispatching small frames is slower beyond noise, the rest within it."
+    pages: [user-guide/other-viewers, benchmarks]
+    features: [benchmarks]
+    needs: "legacy-parse vs reserve-tests, and the example's benchmarks/ in its runs: a batch that runs them, pytest.benchmarks.json in outputs.visualizations, a spec in commit.spec.ts"
+    phase: 3
+    status: planned
+    standin:
+      # `uv run docs-media/standins/make.py commit/benchmarks`: the web app's benchmark playground on two runs of the
+      # example's benchmarks/ with the flags of both commits, on a 4-CPU VM, not on the demo stack. The VM is noisy
+      # (spreads of 10-25%): only the changes of 50% and more show beyond noise
+      light: standins/commit/benchmarks.webp
+      dark: standins/commit/benchmarks-dark.webp
+      width: 1180
+      height: 648
+      alt: "The benchmark viewer on the fleet SDK's pytest-benchmark file, legacy-parse against main: 27 benchmarks, 2 slower, 25 within noise, overall +10.0%. In the client group, test_dispatch_without_handler takes 5.19 µs against 2.26 µs, +129%, and test_dispatch[16] 7.6 µs against 5.01 µs, +51.7%, both in red. The other benchmarks, frames and varints, changed by less than their spread, in gray."
+      caption: "Decoding with the deprecated parse() makes dispatching small frames 50 to 130% slower. Every other change is within the noise the harness measured."
   - id: commit/tests-diff
     kind: still
     project: software-quality
@@ -928,7 +951,7 @@ shots:
   - id: tuning/manual-form
     kind: still
     project: detection-eval
-    shows: Run Tests / Tuning on int8-percentile, experiment int8-nms on quant-search (2 tests), with a grid over score_threshold and nms_iou, 4 combinations, "8 total runs", and the Start 8 runs button.
+    shows: Run Tests / Tuning on int8-percentile, experiment int8-nms on quant-search (2 tests), Choose the values with a grid over score_threshold and nms_iou, 4 combinations, "8 total runs", and the Start 8 runs button.
     pages: [user-guide/running-from-the-webapp]
     needs: int8-percentile
     phase: 2
@@ -936,7 +959,7 @@ shots:
   - id: tuning/auto-form
     kind: still
     project: detection-eval
-    shows: 'Automated tuning''s guided form filled from qa/tune-int8.yaml: four parameters with their ranges or values, AP small and mAP to improve and the model size to keep small, 20 evaluations, and the summary "Ready to start" with the runs it counts.'
+    shows: 'Run Tests / Tuning with Search automatically chosen, its guided form filled from qa/tune-int8.yaml: four parameters with their ranges or values, AP small and mAP to improve and the model size to keep small, 20 evaluations, and the summary "Ready to start" with the runs it counts.'
     pages: [auto-optimization, user-guide/automated-tuning, user-guide/running-from-the-webapp, tutorials/tuning]
     phase: 2
     status: captured
@@ -944,7 +967,7 @@ shots:
   - id: tuning/launch-to-analysis
     kind: clip
     project: detection-eval
-    shows: The manual-form grid (8 runs) is sent, its int8-nms batch picked in the batch selector once its runs are done, and its Analysis opened, with the runs in parallel coordinates.
+    shows: The manual-form grid (8 runs) is sent, its int8-nms batch picked in the batch selector once its runs are done, and its Tuning Analysis opened, with the best of its 4 parameter sets, then every set in parallel coordinates.
     pages: [tuning-from-the-webapp, user-guide/running-from-the-webapp, landing, tutorials/tuning]
     features: [tuning-analysis]
     needs: int8-percentile
@@ -962,7 +985,7 @@ shots:
   - id: tuning/frontier
     kind: still
     project: serving-latency
-    shows: 'The tune-batching sweep''s efficient frontier of CPU per request (added to the Analysis view''s metrics) against p99, 12 configurations colored by max delay, the chosen one (16, 250 µs) hovered on it, next to (64, 250 µs): within the noise between identical configurations.'
+    shows: 'Tuning Analysis''s trade-offs of the tune-batching sweep: CPU per request against p99, 12 configurations with the best trade-offs highlighted, the chosen one (16, 250 µs) hovered on it, next to (64, 250 µs): within the noise between identical configurations.'
     pages: [tuning-from-the-webapp, use-cases/serving-latency, user-guide/running-from-the-webapp, landing, tutorials/tuning, tutorials/perf-regression]
     features: [tuning-analysis]
     needs: cache-sharded (tune-batching)

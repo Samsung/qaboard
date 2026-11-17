@@ -6,7 +6,7 @@ import batches from '../../../../e2e/fixtures/tuning.json';
 import {
   template, parse, set, parameters, setParameter, addParameter, removeParameter, changeKind, objectiveMetrics,
   setObjectiveMetric, renameObjectiveMetric, recommended_evaluations, suggest_log, metric_direction, check, from_batch,
-  known_parameters, objective_goal, metrics_to_choose,
+  known_parameters, objective_goal, metrics_to_choose, from_space, grid_to_space,
 } from '../optimize_config';
 
 const metrics = {
@@ -201,5 +201,30 @@ describe('from_batch', () => {
 describe('known_parameters', () => {
   it("lists the commit's tuning parameters", () => {
     expect(known_parameters({ batches })).toEqual(['nms_iou', 'quant_keep_fp32', 'quant_percentile', 'score_threshold']);
+  });
+});
+
+describe('grid_to_space', () => {
+  it('turns the values of a grid into ranges and choices to search', () => {
+    const space = grid_to_space({ threshold: [0.1, 0.2, 0.4], size: [3, 5, 7], lr: [0.001, 0.1, 1], mode: ['a', 'b'], enable: [0, 1], fixed: [8], lut: [[0, 0], [1, 1]] });
+    expect(space.rows).toEqual([
+      { kind: 'Real', name: 'threshold', low: 0.1, high: 0.4, log: false },
+      { kind: 'Integer', name: 'size', low: 3, high: 7, log: false },
+      { kind: 'Real', name: 'lr', low: 0.001, high: 1, log: true },
+      { kind: 'Categorical', name: 'mode', categories: ['a', 'b'] },
+      { kind: 'Categorical', name: 'enable', categories: [0, 1] },
+      { kind: 'Categorical', name: 'lut', categories: [[0, 0], [1, 1]] },
+    ]);
+    expect(space.preset_params).toEqual({ fixed: 8 });
+    const { config } = parse(from_space(space.rows, { loss: 'min' }, space.preset_params));
+    expect(config.evaluations).toBe(60);
+    expect(config.preset_params).toEqual({ fixed: 8 });
+    expect(check(config, {})).toEqual([]);
+  });
+
+  it("leaves what isn't one grid of values", () => {
+    expect(grid_to_space([{ a: [1, 2] }, { a: [3] }])).toBeNull();
+    expect(grid_to_space({ fixed: [1] })).toBeNull();
+    expect(grid_to_space({})).toBeNull();
   });
 });

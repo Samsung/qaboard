@@ -82,7 +82,7 @@ the functions it calls below it. Against the reference, QA-Board draws a **diffe
 profile, colored by what changed.
 
 <Shot
-  id="commit/flame-diff"
+  id="commit/flame-top-functions"
   caption="The inference gateway's workers now render responses under the shared cache's lock (orange, new), and the model's forward pass runs less (blue): cache hits skip it."
 />
 
@@ -205,6 +205,8 @@ Click in the list, then:
 When a run saves a benchmark harness's results, its card shows each benchmark next to the reference run's: how long
 it took, the change in %, and whether that change is larger than the noise the harness measured.
 Integrators: see [Benchmark suites](/docs/benchmarks) to bring a suite in, and follow each benchmark as a metric.
+
+<Shot id="commit/benchmarks" />
 
 To review a change's performance:
 1. **Read the line at the top**: how many benchmarks, then how many are **slower**, **faster**, **within noise**,

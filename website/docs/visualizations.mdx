@@ -82,6 +82,58 @@ outputs:
 Give each visualization a `name`: the View options list it by its name (or by its `label`, if you give one), and the
 web app shows and hides visualizations by name. Visualizations without a name are shown and hidden together.
 
+## Show each test what matters for it {#per-test-views}
+A batch often mixes tests that each have their own thing to look at: a histogram for one, a debug image for another,
+the profile across an edge for a third. A run can say what its card opens on, with a `view` mapping. It goes in the
+batch's configurations, or in the [input's metadata](/docs/metadata-integration-external-databases):
+
+```yaml title="qa/batches.yaml"
+histograms:
+  inputs:
+  - charts/gray-ramp.png
+  configs:
+  - base
+  - view:
+      show: [Histogram]          # the visualizations shown by default, by their name in qaboard.yaml
+
+edges:
+  configs:
+  - base
+  - view:
+      show: [Output]
+      images:                    # how the run's images open
+        analysis: profiles       # with their row and column profiles
+  inputs:
+  - charts/slanted-edge.png
+  - photos/facade.png: {view: {show: [Debug mask]}}   # an input can add its own
+```
+
+```yaml title="An input's metadata: for every run on the input, in any batch"
+view:
+  show: [Output, Edge profile]
+```
+
+*qaboard.yaml* still lists the visualizations: a run picks among them. Runs that say nothing show the project's
+defaults, like before.
+
+| Key of `view` | What it does |
+|---|---|
+| `show` | The names of the visualizations the run's card shows by default, instead of the project's (those without `default_hidden`). Names that aren't in *qaboard.yaml* are ignored. |
+| `images.mode` | How the run's images are compared until people pick a mode: `side-by-side`, `wipe`, `single` or `difference`. |
+| `images.analysis` | Opens the analysis panel under the run's images, on `histogram`, `profiles` (rows and columns) or `stats`. |
+| `images.roi` | [Regions of interest](#regions-of-interest). A `roi` key next to `view` does the same. |
+
+- **Image options are for all the run's images**, not for one visualization: they also apply to an image opened from
+  the **Output Files**.
+- **When several apply**, the input's metadata comes first, then the configurations in order: the last one wins, key
+  by key, and lists of regions add up.
+- **People keep the last word.** What they turn on or off in the **View options** applies to all runs, and
+  **Each test's own view**, there, turns off what runs ask for: every run then shows the project's defaults.
+- **In a configuration, `view` is part of the run's configuration**, like any mapping: your code gets it as
+  `context.params['view']`, and a batch with another `view` makes new runs. The web app doesn't show it in the
+  runs' configuration tags, and ignores it when it matches runs with the reference's. A `view` that isn't a mapping,
+  like `view: left`, stays your own parameter.
+
 ## Every file your run writes {#output-files}
 A visualization only chooses what shows on the cards: QA-Board keeps every file your run writes in
 `context.output_dir`.
@@ -164,7 +216,8 @@ matter: your presets, and the regions where the images differ most. The viewer o
   caption="The input's preset regions, and below them the regions where the server finds that the images differ most."
 />
 
-Presets are a list of regions under the key `roi`. Each run gets its own, from two places:
+Presets are a list of regions under the key `roi` (or `view.images.roi`, with the rest of the run's
+[own view](#per-test-views)). Each run gets its own, from two places:
 
 | Where | Use it for | The same for |
 |---|---|---|
@@ -239,7 +292,7 @@ height: 816
 ```
 
 Paste the line under `roi`, and give it a label. Regions are saved with the runs: they show on the runs made after
-you add them. How people use regions: [the image viewer](/docs/user-guide/image-viewer#find-where-images-differ).
+you add them. How people use regions: [the image viewer](/docs/user-guide/image-viewer#regions-of-interest).
 
 ## Make room on the cards {#styles}
 <Anchor id="custom-styles" />

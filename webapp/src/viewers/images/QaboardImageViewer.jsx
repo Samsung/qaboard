@@ -8,6 +8,9 @@ import { useLocation } from 'react-router';
 import { create } from 'zustand';
 
 import { ImageViewer } from '../../image-viewer';
+import { ANALYSES } from '../../image-viewer/analysis';
+import { MODES } from '../../image-viewer/modes';
+import { run_view } from '../runView';
 import { errorMessage, http, isAbort } from '../../api/http';
 import { track } from '../../analytics';
 import { useComparison, useLabels, useSelected, useSiteConfig, useUser } from '../../hooks';
@@ -232,9 +235,17 @@ const ImageViewerForRuns = ({
   image_mode,
   image_diff,
   diff,
+  // false: users turned off what runs ask to show
+  run_views,
   onControlsChange,
 }) => {
   const labels = useLabels(labels_);
+  // What the run asks for its images (its `view.images`): the comparison mode, the analysis panel
+  const asked = run_views !== false ? run_view(output_new).images : null;
+  const asked_mode = MODES.some(m => m.value === asked?.mode) ? asked.mode : undefined;
+  const asked_analysis = ANALYSES.some(a => a.value === asked?.analysis) ? asked.analysis : undefined;
+  // the panel's view is a preference shared by the viewers: this viewer keeps its own when the run asked for one
+  const [own_analysis, setOwnAnalysis] = useState(asked_analysis);
   const { image_servers } = useSiteConfig();
   const pixel_values = usePrefsStore(state => state.imagePixelValues);
   const setPixelValues = usePrefsStore(state => state.setImagePixelValues);
@@ -260,7 +271,7 @@ const ImageViewerForRuns = ({
   const [local_mode, setLocalMode] = useState(undefined);
   const [local_diff, setLocalDiff] = useState(undefined);
   // `diff` is how the URL said "difference mode" before there were modes
-  const mode = (onControlsChange ? image_mode : local_mode) ?? (diff ? 'difference' : 'side-by-side');
+  const mode = (onControlsChange ? image_mode : local_mode) ?? (diff ? 'difference' : asked_mode ?? 'side-by-side');
   const diff_settings = onControlsChange ? image_diff : local_diff;
 
   const image = runImage(output_new, path, manifests?.new, image_servers, labels.new, labels.colors.new);
@@ -355,8 +366,9 @@ const ImageViewerForRuns = ({
     onAdjustmentsChange={value => { use(value?.falseColor !== adjustments?.falseColor ? 'colormap' : 'adjustments'); setAdjustments(path, value); }}
     pixelValues={pixel_values}
     onPixelValuesChange={setPixelValues}
-    analysis={analysis}
-    onAnalysisChange={setAnalysis}
+    analysis={own_analysis ?? analysis}
+    onAnalysisChange={value => { if (own_analysis) setOwnAnalysis(value); setAnalysis(value); }}
+    defaultShowAnalysis={!!asked_analysis}
     analysisValues={analysis_values}
     onAnalysisValuesChange={setAnalysisValues}
     sensor={sensor}

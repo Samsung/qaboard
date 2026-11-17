@@ -2,10 +2,11 @@
 id: image-viewer
 title: The image viewer
 sidebar_label: Images
-description: "Compare images side by side, with a wipe or their difference, zoom to the pixel, read pixel values, find where images differ."
+description: "Compare images side by side, with a wipe or their difference, zoom to the pixel, read pixel values, jump to preset regions of interest and find where images differ."
 ---
 Every image a run saves shows next to the same image of its reference run. Flip between them, zoom to the pixel in
-both at once, read the values of the pixels, and let QA-Board find where they differ.
+both at once, read the values of the pixels, jump to the [regions of interest](#regions-of-interest) your project
+preset for each test, and let QA-Board find where the images differ.
 
 <Clip
   id="commit/image-diff"
@@ -80,7 +81,7 @@ before you agree:
    changed. See [which runs changed most](#which-runs-changed-most).
 2. **Go where they differ most.** Click **Show** next to *photos/facade.png*: its card zooms on the region that differs
    most, *#1 · 27.3%*, leaves over the wall. <kbd>]</kbd> goes to the next region. See
-   [find where images differ](#find-where-images-differ).
+   [where the images differ](#where-they-differ).
 3. **Flip between them.** Press <kbd>3</kbd> for **Single**, then <kbd>t</kbd>: the image flips from new to reference
    in place, and your eye catches what moved, a dark rim around every leaf in the new one. See
    [comparison modes](#comparison-modes).
@@ -109,19 +110,58 @@ from 11% back to 5%, and the halos fade.
   caption="The same leaves before and after the clamp: drag the divider. The dark rims fade, the edges stay crisp."
 />
 
-## Find where images differ {#find-where-images-differ}
-<Anchor id="regions-of-interest" />
-The regions button above the images (it shows the name of the set in view, e.g. **Presets**) zooms on regions of
-interest, with their thumbnails above the images. Step through them with <kbd>[</kbd> <kbd>]</kbd>, the arrows, or a
-click on a thumbnail. **Full image** goes back to the whole image. The regions are outlined on the images: click a
-region's label to zoom on it, and hide the outlines with the eye button or <kbd>o</kbd>.
+## Regions of interest {#regions-of-interest}
+<Anchor id="find-where-images-differ" />
+A region of interest is a part of the image worth a close look: a window frame where halos show, the patches of a
+color chart, the place where two images differ most. The regions button above the images (it shows the name of the
+set in view, e.g. **Presets**) zooms on them, with their thumbnails above the images. Step through them with
+<kbd>[</kbd> <kbd>]</kbd>, the arrows, or a click on a thumbnail. **Full image** goes back to the whole image. The
+regions are outlined on the images: click a region's label to zoom on it, and hide the outlines with the eye button
+or <kbd>o</kbd>.
 
-- **Presets**: the regions the project saved for this run, e.g. on the facade *Window frame (halos)*, *Leaves over a
-  window* and *Flat wall (noise)*. The viewer opens on the first one. They come with the run's input (its metadata) or
-  with its batch (a configuration), so the runs of a page can each have their own. Whoever integrates the project
-  defines them: see [preset regions of interest](/docs/visualizations#regions-of-interest), with examples of both.
-- **Where they differ**: the server compares the full images, not what your screen shows, and finds the places where
-  they differ most. Each region says how much, e.g. *#1 · 27.3%*, and darker swatches mark larger differences.
+There are two kinds, in the same menu:
+- [**Presets**](#presets): the regions your project saved for each test.
+- [**Where they differ**](#where-they-differ): the regions the server finds, by comparing the images.
+
+<Shot
+  id="commit/auto-roi"
+  caption="On the facade, the regions menu offers the input's 3 presets and the 20 places where new and reference differ most, #1 on the leaves."
+/>
+
+### Presets: the regions that matter for a test {#presets}
+Presets say where to look in a run's images. On the facade: *Window frame (halos)*, *Leaves over a window* and *Flat
+wall (noise)*. The viewer opens zoomed on the first one, in the new image and the reference.
+
+Each run has its own presets, so every card of a page opens on what matters for its test. They come from:
+- **the run's input**: what matters in this image, whatever the batch;
+- **the run's batch**: what this test checks, whatever the image, e.g. the corners for vignetting.
+
+A run without presets opens on the whole image. To add some to an input:
+
+1. Zoom on what you want to keep.
+2. In the regions menu, pick **Copy the view as a region**. You get the image's size and the region's coordinates:
+   ```yaml
+   width: 1224
+   height: 816
+   - {x: 100, y: 40, w: 160, h: 200, label: ""}
+   ```
+3. Add the region to the input's metadata, in a list under `roi`, with a label. In the camera ISP example, that's a
+   file next to each photo:
+   ```yaml title="inputs/photos/facade.metadata.yaml"
+   roi:
+   - {x: 100, y: 40, w: 160, h: 200, label: Window frame (halos)}
+   ```
+4. The runs made from then on show it.
+
+Where a project keeps its inputs' metadata is up to whoever integrated it: ask them, or send them the region. For
+them, [preset regions of interest](/docs/visualizations#regions-of-interest) has the two ways to set presets (per
+input, and per batch in *batches.yaml*), every key of a region, and how regions are scaled to outputs smaller than
+the input.
+
+### Where the images differ {#where-they-differ}
+Pick **Where they differ** in the regions menu: the server compares the full images, not what your screen shows, and
+finds the places where they differ most. Each region says how much, e.g. *#1 · 27.3%*, and darker swatches mark
+larger differences.
 
 **Look for differences of a size**, e.g. small defects rather than a sky whose noise changed everywhere: type the
 smallest and largest size in pixels next to the set's name above the regions (**Size … – … px**). The server searches
@@ -137,11 +177,6 @@ Pick how the server compares them:
 | **Where they differ: structure (SSIM)** | Structural similarity (SSIM), on the images about 1000 pixels wide, as 1 − SSIM | Texture and sharpness: a denoiser that smears fine detail, a sharpener that rings, while the colors stay. |
 | **Where they differ: ΔE 2000** | CIEDE2000 color difference, about 1000 pixels wide, as a ΔE | Color: white balance, the color correction matrix, chroma noise on a color chart. |
 
-<Shot
-  id="commit/auto-roi"
-  caption="On the facade, the regions menu offers the input's 3 presets and the 20 places where new and reference differ most, #1 on the leaves."
-/>
-
 <details>
 <summary>How the regions are found, and where they apply</summary>
 
@@ -155,8 +190,6 @@ Pick how the server compares them:
   is for the page where you pick it: on another page, the viewers don't compare their images until you ask, since that
   compares all its runs again.
 - The server compares images for signed-in users only: signed out, the viewer asks you to sign in.
-- **Copy the view as a region**, at the bottom of the menu, copies the coordinates of what you see, in the format of
-  presets: send them to whoever maintains the project's presets, or [add them yourself](/docs/visualizations#copy-a-region).
 
 </details>
 
@@ -495,8 +528,7 @@ opens the original files.
 - Copying images needs the web app on `https`: else, save them.
 - To share the comparison itself, copy the page's link: it keeps the commits, the mode and the difference's settings,
   but not the zoom. See [sharing](/docs/user-guide/sharing#whats-in-the-url).
-- To make the region you're looking at a preset, use **Copy the view as a region** in the
-  [regions menu](#find-where-images-differ).
+- To make the region you're looking at a preset, see [presets](#presets).
 
 ## Keyboard shortcuts {#keyboard-shortcuts}
 The keys work anywhere on the page, also while you scroll. They go to the viewer in full screen, else the one under

@@ -47,6 +47,9 @@ class TestConfigDistance(unittest.TestCase):
 
   def test_viewers_keys_are_not_settings(self):
     self.assertEqual(config_distance([{'badges': ['x'], 'roi': [1], 'gain': 1}], [{'gain': 1}]), 0)
+    # what a run asks to show is not a setting, a project's own `view` parameter is
+    self.assertEqual(config_distance([{'view': {'show': ['Histogram']}, 'gain': 1}], [{'gain': 1}]), 0)
+    self.assertGreater(config_distance([{'view': 'left', 'gain': 1}], [{'gain': 1}]), 0)
 
 
 class TestClosestRuns(unittest.TestCase):

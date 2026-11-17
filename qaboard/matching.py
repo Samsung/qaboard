@@ -63,7 +63,11 @@ def js_stringify(value) -> str:
 # ---------------------------------------------------------------------------- settings
 
 # Some configuration keys are used and shown by viewers: they're not settings
-HIDDEN_KEYS = ("badges", "roi", "auto_rois")
+HIDDEN_KEYS = ("badges", "roi", "auto_rois", "view")
+
+def _is_hidden(key, value) -> bool:
+  # `view` is what a run asks the web app to show when it's a mapping: else it's a project's own parameter
+  return key in HIDDEN_KEYS and (key != "view" or isinstance(value, dict))
 
 @dataclass(frozen=True)
 class Token:
@@ -84,7 +88,7 @@ def _visit(value, path: str, tokens: List[Token]):
   # Lists of objects have a setting per leaf ("layers[0].type"), lists of values are one setting
   if isinstance(value, dict) and value:
     for key in js_keys(value):
-      if not path and key in HIDDEN_KEYS:
+      if not path and _is_hidden(key, value[key]):
         continue
       _visit(value[key], f'{path}.{key}' if path else str(key), tokens)
   elif isinstance(value, list) and any(isinstance(v, dict) and v for v in value):
@@ -111,6 +115,8 @@ def config_tokens(configurations) -> List[Token]:
 
 # ---------------------------------------------------------------------------- distances
 
+# The same as string_separator in webapp/src/configurations/tokens.js, also how the web app cuts runs' names in parts
+# to pair them (webapp/src/matching/names.js): change one, change the other
 STRING_SEPARATOR = re.compile(r'''[\s/\\.,:;=_\-@|+()\[\]{}"']''')
 
 def _at(s: str, i: int) -> Optional[str]:
@@ -221,7 +227,7 @@ def config_distance(configurations_a, configurations_b) -> float:
 
 def run_distance(run: Dict, reference: Dict) -> Tuple[float, float, int]:
   """
-  How different a reference run is from a run, to sort them like the web app (`matching_output` in webapp/src/utils.js):
+  How different a reference run is from a run, to sort them like the web app (`matching_output` in webapp/src/matching/match.js):
   first by configurations, then by tuning parameters, then same platform first.
   Runs are dicts with `configurations`, `extra_parameters` and `platform`.
   """

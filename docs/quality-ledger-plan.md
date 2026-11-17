@@ -147,5 +147,5 @@ Found by the reviews of the gate, the server and the viewers; none blocks the st
 - Regression alerts on the reference branch (item 4): a metric that stepped against its trailing window.
 - The machine each run ran on (item 5), and bisect (item 6).
 - Viewers: Chrome's trace-event JSON in the flame graph viewer, synced zoom between two graphs, a rule for
-  benchmark files that report no spread, and a regenerated flame graph screenshot for the docs.
+  benchmark files that report no spread. Their screenshots: "Shots" in `docs/TODO.md`.
 - Keeping the output files of earlier attempts, not only their logs (`docs/rfcs/rerun-directories.md`).

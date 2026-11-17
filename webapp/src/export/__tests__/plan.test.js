@@ -119,6 +119,16 @@ describe('export names', () => {
     expect(only_ref.counts).toEqual({ new: 3, reference: 2, without_reference: 0 });
     // without a reference on the page, it's the new runs
     expect(export_runs({ new_batch, ref_batch: { outputs: {} }, sides: 'reference' }).items.every(i => i.side === 'new')).toBe(true);
+    // users can still name the side exported, e.g. after the tuning batch
+    const named = export_runs({ new_batch, ref_batch, labels: { ...labels, alone: 'tuning-gain' }, sides: 'new' });
+    expect(names(named)).toEqual(['a__gain=1__out__tuning-gain.png', 'a__gain=2__out__tuning-gain.png', 'b__out__tuning-gain.png']);
+    expect(named.labels).toEqual({ new: 'tuning-gain', reference: '' });
+    const named_ref = export_runs({ new_batch, ref_batch, labels: { ...labels, alone: 'v1' }, sides: 'reference' });
+    expect(names(named_ref)).toEqual(['a__out__v1.png', 'b__out__v1.png']);
+    expect(named_ref.labels).toEqual({ new: '', reference: 'v1' });
+    // a batch without a reference too
+    const alone = export_runs({ new_batch, ref_batch: { outputs: {} }, labels: { alone: 'tuning-gain' } });
+    expect(alone.items.every(i => i.fields.side === 'tuning-gain')).toBe(true);
   });
 
   it('puts what users want before new or reference, e.g. @', () => {

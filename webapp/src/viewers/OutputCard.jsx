@@ -17,11 +17,13 @@ import {
 
 import { OutputViewer } from "./OutputViewer";
 import { config_visualizations } from "./controls";
+import { is_visualization_shown, run_shown } from "./runView";
 import { MetricsTags } from "../components/metrics";
 import { ConfigurationsTags, OutputTags, PlatformTag, StatusTag, RunBadges, style_skeleton } from '../components/tags'
 import { runTime } from '../components/RunInfoMenu'
 import { RunName } from '../components/runNames'
 import { LazyHoverPopover } from '../components/LazyPopover'
+import { ReferenceMatchTag } from '../matching/ReferenceMatchTag'
 import { configurationSummary } from '../configurations/tokens'
 import { useOutputCardDensity } from '../stores/prefs'
 
@@ -201,6 +203,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, manifests, st
     return <CompactHeader $summary={!!summary}>
       {prefix}
       {name}
+      {viewable && <ReferenceMatchTag output={output}/>}
       <RunBadges output={output}/>
       {summary
         ? <LazyHoverPopover className="summary" placement="bottom-start" content={<div style={configuration_popover_style}>
@@ -219,6 +222,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, manifests, st
     <h5 className={Classes.HEADING} style={style} >
       {prefix}
       {name}
+      {viewable && <ReferenceMatchTag output={output}/>}
       {viewable && tags}
     </h5>
     {has_badges && <p style={{maxWidth: '600px'}}>
@@ -394,7 +398,9 @@ const OutputCard = memo(function OutputCard(props) {
   const error = { new: query_new.error, reference: query_ref.error, parse: parse_errors.length > 0 ? parse_errors : undefined, registration: registration_error };
 
   const views = config_visualizations(config?.outputs);
-  const is_shown = view => (!view.default_hidden && controls.show?.[view.name] !== false) || controls.show?.[view.name] === true;
+  // what users chose in the view options, else what the run asks to show (its `view`), else the project's defaults
+  const shown_by_run = run_shown(output_new, views);
+  const is_shown = view => is_visualization_shown(view, controls, shown_by_run);
 
   // we display the input for each option before the first visualization that uses it
   const already_shown_options = new Set();

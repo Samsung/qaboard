@@ -298,6 +298,7 @@ resolution), and show a cross where the pointer is on the others. Viewers off-sc
 | `imageValuesUnavailable` | `string` | | Without `getPixels`, why the image's own values aren't available, e.g. "Log in to read the images' own values" |
 | `onUse` | `(feature) => void` | | Told when users pin a pixel (`'pixel_pin'`) or open the analysis panel (`'histogram'`, `'analysis'`), e.g. to count usage |
 | `analysis`, `defaultAnalysis`, `onAnalysisChange` | `'histogram' \| 'profiles' \| 'stats'` | the one picked last on the page | The view of the analysis panel under the images (<kbd>a</kbd> shows it) |
+| `defaultShowAnalysis` | `boolean` | `false` | Whether the analysis panel is open when the viewer first shows |
 | `analysisValues`, `defaultAnalysisValues`, `onAnalysisValuesChange` | `'display' \| 'image'` | `'display'` | What the analysis measures: the displayed values, or the [image's own](#raw-images-analysis-by-channel-of-the-sensor) (needs `getPixels`) |
 | `sensor`, `defaultSensor`, `onSensorChange` | `{ kind?, pattern?, block?, offset?, blackLevel?, grouping? }` | automatic | What users set about the sensor of raw images |
 | `sensorRemembered` | `string` | | Where it's remembered, shown to users, e.g. "for the project" |

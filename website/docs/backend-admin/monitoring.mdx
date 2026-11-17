@@ -62,6 +62,16 @@ The [jobs worker](/docs/backend-admin/storage#schedule-jobs) (`qaboard-admin job
 
 Scheduled jobs that go wrong are also [emailed to admins](/docs/backend-admin/storage#schedule-jobs).
 
+## Exports
+Exports carry on when files fail, so Sentry gets one event per export that had failures, not one per file: an issue per
+kind of problem (what failed, as the user or the server, and the error, e.g. `EACCES`), tagged `export.reference`,
+`export.step`, `export.by` and `export.error`. Each event has the problems with their counts and examples, who the server
+and the user run as, and the folder's owner and mode, which explain most permission problems.
+
+Users see a summary and the **reference**: search for it in Sentry (`export.reference:<reference>`) or in the backend's
+logs (`export <reference>`), where each problem's first traceback is printed, also when it happened in the process that
+acts as the user.
+
 ## The `qa` CLI
 In CI only, `qa` reports its errors to the Sentry project set by `QABOARD_SENTRY_DSN`, in its environment or your site package. Set `QABOARD_SENTRY_VERIFY` (or `SENTRY_CA_CERTS`) like `SENTRY_CA_CERTS` above if your Sentry server's certificate isn't signed by a public CA. Its events are tagged with the `qa` version (`qaboard@1.2.3`) and the `ci` environment.
 

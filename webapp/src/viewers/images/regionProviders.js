@@ -35,19 +35,16 @@
 //   })
 import { http } from '../../api/http';
 import { colorAt } from '../../image-viewer/colormaps';
+import { run_view } from '../runView';
 
 
-// The presets of the input (in its metadata), and of the configurations
+// The presets of the input (in its metadata), and of the configurations: `roi`, or `view.images.roi` (../runView.js)
 export const presetRegions = output => {
-  const from_configurations = (output.configurations ?? [])
-    .filter(c => typeof c === 'object' && !!c?.roi)
-    .flatMap(c => c.roi);
-  const from_input = output.test_input_metadata?.roi ?? [];
+  const regions = run_view(output).images.roi;
   // they are given in the coordinates of the input, which may not have the size of the images shown
   const { width, height } = output.test_input_metadata ?? {};
   const seen = new Set();
-  return [...from_input, ...from_configurations]
-    .filter(roi => roi && typeof roi === 'object')
+  return regions
     .map(({ image_width, image_height, ...roi }) => ({
       ...roi,
       imageWidth: image_width ?? roi.imageWidth ?? width,

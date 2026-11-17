@@ -201,6 +201,12 @@
   margin-top: 2rem;
 }
 
+/* A single one stays readable, centered */
+.evidenceOne {
+  grid-template-columns: minmax(0, 46rem);
+  justify-content: center;
+}
+
 /* The viewers, on a dark stage in both themes: the colors the section's text and controls use, redefined */
 .stage {
   --ifm-font-color-base: #e4e8ef;
@@ -403,6 +409,9 @@
   .cardsThree {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+  .cardsFour {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 /* The whole card is clickable, through its title's link */
@@ -563,14 +572,65 @@
   margin-bottom: 1.5rem;
 }
 
-.whatsNew {
-  padding-top: 2.5rem;
+.moreLinks {
+  margin: 0;
+  padding-top: 2rem;
   border-top: 1px solid var(--ifm-color-emphasis-200);
+  color: var(--ifm-color-emphasis-800);
+  text-align: center;
 }
 
-.whatsNewTitle {
-  margin-bottom: 1rem;
-  font-size: 1.35rem;
+/* Start small: three steps in a row, then the coding agent's shortcut */
+.ramp {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.rampStep,
+.rampAgent {
+  padding: 1.25rem;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: var(--ifm-global-radius);
+  background: var(--ifm-background-surface-color);
+}
+
+.rampStep {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.rampStep p {
+  flex: 1;
+}
+
+.rampWhen {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.rampAgent {
+  border-left: 3px solid var(--ifm-color-primary);
+}
+.rampAgent p {
+  max-width: 52rem;
+  margin: 0.5rem 0;
+  line-height: 1.6;
+}
+
+.rampNeeds {
+  margin: 1rem 0 0;
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.95rem;
 }
 
 @media (max-width: 996px) {
@@ -581,6 +641,9 @@
   .proofList,
   .painList {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ramp {
+    grid-template-columns: minmax(0, 1fr);
   }
   .getInTouchInner {
     grid-template-columns: minmax(0, 1fr);

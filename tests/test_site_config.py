@@ -115,6 +115,19 @@ class TestSiteConfigPath(unittest.TestCase):
       self.assertIn('ERROR', secho.call_args[0][0])
 
 
+class TestSitePackages(unittest.TestCase):
+  def test_ignore_site(self):
+    """qaboard's tests run with QABOARD_IGNORE_SITE (tests/__init__.py): they don't see the site where they run"""
+    from unittest import mock
+    from qaboard import site_config
+    site = mock.Mock(**{'load.return_value': {'QABOARD_URL': 'https://site'}})
+    with mock.patch.object(site_config, 'site_entry_points', return_value=[site]):
+      with mock.patch.dict(os.environ, {'QABOARD_IGNORE_SITE': ''}):
+        self.assertEqual(site_config._load_site_defaults(), {'QABOARD_URL': 'https://site'})
+      with mock.patch.dict(os.environ, {'QABOARD_IGNORE_SITE': '1'}):
+        self.assertEqual(site_config._load_site_defaults(), {})
+
+
 class TestUseSiteDefaults(unittest.TestCase):
   def test_shadowed_keys(self):
     from qaboard.init import shadowed_keys

@@ -287,3 +287,30 @@ test("the output files' options are in the panel, and open there from the output
   rerender(<Panel {...props} file_options={{ expand_all: true }} revealSection={{ id: 'files' }} />);
   expect(section()).toHaveAttribute('aria-expanded', 'true');
 });
+
+test("when runs ask for their own view, a switch turns it off, and visualizations say how many runs ask for them", () => {
+  const onUpdateControls = vi.fn();
+  const outputs = {
+    1: { id: 1, configurations: ['base', { view: { show: ['Histogram'] } }] },
+    2: { id: 2, configurations: ['base'] },
+  };
+  const visualizations = [{ name: 'Out', path: 'out.png' }, { name: 'Histogram', path: 'hist.plotly.json', default_hidden: true }];
+  const { unmount } = panel({ show: { Histogram: false } }, { new_batch: { used_metrics: [], outputs }, visualizations, dynamic_options: {}, onUpdateControls });
+  const own_view = screen.getByRole('checkbox', { name: /Each test's own view/ });
+  expect(own_view).toBeChecked();
+  // the project hides it by default, a run shows it
+  expect(screen.getByRole('checkbox', { name: /Histogram/ })).not.toBeChecked();
+  expect(screen.getByText('1 run')).toBeInTheDocument();
+  fireEvent.click(own_view);
+  expect(onUpdateControls).toHaveBeenCalledWith({ run_views: false });
+  unmount();
+
+  panel({ show: { Histogram: false }, run_views: false }, { new_batch: { used_metrics: [], outputs }, visualizations, dynamic_options: {} });
+  expect(screen.getByRole('checkbox', { name: /Each test's own view/ })).not.toBeChecked();
+  expect(screen.queryByText('1 run')).not.toBeInTheDocument();
+});
+
+test("without runs that ask for their own view, there is no switch for it", () => {
+  panel({}, { new_batch: { used_metrics: [], outputs: { 1: { id: 1, configurations: ['base', { roi: [{ x: 0, y: 0, w: 1, h: 1 }] }] } } } });
+  expect(screen.queryByText(/Each test's own view/)).not.toBeInTheDocument();
+});

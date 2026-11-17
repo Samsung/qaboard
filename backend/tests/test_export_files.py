@@ -1,4 +1,5 @@
 """backend/api/export_files.py: the web app says how to name files, the server lists, names and links them"""
+import os
 import re
 import sys
 import importlib.util
@@ -50,7 +51,7 @@ def test_plan_names_files_like_the_web_app(export_api, tmp_path):
 
 def test_plan_reports_what_it_cant_do(export_api, tmp_path):
   run = stored_run(tmp_path, 1, 'a.raw', files=('out.png', 'frames/1.png'))
-  plan = export_api.make_plan([export_api.Item(run, 'new', {})], '*', '{file}', '_')
+  plan = export_api.make_plan([export_api.Item(run, 'new', {})], '*', '{file}', '_', folders=False)
   assert [f['to'] for f in plan['files']] == ['out.png'] and plan['folders_skipped'] == 1
   plan = export_api.make_plan([export_api.Item(run, 'new', {'settings': 'x' * 300})], '*.png', '{settings}_{file}', '_')
   assert plan['files'] == [] and list(plan['errors']) and 'too long' in list(plan['errors'])[0]
@@ -58,6 +59,50 @@ def test_plan_reports_what_it_cant_do(export_api, tmp_path):
     export_api.check_pattern('../*.png')
   with pytest.raises(export_api.ExportError):
     export_api.check_pattern('**.png/x')
+
+
+def test_folders_are_exported_with_their_files(export_api, tmp_path):
+  """A pattern that matches a folder, e.g. "dma_out": the folder is named like a file, its files keep their names"""
+  new = stored_run(tmp_path, 1, 'scenes/night.dng', files=('dma_out/frame_0.bin', 'dma_out/sub/frame:1.bin', 'out.png'))
+  ref = stored_run(tmp_path, 2, 'scenes/night.dng', files=('dma_out/frame_0.bin',), hexsha='b' * 40)
+  items = [export_api.Item(new, 'new', {'side': 'new'}), export_api.Item(ref, 'reference', {'side': 'ref'})]
+  plan = export_api.make_plan(items, 'dma_out', '{input}__{file}__{side}', '_')
+  assert [f['to'] for f in plan['files']] == [
+    'scenes_night__dma_out__new/frame_0.bin', 'scenes_night__dma_out__new/sub/frame-1.bin', 'scenes_night__dma_out__ref/frame_0.bin']
+  assert plan['nb_folders'] == 2 and plan['nb_in_folders'] == 3 and plan['folders_skipped'] == 0 and plan['collisions'] == []
+  assert plan['files'][1]['file'] == 'dma_out/sub/frame:1.bin' and plan['files'][1]['folder'] == {'to': 'scenes_night__dma_out__new', 'file': 'dma_out'}
+  # one folder per run: like one file, names can leave it out
+  plan = export_api.make_plan(items, 'dma_out', '{input}__{file}__{side}', '_', file_in_names='auto')
+  assert plan['files'][0]['to'] == 'scenes_night__new/frame_0.bin' and plan['file_in_names'] is False
+  # "*": the files, and the folders, whole
+  plan = export_api.make_plan(items[:1], '*', '{file}__{side}', '_', windows=False)
+  assert [f['to'] for f in plan['files']] == ['dma_out__new/frame_0.bin', 'dma_out__new/sub/frame:1.bin', 'out__new.png']
+  # "**/*" matches the folders' files: they're exported, not the folders
+  plan = export_api.make_plan(items[:1], '**/*', '{file}__{side}', '_')
+  assert sorted(f['to'] for f in plan['files']) == ['dma_out_frame_0__new.bin', 'dma_out_sub_frame-1__new.bin', 'out__new.png'] and plan['nb_folders'] == 0
+  # without folders
+  plan = export_api.make_plan(items, 'dma_out', '{input}__{file}__{side}', '_', folders=False)
+  assert plan['files'] == [] and plan['folders_skipped'] == 2 and plan['runs_without_files'] == 2
+  # exported as real folders of hard links, that Windows shares open
+  folder = tmp_path / 'export'
+  folder.mkdir()
+  plan = export_api.make_plan(items, 'dma_out', '{input}__{file}__{side}', '_')
+  exported, skipped, problems = export_api.execute(plan, folder, 'link', None, replace=True, items=items)
+  assert problems.count == 0 and len(exported) == 3 and not any(f.get('symlink') for f in exported)
+  linked = folder / 'scenes_night__dma_out__new' / 'sub' / 'frame-1.bin'
+  assert not linked.parent.is_symlink() and linked.samefile(new.output_dir / 'dma_out/sub/frame:1.bin')
+
+
+def test_links_say_when_they_are_symbolic(export_api, tmp_path, monkeypatch):
+  """Hard links don't cross filesystems: symbolic links instead, that Windows shares often can't open"""
+  run = stored_run(tmp_path, 1, 'a.raw')
+  items = [export_api.Item(run, 'new', {})]
+  plan = export_api.make_plan(items, '*.png', '{file}', '_')
+  monkeypatch.setattr(export_api.os, 'link', lambda *args: (_ for _ in ()).throw(OSError(18, 'Invalid cross-device link')))
+  folder = tmp_path / 'export'
+  folder.mkdir()
+  exported, _, problems = export_api.execute(plan, folder, 'link', None, replace=True, items=items)
+  assert problems.count == 0 and exported[0]['symlink'] and (folder / 'out.png').is_symlink()
 
 
 def test_windows_compatible_names(export_api, tmp_path):
@@ -171,7 +216,7 @@ def test_crops_of_regions(export_api, tmp_path):
   export_dir = tmp_path / 'export'
   export_dir.mkdir()
   plan = export_api.make_plan(items, '*.png', '{input}__{file}__{side}', '_')
-  exported, skipped, errors = export_api.execute(plan, export_dir, 'link', None, replace=True)
+  exported, skipped, problems = export_api.execute(plan, export_dir, 'link', None, replace=True)
   from PIL import Image
   def crop(name):
     with Image.open(export_dir / f'scenes_a__out__new__{name}.png') as image:
@@ -182,15 +227,16 @@ def test_crops_of_regions(export_api, tmp_path):
   assert crop('clamped') == ((10, 10), (90, 40, 7))
   assert {f['region']['name']: f['crop'] for f in exported if f['region'] and f['file'] == 'out.png'} == {
     'roi': '10,5,20,10', 'half': '50,25,25,25', 'scaled': '20,10,20,10', 'clamped': '90,40,10,10', 'all': '0,0,1,1'}
-  assert errors == ["Error when exporting out.png as scenes_a__out__new__far.png: region far is outside the image (100x50)"] and skipped == []
+  assert [(p['step'], p['actor'], p['code'], p['count'], p['examples'][0]['error']) for p in problems.describe(export_dir)] == [
+    ('crop', 'server', 'ValueError', 1, 'region far is outside the image (100x50)')] and skipped == []
   # crops are new files, never links; whole files are links
   crop_path = export_dir / 'scenes_a__out__new__roi.png'
   assert not crop_path.is_symlink() and crop_path.stat().st_nlink == 1
   assert (export_dir / 'scenes_a__out__new.png').samefile(run.output_dir / 'out.png')
   # in our folders, crops are replaced, else kept
-  exported, skipped, errors = export_api.execute(plan, export_dir, 'link', None, replace=True)
+  exported, skipped, _ = export_api.execute(plan, export_dir, 'link', None, replace=True)
   assert len(exported) == len(plan['files']) - 1 and skipped == []
-  exported, skipped, errors = export_api.execute(plan, export_dir, 'link', None, replace=False)
+  exported, skipped, _ = export_api.execute(plan, export_dir, 'link', None, replace=False)
   assert len(skipped) == plan['nb_crops'] - 1 and len(exported) == 2
 
   # where crops come from
@@ -326,3 +372,204 @@ def test_reference_from_another_project(export_api, tmp_path, dummy_app, monkeyp
   assert f"reference={'b' * 40}" in url and 'ref_project=other%2Fproj' in url
   # in the same project, the link doesn't say it
   assert 'ref_project' not in export_api.page_url({**sides, "reference": {**sides['reference'], "project": "proj"}})
+
+
+def by_side(export_api, tmp_path):
+  """"A folder for new, one for reference": the export makes new/ and reference/ in its folder"""
+  new = stored_run(tmp_path, 1, 'scenes/a.raw')
+  ref = stored_run(tmp_path, 2, 'scenes/a.raw', hexsha='b' * 40)
+  items = [export_api.Item(new, 'new', {'side': 'new'}), export_api.Item(ref, 'reference', {'side': 'reference'})]
+  return export_api.make_plan(items, '*.png', '{side}/{input}__{file}', '_')
+
+
+def test_copies_folders_are_made_as_the_user(export_api, tmp_path, monkeypatch):
+  """Copies are written as the user, and so are the folders they go in: the server may not be able to write where the user can"""
+  calls = []
+  def as_user(user, f, *args, **kwargs):
+    calls.append((user, f.__name__, *map(str, args)))
+    return f(*args, **kwargs)
+  monkeypatch.setattr(export_api, 'as_user', as_user)
+  plan = by_side(export_api, tmp_path)
+  folder = tmp_path / 'copies'
+  folder.mkdir()
+  exported, skipped, problems = export_api.execute(plan, folder, 'copy', SimpleNamespace(user_name='alice'), replace=True)
+  assert problems.count == 0 and skipped == [] and len(exported) == 2
+  assert [c for c in calls if c[1] == 'mkdir_shared'] == [('alice', 'mkdir_shared', str(folder / 'new')), ('alice', 'mkdir_shared', str(folder / 'reference'))]
+  assert (folder / 'new' / 'scenes_a__out.png').read_text() == 'out.png'
+  # links are made by the server, and so are their folders
+  calls.clear()
+  folder = tmp_path / 'links'
+  folder.mkdir()
+  exported, skipped, problems = export_api.execute(plan, folder, 'link', SimpleNamespace(user_name='alice'), replace=True)
+  assert problems.count == 0 and len(exported) == 2 and calls == [] and (folder / 'reference' / 'scenes_a__out.png').is_file()
+
+
+@pytest.mark.skipif(not hasattr(os, 'geteuid') or os.geteuid() != 0, reason="acts as another user: the server runs as root")
+def test_copies_and_their_folders_belong_to_the_user(export_api, monkeypatch):
+  """For real, as another account: in a folder that belongs to the user, new/ and reference/ are theirs, like the copies"""
+  import shutil
+  import tempfile
+  uid = gid = 54321
+  import backend.fs_utils as fs_utils
+  monkeypatch.setattr(fs_utils, 'unix_identity', lambda user: (uid, gid, [gid]))
+  # the user must reach the runs and the export folder: not in pytest's tmp_path, only root's
+  base = Path(tempfile.mkdtemp())
+  try:
+    base.chmod(0o755)
+    plan = by_side(export_api, base / 'runs')
+    for path in (base / 'runs').rglob('*'):
+      path.chmod(0o755 if path.is_dir() else 0o644)
+    (base / 'runs').chmod(0o755)
+    folder = base / 'theirs'
+    folder.mkdir()
+    folder.chmod(0o755)
+    os.chown(folder, uid, gid)
+    exported, skipped, problems = export_api.execute(plan, folder, 'copy', SimpleNamespace(user_name='alice'), replace=False)
+    assert problems.describe(folder) == [] and len(exported) == 2
+    for path in ('new', 'reference', 'new/scenes_a__out.png', 'reference/scenes_a__out.png'):
+      assert (folder / path).stat().st_uid == uid, path
+  finally:
+    shutil.rmtree(base)
+
+
+def failing(export_api, monkeypatch, about='destination', succeed_first=0):
+  """Exports where each file fails like it does when the user can't write in the folder, or can't read the runs' files"""
+  import errno
+  done = []
+  def export_file(source, dest, type, user=None):
+    if len(done) < succeed_first:
+      done.append(dest)
+      return
+    raise PermissionError(errno.EACCES, 'Permission denied', str(dest if about == 'destination' else source))
+  monkeypatch.setattr(export_api, 'export_file', export_file)
+
+
+def many_runs(export_api, tmp_path, n):
+  return [export_api.Item(stored_run(tmp_path, i, f'scenes/{i}.raw'), 'new', {'side': 'new'}) for i in range(n)]
+
+
+def test_failures_are_grouped_and_explained(export_api, tmp_path, monkeypatch):
+  """Users see what went wrong once, with what to do, not one error per file; the first files all fail: we stop"""
+  items = many_runs(export_api, tmp_path, 60)
+  plan = export_api.make_plan(items, '*.png', '{input}__{file}__{side}', '_')
+  folder = tmp_path / 'export'
+  folder.mkdir()
+  failing(export_api, monkeypatch)
+  exported, skipped, problems = export_api.execute(plan, folder, 'copy', SimpleNamespace(user_name='alice'), replace=False, items=items)
+  assert exported == [] and problems.count == export_api.GIVE_UP_AFTER and problems.not_attempted == 60 - export_api.GIVE_UP_AFTER
+  [problem] = problems.describe(folder)
+  assert (problem['step'], problem['actor'], problem['code'], problem['about'], problem['count']) == ('copy', 'alice', 'EACCES', 'destination', 50)
+  assert problem['message'] == "Your account (alice) can't write in the export's folder (copying files)."
+  assert str(folder) in problem['hint'] and len(problem['examples']) == 3
+  assert problem['examples'][0] == {"file": "out.png", "to": "scenes_0__out__new.png", "side": "new",
+                                    "error": f"Permission denied: '{folder / 'scenes_0__out__new.png'}'"}
+  # scripts read `errors`: one line per problem
+  [line] = problems.as_errors(folder)
+  assert line.startswith("Your account (alice) can't write in the export's folder (copying files). (50 files) E.g. scenes_0__out__new.png: Permission denied")
+
+  # the runs' files: copies are made as the user, they need to read them
+  failing(export_api, monkeypatch, about='source')
+  _, _, problems = export_api.execute(plan, folder, 'copy', SimpleNamespace(user_name='alice'), replace=False, items=items)
+  [problem] = problems.describe(folder)
+  assert problem['about'] == 'source' and problem['message'] == "Your account (alice) can't read these runs' files." and 'export links' in problem['hint']
+
+  # some files are exported: we try them all
+  failing(export_api, monkeypatch, succeed_first=1)
+  exported, _, problems = export_api.execute(plan, folder, 'copy', SimpleNamespace(user_name='alice'), replace=False, items=items)
+  assert len(exported) == 1 and problems.count == 59 and problems.not_attempted == 0
+
+
+def test_failed_exports_are_reported_once(export_api, tmp_path, dummy_app, monkeypatch, capsys):
+  """Admins get the tracebacks in the logs and one Sentry event per export, users a reference to give them"""
+  import types
+  from contextlib import contextmanager
+  from flask import g
+  items = many_runs(export_api, tmp_path, 3)
+  outputs = [i.output for i in items]
+  monkeypatch.setattr(export_api, 'Output', MagicMock())
+  export_api.Output.query.options.return_value.filter.return_value.all.return_value = outputs
+  monkeypatch.setattr(export_api, 'check_folder', lambda export_dir: (not export_dir.exists(), True))
+  monkeypatch.setattr(export_api, 'require_project_access', lambda *args, **kwargs: None)
+  monkeypatch.setattr(export_api, 'unix_identity', lambda name: (1000, 100, [100]))
+  # what users can do is checked in test_copies_check_what_the_user_can_do
+  monkeypatch.setattr(export_api, 'check_copies', lambda *args: {"folder_error": None, "unreadable": []})
+  failing(export_api, monkeypatch)
+  events = []
+  scope = SimpleNamespace(tags={}, contexts={}, fingerprint=None)
+  scope.set_tag = lambda key, value: scope.tags.__setitem__(key, value)
+  scope.set_context = lambda key, value: scope.contexts.__setitem__(key, value)
+  sentry = types.ModuleType('sentry_sdk')
+  sentry.is_initialized = lambda: True
+  sentry.new_scope = contextmanager(lambda: (yield scope))
+  sentry.capture_exception = lambda error: events.append(error)
+  monkeypatch.setitem(sys.modules, 'sentry_sdk', sentry)
+  body = {"project": "proj", "files": "*.png", "type": "copy", "template": "{input}__{file}__{side}", "folder": {"path": str(tmp_path / 'export'), "id": "0123abcd"},
+          "runs": [{"id": o.id, "side": "new", "fields": {"side": "new"}} for o in outputs]}
+  with dummy_app.test_request_context('/api/v1/exports', method='POST', json=body):
+    g.user = {"user_name": "alice"}
+    g.actor = SimpleNamespace(user=SimpleNamespace(user_name='alice'))
+    result = export_api.export_runs().get_json()
+  assert result['nb_files_exported'] == 0 and result['nb_failed'] == 3 and result['nb_not_attempted'] == 0
+  assert re.fullmatch(r'[0-9a-f]{12}', result['reference']) and [p['count'] for p in result['problems']] == [3]
+  # no traceback for users
+  assert 'Traceback' not in json_text(result)
+  logs = capsys.readouterr().out
+  assert f"export {result['reference']}: 3 files failed" in logs and 'Traceback' in logs and 'PermissionError' in logs
+  assert len(events) == 1 and isinstance(events[0], PermissionError)
+  assert scope.tags == {'export.reference': result['reference'], 'export.step': 'copy', 'export.by': 'user', 'export.error': 'EACCES'}
+  assert scope.fingerprint == ['qaboard-export-failed', 'copy', 'user', 'EACCES', 'destination']
+  context = scope.contexts['export']
+  assert context["nb_failed"] == 3 and {k: v for k, v in context["copies_as"].items() if k != "groups_known"} == {"user": "alice", "uid": 1000, "gid": 100, "groups": [100]}
+  assert context['folder_stat']['mode'] and context['server']['uid'] == os.geteuid()
+
+
+def json_text(data):
+  import json
+  return json.dumps(data)
+
+
+@pytest.mark.skipif(not hasattr(os, 'geteuid') or os.geteuid() != 0, reason="acts as another user: the server runs as root")
+def test_copies_check_what_the_user_can_do(export_api, dummy_app, monkeypatch):
+  """Before copying, as the user: can they write in the folder, read the runs' files? Not one error per file after"""
+  import shutil
+  import tempfile
+  from flask import g
+  uid = gid = 54321
+  import backend.fs_utils as fs_utils
+  monkeypatch.setattr(fs_utils, 'unix_identity', lambda user: (uid, gid, [gid]))
+  monkeypatch.setattr(export_api, 'unix_identity', lambda user: (uid, gid, [gid]))
+  monkeypatch.setattr(export_api, 'groups_known', lambda user: False)
+  monkeypatch.setattr(export_api, 'check_folder', lambda export_dir: (not export_dir.exists(), False))
+  base = Path(tempfile.mkdtemp())
+  try:
+    base.chmod(0o755)
+    new = stored_run(base / 'runs', 1, 'scenes/a.raw')
+    ref = stored_run(base / 'runs', 2, 'scenes/a.raw', hexsha='b' * 40)
+    for path in [base / 'runs', *(base / 'runs').rglob('*')]:
+      path.chmod(0o755 if path.is_dir() else 0o644)
+    # the reference's files: only their owner reads them
+    (ref.output_dir / 'out.png').chmod(0o600)
+    items = [export_api.Item(new, 'new', {'side': 'new'}), export_api.Item(ref, 'reference', {'side': 'reference'})]
+    # the server can write there, the user can't
+    folder = base / 'servers'
+    folder.mkdir()
+    folder.chmod(0o755)
+    def run(dry_run):
+      with dummy_app.test_request_context('/api/v1/exports', method='POST'):
+        g.user = {"user_name": "alice"}
+        g.actor = SimpleNamespace(user=SimpleNamespace(user_name='alice'))
+        return export_api.run_export(items, project_id='proj', pattern='*.png', template='{side}/{input}__{file}', separator='_', windows=True,
+                                     export_type='copy', export_dir=folder, key='0123abcd', dry_run=dry_run, details={}, sides={})
+    check = run(dry_run=True)['copy_check']
+    assert check['user'] == 'alice' and check['groups_known'] is False and check['nb_checked'] == 2
+    assert check['folder_error'] == f"Permission denied: '{folder}'"
+    assert check['unreadable'] == [{"side": "reference", "error": f"Permission denied: '{ref.output_dir / 'out.png'}'"}]
+    with pytest.raises(export_api.ExportError, match="your account \\(alice\\) can't write in") as e:
+      run(dry_run=False)
+    assert e.value.status == 403 and list(folder.iterdir()) == []
+    # in a folder they can write in, only the files they can't read fail
+    folder.chmod(0o777)
+    check = run(dry_run=True)['copy_check']
+    assert check['folder_error'] is None and len(check['unreadable']) == 1
+  finally:
+    shutil.rmtree(base)

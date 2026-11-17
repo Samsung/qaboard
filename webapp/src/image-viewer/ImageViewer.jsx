@@ -116,6 +116,7 @@ export const ImageViewer = ({
   onPixelValuesChange,
   analysis: analysis_prop,
   defaultAnalysis,
+  defaultShowAnalysis = false,
   onAnalysisChange,
   analysisValues: analysis_values_prop,
   defaultAnalysisValues = 'display',
@@ -214,7 +215,7 @@ export const ImageViewer = ({
   const [base, setBase] = useState(10);
   // The analysis panel, under the images: its view ('histogram', 'profiles' or 'stats') is remembered, by the app or for
   // the page, and whether it shows is for each viewer
-  const [show_analysis, setShowAnalysis] = useState(false);
+  const [show_analysis, setShowAnalysis] = useState(!!defaultShowAnalysis);
   const [analysis_setting, setAnalysisSetting] = useControllable(analysis_prop, defaultAnalysis ?? last_analysis, onAnalysisChange);
   const analysis = normalizeAnalysis(analysis_setting);
   const setAnalysis = value => {

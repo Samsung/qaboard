@@ -293,8 +293,8 @@ export const settings_labels = (outputs, naming = default_naming, keys = null) =
 // The runs to export, and the fields of their names: [{id, side: "new" | "reference", fields}].
 // `labels`: what the page calls the new and reference results (their milestones' names, "new", "ref"...).
 // `sides`: "both" (the runs shown and the reference runs they're compared to), or only "new" or "reference". One side
-// alone is named like a page without a reference: names don't say new or reference, and the reference runs say their
-// own settings.
+// alone is named like a page without a reference: names don't say new or reference, unless `labels.alone` says
+// what to call them (e.g. the batch's name, "tuning-gain"), and the reference runs say their own settings.
 // Also what differs between the runs exported (`candidates`), and the settings names say (`picked`).
 // `regions`: Map(new run's id => [regions to crop]), see crop_regions: a reference run gets the regions of the new run
 // it's compared to (of the first one when it's exported once).
@@ -318,15 +318,16 @@ export const export_runs = ({ new_batch, ref_batch, labels = {}, naming = defaul
   const outputs = only_reference ? unique_references : new_outputs;
   const side = only_reference ? 'reference' : 'new';
   const references = both ? new_references : outputs.map(() => null);
-  // one side alone: names don't need to say which
-  const label_new = both ? (labels.new || 'new') : '';
+  // one side alone: names don't need to say which, unless users name it
+  const label_alone = String(labels.alone ?? '').trim();
+  const label_new = both ? (labels.new || 'new') : label_alone;
   const label_ref = labels.reference || 'reference';
   const candidates = settings_candidates(outputs);
   const picked = picked_settings(candidates, naming.settings_keys).map(c => c.key);
   const settings = settings_labels(outputs, naming, picked);
   const items = outputs.map(o => ({
     id: o.id, side, output: o,
-    fields: { side: label_new, settings: settings.get(o.id) ?? '', ...input_fields(o.test_input_path) },
+    fields: { side: only_reference ? label_alone : label_new, settings: settings.get(o.id) ?? '', ...input_fields(o.test_input_path) },
   }));
   if (both && naming.pair_references) {
     outputs.forEach((o, index) => {
@@ -359,7 +360,7 @@ export const export_runs = ({ new_batch, ref_batch, labels = {}, naming = defaul
     has_reference,
     both,
     side,
-    labels: { new: label_new, reference: both ? label_ref : '' },
+    labels: only_reference ? { new: '', reference: label_alone } : { new: label_new, reference: both ? label_ref : '' },
     counts: { new: new_outputs.length, reference: unique_references.length, without_reference: new_references.filter(r => !r).length },
   };
 };
@@ -492,7 +493,8 @@ export const preset_fit = (preset_settings, { new_batch, ref_batch, labels }) =>
 // users name, for all projects or one. What's saved: how files are named, the files, links or copies, and a folder
 // users chose (e.g. what their scripts read).
 // Crops too: if users export them, the regions they're from, and whether whole files go with them.
-export const SAVED_KEYS = [...Object.keys(default_naming), 'files', 'type', 'folder_mode', 'folder_path', 'crops', 'crop_sources', 'crop_max', 'whole_files'];
+// `folders`: export the folders the pattern matches, with their files (the default).
+export const SAVED_KEYS = [...Object.keys(default_naming), 'files', 'type', 'folder_mode', 'folder_path', 'crops', 'crop_sources', 'crop_max', 'whole_files', 'folders'];
 export const saved_settings = settings => Object.fromEntries(SAVED_KEYS.filter(k => settings[k] !== undefined).map(k => [k, settings[k]]));
 // the presets that apply to a project, theirs first
 export const presets_for = (presets, project) => (presets ?? [])

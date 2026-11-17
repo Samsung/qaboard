@@ -150,6 +150,8 @@ def as_user(user, f, *args, **kwargs):
         try:
           result = f(*args, **kwargs)
         except Exception as e:
+          # the parent raises it again: without this, logs and Sentry only see where the parent raised it
+          e.add_note(f"Raised in a child process, as {user}:\n{traceback.format_exc().rstrip()}")
           result = e
         with open(result_path, 'wb') as file:
           pickle.dump(result, file, pickle.HIGHEST_PROTOCOL)

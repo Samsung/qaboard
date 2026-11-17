@@ -9,6 +9,7 @@ import { renderWithProviders as render } from '../../test-utils';
 import { metrics_fill_defaults, metric_info, with_undeclared_metrics } from '../../utils';
 import { normalize_commit } from '../../api/normalize';
 import { compute_batches } from '../../selectors/batches';
+import { rules_from_query } from '../../matching/rules';
 import { summary_outputs, metric_values, summary_stats, diff_cell, mixed_parameters, pass_rate, changed_metrics } from '../compare';
 import { TableCompare } from '../../components/tables';
 import fixture from '../../../../tests/fixtures/metrics-compare.json';
@@ -17,7 +18,8 @@ import fixture from '../../../../tests/fixtures/metrics-compare.json';
 // The batches as the commit page has them (api/normalize.js and selectors/batches.js), runs sorted by id
 const load = () => {
   const commit = side => normalize_commit({ batches: { default: { outputs: structuredClone(fixture[side].outputs) } } });
-  const selected = { selected_batch_new: 'default', selected_batch_ref: 'default', filter_batch_new: '', filter_batch_ref: '', sort_by: 'id', sort_order: 1 };
+  // the rules the page has without any in the URL: the default matching, the backend's
+  const selected = { selected_batch_new: 'default', selected_batch_ref: 'default', filter_batch_new: '', filter_batch_ref: '', sort_by: 'id', sort_order: 1, rules: rules_from_query({}) };
   const { new_batch, ref_batch } = compute_batches({ new_commit: commit('new'), ref_commit: commit('ref'), selected, metrics: {} });
   const available_metrics = metrics_fill_defaults(structuredClone(fixture.available_metrics));
   return { new_batch, ref_batch, available_metrics };

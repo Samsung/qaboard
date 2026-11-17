@@ -1,0 +1,83 @@
+---
+id: reference-runs
+title: Pick each run's reference run
+sidebar_label: Reference runs
+description: Compare runs on different inputs, like two sensors' shots or a register sweep's captures, pair them by name, and pick another reference run for a run or for all of them.
+---
+Each new run is compared with one reference run. Usually it's the obvious one: the reference's run on the same input,
+with the same settings, and QA-Board shows nothing about it. This page helps when it isn't: your runs are on other
+inputs than the reference's, like a new sensor's shots or a register sweep's captures, or several reference runs
+could do.
+
+## Compare runs on different inputs by name {#pair-by-name}
+Say you captured the same scenes with a register at two values, and the names say which: `street_reg0x1A=05_g4.raw`
+and `street_reg0x1A=03_g4.raw`. Put one batch in the **new** bar and the other in the **ref** bar: no run has a
+reference on its input. Above the runs, next to the settings they share, the **Reference runs** row says so: *7 runs
+have no reference run*, and suggests the change of name that pairs the most of them: `reg0x1A=05 → 03 pairs 5 runs`.
+
+1. Click **Pair**. Each run is compared with the reference run whose name has `reg0x1A=03` instead of `reg0x1A=05`.
+2. The row now lists the pair under **Paired by name**: remove it with its **✕**.
+
+When there are other likely changes, **1 other change** lists them: those that pair a single run are often another scene, check them. Changes of names show like changes of settings:
+`reg0x1A=[05 → 03]`, cut at the same separators.
+
+The link of the page keeps the pairs: share it, and others see the same comparison. To pair names QA-Board didn't
+suggest, click **Pair other names…** and type both parts, like `reg0x1A=05` and `reg0x1A=03`.
+
+<details>
+<summary>How names are compared</summary>
+
+- Names are cut in parts at folders and separators: `/ \ _ - . , : ; = @ | +`, spaces, brackets and quotes.
+  Folders work like any part: `sensorA/day/0001.raw` pairs with `sensorB/day/0001.raw`.
+- A pair replaces whole parts: `reg0x1A=05` doesn't change `reg0x1A=055`, nor `05gain` in `reg05gain4`.
+- Suggestions only change one part. The likeliest pair the most runs, change a part most of your runs' names have
+  (a register's value rather than a scene's name), and change the batches' names the same way, like `sweep-0x1A=05`
+  and `sweep-0x1A=03`. A suggestion is only a suggestion: `office_d65 → tl84` also pairs a run, with another scene.
+- Runs paired by name are compared with that reference run first, even if one ran on the same input.
+
+</details>
+
+## Pick another reference run {#pick-another}
+When several reference runs could do, the run says so, next to its name:
+
+| Tag | What it means |
+|---|---|
+| nothing | The reference's run on the same input, with the same settings. The usual case. |
+| `≈ street_dusk` | No reference run on this input: it's compared with the one with the same [`metadata.id`](/docs/metadata-integration-external-databases#creating-metadata). With `· 3`, two other reference runs could do. |
+| `↔ reg0x1A=03` | Paired by name: the part of the reference run's name that differs. |
+| `1 of 2` | Several reference runs fit equally well, like two shots of the same scene with the same settings: QA-Board uses the first. |
+| `no reference · 1 similar` | No reference run on this input or with its id, but one has a name that differs by one part. |
+| **no reference**, in orange | Nothing to compare with. |
+| **★ unit = 2**, **picked by you** | Someone chose it, see below. |
+
+Click the tag, or pick **Change reference run…** in the run's **⋯** menu, which works even when the run shows no tag.
+First choose what your pick applies to, then click a reference run:
+
+- **This run**: only this run is compared with the one you pick. Its tag says **picked by you**.
+- **All runs like this**: QA-Board turns what's different about your pick into a rule for every run. Pick another
+  shot of the scene, and every run prefers reference runs with `unit = 2`. Pick a similar name, and every run is
+  paired by that change of name. When no rule would pick it, the line under the list says so, and only this run
+  changes.
+
+The list groups the reference runs: paired by name, on the same input, with the same metadata id, then with a similar
+name, the parts of their name that differ marked like changes of settings, and what they have that your run doesn't,
+like `platform = arm`. The one in use says so. Type to filter, use the arrows and <kbd>Enter</kbd>.
+
+Each change can be undone from the message that confirms it. To go back to the default, click **Reset to default
+matching** in the **Reference runs** row, or remove one rule with its **✕**. Picks that no longer apply, like those for
+runs of another batch, are listed there too, with **Clear**.
+
+:::note
+The pairs and preferences you pick are in the page's link, for the web app. `qa gate`, `qa check-bit-accuracy` and the
+API compare runs the default way: the same input, then the same `metadata.id`.
+:::
+
+## Matching by metadata id {#metadata-id}
+When your inputs have metadata, give each one an `id`: runs on inputs with the same `id` are compared when no reference
+run has the same input, without any rule in the web app. It suits inputs that you describe anyway, like the shots of a
+scene by two sensors in the same conditions. See [input metadata](/docs/metadata-integration-external-databases#creating-metadata).
+
+<Cards>
+  <Card title="New and reference" to="/docs/user-guide/comparing-results">Choose what your results are compared with.</Card>
+  <Card title="Image viewer" to="/docs/user-guide/image-viewer#compare-with-another-file-of-the-run">Compare an image with another file of its run.</Card>
+</Cards>

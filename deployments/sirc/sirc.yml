@@ -93,10 +93,12 @@ services:
     # Users only read the files under /s/ that their Unix account can read, in these folders. The backend must know
     # the users' accounts: mount the output of `getent passwd` and `getent group` (services/backend/passwd is partial)
     # - QABOARD_FILES_UNIX_PERMISSIONS=/home:/raid/users
-    # Users' accounts, refreshed daily (file owners in the file browser, Unix permissions), since /etc/passwd is partial.
-    # Check the command lists *all* the users: with SSSD, `getent passwd` only does if enumeration is enabled.
-    # - QABOARD_ACCOUNTS_COMMAND=ssh ispq@ispq-vdi getent passwd
-    # - QABOARD_GROUPS_COMMAND=ssh ispq@ispq-vdi getent group
+    # Users' accounts and groups, refreshed daily, since /etc/passwd is partial and /etc/group isn't mounted: export
+    # copies are made as the user, with their groups, and file owners are named. Same ssh as the LSF bridge.
+    # Check them with deployments/sirc/runbooks/accounts.md (with SSSD, `getent` lists all users only with enumeration).
+    # If a command fails, QA-Board keeps the previous accounts, then the container's files.
+    - QABOARD_ACCOUNTS_COMMAND=ssh ispq@ispq-vdi getent passwd
+    - QABOARD_GROUPS_COMMAND=ssh ispq@ispq-vdi getent group
 
     volumes:
     - ./services/backend/passwd:/etc/passwd

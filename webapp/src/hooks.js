@@ -390,12 +390,14 @@ function useComparisonState() {
     [raw_new_batch, new_commit, new_project_data, selected_metrics],
   );
   const default_metric = config.metrics.default_metric;
+  // how runs find their reference run: the same object while the rules are the same (rules_from_query)
+  const reference_rules = selected.reference_rules;
   const batches = useMemo(() => compute_batches({
     new_commit: new_commit || undefined,
     ref_commit: ref_commit || undefined,
-    selected: { selected_batch_new, selected_batch_ref, filter_batch_new, filter_batch_ref, sort_by, sort_order },
+    selected: { selected_batch_new, selected_batch_ref, filter_batch_new, filter_batch_ref, sort_by, sort_order, rules: reference_rules },
     metrics: { default_metric },
-  }), [new_commit, ref_commit, selected_batch_new, selected_batch_ref, filter_batch_new, filter_batch_ref, sort_by, sort_order, default_metric]);
+  }), [new_commit, ref_commit, selected_batch_new, selected_batch_ref, filter_batch_new, filter_batch_ref, sort_by, sort_order, default_metric, reference_rules]);
 
   const default_tab = config.config.outputs?.default_tab_details ?? project_data.data?.qatools_config?.outputs?.default_tab_details ?? 'summary';
   const default_views = useMemo(() => [].concat(default_tab).map(v => v.replace('_', '-')), [default_tab]);

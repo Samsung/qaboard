@@ -24,7 +24,8 @@ import { useDynamicOptions } from "./useDynamicOptions";
 
 import { TuningForm } from "./components/tuning/forms";
 import { BatchesEditor } from "./components/tuning/BatchesEditor";
-import TuningExploration from "./components/tuning/TuningExploration";
+import TuningAnalysis from "./components/tuning/TuningAnalysis";
+import TuningBanner from "./components/tuning/TuningBanner";
 import { useViewerControls, controls_changes, controls_defaults, config_visualizations } from "./viewers/controls";
 import { ExportPlugin } from "./plugins/ExportPlugin";
 import { LegacyExportPlugin } from "./plugins/LegacyExportPlugin";
@@ -344,6 +345,8 @@ const CiCommitResults = () => {
               {/* the selected batch's runs are unrelated to editing batch definitions, and would push the editor down */}
               {!selected_views.includes('groups') && <BatchStatusMessages project={new_project} commit={new_commit} batch={new_batch} filter={filter_batch_new} />}
               {shows_runs && <ConfigurationOverview new_batch={new_batch} />}
+              {/* a batch that tried several parameters: the analysis compares them */}
+              {(shows_runs || views.includes('summary')) && !views.includes('optimization') && <TuningBanner batch={new_batch}/>}
             </Messages>
 
             {shows_state && <ViewSection>{commit_state}</ViewSection>}
@@ -479,15 +482,14 @@ const CiCommitResults = () => {
             {views.includes('optimization') && <ViewSection>
               <ViewTitle title="Tuning Analysis"/>
               <Card>
-                <TuningExploration
+                <TuningAnalysis
                   project={new_project}
+                  commit={new_commit}
                   commit_id={new_commit?.id}
-                  metrics={metrics}
                   available_metrics={available_metrics}
                   selected_metrics={selected_metrics_keys}
                   batch={new_batch}
-                  input={metricTableSelect}
-                  />
+                />
               </Card>
              </ViewSection>}
 

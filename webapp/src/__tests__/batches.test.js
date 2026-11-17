@@ -1,7 +1,7 @@
 // What the commit page compares is derived from the commits' data: it must never modify it.
 import { compute_batches, compute_config, available_batch } from '../selectors/batches';
 import { normalize_commit, normalize_metrics } from '../api/normalize';
-import { matching_output, index_outputs } from '../utils';
+import { matching_output, index_outputs } from '../matching/match';
 import { used_metrics_signature, with_used_metrics } from '../hooks';
 
 const deep_freeze = o => {

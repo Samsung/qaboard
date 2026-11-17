@@ -8,7 +8,7 @@ From a commit's page, you can run its code again without a terminal:
 
 - [Redo runs](#redo-stop-and-clean-up-runs) that failed, were deleted or got stuck.
 - [Run the commit on other tests or settings](#running-tests-and-tuning), like the int8 detector on the slices where it loses small objects.
-- [Start a tuning experiment](#running-tests-and-tuning) and [see which values win](#tuning-analysis): try a grid of parameters, or let an optimizer search them.
+- [Start a tuning experiment](#running-tests-and-tuning) and [see which values win](#tuning-analysis): try a grid of parameters, or let an optimizer search them. New to tuning? Start with [Tune parameters, step by step](/docs/user-guide/tuning).
 
 :::info What you need
 - **Sign in**, at the bottom of the sidebar. Signed out, the buttons that start runs are grayed out, next to a
@@ -25,7 +25,7 @@ On the detector's `quant/int8` branch, the commit that calibrates int8 with perc
 2. In **Batch label**, name the new batch, e.g. `int8-nms`. Its runs stay apart from the CI's.
 3. In **Batch of inputs+configurations**, type the batch of tests to run: `quant-search`. The form shows **2 tests** below it: hover it to see the inputs and their configurations. To find a batch, or write your own, see [Choosing the tests to run](/docs/user-guide/available-tests).
 4. If the form lists **platforms** (like Linux and Android), pick the one to run on.
-5. Under **Manual tuning**, write each parameter with the values to try:
+5. Under **Parameters**, keep **Choose the values**, and write each parameter with the values to try:
    ```json
    {
      "score_threshold": [0.2, 0.3],
@@ -45,7 +45,7 @@ A message confirms that `int8-nms` started, with **Show its logs**. Its runs sho
 QA-Board checks the form as you fill it: **Fix this to start** lists what would make the batch fail, like an unknown batch, and **Before you start** warns about the rest, like artifacts it must restore first. The form remembers what you entered, per project. If the batch doesn't start, the commit page says why: see [If runs don't start](#if-runs-dont-start).
 
 :::tip Start from a run's settings
-Hover a run's configuration tags and choose **Copy as a tuning search space**. Paste it in the **Manual tuning** editor, then add the values you want to try.
+Hover a run's configuration tags and choose **Copy as a tuning search space**. Paste it in the editor under **Choose the values**, then add the values you want to try.
 :::
 
 <details>
@@ -56,6 +56,7 @@ Hover a run's configuration tags and choose **Copy as a tuning search space**. P
 | **Batch label** | The new batch's name: letters, digits and `_.@:=`, other characters become `-`. Reusing the label of an existing batch adds runs to it. |
 | **Batch of inputs+configurations** | A batch, or several with a pattern like `batch-*`. Below it: how many tests, and the files that define the batch, e.g. *Defined in qa/batches.yaml*. Click a file to open it on your git server at this commit, or, for the shared and private batches, in **Available Tests** at the batch. When several files define a batch, the last one wins, and the form says which. |
 | Platforms | Shown when the project has several. The runs use `qa --platform` with the one you pick. |
+| **Choose the values** or **Search automatically** | List the values to try yourself, or let an [automated tuning](#automated-tuning) search ranges for the best metrics. With a grid of 12 combinations or more that a search would cover with fewer runs, the form offers **Search these ranges automatically**: it fills the search with your parameters, their ranges, and the values you fixed. |
 | **Start from an example** | **no tuning**: the tests with the commit's settings. **simple-combinations**: a grid. **list-of-combinations**: a list of parameter sets, each its own grid, whose runs add up. **1x2 matrix**: a parameter whose value is a matrix. **function**: a JavaScript function that returns the parameters, for ranges and loops. |
 | **All combinations** or **Sampling** | Every combination of the values (a grid), or a uniform sample of as many as you choose. |
 | Pasting `key=value` lines | They become the JSON the editor expects: `block.threshold=10` becomes `"block.threshold": [10]`, and space-separated matrices like `[1 2 3]` become JSON arrays. |
@@ -70,7 +71,8 @@ To see which tests a batch runs before you start it, or to write your own batch,
 see [Choosing the tests to run](/docs/user-guide/available-tests).
 
 ### Let the optimizer search the parameters {#automated-tuning}
-When a grid would be too big, open the **Automated tuning** tab. It sets up a search in three steps: the
+When a grid would be too big, or when you'd rather say what to improve than guess values, choose **Search automatically**
+under **Parameters**. It sets up a search in three steps: the
 **Parameters to tune** and their ranges, **What “better” means** with the metrics your runs return, and the
 **Budget**, the number of evaluations. Click **Start automated tuning**: each evaluation runs the batch, first with
 random parameters, then with parameters picked from the results of the previous ones. To choose the parameters and
@@ -85,50 +87,64 @@ For the detector, `tune-int8` searched the calibration percentile, the layers to
 
 ## Look at the results {#tuning-analysis}
 1. In the **new** bar's batch selector, pick the new batch, `int8-nms`. Its runs show up as they start, and the page refreshes by itself while some are pending.
-2. Select **Tuning Analysis** in the sidebar, under **Tuning**.
+2. A blue message above the results says the batch tried 4 parameter sets: click **See which is best**. Or select **Tuning Analysis** in the sidebar, under **Tuning**: it's highlighted when the batch has parameters to compare.
 
 <Clip
   id="tuning/launch-to-analysis"
   caption="The form starts 8 runs. Once they're done, pick their batch: Tuning Analysis draws one line per combination of score threshold and NMS IoU."
 />
 
-Tuning Analysis shows how the metrics picked at its top, like in the tables, depend on the parameters. Most plots use each combination's median over the inputs (or its average):
-- **Parallel coordinates**: one line per combination, across an axis for each metric and parameter that varies, colored by the metric you pick below it. Drag along an axis to highlight the lines in a range.
-- **Sensitivity to tuning parameters**: the metric against one parameter, and with two parameters, a map over both.
-- **Breakdown by test**: one line per input, to check that every input agrees.
-- **Efficient frontier & tradeoffs**: two metrics against each other, one point per combination. The best trade-offs are on the edge of the cloud.
+Tuning Analysis compares the batch's **parameter sets**: the runs that share the same values of the parameters that change. It combines each set's metric over its tests, their average or their median, and reads from top to bottom:
 
-For the inference gateway, a sweep tried the batching settings of the sharded cache: max batch 1, 16 and 64, by max delay 0, 250, 1000 and 4000 µs, on the steady-high and heavy-tail-high load profiles. With **CPU per request** added to the metrics, the frontier shows which settings are worth it:
+1. **Compare parameter sets by**: the metric that decides. When the project doesn't say whether higher or lower is better, the page asks.
+2. The **best** value, how far it is from your defaults or from the worst set, and on how many tests the best set wins.
+3. **What this tells you**: what to check and what to do next, in plain words. For instance that the best value is the highest you tried, so better ones may be above it, or that the best set on average loses on most tests.
+4. **Best parameters**, with the values tried and each parameter's **Impact**: how much it changes the metric.
+5. **Every parameter set at a glance**: one line per set across its metrics and parameters. Follow the best-colored lines to see which values they share, hover a line to read it, and drag along an axis to keep a range.
+6. **How each parameter affects** the metric, **Trade-offs with another metric**, and **Test by test**, which shows where the best set loses.
+7. **All parameter sets**, each with **Outputs**, to look at its runs, and **Run…**, to run it on other tests.
+
+The **?** buttons explain each idea, like an impact or a best trade-off, with links to learn more.
+
+From there, **Run the best parameters…** opens the form with them, to check them on a larger batch, and **Search automatically…** sets up an [automated tuning](#automated-tuning) over the ranges this batch tried.
+
+For the inference gateway, a sweep tried the batching settings of the sharded cache: max batch 1, 16 and 64, by max delay 0, 250, 1000 and 4000 µs, on the steady-high and heavy-tail-high load profiles. Comparing by **CPU per request**, with p99 as the other metric, **Trade-offs with another metric** shows which settings are worth it:
 
 <Shot
   id="tuning/frontier"
   caption="Each configuration's CPU per request against its p99: the defaults picked, max batch 16 and 250 µs of delay, are on the frontier."
 />
 
-For an automated tuning, the view is a report: what the search found, which parameters matter, and what to do next. These plots are under **More plots**. The sidebar highlights **Tuning Analysis** when the selected batch is an automated tuning. See [Read the results](/docs/user-guide/automated-tuning#results).
+For an automated tuning, the report is about the search: its progress, what it found, which parameters matter, and what to do next. See [Read the results](/docs/user-guide/automated-tuning#results).
 
 <Shot
   id="tuning/analysis"
   caption="What tune-int8 found: its status and best objective, then what to do next and the best parameters within the ranges searched."
 />
 
+### No metrics yet? Score the runs with a script {#score-runs}
+Tuning Analysis needs a metric: a number that scores each run. If your runs return none, or not the one you care about, you don't have to run again. The page gives a short Python script that goes over the batch's runs: write the function that computes your number from a run's files, run the script, and each run gets the metric. Then reload the page. See [Add metrics to runs](/docs/apis#log).
+
+On a batch whose runs all use the same parameters, the view says how to start instead: score the runs, try other parameters, and read the results. It also lists the commit's other batches that have parameters to compare.
+
 <details>
-<summary>Every plot and setting of Tuning Analysis</summary>
+<summary>Every part of Tuning Analysis</summary>
 
 | Part | What it shows |
 |---|---|
-| Automated tuning report | For an automated tuning: a report first, see [Read the results](/docs/user-guide/automated-tuning#results), then these plots under **More plots**. |
-| **N runs · M inputs** | How many runs and inputs the plots use (manual tuning). |
-| The metrics, at the top | The metrics the plots use, the same choice as the tables'. Add one to plot it, like CPU per request. |
-| Parallel coordinates | One line per combination of parameters, with its metrics aggregated over the inputs. Only metrics and parameters that vary get an axis. For an automated tuning, the iteration and the objective are axes too. |
-| Metric and aggregation | The metric for the colors above and the Y axis below, and **Median aggregation** or **Average aggregation**. |
-| **Sensitivity to tuning parameters** | The metric against the parameter you pick (X axis, **Log-scale** available). With two parameters that vary, a contour map over the two you pick. With several inputs, a box plot per value. |
-| **Breakdown by test** | One line per input and configuration, against the parameter. **Relative to Best** shows each value as a percent of that input's best. |
-| **Efficient frontier & tradeoffs** | With two parameters that vary: one point per combination, the metric against a second one (**Metric on Y-axis**), colored by the parameter. Hover a point for its parameters. |
+| Automated tuning report | For an automated tuning: see [Read the results](/docs/user-guide/automated-tuning#results). |
+| Parameter sets | The runs are grouped by the values of the parameters that change in the batch, from their configurations and tuning parameters. Runs that set none of them are **the defaults**. A test is an input with its other settings. |
+| **Compare parameter sets by** | Any metric that changes between the sets, the tables' metrics first. **Average** or **Median** combines each set's tests. |
+| Sets that miss tests | A set with results on fewer tests than the others isn't ranked: its average wouldn't be comparable. The table marks it. |
+| **Impact** | How much of the metric's variation between the sets a parameter explains on its own. It needs 2 parameters or more, and is a hint: with few sets it is noisy. |
+| **Every parameter set at a glance** | Parallel coordinates: an axis per metric and per parameter, a line per set, colored by the metric compared. Lines that share a value are spread around it, so you can follow them. Drag along an axis to filter, click a category to keep it; the table follows. From an axis's menu: color by it, flip it, use a log scale, hide it. Drag a title to reorder. |
+| **How each parameter affects** | A dot per set, and the average at each value. The star is the best set. |
+| **Trade-offs with another metric** | The metric compared against another one. The highlighted sets are the best trade-offs, the Pareto front: nothing else is better on both. |
+| **Test by test** | The 8 best sets on each test. A cell is darker the further it is from that test's best, and the tests where the best set loses the most come first. |
+| **All parameter sets** | Every set with its metrics and parameters. **Outputs** filters the page to its runs; **Run…** opens the form with its parameters. |
 
 - The view uses the runs that match the filter, and leaves out failed and pending runs.
-- The metrics, parameters and aggregation you pick are in the link: share it, and others see the same plots.
-- On a batch without tuning parameters, it says **How to start tuning?**, with a **Start a tuning experiment** button.
+- The metric, the aggregation and which way is better are in the link: share it, and others see the same page.
 
 </details>
 
