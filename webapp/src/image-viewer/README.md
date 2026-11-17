@@ -15,7 +15,7 @@ import '@qaboard/image-viewer/style.css';
 ```
 
 - [Install](#install)
-- [Usage](#usage): images, comparison modes, comparing with other images, pixel values (the image's or the displayed ones), regions of interest, sync
+- [Usage](#usage): images, comparison modes, more than two images, comparing with other images, pixel values (the image's or the displayed ones), regions of interest, sync
 - [Props](#props)
 - [The difference](#the-difference)
 - [Theming](#theming)
@@ -87,6 +87,49 @@ The same goes for `diff` / `onDiffChange` (how the difference is computed), `adj
 `pixelValues` / `onPixelValuesChange` and `analysis` / `onAnalysisChange` (the view of the analysis panel: histogram,
 row and column profiles, or statistics; QA-Board saves it in the user's preferences). Without them, the viewer keeps its own state, from
 `defaultMode`, `defaultDiff`...
+
+### More than two images
+Give the other images in `more`: each image then shows in a tile, in the order given, all zoomed and panned together.
+
+```jsx
+<ImageViewer
+  image={{ url: '/results/new/out.png', label: 'new' }}
+  reference={{ url: '/results/ref/out.png', label: 'ref' }}
+  more={[
+    { url: '/results/v1.2/out.png', label: 'v1.2' },
+    { url: '/results/tuning-7/out.png', label: 'tuning #7', color: '#0ea2ac', textColor: '#111418' },
+    // keeps its tile while your app looks for the image, so that the tiles don't move when it comes
+    { label: 'nightly', loading: true },
+  ]}
+/>
+```
+
+One image is the **anchor**, by default the first: the others are compared with it, like an image with its reference.
+It has an anchor icon on its name. Users click another image's name to make it the anchor (`anchor`, `onAnchorChange`:
+its place in the list); an image with `canAnchor: false` can't be. QA-Board controls it: the anchor is the new image, or the
+reference users click (its tab is then selected too). The modes become:
+
+- **Grid**: every image in its tile, with how far it is from the anchor
+- **Wipe**: each image against the anchor, in the order they show (the earlier one on the left), the dividers move together
+- **Single**: one image at a time, in place: <kbd>t</kbd> or a click shows the next, <kbd>Shift</kbd>+<kbd>1</kbd>…<kbd>9</kbd>
+  the image of that number (`shown`, `onShownChange`)
+- **Difference**: the anchor, and each image's difference with it, in the order they show (the earlier one − the later one)
+
+The tiles are the same in every mode but single: switching modes moves nothing. Above the images, a panel shows the
+pixel under the pointer in every image with its difference from the anchor's, and **how far apart** the images are:
+the mean difference of the colors of their views, for every pair, so that it follows the zoom. Clicking a pair shows
+those two images alone, with everything the viewer does for two images (blind test, the regions, the difference's
+legend...); **All N images** goes back. With an image picked in the **vs** menu, it takes the anchor's place, or the reference's when the first image is the anchor. `details` / `onDetailsChange` hides the panel, e.g. to remember that users
+closed it (with two images, it hides the values under the pointer).
+
+What compares two images (the analysis panel, the values' difference in the readout of a pair) compares the anchor
+with the first of the other images. `compact` shows the images in one row and hides the toolbar until users click
+**⋯**: QA-Board uses it for its contact sheet, where each run is a row. Images without a `color` get the viewer's:
+blue, purple, magenta, teal, violet, then gray. Swapping and blind tests are for two images.
+
+Each tile has its own OpenSeadragon viewer, two in the wipe and difference modes (its image and the anchor): with 5
+images that is up to 10 viewers. They don't share a WebGL context limit (they draw on 2D canvases), but they do fetch
+and draw tiles: keep it to a handful of images.
 
 ### Comparing with other images
 Users often want to compare an image with something else than its reference: its ground truth, the input, another
@@ -286,6 +329,11 @@ resolution), and show a cross where the pointer is on the others. Viewers off-sc
 |---|---|---|---|
 | `image` | URL or `{ url \| iiif, label?, color?, textColor?, href?, ... }` | required | The image. `color`: of its label (blue by default, purple for `reference`), `textColor`: of the label's text (white) |
 | `reference` | same, or `null` | `null` | What it's compared with. `detail`: what it is, in the **vs** menu |
+| `more` | images, or `{ label, loading }` / `{ label, missing }` | `[]` | [More images](#more-than-two-images) to compare, each in its tile |
+| `anchor`, `defaultAnchor`, `onAnchorChange` | index | `0` | With `more`: the image the others are compared with |
+| `shown`, `defaultShown`, `onShownChange` | index | `0` | With `more`: the image shown in single mode |
+| `details`, `defaultDetails`, `onDetailsChange` | boolean | `true` | The values under the pointer; with `more`, of every image, and how far apart they are |
+| `compact` | boolean | `false` | With `more`: one row of images, the toolbar on demand |
 | `compareWith` | `[{ id, image, label?, group?, detail?, title? }]` | `[]` | [Other images](#comparing-with-other-images) users can compare with instead of the reference |
 | `compared`, `defaultCompared`, `onComparedChange` | `string \| null` | `null` | The id of the image of `compareWith` compared with, `null`: the reference |
 | `compareScopes`, `compareScope`, `onCompareScopeChange` | `[{ value, label, title?, phrase? }]`, `string` | `[]` | Where a pick applies, e.g. `'all'` the runs or this `'run'` |

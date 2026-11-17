@@ -6,7 +6,9 @@ import { screen, waitFor, fireEvent } from '@testing-library/react';
 import { act } from 'react';
 import { setupIntersectionMocking, resetIntersectionMocking, mockAllIsIntersecting } from 'react-intersection-observer/test-utils';
 import { MemoryRouter } from 'react-router';
-import { renderWithProviders } from '../../test-utils';
+import { renderWithProviders, test_labels } from '../../test-utils';
+import { ComparisonContext, TogetherContext } from '../../hooks';
+import { side_color } from '../../sideColors';
 
 import { OutputCardsList } from '../OutputCardsList';
 import { usePrefsStore } from '../../stores/prefs';
@@ -30,6 +32,15 @@ const make_output = (id, extra) => ({
   created_date: '2026-09-01T10:00:00Z',
   ...extra,
 });
+
+// what the image viewer was last given
+let image_viewer_props;
+vi.mock('../images/QaboardImageViewer', () => ({
+  default: props => {
+    image_viewer_props = props;
+    return <div data-testid="image-viewer"/>;
+  },
+}));
 
 const render_list = props => renderWithProviders(<MemoryRouter><OutputCardsList {...props} /></MemoryRouter>);
 const cards = container => container.querySelectorAll('div.output-card:not(.bp6-card)');
@@ -166,6 +177,47 @@ describe('OutputCardsList', () => {
     // linked: no control in the card
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     expect(screen.getByText('a/out.bin')).toBeInTheDocument();
+  });
+
+  it('gives the image viewer the references shown together with the one compared: their run and its files', async () => {
+    fetch.mockImplementation(async url => String(url).includes('/s/out/3000')
+      ? new Response('', { status: 500 })
+      : new Response(JSON.stringify({ 'out.png': { md5: String(url) }, 'out.bin': { md5: '1' } }), { status: 200 }));
+    const config = { outputs: { visualizations: [{ name: 'Image', path: 'out.png' }, { name: 'Other', path: 'out.bin', type: 'unknown/type' }] } };
+    const runs = { 2000: make_output(2000), 3000: make_output(3000) };
+    const reference = (number, extra) => ({ id: `proj/${number}/default/`, key: `reference-${number}`, number, label: `ref ${number}`, color: side_color(number), loading: false, match: () => undefined, ...extra });
+    const together = [
+      reference(2, { match: output => output?.id === 0 ? runs[2000] : undefined }),
+      // its files can't be listed
+      reference(3, { match: () => runs[3000] }),
+      // still loading its runs
+      reference(4, { loading: true }),
+      // no run matches
+      reference(5),
+    ];
+    const list = <MemoryRouter><OutputCardsList {...props} {...batches(1)} config={config} onRegisterOutputOptions={vi.fn()} /></MemoryRouter>;
+    const page = together => <ComparisonContext.Provider value={{ labels: test_labels, together }}><TogetherContext.Provider value={together}>{list}</TogetherContext.Provider></ComparisonContext.Provider>;
+    const { rerender } = renderWithProviders(page(together));
+    act(() => mockAllIsIntersecting(true));
+    await screen.findByTestId('image-viewer');
+    await waitFor(() => expect(image_viewer_props.others[1].manifest).toEqual({}));
+    const { others } = image_viewer_props;
+    expect(others).toEqual([
+      { id: 'proj/2/default/', key: 'reference-2', number: 2, label: 'ref 2', color: together[0].color, output: runs[2000], manifest: { 'out.png': { md5: '/s/out/2000/manifest.outputs.json' }, 'out.bin': { md5: '1' } }, loading: false },
+      { id: 'proj/3/default/', key: 'reference-3', number: 3, label: 'ref 3', color: together[1].color, output: runs[3000], manifest: {}, loading: false },
+      { id: 'proj/4/default/', key: 'reference-4', number: 4, label: 'ref 4', color: together[2].color, output: undefined, manifest: undefined, loading: true },
+      { id: 'proj/5/default/', key: 'reference-5', number: 5, label: 'ref 5', color: together[3].color, output: undefined, manifest: undefined, loading: false },
+    ]);
+    // the other viewers compare with the reference only
+    expect(await screen.findByText(/No viewer for the type/)).toBeInTheDocument();
+    // the same while nothing changes, none without ticks
+    rerender(page(together));
+    expect(image_viewer_props.others).toBe(others);
+    rerender(page([]));
+    await waitFor(() => expect(image_viewer_props.others).toEqual([]));
+    const none = image_viewer_props.others;
+    rerender(<ComparisonContext.Provider value={{ labels: test_labels }}>{list}</ComparisonContext.Provider>);
+    expect(image_viewer_props.others).toBe(none);
   });
 
   it("links to the input's History from the run's menu, from 3 days before the commit", async () => {

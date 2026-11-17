@@ -80,6 +80,47 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - `api/tuning.py` and `qaboard/runners/celeryconfig.py` default to `pyamqp://guest:guest@qaboard:5672//`: read
   `CELERY_BROKER_URL` only, and fail clearly when it's unset with `QABOARD_TUNING_RUNNER=celery`. [S, behaviour]
 
+## Runs created from code (`qaboard.start_run()`, November 2026)
+
+Experimental: `qaboard/active_run.py`, `qaboard/series.py`. Design: `docs/rfcs/python-sdk-runs.md`. Follow-ups (a
+run-centric page, screenshots for the docs, gaps against experiment trackers): `docs/rfcs/python-sdk-runs-follow-ups.md`.
+
+- Not verified against a real server and database end to end: the SDK's tests use an HTTP server that records
+  requests, the backend's tests mock the database, the web app's a mocked API. Nor on Windows, in Jupyter, or with a
+  site package. [M, no change]
+- A process killed without warning (SIGKILL, out of memory, a node that dies) leaves its run "running" in the web
+  app, like `qa run`. `resume=True` or a new attempt fixes the row. [M, behaviour]
+- Distributed trainings that start the script once per GPU must call `start_run()` in one process only: each call is
+  a new attempt, that removes the previous one's files. Forked workers that log are ignored, with a warning: their
+  values never reach the run. [M, behaviour]
+- `log()` writes under the run's lock, which the background thread also holds while it writes `series.json` and
+  reads the attempts' logs and `metrics_definitions.json`: on a slow NFS, `log()` can wait for those. Snapshot under
+  the lock, write outside. [S, no change]
+- A process that changes directory to another project keeps the first one's settings: `qaboard/config.py` reads the
+  project once, when imported (the commit is read again for each run). The SDK shares `qa`'s definitions of what is
+  sent and where runs are saved (`qaboard/payloads.py`, `config.commit_data`, `read_commit`, `commit_outputs_dir`). [S, behaviour]
+- `capture_output` saves what Python prints, not what C libraries write to the file descriptors, unlike `qa run`. [S, behaviour]
+- `ActiveRun.run` is a `Run`, whose `log_metrics()` is the script route, refused for running runs: two
+  `log_metrics` that look alike. [S, behaviour]
+- The card's implicit "Logged series" can't be hidden: a batch of 200 such runs polls 200 files. In the Summary's
+  comparison, a highlight is lost when the plots are drawn again while the pointer is on a run (a live refresh). [S, behaviour]
+- Python's and the web app's series parsers round times differently on exact halves of a millisecond. [S, no change]
+- `finish()` hashes every file of the run's folder for the manifest, like `qa run`: slow with tens of GB of
+  checkpoints. [S, behaviour]
+- A run whose every message to the server failed isn't sent later: `qa sync` doesn't know about series or about
+  runs it didn't start. [M, behaviour]
+- Every logged series is a metric by default (its last value), the learning rate too: projects with hundreds of
+  series get hundreds of metrics (`summary="none"`, or per series). [S, behaviour]
+- The web app shows cards in **Visualizations** for projects without visualizations only when a run of the batch
+  was started from code (`data.sdk`): a `series.jsonl` written by another program needs an `outputs.visualizations`
+  entry. `data.dirty` is recorded, not shown. The implicit "Logged series" view isn't in the View options. [S, behaviour]
+- The Summary's comparison of runs' series (`SeriesComparison.jsx`) downloads one `series.json` per run, up to 40,
+  only for runs started from code; which runs are hidden and the color-by parameter aren't in the URL; averaging
+  the runs of a group (mean and spread over seeds) isn't done. [M, behaviour]
+- In notebooks, `capture_output` wraps `sys.stdout` and `sys.stderr` until `finish()`. [S, behaviour]
+- `Run._new` (qaboard/results.py) was the placeholder for this: `ActiveRun.run` builds its `Run` itself, and only
+  tests use `_new`. [S, no change]
+
 ## Runners (Kubernetes, Dask on any scheduler, `qa doctor`, November 2026)
 
 Design and follow-ups: [docs/design/kubernetes-runner.md](docs/design/kubernetes-runner.md). Security boundaries are
@@ -173,6 +214,16 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
 
 - 81 "[Blueprint] <Popover> positions content incorrectly under React 19" warnings in the tests: some components still
   use `<Popover>` instead of `<PopoverNext>`. [S, behaviour]
+
+- Several references together (the image viewer's default once two references are stacked, "One at a time | Together"
+  after the reference tabs, December 2026): only the image viewer shows them; every other viewer (videos, plots, text,
+  benchmarks, flame graphs...) and the metrics still compare with the selected reference only. [L, behaviour]
+- Since Together is the default, each stacked reference that stays ticked loads all its runs (slow for commits with
+  thousands of runs), and adds one or two tiled image viewers per run card: past a handful of references, the page gets
+  slow. Loading only the runs matched to the cards shown would help. [M, no change]
+- "How far apart" in the image viewer is the mean difference of the displayed views (8-bit, at screen resolution), not
+  of the files: a guide, not a bit-accuracy check. Images with another aspect ratio than the anchor's are compared at
+  the same width, so their bottoms don't match. [M, behaviour]
 
 ## Deployments, services, charts
 

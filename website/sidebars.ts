@@ -139,6 +139,8 @@ const sidebars: SidebarsConfig = {
         "installation",
         "project-init",
         "running-your-code",
+        // Runs created from code that starts by itself: training loops, notebooks
+        "log-from-code",
         "inputs",
         "specifying-configurations",
       ],

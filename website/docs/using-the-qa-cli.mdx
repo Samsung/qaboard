@@ -105,6 +105,9 @@ runner's settings for one command. Batches can change their runs' settings, like
 [runner settings per batch](/docs/batches-running-on-multiple-inputs#runner-settings-per-batch). To check that the
 runner works, run [`qa doctor`](/docs/doctor).
 
+To have QA-Board run a batch on a pushed commit, as from its web app, use `qa batch --commit <commit>`: see
+[start them from a terminal](/docs/tuning-from-the-webapp#from-the-command-line).
+
 ## Runs that already ran {#dealing-with-existing-results}
 By default, `qa batch` runs everything again. `--action-on-existing` changes what it does with runs that already
 succeeded:

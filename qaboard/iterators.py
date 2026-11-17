@@ -112,7 +112,9 @@ def resolve_aliases(names : Union[str, List[str], Tuple[str, ...]], aliases: Dic
   if names is None:
     return []
   if not depth:
-    yield from chain.from_iterable(names)
+    # aliases that refer to each other: we stop there
+    yield from ([names] if isinstance(names, str) else names)
+    return
   if isinstance(names, tuple) or isinstance(names, list):
     yield from chain.from_iterable((resolve_aliases(n, aliases, depth-1) for n in names))
   else: # type==str

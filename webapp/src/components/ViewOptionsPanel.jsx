@@ -159,6 +159,8 @@ const ViewOptionsPanel = ({
 
   // users' preferences, not the project's: not reset with the view options
   const card_density = useOutputCardDensity();
+  const contact_sheet = usePrefsStore(state => state.imageContactSheet);
+  const setContactSheet = usePrefsStore(state => state.setImageContactSheet);
   const run_name_origin = useRunNameOrigin();
   const setRunNameOrigin = usePrefsStore(state => state.setRunNameOrigin);
 
@@ -252,7 +254,13 @@ const ViewOptionsPanel = ({
           options={MODES.map(({ value, label }) => ({ value, label }))}
         />
       </div>
-    </OptionHeader>] : []),
+    </OptionHeader>,
+    <Switch
+      key="image_contact_sheet"
+      checked={contact_sheet}
+      onChange={event => setContactSheet(event.currentTarget.checked)}
+      labelElement={<Explained label="Images as a contact sheet" explanation="The images of each run in one row, without their toolbar: scan down the page to compare the runs. The ⋯ button on the images shows the toolbar. Remembered in this browser." />}
+    />] : []),
     ...controls_extra.map(control => <Switch
       key={control.name}
       checked={!!controls[control.name]}

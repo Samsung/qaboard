@@ -120,7 +120,7 @@ test('a reference has one name, in its tab, the reference bar and the viewers', 
 
   // hovering a tab tells what it is
   await page.getByRole('tab', { name: /^Reference 1:/ }).hover();
-  const card = page.locator('.bp6-tooltip').filter({ hasText: 'Click to compare with it' });
+  const card = page.locator('.bp6-tooltip').filter({ hasText: 'Click to compare everything with it' });
   await expect(card).toContainText('Tuning the sharpening');
   await expect(card).toContainText('Alice');
   await expect(card).toContainText('Batch CI');

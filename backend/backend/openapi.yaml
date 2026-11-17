@@ -1,6 +1,6 @@
 # The OpenAPI description of QA-Board's HTTP API, served at /api/v1/openapi.json, and browsed at /api/v1/docs.
 #
-# Written by hand, for the endpoints scripts and agents use to read results: tests/test_openapi.py checks that each
+# Written by hand, for the endpoints scripts and agents use to read results and start batches: tests/test_openapi.py checks that each
 # path is a route of the backend. Other endpoints serve the web app and may change without notice.
 # When the backend moves to FastAPI, this document will be generated from the code.
 # The docs: website/docs/http-api.mdx
@@ -18,7 +18,8 @@ info:
     - **Errors** are JSON: `{"error": "<what went wrong>", "reason": "<a stable code, when there is one>"}`.
     - Runs are called *outputs* in the API.
 
-    This document covers the endpoints for reading results. Others serve the web app and may change. It is written
+    This document covers the endpoints for reading results, adding metrics to runs and starting batches on a commit.
+    Others serve the web app and may change. It is written
     by hand for now: it will be generated from the code when the backend moves to FastAPI.
   license:
     name: Apache-2.0
@@ -41,6 +42,10 @@ tags:
     description: A run (an *output* in the API), its files, and metrics added by scripts.
   - name: Compare
     description: A commit's runs against a reference, like the **Summary** and **Metrics Diff** views.
+  - name: Batches
+    description: >-
+      Start a batch on a commit, as the web app's **Run Tests / Tuning** does: QA-Board runs `qa batch` (or
+      `qa optimize`) from the commit's artifacts, with the project's runner. From the shell, `qa batch --commit` calls them.
   - name: Milestones
     description: Saved references.
   - name: Account
@@ -370,6 +375,59 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
 
+  /output/{output_id}/progress:
+    patch:
+      tags: [Runs]
+      operationId: reportRunProgress
+      summary: Report a running run's metrics so far
+      description: |
+        What a running run looks like so far: its metrics and the parameters it reported. Runs started from Python
+        with `qaboard.start_run()` send it every few seconds while they log, so that the web app shows them before
+        they end. Each request replaces what the run said before. When the run ends, `POST /output/` says its final
+        metrics.
+
+        Same access as the results `qa` sends.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/outputId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                metrics:
+                  type: object
+                  description: At most 2000. Values are finite numbers, booleans, texts (500 characters at most) or null.
+                  additionalProperties:
+                    type: [number, boolean, string, "null"]
+                params:
+                  type: object
+                  description: The parameters the run reports, shown with its configuration.
+                metrics_definitions:
+                  type: object
+                  description: How to show the metrics, as in a metrics file (label, suffix, smaller_is_better, target...).
+                  additionalProperties: {$ref: "#/components/schemas/MetricDefinition"}
+            example:
+              metrics: {"train/loss": 0.31, "val/loss": 0.42}
+              params: {optimizer: adamw}
+      responses:
+        "200":
+          description: The run.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Run"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409":
+          description: "The run isn't running (`reason: not_running`)."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+
   /output/{output_id}/metrics:
     patch:
       tags: [Runs]
@@ -495,6 +553,91 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
+
+  /commit/{commit}/batch/check:
+    post:
+      tags: [Batches]
+      operationId: checkBatch
+      summary: Check a request to start a batch, without starting it
+      description: |
+        Says what `startBatch` would do with the same request, and what's wrong: unknown batches, invalid tuning,
+        the commit's artifacts missing... With `errors`, `startBatch` refuses. `qa batch --commit` calls it first.
+
+        Needs to be signed in, and to see the project.
+      parameters:
+        - $ref: "#/components/parameters/batchCommit"
+        - $ref: "#/components/parameters/project"
+      requestBody: {$ref: "#/components/requestBodies/StartBatch"}
+      responses:
+        "200":
+          description: What would run, and what's wrong.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/BatchCheck"}
+        "400": {$ref: "#/components/responses/BatchRefused"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/BatchRefused"}
+
+  /commit/{commit}/batch:
+    post:
+      tags: [Batches]
+      operationId: startBatch
+      summary: Start a batch on a commit, as from the web app
+      description: |
+        Runs `qa batch` (or `qa optimize` for an automated tuning) from the commit's artifacts, as the signed-in user,
+        with the runner the server's admins chose: the same as **Start** in the web app's **Run Tests / Tuning**. Answers
+        once the batch started; its runs show on the commit's page, under `batch_label`.
+
+        When the commit's artifacts are missing, QA-Board restores what's in the source code, or asks the project's CI
+        to recreate them (`recreate_artifacts` in *qaboard.yaml*): then it answers `409`, try again once the CI is done.
+
+        Needs a token with the `act` scope, and the developer role on the project. `qa batch --commit` calls it.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/batchCommit"
+        - $ref: "#/components/parameters/project"
+      requestBody: {$ref: "#/components/requestBodies/StartBatch"}
+      responses:
+        "200":
+          description: The batch started.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  submission:
+                    type: object
+                    description: The `qa batch` command QA-Board started, as listed in the batch's **Logs**.
+                    properties:
+                      id: {type: string, description: The command's id.}
+                      status: {type: string, enum: [submitting, submitted, done, failed]}
+                      command: {type: string}
+                      runner: {type: string}
+                      batch: {type: string, description: The batches it runs, separated by spaces.}
+                  warning: {type: [string, "null"], description: "E.g. only the source code of the artifacts could be restored."}
+        "400": {$ref: "#/components/responses/BatchRefused"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/BatchRefused"}
+        "409":
+          description: The commit's artifacts are missing, and QA-Board asked the CI to recreate them, or couldn't.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Error"
+                  - type: object
+                    properties:
+                      artifacts:
+                        type: object
+                        description: "`status: recreating` when the CI is recreating them: try again later."
+        "500":
+          description: The batch failed to start. `error` has the end of its log.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
 
   /milestones:
     get:
@@ -633,6 +776,12 @@ components:
       description: The project id, as in the web app's URLs.
       schema: {type: string}
       example: kitefin/detector
+    batchCommit:
+      name: commit
+      in: path
+      required: true
+      description: The commit's id, or its start if no other commit of the project starts the same way.
+      schema: {type: string}
     outputId:
       name: output_id
       in: path
@@ -702,7 +851,73 @@ components:
       description: "`mine`: only commits you wrote or have batches in. Needs to be signed in."
       schema: {type: string, enum: [all, mine], default: all}
 
+  requestBodies:
+    StartBatch:
+      required: true
+      description: What the web app's **Run Tests / Tuning** form sends. Only `batch_label` and `selected_group` are required.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [batch_label, selected_group]
+            properties:
+              batch_label:
+                type: string
+                description: "The batch's name on the commit's page. Use a new one: `default` is usually the CI's results."
+              selected_group:
+                description: The batches to run, as in `qa batch <batch>`; aliases and patterns like `night-*` work.
+                oneOf:
+                  - type: string
+                  - type: array
+                    items: {type: string}
+              platform: {type: string, description: "One of `inputs.platforms` in qaboard.yaml. Default: the project's."}
+              tuning_search:
+                type: object
+                description: >-
+                  The parameters to try, as `qa batch --tuning-search` reads them: `{"search_type": "grid",
+                  "parameter_search": {"threshold": [0.3, 0.5]}}`, or `sampler` with `search_options.n_iter`. For an
+                  automated tuning (`qa optimize`), `search_type: optimize` and `parameter_search` the YAML configuration
+                  as a string. Default: no tuning.
+              batches_files:
+                type: array
+                maxItems: 20
+                description: >-
+                  Batch files that aren't in the commit, e.g. local ones, read after the commit's `inputs.batches` and
+                  the project's shared and private batches: they win for batches with the same name. At most 1 MB each.
+                items:
+                  type: object
+                  required: [path, content]
+                  properties:
+                    path: {type: string, description: "How to name it, e.g. `qa/local.yaml`."}
+                    content: {type: string, description: The file's YAML.}
+              groups:
+                type: array
+                items: {type: string}
+                description: "QA-Board's batch files to read. Default: the shared one and yours, like the web app."
+              overwrite:
+                type: boolean
+                default: false
+                description: Run again the runs that already succeeded. By default they are kept.
+              notify:
+                description: "`email` to get an email when the runs end (the default), `false` for none."
+                oneOf:
+                  - type: boolean
+                  - type: string
+                    enum: [email]
+          example:
+            batch_label: nms-sweep
+            selected_group: ci
+            tuning_search: {search_type: grid, parameter_search: {score_threshold: [0.3, 0.5]}}
+            notify: false
+
   responses:
+    BatchRefused:
+      description: >-
+        The request can't start: `errors` says why, e.g. an unknown batch, an invalid tuning, a commit QA-Board doesn't
+        know (`404`, it may not be pushed, or its CI didn't run `qa` yet) or an id several commits start with.
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/BatchCheck"}
     Commits:
       description: Commits, newest first.
       headers:
@@ -740,6 +955,35 @@ components:
           schema: {$ref: "#/components/schemas/Error"}
 
   schemas:
+    BatchCheck:
+      type: object
+      properties:
+        errors: {type: array, items: {type: string}, description: Why the batch can't start. Empty when it can.}
+        warnings: {type: array, items: {type: string}, description: What may go wrong, e.g. missing inputs.}
+        error: {type: string, description: The errors, in one sentence.}
+        batches: {type: array, items: {type: string}, description: The batches that would run, aliases resolved.}
+        definitions:
+          type: array
+          description: Where each batch is defined, in the order `qa batch` reads the files (the last one wins).
+          items:
+            type: object
+            properties:
+              name: {type: string}
+              files: {type: array, items: {type: string}}
+              sources:
+                type: array
+                items: {type: string, enum: [commit, qaboard, sent]}
+                description: "`commit`: the commit's `inputs.batches`; `qaboard`: the project's shared and private batches; `sent`: `batches_files`."
+        artifacts:
+          type: object
+          description: Whether the commit's artifacts are there (`ok`), and if not, whether QA-Board can ask the CI to recreate them (`recreate`).
+          properties:
+            ok: {type: boolean}
+            problems: {type: array, items: {type: string}}
+            recreate: {type: [string, "null"], description: "The CI job `recreate_artifacts` names, if any."}
+            recreating: {type: boolean}
+            recreate_docs: {type: string, description: How to set up `recreate_artifacts`.}
+
     Error:
       type: object
       properties:

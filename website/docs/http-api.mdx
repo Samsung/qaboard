@@ -406,10 +406,40 @@ QA-Board records who added each metric, when and with which script, in the run's
 run returned itself are refused (`409`, `metrics_exist`) unless you send `"overwrite": true`. From Python,
 `run.log_metrics()` does it: see [Add metrics to runs](/docs/apis#log).
 
-### Starting runs and batches {#act}
-Redoing runs and starting batches from the API needs a token with the `act` scope. These endpoints serve the web app,
-aren't in the reference yet, and may change: from scripts, prefer `qa batch` in a checkout of the project, or start
-your CI.
+### Report a running run's metrics {#progress}
+A run that says it is running (`POST /output/` with `is_pending` and `is_running`) can report its metrics and
+parameters so far, as often as it wants, so that the web app shows them before it ends. Each request replaces what
+the run said before:
+
+```bash
+curl -X PATCH -H "Authorization: Bearer $QABOARD_TOKEN" -H "Content-Type: application/json" \
+  -d '{"metrics": {"train/loss": 0.31}, "params": {"device": "cuda:0"}}' \
+  "$QABOARD_URL/api/v1/output/184467/progress"
+```
+
+It answers `409` (`not_running`) once the run has ended. From Python, [`qaboard.start_run()`](/docs/log-from-code)
+does it for you.
+
+### Start a batch on a commit {#start-a-batch}
+`POST /commit/<sha>/batch?project=<project>` starts a batch on a commit as the web app's **Run Tests / Tuning** does:
+QA-Board runs `qa batch` from the commit's artifacts, with the project's runner, and the runs show on the commit's
+page under `batch_label`. `POST /commit/<sha>/batch/check` takes the same request and only says what's wrong. Both
+need a token with the `act` scope, of an account with the developer role:
+
+```bash
+curl -X POST -H "Authorization: Bearer $QABOARD_TOKEN" -H "Content-Type: application/json" \
+  -d '{"batch_label": "nms-sweep", "selected_group": "ci", "notify": false,
+       "tuning_search": {"search_type": "grid", "parameter_search": {"score_threshold": [0.3, 0.5]}}}' \
+  "$QABOARD_URL/api/v1/commit/3f2a91c/batch?project=kitefin/detector"
+```
+
+From the shell, `qa batch --commit` sends this request, after checking it, and can send batch files that aren't in the
+commit: see [start batches from a terminal](/docs/tuning-from-the-webapp#from-the-command-line). The request's fields
+are in the [reference](#reference) (`startBatch`).
+
+### Starting other runs {#act}
+Redoing runs needs a token with the `act` scope too. Those endpoints serve the web app, aren't in the reference yet,
+and may change.
 
 QA-Board can start Jenkins builds with its own Jenkins credentials
 ([Jenkins builds](/docs/triggering-third-party-tools#trigger-jenkins-builds)). From a script, send a token with the
@@ -434,8 +464,8 @@ Your server describes its API at:
 
 Both are public, also when the server requires signing in: they describe the API, not your data.
 
-The reference covers the endpoints on this page: those to read results, and to add metrics to runs. The others serve
-the web app and may change without notice. The document is written by hand for now; generating it from the backend's
+The reference covers the endpoints on this page: those to read results, to add metrics to runs, and to start batches
+on a commit. The others serve the web app and may change without notice. The document is written by hand for now; generating it from the backend's
 code is on the [roadmap](/docs/roadmap#generated-api-reference).
 
 ## For coding agents {#agents}
@@ -444,6 +474,9 @@ Agents use the same API. What helps them get it right:
 - Fetch `<your-qaboard>/api/v1/openapi.json` first: it has every parameter and field, with descriptions.
 - To judge a change, use [`/commit/<sha>/compare`](#compare): check `status`, then read `smaller_is_better` before
   calling a change better. Report the tests that regressed, not only medians.
+- To get results for a commit without the local changes of a checkout, have QA-Board start the batch on the pushed
+  commit: `qa --label <name> batch --commit <sha> <batch>`, or [`/commit/<sha>/batch`](#start-a-batch). Then read the
+  runs or ask `qa gate --label <name>` once they're done.
 - Read the token from `QABOARD_TOKEN`, send it in the header, never in a URL or a log.
 - Read files on the storage, never change them: runs' folders are shared with everyone.
 

@@ -568,22 +568,52 @@ commit_author_email: Optional[str] = None
 commit_authored_datetime = os.environ.get("GIT_AUTHORED_DATETIME", datetime.datetime.now(datetime.timezone.utc).isoformat())
 commit_message: Optional[str] = os.environ.get("GIT_MESSAGE")
 commit_parents: List[str] = []
+def read_commit(commit_id: str) -> Dict[str, Any]:
+  """
+  What git says about a commit: its committer, author, date, parents and message. Raises when the repository of the
+  current directory doesn't have it. Also for runs that `qaboard.start_run()` attaches to another commit.
+  """
+  fields = ['%cn', '%ce', '%ae', '%aI', '%P', "%B"]
+  committer_name, committer_email, author_email, authored_datetime, parents, message = git_show("%n".join(fields), commit_id).split('\n', maxsplit=len(fields)-1)
+  return {
+    'committer_name': committer_name, 'committer_email': committer_email, 'author_email': author_email,
+    'authored_datetime': authored_datetime, 'parents': parents.split(), 'message': message,
+  }
+
+
 if commit_id and is_in_git_repo:
-  fields = ['%cn', '%ce', '%ae', '%ai', '%P', "%B"]
   try:
-    commit_info = git_show("%n".join(fields), commit_id)
-    fields_values = commit_info.split('\n', maxsplit=len(fields)-1)
-    commit_committer_name, commit_committer_email, commit_author_email, commit_authored_datetime_, commit_parents_str, commit_message_ = fields_values
+    _commit = read_commit(commit_id)
+    commit_committer_name, commit_committer_email, commit_author_email = _commit['committer_name'], _commit['committer_email'], _commit['author_email']
     if not commit_authored_datetime:
-      commit_authored_datetime = commit_authored_datetime_
+      commit_authored_datetime = _commit['authored_datetime']
     if not commit_message:
-      commit_message = commit_message_
-    commit_parents = commit_parents_str.split()
+      commit_message = _commit['message']
+    commit_parents = _commit['parents']
   except Exception as e:
     # The commit can be missing from the clone (shallow CI clones, the first commit in a repo like in our tests...),
     # or come from the CI's environment variables: we do without what git would tell us about it.
     if 'QA_VERBOSE' in os.environ:
       print(e, file=sys.stderr)
+
+
+def commit_data() -> Dict[str, Any]:
+  """What we tell QA-Board about the commit, with results: enough for it to create a commit it doesn't know."""
+  return {
+    'commit_branch': commit_branch,
+    'commit_tag': commit_tag,
+    'commit_committer_name': commit_committer_name,
+    'commit_committer_email': commit_committer_email,
+    'commit_author_email': commit_author_email,
+    'commit_authored_datetime': commit_authored_datetime,
+    'commit_parents': commit_parents,
+    'commit_message': commit_message,
+  }
+
+
+def commit_outputs_dir(commit, outputs_project_root: Path, subproject: Path) -> Path:
+  """Where the runs of a (sub)project's commit are saved in the storage"""
+  return outputs_project_root / get_commit_dirs(commit, repo_root) / subproject
 
 
 if root_qatools_config:
@@ -593,7 +623,7 @@ if root_qatools_config:
   artifacts_commit_root = artifacts_project_root / commit_dirs / subproject_for_artifacts
   artifacts_commit      = artifacts_commit_root / subproject
   outputs_commit_root   = outputs_project_root   / commit_dirs
-  outputs_commit        = outputs_project_root   / commit_dirs / subproject
+  outputs_commit        = commit_outputs_dir(commit_id, outputs_project_root, subproject)
 else:
   artifacts_commit_root = Path()
   artifacts_commit = Path() # / subproject? FIXME: check...

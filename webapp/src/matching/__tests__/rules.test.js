@@ -1,4 +1,4 @@
-import { add_rules, preferences_for, preferred_score, rules_from_query, rules_to_selection, run_facts, fact_text } from '../rules';
+import { add_rules, preferences_for, preferred_score, rules_from_query, rules_to_selection, run_facts, fact_text, shared_rules } from '../rules';
 import { parse_query } from '../../selection';
 
 describe('reference rules', () => {
@@ -11,6 +11,15 @@ describe('reference rules', () => {
     expect(rules_from_query(parse_query('?pin=12%3A34&prefer=platform%3Darm&pair=reg0x1A%3D05%7Creg0x1A%3D03&other=1'))).toBe(rules);
     expect(rules_from_query({}).custom).toBe(false);
     expect(rules_from_query({ pair: 'no-separator', pin: 'x' }).custom).toBe(false);
+  });
+
+  it('shares pairs and preferences with the references shown together, pins stay with the reference compared', () => {
+    const rules = rules_from_query(parse_query('?pair=reg05%7Creg03&prefer=platform%3Darm&pin=12%3A34'));
+    expect(shared_rules(rules)).toEqual({ pairs: rules.pairs, prefer: rules.prefer, pins: {}, custom: true });
+    expect(shared_rules(rules)).toBe(shared_rules(rules));
+    const without_pins = rules_from_query(parse_query('?prefer=platform%3Darm'));
+    expect(shared_rules(without_pins)).toBe(without_pins);
+    expect(shared_rules(rules_from_query({}))).toBe(rules_from_query({}));
   });
 
   it('knows facts about runs, to prefer reference runs', () => {

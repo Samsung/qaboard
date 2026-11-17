@@ -58,6 +58,10 @@ A change is better when its runs beat the *same* runs on the reference, not when
 
 1. Run the batch the project uses in CI, shared under a label:
    `qa --share --label <topic> batch ci` (prints the results URL). Local-only: `qa batch ci` writes to `output/`.
+   On a pushed commit whose CI saved its artifacts, prefer `qa --label <topic> batch --commit <sha> ci`: QA-Board runs
+   the commit's code as from its web app, so results can't come from uncommitted changes. It prints the batch's page
+   and returns without waiting (exit 2: the artifacts are being recreated, try later); `--batches-file` sends batch
+   files you didn't commit. Then `qa gate --label <topic> --json` exits `2` while runs are missing or still running.
 2. Ask the gate: `qa gate --json` compares the current commit's CI results (label `default`, once CI ran on the
    pushed commit) with the reference (`gate:` in `qaboard.yaml`, else `project.reference_branch`). Exit `0` pass, `1`
    fail, `2` can't decide (reference missing, runs still running or a batch missing: the messages say which,
@@ -95,10 +99,11 @@ Base: `$QABOARD_URL/api/v1`. Reading is anonymous unless the server restricts th
 | Compare with a reference | `GET /commit/<sha>/compare?project=<p>&reference=<ref>&batch=<label>` |
 | Milestones | `GET /milestones?project=<p>` |
 | Projects, branches | `GET /projects?summary=true`, `GET /project/branches?project=<p>` |
+| Start a batch on a pushed commit (`act` scope) | `POST /commit/<sha>/batch?project=<p>` `{"batch_label", "selected_group", "tuning_search"?, "batches_files"?, "notify": false}`; `/batch/check` only checks. Same as `qa batch --commit` |
 
 Every parameter and field: `$QABOARD_URL/api/v1/openapi.json` (OpenAPI 3.1), or the guide
 https://samsung.github.io/qaboard/docs/http-api. Starting runs or batches needs a token with the `act`
-scope: prefer `qa batch` from a checkout.
+scope: prefer `qa batch --commit <sha>` for a pushed commit, or `qa batch` from a checkout.
 
 ## Don'ts
 - Don't modify or delete anything under the results storage (`/mnt/qaboard`-like paths from `output_dir`): folders

@@ -2,11 +2,17 @@
 id: deep-learning
 sidebar_label: Deep learning & MLOps
 title: Deep learning and MLOps workflows
-description: Evaluate your models' inference in QA-Board next to the training tracker you already use, and gate model releases in the CI.
+description: Evaluate your models' inference in QA-Board next to the training tracker you already use, log trainings from your code, and gate model releases in the CI.
 ---
 
 Keep training with the tools built for it, and evaluate inference in QA-Board: what each model does on each input,
 against the reference model, commit after commit. This page shows how projects connect the two.
+
+:::note Trainings in QA-Board too
+Experimental: [`qaboard.start_run()`](/docs/log-from-code) creates a run from your training loop or notebook, and
+plots what it logs at each step next to the reference run's, while it trains, and the runs of a batch together. It
+doesn't replace a tracker for comparing hundreds of runs at once: see [what it doesn't do yet](/docs/log-from-code#limits).
+:::
 
 Training trackers like [Weights & Biases](https://wandb.ai/), MLflow or TensorBoard are great at what they're built
 for (as of 2026): logging experiments without setting up a project, comparing many training curves at once, early

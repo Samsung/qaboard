@@ -158,6 +158,7 @@ def added_metrics_env(outputs_api, monkeypatch):
   output.batch.ci_commit.project.data = {"qatools_config": {"project": {"reference_branch": "main"}}}
   output.to_dict = lambda: {"metrics": output.metrics, "data": output.data}
   outputs_api.Output.query.filter.return_value.with_for_update.return_value.one.return_value = output
+  outputs_api.Output.query.filter.return_value.one.return_value = output
   return output
 
 
@@ -363,3 +364,87 @@ def test_hard_deletes_remove_the_folder_that_says_where_the_latest_attempt_is(tm
   (first / "left.txt").write_text("")
   forget_attempts(latest)
   assert first.exists() and removed_parents == [first]
+
+
+# ---------------------------------------------------------------- what running runs report (qaboard.start_run() in the SDK)
+
+@pytest.fixture
+def running_run(outputs_api, added_metrics_env, monkeypatch):
+  """A run started from code, that logs while it runs"""
+  output = added_metrics_env
+  output.is_pending, output.is_running, output.metrics = True, True, {}
+  monkeypatch.setattr(outputs_api, "current_data", lambda output: output.data)
+  return output
+
+
+def report_progress(outputs_api, dummy_app, body):
+  with dummy_app.test_request_context("/api/v1/output/7/progress", method="PATCH", json=body):
+    return outputs_api.report_output_progress(7)
+
+
+def test_running_runs_report_their_metrics_and_params(outputs_api, dummy_app, running_run):
+  import backend.api.auth as auth
+  output = running_run
+  report_progress(outputs_api, dummy_app, {"metrics": {"train/loss": 0.9, "val/loss": 1.2}, "params": {"optimizer": "adamw"},
+                                           "metrics_definitions": {"val/loss": {"smaller_is_better": True}, "other": {"suffix": "%"}}})
+  assert output.metrics == {"train/loss": 0.9, "val/loss": 1.2}
+  assert output.data["params"] == {"optimizer": "adamw"}
+  assert (output.is_pending, output.is_running) == (True, True)
+  # the same access as the results `qa` sends, not a token whatever the server's policy
+  assert auth.ingest_access.call_args.kwargs == {}
+  saved = outputs_api.save_metrics_definitions.call_args.args[2]
+  assert saved["metrics_definitions"] == {"val/loss": {"smaller_is_better": True}}
+  # each report replaces the previous one: the run says everything each time
+  response = report_progress(outputs_api, dummy_app, {"metrics": {"train/loss": 0.5}})
+  assert output.metrics == {"train/loss": 0.5} and output.data["params"] == {"optimizer": "adamw"}
+  assert response.get_json()["metrics"] == {"train/loss": 0.5}
+  assert outputs_api.save_metrics_definitions.call_count == 1
+
+
+def test_progress_keeps_the_metrics_scripts_added(outputs_api, dummy_app, running_run):
+  output = running_run
+  output.data["added_metrics"] = {"sharpness": {"value": 0.4, "at": "2026-11-02T10:00:00+00:00"}, "loss": {"value": 3, "at": "2026-11-02T10:00:00+00:00"}}
+  report_progress(outputs_api, dummy_app, {"metrics": {"loss": 0.5}})
+  assert output.metrics == {"sharpness": 0.4, "loss": 0.5}
+  assert set(output.data["added_metrics"]) == {"sharpness"}
+
+
+def test_only_running_runs_report_progress(outputs_api, dummy_app, running_run):
+  output = running_run
+  output.is_pending, output.is_running, output.metrics = False, False, {"psnr": 30}
+  response, status = report_progress(outputs_api, dummy_app, {"metrics": {"loss": 0.5}})
+  assert status == 409 and response.get_json()["reason"] == "not_running"
+  # queued, not started
+  output.is_pending = True
+  _, status = report_progress(outputs_api, dummy_app, {"metrics": {"loss": 0.5}})
+  assert status == 409 and output.metrics == {"psnr": 30}
+
+
+@pytest.mark.parametrize("body, message", [
+  ({"metrics": {"is_failed": True}}, "only the run itself sets is_failed"),
+  ({"metrics": {"x": float("nan")}}, "not a finite number"),
+  ({"metrics": [1]}, "`metrics` must be an object"),
+  ({"metrics": {f"m{i}": i for i in range(2001)}}, "at most 2000"),
+  ({"metrics": {}, "params": ["adamw"]}, "`params` must be an object"),
+  ({"metrics": {}, "params": {"x": "y" * 100_000}}, "`params` must be an object"),
+])
+def test_progress_is_checked(outputs_api, dummy_app, running_run, body, message):
+  response, status = report_progress(outputs_api, dummy_app, body)
+  assert status == 400 and message in response.get_json()["error"]
+  assert running_run.metrics == {}
+
+
+def test_progress_needs_access_to_the_project(outputs_api, dummy_app, running_run, monkeypatch):
+  import backend.api.auth as auth
+  monkeypatch.setattr(auth.ingest_access, "return_value", (None, (dummy_app.response_class('{"error": "token"}', status=403, content_type='application/json'), 403)))
+  _, status = report_progress(outputs_api, dummy_app, {"metrics": {"x": 1}})
+  assert status == 403 and running_run.metrics == {}
+  monkeypatch.setattr(auth.ingest_access, "return_value", (ALICE, None))
+  monkeypatch.setattr(auth.is_authorized_user, "return_value", False)
+  _, status = report_progress(outputs_api, dummy_app, {"metrics": {"x": 1}})
+  assert status == 403
+  # refused callers take no lock on the run
+  outputs_api.Output.query.filter.return_value.with_for_update.assert_not_called()
+  outputs_api.Output.query.filter.return_value.one.side_effect = outputs_api.NoResultFound
+  _, status = report_progress(outputs_api, dummy_app, {"metrics": {"x": 1}})
+  assert status == 404

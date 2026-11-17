@@ -38,7 +38,26 @@ from ..notifications.batches import request_batch_notification, cancel_batch_not
 from .auth import login_required, require_project_access, is_authorized_user, forbidden_project
 
 
-def get_groups_path(project_id, name="extra-batches", create=True):
+# The project's batches everyone can edit in the web app. Users also have their private file, named after them.
+SHARED_BATCHES_FILE = "extra-batches"
+
+# Where the docs explain `recreate_artifacts`
+RECREATE_ARTIFACTS_DOCS = "/docs/storage/deleting-old-data#recreating-artifacts"
+
+def docs_link(path):
+    """A link to this server's docs (web.docs_root, like the web app's links), absolute: the CLI shows it too"""
+    from ..settings import setting
+    root = (setting('web.docs_root') or '/').rstrip('/')
+    if not re.match(r'^https?://', root):
+        from .tokens import public_url
+        try:
+            root = public_url() + root
+        except RuntimeError: # outside requests
+            pass
+    return root + path
+
+
+def get_groups_path(project_id, name=SHARED_BATCHES_FILE, create=True):
     """
     Return the path of the file where we save the groups of tests we defined for a project.
     Creates it if it does not exist yet (unless `create` is False).
@@ -166,8 +185,12 @@ def read_batches_file(batches_file):
     batches_file["status"] = "missing"
     return None
   try:
-    with batches_file["location"].open() as f:
-      batches = yaml.load(f, Loader=yaml.SafeLoader)
+    if "content" in batches_file:
+      # sent with the request (sent_batches_files)
+      batches = yaml.load(batches_file["content"], Loader=yaml.SafeLoader)
+    else:
+      with batches_file["location"].open() as f:
+        batches = yaml.load(f, Loader=yaml.SafeLoader)
   except Exception as e:
     batches_file["status"] = "invalid"
     batches_file["error"] = str(e)
@@ -209,7 +232,8 @@ def definitions_of(batches, defined):
   Where the batches are defined, from batch_definitions(). `batches` can be patterns, like `qa batch --batch 'night-*'`.
   Returns ([{"name", "files", "sources"}], the batches that are not defined).
   `files` are the paths of the files defining the batch, and `sources` where each comes from:
-  "commit" for the commit's files (paths as in its qaboard.yaml), "qaboard" for QA-Board's shared and private files.
+  "commit" for the commit's files (paths as in its qaboard.yaml), "qaboard" for QA-Board's shared and private files,
+  "sent" for files sent with the request (`qa batch --commit --batches-file`, paths as the client gave them).
   """
   definitions, undefined = [], []
   for batch in batches:
@@ -606,9 +630,95 @@ def find_commit(project_id, hexsha):
             .first())
 
 
-def load_batches(ci_commit, project_id, groups):
+def lookup_commit(project_id, hexsha):
     """
-    Merges the batches defined in the commit's batches files and in the custom groups, to check them.
+    The project's commit to start a batch on: the one with this id, else the only one whose id starts with it.
+    Returns (commit, None), or (None, ({error, errors, warnings}, HTTP status)) saying why we can't find it.
+    """
+    exact = CiCommit.query.filter(CiCommit.project_id == project_id, CiCommit.hexsha == hexsha).first()
+    if exact is not None:
+        return exact, None
+    matches = (CiCommit.query
+               .filter(CiCommit.project_id == project_id, CiCommit.hexsha.startswith(hexsha))
+               .order_by(CiCommit.id)
+               .limit(3)
+               .all())
+    if len(matches) == 1:
+        return matches[0], None
+    if matches:
+        shown = len(hexsha) + 6
+        message = (f"Several commits of {project_id} start with {hexsha} ({', '.join(c.hexsha[:shown] for c in matches[:2])}...): "
+                   "give more of the commit id.")
+        status = 400
+    else:
+        message = (f"QA-Board doesn't know the commit {hexsha} in {project_id}. Was it pushed, and did its CI run `qa` on it "
+                   "(e.g. `qa save-artifacts`)? If the CI is still running, try again when it saved the artifacts.")
+        status = 404
+    return None, ({"error": message, "errors": [message], "warnings": []}, status)
+
+
+# A batch can't stand for more batches than this, e.g. with aliases of aliases
+MAX_RESOLVED_BATCHES = 10_000
+
+def resolved_batches(names, aliases) -> List[str]:
+    """resolve_aliases(), with a limit: sent batch files are untrusted. Raises ValueError."""
+    try:
+        resolved = list(itertools.islice(resolve_aliases(names, aliases), MAX_RESOLVED_BATCHES + 1))
+    except RecursionError: # older qaboard packages, whose resolve_aliases didn't stop
+        raise ValueError("The aliases refer to each other.")
+    if len(resolved) > MAX_RESOLVED_BATCHES:
+        raise ValueError(f"The aliases stand for more than {MAX_RESOLVED_BATCHES} batches: check that they don't refer to each other.")
+    return resolved
+
+
+# Batch files sent with a request (`qa batch --commit --batches-file`)
+MAX_SENT_BATCHES_FILES = 20
+MAX_SENT_BATCHES_FILE_SIZE = 1024 * 1024
+
+def sent_batches_files(value):
+    """
+    The batch files sent with a request, [{"path", "content"}], as files like commit_batches_files' (source "sent").
+    `qa batch` reads them after the commit's files and QA-Board's: they win when they define the same batches.
+    Returns (files, errors).
+    """
+    if value is None:
+        return [], []
+    if not isinstance(value, list):
+        return [], ["`batches_files` should be a list of {path, content}."]
+    if len(value) > MAX_SENT_BATCHES_FILES:
+        return [], [f"Too many batch files ({len(value)}): send at most {MAX_SENT_BATCHES_FILES}."]
+    files, errors = [], []
+    for sent in value:
+        path = sent.get('path') if isinstance(sent, dict) else None
+        content = sent.get('content') if isinstance(sent, dict) else None
+        if not isinstance(path, str) or not isinstance(content, str) or not batches_file_copy_parts(path) or len(path) > 512 or '\0' in path or not is_utf8(path) or not is_utf8(content):
+            errors.append(f"Invalid batch file {str(path)[:100]!r}: each of `batches_files` should be {{path, content}}, as text.")
+            continue
+        if len(content.encode('utf-8')) > MAX_SENT_BATCHES_FILE_SIZE:
+            errors.append(f"The batch file {path} is too large: at most {MAX_SENT_BATCHES_FILE_SIZE // 1024 // 1024} MB.")
+            continue
+        batches_file = {"source": "sent", "path": path, "content": content, "location": None, "exists": True}
+        # unlike the commit's files, users can fix them before starting
+        if read_batches_file(batches_file) is None:
+            errors.append(f"Could not read the batches in {path}: {batches_file.get('error', 'it should define a mapping of batches')}")
+            continue
+        files.append(batches_file)
+    return files, errors
+
+
+def is_utf8(text: str) -> bool:
+    """False for strings we can't write, e.g. with lone surrogates (JSON allows "\\ud800")"""
+    try:
+        text.encode('utf-8')
+        return True
+    except UnicodeEncodeError:
+        return False
+
+
+def load_batches(ci_commit, project_id, groups, sent=()):
+    """
+    Merges the batches defined in the commit's batches files, in the custom groups and in the files sent with the
+    request (sent_batches_files), to check them.
     Returns (merged_batches, errors, defined, files): `defined` says which files define each batch, see batch_definitions(),
     and `files` are the files we could read, in the order `qa batch` should read them.
     """
@@ -620,6 +730,7 @@ def load_batches(ci_commit, project_id, groups):
             files.append({"source": "qaboard", "path": f"{group}.yml", "location": get_groups_path(project_id, name=group), "exists": True})
         except ValueError as e:
             errors.append(str(e))
+    files.extend(sent)
     merged_batches: Dict[str, Any] = {}
     files_batches = []
     for batches_file in files:
@@ -647,7 +758,7 @@ def pipeline_batches(batches, merged_batches):
                         step_config = step.get('batch')
                         if isinstance(step_config, str): batches.append(step_config)
                         elif isinstance(step_config, list): batches = batches + [b for b in step_config if isinstance(b, str)]
-                        batches = list(resolve_aliases(batches, merged_batches['aliases']))
+                        batches = resolved_batches(batches, merged_batches['aliases'])
     return batches
 
 
@@ -659,16 +770,31 @@ def copy_batches_files(files, log_dir):
     Returns the paths of the copies.
     """
     copies = []
-    for batches_file in files:
-        # the paths come from qaboard.yaml: they can be absolute, or go up
-        parts = [part for part in Path(batches_file["path"]).parts if part not in ("/", "..", ".")]
+    for idx, batches_file in enumerate(files):
+        parts = batches_file_copy_parts(batches_file["path"])
+        if batches_file["source"] == "sent":
+            # untrusted paths: a folder per file, so that they can't collide, and a short name
+            name = parts[-1]
+            parts = [str(idx), name if len(name.encode('utf-8')) <= 100 else f"batches{Path(name).suffix[:10]}"]
         copy = Path(log_dir) / "batches" / batches_file["source"] / Path(*parts)
-        if copy in copies:
-            copy = copy.with_name(f"{len(copies)}-{copy.name}")
+        n = len(copies)
+        while copy in copies:
+            copy = copy.with_name(f"{n}-{Path(*parts).name}")
+            n += 1
         copy.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(batches_file["location"], copy)
+        if "content" in batches_file:
+            # sent with the request: we write exactly what we read when checking it
+            with copy.open("w", encoding="utf-8") as f:
+                f.write(batches_file["content"])
+        else:
+            shutil.copyfile(batches_file["location"], copy)
         copies.append(copy)
     return copies
+
+
+def batches_file_copy_parts(path) -> List[str]:
+    """Where a batch file is copied, under the submission's batches/<source>/: paths can be absolute, go up, or be Windows paths."""
+    return [part for part in re.split(r'[/\\]', str(path)) if part not in ("", "..", ".") and not re.fullmatch(r'[a-zA-Z]:', part)]
 
 
 def check_tuning_search(tuning_search) -> list:
@@ -696,7 +822,36 @@ def check_tuning_search(tuning_search) -> list:
     return []
 
 
-def check_tuning_request(ci_commit, data):
+def with_defaults(data, user_name=None):
+    """
+    A request to start a batch, with the defaults of the web app's form for what API clients (`qa batch --commit`) leave out:
+    the shared and the user's private batches, a batch without tuning, no overwriting of existing runs.
+    `selected_group` can also be a list of batches, like `qa batch a b`.
+    """
+    data = dict(data) if isinstance(data, dict) else {}
+    if data.get('groups') is None:
+        data['groups'] = [SHARED_BATCHES_FILE, *([user_name] if user_name else [])]
+    tuning_search = data.get('tuning_search')
+    if tuning_search is None:
+        data['tuning_search'] = {"search_type": "grid", "parameter_search": {}}
+    elif isinstance(tuning_search, dict) and tuning_search.get('search_type', 'grid') != 'optimize' and tuning_search.get('parameter_search') is None:
+        # `qa batch` needs it
+        data['tuning_search'] = {"search_type": "grid", **tuning_search, "parameter_search": {}}
+    data.setdefault('overwrite', False)
+    return data
+
+
+def selected_batches(data):
+    """The batches a request selects (`selected_group`: a name, or a list of names), and errors."""
+    selected = data.get('selected_group')
+    names = selected if isinstance(selected, list) else [selected]
+    if not all(isinstance(n, str) or n is None for n in names):
+        return [], ["`selected_group` should be the name of a batch, or a list of names."]
+    names = [n.strip() for n in names if n and n.strip()]
+    return names, [] if names else ["Select the batch of inputs to run on."]
+
+
+def check_tuning_request(ci_commit, data, user_name=None):
     """
     Checks a request to run a batch from QA-Board, before we start anything.
     Returns {errors, warnings, artifacts, batches, definitions, batches_files}: with errors we don't start.
@@ -704,7 +859,7 @@ def check_tuning_request(ci_commit, data):
     """
     from .commit import commit_artifacts_info
     errors, warnings = [], []
-    data = data or {}
+    data = with_defaults(data, user_name)
     project_config = ci_commit.project.data.get("qatools_config")
     config = ci_commit.data.get("qatools_config") or project_config
     if not config:
@@ -726,13 +881,15 @@ def check_tuning_request(ci_commit, data):
 
     errors.extend(check_tuning_search(data.get('tuning_search')))
 
-    artifacts = commit_artifacts_info(ci_commit)
+    # with where the docs explain how QA-Board can recreate them (the CLI says it)
+    artifacts = {**commit_artifacts_info(ci_commit), "recreate_docs": docs_link(RECREATE_ARTIFACTS_DOCS)}
     if not artifacts["ok"]:
         problems = " ".join(artifacts.get("problems", []))
         if artifacts.get("recreate") and not artifacts.get("recreate_errors"):
             warnings.append(f"The artifacts are missing: {problems} When you start, QA-Board will first ask {artifacts['recreate']} to recreate them.")
         else:
-            warnings.append(f"The artifacts are missing: {problems} When you start, QA-Board will try to restore them from the source code, but not build outputs (e.g. binaries).")
+            warnings.append(f"The artifacts are missing: {problems} When you start, QA-Board will try to restore them from the source code, but not build outputs (e.g. binaries)."
+                            + ("" if artifacts.get("recreate_errors") else f" To rebuild them, QA-Board can ask your CI: set `recreate_artifacts` in qaboard.yaml ({artifacts['recreate_docs']})."))
     # e.g. files listed in the manifests are missing: the runs may not need them
     warnings.extend(f"{w} Runs that need them will fail." for w in artifacts.get("warnings", []))
     for error in artifacts.get("recreate_errors", []):
@@ -743,18 +900,23 @@ def check_tuning_request(ci_commit, data):
         warnings.append(f"The project's entrypoint ({entrypoint}) is not in the artifacts: runs will likely fail. Check `artifacts` in qaboard.yaml.")
 
     batches, definitions, batches_files = [], [], []
-    selected_group = str(data.get('selected_group') or '').strip()
+    selected, selected_errors = selected_batches(data)
+    errors.extend(selected_errors)
     groups = data.get('groups') or []
     if not isinstance(groups, list):
         errors.append("`groups` should be a list.")
         groups = []
-    if not selected_group:
-        errors.append("Select the batch of inputs to run on.")
-    else:
-        merged_batches, batches_errors, defined, batches_files = load_batches(ci_commit, ci_commit.project_id, groups)
+    sent, sent_errors = sent_batches_files(data.get('batches_files'))
+    errors.extend(sent_errors)
+    if selected:
+        merged_batches, batches_errors, defined, batches_files = load_batches(ci_commit, ci_commit.project_id, groups, sent)
         warnings.extend(batches_errors)
-        batches = list(resolve_aliases(selected_group, merged_batches['aliases']))
-        batches = pipeline_batches(batches, merged_batches)
+        try:
+            batches = resolved_batches(selected, merged_batches['aliases'])
+            batches = pipeline_batches(batches, merged_batches)
+        except ValueError as e:
+            errors.append(str(e))
+            batches = []
         definitions, _ = definitions_of(batches, defined)
         # `qa batch` also accepts wildcards (batch-*), and input paths (semi-deprecated)
         unknown = [b for b in batches if b not in defined and not fnmatch.filter(defined, b)]
@@ -784,10 +946,13 @@ def check_tuning_request(ci_commit, data):
 def check_tuning(hexsha):
     """Validates a request to start a batch, without starting it. Returns {errors, warnings, artifacts}."""
     project_id = request.args["project"]
-    ci_commit = find_commit(project_id, hexsha)
-    if not ci_commit:
-        return jsonify({"error": f"Commit {hexsha} was not found in {project_id}", "errors": [f"Commit {hexsha} was not found in {project_id}"], "warnings": []}), 404
-    check = check_tuning_request(ci_commit, request.get_json())
+    ci_commit, not_found = lookup_commit(project_id, hexsha)
+    if not_found:
+        return jsonify(not_found[0]), not_found[1]
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Send the request as a JSON object.", "errors": ["Send the request as a JSON object."], "warnings": []}), 400
+    check = check_tuning_request(ci_commit, data, user_name=g.user.get('user_name'))
     return jsonify({k: v for k, v in check.items() if k in ("errors", "warnings", "artifacts", "batches", "definitions")})
 
 
@@ -798,7 +963,6 @@ def start_tuning(hexsha):
     Request that we run extra tests for a given project.
     """
     project_id = request.args["project"]
-    data = request.get_json()
 
     if forbidden := require_project_access(None, project_id):
         return forbidden
@@ -808,11 +972,16 @@ def start_tuning(hexsha):
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
-    ci_commit = find_commit(project_id, hexsha)
-    if not ci_commit:
-        return jsonify({"error": f"Commit {hexsha} was not found in {project_id}"}), 404
+    ci_commit, not_found = lookup_commit(project_id, hexsha)
+    if not_found:
+        return jsonify(not_found[0]), not_found[1]
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Send the request as a JSON object.", "errors": ["Send the request as a JSON object."], "warnings": []}), 400
 
-    check = check_tuning_request(ci_commit, data)
+    # API clients (`qa batch --commit`) get the web app's defaults
+    data = with_defaults(data, user_name=user)
+    check = check_tuning_request(ci_commit, data, user_name=user)
     restored_message = None
     if not check["artifacts"]["ok"]:
         # We never run from missing artifacts: e.g. without its qaboard.yaml, a subproject's runs would be saved in the parent project
@@ -826,7 +995,7 @@ def start_tuning(hexsha):
         db_session.commit()
         # the batches files come from the artifacts
         restored_message = restored["message"] if restored else None
-        check = check_tuning_request(ci_commit, data)
+        check = check_tuning_request(ci_commit, data, user_name=user)
     if check["errors"]:
         return jsonify({"error": " ".join(check["errors"]), "errors": check["errors"], "warnings": check["warnings"]}), 400
 
@@ -867,7 +1036,8 @@ def start_tuning(hexsha):
     print(working_directory)
 
     # This will make us do automated tuning, versus a single manual batch
-    do_optimize = data['tuning_search']['search_type'] == 'optimize'
+    do_optimize = data['tuning_search'].get('search_type') == 'optimize'
+    batches_names, _ = selected_batches(data)
     if do_optimize:
         # we write somewhere the optimization search configuration
         # it needs to be accessed from LSF so we can't use temporary files...
@@ -887,7 +1057,7 @@ def start_tuning(hexsha):
         f"--label {quote(str(data['batch_label']))}",
         "optimize" if do_optimize else "batch",
         *(f"--batches-file {quote(str(path))}" for path in batches_files),
-        f"--batch {quote(str(data['selected_group']))}",
+        *(f"--batch {quote(name)}" for name in batches_names),
         # f"--runner=local", # uncomment if testing from Samsung SIRC where LSF is the default
         config_option,
         f"{overwrite} --no-wait" if not do_optimize else '',
@@ -909,7 +1079,7 @@ def start_tuning(hexsha):
         "command": batch_command,
         "log_dir": str(log_dir),
         # where the batches are defined: the command reads copies of the batch files
-        "batch": data['selected_group'],
+        "batch": " ".join(batches_names),
         "definitions": check["definitions"],
         # local/celery: `qa batch` runs detached on the server, LSF/kubernetes: `qa batch` is an LSF job/a pod
         "status": "submitting",
@@ -975,7 +1145,7 @@ def notify_when_done(data, command_id, ci_commit, batch, user, do_optimize):
         data={
             "source": "webapp",
             "label": data['batch_label'],
-            "selected_group": data.get('selected_group'),
+            "selected_group": " ".join(selected_batches(data)[0]),
             "platform": data.get('platform'),
         },
     )

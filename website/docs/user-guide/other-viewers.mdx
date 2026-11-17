@@ -2,7 +2,7 @@
 id: other-viewers
 title: Plots, flame graphs, 3D and more
 sidebar_label: Plots, 3D and more
-description: "How the other viewers compare new and reference: plots, flame graphs, test reports, benchmarks, text, HTML reports, point clouds and trajectories, and the stages or frames of a run."
+description: "How the other viewers compare new and reference: plots, training curves and other logged series, flame graphs, test reports, benchmarks, text, HTML reports, point clouds and trajectories, and the stages or frames of a run."
 ---
 Runs show more than images and videos: plots, CPU profiles, transcripts, the reports your code writes, 3D maps and
 trajectories. Each viewer puts the reference's result next to the new one, or over it, so you see what the change did.
@@ -10,6 +10,7 @@ trajectories. Each viewer puts the reference's result next to the new one, or ov
 | If your outputs are… | you'll see… |
 |---|---|
 | Curves, bars, heatmaps: a detector's precision-recall curves, a server's latency percentiles | [Plots](#plots), the reference's drawn over the new ones, or next to them |
+| Values logged while a run goes on: a training's loss and learning rate at each step | [Logged series](#logged-series): one plot per series, the reference's dashed on the same axes, live |
 | CPU profiles of a server or a pipeline | [Flame graphs](#flame-graphs), colored by what got slower or faster |
 | Unit and integration test reports (JUnit XML) | [Test reports](#test-reports): each test against the reference, with what started failing, what got fixed and what disappeared |
 | Benchmark results: pytest-benchmark, Google Benchmark, hyperfine, Criterion, JMH | [Benchmarks](#benchmarks): each one against the reference, what got slower or faster beyond noise |
@@ -75,6 +76,52 @@ zooms on its own. Projects use it for plots that would hide each other, like hea
   [the Plot.ly viewer](/docs/viewers#plots).
 
 </details>
+
+## Logged series {#logged-series}
+Runs can log values while they run: a training's loss at each step, its learning rate, a validation score at each
+epoch. Their card plots each of these series, at the top, without the project having to set anything up.
+
+1. **Read each plot**: the new run's curve is solid, the reference run's dashed, in the colors of what you compare.
+   Series the reference didn't log show alone. Plots are grouped by the start of their name: `train/…`, then
+   `val/…`.
+2. **Smooth noisy curves** with the **Smoothing** slider: the curve becomes a moving average, and the values as
+   they are stay behind, faded.
+3. **Switch to a logarithmic scale** with **Log scale**, e.g. for a loss that drops by orders of magnitude.
+4. **Compare by step or by time**: **By step** lines runs up on their steps, **By time** on the seconds since each
+   started, to see which one got there faster.
+
+Your choices apply to every card, and stay in the page's address when you share it.
+
+- **A run that is still running says Live**: its plots follow it, every 10 seconds.
+- **Each series' last value is one of the run's metrics** (or its minimum, when the project says so): you find it in
+  the Summary, the tables and the **History** page.
+- **Long runs stay readable**: past a thousand points, each point is the average of several steps, and a band shows
+  the range of their values, so a spike isn't lost.
+- **With many series**, the first 12 show; filter them by name, or show the others with the button under the plots.
+- **A gap in a curve** is a value that wasn't a number: a loss that became NaN.
+
+### Compare all the runs on the same plots {#compare-logged-series}
+The **Summary** view has a **Logged series** card when runs of the batch logged series: one plot per series, one
+line per run, each run in its color. Use it to compare the trainings of an experiment: learning rates, model sizes,
+seeds.
+
+1. **Find a run**: the list on the left names each run by what tells it apart from the others, e.g. `lr=0.01`.
+   Hover a run to bring its curves forward in every plot; the others fade.
+2. **Show and hide runs**: click a run to hide it, click again to show it. **only** shows that run alone; **Show
+   all** and **Hide all** are at the top of the list.
+3. **Color by a parameter**: pick **Color by lr** (any parameter that differs between the runs) to give the runs
+   that share a value the same color, and show a group alone with its **only**.
+4. **Add the reference**: **With the reference's runs, dashed** draws each run's reference run in the same color,
+   dashed.
+
+- Smoothing, the logarithmic scale and **By step** / **By time** are the same as on the cards, and shared with them.
+- The plots follow the page's filter: filter the runs at the top of the page to compare some of them. Past 40 runs,
+  the first 40 show.
+- A plot's title says when only some of the runs logged its series.
+- Past 12 runs, colors repeat with dotted lines.
+
+Integrators: see [Log from your code](/docs/log-from-code) to log series from Python, and
+[the file format](/docs/viewers#series) for other languages.
 
 ## Flame graphs {#flame-graphs}
 A flame graph shows where a program spends its CPU time. Each bar is a function, as wide as the time spent in it, with
