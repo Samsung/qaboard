@@ -1,0 +1,204 @@
+---
+id: log-from-code
+title: Log from your code
+sidebar_label: Log from your code
+description: "Create runs from a training loop, a notebook or an evaluation script with qaboard.start_run(): log values at each step, metrics, parameters and files, and see them in the web app next to the reference's while the code runs."
+---
+
+Create a run from code that is already running, a training loop, a notebook, an evaluation script, and log to it
+as you go. The run shows in the web app like the runs of `qa run`: compared with the reference, with its metrics, its
+files, and the curves of what it logged at each step, while it runs.
+
+:::caution Experimental
+`qaboard.start_run()` is new: its arguments and the files it writes may change. Tell us what your training code
+needs. What it doesn't do yet is [at the end of this page](#limits).
+:::
+
+Use `qa run` when QA-Board starts your code on each input of a batch ([Running your code](/docs/running-your-code)).
+Use `start_run()` when your code starts by itself and results appear while it runs.
+
+## Log a training {#quick-start}
+In a project (a folder with a *qaboard.yaml*, see [Start a project](/docs/project-init)):
+
+```python title="train.py"
+import qaboard as qb
+
+with qb.start_run(input="train/coco-mini", configs=["resnet50", {"lr": 1e-3}], batch="lr-sweep") as run:
+    for step, batch in enumerate(loader):
+        loss = train_step(batch)
+        run.log({"train/loss": loss, "lr": scheduler.lr}, step=step)   # a point of each series
+
+    run.log_metrics({"mAP": evaluate(model)})                          # the run's metrics
+    torch.save(model.state_dict(), run.output_dir / "model.pt")        # its files
+```
+
+Run it with `python train.py`. It prints where the run's files are and its address in the web app. Open it: in the
+**Visualizations** view, the run's card plots `train/loss` and `lr` as they are logged, with the reference run's
+curves dashed on the same axes. The **Summary** view plots all the runs of the batch together, one color per run
+([Logged series](/docs/user-guide/other-viewers#logged-series) in the user guide).
+Leaving the `with` block ends the run; an exception ends it as failed, with the error in its log.
+
+You need what `qa --share` needs: the `qaboard` package, a server (`QABOARD_URL`, or your site's package), the shared
+storage (`storage` in *qaboard.yaml*), and to be signed in when the server asks for it (`qa auth login`, or
+`QABOARD_TOKEN`). [`qa doctor`](/docs/doctor) checks them. Without a server or storage, the run stays in the project's
+*output/* folder: see [where the files go](#files).
+
+## What makes a run {#identity}
+A run started from code is identified like any run: a project, a commit, a batch, an input and configurations. Runs
+with the same input and configurations are the same test, compared from a commit to the next and with the reference.
+If you come from an experiment tracker:
+
+| You know | In QA-Board | With `start_run()` |
+|---|---|---|
+| Project | The project | The one of the *qaboard.yaml* above the current folder, or `project="group/repo"` without one |
+| Experiment, group | A batch | `batch="lr-sweep"`. Outside the CI, your runs go to your own batch, shown as yours, like with `qa --share` |
+| Run name | The input and the configurations | `input="train/coco-mini"`: what the run works on, a dataset or any name. Default: the script's name |
+| Config, hyperparameters | Configurations | `configs=["resnet50", {"lr": 1e-3}]`: names and mappings, like `qa --config`. `run.params` merges the mappings |
+| Code version | The commit | The git `HEAD`, or the CI's commit. A run whose tracked files differ from the commit is recorded as such (`data.dirty`) |
+| Logged values, `log()` | Series | `run.log({...}, step=...)` |
+| Summary | Metrics | `run.log_metrics({...})`, and each series' last value |
+
+Two runs with other configurations are two runs, shown side by side in the batch. Starting the same run again is a
+new attempt of it: see [run again, or resume](#attempts).
+
+## Log values, metrics, parameters and files {#logging}
+
+### Series: values at each step {#series}
+```python
+run.log({"train/loss": 0.31, "lr": 1e-3}, step=120)
+run.log({"val": {"loss": 0.42, "top1": 0.71}}, step=120)   # nested mappings: val/loss, val/top1
+```
+
+- Values are numbers, including numpy and PyTorch scalars. Without `step`, steps count the calls. A value that
+  isn't a number is skipped, with a warning the first time, and `None` silently: a training doesn't end for that.
+- Each series is plotted on the run's card, grouped by what comes before the `/` of its name.
+- **Each series' last value is also a metric of the run**, shown in the tables and on the **History** page, while the
+  run goes on and after. Choose another summary with `start_run(summary={"val/loss": "min"})`: `last`, `min`,
+  `max`, `mean`, or `none` to keep a series out of the metrics. Names can be patterns:
+  `{"val/*": "min", "system/*": "none"}`, and `"*"` sets the default.
+- `NaN` and infinities are kept in the series, where they show as gaps, and never become the metric.
+- `run.log()` never waits for the server: it writes to memory, and a background thread writes the files every 2
+  seconds.
+
+### Metrics {#metrics}
+```python
+from qaboard import Metric
+
+run.log_metrics({"mAP": Metric(0.41, smaller_is_better=False, target=0.4), "verdict": "ship"})
+```
+
+Metrics are the run's results: numbers, booleans, short texts. Declare how to show them with `Metric(...)`,
+`define_metric()` or your metrics file, as for `qa run`
+([Metrics](/docs/computing-quantitative-metrics#declaring-metrics)). `Metric(...)` works in `run.log()` too, for the
+metric a series gives.
+
+### Parameters {#params}
+```python
+run.log_params({"device": "cuda:0", "weights": 25_557_032})
+```
+
+The web app shows them with the run's configuration. Unlike `configs`, they don't identify the run: use `configs`
+for what you chose, and `log_params()` for what the run found out.
+
+### Files {#artifacts}
+Write the run's files in `run.output_dir`, or copy them there with `run.log_artifact()`:
+
+```python
+(run.output_dir / "checkpoints").mkdir(exist_ok=True)
+torch.save(checkpoint, run.output_dir / "checkpoints" / "last.pt")       # big files: write in place
+run.log_artifact("predictions.json", predictions_path)                   # copies a file
+run.log_artifact("report.html", html.encode())                           # or writes bytes
+run.log_artifact(confusion_matrix_path)                                  # a file alone keeps its name
+```
+
+The web app lists them in **Output Files** and opens them with the viewer their name picks: images, plots, text...
+To show a file on the run's card, list it in [`outputs.visualizations`](/docs/visualizations). What the process
+prints is saved in the run's *log.txt*, shown in **Logs**.
+
+## Where the files go, with and without a server {#files}
+| | Files | Web app |
+|---|---|---|
+| In the CI, or with a server and the storage configured | In the shared storage, where `qa --share run` would save them | The run shows when it starts |
+| `share=False`, `QA_OFFLINE=1`, or no storage | In the project's *output/* folder, like a local `qa run` | Not shown |
+| `output_dir="..."` | In your folder. The server must read it to show the files | As above |
+
+A run's folder has what `qa run` writes (*run.json*, *metrics.json*, *log.txt*, *manifest.outputs.json*), your
+files, and its series: *series.jsonl* with everything logged, and *series.json*, a version for plots that stays small
+however long the run ([the format](/docs/viewers#series)). Read a run's series back with `run.series("train/loss")`,
+also from the runs of [`qaboard.runs(url)`](/docs/apis#runs-in-scripts).
+
+**When the server doesn't answer**, the run goes on: it warns once, keeps writing its files, and asks again later.
+The run tells the server what it looks like now, never a list of events: the first message that gets through is
+enough, and `finish()` sends everything once more. If the server refuses the run (no token, no role on the project),
+it says why when the run starts, before hours of training.
+
+## Run again, or resume {#attempts}
+Starting a run with the same input and configurations, on the same commit and batch, is a new **attempt** of that
+run: it gets its own folder, the web app shows the latest attempt with an **attempt N** tag, and keeps the earlier
+attempts' logs and metrics ([When a run is done again](/docs/storage/where-is-the-data#reruns)). The earlier
+attempt's other files are removed.
+
+To continue a run instead, after a preemption or to train longer, pass `resume=True`: the run keeps its folder,
+its files, the metrics and parameters it logged, and its steps go on from the last one logged. Without a previous
+run, it starts one.
+
+```python
+run = qb.start_run(input="train/coco-mini", configs=configs, resume=True)
+checkpoint = run.output_dir / "checkpoints" / "last.pt"
+```
+
+To keep several trainings side by side, make them different runs: put the seed or the trial number in `configs`.
+
+## Without a `with` block, in notebooks and libraries {#lifecycle}
+```python
+run = qb.start_run(project="kitefin/detector", input="explore-augmentations")
+run.log({"loss": 0.3})
+run.finish()          # or run.fail("the loss diverged")
+```
+
+- **Runs nobody finished end with the process**: as failed when it dies from an exception, or when the job is
+  killed with SIGTERM, as schedulers do at a time limit.
+- **Starting the same run again while it goes on**, like a notebook's cell run twice, finishes the first one.
+- **Logging to a finished run** is skipped, with a warning the first time.
+- **`qb.current_run()`** gives the run started last, for code deep inside a library: `if run := qb.current_run(): run.log(...)`.
+- **Outside a project**, give `project=`. Without a git repository, the run is attached to a placeholder commit
+  with your name. Sharing then needs to know the storage: set `QA_STORAGE`, or install your site's package.
+- **With several processes** (one per GPU), call `start_run()` in one of them only, e.g. on rank 0: each call
+  starts a run. A forked worker that logs to its parent's run is ignored, with a warning.
+- **`commit=`** attaches the run to another commit than the code's, e.g. the commit that trained the model you
+  evaluate.
+
+<details>
+<summary>Every argument of start_run()</summary>
+
+| Argument | Default | What it does |
+|---|---|---|
+| `input` | The script's name | What the run works on: a path relative to the inputs' database, or any name. |
+| `configs` | `[]` | The configurations: names and mappings. |
+| `batch` | `"default"` | The batch. Outside the CI, runs go to your own batch of that name. |
+| `project` | The *qaboard.yaml*'s | Required without a *qaboard.yaml*. |
+| `commit` | The git `HEAD`, or the CI's | A full commit id, or a branch, tag or short id of the folder's repository. |
+| `share` | In the CI, or with a server and storage | `False` keeps the run local. `QA_OFFLINE=1` does it for a whole process. |
+| `output_dir` | From QA-Board's conventions | Your own folder for the run's files. Only a previous run's series are removed from it. |
+| `resume` | `False` | Continue the previous run of the same identity. |
+| `summary` | `"last"` | Which value of each series is the run's metric: `last`, `min`, `max`, `mean`, `none`, or a mapping by series. |
+| `database` | The project's | The inputs' database, when `input` is a path under another one. |
+| `platform` | This machine's | `linux` or `windows`. |
+| `capture_output` | `True` | Save what the process prints in the run's *log.txt*. |
+| `server`, `token` | Those `qa` uses | Another server, or a token. |
+
+</details>
+
+## What it doesn't do yet {#limits}
+- **Compare runs across batches or commits on one plot.** The **Summary** view plots the runs of one batch
+  together, up to 40, and each with its reference run.
+- **Images per step, system metrics (GPU, memory), alerts, a model registry.** Save images as files of the run;
+  link to your registry with [badges](/docs/deep-learning#workflows).
+- **Sweeps.** Loop over configurations in your script, or use [automated tuning](/docs/auto-optimization) with
+  `qa run`.
+- **Sending a run later** when the server was away for the whole run: its files are complete, but only a run that
+  reaches the server once shows in the web app.
+- **A server from before this feature** shows the run and its files, and its metrics when it ends. The curves
+  and the metrics of running runs need a server of November 2026 or later.
+
+More on the [roadmap](/docs/roadmap#log-from-your-code).

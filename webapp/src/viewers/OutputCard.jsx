@@ -17,7 +17,7 @@ import {
 
 import { OutputViewer } from "./OutputViewer";
 import { config_visualizations } from "./controls";
-import { is_visualization_shown, run_shown } from "./runView";
+import { is_visualization_shown, run_shown, with_logged_series } from "./runView";
 import { MetricsTags } from "../components/metrics";
 import { ConfigurationsTags, OutputTags, PlatformTag, StatusTag, RunBadges, style_skeleton } from '../components/tags'
 import { runTime } from '../components/RunInfoMenu'
@@ -397,10 +397,14 @@ const OutputCard = memo(function OutputCard(props) {
   }
   const error = { new: query_new.error, reference: query_ref.error, parse: parse_errors.length > 0 ? parse_errors : undefined, registration: registration_error };
 
-  const views = config_visualizations(config?.outputs);
+  const configured_views = config_visualizations(config?.outputs);
+  // Runs that logged series (run.log() in Python) show them without anything in qaboard.yaml, before the project's
+  // visualizations. Projects that list the file themselves choose where it goes, and whether it starts hidden.
+  const views = with_logged_series(configured_views, manifest_new, output_new);
   // what users chose in the view options, else what the run asks to show (its `view`), else the project's defaults
   const shown_by_run = run_shown(output_new, views);
-  const is_shown = view => is_visualization_shown(view, controls, shown_by_run);
+  // the logged series aren't one of the project's visualizations: what runs ask to show doesn't hide them
+  const is_shown = view => view.logged_series || is_visualization_shown(view, controls, shown_by_run);
 
   // we display the input for each option before the first visualization that uses it
   const already_shown_options = new Set();

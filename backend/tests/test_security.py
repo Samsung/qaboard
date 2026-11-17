@@ -452,6 +452,9 @@ UNAUTHENTICATED_ENDPOINTS = {
   ("sign_in.py", "my_access_request"),
   # the CLI sends results, checked by ingest_access: anonymous unless ingest.auth is "token" (see "Known issues" in SECURITY.md)
   ("outputs.py", "new_output_webhook"), ("batch.py", "update_batch"), ("commit.py", "api_ci_commit"),
+  # runs started from code (qaboard.start_run()) report their metrics while they run: the same ingest_access as the
+  # results above, since whoever could create the run can say how it goes. Only for runs that are running
+  ("outputs.py", "report_output_progress"),
   # scripts add metrics to runs (run.log_metrics() in the SDK): a token with the ingest scope is always required (ingest_access(require_token=True))
   ("outputs.py", "add_output_metrics"),
   # the web app and the CLI send usage events (backend/usage.py): the CLI's are unverified without a token, dropped

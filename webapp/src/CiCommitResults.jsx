@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import styled from "styled-components";
 
 import {
@@ -27,6 +27,7 @@ import { BatchesEditor } from "./components/tuning/BatchesEditor";
 import TuningAnalysis from "./components/tuning/TuningAnalysis";
 import TuningBanner from "./components/tuning/TuningBanner";
 import { useViewerControls, controls_changes, controls_defaults, config_visualizations } from "./viewers/controls";
+import { started_from_code } from "./viewers/runView";
 import { ExportPlugin } from "./plugins/ExportPlugin";
 import { LegacyExportPlugin } from "./plugins/LegacyExportPlugin";
 import { ScriptPlugin } from "./plugins/ScriptPlugin";
@@ -44,6 +45,9 @@ import { shared_configuration, reference_pairs, changes_in_all_runs } from "./co
 import { useCommitTab } from "./pageTitle";
 import { RunOriginsContext, useRunOriginsValue } from "./components/runNames";
 import { OutputCardDensityControl } from "./components/DensityControl";
+
+// what the runs logged while they ran, all on the same plots: Plotly is only loaded for batches that have some
+const SeriesComparison = lazy(() => import("./viewers/SeriesComparison"));
 
 
 // Every view of the commit: its title (and maybe a few muted details) on one row above its content
@@ -193,6 +197,9 @@ const CiCommitResults = () => {
   const config_outputs = config.outputs || {};
   const controls_extra = config_outputs.controls || []
   const visualizations = config_visualizations(config_outputs);
+  // Runs started from code (qaboard.start_run()) show the series they logged without any visualization in qaboard.yaml
+  const has_logged_runs = new_batch.filtered.outputs.some(id => started_from_code(new_batch.outputs[id]));
+  const has_cards = visualizations.length > 0 || has_logged_runs;
   const tuned_params = new_batch.sorted_extra_parameters.filter(p => new_batch.extra_parameters[p].size > 1)
   const has_tuning = tuned_params.length > 0
   const show_ref_navbar = shows_reference_bar(selected_views)
@@ -364,6 +371,10 @@ const CiCommitResults = () => {
                   labels={comparison.labels}
                 />
               </Card>
+              {/* what the runs logged while they ran (qaboard.start_run()): all the runs on the same plots */}
+              {has_logged_runs && <Suspense fallback={null}>
+                <SeriesComparison new_batch={new_batch} ref_batch={ref_batch} controls={controls} onControlsChange={updateControls} labels={comparison.labels}/>
+              </Suspense>}
              </ViewSection>}
 
             {views.includes('parameters') && <ViewSection>
@@ -461,8 +472,8 @@ const CiCommitResults = () => {
              </ViewSection>}
 
             {views.includes('output-list') && <ViewSection>
-              <ViewTitle title="Visualizations" actions={visualizations.length > 0 ? cards_actions : script_plugin}/>
-              {visualizations.length === 0
+              <ViewTitle title="Visualizations" actions={has_cards ? cards_actions : script_plugin}/>
+              {!has_cards
                 ? <NonIdealState
                     icon="heatmap"
                     title="Visualizations are not configured yet."

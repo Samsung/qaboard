@@ -42,6 +42,10 @@ _LAZY = {
   'runs': ('.results', 'runs'),
   'Run': ('.results', 'Run'),
   'Runs': ('.results', 'Runs'),
+  # Runs created from your code, without `qa run`: training loops, notebooks (experimental)
+  'start_run': ('.active_run', 'start_run'),
+  'current_run': ('.active_run', 'current_run'),
+  'ActiveRun': ('.active_run', 'ActiveRun'),
   # what wrapped code imports
   'qa': ('.qa', 'qa'),
   'Context': ('.run', 'RunContext'),

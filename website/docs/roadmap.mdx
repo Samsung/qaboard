@@ -71,12 +71,14 @@ interrupted. **Tuning Analysis** says what it found and what to do next. See
 
 <RoadmapItem status="next" title="Overlay plots from N runs">
 The Plotly figures that runs write (`*.plotly.json`) are already overlaid for the new and reference runs (see
-[Visualizations](/docs/visualizations)). Overlay them from N runs: convergence curves, precision-recall curves,
-latency distributions.
+[Visualizations](/docs/visualizations)). Overlay them from N runs: precision-recall curves, latency distributions. The series runs log from code are
+already plotted together for the runs of a batch, in the **Summary** view; next, runs from several batches and
+commits.
 </RoadmapItem>
 
-<RoadmapItem status="exploring" title="Step-indexed metrics">
-Log metrics per step or epoch, not only final values, so that each run carries its training curve.
+<RoadmapItem status="experimental" title="Step-indexed metrics">
+Log values per step or epoch with `run.log()`, not only final metrics: each run carries its training curves, plotted
+next to the reference run's ([log from your code](/docs/log-from-code#series)).
 </RoadmapItem>
 
 <RoadmapItem status="exploring" title="Parameters across any runs">
@@ -119,11 +121,17 @@ graph against the reference's profile, with a table of the top functions (see
 [profiles and flame graphs](/docs/flame-graphs)).
 </RoadmapItem>
 
-<RoadmapItem status="next" title="A Python SDK that creates runs">
-`start_run(...)` from training loops, notebooks and pytest, without `qa run`: `log()` with a `step` for the values
-logged during training, `log_params()`, `finish()`, with the method names people know from the usual
-experiment trackers. These runs show in the web app like any other. The design is in the repository,
+<RoadmapItem status="experimental" title="Create runs from Python, and log while they run">
+`qaboard.start_run(...)` from training loops, notebooks and scripts, without `qa run`: `log()` with a `step` for the
+values logged during training, `log_metrics()`, `log_params()`, `log_artifact()`, `finish()`. These runs show in the
+web app like any other, with the curves of what they logged next to the reference run's, while they run
+([log from your code](/docs/log-from-code)). The design is in the repository,
 [`docs/rfcs/python-sdk-runs.md`](https://github.com/Samsung/qaboard/blob/master/docs/rfcs/python-sdk-runs.md).
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="More to log from code">
+Images per step, system metrics (GPU memory and utilization), sending later the runs logged while the server was
+away, and a pytest plugin that makes a run of a test session.
 </RoadmapItem>
 
 <RoadmapItem status="exploring" title="A wandb.log shim">

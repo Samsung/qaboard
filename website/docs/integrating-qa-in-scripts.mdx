@@ -16,7 +16,7 @@ over HTTP. Pick the way in that fits what you have:
 | Compute metrics for a whole batch with the project's own code | `postprocess()` and `qa batch --action-on-existing postprocess` | [Postprocessing](/docs/running-your-code#postprocess) |
 | Know whether a commit regressed against its reference | `qa gate --json`, `/api/v1/commit/<sha>/compare` | [Quality gate](/docs/quality-gate#from-scripts-and-agents), [HTTP API](/docs/http-api#compare) |
 | Everything else, from any language: commits, branches, projects, a run's files, milestones | the HTTP API at `/api/v1` | [HTTP API](/docs/http-api) |
-| Create runs from a training loop or a notebook, without `qa run` | not yet: see the [roadmap](/docs/roadmap#log-from-your-code) | |
+| Create runs from a training loop or a notebook, without `qa run`, and log while they run | `qaboard.start_run()` (Python, experimental) | [Log from your code](/docs/log-from-code) |
 
 Coding agents get the same, packaged as [skills](/docs/agents).
 
@@ -48,6 +48,7 @@ Each `Run` has:
 | `params` | The mappings of `configs` merged, and the parameters the run reported: like `context.params`. Usually all you need. |
 | `metrics` | The run's metrics: those it returned, and those [added](#log) by scripts. |
 | `output_dir` | Where its files are, as a `Path`: like `context.output_dir`. |
+| `series(key)` | What the run logged while it ran with [`run.log()`](/docs/log-from-code#series): `(step, value, time)` rows, empty when it logged no such series. |
 | `state`, `is_failed` | `pending`, `running` or `finished`; whether it failed. |
 | `id`, `commit`, `batch`, `project`, `url` | Where it is in QA-Board, and its link in the web app. |
 | `type`, `input_metadata`, `data`, `created_at`, `finished_at` | The input's type and metadata, what else the server knows (who ran it, where...), when. |

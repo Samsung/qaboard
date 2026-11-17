@@ -228,6 +228,38 @@ The viewer shows each benchmark next to the reference run's, with the change and
 The harnesses' commands, `benchmark_metrics` to make each benchmark a metric, and QA-Board's own format:
 [Benchmark suites](/docs/benchmarks).
 
+## Logged series {#series}
+**Files:** *series.json* and *series.jsonl*, written by [`run.log()`](/docs/log-from-code#series) in runs started
+from Python; files named *\*.series.json* or *\*.series.jsonl*; or any file with `type: series`.
+
+The viewer plots each series against the reference run's, and follows runs that are running. **For runs started from Python, it
+shows on the card without a visualization in *qaboard.yaml***, before the project's visualizations. List it yourself
+to place it elsewhere, to hide it by default, or to show the file another program wrote:
+
+```yaml title="qaboard.yaml"
+outputs:
+  visualizations:
+    - name: Training curves
+      path: series.json
+      default_hidden: true
+```
+
+Programs in any language can write a *series.jsonl* in the run's output directory: one JSON object per line, with
+the step, the time in seconds since the epoch, and the values logged together.
+
+```json
+{"_step": 120, "_time": 1731500000.5, "train/loss": 0.31, "lr": 0.001}
+{"_step": 121, "_time": 1731500001.0, "train/loss": 0.30, "val/loss": 0.42}
+```
+
+- Values are numbers. Write `"NaN"`, `"Infinity"` and `"-Infinity"` as texts: they show as gaps.
+- Lines without `_step` count from the previous one. Lines that aren't objects are skipped, like a last line cut
+  when the run was killed.
+- The viewer keeps 500 to 1000 points per series, and shows the range of the values each point stands for: long
+  runs stay fast, and a spike still shows. *series.json* is that reduced version, written by the Python package
+  next to the full *series.jsonl*, so that the web app doesn't download the whole history.
+- A file with one of these names that isn't a series file is shown as text, with a line that says why.
+
 ## Text {#text}
 **Files:** any file no other viewer opens, like *.txt*, *.json*, *.yaml* or *.log*, or `type: text/plain`.
 

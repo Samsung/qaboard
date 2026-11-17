@@ -93,6 +93,7 @@ export const applyTemplate = (layout, dark) => {
 // or for these points: [{curveNumber, pointNumber}]. E.g. from the keyboard
 export const hover = (gd, where) => Plotly.Fx.hover(gd, where);
 export const unhover = gd => Plotly.Fx.unhover(gd);
+export const restyle = (gd, update) => gd.isConnected ? Plotly.restyle(gd, update) : undefined;
 
 const PlotlyPlot = props => {
   const dark = useIsDark();

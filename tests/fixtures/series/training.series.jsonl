@@ -1,0 +1,14 @@
+{"_step":0,"_time":1731500000.0,"train/loss":2.5,"lr":0.001}
+{"_step":1,"_time":1731500000.5,"train/loss":1.75,"lr":0.001}
+{"_step":2,"_time":1731500001.0,"train/loss":1.25,"lr":0.001,"val/loss":1.5}
+{"_step":3,"_time":1731500001.5,"train/loss":"NaN","lr":0.0005}
+{"_step":4,"_time":1731500002.0,"train/loss":0.75,"lr":0.0005,"note":"texts are skipped","ok":true}
+not json
+
+[1, 2, 3]
+{"_step":99,"_time":1731500002.2,"train/loss":NaN}
+{"_time":1731500002.5,"train/loss":0.5,"lr":0.0005}
+{"_step":6,"_time":1731500003.0,"train/loss":"Infinity","val/loss":1.0}
+{"_step":7.0,"_time":1731500003.5,"train/loss":0.25,"lr":0.00025}
+{"_step":8,"_time":1731500004.0,"train/loss":0.125,"lr":0.00025,"val/loss":0.75}
+{"_step":9,"_time":1731500004.5,"train/loss":0.0625,"lr":0.0002

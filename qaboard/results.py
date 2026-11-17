@@ -10,9 +10,10 @@ The URL is the one in the browser: `runs()` reads the project, commit, batch and
 `qa runs <url>` does the same from the shell.
 
 `run.log_metrics({...})` adds metrics to a run: the server merges them and remembers who added them, with which
-script. `run.log_artifact(name, file)` adds a file to the run's folder, without overwriting anything. `Run` is also what runs created without `qa` as the entrypoint (training loops, evals) will be made of, once
-the SDK can create runs (docs/rfcs/python-sdk-runs.md). Its attributes are named like the `context` your `run()`
-function gets (qaboard/run.py): `configs`, `params`, `output_dir`, `input_path`...
+script. `run.log_artifact(name, file)` adds a file to the run's folder, without overwriting anything.
+`run.series(key)` reads what it logged while it ran. Runs created without `qa` as the entrypoint (training loops,
+evals: `qaboard.start_run()`, qaboard/active_run.py) give the same `Run`. Its attributes are named like the
+`context` your `run()` function gets (qaboard/run.py): `configs`, `params`, `output_dir`, `input_path`...
 
 This module doesn't need a qaboard.yaml: it only talks to the server, found in the URL. It reads the token to send
 like the rest of qa (qaboard/credentials.py).
@@ -32,6 +33,7 @@ from .compat import url_to_dir
 from .credentials import resolve_token, refusal, default_server, same_server, read_hosts, find_login, ENV_TOKENS
 from .filters import filter_runs, run_params
 from .metrics import split_metrics, declared_metrics
+from .series import Point
 from .site_config import site_config, as_requests_verify
 
 
@@ -44,7 +46,14 @@ SIDES = ('new', 'reference')
 
 
 class ResultsError(Exception):
-  """The server could not give the runs: unknown project or commit, refused request, network error..."""
+  """
+  The server could not give the runs: unknown project or commit, refused request, network error...
+  `status` is its HTTP status when it answered, `reason` why it refused the request (e.g. "missing_role").
+  """
+  def __init__(self, message: str, status: Optional[int] = None, reason: Optional[str] = None):
+    super().__init__(message)
+    self.status = status
+    self.reason = reason
 
 
 @dataclass(frozen=True)
@@ -340,6 +349,16 @@ class Run:
         print(f"WARNING: {target} is written, but the web app may not list it yet: {e}", file=sys.stderr)
     return target
 
+  def series(self, key: str) -> 'List[Point]':
+    """
+    What the run logged for `key` while it ran, with `run.log({key: value}, step=...)`: `(step, value, time)` rows,
+    read from the series.jsonl of its folder (qaboard/series.py). Empty when it logged no such series.
+    """
+    if not self.output_dir:
+      return []
+    from .series import read_series
+    return read_series(self.output_dir, key)
+
   def to_dict(self) -> Dict[str, Any]:
     """The run as JSON-friendly data: what `qa runs --json` prints"""
     d = {f.name: _plain(getattr(self, f.name)) for f in fields(self)}
@@ -413,14 +432,14 @@ def _token_for(server: str, token: Optional[str]) -> Optional[str]:
 
 
 def _request(server: str, path: str, params: Optional[Dict[str, Any]] = None, token: Optional[str] = None,
-             method: str = 'GET', json: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+             method: str = 'GET', json: Optional[Dict[str, Any]] = None, timeout: Optional[Tuple[float, float]] = None) -> Dict[str, Any]:
   import requests
   token = _token_for(server, token)
   headers = {'Authorization': f"Bearer {token}"} if token else {}
   verify = as_requests_verify(site_config('QABOARD_API_VERIFY'))
   url = f"{server}/api/v1/{path}"
   try:
-    r = requests.request(method, url, params=params, json=json, headers=headers, verify=verify, timeout=REQUEST_TIMEOUT)
+    r = requests.request(method, url, params=params, json=json, headers=headers, verify=verify, timeout=timeout or REQUEST_TIMEOUT)
   except requests.RequestException as e:
     raise ResultsError(f"Could not reach {server}: {e}") from e
   if r.status_code >= 400:
@@ -428,12 +447,12 @@ def _request(server: str, path: str, params: Optional[Dict[str, Any]] = None, to
     if refused:
       scope = 'ingest' if method != 'GET' else 'read'
       hint = f"Sign in with `qa auth login {server}`, or set QABOARD_TOKEN to a token with the {scope} scope." if refused.get('reason') in ('login_required', 'ingest_token_required', 'missing_scope', 'token_expired', 'invalid_token') else "Ask the project's owners for access."
-      raise ResultsError(f"{refused['error']} ({refused.get('reason')}). {hint}")
+      raise ResultsError(f"{refused['error']} ({refused.get('reason')}). {hint}", status=r.status_code, reason=refused.get('reason') or 'refused')
     try:
       message = r.json().get('error') or r.text
     except ValueError:
       message = r.text
-    raise ResultsError(f"{server} answered {r.status_code} to {path} ({params}): {message}")
+    raise ResultsError(f"{server} answered {r.status_code} to {path} ({params}): {message}", status=r.status_code)
   try:
     return r.json()
   except ValueError as e:

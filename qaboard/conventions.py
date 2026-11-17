@@ -223,9 +223,12 @@ def get_commit_dirs(commit, repo_root: Optional[Path]=None) -> Path:
         return repo_root.resolve()
   else: # likely a gitpython Commit object...
     commit_id = commit.hexsha
-  # git hex hashes are size 40. For us 16 should be plenty enough...
-  dir_name = f'{commit_id[:2]}/{commit_id[2:16]}'
-  return Path(dir_name)
+  return commit_dir_name(commit_id)
+
+
+def commit_dir_name(commit_id: str) -> Path:
+  """A commit's folder under its project's, in the storage. git hex hashes are size 40. For us 16 should be plenty enough..."""
+  return Path(f'{commit_id[:2]}/{commit_id[2:16]}')
 
 
 # backward compatibility for the CI of HW_ALG (tools/ci_scripts/find_valid_build.py) and has to exist for tof/swip_tof's runs

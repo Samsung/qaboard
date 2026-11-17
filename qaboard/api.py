@@ -6,7 +6,6 @@ import re
 import sys
 import json
 from pathlib import Path
-from copy import deepcopy
 from functools import lru_cache
 from urllib.parse import quote, urlparse
 from typing import Any, Dict, Optional, List
@@ -20,6 +19,7 @@ from .site_config import site_config, as_requests_verify
 from .credentials import resolve_token, default_server, refusal, fix_for
 from .auth import print_server_warning, first_time
 from .compat import url_to_dir # noqa: F401 (qaboard.api.url_to_dir is used across qa)
+from .payloads import results_payload, serialize_path, serialize_paths # noqa: F401 (qaboard.api.serialize_paths is used across qa)
 
 qaboard_protocol = site_config('QABOARD_PROTOCOL', 'http')
 qaboard_hostname = site_config('QABOARD_HOSTNAME')
@@ -138,32 +138,6 @@ def print_url(ctx, status="starting"):
 
 
 
-def serialize_path(path):
-  from .config import on_windows
-  from .compat import windows_to_linux_path
-  value = path
-  if on_windows:
-    try:
-      value = windows_to_linux_path(path)
-    except Exception:
-      pass
-    # The server expects to receive paths that are linux-style
-    if issubclass(type(value), Path):
-      value = value.as_posix()
-  return str(value)
-
-
-def serialize_paths(data):
-  """Serialize recursively Path to strings"""
-  if issubclass(type(data), Path):
-    data = serialize_path(data)
-  elif isinstance(data, dict):
-    data = {key: serialize_paths(value) for key, value in data.items()}
-  elif isinstance(data, list):
-    data = [serialize_paths(value) for value in data]
-  return data
-
-
 def makeNumpyEncoder():
   # We can't use requests' json serialization (simplejson or json) because it fails with numpy arrays
   import simplejson
@@ -184,8 +158,7 @@ def notify_qa_database(object_type='output', **kwargs):
   Updating the QA database.
   """
   import requests
-  from .config import is_ci, config, _metrics, run_context
-  from .config import commit_id, commit_branch, commit_tag, commit_committer_name, commit_committer_email, commit_author_email, commit_authored_datetime, commit_parents, commit_message
+  from .config import is_ci, config, _metrics, run_context, commit_id, commit_data
 
   if kwargs.get('offline'):
     return
@@ -195,29 +168,8 @@ def notify_qa_database(object_type='output', **kwargs):
     return
 
   url = f"{api_prefix}/{object_type}/"
-  data = {
-    'job_type': 'ci' if is_ci else 'local',
-    # where it runs, more precisely: older servers ignore it
-    'run_context': run_context(),
-    'commit_sha': commit_id,
-    'git_commit_sha': commit_id, # backward compat for now
-    # send all the data, with some light custom serialization for Path objects
-    **serialize_paths(kwargs),
-  }
-  # Will help initialize/update the commit/batch in QA-Board.
-  # We send it with every object type, even if it's wasteful: it makes init easier
-  data.update({
-    'commit_branch': commit_branch,
-    'commit_tag': commit_tag,
-    'commit_committer_name': commit_committer_name,
-    'commit_committer_email': commit_committer_email,
-    'commit_author_email': commit_author_email,
-    'commit_authored_datetime': commit_authored_datetime,
-    'commit_parents': commit_parents,
-    'commit_message': commit_message,
-    "qaboard_config": serialize_paths(deepcopy(config)),
-    "qaboard_metrics": _metrics,
-  })
+  # send all the data, with where it comes from and what describes its commit and project (qaboard/payloads.py)
+  data = results_payload(kwargs, is_ci=is_ci, run_context=run_context(), commit_id=commit_id, commit=commit_data(), config=config, metrics_file=_metrics)
   if 'QA_VERBOSE' in os.environ:
     click.secho(url, fg='cyan', err=True)
     click.secho(str(data), fg='cyan', dim=True, err=True)

@@ -1,4 +1,5 @@
 import datetime
+import json
 import math
 
 from typing import Optional
@@ -34,6 +35,9 @@ SOURCE_KEYS = ('script', 'script_sha256', 'qaboard_version', 'note')
 # At most that many metrics added per request, and their text values' length: they're parsed by every view of the batch
 MAX_ADDED_METRICS = 500
 MAX_ADDED_TEXT = 500
+# What a running run reports (report_output_progress): its metrics so far, and its parameters as JSON
+MAX_PROGRESS_METRICS = 2000
+MAX_PROGRESS_PARAMS_SIZE = 100_000
 
 
 def added_metrics_of(data) -> dict:
@@ -69,12 +73,14 @@ def current_data(output) -> dict:
   return data if isinstance(data, dict) else (output.data if isinstance(output.data, dict) else {})
 
 
-def invalid_added_metrics(metrics) -> Optional[str]:
+def invalid_added_metrics(metrics, max_metrics=MAX_ADDED_METRICS, allow_empty=False) -> Optional[str]:
   """Why scripts can't add these metrics: values must be finite numbers, booleans, short texts or null, with sane keys."""
-  if not isinstance(metrics, dict) or not metrics:
+  if not isinstance(metrics, dict):
+    return '`metrics` must be an object: {"metrics": {"sharpness": 0.4}}'
+  if not metrics and not allow_empty:
     return '`metrics` must be an object with at least one metric: {"metrics": {"sharpness": 0.4}}'
-  if len(metrics) > MAX_ADDED_METRICS:
-    return f"at most {MAX_ADDED_METRICS} metrics per request"
+  if len(metrics) > max_metrics:
+    return f"at most {max_metrics} metrics per request"
   for key, value in metrics.items():
     if not isinstance(key, str) or not key or len(key) > MAX_KEY_LENGTH or key in FORBIDDEN_KEYS:
       return f"invalid metric name: {str(key)[:50]!r}"
@@ -239,6 +245,70 @@ def add_output_metrics(output_id):
       db_session.rollback()
       print(f"WARNING: could not save the metrics definitions added to output {output_id}: {e}")
   return jsonify({**output.to_dict(), "added": added})
+
+
+@app.route("/api/v1/output/<output_id>/progress", methods=['PATCH'])
+@app.route("/api/v1/output/<output_id>/progress/", methods=['PATCH'])
+def report_output_progress(output_id):
+  """
+  What a running run looks like so far: its metrics, and the parameters it reported. Runs started from code
+  (`qaboard.start_run()`) send it every few seconds while they log, so that the web app shows them before they end.
+  It replaces what the run said before: the run sends everything each time, nothing has to arrive in order.
+  Only for runs that are running: when a run ends, POST /api/v1/output/ says its final metrics, as always.
+  Same access as the results `qa` sends (ingest.auth). Much lighter than POST /api/v1/output/: no commit, batch or
+  configuration to find or update.
+  """
+  project_id = None
+  try:
+    project_id = Output.query.filter(Output.id==output_id).one().batch.ci_commit.project_id
+  except NoResultFound:
+    pass
+  # who can't see the project doesn't learn whether the run exists
+  if project_id is None or not is_authorized_user(None, project_id):
+    if project_id is not None:
+      return forbidden_project(project_id)
+    return jsonify({"error": f"Cannot find output {output_id}"}), 404
+  submitted_by, error = ingest_access(project_id)
+  if error:
+    return error
+  data = request.get_json(silent=True) or {}
+  metrics = data.get('metrics', {})
+  if problem := invalid_added_metrics(metrics, max_metrics=MAX_PROGRESS_METRICS, allow_empty=True):
+    return jsonify({"error": problem}), 400
+  params = data.get('params')
+  if params is not None and (not isinstance(params, dict) or len(json.dumps(params)) > MAX_PROGRESS_PARAMS_SIZE):
+    return jsonify({"error": f"`params` must be an object, of at most {MAX_PROGRESS_PARAMS_SIZE} characters as JSON"}), 400
+  # only now the lock: callers we refuse don't hold up the run's own updates
+  try:
+    output = Output.query.filter(Output.id==output_id).with_for_update().one()
+  except NoResultFound:
+    return jsonify({"error": f"Cannot find output {output_id}"}), 404
+  if not (output.is_pending and output.is_running):
+    return jsonify({"error": "The run isn't running: only running runs report their progress", "reason": "not_running"}), 409
+
+  # the metrics scripts added to a previous attempt stay, unless the run now logs them
+  output.metrics = with_added_metrics(output, metrics, current_data(output))
+  flag_modified(output, "metrics")
+  if params is not None:
+    if not output.data:
+      output.data = {}
+    output.data['params'] = params
+    flag_modified(output, "data")
+  db_session.add(output)
+  db_session.commit()
+
+  definitions = data.get('metrics_definitions')
+  if isinstance(definitions, dict) and definitions:
+    ci_commit = output.batch.ci_commit
+    definitions = {k: v for k, v in definitions.items() if k in metrics}
+    project_data = getattr(ci_commit.project, 'data', None)
+    project_config = project_data.get('qatools_config') if isinstance(project_data, dict) else None
+    try:
+      save_metrics_definitions(db_session, ci_commit, {'metrics_definitions': definitions, 'commit_branch': ci_commit.branch, 'qaboard_config': project_config})
+    except Exception as e:
+      db_session.rollback()
+      print(f"WARNING: could not save the metrics definitions of the running output {output_id}: {e}")
+  return jsonify(output.to_dict())
 
 
 @app.route('/api/v1/output/redo/<output_id>', methods=['POST'])

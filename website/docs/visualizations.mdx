@@ -47,6 +47,7 @@ The extension picks the viewer. Set `type` when it doesn't say, e.g. `type: 6dof
 | *.plotly.json*, *.plotly.html* | `plotly/json`, `plotly/html` | **Plot**, side by side or on the same axes | [Plots](/docs/user-guide/other-viewers#plots) |
 | *.folded*, *.collapsed*, *.stacks.txt*, *.speedscope.json*, *.cpuprofile*, *.flame.json* ([from your profiler](/docs/flame-graphs)) | any `flame/...` | **Flame graph**, differential, with the top functions | [Flame graphs](/docs/user-guide/other-viewers#flame-graphs) |
 | *benchmarks.json*, *\*.benchmarks.json*, *\*-bench.json*... ([from your harness](/docs/benchmarks)) | `benchmarks` | **Benchmarks**, each against the reference's, beyond noise or within it | [Benchmarks](/docs/user-guide/other-viewers#benchmarks) |
+| *series.json*, *series.jsonl*, *\*.series.json* ([logged from your code](/docs/log-from-code)) | `series` | **Logged series**: one plot per series, the reference's on the same axes | [Logged series](/docs/user-guide/other-viewers#logged-series) |
 | *junit.xml*, *\*.junit.xml*, *TEST-\*.xml* | `junit/xml` | **Test report**: new failures, fixed, flaky tests | [Test reports](/docs/user-guide/other-viewers#test-reports) |
 | *.html* | `text/html` | **HTML**, in a frame, without scripts | [HTML reports](/docs/user-guide/other-viewers#html-reports) |
 | *.pcd* | `pointcloud/pcd` | **Point cloud** in 3D, with the reference's and a ground truth | [Point clouds](/docs/user-guide/other-viewers#point-clouds-and-trajectories) |

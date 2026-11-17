@@ -406,6 +406,20 @@ QA-Board records who added each metric, when and with which script, in the run's
 run returned itself are refused (`409`, `metrics_exist`) unless you send `"overwrite": true`. From Python,
 `run.log_metrics()` does it: see [Add metrics to runs](/docs/apis#log).
 
+### Report a running run's metrics {#progress}
+A run that says it is running (`POST /output/` with `is_pending` and `is_running`) can report its metrics and
+parameters so far, as often as it wants, so that the web app shows them before it ends. Each request replaces what
+the run said before:
+
+```bash
+curl -X PATCH -H "Authorization: Bearer $QABOARD_TOKEN" -H "Content-Type: application/json" \
+  -d '{"metrics": {"train/loss": 0.31}, "params": {"device": "cuda:0"}}' \
+  "$QABOARD_URL/api/v1/output/184467/progress"
+```
+
+It answers `409` (`not_running`) once the run has ended. From Python, [`qaboard.start_run()`](/docs/log-from-code)
+does it for you.
+
 ### Starting runs and batches {#act}
 Redoing runs and starting batches from the API needs a token with the `act` scope. These endpoints serve the web app,
 aren't in the reference yet, and may change: from scripts, prefer `qa batch` in a checkout of the project, or start

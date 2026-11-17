@@ -370,6 +370,59 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
 
+  /output/{output_id}/progress:
+    patch:
+      tags: [Runs]
+      operationId: reportRunProgress
+      summary: Report a running run's metrics so far
+      description: |
+        What a running run looks like so far: its metrics and the parameters it reported. Runs started from Python
+        with `qaboard.start_run()` send it every few seconds while they log, so that the web app shows them before
+        they end. Each request replaces what the run said before. When the run ends, `POST /output/` says its final
+        metrics.
+
+        Same access as the results `qa` sends.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/outputId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                metrics:
+                  type: object
+                  description: At most 2000. Values are finite numbers, booleans, texts (500 characters at most) or null.
+                  additionalProperties:
+                    type: [number, boolean, string, "null"]
+                params:
+                  type: object
+                  description: The parameters the run reports, shown with its configuration.
+                metrics_definitions:
+                  type: object
+                  description: How to show the metrics, as in a metrics file (label, suffix, smaller_is_better, target...).
+                  additionalProperties: {$ref: "#/components/schemas/MetricDefinition"}
+            example:
+              metrics: {"train/loss": 0.31, "val/loss": 0.42}
+              params: {optimizer: adamw}
+      responses:
+        "200":
+          description: The run.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Run"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409":
+          description: "The run isn't running (`reason: not_running`)."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+
   /output/{output_id}/metrics:
     patch:
       tags: [Runs]
