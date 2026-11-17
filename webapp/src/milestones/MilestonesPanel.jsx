@@ -1,9 +1,11 @@
 // The list of a project's milestones, to pick one: in the commit bars' Change menu and in the sidebar.
 // Your favorites first, then your milestones, the project's shared milestones, and the references from qaboard.yaml.
 // Milestones are listed by group ("tuning/denoiser" nests), and the search box matches everything they say.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import styled from "styled-components";
 import { DateTime } from "luxon";
+import { Icons } from "@blueprintjs/icons";
 import {
   Button,
   Callout,
@@ -19,17 +21,18 @@ import {
 } from "@blueprintjs/core";
 
 import AuthButton from "../components/authentication/Auth";
-import { useUser } from "../hooks";
+import { useUser, useComparison } from "../hooks";
 import { usePrefsStore } from "../stores/prefs";
 import { match_query, pretty_label } from "../utils";
 import { copyWithToast } from "../utils/clipboard";
 import {
   milestone_name, milestone_url, owner_name, relative_date, results_project, group_parts,
-  milestone_search_text, runs_matches, dataset_label,
+  milestone_search_text, runs_matches, dataset_label, is_milestone_side, prefetch_milestone, comparison_sides,
 } from "./api";
 import { useMilestones, useMilestoneActions, useLegacyMilestones, count_legacy } from "./hooks";
 import { openMilestoneDialog } from "./MilestoneDialog";
 import { openManageMilestones } from "./ManageMilestones";
+import { SideTags, side_tag_style } from "./SideTags";
 
 
 const Panel = styled(Menu)`
@@ -46,12 +49,23 @@ const Panel = styled(Menu)`
     padding: 6px 0;
     background: inherit;
   }
+  .qa-milestone-name-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
   .qa-milestone-name {
     font-weight: 500;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    min-width: 0;
   }
+  .qa-milestone-name-row > .bp6-tag {
+    flex: none;
+  }
+  ${side_tag_style}
   .qa-milestone-meta {
     font-size: 12px;
     overflow: hidden;
@@ -154,13 +168,65 @@ const build_tree = (milestones, root_path, prefix = '') => {
 };
 
 
+// Menus draw their rows all at once, ~1 ms each: with hundreds of milestones, opening and closing them would freeze
+// the page. Each section shows its latest milestones (in their groups), and "Show all" the others.
+const shown_per_section = 40;
+
+// The tree with only the milestones in `keep`, and the groups that have some. Groups keep their counts.
+const prune = (node, keep) => ({
+  ...node,
+  milestones: node.milestones.filter(m => keep.has(m)),
+  groups: node.groups.map(g => prune(g, keep)).filter(g => g.milestones.length + g.groups.length > 0),
+});
+
+// `milestones` as a tree, maybe only the latest. Returns {tree, hidden}: the number of milestones left out
+const limited_tree = (milestones, root_path, show_all) => {
+  const tree = build_tree(milestones, root_path);
+  if (show_all || milestones.length <= shown_per_section) return { tree, hidden: 0 };
+  const keep = new Set([...milestones].sort(by_date).slice(0, shown_per_section));
+  return { tree: prune(tree, keep), hidden: milestones.length - keep.size };
+};
+
+const ShowAll = ({ hidden, onClick }) => <MenuItem
+  icon="more"
+  shouldDismissPopover={false}
+  text={<span className={Classes.TEXT_MUTED}>Show {hidden} older milestone{hidden > 1 ? 's' : ''}</span>}
+  onClick={onClick}
+/>;
+
+// The icons of the menu, loaded once the page is idle: else the first time it opens, each row loads its own
+const menu_icons = ['star', 'crown', 'heart', 'link', 'edit', 'info-sign', 'layers', 'comment', 'filter', 'folder-open', 'folder-close', 'chevron-down', 'chevron-right', 'search', 'properties', 'manual', 'more', 'git-branch', 'database', 'layout-skew-grid', 'help'];
+const preload_icons = () => Icons.load(menu_icons, 16).catch(() => {});
+if (typeof window !== 'undefined') (window.requestIdleCallback ?? (f => setTimeout(f, 2000)))(preload_icons);
+
+// Hovering a milestone for a moment starts loading its results: picking it then shows them right away
+const useHoverPrefetch = () => {
+  const queryClient = useQueryClient();
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  return {
+    start: m => {
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => prefetch_milestone(queryClient, m, { hover: true }), 150);
+    },
+    cancel: () => clearTimeout(timer.current),
+  };
+};
+
 // `selected`: {project, commit, batch, filter}, to show which milestone is selected
 // `onSelect`: called with a milestone, or {branch} for references from qaboard.yaml
+// `onStack`: to add a milestone to the references, instead of replacing the one shown
 // `before`: menu items to show first
-export const MilestonesPanel = ({ project, project_data, selected, onSelect, docs_root = '/', before, initialSearch = '' }) => {
+export const MilestonesPanel = ({ project, project_data, selected, onSelect, onStack, docs_root = '/', before, initialSearch = '' }) => {
   const user = useUser();
   const { list, favorite_groups, isPending, error } = useMilestones(project);
+  // once for all the rows
+  const { toggleFavorite, toggleGroupFavorite } = useMilestoneActions(project);
+  const hover = useHoverPrefetch();
   const [search, setSearch] = useState(initialSearch);
+  // the sections whose older milestones users asked to see
+  const [show_all, setShowAll] = useState({});
+  const showAll = section => setShowAll(state => ({ ...state, [section]: true }));
   const legacy = useLegacyMilestones();
   const legacy_count = count_legacy(legacy);
 
@@ -188,7 +254,19 @@ export const MilestonesPanel = ({ project, project_data, selected, onSelect, doc
 
   const is_selected = m => !!selected && results_project(m) === selected.project && !!selected.commit
     && (selected.commit === m.commit || selected.commit.startsWith(m.commit)) && (m.batch || 'default') === (selected.batch || 'default') && (m.filter || '') === (selected.filter || '');
-  const item_props = { onSelect, onEdit: milestone => openMilestoneDialog({ project, milestone }), is_selected, project, favorite_group, search };
+  // where milestones are on the commit page: the new results, a reference
+  const sides = comparison_sides(useComparison());
+  const sides_of = m => sides.filter(side => is_milestone_side(m, side));
+  // ...listed first, in the order of the page: new, then the references
+  const position = m => sides.findIndex(side => is_milestone_side(m, side));
+  const on_page = is_searching || sides.length === 0 ? [] : list.filter(m => position(m) >= 0).sort((a, b) => position(a) - position(b));
+  const item_props = {
+    onSelect, onStack, onEdit: milestone => openMilestoneDialog({ project, milestone }), is_selected, sides_of, project, favorite_group, search,
+    is_logged: user.is_logged, toggleFavorite, toggleGroupFavorite, hover,
+  };
+  const favorites_shown = show_all.favorites ? favorites : favorites.slice(0, shown_per_section);
+  const mine_tree = limited_tree(mine, 'mine', show_all.mine);
+  const team_tree = limited_tree(team, 'team', show_all.shared);
 
   // Enter picks the first result
   const first = favorites[0] ?? mine[0] ?? team[0];
@@ -226,6 +304,11 @@ export const MilestonesPanel = ({ project, project_data, selected, onSelect, doc
       {!!error && <MenuItem disabled icon="error" text={`Could not load the milestones: ${error.message}`} multiline/>}
       {isPending && !error && <MenuItem disabled text={<span className={Classes.SKELETON}>Loading the milestones</span>}/>}
 
+      {on_page.length > 0 && <>
+        <SectionTitle title="On this page" hint="The milestones the page compares: the new results, and the references, in the order of their tabs."/>
+        {on_page.map(m => <MilestoneItem key={`p-${m.id}`} milestone={m} {...item_props} show_owner/>)}
+      </>}
+
       {favorites.length + favorite_trees.length > 0 && <>
         <SectionTitle title="Favorites" count={favorites.length + favorite_trees.length}/>
         {favorite_trees.map(({ section, group, milestones }) => <FavoriteGroup
@@ -236,7 +319,8 @@ export const MilestonesPanel = ({ project, project_data, selected, onSelect, doc
           expand={is_searching}
           {...item_props}
         />)}
-        {favorites.map(m => <MilestoneItem key={`f-${m.id}`} milestone={m} {...item_props} show_owner/>)}
+        {favorites_shown.map(m => <MilestoneItem key={`f-${m.id}`} milestone={m} {...item_props} show_owner/>)}
+        {favorites.length > favorites_shown.length && <ShowAll hidden={favorites.length - favorites_shown.length} onClick={() => showAll('favorites')}/>}
       </>}
 
       {(mine.length > 0 || (!is_searching && !isPending)) && <SectionTitle
@@ -245,7 +329,10 @@ export const MilestonesPanel = ({ project, project_data, selected, onSelect, doc
         hint="Listed only for you, unless you share them. They follow your account."
       />}
       {mine.length > 0
-        ? <Tree node={build_tree(mine, 'mine')} section="mine" expand={is_searching} {...item_props}/>
+        ? <>
+            <Tree node={mine_tree.tree} section="mine" expand={is_searching} {...item_props}/>
+            {mine_tree.hidden > 0 && <ShowAll hidden={mine_tree.hidden} onClick={() => showAll('mine')}/>}
+          </>
         : !is_searching && !isPending && (user.is_logged
           ? <MenuItem disabled multiline icon="star-empty" text={<>None yet. To save the results you're looking at, click <Icon icon="star-empty" size={12}/> next to the commit's hash.</>}/>
           : <MenuItem disabled multiline icon="log-in" text="Sign in to save your own milestones."/>
@@ -253,7 +340,8 @@ export const MilestonesPanel = ({ project, project_data, selected, onSelect, doc
 
       {team.length > 0 && <>
         <SectionTitle title="Shared with the project" count={team.length} hint="Everyone on the project sees them. Only their owner can edit them."/>
-        <Tree node={build_tree(team, 'team')} section="shared" expand={is_searching} show_owner {...item_props}/>
+        <Tree node={team_tree.tree} section="shared" expand={is_searching} show_owner {...item_props}/>
+        {team_tree.hidden > 0 && <ShowAll hidden={team_tree.hidden} onClick={() => showAll('shared')}/>}
       </>}
 
       {matching_refs.length > 0 && <>
@@ -284,10 +372,9 @@ const stop = action => event => {
 };
 
 const GroupItem = ({ node, depth, expand, section, title, ...props }) => {
-  const user = useUser();
+  const { is_logged, toggleGroupFavorite } = props;
   const collapsed = usePrefsStore(state => state.milestoneGroupsCollapsed);
   const toggle = usePrefsStore(state => state.toggleMilestoneGroup);
-  const { toggleGroupFavorite } = useMilestoneActions(props.project);
   const is_open = expand || !collapsed[node.path];
   const is_favorite = props.favorite_group?.(section, node.group);
   return <>
@@ -297,7 +384,7 @@ const GroupItem = ({ node, depth, expand, section, title, ...props }) => {
       icon={<Icon icon={is_open ? 'folder-open' : 'folder-close'} className={Classes.TEXT_MUTED}/>}
       text={<span style={{ fontWeight: 500 }}>{title ?? node.name}</span>}
       labelElement={<span className="qa-milestone-actions">
-        {user.is_logged && <Button
+        {is_logged && <Button
           variant="minimal"
           size="small"
           className={is_favorite ? 'qa-is-favorite' : undefined}
@@ -334,12 +421,34 @@ const FavoriteGroup = ({ section, group, milestones, expand, ...props }) => {
 
 
 const full_date = date => DateTime.fromISO(date).toLocaleString(DateTime.DATETIME_MED);
+// "3 days ago" for each row, each time the menu opens, adds up: we remember them for a minute
+const relative_dates = new Map();
+const short_relative_date = date => {
+  const minute = Math.floor(Date.now() / 60000);
+  const cached = relative_dates.get(date);
+  if (cached?.minute === minute) return cached.text;
+  if (relative_dates.size > 2000) relative_dates.clear();
+  const text = relative_date(date, { style: 'short' });
+  relative_dates.set(date, { minute, text });
+  return text;
+};
+// the full dates, only once hovered
+const showDatesTitle = m => event => {
+  if (!event.currentTarget.title) event.currentTarget.title = dates_title(m);
+};
 const dates_title = m => [`Updated ${full_date(m.updated_at)}`, m.created_at && m.created_at !== m.updated_at && `saved ${full_date(m.created_at)}`].filter(Boolean).join(', ');
 
-export const MilestoneItem = ({ milestone: m, onSelect, onEdit, is_selected, project, show_owner, search, depth = 0 }) => {
-  const user = useUser();
-  const { toggleFavorite } = useMilestoneActions(project);
+// "120 runs, 3 failed", as saved with the milestone (backend/milestones.py, summarize_runs): nothing to load
+export const runs_count_text = runs => !runs ? null
+  : !runs.count ? 'no runs'
+  : `${runs.count} run${runs.count > 1 ? 's' : ''}${runs.failed ? `, ${runs.failed} failed` : ''}`;
+
+export const MilestoneItem = ({ milestone: m, onSelect, onStack, onEdit, is_selected, sides_of, project, show_owner, search, is_logged, toggleFavorite, hover, depth = 0 }) => {
   const selected = is_selected?.(m);
+  // the new results, or references, on the commit page
+  const sides = sides_of?.(m) ?? [];
+  const is_reference = sides.some(side => side.is_reference);
+  const runs = runs_count_text(m.runs);
   const owner = owner_name(m);
   // listed because of a dataset or qa batch its runs used: say which
   const matched = runs_matches(m, search);
@@ -349,12 +458,13 @@ export const MilestoneItem = ({ milestone: m, onSelect, onEdit, is_selected, pro
     active={selected}
     aria-current={selected ? 'true' : undefined}
     text={<div style={{ minWidth: 0 }}>
-      <div className="qa-milestone-name">
-        {milestone_name(m)}
-        {selected && <Tag minimal intent={Intent.PRIMARY} style={{ marginLeft: 6 }}>selected</Tag>}
+      <div className="qa-milestone-name-row">
+        <span className="qa-milestone-name">{milestone_name(m)}</span>
+        {sides.length > 0 ? <SideTags sides={sides}/> : selected && <Tag minimal intent={Intent.PRIMARY}>selected</Tag>}
       </div>
       <div className={`qa-milestone-meta ${Classes.TEXT_MUTED}`}>
         <span title="Batch">{pretty_label({ label: m.batch || 'default' })}</span>
+        {!!runs && <span title="Its runs, when it was saved" style={m.runs.count ? undefined : { color: Colors.ORANGE3 }}>{runs}</span>}
         {!!m.filter && <span title="Filter"><Icon icon="filter" size={10}/> {m.filter}</span>}
         <span title={m.message ?? undefined}>{m.branch ? `${m.branch} @ ` : ''}<code>{m.commit.slice(0, 8)}</code></span>
         {results_project(m) !== project && <span title="Project">{results_project(m)}</span>}
@@ -370,7 +480,7 @@ export const MilestoneItem = ({ milestone: m, onSelect, onEdit, is_selected, pro
       {!!m.notes && <Tooltip content={<div style={{ maxWidth: 320, whiteSpace: 'pre-wrap' }}>{m.notes}</div>} placement="left">
         <Icon icon="comment" size={12} className={Classes.TEXT_MUTED} style={{ margin: '0 4px' }} aria-label={`Notes: ${m.notes}`}/>
       </Tooltip>}
-      {user.is_logged && <Button
+      {is_logged && <Button
         variant="minimal"
         size="small"
         className={m.is_favorite ? 'qa-is-favorite' : undefined}
@@ -381,8 +491,16 @@ export const MilestoneItem = ({ milestone: m, onSelect, onEdit, is_selected, pro
         onClick={stop(() => toggleFavorite(m).catch(() => {}))}
       />}
       <span className="qa-milestone-hover-slot">
-        {!!m.updated_at && <span className={`qa-milestone-date ${Classes.TEXT_MUTED}`} title={dates_title(m)}>{relative_date(m.updated_at, { style: 'short' })}</span>}
+        {!!m.updated_at && <span className={`qa-milestone-date ${Classes.TEXT_MUTED}`} onMouseEnter={showDatesTitle(m)}>{short_relative_date(m.updated_at)}</span>}
         <span className="qa-milestone-hover-actions">
+          {!!onStack && !selected && !is_reference && <Button
+            variant="minimal"
+            size="small"
+            icon="layers"
+            aria-label="Stack as a reference"
+            title="Stack as a reference: compare with it too, keep the reference shown"
+            onClick={stop(() => onStack(m))}
+          />}
           <Button variant="minimal" size="small" icon="link" aria-label="Copy the link" title="Copy the link" onClick={stop(() => copyWithToast(milestone_url(m), { what: 'the link to the milestone' }))}/>
           {!!onEdit && <Button
             variant="minimal"
@@ -396,5 +514,8 @@ export const MilestoneItem = ({ milestone: m, onSelect, onEdit, is_selected, pro
       </span>
     </span>}
     onClick={() => onSelect(m)}
+    onMouseEnter={() => hover?.start(m)}
+    onFocus={() => hover?.start(m)}
+    onMouseLeave={() => hover?.cancel()}
   />;
 };
