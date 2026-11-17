@@ -70,14 +70,14 @@ jobs:
       DOCS_MEDIA_BIN: ${{ github.workspace }}/../docs-media-bin
       KIND_VERSION: v0.32.0   # the helm-e2e job's (ci.yaml)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # pull requests: the branch itself (not the merge commit), to commit website/media.json to it
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
           # gc and the affected shots need the history and the tags
           fetch-depth: 0
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
           cache-dependency-glob: docs-media/*.py
@@ -106,7 +106,7 @@ jobs:
           } | tee -a "$GITHUB_OUTPUT"
           if [ -z "$only" ]; then echo "::notice::No shot is affected by this change"; fi
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: steps.scope.outputs.only != ''
         with:
           node-version: 24.x
@@ -140,15 +140,15 @@ jobs:
         run: |
           echo "QABOARD_VERSION=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
           echo "QABOARD_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/qaboard" >> "$GITHUB_ENV"
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
         if: steps.scope.outputs.only != ''
         with:
           version: v4.3.0   # the helm-e2e job's (ci.yaml)
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
         if: steps.scope.outputs.only != ''
       - name: Build the images
         if: steps.scope.outputs.only != ''
-        uses: docker/bake-action@v6
+        uses: docker/bake-action@v7
         with:
           source: .
           files: docker-compose.yml
@@ -164,7 +164,7 @@ jobs:
       # The fleet assistant's model weights (examples/agent-evals: 1 GB from Hugging Face), in case the stories are seeded
       - name: Cache the fleet assistant's models
         if: steps.scope.outputs.only != ''
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/kitefin/fleet-assistant/models   # $FLEET_ASSISTANT_MODELS, qa/models.py
           key: fleet-assistant-models-${{ hashFiles('examples/agent-evals/inputs.lock.yaml') }}
@@ -276,7 +276,7 @@ jobs:
 
       - name: Gallery
         if: always() && steps.scope.outputs.only != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: docs-media-gallery
           path: |

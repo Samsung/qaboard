@@ -1,8 +1,7 @@
 import os
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, scoped_session
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, scoped_session, declarative_base
 from sqlalchemy_utils import database_exists, create_database
 
 from .settings import env_flag
@@ -31,7 +30,9 @@ import ujson
 db_pool_size = int(os.getenv('QABOARD_DB_POOL_SIZE', 4))
 db_max_overflow = int(os.getenv('QABOARD_DB_MAX_OVERFLOW', 2))
 
-engine_url = f'{db_type}://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}'
+# SQLAlchemy 2.1 uses psycopg (3) for postgresql:// URLs: we install psycopg2
+db_driver = 'postgresql+psycopg2' if db_type == 'postgresql' else db_type
+engine_url = f'{db_driver}://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}'
 def make_engine(pool_size=db_pool_size, max_overflow=db_max_overflow):
 	"""Engines with the app's settings: background jobs with many threads (scans) get their own, with a bigger pool"""
 	return create_engine(

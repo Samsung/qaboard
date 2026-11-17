@@ -68,6 +68,16 @@ let config: Config = {
   tagline: "Tests tell you it runs. QA-Board shows you it's better.",
   url: 'https://samsung.github.io',
   onBrokenLinks: 'throw',
+  future: {
+    // Docusaurus Faster: Rspack, SWC and LightningCSS (@docusaurus/faster), the default in Docusaurus v4
+    faster: true,
+    // The v4 changes we're ready for. Not yet: mdx1CompatDisabledByDefault (our pages use `{#id}` heading ids and
+    // `:::tip Title` admonitions), useCssCascadeLayers and siteStorageNamespacing (resets readers' saved theme and tabs)
+    v4: {
+      fasterByDefault: true,
+      removeLegacyPostBuildHeadAttribute: true,
+    },
+  },
   markdown: {
     hooks: {
       onBrokenMarkdownLinks: 'throw',
@@ -87,6 +97,8 @@ let config: Config = {
     [
       'classic', {
         docs: {
+          // In the web app (at /docs) the docs are the site's root
+          routeBasePath: is_for_webapp ? '/' : 'docs',
           sidebarPath: './sidebars.ts',
           remarkPlugins: [mediaRemark, repoFileRemark],
           // Please change this to your repo.
@@ -283,10 +295,9 @@ if (is_for_webapp) {
   // build for the app at /docs
   config = {
     ...config,
-    url: process.env.QABOARD_URL,
+    url: process.env.QABOARD_URL as string,
     baseUrl: '/docs/',
   }
-  config.presets[0][1].docs.routeBasePath = '/';
 }
 
 module.exports = config;

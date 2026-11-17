@@ -378,6 +378,8 @@ export const ImageViewer = ({
   const own_key = `qiv-${useId()}`;
   const sync_key = syncKey ?? (n_way ? own_key : null);
   useEffect(() => controller.setSyncKey(sync_key), [controller, sync_key]);
+  // ...from the start: else each tile fits its image by itself, rounds its zoom its own way, and isn't compared
+  useEffect(() => controller.setClaimsGroup(n_way), [controller, n_way]);
 
   // Only viewers near the screen follow the others and compute the difference
   const stage = useRef(null);

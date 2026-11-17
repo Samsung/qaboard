@@ -563,7 +563,7 @@ SERVER_VARIABLES = [
 
   ServerVariable('QABOARD_LOGIN_TYPE', "Sign-in method", 'sign_in', "LOCAL, LDAP or SAML. Single sign-on providers (Admin → Sign-in) come on top of any of them.",
                  BOOTSTRAP, lambda: login_type(), docs="/docs/backend-admin/user-management#authentication-providers"),
-  ServerVariable('QABOARD_ADMINS', "Admins from the environment", 'sign_in', "User names or verified emails that are admins whatever the database says: the way back in if no admin can sign in.",
+  ServerVariable('QABOARD_ADMINS', "Admins from the environment", 'sign_in', "User names, verified emails or single sign-on identities (<provider id>:<subject>) that are admins whatever the database says: the way back in if no admin can sign in.",
                  BOUNDARY, _env('QABOARD_ADMINS'), docs="/docs/backend-admin/user-management#admins-and-the-admin-panel"),
   ServerVariable('QABOARD_LDAP_HOST', "LDAP", 'sign_in', "The LDAP server and its service account (QABOARD_LDAP_*), with QABOARD_LOGIN_TYPE=LDAP.",
                  BOOTSTRAP, _env('QABOARD_LDAP_HOST'), docs="/docs/backend-admin/user-management#environment-variables"),
