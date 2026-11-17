@@ -431,7 +431,7 @@ def logout():
 
 @login_manager.user_loader
 def load_user(user_id):
-  return User.query.get(user_id)
+  return db_session.get(User, user_id)
 
 
 def create_user(info):
