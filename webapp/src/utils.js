@@ -3,7 +3,6 @@ import md5 from "js-md5";
 
 import { setPathMappings, linux_to_windows } from "./utils/paths";
 import { repo_url } from "./git";
-import { toaster } from "./toaster";
 
 
 const calendarStrings = {
@@ -459,49 +458,6 @@ const is_same_data = (path, meta_1, meta_2) => {
 }
 
 
-// message_renderer shows the success messages, errors are shown as danger toasts
-const copyElementToClipboard = async (element, name, message_renderer) => {
-  if (!element) return;
-  const failed = error => toaster.show({ message: `Could not copy the ${name}: ${error?.message ?? error}`, intent: "danger" }, 'copy');
-  // browsers only let focused pages write to the clipboard
-  if (!document.hasFocus()) {
-    toaster.show({ message: `Could not copy the ${name}: click on the page, then try again.`, intent: "warning" }, 'copy');
-    return;
-  }
-  try {
-    const { default: html2canvas } = await import("html2canvas");
-    const canvas = await html2canvas(element, { useCORS: true });
-
-    // Convert to Blob. Errors in the callback would escape the try/catch.
-    canvas.toBlob(async (blob) => {
-      try {
-        if (!blob) {
-          failed("the image is empty");
-        } else if (navigator.clipboard && window.ClipboardItem) {
-          // Clipboard API is available
-          const item = new ClipboardItem({ "image/png": blob });
-          await navigator.clipboard.write([item]);
-          message_renderer(`Copied ${name} to the clipboard.`);
-        } else {
-          // Fallback: Offer download
-          const link = document.createElement("a");
-          link.href = URL.createObjectURL(blob);
-          link.download = `${name.replace(" ", "-")}.png`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          message_renderer(`Your browser does not support clipboard copy. Downloading instead.`);
-        }
-      } catch (error) {
-        failed(error);
-      }
-    }, "image/png");
-  } catch (error) {
-    failed(error);
-  }
-};
-
-
 // Moved to git.js, kept here for compatibility
 export { git_hostname, default_git_hostname, setDefaultGitHostname } from './git';
 
@@ -536,5 +492,4 @@ export {
   project_web_url,
   is_same_data,
   at_most,
-  copyElementToClipboard,
 };

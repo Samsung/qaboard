@@ -8,11 +8,10 @@ import { plot_color } from "../../sideColors";
 import { useIsDark } from "../../theme";
 import { useLabels } from "../../hooks";
 
-// No "Send to Cloud" or "Edit chart" links: they would upload the data to Plotly's public Chart Studio
+// No "Upload to Cloud" button: it would send the data to Plotly's servers (also the default in components/PlotlyPlot)
 const config = {
   displayModeBar: true,
   showSendToCloud: false,
-  showLink: false,
 };
 
 // the new and reference traces have the names and colors of what we compare (src/sideColors.js)

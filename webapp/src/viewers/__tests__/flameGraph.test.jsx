@@ -24,7 +24,7 @@ vi.mock('d3-flame-graph', () => {
     charts.push(chart);
     return chart;
   };
-  return { flamegraph };
+  return { default: flamegraph };
 });
 
 const files = {
