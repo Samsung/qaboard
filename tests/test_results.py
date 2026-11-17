@@ -288,11 +288,22 @@ class TestRunContract(unittest.TestCase):
 
   def test_what_writes(self):
     # no stubs in the public API: methods come when they work
-    for name in ('log', 'save_file', 'log_params', 'series', 'finish'):
+    # runs read from the server are finished, or someone else's: only the run that is being done logs series and
+    # parameters, and finishes (qaboard/active_run.py)
+    for name in ('log', 'save_file', 'log_params', 'finish', 'fail'):
       self.assertFalse(hasattr(Run, name), name)
-    self.assertTrue(callable(Run.log_metrics) and callable(Run.log_artifact))
+    self.assertTrue(callable(Run.log_metrics) and callable(Run.log_artifact) and callable(Run.series))
     import qaboard
-    self.assertFalse(hasattr(qaboard, 'start_run'))
+    self.assertTrue(callable(qaboard.start_run))
+
+  def test_series(self):
+    with tempfile.TemporaryDirectory() as tmp:
+      (Path(tmp) / 'series.jsonl').write_text('{"_step":0,"_time":10.0,"loss":1.0}\n{"_step":5,"_time":11.0,"loss":0.5,"lr":0.1}\n')
+      run = Run(project='g/repo', commit=COMMIT, batch='ci', input='a.jpg', output_dir=Path(tmp))
+      self.assertEqual(run.series('loss'), [(0, 1.0, 10.0), (5, 0.5, 11.0)])
+      self.assertEqual(run.series('loss')[1].step, 5)
+      self.assertEqual(run.series('unknown'), [])
+    self.assertEqual(Run(project='g/repo', commit=COMMIT, batch='ci', input='a.jpg').series('loss'), [])
 
 
 class TestImport(unittest.TestCase):

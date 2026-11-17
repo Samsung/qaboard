@@ -30,9 +30,10 @@ Do the integration right rather than fast: the people reviewing results will liv
     benchmark_metrics`). One input per suite or binary is enough. Configure the harness to repeat measurements:
     QA-Board calls changes within the reported spread noise, it doesn't repeat runs.
     https://samsung.github.io/qaboard/docs/benchmarks
-  - **Training loops and notebooks** don't fit a wrapper yet: evaluate the trained model with a `run()` that takes
-    the model id as a tuning parameter (https://samsung.github.io/qaboard/docs/deep-learning). Creating runs from code
-    (`start_run`) is on the roadmap.
+  - **Training loops and notebooks** don't fit a wrapper: create the run from the code itself with
+    `qaboard.start_run()` (experimental), `run.log({...}, step=...)` at each step, `run.log_metrics()` at the end
+    (https://samsung.github.io/qaboard/docs/log-from-code). Evaluate the trained model with a `run()` that takes the
+    model id as a tuning parameter (https://samsung.github.io/qaboard/docs/deep-learning).
 
 ## 1. Create the files
 `qa init` writes a commented `qaboard.yaml` and `qa/main.py`; prefer editing those to writing from scratch. Minimal

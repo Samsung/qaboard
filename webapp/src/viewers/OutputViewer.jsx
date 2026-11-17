@@ -5,6 +5,7 @@ import {
 
 import { useComparison, useSiteConfig } from "../hooks";
 import { is_image } from "./images/utils"
+import { is_series } from "./series/series"
 import { ViewerLoading } from "./ViewerStates"
 import { ErrorBoundary } from "../components/ErrorBoundary"
 import { ViewerErrorFallback } from "../components/ErrorFallback"
@@ -35,6 +36,11 @@ const LoadableBenchmarksViewer = lazy(() => import('./benchmarks-viewer'));
 // files with that name before the viewer. Other names need `type: benchmarks`. Files picked by their name that aren't
 // benchmark files are shown as text, as before.
 export const is_benchmarks = path => /(^|\/)(([^/]*[._-])?benchmarks?|[^/]*[._-]bench)\.(json|jsonl|ndjson)$/i.test(path || '');
+
+// What runs logged while they ran, e.g. a training's loss per step: series.json (written by run.log() in Python, see
+// qaboard/series.py), series.jsonl, train.series.json... Other names need `type: series`. Files picked by their name
+// that aren't series files are shown as text.
+const LoadableSeriesViewer = lazy(() => import('./series'));
 
 // labels: what the viewers call the new and reference results, and their colors, by default those of the page
 // (useComparison().labels): milestones' names, what users called them...
@@ -85,6 +91,8 @@ const OutputViewer = props_ => {
         viewer = <LoadableJunitViewer {...props} type={type} output_ref={maybe_output_ref}/>
       else if (type === 'benchmarks' || type.startsWith('benchmarks/'))
         viewer = <LoadableBenchmarksViewer {...props} format={type.split('/')[1]} output_ref={maybe_output_ref}/>
+      else if (type === 'series')
+        viewer = <LoadableSeriesViewer {...props} output_ref={maybe_output_ref}/>
       else if (type === 'files/bit-accuracy')
         viewer = <LoadableBitAccuracyViewer {...props} type={type} output_ref={output_ref}/>
       else viewer = <p>
@@ -102,6 +110,8 @@ const OutputViewer = props_ => {
         viewer = <LoadableJunitViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (is_benchmarks(path)) {
         viewer = <LoadableBenchmarksViewer {...props} output_ref={maybe_output_ref} fallback_to_text/>
+      } else if (is_series(path)) {
+        viewer = <LoadableSeriesViewer {...props} output_ref={maybe_output_ref} fallback_to_text/>
       } else if (path.endsWith('html')) {
         viewer = <LoadableHtmlViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (/\.(mp4|m4v|mov|webm|mkv|ogv|webp|gif)$/i.test(path)) {

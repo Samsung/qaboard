@@ -67,8 +67,8 @@ QA-Board's place is **after training**, when the question becomes "should we shi
 
 | | Experiment trackers | QA-Board, November 2026 |
 |---|---|---|
-| Training curves, logged per step | Their core | Not yet: final metrics per run |
-| Logging from any script or notebook | Two lines of code | Wrap your code with `qa run`, or add metrics to existing runs from Python |
+| Training curves, logged per step | Their core, for hundreds of runs at once | Experimental: `run.log()` plots each run's series against its reference's, live, and the runs of a batch together, up to 40 |
+| Logging from any script or notebook | Two lines of code | Experimental: `qaboard.start_run()` ([log from your code](/docs/log-from-code)), in a project with shared storage; or wrap your code with `qa run` |
 | Comparing hundreds of runs at once | Their core | Two at a time, with stacked references; a tuning experiment's runs in **Tuning Analysis** |
 | Hosted service | Weights & Biases, Comet, managed MLflow | Self-hosted only |
 | Model registry and lineage | Yes | No: runs link to your registry with badges |
