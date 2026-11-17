@@ -4,6 +4,7 @@ Tests for qaboard/active_run.py: runs created from code with `qaboard.start_run(
 Each test runs a script like a user's, in a temporary project, against a small HTTP server that answers like
 QA-Board and records what it gets: what is tested is what the server and the storage see.
 """
+import hashlib
 import json
 import os
 import subprocess
@@ -14,14 +15,23 @@ import time
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
 
 
 class FakeServer:
-  """Answers POST /api/v1/output/ and PATCH /api/v1/output/<id>/progress, and keeps the requests."""
-  def __init__(self, progress_status=200, output_status=200, output_error=None, port=0):
+  """
+  Answers POST /api/v1/output/, PATCH /api/v1/output/<id>/progress and PUT /api/v1/output/<id>/files/<path> like
+  QA-Board (backend/api/outputs.py), and keeps the requests, and the files it was sent in `files`.
+  - uploads=False: a server that doesn't accept files
+  - file_errors: {path: [(status, body), ...]}: what it answers to the next requests for a file, before accepting it
+  """
+  def __init__(self, progress_status=200, output_status=200, output_error=None, port=0, uploads=True, file_errors=None):
     self.requests = []
+    self.files = {}
+    self.file_errors = {path: list(errors) for path, errors in (file_errors or {}).items()}
+    self.finished = False
     server = self
 
     class Handler(BaseHTTPRequestHandler):
@@ -42,10 +52,36 @@ class FakeServer:
         if self.path.rstrip('/') == '/api/v1/output':
           if output_status != 200:
             return self.answer(output_status, output_error or {'error': 'no'})
+          if body.get('storage') == 'upload' and not uploads:
+            return self.answer(400, {'error': "This server doesn't accept uploaded files.", 'reason': 'uploads_disabled'})
+          server.finished = not body.get('is_pending')
+          if body.get('storage') == 'upload' and body.get('is_running') and not body.get('keep_previous'):
+            server.files.clear()
           return self.answer(200, {'id': 42})
         if self.path.endswith('/progress'):
           return self.answer(progress_status, {'id': 42} if progress_status == 200 else {'error': 'not found'})
         self.answer(404, {'error': 'not found'})
+
+      def do_PUT(self):
+        content = self.rfile.read(int(self.headers.get('Content-Length') or 0))
+        url = urlsplit(self.path)
+        path = unquote(url.path).split('/files/', 1)[-1]
+        offset = parse_qs(url.query).get('offset', [None])[0]
+        server.requests.append(('PUT', self.path, content, dict(self.headers)))
+        if server.file_errors.get(path):
+          return self.answer(*server.file_errors[path].pop(0))
+        if server.finished:
+          return self.answer(409, {'error': 'The run has ended', 'reason': 'not_running'})
+        if self.headers.get('X-Content-SHA256') != hashlib.sha256(content).hexdigest():
+          return self.answer(422, {'error': 'digest', 'reason': 'digest_mismatch'})
+        if offset is None:
+          server.files[path] = content
+        else:
+          size = len(server.files.get(path, b''))
+          if size != int(offset):
+            return self.answer(409, {'error': 'offset', 'reason': 'offset_mismatch', 'size': size})
+          server.files[path] = server.files.get(path, b'') + content
+        self.answer(200, {'path': path, 'size': len(server.files[path])})
 
       do_POST = do_PATCH = do_GET = handle_request
 
@@ -62,6 +98,15 @@ class FakeServer:
 
   def progress(self):
     return [body for method, path, body, _ in self.requests if method == 'PATCH' and path.endswith('/42/progress')]
+
+  def puts(self, path=None):
+    """The files' requests, as (path, ?offset or None, content)"""
+    requests = []
+    for method, url, content, _ in self.requests:
+      if method == 'PUT':
+        parts = urlsplit(url)
+        requests.append((unquote(parts.path).split('/files/', 1)[-1], parse_qs(parts.query).get('offset', [None])[0], content))
+    return [r for r in requests if path is None or r[0] == path]
 
 
 def git(cwd, *args):
@@ -617,6 +662,185 @@ run.finish()
     self.assertIn(f"/{head[:2]}/{head[2:16]}/", last['output_directory'])
 
 
+class TestRunsThatSendTheirFiles(ActiveRunTestCase):
+  """Without a storage shared with the server: the run is saved in the project's output/ folder, and sent from there."""
+  def setUp(self):
+    super().setUp()
+    self.set_storage(None)
+
+  def set_storage(self, storage):
+    (self.project / 'qaboard.yaml').write_text("project:\n  name: kitefin/detector\n  url: git@example.com:kitefin/detector.git\n" + (f"storage: {storage}\n" if storage else ''))
+    git(self.project, 'commit', '-q', '-am', 'Storage')
+    self.commit = git(self.project, 'rev-parse', 'HEAD')
+
+  def local_dir(self, batch='@alice| lr-sweep'):
+    from qaboard.conventions import run_dir_in_commit
+    return self.project / run_dir_in_commit(batch, 'linux' if os.name != 'nt' else 'windows', ['resnet50', {'lr': 0.001}], {}, 'train/coco-mini', Path('.'), {})
+
+  def test_a_training_sends_its_files(self):
+    server = self.server()
+    result = self.python(server=server)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn(f"run files: {self.local_dir()}", result.stderr)
+    self.assertIn(f"finished: {server.url}/kitefin/detector/commit/", result.stderr)
+    started, *_, finished = server.outputs()
+    for body in (started, finished):
+      self.assertEqual(body['storage'], 'upload')
+      # this computer's folders mean nothing to the server
+      self.assertNotIn('output_directory', body)
+      self.assertNotIn('artifacts_commit', body)
+    self.assertEqual((started['is_pending'], finished['is_pending'], finished['metrics']['mAP']), (True, False, 0.41))
+    # what the run's folder has, as it is
+    local = {file.relative_to(self.local_dir()).as_posix(): file.read_bytes() for file in self.local_dir().rglob('*') if file.is_file()}
+    self.assertEqual(server.files, local)
+    for name in ('log.txt', 'series.json', 'series.jsonl', 'run.json', 'metrics.json', 'manifest.outputs.json', 'checkpoints/last.pt', 'model.onnx'):
+      self.assertIn(name, server.files)
+    self.assertIn(b'training done', server.files['log.txt'])
+    # the files are there before the run shows as finished
+    kinds = [method for method, path, *_ in server.requests if method == 'PUT' or path.rstrip('/') == '/api/v1/output']
+    self.assertEqual((kinds[0], kinds[-1], kinds[-2]), ('POST', 'POST', 'PUT'))
+
+  def test_storage_upload_in_the_settings_or_the_environment(self):
+    server = self.server()
+    self.set_storage('upload')
+    self.assertEqual(self.python(server=server).returncode, 0)
+    self.assertEqual(server.outputs()[-1]['storage'], 'upload')
+    self.set_storage(self.storage)
+    result = self.python(server=server, QA_STORAGE='upload')
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertEqual(server.outputs()[-1]['storage'], 'upload')
+    self.assertEqual(list(self.storage.iterdir()), [])
+    # and the other way round
+    result = self.python(server=server, QA_STORAGE=str(self.storage))
+    self.assertNotIn('storage', server.outputs()[-1])
+    self.assertTrue(server.outputs()[-1]['output_directory'].startswith(str(self.storage)))
+
+  def test_the_log_is_sent_while_the_run_goes_on(self):
+    server = self.server()
+    code = """
+import time
+import qaboard as qb
+with qb.start_run(input="slow") as run:
+  print("first step", flush=True)
+  (run.output_dir / "result.bin").write_bytes(b"result")
+  time.sleep(1.5)
+  print(open("seen.txt").read() if __import__("os").path.exists("seen.txt") else "", flush=True)
+"""
+    process = threading.Thread(target=lambda: setattr(self, 'result', self.python(server=server, code=code, QA_SYNC_INTERVAL='0.1')))
+    process.start()
+    seen = None
+    for _ in range(300):
+      if b'first step' in server.files.get('log.txt', b''):
+        seen = dict(server.files)
+        break
+      time.sleep(0.02)
+    process.join()
+    self.assertEqual(self.result.returncode, 0, self.result.stderr)
+    self.assertIsNotNone(seen, "the log was not sent before the run ended")
+    self.assertNotIn('result.bin', seen)
+    self.assertEqual(server.files['result.bin'], b'result')
+
+  def test_a_server_that_doesnt_accept_files(self):
+    server = self.server(uploads=False)
+    result = self.python(server=server)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn("the server refused the run", result.stderr)
+    self.assertIn("doesn't accept uploaded files", result.stderr)
+    self.assertEqual(server.files, {})
+    self.assertTrue((self.local_dir() / 'model.onnx').exists())
+
+  def test_files_the_server_doesnt_take_are_said(self):
+    too_large = (413, {'error': 'model.onnx is larger than what this server accepts (1 MB).', 'reason': 'too_large'})
+    server = self.server(file_errors={'model.onnx': [too_large]})
+    result = self.python(server=server)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn("the server doesn't have all the run's files", result.stderr)
+    self.assertIn("model.onnx: ", result.stderr)
+    self.assertNotIn('model.onnx', server.files)
+    self.assertFalse(server.outputs()[-1]['is_pending'])
+
+  def test_a_resumed_run_keeps_what_it_sent(self):
+    server = self.server()
+    code = "import qaboard as qb\nwith qb.start_run(input='a', resume={resume}) as run:\n  (run.output_dir / '{name}').write_text('x')"
+    self.assertEqual(self.python(server=server, code=code.format(resume=False, name='first.txt')).returncode, 0)
+    self.assertNotIn('keep_previous', server.outputs()[0])
+    result = self.python(server=server, code=code.format(resume=True, name='second.txt'))
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertTrue(server.outputs()[-1]['keep_previous'])
+    self.assertIn('first.txt', server.files)
+    self.assertIn('second.txt', server.files)
+    # started again: the server forgets the previous files, and so does this computer
+    self.assertEqual(self.python(server=server, code=code.format(resume=False, name='third.txt')).returncode, 0)
+    self.assertNotIn('first.txt', server.files)
+    self.assertIn('third.txt', server.files)
+
+  def test_not_shared_nothing_is_sent(self):
+    server = self.server()
+    for options in ({'QA_OFFLINE': '1'}, {}):
+      code = f"import qaboard as qb\nqb.start_run(input='a'{'' if options else ', share=False'}).finish()"
+      result = self.python(server=server, code=code, **options)
+      self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertEqual(server.requests, [])
+
+
+class TestNames(ActiveRunTestCase):
+  def start(self, server, arguments, **env):
+    result = self.python(server=server, code=f"import qaboard as qb\nrun = qb.start_run(input='a', {arguments})\nprint(run.batch)\nrun.finish()", **env)
+    return result, (server.outputs()[-1] if server.outputs() else None)
+
+  def test_batch_and_label_name_the_same_thing(self):
+    server = self.server()
+    for arguments in ("batch='nightly'", "label='nightly'", "label='nightly', batch='nightly'"):
+      result, body = self.start(server, arguments)
+      self.assertEqual(result.returncode, 0, result.stderr)
+      self.assertEqual((body['batch_label'], body['raw_batch_label'], result.stdout.strip()), ('@alice| nightly', 'nightly', '@alice| nightly'))
+      self.assertNotIn('batch', body)
+
+  def test_with_both_the_batch_names_the_tests_on_the_runs_card(self):
+    server = self.server()
+    result, body = self.start(server, "label='nightly', batch='unit-tests'")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertEqual((body['batch_label'], body['batch']), ('@alice| nightly', 'unit-tests'))
+    # like `qa --label nightly batch unit-tests` vs `qa --label nightly batch benchmarks`: the same run, in the same folder
+    _, other = self.start(server, "label='nightly', batch='benchmarks'")
+    self.assertEqual(attempts_split(other['output_directory']), attempts_split(body['output_directory']))
+
+  def test_names_are_texts(self):
+    for arguments in ("batch=''", "label=3"):
+      result, _ = self.start(self.server(), arguments)
+      self.assertEqual(result.returncode, 1)
+      self.assertIn('is a name', result.stderr)
+
+
+class TestInsideQaRun(ActiveRunTestCase):
+  def test_start_run_doesnt_replace_the_run_qa_run_is_doing(self):
+    server = self.server()
+    code = """
+import os, sys
+import qaboard as qb
+from qaboard.active_run import RUN_DIR_VARIABLE
+with qb.start_run(input="a", capture_output=False) as outer:
+  (outer.output_dir / "kept.txt").write_text("kept")
+  os.environ[RUN_DIR_VARIABLE] = str(outer.output_dir)   # what `qa run` does
+  try:
+    qb.start_run(input="a")
+  except ValueError as e:
+    print(e)
+  assert (outer.output_dir / "kept.txt").exists()
+  # another input is another run
+  qb.start_run(input="b", capture_output=False).finish()
+"""
+    result = self.python(server=server, code=code)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn("would replace the run that `qa run` is doing now", result.stdout)
+    self.assertIn("give start_run() another input=", result.stdout)
+
+
+def attempts_split(directory):
+  from qaboard import attempts
+  return attempts.split(Path(directory))[0]
+
+
 class TestWithoutAProject(ActiveRunTestCase):
   """Notebooks and scripts outside a project: no qaboard.yaml, maybe no git."""
   def setUp(self):
@@ -629,15 +853,29 @@ class TestWithoutAProject(ActiveRunTestCase):
     self.assertEqual(result.returncode, 1)
     self.assertIn("pass project='group/repo'", result.stderr)
 
-  def test_without_storage_runs_stay_local(self):
+  def test_without_storage_runs_send_their_files(self):
     server = self.server()
     code = "import qaboard as qb\nwith qb.start_run(project='kitefin/detector', input='explore') as run:\n  run.log({'loss': 1.0})\nprint(run.output_dir)"
     result = self.python(cwd=self.notebooks, server=server, code=code)
     self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertEqual(server.requests, [])
+    # saved here like a run that isn't shared, and sent from here
     self.assertTrue(Path(result.stdout.strip()).is_relative_to(self.notebooks / 'output'))
-    result = self.python(cwd=self.notebooks, server=server, code="import qaboard as qb\nqb.start_run(project='kitefin/detector', share=True)")
-    self.assertIn('needs the shared storage', result.stderr)
+    started, finished = server.outputs()
+    self.assertEqual((started['storage'], started['project'], started['commit_sha']), ('upload', 'kitefin/detector', '<local:alice>'))
+    self.assertNotIn('output_directory', finished)
+    self.assertIn('series.jsonl', server.files)
+    # no server: they stay here
+    result = self.python(cwd=self.notebooks, code=code)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertNotIn('results:', result.stderr)
+
+  def test_in_the_ci_the_project_is_the_repository(self):
+    server = self.server()
+    code = "import qaboard as qb\nqb.start_run(input='tests').finish()"
+    for variable in ('GITHUB_REPOSITORY', 'CI_PROJECT_PATH', 'QA_PROJECT'):
+      result = self.python(cwd=self.notebooks, server=server, code=code, **{variable: 'kitefin/planner'})
+      self.assertEqual(result.returncode, 0, result.stderr)
+      self.assertEqual(server.outputs()[-1]['project'], 'kitefin/planner')
 
   def test_with_storage_runs_are_shared_under_a_placeholder_commit(self):
     server = self.server()

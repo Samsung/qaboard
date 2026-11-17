@@ -31,6 +31,14 @@ def location_from_spec(spec: Union[str, Dict, os.PathLike], interpolation_vars: 
   return Path(location)
 
 
+# `storage: upload` (or QA_STORAGE=upload): results are sent to the server over HTTP, see qaboard/upload.py
+UPLOAD_STORAGE = 'upload'
+
+def is_upload_storage(storage) -> bool:
+  """Whether storage settings (`storage` in qaboard.yaml, $QA_STORAGE) say to send results to the server, not to save them in a folder it reads"""
+  return isinstance(storage, str) and storage.strip().lower() == UPLOAD_STORAGE
+
+
 def get_settings(inputs_type, config):
   config_inputs = config.get('inputs', {})  
   config_inputs_types = config_inputs.get('types', {})

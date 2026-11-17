@@ -158,7 +158,7 @@ def notify_qa_database(object_type='output', **kwargs):
   Updating the QA database.
   """
   import requests
-  from .config import is_ci, config, _metrics, run_context, commit_id, commit_data
+  from .config import is_ci, config, _metrics, run_context, commit_id, commit_data, uploads_results
 
   if kwargs.get('offline'):
     return
@@ -169,7 +169,8 @@ def notify_qa_database(object_type='output', **kwargs):
 
   url = f"{api_prefix}/{object_type}/"
   # send all the data, with where it comes from and what describes its commit and project (qaboard/payloads.py)
-  data = results_payload(kwargs, is_ci=is_ci, run_context=run_context(), commit_id=commit_id, commit=commit_data(), config=config, metrics_file=_metrics)
+  data = results_payload(kwargs, is_ci=is_ci, run_context=run_context(), commit_id=commit_id, commit=commit_data(), config=config, metrics_file=_metrics,
+                         uploads_files=uploads_results)
   if 'QA_VERBOSE' in os.environ:
     click.secho(url, fg='cyan', err=True)
     click.secho(str(data), fg='cyan', dim=True, err=True)

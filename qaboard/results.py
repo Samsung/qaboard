@@ -50,10 +50,12 @@ class ResultsError(Exception):
   The server could not give the runs: unknown project or commit, refused request, network error...
   `status` is its HTTP status when it answered, `reason` why it refused the request (e.g. "missing_role").
   """
-  def __init__(self, message: str, status: Optional[int] = None, reason: Optional[str] = None):
+  def __init__(self, message: str, status: Optional[int] = None, reason: Optional[str] = None, body: Optional[Dict[str, Any]] = None):
     super().__init__(message)
     self.status = status
     self.reason = reason
+    # the server's answer to requests it didn't accept, e.g. {"reason": "offset_mismatch", "size": 120}
+    self.body: Dict[str, Any] = body or {}
 
 
 @dataclass(frozen=True)
@@ -432,14 +434,16 @@ def _token_for(server: str, token: Optional[str]) -> Optional[str]:
 
 
 def _request(server: str, path: str, params: Optional[Dict[str, Any]] = None, token: Optional[str] = None,
-             method: str = 'GET', json: Optional[Dict[str, Any]] = None, timeout: Optional[Tuple[float, float]] = None) -> Dict[str, Any]:
+             method: str = 'GET', json: Optional[Dict[str, Any]] = None, timeout: Optional[Tuple[float, float]] = None,
+             data: Any = None, headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+  """`data`: a request body that isn't JSON, e.g. a file's content (qaboard/upload.py), with its `headers`"""
   import requests
   token = _token_for(server, token)
-  headers = {'Authorization': f"Bearer {token}"} if token else {}
+  headers = {**(headers or {}), **({'Authorization': f"Bearer {token}"} if token else {})}
   verify = as_requests_verify(site_config('QABOARD_API_VERIFY'))
   url = f"{server}/api/v1/{path}"
   try:
-    r = requests.request(method, url, params=params, json=json, headers=headers, verify=verify, timeout=timeout or REQUEST_TIMEOUT)
+    r = requests.request(method, url, params=params, json=json, data=data, headers=headers, verify=verify, timeout=timeout or REQUEST_TIMEOUT)
   except requests.RequestException as e:
     raise ResultsError(f"Could not reach {server}: {e}") from e
   if r.status_code >= 400:
@@ -449,10 +453,11 @@ def _request(server: str, path: str, params: Optional[Dict[str, Any]] = None, to
       hint = f"Sign in with `qa auth login {server}`, or set QABOARD_TOKEN to a token with the {scope} scope." if refused.get('reason') in ('login_required', 'ingest_token_required', 'missing_scope', 'token_expired', 'invalid_token') else "Ask the project's owners for access."
       raise ResultsError(f"{refused['error']} ({refused.get('reason')}). {hint}", status=r.status_code, reason=refused.get('reason') or 'refused')
     try:
-      message = r.json().get('error') or r.text
-    except ValueError:
-      message = r.text
-    raise ResultsError(f"{server} answered {r.status_code} to {path} ({params}): {message}", status=r.status_code)
+      body = r.json()
+      message = body.get('error') or r.text
+    except (ValueError, AttributeError):
+      body, message = None, r.text
+    raise ResultsError(f"{server} answered {r.status_code} to {path}{f' ({params})' if params else ''}: {message}", status=r.status_code, body=body)
   try:
     return r.json()
   except ValueError as e:

@@ -37,7 +37,7 @@ from .config import project, project_root, subproject, config
 from .config import default_batches_files, get_default_database, default_batch_label, default_platform
 from .config import get_default_configuration, default_input_type
 from .config import commit_id, outputs_commit, artifacts_commit, root_qatools, artifacts_commit_root
-from .config import user, is_ci, on_windows, available_metrics
+from .config import user, is_ci, on_windows, available_metrics, uploads_results, commands_using_storage
 from .metrics import split_metrics, resolve_definitions, write_definitions_file, with_default_direction
 from . import analytics
 
@@ -75,8 +75,18 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
     sys.exit(1)
   if storage_is_missing:
     sys.exit(1)
-
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
+  if uploads_results and ctx.invoked_subcommand in commands_using_storage and not will_show_help:
+    if ctx.invoked_subcommand == 'save-artifacts':
+      # so that the same CI job works with and without a storage
+      click.secho("Nothing to save: artifacts are for the runs QA-Board starts itself (tuning, runs done again), which need a storage shared", fg='yellow', err=True)
+      click.secho("with the server. Here results are sent to it over HTTP (no `storage` in qaboard.yaml, or `storage: upload`).", fg='yellow', err=True)
+      sys.exit(0)
+    click.secho(f"ERROR: `qa {ctx.invoked_subcommand}` needs a storage shared with the QA-Board server: {commands_using_storage[ctx.invoked_subcommand]}.", fg='red', bold=True, err=True)
+    click.secho("       Here results are sent to the server over HTTP (no `storage` in qaboard.yaml, or `storage: upload`).", fg='red', err=True)
+    click.secho("       Set `storage` in qaboard.yaml, or QA_STORAGE, to a folder the server reads.", fg='red', err=True)
+    sys.exit(1)
+
   noop_command = 'init' in sys.argv
   if root_qatools and root_qatools != Path().resolve() and not will_show_help and not noop_command:
     ctx.obj['previous_cwd'] = os.getcwd()
@@ -174,6 +184,9 @@ def saves_attempts(qa_context, custom_output=None) -> bool:
   (CI, --share), unless the project opts out (outputs.reruns: in-place). Local runs, in the working directory's
   output/, and runs with their own --output are done again in place.
   """
+  if uploads_results:
+    # their files are in this computer's output/ folder, done again in place; the server replaces what it has
+    return False
   return bool(is_ci or qa_context.get('share')) and not custom_output and attempts.reruns_mode(config) != attempts.IN_PLACE
 
 
@@ -270,14 +283,17 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
       print_url(ctx)
 
       if not ctx.obj['offline']:
-          qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True, data={"attempt_logs": attempts.kept_logs(run_context.output_dir)})
+          qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True, keep_previous=keep_previous, data={"attempt_logs": attempts.kept_logs(run_context.output_dir)})
           if qa_run_data:
             run_context.id = qa_run_data["id"]
+            start_upload(run_context)
           # in CI, results QA-Board refuses are lost: don't compute them
           exit_if_results_refused()
 
       # LSF sends SIGINT then SIGTERM when users bkill the job or it uses too much memory, before a SIGKILL:
       # we say the run failed, or QA-Board would show it as running
+      # for the code we run and what it starts: qaboard.start_run() must not start this run again (qaboard/active_run.py)
+      os.environ['QABOARD_RUN_DIR'] = str(run_context.output_dir)
       with interrupted_by_sigterm():
         try:
           start = time.time()
@@ -320,9 +336,40 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
           exit_if_results_refused()
           if metrics['is_failed']:
             sys.exit(1)
+          if getattr(run_context, 'files_not_sent', False) and is_ci:
+            sys.exit(1)
         except KeyboardInterrupt:
           mark_aborted(run_context)
           raise
+
+
+def start_upload(run_context):
+  """
+  Without a storage shared with the server, the run's files are sent to it (qaboard/upload.py): its log as it goes,
+  from a thread, and everything when the run ends (finish_upload).
+  """
+  if not uploads_results or run_context.id is None or not (is_ci or run_context.obj.get('share')):
+    return
+  from .api import qaboard_url
+  from .upload import Uploader
+  live = (config.get('outputs') or {}).get('live') or []
+  run_context.uploader = Uploader(qaboard_url, run_context.id, run_context.output_dir, live=[live] if isinstance(live, str) else live).start()
+
+
+def finish_upload(run_context):
+  """Sends the run's files before telling the server that it ended: finished runs' files don't change"""
+  uploader = getattr(run_context, 'uploader', None)
+  if uploader is None:
+    return
+  run_context.uploader = None
+  from .upload import problems
+  if uploader.finish():
+    click.secho(f"Sent {uploader.sent_files} files to QA-Board ({uploader.sent_bytes / 1e6:.1f} MB)", fg='cyan', err=True)
+  else:
+    run_context.files_not_sent = True
+    click.secho("ERROR: QA-Board doesn't have all the files of the run:", fg='red', bold=True, err=True)
+    for problem in problems(uploader):
+      click.secho(f"       {problem}", fg='red', err=True)
 
 
 def mark_aborted(run_context):
@@ -344,6 +391,7 @@ def mark_aborted(run_context):
     except OSError as e:
       click.secho(f'[ERROR] Could not write {metrics_path}: {e}', fg='red', err=True)
     if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
+      finish_upload(run_context)
       notify_qa_database(**run_context.obj, metrics=metrics, is_failed=True, is_pending=False, is_running=False)
 
 
@@ -445,6 +493,7 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
       copy(run_context.output_dir / 'manifest.outputs.json', run_context.input_path / 'manifest.outputs.json')
 
   if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
+    finish_upload(run_context)
     notify_qa_database(**run_context.obj, metrics=metrics, metrics_definitions=metrics_definitions, data=output_data, is_pending=False, is_running=False)
 
 
@@ -927,7 +976,8 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
       # In most cases we don't care: worse case re-running will lead to some orphan output dirs on disk and wasted compute
       # But when trying to get results from older `qa batch`, we care...
       # We could remove the feature flag, maybe when it's used a bit more and we check there is no noticeable runtime cost..
-      if not 'QA_BATCH_COMPLEX_MATCHING' in os.environ:
+      # runs that send their files to the server aren't in the folder it says: we match what they ran on
+      if not 'QA_BATCH_COMPLEX_MATCHING' in os.environ and not uploads_results:
         matching_existing_outputs = [o for o in existing_outputs.values() if url_to_dir(o['output_dir_url']) == run_context.output_dir]
         matching_existing_output = matching_existing_outputs[0] if matching_existing_outputs else None
       else:

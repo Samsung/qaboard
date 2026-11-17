@@ -14,7 +14,7 @@ import click
 
 from .utils import merge, getenvs
 from .git import git_head, git_show
-from .conventions import slugify, get_commit_dirs, location_from_spec, batches_files
+from .conventions import slugify, get_commit_dirs, location_from_spec, batches_files, is_upload_storage
 from .iterators import flatten
 from .site_config import site_config, site_qaboard_config, without_locations_from
 
@@ -392,6 +392,16 @@ def report_missing_storage(needed_by: Optional[str], environ=os.environ) -> bool
     click.secho('         but `qa --share`, CI runs and `qa save-artifacts` need it: create or mount it, or set QA_STORAGE.', fg='yellow', err=True)
   return False
 
+def uploads_results_with(config: Dict, environ=os.environ) -> bool:
+  """
+  Whether shared results are sent to the server over HTTP (qaboard/upload.py), instead of saved in a storage it reads:
+  `storage: upload` in qaboard.yaml (or the site's), QA_STORAGE=upload, or no storage settings at all.
+  """
+  storage = environ.get('QA_STORAGE') or config.get('storage') or config.get('ci_root')
+  return not storage or is_upload_storage(storage)
+
+uploads_results = uploads_results_with(config)
+
 outputs_root: Optional[Path]
 artifacts_root: Optional[Path]
 artifacts_project_root: Optional[Path]
@@ -401,9 +411,14 @@ outputs_project: Optional[Path]
 if root_qatools_config:
   assert project
   assert project_root
-  outputs_root, artifacts_root, subproject_for_artifacts = storage_roots(config, project, subproject)
-  mkdir(outputs_root)
-  mkdir(artifacts_root)
+  if uploads_results:
+    # Runs write their files in the project's output/ folder, like runs that aren't shared, and send them from there.
+    # There is no storage, and nothing to create: what needs one says so (storage_needed_by)
+    outputs_root, artifacts_root, subproject_for_artifacts = Path(), Path(), Path()
+  else:
+    outputs_root, artifacts_root, subproject_for_artifacts = storage_roots(config, project, subproject)
+    mkdir(outputs_root)
+    mkdir(artifacts_root)
   artifacts_project_root = artifacts_root / project_root
   artifacts_project = artifacts_root / project
   outputs_project_root = outputs_root / project_root
@@ -624,6 +639,11 @@ if root_qatools_config:
   artifacts_commit      = artifacts_commit_root / subproject
   outputs_commit_root   = outputs_project_root   / commit_dirs
   outputs_commit        = commit_outputs_dir(commit_id, outputs_project_root, subproject)
+  if uploads_results:
+    assert project_dir
+    # shared runs are saved where local runs are, <project>/output/...: `qa` sends their files from there
+    outputs_commit_root = root_qatools
+    outputs_commit = project_dir
 else:
   artifacts_commit_root = Path()
   artifacts_commit = Path() # / subproject? FIXME: check...
