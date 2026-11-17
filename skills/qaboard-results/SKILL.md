@@ -99,10 +99,11 @@ Base: `$QABOARD_URL/api/v1`. Reading is anonymous unless the server restricts th
 | Compare with a reference | `GET /commit/<sha>/compare?project=<p>&reference=<ref>&batch=<label>` |
 | Milestones | `GET /milestones?project=<p>` |
 | Projects, branches | `GET /projects?summary=true`, `GET /project/branches?project=<p>` |
+| Start a batch on a pushed commit (`act` scope) | `POST /commit/<sha>/batch?project=<p>` `{"batch_label", "selected_group", "tuning_search"?, "batches_files"?, "notify": false}`; `/batch/check` only checks. Same as `qa batch --commit` |
 
 Every parameter and field: `$QABOARD_URL/api/v1/openapi.json` (OpenAPI 3.1), or the guide
 https://samsung.github.io/qaboard/docs/http-api. Starting runs or batches needs a token with the `act`
-scope: prefer `qa batch` from a checkout, or `qa batch --commit <sha>`.
+scope: prefer `qa batch --commit <sha>` for a pushed commit, or `qa batch` from a checkout.
 
 ## Don'ts
 - Don't modify or delete anything under the results storage (`/mnt/qaboard`-like paths from `output_dir`): folders
