@@ -69,7 +69,7 @@ export const ReferenceMatchingValues = ({ status }) => {
       <span>
         <Icon icon="disable" size={12} className={Classes.TEXT_MUTED} style={{ marginRight: 5 }}/>
         {plural(status.without, 'run')} {status.without === 1 ? 'has' : 'have'} no reference run.
-        {!suggestions.length && <span className={Classes.TEXT_MUTED}> No name change pairs them. Runs with close names say so on their tag.</span>}
+        {!suggestions.length && <span className={Classes.TEXT_MUTED}> No name change pairs them: click a run's <b>no reference</b> tag to pick any reference run, or pair other names.</span>}
       </span>
       {first && <span className={Classes.TEXT_MUTED}>Pair them by name:</span>}
       {first && suggestion(first, true)}
