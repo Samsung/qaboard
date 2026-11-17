@@ -200,6 +200,36 @@ describe('TuningForm', () => {
     expect(screen.queryByText('feedback')).not.toBeInTheDocument();
   });
 
+  it('shows both ways to choose the values, and suggests searching a big grid automatically', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
+    usePrefsStore.getState().updateTuning('proj', { parameter_search: '{"threshold": [0.1, 0.2, 0.3, 0.4], "size": [3, 5, 7], "mode": ["a"]}' });
+    renderWithProviders(<TuningForm project="proj" config={config} metrics={{ ...metrics, available_metrics: { loss: { smaller_is_better: true } } }} commit={commit} available_tests_files={{}}/>, { siteConfig: {} });
+    expect(screen.getByRole('radio', { name: /Choose the values/ })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: /Search automatically/ })).toHaveAttribute('aria-checked', 'false');
+    // 12 combinations: a search would need about as many evaluations, with values in between... only suggested when fewer
+    expect(screen.queryByTestId('tuning-suggest-auto')).toBeNull();
+    await act(async () => usePrefsStore.getState().updateTuning('proj', { parameter_search: '{"threshold": [0.1, 0.2, 0.3, 0.4, 0.5], "size": [3, 5, 7, 9, 11], "mode": ["a"]}' }));
+    expect(screen.getByTestId('tuning-suggest-auto')).toHaveTextContent('25 combinations');
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Search these ranges automatically' })));
+    const form = usePrefsStore.getState().tuning.proj;
+    expect(form.search_type).toBe('optimize');
+    expect(form.parameter_search_auto).toContain('name: threshold');
+    expect(form.parameter_search_auto).toContain('loss: min');
+    expect(form.parameter_search_auto).toContain('mode: a');
+    expect(screen.getByRole('radio', { name: /Search automatically/ })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByTestId('optimize-summary')).toBeInTheDocument();
+    // back to the values they listed
+    await act(async () => fireEvent.click(screen.getByTestId('tuning-mode-manual')));
+    expect(usePrefsStore.getState().tuning.proj.search_type).toBe('grid');
+  });
+
+  it('says how to get metrics when the runs return none', () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
+    usePrefsStore.getState().updateTuning('proj', { search_type: 'optimize' });
+    renderWithProviders(<TuningForm project="proj" config={config} metrics={{ available_metrics: {}, main_metrics: [] }} commit={commit} available_tests_files={{}}/>, { siteConfig: {} });
+    expect(screen.getByTestId('optimize-no-metrics')).toHaveTextContent("This commit's runs return no metrics yet");
+  });
+
   it('asks before starting the automated tuning over', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
     usePrefsStore.getState().updateTuning('proj', { search_type: 'optimize', optimize_mode: 'yaml', parameter_search_auto: 'my: edits' });

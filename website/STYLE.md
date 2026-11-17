@@ -36,6 +36,11 @@ overview pages:
 - **We help teams get started.** The public site and the README invite teams to get in touch with the maintainers
   (the contact is `contact` in *docusaurus.config.ts*, nowhere else in the docs). The web app's docs for a site
   (`QABOARD_SITE`) don't show it: their readers ask their own admins. Don't mention pricing, plans or services.
+- **One step at a time.** Say it in plain words (the landing page's title is "Set it up one step at a time"): a server with demo projects in a few
+  commands, a project's integration in steps of minutes that each show something new, then a server for the team, with
+  sign-in, roles, backups and monitoring added when needed. Coding agents do these setups well, with the quickstart
+  and the skills: say so, name Claude Code as an example, and keep the times and sizes the docs state. Also say what
+  it needs (Docker or Kubernetes, a folder the server and the runs both see).
 - Professional and precise in tone: plain words, concrete outcomes, no mascots or jokes in product copy.
 
 ## Page structure

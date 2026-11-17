@@ -1,6 +1,7 @@
 // A page with the benchmark viewer alone, with generated files: npm start, then open /benchmark-viewer.html
 // ?benchmarks=5000 for a bigger suite, ?dark for the dark theme, ?single without a reference, ?other-machine for
-// a reference from another CPU, ?new=<url>&ref=<url> for your own files (e.g. files in webapp/public/)
+// a reference from another CPU, ?new=<url>&ref=<url> for your own files (e.g. files in webapp/public/), with
+// ?name=, ?new_label= and ?ref_label= for the title and the runs' names
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Classes } from '@blueprintjs/core';
@@ -74,8 +75,8 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <QueryClientProvider client={new QueryClient()}>
       <div style={{ padding: 16, maxWidth: 1180, margin: '0 auto', background: 'var(--qa-background)', minHeight: '100vh' }}>
-        <h3 style={{ marginTop: 0 }}>pytest.benchmarks.json</h3>
-        <BenchmarksReport text={text} ref_text={ref_text} path="pytest.benchmarks.json" labels={{ new: 'agent/faster-codec', reference: 'main', colors: { new: side_color(0), reference: side_color(1) } }}/>
+        <h3 style={{ marginTop: 0 }}>{params.get('name') || 'pytest.benchmarks.json'}</h3>
+        <BenchmarksReport text={text} ref_text={ref_text} path="pytest.benchmarks.json" labels={{ new: params.get('new_label') || 'agent/faster-codec', reference: params.get('ref_label') || 'main', colors: { new: side_color(0), reference: side_color(1) } }}/>
       </div>
     </QueryClientProvider>
   </StrictMode>,

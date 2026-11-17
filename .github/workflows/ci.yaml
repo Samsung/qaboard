@@ -65,9 +65,9 @@ jobs:
       - name: Type Checks with MyPy
         run: uv run --no-sync mypy -p qaboard --ignore-missing-imports
       - name: Release notes
-        # valid frontmatter and docs links
+        # valid frontmatter and docs links, and notes being written short enough to read (see CLAUDE.md)
         if: matrix.python == '3.11'
-        run: uv run website/release-notes/release_notes.py check
+        run: uv run website/release-notes/release_notes.py check --strict
       - name: Merged migrations are never changed
         # databases record the migrations they ran by id: a changed one doesn't run again where it already ran
         if: matrix.python == '3.11' && github.event_name != 'release'

@@ -501,6 +501,10 @@ files and its `standin:` key in the same pull request.
       caption: ...
 ```
 
+The performance viewers' stand-ins come from a script, [`standins/make.py`](standins/make.py): it measures an example
+at two commits of its story and takes pictures of the viewer's playground on the two files, e.g.
+`uv run docs-media/standins/make.py commit/benchmarks`.
+
 Say in a comment how it was made and how it differs from the capture (other numbers, mocked data). Stand-ins follow
 the same rules as captures: the demo world only, real outputs and measurements, never a made-up number.
 

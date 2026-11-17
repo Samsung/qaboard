@@ -16,7 +16,6 @@ import useBrokenLinks from '@docusaurus/useBrokenLinks';
 import Shot from '@site/src/components/Shot';
 import Clip from '@site/src/components/Clip';
 import StatusBadge from '@site/src/components/StatusBadge';
-import ReleaseNoteHighlights from '@site/src/components/ReleaseNoteHighlights';
 import Viewers from '@site/src/components/landing/Viewers';
 import {useTabs} from '@site/src/components/landing/useTabs';
 import styles from './index.module.css';
@@ -104,7 +103,8 @@ function Hero() {
           </div>
           {contact && (
             <p className={styles.heroHelp}>
-              Setting it up for your team? The maintainers help you get started: <a href="#get-in-touch">get in touch</a>.
+              Setting it up for your team? See <a href="#start-small">the steps</a>. The maintainers help you get
+              started: <a href="#get-in-touch">get in touch</a>.
             </p>
           )}
         </div>
@@ -179,7 +179,7 @@ const STEPS: Step[] = [
     text: (
       <>
         Wrap your code with <code>qa</code> and run it on a batch of inputs: on your computer, on a cluster (LSF, Dask,
-        Celery) or in CI on every push.
+        Celery, Kubernetes) or in CI on every push.
       </>
     ),
     link: '/docs/get-started/tutorial',
@@ -280,6 +280,80 @@ function Loop() {
   );
 }
 
+type RampStep = {when: string; title: string; text: ReactNode; to: string; linkLabel: string};
+
+// Times and sizes are the docs': the quickstart (downloads) and "How it works" (minutes per step)
+const RAMP: RampStep[] = [
+  {
+    when: 'A few commands',
+    title: 'A server on your computer',
+    text: 'One Compose file, or a kind cluster, starts QA-Board with demo projects to explore. Most of the time goes to downloading about 2 GB of images.',
+    to: '/docs/get-started/quickstart',
+    linkLabel: 'The quickstart',
+  },
+  {
+    when: 'Minutes per step',
+    title: 'Your project, one step at a time',
+    text: (
+      <>
+        <code>qa init</code>, then your inputs, your code, its metrics, its files. Most steps take 5 to 30 minutes,
+        and each one shows something new in the web app. Runners and CI come when you want them.
+      </>
+    ),
+    to: '/docs/introduction#steps',
+    linkLabel: 'The steps, with what you get',
+  },
+  {
+    when: 'When the team joins',
+    title: 'A server for everyone',
+    text: 'The same Compose files, or the Helm chart, on your machines. Add single sign-on, project roles, backups and monitoring when you need them.',
+    to: '/docs/deploy',
+    linkLabel: 'Start a server',
+  },
+];
+
+function StartSmall() {
+  // The hero links to it: tell the build's link checker it exists
+  useBrokenLinks().collectAnchor('start-small');
+  return (
+    <section id="start-small" className={styles.section}>
+      <div className="container">
+        <SectionHeader eyebrow="Getting started" title="Set it up one step at a time">
+          Start with a server on your computer. Add your project next, then your team.
+        </SectionHeader>
+        <ol className={styles.ramp}>
+          {RAMP.map(({when, title, text, to, linkLabel}, index) => (
+            <li key={title} className={styles.rampStep}>
+              <span className={styles.rampWhen}>
+                <span className={styles.loopNumber} aria-hidden="true">
+                  {index + 1}
+                </span>
+                {when}
+              </span>
+              <h3 className={styles.cardTitle}>{title}</h3>
+              <p className={styles.cardText}>{text}</p>
+              <Link to={to}>{linkLabel} →</Link>
+            </li>
+          ))}
+        </ol>
+        <div className={styles.rampAgent}>
+          <h3 className={styles.cardTitle}>Or ask your coding agent</h3>
+          <p>
+            Coding agents such as Claude Code are good at this setup. Point yours at the quickstart to start a server.
+            Give it the integration skill to add your project: it wraps your code, declares metrics and
+            visualizations, sets up CI, and checks its work.
+          </p>
+          <Link to="/docs/agents">Set up QA-Board with a coding agent →</Link>
+        </div>
+        <p className={styles.rampNeeds}>
+          What it needs: Docker or Kubernetes for the server, and a folder that the server and your runs both see. On
+          one computer, that&apos;s a local folder; for a team, a shared one (NFS, SMB...).
+        </p>
+      </div>
+    </section>
+  );
+}
+
 type Collaborator = {audience: string; title: string; text: ReactNode; to: string; experimental?: boolean};
 
 const COLLABORATION: Collaborator[] = [
@@ -318,24 +392,6 @@ const COLLABORATION: Collaborator[] = [
     to: '/docs/quality-gate-pull-requests',
     experimental: true,
   },
-  {
-    audience: 'Project owners',
-    title: 'Rules a commit can’t loosen',
-    text: (
-      <>
-        Owners add gate rules in the web app, out of the commits’ reach. The comment also lists the rules a commit
-        loosened in its own <em>qaboard.yaml</em>.
-      </>
-    ),
-    to: '/docs/user-guide/project-gate',
-    experimental: true,
-  },
-  {
-    audience: 'Reviewers',
-    title: 'Every attempt on record',
-    text: 'A run done again keeps its earlier attempts’ status, metrics and logs: its card says “attempt 3”, and the gate’s comment lists the runs that passed only after a retry.',
-    to: '/docs/user-guide/commit-page#run-cards',
-  },
 ];
 
 function PeopleAndAgents() {
@@ -344,10 +400,9 @@ function PeopleAndAgents() {
       <div className="container">
         <SectionHeader eyebrow="People and agents" title="One view of quality, for people and agents">
           Coding agents write a growing share of changes. With QA-Board they run the same tests, read the same results
-          and meet the same targets as people, and a person decides what ships, with a record of how each result was
-          reached.
+          and meet the same targets as people, and a person decides what ships.
         </SectionHeader>
-        <ul className={clsx(styles.cards, styles.cardsThree)}>
+        <ul className={clsx(styles.cards, styles.cardsFour)}>
           {COLLABORATION.map(({audience, title, text, to, experimental}) => (
             <li key={title} className={styles.card}>
               <span className={styles.cardAudience}>{audience}</span>
@@ -361,10 +416,9 @@ function PeopleAndAgents() {
             </li>
           ))}
         </ul>
-        {/* The evidence a reviewer reads: the gate's comment, and a run's earlier attempts */}
-        <div className={styles.evidence}>
+        {/* The evidence a reviewer reads: the gate's comment */}
+        <div className={clsx(styles.evidence, styles.evidenceOne)}>
           <Shot id="ci/pr-comment" caption="The gate’s comment on a coding agent’s pull request: p99 is far over its limit, with the link to the Metrics Diff. Experimental." />
-          <Shot id="commit/attempt-tag" caption="A run done again: its card shows the latest attempt, the tag says how the earlier ones ended and what they measured." />
         </div>
       </div>
     </section>
@@ -572,7 +626,7 @@ function Production() {
 const STACK = [
   {title: 'Your code', items: ['Python', 'Any executable: C++, shell...'], to: '/docs/running-your-code'},
   {title: 'Git and CI', items: ['GitHub and GitLab webhooks', 'GitHub Actions, GitLab CI, Jenkins', 'CircleCI, Travis CI...'], to: '/docs/ci-integration'},
-  {title: 'Runners', items: ['Local processes', 'LSF', 'Dask', 'Celery'], to: '/docs/batches-running-on-multiple-inputs'},
+  {title: 'Runners', items: ['Local processes', 'LSF', 'Dask', 'Celery', 'Kubernetes'], to: '/docs/runners'},
   {title: 'Servers', items: ['Docker Compose', 'Kubernetes (Helm)', 'Air-gapped installs'], to: '/docs/deploy'},
   {title: 'Sign-in', items: ['Single sign-on (OpenID Connect)', 'LDAP, SAML', 'Local accounts'], to: '/docs/backend-admin/sign-in'},
   {title: 'Storage', items: ['A shared folder (NFS, SMB...)', 'Mounted at the same path everywhere'], to: '/docs/storage/where-is-the-data'},
@@ -605,72 +659,23 @@ function FitsYourStack() {
   );
 }
 
-const ROADMAP = [
-  {
-    status: 'next',
-    title: 'N-way comparisons',
-    text: 'Pick N commits, batches or tuning runs: outputs in a grid with synced zoom, one metrics column per run.',
-    to: '/docs/roadmap#n-way-comparisons',
-  },
-  {
-    status: 'next',
-    title: 'HTTP upload of outputs',
-    text: 'Save results from GitHub-hosted runners, laptops off the VPN and pods without a shared volume.',
-    to: '/docs/roadmap#http-upload-of-outputs',
-  },
-  {
-    status: 'next',
-    title: 'An MCP server',
-    text: 'Coding agents read results, Metrics Diffs and image crops, and review their changes like people do.',
-    to: '/docs/roadmap#an-mcp-server-read-only-first',
-  },
-];
+type LatestNote = {title: string; permalink: string};
 
-function Roadmap() {
-  return (
-    <section className={styles.section}>
-      <div className="container">
-        <SectionHeader eyebrow="Roadmap" title="Where we're going" />
-        <ul className={clsx(styles.cards, styles.cardsThree)}>
-          {ROADMAP.map(({status, title, text, to}) => (
-            <li key={title} className={styles.card}>
-              <StatusBadge status={status} />
-              <h3 className={styles.cardTitle}>
-                <Link to={to} className={styles.cardLink}>
-                  {title}
-                </Link>
-              </h3>
-              <p className={styles.cardText}>{text}</p>
-            </li>
-          ))}
-        </ul>
-        <p className={styles.sectionMore}>
-          <Link to="/docs/roadmap">The whole roadmap →</Link>
-        </p>
-      </div>
-    </section>
-  );
-}
-
-type LatestNote = {
-  title: string;
-  date: string;
-  permalink: string;
-  frontMatter: {description?: string; version?: string; highlights?: unknown[]};
-};
-
-function WhatsNew() {
+// What changed and what's next are a click away: the release notes and the roadmap say it better than cards here
+function MoreLinks() {
   const note = useGlobalData()['qaboard-latest-release-note']?.default as LatestNote | null | undefined;
-  if (!note)
-    return null;
   return (
-    <div className={styles.whatsNew}>
-      <h3 className={styles.whatsNewTitle}>
-        What&apos;s new: <Link to={note.permalink}>{note.title}</Link>
-      </h3>
-      <ReleaseNoteHighlights frontMatter={note.frontMatter} />
-      <Link to="/release-notes">All release notes →</Link>
-    </div>
+    <p className={styles.moreLinks}>
+      {note ? (
+        <>
+          What&apos;s new: <Link to={note.permalink}>{note.title}</Link>
+        </>
+      ) : (
+        <Link to="/release-notes">Release notes</Link>
+      )}
+      <span aria-hidden="true"> · </span>
+      What&apos;s next: <Link to="/docs/roadmap">the roadmap</Link>
+    </p>
   );
 }
 
@@ -731,7 +736,7 @@ function FinalCta() {
             </Link>
           </div>
         </div>
-        <WhatsNew />
+        <MoreLinks />
       </div>
     </section>
   );
@@ -748,13 +753,13 @@ export default function Home() {
         <ProofStrip />
         <InHouse />
         <Loop />
+        <StartSmall />
         <PeopleAndAgents />
         <ViewersSection />
         <Details />
         <UseCases />
         <Production />
         <FitsYourStack />
-        <Roadmap />
         {contact && <GetInTouch contact={contact} />}
         <FinalCta />
       </main>

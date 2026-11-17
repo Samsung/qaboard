@@ -31,6 +31,7 @@ import { project_admin_pages } from "./projectAdmin/ProjectAdminTabs"
 import { useCommitsList, useComparison, useProjects, useSiteConfig, useUser } from "./hooks"
 import { path_segments } from "./explore/tree"
 import { usePrefsStore } from "./stores/prefs"
+import { tuning_kind } from "./components/tuning/analysis"
 import { useIntegrationStatuses } from "./useIntegrationStatuses"
 import { repo_url, tree_url, commit_url, commits_url as git_commits_url, default_integrations } from "./git"
 
@@ -658,6 +659,8 @@ const results_integrations = ({ new_batch, commit, project_data }) =>
 
 const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, new_batch, ref_batch, selected_views, default_views, filter, ref_filter, ref_project, user, docs_root, ...integrationProps }) => {
   const has_optim = new_batch?.data?.optimization === true;
+  // a batch that tried several parameters has something to analyze
+  const has_tuning = has_optim || tuning_kind(new_batch) !== null;
   const active = view => selected_views.includes(view);
   return <>
     {/* Metrics Section */}
@@ -714,8 +717,8 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
     <SiderHint name="Run Tests / Tuning" content="Run this commit on more tests, or with other parameters, from the web app.">
       <ViewMenuItem view='tuning' default_views={default_views} icon="play" text="Run Tests / Tuning" active={active('tuning')}/>
     </SiderHint>
-    <SiderHint name="Tuning Analysis" content={has_optim ? "This batch is an automated tuning: see what it found, and what to do next." : "How the tuned parameters affect the metrics. Useful after tuning or automated tuning."}>
-      <ViewMenuItem view='optimization' default_views={default_views} icon="predictive-analysis" intent={has_optim ? "primary" : undefined} active={active('optimization')} text="Tuning Analysis"/>
+    <SiderHint name="Tuning Analysis" content={has_optim ? "This batch is an automated tuning: see what it found, and what to do next." : has_tuning ? "This batch tried several parameters: see which are best, which matter, and what to try next." : "Compares runs that tried different parameters: the best values, the parameters that matter. Says how to start when there are none."}>
+      <ViewMenuItem view='optimization' default_views={default_views} icon="predictive-analysis" intent={has_tuning ? "primary" : undefined} active={active('optimization')} text="Tuning Analysis" labelElement={has_tuning && !active('optimization') ? <Icon icon="dot" intent="primary" aria-label="This batch has results to analyze"/> : undefined}/>
     </SiderHint>
 
     <SectionHeader>Milestones</SectionHeader>

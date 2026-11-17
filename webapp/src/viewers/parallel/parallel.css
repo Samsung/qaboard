@@ -1,0 +1,494 @@
+/* The parallel coordinates plot (ParallelCoordinates.jsx). Colors follow the app's theme, with fallbacks to be used alone. */
+.qa-parallel {
+  --parallel-surface: var(--qa-surface, #ffffff);
+  --parallel-text: var(--qa-text, rgba(0, 0, 0, 0.85));
+  --parallel-muted: var(--qa-text-muted, #5f6b7c);
+  --parallel-border: var(--qa-border, rgba(17, 20, 24, 0.15));
+  --parallel-primary: var(--qa-intent-primary, #2d72d2);
+  --parallel-axis: rgba(17, 20, 24, 0.55);
+  --parallel-good: #1c6e42;
+  --parallel-band: rgba(17, 20, 24, 0.5);
+  --parallel-shadow: rgba(17, 20, 24, 0.16);
+  position: relative;
+  font-size: 12px;
+  color: var(--parallel-text);
+  background: var(--parallel-surface);
+  min-width: 0;
+}
+.bp6-dark .qa-parallel, .qa-parallel.qa-parallel-dark {
+  --parallel-surface: var(--qa-surface, #252a31);
+  --parallel-text: var(--qa-text, #f6f7f9);
+  --parallel-muted: var(--qa-text-muted, #abb3bf);
+  --parallel-border: var(--qa-border, rgba(255, 255, 255, 0.15));
+  --parallel-primary: var(--qa-intent-primary, #4c90f0);
+  --parallel-axis: rgba(255, 255, 255, 0.6);
+  --parallel-good: #72ca9b;
+  --parallel-band: rgba(255, 255, 255, 0.55);
+  --parallel-shadow: rgba(0, 0, 0, 0.45);
+}
+.qa-parallel-muted { color: var(--parallel-muted); }
+.qa-parallel-spacer { flex: 1; }
+
+/* Above the plot: what colors the lines, how many rows are shown, the hidden columns */
+.qa-parallel-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 28px;
+  padding-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.qa-parallel-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 280px;
+  padding: 3px 8px;
+  border: 1px solid var(--parallel-border);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.qa-parallel-button:hover { background: color-mix(in srgb, var(--parallel-primary) 10%, transparent); }
+.qa-parallel-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--parallel-primary);
+  font: inherit;
+  cursor: pointer;
+}
+.qa-parallel-link:hover { text-decoration: underline; }
+.qa-parallel-count { white-space: nowrap; }
+.qa-parallel-hint { color: var(--parallel-muted); }
+.qa-parallel-constant { color: var(--parallel-muted); font-variant-numeric: tabular-nums; }
+.qa-parallel-menu { max-height: 360px; overflow-y: auto; }
+
+.qa-parallel-legend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
+}
+.qa-parallel-gradient {
+  width: 120px;
+  height: 10px;
+  border-radius: 2px;
+}
+.qa-parallel-legend-end { color: var(--parallel-muted); }
+.qa-parallel-legend-better {
+  color: var(--parallel-good);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.qa-parallel-legend-item { display: inline-flex; align-items: center; gap: 4px; margin-right: 4px; }
+.qa-parallel-legend-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qa-parallel-swatch {
+  display: inline-block;
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+/* The plot: scrolls sideways when the axes don't fit, without widening the page */
+.qa-parallel-frame { position: relative; }
+.qa-parallel-frame::before, .qa-parallel-frame::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms linear;
+  z-index: 5;
+}
+.qa-parallel-frame::before { left: 0; background: linear-gradient(to right, var(--parallel-shadow), transparent); }
+.qa-parallel-frame::after { right: 0; background: linear-gradient(to left, var(--parallel-shadow), transparent); }
+.qa-parallel-frame.qa-parallel-more-left::before, .qa-parallel-frame.qa-parallel-more-right::after { opacity: 1; }
+.qa-parallel-scroll {
+  width: 0;
+  min-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.qa-parallel-content {
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.qa-parallel-lines {
+  position: absolute;
+  top: 0;
+  pointer-events: none;
+  transition: opacity 80ms linear;
+}
+.qa-parallel-hovering .qa-parallel-lines { opacity: 0.22; }
+.qa-parallel-overlay {
+  position: sticky;
+  left: 0;
+  display: block;
+  pointer-events: none;
+}
+
+/* Where the rows without a value go */
+.qa-parallel-missing {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 24px;
+  border-top: 1px dashed var(--parallel-border);
+  background: color-mix(in srgb, var(--parallel-muted) 7%, transparent);
+  pointer-events: none;
+}
+.qa-parallel-missing > span {
+  position: absolute;
+  left: 6px;
+  top: 4px;
+  color: var(--parallel-muted);
+  font-size: 10px;
+  font-style: italic;
+  pointer-events: auto;
+}
+
+.qa-parallel-group {
+  position: absolute;
+  top: 0;
+  height: 15px;
+  display: flex;
+  justify-content: center;
+  border-bottom: 2px solid var(--parallel-border);
+  color: var(--parallel-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 13px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+/* the name stays in view when its group is wider than what's shown */
+.qa-parallel-group > span { position: sticky; left: 12px; right: 12px; overflow: hidden; text-overflow: ellipsis; }
+
+/* An axis: a box without width at the axis' x, everything is positioned from there */
+.qa-parallel-axis {
+  position: absolute;
+  top: 0;
+  width: 0;
+  height: 100%;
+  z-index: 1;
+}
+.qa-parallel-axis-line {
+  position: absolute;
+  left: -0.5px;
+  width: 1px;
+  background: var(--parallel-axis);
+  pointer-events: none;
+}
+.qa-parallel-axis-line-category { opacity: 0.35; }
+/* the bands where tied rows spread: a thicker stretch of the axis */
+.qa-parallel-band {
+  position: absolute;
+  left: -1.5px;
+  width: 3px;
+  border-radius: 1.5px;
+  background: var(--parallel-band);
+  pointer-events: none;
+}
+.qa-parallel-better {
+  position: absolute;
+  left: 0;
+  width: 0;
+  height: 0;
+  color: var(--parallel-good);
+  pointer-events: auto;
+}
+.qa-parallel-better::before {
+  content: '';
+  position: absolute;
+  left: -4.5px;
+  border: 4.5px solid transparent;
+}
+.qa-parallel-better-top::before { top: -17px; border-top-width: 0; border-bottom: 7px solid currentColor; }
+.qa-parallel-better-top::after, .qa-parallel-better-bottom::after {
+  content: '';
+  position: absolute;
+  left: -0.5px;
+  width: 1px;
+  height: 10px;
+  background: currentColor;
+}
+.qa-parallel-better-top::after { top: -10px; }
+.qa-parallel-better-bottom::after { top: 0; }
+.qa-parallel-better-bottom::before { top: 10px; border-bottom-width: 0; border-top: 7px solid currentColor; }
+.qa-parallel-better > span {
+  position: absolute;
+  left: 7px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 10px;
+  text-transform: uppercase;
+  text-shadow: 0 0 2px var(--parallel-surface), 0 0 2px var(--parallel-surface);
+}
+.qa-parallel-better-top > span { top: -19px; }
+.qa-parallel-better-bottom > span { top: 9px; }
+
+.qa-parallel-tick {
+  position: absolute;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.qa-parallel-tick::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: -0.5px;
+  width: 5px;
+  height: 1px;
+  background: var(--parallel-axis);
+}
+.qa-parallel-tick-slot::before, .qa-parallel-tick-missing::before { display: none; }
+.qa-parallel-tick-label {
+  position: absolute;
+  right: 8px;
+  top: 0;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  overflow: hidden;
+  padding: 0 1px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  background: color-mix(in srgb, var(--parallel-surface) 72%, transparent);
+  color: var(--parallel-muted);
+  font: inherit;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* a halo: the labels are over the lines */
+  text-shadow: 0 0 2px var(--parallel-surface), 0 0 2px var(--parallel-surface), 0 0 3px var(--parallel-surface), 0 0 3px var(--parallel-surface);
+}
+.qa-parallel-tick-end .qa-parallel-tick-label { color: var(--parallel-text); }
+.qa-parallel-tick-slot .qa-parallel-tick-label {
+  right: 6px;
+  padding: 1px 4px;
+  color: var(--parallel-text);
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 2;
+}
+.qa-parallel-tick-slot .qa-parallel-tick-label:hover, .qa-parallel-tick-slot .qa-parallel-tick-label:focus-visible {
+  background: color-mix(in srgb, var(--parallel-primary) 16%, var(--parallel-surface));
+  outline: none;
+}
+.qa-parallel-tick-text { overflow: hidden; text-overflow: ellipsis; }
+.qa-parallel-tick-count { flex: none; color: var(--parallel-muted); font-size: 9.5px; }
+.qa-parallel-tick-missing .qa-parallel-tick-label { color: var(--parallel-muted); font-style: italic; }
+.qa-parallel-on .qa-parallel-tick-label { color: var(--parallel-primary); font-weight: 600; }
+.qa-parallel-off .qa-parallel-tick-label { opacity: 0.45; }
+
+/* Brushing: a strip along the axis to drag on, and the range that's kept */
+.qa-parallel-brush-zone {
+  position: absolute;
+  left: -11px;
+  width: 22px;
+  cursor: crosshair;
+  touch-action: none;
+  z-index: 1;
+}
+.qa-parallel-brush-zone:hover { background: color-mix(in srgb, var(--parallel-primary) 7%, transparent); }
+.qa-parallel-brush {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  border: 1px solid var(--parallel-primary);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--parallel-primary) 22%, transparent);
+  cursor: grab;
+}
+.qa-parallel-brush-handle {
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  height: 7px;
+  cursor: ns-resize;
+}
+.qa-parallel-brush-top { top: -4px; }
+.qa-parallel-brush-bottom { bottom: -4px; }
+.qa-parallel-brush-clear {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--parallel-primary);
+  color: #fff;
+  cursor: pointer;
+}
+.qa-parallel-brush-clear:hover { filter: brightness(1.15); }
+.qa-parallel-brush-value {
+  position: absolute;
+  left: 100%;
+  margin-left: 5px;
+  color: var(--parallel-primary);
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 0 2px var(--parallel-surface), 0 0 2px var(--parallel-surface), 0 0 3px var(--parallel-surface);
+}
+.qa-parallel-brush-value-top { top: -6px; }
+.qa-parallel-brush-value-bottom { bottom: -6px; }
+
+/* The axes' titles: buttons that open the axis' menu, and can be dragged to reorder */
+.qa-parallel-title-slot {
+  position: absolute;
+  left: 0;
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  z-index: 2;
+}
+.qa-parallel-title-slot > * { max-width: 100%; }
+.qa-parallel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  height: 22px;
+  padding: 0 5px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  color: var(--parallel-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: grab;
+  touch-action: none;
+}
+.qa-parallel-title:hover, .qa-parallel-title:focus-visible {
+  border-color: var(--parallel-border);
+  background: color-mix(in srgb, var(--parallel-primary) 10%, var(--parallel-surface));
+}
+.qa-parallel-title:focus-visible { outline: 2px solid var(--parallel-primary); outline-offset: 1px; }
+.qa-parallel-title-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qa-parallel-title-icon { flex: none; color: var(--parallel-primary); }
+.qa-parallel-title-log { flex: none; color: var(--parallel-muted); font-size: 9px; font-weight: 400; }
+.qa-parallel-title-color .qa-parallel-title-text { text-decoration: underline; text-decoration-color: var(--parallel-primary); text-underline-offset: 3px; }
+.qa-parallel-dragged { z-index: 4; }
+.qa-parallel-dragged .qa-parallel-title {
+  border-color: var(--parallel-primary);
+  background: var(--parallel-surface);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  cursor: grabbing;
+}
+.qa-parallel-reordering { cursor: grabbing; }
+.qa-parallel-drop {
+  position: absolute;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--parallel-primary);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.qa-parallel-tooltip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 30;
+  max-width: min(640px, calc(100vw - 16px));
+  padding: 7px 9px;
+  border: 1px solid var(--parallel-border);
+  border-radius: 4px;
+  background: var(--parallel-surface);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  color: var(--parallel-text);
+  font-size: 12px;
+  line-height: 16px;
+  pointer-events: none;
+}
+.qa-parallel-tooltip-title { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-bottom: 2px; }
+.qa-parallel-tooltip-mark {
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--parallel-text);
+  color: var(--parallel-surface);
+  font-size: 10px;
+}
+.qa-parallel-tooltip-values { column-gap: 18px; }
+.qa-parallel-tooltip-group {
+  margin-top: 4px;
+  color: var(--parallel-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  break-after: avoid;
+}
+.qa-parallel-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  break-inside: avoid;
+}
+.qa-parallel-tooltip-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 190px;
+  overflow: hidden;
+  color: var(--parallel-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qa-parallel-tooltip-value {
+  max-width: 200px;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qa-parallel-tooltip-muted { color: var(--parallel-muted); font-weight: 400; font-style: italic; }
+.qa-parallel-tooltip-extra { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--parallel-border); }
+
+.qa-parallel-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px 16px;
+  border: 1px dashed var(--parallel-border);
+  border-radius: 4px;
+  color: var(--parallel-muted);
+  text-align: center;
+}
+.qa-parallel-empty > strong { color: var(--parallel-text); font-size: 14px; }

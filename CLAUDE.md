@@ -59,6 +59,9 @@ So does the benchmark viewer (`webapp/src/viewers/benchmarks/`): `/benchmark-vie
 and `qaboard/benchmarks.py` read the same formats: both are tested on `tests/fixtures/benchmarks/`.
 The flame graph viewer (`webapp/src/viewers/flamegraph/`, the formats it reads in `formats.js`) too: `/flame-graph-viewer.html?stacks=300000`,
 with a new and a reference profile that differ in known ways (`generate.js`); `qaboard/flamegraphs.py` converts `perf script` and pprof.
+The parallel coordinates of Tuning Analysis (`webapp/src/viewers/parallel/`, drawn on a canvas, no Plotly) too: `/parallel-coordinates.html?rows=2000&columns=30`;
+`components/tuning/ParallelCoordinatesPlot.jsx` loads it lazily. Tuning Analysis itself is `components/tuning/TuningAnalysis.jsx`: `OptimizationReport.jsx`
+for `qa optimize` batches, `TuningReport.jsx` for the others (logic in `optimization.js` and `analysis.js`), with explanations in `learn.jsx`.
 Like the image viewer, `viewers/benchmarks/` and `viewers/flamegraph/` are standalone: they import nothing from the app, which
 only loads their adapters (`viewers/benchmarks-viewer.jsx`, `viewers/flame-graph.jsx`), lazily. `viewers/__tests__/isolation.test.js`
 checks it, and `TestIsolation` in the Python tests checks that `qaboard/benchmarks.py` and `flamegraphs.py` import nothing from `qaboard`.
@@ -94,7 +97,7 @@ HTCondor, OAR, Moab, Kubernetes or local, `runners.dask.cluster.type`), kubernet
 Optional dependencies are extras: `uv sync --extra dev --extra celery --extra dask --extra kubernetes --extra dask-kubernetes`
 (CI's python 3.13 job installs them all, 3.11 none). `qa doctor [--runner X] [--test-job]` checks a setup and prints
 fixes (runners implement `doctor()`). The server starts/stops batches with `QABOARD_TUNING_RUNNER` (`backend/backend/runner_jobs.py`,
-`local_jobs.py`). Design and trust model: `docs/design/kubernetes-runner.md`; known limits: `TODO_WARTS.md` (Runners).
+`local_jobs.py`). Design and trust model: `docs/design/kubernetes-runner.md`; known limits: `docs/warts.md` (Runners).
 Kubernetes end-to-end test on kind: `.github/scripts/kubernetes_runner_e2e.py`.
 
 ## Release notes and docs (communicating with users)
@@ -105,12 +108,18 @@ website shows them at `/release-notes` (with RSS/Atom feeds).
 
 - **Source**: `website/release-notes/YYYY-MM.md`, one file per month (`YYYY-qN.md` or `YYYY.md` for quiet
   or old periods; periods can't overlap). The format is documented in `website/release-notes/_template.md`.
-- **In the same PR as any user-visible change** (web app, `qa` CLI, qaboard.yaml, server/admin), add a
-  bullet to the current month's note, under the right section: `## Web app`, `## CLI and project setup`,
+- **In the same PR as any user-visible change** (web app, `qa` CLI, qaboard.yaml, server/admin), update the
+  current month's note, under the right section: `## Web app`, `## CLI and project setup`,
   `## Server and administration`, `## Documentation`, `## Performance`, `## Fixes` (grouped by theme under `###`
-  headings when there are many, in every section). If the month's file doesn't exist,
-  create it as a draft: `website/release-notes/release_notes.py draft 2026-11 --write` (pre-filled from
-  the git log, keeps `draft: true`). Skip refactors, CI-only and typo changes.
+  headings when there are many, in every section). Update, not append: if the note already has a bullet on the
+  feature, edit it; add a bullet only for a new feature, or for a fix of what shipped before the period. If the
+  month's file doesn't exist, create it as a draft: `website/release-notes/release_notes.py draft 2026-11 --write`
+  (pre-filled from the git log, keeps `draft: true`). Skip refactors, CI-only and typo changes.
+- **Then run `website/release-notes/release_notes.py check`**, and fix its warnings on the note you edited. It warns
+  when a note being written (a draft, or its period isn't over) has more than 40 bullets, a `###` theme (or a
+  section without themes) more than 6, or a bullet more than 400 characters (links count for their text): merge
+  the bullets on the same feature, cut polish, shorten and link the docs. Never move bullets to another period to
+  get under the limits: the note says when things shipped. `check --strict` makes these errors.
 - **Write for the reader**: one change per bullet, starting with a verb, saying what they can now do, in 1-3
   sentences: the details are in the docs, linked as `[text](/docs/page-id)`. No commit shas, no names, no internal
   hostnames or ticket ids: the repo and website are public.
@@ -118,16 +127,16 @@ website shows them at `/release-notes` (with RSS/Atom feeds).
   - Each `##` section once, in the template's order (`release_notes.py check` fails on duplicates). Past ~6 bullets,
     group a section by theme under `###` headings named like the app's areas (*Automated tuning*, *Image viewer*,
     *Storage usage*), the biggest themes first, and put a new bullet under its theme.
-  - One bullet per change, not per commit: before adding one, read the section, and if the period already has a
-    bullet on that feature, edit it. Polish and bug fixes of something added in the same period aren't bullets at
-    all (readers never saw the old behavior), and don't go under `## Fixes` either: Fixes is for what shipped before
-    the period.
+  - One bullet per feature, not per commit or per PR: a feature that took ten PRs gets one bullet, two or three
+    for a big one. Polish and bug fixes of something added in the same period aren't bullets at all (readers never
+    saw the old behavior), and don't go under `## Fixes` either: Fixes is for what shipped before the period.
   - Split a change by audience, not by commit: what people see goes under Web app, what integrators write
     (qaboard.yaml, `qa` flags, code) under CLI and project setup, what admins install, configure or migrate under
     Server and administration. A change that spans audiences gets one short bullet per audience, each saying only
     what that audience does.
-  - A month with more than ~40 bullets is a big release: tighten it mid-month (merge, cut, add highlights), don't
-    wait for publication.
+  - Keep implementation details out (endpoints the web app calls, packages the image installs, every variable's
+    name): one sentence on what changed and a docs link. Keep what readers must act on: renames, upgrade steps,
+    security caveats.
 - **Publishing** (maintainers, at the start of the next month or for a big release): curate the bullets,
   write `description` (1-2 sentences) and 2-4 `highlights` (up to 8 for a big release) (title, `audience`: users | project-integration |
   admins, a Blueprint `icon` name, plain-text `description` (backticks for code), optional `link: /docs/...`), set `date`
@@ -139,7 +148,7 @@ website shows them at `/release-notes` (with RSS/Atom feeds).
   app, or runs its tests (`webapp/releaseNotes.js`, imported as `virtual:release-notes`; the frontend image
   is built from the repo root for that, see `webapp/Dockerfile`). `npm start` reloads when a note changes;
   `QABOARD_RELEASE_NOTES_DRAFTS=1 npm start` also shows the drafts. `release_notes.py check` validates the
-  frontmatter and the docs links: CI runs it.
+  frontmatter and the docs links, and checks notes being written aren't too long to read: CI runs it with `--strict`.
 - **Changelog from git**: `release_notes.py changelog 2026-09` (or `2026-q3`, `2026`) lists the period's
   commits grouped by the area they touch, as raw material for a note.
 - Code: `webapp/src/releaseNotes/` (popup, panel, links), `website/src/components/ReleaseNoteHighlights.js`

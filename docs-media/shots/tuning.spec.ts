@@ -129,14 +129,14 @@ async function openForm(ui: Ui, { send = false } = {}) {
 const form = (page: Page) => page.locator('.bp6-card', { has: page.getByPlaceholder('my-tuning-experiment') }).first();
 // The form's button: "Start 8 runs", "Start automated tuning"
 const start = (page: Page) => form(page).getByRole('button', { name: /^Start (automated tuning|\d+ runs?|runs)$/ });
-// The Automated tuning tab edits its YAML with a guided form, or as text
+// Search automatically edits its YAML with a guided form, or as text
 const editMode = (page: Page, mode: 'Guided' | 'YAML') => form(page).getByRole('radio', { name: mode, exact: true })
   .or(form(page).getByRole('button', { name: mode, exact: true })).first();
 
 shot('tuning/auto-form', {
   project: DE,
   url: d => d.commitUrl(DE, 'int8-percentile', { view: 'summary' }),
-  alt: 'The Automated tuning tab, filled with the int8 model\'s tuning: four parameters with their ranges or values, '
+  alt: 'Run Tests / Tuning with Search automatically chosen, filled with the int8 model\'s tuning: four parameters with their ranges or values, '
     + 'AP on small objects and mAP to improve, the model size to keep small, 20 evaluations, and a summary that says '
     + 'it\'s ready to start and counts the runs.',
   caption: 'Automated tuning: the parameters to tune, the metrics to improve and the budget, with a summary that says '
@@ -145,7 +145,7 @@ shot('tuning/auto-form', {
   viewport: { width: 1440, height: 2000 },
   actions: async ui => {
     await openForm(ui);
-    await ui.click(ui.page.getByRole('tab', { name: 'Automated tuning' }));
+    await ui.click(ui.page.getByTestId('tuning-mode-optimize'));
     await ui.settle();
     // examples/detection-eval/qa/tune-int8.yaml, without its header (how to run it from a terminal), pasted as YAML,
     // then shown in the guided form
@@ -160,8 +160,8 @@ shot('tuning/auto-form', {
     await ui.cursor.moveTo({ x: 1400, y: 1950 });
     await ui.settle();
   },
-  // the tabs, the guided form with its summary, and the Start button
-  target: page => [form(page).getByRole('tablist'), page.getByTestId('optimize-setup'), start(page)],
+  // the two ways to choose values, the guided form with its summary, and the Start button
+  target: page => [form(page).getByRole('radiogroup').first(), page.getByTestId('optimize-setup'), start(page)],
   padding: 8,
 });
 
@@ -185,9 +185,9 @@ shot('tuning/which-tests-run', {
   viewport: { width: 1440, height: 560 },
 });
 
-// Manual tuning: a grid over the detector's score threshold and NMS IoU, on the 2 slices of quant-search
+// Choose the values: a grid over the detector's score threshold and NMS IoU, on the 2 slices of quant-search
 async function fillGrid(ui: Ui) {
-  await ui.click(ui.page.getByRole('tab', { name: 'Manual tuning' }));
+  await ui.click(ui.page.getByTestId('tuning-mode-manual'));
   await ui.settle();
   await paste(ui, form(ui.page).locator('.monaco-editor').last(), GRID);
   await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
@@ -197,7 +197,7 @@ async function fillGrid(ui: Ui) {
 shot('tuning/manual-form', {
   project: DE,
   url: d => d.commitUrl(DE, 'int8-percentile', { view: 'summary' }),
-  alt: 'The Run Tests / Tuning form: experiment int8-nms on the quant-search batch (2 tests), the Manual tuning tab '
+  alt: 'The Run Tests / Tuning form: experiment int8-nms on the quant-search batch (2 tests), Choose the values '
     + 'with a grid of score_threshold 0.2 and 0.3 by nms_iou 0.5 and 0.7, "Explores 4 combinations", "8 total runs", '
     + 'and the Start 8 runs button.',
   caption: 'Run a batch with other parameters: here every combination of 2 score thresholds and 2 NMS IoUs, 8 runs.',
@@ -225,7 +225,7 @@ clip('tuning/launch-to-analysis', {
   project: DE,
   url: d => d.commitUrl(DE, 'int8-percentile', { view: 'summary' }),
   alt: 'The Run Tests / Tuning form with a grid of score_threshold by nms_iou on quant-search, 8 runs: Start 8 runs launches it. '
-    + 'Then its batch, int8-nms, is picked, and its Analysis shows the runs in parallel coordinates.',
+    + 'Then its batch, int8-nms, is picked, and its Tuning Analysis says which of the 4 parameter sets is best.',
   caption: 'Start a sweep from the browser, then compare its runs in the Analysis view.',
   dedupeTolerance: 0.01,
   actions: async ui => {
@@ -261,6 +261,7 @@ clip('tuning/launch-to-analysis', {
     await ui.click(page.getByText(/^(Tuning )?Analysis$/).first());
     // from its title: the page kept the form's scroll
     await page.evaluate(() => window.scrollTo(0, 0));
+    await page.getByTestId('tuning-report').waitFor({ timeout: 60_000 });
     await ui.plots({ timeout: 60_000 });
     await ui.hold(3500);
   },
@@ -268,8 +269,6 @@ clip('tuning/launch-to-analysis', {
 
 // The tune-int8 experiment: `qa optimize`, 20 evaluations of the quant-search batch (int8 at 320 px on outdoor and
 // small-objects), the objective is -(AP small + mAP) + 0.005 per MB (examples/detection-eval/qa/tune-int8.yaml)
-const section = (page: Page, heading: string) => page.locator('h4', { hasText: heading }).first();
-
 // The report of an automated tuning (webapp/src/components/tuning/OptimizationReport.jsx)
 const report = (page: Page) => page.getByTestId('optimization-report');
 const reportPlot = (page: Page, heading: string) => report(page).locator('section', { has: page.locator('h3', { hasText: heading }) })
@@ -302,7 +301,8 @@ shot('tuning/analysis', {
 
 const SL = 'serving-latency';
 
-const plotAfter = (page: Page, heading: string) => section(page, heading).locator('xpath=following::div[contains(@class, "js-plotly-plot")][1]');
+// A section of the report of a batch that tried several parameters (webapp/src/components/tuning/TuningReport.jsx)
+const tradeoffs = (page: Page) => page.getByTestId('tradeoffs');
 
 // Hovers the point of a Plotly scatter whose hover text has all these strings in it
 async function hoverPointWith(ui: Ui, plot: Locator, texts: string[]) {
@@ -338,29 +338,20 @@ shot('tuning/frontier', {
   login: 'kaito',
   url: d => d.commitUrl(SL, 'cache-sharded', {
     batch: 'tune-batching', view: 'optimization',
-    query: { selected_metric: 'cpu_per_req', selected_metric2: 'latency_p99', selected_parameter: 'max_delay_us', selected_parameter_2: 'max_batch' },
+    query: { selected_metric: 'cpu_per_req', selected_metric2: 'latency_p99' },
   }),
-  alt: 'The efficient frontier of the tune-batching sweep: one point per configuration of max batch and max delay, CPU '
-    + 'per request against p99, colored by max delay. The hovered point, max batch 16 and max delay 250 µs, sits on the '
-    + 'lower left edge.',
+  alt: 'The trade-offs of the tune-batching sweep: one point per configuration of max batch and max delay, CPU '
+    + 'per request against p99, the best trade-offs highlighted and joined by a dotted line. The hovered point, max '
+    + 'batch 16 and max delay 250 µs, is one of them.',
   caption: 'Each configuration\'s CPU per request against its p99: the defaults picked, max batch 16 and 250 µs of delay, '
     + 'are on the frontier.',
   actions: async ui => {
-    // The Analysis view computes the metrics picked above its plots (the project's main metrics): add CPU per request
-    const metrics = ui.page.locator('.bp6-tag-input', { hasText: 'Latency p99' }).first();
-    await ui.click(metrics.locator('input'));
-    await ui.type(metrics.locator('input'), 'CPU per');
-    await ui.page.getByRole('menuitem', { name: /CPU per request/ }).first().waitFor();
-    await ui.press('Enter');
-    await ui.press('Escape');
-    await metrics.getByText('CPU per request').waitFor();
-    await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-    await ui.settle();
-    const plot = plotAfter(ui.page, 'Efficient frontier');
+    await ui.page.getByTestId('tuning-report').waitFor();
+    const plot = tradeoffs(ui.page).locator('.js-plotly-plot').first();
     await plot.evaluate(p => window.scrollBy(0, p.getBoundingClientRect().top - 300));
     await ui.settle();
-    await hoverPointWith(ui, plot, ['"max_batch":16', '"max_delay_us":250']);
+    await hoverPointWith(ui, plot, ['max_batch: 16', 'max_delay_us: 250']);
     await ui.settle();
   },
-  target: page => [section(page, 'Efficient frontier'), plotAfter(page, 'Efficient frontier')],
+  target: page => [tradeoffs(page).locator('h3').first(), tradeoffs(page).locator('.js-plotly-plot').first()],
 });

@@ -29,6 +29,7 @@ import { RunInfoMenuItems } from "./RunInfoMenu"
 import { AttemptTag } from "./AttemptTag"
 import { LazyPopover } from "./LazyPopover"
 import { runName } from "../utils/runName"
+import { PickReferenceMenuItem } from "../matching/PickReferenceMenuItem"
 
 
 const style_skeleton = {
@@ -84,10 +85,14 @@ const ConfigMismatchTag = ({ configurations, tuning, mismatch }) => <div>
 </div>
 
 // `configurations` and `tuning` are the run's: the mismatch has its reference's
-const MismatchTags = ({mismatch, configurations, tuning}) => {
+// `input`: whether to say the input differs (run cards say it with ReferenceMatchTag, and why)
+const MismatchTags = ({mismatch, configurations, tuning, input = true}) => {
   if (mismatch===null || mismatch===undefined)
     return <span/>
-  const { test_input_path, platform } = mismatch;
+  const { platform } = mismatch;
+  const test_input_path = input && mismatch.test_input_path;
+  if (!test_input_path && !platform && !mismatch.configurations && !mismatch.extra_parameters)
+    return <span/>
   return <div>
     {test_input_path  && <MismatchTag text="Input" what="input" explanation={test_input_path} />}
     {(mismatch.configurations || mismatch.extra_parameters) && <ConfigMismatchTag configurations={configurations} tuning={tuning} mismatch={mismatch} />}
@@ -257,8 +262,11 @@ const open_in_webcde = async ({ output, commit, cde_sh }) => {
 
 // The run's menu: what we know about it (what hovering its name shows, see RunName), then what users can do with it.
 // The same in the run cards, the logs and the tables. Lists have 100s of runs: the menu is only created when opened.
-const RunMenuButton = ({ output, project, commit, type, style }) => <LazyPopover placement="bottom-end" content={
+// `pick_reference`: on run cards, users can pick the reference run it compares with
+const RunMenuButton = ({ output, project, commit, type, style, pick_reference = false }) => <LazyPopover placement="bottom-end" content={
   <RunActionsMenu output={output} project={project} commit={commit}>
+    {/* it changes what the run is compared with: first */}
+    {pick_reference && <PickReferenceMenuItem output={output}/>}
     <RunInfoMenuItems project={project} commit={commit} output={output} type={type} />
   </RunActionsMenu>
 }>
@@ -282,7 +290,7 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
     </>}
     <AttemptTag data={output.data} style={{ marginLeft: "5px" }}/>
 
-    {output_type !== "batch" && <RunMenuButton output={output} project={project} commit={commit} type={type} style={{ marginLeft: "5px" }}/>}
+    {output_type !== "batch" && <RunMenuButton output={output} project={project} commit={commit} type={type} style={{ marginLeft: "5px" }} pick_reference/>}
 
     {/* The menus open on click: their buttons only act directly when there is nothing to choose from */}
     {output_ref ? <PopoverNext placement="bottom" content={
@@ -372,7 +380,7 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
       />
       </Tooltip>}
     )}
-    <MismatchTags mismatch={mismatch} configurations={configurations} tuning={output.extra_parameters}/>
+    <MismatchTags mismatch={mismatch} configurations={configurations} tuning={output.extra_parameters} input={false}/>
   </span>
 }
 

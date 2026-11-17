@@ -97,17 +97,19 @@ People choose the tests from the batches files of the commit, and can add their 
 <summary>Shortcuts for people who tune</summary>
 
 - To start from an existing run's parameters, hover its configuration tags and choose **Copy as a tuning search
-  space**, then paste it in the **Manual tuning** editor.
-- Pasting lines of `key=value` in the **Manual tuning** editor converts them to the tuning format:
+  space**, then paste it in the editor under **Choose the values**.
+- Pasting lines of `key=value` in that editor converts them to the tuning format:
   `block.threshold=10` becomes `"block.threshold": [10]`, and space-separated matrices like `[1 2 3]` become JSON
   arrays.
 - In the **Available Tests** view, <kbd>Ctrl</kbd>+<kbd>S</kbd> (or <kbd>Cmd</kbd>+<kbd>S</kbd>) saves the batches
   file you are editing.
-- Once runs are done, the **Tuning Analysis** view shows how the metrics depend on the parameters: the sensitivity to
-  each parameter and to pairs of parameters, a parallel coordinates plot, and the trade-off between two metrics. See
-  the [user guide](/docs/user-guide/running-from-the-webapp#tuning-analysis). For an automated tuning, it starts with
-  a report of what the search found and what to do next: see
+- Once runs are done, the **Tuning Analysis** view says which parameter set is best, how much each parameter matters,
+  where the best set loses test by test, and the trade-off between two metrics, with every set in parallel
+  coordinates. See the [user guide](/docs/user-guide/running-from-the-webapp#tuning-analysis). For an automated
+  tuning, it reports what the search found and what to do next: see
   [Read the results](/docs/user-guide/automated-tuning#results).
+- Runs without metrics can be scored afterwards: Tuning Analysis gives people a script to start from, which adds a
+  metric to each run with `run.log_metrics()` ([Add metrics to runs](/docs/apis#log)).
 
 </details>
 

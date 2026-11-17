@@ -86,6 +86,7 @@ const sidebars: SidebarsConfig = {
         'user-guide/commit-page',
         'user-guide/metrics',
         'user-guide/comparing-results',
+        'user-guide/reference-runs',
         'user-guide/milestones',
         'user-guide/history-and-dashboards',
       ],
@@ -102,6 +103,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'user-guide/running-from-the-webapp',
+        'user-guide/tuning',
         'user-guide/automated-tuning',
         'user-guide/available-tests',
         'user-guide/logs',

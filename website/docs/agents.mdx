@@ -2,16 +2,30 @@
 id: agents
 title: Integrate with a coding agent
 sidebar_label: Coding agents
-description: Skills that teach coding agents to wrap a project with qa, declare metrics and visualizations, set up CI and the gate, and to read results before claiming a change is better.
+description: Start a server and integrate a project with a coding agent. Skills teach agents to wrap a project with qa, declare metrics and visualizations, set up CI and the gate, and to read results before claiming a change is better.
 ---
 
 Coding agents integrate projects with QA-Board well when they know its conventions: what `run()` returns, how metrics
 are declared, what a batch is, and that a change is better only once its runs beat the reference's. Two skills in the
 repository say that, in the agents' format. Point your agent at them instead of pasting the docs.
 
+Coding agents such as Claude Code are also good at setting up QA-Board itself. Start with a server on your computer,
+then add your project.
+
 :::note
 The skills are new. Tell us what your agent got wrong, and we'll fix the skill.
 :::
+
+## Start a server {#start-a-server}
+No skill is needed for a first server: the [quickstart](/docs/get-started/quickstart) is a few commands, with Docker
+Compose or a kind cluster, and it ends with demo projects in the web app. Ask your agent:
+
+> *Start a QA-Board server on this computer, following
+> https://samsung.github.io/qaboard/docs/get-started/quickstart, and tell me when the demo projects open.*
+
+For a server your team shares, point the agent at [Start a server](/docs/deploy) and say where it runs. Sign-in with
+your directory, project roles, backups and monitoring are separate steps: add them when you need them. Review what
+the agent changes, and never give it more access to your machines than the task needs.
 
 ## Install the skills {#install}
 Copy them into your project, where your agent looks for skills (`.claude/skills/` for Claude Code), or reference them

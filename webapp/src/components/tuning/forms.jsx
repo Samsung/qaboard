@@ -24,10 +24,10 @@ import {
   Tooltip,
   PopoverNext,
   Spinner,
-  Tab,
-  Tabs,
-  TabsExpander,
+  Card,
+  Icon,
 } from "@blueprintjs/core";
+import styled from "styled-components";
 import { toaster } from "../../toaster"
 import { track } from "../../analytics"
 
@@ -36,10 +36,33 @@ import templates from './templates'
 import { BatchDefinitions, BatchWarnings } from './BatchReport'
 import { openInAvailableTests } from './availableTests'
 import OptimizeSetup from './OptimizeSetup'
-import { template as optimize_template, parse as parse_optimize, check as check_optimize, continuation } from './optimize_config'
+import { template as optimize_template, parse as parse_optimize, check as check_optimize, continuation, from_space, grid_to_space, recommended_evaluations } from './optimize_config'
+import Learn from './learn'
 
 
 const MAX_RUNS = 5000;
+
+// How to choose the parameters' values: two cards, so that people see there is a choice
+const Modes = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 10px;
+  margin: 4px 0 16px;
+  .qa-tuning-mode { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 2px 8px; align-items: start; cursor: pointer; text-align: left; font: inherit; color: inherit; }
+  .qa-tuning-mode[aria-checked="true"] { box-shadow: 0 0 0 2px var(--qa-intent-primary); }
+  .qa-tuning-mode-title { font-weight: 600; font-size: 15px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .qa-tuning-mode-text { grid-column: 2; font-size: 13px; }
+`;
+const modes = [
+  {
+    id: 'manual', icon: 'grid-view', title: 'Choose the values',
+    text: 'Run the tests as they are, or with the values you list for each parameter: every combination, or a sample of them.',
+  },
+  {
+    id: 'optimize', icon: 'predictive-analysis', title: 'Search automatically', tag: 'Automated tuning',
+    text: 'Say which parameters to tune and which metrics to improve. QA-Board tries values, learns from each result and homes in on the best: usually better parameters, with fewer runs.',
+  },
+];
 
 // A button that looks like the links around it
 const link_button_style = { background: 'none', border: 0, padding: 0, font: 'inherit', color: 'var(--qa-link)', cursor: 'pointer' };
@@ -440,7 +463,7 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
   const updateOverwrite = e => updateTuning(project, { overwrite: e.target.checked });
   const updateParameterSearch = new_parameter_search => updateTuning(project, { parameter_search: new_parameter_search });
   const updateParameterSearchAuto = new_parameter_search => updateTuning(project, { parameter_search_auto: new_parameter_search });
-  const updateSearchTab = new_tab => updateTuning(project, { search_type: new_tab === "search-manual" ? "grid" : "optimize" });
+  const updateMode = mode => updateTuning(project, { search_type: mode === 'manual' ? 'grid' : 'optimize' });
   const updateIterations = e => updateTuning(project, { search_options: { n_iter: parseFloat(e.target.value) } });
 
   // Users paste register values in the CDE format, we convert them to QA-Board's format
@@ -525,6 +548,25 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
   const lsf_runner = (config.runners?.lsf !== undefined || config.lsf !== undefined);
   const any_runner_configured = !!config.lsf || Object.keys(config.runners || {}).filter(t => t !== 'local' && t !== 'default').length > 0;
 
+  // A big grid: an automated tuning would search the same ranges with fewer runs
+  const grid_space = useMemo(() => {
+    if (search_type === 'optimize' || typeof combinations !== 'number' || combinations < 12) return null;
+    try {
+      const space = grid_to_space(eval_combinations(parameter_search).combinations);
+      if (!space) return null;
+      const evaluations = recommended_evaluations(space.rows);
+      return evaluations < combinations ? { ...space, evaluations } : null;
+    } catch {
+      return null;
+    }
+  }, [search_type, combinations, parameter_search]);
+  const searchGridAutomatically = () => updateTuning(project, {
+    search_type: 'optimize',
+    optimize_mode: 'guided',
+    // the metric the form would have started with
+    parameter_search_auto: from_space(grid_space.rows, parse_optimize(default_parameter_search_auto).config?.objective ?? {}, grid_space.preset_params),
+  });
+
   const panel_manual = <>
     <FormGroup label="Start from an example" style={{marginBottom: '15px'}}>
       <ButtonGroup variant="outlined" size="small" style={{flexWrap: 'wrap', gap: '4px'}}>
@@ -584,6 +626,13 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
       editorDidMount={onEditorDidMount}
     />
     {search_type !== "optimize" && <Callout intent={time_intent} >{total_runs} total runs {total_runs > MAX_RUNS && '(' + MAX_RUNS + ' max.)'} </Callout>}
+    {grid_space && <Callout icon="predictive-analysis" style={{ marginTop: 10 }} data-testid="tuning-suggest-auto">
+      <strong>{combinations} combinations{tests.length > 0 && <>, {total_runs} runs</>}.</strong> An automated tuning could search the same ranges with
+      about {grid_space.evaluations} evaluations{tests.length > 0 && <> ({grid_space.evaluations * tests.length} runs)</>}, and try the values in between: it needs a metric to improve. <Learn topic="search"/>
+      <div style={{ marginTop: 6 }}>
+        <Button size="small" intent={Intent.PRIMARY} icon="predictive-analysis" text="Search these ranges automatically" onClick={searchGridAutomatically}/>
+      </div>
+    </Callout>}
   </>
 
 
@@ -709,14 +758,26 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
     </RadioGroup>}
 
 
-    <Tabs renderActiveTabPanelOnly id="search-type" selectedTabId={search_type !== "optimize" ? "search-manual" : "search-optimize"} onChange={updateSearchTab}  defaultSelectedTabId="search-manual">
-      <Tab id="search-manual" title="Manual tuning" panel={panel_manual} />
-      <Tab id="search-optimize" title={<>Automated tuning</>} panel={panel_auto} />
-      <TabsExpander />
+    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+      <div className={Classes.LABEL} id="tuning-mode-label" style={{ marginBottom: 0 }}>Parameters <span className={Classes.TEXT_MUTED}>(how to choose their values)</span></div>
       <a href={`${docs_root}docs/${search_type !== "optimize" ? 'tuning-from-the-webapp' : 'user-guide/automated-tuning'}`} target="_blank" rel="noopener noreferrer">
         {search_type !== "optimize" ? 'How to tune from QA-Board' : 'How automated tuning works'}
       </a>
-    </Tabs>
+    </div>
+    <Modes role="radiogroup" aria-labelledby="tuning-mode-label">
+      {modes.map(mode => {
+        const checked = (search_type === 'optimize') === (mode.id === 'optimize');
+        return <Card key={mode.id} compact interactive className="qa-tuning-mode" role="radio" aria-checked={checked} tabIndex={0} data-testid={`tuning-mode-${mode.id}`}
+          onClick={() => updateMode(mode.id)}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); updateMode(mode.id); } }}
+        >
+          <Icon icon={mode.icon} size={20} intent={checked ? Intent.PRIMARY : Intent.NONE} style={{ marginTop: 2 }}/>
+          <div className="qa-tuning-mode-title">{mode.title}{mode.tag && <Tag minimal round intent={Intent.PRIMARY}>{mode.tag}</Tag>}</div>
+          <div className={`qa-tuning-mode-text ${Classes.TEXT_MUTED}`}>{mode.text}</div>
+        </Card>;
+      })}
+    </Modes>
+    {search_type !== 'optimize' ? panel_manual : panel_auto}
 
     <FormGroup
       helperText={!user ? "Please provide a user in the input below"
