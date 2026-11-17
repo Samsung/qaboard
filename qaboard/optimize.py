@@ -50,7 +50,7 @@ def optimize(ctx, on_commit, batches, batches_files, config_file, checkpoint, pa
   log = batch_log(ctx)
   command_id = os.environ.get('QA_BATCH_COMMAND_ID', log['command_id'] if log else str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them 
   command_data = {
-    "command_created_at_datetime":  datetime.datetime.utcnow().isoformat(),
+    "command_created_at_datetime":  datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(), # UTC, without offset like qa batch
     "argv": sys.argv,
     **ctx.obj,
   }
