@@ -142,6 +142,10 @@ gate:
     - {metric: map, per_test_max_regression: 25%}
   max_failed_runs: 0
 ```
+Once CI saves the artifacts (`qa save-artifacts`), anyone can run a batch on a pushed commit as the web app does:
+`qa --label <name> batch --commit <sha> <batch>`, without a checkout of that commit.
+https://samsung.github.io/qaboard/docs/tuning-from-the-webapp#from-the-command-line
+
 Rules about regressions need the metric's `smaller_is_better`. A rule with `batch: perf` checks only the runs of
 `qa batch perf`: the gate can't decide until those exist. `qa gate --post-status github --post-comment github`
 reports on the pull request. https://samsung.github.io/qaboard/docs/quality-gate
