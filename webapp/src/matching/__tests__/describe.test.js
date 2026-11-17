@@ -12,7 +12,7 @@ describe('reference tags', () => {
   });
 
   it('is amber only when there is nothing to compare with', () => {
-    expect(describe_match(run(1, 'night/x.png'), null, undefined, lookup([run(2, 'a.png')]), rules)).toMatchObject({ text: 'no reference', intent: 'warning' });
+    expect(describe_match(run(1, 'night/x.png'), null, undefined, lookup([run(2, 'a.png')]), rules)).toMatchObject({ text: 'no reference', intent: 'warning', clickable: true });
     expect(describe_match(run(1, 'a_05.png'), null, undefined, lookup([run(2, 'a_03.png')]), rules)).toMatchObject({ text: 'no reference · 1 similar', quiet: true, clickable: true });
   });
 

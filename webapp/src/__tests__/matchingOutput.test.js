@@ -118,6 +118,13 @@ describe('matching_output', () => {
     expect(reference_candidates({ output, batch: batch(outputs) }).map(c => [c.o.id, c.kind])).toEqual([[3, 'input'], [2, 'similar']]);
   });
 
+  it('lists every reference run when asked, the closest names first', () => {
+    const output = named(1, 'v1/street_reg05.png');
+    const outputs = [named(2, 'other/office.png'), named(3, 'v1/street_reg03.png'), named(4, 'v2/street/reg05.png')];
+    expect(reference_candidates({ output, batch: batch(outputs) }).map(c => c.o.id)).toEqual([3]);
+    expect(reference_candidates({ output, batch: batch(outputs), all: true }).map(c => [c.o.id, c.kind])).toEqual([[3, 'similar'], [4, 'other'], [2, 'other']]);
+  });
+
   it("doesn't count as tied the reference runs the platform tells apart", () => {
     const output = run(1, { input_path: 'a/scene.png', test_input_path: 'a/scene.png', test_input_metadata: { id: 'scene' } });
     const shot = (id, path, platform = 'linux') => run(id, { input_path: path, test_input_path: path, test_input_metadata: { id: 'scene' }, platform });
@@ -161,6 +168,15 @@ describe('matching_output', () => {
       const odd = named(5, '/a/b');
       const ref = named(6, 'x/a/b');
       expect(rules_for_all({ output: odd, candidate: candidate(ref, 'similar'), rules: rules(), index: index_outputs(batch([ref])) })).toBeNull();
+    });
+
+    it('pairs names not built alike, like the same file in another folder', () => {
+      const output = named(1, 'captures/v1/street.raw');
+      const ref = named(2, 'datasets/v2/day/street.raw');
+      const index = index_outputs(batch([ref, named(3, 'datasets/v2/day/office.raw')]));
+      const all = rules_for_all({ output, candidate: candidate(ref, 'other'), current: undefined, rules: rules(), index });
+      expect(all.added.pairs).toEqual([{ from: 'captures/v1', to: 'datasets/v2/day' }]);
+      expect(matching_output({ output: named(4, 'captures/v1/office.raw'), index, rules: all.rules }).output_ref.id).toBe(3);
     });
 
     it('prefers what the other reference run has', () => {
