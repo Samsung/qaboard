@@ -390,6 +390,31 @@ def test_tokens_list(people, make_client):
   assert people.get('/api/v1/admin/tokens?user=bob').status_code == 400
 
 
+def test_tokens_list_queries_dont_grow_with_users(admin, logged_in):
+  """The list says whose each token is: with their users loaded together, not one query per user"""
+  from sqlalchemy import event
+  from backend.database import engine, db_session
+  def queries():
+    statements = []
+    listen = lambda conn, cursor, statement, *args: statements.append(statement)
+    event.listen(engine, 'before_cursor_execute', listen)
+    try:
+      assert admin.get('/api/v1/admin/tokens').get_json()["total"] == len(users)
+    finally:
+      event.remove(engine, 'before_cursor_execute', listen)
+    db_session.remove()
+    return len(statements)
+  users = []
+  for name in ('alice', 'bob'):
+    new_token(logged_in(name))
+    users.append(name)
+  few = queries()
+  for name in ('carol', 'dave', 'erin', 'frank'):
+    new_token(logged_in(name))
+    users.append(name)
+  assert queries() == few
+
+
 def test_tokens_list_expired(people, make_client):
   """The status depends on dates: expired and idle-expired tokens are filtered by what they are now"""
   from backend.database import db_session

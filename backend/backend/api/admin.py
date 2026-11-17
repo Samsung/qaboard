@@ -8,6 +8,7 @@ import datetime
 
 from flask import request, jsonify, g
 from sqlalchemy import or_, func
+from sqlalchemy.orm import selectinload
 
 from backend import app, db_session
 from ..models import User, Token, AuditEvent
@@ -497,7 +498,8 @@ def admin_tokens():
   limit, offset = pagination()
   if limit is None:
     return jsonify({"error": "limit and offset must be numbers"}), 400
-  query = Token.query
+  # each token says whose it is: their users in one query, not one per token
+  query = Token.query.options(selectinload(Token.user))
   if request.args.get('user'):
     try:
       query = query.filter(Token.user_id == int(request.args['user']))
