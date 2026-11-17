@@ -638,10 +638,6 @@ def _database_rows() -> dict:
   return rows
 
 
-def _database_values() -> dict:
-  return {key: row["value"] for key, row in _database_rows().items()}
-
-
 def version() -> int:
   """Changes when the values in the database change: e.g. to rebuild what's computed from them (the git hosts)"""
   _database_rows()

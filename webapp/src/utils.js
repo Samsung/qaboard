@@ -339,18 +339,7 @@ const make_eval_templates_recursively = ({project, project_data, branch, commit,
     }
   }
   
-  return integration => {
-    // try {
-      // console.log("[before]", integration)
-      // console.log(context.commit)
-      const evaled_integration = recursively_apply(integration, s => fill_template(s, context));
-      // console.log("[after]", evaled_integration)
-    // } catch {
-      // problem can happen when the project/commit data is not loaded yet... 
-      // we should wait for everything to be loaded
-    // }
-      return evaled_integration;
-  }
+  return integration => recursively_apply(integration, s => fill_template(s, context));
 }
 
 const slug = text => {
