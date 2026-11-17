@@ -112,7 +112,7 @@ export const InstanceRoles = () => {
   return <section aria-label="Roles on all projects" style={{ marginBottom: 28 }}>
     <h4 className={Classes.HEADING}>Roles on all projects</h4>
     {shown_settings.length > 0 && <SettingsGrid>
-      {shown_settings.map(item => <AccessSetting key={item.key} {...item}/>)}
+      {shown_settings.map(({ key, ...item }) => <AccessSetting key={key} {...item}/>)}
     </SettingsGrid>}
     <p className={Classes.TEXT_MUTED} style={{ marginTop: 0, maxWidth: 720 }}>
       Users and groups with a role on every project, private ones included, e.g. a QA team as viewers.

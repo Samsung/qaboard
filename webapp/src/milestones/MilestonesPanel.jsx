@@ -478,7 +478,7 @@ export const MilestoneItem = ({ milestone: m, onSelect, onStack, onEdit, is_sele
     </div>}
     labelElement={<span className="qa-milestone-actions">
       {!!m.notes && <Tooltip content={<div style={{ maxWidth: 320, whiteSpace: 'pre-wrap' }}>{m.notes}</div>} placement="left">
-        <Icon icon="comment" size={12} className={Classes.TEXT_MUTED} style={{ margin: '0 4px' }} aria-label={`Notes: ${m.notes}`}/>
+        <Icon icon="comment" size={12} className={Classes.TEXT_MUTED} style={{ margin: '0 4px' }} role="img" aria-hidden={false} aria-label={`Notes: ${m.notes}`}/>
       </Tooltip>}
       {is_logged && <Button
         variant="minimal"

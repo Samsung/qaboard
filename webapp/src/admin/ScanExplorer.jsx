@@ -16,6 +16,7 @@ import { Loading } from "../settings/states";
 import { AdminError } from "./states";
 import { scanQuery, scanEntriesQuery, deleteScanPaths, importScanRuns, deleteScan } from "./api";
 import { formatBytes, number, JobStatus } from "./jobs";
+import { pressable } from "../utils/pressable";
 
 
 // What scans find, in words and colors: tracked things are calm, untracked ones stand out
@@ -190,7 +191,7 @@ export const ScanExplorer = ({ id }) => {
     <Totals>
       <Card compact><div className="value">{formatBytes(scan.bytes)}</div><div className={Classes.TEXT_MUTED}>on disk, {number(scan.files)} files</div></Card>
       <Card compact><div className="value" style={{ color: Colors.RED3 }}>{formatBytes(scan.untracked_bytes)}</div><div className={Classes.TEXT_MUTED}>QA-Board doesn't track</div></Card>
-      {Object.entries(scan.by_kind ?? {}).sort(([, a], [, b]) => b - a).map(([k, size]) => <Card key={k} compact interactive onClick={() => { setMode('untracked'); setKind(k); }}>
+      {Object.entries(scan.by_kind ?? {}).sort(([, a], [, b]) => b - a).map(([k, size]) => <Card key={k} compact interactive {...pressable(() => { setMode('untracked'); setKind(k); })}>
         <div className="value" style={{ fontSize: 18 }}>{formatBytes(size)}</div>
         <div><KindTag kind={k}/></div>
       </Card>)}
@@ -225,7 +226,7 @@ export const ScanExplorer = ({ id }) => {
                   ? <Tag minimal intent={entry.action === 'deleted' ? Intent.DANGER : Intent.SUCCESS}>{entry.action}</Tag>
                   : entry.deletable || entry.kind === 'untracked_export' || entry.kind === 'untracked_run'
                     ? <Checkbox checked={selected.has(entry.path)} onChange={() => toggle(entry)} aria-label={`Select ${entry.path}`} style={{ margin: 0 }}/>
-                    : <Tooltip content="QA-Board uses files in it: delete them from QA-Board" hoverOpenDelay={200}><Icon icon="lock" className={Classes.TEXT_MUTED}/></Tooltip>}
+                    : <Tooltip content="QA-Board uses files in it: delete them from QA-Board" hoverOpenDelay={200}><Icon icon="lock" className={Classes.TEXT_MUTED} role="img" aria-hidden={false} aria-label="Kept: QA-Board uses files in it"/></Tooltip>}
               </td>
               <td style={{ minWidth: 240, overflowWrap: 'anywhere' }}>
                 <Icon icon={entry.is_dir ? 'folder-close' : 'document'} className={Classes.TEXT_MUTED} style={{ marginRight: 6 }}/>

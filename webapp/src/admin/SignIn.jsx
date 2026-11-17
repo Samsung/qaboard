@@ -65,7 +65,7 @@ export const TestResults = ({ result }) => {
     </strong>
     <Checks>
       {checks.map((check, index) => <li key={index} data-testid="check">
-        <Icon icon={check.ok ? 'tick' : 'cross'} intent={check.ok ? Intent.SUCCESS : Intent.DANGER} aria-label={check.ok ? 'Passed' : 'Failed'}/>
+        <Icon icon={check.ok ? 'tick' : 'cross'} intent={check.ok ? Intent.SUCCESS : Intent.DANGER} title={check.ok ? 'Passed' : 'Failed'}/>
         <span>{check.check}</span>
         {check.detail && <span className={`detail ${Classes.TEXT_MUTED}`}>{check.detail}</span>}
       </li>)}

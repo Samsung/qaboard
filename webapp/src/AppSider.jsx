@@ -751,7 +751,7 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
       <ViewMenuItem view='tuning' default_views={default_views} icon="play" text="Run Tests / Tuning" active={active('tuning')}/>
     </SiderHint>
     <SiderHint name="Tuning Analysis" content={has_optim ? "This batch is an automated tuning: see what it found, and what to do next." : has_tuning ? "This batch tried several parameters: see which are best, which matter, and what to try next." : "Compares runs that tried different parameters: the best values, the parameters that matter. Says how to start when there are none."}>
-      <ViewMenuItem view='optimization' default_views={default_views} icon="predictive-analysis" intent={has_tuning ? "primary" : undefined} active={active('optimization')} text="Tuning Analysis" labelElement={has_tuning && !active('optimization') ? <Icon icon="dot" intent="primary" aria-label="This batch has results to analyze"/> : undefined}/>
+      <ViewMenuItem view='optimization' default_views={default_views} icon="predictive-analysis" intent={has_tuning ? "primary" : undefined} active={active('optimization')} text="Tuning Analysis" labelElement={has_tuning && !active('optimization') ? <Icon icon="dot" intent="primary" title="This batch has results to analyze"/> : undefined}/>
     </SiderHint>
 
     <SectionHeader>Milestones</SectionHeader>

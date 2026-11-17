@@ -20,6 +20,7 @@ import { JobDialog, ScheduleDialog } from "../admin/JobForm";
 import { overviewQuery, itemsQuery, runsQuery, failRuns, stopBatch, items_page_size, runs_page_size, match_keys } from "./api";
 import { WhoseRuns } from "../components/WhoseRuns";
 import { statuses, RunStatus, StatusBar, StatusText, Timeline, formatDuration, formatNumber, plural, secondsSince } from "./format";
+import { pressable } from "../utils/pressable";
 
 
 export const groups = [
@@ -428,7 +429,7 @@ const RunsTable = ({ filters, setFilters, group, item_key, now, live, show_batch
             return <tr key={run.id} data-testid="run">
               <td>
                 <RunStatus status={run.status}/>
-                {run.failed_reason && <Tooltip content={run.failed_reason}><Icon icon="info-sign" size={12} className={Classes.TEXT_MUTED} style={{ marginLeft: 4 }} aria-label={run.failed_reason}/></Tooltip>}
+                {run.failed_reason && <Tooltip content={run.failed_reason}><Icon icon="info-sign" size={12} className={Classes.TEXT_MUTED} style={{ marginLeft: 4 }} role="img" aria-hidden={false} aria-label={run.failed_reason}/></Tooltip>}
               </td>
               <td style={{ minWidth: 200 }}>
                 <Link to={results} title={`${run.input_database ?? ''}/${run.input_path ?? ''}`}><code style={{ fontSize: 12, overflowWrap: 'anywhere' }}>{run.input_path}</code></Link>
@@ -717,8 +718,8 @@ export const Activity = ({ filters }) => {
   const group = filters.group || 'batch';
   const totals = overview?.totals;
   const window_label = windows.find(w => w.value === (filters.window || '24h'))?.label.toLowerCase();
-  const card = (status, value, label, extra) => <Card compact interactive onClick={() => setFilters({ status: filters.status === status ? '' : status, page: '' })}
-    selected={filters.status === status} data-testid={`total-${status}`} aria-label={`${label}: show them`}>
+  const card = (status, value, label, extra) => <Card compact interactive {...pressable(() => setFilters({ status: filters.status === status ? '' : status, page: '' }))}
+    selected={filters.status === status} aria-pressed={filters.status === status} data-testid={`total-${status}`} aria-label={`${label}: show them`}>
     <div className="value"><StatusText $status={value ? status === 'ended' ? 'done' : status : undefined}>{formatNumber(value)}</StatusText></div>
     <div className={Classes.TEXT_MUTED}>{label}</div>
     {extra}
@@ -757,9 +758,9 @@ export const Activity = ({ filters }) => {
         </Card>
         {card('waiting', totals.waiting, 'runs waiting')}
         {card('running', totals.running, 'runs running')}
-        {totals.long_active > 0 && <Card compact interactive selected={filters.status === 'long'} data-testid="total-long"
+        {totals.long_active > 0 && <Card compact interactive selected={filters.status === 'long'} aria-pressed={filters.status === 'long'} data-testid="total-long"
           title="Waiting or running for over a day: their job may have died. Show them, the oldest first."
-          onClick={() => setFilters(filters.status === 'long' ? { status: '', page: '' } : { status: 'long', sort: 'oldest', page: '' })}>
+          {...pressable(() => setFilters(filters.status === 'long' ? { status: '', page: '' } : { status: 'long', sort: 'oldest', page: '' }))}>
           <div className="value"><StatusText $status="waiting">{formatNumber(totals.long_active)}</StatusText></div>
           <div className={Classes.TEXT_MUTED}><Icon icon="warning-sign" size={12} intent={Intent.WARNING} style={{ marginRight: 4 }}/>pending for over a day</div>
         </Card>}
