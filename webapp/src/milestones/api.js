@@ -6,7 +6,8 @@ import { queryOptions } from "@tanstack/react-query";
 import { DateTime } from "luxon";
 
 import { http } from "../api/http";
-import { path_segment, stringify_query } from "../selection";
+import { commitQuery } from "../api/queries";
+import { path_segment, stringify_query, show_reference, add_reference, is_default_name, other_refs_to_query } from "../selection";
 import { pretty_label, match_query } from "../utils";
 
 
@@ -50,9 +51,10 @@ export const milestone_path = m => `/${path_segment(m.project)}/milestone/${m.id
 export const milestone_url = m => `${window.location.origin}${milestone_path(m)}`;
 // "12-best-denoiser"
 const milestone_ref = m => `${m.id}${m.slug ? `-${m.slug}` : ''}`;
-// A milestone compared with another: /<project>/milestone/12-best-denoiser?vs=14-release-1-0
-export const comparison_path = (m, reference) => `${milestone_path(m)}?vs=${encodeURIComponent(milestone_ref(reference))}`;
-export const comparison_url = (m, reference) => `${window.location.origin}${comparison_path(m, reference)}`;
+// A milestone compared with others: /<project>/milestone/12-best-denoiser?vs=14-release-1-0&vs=15-release-1-1
+// `references`: a milestone or a list, the first is the reference shown, the others are stacked after it
+export const comparison_path = (m, references) => `${milestone_path(m)}?${[references].flat().map(r => `vs=${encodeURIComponent(milestone_ref(r))}`).join('&')}`;
+export const comparison_url = (m, references) => `${window.location.origin}${comparison_path(m, references)}`;
 // "12-best-denoiser" => 12
 export const milestone_id_from_path = name => {
   const match = /^(\d+)(-|$)/.exec(name ?? '');
@@ -85,26 +87,82 @@ export const milestones_of = (index, { project, commit, batch, filter }) => {
     .sort((a, b) => Number(b.is_mine) - Number(a.is_mine));
 };
 
-// The commit page that shows a milestone's results, as the new commit, maybe compared with another milestone
-export const milestone_location = (m, reference) => ({
-  pathname: `/${path_segment(m.project)}/commit/${path_segment(m.commit)}`,
-  search: stringify_query({
-    new_project: results_project(m) !== m.project ? results_project(m) : undefined,
-    batch: m.batch && m.batch !== 'default' ? m.batch : undefined,
-    filter: m.filter || undefined,
-    ...(reference ? {
-      reference: reference.commit,
-      ref_project: results_project(reference) !== m.project ? results_project(reference) : undefined,
-      batch_ref: reference.batch && reference.batch !== 'default' ? reference.batch : undefined,
-      filter_ref: reference.filter || undefined,
-    } : {}),
-  }),
-});
+// The commit page that shows a milestone's results, as the new commit, maybe compared with other milestones:
+// `references`, a milestone or a list. The first is the reference shown, the others are stacked after it.
+export const milestone_location = (m, references) => {
+  const [reference, ...others] = [references ?? []].flat().filter(Boolean);
+  return {
+    pathname: `/${path_segment(m.project)}/commit/${path_segment(m.commit)}`,
+    search: stringify_query({
+      new_project: results_project(m) !== m.project ? results_project(m) : undefined,
+      batch: m.batch && m.batch !== 'default' ? m.batch : undefined,
+      filter: m.filter || undefined,
+      ...(reference ? {
+        reference: reference.commit,
+        ref_project: results_project(reference) !== m.project ? results_project(reference) : undefined,
+        batch_ref: reference.batch && reference.batch !== 'default' ? reference.batch : undefined,
+        filter_ref: reference.filter || undefined,
+      } : {}),
+      compare: other_refs_to_query(others.map(milestone_side), m.project),
+    }),
+  };
+};
 
-// What to change in the selection (src/selection.js) to show a milestone as the new or the reference results
-export const milestone_selection_changes = (m, side) => side === 'ref'
-  ? { ref_project: results_project(m), ref_commit_id: m.commit, selected_batch_ref: m.batch || 'default', filter_batch_ref: m.filter ?? '' }
-  : { new_project: results_project(m), new_commit_id: m.commit, selected_batch_new: m.batch || 'default', filter_batch_new: m.filter ?? '' };
+// Starts loading a milestone's results: when it's picked, before the page re-renders for the new URL, or a moment
+// after users hover it. The commit page asks for them with the same key (useCommit). Very big batches are only
+// loaded once picked: hovering a list shouldn't download thousands of runs.
+export const prefetch_milestone = (queryClient, m, { hover = false } = {}) => {
+  if (!m?.commit || (hover && (m.runs?.count ?? 0) > 5000)) return;
+  queryClient.prefetchQuery(commitQuery({ project: results_project(m), id: m.commit }));
+};
+
+// What the commit page compares, to say where milestones are: the new results, then each reference.
+// `comparison`: useComparison(), null outside the commit pages' providers. [] when no commit page is shown.
+// Each is {project, commit_id, batch, filter, role: "new", "ref" or "ref 2"..., color (CSS), title, is_shown}
+export const comparison_sides = comparison => {
+  const { selected, compared, references } = comparison ?? {};
+  if (!selected?.route?.is_commit || !compared) return [];
+  const several = references.length > 1;
+  return [
+    {
+      project: compared[0].project, commit_id: compared[0].commit?.id ?? selected.new_commit_id, batch: selected.selected_batch_new, filter: selected.filter_batch_new,
+      role: 'new', color: compared[0].color?.css, title: 'The new results, in the top bar',
+    },
+    ...references.map((r, i) => ({
+      project: r.project, commit_id: r.commit_id ?? r.commit?.id, batch: r.batch, filter: r.filter,
+      role: several ? `ref ${i + 1}` : 'ref', color: r.color?.css, is_shown: i === selected.ref_index, is_reference: true,
+      title: i === selected.ref_index ? `The reference${several ? ` shown, ${i + 1} of ${references.length},` : ''} in the bottom bar`
+        : `Stacked reference ${i + 1} of ${references.length}${r.together ? ', shown together' : ''}`,
+    })),
+  ];
+};
+
+// A milestone as a side of the comparison (src/selection.js)
+export const milestone_side = m => ({ project: results_project(m), commit_id: m.commit, batch: m.batch || 'default', filter: m.filter ?? '' });
+
+// The same results as a reference? Its commit id may be short.
+export const is_milestone_side = (m, side) => !!side && results_project(m) === side.project && same_commit(m.commit, side.commit_id)
+  && (m.batch || 'default') === (side.batch || 'default') && (m.filter ?? '') === (side.filter ?? '');
+
+// What to change in the selection (src/selection.js) to show a milestone as the new or the reference results.
+// `selected`: the selection, with its `references`. Without it, we only change the commit, batch, filter and project.
+// - A milestone already among the references is shown: we don't add it twice.
+// - The results it replaces may have a name users gave them: it said what those were, the milestone has its own name.
+//   The names we give ("ref 2") stay, so that the other references keep theirs.
+export const milestone_selection_changes = (m, side, selected) => {
+  if (side === 'ref') {
+    const index = (selected?.references ?? []).findIndex(r => is_milestone_side(m, r));
+    if (index >= 0) return index === selected.ref_index ? {} : show_reference(selected, index);
+  }
+  const changes = side === 'ref'
+    ? { ref_project: results_project(m), ref_commit_id: m.commit, selected_batch_ref: m.batch || 'default', filter_batch_ref: m.filter ?? '' }
+    : { new_project: results_project(m), new_commit_id: m.commit, selected_batch_new: m.batch || 'default', filter_batch_new: m.filter ?? '' };
+  const label = selected?.[`label_${side}`];
+  return label && !is_default_name(label) ? { ...changes, [`label_${side}`]: '' } : changes;
+};
+
+// What to change in the selection to add a milestone to the references, and show it (shown if it's one already)
+export const stack_milestone_changes = (m, selected) => add_reference(selected, milestone_side(m));
 
 // What the web app selects to show a milestone
 export const milestone_selection = m => ({

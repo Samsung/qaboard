@@ -219,3 +219,32 @@ test('the top results are the first tab: drag it on a reference to swap the bars
   await page.screenshot({ path: test.info().outputPath('page-after.png'), clip: { x: 0, y: 0, width: 1400, height: 200 } });
   await page.waitForLoadState('networkidle');
 });
+
+// The reference bar's Change menu changes the reference the bar shows, whichever it is in the list, and calls it by
+// the milestone's name. A milestone that is a reference already is shown, not added twice.
+test('a milestone picked in the reference bar replaces the reference shown, not another', async ({ page }) => {
+  const pick = async name => {
+    await page.getByRole('button', { name: 'Change the reference commit' }).click();
+    // once on the page, it's listed first, "On this page", and again in its section
+    await page.getByRole('menu', { name: 'Milestones' }).getByText(name, { exact: true }).first().click();
+  };
+  // c, then d shown second, named by users
+  await page.goto(`/${project}/commit/${a}?reference=${d}&label_ref=night&compare=${c}&ref_index=1`);
+  await expect(page.getByRole('tab', { name: /^Reference 2: night/ })).toHaveAttribute('aria-selected', 'true');
+  await pick('release 1.0');
+  await expect(page.getByRole('tab', { name: /^Reference 2: release 1\.0/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: /^Reference 1: ref\b/ })).toBeVisible();
+  await expect(page.getByRole('tab')).toHaveCount(2);
+  await expect(page).toHaveURL(new RegExp(`reference=${b}`));
+  await expect(page).toHaveURL(new RegExp(`compare=${c}`));
+
+  // ...the first one shown: picking the milestone, a reference already, shows it. The menu says where it is.
+  await page.getByRole('tab', { name: /^Reference 1:/ }).click();
+  await expect(page.getByRole('tab', { name: /^Reference 1:/ })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('button', { name: 'Change the reference commit' }).click();
+  await expect(page.getByRole('menu', { name: 'Milestones' }).getByRole('menuitem', { name: /^release 1\.0 ref 2/ }).first()).toBeVisible();
+  await page.keyboard.press('Escape');
+  await pick('release 1.0');
+  await expect(page.getByRole('tab', { name: /^Reference 2: release 1\.0/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab')).toHaveCount(2);
+});
