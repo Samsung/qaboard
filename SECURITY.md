@@ -80,6 +80,8 @@ By default (`ingest.auth` is `off`), the `qa` CLI can send runs, batches and com
 
 Code that runs as the server's user can read its credentials (database, GitLab token, the ssh key of the LSF bridge...). If users can write in the storage, they can also change the `.envrc` files and the code that the server, CI and other users run from it.
 
+Run files sent over HTTP (`PUT /api/v1/output/<id>/files/<path>`, only on servers with `QABOARD_UPLOAD_ROOT`) are the exception: they always need a token with the `ingest` scope that can send results to the project, and so does creating a run that uploads. The server chooses the run's folder under the upload root, clients only name files inside it, and files are only accepted while the run is pending or running. Whoever holds such a token can still store any file, served under `/s/`: see the HTML reports issue below.
+
 *Mitigations*: require tokens to send results (`ingest.auth` set to `token` in the admin panel, or `QABOARD_INGEST_AUTH=token`, after a period in `warn`); only expose the server to trusted networks; set `QABOARD_STORAGE_ROOTS` as narrowly as you can; make sure users can't write to the artifacts folders.
 *Planned*: per-project ingest policies (signed-in senders already need the developer role), and running the tests listing without access to the server's credentials.
 

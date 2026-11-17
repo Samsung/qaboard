@@ -25,7 +25,7 @@ import uuid
 from pathlib import Path, PurePosixPath
 from typing import BinaryIO, Optional, Tuple
 
-from qaboard.conventions import batch_folder_name, commit_dir_name, slugify
+from qaboard.conventions import batch_folder_name, commit_dir_name, is_upload_storage, slugify
 
 from . import config
 from .storage import check_inside, UnsafePathError
@@ -54,6 +54,15 @@ def upload_root() -> Optional[Path]:
 
 def enabled() -> bool:
   return upload_root() is not None
+
+
+def is_upload_setting(storage_config: Optional[dict], qa_storage: Optional[str] = None) -> bool:
+  """
+  Whether a project's storage settings (the `storage` of its qaboard.yaml, as {"storage": ...}) say that its runs send
+  their files to the server. `qa_storage`: the server's own $QA_STORAGE, which wins like for `qa`.
+  """
+  storage_config = storage_config or {}
+  return is_upload_storage(qa_storage or storage_config.get('storage') or storage_config.get('ci_root'))
 
 
 def supports_project(project_id: str) -> bool:

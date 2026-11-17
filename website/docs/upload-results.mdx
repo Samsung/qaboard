@@ -1,0 +1,161 @@
+---
+id: upload-results
+title: Upload results from any tool
+sidebar_label: Upload results (qa upload)
+description: "Save files other tools produced as a run, with qa upload: test reports, benchmark files, profiles, coverage. No run() function to write, from any CI job and any language, compared with the reference like every run."
+---
+
+Save the files a tool already produced as a run, with one command: a test report, a benchmark file, a profile, a
+coverage report. There is no `run()` function to write. The run shows in the web app like the runs of `qa run`,
+compared with the reference's, with the viewer each file needs.
+
+:::caution Experimental
+`qa upload` is new: its options may change. Tell us what your CI needs.
+:::
+
+Use `qa run` when QA-Board starts your code on each input of a batch ([Running your code](/docs/running-your-code)),
+[`qaboard.start_run()`](/docs/log-from-code) from Python code that logs as it goes, and `qa upload` when the results
+are already files.
+
+## Upload a test report from a CI job {#quick-start}
+1. **Write the report** with your test runner, as you may already do:
+
+   ```bash
+   pytest --junitxml=junit.xml
+   ```
+
+2. **Upload it:**
+
+   ```bash
+   pip install qaboard
+   export QABOARD_URL=https://qaboard.example.com
+   qa upload junit.xml
+   ```
+
+   `qa` prints the run's address in the web app.
+
+3. **Open it.** The run's card shows the tests as a tree, against the reference run's: new failures, fixed, added
+   and removed tests ([test reports](/docs/user-guide/other-viewers#test-reports)). Its metrics count the tests:
+   `tests`, `passed`, `failed`, `errors`, `skipped`, `flaky` and `test_time`. Follow them on the **History** page,
+   and let the [quality gate](/docs/quality-gate) fail the CI when tests disappear.
+
+This works in any repository: it doesn't need a *qaboard.yaml*. In a CI job, `qa` reads the project (the
+repository's name) and the commit from the CI's environment. Elsewhere, run it from a
+[project](/docs/project-init), or give `--project group/repo`.
+
+You need a server that takes the files: one that [accepts uploads](/docs/storage/uploads), or a
+[storage shared with it](/docs/storage/where-is-the-data). The server asks who sends files: sign in with
+`qa auth login`, or let the CI job [sign in as itself](/docs/ci-integration#ci-without-secrets).
+
+## What you can upload {#files}
+Any file. The web app opens each with the viewer its name picks ([viewers and file formats](/docs/viewers)).
+Three kinds show on the run's card without anything in *qaboard.yaml*, and two give the run its metrics:
+
+| Files | Named like | On the card | Metrics |
+|---|---|---|---|
+| [Test reports](/docs/viewers#test-reports) (JUnit XML) | *junit.xml*, *\*.junit.xml*, *\*-junit.xml*, *TEST-\*.xml* | The tests, against the reference's | The counts of tests, and their time |
+| [Benchmark files](/docs/benchmarks#harnesses) | *benchmarks.json*, *\*.benchmarks.json*, *\*-bench.json* | Each benchmark, against the reference's | One per benchmark |
+| [Profiles](/docs/flame-graphs) | *\*.folded*, *\*.speedscope.json*, *\*.cpuprofile* | A differential flame graph | |
+| Anything else | | In **Output Files**; on the card if [*qaboard.yaml* lists it](/docs/visualizations) | |
+
+```bash
+pytest --junitxml=junit.xml --benchmark-json=pytest.benchmarks.json
+py-spy record --format raw -o cpu.folded -- python serve.py
+qa upload --input codec junit.xml pytest.benchmarks.json cpu.folded build/coverage/
+```
+
+- **A file keeps its name** in the run, and a folder its name and what is in it: *build/coverage/index.html* is
+  saved as *coverage/index.html*.
+- **`--as` renames** the only file given, e.g. when a tool writes *results.xml*:
+  `qa upload results.xml --as junit.xml`.
+- **Add metrics** with `-m name=value`, or from a JSON file with `--metrics metrics.json`. They win over those read
+  from the files. `--no-read` reads none.
+- **Several test reports add up**, like the report per class that Maven and Gradle write.
+
+## Name the run {#identity}
+A run is identified like any run: a project, a commit, a batch, an input and configurations. Runs with the same
+input and configurations are compared from a commit to the next, and with the reference.
+
+| | Option | Default |
+|---|---|---|
+| What was tested: the input | `--input codec` | The file's name without its extension. With several paths, the CI job's name |
+| How: the configurations | `qa -c O3 -c '{"threads": 4}' upload ...` | None |
+| The batch, in the web app | `qa --label nightly upload ...` | `default`: the CI's results. Outside the CI, your own batch, like `qa --share` |
+| The group of tests, on the run's card | `--batch unit-tests` | None |
+| The project and the commit | `--project group/repo`, `--commit <id>` | The *qaboard.yaml*'s or the CI's repository; the git `HEAD` or the CI's commit |
+
+- **One run per file:** `qa upload --each 'build/test-results/*.xml'` names each run after its file.
+- **Uploading the same run again replaces it**: the web app shows the latest, and remembers the earlier attempts.
+- **`--failed`** says that what made the files couldn't finish, e.g. the test runner crashed. Failing tests don't
+  fail the run: the run measured them.
+
+## In your CI {#ci}
+
+<Tabs groupId="ci">
+<TabItem value="github" label="GitHub Actions" default>
+
+```yaml title=".github/workflows/tests.yml"
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # the job signs in to QA-Board as itself, without a stored secret
+      contents: read
+    env:
+      QABOARD_URL: https://qaboard.example.com
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install qaboard pytest
+      - run: pytest --junitxml=junit.xml
+      - run: qa upload junit.xml
+        if: always()   # also when tests failed
+```
+
+</TabItem>
+<TabItem value="gitlab" label="GitLab CI">
+
+```yaml title=".gitlab-ci.yml"
+unit-tests:
+  variables:
+    QABOARD_URL: https://qaboard.example.com
+  id_tokens:
+    QABOARD_ID_TOKEN:
+      aud: https://qaboard.example.com
+  script:
+    - pip install qaboard pytest
+    - pytest --junitxml=junit.xml
+  after_script:
+    - qa upload junit.xml
+```
+
+</TabItem>
+</Tabs>
+
+How jobs sign in, as themselves or with a token: [CI integration](/docs/ci-integration#ci-without-secrets).
+
+## From Python {#python}
+`qa upload` is [`qaboard.start_run()`](/docs/log-from-code) from the shell. In a script, do the same and more:
+
+```python
+import qaboard as qb
+from qaboard.junit import junit_metrics
+
+with qb.start_run(input="codec", label="nightly", batch="unit-tests") as run:
+    run.log_artifact("junit.xml")
+    run.log_metrics(junit_metrics("junit.xml"))
+```
+
+## What it doesn't do {#limits}
+- **Start the runs again from the web app.** QA-Board doesn't know how the files were made. For runs it can redo
+  and tune, wrap your code with [`qa run`](/docs/running-your-code).
+- **Add files to a run that ended.** Upload everything a run has at once, or make it two runs.
+- **Convert files.** The web app reads `perf script` output and pprof files once converted to folded stacks, and a
+  Criterion directory once written as one file: see [profiles](/docs/flame-graphs#flame-graph-recipes) and
+  [benchmark suites](/docs/benchmarks#benchmarks-format).
+
+## Where next
+<Cards>
+  <Card title="Tests and coverage over time" to="/docs/use-cases/software-quality" eyebrow="Use case">What a team sees once its test reports are runs.</Card>
+  <Card title="Without a shared storage" to="/docs/storage/uploads">How files reach the server from any machine.</Card>
+  <Card title="The quality gate" to="/docs/quality-gate">Fail the CI when tests disappear or benchmarks slow down.</Card>
+</Cards>

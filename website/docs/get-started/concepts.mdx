@@ -13,7 +13,8 @@ uses, in the order you meet them.
   See [Running your code](/docs/running-your-code).
 - **The server** stores what runs report in a database, and serves the web app. It reads the output files from a
   storage that every machine running `qa` also mounts, at the same path (by default `/mnt/qaboard`, often an NFS
-  share). See [Where is the data saved?](/docs/storage/where-is-the-data)
+  share). See [Where is the data saved?](/docs/storage/where-is-the-data) Machines that can't mount it
+  [send it their files](/docs/storage/uploads).
 - ***qaboard.yaml***, at the root of your project, tells `qa` how to run your code, where your inputs are, which
   metrics matter and how to show your outputs. See [Project setup](/docs/project-init).
 

@@ -195,6 +195,10 @@ The viewer shows the run's tests as a tree, compared with the reference run's: n
 newly flaky and skipped tests, with each failure's message, trace and output. How people use it:
 [Test reports](/docs/user-guide/other-viewers#test-reports).
 
+To bring a report in from a CI job without writing a `run()`, `qa upload junit.xml` saves it as a run, with the
+counts of tests as metrics: see [Upload results from any tool](/docs/upload-results). From `run()`,
+`qaboard.junit.junit_metrics(path)` returns the same metrics.
+
 ```yaml title="qaboard.yaml"
 outputs:
   visualizations:

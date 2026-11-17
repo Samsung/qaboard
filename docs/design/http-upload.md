@@ -4,11 +4,10 @@ Status: proposal v1 (2026-10-12), for review. Context: `docs/docs-overhaul-plan.
 step 6: GitHub-hosted runners need HTTP upload) and §10 ("HTTP upload: yes, designed properly first").
 Line references are to this branch's tree.
 
-> **Revised phasing (2026-11-14):** `docs/design/ingest-upload-sdk.md` puts this design in a larger plan
-> (`qaboard.start_run()`, `qa upload`, project-paid storage) and builds it in smaller steps: `qa upload` on shared
-> storage first, then one `PUT` per file behind a folder syncer shared by `qa run` and `start_run()`. Parts, packs
-> and the content store wait for projects with huge outputs. Paths, security, readers and the full protocol below
-> still apply; of §1.3 and phase 1, tokens with scopes, `ingest.auth`, the HTML sandbox and CI token exchange have shipped.
+> **What was built (2026-11-17):** a small part of this design, as experimental: one `PUT` per file into a
+> server-managed folder, the log sent as it grows, tokens always. See `docs/design/ingest-upload-sdk.md` for what
+> exists, the decisions, and what is left; sessions, parts, packs, the content store and object storage below are
+> not built.
 
 ## TL;DR
 - **Same files, same paths, new transport.** The server stores uploaded runs under a root it manages, at the

@@ -121,6 +121,32 @@ run-centric page, screenshots for the docs, gaps against experiment trackers): `
 - `Run._new` (qaboard/results.py) was the placeholder for this: `ActiveRun.run` builds its `Run` itself, and only
   tests use `_new`. [S, no change]
 
+## Results sent over HTTP (`storage: upload`, `qa upload`, November 2026)
+Design: `docs/design/ingest-upload-sdk.md`. Tested with unit tests and a fake server (`tests/test_upload*.py`,
+`tests/test_active_run.py`, `backend/tests/test_uploads.py`); **not** against a real server, nginx and database end
+to end, nor on Windows, nor on any object storage mount.
+
+- No end-to-end test in CI: add a `qa upload` and a `qa --share run` with `QA_STORAGE=upload` to the quickstart job
+  (`.github/workflows/ci.yaml`), from a container that doesn't mount the results folder. [S, no change]
+- What `qa` prints after a run's results are saved (its metrics, "The run has failed") isn't in the *log.txt* the
+  server has: files are sent before the run is said to have ended, and don't change after. [S, behaviour]
+- Files a run removed after they were sent (`outputs.live`) stay on the server. [S, behaviour]
+- A run killed without a chance to say so (SIGKILL, a lost machine) stays "running", with the files it sent: the
+  heartbeat of `docs/rfcs/python-sdk-runs-follow-ups.md` is the fix. A run the server never heard of isn't sent
+  later. [M, behaviour]
+- No quotas per project, no deduplication (a bit-accurate rerun sends everything again), no resume inside a file:
+  files over `QABOARD_UPLOAD_MAX_FILE_MB` are refused. [L]
+- `qa batch` with cluster runners only works when the nodes share the working directory with the machine that
+  starts the batch; `qa check-bit-accuracy`, `qa optimize`, artifacts, and runs started from the web app need a
+  shared storage. `qaboard.runs(url)` gives uploaded runs' `output_dir` on the server, not a local folder. [L]
+- For a project with `storage: upload`, the folders the server derives from storage settings (a commit's or a
+  batch's folder, `Project.storage_roots`) are under the upload root, with the shared storage's layout: nothing is
+  there. Runs' own folders are always the ones saved with them (`output_dir_override`). [S, no change]
+- `examples/software-quality/qa/junit.py` and `qaboard/junit.py` read reports the same way, twice: the example is
+  meant to be copied. [S, no change]
+- `/iiif/` doesn't check who asks, and `/s/` only where the deployment restricts files (`SECURITY.md`): uploads
+  don't change that, but they make servers reachable from more places. [M, behaviour]
+
 ## Runners (Kubernetes, Dask on any scheduler, `qa doctor`, November 2026)
 
 Design and follow-ups: [docs/design/kubernetes-runner.md](docs/design/kubernetes-runner.md). Security boundaries are

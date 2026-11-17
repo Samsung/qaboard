@@ -23,6 +23,7 @@ Every command has its help: `qa --help`, `qa batch --help`...
 | `qa init` | Adds *qaboard.yaml* and `qa/` to your project. | [Project setup](/docs/project-init) |
 | `qa run --input <input>` | Runs your code on one input. | [Running your code](/docs/running-your-code) |
 | `qa batch <batch>` | Runs the inputs and configurations of a batch. | [Batches](/docs/batches-running-on-multiple-inputs) |
+| `qa upload <files>` | Saves files other tools wrote as a run: test reports, benchmark files, profiles. | [Upload results](/docs/upload-results) |
 | `qa doctor` | Checks *qaboard.yaml*, the server, the storage and the runner, and says how to fix problems. | [Check your setup](/docs/doctor) |
 | `qa postprocess --input <input>` | Redoes only your `postprocess()` function, on a run's files. | [Postprocessing](/docs/running-your-code#postprocess) |
 | `qa sync --input <input>` | Sends a run's *metrics.json* to QA-Board again, with `--share` or in CI. | |

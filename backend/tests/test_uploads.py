@@ -72,6 +72,14 @@ def test_project_of_other_paths(upload_root):
   assert uploads.project_of(str(upload_root / "group/repo/-/ab/-/x"))[1] == "group/repo"
 
 
+def test_storage_settings_that_say_upload():
+  assert uploads.is_upload_setting({"storage": "upload"})
+  assert uploads.is_upload_setting({"ci_root": " Upload "})
+  assert uploads.is_upload_setting({"storage": "/mnt/qaboard"}, qa_storage="upload")
+  for settings in (None, {}, {"storage": "/mnt/upload"}, {"storage": {"linux": "upload"}}):
+    assert not uploads.is_upload_setting(settings)
+
+
 def test_projects_with_a_dash_folder_are_not_supported():
   assert uploads.supports_project("group/repo-name/sub-project")
   assert not uploads.supports_project("group/-/repo")

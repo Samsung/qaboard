@@ -147,8 +147,9 @@ We're evaluating whether QA-Board should accept MLflow's tracking API, so that M
 </RoadmapItem>
 
 ## Cloud-native
-Today `qa` writes results to a storage that the server mounts at the same path, like an NFS share. That works well
-on-premises, next to a cluster. It leaves out GitHub-hosted runners and clusters without shared volumes.
+`qa` writes results to a storage that the server mounts at the same path, like an NFS share. That works well
+on-premises, next to a cluster. GitHub-hosted runners and clusters without shared volumes send their files to the
+server instead.
 
 <RoadmapItem status="shipped" title="Published images and Helm chart">
 CI tests every image, including a Helm install on Kubernetes that runs a real `qa batch`, then publishes them to
@@ -156,10 +157,13 @@ CI tests every image, including a Helm install on Kubernetes that runs a real `q
 [Kubernetes](/docs/backend-admin/kubernetes).
 </RoadmapItem>
 
-<RoadmapItem status="next" title="HTTP upload of outputs">
-`qa` uploads a run's files to the server, which stores them where shared-storage runs would be. GitHub-hosted
-runners, laptops off the VPN and pods without a shared volume can save results, and the web app shows them like any
-other.
+<RoadmapItem status="shipped" title="HTTP upload of outputs">
+Experimental: without a shared storage, `qa` and `qaboard.start_run()` send a run's files to the server, its log as
+it goes. GitHub-hosted runners, laptops off the VPN and pods without a shared volume can save results, and the web
+app shows them like any other. `qa upload` saves the files other tools wrote, like test reports and benchmark
+files, as runs, without a `run()` function. See [Send results without a shared storage](/docs/storage/uploads) and
+[Upload results from any tool](/docs/upload-results). Next: files larger than 1 GB sent in parts, files that didn't
+change sent once, and starting runs from the web app without a shared storage.
 </RoadmapItem>
 
 <RoadmapItem status="shipped" title="Token-authenticated ingest">
@@ -168,8 +172,9 @@ where `qa` only warns. See [Results sent by qa](/docs/backend-admin/user-managem
 </RoadmapItem>
 
 <RoadmapItem status="exploring" title="Object storage for results">
-Keep results in S3, R2, GCS or MinIO instead of a file share. The upload protocol is designed for it, and Cantaloupe,
-the image server, can read from S3.
+Today, the files runs send to the server can live in a bucket mounted as a file system
+([how](/docs/backend-admin/uploads#object-storage)). Next: the server talking to S3-compatible storage itself, with
+files sent straight to the bucket, and buckets that projects bring.
 </RoadmapItem>
 
 <RoadmapItem status="shipped" title="A Kubernetes Job runner">

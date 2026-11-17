@@ -679,6 +679,26 @@ def check_folder(name: str, path: Path, required: bool = True, root: Optional[Pa
   return Check(name, OK, f"{where}, writable, {human_size(free)} free")
 
 
+def check_uploads(site: Optional[Dict[str, Any]], token: Optional[str]) -> Check:
+  """
+  Without a storage shared with the server (no `storage` in qaboard.yaml, or `storage: upload`), shared runs send it
+  their files (qaboard/upload.py): whether the server takes them. `site` are its settings (/api/v1/config).
+  """
+  name = "Results sent to the server"
+  if site is None:
+    return Check(name, SKIPPED, "Without a storage shared with the server, `qa --share` and CI runs send it their files. It didn't answer: fix that first.")
+  uploads = site.get('uploads') if isinstance(site.get('uploads'), dict) else {}
+  if not uploads.get('enabled'):
+    return Check(name, ERROR, "qaboard.yaml sets no `storage` shared with the server (or `storage: upload`): `qa --share` and CI runs would send it their files, but this server doesn't accept files.",
+                 fix=f"Save results in a folder that the server reads too, in qaboard.yaml:\nstorage:\n  linux: /mnt/qaboard\n  windows: \\\\server\\share\\qaboard\n"
+                     f"Or ask the server's administrators to accept files (QABOARD_UPLOAD_ROOT): {docs('backend-admin/uploads')}\nDocs: {docs('storage/uploads')}")
+  limit = f", up to {uploads['max_file_size'] // 1024 ** 2} MB per file" if isinstance(uploads.get('max_file_size'), int) else ''
+  if not token:
+    return Check(name, ERROR, "Without a storage shared with the server, `qa --share` and CI runs send it their files: that always needs a token, and qa has none.",
+                 fix="Sign in: qa auth login\nIn CI: set QABOARD_TOKEN to a token with the ingest scope.")
+  return Check(name, OK, f"Without a storage shared with the server, `qa --share` and CI runs send it their files{limit}. They are saved in the project's output/ folder first.")
+
+
 def check_storage_setting(config: Dict[str, Any], project: Path, subproject: Path) -> Optional[Check]:
   """An ERROR if qaboard.yaml (or QA_STORAGE) doesn't say where to save shared results, None if it does."""
   qaboard_config = config_module()
@@ -943,6 +963,10 @@ def run_doctor(obj: Dict[str, Any], runner: str, test_job: bool = False, echo=cl
     if offline:
       state['batch_dir'] = make_batch_dir(qaboard_config.outputs_commit, label, platform, configurations, extra_parameters, False)
       yield check_folder("Local results", root / 'output', purpose="Local runs save their results there")
+    elif qaboard_config.uploads_results:
+      batch_label = label if is_ci else f"@{user}| {label}"
+      state['batch_dir'] = make_batch_dir(qaboard_config.outputs_commit, batch_label, platform, configurations, extra_parameters, True)
+      yield check_uploads(state['site'], state['token'])
     else:
       assert project is not None
       setting_error = check_storage_setting(config, project, subproject)
