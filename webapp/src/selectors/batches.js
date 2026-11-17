@@ -138,15 +138,15 @@ export const compute_batches = ({ new_commit, ref_commit, selected, metrics }) =
   const default_by = default_sort_by(Object.values(new_filtered.outputs), metrics?.default_metric);
   const sort_by = selected.sort_by || default_by;
   const sort_order = effective_sort_order(sort_by, selected.sort_order);
-  const filtered_ids = sorted_ids(new_filtered.filtered.outputs, new_filtered.outputs, sort_by, sort_order);
 
-  // we find the matching outputs once
+  // we find the matching outputs once, before sorting: runs can be sorted by how they changed vs their reference run
   const outputs = { ...new_filtered.outputs };
-  for (const id of filtered_ids) {
+  for (const id of new_filtered.filtered.outputs) {
     const output = new_filtered.outputs[id];
     const { output_ref, mismatch, match } = matching_output({ output, batch: ref_batch, index, rules: selected.rules });
     outputs[id] = with_reference(output, output_ref.id, mismatch, match);
   }
+  const filtered_ids = sorted_ids(new_filtered.filtered.outputs, outputs, sort_by, sort_order, ref_batch.outputs);
 
   const all_outputs = Object.values(outputs);
   const used_metrics = new Set();
