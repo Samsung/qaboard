@@ -270,7 +270,7 @@ services:
   # More configuration options, e.g. reverse proxying with nginx:
   # https://www.pgadmin.org/docs/pgadmin4/development/container_deployment.html
   pgadmin:
-    image: dpage/pgadmin4
+    image: dpage/pgadmin4:9
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-user@domain.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-SuperSecret}

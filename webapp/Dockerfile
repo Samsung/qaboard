@@ -77,7 +77,7 @@ RUN find build/assets -type f \( -name '*.js' -o -name '*.css' -o -name '*.svg' 
 
 
 # Only rsync and the bundle: the same small base as the website's image, so they share its layers
-FROM alpine:3.21 AS production
+FROM alpine:3.24 AS production
 
 # Proxy configuration — needed for apk add rsync. Behind a proxy, use HTTP repos (SIRC's proxy breaks HTTPS/SSL)
 ARG PROXY_URL=""
