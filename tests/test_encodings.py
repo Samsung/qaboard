@@ -99,3 +99,13 @@ class TestNonUtf8Locale(unittest.TestCase):
     out = self.check("from qaboard.config import github_pull_request_head; print(github_pull_request_head())",
                      GITHUB_EVENT_NAME='pull_request', GITHUB_EVENT_PATH=str(event))
     self.assertEqual(out.strip().splitlines()[-1], 'abc123')
+
+  def test_reads_branch_names(self):
+    env = {**os.environ, 'GIT_AUTHOR_NAME': 'test', 'GIT_AUTHOR_EMAIL': 'test@example.com', 'GIT_COMMITTER_NAME': 'test', 'GIT_COMMITTER_EMAIL': 'test@example.com'}
+    git = lambda *args: subprocess.run(['git', *args], cwd=self.dir, env=env, check=True, capture_output=True, encoding='utf-8').stdout.strip()  # noqa: E731
+    git('init', '-q', '-b', 'débruitage')
+    git('-c', 'commit.gpgsign=false', 'commit', '-q', '--allow-empty', '-m', 'first commit')
+    git('pack-refs', '--all')  # .git/HEAD and .git/packed-refs have the branch's name
+    sha = git('rev-parse', 'HEAD')
+    out = self.check(f"from pathlib import Path; from qaboard.git import git_head; print(git_head(Path({str(self.dir)!r})))")
+    self.assertEqual(out.strip().splitlines()[-1], str(('débruitage', sha)))
