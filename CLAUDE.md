@@ -85,6 +85,8 @@ yarn install
 yarn start              # Start Docusaurus dev server
 yarn build              # Build static site
 ```
+The Website workflow deploys `master` to GitHub Pages, then starts a crawl of the Algolia crawler, which updates the
+search index (its config, in the Algolia dashboard: `website/README.md`, skips elements marked `data-nosearch`).
 
 ### Python CLI Package
 ```bash

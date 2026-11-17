@@ -6,7 +6,7 @@
 # - dev: node_modules and the sources, used by development.yml (`yarn start`)
 # - build: the static site
 # - production (default): only the site, copied to the /builds volume served by nginx
-FROM node:22-alpine AS dev
+FROM node:24-alpine AS dev
 WORKDIR /website
 
 # Proxy/cert configuration — no-ops when args are empty (open-source builds)

@@ -82,16 +82,27 @@ This command generates static content into the `build` directory and can be serv
 
 #### Deployment
 
-Using SSH:
+The Website workflow (`.github/workflows/website.yml`) deploys `master` to GitHub Pages (repository Settings > Pages >
+Source: GitHub Actions). The Algolia crawler updates the search index every day; to update it right after a deploy,
+the workflow also starts a crawl when these repository secrets are set, from the Algolia dashboard's Crawler pages:
+- `ALGOLIA_CRAWLER_ID`: the id in the crawler's URL, `crawler.algolia.com/admin/crawlers/<id>/...`
+- `ALGOLIA_CRAWLER_USER_ID` and `ALGOLIA_CRAWLER_API_KEY`: Crawler > Settings (the key shows only right after you
+  regenerate it, and regenerating it breaks whatever uses the old one)
 
-```
-$ USE_SSH=true yarn deploy
-```
+The crawler's configuration lives in the Algolia dashboard. To group the results by docs section (Get started, User
+guide, Project integration, Admin) and leave out what's the same on every page, its `recordExtractor` starts with:
 
-Not using SSH:
-
+```js
+recordExtractor: ({ $, helpers }) => {
+  // Headings' "#" links, tab labels, and what the docs mark data-nosearch (e.g. <RepoFile>'s footer)
+  $('.hash-link, [role="tab"], [data-nosearch]').remove();
+  // The docs section (src/components/DocsSwitcher), else the active navbar item ("Release notes", "Blog")
+  const lvl0 =
+    $('nav[aria-label="Docs sections"] a[aria-current]').attr('data-section') ||
+    $('.navbar__item.navbar__link--active').last().text() ||
+    'Documentation';
+  return helpers.docsearch({
+    recordProps: {
+      lvl0: { selectors: '', defaultValue: lvl0 },
+      // ...the rest as in DocSearch's Docusaurus template
 ```
-$ GIT_USER=<Your GitHub username> yarn deploy
-```
-
-If you are using GitHub pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.

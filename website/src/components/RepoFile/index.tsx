@@ -86,7 +86,8 @@ export default function RepoFile({path, source, title, language, section, lines,
       <CodeBlock language={language ?? languageOf(path)} title={title ?? path} metastring={highlight ? `{${highlight}}` : undefined}>
         {code}
       </CodeBlock>
-      <p className={styles.footer}>
+      {/* Not in the search index (the Algolia crawler's config, in website/README.md): the same on every file */}
+      <p className={styles.footer} data-nosearch="true">
         {untested ? (
           <span className={styles.untested}>Not run in our CI: adapt it to your setup.</span>
         ) : (
