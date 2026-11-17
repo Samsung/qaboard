@@ -583,6 +583,8 @@ SERVER_VARIABLES = [
 
   ServerVariable('QABOARD_STORAGE_ROOTS', "Storage roots", 'storage', "The folders where projects store their results. The server never writes, deletes or runs code outside them.",
                  BOUNDARY, _env('QABOARD_STORAGE_ROOTS'), default_text="/mnt/qaboard"),
+  ServerVariable('QABOARD_UPLOAD_ROOT', "Uploads folder", 'storage', "Where the server saves the files of runs that send them over HTTP, without a storage shared with it. Not set: the server doesn't accept files.",
+                 BOUNDARY, _env('QABOARD_UPLOAD_ROOT'), default_text="Not set: no uploads.", docs="/docs/backend-admin/uploads"),
   ServerVariable('QABOARD_FILES_UNIX_PERMISSIONS', "Folders with Unix permissions", 'storage', "Folders where users only read the files their Unix account can read.",
                  BOUNDARY, _env('QABOARD_FILES_UNIX_PERMISSIONS'), docs="/docs/backend-admin/user-management#unix-permissions"),
   ServerVariable('QABOARD_ACCOUNTS_COMMAND', "Accounts command", 'storage', "Prints the users' Unix accounts, like /etc/passwd (and QABOARD_GROUPS_COMMAND the groups), for file owners and Unix permissions.",

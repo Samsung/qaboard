@@ -1,6 +1,7 @@
 import datetime
 import json
 import math
+from pathlib import Path
 
 from typing import Optional
 
@@ -14,6 +15,7 @@ from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
 from ..origins import run_origin, run_user, claim_batch
 from ..storage import check_storage_path, UnsafePathError
+from .. import uploads
 from ..metrics_definitions import MAX_KEY_LENGTH, FORBIDDEN_KEYS
 from ..redo import redo_response
 from ..metrics_definitions import save_metrics_definitions
@@ -311,6 +313,55 @@ def report_output_progress(output_id):
   return jsonify(output.to_dict())
 
 
+@app.route("/api/v1/output/<output_id>/files/<path:path>", methods=['PUT'])
+def upload_output_file(output_id, path):
+  """
+  Saves a file of a run that doesn't share a storage with the server, in the folder the server chose for it when the
+  run started (POST /api/v1/output/ with "storage": "upload"). The request's body is the file.
+  - `path` is the file's path in the run's folder. Sending it again replaces it.
+  - `?offset=<size>` adds the body at the end of the file instead, for the files runs append to (log.txt): the file
+    must have that size, else 409 with its `size`.
+  - `X-Content-SHA256`: the body's SHA-256 (hexadecimal). When sent, the server checks what it received.
+  Only while the run is pending or running: finished runs don't change.
+  Always with a token that can send results to the project, whatever ingest.auth says: the files are served to
+  everyone who opens the run.
+  """
+  project_id = None
+  try:
+    project_id = Output.query.filter(Output.id==output_id).one().batch.ci_commit.project_id
+  except NoResultFound:
+    pass
+  # who can't see the project doesn't learn whether the run exists
+  if project_id is None or not is_authorized_user(None, project_id):
+    if project_id is not None:
+      return forbidden_project(project_id)
+    return jsonify({"error": f"Cannot find output {output_id}"}), 404
+  submitted_by, error = ingest_access(project_id, require_token=True)
+  if error:
+    return error
+  if not uploads.enabled():
+    return jsonify({"error": "This server doesn't accept uploaded files.", "reason": "uploads_disabled"}), 400
+  try:
+    offset = int(request.args['offset']) if 'offset' in request.args else None
+  except ValueError:
+    return jsonify({"error": "?offset= is the file's current size, in bytes"}), 400
+  if request.content_length is None:
+    return jsonify({"error": "Send the file's size (Content-Length): chunked uploads aren't supported."}), 411
+
+  output = Output.query.filter(Output.id==output_id).one()
+  directory = output.output_dir_override
+  upload_root = uploads.upload_root()
+  if not directory or upload_root is None or not Path(directory).is_relative_to(upload_root):
+    return jsonify({"error": "This run saves its files in a storage shared with the server: it doesn't upload them.", "reason": "not_uploaded"}), 409
+  if not output.is_pending:
+    return jsonify({"error": "The run has ended: its files don't change anymore.", "reason": "not_running"}), 409
+  try:
+    size = uploads.save_file(Path(directory), path, request.stream, request.content_length, sha256=request.headers.get('X-Content-SHA256'), offset=offset)
+  except uploads.UploadError as e:
+    return jsonify({"error": str(e), "reason": e.reason, **e.details}), e.status
+  return jsonify({"path": path, "size": size})
+
+
 @app.route('/api/v1/output/redo/<output_id>', methods=['POST'])
 @app.route('/api/v1/output/redo/<output_id>/', methods=['POST'])
 @login_required
@@ -358,10 +409,17 @@ def new_output_webhook():
   if not hexsha:
     return jsonify({"error": "the commit (commit_sha) was not provided"}), 400
 
+  # Runs without a storage shared with us send their files after this request: we choose their folder (backend/uploads.py)
+  uploads_files = data.get('storage') == 'upload'
+  if uploads_files and not uploads.enabled():
+    return jsonify({"error": "This server doesn't accept uploaded files: save results in a storage shared with it (`storage` in qaboard.yaml), or ask its administrators to set QABOARD_UPLOAD_ROOT.", "reason": "uploads_disabled"}), 400
+  if uploads_files and not uploads.supports_project(str(data.get('project'))):
+    return jsonify({"error": f"Projects with a folder named \"{uploads.RUNS_FOLDER}\" can't upload their files.", "reason": "uploads_unsupported_project"}), 400
+
   # The server will write, delete and run code in those folders
-  output_directory = data.get('output_directory')
+  output_directory = data.get('output_directory') if not uploads_files else None
   # prefix_output_dir for backward-compatibility
-  artifacts_commit = data.get('artifacts_commit', data.get('commit_ci_dir'))
+  artifacts_commit = data.get('artifacts_commit', data.get('commit_ci_dir')) if not uploads_files else None
   if not artifacts_commit or not artifacts_commit.startswith('/'): # or "some-protocol://"
     artifacts_commit = None # just ignore...
   try:
@@ -374,7 +432,8 @@ def new_output_webhook():
 
   if error := invalid_project(data.get('project')):
     return error
-  submitted_by, error = ingest_access(data.get('project'))
+  # files are always sent with a token, whatever ingest.auth says: say it when the run starts, not at its first file
+  submitted_by, error = ingest_access(data.get('project'), require_token=uploads_files)
   if error:
     return error
 
@@ -438,6 +497,12 @@ def new_output_webhook():
                                          test_input=test_input,
                                         )
   output.output_type = data.get('input_type', '')
+  if uploads_files:
+    output_directory = str(uploads.run_dir(ci_commit.project_id, ci_commit.hexsha, batch.label, output.output_folder))
+    # The run starts: what its previous attempt uploaded goes, like `qa run` cleans the folder it starts in.
+    # Not when `qa batch` only says the run is pending, nor for runs that continue (--keep-previous, resume=True)
+    if data.get('is_running') and not data.get('keep_previous'):
+      uploads.clean_run_dir(Path(output_directory))
   # A run that is done again, in a new directory or in place: we remember the attempt it replaces
   record_attempt(output, output_directory, is_pending=bool(data.get('is_pending') or data.get('is_running')))
 

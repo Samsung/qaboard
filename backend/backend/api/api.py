@@ -27,6 +27,8 @@ from .auth import is_authorized_user, get_current_user, forbidden_project
 from ..mine import identity_of, commit_is_mine, batch_is_mine, batch_is_not_mine, batch_origin_in, parse_origins, SCOPES, BATCH_SCOPES
 from ..notifications.mail import email_enabled
 from ..settings import setting, sandbox_html
+from .. import uploads
+from ..config import upload_max_file_size
 from ..annotations import describe_sources
 
 to_datetime = lambda s: timezone.localize(datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ'))
@@ -78,6 +80,8 @@ def get_site_config():
         "setup_required": _setup_required(),
         # how `qa` authenticates the results it sends: off, warn or token
         "ingest_auth": setting('ingest.auth'),
+        # whether runs can send their files over HTTP, without a storage shared with the server (backend/uploads.py)
+        "uploads": {"enabled": uploads.enabled(), "max_file_size": upload_max_file_size},
         # what the web app offers when users create tokens
         "tokens": {"default_lifetime_days": setting('tokens.default_lifetime_days'), "max_lifetime_days": setting('tokens.max_lifetime_days'),
                    "ci_lifetime_minutes": setting('tokens.ci_lifetime_minutes')},

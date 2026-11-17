@@ -10,6 +10,7 @@ Who can read files:
 - the outputs and artifacts folders of projects (from their storage settings in qaboard.yaml): whoever can see the
   projects stored there (backend/access/: visibility, roles, QABOARD_LOGIN_RESTRICTED_YAML's projects), with tokens'
   project restrictions
+- the files runs sent over HTTP (backend/uploads.py): whoever can see their project
 - QABOARD_LOGIN_RESTRICTED_YAML's "paths" (optional): any folder, e.g. "/algo/secret: {user_name: [john.doe]}",
   with the same rules as the YAML's projects; with empty rules anyone can read it.
 The most specific folder decides.
@@ -29,6 +30,7 @@ from ..files import normalize, path_from_url, is_listable, longest_prefix, folde
 from .auth import get_current_user, restrictions, matches_rules, is_authorized_user
 from ..access import authorize, current_actor, effective_visibility
 from ..settings import setting
+from .. import uploads
 
 
 # The projects (and their storage settings) change rarely, we don't want a database query for each file
@@ -76,6 +78,10 @@ def file_restriction(path: str):
     folder = folder_for(pattern, path)
     if folder:
       rules.setdefault(folder, ("projects", f"the project {sorted(project_ids)[0]}", project_ids))
+  # the files runs uploaded: their path says their project (backend/uploads.py)
+  if uploaded := uploads.project_of(path):
+    folder, project_id = uploaded
+    rules.setdefault(folder, ("projects", f"the project {project_id}", {project_id}))
   restriction = longest_prefix(path, rules)
   if restriction is None or not restriction[2]:
     return None
