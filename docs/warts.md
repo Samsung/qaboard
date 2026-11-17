@@ -39,7 +39,6 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - **History page with outputs** is still ~2 s and ~19 MB for 25k outputs (backend/benchmarks/bench_api.py): building ORM
   objects and `Output.to_dict`. Serialize from SQL rows (no ORM), or paginate/stream outputs. [M]
 - `GET .../manifest` writes manifests (api/outputs.py): make the refresh a POST, with OutputCard.jsx's `?refresh=true`. [S, API]
-- `/api/v1/tests/group` (api/tuning.py) creates projects on a GET. [S, API]
 - `trigger_jenkins_build` holds a uwsgi worker for 5-30 s (sleeps, then polls Jenkins' queue), and `jenkins_build` retries
   with nested bare `except`s. The status check fails with a 500 while a build is queued (no `building` in a queue item). [M]
 - Commit search uses `ILIKE` over the project's commits (~40 ms for 5k commits). For projects with 100k+ commits, add
@@ -77,8 +76,8 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - `qaboard/scripts/get_batch_storage.py` sends requests without timeouts and defaults to `http://qa`. [S, behaviour]
 - Internal names left in `qaboard/`: the idb.py docstring, `\\netapp` in jenkins_windows.py's docstring, compat.py's
   regexes; tests use `gitlab-srv` strings. [S, no change]
-- `api/tuning.py` and `qaboard/runners/celeryconfig.py` default to `pyamqp://guest:guest@qaboard:5672//`: read
-  `CELERY_BROKER_URL` only, and fail clearly when it's unset with `QABOARD_TUNING_RUNNER=celery`. [S, behaviour]
+- `qaboard/runners/celeryconfig.py` defaults to `pyamqp://guest:guest@qaboard:5672//` (the backend no longer does):
+  read `CELERY_BROKER_URL` only, and fail clearly when it's unset. [S, behaviour]
 
 ## Runs created from code (`qaboard.start_run()`, November 2026)
 
