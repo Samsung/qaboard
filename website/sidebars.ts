@@ -26,7 +26,8 @@ const sidebars: SidebarsConfig = {
   ],
    */
 
-  // One sidebar per audience, see the navbar in docusaurus.config.ts
+  // One sidebar per audience, see the navbar in docusaurus.config.ts. The links between them, at the top of every
+  // sidebar, are in src/components/DocsSwitcher: add a sidebar there too
 
   // Everyone's first stop: try QA-Board, wrap a project, see what it's for. The navbar's "Docs" and "Use cases"
   start: [
@@ -59,18 +60,7 @@ const sidebars: SidebarsConfig = {
         'alternatives',
       ],
     },
-    // The other sidebars (links, so these pages keep their own sidebar)
-    {
-      type: 'category',
-      label: 'More docs',
-      collapsible: false,
-      items: [
-        {type: 'link', label: 'User guide', href: '/docs/user-guide/overview'},
-        {type: 'link', label: 'Project integration', href: '/docs/introduction'},
-        {type: 'link', label: 'Admin', href: '/docs/deploy'},
-        {type: 'link', label: 'Roadmap', href: '/docs/roadmap'},
-      ],
-    },
+    // The other sidebars are at the top of every sidebar: src/components/DocsSwitcher
   ],
 
   // People who look at results in the web app: start with a walkthrough, then one page per task, viewers on their own
