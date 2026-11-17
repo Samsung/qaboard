@@ -29,9 +29,13 @@ def upload_root(tmp_path, monkeypatch):
 
 @pytest.fixture
 def run_dir(upload_root):
-  directory = uploads.run_dir("group/repo", COMMIT, "default", "abc123/input")
+  directory = run_dir_of()
   directory.mkdir(parents=True)
   return directory
+
+
+def run_dir_of(project="group/repo", commit=COMMIT, batch="default", platform="linux", configurations=(), extra_parameters=None, input_path="input"):
+  return uploads.run_dir(project, commit, batch, platform, list(configurations), extra_parameters or {}, input_path)
 
 
 def send(run_dir, path, content: bytes, **kwargs):
@@ -46,21 +50,58 @@ def test_disabled_without_a_root(monkeypatch):
 
 
 def test_run_dir_layout(upload_root):
-  assert uploads.run_dir("group/repo", COMMIT, "default", "abc/input") == upload_root / "group/repo/-/01/23456789abcdef/output/abc/input"
-  labelled = uploads.run_dir("group/repo/sub", COMMIT, "nightly", "abc/input")
-  assert labelled.is_relative_to(upload_root / "group/repo/sub/-/01/23456789abcdef/output")
-  assert labelled != uploads.run_dir("group/repo/sub", COMMIT, "default", "abc/input")
+  directory = run_dir_of(input_path="unit-tests")
+  assert directory.parent.parent == upload_root / "group/repo/-/01/23456789abcdef/output"
+  assert directory.name == "unit-tests"
+  labelled = run_dir_of("group/repo/sub", batch="nightly")
+  assert labelled.is_relative_to(upload_root / "group/repo/sub/-/01/23456789abcdef/output/nightly")
+
+
+def test_runs_that_differ_have_their_own_folder(upload_root):
+  runs = [
+    {}, {"input_path": "Input"}, {"input_path": "in/put"}, {"input_path": "in-put"}, {"input_path": "input.jpg"}, {"input_path": "v1.2"}, {"input_path": "v1.3"},
+    {"platform": "windows"}, {"configurations": ["O3"]}, {"configurations": ["o3"]}, {"configurations": [{"lr": 0.1}]},
+    {"extra_parameters": {"seed": 1}}, {"extra_parameters": {"forwarded_args": ["-v"]}}, {"batch": "nightly"}, {"batch": "Nightly"},
+    {"commit": "f" * 40}, {"commit": "<local:alice>"}, {"commit": "<local:bob>"}, {"project": "group/other"},
+  ]
+  directories = [run_dir_of(**run) for run in runs]
+  assert len(set(directories)) == len(runs)
+  assert run_dir_of() == run_dir_of()
 
 
 def test_run_dir_without_a_git_commit(upload_root):
-  directory = uploads.run_dir("group/repo", "<local:alice>", "default", "abc/input")
+  directory = run_dir_of(commit="<local:alice>")
   assert directory.is_relative_to(upload_root / "group/repo/-/local")
-  assert ".." not in directory.parts and "<local:alice>" not in directory.parts
+
+
+HOSTILE = ["..", ".", "../../../../../../victim/secret/-", "/etc", "a/../../b", "", "-", "\\..\\..", "..%2f..", "." * 70, "../" * 40]
+
+
+@pytest.mark.parametrize("field", ["input_path", "batch", "platform", "commit", "configurations", "extra_parameters"])
+@pytest.mark.parametrize("value", HOSTILE)
+def test_nothing_a_client_says_about_a_run_leads_elsewhere(upload_root, field, value):
+  value = {"configurations": [value], "extra_parameters": {value: value}}.get(field, value)
+  directory = run_dir_of(**{field: value})
+  runs = upload_root / "group/repo/-"
+  assert os.path.normpath(directory) == str(directory)
+  assert directory.is_relative_to(runs) and len(directory.relative_to(runs).parts) >= 4
+  assert ".." not in directory.parts and "." not in directory.parts
+  assert uploads.is_run_dir(directory, "group/repo") and not uploads.is_run_dir(directory, "victim/secret")
+
+
+def test_is_run_dir(upload_root):
+  runs = upload_root / "group/repo/-"
+  assert uploads.is_run_dir(runs / "01/23/output/a/b", "group/repo")
+  for directory in (runs, upload_root, upload_root / "group/repo", runs / "../../../victim/secret/-/01", f"{runs}/01/../../../../x", "/etc", "", None,
+                    upload_root / "victim/secret/-/01/23/output/a/b"):
+    assert not uploads.is_run_dir(directory, "group/repo"), directory
+  assert not uploads.is_run_dir(runs / "01", "")
+  assert not uploads.is_run_dir(upload_root / "a/-/b/-/01", "a/-/b")
 
 
 @pytest.mark.parametrize("project", ["group/repo", "group/repo/sub/project", "solo"])
 def test_project_of_reads_the_project_from_a_run_file(upload_root, project):
-  path = uploads.run_dir(project, COMMIT, "default", "abc/input") / "plots" / "loss.png"
+  path = run_dir_of(project) / "plots" / "loss.png"
   assert uploads.project_of(str(path)) == (str(upload_root / project), project)
 
 
@@ -211,13 +252,29 @@ def test_clean_run_dir(run_dir, upload_root, tmp_path):
   outside.mkdir()
   (outside / "kept.txt").write_text("kept")
   (run_dir / "link").symlink_to(outside)
-  uploads.clean_run_dir(run_dir)
+  uploads.clean_run_dir(run_dir, "group/repo")
   assert run_dir.is_dir() and list(run_dir.iterdir()) == []
   assert (outside / "kept.txt").exists()
-  # never outside the upload folder, whatever the database says
-  uploads.clean_run_dir(outside)
-  assert (outside / "kept.txt").exists()
-  uploads.clean_run_dir(run_dir / "missing")
+  uploads.clean_run_dir(run_dir / "missing", "group/repo")
+
+
+def test_clean_only_the_projects_own_run_folders(run_dir, upload_root, tmp_path):
+  send(run_dir, "kept.txt", b"x")
+  victim = run_dir_of("victim/secret")
+  victim.mkdir(parents=True)
+  (victim / "kept.txt").write_text("kept")
+  outside = tmp_path / "outside"
+  outside.mkdir()
+  (outside / "kept.txt").write_text("kept")
+  runs = upload_root / "group/repo/-"
+  (runs / "link").symlink_to(victim)
+  for directory, project in [
+    (victim, "group/repo"), (run_dir, "victim/secret"), (outside, "group/repo"), (upload_root, "group/repo"), (runs, "group/repo"),
+    (runs / "../../../victim/secret/-" / victim.relative_to(upload_root / "victim/secret/-"), "group/repo"),
+    (runs / "link", "group/repo"),   # a symlink out of the project's runs
+  ]:
+    uploads.clean_run_dir(Path(directory), project)
+  assert (victim / "kept.txt").exists() and (outside / "kept.txt").exists() and (run_dir / "kept.txt").exists()
 
 
 # --- the API ------------------------------------------------------------------------------------------------------
@@ -243,7 +300,7 @@ def outputs_api(monkeypatch, upload_root):
   ci_commit.get_or_create_batch.return_value.label = "default"
   output = SimpleNamespace(
     id=7, data={}, deleted=False, is_failed=False, is_pending=False, is_running=False, metrics={},
-    output_folder="abc123/input", output_dir_override=None, batch=SimpleNamespace(ci_commit=ci_commit),
+    output_dir_override=None, batch=SimpleNamespace(ci_commit=ci_commit),
   )
   output.to_dict = lambda: {"id": output.id, "output_dir": output.output_dir_override}
   output.set_status = lambda is_pending, is_running: output.__dict__.update(is_pending=bool(is_pending or is_running), is_running=bool(is_running))
@@ -276,8 +333,9 @@ def test_run_that_uploads_gets_its_folder_from_the_server(outputs_api, dummy_app
   # what the client says about folders is ignored
   response, status = start(outputs_api, dummy_app, output_directory="/etc", artifacts_commit="/etc")
   assert status == 200
-  expected = upload_root / "group/repo/-/01/23456789abcdef/output/abc123/input"
-  assert response.get_json()["output_dir"] == str(expected)
+  directory = Path(response.get_json()["output_dir"])
+  assert directory == run_dir_of() and uploads.is_run_dir(directory, "group/repo")
+  assert outputs_api.test_output.data["storage"] == "upload"
   assert outputs_api.CiCommit.get_or_create.return_value.commit_dir_override is None
 
 
@@ -336,6 +394,49 @@ def test_put_only_for_running_runs_that_upload(outputs_api, dummy_app):
   body, status = put(outputs_api, dummy_app, "a.txt")
   assert status == 409 and body["reason"] == "not_uploaded"
   assert not os.path.exists("/mnt/storage/group/repo/output/a.txt")
+
+
+def test_hostile_runs_stay_in_their_projects_folder(outputs_api, dummy_app, upload_root):
+  victim = run_dir_of("victim/secret")
+  victim.mkdir(parents=True)
+  (victim / "kept.txt").write_text("kept")
+  # the review's attack: an input that climbs to another project's runs, with is_running so that the folder is emptied
+  for attack in ({"input_path": "../../../../../../../victim/secret/-"}, {"input_path": "../" * 12}, {"platform": ".."}, {"batch_label": "../../.."}):
+    response, status = start(outputs_api, dummy_app, **attack)
+    assert status == 200
+    directory = Path(response.get_json()["output_dir"])
+    assert uploads.is_run_dir(directory, "group/repo") and os.path.normpath(directory) == str(directory)
+    assert put(outputs_api, dummy_app, "kept.txt", b"pwned")[1] == 200
+    assert (victim / "kept.txt").read_text() == "kept"
+    assert (directory / "kept.txt").read_bytes() == b"pwned"
+
+
+def test_the_database_cant_send_files_elsewhere(outputs_api, dummy_app, upload_root, tmp_path):
+  """Other clients say where they saved their runs: a PUT only writes in a folder we could have chosen for the project"""
+  start(outputs_api, dummy_app)
+  victim = run_dir_of("victim/secret")
+  victim.mkdir(parents=True)
+  own = Path(outputs_api.test_output.output_dir_override)
+  for directory in (victim, f"{own}/../../../../../../../victim/secret/-/x", tmp_path / "elsewhere", upload_root, f"{upload_root}/../outside"):
+    outputs_api.test_output.output_dir_override = str(directory)
+    body, status = put(outputs_api, dummy_app, "a.txt")
+    assert (status, body["reason"]) == (409, "not_uploaded"), directory
+  assert list(victim.iterdir()) == []
+  # nor a run that didn't say it uploads, even in a folder of its project
+  outputs_api.test_output.output_dir_override = str(own)
+  outputs_api.test_output.data.pop("storage")
+  assert put(outputs_api, dummy_app, "a.txt")[0]["reason"] == "not_uploaded"
+
+
+def test_clients_cant_say_their_results_are_in_the_uploads_folders(outputs_api, dummy_app, upload_root, monkeypatch):
+  monkeypatch.setattr(outputs_api, "check_storage_path", lambda path: path)
+  victim = run_dir_of("victim/secret")
+  for directory in (victim, f"{upload_root}/x/../victim/secret/-/01"):
+    response, status = start(outputs_api, dummy_app, storage=None, output_directory=str(directory))
+    assert status == 400 and response.get_json()["reason"] == "uploads_folder"
+  # the upload folder can also be a storage that runs write to directly
+  response, status = start(outputs_api, dummy_app, storage=None, output_directory=str(upload_root / "group/repo/01/23/output/x"))
+  assert status == 200 and "storage" not in outputs_api.test_output.data
 
 
 def test_put_needs_access_to_the_project(outputs_api, dummy_app, monkeypatch):

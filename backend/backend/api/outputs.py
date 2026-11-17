@@ -1,6 +1,7 @@
 import datetime
 import json
 import math
+import os
 from pathlib import Path
 
 from typing import Optional
@@ -29,7 +30,8 @@ from .auth import login_required, is_authorized_user, ingest_access, forbidden_p
 # - submitted_by is who really sent it (api/auth.py:ingest_access)
 # - added_metrics records the metrics scripts added after the run (add_output_metrics)
 # - attempt and previous_attempts say how many times the run was done (backend/attempts.py)
-SERVER_KEYS = {'optimization_best', 'submitted_by', 'added_metrics', 'attempt', 'previous_attempts'}
+# - storage says that the run sends us its files, in a folder we chose (backend/uploads.py)
+SERVER_KEYS = {'optimization_best', 'submitted_by', 'added_metrics', 'attempt', 'previous_attempts', 'storage'}
 # Metrics that only the run itself sets
 RUN_ONLY_METRICS = {'is_failed', 'compute_time'}
 # What scripts can say about themselves when they add metrics
@@ -350,8 +352,8 @@ def upload_output_file(output_id, path):
 
   output = Output.query.filter(Output.id==output_id).one()
   directory = output.output_dir_override
-  upload_root = uploads.upload_root()
-  if not directory or upload_root is None or not Path(directory).is_relative_to(upload_root):
+  # not any folder the database has: one we chose for a run of this project, that said it uploads
+  if not directory or (output.data or {}).get('storage') != 'upload' or not uploads.is_run_dir(directory, project_id):
     return jsonify({"error": "This run saves its files in a storage shared with the server: it doesn't upload them.", "reason": "not_uploaded"}), 409
   if not output.is_pending:
     return jsonify({"error": "The run has ended: its files don't change anymore.", "reason": "not_running"}), 409
@@ -429,6 +431,9 @@ def new_output_webhook():
       check_storage_path(artifacts_commit)
   except UnsafePathError as e:
     return jsonify({"error": f"{e}"}), 400
+  # the folders of uploaded runs are the server's to choose: no client says its results are there
+  if output_directory and uploads.project_of(os.path.normpath(output_directory)):
+    return jsonify({"error": f"{output_directory} is where the server saves the files runs send it: results can't be saved there directly.", "reason": "uploads_folder"}), 400
 
   if error := invalid_project(data.get('project')):
     return error
@@ -498,11 +503,15 @@ def new_output_webhook():
                                         )
   output.output_type = data.get('input_type', '')
   if uploads_files:
-    output_directory = str(uploads.run_dir(ci_commit.project_id, ci_commit.hexsha, batch.label, output.output_folder))
+    try:
+      output_directory = str(uploads.run_dir(ci_commit.project_id, ci_commit.hexsha, batch.label, platform, configurations, data['extra_parameters'], test_input_path))
+    except uploads.UploadError as e:
+      db_session.rollback()
+      return jsonify({"error": str(e), "reason": e.reason}), e.status
     # The run starts: what its previous attempt uploaded goes, like `qa run` cleans the folder it starts in.
     # Not when `qa batch` only says the run is pending, nor for runs that continue (--keep-previous, resume=True)
     if data.get('is_running') and not data.get('keep_previous'):
-      uploads.clean_run_dir(Path(output_directory))
+      uploads.clean_run_dir(Path(output_directory), ci_commit.project_id)
   # A run that is done again, in a new directory or in place: we remember the attempt it replaces
   record_attempt(output, output_directory, is_pending=bool(data.get('is_pending') or data.get('is_running')))
 
@@ -525,6 +534,11 @@ def new_output_webhook():
     output.data["submitted_by"] = submitted_by
   else:
     output.data.pop("submitted_by", None)
+  # only runs that asked for it, with a token, send us files (upload_output_file)
+  if uploads_files:
+    output.data["storage"] = "upload"
+  else:
+    output.data.pop("storage", None)
   # we can only trust CI outputs to run on the exact code from the commit
   output.data["ci"] = data['job_type'] == 'ci'
   # where it comes from, and the batch's if it's new (backend/origins.py)

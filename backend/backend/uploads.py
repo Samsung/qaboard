@@ -9,12 +9,15 @@ the retention rules remove them. Nothing else in the server knows that they were
   <upload root>/<project id>/-/<commit>/<batch>/<configurations>/<input>/<the run's files>
 
 - The server chooses the run's folder (run_dir): clients only name files inside it (PUT /api/v1/output/<id>/files/<path>).
+  What clients say about the run (its input, its configurations, its batch) only reaches the path as folder names
+  the server makes (folder_name): never as paths, so nothing they send leads elsewhere. Before writing or deleting,
+  the server checks that a folder is one it could have chosen for that project (is_run_dir).
 - "-" separates the project from its runs, like in GitLab's URLs: the project of a file is read from its path
   (project_of), to know who can read it, and no sub-project's folder can be mistaken for a commit's.
 - To keep some projects' files elsewhere (another disk, a bucket mounted as a folder), mount it at
   <upload root>/<project id> or above: files are written and renamed inside the run's folder, never across folders.
 
-Docs: website/docs/backend-admin/uploads.mdx. API: backend/api/uploads.py.
+Docs: website/docs/backend-admin/uploads.mdx. API: upload_output_file and new_output_webhook in backend/api/outputs.py.
 """
 import fcntl
 import hashlib
@@ -25,7 +28,7 @@ import uuid
 from pathlib import Path, PurePosixPath
 from typing import BinaryIO, Optional, Tuple
 
-from qaboard.conventions import batch_folder_name, commit_dir_name, is_upload_storage, slugify
+from qaboard.conventions import commit_dir_name, is_upload_storage, make_hash, slugify_hash
 
 from . import config
 from .storage import check_inside, UnsafePathError
@@ -70,13 +73,52 @@ def supports_project(project_id: str) -> bool:
   return RUNS_FOLDER not in project_id.strip('/').split('/')
 
 
-def run_dir(project_id: str, hexsha: str, batch_label: str, output_folder: str) -> Path:
-  """Where the files of a run are saved. `output_folder`: the run's folder in its batch (Output.output_folder)"""
+def folder_name(text, maxlength: int = 70) -> str:
+  """
+  One folder's name for what a client sent (an input's path, a batch's label, configurations): lowercase letters,
+  digits, ".", "=" and "-", never a path, and never "." or "..". Names that are already like that are kept
+  ("unit-tests"); the others get a hash of the text, so that "A/b" and "a-b" are two folders ("a-b-1f2e3d4c").
+  """
+  slug = slugify_hash(text, maxlength=maxlength).replace('/', '-').strip('.-')
+  if isinstance(text, str) and slug == text and slug:
+    return slug
+  return f"{slug}-{make_hash(text)[:8]}".lstrip('-')
+
+
+def project_runs_dir(project_id: str) -> Path:
+  """The folder of a project's uploaded runs"""
   root = upload_root()
   assert root is not None
+  return root / project_id.strip('/') / RUNS_FOLDER
+
+
+def run_dir(project_id: str, hexsha: str, batch_label: str, platform: str, configurations: list, extra_parameters: dict, input_path: str) -> Path:
+  """
+  Where the files of a run are saved, from what identifies it. Not the shared storage's layout to the letter: an
+  input keeps its extension (code names runs "v1.2" and "v1.3"), and each level is one folder.
+  """
   # runs outside git are attached to placeholder commits, like "<local:alice>"
-  commit_dir = commit_dir_name(hexsha) if re.fullmatch(r'[0-9a-f]{40}', hexsha) else Path('local') / (slugify(hexsha) or 'commit')
-  return root / project_id.strip('/') / RUNS_FOLDER / commit_dir / batch_folder_name(batch_label) / output_folder
+  commit_dir = commit_dir_name(hexsha) if re.fullmatch(r'[0-9a-f]{40}', hexsha) else Path('local') / folder_name(hexsha)
+  batch_dir = Path('output') if batch_label == 'default' else Path('output') / folder_name(batch_label, maxlength=32)
+  # every run of the database has its own folder: all that tells runs apart is in the names
+  configuration_dir = folder_name([platform, configurations or [], extra_parameters or {}], maxlength=32)
+  directory = project_runs_dir(project_id) / commit_dir / batch_dir / configuration_dir / folder_name(str(input_path))
+  if not is_run_dir(directory, project_id):
+    raise UploadError(400, "This run can't be saved by the server: its project, batch or input have names that aren't folders' names.", "invalid_run")
+  return directory
+
+
+def is_run_dir(directory, project_id: str) -> bool:
+  """
+  Whether a folder is one the server could have chosen for a run of the project: under the project's uploaded runs,
+  said without "..", symlinks aside (save_file and clean_run_dir check where they really are).
+  What the database says a run's folder is isn't enough: other clients say where they saved theirs.
+  """
+  if upload_root() is None or not project_id or not supports_project(project_id):
+    return False
+  directory = str(directory)
+  runs_dir = project_runs_dir(project_id)
+  return os.path.normpath(directory) == directory and Path(directory) != runs_dir and Path(directory).is_relative_to(runs_dir)
 
 
 def project_of(path: str) -> Optional[Tuple[str, str]]:
@@ -106,10 +148,12 @@ def clean_path(path: str) -> PurePosixPath:
   return PurePosixPath(*parts)
 
 
-def clean_run_dir(directory: Path) -> None:
-  """Removes what a run that starts again left in its folder. The folder stays."""
-  root = upload_root()
-  if root is None or not Path(os.path.realpath(directory)).is_relative_to(os.path.realpath(root)) or not directory.is_dir():
+def clean_run_dir(directory: Path, project_id: str) -> None:
+  """Removes what a run of the project that starts again left in its folder. The folder stays."""
+  if not is_run_dir(directory, project_id) or not directory.is_dir():
+    return
+  # a symlink above the folder (they aren't ours) must not take us out of the project's runs
+  if not Path(os.path.realpath(directory)).is_relative_to(os.path.realpath(project_runs_dir(project_id))):
     return
   for entry in os.scandir(directory):
     if entry.is_dir(follow_symlinks=False):
