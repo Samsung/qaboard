@@ -29,7 +29,7 @@ import { openAddReference } from "./ReferenceTabs";
 import { SideLabel, milestone_label_hint } from "./SideLabel";
 import { MilestonesPanel } from "../milestones/MilestonesPanel"
 import { CommitMilestoneButton } from "../milestones/CommitMilestone"
-import { milestone_name, milestones_of, milestone_selection_changes, stack_milestone_changes } from "../milestones/api"
+import { milestone_name, milestones_of, milestone_selection_changes, stack_milestone_changes, prefetch_milestone } from "../milestones/api"
 import { useMilestones } from "../milestones/hooks"
 
 import { shortId, pretty_label } from "../utils";
@@ -417,6 +417,8 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
     // milestones from qaboard.yaml are only a branch, tag or commit
     if (!milestone.commit && milestone.branch)
       return selectBranch(milestone.branch)
+    // the page asks for the commit once it re-rendered for the new URL: we start now
+    prefetch_milestone(queryClient, milestone)
     // with several references: one of them is shown, not added twice
     updateSelected(milestone_selection_changes(milestone, type, { ...selected, references }))
   };
@@ -424,6 +426,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
   const stackMilestone = milestone => {
     if (!milestone.commit && milestone.branch)
       return selectBranch(milestone.branch)
+    prefetch_milestone(queryClient, milestone)
     updateSelected(stack_milestone_changes(milestone, { ...selected, references }))
   };
 

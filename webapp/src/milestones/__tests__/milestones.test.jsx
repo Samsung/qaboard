@@ -143,6 +143,8 @@ describe('MilestonesPanel', () => {
       expect(items[0]).toHaveTextContent('Manage milestones…');
       const row = screen.getByText('Quick check').closest('a');
       expect(row.querySelector('.qa-milestone-date')).toHaveTextContent('3 days ago');
+      // the full dates once hovered
+      fireEvent.mouseEnter(row.querySelector('.qa-milestone-date'));
       expect(row.querySelector('.qa-milestone-date').title).toMatch(/^Updated .*2026.*, saved .*2026/);
     } finally {
       vi.useRealTimers();
@@ -201,6 +203,15 @@ describe('MilestonesPanel', () => {
   test('shows which milestone is selected', () => {
     renderPanel({ props: { selected: { project: 'p', commit: SHA, batch: 'default', filter: '' } } });
     expect(screen.getAllByText('selected')).toHaveLength(2);
+  });
+
+  test('long lists show the latest milestones of each section, and the others on demand', () => {
+    const many = Array.from({ length: 50 }, (_, i) => make({ id: 100 + i, label: `Run ${i}`, updated_at: `2026-10-01T10:${String(i).padStart(2, '0')}:00Z` }));
+    renderPanel({ list: many });
+    expect(screen.queryByText('Run 0')).toBeNull();
+    expect(screen.getByText('Run 49')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Show 10 older milestones'));
+    expect(screen.getByText('Run 0')).toBeInTheDocument();
   });
 
   test('says how many runs milestones have', () => {

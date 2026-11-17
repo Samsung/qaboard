@@ -17,9 +17,10 @@ import {
 
 import { ProjectAvatar } from "./components/avatars";
 import { IntegrationsMenus } from "./components/integrations";
+import { useQueryClient } from "@tanstack/react-query";
 import { MilestonesPanel } from "./milestones/MilestonesPanel"
 import { useMilestones } from "./milestones/hooks"
-import { milestone_name, milestone_path, milestone_location, milestones_of } from "./milestones/api"
+import { milestone_name, milestone_path, milestone_location, milestones_of, prefetch_milestone } from "./milestones/api"
 import AuthButton from "./components/authentication/Auth"
 import { WhatsNewButton } from "./releaseNotes/ReleaseNotes"
 import { ThemeButton } from "./components/ThemeButton"
@@ -541,6 +542,7 @@ const SiderMilestones = ({ project, project_data, docs_root }) => {
   const collapsed = useContext(SiderCollapsedContext);
   const { history } = useRouter();
   const { selected } = useComparison();
+  const queryClient = useQueryClient();
   const index = useMilestones(project);
   const { list, favorite_groups } = index;
   const [is_open, setOpen] = useState(false);
@@ -555,6 +557,7 @@ const SiderMilestones = ({ project, project_data, docs_root }) => {
     // from qaboard.yaml: a branch, tag or commit
     if (!milestone.commit)
       return history.push(`/${path_segment(project)}/commits/${path_segment(milestone.branch)}`);
+    prefetch_milestone(queryClient, milestone);
     history.push(milestone_location(milestone));
   };
   const openPanel = (search = '') => {

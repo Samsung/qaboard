@@ -6,6 +6,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { DateTime } from "luxon";
 
 import { http } from "../api/http";
+import { commitQuery } from "../api/queries";
 import { path_segment, stringify_query, show_reference, add_reference, is_default_name, other_refs_to_query } from "../selection";
 import { pretty_label, match_query } from "../utils";
 
@@ -105,6 +106,14 @@ export const milestone_location = (m, references) => {
       compare: other_refs_to_query(others.map(milestone_side), m.project),
     }),
   };
+};
+
+// Starts loading a milestone's results: when it's picked, before the page re-renders for the new URL, or a moment
+// after users hover it. The commit page asks for them with the same key (useCommit). Very big batches are only
+// loaded once picked: hovering a list shouldn't download thousands of runs.
+export const prefetch_milestone = (queryClient, m, { hover = false } = {}) => {
+  if (!m?.commit || (hover && (m.runs?.count ?? 0) > 5000)) return;
+  queryClient.prefetchQuery(commitQuery({ project: results_project(m), id: m.commit }));
 };
 
 // A milestone as a side of the comparison (src/selection.js)

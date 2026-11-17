@@ -1,6 +1,7 @@
 // Managing milestones: all of a project's milestones in a table, sorted by date or name, to edit, delete, move to
 // a group or share several at once, open one, use one as the reference or stack it, or compare several.
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
 import styled from "styled-components";
 import {
@@ -32,7 +33,7 @@ import { match_query, pretty_label } from "../utils";
 import { copyWithToast } from "../utils/clipboard";
 import {
   milestone_name, milestone_url, milestone_path, owner_name, relative_date, results_project, milestone_location,
-  milestone_selection_changes, stack_milestone_changes, is_milestone_side, comparison_url, normalize_group,
+  milestone_selection_changes, stack_milestone_changes, is_milestone_side, prefetch_milestone, comparison_url, normalize_group,
   milestone_search_text, runs_matches, dataset_label,
 } from "./api";
 import { useMilestones, useMilestoneActions } from "./hooks";
@@ -260,23 +261,28 @@ export const ManageMilestones = ({ isOpen, onClose, project }) => {
   const all_checked = rows.length > 0 && rows.every(m => checked.has(m.id));
   const toggleAll = () => setChecked(all_checked ? new Set() : new Set(rows.map(m => m.id)));
 
+  const queryClient = useQueryClient();
   // On a commit page we keep the other side of the comparison
   const open = m => {
     onClose();
+    prefetch_milestone(queryClient, m);
     if (on_commit_page) updateSelected(milestone_selection_changes(m, 'new', selected));
     else history.push(milestone_location(m));
   };
   const selectAsReference = m => {
     onClose();
+    prefetch_milestone(queryClient, m);
     updateSelected(milestone_selection_changes(m, 'ref', selected));
   };
   const stack = m => {
     onClose();
+    prefetch_milestone(queryClient, m);
     updateSelected(stack_milestone_changes(m, selected));
   };
   // we have the milestones: no need to load them again from their links
   const compare = () => {
     onClose();
+    for (const m of [compared_new, ...compared_refs]) prefetch_milestone(queryClient, m);
     history.push(milestone_location(compared_new, compared_refs));
   };
   // plain clicks on a milestone's name open it like "Open", others (new tab...) follow its link
