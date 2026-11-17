@@ -104,6 +104,8 @@ hours, and there's no secret to store, rotate or leak.
 3. Let the job get an ID token, as below. `qa` does the rest: runs say they were sent by the service account, with
    the job's repository and branch.
 
+<Shot id="access/ci-trust" />
+
 **GitHub Actions**: give the job the `id-token: write` permission.
 
 ```yaml title=".github/workflows/qaboard.yml"

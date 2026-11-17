@@ -102,11 +102,18 @@ shots:
     kind: tape
     project: serving-latency
     shows: '`qa gate` in CI on the shared-cache commit against its parent: the rules table, p99 4109.7% worse where 10% is allowed, exit code 1; then the sharded cache, p99 52.7% better, exit code 0.'
-    pages: [quality-gate, use-cases/serving-latency, landing]
+    pages: [quality-gate, use-cases/serving-latency, landing, agents]
     needs: cache-shared, cache-sharded vs batch-overflow-fix
     phase: 2
     status: captured
     experimental: true
+  - id: cli/doctor
+    kind: tape
+    project: image-quality
+    shows: '`qa doctor` in the camera ISP''s folder: every check passes (qa and qaboard.yaml, the server, the results storage, the local runner); then `qa doctor --runner lsf` fails, bsub not on the PATH, with how to fix it.'
+    pages: [doctor]
+    phase: 3
+    status: planned
   - id: ci/step-summary
     kind: still
     project: serving-latency
@@ -120,7 +127,7 @@ shots:
     kind: still
     project: serving-latency
     shows: 'The comment `qa gate --post-comment github` posts on the shared cache''s pull request (`qa --dryrun gate`, rendered with github-markdown-css in templates/pr-comment.html, a neutral frame with the pull request''s title and branches): "Quality gate: fail", the link to the Metrics Diff, p99 far over its 10% limit.'
-    pages: [landing, use-cases/serving-latency]
+    pages: [landing, use-cases/serving-latency, quality-gate-pull-requests]
     needs: cache-shared vs batch-overflow-fix
     phase: 3
     status: planned
@@ -225,6 +232,14 @@ shots:
     status: captured
 
   # Commit page: metrics
+  - id: integrations/organized-menu
+    kind: still
+    project: image-quality
+    shows: 'The Integrations menu organized with the "Organize the menu" example of the docs (injected in the API''s answer for the commit, not the camera ISP''s qaboard.yaml): a search box, a link, a red Release checklist labeled docs, a divider titled CI over a Builds submenu open on its GitLab CI and Jenkins jobs, a divider titled Tuning over a webhook.'
+    pages: [triggering-third-party-tools]
+    needs: integrations.spec.ts replaces the commit's integrations with the docs' example, in the page only
+    phase: 3
+    status: planned
   - id: commit/summary
     kind: still
     project: detection-eval
@@ -272,6 +287,13 @@ shots:
     features: [milestones]
     phase: 2
     status: captured
+  - id: commit/reference-picker
+    kind: still
+    project: image-quality
+    shows: 'The reference picker of the facade photo''s linux run (merge-bilateral against isp-4.1), opened from the run''s menu, set to All runs like this: Same input lists the linux run in use, the hw-model run (hovered) and the low-light run with their PSNR; the hint says every run will prefer reference runs with platform = hw-model.'
+    pages: [user-guide/reference-runs]
+    phase: 3
+    status: planned
   - id: commit/reference-tabs
     kind: still
     project: image-quality
@@ -346,7 +368,7 @@ shots:
     kind: still
     project: image-quality
     shows: Run cards with their main metrics and changes, the output images new and reference side by side.
-    pages: [running-your-code, user-guide/commit-page, user-guide/first-review, visualizations]
+    pages: [running-your-code, user-guide/commit-page, user-guide/first-review, visualizations, get-started/concepts]
     needs: merge-bilateral vs isp-4-1
     phase: 1
     status: published
@@ -866,7 +888,7 @@ shots:
     kind: still
     project: serving-latency
     shows: 'The Logs view of the tune-batching sweep, started from QA-Board: its `qa batch` command and log, its runs (filtered on one configuration), and the Batch section with the command. (The CI batch''s command and job link show in the CI batch''s Logs view, one batch at a time.)'
-    pages: [user-guide/logs]
+    pages: [user-guide/logs, backend-admin/runners]
     needs: cache-sharded (tune-batching)
     phase: 2
     status: captured
@@ -952,7 +974,7 @@ shots:
     kind: still
     project: detection-eval
     shows: Run Tests / Tuning on int8-percentile, experiment int8-nms on quant-search (2 tests), Choose the values with a grid over score_threshold and nms_iou, 4 combinations, "8 total runs", and the Start 8 runs button.
-    pages: [user-guide/running-from-the-webapp]
+    pages: [user-guide/running-from-the-webapp, user-guide/tuning, backend-admin/runners]
     needs: int8-percentile
     phase: 2
     status: captured
@@ -977,7 +999,7 @@ shots:
     kind: still
     project: detection-eval
     shows: 'The tune-int8 Tuning Analysis: done, 20 of 20 evaluations, the best objective and its metrics against the first evaluation, "What this tells you", the best parameters within the ranges searched with their impact, and the convergence of the objective.'
-    pages: [auto-optimization, use-cases/detection-eval, user-guide/automated-tuning, user-guide/running-from-the-webapp, tutorials/tuning]
+    pages: [auto-optimization, use-cases/detection-eval, user-guide/automated-tuning, user-guide/running-from-the-webapp, tutorials/tuning, user-guide/tuning]
     features: [tuning-analysis]
     needs: int8-percentile (tune-int8)
     phase: 2
@@ -1152,6 +1174,21 @@ shots:
     needs: the demo stack's admin (QABOARD_ADMINS in docs-media/compose.demo.yml); the specs set and undo the state they need (shots/demoState.ts)
     phase: 3
     status: published
+  - id: account/preferences
+    kind: still
+    project: null
+    shows: Settings → Preferences, under the other Settings tabs. The theme, Comfortable or Compact lists of commits and run cards, the values written on the pixels and the runs' settings, all saved in the account.
+    pages: [user-guide/account]
+    phase: 3
+    status: planned
+  - id: account/cli-sign-in
+    kind: still
+    project: null
+    shows: The Device sign-in page for a pending qa auth login from gpu-03, started like the CLI does. The code to compare with the terminal, the computer and address it came from, its scopes, and the warning above Approve and Deny.
+    pages: [user-guide/account, installation]
+    needs: account.spec.ts starts the sign-in through the API and denies it afterwards
+    phase: 3
+    status: planned
   - id: access/members
     kind: still
     project: detection-eval
@@ -1168,6 +1205,14 @@ shots:
     needs: the demo stack's admin (QABOARD_ADMINS in docs-media/compose.demo.yml); the specs set and undo the state they need (shots/demoState.ts)
     phase: 3
     status: published
+  - id: access/ci-trust
+    kind: still
+    project: detection-eval
+    shows: The Tokens dialog of the detector's CI bot, kitefin/detector/ci[bot]. It has no stored token, yet trusts the GitHub Actions jobs of kitefin/detector on main, with the permission to add to the workflow.
+    pages: [user-guide/project-access, ci-integration, backend-admin/managing-users]
+    needs: access.spec.ts creates the service account and its trust as the project's owner, and removes them afterwards
+    phase: 3
+    status: planned
   - id: admin/overview
     kind: still
     project: null
@@ -1210,6 +1255,53 @@ shots:
     status: published
 
   # A project's Admin pages (Access has its own area)
+  - id: admin/oidc-provider
+    kind: still
+    project: null
+    shows: The Add an OIDC provider dialog filled in for the demo world's Keycloak (Kitefin SSO, https://sso.kitefin.example/realms/kitefin), not saved. The client secret stored encrypted (or read from an environment variable) and how existing accounts are matched.
+    pages: [backend-admin/sign-in]
+    phase: 3
+    status: planned
+  - id: admin/sign-in-methods
+    kind: still
+    project: null
+    shows: Admin → Sign-in with Kitefin SSO saved, Recommended, above the QA-Board account from the environment. The redirect URI to register with the provider, and the move up/down buttons that order the sign-in page.
+    pages: [backend-admin/sign-in]
+    needs: admin.spec.ts saves the provider before the shot and deletes it after
+    phase: 3
+    status: planned
+  - id: admin/groups
+    kind: still
+    project: null
+    shows: Admin → Groups with three teams of the demo world (fleet-platform, imaging, perception), their members and rules counts.
+    pages: [backend-admin/project-access]
+    needs: admin.spec.ts creates the groups before the shot and deletes them after
+    phase: 3
+    status: planned
+  - id: admin/group-rules
+    kind: still
+    project: null
+    shows: The Rules of the imaging group. Kitefin SSO's groups claim containing imaging or camera-isp, and a directory's memberOf for any sign-in method, add users to the group.
+    pages: [backend-admin/project-access]
+    needs: admin.spec.ts creates the groups before the shot and deletes them after
+    phase: 3
+    status: planned
+  - id: admin/service-accounts
+    kind: still
+    project: null
+    shows: Admin → Service accounts with nightly[bot] (Nightly benchmarks of the Kitefin projects, from GitLab CI), Developer on all projects, no tokens, never used; the Created column is cropped out.
+    pages: [backend-admin/managing-users]
+    needs: admin.spec.ts creates the account before the shot and deletes it after (it stays, disabled)
+    phase: 3
+    status: planned
+  - id: admin/scheduled-job
+    kind: still
+    project: null
+    shows: The New schedule dialog for Delete old results every Saturday at 1:59 UTC on every project, by default older than 1month, not a dry run, with the next runs after T0. Not saved.
+    pages: [backend-admin/storage, storage/deleting-old-data]
+    needs: the next runs are computed from T0 (the server computes them from its own clock), see admin.spec.ts
+    phase: 3
+    status: planned
   - id: project-admin/gate
     kind: still
     project: serving-latency

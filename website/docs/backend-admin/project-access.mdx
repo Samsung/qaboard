@@ -52,8 +52,11 @@ Tokens never have more than their user, their scopes (`read`, `ingest`, `act`) a
 </details>
 
 ## Groups
-Create groups in **Admin → Groups**, then grant them roles on projects. Add members by hand, or with **rules** that
-add users from their groups in your directory or identity provider:
+Create groups in **Admin → Groups**, then grant them roles on projects.
+
+<Shot id="admin/groups" />
+
+Add members by hand, or with **rules** that add users from their groups in your directory or identity provider:
 
 | Claim | Signs in with | Example values |
 |---|---|---|
@@ -65,6 +68,8 @@ add users from their groups in your directory or identity provider:
 Values match case-insensitively; an LDAP group matches by its full DN or its name. Members you add by hand stay.
 To write rules, look at **Admin → Audit**: `auth.login` events list the groups each sign-in put users in, and for
 single sign-on the groups the identity provider sent.
+
+<Shot id="admin/group-rules" />
 
 **When rules apply**: when users sign in, when you add or delete a rule (for everyone, in a minute), and every day,
 with the *Users' groups* schedule the jobs worker creates (**Admin → Storage → Schedules**, `QABOARD_GROUPS_SYNC_AUTO=0`

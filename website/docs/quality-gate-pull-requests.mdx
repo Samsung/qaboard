@@ -48,6 +48,8 @@ comment never changes the exit code.
 The comment has the verdict, the gate's table, and the link to the Metrics Diff, like the terminal's output and the
 GitHub Actions job summary. It also says what a reviewer should know and that doesn't change the verdict:
 
+<Shot id="ci/pr-comment" caption="The comment on a pull request whose p99 latency regressed: the verdict, the link to the Metrics Diff, and each check against its limit." />
+
 - **Runs that were done again.** "3 runs were done again: 1 passed after a failed attempt", then each of them with
   how its earlier attempts ended. A result that took several tries may be a flaky test or a retried CI job: the
   earlier attempts' metrics are on the run's **attempt** tag, and their logs in the Logs view (see

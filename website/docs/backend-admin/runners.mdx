@@ -9,6 +9,8 @@ When users click **Start** in **Run Tests / Tuning**, **Redo** on a run, or **St
 `qa` for them. This page sets up where it does, so your users can run batches without a terminal, on your cluster,
 as themselves.
 
+<Shot id="tuning/manual-form" caption="What users see: they choose tests and parameters, and Start sends the batch to the runner this page sets up." />
+
 ## How the server starts a batch {#how-it-works}
 For each request, the server writes a script in the batch's folder, in the results storage. The script goes to the
 commit's [artifacts](/docs/storage/artifacts), sources their *.envrc* files, and runs `qa batch --no-wait`, or
@@ -27,6 +29,8 @@ commit's [artifacts](/docs/storage/artifacts), sources their *.envrc* files, and
 
 Projects need their artifacts saved by the CI: see [Let people tune from the web app](/docs/tuning-from-the-webapp)
 for what projects do.
+
+<Shot id="logs/batch-commands" caption="The batch's Logs view shows the qa batch command the server ran and its log: the first place to look when a batch started from the web app doesn't run." />
 
 :::danger Runs started on the server run the projects' code in its container
 With `local` and `celery`, `qa batch` runs in the backend's container, as the server's account: everyone with the

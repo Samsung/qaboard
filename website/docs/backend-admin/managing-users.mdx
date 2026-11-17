@@ -198,6 +198,8 @@ working when people leave, and runs show they were sent by a bot.
 - **A project's**, in the project's **Access** tab, for its owners: named like `group/repo/ci[bot]`, with a role on
   the project. Their tokens only reach the project and the projects under it, whatever grants they're given elsewhere.
 
+<Shot id="admin/service-accounts" />
+
 Their tokens look like `qab_svc_…`, with the same scopes (except `admin`), expiry and policy as users' tokens, and
 only browser sessions create them. Service accounts can't sign in, are never admins, and are counted as CI in
 batches' origins. Deleting one revokes its tokens and removes its roles; its name stays taken, so runs keep saying who
@@ -212,6 +214,8 @@ git hosts in your server's configuration (`QABOARD_GIT_HOSTS`, a self-hosted Git
 add other issuers, since the server fetches their keys. The server must reach
 `token.actions.githubusercontent.com` for GitHub, your GitLab for GitLab CI (through `HTTPS_PROXY` if needed). The
 tokens look like `qab_tmp_…`, work `tokens.ci_lifetime_minutes`, and are audited as `token.exchange`.
+
+<Shot id="access/ci-trust" />
 
 The API: `GET/POST /api/v1/service-accounts` (`?project=group/repo` for a project's), `POST` and `DELETE
 /api/v1/service-accounts/<id>` (its `role`), and `POST /api/v1/service-accounts/<id>/tokens`, `DELETE

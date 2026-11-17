@@ -90,6 +90,8 @@ redirect URI, `$QABOARD_URL/api/v1/auth/oidc/<id>/callback`, shown in the panel.
 - stored encrypted in the database, with the server's encryption key: `QABOARD_ENCRYPTION_KEY`, or a key the server
   generates. Back it up: without it, the stored secrets can't be read (see [the encryption key](/docs/backend-admin/settings#secrets-and-the-encryption-key)).
 
+<Shot id="admin/oidc-provider" />
+
 Providers from the environment are read-only in the panel. Users link more sign-in methods to their account in
 **Settings → Sign-in methods**.
 
@@ -97,6 +99,8 @@ Providers from the environment are read-only in the panel. Users link more sign-
 environment too: the sign-in page lists them in that order (`auth.provider_order`, or `QABOARD_SIGN_IN_ORDER=sso,ldap,local`
 in the environment). Until you do, *Recommended* providers come first. The first single sign-on is the main button
 when it's *Recommended*.
+
+<Shot id="admin/sign-in-methods" />
 
 ### Existing accounts
 At their first SSO sign-in, users are recognized by the provider's id for them (`sub`). For users who already have an

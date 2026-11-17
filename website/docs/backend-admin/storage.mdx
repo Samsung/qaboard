@@ -205,6 +205,8 @@ Click **New schedule**, choose the job and its settings, and when it runs with a
 (`minute hour day-of-month month day-of-week`, e.g. `0 2 * * *` every night at 2:00) in a time zone. The form shows the
 next runs. A schedule's run is skipped, with a message, while a job of the same kind is still running.
 
+<Shot id="admin/scheduled-job" />
+
 When a scheduled job fails, ends with errors, or is given up because its workers kept dying, QA-Board emails the admins
 what went wrong, its first errors and a link to the job (it needs [emails](/docs/deploy#emails)). Send them to others with
 the setting `jobs.failure_email_to` (user names or emails, `QABOARD_JOBS_FAILURE_EMAIL_TO`), or turn them off with

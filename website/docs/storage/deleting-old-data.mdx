@@ -36,6 +36,11 @@ storage:
 Data is deleted when the server runs `qaboard_clean` (see the [server's cron jobs](/docs/deploy#optional-cleanup)), or when admins run or schedule *Delete old results* in **Admin → Storage** ([cleaning the storage](/docs/backend-admin/storage)). It applies to all projects: without `storage.garbage.after`, outputs are deleted after **1month**. Use `qaboard_clean --help` for the options (e.g. `--project`). `qaboard_clean --dryrun` lists what would be deleted, without deleting or changing anything.
 :::
 
+<Shot
+  id="admin/scheduled-job"
+  caption="An admin schedules Delete old results every Saturday. Projects whose qaboard.yaml doesn't set storage.garbage.after use 1month."
+/>
+
 To also allow deleting results on the reference branch (the latest commit is kept), set `storage.garbage.can_delete_reference_branch: true`.
 
 :::note
