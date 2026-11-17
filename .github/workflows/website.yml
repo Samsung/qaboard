@@ -1,9 +1,9 @@
 name: Website
 
 # Builds the docs website on pull requests (the build fails on broken links, unknown shot ids, wrong stack tabs and
-# missing repository files), and from master deploys it to GitHub Pages and updates its Algolia search index.
-# Needs Settings > Pages > Source: GitHub Actions. The index needs the ALGOLIA_WRITE_API_KEY secret, see
-# website/search/algolia_index.py: without it, the site still deploys.
+# missing repository files), and from master deploys it to GitHub Pages, then has the Algolia crawler update the
+# search index. Needs Settings > Pages > Source: GitHub Actions, and for the crawl the secrets ALGOLIA_CRAWLER_ID,
+# ALGOLIA_CRAWLER_USER_ID and ALGOLIA_CRAWLER_API_KEY (see website/README.md): without them, the site still deploys.
 on:
   push:
     branches: [master]
@@ -31,7 +31,6 @@ jobs:
           node-version: 24.x
           cache: yarn
           cache-dependency-path: website/yarn.lock
-      - uses: astral-sh/setup-uv@v6
       # The GitHub Actions workflows the docs show (no CI of ours runs them)
       - name: Lint the docs' GitHub Actions examples
         run: |
@@ -42,21 +41,11 @@ jobs:
         run: |
           yarn install --frozen-lockfile
           yarn build
-      # On every build, so pull requests that break the extraction fail here, not after the deploy
-      - name: Extract the search records
-        run: uv run website/search/algolia_index.py records website/build --out search-records.json
       - name: Upload the site
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
         uses: actions/upload-pages-artifact@v5
         with:
           path: website/build
-      - name: Upload the search records
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
-        uses: actions/upload-artifact@v4
-        with:
-          name: search-records
-          path: search-records.json
-          retention-days: 7
 
   deploy:
     name: Deploy to GitHub Pages
@@ -75,29 +64,21 @@ jobs:
 
   search-index:
     name: Update the search index
-    # After the deploy: the search results link to the pages that are live
+    # After the deploy: the crawler reads the live site
     needs: deploy
     runs-on: ubuntu-latest
-    # One update at a time: they replace the same index
-    concurrency:
-      group: algolia-index
-      cancel-in-progress: false
     env:
-      ALGOLIA_WRITE_API_KEY: ${{ secrets.ALGOLIA_WRITE_API_KEY }}
+      ALGOLIA_CRAWLER_ID: ${{ secrets.ALGOLIA_CRAWLER_ID }}
+      ALGOLIA_CRAWLER_USER_ID: ${{ secrets.ALGOLIA_CRAWLER_USER_ID }}
+      ALGOLIA_CRAWLER_API_KEY: ${{ secrets.ALGOLIA_CRAWLER_API_KEY }}
     steps:
-      - name: No ALGOLIA_WRITE_API_KEY secret
-        if: env.ALGOLIA_WRITE_API_KEY == ''
-        run: echo "::notice::No ALGOLIA_WRITE_API_KEY secret, the search index isn't updated. See website/search/algolia_index.py"
-      - uses: actions/checkout@v4
-        if: env.ALGOLIA_WRITE_API_KEY != ''
-        with:
-          sparse-checkout: website/search
-      - uses: astral-sh/setup-uv@v6
-        if: env.ALGOLIA_WRITE_API_KEY != ''
-      - uses: actions/download-artifact@v4
-        if: env.ALGOLIA_WRITE_API_KEY != ''
-        with:
-          name: search-records
-      - name: Replace the index
-        if: env.ALGOLIA_WRITE_API_KEY != ''
-        run: uv run website/search/algolia_index.py push search-records.json
+      - name: No Algolia crawler secrets
+        if: env.ALGOLIA_CRAWLER_API_KEY == ''
+        run: echo "::notice::No ALGOLIA_CRAWLER_* secrets, the search index isn't updated. See website/README.md"
+      # https://www.algolia.com/doc/rest-api/crawler/start-reindex
+      - name: Start a crawl
+        if: env.ALGOLIA_CRAWLER_API_KEY != ''
+        run: |
+          curl --fail-with-body --silent --show-error --retry 3 -X POST \
+            --user "$ALGOLIA_CRAWLER_USER_ID:$ALGOLIA_CRAWLER_API_KEY" \
+            "https://crawler.algolia.com/api/1/crawlers/$ALGOLIA_CRAWLER_ID/reindex"

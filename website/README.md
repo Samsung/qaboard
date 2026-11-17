@@ -83,9 +83,25 @@ This command generates static content into the `build` directory and can be serv
 #### Deployment
 
 The Website workflow (`.github/workflows/website.yml`) deploys `master` to GitHub Pages (repository Settings > Pages >
-Source: GitHub Actions), then replaces the Algolia search index with the pages it just built:
-`search/algolia_index.py`, which needs the `ALGOLIA_WRITE_API_KEY` secret. To check what would be indexed:
+Source: GitHub Actions), then starts a crawl of the Algolia crawler, which updates the search index. It needs these
+repository secrets, from the Algolia dashboard's Crawler pages:
+- `ALGOLIA_CRAWLER_ID`: the id in the crawler's URL, `crawler.algolia.com/admin/crawlers/<id>/...`
+- `ALGOLIA_CRAWLER_USER_ID` and `ALGOLIA_CRAWLER_API_KEY`: Crawler > Settings
 
-```
-$ uv run search/algolia_index.py records build --out records.json
+The crawler's configuration lives in the Algolia dashboard. To group the results by docs section (Get started, User
+guide, Project integration, Admin) and leave out what's the same on every page, its `recordExtractor` starts with:
+
+```js
+recordExtractor: ({ $, helpers }) => {
+  // Headings' "#" links, tab labels, and what the docs mark data-nosearch (e.g. <RepoFile>'s footer)
+  $('.hash-link, [role="tab"], [data-nosearch]').remove();
+  // The docs section (src/components/DocsSwitcher), else the active navbar item ("Release notes", "Blog")
+  const lvl0 =
+    $('nav[aria-label="Docs sections"] a[aria-current]').attr('data-section') ||
+    $('.navbar__item.navbar__link--active').last().text() ||
+    'Documentation';
+  return helpers.docsearch({
+    recordProps: {
+      lvl0: { selectors: '', defaultValue: lvl0 },
+      // ...the rest as in DocSearch's Docusaurus template
 ```

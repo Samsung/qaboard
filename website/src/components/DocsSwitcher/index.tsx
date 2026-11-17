@@ -25,7 +25,7 @@ function Section({sidebarId, label, description, active}: (typeof sections)[numb
         to={sidebar.link.path}
         className={clsx(styles.section, active && styles.active)}
         aria-current={active ? 'true' : undefined}
-        // The search index groups results by section: website/search/algolia_index.py
+        // The search results are grouped by section: the Algolia crawler's config, in website/README.md
         data-section={label}
         onClick={() => mobileSidebar.shown && mobileSidebar.toggle()}
       >
