@@ -474,7 +474,7 @@ def github_pull_request_head() -> Optional[str]:
   if not os.environ.get('GITHUB_EVENT_NAME', '').startswith('pull_request'):
     return None
   try:
-    with open(os.environ['GITHUB_EVENT_PATH']) as f:
+    with open(os.environ['GITHUB_EVENT_PATH'], encoding='utf-8') as f:
       return json.load(f)['pull_request']['head']['sha']
   except (KeyError, OSError, ValueError, TypeError):
     return None

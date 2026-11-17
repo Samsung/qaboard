@@ -90,3 +90,12 @@ class TestNonUtf8Locale(unittest.TestCase):
     self.assertEqual(json.loads(out.splitlines()[-1]), {
       "name": "équipe/projet", "description": "Débruitage", "suffix": "µs", "runs": ["a.txt"], "line": 4, "runs_file": ["é.txt"],
     })
+
+  def test_reads_the_github_event(self):
+    """In pull request workflows, qa saves results for the pull request's head, read from GitHub's event file"""
+    event = self.dir / 'event.json'
+    event.write_text(json.dumps({'pull_request': {'title': 'Débruitage 🌙', 'head': {'sha': 'abc123'}}}, ensure_ascii=False), encoding='utf-8')
+    (self.dir / 'qaboard.yaml').write_text(f"project:\n  name: p\n  url: git@github.com:o/p\nstorage:\n  linux: {self.dir / 'storage'}\n")
+    out = self.check("from qaboard.config import github_pull_request_head; print(github_pull_request_head())",
+                     GITHUB_EVENT_NAME='pull_request', GITHUB_EVENT_PATH=str(event))
+    self.assertEqual(out.strip().splitlines()[-1], 'abc123')
