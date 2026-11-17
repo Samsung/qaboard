@@ -73,16 +73,18 @@ If the runs have different tuning parameters, a warning says the Summary mixes t
 
 ## Metrics Diff {#metrics-diff}
 One row per run, and for each metric the difference with its reference run, `new − ref`, then the change in percent.
-The greener a cell, the more it improved; the redder, the more it got worse. Small changes are yellow, and `=` means
-identical. Hover a cell for both values.
+The greener a cell, the more it improved; the redder, the more it got worse. Small changes are yellow, and a gray `=`
+means identical. Hover a cell for both values. Under each metric's name, a bar counts the runs that got better and
+worse, e.g. *5 better · 2 worse*, and **Only runs that changed** hides the others.
 
 - It only shows the metrics the reference runs have too. If the reference has no matching runs, it says so: pick
   another reference.
 - Orange **Input**, **Config** or **Platform** tags (with a `≠`) mean the run was compared with a reference run that
   is not exactly the same. Hover them for what differs. See
   [How runs are matched](/docs/user-guide/comparing-results#how-runs-are-matched).
-- To bring the worst runs to the top, **Sort runs** by a metric in the
-  [View options](/docs/user-guide/commit-page#view-options). It sorts by the new runs' values, not by their change.
+- To bring the worst runs to the top, click a metric's name to sort the runs by it, and again to flip the order, or
+  **Sort runs** in the [View options](/docs/user-guide/commit-page#view-options): it's the same order, in every view. It
+  sorts by the new runs' values, not by their change.
 
 :::tip
 The metrics box above the tables is shared by the Metrics Diff and the Metrics Table, and saved in the page's link:
@@ -91,7 +93,9 @@ whoever opens it sees the same columns.
 
 ## Metrics Table {#metrics-table}
 One row per run, with its input, configuration and platform, and for each metric the **New** and **Ref** values side
-by side. The header gives the metric's target and unit, like `mAP [0.15]` or `Latency [25 ms]`.
+by side. Under each metric's name, the header gives its target, like `≥ 0.15`, else which way is better and its unit,
+and a summary of the column: the values' distribution, their median and, with a target, how many runs meet it, e.g.
+*18/20 met*. Click a metric's name to sort the runs by it.
 
 <Shot
   id="commit/metrics-table"
@@ -101,7 +105,12 @@ by side. The header gives the metric's target and unit, like `mAP [0.15]` or `La
 - Cells are colored from red to green by how far they are from the metric's [target](#targets). Metrics without a
   target are shaded in blue: the darker, the larger the value compared with the other runs.
 - A reference cell shows `=` when it's the same as the new value.
-- Failed runs have a red **Failed** tag. Runs still running show up when they finish.
+- Failed runs have a red **Failed** tag and a red mark, and their values are muted. Runs still running show up when
+  they finish.
+
+With many metrics, the table scrolls sideways and the runs' names stay on the left; its header stays at the top as you
+scroll down. **Copy**, next to the metrics box, copies either table to paste in a spreadsheet: the values, and the
+Metrics Diff's changes.
 
 By default, both tables show the project's main metrics. Without a choice, they show the declared metrics, and others
 up to 20 columns: pick more in the metrics box.

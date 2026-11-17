@@ -17,6 +17,8 @@
   --qa-intent-primary: #2d72d2;
   /* errors in text, e.g. a setting's invalid value */
   --qa-text-danger: #ac2f33;
+  /* better results in text, e.g. how many runs improved (components/metricsTable/) */
+  --qa-text-success: #1c6e42;
   /* a row just linked to, e.g. /admin/settings?setting=key */
   --qa-highlight: rgba(251, 179, 96, 0.22);
   /* What we compare (src/sideColors.js): the new results, then each reference. No red, green or orange: they say
@@ -45,6 +47,7 @@
   --qa-sider-background: #111418;
   --qa-intent-primary: #4c90f0;
   --qa-text-danger: #fa999c;
+  --qa-text-success: #72ca9b;
   --qa-highlight: rgba(251, 179, 96, 0.16);
   --qa-side-0: #4c90f0;
   --qa-side-1: #9c4bf5;
