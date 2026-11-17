@@ -21,12 +21,8 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - **Anonymous results**: while `ingest.auth` is `off` (the default), anyone can send results to any project, and through
   the `qaboard_config` they send, add hosts to the integrations' allow-list or Jenkins jobs that anonymous `qa` may start.
   Per-project ingest policies and CI OIDC trust are milestone M5 (docs/design/user-management.md). [M, API]
-- `trigger_jenkins_build` (api/integrations.py) doesn't check the scheme and port of `build_url` for signed-in users;
-  `jenkins_status_url_allowed` could apply, if templated build URLs in qaboard.yaml keep working. [S, behaviour]
 - The webhook and git proxies use `verify=False` (internal hosts with certificates the server doesn't trust): make it a
   setting, on by default for new installs. [S, behaviour]
-- OIDC user names can match a name listed in `QABOARD_ADMINS` when the IdP lets users choose their `preferred_username`:
-  match env admins on (provider, subject) or verified emails only for OIDC. [S, behaviour]
 - The GitLab "play job" endpoint doesn't check that the job is listed in qaboard.yaml (GitHub workflows do): left out so
   that integrations defined only on branches keep working. [S, behaviour]
 - `deployments/sirc/metabase.yml` has default passwords and publishes Metabase's database on 5434. [S, behaviour]
