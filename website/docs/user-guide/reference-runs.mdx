@@ -30,7 +30,8 @@ suggest, click **Pair other names…** and type both parts, like `reg0x1A=05` an
 - Names are cut in parts at folders and separators: `/ \ _ - . , : ; = @ | +`, spaces, brackets and quotes.
   Folders work like any part: `sensorA/day/0001.raw` pairs with `sensorB/day/0001.raw`.
 - A pair replaces whole parts: `reg0x1A=05` doesn't change `reg0x1A=055`, nor `05gain` in `reg05gain4`.
-- Suggestions only change one part. The likeliest pair the most runs, change a part most of your runs' names have
+- Suggestions change one part, or, for names built differently, the folders of the same files: `captures/v1/street.raw`
+  pairs with `datasets/v2/day/street.raw` by `captures/v1 → datasets/v2/day`. The likeliest pair the most runs, change a part most of your runs' names have
   (a register's value rather than a scene's name), and change the batches' names the same way, like `sweep-0x1A=05`
   and `sweep-0x1A=03`. A suggestion is only a suggestion: `office_d65 → tl84` also pairs a run, with another scene.
 - Runs paired by name are compared with that reference run first, even if one ran on the same input.
@@ -47,7 +48,7 @@ When several reference runs could do, the run says so, next to its name:
 | `↔ reg0x1A=03` | Paired by name: the part of the reference run's name that differs. |
 | `1 of 2` | Several reference runs fit equally well, like two shots of the same scene with the same settings: QA-Board uses the first. |
 | `no reference · 1 similar` | No reference run on this input or with its id, but one has a name that differs by one part. |
-| **no reference**, in orange | Nothing to compare with. |
+| **no reference**, in orange | Nothing on this input, with its id or a similar name. Click it to pick any reference run. |
 | **★ unit = 2**, **picked by you** | Someone chose it, see below. |
 
 Click the tag, or pick **Change reference run…** in the run's **⋯** menu, which works even when the run shows no tag.
@@ -56,12 +57,17 @@ First choose what your pick applies to, then click a reference run:
 - **This run**: only this run is compared with the one you pick. Its tag says **picked by you**.
 - **All runs like this**: QA-Board turns what's different about your pick into a rule for every run. Pick another
   shot of the scene, and every run prefers reference runs with `unit = 2`. Pick a similar name, and every run is
-  paired by that change of name. When no rule would pick it, the line under the list says so, and only this run
+  paired by that change of name. Pick any other name, and every run is paired by what differs between the names,
+  like a folder: `captures/v1 → datasets/v2`. When no rule would pick it, the line under the list says so, and only this run
   changes.
 
 The list groups the reference runs: paired by name, on the same input, with the same metadata id, then with a similar
 name, the parts of their name that differ marked like changes of settings, and what they have that your run doesn't,
-like `platform = arm`. The one in use says so. Type to filter, use the arrows and <kbd>Enter</kbd>.
+like `platform = arm`. The one in use says so. Use the arrows and <kbd>Enter</kbd>.
+
+To pick any reference run, type in the search box: it searches all the reference runs, by name or by what they have,
+like `gain = 4`. **Search all N reference runs**, at the end of the list, shows them all, the closest names first. When
+no reference run is likely, the list starts with all of them.
 
 <Shot id="commit/reference-picker" />
 
