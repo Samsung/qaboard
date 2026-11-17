@@ -10,6 +10,7 @@ import { history, useRouter, matchRoutes } from "./router";
 import { route_paths, app_paths, project_routes } from "./route_paths";
 import { side_color_count } from "./sideColors";
 import { track } from "./analytics";
+import { rules_from_query, rules_defaults } from "./matching/rules";
 
 
 // Names in the URL's query string
@@ -455,6 +456,8 @@ export const selection_from_url = (match, search) => {
     selected_views,
     selected_metrics: as_list(query.selected_metrics),
     date_range: date_range_from_query(query),
+    // how runs find their reference run, beyond the default: ?pair= ?prefer= ?pin= (src/matching/rules.js)
+    reference_rules: rules_from_query(query),
   };
 };
 
@@ -476,6 +479,7 @@ const selection_defaults = {
   label_new: '',
   label_ref: '',
   hide_ci: false,
+  ...rules_defaults,
 };
 const same_value = (value, default_value) => Array.isArray(value) || Array.isArray(default_value)
   ? JSON.stringify([].concat(value)) === JSON.stringify([].concat(default_value))

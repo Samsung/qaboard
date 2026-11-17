@@ -1,4 +1,4 @@
-// The Automated tuning tab: a guided form over the YAML that `qa optimize` reads, for people who aren't optimization
+// Run Tests / Tuning's Search automatically: a guided form over the YAML that `qa optimize` reads, for people who aren't optimization
 // experts. Each step says what it's for and recommends values. The YAML stays one click away, and is the source of truth:
 // the form edits it in place (see optimize_config.js).
 import { useEffect, useId, useMemo, useState } from "react";
@@ -9,6 +9,7 @@ import {
 } from "@blueprintjs/core";
 
 import MonacoEditor from "../MonacoEditor";
+import { useSiteConfig } from "../../hooks";
 import {
   KINDS, KIND_LABELS, template, parse, set, parameters as get_parameters, setParameter, addParameter, removeParameter,
   changeKind, objectiveMetrics, objective_options, objective_goal, setObjectiveMetric, renameObjectiveMetric,
@@ -121,6 +122,7 @@ const sampler_options = [
 
 export const OptimizeSetup = ({ value, onChange, metrics, tests = 0, commit, experiment_name, mode = 'guided', onModeChange, support_url }) => {
   const id = useId();
+  const { docs_root } = useSiteConfig();
   const [confirm_reset, setConfirmReset] = useState(false);
   const [advanced, setAdvanced] = useState(false);
   const [other_metric, setOtherMetric] = useState(false);
@@ -225,7 +227,7 @@ export const OptimizeSetup = ({ value, onChange, metrics, tests = 0, commit, exp
             : <>It runs {plural(Math.max(0, (evaluations ?? 0) - continuing.done), 'more evaluation')}. To start over instead, use another label.</>}
         </Callout>}
 
-        <Step number={1} title="Parameters to tune" how={<>The tuning parameters your code reads, and the values to try. Your code gets them like those of Manual tuning.</>}>
+        <Step number={1} title="Parameters to tune" how={<>The tuning parameters your code reads, and the values to try. Your code gets them like the values you list under Choose the values.</>}>
           {params.length === 0 && <p className={Classes.TEXT_MUTED}>No parameter yet.</p>}
           {params.map((p, index) => {
             const row_errors = errors_at(errors, ['search_space', index]);
@@ -277,6 +279,14 @@ export const OptimizeSetup = ({ value, onChange, metrics, tests = 0, commit, exp
         </Step>
 
         <Step number={2} title="What “better” means" how={<>The metrics to improve, any your runs return, averaged over the batch's runs. Say which way is better for each: the search looks for the parameters with the best ones.</>}>
+          {available.length === 0 && <Callout icon="timeline-line-chart" intent={Intent.WARNING} style={{ marginBottom: 10 }} data-testid="optimize-no-metrics">
+            <strong>This commit's runs return no metrics yet.</strong> The search needs one, computed by each run: have your code's <Code>run()</Code> or{' '}
+            <Code>postprocess()</Code> return it, like <Code>{'{"sharpness": 0.4}'}</Code>.{' '}
+            <a href={`${docs_root}docs/computing-quantitative-metrics`} target="_blank" rel="noopener noreferrer">Computing metrics</a>
+            <div className={Classes.TEXT_MUTED} style={{ marginTop: 4 }}>
+              Can't change the code now? Use <strong>Choose the values</strong>, then score the runs with a script: <strong>Tuning Analysis</strong> gives you one to start from.
+            </div>
+          </Callout>}
           {objective_names.map(metric => {
             const options = objective_options(config, metric);
             const { goal, from } = objective_goal(config, metric, metrics);

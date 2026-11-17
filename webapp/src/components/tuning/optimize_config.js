@@ -347,6 +347,42 @@ export const from_batch = (batch, { evaluations } = {}) => {
   return doc.toString({ lineWidth: 0 });
 };
 
+// An automated tuning that starts from values tried by hand, in a batch or in the Manual form: the parameters with
+// their ranges (rows like `parameters` gives), the objective ({metric: 'max' | 'min' | null}), and the parameters to fix
+export const from_space = (rows, objective = {}, preset_params = {}) => {
+  const params = rows.filter(r => r.kind !== 'Categorical' || (r.categories?.length ?? 0) > 1);
+  const cleaned = {
+    evaluations: recommended_evaluations(params),
+    objective,
+    search_space: params.map(as_item),
+    ...(Object.keys(preset_params).length ? { preset_params } : {}),
+  };
+  const doc = parseDocument('');
+  doc.contents = doc.createNode(cleaned);
+  return doc.toString({ lineWidth: 0 });
+};
+
+// The lists of values of a grid as a search space: numbers become a range, the rest choices, and parameters with one
+// value are fixed. {rows, preset_params}, or null when it isn't one grid of values (a list of sets, a function's result...)
+export const grid_to_space = grid => {
+  if (!is_map(grid) || Object.keys(grid).length === 0) return null;
+  const rows = [], preset_params = {};
+  for (const [name, list] of Object.entries(grid)) {
+    const values = Array.isArray(list) ? list : [list];
+    const distinct = [...new Map(values.map(v => [JSON.stringify(v), v])).values()];
+    if (distinct.length < 2) {
+      if (distinct.length === 1) preset_params[name] = distinct[0];
+    } else if (distinct.every(is_num)) {
+      const low = Math.min(...distinct), high = Math.max(...distinct);
+      const integer = distinct.every(Number.isInteger);
+      // 0 and 1 are a switch, not a range
+      if (integer && high - low === 1) rows.push({ kind: 'Categorical', name, categories: distinct });
+      else rows.push({ kind: integer ? 'Integer' : 'Real', name, low, high, log: !integer && low > 0 && high / low >= 100 });
+    } else rows.push({ kind: 'Categorical', name, categories: distinct });
+  }
+  return rows.length ? { rows, preset_params } : null;
+};
+
 // Starting with the label of an existing automated tuning continues it (qa optimize resumes). It only searches further
 // with more evaluations than it already did. {batch, done, error} or null.
 export const continuation = (commit, label, config) => {

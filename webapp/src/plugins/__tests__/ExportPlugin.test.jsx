@@ -179,6 +179,50 @@ describe('ExportPlugin', () => {
     await waitFor(() => expect(previews(fetch).at(-1).file_in_names).toBe(true));
   });
 
+  it('names a batch exported alone, e.g. after its tuning', async () => {
+    const fetch = server();
+    const alone = { ...new_batch, outputs: { 1: { ...new_batch.outputs[1], reference_id: null }, 2: { ...new_batch.outputs[2], reference_id: null } } };
+    open({ new_batch: alone, ref_batch: { outputs: {} }, selected_batch_new: 'tuning-gain' });
+    const parts = await screen.findByLabelText('What names say');
+    fireEvent.click(within(parts).getByRole('button', { name: 'Name them' }));
+    fireEvent.click(within(parts).getByRole('button', { name: /The batch: tuning-gain/ }));
+    expect(screen.getByLabelText('Label in names')).toHaveValue('tuning-gain');
+    await waitFor(() => expect(previews(fetch).at(-1).runs.map(r => r.fields.side)).toEqual(['tuning-gain', 'tuning-gain']));
+    expect(previews(fetch).at(-1).sides.new.label).toBe('tuning-gain');
+    expect(parts).not.toHaveTextContent('no reference: one version');
+    fireEvent.click(within(parts).getByRole('button', { name: 'Remove' }));
+    expect(parts).toHaveTextContent('no reference: one version');
+  });
+
+  it('exports the folders the pattern matches, with their files', async () => {
+    const fetch = server({ preview: body => body.folders
+      ? plan({ nb_folders: 1, nb_in_folders: 2, files: [
+        { to: 'scenes_a__dma_out__new/frame_0.bin', run: 1, item: 0, side: 'new', file: 'dma_out/frame_0.bin', folder: { to: 'scenes_a__dma_out__new', file: 'dma_out' }, region: null, exists: false },
+      ] })
+      : plan({ folders_skipped: 2, nb_files: 0, files: [] }) });
+    open({ config: { outputs: { visualizations: [{ path: 'dma_out' }] } } });
+    expect(await screen.findByText(/1 folder with the 2 files in it/)).toBeInTheDocument();
+    expect(previews(fetch)[0].folders).toBe(true);
+    // the folder's name in colors, then its file
+    const list = await screen.findByRole('list', { name: 'Exported files' });
+    await waitFor(() => expect(within(list).getByTitle('file')).toHaveTextContent('dma_out'));
+    expect(list).toHaveTextContent('scenes_a__dma_out__new/frame_0.bin');
+    fireEvent.click(screen.getByRole('button', { name: 'Only files' }));
+    expect(await screen.findByText(/2 folders match the pattern, not exported/)).toBeInTheDocument();
+    expect(previews(fetch).at(-1).folders).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Export them with their files' }));
+    // the preview of the folders, again (cached)
+    expect(await screen.findByText(/1 folder with the 2 files in it/)).toBeInTheDocument();
+  });
+
+  it('says when links are symbolic: Windows may not open them', async () => {
+    server({ exported: { ...plan(), nb_files_exported: 4, nb_symlinks: 4, export_id: 7, mapping: '0.export.csv', skipped: [], nb_skipped: 0 } });
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: 'Export 4 files' }));
+    const result = await screen.findByRole('region', { name: 'Last export' });
+    expect(result).toHaveTextContent('4 files are symbolic links');
+  });
+
   it("doesn't export names used by several files, and says how to fix them", async () => {
     server({ preview: plan({ nb_collisions: 1, collisions: [{ to: 'out.png', count: 4, sources: [{ run: 1, side: 'new', file: 'out.png' }, { run: 2, side: 'new', file: 'out.png' }] }] }) });
     open();

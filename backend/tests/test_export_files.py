@@ -51,7 +51,7 @@ def test_plan_names_files_like_the_web_app(export_api, tmp_path):
 
 def test_plan_reports_what_it_cant_do(export_api, tmp_path):
   run = stored_run(tmp_path, 1, 'a.raw', files=('out.png', 'frames/1.png'))
-  plan = export_api.make_plan([export_api.Item(run, 'new', {})], '*', '{file}', '_')
+  plan = export_api.make_plan([export_api.Item(run, 'new', {})], '*', '{file}', '_', folders=False)
   assert [f['to'] for f in plan['files']] == ['out.png'] and plan['folders_skipped'] == 1
   plan = export_api.make_plan([export_api.Item(run, 'new', {'settings': 'x' * 300})], '*.png', '{settings}_{file}', '_')
   assert plan['files'] == [] and list(plan['errors']) and 'too long' in list(plan['errors'])[0]
@@ -59,6 +59,50 @@ def test_plan_reports_what_it_cant_do(export_api, tmp_path):
     export_api.check_pattern('../*.png')
   with pytest.raises(export_api.ExportError):
     export_api.check_pattern('**.png/x')
+
+
+def test_folders_are_exported_with_their_files(export_api, tmp_path):
+  """A pattern that matches a folder, e.g. "dma_out": the folder is named like a file, its files keep their names"""
+  new = stored_run(tmp_path, 1, 'scenes/night.dng', files=('dma_out/frame_0.bin', 'dma_out/sub/frame:1.bin', 'out.png'))
+  ref = stored_run(tmp_path, 2, 'scenes/night.dng', files=('dma_out/frame_0.bin',), hexsha='b' * 40)
+  items = [export_api.Item(new, 'new', {'side': 'new'}), export_api.Item(ref, 'reference', {'side': 'ref'})]
+  plan = export_api.make_plan(items, 'dma_out', '{input}__{file}__{side}', '_')
+  assert [f['to'] for f in plan['files']] == [
+    'scenes_night__dma_out__new/frame_0.bin', 'scenes_night__dma_out__new/sub/frame-1.bin', 'scenes_night__dma_out__ref/frame_0.bin']
+  assert plan['nb_folders'] == 2 and plan['nb_in_folders'] == 3 and plan['folders_skipped'] == 0 and plan['collisions'] == []
+  assert plan['files'][1]['file'] == 'dma_out/sub/frame:1.bin' and plan['files'][1]['folder'] == {'to': 'scenes_night__dma_out__new', 'file': 'dma_out'}
+  # one folder per run: like one file, names can leave it out
+  plan = export_api.make_plan(items, 'dma_out', '{input}__{file}__{side}', '_', file_in_names='auto')
+  assert plan['files'][0]['to'] == 'scenes_night__new/frame_0.bin' and plan['file_in_names'] is False
+  # "*": the files, and the folders, whole
+  plan = export_api.make_plan(items[:1], '*', '{file}__{side}', '_', windows=False)
+  assert [f['to'] for f in plan['files']] == ['dma_out__new/frame_0.bin', 'dma_out__new/sub/frame:1.bin', 'out__new.png']
+  # "**/*" matches the folders' files: they're exported, not the folders
+  plan = export_api.make_plan(items[:1], '**/*', '{file}__{side}', '_')
+  assert sorted(f['to'] for f in plan['files']) == ['dma_out_frame_0__new.bin', 'dma_out_sub_frame-1__new.bin', 'out__new.png'] and plan['nb_folders'] == 0
+  # without folders
+  plan = export_api.make_plan(items, 'dma_out', '{input}__{file}__{side}', '_', folders=False)
+  assert plan['files'] == [] and plan['folders_skipped'] == 2 and plan['runs_without_files'] == 2
+  # exported as real folders of hard links, that Windows shares open
+  folder = tmp_path / 'export'
+  folder.mkdir()
+  plan = export_api.make_plan(items, 'dma_out', '{input}__{file}__{side}', '_')
+  exported, skipped, problems = export_api.execute(plan, folder, 'link', None, replace=True, items=items)
+  assert problems.count == 0 and len(exported) == 3 and not any(f.get('symlink') for f in exported)
+  linked = folder / 'scenes_night__dma_out__new' / 'sub' / 'frame-1.bin'
+  assert not linked.parent.is_symlink() and linked.samefile(new.output_dir / 'dma_out/sub/frame:1.bin')
+
+
+def test_links_say_when_they_are_symbolic(export_api, tmp_path, monkeypatch):
+  """Hard links don't cross filesystems: symbolic links instead, that Windows shares often can't open"""
+  run = stored_run(tmp_path, 1, 'a.raw')
+  items = [export_api.Item(run, 'new', {})]
+  plan = export_api.make_plan(items, '*.png', '{file}', '_')
+  monkeypatch.setattr(export_api.os, 'link', lambda *args: (_ for _ in ()).throw(OSError(18, 'Invalid cross-device link')))
+  folder = tmp_path / 'export'
+  folder.mkdir()
+  exported, _, problems = export_api.execute(plan, folder, 'link', None, replace=True, items=items)
+  assert problems.count == 0 and exported[0]['symlink'] and (folder / 'out.png').is_symlink()
 
 
 def test_windows_compatible_names(export_api, tmp_path):

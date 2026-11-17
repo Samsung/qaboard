@@ -20,55 +20,62 @@ next to the reference's (images, videos, point clouds, plots, flame graphs, test
 what changed, agrees it's better, and ships it. For camera and imaging pipelines, ML models, robotics, embedded code,
 performance, test suites and LLM agents: anything whose quality you measure.
 
-> Screenshots, clips and use cases: [samsung.github.io/qaboard](https://samsung.github.io/qaboard).
+<p align="center">
+  <a href="https://samsung.github.io/qaboard">
+    <img src="https://samsung.github.io/qaboard/media/shots/landing/hero/593a3d9e7ed953dc.webp" width="820"
+      alt="The Metrics Diff of a new denoiser, PSNR up and edge overshoot up, above its image and the reference's with their difference between them.">
+  </a>
+</p>
+<p align="center">
+  <i>A new denoiser wins PSNR, and the images show the halos it adds.
+  <a href="https://samsung.github.io/qaboard">Clips and use cases on the website</a>.</i>
+</p>
 
-## In production at scale
-QA-Board has been Samsung's central quality platform since 2018: about 50 projects and more than 40 million runs.
-Running it is documented and tested in CI: zero-downtime upgrades and rollbacks, backups, and a Helm chart for
-Kubernetes. Users sign in with single sign-on or LDAP, project roles control access, and errors go to Sentry.
+## Set it up one step at a time
+Start with a server on your computer. Add your project next, then your team.
+
+1. **A server on your computer**, in a few commands: one Compose file, or a kind cluster, starts QA-Board with demo
+   projects to explore. Most of the time goes to downloading about 2 GB of images.
+   See [the quickstart](https://samsung.github.io/qaboard/docs/get-started/quickstart).
+2. **Your project, one step at a time:** `qa init`, then your inputs, your code, its metrics, its files. Most steps take
+   5 to 30 minutes, and each shows something new in the web app. Runners and CI come when you want them.
+   See [the steps](https://samsung.github.io/qaboard/docs/introduction#steps) and
+   [the tutorial](https://samsung.github.io/qaboard/docs/get-started/tutorial).
+3. **A server for your team:** the same Compose files, or the Helm chart, on your machines. Add single sign-on, project
+   roles, backups and monitoring when you need them.
+   See [Start a server](https://samsung.github.io/qaboard/docs/deploy).
+
+**Or ask your coding agent.** Coding agents such as Claude Code are good at this setup. Point yours at the quickstart
+to start a server, and give it the [integration skill](skills/qaboard-integration) to add your project: see
+[Coding agents](https://samsung.github.io/qaboard/docs/agents).
+
+What it needs: Docker or Kubernetes for the server, and a folder that the server and your runs both see: a local
+folder on one computer, a shared one (NFS, SMB...) for a team.
 
 ## What you get
 - **Compare every commit with a reference:** the reference branch, a release or a milestone, metric by metric, with
   regressions in red.
 - **Look at the outputs themselves:** images down to the pixel with synced zoom and diffs, videos, point clouds and
   trajectories, plots, flame graphs, test reports, logs.
-- **Performance, from the files you have:** flame graph diffs from what profilers write (folded stacks, speedscope,
-  `.cpuprofile`; `perf` and pprof through a helper), with a table of the functions that changed. Benchmark results from
-  pytest-benchmark, Google Benchmark, hyperfine, Criterion, JMH and `go test`, each against the reference's, gray when
-  within the spread the harness measured.
+- **Performance, from the files you have:** flame graph diffs from what profilers write, and benchmark results from
+  pytest-benchmark, Google Benchmark, hyperfine, Criterion, JMH and `go test`, each against the reference's.
 - **Find the commit that changed it:** History follows a metric across commits, input by input.
 - **Tune from the browser:** parameter sweeps and automated tuning (`qa optimize`, with Optuna).
-- **People and agents together:** coding agents read the same results (`qaboard.runs(url)`, `qa runs`, the compare
-  API, the [HTTP API](https://samsung.github.io/qaboard/docs/http-api) and its OpenAPI document) and learn the
-  conventions from [skills](https://github.com/Samsung/qaboard/tree/master/skills).
-  `qa gate` (experimental) fails CI when quality regresses, whoever wrote the change, comments on the pull request,
-  and checks rules a project's owners set in the web app, out of the commits' reach. A run done again keeps its
-  earlier attempts' status, metrics and logs.
-- **Fits your stack:** wraps any executable, runs locally, on LSF, Dask or Celery, or in CI (GitHub Actions, GitLab
-  CI, Jenkins...). Open source (Apache 2.0) and self-hosted: your results stay on your network.
+- **People and agents together:** coding agents read the same results as people (`qaboard.runs(url)`, `qa runs`, the
+  [HTTP API](https://samsung.github.io/qaboard/docs/http-api)), and `qa gate` (experimental) fails CI when quality
+  regresses, whoever wrote the change.
+- **Fits your stack:** wraps any executable, runs locally, on LSF, Dask, Celery or Kubernetes, or in CI (GitHub
+  Actions, GitLab CI, Jenkins...). Open source (Apache 2.0) and self-hosted: your results stay on your network.
 
-## Get started, with our help
+## In production at scale
+QA-Board has been Samsung's central quality platform since 2018: about 50 projects and more than 40 million runs.
+Running it is documented and tested in CI: zero-downtime upgrades and rollbacks, backups, and a Helm chart for
+Kubernetes. Users sign in with single sign-on or LDAP, project roles control access, and errors go to Sentry.
+
+## We help you get started
 We're looking for teams who track quality, and we help them get started: setting up a self-hosted server, integrating
-the first projects, planning upgrades and storage as results grow. Write to **arthur.flam@gmail.com**, or
+the first projects, planning upgrades and storage as results grow. Write to **arthur@fl.am**, or
 [open an issue](https://github.com/Samsung/qaboard/issues).
-
-- Try it on your computer: [the quickstart](https://samsung.github.io/qaboard/docs/get-started/quickstart).
-- Put your project on it: [the tutorial](https://samsung.github.io/qaboard/docs/get-started/tutorial).
-- Run it for your team: [Docker Compose or Kubernetes](https://samsung.github.io/qaboard/docs/deploy).
-
-## Deployment
-
-```bash
-# Open-source, zero-downtime upgrades (see deployments/production.env)
-deployments/deploy.py deployments/production.env up --build --init  # first time
-deployments/deploy.py deployments/production.env up --build         # upgrades
-# or plain docker compose
-docker compose -f docker-compose.yml -f production.yml up -d
-
-# With site-specific config (e.g. SIRC, DSK)
-deployments/deploy.py deployments/sirc/production.env up
-docker compose -f docker-compose.yml -f production.yml -f deployments/dsk/dsk.yml up -d
-```
 
 ## Contributing
 To learn about the code's organization, or how to contribute, read [CONTRIBUTING.md](CONTRIBUTING.md). Found a bug?

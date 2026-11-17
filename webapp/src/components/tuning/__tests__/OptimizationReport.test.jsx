@@ -2,17 +2,19 @@
  * The Tuning Analysis view of an automated tuning. The batches come from webapp/e2e/fixtures/make_tuning.py.
  * Run with: cd webapp && npm test -- OptimizationReport
  */
-import { screen, fireEvent, within, act } from '@testing-library/react';
+import { screen, fireEvent, within } from '@testing-library/react';
 import { unstable_HistoryRouter as HistoryRouter } from 'react-router';
 
 import batches from '../../../../e2e/fixtures/tuning.json';
-import TuningExploration from '../TuningExploration';
+import TuningAnalysis from '../TuningAnalysis';
 import { history } from '../../../router';
 import { renderWithProviders } from '../../../test-utils';
 import { usePrefsStore } from '../../../stores/prefs';
 
 const plots = [];
 vi.mock('../../Plot', () => ({ default: ({ data, layout }) => { plots.push({ data, layout }); return <div data-testid="plot"/>; } }));
+const parallel = [];
+vi.mock('../ParallelCoordinatesPlot', () => ({ default: props => { parallel.push(props); return <div data-testid="parallel"/>; } }));
 
 const available_metrics = {
   map: { key: 'map', label: 'mAP', short_label: 'mAP', scale: 1, suffix: '', smaller_is_better: false },
@@ -20,7 +22,7 @@ const available_metrics = {
   model_mb: { key: 'model_mb', label: 'Model size', short_label: 'size', scale: 1, suffix: ' MB', smaller_is_better: true },
 };
 
-// what the commit page's selectors give TuningExploration (selectors/batches.js)
+// what the commit page's selectors give TuningAnalysis (selectors/batches.js)
 const as_page_batch = label => {
   const batch = batches[label];
   const outputs = Object.fromEntries(Object.entries(batch.outputs).map(([id, o]) => [id, { ...o, params: o.extra_parameters }]));
@@ -39,13 +41,14 @@ const as_page_batch = label => {
 const show = (label, { data = {}, metrics = available_metrics } = {}) => {
   const batch = as_page_batch(label);
   return renderWithProviders(<HistoryRouter history={history}>
-    <TuningExploration batch={{ ...batch, data: { ...batch.data, ...data } }} project="kitefin/detector" commit_id="c0ffee" selected_metrics={['map']} available_metrics={metrics}/>
+    <TuningAnalysis batch={{ ...batch, data: { ...batch.data, ...data } }} project="kitefin/detector" commit_id="c0ffee" selected_metrics={['map']} available_metrics={metrics}/>
   </HistoryRouter>);
 };
 
 describe('OptimizationReport', () => {
   beforeEach(() => {
     plots.length = 0;
+    parallel.length = 0;
     usePrefsStore.setState({ tuning: {} });
     history.replace('/kitefin/detector/commit/c0ffee?selected_views=optimization');
   });
@@ -68,7 +71,7 @@ describe('OptimizationReport', () => {
     expect(within(table).queryByText('100')).toBeNull();
   });
 
-  it('runs the best parameters from the Manual tuning form', () => {
+  it('runs the best parameters from Run Tests / Tuning', () => {
     show('tune-int8');
     fireEvent.click(screen.getByTestId('run-best'));
     const form = usePrefsStore.getState().tuning['kitefin/detector'];
@@ -113,10 +116,22 @@ describe('OptimizationReport', () => {
     expect(within(error).getByText('psnr: max').tagName).toBe('CODE');
   });
 
-  it('keeps the other plots one click away', async () => {
+  it('draws every evaluation across the objective, the metrics and the parameters', () => {
     show('tune-int8');
-    expect(plots.some(p => p.data[0]?.type === 'parcoords')).toBe(false);
-    await act(async () => fireEvent.click(screen.getByTestId('more-plots')));
-    expect(plots.some(p => p.data[0]?.type === 'parcoords')).toBe(true);
+    const { columns, rows, colorBy, marks } = parallel.at(-1);
+    expect(columns.map(c => c.key)).toEqual(['objective', 'metric:ap_small', 'metric:map', 'metric:model_mb', 'param:quant_percentile', 'param:quant_keep_fp32', 'param:score_threshold', 'param:nms_iou', 'iteration']);
+    expect(columns.find(c => c.key === 'metric:map').better).toBe('higher');
+    expect(columns.find(c => c.key === 'param:quant_keep_fp32').type).toBe('category');
+    // the failed evaluation has nothing to draw
+    expect(rows).toHaveLength(39);
+    expect(colorBy).toBe('objective');
+    expect(Object.values(marks)).toEqual([{ label: 'Best' }]);
+  });
+
+  it('explains the concepts where they show', () => {
+    show('tune-int8-tradeoffs');
+    fireEvent.click(screen.getByRole('button', { name: /Explain: Best trade-offs/ }));
+    expect(screen.getByTestId('learn-pareto')).toHaveTextContent('nothing else beats on both metrics');
+    expect(within(screen.getByTestId('learn-pareto')).getByRole('link', { name: /Optuna/ })).toHaveAttribute('href', expect.stringContaining('optuna.readthedocs.io'));
   });
 });

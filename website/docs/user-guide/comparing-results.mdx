@@ -144,15 +144,19 @@ The references are saved in the page's link: share it, and others can switch bet
 </details>
 
 ## How runs are matched {#how-runs-are-matched}
-Each new run is compared with one reference run: the most similar one. QA-Board looks for the same input first, then
+Each new run is compared with one reference run: the most similar one. QA-Board looks for the same input first (or
+the same [`metadata.id`](/docs/metadata-integration-external-databases#creating-metadata)), then
 the closest configuration, the closest tuning parameters, and the same platform. The closest is the one with the
 fewest different settings; between as many, the one whose values are the most similar: for `base-v1`, `base-v2`
 rather than `other`, for `gain: 3`, `gain: 4` rather than `gain: 100`.
 
-When the best match is not identical, an orange tag with a `≠` warns you on the run: **Input**, **Config** or
-**Platform**. Hover it to see what the reference run used. **Config** shows how the configurations and tuning
-parameters differ, line by line, and says when other reference runs were as close. A run with no match at all has
-no reference values or visualizations.
+When the best match is not identical, an orange tag with a `≠` warns you on the run: **Config** or **Platform**
+(in tables, **Input** too). Hover it to see what the reference run used. **Config** shows how the configurations and
+tuning parameters differ, line by line, and says when other reference runs were as close.
+
+Runs on other inputs, runs without a reference, and runs with several reference runs as close say so next to their
+name: click it to pick another reference run, or pair runs by name, like a register sweep's captures. See
+[Pick each run's reference run](/docs/user-guide/reference-runs).
 
 <Shot
   id="commit/config-tag-diff"

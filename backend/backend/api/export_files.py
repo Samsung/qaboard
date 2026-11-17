@@ -13,7 +13,12 @@ With `windows` (the default), names must work on Windows: names that differ only
 paths, as Windows users see them (qaboard.compat.linux_to_windows), must be under 260 characters.
 
 The request: {project, runs: [{id, side, fields, regions}], files (a pattern), template, separator, windows, type
-(link|copy), folder: {name, id} or {path}, sides, file_in_names, whole_files}.
+(link|copy), folder: {name, id} or {path}, sides, file_in_names, whole_files, folders}.
+- `folders`: true (the default) exports the folders the pattern matches with the files in them, e.g. "dma_out": the
+  folder is named with the template (its path is the {file}), and keeps its files' names and subfolders, e.g.
+  "scenes_a__dma_out__new/frame_0.bin". Folders with files the pattern matches too (e.g. "**/*") export those files,
+  not the folder. Links are made file by file, in real folders: symbolic links to folders don't open on Windows shares.
+  false: matched folders are skipped (`folders_skipped`). The preview's files from folders have `folder`: {to, file}.
 - `file_in_names`: true (the default), or "auto": when each run has at most one matching file, names leave it out
   ("{input}__{file}__{side}" gives "scenes_a__new.png"), unless different files would then get the same name.
   The answer says what was used (`file_in_names`), and `max_files_per_run`.
@@ -77,6 +82,8 @@ LISTED_PROBLEMS = 50
 MAX_RUNS = 50_000
 MAX_REGIONS = 500
 MAX_CROPS = 50_000
+# the files in the folders exported, for all runs
+MAX_FOLDER_FILES = 200_000
 # files that fail before any is exported: the others would fail too, we stop
 GIVE_UP_AFTER = 50
 # before copies, the runs of each side whose files we check the user can read
@@ -193,21 +200,39 @@ def region_key(region):
 
 
 def list_files(output, pattern):
-  """The run's files matching the pattern, and how many folders matched (we export files)"""
+  """
+  The run's files matching the pattern, and the folders it matches that are exported whole: [(folder, [files in it])].
+  A folder is exported whole if the pattern matches none of its files (else those files are exported), and isn't in
+  another folder exported whole.
+  """
   if output.deleted:
-    return [], 0
+    return [], []
   output_dir = output.output_dir
-  files, folders = [], 0
+  files, dirs = [], []
   for path in sorted(output_dir.glob(pattern)):
     if path.is_dir():
-      folders += 1
+      dirs.append(path)
     elif path.exists():
       files.append(path)
+  folders = []
+  for folder in dirs:
+    if any(f.is_relative_to(folder) for f in files) or any(folder.is_relative_to(other) for other, _ in folders):
+      continue
+    folders.append((folder, folder_files(folder)))
   return files, folders
 
 
+def folder_files(folder):
+  """The files in a folder and its subfolders, sorted. Links to folders aren't followed: they may be anywhere"""
+  found = []
+  for root, dirs, names in os.walk(folder):
+    dirs.sort()
+    found.extend(Path(root) / name for name in sorted(names) if os.path.exists(Path(root) / name))
+  return found
+
+
 def list_runs(items, pattern, listing):
-  """Lists each run's files once, in `listing`: {run id: (files, folders, error)}"""
+  """Lists each run's files once, in `listing`: {run id: (files, folders, error)}, see list_files"""
   for item in items:
     output = item.output
     if output.id in listing:
@@ -216,8 +241,17 @@ def list_runs(items, pattern, listing):
       files, folders = list_files(output, pattern)
       listing[output.id] = (files, folders, None)
     except (OSError, ValueError) as e:
-      listing[output.id] = ([], 0, f"Could not list the files of run {output.id}: {e}")
+      listing[output.id] = ([], [], f"Could not list the files of run {output.id}: {e}")
   return listing
+
+
+_forbidden_windows = re.compile(r'[<>:"|?*\x00-\x1f]')
+
+def inner_path(path, windows):
+  """A file's path in an exported folder: as in the run, but with names Windows can open"""
+  if not windows:
+    return path
+  return '/'.join(_forbidden_windows.sub('-', segment).rstrip('. ') or '_' for segment in path.split('/'))
 
 
 def export_name(template, fields, file, separator, windows, with_file=True):
@@ -228,7 +262,13 @@ def export_name(template, fields, file, separator, windows, with_file=True):
   return render(template, {**fields, 'file': ''}, separator=separator, extension=extension, windows=windows)
 
 
-def make_plan(items, pattern, template, separator, export_dir=None, folder=None, windows=True, *, file_in_names=True, whole_files=True, listing=None):
+def folder_export_name(template, fields, folder, separator, windows, with_file=True):
+  """A folder's name: like a file's, without an extension"""
+  return render(template, {**fields, 'file': folder if with_file else ''}, separator=separator, windows=windows)
+
+
+def make_plan(items, pattern, template, separator, export_dir=None, folder=None, windows=True, *, file_in_names=True, whole_files=True, listing=None,
+              folders=True):
   """
   What goes where: {files: [{to, source, file, item, region}], collisions, errors...}.
   `export_dir`: a folder that exists, to say which files are there already. `folder`: where the export goes.
@@ -236,25 +276,29 @@ def make_plan(items, pattern, template, separator, export_dir=None, folder=None,
   Windows users see them, must be short enough.
   `file_in_names`: True, or "auto" to leave the file out of names when runs have at most one file, if names stay unique.
   `whole_files`: False exports only the crops of the items' regions. `listing`: the runs' files, if already listed.
+  `folders`: export the folders the pattern matches, with their files (see list_files), else skip them.
   """
   parts = parse_template(template)
   listing = list_runs(items, pattern, {} if listing is None else listing)
-  max_files = max((len(listing[item.output.id][0]) for item in items), default=0)
+  # a folder counts as one file: names say the file if a run has several files or folders
+  max_files = max((len(listing[item.output.id][0]) + (len(listing[item.output.id][1]) if folders else 0) for item in items), default=0)
   uses_file = ('field', 'file') in parts
+  options = dict(windows=windows, whole_files=whole_files, folders=folders)
   if file_in_names == 'auto' and uses_file and max_files <= 1:
-    plan = name_files(items, listing, template, separator, export_dir, folder, windows, with_file=False, whole_files=whole_files)
+    plan = name_files(items, listing, template, separator, export_dir, folder, with_file=False, **options)
     # names can't be made without the file, or several files have the same name: we keep the file
     if not plan['collisions'] and not plan['name_errors']:
       return {**plan, "max_files_per_run": max_files}
-  plan = name_files(items, listing, template, separator, export_dir, folder, windows, with_file=file_in_names != 'auto' or uses_file, whole_files=whole_files)
+  plan = name_files(items, listing, template, separator, export_dir, folder, with_file=file_in_names != 'auto' or uses_file, **options)
   return {**plan, "max_files_per_run": max_files}
 
 
-def name_files(items, listing, template, separator, export_dir, folder, windows, with_file, whole_files):
+def name_files(items, listing, template, separator, export_dir, folder, windows, with_file, whole_files, folders=True):
   # crops are named with their region: if the template doesn't say where, it goes at the end
   crop_template = template if ('field', 'region') in parse_template(template) else template + '__{region}'
   files, errors, name_errors = [], defaultdict(int), 0
-  without_files, folders, counted = set(), 0, set()
+  without_files, folders_skipped, counted = set(), 0, set()
+  exported_folders, in_folders = set(), 0
   not_croppable = {}
   seen = set()
   for index, item in enumerate(items):
@@ -262,14 +306,34 @@ def name_files(items, listing, template, separator, export_dir, folder, windows,
     run_files, run_folders, error = listing[output.id]
     if output.id not in counted:
       counted.add(output.id)
-      folders += run_folders
+      if not folders:
+        folders_skipped += len(run_folders)
       if error:
         errors[error] += 1
-    if not run_files:
+    if not run_files and not (folders and any(inner for _, inner in run_folders)):
       without_files.add(output.id)
       continue
     output_dir = output.output_dir
     fields = {**default_fields(output), **item.fields}
+    # the folders matched, with their files: only whole files, crops are of the images matched
+    for path, inner in (run_folders if folders and whole_files else []):
+      rel = path.relative_to(output_dir).as_posix()
+      try:
+        name = folder_export_name(template, {**fields, 'region': ''}, rel, separator, windows, with_file=with_file)
+      except ExportNameError as e:
+        errors[str(e)] += 1
+        name_errors += 1
+        continue
+      for source in inner:
+        to = f"{name}/{inner_path(source.relative_to(path).as_posix(), windows)}"
+        key = (str(source), None, to)
+        if key in seen:
+          continue
+        seen.add(key)
+        exported_folders.add((str(path), name))
+        in_folders += 1
+        files.append({"to": to, "source": source, "file": source.relative_to(output_dir).as_posix(), "item": index, "region": None,
+                      "folder": {"to": name, "file": rel}})
     for path in run_files:
       rel = path.relative_to(output_dir).as_posix()
       regions = [r for r in item.regions if r['file'] is None or r['file'] == rel]
@@ -314,7 +378,9 @@ def name_files(items, listing, template, separator, export_dir, folder, windows,
     "errors": errors,
     "runs": len({item.output.id for item in items}),
     "runs_without_files": len(without_files),
-    "folders_skipped": folders,
+    "folders_skipped": folders_skipped,
+    "nb_folders": len(exported_folders),
+    "nb_in_folders": in_folders,
     "nb_crops": sum(1 for f in files if f['region']),
     "not_croppable": list(not_croppable.values()),
     "file_in_names": with_file,
@@ -338,7 +404,10 @@ def describe(plan, items, export_dir, ours, created):
     "nb_runs": plan['runs'],
     "runs_without_files": plan['runs_without_files'],
     "folders_skipped": plan['folders_skipped'],
-    "files": [{"to": f['to'], **source(f), "item": f['item'], "exists": f['exists']} for f in plan['files'][:LISTED_FILES]],
+    "nb_folders": plan['nb_folders'],
+    "nb_in_folders": plan['nb_in_folders'],
+    "files": [{"to": f['to'], **source(f), "item": f['item'], "exists": f['exists'], **({"folder": f['folder']} if f.get('folder') else {})}
+              for f in plan['files'][:LISTED_FILES]],
     "nb_crops": plan['nb_crops'],
     "nb_not_croppable": len(plan['not_croppable']),
     "not_croppable": list(dict.fromkeys(plan['not_croppable']))[:LISTED_PROBLEMS],
@@ -357,15 +426,19 @@ def describe(plan, items, export_dir, ours, created):
 
 
 def export_file(source, dest, type, user=None):
+  """How it was exported: "link" (a hard link), "symlink" (hard links don't cross filesystems) or "copy"."""
   if type == "link":
     try:
       os.link(str(source), str(dest))
+      return "link"
     except OSError:
       os.symlink(str(source), str(dest))
+      return "symlink"
   elif type == "copy":
     if user is None:
       raise Exception("Need Login")
     as_user(user.user_name, shutil.copyfile, str(source), str(dest))
+    return "copy"
   else:
     raise ValueError("Invalid type. Use 'link' or 'copy'.")
 
@@ -530,7 +603,8 @@ def check_copies(user, folder, plan, items):
 def execute(plan, export_dir, type, user, replace, items=None):
   """
   Links or copies the files, and writes the crops. What's there is only replaced if it's a file, and `replace`.
-  Returns (exported, skipped, problems): what failed, grouped (backend/export_problems.py). When the first
+  Returns (exported, skipped, problems): what failed, grouped (backend/export_problems.py). Exported files that are
+  symbolic links have `symlink`: Windows shares often can't open them. When the first
   GIVE_UP_AFTER files all fail, the others would too: we stop (`problems.not_attempted`).
   """
   exported, skipped = [], []
@@ -567,7 +641,8 @@ def execute(plan, export_dir, type, user, replace, items=None):
         export_crop(f, dest, type, user=user, images=images)
       else:
         step, actor = type, writer
-        export_file(f['source'], dest, type, user=user)
+        if export_file(f['source'], dest, type, user=user) == "symlink":
+          f['symlink'] = True
       exported.append(f)
     except Exception as e:
       # the server reads the images it crops
@@ -705,14 +780,17 @@ def create_folder(export_dir):
 
 
 def run_export(items, *, project_id, pattern, template, separator, windows, export_type, export_dir, key, dry_run, details, sides,
-               file_in_names=True, whole_files=True):
+               file_in_names=True, whole_files=True, folders=True):
   """The plan (dry run), or the export. Returns the response's body"""
   created, ours = check_folder(export_dir)
   # the preview and the export plan the same way: the export is what was previewed
   plan = make_plan(items, pattern, template, separator, export_dir=None if created else export_dir, folder=export_dir, windows=windows,
-                   file_in_names=file_in_names, whole_files=whole_files)
+                   file_in_names=file_in_names, whole_files=whole_files, folders=folders)
   if plan['nb_crops'] > MAX_CROPS:
     raise ExportError(f"Too many crops: {plan['nb_crops']}, at most {MAX_CROPS}. Export fewer regions or files.")
+  if plan['nb_in_folders'] > MAX_FOLDER_FILES:
+    raise ExportError(f"Too many files in the folders matched: {plan['nb_in_folders']}, at most {MAX_FOLDER_FILES}. "
+                      "Export fewer runs, or only some of the folders' files, e.g. dma_out/*.bin.")
   result = describe(plan, items, export_dir, ours, created)
   result["existing_policy"] = "replace" if ours else "keep"
   result["type"] = export_type
@@ -760,6 +838,8 @@ def run_export(items, *, project_id, pattern, template, separator, windows, expo
     **result,
     "export_id": export_id,
     "nb_files_exported": len(exported),
+    # hard links don't cross filesystems: these are symbolic links, Windows shares often can't open them
+    "nb_symlinks": sum(1 for f in exported if f.get('symlink')),
     "skipped": skipped[:LISTED_PROBLEMS],
     "nb_skipped": len(skipped),
     # one line per kind of problem; `problems` says more: what it means, what to do, examples
@@ -867,6 +947,7 @@ def export_runs():
     template = str(body.get('template') or DEFAULT_TEMPLATE)
     separator = str(body.get('separator') or '_')
     windows = body.get('windows', True) is not False
+    folders = body.get('folders', True) is not False
     parse_template(template)
     first = next((i.output for i in items if i.side == 'new'), items[0].output)
     export_dir, key = export_folder(body, g.user['user_name'], project_id, first.batch.ci_commit)
@@ -882,10 +963,11 @@ def export_runs():
       "type": export_type,
       "sides": sides,
       "whole_files": whole_files,
+      "folders": folders,
     }
     return jsonify(run_export(items, project_id=project_id, pattern=pattern, template=template, separator=separator, windows=windows,
                               export_type=export_type, export_dir=export_dir, key=key, dry_run=dry_run, details=details, sides=sides,
-                              file_in_names=file_in_names, whole_files=whole_files))
+                              file_in_names=file_in_names, whole_files=whole_files, folders=folders))
   except ExportNameError as e:
     return jsonify({"error": str(e)}), 400
   except ExportError as e:

@@ -227,7 +227,7 @@ export const config_distance = (configurations_a, configurations_b) =>
   tokens_distance(config_tokens(configurations_a), config_tokens(configurations_b));
 
 
-const string_separator = /[\s/\\.,:;=_\-@|+()[\]{}"']/;
+export const string_separator = /[\s/\\.,:;=_\-@|+()[\]{}"']/;
 // In values like [1, 0.98, -0.5], numbers are words: 0.7 → 0.635, not 0.[7 → 635]
 export const value_separator = /[\s,:[\]{}"]/;
 
@@ -417,7 +417,7 @@ export const shared_configuration = outputs => {
 export const change_key = d => `${d.op}\u0000${d.token.full}\u0000${d.ref?.full ?? ''}`;
 
 // The runs that are compared to a reference run, and those compared to a reference with other settings,
-// as [settings, reference settings]. Also how many runs had several reference runs as close.
+// as [settings, reference settings]
 export const reference_pairs = new_batch => {
   const outputs = (new_batch?.filtered?.outputs ?? []).map(id => new_batch.outputs[id]).filter(o => !!o?.reference_id);
   const pairs = [];
@@ -425,7 +425,7 @@ export const reference_pairs = new_batch => {
     const reference = reference_tokens(o);
     if (reference) pairs.push([output_tokens(o), reference]);
   }
-  return { compared: outputs.length, pairs, ambiguous: outputs.filter(o => o.reference_mismatch?.alternatives > 0).length };
+  return { compared: outputs.length, pairs };
 };
 
 const all_runs_results = new Map();

@@ -1,4 +1,5 @@
-// At the top of the commit page: the settings all runs share, and how their configurations differ from the reference.
+// At the top of the commit page: the settings all runs share, how their configurations differ from the reference, and
+// how they found their reference run when there's something to know (src/matching/ReferenceMatching.jsx).
 import { useMemo, useState } from "react";
 import styled from "styled-components";
 import { Button, Classes, Icon, Intent, Switch, Tag } from "@blueprintjs/core";
@@ -7,6 +8,7 @@ import { usePrefsStore } from "../stores/prefs";
 import { copyWithToast } from "../utils/clipboard";
 import { summarize_changes, reference_pairs } from "./tokens";
 import { SettingTag, SharedSettings, useSharedConfiguration, useHideSharedSettings, useShortenLongSettings } from "./ConfigurationsTags";
+import { ReferenceMatchingActions, ReferenceMatchingValues, useReferenceMatching } from "../matching/ReferenceMatching";
 
 
 const Box = styled.div`
@@ -88,7 +90,7 @@ export const SharedRow = ({ shared, filtered }) => {
 
 
 // How the runs' configurations differ from their reference run's
-const ReferenceRow = ({ compared, pairs, ambiguous }) => {
+const ReferenceRow = ({ compared, pairs }) => {
   const [expanded, setExpanded] = useState(false);
   const changes = useMemo(() => summarize_changes(pairs), [pairs]);
   const shown = expanded ? changes : changes.slice(0, shown_changes);
@@ -117,25 +119,34 @@ const ReferenceRow = ({ compared, pairs, ambiguous }) => {
           {(more > 0 || expanded) && <Tag round minimal interactive icon={expanded ? 'chevron-up' : 'more'} onClick={() => setExpanded(!expanded)}>
             {expanded ? 'Show less' : `${more} other ${more === 1 ? 'change' : 'changes'}`}
           </Tag>}
-          {ambiguous > 0 && <span className={Classes.TEXT_MUTED} style={{ display: 'block', fontSize: 12, marginTop: 2 }}>
-            <Icon icon="git-branch" size={12} intent={Intent.WARNING} style={{ marginRight: 5 }} />
-            {ambiguous === 1 ? '1 run' : `${ambiguous} runs`} had several reference runs with as many different settings:
-            we picked the ones with the closest values. Hover their Config tag to know more.
-          </span>}
         </span>}
   </Row>;
 };
 
 
-// Shown when it helps: with long configurations shared by all runs, or runs compared to references with other configurations
+// Which reference run the runs are compared with: when runs have none, ties, or rules users set (the ties are said here)
+const MatchingRow = ({ status }) => <Row>
+  <span className="label">
+    <Icon icon="link" size={14} className={Classes.TEXT_MUTED} style={{ marginRight: 6 }} />
+    <strong>Reference runs</strong>
+  </span>
+  <span className="values"><ReferenceMatchingValues status={status} /></span>
+  <span className="actions"><ReferenceMatchingActions status={status} /></span>
+</Row>;
+
+
+// Shown when it helps: with long configurations shared by all runs, runs compared to references with other
+// configurations, or something to know about how runs found their reference run
 export const ConfigurationOverview = ({ new_batch }) => {
   const shared = useSharedConfiguration();
-  const { compared, pairs, ambiguous } = useMemo(() => reference_pairs(new_batch), [new_batch]);
+  const { compared, pairs } = useMemo(() => reference_pairs(new_batch), [new_batch]);
+  const matching = useReferenceMatching();
   const show_shared = !!shared?.collapse;
-  if (!show_shared && pairs.length === 0) return null;
+  if (!show_shared && pairs.length === 0 && !matching) return null;
   const filtered = (new_batch?.filtered?.outputs?.length ?? 0) < Object.keys(new_batch?.outputs ?? {}).length;
-  return <Box aria-label="Configurations">
+  return <Box role="region" aria-label="Configurations">
     {show_shared && <SharedRow shared={shared} filtered={filtered} />}
-    {compared > 0 && <ReferenceRow compared={compared} pairs={pairs} ambiguous={ambiguous} />}
+    {compared > 0 && (pairs.length > 0 || !matching) && <ReferenceRow compared={compared} pairs={pairs} />}
+    {matching && <MatchingRow status={matching} />}
   </Box>;
 };

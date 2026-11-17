@@ -2,6 +2,8 @@
 The older export API, deprecated: scripts still call it, the web app uses /api/v1/exports (backend/api/export_files.py),
 where the caller says how to name files. Its behavior doesn't change until its callers moved: responses say it's
 deprecated (`Deprecation` header), with a link to the new API.
+One fix: folders matching the pattern are real folders with links (or copies) of their files, not a symbolic link to
+the run's folder, that Windows shares can't open ("wide links" are off by default in Samba). Their names are the same.
 """
 import os
 import json
@@ -400,6 +402,8 @@ def write_new(path, text, replace=False):
 
 def export_to(path_from, path_to, type, user=None, replace=False):
   """Links or copies `path_to` at `path_from`. What's there is only replaced if it's a file, and `replace`"""
+  if path_to.is_dir():
+    return export_folder_to(path_from, path_to, type, user=user, replace=replace)
   if os.path.lexists(path_from):
     if os.path.exists(path_from) and os.path.samefile(path_from, path_to):
       return # already exported
@@ -417,6 +421,37 @@ def export_to(path_from, path_to, type, user=None, replace=False):
     as_user(user.user_name, shutil.copyfile, str(path_to), str(path_from))
   else:
     raise ValueError("Invalid type. Use 'link' or 'copy'.")
+
+
+def export_folder_to(path_from, path_to, type, user=None, replace=False):
+  """
+  A folder: a real folder, with links (or copies) of its files, in the same subfolders. Earlier exports made a
+  symbolic link to the run's folder: it's replaced by a folder, if `replace`.
+  """
+  if os.path.islink(path_from):
+    if not replace:
+      raise FileExistsError(f"{path_from} already exists, QA-Board doesn't replace it")
+    path_from.unlink()
+  elif os.path.lexists(path_from) and not path_from.is_dir():
+    raise FileExistsError(f"{path_from} already exists, QA-Board doesn't replace it")
+  errors = []
+  # links to folders aren't followed: they may be anywhere
+  for root, dirs, names in os.walk(path_to):
+    dirs.sort()
+    folder = path_from / Path(root).relative_to(path_to)
+    if type == 'copy':
+      if user is None:
+        raise Exception("Need Login")
+      as_user(user.user_name, mkdir_shared, folder)
+    else:
+      mkdir_shared(folder)
+    for name in sorted(names):
+      try:
+        export_to(folder / name, Path(root) / name, type, user=user, replace=replace)
+      except Exception as e:
+        errors.append(f"{Path(root) / name}: {e}")
+  if errors:
+    raise Exception(f"{len(errors)} files of the folder failed, e.g. {errors[0]}")
 
 
 def copy_path_rel(output, output_path, label):

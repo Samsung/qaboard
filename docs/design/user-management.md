@@ -50,12 +50,12 @@ missing is the model around them:
 - **Identity**: `users` has `user_name` (unique), `email`, `password`, `login_type` (one per user) and raw
   LDAP/SAML attributes in `data` (models/User.py:13-53). There are no admins, roles, groups or status. One login type per
   server (`QABOARD_LOGIN_TYPE`). Accounts are matched by user name, so a local signup can take an LDAP user's name
-  (TODO_WARTS.md:50).
+  (docs/warts.md:50).
 - **Sessions**: flask-login with a 180-day remember cookie (api/auth.py:143). No cookie flags (`Secure`, `SameSite`).
   `CORS(app)` is open (backend/\_\_init\_\_.py:81). No server-side sessions, so sessions can't be revoked.
-- **Authorization**: `QABOARD_LOGIN_REQUIRED` is only enforced by the web app (TODO_WARTS.md:40). Project rules come
+- **Authorization**: `QABOARD_LOGIN_REQUIRED` is only enforced by the web app (docs/warts.md:40). Project rules come
   from a YAML file read at startup (`login:`, `projects:` by id prefix, `paths:`; api/auth.py:34-43, 315-380). They're
-  checked on some reads only (TODO_WARTS.md:48). Every signed-in user can do everything else (redo, delete batches...).
+  checked on some reads only (docs/warts.md:48). Every signed-in user can do everything else (redo, delete batches...).
 - **Tokens**: stored in clear, accepted in `?token=`, never expire, no scopes. A token request also opens a session
   (models/User.py:56-91, api/auth.py:248-264).
 - **Ingest** (`POST /output`, `/batch`, `/commit`) is anonymous. The CLI sends `user = $QA_USER or getpass.getuser()`
@@ -141,7 +141,7 @@ missing is the model around them:
 - **Auto-redirect** (setting): with sign-in required and a single SSO provider, `/login` goes straight to the IdP.
   `/login?local=1` is the break-glass escape hatch.
 - **Return to where you were**: `?next=` is validated against our own origin, which fixes the SAML open redirects
-  (TODO_WARTS.md:53).
+  (docs/warts.md:53).
 - **Errors are codes plus sentences**, shown on the page:
   - `invalid_credentials`: "Wrong user name or password." Don't say which: on the internet that reveals user names.
     The `QABOARD_LOGIN_HINT` stays.
@@ -149,7 +149,7 @@ missing is the model around them:
   - `not_allowed`: "Your account can't use this server." The page offers *Request access*.
   - `disabled`, `provider_unavailable` ("SSO is down, sign in with your password"), `sso_expired` ("try again").
   - `sso_misconfigured`: "Ask an admin, reference 7f3a2c." The details go to the logs and the audit, under the same
-    reference. Users never see claims or attributes (TODO_WARTS.md:55).
+    reference. Users never see claims or attributes (docs/warts.md:55).
 
 ### 4.4 Who can get an account
 An instance-wide `access.policy` setting, which each provider can override:
@@ -237,7 +237,7 @@ The permissions live in code, in one table, so a reviewer reads them in one plac
   403 body carries along with the owners, so the web app can offer a request:
   `{"error": "...", "reason": "missing_role", "required": "developer", "owners": [...], "can_request": true}`.
 - **Every route declares a policy**: `@requires("runs.act", project=from_batch)`, `@signed_in`, or `@public`.
-  `tests/test_security.py` today only sees `app.route` (TODO_WARTS.md:40). It will check every
+  `tests/test_security.py` today only sees `app.route` (docs/warts.md:40). It will check every
   `app.route/get/post/put/delete` for a declared policy.
 - `login_required`, `require_project_access` and `is_authorized_user` stay as thin wrappers over `authorize` during
   the transition, so endpoints move one file at a time.
@@ -550,7 +550,7 @@ and nothing above assumes one tenant per server.
   - Bearer tokens (hash lookup, expiry, idle expiry, revoked, user disabled).
   - Token requests no longer open a session.
   - `?token=` only for GET.
-- **Sign-in required for real**: the `/api/` allow-list (TODO_WARTS.md:40). Cookie flags, the `Origin` check on
+- **Sign-in required for real**: the `/api/` allow-list (docs/warts.md:40). Cookie flags, the `Origin` check on
   writes, CORS limited to known origins.
 - **`settings` with env overrides**; `QABOARD_ADMINS`; `qaboard-admin create-admin`.
 - **`test_security.py`** sees every route decorator and requires a declared policy.

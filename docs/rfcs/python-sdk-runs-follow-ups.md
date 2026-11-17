@@ -208,7 +208,7 @@ against their current documentation: check it before publishing any of it in `we
 | Alerts (a metric crossed a line, a run crashed), Slack and email | Emails when a `qa batch` ends; the quality gate in the CI | Nothing for runs started from code | A notification when such a run ends or fails, through the existing channel. S. Rules on logged values: later |
 | Reports: text with live panels, shared by link | Milestones with notes; every page's address restores its state | No report editor | Decide. Probably no: link from your own documents |
 | Integrations: Lightning, Hugging Face, Keras callbacks | None | Each framework needs a few lines by hand | A `qaboard.integrations.lightning` logger and a Transformers callback: thin, S each, once the API has settled. The `wandb`-shaped shim is in the RFC's left-outs |
-| Notebook experience: a run's panel inline | Works from notebooks, untested; prints a link | No inline view | Test in Jupyter first (TODO_WARTS.md). An `_repr_html_` with the link and last metrics. S |
+| Notebook experience: a run's panel inline | Works from notebooks, untested; prints a link | No inline view | Test in Jupyter first (docs/warts.md). An `_repr_html_` with the link and last metrics. S |
 | Runs that crashed are marked as such | A killed process stays "running" | Stale runs | A heartbeat with the progress report, and the server marking runs silent for N minutes. S to M |
 | Compare a run with any other in two clicks | New against reference, by commit and batch | See part A, point 3 | Part A |
 
@@ -227,7 +227,7 @@ page (`website/docs/deep-learning.mdx`) carries the feature, and the comparison 
 what is experimental.
 
 ### Suggested order across the three parts
-1. Verify what shipped against a real server, in Jupyter and on Windows; fix what that finds (`TODO_WARTS.md`).
+1. Verify what shipped against a real server, in Jupyter and on Windows; fix what that finds (`docs/warts.md`).
 2. Small gaps that make daily use safe: stale runs' heartbeat, `qa sync` for a run folder, the end-of-run
    notification, mean and band per group.
 3. The demo trainer and the screenshots (B).

@@ -67,7 +67,7 @@ commits:
     branch: main
     at: -31d 01:20
     author: kaito
-    message: "varint: unrolled fast path for values up to 5 bytes (-30% encode time)"
+    message: "varint: unrolled fast path for values up to 5 bytes"
     flags: {bug_varint_fast_path: true}
 
   - id: varint-fix
@@ -127,7 +127,7 @@ commits:
     branch: main
     at: -20d 03:30
     author: kaito
-    message: "registry: parse() in dispatch, the offset is unused (-4% CPU/frame)"
+    message: "registry: parse() in dispatch, the offset is unused"
     flags: {client_legacy_parse: true}
 
   - id: legacy-parse-fix

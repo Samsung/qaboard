@@ -108,6 +108,19 @@ const Now = styled.ins`
 `;
 const Arrow = () => <span aria-hidden="true" style={{ margin: '0 3px', opacity: 0.6 }}>→</span>;
 
+// A change of text, cut at separators like the settings' changes: street_reg0x1A=[05 → 03]_g4.raw.
+// For the names of inputs runs are paired by (src/matching/).
+export const TextChange = ({ before, after }) => {
+  const change = string_change(before, after);
+  return <>
+    {change.prefix}
+    {change.before && <Was>{change.before}</Was>}
+    {change.before && change.after && <Arrow />}
+    {change.after && <Now>{change.after}</Now>}
+    {change.suffix}
+  </>;
+};
+
 // Tuning parameters are settings like the others, with a wrench
 const TuningMark = () => <Icon icon="wrench" size={10} title="Tuning parameter" style={{ opacity: 0.6, marginRight: 4, verticalAlign: 'baseline' }} />;
 
@@ -600,8 +613,8 @@ export const ConfigurationDiff = ({ configurations, tuning = null, mismatch, con
     <Legend />
     {mismatch?.alternatives > 0 && <p style={{ fontSize: 12, margin: '8px 0 0 0' }}>
       <Icon icon="git-branch" size={12} intent={Intent.WARNING} style={{ marginRight: 5 }} />
-      {mismatch.alternatives === 1 ? 'Another reference run differs' : `${mismatch.alternatives} other reference runs differ`} by
-      as many settings: we picked the one with the closest values.
+      {mismatch.alternatives === 1 ? 'Another reference run is' : `${mismatch.alternatives} other reference runs are`} as
+      close: we picked the one with the closest values, or the first.
     </p>}
     <div style={{ marginTop: 8 }}>
       <Button size="small" variant="minimal" icon="duplicate" text="Copy the changes" onClick={() => copyWithToast(diff_text(ops), { what: 'the changes' })} />

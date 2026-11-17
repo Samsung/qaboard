@@ -17,7 +17,8 @@ import { useComparison, useSelected, useSiteConfig, useUrlText, updateSelected }
 import { OutputCard } from "./viewers/OutputCard";
 import { useViewerControls, config_visualizations } from "./viewers/controls";
 import { BitAccuracyForm, bit_accuracy_url_defaults } from "./viewers/bit_accuracy/utils";
-import { hash_color, match_query, average, median, matching_output, metric_info } from "./utils";
+import { hash_color, match_query, average, median, metric_info } from "./utils";
+import { matching_output } from "./matching/match";
 import { yAxisSuffix, hasAllMetrics, sum } from "./evolutionAxis";
 import CommitRow from "./components/CommitRow";
 

@@ -19,9 +19,10 @@ highlights:                # 0 to 4 (up to 8 for a big release), the changes wor
 
 <!-- The body has the details, as bullets, under these sections in this order, each once. Skip the empty ones.
      Write for the reader, not the committer: what they can now do, what changed for them.
-     One bullet per change, not per commit: 1-3 sentences, starting with a verb; the details are in the docs, linked as
-     [text](/docs/page-id). Before adding a bullet, read the section: if the period already has one on that feature,
-     edit it. Polish and fixes of something added in the same period aren't bullets (readers never saw the old
+     One bullet per feature, not per commit or PR: 1-3 sentences, starting with a verb; the details are in the docs,
+     linked as [text](/docs/page-id). Before adding a bullet, read the section: if the period already has one on that
+     feature, edit it. `release_notes.py check` warns past 40 bullets per note, 6 per theme and 400 characters per
+     bullet: merge and cut, don't move bullets to another period. Polish and fixes of something added in the same period aren't bullets (readers never saw the old
      behavior), and don't go under Fixes either: Fixes is for what shipped before the period.
      Past ~6 bullets, group a section by theme under ### headings named like the app's areas (### Image viewer,
      ### Automated tuning, ### Logs), the biggest themes first; put a new bullet under its theme. -->

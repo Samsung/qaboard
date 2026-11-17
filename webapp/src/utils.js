@@ -1,7 +1,6 @@
 import { interpolateRainbow } from "d3-scale-chromatic";
 import md5 from "js-md5";
 
-import { config_distance } from "./configurations/tokens";
 import { setPathMappings, linux_to_windows } from "./utils/paths";
 import { repo_url } from "./git";
 import { toaster } from "./toaster";
@@ -89,104 +88,6 @@ const pretty_label = batch => {
     return batch.label === "default" ? "CI" : batch.label;
   }
 }
-
-const empty_output = { metrics: undefined, extra_parameters: {} };
-
-
-// Finds the reference output that best matches an output.
-// Pass an index made with index_outputs(batch) when matching many outputs against the same batch.
-const matching_output = ({ output, batch, index }) => {
-  index = index ?? index_outputs(batch);
-  // high => more different
-  const match_score = o =>
-    8 * ((o.input_path !== output.input_path) | 0) +
-    4 * ((o.configurations_str !== output.configurations_str) | 0) +
-    2 * ((o.platform !== output.platform) | 0) +
-    1 * ((o.extra_parameters_str !== output.extra_parameters_str) | 0);
-
-  // Most of the time there's an identical run: no need to measure how different the others are
-  const exact = index.exact.get(run_key(output));
-  if (exact !== undefined)
-    return { output_ref: index.outputs[exact], mismatch: null };
-
-  // Candidates run on the same input, in the batch's order
-  const positions = new Set([
-    ...(index.by_input_path.get(output.input_path) ?? []),
-    ...(index.by_test_input_path.get(output.test_input_path) ?? []),
-    ...((output.test_input_metadata?.id && index.by_metadata_id.get(output.test_input_metadata.id)) || []),
-  ]);
-  const candidates = [...positions].sort((a, b) => a - b).map(i => {
-    const o = index.outputs[i];
-    return {
-      o,
-      dist_input_path: 1 - Number(o.input_path === output.input_path || o.test_input_path === output.test_input_path),
-      dist_configurations: config_distance(o.configurations, output.configurations),
-      dist_extra_parameters: config_distance(o.extra_parameters, output.extra_parameters),
-    };
-  });
-  // We prefer to compare an ouput versus a similar one
-  candidates.sort((a, b) =>
-    (a.dist_input_path - b.dist_input_path) ||
-    (a.dist_configurations - b.dist_configurations) ||
-    (a.dist_extra_parameters - b.dist_extra_parameters) ||
-    // same platform first (it used to sort them last)
-    ((b.o.platform === output.platform) - (a.o.platform === output.platform))
-  );
-
-  let output_ref = candidates[0]?.o ?? empty_output;
-  let ref_match_score = match_score(output_ref);
-  let imperfect_match = candidates.length > 0 && ref_match_score > 0;
-  let mismatch = imperfect_match ? {
-    test_input_path: ref_match_score & 8 ? output_ref.test_input_path : null,
-    configurations: ref_match_score & 4 ? output_ref.configurations : null,
-    platform: ref_match_score & 2 ? output_ref.platform : null,
-    extra_parameters: ref_match_score & 1 ? output_ref.extra_parameters : null,
-  } : null;
-  // only when there are some: the mismatch is compared with the backend's in tests/fixtures/metrics-compare.json
-  const alternatives = imperfect_match ? count_alternatives(candidates) : 0;
-  if (alternatives > 0) mismatch.alternatives = alternatives;
-  return { output_ref, mismatch };
-};
-
-// How many reference runs, with other settings, have as many different settings as the one we picked:
-// only how similar their values are (the distances' fractional part) made us choose.
-const count_alternatives = candidates => {
-  const [best] = candidates;
-  const same = (a, b) => Math.floor(a) === Math.floor(b);
-  const settings = new Set();
-  for (const c of candidates.slice(1)) {
-    if (c.dist_input_path !== best.dist_input_path) continue;
-    if (!same(c.dist_configurations, best.dist_configurations) || !same(c.dist_extra_parameters, best.dist_extra_parameters)) continue;
-    if (c.o.configurations_str === best.o.configurations_str && c.o.extra_parameters_str === best.o.extra_parameters_str) continue;
-    settings.add(`${c.o.configurations_str}\u0000${c.o.extra_parameters_str}`);
-  }
-  return settings.size;
-};
-
-const run_key = o => `${o.input_path}\u0000${o.configurations_str}\u0000${o.extra_parameters_str}\u0000${o.platform}`;
-
-// Lookups by input, for the outputs of a batch that are shown and not pending
-const index_outputs = batch => {
-  const outputs = (batch.filtered?.outputs ?? Object.keys(batch.outputs ?? {}))
-    .map(id => batch.outputs[id])
-    .filter(o => !!o && !o.is_pending);
-  const by_input_path = new Map();
-  const by_test_input_path = new Map();
-  const by_metadata_id = new Map();
-  const exact = new Map();
-  const add = (map, key, i) => {
-    if (key === undefined || key === null) return;
-    if (!map.has(key)) map.set(key, []);
-    map.get(key).push(i);
-  };
-  outputs.forEach((o, i) => {
-    add(by_input_path, o.input_path, i);
-    add(by_test_input_path, o.test_input_path, i);
-    if (o.test_input_metadata?.id) add(by_metadata_id, o.test_input_metadata.id, i);
-    if (!exact.has(run_key(o))) exact.set(run_key(o), i);
-  });
-  return { outputs, by_input_path, by_test_input_path, by_metadata_id, exact };
-};
 
 const safe_regex = s => {
   // creating regexes with user input can lead to invalid regexes...
@@ -610,8 +511,6 @@ export {
   format,
   groupBy,
   groupByObject,
-  matching_output,
-  index_outputs,
   calendarStrings,
   shortId,
   pretty_label,

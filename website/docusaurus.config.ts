@@ -25,7 +25,7 @@ const site = loadSite(process.env.QABOARD_SITE)
 
 // The maintainers' contact, for teams who want help to get started (the landing page's "Get in touch", the footer, the
 // announcement bar). Not in the builds for a site's own web app: its users get help from their site's admins.
-const contact = site ? null : 'arthur.flam@gmail.com'
+const contact = site ? null : 'arthur@fl.am'
 
 import {themes as prismThemes} from 'prism-react-renderer';
 

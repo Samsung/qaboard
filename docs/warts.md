@@ -6,8 +6,8 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - Tags: effort **S** (an hour) / **M** (a day) / **L** (more), and whether the fix changes **behaviour/API**
   (*no change*, *behaviour* = what users or admins observe, *API* = HTTP routes/params/responses, CLI flags, qaboard.yaml).
 - Within each section, items are ordered by value/effort. Search for the quoted code: line numbers drift.
-- Not repeated here: [docs/known-issues.md](docs/known-issues.md) (site-specific code, ops, EOL images, migrations),
-  [docs/TODO.md](docs/TODO.md) (docs and small product items) and [webapp/TODO.md](webapp/TODO.md) (viewers to check,
+- Not repeated here: [known-issues.md](known-issues.md) (site-specific code, ops, EOL images, migrations),
+  [TODO.md](TODO.md) (docs and small product items) and [webapp/TODO.md](../webapp/TODO.md) (viewers to check,
   dependencies, performance).
 
 ## Security

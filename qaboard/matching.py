@@ -115,6 +115,8 @@ def config_tokens(configurations) -> List[Token]:
 
 # ---------------------------------------------------------------------------- distances
 
+# The same as string_separator in webapp/src/configurations/tokens.js, also how the web app cuts runs' names in parts
+# to pair them (webapp/src/matching/names.js): change one, change the other
 STRING_SEPARATOR = re.compile(r'''[\s/\\.,:;=_\-@|+()\[\]{}"']''')
 
 def _at(s: str, i: int) -> Optional[str]:
@@ -225,7 +227,7 @@ def config_distance(configurations_a, configurations_b) -> float:
 
 def run_distance(run: Dict, reference: Dict) -> Tuple[float, float, int]:
   """
-  How different a reference run is from a run, to sort them like the web app (`matching_output` in webapp/src/utils.js):
+  How different a reference run is from a run, to sort them like the web app (`matching_output` in webapp/src/matching/match.js):
   first by configurations, then by tuning parameters, then same platform first.
   Runs are dicts with `configurations`, `extra_parameters` and `platform`.
   """

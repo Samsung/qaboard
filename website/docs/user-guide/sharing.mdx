@@ -87,7 +87,9 @@ runs, new and reference, into a new folder, and shows you every file's name befo
 1. Filter the runs you want, e.g. `low-light` (see [Filter the runs](/docs/user-guide/finding-results#filter-syntax)).
 2. Click **Export** at the right of the view's title.
 3. Under **Which files**, type a pattern, like `*.png`, `*.txt` or `**/*.jpg` (`**/` matches any number of folders),
-   or click one of the visualizations under it.
+   or click one of the visualizations under it. A pattern that matches a folder, like `dma_out`, exports the folder
+   with its files: it's named like a file, e.g. `night_street__dma_out__new`, and its files keep their names and
+   subfolders. **Only files** in the preview skips folders.
 4. Check the names: the dialog shows an example, each part in its color with its name under it, and what each part
    says. The **Preview** lists every file's name in the same colors, and says if two files would get the same name, if
    paths are too long for Windows, or if files are already there.
@@ -109,7 +111,9 @@ needed:
   names. Without a reference, you export one version, and names don't say it.
 
 To export one side only, pick **Only new** or **Only** the reference under the pattern: names don't say new or
-reference then. If the page compares with several references, the export takes the one shown.
+reference then, unless you click **Name them**, e.g. to end names with the tuning batch's name in one click:
+`night_street__tuning-gain.png`. The same works for a batch without a reference. If the page compares with several
+references, the export takes the one shown.
 
 Click **Change** next to the settings to pick them. Click **Rename** next to new or reference to call them something
 else, only for this export (the page and its milestones keep their names), and to choose what's before them, e.g. `@`:
@@ -118,7 +122,9 @@ else, only for this export (the page and its milestones keep their names), and t
 comes from (run, input, settings, region), and `0.export.json` adds the runs' configurations, for scripts.
 
 By default, the exported files are **links** to the original files: nothing is copied, so it's fast. Don't edit them:
-you'd edit the runs' files. To copy them, or export into a folder you choose, open **More options**.
+you'd edit the runs' files. To copy them, or export into a folder you choose, open **More options**. Links are hard
+links, that open on Windows too. When the runs' files are on another filesystem, they can only be symbolic links, which
+Windows often can't open ("Disk read error"): the export says so, export copies then.
 
 Copies are made as you: you need to read the runs' files, and to write in the folder. The preview checks it, and says
 what your account can't do, e.g. read the reference's files: export links instead. If files fail, the dialog says why,

@@ -20,6 +20,9 @@ qa run --input codec                         # one suite
 qa batch quick                               # the 5 suites, default mode only
 python qa/main.py codec strict               # a quick look without QA-Board: the metrics as JSON
 python -m unittest discover qa/tests         # the JUnit reader's tests: pytest, GoogleTest, CTest, Surefire
+
+# the SDK's micro-benchmarks (pip install pytest-benchmark): not part of the runs yet
+pytest benchmarks -o testpaths=benchmarks --benchmark-json=pytest.benchmarks.json
 ```
 
 Without `--share` or a CI, results are saved in `output/`. To see them in QA-Board, start a server
@@ -37,6 +40,7 @@ Without `--share` or a CI, results are saved in `output/`. To see them in QA-Boa
 | `fleet_sdk/` | The SDK: codec, planning, battery, missions, client |
 | `tests/<suite>/` | Its tests, and `suite.yaml`: the package whose coverage they measure, a label, tags |
 | `tests/conftest.py` | Which tests exist at a story commit, seeded random cases |
+| `benchmarks/` | The codec's and the client's micro-benchmarks, with pytest-benchmark. No run saves their file yet: see [Benchmark suites](https://samsung.github.io/qaboard/docs/benchmarks) to wire them |
 
 **Your own test runner:** keep `qa/junit.py` and `qa/report.py`, and change `pytest_command()` and `rerun()` in
 `qa/main.py`. GoogleTest writes the same report with `--gtest_output=xml:junit.xml` and reruns tests with

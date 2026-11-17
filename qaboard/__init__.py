@@ -11,14 +11,29 @@ from types import ModuleType
 from typing import Any
 
 # The version is only defined in pyproject.toml
-try:
-  from importlib.metadata import version, PackageNotFoundError
-except ImportError: # python 3.7
-  from importlib_metadata import version, PackageNotFoundError # type: ignore
-try:
-  __version__ = version('qaboard')
-except PackageNotFoundError: # e.g. used from a checkout via PYTHONPATH, without being installed
-  __version__ = 'unknown'
+def _version() -> str:
+  # Imported from a checkout (tests, PYTHONPATH, an editable install): its pyproject.toml is the truth.
+  # The installed metadata can be another qaboard's (e.g. the deployed CLI in CI) or stale (editable installs).
+  import re
+  from pathlib import Path
+  pyproject = Path(__file__).resolve().parent.parent / 'pyproject.toml'
+  try:
+    text = pyproject.read_text(encoding='utf-8')
+  except OSError:
+    text = ''
+  if re.search(r'^name = "qaboard"$', text, re.MULTILINE):
+    match = re.search(r'^version = "([^"]+)"$', text, re.MULTILINE)
+    if match:
+      return match.group(1)
+  try:
+    from importlib.metadata import version, PackageNotFoundError
+  except ImportError: # python 3.7
+    from importlib_metadata import version, PackageNotFoundError # type: ignore
+  try:
+    return version('qaboard')
+  except PackageNotFoundError:
+    return 'unknown'
+__version__ = _version()
 
 
 # name: (module, attribute)

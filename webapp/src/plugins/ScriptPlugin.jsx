@@ -42,6 +42,21 @@ for run in qb.runs("${url}"):                       # the runs this page shows, 
     # run.log_artifact("sharpness/map.png", path)    # add a file to the run
 `;
 
+// A script that scores the runs shown: the starting point of people who have outputs but no metrics yet
+export const metrics_snippet = (url, requirements = ['qaboard']) => `${script_header(requirements)}import qaboard as qb
+from qaboard import Metric
+
+def score(run):
+    # Compute a number from the run's files, with the tools you know (numpy, OpenCV...)
+    image = run.output_dir / "output.png"
+    return 0.0
+
+for run in qb.runs("${url}"):       # the runs of this page
+    value = score(run)
+    # smaller_is_better=True if a lower score is better
+    run.log_metrics({"my_score": Metric(value, smaller_is_better=False)})
+`;
+
 export const shell_snippet = url => `qa runs "${url}"               # one folder per line
 qa runs "${url}" --json        # inputs, configs, params, metrics, folders...
 `;
@@ -63,6 +78,27 @@ const Content = styled.div`
   max-width: 600px;
 `;
 
+
+// How to add metrics to the runs shown, with a script to start from. For pages that need metrics: tuning, its analysis.
+export const MetricsScript = ({ compact = false, ...props }) => {
+  const { docs_root, cli_requirements } = useSiteConfig();
+  const requirements = cli_requirements?.length ? cli_requirements : ['qaboard'];
+  const snippet = metrics_snippet(runs_url(props), requirements);
+  return <div data-testid="metrics-script">
+    {!compact && <p style={{ marginBottom: 6 }}>
+      Save this as <code>score.py</code>, write <code>score()</code>, and run <code>uv run score.py</code>: each run gets your metric,
+      without running again. Try it first with <code>qb.runs(url, dry_run=True)</code>, which only prints.
+    </p>}
+    <Snippet className={Classes.CODE_BLOCK} style={{ maxWidth: 680 }}>{snippet}</Snippet>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+      <Button icon="duplicate" text="Copy the script" variant="outlined" size="small" onClick={() => copyWithToast(snippet, { what: 'the script' })}/>
+      <span className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>
+        Sign in once with <code>qa auth login</code>. No <code>uv</code>? <code>{install_command(requirements)}</code>, then <code>python score.py</code>.
+        {' '}<a href={`${docs_root}docs/apis#log`} target="_blank" rel="noopener noreferrer">Add metrics to runs</a>
+      </span>
+    </div>
+  </div>;
+};
 
 // A snippet that lists the runs shown, for people who want to post-process them from a script
 const ScriptPlugin = props => {

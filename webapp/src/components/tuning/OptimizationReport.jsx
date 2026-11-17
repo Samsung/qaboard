@@ -2,9 +2,8 @@
 // next, and plots to understand why. Written for people who aren't optimization experts: every plot says how to read it.
 // The logic is in optimization.js.
 import { useEffect, useMemo, useState } from "react";
-import styled from "styled-components";
 import {
-  Button, ButtonGroup, Callout, Card, Classes, Collapse, Colors, HTMLTable, Icon, Intent, Menu, MenuItem, PopoverNext,
+  Button, ButtonGroup, Callout, Card, Classes, Colors, HTMLTable, Icon, Intent,
   ProgressBar, SegmentedControl, Spinner, Tag, Tooltip,
 } from "@blueprintjs/core";
 
@@ -13,103 +12,17 @@ import { format } from "../../utils";
 import { useIsDark } from "../../theme";
 import { updateSelected, useRefreshCommit, useSiteConfig } from "../../hooks";
 import { usePrefsStore } from "../../stores/prefs";
-import { copyWithToast } from "../../utils/clipboard";
 import { formatDuration } from "../../activity/format";
 import {
-  iterations as get_iterations, search_space, summarize, insights as get_insights, position, as_json, as_yaml, pareto_iterations,
+  iterations as get_iterations, search_space, summarize, insights as get_insights, pareto_iterations,
   metric_bests, objective_definitions,
 } from "./optimization";
 import { from_batch } from "./optimize_config";
-
-const plot_config = { displayModeBar: 'hover', displaylogo: false, showSendToCloud: false, showLink: false, responsive: true };
-
-// 4 significant digits: enough to tell values apart, few enough to read
-const num = value => typeof value === 'number' ? format(value, { precision: 4 }) : JSON.stringify(value);
-// a parameter's value: categories exactly as configured (99.999 isn't "100"), numbers rounded
-const value_text = (value, dimension) => {
-  if (value === undefined) return '—';
-  if (typeof value === 'string') return value;
-  if (dimension?.type === 'categorical' || typeof value !== 'number') return JSON.stringify(value);
-  return Number.isInteger(value) ? String(value) : num(value);
-};
-// the parameters of an evaluation, in a plot's tooltip
-const hover_params = (params, space) => {
-  const dimensions = Object.fromEntries(space.map(d => [d.name, d]));
-  return Object.entries(params).map(([k, v]) => `${k}: ${dimensions[k] ? value_text(v, dimensions[k]) : JSON.stringify(v)}`).join('<br>');
-};
-const plural = (n, word, words = `${word}s`) => `${n} ${n === 1 ? word : words}`;
-const Code = ({ children }) => <code className={Classes.MONOSPACE_TEXT}>{children}</code>;
-
-// a metric's display: label, value with its scale and suffix
-const metric_label = (available_metrics, key) => available_metrics?.[key]?.label ?? key;
-const metric_value = (available_metrics, key, value) => {
-  const info = available_metrics?.[key] ?? {};
-  if (typeof value !== 'number') return '—';
-  return `${format(value * (info.scale ?? 1), { precision: 3 })}${info.suffix ?? ''}`;
-};
-
-const Report = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  /* wide tables scroll inside their section, instead of widening the page */
-  > * { min-width: 0; }
-  .qa-optim-section > header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-bottom: 2px; }
-  .qa-optim-section h3 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
-  .qa-optim-section > p.qa-optim-how { margin: 0 0 10px; font-size: 13px; }
-  .qa-optim-num { font-variant-numeric: tabular-nums; }
-`;
-
-const Header = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px 16px;
-  h2 { margin: 0 0 4px; font-size: 18px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .qa-optim-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; }
-  /* an icon and its text; the sampler's span is inside its tooltip's target */
-  .qa-optim-meta > span, .qa-optim-meta > a, .qa-optim-meta > .${Classes.POPOVER_TARGET} > span { display: inline-flex; align-items: center; gap: 5px; }
-`;
-
-const Tiles = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: 12px;
-  .value { font-size: 24px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-  .label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
-  .detail { font-size: 12px; margin-top: 2px; }
-`;
-
-const Columns = styled.div`
-  display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(280px, 4fr);
-  gap: 16px;
-  @media (max-width: 1100px) { grid-template-columns: minmax(0, 1fr); }
-`;
-
-const Small = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 12px;
-  .qa-optim-small h4 { margin: 0; font-size: 13px; display: flex; justify-content: space-between; gap: 8px; }
-`;
-
-// Wide tables scroll sideways inside it. width: 0 + min-width: 100% takes the container's width without widening the page:
-// the commit page sizes its content to fit, so a plain overflow: auto would still push it wider.
-const Scroll = styled.div`
-  width: 0;
-  min-width: 100%;
-  overflow-x: auto;
-`;
-
-const ParamTable = styled(HTMLTable)`
-  width: 100%;
-  && td, && th { vertical-align: middle; }
-  td.qa-optim-best { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  td.qa-optim-name { white-space: nowrap; }
-`;
-
+import {
+  plot_config, num, value_text, hover_params, plural, Code, metric_label, metric_value, Report, Header, Tiles, Columns, Small, Scroll, ParamTable, RangeBar, ImportanceBar, useTryParameters, CopyMenu, InsightList, intents,
+} from "./report";
+import Learn from "./learn";
+import ParallelCoordinatesPlot from "./ParallelCoordinatesPlot";
 
 const StatusTag = ({ status }) => {
   const tags = {
@@ -133,58 +46,6 @@ const duration = (start, end) => {
 };
 
 
-// Where the best value sits in its range, and every value the search tried
-const RangeBar = ({ dimension, values, best }) => {
-  const width = 200, height = 26, pad = 6;
-  if (dimension.type === 'categorical') {
-    const counts = new Map(dimension.choices.map(c => [JSON.stringify(c), 0]));
-    values.forEach(v => counts.set(JSON.stringify(v), (counts.get(JSON.stringify(v)) ?? 0) + 1));
-    return <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-      {dimension.choices.map(choice => {
-        const is_best = JSON.stringify(choice) === JSON.stringify(best);
-        return <Tooltip key={JSON.stringify(choice)} content={`Tried in ${plural(counts.get(JSON.stringify(choice)) ?? 0, 'evaluation')}`} hoverOpenDelay={200}>
-          <Tag minimal={!is_best} intent={is_best ? Intent.PRIMARY : Intent.NONE} round>
-            {value_text(choice, dimension)} <span className={is_best ? undefined : Classes.TEXT_MUTED}>×{counts.get(JSON.stringify(choice)) ?? 0}</span>
-          </Tag>
-        </Tooltip>;
-      })}
-    </div>;
-  }
-  const x = v => pad + Math.min(1, Math.max(0, position(dimension, v) ?? 0)) * (width - 2 * pad);
-  const best_x = typeof best === 'number' ? x(best) : null;
-  return <svg width={width} height={height + 12} role="img" aria-label={`Range ${num(dimension.low)} to ${num(dimension.high)}${dimension.log ? ', log scale' : ''}, best ${num(best)}`} style={{ overflow: 'visible', display: 'block' }}>
-    <line x1={pad} x2={width - pad} y1={height / 2} y2={height / 2} stroke="var(--qa-border)" strokeWidth={4} strokeLinecap="round"/>
-    {values.filter(v => typeof v === 'number').map((v, i) => <line key={i} x1={x(v)} x2={x(v)} y1={height / 2 - 5} y2={height / 2 + 5} stroke="var(--qa-text-muted)" strokeOpacity={0.45} strokeWidth={1}/>)}
-    {best_x !== null && <circle cx={best_x} cy={height / 2} r={6} fill="var(--qa-intent-primary)" stroke="var(--qa-surface)" strokeWidth={2}/>}
-    <text x={pad} y={height + 10} fontSize={10} fill="var(--qa-text-muted)">{num(dimension.low)}</text>
-    <text x={width - pad} y={height + 10} fontSize={10} fill="var(--qa-text-muted)" textAnchor="end">{num(dimension.high)}{dimension.log ? ' (log)' : ''}</text>
-  </svg>;
-};
-
-const ImportanceBar = ({ value }) => {
-  if (typeof value !== 'number') return <Tooltip content="Shown after 8 evaluations, with 2 parameters or more" hoverOpenDelay={200}><span className={Classes.TEXT_MUTED}>—</span></Tooltip>;
-  return <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 110 }}>
-    <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'var(--qa-border)', overflow: 'hidden', minWidth: 60 }}>
-      <div style={{ width: `${Math.max(2, value * 100)}%`, height: '100%', background: 'var(--qa-intent-primary)', borderRadius: 3 }}/>
-    </div>
-    <span className="qa-optim-num" style={{ width: 34, textAlign: 'right' }}>{Math.round(value * 100)}%</span>
-  </div>;
-};
-
-
-// "Run these parameters": the Manual tuning form, with them filled in
-const useTryParameters = (project, label) => {
-  const updateTuning = usePrefsStore(state => state.updateTuning);
-  return params => {
-    updateTuning(project, {
-      search_type: 'grid',
-      parameter_search: JSON.stringify(params, null, 2),
-      experiment_name: `${label}-best`,
-    });
-    updateSelected({ selected_views: 'tuning' });
-  };
-};
-
 // "Continue the search": the Automated tuning form, with the same configuration and label (qa optimize resumes), and a bigger budget
 const useContinue = (project, batch, done) => {
   const updateTuning = usePrefsStore(state => state.updateTuning);
@@ -201,30 +62,6 @@ const useContinue = (project, batch, done) => {
     updateSelected({ selected_views: 'tuning' });
   };
 };
-
-const CopyMenu = ({ params, what = 'the best parameters' }) => <PopoverNext
-  placement="bottom-end"
-  content={<Menu>
-    <MenuItem icon="code" text="As preset_params, for another tuning" onClick={() => copyWithToast(`preset_params:\n${as_yaml(params)}\n`, { what })}/>
-    <MenuItem icon="code-block" text="As JSON, for qa --tuning" onClick={() => copyWithToast(as_json(params), { what })}/>
-  </Menu>}
->
-  <Button icon="duplicate" endIcon="caret-down" text="Copy"/>
-</PopoverNext>;
-
-
-const InsightList = styled.ul`
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  > li { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 2px 10px; padding: 10px 2px; border-bottom: 1px solid var(--qa-border); align-items: start; }
-  > li:last-child { border-bottom: none; }
-  > li > .bp6-icon { margin-top: 2px; }
-  .qa-insight-title { font-weight: 600; }
-  .qa-insight-text { margin: 2px 0 0; }
-`;
-
-const intents = { warning: Intent.WARNING, success: Intent.SUCCESS, primary: Intent.PRIMARY, none: Intent.NONE };
 
 // What an insight says: {icon, title, text, action}. optimization.js decides which apply.
 const insight_content = (insight, { onOpenLogs }) => {
@@ -467,11 +304,11 @@ const no_data = {};
 // `code` in qa optimize's messages
 const WithCode = ({ text }) => String(text).split(/`([^`]+)`/).map((part, i) => i % 2 ? <code key={i}>{part}</code> : part);
 
-const OptimizationReport = ({ batch, project, commit_id, available_metrics: declared_metrics, children }) => {
+const OptimizationReport = ({ batch, project, commit_id, available_metrics: declared_metrics }) => {
   const dark = useIsDark();
   const { docs_root } = useSiteConfig();
   const refresh = useRefreshCommit();
-  const [more, setMore] = useState(false);
+  const [color_by, setColorBy] = useState(null);
   // Pareto mode: the metric the parameters' effects are plotted against
   const [effect_metric, setEffectMetric] = useState(null);
   const data = batch?.data ?? no_data;
@@ -518,6 +355,34 @@ const OptimizationReport = ({ batch, project, commit_id, available_metrics: decl
     </span>;
   };
 
+  // every evaluation across the objective, its metrics and the parameters
+  const parallel = useMemo(() => {
+    const columns = [
+      ...(pareto ? [] : [{ key: 'objective', label: 'Objective', group: 'Metrics', better: 'lower' }]),
+      ...objective_metrics.map(m => {
+        const info = available_metrics?.[m] ?? {};
+        return { key: `metric:${m}`, label: info.short_label ?? info.label ?? m, group: 'Metrics', suffix: info.suffix ?? '', better: info.smaller_is_better === false ? 'higher' : info.smaller_is_better ? 'lower' : undefined };
+      }),
+      ...space.map(d => ({ key: `param:${d.name}`, label: d.name, group: 'Parameters', type: d.type === 'categorical' ? 'category' : 'number', log: d.log || undefined, choices: d.type === 'categorical' ? d.choices : undefined })),
+      { key: 'iteration', label: 'Iteration', group: 'Search' },
+    ];
+    const rows = evaluations.filter(e => !e.failed).map(e => ({
+      id: e.iteration,
+      label: `Iteration ${e.iteration}`,
+      values: {
+        iteration: e.iteration,
+        objective: e.objective,
+        ...Object.fromEntries(objective_metrics.map(m => [`metric:${m}`, typeof e.metrics[m] === 'number' ? e.metrics[m] * (available_metrics?.[m]?.scale ?? 1) : undefined])),
+        ...Object.fromEntries(space.map(d => [`param:${d.name}`, e.params[d.name]])),
+      },
+    }));
+    return { columns, rows };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [evaluations, space, available_metrics, pareto, objective_metrics.join('\n')]);
+  const marks = useMemo(() => pareto
+    ? Object.fromEntries([...front_ids].map(i => [i, { label: '' }]))
+    : best ? { [best.iteration]: { label: 'Best' } } : {}, [pareto, front_ids, best]);
+
   return <Report data-testid="optimization-report">
     <Header>
       <div>
@@ -526,6 +391,7 @@ const OptimizationReport = ({ batch, project, commit_id, available_metrics: decl
           <span><Icon icon="repeat" size={12}/>{budget ? `${summary.evaluated} of ${budget} evaluations` : plural(summary.evaluated, 'evaluation')}</span>
           {summary.failed.length > 0 && <span><Icon icon="error" size={12}/>{summary.failed.length} failed</span>}
           {summary.sampler && <Tooltip content="How the search picks the next parameters to try" hoverOpenDelay={200}><span><Icon icon="search-around" size={12}/>{sampler_names[summary.sampler] ?? summary.sampler}{summary.pareto ? ', Pareto' : ''}</span></Tooltip>}
+          <span><Learn topic="search" label="How the search works"/></span>
           {summary.parallel > 1 && <span><Icon icon="layers" size={12}/>{summary.parallel} at a time</span>}
           {elapsed && <span><Icon icon="time" size={12}/>{elapsed}{running ? ' so far' : ''}</span>}
           <a href={`${docs_root}docs/user-guide/automated-tuning`} target="_blank" rel="noopener noreferrer"><Icon icon="manual" size={12}/>How to read this page</a>
@@ -537,7 +403,7 @@ const OptimizationReport = ({ batch, project, commit_id, available_metrics: decl
       </Tooltip>}
       {best && !pareto && <ButtonGroup>
         <CopyMenu params={best_params}/>
-        <Tooltip content="Opens Manual tuning with these parameters, to run them on any batch of tests" hoverOpenDelay={300}>
+        <Tooltip content="Opens Run Tests / Tuning with these parameters, to run them on any batch of tests" hoverOpenDelay={300}>
           <Button intent={Intent.PRIMARY} icon="play" text="Run the best parameters…" onClick={() => tryParameters(all_best_params)} data-testid="run-best"/>
         </Tooltip>
       </ButtonGroup>}
@@ -598,7 +464,7 @@ const OptimizationReport = ({ batch, project, commit_id, available_metrics: decl
             <header><h3 id="optim-best"><Icon icon={pareto ? 'properties' : 'crown'} className={Classes.TEXT_MUTED}/>{pareto ? 'Parameters' : 'Best parameters'}</h3></header>
             <p className={`qa-optim-how ${Classes.TEXT_MUTED}`}>
               The bar is each parameter's range: {pareto ? '' : 'the dot is the best value, '}the ticks every value tried. <strong>Impact</strong> says
-              how much each parameter changes the objective.
+              how much each parameter changes the objective. <Learn topic="importance"/>
             </p>
             <Scroll><ParamTable compact data-testid="best-parameters">
               <thead><tr><th>Parameter</th>{!pareto && <th>Best</th>}<th>Range searched</th><th>Impact</th></tr></thead>
@@ -619,7 +485,7 @@ const OptimizationReport = ({ batch, project, commit_id, available_metrics: decl
           </section>
 
           <section className="qa-optim-section" aria-labelledby="optim-objective">
-            <header><h3 id="optim-objective"><Icon icon="locate" className={Classes.TEXT_MUTED}/>What it optimizes</h3></header>
+            <header><h3 id="optim-objective"><Icon icon="locate" className={Classes.TEXT_MUTED}/>What it optimizes <Learn topic="objective"/></h3></header>
             <p className={`qa-optim-how ${Classes.TEXT_MUTED}`}>
               {pareto
                 ? <>Each metric is optimized on its own, averaged over the batch's runs: the search looks for the best trade-offs between them.</>
@@ -644,7 +510,7 @@ const OptimizationReport = ({ batch, project, commit_id, available_metrics: decl
         </Columns>
 
         {summary.pareto && <section className="qa-optim-section" aria-labelledby="optim-pareto" data-testid="pareto">
-          <header><h3 id="optim-pareto"><Icon icon="scatter-plot" className={Classes.TEXT_MUTED}/>Best trade-offs (Pareto front)</h3></header>
+          <header><h3 id="optim-pareto"><Icon icon="scatter-plot" className={Classes.TEXT_MUTED}/>Best trade-offs (Pareto front) <Learn topic="pareto"/></h3></header>
           <p className={`qa-optim-how ${Classes.TEXT_MUTED}`}>
             Each metric is optimized on its own. The highlighted evaluations are the best trade-offs: none of them can get better
             on one metric without getting worse on another. Pick the one that suits you.
@@ -664,12 +530,29 @@ const OptimizationReport = ({ batch, project, commit_id, available_metrics: decl
         </section>}
 
         {!pareto && <section className="qa-optim-section" aria-labelledby="optim-convergence">
-          <header><h3 id="optim-convergence"><Icon icon="timeline-line-chart" className={Classes.TEXT_MUTED}/>Convergence</h3></header>
+          <header><h3 id="optim-convergence"><Icon icon="timeline-line-chart" className={Classes.TEXT_MUTED}/>Convergence <Learn topic="convergence"/></h3></header>
           <p className={`qa-optim-how ${Classes.TEXT_MUTED}`}>
             Each dot is an evaluation, the line the best objective so far. A line that keeps dropping near the end means more
             evaluations would help; a flat line, that the search converged.
           </p>
           <ConvergencePlot evaluations={evaluations} space={space} summary={summary} dark={dark} best_ids={front_ids}/>
+        </section>}
+
+        {parallel.rows.length > 1 && <section className="qa-optim-section" aria-labelledby="optim-parallel" data-testid="optim-parallel">
+          <header><h3 id="optim-parallel"><Icon icon="flows" className={Classes.TEXT_MUTED}/>Every evaluation at a glance <Learn topic="parallel"/></h3></header>
+          <p className={`qa-optim-how ${Classes.TEXT_MUTED}`}>
+            Each line is an evaluation, across {pareto ? 'its metrics' : 'the objective, its metrics'} and the parameters. Follow the best-colored lines to see which values
+            they share. Drag along an axis to keep a range, like the lowest objectives.
+          </p>
+          <ParallelCoordinatesPlot
+            columns={parallel.columns}
+            rows={parallel.rows}
+            colorBy={color_by ?? (pareto ? `metric:${objective_metrics[0]}` : 'objective')}
+            onColorByChange={setColorBy}
+            marks={marks}
+            height={380}
+            dark={dark}
+          />
         </section>}
 
         {space.length > 0 && <section className="qa-optim-section" aria-labelledby="optim-effects">
@@ -692,14 +575,6 @@ const OptimizationReport = ({ batch, project, commit_id, available_metrics: decl
         </section>
       </>}
 
-    {children && <section className="qa-optim-section">
-      <Button variant="minimal" icon={more ? 'chevron-down' : 'chevron-right'} onClick={() => setMore(!more)} data-testid="more-plots">
-        More plots: parallel coordinates, sensitivity, trade-offs between metrics
-      </Button>
-      <Collapse isOpen={more} keepChildrenMounted={false}>
-        <div style={{ paddingTop: 12 }}>{children}</div>
-      </Collapse>
-    </section>}
   </Report>;
 };
 

@@ -190,8 +190,20 @@ def auth_post():
   provider_id = 'ldap' if (user.login_type or '').upper() == 'LDAP' else 'local'
   finish_sign_in(user, provider_id)
   print(f"[auth] Login @{username}")
-  # not user_info's data: with LDAP it holds everything the directory knows about the user
-  return jsonify({**{k: v for k, v in user_info.items() if k != 'data'}, "status": user.status, "is_admin": is_admin(user), "user_id": user.id})
+  return jsonify(sign_in_response(user_info, user))
+
+
+def sign_in_response(user_info: dict, user) -> dict:
+  """
+  What the web app learns when signing in. Only these fields: with LDAP, user_info also holds everything
+  the directory knows about the user (data, profile), and their picture as bytes, that JSON can't serialize.
+  """
+  return {
+    **{key: user_info.get(key) for key in ("login_success", "user_name", "full_name", "email", "login_type")},
+    "status": user.status,
+    "is_admin": is_admin(user),
+    "user_id": user.id,
+  }
 
 
 @app.route('/api/v1/user/me/', methods=['GET'])

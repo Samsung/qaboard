@@ -13,6 +13,7 @@ See _template.md and CLAUDE.md for how to write them.
   ./release_notes.py changelog 2026-09        # commits of the period, grouped by area
   ./release_notes.py draft 2026-10 --write    # new release note pre-filled from the commits
   ./release_notes.py check                    # validate the notes and their links to the docs, and the skills' links (skills/)
+  ./release_notes.py check --strict           # also fail on notes being written that are too long to read
 
 The web app shows the published notes (not `draft: true`) in its "What's new" panel: vite reads them when it
 builds or serves the app (webapp/releaseNotes.js). The website renders them at /release-notes.
@@ -38,6 +39,11 @@ AUDIENCES = ("users", "project-integration", "admins")
 SECTIONS = ("Web app", "CLI and project setup", "Server and administration", "Documentation", "Performance", "Fixes", "Notes")
 ALLOWED_KEYS = {"title", "date", "description", "version", "highlights", "draft", "period", "tags", "slug"}
 HIGHLIGHT_KEYS = {"title", "description", "audience", "icon", "link"}
+# Size limits, checked on the notes still being written (drafts, or whose period isn't over): a note readers can get
+# through has one bullet per feature, not per commit. `check --strict` fails on them instead of warning.
+MAX_BULLETS = 40          # per note: past that, merge bullets and cut polish, don't wait for publication
+MAX_THEME_BULLETS = 6     # per ### theme, or per ## section without themes: merge bullets on the same feature
+MAX_BULLET_CHARS = 400    # per bullet, without the links' URLs: 1-3 sentences, the details are in the docs
 
 
 # ---------------------------------------------------------------- periods
@@ -316,6 +322,45 @@ def validate(note: Note, docs: set[str]) -> tuple[list[str], list[str]]:
     return errors, warnings
 
 
+def being_written(note: Note, today: datetime.date | None = None) -> bool:
+    return note.draft or (today or datetime.date.today()) < note.period.end
+
+
+def bullets_by_group(body: str) -> dict[str, list[str]]:
+    """The top-level bullets of each ## section, or of each ### theme within it ("Web app > Exports")."""
+    body = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
+    groups: dict[str, list[str]] = {}
+    section = theme = None
+    for line in body.splitlines():
+        if line.startswith("## "):
+            section, theme = line[3:].strip(), None
+        elif line.startswith("### "):
+            theme = line[4:].strip()
+        elif line.startswith("- ") and section:
+            groups.setdefault(f"{section} > {theme}" if theme else section, []).append(line[2:])
+    return groups
+
+
+def check_size(note: Note) -> list[str]:
+    """Problems that make a note hard to read, for the notes still being written."""
+    problems = []
+    groups = bullets_by_group(note.body)
+    total = sum(len(bullets) for bullets in groups.values())
+    if total > MAX_BULLETS:
+        problems.append(f"{total} bullets, keep it under {MAX_BULLETS}: one per feature, merge those on the same feature, "
+                        "cut the polish of what's new in the period")
+    for group, bullets in groups.items():
+        if len(bullets) > MAX_THEME_BULLETS:
+            what = "theme" if " > " in group else "section (group it under ### themes)"
+            problems.append(f"{len(bullets)} bullets in {what} '{group}', keep it under {MAX_THEME_BULLETS}: merge them")
+        for bullet in bullets:
+            text = re.sub(r"\]\([^)]*\)", "]", bullet)  # links count for their text only
+            if len(text) > MAX_BULLET_CHARS:
+                problems.append(f"{len(text)} characters in '{group}': '{text[:60]}…', keep bullets under "
+                                f"{MAX_BULLET_CHARS}: 1-3 sentences, link the docs for the details")
+    return problems
+
+
 # ---------------------------------------------------------------- CLI
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -328,7 +373,9 @@ def main() -> int:
     p.add_argument("period", help="YYYY-MM, YYYY-qN or YYYY")
     p.add_argument("--rev", default="HEAD")
     p.add_argument("--write", action="store_true", help=f"create {NOTES_DIR.name}/<period>.md instead of printing")
-    sub.add_parser("check", help="validate the notes and their links to the docs")
+    p = sub.add_parser("check", help="validate the notes and their links to the docs")
+    p.add_argument("--strict", action="store_true",
+                   help="fail on notes being written that are too long (bullets per note, per theme, per bullet)")
     args = parser.parse_args()
 
     if args.command in ("changelog", "draft"):
@@ -357,6 +404,8 @@ def main() -> int:
         try:
             note = read_note(path)
             errors, warnings = validate(note, docs)
+            if being_written(note):
+                (errors if args.strict else warnings).extend(check_size(note))
             period = note.period
             for other, other_path in periods.items():
                 if period.start < other.end and other.start < period.end:

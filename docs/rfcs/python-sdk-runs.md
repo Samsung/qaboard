@@ -252,6 +252,6 @@ old servers, no server, refusals, failures, attempts, resume, no project), `back
 An independent review after the first version found 11 problems (stale commit in long-lived processes, a rerun
 in the same process, resume losing metrics, reserved names stopping live updates, SIGTERM outside `with`, the
 parsers disagreeing on other programs' files, the process-wide umask...): fixed, each with a test, except what is
-listed in `TODO_WARTS.md`.
+listed in `docs/warts.md`.
 Not tested: against a real server and database end to end, on Windows, from Jupyter, or with forked data loader
 workers logging.

@@ -101,7 +101,7 @@ describe('ConfigurationDiff', () => {
     expect(screen.getByText(': 1 changed, 1 removed')).toBeInTheDocument();
     expect(screen.queryByText('b')).not.toBeInTheDocument();
     expect(screen.getByText('d')).toBeInTheDocument();
-    expect(screen.getByText(/2 other reference runs differ/)).toBeInTheDocument();
+    expect(screen.getByText(/2 other reference runs are as close/)).toBeInTheDocument();
     fireEvent.click(screen.getByText('3 unchanged settings'));
     expect(screen.getByText('b')).toBeInTheDocument();
   });
@@ -119,7 +119,6 @@ describe('ConfigurationOverview', () => {
     expect(screen.getByText('All 2 runs')).toBeInTheDocument();
     expect(screen.getByText(/1 of 2 runs/)).toBeInTheDocument();
     expect(screen.getByText('gain')).toBeInTheDocument();
-    expect(screen.getByText(/1 run had several reference runs/)).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: /Hide them/ })).toBeChecked();
   });
 

@@ -47,7 +47,7 @@ You can also set metadata in `run()`, with `context.input_metadata = {...}`.
 | `label` | Shown instead of the input's path, on run cards and in tables. |
 | `roi` | A list of regions of interest, like `{x: 100, y: 40, w: 160, h: 200, label: Window frame}`: the image and video viewers preset them on the input's runs. With `width` and `height`, the input's size, they are scaled to smaller outputs. See [preset regions of interest](/docs/visualizations#regions-of-interest). |
 | `tags` | A list, like `[low-light, motion]`: the History page summarizes metrics per tag with `dashboard_breakdown_by_tag: true` in your [metrics file](/docs/computing-quantitative-metrics). |
-| `id` | Runs on different inputs are compared when they have the same `metadata.id`: for instance images from two sensors, taken in the same conditions. |
+| `id` | Runs on different inputs are compared when they have the same `metadata.id`: for instance images from two sensors, taken in the same conditions. Without ids, [pair runs by name](/docs/user-guide/reference-runs#pair-by-name) in the web app. |
 | anything else | Filters for batches (below), and shown in the run card's menu, under **Metadata**. |
 
 Keys that start with `_` only serve to filter batches: `run()` doesn't get them, and they're not saved with the runs.

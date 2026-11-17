@@ -1,0 +1,106 @@
+---
+id: tuning
+title: Tune parameters, step by step
+sidebar_label: Tuning, step by step
+description: From a first grid of values to parameters you can trust, from the web app. What to tune, how to read the results, and the mistakes to avoid, without an optimization background.
+---
+Tuning is a loop: score your runs, try other parameters, read which are best, then refine or check them. This page
+walks through the loop from the web app and says what to watch for at each step. You don't need an optimization
+background, and you don't need a terminal, except for one optional script.
+
+| Step | Where | In short |
+|---|---|---|
+| [1. Score your runs](#score) | Your code, or a script | Tuning compares parameters with metrics. No metric yet? A script adds one to the runs you have. |
+| [2. Try other parameters](#try) | **Run Tests / Tuning** | List the values to try, or say what to improve and let QA-Board search. |
+| [3. Read the results](#read) | **Tuning Analysis** | The best parameters, how much each one matters, and where they lose. |
+| [4. Refine](#refine) | **Tuning Analysis** | Follow **What this tells you**: widen a range, drop a parameter, search around the best. |
+| [5. Check before you adopt](#check) | **Run Tests / Tuning** | Run the best parameters on tests the tuning didn't see. |
+
+Not sure where you stand? Open **Tuning Analysis** in the sidebar of any commit page. On a batch that tried several
+parameters, it shows the results. On any other batch, it shows these steps with what's already done, and lists the
+commit's batches that have results to read.
+
+## 1. Score your runs {#score}
+A **metric** is a number that scores a run: a sharpness, a noise level, an error, a runtime. Tuning needs at least
+one, because "better" has to be measurable.
+
+- If your runs already have metrics (the **Summary** and the **Metrics Table** show them), go to step 2.
+- If they don't, or not the one you care about, you don't have to change the project's code first. Tuning Analysis
+  gives you a short Python script: write the function that computes your number from a run's files, run the script,
+  and every run of the batch gets the metric. See
+  [Score the runs with a script](/docs/user-guide/running-from-the-webapp#score-runs).
+
+:::tip Choose the metric before the parameters
+Tuning finds what you ask for. If the metric rewards something you don't want, like sharpness that also rewards
+noise, the best parameters will exploit it. Look at the outputs of the best runs, not only at the numbers.
+:::
+
+One limit: an [automated tuning](#try) needs the metric from each run as it ends, so it has to come from the
+project's code. Metrics added with a script work for comparing runs you already have.
+
+## 2. Try other parameters {#try}
+On the commit page of the code to tune, open **Run Tests / Tuning**, name the batch, and choose the tests to run.
+Then, under **Parameters**, choose how to pick the values:
+
+| | **Choose the values** | **Search automatically** |
+|---|---|---|
+| You give | The values to try for each parameter | A range for each parameter, and the metrics to improve |
+| QA-Board runs | Every combination, or a sample | Values it picks, learning from each result |
+| Good for | 1 or 2 parameters, a handful of values; when you want every combination side by side | 3 parameters or more, wide ranges; when you'd rather say what to improve than guess values |
+| Needs | Nothing more | A metric returned by your runs |
+
+Details: [run a grid](/docs/user-guide/running-from-the-webapp#running-tests-and-tuning) and
+[find the best parameters automatically](/docs/user-guide/automated-tuning).
+
+Whichever you choose:
+- **Tune few parameters at a time,** 2 to 6. Every parameter you add multiplies the combinations of a grid, and
+  needs more evaluations of a search.
+- **Choose ranges you would accept,** a bit wider than where you expect the best. A best value at the edge of a
+  range tells you to look further; a best value in the middle tells you that you bracketed it.
+- **Tune on tests that represent what you care about.** A handful of well-chosen inputs beats one, and is much
+  faster than all of them. Keep the others for step 5.
+
+## 3. Read the results {#read}
+Pick the new batch in the batch selector at the top of the commit page. A message above the results says how many
+parameter sets it tried: click **See which is best**. Read the page from the top:
+
+1. **Which metric decides.** Choose it under **Compare parameter sets by**. If the project doesn't say whether
+   higher or lower is better, the page asks.
+2. **The best**, and how much it gains over your defaults, or over the worst set. A small gain means these
+   parameters don't matter much for this metric.
+3. **What this tells you**: what to check and what to do next, in plain words.
+4. **Impact**: which parameters change the metric, and which you can stop tuning.
+5. **Test by test**: where the best set loses. A best on average can be the worst on the test you care most about.
+6. **Trade-offs with another metric**: what the best costs. When two metrics pull apart, the highlighted sets are
+   the only ones worth choosing from.
+
+The **?** buttons explain each idea in a few sentences. Every part is described in
+[Look at the results](/docs/user-guide/running-from-the-webapp#tuning-analysis), and for a search in
+[Read the results](/docs/user-guide/automated-tuning#results).
+
+## 4. Refine {#refine}
+| The page says | What to do |
+|---|---|
+| The best value is the lowest or highest you tried | Better values may be beyond it: try some, if they make sense for your code. |
+| A parameter barely matters | Leave it at one value next time. Fewer parameters, fewer runs. |
+| These parameters barely change the metric | Try wider ranges or other parameters, or compare with another metric. |
+| The best on average is the best on few tests | Look at **Test by test**: accept a compromise, or tune kinds of tests separately. |
+| Runs failed, or sets are missing tests | Read the logs. Start the batch again with **Overwrite** off to run only what's missing. |
+| Next: let QA-Board search around the best | **Search automatically…** sets up a search over the ranges you tried, for the metric you compared. |
+| Still improving (a search) | **Continue the search…**: it goes on from where it stopped. |
+
+## 5. Check before you adopt {#check}
+Parameters tuned on a few tests can fit those tests only. Before you change the defaults:
+
+1. Click **Run the best parameters…**, and run them on a larger batch that the tuning didn't use.
+2. Compare that batch with your reference, like any change: the
+   [Summary and the tables](/docs/user-guide/comparing-results), then the outputs themselves.
+3. If they hold up, copy them (**Copy**) where your project keeps its settings.
+
+If the gain disappears on the larger batch, the tuning fitted its tests: tune again on more varied ones, with fewer
+parameters.
+
+<Cards>
+  <Card title="Running from the web app" to="/docs/user-guide/running-from-the-webapp">Start a grid, and every part of Tuning Analysis.</Card>
+  <Card title="Find the best parameters automatically" to="/docs/user-guide/automated-tuning">Set up a search, read what it found, continue it.</Card>
+</Cards>
