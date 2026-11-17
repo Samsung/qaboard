@@ -1404,6 +1404,9 @@ def test_readable_file(tmp_path, monkeypatch, dummy_app):
   ("/group/repo/commits", "/group/repo/commits"),
   ("//evil.example/x", "/"),
   ("/\\evil.example", "/"),
+  # browsers drop tabs and newlines: "//evil.example"
+  ("/\t/evil.example", "/"),
+  ("/\n/evil.example", "/"),
   ("https://evil.example/", "/"),
   ("javascript:alert(1)", "/"),
   ("http://qaboard.example/group/repo", "http://qaboard.example/group/repo"),
@@ -1428,6 +1431,17 @@ def test_user_info_has_the_directory_attributes_only_with_saml(auth, dummy_app, 
     g.actor = Actor(user)
     assert ("data" in auth.get_current_user(to_jsonify=False)) is has_data
     assert "data" not in auth.get_current_user().get_json()
+
+
+def test_responses_say_browsers_must_not_guess_their_type(dummy_app):
+  from flask import make_response
+  from backend.actor import after_request
+  with dummy_app.test_request_context("/api/v1/commits"):
+    assert after_request(make_response("{}")).headers["X-Content-Type-Options"] == "nosniff"
+    # endpoints that set it keep theirs
+    response = make_response("x")
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    assert after_request(response).headers.getlist("X-Content-Type-Options") == ["nosniff"]
 
 
 def test_auth_module_defines_each_name_once():

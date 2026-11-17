@@ -7,8 +7,9 @@ import { userQuery, logged_out_user, setUser } from "../api/queries";
 
 
 // Where to go after signing in: only our own pages, like the server's safe_redirect_url. Never back to /login.
+// Browsers drop tabs and newlines from URLs: "/<tab>/host" would go to another website
 export const safeNext = next => {
-  if (typeof next !== 'string' || !next.startsWith('/') || next.startsWith('//') || next.includes('\\')) return null;
+  if (typeof next !== 'string' || !next.startsWith('/') || next.startsWith('//') || next.includes('\\') || [...next].some(c => c < ' ' || c === '\x7f')) return null;
   if (/^\/login(?:[/?#]|$)/.test(next)) return null;
   return next;
 };

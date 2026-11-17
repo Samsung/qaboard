@@ -847,6 +847,9 @@ def safe_redirect_url(url) -> str:
   from ..actor import own_origins
   if not url or not isinstance(url, str):
     return '/'
+  # Browsers drop tabs and newlines from URLs: "/<tab>/host" goes to another website
+  if any(ord(c) < 0x20 or ord(c) == 0x7f for c in url):
+    return '/'
   parsed = urlparse(url)
   if not parsed.scheme and not parsed.netloc and url.startswith('/') and not url.startswith('//') and '\\' not in url:
     return url
