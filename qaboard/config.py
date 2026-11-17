@@ -53,6 +53,9 @@ ignore_config_errors = ignore_config_errors or is_auth_command
 # `qa doctor` says what's wrong in qaboard.yaml, the storage... with how to fix it: it starts even if they are wrong
 is_doctor_command = is_qa_program(sys.argv) and invoked_command(sys.argv) == 'doctor'
 ignore_config_errors = ignore_config_errors or is_doctor_command
+# `qa upload` saves files as a run, also outside a project: it says itself what it misses (qaboard/upload_command.py)
+is_upload_command = is_qa_program(sys.argv) and invoked_command(sys.argv) == 'upload'
+ignore_config_errors = ignore_config_errors or is_upload_command
 # The errors in the configuration that make `qa` commands refuse to run, and how to fix them: `qa doctor` reports them
 config_errors: List[Tuple[str, str]] = []
 # What qa warns about in the configuration, and how to fix it
@@ -640,7 +643,7 @@ if root_qatools_config:
   outputs_commit_root   = outputs_project_root   / commit_dirs
   outputs_commit        = commit_outputs_dir(commit_id, outputs_project_root, subproject)
   if uploads_results:
-    assert project_dir
+    assert project_dir and root_qatools
     # shared runs are saved where local runs are, <project>/output/...: `qa` sends their files from there
     outputs_commit_root = root_qatools
     outputs_commit = project_dir

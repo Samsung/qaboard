@@ -621,6 +621,16 @@ def _hash(name: str) -> str:
   return hashlib.sha1(name.encode('utf-8')).hexdigest()[:8]
 
 
+# Like the web app (is_benchmarks in webapp/src/viewers/OutputViewer.jsx): benchmarks.json, pytest.benchmarks.json,
+# codec-bench.jsonl... Not a bare bench.json
+FILE_PATTERN = re.compile(r'(^|/)(([^/]*[._-])?benchmarks?|[^/]*[._-]bench)\.(json|jsonl|ndjson)$', re.IGNORECASE)
+
+
+def is_benchmarks(path: Union[str, Path]) -> bool:
+  """Whether a file is named like a benchmark file, as the web app's benchmark viewer recognizes them"""
+  return bool(FILE_PATTERN.search(Path(path).as_posix()))
+
+
 def metric_keys(names: List[str], prefix: str = '') -> Dict[str, str]:
   """
   Metric keys for benchmark names: lowercase snake_case, stable across commits. When names would share a key, or the

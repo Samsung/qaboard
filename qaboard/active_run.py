@@ -452,12 +452,15 @@ class ActiveRun:
     self.id: Optional[int] = None
     self.is_failed = False
     self.error: Optional[str] = None
+    # once finished: whether the server has the run's results, and its files if it sends them. None before, and when not shared
+    self.sent: Optional[bool] = None
 
     self._raw_batch = raw_batch
     self._batch_name = batch_name
     # without a storage shared with the server, the run's files are sent to it: its log and series as it goes, all at the end
     self._uploads_files = uploads_files and not offline
     self._uploader: Optional[Uploader] = None
+    self._files_sent = True
     self._offline = offline
     self._resume = resume
     self._summaries = summaries
@@ -1012,12 +1015,14 @@ class ActiveRun:
       return
     if self.id is None:
       # the server never heard of the run: it has to know it, as running, to take its files
-      self._sync(first=True)
+      self._sync()
     if self._uploader is None and self.id is not None and self.server:
       self._uploader = Uploader(self.server, self.id, self.output_dir, token=self._token)
     if self._uploader is None:
+      self._files_sent = False
       return
-    if not self._uploader.finish():
+    self._files_sent = self._uploader.finish()
+    if not self._files_sent:
       _say("WARNING: the server doesn't have all the run's files:")
       for problem in problems(self._uploader):
         _say(f"         {problem}")
@@ -1071,7 +1076,9 @@ class ActiveRun:
 
     if not self._offline:
       self._finish_upload()
-      if self._sync(final=True):
+      known = self._sync(final=True)
+      self.sent = known and self._files_sent
+      if known:
         _say(f"{'failed' if self.is_failed else 'finished'}: {self.url}")
       else:
         _say(f"WARNING: the server doesn't know how the run ended. Its files are in {self.output_dir}")

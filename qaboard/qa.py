@@ -66,6 +66,9 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   # Signing in is global, per server: it doesn't need a project
   if ctx.invoked_subcommand in ('auth', 'runs'):
     return
+  # `qa upload` works outside a project too: it reads --label, --configuration and --platform itself
+  if ctx.invoked_subcommand == 'upload':
+    return
   # Local runs save their results in output/: only some commands need the storage
   storage_is_missing = report_missing_storage(storage_needed_by(ctx.invoked_subcommand, share, is_ci))
   # We want all paths to be relative to top-most qaboard.yaml
@@ -1287,6 +1290,8 @@ qa.add_command(gate)
 
 from .auth import auth
 qa.add_command(auth)
+from .upload_command import upload
+qa.add_command(upload)
 
 
 @qa.command(name='runs')
