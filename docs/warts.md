@@ -215,6 +215,16 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
 - 81 "[Blueprint] <Popover> positions content incorrectly under React 19" warnings in the tests: some components still
   use `<Popover>` instead of `<PopoverNext>`. [S, behaviour]
 
+- Several references together (the image viewer's default once two references are stacked, "One at a time | Together"
+  after the reference tabs, December 2026): only the image viewer shows them; every other viewer (videos, plots, text,
+  benchmarks, flame graphs...) and the metrics still compare with the selected reference only. [L, behaviour]
+- Since Together is the default, each stacked reference that stays ticked loads all its runs (slow for commits with
+  thousands of runs), and adds one or two tiled image viewers per run card: past a handful of references, the page gets
+  slow. Loading only the runs matched to the cards shown would help. [M, no change]
+- "How far apart" in the image viewer is the mean difference of the displayed views (8-bit, at screen resolution), not
+  of the files: a guide, not a bit-accuracy check. Images with another aspect ratio than the anchor's are compared at
+  the same width, so their bottoms don't match. [M, behaviour]
+
 ## Deployments, services, charts
 
 - nginx's `/iiif/` sets `X-Forwarded-Host $host:$server_port`: Cantaloupe gets the container's port, not the published

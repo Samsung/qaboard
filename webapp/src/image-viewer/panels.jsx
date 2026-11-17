@@ -18,7 +18,7 @@ export const IMAGE_VALUES = "The image's own values: what the file contains (raw
 export const DISPLAY_VALUES = 'The displayed values: the 8-bit color on your screen, after the image server converted the image for display';
 
 // The image's own value of the pixel, from the tiles. null without getPixels.
-const useImageValue = (tiles, image, size, pixel) => {
+export const useImageValue = (tiles, image, size, pixel) => {
   // The tiles change outside React: the compiler would keep the first value it read
   'use no memo';
   // the values arrive by tiles
@@ -35,7 +35,7 @@ const useImageValue = (tiles, image, size, pixel) => {
   return { value, mode: tiles.mode(image), error: value === null ? tiles.error(image) : null };
 };
 
-const Values = ({ values, base, signed = false }) => <span className="qiv-values">
+export const Values = ({ values, base, signed = false }) => <span className="qiv-values">
   {values.map(v => v === null ? '–' : signed ? formatSigned(v) : formatNumber(v, base)).join(' ')}
 </span>;
 
@@ -49,7 +49,7 @@ const same_values = (display, value) => !!value && !!display && (
 // neighbors), the swatch shows them
 const SCREEN_MODES = ['L', 'LA', 'RGB', 'RGBA', 'RGBX'];
 
-const ImageValues = ({ label, pixel, display, image, base, intent }) => {
+export const ImageValues = ({ label, pixel, display, image, base, intent }) => {
   const screen = !!image?.value && SCREEN_MODES.includes(image.mode);
   return <span className="qiv-readout-image">
     <span className={`qiv-readout-label qiv-${intent}`}>{label}</span>{' '}
@@ -732,6 +732,7 @@ export const RegionsStrip = ({ set, index, image, size, onSelect, onRetry, outli
 export const SHORTCUTS = [
   ['1 2 3 4', 'Side by side / wipe / single / difference (4 again: with the images on its sides, or alone)'],
   ['t', 'Toggle: the other image in single mode, else swap the sides (or the order of the difference)'],
+  ['Shift+1 … 9', 'With more than two images: that image alone. t shows the next one, Shift+t the previous one'],
   ['+ − 0', 'Zoom in / out / fit'],
   ['Wheel, pinch', 'Zoom'],
   ['Drag', 'Pan (drag the divider to wipe)'],

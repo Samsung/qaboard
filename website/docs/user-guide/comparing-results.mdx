@@ -47,7 +47,7 @@ Each bar also has its own batch selector and filter box: you can compare any
 | **Change project** | Pick results from another project, e.g. another sub-project of a monorepo, or a fork. |
 | **Swap the bars** | Swaps the top and bottom bars' results, with their batches, filters and names. |
 | **Also show in the bottom bar** / **top bar** | Copies this commit, batch and filter to the other bar, instead of what it shows. |
-| **Stack another reference…** | In the **ref** bar: compare with [several references](#several-references), one at a time. |
+| **Stack another reference…** | In the **ref** bar: compare with [several references](#several-references), one at a time or [together](#show-references-together). |
 | **Remove from comparison** | Clears the commit. With several references, removes the one shown. |
 | The reference branch | Selects its latest commit. |
 | Milestones | Your favorites, your milestones, the project's, and those from *qaboard.yaml*. Their batch and filter are selected too. See [Milestones](/docs/user-guide/milestones#finding-milestones). |
@@ -90,7 +90,8 @@ its own color. Results keep their color wherever they go: when you swap the bars
 
 ## Compare with several references {#several-references}
 To compare with the last release, a tuning experiment and the latest `main` on one page, stack them. The new results
-are compared with one reference at a time, and you switch between them.
+are compared with one reference at a time, and you switch between them. The image viewer
+[shows them all together](#show-references-together).
 
 1. Hover the **ref** bar and click **Stack a reference**, below it.
 2. Add a commit, a branch (its latest commit), a milestone, or the same reference again to change its batch or
@@ -138,8 +139,38 @@ The references are saved in the page's link: share it, and others can switch bet
 - When you swap the bars, the names you gave follow their results, while "new", "ref" and "ref 2" stay in their
   bars.
 - When there isn't room, the tabs' details give way first, then the tabs scroll sideways (with the mouse wheel too).
-- Only the reference shown is loaded with all its runs. Once the page is idle, the next and previous ones load in the
-  background (unless they have thousands of runs), and hovering a tab loads it too.
+- Only the reference shown, and those [the image viewer shows](#show-references-together), are loaded with all their
+  runs. Once the page is idle, the next and previous ones load in the background (unless they have thousands of
+  runs), and hovering a tab loads it too.
+
+</details>
+
+### See several references together {#show-references-together}
+The metrics, the plots and most viewers compare with one reference: the one whose tab is selected. The image viewer
+shows more: as soon as you stack two references or more, it shows the new image and all of them, each in its tile,
+zoomed together. Each is compared with new, the anchor, or with the reference you click to make it the anchor. See
+[Several references at once](/docs/user-guide/image-viewer#several-references-at-once).
+
+- **Leave a reference out**: untick its tab's checkbox. Each tab has one, ticked at first.
+- **One at a time**: after the tabs, **One at a time | Together** goes back to one reference at a time in the image
+  viewer, and back. Your browser remembers it.
+- **Compare with a reference**: click its tab to select it and make it the anchor, marked with an anchor icon: the
+  other images, new included, are then compared with it. Click new's tab to make new the anchor again.
+  <kbd>r</kbd> and <kbd>Shift</kbd> <kbd>r</kbd> change only the selected reference, the one the rest of the page
+  compares new with.
+- **Reorder the images**: the tiles follow the tabs' order, new first. Drag the tabs to reorder them. Selecting
+  another reference or anchor moves nothing.
+
+Selecting another tab keeps as many references shown: it takes the place of the one it replaces. The choice, the anchor and the
+ticks are saved in the page's link.
+
+<details>
+<summary>Limits</summary>
+
+- Only the image viewer shows several references together: the metrics and every other viewer compare with the
+  selected reference.
+- Each reference shown loads all its runs, which is slow for commits with thousands of runs, and adds images to each
+  run's card: a handful of references is the practical maximum. Untick the others, or pick **One at a time**.
 
 </details>
 

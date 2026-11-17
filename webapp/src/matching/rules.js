@@ -52,6 +52,16 @@ export const rules_from_query = query => {
   return recent.get(key);
 };
 
+// The rules for the references shown together with the one compared (see `together` in src/hooks.js): pairs and
+// preferences are about names and facts, they apply to any reference. Pins name runs of the reference compared: they
+// stay with it. The same object for the same rules.
+const shared_rules_cache = new WeakMap();
+export const shared_rules = rules => {
+  if (!rules || Object.keys(rules.pins).length === 0) return rules;
+  if (!shared_rules_cache.has(rules)) shared_rules_cache.set(rules, Object.freeze({ ...rules, pins: {} }));
+  return shared_rules_cache.get(rules);
+};
+
 // What to give updateSelected to save rules
 export const rules_to_selection = ({ pairs = [], prefer = [], pins = {} }) => ({
   pair: pairs.map(({ from, to }) => `${escape(from, '|')}|${to}`),

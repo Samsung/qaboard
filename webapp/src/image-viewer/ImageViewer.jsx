@@ -1,14 +1,18 @@
 // Compares an image with a reference: side by side, with a wipe, one at a time (single), or as their difference.
+// With more images (`more`), each shows in a tile, compared with the anchor: see tiles.jsx.
 // See README.md for the props.
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import { Comparison } from './comparison';
+import { ComparePanel, useDistances } from './comparePanel';
+import { formatDistance, gridLayout, hasSource, nextShown, tileColor, tileName } from './grid';
+import { Tile } from './tiles';
 import { candidateLabel, CompareWithMenu } from './compareWith';
 import { describeAdjustments, filterPrimitives, normalizeAdjustments, changedAdjustments } from './adjustments';
 import { DEFAULT_DIFF, normalizeDiff } from './metrics';
 import { regionAsYaml } from './regions';
 import { DEFAULT_MODE, MODES } from './modes';
-import { imageColors, normalizeImage } from './sources';
+import { imageColors, imageKey, normalizeImage } from './sources';
 import { PixelTiles } from './pixelTiles';
 import { ALL_CHANNELS } from './histogram';
 import { ANALYSES, normalizeAnalysis } from './analysis';
@@ -57,6 +61,14 @@ const useControllable = (value, initial, onChange) => {
 };
 
 const ANALYSIS_ICONS = Object.fromEntries(ANALYSES.map(a => [a.value, a.icon]));
+// What the modes do with more than two images
+const N_WAY_TITLES = {
+  'side-by-side': 'Every image in its tile (1)',
+  wipe: 'Wipe: the anchor against each image, drag a divider (2)',
+  single: 'Single: one image at a time, in place. t or a click on the image shows the next, Shift+1 to 9 the image of that number (3)',
+  difference: 'Difference: the anchor, and its difference with each image (4)',
+};
+const N_WAY_MODES = MODES.map(m => ({ ...m, label: m.value === 'side-by-side' ? 'Grid' : m.label, title: N_WAY_TITLES[m.value] }));
 // Without `analysis`, the view of the analysis panel users picked last, for the next viewers of the page
 let last_analysis;
 
@@ -94,6 +106,17 @@ const saveCanvas = async (canvas, filter, filename) => {
 export const ImageViewer = ({
   image,
   reference = null,
+  more = [],
+  anchor: anchor_prop,
+  defaultAnchor = 0,
+  onAnchorChange,
+  shown: shown_prop,
+  defaultShown = 0,
+  onShownChange,
+  details: details_prop,
+  defaultDetails = true,
+  onDetailsChange,
+  compact = false,
   compareWith = [],
   compared: compared_prop,
   defaultCompared = null,
@@ -156,9 +179,32 @@ export const ImageViewer = ({
   const reference_name = normalizeImage(reference)?.label ?? 'reference';
   // "the reference", or its own name, e.g. "ISP v1": as everywhere else
   const the_reference = reference_name === 'reference' ? 'the reference' : reference_name;
+  // All the images compared, in order: the image, its reference, then `more`. With more than two, one is the anchor:
+  // the others are compared with it. The image users picked to compare with instead takes the reference's place, or
+  // with more than two images the anchor's: it's what the others are compared with.
+  const [anchor_setting, setAnchor] = useControllable(anchor_prop, defaultAnchor, onAnchorChange);
+  const sources = [normalizeImage(image), normalizeImage(reference), ...more.map(normalizeImage)];
+  const replaced = !alternative ? -1
+    : sources.filter(Boolean).length > 2 && Number.isInteger(anchor_setting) && anchor_setting > 0 && sources[anchor_setting] ? anchor_setting : 1;
+  const given = sources.map((entry, index) => index === replaced ? { ...normalizeImage(alternative.image), label: candidateLabel(alternative) } : entry).filter(Boolean);
+  // more than two: each has its name and its color, also when two of them show alone
+  const everything = given.length > 2 ? given.map((entry, index) => ({ ...entry, label: tileName(entry, index), ...tileColor(entry, index) })) : given;
+  // Users can look at two of them alone, e.g. from how far apart they are (pair: the images, by their key: they stay
+  // the same two when the app reorders the images)
+  const [pair, setPair] = useState(null);
+  const pair_indexes = pair && everything.length > 2 ? pair.map(key => everything.findIndex(entry => hasSource(entry) && imageKey(entry) === key)) : null;
+  const alone = pair_indexes && pair_indexes.every(i => i >= 0) && pair_indexes[0] !== pair_indexes[1] ? pair_indexes : null;
+  const list = alone ? alone.map(i => everything[i]) : everything;
+  // More than two: each image in its tile, compared with the anchor, by default the first. The viewer's own two panes
+  // show the anchor (a) and keep the first of the others (b, hidden: it has its tile like the others), for what
+  // compares two images: the values' difference, the analysis.
+  const n_way = list.length > 2;
+  const anchor_index = n_way && !alone && Number.isInteger(anchor_setting) && hasSource(list[anchor_setting]) ? anchor_setting : 0;
+  const others = list.map((other, index) => ({ image: other, index })).filter(other => other.index !== anchor_index);
+  const second_index = others.find(other => hasSource(other.image))?.index ?? null;
   const images = {
-    a: normalizeImage(image),
-    b: alternative ? { ...normalizeImage(alternative.image), label: candidateLabel(alternative) } : normalizeImage(reference),
+    a: list[anchor_index] ?? null,
+    b: second_index !== null ? list[second_index] : null,
   };
   const comparing = !!images.b;
   const labels = { a: images.a?.label ?? 'new', b: images.b?.label ?? 'reference' };
@@ -168,7 +214,7 @@ export const ImageViewer = ({
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
 
   const [stored_mode, setMode] = useControllable(mode_prop, defaultMode, onModeChange);
-  const mode = comparing ? (MODES.some(m => m.value === stored_mode) ? stored_mode : 'side-by-side') : 'no-reference';
+  const mode = comparing || n_way ? (MODES.some(m => m.value === stored_mode) ? stored_mode : 'side-by-side') : 'no-reference';
   const [diff_setting, setDiff] = useControllable(diff_prop, defaultDiff, onDiffChange);
   const diff = normalizeDiff(diff_setting);
   // In difference mode, the images show on each side of the difference ('between', new | difference | reference), or not
@@ -186,11 +232,13 @@ export const ImageViewer = ({
   useEffect(() => () => tiles.dispose(), [tiles]);
   // The reference first (on the left, or shown in single mode): controlled with onSwappedChange, e.g. for all the viewers
   // of a page, or not
-  const [swapped, setSwapped] = useControllable(swapped_prop, defaultSwapped, onSwappedChange);
+  const [swapped_setting, setSwapped] = useControllable(swapped_prop, defaultSwapped, onSwappedChange);
+  // with more than two images, they keep their order
+  const swapped = !n_way && swapped_setting;
   // A blind test: the images are called A and B ({ a: 'A' | 'B', revealed }), in a random order. Controlled with
   // blindTest and onBlindTestChange('start' | 'reveal' | 'end'), e.g. for all the viewers of a page, or not.
   const [own_blind, setOwnBlind] = useState(null);
-  const blind = blind_prop !== undefined ? blind_prop : own_blind;
+  const blind = n_way ? null : blind_prop !== undefined ? blind_prop : own_blind;
   const blindTest = action => {
     if (blind_prop !== undefined) return onBlindTestChange?.(action);
     if (action === 'start') {
@@ -243,6 +291,12 @@ export const ImageViewer = ({
   const [guide, setGuide] = useState(null);
   const [diff_error, setDiffError] = useState(null);
   const [message, setMessage] = useState(null);
+  // compact: the toolbar shows when users ask for it
+  const [chrome, setChrome] = useState(false);
+  // The values of every image under the pointer, and how far apart the images are: users can hide them. With two
+  // images, it hides the values under the pointer.
+  const [details_setting, setDetails] = useControllable(details_prop, defaultDetails, onDetailsChange);
+  const show_details = details_setting !== false;
   const diff_canvas = useRef(null);
 
   // Layout: as wide as we can, as high as the window allows. The header (toolbar, regions, values) is as wide as we can be.
@@ -273,7 +327,7 @@ export const ImageViewer = ({
   const main_size = size_a ?? size_b;
   const aspect = main_size ? main_size.height / main_size.width : 3 / 4;
   const side_by_side = mode === 'side-by-side';
-  const diff_between = mode === 'difference' && diff_layout === 'between';
+  const diff_between = !n_way && mode === 'difference' && diff_layout === 'between';
   // The images show apart: side by side, or on each side of their difference
   const apart = side_by_side || diff_between;
   const columns = side_by_side ? 2 : diff_between ? 3 : 1;
@@ -298,10 +352,16 @@ export const ImageViewer = ({
   )));
   // The difference between the images: in a row, or in full screen, under them when the images are larger so
   const stacked = diff_between && fullscreen && fit(2, 2) > fit(3, 1);
-  const pane_width = stacked ? fit(2, 2) : fit(columns, 1);
-  const pane_height = Math.floor(pane_width * aspect);
-  const stage_width = stacked ? 2 * pane_width + GAP : columns * pane_width + (columns - 1) * GAP;
-  const stage_height = stacked ? 2 * pane_height + GAP : pane_height;
+  // More than two images: a grid of tiles, the same in every mode but single, so that switching modes moves nothing.
+  // compact: in one row, e.g. for a contact sheet where the rows of the page are runs
+  // the values of every image show above them: the images take what's left, so that they stay in view
+  const details_height = !fullscreen && show_details && !(compact && !chrome) ? 20 * (list.length + 1) + 32 : 0;
+  const grid = n_way ? gridLayout({ count: mode === 'single' ? 1 : list.length, available, maxHeight: Math.max(200, max_height - details_height), aspect, gap: GAP, columns: compact && !fullscreen ? list.length : null }) : null;
+  const slot = index => grid.slot(mode === 'single' ? 0 : index);
+  const pane_width = grid ? grid.width : stacked ? fit(2, 2) : fit(columns, 1);
+  const pane_height = grid ? grid.height : Math.floor(pane_width * aspect);
+  const stage_width = grid ? grid.stageWidth : stacked ? 2 * pane_width + GAP : columns * pane_width + (columns - 1) * GAP;
+  const stage_height = grid ? grid.stageHeight : stacked ? 2 * pane_height + GAP : pane_height;
   // where the difference is
   const diff_position = !diff_between ? { left: 0, top: 0 }
     : stacked ? { left: Math.round((pane_width + GAP) / 2), top: pane_height + GAP }
@@ -314,7 +374,10 @@ export const ImageViewer = ({
   useEffect(() => {
     controller.setImage('b', comparing ? images.b : null);
   });
-  useEffect(() => controller.setSyncKey(syncKey), [controller, syncKey]);
+  // The tiles follow the anchor through its sync group: without a key from the app, they get their own
+  const own_key = `qiv-${useId()}`;
+  const sync_key = syncKey ?? (n_way ? own_key : null);
+  useEffect(() => controller.setSyncKey(sync_key), [controller, sync_key]);
 
   // Only viewers near the screen follow the others and compute the difference
   const stage = useRef(null);
@@ -336,15 +399,20 @@ export const ImageViewer = ({
   // the other image, else the images swap sides, or the difference its order. With swapped shared by the viewers of a
   // page, they all stay in step.
   const single = mode === 'single';
-  const diff_alone = mode === 'difference' && diff_layout === 'alone';
-  const flip = swap;
-  const flip_title = single ? `Show the ${names[second]} image`
+  const diff_alone = !n_way && mode === 'difference' && diff_layout === 'alone';
+  // More than two images: the one that shows alone in single mode, t shows the next one
+  const [shown_setting, setShown] = useControllable(shown_prop, defaultShown, onShownChange);
+  const shown_index = n_way && Number.isInteger(shown_setting) && hasSource(list[shown_setting]) ? shown_setting : anchor_index;
+  const stepShown = step => setShown(nextShown(list, shown_index, step));
+  const flip = n_way ? () => { if (single) stepShown(1); } : swap;
+  const flip_title = n_way ? 'Show the next image'
+    : single ? `Show the ${names[second]} image`
     : diff_alone ? `Swap the difference: ${names[second]} − ${names[first]}`
     : `Swap the sides: ${names[second]} | ${names[first]}`;
   // Picking the mode shown again: Single flips the images, Difference shows or hides the images on its sides
   const pickMode = value => {
-    if (value === mode && value === 'single') swap();
-    else if (value === mode && value === 'difference') toggleDiffLayout();
+    if (value === mode && value === 'single') flip();
+    else if (value === mode && value === 'difference' && !n_way) toggleDiffLayout();
     else setMode(value);
   };
 
@@ -449,6 +517,30 @@ export const ImageViewer = ({
     });
   });
 
+  // ...and on the tiles of the other images
+  const onTileClick = (event, tile_controller, element) => {
+    if (single && !event?.shiftKey) return flip();
+    if (event) {
+      // the anchor's viewer keeps the pin, like when users click the anchor: Esc and leaving the viewer undo it
+      const point = tile_controller.pointAt('a', event.clientX, event.clientY, element);
+      const pinned = controller.getPointer()?.pinned ? controller.getPointer().point : null;
+      const same = pinned && point && tile_controller.imagePixel('a', pinned)?.x === tile_controller.imagePixel('a', point)?.x
+        && tile_controller.imagePixel('a', pinned)?.y === tile_controller.imagePixel('a', point)?.y;
+      if (same || !point || !tile_controller.imagePixel('a', point)) controller.unpin();
+      else controller.pinPoint(point);
+      onUse?.('pixel_pin');
+    }
+  };
+  // The viewers of the images, by their index: the anchor's is ours, the others' are their tiles'
+  const [tile_controllers, setTileControllers] = useState({});
+  const registerTile = (index, value) => setTileControllers(previous => (previous[index] ?? null) === value ? previous : { ...previous, [index]: value });
+  const controllers = list.map((entry, index) => index === anchor_index ? controller : n_way && hasSource(entry) ? tile_controllers[index] ?? null : null);
+  const [wipe_all, setWipeAll] = useState(0.5);
+  const pickAnchor = index => {
+    setAnchor(index);
+    notify(`The other images are compared with ${tileName(list[index], index)}`);
+  };
+
   // Display adjustments: an SVG filter on the images
   const filter_id = `qiv-filter-${useId().replace(/:/g, '')}`;
   const primitives = filterPrimitives(adjustments);
@@ -469,21 +561,35 @@ export const ImageViewer = ({
   const on_key = useRef(null);
   useLayoutEffect(() => {
     on_key.current = event => {
+      // Shift+1 to 9: that image alone
+      // (not where digits are typed with Shift, e.g. French keyboards: there the keys 1 to 4 pick the mode)
+      const digit = n_way && event.shiftKey && !/^[1-9]$/.test(event.key) ? /^Digit([1-9])$/.exec(event.code ?? '') : null;
+      if (digit) {
+        const index = Number(digit[1]) - 1;
+        if (!hasSource(list[index])) return false;
+        setShown(index);
+        if (!single) setMode('single');
+        return true;
+      }
       switch (event.key) {
         case '1': case '2': case '3': case '4':
-          if (!comparing) return false;
+          if (!comparing && !n_way) return false;
           pickMode(MODES[Number(event.key) - 1].value);
           return true;
         case 't':
-          if (!comparing) return false;
+          if (!comparing && !n_way) return false;
           flip();
+          return true;
+        case 'T':
+          if (!n_way || !single) return false;
+          stepShown(-1);
           return true;
         case 'c':
           if (compareWith.length === 0 || hidden) return false;
           toggleCompared();
           return true;
         case 'h':
-          if (!comparing) return false;
+          if (!comparing || n_way) return false;
           nextBlindStep();
           return true;
         case 'p':
@@ -554,6 +660,10 @@ export const ImageViewer = ({
   const paneStyle = name => {
     const style = { width: pane_width, height: pane_height, left: 0 };
     if (name === 'b' && !comparing) return { ...style, visibility: 'hidden', pointerEvents: 'none' };
+    if (n_way) {
+      if (name === 'b') return { ...style, visibility: 'hidden', pointerEvents: 'none' };
+      return single && shown_index !== anchor_index ? { ...style, ...slot(anchor_index), visibility: 'hidden' } : { ...style, ...slot(anchor_index), zIndex: 2 };
+    }
     if (side_by_side) return { ...style, left: name === first ? 0 : pane_width + GAP };
     if (diff_between) return { ...style, left: name === first ? 0 : (stacked ? 1 : 2) * (pane_width + GAP) };
     if (mode === 'wipe') return name === second ? { ...style, zIndex: 2, clipPath: `inset(0 0 0 ${wipe * pane_width}px)` } : { ...style, zIndex: 1 };
@@ -614,6 +724,7 @@ export const ImageViewer = ({
 
   // Whether a pane's image shows
   const shown = name => !comparing ? name === 'a'
+    : n_way ? name === 'a' && (!single || shown_index === anchor_index)
     : mode === 'single' ? name === first
     : mode === 'difference' ? diff_between
     : true;
@@ -631,7 +742,9 @@ export const ImageViewer = ({
     {shown(name) && regionOutlines(name)}
     <Crosshair controller={controller} pane={name} />
     {show_analysis && <GuideLine controller={controller} guide={guide} />}
-    {apart && label(name, 'left')}
+    {n_way ? name === 'a' && !single && <span className="qiv-label qiv-label-left qiv-primary" title="The anchor: the other images are compared with it. Click another image's name to make it the anchor.">
+      <Icon icon="anchor" size={12} className="qiv-label-icon" />{names.a}{resolution('a')}
+    </span> : apart && label(name, 'left')}
     {pane_error(name)}
   </div>;
 
@@ -659,6 +772,16 @@ export const ImageViewer = ({
   </div>;
 
   const zoom = useZoom(controller);
+  // How far each image is from the anchor shows on its tile; the panel compares them all
+  const distances = useDistances(controllers, { enabled: n_way && visible, anchor: anchor_index, full: show_details });
+  const entries = n_way ? list.map((entry, index) => ({
+    index, image: entry, name: tileName(entry, index), ...tileColor(entry, index), controller: controllers[index], anchor: index === anchor_index,
+  })) : [];
+  const tileNote = index => {
+    const value = distances?.[anchor_index]?.[index];
+    if (value === null || value === undefined) return null;
+    return value === 0 ? `same as ${names.a} here` : `${formatDistance(value)} from ${names.a}`;
+  };
   // sets that say when they have regions, e.g. annotations: the regions button tells users
   const announced = regionSets.find(set => set.announce && (set.total ?? set.regions?.length) > 0) ?? null;
   const announced_count = announced ? announced.total ?? announced.regions.length : 0;
@@ -666,7 +789,7 @@ export const ImageViewer = ({
 
   return <div
     ref={root}
-    className={`qiv ${fullscreen ? 'qiv-fullscreen' : ''} ${alternative && !hidden ? 'qiv-vs-other' : ''} ${className}`}
+    className={`qiv ${fullscreen ? 'qiv-fullscreen' : ''} ${alternative && !hidden ? 'qiv-vs-other' : ''} ${n_way ? 'qiv-n-way' : ''} ${compact && !fullscreen ? `qiv-compact ${chrome ? 'qiv-chrome-open' : ''}` : ''} ${className}`}
     data-theme={theme}
     style={{ ...imageColors(images.a, images.b), ...style }}
     onPointerEnter={() => { hovered_viewer = last_viewer = root.current; }}
@@ -683,7 +806,14 @@ export const ImageViewer = ({
     </svg>
     <div className="qiv-header" ref={header}>
     <div className="qiv-toolbar">
-      {comparing && <Segmented label="Compare" options={MODES} value={mode} onChange={pickMode} />}
+      {(comparing || n_way) && <Segmented label="Compare" options={n_way ? N_WAY_MODES : MODES} value={mode} onChange={pickMode} />}
+      {alone && <Button
+        icon="grid-view"
+        text={`All ${everything.length} images`}
+        title={`${names.a} and ${names.b} alone. Show the ${everything.length} images again`}
+        className="qiv-intent"
+        onClick={() => setPair(null)}
+      />}
       {compareWith.length > 0 && <span className="qiv-group qiv-compare-with">
         <Popover open={picker_open} onOpenChange={setPickerOpen} button={props => <Button
           {...props}
@@ -716,7 +846,7 @@ export const ImageViewer = ({
           onClick={() => pickCompared(null)}
         />}
       </span>}
-      {mode === 'difference' && <Button
+      {mode === 'difference' && !n_way && <Button
         icon="three-columns"
         text="With the images"
         title={diff_between ? 'Show the difference alone (4)' : `Show the images on each side of the difference: ${names[first]} | difference | ${names[second]} (4)`}
@@ -724,8 +854,8 @@ export const ImageViewer = ({
         aria-pressed={diff_between}
         onClick={toggleDiffLayout}
       />}
-      {comparing && <Button icon="exchange" text="Swap" title={`${flip_title} (t)`} label={`${flip_title} (t)`} onClick={flip} active={swapped && !hidden} aria-pressed={swapped && !hidden} />}
-      {comparing && <Button
+      {comparing && !n_way && <Button icon="exchange" text="Swap" title={`${flip_title} (t)`} label={`${flip_title} (t)`} onClick={flip} active={swapped && !hidden} aria-pressed={swapped && !hidden} />}
+      {comparing && !n_way && <Button
         icon={!blind ? 'eye-off' : blind.revealed ? 'tick' : 'eye-open'}
         text={!blind ? 'Blind test' : blind.revealed ? 'Done' : 'Reveal'}
         title={!blind ? 'Blind test: the images in a random order, called A and B (h)'
@@ -737,7 +867,7 @@ export const ImageViewer = ({
         onClick={nextBlindStep}
       />}
       {mode === 'difference' && <DiffSettings diff={diff} onChange={value => setDiff({ ...value, layout: diff_layout })} />}
-      {notice}
+      <span className="qiv-notice">{notice}</span>
       <span className="qiv-spacer" />
       <span className="qiv-tools">
       {message && <output className="qiv-toast">{message}</output>}
@@ -775,6 +905,14 @@ export const ImageViewer = ({
         <ValuesPanel source={pixel_source} available={!!getPixels} unavailable={imageValuesUnavailable} onChange={setValues} />
       </Popover>
       <Button
+        icon="properties"
+        label="Values under the pointer"
+        title={`${show_details ? 'Hide' : 'Show'} the values under the pointer${n_way ? ', and how far apart the images are' : ''}`}
+        active={show_details}
+        aria-pressed={show_details}
+        onClick={() => setDetails(!show_details)}
+      />
+      <Button
         icon={ANALYSIS_ICONS[analysis]}
         title={`${show_analysis ? 'Hide' : 'Show'} the analysis of the view: histogram, row and column profiles, statistics (a)`}
         active={show_analysis}
@@ -810,7 +948,17 @@ export const ImageViewer = ({
       outlines={outlines}
       onOutlinesChange={setOutlines}
     />}
-    <Readout
+    {n_way && show_details && <ComparePanel
+      entries={entries}
+      main={controller}
+      tiles={tiles}
+      base={base}
+      onToggleBase={() => setBase(b => b === 10 ? 16 : 10)}
+      distances={distances}
+      onPair={(i, j) => setPair([imageKey(list[i]), imageKey(list[j])])}
+      unavailable={getPixels ? null : imageValuesUnavailable}
+    />}
+    {!n_way && show_details && <Readout
       controller={controller}
       tiles={tiles}
       images={images}
@@ -824,7 +972,7 @@ export const ImageViewer = ({
       pinHint={single ? 'Shift+click a pixel to pin it' : 'click a pixel to pin it'}
       sizes={{ a: size_a, b: size_b }}
       unavailable={getPixels ? null : imageValuesUnavailable}
-    />
+    />}
     </div>
     <div
       ref={stage}
@@ -833,7 +981,63 @@ export const ImageViewer = ({
     >
       {pane('a')}
       {pane('b')}
-      {mode === 'difference' && <div
+      {n_way && others.map(({ image: other, index: place }) => <Tile
+        key={place}
+        image={other}
+        name={tileName(other, place)}
+        {...tileColor(other, place)}
+        leader={controller}
+        anchor={images.a}
+        anchorName={names.a}
+        anchorSize={size_a}
+        anchorFirst={anchor_index < place}
+        mode={mode}
+        hidden={single && shown_index !== place}
+        active={visible}
+        syncKey={sync_key}
+        {...slot(place)}
+        width={pane_width}
+        height={pane_height}
+        filter={filter}
+        diff={diff}
+        wipe={wipe_all}
+        onWipeChange={setWipeAll}
+        showLabel={!single}
+        note={single ? null : tileNote(place)}
+        regions={outlines ? active_set?.regions : null}
+        activeRegion={index}
+        onSelectRegion={selectRegion}
+        pixelSource={pixel_source}
+        pixelTiles={tiles}
+        base={base}
+        onClick={onTileClick}
+        onAnchor={other?.canAnchor === false ? undefined : () => pickAnchor(place)}
+        onController={value => registerTile(place, value)}
+      />)}
+      {n_way && single && <div className="qiv-picks" role="radiogroup" aria-label="The image shown">
+        {list.map((entry, index) => <button
+          key={index}
+          type="button"
+          role="radio"
+          aria-checked={index === shown_index}
+          className={`qiv-label qiv-pick ${index === shown_index ? 'qiv-active' : ''}`}
+          style={{ background: tileColor(entry, index).color, color: tileColor(entry, index).textColor }}
+          title={`Show ${tileName(entry, index)} (Shift+${index + 1}). t shows the next image, Shift+t the previous one`}
+          disabled={!hasSource(entry)}
+          onClick={() => setShown(index)}
+          onPointerDown={event => event.stopPropagation()}
+        >{index === anchor_index && <Icon icon="anchor" size={12} className="qiv-label-icon" />}{index + 1} {tileName(entry, index)}</button>)}
+      </div>}
+      {compact && !fullscreen && <button
+        type="button"
+        className="qiv-chrome-toggle"
+        title={chrome ? 'Hide the toolbar' : 'Show the toolbar: modes, zoom, regions…'}
+        aria-label={chrome ? 'Hide the toolbar' : 'Show the toolbar'}
+        aria-pressed={chrome}
+        onClick={() => setChrome(!chrome)}
+        onPointerDown={event => event.stopPropagation()}
+      ><Icon icon="more" size={14} /></button>}
+      {mode === 'difference' && !n_way && <div
         ref={diff_pane}
         className={`qiv-pane qiv-diff-pane ${diff_between ? 'qiv-diff-between' : ''}`}
         style={{ width: pane_width, height: pane_height, ...diff_position, zIndex: 3 }}
@@ -851,11 +1055,11 @@ export const ImageViewer = ({
         </>}
         {diff_error && <div className="qiv-message qiv-pane-message">{diff_error}</div>}
       </div>}
-      <div className="qiv-stage-notes">
-        {mode === 'difference' && !diff_between && <DiffLegend diff={diff} names={[names[first], names[second]]} />}
+      <div className="qiv-stage-notes" style={n_way ? { left: slot(anchor_index).left + 6, bottom: stage_height - slot(anchor_index).top - pane_height + 6, maxWidth: pane_width - 12 } : undefined}>
+        {mode === 'difference' && !diff_between && <DiffLegend diff={diff} names={n_way ? ['the earlier image', 'the later one'] : [names[first], names[second]]} />}
         <ValuesBadge drawn={pixel_source !== 'off' ? values_drawn : null} />
       </div>
-      {mode === 'wipe' && <>
+      {mode === 'wipe' && !n_way && <>
         {label(first, 'left')}
         {label(second, 'right')}
         <div
@@ -886,7 +1090,7 @@ export const ImageViewer = ({
           <div className="qiv-wipe-handle"><Icon icon="arrows-horizontal" size={14} /></div>
         </div>
       </>}
-      {mode === 'single' && label(first, 'left')}
+      {mode === 'single' && !n_way && label(first, 'left')}
       <Minimap controller={controller} image={hidden ? images[first] : images.a} size={size_a} />
     </div>
     {show_analysis && <div ref={analysis_panel} className="qiv-analysis-wrap"><AnalysisPanel

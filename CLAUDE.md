@@ -54,6 +54,8 @@ npm run build:image-viewer  # the image viewer as an npm package, see src/image-
 The image viewer (`webapp/src/image-viewer/`) is a standalone React component on OpenSeadragon: it must not import
 from the app (a test checks it). QA-Board adapts it in `webapp/src/viewers/images/` (runs, image servers, pixel values,
 regions of interest providers). `npm start` then `/image-viewer.html` shows it alone, with generated images.
+With several references ticked in the reference tabs (`together` in `src/selection.js`, `useComparison().together`), it shows N images
+as tiles compared with an anchor (`tiles.jsx`, `grid.js`, `comparePanel.jsx`): `/image-viewer.html?images=5` tries it; other viewers keep the selected reference.
 The JUnit test report viewer (`webapp/src/viewers/junit/`) has its playground too: `/junit-viewer.html?tests=50000`.
 So does the benchmark viewer (`webapp/src/viewers/benchmarks/`): `/benchmark-viewer.html?benchmarks=5000`. Its parser
 and `qaboard/benchmarks.py` read the same formats: both are tested on `tests/fixtures/benchmarks/`.

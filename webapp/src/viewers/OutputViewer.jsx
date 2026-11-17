@@ -44,12 +44,14 @@ const LoadableSeriesViewer = lazy(() => import('./series'));
 
 // labels: what the viewers call the new and reference results, and their colors, by default those of the page
 // (useComparison().labels): milestones' names, what users called them...
+// others: the references shown together with the one compared, with their run and its files (see OutputCard). Only the
+// image viewer shows them: the other viewers compare with the reference, and don't get them.
 const OutputViewer = props_ => {
     const [image_viewer, setImageViewer] = useState('image')
     const { docs_root } = useSiteConfig();
     const comparison = useComparison();
 
-    const { type, output_ref, ...props_rest } = props_;
+    const { type, output_ref, others, ...props_rest } = props_;
     const props = { ...props_rest, labels: props_.labels ?? comparison?.labels };
     const maybe_output_ref = (props_.show_reference === undefined || props_.show_reference) ? output_ref : undefined;
     let viewer;
@@ -60,12 +62,12 @@ const OutputViewer = props_ => {
           <div>
           {image_viewer === 'text' ? 
               <LoadableTextViewer renderSideBySide={false} {...props} type={type} output_ref={output_ref}/>
-            : <LoadableImageViewer {...props} output_ref={maybe_output_ref}/>
+            : <LoadableImageViewer {...props} output_ref={maybe_output_ref} others={others}/>
           }
           </div>
         </>
       } else {
-        viewer =  <LoadableImageViewer {...props} output_ref={maybe_output_ref}/>
+        viewer =  <LoadableImageViewer {...props} output_ref={maybe_output_ref} others={others}/>
       }
     } else
     if (!!type) {
@@ -80,7 +82,7 @@ const OutputViewer = props_ => {
       else if (type.startsWith('video'))
         viewer = <LoadableVideoViewer {...props} type={type} output_ref={maybe_output_ref}/>
       else if (type.startsWith('image'))
-        viewer = <LoadableImageViewer {...props} type={type} output_ref={maybe_output_ref}/>
+        viewer = <LoadableImageViewer {...props} type={type} output_ref={maybe_output_ref} others={others}/>
       else if (type === 'text/plain')
         viewer = <LoadableTextViewer {...props} type={type} output_ref={output_ref}/>
       else if (type === 'text/html')

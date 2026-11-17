@@ -95,6 +95,34 @@ const reference_runs = (raw_ref, filter = '') => {
   return by_filter.get(filter);
 };
 
+// A reference shown together with the one compared: { batch, match }. `batch` is its selected batch, filtered, like
+// ref_batch. `match` finds the run a new run is compared with in it, like compute_batches does for the reference
+// compared: undefined without one. The same object for the same batch, filter and rules, and `match` remembers what
+// it found: output cards call it each time they render.
+const no_rules = {};
+const reference_matchers = new WeakMap();
+export const reference_matcher = ({ commit, batch: label, filter, rules }) => {
+  const raw_ref = commit?.batches?.[available_batch(commit, label)] ?? empty_batch;
+  const runs = reference_runs(raw_ref, filter);
+  let by_rules = reference_matchers.get(runs);
+  if (!by_rules) reference_matchers.set(runs, by_rules = new WeakMap());
+  let matcher = by_rules.get(rules ?? no_rules);
+  if (!matcher) {
+    const found = new WeakMap();
+    const match = output => {
+      if (!output) return undefined;
+      if (!found.has(output)) {
+        const { output_ref } = matching_output({ output, batch: runs.ref_batch, index: runs.index, rules });
+        // without a matching run, matching_output gives an empty one
+        found.set(output, output_ref.id === undefined ? undefined : output_ref);
+      }
+      return found.get(output);
+    };
+    by_rules.set(rules ?? no_rules, matcher = { batch: runs.ref_batch, match });
+  }
+  return matcher;
+};
+
 // What the commit page compares: the selected batches of the new and reference commits, filtered.
 // `selected.rules`: how runs find their reference run, beyond the default (src/matching/rules.js)
 export const compute_batches = ({ new_commit, ref_commit, selected, metrics }) => {
