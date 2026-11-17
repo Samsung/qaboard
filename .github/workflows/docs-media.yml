@@ -41,9 +41,12 @@ on:
   schedule:
     - cron: '17 6 2 * *'
 
-# One run per ref at a time; a pull request's new push cancels its previous run
+# One run per ref at a time; a pull request's new push cancels its previous run. Adding another label than docs-media
+# gets a group of its own (the run is skipped): it would cancel a capture in progress.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: >-
+    ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}${{
+    (github.event.action == 'labeled' && github.event.label.name != 'docs-media') && format('-{0}', github.run_id) || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
