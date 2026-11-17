@@ -1,0 +1,49 @@
+{
+  "_": "Files recognized by their names, by the web app's viewers (webapp/src/viewers/fileTypes.js) and by `qa upload` (qaboard/junit.py, qaboard/benchmarks.py): both are tested on these names.",
+  "junit": {
+    "yes": [
+      "junit.xml",
+      "JUnit.xml",
+      "out/junit.xml",
+      "report.junit.xml",
+      "codec.junit.xml",
+      "unit-junit.xml",
+      "tests_junit.xml",
+      "TEST-com.kitefin.ClientTest.xml",
+      "reports/TEST-com.example.CodecTest.xml",
+      "test-results.xml"
+    ],
+    "no": [
+      "results.xml",
+      "data.xml",
+      "junit.xml.gz",
+      "junit.xml.bak",
+      "myjunit.xml",
+      "notjunit.xml",
+      "junit.json",
+      "tests.xml",
+      "junit"
+    ]
+  },
+  "benchmarks": {
+    "yes": [
+      "benchmarks.json",
+      "out/benchmark.json",
+      "pytest.benchmarks.json",
+      "codec-bench.jsonl",
+      "out/codec-bench.jsonl",
+      "gbench_benchmark.json",
+      "a/b/perf.bench.ndjson",
+      "x.Benchmarks.NDJSON"
+    ],
+    "no": [
+      "results.json",
+      "bench.json",
+      "out/bench.json",
+      "benchmarks.txt",
+      "benchmarks.json.bak",
+      "mybenchmarks.json",
+      "workbench.json"
+    ]
+  }
+}

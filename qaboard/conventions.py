@@ -31,6 +31,10 @@ def location_from_spec(spec: Union[str, Dict, os.PathLike], interpolation_vars: 
   return Path(location)
 
 
+# `qa run` says where the run it is doing is saved, to the code it runs and what that code starts: qaboard.start_run()
+# must not start that run again (qaboard/active_run.py)
+RUN_DIR_VARIABLE = 'QABOARD_RUN_DIR'
+
 # `storage: upload` (or QA_STORAGE=upload): results are sent to the server over HTTP, see qaboard/upload.py
 UPLOAD_STORAGE = 'upload'
 

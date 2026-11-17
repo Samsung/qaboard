@@ -20,7 +20,7 @@ install(show_locals=False, suppress=[click])
 from .run import RunContext
 from .runners import Job, JobGroup
 
-from .conventions import make_batch_dir, make_batch_conf_dir
+from .conventions import make_batch_dir, make_batch_conf_dir, RUN_DIR_VARIABLE
 from .conventions import serialize_config, deserialize_config, get_settings
 from .utils import PathType, entrypoint_module, load_tuning_search
 from .utils import save_outputs_manifest, total_storage
@@ -293,10 +293,9 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
           # in CI, results QA-Board refuses are lost: don't compute them
           exit_if_results_refused()
 
+      os.environ[RUN_DIR_VARIABLE] = str(run_context.output_dir)
       # LSF sends SIGINT then SIGTERM when users bkill the job or it uses too much memory, before a SIGKILL:
       # we say the run failed, or QA-Board would show it as running
-      # for the code we run and what it starts: qaboard.start_run() must not start this run again (qaboard/active_run.py)
-      os.environ['QABOARD_RUN_DIR'] = str(run_context.output_dir)
       with interrupted_by_sigterm():
         try:
           start = time.time()
@@ -313,6 +312,11 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
             except Exception as e: # debug strange stale file errors, ideally remove this...
               print(f"ERROR: {e}")
             runtime_metrics = {'is_failed': True}
+          except SystemExit as e:
+            # run() exited instead of returning: the run ends here, and we still save what it did
+            if e.code not in (None, 0):
+              click.secho(f'[ERROR] Your `run` function exited with {e.code}', fg='red', bold=True)
+            runtime_metrics = {'is_failed': e.code not in (None, 0)}
 
           if not runtime_metrics:
             runtime_metrics = {"is_failed": False}
@@ -327,51 +331,63 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
           if os.getcwd() != cwd:
             os.chdir(cwd)
 
-          metrics = postprocess_(runtime_metrics, run_context, skip=no_postprocess or runtime_metrics['is_failed'], save_manifests_in_database=save_manifests_in_database)
-          if not metrics:
-            metrics = runtime_metrics
-
-          if metrics['is_failed']:
-            click.secho('[ERROR] The run has failed.', fg='red', err=True)
-            click.secho(str(metrics), fg='red', bold=True)
-          else:
-            click.secho(str(metrics), fg='green')
+          metrics = postprocess_(runtime_metrics, run_context, skip=no_postprocess or runtime_metrics['is_failed'], save_manifests_in_database=save_manifests_in_database, print_summary=True)
           exit_if_results_refused()
           if metrics['is_failed']:
             sys.exit(1)
-          if getattr(run_context, 'files_not_sent', False) and is_ci:
+          # in CI, results the server doesn't have are lost
+          if not _files_sent and is_ci:
             sys.exit(1)
         except KeyboardInterrupt:
           mark_aborted(run_context)
           raise
 
 
+# Without a storage shared with the server, `qa run` sends it the run's files (qaboard/upload.py): its log as it
+# goes, from a thread, and everything when the run ends. One run per process.
+_uploader = None
+_upload_finished = False
+_files_sent = True
+
+
+def sends_files(qa_context) -> bool:
+  """Whether the run's files are sent to the server: shared runs, when there is no storage shared with it"""
+  return bool(uploads_results and (is_ci or qa_context.get('share')) and not qa_context.get('offline') and not qa_context.get('dryrun'))
+
+
 def start_upload(run_context):
-  """
-  Without a storage shared with the server, the run's files are sent to it (qaboard/upload.py): its log as it goes,
-  from a thread, and everything when the run ends (finish_upload).
-  """
-  if not uploads_results or run_context.id is None or not (is_ci or run_context.obj.get('share')):
+  """Once the server knows the run (run_context.id): starts sending its files"""
+  global _uploader
+  if not sends_files(run_context.obj) or run_context.id is None or _uploader is not None:
     return
   from .api import qaboard_url
   from .upload import Uploader
-  live = (config.get('outputs') or {}).get('live') or []
-  run_context.uploader = Uploader(qaboard_url, run_context.id, run_context.output_dir, live=[live] if isinstance(live, str) else live).start()
+  _uploader = Uploader(qaboard_url, run_context.id, run_context.output_dir, live=(config.get('outputs') or {}).get('live')).start()
 
 
 def finish_upload(run_context):
   """Sends the run's files before telling the server that it ended: finished runs' files don't change"""
-  uploader = getattr(run_context, 'uploader', None)
-  if uploader is None:
+  global _uploader, _upload_finished, _files_sent
+  if not sends_files(run_context.obj) or _upload_finished:
     return
-  run_context.uploader = None
-  from .upload import problems
+  _upload_finished = True
+  if _uploader is None:
+    # the server didn't answer when the run started: it has to know the run, as running, to take its files
+    started = notify_qa_database(**run_context.obj, is_pending=True, is_running=True, keep_previous=True)
+    if started:
+      run_context.id = started["id"]
+      start_upload(run_context)
+  if _uploader is None:
+    _files_sent = False
+    click.secho("ERROR: QA-Board doesn't have the files of the run: it didn't take the run. They are in " + str(run_context.output_dir), fg='red', bold=True, err=True)
+    return
+  uploader, _uploader = _uploader, None
   if uploader.finish():
     click.secho(f"Sent {uploader.sent_files} files to QA-Board ({uploader.sent_bytes / 1e6:.1f} MB)", fg='cyan', err=True)
   else:
-    run_context.files_not_sent = True
+    _files_sent = False
     click.secho("ERROR: QA-Board doesn't have all the files of the run:", fg='red', bold=True, err=True)
-    for problem in problems(uploader):
+    for problem in uploader.problems():
       click.secho(f"       {problem}", fg='red', err=True)
 
 
@@ -398,8 +414,12 @@ def mark_aborted(run_context):
       notify_qa_database(**run_context.obj, metrics=metrics, is_failed=True, is_pending=False, is_running=False)
 
 
-def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_database=False):
-  """Computes computes various success metrics and outputs."""
+def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_database=False, print_summary=False):
+  """
+  Computes computes various success metrics and outputs.
+  `print_summary`: print the metrics, and whether the run failed, before the results are sent: runs that send their
+  files to the server send their log with them, and a finished run's files don't change.
+  """
   from .utils import file_info
   from .compat import windows_to_linux_path
 
@@ -494,6 +514,13 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
       from .utils import copy
       copy(run_context.output_dir / 'manifest.inputs.json', run_context.input_path / 'manifest.inputs.json')
       copy(run_context.output_dir / 'manifest.outputs.json', run_context.input_path / 'manifest.outputs.json')
+
+  if print_summary:
+    if metrics['is_failed']:
+      click.secho('[ERROR] The run has failed.', fg='red', err=True)
+      click.secho(str(metrics), fg='red', bold=True)
+    else:
+      click.secho(str(metrics), fg='green')
 
   if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
     finish_upload(run_context)

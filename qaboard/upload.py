@@ -27,7 +27,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fnmatch import fnmatchcase
 from pathlib import Path
 from threading import Event, Lock, Thread
-from typing import Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import Dict, Iterator, List, Optional, Sequence, Tuple, Union
 from urllib.parse import quote
 
 from .results import ResultsError, _request
@@ -47,6 +47,8 @@ TIMEOUT = (10.0, 600.0)
 RETRY_DELAYS = (1.0, 4.0)
 # Why the server won't take any file of the run: we stop asking
 FATAL_REASONS = ('uploads_disabled', 'not_uploaded', 'not_running')
+# How much of the end of what we sent of a growing file we remember, to know it is still the same file
+TAIL_SIZE = 64
 
 Stat = Tuple[int, int]  # size, mtime_ns
 
@@ -60,24 +62,28 @@ class Uploader:
   """
   Sends the files of `directory` to the run `run_id` of `server`.
   - `live`: patterns of files also sent while the run goes on, like "plots/*.png" (`outputs.live` in qaboard.yaml)
-  - after `sync()`: `refused` says why the server takes no file of this run, `failed` which files it didn't take
-    and why, `sent_files` and `sent_bytes` what was sent.
+  - after `sync()`: `refused` says why the server takes no file of this run, `failed` which files it doesn't have
+    and why (`problems()` says both in a few lines), `sent_files` and `sent_bytes` what was sent.
   """
-  def __init__(self, server: str, run_id: int, directory: Path, token: Optional[str] = None, live: Sequence[str] = ()):
+  def __init__(self, server: str, run_id: int, directory: Path, token: Optional[str] = None, live: Union[str, Sequence[str], None] = None):
     self.server = server
     self.run_id = run_id
     self.directory = Path(directory)
-    self.live = tuple(str(pattern) for pattern in live or ())
+    self.live = (live,) if isinstance(live, str) else tuple(str(pattern) for pattern in live or ())
     self.refused: Optional[str] = None
     self.failed: Dict[str, str] = {}
     self.sent_files = 0
     self.sent_bytes = 0
     self._token = token
-    self._sent: Dict[str, Stat] = {}      # whole files, as they were when we sent them
-    self._offsets: Dict[str, int] = {}    # growing files: how much the server has
-    self._rejected: Dict[str, Stat] = {}  # files the server won't take as they are, e.g. too large
-    self._lock = Lock()
-    self._counters = Lock()
+    # What the server has, as far as we know. Whole files: their size and date when we sent them
+    self._sent: Dict[str, Stat] = {}
+    # Growing files: how much we sent, and the end of it
+    self._offsets: Dict[str, int] = {}
+    self._tails: Dict[str, bytes] = {}
+    # Files the server won't take as they are, e.g. too large: not sent again until they change
+    self._rejected: Dict[str, Tuple[Stat, str]] = {}
+    self._sync_lock = Lock()   # one sync() at a time: the thread's, or the last one
+    self._state_lock = Lock()  # files are sent from several threads
     self._thread: Optional[Thread] = None
     self._stop = Event()
 
@@ -104,35 +110,39 @@ class Uploader:
     Sends what changed in the folder since the last call: while the run goes on, the files people look at then;
     with `final`, everything. Returns whether the server has all it should. Never raises.
     """
-    with self._lock:
+    with self._sync_lock:
       # at the end, once more for the files that changed while we sent them
       for _ in range(2 if final else 1):
         if self.refused:
           return False
         try:
           if self._send_changes(final):
-            self.failed.pop('*', None)
             return True
         except Exception as e: # sending files must not end runs
-          self.failed['*'] = repr(e)
+          self._fail('', repr(e))
       return False
 
-  def _send_changes(self, final: bool) -> bool:
-    ok = True
-    for path in APPENDED_FILES:
-      ok = self._append(path) and ok
-    files = [(path, stat) for path, stat in self._files(final) if self._sent.get(path) != stat]
-    # those the server refused as they are: said again, not sent again
-    ok = ok and not any(self._rejected.get(path) == stat for path, stat in files)
-    files = [(path, stat) for path, stat in files if self._rejected.get(path) != stat]
-    if len(files) > 1 and not self.refused:
-      with ThreadPoolExecutor(max_workers=WORKERS, thread_name_prefix='qaboard-upload') as pool:
-        ok = all(list(pool.map(lambda file: self._put(*file), files))) and ok
-    else:
-      ok = all([self._put(*file) for file in files]) and ok
-    return ok and not self.refused
+  def problems(self, limit: int = 5) -> List[str]:
+    """What to tell the user after a `sync()` that returned False: one line per problem"""
+    if self.refused:
+      return [f"the server doesn't take the run's files: {self.refused}"]
+    failed = list(self.failed.items())
+    lines = [f"{path}: {message}" if path else message for path, message in failed[:limit]]
+    if len(failed) > limit:
+      lines.append(f"... and {len(failed) - limit} more files")
+    return lines
 
   # --- which files ---------------------------------------------------------------------------------------------------
+  def _send_changes(self, final: bool) -> bool:
+    with self._state_lock:
+      self.failed = {}
+    ok = all([self._append(path) for path in APPENDED_FILES])
+    files = [(path, stat) for path, stat in self._files(final) if self._sent.get(path) != stat]
+    if files and not self.refused:
+      with ThreadPoolExecutor(max_workers=min(WORKERS, len(files)), thread_name_prefix='qaboard-upload') as pool:
+        ok = all(list(pool.map(lambda file: self._put(*file), files))) and ok
+    return ok and not self.refused
+
   def _files(self, final: bool) -> Iterator[Tuple[str, Stat]]:
     """The whole files to send now, with their size and date: (path in the folder, with "/", stat)"""
     if not final and not self.live:
@@ -165,6 +175,8 @@ class Uploader:
   # --- sending -------------------------------------------------------------------------------------------------------
   def _put(self, path: str, stat: Stat) -> bool:
     """Sends a whole file. `stat`: what it was when we decided to send it; if it changes meanwhile, we send it again later."""
+    if path in self._rejected and self._rejected[path][0] == stat:
+      return self._fail(path, self._rejected[path][1])
     file = self.directory / path
     try:
       digest = hashlib.sha256()
@@ -172,29 +184,30 @@ class Uploader:
         for chunk in iter(lambda: f.read(1024 * 1024), b''):
           digest.update(chunk)
       self._request(path, lambda: open(file, 'rb'), headers={'X-Content-SHA256': digest.hexdigest()})
-    except OSError:
+    except FileNotFoundError:
       return True  # the run removed it: nothing to send
-    except ResultsError as e:
+    except (OSError, ResultsError) as e:
       return self._failed(path, stat, e)
-    self._sent[path] = stat
-    self.failed.pop(path, None)
-    self._count(stat[0])
+    with self._state_lock:
+      self._sent[path] = stat
+      self.sent_files += 1
+      self.sent_bytes += stat[0]
     return True
 
   def _append(self, path: str) -> bool:
-    """Sends what was added to a file that grows since we last sent it, or all of it if it isn't what the server has"""
+    """Sends what was added to a file that grows since we last sent it, or all of it when it isn't what the server has"""
     file = self.directory / path
     stat = self._stat(file)
     if stat is None:
       return True
+    if path in self._rejected and self._rejected[path][0] == stat:
+      return self._fail(path, self._rejected[path][1])
     size, offset = stat[0], self._offsets.get(path, 0)
-    if self._rejected.get(path) == stat:
-      return False
     try:
-      if size < offset:
-        # the run started the file again
-        return self._put_growing(path, file, stat)
       with open(file, 'rb') as f:
+        if not self._is_what_we_sent(f, path, size):
+          # the run started the file again
+          return self._put_growing(path, f, stat)
         f.seek(offset)
         while offset < size:
           chunk = f.read(min(APPEND_CHUNK, size - offset))
@@ -205,30 +218,41 @@ class Uploader:
           except ResultsError as e:
             if e.status == 409 and e.body.get('reason') == 'offset_mismatch':
               # the server has something else, e.g. what a previous process of the run sent
-              return self._put_growing(path, file, stat)
+              return self._put_growing(path, f, stat)
             raise
           offset += len(chunk)
-          self._offsets[path] = offset
-          self._count(len(chunk), files=0)
-    except OSError:
+          self._sent_growing(path, offset, chunk)
+    except FileNotFoundError:
       return True
-    except ResultsError as e:
+    except (OSError, ResultsError) as e:
       return self._failed(path, stat, e)
-    self.failed.pop(path, None)
     return True
 
-  def _put_growing(self, path: str, file: Path, stat: Stat) -> bool:
+  def _is_what_we_sent(self, f, path: str, size: int) -> bool:
+    """Whether the file still starts with what we sent of it: not smaller, and the end of what we sent is there"""
+    offset, tail = self._offsets.get(path, 0), self._tails.get(path, b'')
+    if size < offset:
+      return False
+    f.seek(offset - len(tail))
+    return f.read(len(tail)) == tail
+
+  def _put_growing(self, path: str, f, stat: Stat) -> bool:
+    """Sends a growing file whole, as it was when we looked: what is added meanwhile goes next time"""
+    f.seek(0)
+    content = f.read(stat[0])
     try:
-      with open(file, 'rb') as f:
-        content = f.read(stat[0])
       self._request(path, lambda: content, headers={'X-Content-SHA256': hashlib.sha256(content).hexdigest()})
-    except OSError:
-      return True
     except ResultsError as e:
       return self._failed(path, stat, e)
-    self._offsets[path] = len(content)
-    self._count(len(content))
+    self._tails.pop(path, None)
+    self._sent_growing(path, len(content), content)
     return True
+
+  def _sent_growing(self, path: str, offset: int, sent: bytes) -> None:
+    with self._state_lock:
+      self._offsets[path] = offset
+      self._tails[path] = (self._tails.get(path, b'') + sent)[-TAIL_SIZE:]
+      self.sent_bytes += len(sent)
 
   def _request(self, path: str, body, params: Optional[Dict[str, int]] = None, headers: Optional[Dict[str, str]] = None) -> None:
     """One file's request, tried again when the server or the network had a problem. `body()` gives the content, or a file to read."""
@@ -247,28 +271,19 @@ class Uploader:
         if hasattr(data, 'close'):
           data.close()
 
-  def _failed(self, path: str, stat: Stat, error: ResultsError) -> bool:
-    reason = error.reason or error.body.get('reason')
-    if error.status in (401, 403) or reason in FATAL_REASONS:
+  def _failed(self, path: str, stat: Stat, error: Exception) -> bool:
+    """A file wasn't sent. Returns False"""
+    status = getattr(error, 'status', None)
+    reason = getattr(error, 'reason', None) or getattr(error, 'body', {}).get('reason')
+    if status in (401, 403) or reason in FATAL_REASONS:
       # no file of this run will be accepted
       self.refused = str(error)
-    elif error.status is not None and 400 <= error.status < 500 and error.status not in (408, 409, 422, 429):
+    elif status is not None and 400 <= status < 500 and status not in (408, 409, 422, 429):
       # this file won't be accepted as it is, e.g. it is too large: not again until it changes
-      self._rejected[path] = stat
-    self.failed[path] = str(error)
+      self._rejected[path] = (stat, str(error))
+    return self._fail(path, str(error))
+
+  def _fail(self, path: str, message: str) -> bool:
+    with self._state_lock:
+      self.failed[path] = message
     return False
-
-  def _count(self, size: int, files: int = 1) -> None:
-    with self._counters:
-      self.sent_files += files
-      self.sent_bytes += size
-
-
-def problems(uploader: Uploader, limit: int = 5) -> List[str]:
-  """What to tell the user after a `sync()` that returned False: one line per problem"""
-  if uploader.refused:
-    return [f"the server doesn't take the run's files: {uploader.refused}"]
-  lines = [f"{path}: {message}" if path != '*' else message for path, message in list(uploader.failed.items())[:limit]]
-  if len(uploader.failed) > limit:
-    lines.append(f"... and {len(uploader.failed) - limit} more files")
-  return lines

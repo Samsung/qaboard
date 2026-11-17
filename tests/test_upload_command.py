@@ -51,7 +51,7 @@ class TestUpload(QaTestCase):
     self.assertIn(f"finished: {server.url}/kitefin/planner/commit/{COMMIT}", result.stderr)
     started, finished = server.outputs()
     self.assertEqual((started['project'], started['commit_sha'], started['batch_label'], started['input_path'], started['storage']),
-                     ('kitefin/planner', COMMIT, 'default', 'junit', 'upload'))
+                     ('kitefin/planner', COMMIT, 'default', 'unit-tests/junit', 'upload'))
     # without a qaboard.yaml the project keeps its configuration
     self.assertNotIn('qaboard_config', started)
     # the report's metrics, with which way is better
@@ -96,7 +96,7 @@ class TestUpload(QaTestCase):
     self.assertIn('junit.xml', server.files)
     self.assertNotIn('results.xml', server.files)
     # named like a report, it is read like one
-    self.assertEqual((server.outputs()[-1]['input_path'], server.outputs()[-1]['metrics']['tests']), ('results', 3))
+    self.assertEqual((server.outputs()[-1]['input_path'], server.outputs()[-1]['metrics']['tests']), ('unit-tests/results', 3))
 
   def test_a_run_per_path(self):
     server = self.server()
@@ -107,7 +107,63 @@ class TestUpload(QaTestCase):
     result = self.qa('upload', '--each', 'reports/*.xml', server=server)   # a pattern the shell didn't expand
     self.assertEqual(result.returncode, 0, result.stderr)
     finished = [body for body in server.outputs() if not body['is_pending']]
-    self.assertEqual([(body['input_path'], body['metrics']['tests']) for body in finished], [('TEST-codec', 3), ('TEST-planner', 3)])
+    self.assertEqual([(body['input_path'], body['metrics']['tests']) for body in finished], [('unit-tests/TEST-codec', 3), ('unit-tests/TEST-planner', 3)])
+
+  def test_names_with_dots_are_different_runs(self):
+    server = self.server()
+    for name in ('TEST-com.kitefin.CodecTest.xml', 'TEST-com.kitefin.PlannerTest.xml'):
+      (self.work / name).write_text(REPORT)
+    result = self.qa('upload', '--each', 'TEST-com.kitefin.CodecTest.xml', 'TEST-com.kitefin.PlannerTest.xml', server=server)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    folders = [line.split('run files: ')[1] for line in result.stderr.splitlines() if 'run files: ' in line]
+    self.assertEqual(len(set(folders)), 2, folders)
+    for folder, name in zip(folders, ('TEST-com.kitefin.CodecTest.xml', 'TEST-com.kitefin.PlannerTest.xml')):
+      self.assertTrue((Path(folder) / name).exists())
+
+  def test_outside_the_ci_the_run_is_named_after_its_file(self):
+    server = self.server()
+    result = self.qa('upload', 'junit.xml', '--project', 'kitefin/planner', server=server, ci=False)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertEqual((server.outputs()[-1]['input_path'], server.outputs()[-1]['batch_label']), ('junit', '@alice| default'))
+
+  def test_a_dry_run_sends_nothing(self):
+    server = self.server()
+    result = self.qa('--dryrun', 'upload', 'junit.xml', '-m', 'coverage=0.8', server=server)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn('unit-tests/junit: 1 files', result.stdout)
+    self.assertIn('"tests": 3', result.stdout)
+    self.assertIn('"coverage": 0.8', result.stdout)
+    self.assertEqual((server.outputs(), server.puts()), ([], []))
+    self.assertFalse((self.work / 'output').exists())
+
+  def test_a_folder_is_sent_without_hidden_folders_and_earlier_runs(self):
+    server = self.server()
+    (self.work / '.git').mkdir()
+    (self.work / '.git' / 'config').write_text('secret')
+    self.assertEqual(self.qa('upload', 'junit.xml', server=server).returncode, 0)   # leaves a copy in output/
+    self.assertTrue(list((self.work / 'output').rglob('junit.xml')))
+    result = self.qa('upload', '.', '--input', 'all', server=server)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    sent = sorted(name for name in server.files if '/' in name)
+    self.assertEqual(sent, ['work/junit.xml'])
+    self.assertEqual(server.outputs()[-1]['metrics']['tests'], 3)
+
+  def test_a_log_of_yours_is_kept(self):
+    server = self.server()
+    (self.work / 'log.txt').write_text('the build log\n')
+    result = self.qa('upload', 'junit.xml', 'log.txt', server=server)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertEqual(server.files['log.txt'], b'the build log\n')
+
+  def test_a_report_under_another_name_gets_a_hint(self):
+    server = self.server()
+    (self.work / 'results.xml').write_text(REPORT)
+    (self.work / 'pom.xml').write_text('<project/>')
+    result = self.qa('upload', 'results.xml', 'pom.xml', server=server)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn('results.xml looks like a test report', result.stderr)
+    self.assertIn('--as junit.xml', result.stderr)
+    self.assertNotIn('pom.xml looks like', result.stderr)
 
   def test_several_reports_add_up_and_benchmarks_are_metrics(self):
     server = self.server()
@@ -143,6 +199,7 @@ class TestUpload(QaTestCase):
     (self.work / 'other').mkdir()
     (self.work / 'other' / 'junit.xml').write_text(REPORT)
     (self.work / 'empty').mkdir()
+    (self.work / 'metrics.json').write_text('{"a": 1}')
     for args, message, ci in [
       (('upload', 'missing.xml'), 'missing.xml: no such file or folder', True),
       (('upload', 'missing-*.xml'), 'no such file or folder', True),
@@ -152,7 +209,11 @@ class TestUpload(QaTestCase):
       (('upload', '--each', '--input', 'a', 'junit.xml'), "can't be used with --input", True),
       (('upload', 'junit.xml', '-m', 'accuracy'), 'give metrics as name=value', True),
       (('upload', 'junit.xml', 'other', '--project', 'kitefin/planner'), 'Name the run with --input', False),
-      (('upload', 'junit.xml'), "pass project='group/repo'", False),
+      (('upload', 'junit.xml'), "Which project? Give --project group/repo", False),
+      (('--offline', 'upload', 'junit.xml'), "can't be --offline", True),
+      (('upload', 'metrics.json'), 'every run has a metrics.json that QA-Board writes', True),
+      (('upload', 'junit.xml', '--as', '../x.xml'), "give a name in the run's folder", True),
+      (('upload', '--each', 'junit.xml', 'other/junit.xml'), 'would be the same run', True),
     ]:
       with self.subTest(args=args):
         result = self.qa(*args, server=server, ci=ci)
@@ -173,7 +234,7 @@ class TestUpload(QaTestCase):
         result = self.qa('upload', 'junit.xml', server=self.server(**options))
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn(message, result.stderr)
-        self.assertIn("QA-Board doesn't have everything", result.stderr)
+        self.assertIn("QA-Board doesn't have the run unit-tests/junit", result.stderr)
 
   def test_in_a_project_with_a_shared_storage(self):
     server = self.server()
@@ -258,6 +319,35 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
     self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
     self.assertIn("QA-Board doesn't have all the files of the run", result.stderr)
     self.assertIn('larger than what this server accepts', result.stderr)
+
+  def test_the_servers_log_has_how_the_run_ended(self):
+    server = self.server()
+    (self.project / 'qa_main.py').write_text("def run(context):\n  print('working')\n  return {'is_failed': True, 'length': 1}\n")
+    result = self.qa_in_project('--share', 'run', '-i', 'inputs/a.txt', server=server)
+    self.assertEqual(result.returncode, 1)
+    self.assertIn(b'The run has failed', server.files['log.txt'])
+    self.assertIn(b"'length': 1", server.files['log.txt'])
+
+  def test_a_run_that_exits_still_sends_what_it_did(self):
+    server = self.server()
+    (self.project / 'qa_main.py').write_text("import sys\ndef run(context):\n  (context.output_dir / 'partial.txt').write_text('x')\n  print('about to exit')\n  sys.exit(3)\n")
+    result = self.qa_in_project('--share', 'run', '-i', 'inputs/a.txt', server=server)
+    self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+    self.assertIn('exited with 3', result.stdout + result.stderr)
+    self.assertTrue(server.outputs()[-1]['metrics']['is_failed'])
+    self.assertFalse(server.outputs()[-1]['is_pending'])
+    self.assertEqual(server.files['partial.txt'], b'x')
+    self.assertIn(b'about to exit', server.files['log.txt'])
+
+  def test_in_the_ci_a_server_that_doesnt_accept_files_fails_the_job(self):
+    server = self.server(uploads=False)
+    result = self.qa_in_project('run', '-i', 'inputs/a.txt', server=server, CI='true', GITHUB_SHA=self.commit)
+    self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+    self.assertEqual(result.stderr.count("doesn't accept uploaded files"), 1, result.stderr)
+    self.assertIn('ERROR: QA-Board refused the results (uploads_disabled)', result.stderr)
+    self.assertIn('Set `storage` in qaboard.yaml', result.stderr)
+    self.assertNotIn('qaboard_config', result.stderr)   # not the request we sent
+    self.assertNotIn('processed a.txt', result.stdout)  # in CI, results the server refuses aren't computed
 
   def test_commands_that_need_a_shared_storage(self):
     result = self.qa_in_project('save-artifacts')

@@ -301,7 +301,7 @@ def storage_roots(config: Dict, project: Path, subproject: Path, user_name: Opti
     if 'ci_root' in config:
       # click.secho('DEPRECATION WARNING: the config key "ci_root" was renamed "storage"', fg='yellow', err=True)
       config['storage'] = config['ci_root']
-    config_storage: Union[str, Dict] = os.environ.get('QA_STORAGE', config.get('storage', {}))
+    config_storage: Union[str, Dict] = os.environ.get('QA_STORAGE') or config.get('storage', {})
     interpolation_vars = {"project": project, "subproject": subproject, "user": user_}
     spec_artifacts = config_storage.get('artifacts', config_storage) if isinstance(config_storage, dict) else config_storage
     spec_outputs = config_storage.get('outputs', config_storage) if isinstance(config_storage, dict) else config_storage
@@ -400,7 +400,8 @@ def uploads_results_with(config: Dict, environ=os.environ) -> bool:
   Whether shared results are sent to the server over HTTP (qaboard/upload.py), instead of saved in a storage it reads:
   `storage: upload` in qaboard.yaml (or the site's), QA_STORAGE=upload, or no storage settings at all.
   """
-  storage = environ.get('QA_STORAGE') or config.get('storage') or config.get('ci_root')
+  # like storage_roots: QA_STORAGE wins, and `ci_root` is the setting's former name
+  storage = environ.get('QA_STORAGE') or config.get('ci_root') or config.get('storage')
   return not storage or is_upload_storage(storage)
 
 uploads_results = uploads_results_with(config)
@@ -415,17 +416,18 @@ if root_qatools_config:
   assert project
   assert project_root
   if uploads_results:
-    # Runs write their files in the project's output/ folder, like runs that aren't shared, and send them from there.
-    # There is no storage, and nothing to create: what needs one says so (storage_needed_by)
-    outputs_root, artifacts_root, subproject_for_artifacts = Path(), Path(), Path()
+    # There is no storage: like outside a project, its folders are None. The commands that need one say so (qa.py)
+    outputs_root = artifacts_root = None
+    subproject_for_artifacts = Path()
+    artifacts_project_root = artifacts_project = outputs_project_root = outputs_project = None
   else:
     outputs_root, artifacts_root, subproject_for_artifacts = storage_roots(config, project, subproject)
     mkdir(outputs_root)
     mkdir(artifacts_root)
-  artifacts_project_root = artifacts_root / project_root
-  artifacts_project = artifacts_root / project
-  outputs_project_root = outputs_root / project_root
-  outputs_project = outputs_root / project
+    artifacts_project_root = artifacts_root / project_root
+    artifacts_project = artifacts_root / project
+    outputs_project_root = outputs_root / project_root
+    outputs_project = outputs_root / project
 else:
   outputs_root = None
   artifacts_root = None
@@ -634,7 +636,15 @@ def commit_outputs_dir(commit, outputs_project_root: Path, subproject: Path) -> 
   return outputs_project_root / get_commit_dirs(commit, repo_root) / subproject
 
 
-if root_qatools_config:
+if root_qatools_config and uploads_results:
+  assert project_dir and root_qatools
+  # Without a storage, shared runs are saved where local runs are, <project>/output/...: `qa` sends their files to the
+  # server from there (qaboard/upload.py). There are no artifacts: placeholders, like outside a project
+  artifacts_commit_root = Path()
+  artifacts_commit = Path()
+  outputs_commit_root = root_qatools
+  outputs_commit = project_dir
+elif root_qatools_config:
   assert artifacts_project_root
   assert outputs_project_root
   commit_dirs = get_commit_dirs(commit_id, repo_root)
@@ -642,11 +652,6 @@ if root_qatools_config:
   artifacts_commit      = artifacts_commit_root / subproject
   outputs_commit_root   = outputs_project_root   / commit_dirs
   outputs_commit        = commit_outputs_dir(commit_id, outputs_project_root, subproject)
-  if uploads_results:
-    assert project_dir and root_qatools
-    # shared runs are saved where local runs are, <project>/output/...: `qa` sends their files from there
-    outputs_commit_root = root_qatools
-    outputs_commit = project_dir
 else:
   artifacts_commit_root = Path()
   artifacts_commit = Path() # / subproject? FIXME: check...

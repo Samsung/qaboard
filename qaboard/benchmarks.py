@@ -621,8 +621,8 @@ def _hash(name: str) -> str:
   return hashlib.sha1(name.encode('utf-8')).hexdigest()[:8]
 
 
-# Like the web app (is_benchmarks in webapp/src/viewers/OutputViewer.jsx): benchmarks.json, pytest.benchmarks.json,
-# codec-bench.jsonl... Not a bare bench.json
+# Like the web app (is_benchmarks in webapp/src/viewers/fileTypes.js, both tested on tests/fixtures/file-types.json):
+# benchmarks.json, pytest.benchmarks.json, codec-bench.jsonl... Not a bare bench.json
 FILE_PATTERN = re.compile(r'(^|/)(([^/]*[._-])?benchmarks?|[^/]*[._-]bench)\.(json|jsonl|ndjson)$', re.IGNORECASE)
 
 

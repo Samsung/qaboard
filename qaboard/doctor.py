@@ -687,7 +687,9 @@ def check_uploads(site: Optional[Dict[str, Any]], token: Optional[str]) -> Check
   name = "Results sent to the server"
   if site is None:
     return Check(name, SKIPPED, "Without a storage shared with the server, `qa --share` and CI runs send it their files. It didn't answer: fix that first.")
-  uploads = site.get('uploads') if isinstance(site.get('uploads'), dict) else {}
+  uploads: Dict[str, Any] = {}
+  if isinstance(site.get('uploads'), dict):
+    uploads = site['uploads']
   if not uploads.get('enabled'):
     return Check(name, ERROR, "qaboard.yaml sets no `storage` shared with the server (or `storage: upload`): `qa --share` and CI runs would send it their files, but this server doesn't accept files.",
                  fix=f"Save results in a folder that the server reads too, in qaboard.yaml:\nstorage:\n  linux: /mnt/qaboard\n  windows: \\\\server\\share\\qaboard\n"

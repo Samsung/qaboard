@@ -128,8 +128,14 @@ to end, nor on Windows, nor on any object storage mount.
 
 - No end-to-end test in CI: add a `qa upload` and a `qa --share run` with `QA_STORAGE=upload` to the quickstart job
   (`.github/workflows/ci.yaml`), from a container that doesn't mount the results folder. [S, no change]
-- What `qa` prints after a run's results are saved (its metrics, "The run has failed") isn't in the *log.txt* the
-  server has: files are sent before the run is said to have ended, and don't change after. [S, behaviour]
+- What `qa run` prints after its files are sent (that some couldn't be sent, that the server refused the results)
+  isn't in the *log.txt* the server has: files are sent before the run is said to have ended, and don't change
+  after. [S, behaviour]
+- `qa upload` keeps a copy of what it sends in the project's (or the current folder's) *output/*, like any shared
+  run: CI workspaces don't mind, laptops may. [S, behaviour]
+- A first security review found that run folders were built from clients' input paths ("../" led to other projects'
+  files): fixed, with tests (`backend/tests/test_uploads.py`). The endpoint deserves a second, independent look
+  before servers that accept files face the internet. [M, no change]
 - Files a run removed after they were sent (`outputs.live`) stay on the server. [S, behaviour]
 - A run killed without a chance to say so (SIGKILL, a lost machine) stays "running", with the files it sent: the
   heartbeat of `docs/rfcs/python-sdk-runs-follow-ups.md` is the fix. A run the server never heard of isn't sent

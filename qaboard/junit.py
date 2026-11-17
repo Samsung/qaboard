@@ -28,7 +28,8 @@ from typing import Any, Dict, Iterable, List, Union
 from .metrics import Metric
 
 STATUSES = ('passed', 'failed', 'error', 'skipped', 'flaky')
-# Like the web app (is_junit in webapp/src/viewers/OutputViewer.jsx): junit.xml, report.junit.xml, Maven's and Gradle's TEST-*.xml
+# Like the web app (is_junit in webapp/src/viewers/fileTypes.js, both tested on tests/fixtures/file-types.json):
+# junit.xml, report.junit.xml, Maven's and Gradle's TEST-*.xml
 FILE_PATTERN = re.compile(r'(^|/)(junit|[^/]*[._-]junit|TEST-[^/]*)\.xml$', re.IGNORECASE)
 
 

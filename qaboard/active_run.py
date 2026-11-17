@@ -39,13 +39,13 @@ from fnmatch import fnmatchcase
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple, Union
 
 from . import attempts
-from .conventions import run_dir_in_commit, slugify, get_settings
+from .conventions import run_dir_in_commit, slugify, get_settings, RUN_DIR_VARIABLE
 from .credentials import default_server
 from .metrics import DEFINITIONS_FILE, clean_definition, declared_metrics, read_definitions_file, split_metrics, with_default_direction
 from .payloads import results_payload, serialize_path
 from .results import ResultsError, Run, _request, _script_source
 from .series import Point, SeriesWriter, as_number, flatten, read_series
-from .upload import Uploader, problems
+from .upload import Uploader
 
 # How often the series' files are written and the server told about the run, in seconds, at least
 FLUSH_INTERVAL = 2.0
@@ -61,8 +61,6 @@ RESERVED_METRICS = ('is_failed', 'compute_time')
 MAX_NAME_LENGTH = 200
 MAX_TEXT_LENGTH = 500
 OFFLINE_VALUES = ('1', 'true', 'yes', 'on')
-# `qa run` says where the run it is doing is saved, to the code it runs and its child processes
-RUN_DIR_VARIABLE = 'QABOARD_RUN_DIR'
 
 # The runs started and not finished, the latest last
 _active: List['ActiveRun'] = []
@@ -392,7 +390,10 @@ def start_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] =
   else:
     base = setup.outputs_commit if in_storage else setup.local_dir
     assert base is not None
-    run_dir = base / run_dir_in_commit(batch_label, platform, configurations, {}, input_path, database_path, setup.config)
+    # `qa run`'s inputs are files, and their folder is named without their extension. Ours are names, often with
+    # dots: "v1.2" and "v1.3" are two runs, in two folders
+    named_input = input_path.with_name(f"{input_path.name}.name")
+    run_dir = base / run_dir_in_commit(batch_label, platform, configurations, {}, named_input, database_path, setup.config)
     if in_storage and attempts.reruns_mode(setup.config) != attempts.IN_PLACE:
       # like `qa run`: a run done again gets its own directory, and the previous attempt's log is kept
       run_dir = attempts.latest_dir(run_dir)
@@ -458,7 +459,7 @@ class ActiveRun:
     self._raw_batch = raw_batch
     self._batch_name = batch_name
     # without a storage shared with the server, the run's files are sent to it: its log and series as it goes, all at the end
-    self._uploads_files = uploads_files and not offline
+    self._uploads_files = uploads_files
     self._uploader: Optional[Uploader] = None
     self._files_sent = True
     self._offline = offline
@@ -1005,9 +1006,11 @@ class ActiveRun:
     """Once the server knows the run: a thread sends its log and series as it goes (qaboard/upload.py)"""
     if not self._uploads_files or self._uploader is not None or self.id is None or self._finished or not self.server:
       return
-    live = (self._setup.config.get('outputs') or {}).get('live') or []
-    self._uploader = Uploader(self.server, self.id, self.output_dir, token=self._token, live=[live] if isinstance(live, str) else live)
-    self._uploader.start(interval=self._sync_interval)
+    self._uploader = self._new_uploader().start(interval=self._sync_interval)
+
+  def _new_uploader(self) -> Uploader:
+    assert self.server and self.id is not None
+    return Uploader(self.server, self.id, self.output_dir, token=self._token, live=(self._setup.config.get('outputs') or {}).get('live'))
 
   def _finish_upload(self) -> None:
     """Sends the run's files before telling the server that it ended: finished runs' files don't change"""
@@ -1017,14 +1020,15 @@ class ActiveRun:
       # the server never heard of the run: it has to know it, as running, to take its files
       self._sync()
     if self._uploader is None and self.id is not None and self.server:
-      self._uploader = Uploader(self.server, self.id, self.output_dir, token=self._token)
+      self._uploader = self._new_uploader()
     if self._uploader is None:
       self._files_sent = False
+      _say(f"WARNING: the server doesn't have the run's files: it didn't take the run. They are in {self.output_dir}")
       return
     self._files_sent = self._uploader.finish()
     if not self._files_sent:
       _say("WARNING: the server doesn't have all the run's files:")
-      for problem in problems(self._uploader):
+      for problem in self._uploader.problems():
         _say(f"         {problem}")
 
   def _finish(self, failed: bool, error: Union[BaseException, str, None] = None) -> None:

@@ -335,7 +335,7 @@ def test_run_that_uploads_gets_its_folder_from_the_server(outputs_api, dummy_app
   assert status == 200
   directory = Path(response.get_json()["output_dir"])
   assert directory == run_dir_of() and uploads.is_run_dir(directory, "group/repo")
-  assert outputs_api.test_output.data["storage"] == "upload"
+  assert outputs_api.test_output.data["uploads_files"] is True
   assert outputs_api.CiCommit.get_or_create.return_value.commit_dir_override is None
 
 
@@ -424,7 +424,7 @@ def test_the_database_cant_send_files_elsewhere(outputs_api, dummy_app, upload_r
   assert list(victim.iterdir()) == []
   # nor a run that didn't say it uploads, even in a folder of its project
   outputs_api.test_output.output_dir_override = str(own)
-  outputs_api.test_output.data.pop("storage")
+  outputs_api.test_output.data.pop("uploads_files")
   assert put(outputs_api, dummy_app, "a.txt")[0]["reason"] == "not_uploaded"
 
 
@@ -436,7 +436,10 @@ def test_clients_cant_say_their_results_are_in_the_uploads_folders(outputs_api, 
     assert status == 400 and response.get_json()["reason"] == "uploads_folder"
   # the upload folder can also be a storage that runs write to directly
   response, status = start(outputs_api, dummy_app, storage=None, output_directory=str(upload_root / "group/repo/01/23/output/x"))
-  assert status == 200 and "storage" not in outputs_api.test_output.data
+  assert status == 200 and "uploads_files" not in outputs_api.test_output.data
+  # and clients can't say that a run uploads
+  start(outputs_api, dummy_app, storage=None, output_directory="/mnt/storage/x", data={"uploads_files": True})
+  assert "uploads_files" not in outputs_api.test_output.data
 
 
 def test_put_needs_access_to_the_project(outputs_api, dummy_app, monkeypatch):

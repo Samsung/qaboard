@@ -191,7 +191,8 @@ def _storage_roots(project_id, id_git, id_relative, storage_config_json, qa_stor
   storage_config = json.loads(storage_config_json)
   try:
     # projects without storage settings, when the caller has no defaults: the server's
-    if storage_config is None:
+    # (`qa` sends such projects' files to us, like those with `storage: upload`: each run says where we saved it)
+    if storage_config is None or not (qa_storage or storage_config.get('storage') or storage_config.get('ci_root')):
       outputs_root, artifacts_root, subproject_for_artifacts = default_outputs_root, default_artifacts_root, Path()
     elif uploads.is_upload_setting(storage_config, qa_storage):
       # `storage: upload`: the project's runs send us their files, and each run says where we saved it (backend/uploads.py).

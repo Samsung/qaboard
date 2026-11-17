@@ -14,9 +14,9 @@ Sending results over HTTP is new. Tell us how it goes with your projects.
 :::
 
 ## Set it up {#set-it-up}
-1. **Ask your server's administrators whether it accepts files**, or check: `qa doctor` says so. They turn it on
-   with [one setting](/docs/backend-admin/uploads).
-2. **Leave `storage` out of *qaboard.yaml***, or say it:
+1. **Ask your server's administrators whether it accepts files.** They turn it on with
+   [one setting](/docs/backend-admin/uploads). In a project, [`qa doctor`](/docs/doctor) says whether it does.
+2. **Leave `storage` out of *qaboard.yaml***, or say it. `qa init` writes a `storage`: replace it.
 
    ```yaml title="qaboard.yaml"
    storage: upload
@@ -59,8 +59,10 @@ outputs:
 
 - **A run that fails or is interrupted** still sends what it wrote, with its log.
 - **A run that is done again** replaces the files the server had.
-- **Files the server can't take**, e.g. larger than its limit (1 GB by default): `qa` names them, the run still
-  shows with its other files, and in CI the command fails. Save big outputs in a shared storage.
+- **Files the server can't take**, e.g. larger than its limit (1 GB by default): `qa` names them, and the run still
+  shows with its other files. In CI the command fails; elsewhere it prints the error and goes on. Save big outputs
+  in a shared storage.
+- **A server that doesn't accept files** refuses the run when it starts: in CI, `qa` stops there.
 - **When the server doesn't answer**, `qa` tries again a few times, then says what is missing. The files stay in
   *output/*.
 

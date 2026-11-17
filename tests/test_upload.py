@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 from qaboard import upload
-from qaboard.upload import Uploader, problems
+from qaboard.upload import Uploader
 
 from .test_active_run import FakeServer
 
@@ -101,6 +101,24 @@ class TestWhileTheRunGoesOn(UploaderTestCase):
     self.assertTrue(uploader.sync())
     self.assertEqual(server.files['log.txt'], b'ours\nmore\n')
 
+  def test_a_log_rewritten_longer_is_sent_whole(self):
+    server = self.server()
+    uploader = self.uploader(server)
+    self.write('log.txt', b'first attempt: 0123456789\n')
+    uploader.sync()
+    self.write('log.txt', b'a second attempt, with a longer log than before: all new\n')
+    self.assertTrue(uploader.sync())
+    self.assertEqual(server.files['log.txt'], b'a second attempt, with a longer log than before: all new\n')
+    self.write('log.txt', b'and more\n', mode='ab')
+    self.assertTrue(uploader.sync())
+    self.assertEqual(server.files['log.txt'], b'a second attempt, with a longer log than before: all new\nand more\n')
+
+  def test_one_live_pattern_as_text(self):
+    server = self.server()
+    self.write('plots/loss.png', b'png')
+    self.assertTrue(Uploader(server.url, 42, self.run_dir, token='token', live='plots/*').sync())
+    self.assertEqual(list(server.files), ['plots/loss.png'])
+
   def test_large_logs_are_sent_in_pieces(self):
     server = self.server()
     uploader = self.uploader(server)
@@ -144,7 +162,7 @@ class TestWhenTheRunEnds(UploaderTestCase):
     })
     self.assertEqual(len(server.puts('series.json')), 1)
     self.assertEqual((uploader.sent_files, uploader.failed, uploader.refused), (5, {}, None))
-    self.assertEqual(problems(uploader), [])
+    self.assertEqual(uploader.problems(), [])
 
   def test_tries_again_when_the_server_has_a_problem(self):
     server = self.server(file_errors={'result.bin': [(503, {'error': 'busy'}), (502, {})]})
@@ -170,9 +188,9 @@ class TestWhenTheRunEnds(UploaderTestCase):
     self.assertFalse(uploader.sync(final=True))
     self.assertEqual(server.files, {'metrics.json': b'{}'})
     self.assertIsNone(uploader.refused)
-    self.assertEqual(len(problems(uploader)), 1)
-    self.assertIn('model.pt', problems(uploader)[0])
-    self.assertIn('larger than what this server accepts', problems(uploader)[0])
+    self.assertEqual(len(uploader.problems()), 1)
+    self.assertIn('model.pt', uploader.problems()[0])
+    self.assertIn('larger than what this server accepts', uploader.problems()[0])
     # not sent again as it is, but still missing
     self.assertEqual(len(server.puts('model.pt')), 1)
     self.assertFalse(uploader.sync(final=True))
@@ -181,7 +199,7 @@ class TestWhenTheRunEnds(UploaderTestCase):
     self.write('model.pt', b'smaller')
     self.assertTrue(uploader.sync(final=True))
     self.assertEqual(server.files['model.pt'], b'smaller')
-    self.assertEqual(problems(uploader), [])
+    self.assertEqual(uploader.problems(), [])
 
   def test_stops_when_the_server_refuses_the_runs_files(self):
     for status, body in [
@@ -197,7 +215,7 @@ class TestWhenTheRunEnds(UploaderTestCase):
         uploader = self.uploader(server)
         self.assertFalse(uploader.sync(final=True))
         self.assertIn(body['error'], uploader.refused)
-        self.assertEqual(len(problems(uploader)), 1)
+        self.assertEqual(len(uploader.problems()), 1)
         requests = len(server.requests)
         self.assertFalse(uploader.sync(final=True))
         self.assertEqual(len(server.requests), requests)
@@ -211,7 +229,24 @@ class TestWhenTheRunEnds(UploaderTestCase):
     self.assertFalse(uploader.sync())
     self.assertFalse(uploader.sync(final=True))
     self.assertIsNone(uploader.refused)
-    self.assertTrue(problems(uploader))
+    self.assertTrue(uploader.problems())
+
+  def test_files_that_cant_be_read_are_missing(self):
+    server = self.server()
+    uploader = self.uploader(server)
+    self.write('result.bin', b'result')
+    self.write('log.txt', b'log\n')
+    real_open = open
+    def no_access(file, *args, **kwargs):
+      if str(file).endswith(('result.bin', 'log.txt')):
+        raise PermissionError(13, 'Permission denied', str(file))
+      return real_open(file, *args, **kwargs)
+    with mock.patch('builtins.open', no_access):
+      self.assertFalse(uploader.sync(final=True))
+    self.assertEqual(sorted(line.split(':')[0] for line in uploader.problems()), ['log.txt', 'result.bin'])
+    self.assertIn('Permission denied', uploader.problems()[0])
+    self.assertTrue(uploader.sync(final=True))
+    self.assertEqual(sorted(server.files), ['log.txt', 'result.bin'])
 
   def test_files_removed_meanwhile_are_not_a_problem(self):
     server = self.server()

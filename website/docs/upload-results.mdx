@@ -18,6 +18,11 @@ Use `qa run` when QA-Board starts your code on each input of a batch ([Running y
 are already files.
 
 ## Upload a test report from a CI job {#quick-start}
+Before you start, you need a QA-Board server that takes files: one that [accepts uploads](/docs/storage/uploads), or
+a [storage shared with it](/docs/storage/where-is-the-data). The server asks who sends files: a token in the job's
+`QABOARD_TOKEN` variable ([create one](/docs/ci-integration#tokens)), or a job that
+[signs in as itself](/docs/ci-integration#ci-without-secrets), once a service account trusts the repository.
+
 1. **Write the report** with your test runner, as you may already do:
 
    ```bash
@@ -43,9 +48,8 @@ This works in any repository: it doesn't need a *qaboard.yaml*. In a CI job, `qa
 repository's name) and the commit from the CI's environment. Elsewhere, run it from a
 [project](/docs/project-init), or give `--project group/repo`.
 
-You need a server that takes the files: one that [accepts uploads](/docs/storage/uploads), or a
-[storage shared with it](/docs/storage/where-is-the-data). The server asks who sends files: sign in with
-`qa auth login`, or let the CI job [sign in as itself](/docs/ci-integration#ci-without-secrets).
+On your computer, sign in with `qa auth login`. `qa --dryrun upload ...` says what would be sent: the run's name,
+its files and its metrics.
 
 ## What you can upload {#files}
 Any file. The web app opens each with the viewer its name picks ([viewers and file formats](/docs/viewers)).
@@ -70,7 +74,13 @@ qa upload --input codec junit.xml pytest.benchmarks.json cpu.folded build/covera
   `qa upload results.xml --as junit.xml`.
 - **Add metrics** with `-m name=value`, or from a JSON file with `--metrics metrics.json`. They win over those read
   from the files. `--no-read` reads none.
-- **Several test reports add up**, like the report per class that Maven and Gradle write.
+- **Several test reports add up** in the metrics, like the report per class that Maven and Gradle write. The card
+  shows the first four files of each kind; the others are in **Output Files**.
+- **In a folder**, hidden folders (*.git*, *.venv*) are left out, and so is *output/*, where `qa` keeps a copy of
+  the runs it shares from this computer.
+- **Some names are QA-Board's own** in every run: *metrics.json*, *run.json*, *manifest.outputs.json*. Give metrics
+  with `--metrics`, and save other files under another name with `--as`. A *log.txt* of yours is the run's log.
+- **A test report under another name** is saved as any file: `qa` tells you, and `--as junit.xml` fixes it.
 
 ## Name the run {#identity}
 A run is identified like any run: a project, a commit, a batch, an input and configurations. Runs with the same
@@ -78,12 +88,14 @@ input and configurations are compared from a commit to the next, and with the re
 
 | | Option | Default |
 |---|---|---|
-| What was tested: the input | `--input codec` | The file's name without its extension. With several paths, the CI job's name |
+| What was tested: the input | `--input codec` | In a CI job: the job's name, then the file's name without its extension (`unit-tests/junit`), or the job's name alone with several paths. Elsewhere: the file's name |
 | How: the configurations | `qa -c O3 -c '{"threads": 4}' upload ...` | None |
 | The batch, in the web app | `qa --label nightly upload ...` | `default`: the CI's results. Outside the CI, your own batch, like `qa --share` |
 | The group of tests, on the run's card | `--batch unit-tests` | None |
 | The project and the commit | `--project group/repo`, `--commit <id>` | The *qaboard.yaml*'s or the CI's repository; the git `HEAD` or the CI's commit |
 
+- **Name runs yourself for a history that lasts:** the default names change when a job is renamed, or uploads another
+  file. `--input` doesn't.
 - **One run per file:** `qa upload --each 'build/test-results/*.xml'` names each run after its file.
 - **Uploading the same run again replaces it**: the web app shows the latest, and remembers the earlier attempts.
 - **`--failed`** says that what made the files couldn't finish, e.g. the test runner crashed. Failing tests don't
@@ -107,7 +119,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: pip install qaboard pytest
       - run: pytest --junitxml=junit.xml
-      - run: qa upload junit.xml
+      - run: qa upload --input unit-tests junit.xml
         if: always()   # also when tests failed
 ```
 
@@ -125,7 +137,7 @@ unit-tests:
     - pip install qaboard pytest
     - pytest --junitxml=junit.xml
   after_script:
-    - qa upload junit.xml
+    - qa upload --input unit-tests junit.xml
 ```
 
 </TabItem>

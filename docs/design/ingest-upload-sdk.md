@@ -23,7 +23,11 @@ User docs: `website/docs/upload-results.mdx`, `storage/uploads.mdx`, `backend-ad
    staging area, no state file.
 2. `POST /api/v1/output/` with `"storage": "upload"` creates it. **The server chooses the folder**,
    `<upload root>/<project>/-/<commit>/<batch>/<configuration>/<input>/`, and empties it when a run starts again
-   (not for `--keep-previous` and `resume=True`). Clients never send a folder.
+   (not for `--keep-previous` and `resume=True`). Clients never send a folder, and what they say about the run only
+   reaches the path as folder names the server makes (`uploads.folder_name`: a slug, with a hash unless the text was
+   one already). Before it writes or deletes, the server checks that the folder is one it could have chosen for that
+   project (`uploads.is_run_dir`), for a run it marked as uploading (`data.uploads_files`): the folder the database
+   has isn't trusted, since other clients say where they saved theirs.
 3. While the run goes on, a thread sends what people look at then: `log.txt` and `series.jsonl` by what was added
    (`?offset=`), `series.json` and `run.json` when they change, and the files matching `outputs.live`.
 4. When it ends: everything else, each file with its SHA-256, 4 at a time, **then** the final `POST /output/`. The
@@ -43,7 +47,8 @@ sent (size and date) and sends what differs. A failed request needs no replay.
 | Batch, label or experiment | `label` stays the CLI's word, `batch=` the SDK's; `start_run()` takes both. One alone is the batch in the web app. Both, like `qa --label nightly batch unit-tests`: `label` is the web app's batch, `batch` the group of tests on the run's card (`data.batch`). No `experiment` | Too late to rename `--label`; the two-argument case mirrors `qa batch` |
 | Nested runs | Minimal: `qa run` exports `QABOARD_RUN_DIR`, and `start_run()` refuses to start that same run again (it would remove its files). No attaching | Not a concern yet |
 | Recognized files on cards | For runs created from code (`data.sdk`): series, test reports, benchmark files, profiles, 4 per kind, unless the project's visualizations already have that kind | `qa upload junit.xml` must show something in a project without configuration |
-| Metrics of uploaded files | The existing readers, by the same file names as the web app's viewers. Explicit `-m` wins | Reuse; one definition of "is a test report" per side, tested against each other |
+| Metrics of uploaded files | The existing readers, by the same file names as the web app's viewers. Explicit `-m` wins | Reuse; one definition of "is a test report" per side, both tested on `tests/fixtures/file-types.json` |
+| Default run name of `qa upload` | In a CI job `<job>/<file>` (the job alone with several paths), elsewhere the file's name; `--input` for names that last | Two jobs that upload a junit.xml, or one job that uploads two files in turn, must not replace each other |
 | Syncing later, heartbeats | Not built. A request is tried 3 times; a run the server never heard of is not sent later | Not worth new commands yet |
 | Projects created before runs | Out of scope: `qa` still creates projects by sending results | Comes with project permissions |
 | `--append` to a finished run | Dropped: one upload is one run | Finished runs don't change; fewer states |

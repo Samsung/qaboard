@@ -30,8 +30,8 @@ from .auth import login_required, is_authorized_user, ingest_access, forbidden_p
 # - submitted_by is who really sent it (api/auth.py:ingest_access)
 # - added_metrics records the metrics scripts added after the run (add_output_metrics)
 # - attempt and previous_attempts say how many times the run was done (backend/attempts.py)
-# - storage says that the run sends us its files, in a folder we chose (backend/uploads.py)
-SERVER_KEYS = {'optimization_best', 'submitted_by', 'added_metrics', 'attempt', 'previous_attempts', 'storage'}
+# - uploads_files says that the run sends us its files, in a folder we chose (backend/uploads.py)
+SERVER_KEYS = {'optimization_best', 'submitted_by', 'added_metrics', 'attempt', 'previous_attempts', 'uploads_files'}
 # Metrics that only the run itself sets
 RUN_ONLY_METRICS = {'is_failed', 'compute_time'}
 # What scripts can say about themselves when they add metrics
@@ -353,7 +353,7 @@ def upload_output_file(output_id, path):
   output = Output.query.filter(Output.id==output_id).one()
   directory = output.output_dir_override
   # not any folder the database has: one we chose for a run of this project, that said it uploads
-  if not directory or (output.data or {}).get('storage') != 'upload' or not uploads.is_run_dir(directory, project_id):
+  if not directory or not (output.data or {}).get('uploads_files') or not uploads.is_run_dir(directory, project_id):
     return jsonify({"error": "This run saves its files in a storage shared with the server: it doesn't upload them.", "reason": "not_uploaded"}), 409
   if not output.is_pending:
     return jsonify({"error": "The run has ended: its files don't change anymore.", "reason": "not_running"}), 409
@@ -536,9 +536,9 @@ def new_output_webhook():
     output.data.pop("submitted_by", None)
   # only runs that asked for it, with a token, send us files (upload_output_file)
   if uploads_files:
-    output.data["storage"] = "upload"
+    output.data["uploads_files"] = True
   else:
-    output.data.pop("storage", None)
+    output.data.pop("uploads_files", None)
   # we can only trust CI outputs to run on the exact code from the commit
   output.data["ci"] = data['job_type'] == 'ci'
   # where it comes from, and the batch's if it's new (backend/origins.py)

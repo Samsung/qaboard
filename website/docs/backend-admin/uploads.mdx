@@ -52,18 +52,21 @@ Uploads are new. Start with a few projects.
    </Tabs>
 
    The [quickstart](/docs/get-started/quickstart)'s server has it on, in its results folder.
-3. **Require tokens** for all results, if you don't yet: set **Authenticate results sent by qa** to *token* in
-   **Admin → Settings**. See [Results sent by qa](/docs/backend-admin/user-management#results-sent-by-qa).
+3. **Recommended: require tokens for all results**, if you don't yet: set **Authenticate results sent by qa** to
+   *token* in **Admin → Settings** ([Results sent by qa](/docs/backend-admin/user-management#results-sent-by-qa)).
+   Files need a token either way.
 4. **Check**: **Admin → Settings** lists the *Uploads folder*, and `qa doctor` in a project without `storage` says
    that the server takes its files.
 
 ## Where the files go {#layout}
 ```text
-<QABOARD_UPLOAD_ROOT>/<project>/-/<first 2 characters of the commit>/<next 14>/output/<batch>/<configuration>/<input>/
-/mnt/qaboard/kitefin/planner/-/3f/a91c02d4e7b815/output/b41c0de2-linux/unit-tests/junit.xml
+<QABOARD_UPLOAD_ROOT>/<project>/-/<first 2 characters of the commit>/<next 14>/output[/<batch>]/<configuration>/<input>/
+/mnt/qaboard/kitefin/planner/-/3f/a91c02d4e7b815/output/linux-f0267280/unit-tests/junit.xml
 ```
 
-- The server chooses the run's folder. Clients only name files inside it, and can't write anywhere else.
+- The server chooses the run's folder, and makes its names itself: what a client says about a run (its input, its
+  batch, its configurations) becomes one folder name each, with a hash when it isn't one already. Clients only name
+  files inside the run's folder, and can't write anywhere else. The default batch has no folder of its own.
 - `-` separates a project from its runs, so a file's path says its project. Where you
   [restrict who reads files](/docs/backend-admin/user-management#restricting-who-can-read-files), who can read an
   uploaded file is who can [see its project](/docs/backend-admin/project-access). Projects with a folder named `-`

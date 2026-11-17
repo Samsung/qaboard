@@ -1,4 +1,5 @@
 """Tests for qaboard/junit.py: JUnit XML test reports as metrics. The web app reads the same files (webapp/src/viewers/junit/parse.js)."""
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -64,15 +65,13 @@ class TestJunit(unittest.TestCase):
       self.assertIn('is not a JUnit XML report', str(e.exception))
 
   def test_names_like_the_web_app(self):
-    # is_junit and is_benchmarks in webapp/src/viewers/OutputViewer.jsx give the same answers
-    for name in ('junit.xml', 'JUnit.xml', 'report.junit.xml', 'unit-junit.xml', 'tests_junit.xml', 'reports/TEST-com.example.CodecTest.xml'):
-      self.assertTrue(is_junit(name), name)
-    for name in ('results.xml', 'junit.xml.gz', 'myjunit.xml', 'junit.json', 'tests.xml'):
-      self.assertFalse(is_junit(name), name)
-    for name in ('benchmarks.json', 'pytest.benchmarks.json', 'out/codec-bench.jsonl', 'gbench_benchmark.json', 'x.Benchmarks.NDJSON'):
-      self.assertTrue(is_benchmarks(name), name)
-    for name in ('bench.json', 'benchmarks.txt', 'mybenchmarks.json', 'workbench.json'):
-      self.assertFalse(is_benchmarks(name), name)
+    # the same names as webapp/src/viewers/__tests__/fileTypes.test.js
+    names = json.loads((Path(__file__).parent / 'fixtures' / 'file-types.json').read_text())
+    for is_kind, kind in ((is_junit, 'junit'), (is_benchmarks, 'benchmarks')):
+      for name in names[kind]['yes']:
+        self.assertTrue(is_kind(name), name)
+      for name in names[kind]['no']:
+        self.assertFalse(is_kind(name), name)
 
   def test_imports_only_the_standard_library(self):
     import sys

@@ -11,6 +11,7 @@ storage shared with the server, or sent to it without one (qaboard/upload.py). T
 give the run its metrics (qaboard/junit.py, qaboard/benchmarks.py), read like the web app's viewers read them.
 """
 import glob
+from importlib import import_module
 import json
 import os
 import shlex
@@ -35,22 +36,41 @@ def expand(paths: Tuple[str, ...]) -> List[Path]:
   return found
 
 
-def files_of(paths: List[Path], rename: Optional[str] = None) -> Dict[str, Path]:
+# What every run's folder has, written by QA-Board: uploaded files can't take their names
+RESERVED_FILES = ('run.json', 'metrics.json', 'metrics_definitions.json', 'manifest.outputs.json', 'manifest.inputs.json', 'series.json', 'series.jsonl')
+
+
+def files_in(folder: Path, skipped: Path) -> List[Path]:
+  """The files of a folder, without hidden folders (.git, .venv...) nor `skipped`: where runs are saved on this computer"""
+  found: List[Path] = []
+  for root, dirs, names in os.walk(folder):
+    dirs[:] = sorted(d for d in dirs if not d.startswith('.') and (Path(root) / d).resolve() != skipped)
+    found.extend(Path(root) / name for name in sorted(names))
+  return [file for file in found if file.is_file()]
+
+
+def files_of(paths: List[Path], rename: Optional[str] = None, skipped: Optional[Path] = None) -> Dict[str, Path]:
   """
   {path in the run's folder: file}. A file keeps its name, a folder its name and what is in it.
-  `rename`: another name for the only file, or folder, given.
+  - rename: another name for the only file, or folder, given.
+  - skipped: a folder left out of the folders given: this computer's copy of the runs, which is inside "." in a project.
   """
   if rename is not None and len(paths) != 1:
     raise click.UsageError("--as names one file or folder: give only one, or use --each.")
+  if rename is not None and (Path(rename).is_absolute() or '..' in Path(rename).parts or not Path(rename).name):
+    raise click.UsageError(f"--as {rename}: give a name in the run's folder, like junit.xml or reports/junit.xml")
   files: Dict[str, Path] = {}
   def add(name: str, file: Path) -> None:
     if name in files and files[name].resolve() != file.resolve():
       raise click.UsageError(f"{files[name]} and {file} would both be saved as {name} in the run: upload their folder instead, or one run each with --each.")
+    if name in RESERVED_FILES:
+      hint = " Give its metrics with --metrics metrics.json." if name == 'metrics.json' else ''
+      raise click.UsageError(f"{file}: every run has a {name} that QA-Board writes. Save yours under another name, with --as or in a folder.{hint}")
     files[name] = file
   for path in paths:
     name = rename if rename is not None else path.resolve().name
     if path.is_dir():
-      for file in sorted(p for p in path.rglob('*') if p.is_file()):
+      for file in files_in(path, skipped or Path(os.devnull)):
         add((Path(name) / file.relative_to(path)).as_posix(), file)
     else:
       add(Path(name).as_posix(), path)
@@ -81,6 +101,15 @@ def read_metrics(files: Dict[str, Path]) -> Dict[str, Any]:
       click.secho(f"WARNING: no metrics read from {file}: {e}", fg='yellow', err=True)
   if has_reports:
     metrics.update(junit_metrics(cases))
+  for name, file in files.items():
+    # a test report under another name is only a file: say how to make it more
+    if name.lower().endswith('.xml') and not is_junit(name) and file.stat().st_size < 50e6:
+      try:
+        read_junit(file)
+      except Exception:
+        continue
+      click.secho(f"NOTE: {file} looks like a test report, but isn't named like one (junit.xml, *.junit.xml, TEST-*.xml): it is saved as any file. "
+                  "For the test viewer and the tests' metrics, save it with --as junit.xml.", fg='yellow', err=True)
   return metrics
 
 
@@ -107,21 +136,26 @@ def given_metrics(pairs: Tuple[str, ...], metrics_file: Optional[str]) -> Dict[s
 
 
 def default_input(paths: List[Path]) -> str:
-  """The run's name when --input doesn't give it: the only path's name without its extension, else the CI job's"""
-  if len(paths) == 1:
-    return paths[0].resolve().stem or paths[0].resolve().name
+  """
+  The run's name when --input doesn't give it. In a CI job: the job's name, then the only path's name without its
+  extension, so that two jobs that upload a junit.xml, and one job that uploads two files in turn, make different
+  runs. Elsewhere: the only path's name.
+  """
   job = os.environ.get('GITHUB_JOB') or os.environ.get('CI_JOB_NAME')
+  name = (paths[0].resolve().stem or paths[0].resolve().name) if len(paths) == 1 else None
   if job:
-    return job
+    return f"{job}/{name}" if name else job
+  if name:
+    return name
   raise click.UsageError("Name the run with --input, e.g. --input unit-tests: with several paths, outside a CI job, qa can't name it for you. Or use --each for a run per path.")
 
 
 @click.command(name='upload')
 @click.argument('paths', nargs=-1, required=True)
-@click.option('-i', '--input', 'input_name', help="The run's name: what it tested. Default: the path's name without its extension, or the CI job's name with several paths.")
+@click.option('-i', '--input', 'input_name', help="The run's name: what it tested. Default: the path's name without its extension; in a CI job, the job's name first (unit-tests/junit), or alone with several paths.")
 @click.option('--each', is_flag=True, help="One run per path, named after it, instead of one run with everything.")
 @click.option('--as', 'rename', metavar='NAME', help="Save the only file (or folder) given under this name in the run, e.g. --as junit.xml so that the test viewer opens it.")
-@click.option('--batch', 'batch_name', help="The group of tests the run belongs to, shown on its card. The batch in the web app is `qa --label`'s.")
+@click.option('--batch', 'batch_name', help="The group of tests the run belongs to, shown on its card, like the batch of `qa batch <batch>`. The batch in the web app is the label: `qa --label <label> upload`.")
 @click.option('-m', '--metric', 'metric_pairs', multiple=True, metavar='NAME=VALUE', help="A metric of the run. Repeat it for more.")
 @click.option('--metrics', 'metrics_file', type=click.Path(exists=True, dir_okay=False), help="A JSON file with metrics of the run, like {\"accuracy\": 0.93}.")
 @click.option('--no-read', is_flag=True, help="Don't read metrics from the test reports and benchmark files.")
@@ -149,12 +183,21 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
   """
   from .active_run import start_run
   from .credentials import default_server
-  if default_server()[1] is None:
-    raise click.UsageError("Which QA-Board server? Set QABOARD_URL, e.g. QABOARD_URL=https://qaboard.example.com")
+  # (not `from . import config`: the package has the project's configuration under that name)
+  config = import_module('qaboard.config')
+  # the options of the `qa` group (qa.py): --label, --configuration and --platform mean what they mean for `qa run`
   group = ctx.parent.params if ctx.parent is not None else {}
+  if group.get('offline'):
+    raise click.UsageError("`qa upload` sends the run to QA-Board: it can't be --offline. `qa --dryrun upload` says what it would send.")
   if each and (input_name or rename):
     raise click.UsageError("--each names each run after its path: it can't be used with --input or --as.")
+  if default_server()[1] is None:
+    raise click.UsageError("Which QA-Board server? Set QABOARD_URL, e.g. QABOARD_URL=https://qaboard.example.com")
+  if config.project is None and not project and not any(os.environ.get(v) for v in ('QA_PROJECT', 'GITHUB_REPOSITORY', 'CI_PROJECT_PATH')):
+    raise click.UsageError("Which project? Give --project group/repo, or run `qa upload` in a project (a folder with a qaboard.yaml).")
   found = expand(paths)
+  # shared runs are copied in the project's output/ folder before they are sent (or in the storage): not to upload again
+  local_runs = ((config.project_dir or Path.cwd()) / 'output').resolve()
   metrics = given_metrics(metric_pairs, metrics_file)
   # a JSON configuration is a mapping of parameters, like `qa -c '{"lr": 0.1}'`
   configurations = []
@@ -165,23 +208,36 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
       parsed = configuration
     configurations.append(parsed if isinstance(parsed, dict) else configuration)
 
-  ok = True
+  # everything is checked before anything is sent
+  runs = []
   for run_paths in ([[path] for path in found] if each else [found]):
-    files = files_of(run_paths, rename)
-    run_metrics = {**({} if no_read else read_metrics(files)), **metrics}
+    files = files_of(run_paths, rename, skipped=local_runs)
+    runs.append((input_name or default_input(run_paths), files, {**({} if no_read else read_metrics(files)), **metrics}))
+  if len({name for name, _, _ in runs}) != len(runs):
+    raise click.UsageError("--each names each run after its path, without its extension: some of these paths would be the same run. Upload them one by one, with --input.")
+  if group.get('dryrun'):
+    for name, files, run_metrics in runs:
+      click.echo(f"{name}: {len(files)} files, {sum(file.stat().st_size for file in files.values())} bytes, metrics: {json.dumps({k: float(v) if isinstance(v, float) else v for k, v in run_metrics.items()})}")
+      for file_name in files:
+        click.echo(f"  {file_name}")
+    return
+
+  for name, files, run_metrics in runs:
     try:
       run = start_run(
-        input_name or default_input(run_paths), configs=configurations, label=group.get('label'), batch=batch_name,
+        name, configs=configurations, label=group.get('label'), batch=batch_name,
         project=project, commit=commit, platform=group.get('platform'), share=True, capture_output=False,
       )
     except (ValueError, TypeError) as e:
       click.secho(f"ERROR: {e}", fg='red', bold=True, err=True)
       sys.exit(1)
-    log = [f"qa {' '.join(shlex.quote(arg) for arg in sys.argv[1:])}", *(f"{name}  ({file.stat().st_size} bytes)" for name, file in files.items())]
     try:
-      for name, file in files.items():
-        run.log_artifact(name, file)
-      run.log_artifact('log.txt', ('\n'.join(log) + '\n').encode())
+      for file_name, file in files.items():
+        run.log_artifact(file_name, file)
+      if 'log.txt' not in files:
+        # what the web app's Logs view shows: how the run was made
+        log = [f"qa {' '.join(shlex.quote(arg) for arg in sys.argv[1:])}", *(f"{file_name}  ({file.stat().st_size} bytes)" for file_name, file in files.items())]
+        run.log_artifact('log.txt', ('\n'.join(log) + '\n').encode())
       if run_metrics:
         run.log_metrics(run_metrics)
     except Exception as e:
@@ -192,7 +248,7 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
       run.fail("qa upload --failed: what made these files failed.")
     else:
       run.finish()
-    ok = ok and bool(run.sent)
-  if not ok:
-    click.secho("ERROR: QA-Board doesn't have everything: see above.", fg='red', bold=True, err=True)
-    sys.exit(1)
+    if not run.sent:
+      # the same would happen to the next runs
+      click.secho(f"ERROR: QA-Board doesn't have the run {name}: see above.", fg='red', bold=True, err=True)
+      sys.exit(1)
