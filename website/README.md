@@ -82,16 +82,10 @@ This command generates static content into the `build` directory and can be serv
 
 #### Deployment
 
-Using SSH:
+The Website workflow (`.github/workflows/website.yml`) deploys `master` to GitHub Pages (repository Settings > Pages >
+Source: GitHub Actions), then replaces the Algolia search index with the pages it just built:
+`search/algolia_index.py`, which needs the `ALGOLIA_WRITE_API_KEY` secret. To check what would be indexed:
 
 ```
-$ USE_SSH=true yarn deploy
+$ uv run search/algolia_index.py records build --out records.json
 ```
-
-Not using SSH:
-
-```
-$ GIT_USER=<Your GitHub username> yarn deploy
-```
-
-If you are using GitHub pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.
