@@ -158,10 +158,10 @@ shot('commits/manage-milestones', {
   // on a commit page, each milestone can also be the reference
   url: d => d.commitUrl(DE, 'kd-1-3', { reference: 'kd-1-2', view: 'table-kpi' }),
   alt: 'The Milestones table, from Manage milestones…: entropy-try in its group, kd-1.3, a favorite, and kd-1.2, each '
-    + 'with notes, batch, runs and datasets, commit and branch, owner and date, and Open and As reference; the releases '
-    + 'selected, the footer offers to compare them.',
+    + 'with its notes under its name, its number of runs and datasets, batch, commit and branch, date and owner, and As '
+    + 'reference and Stack; the releases selected, the footer offers to compare them.',
   caption: 'Manage milestones… lists all the project\'s milestones: sort and search them, open one, use it as the '
-    + 'reference, or select two to compare them.',
+    + 'reference or stack it, or select several to compare them.',
   actions: async ui => {
     const { page } = ui;
     await withEntropyTry(ui);

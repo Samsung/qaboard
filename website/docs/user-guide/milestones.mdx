@@ -43,7 +43,10 @@ your account, as milestones listed only for you.
 Milestones are listed in two menus:
 
 - The **Change** menu of the commit bars: pick a milestone in the **ref** bar's menu to compare with it, in the
-  **new** bar's to look at it. Its batch and filter are selected too.
+  **new** bar's to look at it. Its batch and filter are selected too. With
+  [several references](/docs/user-guide/comparing-results#several-references), it replaces the one shown, or shows it
+  if it is one of them already. To compare with it too, hover it and click its **Stack as a
+  reference**.
 - The sidebar's **Milestones** menu: pick one to open its results, compared with the project's default reference.
 
 <Shot
@@ -91,13 +94,13 @@ the milestone's results.
 - Anyone who can see the project can open the link, even for milestones listed only for you.
 
 To share a comparison of two milestones, add the reference milestone after `?vs=`:
-`https://<your-qaboard>/kitefin/detector/milestone/12-kd-1-3?vs=11-kd-1-2`. Copy it from **Manage milestones…**
-(select the two milestones), or with the link button next to the reference's milestone name, when the new and
-reference results are both milestones.
+`https://<your-qaboard>/kitefin/detector/milestone/12-kd-1-3?vs=11-kd-1-2`. Add more `&vs=` to stack more
+references: `...?vs=11-kd-1-2&vs=9-kd-1-1`. Copy it from **Manage milestones…** (select the milestones), or with the
+link button next to the reference's milestone name, when the new and reference results are both milestones.
 
 If a link's milestone was deleted, the page says which one it was, and offers to open the other milestone of a
-comparison. If only the reference milestone of a comparison was deleted, the new milestone opens, compared with the
-project's default reference, and a message says so.
+comparison. If only a reference milestone of a comparison was deleted, the new milestone opens, compared with the other
+references, or the project's default reference, and a message says so.
 
 ## Edit a milestone {#editing-a-milestone}
 When the results you look at are a milestone, click its star, or its name next to it, to edit it: rename it, change
@@ -121,12 +124,14 @@ their notes and what their runs used: how many, their datasets and qa batches.
 - **Find them**: sort by **Last updated** (the default), **Last created**, **Name** or **Group**, search them, show
   **All**, **Mine**, **Shared** or **Favorites**, and pick a dataset or qa batch to see only the milestones whose runs
   used it.
-- **From each row**: **Open** it, use it **As reference** (on a commit page), add it to your favorites, copy its link,
-  or edit it. On a commit page, **Open** shows it as the new results, and keeps the reference.
+- **From each row**: click its name to open it, use it **As reference** or **Stack** it (on a commit page), add it to
+  your favorites, copy its link, or edit it. On a commit page, opening it shows it as the new results and keeps the
+  reference, and tags say which milestones the page shows already.
 - **Several at once**: select milestones to move them to a group, **Share** them, **Make personal** or **Delete** them
   (only yours: others' milestones are skipped).
-- **Compare two**: select exactly two, then **Compare** them. The most recently updated is the new results: swap
-  them with the arrows, or copy the link to the comparison.
+- **Compare them**: select two or more, then **Compare**. The most recently updated is the new results, pick another in
+  the footer. The others are the references, [stacked](/docs/user-guide/comparing-results#several-references) in the
+  order you selected them: the image viewer shows them together. Copy the link to the comparison to share it.
 
 ## What a milestone keeps {#what-a-milestone-keeps}
 A milestone protects its results, so that you can compare with them months later:

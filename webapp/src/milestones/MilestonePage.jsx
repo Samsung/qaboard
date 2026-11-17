@@ -1,9 +1,10 @@
 // Milestone links open the milestone's results:
 //   /<project>/milestone/<id>-<label>                     the milestone, as the new results
 //   /<project>/milestone/<id>-<label>?vs=<id>-<label>     compared with another milestone
+//   ...?vs=<id>-<label>&vs=<id>-<label>                   with several, stacked as references
 // When one of them doesn't exist anymore (or can't be seen), we say which, and what users can do.
 import { useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueries } from "@tanstack/react-query";
 import { Button, Classes, Intent, NonIdealState } from "@blueprintjs/core";
 
 import { Link, history, useRouter } from "../router";
@@ -35,27 +36,32 @@ const MilestonePage = () => {
   const { match } = useRouter();
   const { project, query } = useSelected();
   const path = match.params.name;
-  const vs_path = typeof query.vs === 'string' ? query.vs : null;
+  // the references: ?vs= once or several times
+  const vs_paths = [query.vs ?? []].flat().filter(v => typeof v === 'string');
   const id = milestone_id_from_path(path);
-  const vs_id = milestone_id_from_path(vs_path);
+  const vs_ids = vs_paths.map(milestone_id_from_path);
   usePageTitle(join_title(milestone_name_from_path(path) || 'Milestone', project_name(project)));
   const main = useQuery(milestoneQuery(id));
-  const reference = useQuery(milestoneQuery(vs_id));
-  const vs_problem = vs_path !== null && (vs_id === null || reference.error);
-  const ready = main.data && (vs_path === null || reference.data || vs_problem);
+  const references = useQueries({ queries: vs_ids.map(vs_id => milestoneQuery(vs_id)) });
+  const vs_problems = vs_paths.map((_, i) => vs_ids[i] === null || !!references[i].error);
+  const ready = main.data && references.every((r, i) => r.data || vs_problems[i]);
   // we leave this page once: after that, the URL no longer says what to open
   const redirected = useRef(false);
 
   useEffect(() => {
     if (!ready || redirected.current) return;
     redirected.current = true;
-    if (vs_problem) {
-      const { title } = problem(vs_id, vs_path, reference.error);
-      toaster.show({ message: `${title}: the results are compared with the default reference instead.`, intent: Intent.WARNING, icon: 'warning-sign', timeout: 10000 });
-    }
-    history.replace(milestone_location(main.data, vs_problem ? undefined : reference.data));
-  }, [ready, vs_problem, vs_id, vs_path, main.data, reference.data, reference.error]);
+    const found = references.filter((_, i) => !vs_problems[i]).map(r => r.data);
+    vs_paths.forEach((vs_path, i) => {
+      if (!vs_problems[i]) return;
+      const { title } = problem(vs_ids[i], vs_path, references[i].error);
+      const instead = found.length > 0 ? 'the results are compared with the other milestones' : 'the results are compared with the default reference instead';
+      toaster.show({ message: `${title}: ${instead}.`, intent: Intent.WARNING, icon: 'warning-sign', timeout: 10000 });
+    });
+    history.replace(milestone_location(main.data, found));
+  });
 
+  const reference = references.find(r => r.data) ?? {};
   if (id === null || main.error) {
     const { icon, title, description } = problem(id, path, main.error);
     return <NonIdealState

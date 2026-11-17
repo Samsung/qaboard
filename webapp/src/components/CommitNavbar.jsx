@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
   Classes,
+  Icon,
   Intent,
   Menu,
   MenuItem,
@@ -28,7 +29,7 @@ import { openAddReference } from "./ReferenceTabs";
 import { SideLabel, milestone_label_hint } from "./SideLabel";
 import { MilestonesPanel } from "../milestones/MilestonesPanel"
 import { CommitMilestoneButton } from "../milestones/CommitMilestone"
-import { milestone_name, milestones_of, results_project } from "../milestones/api"
+import { milestone_name, milestones_of, milestone_selection_changes, stack_milestone_changes } from "../milestones/api"
 import { useMilestones } from "../milestones/hooks"
 
 import { shortId, pretty_label } from "../utils";
@@ -416,12 +417,14 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
     // milestones from qaboard.yaml are only a branch, tag or commit
     if (!milestone.commit && milestone.branch)
       return selectBranch(milestone.branch)
-    updateSelected({
-      [commit_attr]: milestone.commit,
-      [batch_attr]: milestone.batch || 'default',
-      [filter_attr]: milestone.filter ?? '',
-      [project_attr]: results_project(milestone),
-    })
+    // with several references: one of them is shown, not added twice
+    updateSelected(milestone_selection_changes(milestone, type, { ...selected, references }))
+  };
+  // ...or added to them: the reference bar's menu stacks milestones too
+  const stackMilestone = milestone => {
+    if (!milestone.commit && milestone.branch)
+      return selectBranch(milestone.branch)
+    updateSelected(stack_milestone_changes(milestone, { ...selected, references }))
   };
 
   const copyToOtherType = () => {
@@ -452,6 +455,8 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
     docs_root={docs_root}
     selected={{project: selected[project_attr] ?? project, commit: commit?.id, batch: batch?.label, filter: batch_filter}}
     onSelect={selectMilestone}
+    onStack={type === 'ref' ? stackMilestone : undefined}
+    stacked={type === 'ref' && references?.length > 1 ? references : undefined}
     before={<>
       <MenuDivider title="Change project"/>
       <ControlGroup>
@@ -475,6 +480,10 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
       <MenuItem text="Remove from comparison" icon="cross" onClick={removeSelection} />
       <MenuItem text={reference_branch} label="reference branch" icon="git-branch" onClick={() => selectBranch(reference_branch)} />
       <MenuDivider/>
+      {type === 'ref' && <li className={Classes.TEXT_MUTED} style={{ fontSize: 12, padding: '0 7px 6px', lineHeight: 1.4 }}>
+        A milestone replaces {side?.label ? <strong>{side.label}</strong> : 'the reference'}{references?.length > 1 ? ', or shows it if it is already a reference' : ''}.
+        To compare with it too, click <Icon icon="layers" size={12}/> next to it.
+      </li>}
     </>}
   />
 

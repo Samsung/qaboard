@@ -25,7 +25,7 @@ import { match_query, pretty_label } from "../utils";
 import { copyWithToast } from "../utils/clipboard";
 import {
   milestone_name, milestone_url, owner_name, relative_date, results_project, group_parts,
-  milestone_search_text, runs_matches, dataset_label,
+  milestone_search_text, runs_matches, dataset_label, is_milestone_side,
 } from "./api";
 import { useMilestones, useMilestoneActions, useLegacyMilestones, count_legacy } from "./hooks";
 import { openMilestoneDialog } from "./MilestoneDialog";
@@ -156,8 +156,10 @@ const build_tree = (milestones, root_path, prefix = '') => {
 
 // `selected`: {project, commit, batch, filter}, to show which milestone is selected
 // `onSelect`: called with a milestone, or {branch} for references from qaboard.yaml
+// `onStack`: to add a milestone to the references, instead of replacing the one shown
+// `stacked`: the references (useComparison().references), to say which milestones are already one of them
 // `before`: menu items to show first
-export const MilestonesPanel = ({ project, project_data, selected, onSelect, docs_root = '/', before, initialSearch = '' }) => {
+export const MilestonesPanel = ({ project, project_data, selected, onSelect, onStack, stacked, docs_root = '/', before, initialSearch = '' }) => {
   const user = useUser();
   const { list, favorite_groups, isPending, error } = useMilestones(project);
   const [search, setSearch] = useState(initialSearch);
@@ -188,7 +190,9 @@ export const MilestonesPanel = ({ project, project_data, selected, onSelect, doc
 
   const is_selected = m => !!selected && results_project(m) === selected.project && !!selected.commit
     && (selected.commit === m.commit || selected.commit.startsWith(m.commit)) && (m.batch || 'default') === (selected.batch || 'default') && (m.filter || '') === (selected.filter || '');
-  const item_props = { onSelect, onEdit: milestone => openMilestoneDialog({ project, milestone }), is_selected, project, favorite_group, search };
+  // which reference it is, if it is one: picking it shows it
+  const reference_of = m => stacked?.find(r => is_milestone_side(m, r));
+  const item_props = { onSelect, onStack, onEdit: milestone => openMilestoneDialog({ project, milestone }), is_selected, reference_of, project, favorite_group, search };
 
   // Enter picks the first result
   const first = favorites[0] ?? mine[0] ?? team[0];
@@ -336,10 +340,18 @@ const FavoriteGroup = ({ section, group, milestones, expand, ...props }) => {
 const full_date = date => DateTime.fromISO(date).toLocaleString(DateTime.DATETIME_MED);
 const dates_title = m => [`Updated ${full_date(m.updated_at)}`, m.created_at && m.created_at !== m.updated_at && `saved ${full_date(m.created_at)}`].filter(Boolean).join(', ');
 
-export const MilestoneItem = ({ milestone: m, onSelect, onEdit, is_selected, project, show_owner, search, depth = 0 }) => {
+// "120 runs, 3 failed", as saved with the milestone (backend/milestones.py, summarize_runs): nothing to load
+export const runs_count_text = runs => !runs ? null
+  : !runs.count ? 'no runs'
+  : `${runs.count} run${runs.count > 1 ? 's' : ''}${runs.failed ? `, ${runs.failed} failed` : ''}`;
+
+export const MilestoneItem = ({ milestone: m, onSelect, onStack, onEdit, is_selected, reference_of, project, show_owner, search, depth = 0 }) => {
   const user = useUser();
   const { toggleFavorite } = useMilestoneActions(project);
   const selected = is_selected?.(m);
+  // already one of the stacked references (not the one shown)
+  const reference = !selected ? reference_of?.(m) : undefined;
+  const runs = runs_count_text(m.runs);
   const owner = owner_name(m);
   // listed because of a dataset or qa batch its runs used: say which
   const matched = runs_matches(m, search);
@@ -352,9 +364,11 @@ export const MilestoneItem = ({ milestone: m, onSelect, onEdit, is_selected, pro
       <div className="qa-milestone-name">
         {milestone_name(m)}
         {selected && <Tag minimal intent={Intent.PRIMARY} style={{ marginLeft: 6 }}>selected</Tag>}
+        {!!reference && <Tag minimal style={{ marginLeft: 6 }} title="Already one of the references: picking it shows it">{reference.display_label ?? 'reference'}</Tag>}
       </div>
       <div className={`qa-milestone-meta ${Classes.TEXT_MUTED}`}>
         <span title="Batch">{pretty_label({ label: m.batch || 'default' })}</span>
+        {!!runs && <span title="Its runs, when it was saved" style={m.runs.count ? undefined : { color: Colors.ORANGE3 }}>{runs}</span>}
         {!!m.filter && <span title="Filter"><Icon icon="filter" size={10}/> {m.filter}</span>}
         <span title={m.message ?? undefined}>{m.branch ? `${m.branch} @ ` : ''}<code>{m.commit.slice(0, 8)}</code></span>
         {results_project(m) !== project && <span title="Project">{results_project(m)}</span>}
@@ -383,6 +397,14 @@ export const MilestoneItem = ({ milestone: m, onSelect, onEdit, is_selected, pro
       <span className="qa-milestone-hover-slot">
         {!!m.updated_at && <span className={`qa-milestone-date ${Classes.TEXT_MUTED}`} title={dates_title(m)}>{relative_date(m.updated_at, { style: 'short' })}</span>}
         <span className="qa-milestone-hover-actions">
+          {!!onStack && !selected && !reference && <Button
+            variant="minimal"
+            size="small"
+            icon="layers"
+            aria-label="Stack as a reference"
+            title="Stack as a reference: compare with it too, keep the reference shown"
+            onClick={stop(() => onStack(m))}
+          />}
           <Button variant="minimal" size="small" icon="link" aria-label="Copy the link" title="Copy the link" onClick={stop(() => copyWithToast(milestone_url(m), { what: 'the link to the milestone' }))}/>
           {!!onEdit && <Button
             variant="minimal"

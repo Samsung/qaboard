@@ -138,7 +138,7 @@ const side_to_query = (side, project) => {
 };
 
 // Plain commit ids are repeated: ?compare=a&compare=b, else qs's indices: ?compare[0][commit]=a&compare[0][batch]=b
-const other_refs_to_query = (sides, project) => {
+export const other_refs_to_query = (sides, project) => {
   const items = sides.map(side => side_to_query(side, project));
   if (items.length === 0) return undefined;
   return items.every(item => typeof item === 'string') ? items : Object.fromEntries(items.map((item, index) => [index, item]));
