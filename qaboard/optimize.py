@@ -23,6 +23,7 @@ seed = int(os.environ.get('QA_SEED', 101))
 @click.command(context_settings=dict(
     ignore_unknown_options=True,
 ))
+@click.option('--commit', 'on_commit', help="Have QA-Board run the optimization on this pushed commit (id, branch, tag), as from its web app, from the commit's artifacts. Batches come from the commit's inputs.batches, then your shared and private batches in QA-Board, then the --batches-file you send (read last, they win). Needs --label. Prints the batch's page and returns.")
 @click.option('--batch', '-b', 'batches', required=True, multiple=True, help="Use the inputs+configs+database in those batches")
 @click.option('--batches-file', 'batches_files', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 @click.option('--config-file', required=True, type=PathType(), help="YAML file with the search space, the objective and the number of evaluations.")
@@ -31,11 +32,16 @@ seed = int(os.environ.get('QA_SEED', 101))
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 @saves_logs
-def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_param_sampling, forwarded_args):
+def optimize(ctx, on_commit, batches, batches_files, config_file, checkpoint, parallel_param_sampling, forwarded_args):
   """
   Search for the parameters that optimize your metrics.
   Each evaluation runs `qa batch` with the label <label>|iter<N>, the best one's runs end up in <label>.
   """
+  if on_commit is not None:
+    from .on_server import start_on_server
+    return start_on_server(ctx, on_commit, list(batches), batches_files, optimize_config=config_file, forwarded_args=forwarded_args)
+  from .qa import check_storage
+  check_storage(ctx)
   import random
   random.seed(seed)
   import numpy as np

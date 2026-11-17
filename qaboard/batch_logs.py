@@ -26,8 +26,8 @@ def should_save_logs(ctx: click.Context) -> bool:
   obj = ctx.obj
   if is_ci:
     return False
-  # QA-Board won't know about the batch
-  if not obj.get('share') or obj.get('offline') or obj.get('dryrun'):
+  # QA-Board won't know about the batch, or starts it (`qa batch --commit`)
+  if not obj.get('share') or obj.get('offline') or obj.get('dryrun') or ctx.params.get('on_commit'):
     return False
   # e.g. `qa batch --list`
   if any(ctx.params.get(flag) for flag in ('list_contexts', 'list_output_dirs', 'list_inputs')):

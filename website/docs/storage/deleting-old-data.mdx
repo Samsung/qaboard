@@ -115,7 +115,7 @@ Until October 2026, `qa save-artifacts` didn't save the subprojects' *qaboard.ya
 ## Recreating artifacts
 By default, QA-Board can only restore the artifacts that are in the source code: it checks out the commit and calls `qa save-artifacts`. Build outputs, like binaries, are not restored.
 
-To rebuild everything, tell QA-Board how to ask your CI to recreate a commit's artifacts. It does it when users redo runs or start tuning on a commit whose artifacts are missing, or click **Recreate the artifacts** on the commit page:
+To rebuild everything, tell QA-Board how to ask your CI to recreate a commit's artifacts. It does it when users redo runs or start tuning (also with `qa batch --commit`) on a commit whose artifacts are missing, or click **Recreate the artifacts** on the commit page:
 
 ```yaml title="qaboard.yaml"
 recreate_artifacts:
