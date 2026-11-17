@@ -459,7 +459,6 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
     selected={{project: selected[project_attr] ?? project, commit: commit?.id, batch: batch?.label, filter: batch_filter}}
     onSelect={selectMilestone}
     onStack={type === 'ref' ? stackMilestone : undefined}
-    stacked={type === 'ref' && references?.length > 1 ? references : undefined}
     before={<>
       <MenuDivider title="Change project"/>
       <ControlGroup>

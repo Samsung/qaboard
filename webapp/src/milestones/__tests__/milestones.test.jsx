@@ -16,6 +16,19 @@ import { unstable_HistoryRouter as HistoryRouter } from 'react-router';
 import { RouteMatch, history } from '../../router';
 import { comparison_path, milestone_search_text, runs_matches, summarize_loaded_runs, dataset_label, milestone_selection_changes, stack_milestone_changes } from '../api';
 import { selection_from_url } from '../../selection';
+import { ComparisonContext } from '../../hooks';
+
+// What useComparison() says about a commit page: new results f..., the reference shown SHA, and SHA's sweep-3 batch stacked
+const commit_page_comparison = () => {
+  const route = { path: '/:project_id+/commit/:name+', params: { project_id: 'p', name: 'f'.repeat(40) } };
+  const selected = selection_from_url(route, `?reference=${SHA}&compare[0][commit]=${SHA}&compare[0][batch]=sweep-3&compare[0][filter]=gain:4`);
+  const color = css => ({ css });
+  return {
+    selected,
+    compared: [{ project: 'p', commit: { id: 'f'.repeat(40) }, color: color('blue') }, { project: 'p', color: color('purple') }],
+    references: selected.references.map((r, i) => ({ ...r, color: color(['purple', 'pink'][i]) })),
+  };
+};
 import { MilestoneDialogHost, openMilestoneDialog } from '../MilestoneDialog';
 import { CommitMilestoneButton } from '../CommitMilestone';
 import { useImportLegacyMilestones } from '../hooks';
@@ -222,16 +235,24 @@ describe('MilestonesPanel', () => {
 
   test('with stacked references: says which milestones are one, and stacks the others', () => {
     const onStack = vi.fn();
-    const stacked = [
-      { project: 'p', commit_id: 'f'.repeat(40), batch: 'default', filter: '', display_label: 'Bob baseline' },
-      { project: 'p', commit_id: SHA.slice(0, 8), batch: 'sweep-3', filter: 'gain:4', display_label: 'ref 2' },
-    ];
-    renderPanel({ props: { onStack, stacked, selected: { project: 'p', commit: 'f'.repeat(40), batch: 'default', filter: '' } } });
+    renderWithProviders(<ComparisonContext.Provider value={commit_page_comparison()}>
+      <MilestonesPanel project="p" onSelect={() => {}} onStack={onStack} selected={{ project: 'p', commit: SHA, batch: 'default', filter: '' }}/>
+    </ComparisonContext.Provider>, { user: alice, milestones: { p: milestones } });
     const item = name => screen.getAllByText(name)[0].closest('.bp6-menu-item');
+    // first, in the order of the page
+    expect(headers()[0]).toBe('On this page');
+    const on_page = [...document.querySelectorAll('.bp6-menu-item .qa-milestone-name')].slice(0, 4).map(n => n.textContent);
+    expect(on_page).toEqual(['Bob baseline', 'Release 1.0', 'Quick check', 'Best denoiser']);
+    // where they are on the page, in their sides' colors
+    expect(within(item('Bob baseline')).getByText('new').closest('.qa-side-tag')).toHaveAttribute('title', 'The new results, in the top bar');
+    expect(within(item('Quick check')).getByText('ref 1').closest('.qa-side-tag')).toHaveAttribute('title', 'The reference shown, 1 of 2, in the bottom bar');
+    expect(within(item('Quick check')).getByText('ref 1').closest('.qa-side-tag').style.getPropertyValue('--side-color')).toBe('purple');
     expect(within(item('Best denoiser')).getByText('ref 2')).toBeInTheDocument();
     expect(within(item('Best denoiser')).queryByLabelText('Stack as a reference')).toBeNull();
-    fireEvent.click(within(item('Quick check')).getByLabelText('Stack as a reference'));
-    expect(onStack).toHaveBeenCalledWith(expect.objectContaining({ id: 3 }));
+    // references can't be stacked again, the new results can
+    expect(within(item('Quick check')).queryByLabelText('Stack as a reference')).toBeNull();
+    fireEvent.click(within(item('Bob baseline')).getByLabelText('Stack as a reference'));
+    expect(onStack).toHaveBeenCalledWith(expect.objectContaining({ id: 4 }));
   });
 
   test('favorites', async () => {
@@ -442,15 +463,17 @@ describe('managing milestones', () => {
 
   test('on a commit page, stacks a milestone as a reference, and says which are shown', () => {
     history.replace(`/p/commit/${'f'.repeat(40)}?reference=${SHA}`);
+    const comparison = commit_page_comparison();
+    comparison.references = comparison.references.slice(0, 1);
     renderWithProviders(
       <HistoryRouter history={history}><RouteMatch match={{ path: '/:project_id+/commit/:name+', params: { project_id: 'p', name: 'f'.repeat(40) } }}>
-        <ManageMilestones isOpen project="p" onClose={() => {}}/>
+        <ComparisonContext.Provider value={comparison}><ManageMilestones isOpen project="p" onClose={() => {}}/></ComparisonContext.Provider>
       </RouteMatch></HistoryRouter>,
       { user: alice, milestones: { p: milestones } },
     );
     const row = name => screen.getByLabelText(`Select ${name}`).closest('tr');
     expect(within(row('Bob baseline')).getByText('new')).toBeInTheDocument();
-    expect(within(row('Quick check')).getByText('reference')).toBeInTheDocument();
+    expect(within(row('Quick check')).getByText('ref')).toBeInTheDocument();
     fireEvent.click(within(row('Best denoiser')).getByText('Stack'));
     // shown, the other reference stays
     expect(window.location.search).toBe(`?reference=${SHA}&compare=${SHA}&batch_ref=sweep-3&filter_ref=gain%3A4&label_ref=ref%202&ref_index=1`);

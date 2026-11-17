@@ -26,16 +26,17 @@ import {
 } from "@blueprintjs/core";
 
 import { history } from "../router";
-import { updateSelected, useSelected, reference_names } from "../selection";
+import { updateSelected, useSelected } from "../selection";
 import { Link } from "../router";
-import { useUser } from "../hooks";
+import { useUser, useComparison } from "../hooks";
 import { match_query, pretty_label } from "../utils";
 import { copyWithToast } from "../utils/clipboard";
 import {
   milestone_name, milestone_url, milestone_path, owner_name, relative_date, results_project, milestone_location,
   milestone_selection_changes, stack_milestone_changes, is_milestone_side, prefetch_milestone, comparison_url, normalize_group,
-  milestone_search_text, runs_matches, dataset_label,
+  milestone_search_text, runs_matches, dataset_label, comparison_sides,
 } from "./api";
+import { SideTags, side_tag_style } from "./SideTags";
 import { useMilestones, useMilestoneActions } from "./hooks";
 import { openMilestoneDialog } from "./MilestoneDialog";
 
@@ -117,6 +118,10 @@ const Table = styled(HTMLTable)`
     gap: 3px;
     max-width: 220px;
   }
+  ${side_tag_style}
+  .qa-name .qa-side-tag {
+    margin-left: 6px;
+  }
   tr.qa-checked td {
     background: rgba(45, 114, 210, 0.1);
   }
@@ -182,14 +187,6 @@ const place_on_page = (milestone, selected) => ({
   index: selected.references.findIndex(r => is_milestone_side(milestone, r)),
 });
 
-// ...the new results, the reference shown, or one of the stacked references
-const ShownTag = ({ milestone, selected }) => {
-  const { is_new, index } = place_on_page(milestone, selected);
-  const text = is_new ? 'new' : index < 0 ? null : index === selected.ref_index ? 'reference' : reference_names(selected.references)[index];
-  if (!text) return null;
-  return <Tag minimal intent={is_new || index === selected.ref_index ? Intent.PRIMARY : undefined} style={{ marginLeft: 6 }} title="On the page">{text}</Tag>;
-};
-
 // "As reference" replaces the reference shown, or shows it if it is one already. "Stack" adds it to the references.
 const PageActions = ({ milestone: m, selected, selectAsReference, stack }) => {
   const { index } = place_on_page(m, selected);
@@ -226,6 +223,8 @@ export const ManageMilestones = ({ isOpen, onClose, project }) => {
   const user = useUser();
   const selected = useSelected();
   const on_commit_page = selected.route.is_commit;
+  // where milestones are on the commit page: the new results, a reference
+  const sides = comparison_sides(useComparison());
   const { list, isPending } = useMilestones(project);
   const { toggleFavorite, updateMany, removeMany } = useMilestoneActions(project);
   const [search, setSearch] = useState('');
@@ -358,7 +357,7 @@ export const ManageMilestones = ({ isOpen, onClose, project }) => {
                     <Icon icon={m.shared ? 'crown' : 'star'} color={Colors.GOLD4} size={12} title={m.shared ? 'Shared with the project' : 'Personal'} style={{ marginRight: 6 }}/>
                     <Link to={milestone_path(m)} onClick={onNameClick(m)} title={on_commit_page ? 'Show it in the top bar, keep the reference' : 'Open its results'}>{milestone_name(m)}</Link>
                     {m.is_favorite && <Icon icon="heart" color={Colors.RED4} size={12} title="Favorite" style={{ marginLeft: 6 }}/>}
-                    {on_commit_page && <ShownTag milestone={m} selected={selected}/>}
+                    <SideTags sides={sides.filter(side => is_milestone_side(m, side))}/>
                   </div>
                   {m.group && <div className={`qa-sub ${Classes.TEXT_MUTED}`}><Icon icon="folder-close" size={10}/> {m.group}</div>}
                   <NotesCell notes={m.notes}/>

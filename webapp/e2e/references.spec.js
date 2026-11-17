@@ -225,7 +225,8 @@ test('the top results are the first tab: drag it on a reference to swap the bars
 test('a milestone picked in the reference bar replaces the reference shown, not another', async ({ page }) => {
   const pick = async name => {
     await page.getByRole('button', { name: 'Change the reference commit' }).click();
-    await page.getByRole('menu', { name: 'Milestones' }).getByText(name, { exact: true }).click();
+    // once on the page, it's listed first, "On this page", and again in its section
+    await page.getByRole('menu', { name: 'Milestones' }).getByText(name, { exact: true }).first().click();
   };
   // c, then d shown second, named by users
   await page.goto(`/${project}/commit/${a}?reference=${d}&label_ref=night&compare=${c}&ref_index=1`);
@@ -237,9 +238,12 @@ test('a milestone picked in the reference bar replaces the reference shown, not 
   await expect(page).toHaveURL(new RegExp(`reference=${b}`));
   await expect(page).toHaveURL(new RegExp(`compare=${c}`));
 
-  // ...the first one shown: picking the milestone, a reference already, shows it
+  // ...the first one shown: picking the milestone, a reference already, shows it. The menu says where it is.
   await page.getByRole('tab', { name: /^Reference 1:/ }).click();
   await expect(page.getByRole('tab', { name: /^Reference 1:/ })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('button', { name: 'Change the reference commit' }).click();
+  await expect(page.getByRole('menu', { name: 'Milestones' }).getByRole('menuitem', { name: /^release 1\.0 ref 2/ }).first()).toBeVisible();
+  await page.keyboard.press('Escape');
   await pick('release 1.0');
   await expect(page.getByRole('tab', { name: /^Reference 2: release 1\.0/ })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tab')).toHaveCount(2);
