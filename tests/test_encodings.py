@@ -100,6 +100,32 @@ class TestNonUtf8Locale(unittest.TestCase):
                      GITHUB_EVENT_NAME='pull_request', GITHUB_EVENT_PATH=str(event))
     self.assertEqual(out.strip().splitlines()[-1], 'abc123')
 
+  def test_reads_results(self):
+    # Criterion writes UTF-8 JSON
+    fixture = Path(__file__).parent / 'fixtures' / 'benchmarks' / 'criterion' / 'plan_route' / 'new'
+    benchmark = self.dir / 'criterion' / 'route' / 'new'
+    benchmark.mkdir(parents=True)
+    (benchmark / 'estimates.json').write_bytes((fixture / 'estimates.json').read_bytes())
+    (benchmark / 'benchmark.json').write_text(json.dumps({"group_id": "itinéraire", "full_id": "itinéraire/Séoul"}, ensure_ascii=False), encoding='utf-8')
+    # a run's code can write its metrics' definitions itself
+    (self.dir / 'output').mkdir()
+    (self.dir / 'output' / 'metrics_definitions.json').write_text(json.dumps({"latency": {"suffix": "µs"}}, ensure_ascii=False), encoding='utf-8')
+    out = self.check("""
+      import json
+      from qaboard.benchmarks import read_benchmarks
+      from qaboard.metrics import read_definitions_file, write_definitions_file
+      definitions = read_definitions_file('output')
+      write_definitions_file('output', {**definitions, "temperature": {"suffix": "\\u00b0C"}})  # the command line is ASCII too
+      print(json.dumps({
+        "benchmarks": [b.name for b in read_benchmarks('criterion')],
+        "definitions": read_definitions_file('output'),
+      }))
+    """)
+    self.assertEqual(json.loads(out.splitlines()[-1]), {
+      "benchmarks": ["itinéraire/Séoul"],
+      "definitions": {"latency": {"suffix": "µs"}, "temperature": {"suffix": "°C"}},
+    })
+
   def test_reads_branch_names(self):
     env = {**os.environ, 'GIT_AUTHOR_NAME': 'test', 'GIT_AUTHOR_EMAIL': 'test@example.com', 'GIT_COMMITTER_NAME': 'test', 'GIT_COMMITTER_EMAIL': 'test@example.com'}
     git = lambda *args: subprocess.run(['git', *args], cwd=self.dir, env=env, check=True, capture_output=True, encoding='utf-8').stdout.strip()  # noqa: E731
