@@ -21,7 +21,7 @@ jobs:
     - uses: actions/checkout@v7
       with:
         persist-credentials: false  # no step pushes
-    - uses: astral-sh/setup-uv@v10
+    - uses: astral-sh/setup-uv@v10.3.3
       with:
         python-version: '3.11'
     - name: Check the release tag matches the version

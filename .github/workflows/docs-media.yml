@@ -77,7 +77,7 @@ jobs:
           # gc and the affected shots need the history and the tags
           fetch-depth: 0
 
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
           cache-dependency-glob: docs-media/*.py
