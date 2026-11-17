@@ -18,8 +18,8 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.96dbde19.css">
-<script src="/qaboard/assets/js/runtime~main.f54b0e85.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.db5e5d01.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.1aef6c59.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.a676050e.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -184,7 +184,7 @@ aren&#x27;t saved: <code>qa</code> says why and what to do, and in CI, <code>qa 
 <p>The server starts Jenkins builds with its own Jenkins credentials (<code>JENKINS_AUTH</code>). Callers without a token, like
 <code>qa</code>&#x27;s Windows runner or scripts that call <code>/api/v1/jenkins/build/trigger</code>, can only start the jobs listed in a
 project&#x27;s <em>qaboard.yaml</em> (<code>runners.jenkins.build_url</code>, or a Jenkins integration). Other jobs need a token with the
-<code>act</code> scope (or <code>ingest</code>, with the project), see <a class="" href="/qaboard/docs/http-api#act">Starting runs and batches</a>.</p>
+<code>act</code> scope (or <code>ingest</code>, with the project), see <a class="" href="/qaboard/docs/http-api#act">Starting other runs</a>.</p>
 <p>While scripts move to tokens, <code>jenkins.anonymous_jobs</code> (or <code>QABOARD_JENKINS_ANONYMOUS_JOBS=ALGO,nightly</code>) lets anyone
 start the jobs whose path (<code>/job/...</code>) contains one of the texts, case-sensitive (<code>*</code> allows every job on the
 <code>JENKINS_AUTH</code> hosts). Their callers get a warning in the <code>X-QABoard-Warning</code> header, the audit log records the builds,
