@@ -6,7 +6,13 @@ description: "Did this commit make things better, and where? The Summary, the Me
 ---
 Did this commit make things better, and where? The three **Metrics** views of the [commit page](/docs/user-guide/commit-page)
 answer it from the top down: the **Summary** for the big picture, the **Metrics Diff** for the runs that changed, the
-**Metrics Table** for each value against its target.
+**Metrics Table** for each value against its target. Click **Metrics** in the sidebar, then switch between
+**Summary**, **Table** and **Diff** at the top of the view; hover **Metrics** to go straight to one. The **Docs** and
+**Script** buttons next to **Export** link here and give a script to read or add metrics to the runs shown.
+
+When the runs have no metrics yet, besides how long they took, the view says how to add some: return them from your code,
+or compute them from the runs' files with a script, without running again. See
+[Metrics](/docs/computing-quantitative-metrics).
 
 ## Example: what does int8 cost the detector? {#example}
 Arjun quantized the detector to int8, so that it fits the K3 robot's accelerator. His commit runs the four test slices

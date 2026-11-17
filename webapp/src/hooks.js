@@ -18,6 +18,7 @@ import { default_project } from "./defaults";
 import { milestonesQuery, milestones_of, milestone_name, no_milestones } from "./milestones/api";
 import { side_color } from "./sideColors";
 import { with_undeclared_metrics } from "./utils";
+import { automatic_default_view, batch_facts, default_views_of } from "./defaultViews";
 
 // The keys of a Set of metrics, as a string that only changes when they do
 export const used_metrics_signature = used_metrics => [...(used_metrics ?? [])].sort().join('\n');
@@ -479,8 +480,19 @@ function useComparisonState() {
     metrics: { default_metric },
   }), [new_commit, ref_commit, selected_batch_new, selected_batch_ref, filter_batch_new, filter_batch_ref, sort_by, sort_order, default_metric, reference_rules]);
 
-  const default_tab = config.config.outputs?.default_tab_details ?? project_data.data?.qatools_config?.outputs?.default_tab_details ?? 'summary';
-  const default_views = useMemo(() => [].concat(default_tab).map(v => v.replace('_', '-')), [default_tab]);
+  // The view the page opens on: qaboard.yaml's choice, else the most useful with what the project set up (defaultViews.js).
+  // Once the batch's runs say enough, it stays the same for the batch: runs finishing don't change the page under users.
+  const configured_tab = config.config.outputs?.default_tab_details ?? project_data.data?.qatools_config?.outputs?.default_tab_details;
+  const facts = useMemo(
+    () => batch_facts({ config_outputs: config.config.outputs, outputs: batches.new_batch.outputs }),
+    [config.config.outputs, batches.new_batch.outputs],
+  );
+  const facts_key = `${new_project}|${new_commit?.id}|${raw_new_batch?.id ?? selected_batch_new}`;
+  const [settled_facts, setSettledFacts] = useState(null);
+  if (facts.ready && settled_facts?.key !== facts_key) setSettledFacts({ key: facts_key, facts });
+  const shown_facts = settled_facts?.key === facts_key ? settled_facts.facts : facts;
+  const automatic_view = automatic_default_view(shown_facts);
+  const default_views = useMemo(() => default_views_of(configured_tab, automatic_view), [configured_tab, automatic_view]);
   const selected_views = useMemo(
     () => selected.selected_views ?? default_views,
     [selected.selected_views, default_views],
