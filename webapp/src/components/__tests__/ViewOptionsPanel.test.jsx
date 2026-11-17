@@ -131,6 +131,20 @@ test('the sorting shows the default, e.g. the main metric, before users choose',
 });
 
 
+test('runs can be sorted by how much a metric changed vs their reference run, largest change first', () => {
+  panel({}, {
+    sort_by: 'change:psnr',
+    sort_order: undefined,
+    new_batch: { used_metrics: new Set(['psnr', 'time']), metrics_with_refs: new Set(['psnr']) },
+    available_metrics: { psnr: { key: 'psnr', label: 'PSNR' }, time: { key: 'time', label: 'Time' } },
+  });
+  expect(screen.getByRole('combobox', { name: 'Sort runs by' })).toHaveValue('change:psnr');
+  // only the metrics the reference runs have
+  expect(screen.getByRole('option', { name: 'Change of PSNR' })).toBeInTheDocument();
+  expect(screen.queryByRole('option', { name: 'Change of Time' })).toBeNull();
+  expect(screen.getByRole('combobox', { name: 'Sort order' })).toHaveDisplayValue('Largest change first');
+});
+
 test('runs can be sorted by batch when they come from several, names A to Z by default', () => {
   const outputs = { 1: { data: { batch: 'night' } }, 2: { data: { batch: 'day' } } };
   const { unmount } = panel({}, { sort_by: undefined, sort_order: undefined, default_sort_by: 'data.batch', new_batch: { used_metrics: [], outputs } });

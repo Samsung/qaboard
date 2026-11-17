@@ -1,11 +1,12 @@
 // How runs are sorted on the commit page: by their name, batch, database, status, configuration, id, storage,
-// a metric or a tuning parameter. Ties are broken by name, then id, so the order is always the same.
+// a metric, how much a metric changed vs the reference run (`change:<metric>`), or a tuning parameter. Ties are broken by name, then id, so the order is always the same.
 // Text sorts A to Z by default, numbers largest first: `sort_order` (1: ascending, -1: descending) is only
 // in the URL when users chose it.
 import { get as _get } from "es-toolkit/compat";
 
 import { runName } from "../utils/runName";
 import { configurationSummary } from "../configurations/tokens";
+import { diff_cell } from "../utils/compare";
 
 
 // e.g. frame_2 before frame_10, case-insensitive
@@ -25,8 +26,28 @@ export const run_sort_keys = {
   'data.storage': { label: 'Storage', value: output => output.data?.storage },
 };
 
+// Sorting by how much a metric changed vs the runs' reference runs: `change:psnr`
+const change_prefix = 'change:';
+export const change_key = metric => `${change_prefix}${metric}`;
+// the metric of a change key, else null
+export const changed_metric = sort_by => typeof sort_by === 'string' && sort_by.startsWith(change_prefix) ? sort_by.slice(change_prefix.length) : null;
+// How much a run's metric changed vs its reference run's: the size of the relative change the Metrics Diff shows,
+// whichever way. Nothing without both values.
+export const change_size = (value, ref_value) => {
+  if (typeof value !== 'number' || typeof ref_value !== 'number' || !Number.isFinite(value) || !Number.isFinite(ref_value)) return undefined;
+  return Math.abs(diff_cell(value, ref_value).delta_relative);
+};
+
+// e.g. "Name", "PSNR", "Change of PSNR"
+export const sort_label = (sort_by, available_metrics = {}) => {
+  const metric = changed_metric(sort_by);
+  if (metric !== null) return `Change of ${available_metrics[metric]?.label ?? metric}`;
+  return run_sort_keys[sort_by]?.label ?? available_metrics[sort_by]?.label ?? sort_by;
+};
+
 // [ascending, descending]
 export const order_labels = sort_by => {
+  if (changed_metric(sort_by) !== null) return ['Smallest change first', 'Largest change first'];
   if (sort_by === 'status') return ['Failed first', 'Succeeded first'];
   if (sort_by === 'id') return ['Oldest first', 'Newest first'];
   if (sort_by === 'data.storage') return ['Smallest first', 'Largest first'];
@@ -53,7 +74,10 @@ export const default_sort_by = (outputs, default_metric) => {
   return 'test_input_path';
 };
 
-export const sort_value = (output, id, sort_by) => {
+// ref_outputs: the reference's runs, by id: runs' `reference_id` says which they're compared with
+export const sort_value = (output, id, sort_by, ref_outputs) => {
+  const changed = changed_metric(sort_by);
+  if (changed !== null) return change_size(output.metrics?.[changed], ref_outputs?.[output.reference_id]?.metrics?.[changed]);
   const metric = output.metrics?.[sort_by];
   if (metric !== undefined && metric !== null) return metric;
   const key = run_sort_keys[sort_by];
@@ -66,10 +90,11 @@ export const compare_values = (a, b) => typeof a === 'number' && typeof b === 'n
   ? a - b
   : collator.compare(typeof a === 'object' ? JSON.stringify(a) : String(a), typeof b === 'object' ? JSON.stringify(b) : String(b));
 
-// The ids, sorted. Runs without a value come last, whatever the order.
-export const sorted_ids = (ids, outputs, sort_by, sort_order) => {
+// The ids, sorted. Runs without a value come last, whatever the order, e.g. runs without a reference run when sorting
+// by a change. ref_outputs: the reference's runs, to sort by a change.
+export const sorted_ids = (ids, outputs, sort_by, sort_order, ref_outputs) => {
   const order = effective_sort_order(sort_by, sort_order);
-  const values = new Map(ids.map(id => [id, sort_value(outputs[id], id, sort_by)]));
+  const values = new Map(ids.map(id => [id, sort_value(outputs[id], id, sort_by, ref_outputs)]));
   const names = new Map(ids.map(id => [id, runName(outputs[id])]));
   return [...ids].sort((ka, kb) => {
     const a = values.get(ka);

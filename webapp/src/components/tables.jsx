@@ -23,6 +23,7 @@ import { TableArea, Toolbar, Table } from "./metricsTable/styles"
 import { TableScroller } from "./metricsTable/TableScroller"
 import { kpi_column_stats, diff_column_stats, has_changes, format_fixed, target_check } from "./metricsTable/stats"
 import { MetricColumnHeader, SortButton, DistributionSummary, ChangesSummary, sort_state, aria_sort, is_direction_unknown, has_target } from "./metricsTable/columns"
+import { change_key, changed_metric } from "../selectors/sorting";
 import { kpi_tsv, diff_tsv } from "./metricsTable/tsv"
 
 
@@ -342,6 +343,8 @@ const TableCompare = ({
       </Callout>
     </TableArea>;
 
+  // the column sorted: by its change, or by its values, e.g. sorted from the Metrics Table
+  const diff_sorted_key = changed_metric(sorting?.by) ?? sorting?.by;
   const runs = runs_header_cells({ sorting, onSort, shown: changed_outputs.length, total: outputs.length, failed: outputs.filter(([, o]) => o.is_failed).length });
   const tsv = () => diff_tsv({
     rows: changed_outputs.map(([, output]) => ({ output, output_ref: ref_batch?.outputs?.[output.reference_id] })),
@@ -363,7 +366,7 @@ const TableCompare = ({
       <HiddenMetrics count={hidden_count} shown={metrics_.length}/>
       <TableScroller stickyTop={stickyTop} label="Metrics diff">
         <Table compact>
-          <ColumnGroup metrics={metrics_} sorted_key={onSort ? sorting?.by : undefined}/>
+          <ColumnGroup metrics={metrics_} sorted_key={onSort ? diff_sorted_key : undefined}/>
           <thead>
             <tr className="stick">
               {runs.name}
@@ -373,15 +376,16 @@ const TableCompare = ({
                   metric={m}
                   sorting={sorting}
                   onSort={onSort}
+                  sort_key={change_key(m.key)}
                   hint={added_hints[m.key]}
-                  sorts_by={`the ${label_new} runs' values, not by the change`}
+                  sorts_by="the size of the relative change, better or worse. Runs without a reference value come last"
                 />
               ))}
             </tr>
             <tr className="stick stick-last">
               {runs.count}
               {metrics_.map(m => (
-                <th scope="col" key={m.key} aria-label={`${label_new} − ${label_ref}`} className={onSort && sorting?.by === m.key ? 'sorted' : undefined}>
+                <th scope="col" key={m.key} aria-label={`${label_new} − ${label_ref}`} className={onSort && diff_sorted_key === m.key ? 'sorted' : undefined}>
                   <Tooltip placement="top" content={is_direction_unknown(m)
                     ? "Difference with the matching reference run (relative change). The darker, the larger the change: QA-Board doesn't know which way is better."
                     : "Difference with the matching reference run (relative change). Green is better, red is worse."}>

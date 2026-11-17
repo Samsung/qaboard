@@ -23,7 +23,7 @@ import { FileOptionSwitches, file_options_summary } from "../viewers/bit_accurac
 import { usePrefsStore, useOutputCardDensity, useRunNameOrigin } from "../stores/prefs";
 import { run_name_origin_options } from "./RunInfoMenu";
 import { OutputCardDensityControl } from "./DensityControl";
-import { order_labels, run_sort_keys, default_sort_order, effective_sort_order } from "../selectors/sorting";
+import { order_labels, run_sort_keys, default_sort_order, effective_sort_order, change_key, sort_label as sort_key_label } from "../selectors/sorting";
 
 // The commit page's View options: what the views of the runs' results show, and in which order.
 // Docked on the right of the page (see SidePanel), they only list what changes the views selected.
@@ -359,7 +359,7 @@ const ViewOptionsPanel = ({
     .filter(key => !['data.batch', 'test_input_database'].includes(key) || key === sort_value || run_values(key) > 1);
 
   // What differs from the project's defaults, whatever the view: counted in the header, a dot on the rail's icons
-  const sort_label = key => run_sort_keys[key]?.label ?? available_metrics[key]?.label ?? key;
+  const sort_label = key => sort_key_label(key, available_metrics);
   const order_label = (order === 1 ? ascending_label : descending_label).toLowerCase();
   const sort_changed = (sort_by !== undefined && sort_by !== default_by) || order !== default_sort_order(sort_value);
   const changes = {
@@ -534,6 +534,12 @@ const ViewOptionsPanel = ({
                 )
               )}
             </optgroup>
+            {/* how much each run changed vs its reference run, better or worse: what the Metrics Diff shows */}
+            {new_batch.metrics_with_refs?.size > 0 && <optgroup label="Change vs reference">
+              {[...new_batch.metrics_with_refs].filter(m => !!available_metrics[m]).map(m => available_metrics[m]).map(
+                m => <option key={m.key} value={change_key(m.key)}>Change of {m.label}</option>
+              )}
+            </optgroup>}
           </HTMLSelect>
           <HTMLSelect
             value={order}

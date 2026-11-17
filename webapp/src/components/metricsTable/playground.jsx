@@ -75,7 +75,7 @@ const Page = () => {
   const [sort, setSort] = useState({ by: 'psnr', order: -1 });
   const new_batch = useMemo(() => ({
     outputs: new_outputs,
-    filtered: { outputs: sorted_ids(Object.keys(new_outputs), new_outputs, sort.by, sort.order) },
+    filtered: { outputs: sorted_ids(Object.keys(new_outputs), new_outputs, sort.by, sort.order, ref_outputs) },
     used_metrics,
     metrics_with_refs: used_metrics,
   }), [sort]);

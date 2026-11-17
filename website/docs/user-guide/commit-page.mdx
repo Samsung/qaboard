@@ -107,8 +107,8 @@ Press <kbd>o</kbd> to show or hide it. It lists only what applies to the view yo
   project's own switches, if it has some.
 - **Configuration**: the settings all the runs shown share, **Hide them in each run**, and **Shorten long settings
   with …**.
-- **Sort runs**: by name, batch, database, status, configuration, run id, storage, a tuning parameter or a metric, for
-  the tables, the run cards and the logs. Until you choose, runs are sorted by the project's default metric, else by
+- **Sort runs**: by name, batch, database, status, configuration, run id, storage, a tuning parameter, a metric, or how
+  much a metric changed vs the reference (**Change vs reference**), for the tables, the run cards and the logs. Until you choose, runs are sorted by the project's default metric, else by
   batch when they come from several, else by name, marked *(default)*.
 
 **Reset** goes back to the project's defaults, except for the sorting.
@@ -132,7 +132,9 @@ Press <kbd>o</kbd> to show or hide it. It lists only what applies to the view yo
 - **Sort runs**: the order reads like the values: *Highest first*, *A to Z*, *Newest first*, *Failed first*... Each
   starts in its natural order: names A to Z, failed runs first, metrics highest first. Names are sorted "naturally"
   (`frame2` before `frame10`), runs without a value come last, and ties are sorted by name. **Batch** and **Database**
-  are listed when the runs come from several. It sorts by the new runs' values. The Summary doesn't use it.
+  are listed when the runs come from several. It sorts by the new runs' values, except **Change of …**: the size of
+  the relative change vs each run's reference run, better or worse, *Largest change first*. Runs without a reference
+  run come last. The Summary doesn't use it.
 
 </details>
 

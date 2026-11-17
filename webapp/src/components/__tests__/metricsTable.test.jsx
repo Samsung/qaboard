@@ -186,6 +186,18 @@ describe('TableCompare', () => {
     expect(screen.getByRole('columnheader', { name: /^loss/ })).not.toHaveAttribute('aria-sort');
   });
 
+  it('sorts by the size of the change when users click a metric', () => {
+    const onSort = vi.fn();
+    const { container, rerender } = renderWithProviders(<TableCompare new_batch={new_batch} ref_batch={ref_batch} metrics={['loss']} available_metrics={available_metrics} sorting={{ by: 'test_input_path', order: 1 }} onSort={onSort}/>);
+    fireEvent.click(within(screen.getByRole('columnheader', { name: /^loss/ })).getByRole('button'));
+    expect(onSort).toHaveBeenLastCalledWith({ by: 'change:loss', order: -1 });
+    rerender(<TableCompare new_batch={new_batch} ref_batch={ref_batch} metrics={['loss']} available_metrics={available_metrics} sorting={{ by: 'change:loss', order: -1 }} onSort={onSort}/>);
+    expect(screen.getByRole('columnheader', { name: /^loss/ })).toHaveAttribute('aria-sort', 'descending');
+    expect(container.querySelector('col.sorted')).not.toBeNull();
+    fireEvent.click(within(screen.getByRole('columnheader', { name: /^loss/ })).getByRole('button'));
+    expect(onSort).toHaveBeenLastCalledWith({ by: 'change:loss', order: 1 });
+  });
+
   it('copies the values, their difference and relative change', () => {
     renderWithProviders(<TableCompare new_batch={new_batch} ref_batch={ref_batch} metrics={['loss']} available_metrics={available_metrics}/>);
     fireEvent.click(screen.getByRole('button', { name: 'Copy' }));

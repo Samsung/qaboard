@@ -57,8 +57,9 @@ export const SortButton = ({ sort_key, sorting, onSort, children, className, ...
 // The header over a metric's column(s): its label, then which way is better and its target, or its unit.
 // sorts_by: what sorting by it sorts by, e.g. "the new runs' values, not by the change"
 // hint: how the table shows it, e.g. that cells are shaded by rank
-export const MetricColumnHeader = ({ metric: m, sorting, onSort, colSpan, hint, sorts_by, target_hint }) => {
-  const order = onSort ? sort_state(sorting, m.key) : null;
+// sort_key: what clicking it sorts by, e.g. change_key(m.key) in the Metrics Diff. By default the metric's values.
+export const MetricColumnHeader = ({ metric: m, sort_key = m.key, sorting, onSort, colSpan, hint, sorts_by, target_hint }) => {
+  const order = onSort ? sort_state(sorting, sort_key) : null;
   const details = has_target(m)
     ? (is_direction_unknown(m) ? `? target ${with_unit(m.target, m)}` : target_text(m))
     : `${direction_glyph(m)}${unit(m) ? ` ${unit(m)}` : ''}`;
@@ -78,10 +79,10 @@ export const MetricColumnHeader = ({ metric: m, sorting, onSort, colSpan, hint, 
         <div>{direction_text(m)}</div>
         {has_target(m) && <div>Target: {target_text(m)}{target_hint ? `. ${target_hint}` : ''}</div>}
         {hint && <div>{hint}</div>}
-        {onSort && <div>{sort_hint(sorting, m.key)}{sorts_by ? ` It sorts by ${sorts_by}.` : ''}</div>}
+        {onSort && <div>{sort_hint(sorting, sort_key)}{sorts_by ? ` It sorts by ${sorts_by}.` : ''}</div>}
       </div>}
     >
-      <SortButton sort_key={m.key} sorting={sorting} onSort={onSort}>
+      <SortButton sort_key={sort_key} sorting={sorting} onSort={onSort}>
         <span className="metric-label">{m.short_label}</span>
         <span className="metric-details">{details}</span>
       </SortButton>

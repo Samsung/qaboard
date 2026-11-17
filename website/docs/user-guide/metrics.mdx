@@ -82,9 +82,10 @@ worse, e.g. *5 better · 2 worse*, and **Only runs that changed** hides the othe
 - Orange **Input**, **Config** or **Platform** tags (with a `≠`) mean the run was compared with a reference run that
   is not exactly the same. Hover them for what differs. See
   [How runs are matched](/docs/user-guide/comparing-results#how-runs-are-matched).
-- To bring the worst runs to the top, click a metric's name to sort the runs by it, and again to flip the order, or
-  **Sort runs** in the [View options](/docs/user-guide/commit-page#view-options): it's the same order, in every view. It
-  sorts by the new runs' values, not by their change.
+- To bring the runs that changed most to the top, click a metric's name: it sorts the runs by the size of their
+  change, better or worse, largest first. Click again for the smallest first. Runs without a reference value come
+  last. It's **Change of …** in **Sort runs**, in the [View options](/docs/user-guide/commit-page#view-options), and
+  the same order applies to every view. In the Metrics Table, clicking a metric sorts by its values.
 
 :::tip
 The metrics box above the tables is shared by the Metrics Diff and the Metrics Table, and saved in the page's link:
