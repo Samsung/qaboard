@@ -83,10 +83,11 @@ This command generates static content into the `build` directory and can be serv
 #### Deployment
 
 The Website workflow (`.github/workflows/website.yml`) deploys `master` to GitHub Pages (repository Settings > Pages >
-Source: GitHub Actions), then starts a crawl of the Algolia crawler, which updates the search index. It needs these
-repository secrets, from the Algolia dashboard's Crawler pages:
+Source: GitHub Actions). The Algolia crawler updates the search index every day; to update it right after a deploy,
+the workflow also starts a crawl when these repository secrets are set, from the Algolia dashboard's Crawler pages:
 - `ALGOLIA_CRAWLER_ID`: the id in the crawler's URL, `crawler.algolia.com/admin/crawlers/<id>/...`
-- `ALGOLIA_CRAWLER_USER_ID` and `ALGOLIA_CRAWLER_API_KEY`: Crawler > Settings
+- `ALGOLIA_CRAWLER_USER_ID` and `ALGOLIA_CRAWLER_API_KEY`: Crawler > Settings (the key shows only right after you
+  regenerate it, and regenerating it breaks whatever uses the old one)
 
 The crawler's configuration lives in the Algolia dashboard. To group the results by docs section (Get started, User
 guide, Project integration, Admin) and leave out what's the same on every page, its `recordExtractor` starts with:

@@ -3,7 +3,8 @@ name: Website
 # Builds the docs website on pull requests (the build fails on broken links, unknown shot ids, wrong stack tabs and
 # missing repository files), and from master deploys it to GitHub Pages, then has the Algolia crawler update the
 # search index. Needs Settings > Pages > Source: GitHub Actions, and for the crawl the secrets ALGOLIA_CRAWLER_ID,
-# ALGOLIA_CRAWLER_USER_ID and ALGOLIA_CRAWLER_API_KEY (see website/README.md): without them, the site still deploys.
+# ALGOLIA_CRAWLER_USER_ID and ALGOLIA_CRAWLER_API_KEY (see website/README.md): without them, the site still deploys,
+# and the crawler's daily schedule updates the index.
 on:
   push:
     branches: [master]
@@ -72,12 +73,13 @@ jobs:
       ALGOLIA_CRAWLER_USER_ID: ${{ secrets.ALGOLIA_CRAWLER_USER_ID }}
       ALGOLIA_CRAWLER_API_KEY: ${{ secrets.ALGOLIA_CRAWLER_API_KEY }}
     steps:
+      # The crawler also runs on a daily schedule: this only makes the index fresh right after a deploy
       - name: No Algolia crawler secrets
-        if: env.ALGOLIA_CRAWLER_API_KEY == ''
-        run: echo "::notice::No ALGOLIA_CRAWLER_* secrets, the search index isn't updated. See website/README.md"
+        if: env.ALGOLIA_CRAWLER_ID == '' || env.ALGOLIA_CRAWLER_USER_ID == '' || env.ALGOLIA_CRAWLER_API_KEY == ''
+        run: echo "::notice::Some ALGOLIA_CRAWLER_* secrets are missing, no crawl started (the crawler's daily one still runs). See website/README.md"
       # https://www.algolia.com/doc/rest-api/crawler/start-reindex
       - name: Start a crawl
-        if: env.ALGOLIA_CRAWLER_API_KEY != ''
+        if: env.ALGOLIA_CRAWLER_ID != '' && env.ALGOLIA_CRAWLER_USER_ID != '' && env.ALGOLIA_CRAWLER_API_KEY != ''
         run: |
           curl --fail-with-body --silent --show-error --retry 3 -X POST \
             --user "$ALGOLIA_CRAWLER_USER_ID:$ALGOLIA_CRAWLER_API_KEY" \
