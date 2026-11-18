@@ -41,6 +41,7 @@ jobs:
   python:
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -94,6 +95,7 @@ jobs:
   webapp:
     runs-on: ubuntu-24.04 # playwright 1.56 has no chromium for ubuntu 26.04
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: webapp
@@ -124,6 +126,7 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write # pushes the images to ghcr.io
@@ -230,6 +233,7 @@ jobs:
   helm:
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
@@ -492,6 +496,7 @@ jobs:
   publish-docker-images:
     runs-on: ubuntu-latest
     if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
+    timeout-minutes: 15
     needs: [python, webapp, docker, helm, helm-e2e, quickstart]
     permissions:
       contents: read
@@ -548,6 +553,7 @@ jobs:
   publish-chart:
     runs-on: ubuntu-latest
     if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
+    timeout-minutes: 10
     needs: [publish-docker-images]
     permissions:
       contents: read
