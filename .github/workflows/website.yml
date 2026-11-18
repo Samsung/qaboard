@@ -30,6 +30,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false  # no step pushes
+          # The whole history: each page's "Last updated" date and the sitemap's <lastmod> come from its last commit
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: 24.x
@@ -42,6 +44,11 @@ jobs:
           ~/.cache/qaboard-docs-media/bin/actionlint website/snippets/ci/github-actions*.yml
       - name: Build website
         working-directory: website
+        env:
+          # Search Console and Bing Webmaster Tools tokens (repository variables, not secrets: the tags are public).
+          # See website/README.md, "Search engines and AI assistants"
+          QABOARD_GOOGLE_SITE_VERIFICATION: ${{ vars.QABOARD_GOOGLE_SITE_VERIFICATION }}
+          QABOARD_BING_SITE_VERIFICATION: ${{ vars.QABOARD_BING_SITE_VERIFICATION }}
         run: |
           yarn install --frozen-lockfile
           yarn build

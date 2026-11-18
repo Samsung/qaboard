@@ -9,6 +9,7 @@
 import React, {type ReactNode} from 'react';
 import clsx from 'clsx';
 import Layout from '@theme/Layout';
+import Head from '@docusaurus/Head';
 import Link from '@docusaurus/Link';
 import useGlobalData from '@docusaurus/useGlobalData';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
@@ -241,7 +242,6 @@ function StepLink({to, children}: {to: string; children: ReactNode}) {
 
 function Loop() {
   const {selected, tabListProps, tabProps, panelProps} = useTabs(STEPS.length, 'The review loop');
-  const step = STEPS[selected];
   return (
     <section className={clsx(styles.section, styles.sectionAlt)}>
       <div className="container">
@@ -261,19 +261,19 @@ function Loop() {
               </button>
             ))}
           </div>
-          <div className={styles.loopPanel} {...panelProps}>
-            <div className={styles.loopText}>
-              <h3 className={styles.loopTitle}>
-                {step.title} {step.experimental && <StatusBadge status="experimental" />}
-              </h3>
-              <p>{step.text}</p>
-              <StepLink to={step.link}>{step.linkLabel} →</StepLink>
+          {STEPS.map((step, index) => (
+            <div key={step.name} className={styles.loopPanel} {...panelProps(index)}>
+              <div className={styles.loopText}>
+                <h3 className={styles.loopTitle}>
+                  {step.title} {step.experimental && <StatusBadge status="experimental" />}
+                </h3>
+                <p>{step.text}</p>
+                <StepLink to={step.link}>{step.linkLabel} →</StepLink>
+              </div>
+              {/* Only the selected step's clip is in the page: the others load when picked */}
+              {index === selected && <div className={styles.loopMedia}>{step.media}</div>}
             </div>
-            {/* Only the selected step's clip is in the page: the others load when picked */}
-            <div className={styles.loopMedia} key={step.name}>
-              {step.media}
-            </div>
-          </div>
+          ))}
         </div>
       </div>
     </section>
@@ -742,12 +742,63 @@ function FinalCta() {
   );
 }
 
+// What the page says, for search engines and AI assistants (schema.org JSON-LD). Only facts the page shows: no
+// ratings, no price. Only on the public website, not in the docs built into a web app
+const DESCRIPTION =
+  "Tests tell you it runs. QA-Board shows you it's better: every commit's outputs and metrics next to the reference's, for people and agents. Open source, self-hosted.";
+
+function StructuredData() {
+  const {siteConfig} = useDocusaurusContext();
+  const {is_for_webapp, site} = siteConfig.customFields ?? {};
+  if (is_for_webapp || site)
+    return null;
+  const url = `${siteConfig.url}${siteConfig.baseUrl}`;
+  const image = siteConfig.themeConfig.image as string | undefined;
+  const data = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': ['SoftwareApplication', 'SoftwareSourceCode'],
+        '@id': `${url}#software`,
+        name: 'QA-Board',
+        alternateName: 'qaboard',
+        description:
+          'Open-source, self-hosted quality tracking. Every change runs on your test set, and QA-Board puts its outputs (images, videos, point clouds, plots, flame graphs, benchmarks, test reports, logs) and metrics next to the reference’s, for people and coding agents.',
+        url,
+        ...(image ? {image: new URL(image, url).href} : {}),
+        applicationCategory: 'DeveloperApplication',
+        operatingSystem: 'Linux, macOS, Windows',
+        softwareRequirements: 'Docker or Kubernetes for the server, Python for the qa command line',
+        license: 'https://www.apache.org/licenses/LICENSE-2.0',
+        isAccessibleForFree: true,
+        codeRepository: GITHUB,
+        programmingLanguage: ['Python', 'JavaScript'],
+        author: {'@type': 'Organization', name: 'Samsung', url: 'https://github.com/Samsung'},
+        sameAs: [GITHUB, 'https://pypi.org/project/qaboard/'],
+        softwareHelp: {'@type': 'CreativeWork', url: `${url}docs/get-started/quickstart/`},
+        releaseNotes: `${url}release-notes/`,
+      },
+      {
+        '@type': 'WebSite',
+        '@id': `${url}#website`,
+        name: 'QA-Board',
+        url,
+        about: {'@id': `${url}#software`},
+      },
+    ],
+  };
+  return (
+    <Head>
+      <script type="application/ld+json">{JSON.stringify(data)}</script>
+    </Head>
+  );
+}
+
 export default function Home() {
   const contact = useContact();
   return (
-    <Layout
-      title="Quality tracking for people and agents"
-      description="Tests tell you it runs. QA-Board shows you it's better: every change's outputs (images, videos, plots, flame graphs, test reports) and metrics next to the reference's, for people and coding agents. Open source, self-hosted, in production at Samsung since 2018.">
+    <Layout title="Quality tracking for people and agents" description={DESCRIPTION}>
+      <StructuredData />
       <Hero />
       <main>
         <ProofStrip />

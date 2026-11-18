@@ -344,6 +344,11 @@
   min-width: 0;
 }
 
+/* The tabs that aren't selected (their text stays in the page for search engines, see useTabs) */
+.loopPanel[hidden] {
+  display: none;
+}
+
 .loopTitle {
   display: flex;
   flex-wrap: wrap;
