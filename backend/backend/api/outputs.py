@@ -20,7 +20,7 @@ from ..metrics_definitions import MAX_KEY_LENGTH, FORBIDDEN_KEYS
 from ..redo import redo_response
 from ..metrics_definitions import save_metrics_definitions
 from ..notifications.batches import on_run_ended
-from ..tokens import revoke_ended_batch_token
+from ..tokens import end_batch_token
 from ..attempts import record_attempt
 from ..access import invalid_project
 from .auth import login_required, is_authorized_user, ingest_access, forbidden_project, require_project_access
@@ -601,8 +601,8 @@ def new_output_webhook():
   if not output.is_pending:
     # maybe the batch's last run: users may want to know
     on_run_ended(db_session, output.data.get('root_command_id'))
-    # and its token is no longer needed (tokens.mint_for_batch)
-    revoke_ended_batch_token(db_session, output.data.get('root_command_id'))
+    # and its token soon no longer needed (tokens.mint_for_batch)
+    end_batch_token(db_session, output.data.get('root_command_id'))
   # The metrics the run's code declared, e.g. qaboard.Metric(12.3, suffix="ms")
   if data.get('metrics_definitions'):
     try:

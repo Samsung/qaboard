@@ -182,7 +182,7 @@ class Batch(Base):
     """The tokens of the batches QA-Board started here (tokens.mint_for_batch): once stopped, their runs send nothing"""
     from backend.tokens import revoke_batch_tokens
     submissions = (self.data or {}).get('submissions') or {}
-    if isinstance(submissions, dict) and submissions:
+    if submissions:
       revoke_batch_tokens(list(submissions), reason="its batch was stopped")
 
   def delete(self, session, soft=False, only_failed=False, filter=None):

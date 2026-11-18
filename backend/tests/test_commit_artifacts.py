@@ -3,6 +3,7 @@ Tests for a commit's artifacts sent over HTTP: where the server saves them (back
 (backend/api/commit_artifacts.py), the commits that then run from there (CiCommit), and the scripts that `cd` there
 or fetch them (backend/artifacts.py).
 """
+import datetime
 import hashlib
 import importlib.util
 import json
@@ -308,18 +309,21 @@ def test_batch_tokens(monkeypatch):
   monkeypatch.setitem(sys.modules["backend"].__dict__, "db_session", MagicMock())
   alice = SimpleNamespace(id=1, user_name="alice")
   # projects with a shared storage: nothing changes
-  assert tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(uploaded=False), "c0ffee00-1") is None
+  assert tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(uploaded=False), "c0ffee00-1", "local") is None
   with pytest.raises(ValueError, match="Sign in"):
-    tokens.mint_for_batch(None, a_commit(), "c0ffee00-1")
-  assert tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(), "c0ffee00-1") == "qab_bat_secret"
+    tokens.mint_for_batch(None, a_commit(), "c0ffee00-1", "local")
+  assert tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(), "c0ffee00-1", "kubernetes") == "qab_bat_secret"
   user, options = minted[0]
   assert user is alice and options["kind"] == "batch" and options["projects"] == ["group/repo/sub"]
   assert options["scopes"] == ["read", "ingest"] and options["idle_expiry_days"] == 1
   assert tokens.is_well_formed(tokens.generate(tokens.BATCH_PREFIX))
-  # where its driver may send its log, and whether its runs' end revokes it (not for `qa optimize`)
+  # where its driver may send its log, and whether its runs' end ends it (not for `qa optimize` and redo)
   assert options["data"] == {"command_id": "c0ffee00-1"}
-  tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(), "c0ffee00-2", log_dir=Path("/logs/x"), optimize=True)
-  assert minted[1][1]["data"] == {"command_id": "c0ffee00-2", "log_dir": "/logs/x", "optimize": True}
+  tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(), "c0ffee00-2", "local", log_dir=Path("/logs/x"), until_stopped=True)
+  assert minted[1][1]["data"] == {"command_id": "c0ffee00-2", "log_dir": "/logs/x", "until_stopped": True}
+  # LSF jobs don't get the server's environment
+  assert tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(), "c0ffee00-3", "lsf") is None
+  assert len(minted) == 2
 
 
 def test_batch_tokens_with_a_shared_storage_when_the_server_requires_tokens(monkeypatch):
@@ -330,55 +334,59 @@ def test_batch_tokens_with_a_shared_storage_when_the_server_requires_tokens(monk
   for mode, expected in (("off", None), ("warn", None), ("token", "qab_bat_secret")):
     monkeypatch.setattr(settings, "setting", lambda key, mode=mode: mode if key == "ingest.auth" else None)
     assert tokens.batch_needs_token(a_commit(uploaded=False)) == (expected is not None)
-    assert tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(uploaded=False), "c0ffee00-1") == expected
+    assert tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(uploaded=False), "c0ffee00-1", "local") == expected
     # without a shared storage, always
     assert tokens.batch_needs_token(a_commit())
+    # LSF can't get one: refused before it starts
+    problem = runner_unsupported(a_commit(uploaded=False), "lsf")
+    assert (problem is not None) == (mode == "token")
+    assert runner_unsupported(a_commit(uploaded=False), "local") is None
 
 
 def batch_token(command_id="c0ffee00-1", **data):
-  return SimpleNamespace(id=1, name="Batch", kind="batch", revoked=False, revoked_at=None, expires_at=None,
-                         idle_expiry_days=None, user=None, data={"command_id": command_id, **data})
+  return SimpleNamespace(id=1, name="Batch", kind="batch", revoked=False, revoked_at=None, user=None, idle_expiry_days=None,
+                         expires_at=datetime.datetime(2100, 1, 1), data={"command_id": command_id, **data})
 
 
-def test_batch_tokens_are_revoked_when_the_last_run_ends(monkeypatch):
+def test_batch_tokens_end_soon_after_the_last_run_ends(monkeypatch):
   from backend import tokens
-  audited = []
-  monkeypatch.setitem(sys.modules, "backend.audit", SimpleNamespace(audit=lambda *args, **kwargs: audited.append(args)))
-  token, other = batch_token(), batch_token(optimize=True)
+  token, other = batch_token(), batch_token("c0ffee00-opt", until_stopped=True)
   found = {"c0ffee00-1": [token], "c0ffee00-opt": [other]}
   monkeypatch.setattr(tokens, "active_batch_tokens", lambda ids: [t for i in ids for t in found.get(i, [])])
   session = MagicMock()
   # runs are still pending
   session.execute.return_value.first.return_value = (1,)
-  tokens.revoke_ended_batch_token(session, "c0ffee00-1")
-  assert not token.revoked
-  # the last one ended
+  tokens.end_batch_token(session, "c0ffee00-1")
+  assert token.expires_at.year == 2100
+  # the last one ended: its driver may still send the end of its log
   session.execute.return_value.first.return_value = None
-  tokens.revoke_ended_batch_token(session, "c0ffee00-1")
-  assert token.revoked and token.revoked_at and session.commit.called and audited[-1][0] == "token.revoke"
+  tokens.end_batch_token(session, "c0ffee00-1")
+  assert not token.revoked and token.expires_at <= tokens.utcnow() + tokens.ENDED_BATCH_GRACE and session.commit.called
   # `qa optimize` starts its next batch after this one ends: it keeps its token until stopped
-  tokens.revoke_ended_batch_token(session, "c0ffee00-opt")
-  assert not other.revoked
+  tokens.end_batch_token(session, "c0ffee00-opt")
+  assert other.expires_at.year == 2100
   # runs that weren't started by QA-Board
-  tokens.revoke_ended_batch_token(session, None)
-  tokens.revoke_ended_batch_token(session, "unknown")
+  tokens.end_batch_token(session, None)
+  tokens.end_batch_token(session, "unknown")
   # it never gets in the way of saving results
   monkeypatch.setattr(tokens, "active_batch_tokens", MagicMock(side_effect=RuntimeError("db down")))
-  tokens.revoke_ended_batch_token(session, "c0ffee00-1")
+  tokens.end_batch_token(session, "c0ffee00-1")
   assert session.rollback.called
 
 
-def test_stopping_a_batch_revokes_its_tokens(monkeypatch):
-  from backend import tokens
-  monkeypatch.setitem(sys.modules, "backend.audit", SimpleNamespace(audit=lambda *args, **kwargs: None))
-  session = MagicMock()
-  monkeypatch.setitem(sys.modules["backend"].__dict__, "db_session", session)
-  token, optimize = batch_token(), batch_token("c0ffee00-2", optimize=True)
-  asked = []
-  monkeypatch.setattr(tokens, "active_batch_tokens", lambda ids: (asked.append(ids), [token, optimize])[1])
-  assert tokens.revoke_batch_tokens(["c0ffee00-1", "c0ffee00-2"], reason="its batch was stopped") == 2
-  assert asked == [["c0ffee00-1", "c0ffee00-2"]] and token.revoked and optimize.revoked and session.commit.called
-  assert tokens.revoke_batch_tokens(["c0ffee00-1"], reason="again") == 0
+def test_only_the_batchs_own_token_sends_its_log():
+  from backend.tokens import batch_token_for
+  token = batch_token(log_dir="/logs/x")
+  token.projects = ["group/repo"]
+  assert batch_token_for(SimpleNamespace(token=token), "c0ffee00-1") is token
+  assert batch_token_for(SimpleNamespace(token=token), "c0ffee00-2") is None
+  assert batch_token_for(SimpleNamespace(token=None), "c0ffee00-1") is None
+  assert batch_token_for(None, "c0ffee00-1") is None
+  personal = SimpleNamespace(**{**vars(token), "kind": "personal"})
+  assert batch_token_for(SimpleNamespace(token=personal), "c0ffee00-1") is None
+  without_folder = batch_token()
+  without_folder.projects = ["group/repo"]
+  assert batch_token_for(SimpleNamespace(token=without_folder), "c0ffee00-1") is None
 
 
 def test_the_batch_token_is_in_the_environment_of_qa_batch():

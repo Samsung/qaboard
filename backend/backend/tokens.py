@@ -212,6 +212,12 @@ def mint(user, name: str, scopes: List[str], kind: str = 'personal', projects: O
 
 
 
+# The runners through which QA-Board starts batches whose jobs don't get the server's environment, so no token
+RUNNERS_WITHOUT_TOKEN = ('lsf', 'bridge')
+# After the batch's last run ended, its driver may still send the end of its log
+ENDED_BATCH_GRACE = datetime.timedelta(minutes=10)
+
+
 def batch_needs_token(ci_commit) -> bool:
   """
   Whether the runs of a batch QA-Board starts on this commit need a token of their own: they send their files over
@@ -224,13 +230,15 @@ def batch_needs_token(ci_commit) -> bool:
   return setting('ingest.auth') == 'token'
 
 
-def mint_for_batch(actor, ci_commit, command_id: str, log_dir=None, optimize: bool = False) -> Optional[str]:
+def mint_for_batch(actor, ci_commit, command_id: str, runner: str, log_dir=None, until_stopped: bool = False) -> Optional[str]:
   """
-  The token of the runs of a batch QA-Board starts (tuning, redo, `qa batch --commit`), if they need one
-  (batch_needs_token), else None. It is `actor`'s, who starts the batch:
+  The token of the runs of a batch QA-Board starts (tuning, redo, `qa batch --commit`) with `runner`, if they need
+  one (batch_needs_token), else None. None too for RUNNERS_WITHOUT_TOKEN: artifacts.runner_unsupported refuses them
+  first when a token is needed. It is `actor`'s, who starts the batch:
   - limited to the project, to reading and sending results (`read`, `ingest`);
-  - revoked when the batch's last run ends (revoke_ended_batch_token) or the batch is stopped (revoke_batch_tokens).
-    `qa optimize` runs batch after batch with the same command id: its token lasts until it is stopped or expires;
+  - revoked when the batch is stopped (revoke_batch_tokens), or ENDED_BATCH_GRACE after its last run ended
+    (end_batch_token), unless `until_stopped`: `qa optimize` starts batch after batch with the same command id, and a
+    redo runs pending runs that `qa batch` doesn't register again under its command id;
   - unused for a day it expires (runs report every 2 minutes), and after 30 days in any case;
   - in the environment of `qa batch`, in the driver pod's on Kubernetes. Runners forward it to the runs, unlike other
     secrets: its prefix says what it is (qaboard/runners/env.py). Who reads a namespace's ConfigMaps can use it while
@@ -238,7 +246,7 @@ def mint_for_batch(actor, ci_commit, command_id: str, log_dir=None, optimize: bo
   `log_dir`: the batch's folder of scripts and logs, where its driver may send its log (PUT .../submissions/<id>/log).
   Saved in the database. Raises ValueError without a signed-in user.
   """
-  if not batch_needs_token(ci_commit):
+  if runner in RUNNERS_WITHOUT_TOKEN or not batch_needs_token(ci_commit):
     return None
   user = actor.user if actor is not None else None
   if user is None:
@@ -248,7 +256,7 @@ def mint_for_batch(actor, ci_commit, command_id: str, log_dir=None, optimize: bo
     user, name=f"Batch {command_id[:8]} of {ci_commit.project_id}", scopes=['read', 'ingest'], kind='batch',
     projects=[ci_commit.project_id], expires_at=utcnow() + datetime.timedelta(days=30), idle_expiry_days=1,
     created_by=user, actor=actor, data={
-      "command_id": command_id, **({"log_dir": str(log_dir)} if log_dir else {}), **({"optimize": True} if optimize else {}),
+      "command_id": command_id, **({"log_dir": str(log_dir)} if log_dir else {}), **({"until_stopped": True} if until_stopped else {}),
     },
   )
   db_session.commit()
@@ -267,36 +275,55 @@ def active_batch_tokens(command_ids: List[str]):
           .all())
 
 
+def batch_token_for(actor, command_id: str):
+  """The token the request came with, if it is the batch `command_id`'s own and knows its folder of logs, else None"""
+  token = actor.token if actor is not None else None
+  data = (token.data or {}) if token is not None else {}
+  if token is None or token.kind != 'batch' or data.get('command_id') != command_id or not data.get('log_dir') or len(token.projects or []) != 1:
+    return None
+  return token
+
+
 def revoke_batch_tokens(command_ids: List[str], reason: str, actor=None) -> int:
-  """Revokes the tokens of these batches (e.g. they were stopped), and commits. Returns how many."""
+  """
+  Revokes the tokens of these batches (e.g. they were stopped), and commits. Returns how many. Never raises: it
+  happens after what users asked for (stopping a batch, reporting why it failed to start), which must not fail.
+  """
   from backend import db_session
-  revoked = [token for token in active_batch_tokens(command_ids) if revoke(token, reason=reason, actor=actor)]
-  if revoked:
-    db_session.commit()
-  return len(revoked)
+  try:
+    revoked = [token for token in active_batch_tokens(command_ids) if revoke(token, reason=reason, actor=actor)]
+    if revoked:
+      db_session.commit()
+    return len(revoked)
+  except Exception as e:
+    print(f"WARNING: could not revoke the tokens of the batches {command_ids}: {type(e).__name__}: {e}")
+    db_session.rollback()
+    return 0
 
 
-def revoke_ended_batch_token(session, command_id: Optional[str]) -> None:
+def end_batch_token(session, command_id: Optional[str]) -> None:
   """
   Called when a run of the batch `command_id` ended (POST /api/v1/output/): once none of its runs are pending, the
-  batch's token is revoked. `qa batch` tells QA-Board about all its runs before it starts any, and runs started by
-  nested `qa batch` commands (pipelines) end before the run that started them. Not for `qa optimize`, whose next
-  batch starts after this one ends. Never raises: it must not get in the way of saving results.
+  batch's token expires ENDED_BATCH_GRACE later, time for its driver to send the end of its log. `qa batch` tells
+  QA-Board about all its runs before it starts any, and runs started by nested `qa batch` commands (pipelines) end
+  before the run that started them. Not for tokens `until_stopped`. Never raises: it must not get in the way of
+  saving results.
   """
   if not command_id:
     return
   try:
-    tokens = [t for t in active_batch_tokens([command_id]) if not (t.data or {}).get('optimize')]
+    tokens = [t for t in active_batch_tokens([command_id]) if not (t.data or {}).get('until_stopped')]
     if not tokens:
       return
     from .notifications.batches import has_pending_runs
     if session.execute(has_pending_runs, {"command_id": str(command_id)}).first():
       return
+    expires_at = utcnow() + ENDED_BATCH_GRACE
     for token in tokens:
-      revoke(token, reason="its batch ended")
+      token.expires_at = min(token.expires_at, expires_at) if token.expires_at else expires_at
     session.commit()
   except Exception as e:
-    print(f"WARNING: could not revoke the token of the batch {command_id}: {type(e).__name__}: {e}")
+    print(f"WARNING: could not end the token of the batch {command_id}: {type(e).__name__}: {e}")
     session.rollback()
 
 

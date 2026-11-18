@@ -17,6 +17,8 @@ import click
 INTERVAL = 3
 # What we keep while the server can't be reached: older output is only in the pod's logs
 MAX_PENDING = 4 * 1024 * 1024
+# Under what proxies accept by default (nginx: 1 MiB)
+MAX_REQUEST = 512 * 1024
 
 
 class LogSender:
@@ -34,24 +36,24 @@ class LogSender:
       del self.pending[:len(self.pending) - MAX_PENDING]
 
   def send(self) -> None:
-    if not self.pending or self.failed:
-      return
+    """Sends what is pending, in parts. Keeps it when the server can't be reached, drops it when it refuses it."""
     from .results import ResultsError
-    data = bytes(self.pending)
-    try:
-      self.offset = self.put(self.offset, data)
-    except ResultsError as e:
-      size = e.body.get('size') if isinstance(e.body, dict) else None
-      if e.status == 409 and isinstance(size, int):
-        # the server wrote in the log too (e.g. why a pod was pending): we go on after it
-        self.offset = size
-        return self.send()
-      if not e.is_transient:
-        # e.g. the batch's token was revoked: nothing more will be accepted
-        self.failed = True
-        self.echo(f"[qaboard] WARNING: QA-Board doesn't take this log anymore ({e}): the rest is only in the pod's logs.")
-      return
-    del self.pending[:len(data)]
+    while self.pending and not self.failed:
+      data = bytes(self.pending[:MAX_REQUEST])
+      try:
+        self.offset = self.put(self.offset, data)
+      except ResultsError as e:
+        size = e.body.get('size') if isinstance(e.body, dict) else None
+        if e.status == 409 and isinstance(size, int) and size != self.offset:
+          # the server wrote in the log too (e.g. why a pod was pending): we go on after it
+          self.offset = size
+          continue
+        if not e.is_transient:
+          # e.g. the batch's token expired: nothing more will be accepted
+          self.failed = True
+          self.echo(f"[qaboard] WARNING: QA-Board doesn't take this log anymore ({e}): the rest is only in the pod's logs.")
+        return
+      del self.pending[:len(data)]
 
 
 def forward(source: BinaryIO, out: BinaryIO, sender: LogSender, interval: float = INTERVAL) -> None:
@@ -83,7 +85,7 @@ def send_batch_log(command_id: str):
 
   def put(offset: int, data: bytes) -> int:
     answer = _request(qaboard_url, f"batch/submissions/{quote(command_id, safe='')}/log", params={'offset': offset}, method='PUT',
-                      data=data, headers={'Content-Type': 'application/octet-stream'}, timeout=(10, 30))
+                      data=data, headers={'Content-Type': 'application/octet-stream'}, timeout=(5, 15))
     return int(answer.get('size', offset + len(data)))
 
   def echo(message: str) -> None:

@@ -35,6 +35,7 @@ from ..shell_utils import safe_user_name, lsf_bridge_command
 from ..storage import check_storage_path, UnsafePathError
 from ..submissions import record_submission, MAX_SUBMISSIONS, user_batch_dir, submission_dir, append_log, startup_logs # noqa: F401
 from ..artifacts import ArtifactsUnavailable, EXIT_TRAP, cd_lines, runner_unsupported
+from ..runner_jobs import driver_without_storage
 from .. import tokens
 from ..notifications.batches import request_batch_notification, cancel_batch_notification
 from .auth import login_required, require_project_access, is_authorized_user, forbidden_project
@@ -1057,6 +1058,7 @@ def start_tuning(hexsha):
     print(working_directory)
 
     # This will make us do automated tuning, versus a single manual batch
+    runner = os.environ.get('QABOARD_TUNING_RUNNER', 'local')
     do_optimize = data['tuning_search'].get('search_type') == 'optimize'
     batches_names, _ = selected_batches(data)
     if do_optimize:
@@ -1064,8 +1066,7 @@ def start_tuning(hexsha):
         # it needs to be accessed from LSF so we can't use temporary files...
         # A Kubernetes pod without a shared storage gets the files of the submission's folder (runner_jobs.driver_files):
         # its experiment can't be resumed when it starts again
-        no_shared_storage = ci_commit.uploaded_artifacts_dir is not None and os.environ.get('QABOARD_TUNING_RUNNER') == 'kubernetes'
-        optimize_dir = log_dir if no_shared_storage else batch_dir
+        optimize_dir = log_dir if driver_without_storage(ci_commit, runner) else batch_dir
         config_path = optimize_dir / 'optim-config.yaml'
         # qa optimize saves the search there as it goes, and resumes from it when the experiment starts again
         checkpoint_path = optimize_dir / 'optuna-journal.log'
@@ -1101,7 +1102,6 @@ def start_tuning(hexsha):
     with qa_batch_path.open("w") as f:
         f.write(qa_batch_script)
 
-    runner = os.environ.get('QABOARD_TUNING_RUNNER', 'local')
     submission = {
         "id": command_id,
         "created_at": created_at.isoformat() + 'Z',
@@ -1132,8 +1132,7 @@ def start_tuning(hexsha):
 
     try:
         # runs without a shared storage, or on servers that require tokens, send results with a token of the user
-        # (tokens.mint_for_batch). Not through the LSF bridge: its jobs don't get the server's environment
-        token = tokens.mint_for_batch(g.get('actor'), ci_commit, command_id, log_dir=log_dir, optimize=do_optimize) if runner != 'lsf' else None
+        token = tokens.mint_for_batch(g.get('actor'), ci_commit, command_id, runner, log_dir=log_dir, until_stopped=do_optimize)
         if runner == 'lsf':
             submission.update(_dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize))
             submission["status"] = "submitted"
@@ -1153,6 +1152,8 @@ def start_tuning(hexsha):
             submission.update(_dispatch_local(qa_batch_path, log_dir, command_id, ci_commit, token=token))
     except Exception as e:
         submission["status"] = "failed"
+        # its token is of no use
+        tokens.revoke_batch_tokens([command_id], reason="its batch failed to start")
         if isinstance(e, subprocess.CalledProcessError):
             submission["exit_code"] = e.returncode
         else:

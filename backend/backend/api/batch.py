@@ -1,4 +1,5 @@
 import re
+from pathlib import Path
 
 from flask import request, jsonify, g
 from sqlalchemy.orm.attributes import flag_modified
@@ -7,6 +8,8 @@ from sqlalchemy.orm.exc import NoResultFound
 from backend import app, db_session
 from ..models import CiCommit, Batch
 from ..storage import check_storage_path, UnsafePathError
+from .. import uploads
+from ..tokens import batch_token_for
 from ..redo import redo_response
 from ..origins import run_origin, run_user, claim_batch, clean_run_context
 from ..notifications.batches import request_batch_notification
@@ -240,12 +243,8 @@ def append_submission_log(command_id):
   `?offset=<size>`: the log's current size, else 409 with its `size`. Only with the batch's own token
   (tokens.mint_for_batch): it says which folder.
   """
-  from pathlib import Path
-  from .. import uploads
-  actor = g.get('actor')
-  token = actor.token if actor is not None else None
-  data = (token.data or {}) if token is not None else {}
-  if token is None or token.kind != 'batch' or data.get('command_id') != command_id or not data.get('log_dir') or len(token.projects or []) != 1:
+  token = batch_token_for(g.get('actor'), command_id)
+  if token is None:
     return jsonify({"error": "Only the batch's own token can send its log.", "reason": "batch_token_required"}), 403
   # still allowed to send the project's results
   _, error = ingest_access(token.projects[0], require_token=True)
@@ -257,7 +256,7 @@ def append_submission_log(command_id):
     return jsonify({"error": "?offset= is the log's current size, in bytes"}), 400
   if request.content_length is None:
     return jsonify({"error": "Send the size of what you add (Content-Length): chunked uploads aren't supported."}), 411
-  log_dir = Path(data['log_dir'])
+  log_dir = Path(token.data['log_dir'])
   try:
     check_storage_path(log_dir)
     size = uploads.save_file(log_dir, 'log.txt', request.stream, request.content_length, offset=offset)

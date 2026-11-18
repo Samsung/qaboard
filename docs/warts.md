@@ -158,10 +158,10 @@ mount.
 - `qa batch` with cluster runners only works when the nodes share the working directory with the machine that
   starts the batch, or on Kubernetes with an image per commit. Runs started from the web app (tuning, redo) run from
   the artifacts `qa save-artifacts` sent, with a token per batch, on the server's machine or Kubernetes only: not
-  with the LSF or Celery runners. Tokens are revoked when the batch's last run ends or it is stopped, except
-  `qa optimize`'s (it starts batch after batch): they expire a day after its runs stop. On Kubernetes, the driver pod
-  gets the batch's files in its ConfigMap (1 MiB at most) and sends its log with the token: once the runs ended
-  and the token is revoked, the rest of the log is only in the pod's logs; `qa optimize` can't resume an experiment
+  with the LSF or Celery runners. Tokens are revoked when the batch is stopped and expire 10 minutes after its last
+  run ends, except `qa optimize`'s and redo's: they expire a day after their runs stop. On Kubernetes, the driver
+  pod gets the batch's files in its ConfigMap (768 KiB at most) and sends its log with the token: what it prints
+  after the token expired, or that the server refused, is only in the pod's logs, and the web app doesn't say so; `qa optimize` can't resume an experiment
   started again (its journal stays in the pod). See `docs/design/ingest-upload-sdk.md` §3 item 2. `qa check-bit-accuracy`
   compares fetched manifests only, not files (`QA_BITACCURACY_CMP`); `qa optimize` keeps its journal on the machine
   that runs it. `qaboard.runs(url)` gives uploaded runs' `output_dir` on the server, not a local folder. [L]

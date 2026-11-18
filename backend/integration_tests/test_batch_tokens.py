@@ -1,6 +1,6 @@
 """
-The tokens of the batches QA-Board starts (tokens.mint_for_batch): revoked when their runs end or the batch is
-stopped, and the only way their driver sends its log when it doesn't see the server's storage.
+The tokens of the batches QA-Board starts (tokens.mint_for_batch): revoked when the batch is stopped, ending soon
+after its runs end, and the only way its driver sends its log when it doesn't see the server's storage.
 """
 import datetime
 
@@ -26,14 +26,23 @@ def batch_token(user_name, command_id=COMMAND_ID, **data):
   return token.id, secret
 
 
-def is_revoked(token_id):
+def stored(token_id):
   from backend.database import db_session
   from backend.models import Token
   db_session.expire_all()
-  return db_session.get(Token, token_id).revoked
+  return db_session.get(Token, token_id)
 
 
-def test_the_token_is_revoked_when_the_batchs_last_run_ends(logged_in, make_client):
+def is_revoked(token_id):
+  return stored(token_id).revoked
+
+
+def ends_soon(token_id):
+  from backend import tokens
+  return stored(token_id).expires_at <= tokens.utcnow() + tokens.ENDED_BATCH_GRACE
+
+
+def test_the_token_ends_soon_after_the_batchs_last_run_ends(logged_in, make_client):
   logged_in('alice', is_admin=True)
   token_id, secret = batch_token('alice')
   client = make_client()
@@ -43,18 +52,18 @@ def test_the_token_is_revoked_when_the_batchs_last_run_ends(logged_in, make_clie
   for input_path in ("inputs/a.txt", "inputs/b.txt"):
     assert run(input_path, True).status_code == 200
   assert run("inputs/a.txt", False).status_code == 200
-  assert not is_revoked(token_id)
+  assert not ends_soon(token_id)
   assert run("inputs/b.txt", False).status_code == 200
-  assert is_revoked(token_id)
-  assert client.post('/api/v1/output/', headers=bearer(secret), json=output_payload()).status_code == 401
+  # its driver may still send the end of its log
+  assert ends_soon(token_id) and not is_revoked(token_id)
 
 
-def test_qa_optimize_keeps_its_token_between_its_batches(logged_in, make_client):
+def test_qa_optimize_and_redo_keep_their_token_until_stopped(logged_in, make_client):
   logged_in('alice', is_admin=True)
-  token_id, secret = batch_token('alice', optimize=True)
+  token_id, secret = batch_token('alice', until_stopped=True)
   payload = output_payload(is_pending=False, data={"root_command_id": COMMAND_ID})
   assert make_client().post('/api/v1/output/', headers=bearer(secret), json=payload).status_code == 200
-  assert not is_revoked(token_id)
+  assert not ends_soon(token_id)
 
 
 @pytest.fixture

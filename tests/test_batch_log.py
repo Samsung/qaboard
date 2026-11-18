@@ -46,26 +46,37 @@ class TestBatchLog(unittest.TestCase):
     sender.send()
     self.assertEqual(server.log, b"a\nERROR from the server\nb\n")
 
-  def test_errors(self):
-    server, echoed = FakeServer(), []
-    sender = LogSender(server.put, echoed.append)
-    # the network: sent later
+  def test_the_server_cant_be_reached(self):
+    server = FakeServer()
+    sender = LogSender(server.put, print)
     server.fail_with = ResultsError("timeout")
     sender.add(b"a\n")
     sender.send()
     self.assertEqual(server.log, b"")
+    # sent the next time
     sender.send()
     self.assertEqual(server.log, b"a\n")
-    # e.g. the token was revoked: said once, then only in the pod's logs
-    server.fail_with = ResultsError("revoked", status=401)
-    sender.add(b"b\n")
-    sender.send()
-    sender.add(b"c\n")
-    sender.send()
-    self.assertEqual(server.log, b"a\n")
+
+  def test_the_server_refuses_it(self):
+    server, echoed = FakeServer(), []
+    sender = LogSender(server.put, echoed.append)
+    # e.g. the batch's token expired: said once, then only in the pod's logs
+    server.fail_with = ResultsError("expired", status=401)
+    for line in (b"a\n", b"b\n"):
+      sender.add(line)
+      sender.send()
+    self.assertEqual(server.log, b"")
     self.assertEqual(len(echoed), 1)
     self.assertIn("only in the pod's logs", echoed[0])
 
+  def test_large_logs_are_sent_in_parts(self):
+    from qaboard.batch_log import MAX_REQUEST
+    server, sizes = FakeServer(), []
+    sender = LogSender(lambda offset, data: (sizes.append(len(data)), server.put(offset, data))[1], print)
+    sender.add(b"x" * (2 * MAX_REQUEST + 10))
+    sender.send()
+    self.assertEqual(sizes, [MAX_REQUEST, MAX_REQUEST, 10])
+    self.assertEqual(len(server.log), 2 * MAX_REQUEST + 10)
 
 if __name__ == '__main__':
   unittest.main()

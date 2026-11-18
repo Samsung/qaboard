@@ -640,7 +640,7 @@ def test_submit_driver_without_a_shared_storage(fake_runners, account, tmp_path,
   # a ConfigMap holds at most 1 MiB
   fake_runners.submitted.clear()
   (log_dir / "batches.yaml").write_text("x" * 1024 * 1024)
-  with pytest.raises(runner_jobs.NotAllowed, match="too large"):
+  with pytest.raises(runner_jobs.NotAllowed, match="is over 768 KiB"):
     runner_jobs.submit_driver(script_path, log_dir, ARTHUR, ci_commit, DRIVER_ID, token="qab_bat_x")
   assert fake_runners.submitted == []
 

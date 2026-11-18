@@ -60,8 +60,6 @@ from shlex import quote
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
-from qaboard.batch_log import send_log_command
-
 from .shell_utils import shell_safe, safe_user_name
 
 
@@ -588,18 +586,33 @@ DRIVER_DIR = '/tmp/qaboard-batch'
 # A ConfigMap holds at most 1 MiB, the scripts included
 MAX_DRIVER_FILES_BYTES = 768 * 1024
 
+def driver_without_storage(ci_commit, runner: str) -> bool:
+  """Whether the batch's `qa batch` runs in a Kubernetes pod that doesn't see the server's storage"""
+  return runner == 'kubernetes' and ci_commit.uploaded_artifacts_dir is not None
+
+
 def driver_files(script: str, log_dir: Path, script_path: Path) -> Tuple[str, Dict[str, str]]:
   """
   For a driver pod that doesn't see the server's storage: the script, reading the files of `log_dir` from DRIVER_DIR
   instead, and those files ({path in the pod: content}), but its logs and the script itself. Raises NotAllowed.
   """
-  files = {}
+  files, sizes = {}, {}
   for path in sorted(log_dir.iterdir()):
     if path.is_file() and path != Path(script_path) and not path.name.startswith('log.'):
-      files[f"{DRIVER_DIR}/{path.name}"] = path.read_text()
-  if sum(len(content.encode()) for content in files.values()) > MAX_DRIVER_FILES_BYTES:
-    raise NotAllowed(f"The batches definitions are too large to start this batch on Kubernetes without a shared storage ({', '.join(Path(p).name for p in files)}).")
-  return script.replace(str(log_dir), DRIVER_DIR), files
+      try:
+        files[f"{DRIVER_DIR}/{path.name}"] = path.read_text()
+      except UnicodeDecodeError:
+        raise NotAllowed(f"QA-Board can't start this batch on Kubernetes without a shared storage: {path.name} isn't text.")
+      sizes[path.name] = path.stat().st_size
+  if sum(sizes.values()) > MAX_DRIVER_FILES_BYTES:
+    largest = max(sizes, key=sizes.__getitem__)
+    raise NotAllowed(
+      f"QA-Board can't start this batch on Kubernetes without a shared storage: what `qa batch` reads ({largest}: "
+      f"{sizes[largest] // 1024} KiB) is over {MAX_DRIVER_FILES_BYTES // 1024} KiB, what a Kubernetes ConfigMap holds. "
+      "Select fewer batches, split large batch files, or start it from CI or a terminal with `qa batch`."
+    )
+  # the server named these files: the folder's path, then a file name
+  return script.replace(f"{log_dir}/", f"{DRIVER_DIR}/"), files
 
 
 def driver_name(command_id: str) -> str:
@@ -632,11 +645,12 @@ def submit_driver(script_path: Path, log_dir: Path, user_info: dict, ci_commit, 
     # Like _dispatch_celery, at the top of the script
     script = Path(script_path).read_text()
     header = server_env_script(notes)
-    shared = ci_commit.uploaded_artifacts_dir is None
+    shared = not driver_without_storage(ci_commit, 'kubernetes')
     files: Dict[str, str] = {}
     if not shared:
       # Without a shared storage, the pod can't read or write the batch's folder on the server: what the script reads
       # there (batches file, runs to redo...) is copied in the pod, and its output is sent with the batch's token
+      from qaboard.batch_log import send_log_command
       script, files = driver_files(script, Path(log_dir), script_path)
       header += send_log_command(command_id) + "\n"
     if script.startswith("#!/bin/bash\n"):

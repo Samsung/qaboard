@@ -194,9 +194,9 @@ def redo_outputs(batch, outputs, user_info, actor=None) -> dict:
   db_session.commit()
 
   try:
-    # runs without a shared storage, or on servers that require tokens, send results with a token of the user
-    # (tokens.mint_for_batch). Not through the LSF bridge: its jobs don't get the server's environment
-    token = tokens.mint_for_batch(actor, ci_commit, command_id, log_dir=log_dir) if runner != 'bridge' else None
+    # runs without a shared storage, or on servers that require tokens, send results with a token of the user. Until
+    # the batch is stopped: runs that were pending run again under their first command id, not this one
+    token = tokens.mint_for_batch(actor, ci_commit, command_id, runner, log_dir=log_dir, until_stopped=True)
     if on_kubernetes:
       from .runner_jobs import submit_driver
       def record_driver(driver):
@@ -220,6 +220,7 @@ def redo_outputs(batch, outputs, user_info, actor=None) -> dict:
       submission.update(start_detached(script_path, log_dir, qa_environment(command_id, celery=celery, token=token)))
   except Exception as e:
     submission.update({"status": "failed", "error": str(e)})
+    tokens.revoke_batch_tokens([command_id], reason="its batch failed to start")
   # `qa batch` updated the batch meanwhile
   db_session.refresh(batch)
   record_submission(batch, submission)

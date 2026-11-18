@@ -2,7 +2,7 @@
 
 Status: v9 (2026-11-18). A first version is implemented, as experimental: §1 says what, §2 the decisions behind it,
 §3 what is left. v9: batches started from the server on Kubernetes without a shared storage, tested for real, and
-their tokens revoked when they end (§3, item 2). v8: a commit's artifacts through the server (§3, item 2). v7: an image per commit for the kubernetes runner (§3, item 2). v6: storage locations inside the storage roots, the upload root as the default one, edited in
+their tokens ended with them (§3, item 2). v8: a commit's artifacts through the server (§3, item 2). v7: an image per commit for the kubernetes runner (§3, item 2). v6: storage locations inside the storage roots, the upload root as the default one, edited in
 Admin → Storage. v5: uploads on by default, an end-to-end test in CI, and where storage settings should live. v4 added storage locations (runs store their full location), heartbeats, and `check-bit-accuracy`
 and `optimize` without a shared storage. v1 (2026-10-26) proposed a separate run client; v2 (2026-11-14) rebuilt the plan on
 `qaboard.start_run()` (`docs/rfcs/python-sdk-runs.md`). `docs/design/http-upload.md` is the full protocol this
@@ -91,7 +91,7 @@ In `docs/warts.md`, with sizes. The ones that matter first:
      pods fetch them once per cache, keyed by their hash.
    - ~~A token for the runs the server starts~~ (v8): runs that upload always need one. `tokens.mint_for_batch`
      mints one per batch for the user who started it (`qab_bat_`, `read` + `ingest`, the project only, idle expiry
-     of a day, 30 days at most, revoked when the batch ends or is stopped since v9), for commits whose artifacts were
+     of a day, 30 days at most, ended with the batch since v9), for commits whose artifacts were
      uploaded, and since v9 on servers with `ingest.auth: token`. In the environment of `qa batch` on
      the server; in the driver pod's `env` (its ConfigMap) on Kubernetes, and runners forward it to run pods, unlike
      other secrets (`runners/env.py`, `is_batch_token`). Accepted: who reads a namespace's ConfigMaps can use it while
@@ -115,14 +115,16 @@ In `docs/warts.md`, with sizes. The ones that matter first:
       - turning `runners.kubernetes` off again left the backend's pods unable to start (the chart deleted the
         ServiceAccount they still named): the chart now always names one.
    2. ~~The Helm chart sets `QABOARD_HOST` for the backend~~ (v9): to the proxy's Service, `helm_e2e.py` covers it.
-   3. ~~Revoke the batch token when the batch ends or is stopped~~ (v9): when a run ends and none of its command's runs
-      are pending (`tokens.revoke_ended_batch_token`, after POST /api/v1/output/), and on Batch.stop. Not for
-      `qa optimize`, which starts batch after batch with the same command id: its token waits for the stop or the
-      idle expiry. Not when the heartbeats fail silent runs either: a run that reports again runs again, and would
-      need its token.
+   3. ~~Revoke the batch token when the batch ends or is stopped~~ (v9): revoked by Batch.stop (and when the batch
+      fails to start). When a run ends and none of its command's runs are pending (`tokens.end_batch_token`, after
+      POST /api/v1/output/), it expires 10 minutes later, not at once: the driver may still send the end of its log
+      (a review found the `exited with code` line lost). Not for `qa optimize`, which starts batch after batch with
+      the same command id, nor redo: `qa batch` doesn't register the pending runs it redoes under its command id, so
+      none may be pending while they run. Those wait for the stop or the idle expiry (`until_stopped`). Not when the
+      heartbeats fail silent runs either: a run that reports again runs again, and would need its token.
    4. ~~Tokens for server-started batches of projects with a shared storage~~ (v9), when `ingest.auth` is `token`
-      (`tokens.batch_needs_token`); Celery runs get it too (`runners/celery.py`). Not through the LSF bridge, whose
-      jobs don't get the server's environment.
+      (`tokens.batch_needs_token`); Celery runs get it too (`runners/celery.py`). Not through LSF, whose jobs don't
+      get the server's environment: QA-Board refuses to start them then (`artifacts.runner_unsupported`).
    5. **The refactors the code review left for later** [S each]: one helper for the server's runner name
       (`redo.py` and `api/tuning.py` compute it differently); the token threaded through fewer functions
       (`submit_driver` could mint it); one retry and error-classification helper for `results._request`, `upload.py`

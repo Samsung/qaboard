@@ -349,16 +349,19 @@ def redirect_output(log_file: str, pending_file: str) -> List[str]:
     f'rm -f {shlex.quote(pending_file)} 2>/dev/null',
   ]
 
-def write_files(paths: List[str]) -> List[str]:
-  """sh lines that copy the ConfigMap's file-<i> to paths[i] (absolute paths in the pod), or exit 1 saying why"""
-  lines = []
-  for i, path in enumerate(paths):
+def detached_files(files: Dict[str, str]) -> Tuple[Dict[str, str], List[str]]:
+  """
+  `files` ({absolute path in the pod: content}) as ConfigMap entries (file-<i>), and the sh lines that copy them
+  there, or exit 1 saying why.
+  """
+  data, lines = {}, []
+  for i, (path, content) in enumerate(files.items()):
     if not os.path.isabs(path):
       raise ValueError(f"Files of detached jobs need absolute paths, not {path!r}")
-    quoted = shlex.quote(path)
-    lines.append(f'mkdir -p {shlex.quote(os.path.dirname(path))} && cp "$(dirname "$0")/file-{i}" {quoted} '
-                 f'|| {{ echo "[qaboard] ERROR: can not write" {quoted}" as uid $(id -u), gid $(id -g)" >&2; exit 1; }}')
-  return lines
+    data[f'file-{i}'] = content
+    lines.append(f'path={shlex.quote(path)}; mkdir -p "$(dirname "$path")" && cp "$(dirname "$0")/file-{i}" "$path" '
+                 '|| { echo "[qaboard] ERROR: can not write $path as uid $(id -u), gid $(id -g)" >&2; exit 1; }')
+  return data, lines
 
 # sh: is `timeout` GNU coreutils' (`timeout (GNU coreutils) 9.4`, or uutils'), not e.g. BusyBox's?
 has_coreutils_timeout = 'timeout --version 2>/dev/null | grep -q coreutils'
@@ -1965,17 +1968,16 @@ class KubernetesRunner(BaseRunner):
     log_file = Path(log_file)
     shebang = script.split('\n', 1)[0]
     interpreter = shlex.split(shebang[2:]) if shebang.startswith('#!') and shebang[2:].strip() else ['sh']
-    files = files or {}
+    files_data, write_files = detached_files(files or {})
     run_sh = '\n'.join([
       '#!/bin/sh',
       '# A detached QA-Board job, see qaboard/runners/kubernetes.py',
       *(redirect_output(str(log_file), str(pending_log(log_file))) if log_to_file else []),
-      *write_files(list(files)),
+      *write_files,
       '. "$(dirname "$0")/env.sh"',
       f'exec {" ".join(shlex.quote(a) for a in interpreter)} "$(dirname "$0")/script"',
     ]) + '\n'
-    data = {'env.sh': env_script(run_env(options)), 'run.sh': run_sh, 'script': script,
-            **{f'file-{i}': content for i, content in enumerate(files.values())}}
+    data = {'env.sh': env_script(run_env(options)), 'run.sh': run_sh, 'script': script, **files_data}
     try:
       job = create_job(kube, options, namespace, job_name, data, command=['sh', f'{scripts_dir}/run.sh'], role=driver_role)
     except NameTaken:

@@ -14,7 +14,7 @@ project's artifacts with `qa save-artifacts`.
    - Cantaloupe serves the image, where the web app asks for it (IIIF)
 3. A batch started from the web app, for a project without a shared storage (`qa save-artifacts` sent its
    artifacts): the backend's own `qa batch` (the local runner) fetches them, reaches QA-Board at QABOARD_HOST, and its
-   runs send their results with the batch's token, which is revoked when they end.
+   runs send their results with the batch's token, which expires soon after they end.
 4. With `ingest.auth: token`, a batch started from the web app for a project with the shared storage: its runs get a
    token too.
 With --kubernetes (the chart installed with runners.kubernetes.enabled), only a batch started from the web app, on
@@ -22,8 +22,18 @@ Kubernetes: its `qa batch` runs in a driver pod that fetches the artifacts, star
 them too and send their results with the batch's token. Then a batch stopped from the web app: its Jobs are deleted,
 its token revoked.
 Prints the logs of what failed.
+
+On your computer, after the quickstart's commands (website/docs/get-started/quickstart.mdx, with images of this
+checkout), like CI's helm-e2e job:
+  uv run --frozen python .github/scripts/helm_e2e.py http://localhost:5151
+  helm upgrade qaboard charts/qaboard -f charts/qaboard/quickstart.yaml --wait --reuse-values \
+    --set runners.kubernetes.enabled=true --set 'runners.kubernetes.namespaces={default}' --set-string runners.kubernetes.runAs=1000:1000
+  # the backend restarted: start the port-forward again
+  kubectl port-forward svc/qaboard-proxy 5151:80 &
+  uv run --frozen python .github/scripts/helm_e2e.py http://localhost:5151 --kubernetes
 """
 import argparse
+import datetime
 import http.cookiejar
 import json
 import os
@@ -417,6 +427,8 @@ def check_batch_from_web_app(base, release, timeout, kubernetes, session, token,
             break
         time.sleep(2)
     else:
+        if kubernetes:
+            kubernetes_debug(command_id)
         fail(f"The log of `qa batch` isn't complete in its folder on the server:\n{batch_log}")
     log("The log of `qa batch` is in its folder on the server")
 
@@ -424,13 +436,16 @@ def check_batch_from_web_app(base, release, timeout, kubernetes, session, token,
         jobs = kubectl("get", "jobs", "-l", f"qaboard.io/command-id={command_id}", "-o", "json", json_output=True)["items"]
         roles = sorted(j["metadata"]["labels"].get("qaboard.io/role", "runs") for j in jobs)
         if roles != ["driver", "runs"]:
+            kubernetes_debug(command_id)
             fail(f"Expected the driver's Job and the runs' Job, labeled with the batch's command id: {roles}")
         log("qa batch ran in a driver pod, the runs in a Job of their own")
 
-    # The token is revoked when the last run ends
-    if batch_tokens(session, command_id):
-        fail(f"The batch's token is still active after its runs ended: {batch_tokens(session, command_id)}")
-    log("The batch's token was revoked when its runs ended")
+    # the driver may still send the end of its log: the token expires a little later
+    soon = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=11)
+    lasting = [t for t in batch_tokens(session, command_id) if datetime.datetime.fromisoformat(t["expires_at"]) > soon]
+    if lasting:
+        fail(f"The batch's token doesn't end soon after its runs ended: {lasting}")
+    log("The batch's token ends soon after its runs ended")
     if kubernetes:
         check_stopped_batch(base, release, session, project_name, commit, timeout)
 
@@ -500,7 +515,11 @@ def main():
         # Servers that require tokens for results: the runs of a project with a shared storage get one too
         session.request("POST", "/api/v1/admin/settings", {"ingest.auth": "token"})
         try:
-            time.sleep(6)  # the settings' cache
+            # each of the backend's processes caches the settings for a few seconds
+            for _ in range(10):
+                if all(session.request("GET", "/api/v1/config").get("ingest_auth") == "token" for _ in range(4)):
+                    break
+                time.sleep(1)
             check_batch_from_web_app(base, args.release, args.timeout, False, session, token, storage=mount_path)
         finally:
             session.request("POST", "/api/v1/admin/settings", {"ingest.auth": None})
