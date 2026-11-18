@@ -312,14 +312,17 @@ Compared in November 2026, with the tools' public docs.
 
 - **A shared storage, at the same paths.** The machines that run your code read it, and your inputs, from a shared
   storage, and write their outputs there. QA-Board doesn't build an image for each run or copy your code: it runs a
-  commit's [artifacts](/docs/storage/artifacts). Clusters without a shared storage can't run batches yet; single machines without it can
-  [send their results](/docs/storage/uploads#limits).
+  commit's [artifacts](/docs/storage/artifacts). Where the results storage isn't mounted, runs can
+  [send their files to the server](/docs/storage/uploads) instead (experimental), and a cluster runs batches when
+  its nodes share the project's folder; starting runs from the web app still needs the shared storage
+  ([what needs it](/docs/storage/uploads#limits)).
 - **Your cluster's scheduler, not a queue of its own.** QA-Board sends the runs to LSF, Slurm, Kubernetes or Celery,
   and leaves the quotas and priorities to them, e.g. to Kueue. W&B Launch and ClearML have queues served by their
   agents.
 - **Results of each input, for each commit.** Tracking tools excel at logging a training run's metrics as it goes.
   QA-Board compares the final metrics and output files of every input, between commits, branches and experiments,
-  with viewers for images, videos, point clouds and reports.
+  with viewers for images, videos, point clouds and reports. Runs can log values as they go too, with
+  [`qaboard.start_run()`](/docs/log-from-code) (experimental).
 
 ## Where to go next
 
