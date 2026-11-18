@@ -1462,6 +1462,8 @@ UNCHECKED_PROJECT_ROUTES = {
   ("admin.py", "admin_audit"), ("admin_access.py", "admin_grants"), ("admin_access.py", "admin_delete_grant"),
   ("admin_jobs.py", "admin_estimate_job"), ("admin_jobs.py", "admin_jobs_projects"), ("admin_jobs.py", "admin_job_errors"),
   ("admin_jobs.py", "admin_job_errors_csv"), ("usage.py", "admin_usage_projects"),
+  # which projects' uploaded runs a storage location takes: a list admins edit, it reads no project
+  ("admin_storage_locations.py", "admin_add_storage_location"), ("admin_storage_locations.py", "admin_change_storage_location"),
   # storage usage: filters_from limits them to the projects users can read (allowed_projects), and users only
   # delete their own runs. Their deletions' errors are about their own runs.
   ("storage.py", "storage_overview"), ("storage.py", "storage_delete"), ("storage.py", "storage_job_errors"),
