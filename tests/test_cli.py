@@ -196,6 +196,45 @@ class TestQaCli(unittest.TestCase):
       assert started[0] == a_again
       assert (first[0] / 'latest_attempt.txt').read_text() == '2\n'
 
+  def test_batch_list_and_save_runs_say_where_runs_are(self):
+    """
+    --list says where the runs the batch would start would be saved, and where those it would skip are.
+    --save-runs writes where they were saved, once they ran: e.g. for the scripts of a pipeline's next steps.
+    """
+    import tempfile
+    from unittest import mock
+    batch = ('--share', 'batch', '--batches-file', 'image.batches.yaml', 'images')
+    def listed(*args):
+      result = self.qa(*batch, '--list', *args, reload_modules=False)
+      assert result.exit_code == 0, result.output
+      return json.loads(result.stdout)
+    with tempfile.TemporaryDirectory() as storage, self.bit_accuracy_env(storage, QA_BATCH_QUIET='true'):
+      self.qa(*batch, '--list') # loads the modules we patch
+      first = [Path(run['output_dir']) for run in listed()]
+      self.qa('--share', 'run', '-i', 'cli_tests/a.jpg', 'echo first', reload_modules=False)
+      # a.jpg ran: done again, it would be in a new directory. Listing reserves nothing
+      a_again = first[0].with_name(f'{first[0].name}_attempt2')
+      assert [Path(run['output_dir']) for run in listed()] == [a_again, first[1], first[2]]
+      assert not (first[0] / 'latest_attempt.txt').exists()
+      assert [run['skipped'] for run in listed()] == [False, False, False]
+      # skipped, a.jpg stays where it is
+      runs = listed('--action-on-existing', 'skip')
+      assert [(Path(run['output_dir']), run['skipped']) for run in runs] == [(first[0], True), (first[1], False), (first[2], False)]
+      assert 'command' in runs[1] and runs[0]['command'] is None
+
+      started = []
+      def start_jobs(jobs, job_options, blocking=True):
+        started.extend(job.run_context.output_dir for job in jobs)
+      saved = Path(storage) / 'pipeline' / 'runs.json'
+      with mock.patch('qaboard.runners.local.LocalRunner.start_jobs', side_effect=start_jobs):
+        result = self.qa(*batch, '--save-runs', str(saved), reload_modules=False)
+      # the batch starts its runs where --list said
+      assert started == [a_again, first[1], first[2]], result.output
+      runs = json.loads(saved.read_text())
+      assert [Path(run['output_dir']) for run in runs] == started
+      assert [run['skipped'] for run in runs] == [False, False, False]
+      assert {'input_path', 'configurations', 'extra_parameters', 'platform', 'database'} <= set(runs[0])
+
   @unittest.skipIf(os.name == 'nt', "no SIGTERM")
   def test_aborted_run_is_failed(self):
     """LSF sends SIGINT then SIGTERM when users bkill the job or it uses too much memory: the run says it failed"""
@@ -402,8 +441,10 @@ class TestQaCli(unittest.TestCase):
     result = batch([past_run(0, runs[0]), past_run(1, runs[1], is_failed=True), past_run(2, runs[2])])
     assert result.exit_code == 0
     jobs = json.loads(result.stdout)
-    assert [job['output_dir'] for job in jobs] == [runs[1]['output_dir']]
-    assert ' run --input ' in jobs[0]['command']
+    # --list says where all the runs are, and which would be skipped
+    assert [job['output_dir'] for job in jobs] == [run['output_dir'] for run in runs]
+    assert [job['skipped'] for job in jobs] == [True, False, True]
+    assert ' run --input ' in jobs[1]['command']
 
   def test_batch_when_the_server_wont_read_runs(self):
     """When signing in is required: qa batch says so, and doesn't redo every run when asked to skip the existing ones"""
