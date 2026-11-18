@@ -96,25 +96,36 @@ In `docs/warts.md`, with sizes. The ones that matter first:
      it is valid (a namespace is a trust domain). Not in a Secret: that would need `secrets` RBAC on every cluster.
    Inputs and datasets stay the user's (mounts, buckets, their code), as with every tool above.
 
-   v8, what is left:
-   - Tokens aren't revoked when the batch ends or is stopped: they expire a day later [S].
-   - The Helm chart doesn't set where the server's own `qa` reaches QA-Board (docker-compose.yml does,
-     `QABOARD_HOST=proxy`): server-started batches with the local runner need `QABOARD_HOST` set there [S].
-   - Projects with a shared storage don't get a token: servers with `ingest.auth: token` still refuse their
-     server-started runs, as before [S: mint for them too].
-   - Not tried on a real cluster: driver pod fetching, its token reaching run pods (the uploads e2e covers the
-     server's machine) [kind e2e, M].
-   - Run pods fetch once per pod; once per node needs `QABOARD_ARTIFACTS_CACHE` on a hostPath the admin allows.
-     Nothing evicts the cache [S].
-   - LSF, Slurm, Celery workers and Jenkins don't fetch: their jobs `cd` to the driver's copy, so they need it
-     shared, or the upload folder mounted. Same `fetched_artifacts` hook in their command line [S each].
-   - No deduplication between commits: a binary that didn't change is sent and stored again per commit and per
-     subproject (the client only skips what the same commit has). Hardlinks by hash on the server, or the content
-     store of `http-upload.md` [M].
-   - `qa save-artifacts --out` (the server restoring artifacts from the source code) writes the files but not their
-     SHA-256: the listing hashes them when asked [S].
-   - Not tried: Windows clients (`chmod` of fetched files), and a real cluster (the kubernetes e2e covers the image
-     per commit, not fetched artifacts).
+   **v8, to do next** (in order; [S]/[M] sizes). Context for whoever picks this up: PR #258 (artifacts through the
+   server, tokens per batch) and the three reviews of it.
+   1. **A kind e2e of a batch started from the server on Kubernetes, without a shared storage** [M]. Only tested with
+      a fake `qa` so far, and that path already had a bug. Extend `.github/scripts/kubernetes_runner_e2e.py`: a
+      project with `storage: upload`, `qa save-artifacts`, `POST /api/v1/commit/<c>/batch` with
+      `QABOARD_TUNING_RUNNER=kubernetes`; check that the driver and run pods fetch, and that the runs end with their
+      metrics and files. Checks on the way: the batch token in the driver's env reaches the run pods
+      (`runners/env.py`), and `QABOARD_ARTIFACTS_CACHE` is a path the pods can write.
+   2. **The Helm chart sets `QABOARD_HOST` for the backend** [S], as docker-compose.yml does (`proxy`): else the
+      `qa batch` the server starts with the local runner reaches no server, for results too. `helm-e2e` covers it.
+   3. **Revoke the batch token when the batch ends or is stopped** [S]: today it expires a day after its runs stop.
+      Where the server learns a batch ended: `submissions.py`, the stop endpoints, `heartbeats.py`.
+   4. **Tokens for server-started batches of projects with a shared storage** [S], on servers with
+      `ingest.auth: token`, which refuse their results today: `tokens.mint_for_batch` for them too, when the setting
+      requires tokens. Nothing else changes for them.
+   5. **The refactors the code review left for later** [S each]: one helper for the server's runner name
+      (`redo.py` and `api/tuning.py` compute it differently); the token threaded through fewer functions
+      (`submit_driver` could mint it); one retry and error-classification helper for `results._request`, `upload.py`
+      and `commit_artifacts.py`; an artifacts endpoint path that doesn't overlap `/api/v1/commit/<path:commit_id>`
+      (its fallback for branches named `*/artifacts` is a hidden coupling).
+   6. **Papercuts found on the way, before v8** [S each]: `qa` crashes with `KeyError: 'url'` on a qaboard.yaml
+      without `project.url`; "The result of the `postprocess` function misses a key `is_failed`" is printed to
+      projects without a `postprocess`; for projects without `storage` on servers with their own storage roots,
+      batches started from the web app put their scripts and logs under the server's default storage root, outside
+      the roots (`Project.storage_roots`), and fail to start.
+   7. Later, when someone needs it: LSF, Slurm, Celery and Jenkins jobs fetching the artifacts (the
+      `fetched_artifacts` hook in their command line) [S each]; deduplication of identical files across commits and
+      subprojects (hardlinks by hash, or the content store of `http-upload.md`) [M]; a cache eviction for
+      `qa fetch-artifacts` outside temporary folders, and once-per-node fetching with a hostPath cache [S]; SHA-256 in
+      the manifests of `qa save-artifacts --out` [S]; trying Windows clients.
 
    v7, how the image per commit works:
    - `{commit}` or `{commit:.N}` in `image` (nothing else between braces, refused early, also by the server). `qa
