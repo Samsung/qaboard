@@ -459,16 +459,19 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
   from .utils import file_info
   from .compat import windows_to_linux_path
 
+  # whether the project's `postprocess` gave the metrics
+  postprocessed = False
   try:
     if not skip:
       try:
         entrypoint_postprocess = entrypoint_module(config).postprocess
       except Exception:
         metrics = runtime_metrics
-      else: 
+      else:
         metrics = entrypoint_postprocess(runtime_metrics, run_context)
+        postprocessed = True
     else:
-      metrics = runtime_metrics 
+      metrics = runtime_metrics
   except Exception:
     exc_type, exc_value, exc_traceback = sys.exc_info()
     # TODO: in case of import error because postprocess was not defined, just ignore it...?
@@ -479,7 +482,9 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
     metrics = {**runtime_metrics, 'is_failed': True}
 
   if 'is_failed' not in metrics:
-    click.secho("[Warning] The result of the `postprocess` function misses a key `is_failed` (bool)", fg='yellow')
+    # run() may leave it out: it didn't fail
+    if postprocessed:
+      click.secho("[Warning] The result of the `postprocess` function misses a key `is_failed` (bool)", fg='yellow')
     metrics['is_failed'] = False
 
   if (run_context.output_dir / 'metrics.json').exists():

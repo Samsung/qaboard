@@ -128,9 +128,9 @@ In `docs/warts.md`, with sizes. The ones that matter first:
       (`submit_driver` could mint it); one retry and error-classification helper for `results._request`, `upload.py`
       and `commit_artifacts.py`; an artifacts endpoint path that doesn't overlap `/api/v1/commit/<path:commit_id>`
       (its fallback for branches named `*/artifacts` is a hidden coupling).
-   6. **Papercuts found on the way, before v8** [S each]: `qa` crashes with `KeyError: 'url'` on a qaboard.yaml
+   6. **Papercuts found on the way, before v8** [S each]: ~~`qa` crashes with `KeyError: 'url'` on a qaboard.yaml
       without `project.url`; "The result of the `postprocess` function misses a key `is_failed`" is printed to
-      projects without a `postprocess`; ~~for projects without `storage` on servers with their own storage roots,
+      projects without a `postprocess`~~ (v9); ~~for projects without `storage` on servers with their own storage roots,
       batches started from the web app put their scripts and logs under the server's default storage root, outside
       the roots (`Project.storage_roots`), and fail to start~~ (v9, item 1).
    7. Later, when someone needs it: LSF, Slurm, Celery and Jenkins jobs fetching the artifacts (the
