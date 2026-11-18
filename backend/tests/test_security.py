@@ -1412,9 +1412,7 @@ def test_readable_file(tmp_path, monkeypatch, dummy_app):
   ("http://qaboard.example/group/repo", "http://qaboard.example/group/repo"),
   ("http://qaboard.example/api/auth/saml20/login/?sso", "/"),
 ])
-def test_safe_redirect_url(auth, dummy_app, monkeypatch, url, expected):
-  import backend.settings
-  monkeypatch.setattr(backend.settings, "_database_values", lambda: {})
+def test_safe_redirect_url(auth, dummy_app, url, expected):
   with dummy_app.test_request_context("/api/auth/saml20/login/?acs", base_url="http://qaboard.example"):
     assert auth.safe_redirect_url(url) == expected
 

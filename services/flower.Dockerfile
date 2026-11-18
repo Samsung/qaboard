@@ -1,4 +1,4 @@
-FROM mher/flower
+FROM mher/flower:2.2
 USER root
 
 # Proxy/cert configuration — no-ops when args are empty (open-source builds)

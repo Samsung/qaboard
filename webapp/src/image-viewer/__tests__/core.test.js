@@ -82,6 +82,22 @@ describe('sync groups', () => {
     [ga, gb, gc].forEach(g => g.leave());
   });
 
+  it('lets a viewer lead until users move another', () => {
+    const [a, b, c] = [member(), member(), member()];
+    const [ga, gb, gc] = [joinSyncGroup('k3', a), joinSyncGroup('k3', b), joinSyncGroup('k3', c)];
+    ga.claim();
+    expect(ga.leads()).toBe(true);
+    ga.publish({ zoom: 1, center: { x: 0.5, y: 0.5 } });
+    expect(b.setViewport).toHaveBeenCalledTimes(1);
+    // users move b: it leads, claiming again doesn't take it back
+    gb.lead();
+    ga.claim();
+    expect(gb.leads()).toBe(true);
+    ga.publish({ zoom: 2, center: { x: 0.5, y: 0.5 } });
+    expect(c.setViewport).toHaveBeenCalledTimes(1);
+    [ga, gb, gc].forEach(g => g.leave());
+  });
+
   it('starts over when all viewers left', () => {
     const g = joinSyncGroup('k2', member());
     g.lead();

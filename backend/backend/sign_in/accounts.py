@@ -56,6 +56,23 @@ def refresh_name(user, provider, claims: dict):
       user.email = email
 
 
+def reserved_admin_name(provider, user_name: str, subject: str, email: Optional[str], claims: dict, match: str) -> bool:
+  """
+  Whether a new OIDC account can't have this user name: it's listed in $QABOARD_ADMINS, and many IdPs let users choose
+  their preferred_username. It can if the IdP shares the directory's names (match_users: username), or says it's
+  the listed admin: by its identity (<provider id>:<subject>) or verified email.
+  Accounts that already exist are left alone: they keep matching by name (backend/admins.py).
+  """
+  from ..admins import env_admins, env_admin_identities
+  admins = env_admins()
+  if user_name not in admins or match == 'username':
+    return False
+  if (provider.id, subject) in env_admin_identities(admins):
+    return False
+  verified = claims.get('email_verified') in (True, 'true')
+  return not (verified and email and email.lower() in {a.lower() for a in admins if '@' in a})
+
+
 def oidc_account(provider, claims: dict, linking_user=None):
   """
   The account of an OIDC sign-in: its identity, else the user it matches (`match_users`), else a new one.
@@ -97,6 +114,12 @@ def oidc_account(provider, claims: dict, linking_user=None):
 
   if User.query.filter(User.user_name == user_name).one_or_none() is not None:
     raise SignInError('account_exists', f"There is already a QA-Board account named {user_name}, and {provider.name} isn't set to match accounts by user name")
+  if reserved_admin_name(provider, user_name, subject, email, claims, match):
+    raise SignInError('not_allowed', (
+      f"{user_name} is an admin in $QABOARD_ADMINS, and {provider.name} lets users choose their user name: QA-Board doesn't "
+      f"create this account from it. If it's really them, add their verified email or {provider.id}:{subject} to $QABOARD_ADMINS, "
+      f"or create the account another way (e.g. qaboard-admin)."
+    ))
   if email and User.query.filter(User.email == email).one_or_none() is not None:
     email_for_account = None # emails are unique: the other account keeps it
   else:

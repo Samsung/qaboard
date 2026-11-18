@@ -174,7 +174,7 @@ def read_definitions_file(output_dir: Path) -> Dict[str, Dict[str, Any]]:
   if not path.exists():
     return {}
   try:
-    definitions = json.loads(path.read_text())
+    definitions = json.loads(path.read_text(encoding='utf-8'))
   except Exception as e:
     import click
     click.secho(f'WARNING: Could not read {path}: {e}', fg='yellow', err=True)
@@ -208,7 +208,7 @@ def write_definitions_file(output_dir: Path, definitions: Dict[str, Dict[str, An
   """
   path = Path(output_dir) / DEFINITIONS_FILE
   if definitions or path.exists():
-    path.write_text(json.dumps(definitions, sort_keys=True, indent=2, separators=(',', ': ')))
+    path.write_text(json.dumps(definitions, sort_keys=True, indent=2, separators=(',', ': ')), encoding='utf-8')
 
 
 def with_default_direction(definitions: Dict[str, Dict[str, Any]], metrics_file: Optional[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:

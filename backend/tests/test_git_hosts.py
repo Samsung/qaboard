@@ -567,6 +567,8 @@ def test_gitlab_jobs(integrations, dummy_app, monkeypatch):
 def test_jenkins_build_urls_use_the_configured_host(integrations, dummy_app, monkeypatch):
   # Jenkins answers with its configured root URL, here a FQDN, while JENKINS_AUTH and build_url use a short name
   monkeypatch.setattr(integrations, "jenkins_credentials", lambda: {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
+  # a project's job: credentials go to this port too
+  monkeypatch.setattr(integrations, "_declared_jenkins_jobs", {"at": float("inf"), "build_urls": {"http://jenkins:8080/job/${project.name}"}})
   queue = response(json_data={"url": "queue/item/7/", "executable": {"url": "http://jenkins.example.com:8080/job/x/12/"}})
   trigger = response(status_code=201)
   trigger.headers = {"location": "http://jenkins.example.com:8080/queue/item/7/"}
@@ -725,3 +727,44 @@ def test_jenkins_build_trigger_access(integrations, dummy_app, monkeypatch):
   assert status == 403 and response.get_json()["reason"] == "missing_scope"
   response, status = trigger({"build_url": "http://jenkins/job/x", "project": "group/repo"}, actor(projects=["group/jenkins"]))
   assert status == 403 and response.get_json()["reason"] == "token_project"
+
+
+def test_jenkins_build_trigger_only_sends_credentials_to_jenkins(integrations, dummy_app, monkeypatch):
+  """Signed-in users can start any job of the Jenkins servers, but not send the credentials to other services of their hosts"""
+  from types import SimpleNamespace
+  monkeypatch.setattr(integrations, "jenkins_credentials", lambda: {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
+  monkeypatch.setattr(integrations, "_declared_jenkins_jobs", {"at": float("inf"), "build_urls": {"https://jenkins:8443/job/${project.name}"}})
+  monkeypatch.setattr(integrations.time, "sleep", lambda seconds: None)
+  trigger = response(status_code=201)
+  trigger.headers = {"location": "http://jenkins/queue/item/7/"}
+  requests = MagicMock()
+  requests.post.return_value = trigger
+  requests.get.return_value = response(json_data={"url": "queue/item/7/", "executable": {"url": "http://jenkins/job/x/12/"}})
+  monkeypatch.setattr(integrations, "requests", requests)
+  def start(build_url, **data):
+    requests.post.reset_mock()
+    with dummy_app.test_request_context("/api/v1/jenkins/build/trigger/", method="POST"):
+      result = integrations.trigger_jenkins_build({"build_url": build_url, **data})
+    status = result[1] if isinstance(result, tuple) else 200
+    assert requests.post.called == (status == 200)
+    return status
+
+  # the default ports of http(s), and the scheme and port of the projects' jobs (templated job names keep working)
+  assert start("http://jenkins/job/anything") == 200
+  assert start("https://jenkins/job/anything") == 200
+  assert start("https://jenkins:8443/job/camera") == 200
+  # not other ports or schemes, nor URLs with credentials
+  for build_url in ["http://jenkins:8443/job/x", "https://jenkins:6379/job/x", "http://jenkins:22/job/x",
+                    "ftp://jenkins/job/x", "http://user:pass@jenkins/job/x", "file://jenkins/etc/passwd"]:
+    assert start(build_url) == 403, build_url
+  assert start(["http://jenkins/job/x"]) == 400
+  # the jobs of the project's qaboard.yaml, e.g. with a templated port
+  integrations.Project.projects["group/ports"] = SimpleNamespace(id="group/ports", data={"qatools_config": {"runners": {"jenkins": {"build_url": "http://jenkins:${port}/job/x"}}}})
+  assert start("http://jenkins:8080/job/x", project="group/ports") == 200
+  assert start("http://jenkins:8080/job/x") == 403
+  # recreate_artifacts' jobs come from the project's qaboard.yaml
+  with dummy_app.test_request_context("/"):
+    result = integrations.trigger_jenkins_build({"build_url": "http://jenkins:8080/job/x"}, declared=True)
+  assert not isinstance(result, tuple)
+  with dummy_app.test_request_context("/"):
+    assert integrations.trigger_jenkins_build({"build_url": "ftp://jenkins/job/x"}, declared=True)[1] == 403

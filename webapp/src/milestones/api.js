@@ -164,14 +164,6 @@ export const milestone_selection_changes = (m, side, selected) => {
 // What to change in the selection to add a milestone to the references, and show it (shown if it's one already)
 export const stack_milestone_changes = (m, selected) => add_reference(selected, milestone_side(m));
 
-// What the web app selects to show a milestone
-export const milestone_selection = m => ({
-  project: results_project(m),
-  commit: m.commit,
-  batch: m.batch || 'default',
-  filter: m.filter || '',
-});
-
 // e.g. "tuning/denoiser" => ["tuning", "denoiser"]
 export const group_parts = group => (group ?? '').split('/').map(part => part.trim()).filter(Boolean);
 // " tuning / denoiser/" => "tuning/denoiser", like the server
