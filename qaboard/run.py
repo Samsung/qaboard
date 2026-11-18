@@ -12,6 +12,15 @@ from .conventions import serialize_config, output_dirs_for_input_part
 from .attempts import latest_dir
 from .utils import merge, input_metadata
 
+def _win_normalize(p: Path) -> Path:
+    """Strip Windows extended-length prefixes (`\\\\?\\UNC\\` -> `\\\\`, `\\\\?\\` -> ``) so resolved paths compare with .relative_to(); for path COMPARISON only (plain form may exceed MAX_PATH)."""
+    s = str(p)
+    if s.startswith('\\\\?\\UNC\\'):
+        return type(p)('\\\\' + s[8:])
+    if s.startswith('\\\\?\\'):
+        return type(p)(s[4:])
+    return p
+
 
 @dataclass
 class RunContext():
@@ -54,7 +63,7 @@ class RunContext():
     @property
     def rel_input_path(self):
         """Returns the input's relative path from the database"""
-        return self.input_path.relative_to(self.database)
+        return _win_normalize(self.input_path).relative_to(_win_normalize(self.database))
 
     @property
     def input(self) -> str:
@@ -151,15 +160,26 @@ class RunContext():
             sys.exit(1)
 
         if not ctx.params.get('output_path'):
-            assert input_path_absolute.relative_to(database)
+            try:
+                _win_normalize(input_path_absolute).relative_to(_win_normalize(database))
+            except ValueError:
+                click.secho(f"[ERROR] {input_path_absolute} resolves outside the database {database}", fg='red')
+                sys.exit(1)
+
             output_dir = ctx.obj['batch_conf_dir'] / output_dirs_for_input_part(
                 input_path,
                 # we really prefer keeping relative paths as-is
                 database if database_is_absolute else ctx.obj['database'],
                 config,
             )
-            # we don't want people using ../ in the input causing issues 
-            assert output_dir.resolve().relative_to(ctx.obj['batch_conf_dir'].resolve())
+            # we don't want people using ../ in the input causing issues
+            # (normalized so the `\\?\UNC\` prefix Windows keeps for not-yet-existing paths doesn't break the comparison)
+            try:
+                _win_normalize(output_dir.resolve()).relative_to(_win_normalize(ctx.obj['batch_conf_dir'].resolve()))
+            except ValueError:
+                click.secho(f"[ERROR] {output_dir} resolves outside the batch configuration directory {ctx.obj['batch_conf_dir']}", fg='red')
+                sys.exit(1)
+
             # a run that was done again is in its latest attempt's directory: `qa run` reserves the next
             output_dir = latest_dir(output_dir)
         else:
