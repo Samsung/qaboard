@@ -118,6 +118,8 @@ Projects need, in the *qaboard.yaml* of the commits they run:
 - `runners.default: kubernetes`, or Dask on Kubernetes: otherwise the driver pod does the runs itself.
 - `runners.kubernetes.image`, with `bash` and `qaboard[kubernetes]`, and `mounts` for the results storage and the
   artifacts, at the same paths as the server's. See [Run batches on Kubernetes](/docs/kubernetes-runner).
+- Or no mounts, for [projects without a shared storage](/docs/storage/artifacts#uploaded): the pods download the
+  commit's artifacts from QA-Board and send their results back with the batch's token, and the driver sends its log.
 
 <details>
 <summary>Without the Helm chart</summary>

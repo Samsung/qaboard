@@ -129,7 +129,7 @@ def redo_script(ci_commit, user, command_id, batch_command) -> str:
 def redo_outputs(batch, outputs, user_info, actor=None) -> dict:
   """
   Redo the `outputs` from `batch`, as `user_info` (the logged-in user who asked, g.user, and `actor`, g.actor: the
-  batch's token is theirs when the project has no shared storage, tokens.mint_for_batch).
+  batch's token is theirs, tokens.mint_for_batch).
   Returns the submission (see submissions.py): its status is "done" if `qa batch` could start the runs, "failed" otherwise,
   "submitted" when `qa batch` was started in a pod (QABOARD_TUNING_RUNNER=kubernetes) or still runs on the server.
   Raises ValueError (e.g. UnsafePathError) if the user name or folders are not safe to use.
@@ -194,8 +194,9 @@ def redo_outputs(batch, outputs, user_info, actor=None) -> dict:
   db_session.commit()
 
   try:
-    # projects without a shared storage: their runs send results with a token of the user (tokens.mint_for_batch)
-    token = tokens.mint_for_batch(actor, ci_commit, command_id)
+    # runs without a shared storage, or on servers that require tokens, send results with a token of the user
+    # (tokens.mint_for_batch). Not through the LSF bridge: its jobs don't get the server's environment
+    token = tokens.mint_for_batch(actor, ci_commit, command_id, log_dir=log_dir) if runner != 'bridge' else None
     if on_kubernetes:
       from .runner_jobs import submit_driver
       def record_driver(driver):

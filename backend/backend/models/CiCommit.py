@@ -172,6 +172,12 @@ class CiCommit(Base):
   def outputs_dir(self):
     # output dirs are now always saved, so we only call this to get output locations with usual conventions
     # e.g. when starting new tuning runs
+    uploaded = self.uploaded_artifacts_dir
+    if uploaded is not None:
+      # Projects without a shared storage: the commit's folder in the project's uploaded runs, next to its artifacts
+      # (backend/uploads.py). The batches started from QA-Board keep their scripts and logs there, inside the storage
+      # roots, even when the server's default storage root isn't one of them.
+      return uploaded.parent
     if self.project.id_relative:
       return self.repo_outputs_dir / self.project.id_relative
     else:

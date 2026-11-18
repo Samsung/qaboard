@@ -57,8 +57,14 @@ def test_stop_a_kubernetes_batch(logged_in, world, runners):
     },
   })
 
+  # the token of the batch QA-Board started (tokens.mint_for_batch)
+  from .test_batch_tokens import batch_token, is_revoked
+  token_id, _ = batch_token('alice', command_id=DRIVER_ID)
+  other_id, _ = batch_token('alice', command_id=LSF_ID.replace('1', '9'))
+
   answer = alice.post("/api/v1/batch/stop/", json={"id": batch_id})
   assert answer.status_code == 200, answer.get_json()
+  assert is_revoked(token_id) and not is_revoked(other_id)
   # JSONB doesn't keep the order of keys. Kubernetes objects: only those of the batch's project
   assert sorted(runners.stopped, key=lambda options: options["command_id"]) == [
     {"type": "lsf", "command_id": LSF_ID, "bridge": "", "user": "alice"},

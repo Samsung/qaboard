@@ -232,6 +232,42 @@ def stop_batch():
   status = batch.stop(db_session)
   return jsonify(status), 200 if not "error" in status else 500
 
+@app.route('/api/v1/batch/submissions/<command_id>/log', methods=['PUT'])
+def append_submission_log(command_id):
+  """
+  Appends the request's body to the log of a `qa batch` QA-Board started (log.txt in its folder), for drivers that
+  don't see the server's storage: Kubernetes pods of projects without a shared storage (`qa send-batch-log`).
+  `?offset=<size>`: the log's current size, else 409 with its `size`. Only with the batch's own token
+  (tokens.mint_for_batch): it says which folder.
+  """
+  from pathlib import Path
+  from .. import uploads
+  actor = g.get('actor')
+  token = actor.token if actor is not None else None
+  data = (token.data or {}) if token is not None else {}
+  if token is None or token.kind != 'batch' or data.get('command_id') != command_id or not data.get('log_dir') or len(token.projects or []) != 1:
+    return jsonify({"error": "Only the batch's own token can send its log.", "reason": "batch_token_required"}), 403
+  # still allowed to send the project's results
+  _, error = ingest_access(token.projects[0], require_token=True)
+  if error:
+    return error
+  try:
+    offset = int(request.args.get('offset', 0))
+  except ValueError:
+    return jsonify({"error": "?offset= is the log's current size, in bytes"}), 400
+  if request.content_length is None:
+    return jsonify({"error": "Send the size of what you add (Content-Length): chunked uploads aren't supported."}), 411
+  log_dir = Path(data['log_dir'])
+  try:
+    check_storage_path(log_dir)
+    size = uploads.save_file(log_dir, 'log.txt', request.stream, request.content_length, offset=offset)
+  except UnsafePathError as e:
+    return jsonify({"error": str(e)}), 400
+  except uploads.UploadError as e:
+    return jsonify({"error": str(e), "reason": e.reason, **e.details}), e.status
+  return jsonify({"size": size})
+
+
 @app.route('/api/v1/batch/redo', methods=['POST'])
 @app.route('/api/v1/batch/redo/', methods=['POST'])
 @login_required

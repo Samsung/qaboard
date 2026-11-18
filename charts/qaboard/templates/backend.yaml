@@ -24,11 +24,11 @@ spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets: {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with include "qaboard.backendServiceAccount" . }}
-      serviceAccountName: {{ . }}
+      # Always named: with none, Kubernetes keeps the previous one (from the deprecated `serviceAccount` field), e.g. the
+      # one the chart deleted when runners.kubernetes was turned off, and the pods can't start
+      serviceAccountName: {{ include "qaboard.backendServiceAccount" . | default "default" }}
       # runners.kubernetes: it starts and stops runs with the Kubernetes API
-      automountServiceAccountToken: {{ $.Values.runners.kubernetes.enabled }}
-      {{- end }}
+      automountServiceAccountToken: {{ .Values.runners.kubernetes.enabled }}
       {{- with .Values.backend.podSecurityContext }}
       securityContext: {{- toYaml . | nindent 8 }}
       {{- end }}

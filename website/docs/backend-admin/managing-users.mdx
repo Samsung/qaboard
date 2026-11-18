@@ -237,6 +237,10 @@ to `warn` to `token` once your CI jobs have tokens (`QABOARD_TOKEN`, see [CI int
 In every mode, a token that can't be used (unknown, expired, revoked, for other projects) is refused, and the results
 aren't saved: `qa` says why and what to do, and in CI, `qa run` and `qa batch` fail.
 
+With `token`, batches started from the web app (tuning, *Run Tests*, redo) get a token of the person who started them,
+limited to the project, revoked when the batch ends or is stopped. Not those started through the LSF bridge: their
+jobs don't get the server's environment, so their results are refused.
+
 ## Jenkins jobs started without a token
 The server starts Jenkins builds with its own Jenkins credentials (`JENKINS_AUTH`). Callers without a token, like
 `qa`'s Windows runner or scripts that call `/api/v1/jenkins/build/trigger`, can only start the jobs listed in a

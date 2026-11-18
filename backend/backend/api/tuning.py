@@ -566,7 +566,7 @@ def _dispatch_local(qa_batch_path, log_dir, command_id, ci_commit=None, token=No
     return _run_script(qa_batch_path, log_dir, command_id, celery=project_uses_celery(ci_commit), token=token)
 
 
-def _dispatch_celery(qa_batch_path, log_dir, command_id):
+def _dispatch_celery(qa_batch_path, log_dir, command_id, token=None):
     """Run batch script locally, detached, with the broker's URL (in its environment, not in the script: it has the password)."""
     # if it's not set, `qa` uses qaboard/runners/celeryconfig.py's default (qaboard.yaml's runners.celery wins anyway)
     qaboard_host = os.environ.get('QABOARD_HOST', 'localhost')
@@ -582,7 +582,7 @@ def _dispatch_celery(qa_batch_path, log_dir, command_id):
     content = content.replace("#!/bin/bash\n", f"#!/bin/bash\n{celery_env}", 1)
     with qa_batch_path.open("w") as f:
         f.write(content)
-    return _run_script(qa_batch_path, log_dir, command_id, celery=True)
+    return _run_script(qa_batch_path, log_dir, command_id, celery=True, token=token)
 
 
 def parse_bsub_job_id(output: str):
@@ -1062,9 +1062,13 @@ def start_tuning(hexsha):
     if do_optimize:
         # we write somewhere the optimization search configuration
         # it needs to be accessed from LSF so we can't use temporary files...
-        config_path = batch_dir / 'optim-config.yaml'
+        # A Kubernetes pod without a shared storage gets the files of the submission's folder (runner_jobs.driver_files):
+        # its experiment can't be resumed when it starts again
+        no_shared_storage = ci_commit.uploaded_artifacts_dir is not None and os.environ.get('QABOARD_TUNING_RUNNER') == 'kubernetes'
+        optimize_dir = log_dir if no_shared_storage else batch_dir
+        config_path = optimize_dir / 'optim-config.yaml'
         # qa optimize saves the search there as it goes, and resumes from it when the experiment starts again
-        checkpoint_path = batch_dir / 'optuna-journal.log'
+        checkpoint_path = optimize_dir / 'optuna-journal.log'
         config_option = f"--config-file {quote(str(config_path))} --checkpoint {quote(str(checkpoint_path))}"
         with config_path.open("w") as f:
             f.write(data['tuning_search']['parameter_search'])
@@ -1127,8 +1131,9 @@ def start_tuning(hexsha):
     notification = notify_when_done(data, command_id, ci_commit, batch, user, do_optimize)
 
     try:
-        # projects without a shared storage: their runs send results with a token of the user (tokens.mint_for_batch)
-        token = tokens.mint_for_batch(g.get('actor'), ci_commit, command_id)
+        # runs without a shared storage, or on servers that require tokens, send results with a token of the user
+        # (tokens.mint_for_batch). Not through the LSF bridge: its jobs don't get the server's environment
+        token = tokens.mint_for_batch(g.get('actor'), ci_commit, command_id, log_dir=log_dir, optimize=do_optimize) if runner != 'lsf' else None
         if runner == 'lsf':
             submission.update(_dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize))
             submission["status"] = "submitted"
@@ -1143,7 +1148,7 @@ def start_tuning(hexsha):
             submission["status"] = "submitted"
         elif runner == 'celery':
             # status: "submitted" while it runs, "done"/"failed" if it ended already
-            submission.update(_dispatch_celery(qa_batch_path, log_dir, command_id))
+            submission.update(_dispatch_celery(qa_batch_path, log_dir, command_id, token=token))
         else:
             submission.update(_dispatch_local(qa_batch_path, log_dir, command_id, ci_commit, token=token))
     except Exception as e:

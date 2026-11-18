@@ -126,7 +126,8 @@ start (`qaboard/runners/registry.py`). Without a shared storage, `qa save-artifa
 server and `qa fetch-artifacts` downloads them into a cache keyed by their hash (`qaboard/commit_artifacts.py`,
 `backend/backend/api/commit_artifacts.py`); batches the server starts from them get a token of the user
 (`tokens.mint_for_batch` in `backend/backend/tokens.py`). What's left: `docs/design/ingest-upload-sdk.md` §3 item 2.
-Kubernetes end-to-end test on kind: `.github/scripts/kubernetes_runner_e2e.py`.
+Kubernetes end-to-end test on kind: `.github/scripts/kubernetes_runner_e2e.py`; batches the server starts, on the Helm
+chart, without a shared storage: `.github/scripts/helm_e2e.py` (`--kubernetes`), in CI's `helm-e2e` job.
 
 ## Release notes and docs (communicating with users)
 

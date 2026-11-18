@@ -463,8 +463,10 @@ jobs:
           kubectl logs deploy/qaboard-backend -c demo-data
           uvx --from playwright==1.56.0 playwright install --with-deps chromium
           uv run .github/scripts/demo_data_e2e.py http://localhost:5151
+      # A CI pipeline's `qa batch` in the cluster, then a batch started from the web app for a project without a shared
+      # storage, on the backend: it reaches QA-Board at QABOARD_HOST, its runs send their results with a token
       - name: qa batch in the cluster
-        run: python3 .github/scripts/helm_e2e.py http://localhost:5151
+        run: uv run --frozen python .github/scripts/helm_e2e.py http://localhost:5151
       # The same release again: the migrations run again (pre-upgrade), nothing else may change
       - name: helm upgrade
         run: |
@@ -487,6 +489,18 @@ jobs:
           # The results are still there, and the demo data
           curl -sSf "http://localhost:5151/api/v1/commit/$GITHUB_SHA?project=user/sample_project" > /dev/null
           uv run .github/scripts/demo_data_e2e.py http://localhost:5151 --no-browser
+      # runners.kubernetes: batches started from the web app run `qa batch` in a driver pod, which starts the runs' Jobs.
+      # Without a shared storage: the pods fetch the commit's artifacts and send their results and the driver's log
+      - name: Batches started from the web app on Kubernetes
+        run: |
+          helm upgrade qaboard charts/qaboard -f charts/qaboard/quickstart.yaml --wait --timeout 15m \
+            --set image.repository="$QABOARD_IMAGE" --set-string image.version="$QABOARD_VERSION" \
+            --set runners.kubernetes.enabled=true --set 'runners.kubernetes.namespaces={default}' \
+            --set-string runners.kubernetes.runAs=1000:1000
+          pkill -f 'kubectl port-forward' || true
+          kubectl port-forward svc/qaboard-proxy 5151:80 >> /tmp/port-forward.log 2>&1 &
+          curl -sSf --retry 10 --retry-all-errors --retry-delay 3 http://localhost:5151/api/v1/health
+          uv run --frozen python .github/scripts/helm_e2e.py http://localhost:5151 --kubernetes
       - name: Cluster state on failure
         # also when the job's timeout cancels it
         if: failure() || cancelled()

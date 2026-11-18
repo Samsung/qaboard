@@ -1265,6 +1265,23 @@ class TestStop(KubernetesTestCase):
     subprocess.run(['sh', str(scripts / 'run.sh')], check=True)
     self.assertEqual(log_file.read_text(), 'bash\n')
 
+  def test_submit_detached_without_a_shared_storage(self):
+    """The server's batches of projects without a shared storage: its files in the pod, its output in the pod's logs"""
+    from qaboard.runners.kubernetes import KubernetesRunner
+    log_file = self.root / 'server' / 'log.txt'
+    files = {str(self.root / 'pod' / 'batches.yaml'): 'e2e: {}\n', str(self.root / 'pod' / "it's.json"): '{}'}
+    KubernetesRunner.submit_detached('#!/bin/bash\ncat "$1" 2>/dev/null; cat ' + str(self.root / 'pod' / 'batches.yaml'), 'qa-abcdefgh-driver', log_file,
+                                     {'command_id': 'abcdefgh-1234', 'image': 'qa:1'}, files=files, log_to_file=False)
+    data = self.kube.configmaps['qa-abcdefgh-driver-r4nd']['data']
+    self.assertEqual((data['file-0'], data['file-1']), ('e2e: {}\n', '{}'))
+    scripts = self.write_scripts(data)
+    out = subprocess.run(['sh', str(scripts / 'run.sh')], stdout=subprocess.PIPE, encoding='utf-8', check=True)
+    self.assertEqual(out.stdout, 'e2e: {}\n')
+    self.assertEqual((self.root / 'pod' / "it's.json").read_text(), '{}')
+    self.assertFalse(log_file.exists() or log_file.parent.exists())
+    with self.assertRaises(ValueError):
+      KubernetesRunner.submit_detached('true', 'qa-abcdefgh-driver', log_file, {'command_id': 'abcdefgh-1234', 'image': 'qa:1'}, files={'relative': ''})
+
   def test_submit_detached_cant_write_its_log(self):
     """If the pod can't write its log file (e.g. it runs as another user), it fails, saying why: not with the output lost"""
     from qaboard.runners.kubernetes import KubernetesRunner

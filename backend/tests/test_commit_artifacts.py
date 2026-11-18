@@ -316,6 +316,69 @@ def test_batch_tokens(monkeypatch):
   assert user is alice and options["kind"] == "batch" and options["projects"] == ["group/repo/sub"]
   assert options["scopes"] == ["read", "ingest"] and options["idle_expiry_days"] == 1
   assert tokens.is_well_formed(tokens.generate(tokens.BATCH_PREFIX))
+  # where its driver may send its log, and whether its runs' end revokes it (not for `qa optimize`)
+  assert options["data"] == {"command_id": "c0ffee00-1"}
+  tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(), "c0ffee00-2", log_dir=Path("/logs/x"), optimize=True)
+  assert minted[1][1]["data"] == {"command_id": "c0ffee00-2", "log_dir": "/logs/x", "optimize": True}
+
+
+def test_batch_tokens_with_a_shared_storage_when_the_server_requires_tokens(monkeypatch):
+  from backend import tokens, settings
+  monkeypatch.setattr(tokens, "mint", lambda user, **kwargs: (None, "qab_bat_secret"))
+  monkeypatch.setitem(sys.modules["backend"].__dict__, "db_session", MagicMock())
+  alice = SimpleNamespace(id=1, user_name="alice")
+  for mode, expected in (("off", None), ("warn", None), ("token", "qab_bat_secret")):
+    monkeypatch.setattr(settings, "setting", lambda key, mode=mode: mode if key == "ingest.auth" else None)
+    assert tokens.batch_needs_token(a_commit(uploaded=False)) == (expected is not None)
+    assert tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(uploaded=False), "c0ffee00-1") == expected
+    # without a shared storage, always
+    assert tokens.batch_needs_token(a_commit())
+
+
+def batch_token(command_id="c0ffee00-1", **data):
+  return SimpleNamespace(id=1, name="Batch", kind="batch", revoked=False, revoked_at=None, expires_at=None,
+                         idle_expiry_days=None, user=None, data={"command_id": command_id, **data})
+
+
+def test_batch_tokens_are_revoked_when_the_last_run_ends(monkeypatch):
+  from backend import tokens
+  audited = []
+  monkeypatch.setitem(sys.modules, "backend.audit", SimpleNamespace(audit=lambda *args, **kwargs: audited.append(args)))
+  token, other = batch_token(), batch_token(optimize=True)
+  found = {"c0ffee00-1": [token], "c0ffee00-opt": [other]}
+  monkeypatch.setattr(tokens, "active_batch_tokens", lambda ids: [t for i in ids for t in found.get(i, [])])
+  session = MagicMock()
+  # runs are still pending
+  session.execute.return_value.first.return_value = (1,)
+  tokens.revoke_ended_batch_token(session, "c0ffee00-1")
+  assert not token.revoked
+  # the last one ended
+  session.execute.return_value.first.return_value = None
+  tokens.revoke_ended_batch_token(session, "c0ffee00-1")
+  assert token.revoked and token.revoked_at and session.commit.called and audited[-1][0] == "token.revoke"
+  # `qa optimize` starts its next batch after this one ends: it keeps its token until stopped
+  tokens.revoke_ended_batch_token(session, "c0ffee00-opt")
+  assert not other.revoked
+  # runs that weren't started by QA-Board
+  tokens.revoke_ended_batch_token(session, None)
+  tokens.revoke_ended_batch_token(session, "unknown")
+  # it never gets in the way of saving results
+  monkeypatch.setattr(tokens, "active_batch_tokens", MagicMock(side_effect=RuntimeError("db down")))
+  tokens.revoke_ended_batch_token(session, "c0ffee00-1")
+  assert session.rollback.called
+
+
+def test_stopping_a_batch_revokes_its_tokens(monkeypatch):
+  from backend import tokens
+  monkeypatch.setitem(sys.modules, "backend.audit", SimpleNamespace(audit=lambda *args, **kwargs: None))
+  session = MagicMock()
+  monkeypatch.setitem(sys.modules["backend"].__dict__, "db_session", session)
+  token, optimize = batch_token(), batch_token("c0ffee00-2", optimize=True)
+  asked = []
+  monkeypatch.setattr(tokens, "active_batch_tokens", lambda ids: (asked.append(ids), [token, optimize])[1])
+  assert tokens.revoke_batch_tokens(["c0ffee00-1", "c0ffee00-2"], reason="its batch was stopped") == 2
+  assert asked == [["c0ffee00-1", "c0ffee00-2"]] and token.revoked and optimize.revoked and session.commit.called
+  assert tokens.revoke_batch_tokens(["c0ffee00-1"], reason="again") == 0
 
 
 def test_the_batch_token_is_in_the_environment_of_qa_batch():

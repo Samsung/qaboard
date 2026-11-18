@@ -156,7 +156,10 @@ class Batch(Base):
       session.commit()
     stopped = stop_batch_jobs(self.data, any([o.is_pending for o in self.outputs]), self.ci_commit.project_id)
     if stopped is None:
-      return {"error": local["errors"]} if local["errors"] else {}
+      if local["errors"]:
+        return {"error": local["errors"]}
+      self.revoke_tokens()
+      return {}
     stopped["errors"] = local["errors"] + stopped["errors"]
     if stopped["stopped_drivers"]:
       self.data = mark_drivers_stopped(self.data, stopped["stopped_drivers"])
@@ -172,7 +175,15 @@ class Batch(Base):
           o.set_status(False, False)
           session.add(o)
       session.commit()
+      self.revoke_tokens()
       return {"warnings": stopped["warnings"]} if stopped["warnings"] else {}
+
+  def revoke_tokens(self):
+    """The tokens of the batches QA-Board started here (tokens.mint_for_batch): once stopped, their runs send nothing"""
+    from backend.tokens import revoke_batch_tokens
+    submissions = (self.data or {}).get('submissions') or {}
+    if isinstance(submissions, dict) and submissions:
+      revoke_batch_tokens(list(submissions), reason="its batch was stopped")
 
   def delete(self, session, soft=False, only_failed=False, filter=None):
     """

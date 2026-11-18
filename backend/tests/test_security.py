@@ -463,6 +463,9 @@ UNAUTHENTICATED_ENDPOINTS = {
   # `qa save-artifacts` without a shared storage sends a commit's artifacts (api/commit_artifacts.py): the same token,
   # always, into a folder the server chooses for a commit it already knows
   ("commit_artifacts.py", "upload_commit_artifact"),
+  # the driver pod of a batch QA-Board started, without a shared storage, sends its log (qa send-batch-log): only with
+  # that batch's own token (ingest_access(require_token=True)), into the folder the server chose when it started it
+  ("batch.py", "append_submission_log"),
   # the web app and the CLI send usage events (backend/usage.py): the CLI's are unverified without a token, dropped
   # when ingest.auth is "token", like results. Anonymous events have no user, they're counted and never resolved.
   ("usage.py", "usage_events"),
