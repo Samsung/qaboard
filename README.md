@@ -49,8 +49,10 @@ Start with a server on your computer. Add your project next, then your team.
 to start a server, and give it the [integration skill](skills/qaboard-integration) to add your project: see
 [Coding agents](https://samsung.github.io/qaboard/docs/agents).
 
-What it needs: Docker or Kubernetes for the server, and a folder that the server and your runs both see: a local
-folder on one computer, a shared one (NFS, SMB...) for a team.
+What it needs: Docker or Kubernetes for the server. Runs save their files in a folder the server reads: a local
+folder on one computer, a shared one (NFS, SMB...) for a team. Where it isn't mounted, like on CI runners hosted by
+GitHub, runs send their files to the server over HTTP instead
+([experimental](https://samsung.github.io/qaboard/docs/storage/uploads)).
 
 ## What you get
 - **Compare every commit with a reference:** the reference branch, a release or a milestone, metric by metric, with
