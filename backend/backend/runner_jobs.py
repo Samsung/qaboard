@@ -439,6 +439,12 @@ def driver_job_options(config: dict, user_info: dict, command_id: str, project_i
   if config.get('image') is not None:
     image = config['image']
     if isinstance(image, str) and image and len(image) < 512 and not re.search(r'\s', image):
+      from qaboard.runners.registry import commit_image
+      try:
+        # an image per commit: {commit} is replaced by the commit's id when the pod is created, see submit_driver
+        commit_image(image, 'commit')
+      except ValueError as e:
+        raise NotAllowed(str(e))
       job_options['image'] = image
     else:
       raise NotAllowed(f"Invalid runners.kubernetes.image: {image!r}")
@@ -495,6 +501,8 @@ def driver_job_options(config: dict, user_info: dict, command_id: str, project_i
     job_options['mounts'] = driver_mounts(config['mounts'])
   if config.get('job_template'):
     ignored('job_template', "QA-Board only starts pods from the options it checks")
+  if config.get('workdir'):
+    ignored('workdir', "it runs in the commit's artifacts")
   return job_options, notes
 
 
@@ -592,6 +600,9 @@ def submit_driver(script_path: Path, log_dir: Path, user_info: dict, ci_commit, 
   try:
     config = commit_kubernetes_config(ci_commit)
     job_options, notes = driver_job_options(config, user_info, command_id, ci_commit.project_id)
+    # {commit} in the image: the driver runs the commit's (it's looked up in its registry before the pod starts), with
+    # the pull secrets' credentials only, never the server's
+    job_options.update({"commit": ci_commit.hexsha, "local_registry_credentials": False})
     for note in notes:
       print(f"[kubernetes] {note}")
     # Like _dispatch_celery, at the top of the script

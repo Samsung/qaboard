@@ -1,7 +1,7 @@
 # Sending results without `qa run` or a shared storage: `start_run()`, `qa upload`, HTTP upload
 
-Status: v6 (2026-11-18). A first version is implemented, as experimental: §1 says what, §2 the decisions behind it,
-§3 what is left. v6: storage locations inside the storage roots, the upload root as the default one, edited in
+Status: v7 (2026-11-18). A first version is implemented, as experimental: §1 says what, §2 the decisions behind it,
+§3 what is left. v7: an image per commit for the kubernetes runner (§3, item 2). v6: storage locations inside the storage roots, the upload root as the default one, edited in
 Admin → Storage. v5: uploads on by default, an end-to-end test in CI, and where storage settings should live. v4 added storage locations (runs store their full location), heartbeats, and `check-bit-accuracy`
 and `optimize` without a shared storage. v1 (2026-10-26) proposed a separate run client; v2 (2026-11-14) rebuilt the plan on
 `qaboard.start_run()` (`docs/rfcs/python-sdk-runs.md`). `docs/design/http-upload.md` is the full protocol this
@@ -23,6 +23,7 @@ User docs: `website/docs/upload-results.mdx`, `storage/uploads.mdx`, `backend-ad
 | Heartbeats: runs that stop reporting are failed | `qaboard/heartbeat.py`, `backend/backend/heartbeats.py` (`QABOARD_SILENT_RUN_TIMEOUT_MINUTES`) |
 | `qa check-bit-accuracy` against references on the server: their manifests over HTTP, cached | `qaboard/bit_accuracy.py` (`fetched_manifests`) |
 | On by default: a server with the default storage takes files in `/mnt/qaboard` (a volume in `docker-compose.yml`, the chart's results volume); refusals say why (`uploads.off_reason`, also in `/api/v1/config` for `qa doctor`) | `backend/backend/config.py` (`_upload_root`) |
+| An image per commit: `{commit}` in `runners.kubernetes.image`, looked up in its registry before pods start; `workdir`, where the image has the repository | `qaboard/runners/registry.py`, `kubernetes.py` (`check_commit_images`, `in_pods`), the server's driver in `backend/runner_jobs.py` |
 | End-to-end test: `docker-compose.yml` without an overlay, `qa upload` and `start_run()` from the checkout, files through nginx and the image server | `.github/scripts/uploads_e2e.py`, CI's `docker` job |
 
 ### How a run without a shared storage goes
@@ -78,11 +79,34 @@ In `docs/warts.md`, with sizes. The ones that matter first:
    does: on HPC schedulers (Slurm, LSF), a shared file system, as QA-Board does today; on Kubernetes and cloud
    batch, either an image per commit built by CI (W&B Launch, Kubeflow, Argo), or a stable base image and a code
    bundle fetched at start (SageMaker's `source_dir`, Ray's `working_dir`). Next steps, in order:
-   - `{commit}` in `runners.kubernetes.image`, checked in the registry before launching ("no image for this
-     commit" rather than `ImagePullBackOff`). Small; covers teams that build an image per commit.
+   - ~~`{commit}` in `runners.kubernetes.image`, checked in the registry before launching~~ (v7, below). Covers
+     `qa batch` from CI for teams that build an image per commit. Not batches started from the web app: their driver
+     uses the commit's image, but the server still reads the batches from the commit's artifacts, and the driver
+     `cd`s there. That comes with the next step.
    - Artifacts through the server: `qa save-artifacts` uploads the bundle with the same `PUT`, jobs fetch it once
      per node into a cache keyed by its hash. Covers everyone else, including a public instance.
    Inputs and datasets stay the user's (mounts, buckets, their code), as with every tool above.
+
+   v7, how the image per commit works:
+   - `{commit}` or `{commit:.N}` in `image` (nothing else between braces, refused early, also by the server). `qa
+     batch` and `qa doctor` give the runner the commit (`commit` job option), the server gives the driver its commit.
+     The Dask runner on Kubernetes replaces it too, without the registry check.
+   - Before creating any Job (and before the server's driver pod), `check_commit_images` asks the registry: `HEAD
+     /v2/<repository>/manifests/<tag>` with OCI and Docker manifest types, a Bearer token (anonymous, or with
+     credentials) or Basic auth when it asks. Credentials: the `image_pull_secrets` the caller may read, and
+     `~/.docker/config.json` (not credential helpers), except on the server (`local_registry_credentials: false`):
+     its credentials never go to a registry a project's qaboard.yaml names. 404: *No image for this commit*, nothing
+     starts. 401/403 after authenticating, other statuses or network errors: we can't tell, a warning, pods start,
+     and the pull diagnostics explain failures as before. `http://` only for `localhost` registries.
+   - Why ask the registry instead of the cluster: Kubernetes has no "can you pull this?" without starting a pod, and
+     pods in `ImagePullBackOff` fail the batch only after 5 minutes (`image_pull_grace`).
+   - `workdir`: the runs' `cd` and log paths under the repository's root (`repo_root` job option) are mapped there
+     (`in_pods`). Commands keep relative paths (`cd <subproject> && qa run`), and with uploads `qa run` computes its
+     output folder in the pod, so nothing else is rewritten. `--prefix-outputs-path` with an absolute path under the
+     repository is not mapped.
+   - Known gaps: the server-side check sends HEAD requests to hosts users name (blind, status only; the same users
+     can already start pods in the namespace); no retry while CI is still pushing; no digest pinning (a tag pushed
+     again between the check and the pull is pulled as is).
 3. `qaboard.local_path("qaboard://<run>/checkpoints/last.pt")`: a run's file as a local path, from the folder when
    its location is mounted here, else downloaded once into a cache keyed by the manifest's hash. Like W&B's
    `use_artifact().download()` or MLflow's `download_artifacts("runs:/...")`, for checkpoints. Shares the cache of 2.

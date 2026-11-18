@@ -11,10 +11,12 @@ runs, or when getting a GPU node is the slow part, each pod can do several runs.
 
 :::info What you need
 - **Kubernetes 1.29 or later**, and a namespace where you can create Jobs. `qa` uses your kubeconfig, like `kubectl`.
-- **An image with `qa`, a shell (`sh`) and your code's dependencies.** Your code itself comes from the shared storage.
-  With a per-run `timeout`, the image also needs the `timeout` command of GNU coreutils (not BusyBox's).
+- **An image with `qa`, a shell (`sh`) and your code's dependencies.** Your code itself comes from the shared storage,
+  or from the image, if your CI builds [an image per commit](#image-per-commit). With a per-run `timeout`, the image
+  also needs the `timeout` command of GNU coreutils (not BusyBox's).
 - **Your shared storage in the pods, at the same paths** as on the machine where you run `qa batch`: the folder where
-  you start it, your inputs, and the results storage.
+  you start it, your inputs, and the results storage. Without one, the image has the code, and the runs
+  [send their files to the server](/docs/upload-results).
 - On the machine where you run `qa batch`: `pip install "qaboard[kubernetes]"`.
 :::
 
@@ -59,6 +61,35 @@ Or keep another default runner, and choose Kubernetes for one command: `qa batch
 
 The runs send their results to QA-Board like from your machine, but without your token: if your QA-Board server
 requires one, see [Give the runs a QA-Board token](#token).
+
+## An image per commit {#image-per-commit}
+Without a storage that your cluster and your CI share, the code reaches the pods in an image your CI builds for each
+commit. Put `{commit}` in the image's name, and say where the repository is in the image:
+
+```yaml title="qaboard.yaml"
+runners:
+  kubernetes:
+    image: registry.example.com/algo/qa:{commit}   # or {commit:.8}: the commit id's first 8 characters
+    workdir: /src               # where the image has the repository (its WORKDIR, or wherever you COPY it)
+```
+
+```yaml title="CI job"
+- docker build -t registry.example.com/algo/qa:$CI_COMMIT_SHA .   # with qa, your code at /src, and its dependencies
+- docker push registry.example.com/algo/qa:$CI_COMMIT_SHA
+- qa --share batch ci --runner kubernetes
+```
+
+- `qa batch` replaces `{commit}` with the commit it runs on, then asks the image's registry whether it has it: if
+  it doesn't, it starts no pod and says *No image for this commit*, rather than leaving pods in `ImagePullBackOff`.
+  It reads the registry's credentials from `image_pull_secrets` (if you may read Secrets in the namespace) and from
+  `docker login`. When the registry doesn't tell, `qa batch` warns and starts the pods anyway.
+- With `workdir`, the pods `cd` to the same folder of the repository in the image as where you started `qa batch`,
+  and write their logs there. Without a shared storage, the runs send their results and files to the server
+  ([sending results without a shared storage](/docs/upload-results)): leave `storage` out of *qaboard.yaml*. They
+  need a [QA-Board token](#token).
+- `qa doctor --runner kubernetes` checks that this commit's image is in its registry.
+- Batches [started from the web app](#namespace-trust) use the commit's image too, but they still need the commit's
+  artifacts on the server's storage (`qa save-artifacts`).
 
 ## Mount the shared storage {#mounts}
 Each item of `mounts` mounts a volume at `path`, the same path as on the machine where you run `qa batch`. The kind of
@@ -390,6 +421,8 @@ runners:
     namespace: algo-qa          # default: the kubeconfig context's namespace, else "default"
     context: my-cluster         # kubeconfig context, default: the current one. In a pod: its ServiceAccount
     image: registry.kitefin.example/algo/qa-env:2026.11   # must have `qa` and your code's dependencies
+    # image: registry.kitefin.example/algo/qa:{commit}    # an image per commit, built by your CI ({commit:.8}: 8 characters)
+    workdir: /src               # optional: where the image has the repository, for images with your code
     image_pull_secrets: [registry-creds]   # or one, as a string
     queue: algo-gpu             # Kueue LocalQueue
     priority_class: batch-low
@@ -443,7 +476,7 @@ Relative paths are relative to the project's root.
   applies to each Job, and `qa batch` warns about it.
 - The runs' commands are in an immutable ConfigMap that belongs to the Job, deleted with it. Each pod runs them with
   `sh`: for each run, it sends its output to `log.k8s.txt` (or fails at once if it can't), `cd`s to the folder
-  where you started `qa batch`, and runs `qa run`, with `timeout` if you set one.
+  where you started `qa batch` (in `workdir` if you set it), and runs `qa run`, with `timeout` if you set one.
 - Jobs are named `qa-<first 8 characters of the command id>-<12 random hex digits>-<group>-<index>`: a new part
   each time `qa batch` runs, since `qa optimize` reuses command ids. Finished Jobs are deleted after
   `ttl_seconds_after_finished`. If a Job with the same name exists anyway, `qa batch` fails rather than use it.
