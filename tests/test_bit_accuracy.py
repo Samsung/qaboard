@@ -127,6 +127,23 @@ class TestDefaultRecordingConvention(unittest.TestCase):
       self.assertEqual(info['st_size'], len(CRLF_CONTENT))
       self.assertEqual(info['md5'], hashlib.md5(CRLF_CONTENT).hexdigest())
 
+  def test_bytes_that_are_not_utf8_are_kept(self):
+    with no_opt_in_env(), tempfile.TemporaryDirectory() as tmp:
+      path = Path(tmp) / 'regs.txt'
+      path.write_bytes(b'a\xff\r\nb\r')
+      info = file_info(path)
+      self.assertEqual(info['md5'], hashlib.md5(b'a\xff\nb\n').hexdigest())
+
+  def test_files_with_nul_bytes_stay_raw(self):
+    # with bit_accuracy.binary, every file it doesn't list is plaintext
+    config = {'bit_accuracy': {'binary': ['.bin']}}
+    content = b'\x89PNG\r\n\x1a\n\x00\x00\r\x00'
+    with no_opt_in_env(), tempfile.TemporaryDirectory() as tmp:
+      path = Path(tmp) / 'image.png'
+      path.write_bytes(content)
+      info = file_info(path, config=config)
+      self.assertEqual(info['md5'], hashlib.md5(content).hexdigest())
+
   def test_normalize_eof_false_keeps_raw(self):
     with no_opt_in_env(), tempfile.TemporaryDirectory() as tmp:
       path = Path(tmp) / 'regs.txt'
