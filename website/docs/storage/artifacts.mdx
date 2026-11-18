@@ -42,9 +42,15 @@ When runs [send their results to the server](/docs/storage/uploads) (no `storage
 `artifacts` groups. Files the server already has for the commit aren't sent again. The CI needs a
 [QA-Board token](/docs/ci-integration#tokens), as for its results.
 
-The web app then compares them with the reference's, and lists the commit's batches from them. **Starting runs from
-the web app doesn't work yet for these projects**: their runs send results over HTTP, which needs a token, and the
-runs QA-Board starts don't get one. QA-Board says so instead of starting them. Start batches from CI or a terminal.
+People can then [start runs and tuning from the web app](/docs/tuning-from-the-webapp) and redo runs, as with a shared
+storage:
+- **On the server's machine** (the default), `qa batch` runs where the server saved them.
+- **On Kubernetes**, the pods download them first, once per pod. The image needs `qa` and what your code needs
+  besides the artifacts (see [Kubernetes runner](/docs/kubernetes-runner#image-per-commit)).
+
+Their runs send their results with a token QA-Board gives the batch, of the person who started it: limited to the
+project, and to reading and sending results. With the LSF or Celery runners, QA-Board doesn't start them yet, and says
+so.
 
 <details>
 <summary>Download a commit's artifacts</summary>

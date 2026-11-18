@@ -89,7 +89,8 @@ runners:
   need a [QA-Board token](#token).
 - `qa doctor --runner kubernetes` checks that this commit's image is in its registry.
 - Batches [started from the web app](#namespace-trust) use the commit's image too, and run from the commit's
-  artifacts in the server's storage. Without one, QA-Board doesn't start them yet
+  artifacts. Without a shared storage, the pods download the ones your CI sent with `qa save-artifacts`: then the
+  image needs `qa`, and the code can come from the artifacts instead of the image
   ([artifacts without a shared storage](/docs/storage/artifacts#uploaded)).
 
 ## Mount the shared storage {#mounts}

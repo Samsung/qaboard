@@ -101,19 +101,6 @@ def artifacts_status(artifacts_dir: Path, repo_artifacts_dir: Path, is_subprojec
 
 
 
-def runs_cant_send_results(ci_commit) -> Optional[str]:
-  """
-  Why the runs QA-Board would start from this commit's artifacts can't save their results, if they can't. When the
-  artifacts were sent over HTTP, the project's runs send their results that way too, which always needs a token,
-  and the batches the server starts (redo.py, api/tuning.py) don't get one yet: docs/design/ingest-upload-sdk.md, §3.
-  """
-  if getattr(ci_commit, 'uploaded_artifacts_dir', None) is None:
-    return None
-  return ("This project sends its results to QA-Board over HTTP (it has no storage shared with the server), which needs "
-          "a token, and the runs QA-Board starts don't get one yet: they would fail. Start the batch from CI or a "
-          "terminal instead, with `qa batch`.")
-
-
 def cd_lines(artifacts_dir: Path, uploaded_for: Optional[Tuple[str, str, str]] = None, source_envrc: bool = False) -> List[str]:
   """
   Bash lines that go to a commit's artifacts folder, in the scripts that run `qa batch` there (redo.py, api/tuning.py).

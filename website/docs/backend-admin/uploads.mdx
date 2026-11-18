@@ -92,7 +92,7 @@ those folders, is in the database: [storage locations](#storage-locations), chan
   others under `<project>/<commit>/`. The server refuses runs and artifacts that say they are in a project's uploaded
   runs or above them (the project's or its group's folder), since deleting them would delete uploaded runs.
 - A commit's [artifacts](/docs/storage/artifacts#uploaded) go to its `artifacts/` folder, with the repository's
-  layout, one copy per project. The web app reads the batch files there, and `qa fetch-artifacts` downloads them.
+  layout, one copy per project. Batches started from the web app run there, and Kubernetes pods download them.
   They are deleted like artifacts in a shared storage, by the projects' retention rules.
 - The files belong to the server's user. Users delete them from the web app, never by hand.
 
@@ -108,6 +108,9 @@ Whoever can send files can put any file on your server, which serves it to every
   ([HTML reports](/docs/viewers#html-reports)). It is off by default.
 - **Images of restricted projects**: the image server (`/iiif/`) doesn't check who asks. If projects' visibility
   matters on your server, don't expose it beyond the people who may see every project.
+- **Batches started from the web app** for these projects get a token of the person who started them, limited to the
+  project, to reading and sending results, and expiring a day after the runs stop. On Kubernetes it is in the driver
+  pod's environment, so whoever can read the namespace's ConfigMaps can use it meanwhile: one namespace per team.
 - **Use HTTPS**: tokens and files travel in the requests.
 
 ## Limits and disk space {#limits}

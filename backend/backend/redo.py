@@ -23,7 +23,8 @@ from backend import db_session
 from .shell_utils import quote, is_shell_safe, safe_user_name, lsf_bridge_command
 from .storage import check_storage_path
 from .fs_utils import mkdir_shared
-from .artifacts import ArtifactsUnavailable, commit_cd_lines, runs_cant_send_results
+from .artifacts import ArtifactsUnavailable, commit_cd_lines
+from . import batch_tokens
 from .submissions import record_submission, user_batch_dir, submission_dir, startup_logs
 
 
@@ -135,8 +136,10 @@ def redo_outputs(batch, outputs, user_info) -> dict:
   ci_commit = batch.ci_commit
   # We run code from there
   check_storage_path(ci_commit.artifacts_dir)
+  on_kubernetes = os.environ.get('QABOARD_TUNING_RUNNER') == 'kubernetes'
+  runner = "kubernetes" if on_kubernetes else "bridge" if os.environ.get('QA_RUNNERS_LSF_BRIDGE') else "local"
   # first: no need to restore artifacts for runs that couldn't save their results
-  if problem := runs_cant_send_results(ci_commit):
+  if problem := batch_tokens.unsupported(ci_commit, runner):
     raise ArtifactsUnavailable(problem)
   # We never run from missing artifacts: e.g. without its qaboard.yaml, a subproject's runs would be saved in the parent project.
   # Raises ArtifactsUnavailable if they are missing and can't be restored right now.
@@ -166,7 +169,6 @@ def redo_outputs(batch, outputs, user_info) -> dict:
   script_path = log_dir / 'redo.sh'
   with script_path.open('w') as f:
     f.write(script)
-  on_kubernetes = os.environ.get('QABOARD_TUNING_RUNNER') == 'kubernetes'
   # raises if the user or path are not safe to use in the LSF bridge
   command = None if on_kubernetes else lsf_bridge_command(user, script_path)
 
@@ -177,7 +179,7 @@ def redo_outputs(batch, outputs, user_info) -> dict:
     "kind": "redo",
     "runs": len(outputs),
     # we run `qa batch` via the LSF bridge and wait for it, or start it on the server (detached) or in a pod
-    "runner": "kubernetes" if on_kubernetes else "bridge" if os.environ.get('QA_RUNNERS_LSF_BRIDGE') else "local",
+    "runner": runner,
     "command": batch_command,
     "log_dir": str(log_dir),
     "status": "submitting",
@@ -190,6 +192,8 @@ def redo_outputs(batch, outputs, user_info) -> dict:
   db_session.commit()
 
   try:
+    # projects without a shared storage: their runs send results with a token of the user (backend/batch_tokens.py)
+    token = batch_tokens.mint(ci_commit, command_id)
     if on_kubernetes:
       from .runner_jobs import submit_driver
       def record_driver(driver):
@@ -198,7 +202,7 @@ def redo_outputs(batch, outputs, user_info) -> dict:
         record_submission(batch, submission)
         db_session.add(batch)
         db_session.commit()
-      submission.update(submit_driver(script_path, log_dir, user_info, ci_commit, command_id, on_prepared=record_driver))
+      submission.update(submit_driver(script_path, log_dir, user_info, ci_commit, command_id, on_prepared=record_driver, token=token))
       submission["status"] = "submitted"
     elif os.environ.get('QA_RUNNERS_LSF_BRIDGE'):
       print(command)
@@ -210,7 +214,7 @@ def redo_outputs(batch, outputs, user_info) -> dict:
       # the runs are done again with their runner: they may need the broker
       celery = (os.environ.get('QABOARD_TUNING_RUNNER') == 'celery' or project_uses_celery(ci_commit)
                 or any(output_runner(output) == 'celery' for output in outputs))
-      submission.update(start_detached(script_path, log_dir, qa_environment(command_id, celery=celery)))
+      submission.update(start_detached(script_path, log_dir, qa_environment(command_id, celery=celery, token=token)))
   except Exception as e:
     submission.update({"status": "failed", "error": str(e)})
   # `qa batch` updated the batch meanwhile

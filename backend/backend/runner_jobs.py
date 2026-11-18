@@ -586,7 +586,7 @@ def driver_name(command_id: str) -> str:
 
 
 def submit_driver(script_path: Path, log_dir: Path, user_info: dict, ci_commit, command_id: str,
-                  on_prepared: Optional[Callable[[Dict[str, Any]], None]] = None) -> Dict[str, Any]:
+                  on_prepared: Optional[Callable[[Dict[str, Any]], None]] = None, token: Optional[str] = None) -> Dict[str, Any]:
   """
   Runs the bash script `script_path` (a `qa batch`, see api/tuning.py and redo.py) on Kubernetes, in a driver pod named
   qa-<command_id[:8]>-driver, as the signed-in user (`user_info`, g.user). Its output goes to log_dir/log.txt, and the
@@ -603,6 +603,9 @@ def submit_driver(script_path: Path, log_dir: Path, user_info: dict, ci_commit, 
     # {commit} in the image: the driver runs the commit's (it's looked up in its registry before the pod starts), with
     # the pull secrets' credentials only, never the server's
     job_options.update({"commit": ci_commit.hexsha, "local_registry_credentials": False})
+    if token:
+      # the batch's token (backend/batch_tokens.py): `qa batch` forwards it to the runs' pods
+      job_options["env"] = {**job_options.get("env", {}), "QABOARD_TOKEN": token}
     for note in notes:
       print(f"[kubernetes] {note}")
     # Like _dispatch_celery, at the top of the script

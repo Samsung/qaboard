@@ -17,11 +17,15 @@ import zlib
 from fnmatch import fnmatchcase
 from typing import Optional, List
 
+from qaboard.conventions import BATCH_TOKEN_PREFIX
+
 PREFIX = 'qab_pat_'
 SERVICE_PREFIX = 'qab_svc_'
 TEMPORARY_PREFIX = 'qab_tmp_'
+# the token of a batch QA-Board starts (backend/batch_tokens.py): runners forward it to the runs' pods
+BATCH_PREFIX = BATCH_TOKEN_PREFIX
 # token kinds that the server issues for a short time
-TEMPORARY_KINDS = ('ci',)
+TEMPORARY_KINDS = ('ci', 'batch')
 BASE62 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 RANDOM_LENGTH = 40
 CHECKSUM_LENGTH = 6
@@ -58,7 +62,7 @@ def generate(prefix: str = PREFIX) -> str:
   return f"{prefix}{random_part}{checksum(random_part)}"
 
 
-TOKEN_RE = re.compile(rf'^(?:{PREFIX}|{SERVICE_PREFIX}|{TEMPORARY_PREFIX})([0-9A-Za-z]{{{RANDOM_LENGTH}}})([0-9A-Za-z]{{{CHECKSUM_LENGTH}}})$')
+TOKEN_RE = re.compile(rf'^(?:{PREFIX}|{SERVICE_PREFIX}|{TEMPORARY_PREFIX}|{BATCH_PREFIX})([0-9A-Za-z]{{{RANDOM_LENGTH}}})([0-9A-Za-z]{{{CHECKSUM_LENGTH}}})$')
 LEGACY_RE = re.compile(r'^[0-9a-f]{64}$')
 
 def is_well_formed(token: str) -> bool:
@@ -181,7 +185,7 @@ def mint(user, name: str, scopes: List[str], kind: str = 'personal', projects: O
   from backend import db_session
   from .models import Token
   from .audit import audit
-  secret = generate(SERVICE_PREFIX if kind == 'service' else TEMPORARY_PREFIX if kind in TEMPORARY_KINDS else PREFIX)
+  secret = generate(SERVICE_PREFIX if kind == 'service' else BATCH_PREFIX if kind == 'batch' else TEMPORARY_PREFIX if kind in TEMPORARY_KINDS else PREFIX)
   token = Token(
     token_hash=hash_token(secret),
     prefix=display_prefix(secret),

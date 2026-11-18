@@ -727,7 +727,7 @@ def test_start_a_batch_from_an_api_client(dummy_app, tmp_path, monkeypatch):
     monkeypatch.setattr(tuning, "qaboard_data_shared_dir", tmp_path / "shared")
     monkeypatch.setattr(tuning, "record_submission", lambda batch, submission: None)
     started = {}
-    def dispatch_local(script, log_dir, command_id, ci_commit):
+    def dispatch_local(script, log_dir, command_id, ci_commit, token=None):
         started.update(script=script.read_text(), log_dir=log_dir)
         return {"status": "submitted"}
     monkeypatch.setattr(tuning, "_dispatch_local", dispatch_local)

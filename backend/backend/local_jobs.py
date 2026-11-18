@@ -51,10 +51,11 @@ SERVER_ONLY_PREFIXES = (
 CELERY_VARIABLES = ('CELERY_BROKER_URL', 'CELERY_RESULT_BACKEND')
 
 
-def qa_environment(submission_id: str, celery: bool = False, environ: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+def qa_environment(submission_id: str, celery: bool = False, environ: Optional[Dict[str, str]] = None, token: Optional[str] = None) -> Dict[str, str]:
   """
   The environment of the `qa batch` the server starts: the server's, minus its secrets. It keeps what `qa` needs: PATH,
   HOME, LANG, QABOARD_HOST/QABOARD_PROTOCOL, proxies, CA bundles, QA_RUNNERS_LSF_BRIDGE... and with `celery`, the broker.
+  `token`: the batch's own (backend/batch_tokens.py), for runs that send their results over HTTP.
   """
   environ = os.environ if environ is None else environ
   env = {
@@ -64,6 +65,8 @@ def qa_environment(submission_id: str, celery: bool = False, environ: Optional[D
   if celery:
     env.update({k: environ[k] for k in CELERY_VARIABLES if k in environ})
   env[SUBMISSION_ENV] = submission_id
+  if token:
+    env['QABOARD_TOKEN'] = token
   return env
 
 

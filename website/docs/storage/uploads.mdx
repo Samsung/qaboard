@@ -73,7 +73,7 @@ The server only has what runs sent it. It can't start your code where it has no 
 |---|---|
 | See, compare, export and delete runs; the quality gate; History | Yes |
 | [`qa save-artifacts`](/docs/storage/artifacts#uploaded) | Yes: it sends the commit's artifacts to the server |
-| Start runs and [tuning from the web app](/docs/tuning-from-the-webapp), redo runs | Not yet: the runs QA-Board starts have no token to send their results with ([artifacts](/docs/storage/artifacts#uploaded)) |
+| Start runs and [tuning from the web app](/docs/tuning-from-the-webapp), redo runs | Yes, on the server's machine or on Kubernetes, from the artifacts `qa save-artifacts` sent ([artifacts](/docs/storage/artifacts#uploaded)). Not with the LSF or Celery runners yet |
 | [`qa check-bit-accuracy`](/docs/bit-accuracy) | Yes: it compares the reference's manifests (its files' hashes), fetched from the server. Not with `QA_BITACCURACY_CMP`, which compares files |
 | [`qa optimize`](/docs/auto-optimization) | Yes: it reads the iterations' metrics from the server. Its journal, to resume, stays on the machine that runs it |
 | `qa batch` with a [cluster runner](/docs/runners) | When the cluster's nodes share the project's folder with the machine that starts the batch |

@@ -806,6 +806,16 @@ class TestImagePerCommit(KubernetesTestCase):
 
 
 class TestEnv(unittest.TestCase):
+  def test_the_batch_token_is_forwarded(self):
+    """The token QA-Board gives a batch it starts reaches its runs' pods; personal tokens never do"""
+    from qaboard.runners.kubernetes import run_env, dict_to_KubernetesOptions
+    with mock.patch.dict(os.environ, {'QABOARD_TOKEN': 'qab_bat_abc', 'GITLAB_TOKEN': 'qab_bat_x'}, clear=True):
+      env = run_env(dict_to_KubernetesOptions({}))
+      self.assertEqual(env.get('QABOARD_TOKEN'), 'qab_bat_abc')
+      self.assertNotIn('GITLAB_TOKEN', env)
+    with mock.patch.dict(os.environ, {'QABOARD_TOKEN': 'qab_pat_abc'}, clear=True):
+      self.assertNotIn('QABOARD_TOKEN', run_env(dict_to_KubernetesOptions({})))
+
   def test_env(self):
     from qaboard.runners.kubernetes import run_env, dict_to_KubernetesOptions, env_script
     environ = {

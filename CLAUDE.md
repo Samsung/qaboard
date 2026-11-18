@@ -124,8 +124,8 @@ web app's tuning endpoints (`backend/backend/api/tuning.py`, documented in `back
 An image per commit (`{commit}` in `runners.kubernetes.image`, with `workdir`) is looked up in its registry before pods
 start (`qaboard/runners/registry.py`). Without a shared storage, `qa save-artifacts` sends a commit's artifacts to the
 server and `qa fetch-artifacts` downloads them into a cache keyed by their hash (`qaboard/commit_artifacts.py`,
-`backend/backend/api/commit_artifacts.py`); what's left, first a token for the runs the server starts:
-`docs/design/ingest-upload-sdk.md` §3 item 2.
+`backend/backend/api/commit_artifacts.py`); batches the server starts from them get a token of the user
+(`backend/backend/batch_tokens.py`). What's left: `docs/design/ingest-upload-sdk.md` §3 item 2.
 Kubernetes end-to-end test on kind: `.github/scripts/kubernetes_runner_e2e.py`.
 
 ## Release notes and docs (communicating with users)

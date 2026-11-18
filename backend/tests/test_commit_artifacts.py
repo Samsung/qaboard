@@ -8,6 +8,7 @@ import importlib.util
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -271,9 +272,46 @@ def test_deleting_the_commits_artifacts_deletes_what_was_sent(api, dummy_app, up
   assert commit.artifacts_status()["ok"]
 
 
-def test_qa_board_doesnt_start_runs_that_cant_send_results(api, dummy_app, commit):
-  # until the batches the server starts get a token: uploading runs always need one
-  from backend.artifacts import runs_cant_send_results
-  assert runs_cant_send_results(commit) is None
+
+# --- the batches QA-Board starts from them (backend/batch_tokens.py) -----------------------------------------------
+def test_runs_from_uploaded_artifacts_need_a_runner_that_can_fetch_them(api, dummy_app, commit):
+  from backend import batch_tokens
+  assert not batch_tokens.needed(commit) and batch_tokens.unsupported(commit, "lsf") is None
   send_artifacts(api, dummy_app, {"qaboard.yaml": b"a", "sub/qaboard.yaml": b"b"})
-  assert "token" in runs_cant_send_results(commit)
+  assert batch_tokens.needed(commit)
+  assert batch_tokens.unsupported(commit, "local") is None and batch_tokens.unsupported(commit, "kubernetes") is None
+  assert "(lsf)" in batch_tokens.unsupported(commit, "lsf") and "qa batch" in batch_tokens.unsupported(commit, "bridge")
+
+
+def test_batch_tokens(api, dummy_app, commit, monkeypatch):
+  import flask
+  from backend import batch_tokens, tokens
+  minted = []
+  monkeypatch.setattr(tokens, "mint", lambda user, **kwargs: (minted.append((user, kwargs)), (None, "qab_bat_secret"))[1])
+  monkeypatch.setitem(sys.modules["backend"].__dict__, "db_session", MagicMock())
+  with dummy_app.test_request_context():
+    # projects with a shared storage: nothing changes
+    assert batch_tokens.mint(commit, "c0ffee00-1") is None
+    send_artifacts(api, dummy_app, {"qaboard.yaml": b"a"})
+    with pytest.raises(ValueError, match="Sign in"):
+      batch_tokens.mint(commit, "c0ffee00-1")
+    alice = SimpleNamespace(id=1, user_name="alice")
+    flask.g.actor = SimpleNamespace(user=alice)
+    assert batch_tokens.mint(commit, "c0ffee00-1") == "qab_bat_secret"
+  user, options = minted[0]
+  assert user is alice and options["kind"] == "batch" and options["projects"] == ["group/repo/sub"]
+  assert options["scopes"] == ["read", "ingest"] and options["idle_expiry_days"] == 1
+
+
+def test_batch_tokens_look_like_tokens():
+  from backend import tokens
+  secret = tokens.generate(tokens.BATCH_PREFIX)
+  assert secret.startswith("qab_bat_") and tokens.is_well_formed(secret)
+  assert "batch" in tokens.TEMPORARY_KINDS
+
+
+def test_the_batch_token_is_in_the_environment_of_qa_batch():
+  from backend.local_jobs import qa_environment
+  server = {"PATH": "/bin", "QABOARD_TOKEN": "the server's", "QABOARD_SECRET_KEY": "x"}
+  assert "QABOARD_TOKEN" not in qa_environment("c0ffee00", environ=server)
+  assert qa_environment("c0ffee00", environ=server, token="qab_bat_x")["QABOARD_TOKEN"] == "qab_bat_x"

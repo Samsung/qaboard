@@ -34,7 +34,8 @@ from ..config import qaboard_data_shared_dir
 from ..shell_utils import safe_user_name, lsf_bridge_command
 from ..storage import check_storage_path, UnsafePathError
 from ..submissions import record_submission, MAX_SUBMISSIONS, user_batch_dir, submission_dir, append_log, startup_logs # noqa: F401
-from ..artifacts import ArtifactsUnavailable, commit_cd_lines, runs_cant_send_results
+from ..artifacts import ArtifactsUnavailable, commit_cd_lines
+from .. import batch_tokens
 from ..notifications.batches import request_batch_notification, cancel_batch_notification
 from .auth import login_required, require_project_access, is_authorized_user, forbidden_project
 
@@ -552,20 +553,21 @@ def _generate_batch_script(ci_commit, user, working_directory, command_id, batch
     return script
 
 
-def _run_script(qa_batch_path, log_dir, command_id, celery=False):
+def _run_script(qa_batch_path, log_dir, command_id, celery=False, token=None):
     """
     Runs the bash script on the server, detached: it outlives the request (see local_jobs.py), with the server's
     environment minus its secrets, and its output appended to log_dir/log.txt.
     Returns the submission's {"status", "pid", "pgid", "host"}, and "exit_code" if it already ended.
+    `token`: the batch's token (backend/batch_tokens.py), for runs that send their results over HTTP.
     """
     from ..local_jobs import start_detached, qa_environment
-    return start_detached(qa_batch_path, log_dir, qa_environment(command_id, celery=celery))
+    return start_detached(qa_batch_path, log_dir, qa_environment(command_id, celery=celery, token=token))
 
 
-def _dispatch_local(qa_batch_path, log_dir, command_id, ci_commit=None):
+def _dispatch_local(qa_batch_path, log_dir, command_id, ci_commit=None, token=None):
     """Run batch script locally, detached. It gets the broker if the project's runner may be celery."""
     from ..local_jobs import project_uses_celery
-    return _run_script(qa_batch_path, log_dir, command_id, celery=project_uses_celery(ci_commit))
+    return _run_script(qa_batch_path, log_dir, command_id, celery=project_uses_celery(ci_commit), token=token)
 
 
 def _dispatch_celery(qa_batch_path, log_dir, command_id):
@@ -632,7 +634,7 @@ def _dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize):
     return {"lsf_job_id": parse_bsub_job_id(out.stdout), "queue": queue}
 
 
-def _dispatch_kubernetes(qa_batch_path, log_dir, user_info, ci_commit, do_optimize, command_id, on_prepared=None):
+def _dispatch_kubernetes(qa_batch_path, log_dir, user_info, ci_commit, do_optimize, command_id, on_prepared=None, token=None):
     """
     Run the batch script on Kubernetes, in a "driver" pod (a 1-pod Job named qa-<command_id[:8]>-driver) that runs as
     the signed-in user (`user_info`, g.user), with the commit's runners.kubernetes (image, mounts...) as far as the
@@ -643,7 +645,7 @@ def _dispatch_kubernetes(qa_batch_path, log_dir, user_info, ci_commit, do_optimi
     `do_optimize`: the pod has no deadline either way, `qa optimize` runs as long as its experiment.
     """
     from ..runner_jobs import submit_driver
-    return submit_driver(qa_batch_path, log_dir, user_info, ci_commit, command_id, on_prepared=on_prepared)
+    return submit_driver(qa_batch_path, log_dir, user_info, ci_commit, command_id, on_prepared=on_prepared, token=token)
 
 
 def find_commit(project_id, hexsha):
@@ -887,7 +889,7 @@ def check_tuning_request(ci_commit, data, user_name=None):
         errors.append("QA-Board doesn't know this project's configuration: run `qa save-artifacts` or `qa batch` on this commit, with qaboard.yaml.")
         config = {}
 
-    if problem := runs_cant_send_results(ci_commit):
+    if problem := batch_tokens.unsupported(ci_commit, os.environ.get('QABOARD_TUNING_RUNNER', 'local')):
         errors.append(problem)
 
     label = str(data.get('batch_label') or '').strip()
@@ -1129,6 +1131,8 @@ def start_tuning(hexsha):
     notification = notify_when_done(data, command_id, ci_commit, batch, user, do_optimize)
 
     try:
+        # projects without a shared storage: their runs send results with a token of the user (backend/batch_tokens.py)
+        token = batch_tokens.mint(ci_commit, command_id)
         if runner == 'lsf':
             submission.update(_dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize))
             submission["status"] = "submitted"
@@ -1139,13 +1143,13 @@ def start_tuning(hexsha):
                 record_submission(batch, submission)
                 db_session.add(batch)
                 db_session.commit()
-            submission.update(_dispatch_kubernetes(qa_batch_path, log_dir, g.user, ci_commit, do_optimize, command_id, on_prepared=record_driver))
+            submission.update(_dispatch_kubernetes(qa_batch_path, log_dir, g.user, ci_commit, do_optimize, command_id, on_prepared=record_driver, token=token))
             submission["status"] = "submitted"
         elif runner == 'celery':
             # status: "submitted" while it runs, "done"/"failed" if it ended already
             submission.update(_dispatch_celery(qa_batch_path, log_dir, command_id))
         else:
-            submission.update(_dispatch_local(qa_batch_path, log_dir, command_id, ci_commit))
+            submission.update(_dispatch_local(qa_batch_path, log_dir, command_id, ci_commit, token=token))
     except Exception as e:
         submission["status"] = "failed"
         if isinstance(e, subprocess.CalledProcessError):

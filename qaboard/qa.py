@@ -331,7 +331,7 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
           if os.getcwd() != cwd:
             os.chdir(cwd)
 
-          metrics = postprocess_(runtime_metrics, run_context, skip=no_postprocess or runtime_metrics['is_failed'], save_manifests_in_database=save_manifests_in_database, print_summary=True)
+          metrics = postprocess_(runtime_metrics, run_context, skip=no_postprocess or runtime_metrics.get('is_failed', False), save_manifests_in_database=save_manifests_in_database, print_summary=True)
           exit_if_results_refused()
           if metrics['is_failed']:
             sys.exit(1)
