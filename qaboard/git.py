@@ -219,9 +219,3 @@ class _Commit(object):
       raise GitWrapperError(f"ERROR: Could not init a GitPython Commit: {object.__getattribute__(self, 'commit_id')}")
     # getattr() and not __getattribute__: GitPython reads most attributes lazily, in __getattr__
     return getattr(commit, name)
-
-
-
-# if __name__ == '__main__':
-#   import fire
-#   fire.Fire(latest_commit)

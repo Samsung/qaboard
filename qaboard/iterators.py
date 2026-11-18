@@ -219,20 +219,6 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
               del metadata[k]
         yield i, database
 
-  #     if only:
-  #       inputs = [i for i in inputs if match(input_metadata(i, database, i.relative_to(database), qatools_config), only)]
-  #     if exclude:
-  #       inputs = [i for i in inputs if not match(input_metadata(i, database, i.relative_to(database), qatools_config), exclude)]
-  #     for i in inputs:
-  #       nb_inputs += 1
-  #       yield i
-  #     if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
-  #       metadata = input_metadata(input_path, database, input_path.relative_to(database), qatools_config)
-  #       if only and not match(metadata, only): continue
-  #       if exclude and match(metadata, exclude): continue
-  #       nb_inputs += 1
-  #       yield input_path
-
   if not seen_inputs:
     _record_missing_input(path, database, globs)
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
@@ -715,18 +701,6 @@ def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
     return
 
   parameter_search = tuning_search['parameter_search']
-
-  ## Support for functions/ranges was removed - no one ever used them.
-  # for parameter, values in parameter_search.items():
-  #   if isinstance(values, dict):
-  #     if not 'function' in values or not 'arguments' in values:
-  #       raise ValueError
-  #     if values['function'] == 'range':
-  #       args = values['arguments']
-  #       if 'start' not in args: args['start']=0
-  #       if 'stop' not in args: args['stop']=0
-  #       if 'step' not in args: args['step']=1
-  #       tuning_search[parameter] = list(range(args['start'], args['stop'], args['step']))
 
   n_iter = tuning_search.get('search_options', {}).get('n_iter')
   # a grid by default, as the docs show `--tuning-search '{"parameter_search": {...}}'`

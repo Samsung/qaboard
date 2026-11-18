@@ -99,11 +99,6 @@ span.bp6-popover-target {
   vertical-align: baseline !important;
 }
 
-.limit-overflow .bp6-popover-transition-container {
-  max-height: 500px;
-  overflow-y: scroll;
-}
-
 .bp6-card.output-card {
   padding: 5px;
   margin-bottom: 15px;
@@ -115,10 +110,6 @@ span.bp6-popover-target {
 .output-card.compact .path-header {
   margin-bottom: 4px;
   padding: 2px 6px;
-}
-
-.viewer-cross {
-  mix-blend-mode: exclusion;
 }
 
 /* Heatmaps of the metrics tables (components/tables.jsx): --heat is the cell's color */
