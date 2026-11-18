@@ -78,7 +78,7 @@ def _yaml_get(node, key):
 def _input_line(batches_file, batch, index) -> Optional[int]:
   """The line of a batch's input in a batches file, if we can find it."""
   try:
-    with open(batches_file) as f:
+    with open(batches_file, encoding='utf-8') as f:
       root = yaml.compose(f, Loader=yaml.SafeLoader)
     definition = _yaml_get(root, batch)
     inputs = _yaml_get(definition, 'inputs') or _yaml_get(definition, 'tests')
@@ -295,7 +295,7 @@ def iter_inputs(
     try:
       from .config import project, subproject
       batches_file_path = location_from_spec(batches_file, {"project": project, "subproject": subproject})
-      with open(batches_file_path) as f:
+      with open(batches_file_path, encoding='utf-8') as f:
         new_batches = yaml.load(f, Loader=yaml.SafeLoader)
       if new_batches is None:
         click.secho(f"WARNING: no data in: {batches_file}", fg='yellow', err=True)
@@ -656,7 +656,7 @@ def load_runs_file(path) -> List[Dict[str, Any]]:
   input_path is relative to the database. Only input_path and database are required.
   """
   try:
-    with Path(path).open() as f:
+    with Path(path).open(encoding='utf-8') as f:
       data = json.load(f)
   except (OSError, ValueError) as e:
     raise click.UsageError(f"Could not read the runs file {path}: {e}")

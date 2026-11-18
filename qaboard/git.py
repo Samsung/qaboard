@@ -101,7 +101,7 @@ def git_dirs(repo_root: Path) -> Tuple[Path, Path]:
   """
   git_dir = repo_root / '.git'
   if git_dir.is_file():
-    pointer = git_dir.read_text().strip()
+    pointer = git_dir.read_text(encoding='utf-8').strip()
     if pointer.startswith('gitdir:'):
       pointer = pointer[len('gitdir:'):].strip()
     pointer = _safe_linux_to_windows(pointer)
@@ -110,14 +110,15 @@ def git_dirs(repo_root: Path) -> Tuple[Path, Path]:
   common_dir = git_dir
   commondir_path = git_dir / 'commondir'
   if commondir_path.is_file():
-    common_dir = git_dir / _safe_linux_to_windows(commondir_path.read_text().strip())
+    common_dir = git_dir / _safe_linux_to_windows(commondir_path.read_text(encoding='utf-8').strip())
   return git_dir, common_dir
 
 
 def git_head(repo_root : Path) -> Tuple[str, str]:
   """Return the git ref and sha for the HEAD"""
   git_dir, common_dir = git_dirs(repo_root)
-  with (git_dir / 'HEAD').open() as f:
+  # branch names are UTF-8, whatever the locale
+  with (git_dir / 'HEAD').open(encoding='utf-8') as f:
     head_data = f.read().strip()
   if not head_data.startswith('ref: refs/heads/'):
     # detached HEAD
@@ -128,12 +129,12 @@ def git_head(repo_root : Path) -> Tuple[str, str]:
   for refs_dir in dict.fromkeys([git_dir, common_dir]):
     refs_head_path = refs_dir / 'refs' / 'heads' / commit_branch
     if refs_head_path.is_file():
-      with refs_head_path.open() as f:
+      with refs_head_path.open(encoding='utf-8') as f:
         return commit_branch, f.read().strip()
 
   packed_refs_path = common_dir / 'packed-refs'
   if packed_refs_path.exists():
-    with packed_refs_path.open() as f:
+    with packed_refs_path.open(encoding='utf-8') as f:
       for line in f.readlines():
         if line.startswith('#'):
           continue
