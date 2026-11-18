@@ -106,3 +106,29 @@ recordExtractor: ({ $, helpers }) => {
       lvl0: { selectors: '', defaultValue: lvl0 },
       // ...the rest as in DocSearch's Docusaurus template
 ```
+
+#### Search engines and AI assistants
+Google says its AI Overviews and AI Mode need nothing more than pages it can index
+([AI features and your website](https://developers.google.com/search/docs/appearance/ai-features)). The public site's
+build gives search engines and AI assistants what they read (the docs built into the web app get none of it, and are
+`noindex`):
+- `trailingSlash: true`: GitHub Pages redirects `/docs/page` to `/docs/page/`, so links, canonical URLs, the sitemap and
+  the structured data use the URL that's served.
+- `sitemap.xml` lists the pages, without tags, archives and pagination, with each page's last commit as `<lastmod>`
+  (the workflow checks out the whole history for it). Docs pages show the same date as "Last updated".
+- The landing page describes QA-Board in schema.org JSON-LD (`SoftwareApplication`, in `src/pages/index.tsx`). Docs
+  pages carry breadcrumbs, release notes a `BlogPosting` (Docusaurus's, with the trailing slash added by
+  `src/components/structuredData.ts`). Only facts the pages show: no ratings, no prices.
+- `llms.txt` ([llmstxt.org](https://llmstxt.org)) lists every docs page by audience with its `description`, for coding
+  agents (`plugins/llms-txt`). Pages' `description` is also what search results show: one sentence on what the reader
+  can do, under about 160 characters (results cut the rest).
+- The landing page's tabs keep every tab's text in the HTML, `hidden` until picked: crawlers don't click.
+
+To see how Google indexes the site and what people search to find it, add a **URL prefix** property for
+`https://samsung.github.io/qaboard/` in [Search Console](https://search.google.com/search-console) and choose the
+**HTML tag** method. The maintainers' token is the default in `docusaurus.config.ts`; another one goes in the repository
+variable `QABOARD_GOOGLE_SITE_VERIFICATION` (Settings > Secrets and variables > Actions > Variables). Run the Website
+workflow on `master`, click **Verify**, and submit `sitemap.xml`. [Bing Webmaster Tools](https://www.bing.com/webmasters) (Bing's index also serves Microsoft
+Copilot) can import the property from Search Console, or verify with its own tag in
+`QABOARD_BING_SITE_VERIFICATION`. Keep the tags: the property stays verified only while the tag is there. Without a
+token, the build adds no tag.

@@ -55,6 +55,11 @@
   align-items: center;
 }
 
+/* The tabs that aren't selected (their text stays in the page for search engines, see useTabs) */
+.panel[hidden] {
+  display: none;
+}
+
 .text {
   min-width: 0;
 }

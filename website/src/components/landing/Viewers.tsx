@@ -1,5 +1,5 @@
 // The landing page's showcase of the viewers: one tab per kind of output, each with one strong shot or clip.
-// Only the selected tab's media is in the page; clips load and play when in view (see Clip).
+// Every tab's text is in the page, only the selected tab's media; clips load and play when in view (see Clip).
 // Every claim is checked against the web app's code: see website/STYLE.md#claims.
 import React, {type ReactNode} from 'react';
 import clsx from 'clsx';
@@ -157,7 +157,6 @@ const VIEWERS: Viewer[] = [
 
 export default function Viewers() {
   const {selected, tabListProps, tabProps, panelProps} = useTabs(VIEWERS.length, 'Viewers');
-  const viewer = VIEWERS[selected];
   return (
     <div className={styles.viewers}>
       <div className={styles.tabs} {...tabListProps}>
@@ -168,25 +167,25 @@ export default function Viewers() {
           </button>
         ))}
       </div>
-      <div className={styles.panel} {...panelProps}>
-        <div className={styles.text}>
-          <h3 className={styles.title}>{viewer.title}</h3>
-          <p className={styles.lead}>{viewer.lead}</p>
-          <ul className={styles.points}>
-            {viewer.points.map(({term, text}) => (
-              <li key={term}>
-                <strong>{term}</strong>
-                <span>{text}</span>
-              </li>
-            ))}
-          </ul>
-          <Link to={viewer.link}>{viewer.linkLabel} →</Link>
+      {VIEWERS.map((viewer, index) => (
+        <div key={viewer.name} className={styles.panel} {...panelProps(index)}>
+          <div className={styles.text}>
+            <h3 className={styles.title}>{viewer.title}</h3>
+            <p className={styles.lead}>{viewer.lead}</p>
+            <ul className={styles.points}>
+              {viewer.points.map(({term, text}) => (
+                <li key={term}>
+                  <strong>{term}</strong>
+                  <span>{text}</span>
+                </li>
+              ))}
+            </ul>
+            <Link to={viewer.link}>{viewer.linkLabel} →</Link>
+          </div>
+          {/* Only the selected viewer's media is in the page: the others load when picked */}
+          {index === selected && <div className={styles.media}>{viewer.media}</div>}
         </div>
-        {/* Only the selected viewer's media is in the page: the others load when picked */}
-        <div className={styles.media} key={viewer.name}>
-          {viewer.media}
-        </div>
-      </div>
+      ))}
     </div>
   );
 }
