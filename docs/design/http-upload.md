@@ -4,6 +4,11 @@ Status: proposal v1 (2026-10-12), for review. Context: `docs/docs-overhaul-plan.
 step 6: GitHub-hosted runners need HTTP upload) and §10 ("HTTP upload: yes, designed properly first").
 Line references are to this branch's tree.
 
+> **What was built (2026-11-17):** a small part of this design, as experimental: one `PUT` per file into a
+> server-managed folder, the log sent as it grows, tokens always. See `docs/design/ingest-upload-sdk.md` for what
+> exists, the decisions, and what is left; sessions, parts, packs, the content store and object storage below are
+> not built.
+
 ## TL;DR
 - **Same files, same paths, new transport.** The server stores uploaded runs under a root it manages, at the
   same paths the CLI would use with `storage: <that root>`. URLs stay `/s/<abs path>`, so nginx, the file

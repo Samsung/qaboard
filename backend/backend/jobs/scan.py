@@ -32,6 +32,7 @@ from typing import Optional
 from sqlalchemy import text
 
 from ..database import db_session, engine, make_engine
+from .. import locations
 from ..models import Project, CiCommit, Batch, Output, Export, StorageScan
 from ..storage import check_storage_path, UnsafePathError
 from ..exports import MARKERS, owner_name, found
@@ -265,7 +266,9 @@ class Known:
       found = self.runs_of(batch_id).get(path)
       if found:
         return found
-    row = self.session.execute(text("SELECT id, deleted FROM outputs WHERE output_dir_override = :path LIMIT 1"), {"path": path}).first()
+    # runs in a storage location store its URL (backend/locations.py)
+    row = self.session.execute(text("SELECT id, deleted FROM outputs WHERE output_dir_override IN (:path, :location) LIMIT 1"),
+                               {"path": path, "location": locations.location_of(path)}).first()
     self.session.rollback()
     return (row[0], bool(row[1])) if row else None
 

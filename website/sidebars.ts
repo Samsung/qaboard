@@ -131,6 +131,8 @@ const sidebars: SidebarsConfig = {
         "running-your-code",
         // Runs created from code that starts by itself: training loops, notebooks
         "log-from-code",
+        // Results other tools already wrote: test reports, benchmarks, profiles
+        "upload-results",
         "inputs",
         "specifying-configurations",
       ],
@@ -202,7 +204,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Storage & Artifacts',
-      items: ["storage/artifacts", "storage/where-is-the-data", "storage/deleting-old-data"],
+      items: ["storage/artifacts", "storage/where-is-the-data", "storage/uploads", "storage/deleting-old-data"],
     },
     "faq",
   ],
@@ -219,6 +221,7 @@ const sidebars: SidebarsConfig = {
         "backend-admin/sign-in",
         "backend-admin/project-access",
         "backend-admin/storage",
+        "backend-admin/uploads",
         "backend-admin/runners",
         "backend-admin/annotations",
         "backend-admin/monitoring",

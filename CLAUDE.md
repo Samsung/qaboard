@@ -102,6 +102,17 @@ uv sync --extra dev     # Install with dev dependencies
 out: `docs/rfcs/python-sdk-runs.md` (next steps: `python-sdk-runs-follow-ups.md`); user docs: `website/docs/logging-from-code.mdx`.
 What `qa` and the SDK send with results is built in one place, `qaboard/payloads.py`.
 
+Runs don't need a storage shared with the server: without `storage` in qaboard.yaml (or `storage: upload`), `qa run` and
+`start_run()` save them in the project's `output/` and send their files (`qaboard/upload.py`) to the one folder the server
+keeps for that (`QABOARD_UPLOAD_ROOT`, `backend/backend/uploads.py`). `qa upload` (`qaboard/upload_command.py`) is
+`start_run()` from the shell, for files other tools wrote; `qaboard/junit.py` and `benchmarks.py` read their metrics, by
+the file names the web app's viewers recognize (`webapp/src/viewers/fileTypes.js`). Runs store their full location
+(`outputs.output_dir_override`: a path, or a URL like `s3://...` resolved by the storage locations admins add,
+`backend/backend/locations.py`): never resolve it with `Path()`, use `Output.output_dir` or `locations.local_path`.
+Runs report at least every 2 minutes and are failed when silent (`qaboard/heartbeat.py`, `backend/backend/heartbeats.py`). Design and decisions:
+`docs/design/ingest-upload-sdk.md`; limits: `docs/warts.md`. The tests' fake server (`tests/test_active_run.py`) answers
+like the real endpoints: change them together.
+
 ### Runners
 `qa batch` starts runs with a runner (`qaboard/runners/`): local, lsf, celery, dask (workers on LSF, Slurm, PBS, SGE,
 HTCondor, OAR, Moab, Kubernetes or local, `runners.dask.cluster.type`), kubernetes (Indexed Jobs), windows (Jenkins).

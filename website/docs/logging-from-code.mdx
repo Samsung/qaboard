@@ -15,7 +15,8 @@ needs. What it doesn't do yet is [at the end of this page](#limits).
 :::
 
 Use `qa run` when QA-Board starts your code on each input of a batch ([Running your code](/docs/running-your-code)).
-Use `start_run()` when your code starts by itself and results appear while it runs.
+Use `start_run()` when your code starts by itself and results appear while it runs. When the results are already
+files, like a test report, [`qa upload`](/docs/upload-results) saves them as a run from the shell.
 
 ## Log a training {#quick-start}
 In a project (a folder with a *qaboard.yaml*, see [Start a project](/docs/project-init)):
@@ -38,10 +39,11 @@ curves dashed on the same axes. The **Summary** view plots all the runs of the b
 ([Logged series](/docs/user-guide/other-viewers#logged-series) in the user guide).
 Leaving the `with` block ends the run; an exception ends it as failed, with the error in its log.
 
-You need what `qa --share` needs: the `qaboard` package, a server (`QABOARD_URL`, or your site's package), the shared
-storage (`storage` in *qaboard.yaml*), and to be signed in when the server asks for it (`qa auth login`, or
-`QABOARD_TOKEN`). [`qa doctor`](/docs/doctor) checks them. Without a server or storage, the run stays in the project's
-*output/* folder: see [where the files go](#files).
+You need what `qa --share` needs: the `qaboard` package, a server (`QABOARD_URL`, or your site's package), and to be
+signed in when the server asks for it (`qa auth login`, or `QABOARD_TOKEN`). The run's files are saved in the shared
+storage (`storage` in *qaboard.yaml*), or [sent to the server](/docs/storage/uploads) without one.
+[`qa doctor`](/docs/doctor) checks them. Without a server, the run stays in the project's *output/* folder: see
+[where the files go](#files).
 
 ## What makes a run {#identity}
 A run started from code is identified like any run: a project, a commit, a batch, an input and configurations. Runs
@@ -118,8 +120,9 @@ prints is saved in the run's *log.txt*, shown in **Logs**.
 ## Where the files go, with and without a server {#files}
 | | Files | Web app |
 |---|---|---|
-| In the CI, or with a server and the storage configured | In the shared storage, where `qa --share run` would save them | The run shows when it starts |
-| `share=False`, `QA_OFFLINE=1`, or no storage | In the project's *output/* folder, like a local `qa run` | Not shown |
+| In the CI, or with a server, and a `storage` in *qaboard.yaml* | In the shared storage, where `qa --share run` would save them | The run shows when it starts |
+| In the CI, or with a server, without `storage` (or `storage: upload`) | In the project's *output/* folder, and [sent to the server](/docs/storage/uploads): the log and the series as the run goes, the rest when it ends | The run shows when it starts |
+| `share=False`, `QA_OFFLINE=1`, or no server | In the project's *output/* folder, like a local `qa run` | Not shown |
 | `output_dir="..."` | In your folder. The server must read it to show the files | As above |
 
 A run's folder has what `qa run` writes (*run.json*, *metrics.json*, *log.txt*, *manifest.outputs.json*), your
@@ -162,7 +165,10 @@ run.finish()          # or run.fail("the loss diverged")
 - **Logging to a finished run** is skipped, with a warning the first time.
 - **`qb.current_run()`** gives the run started last, for code deep inside a library: `if run := qb.current_run(): run.log(...)`.
 - **Outside a project**, give `project=`. Without a git repository, the run is attached to a placeholder commit
-  with your name. Sharing then needs to know the storage: set `QA_STORAGE`, or install your site's package.
+  with your name. In a CI job, the project is the job's repository. The files go to the storage that `QA_STORAGE` or
+  your site's package sets, else they are [sent to the server](/docs/storage/uploads).
+- **Inside `qa run`**, `start_run()` starts another run: give it another `input`. It refuses to start the run that
+  `qa run` is doing, which would remove its files: return metrics from `run()` instead.
 - **With several processes** (one per GPU), call `start_run()` in one of them only, e.g. on rank 0: each call
   starts a run. A forked worker that logs to its parent's run is ignored, with a warning.
 - **`commit=`** attaches the run to another commit than the code's, e.g. the commit that trained the model you
@@ -176,9 +182,10 @@ run.finish()          # or run.fail("the loss diverged")
 | `input` | The script's name | What the run works on: a path relative to the inputs' database, or any name. |
 | `configs` | `[]` | The configurations: names and mappings. |
 | `batch` | `"default"` | The batch. Outside the CI, runs go to your own batch of that name. |
-| `project` | The *qaboard.yaml*'s | Required without a *qaboard.yaml*. |
+| `label` | | The batch too, under the name `qa --label` gives it: give either. With both, `label` is the batch in the web app, and `batch` names the group of tests on the run's card, like `qa --label nightly batch unit-tests`. |
+| `project` | The *qaboard.yaml*'s | Required without a *qaboard.yaml*, except in a CI job: its repository. |
 | `commit` | The git `HEAD`, or the CI's | A full commit id, or a branch, tag or short id of the folder's repository. |
-| `share` | In the CI, or with a server and storage | `False` keeps the run local. `QA_OFFLINE=1` does it for a whole process. |
+| `share` | In the CI, or with a server | `False` keeps the run local. `QA_OFFLINE=1` does it for a whole process. |
 | `output_dir` | From QA-Board's conventions | Your own folder for the run's files. Only a previous run's series are removed from it. |
 | `resume` | `False` | Continue the previous run of the same identity. |
 | `summary` | `"last"` | Which value of each series is the run's metric: `last`, `min`, `max`, `mean`, `none`, or a mapping by series. |

@@ -20,6 +20,7 @@ from sqlalchemy import update, text
 from ..database import db_session, engine
 from ..models import Job, JobWorker, JobSchedule
 from . import queue, alerts
+from .. import heartbeats
 from .report import utcnow
 
 
@@ -120,6 +121,11 @@ class Worker:
 
   def housekeeping(self):
     queue.requeue_stale()
+    try:
+      heartbeats.fail_silent_runs()
+    except Exception as e:
+      db_session.rollback()
+      print(f"[worker {self.id}] WARNING: could not fail the silent runs: {e}", flush=True)
     queue.run_due_schedules()
     now = utcnow()
     if not self.purged_at or (now - self.purged_at).total_seconds() > PURGE_EVERY:

@@ -13,6 +13,12 @@ and what got slower or faster beyond it. Each benchmark can be a metric too, fol
 <Shot id="commit/benchmarks" />
 
 ## Show a suite's results next to the reference's {#quick-start}
+:::tip From a CI job, without code
+When a job already runs the harness, `qa upload pytest.benchmarks.json` saves its file as a run, with each benchmark
+as a metric, and the run's card shows the table: see [Upload results from any tool](/docs/upload-results). The steps
+below are for suites that QA-Board runs, on each input of a batch.
+:::
+
 With pytest-benchmark:
 
 1. **Run the harness in `run()`, save its file in the run's output directory, and return its benchmarks as

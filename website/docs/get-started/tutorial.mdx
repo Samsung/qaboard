@@ -12,8 +12,9 @@ next to your reference branch's. Pick your stack: the steps follow your choices.
 :::info Where results go
 `qa` runs your code where you start it, saves each run's output files in a storage the server reads at the same path
 (by default `/mnt/qaboard`, usually an NFS share), and sends the metrics to the server. Every machine that saves
-results with `qa`, CI runners included, must mount that storage. Uploading outputs over HTTP, so that any machine can
-save results, is on the [roadmap](/docs/roadmap#http-upload-of-outputs).
+results with `qa`, CI runners included, must mount that storage. Machines that can't, like GitHub-hosted runners or a
+laptop, send their files to the server instead: see [Send results without a shared storage](/docs/storage/uploads)
+(experimental).
 :::
 
 ## 1. Start a server
@@ -238,10 +239,11 @@ More, and Gitea, Forgejo or Bitbucket, in [Project setup](/docs/project-init#opt
 Your CI runs `qa batch ci` on every push. `qa` reads the commit and the branch from the CI's environment variables,
 and the batch shows as **CI** on the commit page.
 
-:::caution The runner must mount the results storage
-Use a runner that mounts it at the same path as the server: a self-hosted GitHub Actions runner, a GitLab runner or a
-Jenkins agent on your network. GitHub-hosted runners can't save results yet: they need
-[HTTP upload of outputs](/docs/roadmap#http-upload-of-outputs).
+:::caution Where the runner saves results
+Use a runner that mounts the results storage at the same path as the server: a self-hosted GitHub Actions runner, a
+GitLab runner or a Jenkins agent on your network. Runners that can't mount it, like GitHub-hosted ones, send their
+files to the server instead, with `QA_STORAGE: upload` in the job's environment: see
+[Send results without a shared storage](/docs/storage/uploads) (experimental).
 :::
 
 <Tabs groupId="ci" queryString>
