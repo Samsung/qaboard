@@ -388,6 +388,22 @@ def stop_heartbeat():
     _heartbeat.stop()
 
 
+def wait_for_the_log(log: Path, timeout: float = 1.0, quiet: float = 0.1):
+  """A thread copies what the run prints to its log (qaboard/fd_tee.py): what was just printed may not be there yet"""
+  for stream in (sys.stdout, sys.stderr):
+    try:
+      stream.flush()
+    except (AttributeError, OSError, ValueError):
+      pass
+  deadline, size = time.monotonic() + timeout, None
+  while time.monotonic() < deadline:
+    current = log.stat().st_size if log.exists() else 0
+    if current == size:
+      return
+    size = current
+    time.sleep(quiet)
+
+
 def finish_upload(run_context):
   """Sends the run's files before telling the server that it ended: finished runs' files don't change"""
   global _uploader, _upload_finished, _files_sent
@@ -405,6 +421,8 @@ def finish_upload(run_context):
     click.secho("ERROR: QA-Board doesn't have the files of the run: it didn't take the run. They are in " + str(run_context.output_dir), fg='red', bold=True, err=True)
     return
   uploader, _uploader = _uploader, None
+  # with what the run printed last, e.g. that it failed
+  wait_for_the_log(run_context.output_dir / 'log.txt')
   if uploader.finish():
     click.secho(f"Sent {uploader.sent_files} files to QA-Board ({uploader.sent_bytes / 1e6:.1f} MB)", fg='cyan', err=True)
   else:
