@@ -351,7 +351,7 @@ def upload_output_file(output_id, path):
   if error:
     return error
   if not uploads.enabled(project_id):
-    return jsonify({"error": "This server doesn't accept uploaded files.", "reason": "uploads_disabled"}), 400
+    return jsonify({"error": uploads.disabled_message(), "reason": "uploads_disabled"}), 400
   try:
     offset = int(request.args['offset']) if 'offset' in request.args else None
   except ValueError:
@@ -422,7 +422,7 @@ def new_output_webhook():
   # Runs without a storage shared with us send their files after this request: we choose their folder (backend/uploads.py)
   uploads_files = data.get('storage') == 'upload'
   if uploads_files and not uploads.enabled(str(data.get('project') or '')):
-    return jsonify({"error": "This server doesn't accept uploaded files: save results in a storage shared with it (`storage` in qaboard.yaml), or ask its administrators to set QABOARD_UPLOAD_ROOT.", "reason": "uploads_disabled"}), 400
+    return jsonify({"error": uploads.disabled_message(), "reason": "uploads_disabled"}), 400
   if uploads_files and not uploads.supports_project(str(data.get('project'))):
     return jsonify({"error": f"Projects with a folder named \"{uploads.RUNS_FOLDER}\" can't upload their files.", "reason": "uploads_unsupported_project"}), 400
 

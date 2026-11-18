@@ -89,7 +89,7 @@ helm install qaboard oci://ghcr.io/samsung/charts/qaboard \
 ### Results storage
 Runs save their results (outputs and artifacts) in a shared storage, and tell the server where. Everything must see this storage at the same absolute path: the server, and the runners (CI runners, LSF or Celery workers, laptops). The chart's `results` mounts it in the backend (at `results.mountPath`), in nginx (which serves it under `/s/`) and in Cantaloupe (which reads the images). It also sets `QABOARD_STORAGE_ROOTS`: the backend only writes, deletes or runs code there.
 
-Runners that can't mount it can send their files to the server instead: set `results.uploads: true`, and see [Accept results over HTTP](/docs/backend-admin/uploads).
+Runners that can't mount it send their files to the server instead, saved in the same volume ([Accept results over HTTP](/docs/backend-admin/uploads)): `results.uploads: false` refuses them.
 
 Your other runners must mount the same storage, so use a file storage that both the cluster and the runners can mount, with `ReadWriteMany` access:
 

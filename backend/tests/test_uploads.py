@@ -545,3 +545,38 @@ def test_a_run_that_ends_stays_where_it_sent_its_files(outputs_api, dummy_app, u
   # its next attempt goes there
   start(outputs_api, dummy_app)
   assert outputs_api.test_output.output_dir_override.startswith("s3://team-bucket/")
+
+
+@pytest.fixture
+def default_storage(tmp_path, monkeypatch):
+  monkeypatch.setattr(config, "default_storage_root", tmp_path)
+  return tmp_path
+
+
+def test_a_server_with_the_default_storage_takes_uploads(default_storage):
+  assert config._upload_root({}) == (default_storage, None)
+  assert config._upload_root({"QABOARD_UPLOAD_ROOT": " "}) == (default_storage, None)
+
+
+def test_sites_that_chose_their_storage_choose_where_uploads_go(default_storage):
+  root, reason = config._upload_root({"QABOARD_STORAGE_ROOTS": "/algo:/data"})
+  assert root is None and "QABOARD_UPLOAD_ROOT" in reason
+  assert config._upload_root({"QABOARD_STORAGE_ROOTS": "/algo", "QABOARD_UPLOAD_ROOT": "/algo/uploads"}) == (Path("/algo/uploads"), None)
+
+
+@pytest.mark.parametrize("value", ["off", "OFF", "false", "0", "none"])
+def test_uploads_can_be_turned_off(default_storage, value):
+  root, reason = config._upload_root({"QABOARD_UPLOAD_ROOT": value})
+  assert root is None and "off" in reason
+
+
+def test_no_uploads_where_the_server_cant_write(tmp_path, monkeypatch):
+  monkeypatch.setattr(config, "default_storage_root", tmp_path / "missing")
+  root, reason = config._upload_root({})
+  assert root is None and "can't write" in reason
+
+
+def test_refusals_say_why_and_where_to_read_more(monkeypatch):
+  monkeypatch.setattr(config, "upload_off_reason", "QABOARD_UPLOAD_ROOT is off")
+  message = uploads.disabled_message()
+  assert "QABOARD_UPLOAD_ROOT is off" in message and "/docs/backend-admin/uploads" in message

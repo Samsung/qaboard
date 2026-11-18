@@ -194,6 +194,16 @@ jobs:
           -e BACKEND_TEST_MODE=no-mock
           -e QABOARD_TEST_DATABASE_URL=postgresql://qaboard:password@db:5432/qaboard
           backend python -m pytest -q -p no:cacheprovider integration_tests
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Results sent over HTTP, end to end
+        # This server has docker-compose.yml's defaults, no site overlay: it must take uploaded files. `qa upload` and
+        # qaboard.start_run() from this checkout send runs, checked through nginx, the backend and the image server
+        run: >-
+          uv run --frozen python .github/scripts/uploads_e2e.py http://localhost:5151
+          --create-admin './deployments/deploy.py deployments/production.env compose exec -T backend qaboard-admin create-admin {user} --password'
       - name: Zero-downtime rolling deploy
         run: |
           # A "new version" with the same images: the backend replicas are replaced

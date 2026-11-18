@@ -44,6 +44,9 @@ volumes:
   redis_data: {}
   rabbitmq-data: {}
   cache_cantaloupe: {}  # cache for the iiif image server
+  # The default results storage, at /mnt/qaboard: runs that send their files over HTTP save them there (backend/config.py).
+  # Sites mount their own storage at /mnt/qaboard instead, in their overlay (website/docs/start-server.mdx).
+  results: {}
   pgadmin: {}
   # all builds still available for smooth upgrades
   frontend_builds: {}
@@ -89,6 +92,7 @@ services:
     - "3000"
     volumes:
     - data:/var/qaboard
+    - results:/mnt/qaboard
     # Secrets (SECRET_KEY, GITLAB_ACCESS_TOKEN...) come from env files, not from `environment`:
     # an entry without a value there, like `- SECRET_KEY`, would unset what env files define if the shell doesn't set it.
     env_file:
@@ -239,6 +243,8 @@ services:
     - ./services/nginx:/tmp/etc/nginx
     - frontend_builds:/builds:ro
     - website_builds:/docs:ro
+    # nginx serves /s/<path> from /var/qaboard/<path>
+    - results:/var/qaboard/mnt/qaboard:ro
     depends_on:
     - backend
     - cantaloupe
@@ -254,6 +260,7 @@ services:
     volumes:
     - cache_cantaloupe:/var/cache/cantaloupe
     - /srv/cantaloupe
+    - results:/repository/mnt/qaboard:ro
     # It reads /iiif/2/<path> from /repository/<path>, like nginx serves /s/<path> from /var/qaboard/<path>: mount your
     # results storage in your site overlay, read-only, at the same paths as for nginx (see website/docs/start-server.mdx)
     #   - /mnt/qaboard:/repository/mnt/qaboard:ro

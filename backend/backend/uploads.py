@@ -103,6 +103,18 @@ def new_runs_base(project_id: str) -> Optional[Path]:
   return routed[0].path if routed else upload_root()
 
 
+def off_reason() -> str:
+  """Why the server refuses uploaded files"""
+  return config.upload_off_reason or "no storage location takes this project's runs"
+
+
+def disabled_message() -> str:
+  """Why the server refuses uploaded files, and what to do"""
+  return (f"This server doesn't accept uploaded files ({off_reason()}). Save results in a storage shared with it (`storage` in "
+          "qaboard.yaml), or ask its administrators to turn uploads on: "
+          "https://samsung.github.io/qaboard/docs/backend-admin/uploads")
+
+
 def enabled(project_id: Optional[str] = None) -> bool:
   """Whether the server takes uploaded runs: of a project, or of any project"""
   if project_id is None:
