@@ -126,9 +126,9 @@ build gives search engines and AI assistants what they read (the docs built into
 
 To see how Google indexes the site and what people search to find it, add a **URL prefix** property for
 `https://samsung.github.io/qaboard/` in [Search Console](https://search.google.com/search-console) and choose the
-**HTML tag** method. Copy the tag's `content` value into the repository variable `QABOARD_GOOGLE_SITE_VERIFICATION`
-(Settings > Secrets and variables > Actions > Variables), run the Website workflow on `master`, click **Verify**, and
-submit `sitemap.xml`. [Bing Webmaster Tools](https://www.bing.com/webmasters) (Bing's index also serves Microsoft
+**HTML tag** method. The maintainers' token is the default in `docusaurus.config.ts`; another one goes in the repository
+variable `QABOARD_GOOGLE_SITE_VERIFICATION` (Settings > Secrets and variables > Actions > Variables). Run the Website
+workflow on `master`, click **Verify**, and submit `sitemap.xml`. [Bing Webmaster Tools](https://www.bing.com/webmasters) (Bing's index also serves Microsoft
 Copilot) can import the property from Search Console, or verify with its own tag in
-`QABOARD_BING_SITE_VERIFICATION`. Keep the variables: the property stays verified only while the tag is there. Without
-them, the build adds no tag.
+`QABOARD_BING_SITE_VERIFICATION`. Keep the tags: the property stays verified only while the tag is there. Without a
+token, the build adds no tag.

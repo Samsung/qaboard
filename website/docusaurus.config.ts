@@ -30,10 +30,11 @@ const contact = site ? null : 'arthur@fl.am'
 // The public website (samsung.github.io/qaboard), not the docs built into a web app: only it gets the search engines'
 // verification tags, structured data and llms.txt. See website/README.md, "Search engines and AI assistants"
 const is_public_site = !is_for_webapp && !site
-// Search Console and Bing Webmaster Tools verify the site with a <meta> tag: its token, from the repository's variables
+// Search Console and Bing Webmaster Tools verify the site with a <meta> tag. The tokens are public (they're in every
+// page): Google's is the maintainers' property for samsung.github.io/qaboard/, the repository variables override them
 // in the Website workflow. Unset, no tag
 const siteVerifications = [
-  {name: 'google-site-verification', content: process.env.QABOARD_GOOGLE_SITE_VERIFICATION},
+  {name: 'google-site-verification', content: process.env.QABOARD_GOOGLE_SITE_VERIFICATION || 'uvzYbXRgph40vlzupFah6u0HTrc-ucIsqe2kJFijN58'},
   {name: 'msvalidate.01', content: process.env.QABOARD_BING_SITE_VERIFICATION},
 ].filter(({content}) => is_public_site && content)
 
