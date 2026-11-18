@@ -9,6 +9,7 @@ import {
 
 import { RunList, RunLogs } from './logs/RunLogs'
 import { BatchCommands, batchEntries } from './logs/BatchCommands'
+import { BatchesComparison } from './logs/BatchesComparison'
 import { DirectoryActions } from './logs/DirectoryActions'
 import { fileExists } from './logs/fetchRange'
 
@@ -64,7 +65,8 @@ const useFileExists = url => {
 /**
  * The logs of all the runs in a batch, and of the commands that started it.
  */
-export const BatchLogs = ({ batch, project, commit, available_tests_files, repo_file_url }) => {
+// `ref_batch`: the reference batch, to compare the batches they ran
+export const BatchLogs = ({ batch, ref_batch, project, commit, available_tests_files, repo_file_url }) => {
   const [filter, setFilter] = useState('all')
   const [expanded, setExpanded] = useState(() => new Set())
   const [limit, setLimit] = useState(PAGE_SIZE)
@@ -118,6 +120,7 @@ export const BatchLogs = ({ batch, project, commit, available_tests_files, repo_
       <span className="spacer" />
       {!!batch.batch_dir_url && <DirectoryActions url={batch.batch_dir_url} what="the batch directory" />}
     </SectionHeading>
+    <BatchesComparison key={`compare-${batch.id}-${ref_batch?.id}`} batch={batch} ref_batch={ref_batch} />
     <BatchCommands
       key={batch.id}
       batch={batch}

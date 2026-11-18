@@ -185,6 +185,16 @@ Whatever started the batch, each run's own logs are saved, in **Runs** below. Wi
 logs** opens the logs of the workers. For CI jobs you started from the **Integrations** menu, click their status tag to
 open the job's page and its logs: see [Integrations](/docs/user-guide/running-from-the-webapp#integrations).
 
+## Did the batches change? {#compare-batches}
+Results differ from the reference, and you wonder whether the batch itself changed: an input added, a configuration
+edited. When QA-Board saved the batches of two commands, **Batches that ran**, above the commands, compares them: the
+latest of this batch with the latest of the [reference batch](/docs/user-guide/comparing-results), else with the
+previous command of this batch. Pick other commands in its menus, from either batch.
+
+It says **Same batches**, or what changed, like *low-light changed, smoke added*. **Show the changes** shows the two
+files side by side (or **Inline**). The comments at their top, like when each command started, are left out: they
+always differ. Batches and aliases compare by their content, whatever the order of their keys.
+
 ## Run a batch again {#run-again}
 Batch files change: someone edits a batch, and the inputs or configurations a batch ran last week are gone. When a
 batch starts, `qa batch` and QA-Board save its batches as they were defined then, with only what it ran: the

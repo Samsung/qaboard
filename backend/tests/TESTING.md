@@ -6,6 +6,18 @@ This document outlines the testing architecture, mocking strategy, and troublesh
 
 ## 🚀 Run Tests
 
+Outside the container, install the backend's dependencies first. Some are built from source on purpose
+(`tool.uv.no-binary-package` in `backend/pyproject.toml`: lxml and xmlsec must link the same libxml2), so they need
+the C headers the Dockerfile installs (Debian/Ubuntu names):
+```bash
+sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential pkg-config \
+  libpq-dev libsasl2-dev libldap-dev libxml2-dev libxmlsec1-dev libxslt1-dev zlib1g-dev
+cd backend && uv sync
+uv run python -m pytest -q -p no:cacheprovider tests
+```
+Without them, `uv sync` fails building psycopg2 (`pg_config.h: No such file`), python-ldap (`lber.h`) or lxml
+(`Please make sure the libxml2 and libxslt development packages are installed`).
+
 Run all tests:
 ```bash
 # From root folder:
