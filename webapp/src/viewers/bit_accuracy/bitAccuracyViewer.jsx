@@ -1,11 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Tree, Classes, Intent, Spinner, Tag, Icon, PopoverNext, Menu, MenuItem, Tooltip } from "@blueprintjs/core";
+import { Tree, Button, Classes, Intent, Spinner, Tag, Icon, PopoverNext, Menu, MenuItem, Tooltip } from "@blueprintjs/core";
 import { OutputViewer } from "../OutputViewer"
 import { preloadMonaco } from "../../components/MonacoEditor"
 import { useIsDark } from "../../theme"
 import { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, updateMissingFrom, humanFileSize, state_colors } from "./utils"
 import { bitAccuracyChecker, markChecked, bitAccuracySummary } from "./checked"
+import { previewTree, countStates, countFiles } from "./preview"
 import { match_query, is_same_data } from "../../utils"
 import { useLabels } from "../../hooks"
 
@@ -289,13 +290,53 @@ const decorate = (nodes, { is_expanded, selected }) => nodes?.map(node => {
 })
 
 
+// A row like the tree's, that shows or hides files, and says what they are: "47 more files ✕ 12 different + 35 added"
+const files_row_style = { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 10px', minHeight: 30 };
+const FilesRow = ({ files, text, icon, expanded, title, has_reference, colors, onClick, children }) => {
+  const states = countStates(files, has_reference);
+  return <div style={files_row_style}>
+    <Button size="small" variant="minimal" icon={icon} aria-expanded={expanded} title={title} onClick={onClick}>
+      {text}
+    </Button>
+    {states.map(({ state, label, icon, count }) => <span key={state} className={Classes.TEXT_MUTED} style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      <Icon icon={icon} size={12} style={{ color: colors[state] }}/>{count} {label}
+    </span>)}
+    {children}
+  </div>
+};
+
+// The rows the preview hides stay on the page for the browser's search: Ctrl+F finds them, and shows the run's files
+const HiddenUntilFound = ({ rows, onFound }) => {
+  const ref = useRef();
+  useEffect(() => {
+    const element = ref.current;
+    // React only renders `hidden`: browsers that don't know "until-found" keep them hidden, like the search would
+    element?.setAttribute('hidden', 'until-found');
+    element?.addEventListener('beforematch', onFound);
+    return () => element?.removeEventListener('beforematch', onFound);
+  }, [onFound]);
+  return <div ref={ref} hidden data-testid="hidden-files">
+    {rows.map(node => <div key={node.id}>{node.id}</div>)}
+  </div>;
+};
+
+const plural = (count, word) => `${count.toLocaleString()} ${word}${count === 1 ? '' : 's'}`;
+
+
 const BitAccuracyViewer = props_ => {
   const { type: _type, files_loading, ...props } = props_;
-  const { manifests, files_filter, show_all_files, hide_runs_without_files, expand_all, color_blind_friendly, output_new, output_ref, config } = props_;
+  const { manifests, files_filter, show_all_files, hide_runs_without_files, expand_all, collapse_runs, color_blind_friendly, output_new, output_ref, config } = props_;
   const bit_accuracy = config?.bit_accuracy;
   const [selected, setSelected] = useState([]);
   // folders users expanded (true) or collapsed (false)
   const [expanded, setExpanded] = useState({});
+  // users asked to see all the run's files, until "Collapse runs" changes
+  const [show_all, setShowAll] = useState(false);
+  const [show_all_for, setShowAllFor] = useState(!!collapse_runs);
+  if (show_all_for !== !!collapse_runs) {
+    setShowAllFor(!!collapse_runs);
+    setShowAll(false);
+  }
   const is_dark = useIsDark();
   const labels = useLabels(props_.labels);
 
@@ -314,6 +355,12 @@ const BitAccuracyViewer = props_ => {
     is_expanded: node => expanded[node.id] ?? (!!expand_all || has_filter),
     selected,
   }), [tree, expanded, expand_all, has_filter, selected]);
+  // - "Collapse runs": only what the files are, users click to see them
+  // - by default: the first files, and what the others are. When users ask for more files (a filter,
+  //   "Show all files", "Expand all folders", or they open a folder), they see them all.
+  const mode = show_all ? 'all' : collapse_runs ? 'summary' : (has_filter || show_all_files || expand_all) ? 'all' : 'preview';
+  const preview = useMemo(() => previewTree(contents, { is_expanded: node => node.isExpanded }), [contents]);
+  const all_files = useMemo(() => countFiles(tree), [tree]);
 
   const handleNodeClick = (node, _nodePath, e) => {
     const is_folder = node.childNodes !== undefined;
@@ -322,8 +369,12 @@ const BitAccuracyViewer = props_ => {
     const kept = (e.shiftKey || e.ctrlKey) ? selected : [];
     setSelected(was_selected ? kept.filter(id => id !== node.id) : [...kept, node.id]);
   };
+  const showAllFiles = () => setShowAll(true);
   const handleNodeCollapse = node => setExpanded(expanded => ({ ...expanded, [node.id]: false }));
-  const handleNodeExpand = node => setExpanded(expanded => ({ ...expanded, [node.id]: true }));
+  const handleNodeExpand = node => {
+    setExpanded(expanded => ({ ...expanded, [node.id]: true }));
+    if (mode === 'preview') setShowAll(true);
+  };
 
   // the list of the run's files is still loading
   if (files_loading)
@@ -333,73 +384,107 @@ const BitAccuracyViewer = props_ => {
   const empty_message = has_filter ? 'No file matches the filter'
     : show_all_files ? 'No files'
     : 'No differences with the reference. Switch on “Show all files” to see them.'
+  const has_reference = !!manifests?.reference;
+  const colors = state_colors(is_dark);
+  const row_props = { has_reference, colors };
+  const is_truncated = preview.hidden_files.length > 0;
+  const bit_accurate_tag = bit_accurate && <Tooltip content="All the checked files are identical to the reference">
+    <Tag minimal intent={Intent.SUCCESS} icon="tick">Bit-accurate</Tag>
+  </Tooltip>;
+  // with "Collapse runs", it's in the files row: a run takes one line
+  const files_row = has_files && collapse_runs;
   return <div className={(!has_files && hide_runs_without_files) ? "viewer-no-files" : undefined}>
-    {bit_accurate && <div><Tooltip content="All the checked files are identical to the reference">
-      <Tag minimal intent={Intent.SUCCESS} icon="tick" style={{marginBottom: '5px'}}>Bit-accurate</Tag>
-    </Tooltip></div>}
+    {bit_accurate && !files_row && <div style={{ marginBottom: '5px' }}>{bit_accurate_tag}</div>}
     {!has_files && <em className={Classes.TEXT_MUTED}>{empty_message}</em>}
-    <Tree
-     contents={contents}
-     onNodeClick={handleNodeClick}
-     // most files show in a text editor: load it before the click
-     onNodeMouseEnter={node => { if (node.childNodes === undefined) preloadMonaco() }}
-     onNodeCollapse={handleNodeCollapse}
-     onNodeExpand={handleNodeExpand}
-    />
-    {selected.map( filename => {
-      const has_same_data = is_same_data(filename, manifests?.new?.[filename], manifests?.reference?.[filename])
+    {files_row && <FilesRow
+      {...row_props}
+      files={all_files}
+      text={plural(all_files.length, 'file')}
+      icon={mode === 'summary' ? 'chevron-right' : 'chevron-down'}
+      expanded={mode !== 'summary'}
+      title={mode === 'summary' ? "Show the files" : "Hide the files"}
+      onClick={() => setShowAll(!show_all)}
+    >
+      {bit_accurate_tag}
+    </FilesRow>}
+    {has_files && mode !== 'summary' && <>
+      <Tree
+       contents={mode === 'preview' ? preview.nodes : contents}
+       onNodeClick={handleNodeClick}
+       // most files show in a text editor: load it before the click
+       onNodeMouseEnter={node => { if (node.childNodes === undefined) preloadMonaco() }}
+       onNodeCollapse={handleNodeCollapse}
+       onNodeExpand={handleNodeExpand}
+      />
+      {mode === 'preview' && is_truncated && <FilesRow
+        {...row_props}
+        files={preview.hidden_files}
+        text={plural(preview.hidden_files.length, 'more file')}
+        icon="chevron-down"
+        expanded={false}
+        title="Show all the files"
+        onClick={() => setShowAll(true)}
+      />}
+      {mode === 'preview' && is_truncated && <HiddenUntilFound rows={preview.hidden_rows} onFound={showAllFiles}/>}
+      {show_all && !collapse_runs && !has_filter && !show_all_files && !expand_all && is_truncated && <div style={files_row_style}>
+        <Button size="small" variant="minimal" icon="chevron-up" aria-expanded title="Show only the first files" onClick={() => setShowAll(false)}>
+          Show fewer files
+        </Button>
+      </div>}
+      {selected.map( filename => {
+        const has_same_data = is_same_data(filename, manifests?.new?.[filename], manifests?.reference?.[filename])
 
-      // For new side: fallback if file doesn't exist
-      let filename_new = filename
-      if (filename.match(/\.tiff?$/i)) {
-        // TIFF clicked but doesn't exist in new - try PNG fallback
-        if (!manifests?.new?.[filename]) {
-          const pngPath = filename.replace(/\.tiff?$/i, '.png')
-          if (manifests?.new?.[pngPath]) {
-            filename_new = pngPath
-          }
-        }
-      }
-
-      // For ref side: fallback if file doesn't exist
-      let filename_ref = filename
-      if (filename.endsWith('.png')) {
-        // PNG clicked but doesn't exist in ref - try TIFF then BMP
-        if (!manifests?.reference?.[filename]) {
-          const tiffPath = filename.replace(/\.png$/i, '.tiff')
-          if (manifests?.reference?.[tiffPath]) {
-            filename_ref = tiffPath
-          } else {
-            const bmpPath = filename.replace(/.png$/, '.bmp')
-            if (manifests?.reference?.[bmpPath]) {
-              filename_ref = bmpPath
+        // For new side: fallback if file doesn't exist
+        let filename_new = filename
+        if (filename.match(/\.tiff?$/i)) {
+          // TIFF clicked but doesn't exist in new - try PNG fallback
+          if (!manifests?.new?.[filename]) {
+            const pngPath = filename.replace(/\.tiff?$/i, '.png')
+            if (manifests?.new?.[pngPath]) {
+              filename_new = pngPath
             }
           }
         }
-      } else if (filename.match(/\.tiff?$/i)) {
-        // TIFF clicked but doesn't exist in ref - try PNG fallback
-        if (!manifests?.reference?.[filename]) {
-          const pngPath = filename.replace(/\.tiff?$/i, '.png')
-          if (manifests?.reference?.[pngPath]) {
-            filename_ref = pngPath
+
+        // For ref side: fallback if file doesn't exist
+        let filename_ref = filename
+        if (filename.endsWith('.png')) {
+          // PNG clicked but doesn't exist in ref - try TIFF then BMP
+          if (!manifests?.reference?.[filename]) {
+            const tiffPath = filename.replace(/\.png$/i, '.tiff')
+            if (manifests?.reference?.[tiffPath]) {
+              filename_ref = tiffPath
+            } else {
+              const bmpPath = filename.replace(/.png$/, '.bmp')
+              if (manifests?.reference?.[bmpPath]) {
+                filename_ref = bmpPath
+              }
+            }
+          }
+        } else if (filename.match(/\.tiff?$/i)) {
+          // TIFF clicked but doesn't exist in ref - try PNG fallback
+          if (!manifests?.reference?.[filename]) {
+            const pngPath = filename.replace(/\.tiff?$/i, '.png')
+            if (manifests?.reference?.[pngPath]) {
+              filename_ref = pngPath
+            }
           }
         }
-      }
 
-      return <div key={filename}>
-        {has_same_data && <Tooltip key={`same-${filename}`} content="The new and reference files have the same hash">
-          <Tag style={{marginTop: "5px"}} minimal icon="duplicate">Identical to the reference</Tag>
-        </Tooltip>}
-        <OutputViewer
-            key={filename}
-            path={filename_new}
-            path_ref={filename_ref}
-            max_lines={30}
-            {...props}
-        />
-      </div>
-    })}
-
+        return <div key={filename}>
+          {has_same_data && <Tooltip key={`same-${filename}`} content="The new and reference files have the same hash">
+            <Tag style={{marginTop: "5px"}} minimal icon="duplicate">Identical to the reference</Tag>
+          </Tooltip>}
+          <OutputViewer
+              key={filename}
+              path={filename_new}
+              path_ref={filename_ref}
+              max_lines={30}
+              {...props}
+          />
+        </div>
+      })}
+    </>}
   </div>
 }
 

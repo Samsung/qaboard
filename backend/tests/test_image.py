@@ -70,6 +70,13 @@ def test_get_pixel_returns_correct_value(test_image, get_pixel):
   # image[y, x] — at y=4, x=4: (4%256, 4%256, 8%256) = (4, 4, 8)
   assert data['value'] == [5, 5, 10]
 
+@pytest.mark.parametrize("x, y", [(200, 0), (0, 200), (-1, 0), (0, -1)])
+def test_get_pixel_outside_the_image(test_image, get_pixel, x, y):
+  """Pixels outside the image are refused: not a server error, nor (negative coordinates) a pixel of the other edge"""
+  response = get_pixel(x, y, test_image)
+  assert response[1] == 400
+  assert 'outside the image (200x200)' in response[0].get_json()['error']
+
 def test_get_pixel_returns_404_for_missing_image(dummy_app):
   """Requesting a non-existent image returns 404."""
   url = '/api/v1/output/image/pixel?x=1&y=1&image_url=/s/tmp/nonexistent/image.png'  

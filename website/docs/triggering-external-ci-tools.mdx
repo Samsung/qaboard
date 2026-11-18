@@ -237,15 +237,19 @@ Items take the options of Blueprint's [menu items](https://blueprintjs.com/docs/
 
 ```yaml title="qaboard.yaml"
 integrations:
+  - text: ISP tuning guide
+    icon: manual
+    href: https://docs.kitefin.example/imaging/isp-tuning-guide
   - text: Release checklist
     icon: build
     label: docs
     intent: danger
   # a divider, with an optional title
   - divider: true
-    title: Benchmarks
+    title: CI
   # a submenu
   - text: Builds
+    icon: box
     sub:
     - text: Linux
       gitlabCI:
@@ -253,7 +257,16 @@ integrations:
     - text: Windows
       jenkins:
         build_url: https://jenkins.kitefin.example/job/camera-isp-windows
+  - divider: true
+    title: Tuning
+  - text: Send to the tuning bench
+    icon: send-to
+    webhook:
+      url: http://tuning-bench.kitefin.example/api/jobs
+      method: POST
 ```
 
 - `in_menu: false` shows an item in the sidebar itself, outside the menu.
 - With more than 5 items, a search box appears at the top of the menu.
+
+<Shot id="integrations/organized-menu" />

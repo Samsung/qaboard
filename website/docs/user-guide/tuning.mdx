@@ -52,6 +52,8 @@ Then, under **Parameters**, choose how to pick the values:
 Details: [run a grid](/docs/user-guide/running-from-the-webapp#running-tests-and-tuning) and
 [find the best parameters automatically](/docs/user-guide/automated-tuning).
 
+<Shot id="tuning/manual-form" caption="Choose the values: two parameters, four combinations on two tests, and the number of runs before you start them." />
+
 Whichever you choose:
 - **Tune few parameters at a time,** 2 to 6. Every parameter you add multiplies the combinations of a grid, and
   needs more evaluations of a search.
@@ -73,6 +75,8 @@ parameter sets it tried: click **See which is best**. Read the page from the top
 5. **Test by test**: where the best set loses. A best on average can be the worst on the test you care most about.
 6. **Trade-offs with another metric**: what the best costs. When two metrics pull apart, the highlighted sets are
    the only ones worth choosing from.
+
+<Shot id="tuning/analysis" caption="A finished search: the best parameters and what they gain, what to do next in plain words, and each parameter's impact." />
 
 The **?** buttons explain each idea in a few sentences. Every part is described in
 [Look at the results](/docs/user-guide/running-from-the-webapp#tuning-analysis), and for a search in

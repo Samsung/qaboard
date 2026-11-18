@@ -51,12 +51,18 @@ the metrics that matter and their direction, and that results must be compared w
 called better. Start from
 [`templates/AGENTS.md`](https://github.com/Samsung/qaboard/blob/master/skills/qaboard-integration/templates/AGENTS.md).
 
-## What agents can read {#what-agents-read}
-Agents use the same APIs as scripts: [`qaboard.runs(url)`](/docs/apis#runs-in-scripts) for the runs a web app page
+## What agents can read and start {#what-agents-read}
+To test a change, an agent pushes it, then has QA-Board run the batch on that commit, as from the web app:
+`qa --label <name> batch --commit <sha> <batch>` prints the batch's page and returns, and results can't come from
+uncommitted files. See [start batches from a terminal](/docs/tuning-from-the-webapp#from-the-command-line).
+
+Agents read results with the same APIs as scripts: [`qaboard.runs(url)`](/docs/apis#runs-in-scripts) for the runs a web app page
 shows, the [compare API](/docs/http-api#compare) and `qa gate --json` for a verdict against the reference, and the
 [HTTP API](/docs/http-api) for everything else, from any language. Point agents at your server's OpenAPI document,
 `<your-qaboard>/api/v1/openapi.json`: it describes each endpoint's parameters and answers. An MCP server and JSON
 output from every `qa` command are on the [roadmap](/docs/roadmap#agents).
+
+<Clip id="cli/gate" caption="The verdict an agent checks before it calls a change better: qa gate fails the commit whose p99 latency regressed, and passes the one that fixed it." />
 
 <Cards>
   <Card title="Project setup" to="/docs/project-init">What the agent will create: qaboard.yaml and the entrypoint.</Card>

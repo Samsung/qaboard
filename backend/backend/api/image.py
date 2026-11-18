@@ -213,6 +213,9 @@ def get_pixel():
   image, meta, error = maybe_memmapped_read_image(image_path)
   if error:
     return jsonify({"error": str(error)}), 400
+  # numpy would answer negative coordinates with pixels from the other edge
+  if not (0 <= x < image.shape[1] and 0 <= y < image.shape[0]):
+    return jsonify({"error": f"The pixel ({x}, {y}) is outside the image ({image.shape[1]}x{image.shape[0]})"}), 400
   return jsonify({
     "value": image[y,x].tolist(),
     "meta": _image_meta(meta),

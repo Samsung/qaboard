@@ -179,10 +179,6 @@ def key_id_of(value: Optional[str]) -> Optional[str]:
   return None
 
 
-def is_encrypted(value) -> bool:
-  return isinstance(value, str) and (value.startswith(f'{PREFIX}:') or value.startswith('gAAAA'))
-
-
 def decrypt(value: str) -> str:
   from cryptography.fernet import InvalidToken
   available = keys()

@@ -195,7 +195,8 @@ def _trigger_gitlab(spec, ci_commit) -> Optional[str]:
 
 def _trigger_jenkins(spec, ci_commit) -> Optional[str]:
   from .api.integrations import trigger_jenkins_build
-  response = trigger_jenkins_build({"cause": f"QA-Board: recreate the artifacts of {ci_commit.hexsha[:8]}", **spec})
+  # the job of the project's qaboard.yaml
+  response = trigger_jenkins_build({"cause": f"QA-Board: recreate the artifacts of {ci_commit.hexsha[:8]}", **spec}, declared=True)
   response, status = response if isinstance(response, tuple) else (response, 200)
   data = response.get_json() if hasattr(response, 'get_json') else response
   if int(status) >= 400:

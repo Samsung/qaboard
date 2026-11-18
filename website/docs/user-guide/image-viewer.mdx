@@ -30,7 +30,8 @@ Above each pair of images, pick a mode, or press its key:
 <kbd>t</kbd> never changes the mode: to go from the difference back to the images, pick **Side by side** or **Single**.
 The mode applies to every image viewer of the page, and the page's link keeps it: whoever opens the link sees the same
 comparison. It's also in the **View options**, under **Viewers** › **Compare images**. The keys work anywhere on the
-page, not only over an image.
+page, not only over an image. With more than two images, the modes work on tiles: see
+[several references at once](#several-references-at-once).
 
 <Clip id="commit/image-compare-modes" />
 
@@ -303,6 +304,59 @@ runs of the page. A run without the file compares with its reference, with a war
 - The file you pick is for the page: on another commit or batch, images compare with their reference again.
   Switching references keeps it.
 
+## Several references at once {#several-references-at-once}
+To see new next to the last release and the latest `main` at once, stack those references (see
+[See several references together](/docs/user-guide/comparing-results#show-references-together)): the image viewer
+shows the new image and every reference, each in its own tile, all zoomed and panned together, named in its
+reference's color. The tiles follow the order of the reference tabs, new first.
+
+The other images are compared with the **anchor**, marked with an anchor icon on its tab and its image. It's new at
+first: every reference is compared with new, as with one reference. Click a reference's name, on its image or its tab,
+to select it and make it the anchor: the other images, new included, are then compared with it. Click new's name to
+make new the anchor again: the selected reference stays. <kbd>r</kbd> and <kbd>Shift</kbd> <kbd>r</kbd> change only the
+selected reference, which the rest of the page compares new with. The page's link keeps the anchor.
+
+The tiles stay in the tabs' order, whatever the anchor. The four modes, keys <kbd>1</kbd> to <kbd>4</kbd>, become:
+
+| Mode | Key | What you see |
+|---|---|---|
+| **Grid** | <kbd>1</kbd> | Each image in its tile, with how far it is from the anchor, e.g. *5.1 from master*. |
+| **Wipe** | <kbd>2</kbd> | Each image against the anchor, the earlier one in the tabs' order on the left. The dividers move together. |
+| **Single** | <kbd>3</kbd> | One image at a time, in place: <kbd>t</kbd> or a click shows the next, <kbd>Shift</kbd> <kbd>t</kbd> the previous, <kbd>Shift</kbd> <kbd>1</kbd>…<kbd>9</kbd> that image. Every run's viewer flips together. |
+| **Difference** | <kbd>4</kbd> | Each image's difference with the anchor: the earlier one in the tabs' order minus the later one, e.g. new − reference, as with two images. The anchor's tile shows the anchor. |
+
+Switching modes or references moves no tile, and neither do references that are still loading (*Loading v1.2…*) or
+a missing run or file: the tile says why. A file picked in the **vs** menu
+([another file](#compare-with-another-file-of-the-run)) takes the anchor's place, or the first reference's when new is the anchor.
+
+### Which images differ the most {#how-far-apart}
+A panel above the images helps you choose what to look at:
+
+- **Under the pointer**: the pixel's values in every image, and their difference with the anchor's.
+- **How far apart**: for every pair of images, once, the mean difference of their colors as you see them, in levels
+  0 to 255, or *same* when they look identical. It measures what's on screen, so it follows the zoom: zoom into a
+  region to compare only that region.
+
+Click a pair to see those two images alone, with all the tools for two images: swap, [blind test](#blind-test),
+[where they differ](#where-they-differ)... **All N images** goes back. A file identical to one already shown says so in
+its name, e.g. *rc1 = master*. The list button in the toolbar, **Values under the pointer**, hides or shows the panel
+(with two images, the line of values), and your browser remembers it.
+
+<details>
+<summary>Good to know</summary>
+
+- The tools that compare two images, [the analysis panel](#analysis), the blind test and
+  [where they differ](#where-they-differ), compare the anchor with the first other image. The blind test and the swap
+  are offered only with two images.
+- **How far apart** is measured on the views on your screen (8-bit, at screen resolution): a guide to what to look at,
+  not a bit-accuracy check. See [bit accuracy](/docs/bit-accuracy) for that.
+- Images with another aspect ratio than the anchor's are compared at the same width.
+- Only the image viewer shows several references: the other viewers compare with the selected reference. Each
+  reference shown loads all its runs: a handful at most. Untick the others in their tabs, or pick **One at a time**
+  after the tabs.
+
+</details>
+
 ## Pixel values {#pixel-values}
 Hover a pixel: the line above the images gives its coordinates, its values in the new and reference images, and their
 difference, **Δ**, with the measure of the difference you picked. A crosshair marks the same pixel on both images.
@@ -500,6 +554,12 @@ images when that makes them larger, and the analysis panel (<kbd>a</kbd>) under 
 
 The button at the top right of each card shows the whole card in full screen instead, with its file picker.
 
+## Contact sheet {#contact-sheet}
+To scan many runs at once, turn on **Images as a contact sheet** in the
+[View options](/docs/user-guide/commit-page#view-options), under **Viewers**. Each run's images then show in one row,
+without the viewer's toolbar, so you can scroll down the page from run to run. The **⋯** button on the images shows the
+toolbar. It works with one reference or [several](#several-references-at-once), and your browser remembers it.
+
 ## Large images {#large-images}
 Images are streamed tile by tile by an image server: the viewers load only what they show, at the resolution they show
 it. A 113 MP test wall zooms from the whole wall down to single pixels, in both viewers at once.
@@ -539,6 +599,7 @@ text box. The keyboard button in the viewer's toolbar lists them.
 |---|---|
 | <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> | Side by side, wipe, single, difference. <kbd>4</kbd> again: the difference with the images on its sides, or alone. |
 | <kbd>t</kbd> | In **Single**: the other image, like a click on the image. Else swap the sides, or the order of the difference shown alone. |
+| <kbd>Shift</kbd> <kbd>t</kbd>, <kbd>Shift</kbd> <kbd>1</kbd>…<kbd>9</kbd> | With [several references](#several-references-at-once), in **Single**: the previous image, or that image. |
 | <kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd> | Zoom in, zoom out, fit the whole image. |
 | Wheel, pinch | Zoom. |
 | Drag | Pan. Drag the divider to wipe. |

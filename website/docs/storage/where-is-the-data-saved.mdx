@@ -104,7 +104,8 @@ the first attempt's folder only keeps *latest_attempt.txt*.
 <summary>Scripts that build the paths of results themselves</summary>
 
 Prefer asking `qa`: [`qa batch --list-output-dirs`, `qa get --input <input> output_dir`](/docs/apis#cli-api)
-and `qaboard.runs()` give the latest attempt's folder. Otherwise, read *latest_attempt.txt*:
+and `qaboard.runs()` give the latest attempt's folder. `qa batch --list` gives the folder each run would use, and
+`qa batch --save-runs runs.json` writes where the batch's runs were saved, for the scripts that read them next. Otherwise, read *latest_attempt.txt*:
 
 ```bash
 dir=output/$configuration/$input

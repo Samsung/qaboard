@@ -38,6 +38,10 @@ uses, in the order you meet them.
   the runs of several `qa batch` commands with the same label show together.
 
 ## What you see
+On a commit page, each run's metrics and outputs are shown next to its reference run's:
+
+<Shot id="commit/visualizations" caption="A commit's runs: each card has the run's main metrics and how they changed, then its output images, new and reference side by side." />
+
 - **Metrics**: numbers each run returns: quality, speed, errors. The web app shows them all. Your code can declare
   their label, unit, **target** and whether smaller is better, so the web app can color improvements and regressions.
   See [Metrics](/docs/computing-quantitative-metrics).

@@ -12,8 +12,9 @@ over HTTP. Pick the way in that fits what you have:
 |---|---|---|
 | Work on the runs you see in the web app: read their metrics and files, add metrics or files | `qaboard.runs(url)`, `run.log_metrics()`, `run.log_artifact()` (Python) | [below](#runs-in-scripts) |
 | The same from the shell: one folder per line, or JSON | `qa runs <url>` | [below](#runs-in-scripts) |
-| Where the runs of a batch of *your* checkout save their files, before or after running them | `qa batch <batch> --list-output-dirs`, `qa get` | [Find where runs save their outputs](#cli-api) |
+| Where the runs of a batch of *your* checkout save their files, before or after running them | `qa batch <batch> --list-output-dirs`, `--list`, `--save-runs`, `qa get` | [Find where runs save their outputs](#cli-api) |
 | Compute metrics for a whole batch with the project's own code | `postprocess()` and `qa batch --action-on-existing postprocess` | [Postprocessing](/docs/running-your-code#postprocess) |
+| Run a batch on a pushed commit, as the web app does, from a script, CI job or agent | `qa --label <name> batch --commit <sha> <batch>`, `/api/v1/commit/<sha>/batch` | [Start batches from a terminal](/docs/tuning-from-the-webapp#from-the-command-line), [HTTP API](/docs/http-api#start-a-batch) |
 | Know whether a commit regressed against its reference | `qa gate --json`, `/api/v1/commit/<sha>/compare` | [Quality gate](/docs/quality-gate#from-scripts-and-agents), [HTTP API](/docs/http-api#compare) |
 | Everything else, from any language: commits, branches, projects, a run's files, milestones | the HTTP API at `/api/v1` | [HTTP API](/docs/http-api) |
 | Create runs from a training loop or a notebook, without `qa run`, and log while they run | `qaboard.start_run()` (Python, experimental) | [Log from your code](/docs/log-from-code) |
@@ -144,13 +145,12 @@ for run in qb.runs(url):
 - To show the file on run cards for every run, declare it in *qaboard.yaml*'s `outputs.visualizations`
   ([visualizations](/docs/visualizations)); otherwise it's in **Output Files**.
 
-Creating runs from your own code (training loops, notebooks), with values logged at each step, is on the
-[roadmap](/docs/roadmap#log-from-your-code): the method names follow those of the usual experiment trackers
-(`log` with a `step`, `log_params`, `finish`).
+To create runs from your own code (training loops, notebooks), with values logged at each step, use
+`qaboard.start_run()` (experimental): see [log from your code](/docs/log-from-code).
 
 
 ## Find where runs save their outputs {#cli-api}
-`qa batch <batch> --list-output-dirs` prints the output directory of each run, one per line, without running
+`qa batch <batch> --list-output-dirs` prints where each run's results are saved now, one per line, without running
 anything. In the detector's project:
 
 ```bash
@@ -163,7 +163,10 @@ qa batch ci --list-output-dirs
 ...
 ```
 
-`--list` prints the runs as JSON, with what each one would run:
+`--list` prints the runs as JSON, with what each one would run. It answers "what would this batch do", with the
+same `--action-on-existing`: a shared or CI run that would be done again is listed in the folder its new attempt
+would use ([reruns](/docs/storage/where-is-the-data#reruns)), and runs that would be skipped are listed where they
+are, with `"skipped": true`.
 
 ```bash
 qa batch ci --list
@@ -184,6 +187,15 @@ qa batch ci --list
     "rel_input_path": "slices/indoor"
   }
 ]
+```
+
+To know where the runs of a batch were saved, e.g. for the next step of a pipeline, have the batch say it:
+`--save-runs runs.json` writes the same JSON as `--list` once the runs are done (or started, with `--no-wait`).
+Listing before running and reading after can disagree: someone can do a run again in between.
+
+```bash
+qa --share batch ci --save-runs runs.json
+python compute_metrics.py runs.json
 ```
 
 `--list-inputs` only prints the inputs. These are local runs' directories: runs in the CI, or with `--share`, save
@@ -213,7 +225,7 @@ document at `<your-qaboard>/api/v1/openapi.json`.
 ## Authentication {#authentication}
 Reading results doesn't need to be signed in, unless your server
 [requires it](/docs/backend-admin/user-management#blocking-anonymous-users) or the project isn't public. Adding
-metrics or files does, and so do some actions, like starting tuning runs.
+metrics or files does, and so do some actions, like starting batches with `qa batch --commit`.
 
 - `qa` and `qaboard.runs()` use your login: run `qa auth login https://qaboard.example.com` once
   (see [Sign in](/docs/installation#signing-in)).

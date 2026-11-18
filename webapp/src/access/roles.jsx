@@ -50,7 +50,7 @@ export const viaText = (via, { visibility } = {}) => ({
 
 // Groups and service accounts have an icon, as wide as users' pictures
 const SubjectIcon = ({ icon, label }) => <span style={{ display: 'inline-flex', justifyContent: 'center', flex: '0 0 20px' }}>
-  <Icon icon={icon} size={14} aria-label={label} className={Classes.TEXT_MUTED}/>
+  <Icon icon={icon} size={14} title={label} className={Classes.TEXT_MUTED}/>
 </span>;
 
 // "Alice (alice)" with their picture, or a group's name with its icon

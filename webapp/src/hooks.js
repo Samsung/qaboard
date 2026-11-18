@@ -12,11 +12,13 @@ import {
 import { errorMessage } from "./api/http";
 import { usePrefsStore } from "./stores/prefs";
 import { useSelected, updateSelected, reference_names, side_colors, is_default_name } from "./selection";
-import { available_batch, compute_batches, compute_config } from "./selectors/batches";
+import { available_batch, compute_batches, compute_config, reference_matcher } from "./selectors/batches";
+import { shared_rules } from "./matching/rules";
 import { default_project } from "./defaults";
 import { milestonesQuery, milestones_of, milestone_name, no_milestones } from "./milestones/api";
 import { side_color } from "./sideColors";
 import { with_undeclared_metrics } from "./utils";
+import { automatic_default_view, batch_facts, default_views_of } from "./defaultViews";
 
 // The keys of a Set of metrics, as a string that only changes when they do
 export const used_metrics_signature = used_metrics => [...(used_metrics ?? [])].sort().join('\n');
@@ -295,43 +297,78 @@ const side_label = (milestone, label, fallback) => label && !is_default_name(lab
 // The references users selected (see `references` in src/selection.js), with what we know about them:
 // their commit (without its outputs, unless we have them already), their name, color...
 // The one shown is the reference commit we compare with, fetched as before with its outputs.
+// With several references, the image viewer shows them together (`together_mode` 'all'), unless users untick them
+// (`ticked`, the `together` of src/selection.js) or see one at a time ('one'). `together`: they are shown together with
+// the one shown. Those are fetched with their outputs too: `loading` until we have them.
+// `id` identifies a reference whatever its place or its name: its project, commit, batch and filter (a copy of a
+// reference that changed none yet is "#2").
 // TanStack Query keeps the same array while the commits are the same: the comparison changes only when they do
-const commits_data = results => results.map(result => result.data);
+const commits_state = results => results.map(result => ({
+  commit: result.data,
+  // placeholders are the commit without its outputs
+  loading: result.isLoading || result.isPlaceholderData,
+  error: commit_error(result.error),
+}));
 
-function useReferences(selected, ref_commit, milestones, enabled) {
+const reference_ids = sides => {
+  const seen = new Map();
+  return sides.map(side => {
+    const id = `${side.project}/${side.commit_id ?? ''}/${side.batch || 'default'}/${side.filter ?? ''}`;
+    seen.set(id, (seen.get(id) ?? 0) + 1);
+    return seen.get(id) === 1 ? id : `${id}#${seen.get(id)}`;
+  });
+};
+
+function useReferences(selected, ref_commit, milestones, enabled, together_mode) {
   const queryClient = useQueryClient();
   const { references, ref_index, color_new } = selected;
+  const together = references.length > 1 && together_mode === 'all';
   // Not the one shown: it's ref_commit, that refreshes while its runs are running.
   // While they load, their commit with its outputs if we have it, e.g. after we compared with them.
   const others = references.filter((_, index) => index !== ref_index);
   const cached_others = useQueries({
-    combine: commits_data,
-    queries: others.map(side => ({
+    combine: commits_state,
+    queries: others.map(side => together && side.together ? {
+      // like the one shown, they refresh while their runs are running. Without an id: the latest on the reference branch
+      ...commitQuery({ project: side.project, id: side.commit_id ?? undefined }),
+      enabled: enabled && !!side.project && side.commit_id !== '',
+      placeholderData: () => (side.commit_id ? queryClient.getQueryData(commitSummaryQuery({ project: side.project, id: side.commit_id }).queryKey) : undefined)
+        ?? findCachedCommit(queryClient, side.project, side.commit_id),
+    } : {
       ...commitSummaryQuery({ project: side.project, id: side.commit_id ?? undefined }),
       enabled: enabled && !!side.commit_id,
       placeholderData: () => queryClient.getQueryData(commitQuery({ project: side.project, id: side.commit_id }).queryKey)
         ?? findCachedCommit(queryClient, side.project, side.commit_id),
-    })),
+    }),
   });
   return useMemo(() => {
     const names = reference_names(references);
     // what a reference is called if users clear its name
     const default_name = index => reference_names(references.map((r, i) => i === index ? { ...r, label: '' } : r))[index];
     const colors = side_colors(color_new, references).slice(1);
+    const ids = reference_ids(references.map((side, index) => index === ref_index ? { ...side, commit_id: side.commit_id ?? ref_commit?.id } : side));
     return references.map((side, index) => {
       const is_shown = index === ref_index;
-      const commit = is_shown ? ref_commit : cached_others[index < ref_index ? index : index - 1];
+      const shown_together = together && !is_shown && side.together;
+      const other = is_shown ? undefined : cached_others[index < ref_index ? index : index - 1];
+      const commit = is_shown ? ref_commit : other?.commit;
       // e.g. the default reference: the latest commit on the reference branch
-      const commit_id = side.commit_id ?? (is_shown ? ref_commit?.id ?? null : null);
+      const commit_id = side.commit_id ?? (is_shown || shown_together ? commit?.id ?? null : null);
       const [milestone] = milestones_of(milestones, { project: side.project, commit: commit_id ?? undefined, batch: side.batch, filter: side.filter });
       const number = index + 1;
       return {
         ...side,
+        id: ids[index],
+        ticked: side.together,
+        together: shown_together,
         commit_id,
         index,
         number,
         is_shown,
         commit: commit ?? undefined,
+        // of those shown together with the one shown: their runs aren't there yet, they could not be loaded
+        loading: shown_together && !!other?.loading,
+        error: other?.error,
         milestone,
         // what the tabs, the reference's bar and the viewers call it: its milestone's name, else what users called it,
         // else "ref", "ref 2"... (see reference_names). Numbers, not letters: blind tests call images A and B.
@@ -340,7 +377,46 @@ function useReferences(selected, ref_commit, milestones, enabled) {
         color: side_color(colors[index]),
       };
     });
-  }, [references, ref_index, color_new, ref_commit, cached_others, milestones]);
+  }, [references, ref_index, color_new, ref_commit, cached_others, milestones, together]);
+}
+
+
+// The references shown together with the one compared (the primary), in the tabs' order, without it: the image
+// viewer shows them next to it, the other viewers compare with the primary only.
+// [{ id, key, index, number, label, color, project, commit, loading, error, batch, match }]: `batch` is their selected
+// batch, with their filter, `match(output_new)` their run a new run is compared with (see reference_matcher).
+// `id` is theirs wherever they go (see useReferences), `number` their tab's place.
+// They are there at once: `loading` until their runs are, viewers keep their place.
+// `rules`: how runs find their reference run on this page, those that apply to any reference (shared_rules).
+// The same array while nothing changes, e.g. when the primary refreshes: output cards don't render again.
+const no_together = [];
+const together_fields = ['id', 'key', 'index', 'number', 'label', 'project', 'commit', 'loading', 'error', 'batch', 'match'];
+const same_together = (a, b) => a.length === b.length
+  && a.every((entry, i) => together_fields.every(field => entry[field] === b[i][field]) && entry.color.slot === b[i].color.slot);
+
+function useTogether(references, rules) {
+  const entries = useMemo(() => {
+    const shown = references.filter(reference => reference.together && !reference.is_shown);
+    if (shown.length === 0) return no_together;
+    const other_rules = shared_rules(rules);
+    return shown.map(reference => ({
+      id: reference.id,
+      key: `reference-${reference.number}`,
+      index: reference.index,
+      number: reference.number,
+      label: reference.display_label,
+      color: reference.color,
+      project: reference.project,
+      commit: reference.commit,
+      loading: reference.loading,
+      error: reference.error,
+      ...reference_matcher({ commit: reference.commit, batch: reference.batch, filter: reference.filter, rules: other_rules }),
+    }));
+  }, [references, rules]);
+  const [stable, setStable] = useState(entries);
+  if (stable === entries || same_together(stable, entries)) return stable;
+  setStable(entries);
+  return entries;
 }
 
 
@@ -379,7 +455,12 @@ function useComparisonState() {
   useCommitIdsInUrl(selected, new_commit, ref_commit);
   // to name what we compare
   const { data: milestones = no_milestones } = useQuery({ ...milestonesQuery(project), enabled: !!project && on_commit_page });
-  const references = useReferences(selected, ref_commit, milestones, on_commit_page);
+  // several references together in the image viewer, or one at a time: what the link says, else what users last chose
+  const prefers_together = usePrefsStore(state => state.referencesTogether);
+  // (then what the images are compared with is `anchor`: 'new' or 'reference', the one shown, see src/selection.js)
+  const together_mode = selected.together_mode ?? (prefers_together ? 'all' : 'one');
+  const references = useReferences(selected, ref_commit, milestones, on_commit_page, together_mode);
+  const together = useTogether(references, selected.reference_rules);
 
   // The configuration comes from the batch shown (not filtered), else its commit, else the project:
   // it changes only with the data, not when users filter or sort outputs
@@ -399,8 +480,19 @@ function useComparisonState() {
     metrics: { default_metric },
   }), [new_commit, ref_commit, selected_batch_new, selected_batch_ref, filter_batch_new, filter_batch_ref, sort_by, sort_order, default_metric, reference_rules]);
 
-  const default_tab = config.config.outputs?.default_tab_details ?? project_data.data?.qatools_config?.outputs?.default_tab_details ?? 'summary';
-  const default_views = useMemo(() => [].concat(default_tab).map(v => v.replace('_', '-')), [default_tab]);
+  // The view the page opens on: qaboard.yaml's choice, else the most useful with what the project set up (defaultViews.js).
+  // Once the batch's runs say enough, it stays the same for the batch: runs finishing don't change the page under users.
+  const configured_tab = config.config.outputs?.default_tab_details ?? project_data.data?.qatools_config?.outputs?.default_tab_details;
+  const facts = useMemo(
+    () => batch_facts({ config_outputs: config.config.outputs, outputs: batches.new_batch.outputs }),
+    [config.config.outputs, batches.new_batch.outputs],
+  );
+  const facts_key = `${new_project}|${new_commit?.id}|${raw_new_batch?.id ?? selected_batch_new}`;
+  const [settled_facts, setSettledFacts] = useState(null);
+  if (facts.ready && settled_facts?.key !== facts_key) setSettledFacts({ key: facts_key, facts });
+  const shown_facts = settled_facts?.key === facts_key ? settled_facts.facts : facts;
+  const automatic_view = automatic_default_view(shown_facts);
+  const default_views = useMemo(() => default_views_of(configured_tab, automatic_view), [configured_tab, automatic_view]);
   const selected_views = useMemo(
     () => selected.selected_views ?? default_views,
     [selected.selected_views, default_views],
@@ -440,15 +532,25 @@ function useComparisonState() {
   );
 
   return useMemo(
-    () => ({ selected, project, project_data, list: searched_list, unsearched_list: default_list, new_commit, ref_commit, ...batches, ...config, metrics, selected_views, default_views, references, compared, labels }),
-    [selected, project, project_data, searched_list, default_list, new_commit, ref_commit, batches, config, metrics, selected_views, default_views, references, compared, labels],
+    () => ({ selected, project, project_data, list: searched_list, unsearched_list: default_list, new_commit, ref_commit, ...batches, ...config, metrics, selected_views, default_views, references, compared, labels, together, together_mode, anchor: selected.anchor }),
+    [selected, project, project_data, searched_list, default_list, new_commit, ref_commit, batches, config, metrics, selected_views, default_views, references, compared, labels, together, together_mode],
   );
 }
 
 export const ComparisonContext = createContext(null);
 
-export const ComparisonProvider = ({ children }) =>
-  createElement(ComparisonContext.Provider, { value: useComparisonState() }, children);
+// The references shown together, on their own: run cards read them, and don't render again when anything else about
+// the comparison changes
+export const TogetherContext = createContext(no_together);
+
+export const ComparisonProvider = ({ children }) => {
+  const comparison = useComparisonState();
+  return createElement(ComparisonContext.Provider, { value: comparison },
+    createElement(TogetherContext.Provider, { value: comparison.together }, children));
+};
+
+// useComparison().together, or none without a comparison (e.g. History's previews)
+export const useReferencesTogether = () => useContext(TogetherContext);
 
 // Everything about the comparison of the new and reference commits: commits, batches, configuration and metrics
 export const useComparison = () => useContext(ComparisonContext);

@@ -26,6 +26,32 @@ export const name_changes = (a, b) => {
   return changes;
 };
 
+// The change that makes name `a` into `b` as one rule on whole parts, { from, to }, for names that aren't built alike
+// (name_changes gives up: another folder depth, other separators) or differ in many parts: what's between their common
+// end and start. The common end first, since file names usually stay while folders move: "run1/street.raw" and
+// "run1/sub/street.raw" give "run1 → run1/sub". With nothing between, it takes the part before, else the one after.
+// null when there's no such rule: the same names, an empty part at an end ("/a/b" and "x/a/b"), or a rule that would
+// also change another place of the name.
+export const name_rewrite = (a, b) => {
+  if (!a || !b || a === b) return null;
+  const A = split_name(a), B = split_name(b);
+  let s = 0;
+  while (s < A.length && s < B.length && A[A.length - 1 - s] === B[B.length - 1 - s]) s++;
+  let p = 0;
+  while (p < A.length - s && p < B.length - s && A[p] === B[p]) p++;
+  // start at a part, end after one: parts are at even indices, names start and end with one
+  p -= p % 2;
+  s -= s % 2;
+  const whole = (T, start, end) => end > start && T[start] !== '' && T[end - 1] !== '';
+  while (!whole(A, p, A.length - s) || B.length - s <= p) {
+    if (p >= 2) p -= 2;
+    else if (s >= 2) s -= 2;
+    else return null;
+  }
+  const rule = { from: A.slice(p, A.length - s).join(''), to: B.slice(p, B.length - s).join('') };
+  return rename(a, [rule]) === b ? rule : null;
+};
+
 // A rule from a change: with the part before when there's one, "reg0x1A=05" is clearer and safer than "05"
 export const rule_of_change = ({ from, to, before }) => ({ from: before + from, to: before + to });
 
@@ -132,6 +158,81 @@ export const similar_positions = (name, index) => {
 };
 
 
+// ---------------------------------------------------------------------------- the same file in another folder
+
+// Names whose file (the last part after a folder) is in more reference runs' names than this are no clue, e.g. frame_0001.png
+const MAX_SAME_FILE = 20;
+const file_of = name => name.slice(Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\')) + 1);
+const file_indexes = new WeakMap();
+const file_index = index => {
+  let files = file_indexes.get(index);
+  if (files) return files;
+  files = new Map();
+  index.outputs.forEach((o, position) => {
+    if (!o.test_input_path) return;
+    const file = file_of(o.test_input_path);
+    if (!files.has(file)) files.set(file, { names: new Set(), positions: [] });
+    files.get(file).names.add(o.test_input_path);
+    files.get(file).positions.push(position);
+  });
+  for (const [file, { names }] of files) if (names.size > MAX_SAME_FILE) files.delete(file);
+  file_indexes.set(index, files);
+  return files;
+};
+
+// The positions of the reference runs with the same file name in other folders: "dataset_v1/street.raw" and
+// "datasets/v2/street.raw". Only for names in folders.
+export const same_file_positions = (name, index) => {
+  if (!name || file_of(name) === name) return [];
+  return (file_index(index).get(file_of(name))?.positions ?? []).filter(position => index.outputs[position].test_input_path !== name);
+};
+
+
+// ---------------------------------------------------------------------------- every name, the closest first
+
+// The parts of each reference run's name, to find the closest names to any other. Built once per batch of reference
+// runs, when users search them all (the picker): a run per name in a tuning batch, many runs per name in others.
+const name_indexes = new WeakMap();
+const name_index = index => {
+  let names = name_indexes.get(index);
+  if (names) return names;
+  const by_name = new Map();
+  index.outputs.forEach((o, position) => {
+    const name = o.test_input_path ?? '';
+    if (!by_name.has(name)) by_name.set(name, { name, parts: name_parts(name), positions: [] });
+    by_name.get(name).positions.push(position);
+  });
+  names = [...by_name.values()];
+  name_indexes.set(index, names);
+  return names;
+};
+const name_parts = name => new Set(split_name(name.toLowerCase()).filter((part, i) => i % 2 === 0 && part));
+
+// How many characters two names share at their start and end
+const common_ends = (a, b) => {
+  let p = 0;
+  while (p < a.length && p < b.length && a[p] === b[p]) p++;
+  let s = 0;
+  while (s < a.length - p && s < b.length - p && a[a.length - 1 - s] === b[b.length - 1 - s]) s++;
+  return p + s;
+};
+
+// All the reference runs' names, the closest to `name` first: [{ name, likeness, positions }]. `likeness`: the share of
+// their parts in common, from 0 to 1, case-insensitive. Ties: the most characters in common at the start and end.
+// Linear in the number of names: ~10ms for 100k (the picker computes it once, when opened or when users search).
+export const names_by_likeness = (name, index) => {
+  const mine = name_parts(name ?? '');
+  return name_index(index)
+    .map(n => {
+      let shared = 0;
+      for (const part of mine) if (n.parts.has(part)) shared++;
+      const union = mine.size + n.parts.size - shared;
+      return { name: n.name, positions: n.positions, likeness: union ? shared / union : 0, common: common_ends(name ?? '', n.name) };
+    })
+    .sort((a, b) => b.likeness - a.likeness || b.common - a.common || a.positions[0] - b.positions[0]);
+};
+
+
 // ---------------------------------------------------------------------------- suggestions
 
 const SUGGESTED = 4;
@@ -151,7 +252,9 @@ export const suggest_pairs = ({ unmatched, outputs, index, labels = {}, pairs = 
   // enough runs to find the changes that pair many of them
   for (const o of unmatched.slice(0, 1000)) {
     const name = o.test_input_path;
-    for (const position of similar_positions(name, index)) {
+    const similar = similar_positions(name, index);
+    const found_similar = similar.length > 0;
+    for (const position of similar) {
       const changes = name_changes(name, index.outputs[position].test_input_path);
       if (changes?.length !== 1) continue;
       const rule = rule_of_change(changes[0]);
@@ -159,6 +262,17 @@ export const suggest_pairs = ({ unmatched, outputs, index, labels = {}, pairs = 
       const key = `${rule.from}\u0000${rule.to}`;
       if (have.has(key)) continue;
       const entry = found.get(key) ?? { rule, change: changes[0], runs: new Set() };
+      entry.runs.add(o.id);
+      found.set(key, entry);
+    }
+    // names not built alike, like the same files in another folder: "v1/street.raw" and "datasets/v2/street.raw"
+    if (found_similar) continue;
+    for (const position of same_file_positions(name, index)) {
+      const rule = name_rewrite(name, index.outputs[position].test_input_path);
+      if (!rule) continue;
+      const key = `${rule.from}\u0000${rule.to}`;
+      if (have.has(key)) continue;
+      const entry = found.get(key) ?? { rule, change: rule, runs: new Set() };
       entry.runs.add(o.id);
       found.set(key, entry);
     }

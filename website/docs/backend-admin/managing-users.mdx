@@ -63,8 +63,10 @@ closes as soon as the server has an account: from then on, admins come from the 
 
 **Admins from the environment**: `QABOARD_ADMINS` lists user names (exactly, case included), or
 verified emails: those of LDAP/SAML accounts, or of single sign-on accounts whose identity provider says the email is
-verified (`email_verified`), comma-separated. Local accounts' emails aren't verified, and local sign-up refuses the
-user names listed. With docker compose, set it in your site overlay, not in `.env` (see [where each setting goes](/docs/deploy#4-write-the-env-file-and-the-secrets)). They're admins whatever the
+verified (`email_verified`), or single sign-on identities as `<provider id>:<subject>` (e.g. `sso:0b6f…`),
+comma-separated. Local accounts' emails aren't verified, and local sign-up refuses the user names listed. So does
+single sign-on, unless its provider shares the directory's user names (`match_users: username`, see
+[sign-in](/docs/backend-admin/sign-in)): identity providers often let users choose their user name. With docker compose, set it in your site overlay, not in `.env` (see [where each setting goes](/docs/deploy#4-write-the-env-file-and-the-secrets)). They're admins whatever the
 database says, and can't be disabled from the web app, so you can't lock yourself out. Admins then make other admins from the panel. From
 the server, `qaboard-admin` does the same:
 
@@ -133,7 +135,7 @@ The sign-in policy is set via environment variables such as `QABOARD_LOGIN_*`, `
 | ENV Variable           | Default | Usage                                                |
 -------------------------|-------- |------------------------------------------------------|
 | `QABOARD_LOGIN_TYPE`   | _LOCAL_  | Set to `LOCAL/LDAP/SAML`                   |
-| `QABOARD_ADMINS`   | _empty_  | User names of admins, or verified emails (LDAP/SAML accounts, single sign-on with `email_verified`), comma-separated |
+| `QABOARD_ADMINS`   | _empty_  | User names of admins, verified emails (LDAP/SAML accounts, single sign-on with `email_verified`), or single sign-on identities as `<provider id>:<subject>`, comma-separated |
 | `QABOARD_LOGIN_REQUIRED`   | _empty_  | `true` blocks anonymous users, `false` allows them. Empty: as set in the admin panel (`auth.require_sign_in`) |
 | `QABOARD_DISABLE_SIGNUP`   | _empty_  | `true` disables the signup of `LOCAL` users, `false` enables it. Empty: as set in the admin panel (`auth.local_signup`) |
 | `QABOARD_COOKIE_SECURE`   | _empty_  | `true` sends session cookies only over HTTPS. It's automatic when `QABOARD_URL` starts with `https://` |
@@ -198,6 +200,8 @@ working when people leave, and runs show they were sent by a bot.
 - **A project's**, in the project's **Access** tab, for its owners: named like `group/repo/ci[bot]`, with a role on
   the project. Their tokens only reach the project and the projects under it, whatever grants they're given elsewhere.
 
+<Shot id="admin/service-accounts" />
+
 Their tokens look like `qab_svc_…`, with the same scopes (except `admin`), expiry and policy as users' tokens, and
 only browser sessions create them. Service accounts can't sign in, are never admins, and are counted as CI in
 batches' origins. Deleting one revokes its tokens and removes its roles; its name stays taken, so runs keep saying who
@@ -212,6 +216,8 @@ git hosts in your server's configuration (`QABOARD_GIT_HOSTS`, a self-hosted Git
 add other issuers, since the server fetches their keys. The server must reach
 `token.actions.githubusercontent.com` for GitHub, your GitLab for GitLab CI (through `HTTPS_PROXY` if needed). The
 tokens look like `qab_tmp_…`, work `tokens.ci_lifetime_minutes`, and are audited as `token.exchange`.
+
+<Shot id="access/ci-trust" />
 
 The API: `GET/POST /api/v1/service-accounts` (`?project=group/repo` for a project's), `POST` and `DELETE
 /api/v1/service-accounts/<id>` (its `role`), and `POST /api/v1/service-accounts/<id>/tokens`, `DELETE
@@ -235,7 +241,7 @@ aren't saved: `qa` says why and what to do, and in CI, `qa run` and `qa batch` f
 The server starts Jenkins builds with its own Jenkins credentials (`JENKINS_AUTH`). Callers without a token, like
 `qa`'s Windows runner or scripts that call `/api/v1/jenkins/build/trigger`, can only start the jobs listed in a
 project's *qaboard.yaml* (`runners.jenkins.build_url`, or a Jenkins integration). Other jobs need a token with the
-`act` scope (or `ingest`, with the project), see [Starting runs and batches](/docs/http-api#act).
+`act` scope (or `ingest`, with the project), see [Starting other runs](/docs/http-api#act).
 
 While scripts move to tokens, `jenkins.anonymous_jobs` (or `QABOARD_JENKINS_ANONYMOUS_JOBS=ALGO,nightly`) lets anyone
 start the jobs whose path (`/job/...`) contains one of the texts, case-sensitive (`*` allows every job on the

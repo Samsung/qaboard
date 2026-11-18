@@ -312,6 +312,18 @@ outputs:
         width: 840px
 ```
 
+## The view commit pages open on {#default-view}
+Commit pages open on **Visualizations** when *qaboard.yaml* declares some, else on the metrics' **Summary** when the runs
+have metrics, else on the runs' **Output Files**. When every run failed, they open on the **Logs**. To always open
+another view, set `outputs.default_tab_details`:
+
+```yaml title="qaboard.yaml"
+outputs:
+  default_tab_details: summary   # or table-kpi (Metrics Table), table-compare (Metrics Diff), output-list, bit-accuracy, logs
+```
+
+Links that name a view (`selected_views` in the URL) still open it.
+
 ## Viewer options {#viewer-options}
 <Anchor id="viewer-configuration" />
 

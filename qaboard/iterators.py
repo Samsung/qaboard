@@ -78,7 +78,7 @@ def _yaml_get(node, key):
 def _input_line(batches_file, batch, index) -> Optional[int]:
   """The line of a batch's input in a batches file, if we can find it."""
   try:
-    with open(batches_file) as f:
+    with open(batches_file, encoding='utf-8') as f:
       root = yaml.compose(f, Loader=yaml.SafeLoader)
     definition = _yaml_get(root, batch)
     inputs = _yaml_get(definition, 'inputs') or _yaml_get(definition, 'tests')
@@ -112,7 +112,9 @@ def resolve_aliases(names : Union[str, List[str], Tuple[str, ...]], aliases: Dic
   if names is None:
     return []
   if not depth:
-    yield from chain.from_iterable(names)
+    # aliases that refer to each other: we stop there
+    yield from ([names] if isinstance(names, str) else names)
+    return
   if isinstance(names, tuple) or isinstance(names, list):
     yield from chain.from_iterable((resolve_aliases(n, aliases, depth-1) for n in names))
   else: # type==str
@@ -217,20 +219,6 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
               del metadata[k]
         yield i, database
 
-  #     if only:
-  #       inputs = [i for i in inputs if match(input_metadata(i, database, i.relative_to(database), qatools_config), only)]
-  #     if exclude:
-  #       inputs = [i for i in inputs if not match(input_metadata(i, database, i.relative_to(database), qatools_config), exclude)]
-  #     for i in inputs:
-  #       nb_inputs += 1
-  #       yield i
-  #     if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
-  #       metadata = input_metadata(input_path, database, input_path.relative_to(database), qatools_config)
-  #       if only and not match(metadata, only): continue
-  #       if exclude and match(metadata, exclude): continue
-  #       nb_inputs += 1
-  #       yield input_path
-
   if not seen_inputs:
     _record_missing_input(path, database, globs)
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
@@ -293,7 +281,7 @@ def iter_inputs(
     try:
       from .config import project, subproject
       batches_file_path = location_from_spec(batches_file, {"project": project, "subproject": subproject})
-      with open(batches_file_path) as f:
+      with open(batches_file_path, encoding='utf-8') as f:
         new_batches = yaml.load(f, Loader=yaml.SafeLoader)
       if new_batches is None:
         click.secho(f"WARNING: no data in: {batches_file}", fg='yellow', err=True)
@@ -654,7 +642,7 @@ def load_runs_file(path) -> List[Dict[str, Any]]:
   input_path is relative to the database. Only input_path and database are required.
   """
   try:
-    with Path(path).open() as f:
+    with Path(path).open(encoding='utf-8') as f:
       data = json.load(f)
   except (OSError, ValueError) as e:
     raise click.UsageError(f"Could not read the runs file {path}: {e}")
@@ -713,18 +701,6 @@ def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
     return
 
   parameter_search = tuning_search['parameter_search']
-
-  ## Support for functions/ranges was removed - no one ever used them.
-  # for parameter, values in parameter_search.items():
-  #   if isinstance(values, dict):
-  #     if not 'function' in values or not 'arguments' in values:
-  #       raise ValueError
-  #     if values['function'] == 'range':
-  #       args = values['arguments']
-  #       if 'start' not in args: args['start']=0
-  #       if 'stop' not in args: args['stop']=0
-  #       if 'step' not in args: args['step']=1
-  #       tuning_search[parameter] = list(range(args['start'], args['stop'], args['step']))
 
   n_iter = tuning_search.get('search_options', {}).get('n_iter')
   # a grid by default, as the docs show `--tuning-search '{"parameter_search": {...}}'`

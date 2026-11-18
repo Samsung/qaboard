@@ -45,6 +45,8 @@ Open **Settings** from your account menu, at the bottom of the sidebar (or the t
   commands you ran: your admins see these numbers too), then your recent sign-ins, the tokens you created or revoked,
   and the CLI logins you approved. If you see something you didn't do, revoke your tokens and tell your admins.
 
+<Shot id="account/preferences" />
+
 ## Access tokens
 Scripts and CI jobs use tokens to act as you. Create one in **Settings → Access tokens**:
 - **A name** that says where you'll use it, e.g. "nightly CI of group/repo".
@@ -64,6 +66,8 @@ See [CI integration](/docs/ci-integration#tokens) and the [HTTP API](/docs/http-
 ## Signing in from the qa CLI
 Run `qa auth login`, open the link it prints in any browser (it also works when `qa` runs on a server you reach over
 SSH), check that the code is the one in your terminal, and approve. See [Signing in](/docs/installation#signing-in).
+
+<Shot id="account/cli-sign-in" />
 
 ## Verified runs
 Runs sent with a token show who really sent them: hover a run's name on its card, and its **Run Info** reads "Sent by

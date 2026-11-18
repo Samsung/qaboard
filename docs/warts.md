@@ -21,12 +21,8 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - **Anonymous results**: while `ingest.auth` is `off` (the default), anyone can send results to any project, and through
   the `qaboard_config` they send, add hosts to the integrations' allow-list or Jenkins jobs that anonymous `qa` may start.
   Per-project ingest policies and CI OIDC trust are milestone M5 (docs/design/user-management.md). [M, API]
-- `trigger_jenkins_build` (api/integrations.py) doesn't check the scheme and port of `build_url` for signed-in users;
-  `jenkins_status_url_allowed` could apply, if templated build URLs in qaboard.yaml keep working. [S, behaviour]
 - The webhook and git proxies use `verify=False` (internal hosts with certificates the server doesn't trust): make it a
   setting, on by default for new installs. [S, behaviour]
-- OIDC user names can match a name listed in `QABOARD_ADMINS` when the IdP lets users choose their `preferred_username`:
-  match env admins on (provider, subject) or verified emails only for OIDC. [S, behaviour]
 - The GitLab "play job" endpoint doesn't check that the job is listed in qaboard.yaml (GitHub workflows do): left out so
   that integrations defined only on branches keep working. [S, behaviour]
 - `deployments/sirc/metabase.yml` has default passwords and publishes Metabase's database on 5434. [S, behaviour]
@@ -36,10 +32,16 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 
 ## Backend
 
+- **pytest is capped `<9.2`** (backend/pyproject.toml): 9.2's monkeypatch deletes the attributes it restores on the
+  shared MagicMock models of `conftest.py` (pytest#10644), which breaks 12 later tests. Stop patching shared mocks
+  (fixtures that build fresh ones), then drop the cap. [S, no change]
+- **celery is held at 5.6** in backend/uv.lock: 5.7 pulls python-dateutil back to 2.9 and kubernetes to 37. Retry
+  `uv lock --upgrade-package celery` when its constraints relax. [S, no change]
+- The backend still uses ~143 legacy `Model.query` calls: SQLAlchemy 2.1 keeps them, but `select()` is the way
+  forward if a future version deprecates them. [L, no change]
 - **History page with outputs** is still ~2 s and ~19 MB for 25k outputs (backend/benchmarks/bench_api.py): building ORM
   objects and `Output.to_dict`. Serialize from SQL rows (no ORM), or paginate/stream outputs. [M]
 - `GET .../manifest` writes manifests (api/outputs.py): make the refresh a POST, with OutputCard.jsx's `?refresh=true`. [S, API]
-- `/api/v1/tests/group` (api/tuning.py) creates projects on a GET. [S, API]
 - `trigger_jenkins_build` holds a uwsgi worker for 5-30 s (sleeps, then polls Jenkins' queue), and `jenkins_build` retries
   with nested bare `except`s. The status check fails with a 500 while a build is queued (no `building` in a queue item). [M]
 - Commit search uses `ILIKE` over the project's commits (~40 ms for 5k commits). For projects with 100k+ commits, add
@@ -74,11 +76,19 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - `qa batch` leaves `QA_BATCH` set in the process on its early returns (`--list`...), and its failure branch deletes
   `QA_BATCH` even when the batch was nested. [S, behaviour]
 - `qaboard.utils.save_outputs_manifest` has no `mode`: the server chmods the manifests it writes. [S, no change]
+- Reruns' directories (qaboard/attempts.py): `qa batch` writes *latest_attempt.txt* when it reserves a new attempt,
+  before the job starts. While the job waits in a queue (LSF...), or for good if it never starts (batch killed),
+  `latest_dir()` and every reader (`--list-output-dirs`, `qa get`, postprocess, scripts reading the pointer) get the
+  empty new directory, while the complete results are still in the previous attempt. Fix: `qa batch` picks the
+  directory without writing (`attempts.next_dir`) and passes it to `qa run` (option or env, through every runner:
+  local, lsf, celery, dask, kubernetes, windows), which writes the pointer when it starts; `reserve()` skips only
+  directories where a run started, not those that exist (runners' logs create it). Loses the lock between two
+  batches that submit the same run at once. [M, behaviour]
 - `qaboard/scripts/get_batch_storage.py` sends requests without timeouts and defaults to `http://qa`. [S, behaviour]
 - Internal names left in `qaboard/`: the idb.py docstring, `\\netapp` in jenkins_windows.py's docstring, compat.py's
   regexes; tests use `gitlab-srv` strings. [S, no change]
-- `api/tuning.py` and `qaboard/runners/celeryconfig.py` default to `pyamqp://guest:guest@qaboard:5672//`: read
-  `CELERY_BROKER_URL` only, and fail clearly when it's unset with `QABOARD_TUNING_RUNNER=celery`. [S, behaviour]
+- `qaboard/runners/celeryconfig.py` defaults to `pyamqp://guest:guest@qaboard:5672//` (the backend no longer does):
+  read `CELERY_BROKER_URL` only, and fail clearly when it's unset. [S, behaviour]
 
 ## Runs created from code (`qaboard.start_run()`, November 2026)
 
@@ -255,8 +265,25 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
 - 81 "[Blueprint] <Popover> positions content incorrectly under React 19" warnings in the tests: some components still
   use `<Popover>` instead of `<PopoverNext>`. [S, behaviour]
 
+- Several references together (the image viewer's default once two references are stacked, "One at a time | Together"
+  after the reference tabs, December 2026): only the image viewer shows them; every other viewer (videos, plots, text,
+  benchmarks, flame graphs...) and the metrics still compare with the selected reference only. [L, behaviour]
+- Since Together is the default, each stacked reference that stays ticked loads all its runs (slow for commits with
+  thousands of runs), and adds one or two tiled image viewers per run card: past a handful of references, the page gets
+  slow. Loading only the runs matched to the cards shown would help. [M, no change]
+- "How far apart" in the image viewer is the mean difference of the displayed views (8-bit, at screen resolution), not
+  of the files: a guide, not a bit-accuracy check. Images with another aspect ratio than the anchor's are compared at
+  the same width, so their bottoms don't match. [M, behaviour]
+
 ## Deployments, services, charts
 
+- **PostgreSQL 12 is EOL** (compose, production.yml): upgrade with dump/restore (known-issues.md). [M, behaviour]
+- **RabbitMQ 3 is EOL**: move to 4.x after `rabbitmqctl enable_feature_flag all` (known-issues.md). [S, behaviour]
+- **Python 3.14 for the backend image**: builds (November 2026); change `backend/.python-version`, the site-packages
+  path in `backend/Dockerfile` and CI's matrix together. [S, no change]
+- **Cantaloupe**: drop `services/cantaloupe/logback.xml` with 5.0.9. 5.0.6 fixed TurboJpegProcessor's 415 on
+  non-JPEG output: check whether `ManualSelectionStrategy` in `cantaloupe.properties` is still needed (keep Java2d
+  for JPEG: the pixel tooltip and diffs need exact values). [S, no change]
 - nginx's `/iiif/` sets `X-Forwarded-Host $host:$server_port`: Cantaloupe gets the container's port, not the published
   one (e.g. :80 instead of :5151), so `info.json` ids may be wrong behind port mapping. The chart has the same lines. [S, behaviour]
 - The `pgadmin` volume is mounted at `/root/.pgadmin`, but the image keeps its data in `/var/lib/pgadmin`: nothing

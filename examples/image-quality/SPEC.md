@@ -89,7 +89,7 @@ gain and exposure, so they show as tags on runs.
 - **113 MP output:** written as a tiled (256x256), multi-resolution TIFF with JPEG tiles (quality 90), `out.tiff`
   (about 25 MB), which the viewer prefers over `out.png` and Cantaloupe can serve as a pyramid without decoding the
   whole image per tile. Nothing else is written for the wall (no stages, no `raw/`). Checked in phase 1 with the
-  `cantaloupe` image (5.0.5, Java2dProcessor, GeoSolutions TIFF reader): it uses the levels stored as successive IFDs,
+  `cantaloupe` image (5.0.8, Java2dProcessor, GeoSolutions TIFF reader): it uses the levels stored as successive IFDs,
   and ignores SubIFDs. With successive IFDs, zoomed-out IIIF requests take 0.04-0.3 s; with SubIFDs (or one level) they
   decode the full resolution, 1-2 s each. `out.tiff` stores its levels as successive IFDs.
 

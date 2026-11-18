@@ -55,7 +55,7 @@ describe('TableCompare', () => {
     expect(screen.getByText('2 runs')).toBeInTheDocument();
     // only metrics with references
     expect(screen.queryByText('time')).not.toBeInTheDocument();
-    const [row_a, row_b] = screen.getAllByRole('row').slice(2);
+    const [row_a, row_b] = screen.getAllByRole('row').slice(3);
     expect(row_a).toHaveTextContent('-1 (-50%)');
     // equal values
     expect(row_a).toHaveTextContent('=');
@@ -65,7 +65,7 @@ describe('TableCompare', () => {
   it('shows small changes with enough precision, and colors them', () => {
     const { new_batch, ref_batch } = photos();
     renderWithProviders(<TableCompare new_batch={new_batch} ref_batch={{ outputs: { 2: { ...ref_batch.outputs[2], metrics: { psnr: 26.8 } } } }} metrics={['psnr']} available_metrics={kpi_metrics}/>);
-    const cell = screen.getAllByRole('row')[2].querySelector('td');
+    const cell = screen.getAllByRole('row')[3].querySelector('td');
     // not "-0%"
     expect(cell).toHaveTextContent('-0.1 (-0.37%)');
     renderWithProviders(<TableCompare new_batch={new_batch} ref_batch={{ outputs: { 2: { ...ref_batch.outputs[2], metrics: { psnr: 25.4 } } } }} metrics={['psnr']} available_metrics={kpi_metrics}/>);
@@ -79,11 +79,11 @@ describe('TableCompare', () => {
   it('names the columns and tooltips after what we compare', () => {
     const { unmount } = renderWithProviders(<TableCompare new_batch={new_batch} ref_batch={ref_batch} metrics={['loss']} available_metrics={available_metrics}/>);
     expect(screen.getByText('new − reference')).toBeInTheDocument();
-    expect(screen.getAllByRole('row')[2].querySelector('td')).toHaveAttribute('title', 'new: 1\nreference: 2');
+    expect(screen.getAllByRole('row')[3].querySelector('td')).toHaveAttribute('title', 'new: 1\nreference: 2');
     unmount();
     renderWithProviders(<TableCompare new_batch={new_batch} ref_batch={ref_batch} metrics={['loss']} available_metrics={available_metrics} labels={['ISP v2', 'v1.4']}/>);
     expect(screen.getByText('ISP v2 − v1.4')).toBeInTheDocument();
-    expect(screen.getAllByRole('row')[2].querySelector('td')).toHaveAttribute('title', 'ISP v2: 1\nv1.4: 2');
+    expect(screen.getAllByRole('row')[3].querySelector('td')).toHaveAttribute('title', 'ISP v2: 1\nv1.4: 2');
   });
 
   it("shows metrics that were not declared, colored by how much they change", () => {
@@ -92,8 +92,9 @@ describe('TableCompare', () => {
     const { runtime: _runtime, ...without_runtime } = kpi_metrics;
     const ref = { outputs: { 2: { ...ref_batch.outputs[2], metrics: { runtime: 1.2 } } } };
     renderWithProviders(<TableCompare new_batch={new_batch} ref_batch={ref} metrics={['runtime']} available_metrics={without_runtime}/>);
-    expect(screen.getByRole('columnheader', { name: 'runtime' })).toBeInTheDocument();
-    const cell = screen.getAllByRole('row')[2].querySelector('td');
+    // "?": which way is better
+    expect(screen.getByRole('columnheader', { name: /^runtime\s*\?$/ })).toBeInTheDocument();
+    const cell = screen.getAllByRole('row')[3].querySelector('td');
     expect(cell).toHaveTextContent('0.24 (20%)');
     // a neutral blue, neither green nor red
     const [r, g, b] = cell.style.getPropertyValue('--heat').match(/\d+/g).map(Number);
@@ -104,6 +105,7 @@ describe('TableCompare', () => {
   it('says when no run matches the filter', () => {
     renderWithProviders(<TableCompare new_batch={{ ...new_batch, filtered: { outputs: [] } }} ref_batch={ref_batch} metrics={[]} available_metrics={available_metrics}/>);
     expect(screen.getByText('No finished run matches the filter.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Clear the filter' })).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
@@ -119,9 +121,10 @@ describe('TableCompare', () => {
 describe('TableKpi', () => {
   it('shows the selected metrics', () => {
     renderWithProviders(<TableKpi new_batch={new_batch} ref_batch={ref_batch} metrics={['time', 'loss']} available_metrics={available_metrics}/>);
-    const headers = screen.getAllByRole('columnheader').map(th => th.textContent);
-    expect(headers.slice(1, 3)).toEqual(['time[s]', 'loss']);
-    expect(screen.getAllByRole('row')).toHaveLength(4);
+    const headers = screen.getAllByRole('columnheader').slice(1, 3);
+    expect(headers.map(th => th.querySelector('.metric-label').textContent)).toEqual(['time', 'loss']);
+    // 3 rows of headers, 2 finished runs
+    expect(screen.getAllByRole('row')).toHaveLength(5);
   });
 
   it('has a header cell over each column, also for metrics without references', () => {
@@ -185,11 +188,11 @@ describe('TableKpi', () => {
     expect(screen.queryByText(/Pick others above/)).not.toBeInTheDocument();
   });
 
-  it('shows the unit of metrics without a target, without a stray space', () => {
+  it('says under each metric which way is better, and its target or unit, without a stray space', () => {
     const { container } = renderWithProviders(<TableKpi {...photos()} metrics={['psnr', 'overshoot', 'runtime']} available_metrics={kpi_metrics} />);
     const [headers] = container.querySelectorAll('thead tr');
-    const units = [...headers.children].slice(1).map(th => th.querySelector(`span.${Classes.TEXT_MUTED}`)?.textContent ?? null);
-    expect(units).toEqual(['[30]', '[0.05]', '[s]']);
+    const details = [...headers.children].slice(1).map(th => th.querySelector('.metric-details').textContent);
+    expect(details).toEqual(['≥ 30', '≤ 0.05', '↓ s']);
   });
 });
 

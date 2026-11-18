@@ -328,15 +328,15 @@ def read_criterion_directory(path: Path) -> Benchmarks:
     estimates_path = info_path.parent / 'estimates.json'
     if not estimates_path.exists():
       continue
-    info = json.loads(info_path.read_text())
-    estimates = json.loads(estimates_path.read_text())
+    info = json.loads(info_path.read_text(encoding='utf-8'))
+    estimates = json.loads(estimates_path.read_text(encoding='utf-8'))
     point = lambda key: (estimates.get(key) or {}).get('point_estimate')  # noqa: E731
     if _number(point('mean')) is None:
       continue
     stats = _scaled(_stats(mean=point('mean'), median=point('median'), stddev=point('std_dev'), mad=point('median_abs_dev')), 1e-9)
     sample_path = info_path.parent / 'sample.json'
     if sample_path.exists():
-      iters = json.loads(sample_path.read_text()).get('iters') or []
+      iters = json.loads(sample_path.read_text(encoding='utf-8')).get('iters') or []
       stats.update(_stats(samples=len(iters), iterations=sum(iters)))
     throughput = None
     for kind, amount in (info.get('throughput') or {}).items():

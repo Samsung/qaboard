@@ -22,7 +22,7 @@ export const SubmittedBy = ({ data, show_user = true }) => {
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} data-testid="submitted-by">
         {show_user && <span>{claimed ?? verified.user_name}</span>}
         {differs && <span className={Classes.TEXT_MUTED}>via {verified.user_name}</span>}
-        <Icon icon="endorsed" size={12} intent={Intent.SUCCESS} aria-label="verified"/>
+        <Icon icon="endorsed" size={12} intent={Intent.SUCCESS} title="verified"/>
       </span>
     </Tooltip>;
   }

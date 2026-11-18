@@ -7,11 +7,12 @@ import os
 import datetime
 
 from flask import request, jsonify, g
-from sqlalchemy import or_, func
+from sqlalchemy import or_
+from sqlalchemy.orm import selectinload
 
 from backend import app, db_session
 from ..models import User, Token, AuditEvent
-from ..admins import is_admin, is_env_admin, env_admins
+from ..admins import is_admin, is_env_admin, env_admin_candidates
 from ..audit import audit, diff, serialize as serialize_event
 from .. import settings as settings_lib
 from .. import tokens as tokens_lib
@@ -330,9 +331,7 @@ def admin_users():
     query = query.filter(User.status == status)
   if request.args.get('admin') in ('true', '1'):
     # few admins: we check $QABOARD_ADMINS's rules in Python
-    candidates = env_admins()
-    emails = [a.lower() for a in candidates if '@' in a]
-    query = query.filter(or_(User.is_admin.is_(True), User.user_name.in_(candidates), func.lower(User.email).in_(emails)))
+    query = query.filter(or_(User.is_admin.is_(True), env_admin_candidates()))
     users = [u for u in query.order_by(User.last_login_at.desc().nullslast(), User.id.desc()).all() if is_admin(u) or u.is_admin]
     total = len(users)
     users = users[offset:offset + limit]
@@ -497,7 +496,8 @@ def admin_tokens():
   limit, offset = pagination()
   if limit is None:
     return jsonify({"error": "limit and offset must be numbers"}), 400
-  query = Token.query
+  # each token says whose it is: their users in one query, not one per token
+  query = Token.query.options(selectinload(Token.user))
   if request.args.get('user'):
     try:
       query = query.filter(Token.user_id == int(request.args['user']))

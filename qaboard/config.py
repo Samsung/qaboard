@@ -78,7 +78,7 @@ def find_configs(path : Path) -> List[Tuple[Dict, Path]]:
           qatools_config_path = parent / 'qatools.yaml' # backward compatibility
           if not qatools_config_path.exists():
             continue
-        with qatools_config_path.open('r') as f:
+        with qatools_config_path.open('r', encoding='utf-8') as f:
             qatools_config = yaml.load(f, Loader=yaml.SafeLoader)
             if not qatools_config: # support empty files that just mark subprojects
               qatools_config = {}
@@ -226,7 +226,7 @@ else:
     if "include" in c:
       # paths will be relative to the root qaboard.yaml
       c_include_path = root_qatools / c["include"]
-      with c_include_path.open() as f:
+      with c_include_path.open(encoding='utf-8') as f:
         c_include = yaml.load(f, Loader=yaml.SafeLoader)
       c = merge(c_include, c)
     config = merge(c, config)
@@ -494,7 +494,7 @@ def github_pull_request_head() -> Optional[str]:
   if not os.environ.get('GITHUB_EVENT_NAME', '').startswith('pull_request'):
     return None
   try:
-    with open(os.environ['GITHUB_EVENT_PATH']) as f:
+    with open(os.environ['GITHUB_EVENT_PATH'], encoding='utf-8') as f:
       return json.load(f)['pull_request']['head']['sha']
   except (KeyError, OSError, ValueError, TypeError):
     return None
@@ -729,7 +729,7 @@ if metrics_file:
       click.secho(f'         It is defined in qaboard.yaml under outputs.metrics', fg='yellow', err=True, dim=True)
       ignore_config_errors = True
   else:
-    with metrics_file_path.open(errors="surrogateescape") as f:
+    with metrics_file_path.open(encoding="utf-8", errors="surrogateescape") as f:
       try:
         _metrics = yaml.load(f, Loader=yaml.SafeLoader)
       except Exception as e:

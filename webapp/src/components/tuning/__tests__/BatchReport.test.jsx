@@ -74,6 +74,14 @@ describe('BatchDefinitions', () => {
     expect(within(defined).queryByRole('button', { name: /bob/ })).toBeNull();
   });
 
+  it("doesn't link the files sent from the command line to the repository", () => {
+    renderWithProviders(<BatchDefinitions definitions={[{ name: 'a', files: ['qa/batches.yaml', 'qa/local.yaml'], sources: ['commit', 'sent'] }]} context={context} />);
+    const defined = screen.getByLabelText('Where the batch is defined');
+    expect(defined).toHaveTextContent('Defined in qa/batches.yaml and qa/local.yaml');
+    // the commit's file is in the repository, the sent one may not be
+    expect(within(defined).getAllByRole('link').map(link => link.getAttribute('href'))).toEqual(['https://github.com/org/repo/blob/abc/qa/batches.yaml']);
+  });
+
   it('shows nothing without definitions', () => {
     const { container } = renderWithProviders(<BatchDefinitions definitions={[]} />);
     expect(container).toBeEmptyDOMElement();

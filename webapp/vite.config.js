@@ -87,7 +87,15 @@ export default defineConfig(({ mode }) => ({
     // Last, to upload the final source maps
     sentry(),
   ],
-  resolve: { alias: { 'qaboard-schemas': schemas } },
+  resolve: {
+    alias: [
+      { find: 'qaboard-schemas', replacement: schemas },
+      // monaco-editor ships its own copy of DOMPurify (esm/vs/base/browser/dompurify/), which only gets security
+      // fixes when monaco releases. We use the dompurify package instead, kept up to date by package.json's overrides.
+      // Only monaco imports that path. To check: `npm run build && grep -o 'version=.3[.0-9]*' build/assets/editor.api-*.js`
+      { find: /^\.\/dompurify\/dompurify\.js$/, replacement: 'dompurify' },
+    ],
+  },
   define: {
     // Not in the tests: they'd depend on the shell's environment (e.g. QABOARD_VERSION set by an .envrc)
     'import.meta.env.QABOARD_RELEASE': JSON.stringify(mode === 'test' ? '' : release ?? ''),
@@ -131,6 +139,10 @@ export default defineConfig(({ mode }) => ({
     setupFiles: ['./src/setupTests.js'],
     reporters: process.env.CI ? ['default', 'junit'] : ['default'],
     outputFile: { junit: 'junit.xml' },
+    // By default vitest starts one worker per core (minus one). CI hosts (LSF, shared runners) see all the
+    // machine's cores, not the job's slots: dozens of jsdom workers ran out of the job's memory limit.
+    // 4 workers peak under 2GB with --coverage. VITEST_MAX_WORKERS overrides it.
+    maxWorkers: process.env.CI ? 4 : undefined,
     coverage: {
       provider: 'v8',
       // not the markdown, css, json... files in src/: they can't be parsed as code

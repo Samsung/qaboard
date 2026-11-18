@@ -136,6 +136,12 @@ the viewer and the image server all cache by path, and we can't clear them all.
    requests (`docs/quality-ledger-plan.md`, item 3).
 3. **`start_run()` reserves its directory with the same operations** (`docs/rfcs/python-sdk-runs.md`): a training run
    started twice is two attempts.
+4. **`qa batch --list` says what the batch would do**, with its `--action-on-existing`: the folder a run it would
+   start would use (`attempts.next_dir`, which reserves nothing), and runs it would skip where they are
+   (`"skipped": true`). `--list-output-dirs` stays "where results are now". Pipelines that listed a batch before
+   running it read the previous attempt, that the run then removed: `--save-runs <file>` writes where the batch's
+   runs were saved once they ran, so scripts don't have to guess. Writing *latest_attempt.txt* only when the run
+   starts is in `docs/warts.md`.
 
 ## What ships
 - `qaboard/attempts.py`, used by `qa run`, `qa batch`, `qa postprocess`, `qa sync`, `qa get`, `qa check-bit-accuracy`.

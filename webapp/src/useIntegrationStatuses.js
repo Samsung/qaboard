@@ -9,6 +9,16 @@ import { toaster } from "./toaster";
 import { make_eval_templates_recursively } from "./utils";
 import { host_url } from "./git";
 
+// Webhooks' answers come from other servers: we only open their web pages, not e.g. javascript: URLs
+export const isWebUrl = url => {
+  if (typeof url !== 'string') return false;
+  try {
+    return ['http:', 'https:'].includes(new URL(url, window.location.href).protocol);
+  } catch {
+    return false;
+  }
+};
+
 const LS_PREFIX = 'qaboard:integrationStatuses:';
 const LS_INDEX_KEY = 'qaboard:integrationStatuses:index';
 const LS_MAX_COMMITS = 50;
@@ -140,7 +150,7 @@ export function useIntegrationStatuses(context) {
       .then(response => {
         toaster.show({ message: `Webhook sent! [${response.status} ${response.statusText}]`, intent: Intent.SUCCESS });
         setStatus(entry_key, { is_loaded: true, loading: false, triggered: true, error: null, statusText: response.statusText, data: response.data });
-        if (!!response.data?.url && response.data?.open)
+        if (response.data?.open && isWebUrl(response.data.url))
           window.open(response.data.url, '_blank')?.focus();
       })
       .catch(error => {

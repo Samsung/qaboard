@@ -407,7 +407,7 @@ const CopyHashButton = ({ commit, className, style }) => <LazyTooltip content="C
 </LazyTooltip>
 
 const MilestoneStar = ({ milestones }) => <LazyTooltip content={<span>Milestone{milestones.length > 1 ? 's' : ''}: {milestones.map(milestone_name).join(', ')}</span>}>
-  <Icon icon="star" style={{color: Colors.GOLD5}} aria-label={`Milestone${milestones.length > 1 ? 's' : ''}: ${milestones.map(milestone_name).join(', ')}`} />
+  <Icon icon="star" style={{color: Colors.GOLD5}} role="img" aria-hidden={false} aria-label={`Milestone${milestones.length > 1 ? 's' : ''}: ${milestones.map(milestone_name).join(', ')}`} />
 </LazyTooltip>
 
 

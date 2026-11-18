@@ -75,8 +75,11 @@ def test_overview(alice, world):
   # the timeline: 24 bars of an hour. The latest has the runs that wait and run now.
   bars = everyone["timeline"]["bars"]
   assert len(bars) == 24 and everyone["timeline"]["step_seconds"] == 3600
-  # runs that waited or ran at some point during the bar: bob's run waited 5 minutes before it started
-  assert (bars[-1]["waiting"], bars[-1]["running"]) == (2, 3)
+  # runs that waited or ran at some point during the bar: alice's run waits, and bob's run waited until it started
+  # 5 minutes ago. Bars start on the hour: in the first 5 minutes of an hour, bob's run waited during the previous bar.
+  minute = datetime.datetime.fromisoformat(everyone["now"].replace('Z', '+00:00')).minute
+  assert bars[-1]["running"] == 3
+  assert bars[-1]["waiting"] in ([2] if minute > 5 else [1] if minute < 5 else [1, 2])
   # the run pending for 20 days runs in every bar
   assert all(bar["running"] >= 1 for bar in bars)
   assert sum(bar["done"] for bar in bars) == 1 and sum(bar["failed"] for bar in bars) == 1

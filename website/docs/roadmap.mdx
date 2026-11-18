@@ -31,20 +31,24 @@ Nothing here has a date. If an item matters to your team, [tell us](#how-to-weig
   the same tests, read the same Metrics Diff and meet the same targets as people, and a person decides what ships.
 
 ## Compare more than two
-Today the commit page compares a new commit with one reference at a time: a commit, a branch or a milestone. You
-can stack several references and switch between them with one key (see
-[Several references](/docs/user-guide/comparing-results#several-references)). History follows metrics across commits. Many questions
-need more than two sides: which of five models handles night scenes best, or whether quality drifted over the last
-releases.
+Today you can stack several references on the commit page: commits, branches or milestones (see
+[Several references](/docs/user-guide/comparing-results#several-references)). The image viewer shows new and all of
+them together, in tiles with synced zoom; the metrics and the other viewers compare with one reference at a time,
+and you switch between them with one key. History follows metrics across commits. Many questions need more than two
+sides: which of five models handles night scenes best, or whether quality drifted over the last releases.
 
 <RoadmapItem status="next" title="N-way comparisons">
-Pick N commits, batches or tuning runs. See each input's outputs in a grid with synced zoom, metric tables with one
-column per run, and plots overlaid on one graph.
+Pick N commits, batches or tuning runs. The image viewer already shows each input's images from new and every
+stacked reference in a grid with synced zoom (see
+[Several references at once](/docs/user-guide/image-viewer#several-references-at-once)). Next: metric tables with
+one column per run, plots overlaid on one graph, and the other viewers.
 </RoadmapItem>
 
 <RoadmapItem status="next" title="Compare with several milestones at once">
 "This commit vs the last 5 milestones" in one view, to catch a slow drift that a comparison with the latest
-milestone hides.
+milestone hides. You can already select milestones in **Manage milestones** and compare them, stacked as references
+(see [Manage milestones](/docs/user-guide/milestones#managing-milestones)), and see their images together. Next: the
+metrics of all of them in one view.
 </RoadmapItem>
 
 <RoadmapItem status="next" title="Saved comparison views">
@@ -289,7 +293,7 @@ JSON output from every `qa` command, so that scripts and agents read results wit
 </RoadmapItem>
 
 <RoadmapItem status="next" title="An MCP server, read-only first">
-`qa mcp` lets agents read results, Metrics Diffs, failing tests and image crops. Starting batches comes later.
+`qa mcp` lets agents read results, Metrics Diffs, failing tests and image crops. Starting batches comes later: until then, agents use [`qa batch --commit`](/docs/tuning-from-the-webapp#from-the-command-line).
 </RoadmapItem>
 
 <RoadmapItem status="experimental" title="Skills for coding agents">

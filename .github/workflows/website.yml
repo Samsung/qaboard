@@ -1,7 +1,10 @@
 name: Website
 
 # Builds the docs website on pull requests (the build fails on broken links, unknown shot ids, wrong stack tabs and
-# missing repository files), and deploys it to GitHub Pages from master.
+# missing repository files), and from master deploys it to GitHub Pages, then has the Algolia crawler update the
+# search index. Needs Settings > Pages > Source: GitHub Actions, and for the crawl the secrets ALGOLIA_CRAWLER_ID,
+# ALGOLIA_CRAWLER_USER_ID and ALGOLIA_CRAWLER_API_KEY (see website/README.md): without them, the site still deploys,
+# and the crawler's daily schedule updates the index.
 on:
   push:
     branches: [master]
@@ -11,19 +14,25 @@ on:
     paths: [website/**, charts/qaboard/**, deployments/quickstart/**, examples/**, docs-media/shots.yaml, docs-media/standins/**, qaboard/schemas/**, .github/workflows/website.yml]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: website-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
-    name: Build, and deploy from master
+    name: Build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
         with:
-          node-version: 20.x
+          persist-credentials: false  # no step pushes
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.x
           cache: yarn
           cache-dependency-path: website/yarn.lock
       # The GitHub Actions workflows the docs show (no CI of ours runs them)
@@ -36,19 +45,47 @@ jobs:
         run: |
           yarn install --frozen-lockfile
           yarn build
-
-      # Popular action to deploy to GitHub Pages:
-      # Docs: https://github.com/peaceiris/actions-gh-pages#%EF%B8%8F-docusaurus
-      - name: Deploy to GitHub Pages
-        if: github.event_name != 'pull_request'
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Upload the site
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        uses: actions/upload-pages-artifact@v5
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          # Build output to publish to the `gh-pages` branch:
-          publish_dir: ./website/build
-          # Assign commit authorship to the official GH-Actions bot for deploys to `gh-pages` branch:
-          # https://github.com/actions/checkout/issues/13#issuecomment-724415212
-          # The GH actions bot is used by default if you didn't specify the two fields.
-          # You can swap them out with your own user credentials.
-          user_name: github-actions[bot]
-          user_email: 41898282+github-actions[bot]@users.noreply.github.com
+          path: website/build
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
+
+  search-index:
+    name: Update the search index
+    # After the deploy: the crawler reads the live site
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ALGOLIA_CRAWLER_ID: ${{ secrets.ALGOLIA_CRAWLER_ID }}
+      ALGOLIA_CRAWLER_USER_ID: ${{ secrets.ALGOLIA_CRAWLER_USER_ID }}
+      ALGOLIA_CRAWLER_API_KEY: ${{ secrets.ALGOLIA_CRAWLER_API_KEY }}
+    steps:
+      # The crawler also runs on a daily schedule: this only makes the index fresh right after a deploy
+      - name: No Algolia crawler secrets
+        if: env.ALGOLIA_CRAWLER_ID == '' || env.ALGOLIA_CRAWLER_USER_ID == '' || env.ALGOLIA_CRAWLER_API_KEY == ''
+        run: echo "::notice::Some ALGOLIA_CRAWLER_* secrets are missing, no crawl started (the crawler's daily one still runs). See website/README.md"
+      # https://www.algolia.com/doc/rest-api/crawler/start-reindex
+      - name: Start a crawl
+        if: env.ALGOLIA_CRAWLER_ID != '' && env.ALGOLIA_CRAWLER_USER_ID != '' && env.ALGOLIA_CRAWLER_API_KEY != ''
+        run: |
+          curl --fail-with-body --silent --show-error --retry 3 -X POST \
+            --user "$ALGOLIA_CRAWLER_USER_ID:$ALGOLIA_CRAWLER_API_KEY" \
+            "https://crawler.algolia.com/api/1/crawlers/$ALGOLIA_CRAWLER_ID/reindex"

@@ -125,9 +125,6 @@ export function filter_projects(projects, query, { favorites = {}, now = Date.no
     .sort(by_relevance);
 }
 
-// The subprojects of a project, everywhere below it
-export const subprojects_of = (projects, project) => Object.keys(projects ?? {}).filter(id => id.startsWith(`${project}/`));
-
 // "group/repo/sub" => [{name: "group", path: "group", is_project}, ...], for breadcrumbs
 export const path_segments = (project, projects = {}) => {
   const segments = project.split('/');

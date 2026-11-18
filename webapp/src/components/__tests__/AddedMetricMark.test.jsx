@@ -68,7 +68,8 @@ const batches = () => ({
 test('the Metrics Table marks the cells with added values, and says how many runs have some', () => {
   const { new_batch, ref_batch } = batches();
   renderWithProviders(<TableKpi new_batch={new_batch} ref_batch={ref_batch} metrics={['sharpness', 'psnr']} available_metrics={available_metrics}/>);
-  const [row_a, row_b] = screen.getAllByRole('row').slice(2);
+  // after the 3 rows of headers
+  const [row_a, row_b] = screen.getAllByRole('row').slice(3);
   const [sharpness_a, , psnr_a, psnr_ref] = row_a.querySelectorAll('td');
   expect(sharpness_a.querySelector('[data-testid="added-metric"]')).toHaveAttribute('aria-label', 'Added 2 days ago by alice with sharpness.py.');
   expect(psnr_a.querySelector('[data-testid="added-metric"]')).toBeNull();
@@ -83,7 +84,7 @@ test('the Metrics Table marks the cells with added values, and says how many run
 test('the Metrics Diff marks the differences of added values, saying which run they come from', () => {
   const { new_batch, ref_batch } = batches();
   renderWithProviders(<TableCompare new_batch={new_batch} ref_batch={ref_batch} metrics={['sharpness', 'psnr']} available_metrics={available_metrics} labels={['New', 'Reference']}/>);
-  const [sharpness_a, psnr_a] = screen.getAllByRole('row')[2].querySelectorAll('td');
+  const [sharpness_a, psnr_a] = screen.getAllByRole('row')[3].querySelectorAll('td');
   expect(sharpness_a.querySelector('[data-testid="added-metric"]').getAttribute('aria-label')).toMatch(/^New: Added 2 days ago by alice/);
   expect(psnr_a.querySelector('[data-testid="added-metric"]').getAttribute('aria-label')).toMatch(/^Reference: Added/);
 });

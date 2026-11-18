@@ -2,11 +2,14 @@ import { lazy, Suspense, useMemo, useState } from "react";
 import styled from "styled-components";
 
 import {
+  AnchorButton,
   Button,
   Classes,
   Card,
   NonIdealState,
+  SegmentedControl,
   Spinner,
+  Tooltip,
 } from "@blueprintjs/core";
 
 import { Container, Section, commit_header_height, shows_reference_bar } from "./components/layout";
@@ -45,6 +48,10 @@ import { shared_configuration, reference_pairs, changes_in_all_runs } from "./co
 import { useCommitTab } from "./pageTitle";
 import { RunOriginsContext, useRunOriginsValue } from "./components/runNames";
 import { OutputCardDensityControl } from "./components/DensityControl";
+import { NoMetricsGuide, SetupGuideCallout } from "./components/SetupGuide";
+import { batch_facts, has_result_metrics, is_metrics_view } from "./defaultViews";
+import { default_sort_order } from "./selectors/sorting";
+import { usePrefsStore } from "./stores/prefs";
 
 // what the runs logged while they ran, all on the same plots: Plotly is only loaded for batches that have some
 const SeriesComparison = lazy(() => import("./viewers/SeriesComparison"));
@@ -104,6 +111,13 @@ const Messages = styled.div`
 // Below the commit's header
 const header_gap = 16;
 
+// The metrics views, switched from the title of the Metrics view
+const metrics_view_options = [
+  { value: 'summary', label: 'Summary', title: "The batch's metrics, aggregated over its runs, vs the reference" },
+  { value: 'table-kpi', label: 'Table', title: "Each run's metrics, against their targets" },
+  { value: 'table-compare', label: 'Diff', title: 'How each run changed vs its reference run' },
+];
+
 
 const CiCommitResults = () => {
   const comparison = useComparison();
@@ -116,6 +130,7 @@ const CiCommitResults = () => {
   const { docs_root } = useSiteConfig();
   const user = useUser();
   const refreshCommit = useRefreshCommit();
+  const setMetricsView = usePrefsStore(state => state.setMetricsView);
 
   // the tab's title and icon: what the page shows, and the status of its runs
   useCommitTab();
@@ -331,10 +346,34 @@ const CiCommitResults = () => {
     filter_ref={filter_batch_ref}
   />;
   const runs_actions = <>{export_plugin}{legacy_export_plugin}{script_plugin}</>;
+  // The metrics view shown, if any: Summary, each run's values or their changes (one entry of the sidebar)
+  const metrics_view = views.find(is_metrics_view);
+  const showMetricsView = view => {
+    setMetricsView(view);
+    updateSelected({ selected_views: selected_views.map(v => is_metrics_view(v) ? view : v) }, { defaults: { selected_views: comparison.default_views } });
+  };
+  // What the runs say: whether they have metrics about their results, not only how long they took
+  const facts = batch_facts({ config_outputs: config.outputs, outputs: new_batch.outputs });
+  const has_result_metrics_ = has_result_metrics(new_batch.used_metrics);
+  // the runs shown, for the script that adds metrics to them
+  const runs_selection = {
+    project: new_project, commit_id: new_commit?.id ?? new_commit_id, batch: selected_batch_new, filter: filter_batch_new,
+    ref_project, ref_commit_id: ref_commit?.id ?? ref_commit_id, batch_ref: selected_batch_ref, filter_ref: filter_batch_ref,
+  };
+  const metrics_docs = <Tooltip content="How to return, declare and choose the metrics shown" placement="top" openOnTargetFocus={false}>
+    <AnchorButton variant="minimal" icon="manual" text="Docs" href={`${docs_root}docs/user-guide/metrics`} target="_blank" rel="noopener noreferrer"/>
+  </Tooltip>;
+  const metrics_actions = <>{metrics_docs}{runs_actions}</>;
+  // The tables sort runs like the other views, and keep their header under the page's fixed headers
+  const sort_runs = ({ by, order }) => updateSelected({
+    sort_by: by === comparison.sorting?.default_by ? undefined : by,
+    sort_order: order === default_sort_order(by) ? undefined : order,
+  }, { replace: true });
   // the cards can be compact, like the logs
   const cards_actions = <><OutputCardDensityControl/>{runs_actions}</>;
   // the commits' fixed headers
   const header_height = commit_header_height({ selected_views, references: comparison.references });
+  const table_props = { sorting: comparison.sorting, onSort: sort_runs, stickyTop: header_height };
 
   return (
     <SharedConfigurationContext value={shared}>
@@ -358,9 +397,21 @@ const CiCommitResults = () => {
 
             {shows_state && <ViewSection>{commit_state}</ViewSection>}
 
-            {views.includes('summary') && <ViewSection>
-              <ViewTitle title="Summary"/>
-              <Card>
+            {/* Summary, each run's values, their changes: one view, switched from its title */}
+            {metrics_view && <ViewSection>
+              <ViewTitle title="Metrics" actions={metrics_actions}>
+                <SegmentedControl
+                  size="small"
+                  value={metrics_view}
+                  onValueChange={showMetricsView}
+                  options={metrics_view_options}
+                  aria-label="Metrics view"
+                />
+              </ViewTitle>
+              {!has_result_metrics_ && facts.ready && <Card style={{ marginBottom: 16 }}>
+                <NoMetricsGuide runs={runs_selection} has_visualizations={has_cards} has_compute_time={new_batch.used_metrics?.has('compute_time')}/>
+              </Card>}
+              {metrics_view === 'summary' && (has_result_metrics_ || !facts.ready) && <Card>
                 <MetricsSummary
                   project={new_project}
                   project_data={project_data}
@@ -370,12 +421,34 @@ const CiCommitResults = () => {
                   ref_batch={ref_batch}
                   labels={comparison.labels}
                 />
-              </Card>
+              </Card>}
               {/* what the runs logged while they ran (qaboard.start_run()): all the runs on the same plots */}
-              {has_logged_runs && <Suspense fallback={null}>
+              {metrics_view === 'summary' && has_logged_runs && <Suspense fallback={null}>
                 <SeriesComparison new_batch={new_batch} ref_batch={ref_batch} controls={controls} onControlsChange={updateControls} labels={comparison.labels}/>
               </Suspense>}
-             </ViewSection>}
+              {metrics_view === 'table-kpi' && <Card>
+                <TableKpi
+                  new_batch={new_batch}
+                  ref_batch={ref_batch}
+                  metrics={selected_metrics_keys}
+                  available_metrics={available_metrics}
+                  input={metricTableSelect}
+                  labels={table_labels}
+                  {...table_props}
+                />
+              </Card>}
+              {metrics_view === 'table-compare' && <Card>
+                <TableCompare
+                  new_batch={new_batch}
+                  ref_batch={ref_batch}
+                  metrics={selected_metrics_keys}
+                  available_metrics={available_metrics}
+                  input={metricTableSelect}
+                  labels={table_labels}
+                  {...table_props}
+                />
+              </Card>}
+            </ViewSection>}
 
             {views.includes('parameters') && <ViewSection>
               <ViewTitle title="Artifacts & Configs"/>
@@ -430,34 +503,6 @@ const CiCommitResults = () => {
                 </Card>}
             </ViewSection>}
 
-            {views.includes('table-compare') && <ViewSection>
-              <ViewTitle title="Metrics Diff"/>
-              <Card>
-                  <TableCompare
-                    new_batch={new_batch}
-                    ref_batch={ref_batch}
-                    metrics={selected_metrics_keys}
-                    available_metrics={available_metrics}
-                    input={metricTableSelect}
-                    labels={table_labels}
-                  />
-              </Card>
-             </ViewSection>}
-
-            {views.includes('table-kpi') && <ViewSection>
-              <ViewTitle title="Metrics Table"/>
-              <Card>
-                  <TableKpi
-                    new_batch={new_batch}
-                    ref_batch={ref_batch}
-                    metrics={selected_metrics_keys}
-                    available_metrics={available_metrics}
-                    input={metricTableSelect}
-                    labels={table_labels}
-                  />
-              </Card>
-             </ViewSection>}
-
             {/* as wide as the page, not as its widest log line or run configuration */}
             {views.includes('logs') && <ViewSection style={{ width: 'auto', minWidth: 0 }}>
                 <ViewTitle title="Logs"/>
@@ -487,6 +532,7 @@ const CiCommitResults = () => {
                 <ViewTitle title="Output Files" actions={cards_actions}>
                   <p className={Classes.TEXT_MUTED}>Storage used by the {nb_runs} run{nb_runs === 1 ? '' : 's'} shown: {humanFileSize(storage, true)}</p>
                 </ViewTitle>
+                {!facts.has_visualizations && !has_result_metrics_ && facts.ready && <div style={{ marginBottom: 16 }}><SetupGuideCallout project={new_project}/></div>}
                 <OutputCardsList type='bit_accuracy' {...output_cards_props} onShowFileOptions={showFileOptions}/>
              </ViewSection>}
 

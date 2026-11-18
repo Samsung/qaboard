@@ -182,6 +182,12 @@ describe('Runs activity', () => {
     fireEvent.click(await screen.findByTestId('total-long'));
     await waitFor(() => expect(history.location.search).toContain('status=long&sort=oldest'));
     await waitFor(() => expect(lastParams(fetch, 'GET', '/api/v1/activity/items').get('status')).toBe('long'));
+    // the totals are buttons for keyboards too
+    const long = screen.getByTestId('total-long');
+    expect(long).toHaveAttribute('role', 'button');
+    expect(long).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.keyDown(long, { key: 'Enter' });
+    await waitFor(() => expect(history.location.search).not.toContain('status=long'));
   });
 
   it("shows someone's runs, picked from the directory or typed", async () => {

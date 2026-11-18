@@ -135,13 +135,11 @@ def env_admin_password() -> Optional[str]:
 
 def any_admin() -> bool:
   """Whether an active account is an admin, from the database or $QABOARD_ADMINS"""
-  from sqlalchemy import or_, func
+  from sqlalchemy import or_
   from .models import User
-  from .admins import is_admin, env_admins
-  candidates = env_admins()
-  emails = [a.lower() for a in candidates if '@' in a]
+  from .admins import is_admin, env_admin_candidates
   query = (User.query.filter(User.status == 'active', User.kind == 'human')
-           .filter(or_(User.is_admin.is_(True), User.user_name.in_(candidates), func.lower(User.email).in_(emails))))
+           .filter(or_(User.is_admin.is_(True), env_admin_candidates())))
   return any(is_admin(u) for u in query.limit(100))
 
 

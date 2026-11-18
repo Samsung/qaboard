@@ -1949,3 +1949,244 @@
 @media (prefers-reduced-motion: reduce) {
   .qiv-flash { animation: none; }
 }
+
+
+/* More than two images: each in its tile, compared with the anchor (tiles.jsx) */
+.qiv-tile {
+  position: absolute;
+  overflow: hidden;
+  background: var(--qiv-pane);
+}
+.qiv-tile .qiv-label {
+  max-width: calc(100% - 12px);
+}
+.qiv-tile .qiv-label:disabled {
+  cursor: default;
+  opacity: 0.8;
+}
+/* in a wipe, the anchor's name on its side of the divider */
+.qiv-label.qiv-label-quiet {
+  background: rgba(17, 20, 24, 0.75);
+  cursor: default;
+}
+.qiv-tile-wipe .qiv-label {
+  max-width: calc(50% - 12px);
+}
+/* an image that can't be the anchor, e.g. the app compares it with all the others */
+.qiv-tile .qiv-label.qiv-label-fixed {
+  cursor: default;
+}
+.qiv-label .qiv-label-icon {
+  flex: none;
+  margin-right: 4px;
+  fill: currentColor;
+}
+.qiv-compare-anchor {
+  display: inline-flex;
+  color: var(--qiv-text-muted);
+}
+.qiv-compare-anchor .qiv-icon {
+  fill: currentColor;
+}
+.qiv-tile-note {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  z-index: 4;
+  max-width: calc(100% - 12px);
+  padding: 1px 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: rgba(17, 20, 24, 0.75);
+  color: #fff;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.qiv-tile-placeholder {
+  /* under the image's name */
+  z-index: 3;
+  flex-direction: row;
+  gap: 8px;
+  color: #c5cbd3;
+}
+/* single mode: every image's name, the one shown stands out */
+.qiv-picks {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 7;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: calc(100% - 12px);
+}
+.qiv-label.qiv-pick {
+  position: static;
+  max-width: none;
+  opacity: 0.85;
+  filter: saturate(0.6);
+}
+.qiv-label.qiv-pick.qiv-active {
+  opacity: 1;
+  filter: none;
+  box-shadow: 0 0 0 2px #fff, 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.qiv-label.qiv-pick:disabled {
+  cursor: default;
+  opacity: 0.3;
+}
+
+/* The values of every image under the pointer, and how far apart they are (comparePanel.jsx) */
+.qiv-compare {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4px 32px;
+  padding: 2px 0 6px;
+  font-size: 12px;
+}
+.qiv-compare-values {
+  flex: 1 1 320px;
+  min-width: 0;
+  font-family: var(--qiv-mono);
+  font-variant-numeric: tabular-nums;
+}
+.qiv-compare-values.qiv-stale .qiv-compare-row {
+  opacity: 0.6;
+}
+.qiv-compare-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 20px;
+  overflow: hidden;
+  font-family: var(--qiv-font, inherit);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.qiv-compare-title .qiv-muted,
+.qiv-compare-title .qiv-coordinates {
+  font-weight: 400;
+}
+.qiv-compare-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 20px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.qiv-compare-delta {
+  margin-left: auto;
+  color: var(--qiv-text-muted);
+}
+.qiv-square {
+  display: inline-block;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  font-family: var(--qiv-font, inherit);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+}
+.qiv-compare-distances {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.qiv-distances {
+  border-collapse: collapse;
+  font-family: var(--qiv-mono);
+  font-variant-numeric: tabular-nums;
+}
+.qiv-distances th,
+.qiv-distances td {
+  padding: 1px;
+  font-weight: 400;
+  text-align: center;
+}
+.qiv-distance {
+  display: block;
+  width: 100%;
+  min-width: 40px;
+  height: 18px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 2px;
+  /* at most half: the numbers stay readable in both themes */
+  background: color-mix(in srgb, var(--qiv-warning) calc(var(--qiv-distance, 0%) / 2), var(--qiv-surface-alt));
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.qiv-distance:hover:not(:disabled) {
+  box-shadow: 0 0 0 1px var(--qiv-accent);
+}
+.qiv-distance:focus-visible {
+  outline: 2px solid var(--qiv-accent);
+  outline-offset: 1px;
+}
+.qiv-distance:disabled {
+  cursor: default;
+}
+.qiv-distance.qiv-distance-same {
+  color: var(--qiv-text-muted);
+}
+.qiv-distance-self {
+  background: transparent;
+}
+.qiv-compare-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+}
+
+/* Compact, e.g. the rows of a contact sheet: the images, and the toolbar when users ask for it */
+.qiv-compact:not(.qiv-chrome-open) .qiv-header > :not(.qiv-toolbar),
+.qiv-compact:not(.qiv-chrome-open) .qiv-toolbar > :not(.qiv-notice, .qiv-tools),
+.qiv-compact:not(.qiv-chrome-open) .qiv-tools > :not(.qiv-toast) {
+  display: none;
+}
+/* what the app says of the images (e.g. "same as the reference") and messages stay */
+.qiv-compact:not(.qiv-chrome-open) .qiv-toolbar {
+  min-height: 0;
+}
+.qiv-notice {
+  display: contents;
+}
+/* small tiles: the names, without the images' sizes */
+.qiv-compact .qiv-tile .qiv-label-detail,
+.qiv-compact .qiv-label-detail + .qiv-label-detail {
+  display: none;
+}
+.qiv-chrome-toggle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: rgba(17, 20, 24, 0.6);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0.5;
+}
+.qiv-chrome-toggle:hover,
+.qiv-chrome-toggle:focus-visible,
+.qiv-chrome-toggle[aria-pressed="true"] {
+  opacity: 1;
+}
+.qiv-chrome-toggle .qiv-icon {
+  fill: currentColor;
+}

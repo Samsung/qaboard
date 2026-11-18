@@ -41,18 +41,20 @@ jobs:
   python:
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         # 3.13: the Python of the images (the backend imports qaboard), 3.11: the oldest we test
         python: ['3.11', '3.13']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
+          persist-credentials: false  # no step pushes
           # the history, without the files' contents: to check the migrations against master's
           fetch-depth: 0
           filter: blob:none
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           python-version: ${{ matrix.python }}
           enable-cache: true
@@ -68,6 +70,10 @@ jobs:
         # valid frontmatter and docs links, and notes being written short enough to read (see CLAUDE.md)
         if: matrix.python == '3.11'
         run: uv run website/release-notes/release_notes.py check --strict
+      - name: backend/uv.lock is up to date
+        # uv sync --locked above only checks uv.lock; a version bump can leave backend/uv.lock behind
+        if: matrix.python == '3.11'
+        run: uv lock --check --directory backend
       - name: Merged migrations are never changed
         # databases record the migrations they ran by id: a changed one doesn't run again where it already ran
         if: matrix.python == '3.11' && github.event_name != 'release'
@@ -93,12 +99,15 @@ jobs:
   webapp:
     runs-on: ubuntu-24.04 # playwright 1.56 has no chromium for ubuntu 26.04
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: webapp
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # no step pushes
+      - uses: actions/setup-node@v7
         with:
           node-version: 24.x
           cache: npm
@@ -111,7 +120,7 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run e2e
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-results
@@ -121,6 +130,7 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write # pushes the images to ghcr.io
@@ -130,15 +140,17 @@ jobs:
       QABOARD_UWSGI_CHEAPER: "1"
       QABOARD_UWSGI_CHEAPER_INITIAL: "2"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # no step pushes
       - name: Version
         run: |
           echo "QABOARD_VERSION=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
           # The image names in docker-compose.yml. They must be lowercase, unlike some owners
           echo "QABOARD_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/qaboard" >> "$GITHUB_ENV"
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - name: Build the images
-        uses: docker/bake-action@v6
+        uses: docker/bake-action@v7
         with:
           source: .
           files: docker-compose.yml
@@ -222,12 +234,39 @@ jobs:
             docker push "$DOCKERHUB_IMAGE:$service-$QABOARD_VERSION"
           done
 
+  # The development setup of CONTRIBUTING.md starts: development.yml isn't used anywhere else in CI (#140).
+  # On master only, and not needed to publish the images: a broken dev setup doesn't block a release.
+  dev-server:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+      - name: Start the development setup
+        run: |
+          (cd webapp && npm ci --no-audit --no-fund)
+          docker compose -f docker-compose.yml -f development.yml up -d --build db redis rabbitmq backend frontend
+      - name: The development backend and frontend answer
+        run: |
+          curl -sSf --retry 60 --retry-all-errors --retry-delay 5 http://localhost:5152/api/v1/health
+          curl -sSf --retry 30 --retry-all-errors --retry-delay 5 http://localhost:3000/ > /dev/null
+      - name: Logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.yml -f development.yml logs --tail 100 backend frontend
+
   helm:
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # no step pushes
+      - uses: azure/setup-helm@v5
         with:
           version: v4.3.0
       - name: Lint and validate the chart
@@ -248,8 +287,10 @@ jobs:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # no step pushes
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
           cache-dependency-glob: |
@@ -260,10 +301,10 @@ jobs:
         run: |
           echo "QABOARD_VERSION=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
           echo "QABOARD_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/qaboard" >> "$GITHUB_ENV"
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       # The images of the docker job, from its layer cache
       - name: Build the images
-        uses: docker/bake-action@v6
+        uses: docker/bake-action@v7
         with:
           source: .
           files: docker-compose.yml
@@ -324,7 +365,9 @@ jobs:
     env:
       KIND_VERSION: v0.32.0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # no step pushes
       - name: Version
         run: |
           echo "QABOARD_VERSION=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
@@ -334,10 +377,10 @@ jobs:
         run: |
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
           df -h /
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       # The images of the docker job, from its layer cache. The first time a Dockerfile changes, they are built in parallel.
       - name: Build the images
-        uses: docker/bake-action@v6
+        uses: docker/bake-action@v7
         with:
           source: .
           files: docker-compose.yml
@@ -348,7 +391,7 @@ jobs:
             website.cache-from=type=gha,scope=website
             proxy.cache-from=type=gha,scope=proxy
             cantaloupe.cache-from=type=gha,scope=cantaloupe
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
           cache-dependency-glob: |
@@ -358,7 +401,7 @@ jobs:
       # quickstart.yaml restores the demo data, from the demo-data image of this version
       - name: Demo data
         run: .github/scripts/demo_data_fixture.sh "$QABOARD_IMAGE:demo-data-$QABOARD_VERSION"
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
         with:
           version: v4.3.0
       - name: Install kind
@@ -461,8 +504,10 @@ jobs:
     env:
       KIND_VERSION: v0.32.0
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # no step pushes
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
       - name: Install kind
@@ -479,6 +524,7 @@ jobs:
   publish-docker-images:
     runs-on: ubuntu-latest
     if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
+    timeout-minutes: 15
     needs: [python, webapp, docker, helm, helm-e2e, quickstart]
     permissions:
       contents: read
@@ -535,13 +581,16 @@ jobs:
   publish-chart:
     runs-on: ubuntu-latest
     if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
+    timeout-minutes: 10
     needs: [publish-docker-images]
     permissions:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # no step pushes
+      - uses: azure/setup-helm@v5
         with:
           version: v4.3.0
       - name: Package and push the chart
