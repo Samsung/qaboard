@@ -5,7 +5,6 @@ import os
 import json
 import fnmatch
 import datetime
-from pathlib import Path
 
 from sqlalchemy import Column, ForeignKey, Index
 from sqlalchemy.orm import relationship

@@ -103,8 +103,8 @@ input and configurations are compared from a commit to the next, and with the re
 
 ## In your CI {#ci}
 
-<Tabs groupId="ci">
-<TabItem value="github" label="GitHub Actions" default>
+<Tabs groupId="ci" queryString>
+<TabItem value="github-actions" label="GitHub Actions" default>
 
 ```yaml title=".github/workflows/tests.yml"
 jobs:
@@ -124,7 +124,7 @@ jobs:
 ```
 
 </TabItem>
-<TabItem value="gitlab" label="GitLab CI">
+<TabItem value="gitlab-ci" label="GitLab CI">
 
 ```yaml title=".gitlab-ci.yml"
 unit-tests:
