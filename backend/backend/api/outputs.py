@@ -188,7 +188,8 @@ def add_output_metrics(output_id):
   """
   project_id = None
   try:
-    output = Output.query.filter(Output.id==output_id).with_for_update().one()
+    # only the run's row: Output.test_input is loaded with an outer join, which PostgreSQL can't lock
+    output = Output.query.filter(Output.id==output_id).with_for_update(of=Output).one()
     # the session may hold the run from the access check above: read it again, now that it's locked
     db_session.refresh(output)
     project_id = output.batch.ci_commit.project_id
@@ -290,7 +291,8 @@ def report_output_progress(output_id):
     return jsonify({"error": f"`params` must be an object, of at most {MAX_PROGRESS_PARAMS_SIZE} characters as JSON"}), 400
   # only now the lock: callers we refuse don't hold up the run's own updates
   try:
-    output = Output.query.filter(Output.id==output_id).with_for_update().one()
+    # only the run's row: Output.test_input is loaded with an outer join, which PostgreSQL can't lock
+    output = Output.query.filter(Output.id==output_id).with_for_update(of=Output).one()
     # the session may hold the run from the access check above: read it again, now that it's locked
     db_session.refresh(output)
   except NoResultFound:
