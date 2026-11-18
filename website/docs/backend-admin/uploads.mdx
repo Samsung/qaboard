@@ -71,8 +71,9 @@ Uploads are new. Start with a few projects.
   [restrict who reads files](/docs/backend-admin/user-management#restricting-who-can-read-files), who can read an
   uploaded file is who can [see its project](/docs/backend-admin/project-access). Projects with a folder named `-`
   in their name can't upload.
-- Use a folder of its own, not one runs write to directly: the server refuses runs and artifacts that say they are
-  in it, or above it, since deleting them would delete uploaded runs.
+- The folder can be a storage root that runs also write to directly: uploaded runs are under `<project>/-/`, the
+  others under `<project>/<commit>/`. The server refuses runs and artifacts that say they are in a project's uploaded
+  runs or above them (the project's or its group's folder), since deleting them would delete uploaded runs.
 - The files belong to the server's user. Users delete them from the web app, never by hand.
 
 ## Keep it safe {#security}

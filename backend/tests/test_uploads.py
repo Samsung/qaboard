@@ -435,6 +435,7 @@ def test_the_database_cant_send_files_elsewhere(outputs_api, dummy_app, upload_r
 def test_clients_cant_say_their_results_are_in_the_uploads_folders(outputs_api, dummy_app, upload_root, monkeypatch):
   monkeypatch.setattr(outputs_api, "check_storage_path", lambda path: path)
   victim = run_dir_of("victim/secret")
+  monkeypatch.setattr(outputs_api, "all_project_ids", lambda: ["victim/secret", "group/repo"])
   # nor above them: deleting the run would delete all the project's uploaded runs
   for directory in (victim, f"{upload_root}/x/../victim/secret/-/01", upload_root / "victim/secret", upload_root / "victim", upload_root, upload_root.parent):
     response, status = start(outputs_api, dummy_app, storage=None, output_directory=str(directory))
@@ -442,12 +443,18 @@ def test_clients_cant_say_their_results_are_in_the_uploads_folders(outputs_api, 
     response, status = start(outputs_api, dummy_app, storage=None, output_directory="/mnt/storage/x", artifacts_commit=str(directory))
     assert status == 400 and response.get_json()["reason"] == "uploads_folder", directory
   # through a symlink too
+  (upload_root / "victim/secret").mkdir(parents=True)
   link = upload_root.parent / "link"
-  link.symlink_to(upload_root / "victim", target_is_directory=True) if (upload_root / "victim").exists() else link.symlink_to(upload_root, target_is_directory=True)
-  response, status = start(outputs_api, dummy_app, storage=None, output_directory=str(link / "x"))
-  assert status == 400
+  link.symlink_to(upload_root / "victim", target_is_directory=True)
+  for directory in (link, link / "secret"):
+    response, status = start(outputs_api, dummy_app, storage=None, output_directory=str(directory))
+    assert status == 400, directory
   response, status = start(outputs_api, dummy_app, storage=None, output_directory="/mnt/storage/group/repo/01/23/output/x")
   assert status == 200 and "uploads_files" not in outputs_api.test_output.data
+  # the uploads folder can also be a storage that runs write to directly, like the quickstart's
+  for directory in (upload_root / "group/repo/01/23456789abcdef/output/linux/red", upload_root / "victim/secret/ab/cdef/output"):
+    response, status = start(outputs_api, dummy_app, storage=None, output_directory=str(directory), artifacts_commit=str(directory.parent))
+    assert status == 200, (directory, response.get_json())
   # and clients can't say that a run uploads
   start(outputs_api, dummy_app, storage=None, output_directory="/mnt/storage/x", data={"uploads_files": True})
   assert "uploads_files" not in outputs_api.test_output.data

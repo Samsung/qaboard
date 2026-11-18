@@ -69,16 +69,31 @@ def bases(project_id: Optional[str] = None) -> List[Path]:
   return list(dict.fromkeys(everything))
 
 
-def overlaps_uploads(path) -> bool:
+def overlaps_uploads(path, project_ids) -> bool:
   """
-  Whether a folder is in the folders of uploaded runs, or contains one of them: clients that save their results in a
-  shared storage can't say their run is there, nor their artifacts. Symlinks are resolved.
+  Whether clients that save results in a shared storage may not say their run, or their artifacts, are in `path`:
+  deleting them would delete uploaded runs. That is a folder in a project's uploaded runs (<project>/-/...), a folder
+  above them (the project's, its group's, the uploads folder or above it), symlinks resolved. The uploads folder can
+  also be a storage that runs write to directly, under <project>/<commit>/...: those folders are fine.
+  `project_ids`: all the projects, whose uploaded runs may be there, or a function that gives them (called only for
+  folders in the uploads folder).
   """
   candidates = {Path(os.path.normpath(path)), Path(os.path.realpath(path))}
+  ids: Optional[List[str]] = None
+  for candidate in candidates:
+    if project_of(str(candidate)):
+      return True
   for base in bases():
     for real_base in {Path(os.path.normpath(base)), Path(os.path.realpath(base))}:
-      if any(c == real_base or c.is_relative_to(real_base) or real_base.is_relative_to(c) for c in candidates):
-        return True
+      for candidate in candidates:
+        if real_base.is_relative_to(candidate):
+          return True
+        if candidate.is_relative_to(real_base):
+          relative = candidate.relative_to(real_base).as_posix()
+          if ids is None:
+            ids = list(project_ids() if callable(project_ids) else project_ids)
+          if any(f"{project_id.strip('/')}/".startswith(f"{relative}/") for project_id in ids):
+            return True
   return False
 
 

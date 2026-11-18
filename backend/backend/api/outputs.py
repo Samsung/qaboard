@@ -43,6 +43,11 @@ MAX_PROGRESS_METRICS = 2000
 MAX_PROGRESS_PARAMS_SIZE = 100_000
 
 
+def all_project_ids() -> list:
+  from ..models import Project
+  return [row[0] for row in Project.query.with_entities(Project.id)]
+
+
 def added_metrics_of(data) -> dict:
   data = data if isinstance(data, dict) else {}
   added = data.get('added_metrics')
@@ -437,7 +442,7 @@ def new_output_webhook():
   # the folders of uploaded runs are the server's to choose: no client says its results (or artifacts) are there, or
   # above them, else deleting its run would delete them
   for folder in (output_directory, artifacts_commit):
-    if folder and uploads.overlaps_uploads(folder):
+    if folder and uploads.overlaps_uploads(folder, project_ids=all_project_ids):
       return jsonify({"error": f"{folder} is where the server saves the files runs send it: results can't be saved there directly.", "reason": "uploads_folder"}), 400
 
   if error := invalid_project(data.get('project')):
