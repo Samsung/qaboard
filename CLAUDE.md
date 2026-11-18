@@ -121,6 +121,9 @@ Optional dependencies are extras: `uv sync --extra dev --extra celery --extra da
 fixes (runners implement `doctor()`). The server starts/stops batches with `QABOARD_TUNING_RUNNER` (`backend/backend/runner_jobs.py`,
 `local_jobs.py`). `qa batch --commit <sha>` (`qaboard/on_server.py`) has the server start a batch on a commit through the
 web app's tuning endpoints (`backend/backend/api/tuning.py`, documented in `backend/backend/openapi.yaml`). Design and trust model: `docs/design/kubernetes-runner.md`; known limits: `docs/warts.md` (Runners).
+An image per commit (`{commit}` in `runners.kubernetes.image`, with `workdir`) is looked up in its registry before pods
+start (`qaboard/runners/registry.py`); what's left for runs without a shared storage (artifacts through the server):
+`docs/design/ingest-upload-sdk.md` §3 item 2.
 Kubernetes end-to-end test on kind: `.github/scripts/kubernetes_runner_e2e.py`.
 
 ## Release notes and docs (communicating with users)
