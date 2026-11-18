@@ -88,7 +88,10 @@ export const Header = styled.div`
   }
   .actions {
     display: flex;
+    flex: none;
+    align-items: center;
     margin-left: auto;
+    white-space: nowrap;
   }
 `
 

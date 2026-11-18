@@ -694,6 +694,17 @@ paths:
                       command: {type: string}
                       runner: {type: string}
                       batch: {type: string, description: The batches it runs, separated by spaces.}
+                      batches_snapshot:
+                        type: object
+                        description: >-
+                          What `qa batch` reads: the batches that run, as they were defined when it started, with only
+                          them and the aliases that reach them (`batches.yaml` in the submission's logs folder).
+                        properties:
+                          path: {type: string, description: Relative to the submission's logs folder.}
+                          batches: {type: array, items: {type: string}}
+                          aliases: {type: array, items: {type: string}}
+                          files: {type: array, items: {type: string}, description: The files they come from.}
+                          inputs: {type: array, items: {type: string}, description: Names that are not batches, read as input paths.}
                   warning: {type: [string, "null"], description: "E.g. only the source code of the artifacts could be restored."}
         "400": {$ref: "#/components/responses/BatchRefused"}
         "401": {$ref: "#/components/responses/Unauthorized"}

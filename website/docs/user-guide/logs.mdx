@@ -153,25 +153,26 @@ Celery, or on the server. Until its runs show up, a message on every view of the
   turn on **Overwrite previous identical runs** in the
   [form](/docs/user-guide/running-from-the-webapp#running-tests-and-tuning).
 
-In the Logs view, **Started from QA-Board** lists these `qa batch` commands, most recent first (**Show N older** for
-more than three): their status (**Queued**, **Running**, **Failed**, **Done**, **Stopped**), who started them and when,
-where they run (e.g. an LSF job, a Kubernetes job, or the QA-Board server itself), and the batch files their batches
-come from (e.g. *from qa/batches.yaml*, or your private batches). Open one for the files, which link to your git
-server at the commit or to **Available Tests**, the command it ran and its log, live while it runs. `qa batch` reads copies of these files, saved
-in the `batches` folder next to its log so you can see what ran and run it again: like on your computer, it reads them in
-order, uses their file-level defaults (`database`, `configurations`, `platform`), and when several files define a batch,
-the last one wins. Its folder buttons copy the path of, or open, the folder with
-the script QA-Board ran and its logs.
+They are listed with the other [commands that started the batch](#batch-commands).
+
+## The commands that started a batch {#batch-commands}
+At the top of the Logs view, **Commands** lists the `qa batch` (and `qa optimize`) commands that started the batch,
+the latest first, wherever they ran (**Show N older** for more than four). Each one says where it comes from:
+*from QA-Board* (with its status: **Queued**, **Running**, **Failed**, **Done**, **Stopped**), **Terminal**
+(`qa --share batch`) or **CI**, who started it and when, on which host or where it runs (e.g. an LSF job, a
+Kubernetes job, or the QA-Board server itself), and the batch files its batches come from. The buttons next to
+**Commands** copy the path of the batch's directory, or open it.
 
 <Shot
   id="logs/batch-commands"
-  caption="A tuning sweep started from QA-Board: its qa batch command, with its own logs, then its runs and the Batch section."
+  caption="A tuning sweep started from QA-Board: its qa batch command, with its own logs, then its runs."
 />
 
-## The commands that started a batch {#batch-commands}
-At the bottom of the Logs view, the **Batch** section has buttons to copy the path of the batch's directory or open
-it, and lists the `qa batch` commands that started the batch, the latest first: when, by whom, on which host, and the
-command, to copy. On the right, where their logs are:
+Commands from a terminal or the CI show what was typed, to copy. Click a command to open it: the batches it ran, the
+aliases that reached them and the files they come from, and its log when QA-Board has it. Commands started from
+QA-Board also show where their batches are defined, linked to your git server at the commit or to
+**Available Tests**, the command QA-Board ran and its log, live while it runs; their folder buttons open the folder
+with the script QA-Board ran and its logs. On the right, where the logs of a command are:
 
 - **Logs in the CI job**: a link to the CI job that ran it.
 - **Show its logs**: QA-Board has them. The command was started from a terminal with `qa --share batch` (or
@@ -180,9 +181,49 @@ command, to copy. On the right, where their logs are:
 - **Logs not saved**: for instance, it was started from a terminal by an older version of `qaboard`, which only
   printed its logs there.
 
-Whatever started the batch, each run's own logs are saved, in the list above. With the Dask runner, **Dask workers'
+Whatever started the batch, each run's own logs are saved, in **Runs** below. With the Dask runner, **Dask workers'
 logs** opens the logs of the workers. For CI jobs you started from the **Integrations** menu, click their status tag to
 open the job's page and its logs: see [Integrations](/docs/user-guide/running-from-the-webapp#integrations).
+
+## Did the batches change? {#compare-batches}
+Results differ from the reference, and you wonder whether the batch itself changed: an input added, a configuration
+edited. When QA-Board saved the batches of two commands, **Batches that ran**, above the commands, compares them: the
+latest of this batch with the latest of the [reference batch](/docs/user-guide/comparing-results), else with the
+previous command of this batch. Pick other commands in its menus, from either batch.
+
+It says **Same batches**, or what changed, like *low-light changed, smoke added*. **Show the changes** shows the two
+files side by side (or **Inline**). The comments at their top, like when each command started, are left out: they
+always differ. Batches and aliases compare by their content, whatever the order of their keys.
+
+## Run a batch again {#run-again}
+Batch files change: someone edits a batch, and the inputs or configurations a batch ran last week are gone. When a
+batch starts, `qa batch` and QA-Board save its batches as they were defined then, with only what it ran: the
+batches, chosen by name, pattern or alias (aliases of aliases too), and the aliases that reached them.
+
+Click **Run again…** next to a command:
+
+- **Open in Run Tests / Tuning** fills in the [form](/docs/user-guide/running-from-the-webapp#running-tests-and-tuning)
+  for this commit: the batch, the same tuning parameters and platform, and a new name (*label-again*). A message
+  above the batch says it runs the batches as they ran; **Use the batches as defined now** goes back to the current
+  definitions. Change what you want, then start.
+- **From a terminal**: download the batches as a YAML file, then copy the command that runs them, like it was started,
+  or have QA-Board run it on the commit from its artifacts with
+  [`qa batch --commit`](/docs/tuning-from-the-webapp#from-the-command-line).
+- The file itself is at the bottom, to read what ran.
+
+<details>
+<summary>What is saved, and what isn't</summary>
+
+- The file stands alone: the defaults of each file (`database`, `configurations`, `platform`) are copied into its
+  batches, YAML anchors are expanded, and a comment says which file each batch comes from. When several files define
+  a batch, it keeps the one that ran (the last one).
+- Batches started from QA-Board read this file: it is `batches.yaml` in the folder with the script QA-Board ran.
+  Commands from a terminal or the CI send it to QA-Board, up to 256 kB.
+- Names that are not batches are input paths: the file doesn't have them, the command does.
+- Your code, `qaboard.yaml` and the inputs aren't in it: running it on another commit runs that commit's code.
+- Commands started before 2026-12 don't have it: **Run again…** then uses the batches as they are defined now.
+
+</details>
 
 <details>
 <summary>Where the log files are</summary>

@@ -62,7 +62,7 @@ describe('commandLogs', () => {
 describe('BatchLogs', () => {
   it('says where the logs of each command are', async () => {
     renderLogs(makeBatch())
-    expect(screen.getByRole('heading', { name: /^Batch: / })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Commands' })).toBeInTheDocument()
     expect(screen.getByLabelText('Open the batch directory')).toHaveAttribute('href', '/s/b/')
     expect(screen.getByLabelText('Copy the path of the batch directory')).toBeInTheDocument()
     expect(screen.getByText('Logs in the CI job').closest('a')).toHaveAttribute('href', 'https://gitlab.example.com/job/1')
@@ -84,7 +84,7 @@ describe('BatchLogs', () => {
     expect(await screen.findByText('starting the tuning')).toBeInTheDocument()
   })
 
-  it('links the commands started from QA-Board to their logs', async () => {
+  it('shows the commands started from QA-Board once, with their logs', async () => {
     const id = 'abcdef12-0000'
     files['/s/b/qaboard-batches/1/log.txt'] = '+ qa batch\n[qaboard] qa batch exited with code 0\n'
     const submission = { id, created_at: '2026-10-12T08:00:00Z', user: 'alice', runner: 'local', command: 'qa batch --batch nightly', status: 'done', log_dir_url: '/s/b/qaboard-batches/1' }
@@ -92,11 +92,30 @@ describe('BatchLogs', () => {
       commands: { [id]: { command_created_at_datetime: created_at, argv: ['qa', 'batch', '--batch', 'nightly'], share: false } },
       submissions: { [id]: submission },
     }))
-    expect(screen.getByText('Started from QA-Board', { selector: 'span' })).toBeInTheDocument()
+    // the command QA-Board started is its submission
+    expect(screen.getAllByText('qa batch').length).toBe(1)
+    expect(screen.getByText(/from QA-Board · by alice/)).toBeInTheDocument()
     expect(screen.getByLabelText("Open the folder with qa batch's script and logs")).toHaveAttribute('href', '/s/b/qaboard-batches/1/')
     expect(screen.queryByText('[qaboard] qa batch exited with code 0')).toBeNull()
-    fireEvent.click(screen.getByText('Show its logs'))
+    fireEvent.click(screen.getAllByLabelText('Show the logs')[0])
     await screen.findByText('[qaboard] qa batch exited with code 0')
+  })
+
+  it('shows what ran, and how to run it again', async () => {
+    const yaml = '# The batches this command ran\nnightly:\n  inputs: [a]\n'
+    const command = {
+      command_created_at_datetime: created_at, argv: ['/venv/bin/qa', '--share', 'batch', '--batches-file', 'qa/b.yaml', 'nightly'], user: 'alice', share: true,
+      batches_snapshot: { yaml, batches: ['nightly'], aliases: [], files: ['qa/b.yaml'], inputs: [], names: ['nightly'], reproduce: ['qa', '--share', 'batch', '--batches-file', 'batches.yaml', 'nightly'] },
+    }
+    renderWithProviders(<BatchLogs batch={{ ...makeBatch({ commands: { c5: command } }), label: 'night' }} project="p" commit={{ id: 'abc', hexsha: 'abcdef1234567', batches: { night: {} } }} />)
+    // what people typed, from QA-Board's file
+    expect(screen.getByText('qa --share batch --batches-file qa/b.yaml nightly')).toBeInTheDocument()
+    expect(screen.getByText(/from qa\/b\.yaml/)).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Run again…'))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByLabelText('The batches as they ran')).toHaveTextContent('nightly:')
+    expect(within(dialog).getByText('qa --share batch --batches-file batches.night.yaml nightly')).toBeInTheDocument()
+    expect(within(dialog).getByText('qa --label night-again batch --commit abcdef1234 --batches-file batches.night.yaml nightly')).toBeInTheDocument()
   })
 
   it('says which batch files the batches started from QA-Board come from', async () => {
@@ -121,22 +140,18 @@ describe('BatchLogs', () => {
   })
 
   it('shows the logs of older submissions, hidden by default', async () => {
-    const scrollIntoView = vi.fn()
-    Element.prototype.scrollIntoView = scrollIntoView
-    const submissions = Object.fromEntries([1, 2, 3, 4].map(day => [`s${day}`, {
+    const submissions = Object.fromEntries([1, 2, 3, 4, 5, 6].map(day => [`s${day}`, {
       id: `s${day}`, created_at: `2026-10-0${day}T08:00:00Z`, runner: 'local', command: `qa batch ${day}`, status: 'done', log_dir_url: `/s/b/qaboard-batches/${day}`,
     }]))
     files['/s/b/qaboard-batches/1/log.txt'] = 'the oldest\n'
     renderLogs(makeBatch({ commands: { s1: { command_created_at_datetime: created_at, argv: ['qa', 'batch', '1'], share: false } }, submissions }))
-    expect(screen.getByText('Show 1 older')).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Show its logs'))
+    // the 4 most recent are shown (s1 is both a submission and a command)
+    expect(screen.getByText('Show 2 older')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Show 2 older'))
+    fireEvent.click(screen.getAllByLabelText('Show the logs').at(-1))
     expect(await screen.findByText('the oldest')).toBeInTheDocument()
-    expect(scrollIntoView).toHaveBeenCalledTimes(1)
-    // the row mounts again: we don't scroll to it again
     fireEvent.click(screen.getByText('Show less'))
-    fireEvent.click(screen.getByText('Show 1 older'))
-    expect(await screen.findByText('the oldest')).toBeInTheDocument()
-    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('the oldest')).toBeNull()
   })
 
   it('shows the logs that qa batch saved', async () => {

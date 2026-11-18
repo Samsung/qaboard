@@ -887,7 +887,7 @@ shots:
   - id: logs/batch-commands
     kind: still
     project: serving-latency
-    shows: 'The Logs view of the tune-batching sweep, started from QA-Board: its `qa batch` command and log, its runs (filtered on one configuration), and the Batch section with the command. (The CI batch''s command and job link show in the CI batch''s Logs view, one batch at a time.)'
+    shows: 'The Logs view of the tune-batching sweep, started from QA-Board: under Commands, its `qa batch` command with Run again, what it ran and its log, then its runs (filtered on one configuration). (The CI batch''s command and job link show in the CI batch''s Logs view, one batch at a time.)'
     pages: [user-guide/logs, backend-admin/runners]
     needs: cache-sharded (tune-batching)
     phase: 2

@@ -897,6 +897,21 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
     }
     if log:
       command_data['log'] = log['path'] # relative to the batch directory
+    if tuning_search_dict or tuning_search_file:
+      command_data['tuning_search'], _ = load_tuning_search(tuning_search_dict, tuning_search_file)
+    if runs is None:
+      # The batches as they are now, filtered to what runs: to see and run them again after the files change
+      from .batch_snapshot import command_snapshot
+      from .conventions import location_from_spec
+      snapshot = command_snapshot(
+        batches,
+        [(str(f), location_from_spec(f, {"project": project, "subproject": subproject})) for f in batches_files],
+        allow_duplicate_batches=bool((config.get('inputs') or {}).get('allow_duplicate_batches')),
+        argv=sys.argv,
+        when=command_data["command_created_at_datetime"] + 'Z',
+      )
+      if snapshot:
+        command_data['batches_snapshot'] = snapshot
     if runner == 'dask':
       # so that the backend can stop the batch
       scheduler_address = runs_job_options.get('scheduler_address', dask_config.get('scheduler_address'))

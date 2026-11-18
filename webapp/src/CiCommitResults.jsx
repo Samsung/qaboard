@@ -510,6 +510,7 @@ const CiCommitResults = () => {
                   project={new_project}
                   commit={new_commit}
                   batch={new_batch}
+                  ref_batch={ref_batch}
                   available_tests_files={available_tests_files}
                   repo_file_url={repo_file_url}
                   batch_label={new_batch.label}
