@@ -402,7 +402,8 @@ def uploads_files_with(config: Dict, environ=os.environ) -> bool:
   """
   return sends_files(config, environ.get('QA_STORAGE'))
 
-uploads_files = uploads_files_with(config)
+# only in a project: outside one, `qa` shares nothing (qa upload and start_run() decide for themselves, active_run.py)
+uploads_files = bool(root_qatools_config) and uploads_files_with(config)
 
 outputs_root: Optional[Path]
 artifacts_root: Optional[Path]
