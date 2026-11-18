@@ -60,7 +60,8 @@ def fail_silent_runs(now: Optional[datetime.datetime] = None) -> int:
   silent = (Output.query
     .filter(Output.is_pending.is_(True), Output.is_running.is_(True), Output.reported_at < limit,
             text("(outputs.data->>'heartbeat') = 'true'"))
-    .with_for_update(skip_locked=True).all())
+    # only the runs' rows: Output.test_input is loaded with an outer join, which PostgreSQL can't lock
+    .with_for_update(skip_locked=True, of=Output).all())
   reasons = {}  # the batch's command: why one of its runs failed
   for output in silent:
     # like the runs "Fail stuck runs" fails (backend/run_activity.py:fail_runs), shown in Runs activity
