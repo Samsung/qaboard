@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional, List
 
 import click
 
-from .config import project, commit_id, is_ci, available_metrics, is_doctor_command, is_upload_command
+from .config import project, commit_id, is_ci, available_metrics, is_doctor_command, is_command_without_project
 from .run import RunContext
 
 from .site_config import site_config, as_requests_verify
@@ -30,7 +30,7 @@ qaboard_url, qaboard_url_source = default_server()
 # Only when nothing says where the server is: QABOARD_URL=http://localhost:5151 is fine.
 # `qa auth status` and `qa doctor` say it too.
 # (`qa upload` doesn't guess: it says to set QABOARD_URL)
-if not qaboard_url_source and sys.argv[1:2] not in (['auth'], ['runs']) and not is_doctor_command and not is_upload_command:
+if not qaboard_url_source and sys.argv[1:2] not in (['auth'], ['runs']) and not is_doctor_command and not is_command_without_project:
   click.secho("WARNING: We are not sure where to find your QA-Board server.", fg='yellow', bold=True, err=True)
   click.secho(f"         We will default to {qaboard_url}", fg='yellow', bold=True, err=True)
   click.secho("         To remove this warning provide it as an environment variable (via QABOARD_HOST, e.g. 'qaboard-srv', 'qaboard-srv:443').", fg='yellow', err=True)

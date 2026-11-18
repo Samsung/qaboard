@@ -106,6 +106,8 @@ services:
     - REDIS_HOST=redis
     - REDIS_PORT=6379
     - QABOARD_LOGIN_TYPE=${QABOARD_LOGIN_TYPE:-LOCAL} # LOCAL/LDAP/SAML
+    # Where the `qa batch` it starts (tuning, redo) reaches QA-Board: through the proxy, which serves the files they fetch
+    - QABOARD_HOST=${QABOARD_HOST:-proxy}
     - QABOARD_LOGIN_REQUIRED=${QABOARD_LOGIN_REQUIRED:-} # true: users must sign in to see anything. Empty: as set in the admin panel
     - QABOARD_LOGIN_RESTRICTED=${QABOARD_LOGIN_RESTRICTED:-} # true/false
     - QABOARD_LOGIN_RESTRICTED_YAML=${QABOARD_LOGIN_RESTRICTED_YAML:-} # path

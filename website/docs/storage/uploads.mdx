@@ -72,8 +72,8 @@ The server only has what runs sent it. It can't start your code where it has no 
 | | Without a shared storage |
 |---|---|
 | See, compare, export and delete runs; the quality gate; History | Yes |
-| [`qa save-artifacts`](/docs/storage/artifacts) | Does nothing, and says so: the same CI job works both ways |
-| Start runs and [tuning from the web app](/docs/tuning-from-the-webapp), redo runs | No: they need the artifacts |
+| [`qa save-artifacts`](/docs/storage/artifacts#uploaded) | Yes: it sends the commit's artifacts to the server |
+| Start runs and [tuning from the web app](/docs/tuning-from-the-webapp), redo runs | Yes, on the server's machine or on Kubernetes, from the artifacts `qa save-artifacts` sent ([artifacts](/docs/storage/artifacts#uploaded)). Not with the LSF or Celery runners yet |
 | [`qa check-bit-accuracy`](/docs/bit-accuracy) | Yes: it compares the reference's manifests (its files' hashes), fetched from the server. Not with `QA_BITACCURACY_CMP`, which compares files |
 | [`qa optimize`](/docs/auto-optimization) | Yes: it reads the iterations' metrics from the server. Its journal, to resume, stays on the machine that runs it |
 | `qa batch` with a [cluster runner](/docs/runners) | When the cluster's nodes share the project's folder with the machine that starts the batch |
@@ -89,6 +89,8 @@ A project can mix both: most machines save in the shared storage, and the ones t
 - Each file is a `PUT /api/v1/output/<id>/files/<path>`, with its SHA-256: the server checks what it received
   before the file shows. The log is sent by what was added. See [the HTTP API](/docs/http-api#upload-files).
 - The run's files are all there before the run ends: from then on they don't change.
+- A commit's artifacts are saved the same way, next to its runs, with
+  `PUT /api/v1/commit/<commit>/artifacts/files/<path>`: see [the HTTP API](/docs/http-api#upload-artifacts).
 - Runs send the state of their folder, not events: after a failed request, the next one sends what is missing.
 
 </details>

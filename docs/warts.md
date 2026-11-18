@@ -156,8 +156,10 @@ mount.
 - No quotas per project, no deduplication (a bit-accurate rerun sends everything again), no resume inside a file:
   files over `QABOARD_UPLOAD_MAX_FILE_MB` are refused. [L]
 - `qa batch` with cluster runners only works when the nodes share the working directory with the machine that
-  starts the batch, or on Kubernetes with an image per commit; artifacts, and runs started from the web app (tuning,
-  redo) need a shared storage: next step in `docs/design/ingest-upload-sdk.md` (artifacts through the server). `qa check-bit-accuracy`
+  starts the batch, or on Kubernetes with an image per commit. Runs started from the web app (tuning, redo) run from
+  the artifacts `qa save-artifacts` sent, with a token per batch, on the server's machine or Kubernetes only: not
+  with the LSF or Celery runners. Tokens expire a day after the runs stop, not when the batch ends. See
+  `docs/design/ingest-upload-sdk.md` §3 item 2. `qa check-bit-accuracy`
   compares fetched manifests only, not files (`QA_BITACCURACY_CMP`); `qa optimize` keeps its journal on the machine
   that runs it. `qaboard.runs(url)` gives uploaded runs' `output_dir` on the server, not a local folder. [L]
 - Storage locations (`backend/backend/locations.py`) are reached through folders the admin mounts: no credentials,
@@ -194,7 +196,8 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   the run Jobs itself, the driver calls back with a per-batch credential (design doc, "Follow-ups"). [L, API]
 - Without a shared filesystem, `qa batch` needs an image per commit (`{commit}` in `image`, with `workdir`) and
   `storage: upload`; inputs still come from mounts or the user's code. Batches started from the web app still need
-  the commit's artifacts on the server's storage. Images per commit are looked up in their registry with pull
+  a shared storage, or the artifacts `qa save-artifacts` sent: the pods download them, once per pod (never verified on
+  a real cluster). Images per commit are looked up in their registry with pull
   secrets or `docker login` only (no credential helpers, no cloud IAM: ECR/GCR/ACR without a pull secret read as
   "can't tell"), once, without waiting for a CI that is still pushing; `--prefix-outputs-path` isn't mapped to
   `workdir`. [M, API]

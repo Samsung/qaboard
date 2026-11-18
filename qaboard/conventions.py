@@ -35,6 +35,10 @@ def location_from_spec(spec: Union[str, Dict, os.PathLike], interpolation_vars: 
 # must not start that run again (qaboard/active_run.py)
 RUN_DIR_VARIABLE = 'QABOARD_RUN_DIR'
 
+# The token QA-Board gives the runs of a batch it starts (backend/batch_tokens.py): runners forward it to the
+# machines and pods that run them, unlike other secrets (qaboard/runners/env.py)
+BATCH_TOKEN_PREFIX = 'qab_bat_'
+
 # `storage: upload` (or QA_STORAGE=upload): results are sent to the server over HTTP, see qaboard/upload.py
 UPLOAD_STORAGE = 'upload'
 

@@ -78,6 +78,7 @@ those folders, is in the database: [storage locations](#storage-locations), chan
 ```text
 <QABOARD_UPLOAD_ROOT>/<project>/-/<first 2 characters of the commit>/<next 14>/output[/<batch>]/<configuration>/<input>/
 /mnt/qaboard/kitefin/planner/-/3f/a91c02d4e7b815/output/linux-f0267280/unit-tests/junit.xml
+<QABOARD_UPLOAD_ROOT>/<project>/-/<first 2 characters of the commit>/<next 14>/artifacts/
 ```
 
 - The server chooses the run's folder, and makes its names itself: what a client says about a run (its input, its
@@ -90,6 +91,9 @@ those folders, is in the database: [storage locations](#storage-locations), chan
 - The folder can be a storage root that runs also write to directly: uploaded runs are under `<project>/-/`, the
   others under `<project>/<commit>/`. The server refuses runs and artifacts that say they are in a project's uploaded
   runs or above them (the project's or its group's folder), since deleting them would delete uploaded runs.
+- A commit's [artifacts](/docs/storage/artifacts#uploaded) go to its `artifacts/` folder, with the repository's
+  layout, one copy per project. Batches started from the web app run there, and Kubernetes pods download them.
+  They are deleted like artifacts in a shared storage, by the projects' retention rules.
 - The files belong to the server's user. Users delete them from the web app, never by hand.
 
 ## Keep it safe {#security}
@@ -104,12 +108,17 @@ Whoever can send files can put any file on your server, which serves it to every
   ([HTML reports](/docs/viewers#html-reports)). It is off by default.
 - **Images of restricted projects**: the image server (`/iiif/`) doesn't check who asks. If projects' visibility
   matters on your server, don't expose it beyond the people who may see every project.
+- **Batches started from the web app** for these projects get a token of the person who started them, limited to the
+  project, to reading and sending results, and expiring a day after the runs stop. On Kubernetes it is in the driver
+  pod's environment, so whoever can read the namespace's ConfigMaps can use it meanwhile: one namespace per team.
+  These batches download the artifacts from QA-Board, through the proxy: the server's own `qa` reaches it at
+  `QABOARD_HOST`, set to the proxy in *docker-compose.yml*.
 - **Use HTTPS**: tokens and files travel in the requests.
 
 ## Limits and disk space {#limits}
 | Setting | Default | |
 |---|---|---|
-| `QABOARD_UPLOAD_MAX_FILE_MB` | `1024` | The largest file. The proxy has its own limit, `client_max_body_size 1100m` for `/api/v1/output/<id>/files/` in its configuration: to accept larger files, raise both |
+| `QABOARD_UPLOAD_MAX_FILE_MB` | `1024` | The largest file. The proxy has its own limit, `client_max_body_size 1100m` for the runs' and commits' `/files/` in its configuration: to accept larger files, raise both |
 | `QABOARD_UPLOAD_MIN_FREE_GB` | `1` | Files are refused when the disk has less free space left |
 
 - **The proxy receives each file whole** before the backend sees it, so slow clients don't hold the backend's

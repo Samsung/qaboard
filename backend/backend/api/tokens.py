@@ -49,6 +49,8 @@ def token_expiry(body: dict):
 def list_tokens():
   user = g.actor.user
   tokens = Token.query.filter(Token.user_id == user.id).order_by(Token.created_at.desc().nullslast(), Token.id.desc()).all()
+  # the short-lived tokens the server issued (e.g. for the batches the user started) only while they are active
+  tokens = [t for t in tokens if t.kind not in tokens_lib.TEMPORARY_KINDS or tokens_lib.status(t) == 'active']
   return jsonify({"tokens": [tokens_lib.serialize(t) for t in tokens]})
 
 

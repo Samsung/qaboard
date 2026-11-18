@@ -17,6 +17,8 @@ Checks that:
 5. uploading the run again replaces its files: what isn't sent again is gone
 6. `start_run()` sends its series, its files and its metrics
 7. `qa --share run` with QA_STORAGE=upload, in a project whose storage this machine doesn't mount
+8. without a shared storage, `qa save-artifacts` sends the commit's artifacts, `qa fetch-artifacts` downloads them
+   (not with --no-proxy), and a batch started from the web app runs from them on the server and sends its results
 """
 import argparse
 import http.cookiejar
@@ -286,6 +288,96 @@ def check_qa_run(server, env, workdir, proxy):
     log(f"qa run with QA_STORAGE=upload: {url}")
 
 
+ARTIFACTS_PROJECT = "e2e/artifacts"
+ARTIFACTS_PROJECT_FILES = {
+    "qaboard.yaml": """project:
+  name: e2e/artifacts
+  url: https://git.example.com/e2e/artifacts
+  entrypoint: qa/main.py
+inputs:
+  database: {linux: data, windows: data}
+  batches: qa/batches.yaml
+artifacts:
+  data: {glob: "data/*"}
+""",
+    "qa/batches.yaml": "e2e:\n  inputs:\n    - a.txt\n    - b.txt\n",
+    "qa/main.py": """def run(context):
+    text = context.input_path.read_text()
+    (context.output_dir / "upper.txt").write_text(text.upper())
+    return {"length": len(text)}
+""",
+    "data/a.txt": "hello\n",
+    "data/b.txt": "artifacts\n",
+}
+
+
+def check_artifacts(server, env, workdir, proxy):
+    """
+    A project without a shared storage: `qa save-artifacts` sends its artifacts, `qa fetch-artifacts` downloads them,
+    and a batch started from the web app runs from them on the server, its runs sending their results with the
+    batch's token.
+    """
+    project = workdir / "artifacts_project"
+    for path, content in ARTIFACTS_PROJECT_FILES.items():
+        (project / path).parent.mkdir(parents=True, exist_ok=True)
+        (project / path).write_text(content)
+    subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+    project_env = {**env, "GITHUB_REPOSITORY": ARTIFACTS_PROJECT}
+    run([*QA, "save-artifacts"], project_env, project)
+    query = f"project={urllib.parse.quote(ARTIFACTS_PROJECT)}"
+    _, artifacts = server.json("GET", f"/api/v1/commit/{COMMIT}/artifacts?{query}")
+    if not {"qaboard.yaml", "qa/main.py", "data/a.txt"} <= set(artifacts.get("files", {})):
+        fail(f"The commit's artifacts miss files: {sorted(artifacts.get('files', {}))}")
+    # again: nothing new to send, the same artifacts
+    run([*QA, "save-artifacts"], project_env, project)
+    _, again = server.json("GET", f"/api/v1/commit/{COMMIT}/artifacts?{query}")
+    if again.get("hash") != artifacts.get("hash"):
+        fail("Sending the same artifacts again changed them")
+    log(f"qa save-artifacts: {len(artifacts['files'])} files")
+
+    if proxy:
+        cache = workdir / "artifacts-cache"
+        r = subprocess.run([*QA, "fetch-artifacts", "--project", ARTIFACTS_PROJECT, "--commit", COMMIT], env={**env, "QABOARD_ARTIFACTS_CACHE": str(cache)},
+                           cwd=workdir, text=True, capture_output=True)
+        print(r.stderr, flush=True)
+        if r.returncode:
+            fail(f"qa fetch-artifacts failed ({r.returncode}): {r.stdout}")
+        fetched = Path(r.stdout.strip())
+        if not fetched.is_relative_to(cache) or (fetched / "qa/main.py").read_text() != ARTIFACTS_PROJECT_FILES["qa/main.py"]:
+            fail(f"qa fetch-artifacts didn't fetch qa/main.py as it was sent, in {fetched}")
+        log(f"qa fetch-artifacts: {fetched}")
+
+    # Started as from the web app (signed in): the server runs `qa batch` from the artifacts, with a token for its runs
+    body = {"batch_label": "e2e-from-server", "selected_group": "e2e", "notify": False}
+    _, check = server.json("POST", f"/api/v1/commit/{COMMIT}/batch/check?{query}", body, headers={"Origin": server.base})
+    if check.get("errors"):
+        fail(f"QA-Board refuses to start a batch from the uploaded artifacts: {check['errors']}")
+    _, started = server.json("POST", f"/api/v1/commit/{COMMIT}/batch?{query}", body, headers={"Origin": server.base})
+    log(f"Started a batch from the web app: {started.get('submission', {}).get('status')}")
+    deadline = time.time() + 180
+    while True:
+        _, commit = server.json("GET", f"/api/v1/commit/{COMMIT}?{query}&batch=e2e-from-server")
+        outputs = [o for b in commit.get("batches", {}).values() for o in b.get("outputs", {}).values()]
+        done = [o for o in outputs if not o.get("is_pending") and not o.get("is_running")]
+        if len(done) == 2:
+            break
+        if time.time() > deadline:
+            submission = started.get("submission", {})
+            fail(f"The batch started from the web app didn't finish: {[(o.get('test_input_path'), o.get('is_failed')) for o in outputs]}, "
+                 f"see its log in {submission.get('log_dir')}")
+        time.sleep(3)
+    failed = [o.get("test_input_path") for o in done if o.get("is_failed")]
+    lengths = sorted((o.get("metrics") or {}).get("length") for o in done)
+    if failed or lengths != [6, 10]:
+        fail(f"The runs of the batch started from the web app failed ({failed}) or have unexpected metrics ({lengths})")
+    url = done[0].get("output_dir_url") or ""
+    if f"/{ARTIFACTS_PROJECT}/-/" not in url:
+        fail(f"The runs started from the web app didn't send their files to the server: {url}")
+    if proxy and server.get(f"{url}/upper.txt").strip() not in (b"HELLO", b"ARTIFACTS"):
+        fail(f"Unexpected content for {url}/upper.txt")
+    log(f"The batch started from the web app ran from the uploaded artifacts: {url}")
+
+
 QA = [sys.executable, "-m", "qaboard"]
 SAMPLE_PROJECT = "user/sample_project"  # project.name in qaboard/sample_project/qaboard.yaml
 
@@ -309,6 +401,7 @@ def main():
         check_reupload(server, env, workdir, proxy, url)
         check_sdk(server, env, workdir, proxy)
         check_qa_run(server, env, workdir, proxy)
+        check_artifacts(server, env, workdir, proxy)
     log("All checks passed")
 
 

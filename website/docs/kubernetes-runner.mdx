@@ -88,8 +88,10 @@ runners:
   ([sending results without a shared storage](/docs/upload-results)): leave `storage` out of *qaboard.yaml*. They
   need a [QA-Board token](#token).
 - `qa doctor --runner kubernetes` checks that this commit's image is in its registry.
-- Batches [started from the web app](#namespace-trust) use the commit's image too, but they still need the commit's
-  artifacts on the server's storage (`qa save-artifacts`).
+- Batches [started from the web app](#namespace-trust) use the commit's image too, and run from the commit's
+  artifacts. Without a shared storage, the pods download the ones your CI sent with `qa save-artifacts`: then the
+  image needs `qa`, and the code can come from the artifacts instead of the image
+  ([artifacts without a shared storage](/docs/storage/artifacts#uploaded)).
 
 ## Mount the shared storage {#mounts}
 Each item of `mounts` mounts a volume at `path`, the same path as on the machine where you run `qa batch`. The kind of
@@ -288,8 +290,9 @@ runners:
 ```
 
 ### Give the runs a QA-Board token {#token}
-Secrets are never forwarded to the pods. If your QA-Board server requires a token to save results, give the runs one
-of these:
+Batches started from the web app get a token of whoever started them, when their runs need one: these steps are for
+the batches you start yourself. Other secrets are never forwarded to the pods. If your QA-Board server requires a
+token to save results, give the runs one of these:
 
 - **A Kubernetes Secret**, added to the pods by a `job_template`. Create a token in QA-Board (see
   [tokens](/docs/ci-integration#tokens)), store it in your namespace, and add it to the pods' environment:

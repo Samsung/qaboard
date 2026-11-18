@@ -12,7 +12,7 @@ import datetime
 import traceback
 from shlex import quote
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import click
 from rich.traceback import install
@@ -38,7 +38,7 @@ from .config import project, project_root, subproject, config
 from .config import default_batches_files, get_default_database, default_batch_label, default_platform
 from .config import get_default_configuration, default_input_type
 from .config import commit_id, outputs_commit, artifacts_commit, root_qatools, artifacts_commit_root
-from .config import user, is_ci, on_windows, available_metrics, uploads_files, repo_root
+from .config import user, is_ci, on_windows, available_metrics, uploads_files, repo_root, COMMANDS_WITHOUT_PROJECT
 from .metrics import split_metrics, resolve_definitions, write_definitions_file, with_default_direction
 from . import analytics
 
@@ -68,7 +68,8 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   if ctx.invoked_subcommand in ('auth', 'runs'):
     return
   # `qa upload` works outside a project too: it reads --label, --configuration and --platform itself
-  if ctx.invoked_subcommand == 'upload':
+  # `qa fetch-artifacts` only talks to the server, e.g. in a pod before it has the commit's qaboard.yaml
+  if ctx.invoked_subcommand in COMMANDS_WITHOUT_PROJECT:
     return
   # Local runs save their results in output/: only some commands need the storage
   needed_by = storage_needed_by(ctx.invoked_subcommand, share, is_ci)
@@ -86,13 +87,6 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   if storage_is_missing:
     sys.exit(1)
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
-  # Without a storage shared with the server: check-bit-accuracy compares the reference's manifests, fetched over
-  # HTTP, and optimize reads the iterations' metrics from the API. Only artifacts need the shared storage.
-  if uploads_files and ctx.invoked_subcommand == 'save-artifacts' and not will_show_help:
-    # so that the same CI job works with and without a storage
-    click.secho("Nothing to save: artifacts are for the runs QA-Board starts itself (tuning, runs done again), which need a storage shared", fg='yellow', err=True)
-    click.secho("with the server. Here results are sent to it over HTTP (no `storage` in qaboard.yaml, or `storage: upload`).", fg='yellow', err=True)
-    sys.exit(0)
 
   noop_command = 'init' in sys.argv
   if root_qatools and root_qatools != Path().resolve() and not will_show_help and not noop_command:
@@ -337,7 +331,7 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
           if os.getcwd() != cwd:
             os.chdir(cwd)
 
-          metrics = postprocess_(runtime_metrics, run_context, skip=no_postprocess or runtime_metrics['is_failed'], save_manifests_in_database=save_manifests_in_database, print_summary=True)
+          metrics = postprocess_(runtime_metrics, run_context, skip=no_postprocess or runtime_metrics.get('is_failed', False), save_manifests_in_database=save_manifests_in_database, print_summary=True)
           exit_if_results_refused()
           if metrics['is_failed']:
             sys.exit(1)
@@ -1313,13 +1307,18 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
 @click.argument('groups', nargs=-1, type=click.UNPROCESSED, default=None)
 @click.pass_context
 def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
-  """Save the results at a standard location"""
+  """
+  Saves what runs QA-Board starts itself (tuning, runs done again) need: qaboard.yaml, the batch files, and the
+  `artifacts` of qaboard.yaml, e.g. binaries. In the commit's folder of the storage, or, without a storage shared with
+  the server (`storage: upload`), on the server.
+  """
   import filecmp
   from .config import is_in_git_repo, qatools_config_paths
   from .utils import copy, file_info
-  from .compat import cased_path
 
-  click.secho(f"Saving artifacts in: {artifacts_commit if not artifacts_path else artifacts_path}", bold=True, underline=True)
+  # Without a storage shared with the server, they are sent to it, unless --out says where (the server restoring them)
+  sends = uploads_files and not artifacts_path
+  click.secho("Sending the artifacts to QA-Board" if sends else f"Saving artifacts in: {artifacts_commit if not artifacts_path else artifacts_path}", bold=True, underline=True)
 
   artifacts = {}
 
@@ -1351,9 +1350,15 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
           fg='yellow', dim=True)
       sys.exit(1)
 
+  if sends:
+    send_artifacts(ctx, {name: artifact_globs(artifact_config) for name, artifact_config in artifacts.items()})
+    return
+
   for artifact_name, artifact_config in artifacts.items():
     click.secho(f'Saving artifacts: {artifact_name}', bold=True)
-    manifest_path = artifacts_commit / 'manifests' / f'{artifact_name}.json'
+    # without a storage, the commit's folder is --out's
+    manifests_dir = (artifacts_commit_root / artifacts_path / subproject) if uploads_files else artifacts_commit
+    manifest_path = manifests_dir / 'manifests' / f'{artifact_name}.json'
     try:
       manifest_path.parent.mkdir(parents=True, exist_ok=True)
     except Exception as e:
@@ -1375,16 +1380,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
       manifest = {} 
 
     nb_files = 0
-    globs = artifact_config.get('globs', artifact_config.get('glob', []))
-    if not isinstance(globs, list):
-      globs = [globs]
-
-    for g in globs:
-      if not g: continue
-      for path in Path('.').glob(g):
-        path = cased_path(path)
-        if not path.is_file():
-          continue
+    for path in artifact_paths(artifact_globs(artifact_config)):
         if artifacts_path:
           destination = artifacts_commit_root / artifacts_path / path
         else:
@@ -1417,6 +1413,72 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
   # if the commit was deleted, this notification will mark it as good again 
   notify_qa_database(object_type='commit', **ctx.obj)
   exit_if_results_refused()
+
+
+def artifact_globs(artifact_config) -> List[str]:
+  """The patterns of an artifact group of qaboard.yaml, e.g. {glob: "build/*.so"}"""
+  globs = artifact_config.get('globs', artifact_config.get('glob', [])) if isinstance(artifact_config, dict) else []
+  return [g for g in (globs if isinstance(globs, list) else [globs]) if g]
+
+
+def artifact_paths(globs: List[str]) -> List[Path]:
+  """The files that match the patterns, relative to the current folder: the repository's root, as `qa` sees it"""
+  from .compat import cased_path
+  paths: Dict[Path, None] = {}  # in order, once
+  for g in globs:
+    for path in Path('.').glob(g):
+      path = cased_path(path)
+      if path.is_file():
+        paths[path] = None
+  return list(paths)
+
+
+def send_artifacts(ctx, groups):
+  """`qa save-artifacts` without a storage shared with the server: sends the commit's artifacts to it (qaboard/commit_artifacts.py)"""
+  from .api import qaboard_url
+  from .commit_artifacts import listing, send, ArtifactsError, ServerTooOld
+  files = {name: (subproject / 'manifests' / f'{name}.json', [p.as_posix() for p in artifact_paths(globs)]) for name, globs in groups.items()}
+  # the groups of qaboard.yaml (qa's own start with __): one that matches nothing is likely saved before the build
+  for name, (_, paths) in files.items():
+    if not paths and not name.startswith('__'):
+      click.secho(f"WARNING: The artifacts `{name}` match no files ({', '.join(groups[name])}): run `qa save-artifacts` after the build.", fg='yellow', err=True)
+  if ctx.obj['dryrun']:
+    for path in sorted({path for _, paths in files.values() for path in paths}):
+      click.secho(path, dim=True)
+    return
+  if not commit_id or not re.fullmatch(r'[0-9a-f]{40}', str(commit_id)):
+    click.secho(f"ERROR: QA-Board keeps artifacts for git commits, not for {commit_id}.", fg='red', err=True)
+    sys.exit(1)
+  try:
+    known = listing(qaboard_url, project.as_posix(), str(commit_id))
+  except ServerTooOld as e:
+    # so that CI jobs keep working with the servers that didn't take artifacts
+    click.secho(f"WARNING: {e} The artifacts were not sent: runs can't be started from QA-Board.", fg='yellow', err=True)
+    return
+  except ArtifactsError as e:
+    click.secho(f"ERROR: {e} The artifacts were not sent.", fg='red', err=True)
+    sys.exit(1)
+  # The server keeps artifacts for commits it knows: we send the commit first, also outside CI
+  if notify_qa_database(object_type='commit', **{**ctx.obj, 'share': True}) is None:
+    exit_if_results_refused()
+    click.secho("ERROR: QA-Board didn't save the commit (see above): the artifacts were not sent.", fg='red', err=True)
+    sys.exit(1)
+  try:
+    sent = send(qaboard_url, project.as_posix(), str(commit_id), files, known)
+  except ArtifactsError as e:
+    click.secho(f"ERROR: {e}", fg='red', err=True)
+    sys.exit(1)
+  plural = lambda n: f"{n} file{'s' if n != 1 else ''}"
+  already = f", {plural(sent['skipped'])} already there" if sent['skipped'] else ""
+  click.secho(f"Sent {plural(sent['sent'])} ({sent['bytes'] / 1024**2:.1f} MB){already}. Runs started from QA-Board use them: "
+              f"{qaboard_url}/{project.as_posix()}/commit/{commit_id}", fg='green')
+  # if the commit's artifacts were deleted, this marks them as good again
+  notify_qa_database(object_type='commit', **{**ctx.obj, 'share': True})
+  exit_if_results_refused()
+
+
+from .commit_artifacts import fetch_artifacts
+qa.add_command(fetch_artifacts)
 
 
 from .bit_accuracy import check_bit_accuracy, check_bit_accuracy_manifest

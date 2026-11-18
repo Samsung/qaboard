@@ -677,7 +677,7 @@ def test_dispatch_kubernetes(fake_runners, account, tmp_path):
 def test_the_driver_is_the_batch_command(tmp_path):
   """Stopping the batch deletes the driver: its `qa batch` uses the command id of its Job's labels"""
   from backend.api.tuning import _generate_batch_script
-  ci_commit = SimpleNamespace(hexsha="abc", outputs_dir=tmp_path / "outputs" / "qaboard" / "p")
+  ci_commit = SimpleNamespace(hexsha="abc", uploaded_artifacts_dir=None, outputs_dir=tmp_path / "outputs" / "qaboard" / "p")
   script = _generate_batch_script(ci_commit, "arthurf", tmp_path, DRIVER_ID, "qa batch", {})
   assert f"export QA_BATCH_COMMAND_ID={DRIVER_ID};" in script
   from backend.redo import redo_script

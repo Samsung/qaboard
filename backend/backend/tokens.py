@@ -17,11 +17,15 @@ import zlib
 from fnmatch import fnmatchcase
 from typing import Optional, List
 
+from qaboard.conventions import BATCH_TOKEN_PREFIX
+
 PREFIX = 'qab_pat_'
 SERVICE_PREFIX = 'qab_svc_'
 TEMPORARY_PREFIX = 'qab_tmp_'
+# the token of a batch QA-Board starts (tokens.mint_for_batch): runners forward it to the runs' pods
+BATCH_PREFIX = BATCH_TOKEN_PREFIX
 # token kinds that the server issues for a short time
-TEMPORARY_KINDS = ('ci',)
+TEMPORARY_KINDS = ('ci', 'batch')
 BASE62 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 RANDOM_LENGTH = 40
 CHECKSUM_LENGTH = 6
@@ -58,7 +62,7 @@ def generate(prefix: str = PREFIX) -> str:
   return f"{prefix}{random_part}{checksum(random_part)}"
 
 
-TOKEN_RE = re.compile(rf'^(?:{PREFIX}|{SERVICE_PREFIX}|{TEMPORARY_PREFIX})([0-9A-Za-z]{{{RANDOM_LENGTH}}})([0-9A-Za-z]{{{CHECKSUM_LENGTH}}})$')
+TOKEN_RE = re.compile(rf'^(?:{PREFIX}|{SERVICE_PREFIX}|{TEMPORARY_PREFIX}|{BATCH_PREFIX})([0-9A-Za-z]{{{RANDOM_LENGTH}}})([0-9A-Za-z]{{{CHECKSUM_LENGTH}}})$')
 LEGACY_RE = re.compile(r'^[0-9a-f]{64}$')
 
 def is_well_formed(token: str) -> bool:
@@ -181,7 +185,7 @@ def mint(user, name: str, scopes: List[str], kind: str = 'personal', projects: O
   from backend import db_session
   from .models import Token
   from .audit import audit
-  secret = generate(SERVICE_PREFIX if kind == 'service' else TEMPORARY_PREFIX if kind in TEMPORARY_KINDS else PREFIX)
+  secret = generate(SERVICE_PREFIX if kind == 'service' else BATCH_PREFIX if kind == 'batch' else TEMPORARY_PREFIX if kind in TEMPORARY_KINDS else PREFIX)
   token = Token(
     token_hash=hash_token(secret),
     prefix=display_prefix(secret),
@@ -206,6 +210,33 @@ def mint(user, name: str, scopes: List[str], kind: str = 'personal', projects: O
   }, actor=actor)
   return token, secret
 
+
+
+def mint_for_batch(actor, ci_commit, command_id: str) -> Optional[str]:
+  """
+  The token of the runs of a batch QA-Board starts (tuning, redo, `qa batch --commit`) from artifacts `qa
+  save-artifacts` sent over HTTP (CiCommit.uploaded_artifacts_dir), None for other commits. Runs that send their
+  results over HTTP always need a token (backend/uploads.py). It is `actor`'s, who starts the batch:
+  - limited to the project, to reading and sending results (`read`, `ingest`);
+  - unused for a day it expires (runs report every 2 minutes), and after 30 days in any case;
+  - in the environment of `qa batch`, in the driver pod's on Kubernetes. Runners forward it to the runs, unlike other
+    secrets: its prefix says what it is (qaboard/runners/env.py). Who reads a namespace's ConfigMaps can use it while
+    it is valid: a namespace is a trust domain (docs/design/kubernetes-runner.md).
+  Saved in the database. Raises ValueError without a signed-in user.
+  """
+  if ci_commit.uploaded_artifacts_dir is None:
+    return None
+  user = actor.user if actor is not None else None
+  if user is None:
+    raise ValueError("Sign in to start runs: they send their results with a token of yours.")
+  from backend import db_session
+  _, secret = mint(
+    user, name=f"Batch {command_id[:8]} of {ci_commit.project_id}", scopes=['read', 'ingest'], kind='batch',
+    projects=[ci_commit.project_id], expires_at=utcnow() + datetime.timedelta(days=30), idle_expiry_days=1,
+    created_by=user, data={"command_id": command_id}, actor=actor,
+  )
+  db_session.commit()
+  return secret
 
 def revoke(token, by=None, reason: Optional[str] = None, actor=None):
   """Revokes a token (added to the session, the caller commits) and audits it"""

@@ -36,6 +36,44 @@ without `artifacts` in *qaboard.yaml*. Patterns are relative to the project's ro
 - To save only some groups: `qa save-artifacts binary`. The files `qa` always saves are then left out.
 - To save other files: `qa save-artifacts --file 'build/*'`.
 
+## Without a shared storage {#uploaded}
+When runs [send their results to the server](/docs/storage/uploads) (no `storage` in *qaboard.yaml*, or
+`storage: upload`), the same CI step sends the artifacts to the server:
+
+```bash
+make
+qa save-artifacts   # with QABOARD_TOKEN, like the results
+```
+
+It prints the commit's page, where people can then [start runs and tuning](/docs/tuning-from-the-webapp) and redo
+runs, as with a shared storage. Files the server already has for the commit aren't sent again, and `qa` warns about
+a group of `artifacts` that matches no files, e.g. saved before the build.
+
+Where the runs execute depends on the server's runner:
+- **On the server's machine** (the default), in QA-Board's own container, with only what it has installed: fine for
+  self-contained binaries and scripts.
+- **On Kubernetes**, in your image, which needs `qa` and what your code needs besides the artifacts. The pods
+  download the artifacts first, and must reach the server.
+
+With the LSF or Celery runners, or a `runners.default` in *qaboard.yaml* whose machines don't share the server's
+folders, QA-Board can't start them yet: start these batches from CI with `qa batch`.
+
+<details>
+<summary>Download a commit's artifacts</summary>
+
+```bash
+cd "$(qa fetch-artifacts --project group/repo --commit 3fa91c02d4e7b8150b6d1c3a8e2f4d5c6b7a8e9f)"
+```
+
+It downloads them into `~/.cache/qaboard/artifacts` (or `$QABOARD_ARTIFACTS_CACHE`), checks each file's SHA-256, and
+prints the project's folder in the copy (`--root`: the repository's). Fetched again, the same artifacts are only
+listed, not downloaded. Nothing is removed from the cache.
+
+The runs of batches QA-Board starts send their results with a token it gives the batch, of the person who started
+it: limited to the project, to reading and sending results, and expiring a day after the runs stop.
+
+</details>
+
 ## Compare them with the reference's {#compare}
 The commit page's **Artifacts & Configs** view compares each commit's artifacts with the reference's.
 

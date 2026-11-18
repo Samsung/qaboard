@@ -357,6 +357,8 @@ def run_script(runs: List[Dict[str, Any]]) -> str:
   """
   Runs a pod's runs one after the other, each with its output live in <output_dir>/log.k8s.txt, even if one fails.
   Fails if any failed. `runs`: [{"command", "cwd", "output_dir", "timeout"}], with `timeout` in seconds (0: none).
+  With "artifacts": {"project", "commit"}, `cwd` and `output_dir` are relative to the commit's artifacts, fetched from
+  QA-Board first (`qa fetch-artifacts`, once per cache: the other runs of the pod find them there).
   Only needs a POSIX sh, and for runs with a timeout, `timeout` from GNU coreutils.
   Note: `qa run` cleans its output directory but keeps the file its output goes to.
   """
@@ -372,6 +374,11 @@ def run_script(runs: List[Dict[str, Any]]) -> str:
     timeout = int(math.ceil(float(run.get('timeout') or 0)))
     lines.append(f'echo "[qaboard] run {index}/{len(runs)}:" {name}')
     lines.append('(')
+    artifacts = run.get('artifacts')
+    if artifacts:
+      # the paths are relative to the copy
+      fetch = f"qa fetch-artifacts --project {shlex.quote(artifacts['project'])} --commit {shlex.quote(artifacts['commit'])} --root"
+      lines.append(f'  artifacts="$({fetch})" && cd "$artifacts" || {{ echo "[qaboard] ERROR: could not fetch the commit\'s artifacts from QA-Board: does the image have qa, and can it reach the server?" >&2; exit 1; }}')
     if output_dir:
       lines.extend(f'  {line}' for line in redirect_output(os.path.join(output_dir, 'log.k8s.txt'), os.path.join(output_dir, pending_log_name)))
     lines.append(f'  cd {shlex.quote(run["cwd"])} || {{ echo "[qaboard] ERROR: can not cd to" {shlex.quote(run["cwd"])}": is it under runners.kubernetes.mounts, or in the image (workdir)?" >&2; exit 1; }}')
@@ -399,10 +406,16 @@ def in_pods(path: Union[str, Path], options: KubernetesOptions) -> str:
       return options.workdir.rstrip('/') + path[len(root.rstrip('/')):] if path != root else options.workdir
   return path
 
+def fetched_artifacts(cwd: str) -> Optional[Dict[str, Any]]:
+  """Where a commit's artifacts fetched from QA-Board are, if `cwd` is in them (qaboard/commit_artifacts.py)"""
+  from ..commit_artifacts import read_marker
+  marker = read_marker(Path(cwd))
+  return marker if marker and marker.get('project') and marker.get('commit') else None
+
 def job_to_run(job: Job, options: Optional[KubernetesOptions] = None) -> Dict[str, Any]:
   options = options or dict_to_KubernetesOptions(job.run_context.job_options)
   output_dir = job.run_context.output_dir
-  return {
+  run = {
     "command": job.run_context.command or 'echo OK',
     # Like other runners, we run where `qa batch` runs: the root of the project (it changes directory there).
     # Commands start with "cd {subproject}" if needed. The paths are the ones the pods see, not resolved.
@@ -411,6 +424,16 @@ def job_to_run(job: Job, options: Optional[KubernetesOptions] = None) -> Dict[st
     # seconds, 0: none. Per run: runs can have their own (e.g. per input type)
     "timeout": job.run_context.job_options.get('timeout') or 0,
   }
+  # `qa batch` in a commit's artifacts it fetched from QA-Board (a batch the server started, without a shared storage):
+  # its pods fetch them too, and run in their copy. Not with `workdir`: the image has the code
+  fetched = fetched_artifacts(os.getcwd()) if not options.workdir else None
+  if fetched:
+    root = fetched['root']
+    relative = lambda path: os.path.relpath(path, root) if is_under(os.path.abspath(path), root) else None
+    cwd, output = relative(os.getcwd()), relative(output_dir) if output_dir else None
+    if cwd is not None and (output_dir is None or output is not None):
+      run.update(cwd=cwd, output_dir=output, artifacts={"project": fetched['project'], "commit": fetched['commit']})
+  return run
 
 
 ###

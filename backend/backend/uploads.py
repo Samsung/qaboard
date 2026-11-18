@@ -7,6 +7,7 @@ in a shared storage: nginx serves them under /s/, the image server and the file 
 the retention rules remove them. Nothing else in the server knows that they were uploaded.
 
   <upload root>/<project id>/-/<commit>/<batch>/<configurations>/<input>/<the run's files>
+  <upload root>/<project id>/-/<commit>/artifacts/<the repository's files that `qa save-artifacts` sends>
 
 - The server chooses the run's folder (run_dir): clients only name files inside it (PUT /api/v1/output/<id>/files/<path>).
   What clients say about the run (its input, its configurations, its batch) only reaches the path as folder names
@@ -18,6 +19,10 @@ the retention rules remove them. Nothing else in the server knows that they were
   for them (backend/locations.py): their new runs go there, with the same layout under the location's folder, and
   store the location's URL ("s3://team-a/qaboard/<project>/-/..."). Their older runs stay where they are.
   Files are written and renamed inside the run's folder, never across folders: mounted buckets support that.
+
+A commit's artifacts (qaboard.yaml, batch files, binaries: what runs QA-Board starts need) are saved the same way, in
+the commit's folder (commit_artifacts_dir), with the repository's layout: the server reads them like artifacts in a
+shared storage (backend/artifacts.py), and pods without that storage fetch them (qaboard/commit_artifacts.py).
 
 Docs: website/docs/backend-admin/uploads.mdx. API: upload_output_file and new_output_webhook in backend/api/outputs.py.
 """
@@ -37,6 +42,8 @@ from .storage import check_inside, UnsafePathError
 
 # Between a project's folder and its runs'
 RUNS_FOLDER = '-'
+# Next to the batches' folders ("output", "output/<label>") in a commit's folder: its artifacts
+ARTIFACTS_FOLDER = 'artifacts'
 # Files being received, next to where they will be: clients can't name files like this
 TEMPORARY_PREFIX = '.qaboard-upload-'
 MAX_PATH_LENGTH = 1024
@@ -160,6 +167,31 @@ def run_dir(project_id: str, hexsha: str, batch_label: str, platform: str, confi
   if not is_run_dir(directory, project_id):
     raise UploadError(400, "This run can't be saved by the server: its project, batch or input have names that aren't folders' names.", "invalid_run")
   return directory
+
+
+def commit_artifacts_dir(project_id: str, hexsha: str, base: Optional[Path] = None) -> Path:
+  """
+  Where the artifacts of a commit of the project are saved: the repository's files, as in a shared storage's
+  commit folder (a subproject's files under its path), in the folder of the project's runs of that commit.
+  Each (sub)project has its own copy: deleting one's never touches another's.
+  """
+  if not isinstance(hexsha, str) or not re.fullmatch(r'[0-9a-f]{40}', hexsha):
+    raise UploadError(400, "Artifacts are saved for a git commit, named by its full id (40 hexadecimal characters).", "invalid_commit")
+  if not supports_project(project_id):
+    raise UploadError(400, f"Projects with a folder named \"{RUNS_FOLDER}\" can't upload their files.", "uploads_unsupported_project")
+  return project_runs_dir(project_id, base) / commit_dir_name(hexsha) / ARTIFACTS_FOLDER
+
+
+def is_commit_artifacts_dir(directory, project_id: str) -> bool:
+  """Whether a folder is one the server could have chosen for the artifacts of a commit of the project"""
+  if not directory or not project_id or not supports_project(project_id) or os.path.normpath(str(directory)) != str(directory):
+    return False
+  directory = Path(directory)
+  runs_dir = _runs_dir_of(directory, project_id)
+  if runs_dir is None:
+    return False
+  parts = directory.relative_to(runs_dir).parts
+  return len(parts) == 3 and parts[2] == ARTIFACTS_FOLDER and re.fullmatch(r'[0-9a-f]{2}', parts[0]) is not None and re.fullmatch(r'[0-9a-f]{14}', parts[1]) is not None
 
 
 def is_run_dir(directory, project_id: str) -> bool:

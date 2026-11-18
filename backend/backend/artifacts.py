@@ -13,10 +13,13 @@ import os
 import json
 import fnmatch
 from pathlib import Path
+from shlex import quote
 from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple
 
 
 CONFIG_NAMES = ('qaboard.yaml', 'qatools.yaml')
+# In CiCommit.data: the location of the artifacts `qa save-artifacts` sent over HTTP (api/commit_artifacts.py)
+UPLOADED_ARTIFACTS = 'uploaded_artifacts'
 
 # Checking that every file in the manifests exists is slow on network filesystems, we sample at most
 MAX_CHECKED_FILES = 500
@@ -96,6 +99,47 @@ def artifacts_status(artifacts_dir: Path, repo_artifacts_dir: Path, is_subprojec
     "exists": artifacts_dir.is_dir(),
   }
 
+
+
+# The first line of the scripts that run `qa batch` from a commit's artifacts (redo.py, api/tuning.py): tells users how
+# it went, and removes the copy of the artifacts the batch fetched (cd_lines), with the runs' local files
+EXIT_TRAP = """trap 'code=$?; [[ -n "${QABOARD_BATCH_TMP:-}" ]] && rm -rf "$QABOARD_BATCH_TMP"; echo "[qaboard] qa batch exited with code $code"' EXIT"""
+# Where `qa batch` can run from artifacts sent to the server: they are fetched where it runs, the server's machine or
+# a Kubernetes pod, and so are the runs' on Kubernetes. The other runners' jobs would need the batch's copy.
+UPLOADED_ARTIFACTS_RUNNERS = ('local', 'kubernetes')
+
+
+def cd_lines(ci_commit, source_envrc: bool = False) -> List[str]:
+  """
+  Bash lines that go to a commit's artifacts folder, in the scripts that run `qa batch` there (redo.py, api/tuning.py).
+  When `qa save-artifacts` sent them to the server, the batch fetches its own copy (`qa fetch-artifacts`, cached in
+  a temporary folder that EXIT_TRAP removes), wherever it runs: its runs save their files there, then send them.
+  `source_envrc`: then source the repository's .envrc files down to the project's folder.
+  """
+  folder = quote(str(ci_commit.artifacts_dir))
+  if ci_commit.uploaded_artifacts_dir is None:
+    return [f'mkdir -p {folder}', f'cd {folder}']
+  fetch = f"qa fetch-artifacts --project {quote(ci_commit.project_id)} --commit {quote(ci_commit.hexsha)}"
+  lines = [
+    'QABOARD_BATCH_TMP="$(mktemp -d)"',
+    'export QABOARD_ARTIFACTS_CACHE="$QABOARD_BATCH_TMP"',
+    f'QABOARD_ARTIFACTS_DIR="$({fetch})" || {{ echo "[qaboard] ERROR: could not fetch the commit\'s artifacts from QA-Board (see above)" >&2; exit 1; }}',
+    'cd "$QABOARD_ARTIFACTS_DIR"',
+  ]
+  if source_envrc:
+    depth = len([part for part in Path(ci_commit.project.id_relative or '.').parts if part not in ('', '.')])
+    envrcs = " ".join("../" * level + ".envrc" for level in reversed(range(depth + 1)))
+    lines.append(f'set +e; for envrc in {envrcs}; do [[ -f "$envrc" ]] && source "$envrc"; done; set -e')
+  return lines
+
+
+def runner_unsupported(ci_commit, runner: str) -> Optional[str]:
+  """Why QA-Board can't start runs from this commit's artifacts with `runner` (its runner for batches), if it can't"""
+  if ci_commit.uploaded_artifacts_dir is None or runner in UPLOADED_ARTIFACTS_RUNNERS:
+    return None
+  return (f"QA-Board can't start this project's runs with its {runner} runner: the project has no storage shared with "
+          "QA-Board. Ask its administrators to set QABOARD_TUNING_RUNNER to local or kubernetes, or start the batch "
+          "from CI or a terminal with `qa batch`.")
 
 
 class Protected:
