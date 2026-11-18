@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 vi.mock('plotly.js/dist/plotly.min.js', () => ({ default: {} }));
-const { upgradeFigure } = await import('../PlotlyPlot');
+const { upgradeFigure, plotConfig } = await import('../PlotlyPlot');
 
 test('upgrades plotly.js@2 titles in-place', () => {
   const layout = {
@@ -21,4 +21,20 @@ test('upgrades plotly.js@2 titles in-place', () => {
   // idempotent
   upgradeFigure(data, layout);
   expect(layout.title).toEqual({ text: "main" });
+});
+
+test('upgrades Mapbox traces to their plotly.js@4 MapLibre equivalents', () => {
+  const layout = { mapbox: { zoom: 3 }, mapbox2: { zoom: 5 } };
+  const data = [{ type: 'scattermapbox', lat: [1] }, { type: 'densitymapbox', subplot: 'mapbox2' }, { type: 'scatter' }];
+  upgradeFigure(data, layout);
+  expect(data.map(t => [t.type, t.subplot])).toEqual([['scattermap', 'map'], ['densitymap', 'map2'], ['scatter', undefined]]);
+  expect(layout).toEqual({ map: { zoom: 3 }, map2: { zoom: 5 } });
+  // idempotent
+  upgradeFigure(data, layout);
+  expect(layout).toEqual({ map: { zoom: 3 }, map2: { zoom: 5 } });
+});
+
+test('hides the "Upload to Cloud" button unless asked', () => {
+  expect(plotConfig(undefined)).toEqual({ showSendToCloud: false });
+  expect(plotConfig({ responsive: true })).toEqual({ showSendToCloud: false, responsive: true });
 });

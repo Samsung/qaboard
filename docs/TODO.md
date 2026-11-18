@@ -39,7 +39,17 @@ The shot list is `docs-media/shots.yaml`, how to capture is `docs-media/README.m
   `quant_keep_fp32: none` best: say "the team picked" rather than "`qa optimize` found" if a page shows the commit.
 - **Release notes**: publish November's note at the start of December (see `website/release-notes/_template.md`).
 
+## Website dependencies
+- **Docusaurus 4** (canary only in November 2026). `future.v4` flags not on yet: `mdx1CompatDisabledByDefault` (512
+  `{#id}` headings in 76 files: `docusaurus write-heading-ids --migrate`; 55 `:::tip Title` admonitions to rewrite as
+  `:::tip[Title]`), `siteStorageNamespacing` (readers lose their saved theme and tabs once), `useCssCascadeLayers`
+  (check the pages visually).
+- **picomatch ReDoS** via `@docusaurus/utils` (`yarn audit`'s 8 findings, build time only): no fixed release yet.
+- DocSearch 4.5's Ask AI suggested questions, if we turn Ask AI on in Algolia.
+
 ## Product, small
+- **Constraints in `qa optimize`**: Optuna 5's `trial.set_constraint()` would allow "best quality with runtime under
+  X" (`qaboard/optimize.py`, the config, the report). 2-3 days.
 - **Analysis view** (tuning): before its rewrite (November 2026, `TuningReport.jsx`), the frontier and plots only
   used the metrics selected in its tag picker; with another metric, the points were null and the plot empty. Check
   that the new report doesn't, then delete this.

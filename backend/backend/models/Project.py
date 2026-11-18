@@ -279,18 +279,6 @@ def update_project(data, db_session):
     # we don't want to create commits ahead of time anymore
     # it started to cause issues with a huge monorepo with 100s of projects
     # and doesn't bring much value to users
-    # try:
-    #   ci_commit = CiCommit.get_or_create(
-    #     session=db_session,
-    #     hexsha=commit_id,
-    #     project_id=project_id,
-    #     data={"commit_branch": branch},
-    #   )
-    # except Exception as e:
-    #   exc_type, exc_value, exc_traceback = sys.exc_info()
-    #   info = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
-    #   print(info, file=sys.stderr)
-    #   return f"404 ERROR: with commit id {commit_id} in project {project_id}: {info}", 404
 
     # To update the (sub)project configuration stored in the database,
     # we first need to read relevant qaboard.yaml files from this commit.

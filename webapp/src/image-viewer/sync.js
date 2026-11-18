@@ -26,6 +26,11 @@ export const joinSyncGroup = (key, member) => {
       group.leader = member;
     },
     leads: () => group.leader === member,
+    // This viewer leads until users move another, e.g. the anchor of tiles: without a leader, each viewer would fit
+    // its image by itself, and round its zoom its own way
+    claim: () => {
+      if (!left && !group.leader) group.leader = member;
+    },
     // This viewer's viewport changed. Only the leader's changes are followed.
     publish: viewport => {
       if (left || group.leader !== member) return;

@@ -1,5 +1,5 @@
 // Admin → Storage: how we show server jobs (api/admin_jobs.py): their status, what they did, their errors.
-import { Classes, Intent, Spinner, Tag, Tooltip } from "@blueprintjs/core";
+import { Intent, Spinner, Tag, Tooltip } from "@blueprintjs/core";
 
 import { parseDate } from "../settings/format";
 
@@ -186,5 +186,3 @@ export const isStale = job => {
   const heartbeat = parseDate(job.heartbeat_at);
   return !!heartbeat?.isValid && -heartbeat.diffNow('minutes').minutes > 3;
 };
-
-export const Muted = ({ children }) => <span className={Classes.TEXT_MUTED}>{children}</span>;

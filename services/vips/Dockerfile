@@ -1,7 +1,7 @@
 # Based on https://github.com/wjordan/dockerfile-libvips
 # Original: alpine:edge + vips-tools from edge/testing
-# Updated: alpine:3.21 (pinned), vips-tools now in community repo
-FROM alpine:3.21
+# Updated: alpine:3.24 (pinned), vips-tools now in community repo
+FROM alpine:3.24
 
 # Proxy configuration — no-ops when args are empty (open-source builds)
 # e.g. at SIRC: --build-arg PROXY_URL=http://webproxy.transchip.com:8080

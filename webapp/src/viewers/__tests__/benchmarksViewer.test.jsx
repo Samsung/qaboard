@@ -13,6 +13,9 @@ import { renderWithProviders } from '../../test-utils';
 beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(440);
   vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(900);
+  // @tanstack/virtual-core reads the scroll element's size from clientWidth/clientHeight since 3.19
+  vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(440);
+  vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(900);
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 900, height: 440, top: 0, left: 0, right: 900, bottom: 440, x: 0, y: 0 });
 });
 afterEach(() => vi.restoreAllMocks());

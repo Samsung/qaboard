@@ -973,16 +973,35 @@ def jenkins_status_url_allowed(url) -> bool:
   return any(d is not None and d[1] in servers and (d[0], d[2]) == (scheme, port) for d in declared)
 
 
-def trigger_jenkins_build(data):
+def jenkins_build_url_allowed(build_url, project_id=None, commit_id=None) -> bool:
+  """
+  Where we send the Jenkins credentials to start a build: the Jenkins hosts, on the default port of http(s) or the
+  scheme and port of the projects' Jenkins jobs (jenkins_status_url_allowed), or a job of the project's qaboard.yaml,
+  e.g. with a templated port.
+  """
+  if not isinstance(build_url, str) or url_origin(build_url) is None:
+    return False
+  if jenkins_status_url_allowed(build_url):
+    return True
+  return isinstance(project_id, str) and bool(project_id) and is_declared_jenkins_job(build_url, project_id, commit_id)
+
+
+def trigger_jenkins_build(data, declared=False):
   """
   Triggers a Jenkins build, waits a little for Jenkins to start it, and returns the response and its status code.
-  data: {build_url, params|parameters?, token?, cause?}
+  data: {build_url, params|parameters?, token?, cause?, project?, commit?}
+  declared: the job comes from the project's qaboard.yaml (recreate_artifacts), not from the client.
   """
   if 'build_url' not in data:
       return jsonify({"error": f"ERROR: the integration is missing `build_url` (in your qaboard.yaml)"}), 400
+  if not isinstance(data['build_url'], str):
+      return jsonify({"error": "ERROR: `build_url` must be a URL"}), 400
   credentials = jenkins_hostname_credentials(data['build_url'])
   if not credentials:
     return jsonify({"error": f"ERROR: QA-Board has no credentials for the Jenkins server {urlparse(data['build_url']).hostname}, to trigger {data['build_url']}. Admins add it in Admin → Settings → Jenkins."}), 403
+  # the credentials only go to the Jenkins servers, not to other services on the same hosts
+  if not (url_origin(data['build_url']) is not None if declared else jenkins_build_url_allowed(data['build_url'], data.get('project'), data.get('commit'))):
+    return jsonify({"error": f"ERROR: {data['build_url']} is not a Jenkins job QA-Board can start: use http(s) on the default port, or the scheme and port of the Jenkins jobs in the projects' qaboard.yaml."}), 403
   build_url = re.sub("/$", "", data['build_url'])
   params = {
     "cause": data.get('cause', "Triggered via QA-Board"),

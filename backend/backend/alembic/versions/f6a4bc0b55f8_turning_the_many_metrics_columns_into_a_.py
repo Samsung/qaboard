@@ -19,7 +19,7 @@ depends_on = None
 # https://stackoverflow.com/questions/24612395/how-do-i-execute-inserts-and-updates-in-an-alembic-upgrade-script
 from sqlalchemy import Column, Float, Integer, Boolean, JSON
 from sqlalchemy.orm import sessionmaker, Session as BaseSession
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 Session = sessionmaker()

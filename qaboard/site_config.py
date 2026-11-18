@@ -84,11 +84,6 @@ user_secrets = _load_secrets(user_secrets_path, check_permissions=True)
 secrets = {**secrets, **user_secrets}
 
 
-def user_secret(key, default=None):
-    """Get a personal secret: ENV > per-user secrets file. Never read from shared secrets."""
-    return os.getenv(key, user_secrets.get(key, default))
-
-
 def user_config_dir() -> Path:
   """
   Where qaboard keeps the user's configuration (logins in hosts.yaml, caches...):
