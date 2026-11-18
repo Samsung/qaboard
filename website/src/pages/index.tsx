@@ -346,8 +346,9 @@ function StartSmall() {
           <Link to="/docs/agents">Set up QA-Board with a coding agent →</Link>
         </div>
         <p className={styles.rampNeeds}>
-          What it needs: Docker or Kubernetes for the server, and a folder that the server and your runs both see. On
-          one computer, that&apos;s a local folder; for a team, a shared one (NFS, SMB...).
+          What it needs: Docker or Kubernetes for the server. Runs save their files in a folder the server reads: a
+          local folder on one computer, a shared one (NFS, SMB...) for a team. Where it isn&apos;t mounted, like on CI
+          runners hosted by GitHub, runs send their files to the server over HTTP instead (experimental).
         </p>
       </div>
     </section>
@@ -629,7 +630,7 @@ const STACK = [
   {title: 'Runners', items: ['Local processes', 'LSF', 'Dask', 'Celery', 'Kubernetes'], to: '/docs/runners'},
   {title: 'Servers', items: ['Docker Compose', 'Kubernetes (Helm)', 'Air-gapped installs'], to: '/docs/deploy'},
   {title: 'Sign-in', items: ['Single sign-on (OpenID Connect)', 'LDAP, SAML', 'Local accounts'], to: '/docs/backend-admin/sign-in'},
-  {title: 'Storage', items: ['A shared folder (NFS, SMB...)', 'Mounted at the same path everywhere'], to: '/docs/storage/where-is-the-data'},
+  {title: 'Storage', items: ['A shared folder (NFS, SMB...)', 'Or files sent over HTTP (experimental)'], to: '/docs/storage/where-is-the-data'},
 ];
 
 function FitsYourStack() {
