@@ -48,7 +48,8 @@ with redirect_std_streams(sys.argv[1]):
     # left running in the background, it keeps the pipe open
     subprocess.Popen(['sleep', '30'])
   start = time.time()
-print('not in the log')
+# after the block, sys.stdout buffers whole blocks again when it isn't a terminal
+print('not in the log', flush=True)
 print('exited the block in', time.time() - start, file=sys.stderr)
 """
 
