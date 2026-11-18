@@ -407,29 +407,26 @@ def is_plaintext(path, config=None):
   sys.exit(1)
 
 
+def looks_binary(path) -> bool:
+  """A NUL byte in the first 8000 bytes, like git: binary whatever the bit_accuracy patterns say"""
+  with Path(path).open('rb') as f:
+    return b'\0' in f.read(8000)
+
+
 def eol_normalized_copy(path) -> Path:
   """A temp copy of a plaintext file with universal-newline EOLs (CRLF/CR -> LF):
-  the transform file_info() applies to plaintext files before hashing. The caller deletes it."""
+  the transform file_info() applies to plaintext files before hashing. The caller deletes it.
+  Works on bytes, so bytes that aren't valid UTF-8 are kept."""
   path = Path(path)
-  try:
-    with path.open(newline=None, encoding="utf-8", errors='surrogateescape') as raw_file: # newline=None: universal newlines — \r\n, \r and \n are all line endings
-      text = raw_file.read()
-  except Exception as e:
-    print(f"WARNING: Error reading {path} (utf8/surrogateescape), {e}")
-    try:
-      with path.open(newline=None, encoding="utf-8", errors="ignore") as raw_file:
-        text = raw_file.read()
-    except Exception as e:
-      print(f"ERROR: Error reading {path} (utf8/ignore), {e}")
-      raise e
+  data = path.read_bytes().replace(b'\r\n', b'\n').replace(b'\r', b'\n')
 
   from tempfile import mkstemp
   fd, normalized_file_name = mkstemp(suffix=path.suffix)
   temp_path = Path(normalized_file_name)
   completed = False
   try:
-    with open(fd, 'w', newline='\n', encoding="utf-8", errors='ignore') as normalized_file:
-      normalized_file.write(text)
+    with open(fd, 'wb') as normalized_file:
+      normalized_file.write(data)
     completed = True
   finally:
     if not completed:
@@ -445,7 +442,7 @@ def file_info(path, normalize_eof=True, config=None, compute_hashes=True, has_fo
   is_hw_alg = (config or {}).get('project', {}).get('name', '').startswith('CDE-Users/HW_ALG')
   normalize_eol = os.environ.get('QA_RECORD_EOL_NORMALIZED') == '1' if is_hw_alg else True
   # without hashes there is nothing to compare: skip the copy (the server refreshes running outputs' manifests this way)
-  if compute_hashes and normalize_eol and is_plaintext(path, config=config) and normalize_eof:
+  if compute_hashes and normalize_eol and normalize_eof and is_plaintext(path, config=config) and not looks_binary(path):
     normalized_file = eol_normalized_copy(path)
     try:
       return file_info(normalized_file, normalize_eof=False, has_footer=has_footer)
