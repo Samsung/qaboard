@@ -45,6 +45,8 @@ cantaloupe:
 results:
   enabled: true
   mountPath: /tmp/qaboard
+  # runs from other computers and containers can send their files over HTTP
+  uploads: true
   hostPath: {path: /tmp/qaboard}
 
 # The docs' demo projects, restored the first time QA-Board starts. Their results are in a volume of their own.

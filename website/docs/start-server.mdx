@@ -28,7 +28,8 @@ projects to look at.
   decoded images, up to 20 GB (`QABOARD_IMAGE_CACHE_GB`), and the image server's tiles, kept 5 days.
 - **The results storage**: a folder that the server and every machine that runs `qa` (CI runners, workstations,
   cluster nodes) mount **at the same path**, e.g. an NFS share at `/mnt/qaboard`. `qa` writes the output files there
-  itself, and only sends their path to the server, which reads them there.
+  itself, and only sends their path to the server, which reads them there. Machines that can't mount it can send
+  their files to the server instead, once you [accept results over HTTP](/docs/backend-admin/uploads).
 - **A hostname** that your users, CI runners and git hosts reach, e.g. `qaboard.example.com`, and a TLS certificate
   for HTTPS.
 - **One port**: the web app, the API and the webhooks answer on port 5151 (`QABOARD_PORT_HTTP`), or 443 with HTTPS.
@@ -71,8 +72,8 @@ Read how to set up [**NFS**](https://www.digitalocean.com/community/tutorials/ho
 or [**Samba**](https://www.digitalocean.com/community/tutorials/how-to-set-up-a-samba-share-for-a-small-organization-on-ubuntu-16-04),
 and the [options for NFS volumes](https://docs.docker.com/compose/compose-file/#volume-configuration-reference) in
 compose files. In the cloud, use a file storage like [AWS EFS](https://aws.amazon.com/en/efs/) or
-[GCP Filestore](https://cloud.google.com/filestore). Object storage, like S3, is on the
-[roadmap](/docs/roadmap#object-storage-for-results).
+[GCP Filestore](https://cloud.google.com/filestore). For object storage, like S3, and for machines that can't mount
+anything, see [Accept results over HTTP](/docs/backend-admin/uploads#object-storage).
 :::
 
 ## 3. Describe your site {#3-describe-your-site}

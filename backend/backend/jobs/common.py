@@ -44,8 +44,8 @@ class StorageUnavailable(Exception):
 
 
 def storage_root(path: Path):
-  from ..config import storage_roots
-  matches = [root for root in storage_roots if path == root or path.is_relative_to(root)]
+  from ..storage import all_storage_roots
+  matches = [root for root in all_storage_roots() if path == root or path.is_relative_to(root)]
   return max(matches, key=lambda root: len(root.parts)) if matches else None
 
 

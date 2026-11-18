@@ -5,7 +5,6 @@ import os
 import json
 import fnmatch
 import datetime
-from pathlib import Path
 
 from sqlalchemy import Column, ForeignKey, Index
 from sqlalchemy.orm import relationship
@@ -22,6 +21,7 @@ from backend.models import Base
 from backend.fs_utils import rm_empty_parents, rmtree, mkdir_shared, chmod_shared
 from backend.storage import check_storage_path, check_inside
 from backend.attempts import forget_attempts
+from backend.locations import local_path
 
 
 
@@ -97,6 +97,8 @@ class Output(Base):
   #### How good we ran
   is_pending = Column(Boolean(), default=False)
   is_running = Column(Boolean(), default=False) # a running output is still pending...
+  # when a running run last told us something: runs that send heartbeats are failed when they stay silent (backend/heartbeats.py)
+  reported_at = Column(DateTime, nullable=True)
   is_failed = Column(Boolean(), default=False)
   # The latest attempt: when it was queued (e.g. sent to LSF by `qa batch`), started running, and ended.
   # Runs from before we saved them only have created_date. See set_status().
@@ -147,7 +149,8 @@ class Output(Base):
   def get_output_dir(self, batch_dir=None):
     """`batch_dir`: the batch's, if you know it already"""
     if self.output_dir_override is not None:
-      return Path(self.output_dir_override)
+      # an absolute path, or a URL in a storage location (backend/locations.py)
+      return local_path(self.output_dir_override)
     return (batch_dir or self.batch.batch_dir) / self.output_folder
 
   @property

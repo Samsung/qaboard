@@ -85,26 +85,27 @@ import subprocess
 
 
 def run(context):
-    process = subprocess.run(
-        ["build/my-tool", "--input", str(context.input_path), "--output", str(context.output_dir)],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-    )
-    print(process.stdout)  # saved in the run's log
+    process = subprocess.run(["build/my-tool", "--input", str(context.input_path), "--output", str(context.output_dir)])
     if process.returncode != 0:
         return {"is_failed": True}
     metrics = json.loads((context.output_dir / "metrics.json").read_text())
     return {**metrics, "is_failed": False}
 ```
 
-:::caution
-`qa` saves in *log.txt* what Python prints. An executable that writes to the terminal itself isn't in the log: capture
-its output and print it, like above.
-:::
+What the executable prints is saved in the run's *log.txt*, live, as it would show in a terminal: you don't need to
+capture it. The same goes for native code your Python calls.
 
-To see the log while the executable runs, print its output line by line. The inference gateway example starts its
-benchmark this way, and fails the run when the benchmark crashes:
+<details>
+<summary>On Windows</summary>
 
-<RepoFile path="examples/serving-latency/qa/main.py" lines="86-98" title="qa/main.py" />
+On Windows, *log.txt* only has what Python prints. Capture the executable's output and print it:
+
+```python
+process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+print(process.stdout)
+```
+
+</details>
 
 Arguments after the input are forwarded to your code, as `context.forwarded_args`. It's handy to try a flag of your
 executable:

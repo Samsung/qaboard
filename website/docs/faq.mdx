@@ -15,7 +15,8 @@ hardware simulator, or Python 2. See [running an executable](/docs/running-your-
 ## My company has no QA-Board server. Where do I send results? {#no-server}
 Start one. To try QA-Board, the [quickstart](/docs/get-started/quickstart) runs it on your computer with one Compose
 file, and saves your results in `/tmp/qaboard`. For your team, you need a Linux host with Docker, and a folder that
-it shares with the machines running `qa`, e.g. over NFS: see [Starting a QA-Board server](/docs/deploy), or
+it shares with the machines running `qa`, e.g. over NFS, or that [they send files to](/docs/storage/uploads): see
+[Starting a QA-Board server](/docs/deploy), or
 [Kubernetes](/docs/backend-admin/kubernetes). Until then, `qa run` and `qa batch` work without a server: results
 stay in `output/`.
 
@@ -29,8 +30,9 @@ No, but it's what gives every commit results to compare with. Without a CI, `qa 
 shows them in the web app, in a batch named after you (see [CI integration](/docs/ci-integration#without-a-ci)).
 
 ## Can I use GitHub-hosted runners? {#github-hosted-runners}
-Not yet: `qa` writes results to a storage that the server reads at the same path, like an NFS share, so the CI
-runner must mount it. Use a self-hosted runner. See the [roadmap](/docs/roadmap#http-upload-of-outputs).
+Yes, when your server [accepts results over HTTP](/docs/storage/uploads) (experimental): set `QA_STORAGE: upload`
+in the job, and `qa` sends the runs' files to the server. Otherwise `qa` writes results to a storage that the server
+reads at the same path, like an NFS share, and the CI runner must mount it: use a self-hosted runner.
 
 ## Where are results saved? {#where-are-results-saved}
 - **Local runs** are saved under the *output/* directory of the project. They don't need the storage: when `qa`

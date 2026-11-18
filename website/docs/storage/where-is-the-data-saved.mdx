@@ -10,7 +10,8 @@ This page sets where they go.
 
 - **Local runs**, without `--share` and outside CI, are saved in your project, under `output/`. Only you see them.
 - **Shared runs**, with `qa --share` or in CI, are saved in the results **storage**, a folder that the server and every
-  machine running `qa` mount at the same path, often an NFS share.
+  machine running `qa` mount at the same path, often an NFS share. Where machines can't mount it, they
+  [send their files to the server](/docs/storage/uploads) instead (experimental).
 - **Artifacts**, the files a commit needs to run again, like its build, are saved in the storage too (see
   [Artifacts](/docs/storage/artifacts)). They let people start runs and tuning from the web app.
 - **Metadata**, like the runs' metrics and the commits, is in the server's database.
@@ -25,10 +26,12 @@ storage:
 
 The `QA_STORAGE` environment variable wins over it, e.g. `export QA_STORAGE=/tmp/qaboard` for the
 [quickstart](/docs/get-started/quickstart)'s server, which reads results there. If your organization's site package
-[sets a `storage`](/docs/project-init#site-defaults), you don't need one.
+[sets a `storage`](/docs/project-init#site-defaults), you don't need one. Without any `storage`, or with
+`storage: upload`, shared runs are [sent to the server](/docs/storage/uploads).
 
 `qa` creates the folder if it doesn't exist. When it can't, the commands that use it stop with *The storage path
-does not exist*: `qa --share`, CI runs, `qa save-artifacts`, `qa check-bit-accuracy` and `qa optimize`. The others
+does not exist*: `qa --share`, CI runs, `qa save-artifacts`, `qa check-bit-accuracy` and `qa optimize` (without a storage, they
+[work over HTTP](/docs/storage/uploads#limits), except artifacts). The others
 only warn: local runs save their results in your project's `output/` folder. The server must mount the storage too,
 at the same path: see [Starting a server](/docs/deploy#create-a-directory-to-store-results).
 

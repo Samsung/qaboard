@@ -420,6 +420,29 @@ curl -X PATCH -H "Authorization: Bearer $QABOARD_TOKEN" -H "Content-Type: applic
 It answers `409` (`not_running`) once the run has ended. From Python, [`qaboard.start_run()`](/docs/log-from-code)
 does it for you.
 
+**Heartbeats**: send `"heartbeat": true` when the run starts, then report at least every few minutes, with `{}` when
+there's nothing new (it changes nothing). Runs that said so and stay silent are
+[marked failed](/docs/backend-admin/storage#silent-runs); a run that reports again is running again.
+
+### Send a run's files {#upload-files}
+Runs that don't save their files in a storage shared with the server send them, on servers that
+[accept uploads](/docs/backend-admin/uploads) (`uploads.enabled` in `GET /config`). Create the run with
+`POST /output/` and `"storage": "upload"`, as running: the server chooses its folder. Then send each file, with its
+path in the run's folder, while the run is pending or running:
+
+```bash
+curl -X PUT -H "Authorization: Bearer $QABOARD_TOKEN" --data-binary @junit.xml \
+  -H "X-Content-SHA256: $(sha256sum junit.xml | cut -d' ' -f1)" \
+  "$QABOARD_URL/api/v1/output/184467/files/reports/junit.xml"
+```
+
+Sending a file again replaces it. `?offset=<the file's size>` adds the body at its end instead, for logs: `409`
+(`offset_mismatch`, with the `size` the server has) means to send the file whole. The server checks the SHA-256
+when you send it (`422`), and refuses files larger than its limit (`413`). Files always need a token that can send
+results to the project. `qa`, [`qa upload`](/docs/upload-results) and
+[`qaboard.start_run()`](/docs/log-from-code) do all this: see
+[Send results without a shared storage](/docs/storage/uploads).
+
 ### Start a batch on a commit {#start-a-batch}
 `POST /commit/<sha>/batch?project=<project>` starts a batch on a commit as the web app's **Run Tests / Tuning** does:
 QA-Board runs `qa batch` from the commit's artifacts, with the project's runner, and the runs show on the commit's

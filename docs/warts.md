@@ -131,6 +131,46 @@ run-centric page, screenshots for the docs, gaps against experiment trackers): `
 - `Run._new` (qaboard/results.py) was the placeholder for this: `ActiveRun.run` builds its `Run` itself, and only
   tests use `_new`. [S, no change]
 
+## Results sent over HTTP (`storage: upload`, `qa upload`, November 2026)
+Design: `docs/design/ingest-upload-sdk.md`. Tested with unit tests and a fake server (`tests/test_upload*.py`,
+`tests/test_active_run.py`, `backend/tests/test_uploads.py`); **not** against a real server, nginx and database end
+to end, nor on Windows, nor on any object storage mount.
+
+- No end-to-end test in CI: add a `qa upload` and a `qa --share run` with `QA_STORAGE=upload` to the quickstart job
+  (`.github/workflows/ci.yaml`), from a container that doesn't mount the results folder. [S, no change]
+- What `qa run` prints after its files are sent (that some couldn't be sent, that the server refused the results)
+  isn't in the *log.txt* the server has: files are sent before the run is said to have ended, and don't change
+  after. [S, behaviour]
+- `qa upload` keeps a copy of what it sends in the project's (or the current folder's) *output/*, like any shared
+  run: CI workspaces don't mind, laptops may. [S, behaviour]
+- A first security review found that run folders were built from clients' input paths ("../" led to other projects'
+  files): fixed, with tests (`backend/tests/test_uploads.py`). The endpoint deserves a second, independent look
+  before servers that accept files face the internet. [M, no change]
+- Files a run removed after they were sent (`outputs.live`) stay on the server. [S, behaviour]
+- A run killed without a chance to say so (SIGKILL, a lost machine) is failed after
+  `QABOARD_SILENT_RUN_TIMEOUT_MINUTES` (`backend/backend/heartbeats.py`), with the files it sent: only runs from
+  clients that send heartbeats, and only when the jobs worker runs. Its files are not cleaned. A run the server
+  never heard of isn't sent later. [S, behaviour]
+- No quotas per project, no deduplication (a bit-accurate rerun sends everything again), no resume inside a file:
+  files over `QABOARD_UPLOAD_MAX_FILE_MB` are refused. [L]
+- `qa batch` with cluster runners only works when the nodes share the working directory with the machine that
+  starts the batch; artifacts, and runs started from the web app (tuning, redo) need a shared storage: next steps
+  in `docs/design/ingest-upload-sdk.md` (an image per commit, artifacts through the server). `qa check-bit-accuracy`
+  compares fetched manifests only, not files (`QA_BITACCURACY_CMP`); `qa optimize` keeps its journal on the machine
+  that runs it. `qaboard.runs(url)` gives uploaded runs' `output_dir` on the server, not a local folder. [L]
+- Storage locations (`backend/backend/locations.py`) are reached through folders the admin mounts: no credentials,
+  no native object storage access, and no web app page yet (`qaboard-admin storage-locations`). The storage scans,
+  storage usage per folder, and the file browser's listing only know `QABOARD_STORAGE_ROOTS` and the upload root:
+  runs in a location are measured and deleted, but their folders are never scanned for orphans. Clients can't yet
+  write to a location directly (a cluster that mounts the bucket still uploads). [M]
+- For a project with `storage: upload`, the folders the server derives from storage settings (a commit's or a
+  batch's folder, `Project.storage_roots`) are under the upload root, with the shared storage's layout: nothing is
+  there. Runs' own folders are always the ones saved with them (`output_dir_override`). [S, no change]
+- `examples/software-quality/qa/junit.py` and `qaboard/junit.py` read reports the same way, twice: the example is
+  meant to be copied. [S, no change]
+- `/iiif/` doesn't check who asks, and `/s/` only where the deployment restricts files (`SECURITY.md`): uploads
+  don't change that, but they make servers reachable from more places. [M, behaviour]
+
 ## Runners (Kubernetes, Dask on any scheduler, `qa doctor`, November 2026)
 
 Design and follow-ups: [docs/design/kubernetes-runner.md](docs/design/kubernetes-runner.md). Security boundaries are

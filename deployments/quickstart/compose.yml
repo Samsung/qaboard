@@ -69,6 +69,8 @@ services:
       QABOARD_URL: http://localhost:${QABOARD_PORT_HTTP:-5151}
       # Where results are: the backend only lists, deletes or runs code there
       QABOARD_STORAGE_ROOTS: /mnt/qaboard:${QABOARD_RESULTS:-/tmp/qaboard}
+      # Runs that don't see that folder (another computer, a container) send their files over HTTP: saved there too
+      QABOARD_UPLOAD_ROOT: ${QABOARD_RESULTS:-/tmp/qaboard}
       # The web app links to the online docs
       QABOARD_DOCS_ROOT: https://samsung.github.io/qaboard/
       REDIS_HOST: redis

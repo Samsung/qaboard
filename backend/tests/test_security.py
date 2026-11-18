@@ -457,6 +457,9 @@ UNAUTHENTICATED_ENDPOINTS = {
   ("outputs.py", "report_output_progress"),
   # scripts add metrics to runs (run.log_metrics() in the SDK): a token with the ingest scope is always required (ingest_access(require_token=True))
   ("outputs.py", "add_output_metrics"),
+  # runs without a storage shared with the server send their files (backend/uploads.py): a token that can send results
+  # to the project is always required (ingest_access(require_token=True)), only for runs that are running
+  ("outputs.py", "upload_output_file"),
   # the web app and the CLI send usage events (backend/usage.py): the CLI's are unverified without a token, dropped
   # when ingest.auth is "token", like results. Anonymous events have no user, they're counted and never resolved.
   ("usage.py", "usage_events"),

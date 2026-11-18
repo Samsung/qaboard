@@ -16,8 +16,11 @@ CI's environment variables, so the job only installs `qaboard` and runs `qa batc
 - A batch of tests to run on every commit, like `ci` (see [Batches of inputs](/docs/batches-running-on-multiple-inputs)).
 - A CI runner that can write in the results storage, at the same path as the server (like */mnt/qaboard*, an NFS
   share), the path of `storage` in *qaboard.yaml*: a self-hosted GitHub Actions runner, a GitLab runner or a Jenkins
-  agent on your network. GitHub-hosted runners can't save results yet: see the
-  [roadmap](/docs/roadmap#http-upload-of-outputs).
+  agent on your network. Or, for runners that can't mount it, like GitHub-hosted ones, a server that
+  [accepts their files over HTTP](/docs/storage/uploads) (experimental): set `QA_STORAGE: upload` in the job.
+
+To only bring in what a job already produced, like its test report, you don't need a batch: see
+[Upload results from any tool](/docs/upload-results).
 :::
 
 ## Run your batch on every push {#running-qa-board-in-your-ci}

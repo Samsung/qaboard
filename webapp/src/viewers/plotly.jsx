@@ -42,13 +42,17 @@ const PlotlyViewer = ({ output_new, output_ref, path, path_groundtruth, style, s
   const query_ref = useQuery(fileQuery(url(output_ref, path), { is_running: output_ref?.is_running }));
   const query_groundtruth = useQuery(fileQuery(url(output_new, path_groundtruth), { is_running: output_new?.is_running }));
 
-  if (is_html)
+  if (is_html) {
+    // as wide as the configured width, narrower to fit side by side in the card: a fixed width would make the run's
+    // card grow to fit both figures at full width (OutputCard's minWidth), wider than the page
+    const frame_style = { border: "none", flex: "1 1 0", minWidth: 0, width: "100%", maxWidth: width };
     return <div style={{display: "flex"}}>
-        <iframe title={labels.new} scrolling="no" style={{border: "none"}} sandbox={sandbox} src={`${output_new.output_dir_url}/${path}`} height={height} width={width}></iframe>
+        <iframe title={labels.new} scrolling="no" style={frame_style} sandbox={sandbox} src={`${output_new.output_dir_url}/${path}`} height={height}></iframe>
         {has_ref &&
-        <iframe title={labels.reference} scrolling="no" style={{border: "none"}} sandbox={sandbox} src={`${output_ref.output_dir_url}/${path}`} height={height} width={width}></iframe>
+        <iframe title={labels.reference} scrolling="no" style={frame_style} sandbox={sandbox} src={`${output_ref.output_dir_url}/${path}`} height={height}></iframe>
         }
     </div>
+  }
 
   const queries = { new: query_new, ref: query_ref, groundtruth: query_groundtruth };
   // we wait for all the files

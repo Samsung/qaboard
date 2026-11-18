@@ -17,6 +17,12 @@ class UnsafePathError(ValueError):
   pass
 
 
+def all_storage_roots():
+  """$QABOARD_STORAGE_ROOTS, and the folders of the storage locations admins added (backend/locations.py)"""
+  from . import locations
+  return [*storage_roots, *locations.paths()]
+
+
 def _real(path) -> Path:
   return Path(os.path.realpath(path))
 
@@ -39,8 +45,8 @@ def private_dirs():
 def check_storage_path(path) -> Path:
   """Returns `path` if the server may write, delete or run code there, raises UnsafePathError otherwise."""
   real = _real(path)
-  if not any(real != root and real.is_relative_to(root) for root in map(_real, storage_roots)):
-    raise UnsafePathError(f"{path} is not inside the storage folders that QA-Board manages ($QABOARD_STORAGE_ROOTS)")
+  if not any(real != root and real.is_relative_to(root) for root in map(_real, all_storage_roots())):
+    raise UnsafePathError(f"{path} is not inside the storage folders that QA-Board manages ($QABOARD_STORAGE_ROOTS, and its storage locations)")
   for private_dir in private_dirs():
     if real.is_relative_to(private_dir) or private_dir.is_relative_to(real):
       raise UnsafePathError(f"{path} is one of the QA-Board server's own folders")

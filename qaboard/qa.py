@@ -21,7 +21,7 @@ install(show_locals=False, suppress=[click])
 from .run import RunContext
 from .runners import Job, JobGroup
 
-from .conventions import make_batch_dir, make_batch_conf_dir
+from .conventions import make_batch_dir, make_batch_conf_dir, RUN_DIR_VARIABLE
 from .conventions import serialize_config, deserialize_config, get_settings
 from .utils import PathType, entrypoint_module, load_tuning_search
 from .utils import save_outputs_manifest, total_storage
@@ -38,7 +38,7 @@ from .config import project, project_root, subproject, config
 from .config import default_batches_files, get_default_database, default_batch_label, default_platform
 from .config import get_default_configuration, default_input_type
 from .config import commit_id, outputs_commit, artifacts_commit, root_qatools, artifacts_commit_root
-from .config import user, is_ci, on_windows, available_metrics
+from .config import user, is_ci, on_windows, available_metrics, uploads_files
 from .metrics import split_metrics, resolve_definitions, write_definitions_file, with_default_direction
 from . import analytics
 
@@ -67,6 +67,9 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   # Signing in is global, per server: it doesn't need a project
   if ctx.invoked_subcommand in ('auth', 'runs'):
     return
+  # `qa upload` works outside a project too: it reads --label, --configuration and --platform itself
+  if ctx.invoked_subcommand == 'upload':
+    return
   # Local runs save their results in output/: only some commands need the storage
   needed_by = storage_needed_by(ctx.invoked_subcommand, share, is_ci)
   if ctx.invoked_subcommand in ('batch', 'optimize'):
@@ -82,8 +85,15 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
     sys.exit(1)
   if storage_is_missing:
     sys.exit(1)
-
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
+  # Without a storage shared with the server: check-bit-accuracy compares the reference's manifests, fetched over
+  # HTTP, and optimize reads the iterations' metrics from the API. Only artifacts need the shared storage.
+  if uploads_files and ctx.invoked_subcommand == 'save-artifacts' and not will_show_help:
+    # so that the same CI job works with and without a storage
+    click.secho("Nothing to save: artifacts are for the runs QA-Board starts itself (tuning, runs done again), which need a storage shared", fg='yellow', err=True)
+    click.secho("with the server. Here results are sent to it over HTTP (no `storage` in qaboard.yaml, or `storage: upload`).", fg='yellow', err=True)
+    sys.exit(0)
+
   noop_command = 'init' in sys.argv
   if root_qatools and root_qatools != Path().resolve() and not will_show_help and not noop_command:
     ctx.obj['previous_cwd'] = os.getcwd()
@@ -181,6 +191,9 @@ def saves_attempts(qa_context, custom_output=None) -> bool:
   (CI, --share), unless the project opts out (outputs.reruns: in-place). Local runs, in the working directory's
   output/, and runs with their own --output are done again in place.
   """
+  if uploads_files:
+    # their files are in this computer's output/ folder, done again in place; the server replaces what it has
+    return False
   return bool(is_ci or qa_context.get('share')) and not custom_output and attempts.reruns_mode(config) != attempts.IN_PLACE
 
 
@@ -277,12 +290,16 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
       print_url(ctx)
 
       if not ctx.obj['offline']:
-          qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True, data={"attempt_logs": attempts.kept_logs(run_context.output_dir)})
+          # heartbeat: we say every few minutes that the run still runs, else the server fails it (qaboard/heartbeat.py)
+          qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True, keep_previous=keep_previous, heartbeat=True, data={"attempt_logs": attempts.kept_logs(run_context.output_dir)})
           if qa_run_data:
             run_context.id = qa_run_data["id"]
+            start_heartbeat(run_context)
+            start_upload(run_context)
           # in CI, results QA-Board refuses are lost: don't compute them
           exit_if_results_refused()
 
+      os.environ[RUN_DIR_VARIABLE] = str(run_context.output_dir)
       # LSF sends SIGINT then SIGTERM when users bkill the job or it uses too much memory, before a SIGKILL:
       # we say the run failed, or QA-Board would show it as running
       with interrupted_by_sigterm():
@@ -301,6 +318,11 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
             except Exception as e: # debug strange stale file errors, ideally remove this...
               print(f"ERROR: {e}")
             runtime_metrics = {'is_failed': True}
+          except SystemExit as e:
+            # run() exited instead of returning: the run ends here, and we still save what it did
+            if e.code not in (None, 0):
+              click.secho(f'[ERROR] Your `run` function exited with {e.code}', fg='red', bold=True)
+            runtime_metrics = {'is_failed': e.code not in (None, 0)}
 
           if not runtime_metrics:
             runtime_metrics = {"is_failed": False}
@@ -315,21 +337,99 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
           if os.getcwd() != cwd:
             os.chdir(cwd)
 
-          metrics = postprocess_(runtime_metrics, run_context, skip=no_postprocess or runtime_metrics['is_failed'], save_manifests_in_database=save_manifests_in_database)
-          if not metrics:
-            metrics = runtime_metrics
-
-          if metrics['is_failed']:
-            click.secho('[ERROR] The run has failed.', fg='red', err=True)
-            click.secho(str(metrics), fg='red', bold=True)
-          else:
-            click.secho(str(metrics), fg='green')
+          metrics = postprocess_(runtime_metrics, run_context, skip=no_postprocess or runtime_metrics['is_failed'], save_manifests_in_database=save_manifests_in_database, print_summary=True)
           exit_if_results_refused()
           if metrics['is_failed']:
+            sys.exit(1)
+          # in CI, results the server doesn't have are lost
+          if not _files_sent and is_ci:
             sys.exit(1)
         except KeyboardInterrupt:
           mark_aborted(run_context)
           raise
+
+
+# Without a storage shared with the server, `qa run` sends it the run's files (qaboard/upload.py): its log as it
+# goes, from a thread, and everything when the run ends. One run per process.
+_uploader = None
+_upload_finished = False
+_files_sent = True
+
+
+def sends_files(qa_context) -> bool:
+  """Whether the run's files are sent to the server: shared runs, when there is no storage shared with it"""
+  return bool(uploads_files and (is_ci or qa_context.get('share')) and not qa_context.get('offline') and not qa_context.get('dryrun'))
+
+
+def start_upload(run_context):
+  """Once the server knows the run (run_context.id): starts sending its files"""
+  global _uploader
+  if not sends_files(run_context.obj) or run_context.id is None or _uploader is not None:
+    return
+  from .api import qaboard_url
+  from .upload import Uploader
+  _uploader = Uploader(qaboard_url, run_context.id, run_context.output_dir, live=(config.get('outputs') or {}).get('live')).start()
+
+
+_heartbeat = None
+
+
+def start_heartbeat(run_context):
+  global _heartbeat
+  if _heartbeat is None and run_context.id is not None:
+    from .api import qaboard_url
+    from .heartbeat import Heartbeat
+    _heartbeat = Heartbeat(qaboard_url, run_context.id).start()
+
+
+def stop_heartbeat():
+  """Once the server knows how the run ended. Not before: sending the last files can take longer than the timeout"""
+  if _heartbeat is not None:
+    _heartbeat.stop()
+
+
+def wait_for_the_log(log: Path, timeout: float = 1.0, quiet: float = 0.1):
+  """A thread copies what the run prints to its log (qaboard/fd_tee.py): what was just printed may not be there yet"""
+  for stream in (sys.stdout, sys.stderr):
+    try:
+      stream.flush()
+    except (AttributeError, OSError, ValueError):
+      pass
+  deadline, size = time.monotonic() + timeout, None
+  while time.monotonic() < deadline:
+    current = log.stat().st_size if log.exists() else 0
+    if current == size:
+      return
+    size = current
+    time.sleep(quiet)
+
+
+def finish_upload(run_context):
+  """Sends the run's files before telling the server that it ended: finished runs' files don't change"""
+  global _uploader, _upload_finished, _files_sent
+  if not sends_files(run_context.obj) or _upload_finished:
+    return
+  _upload_finished = True
+  if _uploader is None:
+    # the server didn't answer when the run started: it has to know the run, as running, to take its files
+    started = notify_qa_database(**run_context.obj, is_pending=True, is_running=True, keep_previous=True, heartbeat=True)
+    if started:
+      run_context.id = started["id"]
+      start_upload(run_context)
+  if _uploader is None:
+    _files_sent = False
+    click.secho("ERROR: QA-Board doesn't have the files of the run: it didn't take the run. They are in " + str(run_context.output_dir), fg='red', bold=True, err=True)
+    return
+  uploader, _uploader = _uploader, None
+  # with what the run printed last, e.g. that it failed
+  wait_for_the_log(run_context.output_dir / 'log.txt')
+  if uploader.finish():
+    click.secho(f"Sent {uploader.sent_files} files to QA-Board ({uploader.sent_bytes / 1e6:.1f} MB)", fg='cyan', err=True)
+  else:
+    _files_sent = False
+    click.secho("ERROR: QA-Board doesn't have all the files of the run:", fg='red', bold=True, err=True)
+    for problem in uploader.problems():
+      click.secho(f"       {problem}", fg='red', err=True)
 
 
 def mark_aborted(run_context):
@@ -351,11 +451,17 @@ def mark_aborted(run_context):
     except OSError as e:
       click.secho(f'[ERROR] Could not write {metrics_path}: {e}', fg='red', err=True)
     if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
+      finish_upload(run_context)
       notify_qa_database(**run_context.obj, metrics=metrics, is_failed=True, is_pending=False, is_running=False)
+      stop_heartbeat()
 
 
-def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_database=False):
-  """Computes computes various success metrics and outputs."""
+def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_database=False, print_summary=False):
+  """
+  Computes computes various success metrics and outputs.
+  `print_summary`: print the metrics, and whether the run failed, before the results are sent: runs that send their
+  files to the server send their log with them, and a finished run's files don't change.
+  """
   from .utils import file_info
   from .compat import windows_to_linux_path
 
@@ -451,8 +557,17 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
       copy(run_context.output_dir / 'manifest.inputs.json', run_context.input_path / 'manifest.inputs.json')
       copy(run_context.output_dir / 'manifest.outputs.json', run_context.input_path / 'manifest.outputs.json')
 
+  if print_summary:
+    if metrics['is_failed']:
+      click.secho('[ERROR] The run has failed.', fg='red', err=True)
+      click.secho(str(metrics), fg='red', bold=True)
+    else:
+      click.secho(str(metrics), fg='green')
+
   if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
+    finish_upload(run_context)
     notify_qa_database(**run_context.obj, metrics=metrics, metrics_definitions=metrics_definitions, data=output_data, is_pending=False, is_running=False)
+    stop_heartbeat()
 
 
   ###### SIRC-specific ########################################################
@@ -984,7 +1099,8 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
       # In most cases we don't care: worse case re-running will lead to some orphan output dirs on disk and wasted compute
       # But when trying to get results from older `qa batch`, we care...
       # We could remove the feature flag, maybe when it's used a bit more and we check there is no noticeable runtime cost..
-      if not 'QA_BATCH_COMPLEX_MATCHING' in os.environ:
+      # runs that send their files to the server aren't in the folder it says: we match what they ran on
+      if not 'QA_BATCH_COMPLEX_MATCHING' in os.environ and not uploads_files:
         matching_existing_outputs = [o for o in existing_outputs.values() if url_to_dir(o['output_dir_url']) == run_context.output_dir]
         matching_existing_output = matching_existing_outputs[0] if matching_existing_outputs else None
       else:
@@ -1300,6 +1416,8 @@ qa.add_command(gate)
 
 from .auth import auth
 qa.add_command(auth)
+from .upload_command import upload
+qa.add_command(upload)
 
 
 @qa.command(name='runs')
