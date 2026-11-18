@@ -130,7 +130,7 @@ test('pairs runs on other inputs by name', async ({ page }) => {
   // the ramp ran with another gain: its name differs by two parts, users pick it
   // cards show their tags once they're on screen
   await page.getByText('ramp_16bit_reg0x1A=05_g8.raw').scrollIntoViewIfNeeded();
-  await page.getByText('no reference · 1 similar').click();
+  await page.locator('.output-card[data-output-id="110"]').getByText('no reference · 1 similar').click();
   await expect(page.getByRole('dialog', { name: /Compare .*ramp_16bit/ })).toBeVisible();
   await page.getByRole('option', { name: /ramp_16bit_reg0x1A=03_g4/ }).click();
   await expect(page).toHaveURL(/pin=110%3A210/);
@@ -146,8 +146,9 @@ test('picks any reference run when none is likely', async ({ page }) => {
   await page.goto(sweep_page);
   // another scene, no similar name: users search all the reference runs
   await expect(page.getByRole('region', { name: 'Configurations' }).getByText('7 runs have no reference run.')).toBeVisible();
-  // cards show their tags once they're on screen, and render again as data comes
-  const tag = page.getByText('no reference', { exact: true });
+  // cards show their tags once they're on screen, and render again as data comes.
+  // Other runs without a reference show the same tag when they're on screen too: use this run's
+  const tag = page.locator('.output-card[data-output-id="111"]').getByText('no reference', { exact: true });
   await expect(async () => {
     await page.getByText('night_moon_reg0x1A=05_g4.raw').scrollIntoViewIfNeeded({ timeout: 1000 });
     await expect(tag).toBeVisible({ timeout: 1000 });
