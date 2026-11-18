@@ -828,7 +828,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
               tagInputProps={{
                 tagProps: {minimal: true},
                 onRemove: (_tag, index) => deselectDeleteBatch(index),
-                rightElement: show_delete_batches_values.length > 0 ? <Button icon="cross" minimal={true} onClick={() => setShowDeleteBatchesValues([])} /> : undefined
+                rightElement: show_delete_batches_values.length > 0 ? <Button icon="cross" minimal={true} aria-label="Clear the batches to delete" onClick={() => setShowDeleteBatchesValues([])} /> : undefined
               }}
               placeholder="Select batches to delete..."
               noResults={<MenuItem disabled text="No batch matches." />}

@@ -31,7 +31,7 @@ const Layers = styled.ol`
 `;
 
 const Layer = ({ used, title, status, children }) => <li className={used ? undefined : 'ignored'}>
-  <Icon icon={used ? 'tick-circle' : 'circle'} intent={used ? Intent.SUCCESS : Intent.NONE} size={14} aria-label={used ? 'In use' : undefined} style={{ marginTop: 2 }}/>
+  <Icon icon={used ? 'tick-circle' : 'circle'} intent={used ? Intent.SUCCESS : Intent.NONE} size={14} title={used ? 'In use' : undefined} style={{ marginTop: 2 }}/>
   <span className="layer-title">
     <strong>{title}</strong>
     {used ? <Tag minimal round intent={Intent.SUCCESS}>in use</Tag> : status && <span className={Classes.TEXT_MUTED}>{status}</span>}
