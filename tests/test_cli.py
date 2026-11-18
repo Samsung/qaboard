@@ -367,6 +367,27 @@ class TestQaCli(unittest.TestCase):
     self.assertEqual(output.strip().splitlines()[-1], 'ERROR: QA-Board refused the results (ingest_token_required): they were not saved. '
                      f'Set QABOARD_TOKEN to a valid token with the ingest scope for {Path(config.project).as_posix()}.')
 
+  def test_batch_sends_a_snapshot_of_its_batches(self):
+    """QA-Board keeps the batches as they ran, filtered to what ran, and how to run them again"""
+    from unittest import mock
+    self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--list') # loads the modules
+    qa_module = import_module('qaboard.qa')
+    env = {k: v for k, v in os.environ.items() if k not in ('QA_OFFLINE',)}
+    # we stop when the command is sent, before any run
+    args = ('batch', '--batches-file', 'image.batches.yaml', 'images', '--tuning-search', '{"parameter_search": {"a": [1, 2]}}')
+    with mock.patch.dict(os.environ, env, clear=True), mock.patch('sys.argv', ['/venv/bin/qa', *args]), mock.patch.object(qa_module, 'is_ci', True), mock.patch.object(qa_module, 'get_outputs', return_value={}), \
+         mock.patch.object(qa_module, 'notify_qa_database', side_effect=SystemExit(3)) as notify:
+      result = self.qa(*args, reload_modules=False)
+    self.assertEqual(result.exit_code, 3, result.output)
+    command = next(iter(notify.call_args.kwargs['command'].values()))
+    self.assertEqual(command['tuning_search'], {"parameter_search": {"a": [1, 2]}})
+    snapshot = command['batches_snapshot']
+    self.assertEqual(snapshot['batches'], ['images'])
+    self.assertEqual(snapshot['names'], ['images'])
+    self.assertEqual(snapshot['files'], ['image.batches.yaml'])
+    self.assertIn('images', yaml.safe_load(snapshot['yaml']))
+    self.assertEqual(snapshot['reproduce'], ['qa', 'batch', '--batches-file', 'batches.yaml', 'images', '--tuning-search', '{"parameter_search": {"a": [1, 2]}}'])
+
   def test_get(self):
     result = self.qa('get', 'commit_id')
     assert result.exit_code == 0

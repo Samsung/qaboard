@@ -81,6 +81,28 @@ describe('TuningForm', () => {
     });
   });
 
+  it('runs the batches of an earlier batch as they ran, until users drop them', async () => {
+    const files = [{ path: 'batches.night.yaml', content: 'nightly: {inputs: [a.jpg]}\n' }];
+    usePrefsStore.getState().updateTuning('proj', { experiment_name: 'night-again', selected_group: 'nightly', batches_snapshot: { from: 'night', files, names: ['nightly'] } });
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(url => url.startsWith('/api/v1/tests/group?')
+      ? json({ tests: [{ input_path: 'a.jpg', configurations: [] }] })
+      : json({}));
+    renderWithProviders(
+      <TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>,
+      { user: { is_logged: true, user_name: 'alice' }, siteConfig: {} },
+    );
+    expect(screen.getByText('The batches as they ran in night')).toBeInTheDocument();
+    // the tests are listed from them too
+    await waitFor(() => expect(JSON.parse(fetch.mock.calls.find(([url]) => url.startsWith('/api/v1/tests/group?'))[1].body).batches_files).toEqual(files));
+    fireEvent.click(await screen.findByText('Start 1 run'));
+    await waitFor(() => expect(fetch.mock.calls.some(([url]) => url === '/api/v1/commit/abcdef12/batch?project=proj')).toBe(true));
+    const [, init] = fetch.mock.calls.find(([url]) => url === '/api/v1/commit/abcdef12/batch?project=proj');
+    expect(JSON.parse(init.body).batches_files).toEqual(files);
+    fireEvent.click(screen.getByText('Use the batches as defined now'));
+    expect(usePrefsStore.getState().tuning.proj.batches_snapshot).toBeNull();
+    expect(screen.queryByText('The batches as they ran in night')).toBeNull();
+  });
+
   it('asks for an email when the batch ends, if the server can send them', async () => {
     usePrefsStore.getState().updateTuning('proj', { experiment_name: 'exp', selected_group: 'nightly' });
     const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(url => url.startsWith('/api/v1/tests/group?')

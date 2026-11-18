@@ -158,33 +158,23 @@ def test_check_tuning_request_says_where_batches_are_defined(tmp_path, monkeypat
     assert [f["path"] for f in check["batches_files"]] == ["sub/batches.yaml", "alice.yml"]
 
 
-def test_copy_batches_files(tmp_path):
-    # `qa batch` reads exact copies, with their comments and file-level defaults, so runs match local ones
-    from backend.api.tuning import copy_batches_files
-    content = "# nightly runs\nconfigurations: [base]\nnight: {inputs: [a]}\n"
-    (tmp_path / "batches.yaml").write_text(content)
-    (tmp_path / "alice.yml").write_text("night: {inputs: [b]}\n")
+def test_write_batches_snapshot(tmp_path):
+    # `qa batch` reads one file, with only what runs: the batches, their nested aliases, and the file-level defaults
+    import yaml
+    from backend.api.tuning import write_batches_snapshot
+    (tmp_path / "batches.yaml").write_text("# nightly runs\nconfigurations: [base]\nnight: {inputs: [a]}\nday: {inputs: [d]}\n")
+    (tmp_path / "alice.yml").write_text("aliases: {all: [nights], nights: [night], other: [day]}\nnight: {inputs: [b]}\nmine: {}\n")
     files = [
-        {"source": "commit", "path": "qa/batches.yaml", "location": tmp_path / "batches.yaml"},
-        # paths from qaboard.yaml can be absolute or go up: the copies stay in the submission's folder
-        {"source": "commit", "path": "/shared/../batches.yaml", "location": tmp_path / "batches.yaml"},
-        {"source": "commit", "path": "batches.yaml", "location": tmp_path / "batches.yaml"},
-        {"source": "qaboard", "path": "alice.yml", "location": tmp_path / "alice.yml"},
+        {"source": "commit", "path": "qa/batches.yaml", "location": tmp_path / "batches.yaml", "exists": True},
+        {"source": "qaboard", "path": "alice.yml", "location": tmp_path / "alice.yml", "exists": True},
     ]
-    log_dir = tmp_path / "log"
-    copies = copy_batches_files(files, log_dir)
-    assert [c.relative_to(log_dir).as_posix() for c in copies] == [
-        "batches/commit/qa/batches.yaml",
-        "batches/commit/shared/batches.yaml",
-        "batches/commit/batches.yaml",
-        "batches/qaboard/alice.yml",
-    ]
-    assert copies[0].read_text() == content
-    assert copies[3].read_text() == "night: {inputs: [b]}\n"
-    # two paths that end up the same don't overwrite each other
-    copies = copy_batches_files([files[2], {**files[3], "source": "commit", "path": "batches.yaml"}], tmp_path / "log2")
-    assert [c.name for c in copies] == ["batches.yaml", "1-batches.yaml"]
-    assert copies[1].read_text() == "night: {inputs: [b]}\n"
+    (tmp_path / "log").mkdir()
+    path, summary = write_batches_snapshot(files, ["all"], {}, tmp_path / "log", when="2026-11-18T10:00:00Z")
+    assert path == tmp_path / "log" / "batches.yaml"
+    assert summary == {"batches": ["night"], "aliases": ["all", "nights"], "files": ["alice.yml (in QA-Board)"], "inputs": []}
+    text = path.read_text()
+    assert "# from alice.yml (in QA-Board)" in text and "Started: 2026-11-18T10:00:00Z" in text
+    assert yaml.safe_load(text) == {"aliases": {"all": ["nights"], "nights": ["night"]}, "night": {"inputs": ["b"]}}
 
 
 def test_check_tuning_request_without_batches_files(tmp_path):
@@ -284,11 +274,23 @@ def batches_setup(tmp_path, monkeypatch):
     return SimpleNamespace(commit=commit, config=config, artifacts=artifacts, database=database, tmp_path=tmp_path)
 
 
-def list_tests(app, name, commit="94d909ca"):
+def list_tests(app, name, commit="94d909ca", batches_files=None):
     from backend.api.tuning import get_group
     query = {"project": "group/repo", "name": name, **({"commit": commit} if commit else {})}
-    with app.test_request_context("/api/v1/tests/group", method="POST", query_string=query, json={"groups": ["extra-batches", "alice"]}):
+    body = {"groups": ["extra-batches", "alice"], **({"batches_files": batches_files} if batches_files else {})}
+    with app.test_request_context("/api/v1/tests/group", method="POST", query_string=query, json=body):
         return get_group().get_json()
+
+
+def test_lists_a_batch_from_sent_files(dummy_app, batches_setup):
+    # e.g. the snapshot of an earlier batch, to run it again: it wins
+    data = list_tests(dummy_app, "ci", batches_files=[{"path": "batches.yaml", "content": "ci: {inputs: [b]}\n"}])
+    assert data["tests"] == [{"input_path": "b", "configurations": []}]
+    assert data["definitions"] == [{"name": "ci", "files": ["qa/tests/tests.yaml", "batches.yaml"], "sources": ["commit", "sent"]}]
+    from backend.api.tuning import get_group
+    with dummy_app.test_request_context("/api/v1/tests/group", method="POST", query_string={"project": "group/repo", "name": "ci"}, json={"groups": [], "batches_files": "x"}):
+        response, status = get_group()
+    assert status == 400
 
 
 def test_lists_a_batch_and_where_it_is_defined(dummy_app, batches_setup):
@@ -625,16 +627,6 @@ def test_sent_batch_files_are_read_last(tmp_path):
     assert [(f["source"], f["path"]) for f in check["batches_files"]] == [("commit", "sub/batches.yaml"), ("sent", "qa/local.yaml")]
 
 
-def test_sent_batch_files_are_copied_as_sent(tmp_path):
-    from backend.api.tuning import copy_batches_files, sent_batches_files
-    content = "# mine\nconfigurations: [base]\nmine: {inputs: [c]}\n"
-    files, errors = sent_batches_files([{"path": "C:\\work\\..\\qa\\local.yaml", "content": content}])
-    assert errors == []
-    copies = copy_batches_files(files, tmp_path / "log")
-    assert [c.relative_to(tmp_path / "log").as_posix() for c in copies] == ["batches/sent/0/local.yaml"]
-    assert copies[0].read_text() == content
-
-
 def test_invalid_sent_batch_files_are_errors(tmp_path):
     from backend.api.tuning import sent_batches_files, check_tuning_request, MAX_SENT_BATCHES_FILES
     assert sent_batches_files(None) == ([], [])
@@ -701,20 +693,6 @@ def test_aliases_can_not_stand_for_too_many_batches(tmp_path):
     assert "more than 10000 batches" in check["errors"][0]
 
 
-def test_sent_batch_files_copies_never_collide(tmp_path):
-    from backend.api.tuning import copy_batches_files, sent_batches_files
-    files, errors = sent_batches_files([
-        {"path": "a", "content": "a: {}\n"}, {"path": "a/b.yaml", "content": "b: {}\n"},
-        {"path": "2-a.yaml", "content": "c: {}\n"}, {"path": "a.yaml", "content": "d: {}\n"}, {"path": "a.yaml", "content": "e: {}\n"},
-        {"path": "x" * 300 + ".yaml", "content": "f: {}\n"},
-    ])
-    assert errors == []
-    copies = copy_batches_files(files, tmp_path / "log")
-    assert len(set(copies)) == len(files)
-    assert [c.read_text() for c in copies] == ["a: {}\n", "b: {}\n", "c: {}\n", "d: {}\n", "e: {}\n", "f: {}\n"]
-    assert copies[5].name == "batches.yaml"
-
-
 def test_sent_batch_files_with_lone_surrogates_are_invalid():
     from backend.api.tuning import sent_batches_files
     for sent in ({"path": "a.yaml", "content": "a: {}\n\ud800"}, {"path": "\ud800.yaml", "content": "a: {}\n"}):
@@ -770,9 +748,11 @@ def test_start_a_batch_from_an_api_client(dummy_app, tmp_path, monkeypatch):
     command = body["submission"]["command"]
     assert "--batch night --batch mine" in command and "--action-on-existing sync --no-wait" in command
     assert '"parameter_search": {}' in command
-    # the user's private and the shared batches, then the sent file
-    assert [p.relative_to(started["log_dir"]).as_posix() for p in sorted(started["log_dir"].glob("batches/**/*.y*ml"))] == [
-        "batches/commit/sub/batches.yaml", "batches/qaboard/alice.yml", "batches/qaboard/extra-batches.yml", "batches/sent/3/local.yaml",
-    ]
-    assert (started["log_dir"] / "batches/sent/3/local.yaml").read_text() == "mine: {inputs: [b]}\n"
+    # one snapshot of the batches that run, from the commit's file and the sent one: not QA-Board's whole files
+    assert [p.relative_to(started["log_dir"]).as_posix() for p in started["log_dir"].glob("**/*.y*ml")] == ["batches.yaml"]
+    assert f"--batches-file {started['log_dir'] / 'batches.yaml'}" in command
+    import yaml
+    assert yaml.safe_load((started["log_dir"] / "batches.yaml").read_text()) == {"night": {"inputs": ["a"]}, "mine": {"inputs": ["b"]}}
+    assert body["submission"]["batches_snapshot"] == {"batches": ["night", "mine"], "aliases": [], "files": ["sub/batches.yaml", "local.yaml (sent with qa batch --commit)"], "inputs": [], "path": "batches.yaml"}
+    assert body["submission"]["request"]["selected_group"] == ["night", "mine"]
     assert "export QABOARD_TUNING=true" in started["script"]

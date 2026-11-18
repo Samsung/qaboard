@@ -54,6 +54,10 @@ With `--share`, `qa batch` and `qa optimize` also save what they print, errors i
 [batch commands](/docs/user-guide/logs#batch-commands)). In CI, they aren't saved: the CI keeps the logs. `qa optimize`
 saves the output of its iterations in its own log.
 
+With `--share` and in CI, `qa batch` also sends QA-Board its batches as they are defined when it starts, with only
+what it runs (the batches and the aliases that reach them): after you edit your batch files, the **Logs** view still
+says what ran, and can [run it again](/docs/user-guide/logs#run-again).
+
 ## Name experiments: `--label` {#qa---label-my-label}
 Each `qa run` replaces the previous results of the same input and configuration. To keep several versions, e.g.
 before and after a change, give each one a label:

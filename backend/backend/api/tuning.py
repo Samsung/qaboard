@@ -6,11 +6,12 @@ import os
 import sys
 import json
 import uuid
+import shutil
 import signal
 import fnmatch
 import datetime
+import tempfile
 import itertools
-import shutil
 import subprocess
 from glob import glob
 from copy import deepcopy
@@ -20,7 +21,7 @@ from types import SimpleNamespace
 from typing import Dict, List, Any
 
 import yaml
-from flask import request, jsonify, g
+from flask import request, jsonify, g, after_this_request
 from sqlalchemy.orm.exc import NoResultFound
 
 from qaboard.utils import merge
@@ -363,6 +364,19 @@ def get_group():
         files = [{"source": "qaboard", "path": f"{group}.yml", "location": get_groups_path(project_id, name=group), "exists": True} for group in groups]
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+    # e.g. the snapshot of the batches of an earlier batch, to run them again: read last, like when starting
+    sent, sent_errors = sent_batches_files(data.get("batches_files"))
+    if sent_errors:
+        return jsonify({"error": " ".join(sent_errors)}), 400
+    if sent:
+        sent_dir = Path(tempfile.mkdtemp(prefix="qaboard-sent-batches-"))
+        @after_this_request
+        def remove_sent(response):
+            shutil.rmtree(sent_dir, ignore_errors=True)
+            return response
+        for idx, sent_file in enumerate(sent):
+            sent_file["location"] = sent_dir / f"{idx}.yaml"
+            sent_file["location"].write_text(sent_file.pop("content"), encoding="utf-8")
 
     warnings = []
     ci_commit = None
@@ -384,6 +398,7 @@ def get_group():
       files = [*commit_batches_files(ci_commit, qatools_config), *files]
     else:
       qatools_config = deepcopy(project.data.get("qatools_config", {}))
+    files = [*files, *sent]
 
     files_batches = [(f, read_batches_file(f)) for f in files]
     defined, aliases = batch_definitions(files_batches)
@@ -762,34 +777,32 @@ def pipeline_batches(batches, merged_batches):
     return batches
 
 
-def copy_batches_files(files, log_dir):
+# Where the snapshot of the batches is, in the submission's folder
+SNAPSHOT_FILE = "batches.yaml"
+
+def snapshot_label(batches_file):
+    """How the snapshot names the file a batch comes from"""
+    if batches_file["source"] == "qaboard":
+        return f"{batches_file['path']} (in QA-Board)"
+    if batches_file["source"] == "sent":
+        return f"{batches_file['path']} (sent with qa batch --commit)"
+    return batches_file["path"]
+
+
+def write_batches_snapshot(files, names, config, log_dir, command=None, when=None):
     """
-    Copies the batch files to the submission's folder, to know later what ran, and to run it again.
-    `qa batch` reads the copies like the files on a commit: in the same order, with their file-level defaults.
-    They keep their paths, e.g. batches/commit/qa/tests.yaml or batches/qaboard/alice.yml, so that errors name them.
-    Returns the paths of the copies.
+    Writes the batches that will run in the submission's folder: the definitions as they are now, from the files
+    `qa batch` would read (load_batches), filtered to what runs (qaboard/batch_snapshot.py). `qa batch` reads it:
+    users see what ran, and can run it again, even after the files change.
+    Returns (its path, a summary for the submission: {batches, aliases, files, inputs}).
     """
-    copies = []
-    for idx, batches_file in enumerate(files):
-        parts = batches_file_copy_parts(batches_file["path"])
-        if batches_file["source"] == "sent":
-            # untrusted paths: a folder per file, so that they can't collide, and a short name
-            name = parts[-1]
-            parts = [str(idx), name if len(name.encode('utf-8')) <= 100 else f"batches{Path(name).suffix[:10]}"]
-        copy = Path(log_dir) / "batches" / batches_file["source"] / Path(*parts)
-        n = len(copies)
-        while copy in copies:
-            copy = copy.with_name(f"{n}-{Path(*parts).name}")
-            n += 1
-        copy.parent.mkdir(parents=True, exist_ok=True)
-        if "content" in batches_file:
-            # sent with the request: we write exactly what we read when checking it
-            with copy.open("w", encoding="utf-8") as f:
-                f.write(batches_file["content"])
-        else:
-            shutil.copyfile(batches_file["location"], copy)
-        copies.append(copy)
-    return copies
+    from qaboard.batch_snapshot import snapshot, header_lines
+    contents = [(snapshot_label(f), read_batches_file(f)) for f in files]
+    allow_duplicates = bool((config.get('inputs') or {}).get('allow_duplicate_batches')) if isinstance(config.get('inputs'), dict) else False
+    result = snapshot(names, contents, allow_duplicates, header=header_lines(names, command=command, when=when))
+    path = Path(log_dir) / SNAPSHOT_FILE
+    path.write_text(result["yaml"], encoding="utf-8")
+    return path, {k: result[k] for k in ("batches", "aliases", "files", "inputs")}
 
 
 def batches_file_copy_parts(path) -> List[str]:
@@ -1030,7 +1043,6 @@ def start_tuning(hexsha):
     created_at = datetime.datetime.utcnow()
     log_dir = submission_dir(batch_dir, created_at, command_id)
     mkdir_for_everyone(log_dir)
-    batches_files = copy_batches_files(check["batches_files"], log_dir)
 
     working_directory = ci_commit.artifacts_dir
     print(working_directory)
@@ -1050,13 +1062,19 @@ def start_tuning(hexsha):
     else:
         config_option = f"--tuning-search {quote(json.dumps(data['tuning_search']))}"
 
+    # we know the batch names: the snapshot is the only batch file `qa batch` reads
+    snapshot_path, snapshot_summary = write_batches_snapshot(
+        check["batches_files"], batches_names, commit_qaboard_config(ci_commit), log_dir,
+        when=created_at.isoformat() + 'Z',
+    )
+
     overwrite = "--action-on-existing run" if data["overwrite"] in ("on", True) else "--action-on-existing sync"
     batch_command = " ".join([
         "qa",
         f"--platform {quote(str(data['platform']))}" if "platform" in data else "",
         f"--label {quote(str(data['batch_label']))}",
         "optimize" if do_optimize else "batch",
-        *(f"--batches-file {quote(str(path))}" for path in batches_files),
+        f"--batches-file {quote(str(snapshot_path))}",
         *(f"--batch {quote(name)}" for name in batches_names),
         # f"--runner=local", # uncomment if testing from Samsung SIRC where LSF is the default
         config_option,
@@ -1081,6 +1099,14 @@ def start_tuning(hexsha):
         # where the batches are defined: the command reads copies of the batch files
         "batch": " ".join(batches_names),
         "definitions": check["definitions"],
+        # what the snapshot of the batches has (SNAPSHOT_FILE in log_dir), and what the form had: to start it again
+        "batches_snapshot": {**snapshot_summary, "path": SNAPSHOT_FILE},
+        "request": {
+            "selected_group": batches_names,
+            "platform": data.get("platform"),
+            "tuning_search": data["tuning_search"],
+            "overwrite": data["overwrite"] in ("on", True),
+        },
         # local/celery: `qa batch` runs detached on the server, LSF/kubernetes: `qa batch` is an LSF job/a pod
         "status": "submitting",
     }
