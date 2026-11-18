@@ -1054,7 +1054,7 @@ class ActiveRun:
       return
     # the sync thread has stopped: the server must still hear from the run while the last files go, which can take
     # longer than the time after which it fails silent runs
-    beating = heartbeat.Heartbeat(self.server, self.id, self._token).start() if self._heartbeats and self.id is not None else None
+    beating = heartbeat.Heartbeat(self.server, self.id, self._token).start() if self._heartbeats and self.server and self.id is not None else None
     try:
       self._files_sent = self._uploader.finish()
     finally:
