@@ -141,9 +141,27 @@ def clean_output_dir(output_dir: Path, keep: Sequence[str] = ()):
 
 @contextmanager
 def redirect_std_streams(file, color=None):
+  """
+  In the block, what is written to stdout and stderr is also saved in `file`, e.g. a run's log.txt.
+  On POSIX, we tee the file descriptors (qaboard/fd_tee.py): the log also gets what subprocesses
+  and native code write. Elsewhere, or when sys.stdout isn't the process's stdout, only what Python prints.
+  """
   if os.environ.get('QA_NO_STREAM_REDIRECT'):
     yield sys.stdout, sys.stderr
     return
+  from . import fd_tee
+  if fd_tee.supported():
+    tee = fd_tee.FdTee(file)
+    try:
+      tee.start()
+    except OSError:
+      pass # e.g. too many open files: we save at least what Python prints
+    else:
+      try:
+        yield sys.stdout, sys.stderr
+      finally:
+        tee.stop()
+      return
   stdout = RedirectStream('stdout', file, color)
   stderr = RedirectStream('stderr', file, color)
   try:
