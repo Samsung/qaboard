@@ -526,6 +526,14 @@ def _env(name):
   return lambda: os.environ.get(name, '').strip() or None
 
 
+def _upload_root_text():
+  """The folder the server uses, even when it's the default"""
+  from . import config
+  if config.upload_root is None:
+    return None
+  return str(config.upload_root) + ("" if os.environ.get('QABOARD_UPLOAD_ROOT', '').strip() else " (default)")
+
+
 def _redact_url(url):
   if not url:
     return None
@@ -583,8 +591,8 @@ SERVER_VARIABLES = [
 
   ServerVariable('QABOARD_STORAGE_ROOTS', "Storage roots", 'storage', "The folders where projects store their results. The server never writes, deletes or runs code outside them.",
                  BOUNDARY, _env('QABOARD_STORAGE_ROOTS'), default_text="/mnt/qaboard"),
-  ServerVariable('QABOARD_UPLOAD_ROOT', "Uploads folder", 'storage', "Where the server saves the files of runs that send them over HTTP, without a storage shared with it. Not set: the server doesn't accept files.",
-                 BOUNDARY, _env('QABOARD_UPLOAD_ROOT'), default_text="Not set: no uploads.", docs="/docs/backend-admin/uploads"),
+  ServerVariable('QABOARD_UPLOAD_ROOT', "Uploads folder", 'storage', "Where the server saves the files of runs that send them over HTTP, without a storage shared with it. Not set: /mnt/qaboard when the storage roots aren't set either and the server can write there. \"off\": the server doesn't accept files.",
+                 BOUNDARY, lambda: _upload_root_text(), default_text="Off: the server doesn't accept files.", docs="/docs/backend-admin/uploads"),
   ServerVariable('QABOARD_SILENT_RUN_TIMEOUT_MINUTES', "Silent runs fail after", 'storage', "Runs that say they report every few minutes are failed when they stay silent this long, e.g. their machine was killed. 0: never.",
                  BOUNDARY, _env('QABOARD_SILENT_RUN_TIMEOUT_MINUTES'), default_text="15 minutes", docs="/docs/backend-admin/storage#silent-runs"),
   ServerVariable('QABOARD_FILES_UNIX_PERMISSIONS', "Folders with Unix permissions", 'storage', "Folders where users only read the files their Unix account can read.",

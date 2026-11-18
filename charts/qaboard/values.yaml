@@ -50,9 +50,9 @@ results:
   enabled: false
   mountPath: /mnt/qaboard
   # Also save there, under <mountPath>/<project>/-/, the files of runs that don't mount the storage: they send them
-  # over HTTP (`storage: upload` in qaboard.yaml). Require tokens first (QABOARD_INGEST_AUTH=token) unless only people
-  # you trust reach the server. See https://samsung.github.io/qaboard/docs/backend-admin/uploads
-  uploads: false
+  # over HTTP (projects without `storage` in qaboard.yaml, or `storage: upload`), always with a token. false: the
+  # server refuses them. See https://samsung.github.io/qaboard/docs/backend-admin/uploads
+  uploads: true
   # Set one of existingClaim, nfs or hostPath. Else the chart creates a PersistentVolumeClaim.
   # An existing PersistentVolumeClaim, e.g. on a storage class for NFS, EFS, Filestore or Azure Files
   existingClaim: ""

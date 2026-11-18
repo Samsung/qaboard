@@ -6,6 +6,9 @@ from flask import Flask
 # For more explanation about the unit tests suite, see tests/TESTING.md.
 
 def pytest_configure():
+    # CI runs the tests in the deployed backend, whose default storage takes uploads (backend/config.py):
+    # tests turn them on themselves
+    os.environ.setdefault("QABOARD_UPLOAD_ROOT", "off")
     # Escape mocking by setting this env var
     if os.getenv("BACKEND_TEST_MODE") == "no-mock":
         return

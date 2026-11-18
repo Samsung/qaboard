@@ -16,47 +16,63 @@ Uploads are new. Start with a few projects.
 :::
 
 ## Turn uploads on {#enable}
-1. **Choose the folder**, on a disk with room for the results: a storage root you already have, or a new one. The
-   backend writes there; the proxy and the image server read it at the same path, like every
-   [results storage](/docs/deploy#2-create-the-results-storage).
-2. **Set `QABOARD_UPLOAD_ROOT`** for the backend:
+**They are on by default** where the server has the default storage: *docker-compose.yml* mounts a volume at
+`/mnt/qaboard` (your site overlay can mount your storage there instead), and the Helm chart saves them in its
+results volume. Check it in **Admin → Settings**, under *Uploads folder*, or with `qa doctor` in a project without
+`storage`: it says whether the server takes its files, and why not.
 
-   <Tabs groupId="deployment">
-   <TabItem value="compose" label="Docker Compose" default>
+**Choose another folder** when you set your own storage roots (`QABOARD_STORAGE_ROOTS`): the server then takes no
+files until you set `QABOARD_UPLOAD_ROOT`. Pick a disk with room for the results, a storage root you already have or
+a new one. The backend writes there; the proxy and the image server read it at the same path, like every
+[results storage](/docs/deploy#2-create-the-results-storage):
 
-   ```yaml title="Your overlay"
-   services:
-     backend:
-       environment:
-         QABOARD_UPLOAD_ROOT: /mnt/qaboard
-       volumes:
-         - /mnt/qaboard:/mnt/qaboard
-     proxy:
-       volumes:
-         - /mnt/qaboard:/var/qaboard/mnt/qaboard:ro
-     cantaloupe:
-       volumes:
-         - /mnt/qaboard:/repository/mnt/qaboard:ro
-   ```
+<Tabs groupId="deployment">
+<TabItem value="compose" label="Docker Compose" default>
 
-   </TabItem>
-   <TabItem value="kubernetes" label="Kubernetes">
+```yaml title="Your overlay"
+services:
+  backend:
+    environment:
+      QABOARD_UPLOAD_ROOT: /mnt/results
+    volumes:
+      - /mnt/results:/mnt/results
+  proxy:
+    volumes:
+      - /mnt/results:/var/qaboard/mnt/results:ro
+  cantaloupe:
+    volumes:
+      - /mnt/results:/repository/mnt/results:ro
+```
 
-   ```yaml title="values.yaml"
-   results:
-     enabled: true
-     uploads: true     # in the results volume, which the backend, the proxy and the image server already mount
-   ```
+</TabItem>
+<TabItem value="kubernetes" label="Kubernetes">
 
-   </TabItem>
-   </Tabs>
+```yaml title="values.yaml"
+results:
+  enabled: true
+  uploads: true     # the default: in the results volume, which the backend, the proxy and the image server mount
+```
 
-   The [quickstart](/docs/get-started/quickstart)'s server has it on, in its results folder.
-3. **Recommended: require tokens for all results**, if you don't yet: set **Authenticate results sent by qa** to
-   *token* in **Admin → Settings** ([Results sent by qa](/docs/backend-admin/user-management#results-sent-by-qa)).
-   Files need a token either way.
-4. **Check**: **Admin → Settings** lists the *Uploads folder*, and `qa doctor` in a project without `storage` says
-   that the server takes its files.
+</TabItem>
+</Tabs>
+
+**Turn them off** with `QABOARD_UPLOAD_ROOT=off` (`results.uploads: false` with the chart): runs must then save
+their results in a storage shared with the server, and the server tells those that send files why it refuses them.
+
+Then:
+- **Recommended: require tokens for all results**, if you don't yet: set **Authenticate results sent by qa** to
+  *token* in **Admin → Settings** ([Results sent by qa](/docs/backend-admin/user-management#results-sent-by-qa)).
+  Files need a token either way.
+- **Before the server is reachable by people you don't trust** with each other's sessions, read
+  [Keep it safe](#security).
+
+<details>
+<summary>Why these are environment variables, not settings in the web app</summary>
+
+The storage roots and the uploads folder say where the server may write and delete files. If an admin's session were
+stolen, a setting in the web app could point them at any folder of the server. Where *a project's* runs go, inside
+those folders, is in the database: [storage locations](#storage-locations), changed without a restart.
+</details>
 
 ## Where the files go {#layout}
 ```text

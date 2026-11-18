@@ -133,11 +133,13 @@ run-centric page, screenshots for the docs, gaps against experiment trackers): `
 
 ## Results sent over HTTP (`storage: upload`, `qa upload`, November 2026)
 Design: `docs/design/ingest-upload-sdk.md`. Tested with unit tests and a fake server (`tests/test_upload*.py`,
-`tests/test_active_run.py`, `backend/tests/test_uploads.py`); **not** against a real server, nginx and database end
-to end, nor on Windows, nor on any object storage mount.
+`tests/test_active_run.py`, `backend/tests/test_uploads.py`), and end to end in CI's `docker` job
+(`.github/scripts/uploads_e2e.py`: `qa upload`, `start_run()` and `qa --share run` with `QA_STORAGE=upload` against
+`docker-compose.yml`'s defaults, through nginx and the image server); **not** on Windows, nor on any object storage
+mount.
 
-- No end-to-end test in CI: add a `qa upload` and a `qa --share run` with `QA_STORAGE=upload` to the quickstart job
-  (`.github/workflows/ci.yaml`), from a container that doesn't mount the results folder. [S, no change]
+- The end-to-end test doesn't cover `qa check-bit-accuracy` against an uploaded reference, nor heartbeats (a run
+  killed mid-way). [S, no change]
 - What `qa run` prints after its files are sent (that some couldn't be sent, that the server refused the results)
   isn't in the *log.txt* the server has: files are sent before the run is said to have ended, and don't change
   after. [S, behaviour]
