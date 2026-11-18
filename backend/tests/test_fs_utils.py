@@ -1,11 +1,12 @@
 """backend/fs_utils.py: running as other users, and folders users write in"""
 import os
 import stat
+import errno
 import tempfile
 
 import pytest
 
-from backend.fs_utils import as_user, mkdir_shared, chmod_shared, owner, owner_ids, unix_identity, UnknownAccountError
+from backend.fs_utils import rmtree, as_user, mkdir_shared, chmod_shared, owner, owner_ids, unix_identity, UnknownAccountError
 
 
 @pytest.fixture
@@ -130,3 +131,67 @@ def test_as_user_keeps_the_childs_traceback(me, temp_dir):
   with pytest.raises(FileNotFoundError) as e:
     as_user(me, open, '/missing/file')
   assert e.value.filename == '/missing/file'
+
+
+# rmtree: the server can't delete users' files itself (NFS with root_squash), it acts as their owners
+
+def test_rmtree_folders_we_cant_write_in(tmp_path, temp_dir):
+  # e.g. read-only caches: as their owner, we give ourselves u+rwx
+  run = tmp_path / 'run'
+  (run / 'cache' / 'x').mkdir(parents=True)
+  (run / 'cache' / 'x' / 'f').write_text('')
+  (run / 'cache' / 'x').chmod(0o500)
+  (run / 'cache').chmod(0o500)
+  assert rmtree(run) == 4
+  assert not run.exists()
+
+
+def test_rmtree_folders_we_cant_list(tmp_path, temp_dir):
+  # e.g. 0700 folders from tempfile.mkdtemp, here not even for us: it used to fail without trying as the owner
+  run = tmp_path / 'run'
+  (run / 'sub').mkdir(parents=True)
+  (run / 'sub' / 'f').write_text('')
+  (run / 'sub').chmod(0)
+  rmtree(run)
+  assert not run.exists()
+
+
+def test_rmtree_says_who_could_delete_it(tmp_path, temp_dir, monkeypatch):
+  from backend import fs_utils
+  from backend.jobs.report import error_kind, failed_path
+  run = tmp_path / 'run'
+  (run / 'sub').mkdir(parents=True)
+  (run / 'sub' / 'f').write_text('')
+  def remove(path, st):
+    raise PermissionError(errno.EACCES, 'Permission denied', str(path))
+  monkeypatch.setattr(fs_utils, '_remove', remove)
+  def as_user(identity, f, path, as_owners):
+    e = PermissionError(errno.EACCES, 'Permission denied', str(run / 'sub' / 'f'))
+    e.raised_as = identity
+    raise e
+  monkeypatch.setattr(fs_utils, 'as_user', as_user)
+  monkeypatch.setattr(fs_utils, '_owner_name', lambda uid: f"user{uid}")
+  with pytest.raises(fs_utils.DeleteError) as error:
+    rmtree(run)
+  message = str(error.value)
+  assert f"{run / 'sub'} (drwx" in message and f"Tried as user{os.getuid()}: Permission denied: {run / 'sub' / 'f'}" in message
+  # what jobs report: the file, and who can fix it, the owner of its folder
+  assert failed_path(error.value) == str(run / 'sub' / 'f') and error_kind(error.value) == 'permission'
+  assert error.value.owner == f"user{os.getuid()}"
+
+
+def test_rmtree_as_owner_does_not_switch_again(tmp_path, temp_dir, monkeypatch, me):
+  # as the owner, rmtree used to call as_user again, recursively, and try sudo at every level
+  from backend import fs_utils
+  def remove(path, st):
+    raise PermissionError(errno.EACCES, 'Permission denied', str(path))
+  monkeypatch.setattr(fs_utils, '_remove', remove)
+  (tmp_path / 'f').write_text('')
+  calls = []
+  real_as_user = fs_utils.as_user
+  monkeypatch.setattr(fs_utils, 'as_user', lambda *args, **kwargs: calls.append(args) or real_as_user(*args, **kwargs))
+  monkeypatch.setattr(fs_utils.subprocess, 'run', lambda *args, **kwargs: pytest.fail("no sudo when we could act as them"))
+  with pytest.raises(fs_utils.DeleteError):
+    rmtree(tmp_path / 'f')
+  # once as the file's owner, once as its folder's, if they differ
+  assert len(calls) == len({owner_ids(tmp_path / 'f'), owner_ids(tmp_path)})
