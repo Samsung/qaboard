@@ -70,6 +70,10 @@ jobs:
         # valid frontmatter and docs links, and notes being written short enough to read (see CLAUDE.md)
         if: matrix.python == '3.11'
         run: uv run website/release-notes/release_notes.py check --strict
+      - name: backend/uv.lock is up to date
+        # uv sync --locked above only checks uv.lock; a version bump can leave backend/uv.lock behind
+        if: matrix.python == '3.11'
+        run: uv lock --check --directory backend
       - name: Merged migrations are never changed
         # databases record the migrations they ran by id: a changed one doesn't run again where it already ran
         if: matrix.python == '3.11' && github.event_name != 'release'
@@ -229,6 +233,30 @@ jobs:
             docker tag "$QABOARD_IMAGE:$service-$QABOARD_VERSION" "$DOCKERHUB_IMAGE:$service-$QABOARD_VERSION"
             docker push "$DOCKERHUB_IMAGE:$service-$QABOARD_VERSION"
           done
+
+  # The development setup of CONTRIBUTING.md starts: development.yml isn't used anywhere else in CI (#140).
+  # On master only, and not needed to publish the images: a broken dev setup doesn't block a release.
+  dev-server:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+      - name: Start the development setup
+        run: |
+          (cd webapp && npm ci --no-audit --no-fund)
+          docker compose -f docker-compose.yml -f development.yml up -d --build db redis rabbitmq backend frontend
+      - name: The development backend and frontend answer
+        run: |
+          curl -sSf --retry 60 --retry-all-errors --retry-delay 5 http://localhost:5152/api/v1/health
+          curl -sSf --retry 30 --retry-all-errors --retry-delay 5 http://localhost:3000/ > /dev/null
+      - name: Logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.yml -f development.yml logs --tail 100 backend frontend
 
   helm:
     runs-on: ubuntu-latest
