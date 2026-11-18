@@ -59,14 +59,12 @@ def upload_root() -> Optional[Path]:
 
 def bases(project_id: Optional[str] = None) -> List[Path]:
   """
-  The folders where the server saved uploaded runs: every storage location's and the upload root. With a project,
-  where its new runs go comes first (its most specific storage location, else the upload root): its older runs can
-  be in any of them. Whether a location still takes new runs never changes who owns the files already there.
+  The folders where the server saved uploaded runs: every storage location's, the default one (the upload root)
+  included. With a project, where its new runs go comes first: its older runs can be in any of them. Whether a
+  location still takes new runs never changes who owns the files already there.
   """
-  root = upload_root()
   routed = [location.path for location in locations.for_project(project_id.strip('/'))] if project_id else []
-  everything = [*routed, *locations.paths(), *([root] if root is not None else [])]
-  return list(dict.fromkeys(everything))
+  return list(dict.fromkeys([*routed, *locations.paths()]))
 
 
 def overlaps_uploads(path, project_ids) -> bool:
@@ -100,7 +98,7 @@ def overlaps_uploads(path, project_ids) -> bool:
 def new_runs_base(project_id: str) -> Optional[Path]:
   """Where the project's new uploaded runs go, None if the server doesn't take them"""
   routed = locations.for_project(project_id.strip('/'))
-  return routed[0].path if routed else upload_root()
+  return routed[0].path if routed else None
 
 
 def off_reason() -> str:
@@ -118,7 +116,7 @@ def disabled_message() -> str:
 def enabled(project_id: Optional[str] = None) -> bool:
   """Whether the server takes uploaded runs: of a project, or of any project"""
   if project_id is None:
-    return upload_root() is not None or any(location.projects for location in locations.locations())
+    return locations.default() is not None or any(location.projects for location in locations.locations())
   return new_runs_base(project_id) is not None
 
 

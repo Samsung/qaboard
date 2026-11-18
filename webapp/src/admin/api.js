@@ -520,3 +520,33 @@ export const usageUserQuery = id => queryOptions({
 });
 // The same tables as CSV, for spreadsheets: users, groups, projects, or the raw events
 export const usageCsvUrl = (table, params) => buildUrl(`/api/v1/admin/usage/${table}`, { ...usageParams(params), format: 'csv' });
+
+
+// Admin → Storage → Storage locations (backend/locations.py): {locations: [{id, url, path, projects, runs,
+// outside_storage_roots, reachable}], default: {path, reachable} | null, default_off_reason, storage_roots}
+export const storageLocationsQuery = queryOptions({
+  queryKey: ['admin', 'storage-locations'],
+  queryFn: async ({ signal }) => {
+    const { data } = await http.get('/api/v1/admin/storage-locations', { signal });
+    return { locations: data?.locations ?? [], default: data?.default ?? null, default_off_reason: data?.default_off_reason ?? null, storage_roots: data?.storage_roots ?? [] };
+  },
+  staleTime: 30 * 1000,
+});
+
+const invalidateStorageLocations = queryClient => queryClient.invalidateQueries({ queryKey: ['admin', 'storage-locations'] });
+
+// {url, path, projects} to add one, {path, projects} to change one => the location
+export const saveStorageLocation = async (queryClient, { id, ...fields }) => {
+  const { data } = id == null
+    ? await http.post('/api/v1/admin/storage-locations', fields)
+    : await http.post(`/api/v1/admin/storage-locations/${id}`, fields);
+  invalidateStorageLocations(queryClient);
+  return data;
+};
+
+// force: even with runs in it => {runs}
+export const deleteStorageLocation = async (queryClient, id, { force = false } = {}) => {
+  const { data } = await http.delete(`/api/v1/admin/storage-locations/${id}`, { params: force ? { force: 1 } : undefined });
+  invalidateStorageLocations(queryClient);
+  return data;
+};
