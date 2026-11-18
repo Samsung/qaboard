@@ -22,7 +22,7 @@ function Section({sidebarId, label, description, active}: (typeof sections)[numb
   return (
     <li>
       <Link
-        to={sidebar.link.path}
+        to={sidebar.link!.path}
         className={clsx(styles.section, active && styles.active)}
         aria-current={active ? 'true' : undefined}
         // The search results are grouped by section: the Algolia crawler's config, in website/README.md

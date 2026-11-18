@@ -16,11 +16,6 @@ from qaboard.api import url_to_dir
 
 qaboard_host = os.environ.get("QABOARD_HOST", "http://qa")
 
-def fetch_batch(batch_id):
-  r = requests.get(f"{qaboard_host}/api/v1/batch/{batch_id}/")
-  print(r.text)
-  return r.json()
-
 def fetch_commit(hexsha, project):
   r = requests.get(
     f"{qaboard_host}/api/v1/commit/",

@@ -12,7 +12,9 @@ dependencies = [
     "flask_cors",
     "flask_login",
     "python-ldap",
-    "sqlalchemy",
+    "sqlalchemy>=2.1",
+    # scopes the database sessions (backend/database.py): SQLAlchemy 2.1 doesn't install it anymore
+    "greenlet",
     "sqlalchemy_utils",
     "alembic",
     "psycopg2",
@@ -111,7 +113,9 @@ testpaths = ["tests"]
 
 [dependency-groups]
 dev = [
-    "pytest",
+    # 9.2's monkeypatch deletes the attributes it patched on the MagicMock models of conftest.py when it undoes them
+    # (pytest#10644), which breaks the next tests: until the tests stop patching shared mocks
+    "pytest>=9.0.3,<9.2",
     "pytest-cov>=7.0.0",
     "diff-cover>=9.0.0",
     "responses>=0.26.3",

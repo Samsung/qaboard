@@ -58,7 +58,7 @@ def use_site_defaults(sample_config: str, site: Dict[str, Any]) -> str:
   and show instead the values inherited from the site.
   """
   sample = yaml.load(sample_config, Loader=yaml.SafeLoader) or {}
-  root = yaml.compose(sample_config)
+  root: Any = yaml.compose(sample_config)  # None only for an empty sample, then no key is shadowed
   lines = sample_config.splitlines()
   replacements = []
   for key in shadowed_keys(sample, site):

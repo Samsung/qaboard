@@ -150,8 +150,10 @@ export async function migrateFromReduxPersist() {
       localStorage.setItem(flag, '1');
       return;
     }
-    const { default: localforage } = await import("localforage");
-    const raw = await localforage.getItem('persist:root');
+    // localForage's IndexedDB database and store: its values are what it was given, here strings
+    const { createStore, get, del } = await import("idb-keyval");
+    const store = createStore('localforage', 'keyvaluepairs');
+    const raw = await get('persist:root', store);
     if (raw) {
       const root = typeof raw === 'string' ? JSON.parse(raw) : raw;
       const parse = slice => typeof slice === 'string' ? JSON.parse(slice) : slice;
@@ -170,7 +172,7 @@ export async function migrateFromReduxPersist() {
       }));
     }
     localStorage.setItem(flag, '1');
-    if (raw) await localforage.removeItem('persist:root');
+    if (raw) await del('persist:root', store);
   } catch (error) {
     console.warn('Could not migrate preferences from the previous version', error);
   }

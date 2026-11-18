@@ -1,4 +1,5 @@
-FROM metabase/metabase:latest
+# The latest patch of a minor version: Metabase migrates its database when it upgrades, and can't downgrade
+FROM metabase/metabase:v0.65.x
 
 # Proxy/cert configuration — no-ops when args are empty (open-source builds)
 ARG PROXY_URL=""

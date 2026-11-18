@@ -14,6 +14,9 @@ vi.mock('copy-to-clipboard', () => ({ default: vi.fn(() => true) }));
 beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(440);
   vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800);
+  // @tanstack/virtual-core reads the scroll element's size from clientWidth/clientHeight since 3.19
+  vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(440);
+  vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(800);
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 800, height: 440, top: 0, left: 0, right: 800, bottom: 440, x: 0, y: 0 });
 });
 afterEach(() => vi.restoreAllMocks());

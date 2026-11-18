@@ -9,7 +9,7 @@ import { usePrefsStore } from "../../stores/prefs";
 import { copyWithToast } from "../../utils/clipboard";
 import { position, as_json, as_yaml } from "./optimization";
 
-export const plot_config = { displayModeBar: 'hover', displaylogo: false, showSendToCloud: false, showLink: false, responsive: true };
+export const plot_config = { displayModeBar: 'hover', displaylogo: false, showSendToCloud: false, responsive: true };
 
 // 4 significant digits: enough to tell values apart, few enough to read
 export const num = value => typeof value === 'number' ? format(value, { precision: 4 }) : JSON.stringify(value);
