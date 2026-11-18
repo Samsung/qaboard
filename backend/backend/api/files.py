@@ -30,7 +30,7 @@ from ..files import normalize, path_from_url, is_listable, longest_prefix, folde
 from .auth import get_current_user, restrictions, matches_rules, is_authorized_user
 from ..access import authorize, current_actor, effective_visibility
 from ..settings import setting
-from .. import uploads
+from .. import locations, uploads
 
 
 # The projects (and their storage settings) change rarely, we don't want a database query for each file
@@ -180,7 +180,7 @@ def describe_run(output) -> dict:
   params.update({"filter": input_path, "selected_views": "logs"})
   return {
     "id": output.id,
-    "folder": normalize(output.output_dir_override),
+    "folder": normalize(str(locations.local_path(output.output_dir_override))),
     "is_failed": bool(output.is_failed),
     "is_pending": bool(output.is_pending),
     "is_running": bool(output.is_running),
@@ -211,11 +211,13 @@ def run_of_folder():
     return denied
   # Results store the folder their client used, maybe through a symlink
   folders = {*folder_and_parents(path), *folder_and_parents(os.path.realpath(path))}
+  # runs in a storage location store its URL (backend/locations.py)
+  folders |= {locations.location_of(folder) for folder in folders}
   outputs = Output.query.filter(Output.output_dir_override.in_(folders)).all()
   if not outputs:
     return jsonify({"run": None})
   # The most specific folder, else the latest run in it
-  output = max(outputs, key=lambda o: (len(normalize(o.output_dir_override)), o.id))
+  output = max(outputs, key=lambda o: (len(str(locations.local_path(o.output_dir_override))), o.id))
   if not is_authorized_user(None, output.batch.ci_commit.project_id):
     return jsonify({"run": None})
   return jsonify({"run": describe_run(output)})

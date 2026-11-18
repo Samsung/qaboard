@@ -585,6 +585,8 @@ SERVER_VARIABLES = [
                  BOUNDARY, _env('QABOARD_STORAGE_ROOTS'), default_text="/mnt/qaboard"),
   ServerVariable('QABOARD_UPLOAD_ROOT', "Uploads folder", 'storage', "Where the server saves the files of runs that send them over HTTP, without a storage shared with it. Not set: the server doesn't accept files.",
                  BOUNDARY, _env('QABOARD_UPLOAD_ROOT'), default_text="Not set: no uploads.", docs="/docs/backend-admin/uploads"),
+  ServerVariable('QABOARD_SILENT_RUN_TIMEOUT_MINUTES', "Silent runs fail after", 'storage', "Runs that say they report every few minutes are failed when they stay silent this long, e.g. their machine was killed. 0: never.",
+                 BOUNDARY, _env('QABOARD_SILENT_RUN_TIMEOUT_MINUTES'), default_text="15 minutes", docs="/docs/backend-admin/storage#silent-runs"),
   ServerVariable('QABOARD_FILES_UNIX_PERMISSIONS', "Folders with Unix permissions", 'storage', "Folders where users only read the files their Unix account can read.",
                  BOUNDARY, _env('QABOARD_FILES_UNIX_PERMISSIONS'), docs="/docs/backend-admin/user-management#unix-permissions"),
   ServerVariable('QABOARD_ACCOUNTS_COMMAND', "Accounts command", 'storage', "Prints the users' Unix accounts, like /etc/passwd (and QABOARD_GROUPS_COMMAND the groups), for file owners and Unix permissions.",

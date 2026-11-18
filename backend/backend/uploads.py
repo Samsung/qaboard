@@ -14,8 +14,10 @@ the retention rules remove them. Nothing else in the server knows that they were
   the server checks that a folder is one it could have chosen for that project (is_run_dir).
 - "-" separates the project from its runs, like in GitLab's URLs: the project of a file is read from its path
   (project_of), to know who can read it, and no sub-project's folder can be mistaken for a commit's.
-- To keep some projects' files elsewhere (another disk, a bucket mounted as a folder), mount it at
-  <upload root>/<project id> or above: files are written and renamed inside the run's folder, never across folders.
+- To keep some projects' files elsewhere (a bucket mounted on the server, another disk), admins add a storage location
+  for them (backend/locations.py): their new runs go there, with the same layout under the location's folder, and
+  store the location's URL ("s3://team-a/qaboard/<project>/-/..."). Their older runs stay where they are.
+  Files are written and renamed inside the run's folder, never across folders: mounted buckets support that.
 
 Docs: website/docs/backend-admin/uploads.mdx. API: upload_output_file and new_output_webhook in backend/api/outputs.py.
 """
@@ -26,11 +28,11 @@ import re
 import shutil
 import uuid
 from pathlib import Path, PurePosixPath
-from typing import BinaryIO, Optional, Tuple
+from typing import BinaryIO, List, Optional, Tuple
 
 from qaboard.conventions import commit_dir_name, is_upload_storage, make_hash, slugify_hash
 
-from . import config
+from . import config, locations
 from .storage import check_inside, UnsafePathError
 
 # Between a project's folder and its runs'
@@ -55,8 +57,22 @@ def upload_root() -> Optional[Path]:
   return config.upload_root
 
 
-def enabled() -> bool:
-  return upload_root() is not None
+def bases(project_id: Optional[str] = None) -> List[Path]:
+  """
+  The folders where the server saves uploaded runs: of a project, where its new runs go first (its most specific
+  storage location, else the upload root); without a project, all of them.
+  """
+  root = upload_root()
+  if project_id is None:
+    found = [location.path for location in locations.locations() if location.projects]
+  else:
+    found = [location.path for location in locations.for_project(project_id.strip('/'))]
+  return [*found, *([root] if root is not None else [])]
+
+
+def enabled(project_id: Optional[str] = None) -> bool:
+  """Whether the server takes uploaded runs: of a project, or of any project"""
+  return bool(bases(project_id))
 
 
 def is_upload_setting(storage_config: Optional[dict], qa_storage: Optional[str] = None) -> bool:
@@ -85,11 +101,13 @@ def folder_name(text, maxlength: int = 70) -> str:
   return f"{slug}-{make_hash(text)[:8]}".lstrip('-')
 
 
-def project_runs_dir(project_id: str) -> Path:
-  """The folder of a project's uploaded runs"""
-  root = upload_root()
-  assert root is not None
-  return root / project_id.strip('/') / RUNS_FOLDER
+def project_runs_dir(project_id: str, base: Optional[Path] = None) -> Path:
+  """The folder of a project's uploaded runs, where its new runs go (or in `base`, one of its `bases`)"""
+  if base is None:
+    project_bases = bases(project_id)
+    assert project_bases, "uploads aren't enabled for this project"
+    base = project_bases[0]
+  return Path(base) / project_id.strip('/') / RUNS_FOLDER
 
 
 def run_dir(project_id: str, hexsha: str, batch_label: str, platform: str, configurations: list, extra_parameters: dict, input_path: str) -> Path:
@@ -114,26 +132,34 @@ def is_run_dir(directory, project_id: str) -> bool:
   said without "..", symlinks aside (save_file and clean_run_dir check where they really are).
   What the database says a run's folder is isn't enough: other clients say where they saved theirs.
   """
-  if upload_root() is None or not project_id or not supports_project(project_id):
+  if not directory or not project_id or not supports_project(project_id) or os.path.normpath(str(directory)) != str(directory):
     return False
-  directory = str(directory)
-  runs_dir = project_runs_dir(project_id)
-  return os.path.normpath(directory) == directory and Path(directory) != runs_dir and Path(directory).is_relative_to(runs_dir)
+  return _runs_dir_of(Path(directory), project_id) is not None
+
+
+def _runs_dir_of(directory: Path, project_id: str) -> Optional[Path]:
+  """The folder of the project's uploaded runs that `directory` is in, if it is in one"""
+  for base in bases(project_id):
+    runs_dir = project_runs_dir(project_id, base)
+    if directory != runs_dir and directory.is_relative_to(runs_dir):
+      return runs_dir
+  return None
 
 
 def project_of(path: str) -> Optional[Tuple[str, str]]:
   """(the project's folder, its id) for the files of a project's uploaded runs, else None. `path` is normalized."""
-  root = upload_root()
-  if root is None:
-    return None
-  try:
-    parts = PurePosixPath(path).relative_to(PurePosixPath(os.path.normpath(root))).parts
-  except ValueError:
-    return None
-  if RUNS_FOLDER not in parts[1:]:
-    return None
-  project_parts = parts[:parts.index(RUNS_FOLDER, 1)]
-  return str(PurePosixPath(os.path.normpath(root), *project_parts)), '/'.join(project_parts)
+  found = []
+  for base in bases():
+    base = PurePosixPath(os.path.normpath(base))
+    try:
+      parts = PurePosixPath(path).relative_to(base).parts
+    except ValueError:
+      continue
+    if RUNS_FOLDER in parts[1:]:
+      project_parts = parts[:parts.index(RUNS_FOLDER, 1)]
+      found.append((str(PurePosixPath(base, *project_parts)), '/'.join(project_parts)))
+  # with a location's folder inside another's, the most specific one
+  return max(found, key=lambda f: len(f[0]), default=None)
 
 
 def clean_path(path: str) -> PurePosixPath:
@@ -150,10 +176,11 @@ def clean_path(path: str) -> PurePosixPath:
 
 def clean_run_dir(directory: Path, project_id: str) -> None:
   """Removes what a run of the project that starts again left in its folder. The folder stays."""
-  if not is_run_dir(directory, project_id) or not directory.is_dir():
+  runs_dir = _runs_dir_of(directory, project_id) if is_run_dir(directory, project_id) else None
+  if runs_dir is None or not directory.is_dir():
     return
   # a symlink above the folder (they aren't ours) must not take us out of the project's runs
-  if not Path(os.path.realpath(directory)).is_relative_to(os.path.realpath(project_runs_dir(project_id))):
+  if not Path(os.path.realpath(directory)).is_relative_to(os.path.realpath(runs_dir)):
     return
   for entry in os.scandir(directory):
     if entry.is_dir(follow_symlinks=False):

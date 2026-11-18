@@ -26,12 +26,14 @@ class FakeServer:
   QA-Board (backend/api/outputs.py), and keeps the requests, and the files it was sent in `files`.
   - uploads=False: a server that doesn't accept files
   - file_errors: {path: [(status, body), ...]}: what it answers to the next requests for a file, before accepting it
+  - served: {URL path: bytes}: files it serves, like nginx under /s/
   """
   def __init__(self, progress_status=200, output_status=200, output_error=None, port=0, uploads=True, file_errors=None):
     self.requests = []
     self.files = {}
     self.file_errors = {path: list(errors) for path, errors in (file_errors or {}).items()}
     self.finished = False
+    self.served = {}
     server = self
 
     class Handler(BaseHTTPRequestHandler):
@@ -45,6 +47,17 @@ class FakeServer:
         self.send_header('Content-Length', str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
+
+      def do_GET(self):
+        path = unquote(urlsplit(self.path).path)
+        if path in server.served:
+          server.requests.append(('GET', self.path, None, dict(self.headers)))
+          self.send_response(200)
+          self.send_header('Content-Length', str(len(server.served[path])))
+          self.end_headers()
+          self.wfile.write(server.served[path])
+          return
+        self.handle_request()
 
       def handle_request(self):
         body = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)) or b'{}')
@@ -83,7 +96,7 @@ class FakeServer:
           server.files[path] = server.files.get(path, b'') + content
         self.answer(200, {'path': path, 'size': len(server.files[path])})
 
-      do_POST = do_PATCH = do_GET = handle_request
+      do_POST = do_PATCH = handle_request
 
     self.httpd = ThreadingHTTPServer(('127.0.0.1', port), Handler)
     self.url = f"http://127.0.0.1:{self.httpd.server_address[1]}"
@@ -244,6 +257,23 @@ run.finish()
     self.assertEqual([p.get('metrics_definitions') for p in progress if 'metrics_definitions' in p], [{'loss': {'smaller_is_better': True}}])
     self.assertEqual(len(server.outputs()), 2)  # started, finished: progress doesn't go through the heavy route
     self.assertNotIn('is_failed', progress[-1]['metrics'])
+
+  def test_says_it_still_runs_when_it_has_nothing_new(self):
+    server = self.server()
+    result = self.python(server=server, QA_SYNC_INTERVAL='0.1', QA_HEARTBEAT_INTERVAL='0.3', code="""
+import time
+import qaboard as qb
+run = qb.start_run(input="train/coco-mini")
+time.sleep(1.5)
+run.finish()
+""")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    started, finished = server.outputs()
+    self.assertTrue(started['heartbeat'])
+    self.assertNotIn('heartbeat', finished)
+    # heartbeats change nothing: no metrics
+    self.assertGreaterEqual(len(server.progress()), 2)
+    self.assertTrue(all(body == {} for body in server.progress()))
 
   def test_older_servers_get_the_metrics_at_the_end(self):
     server = self.server(progress_status=404)

@@ -22,6 +22,7 @@ from pathlib import Path
 from sqlalchemy import func
 from sqlalchemy.orm import contains_eager
 
+from ..locations import local_path
 from ..database import db_session
 from ..models import Project, CiCommit, Batch, Output
 from ..storage import check_storage_path
@@ -250,7 +251,8 @@ class HardDelete:
         self.delete_run(output.id, bool(output.deleted), output_dir, folders, to_delete, context)
     # Runs saved elsewhere: each has its folder, often in a few missing parent folders
     for output_id, deleted, output_dir in runs.filter(Output.output_dir_override.isnot(None)).with_entities(Output.id, Output.deleted, Output.output_dir_override):
-      self.delete_run(output_id, bool(deleted), Path(output_dir), folders, to_delete, context)
+      # a path, or a URL in a storage location (backend/locations.py)
+      self.delete_run(output_id, bool(deleted), local_path(output_dir), folders, to_delete, context)
 
     if self.dry_run or not to_delete:
       report.add(runs_deleted=len(to_delete))

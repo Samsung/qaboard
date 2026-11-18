@@ -37,7 +37,7 @@ from .config import project, project_root, subproject, config
 from .config import default_batches_files, get_default_database, default_batch_label, default_platform
 from .config import get_default_configuration, default_input_type
 from .config import commit_id, outputs_commit, artifacts_commit, root_qatools, artifacts_commit_root
-from .config import user, is_ci, on_windows, available_metrics, uploads_results, commands_using_storage
+from .config import user, is_ci, on_windows, available_metrics, uploads_results
 from .metrics import split_metrics, resolve_definitions, write_definitions_file, with_default_direction
 from . import analytics
 
@@ -79,16 +79,13 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   if storage_is_missing:
     sys.exit(1)
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
-  if uploads_results and ctx.invoked_subcommand in commands_using_storage and not will_show_help:
-    if ctx.invoked_subcommand == 'save-artifacts':
-      # so that the same CI job works with and without a storage
-      click.secho("Nothing to save: artifacts are for the runs QA-Board starts itself (tuning, runs done again), which need a storage shared", fg='yellow', err=True)
-      click.secho("with the server. Here results are sent to it over HTTP (no `storage` in qaboard.yaml, or `storage: upload`).", fg='yellow', err=True)
-      sys.exit(0)
-    click.secho(f"ERROR: `qa {ctx.invoked_subcommand}` needs a storage shared with the QA-Board server: {commands_using_storage[ctx.invoked_subcommand]}.", fg='red', bold=True, err=True)
-    click.secho("       Here results are sent to the server over HTTP (no `storage` in qaboard.yaml, or `storage: upload`).", fg='red', err=True)
-    click.secho("       Set `storage` in qaboard.yaml, or QA_STORAGE, to a folder the server reads.", fg='red', err=True)
-    sys.exit(1)
+  # Without a storage shared with the server: check-bit-accuracy compares the reference's manifests, fetched over
+  # HTTP, and optimize reads the iterations' metrics from the API. Only artifacts need the shared storage.
+  if uploads_results and ctx.invoked_subcommand == 'save-artifacts' and not will_show_help:
+    # so that the same CI job works with and without a storage
+    click.secho("Nothing to save: artifacts are for the runs QA-Board starts itself (tuning, runs done again), which need a storage shared", fg='yellow', err=True)
+    click.secho("with the server. Here results are sent to it over HTTP (no `storage` in qaboard.yaml, or `storage: upload`).", fg='yellow', err=True)
+    sys.exit(0)
 
   noop_command = 'init' in sys.argv
   if root_qatools and root_qatools != Path().resolve() and not will_show_help and not noop_command:
@@ -286,9 +283,11 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
       print_url(ctx)
 
       if not ctx.obj['offline']:
-          qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True, keep_previous=keep_previous, data={"attempt_logs": attempts.kept_logs(run_context.output_dir)})
+          # heartbeat: we say every few minutes that the run still runs, else the server fails it (qaboard/heartbeat.py)
+          qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True, keep_previous=keep_previous, heartbeat=True, data={"attempt_logs": attempts.kept_logs(run_context.output_dir)})
           if qa_run_data:
             run_context.id = qa_run_data["id"]
+            start_heartbeat(run_context)
             start_upload(run_context)
           # in CI, results QA-Board refuses are lost: don't compute them
           exit_if_results_refused()
@@ -365,15 +364,28 @@ def start_upload(run_context):
   _uploader = Uploader(qaboard_url, run_context.id, run_context.output_dir, live=(config.get('outputs') or {}).get('live')).start()
 
 
+_heartbeat = None
+
+
+def start_heartbeat(run_context):
+  global _heartbeat
+  if _heartbeat is None and run_context.id is not None:
+    from .api import qaboard_url
+    from .heartbeat import Heartbeat
+    _heartbeat = Heartbeat(qaboard_url, run_context.id).start()
+
+
 def finish_upload(run_context):
   """Sends the run's files before telling the server that it ended: finished runs' files don't change"""
   global _uploader, _upload_finished, _files_sent
+  if _heartbeat is not None:
+    _heartbeat.stop()
   if not sends_files(run_context.obj) or _upload_finished:
     return
   _upload_finished = True
   if _uploader is None:
     # the server didn't answer when the run started: it has to know the run, as running, to take its files
-    started = notify_qa_database(**run_context.obj, is_pending=True, is_running=True, keep_previous=True)
+    started = notify_qa_database(**run_context.obj, is_pending=True, is_running=True, keep_previous=True, heartbeat=True)
     if started:
       run_context.id = started["id"]
       start_upload(run_context)

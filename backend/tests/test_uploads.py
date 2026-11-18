@@ -453,3 +453,47 @@ def test_put_needs_access_to_the_project(outputs_api, dummy_app, monkeypatch):
   with dummy_app.test_request_context("/api/v1/output/7/files/a.txt", method="PUT", data=b"x"):
     assert outputs_api.upload_output_file(7, "a.txt") == ("hidden", 403)
   assert not (directory / "a.txt").exists()
+
+
+# --- storage locations (backend/locations.py) --------------------------------------------------------------------
+@pytest.fixture
+def team_bucket(monkeypatch, tmp_path, upload_root):
+  """group/'s runs go to a bucket, mounted on the server"""
+  from backend import locations
+  mount = tmp_path / "team-bucket"
+  mount.mkdir()
+  monkeypatch.setattr(locations, "_load", lambda: (locations.Location("s3://team-bucket/qaboard/", mount, ("group/",), id=1),))
+  locations.invalidate()
+  yield mount
+  locations.invalidate()
+
+
+def test_projects_runs_go_to_their_location(team_bucket, upload_root):
+  directory = run_dir_of()
+  assert directory.is_relative_to(team_bucket / "group/repo/-")
+  assert uploads.is_run_dir(directory, "group/repo")
+  assert uploads.project_of(str(directory / "log.txt")) == (str(team_bucket / "group/repo"), "group/repo")
+  # their older runs are still theirs
+  assert uploads.is_run_dir(upload_root / "group/repo/-/01/23/output/a/b", "group/repo")
+  # the others' go to the upload root
+  assert run_dir_of("other/repo").is_relative_to(upload_root / "other/repo/-")
+  assert not uploads.is_run_dir(team_bucket / "other/repo/-/01/23/output/a/b", "other/repo")
+
+
+def test_projects_with_a_location_upload_without_an_upload_root(team_bucket, monkeypatch):
+  monkeypatch.setattr(config, "upload_root", None)
+  assert uploads.enabled("group/repo") and uploads.enabled()
+  assert not uploads.enabled("other/repo")
+
+
+def test_runs_in_a_location_store_its_url(outputs_api, dummy_app, team_bucket):
+  response, status = start(outputs_api, dummy_app)
+  assert status == 200
+  location = outputs_api.test_output.output_dir_override
+  assert location.startswith("s3://team-bucket/qaboard/group/repo/-/01/23456789abcdef/output/")
+  assert put(outputs_api, dummy_app, "log.txt", b"one\n", "?offset=0")[1] == 200
+  assert list(team_bucket.rglob("log.txt"))[0].read_bytes() == b"one\n"
+  # a run whose location the server can't reach takes no file
+  outputs_api.test_output.output_dir_override = "s3://another-bucket/qaboard/group/repo/-/01/run"
+  body, status = put(outputs_api, dummy_app, "a.txt")
+  assert status == 409 and body["reason"] == "not_uploaded"

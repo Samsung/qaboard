@@ -326,7 +326,11 @@ class CommitRuns:
         run = matching_run(run_context, runs, self.match)
         if run:
           from .api import url_to_dir
-          return [(url_to_dir(run['output_dir_url']), run_settings(run))]
+          output_dir = url_to_dir(run['output_dir_url'])
+          if not output_dir.is_dir():
+            # its files are on the server, e.g. it sent them over HTTP: we compare its manifests
+            output_dir = fetched_manifests(run) or output_dir
+          return [(output_dir, run_settings(run))]
     run_dir = self.run_dir(run_context)
     found = [self.local_dir / run_dir] if self.local_dir is not None and (self.local_dir / run_dir).is_dir() else []
     if not found:
@@ -387,12 +391,12 @@ class CommitRuns:
 
 def current_runs(ctx) -> CommitRuns:
   """Where the current commit's runs are, see `qa batch`"""
-  from .config import is_ci, commit_id, local_commit_placeholder, outputs_commit, subproject
-  shared = bool(is_ci or ctx.obj['share'])
+  from .config import is_ci, commit_id, local_commit_placeholder, outputs_commit, subproject, uploads_results
+  # runs that are not shared are not in QA-Board; those that send their files to it are here too, in output/
+  shared = bool(is_ci or ctx.obj['share']) and not uploads_results
   return CommitRuns(
     commit=commit_id or local_commit_placeholder,
     batch_label=ctx.obj['batch_label'],
-    # runs that are not shared are not in QA-Board
     ask_qaboard=shared and not (ctx.obj['offline'] or ctx.obj['dryrun']),
     local_dir=outputs_commit if shared else subproject.resolve(),
     in_storage=shared,
@@ -452,6 +456,50 @@ def describe_differences(settings: Dict, reference: Dict) -> str:
   )
 
 
+# Runs whose files we don't see, without a storage shared with the server: we fetch their manifests (hashes of
+# their files) over HTTP, once per run and attempt, and compare them. Not their files.
+MANIFESTS = ('manifest.outputs.json', 'manifest.inputs.json')
+FETCHED_MARKER = '.qaboard-fetched-manifests'
+
+
+def fetched_manifests(run: Dict) -> Optional[Path]:
+  """A folder with the manifests of a run from QA-Board whose files are on the server, None if it has none"""
+  import hashlib
+  import requests
+  from .api import qaboard_url
+  from .results import _token_for
+  from .site_config import as_requests_verify, site_config
+  url = run.get('output_dir_url')
+  if not url or not qaboard_url:
+    return None
+  key = hashlib.sha256(json.dumps([qaboard_url, url, run.get('finished_at'), run.get('id')]).encode()).hexdigest()[:32]
+  folder = Path(os.environ.get('XDG_CACHE_HOME') or Path.home() / '.cache') / 'qaboard' / 'manifests' / key
+  # finished runs' manifests don't change: from the cache
+  if (folder / FETCHED_MARKER).exists() and not run.get('is_pending'):
+    return folder
+  token = _token_for(qaboard_url, None)
+  headers = {'Authorization': f"Bearer {token}"} if token else {}
+  folder.mkdir(parents=True, exist_ok=True)
+  found = False
+  for name in MANIFESTS:
+    try:
+      r = requests.get(f"{qaboard_url}{url.rstrip('/')}/{name}", headers=headers, verify=as_requests_verify(site_config('QABOARD_API_VERIFY')), timeout=(10, 120))
+    except requests.RequestException as e:
+      secho(f"WARNING: could not fetch {name} of the reference run: {e}", fg='yellow', err=True)
+      return None
+    if r.status_code == 404:
+      continue
+    if not r.ok:
+      secho(f"WARNING: could not fetch {name} of the reference run ({r.status_code})", fg='yellow', err=True)
+      return None
+    (folder / name).write_bytes(r.content)
+    found = True
+  if not found:
+    return None
+  (folder / FETCHED_MARKER).write_text(url)
+  return folder
+
+
 def is_bit_accurate(dir_new, dir_ref, run_context: RunContext, strict=False, manifest_name='manifest.outputs.json'):
     """Compares the results of a run versus a reference"""
     from .config import config
@@ -489,6 +537,12 @@ def is_bit_accurate(dir_new, dir_ref, run_context: RunContext, strict=False, man
     if missing_runs:
       return False
 
+    if (dir_ref / FETCHED_MARKER).exists() and (custom_cmp or not (dir_new / manifest_name).exists() or not (dir_ref / manifest_name).exists()):
+      if manifest_name != 'manifest.outputs.json' and not (dir_ref / manifest_name).exists():
+        return True  # the reference didn't save its inputs' manifest: nothing to compare
+      reason = "QA_BITACCURACY_CMP compares files" if custom_cmp else f"both runs need their {manifest_name}"
+      click.secho(f"ERROR: {run_identifier}: the reference's files are on the QA-Board server, we only compare manifests, and {reason}.", fg='red')
+      return False
     if (dir_new / manifest_name).exists() and (dir_ref / manifest_name).exists() and not custom_cmp:
       comparison = cmpmanifests(
         manifest_path_1 = dir_new / manifest_name,

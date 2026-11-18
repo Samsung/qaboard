@@ -253,7 +253,9 @@ class TestUpload(QaTestCase):
 
 
 ENTRYPOINT = """
+import os, time
 def run(context):
+  time.sleep(float(os.environ.get('RUN_SECONDS') or 0))
   (context.output_dir / "result.txt").write_text(context.input_path.read_text().upper())
   print("processed", context.input_path.name)
   return {"is_failed": False, "length": len(context.input_path.read_text())}
@@ -295,6 +297,16 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
     kinds = [method for method, path, *_ in server.requests if method == 'PUT' or path.rstrip('/') == '/api/v1/output']
     self.assertEqual((kinds[0], kinds[-1], kinds[-2]), ('POST', 'POST', 'PUT'))
     self.assertIn('files to QA-Board', result.stderr)
+
+  def test_a_run_says_it_still_runs(self):
+    server = self.server()
+    result = self.qa_in_project('--share', 'run', '-i', 'inputs/a.txt', server=server, RUN_SECONDS='1.5', QA_HEARTBEAT_INTERVAL='0.3')
+    self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+    started, finished = server.outputs()
+    self.assertTrue(started['heartbeat'])
+    self.assertNotIn('heartbeat', finished)
+    self.assertGreaterEqual(len(server.progress()), 2)
+    self.assertTrue(all(body == {} for body in server.progress()))
 
   def test_a_local_run_sends_nothing(self):
     server = self.server()
@@ -349,10 +361,11 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
     self.assertNotIn('qaboard_config', result.stderr)   # not the request we sent
     self.assertNotIn('processed a.txt', result.stdout)  # in CI, results the server refuses aren't computed
 
-  def test_commands_that_need_a_shared_storage(self):
+  def test_only_artifacts_need_a_shared_storage(self):
     result = self.qa_in_project('save-artifacts')
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertIn('Nothing to save', result.stderr)
+    # check-bit-accuracy compares the reference's manifests, optimize reads metrics from the API
     result = self.qa_in_project('check-bit-accuracy', '--batch', 'texts')
-    self.assertEqual(result.returncode, 1)
-    self.assertIn('needs a storage shared with the QA-Board server', result.stderr)
+    self.assertNotIn('storage shared', result.stderr)
+    self.assertIn('There are no runs to compare', result.stderr)

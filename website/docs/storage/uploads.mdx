@@ -74,7 +74,8 @@ The server only has what runs sent it. It can't start your code where it has no 
 | See, compare, export and delete runs; the quality gate; History | Yes |
 | [`qa save-artifacts`](/docs/storage/artifacts) | Does nothing, and says so: the same CI job works both ways |
 | Start runs and [tuning from the web app](/docs/tuning-from-the-webapp), redo runs | No: they need the artifacts |
-| [`qa check-bit-accuracy`](/docs/bit-accuracy) and [`qa optimize`](/docs/auto-optimization) | No: they read other runs' files |
+| [`qa check-bit-accuracy`](/docs/bit-accuracy) | Yes: it compares the reference's manifests (its files' hashes), fetched from the server. Not with `QA_BITACCURACY_CMP`, which compares files |
+| [`qa optimize`](/docs/auto-optimization) | Yes: it reads the iterations' metrics from the server. Its journal, to resume, stays on the machine that runs it |
 | `qa batch` with a [cluster runner](/docs/runners) | When the cluster's nodes share the project's folder with the machine that starts the batch |
 | Runs done again | In place: the server keeps the latest attempt's files |
 

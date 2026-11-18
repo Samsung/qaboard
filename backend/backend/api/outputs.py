@@ -16,7 +16,7 @@ from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
 from ..origins import run_origin, run_user, claim_batch
 from ..storage import check_storage_path, UnsafePathError
-from .. import uploads
+from .. import heartbeats, locations, uploads
 from ..metrics_definitions import MAX_KEY_LENGTH, FORBIDDEN_KEYS
 from ..redo import redo_response
 from ..metrics_definitions import save_metrics_definitions
@@ -31,7 +31,7 @@ from .auth import login_required, is_authorized_user, ingest_access, forbidden_p
 # - added_metrics records the metrics scripts added after the run (add_output_metrics)
 # - attempt and previous_attempts say how many times the run was done (backend/attempts.py)
 # - uploads_files says that the run sends us its files, in a folder we chose (backend/uploads.py)
-SERVER_KEYS = {'optimization_best', 'submitted_by', 'added_metrics', 'attempt', 'previous_attempts', 'uploads_files'}
+SERVER_KEYS = {'optimization_best', 'submitted_by', 'added_metrics', 'attempt', 'previous_attempts', 'uploads_files', 'heartbeat', 'silent_since'}
 # Metrics that only the run itself sets
 RUN_ONLY_METRICS = {'is_failed', 'compute_time'}
 # What scripts can say about themselves when they add metrics
@@ -287,12 +287,16 @@ def report_output_progress(output_id):
     output = Output.query.filter(Output.id==output_id).with_for_update().one()
   except NoResultFound:
     return jsonify({"error": f"Cannot find output {output_id}"}), 404
-  if not (output.is_pending and output.is_running):
+  # a run we failed because it was silent is running again (backend/heartbeats.py)
+  if not (output.is_pending and output.is_running) and 'silent_since' not in (output.data or {}):
     return jsonify({"error": "The run isn't running: only running runs report their progress", "reason": "not_running"}), 409
+  heartbeats.reported(output)
 
-  # the metrics scripts added to a previous attempt stay, unless the run now logs them
-  output.metrics = with_added_metrics(output, metrics, current_data(output))
-  flag_modified(output, "metrics")
+  # the metrics scripts added to a previous attempt stay, unless the run now logs them.
+  # Heartbeats (backend/heartbeats.py) say no metrics: they change nothing
+  if 'metrics' in data:
+    output.metrics = with_added_metrics(output, metrics, current_data(output))
+    flag_modified(output, "metrics")
   if params is not None:
     if not output.data:
       output.data = {}
@@ -341,7 +345,7 @@ def upload_output_file(output_id, path):
   submitted_by, error = ingest_access(project_id, require_token=True)
   if error:
     return error
-  if not uploads.enabled():
+  if not uploads.enabled(project_id):
     return jsonify({"error": "This server doesn't accept uploaded files.", "reason": "uploads_disabled"}), 400
   try:
     offset = int(request.args['offset']) if 'offset' in request.args else None
@@ -351,7 +355,7 @@ def upload_output_file(output_id, path):
     return jsonify({"error": "Send the file's size (Content-Length): chunked uploads aren't supported."}), 411
 
   output = Output.query.filter(Output.id==output_id).one()
-  directory = output.output_dir_override
+  directory = locations.local_path(output.output_dir_override) if output.output_dir_override else None
   # not any folder the database has: one we chose for a run of this project, that said it uploads
   if not directory or not (output.data or {}).get('uploads_files') or not uploads.is_run_dir(directory, project_id):
     return jsonify({"error": "This run saves its files in a storage shared with the server: it doesn't upload them.", "reason": "not_uploaded"}), 409
@@ -413,7 +417,7 @@ def new_output_webhook():
 
   # Runs without a storage shared with us send their files after this request: we choose their folder (backend/uploads.py)
   uploads_files = data.get('storage') == 'upload'
-  if uploads_files and not uploads.enabled():
+  if uploads_files and not uploads.enabled(str(data.get('project') or '')):
     return jsonify({"error": "This server doesn't accept uploaded files: save results in a storage shared with it (`storage` in qaboard.yaml), or ask its administrators to set QABOARD_UPLOAD_ROOT.", "reason": "uploads_disabled"}), 400
   if uploads_files and not uploads.supports_project(str(data.get('project'))):
     return jsonify({"error": f"Projects with a folder named \"{uploads.RUNS_FOLDER}\" can't upload their files.", "reason": "uploads_unsupported_project"}), 400
@@ -504,14 +508,16 @@ def new_output_webhook():
   output.output_type = data.get('input_type', '')
   if uploads_files:
     try:
-      output_directory = str(uploads.run_dir(ci_commit.project_id, ci_commit.hexsha, batch.label, platform, configurations, data['extra_parameters'], test_input_path))
+      upload_dir = uploads.run_dir(ci_commit.project_id, ci_commit.hexsha, batch.label, platform, configurations, data['extra_parameters'], test_input_path)
     except uploads.UploadError as e:
       db_session.rollback()
       return jsonify({"error": str(e), "reason": e.reason}), e.status
+    # the run stores its location in full: a URL when it's in a storage location, e.g. s3://... (backend/locations.py)
+    output_directory = locations.location_of(upload_dir)
     # The run starts: what its previous attempt uploaded goes, like `qa run` cleans the folder it starts in.
     # Not when `qa batch` only says the run is pending, nor for runs that continue (--keep-previous, resume=True)
     if data.get('is_running') and not data.get('keep_previous'):
-      uploads.clean_run_dir(Path(output_directory), ci_commit.project_id)
+      uploads.clean_run_dir(upload_dir, ci_commit.project_id)
   # A run that is done again, in a new directory or in place: we remember the attempt it replaces
   record_attempt(output, output_directory, is_pending=bool(data.get('is_pending') or data.get('is_running')))
 
@@ -539,6 +545,15 @@ def new_output_webhook():
     output.data["uploads_files"] = True
   else:
     output.data.pop("uploads_files", None)
+  # runs that report at least every few minutes while they run: failed if they stay silent (backend/heartbeats.py)
+  if data.get('is_running'):
+    if data.get('heartbeat'):
+      output.data["heartbeat"] = True
+    else:
+      output.data.pop("heartbeat", None)
+  if output.data.pop("silent_since", None):
+    # it wasn't dead after all (backend/heartbeats.py)
+    output.data.pop("failed_reason", None)
   # we can only trust CI outputs to run on the exact code from the commit
   output.data["ci"] = data['job_type'] == 'ci'
   # where it comes from, and the batch's if it's new (backend/origins.py)
@@ -559,6 +574,8 @@ def new_output_webhook():
 
   # We update the output's status
   output.set_status(data.get('is_pending', False), data.get('is_running', False))
+  if output.is_running:
+    output.reported_at = datetime.datetime.utcnow()
 
   # A run that starts again (redo, qa batch...) is not failed anymore, until it says so when it ends.
   # Else re-runs of failed runs show as failed (and count as failed) while they are pending or running.

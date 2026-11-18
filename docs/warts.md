@@ -137,14 +137,22 @@ to end, nor on Windows, nor on any object storage mount.
   files): fixed, with tests (`backend/tests/test_uploads.py`). The endpoint deserves a second, independent look
   before servers that accept files face the internet. [M, no change]
 - Files a run removed after they were sent (`outputs.live`) stay on the server. [S, behaviour]
-- A run killed without a chance to say so (SIGKILL, a lost machine) stays "running", with the files it sent: the
-  heartbeat of `docs/rfcs/python-sdk-runs-follow-ups.md` is the fix. A run the server never heard of isn't sent
-  later. [M, behaviour]
+- A run killed without a chance to say so (SIGKILL, a lost machine) is failed after
+  `QABOARD_SILENT_RUN_TIMEOUT_MINUTES` (`backend/backend/heartbeats.py`), with the files it sent: only runs from
+  clients that send heartbeats, and only when the jobs worker runs. Its files are not cleaned. A run the server
+  never heard of isn't sent later. [S, behaviour]
 - No quotas per project, no deduplication (a bit-accurate rerun sends everything again), no resume inside a file:
   files over `QABOARD_UPLOAD_MAX_FILE_MB` are refused. [L]
 - `qa batch` with cluster runners only works when the nodes share the working directory with the machine that
-  starts the batch; `qa check-bit-accuracy`, `qa optimize`, artifacts, and runs started from the web app need a
-  shared storage. `qaboard.runs(url)` gives uploaded runs' `output_dir` on the server, not a local folder. [L]
+  starts the batch; artifacts, and runs started from the web app (tuning, redo) need a shared storage: next steps
+  in `docs/design/ingest-upload-sdk.md` (an image per commit, artifacts through the server). `qa check-bit-accuracy`
+  compares fetched manifests only, not files (`QA_BITACCURACY_CMP`); `qa optimize` keeps its journal on the machine
+  that runs it. `qaboard.runs(url)` gives uploaded runs' `output_dir` on the server, not a local folder. [L]
+- Storage locations (`backend/backend/locations.py`) are reached through folders the admin mounts: no credentials,
+  no native object storage access, and no web app page yet (`qaboard-admin storage-locations`). The storage scans,
+  storage usage per folder, and the file browser's listing only know `QABOARD_STORAGE_ROOTS` and the upload root:
+  runs in a location are measured and deleted, but their folders are never scanned for orphans. Clients can't yet
+  write to a location directly (a cluster that mounts the bucket still uploads). [M]
 - For a project with `storage: upload`, the folders the server derives from storage settings (a commit's or a
   batch's folder, `Project.storage_roots`) are under the upload root, with the shared storage's layout: nothing is
   there. Runs' own folders are always the ones saved with them (`output_dir_override`). [S, no change]

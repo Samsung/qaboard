@@ -1,0 +1,49 @@
+"""
+Tells the server, every few minutes, that a run still runs: if its machine is killed or loses the network, the
+server marks it failed instead of showing it running forever (backend/backend/heartbeats.py).
+
+The run says it sends heartbeats when it starts (`heartbeat: true` in POST /api/v1/output/), then reports
+(PATCH /api/v1/output/<id>/progress, without metrics: nothing changes) at least every INTERVAL. `qa run` uses
+`Heartbeat`; qaboard.start_run() reports its progress anyway, and adds heartbeats when it has nothing new.
+"""
+import os
+from threading import Event, Thread
+from typing import Optional
+
+from .results import ResultsError, _request
+
+# The server fails runs silent for $QABOARD_SILENT_RUN_TIMEOUT_MINUTES (15 by default): several chances before that
+INTERVAL = float(os.environ.get('QA_HEARTBEAT_INTERVAL') or 120.0)  # seconds
+TIMEOUT = (10.0, 30.0)
+
+
+def beat(server: str, run_id: int, token: Optional[str] = None) -> None:
+  """Says once that the run still runs. Raises ResultsError"""
+  _request(server, f"output/{run_id}/progress", method='PATCH', json={}, token=token, timeout=TIMEOUT)
+
+
+class Heartbeat:
+  def __init__(self, server: str, run_id: int, token: Optional[str] = None, interval: float = INTERVAL):
+    self.server, self.run_id, self.interval = server, run_id, interval
+    self._token = token
+    self._stop = Event()
+    self._thread: Optional[Thread] = None
+
+  def start(self) -> 'Heartbeat':
+    self._thread = Thread(target=self._loop, name='qaboard-heartbeat', daemon=True)
+    self._thread.start()
+    return self
+
+  def stop(self) -> None:
+    self._stop.set()
+
+  def _loop(self) -> None:
+    while not self._stop.wait(self.interval):
+      try:
+        beat(self.server, self.run_id, self._token)
+      except ResultsError as e:
+        # a server from before heartbeats, or the run ended: nothing more to say. Else we try again next time
+        if e.status in (404, 405, 409) or (e.status is not None and 400 <= e.status < 500 and e.status not in (408, 429)):
+          return
+      except Exception:  # never end the run
+        pass

@@ -34,6 +34,10 @@ upload_max_file_size = int(float(os.environ.get('QABOARD_UPLOAD_MAX_FILE_MB') or
 # Uploads are refused when the upload folder's disk has less free space than this, in GB
 upload_min_free_space = int(float(os.environ.get('QABOARD_UPLOAD_MIN_FREE_GB') or 1) * 1024 ** 3)
 
+# Runs that say they send heartbeats (data.heartbeat, from recent `qa` and qaboard.start_run()) and stay silent this
+# long are marked failed, e.g. when their machine was killed (backend/heartbeats.py). 0: never.
+silent_run_timeout_minutes = float(os.environ.get('QABOARD_SILENT_RUN_TIMEOUT_MINUTES') or 15)
+
 # Commit lists don't aggregate the metrics of some projects' batches: the metrics.skip_aggregation setting (backend/settings.py)
 
 # In these folders (e.g. /home), users only read the files under /s/ that their Unix account can read. Separated by ":".

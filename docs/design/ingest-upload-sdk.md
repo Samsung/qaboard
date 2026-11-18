@@ -1,7 +1,8 @@
 # Sending results without `qa run` or a shared storage: `start_run()`, `qa upload`, HTTP upload
 
-Status: v3 (2026-11-17). A first version is implemented, as experimental: §1 says what, §2 the decisions behind it,
-§3 what is left. v1 (2026-10-26) proposed a separate run client; v2 (2026-11-14) rebuilt the plan on
+Status: v4 (2026-11-18). A first version is implemented, as experimental: §1 says what, §2 the decisions behind it,
+§3 what is left. v4 added storage locations (runs store their full location), heartbeats, and `check-bit-accuracy`
+and `optimize` without a shared storage. v1 (2026-10-26) proposed a separate run client; v2 (2026-11-14) rebuilt the plan on
 `qaboard.start_run()` (`docs/rfcs/python-sdk-runs.md`). `docs/design/http-upload.md` is the full protocol this
 implements a small part of. Known limits: `docs/warts.md` ("Results sent over HTTP").
 User docs: `website/docs/upload-results.mdx`, `storage/uploads.mdx`, `backend-admin/uploads.mdx`.
@@ -17,6 +18,9 @@ User docs: `website/docs/upload-results.mdx`, `storage/uploads.mdx`, `backend-ad
 | The uploader, shared by `qa run` and `start_run()` | `qaboard/upload.py` |
 | The server: one folder, one endpoint | `backend/backend/uploads.py`, `PUT /api/v1/output/<id>/files/<path>` in `backend/api/outputs.py`, `QABOARD_UPLOAD_ROOT` |
 | `start_run(label=, batch=)`, the project in CI, the guard inside `qa run` | `qaboard/active_run.py` |
+| Storage locations: buckets or disks added while the server runs, per project; runs store their full location | `backend/backend/locations.py`, `models/StorageLocation.py`, `qaboard-admin storage-locations` |
+| Heartbeats: runs that stop reporting are failed | `qaboard/heartbeat.py`, `backend/backend/heartbeats.py` (`QABOARD_SILENT_RUN_TIMEOUT_MINUTES`) |
+| `qa check-bit-accuracy` against references on the server: their manifests over HTTP, cached | `qaboard/bit_accuracy.py` (`fetched_manifests`) |
 
 ### How a run without a shared storage goes
 1. The run is saved like a local one, in the project's `output/` folder. Nothing new on the client's disk: no
@@ -49,23 +53,37 @@ sent (size and date) and sends what differs. A failed request needs no replay.
 | Recognized files on cards | For runs created from code (`data.sdk`): series, test reports, benchmark files, profiles, 4 per kind, unless the project's visualizations already have that kind | `qa upload junit.xml` must show something in a project without configuration |
 | Metrics of uploaded files | The existing readers, by the same file names as the web app's viewers. Explicit `-m` wins | Reuse; one definition of "is a test report" per side, both tested on `tests/fixtures/file-types.json` |
 | Default run name of `qa upload` | In a CI job `<job>/<file>` (the job alone with several paths), elsewhere the file's name; `--input` for names that last | Two jobs that upload a junit.xml, or one job that uploads two files in turn, must not replace each other |
-| Syncing later, heartbeats | Not built. A request is tried 3 times; a run the server never heard of is not sent later | Not worth new commands yet |
+| Syncing later | Not built. A request is tried 3 times; a run the server never heard of is not sent later | Not worth new commands yet |
+| Heartbeats | Clients that send them say so when the run starts (`heartbeat: true`); `qa run` and `start_run()` then report at least every 2 minutes (`PATCH .../progress`, empty for a bare heartbeat). Every report of a running run sets `outputs.reported_at`; the jobs worker fails those silent for 15 minutes, with `data.failed_reason` like "Fail stuck runs", and a silent run that reports again runs again | Old clients never send them, so they are never failed for being silent. No new endpoint, no new state: the run's state, like everything runs report |
 | Projects created before runs | Out of scope: `qa` still creates projects by sending results | Comes with project permissions |
 | `--append` to a finished run | Dropped: one upload is one run | Finished runs don't change; fewer states |
 | Which protocol | One `PUT` per file, with an offset to append, and no session, parts or content store | Test reports, benchmarks, logs and most images are small. Parts and deduplication wait for a project with huge outputs and no shared storage |
 | Who chooses the folder | The server, from the run's identity. Paths clients name are inside it, validated, written to a temporary name then renamed | Clients can't write anywhere else; no path of the client's machine reaches the server |
 | Tokens | Always, for files and for creating a run that uploads, whatever `ingest.auth` says | Whoever can upload stores files the server then serves |
-| Storage backends in the server | **One: a folder.** Object storage is mounted as a file system by the deployment (S3 Files, JuiceFS...), per project if wanted: a project's files are all under `<upload root>/<project>/`, and files are only renamed inside a run's folder | Every reader (nginx, Cantaloupe, the file browser, deletions) already works on files. A second backend would touch each of them (§4) |
+| Storage backends in the server | **One: a folder.** Object storage is mounted as a file system by the deployment (S3 Files, JuiceFS...); files are only renamed inside a run's folder | Every reader (nginx, Cantaloupe, the file browser, deletions) already works on files. A second backend would touch each of them (§4) |
+| Where a run is, with many buckets | **Each run stores its full location**: a path as before, or a URL (`s3://bucket/prefix/<project>/-/...`). A table of *storage locations*, edited while the server runs, maps URL prefixes to how the server reaches them (today: where they are mounted) and to the projects whose new runs go there. `Output.output_dir` resolves it (`locations.local_path`); unreachable locations resolve to a folder that doesn't exist | No name or id to keep in sync: editing a location (mount, later credentials) never strands runs, a public instance can add buckets it doesn't own without a restart, and runs of one project can be in several buckets. Credentials and native access attach to the location row later (`options`), not to runs |
 | Default when no `storage` is set | Send to the server | It was an error before; new projects need no storage line |
-| What needs a shared storage | Artifacts, runs started from the web app, `qa check-bit-accuracy`, `qa optimize`. `qa save-artifacts` does nothing and says so, so one CI job works both ways | The server has no build and no inputs |
+| What needs a shared storage | Artifacts and runs started from the web app (tuning, redo). `qa save-artifacts` does nothing and says so, so one CI job works both ways. `qa check-bit-accuracy` compares the reference's manifests, fetched over HTTP once per finished run; `qa optimize` reads metrics from the API | The server has no build and no inputs. Bit accuracy only needs hashes: no file downloads |
 
 ## 3. What is left
 In `docs/warts.md`, with sizes. The ones that matter first:
 1. An end-to-end test in CI, against the real server and nginx (the quickstart job), and a try on Windows.
-2. Stale runs' heartbeat and sending a run later, with the SDK's follow-ups (`docs/rfcs/python-sdk-runs-follow-ups.md`).
-3. Quotas per project.
-4. For projects with huge outputs: parts, "which hashes do you have", the content store (`http-upload.md`).
-5. Bit-accuracy checks against manifests through the API, so that they work without a shared storage.
+2. **Runs the server starts, without a shared storage.** The code of a commit must reach the job. What the industry
+   does: on HPC schedulers (Slurm, LSF), a shared file system, as QA-Board does today; on Kubernetes and cloud
+   batch, either an image per commit built by CI (W&B Launch, Kubeflow, Argo), or a stable base image and a code
+   bundle fetched at start (SageMaker's `source_dir`, Ray's `working_dir`). Next steps, in order:
+   - `{commit}` in `runners.kubernetes.image`, checked in the registry before launching ("no image for this
+     commit" rather than `ImagePullBackOff`). Small; covers teams that build an image per commit.
+   - Artifacts through the server: `qa save-artifacts` uploads the bundle with the same `PUT`, jobs fetch it once
+     per node into a cache keyed by its hash. Covers everyone else, including a public instance.
+   Inputs and datasets stay the user's (mounts, buckets, their code), as with every tool above.
+3. `qaboard.local_path("qaboard://<run>/checkpoints/last.pt")`: a run's file as a local path, from the folder when
+   its location is mounted here, else downloaded once into a cache keyed by the manifest's hash. Like W&B's
+   `use_artifact().download()` or MLflow's `download_artifacts("runs:/...")`, for checkpoints. Shares the cache of 2.
+4. Storage locations: a web app page, credentials (encrypted, `backend/encryption.py`), the scans and the file
+   browser on locations, clients that mount a location writing there directly, then maybe native access (§4).
+5. Quotas per project.
+6. For projects with huge outputs: parts, "which hashes do you have", the content store (`http-upload.md`).
 
 ## 4. If the server ever talks to object storage itself
 Not built, and not planned until a mounted file system proves not to be enough: this is what it would take, kept
@@ -90,7 +108,8 @@ operator pays for a small, predictable index, projects for their bulk.
 S3's "Requester Pays" is about who pays for downloads, not storage: it doesn't help here.
 
 ### 4.3 Serving files from anywhere: one resolver
-- A run records where its bulk lives: `Output.data.storage = {profile, prefix}`; absent means the filesystem.
+- A run records where its bulk lives: its full location, a URL (`outputs.output_dir_override`, built in v4). The
+  storage location matching it says how to reach it: today a mount, then a profile with credentials.
 - `/s/<path>` keeps its URLs. nginx's `auth_request` asks the backend, which answers with `X-Accel-Redirect` to
   the local alias, or to an internal location proxying a presigned URL of the right bucket (same origin, Range
   works, no CORS). Large videos can get a `302` to the presigned URL.

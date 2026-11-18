@@ -38,7 +38,7 @@ from types import MappingProxyType
 from fnmatch import fnmatchcase
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple, Union
 
-from . import attempts
+from . import attempts, heartbeat
 from .conventions import run_dir_in_commit, slugify, get_settings, RUN_DIR_VARIABLE
 from .credentials import default_server
 from .metrics import DEFINITIONS_FILE, clean_definition, declared_metrics, read_definitions_file, split_metrics, with_default_direction
@@ -490,6 +490,9 @@ class ActiveRun:
     self._pid = os.getpid()
 
     self._thread: Optional[threading.Thread] = None
+    # when we last told the server something about the run: heartbeats when it's been long
+    self._reported_at = time.time()
+    self._heartbeats = True
     self._stop = threading.Event()
     self._send_lock = threading.Lock()
     self._refused: Optional[str] = None            # the server refused the run: we stop asking until the end
@@ -926,6 +929,8 @@ class ActiveRun:
       'output_directory': self.output_dir,
       'is_pending': not final,
       'is_running': not final,
+      # we report at least every few minutes while the run goes on: else the server fails it (qaboard/heartbeat.py)
+      **({'heartbeat': True} if not final else {}),
       'metrics': _jsonable(metrics),
       'data': _jsonable(data),
       # the group of tests the run belongs to, shown on its card: start_run(label=..., batch=...)
@@ -957,6 +962,7 @@ class ActiveRun:
         if self.id is None or final:
           # creates the run, or says how it ended: everything, like `qa run` does
           answer = _request(self.server, 'output/', method='POST', json=self._payload(final), token=self._token, timeout=TIMEOUT)
+          self._reported_at = time.time()
           if isinstance(answer.get('id'), int):
             self.id = answer['id']
             self._start_upload()
@@ -971,6 +977,7 @@ class ActiveRun:
           try:
             _request(self.server, f"output/{self.id}/progress", method='PATCH', json=body, token=self._token, timeout=TIMEOUT)
             self._sent_definitions = definitions
+            self._reported_at = time.time()
           except ResultsError as e:
             if e.status is None or e.status >= 500 or e.status in (401, 403, 408, 429):
               raise
@@ -979,6 +986,16 @@ class ActiveRun:
             self._live_updates = False
             if e.status not in (404, 405):
               self._warn_once('progress', f"WARNING: the web app will show the run's metrics when it ends, not before: {e}")
+        elif self._heartbeats and time.time() - self._reported_at >= heartbeat.INTERVAL:
+          # nothing new to say: the server must still know that the run runs (qaboard/heartbeat.py)
+          try:
+            heartbeat.beat(self.server, self.id, self._token)
+            self._reported_at = time.time()
+          except ResultsError as e:
+            if e.status is None or e.status >= 500 or e.status in (401, 403, 408, 429):
+              raise
+            # a server from before runs reported their progress: it doesn't fail silent runs either
+            self._heartbeats = False
       except ResultsError as e:
         with self._lock:
           self._changed = True

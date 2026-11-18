@@ -255,3 +255,56 @@ class TestIsBitAccurate(unittest.TestCase):
 
 if __name__ == '__main__':
   unittest.main()
+
+
+class TestReferencesOnTheServer(unittest.TestCase):
+  """Without a storage shared with the server: the reference's files are on it, we compare their manifests"""
+  def setUp(self):
+    from .test_active_run import FakeServer
+    self.tmp = tempfile.TemporaryDirectory()
+    self.addCleanup(self.tmp.cleanup)
+    self.server = FakeServer()
+    self.addCleanup(self.server.close)
+    patches = [
+      mock.patch('qaboard.api.qaboard_url', self.server.url),
+      mock.patch.dict('os.environ', {'XDG_CACHE_HOME': self.tmp.name}),
+      mock.patch('qaboard.results._token_for', return_value='token'),
+    ]
+    for patch in patches:
+      patch.start()
+      self.addCleanup(patch.stop)
+
+  def reference(self, files, **run):
+    url = '/s/uploads/group/repo/-/01/23/output/abc/a.jpg'
+    self.server.served[f"{url}/manifest.outputs.json"] = json.dumps({f: {'md5': md5} for f, md5 in files.items()}).encode()
+    return {**qaboard_run('/nowhere'), 'output_dir_url': url, 'id': 3, 'finished_at': '2026-11-18T10:00:00Z', 'is_pending': False, **run}
+
+  def find(self, reference):
+    with mock.patch.object(bit_accuracy, 'runs_known_by_qaboard', return_value=(reference,)):
+      (found, _), = CommitRuns('f' * 40, 'default').find_runs(run_context())
+    return found
+
+  def test_compares_the_manifests(self):
+    new = Path(self.tmp.name) / 'new'
+    write_manifests(new, {'out.png': 'a', 'out.txt': 'b'})
+    reference_dir = self.find(self.reference({'out.png': 'a', 'out.txt': 'b'}))
+    self.assertTrue(is_bit_accurate(new, reference_dir, run_context()))
+    # the reference didn't save its inputs' manifest: nothing to compare
+    self.assertTrue(is_bit_accurate(new, reference_dir, run_context(), manifest_name='manifest.inputs.json'))
+    self.assertFalse(is_bit_accurate(new, self.find(self.reference({'out.png': 'a', 'out.txt': 'c'}, id=4)), run_context()))
+    # with the authentication of `qa`
+    self.assertEqual(self.server.requests[0][3]['Authorization'], 'Bearer token')
+
+  def test_finished_runs_manifests_are_fetched_once(self):
+    reference = self.reference({'out.png': 'a'})
+    self.assertEqual(self.find(reference), self.find(reference))
+    self.assertEqual(len([r for r in self.server.requests if r[1].endswith('manifest.outputs.json')]), 1)
+
+  def test_files_cant_be_compared(self):
+    new = Path(self.tmp.name) / 'new'
+    write_manifests(new, {'out.png': 'a'})
+    reference_dir = self.find(self.reference({'out.png': 'a'}))
+    with mock.patch.object(bit_accuracy, 'custom_cmp', 'my-diff'):
+      self.assertFalse(is_bit_accurate(new, reference_dir, run_context()))
+    (new / 'manifest.outputs.json').unlink()
+    self.assertFalse(is_bit_accurate(new, reference_dir, run_context()))

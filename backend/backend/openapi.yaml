@@ -381,6 +381,10 @@ paths:
         they end. Each request replaces what the run said before. When the run ends, `POST /output/` says its final
         metrics.
 
+        Without `metrics`, the run's metrics don't change: `{}` is a heartbeat. Runs created with `"heartbeat": true`
+        are marked failed when they stay silent ($QABOARD_SILENT_RUN_TIMEOUT_MINUTES); one marked failed that way
+        runs again when it reports.
+
         Same access as the results `qa` sends.
       security:
         - bearerAuth: []
