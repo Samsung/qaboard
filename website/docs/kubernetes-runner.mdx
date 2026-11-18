@@ -88,8 +88,9 @@ runners:
   ([sending results without a shared storage](/docs/upload-results)): leave `storage` out of *qaboard.yaml*. They
   need a [QA-Board token](#token).
 - `qa doctor --runner kubernetes` checks that this commit's image is in its registry.
-- Batches [started from the web app](#namespace-trust) use the commit's image too, but they still need the commit's
-  artifacts on the server's storage (`qa save-artifacts`).
+- Batches [started from the web app](#namespace-trust) use the commit's image too, and run from the commit's
+  artifacts in the server's storage. Without one, QA-Board doesn't start them yet
+  ([artifacts without a shared storage](/docs/storage/artifacts#uploaded)).
 
 ## Mount the shared storage {#mounts}
 Each item of `mounts` mounts a volume at `path`, the same path as on the machine where you run `qa batch`. The kind of

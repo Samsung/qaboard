@@ -1,7 +1,7 @@
 # Sending results without `qa run` or a shared storage: `start_run()`, `qa upload`, HTTP upload
 
-Status: v7 (2026-11-18). A first version is implemented, as experimental: §1 says what, §2 the decisions behind it,
-§3 what is left. v7: an image per commit for the kubernetes runner (§3, item 2). v6: storage locations inside the storage roots, the upload root as the default one, edited in
+Status: v8 (2026-11-18). A first version is implemented, as experimental: §1 says what, §2 the decisions behind it,
+§3 what is left. v8: a commit's artifacts through the server (§3, item 2). v7: an image per commit for the kubernetes runner (§3, item 2). v6: storage locations inside the storage roots, the upload root as the default one, edited in
 Admin → Storage. v5: uploads on by default, an end-to-end test in CI, and where storage settings should live. v4 added storage locations (runs store their full location), heartbeats, and `check-bit-accuracy`
 and `optimize` without a shared storage. v1 (2026-10-26) proposed a separate run client; v2 (2026-11-14) rebuilt the plan on
 `qaboard.start_run()` (`docs/rfcs/python-sdk-runs.md`). `docs/design/http-upload.md` is the full protocol this
@@ -24,6 +24,7 @@ User docs: `website/docs/upload-results.mdx`, `storage/uploads.mdx`, `backend-ad
 | `qa check-bit-accuracy` against references on the server: their manifests over HTTP, cached | `qaboard/bit_accuracy.py` (`fetched_manifests`) |
 | On by default: a server with the default storage takes files in `/mnt/qaboard` (a volume in `docker-compose.yml`, the chart's results volume); refusals say why (`uploads.off_reason`, also in `/api/v1/config` for `qa doctor`) | `backend/backend/config.py` (`_upload_root`) |
 | An image per commit: `{commit}` in `runners.kubernetes.image`, looked up in its registry before pods start; `workdir`, where the image has the repository | `qaboard/runners/registry.py`, `kubernetes.py` (`check_commit_images`, `in_pods`), the server's driver in `backend/runner_jobs.py` |
+| A commit's artifacts through the server: `qa save-artifacts` sends them, the server keeps them next to the commit's runs and runs batches from there, pods fetch them into a cache keyed by their hash (`qa fetch-artifacts`) | `qaboard/commit_artifacts.py`, `backend/api/commit_artifacts.py`, `uploads.commit_artifacts_dir`, `CiCommit.uploaded_artifacts_dir`, `artifacts.cd_lines`, `runners/kubernetes.py` (`fetched_artifacts`) |
 | End-to-end test: `docker-compose.yml` without an overlay, `qa upload` and `start_run()` from the checkout, files through nginx and the image server | `.github/scripts/uploads_e2e.py`, CI's `docker` job |
 
 ### How a run without a shared storage goes
@@ -69,7 +70,9 @@ sent (size and date) and sends what differs. A failed request needs no replay.
 | Default when no `storage` is set | Send to the server | It was an error before; new projects need no storage line |
 | Does a new server take files? | Yes, when it has the default storage: `QABOARD_UPLOAD_ROOT` unset, `QABOARD_STORAGE_ROOTS` unset, and `/mnt/qaboard` writable. `off` turns uploads off. Sites that set their storage roots choose the folder | The client's default (send to the server) met a server that refused it: a new project and a new server didn't work together. Files always need a token, so being on costs little. At SIRC (storage roots set) nothing changes |
 | Where storage settings live | **The boundary in environment variables, the routing in the database.** Storage roots (and today the upload root) say where the server may write and delete: someone who takes over an admin's session must not move them (`settings.BOUNDARY`). Which folder a project's runs go to, inside them, is data: storage locations, edited without a restart | A new folder needs mounts in nginx and the image server anyway, so a restart. v6: locations must be inside a storage root (`locations.check_path`, symlinks resolved), from the CLI too, so that the web app can edit them. Locations added before stay readable, flagged "outside the storage roots" |
-| What needs a shared storage | Artifacts and runs started from the web app (tuning, redo). `qa save-artifacts` does nothing and says so, so one CI job works both ways. `qa check-bit-accuracy` compares the reference's manifests, fetched over HTTP once per finished run; `qa optimize` reads metrics from the API | The server has no build and no inputs. Bit accuracy only needs hashes: no file downloads |
+| What needs a shared storage | v8: runs started from the web app (tuning, redo), only because they have no token (§3 item 2). `qa save-artifacts` sends the artifacts, and everything the server needs to start runs from them is there: the server's machine `cd`s to them, Kubernetes pods fetch them; QA-Board refuses to start them until they get a token (`artifacts.runs_cant_send_results`). `qa check-bit-accuracy` compares the reference's manifests, fetched over HTTP once per finished run; `qa optimize` reads metrics from the API | Bit accuracy only needs hashes: no file downloads. Inputs stay the user's |
+| How artifacts reach the server (v8) | **Files, not a bundle**: one `PUT` per file (`/api/v1/commit/<commit>/artifacts/files/<path>`, SHA-256 required), then the manifests, into `<base>/<project>/-/<commit>/artifacts/` with the repository's layout, one copy per (sub)project. `CiCommit.data.uploaded_artifacts` stores its location, checked like runs' folders (`uploads.is_commit_artifacts_dir`) | The server reads qaboard.yaml and the batch files there, checks, lists and deletes artifacts with the code it has for a shared storage (`artifacts.py`, `CiCommit.delete`): nothing else knows they were sent. Per file, a CI that saves again only sends what changed. One copy per subproject: no deletion can touch a sibling's |
+| How pods get them (v8) | `GET .../artifacts` lists the files with their SHA-256, mode and a hash of the whole; files come from `/s/` (nginx, its access checks). `qa fetch-artifacts` downloads into `<cache>/<hash>/`, renamed into place when complete, with a marker saying where they come from. The driver's script `cd`s to the folder where it is mounted, else fetches (`artifacts.cd_lines`); in a fetched copy, the kubernetes runner makes its run pods fetch too (`fetched_artifacts`) | A cache keyed by the content needs no invalidation, and concurrent pods each end with a complete copy. No server-side tar: big binaries are served by nginx. The same script works on the server, on LSF hosts that mount the folder and in pods |
 
 ## 3. What is left
 In `docs/warts.md`, with sizes. The ones that matter first:
@@ -83,9 +86,31 @@ In `docs/warts.md`, with sizes. The ones that matter first:
      `qa batch` from CI for teams that build an image per commit. Not batches started from the web app: their driver
      uses the commit's image, but the server still reads the batches from the commit's artifacts, and the driver
      `cd`s there. That comes with the next step.
-   - Artifacts through the server: `qa save-artifacts` uploads the bundle with the same `PUT`, jobs fetch it once
-     per node into a cache keyed by its hash. Covers everyone else, including a public instance.
+   - ~~Artifacts through the server~~ (v8, below): `qa save-artifacts` sends the files with the same kind of `PUT`,
+     pods fetch them once per cache, keyed by their hash.
+   - **A token for the runs the server starts** (found while doing v8): runs that upload always need one, and
+     batches started from the web app get none (`local_jobs.qa_environment` drops secrets, driver pods have none),
+     so they fail when they create their runs. Until then QA-Board refuses to start them for commits whose artifacts
+     were uploaded. Proposal: a token minted per batch (`tokens.mint`) for the user who started it, limited to the
+     project, ingest and read, expiring with the batch, revoked when it ends; in the environment of local and Celery
+     batches, in a Kubernetes Secret for driver pods (not the ConfigMap with the script, and never in the logs
+     `set -x` prints). A namespace is a trust domain (`kubernetes-runner.md`): a team member could use another's
+     batch token on that project while it runs. The same credential is the "Follow-ups" of `kubernetes-runner.md` [M].
    Inputs and datasets stay the user's (mounts, buckets, their code), as with every tool above.
+
+   v8, what is left besides that token:
+   - Driver and run pods fetch anonymously: restricted projects need the same token.
+   - Run pods fetch once per pod; once per node needs `QABOARD_ARTIFACTS_CACHE` on a hostPath the admin allows.
+     Nothing evicts the cache [S].
+   - LSF, Slurm, Celery workers and Jenkins don't fetch: their jobs `cd` to the driver's copy, so they need it
+     shared, or the upload folder mounted. Same `fetched_artifacts` hook in their command line [S each].
+   - No deduplication between commits: a binary that didn't change is sent and stored again per commit and per
+     subproject (the client only skips what the same commit has). Hardlinks by hash on the server, or the content
+     store of `http-upload.md` [M].
+   - `qa save-artifacts --out` (the server restoring artifacts from the source code) writes the files but not their
+     SHA-256: the listing hashes them when asked [S].
+   - Not tried: Windows clients (`chmod` of fetched files), and a real cluster (the kubernetes e2e covers the image
+     per commit, not fetched artifacts).
 
    v7, how the image per commit works:
    - `{commit}` or `{commit:.N}` in `image` (nothing else between braces, refused early, also by the server). `qa

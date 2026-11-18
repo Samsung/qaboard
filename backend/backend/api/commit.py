@@ -13,6 +13,7 @@ from .auth import is_authorized_user, login_required, require_project_access, in
 from ..models import Project, CiCommit, latest_successful_commit, Batch
 from ..storage import UnsafePathError
 from .. import recreate_artifacts
+from ..artifacts import UPLOADED_ARTIFACTS
 from ..metrics_aggregation import parse_metrics_arg
 
 
@@ -50,7 +51,7 @@ def api_ci_commit(commit_id=None):
     if not isinstance(commit_data, dict):
       commit_data = {}
     # QA-Board's own bookkeeping, clients can't change it
-    commit_data = {k: v for k, v in commit_data.items() if k not in ('artifacts_recreation', 'artifacts_deleted', 'submitted_by')}
+    commit_data = {k: v for k, v in commit_data.items() if k not in ('artifacts_recreation', 'artifacts_deleted', 'submitted_by', UPLOADED_ARTIFACTS)}
     commit.data = {**commit.data, **commit_data}
     if submitted_by:
       commit.data['submitted_by'] = submitted_by

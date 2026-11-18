@@ -23,7 +23,7 @@ from backend import db_session
 from .shell_utils import quote, is_shell_safe, safe_user_name, lsf_bridge_command
 from .storage import check_storage_path
 from .fs_utils import mkdir_shared
-from .artifacts import ArtifactsUnavailable
+from .artifacts import ArtifactsUnavailable, commit_cd_lines, runs_cant_send_results
 from .submissions import record_submission, user_batch_dir, submission_dir, startup_logs
 
 
@@ -95,7 +95,6 @@ def output_runner(output):
 def redo_script(ci_commit, user, command_id, batch_command) -> str:
   # CI results are saved under the CI user's folder (QABOARD_DEFAULT_USER), runs started here under the user's
   outputs_dir_prefix = str(user_batch_dir(ci_commit.outputs_dir, user))
-  artifacts_dir = str(ci_commit.artifacts_dir)
   return '\n'.join([
     '#!/bin/bash',
     # Tells users how it went, like other batches started from QA-Board
@@ -111,8 +110,8 @@ def redo_script(ci_commit, user, command_id, batch_command) -> str:
     "",
     # get the env right
     'umask 0',
-    f'mkdir -p {quote(artifacts_dir)}',
-    f'cd {quote(artifacts_dir)}',
+    # where it isn't mounted (a Kubernetes pod), the artifacts `qa save-artifacts` sent to the server are fetched
+    *commit_cd_lines(ci_commit),
     'set +ex',
     '[[ -f ".envrc" ]] && source .envrc',
     '[[ -f "../.envrc" ]] && source ../.envrc',
@@ -136,6 +135,9 @@ def redo_outputs(batch, outputs, user_info) -> dict:
   ci_commit = batch.ci_commit
   # We run code from there
   check_storage_path(ci_commit.artifacts_dir)
+  # first: no need to restore artifacts for runs that couldn't save their results
+  if problem := runs_cant_send_results(ci_commit):
+    raise ArtifactsUnavailable(problem)
   # We never run from missing artifacts: e.g. without its qaboard.yaml, a subproject's runs would be saved in the parent project.
   # Raises ArtifactsUnavailable if they are missing and can't be restored right now.
   restored = ci_commit.ensure_artifacts(user=user_info)

@@ -54,7 +54,8 @@ ignore_config_errors = ignore_config_errors or is_auth_command
 is_doctor_command = is_qa_program(sys.argv) and invoked_command(sys.argv) == 'doctor'
 ignore_config_errors = ignore_config_errors or is_doctor_command
 # `qa upload` saves files as a run, also outside a project: it says itself what it misses (qaboard/upload_command.py)
-is_upload_command = is_qa_program(sys.argv) and invoked_command(sys.argv) == 'upload'
+# `qa fetch-artifacts` only talks to the server
+is_upload_command = is_qa_program(sys.argv) and invoked_command(sys.argv) in ('upload', 'fetch-artifacts')
 ignore_config_errors = ignore_config_errors or is_upload_command
 # The errors in the configuration that make `qa` commands refuse to run, and how to fix them: `qa doctor` reports them
 config_errors: List[Tuple[str, str]] = []

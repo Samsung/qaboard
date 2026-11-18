@@ -122,7 +122,9 @@ fixes (runners implement `doctor()`). The server starts/stops batches with `QABO
 `local_jobs.py`). `qa batch --commit <sha>` (`qaboard/on_server.py`) has the server start a batch on a commit through the
 web app's tuning endpoints (`backend/backend/api/tuning.py`, documented in `backend/backend/openapi.yaml`). Design and trust model: `docs/design/kubernetes-runner.md`; known limits: `docs/warts.md` (Runners).
 An image per commit (`{commit}` in `runners.kubernetes.image`, with `workdir`) is looked up in its registry before pods
-start (`qaboard/runners/registry.py`); what's left for runs without a shared storage (artifacts through the server):
+start (`qaboard/runners/registry.py`). Without a shared storage, `qa save-artifacts` sends a commit's artifacts to the
+server and `qa fetch-artifacts` downloads them into a cache keyed by their hash (`qaboard/commit_artifacts.py`,
+`backend/backend/api/commit_artifacts.py`); what's left, first a token for the runs the server starts:
 `docs/design/ingest-upload-sdk.md` §3 item 2.
 Kubernetes end-to-end test on kind: `.github/scripts/kubernetes_runner_e2e.py`.
 

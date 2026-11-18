@@ -378,10 +378,17 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
     self.assertNotIn('qaboard_config', result.stderr)   # not the request we sent
     self.assertNotIn('processed a.txt', result.stdout)  # in CI, results the server refuses aren't computed
 
-  def test_only_artifacts_need_a_shared_storage(self):
-    result = self.qa_in_project('save-artifacts')
-    self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertIn('Nothing to save', result.stderr)
+  def test_nothing_needs_a_shared_storage(self):
+    # save-artifacts sends the commit, then its artifacts (qaboard/commit_artifacts.py)
+    from .test_commit_artifacts import FakeServer as ArtifactsServer
+    server = ArtifactsServer(subproject='', project='kitefin/detector')
+    self.addCleanup(server.close)
+    result = self.qa_in_project('save-artifacts', server=server)
+    self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+    self.assertEqual(server.commits[0]['git_commit_sha'], self.commit)
+    self.assertEqual(server.files['qaboard.yaml'], (self.project / 'qaboard.yaml').read_bytes())
+    self.assertIn('qaboard.yaml', json.loads(server.files['manifests/__qaboard.yaml.json']))
+    self.assertIn('files sent', result.stdout)
     # check-bit-accuracy compares the reference's manifests, optimize reads metrics from the API
     result = self.qa_in_project('check-bit-accuracy', '--batch', 'texts')
     self.assertNotIn('storage shared', result.stderr)

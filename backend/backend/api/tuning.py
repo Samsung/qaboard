@@ -34,7 +34,7 @@ from ..config import qaboard_data_shared_dir
 from ..shell_utils import safe_user_name, lsf_bridge_command
 from ..storage import check_storage_path, UnsafePathError
 from ..submissions import record_submission, MAX_SUBMISSIONS, user_batch_dir, submission_dir, append_log, startup_logs # noqa: F401
-from ..artifacts import ArtifactsUnavailable
+from ..artifacts import ArtifactsUnavailable, commit_cd_lines, runs_cant_send_results
 from ..notifications.batches import request_batch_notification, cancel_batch_notification
 from .auth import login_required, require_project_access, is_authorized_user, forbidden_project
 
@@ -511,6 +511,13 @@ def get_group():
     return response(tests, missing)
 
 
+def _cd_to(ci_commit, working_directory) -> str:
+    """Bash lines that go to the commit's artifacts. Where they aren't mounted (a Kubernetes pod), the artifacts `qa save-artifacts` sent to the server are fetched."""
+    if getattr(ci_commit, 'uploaded_artifacts_dir', None) is not None and working_directory == ci_commit.artifacts_dir:
+        return "".join(f"{line}\n" for line in commit_cd_lines(ci_commit, source_envrc=True))
+    return f'cd {quote(str(working_directory))};\n'
+
+
 def _generate_batch_script(ci_commit, user, working_directory, command_id, batch_command, data):
     """Generate the qa_batch.sh script (shared across all runners)."""
     parent_including_cwd = [*list(reversed(list(working_directory.parents))), working_directory]
@@ -527,7 +534,8 @@ def _generate_batch_script(ci_commit, user, working_directory, command_id, batch
         'export MPLBACKEND=agg;\n',
         ('\n'.join(envrcs) + '\n') if envrcs else "",
         "set -xe\n\n",
-        f'cd {quote(str(working_directory))};\n\n',
+        _cd_to(ci_commit, working_directory),
+        "\n",
         f"\nexport CI=true;\n",
         f"\nexport GIT_COMMIT={quote(ci_commit.hexsha)};\n",
         # the runs are the logged-in user's
@@ -878,6 +886,9 @@ def check_tuning_request(ci_commit, data, user_name=None):
     if not config:
         errors.append("QA-Board doesn't know this project's configuration: run `qa save-artifacts` or `qa batch` on this commit, with qaboard.yaml.")
         config = {}
+
+    if problem := runs_cant_send_results(ci_commit):
+        errors.append(problem)
 
     label = str(data.get('batch_label') or '').strip()
     if not label:

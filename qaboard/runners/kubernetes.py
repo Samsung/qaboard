@@ -55,6 +55,7 @@ Notes:
   Stopping a batch deletes the Jobs with its command-id.
   They're annotated with qaboard.io/invocation, a nonce per create: a 409 AlreadyExists is ours only if it's the same.
 """
+import functools
 import os
 import re
 import sys
@@ -334,19 +335,24 @@ def env_script(env: Dict[str, str]) -> str:
   lines = [f'export {k}={shlex.quote(v)}' for k, v in sorted(env.items()) if re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', k)]
   return '\n'.join(lines) + '\n'
 
-def redirect_output(log_file: str, pending_file: str) -> List[str]:
+def shell_path(path: str, base: Optional[str] = None) -> str:
+  """`path` quoted for sh, relative to the folder in the shell variable `base` if there is one"""
+  return f'"${base}"/{shlex.quote(path)}' if base else shlex.quote(path)
+
+def redirect_output(log_file: str, pending_file: str, base: Optional[str] = None) -> List[str]:
   """
   sh lines that send the rest of the script's output to `log_file`, or exit 1 saying why on stderr (in the pod's logs).
   We check first: a failed `exec >` exits sh (POSIX), but not bash, which would go on with the output lost.
   Then `pending_file`, what `qa batch` wrote while the pod was pending, is obsolete.
+  `base`: the paths are relative to the folder in this shell variable.
   """
-  quoted = shlex.quote(log_file)
+  quoted = shell_path(log_file, base)
   fail = f'{{ echo "[qaboard] ERROR: can not write" {quoted}" as uid $(id -u), gid $(id -g): is it under runners.kubernetes.mounts, and writable by this user?" >&2; exit 1; }}'
   return [
-    f'mkdir -p {shlex.quote(os.path.dirname(log_file) or ".")} 2>/dev/null || {fail}',
+    f'mkdir -p {shell_path(os.path.dirname(log_file) or ".", base)} 2>/dev/null || {fail}',
     f'( : > {quoted} ) 2>/dev/null || {fail}',
     f'exec > {quoted} 2>&1',
-    f'rm -f {shlex.quote(pending_file)} 2>/dev/null',
+    f'rm -f {shell_path(pending_file, base)} 2>/dev/null',
   ]
 
 # sh: is `timeout` GNU coreutils' (`timeout (GNU coreutils) 9.4`, or uutils'), not e.g. BusyBox's?
@@ -357,6 +363,8 @@ def run_script(runs: List[Dict[str, Any]]) -> str:
   """
   Runs a pod's runs one after the other, each with its output live in <output_dir>/log.k8s.txt, even if one fails.
   Fails if any failed. `runs`: [{"command", "cwd", "output_dir", "timeout"}], with `timeout` in seconds (0: none).
+  With "artifacts": {"project", "commit"}, `cwd` and `output_dir` are relative to the commit's artifacts, fetched from
+  QA-Board first (`qa fetch-artifacts`, once per cache: the other runs of the pod find them there).
   Only needs a POSIX sh, and for runs with a timeout, `timeout` from GNU coreutils.
   Note: `qa run` cleans its output directory but keeps the file its output goes to.
   """
@@ -372,9 +380,15 @@ def run_script(runs: List[Dict[str, Any]]) -> str:
     timeout = int(math.ceil(float(run.get('timeout') or 0)))
     lines.append(f'echo "[qaboard] run {index}/{len(runs)}:" {name}')
     lines.append('(')
+    artifacts = run.get('artifacts')
+    base = 'artifacts' if artifacts else None
+    if artifacts:
+      fetch = f"qa fetch-artifacts --project {shlex.quote(artifacts['project'])} --commit {shlex.quote(artifacts['commit'])} --root"
+      lines.append(f'  artifacts="$({fetch})" || {{ echo "[qaboard] ERROR: could not fetch the commit\'s artifacts from QA-Board: does the image have qa, and can it reach the server?" >&2; exit 1; }}')
     if output_dir:
-      lines.extend(f'  {line}' for line in redirect_output(os.path.join(output_dir, 'log.k8s.txt'), os.path.join(output_dir, pending_log_name)))
-    lines.append(f'  cd {shlex.quote(run["cwd"])} || {{ echo "[qaboard] ERROR: can not cd to" {shlex.quote(run["cwd"])}": is it under runners.kubernetes.mounts, or in the image (workdir)?" >&2; exit 1; }}')
+      lines.extend(f'  {line}' for line in redirect_output(os.path.join(output_dir, 'log.k8s.txt'), os.path.join(output_dir, pending_log_name), base))
+    cwd = shell_path(run["cwd"], base)
+    lines.append(f'  cd {cwd} || {{ echo "[qaboard] ERROR: can not cd to" {cwd}": is it under runners.kubernetes.mounts, or in the image (workdir)?" >&2; exit 1; }}')
     if timeout > 0:
       # coreutils' timeout signals the process group (qa run and what it started), and kills it if it's still there
       # 60s later. Not BusyBox's: it may accept -k, but signals only its child, and its exit code isn't always 124
@@ -399,10 +413,17 @@ def in_pods(path: Union[str, Path], options: KubernetesOptions) -> str:
       return options.workdir.rstrip('/') + path[len(root.rstrip('/')):] if path != root else options.workdir
   return path
 
+@functools.lru_cache(maxsize=16)
+def fetched_artifacts(cwd: str) -> Optional[Dict[str, Any]]:
+  """Where a commit's artifacts fetched from QA-Board are, if `cwd` is in them (qaboard/commit_artifacts.py)"""
+  from ..commit_artifacts import read_marker
+  marker = read_marker(Path(cwd))
+  return marker if marker and marker.get('project') and marker.get('commit') else None
+
 def job_to_run(job: Job, options: Optional[KubernetesOptions] = None) -> Dict[str, Any]:
   options = options or dict_to_KubernetesOptions(job.run_context.job_options)
   output_dir = job.run_context.output_dir
-  return {
+  run = {
     "command": job.run_context.command or 'echo OK',
     # Like other runners, we run where `qa batch` runs: the root of the project (it changes directory there).
     # Commands start with "cd {subproject}" if needed. The paths are the ones the pods see, not resolved.
@@ -411,6 +432,16 @@ def job_to_run(job: Job, options: Optional[KubernetesOptions] = None) -> Dict[st
     # seconds, 0: none. Per run: runs can have their own (e.g. per input type)
     "timeout": job.run_context.job_options.get('timeout') or 0,
   }
+  # `qa batch` in a commit's artifacts it fetched from QA-Board (a batch the server started, without a shared storage):
+  # its pods fetch them too, and run in their copy. Not with `workdir`: the image has the code
+  fetched = fetched_artifacts(os.getcwd()) if not options.workdir else None
+  if fetched:
+    root = fetched['root']
+    relative = lambda path: os.path.relpath(path, root) if is_under(os.path.abspath(path), root) else None
+    cwd, output = relative(os.getcwd()), relative(output_dir) if output_dir else None
+    if cwd is not None and (output_dir is None or output is not None):
+      run.update(cwd=cwd, output_dir=output, artifacts={"project": fetched['project'], "commit": fetched['commit']})
+  return run
 
 
 ###

@@ -460,6 +460,9 @@ UNAUTHENTICATED_ENDPOINTS = {
   # runs without a storage shared with the server send their files (backend/uploads.py): a token that can send results
   # to the project is always required (ingest_access(require_token=True)), only for runs that are running
   ("outputs.py", "upload_output_file"),
+  # `qa save-artifacts` without a shared storage sends a commit's artifacts (api/commit_artifacts.py): the same token,
+  # always, into a folder the server chooses for a commit it already knows
+  ("commit_artifacts.py", "upload_commit_artifact"),
   # the web app and the CLI send usage events (backend/usage.py): the CLI's are unverified without a token, dropped
   # when ingest.auth is "token", like results. Anonymous events have no user, they're counted and never resolved.
   ("usage.py", "usage_events"),

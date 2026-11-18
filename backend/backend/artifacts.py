@@ -13,10 +13,13 @@ import os
 import json
 import fnmatch
 from pathlib import Path
+from shlex import quote
 from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple
 
 
 CONFIG_NAMES = ('qaboard.yaml', 'qatools.yaml')
+# In CiCommit.data: the location of the artifacts `qa save-artifacts` sent over HTTP (api/commit_artifacts.py)
+UPLOADED_ARTIFACTS = 'uploaded_artifacts'
 
 # Checking that every file in the manifests exists is slow on network filesystems, we sample at most
 MAX_CHECKED_FILES = 500
@@ -96,6 +99,56 @@ def artifacts_status(artifacts_dir: Path, repo_artifacts_dir: Path, is_subprojec
     "exists": artifacts_dir.is_dir(),
   }
 
+
+
+def runs_cant_send_results(ci_commit) -> Optional[str]:
+  """
+  Why the runs QA-Board would start from this commit's artifacts can't save their results, if they can't. When the
+  artifacts were sent over HTTP, the project's runs send their results that way too, which always needs a token,
+  and the batches the server starts (redo.py, api/tuning.py) don't get one yet: docs/design/ingest-upload-sdk.md, §3.
+  """
+  if getattr(ci_commit, 'uploaded_artifacts_dir', None) is None:
+    return None
+  return ("This project sends its results to QA-Board over HTTP (it has no storage shared with the server), which needs "
+          "a token, and the runs QA-Board starts don't get one yet: they would fail. Start the batch from CI or a "
+          "terminal instead, with `qa batch`.")
+
+
+def cd_lines(artifacts_dir: Path, uploaded_for: Optional[Tuple[str, str, str]] = None, source_envrc: bool = False) -> List[str]:
+  """
+  Bash lines that go to a commit's artifacts folder, in the scripts that run `qa batch` there (redo.py, api/tuning.py).
+  `uploaded_for`: (project, commit, subproject) when `qa save-artifacts` sent them to the server. Where that folder
+  isn't mounted, e.g. in a Kubernetes pod, `qa fetch-artifacts` downloads them first (qaboard/commit_artifacts.py).
+  `source_envrc`: then source the repository's .envrc files down to the project's folder, as the script does for the
+  commit's folder on the server.
+  """
+  folder = quote(str(artifacts_dir))
+  if uploaded_for is None:
+    return [f'mkdir -p {folder}', f'cd {folder}']
+  project, commit, subproject = uploaded_for
+  fetch = f"qa fetch-artifacts --project {quote(project)} --commit {quote(commit)}"
+  lines = [
+    f'if [[ -d {folder} ]]; then',
+    f'  cd {folder}',
+    'else',
+    '  echo "[qaboard] The commit\'s artifacts aren\'t mounted here: fetching them from QA-Board"',
+    f'  QABOARD_ARTIFACTS_DIR="$({fetch})" || {{ echo "[qaboard] ERROR: could not fetch the commit\'s artifacts" >&2; exit 1; }}',
+    '  cd "$QABOARD_ARTIFACTS_DIR"',
+  ]
+  if source_envrc:
+    depth = len([part for part in Path(subproject or '.').parts if part not in ('', '.')])
+    envrcs = " ".join("../" * level + ".envrc" for level in reversed(range(depth + 1)))
+    lines.append(f'  set +e; for envrc in {envrcs}; do [[ -f "$envrc" ]] && source "$envrc"; done; set -e')
+  lines.append('fi')
+  return lines
+
+
+def commit_cd_lines(ci_commit, artifacts_dir=None, source_envrc: bool = False) -> List[str]:
+  """cd_lines for a CiCommit's artifacts folder (or `artifacts_dir`, the same folder), fetched where it isn't mounted when they were uploaded"""
+  artifacts_dir = Path(artifacts_dir if artifacts_dir is not None else ci_commit.artifacts_dir)
+  uploaded = getattr(ci_commit, 'uploaded_artifacts_dir', None) is not None
+  uploaded_for = (ci_commit.project_id, ci_commit.hexsha, ci_commit.project.id_relative or '') if uploaded else None
+  return cd_lines(artifacts_dir, uploaded_for, source_envrc=source_envrc)
 
 
 class Protected:

@@ -769,6 +769,41 @@ class TestImagePerCommit(KubernetesTestCase):
     self.assertEqual(in_pods(checkout, KubernetesOptions(workdir='/src', repo_root=str(checkout))), '/src')
     self.assertEqual(in_pods(self.root / 'elsewhere', KubernetesOptions(workdir='/src', repo_root=str(checkout))), str(self.root / 'elsewhere'))
 
+  def test_fetched_artifacts(self):
+    """`qa batch` in a commit's artifacts fetched from QA-Board (the server's driver pod): the run pods fetch them too"""
+    import json
+    from qaboard.commit_artifacts import MARKER
+    from qaboard.runners.kubernetes import KubernetesRunner, fetched_artifacts
+    fetched_artifacts.cache_clear()
+    # the driver's copy, and the one the run pod fetches into its own cache
+    driver_copy, pod_copy = self.root / 'driver-cache' / 'abc', self.root / 'pod cache' / 'abc'
+    for copy in (driver_copy, pod_copy):
+      (copy / 'project').mkdir(parents=True)
+    (driver_copy / MARKER).write_text(json.dumps({'project': 'group/repo/project', 'commit': self.sha, 'subproject': 'project'}))
+    qa = self.root / 'bin' / 'qa'
+    qa.parent.mkdir()
+    qa.write_text(f'#!/bin/sh\nif [ "$1" = fetch-artifacts ]; then echo "$*" > {self.root}/fetched; echo "{pod_copy}"; exit; fi\necho "qa $* in $(pwd)"\n')
+    qa.chmod(0o755)
+    jobs = make_jobs(['qa run a'], driver_copy / 'project' / 'output')
+    with mock.patch('signal.signal'), mock.patch('qaboard.runners.kubernetes.os.getcwd', return_value=str(driver_copy / 'project')):
+      KubernetesRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
+    fetched_artifacts.cache_clear()
+    script = self.kube.configmaps['qa-abcdefgh-r4nd-0-0']['data']['run-0.sh']
+    self.assertNotIn(str(driver_copy), script)
+    scripts = self.root / 'etc-qaboard'
+    scripts.mkdir()
+    for name, content in self.kube.configmaps['qa-abcdefgh-r4nd-0-0']['data'].items():
+      (scripts / name).write_text(content)
+    subprocess.run(['sh', str(scripts / 'run-0.sh')], check=True, env={'PATH': f'{qa.parent}:/usr/bin:/bin'})
+    self.assertEqual((self.root / 'fetched').read_text().split(), ['fetch-artifacts', '--project', 'group/repo/project', '--commit', self.sha, '--root'])
+    log = (pod_copy / 'project' / 'output' / 'output0' / 'log.k8s.txt').read_text()
+    self.assertEqual(log, f'qa run a in {pod_copy}/project\n')
+    # it stops if they can't be fetched
+    qa.write_text('#!/bin/sh\nexit 1\n')
+    out = subprocess.run(['sh', str(scripts / 'run-0.sh')], env={'PATH': f'{qa.parent}:/usr/bin:/bin'}, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8')
+    self.assertNotEqual(out.returncode, 0)
+    self.assertIn("could not fetch the commit's artifacts", out.stdout)
+
 
 class TestEnv(unittest.TestCase):
   def test_env(self):

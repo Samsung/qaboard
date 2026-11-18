@@ -17,6 +17,8 @@ Checks that:
 5. uploading the run again replaces its files: what isn't sent again is gone
 6. `start_run()` sends its series, its files and its metrics
 7. `qa --share run` with QA_STORAGE=upload, in a project whose storage this machine doesn't mount
+8. `qa save-artifacts` there sends the commit's artifacts, which `qa fetch-artifacts` downloads (not with --no-proxy);
+   starting a batch from them is refused, since its runs would have no token
 """
 import argparse
 import http.cookiejar
@@ -286,6 +288,40 @@ def check_qa_run(server, env, workdir, proxy):
     log(f"qa run with QA_STORAGE=upload: {url}")
 
 
+def check_artifacts(server, env, workdir, proxy):
+    """`qa save-artifacts` in the same project: the server keeps the commit's artifacts, pods fetch them"""
+    project = workdir / "sample_project"
+    subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+    run_env = {**env, "QA_STORAGE": "upload", "GITHUB_REPOSITORY": SAMPLE_PROJECT}
+    run([*QA, "save-artifacts"], run_env, project)
+    query = f"project={urllib.parse.quote(SAMPLE_PROJECT)}"
+    _, artifacts = server.json("GET", f"/api/v1/commit/{COMMIT}/artifacts?{query}")
+    if "qaboard.yaml" not in artifacts.get("files", {}):
+        fail(f"qaboard.yaml isn't in the commit's artifacts: {sorted(artifacts.get('files', {}))}")
+    # again: nothing new to send, the same artifacts
+    run([*QA, "save-artifacts"], run_env, project)
+    _, again = server.json("GET", f"/api/v1/commit/{COMMIT}/artifacts?{query}")
+    if again.get("hash") != artifacts.get("hash"):
+        fail("Sending the same artifacts again changed them")
+    log(f"qa save-artifacts: {len(artifacts['files'])} files")
+    # the runs QA-Board would start from them have no token to send their results with: it says so instead
+    _, check = server.json("POST", f"/api/v1/commit/{COMMIT}/batch/check?{query}", {"batch_label": "e2e", "selected_group": "my-batch"},
+                           headers={"Origin": server.base})  # signed in, like the web app
+    if not any("token" in error for error in check.get("errors", [])):
+        fail(f"Starting a batch from uploaded artifacts should be refused until its runs get a token: {check}")
+    if proxy:
+        cache = workdir / "artifacts-cache"
+        r = subprocess.run([*QA, "fetch-artifacts", "--project", SAMPLE_PROJECT, "--commit", COMMIT], env={**env, "QABOARD_ARTIFACTS_CACHE": str(cache)},
+                           cwd=workdir, text=True, capture_output=True)
+        print(r.stderr, flush=True)
+        if r.returncode:
+            fail(f"qa fetch-artifacts failed ({r.returncode}): {r.stdout}")
+        fetched = Path(r.stdout.strip())
+        if not fetched.is_relative_to(cache) or (fetched / "qaboard.yaml").read_bytes() != (project / "qaboard.yaml").read_bytes():
+            fail(f"qa fetch-artifacts didn't fetch qaboard.yaml as it was sent, in {fetched}")
+        log(f"qa fetch-artifacts: {fetched}")
+
+
 QA = [sys.executable, "-m", "qaboard"]
 SAMPLE_PROJECT = "user/sample_project"  # project.name in qaboard/sample_project/qaboard.yaml
 
@@ -309,6 +345,7 @@ def main():
         check_reupload(server, env, workdir, proxy, url)
         check_sdk(server, env, workdir, proxy)
         check_qa_run(server, env, workdir, proxy)
+        check_artifacts(server, env, workdir, proxy)
     log("All checks passed")
 
 
