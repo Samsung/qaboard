@@ -190,6 +190,7 @@ class TestCeleryStopWithAWorker(unittest.TestCase):
     worker_dir = self.tmp / 'worker'
     worker_dir.mkdir()
     (worker_dir / 'qaboard_test_worker.py').write_text(WORKER_MODULE.format(transport_options=self.transport_options, result_backend=self.result_backend))
+    # debug: the log says which control messages the worker received ("pidbox received method..."), for failures
     self.worker_log = self.tmp / 'worker.log'
     repo = Path(__file__).resolve().parent.parent
     # C_FORCE_ROOT: in containers, tests may run as root
@@ -198,7 +199,7 @@ class TestCeleryStopWithAWorker(unittest.TestCase):
     with self.worker_log.open('w') as log:
       self.worker = subprocess.Popen(
         [sys.executable, '-m', 'celery', '-A', 'qaboard_test_worker', 'worker', f'--pool={self.pool}', '--concurrency=1',
-         '--without-heartbeat', '--without-gossip', '--without-mingle', '--loglevel=info'],
+         '--without-heartbeat', '--without-gossip', '--without-mingle', '--loglevel=debug'],
         cwd=worker_dir, env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
       )
     def stop_worker():
@@ -226,6 +227,14 @@ class TestCeleryStopWithAWorker(unittest.TestCase):
       'broker_url': 'filesystem://', 'broker_transport_options': self.transport_options,
       'result_backend': self.result_backend,
     }
+
+  def broker_state(self):
+    """The messages no one read yet, and the exchanges' queues: to tell a lost message from one the worker ignored"""
+    broker = self.tmp / 'broker'
+    lines = ['Broker:']
+    for path in sorted(p for p in broker.rglob('*') if p.is_file()):
+      lines.append(f"  {path.relative_to(broker)}" + (f": {path.read_text()}" if path.suffix == '.exchange' else ''))
+    return '\n'.join(lines)
 
   def started(self, name):
     started = wait_for(lambda: self.pid(name) or self.worker.poll() is not None)
@@ -256,7 +265,7 @@ class TestCeleryStopWithAWorker(unittest.TestCase):
       CeleryRunner.stop_jobs([], {'type': 'celery', 'command_id': command_id, 'bridge': '',
                                   'broker_transport_options': self.transport_options})
     stopped = wait_for(lambda: not alive(shell) and not alive(child), timeout=30)
-    self.assertTrue(stopped, f"The run and what it started still run:\n{self.worker_log.read_text()}")
+    self.assertTrue(stopped, f"The run and what it started still run:\n{self.worker_log.read_text()}\n{self.broker_state()}")
     # the second task waited: it never runs
     time.sleep(3)
     self.assertIsNone(self.pid(f'shell-{1 - first}'), self.worker_log.read_text())
