@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { format_duration, is_series, parse_series, smooth, sorted_keys } from '../series/series';
-import { with_logged_series } from '../runView';
+import { with_run_files } from '../runView';
 
 const FIXTURES = path.join(import.meta.dirname, '../../../../tests/fixtures/series');
 const read = name => fs.readFileSync(path.join(FIXTURES, name), 'utf-8');
@@ -99,29 +99,54 @@ describe('helpers', () => {
   });
 });
 
-describe('with_logged_series', () => {
+describe('with_run_files', () => {
   const views = [{ name: 'Output', path: 'out.png' }];
   const from_code = { data: { sdk: { script: 'train.py' } } };
 
   it("shows a run's series first, without anything in qaboard.yaml", () => {
-    expect(with_logged_series(views, { 'series.json': {}, 'series.jsonl': {}, 'out.png': {} }, from_code)).toEqual([
-      { name: 'Logged series', path: 'series.json', type: 'series', logged_series: true }, ...views,
+    expect(with_run_files(views, { 'series.json': {}, 'series.jsonl': {}, 'out.png': {} }, from_code)).toEqual([
+      { name: 'Logged series', path: 'series.json', type: 'series', automatic: true }, ...views,
     ]);
     // written by another program: only the history
-    expect(with_logged_series([], { 'series.jsonl': {} }, from_code)[0].path).toBe('series.jsonl');
+    expect(with_run_files([], { 'series.jsonl': {} }, from_code)[0].path).toBe('series.jsonl');
     // a `qa run`'s own series.json isn't ours to show
-    expect(with_logged_series(views, { 'series.json': {} }, { data: {} })).toBe(views);
+    expect(with_run_files(views, { 'series.json': {} }, { data: {} })).toBe(views);
   });
 
   it('changes nothing for runs without series, or before their files are known', () => {
-    expect(with_logged_series(views, { 'out.png': {} }, from_code)).toBe(views);
-    expect(with_logged_series(views, undefined, from_code)).toBe(views);
+    expect(with_run_files(views, { 'out.png': {} }, from_code)).toBe(views);
+    expect(with_run_files(views, undefined, from_code)).toBe(views);
   });
 
   it("leaves it to the project when its visualizations list the series", () => {
     const listed = [...views, { name: 'Curves', path: 'series.json', default_hidden: true }];
-    expect(with_logged_series(listed, { 'series.json': {} }, from_code)).toBe(listed);
+    expect(with_run_files(listed, { 'series.json': {} }, from_code)).toBe(listed);
     const typed = [{ name: 'Curves', path: 'logs/history.jsonl', type: 'series' }];
-    expect(with_logged_series(typed, { 'series.json': {} }, from_code)).toBe(typed);
+    expect(with_run_files(typed, { 'series.json': {} }, from_code)).toBe(typed);
+  });
+
+  it('shows the test reports, benchmark files and profiles of runs created from code', () => {
+    const manifest = { 'junit.xml': {}, 'pytest.benchmarks.json': {}, 'profiles/cpu.folded': {}, 'log.txt': {}, 'out.png': {} };
+    expect(with_run_files(views, manifest, from_code)).toEqual([
+      { name: 'Tests', path: 'junit.xml', automatic: true },
+      { name: 'Benchmarks', path: 'pytest.benchmarks.json', automatic: true },
+      { name: 'Flame graph', path: 'profiles/cpu.folded', automatic: true },
+      ...views,
+    ]);
+    // not for the runs of `qa run`: their project says what to show
+    expect(with_run_files(views, manifest, { data: {} })).toBe(views);
+  });
+
+  it('names several files of a kind, and shows only the first', () => {
+    const reports = Object.fromEntries(['TEST-b.xml', 'TEST-a.xml', 'TEST-c.xml', 'TEST-d.xml', 'TEST-e.xml'].map(path => [path, {}]));
+    expect(with_run_files([], reports, from_code).map(view => view.name)).toEqual(['Tests: TEST-a.xml', 'Tests: TEST-b.xml', 'Tests: TEST-c.xml', 'Tests: TEST-d.xml']);
+  });
+
+  it('leaves a kind of file to the project when its visualizations have one', () => {
+    const manifest = { 'junit.xml': {}, 'other.junit.xml': {}, 'cpu.folded': {}, 'x.benchmarks.json': {} };
+    const by_path = [{ name: 'Unit tests', path: 'junit.xml', default_hidden: true }];
+    expect(with_run_files(by_path, manifest, from_code).map(view => view.name)).toEqual(['Benchmarks', 'Flame graph', 'Unit tests']);
+    const by_type = [{ name: 'Timings', path: 'bench.txt', type: 'benchmarks/go' }, { name: 'CPU', path: 'perf.txt', type: 'flame' }];
+    expect(with_run_files(by_type, manifest, from_code).map(view => view.name)).toEqual(['Tests: junit.xml', 'Tests: other.junit.xml', 'Timings', 'CPU']);
   });
 });

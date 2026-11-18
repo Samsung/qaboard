@@ -15,6 +15,12 @@ colored by how each function changed, with a table of the top functions. Most pr
 />
 
 ## Show a profile next to the reference's {#quick-start}
+:::tip From a CI job, without code
+When a job already records a profile, `qa upload cpu.folded` saves it as a run, and the run's card shows the flame
+graph: see [Upload results from any tool](/docs/upload-results). The steps below are for profiles recorded in the
+runs of a batch.
+:::
+
 With py-spy, for Python code:
 
 1. **Record the profile in `run()`**, into the run's output directory:

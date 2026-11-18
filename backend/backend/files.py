@@ -15,6 +15,7 @@ from urllib.parse import unquote, urlsplit
 from . import accounts
 from .config import storage_roots
 from .storage import private_dirs
+from . import locations
 
 
 # Above this, we show the first entries and say the listing is truncated
@@ -39,7 +40,7 @@ def path_from_url(url: str) -> Optional[str]:
 def is_listable(path: str) -> bool:
   """We list the folders in the storage ($QABOARD_STORAGE_ROOTS), but not the server's own folders."""
   real = Path(os.path.realpath(path))
-  if not any(real.is_relative_to(os.path.realpath(root)) for root in storage_roots):
+  if not any(real.is_relative_to(os.path.realpath(root)) for root in [*storage_roots, *locations.paths()]):
     return False
   return not any(real.is_relative_to(private_dir) for private_dir in private_dirs())
 

@@ -85,7 +85,7 @@ runners:
 ```
 
 Prefer claims: your admins create a PersistentVolume for the share once, and every namespace's pods mount it without
-extra privileges. Clusters without a shared storage can't run batches yet: see the [roadmap](/docs/roadmap).
+extra privileges. Clusters without a shared storage can't run batches yet: see [what needs a shared storage](/docs/storage/uploads#limits).
 
 The pods are ready for the `restricted` level otherwise: QA-Board sets the `RuntimeDefault` seccomp profile, drops
 all capabilities, forbids privilege escalation, and with `run_as: user` or a UID, sets `runAsNonRoot`. With

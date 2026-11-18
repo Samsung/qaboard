@@ -14,7 +14,7 @@ import click
 
 from .utils import merge, getenvs
 from .git import git_head, git_show
-from .conventions import slugify, get_commit_dirs, location_from_spec, batches_files
+from .conventions import slugify, get_commit_dirs, location_from_spec, batches_files, sends_files
 from .iterators import flatten
 from .site_config import site_config, site_qaboard_config, without_locations_from
 
@@ -53,6 +53,9 @@ ignore_config_errors = ignore_config_errors or is_auth_command
 # `qa doctor` says what's wrong in qaboard.yaml, the storage... with how to fix it: it starts even if they are wrong
 is_doctor_command = is_qa_program(sys.argv) and invoked_command(sys.argv) == 'doctor'
 ignore_config_errors = ignore_config_errors or is_doctor_command
+# `qa upload` saves files as a run, also outside a project: it says itself what it misses (qaboard/upload_command.py)
+is_upload_command = is_qa_program(sys.argv) and invoked_command(sys.argv) == 'upload'
+ignore_config_errors = ignore_config_errors or is_upload_command
 # The errors in the configuration that make `qa` commands refuse to run, and how to fix them: `qa doctor` reports them
 config_errors: List[Tuple[str, str]] = []
 # What qa warns about in the configuration, and how to fix it
@@ -298,7 +301,7 @@ def storage_roots(config: Dict, project: Path, subproject: Path, user_name: Opti
     if 'ci_root' in config:
       # click.secho('DEPRECATION WARNING: the config key "ci_root" was renamed "storage"', fg='yellow', err=True)
       config['storage'] = config['ci_root']
-    config_storage: Union[str, Dict] = os.environ.get('QA_STORAGE', config.get('storage', {}))
+    config_storage: Union[str, Dict] = os.environ.get('QA_STORAGE') or config.get('storage', {})
     interpolation_vars = {"project": project, "subproject": subproject, "user": user_}
     spec_artifacts = config_storage.get('artifacts', config_storage) if isinstance(config_storage, dict) else config_storage
     spec_outputs = config_storage.get('outputs', config_storage) if isinstance(config_storage, dict) else config_storage
@@ -392,7 +395,18 @@ def report_missing_storage(needed_by: Optional[str], environ=os.environ) -> bool
     click.secho('         but `qa --share`, CI runs and `qa save-artifacts` need it: create or mount it, or set QA_STORAGE.', fg='yellow', err=True)
   return False
 
+def uploads_files_with(config: Dict, environ=os.environ) -> bool:
+  """
+  Whether shared results are sent to the server over HTTP (qaboard/upload.py), instead of saved in a storage it reads:
+  `storage: upload` in qaboard.yaml (or the site's), QA_STORAGE=upload, or no storage settings at all.
+  """
+  return sends_files(config, environ.get('QA_STORAGE'))
+
+# only in a project: outside one, `qa` shares nothing (qa upload and start_run() decide for themselves, active_run.py)
+uploads_files = bool(root_qatools_config) and uploads_files_with(config)
+
 outputs_root: Optional[Path]
+storage_found = False
 artifacts_root: Optional[Path]
 artifacts_project_root: Optional[Path]
 artifacts_project: Optional[Path]
@@ -401,13 +415,22 @@ outputs_project: Optional[Path]
 if root_qatools_config:
   assert project
   assert project_root
-  outputs_root, artifacts_root, subproject_for_artifacts = storage_roots(config, project, subproject)
-  mkdir(outputs_root)
-  mkdir(artifacts_root)
-  artifacts_project_root = artifacts_root / project_root
-  artifacts_project = artifacts_root / project
-  outputs_project_root = outputs_root / project_root
-  outputs_project = outputs_root / project
+  if uploads_files:
+    # There is no storage: like outside a project, its folders are None. The commands that need one say so (qa.py)
+    outputs_root = artifacts_root = None
+    subproject_for_artifacts = Path()
+    artifacts_project_root = artifacts_project = outputs_project_root = outputs_project = None
+  else:
+    outputs_root, artifacts_root, subproject_for_artifacts = storage_roots(config, project, subproject)
+    # whether the storage is mounted here, before we create its folder (if we can): `qa upload` sends the files to the
+    # server when it isn't, e.g. on a CI runner that doesn't mount it (qaboard/upload_command.py)
+    storage_found = outputs_root.is_dir()
+    mkdir(outputs_root)
+    mkdir(artifacts_root)
+    artifacts_project_root = artifacts_root / project_root
+    artifacts_project = artifacts_root / project
+    outputs_project_root = outputs_root / project_root
+    outputs_project = outputs_root / project
 else:
   outputs_root = None
   artifacts_root = None
@@ -616,7 +639,15 @@ def commit_outputs_dir(commit, outputs_project_root: Path, subproject: Path) -> 
   return outputs_project_root / get_commit_dirs(commit, repo_root) / subproject
 
 
-if root_qatools_config:
+if root_qatools_config and uploads_files:
+  assert project_dir and root_qatools
+  # Without a storage, shared runs are saved where local runs are, <project>/output/...: `qa` sends their files to the
+  # server from there (qaboard/upload.py). There are no artifacts: placeholders, like outside a project
+  artifacts_commit_root = Path()
+  artifacts_commit = Path()
+  outputs_commit_root = root_qatools
+  outputs_commit = project_dir
+elif root_qatools_config:
   assert artifacts_project_root
   assert outputs_project_root
   commit_dirs = get_commit_dirs(commit_id, repo_root)

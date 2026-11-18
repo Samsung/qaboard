@@ -200,6 +200,12 @@ and says which schedule does it. Each run says why it failed (`data.failed_reaso
 Runs from before QA-Board recorded when runs start count from when they were created: a run redone just before the
 upgrade may look old. The dry run lists how many runs it would change, per project.
 
+### Runs that stop reporting {#silent-runs}
+Runs from recent `qa run` and `qaboard.start_run()` tell the server every two minutes that they still run. Those
+silent for `QABOARD_SILENT_RUN_TIMEOUT_MINUTES` (default `15`, `0`: never) are failed by the jobs worker, without
+waiting for **Fail stuck runs**, with the same kind of reason in **Runs activity**. A run that reports again runs
+again. Runs from older clients, and runs waiting in a queue, are left to **Fail stuck runs**.
+
 ## Schedule jobs
 Click **New schedule**, choose the job and its settings, and when it runs with a cron expression
 (`minute hour day-of-month month day-of-week`, e.g. `0 2 * * *` every night at 2:00) in a time zone. The form shows the

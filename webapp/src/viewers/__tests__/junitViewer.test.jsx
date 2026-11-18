@@ -5,7 +5,7 @@
 import { fireEvent, screen, within } from '@testing-library/react';
 
 import JunitViewer, { JunitReport } from '../junit/JunitViewer';
-import { is_junit } from '../OutputViewer';
+import { is_junit } from '../fileTypes';
 import { renderWithProviders } from '../../test-utils';
 
 vi.mock('copy-to-clipboard', () => ({ default: vi.fn(() => true) }));

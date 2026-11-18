@@ -34,15 +34,24 @@ def serialize_paths(data: Any) -> Any:
   return data
 
 
+# Where the client saved results: the server chooses the folder of runs that send it their files (qaboard/upload.py)
+CLIENT_FOLDERS = ('output_directory', 'artifacts_commit', 'ci_commit_dir', 'commit_ci_dir', 'outputs_commit', 'batch_dir', 'batch_conf_dir')
+
+
 def results_payload(fields: Mapping[str, Any], *, is_ci: bool, run_context: Mapping[str, Any], commit_id: Optional[str],
-                    commit: Mapping[str, Any], config: Optional[Mapping[str, Any]], metrics_file: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
+                    commit: Mapping[str, Any], config: Optional[Mapping[str, Any]], metrics_file: Optional[Mapping[str, Any]],
+                    uploads_files: bool = False) -> Dict[str, Any]:
   """
   The body of a request that sends results: `fields` (the run, batch or commit), with where it comes from and what
   the server needs to create its commit, batch and project when it doesn't know them.
   - commit: what we know about the commit, as `commit_*` fields (config.commit_data()). Only the date is required.
   - config, metrics_file: the project's qaboard.yaml and metrics file. None when there is none, e.g. a notebook
     outside a project: the project then keeps the configuration it has.
+  - uploads_files: the results aren't in a storage the server reads, their files are sent to it ("storage": "upload").
+    The folders of this computer mean nothing to the server: they aren't sent.
   """
+  if uploads_files:
+    fields = {key: value for key, value in fields.items() if key not in CLIENT_FOLDERS}
   payload: Dict[str, Any] = {
     'job_type': 'ci' if is_ci else 'local',
     # where it runs, more precisely: older servers ignore it
@@ -55,6 +64,8 @@ def results_payload(fields: Mapping[str, Any], *, is_ci: bool, run_context: Mapp
     # We send it with every object type, even if it's wasteful: it makes init easier
     **serialize_paths(dict(commit)),
   }
+  if uploads_files:
+    payload['storage'] = 'upload'
   if config is not None:
     payload['qaboard_config'] = serialize_paths(_plain(config))
     payload['qaboard_metrics'] = metrics_file

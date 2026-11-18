@@ -417,5 +417,122 @@ def settings_import(path):
   click.echo(f"Imported {len(prepared)} settings")
 
 
+
+
+@cli.group('storage-locations')
+def storage_locations():
+  """
+  Storages the server reaches besides $QABOARD_STORAGE_ROOTS, e.g. a project's bucket mounted on the server: the
+  uploaded runs of the projects you list go there. Changes apply within a minute, without a restart.
+  Docs: /docs/backend-admin/uploads#storage-locations
+  """
+
+
+def _location_url(url):
+  from backend.locations import normalize_url
+  try:
+    return normalize_url(url)
+  except ValueError as e:
+    raise click.ClickException(str(e))
+
+
+def _location_runs(url):
+  from backend.models import Output
+  return Output.query.filter(Output.output_dir_override.startswith(url, autoescape=True)).count()
+
+
+def _location_path(path, check):
+  from pathlib import Path
+  from backend.storage import private_dirs
+  import os
+  if not os.path.isabs(path):
+    raise click.ClickException(f"{path} must be an absolute path: where the server reaches the location, e.g. where the bucket is mounted.")
+  real = Path(os.path.realpath(path))
+  if any(real.is_relative_to(d) or d.is_relative_to(real) for d in private_dirs()):
+    raise click.ClickException(f"{path} is one of the server's own folders.")
+  if check and not real.is_dir():
+    raise click.ClickException(f"{path} isn't a folder the server sees: mount the storage there first, in every container of the backend and of nginx, or add --no-check.")
+  return os.path.normpath(path)
+
+
+@storage_locations.command('list')
+def storage_locations_list():
+  """The storage locations, with how many runs are in each"""
+  from backend.models import StorageLocation
+  rows = StorageLocation.query.order_by(StorageLocation.url).all()
+  if not rows:
+    click.echo("No storage locations: uploaded runs go to $QABOARD_UPLOAD_ROOT.")
+  for row in rows:
+    click.echo(f"{row.url}\n  path: {row.path}\n  projects: {', '.join(row.projects) or '(none: no new runs go there)'}\n  runs: {_location_runs(row.url)}")
+
+
+@storage_locations.command('add')
+@click.argument('url')
+@click.argument('path')
+@click.option('--project', 'projects', multiple=True, help="Whose new uploaded runs go there: a project id, a group's id for all its projects, or '*'. Repeat it for several.")
+@click.option('--check/--no-check', default=True, show_default=True, help="Check that PATH is a folder the server sees.")
+def storage_locations_add(url, path, projects, check):
+  """
+  Adds a location: runs in it store URL/<their folder>, the server reaches them in PATH.
+
+  \b
+    qaboard-admin storage-locations add s3://team-a-bucket/qaboard/ /mnt/team-a --project team-a/
+  """
+  from backend.models import StorageLocation
+  url = _location_url(url)
+  if StorageLocation.query.filter(StorageLocation.url == url).one_or_none():
+    raise click.ClickException(f"{url} is already a location: change it with `storage-locations set`.")
+  row = StorageLocation(url=url, path=_location_path(path, check), projects=list(projects), options={})
+  db_session.add(row)
+  db_session.flush()
+  system_audit('storage_location.create', target_type='storage_location', target_id=row.id, target_label=url, meta={"path": row.path, "projects": row.projects})
+  db_session.commit()
+  click.echo(f"Added {url}, in {row.path}." + ("" if projects else " No project's runs go there yet: add --project with `storage-locations set`."))
+
+
+@storage_locations.command('set')
+@click.argument('url')
+@click.option('--path', default=None, help="Where the server reaches it now, e.g. after the bucket was mounted elsewhere. Its runs don't change.")
+@click.option('--project', 'projects', multiple=True, help="Replaces the projects whose new runs go there. Their older runs stay where they are.")
+@click.option('--no-projects', is_flag=True, help="No new runs go there anymore. Its runs stay readable, by who can see their project.")
+@click.option('--check/--no-check', default=True, show_default=True, help="Check that --path is a folder the server sees.")
+def storage_locations_set(url, path, projects, no_projects, check):
+  """Changes how the server reaches a location, or whose new runs go there"""
+  from backend.models import StorageLocation
+  row = StorageLocation.query.filter(StorageLocation.url == _location_url(url)).one_or_none()
+  if row is None:
+    raise click.ClickException(f"No location {url}: see `storage-locations list`.")
+  changes = {}
+  if path:
+    changes["path"] = {"from": row.path, "to": _location_path(path, check)}
+    row.path = changes["path"]["to"]
+  if projects or no_projects:
+    changes["projects"] = {"from": row.projects, "to": [] if no_projects else list(projects)}
+    row.projects = changes["projects"]["to"]
+  if not changes:
+    raise click.ClickException("Nothing to change: give --path, --project or --no-projects.")
+  system_audit('storage_location.update', target_type='storage_location', target_id=row.id, target_label=row.url, changes=changes)
+  db_session.commit()
+  click.echo(f"Changed {row.url}.")
+
+
+@storage_locations.command('remove')
+@click.argument('url')
+@click.option('--force', is_flag=True, help="Even when runs are in it: the server can't read their files anymore, until the location is added back.")
+def storage_locations_remove(url, force):
+  """Removes a location. Its files stay where they are."""
+  from backend.models import StorageLocation
+  row = StorageLocation.query.filter(StorageLocation.url == _location_url(url)).one_or_none()
+  if row is None:
+    raise click.ClickException(f"No location {url}: see `storage-locations list`.")
+  runs = _location_runs(row.url)
+  if runs and not force:
+    raise click.ClickException(f"{runs} runs are in {row.url}: the web app couldn't show their files. Stop new runs from going there with `storage-locations set {row.url} --no-projects`, or add --force.")
+  system_audit('storage_location.delete', target_type='storage_location', target_id=row.id, target_label=row.url, meta={"path": row.path, "runs": runs})
+  db_session.delete(row)
+  db_session.commit()
+  click.echo(f"Removed {row.url}." + (f" Its {runs} runs keep their location: add it back to read them again." if runs else ""))
+
+
 if __name__ == '__main__':
   cli()

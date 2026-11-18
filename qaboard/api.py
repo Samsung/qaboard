@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional, List
 
 import click
 
-from .config import project, commit_id, is_ci, available_metrics, is_doctor_command
+from .config import project, commit_id, is_ci, available_metrics, is_doctor_command, is_upload_command
 from .run import RunContext
 
 from .site_config import site_config, as_requests_verify
@@ -29,7 +29,8 @@ qaboard_host = site_config('QABOARD_HOST')
 qaboard_url, qaboard_url_source = default_server()
 # Only when nothing says where the server is: QABOARD_URL=http://localhost:5151 is fine.
 # `qa auth status` and `qa doctor` say it too.
-if not qaboard_url_source and sys.argv[1:2] not in (['auth'], ['runs']) and not is_doctor_command:
+# (`qa upload` doesn't guess: it says to set QABOARD_URL)
+if not qaboard_url_source and sys.argv[1:2] not in (['auth'], ['runs']) and not is_doctor_command and not is_upload_command:
   click.secho("WARNING: We are not sure where to find your QA-Board server.", fg='yellow', bold=True, err=True)
   click.secho(f"         We will default to {qaboard_url}", fg='yellow', bold=True, err=True)
   click.secho("         To remove this warning provide it as an environment variable (via QABOARD_HOST, e.g. 'qaboard-srv', 'qaboard-srv:443').", fg='yellow', err=True)
@@ -92,6 +93,33 @@ def print_auth_error(r, message="Failed to update QA-Board", ingest=False):
   return True
 
 
+# Why a server doesn't take the results of runs that would send it their files (backend/api/outputs.py)
+
+from .conventions import UPLOAD_FIX, UPLOAD_REFUSALS  # noqa: E402 (shared with qaboard/active_run.py)
+
+
+def print_upload_refusal(r) -> bool:
+  """
+  Without a storage shared with the server, runs send it their files (qaboard/upload.py): when it says that it
+  doesn't take them, prints it with what to do, once. Returns whether it did. In CI, `exit_if_results_refused` fails.
+  """
+  global results_refused
+  if r.status_code != 400:
+    return False
+  try:
+    body = r.json()
+  except ValueError:
+    return False
+  if not isinstance(body, dict) or body.get('reason') not in UPLOAD_REFUSALS:
+    return False
+  if results_refused is None:
+    results_refused = {'reason': body['reason'], 'error': str(body.get('error') or '')}
+  if first_time(f"{body['reason']}: {body.get('error')}"):
+    click.secho(f"WARNING: QA-Board refused the results: {body.get('error')}", fg='yellow', bold=True, err=True)
+    click.secho(f"         {UPLOAD_FIX}", fg='yellow', err=True)
+  return True
+
+
 def exit_if_results_refused():
   """In CI, exits with an error if QA-Board refused results qa sent (e.g. the token expired): they were not saved."""
   from .config import is_ci
@@ -99,7 +127,9 @@ def exit_if_results_refused():
     return
   env_name = qa_token_source if qa_token_source in ('QABOARD_TOKEN', 'QA_TOKEN') else 'QABOARD_TOKEN'
   project = project_name()
-  if results_refused['reason'] == 'missing_role':
+  if results_refused['reason'] in UPLOAD_REFUSALS:
+    fix = UPLOAD_FIX
+  elif results_refused['reason'] == 'missing_role':
     fix = f"The user of {env_name} must be a developer of {results_refused.get('project') or project or 'the project'}."
   else:
     fix = f"Set {env_name} to a valid token with the ingest scope{f' for {project}' if project else ''}."
@@ -158,7 +188,7 @@ def notify_qa_database(object_type='output', **kwargs):
   Updating the QA database.
   """
   import requests
-  from .config import is_ci, config, _metrics, run_context, commit_id, commit_data
+  from .config import is_ci, config, _metrics, run_context, commit_id, commit_data, uploads_files
 
   if kwargs.get('offline'):
     return
@@ -169,7 +199,8 @@ def notify_qa_database(object_type='output', **kwargs):
 
   url = f"{api_prefix}/{object_type}/"
   # send all the data, with where it comes from and what describes its commit and project (qaboard/payloads.py)
-  data = results_payload(kwargs, is_ci=is_ci, run_context=run_context(), commit_id=commit_id, commit=commit_data(), config=config, metrics_file=_metrics)
+  data = results_payload(kwargs, is_ci=is_ci, run_context=run_context(), commit_id=commit_id, commit=commit_data(), config=config, metrics_file=_metrics,
+                         uploads_files=uploads_files)
   if 'QA_VERBOSE' in os.environ:
     click.secho(url, fg='cyan', err=True)
     click.secho(str(data), fg='cyan', dim=True, err=True)
@@ -182,6 +213,8 @@ def notify_qa_database(object_type='output', **kwargs):
       click.secho(r.text, fg='cyan', dim=True, err=True)
     print_server_warning(r)
     if print_auth_error(r, "QA-Board refused the results", ingest=True):
+      return None
+    if print_upload_refusal(r):
       return None
     r.raise_for_status()
     try:

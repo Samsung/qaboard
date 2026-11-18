@@ -176,6 +176,10 @@ and runs its image pipeline on test charts and photos.
    `QA_STORAGE` replaces `storage` in the example's *qaboard.yaml*, `/mnt/qaboard`: the quickstart's server only
    reads your results in `/tmp/qaboard`.
 
+   When `qa` runs on another computer, or in a container that doesn't see that folder, it can send the files to the
+   server instead: create an account in the web app, `qa auth login`, and `export QA_STORAGE=upload`
+   ([without a shared storage](/docs/storage/uploads)).
+
 4. **Run the example's CI batch:** 5 test charts and 4 photos, each at ISO 100 and 3200. The first time, the example
    downloads its photos and generates its charts.
 

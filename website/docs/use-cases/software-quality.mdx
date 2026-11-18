@@ -148,6 +148,11 @@ the share of runs that reach it.
 
 </details>
 
+To start smaller, without a `run()` function: `qa upload junit.xml` in the CI job that runs your tests saves the
+report as a run, with the counts of tests as metrics ([Upload results from any tool](/docs/upload-results)). You
+get the test viewer, History and the gate; the example adds coverage, flaky tests found by running failures again,
+and modes.
+
 The example's [`qa/junit.py`](https://github.com/Samsung/qaboard/blob/master/examples/software-quality/qa/junit.py)
 reads the JUnit XML reports of pytest, GoogleTest (`--gtest_output=xml:junit.xml`), CTest (`--output-junit`) and
 Maven Surefire, which reports flaky tests itself, to compute the metrics. It uses the standard library only: copy it,

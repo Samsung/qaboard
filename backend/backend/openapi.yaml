@@ -386,6 +386,10 @@ paths:
         they end. Each request replaces what the run said before. When the run ends, `POST /output/` says its final
         metrics.
 
+        Without `metrics`, the run's metrics don't change: `{}` is a heartbeat. Runs created with `"heartbeat": true`
+        are marked failed when they stay silent ($QABOARD_SILENT_RUN_TIMEOUT_MINUTES); one marked failed that way
+        runs again when it reports.
+
         Same access as the results `qa` sends.
       security:
         - bearerAuth: []
@@ -424,6 +428,80 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "409":
           description: "The run isn't running (`reason: not_running`)."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+
+  /output/{output_id}/files/{path}:
+    put:
+      tags: [Runs]
+      operationId: uploadRunFile
+      summary: Send a file of a running run
+      description: |
+        Saves a file of a run that doesn't share a storage with the server: `qa` and `qaboard.start_run()` send
+        their runs' files like this with `storage: upload` in *qaboard.yaml*. The run was created with
+        `POST /output/` and `"storage": "upload"`: the server chose its folder. The request's body is the file.
+        Sending a file again replaces it. Only while the run is pending or running, and only on servers that accept
+        files (`uploads.enabled` in `GET /config`).
+
+        Always needs a token that can send results to the project, whatever the server's `ingest.auth` setting.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/outputId"
+        - name: path
+          in: path
+          required: true
+          description: The file's path in the run's folder, like `plots/loss.png`.
+          schema: {type: string}
+        - name: offset
+          in: query
+          description: |
+            Add the body at the end of the file instead of replacing it, for files that grow, like *log.txt*. It is
+            the size the file must have, `0` for a new file.
+          schema: {type: integer, minimum: 0}
+        - name: X-Content-SHA256
+          in: header
+          description: The body's SHA-256, in hexadecimal. When sent, the server checks what it received.
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: {type: string, format: binary}
+      responses:
+        "200":
+          description: The file was saved.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  path: {type: string}
+                  size: {type: integer, description: "The file's size, in bytes."}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409":
+          description: |
+            The run has ended (`reason: not_running`), saves its files in a shared storage (`not_uploaded`), the file
+            doesn't have the size `offset` says (`offset_mismatch`, with its `size`), or the path is a folder of the
+            run (`path_conflict`).
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "413":
+          description: "The file is larger than the server accepts (`max_file_size`, in bytes)."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "422":
+          description: "What the server received doesn't have the SHA-256 sent (`reason: digest_mismatch`)."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "507":
+          description: "The server's storage for uploaded files is full."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
