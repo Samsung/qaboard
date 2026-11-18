@@ -406,6 +406,7 @@ def uploads_files_with(config: Dict, environ=os.environ) -> bool:
 uploads_files = bool(root_qatools_config) and uploads_files_with(config)
 
 outputs_root: Optional[Path]
+storage_found = False
 artifacts_root: Optional[Path]
 artifacts_project_root: Optional[Path]
 artifacts_project: Optional[Path]
@@ -421,6 +422,9 @@ if root_qatools_config:
     artifacts_project_root = artifacts_project = outputs_project_root = outputs_project = None
   else:
     outputs_root, artifacts_root, subproject_for_artifacts = storage_roots(config, project, subproject)
+    # whether the storage is mounted here, before we create its folder (if we can): `qa upload` sends the files to the
+    # server when it isn't, e.g. on a CI runner that doesn't mount it (qaboard/upload_command.py)
+    storage_found = outputs_root.is_dir()
     mkdir(outputs_root)
     mkdir(artifacts_root)
     artifacts_project_root = artifacts_root / project_root

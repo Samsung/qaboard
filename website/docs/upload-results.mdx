@@ -19,7 +19,8 @@ are already files.
 
 ## Upload a test report from a CI job {#quick-start}
 Before you start, you need a QA-Board server that takes files: one that [accepts uploads](/docs/storage/uploads), or
-a [storage shared with it](/docs/storage/where-is-the-data). The server asks who sends files: a token in the job's
+a [storage shared with it](/docs/storage/where-is-the-data). In a project that keeps a shared storage, `qa upload` saves
+the files there where it is mounted, and sends them to the server where it isn't, e.g. on GitHub-hosted runners. The server asks who sends files: a token in the job's
 `QABOARD_TOKEN` variable ([create one](/docs/ci-integration#tokens)), or a job that
 [signs in as itself](/docs/ci-integration#ci-without-secrets), once a service account trusts the repository.
 

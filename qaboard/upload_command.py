@@ -234,6 +234,8 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
       run = start_run(
         name, configs=configurations, label=group.get('label'), batch=batch_name,
         project=project, commit=commit, platform=group.get('platform'), share=True, capture_output=False,
+        # a project that keeps its storage: from where it isn't mounted (a GitHub runner...), over HTTP
+        _upload_without_storage=True,
       )
     except (ValueError, TypeError) as e:
       click.secho(f"ERROR: {e}", fg='red', bold=True, err=True)

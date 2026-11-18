@@ -197,7 +197,12 @@ def _default_input() -> str:
 
 class _Setup:
   """Where a run goes: the project, its commit, its folders, read like `qa` does (qaboard/config.py)."""
-  def __init__(self, project: Optional[str], commit: Optional[str]):
+  def _storage_missing(self, storage) -> None:
+    self.uploads_files = True
+    _say(f"the shared storage isn't here ({storage}): the files are sent to the server")
+
+  def __init__(self, project: Optional[str], commit: Optional[str], upload_without_storage: bool = False):
+    """`upload_without_storage`: send the files to the server when the shared storage isn't mounted here (qa upload)"""
     # reads the qaboard.yaml above the current directory, git and the CI's environment
     c = import_module('qaboard.config')
     self.is_ci: bool = c.is_ci
@@ -218,6 +223,8 @@ class _Setup:
       self.local_dir: Path = c.project_dir
       outputs_project_root, artifacts_commit = c.outputs_project_root, c.artifacts_commit
       self.uploads_files = c.uploads_files
+      if upload_without_storage and not self.uploads_files and not c.storage_found:
+        self._storage_missing(c.outputs_root)
       self.input_type = c.default_input_type
       self.database: Path = c.get_default_database(get_settings(self.input_type, self.config))
     else:
@@ -242,11 +249,13 @@ class _Setup:
         try:
           outputs_root, _, _ = c.storage_roots(dict(site), Path(self.project), self.subproject, raise_errors=True)
           outputs_project_root = outputs_root / self.project
+          if upload_without_storage and not outputs_root.is_dir():
+            self._storage_missing(outputs_root)
         except (KeyError, ValueError, TypeError):
           pass
 
     if self.uploads_files:
-      # no storage shared with the server: shared runs are saved like local ones, and send their files (qaboard/upload.py)
+      # no storage shared with the server here: shared runs are saved like local ones, and send their files (qaboard/upload.py)
       outputs_project_root, artifacts_commit = None, None
     self._config = c
     self.commit: str = c.commit_id
@@ -309,7 +318,7 @@ def start_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] =
               project: Optional[str] = None, commit: Optional[str] = None, output_dir: Union[str, Path, None] = None,
               share: Optional[bool] = None, resume: bool = False, summary: Union[str, Mapping[str, str]] = 'last',
               database: Union[str, Path, None] = None, platform: Optional[str] = None, capture_output: bool = True,
-              server: Optional[str] = None, token: Optional[str] = None) -> 'ActiveRun':
+              server: Optional[str] = None, token: Optional[str] = None, _upload_without_storage: bool = False) -> 'ActiveRun':
   """
   Starts a run from your code, and returns it: log to it, then `finish()` it, or use it as a context manager.
 
@@ -353,7 +362,8 @@ def start_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] =
     if how not in SUMMARIES:
       raise ValueError(f"start_run(summary={summary!r}): expected one of {', '.join(SUMMARIES)}")
 
-  setup = _Setup(project, commit)
+  # (qa upload: send the files when the project's shared storage isn't mounted on this machine)
+  setup = _Setup(project, commit, upload_without_storage=_upload_without_storage)
   offline = os.environ.get('QA_OFFLINE', '').lower() in OFFLINE_VALUES
   server_url, server_source = (server.rstrip('/'), 'server=') if server else default_server()
   can_share = setup.uploads_files or setup.outputs_commit is not None or output_dir is not None

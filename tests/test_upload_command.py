@@ -252,6 +252,22 @@ class TestUpload(QaTestCase):
     self.assertEqual((run_dir / 'junit.xml').read_text(), REPORT)
     self.assertEqual(json.loads((run_dir / 'metrics.json').read_text())['tests'], 3)
 
+  def test_where_the_shared_storage_isnt_mounted_the_files_are_sent(self):
+    # e.g. a GitHub-hosted runner, for a project that keeps its shared storage
+    missing = Path(self.tmp.name).resolve() / 'not-mounted'
+    yaml = (self.project / 'qaboard.yaml').read_text().replace(f"storage: {self.storage}", f"storage: {missing}")
+    (self.project / 'qaboard.yaml').write_text(yaml)
+    server = self.server()
+    (self.project / 'junit.xml').write_text(REPORT)
+    result = self.qa('upload', 'junit.xml', cwd=self.project, server=server)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn("the shared storage isn't here", result.stderr)
+    started, finished = server.outputs()
+    self.assertEqual((finished['project'], finished['storage']), ('kitefin/detector', 'upload'))
+    self.assertNotIn('output_directory', finished)
+    self.assertEqual(server.files['junit.xml'], REPORT.encode())
+    self.assertFalse(any(missing.rglob('junit.xml')))
+
 
 ENTRYPOINT = """
 import os, time
