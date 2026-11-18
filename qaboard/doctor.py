@@ -1004,6 +1004,9 @@ def run_doctor(obj: Dict[str, Any], runner: str, test_job: bool = False, echo=cl
 
   def runner_checks() -> Iterator[Check]:
     job_options = runner_job_options(runner, config, project, user, state['batch_dir'], cwd)
+    if runner == 'kubernetes':
+      # like `qa batch`: {commit} in the image, and the repository's root for `workdir`
+      job_options.update({"commit": qaboard_config.commit_id, "repo_root": str(qaboard_config.repo_root)})
     yield from check_runner(runner, job_options, test_job=test_job)
 
   report.section("qa and your project")

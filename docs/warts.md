@@ -156,8 +156,8 @@ mount.
 - No quotas per project, no deduplication (a bit-accurate rerun sends everything again), no resume inside a file:
   files over `QABOARD_UPLOAD_MAX_FILE_MB` are refused. [L]
 - `qa batch` with cluster runners only works when the nodes share the working directory with the machine that
-  starts the batch; artifacts, and runs started from the web app (tuning, redo) need a shared storage: next steps
-  in `docs/design/ingest-upload-sdk.md` (an image per commit, artifacts through the server). `qa check-bit-accuracy`
+  starts the batch, or on Kubernetes with an image per commit; artifacts, and runs started from the web app (tuning,
+  redo) need a shared storage: next step in `docs/design/ingest-upload-sdk.md` (artifacts through the server). `qa check-bit-accuracy`
   compares fetched manifests only, not files (`QA_BITACCURACY_CMP`); `qa optimize` keeps its journal on the machine
   that runs it. `qaboard.runs(url)` gives uploaded runs' `output_dir` on the server, not a local folder. [L]
 - Storage locations (`backend/backend/locations.py`) are reached through folders the admin mounts: no credentials,
@@ -192,8 +192,12 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   a ServiceAccount that can create Jobs, so users who start batches in a namespace can act as each other (documented;
   `QABOARD_KUBERNETES_RUN_AS=<uid>:<gid>` runs them all as one account). Real per-user isolation: the backend creates
   the run Jobs itself, the driver calls back with a per-batch credential (design doc, "Follow-ups"). [L, API]
-- No shared filesystem, no runs: pods must see the code, inputs and outputs at the same paths. HTTP upload
-  (`docs/design/http-upload.md`) then an image per commit remove that. [L, API]
+- Without a shared filesystem, `qa batch` needs an image per commit (`{commit}` in `image`, with `workdir`) and
+  `storage: upload`; inputs still come from mounts or the user's code. Batches started from the web app still need
+  the commit's artifacts on the server's storage. Images per commit are looked up in their registry with pull
+  secrets or `docker login` only (no credential helpers, no cloud IAM: ECR/GCR/ACR without a pull secret read as
+  "can't tell"), once, without waiting for a CI that is still pushing; `--prefix-outputs-path` isn't mapped to
+  `workdir`. [M, API]
 - Secrets aren't forwarded to pods (they'd be stored in ConfigMaps): runs that send results to a server that requires a
   token need a Secret through `job_template` (`env.valueFrom.secretKeyRef`) or a shared HOME after `qa auth login`.
   An `env_from_secret` option would be simpler. [S, API]

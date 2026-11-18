@@ -246,7 +246,7 @@ def test_server_requests_dont_wait_minutes_for_the_kubernetes_api(fake_runners, 
 
   script = tmp_path / "script.sh"
   script.write_text("#!/bin/bash\nqa batch\n")
-  ci_commit = SimpleNamespace(project_id="algo/project", data={}, project=SimpleNamespace(data={}))
+  ci_commit = SimpleNamespace(project_id="algo/project", hexsha="0123abcd", data={}, project=SimpleNamespace(data={}))
   runner_jobs.submit_driver(script, tmp_path, ARTHUR, ci_commit, DRIVER_ID)
   assert fake_runners.submitted[-1]["job_options"]["api_retry_seconds"] == 15
   # and when it cleans up after a failure
@@ -518,9 +518,31 @@ def test_drivers_invalid_options(fake_runners, account):
   assert len(notes) == 7
 
 
+def test_drivers_image_per_commit(fake_runners, account):
+  options, notes = runner_jobs.driver_job_options({"image": "registry.example.com/algo/qa:{commit:.8}", "workdir": "/src"}, ARTHUR, ID1, "project")
+  # replaced when the pod is created (submit_driver gives the commit)
+  assert options["image"] == "registry.example.com/algo/qa:{commit:.8}"
+  # the driver runs in the commit's artifacts
+  assert "workdir" not in options and any("workdir" in note for note in notes)
+  with pytest.raises(NotAllowed, match="only {commit}"):
+    runner_jobs.driver_job_options({"image": "qa:{branch}"}, ARTHUR, ID1, "project")
+
+
+def test_submit_driver_with_an_image_per_commit(fake_runners, account, tmp_path):
+  script_path = tmp_path / "qa_batch.sh"
+  script_path.write_text("#!/bin/bash\nqa batch\n")
+  runner_jobs.submit_driver(script_path, tmp_path, ARTHUR, make_commit({"runners": {"kubernetes": {"image": "qa:{commit}"}}}), ID1)
+  [submitted] = fake_runners.submitted
+  assert submitted["job_options"]["image"] == "qa:{commit}"
+  assert submitted["job_options"]["commit"] == "0123456789abcdef0123456789abcdef01234567"
+  # the server's own docker credentials are never sent to registries named in qaboard.yaml
+  assert submitted["job_options"]["local_registry_credentials"] is False
+
+
 def make_commit(config, project_config=None):
   return SimpleNamespace(
     project_id="algo/project",
+    hexsha="0123456789abcdef0123456789abcdef01234567",
     data={"qatools_config": config} if config is not None else {},
     project=SimpleNamespace(data={"qatools_config": project_config or {}}),
   )

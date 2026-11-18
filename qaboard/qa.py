@@ -38,7 +38,7 @@ from .config import project, project_root, subproject, config
 from .config import default_batches_files, get_default_database, default_batch_label, default_platform
 from .config import get_default_configuration, default_input_type
 from .config import commit_id, outputs_commit, artifacts_commit, root_qatools, artifacts_commit_root
-from .config import user, is_ci, on_windows, available_metrics, uploads_files
+from .config import user, is_ci, on_windows, available_metrics, uploads_files, repo_root
 from .metrics import split_metrics, resolve_definitions, write_definitions_file, with_default_direction
 from . import analytics
 
@@ -1028,7 +1028,7 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
     if (dask_config.get('cluster') or {}).get('type') == 'kubernetes':
       from .runners.dask_runner import kubernetes_defaults
       # The project labels the DaskCluster and driver Job: the server stops the batch by command id and project
-      base_runner_options['kubernetes'] = {**kubernetes_defaults(config), **({"project": project.as_posix()} if project else {})}
+      base_runner_options['kubernetes'] = {**kubernetes_defaults(config), **({"project": project.as_posix()} if project else {}), "commit": commit_id}
     # We save logs there
     base_runner_options['batch_dir'] = str(ctx.obj['batch_dir'])
     if given('dask_concurrency', dask_concurrency, default_dask_concurrency):
@@ -1042,6 +1042,9 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
     cli_runner_overrides.update({
       "user": ctx.obj['user'],
       "project": project.as_posix() if project else None,
+      # {commit} in the image, and where the repository is: `workdir` in images with the code
+      "commit": commit_id,
+      "repo_root": str(repo_root),
     })
 
   if runner == 'local' or runner == 'celery':
