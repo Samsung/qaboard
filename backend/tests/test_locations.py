@@ -83,3 +83,72 @@ def test_without_the_table_the_server_works():
   assert locations.locations() == ()
   assert locations.local_path("s3://x/y").is_relative_to(UNREACHABLE)
   locations.invalidate()
+
+
+@pytest.fixture
+def storage(monkeypatch, tmp_path):
+  """A storage root, with an upload root in it"""
+  from backend import config
+  root = tmp_path / "storage"
+  (root / "uploads").mkdir(parents=True)
+  monkeypatch.setattr(config, "storage_roots", [root])
+  monkeypatch.setattr(config, "upload_root", root / "uploads")
+  return root
+
+
+def test_the_upload_root_is_the_default_location(known, storage, tmp_path):
+  default = locations.default()
+  assert default.is_default and default.path == storage / "uploads"
+  # last: after the locations that list the project, "*" included
+  assert [l.id for l in locations.for_project("team-b/proj")] == [3, None]
+  assert [l.id for l in locations.for_project("team-a/proj")] == [1, 3, None]
+  known(Location("s3://team-a/qaboard/", tmp_path / "team-a", ("team-a/",), id=1))
+  assert locations.for_project("team-b/proj") == [default]
+  assert storage / "uploads" in locations.paths() and tmp_path / "team-a" in locations.paths()
+  # its runs store paths
+  assert locations.location_of(storage / "uploads/proj/-/01") == str(storage / "uploads/proj/-/01")
+
+
+def test_without_an_upload_root_there_is_no_default_location(known, monkeypatch):
+  from backend import config
+  monkeypatch.setattr(config, "upload_root", None)
+  assert locations.default() is None
+  assert [l.id for l in locations.for_project("team-b/proj")] == [3]
+  known()
+  assert locations.for_project("team-b/proj") == []
+
+
+def test_locations_must_be_in_the_storage_roots(storage, tmp_path):
+  (storage / "team-a").mkdir()
+  assert locations.check_path(f"{storage}/team-a/") == str(storage / "team-a")
+  outside = tmp_path / "elsewhere"
+  outside.mkdir()
+  for path in (outside, "/etc", f"{storage}/../elsewhere"):
+    with pytest.raises(locations.LocationError) as e:
+      locations.check_path(str(path))
+    assert e.value.reason == "outside_storage_roots", path
+  # symlinks are resolved
+  (storage / "link").symlink_to(outside, target_is_directory=True)
+  with pytest.raises(locations.LocationError):
+    locations.check_path(str(storage / "link"))
+  assert locations.outside_storage_roots(outside) and not locations.outside_storage_roots(storage / "team-a")
+
+
+def test_location_paths_are_folders_the_server_sees(storage):
+  with pytest.raises(locations.LocationError) as e:
+    locations.check_path(str(storage / "not-mounted"))
+  assert e.value.reason == "not_a_folder"
+  assert locations.check_path(str(storage / "not-mounted"), check=False) == str(storage / "not-mounted")
+  with pytest.raises(locations.LocationError):
+    locations.check_path("relative/path")
+
+
+@pytest.mark.parametrize("projects", ["team-a/", [""], [1], ["  "]])
+def test_invalid_projects(projects):
+  with pytest.raises(locations.LocationError):
+    locations.check_projects(projects)
+
+
+def test_projects_are_cleaned():
+  assert locations.check_projects([" team-a/ ", "*", "team-a/"]) == ["team-a/", "*"]
+  assert locations.check_projects(None) == []

@@ -71,7 +71,7 @@ Then:
 
 The storage roots and the uploads folder say where the server may write and delete files. If an admin's session were
 stolen, a setting in the web app could point them at any folder of the server. Where *a project's* runs go, inside
-those folders, is in the database: [storage locations](#storage-locations), changed without a restart.
+those folders, is in the database: [storage locations](#storage-locations), changed in **Admin → Storage** without a restart.
 </details>
 
 ## Where the files go {#layout}
@@ -145,19 +145,27 @@ Then upload a run and open one of its images: the proxy and the image server mus
 To keep the results of a project, or of a group, on storage they pay for, e.g. their own bucket, add a **storage
 location**: no restart needed, it applies within a minute.
 
-1. Mount their storage on the server, in the backend, the proxy and the image server, at the same path, e.g. their
-   bucket at `/mnt/kitefin-bucket`. Run the check above in it.
-2. Add it, with the URL its runs will say they are in, and the projects whose runs go there:
+1. Mount their storage on the server, in the backend, the proxy and the image server, at the same path, **inside a
+   storage root** (`QABOARD_STORAGE_ROOTS`), e.g. their bucket at `/mnt/qaboard/kitefin`. Run the check above in it.
+2. Add it in **Admin → Storage → Storage locations**, with the URL its runs will say they are in, its folder, and
+   the projects whose runs go there. Or from the server's shell:
    ```bash
-   qaboard-admin storage-locations add s3://kitefin-bucket/qaboard/ /mnt/kitefin-bucket --project kitefin/
+   qaboard-admin storage-locations add s3://kitefin-bucket/qaboard/ /mnt/qaboard/kitefin --project kitefin/
    ```
-   `--project` takes a project, a group (`kitefin/`: all its projects), or `*`. The most specific location wins;
-   projects that no location lists go to `QABOARD_UPLOAD_ROOT`, which you don't need to set if every project has
-   a location.
+   Projects are a project, a group (`kitefin/`: all its projects), or `*`. The most specific location wins. The
+   projects that no location lists go to the default location, the uploads folder ([above](#enable)): without one,
+   only the projects a location lists can upload.
 
 The new runs of those projects are saved in the location, with the same layout (`<project>/-/...`), and each run
 stores its full location, e.g. `s3://kitefin-bucket/qaboard/kitefin/planner/-/3f/.../junit.xml`. Their older runs
 stay where they are, and both show in the web app.
+
+:::note Why the folder must be in a storage root
+Admins add locations from the web app, but where the server may write and delete is only set in its environment: a
+stolen admin session can't point the server at another folder. To use a disk outside the storage roots, add it to
+`QABOARD_STORAGE_ROOTS` and restart the server. Locations added before this check keep working, flagged *Outside the
+storage roots* until you do.
+:::
 
 | | |
 |---|---|
@@ -178,8 +186,8 @@ writes plain folders: it doesn't talk to buckets itself, nor hold credentials, y
 QA-Board still has the runs' metrics in its database when that storage loses files.
 
 ## When things go wrong {#troubleshooting}
-- ***This server doesn't accept uploaded files***: `QABOARD_UPLOAD_ROOT` isn't set for the backend, and no
-  [storage location](#storage-locations) lists the project.
+- ***This server doesn't accept uploaded files***: it says why. There is no uploads folder (see [above](#enable)),
+  and no [storage location](#storage-locations) lists the project.
 - ***Sign in to do this***: files need a token, also when other results don't. `qa auth login`, or a token in the CI.
 - **`413`, or *larger than what this server accepts***: raise `QABOARD_UPLOAD_MAX_FILE_MB`, and the proxy's
   `client_max_body_size` when the answer comes from nginx.

@@ -1,7 +1,8 @@
 # Sending results without `qa run` or a shared storage: `start_run()`, `qa upload`, HTTP upload
 
-Status: v5 (2026-11-18). A first version is implemented, as experimental: §1 says what, §2 the decisions behind it,
-§3 what is left. v5: uploads on by default, an end-to-end test in CI, and where storage settings should live. v4 added storage locations (runs store their full location), heartbeats, and `check-bit-accuracy`
+Status: v6 (2026-11-18). A first version is implemented, as experimental: §1 says what, §2 the decisions behind it,
+§3 what is left. v6: storage locations inside the storage roots, the upload root as the default one, edited in
+Admin → Storage. v5: uploads on by default, an end-to-end test in CI, and where storage settings should live. v4 added storage locations (runs store their full location), heartbeats, and `check-bit-accuracy`
 and `optimize` without a shared storage. v1 (2026-10-26) proposed a separate run client; v2 (2026-11-14) rebuilt the plan on
 `qaboard.start_run()` (`docs/rfcs/python-sdk-runs.md`). `docs/design/http-upload.md` is the full protocol this
 implements a small part of. Known limits: `docs/warts.md` ("Results sent over HTTP").
@@ -18,7 +19,7 @@ User docs: `website/docs/upload-results.mdx`, `storage/uploads.mdx`, `backend-ad
 | The uploader, shared by `qa run` and `start_run()` | `qaboard/upload.py` |
 | The server: one folder, one endpoint | `backend/backend/uploads.py`, `PUT /api/v1/output/<id>/files/<path>` in `backend/api/outputs.py`, `QABOARD_UPLOAD_ROOT` |
 | `start_run(label=, batch=)`, the project in CI, the guard inside `qa run` | `qaboard/active_run.py` |
-| Storage locations: buckets or disks added while the server runs, per project; runs store their full location | `backend/backend/locations.py`, `models/StorageLocation.py`, `qaboard-admin storage-locations` |
+| Storage locations: buckets or disks added while the server runs, per project, inside the storage roots; the upload root is the default one; runs store their full location | `backend/backend/locations.py` (and its changes: `add`, `update`, `remove`), `models/StorageLocation.py`, `qaboard-admin storage-locations`, Admin → Storage (`api/admin_storage_locations.py`, `webapp/src/admin/StorageLocations.jsx`) |
 | Heartbeats: runs that stop reporting are failed | `qaboard/heartbeat.py`, `backend/backend/heartbeats.py` (`QABOARD_SILENT_RUN_TIMEOUT_MINUTES`) |
 | `qa check-bit-accuracy` against references on the server: their manifests over HTTP, cached | `qaboard/bit_accuracy.py` (`fetched_manifests`) |
 | On by default: a server with the default storage takes files in `/mnt/qaboard` (a volume in `docker-compose.yml`, the chart's results volume); refusals say why (`uploads.off_reason`, also in `/api/v1/config` for `qa doctor`) | `backend/backend/config.py` (`_upload_root`) |
@@ -66,7 +67,7 @@ sent (size and date) and sends what differs. A failed request needs no replay.
 | Where a run is, with many buckets | **Each run stores its full location**: a path as before, or a URL (`s3://bucket/prefix/<project>/-/...`). A table of *storage locations*, edited while the server runs, maps URL prefixes to how the server reaches them (today: where they are mounted) and to the projects whose new runs go there. `Output.output_dir` resolves it (`locations.local_path`); unreachable locations resolve to a folder that doesn't exist | No name or id to keep in sync: editing a location (mount, later credentials) never strands runs, a public instance can add buckets it doesn't own without a restart, and runs of one project can be in several buckets. Credentials and native access attach to the location row later (`options`), not to runs |
 | Default when no `storage` is set | Send to the server | It was an error before; new projects need no storage line |
 | Does a new server take files? | Yes, when it has the default storage: `QABOARD_UPLOAD_ROOT` unset, `QABOARD_STORAGE_ROOTS` unset, and `/mnt/qaboard` writable. `off` turns uploads off. Sites that set their storage roots choose the folder | The client's default (send to the server) met a server that refused it: a new project and a new server didn't work together. Files always need a token, so being on costs little. At SIRC (storage roots set) nothing changes |
-| Where storage settings live | **The boundary in environment variables, the routing in the database.** Storage roots (and today the upload root) say where the server may write and delete: someone who takes over an admin's session must not move them (`settings.BOUNDARY`). Which folder a project's runs go to, inside them, is data: storage locations, edited without a restart | A new folder needs mounts in nginx and the image server anyway, so a restart. Today `qaboard-admin storage-locations add` takes any absolute path: the boundary is "has a shell on the server". Next (§3): locations must be inside a storage root, the upload root becomes the default location, and admins edit locations in the web app |
+| Where storage settings live | **The boundary in environment variables, the routing in the database.** Storage roots (and today the upload root) say where the server may write and delete: someone who takes over an admin's session must not move them (`settings.BOUNDARY`). Which folder a project's runs go to, inside them, is data: storage locations, edited without a restart | A new folder needs mounts in nginx and the image server anyway, so a restart. v6: locations must be inside a storage root (`locations.check_path`, symlinks resolved), from the CLI too, so that the web app can edit them. Locations added before stay readable, flagged "outside the storage roots" |
 | What needs a shared storage | Artifacts and runs started from the web app (tuning, redo). `qa save-artifacts` does nothing and says so, so one CI job works both ways. `qa check-bit-accuracy` compares the reference's manifests, fetched over HTTP once per finished run; `qa optimize` reads metrics from the API | The server has no build and no inputs. Bit accuracy only needs hashes: no file downloads |
 
 ## 3. What is left
@@ -85,16 +86,14 @@ In `docs/warts.md`, with sizes. The ones that matter first:
 3. `qaboard.local_path("qaboard://<run>/checkpoints/last.pt")`: a run's file as a local path, from the folder when
    its location is mounted here, else downloaded once into a cache keyed by the manifest's hash. Like W&B's
    `use_artifact().download()` or MLflow's `download_artifacts("runs:/...")`, for checkpoints. Shares the cache of 2.
-4. Storage locations: a web app page, credentials (encrypted, `backend/encryption.py`), the scans and the file
+4. Storage locations: ~~a web app page~~ (v6), credentials (encrypted, `backend/encryption.py`), the scans and the file
    browser on locations, clients that mount a location writing there directly, then maybe native access (§4).
 5. From the reviews of the first version, not done yet (each S unless said):
    - One object for a run's reporting (uploader, heartbeat, "the server never heard of the run") shared by
      `qa run` (module globals in `qaboard/qa.py` today) and `start_run()` [M]; the CLI's "can I read this run's
      folder here?" checks (`uploads_files` in `runners/job.py`, `bit_accuracy.py`, `qa.py`) as one helper.
-   - The upload root as the default storage location, so that `uploads.bases()`, `locations.paths()` and the storage
-     roots read one list; locations' paths checked to be inside a storage root (the boundary stays in the
-     environment, §2); the location changes (`add`, `set`, `remove`) moved from `scripts/admin.py` to `locations.py`
-     for a web app page in **Admin → Settings** [M]. `QABOARD_UPLOAD_ROOT` stays, as an override.
+   - ~~The upload root as the default storage location, locations inside the storage roots, their changes in
+     `locations.py`~~ (v6). Left: the storage roots still list the upload root apart (`config.storage_roots`).
    - `bit_accuracy.fetched_manifests` through `results._request` and in a module shared with `local_path()`.
    - The refusal reasons (`uploads_disabled`, `not_running`...) in `qaboard/conventions.py` for the server too, and
      a backend test that runs the real `Uploader` against the Flask app instead of the tests' fake server [M].
