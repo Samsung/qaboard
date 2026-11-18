@@ -236,6 +236,26 @@ class TestQaCli(unittest.TestCase):
       assert {'input_path', 'configurations', 'extra_parameters', 'platform', 'database'} <= set(runs[0])
 
   @unittest.skipIf(os.name == 'nt', "no SIGTERM")
+  @unittest.skipIf(os.name != 'posix', 'on Windows, log.txt has only what Python prints')
+  def test_run_logs_what_executables_print(self):
+    """log.txt has what the executables a run starts write themselves, not only what python prints"""
+    import sys
+    import tempfile
+    import subprocess
+    with tempfile.TemporaryDirectory() as tmp:
+      output_dir = Path(tmp) / 'output'
+      command = [sys.executable, '-c', 'from qaboard.qa import main; main()', 'run', '-i', 'cli_tests/a.jpg', '-o', str(output_dir),
+                 # what the shell prints isn't in the command: $((6*7))
+                 'echo stdout-$((6*7)); echo stderr-$((6*7)) >&2']
+      env = {k: v for k, v in os.environ.items() if k != 'QA_NO_STREAM_REDIRECT'}
+      process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', env=env, timeout=60)
+      self.assertEqual(process.returncode, 0, process.stdout)
+      log = (output_dir / 'log.txt').read_text()
+      # still printed, once
+      self.assertEqual(process.stdout.count('stdout-42'), 1, process.stdout)
+      self.assertIn('stdout-42\nstderr-42\n', log)
+      self.assertIn("'is_failed': False", log)
+
   def test_aborted_run_is_failed(self):
     """LSF sends SIGINT then SIGTERM when users bkill the job or it uses too much memory: the run says it failed"""
     import sys

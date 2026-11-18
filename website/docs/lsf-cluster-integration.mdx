@@ -75,8 +75,8 @@ In both cases job names keep the batch prefix, so stopping a batch from QA-Board
 
 ## Logs
 Each run has 2 log files in its output directory:
-- `log.txt`: what `qa run` and your code print from Python, written live. You get it with every runner.
-- `log.lsf.txt`: everything the LSF job printed, written live, including output that doesn't go through Python (subprocesses, native code, crashes). When the job ends, LSF appends its job report: exit code, why LSF terminated the job (e.g. `TERM_MEMLIMIT`), the host, run time, memory usage...
+- `log.txt`: what `qa run` and your code print, executables and native code included, written live. You get it with every runner.
+- `log.lsf.txt`: everything the LSF job printed, written live, including what comes before or after `qa run` and its crashes. When the job ends, LSF appends its job report: exit code, why LSF terminated the job (e.g. `TERM_MEMLIMIT`), the host, run time, memory usage...
 
 In the web app's **Logs** view:
 - Failed runs get a tag explaining why LSF ended them (e.g. "LSF: out of memory"). Above the logs, a summary of LSF's job report says what to do about it, and shows the host, run time, and memory used vs requested.

@@ -34,8 +34,7 @@ model on a slice of your test set:
        # Tuning parameters, e.g. {"score_threshold": 0.3} from the web app
        for name, value in context.params.items():
            command += [f"--{name.replace('_', '-')}", str(value)]
-       process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-       print(process.stdout)  # saved in the run's log
+       process = subprocess.run(command)  # what it prints is saved in the run's log
        if process.returncode != 0:
            return {"is_failed": True}
        metrics = json.loads((context.output_dir / "metrics.json").read_text())
