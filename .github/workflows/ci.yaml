@@ -68,6 +68,10 @@ jobs:
         # valid frontmatter and docs links, and notes being written short enough to read (see CLAUDE.md)
         if: matrix.python == '3.11'
         run: uv run website/release-notes/release_notes.py check --strict
+      - name: backend/uv.lock is up to date
+        # uv sync --locked above only checks uv.lock; a version bump can leave backend/uv.lock behind
+        if: matrix.python == '3.11'
+        run: uv lock --check --directory backend
       - name: Merged migrations are never changed
         # databases record the migrations they ran by id: a changed one doesn't run again where it already ran
         if: matrix.python == '3.11' && github.event_name != 'release'
