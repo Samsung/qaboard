@@ -514,7 +514,7 @@ class TestStatusLogoutToken(AuthTestCase):
         result = self.qa_auth('status', server=server)
       self.assertEqual(result.exit_code, 1)
       self.assertIn(f"answered {status} (a web page: Welcome to nginx!), not QA-Board's API. Is QABOARD_URL right?", result.output)
-      self.assertNotIn('xxx', result.output)
+      self.assertNotIn('x' * 100, result.output)  # not the page (temporary paths can have "xxx")
       self.assertNotIn('not accepted', result.output)
 
   def test_status_server_down(self):
