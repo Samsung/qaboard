@@ -38,7 +38,7 @@ from .config import project, project_root, subproject, config
 from .config import default_batches_files, get_default_database, default_batch_label, default_platform
 from .config import get_default_configuration, default_input_type
 from .config import commit_id, outputs_commit, artifacts_commit, root_qatools, artifacts_commit_root
-from .config import user, is_ci, on_windows, available_metrics, uploads_results
+from .config import user, is_ci, on_windows, available_metrics, uploads_files
 from .metrics import split_metrics, resolve_definitions, write_definitions_file, with_default_direction
 from . import analytics
 
@@ -88,7 +88,7 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
   # Without a storage shared with the server: check-bit-accuracy compares the reference's manifests, fetched over
   # HTTP, and optimize reads the iterations' metrics from the API. Only artifacts need the shared storage.
-  if uploads_results and ctx.invoked_subcommand == 'save-artifacts' and not will_show_help:
+  if uploads_files and ctx.invoked_subcommand == 'save-artifacts' and not will_show_help:
     # so that the same CI job works with and without a storage
     click.secho("Nothing to save: artifacts are for the runs QA-Board starts itself (tuning, runs done again), which need a storage shared", fg='yellow', err=True)
     click.secho("with the server. Here results are sent to it over HTTP (no `storage` in qaboard.yaml, or `storage: upload`).", fg='yellow', err=True)
@@ -191,7 +191,7 @@ def saves_attempts(qa_context, custom_output=None) -> bool:
   (CI, --share), unless the project opts out (outputs.reruns: in-place). Local runs, in the working directory's
   output/, and runs with their own --output are done again in place.
   """
-  if uploads_results:
+  if uploads_files:
     # their files are in this computer's output/ folder, done again in place; the server replaces what it has
     return False
   return bool(is_ci or qa_context.get('share')) and not custom_output and attempts.reruns_mode(config) != attempts.IN_PLACE
@@ -358,7 +358,7 @@ _files_sent = True
 
 def sends_files(qa_context) -> bool:
   """Whether the run's files are sent to the server: shared runs, when there is no storage shared with it"""
-  return bool(uploads_results and (is_ci or qa_context.get('share')) and not qa_context.get('offline') and not qa_context.get('dryrun'))
+  return bool(uploads_files and (is_ci or qa_context.get('share')) and not qa_context.get('offline') and not qa_context.get('dryrun'))
 
 
 def start_upload(run_context):
@@ -382,11 +382,15 @@ def start_heartbeat(run_context):
     _heartbeat = Heartbeat(qaboard_url, run_context.id).start()
 
 
+def stop_heartbeat():
+  """Once the server knows how the run ended. Not before: sending the last files can take longer than the timeout"""
+  if _heartbeat is not None:
+    _heartbeat.stop()
+
+
 def finish_upload(run_context):
   """Sends the run's files before telling the server that it ended: finished runs' files don't change"""
   global _uploader, _upload_finished, _files_sent
-  if _heartbeat is not None:
-    _heartbeat.stop()
   if not sends_files(run_context.obj) or _upload_finished:
     return
   _upload_finished = True
@@ -431,6 +435,7 @@ def mark_aborted(run_context):
     if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
       finish_upload(run_context)
       notify_qa_database(**run_context.obj, metrics=metrics, is_failed=True, is_pending=False, is_running=False)
+      stop_heartbeat()
 
 
 def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_database=False, print_summary=False):
@@ -544,6 +549,7 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
   if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
     finish_upload(run_context)
     notify_qa_database(**run_context.obj, metrics=metrics, metrics_definitions=metrics_definitions, data=output_data, is_pending=False, is_running=False)
+    stop_heartbeat()
 
 
   ###### SIRC-specific ########################################################
@@ -1076,7 +1082,7 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
       # But when trying to get results from older `qa batch`, we care...
       # We could remove the feature flag, maybe when it's used a bit more and we check there is no noticeable runtime cost..
       # runs that send their files to the server aren't in the folder it says: we match what they ran on
-      if not 'QA_BATCH_COMPLEX_MATCHING' in os.environ and not uploads_results:
+      if not 'QA_BATCH_COMPLEX_MATCHING' in os.environ and not uploads_files:
         matching_existing_outputs = [o for o in existing_outputs.values() if url_to_dir(o['output_dir_url']) == run_context.output_dir]
         matching_existing_output = matching_existing_outputs[0] if matching_existing_outputs else None
       else:

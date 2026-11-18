@@ -16,7 +16,7 @@ from ..models import Export, Output, TestInput, StorageScanEntry, Batch
 from ..storage import check_storage_path
 from ..fs_utils import rmtree, rm_empty_parents
 from qaboard.attempts import split as split_attempt, latest_attempt
-from .. import storage_usage, accounts
+from .. import locations, storage_usage, accounts
 from . import params as p
 from .common import quiet
 from .report import Reporter, utcnow
@@ -177,7 +177,8 @@ class ImportRuns:
       if not batch_id or db_session.get(Batch, batch_id) is None:
         report.error('other', f"{path} isn't in a batch's folder: QA-Board can't know its commit", path=path)
         continue
-      if Output.query.filter(Output.output_dir_override == path).first():
+      # runs in a storage location store its URL (backend/locations.py)
+      if Output.query.filter(Output.output_dir_override.in_([path, locations.location_of(path)])).first():
         entry.action = 'imported'
         continue
       # What `qa` couldn't remove of a run that was done again (qaboard/attempts.py): its row has the latest attempt

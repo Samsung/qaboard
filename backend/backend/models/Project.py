@@ -20,6 +20,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 import qaboard
 from qaboard.config import storage_roots
+from qaboard.conventions import is_upload_storage, storage_setting
 
 # "from X import Y" can cause circular import errors..
 from backend.models import Base, CiCommit  
@@ -192,9 +193,10 @@ def _storage_roots(project_id, id_git, id_relative, storage_config_json, qa_stor
   try:
     # projects without storage settings, when the caller has no defaults: the server's
     # (`qa` sends such projects' files to us, like those with `storage: upload`: each run says where we saved it)
-    if storage_config is None or not (qa_storage or storage_config.get('storage') or storage_config.get('ci_root')):
+    setting = storage_setting(storage_config, qa_storage)
+    if storage_config is None or not setting:
       outputs_root, artifacts_root, subproject_for_artifacts = default_outputs_root, default_artifacts_root, Path()
-    elif uploads.is_upload_setting(storage_config, qa_storage):
+    elif is_upload_storage(setting):
       # `storage: upload`: the project's runs send us their files, and each run says where we saved it (backend/uploads.py).
       # There is no storage of the project's own to read: its folder would be under the uploads'
       outputs_root = artifacts_root = uploads.upload_root() or default_outputs_root

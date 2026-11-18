@@ -42,8 +42,8 @@ class Heartbeat:
       try:
         beat(self.server, self.run_id, self._token)
       except ResultsError as e:
-        # a server from before heartbeats, or the run ended: nothing more to say. Else we try again next time
-        if e.status in (404, 405, 409) or (e.status is not None and 400 <= e.status < 500 and e.status not in (408, 429)):
+        # a server from before heartbeats, the run ended, or we can't: nothing more to say. Else next time
+        if not e.is_transient:
           return
       except Exception:  # never end the run
         pass

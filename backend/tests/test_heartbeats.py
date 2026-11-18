@@ -38,14 +38,14 @@ def silent_runs(monkeypatch):
 
 def test_silent_runs_that_send_heartbeats_fail(silent_runs):
   runs, ended = silent_runs
-  beating, older_client = running_run(heartbeat=True, root_command_id="c1"), running_run()
-  runs.extend([beating, older_client])
+  beating = running_run(heartbeat=True, root_command_id="c1")
+  runs.append(beating)  # what the query returns: older clients' runs are filtered out in SQL
   assert heartbeats.fail_silent_runs(now=NOW) == 1
+  conditions = " ".join(str(c) for c in sys.modules['backend.models'].Output.query.filter.call_args.args)
+  assert "(outputs.data->>'heartbeat') = 'true'" in conditions
   assert (beating.is_pending, beating.is_running, beating.is_failed) == (False, False, True)
   assert beating.data["silent_since"] == "2026-11-18T11:30:00Z"
   assert "Stopped reporting at 2026-11-18 11:30 UTC" in beating.data["failed_reason"]
-  # clients that don't send heartbeats are never failed for being silent
-  assert (older_client.is_running, older_client.is_failed) == (True, False)
   # like for stuck runs, no "batch ended" email
   assert ended == [("c1", beating.data["failed_reason"])]
 
@@ -81,7 +81,6 @@ def test_runs_say_whether_they_send_heartbeats(outputs_api, dummy_app):
 def test_a_heartbeat_changes_nothing_but_revives_a_silent_run(outputs_api, dummy_app):
   run = outputs_api.test_output
   outputs_api.Output.query.filter.return_value.with_for_update.return_value.one.return_value = run
-  run.set_status = lambda is_pending, is_running, now=None: run.__dict__.update(is_pending=bool(is_pending or is_running), is_running=bool(is_running))
   run.metrics = {"loss": 0.5}
   run.data = {"heartbeat": True, "silent_since": "2026-11-18T11:30:00Z"}
   run.is_failed = True

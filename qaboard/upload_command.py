@@ -21,6 +21,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import click
 
+from .conventions import ci_project
+
 
 def expand(paths: Tuple[str, ...]) -> List[Path]:
   """The files and folders to upload: those given, and those matching the patterns the shell didn't expand"""
@@ -108,7 +110,7 @@ def read_metrics(files: Dict[str, Path]) -> Dict[str, Any]:
         read_junit(file)
       except Exception:
         continue
-      click.secho(f"NOTE: {file} looks like a test report, but isn't named like one (junit.xml, *.junit.xml, TEST-*.xml): it is saved as any file. "
+      click.secho(f"NOTE: {file} looks like a test report, but isn't named like one (junit.xml, *.junit.xml, *-junit.xml, TEST-*.xml): it is saved as any file. "
                   "For the test viewer and the tests' metrics, save it with --as junit.xml.", fg='yellow', err=True)
   return metrics
 
@@ -144,6 +146,9 @@ def default_input(paths: List[Path]) -> str:
   job = os.environ.get('GITHUB_JOB') or os.environ.get('CI_JOB_NAME')
   name = (paths[0].resolve().stem or paths[0].resolve().name) if len(paths) == 1 else None
   if job:
+    if os.environ.get('GITHUB_JOB'):
+      # GitLab's job names include the matrix's values, GitHub's don't
+      click.secho(f"NOTE: the run is named after the job, {job}: in a matrix, give each job's runs their own name, e.g. --input {job}-${{{{ matrix.os }}}}", dim=True, err=True)
     return f"{job}/{name}" if name else job
   if name:
     return name
@@ -155,7 +160,7 @@ def default_input(paths: List[Path]) -> str:
 @click.option('-i', '--input', 'input_name', help="The run's name: what it tested. Default: the path's name without its extension; in a CI job, the job's name first (unit-tests/junit), or alone with several paths.")
 @click.option('--each', is_flag=True, help="One run per path, named after it, instead of one run with everything.")
 @click.option('--as', 'rename', metavar='NAME', help="Save the only file (or folder) given under this name in the run, e.g. --as junit.xml so that the test viewer opens it.")
-@click.option('--batch', 'batch_name', help="The group of tests the run belongs to, shown on its card, like the batch of `qa batch <batch>`. The batch in the web app is the label: `qa --label <label> upload`.")
+@click.option('--batch', 'batch_name', help="A group name shown on the run's card, e.g. unit-tests, like `qa batch <batch>`. Not the web app's batch: that is `qa --label <label> upload`.")
 @click.option('-m', '--metric', 'metric_pairs', multiple=True, metavar='NAME=VALUE', help="A metric of the run. Repeat it for more.")
 @click.option('--metrics', 'metrics_file', type=click.Path(exists=True, dir_okay=False), help="A JSON file with metrics of the run, like {\"accuracy\": 0.93}.")
 @click.option('--no-read', is_flag=True, help="Don't read metrics from the test reports and benchmark files.")
@@ -179,6 +184,8 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
 
   The run is identified like those of `qa run`: the project, the commit, the batch (`qa --label`), its input (--input)
   and configurations (`qa --configuration`). Uploading the same again replaces it.
+
+  Files need a token: `qa auth login` on your machine, QABOARD_TOKEN or the CI's ID token in CI.
   It needs a QA-Board server (QABOARD_URL) that accepts files, or a storage shared with it (`storage` in qaboard.yaml).
   """
   from .active_run import start_run
@@ -193,7 +200,7 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
     raise click.UsageError("--each names each run after its path: it can't be used with --input or --as.")
   if default_server()[1] is None:
     raise click.UsageError("Which QA-Board server? Set QABOARD_URL, e.g. QABOARD_URL=https://qaboard.example.com")
-  if config.project is None and not project and not any(os.environ.get(v) for v in ('QA_PROJECT', 'GITHUB_REPOSITORY', 'CI_PROJECT_PATH')):
+  if config.project is None and not project and not ci_project():
     raise click.UsageError("Which project? Give --project group/repo, or run `qa upload` in a project (a folder with a qaboard.yaml).")
   found = expand(paths)
   # shared runs are copied in the project's output/ folder before they are sent (or in the storage): not to upload again
@@ -250,5 +257,6 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
       run.finish()
     if not run.sent:
       # the same would happen to the next runs
-      click.secho(f"ERROR: QA-Board doesn't have the run {name}: see above.", fg='red', bold=True, err=True)
+      missing = "all the files of the run" if run.id is not None else "the run"
+      click.secho(f"ERROR: QA-Board doesn't have {missing} {name}: see above.", fg='red', bold=True, err=True)
       sys.exit(1)

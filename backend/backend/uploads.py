@@ -30,7 +30,7 @@ import uuid
 from pathlib import Path, PurePosixPath
 from typing import BinaryIO, List, Optional, Tuple
 
-from qaboard.conventions import commit_dir_name, is_upload_storage, make_hash, slugify_hash
+from qaboard.conventions import commit_dir_name, make_hash, slugify_hash
 
 from . import config, locations
 from .storage import check_inside, UnsafePathError
@@ -59,29 +59,40 @@ def upload_root() -> Optional[Path]:
 
 def bases(project_id: Optional[str] = None) -> List[Path]:
   """
-  The folders where the server saves uploaded runs: of a project, where its new runs go first (its most specific
-  storage location, else the upload root); without a project, all of them.
+  The folders where the server saved uploaded runs: every storage location's and the upload root. With a project,
+  where its new runs go comes first (its most specific storage location, else the upload root): its older runs can
+  be in any of them. Whether a location still takes new runs never changes who owns the files already there.
   """
   root = upload_root()
-  if project_id is None:
-    found = [location.path for location in locations.locations() if location.projects]
-  else:
-    found = [location.path for location in locations.for_project(project_id.strip('/'))]
-  return [*found, *([root] if root is not None else [])]
+  routed = [location.path for location in locations.for_project(project_id.strip('/'))] if project_id else []
+  everything = [*routed, *locations.paths(), *([root] if root is not None else [])]
+  return list(dict.fromkeys(everything))
+
+
+def overlaps_uploads(path) -> bool:
+  """
+  Whether a folder is in the folders of uploaded runs, or contains one of them: clients that save their results in a
+  shared storage can't say their run is there, nor their artifacts. Symlinks are resolved.
+  """
+  candidates = {Path(os.path.normpath(path)), Path(os.path.realpath(path))}
+  for base in bases():
+    for real_base in {Path(os.path.normpath(base)), Path(os.path.realpath(base))}:
+      if any(c == real_base or c.is_relative_to(real_base) or real_base.is_relative_to(c) for c in candidates):
+        return True
+  return False
+
+
+def new_runs_base(project_id: str) -> Optional[Path]:
+  """Where the project's new uploaded runs go, None if the server doesn't take them"""
+  routed = locations.for_project(project_id.strip('/'))
+  return routed[0].path if routed else upload_root()
 
 
 def enabled(project_id: Optional[str] = None) -> bool:
   """Whether the server takes uploaded runs: of a project, or of any project"""
-  return bool(bases(project_id))
-
-
-def is_upload_setting(storage_config: Optional[dict], qa_storage: Optional[str] = None) -> bool:
-  """
-  Whether a project's storage settings (the `storage` of its qaboard.yaml, as {"storage": ...}) say that its runs send
-  their files to the server. `qa_storage`: the server's own $QA_STORAGE, which wins like for `qa`.
-  """
-  storage_config = storage_config or {}
-  return is_upload_storage(qa_storage or storage_config.get('storage') or storage_config.get('ci_root'))
+  if project_id is None:
+    return upload_root() is not None or any(location.projects for location in locations.locations())
+  return new_runs_base(project_id) is not None
 
 
 def supports_project(project_id: str) -> bool:
@@ -104,13 +115,12 @@ def folder_name(text, maxlength: int = 70) -> str:
 def project_runs_dir(project_id: str, base: Optional[Path] = None) -> Path:
   """The folder of a project's uploaded runs, where its new runs go (or in `base`, one of its `bases`)"""
   if base is None:
-    project_bases = bases(project_id)
-    assert project_bases, "uploads aren't enabled for this project"
-    base = project_bases[0]
+    base = new_runs_base(project_id)
+    assert base is not None, "uploads aren't enabled for this project"
   return Path(base) / project_id.strip('/') / RUNS_FOLDER
 
 
-def run_dir(project_id: str, hexsha: str, batch_label: str, platform: str, configurations: list, extra_parameters: dict, input_path: str) -> Path:
+def run_dir(project_id: str, hexsha: str, batch_label: str, platform: str, configurations: list, extra_parameters: dict, input_path: str, database: Optional[str] = None) -> Path:
   """
   Where the files of a run are saved, from what identifies it. Not the shared storage's layout to the letter: an
   input keeps its extension (code names runs "v1.2" and "v1.3"), and each level is one folder.
@@ -119,7 +129,8 @@ def run_dir(project_id: str, hexsha: str, batch_label: str, platform: str, confi
   commit_dir = commit_dir_name(hexsha) if re.fullmatch(r'[0-9a-f]{40}', hexsha) else Path('local') / folder_name(hexsha)
   batch_dir = Path('output') if batch_label == 'default' else Path('output') / folder_name(batch_label, maxlength=32)
   # every run of the database has its own folder: all that tells runs apart is in the names
-  configuration_dir = folder_name([platform, configurations or [], extra_parameters or {}], maxlength=32)
+  # (the input's database too: runs on the same input path in two databases are two runs)
+  configuration_dir = folder_name([platform, configurations or [], extra_parameters or {}, *([str(database)] if database else [])], maxlength=32)
   directory = project_runs_dir(project_id) / commit_dir / batch_dir / configuration_dir / folder_name(str(input_path))
   if not is_run_dir(directory, project_id):
     raise UploadError(400, "This run can't be saved by the server: its project, batch or input have names that aren't folders' names.", "invalid_run")

@@ -34,6 +34,7 @@ a [storage shared with it](/docs/storage/where-is-the-data). The server asks who
    ```bash
    pip install qaboard
    export QABOARD_URL=https://qaboard.example.com
+   export QABOARD_TOKEN=<a token with the ingest scope>   # or, on your machine: qa auth login
    qa upload junit.xml
    ```
 
@@ -88,7 +89,7 @@ input and configurations are compared from a commit to the next, and with the re
 
 | | Option | Default |
 |---|---|---|
-| What was tested: the input | `--input codec` | In a CI job: the job's name, then the file's name without its extension (`unit-tests/junit`), or the job's name alone with several paths. Elsewhere: the file's name |
+| What was tested: the input | `--input codec` | In a CI job: the job's name, then the file's name without its extension (`unit-tests/junit`), or the job's name alone with several paths. Elsewhere: the file's name without its extension. In a GitHub matrix, give each job its own, e.g. `--input unit-tests-${{ matrix.os }}`: jobs of a matrix have the same name |
 | How: the configurations | `qa -c O3 -c '{"threads": 4}' upload ...` | None |
 | The batch, in the web app | `qa --label nightly upload ...` | `default`: the CI's results. Outside the CI, your own batch, like `qa --share` |
 | The group of tests, on the run's card | `--batch unit-tests` | None |
@@ -135,9 +136,10 @@ unit-tests:
       aud: https://qaboard.example.com
   script:
     - pip install qaboard pytest
-    - pytest --junitxml=junit.xml
-  after_script:
+    # upload the report even when tests fail, and fail the job if it isn't sent (after_script can't)
+    - pytest --junitxml=junit.xml || status=$?
     - qa upload --input unit-tests junit.xml
+    - exit ${status:-0}
 ```
 
 </TabItem>

@@ -160,8 +160,8 @@ class JobGroup():
     """Tells QA-Board that a run QA-Board shows as pending ended, failed unless it saved successful metrics. Returns whether it failed."""
     # where the run said it was, if we found it by its id. Runs that send their files to the server (qaboard/upload.py)
     # are in this computer's output/ folder: the server's folder isn't ours
-    from ..config import uploads_results
-    if job.qaboard_output and job.qaboard_output.get('output_dir_url') and not uploads_results:
+    from ..config import uploads_files
+    if job.qaboard_output and job.qaboard_output.get('output_dir_url') and not uploads_files:
       job.run_context.output_dir = url_to_dir(job.qaboard_output['output_dir_url'])
     job_is_failed = job.run_context.is_failed(verbose=True)
     if not job_is_failed:

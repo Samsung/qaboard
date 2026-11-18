@@ -14,7 +14,7 @@ import click
 
 from .utils import merge, getenvs
 from .git import git_head, git_show
-from .conventions import slugify, get_commit_dirs, location_from_spec, batches_files, is_upload_storage
+from .conventions import slugify, get_commit_dirs, location_from_spec, batches_files, sends_files
 from .iterators import flatten
 from .site_config import site_config, site_qaboard_config, without_locations_from
 
@@ -395,16 +395,14 @@ def report_missing_storage(needed_by: Optional[str], environ=os.environ) -> bool
     click.secho('         but `qa --share`, CI runs and `qa save-artifacts` need it: create or mount it, or set QA_STORAGE.', fg='yellow', err=True)
   return False
 
-def uploads_results_with(config: Dict, environ=os.environ) -> bool:
+def uploads_files_with(config: Dict, environ=os.environ) -> bool:
   """
   Whether shared results are sent to the server over HTTP (qaboard/upload.py), instead of saved in a storage it reads:
   `storage: upload` in qaboard.yaml (or the site's), QA_STORAGE=upload, or no storage settings at all.
   """
-  # like storage_roots: QA_STORAGE wins, and `ci_root` is the setting's former name
-  storage = environ.get('QA_STORAGE') or config.get('ci_root') or config.get('storage')
-  return not storage or is_upload_storage(storage)
+  return sends_files(config, environ.get('QA_STORAGE'))
 
-uploads_results = uploads_results_with(config)
+uploads_files = uploads_files_with(config)
 
 outputs_root: Optional[Path]
 artifacts_root: Optional[Path]
@@ -415,7 +413,7 @@ outputs_project: Optional[Path]
 if root_qatools_config:
   assert project
   assert project_root
-  if uploads_results:
+  if uploads_files:
     # There is no storage: like outside a project, its folders are None. The commands that need one say so (qa.py)
     outputs_root = artifacts_root = None
     subproject_for_artifacts = Path()
@@ -636,7 +634,7 @@ def commit_outputs_dir(commit, outputs_project_root: Path, subproject: Path) -> 
   return outputs_project_root / get_commit_dirs(commit, repo_root) / subproject
 
 
-if root_qatools_config and uploads_results:
+if root_qatools_config and uploads_files:
   assert project_dir and root_qatools
   # Without a storage, shared runs are saved where local runs are, <project>/output/...: `qa` sends their files to the
   # server from there (qaboard/upload.py). There are no artifacts: placeholders, like outside a project

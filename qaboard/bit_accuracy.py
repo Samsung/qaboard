@@ -391,9 +391,9 @@ class CommitRuns:
 
 def current_runs(ctx) -> CommitRuns:
   """Where the current commit's runs are, see `qa batch`"""
-  from .config import is_ci, commit_id, local_commit_placeholder, outputs_commit, subproject, uploads_results
+  from .config import is_ci, commit_id, local_commit_placeholder, outputs_commit, subproject, uploads_files
   # runs that are not shared are not in QA-Board; those that send their files to it are here too, in output/
-  shared = bool(is_ci or ctx.obj['share']) and not uploads_results
+  shared = bool(is_ci or ctx.obj['share']) and not uploads_files
   return CommitRuns(
     commit=commit_id or local_commit_placeholder,
     batch_label=ctx.obj['batch_label'],

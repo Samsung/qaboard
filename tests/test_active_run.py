@@ -271,9 +271,9 @@ run.finish()
     started, finished = server.outputs()
     self.assertTrue(started['heartbeat'])
     self.assertNotIn('heartbeat', finished)
-    # heartbeats change nothing: no metrics
+    # heartbeats say what the run looks like: servers from before them replace the metrics with what they get
     self.assertGreaterEqual(len(server.progress()), 2)
-    self.assertTrue(all(body == {} for body in server.progress()))
+    self.assertTrue(all(body['metrics'] == {} and 'params' in body for body in server.progress()))
 
   def test_older_servers_get_the_metrics_at_the_end(self):
     server = self.server(progress_status=404)
@@ -754,7 +754,6 @@ with qb.start_run(input="slow") as run:
   print("first step", flush=True)
   (run.output_dir / "result.bin").write_bytes(b"result")
   time.sleep(1.5)
-  print(open("seen.txt").read() if __import__("os").path.exists("seen.txt") else "", flush=True)
 """
     process = threading.Thread(target=lambda: setattr(self, 'result', self.python(server=server, code=code, QA_SYNC_INTERVAL='0.1')))
     process.start()

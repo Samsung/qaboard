@@ -34,8 +34,8 @@ def run_dir(upload_root):
   return directory
 
 
-def run_dir_of(project="group/repo", commit=COMMIT, batch="default", platform="linux", configurations=(), extra_parameters=None, input_path="input"):
-  return uploads.run_dir(project, commit, batch, platform, list(configurations), extra_parameters or {}, input_path)
+def run_dir_of(project="group/repo", commit=COMMIT, batch="default", platform="linux", configurations=(), extra_parameters=None, input_path="input", database="/datasets"):
+  return uploads.run_dir(project, commit, batch, platform, list(configurations), extra_parameters or {}, input_path, database=database)
 
 
 def send(run_dir, path, content: bytes, **kwargs):
@@ -63,6 +63,7 @@ def test_runs_that_differ_have_their_own_folder(upload_root):
     {"platform": "windows"}, {"configurations": ["O3"]}, {"configurations": ["o3"]}, {"configurations": [{"lr": 0.1}]},
     {"extra_parameters": {"seed": 1}}, {"extra_parameters": {"forwarded_args": ["-v"]}}, {"batch": "nightly"}, {"batch": "Nightly"},
     {"commit": "f" * 40}, {"commit": "<local:alice>"}, {"commit": "<local:bob>"}, {"project": "group/other"},
+    {"database": "/other-datasets"},
   ]
   directories = [run_dir_of(**run) for run in runs]
   assert len(set(directories)) == len(runs)
@@ -114,11 +115,13 @@ def test_project_of_other_paths(upload_root):
 
 
 def test_storage_settings_that_say_upload():
-  assert uploads.is_upload_setting({"storage": "upload"})
-  assert uploads.is_upload_setting({"ci_root": " Upload "})
-  assert uploads.is_upload_setting({"storage": "/mnt/qaboard"}, qa_storage="upload")
-  for settings in (None, {}, {"storage": "/mnt/upload"}, {"storage": {"linux": "upload"}}):
-    assert not uploads.is_upload_setting(settings)
+  # one definition for `qa` and the server (qaboard/conventions.py)
+  from qaboard.conventions import sends_files, storage_setting
+  assert sends_files({"storage": "upload"}) and sends_files({"ci_root": " Upload "}) and sends_files(None) and sends_files({})
+  assert sends_files({"storage": "/mnt/qaboard"}, qa_storage="upload")
+  assert storage_setting({"storage": "/a", "ci_root": "/b"}) == "/b"
+  for settings in ({"storage": "/mnt/upload"}, {"storage": {"linux": "upload"}}):
+    assert not sends_files(settings)
 
 
 def test_projects_with_a_dash_folder_are_not_supported():
@@ -303,9 +306,10 @@ def outputs_api(monkeypatch, upload_root):
     output_dir_override=None, batch=SimpleNamespace(ci_commit=ci_commit),
   )
   output.to_dict = lambda: {"id": output.id, "output_dir": output.output_dir_override}
-  output.set_status = lambda is_pending, is_running: output.__dict__.update(is_pending=bool(is_pending or is_running), is_running=bool(is_running))
+  output.set_status = lambda is_pending, is_running, **kwargs: output.__dict__.update(is_pending=bool(is_pending or is_running), is_running=bool(is_running))
   module.Output.get_or_create.return_value = output
   module.Output.query.filter.return_value.one.return_value = output
+  module.Output.query.filter.return_value.one_or_none.return_value = output
   module.test_output = output
   return module
 
@@ -431,11 +435,18 @@ def test_the_database_cant_send_files_elsewhere(outputs_api, dummy_app, upload_r
 def test_clients_cant_say_their_results_are_in_the_uploads_folders(outputs_api, dummy_app, upload_root, monkeypatch):
   monkeypatch.setattr(outputs_api, "check_storage_path", lambda path: path)
   victim = run_dir_of("victim/secret")
-  for directory in (victim, f"{upload_root}/x/../victim/secret/-/01"):
+  # nor above them: deleting the run would delete all the project's uploaded runs
+  for directory in (victim, f"{upload_root}/x/../victim/secret/-/01", upload_root / "victim/secret", upload_root / "victim", upload_root, upload_root.parent):
     response, status = start(outputs_api, dummy_app, storage=None, output_directory=str(directory))
-    assert status == 400 and response.get_json()["reason"] == "uploads_folder"
-  # the upload folder can also be a storage that runs write to directly
-  response, status = start(outputs_api, dummy_app, storage=None, output_directory=str(upload_root / "group/repo/01/23/output/x"))
+    assert status == 400 and response.get_json()["reason"] == "uploads_folder", directory
+    response, status = start(outputs_api, dummy_app, storage=None, output_directory="/mnt/storage/x", artifacts_commit=str(directory))
+    assert status == 400 and response.get_json()["reason"] == "uploads_folder", directory
+  # through a symlink too
+  link = upload_root.parent / "link"
+  link.symlink_to(upload_root / "victim", target_is_directory=True) if (upload_root / "victim").exists() else link.symlink_to(upload_root, target_is_directory=True)
+  response, status = start(outputs_api, dummy_app, storage=None, output_directory=str(link / "x"))
+  assert status == 400
+  response, status = start(outputs_api, dummy_app, storage=None, output_directory="/mnt/storage/group/repo/01/23/output/x")
   assert status == 200 and "uploads_files" not in outputs_api.test_output.data
   # and clients can't say that a run uploads
   start(outputs_api, dummy_app, storage=None, output_directory="/mnt/storage/x", data={"uploads_files": True})
@@ -477,7 +488,8 @@ def test_projects_runs_go_to_their_location(team_bucket, upload_root):
   assert uploads.is_run_dir(upload_root / "group/repo/-/01/23/output/a/b", "group/repo")
   # the others' go to the upload root
   assert run_dir_of("other/repo").is_relative_to(upload_root / "other/repo/-")
-  assert not uploads.is_run_dir(team_bucket / "other/repo/-/01/23/output/a/b", "other/repo")
+  # a project's folder in a location is its own, wherever its new runs go
+  assert not uploads.is_run_dir(team_bucket / "group/repo/-/01/23/output/a/b", "other/repo")
 
 
 def test_projects_with_a_location_upload_without_an_upload_root(team_bucket, monkeypatch):
@@ -497,3 +509,32 @@ def test_runs_in_a_location_store_its_url(outputs_api, dummy_app, team_bucket):
   outputs_api.test_output.output_dir_override = "s3://another-bucket/qaboard/group/repo/-/01/run"
   body, status = put(outputs_api, dummy_app, "a.txt")
   assert status == 409 and body["reason"] == "not_uploaded"
+
+
+def test_a_location_that_takes_no_new_runs_still_owns_its_files(team_bucket, monkeypatch, upload_root):
+  from backend import locations
+  directory = run_dir_of()
+  monkeypatch.setattr(locations, "_load", lambda: (locations.Location("s3://team-bucket/qaboard/", team_bucket, (), id=1),))
+  locations.invalidate()
+  # who can read them, and where the run's files can be written, don't change
+  assert uploads.project_of(str(directory / "log.txt")) == (str(team_bucket / "group/repo"), "group/repo")
+  assert uploads.is_run_dir(directory, "group/repo")
+  # new runs go to the upload root
+  assert run_dir_of().is_relative_to(upload_root)
+
+
+def test_a_run_that_ends_stays_where_it_sent_its_files(outputs_api, dummy_app, upload_root, team_bucket, monkeypatch):
+  from backend import locations
+  monkeypatch.setattr(locations, "_load", lambda: ())
+  locations.invalidate()
+  start(outputs_api, dummy_app)
+  started_in = outputs_api.test_output.output_dir_override
+  assert started_in.startswith(str(upload_root))
+  # meanwhile, the project's new runs go to a bucket
+  monkeypatch.setattr(locations, "_load", lambda: (locations.Location("s3://team-bucket/qaboard/", team_bucket, ("group/",), id=1),))
+  locations.invalidate()
+  start(outputs_api, dummy_app, is_pending=False, is_running=False)
+  assert outputs_api.test_output.output_dir_override == started_in
+  # its next attempt goes there
+  start(outputs_api, dummy_app)
+  assert outputs_api.test_output.output_dir_override.startswith("s3://team-bucket/")

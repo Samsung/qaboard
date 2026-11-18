@@ -263,8 +263,7 @@ class Uploader:
                  data=data, headers={'Content-Type': 'application/octet-stream', **(headers or {})}, timeout=TIMEOUT)
         return
       except ResultsError as e:
-        again = e.status is None or e.status in (408, 429, 502, 503, 504)
-        if not again or delay is None or self.refused:
+        if not e.is_transient or delay is None or self.refused:
           raise
         time.sleep(delay)
       finally:

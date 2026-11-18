@@ -965,7 +965,7 @@ def run_doctor(obj: Dict[str, Any], runner: str, test_job: bool = False, echo=cl
     if offline:
       state['batch_dir'] = make_batch_dir(qaboard_config.outputs_commit, label, platform, configurations, extra_parameters, False)
       yield check_folder("Local results", root / 'output', purpose="Local runs save their results there")
-    elif qaboard_config.uploads_results:
+    elif qaboard_config.uploads_files:
       batch_label = label if is_ci else f"@{user}| {label}"
       state['batch_dir'] = make_batch_dir(qaboard_config.outputs_commit, batch_label, platform, configurations, extra_parameters, True)
       yield check_uploads(state['site'], state['token'])

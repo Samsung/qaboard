@@ -417,8 +417,6 @@ def settings_import(path):
   click.echo(f"Imported {len(prepared)} settings")
 
 
-if __name__ == '__main__':
-  cli()
 
 
 @cli.group('storage-locations')
@@ -440,7 +438,7 @@ def _location_url(url):
 
 def _location_runs(url):
   from backend.models import Output
-  return Output.query.filter(Output.output_dir_override.startswith(url)).count()
+  return Output.query.filter(Output.output_dir_override.startswith(url, autoescape=True)).count()
 
 
 def _location_path(path, check):
@@ -476,6 +474,7 @@ def storage_locations_list():
 def storage_locations_add(url, path, projects, check):
   """
   Adds a location: runs in it store URL/<their folder>, the server reaches them in PATH.
+
   \b
     qaboard-admin storage-locations add s3://team-a-bucket/qaboard/ /mnt/team-a --project team-a/
   """
@@ -495,8 +494,8 @@ def storage_locations_add(url, path, projects, check):
 @click.argument('url')
 @click.option('--path', default=None, help="Where the server reaches it now, e.g. after the bucket was mounted elsewhere. Its runs don't change.")
 @click.option('--project', 'projects', multiple=True, help="Replaces the projects whose new runs go there. Their older runs stay where they are.")
-@click.option('--no-projects', is_flag=True, help="No new runs go there anymore. Its runs stay readable.")
-@click.option('--check/--no-check', default=True, show_default=True)
+@click.option('--no-projects', is_flag=True, help="No new runs go there anymore. Its runs stay readable, by who can see their project.")
+@click.option('--check/--no-check', default=True, show_default=True, help="Check that --path is a folder the server sees.")
 def storage_locations_set(url, path, projects, no_projects, check):
   """Changes how the server reaches a location, or whose new runs go there"""
   from backend.models import StorageLocation
@@ -533,3 +532,7 @@ def storage_locations_remove(url, force):
   db_session.delete(row)
   db_session.commit()
   click.echo(f"Removed {row.url}." + (f" Its {runs} runs keep their location: add it back to read them again." if runs else ""))
+
+
+if __name__ == '__main__':
+  cli()

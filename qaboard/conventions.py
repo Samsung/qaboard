@@ -43,6 +43,32 @@ def is_upload_storage(storage) -> bool:
   return isinstance(storage, str) and storage.strip().lower() == UPLOAD_STORAGE
 
 
+def ci_project() -> Optional[str]:
+  """The project of runs created without a qaboard.yaml, from the environment: QA_PROJECT, else the CI's repository"""
+  return os.environ.get('QA_PROJECT') or os.environ.get('GITHUB_REPOSITORY') or os.environ.get('CI_PROJECT_PATH') or None
+
+
+# Why the server refuses runs that send their files, and what to do about it (qa run, start_run(), qa upload)
+UPLOAD_REFUSALS = ('uploads_disabled', 'uploads_unsupported_project', 'invalid_run')
+UPLOAD_FIX = ("Set `storage` in qaboard.yaml (or QA_STORAGE) to a folder the server reads too, or ask its administrators to accept files (QABOARD_UPLOAD_ROOT). "
+              "If your organization has a site package (qaboard-site-...), install it: it says where results are saved.")
+
+
+def storage_setting(config: Optional[Dict], qa_storage: Optional[str] = None):
+  """
+  The storage setting that applies to a project, for `qa` and the server alike: $QA_STORAGE, else `storage` in
+  qaboard.yaml (or the site's), where `ci_root`, its former name, wins (like config.storage_roots). None if none.
+  """
+  config = config or {}
+  return qa_storage or config.get('ci_root') or config.get('storage') or None
+
+
+def sends_files(config: Optional[Dict], qa_storage: Optional[str] = None) -> bool:
+  """Whether shared runs send their files to the server over HTTP: `storage: upload`, or no storage setting at all"""
+  setting = storage_setting(config, qa_storage)
+  return not setting or is_upload_storage(setting)
+
+
 def get_settings(inputs_type, config):
   config_inputs = config.get('inputs', {})  
   config_inputs_types = config_inputs.get('types', {})

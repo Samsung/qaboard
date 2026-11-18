@@ -6,7 +6,7 @@ import { fireEvent, screen, within } from '@testing-library/react';
 
 import BenchmarksViewer from '../benchmarks-viewer';
 import { BenchmarksReport } from '../benchmarks/BenchmarksReport';
-import { is_benchmarks } from '../OutputViewer';
+import { is_benchmarks } from '../fileTypes';
 import { renderWithProviders } from '../../test-utils';
 
 // jsdom has no layout: the list's virtualizer would render no row

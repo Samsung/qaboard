@@ -39,7 +39,7 @@ from fnmatch import fnmatchcase
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple, Union
 
 from . import attempts, heartbeat
-from .conventions import run_dir_in_commit, slugify, get_settings, RUN_DIR_VARIABLE
+from .conventions import run_dir_in_commit, slugify, get_settings, RUN_DIR_VARIABLE, UPLOAD_FIX, UPLOAD_REFUSALS, ci_project
 from .credentials import default_server
 from .metrics import DEFINITIONS_FILE, clean_definition, declared_metrics, read_definitions_file, split_metrics, with_default_direction
 from .payloads import results_payload, serialize_path
@@ -217,12 +217,12 @@ class _Setup:
       self.available_metrics: Dict[str, Any] = c.available_metrics or {}
       self.local_dir: Path = c.project_dir
       outputs_project_root, artifacts_commit = c.outputs_project_root, c.artifacts_commit
-      self.uploads = c.uploads_results
+      self.uploads_files = c.uploads_files
       self.input_type = c.default_input_type
       self.database: Path = c.get_default_database(get_settings(self.input_type, self.config))
     else:
       # the CI says which repository it builds
-      project = project or os.environ.get('QA_PROJECT') or os.environ.get('GITHUB_REPOSITORY') or os.environ.get('CI_PROJECT_PATH')
+      project = project or ci_project()
       if not project:
         raise ValueError("start_run() needs to know the project: run it from a project (a folder with a qaboard.yaml, see `qa init`), or pass project='group/repo'.")
       from .site_config import site_qaboard_config
@@ -237,15 +237,15 @@ class _Setup:
       self.input_type = 'default'
       self.database = Path('.')
       outputs_project_root, artifacts_commit = None, None
-      self.uploads = c.uploads_results_with(site)
-      if not self.uploads:
+      self.uploads_files = c.uploads_files_with(site)
+      if not self.uploads_files:
         try:
           outputs_root, _, _ = c.storage_roots(dict(site), Path(self.project), self.subproject, raise_errors=True)
           outputs_project_root = outputs_root / self.project
         except (KeyError, ValueError, TypeError):
           pass
 
-    if self.uploads:
+    if self.uploads_files:
       # no storage shared with the server: shared runs are saved like local ones, and send their files (qaboard/upload.py)
       outputs_project_root, artifacts_commit = None, None
     self._config = c
@@ -356,13 +356,13 @@ def start_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] =
   setup = _Setup(project, commit)
   offline = os.environ.get('QA_OFFLINE', '').lower() in OFFLINE_VALUES
   server_url, server_source = (server.rstrip('/'), 'server=') if server else default_server()
-  can_share = setup.uploads or setup.outputs_commit is not None or output_dir is not None
+  can_share = setup.uploads_files or setup.outputs_commit is not None or output_dir is not None
   if share is None:
     share = not offline and can_share and (setup.is_ci or server_source is not None)
   elif share and not can_share:
     raise ValueError("start_run(share=True) needs the shared storage: set `storage` in qaboard.yaml or QA_STORAGE, or pass output_dir= with a folder the server reads.")
   in_storage = bool(share or setup.is_ci) and setup.outputs_commit is not None
-  uploads_files = bool(share) and setup.uploads
+  uploads_files = bool(share) and setup.uploads_files
 
   # the input: relative to its database, like `qa run --input`
   input_path = Path(input) if input is not None else Path(_default_input())
@@ -966,7 +966,9 @@ class ActiveRun:
           if isinstance(answer.get('id'), int):
             self.id = answer['id']
             self._start_upload()
-        elif changed and self._live_updates:
+        elif self._live_updates and (changed or time.time() - self._reported_at >= heartbeat.INTERVAL):
+          # what changed, or a heartbeat with what the run looks like: servers from before heartbeats replace the
+          # run's metrics with what each request says (qaboard/heartbeat.py)
           with self._lock:
             metrics = self._current_metrics()
             body: Dict[str, Any] = {'metrics': _jsonable(metrics), 'params': _jsonable(self._params)}
@@ -979,7 +981,8 @@ class ActiveRun:
             self._sent_definitions = definitions
             self._reported_at = time.time()
           except ResultsError as e:
-            if e.status is None or e.status >= 500 or e.status in (401, 403, 408, 429):
+            # the server is away, or the token is refused: handled like the run's other requests
+            if e.is_transient or e.status in (401, 403):
               raise
             # a server from before runs reported their progress (404), or one that doesn't take this run's:
             # it gets the metrics when the run ends
@@ -987,12 +990,13 @@ class ActiveRun:
             if e.status not in (404, 405):
               self._warn_once('progress', f"WARNING: the web app will show the run's metrics when it ends, not before: {e}")
         elif self._heartbeats and time.time() - self._reported_at >= heartbeat.INTERVAL:
-          # nothing new to say: the server must still know that the run runs (qaboard/heartbeat.py)
+          # the server doesn't take this run's metrics while it runs: it must still know that it runs
           try:
             heartbeat.beat(self.server, self.id, self._token)
             self._reported_at = time.time()
           except ResultsError as e:
-            if e.status is None or e.status >= 500 or e.status in (401, 403, 408, 429):
+            # the server is away, or the token is refused: handled like the run's other requests
+            if e.is_transient or e.status in (401, 403):
               raise
             # a server from before runs reported their progress: it doesn't fail silent runs either
             self._heartbeats = False
@@ -1000,9 +1004,14 @@ class ActiveRun:
         with self._lock:
           self._changed = True
         if e.reason or (e.status is not None and 400 <= e.status < 500 and e.status not in (408, 429)):
+          # said once: when the run ends we ask again (access can be given meanwhile), quietly if nothing changed
+          if self._refused != str(e):
+            _say(f"WARNING: the server refused the run: {e}")
+            if e.reason in UPLOAD_REFUSALS:
+              _say(f"         {UPLOAD_FIX}")
+            if not final:
+              _say(f"         Logging goes on in {self.output_dir}; QA-Board is asked again when the run ends.")
           self._refused = str(e)
-          _say(f"WARNING: the server refused the run: {e}")
-          _say(f"         Logging goes on in {self.output_dir}; finish() will try once more.")
         else:
           self._failures += 1
           self._next_sync = time.time() + min(MAX_SYNC_INTERVAL, self._sync_interval * 2 ** min(self._failures, 6))
@@ -1040,9 +1049,17 @@ class ActiveRun:
       self._uploader = self._new_uploader()
     if self._uploader is None:
       self._files_sent = False
-      _say(f"WARNING: the server doesn't have the run's files: it didn't take the run. They are in {self.output_dir}")
+      if not self._refused:  # else we said why already
+        _say(f"WARNING: the server doesn't have the run's files: it didn't take the run. They are in {self.output_dir}")
       return
-    self._files_sent = self._uploader.finish()
+    # the sync thread has stopped: the server must still hear from the run while the last files go, which can take
+    # longer than the time after which it fails silent runs
+    beating = heartbeat.Heartbeat(self.server, self.id, self._token).start() if self._heartbeats and self.id is not None else None
+    try:
+      self._files_sent = self._uploader.finish()
+    finally:
+      if beating is not None:
+        beating.stop()
     if not self._files_sent:
       _say("WARNING: the server doesn't have all the run's files:")
       for problem in self._uploader.problems():
@@ -1101,6 +1118,8 @@ class ActiveRun:
       self.sent = known and self._files_sent
       if known:
         _say(f"{'failed' if self.is_failed else 'finished'}: {self.url}")
+      elif self._refused:
+        _say(f"not sent, the server refused it: {self.output_dir}")
       else:
         _say(f"WARNING: the server doesn't know how the run ended. Its files are in {self.output_dir}")
     elif self._pid == os.getpid():

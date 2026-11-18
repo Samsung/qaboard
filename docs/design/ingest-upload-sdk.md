@@ -14,7 +14,7 @@ User docs: `website/docs/upload-results.mdx`, `storage/uploads.mdx`, `backend-ad
 | `qa upload`: files other tools wrote become a run, without a `run()` | `qaboard/upload_command.py`: `start_run()` from the shell |
 | Metrics from test reports and benchmark files | `qaboard/junit.py` (`junit_metrics`), `qaboard/benchmarks.py` (`benchmark_metrics`) |
 | Recognized files (tests, benchmarks, profiles) on the cards of runs created from code, without qaboard.yaml | `webapp/src/viewers/runView.js` (`with_run_files`), names in `viewers/fileTypes.js` |
-| Results sent over HTTP: no `storage`, `storage: upload` or `QA_STORAGE=upload` | `qaboard/config.py` (`uploads_results`), `qaboard/payloads.py` (`"storage": "upload"`) |
+| Results sent over HTTP: no `storage`, `storage: upload` or `QA_STORAGE=upload` | `qaboard/config.py` (`uploads_files`), `qaboard/payloads.py` (`"storage": "upload"`) |
 | The uploader, shared by `qa run` and `start_run()` | `qaboard/upload.py` |
 | The server: one folder, one endpoint | `backend/backend/uploads.py`, `PUT /api/v1/output/<id>/files/<path>` in `backend/api/outputs.py`, `QABOARD_UPLOAD_ROOT` |
 | `start_run(label=, batch=)`, the project in CI, the guard inside `qa run` | `qaboard/active_run.py` |
@@ -82,8 +82,22 @@ In `docs/warts.md`, with sizes. The ones that matter first:
    `use_artifact().download()` or MLflow's `download_artifacts("runs:/...")`, for checkpoints. Shares the cache of 2.
 4. Storage locations: a web app page, credentials (encrypted, `backend/encryption.py`), the scans and the file
    browser on locations, clients that mount a location writing there directly, then maybe native access (§4).
-5. Quotas per project.
-6. For projects with huge outputs: parts, "which hashes do you have", the content store (`http-upload.md`).
+5. From the reviews of the first version, not done yet (each S unless said):
+   - One object for a run's reporting (uploader, heartbeat, "the server never heard of the run") shared by
+     `qa run` (module globals in `qaboard/qa.py` today) and `start_run()` [M]; the CLI's "can I read this run's
+     folder here?" checks (`uploads_files` in `runners/job.py`, `bit_accuracy.py`, `qa.py`) as one helper.
+   - The upload root as a built-in storage location, so that `uploads.bases()`, `locations.paths()` and the storage
+     roots read one list; the location changes (`add`, `set`, `remove`) moved from `scripts/admin.py` to
+     `locations.py` for a web app page.
+   - `bit_accuracy.fetched_manifests` through `results._request` and in a module shared with `local_path()`.
+   - The refusal reasons (`uploads_disabled`, `not_running`...) in `qaboard/conventions.py` for the server too, and
+     a backend test that runs the real `Uploader` against the Flask app instead of the tests' fake server [M].
+   - `storage_usage.py` and the Storage page for runs stored as URLs; a test that fails when code outside
+     `models/` and `locations.py` reads `output_dir_override`.
+   - `qa upload --dryrun` without a server, printing the run's project, commit and label; CLI wording for the
+     `start_run()` errors `qa upload` shows.
+6. Quotas per project.
+7. For projects with huge outputs: parts, "which hashes do you have", the content store (`http-upload.md`).
 
 ## 4. If the server ever talks to object storage itself
 Not built, and not planned until a mounted file system proves not to be enough: this is what it would take, kept

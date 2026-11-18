@@ -225,16 +225,17 @@ class TestUpload(QaTestCase):
     self.assertIn('Set QABOARD_URL', result.stderr)
 
   def test_fails_when_the_server_doesnt_have_the_files(self):
-    for options, message in [
-      ({'uploads': False}, "doesn't accept uploaded files"),
-      ({'file_errors': {'junit.xml': [(413, {'error': 'junit.xml is larger than what this server accepts', 'reason': 'too_large'})]}}, 'larger than what this server accepts'),
-      ({'output_status': 403, 'output_error': {'error': 'You need the developer role', 'reason': 'missing_role'}}, 'You need the developer role'),
+    for options, message, missing in [
+      ({'uploads': False}, "doesn't accept uploaded files", "the run"),
+      ({'file_errors': {'junit.xml': [(413, {'error': 'junit.xml is larger than what this server accepts', 'reason': 'too_large'})]}}, 'larger than what this server accepts', "all the files of the run"),
+      ({'output_status': 403, 'output_error': {'error': 'You need the developer role', 'reason': 'missing_role'}}, 'You need the developer role', "the run"),
     ]:
       with self.subTest(options=options):
         result = self.qa('upload', 'junit.xml', server=self.server(**options))
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn(message, result.stderr)
-        self.assertIn("QA-Board doesn't have the run unit-tests/junit", result.stderr)
+        self.assertEqual(result.stderr.count(message), 1, result.stderr)  # said once
+        self.assertIn(f"QA-Board doesn't have {missing} unit-tests/junit", result.stderr)
 
   def test_in_a_project_with_a_shared_storage(self):
     server = self.server()

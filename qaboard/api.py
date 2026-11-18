@@ -94,8 +94,8 @@ def print_auth_error(r, message="Failed to update QA-Board", ingest=False):
 
 
 # Why a server doesn't take the results of runs that would send it their files (backend/api/outputs.py)
-UPLOAD_REFUSALS = ('uploads_disabled', 'uploads_unsupported_project', 'invalid_run')
-UPLOAD_FIX = "Set `storage` in qaboard.yaml (or QA_STORAGE) to a folder the server reads too, or ask its administrators to accept files (QABOARD_UPLOAD_ROOT)."
+
+from .conventions import UPLOAD_FIX, UPLOAD_REFUSALS  # noqa: E402 (shared with qaboard/active_run.py)
 
 
 def print_upload_refusal(r) -> bool:
@@ -188,7 +188,7 @@ def notify_qa_database(object_type='output', **kwargs):
   Updating the QA database.
   """
   import requests
-  from .config import is_ci, config, _metrics, run_context, commit_id, commit_data, uploads_results
+  from .config import is_ci, config, _metrics, run_context, commit_id, commit_data, uploads_files
 
   if kwargs.get('offline'):
     return
@@ -200,7 +200,7 @@ def notify_qa_database(object_type='output', **kwargs):
   url = f"{api_prefix}/{object_type}/"
   # send all the data, with where it comes from and what describes its commit and project (qaboard/payloads.py)
   data = results_payload(kwargs, is_ci=is_ci, run_context=run_context(), commit_id=commit_id, commit=commit_data(), config=config, metrics_file=_metrics,
-                         uploads_files=uploads_results)
+                         uploads_files=uploads_files)
   if 'QA_VERBOSE' in os.environ:
     click.secho(url, fg='cyan', err=True)
     click.secho(str(data), fg='cyan', dim=True, err=True)

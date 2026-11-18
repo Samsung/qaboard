@@ -259,5 +259,32 @@ class TestWhenTheRunEnds(UploaderTestCase):
     self.assertEqual(server.files, {})
 
 
+
+class TestHeartbeat(unittest.TestCase):
+  def test_beats_through_problems_until_the_run_ends(self):
+    from qaboard import heartbeat
+    from qaboard.results import ResultsError
+    answers = [ResultsError('away'), ResultsError('busy', status=503), None, ResultsError('The run has ended', status=409, reason='not_running')]
+    calls = []
+    def beat(server, run_id, token=None):
+      calls.append(run_id)
+      answer = answers.pop(0)
+      if answer is not None:
+        raise answer
+    with mock.patch.object(heartbeat, 'beat', beat):
+      beating = heartbeat.Heartbeat('http://qaboard', 42, interval=0.01).start()
+      beating._thread.join(timeout=5)
+    self.assertEqual(calls, [42] * 4)
+    self.assertFalse(beating._thread.is_alive())
+
+  def test_stops_when_told(self):
+    from qaboard import heartbeat
+    with mock.patch.object(heartbeat, 'beat') as beat:
+      beating = heartbeat.Heartbeat('http://qaboard', 42, interval=60).start()
+      beating.stop()
+      beating._thread.join(timeout=5)
+    self.assertFalse(beating._thread.is_alive())
+    beat.assert_not_called()
+
 if __name__ == '__main__':
   unittest.main()

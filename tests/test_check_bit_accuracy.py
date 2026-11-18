@@ -253,8 +253,6 @@ class TestIsBitAccurate(unittest.TestCase):
     self.assertFalse(self.check())
 
 
-if __name__ == '__main__':
-  unittest.main()
 
 
 class TestReferencesOnTheServer(unittest.TestCase):
@@ -308,3 +306,7 @@ class TestReferencesOnTheServer(unittest.TestCase):
       self.assertFalse(is_bit_accurate(new, reference_dir, run_context()))
     (new / 'manifest.outputs.json').unlink()
     self.assertFalse(is_bit_accurate(new, reference_dir, run_context()))
+
+
+if __name__ == '__main__':
+  unittest.main()

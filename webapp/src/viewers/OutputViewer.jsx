@@ -12,7 +12,6 @@ import { ErrorBoundary } from "../components/ErrorBoundary"
 import { ViewerErrorFallback } from "../components/ErrorFallback"
 
 
-export { is_flame_graph, is_junit, is_benchmarks };
 
 const LoadableTextViewer = lazy(() => import('./textViewer' /* webpackChunkName: "text-viewer" */));
 const LoadableImageViewer = lazy(() => import('./images/QaboardImageViewer'));

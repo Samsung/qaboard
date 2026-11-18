@@ -57,6 +57,11 @@ class ResultsError(Exception):
     # the server's answer to requests it didn't accept, e.g. {"reason": "offset_mismatch", "size": 120}
     self.body: Dict[str, Any] = body or {}
 
+  @property
+  def is_transient(self) -> bool:
+    """A network error, or a busy or restarting server: the same request may work later"""
+    return self.status is None or self.status in (408, 429, 500, 502, 503, 504)
+
 
 @dataclass(frozen=True)
 class _Side:
