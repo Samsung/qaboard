@@ -264,6 +264,7 @@ export const FlameGraphReport = ({ text_new, text_ref, path = '', path_ref, unit
 
     <div>
       <HTMLSelect
+        aria-label="What the flame graph shows"
         onChange={e => setComparaison(e.currentTarget.value)}
         value={view}
         style={{ marginBottom: '8px' }}
@@ -297,7 +298,7 @@ export const FlameGraphReport = ({ text_new, text_ref, path = '', path_ref, unit
           <p>And the <a rel="noopener noreferrer" href="http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html" target="_blank">Differential Flame Graphs</a> versions</p>
         </div>}
       >
-        <Icon icon="info-sign" tabIndex={0} aria-label="About flame graphs" style={{ marginLeft: '8px', color: Colors.GRAY2 }}/>
+        <Icon icon="info-sign" tabIndex={0} role="img" aria-hidden={false} aria-label="About flame graphs" style={{ marginLeft: '8px', color: Colors.GRAY2 }}/>
       </PopoverNext>
     </div>
 

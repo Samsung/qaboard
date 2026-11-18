@@ -100,8 +100,8 @@ def invalid_added_metrics(metrics, max_metrics=MAX_ADDED_METRICS, allow_empty=Fa
   return None
 
 
-@app.route("/api/v1/output/<output_id>", methods=['GET'])
-@app.route("/api/v1/output/<output_id>/", methods=['GET'])
+@app.route("/api/v1/output/<int:output_id>", methods=['GET'])
+@app.route("/api/v1/output/<int:output_id>/", methods=['GET'])
 def get_output(output_id):
   try:
     output = Output.query.filter(Output.id==output_id).one()
@@ -114,8 +114,8 @@ def get_output(output_id):
 
 # Only the web app changes or deletes outputs, the CLI uses POST /api/v1/output/
 # Deleting removes the output's folder, which comes from unauthenticated API calls
-@app.route("/api/v1/output/<output_id>", methods=['PUT', 'DELETE'])
-@app.route("/api/v1/output/<output_id>/", methods=['PUT', 'DELETE'])
+@app.route("/api/v1/output/<int:output_id>", methods=['PUT', 'DELETE'])
+@app.route("/api/v1/output/<int:output_id>/", methods=['PUT', 'DELETE'])
 @login_required
 def update_output(output_id):
   try:
@@ -169,8 +169,8 @@ def update_output(output_id):
     return {"status": "OK"}
 
 
-@app.route("/api/v1/output/<output_id>/metrics", methods=['PATCH'])
-@app.route("/api/v1/output/<output_id>/metrics/", methods=['PATCH'])
+@app.route("/api/v1/output/<int:output_id>/metrics", methods=['PATCH'])
+@app.route("/api/v1/output/<int:output_id>/metrics/", methods=['PATCH'])
 def add_output_metrics(output_id):
   """
   Adds metrics to a finished run, from a script (`run.log()` in the Python SDK): they are merged into the run's metrics,
@@ -247,8 +247,8 @@ def add_output_metrics(output_id):
   return jsonify({**output.to_dict(), "added": added})
 
 
-@app.route("/api/v1/output/<output_id>/progress", methods=['PATCH'])
-@app.route("/api/v1/output/<output_id>/progress/", methods=['PATCH'])
+@app.route("/api/v1/output/<int:output_id>/progress", methods=['PATCH'])
+@app.route("/api/v1/output/<int:output_id>/progress/", methods=['PATCH'])
 def report_output_progress(output_id):
   """
   What a running run looks like so far: its metrics, and the parameters it reported. Runs started from code
@@ -311,8 +311,8 @@ def report_output_progress(output_id):
   return jsonify(output.to_dict())
 
 
-@app.route('/api/v1/output/redo/<output_id>', methods=['POST'])
-@app.route('/api/v1/output/redo/<output_id>/', methods=['POST'])
+@app.route('/api/v1/output/redo/<int:output_id>', methods=['POST'])
+@app.route('/api/v1/output/redo/<int:output_id>/', methods=['POST'])
 @login_required
 def output_redo(output_id):
   try:
@@ -324,8 +324,8 @@ def output_redo(output_id):
   return redo_response(output.batch, [output], g.user)
 
 
-@app.route("/api/v1/output/<output_id>/manifest", methods=['GET'])
-@app.route("/api/v1/output/<output_id>/manifest/", methods=['GET'])
+@app.route("/api/v1/output/<int:output_id>/manifest", methods=['GET'])
+@app.route("/api/v1/output/<int:output_id>/manifest/", methods=['GET'])
 def get_output_manifest(output_id):
   try:
     output = Output.query.filter(Output.id==output_id).one()

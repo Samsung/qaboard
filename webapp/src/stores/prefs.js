@@ -60,6 +60,10 @@ export const usePrefsStore = create()(persist(
     // batch id => {failed, at}: the batches users dismissed from the home page's "Needs attention", with how many
     // runs had failed. They come back if more fail.
     homeDismissed: {},
+    // the metrics view the sidebar's "Metrics" opens: 'summary', 'table-kpi' (each run's values) or 'table-compare' (their changes)
+    metricsView: 'summary',
+    // project => true: users hid the guide of the projects whose runs have neither visualizations nor metrics
+    setupGuideDismissed: {},
     // project => the settings of the last export: how files are named, the files, links or copies... (src/export/plan.js)
     exportLast: {},
     // export settings users saved: [{id, name, project (null: all projects), settings}]
@@ -104,6 +108,8 @@ export const usePrefsStore = create()(persist(
         [id]: { failed, latest, at: new Date(now).toISOString() },
       },
     })),
+    setMetricsView: view => set({ metricsView: ['summary', 'table-kpi', 'table-compare'].includes(view) ? view : 'summary' }),
+    dismissSetupGuide: project => set(state => ({ setupGuideDismissed: { ...state.setupGuideDismissed, [project]: true } })),
     setListScope: (project, scope) => set(state => ({ listScope: { ...state.listScope, [project]: scope } })),
     setExportLast: (project, settings) => set(state => ({ exportLast: { ...state.exportLast, [project]: settings } })),
     // a preset with the same name, for the same projects, is replaced
@@ -144,8 +150,10 @@ export async function migrateFromReduxPersist() {
       localStorage.setItem(flag, '1');
       return;
     }
-    const { default: localforage } = await import("localforage");
-    const raw = await localforage.getItem('persist:root');
+    // localForage's IndexedDB database and store: its values are what it was given, here strings
+    const { createStore, get, del } = await import("idb-keyval");
+    const store = createStore('localforage', 'keyvaluepairs');
+    const raw = await get('persist:root', store);
     if (raw) {
       const root = typeof raw === 'string' ? JSON.parse(raw) : raw;
       const parse = slice => typeof slice === 'string' ? JSON.parse(slice) : slice;
@@ -164,7 +172,7 @@ export async function migrateFromReduxPersist() {
       }));
     }
     localStorage.setItem(flag, '1');
-    if (raw) await localforage.removeItem('persist:root');
+    if (raw) await del('persist:root', store);
   } catch (error) {
     console.warn('Could not migrate preferences from the previous version', error);
   }

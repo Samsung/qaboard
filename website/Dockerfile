@@ -6,7 +6,7 @@
 # - dev: node_modules and the sources, used by development.yml (`yarn start`)
 # - build: the static site
 # - production (default): only the site, copied to the /builds volume served by nginx
-FROM node:22-alpine AS dev
+FROM node:24-alpine AS dev
 WORKDIR /website
 
 # Proxy/cert configuration — no-ops when args are empty (open-source builds)
@@ -68,7 +68,7 @@ RUN yarn build
 
 
 # Only rsync and the site: the same small base as the web app's image, so they share its layers
-FROM alpine:3.21 AS production
+FROM alpine:3.24 AS production
 
 # Proxy configuration — needed for apk add rsync. Behind a proxy, use HTTP repos (SIRC's proxy breaks HTTPS/SSL)
 ARG PROXY_URL=""

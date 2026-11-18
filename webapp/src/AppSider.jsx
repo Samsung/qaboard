@@ -17,9 +17,10 @@ import {
 
 import { ProjectAvatar } from "./components/avatars";
 import { IntegrationsMenus } from "./components/integrations";
+import { useQueryClient } from "@tanstack/react-query";
 import { MilestonesPanel } from "./milestones/MilestonesPanel"
 import { useMilestones } from "./milestones/hooks"
-import { milestone_name, milestone_path, milestone_location, milestones_of } from "./milestones/api"
+import { milestone_name, milestone_path, milestone_location, milestones_of, prefetch_milestone } from "./milestones/api"
 import AuthButton from "./components/authentication/Auth"
 import { WhatsNewButton } from "./releaseNotes/ReleaseNotes"
 import { ThemeButton } from "./components/ThemeButton"
@@ -32,6 +33,7 @@ import { useCommitsList, useComparison, useProjects, useSiteConfig, useUser } fr
 import { path_segments } from "./explore/tree"
 import { usePrefsStore } from "./stores/prefs"
 import { tuning_kind } from "./components/tuning/analysis"
+import { has_result_metrics } from "./defaultViews"
 import { useIntegrationStatuses } from "./useIntegrationStatuses"
 import { repo_url, tree_url, commit_url, commits_url as git_commits_url, default_integrations } from "./git"
 
@@ -541,6 +543,7 @@ const SiderMilestones = ({ project, project_data, docs_root }) => {
   const collapsed = useContext(SiderCollapsedContext);
   const { history } = useRouter();
   const { selected } = useComparison();
+  const queryClient = useQueryClient();
   const index = useMilestones(project);
   const { list, favorite_groups } = index;
   const [is_open, setOpen] = useState(false);
@@ -555,6 +558,7 @@ const SiderMilestones = ({ project, project_data, docs_root }) => {
     // from qaboard.yaml: a branch, tag or commit
     if (!milestone.commit)
       return history.push(`/${path_segment(project)}/commits/${path_segment(milestone.branch)}`);
+    prefetch_milestone(queryClient, milestone);
     history.push(milestone_location(milestone));
   };
   const openPanel = (search = '') => {
@@ -657,26 +661,55 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
 const results_integrations = ({ new_batch, commit, project_data }) =>
   new_batch?.data?.qatools_config?.integrations ?? commit?.data?.qatools_config?.integrations ?? project_data.data?.qatools_config?.integrations ?? [];
 
+// Summary, the values of each run, and their changes vs the reference: one entry that opens the last one used.
+// Hovering it lists them, and the page switches between them.
+const metrics_menu = [
+  { view: 'summary', icon: 'dashboard', text: 'Summary', hint: "The batch's metrics, aggregated over all its runs, compared with the reference." },
+  { view: 'table-kpi', icon: 'locate', text: 'Metrics Table', hint: "Each run's metrics, colored by how they compare to their targets." },
+  { view: 'table-compare', icon: 'heat-grid', text: 'Metrics Diff', hint: 'For each run, how its metrics changed versus its reference run: find regressions.' },
+];
+const MetricsMenuItem = ({ batch, default_views, active }) => {
+  const last_view = usePrefsStore(state => state.metricsView);
+  const setMetricsView = usePrefsStore(state => state.setMetricsView);
+  const shown = metrics_menu.find(item => active(item.view));
+  const opens = shown?.view ?? last_view ?? 'summary';
+  // runs that finished without metrics about their results: the view says how to add some
+  const knows_runs = Object.keys(batch?.outputs ?? {}).length > 0;
+  const no_metrics = knows_runs && !has_result_metrics(batch?.used_metrics);
+  // no hint besides the name when collapsed: it would cover the submenu, whose entries say what they show
+  return <SiderHint name="Metrics">
+    <ViewMenuItem
+      view={opens}
+      default_views={default_views}
+      icon="timeline-bar-chart"
+      text="Metrics"
+      active={!!shown}
+      labelElement={no_metrics ? <span className={Classes.TEXT_MUTED} title="The runs have no metrics yet, besides how long they took: the view says how to add some">none</span> : undefined}
+      popoverProps={{ usePortal: true, hoverCloseDelay: 300 }}
+    >
+      {metrics_menu.map(item => <ViewMenuItem
+        key={item.view}
+        view={item.view}
+        default_views={default_views}
+        icon={item.icon}
+        text={item.text}
+        title={item.hint}
+        active={active(item.view)}
+        onClickCapture={() => setMetricsView(item.view)}
+      />)}
+    </ViewMenuItem>
+  </SiderHint>;
+};
+
 const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, new_batch, ref_batch, selected_views, default_views, filter, ref_filter, ref_project, user, docs_root, ...integrationProps }) => {
   const has_optim = new_batch?.data?.optimization === true;
   // a batch that tried several parameters has something to analyze
   const has_tuning = has_optim || tuning_kind(new_batch) !== null;
   const active = view => selected_views.includes(view);
   return <>
-    {/* Metrics Section */}
-    <SectionHeader>Metrics</SectionHeader>
-    <SiderHint name="Summary" content="The batch's metrics, aggregated over all its runs, compared with the reference.">
-      <ViewMenuItem view='summary' default_views={default_views} icon="dashboard" text="Summary" active={active('summary')}/>
-    </SiderHint>
-    <SiderHint name="Metrics Table" content="The metrics of each run, colored by how they compare to their targets.">
-      <ViewMenuItem view='table-kpi' default_views={default_views} icon="locate" text="Metrics Table" active={active('table-kpi')}/>
-    </SiderHint>
-    <SiderHint name="Metrics Diff" content="For each run, how the metrics changed versus the reference: find regressions.">
-      <ViewMenuItem view='table-compare' default_views={default_views} icon="heat-grid" text="Metrics Diff" active={active('table-compare')}/>
-    </SiderHint>
-
-    {/* Runs Section */}
-    <SectionHeader>Runs</SectionHeader>
+    {/* What the runs gave */}
+    <SectionHeader>Results</SectionHeader>
+    <MetricsMenuItem batch={new_batch} default_views={default_views} active={active}/>
     <SiderHint name="Visualizations" content="Images, videos, plots, point clouds... of each run, side by side with the reference, as configured in qaboard.yaml.">
       <ViewMenuItem view='output-list' default_views={default_views} icon="media" text="Visualizations" active={active('output-list')}/>
     </SiderHint>
@@ -718,7 +751,7 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
       <ViewMenuItem view='tuning' default_views={default_views} icon="play" text="Run Tests / Tuning" active={active('tuning')}/>
     </SiderHint>
     <SiderHint name="Tuning Analysis" content={has_optim ? "This batch is an automated tuning: see what it found, and what to do next." : has_tuning ? "This batch tried several parameters: see which are best, which matter, and what to try next." : "Compares runs that tried different parameters: the best values, the parameters that matter. Says how to start when there are none."}>
-      <ViewMenuItem view='optimization' default_views={default_views} icon="predictive-analysis" intent={has_tuning ? "primary" : undefined} active={active('optimization')} text="Tuning Analysis" labelElement={has_tuning && !active('optimization') ? <Icon icon="dot" intent="primary" aria-label="This batch has results to analyze"/> : undefined}/>
+      <ViewMenuItem view='optimization' default_views={default_views} icon="predictive-analysis" intent={has_tuning ? "primary" : undefined} active={active('optimization')} text="Tuning Analysis" labelElement={has_tuning && !active('optimization') ? <Icon icon="dot" intent="primary" title="This batch has results to analyze"/> : undefined}/>
     </SiderHint>
 
     <SectionHeader>Milestones</SectionHeader>

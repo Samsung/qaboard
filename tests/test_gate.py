@@ -1381,6 +1381,20 @@ class TestGateCommand(unittest.TestCase):
     # on GitHub Actions, the job's summary
     self.assertIn('| psnr, median | 30.5 dB | 29.75 dB | 2.5% better | 1% worse | pass |', self.summary.read_text())
 
+  @unittest.skipIf(os.name == 'nt', 'the C locale is a POSIX locale')
+  def test_job_summary_is_utf8_whatever_the_locale(self):
+    """GitHub's Windows runners have a cp1252 locale: the summary's emojis can't be written with its encoding"""
+    comparison = fixture_comparison()
+    comparison['commit']['reruns'] = {'runs': 1, 'after_failure': 1, 'after_unfinished': 0}
+    self.server.responses = [(200, comparison)]
+    event = self.dir / 'event.json'
+    event.write_text(json.dumps({'pull_request': {'number': 12, 'title': 'Débruitage 🌙', 'head': {'sha': SHA}}}, ensure_ascii=False), encoding='utf-8')
+    # without UTF-8 mode and locale coercion, the C locale's encoding is ASCII
+    ascii_locale = {'PYTHONUTF8': '0', 'PYTHONCOERCECLOCALE': '0', 'LC_ALL': 'C', 'LANG': 'C', 'PYTHONIOENCODING': 'utf-8'}
+    process = self.qa_gate(GITHUB_EVENT_NAME='pull_request', GITHUB_EVENT_PATH=str(event), **ascii_locale)
+    self.assertEqual(process.returncode, 0, process.stderr)
+    self.assertIn('🔁', self.summary.read_text(encoding='utf-8'))
+
   def test_fail_and_github_status(self):
     # photos/night.jpg's PSNR is 20% worse than its reference's
     (self.dir / 'qaboard.yaml').write_text(QABOARD_YAML.format(storage=self.dir / 'storage').replace('per_test_max_regression: 25%', 'per_test_max_regression: 5%'))

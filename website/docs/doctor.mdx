@@ -20,6 +20,8 @@ Each check prints ✔ (ok), `!` (warning), ✘ (error) or `-` (skipped), with wh
 followed by its fix: a command to run, a snippet for *qaboard.yaml*, or what to ask your admins. `qa doctor` exits
 with code `1` when a check failed, and `0` otherwise, so a CI job or a script can run it first.
 
+<Clip id="cli/doctor" />
+
 Here is the end of the output for a project that sends its runs to a test Kubernetes cluster: the claim of its
 storage is missing in the namespace, and the pods won't see the project's folder. The other problem, above, is the
 server.

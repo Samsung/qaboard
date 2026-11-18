@@ -107,8 +107,8 @@ Press <kbd>o</kbd> to show or hide it. It lists only what applies to the view yo
   project's own switches, if it has some.
 - **Configuration**: the settings all the runs shown share, **Hide them in each run**, and **Shorten long settings
   with …**.
-- **Sort runs**: by name, batch, database, status, configuration, run id, storage, a tuning parameter or a metric, for
-  the tables, the run cards and the logs. Until you choose, runs are sorted by the project's default metric, else by
+- **Sort runs**: by name, batch, database, status, configuration, run id, storage, a tuning parameter, a metric, or how
+  much a metric changed vs the reference (**Change vs reference**), for the tables, the run cards and the logs. Until you choose, runs are sorted by the project's default metric, else by
   batch when they come from several, else by name, marked *(default)*.
 
 **Reset** goes back to the project's defaults, except for the sorting.
@@ -132,7 +132,9 @@ Press <kbd>o</kbd> to show or hide it. It lists only what applies to the view yo
 - **Sort runs**: the order reads like the values: *Highest first*, *A to Z*, *Newest first*, *Failed first*... Each
   starts in its natural order: names A to Z, failed runs first, metrics highest first. Names are sorted "naturally"
   (`frame2` before `frame10`), runs without a value come last, and ties are sorted by name. **Batch** and **Database**
-  are listed when the runs come from several. It sorts by the new runs' values. The Summary doesn't use it.
+  are listed when the runs come from several. It sorts by the new runs' values, except **Change of …**: the size of
+  the relative change vs each run's reference run, better or worse, *Largest change first*. Runs without a reference
+  run come last. The Summary doesn't use it.
 
 </details>
 
@@ -141,9 +143,10 @@ The sidebar lists the views, grouped by what they're about. Each one answers a d
 
 | View | Use it to... | |
 |---|---|---|
-| <Anchor id="summary" />**Summary** | Get the big picture: how the main metrics changed | [Reading metrics](/docs/user-guide/metrics#summary) |
-| <Anchor id="metrics-table" />**Metrics Table** | Check each run's metrics against their targets | [Reading metrics](/docs/user-guide/metrics#metrics-table) |
-| <Anchor id="metrics-diff" />**Metrics Diff** | Find the runs that improved or regressed vs the reference | [Reading metrics](/docs/user-guide/metrics#metrics-diff) |
+| <Anchor id="metrics" />**Metrics** | See the runs' metrics. Switch between its three views at the top of the page, or hover **Metrics** in the sidebar. It opens the last one you used | [Reading metrics](/docs/user-guide/metrics) |
+| <Anchor id="summary" />&emsp;**Summary** | Get the big picture: how the main metrics changed | [Reading metrics](/docs/user-guide/metrics#summary) |
+| <Anchor id="metrics-table" />&emsp;**Metrics Table** | Check each run's metrics against their targets | [Reading metrics](/docs/user-guide/metrics#metrics-table) |
+| <Anchor id="metrics-diff" />&emsp;**Metrics Diff** | Find the runs that improved or regressed vs the reference | [Reading metrics](/docs/user-guide/metrics#metrics-diff) |
 | **Visualizations** | Look at images, videos, plots, text... next to the reference | [Run cards](#run-cards), then the [image](/docs/user-guide/image-viewer), [video](/docs/user-guide/video-viewer) and [other viewers](/docs/user-guide/other-viewers) |
 | **Output Files** | Browse and diff every file the runs created | [Output Files](#output-files) |
 | <Anchor id="logs" />**Logs** | Find out why a run failed, follow running runs | [Logs and failed runs](/docs/user-guide/logs) |
@@ -156,8 +159,15 @@ The sidebar lists the views, grouped by what they're about. Each one answers a d
 The sidebar also has the project's **Integrations** (see
 [Running from the web app](/docs/user-guide/running-from-the-webapp#integrations)) and its
 [milestones](/docs/user-guide/milestones#finding-milestones). Hover a view's name for a reminder of what it shows.
-Some projects open another view by default. The view you're on is part of the page's link: see
-[Sharing](/docs/user-guide/sharing#whats-in-the-url).
+The view you're on is part of the page's link: see [Sharing](/docs/user-guide/sharing#whats-in-the-url).
+
+<Anchor id="default-view" />
+
+A commit page opens on the view most worth looking at: **Visualizations** when the project declares some, else the
+metrics' **Summary** when the runs have metrics, else the runs' **Output Files**, and the **Logs** when every run
+failed. Projects can choose another one, see
+[the view commit pages open on](/docs/visualizations#default-view). When the runs have neither visualizations nor
+metrics, the page says how to add them.
 
 <Anchor id="visualizations" />
 

@@ -51,9 +51,9 @@ const StatusTag = ({output, style}) => {
   else if (output.is_running)
     status = <Spinner size={12} aria-label="Running"/>;
   else if (output.is_pending)
-    status = <Icon icon="time" size={12} className={Classes.TEXT_MUTED} aria-label="Pending"/>;
+    status = <Icon icon="time" size={12} className={Classes.TEXT_MUTED} title="Pending"/>;
   else
-    status = <Icon icon="tick-circle" size={12} intent={Intent.SUCCESS} aria-label="Succeeded"/>;
+    status = <Icon icon="tick-circle" size={12} intent={Intent.SUCCESS} title="Succeeded"/>;
   const title = output.is_failed ? "Failed" : output.is_running ? "Running" : output.is_pending ? "Pending" : "Succeeded";
   return <span title={title} style={{ ...status_style, ...style }}>{status}</span>;
 }

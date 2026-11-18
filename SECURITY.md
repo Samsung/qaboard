@@ -45,6 +45,16 @@ Fixed on the default branch, after the `qaboard` 1.0.3 release:
 - `POST /api/v1/gitlab/job` (without a login) and `/api/v1/gitlab/job/play` read and played the CI jobs of any GitLab
   project the server's token can see. They now only use the repository of a QA-Board project the user can access
   (developers, to play jobs).
+- Starting a Jenkins build sent the server's Jenkins credentials to any URL on the Jenkins hosts, whatever its scheme
+  and port, or with credentials of its own. They now only go to http(s) URLs on the default port, or the scheme and
+  port of a job listed in a project's `qaboard.yaml`.
+- Single sign-on users whose identity provider lets them choose their user name could take one listed in
+  `QABOARD_ADMINS`, and be admins. New single sign-on accounts can't take those names anymore (unless the provider
+  shares the directory's names, `match_users: username`); list single sign-on admins by verified email or as
+  `<provider id>:<subject>`.
+- Dependencies with known vulnerabilities: plotly.js (an XSS through MathJax links, prototype pollution), DOMPurify
+  (also the copy bundled in Monaco), GitPython, Pillow, Werkzeug and others, and the image server's Jetty, Bouncy
+  Castle, Logback and Jackson (Cantaloupe 5.0.8).
 
 - Shell command injection in the "redo runs" and "tuning" features: values stored in the database (batch labels, paths, configurations, job options...) were put unquoted in shell scripts.
 - Shell command injection when stopping batches, through the stored runner options. Stopping Dask batches could also connect to any scheduler address; it now only connects to those listed in `QABOARD_DASK_SCHEDULERS`.

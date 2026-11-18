@@ -411,7 +411,7 @@ def load_job_template(path: Optional[str]) -> Dict[str, Any]:
     return {}
   import yaml
   try:
-    with open(path) as f:
+    with open(path, encoding='utf-8') as f:
       template = yaml.safe_load(f) or {}
   except OSError as e:
     raise Exception(f"Can't read runners.kubernetes.job_template ({e}). Relative paths are relative to the project's root.") from None

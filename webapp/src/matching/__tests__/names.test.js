@@ -1,4 +1,4 @@
-import { name_changes, rename, rule_of_change, rule_text, similar_positions, split_name, suggest_pairs } from '../names';
+import { name_changes, name_rewrite, names_by_likeness, rename, same_file_positions, rule_of_change, rule_text, similar_positions, split_name, suggest_pairs } from '../names';
 import { index_outputs } from '../match';
 
 const output = (id, test_input_path) => ({
@@ -79,6 +79,44 @@ describe('names', () => {
     expect(similar_positions('scene0_reg05.raw', index)).toHaveLength(25);
     const run = output(1000, 'scene0_reg05.raw');
     expect(suggest_pairs({ unmatched: [run], outputs: [run], index })[0].rule).toEqual({ from: 'scene0_reg05', to: 'scene0_reg03' });
+  });
+
+  it('rewrites names that are not built alike, keeping their common end', () => {
+    expect(name_rewrite('run1/street.raw', 'run1/sub/street.raw')).toEqual({ from: 'run1', to: 'run1/sub' });
+    expect(name_rewrite('dataset_v1/day/street.raw', 'datasets/v2/day/street.raw')).toEqual({ from: 'dataset_v1', to: 'datasets/v2' });
+    expect(name_rewrite('a_b.raw', 'a-b.raw')).toEqual({ from: 'a_b', to: 'a-b' });
+    // nothing in common: the whole name
+    expect(name_rewrite('x.png', 'y/z.jpg')).toEqual({ from: 'x.png', to: 'y/z.jpg' });
+    // nothing between their common start and end: the part before
+    expect(name_rewrite('a/street.raw', 'a/b/street.raw')).toEqual({ from: 'a', to: 'a/b' });
+    expect(name_rewrite('street.raw', 'sub/street.raw')).toEqual({ from: 'street', to: 'sub/street' });
+    // an empty part at the start, the same names, a part the rule would also change elsewhere
+    expect(name_rewrite('/a/b', 'x/a/b')).toBeNull();
+    expect(name_rewrite('a/b', 'a/b')).toBeNull();
+    expect(name_rewrite('x/q/x', 'y/q/x')).toBeNull();
+    expect(name_rewrite('a/x/a/f.raw', 'a/y/f.raw')).toEqual({ from: 'x/a', to: 'y' });
+    for (const [a, b] of [['run1/street.raw', 'run1/sub/street.raw'], ['p/q_r.s', 'p/t/q-r.s'], ['1_2_3', '1_x_2_y_3']]) {
+      const rule = name_rewrite(a, b);
+      expect(rename(a, [rule])).toBe(b);
+    }
+  });
+
+  it('suggests a change of folder for the same files elsewhere', () => {
+    const scenes = ['street', 'office', 'macbeth'];
+    const runs = scenes.map((s, i) => output(10 + i, `captures/v1/${s}.raw`));
+    const refs = scenes.map((s, i) => output(20 + i, `datasets/captures-v2/day/${s}.raw`));
+    const index = index_outputs(batch(refs));
+    expect(same_file_positions('captures/v1/street.raw', index)).toEqual([0]);
+    expect(same_file_positions('street.raw', index)).toEqual([]);
+    expect(suggest_pairs({ unmatched: runs, outputs: runs, index })[0]).toEqual({ rule: { from: 'captures/v1', to: 'datasets/captures-v2/day' }, pairs: 3 });
+  });
+
+  it('sorts all the names, the closest first', () => {
+    const refs = [output(1, 'other/thing.png'), output(2, 'b/street_day.png'), output(3, 'b/street_night.png'), output(4, 'b/street_day.png')];
+    const index = index_outputs(batch(refs));
+    const names = names_by_likeness('a/street_day.png', index);
+    expect(names.map(n => n.name)).toEqual(['b/street_day.png', 'b/street_night.png', 'other/thing.png']);
+    expect(names[0].positions).toEqual([1, 3]);
   });
 
   it('applies all the rules to the name as it is', () => {

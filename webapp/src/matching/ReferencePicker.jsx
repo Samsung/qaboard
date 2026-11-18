@@ -1,7 +1,9 @@
 // Picks the reference run a run compares with: for this run only (a pin), or for all the runs like it (a name rule
 // or a preference, see src/matching/rules.js). Opened from the run card's reference tag, or the run's menu.
 // Loaded when opened: it's not in the run cards' bundle.
-import { useMemo, useState } from "react";
+// It lists the likely reference runs (same input, id, paired or similar name). Users search all the reference runs
+// when there's none, when they type a filter, or with "Search all": any reference run can be picked.
+import { useDeferredValue, useMemo, useState } from "react";
 import { Button, Classes, Icon, InputGroup, Radio, RadioGroup } from "@blueprintjs/core";
 import styled from "styled-components";
 
@@ -11,10 +13,21 @@ import { metric_formatter } from "../components/metrics";
 import { TextChange } from "../configurations/ConfigurationsTags";
 import { reference_candidates, rules_for_all } from "./match";
 import { rule_text } from "./names";
-import { fact_text, preferences_for, without_pin } from "./rules";
+import { fact_text, preferences_for, run_facts, without_pin } from "./rules";
 import { save_rules } from "./save";
 
 const SHOWN = 100;
+
+// What filters find a reference run with: its name and its facts, like "platform = arm"
+const search_texts = new WeakMap();
+const search_text = o => {
+  let text = search_texts.get(o);
+  if (text === undefined) {
+    text = `${o.test_input_path ?? ''} ${Object.entries(run_facts(o)).map(([key, value]) => fact_text({ key, value })).join(' ')}`.toLowerCase();
+    search_texts.set(o, text);
+  }
+  return text;
+};
 
 const Picker = styled.div`
   width: min(480px, calc(100vw - 32px));
@@ -46,6 +59,7 @@ const group_title = (kind, output) => ({
   // ids are case-sensitive: not uppercased
   id: <><span className="label">Same metadata.id</span> <code>{output.test_input_metadata?.id}</code></>,
   similar: <span className="label">Similar name</span>,
+  other: <span className="label">All reference runs, the closest names first</span>,
 }[kind]);
 
 const metric_text = (output, o, metric) => {
@@ -63,20 +77,30 @@ export default function ReferencePicker({ output, onClose }) {
   const [filter, setFilter] = useState('');
   const [scope, setScope] = useState('run');
   const [active, setActive] = useState(0);
+  const [search_all, setSearchAll] = useState(false);
+  // typing stays fast with 100k reference runs to search
+  const deferred_filter = useDeferredValue(filter);
+  const words = useMemo(() => deferred_filter.toLowerCase().split(/\s+/).filter(Boolean), [deferred_filter]);
 
-  const candidates = useMemo(
+  const likely = useMemo(
     () => reference_candidates({ output, batch: ref_batch, index: ref_lookup, rules }),
     [output, ref_batch, ref_lookup, rules],
   );
-  const shown = useMemo(() => {
-    const words = filter.toLowerCase().split(/\s+/).filter(Boolean);
-    return candidates
-      .filter(c => words.every(w => `${c.o.test_input_path} ${preferences_for(c.o, output).map(fact_text).join(' ')}`.toLowerCase().includes(w)))
-      .slice(0, SHOWN);
-  }, [candidates, filter, output]);
+  const total = ref_lookup?.outputs?.length ?? 0;
+  // nothing likely, a filter, or users asked: all the reference runs, the likely ones first
+  const all = search_all || words.length > 0 || !likely.length;
+  const candidates = useMemo(
+    () => all ? reference_candidates({ output, batch: ref_batch, index: ref_lookup, rules, all: true }) : likely,
+    [all, likely, output, ref_batch, ref_lookup, rules],
+  );
+  const { shown, found } = useMemo(() => {
+    if (!words.length) return { shown: candidates.slice(0, SHOWN), found: candidates.length };
+    const matching = candidates.filter(c => words.every(w => search_text(c.o).includes(w)));
+    return { shown: matching.slice(0, SHOWN), found: matching.length };
+  }, [candidates, words]);
   const index = Math.min(active, Math.max(0, shown.length - 1));
   const current = ref_batch?.outputs?.[output.reference_id];
-  const auto = candidates.find(c => c.kind !== 'similar');
+  const auto = likely.find(c => c.kind !== 'similar');
   const metric = metrics?.available_metrics?.[metrics?.default_metric]
     ? { key: metrics.default_metric, ...metrics.available_metrics[metrics.default_metric] }
     : null;
@@ -122,17 +146,18 @@ export default function ReferencePicker({ output, onClose }) {
         <Radio label="This run" value="run"/>
         <Radio label="All runs like this" value="all"/>
       </RadioGroup>
-      {candidates.length > 6 && <InputGroup
+      {total > 6 && <InputGroup
         size="small"
         autoFocus
         leftIcon="search"
-        placeholder="Filter: a name, a setting…"
-        aria-label="Filter the reference runs"
+        placeholder={`Search the ${total} reference runs: a name, a setting…`}
+        aria-label="Search the reference runs"
         value={filter}
         onChange={event => { setFilter(event.target.value); setActive(0); }}
       />}
     </div>
-    <div className="picker-list" role="listbox" aria-label="Reference runs" tabIndex={candidates.length > 6 ? -1 : 0} autoFocus={candidates.length <= 6}>
+    <div className="picker-list" role="listbox" aria-label="Reference runs" tabIndex={total > 6 ? -1 : 0} autoFocus={total <= 6}>
+      {!likely.length && !words.length && <div role="presentation" className={Classes.TEXT_MUTED} style={{ padding: '6px 8px 2px', fontSize: 12 }}>No reference run on this input, with its id, or with a similar name: pick any.</div>}
       {shown.map((c, i) => {
         const facts = preferences_for(c.o, output);
         const metric_line = metric_text(output, c.o, metric);
@@ -149,7 +174,7 @@ export default function ReferencePicker({ output, onClose }) {
           >
             <Icon icon={c.o === current ? 'record' : 'circle'} size={12} style={{ marginTop: 3, color: c.o === current ? 'var(--qa-side-1)' : undefined }} className={c.o === current ? undefined : Classes.TEXT_MUTED}/>
             {/* names paired or alike: what changes from the run's name, like settings' changes */}
-            <span className="picker-name">{c.kind === 'pair' || c.kind === 'similar'
+            <span className="picker-name">{c.kind === 'pair' || c.kind === 'similar' || c.kind === 'other'
               ? <TextChange before={output.test_input_path ?? ''} after={c.o.test_input_path ?? ''}/>
               : c.o.test_input_path}</span>
             <span className={`picker-metric ${Classes.TEXT_MUTED}`}>{metric_line}</span>
@@ -157,13 +182,14 @@ export default function ReferencePicker({ output, onClose }) {
               {c.o === current && <span className="picker-in-use">in use</span>}
               {facts.slice(0, 3).map(f => <span key={f.key} className="picker-fact">{fact_text(f)}</span>)}
               {facts.length > 3 && <span>+{facts.length - 3}</span>}
-              {!facts.length && c.kind !== 'similar' && c.o.test_input_path === output.test_input_path && <span>same settings</span>}
+              {!facts.length && c.kind !== 'similar' && c.kind !== 'other' && c.o.test_input_path === output.test_input_path && <span>same settings</span>}
             </span>
           </button>
         </div>;
       })}
-      {!shown.length && <div role="presentation" className={Classes.TEXT_MUTED} style={{ padding: '6px 8px' }}>{candidates.length ? 'No reference run matches the filter' : 'No reference run on this input, with its id, or with a similar name'}</div>}
-      {candidates.length > shown.length && !filter && <div role="presentation" className={Classes.TEXT_MUTED} style={{ padding: '6px 8px', fontSize: 12 }}>{candidates.length - shown.length} more: filter to find them</div>}
+      {!shown.length && <div role="presentation" className={Classes.TEXT_MUTED} style={{ padding: '6px 8px' }}>{words.length ? 'No reference run matches the search' : 'No reference run'}</div>}
+      {found > shown.length && <div role="presentation" className={Classes.TEXT_MUTED} style={{ padding: '6px 8px', fontSize: 12 }}>{found - shown.length} more: type to find them</div>}
+      {!all && total > likely.length && <Button size="small" variant="minimal" icon="search" text={`Search all ${total} reference runs`} onClick={() => { setSearchAll(true); setActive(0); }} style={{ margin: '2px 4px' }}/>}
     </div>
     <div className="picker-foot">
       <span className={`picker-hint ${Classes.TEXT_MUTED}`}>{hint}</span>

@@ -25,8 +25,9 @@ export const describe_match = (output, match, reference, ref_lookup, rules) => {
     return similar
       ? { text: `no reference · ${similar} similar`, icon: 'disable', quiet: true, clickable: true,
           title: `No reference run on this input${output.test_input_metadata?.id ? ' or with its id' : ''}. ${runs(similar)} with a similar name: click to choose.` }
-      : { text: 'no reference', icon: 'disable', intent: Intent.WARNING,
-          title: 'No reference run on this input, with its id, or with a similar name' };
+      // users can still pick any reference run
+      : { text: 'no reference', icon: 'disable', intent: Intent.WARNING, clickable: true,
+          title: 'No reference run on this input, with its id, or with a similar name. Click to pick any reference run.' };
   }
   if (match.by === 'pin') return { text: 'picked by you', icon: 'pin', clickable: true, title: 'You picked this reference run, for this run only' };
   if (match.preferred && reference) {

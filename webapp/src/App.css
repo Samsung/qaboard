@@ -17,6 +17,8 @@
   --qa-intent-primary: #2d72d2;
   /* errors in text, e.g. a setting's invalid value */
   --qa-text-danger: #ac2f33;
+  /* better results in text, e.g. how many runs improved (components/metricsTable/) */
+  --qa-text-success: #1c6e42;
   /* a row just linked to, e.g. /admin/settings?setting=key */
   --qa-highlight: rgba(251, 179, 96, 0.22);
   /* What we compare (src/sideColors.js): the new results, then each reference. No red, green or orange: they say
@@ -45,6 +47,7 @@
   --qa-sider-background: #111418;
   --qa-intent-primary: #4c90f0;
   --qa-text-danger: #fa999c;
+  --qa-text-success: #72ca9b;
   --qa-highlight: rgba(251, 179, 96, 0.16);
   --qa-side-0: #4c90f0;
   --qa-side-1: #9c4bf5;
@@ -96,11 +99,6 @@ span.bp6-popover-target {
   vertical-align: baseline !important;
 }
 
-.limit-overflow .bp6-popover-transition-container {
-  max-height: 500px;
-  overflow-y: scroll;
-}
-
 .bp6-card.output-card {
   padding: 5px;
   margin-bottom: 15px;
@@ -112,10 +110,6 @@ span.bp6-popover-target {
 .output-card.compact .path-header {
   margin-bottom: 4px;
   padding: 2px 6px;
-}
-
-.viewer-cross {
-  mix-blend-mode: exclusion;
 }
 
 /* Heatmaps of the metrics tables (components/tables.jsx): --heat is the cell's color */

@@ -70,8 +70,24 @@ test("on a commit, the results views are links: a click switches view in the app
   expect(fireEvent.click(logs)).toBe(false);
   expect(window.location.search).toBe('?batch=nightly&selected_views=logs');
   await vi.waitFor(() => expect(screen.getByRole('menuitem', { name: /Logs/ })).toHaveClass('bp6-active'));
-  // the default view drops from the URL
-  expect(screen.getByRole('menuitem', { name: /Summary/ })).toHaveAttribute('href', '/kitefin/camera-isp/commit/0123456789abcdef?batch=nightly');
+  // the default view drops from the URL: without visualizations nor metrics, the runs' files
+  expect(screen.getByRole('menuitem', { name: /Output Files/ })).toHaveAttribute('href', '/kitefin/camera-isp/commit/0123456789abcdef?batch=nightly');
+});
+
+test("the metrics views are one entry: it opens the last one used, and lists them all on hover", async () => {
+  act(() => usePrefsStore.setState({ metricsView: 'table-compare' }));
+  renderSider('/kitefin/camera-isp/commit/0123456789abcdef?batch=nightly');
+  const item = await screen.findByRole('menuitem', { name: /^Metrics/ });
+  const link = item.closest('a') ?? item.querySelector('a');
+  expect(link).toHaveAttribute('href', '/kitefin/camera-isp/commit/0123456789abcdef?batch=nightly&selected_views=table-compare');
+  expect(screen.queryByRole('menuitem', { name: 'Metrics Table' })).toBeNull();
+  fireEvent.mouseEnter(item);
+  const table = await screen.findByRole('menuitem', { name: 'Metrics Table' });
+  expect(screen.getByRole('menuitem', { name: 'Summary' })).toHaveAttribute('href', '/kitefin/camera-isp/commit/0123456789abcdef?batch=nightly&selected_views=summary');
+  expect(fireEvent.click(table)).toBe(false);
+  expect(window.location.search).toBe('?batch=nightly&selected_views=table-kpi');
+  expect(usePrefsStore.getState().metricsView).toBe('table-kpi');
+  act(() => usePrefsStore.setState({ metricsView: 'summary' }));
 });
 
 describe('the Admin menu', () => {

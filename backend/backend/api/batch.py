@@ -32,10 +32,15 @@ SERVER_OWNED_BATCH_DATA = ('submitted_by', 'run_context', 'submissions', 'comman
 
 def find_batch(batch_id):
   """(the batch, None), or (None, a 404 response)"""
-  try:
-    return Batch.query.filter(Batch.id == batch_id).one(), None
-  except NoResultFound:
-    return None, (jsonify({"error": f"Batch {batch_id} not found"}), 404)
+  # ids come from JSON bodies too: anything but a number would fail in the SQL query
+  if isinstance(batch_id, str) and batch_id.isdigit():
+    batch_id = int(batch_id)
+  if isinstance(batch_id, int) and not isinstance(batch_id, bool):
+    try:
+      return Batch.query.filter(Batch.id == batch_id).one(), None
+    except NoResultFound:
+      pass
+  return None, (jsonify({"error": f"Batch {batch_id} not found"}), 404)
 
 
 @app.route('/api/v1/batch', methods=['POST'])
@@ -53,6 +58,8 @@ def update_batch():
   batch_data = data.get('data') or {}
   if not isinstance(batch_data, dict):
     return jsonify({"error": "`data` must be an object"}), 400
+  if not isinstance(data.get('batch_label'), str) or not data['batch_label']:
+    return jsonify({"error": "`batch_label` is required"}), 400
   # Only the server writes these: who really sent results, the batches users started from QA-Board (Batch.stop deletes
   # their Kubernetes jobs), and the commands (with `command`, below: they're merged, never replaced)
   batch_data = {k: v for k, v in batch_data.items() if k not in SERVER_OWNED_BATCH_DATA}
@@ -281,6 +288,8 @@ def move_batch():
   # The runs move to another batch of the same commit, so in the same project
   if forbidden := require_project_access(g.user, batch.ci_commit.project_id):
     return forbidden
+  if not isinstance(data.get('label'), str) or not data['label']:
+    return jsonify({"error": "`label` is required"}), 400
   dst_batch = batch.ci_commit.get_or_create_batch(data['label'])
   for o in filter_outputs(data.get('filter'), batch.outputs):
     o.batch = dst_batch
@@ -293,8 +302,8 @@ def move_batch():
   return jsonify({"status": "OK"})
 
 
-@app.route('/api/v1/batch/<batch_id>', methods=['DELETE'])
-@app.route('/api/v1/batch/<batch_id>/', methods=['DELETE'])
+@app.route('/api/v1/batch/<int:batch_id>', methods=['DELETE'])
+@app.route('/api/v1/batch/<int:batch_id>/', methods=['DELETE'])
 @login_required
 def delete_batch(batch_id):
   batch, not_found = find_batch(batch_id)

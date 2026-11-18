@@ -44,7 +44,7 @@ test.afterEach(async ({}, testInfo) => {
 const pages = [
   { name: 'projects list', path: '/', text: 'projects' },
   { name: 'commits list', path: `/${project}/commits`, text: 'Hello world' },
-  { name: 'commit results', path: `/${project}/commit/abc123`, text: 'Summary' },
+  { name: 'commit results', path: `/${project}/commit/abc123`, text: 'No results for this commit yet' },
   { name: 'history dashboard', path: `/${project}/history/master`, text: 'Performance over time' },
 ];
 
@@ -269,7 +269,7 @@ test('sidebar submenus open in view', async ({ page }) => {
   // collapsed to icons, the items keep their names
   await nav.getByRole('menuitem', { name: 'Collapse the sidebar' }).click();
   await expect(nav.getByRole('menuitem', { name: 'Expand the sidebar' })).toBeVisible();
-  for (const name of ['Summary', 'Visualizations', 'Artifacts & Configs', 'Integrations', 'Tuning Analysis'])
+  for (const name of ['Metrics', 'Visualizations', 'Artifacts & Configs', 'Integrations', 'Tuning Analysis'])
     await expect(nav.getByRole('menuitem', { name, exact: true })).toBeVisible();
   expect(await nav.ariaSnapshot()).not.toMatch(/- menuitem:?\s*$/m);
   await expect_submenu_in_view(nav.getByRole('menuitem', { name: 'Code', exact: true }), 'Repository');

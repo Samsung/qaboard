@@ -64,6 +64,7 @@ with a new and a reference profile that differ in known ways (`generate.js`); `q
 The parallel coordinates of Tuning Analysis (`webapp/src/viewers/parallel/`, drawn on a canvas, no Plotly) too: `/parallel-coordinates.html?rows=2000&columns=30`;
 `components/tuning/ParallelCoordinatesPlot.jsx` loads it lazily. Tuning Analysis itself is `components/tuning/TuningAnalysis.jsx`: `OptimizationReport.jsx`
 for `qa optimize` batches, `TuningReport.jsx` for the others (logic in `optimization.js` and `analysis.js`), with explanations in `learn.jsx`.
+The commit page's Metrics Table and Metrics Diff (`components/tables.jsx`, with `components/metricsTable/`) too: `/metrics-table.html?runs=2000&metrics=30`.
 Like the image viewer, `viewers/benchmarks/` and `viewers/flamegraph/` are standalone: they import nothing from the app, which
 only loads their adapters (`viewers/benchmarks-viewer.jsx`, `viewers/flame-graph.jsx`), lazily. `viewers/__tests__/isolation.test.js`
 checks it, and `TestIsolation` in the Python tests checks that `qaboard/benchmarks.py` and `flamegraphs.py` import nothing from `qaboard`.
@@ -85,6 +86,8 @@ yarn install
 yarn start              # Start Docusaurus dev server
 yarn build              # Build static site
 ```
+The Website workflow deploys `master` to GitHub Pages, then starts a crawl of the Algolia crawler, which updates the
+search index (its config, in the Algolia dashboard: `website/README.md`, skips elements marked `data-nosearch`).
 
 ### Python CLI Package
 ```bash

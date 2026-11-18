@@ -7,7 +7,10 @@
 import { test } from '@playwright/test';
 import { shot, type Ui } from './lib';
 import { demo } from './lib/demo';
-import { ADMIN, apiAs, denyRequests, removeMembers, requestAccess, setMembers } from './demoState';
+import {
+  ADMIN, apiAs, deleteProjectServiceAccount, denyRequests, projectServiceAccount, removeMembers, requestAccess, setMembers,
+  trustCiJobs,
+} from './demoState';
 
 const DETECTOR = 'kitefin/detector';
 const MEMBERS = { arjun: 'owner', mira: 'developer' } as const;
@@ -49,6 +52,8 @@ shot('access/members', {
     + 'Mira, developer.',
   caption: 'Owners choose who sees the project, add members, and decide access requests.',
   viewport: { width: 1440, height: 1100 },
+  // at the server's time, the periods of newer release notes are over: they'd pop up
+  storage: { 'qaboard.release-notes.last-seen': '9999-12-31' },
   actions: async ui => {
     await serverTime(ui);
     await ui.page.getByRole('table', { name: 'Members' }).waitFor();
@@ -76,4 +81,47 @@ shot('access/request', {
   },
   target: page => [page.getByRole('heading', { name: 'Access', exact: true }), page.getByRole('region', { name: 'Request access' })],
   padding: 12,
+});
+
+// The detector's CI bot, created by Arjun when the shot starts, trusting the GitHub Actions jobs of kitefin/detector on
+// main. It's deleted afterwards (its name stays taken: the next capture enables it again).
+const CI_BOT = { name: 'ci', description: 'GitHub Actions of kitefin/detector' };
+let ciBot: Awaited<ReturnType<typeof projectServiceAccount>> | null = null;
+test.afterAll(async () => {
+  if (!ciBot) return;
+  const admin = await apiAs(demo(), ADMIN);
+  try {
+    await deleteProjectServiceAccount(admin, ciBot);
+    ciBot = null;
+  } finally {
+    await admin.dispose();
+  }
+});
+
+shot('access/ci-trust', {
+  project: 'detection-eval',
+  login: 'arjun',
+  url: d => `${d.baseUrl}/${DETECTOR}/access`,
+  alt: 'The Tokens dialog of the service account kitefin/detector/ci[bot]: no tokens, and one trusted CI job, GitHub '
+    + 'Actions jobs of kitefin/detector on refs/heads/main, never used yet, with the id-token: write permission to add '
+    + 'to the workflow.',
+  caption: 'The detector\'s CI bot trusts the GitHub Actions jobs of its repository on main: no token to store in the CI.',
+  viewport: { width: 1440, height: 1000 },
+  actions: async ui => {
+    const arjun = await apiAs(ui.demo, 'arjun');
+    try {
+      ciBot = await projectServiceAccount(ui.demo, arjun, DETECTOR, CI_BOT.name, 'developer', CI_BOT.description);
+      await trustCiJobs(arjun, ciBot, { provider: 'github', repository: DETECTOR, ref: 'main' });
+    } finally {
+      await arjun.dispose();
+    }
+    await ui.goto(ui.page.url());
+    await ui.click(ui.page.getByRole('button', { name: `Tokens of ${DETECTOR}/${CI_BOT.name}[bot]` }));
+    await ui.page.getByRole('table', { name: 'Trusted CI jobs' }).waitFor();
+    await ui.cursor.moveTo({ x: 1420, y: 980 });
+    await ui.settle();
+  },
+  // the dialog alone: the page's text behind the backdrop would be cut
+  target: page => page.getByRole('dialog'),
+  padding: 0,
 });

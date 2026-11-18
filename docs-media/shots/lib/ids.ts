@@ -10,7 +10,7 @@ export const ID_MAX_LENGTH = 80;
 // Adding an area means editing this list and the README's
 export const AREAS = [
   'quickstart', 'cli', 'ci', 'projects', 'commits', 'integrations', 'commit', 'logs', 'history', 'tuning', 'files',
-  'whats-new', 'auth', 'landing', 'activity', 'storage', 'account', 'access', 'admin',
+  'whats-new', 'auth', 'landing', 'activity', 'storage', 'account', 'access', 'project-admin', 'admin',
 ] as const;
 
 export function checkId(id: string): asserts id is ShotId {

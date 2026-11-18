@@ -19,7 +19,7 @@ depends_on = None
 
 
 from sqlalchemy.orm import sessionmaker, Session as BaseSession
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 Base = declarative_base()
 Session = sessionmaker()
 

@@ -32,10 +32,9 @@ shot('project-admin/gate', {
   project: 'serving-latency',
   login: ADMIN,
   url: d => `${d.baseUrl}/${GATEWAY}/admin/gate`,
-  alt: 'The Quality gate tab of kitefin/inference-gateway, as an owner: the rules of the reference\'s qaboard.yaml '
-    + '(p99 and throughput may get 10% and 5% worse), then the project rules no commit can change: p99 10% for every '
-    + 'run, throughput 5% only for qa batch capacity, no failed run, waiting for the ci batch, and "Fail the gate" when '
-    + 'a commit loosens its own rules.',
+  alt: 'The Quality gate tab of kitefin/inference-gateway: the reference\'s qaboard.yaml rules, then the project '
+    + 'rules: p99 10% for every run, throughput 5% only for qa batch capacity, no failed run, wait for the ci batch, '
+    + 'and "Fail the gate" when a commit loosens its rules.',
   caption: 'Owners add rules that every commit is held to, whatever its qaboard.yaml says, here one only for the capacity batch.',
   viewport: { width: 1440, height: 1200 },
   actions: async ui => {
@@ -43,6 +42,9 @@ shot('project-admin/gate', {
     await ui.cursor.moveTo({ x: 1420, y: 1180 });
     await ui.settle();
   },
-  target: page => [page.getByRole('heading', { name: 'Quality gate', exact: true }), page.getByText('Last changed by')],
+  // down to the Save button: "Last changed by" under it has the server's date, the time of the capture
+  target: page => [page.getByRole('heading', { name: 'Quality gate', exact: true }), page.getByRole('button', { name: 'Save', exact: true })],
   padding: 16,
+  // the padding reaches the top of that line
+  mask: page => [page.getByText('Last changed by')],
 });

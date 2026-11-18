@@ -11,7 +11,7 @@ import { renderWithProviders } from '../../test-utils';
 test('verified runs say who sent them, and with which token', async () => {
   renderWithProviders(<SubmittedBy data={{ user: 'alice', submitted_by: { user_name: 'alice', token_name: 'ci-bot', via: 'token' } }}/>, { siteConfig: { ingest_auth: 'warn' } });
   expect(screen.getByText('alice')).toBeInTheDocument();
-  expect(screen.getByLabelText('verified')).toBeInTheDocument();
+  expect(screen.getByRole('img', { name: 'verified' })).toBeInTheDocument();
   expect(screen.queryByText('unverified')).not.toBeInTheDocument();
   fireEvent.mouseEnter(screen.getByTestId('submitted-by'));
   expect(await screen.findByText('Sent by alice with token ci-bot')).toBeInTheDocument();

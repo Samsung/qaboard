@@ -22,17 +22,6 @@ cluster's nodes.
 
    If your code is an executable that `qa` only starts, you can install `qa` as a tool instead:
    `uv tool install qaboard`.
-
-   :::caution
-   The latest release on PyPI, 1.1.1, doesn't have some features these docs describe yet: `qa gate`, `qa auth`,
-   `Metric`, `QABOARD_TOKEN`, commit statuses on GitHub. Until the next release, install `qa` from the repository
-   to use them:
-
-   ```bash
-   pip install "qaboard @ git+https://github.com/Samsung/qaboard"
-   ```
-
-   :::
 2. Tell `qa` where your QA-Board server is, e.g. in your shell's profile:
 
    ```bash
@@ -122,6 +111,8 @@ Open the link in any browser, even on another computer: it works when `qa` runs 
 usual, check the code and approve. `qa` saves a token for this server in *~/.config/qaboard/hosts.yaml*, readable
 only by you (*%APPDATA%\\qaboard* on Windows). It serves all your checkouts and worktrees: it's never saved in your
 projects.
+
+<Shot id="account/cli-sign-in" />
 
 ```bash
 qa auth status   # which server, which user, which token

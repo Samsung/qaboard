@@ -145,9 +145,8 @@ for run in qb.runs(url):
 - To show the file on run cards for every run, declare it in *qaboard.yaml*'s `outputs.visualizations`
   ([visualizations](/docs/visualizations)); otherwise it's in **Output Files**.
 
-Creating runs from your own code (training loops, notebooks), with values logged at each step, is on the
-[roadmap](/docs/roadmap#log-from-your-code): the method names follow those of the usual experiment trackers
-(`log` with a `step`, `log_params`, `finish`).
+To create runs from your own code (training loops, notebooks), with values logged at each step, use
+`qaboard.start_run()` (experimental): see [log from your code](/docs/log-from-code).
 
 
 ## Find where runs save their outputs {#cli-api}

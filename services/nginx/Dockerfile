@@ -1,5 +1,5 @@
 # Adapted from https://github.com/nginxinc/docker-nginx/blob/master/mainline/buster/Dockerfile
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 # Proxy/cert configuration — no-ops when args are empty (open-source builds)
 ARG PROXY_URL=""
@@ -15,8 +15,9 @@ ENV HTTP_PROXY=${PROXY_URL} http_proxy=${PROXY_URL} \
 
 
 # create nginx user/group first, to be consistent throughout docker variants
-RUN addgroup --system --gid 101 nginx \
-    && adduser --system --disabled-login --ingroup nginx --no-create-home --home /nonexistent --gecos "nginx user" --shell /bin/false --uid 101 nginx
+# (groupadd/useradd: Debian 13's slim image has no adduser)
+RUN groupadd --system --gid 101 nginx \
+    && useradd --system --gid nginx --no-create-home --home-dir /nonexistent --comment "nginx user" --shell /bin/false --uid 101 nginx
 
 ENV DEBIAN_FRONTEND=noninteractive
 # nginx (the server, with its built-in modules) and the WebDAV extension (modules-enabled/), not nginx-full or

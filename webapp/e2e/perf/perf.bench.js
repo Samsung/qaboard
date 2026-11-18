@@ -103,14 +103,14 @@ const scenarios = {
     const cdp = await setup(page);
     await page.goto('/');
     return measure(page, cdp, async () => {
-      await page.goto(`/${project}/commit/c0000?reference=c0001`);
+      await page.goto(`/${project}/commit/c0000?reference=c0001&selected_views=summary`);
       await page.getByText('Summary').first().waitFor({ timeout: 60_000 });
       await page.getByText(/^PSNR/).first().waitFor({ timeout: 60_000 });
     });
   },
   'commit page: type a filter': async page => {
     const cdp = await setup(page);
-    await page.goto(`/${project}/commit/c0000?reference=c0001`);
+    await page.goto(`/${project}/commit/c0000?reference=c0001&selected_views=summary`);
     await page.getByText(/^PSNR/).first().waitFor({ timeout: 60_000 });
     // the fixed navbars overlap: focus without clicking
     const filter = page.locator('#filter-new-input');
@@ -127,7 +127,7 @@ const scenarios = {
   },
   'commit page: open the visualizations': async page => {
     const cdp = await setup(page);
-    await page.goto(`/${project}/commit/c0000?reference=c0001`);
+    await page.goto(`/${project}/commit/c0000?reference=c0001&selected_views=summary`);
     await page.getByText(/^PSNR/).first().waitFor({ timeout: 60_000 });
     return measure(page, cdp, async () => {
       await page.getByText('Visualizations').first().click();
@@ -137,7 +137,7 @@ const scenarios = {
   // with several references, "r" compares with the next one: we fetch it, then match its runs with the new ones
   'commit page: switch references': async page => {
     const cdp = await setup(page);
-    await page.goto(`/${project}/commit/c0000?reference=c0001&compare=c0002`);
+    await page.goto(`/${project}/commit/c0000?reference=c0001&compare=c0002&selected_views=summary`);
     await page.getByText(/^PSNR/).first().waitFor({ timeout: 60_000 });
     const shows = number => page.locator(`[role="tab"][aria-selected="true"][aria-label^="Reference ${number}:"]`).waitFor({ timeout: 60_000 });
     const first = await measure(page, cdp, async () => {
@@ -154,12 +154,12 @@ const scenarios = {
   },
   'commit page: open the metrics table': async page => {
     const cdp = await setup(page);
-    await page.goto(`/${project}/commit/c0000?reference=c0001`);
+    await page.goto(`/${project}/commit/c0000?reference=c0001&selected_views=summary`);
     await page.getByText(/^PSNR/).first().waitFor({ timeout: 60_000 });
     return measure(page, cdp, async () => {
-      await page.getByText('Metrics Table').first().click();
+      await page.getByRole('radio', { name: 'Table', exact: true }).click();
       // the table's first rows
-      await page.locator(':has(> * > h2:text-is("Metrics Table")) tbody tr').nth(10).waitFor({ timeout: 60_000 });
+      await page.locator(':has(> * > h2:text-is("Metrics")) tbody tr').nth(10).waitFor({ timeout: 60_000 });
     });
   },
 };
