@@ -1089,7 +1089,7 @@ def github_event_pull_request() -> Optional[Dict[str, Any]]:
   if not os.environ.get('GITHUB_EVENT_NAME', '').startswith('pull_request') or not os.environ.get('GITHUB_EVENT_PATH'):
     return None
   try:
-    with open(os.environ['GITHUB_EVENT_PATH']) as f:
+    with open(os.environ['GITHUB_EVENT_PATH'], encoding='utf-8') as f:
       pull = json.load(f).get('pull_request')
   except (OSError, ValueError, AttributeError):
     return None
@@ -1586,7 +1586,7 @@ def gate(ctx, reference, labels, batches, commit, output_format, as_json, wait, 
   step_summary = os.environ.get('GITHUB_STEP_SUMMARY')
   if step_summary:
     try:
-      with open(step_summary, 'a') as f:
+      with open(step_summary, 'a', encoding='utf-8') as f:
         f.write(render_markdown(result))
     except OSError as e:
       click.secho(f"WARNING: could not write the job summary: {e}", fg='yellow', err=True)

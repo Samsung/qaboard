@@ -63,6 +63,8 @@ export class Comparison {
     this.groupKey = null;
     // the size of the image whose group we join, when it's not our own: see setGroupSize
     this.groupSize = null;
+    // whether this viewer leads its group until users move another: see setClaimsGroup
+    this.claimsGroup = false;
     // a viewport from the sync group, to apply when the viewer shows
     this.pending = null;
     // the region to show when an image first shows, or changes aspect ratio
@@ -390,6 +392,12 @@ export class Comparison {
     this.updateGroup();
   }
 
+  // The anchor of tiles: they follow it from the start, not only once users moved it
+  setClaimsGroup(claims) {
+    this.claimsGroup = claims;
+    if (claims) this.group?.claim();
+  }
+
   updateGroup() {
     const { width, height } = this.groupSize ?? this.images.a ?? {};
     const key = syncGroupKey(this.syncKey, width, height);
@@ -403,6 +411,7 @@ export class Comparison {
         if (!this.pointer?.pinned) this.setPointerState(point ? { point, remote: true } : null);
       },
     });
+    if (this.claimsGroup) this.group?.claim();
   }
 
   followGroup(viewport) {

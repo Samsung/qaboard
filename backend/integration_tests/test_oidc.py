@@ -372,3 +372,54 @@ def test_the_doctor(idp, logged_in, monkeypatch):
   checks = {c["check"]: c for c in root.post('/api/v1/admin/sign-in/providers/sso/test').get_json()["checks"]}
   assert checks["discovery"]["ok"] and checks["issuer"]["ok"] and checks["signing keys"]["ok"] and checks["client secret"]["ok"]
   assert not checks["redirect URI"]["ok"] and "http://localhost/api/v1/auth/oidc/callback" in checks["redirect URI"]["detail"]
+
+
+def test_listed_admin_names_arent_created_from_the_idp(idp, make_client, monkeypatch):
+  """Many IdPs let users choose their preferred_username: a new account named like an admin of $QABOARD_ADMINS isn't one"""
+  from backend.models import User
+  monkeypatch.setenv('QABOARD_ADMINS', 'alice')
+  assert error_of(idp.sign_in(make_client())) == 'not_allowed'
+  assert User.query.count() == 0
+
+
+@pytest.mark.parametrize("admins, claims", [
+  ('alice,sso:subject-alice', {}),
+  ('alice,alice@example.com', {"email_verified": True}),
+])
+def test_listed_admins_from_the_idp(idp, make_client, monkeypatch, admins, claims):
+  """The IdP says it's them: by their identity, or a verified email"""
+  monkeypatch.setenv('QABOARD_ADMINS', admins)
+  idp.claims = claims
+  client = make_client()
+  idp.sign_in(client)
+  me = client.get('/api/v1/user/me/').get_json()
+  assert me["user_name"] == "alice" and me["is_admin"] is True
+
+
+def test_listed_admin_names_from_a_directory_idp(idp, make_client, monkeypatch):
+  """IdPs federated to the directory (match_users: username) give the directory's names"""
+  monkeypatch.setenv('QABOARD_OIDC_MATCH_USERS', 'username')
+  monkeypatch.setenv('QABOARD_ADMINS', 'alice')
+  client = make_client()
+  idp.sign_in(client)
+  assert client.get('/api/v1/user/me/').get_json()["is_admin"] is True
+
+
+def test_existing_accounts_stay_admins(idp, make_client, monkeypatch):
+  """Accounts created before the admin was listed keep matching by name: admins aren't locked out"""
+  client = make_client()
+  idp.sign_in(client)
+  monkeypatch.setenv('QABOARD_ADMINS', 'alice')
+  assert client.get('/api/v1/user/me/').get_json()["is_admin"] is True
+
+
+def test_admins_by_identity(idp, make_client, monkeypatch):
+  """sso:<subject> in $QABOARD_ADMINS: whatever the user name, and never as a user name"""
+  monkeypatch.setenv('QABOARD_ADMINS', 'sso:subject-alice')
+  client = make_client()
+  idp.sign_in(client)
+  assert client.get('/api/v1/user/me/').get_json()["is_admin"] is True
+  from backend.first_admin import any_admin
+  assert any_admin()
+  idp.claims.update({"sub": "subject-bob", "preferred_username": "sso:subject-alice"})
+  assert error_of(idp.sign_in(make_client())) == 'not_allowed'

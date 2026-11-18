@@ -1,13 +1,13 @@
 # https://pythonspeed.com/articles/base-image-python-docker-images/
-# TODO: 3.14 when pillow ships in binary https://pillow.readthedocs.io/en/latest/installation/platform-support.html
-#       -slim-trixie when python-ldap binary links with the updated libldap..
+# TODO: 3.14: the dependencies build and install (checked in November 2026), backend/.python-version and the
+#       site-packages path below must change with it
 # Stages:
 # - base: Python, git, the shared libraries the dependencies link to, uv
 # - build-deps: + compilers and headers, the Python dependencies (some are compiled: uwsgi, lxml, xmlsec, python-ldap, psycopg2)
 # - site: site-specific packages (QABOARD_EXTRA, CDE_PACKAGE)
 # - dev: used by development.yml, which mounts the code: the compilers stay, for `uv run`
 # - production (default): base + the dependencies + the code, without the compilers and headers
-FROM python:3.13-slim-bookworm AS base
+FROM python:3.13-slim-trixie AS base
 
 LABEL maintainer="arthurf.flam@samsung.com"
 
@@ -36,8 +36,8 @@ RUN apt-get update -qq && \
       git openssh-client less \
       sudo procps \
       libpq5 \
-      libldap-2.5-0 libldap-common libsasl2-2 libsasl2-modules \
-      libxml2 libxslt1.1 libxmlsec1 libxmlsec1-openssl && \
+      libldap2 libldap-common libsasl2-2 libsasl2-modules \
+      libxml2 libxslt1.1 libxmlsec1t64 libxmlsec1t64-openssl && \
     rm -rf /var/lib/apt/lists/* && \
     if [ -n "$CA_CERT_URL" ]; then \
       wget "$CA_CERT_URL" -P /usr/local/share/ca-certificates/ && \
@@ -114,7 +114,7 @@ RUN apt-get update -qq && \
       # https://www.psycopg.org/docs/install.html#install-from-source
       libpq-dev \
       # for Ldap Authentication
-      libsasl2-dev libldap2-dev \
+      libsasl2-dev libldap-dev \
       # required for python3-saml for python-xmlsec https://xmlsec.readthedocs.io/en/stable/install.html
       libxml2-dev libxmlsec1-dev libxslt1-dev zlib1g-dev && \
     rm -rf /var/lib/apt/lists/*

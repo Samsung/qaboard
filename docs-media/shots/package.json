@@ -13,12 +13,12 @@
     "typecheck": "tsc"
   },
   "devDependencies": {
-    "@playwright/test": "1.63.0",
+    "@playwright/test": "1.65.1",
     "@types/node": "22.20.5",
     "github-markdown-css": "5.9.0",
-    "marked": "15.0.12",
+    "marked": "18.2.1",
     "openseadragon": "6.1.1",
-    "plotly.js-dist-min": "3.7.0",
+    "plotly.js-dist-min": "4.3.0",
     "typescript": "7.0.2"
   }
 }

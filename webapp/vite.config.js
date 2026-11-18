@@ -87,7 +87,15 @@ export default defineConfig(({ mode }) => ({
     // Last, to upload the final source maps
     sentry(),
   ],
-  resolve: { alias: { 'qaboard-schemas': schemas } },
+  resolve: {
+    alias: [
+      { find: 'qaboard-schemas', replacement: schemas },
+      // monaco-editor ships its own copy of DOMPurify (esm/vs/base/browser/dompurify/), which only gets security
+      // fixes when monaco releases. We use the dompurify package instead, kept up to date by package.json's overrides.
+      // Only monaco imports that path. To check: `npm run build && grep -o 'version=.3[.0-9]*' build/assets/editor.api-*.js`
+      { find: /^\.\/dompurify\/dompurify\.js$/, replacement: 'dompurify' },
+    ],
+  },
   define: {
     // Not in the tests: they'd depend on the shell's environment (e.g. QABOARD_VERSION set by an .envrc)
     'import.meta.env.QABOARD_RELEASE': JSON.stringify(mode === 'test' ? '' : release ?? ''),
