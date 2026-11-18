@@ -295,6 +295,8 @@ class SessionInterface(SecureCookieSessionInterface):
 
 
 def after_request(response):
+  # browsers use the Content-Type we send: e.g. they don't run a JSON answer that looks like HTML
+  response.headers.setdefault('X-Content-Type-Options', 'nosniff')
   warning = g.get('qaboard_warning')
   if warning:
     # HTTP headers are latin-1: uWSGI drops the whole response's body if they aren't

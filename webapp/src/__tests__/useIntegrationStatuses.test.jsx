@@ -4,7 +4,7 @@
  */
 import { act, renderHook, waitFor } from '@testing-library/react';
 
-import { useIntegrationStatuses } from '../useIntegrationStatuses';
+import { isWebUrl, useIntegrationStatuses } from '../useIntegrationStatuses';
 
 
 const json = data => new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
@@ -83,6 +83,32 @@ describe('Webhooks, links and GitLab CI jobs', () => {
     const [url, options] = fetchMock.mock.calls[0];
     expect(url).toBe(`${window.location.origin}/s/mnt/qaboard/report.html`);
     expect(options.method).toBe('HEAD');
+  });
+
+  // they come from other servers: e.g. a javascript: URL would run in QA-Board's page
+  test.each([
+    ['https://ci.example.com/jobs/1', true],
+    ['/s/mnt/report.html', true],
+    ['javascript:alert(1)', false],
+    [' JavaScript:alert(1)', false],
+    ['data:text/html,x', false],
+    [undefined, false],
+  ])('webhooks can open the web page %s: %s', (url, expected) => expect(isWebUrl(url)).toBe(expected));
+
+  test("opens the page of a webhook's answer only if it's a web page", async () => {
+    const webhook = { text: 'Bench', webhook: { url: 'https://bench.example.com/jobs', method: 'POST' } };
+    const open = vi.fn();
+    vi.stubGlobal('open', open);
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(json({ open: true, url: 'javascript:alert(document.domain)' }))
+      .mockResolvedValueOnce(json({ open: true, url: 'https://bench.example.com/jobs/1' })));
+    const { result } = renderHook(() => useIntegrationStatuses({ ...context, integrations: [webhook] }));
+    for (let i = 0; i < 2; i++) {
+      act(() => result.current.triggerIntegration(webhook)());
+      await waitFor(() => expect(result.current.integrationStatuses.Bench?.loading).toBe(false));
+    }
+    await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
+    expect(open).toHaveBeenCalledWith('https://bench.example.com/jobs/1', '_blank');
   });
 
   test('GitLab CI jobs say their project', async () => {

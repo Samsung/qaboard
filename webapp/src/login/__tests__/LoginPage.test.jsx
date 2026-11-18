@@ -64,6 +64,8 @@ test('next only goes to our own pages', () => {
   expect(safeNext('//evil.example')).toBeNull();
   expect(safeNext('https://evil.example')).toBeNull();
   expect(safeNext('/\\evil.example')).toBeNull();
+  expect(safeNext('/\t/evil.example')).toBeNull();
+  expect(safeNext('/\n/evil.example')).toBeNull();
   expect(safeNext('/login?next=/x')).toBeNull();
   expect(loginUrl('/device?code=WDJB-MJHT')).toBe('/login?next=%2Fdevice%3Fcode%3DWDJB-MJHT');
   expect(loginUrl('/')).toBe('/login');
