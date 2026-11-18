@@ -91,21 +91,37 @@ def started(output_dir: Path) -> bool:
   return any((output_dir / marker).exists() for marker in STARTED_MARKERS)
 
 
+def _next_attempt(first_dir: Path) -> Tuple[int, bool]:
+  """The attempt a new run would use, and whether latest_attempt.txt must say so"""
+  if not first_dir.is_dir(): # the usual case, a run's first attempt: one stat
+    return 1, False
+  attempt = latest_attempt(first_dir)
+  if not started(attempt_dir(first_dir, attempt)):
+    return attempt, False
+  attempt += 1
+  # directories left by attempts latest_attempt.txt forgot (it was removed by hand...): paths are never used twice
+  while attempt_dir(first_dir, attempt).exists():
+    attempt += 1
+  return attempt, True
+
+
+def next_dir(first_dir: Path) -> Path:
+  """
+  Where a new attempt of the run would be saved, without reserving it: what `reserve` would return now.
+  For `qa batch --list` and --dryrun, which say where the runs they would start would be.
+  """
+  return attempt_dir(first_dir, _next_attempt(first_dir)[0])
+
+
 def reserve(first_dir: Path) -> Path:
   """
   The directory for a new attempt of the run. It stays the same until a run starts in it: `qa batch` reserves it,
   says where the run will be and sends the runners' logs there, then the job's `qa run` reserves it again.
   Raises OSError when latest_attempt.txt can't be written, e.g. the first attempt's directory belongs to someone else.
   """
-  if not first_dir.is_dir(): # the usual case, a run's first attempt: one stat
-    return first_dir
-  attempt = latest_attempt(first_dir)
-  if not started(attempt_dir(first_dir, attempt)):
+  attempt, new = _next_attempt(first_dir)
+  if not new:
     return attempt_dir(first_dir, attempt)
-  attempt += 1
-  # directories left by attempts latest_attempt.txt forgot (it was removed by hand...): paths are never used twice
-  while attempt_dir(first_dir, attempt).exists():
-    attempt += 1
   # atomic: readers see the previous attempt or this one
   # unique: on shared storage, processes on two hosts can have the same pid
   temporary = first_dir / f"{POINTER}.{uuid.uuid4().hex}.tmp"

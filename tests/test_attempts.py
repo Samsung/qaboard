@@ -181,6 +181,17 @@ class TestAttemptDirs(unittest.TestCase):
       self.assertEqual(attempts.reserve_or_keep(self.first), self.first)
     self.assertIn('in place', secho.call_args[0][0])
 
+  def test_next_dir_reserves_nothing(self):
+    """`qa batch --list` says where a run would be: where `reserve` would put it, without writing latest_attempt.txt"""
+    self.assertEqual(attempts.next_dir(self.first), self.first)
+    run_in(self.first)
+    self.assertEqual(attempts.next_dir(self.first).name, 'night-scene_attempt2')
+    self.assertFalse((self.first / POINTER).exists())
+    self.assertEqual(attempts.latest_dir(self.first), self.first)
+    self.assertEqual(attempts.next_dir(self.first), attempts.reserve(self.first))
+    # reserved, not started yet: the same
+    self.assertEqual(attempts.next_dir(self.first).name, 'night-scene_attempt2')
+
   def test_reserve_or_keep_from_any_attempt(self):
     run_in(self.first)
     second = attempts.reserve_or_keep(self.first)

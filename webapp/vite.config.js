@@ -139,6 +139,10 @@ export default defineConfig(({ mode }) => ({
     setupFiles: ['./src/setupTests.js'],
     reporters: process.env.CI ? ['default', 'junit'] : ['default'],
     outputFile: { junit: 'junit.xml' },
+    // By default vitest starts one worker per core (minus one). CI hosts (LSF, shared runners) see all the
+    // machine's cores, not the job's slots: dozens of jsdom workers ran out of the job's memory limit.
+    // 4 workers peak under 2GB with --coverage. VITEST_MAX_WORKERS overrides it.
+    maxWorkers: process.env.CI ? 4 : undefined,
     coverage: {
       provider: 'v8',
       // not the markdown, css, json... files in src/: they can't be parsed as code

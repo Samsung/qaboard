@@ -630,6 +630,34 @@ def env_number(parse, value, default):
 # An int like --local-concurrency's: a string would differ from it, and count as given on the command line
 default_local_concurrency = env_number(int, os.environ['QA_BATCH_CONCURRENCY'], None) if os.environ.get('QA_BATCH_CONCURRENCY') else local_config.get('concurrency')
 default_local_timeout = env_number(float, os.environ.get('QA_BATCH_TIMEOUT', local_config.get('timeout', 0)), 0)
+
+
+def listed_runs(listed) -> List[dict]:
+  """The runs of `qa batch --list` and --save-runs: the jobs, where their run was saved (QA-Board knows it once
+  they ran: their `qa run` may have used another directory than we reserved), and the runs we skipped."""
+  runs = []
+  for item in listed:
+    if not isinstance(item, Job):
+      runs.append(item)
+      continue
+    run = {**serialize_paths(item.run_context.asdict()), "skipped": False}
+    output_dir_url = (item.qaboard_output or {}).get('output_dir_url')
+    if output_dir_url:
+      run['output_dir'] = serialize_paths(url_to_dir(output_dir_url))
+    runs.append(run)
+  return runs
+
+
+def write_runs(path: Path, listed, ctx) -> None:
+  """--save-runs: relative to where `qa` was started"""
+  if not path.is_absolute():
+    path = Path(ctx.obj.get('previous_cwd') or os.getcwd()) / path
+  path.parent.mkdir(parents=True, exist_ok=True)
+  temporary = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
+  temporary.write_text(json.dumps(listed_runs(listed), indent=2), encoding='utf-8')
+  os.replace(temporary, path)
+
+
 default_action_on_existing = config.get('outputs', {}).get('action_on_existing', "run")
 default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "wait")
 @qa.command(context_settings=dict(
@@ -643,8 +671,9 @@ default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "
 @click.option('--tuning-search', 'tuning_search_dict', help='string containing JSON describing the tuning parameters to explore')
 @click.option('--tuning-search-file', type=PathType(), default=None, help='tuning file describing the tuning parameters to explore')
 @click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are sent, otherwise waits for completion.")
-@click.option('--list', 'list_contexts', is_flag=True, help="Print as JSON details about each run we would do.")
-@click.option('--list-output-dirs', is_flag=True, help="Only print the prefixes for the results of each batch we run on.")
+@click.option('--list', 'list_contexts', is_flag=True, help="Print as JSON details about each run we would do, with --action-on-existing: where the runs we would start would be saved, where those we would skip are (\"skipped\": true).")
+@click.option('--list-output-dirs', is_flag=True, help="Only print where the results of each run are saved now (their latest attempt).")
+@click.option('--save-runs', type=PathType(), default=None, help="Once the runs are started (and done, without --no-wait), write to this JSON file the details of each, as --list prints them: where they were saved, and whether they were skipped. For scripts that read the results next.")
 @click.option('--list-inputs', is_flag=True, help="Print to stdout a JSON with a list of the inputs we would call qa run on.")
 @click.option('--runner', default=default_runner, help="Run runs locally or using a task queue like Celery, LSF...")
 @click.option('--local-concurrency', default=default_local_concurrency, type=int, help="How many runs run at the same time (joblib's n_jobs): 1=one at a time (if not set), 2=2 at a time, -1=one per CPU, -2=all CPUs but one")
@@ -663,10 +692,12 @@ default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "
 @click.argument('batch_names', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 @saves_logs
-def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, local_timeout, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_resources, lsf_priority, lsf_options, lsf_concurrency, dask_concurrency, action_on_existing, action_on_pending, prefix_outputs_path, batch_names):
+def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, save_runs, list_inputs, runner, local_concurrency, local_timeout, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_resources, lsf_priority, lsf_options, lsf_concurrency, dask_concurrency, action_on_existing, action_on_pending, prefix_outputs_path, batch_names):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
   from .runners import runners
   if on_commit is not None:
+    if save_runs:
+      raise click.UsageError("--save-runs can't be used with --commit: QA-Board starts the batch, the runs aren't known here.")
     from .on_server import start_on_server
     names, forwarded = split_batch_names(batch_names)
     given_action = ctx.get_parameter_source('action_on_existing') != click.core.ParameterSource.DEFAULT
@@ -902,6 +933,8 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
     jobs = JobGroup(job_options=rerun_job_options(runs_job_options, default_runner_options, explicit_runner_overrides), split_by_job_options=False)
 
   total_runs = 0
+  # What --list and --save-runs print, in order: the jobs we start, and the runs we skip (as --list prints them)
+  listed: List = []
   for run_context in inputs_iter:
     input_configuration_str = serialize_config(run_context.configurations)
     extra_parameters, input_forwarded_args = ctx.obj['extra_parameters'], forwarded_args
@@ -973,10 +1006,9 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
       ran_before = True if matching_existing_output else run_context.ran()
       should_run = not is_pending and (action_on_existing=='run' or is_failed or not ran_before)
       # With assert-exists, like skip, we don't do anything with the runs that succeeded
-      if not should_run and action_on_existing in ('skip', 'assert-exists') and not is_pending:
+      if (not should_run and action_on_existing in ('skip', 'assert-exists') and not is_pending) or (is_pending and action_on_pending == 'skip'):
+        listed.append({**serialize_paths(run_context.asdict()), "skipped": True})
         continue
-      if is_pending and action_on_pending == 'skip':
-          continue
 
       if not input_forwarded_args:
         forwarded_args_cli = None
@@ -1014,8 +1046,10 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
       # Not for pending runs: we may only wait for them, and if they have to run, their `qa run` reserves it.
       starts_run = should_run or action_on_existing in ('skip', 'assert-exists')
       keeps_previous = 'QABOARD_RUN_KEEP' in os.environ or '--keep-previous' in (input_forwarded_args or [])
-      if starts_run and not is_pending and not dryrun and not keeps_previous and saves_attempts(ctx.obj, custom_output=prefix_outputs_path):
-        run_context.output_dir = attempts.reserve_or_keep(run_context.output_dir)
+      if starts_run and not is_pending and not keeps_previous and saves_attempts(ctx.obj, custom_output=prefix_outputs_path):
+        # dry runs (--list...) say where the run would be, without reserving it
+        first_dir = attempts.split(run_context.output_dir)[0]
+        run_context.output_dir = attempts.next_dir(first_dir) if dryrun else attempts.reserve_or_keep(run_context.output_dir)
 
       platform_cli =None
       Runner = runners[run_context.job_options['type']]
@@ -1086,9 +1120,12 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
         else:
           assert action_on_pending=="run"
       jobs.append(job)
+      listed.append(job)
 
   if list_contexts:
-    print(json.dumps([serialize_paths(j.run_context.asdict()) for j in jobs], indent=2))
+    print(json.dumps(listed_runs(listed), indent=2))
+    if save_runs:
+      write_runs(save_runs, listed, ctx)
     return
 
   if not dryrun:
@@ -1099,6 +1136,8 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
       blocking=not no_wait,
       qa_context=ctx.obj,
     )
+    if save_runs:
+      write_runs(save_runs, listed, ctx)
 
     # A commit status on GitLab/GitHub links to the results
     from .git_hosts import git_host, update_ci_status

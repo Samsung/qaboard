@@ -76,6 +76,14 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - `qa batch` leaves `QA_BATCH` set in the process on its early returns (`--list`...), and its failure branch deletes
   `QA_BATCH` even when the batch was nested. [S, behaviour]
 - `qaboard.utils.save_outputs_manifest` has no `mode`: the server chmods the manifests it writes. [S, no change]
+- Reruns' directories (qaboard/attempts.py): `qa batch` writes *latest_attempt.txt* when it reserves a new attempt,
+  before the job starts. While the job waits in a queue (LSF...), or for good if it never starts (batch killed),
+  `latest_dir()` and every reader (`--list-output-dirs`, `qa get`, postprocess, scripts reading the pointer) get the
+  empty new directory, while the complete results are still in the previous attempt. Fix: `qa batch` picks the
+  directory without writing (`attempts.next_dir`) and passes it to `qa run` (option or env, through every runner:
+  local, lsf, celery, dask, kubernetes, windows), which writes the pointer when it starts; `reserve()` skips only
+  directories where a run started, not those that exist (runners' logs create it). Loses the lock between two
+  batches that submit the same run at once. [M, behaviour]
 - `qaboard/scripts/get_batch_storage.py` sends requests without timeouts and defaults to `http://qa`. [S, behaviour]
 - Internal names left in `qaboard/`: the idb.py docstring, `\\netapp` in jenkins_windows.py's docstring, compat.py's
   regexes; tests use `gitlab-srv` strings. [S, no change]
