@@ -773,8 +773,7 @@ class TestImagePerCommit(KubernetesTestCase):
     """`qa batch` in a commit's artifacts fetched from QA-Board (the server's driver pod): the run pods fetch them too"""
     import json
     from qaboard.commit_artifacts import MARKER
-    from qaboard.runners.kubernetes import KubernetesRunner, fetched_artifacts
-    fetched_artifacts.cache_clear()
+    from qaboard.runners.kubernetes import KubernetesRunner
     # the driver's copy, and the one the run pod fetches into its own cache
     driver_copy, pod_copy = self.root / 'driver-cache' / 'abc', self.root / 'pod cache' / 'abc'
     for copy in (driver_copy, pod_copy):
@@ -787,7 +786,6 @@ class TestImagePerCommit(KubernetesTestCase):
     jobs = make_jobs(['qa run a'], driver_copy / 'project' / 'output')
     with mock.patch('signal.signal'), mock.patch('qaboard.runners.kubernetes.os.getcwd', return_value=str(driver_copy / 'project')):
       KubernetesRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
-    fetched_artifacts.cache_clear()
     script = self.kube.configmaps['qa-abcdefgh-r4nd-0-0']['data']['run-0.sh']
     self.assertNotIn(str(driver_copy), script)
     scripts = self.root / 'etc-qaboard'

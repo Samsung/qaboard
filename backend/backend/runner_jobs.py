@@ -604,7 +604,7 @@ def submit_driver(script_path: Path, log_dir: Path, user_info: dict, ci_commit, 
     # the pull secrets' credentials only, never the server's
     job_options.update({"commit": ci_commit.hexsha, "local_registry_credentials": False})
     if token:
-      # the batch's token (backend/batch_tokens.py): `qa batch` forwards it to the runs' pods
+      # the batch's token (tokens.mint_for_batch): `qa batch` forwards it to the runs' pods
       job_options["env"] = {**job_options.get("env", {}), "QABOARD_TOKEN": token}
     for note in notes:
       print(f"[kubernetes] {note}")

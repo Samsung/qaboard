@@ -23,8 +23,8 @@ from backend import db_session
 from .shell_utils import quote, is_shell_safe, safe_user_name, lsf_bridge_command
 from .storage import check_storage_path
 from .fs_utils import mkdir_shared
-from .artifacts import ArtifactsUnavailable, commit_cd_lines
-from . import batch_tokens
+from .artifacts import ArtifactsUnavailable, EXIT_TRAP, cd_lines, runner_unsupported
+from . import tokens
 from .submissions import record_submission, user_batch_dir, submission_dir, startup_logs
 
 
@@ -96,23 +96,24 @@ def output_runner(output):
 def redo_script(ci_commit, user, command_id, batch_command) -> str:
   # CI results are saved under the CI user's folder (QABOARD_DEFAULT_USER), runs started here under the user's
   outputs_dir_prefix = str(user_batch_dir(ci_commit.outputs_dir, user))
+  # without a shared storage, runs save their files in their copy of the artifacts, then send them (cd_lines)
+  shared = ci_commit.uploaded_artifacts_dir is None
   return '\n'.join([
     '#!/bin/bash',
     # Tells users how it went, like other batches started from QA-Board
-    'trap \'echo "[qaboard] qa batch exited with code $?"\' EXIT',
+    EXIT_TRAP,
     'set -ex',
     "export CI=true",
     f"export GIT_COMMIT={quote(ci_commit.hexsha)}",
-    f"export QA_OUTPUTS_COMMIT={quote(outputs_dir_prefix)}",
-    # backward compatibility with previous qa versions, remove later...
-    f"export QATOOLS_CI_COMMIT_DIR={quote(outputs_dir_prefix)}",
+    *([f"export QA_OUTPUTS_COMMIT={quote(outputs_dir_prefix)}",
+       # backward compatibility with previous qa versions, remove later...
+       f"export QATOOLS_CI_COMMIT_DIR={quote(outputs_dir_prefix)}"] if shared else []),
     "export QABOARD_TUNING=true",
     f'export QA_BATCH_COMMAND_ID={quote(command_id)}',
     "",
     # get the env right
     'umask 0',
-    # where it isn't mounted (a Kubernetes pod), the artifacts `qa save-artifacts` sent to the server are fetched
-    *commit_cd_lines(ci_commit),
+    *cd_lines(ci_commit),
     'set +ex',
     '[[ -f ".envrc" ]] && source .envrc',
     '[[ -f "../.envrc" ]] && source ../.envrc',
@@ -125,9 +126,10 @@ def redo_script(ci_commit, user, command_id, batch_command) -> str:
   ])
 
 
-def redo_outputs(batch, outputs, user_info) -> dict:
+def redo_outputs(batch, outputs, user_info, actor=None) -> dict:
   """
-  Redo the `outputs` from `batch`, as `user_info` (the logged-in user who asked, g.user).
+  Redo the `outputs` from `batch`, as `user_info` (the logged-in user who asked, g.user, and `actor`, g.actor: the
+  batch's token is theirs when the project has no shared storage, tokens.mint_for_batch).
   Returns the submission (see submissions.py): its status is "done" if `qa batch` could start the runs, "failed" otherwise,
   "submitted" when `qa batch` was started in a pod (QABOARD_TUNING_RUNNER=kubernetes) or still runs on the server.
   Raises ValueError (e.g. UnsafePathError) if the user name or folders are not safe to use.
@@ -138,8 +140,8 @@ def redo_outputs(batch, outputs, user_info) -> dict:
   check_storage_path(ci_commit.artifacts_dir)
   on_kubernetes = os.environ.get('QABOARD_TUNING_RUNNER') == 'kubernetes'
   runner = "kubernetes" if on_kubernetes else "bridge" if os.environ.get('QA_RUNNERS_LSF_BRIDGE') else "local"
-  # first: no need to restore artifacts for runs that couldn't save their results
-  if problem := batch_tokens.unsupported(ci_commit, runner):
+  # first: no need to restore artifacts for runs that couldn't start
+  if problem := runner_unsupported(ci_commit, runner):
     raise ArtifactsUnavailable(problem)
   # We never run from missing artifacts: e.g. without its qaboard.yaml, a subproject's runs would be saved in the parent project.
   # Raises ArtifactsUnavailable if they are missing and can't be restored right now.
@@ -192,8 +194,8 @@ def redo_outputs(batch, outputs, user_info) -> dict:
   db_session.commit()
 
   try:
-    # projects without a shared storage: their runs send results with a token of the user (backend/batch_tokens.py)
-    token = batch_tokens.mint(ci_commit, command_id)
+    # projects without a shared storage: their runs send results with a token of the user (tokens.mint_for_batch)
+    token = tokens.mint_for_batch(actor, ci_commit, command_id)
     if on_kubernetes:
       from .runner_jobs import submit_driver
       def record_driver(driver):
@@ -236,11 +238,11 @@ def log_tail(submission, size=4000) -> str:
 
 def redo_response(batch, outputs, user_info):
   """The API's response when users ask to redo runs"""
-  from flask import jsonify
+  from flask import jsonify, g
   if not outputs:
     return jsonify({"error": "There are no runs to redo."}), 400
   try:
-    submission = redo_outputs(batch, outputs, user_info)
+    submission = redo_outputs(batch, outputs, user_info, actor=g.get('actor'))
   except ArtifactsUnavailable as e:
     # we remember that the artifacts are missing, and that we asked to recreate them
     db_session.add(batch.ci_commit)

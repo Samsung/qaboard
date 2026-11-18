@@ -34,8 +34,8 @@ from ..config import qaboard_data_shared_dir
 from ..shell_utils import safe_user_name, lsf_bridge_command
 from ..storage import check_storage_path, UnsafePathError
 from ..submissions import record_submission, MAX_SUBMISSIONS, user_batch_dir, submission_dir, append_log, startup_logs # noqa: F401
-from ..artifacts import ArtifactsUnavailable, commit_cd_lines
-from .. import batch_tokens
+from ..artifacts import ArtifactsUnavailable, EXIT_TRAP, cd_lines, runner_unsupported
+from .. import tokens
 from ..notifications.batches import request_batch_notification, cancel_batch_notification
 from .auth import login_required, require_project_access, is_authorized_user, forbidden_project
 
@@ -512,30 +512,25 @@ def get_group():
     return response(tests, missing)
 
 
-def _cd_to(ci_commit, working_directory) -> str:
-    """Bash lines that go to the commit's artifacts. Where they aren't mounted (a Kubernetes pod), the artifacts `qa save-artifacts` sent to the server are fetched."""
-    if getattr(ci_commit, 'uploaded_artifacts_dir', None) is not None and working_directory == ci_commit.artifacts_dir:
-        return "".join(f"{line}\n" for line in commit_cd_lines(ci_commit, source_envrc=True))
-    return f'cd {quote(str(working_directory))};\n'
-
-
 def _generate_batch_script(ci_commit, user, working_directory, command_id, batch_command, data):
     """Generate the qa_batch.sh script (shared across all runners)."""
     parent_including_cwd = [*list(reversed(list(working_directory.parents))), working_directory]
     envrcs = [f'source {quote(str(p / ".envrc"))}\n' for p in parent_including_cwd if (p / '.envrc').exists()]
 
+    uploaded = ci_commit.uploaded_artifacts_dir is not None
     default_user = os.environ.get('QABOARD_DEFAULT_USER', 'qaboard')
     outputs_dir_prefix = str(ci_commit.outputs_dir).replace(f'/outputs/{default_user}/', f'/outputs/{user}/')
     script = "".join([
         "#!/bin/bash\n",
         # Helps users understand why they see no runs
-        'trap \'echo "[qaboard] qa batch exited with code $?"\' EXIT\n',
+        f'{EXIT_TRAP}\n',
         'export LC_ALL=en_US.utf8;\n',
         'export LANG=en_US.utf8;\n\n',
         'export MPLBACKEND=agg;\n',
         ('\n'.join(envrcs) + '\n') if envrcs else "",
         "set -xe\n\n",
-        _cd_to(ci_commit, working_directory),
+        # without a shared storage, the batch fetches its copy of the artifacts
+        "".join(f"{line}\n" for line in cd_lines(ci_commit, source_envrc=True)) if uploaded else f'cd {quote(str(working_directory))};\n',
         "\n",
         f"\nexport CI=true;\n",
         f"\nexport GIT_COMMIT={quote(ci_commit.hexsha)};\n",
@@ -543,8 +538,9 @@ def _generate_batch_script(ci_commit, user, working_directory, command_id, batch
         f"export QA_USER={quote(user)};\n",
 
         f"export QABOARD_TUNING=true;\n\n",
-        f"export QA_OUTPUTS_COMMIT={quote(outputs_dir_prefix)};\n\n",
-        f"export QATOOLS_CI_COMMIT_DIR={quote(str(ci_commit.outputs_dir))};\n\n",
+        # without a shared storage, runs save their files in their copy of the artifacts, then send them
+        f"export QA_OUTPUTS_COMMIT={quote(outputs_dir_prefix)};\n\n" if not uploaded else "",
+        f"export QATOOLS_CI_COMMIT_DIR={quote(str(ci_commit.outputs_dir))};\n\n" if not uploaded else "",
         f"export QA_BATCH_COMMAND_ID={quote(command_id)};\n",
         # this `qa batch` is the first: the runs of the commands it starts (e.g. pipeline steps) are its runs
         "unset QA_BATCH_ROOT_COMMAND_ID;\n\n",
@@ -558,7 +554,7 @@ def _run_script(qa_batch_path, log_dir, command_id, celery=False, token=None):
     Runs the bash script on the server, detached: it outlives the request (see local_jobs.py), with the server's
     environment minus its secrets, and its output appended to log_dir/log.txt.
     Returns the submission's {"status", "pid", "pgid", "host"}, and "exit_code" if it already ended.
-    `token`: the batch's token (backend/batch_tokens.py), for runs that send their results over HTTP.
+    `token`: the batch's token (tokens.mint_for_batch), for runs that send their results over HTTP.
     """
     from ..local_jobs import start_detached, qa_environment
     return start_detached(qa_batch_path, log_dir, qa_environment(command_id, celery=celery, token=token))
@@ -889,7 +885,7 @@ def check_tuning_request(ci_commit, data, user_name=None):
         errors.append("QA-Board doesn't know this project's configuration: run `qa save-artifacts` or `qa batch` on this commit, with qaboard.yaml.")
         config = {}
 
-    if problem := batch_tokens.unsupported(ci_commit, os.environ.get('QABOARD_TUNING_RUNNER', 'local')):
+    if problem := runner_unsupported(ci_commit, os.environ.get('QABOARD_TUNING_RUNNER', 'local')):
         errors.append(problem)
 
     label = str(data.get('batch_label') or '').strip()
@@ -1131,8 +1127,8 @@ def start_tuning(hexsha):
     notification = notify_when_done(data, command_id, ci_commit, batch, user, do_optimize)
 
     try:
-        # projects without a shared storage: their runs send results with a token of the user (backend/batch_tokens.py)
-        token = batch_tokens.mint(ci_commit, command_id)
+        # projects without a shared storage: their runs send results with a token of the user (tokens.mint_for_batch)
+        token = tokens.mint_for_batch(g.get('actor'), ci_commit, command_id)
         if runner == 'lsf':
             submission.update(_dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize))
             submission["status"] = "submitted"

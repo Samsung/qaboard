@@ -38,7 +38,7 @@ from .config import project, project_root, subproject, config
 from .config import default_batches_files, get_default_database, default_batch_label, default_platform
 from .config import get_default_configuration, default_input_type
 from .config import commit_id, outputs_commit, artifacts_commit, root_qatools, artifacts_commit_root
-from .config import user, is_ci, on_windows, available_metrics, uploads_files, repo_root
+from .config import user, is_ci, on_windows, available_metrics, uploads_files, repo_root, COMMANDS_WITHOUT_PROJECT
 from .metrics import split_metrics, resolve_definitions, write_definitions_file, with_default_direction
 from . import analytics
 
@@ -69,7 +69,7 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
     return
   # `qa upload` works outside a project too: it reads --label, --configuration and --platform itself
   # `qa fetch-artifacts` only talks to the server, e.g. in a pod before it has the commit's qaboard.yaml
-  if ctx.invoked_subcommand in ('upload', 'fetch-artifacts'):
+  if ctx.invoked_subcommand in COMMANDS_WITHOUT_PROJECT:
     return
   # Local runs save their results in output/: only some commands need the storage
   needed_by = storage_needed_by(ctx.invoked_subcommand, share, is_ci)
@@ -1436,16 +1436,27 @@ def artifact_paths(globs: List[str]) -> List[Path]:
 def send_artifacts(ctx, groups):
   """`qa save-artifacts` without a storage shared with the server: sends the commit's artifacts to it (qaboard/commit_artifacts.py)"""
   from .api import qaboard_url
-  from .commit_artifacts import send, ArtifactsError
+  from .commit_artifacts import listing, send, ArtifactsError, ServerTooOld
   files = {name: (subproject / 'manifests' / f'{name}.json', [p.as_posix() for p in artifact_paths(globs)]) for name, globs in groups.items()}
+  # the groups of qaboard.yaml (qa's own start with __): one that matches nothing is likely saved before the build
+  for name, (_, paths) in files.items():
+    if not paths and not name.startswith('__'):
+      click.secho(f"WARNING: The artifacts `{name}` match no files ({', '.join(groups[name])}): run `qa save-artifacts` after the build.", fg='yellow', err=True)
   if ctx.obj['dryrun']:
-    for name, (_, paths) in files.items():
-      click.secho(f"{name}: {len(paths)} files", bold=True)
-      for path in paths:
-        click.secho(f"  {path}", dim=True)
+    for path in sorted({path for _, paths in files.values() for path in paths}):
+      click.secho(path, dim=True)
     return
   if not commit_id or not re.fullmatch(r'[0-9a-f]{40}', str(commit_id)):
     click.secho(f"ERROR: QA-Board keeps artifacts for git commits, not for {commit_id}.", fg='red', err=True)
+    sys.exit(1)
+  try:
+    known = listing(qaboard_url, project.as_posix(), str(commit_id))
+  except ServerTooOld as e:
+    # so that CI jobs keep working with the servers that didn't take artifacts
+    click.secho(f"WARNING: {e} The artifacts were not sent: runs can't be started from QA-Board.", fg='yellow', err=True)
+    return
+  except ArtifactsError as e:
+    click.secho(f"ERROR: {e} The artifacts were not sent.", fg='red', err=True)
     sys.exit(1)
   # The server keeps artifacts for commits it knows: we send the commit first, also outside CI
   if notify_qa_database(object_type='commit', **{**ctx.obj, 'share': True}) is None:
@@ -1453,11 +1464,14 @@ def send_artifacts(ctx, groups):
     click.secho("ERROR: QA-Board didn't save the commit (see above): the artifacts were not sent.", fg='red', err=True)
     sys.exit(1)
   try:
-    summary = send(qaboard_url, project.as_posix(), str(commit_id), files, echo=click.echo)
+    sent = send(qaboard_url, project.as_posix(), str(commit_id), files, known)
   except ArtifactsError as e:
     click.secho(f"ERROR: {e}", fg='red', err=True)
     sys.exit(1)
-  click.secho(f"{summary['sent']} files sent ({summary['bytes'] / 1024**2:.1f} MB), {summary['skipped']} already on QA-Board", fg='green')
+  plural = lambda n: f"{n} file{'s' if n != 1 else ''}"
+  already = f", {plural(sent['skipped'])} already there" if sent['skipped'] else ""
+  click.secho(f"Sent {plural(sent['sent'])} ({sent['bytes'] / 1024**2:.1f} MB){already}. Runs started from QA-Board use them: "
+              f"{qaboard_url}/{project.as_posix()}/commit/{commit_id}", fg='green')
   # if the commit's artifacts were deleted, this marks them as good again
   notify_qa_database(object_type='commit', **{**ctx.obj, 'share': True})
   exit_if_results_refused()

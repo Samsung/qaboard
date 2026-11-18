@@ -15,7 +15,7 @@ from unittest import mock
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from qaboard import commit_artifacts
-from qaboard.commit_artifacts import ArtifactsError, MARKER, bundle_hash, fetch, read_marker, send
+from qaboard.commit_artifacts import ArtifactsError, ServerTooOld, bundle_hash, fetch, listing, read_marker, send
 
 COMMIT = "0123456789abcdef0123456789abcdef01234567"
 PROJECT = "group/repo/sub"
@@ -55,7 +55,7 @@ class FakeServer:
           if path not in server.files:
             return self.reply(404, b'not found')
           return self.reply(200, b'corrupted' if path in server.corrupt else server.files[path])
-        if re.fullmatch(r'/api/v1/commit/[0-9a-f]{40}/artifacts', url.path):
+        if re.fullmatch(r'/api/v1/commit/[0-9a-f]{40}/artifacts', url.path) and parse_qs(url.query).get('project') == [server.project]:
           listed = server.listing()
           if not listed:
             return self.reply(404, {"error": "not sent", "reason": "not_uploaded"})
@@ -111,6 +111,11 @@ class FakeServer:
     self.httpd.server_close()
 
 
+def ResultsError_404():
+  from qaboard.results import ResultsError
+  return ResultsError("not found", status=404, body={"error": "Sorry, we could not find any data on commit"})
+
+
 class ArtifactsTestCase(unittest.TestCase):
   def setUp(self):
     tmp = tempfile.TemporaryDirectory()
@@ -134,7 +139,8 @@ class ArtifactsTestCase(unittest.TestCase):
     file.chmod(0o755 if executable else 0o644)
 
   def send(self, groups):
-    return send(self.server.url, PROJECT, COMMIT, {name: (Path('sub/manifests') / f'{name}.json', paths) for name, paths in groups.items()}, token='token', echo=lambda message: None)
+    known = listing(self.server.url, PROJECT, COMMIT, token='token')
+    return send(self.server.url, PROJECT, COMMIT, {name: (Path('sub/manifests') / f'{name}.json', paths) for name, paths in groups.items()}, known, token='token')
 
 
 class TestSend(ArtifactsTestCase):
@@ -144,6 +150,8 @@ class TestSend(ArtifactsTestCase):
     self.write('build/tool', b'\x7fELF', executable=True)
     summary = self.send({'__qaboard.yaml': ['qaboard.yaml', 'sub/qaboard.yaml'], 'binaries': ['build/tool']})
     self.assertEqual(summary, {"sent": 3, "skipped": 0, "bytes": len(b'project: {}inputs: {}\x7fELF')})
+    # a file in two groups is sent once
+    self.assertEqual(self.send({'a': ['qaboard.yaml'], 'b': ['qaboard.yaml']})["sent"], 0)
     puts = self.server.puts()
     self.assertLess(puts.index('qaboard.yaml'), puts.index('sub/manifests/__qaboard.yaml.json'))
     self.assertEqual(self.server.files['build/tool'], b'\x7fELF')
@@ -174,8 +182,25 @@ class TestSend(ArtifactsTestCase):
   def test_refusals_say_why(self):
     self.write('a', b'a')
     with mock.patch.object(commit_artifacts, 'sha256_of', return_value='0' * 64):
-      with self.assertRaisesRegex(ArtifactsError, 'QA-Board refused a'):
+      # the server's own words, not the request
+      with self.assertRaisesRegex(ArtifactsError, r'^QA-Board refused a: digest$'):
         self.send({'g': ['a']})
+
+  def test_errors_for_people(self):
+    from qaboard.results import ResultsError
+    explain = commit_artifacts.explain
+    self.assertIn("larger than QA-Board accepts", explain(ResultsError("<html>413</html>", status=413), "http://qa", "build/tool", 3 * 1024**2))
+    self.assertEqual(explain(ResultsError("<html>502</html>", status=502), "http://qa"), "QA-Board at http://qa answered 502, not as its API does: check QABOARD_URL.")
+    self.assertEqual(explain(ResultsError("...", status=400, body={"error": "Nope."}), "http://qa"), "Nope.")
+    down = ResultsError("Could not reach http://qa: HTTPConnectionPool(host='qa', port=80): Max retries exceeded (Caused by NewConnectionError(\"...: [Errno 111] Connection refused\"))")
+    self.assertEqual(explain(down, "http://qa"), "Could not reach QA-Board at http://qa (connection refused): check QABOARD_URL, and that the server runs.")
+
+  def test_servers_that_dont_take_artifacts(self):
+    # older servers answer GET /commit/<id>/artifacts with the commit's results, or 404 without a reason
+    for answer in ({"id": 1, "batches": {}}, ResultsError_404()):
+      with mock.patch.object(commit_artifacts, '_request', side_effect=[answer] if isinstance(answer, Exception) else None, return_value=answer):
+        with self.assertRaises(ServerTooOld):
+          listing(self.server.url, PROJECT, COMMIT)
 
 
 class TestFetch(ArtifactsTestCase):

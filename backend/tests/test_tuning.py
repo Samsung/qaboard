@@ -110,6 +110,7 @@ def make_commit(tmp_path, config, batches=None):
     status = {"ok": True, "problems": []}
     return SimpleNamespace(
         hexsha="abcdef",
+        uploaded_artifacts_dir=None,
         deleted=False,
         data={"qatools_config": config},
         project=SimpleNamespace(id="repo/sub", id_relative="sub", id_git="repo", data={}),
@@ -224,7 +225,7 @@ def test_commit_database_relative_to_the_artifacts():
 def test_batch_script_runs_as_the_user(tmp_path):
     from pathlib import Path
     from backend.api.tuning import _generate_batch_script
-    commit = SimpleNamespace(hexsha="94d909ca8934d5f214bd2280ff9ec7a4093f6ea2", outputs_dir=Path("/mnt/qaboard/outputs/qaboard/x"))
+    commit = SimpleNamespace(hexsha="94d909ca8934d5f214bd2280ff9ec7a4093f6ea2", uploaded_artifacts_dir=None, outputs_dir=Path("/mnt/qaboard/outputs/qaboard/x"))
     script = _generate_batch_script(commit, "arjun", tmp_path, "id", "qa batch ci", {})
     assert "export QA_USER=arjun;" in script
     assert script.index("export QA_USER") < script.index("qa batch ci")
@@ -259,6 +260,7 @@ def batches_setup(tmp_path, monkeypatch):
     project = SimpleNamespace(id="group/repo", id_relative="", data={"qatools_config": config})
     commit = SimpleNamespace(
         hexsha="94d909ca8934d5f214bd2280ff9ec7a4093f6ea2",
+        uploaded_artifacts_dir=None,
         project=project,
         data={"qatools_config": config},
         repo_artifacts_dir=artifacts,

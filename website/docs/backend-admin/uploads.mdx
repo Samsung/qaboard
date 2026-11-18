@@ -111,6 +111,8 @@ Whoever can send files can put any file on your server, which serves it to every
 - **Batches started from the web app** for these projects get a token of the person who started them, limited to the
   project, to reading and sending results, and expiring a day after the runs stop. On Kubernetes it is in the driver
   pod's environment, so whoever can read the namespace's ConfigMaps can use it meanwhile: one namespace per team.
+  These batches download the artifacts from QA-Board, through the proxy: the server's own `qa` reaches it at
+  `QABOARD_HOST`, set to the proxy in *docker-compose.yml*.
 - **Use HTTPS**: tokens and files travel in the requests.
 
 ## Limits and disk space {#limits}

@@ -12,8 +12,6 @@ files and the binaries the CI built.
   /api/v1/commit/<commit>/artifacts?project=<project> lists the files with their SHA-256, and the hash of the whole
   that clients cache them by; the files are downloaded from the storage's URL (/s/..., with its access checks).
 """
-import hashlib
-import json
 import os
 import re
 from pathlib import Path
@@ -28,11 +26,10 @@ from ..models import CiCommit
 from ..artifacts import UPLOADED_ARTIFACTS, manifests, read_manifest
 from .. import locations, uploads
 from qaboard.api import dir_to_url
+from qaboard.commit_artifacts import bundle_hash, sha256_of
 
 
 FULL_COMMIT_ID = re.compile(r'[0-9a-f]{40}')
-# Hashing a file the manifest doesn't give the SHA-256 of (e.g. restored from the source code by the server)
-HASH_CHUNK = 1024 * 1024
 
 
 def find_commit(project_id, hexsha):
@@ -41,17 +38,17 @@ def find_commit(project_id, hexsha):
 
 def uploaded_files(ci_commit) -> dict:
   """
-  {path in the repository: {"sha256", "size", "executable"}} for the files the commit's manifests list, that exist. Paths are
-  checked like the deletion checks them: never out of the folder.
+  {path in the repository: {"sha256", "size", "executable"}} for the files the commit's manifests list, that exist.
+  Paths are checked like the deletion checks them: never out of the folder.
   """
   root = ci_commit.repo_artifacts_dir
-  artifacts_dir = ci_commit.artifacts_dir
   files = {}
-  for manifest in manifests(artifacts_dir):
+  for manifest in manifests(ci_commit.artifacts_dir):
     try:
       listed = read_manifest(manifest)
     except Exception:
       continue
+    manifest_mtime = manifest.stat().st_mtime_ns
     # the manifest itself too (hashed here: it doesn't list itself), so that the copy is the folder the server has
     listed = {**listed, manifest.relative_to(root).as_posix(): None}
     for path, info in listed.items():
@@ -61,30 +58,17 @@ def uploaded_files(ci_commit) -> dict:
       file = root / relative
       if not file.is_file() or file.is_symlink():
         continue
-      size = file.stat().st_size
+      stat = file.stat()
       info = info if isinstance(info, dict) else {}
       sha256 = info.get('sha256')
-      # what `qa save-artifacts` sent says it, if the file is still the one it listed
-      if not (isinstance(sha256, str) and re.fullmatch(r'[0-9a-f]{64}', sha256) and info.get('st_size') in (None, size)):
-        sha256 = file_sha256(file)
+      # The SHA-256 `qa save-artifacts` listed, unless the file changed since the manifest was written: sent again
+      # with another group, or by a save that failed before its manifest. Else, or restored by the server, we hash it.
+      if not (isinstance(sha256, str) and re.fullmatch(r'[0-9a-f]{64}', sha256) and stat.st_mtime_ns <= manifest_mtime):
+        sha256 = sha256_of(file)
       # the mode the client said, else the file's here (artifacts the server restored from the source code)
-      executable = info['executable'] if isinstance(info.get('executable'), bool) else bool(file.stat().st_mode & 0o111)
-      files[Path(relative).as_posix()] = {"sha256": sha256, "size": size, "executable": executable}
+      executable = info['executable'] if isinstance(info.get('executable'), bool) else bool(stat.st_mode & 0o111)
+      files[Path(relative).as_posix()] = {"sha256": sha256, "size": stat.st_size, "executable": executable}
   return dict(sorted(files.items()))
-
-
-def file_sha256(file: Path) -> str:
-  digest = hashlib.sha256()
-  with file.open('rb') as f:
-    for chunk in iter(lambda: f.read(HASH_CHUNK), b''):
-      digest.update(chunk)
-  return digest.hexdigest()
-
-
-def bundle_hash(files: dict) -> str:
-  """What clients cache a commit's artifacts by: the same files with the same contents have the same hash"""
-  canonical = json.dumps({path: [info["sha256"], bool(info.get("executable"))] for path, info in sorted(files.items())}, separators=(',', ':'))
-  return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 @app.route("/api/v1/commit/<commit_id>/artifacts/files/<path:path>", methods=['PUT'])

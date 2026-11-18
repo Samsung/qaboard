@@ -83,7 +83,7 @@ def setup(tmp_path, monkeypatch):
   artifacts_dir.mkdir()
   (artifacts_dir / ".envrc").write_text(f'export PATH="{bin_dir}:$PATH"\n')
   outputs_dir = tmp_path / "outputs" / "ci" / "project" / "abcdef"
-  ci_commit = SimpleNamespace(hexsha="abcdef", outputs_dir=outputs_dir, artifacts_dir=artifacts_dir, ensure_artifacts=MagicMock(return_value=None))
+  ci_commit = SimpleNamespace(hexsha="abcdef", uploaded_artifacts_dir=None, outputs_dir=outputs_dir, artifacts_dir=artifacts_dir, ensure_artifacts=MagicMock(return_value=None))
   batch = SimpleNamespace(label="my label", batch_dir=outputs_dir / "output" / "my-label", data={"commands": {"x": {}}}, ci_commit=ci_commit)
   calls = tmp_path / "calls.txt"
 

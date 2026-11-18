@@ -55,7 +55,6 @@ Notes:
   Stopping a batch deletes the Jobs with its command-id.
   They're annotated with qaboard.io/invocation, a nonce per create: a 409 AlreadyExists is ours only if it's the same.
 """
-import functools
 import os
 import re
 import sys
@@ -335,24 +334,19 @@ def env_script(env: Dict[str, str]) -> str:
   lines = [f'export {k}={shlex.quote(v)}' for k, v in sorted(env.items()) if re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', k)]
   return '\n'.join(lines) + '\n'
 
-def shell_path(path: str, base: Optional[str] = None) -> str:
-  """`path` quoted for sh, relative to the folder in the shell variable `base` if there is one"""
-  return f'"${base}"/{shlex.quote(path)}' if base else shlex.quote(path)
-
-def redirect_output(log_file: str, pending_file: str, base: Optional[str] = None) -> List[str]:
+def redirect_output(log_file: str, pending_file: str) -> List[str]:
   """
   sh lines that send the rest of the script's output to `log_file`, or exit 1 saying why on stderr (in the pod's logs).
   We check first: a failed `exec >` exits sh (POSIX), but not bash, which would go on with the output lost.
   Then `pending_file`, what `qa batch` wrote while the pod was pending, is obsolete.
-  `base`: the paths are relative to the folder in this shell variable.
   """
-  quoted = shell_path(log_file, base)
+  quoted = shlex.quote(log_file)
   fail = f'{{ echo "[qaboard] ERROR: can not write" {quoted}" as uid $(id -u), gid $(id -g): is it under runners.kubernetes.mounts, and writable by this user?" >&2; exit 1; }}'
   return [
-    f'mkdir -p {shell_path(os.path.dirname(log_file) or ".", base)} 2>/dev/null || {fail}',
+    f'mkdir -p {shlex.quote(os.path.dirname(log_file) or ".")} 2>/dev/null || {fail}',
     f'( : > {quoted} ) 2>/dev/null || {fail}',
     f'exec > {quoted} 2>&1',
-    f'rm -f {shell_path(pending_file, base)} 2>/dev/null',
+    f'rm -f {shlex.quote(pending_file)} 2>/dev/null',
   ]
 
 # sh: is `timeout` GNU coreutils' (`timeout (GNU coreutils) 9.4`, or uutils'), not e.g. BusyBox's?
@@ -381,14 +375,13 @@ def run_script(runs: List[Dict[str, Any]]) -> str:
     lines.append(f'echo "[qaboard] run {index}/{len(runs)}:" {name}')
     lines.append('(')
     artifacts = run.get('artifacts')
-    base = 'artifacts' if artifacts else None
     if artifacts:
+      # the paths are relative to the copy
       fetch = f"qa fetch-artifacts --project {shlex.quote(artifacts['project'])} --commit {shlex.quote(artifacts['commit'])} --root"
-      lines.append(f'  artifacts="$({fetch})" || {{ echo "[qaboard] ERROR: could not fetch the commit\'s artifacts from QA-Board: does the image have qa, and can it reach the server?" >&2; exit 1; }}')
+      lines.append(f'  artifacts="$({fetch})" && cd "$artifacts" || {{ echo "[qaboard] ERROR: could not fetch the commit\'s artifacts from QA-Board: does the image have qa, and can it reach the server?" >&2; exit 1; }}')
     if output_dir:
-      lines.extend(f'  {line}' for line in redirect_output(os.path.join(output_dir, 'log.k8s.txt'), os.path.join(output_dir, pending_log_name), base))
-    cwd = shell_path(run["cwd"], base)
-    lines.append(f'  cd {cwd} || {{ echo "[qaboard] ERROR: can not cd to" {cwd}": is it under runners.kubernetes.mounts, or in the image (workdir)?" >&2; exit 1; }}')
+      lines.extend(f'  {line}' for line in redirect_output(os.path.join(output_dir, 'log.k8s.txt'), os.path.join(output_dir, pending_log_name)))
+    lines.append(f'  cd {shlex.quote(run["cwd"])} || {{ echo "[qaboard] ERROR: can not cd to" {shlex.quote(run["cwd"])}": is it under runners.kubernetes.mounts, or in the image (workdir)?" >&2; exit 1; }}')
     if timeout > 0:
       # coreutils' timeout signals the process group (qa run and what it started), and kills it if it's still there
       # 60s later. Not BusyBox's: it may accept -k, but signals only its child, and its exit code isn't always 124
@@ -413,7 +406,6 @@ def in_pods(path: Union[str, Path], options: KubernetesOptions) -> str:
       return options.workdir.rstrip('/') + path[len(root.rstrip('/')):] if path != root else options.workdir
   return path
 
-@functools.lru_cache(maxsize=16)
 def fetched_artifacts(cwd: str) -> Optional[Dict[str, Any]]:
   """Where a commit's artifacts fetched from QA-Board are, if `cwd` is in them (qaboard/commit_artifacts.py)"""
   from ..commit_artifacts import read_marker

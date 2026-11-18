@@ -16,7 +16,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from backend import config, uploads
-from backend.artifacts import UPLOADED_ARTIFACTS, cd_lines, commit_cd_lines
+from backend.artifacts import UPLOADED_ARTIFACTS, EXIT_TRAP, cd_lines, runner_unsupported
 from .test_ci_commit import ci_commit_model  # noqa: F401 (a fixture)
 
 COMMIT = "0123456789abcdef0123456789abcdef01234567"
@@ -147,6 +147,16 @@ def test_listed_files_are_hashed_when_the_manifest_doesnt_say(api, dummy_app, up
   assert set(files) == {"qaboard.yaml", "sub/manifests/__qaboard.yaml.json"}
 
 
+
+def test_files_sent_again_without_their_manifest_are_hashed_again(api, dummy_app, commit):
+  # a save that failed before its manifest, or a file of another group sent again: the listing must not be stale,
+  # else every fetch fails on the SHA-256
+  send_artifacts(api, dummy_app, {"build/tool": b"v1"})
+  put(api, dummy_app, "build/tool", b"v2")
+  later = (commit.artifacts_dir / "manifests/__qaboard.yaml.json").stat().st_mtime + 1
+  os.utime(commit.repo_artifacts_dir / "build/tool", (later, later))
+  assert listing(api, dummy_app)[0]["files"]["build/tool"]["sha256"] == hashlib.sha256(b"v2").hexdigest()
+
 def test_put_refusals(api, dummy_app, monkeypatch):
   assert put(api, dummy_app, "a.txt", sha256="")[0]["reason"] == "digest_required"
   body, status = put(api, dummy_app, "a.txt", sha256="0" * 64)
@@ -201,8 +211,16 @@ def test_the_database_cant_send_artifacts_elsewhere(api, dummy_app, upload_root,
 
 
 # --- running from them -------------------------------------------------------------------------------------------
+def a_commit(uploaded=True, artifacts_dir="/storage/artifacts/x y", id_relative="sub"):
+  return SimpleNamespace(
+    artifacts_dir=Path(artifacts_dir), project_id="group/repo/sub", hexsha=COMMIT, project=SimpleNamespace(id_relative=id_relative),
+    uploaded_artifacts_dir=Path("/uploads/group/repo/sub/-/01/23456789abcdef/artifacts") if uploaded else None,
+    outputs_dir=Path("/storage/outputs/group/repo/01/23456789abcdef/sub"),
+  )
+
+
 def run_lines(lines, cwd, path_dirs=()):
-  script = "\n".join(["set -e", *lines, "pwd", "echo envrc=${FROM_ENVRC:-}"])
+  script = "\n".join([EXIT_TRAP, "set -e", *lines, "pwd", "echo envrc=${FROM_ENVRC:-}", "echo tmp=$QABOARD_BATCH_TMP"])
   env = {**os.environ, "PATH": os.pathsep.join([*map(str, path_dirs), os.environ["PATH"]])}
   result = subprocess.run(["bash", "-c", script], cwd=cwd, env=env, capture_output=True, text=True)
   return result.returncode, result.stdout, result.stderr
@@ -210,33 +228,29 @@ def run_lines(lines, cwd, path_dirs=()):
 
 @pytest.fixture
 def fake_qa(tmp_path):
-  """A `qa` whose fetch-artifacts prints a fetched copy of group/repo/sub's artifacts"""
-  fetched = tmp_path / "cache" / "abc"
-  (fetched / "sub").mkdir(parents=True)
-  (fetched / ".envrc").write_text("export FROM_ENVRC=root\n")
-  (fetched / "sub/.envrc").write_text("export FROM_ENVRC=$FROM_ENVRC,sub\n")
+  """A `qa` whose fetch-artifacts makes a copy of group/repo/sub's artifacts in its cache, and prints its folder"""
   bin_dir = tmp_path / "bin"
   bin_dir.mkdir()
   qa = bin_dir / "qa"
-  qa.write_text(f'#!/bin/sh\necho "$@" > {tmp_path}/qa-args\necho {fetched}/sub\n')
+  qa.write_text(f"""#!/bin/sh
+echo "$@" > {tmp_path}/qa-args
+mkdir -p "$QABOARD_ARTIFACTS_CACHE/abc/sub"
+echo 'export FROM_ENVRC=root' > "$QABOARD_ARTIFACTS_CACHE/abc/.envrc"
+echo 'export FROM_ENVRC=$FROM_ENVRC,sub' > "$QABOARD_ARTIFACTS_CACHE/abc/sub/.envrc"
+echo "$QABOARD_ARTIFACTS_CACHE/abc/sub"
+""")
   qa.chmod(0o755)
-  return SimpleNamespace(bin_dir=bin_dir, fetched=fetched, args=tmp_path / "qa-args")
+  return SimpleNamespace(bin_dir=bin_dir, args=tmp_path / "qa-args")
 
 
-def test_scripts_fetch_uploaded_artifacts_where_they_arent_mounted(tmp_path, fake_qa):
-  lines = cd_lines(tmp_path / "not mounted", ("group/repo/sub", COMMIT, "sub"), source_envrc=True)
-  code, out, err = run_lines(lines, tmp_path, [fake_qa.bin_dir])
+def test_batches_run_in_their_own_copy_of_uploaded_artifacts(tmp_path, fake_qa):
+  # wherever they run, the server's machine or a pod: their runs' files go there, and it is removed when they end
+  code, out, err = run_lines(cd_lines(a_commit(), source_envrc=True), tmp_path, [fake_qa.bin_dir])
   assert code == 0, err
-  assert f"{fake_qa.fetched}/sub\nenvrc=root,sub" in out
+  copy = Path(out.split("tmp=")[1].split()[0])
+  assert f"{copy}/abc/sub\nenvrc=root,sub" in out
   assert fake_qa.args.read_text().split() == ["fetch-artifacts", "--project", "group/repo/sub", "--commit", COMMIT]
-
-
-def test_scripts_use_the_folder_where_it_is_mounted(tmp_path, fake_qa):
-  mounted = tmp_path / "mounted artifacts"
-  mounted.mkdir()
-  code, out, err = run_lines(cd_lines(mounted, ("group/repo/sub", COMMIT, "sub")), tmp_path, [fake_qa.bin_dir])
-  assert code == 0 and f"{mounted}\n" in out
-  assert not fake_qa.args.exists()
+  assert not copy.exists() and "qa batch exited with code 0" in out
 
 
 def test_scripts_stop_when_the_artifacts_cant_be_fetched(tmp_path):
@@ -244,16 +258,23 @@ def test_scripts_stop_when_the_artifacts_cant_be_fetched(tmp_path):
   bin_dir.mkdir()
   (bin_dir / "qa").write_text("#!/bin/sh\necho 'ERROR: no artifacts' >&2\nexit 1\n")
   (bin_dir / "qa").chmod(0o755)
-  code, out, err = run_lines(cd_lines(tmp_path / "missing", ("group/repo", COMMIT, "")), tmp_path, [bin_dir])
-  assert code == 1 and "could not fetch the commit's artifacts" in err
+  code, out, err = run_lines(cd_lines(a_commit()), tmp_path, [bin_dir])
+  assert code == 1 and "could not fetch the commit's artifacts" in err and "exited with code 1" in out
 
 
-def test_artifacts_in_a_shared_storage_dont_change(tmp_path):
-  assert cd_lines(Path("/storage/artifacts/x y")) == ["mkdir -p '/storage/artifacts/x y'", "cd '/storage/artifacts/x y'"]
-  ci_commit = SimpleNamespace(artifacts_dir=Path("/storage/a"), project_id="p", hexsha=COMMIT, project=SimpleNamespace(id_relative=""))
-  assert commit_cd_lines(ci_commit) == ["mkdir -p /storage/a", "cd /storage/a"]
-  ci_commit.uploaded_artifacts_dir = Path("/uploads/p/-/01/23/artifacts")
-  assert "qa fetch-artifacts --project p" in "\n".join(commit_cd_lines(ci_commit))
+def test_artifacts_in_a_shared_storage_dont_change():
+  assert cd_lines(a_commit(uploaded=False)) == ["mkdir -p '/storage/artifacts/x y'", "cd '/storage/artifacts/x y'"]
+
+
+def test_runs_from_uploaded_artifacts_save_their_files_in_the_copy():
+  # QA_OUTPUTS_COMMIT would send the runs' files to a server folder the pods don't have
+  from backend.api.tuning import _generate_batch_script
+  from backend.redo import redo_script
+  for commit, expected in ((a_commit(uploaded=False), True), (a_commit(), False)):
+    for script in (_generate_batch_script(commit, "alice", commit.artifacts_dir, "id", "qa batch ci", {}), redo_script(commit, "alice", "id", "qa batch ci")):
+      assert ("QA_OUTPUTS_COMMIT" in script) is expected
+      assert ("qa fetch-artifacts" in script) is not expected
+      assert script.index("cd ") < script.index("qa batch ci")
 
 
 def test_deleting_the_commits_artifacts_deletes_what_was_sent(api, dummy_app, upload_root, commit):
@@ -273,41 +294,28 @@ def test_deleting_the_commits_artifacts_deletes_what_was_sent(api, dummy_app, up
 
 
 
-# --- the batches QA-Board starts from them (backend/batch_tokens.py) -----------------------------------------------
-def test_runs_from_uploaded_artifacts_need_a_runner_that_can_fetch_them(api, dummy_app, commit):
-  from backend import batch_tokens
-  assert not batch_tokens.needed(commit) and batch_tokens.unsupported(commit, "lsf") is None
-  send_artifacts(api, dummy_app, {"qaboard.yaml": b"a", "sub/qaboard.yaml": b"b"})
-  assert batch_tokens.needed(commit)
-  assert batch_tokens.unsupported(commit, "local") is None and batch_tokens.unsupported(commit, "kubernetes") is None
-  assert "(lsf)" in batch_tokens.unsupported(commit, "lsf") and "qa batch" in batch_tokens.unsupported(commit, "bridge")
+# --- the batches QA-Board starts from them --------------------------------------------------------------------------
+def test_runs_from_uploaded_artifacts_need_a_runner_that_fetches_them():
+  assert runner_unsupported(a_commit(uploaded=False), "lsf") is None
+  assert runner_unsupported(a_commit(), "local") is None and runner_unsupported(a_commit(), "kubernetes") is None
+  assert "lsf runner" in runner_unsupported(a_commit(), "lsf") and "qa batch" in runner_unsupported(a_commit(), "bridge")
 
 
-def test_batch_tokens(api, dummy_app, commit, monkeypatch):
-  import flask
-  from backend import batch_tokens, tokens
+def test_batch_tokens(monkeypatch):
+  from backend import tokens
   minted = []
   monkeypatch.setattr(tokens, "mint", lambda user, **kwargs: (minted.append((user, kwargs)), (None, "qab_bat_secret"))[1])
   monkeypatch.setitem(sys.modules["backend"].__dict__, "db_session", MagicMock())
-  with dummy_app.test_request_context():
-    # projects with a shared storage: nothing changes
-    assert batch_tokens.mint(commit, "c0ffee00-1") is None
-    send_artifacts(api, dummy_app, {"qaboard.yaml": b"a"})
-    with pytest.raises(ValueError, match="Sign in"):
-      batch_tokens.mint(commit, "c0ffee00-1")
-    alice = SimpleNamespace(id=1, user_name="alice")
-    flask.g.actor = SimpleNamespace(user=alice)
-    assert batch_tokens.mint(commit, "c0ffee00-1") == "qab_bat_secret"
+  alice = SimpleNamespace(id=1, user_name="alice")
+  # projects with a shared storage: nothing changes
+  assert tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(uploaded=False), "c0ffee00-1") is None
+  with pytest.raises(ValueError, match="Sign in"):
+    tokens.mint_for_batch(None, a_commit(), "c0ffee00-1")
+  assert tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(), "c0ffee00-1") == "qab_bat_secret"
   user, options = minted[0]
   assert user is alice and options["kind"] == "batch" and options["projects"] == ["group/repo/sub"]
   assert options["scopes"] == ["read", "ingest"] and options["idle_expiry_days"] == 1
-
-
-def test_batch_tokens_look_like_tokens():
-  from backend import tokens
-  secret = tokens.generate(tokens.BATCH_PREFIX)
-  assert secret.startswith("qab_bat_") and tokens.is_well_formed(secret)
-  assert "batch" in tokens.TEMPORARY_KINDS
+  assert tokens.is_well_formed(tokens.generate(tokens.BATCH_PREFIX))
 
 
 def test_the_batch_token_is_in_the_environment_of_qa_batch():

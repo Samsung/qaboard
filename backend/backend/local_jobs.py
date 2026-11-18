@@ -55,7 +55,7 @@ def qa_environment(submission_id: str, celery: bool = False, environ: Optional[D
   """
   The environment of the `qa batch` the server starts: the server's, minus its secrets. It keeps what `qa` needs: PATH,
   HOME, LANG, QABOARD_HOST/QABOARD_PROTOCOL, proxies, CA bundles, QA_RUNNERS_LSF_BRIDGE... and with `celery`, the broker.
-  `token`: the batch's own (backend/batch_tokens.py), for runs that send their results over HTTP.
+  `token`: the batch's own (tokens.mint_for_batch), for runs that send their results over HTTP.
   """
   environ = os.environ if environ is None else environ
   env = {

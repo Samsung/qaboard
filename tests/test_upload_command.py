@@ -388,7 +388,8 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
     self.assertEqual(server.commits[0]['git_commit_sha'], self.commit)
     self.assertEqual(server.files['qaboard.yaml'], (self.project / 'qaboard.yaml').read_bytes())
     self.assertIn('qaboard.yaml', json.loads(server.files['manifests/__qaboard.yaml.json']))
-    self.assertIn('files sent', result.stdout)
+    self.assertIn('Sent 1 file (', result.stdout)
+    self.assertIn(f'/kitefin/detector/commit/{self.commit}', result.stdout)
     # check-bit-accuracy compares the reference's manifests, optimize reads metrics from the API
     result = self.qa_in_project('check-bit-accuracy', '--batch', 'texts')
     self.assertNotIn('storage shared', result.stderr)

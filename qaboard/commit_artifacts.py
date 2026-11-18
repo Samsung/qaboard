@@ -20,12 +20,13 @@ Server side: backend/backend/api/commit_artifacts.py. Design: docs/design/ingest
 import hashlib
 import json
 import os
+import re
 import shutil
 import tempfile
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import quote
 
@@ -89,33 +90,66 @@ def _retried(request: Callable[[], Any]) -> Any:
       time.sleep(delay)
 
 
+class ServerTooOld(ArtifactsError):
+  """The server doesn't take artifacts over HTTP: it is older than this `qa`"""
+
+
+DOCS = "https://samsung.github.io/qaboard/docs"
+
+
+def explain(error: ResultsError, server: str, what: str = '', size: Optional[int] = None) -> str:
+  """What went wrong with a request about artifacts, for people: the server's own words when it said why"""
+  body = error.body if isinstance(error.body, dict) else {}
+  if error.status is None:
+    # the network: the cause, without the HTTP library's internals
+    cause = re.search(r"\[Errno -?\d+\] ([^\"')]+)|(Read timed out|timed out)", str(error))
+    reason = f" ({(cause.group(1) or cause.group(2)).strip().lower()})" if cause else ""
+    return f"Could not reach QA-Board at {server}{reason}: check QABOARD_URL, and that the server runs."
+  if error.status == 413:
+    megabytes = f" ({size / 1024**2:.0f} MB)" if size else ""
+    return (f"{what}{megabytes} is larger than QA-Board accepts. Leave it out of `artifacts` in qaboard.yaml, or ask "
+            f"its administrators to raise the limit: {DOCS}/backend-admin/uploads#limits")
+  if body.get('error'):
+    return str(body['error'])
+  if error.status is not None and not error.reason and error.status not in (401, 403):
+    # e.g. a proxy's HTML page
+    return f"QA-Board at {server} answered {error.status}, not as its API does: check QABOARD_URL."
+  return str(error)
+
+
 def listing(server: str, project: str, commit: str, token: Optional[str] = None) -> Optional[Dict[str, Any]]:
-  """What the server has of the commit's artifacts ({"files", "hash", "url", "subproject"}), None if it has none"""
+  """
+  What the server has of the commit's artifacts ({"files", "hash", "url", "subproject"}), None if it has none.
+  Raises ServerTooOld, or ArtifactsError when the server can't be asked.
+  """
   try:
-    return _retried(lambda: _request(server, _commit_path(commit), params={'project': project}, token=token, timeout=TIMEOUT))
+    answer = _retried(lambda: _request(server, _commit_path(commit), params={'project': project}, token=token, timeout=TIMEOUT))
   except ResultsError as e:
-    if e.status == 404 and (e.body or {}).get('reason') in ('not_uploaded', 'deleted'):
+    reason = (e.body or {}).get('reason') if isinstance(e.body, dict) else None
+    if e.status == 404 and reason in ('not_uploaded', 'deleted', 'unknown_commit'):
       return None
-    raise
+    if e.status == 404 and not reason and not e.reason and isinstance(e.body, dict):
+      # older servers answer with the commit's results (GET /commit/<id>), here a commit they don't know
+      raise ServerTooOld("This QA-Board server doesn't take artifacts over HTTP yet: upgrade it.") from e
+    raise ArtifactsError(explain(e, server)) from e
+  if 'files' not in answer:
+    raise ServerTooOld("This QA-Board server doesn't take artifacts over HTTP yet: upgrade it.")
+  return answer
 
 
 # --- sending -----------------------------------------------------------------------------------------------------
-def send(server: str, project: str, commit: str, groups: Dict[str, Tuple[Path, List[str]]], token: Optional[str] = None,
-         echo: Callable[[str], None] = print) -> Dict[str, int]:
+def send(server: str, project: str, commit: str, groups: Dict[str, Tuple[Path, List[str]]], known: Optional[Dict[str, Any]],
+         token: Optional[str] = None) -> Dict[str, int]:
   """
   Sends a commit's artifacts. `groups`: {group: (manifest path in the repository, [file paths in the repository])},
-  paths relative to the current directory, the repository's root as `qa save-artifacts` sees it.
-  For each group, its files then its manifest ({path: {"sha256", "st_size"}}), so that a manifest only lists files
-  the server has. The commit must exist on the server. Returns {"sent", "skipped", "bytes"} (files, not manifests). Raises ArtifactsError.
+  paths relative to the current directory, the repository's root as `qa save-artifacts` sees it. `known`: what the
+  server has (`listing`). Each file the server doesn't have, once, then the groups' manifests
+  ({path: {"sha256", "st_size", "executable"}}), so that manifests only list files the server has.
+  The commit must exist on the server. Returns {"sent", "skipped", "bytes"} (files, not manifests). Raises ArtifactsError.
   """
-  try:
-    known = listing(server, project, commit, token=token)
-  except ResultsError as e:
-    raise ArtifactsError(f"Could not ask QA-Board which artifacts it has: {e}") from e
   has = {path: info['sha256'] for path, info in ((known or {}).get('files') or {}).items()}
-  summary = {"sent": 0, "skipped": 0, "bytes": 0}
 
-  def put(path: str, content: Callable[[], Any], sha256: str, size: int, count: bool = True) -> None:
+  def put(path: str, content: Callable[[], Any], sha256: str, size: int) -> None:
     def request():
       body = content()
       try:
@@ -127,33 +161,29 @@ def send(server: str, project: str, commit: str, groups: Dict[str, Tuple[Path, L
     try:
       _retried(request)
     except ResultsError as e:
-      raise ArtifactsError(f"QA-Board refused {path}: {e}") from e
-    if count:
-      summary["sent"] += 1
-      summary["bytes"] += size
-    has[path] = sha256
+      raise ArtifactsError(f"QA-Board refused {path}: {explain(e, server, path, size)}") from e
 
-  for group, (manifest_path, paths) in groups.items():
-    manifest: Dict[str, Dict[str, Any]] = {}
+  # the server doesn't keep modes: manifests say which files are programs, so that fetched copies run
+  files: Dict[str, Dict[str, Any]] = {}
+  for _, paths in groups.values():
     for path in paths:
-      file = Path(path)
-      # the server doesn't keep modes: the manifest says which files are programs, so that fetched copies run
-      manifest[PurePosixPath(file.as_posix()).as_posix()] = {"sha256": sha256_of(file), "st_size": file.stat().st_size, "executable": is_executable(file)}
-    missing = [(path, info) for path, info in manifest.items() if has.get(path) != info['sha256']]
-    summary["skipped"] += len(manifest) - len(missing)
-    if missing:
-      with ThreadPoolExecutor(max_workers=min(WORKERS, len(missing)), thread_name_prefix='qaboard-artifacts') as pool:
-        list(pool.map(lambda item: put(item[0], lambda: open(item[0], 'rb'), item[1]['sha256'], item[1]['st_size']), missing))
+      if path not in files:
+        files[path] = {"sha256": sha256_of(Path(path)), "st_size": Path(path).stat().st_size, "executable": is_executable(Path(path))}
+  missing = [(path, info) for path, info in files.items() if has.get(path) != info['sha256']]
+  if missing:
+    with ThreadPoolExecutor(max_workers=min(WORKERS, len(missing)), thread_name_prefix='qaboard-artifacts') as pool:
+      list(pool.map(lambda item: put(item[0], lambda: open(item[0], 'rb'), item[1]['sha256'], item[1]['st_size']), missing))
+  for manifest_path, paths in groups.values():
     # what earlier calls listed stays listed, like `qa save-artifacts` in a shared storage: manifests only grow
-    previous = _previous_manifest(server, project, commit, known, manifest_path, token)
-    content = json.dumps({**previous, **manifest}, indent=1, sort_keys=True).encode()
-    if has.get(manifest_path.as_posix()) != hashlib.sha256(content).hexdigest():
-      put(manifest_path.as_posix(), lambda: content, hashlib.sha256(content).hexdigest(), len(content), count=False)
-    echo(f"{group}: {len(missing)} files sent" + (f", {len(manifest) - len(missing)} already there" if len(manifest) > len(missing) else ""))
-  return summary
+    previous = _previous_manifest(server, known, manifest_path, token)
+    content = json.dumps({**previous, **{path: files[path] for path in paths}}, indent=1, sort_keys=True).encode()
+    sha256 = hashlib.sha256(content).hexdigest()
+    if has.get(manifest_path.as_posix()) != sha256:
+      put(manifest_path.as_posix(), lambda: content, sha256, len(content))
+  return {"sent": len(missing), "skipped": len(files) - len(missing), "bytes": sum(info['st_size'] for _, info in missing)}
 
 
-def _previous_manifest(server: str, project: str, commit: str, known: Optional[Dict[str, Any]], manifest_path: Path, token: Optional[str]) -> Dict[str, Any]:
+def _previous_manifest(server: str, known: Optional[Dict[str, Any]], manifest_path: Path, token: Optional[str]) -> Dict[str, Any]:
   if not known or manifest_path.as_posix() not in (known.get('files') or {}):
     return {}
   try:
@@ -171,10 +201,7 @@ def fetch(server: str, project: str, commit: str, token: Optional[str] = None, c
   The folder of a commit's artifacts, fetched into the cache if they aren't there yet: the repository's root.
   The project's folder is under it, at the `subproject` in its marker. Raises ArtifactsError.
   """
-  try:
-    known = listing(server, project, commit, token=token)
-  except ResultsError as e:
-    raise ArtifactsError(f"Could not get the artifacts of {commit[:8]} from QA-Board: {e}") from e
+  known = listing(server, project, commit, token=token)
   if not known:
     raise ArtifactsError(f"QA-Board has no artifacts for the commit {commit[:8]} of {project}: run `qa save-artifacts` on it (the CI usually does).")
   files: Dict[str, Dict[str, Any]] = known['files']
@@ -279,6 +306,12 @@ def fetch_artifacts(project, commit, repository_root):
   For pods and machines without the storage the server keeps them in: cd "$(qa fetch-artifacts --project P --commit C)"
   """
   from .api import qaboard_url
+  if not re.fullmatch(r'[0-9a-f]{40}', commit):
+    click.secho("ERROR: --commit takes the commit's full id, 40 characters: `git rev-parse HEAD`.", fg='red', err=True)
+    sys.exit(1)
+  if not project.strip('/ '):
+    click.secho("ERROR: --project takes the project's id on QA-Board, like group/repo.", fg='red', err=True)
+    sys.exit(1)
   try:
     root = fetch(qaboard_url, project, commit, echo=lambda message: click.echo(message, err=True))
   except (ArtifactsError, OSError) as e:
