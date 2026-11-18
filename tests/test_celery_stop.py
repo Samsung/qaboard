@@ -29,6 +29,10 @@ app.conf.update(
   broker_transport_options={transport_options!r},
   result_backend={result_backend!r},
   worker_prefetch_multiplier=1,
+  # The filesystem transport polls (RabbitMQ and Redis are evented): the prefork pool then blocks the worker's
+  # main loop when it gets a task while its process is busy, and it no longer reads control messages, like our revoke.
+  # Acknowledged late, the running task keeps the prefetch full: the worker doesn't take the next one meanwhile.
+  task_acks_late=True,
 )
 """
 
