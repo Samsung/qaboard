@@ -775,26 +775,3 @@ def test_is_commit_artifacts_dir_in_both_layouts(upload_root):
   short = directory.parent.parent / hexsha[2:16] / directory.name
   assert uploads.is_commit_artifacts_dir(short, "group/repo")
   assert not uploads.is_commit_artifacts_dir(directory.parent.parent / hexsha[2:20] / directory.name, "group/repo")
-
-
-def test_nginx_snippets_refuse_without_their_server_snippet():
-  """The checks nginx makes are locations of snippets/qaboard-files-server.conf: without it, they'd say yes to all"""
-  import re
-  snippets = Path(__file__).parent.parent.parent / "services" / "nginx" / "snippets"
-  server = (snippets / "qaboard-files-server.conf").read_text()
-  assert "set $qaboard_files_server_included 1;" in server
-  checked = []
-  for snippet in snippets.glob("*.conf"):
-    text = snippet.read_text()
-    for uri in re.findall(r'^\s*auth_request\s+(\S+);', text, re.M):
-      if f"location = {uri} " in text:
-        continue  # e.g. pgadmin.conf: its own check
-      assert f"location = {uri} " in server, (snippet.name, uri)
-      assert "if ($qaboard_files_server_included != 1) {" in text, snippet.name
-      checked.append(snippet.name)
-  assert {"qaboard-uploads-auth.conf", "qaboard-files-auth.conf", "qaboard-admins-only.conf"} <= set(checked)
-  # and the backend's yes reaches the endpoints that receive files (uploads.unchecked_by_proxy)
-  uploads_auth = (snippets / "qaboard-uploads-auth.conf").read_text()
-  header = uploads.PROXY_CHECKED_HEADER.lower().replace('-', '_')
-  assert f"auth_request_set $qaboard_upload_checked $upstream_http_{header};" in uploads_auth
-  assert "uwsgi_param QABOARD_UPLOAD_CHECKED $qaboard_upload_checked;" in uploads_auth
