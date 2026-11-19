@@ -25,12 +25,10 @@ from .auth import is_authorized_user, ingest_access, forbidden_project
 from ..models import CiCommit
 from ..artifacts import UPLOADED_ARTIFACTS, manifests, read_manifest
 from .. import locations, uploads
+from ..uploads import FULL_COMMIT_ID
 from qaboard.api import dir_to_url
 from qaboard.commit_artifacts import bundle_hash, sha256_of
 from qaboard.conventions import Reason
-
-
-FULL_COMMIT_ID = re.compile(r'[0-9a-f]{40}')
 
 
 def find_commit(project_id, hexsha):
@@ -79,6 +77,8 @@ def upload_commit_artifact(commit_id, path):
   The request's body is the file, `X-Content-SHA256` its SHA-256 (required). Sending a file again replaces it.
   The commit must exist (POST /api/v1/commit/ first). Always with a token that can send results to the project.
   """
+  if refused := uploads.unchecked_by_proxy(request.environ):
+    return jsonify({"error": str(refused), "reason": refused.reason}), refused.status
   project_id = request.args.get('project')
   if error := invalid_project(project_id):
     return error

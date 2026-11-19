@@ -66,6 +66,7 @@ class Reason:
   INVALID_RUN = 'invalid_run'                                  # the run's names can't be folders' names
   NOT_UPLOADED = 'not_uploaded'                                # the run (or commit's artifacts) is in a shared storage, not sent
   NOT_RUNNING = 'not_running'                                  # the run ended: its files and progress don't change anymore
+  PROXY_MISCONFIGURED = 'proxy_misconfigured'                  # nginx didn't check the token first: its configuration misses a snippet
   METRICS_EXIST = 'metrics_exist'                              # run.log_metrics() of metrics the run returned, without overwrite
   # --- one file ---
   INVALID_PATH = 'invalid_path'
@@ -90,7 +91,7 @@ class Reason:
 # Why the server refuses runs that send their files, and what to do about it (qa run, start_run(), qa upload)
 UPLOAD_REFUSALS = (Reason.UPLOADS_DISABLED, Reason.UPLOADS_UNSUPPORTED_PROJECT, Reason.INVALID_RUN)
 # Why the server takes no more file of a run: the uploader stops asking (qaboard/upload.py)
-RUN_FILES_REFUSALS = (Reason.UPLOADS_DISABLED, Reason.NOT_UPLOADED, Reason.NOT_RUNNING)
+RUN_FILES_REFUSALS = (Reason.UPLOADS_DISABLED, Reason.NOT_UPLOADED, Reason.NOT_RUNNING, Reason.PROXY_MISCONFIGURED)
 # Why the server has no artifacts of a commit to give (qaboard/commit_artifacts.py): none to fetch, not an error
 NO_ARTIFACTS = (Reason.NOT_UPLOADED, Reason.DELETED, Reason.UNKNOWN_COMMIT)
 UPLOAD_FIX = ("Set `storage` in qaboard.yaml (or QA_STORAGE) to a folder the server reads too, or ask its administrators to accept files (QABOARD_UPLOAD_ROOT). "

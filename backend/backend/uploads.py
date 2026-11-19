@@ -150,6 +150,34 @@ def folder_name(text, maxlength: int = 70) -> str:
   return f"{slug}-{make_hash(text)[:HASH_LENGTH]}".lstrip('-')
 
 
+# A git commit's full id
+FULL_COMMIT_ID = re.compile(r'[0-9a-f]{40}')
+# A commit's folder: 2 characters of its id, then 14 more in a shared storage (qaboard.conventions.commit_dir_name),
+# all the rest (38) for uploaded runs (commit_folder)
+COMMIT_FOLDER = re.compile(r'(?P<a>[0-9a-f]{2})/(?P<b>[0-9a-f]{14}(?:[0-9a-f]{24})?)')
+# Commits' folders in a path: the storage scan finds which commit files belong to with it (jobs/scan.py)
+COMMIT_FOLDERS_IN_PATH = re.compile(rf'/{COMMIT_FOLDER.pattern}(?=/|$)')
+
+
+# What the backend answers nginx when it may receive a file: nginx passes it on with the file
+# (services/nginx/snippets/qaboard-uploads-auth.conf, as QABOARD_UPLOAD_CHECKED)
+PROXY_CHECKED_HEADER = 'X-QABoard-Upload-Checked'
+
+
+def unchecked_by_proxy(environ: dict) -> Optional[UploadError]:
+  """
+  For the endpoints that receive files: why we refuse a request that the proxy didn't check before receiving its
+  body, else None. Files reach uwsgi through nginx: if its configuration leaves out the check, or the
+  snippets/qaboard-files-server.conf that defines it, anyone could fill its disk, so we refuse them all, saying so.
+  uwsgi's own HTTP port (uwsgi.ini, for health checks) doesn't take files either: it has none of nginx's limits.
+  `flask run` on its own (development, tests) has no proxy in front.
+  """
+  if 'uwsgi.version' not in environ or environ.get('QABOARD_UPLOAD_CHECKED') == '1':
+    return None
+  print(f"ERROR: nginx sent {environ.get('PATH_INFO')} without checking its token first: its configuration needs `include snippets/qaboard-files-server.conf;` in the server, and `include snippets/qaboard-uploads-auth.conf;` in this location")
+  return UploadError(500, "The server's proxy doesn't check tokens before receiving files, so the server refuses them: its nginx configuration needs `include snippets/qaboard-files-server.conf;` in the server, and `include snippets/qaboard-uploads-auth.conf;` where files are sent. Tell your QA-Board admins.", Reason.PROXY_MISCONFIGURED)
+
+
 def commit_folder(hexsha: str) -> Path:
   """
   A commit's folder in the project's uploaded runs: its full id, unlike the shared storage's 16 characters. Anyone
@@ -173,7 +201,7 @@ def run_dir(project_id: str, hexsha: str, batch_label: str, platform: str, confi
   input keeps its extension (code names runs "v1.2" and "v1.3"), and each level is one folder.
   """
   # runs outside git are attached to placeholder commits, like "<local:alice>"
-  commit_dir = commit_folder(hexsha) if re.fullmatch(r'[0-9a-f]{40}', hexsha) else Path('local') / folder_name(hexsha)
+  commit_dir = commit_folder(hexsha) if FULL_COMMIT_ID.fullmatch(hexsha) else Path('local') / folder_name(hexsha)
   batch_dir = Path('output') if batch_label == 'default' else Path('output') / folder_name(batch_label, maxlength=32)
   # every run of the database has its own folder: all that tells runs apart is in the names
   # (the input's database too: runs on the same input path in two databases are two runs)
@@ -190,7 +218,7 @@ def commit_artifacts_dir(project_id: str, hexsha: str, base: Optional[Path] = No
   commit folder (a subproject's files under its path), in the folder of the project's runs of that commit.
   Each (sub)project has its own copy: deleting one's never touches another's.
   """
-  if not isinstance(hexsha, str) or not re.fullmatch(r'[0-9a-f]{40}', hexsha):
+  if not isinstance(hexsha, str) or not FULL_COMMIT_ID.fullmatch(hexsha):
     raise UploadError(400, "Artifacts are saved for a git commit, named by its full id (40 hexadecimal characters).", Reason.INVALID_COMMIT)
   if not supports_project(project_id):
     raise UploadError(400, f"Projects with a folder named \"{RUNS_FOLDER}\" can't upload their files.", Reason.UPLOADS_UNSUPPORTED_PROJECT)
@@ -206,7 +234,7 @@ def is_commit_artifacts_dir(directory, project_id: str) -> bool:
   if runs_dir is None:
     return False
   parts = directory.relative_to(runs_dir).parts
-  return len(parts) == 3 and parts[2] == ARTIFACTS_FOLDER and re.fullmatch(r'[0-9a-f]{2}', parts[0]) is not None and re.fullmatch(r'[0-9a-f]{38}|[0-9a-f]{14}', parts[1]) is not None
+  return len(parts) == 3 and parts[2] == ARTIFACTS_FOLDER and COMMIT_FOLDER.fullmatch(f"{parts[0]}/{parts[1]}") is not None
 
 
 def is_run_dir(directory, project_id: str) -> bool:

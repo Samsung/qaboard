@@ -282,6 +282,55 @@ def test_authorize_upload(outputs_api, dummy_app):
   assert ask(SimpleNamespace(user="u", token=None)) == 204
 
 
+def test_authorize_upload_tells_nginx_it_checked(outputs_api, dummy_app):
+  """nginx passes the header of the answer on with the file (snippets/qaboard-uploads-auth.conf)"""
+  from flask import g
+  with dummy_app.test_request_context("/api/v1/uploads/authorize", method="PUT"):
+    g.actor = SimpleNamespace(user="u", token=None)
+    _, status, headers = outputs_api.authorize_upload()
+  assert status == 204 and headers == {"X-QABoard-Upload-Checked": "1"}
+  with dummy_app.test_request_context("/api/v1/uploads/authorize", method="PUT"):
+    g.actor = None
+    assert len(outputs_api.authorize_upload()) == 2
+
+
+UWSGI = {"uwsgi.version": b"2.0.28"}
+
+
+@pytest.mark.parametrize("environ, refused", [
+  # through nginx: refused unless it checked the token first
+  (UWSGI, True),
+  ({**UWSGI, "QABOARD_UPLOAD_CHECKED": ""}, True),  # without snippets/qaboard-files-server.conf
+  ({**UWSGI, "QABOARD_UPLOAD_CHECKED": "1"}, False),
+  # `flask run` on its own
+  ({}, False),
+])
+def test_uploads_nginx_didnt_check_are_refused(outputs_api, dummy_app, upload_root, environ, refused):
+  start(outputs_api, dummy_app)
+  directory = Path(outputs_api.test_output.output_dir_override)
+  with dummy_app.test_request_context("/api/v1/output/7/files/a.txt", method="PUT", data=b"x", environ_base=environ):
+    response = outputs_api.upload_output_file(7, "a.txt")
+  response, status = response if isinstance(response, tuple) else (response, 200)
+  if refused:
+    assert status == 500 and response.get_json()["reason"] == "proxy_misconfigured"
+    assert "snippets/qaboard-files-server.conf" in response.get_json()["error"]
+    assert not (directory / "a.txt").exists()
+  else:
+    assert status == 200 and (directory / "a.txt").read_bytes() == b"x"
+
+
+def test_every_upload_endpoint_needs_nginx_to_check_it():
+  """The endpoints behind snippets/qaboard-uploads-auth.conf (services/nginx/conf.d/qaboard.conf)"""
+  import ast
+  api = Path(__file__).parent.parent / "backend" / "api"
+  for file, function in [("outputs.py", "upload_output_file"), ("commit_artifacts.py", "upload_commit_artifact"), ("batch.py", "append_submission_log")]:
+    tree = ast.parse((api / file).read_text())
+    body = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == function).body
+    # the first thing it does, after its docstring
+    first = body[1] if isinstance(body[0], ast.Expr) else body[0]
+    assert "uploads.unchecked_by_proxy(request.environ)" in ast.unparse(first), (file, function)
+
+
 def test_append(run_dir):
   assert send(run_dir, "log.txt", b"one\n", offset=0) == 4
   assert send(run_dir, "log.txt", b"two\n", offset=4) == 8
@@ -638,3 +687,52 @@ def test_refusals_say_why_and_where_to_read_more(monkeypatch):
   monkeypatch.setattr(config, "upload_off_reason", "QABOARD_UPLOAD_ROOT is off")
   message = uploads.disabled_message()
   assert "QABOARD_UPLOAD_ROOT is off" in message and "/docs/backend-admin/uploads" in message
+
+
+@pytest.mark.parametrize("layout", ["uploaded", "shared-storage"])
+def test_the_storage_scan_finds_commit_folders(layout):
+  # the storage scan's (jobs/scan.py's commit_dirs_re)
+  from qaboard.conventions import commit_dir_name
+  commit_dirs_re = uploads.COMMIT_FOLDERS_IN_PATH
+  hexsha = "0123456789abcdef0123456789abcdef01234567"
+  # uploaded runs: the commit's full id; a shared storage: 16 characters of it
+  commit_dir = uploads.commit_folder(hexsha) if layout == "uploaded" else commit_dir_name(hexsha)
+  for path in (f"/root/group/repo/{commit_dir}", f"/root/group/repo/-/{commit_dir}/output/run/log.txt"):
+    match = commit_dirs_re.search(path)
+    assert match is not None, path
+    assert hexsha.startswith(match.group('a') + match.group('b'))
+    assert len(match.group('a') + match.group('b')) == len(str(commit_dir)) - 1
+  # not folders that only start like one
+  assert commit_dirs_re.search(f"/root/{commit_dir}0") is None
+
+
+def test_is_commit_artifacts_dir_in_both_layouts(upload_root):
+  hexsha = "0123456789abcdef0123456789abcdef01234567"
+  directory = uploads.commit_artifacts_dir("group/repo", hexsha)
+  assert uploads.is_commit_artifacts_dir(directory, "group/repo")
+  short = directory.parent.parent / hexsha[2:16] / directory.name
+  assert uploads.is_commit_artifacts_dir(short, "group/repo")
+  assert not uploads.is_commit_artifacts_dir(directory.parent.parent / hexsha[2:20] / directory.name, "group/repo")
+
+
+def test_nginx_snippets_refuse_without_their_server_snippet():
+  """The checks nginx makes are locations of snippets/qaboard-files-server.conf: without it, they'd say yes to all"""
+  import re
+  snippets = Path(__file__).parent.parent.parent / "services" / "nginx" / "snippets"
+  server = (snippets / "qaboard-files-server.conf").read_text()
+  assert "set $qaboard_files_server_included 1;" in server
+  checked = []
+  for snippet in snippets.glob("*.conf"):
+    text = snippet.read_text()
+    for uri in re.findall(r'^\s*auth_request\s+(\S+);', text, re.M):
+      if f"location = {uri} " in text:
+        continue  # e.g. pgadmin.conf: its own check
+      assert f"location = {uri} " in server, (snippet.name, uri)
+      assert "if ($qaboard_files_server_included != 1) {" in text, snippet.name
+      checked.append(snippet.name)
+  assert {"qaboard-uploads-auth.conf", "qaboard-files-auth.conf", "qaboard-admins-only.conf"} <= set(checked)
+  # and the backend's yes reaches the endpoints that receive files (uploads.unchecked_by_proxy)
+  uploads_auth = (snippets / "qaboard-uploads-auth.conf").read_text()
+  header = uploads.PROXY_CHECKED_HEADER.lower().replace('-', '_')
+  assert f"auth_request_set $qaboard_upload_checked $upstream_http_{header};" in uploads_auth
+  assert "uwsgi_param QABOARD_UPLOAD_CHECKED $qaboard_upload_checked;" in uploads_auth

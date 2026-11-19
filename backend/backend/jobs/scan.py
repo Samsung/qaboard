@@ -32,7 +32,7 @@ from typing import Optional
 from sqlalchemy import text
 
 from ..database import db_session, engine, make_engine
-from .. import locations
+from .. import locations, uploads
 from ..models import Project, CiCommit, Batch, Output, Export, StorageScan
 from ..storage import check_storage_path, UnsafePathError
 from ..exports import MARKERS, owner_name, found
@@ -51,8 +51,8 @@ FLUSH_EVERY = 2000
 PROGRESS_EVERY = 2  # seconds: how often the folders explored are reported, and cancelling is checked
 # Storage snapshots are copies of everything: never scanned, whatever `exclude_paths` says
 SNAPSHOTS = {'.snapshot', '.snapshots', '.zfs'}
-# a shared storage's commit folders have 16 characters of their id, uploaded runs' all of it (uploads.commit_folder)
-commit_dirs_re = re.compile(r'/(?P<a>[0-9a-f]{2})/(?P<b>[0-9a-f]{14}(?:[0-9a-f]{24})?)(?=/|$)')
+# commits' folders, in a shared storage and for uploaded runs
+commit_dirs_re = uploads.COMMIT_FOLDERS_IN_PATH
 
 
 def validate(params: dict) -> dict:
