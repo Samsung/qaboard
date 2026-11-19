@@ -40,7 +40,8 @@ overview pages:
   commands, a project's integration in steps of minutes that each show something new, then a server for the team, with
   sign-in, roles, backups and monitoring added when needed. Coding agents do these setups well, with the quickstart
   and the skills: say so, name Claude Code as an example, and keep the times and sizes the docs state. Also say what
-  it needs (Docker or Kubernetes, a folder the server and the runs both see).
+  it needs (Docker or Kubernetes, a folder the server and the runs both see, or runs that send their files over HTTP,
+  experimental).
 - Professional and precise in tone: plain words, concrete outcomes, no mascots or jokes in product copy.
 
 ## Page structure

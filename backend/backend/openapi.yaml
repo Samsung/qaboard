@@ -506,6 +506,110 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
 
+  /commit/{commit}/artifacts:
+    get:
+      tags: [Commits]
+      operationId: getCommitArtifacts
+      summary: List the artifacts sent for a commit
+      description: |
+        The artifacts `qa save-artifacts` sent for a commit of a project without a storage shared with the server.
+        Download each file from `<server><url>/<path>`. `hash` changes when any file does: `qa fetch-artifacts`
+        caches them by it.
+      parameters:
+        - name: commit
+          in: path
+          required: true
+          description: The commit's full sha.
+          schema: {type: string, pattern: "^[0-9a-f]{40}$"}
+        - $ref: "#/components/parameters/project"
+      responses:
+        "200":
+          description: The files, by their path in the repository.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  files:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        sha256: {type: string}
+                        size: {type: integer}
+                        executable: {type: boolean}
+                  hash: {type: string, description: "The SHA-256 of the files' paths, SHA-256 and modes."}
+                  url: {type: string, description: "Where the files are served, like /s/..."}
+                  subproject: {type: string, description: "The project's folder in the repository, \"\" at its root."}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404":
+          description: "The server doesn't know the commit, or has no artifacts for it (`not_uploaded`, `deleted`)."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+
+  /commit/{commit}/artifacts/files/{path}:
+    put:
+      tags: [Commits]
+      operationId: uploadCommitArtifact
+      summary: Send one of a commit's artifacts
+      description: |
+        Saves a file of a commit's artifacts, for projects without a storage shared with the server: `qa
+        save-artifacts` sends them like this, each file then the manifests that list them
+        (`<subproject>/manifests/<group>.json`). The commit must exist (`POST /commit/`). Sending a file again
+        replaces it. Always needs a token that can send results to the project.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: commit
+          in: path
+          required: true
+          description: The commit's full sha.
+          schema: {type: string, pattern: "^[0-9a-f]{40}$"}
+        - name: path
+          in: path
+          required: true
+          description: The file's path in the repository, like `build/my-tool`.
+          schema: {type: string}
+        - $ref: "#/components/parameters/project"
+        - name: X-Content-SHA256
+          in: header
+          required: true
+          description: The body's SHA-256, in hexadecimal.
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: {type: string, format: binary}
+      responses:
+        "200":
+          description: The file was saved.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  path: {type: string}
+                  size: {type: integer}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404":
+          description: "The server doesn't know the commit (`unknown_commit`): send it first."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "413":
+          description: "The file is larger than the server accepts."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "422":
+          description: "What the server received doesn't have the SHA-256 sent (`reason: digest_mismatch`)."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+
   /output/{output_id}/metrics:
     patch:
       tags: [Runs]
@@ -694,6 +798,17 @@ paths:
                       command: {type: string}
                       runner: {type: string}
                       batch: {type: string, description: The batches it runs, separated by spaces.}
+                      batches_snapshot:
+                        type: object
+                        description: >-
+                          What `qa batch` reads: the batches that run, as they were defined when it started, with only
+                          them and the aliases that reach them (`batches.yaml` in the submission's logs folder).
+                        properties:
+                          path: {type: string, description: Relative to the submission's logs folder.}
+                          batches: {type: array, items: {type: string}}
+                          aliases: {type: array, items: {type: string}}
+                          files: {type: array, items: {type: string}, description: The files they come from.}
+                          inputs: {type: array, items: {type: string}, description: Names that are not batches, read as input paths.}
                   warning: {type: [string, "null"], description: "E.g. only the source code of the artifacts could be restored."}
         "400": {$ref: "#/components/responses/BatchRefused"}
         "401": {$ref: "#/components/responses/Unauthorized"}

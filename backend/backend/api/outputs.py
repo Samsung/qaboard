@@ -20,6 +20,7 @@ from ..metrics_definitions import MAX_KEY_LENGTH, FORBIDDEN_KEYS
 from ..redo import redo_response
 from ..metrics_definitions import save_metrics_definitions
 from ..notifications.batches import on_run_ended
+from ..tokens import end_batch_token
 from ..attempts import record_attempt
 from ..access import invalid_project
 from .auth import login_required, is_authorized_user, ingest_access, forbidden_project, require_project_access
@@ -188,7 +189,8 @@ def add_output_metrics(output_id):
   """
   project_id = None
   try:
-    output = Output.query.filter(Output.id==output_id).with_for_update().one()
+    # only the run's row: Output.test_input is loaded with an outer join, which PostgreSQL can't lock
+    output = Output.query.filter(Output.id==output_id).with_for_update(of=Output).one()
     # the session may hold the run from the access check above: read it again, now that it's locked
     db_session.refresh(output)
     project_id = output.batch.ci_commit.project_id
@@ -290,7 +292,8 @@ def report_output_progress(output_id):
     return jsonify({"error": f"`params` must be an object, of at most {MAX_PROGRESS_PARAMS_SIZE} characters as JSON"}), 400
   # only now the lock: callers we refuse don't hold up the run's own updates
   try:
-    output = Output.query.filter(Output.id==output_id).with_for_update().one()
+    # only the run's row: Output.test_input is loaded with an outer join, which PostgreSQL can't lock
+    output = Output.query.filter(Output.id==output_id).with_for_update(of=Output).one()
     # the session may hold the run from the access check above: read it again, now that it's locked
     db_session.refresh(output)
   except NoResultFound:
@@ -327,6 +330,22 @@ def report_output_progress(output_id):
   return jsonify(output.to_dict())
 
 
+@app.route("/api/v1/uploads/authorize", methods=['PUT'])
+def authorize_upload():
+  """
+  Whether the request may send files: 204 with a token that can send results (or a session), else 401 or 403 with why.
+  nginx asks before it receives the body of a file (services/nginx/snippets/qaboard-uploads-auth.conf): who has no
+  token can't fill its disk. For runs' files, commits' artifacts and batch logs: their endpoints check the project
+  and the role with the file.
+  """
+  actor = g.get('actor')
+  if actor is None or actor.user is None:
+    return jsonify({"error": "No token that can send results: run `qa auth login`, or in CI set QABOARD_TOKEN to a token with the ingest scope.", "reason": "login_required"}), 401
+  if actor.token is not None and not actor.has_scope('ingest'):
+    return jsonify({"error": "This token can't send results: it needs the \"ingest\" scope.", "reason": "missing_scope", "required": "ingest"}), 403
+  return '', 204
+
+
 @app.route("/api/v1/output/<int:output_id>/files/<path:path>", methods=['PUT'])
 def upload_output_file(output_id, path):
   """
@@ -351,7 +370,7 @@ def upload_output_file(output_id, path):
   if error:
     return error
   if not uploads.enabled(project_id):
-    return jsonify({"error": "This server doesn't accept uploaded files.", "reason": "uploads_disabled"}), 400
+    return jsonify({"error": uploads.disabled_message(), "reason": "uploads_disabled"}), 400
   try:
     offset = int(request.args['offset']) if 'offset' in request.args else None
   except ValueError:
@@ -422,7 +441,7 @@ def new_output_webhook():
   # Runs without a storage shared with us send their files after this request: we choose their folder (backend/uploads.py)
   uploads_files = data.get('storage') == 'upload'
   if uploads_files and not uploads.enabled(str(data.get('project') or '')):
-    return jsonify({"error": "This server doesn't accept uploaded files: save results in a storage shared with it (`storage` in qaboard.yaml), or ask its administrators to set QABOARD_UPLOAD_ROOT.", "reason": "uploads_disabled"}), 400
+    return jsonify({"error": uploads.disabled_message(), "reason": "uploads_disabled"}), 400
   if uploads_files and not uploads.supports_project(str(data.get('project'))):
     return jsonify({"error": f"Projects with a folder named \"{uploads.RUNS_FOLDER}\" can't upload their files.", "reason": "uploads_unsupported_project"}), 400
 
@@ -598,6 +617,8 @@ def new_output_webhook():
   if not output.is_pending:
     # maybe the batch's last run: users may want to know
     on_run_ended(db_session, output.data.get('root_command_id'))
+    # and its token soon no longer needed (tokens.mint_for_batch)
+    end_batch_token(db_session, output.data.get('root_command_id'))
   # The metrics the run's code declared, e.g. qaboard.Metric(12.3, suffix="ms")
   if data.get('metrics_definitions'):
     try:

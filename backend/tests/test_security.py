@@ -460,6 +460,15 @@ UNAUTHENTICATED_ENDPOINTS = {
   # runs without a storage shared with the server send their files (backend/uploads.py): a token that can send results
   # to the project is always required (ingest_access(require_token=True)), only for runs that are running
   ("outputs.py", "upload_output_file"),
+  # `qa save-artifacts` without a shared storage sends a commit's artifacts (api/commit_artifacts.py): the same token,
+  # always, into a folder the server chooses for a commit it already knows
+  ("commit_artifacts.py", "upload_commit_artifact"),
+  # the driver pod of a batch QA-Board started, without a shared storage, sends its log (qa send-batch-log): only with
+  # that batch's own token (ingest_access(require_token=True)), into the folder the server chose when it started it
+  ("batch.py", "append_submission_log"),
+  # nginx asks it before it receives a file (snippets/qaboard-uploads-auth.conf): it only says whether the request has
+  # a token that can send results. The endpoints above check the project
+  ("outputs.py", "authorize_upload"),
   # the web app and the CLI send usage events (backend/usage.py): the CLI's are unverified without a token, dropped
   # when ingest.auth is "token", like results. Anonymous events have no user, they're counted and never resolved.
   ("usage.py", "usage_events"),
@@ -1462,6 +1471,8 @@ UNCHECKED_PROJECT_ROUTES = {
   ("admin.py", "admin_audit"), ("admin_access.py", "admin_grants"), ("admin_access.py", "admin_delete_grant"),
   ("admin_jobs.py", "admin_estimate_job"), ("admin_jobs.py", "admin_jobs_projects"), ("admin_jobs.py", "admin_job_errors"),
   ("admin_jobs.py", "admin_job_errors_csv"), ("usage.py", "admin_usage_projects"),
+  # which projects' uploaded runs a storage location takes: a list admins edit, it reads no project
+  ("admin_storage_locations.py", "admin_add_storage_location"), ("admin_storage_locations.py", "admin_change_storage_location"),
   # storage usage: filters_from limits them to the projects users can read (allowed_projects), and users only
   # delete their own runs. Their deletions' errors are about their own runs.
   ("storage.py", "storage_overview"), ("storage.py", "storage_delete"), ("storage.py", "storage_job_errors"),
@@ -1477,6 +1488,8 @@ UNCHECKED_PROJECT_ROUTES = {
   ("access.py", "directory"),
   # it reads no project: it says which projects the token it mints is restricted to (the service account's)
   ("ci_trust.py", "token_exchange"),
+  # it reads no project: whether a token can send results at all, before nginx receives a file
+  ("outputs.py", "authorize_upload"),
   # login_required checks ?project=, the only project it reads
   ("tuning.py", "check_tuning"), ("integrations.py", "proxy_webook"),
 }

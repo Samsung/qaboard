@@ -668,7 +668,152 @@ class TestScripts(KubernetesTestCase):
     self.assertIn(str(self.cwd), (self.root / 'output0' / 'log.k8s.txt').read_text())
 
 
+class TestImagePerCommit(KubernetesTestCase):
+  """{commit} in the image: it's the commit's, looked up in its registry before pods start"""
+  sha = '0123456789abcdef0123456789abcdef01234567'
+
+  def setUp(self):
+    super().setUp()
+    from qaboard.runners.registry import Found
+    self.found = Found(True)
+    self.looked_up = []
+    def image_exists(image, configs):
+      self.looked_up.append((image, list(configs)))
+      return self.found
+    for p in (mock.patch('qaboard.runners.kubernetes.image_exists', side_effect=image_exists),
+              mock.patch('qaboard.runners.registry.local_docker_config', return_value={'auths': {'local': {}}})):
+      p.start()
+      self.addCleanup(p.stop)
+
+  def test_image_of_the_commit(self):
+    self.start(['qa run a', 'qa run b'], image='registry.example.com/qa:{commit:.8}', commit=self.sha)
+    self.assertEqual(self.pod_spec()['containers'][0]['image'], 'registry.example.com/qa:01234567')
+    # once per image
+    self.assertEqual([image for image, _ in self.looked_up], ['registry.example.com/qa:01234567'])
+
+  def test_images_without_commit_are_not_looked_up(self):
+    self.start(['qa run a'], image='qa:1', commit=self.sha)
+    self.assertEqual(self.looked_up, [])
+
+  def test_no_image_for_the_commit(self):
+    from qaboard.runners.kubernetes import NoImageForCommit
+    from qaboard.runners.registry import Found
+    self.found = Found(False, 'registry.example.com has no qa:0123')
+    with self.assertRaisesRegex(NoImageForCommit, 'No image for this commit: registry.example.com/qa:0123456789abcdef0123456789abcdef01234567 .* did the CI build and push it'):
+      self.start(['qa run a'], image='registry.example.com/qa:{commit}', commit=self.sha)
+    self.assertEqual(self.kube.jobs, {})
+    self.assertNotIn('create_namespaced_job', self.kube.calls)
+
+  def test_cant_tell(self):
+    from qaboard.runners.registry import Found
+    self.found = Found(None, 'registry.example.com refused to tell us')
+    self.start(['qa run a'], image='registry.example.com/qa:{commit}', commit=self.sha)
+    self.assertEqual(len(self.kube.jobs), 1)
+
+  def test_no_commit(self):
+    with self.assertRaisesRegex(ValueError, "don't know the commit"):
+      self.start(['qa run a'], image='registry.example.com/qa:{commit}')
+    self.assertEqual(self.kube.jobs, {})
+
+  def test_credentials_of_the_pull_secrets(self):
+    import base64
+    config = {'auths': {'registry.example.com': {'auth': base64.b64encode(b'alice:x').decode()}}}
+    secrets = {'creds': {'data': {'.dockerconfigjson': base64.b64encode(json.dumps(config).encode()).decode()}}}
+    def read_namespaced_secret(name, namespace):
+      if name not in secrets:
+        raise self.kube.not_found(name)
+      return secrets[name]
+    self.kube.read_namespaced_secret = read_namespaced_secret
+    self.start(['qa run a'], image='registry.example.com/qa:{commit}', commit=self.sha, image_pull_secrets=['creds', 'missing'])
+    self.assertEqual(self.looked_up[0][1], [config, {'auths': {'local': {}}}])
+
+  def test_the_server_never_sends_its_own_credentials(self):
+    from qaboard.runners.kubernetes import KubernetesRunner
+    KubernetesRunner.submit_detached('qa batch', 'qa-abcdefgh-driver', self.root / 'log.txt', {
+      'command_id': 'abcdefgh-1234', 'image': 'registry.example.com/qa:{commit}', 'commit': self.sha, 'local_registry_credentials': False,
+    })
+    self.assertEqual(self.looked_up, [(f'registry.example.com/qa:{self.sha}', [])])
+    job = self.kube.jobs['qa-abcdefgh-driver-r4nd']
+    self.assertEqual(job['spec']['template']['spec']['containers'][0]['image'], f'registry.example.com/qa:{self.sha}')
+
+  def test_options(self):
+    from qaboard.runners.kubernetes import option_errors
+    self.assertIn('only {commit}', option_errors({'image': 'qa:{branch}'})['image'])
+    self.assertIn('absolute', option_errors({'workdir': 'src'})['workdir'])
+    self.assertEqual(option_errors({'image': 'qa:{commit}', 'workdir': '/src', 'commit': 'abc', 'repo_root': '/x', 'local_registry_credentials': False}), {})
+
+  def test_workdir(self):
+    """The image has the code at `workdir`: runs cd there, and what's in the repository is there too"""
+    checkout, image_src = self.root / 'checkout', self.root / 'image-src'
+    (checkout / 'project').mkdir(parents=True)
+    (image_src / 'project').mkdir(parents=True)
+    qa = self.root / 'qa'
+    qa.write_text('#!/bin/sh\necho "qa $* in $(pwd)"\n')
+    qa.chmod(0o755)
+    from qaboard.runners.kubernetes import KubernetesRunner
+    jobs = make_jobs([f'{qa} run a'], checkout / 'project' / 'output', workdir=str(image_src), repo_root=str(checkout))
+    with mock.patch('signal.signal'), mock.patch('qaboard.runners.kubernetes.os.getcwd', return_value=str(checkout / 'project')):
+      KubernetesRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
+    script = self.kube.configmaps['qa-abcdefgh-r4nd-0-0']['data']['run-0.sh']
+    self.assertNotIn(str(checkout), script)
+    scripts = self.root / 'etc-qaboard'
+    scripts.mkdir()
+    for name, content in self.kube.configmaps['qa-abcdefgh-r4nd-0-0']['data'].items():
+      (scripts / name).write_text(content)
+    subprocess.run(['sh', str(scripts / 'run-0.sh')], check=True, env={'PATH': '/usr/bin:/bin'})
+    log = (image_src / 'project' / 'output' / 'output0' / 'log.k8s.txt').read_text()
+    self.assertEqual(log, f'qa run a in {image_src}/project\n')
+    # without the repository's root, paths are unchanged
+    from qaboard.runners.kubernetes import in_pods, KubernetesOptions
+    self.assertEqual(in_pods(checkout / 'x', KubernetesOptions(workdir='/src')), str(checkout / 'x'))
+    self.assertEqual(in_pods(checkout, KubernetesOptions(workdir='/src', repo_root=str(checkout))), '/src')
+    self.assertEqual(in_pods(self.root / 'elsewhere', KubernetesOptions(workdir='/src', repo_root=str(checkout))), str(self.root / 'elsewhere'))
+
+  def test_fetched_artifacts(self):
+    """`qa batch` in a commit's artifacts fetched from QA-Board (the server's driver pod): the run pods fetch them too"""
+    import json
+    from qaboard.commit_artifacts import MARKER
+    from qaboard.runners.kubernetes import KubernetesRunner
+    # the driver's copy, and the one the run pod fetches into its own cache
+    driver_copy, pod_copy = self.root / 'driver-cache' / 'abc', self.root / 'pod cache' / 'abc'
+    for copy in (driver_copy, pod_copy):
+      (copy / 'project').mkdir(parents=True)
+    (driver_copy / MARKER).write_text(json.dumps({'project': 'group/repo/project', 'commit': self.sha, 'subproject': 'project'}))
+    qa = self.root / 'bin' / 'qa'
+    qa.parent.mkdir()
+    qa.write_text(f'#!/bin/sh\nif [ "$1" = fetch-artifacts ]; then echo "$*" > {self.root}/fetched; echo "{pod_copy}"; exit; fi\necho "qa $* in $(pwd)"\n')
+    qa.chmod(0o755)
+    jobs = make_jobs(['qa run a'], driver_copy / 'project' / 'output')
+    with mock.patch('signal.signal'), mock.patch('qaboard.runners.kubernetes.os.getcwd', return_value=str(driver_copy / 'project')):
+      KubernetesRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
+    script = self.kube.configmaps['qa-abcdefgh-r4nd-0-0']['data']['run-0.sh']
+    self.assertNotIn(str(driver_copy), script)
+    scripts = self.root / 'etc-qaboard'
+    scripts.mkdir()
+    for name, content in self.kube.configmaps['qa-abcdefgh-r4nd-0-0']['data'].items():
+      (scripts / name).write_text(content)
+    subprocess.run(['sh', str(scripts / 'run-0.sh')], check=True, env={'PATH': f'{qa.parent}:/usr/bin:/bin'})
+    self.assertEqual((self.root / 'fetched').read_text().split(), ['fetch-artifacts', '--project', 'group/repo/project', '--commit', self.sha, '--root'])
+    log = (pod_copy / 'project' / 'output' / 'output0' / 'log.k8s.txt').read_text()
+    self.assertEqual(log, f'qa run a in {pod_copy}/project\n')
+    # it stops if they can't be fetched
+    qa.write_text('#!/bin/sh\nexit 1\n')
+    out = subprocess.run(['sh', str(scripts / 'run-0.sh')], env={'PATH': f'{qa.parent}:/usr/bin:/bin'}, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8')
+    self.assertNotEqual(out.returncode, 0)
+    self.assertIn("could not fetch the commit's artifacts", out.stdout)
+
+
 class TestEnv(unittest.TestCase):
+  def test_the_batch_token_is_forwarded(self):
+    """The token QA-Board gives a batch it starts reaches its runs' pods; personal tokens never do"""
+    from qaboard.runners.kubernetes import run_env, dict_to_KubernetesOptions
+    with mock.patch.dict(os.environ, {'QABOARD_TOKEN': 'qab_bat_abc', 'GITLAB_TOKEN': 'qab_bat_x'}, clear=True):
+      env = run_env(dict_to_KubernetesOptions({}))
+      self.assertEqual(env.get('QABOARD_TOKEN'), 'qab_bat_abc')
+      self.assertNotIn('GITLAB_TOKEN', env)
+    with mock.patch.dict(os.environ, {'QABOARD_TOKEN': 'qab_pat_abc'}, clear=True):
+      self.assertNotIn('QABOARD_TOKEN', run_env(dict_to_KubernetesOptions({})))
+
   def test_env(self):
     from qaboard.runners.kubernetes import run_env, dict_to_KubernetesOptions, env_script
     environ = {
@@ -1120,6 +1265,23 @@ class TestStop(KubernetesTestCase):
     subprocess.run(['sh', str(scripts / 'run.sh')], check=True)
     self.assertEqual(log_file.read_text(), 'bash\n')
 
+  def test_submit_detached_without_a_shared_storage(self):
+    """The server's batches of projects without a shared storage: its files in the pod, its output in the pod's logs"""
+    from qaboard.runners.kubernetes import KubernetesRunner
+    log_file = self.root / 'server' / 'log.txt'
+    files = {str(self.root / 'pod' / 'batches.yaml'): 'e2e: {}\n', str(self.root / 'pod' / "it's.json"): '{}'}
+    KubernetesRunner.submit_detached('#!/bin/bash\ncat "$1" 2>/dev/null; cat ' + str(self.root / 'pod' / 'batches.yaml'), 'qa-abcdefgh-driver', log_file,
+                                     {'command_id': 'abcdefgh-1234', 'image': 'qa:1'}, files=files, log_to_file=False)
+    data = self.kube.configmaps['qa-abcdefgh-driver-r4nd']['data']
+    self.assertEqual((data['file-0'], data['file-1']), ('e2e: {}\n', '{}'))
+    scripts = self.write_scripts(data)
+    out = subprocess.run(['sh', str(scripts / 'run.sh')], stdout=subprocess.PIPE, encoding='utf-8', check=True)
+    self.assertEqual(out.stdout, 'e2e: {}\n')
+    self.assertEqual((self.root / 'pod' / "it's.json").read_text(), '{}')
+    self.assertFalse(log_file.exists() or log_file.parent.exists())
+    with self.assertRaises(ValueError):
+      KubernetesRunner.submit_detached('true', 'qa-abcdefgh-driver', log_file, {'command_id': 'abcdefgh-1234', 'image': 'qa:1'}, files={'relative': ''})
+
   def test_submit_detached_cant_write_its_log(self):
     """If the pod can't write its log file (e.g. it runs as another user), it fails, saying why: not with the output lost"""
     from qaboard.runners.kubernetes import KubernetesRunner
@@ -1265,6 +1427,17 @@ class TestDoctor(KubernetesTestCase):
     checks = {c.name: c for c in KubernetesRunner.doctor({'type': 'kubernetes'})}
     self.assertEqual(checks['Kubernetes: image'].status, ERROR)
     self.assertIn('image:', checks['Kubernetes: image'].fix)
+
+  def test_image_per_commit(self):
+    from qaboard.runners.registry import Found
+    sha = '0123456789abcdef0123456789abcdef01234567'
+    for found, status, message in ((Found(True), OK, "this commit's image, is in its registry"), (Found(False, 'no tag'), WARNING, 'No image for this commit yet'), (Found(None, 'down'), WARNING, "Can't check")):
+      with mock.patch('qaboard.runners.kubernetes.image_exists', return_value=found), mock.patch('qaboard.runners.registry.local_docker_config', return_value={}):
+        check = self.doctor(image='registry.example.com/qa:{commit:.8}', commit=sha)['Kubernetes: image']
+      self.assertEqual(check.status, status)
+      self.assertIn(message, check.message)
+      self.assertIn('registry.example.com/qa:01234567', check.message)
+    self.assertEqual(self.doctor(image='registry.example.com/qa:{commit}')['Kubernetes: image'].status, ERROR)
 
   def test_old_cluster(self):
     self.kube.get_code = lambda: {'gitVersion': 'v1.28.9'}

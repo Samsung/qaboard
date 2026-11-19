@@ -2,7 +2,7 @@
 id: http-api
 sidebar_label: HTTP API
 title: HTTP API
-description: "Read QA-Board's results over HTTP from any language: authenticate with a token, get a commit's batches, runs, metrics and files, and compare them with a reference. The OpenAPI document is at /api/v1/openapi.json, with a page to try requests at /api/v1/docs."
+description: "Read QA-Board's results over HTTP from any language: authenticate with a token, get a commit's batches, runs, metrics and files, and compare them with a reference."
 ---
 
 The web app reads everything from QA-Board's HTTP API, and your scripts, CI jobs and agents can too, in any
@@ -442,6 +442,19 @@ when you send it (`422`), and refuses files larger than its limit (`413`). Files
 results to the project. `qa`, [`qa upload`](/docs/upload-results) and
 [`qaboard.start_run()`](/docs/log-from-code) do all this: see
 [Send results without a shared storage](/docs/storage/uploads).
+
+### Send a commit's artifacts {#upload-artifacts}
+`qa save-artifacts` sends the files runs started from the web app need, on servers that accept uploads, for a commit
+the server knows (`POST /commit/`): each file by its path in the repository, then the
+[manifests](/docs/storage/artifacts) that list them, in the project's folder (`<subproject>/manifests/<group>.json`).
+The SHA-256 is required. `GET /commit/<commit>/artifacts?project=<project>` lists what the server has, with each
+file's SHA-256 and a `hash` of the whole: download the files from `<url>/<path>`.
+
+```bash
+curl -X PUT -H "Authorization: Bearer $QABOARD_TOKEN" --data-binary @build/my-tool \
+  -H "X-Content-SHA256: $(sha256sum build/my-tool | cut -d' ' -f1)" \
+  "$QABOARD_URL/api/v1/commit/$GIT_COMMIT/artifacts/files/build/my-tool?project=group/repo"
+```
 
 ### Start a batch on a commit {#start-a-batch}
 `POST /commit/<sha>/batch?project=<project>` starts a batch on a commit as the web app's **Run Tests / Tuning** does:

@@ -691,7 +691,8 @@ def check_uploads(site: Optional[Dict[str, Any]], token: Optional[str]) -> Check
   if isinstance(site.get('uploads'), dict):
     uploads = site['uploads']
   if not uploads.get('enabled'):
-    return Check(name, ERROR, "qaboard.yaml sets no `storage` shared with the server (or `storage: upload`): `qa --share` and CI runs would send it their files, but this server doesn't accept files.",
+    why = f" ({uploads['off_reason']})" if isinstance(uploads.get('off_reason'), str) else ""
+    return Check(name, ERROR, f"qaboard.yaml sets no `storage` shared with the server (or `storage: upload`): `qa --share` and CI runs would send it their files, but this server doesn't accept files{why}.",
                  fix=f"Save results in a folder that the server reads too, in qaboard.yaml:\nstorage:\n  linux: /mnt/qaboard\n  windows: \\\\server\\share\\qaboard\n"
                      f"Or ask the server's administrators to accept files (QABOARD_UPLOAD_ROOT): {docs('backend-admin/uploads')}\nDocs: {docs('storage/uploads')}")
   limit = f", up to {uploads['max_file_size'] // 1024 ** 2} MB per file" if isinstance(uploads.get('max_file_size'), int) else ''
@@ -1003,6 +1004,9 @@ def run_doctor(obj: Dict[str, Any], runner: str, test_job: bool = False, echo=cl
 
   def runner_checks() -> Iterator[Check]:
     job_options = runner_job_options(runner, config, project, user, state['batch_dir'], cwd)
+    if runner == 'kubernetes':
+      # like `qa batch`: {commit} in the image, and the repository's root for `workdir`
+      job_options.update({"commit": qaboard_config.commit_id, "repo_root": str(qaboard_config.repo_root)})
     yield from check_runner(runner, job_options, test_job=test_job)
 
   report.section("qa and your project")

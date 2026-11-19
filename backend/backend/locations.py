@@ -12,14 +12,23 @@ that moved needs its runs' locations rewritten, like with any path.
 The server reads and writes locations through folders (mounted buckets: website/docs/backend-admin/uploads.mdx), so
 the rest of the server only ever sees paths: Output.output_dir is `local_path(output_dir_override)`.
 Locations the server can't reach are paths under UNREACHABLE: nothing exists there, nothing can be written there.
+
+The upload root ($QABOARD_UPLOAD_ROOT, or the default storage: config.py) is the default location: the projects no
+location lists upload there. It has no URL: its runs store paths, like before locations existed.
+
+Where the server may write is set in its environment ($QABOARD_STORAGE_ROOTS): a location's folder must be inside a
+storage root, so that whoever adds locations (an admin's session in the web app) can't point the server at any folder.
+Locations added before that check stay readable, flagged by `outside_storage_roots`.
 """
 import os
 import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Callable, Iterable, List, Optional, Tuple
 from urllib.parse import quote, unquote, urlsplit
+
+from . import config
 
 # "s3://", "gs://", "file://", "az://"...
 URL_PATTERN = re.compile(r'^[a-z][a-z0-9+.-]*://', re.IGNORECASE)
@@ -31,10 +40,21 @@ TTL = 30.0  # seconds
 
 @dataclass(frozen=True)
 class Location:
-  url: str            # ends with "/"
+  url: Optional[str]  # ends with "/". None for the default location: its runs store paths
   path: Path          # where the server reaches it
   projects: Tuple[str, ...] = ()
   id: Optional[int] = None
+
+  @property
+  def is_default(self) -> bool:
+    return self.url is None
+
+
+class LocationError(ValueError):
+  """A change admins asked for that we refuse, with what to do instead"""
+  def __init__(self, message: str, reason: str = 'invalid'):
+    super().__init__(message)
+    self.reason = reason  # invalid, not_found, exists, outside_storage_roots, not_a_folder, has_runs
 
 
 _cache = {"expires": 0.0, "locations": ()}
@@ -121,9 +141,22 @@ def is_reachable(location) -> bool:
   return not local_path(location).is_relative_to(UNREACHABLE)
 
 
+def default() -> Optional[Location]:
+  """The upload root, as a location: where the projects that no location lists upload. None: they can't upload"""
+  root = config.upload_root
+  return Location(url=None, path=Path(root), projects=('*',)) if root is not None else None
+
+
 def paths() -> List[Path]:
-  """Where the server reaches the locations: like the storage roots, it manages the files there"""
-  return [known.path for known in locations()]
+  """Where the server reaches the locations, the default one included: like the storage roots, it manages the files there"""
+  builtin = default()
+  return list(dict.fromkeys([*(known.path for known in locations()), *([builtin.path] if builtin else [])]))
+
+
+def outside_storage_roots(path) -> bool:
+  """Whether a location's folder isn't inside $QABOARD_STORAGE_ROOTS (symlinks resolved): only added before we checked"""
+  real = Path(os.path.realpath(path))
+  return not any(real.is_relative_to(os.path.realpath(root)) for root in config.storage_roots)
 
 
 def matches(entry: str, project_id: str) -> int:
@@ -137,6 +170,124 @@ def matches(entry: str, project_id: str) -> int:
 
 
 def for_project(project_id: str) -> List[Location]:
-  """The locations a project's uploaded runs may be in, those its new runs go to first"""
+  """Where a project's new uploaded runs go, first: the locations that list it, most specific first, then the default one"""
   scored = [(max((matches(entry, project_id) for entry in known.projects), default=0), known) for known in locations()]
-  return [known for score, known in sorted(scored, key=lambda s: (-s[0], -(s[1].id or 0))) if score]
+  listed = [known for score, known in sorted(scored, key=lambda s: (-s[0], -(s[1].id or 0))) if score]
+  builtin = default()
+  return [*listed, *([builtin] if builtin else [])]
+
+
+# ==========================================
+# Changes, from `qaboard-admin storage-locations` and the admin API. Callers commit.
+def check_path(path: str, check: bool = True) -> str:
+  """A location's folder, normalized, or a LocationError"""
+  from .storage import private_dirs
+  if not isinstance(path, str) or not os.path.isabs(path):
+    raise LocationError(f"{path} must be an absolute path: where the server reaches the location, e.g. where the bucket is mounted.")
+  real = Path(os.path.realpath(path))
+  if any(real.is_relative_to(d) or d.is_relative_to(real) for d in private_dirs()):
+    raise LocationError(f"{path} is one of the server's own folders.")
+  if outside_storage_roots(path):
+    roots = ':'.join(str(root) for root in config.storage_roots)
+    raise LocationError(f"{path} isn't in the storage roots ({roots}): the server only writes there. Mount the storage inside one, "
+                        "or add its folder to QABOARD_STORAGE_ROOTS and restart the server.", 'outside_storage_roots')
+  if check and not real.is_dir():
+    raise LocationError(f"{path} isn't a folder the server sees: mount the storage there first, in every container of the backend, "
+                        "the proxy and the image server.", 'not_a_folder')
+  return os.path.normpath(path)
+
+
+def check_projects(projects) -> List[str]:
+  if projects is None:
+    return []
+  if isinstance(projects, str) or not all(isinstance(p, str) and p.strip() for p in projects):
+    raise LocationError("Projects are a list of project ids, groups' ids (`team-a/`) or \"*\".")
+  return list(dict.fromkeys(p.strip() for p in projects))
+
+
+def _url(url) -> str:
+  try:
+    return normalize_url(url)
+  except (ValueError, TypeError) as e:
+    raise LocationError(str(e))
+
+
+def find(url):
+  """The table's row for a location's url, or None"""
+  from .models import StorageLocation
+  return StorageLocation.query.filter(StorageLocation.url == _url(url)).one_or_none()
+
+
+def runs_in(url: str) -> int:
+  """How many runs say they are in a location"""
+  from .models import Output
+  return Output.query.filter(Output.output_dir_override.startswith(url, autoescape=True)).count()
+
+
+def add(url: str, path: str, projects: Iterable[str] = (), check: bool = True, record: Optional[Callable] = None):
+  """Adds a location: its runs store <url>/<their folder>, the server reaches them in `path`"""
+  from backend import db_session
+  from .models import StorageLocation
+  from .audit import audit
+  url = _url(url)
+  if find(url) is not None:
+    raise LocationError(f"{url} is already a location: change it instead.", 'exists')
+  row = StorageLocation(url=url, path=check_path(path, check), projects=check_projects(projects), options={})
+  db_session.add(row)
+  db_session.flush()
+  (record or audit)('storage_location.create', target_type='storage_location', target_id=row.id, target_label=url,
+                    meta={"path": row.path, "projects": row.projects})
+  invalidate()
+  return row
+
+
+def update(url: str, path: Optional[str] = None, projects: Optional[Iterable[str]] = None, check: bool = True,
+           record: Optional[Callable] = None):
+  """Changes where the server reaches a location (its runs don't change), or whose new runs go there"""
+  from .audit import audit
+  row = find(url)
+  if row is None:
+    raise LocationError(f"No location {url}.", 'not_found')
+  changes = {}
+  new_path = check_path(path, check) if path is not None else row.path
+  if new_path != row.path:
+    changes["path"] = {"from": row.path, "to": new_path}
+    row.path = new_path
+  new_projects = check_projects(projects) if projects is not None else list(row.projects or [])
+  if new_projects != list(row.projects or []):
+    changes["projects"] = {"from": row.projects, "to": new_projects}
+    row.projects = new_projects
+  if changes:
+    (record or audit)('storage_location.update', target_type='storage_location', target_id=row.id, target_label=row.url, changes=changes)
+  invalidate()
+  return row, changes
+
+
+def remove(url: str, force: bool = False, record: Optional[Callable] = None) -> int:
+  """Removes a location, not its files. Refused while runs are in it, unless `force`. Returns how many runs were"""
+  from backend import db_session
+  from .audit import audit
+  row = find(url)
+  if row is None:
+    raise LocationError(f"No location {url}.", 'not_found')
+  runs = runs_in(row.url)
+  if runs and not force:
+    raise LocationError(f"{runs} runs are in {row.url}: the web app couldn't show their files. Stop new runs from going there "
+                        "(no projects), or remove it anyway.", 'has_runs')
+  (record or audit)('storage_location.delete', target_type='storage_location', target_id=row.id, target_label=row.url,
+                    meta={"path": row.path, "runs": runs})
+  db_session.delete(row)
+  invalidate()
+  return runs
+
+
+def serialize(row, runs: Optional[int] = None) -> dict:
+  return {
+    "id": row.id,
+    "url": row.url,
+    "path": row.path,
+    "projects": list(row.projects or []),
+    "outside_storage_roots": outside_storage_roots(row.path),
+    "reachable": Path(row.path).is_dir(),
+    **({"runs": runs} if runs is not None else {}),
+  }

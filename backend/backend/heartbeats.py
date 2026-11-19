@@ -60,11 +60,12 @@ def fail_silent_runs(now: Optional[datetime.datetime] = None) -> int:
   silent = (Output.query
     .filter(Output.is_pending.is_(True), Output.is_running.is_(True), Output.reported_at < limit,
             text("(outputs.data->>'heartbeat') = 'true'"))
-    .with_for_update(skip_locked=True).all())
+    # only the runs' rows: Output.test_input is loaded with an outer join, which PostgreSQL can't lock
+    .with_for_update(skip_locked=True, of=Output).all())
   reasons = {}  # the batch's command: why one of its runs failed
   for output in silent:
     # like the runs "Fail stuck runs" fails (backend/run_activity.py:fail_runs), shown in Runs activity
-    reason = f"Stopped reporting at {output.reported_at.strftime('%Y-%m-%d %H:%M')} UTC, e.g. its machine was killed or lost the network: marked as failed after {config.silent_run_timeout_minutes:g} minutes."
+    reason = f"Stopped reporting at {output.reported_at.strftime('%Y-%m-%d %H:%M')} UTC, e.g. its machine was killed or lost the network: marked as failed after {config.silent_run_timeout_minutes:g} minute{'' if config.silent_run_timeout_minutes == 1 else 's'}."
     output.data = {**(output.data or {}), 'silent_since': iso_utc(output.reported_at), 'failed_reason': reason}
     flag_modified(output, 'data')
     output.is_failed = True

@@ -28,8 +28,8 @@ projects to look at.
   decoded images, up to 20 GB (`QABOARD_IMAGE_CACHE_GB`), and the image server's tiles, kept 5 days.
 - **The results storage**: a folder that the server and every machine that runs `qa` (CI runners, workstations,
   cluster nodes) mount **at the same path**, e.g. an NFS share at `/mnt/qaboard`. `qa` writes the output files there
-  itself, and only sends their path to the server, which reads them there. Machines that can't mount it can send
-  their files to the server instead, once you [accept results over HTTP](/docs/backend-admin/uploads).
+  itself, and only sends their path to the server, which reads them there. Machines that can't mount it send their
+  files to the server instead, which saves them in it ([results over HTTP](/docs/backend-admin/uploads)).
 - **A hostname** that your users, CI runners and git hosts reach, e.g. `qaboard.example.com`, and a TLS certificate
   for HTTPS.
 - **One port**: the web app, the API and the webhooks answer on port 5151 (`QABOARD_PORT_HTTP`), or 443 with HTTPS.
@@ -66,6 +66,10 @@ sudo chmod 777 /mnt/qaboard
 If your storage is a share, mount it on the host at the path the runners use. To use another path than
 `/mnt/qaboard`, use it in the overlay below, list it in `QABOARD_STORAGE_ROOTS`, and set `storage` in your projects'
 *qaboard.yaml* (see [where is the data saved](/docs/storage/where-is-the-data)).
+
+Runs that don't mount it (projects without `storage`, GitHub-hosted runners, laptops) send their files to the
+server, which saves them in `/mnt/qaboard` too. With your own storage roots, choose where they go:
+[accept results over HTTP](/docs/backend-admin/uploads#enable).
 
 :::note Shared storage
 Read how to set up [**NFS**](https://www.digitalocean.com/community/tutorials/how-to-set-up-an-nfs-mount-on-ubuntu-18-04)
@@ -434,6 +438,7 @@ When a variable is set, it wins, and the page shows it read-only: see [settings 
 | `QABOARD_GITHUB_HOSTS` | _none_  | Comma-separated hostnames of GitHub Enterprise servers, that get `GITHUB_ACCESS_TOKEN`. `QABOARD_GIT_HOSTS` lets you give each its own token |
 | `QABOARD_PROXY_HOSTS` | _none_  | Comma-separated hostnames the web app may load avatars and badges from through the backend, besides your git hosts (`QABOARD_GIT_HOSTS`, `GITLAB_HOST`...), the host of `QABOARD_AVATAR_URL`, and gravatar. Add the hosts of your projects' `project.avatar_url` and `integrations[].src` images |
 | `QABOARD_STORAGE_ROOTS` | */mnt/qaboard* | Folders where your projects store outputs and artifacts, separated by `:` (e.g. `/mnt/qaboard:/mnt/datasets`). The backend refuses results stored elsewhere, and never writes, deletes or runs code outside these folders |
+| `QABOARD_UPLOAD_ROOT` | */mnt/qaboard*, without `QABOARD_STORAGE_ROOTS` | Where the server saves the files runs send over HTTP; `off` refuses them ([accept results over HTTP](/docs/backend-admin/uploads#enable)) |
 | `QABOARD_SANDBOX_HTML` | _off_ | `true`: the runs' HTML and SVG files can't act as whoever opens them, their scripts run sandboxed. Set it for the backend and the proxy. See [HTML reports](/docs/viewers#html-reports) |
 | `QABOARD_FILES_UNIX_PERMISSIONS` | _none_ | Folders, separated by `:` (e.g. `/home`), where users only read the files under `/s/` that their Unix account can read. See [user management](/docs/backend-admin/user-management#unix-permissions) |
 | `QABOARD_ACCOUNTS_COMMAND` | _none_ | Command printing the users' accounts like `/etc/passwd` (e.g. `ssh host getent passwd`), for file owners and Unix permissions, when you can't mount a complete `/etc/passwd`. See [users' accounts](/docs/backend-admin/user-management#users-accounts) |

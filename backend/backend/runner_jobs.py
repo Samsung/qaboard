@@ -439,6 +439,12 @@ def driver_job_options(config: dict, user_info: dict, command_id: str, project_i
   if config.get('image') is not None:
     image = config['image']
     if isinstance(image, str) and image and len(image) < 512 and not re.search(r'\s', image):
+      from qaboard.runners.registry import commit_image
+      try:
+        # an image per commit: {commit} is replaced by the commit's id when the pod is created, see submit_driver
+        commit_image(image, 'commit')
+      except ValueError as e:
+        raise NotAllowed(str(e))
       job_options['image'] = image
     else:
       raise NotAllowed(f"Invalid runners.kubernetes.image: {image!r}")
@@ -495,6 +501,8 @@ def driver_job_options(config: dict, user_info: dict, command_id: str, project_i
     job_options['mounts'] = driver_mounts(config['mounts'])
   if config.get('job_template'):
     ignored('job_template', "QA-Board only starts pods from the options it checks")
+  if config.get('workdir'):
+    ignored('workdir', "it runs in the commit's artifacts")
   return job_options, notes
 
 
@@ -573,12 +581,52 @@ def server_env_script(notes: List[str]) -> str:
   return "".join(f"{line}\n" for line in lines)
 
 
+# Where the driver pod has the files of the batch's folder, without a shared storage
+DRIVER_DIR = '/tmp/qaboard-batch'
+# A ConfigMap holds at most 1 MiB, the scripts included
+MAX_DRIVER_FILES_BYTES = 768 * 1024
+
+def driver_without_storage(ci_commit, runner: str) -> bool:
+  """Whether the batch's `qa batch` runs in a Kubernetes pod that doesn't see the server's storage"""
+  return runner == 'kubernetes' and ci_commit.uploaded_artifacts_dir is not None
+
+
+def driver_files(script: str, log_dir: Path, script_path: Path) -> Tuple[str, Dict[str, str]]:
+  """
+  For a driver pod that doesn't see the server's storage: the script, reading the files of `log_dir` from DRIVER_DIR
+  instead, and those files ({path in the pod: content}), but its logs and the script itself. Raises NotAllowed.
+  """
+  files, sizes = {}, {}
+  for path in sorted(log_dir.iterdir()):
+    if path.is_file() and path != Path(script_path) and not path.name.startswith('log.'):
+      try:
+        files[f"{DRIVER_DIR}/{path.name}"] = path.read_text()
+      except UnicodeDecodeError:
+        raise NotAllowed(f"QA-Board can't start this batch on Kubernetes without a shared storage: {path.name} isn't text.")
+      sizes[path.name] = path.stat().st_size
+  if sum(sizes.values()) > MAX_DRIVER_FILES_BYTES:
+    largest = max(sizes, key=sizes.__getitem__)
+    raise NotAllowed(
+      f"QA-Board can't start this batch on Kubernetes without a shared storage: what `qa batch` reads ({largest}: "
+      f"{sizes[largest] // 1024} KiB) is over {MAX_DRIVER_FILES_BYTES // 1024} KiB, what a Kubernetes ConfigMap holds. "
+      "Select fewer batches, split large batch files, or start it from CI or a terminal with `qa batch`."
+    )
+  # the server named these files: the folder's path, then a file name
+  return script.replace(f"{log_dir}/", f"{DRIVER_DIR}/"), files
+
+
 def driver_name(command_id: str) -> str:
   return f"qa-{command_id[:8]}-driver"
 
 
+def pod_logs_command(job_options: Dict[str, Any], command_id: str) -> str:
+  """How users read the driver pod's logs"""
+  context = f" --context {quote(job_options['context'])}" if job_options.get('context') else ''
+  return f"kubectl{context} logs -n {quote(job_options['namespace'])} job/{driver_name(command_id)}"
+
+
 def submit_driver(script_path: Path, log_dir: Path, user_info: dict, ci_commit, command_id: str,
-                  on_prepared: Optional[Callable[[Dict[str, Any]], None]] = None) -> Dict[str, Any]:
+                  on_prepared: Optional[Callable[[Dict[str, Any]], None]] = None, token: Optional[str] = None) -> Dict[str, Any]:
   """
   Runs the bash script `script_path` (a `qa batch`, see api/tuning.py and redo.py) on Kubernetes, in a driver pod named
   qa-<command_id[:8]>-driver, as the signed-in user (`user_info`, g.user). Its output goes to log_dir/log.txt, and the
@@ -592,11 +640,31 @@ def submit_driver(script_path: Path, log_dir: Path, user_info: dict, ci_commit, 
   try:
     config = commit_kubernetes_config(ci_commit)
     job_options, notes = driver_job_options(config, user_info, command_id, ci_commit.project_id)
+    # {commit} in the image: the driver runs the commit's (it's looked up in its registry before the pod starts), with
+    # the pull secrets' credentials only, never the server's
+    job_options.update({"commit": ci_commit.hexsha, "local_registry_credentials": False})
+    if token:
+      # the batch's token (tokens.mint_for_batch): `qa batch` forwards it to the runs' pods
+      job_options["env"] = {**job_options.get("env", {}), "QABOARD_TOKEN": token}
     for note in notes:
       print(f"[kubernetes] {note}")
     # Like _dispatch_celery, at the top of the script
     script = Path(script_path).read_text()
     header = server_env_script(notes)
+    shared = not driver_without_storage(ci_commit, 'kubernetes')
+    files: Dict[str, str] = {}
+    if not shared:
+      # Without a shared storage, the pod can't read or write the batch's folder on the server: what the script reads
+      # there (batches file, runs to redo...) is copied in the pod, and its output is sent with the batch's token
+      from qaboard.batch_log import send_log_command, POD_LOGS_VARIABLE
+      script, files = driver_files(script, Path(log_dir), script_path)
+      header += send_log_command(command_id) + "\n"
+      # the pod's output stops coming here if its token expires or is revoked, or the server refuses it: say where it is
+      logs = pod_logs_command(job_options, command_id)
+      job_options["env"] = {**job_options.get("env", {}), POD_LOGS_VARIABLE: logs}
+      from .submissions import append_log
+      append_log(log_dir, f"[qaboard] `qa batch` runs in the Kubernetes pod of the job {driver_name(command_id)}, which sends its output here. "
+                          f"If this log stops before the batch ends, the rest is in the pod's logs, while the job exists (ask your QA-Board admins if you can't run kubectl): {logs}\n")
     if script.startswith("#!/bin/bash\n"):
       script = script.replace("#!/bin/bash\n", f"#!/bin/bash\n{header}", 1)
     else:
@@ -610,7 +678,7 @@ def submit_driver(script_path: Path, log_dir: Path, user_info: dict, ci_commit, 
     if on_prepared:
       on_prepared(record)
     Runner = runners['kubernetes']
-    result = Runner.submit_detached(script, record['kubernetes_job'], log_path, job_options) or {}
+    result = Runner.submit_detached(script, record['kubernetes_job'], log_path, job_options, files=files, log_to_file=shared) or {}
     print(f"[kubernetes] started {result}")
     return {
       "kubernetes_job": result.get('kubernetes_job', record['kubernetes_job']),

@@ -54,6 +54,11 @@ For each request, the server writes a script in the batch's directory and runs i
 - runs `qa --label <label> batch --batches-file <the batches> --batch <the batch> --tuning-search ...`, or
   `qa optimize` for [automated tuning](/docs/auto-optimization).
 
+`<the batches>` is *batches.yaml*, next to the script: the batches that run, as they are defined when you start,
+with only them and the aliases that reach them, from the commit's `inputs.batches`, the shared and private batches
+and the files you send. It is what ran, even after the files change, and how to
+[run it again](/docs/user-guide/logs#run-again).
+
 When the batch doesn't start, the **Logs** view says why, with the end of that script's log: a
 `ModuleNotFoundError` points to the environment, an LSF report to the cluster. See
 [Logs and failed runs](/docs/user-guide/logs#batch-commands).

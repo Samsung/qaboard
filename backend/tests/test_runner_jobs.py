@@ -34,10 +34,10 @@ class FakeRunner:
     return cls.deleted
 
   @classmethod
-  def submit_detached(cls, script, name, log_file, job_options):
+  def submit_detached(cls, script, name, log_file, job_options, files=None, log_to_file=True):
     if cls.fail_with:
       raise cls.fail_with
-    cls.submitted.append({"script": script, "name": name, "log_file": log_file, "job_options": job_options})
+    cls.submitted.append({"script": script, "name": name, "log_file": log_file, "job_options": job_options, "files": files, "log_to_file": log_to_file})
     return {"kubernetes_job": name, "namespace": job_options["namespace"]}
 
 
@@ -246,7 +246,7 @@ def test_server_requests_dont_wait_minutes_for_the_kubernetes_api(fake_runners, 
 
   script = tmp_path / "script.sh"
   script.write_text("#!/bin/bash\nqa batch\n")
-  ci_commit = SimpleNamespace(project_id="algo/project", data={}, project=SimpleNamespace(data={}))
+  ci_commit = SimpleNamespace(project_id="algo/project", hexsha="0123abcd", data={}, project=SimpleNamespace(data={}), uploaded_artifacts_dir=None)
   runner_jobs.submit_driver(script, tmp_path, ARTHUR, ci_commit, DRIVER_ID)
   assert fake_runners.submitted[-1]["job_options"]["api_retry_seconds"] == 15
   # and when it cleans up after a failure
@@ -518,11 +518,34 @@ def test_drivers_invalid_options(fake_runners, account):
   assert len(notes) == 7
 
 
+def test_drivers_image_per_commit(fake_runners, account):
+  options, notes = runner_jobs.driver_job_options({"image": "registry.example.com/algo/qa:{commit:.8}", "workdir": "/src"}, ARTHUR, ID1, "project")
+  # replaced when the pod is created (submit_driver gives the commit)
+  assert options["image"] == "registry.example.com/algo/qa:{commit:.8}"
+  # the driver runs in the commit's artifacts
+  assert "workdir" not in options and any("workdir" in note for note in notes)
+  with pytest.raises(NotAllowed, match="only {commit}"):
+    runner_jobs.driver_job_options({"image": "qa:{branch}"}, ARTHUR, ID1, "project")
+
+
+def test_submit_driver_with_an_image_per_commit(fake_runners, account, tmp_path):
+  script_path = tmp_path / "qa_batch.sh"
+  script_path.write_text("#!/bin/bash\nqa batch\n")
+  runner_jobs.submit_driver(script_path, tmp_path, ARTHUR, make_commit({"runners": {"kubernetes": {"image": "qa:{commit}"}}}), ID1)
+  [submitted] = fake_runners.submitted
+  assert submitted["job_options"]["image"] == "qa:{commit}"
+  assert submitted["job_options"]["commit"] == "0123456789abcdef0123456789abcdef01234567"
+  # the server's own docker credentials are never sent to registries named in qaboard.yaml
+  assert submitted["job_options"]["local_registry_credentials"] is False
+
+
 def make_commit(config, project_config=None):
   return SimpleNamespace(
     project_id="algo/project",
+    hexsha="0123456789abcdef0123456789abcdef01234567",
     data={"qatools_config": config} if config is not None else {},
     project=SimpleNamespace(data={"qatools_config": project_config or {}}),
+    uploaded_artifacts_dir=None,
   )
 
 
@@ -580,6 +603,50 @@ def test_submit_driver(fake_runners, account, tmp_path, monkeypatch):
   assert script_path.read_text() == script
   # nothing wrote in the log, the pod does
   assert not (tmp_path / "log.txt").exists()
+
+
+def test_submit_driver_without_a_shared_storage(fake_runners, account, tmp_path, monkeypatch):
+  """The pod sees neither the batch's folder nor its log: they are in its ConfigMap, and the log is sent back"""
+  import subprocess
+  from backend.artifacts import EXIT_TRAP
+  log_dir = tmp_path / "output" / "qaboard-batches" / "20261118-100000-0123abcd"
+  log_dir.mkdir(parents=True)
+  script_path = log_dir / "qa_batch.sh"
+  script_path.write_text(f"#!/bin/bash\n{EXIT_TRAP}\nqa batch --batches-file {log_dir}/batches.yaml\n")
+  (log_dir / "batches.yaml").write_text("e2e: {inputs: [a.txt]}\n")
+  (log_dir / "log.txt").write_text("")
+  (log_dir / "log.pending.txt").write_text("pending")
+  ci_commit = make_commit({})
+  ci_commit.uploaded_artifacts_dir = tmp_path / "artifacts"
+  runner_jobs.submit_driver(script_path, log_dir, ARTHUR, ci_commit, DRIVER_ID, token="qab_bat_x")
+  [submitted] = fake_runners.submitted
+  assert submitted["files"] == {"/tmp/qaboard-batch/batches.yaml": "e2e: {inputs: [a.txt]}\n"}
+  assert submitted["log_to_file"] is False and submitted["log_file"] == log_dir / "log.txt"
+  script = submitted["script"]
+  assert "--batches-file /tmp/qaboard-batch/batches.yaml" in script and str(log_dir) not in script
+  assert "exec > >(qa send-batch-log 0123abcd-0000-4000-8000-000000000000) 2>&1; QABOARD_LOG_PID=$!\n" in script
+  assert submitted["job_options"]["env"]["QABOARD_TOKEN"] == "qab_bat_x"
+  # if the pod's output stops coming (its token expired...), users know where the rest is
+  logs = f"kubectl logs -n {submitted['job_options']['namespace']} job/qa-0123abcd-driver"
+  assert submitted["job_options"]["env"]["QABOARD_POD_LOGS"] == logs
+  assert logs in (log_dir / "log.txt").read_text().splitlines()[0]
+  # the end of the log is sent before the pod ends: the exit trap waits for `qa send-batch-log`
+  bin_dir = tmp_path / "bin"
+  bin_dir.mkdir()
+  (bin_dir / "qa").write_text('#!/bin/bash\nif [[ $1 == send-batch-log ]]; then sleep 1; cat > "$SENT"; else echo "qa $*"; fi\n')
+  (bin_dir / "qa").chmod(0o755)
+  env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}", "SENT": str(tmp_path / "sent.txt")}
+  out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, env=env)
+  assert out.returncode == 0 and out.stdout == ""
+  sent = (tmp_path / "sent.txt").read_text()
+  assert "qa batch --batches-file /tmp/qaboard-batch/batches.yaml" in sent and sent.endswith("[qaboard] qa batch exited with code 0\n")
+
+  # a ConfigMap holds at most 1 MiB
+  fake_runners.submitted.clear()
+  (log_dir / "batches.yaml").write_text("x" * 1024 * 1024)
+  with pytest.raises(runner_jobs.NotAllowed, match="is over 768 KiB"):
+    runner_jobs.submit_driver(script_path, log_dir, ARTHUR, ci_commit, DRIVER_ID, token="qab_bat_x")
+  assert fake_runners.submitted == []
 
 
 def test_submit_driver_script_works_in_bash(fake_runners, account, tmp_path, monkeypatch):
@@ -655,7 +722,7 @@ def test_dispatch_kubernetes(fake_runners, account, tmp_path):
 def test_the_driver_is_the_batch_command(tmp_path):
   """Stopping the batch deletes the driver: its `qa batch` uses the command id of its Job's labels"""
   from backend.api.tuning import _generate_batch_script
-  ci_commit = SimpleNamespace(hexsha="abc", outputs_dir=tmp_path / "outputs" / "qaboard" / "p")
+  ci_commit = SimpleNamespace(hexsha="abc", uploaded_artifacts_dir=None, outputs_dir=tmp_path / "outputs" / "qaboard" / "p")
   script = _generate_batch_script(ci_commit, "arthurf", tmp_path, DRIVER_ID, "qa batch", {})
   assert f"export QA_BATCH_COMMAND_ID={DRIVER_ID};" in script
   from backend.redo import redo_script

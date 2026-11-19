@@ -7,6 +7,7 @@ import fnmatch
 import datetime
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 from sqlalchemy import Column, Boolean, Integer, String, DateTime, JSON, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
@@ -24,8 +25,8 @@ from ..git_hosts import committer_avatar_url, committers
 from ..fs_utils import rm_empty_parents, rmtree
 from ..storage import check_storage_path, check_inside, UnsafePathError
 from ..git_utils import find_branch
-from ..artifacts import MAX_CHECKED_FILES, artifacts_status, protected_by_siblings, is_kept, read_manifest, rmtree_except, ArtifactsUnavailable
-from .. import recreate_artifacts
+from ..artifacts import UPLOADED_ARTIFACTS, MAX_CHECKED_FILES, artifacts_status, protected_by_siblings, is_kept, read_manifest, rmtree_except, ArtifactsUnavailable
+from .. import recreate_artifacts, locations, uploads
 
 
 
@@ -122,7 +123,23 @@ class CiCommit(Base):
       return self.repo_artifacts_dir
 
   @property
+  def uploaded_artifacts_dir(self) -> Optional[Path]:
+    """
+    The folder of the artifacts `qa save-artifacts` sent over HTTP (projects without a storage shared with the
+    server, backend/uploads.py), if it did: the repository's files. None otherwise.
+    """
+    location = (self.data or {}).get(UPLOADED_ARTIFACTS)
+    if not location or not isinstance(location, str):
+      return None
+    directory = locations.local_path(location)
+    # what the database says isn't enough: only a folder the server chose for this project
+    return directory if uploads.is_commit_artifacts_dir(directory, self.project_id) else None
+
+  @property
   def repo_artifacts_dir(self) -> Path:
+    uploaded = self.uploaded_artifacts_dir
+    if uploaded is not None:
+      return uploaded
     if self.commit_dir_override:
       if self.project.id_relative:
         repo_artifacts_dir = re.sub(f'{self.project.id_relative}$', '', self.commit_dir_override)
@@ -155,6 +172,12 @@ class CiCommit(Base):
   def outputs_dir(self):
     # output dirs are now always saved, so we only call this to get output locations with usual conventions
     # e.g. when starting new tuning runs
+    uploaded = self.uploaded_artifacts_dir
+    if uploaded is not None:
+      # Projects without a shared storage: the commit's folder in the project's uploaded runs, next to its artifacts
+      # (backend/uploads.py). The batches started from QA-Board keep their scripts and logs there, inside the storage
+      # roots, even when the server's default storage root isn't one of them.
+      return uploaded.parent
     if self.project.id_relative:
       return self.repo_outputs_dir / self.project.id_relative
     else:

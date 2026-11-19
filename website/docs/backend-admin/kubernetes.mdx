@@ -89,7 +89,7 @@ helm install qaboard oci://ghcr.io/samsung/charts/qaboard \
 ### Results storage
 Runs save their results (outputs and artifacts) in a shared storage, and tell the server where. Everything must see this storage at the same absolute path: the server, and the runners (CI runners, LSF or Celery workers, laptops). The chart's `results` mounts it in the backend (at `results.mountPath`), in nginx (which serves it under `/s/`) and in Cantaloupe (which reads the images). It also sets `QABOARD_STORAGE_ROOTS`: the backend only writes, deletes or runs code there.
 
-Runners that can't mount it can send their files to the server instead: set `results.uploads: true`, and see [Accept results over HTTP](/docs/backend-admin/uploads).
+Runners that can't mount it send their files to the server instead, saved in the same volume ([Accept results over HTTP](/docs/backend-admin/uploads)): `results.uploads: false` refuses them.
 
 Your other runners must mount the same storage, so use a file storage that both the cluster and the runners can mount, with `ReadWriteMany` access:
 
@@ -202,7 +202,9 @@ RoleBindings, and it sets `QABOARD_TUNING_RUNNER=kubernetes` and the backend's `
 `runners.kubernetes.runAs`, `serverUrl`, `allowHostPath`, `allowRunAsImage`, `dask` and `extraRules` change the rest: see
 [Run batches from the web app](/docs/backend-admin/runners#kubernetes), and
 [one namespace per team](/docs/backend-admin/runners#kubernetes-trust) before you share a namespace. Without it, the
-backend runs `qa batch` in its own pod.
+backend runs `qa batch` in its own pod, which reaches QA-Board through the proxy's Service (the chart sets
+`QABOARD_HOST`). Projects without a shared storage work either way: their batches download the commit's artifacts
+`qa save-artifacts` sent, and send their results back.
 
 ### Differences with docker compose
 - **Old frontend bundles are not kept**: with compose, the bundles of previous versions stay in a volume, so clients that didn't reload keep working. On Kubernetes each proxy pod only has the current bundle, so a client with an old tab gets errors when it lazy-loads a page, until it reloads.

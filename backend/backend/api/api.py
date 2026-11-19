@@ -81,7 +81,9 @@ def get_site_config():
         # how `qa` authenticates the results it sends: off, warn or token
         "ingest_auth": setting('ingest.auth'),
         # whether runs can send their files over HTTP, without a storage shared with the server (backend/uploads.py)
-        "uploads": {"enabled": uploads.enabled(), "max_file_size": upload_max_file_size},
+        # with why not, for `qa doctor`
+        "uploads": {"enabled": uploads.enabled(), "max_file_size": upload_max_file_size,
+                    "off_reason": None if uploads.enabled() else uploads.off_reason()},
         # what the web app offers when users create tokens
         "tokens": {"default_lifetime_days": setting('tokens.default_lifetime_days'), "max_lifetime_days": setting('tokens.max_lifetime_days'),
                    "ci_lifetime_minutes": setting('tokens.ci_lifetime_minutes')},

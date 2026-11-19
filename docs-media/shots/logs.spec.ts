@@ -60,21 +60,21 @@ shot('logs/batch-commands', {
   project: SL,
   login: 'kaito',
   url: d => d.commitUrl(SL, 'cache-sharded', { view: 'logs', batch: 'tune-batching', filter: 'max_batch:16 max_delay_us:250' }),
-  alt: 'The Logs view of the tune-batching sweep: under "Started from QA-Board", the qa batch command kaito\'s tuning '
-    + 'request ran, with its grid of max batch and max delay, and the end of its log; then the two runs left by the filter, '
-    + 'and the Batch section with the command again.',
-  caption: 'A batch started from QA-Board keeps the command it ran and its log, next to its runs\' logs.',
-  // from the Logs title to the Batch section
+  alt: 'The Logs view of the tune-batching sweep: under "Commands", the qa batch command kaito\'s tuning request ran, '
+    + 'from QA-Board, with Run again, the batches it ran, its grid of max batch and max delay and the end of its log; '
+    + 'then the two runs left by the filter.',
+  caption: 'A batch started from QA-Board keeps the command it ran, what it ran and its log, next to its runs\' logs.',
+  // from the Logs title to the runs
   viewport: { width: 1440, height: 1300 },
   actions: async ui => {
     await ui.click(ui.page.getByText('qa batch', { exact: true }).first());
     await ui.settle();
     await ui.cursor.moveTo({ x: 1300, y: 1260 });
   },
-  // the Batch section ends with its command, the same as the submission's
   target: page => [
     page.getByRole('heading', { name: 'Logs', exact: true }),
-    page.getByText(/--action-on-existing run/).last().locator('xpath=ancestor::div[.//*[contains(text(), "Show its logs")]][1]'),
+    // the runs' filters, under the Runs title
+    page.getByRole('radio', { name: /^All · / }),
   ],
   // the Controls panel's button is on the viewport's edge, 4 px from the sections
   padding: 4,

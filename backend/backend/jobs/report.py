@@ -92,7 +92,8 @@ class Reporter:
   def exception(self, error: BaseException, path=None, **context):
     """Records an error from an exception, e.g. when deleting a folder failed"""
     path = failed_path(error, path)
-    self.error(error_kind(error), str(error), path=path, owner=owner(path), **context)
+    # rmtree's DeleteError knows who can fix it: the owner of the folder, rather than of the file
+    self.error(error_kind(error), str(error), path=path, owner=getattr(error, 'owner', None) or owner(path), **context)
 
   def error_message(self, message: str, **context):
     """Records an error that we only have as text, e.g. from CiCommit.delete"""

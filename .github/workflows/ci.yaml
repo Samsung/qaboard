@@ -172,7 +172,10 @@ jobs:
             cantaloupe.cache-from=type=gha,scope=cantaloupe
             cantaloupe.cache-to=type=gha,scope=cantaloupe,mode=max
       - name: Deploy
-        run: ./deployments/deploy.py deployments/production.env up --no-pull --init
+        # Silent runs fail after a minute, not 15: the end-to-end test of uploads kills one (.env: see docker-compose.yml)
+        run: |
+          echo "QABOARD_SILENT_RUN_TIMEOUT_MINUTES=1" >> .env
+          ./deployments/deploy.py deployments/production.env up --no-pull --init
       - name: Smoke Test @app
         run: curl -sSf --retry 10 --retry-all-errors --retry-delay 3 http://localhost:5151/ | grep -q 'id="root"'
       - name: Smoke Test @api
@@ -194,6 +197,16 @@ jobs:
           -e BACKEND_TEST_MODE=no-mock
           -e QABOARD_TEST_DATABASE_URL=postgresql://qaboard:password@db:5432/qaboard
           backend python -m pytest -q -p no:cacheprovider integration_tests
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Results sent over HTTP, end to end
+        # This server has docker-compose.yml's defaults, no site overlay: it must take uploaded files. `qa upload` and
+        # qaboard.start_run() from this checkout send runs, checked through nginx, the backend and the image server
+        run: >-
+          uv run --frozen python .github/scripts/uploads_e2e.py http://localhost:5151 --silent-runs-after 1
+          --create-admin './deployments/deploy.py deployments/production.env compose exec -T backend qaboard-admin create-admin {user} --password'
       - name: Zero-downtime rolling deploy
         run: |
           # A "new version" with the same images: the backend replicas are replaced
@@ -453,8 +466,10 @@ jobs:
           kubectl logs deploy/qaboard-backend -c demo-data
           uvx --from playwright==1.56.0 playwright install --with-deps chromium
           uv run .github/scripts/demo_data_e2e.py http://localhost:5151
+      # A CI pipeline's `qa batch` in the cluster, then a batch started from the web app for a project without a shared
+      # storage, on the backend: it reaches QA-Board at QABOARD_HOST, its runs send their results with a token
       - name: qa batch in the cluster
-        run: python3 .github/scripts/helm_e2e.py http://localhost:5151
+        run: uv run --frozen python .github/scripts/helm_e2e.py http://localhost:5151
       # The same release again: the migrations run again (pre-upgrade), nothing else may change
       - name: helm upgrade
         run: |
@@ -477,6 +492,18 @@ jobs:
           # The results are still there, and the demo data
           curl -sSf "http://localhost:5151/api/v1/commit/$GITHUB_SHA?project=user/sample_project" > /dev/null
           uv run .github/scripts/demo_data_e2e.py http://localhost:5151 --no-browser
+      # runners.kubernetes: batches started from the web app run `qa batch` in a driver pod, which starts the runs' Jobs.
+      # Without a shared storage: the pods fetch the commit's artifacts and send their results and the driver's log
+      - name: Batches started from the web app on Kubernetes
+        run: |
+          helm upgrade qaboard charts/qaboard -f charts/qaboard/quickstart.yaml --wait --timeout 15m \
+            --set image.repository="$QABOARD_IMAGE" --set-string image.version="$QABOARD_VERSION" \
+            --set runners.kubernetes.enabled=true --set 'runners.kubernetes.namespaces={default}' \
+            --set-string runners.kubernetes.runAs=1000:1000
+          pkill -f 'kubectl port-forward' || true
+          kubectl port-forward svc/qaboard-proxy 5151:80 >> /tmp/port-forward.log 2>&1 &
+          curl -sSf --retry 10 --retry-all-errors --retry-delay 3 http://localhost:5151/api/v1/health
+          uv run --frozen python .github/scripts/helm_e2e.py http://localhost:5151 --kubernetes
       - name: Cluster state on failure
         # also when the job's timeout cancels it
         if: failure() || cancelled()

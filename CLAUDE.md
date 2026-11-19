@@ -121,7 +121,13 @@ Optional dependencies are extras: `uv sync --extra dev --extra celery --extra da
 fixes (runners implement `doctor()`). The server starts/stops batches with `QABOARD_TUNING_RUNNER` (`backend/backend/runner_jobs.py`,
 `local_jobs.py`). `qa batch --commit <sha>` (`qaboard/on_server.py`) has the server start a batch on a commit through the
 web app's tuning endpoints (`backend/backend/api/tuning.py`, documented in `backend/backend/openapi.yaml`). Design and trust model: `docs/design/kubernetes-runner.md`; known limits: `docs/warts.md` (Runners).
-Kubernetes end-to-end test on kind: `.github/scripts/kubernetes_runner_e2e.py`.
+An image per commit (`{commit}` in `runners.kubernetes.image`, with `workdir`) is looked up in its registry before pods
+start (`qaboard/runners/registry.py`). Without a shared storage, `qa save-artifacts` sends a commit's artifacts to the
+server and `qa fetch-artifacts` downloads them into a cache keyed by their hash (`qaboard/commit_artifacts.py`,
+`backend/backend/api/commit_artifacts.py`); batches the server starts from them get a token of the user
+(`tokens.mint_for_batch` in `backend/backend/tokens.py`). What's left: `docs/design/ingest-upload-sdk.md` §3 item 2.
+Kubernetes end-to-end test on kind: `.github/scripts/kubernetes_runner_e2e.py`; batches the server starts, on the Helm
+chart, without a shared storage: `.github/scripts/helm_e2e.py` (`--kubernetes`), in CI's `helm-e2e` job.
 
 ## Release notes and docs (communicating with users)
 

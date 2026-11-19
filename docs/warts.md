@@ -133,19 +133,32 @@ run-centric page, screenshots for the docs, gaps against experiment trackers): `
 
 ## Results sent over HTTP (`storage: upload`, `qa upload`, November 2026)
 Design: `docs/design/ingest-upload-sdk.md`. Tested with unit tests and a fake server (`tests/test_upload*.py`,
-`tests/test_active_run.py`, `backend/tests/test_uploads.py`); **not** against a real server, nginx and database end
-to end, nor on Windows, nor on any object storage mount.
+`tests/test_active_run.py`, `backend/tests/test_uploads.py`), and end to end in CI's `docker` job
+(`.github/scripts/uploads_e2e.py`: `qa upload`, `start_run()` and `qa --share run` with `QA_STORAGE=upload` against
+`docker-compose.yml`'s defaults, through nginx and the image server, `qa check-bit-accuracy` against an uploaded
+reference, a killed run failed by the heartbeats, batches started from the web app); **not** on Windows, nor on any
+object storage mount.
 
-- No end-to-end test in CI: add a `qa upload` and a `qa --share run` with `QA_STORAGE=upload` to the quickstart job
-  (`.github/workflows/ci.yaml`), from a container that doesn't mount the results folder. [S, no change]
-- What `qa run` prints after its files are sent (that some couldn't be sent, that the server refused the results)
-  isn't in the *log.txt* the server has: files are sent before the run is said to have ended, and don't change
-  after. [S, behaviour]
 - `qa upload` keeps a copy of what it sends in the project's (or the current folder's) *output/*, like any shared
   run: CI workspaces don't mind, laptops may. [S, behaviour]
-- A first security review found that run folders were built from clients' input paths ("../" led to other projects'
-  files): fixed, with tests (`backend/tests/test_uploads.py`). The endpoint deserves a second, independent look
-  before servers that accept files face the internet. [M, no change]
+- Two security reviews of the endpoints that write files (runs' files, commits' artifacts, batch logs). The first
+  found run folders built from clients' paths; the second (December 2026) that commits sharing their first 16
+  characters shared a folder (any 40-hex commit can be created), that folder names could be made to collide (8
+  characters of hash, names that looked hashed), that nginx buffered 1 GB bodies before the token was checked, that
+  the chart had no body limit on `/api`, that failed appends left half their bytes, and that folders were created
+  through symlinks before the check: all fixed, with tests. Left (the first three and the last but one in
+  `backend-admin/uploads.mdx`):
+  - uploaded HTML and SVG run as the people who open them unless `QABOARD_SANDBOX_HTML` is on (off by default, for
+    every run: reports with scripts would change for shared-storage sites) [S, behaviour];
+  - with the default *local* runner, anyone who can send a project's artifacts runs code in the backend's container
+    (the trust model of `runners.mdx` "Security", now reachable with a token) [M, behaviour];
+  - no limit on the number of files or a project's bytes (inodes, quotas), and the free-space check isn't atomic
+    with concurrent uploads [M];
+  - a batch's token can write any running run's files and any commit's artifacts of its project, not only its
+    batch's [S, API];
+  - in the chart, the backend's Service also exposes uWSGI's HTTP port to the cluster, without nginx's limits (the
+    backend's own still apply); the ingress buffers bodies before nginx checks tokens [S];
+  - a SIGKILL during a write leaves a `.qaboard-upload-*` file next to it. [S]
 - Files a run removed after they were sent (`outputs.live`) stay on the server. [S, behaviour]
 - A run killed without a chance to say so (SIGKILL, a lost machine) is failed after
   `QABOARD_SILENT_RUN_TIMEOUT_MINUTES` (`backend/backend/heartbeats.py`), with the files it sent: only runs from
@@ -154,8 +167,15 @@ to end, nor on Windows, nor on any object storage mount.
 - No quotas per project, no deduplication (a bit-accurate rerun sends everything again), no resume inside a file:
   files over `QABOARD_UPLOAD_MAX_FILE_MB` are refused. [L]
 - `qa batch` with cluster runners only works when the nodes share the working directory with the machine that
-  starts the batch; artifacts, and runs started from the web app (tuning, redo) need a shared storage: next steps
-  in `docs/design/ingest-upload-sdk.md` (an image per commit, artifacts through the server). `qa check-bit-accuracy`
+  starts the batch, or on Kubernetes with an image per commit. Runs started from the web app (tuning, redo) run from
+  the artifacts `qa save-artifacts` sent, with a token per batch, on the server's machine or Kubernetes only: not
+  with the LSF or Celery runners. Tokens are revoked when the batch is stopped and expire 10 minutes after its last
+  run ends, except `qa optimize`'s and redo's: they expire a day after their runs stop. On Kubernetes, the driver
+  pod gets the batch's files in its ConfigMap (768 KiB at most) and sends its log with the token: what it prints
+  after the token expired, or that the server refused, is only in the pod's logs (the log's first line says how to
+  read them), and while the server is slow to answer it stops reading the driver's output, which then waits (it
+  sends from the thread that copies it, `batch_log.forward`) [S]; `qa optimize` can't resume an experiment
+  started again (its journal stays in the pod). See `docs/design/ingest-upload-sdk.md` §3 item 2. `qa check-bit-accuracy`
   compares fetched manifests only, not files (`QA_BITACCURACY_CMP`); `qa optimize` keeps its journal on the machine
   that runs it. `qaboard.runs(url)` gives uploaded runs' `output_dir` on the server, not a local folder. [L]
 - Storage locations (`backend/backend/locations.py`) are reached through folders the admin mounts: no credentials,
@@ -180,9 +200,11 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
 ### What was verified, what wasn't
 - Real: the Kubernetes runner on a kind cluster (`.github/scripts/kubernetes_runner_e2e.py`, CI job
   `kubernetes-runner-e2e`), Dask with `cluster.type: local`, a real Celery worker for stopping batches
-  (`tests/test_celery_stop.py`), backend integration tests on Postgres for stop/tuning/redo.
+  (`tests/test_celery_stop.py`), backend integration tests on Postgres for stop/tuning/redo. The server starting and
+  stopping batches on kind, installed with the Helm chart, for a project without a shared storage
+  (`.github/scripts/helm_e2e.py --kubernetes`, CI job `helm-e2e`).
 - Only with fakes/mocks: LSF, Slurm, PBS, SGE, HTCondor, OAR and Moab commands (submit, cancel), Jenkins, Dask on
-  Kubernetes (`KubeCluster`), the server starting batches on a real cluster. Try them on a real cluster before
+  Kubernetes (`KubeCluster`), the server starting batches on a cluster with a shared storage. Try them on a real cluster before
   advertising them. `run_as: user` with a non-root UID first runs for real in CI. [M, no change]
 
 ### Kubernetes
@@ -190,8 +212,12 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   a ServiceAccount that can create Jobs, so users who start batches in a namespace can act as each other (documented;
   `QABOARD_KUBERNETES_RUN_AS=<uid>:<gid>` runs them all as one account). Real per-user isolation: the backend creates
   the run Jobs itself, the driver calls back with a per-batch credential (design doc, "Follow-ups"). [L, API]
-- No shared filesystem, no runs: pods must see the code, inputs and outputs at the same paths. HTTP upload
-  (`docs/design/http-upload.md`) then an image per commit remove that. [L, API]
+- Without a shared filesystem, `qa batch` needs an image per commit (`{commit}` in `image`, with `workdir`) and
+  `storage: upload`; inputs still come from mounts or the user's code. Batches started from the web app still need
+  a shared storage, or the artifacts `qa save-artifacts` sent: the pods download them, once per pod. Images per commit are looked up in their registry with pull
+  secrets or `docker login` only (no credential helpers, no cloud IAM: ECR/GCR/ACR without a pull secret read as
+  "can't tell"), once, without waiting for a CI that is still pushing; `--prefix-outputs-path` isn't mapped to
+  `workdir`. [M, API]
 - Secrets aren't forwarded to pods (they'd be stored in ConfigMaps): runs that send results to a server that requires a
   token need a Secret through `job_template` (`env.valueFrom.secretKeyRef`) or a shared HOME after `qa auth login`.
   An `env_from_secret` option would be simpler. [S, API]
@@ -240,9 +266,9 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   Running projects' code on the server trusts every project developer with what the server's account can read (the
   environment is scrubbed, files aren't). [M, behaviour]
 
-- Batches started from the web app get no QA-Board token, whatever the runner: on a server with `ingest.auth: token`,
-  their runs can't save results unless a shared HOME holds a `qa auth login`, or (Celery) the workers set
-  `QABOARD_TOKEN`. The server could mint a short-lived, project-scoped ingest token per batch. [M, API]
+- Batches started from the web app through the LSF bridge get no QA-Board token (the bridge doesn't pass the server's
+  environment): on a server with `ingest.auth: token`, their runs can't save results unless a shared HOME holds a
+  `qa auth login`. The other runners get the batch's token (`tokens.mint_for_batch`). [S, API]
 - `runner_jobs.submit_driver` checks that the kubernetes runner exists, which can't fail (it's always registered):
   check that the `kubernetes` package is installed instead, with the install hint. [S, behaviour]
 - The worker job script `qa doctor` shows for Dask is named `doctor_dask`, not the batch's real name. [S, no change]

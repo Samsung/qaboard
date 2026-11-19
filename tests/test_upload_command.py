@@ -136,6 +136,31 @@ class TestUpload(QaTestCase):
     self.assertEqual((server.outputs(), server.puts()), ([], []))
     self.assertFalse((self.work / 'output').exists())
 
+  def test_a_dry_run_needs_no_server(self):
+    result = self.qa('--dryrun', '--label', 'nightly', 'upload', 'junit.xml')
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn('project: kitefin/planner', result.stdout)
+    self.assertIn(f'commit: {COMMIT}', result.stdout)
+    self.assertIn('batch: nightly', result.stdout)
+    self.assertIn('QABOARD_URL', result.stdout)
+    self.assertIn('unit-tests/junit: 1 files', result.stdout)
+    # outside the CI, runs go to the user's own batch
+    result = self.qa('--dryrun', 'upload', 'junit.xml', '--project', 'kitefin/planner', '--commit', COMMIT, ci=False)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn('batch: default (your own, "@alice| default"', result.stdout)
+
+  def test_errors_name_the_options(self):
+    server = self.server()
+    for args, expected in [
+      (('--input', '../up'), "--input ../up: name the run"),
+      (('--commit', 'nope'), "--commit nope: give the commit's full id"),
+    ]:
+      with self.subTest(args=args):
+        result = self.qa('upload', 'junit.xml', '--project', 'kitefin/planner', *args, server=server, ci=False, QA_STORAGE='upload')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(expected, result.stderr)
+        self.assertNotIn('start_run(', result.stderr)
+
   def test_a_folder_is_sent_without_hidden_folders_and_earlier_runs(self):
     server = self.server()
     (self.work / '.git').mkdir()
@@ -378,10 +403,18 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
     self.assertNotIn('qaboard_config', result.stderr)   # not the request we sent
     self.assertNotIn('processed a.txt', result.stdout)  # in CI, results the server refuses aren't computed
 
-  def test_only_artifacts_need_a_shared_storage(self):
-    result = self.qa_in_project('save-artifacts')
-    self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertIn('Nothing to save', result.stderr)
+  def test_nothing_needs_a_shared_storage(self):
+    # save-artifacts sends the commit, then its artifacts (qaboard/commit_artifacts.py)
+    from .test_commit_artifacts import FakeServer as ArtifactsServer
+    server = ArtifactsServer(subproject='', project='kitefin/detector')
+    self.addCleanup(server.close)
+    result = self.qa_in_project('save-artifacts', server=server)
+    self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+    self.assertEqual(server.commits[0]['git_commit_sha'], self.commit)
+    self.assertEqual(server.files['qaboard.yaml'], (self.project / 'qaboard.yaml').read_bytes())
+    self.assertIn('qaboard.yaml', json.loads(server.files['manifests/__qaboard.yaml.json']))
+    self.assertIn('Sent 1 file (', result.stdout)
+    self.assertIn(f'/kitefin/detector/commit/{self.commit}', result.stdout)
     # check-bit-accuracy compares the reference's manifests, optimize reads metrics from the API
     result = self.qa_in_project('check-bit-accuracy', '--batch', 'texts')
     self.assertNotIn('storage shared', result.stderr)

@@ -6,11 +6,12 @@ import os
 import sys
 import json
 import uuid
+import shutil
 import signal
 import fnmatch
 import datetime
+import tempfile
 import itertools
-import shutil
 import subprocess
 from glob import glob
 from copy import deepcopy
@@ -20,7 +21,7 @@ from types import SimpleNamespace
 from typing import Dict, List, Any
 
 import yaml
-from flask import request, jsonify, g
+from flask import request, jsonify, g, after_this_request
 from sqlalchemy.orm.exc import NoResultFound
 
 from qaboard.utils import merge
@@ -33,7 +34,9 @@ from ..config import qaboard_data_shared_dir
 from ..shell_utils import safe_user_name, lsf_bridge_command
 from ..storage import check_storage_path, UnsafePathError
 from ..submissions import record_submission, MAX_SUBMISSIONS, user_batch_dir, submission_dir, append_log, startup_logs # noqa: F401
-from ..artifacts import ArtifactsUnavailable
+from ..artifacts import ArtifactsUnavailable, EXIT_TRAP, cd_lines, runner_unsupported
+from ..runner_jobs import driver_without_storage
+from .. import tokens
 from ..notifications.batches import request_batch_notification, cancel_batch_notification
 from .auth import login_required, require_project_access, is_authorized_user, forbidden_project
 
@@ -363,6 +366,19 @@ def get_group():
         files = [{"source": "qaboard", "path": f"{group}.yml", "location": get_groups_path(project_id, name=group), "exists": True} for group in groups]
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+    # e.g. the snapshot of the batches of an earlier batch, to run them again: read last, like when starting
+    sent, sent_errors = sent_batches_files(data.get("batches_files"))
+    if sent_errors:
+        return jsonify({"error": " ".join(sent_errors)}), 400
+    if sent:
+        sent_dir = Path(tempfile.mkdtemp(prefix="qaboard-sent-batches-"))
+        @after_this_request
+        def remove_sent(response):
+            shutil.rmtree(sent_dir, ignore_errors=True)
+            return response
+        for idx, sent_file in enumerate(sent):
+            sent_file["location"] = sent_dir / f"{idx}.yaml"
+            sent_file["location"].write_text(sent_file.pop("content"), encoding="utf-8")
 
     warnings = []
     ci_commit = None
@@ -384,6 +400,7 @@ def get_group():
       files = [*commit_batches_files(ci_commit, qatools_config), *files]
     else:
       qatools_config = deepcopy(project.data.get("qatools_config", {}))
+    files = [*files, *sent]
 
     files_batches = [(f, read_batches_file(f)) for f in files]
     defined, aliases = batch_definitions(files_batches)
@@ -501,26 +518,30 @@ def _generate_batch_script(ci_commit, user, working_directory, command_id, batch
     parent_including_cwd = [*list(reversed(list(working_directory.parents))), working_directory]
     envrcs = [f'source {quote(str(p / ".envrc"))}\n' for p in parent_including_cwd if (p / '.envrc').exists()]
 
+    uploaded = ci_commit.uploaded_artifacts_dir is not None
     default_user = os.environ.get('QABOARD_DEFAULT_USER', 'qaboard')
     outputs_dir_prefix = str(ci_commit.outputs_dir).replace(f'/outputs/{default_user}/', f'/outputs/{user}/')
     script = "".join([
         "#!/bin/bash\n",
         # Helps users understand why they see no runs
-        'trap \'echo "[qaboard] qa batch exited with code $?"\' EXIT\n',
+        f'{EXIT_TRAP}\n',
         'export LC_ALL=en_US.utf8;\n',
         'export LANG=en_US.utf8;\n\n',
         'export MPLBACKEND=agg;\n',
         ('\n'.join(envrcs) + '\n') if envrcs else "",
         "set -xe\n\n",
-        f'cd {quote(str(working_directory))};\n\n',
+        # without a shared storage, the batch fetches its copy of the artifacts
+        "".join(f"{line}\n" for line in cd_lines(ci_commit, source_envrc=True)) if uploaded else f'cd {quote(str(working_directory))};\n',
+        "\n",
         f"\nexport CI=true;\n",
         f"\nexport GIT_COMMIT={quote(ci_commit.hexsha)};\n",
         # the runs are the logged-in user's
         f"export QA_USER={quote(user)};\n",
 
         f"export QABOARD_TUNING=true;\n\n",
-        f"export QA_OUTPUTS_COMMIT={quote(outputs_dir_prefix)};\n\n",
-        f"export QATOOLS_CI_COMMIT_DIR={quote(str(ci_commit.outputs_dir))};\n\n",
+        # without a shared storage, runs save their files in their copy of the artifacts, then send them
+        f"export QA_OUTPUTS_COMMIT={quote(outputs_dir_prefix)};\n\n" if not uploaded else "",
+        f"export QATOOLS_CI_COMMIT_DIR={quote(str(ci_commit.outputs_dir))};\n\n" if not uploaded else "",
         f"export QA_BATCH_COMMAND_ID={quote(command_id)};\n",
         # this `qa batch` is the first: the runs of the commands it starts (e.g. pipeline steps) are its runs
         "unset QA_BATCH_ROOT_COMMAND_ID;\n\n",
@@ -529,23 +550,24 @@ def _generate_batch_script(ci_commit, user, working_directory, command_id, batch
     return script
 
 
-def _run_script(qa_batch_path, log_dir, command_id, celery=False):
+def _run_script(qa_batch_path, log_dir, command_id, celery=False, token=None):
     """
     Runs the bash script on the server, detached: it outlives the request (see local_jobs.py), with the server's
     environment minus its secrets, and its output appended to log_dir/log.txt.
     Returns the submission's {"status", "pid", "pgid", "host"}, and "exit_code" if it already ended.
+    `token`: the batch's token (tokens.mint_for_batch), for runs that send their results over HTTP.
     """
     from ..local_jobs import start_detached, qa_environment
-    return start_detached(qa_batch_path, log_dir, qa_environment(command_id, celery=celery))
+    return start_detached(qa_batch_path, log_dir, qa_environment(command_id, celery=celery, token=token))
 
 
-def _dispatch_local(qa_batch_path, log_dir, command_id, ci_commit=None):
+def _dispatch_local(qa_batch_path, log_dir, command_id, ci_commit=None, token=None):
     """Run batch script locally, detached. It gets the broker if the project's runner may be celery."""
     from ..local_jobs import project_uses_celery
-    return _run_script(qa_batch_path, log_dir, command_id, celery=project_uses_celery(ci_commit))
+    return _run_script(qa_batch_path, log_dir, command_id, celery=project_uses_celery(ci_commit), token=token)
 
 
-def _dispatch_celery(qa_batch_path, log_dir, command_id):
+def _dispatch_celery(qa_batch_path, log_dir, command_id, token=None):
     """Run batch script locally, detached, with the broker's URL (in its environment, not in the script: it has the password)."""
     # if it's not set, `qa` uses qaboard/runners/celeryconfig.py's default (qaboard.yaml's runners.celery wins anyway)
     qaboard_host = os.environ.get('QABOARD_HOST', 'localhost')
@@ -561,7 +583,7 @@ def _dispatch_celery(qa_batch_path, log_dir, command_id):
     content = content.replace("#!/bin/bash\n", f"#!/bin/bash\n{celery_env}", 1)
     with qa_batch_path.open("w") as f:
         f.write(content)
-    return _run_script(qa_batch_path, log_dir, command_id, celery=True)
+    return _run_script(qa_batch_path, log_dir, command_id, celery=True, token=token)
 
 
 def parse_bsub_job_id(output: str):
@@ -609,7 +631,7 @@ def _dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize):
     return {"lsf_job_id": parse_bsub_job_id(out.stdout), "queue": queue}
 
 
-def _dispatch_kubernetes(qa_batch_path, log_dir, user_info, ci_commit, do_optimize, command_id, on_prepared=None):
+def _dispatch_kubernetes(qa_batch_path, log_dir, user_info, ci_commit, do_optimize, command_id, on_prepared=None, token=None):
     """
     Run the batch script on Kubernetes, in a "driver" pod (a 1-pod Job named qa-<command_id[:8]>-driver) that runs as
     the signed-in user (`user_info`, g.user), with the commit's runners.kubernetes (image, mounts...) as far as the
@@ -620,7 +642,7 @@ def _dispatch_kubernetes(qa_batch_path, log_dir, user_info, ci_commit, do_optimi
     `do_optimize`: the pod has no deadline either way, `qa optimize` runs as long as its experiment.
     """
     from ..runner_jobs import submit_driver
-    return submit_driver(qa_batch_path, log_dir, user_info, ci_commit, command_id, on_prepared=on_prepared)
+    return submit_driver(qa_batch_path, log_dir, user_info, ci_commit, command_id, on_prepared=on_prepared, token=token)
 
 
 def find_commit(project_id, hexsha):
@@ -762,34 +784,32 @@ def pipeline_batches(batches, merged_batches):
     return batches
 
 
-def copy_batches_files(files, log_dir):
+# Where the snapshot of the batches is, in the submission's folder
+SNAPSHOT_FILE = "batches.yaml"
+
+def snapshot_label(batches_file):
+    """How the snapshot names the file a batch comes from"""
+    if batches_file["source"] == "qaboard":
+        return f"{batches_file['path']} (in QA-Board)"
+    if batches_file["source"] == "sent":
+        return f"{batches_file['path']} (sent with qa batch --commit)"
+    return batches_file["path"]
+
+
+def write_batches_snapshot(files, names, config, log_dir, command=None, when=None):
     """
-    Copies the batch files to the submission's folder, to know later what ran, and to run it again.
-    `qa batch` reads the copies like the files on a commit: in the same order, with their file-level defaults.
-    They keep their paths, e.g. batches/commit/qa/tests.yaml or batches/qaboard/alice.yml, so that errors name them.
-    Returns the paths of the copies.
+    Writes the batches that will run in the submission's folder: the definitions as they are now, from the files
+    `qa batch` would read (load_batches), filtered to what runs (qaboard/batch_snapshot.py). `qa batch` reads it:
+    users see what ran, and can run it again, even after the files change.
+    Returns (its path, a summary for the submission: {batches, aliases, files, inputs}).
     """
-    copies = []
-    for idx, batches_file in enumerate(files):
-        parts = batches_file_copy_parts(batches_file["path"])
-        if batches_file["source"] == "sent":
-            # untrusted paths: a folder per file, so that they can't collide, and a short name
-            name = parts[-1]
-            parts = [str(idx), name if len(name.encode('utf-8')) <= 100 else f"batches{Path(name).suffix[:10]}"]
-        copy = Path(log_dir) / "batches" / batches_file["source"] / Path(*parts)
-        n = len(copies)
-        while copy in copies:
-            copy = copy.with_name(f"{n}-{Path(*parts).name}")
-            n += 1
-        copy.parent.mkdir(parents=True, exist_ok=True)
-        if "content" in batches_file:
-            # sent with the request: we write exactly what we read when checking it
-            with copy.open("w", encoding="utf-8") as f:
-                f.write(batches_file["content"])
-        else:
-            shutil.copyfile(batches_file["location"], copy)
-        copies.append(copy)
-    return copies
+    from qaboard.batch_snapshot import snapshot, header_lines
+    contents = [(snapshot_label(f), read_batches_file(f)) for f in files]
+    allow_duplicates = bool((config.get('inputs') or {}).get('allow_duplicate_batches')) if isinstance(config.get('inputs'), dict) else False
+    result = snapshot(names, contents, allow_duplicates, header=header_lines(names, command=command, when=when))
+    path = Path(log_dir) / SNAPSHOT_FILE
+    path.write_text(result["yaml"], encoding="utf-8")
+    return path, {k: result[k] for k in ("batches", "aliases", "files", "inputs")}
 
 
 def batches_file_copy_parts(path) -> List[str]:
@@ -865,6 +885,9 @@ def check_tuning_request(ci_commit, data, user_name=None):
     if not config:
         errors.append("QA-Board doesn't know this project's configuration: run `qa save-artifacts` or `qa batch` on this commit, with qaboard.yaml.")
         config = {}
+
+    if problem := runner_unsupported(ci_commit, os.environ.get('QABOARD_TUNING_RUNNER', 'local')):
+        errors.append(problem)
 
     label = str(data.get('batch_label') or '').strip()
     if not label:
@@ -1030,25 +1053,34 @@ def start_tuning(hexsha):
     created_at = datetime.datetime.utcnow()
     log_dir = submission_dir(batch_dir, created_at, command_id)
     mkdir_for_everyone(log_dir)
-    batches_files = copy_batches_files(check["batches_files"], log_dir)
 
     working_directory = ci_commit.artifacts_dir
     print(working_directory)
 
     # This will make us do automated tuning, versus a single manual batch
+    runner = os.environ.get('QABOARD_TUNING_RUNNER', 'local')
     do_optimize = data['tuning_search'].get('search_type') == 'optimize'
     batches_names, _ = selected_batches(data)
     if do_optimize:
         # we write somewhere the optimization search configuration
         # it needs to be accessed from LSF so we can't use temporary files...
-        config_path = batch_dir / 'optim-config.yaml'
+        # A Kubernetes pod without a shared storage gets the files of the submission's folder (runner_jobs.driver_files):
+        # its experiment can't be resumed when it starts again
+        optimize_dir = log_dir if driver_without_storage(ci_commit, runner) else batch_dir
+        config_path = optimize_dir / 'optim-config.yaml'
         # qa optimize saves the search there as it goes, and resumes from it when the experiment starts again
-        checkpoint_path = batch_dir / 'optuna-journal.log'
+        checkpoint_path = optimize_dir / 'optuna-journal.log'
         config_option = f"--config-file {quote(str(config_path))} --checkpoint {quote(str(checkpoint_path))}"
         with config_path.open("w") as f:
             f.write(data['tuning_search']['parameter_search'])
     else:
         config_option = f"--tuning-search {quote(json.dumps(data['tuning_search']))}"
+
+    # we know the batch names: the snapshot is the only batch file `qa batch` reads
+    snapshot_path, snapshot_summary = write_batches_snapshot(
+        check["batches_files"], batches_names, commit_qaboard_config(ci_commit), log_dir,
+        when=created_at.isoformat() + 'Z',
+    )
 
     overwrite = "--action-on-existing run" if data["overwrite"] in ("on", True) else "--action-on-existing sync"
     batch_command = " ".join([
@@ -1056,7 +1088,7 @@ def start_tuning(hexsha):
         f"--platform {quote(str(data['platform']))}" if "platform" in data else "",
         f"--label {quote(str(data['batch_label']))}",
         "optimize" if do_optimize else "batch",
-        *(f"--batches-file {quote(str(path))}" for path in batches_files),
+        f"--batches-file {quote(str(snapshot_path))}",
         *(f"--batch {quote(name)}" for name in batches_names),
         # f"--runner=local", # uncomment if testing from Samsung SIRC where LSF is the default
         config_option,
@@ -1070,7 +1102,6 @@ def start_tuning(hexsha):
     with qa_batch_path.open("w") as f:
         f.write(qa_batch_script)
 
-    runner = os.environ.get('QABOARD_TUNING_RUNNER', 'local')
     submission = {
         "id": command_id,
         "created_at": created_at.isoformat() + 'Z',
@@ -1081,6 +1112,14 @@ def start_tuning(hexsha):
         # where the batches are defined: the command reads copies of the batch files
         "batch": " ".join(batches_names),
         "definitions": check["definitions"],
+        # what the snapshot of the batches has (SNAPSHOT_FILE in log_dir), and what the form had: to start it again
+        "batches_snapshot": {**snapshot_summary, "path": SNAPSHOT_FILE},
+        "request": {
+            "selected_group": batches_names,
+            "platform": data.get("platform"),
+            "tuning_search": data["tuning_search"],
+            "overwrite": data["overwrite"] in ("on", True),
+        },
         # local/celery: `qa batch` runs detached on the server, LSF/kubernetes: `qa batch` is an LSF job/a pod
         "status": "submitting",
     }
@@ -1092,6 +1131,8 @@ def start_tuning(hexsha):
     notification = notify_when_done(data, command_id, ci_commit, batch, user, do_optimize)
 
     try:
+        # runs without a shared storage, or on servers that require tokens, send results with a token of the user
+        token = tokens.mint_for_batch(g.get('actor'), ci_commit, command_id, runner, log_dir=log_dir, until_stopped=do_optimize)
         if runner == 'lsf':
             submission.update(_dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize))
             submission["status"] = "submitted"
@@ -1102,15 +1143,17 @@ def start_tuning(hexsha):
                 record_submission(batch, submission)
                 db_session.add(batch)
                 db_session.commit()
-            submission.update(_dispatch_kubernetes(qa_batch_path, log_dir, g.user, ci_commit, do_optimize, command_id, on_prepared=record_driver))
+            submission.update(_dispatch_kubernetes(qa_batch_path, log_dir, g.user, ci_commit, do_optimize, command_id, on_prepared=record_driver, token=token))
             submission["status"] = "submitted"
         elif runner == 'celery':
             # status: "submitted" while it runs, "done"/"failed" if it ended already
-            submission.update(_dispatch_celery(qa_batch_path, log_dir, command_id))
+            submission.update(_dispatch_celery(qa_batch_path, log_dir, command_id, token=token))
         else:
-            submission.update(_dispatch_local(qa_batch_path, log_dir, command_id, ci_commit))
+            submission.update(_dispatch_local(qa_batch_path, log_dir, command_id, ci_commit, token=token))
     except Exception as e:
         submission["status"] = "failed"
+        # its token is of no use
+        tokens.revoke_batch_tokens([command_id], reason="its batch failed to start")
         if isinstance(e, subprocess.CalledProcessError):
             submission["exit_code"] = e.returncode
         else:

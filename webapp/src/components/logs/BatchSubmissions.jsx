@@ -7,7 +7,7 @@ import { updateSelected } from "../../selection";
 import { LogViewer } from "./LogViewer";
 import { LsfReport, withCode } from "./LsfReport";
 import { lsfHint, lsfKilled, lsfReason } from "./lsf";
-import { RunList, Header, Content, INTERACTIVE } from "./RunLogs";
+import { Header, Content, INTERACTIVE } from "./RunLogs";
 import { batchSubmissions, is_final, useSubmissionStatus, whereItRuns } from "./submissions";
 import { DirectoryActions } from "./DirectoryActions";
 import { copyWithToast } from "../../utils/clipboard";
@@ -126,22 +126,13 @@ const fromFiles = (submission, context) => {
 }
 
 
-// The requests to show a submission that we scrolled to: rows that mount again don't scroll again
-const scrolled = new WeakSet()
-
 /**
  * A batch started from QA-Board: the status of `qa batch`, and its logs.
- * `focus` changes when users ask to see this submission: we scroll to it.
+ * `actions`: more buttons, e.g. to run it again. `children`: shown above the logs, e.g. what ran.
  */
-const SubmissionRow = ({ submission, expanded, onToggle, focus, available_tests_files, repo_file_url }) => {
+export const SubmissionRow = ({ submission, expanded, onToggle, available_tests_files, repo_file_url, actions = null, children = null }) => {
   const files_context = filesContext(submission, available_tests_files, repo_file_url)
   const status = useSubmissionStatus(submission)
-  const ref = useRef(null)
-  useEffect(() => {
-    if (!focus || scrolled.has(focus)) return
-    scrolled.add(focus)
-    ref.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
-  }, [focus])
   const [file, setFile] = useState('log.txt')
   const base = submission.log_dir_url
   const files = [
@@ -156,7 +147,7 @@ const SubmissionRow = ({ submission, expanded, onToggle, focus, available_tests_
     onToggle()
   }
 
-  return <div ref={ref} style={{ scrollMarginTop: 16 }}>
+  return <div>
     <Header onClick={toggle} $expanded={expanded} $failed={failed}>
       <Button
         size="small"
@@ -168,22 +159,24 @@ const SubmissionRow = ({ submission, expanded, onToggle, focus, available_tests_
       />
       <StateTag state={status.state} />
       <Meta>
-        <strong>qa batch</strong>
+        <strong>{/ optimize /.test(submission.command ?? '') ? 'qa optimize' : 'qa batch'}</strong>
         <span className={Classes.TEXT_MUTED}>
           {[
+            'from QA-Board',
             submission.user && `by ${submission.user}`,
             relative(submission.created_at),
             whereItRuns(submission),
             fromFiles(submission, files_context),
           ].filter(Boolean).map((text, index) => <React.Fragment key={index}>
             {index > 0 && ' · '}
-            {index === 1 ? <Tooltip content={absolute(submission.created_at)}>{text}</Tooltip> : text}
+            {index === 2 ? <Tooltip content={absolute(submission.created_at)}>{text}</Tooltip> : text}
           </React.Fragment>)}
         </span>
       </Meta>
-      {!!base && <span className="actions">
-        <DirectoryActions url={base} what="the folder with qa batch's script and logs" />
-      </span>}
+      <span className="actions">
+        {actions}
+        {!!base && <DirectoryActions url={base} what="the folder with qa batch's script and logs" />}
+      </span>
     </Header>
     <Collapse isOpen={expanded} transitionDuration={150}>
       <Content $failed={failed}>
@@ -193,6 +186,7 @@ const SubmissionRow = ({ submission, expanded, onToggle, focus, available_tests_
               {!!status.last_error && <LastError>{status.last_error}</LastError>}
             </Callout>
         )}
+        {children}
         <BatchDefinitions definitions={submission.definitions} context={files_context} style={{ margin: '0 0 8px 0' }} />
         {!!submission.command && <Command className={Classes.MONOSPACE_TEXT}>
           <code>{submission.command}</code>
@@ -206,55 +200,6 @@ const SubmissionRow = ({ submission, expanded, onToggle, focus, available_tests_
           : <span className={Classes.TEXT_MUTED}>No logs.</span>}
       </Content>
     </Collapse>
-  </div>
-}
-
-
-const SHOWN = 3
-
-/**
- * The batches started from QA-Board, most recent first.
- * If the batch has no runs yet, we open the most recent: it's likely why.
- * `focus` ({id}, a new object each time) opens a submission's logs and scrolls to it. We ignore the requests made before we rendered.
- */
-export const BatchSubmissions = ({ batch, has_runs, focus, available_tests_files, repo_file_url }) => {
-  const submissions = batchSubmissions(batch)
-  const [expanded, setExpanded] = useState(() => new Set(!has_runs && submissions.length ? [submissions[0].id] : []))
-  const [show_all, setShowAll] = useState(false)
-  const [last_focus, setLastFocus] = useState(focus)
-  const [focused, setFocused] = useState(null)
-  if (focus && focus !== last_focus) {
-    setLastFocus(focus)
-    setFocused(focus)
-    setExpanded(expanded => new Set(expanded).add(focus.id))
-    if (submissions.findIndex(submission => submission.id === focus.id) >= SHOWN)
-      setShowAll(true)
-  }
-  if (!submissions.length) return null
-
-  const toggle = id => setExpanded(expanded => {
-    const next = new Set(expanded)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    return next
-  })
-  const shown = show_all ? submissions : submissions.slice(0, SHOWN)
-  return <div style={{ marginBottom: 24 }}>
-    <h3 className={Classes.HEADING}>Started from QA-Board</h3>
-    <RunList>
-      {shown.map(submission => <SubmissionRow
-        key={submission.id}
-        submission={submission}
-        expanded={expanded.has(submission.id)}
-        onToggle={() => toggle(submission.id)}
-        focus={focused?.id === submission.id ? focused : null}
-        available_tests_files={available_tests_files}
-        repo_file_url={repo_file_url}
-      />)}
-    </RunList>
-    {submissions.length > SHOWN && <Button style={{ marginTop: 6 }} size="small" variant="minimal" onClick={() => setShowAll(!show_all)}>
-      {show_all ? 'Show less' : `Show ${submissions.length - SHOWN} older`}
-    </Button>}
   </div>
 }
 

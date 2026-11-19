@@ -54,8 +54,10 @@ ignore_config_errors = ignore_config_errors or is_auth_command
 is_doctor_command = is_qa_program(sys.argv) and invoked_command(sys.argv) == 'doctor'
 ignore_config_errors = ignore_config_errors or is_doctor_command
 # `qa upload` saves files as a run, also outside a project: it says itself what it misses (qaboard/upload_command.py)
-is_upload_command = is_qa_program(sys.argv) and invoked_command(sys.argv) == 'upload'
-ignore_config_errors = ignore_config_errors or is_upload_command
+# `qa fetch-artifacts` and `qa send-batch-log` only talk to the server
+COMMANDS_WITHOUT_PROJECT = ('upload', 'fetch-artifacts', 'send-batch-log')
+is_command_without_project = is_qa_program(sys.argv) and invoked_command(sys.argv) in COMMANDS_WITHOUT_PROJECT
+ignore_config_errors = ignore_config_errors or is_command_without_project
 # The errors in the configuration that make `qa` commands refuse to run, and how to fix them: `qa doctor` reports them
 config_errors: List[Tuple[str, str]] = []
 # What qa warns about in the configuration, and how to fix it
@@ -249,9 +251,11 @@ else:
   # that have tons of small repos configured the name
   interpolation_vars = {"root_path": root_qatools, "project_path": project_dir}
   root_qatools_config['project']['name'] = expand_paths(root_qatools_config['project']['name'], interpolation_vars)
-  root_qatools_config['project']['url'] = expand_paths(root_qatools_config['project']['url'], interpolation_vars)
   config['project']['name'] = expand_paths(config['project']['name'], interpolation_vars)
-  config['project']['url'] = expand_paths(config['project']['url'], interpolation_vars)
+  # project.url is optional: the git remote, or the CI, say where the repository is
+  for project_config in (root_qatools_config['project'], config['project']):
+    if project_config.get('url'):
+      project_config['url'] = expand_paths(project_config['url'], interpolation_vars)
 
 
   # We identify sub-qatools projects using the location of qaboard.yaml related to the project root
