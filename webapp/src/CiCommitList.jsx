@@ -19,6 +19,7 @@ import CommitRow, { CompactCommitList, CompactListContainer, compact_columns_css
 import { Container } from "./components/layout";
 import { LoadMore } from "./components/LoadMore";
 import CommitsEvolution from "./CommitsEvolution";
+import { BranchTiles } from "./CommitsTrends";
 import { groupBy } from "./utils";
 
 import { useCommitsList, useProjectData, useSelected, useSiteConfig, useUser, updateSelected } from './hooks'
@@ -185,6 +186,8 @@ const CiCommitList = () => {
       {show_batches && <BatchList key={`${scope}|${hide_ci}`} project={project} project_data={project_data} branch={branch} scope={scope} hide_ci={hide_ci} onShowEveryone={show_everyone}/>}
       {!show_batches && <>
       {/* the chart has a fixed width: it scrolls rather than spill out of the card */}
+      {/* tests, benchmarks: headline numbers that open History */}
+      {show_metrics_over_time && <BranchTiles project={project} branch={branch} commits={commits} date_range={date_range} available_metrics={evolution_project_data.data?.qatools_metrics?.available_metrics}/>}
       {show_metrics_over_time && <Card elevation={0} style={{marginBottom: '15px', overflowX: 'auto'}}>
         <h4 className={Classes.HEADING}>Performance over time</h4>
         <CommitsEvolution

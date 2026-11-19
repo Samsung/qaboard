@@ -96,9 +96,10 @@ def read_metrics(files: Dict[str, Path]) -> Dict[str, Any]:
         cases.extend(read_junit(file))
         has_reports = True
       elif name in benchmark_files:
-        # several benchmark files: their file's name tells apart benchmarks with the same name
-        prefix = f"{Path(name).name.split('.')[0]}_" if len(benchmark_files) > 1 else ''
-        metrics.update(benchmark_metrics(file, prefix=prefix))
+        # several benchmark files: their file's name tells apart benchmarks with the same name, and their charts
+        stem = Path(name).name.split('.')[0]
+        several = len(benchmark_files) > 1
+        metrics.update(benchmark_metrics(file, prefix=f"{stem}_" if several else '', group=f"Benchmarks/{stem}" if several else 'Benchmarks'))
     except Exception as e:
       click.secho(f"WARNING: no metrics read from {file}: {e}", fg='yellow', err=True)
   if has_reports:

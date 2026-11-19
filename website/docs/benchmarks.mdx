@@ -86,6 +86,8 @@ smaller than the spread shows as **within noise**, so a harness that measures on
 - **Run the new and the reference commits on the same machines**, e.g. a dedicated runner. The viewer warns when the
   two files say they come from different CPUs or CPU counts.
 
+More in [Stable benchmarks in CI](/docs/benchmarking-in-ci), including instruction counts that don't depend on noise.
+
 ## Each benchmark as a metric {#benchmark-metrics}
 `benchmark_metrics` turns the file into metrics, one per benchmark, to return from `run()`. They show in the
 **Metrics Diff** and **History**, and the quality gate can check them. With a compiled Google Benchmark harness:
@@ -108,6 +110,9 @@ def run(context):
 - **Values** are in seconds, shown in the suite's typical unit (` µs`, ` ms`...), with `smaller_is_better=True`.
   JMH throughputs are in operations per second, larger is better. `unit="ms"` picks the unit shown.
 - `statistic="median"` returns another statistic from the file; benchmarks without it are left out.
+- **Groups**: each metric is in the `Benchmarks` group, followed by the benchmark's family or group when it has one
+  (`Benchmarks/BM_Encode`), so that **History** shows them over time without configuration. `group="Codec"` picks
+  another top-level group, see [grouping metrics](/docs/computing-quantitative-metrics#grouping-metrics).
 
 :::caution The gate doesn't know the spread
 A [gate rule](/docs/quality-gate#rules) like `{metric: codec_bm_encode_64, max_regression: 5%}` compares the values,

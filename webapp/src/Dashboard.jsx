@@ -15,6 +15,7 @@ import {
 } from "@blueprintjs/core";
 
 import CommitsEvolution from "./CommitsEvolution";
+import { HistoryTrends } from "./CommitsTrends";
 import { Container, Section } from "./components/layout";
 import { SectionErrorBoundary } from "./components/ErrorFallback";
 import { MetricsSummary, MetricSelect } from "./components/metrics";
@@ -132,6 +133,16 @@ const Dashboard = () => {
   const count = outputs_nb > 0 && <p className={Classes.TEXT_MUTED}>{outputs_nb} run{outputs_nb > 1 ? 's' : ''}</p>
   return (
     <Container style={{ marginTop: 0, paddingTop: 50 + 16 }}>
+      {/* tests, benchmarks: what the metrics' definitions group (src/trends/), without configuration */}
+      <HistoryTrends project={project} commits={commits} batch_label={selected_batch_new} available_metrics={available_metrics} filter={selected.filter_batch_new}>
+        {sections => <ViewSection>
+          <ViewHeader>
+            <h2 className={Classes.HEADING}>Tests and benchmarks over time</h2>
+            <p className={Classes.TEXT_MUTED}>{commits.length} commit{commits.length > 1 ? 's' : ''}, oldest on the left</p>
+          </ViewHeader>
+          <Card>{sections}</Card>
+        </ViewSection>}
+      </HistoryTrends>
       <ViewSection style={{ breakInside: "avoid" }}>
         <ViewHeader>
           {/* a small spinner while refreshing: a big one would push the page down */}

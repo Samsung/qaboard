@@ -53,6 +53,22 @@ class TestJunit(unittest.TestCase):
     self.assertEqual((metrics['failed'].definition['smaller_is_better'], metrics['failed'].definition['target']), (True, 0))
     self.assertEqual(sorted(junit_metrics(read_junit(self.write(REPORT)), prefix='unit_'))[0], 'unit_errors')
 
+  def test_metrics_are_grouped_and_add_up(self):
+    metrics = junit_metrics(self.write(REPORT))
+    self.assertEqual({key: metric.definition.get('group') for key, metric in metrics.items()}, dict.fromkeys(metrics, 'Tests'))
+    self.assertEqual({key: metric.definition.get('aggregation') for key, metric in metrics.items()}, dict.fromkeys(metrics, 'sum'))
+    self.assertEqual({key: (metric.definition.get('part_of'), metric.definition.get('intent')) for key, metric in metrics.items()}, {
+      'tests': (None, None), 'passed': ('tests', 'success'), 'failed': ('tests', 'danger'), 'errors': ('tests', 'danger'),
+      'skipped': ('tests', 'none'), 'flaky': ('tests', 'warning'), 'test_time': (None, None),
+    })
+    # parts point at the prefixed total
+    unit = junit_metrics(self.write(REPORT), prefix='unit_', group='Tests/unit')
+    self.assertEqual((unit['unit_failed'].definition['part_of'], unit['unit_failed'].definition['group']), ('unit_tests', 'Tests/unit'))
+    # all valid definitions
+    from qaboard.metrics import clean_definition
+    for metric in [*metrics.values(), *unit.values()]:
+      self.assertEqual(clean_definition(metric.definition)[1], [])
+
   def test_a_single_suite_and_an_empty_report(self):
     self.assertEqual(float(junit_metrics(self.write('<testsuite name="s"><testcase name="t"/></testsuite>'))['tests']), 1)
     self.assertEqual(read_junit(self.write('<testsuite name="s"><testcase name="t"/></testsuite>'))[0]['id'], 's::t')

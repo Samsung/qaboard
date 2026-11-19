@@ -224,6 +224,17 @@ class TestUpload(QaTestCase):
     self.assertTrue(expected)
     for key, value in expected.items():
       self.assertAlmostEqual(metrics[key], float(value))
+    # with their definitions, grouped so that the web app charts them over commits
+    definitions = server.outputs()[-1]['metrics_definitions']
+    self.assertEqual((definitions['failed']['group'], definitions['failed']['aggregation'], definitions['failed']['part_of']), ('Tests', 'sum', 'tests'))
+    self.assertEqual(definitions['tests_test_codec_py_test_encode_64']['group'], 'Benchmarks/codec')
+
+  def test_several_benchmark_files_are_told_apart(self):
+    from qaboard.upload_command import read_metrics
+    fixtures = ROOT / 'tests/fixtures/benchmarks'
+    metrics = read_metrics({'pytest.benchmarks.json': fixtures / 'pytest-benchmark.json', 'gbench.benchmarks.json': fixtures / 'google-benchmark.json'})
+    self.assertEqual(metrics['pytest_tests_test_codec_py_test_encode_64'].definition['group'], 'Benchmarks/pytest/codec')
+    self.assertEqual(metrics['gbench_bm_checksum'].definition['group'], 'Benchmarks/gbench')
 
   def test_a_file_that_isnt_what_its_name_says_is_still_saved(self):
     server = self.server()

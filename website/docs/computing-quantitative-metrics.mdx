@@ -95,8 +95,42 @@ All the fields are optional:
 | `scale` | Values are multiplied by it when shown, e.g. `100` to show a fraction in percent. |
 | `precision` | The number of significant digits shown. Default: 3. |
 | `plot_scale` | `"log"` or `"linear"`, for the axis of the plots. Default: log in the Summary's box plots, linear on the History page. The box plots are linear when some values are 0 or negative. |
+| `group` | Metrics shown together, as a path with `/` between levels, e.g. `"Tests"` or `"Benchmarks/codec/encode"`. |
+| `aggregation` | How a commit's value comes from its runs' values: `"sum"`, `"average"` or `"median"`. Default: median. |
+| `part_of` | The key of the metric this one is a part of, e.g. `passed` is part of `tests`. |
+| `intent` | The color of a part: `"success"`, `"warning"`, `"danger"` or `"none"`. |
 
 [Quality gates](/docs/quality-gate) use the definitions too: rules about regressions need to know which way is better.
+
+### Grouping metrics, and how they add up over a commit's runs {#grouping-metrics}
+To follow metrics over commits, QA-Board computes one value per commit from its runs: by default their median. The last
+four fields above say how to chart them without configuration. Counts add up (`aggregation="sum"`), and parts of a
+total (`part_of`) are stacked, colored by their `intent`. A run with one count per kind of defect:
+
+```python title="qa/main.py"
+from qaboard import Metric
+
+def run(context):
+    # --snip--
+    defects = dict(group="Quality/defects", aggregation="sum", smaller_is_better=True)
+    return {
+        "defects": Metric(halos + banding, **defects),
+        "halos": Metric(halos, part_of="defects", intent="warning", **defects),
+        "banding": Metric(banding, part_of="defects", intent="danger", **defects),
+    }
+```
+
+Or in a [metrics file](#declaring-metrics-in-a-metrics-file):
+
+```yaml title="qa/metrics.yaml"
+available_metrics:
+  defects: {group: Quality/defects, aggregation: sum}
+  halos: {group: Quality/defects, aggregation: sum, part_of: defects, intent: warning}
+```
+
+[Test reports](/docs/viewers#test-reports) and [benchmark files](/docs/benchmarks#benchmark-metrics) give their
+metrics these fields already: their counts are in the `Tests` group and add up, each benchmark is in `Benchmarks`,
+followed by its family when it has one.
 
 Only the metrics a run returns get a definition. `Metric` is the simplest way to say how to show a metric: the
 definition stays next to the value, and goes away with it.

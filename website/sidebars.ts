@@ -147,6 +147,7 @@ const sidebars: SidebarsConfig = {
         "viewers",
         // Performance results in the files harnesses and profilers write
         "benchmarks",
+        "benchmarking-in-ci",
         "flame-graphs",
         "references-and-milestones",
       ],

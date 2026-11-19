@@ -35,7 +35,11 @@
         "scale": {"type": "number", "description": "Values are multiplied by it when shown, e.g. 100 for a percentage. Default: 1."},
         "suffix": {"type": "string", "description": "Shown after the values, e.g. `%` or ` ms`."},
         "precision": {"type": "integer", "description": "Significant digits shown. Default: 3."},
-        "plot_scale": {"enum": ["log", "linear"], "description": "The scale of the axis in plots. Default: log in the Summary's box plots, linear on the History page."}
+        "plot_scale": {"enum": ["log", "linear"], "description": "The scale of the axis in plots. Default: log in the Summary's box plots, linear on the History page."},
+        "group": {"type": "string", "pattern": "^[^/]*[^/\\s][^/]*(/[^/]*[^/\\s][^/]*)*$", "maxLength": 200, "description": "Metrics shown together, a path of levels separated by `/`, e.g. `Tests` or `Benchmarks/codec/encode`."},
+        "aggregation": {"enum": ["sum", "average", "median"], "description": "How a commit's value is computed from its runs' values: `sum` for counts like tests. Default: median."},
+        "part_of": {"type": "string", "minLength": 1, "maxLength": 200, "description": "The key of the metric this one is a part of, e.g. `passed` is part of `tests`: charts stack the parts."},
+        "intent": {"enum": ["success", "warning", "danger", "none"], "description": "The color of a part (see part_of) in charts."}
       },
       "additionalProperties": false
     },

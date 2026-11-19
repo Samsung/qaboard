@@ -78,6 +78,9 @@ qa upload --input codec junit.xml pytest.benchmarks.json cpu.folded build/covera
   from the files. `--no-read` reads none.
 - **Several test reports add up** in the metrics, like the report per class that Maven and Gradle write. The card
   shows the first four files of each kind; the others are in **Output Files**.
+- **Metrics come grouped**: the tests' counts in `Tests`, the benchmarks in `Benchmarks/<family>`, so that **History**
+  shows them over time without configuration. With several benchmark files, each file's name is a level, and a prefix
+  of its metrics' keys: `Benchmarks/pytest/codec`, `pytest_...` ([grouping metrics](/docs/computing-quantitative-metrics#grouping-metrics)).
 - **In a folder**, hidden folders (*.git*, *.venv*) are left out, and so is *output/*, where `qa` keeps a copy of
   the runs it shares from this computer.
 - **Some names are QA-Board's own** in every run: *metrics.json*, *run.json*, *manifest.outputs.json*. Give metrics

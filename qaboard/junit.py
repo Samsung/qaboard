@@ -92,22 +92,28 @@ def _cases(element: ET.Element, suite: str) -> Iterable:
       yield from _cases(child, suite)
 
 
-def junit_metrics(path_or_cases: Union[str, Path, Iterable[Dict[str, Any]]], prefix: str = '') -> Dict[str, Metric]:
+def junit_metrics(path_or_cases: Union[str, Path, Iterable[Dict[str, Any]]], prefix: str = '', group: str = 'Tests') -> Dict[str, Metric]:
   """
   Metrics to return from run(), from a JUnit XML report (or the cases of `read_junit`): how many tests it has
   (`tests`), how many `passed`, `failed`, had `errors`, were `skipped` or `flaky`, and their total time (`test_time`).
   - prefix: for the keys, e.g. "unit_" when a run returns several reports.
+  - group: where the web app shows them, e.g. "Tests/unit" to tell reports apart.
+  The counts add up over a commit's runs (aggregation "sum"), and passed, failed... are parts of `tests`, so that
+  the web app charts them over commits without configuration.
   A failing test doesn't fail the run: the run measured it. Fewer `tests` than the reference says tests were removed.
   """
   cases = read_junit(path_or_cases) if isinstance(path_or_cases, (str, Path)) else list(path_or_cases)
   counts = Counter(case['status'] for case in cases)
+  total = f"{prefix}tests"
+  count: Dict[str, Any] = dict(group=group, aggregation='sum', precision=6)
+  part: Dict[str, Any] = dict(count, part_of=total)
   metrics = {
-    'tests': Metric(len(cases), label='Tests', smaller_is_better=False, precision=6),
-    'passed': Metric(counts['passed'], label='Passed', smaller_is_better=False, precision=6),
-    'failed': Metric(counts['failed'], label='Failed', smaller_is_better=True, target=0, precision=6),
-    'errors': Metric(counts['error'], label='Errors', smaller_is_better=True, target=0, precision=6),
-    'skipped': Metric(counts['skipped'], label='Skipped', smaller_is_better=True, precision=6),
-    'flaky': Metric(counts['flaky'], label='Flaky', smaller_is_better=True, precision=6),
-    'test_time': Metric(sum(case['time'] for case in cases), label='Test time', suffix=' s', smaller_is_better=True),
+    'tests': Metric(len(cases), label='Tests', smaller_is_better=False, **count),
+    'passed': Metric(counts['passed'], label='Passed', smaller_is_better=False, intent='success', **part),
+    'failed': Metric(counts['failed'], label='Failed', smaller_is_better=True, target=0, intent='danger', **part),
+    'errors': Metric(counts['error'], label='Errors', smaller_is_better=True, target=0, intent='danger', **part),
+    'skipped': Metric(counts['skipped'], label='Skipped', smaller_is_better=True, intent='none', **part),
+    'flaky': Metric(counts['flaky'], label='Flaky', smaller_is_better=True, intent='warning', **part),
+    'test_time': Metric(sum(case['time'] for case in cases), label='Test time', suffix=' s', smaller_is_better=True, group=group, aggregation='sum'),
   }
   return {f"{prefix}{key}": metric for key, metric in metrics.items()}

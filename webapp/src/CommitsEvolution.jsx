@@ -21,6 +21,7 @@ import { hash_color, match_query, average, median, metric_info } from "./utils";
 import { matching_output } from "./matching/match";
 import { yAxisSuffix, hasAllMetrics, sum } from "./evolutionAxis";
 import CommitRow from "./components/CommitRow";
+import { compositionKeys } from "./trends/model";
 
 
 // As wide as its container
@@ -425,12 +426,21 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
   const { query } = useSelected();
   const { docs_root } = useSiteConfig();
   const { available_metrics = {}, main_metrics = [], default_metric: configured_default_metric } = project_data?.data?.qatools_metrics || {};
-  // Projects that don't choose: the first metric we can plot
-  const default_metric = configured_default_metric || (select_metrics || main_metrics)[0];
+  // Projects that don't choose: the first metric we can plot. Without any in the metrics file, the totals that the
+  // runs' metrics describe (the tests of `qa upload`): lists of commits have them aggregated.
+  const offered_metrics = useMemo(() => {
+    const listed = select_metrics || main_metrics;
+    if (listed.length > 0) return listed;
+    const keys = compositionKeys(available_metrics);
+    return [...keys.filter(key => !available_metrics[key]?.part_of), ...keys.filter(key => !!available_metrics[key]?.part_of)].slice(0, 10);
+  }, [select_metrics, main_metrics, available_metrics]);
+  const default_metric = configured_default_metric || offered_metrics[0];
   const flag = (name, default_value) => query[name] !== undefined ? query[name] === 'true' : default_value;
 
   const selected_metric = query.selected_metric || default_metric;
-  const selected_aggregation = query.selected_aggregation || "median";
+  // counts add up over a commit's runs: their definition says so (`aggregation`)
+  const default_aggregation = available_metrics[selected_metric]?.aggregation || 'median';
+  const selected_aggregation = query.selected_aggregation || default_aggregation;
   const breakdown_per_test = flag('breakdown_per_test', !!default_breakdown_per_test);
   const relative = flag('relative', default_breakdown_per_test !== true);
   const show_bit_accuracy = flag('show_bit_accuracy', false);
@@ -444,7 +454,7 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
   const url_defaults = {
     ...bit_accuracy_url_defaults,
     selected_metric: default_metric,
-    selected_aggregation: 'median',
+    selected_aggregation: default_aggregation,
     breakdown_per_test: !!default_breakdown_per_test,
     relative: default_breakdown_per_test !== true,
     show_bit_accuracy: false,
@@ -474,7 +484,7 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
           onChange={update("selected_metric")}
           minimal
         >
-          {(select_metrics || main_metrics).map(m => (
+          {offered_metrics.map(m => (
             <option key={m} value={m}>
               {available_metrics[m]?.label ?? m}
             </option>

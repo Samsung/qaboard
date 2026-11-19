@@ -64,6 +64,9 @@ with a new and a reference profile that differ in known ways (`generate.js`); `q
 The parallel coordinates of Tuning Analysis (`webapp/src/viewers/parallel/`, drawn on a canvas, no Plotly) too: `/parallel-coordinates.html?rows=2000&columns=30`;
 `components/tuning/ParallelCoordinatesPlot.jsx` loads it lazily. Tuning Analysis itself is `components/tuning/TuningAnalysis.jsx`: `OptimizationReport.jsx`
 for `qa optimize` batches, `TuningReport.jsx` for the others (logic in `optimization.js` and `analysis.js`), with explanations in `learn.jsx`.
+Trends over a branch's commits (`webapp/src/trends/`, standalone, prototype): tests and benchmarks in History and tiles above a branch's
+commits, drawn from the metrics' definitions (`group`, `aggregation`, `part_of`, `intent`: `qaboard/metrics.py`, set by `junit_metrics` and
+`benchmark_metrics`); the app's adapter is `src/CommitsTrends.jsx`. Playground: `/trends.html?commits=100&tests=20000&benchmarks=600`.
 The commit page's Metrics Table and Metrics Diff (`components/tables.jsx`, with `components/metricsTable/`) too: `/metrics-table.html?runs=2000&metrics=30`.
 Like the image viewer, `viewers/benchmarks/` and `viewers/flamegraph/` are standalone: they import nothing from the app, which
 only loads their adapters (`viewers/benchmarks-viewer.jsx`, `viewers/flame-graph.jsx`), lazily. `viewers/__tests__/isolation.test.js`
