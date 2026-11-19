@@ -120,6 +120,7 @@ Projects need, in the *qaboard.yaml* of the commits they run:
   artifacts, at the same paths as the server's. See [Run batches on Kubernetes](/docs/kubernetes-runner).
 - Or no mounts, for [projects without a shared storage](/docs/storage/artifacts#uploaded): the pods download the
   commit's artifacts from QA-Board and send their results back with the batch's token, and the driver sends its log.
+  That token only sends this batch's results ([uploads](/docs/backend-admin/uploads#security)).
 
 <details>
 <summary>Limits without a shared storage</summary>

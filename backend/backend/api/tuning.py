@@ -1132,7 +1132,7 @@ def start_tuning(hexsha):
 
     try:
         # runs without a shared storage, or on servers that require tokens, send results with a token of the user
-        token = tokens.mint_for_batch(g.get('actor'), ci_commit, command_id, runner, log_dir=log_dir, until_stopped=do_optimize)
+        token = tokens.mint_for_batch(g.get('actor'), ci_commit, command_id, runner, batch_label=str(data['batch_label']), log_dir=log_dir, until_stopped=do_optimize, optimize=do_optimize)
         if runner == 'lsf':
             submission.update(_dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize))
             submission["status"] = "submitted"

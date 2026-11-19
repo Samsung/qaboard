@@ -1,7 +1,9 @@
 import datetime
 import json
 import math
+import re
 from pathlib import Path
+from urllib.parse import urlparse, unquote
 
 from typing import Optional
 
@@ -15,7 +17,7 @@ from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
 from ..origins import run_origin, run_user, claim_batch
 from ..storage import check_storage_path, UnsafePathError
-from .. import heartbeats, locations, uploads
+from .. import heartbeats, locations, uploads, tokens
 from ..metrics_definitions import MAX_KEY_LENGTH, FORBIDDEN_KEYS
 from ..redo import redo_response
 from ..metrics_definitions import save_metrics_definitions
@@ -24,6 +26,7 @@ from ..tokens import end_batch_token
 from ..attempts import record_attempt
 from ..access import invalid_project
 from .auth import login_required, is_authorized_user, ingest_access, forbidden_project, require_project_access
+from ..actor import batch_token_limits, output_batch_token_limits, batch_token_refused
 
 # Keys of a run's data that only the server sets
 # - optimization_best allows `qa optimize` to replace this run (see api/batch.py)
@@ -204,6 +207,8 @@ def add_output_metrics(output_id):
   submitted_by, error = ingest_access(project_id, require_token=True)
   if error:
     return error
+  if refused := output_batch_token_limits(output, what="add metrics to this run"):
+    return refused
   assert submitted_by
   data = request.get_json(silent=True) or {}
   metrics = data.get('metrics')
@@ -270,9 +275,10 @@ def report_output_progress(output_id):
   Same access as the results `qa` sends (ingest.auth). Much lighter than POST /api/v1/output/: no commit, batch or
   configuration to find or update.
   """
-  project_id = None
+  project_id, found = None, None
   try:
-    project_id = Output.query.filter(Output.id==output_id).one().batch.ci_commit.project_id
+    found = Output.query.filter(Output.id==output_id).one()
+    project_id = found.batch.ci_commit.project_id
   except NoResultFound:
     pass
   # who can't see the project doesn't learn whether the run exists
@@ -283,6 +289,8 @@ def report_output_progress(output_id):
   submitted_by, error = ingest_access(project_id)
   if error:
     return error
+  if refused := output_batch_token_limits(found, what="report the progress of this run"):
+    return refused
   data = request.get_json(silent=True) or {}
   metrics = data.get('metrics', {})
   if problem := invalid_added_metrics(metrics, max_metrics=MAX_PROGRESS_METRICS, allow_empty=True):
@@ -343,7 +351,27 @@ def authorize_upload():
     return jsonify({"error": "No token that can send results: run `qa auth login`, or in CI set QABOARD_TOKEN to a token with the ingest scope.", "reason": "login_required"}), 401
   if actor.token is not None and not actor.has_scope('ingest'):
     return jsonify({"error": "This token can't send results: it needs the \"ingest\" scope.", "reason": "missing_scope", "required": "ingest"}), 403
+  if tokens.is_batch_token(actor.token) and (refused := batch_token_upload_limits(request.environ.get('QABOARD_ORIGINAL_URI'))):
+    return refused
   return '', 204
+
+
+def batch_token_upload_limits(uri: Optional[str]):
+  """
+  For authorize_upload: None if a batch token may send this file, else the 403. The endpoints check it again with
+  the file, this only keeps other batches' files from nginx's disk. nginx says the URL (QABOARD_ORIGINAL_URI).
+  """
+  path = urlparse(uri or '').path
+  if match := re.fullmatch(r'/api/v1/output/(\d+)/files/.+', path):
+    output = Output.query.filter(Output.id == int(match.group(1))).one_or_none()
+    # the endpoint says it doesn't exist
+    return output_batch_token_limits(output, what="send files of this run") if output is not None else None
+  if match := re.fullmatch(r'/api/v1/batch/submissions/([^/]+)/log', path):
+    if tokens.batch_token_for(g.actor, unquote(match.group(1))) is None:
+      return batch_token_refused("send the log of another batch")
+    return None
+  # the commits' artifacts (only `qa save-artifacts` sends them), or a URL nginx didn't say
+  return batch_token_refused("send these files")
 
 
 @app.route("/api/v1/output/<int:output_id>/files/<path:path>", methods=['PUT'])
@@ -369,6 +397,8 @@ def upload_output_file(output_id, path):
   submitted_by, error = ingest_access(project_id, require_token=True)
   if error:
     return error
+  if refused := output_batch_token_limits(output, what="send files of this run"):
+    return refused
   if not uploads.enabled(project_id):
     return jsonify({"error": uploads.disabled_message(), "reason": "uploads_disabled"}), 400
   try:
@@ -470,6 +500,8 @@ def new_output_webhook():
   submitted_by, error = ingest_access(data.get('project'), require_token=uploads_files)
   if error:
     return error
+  if refused := batch_token_limits(data.get('project'), hexsha, data.get('batch_label')):
+    return refused
 
   # We get a handle on the Commit object related to our new output
   try:

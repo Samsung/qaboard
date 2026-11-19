@@ -112,8 +112,9 @@ Whoever can send files can put any file on your server, which serves it to every
   ([HTML reports](/docs/viewers#html-reports)). It is off by default.
 - **Images of restricted projects**: the image server (`/iiif/`) doesn't check who asks. If projects' visibility
   matters on your server, don't expose it beyond the people who may see every project.
-- **Batches started from the web app** for these projects get a token of the person who started them, limited to the
-  project, to reading and sending results. It is revoked when the batch is stopped, expires 10 minutes after the
+- **Batches started from the web app** for these projects get a token of the person who started them, limited to
+  reading the project and sending the results of that batch only (its commit and label, and the batches of each
+  `qa optimize` evaluation): it can't write other batches' runs, other commits, or any commit's artifacts. It is revoked when the batch is stopped, expires 10 minutes after the
   batch's last run ends (time for the driver to send the end of its log), and a day after the runs stop reporting
   otherwise. Redone runs and `qa optimize`, which starts batch after batch, keep it until they are stopped or idle.
   On Kubernetes it is in the driver pod's environment, so whoever can read the namespace's ConfigMaps can use it
@@ -134,8 +135,10 @@ Whoever can send files can put any file on your server, which serves it to every
   that matters.
 - **Inside a Kubernetes cluster**, pods can reach the backend's Service directly, without the proxy: the backend still
   checks tokens and sizes, but not before it receives the body.
-- **A batch's token can send any results of its project** while it's valid, not only its batch's: who can read it
-  (the driver pod's ConfigMap) can write the project's running runs and its commits' artifacts.
+- **Who can read a batch's token** (the driver pod's ConfigMap) can read the project and change that batch's results
+  while the token is valid, nothing else. Refusals say it's a batch's token (reason `batch_token_limited`). If you
+  write your own proxy configuration, keep `QABOARD_ORIGINAL_URI` in the upload check
+  (`snippets/qaboard-uploads-authorize.conf`): without it, the proxy refuses every file sent with a batch's token.
 - **Use HTTPS**: tokens and files travel in the requests.
 
 ## Limits and disk space {#limits}

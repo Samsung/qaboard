@@ -16,15 +16,16 @@ import os
 import re
 from pathlib import Path
 
-from flask import request, jsonify
+from flask import request, jsonify, g
 from sqlalchemy.orm.attributes import flag_modified
 
 from backend import app, db_session
 from ..access import invalid_project
 from .auth import is_authorized_user, ingest_access, forbidden_project
+from ..actor import batch_token_refused
 from ..models import CiCommit
 from ..artifacts import UPLOADED_ARTIFACTS, manifests, read_manifest
-from .. import locations, uploads
+from .. import locations, uploads, tokens
 from qaboard.api import dir_to_url
 from qaboard.commit_artifacts import bundle_hash, sha256_of
 
@@ -89,6 +90,9 @@ def upload_commit_artifact(commit_id, path):
   _, error = ingest_access(project_id, require_token=True)
   if error:
     return error
+  # batches only fetch them (`qa fetch-artifacts`): a batch's token can't change what other batches run
+  if tokens.is_batch_token(getattr(g.get('actor'), 'token', None)):
+    return batch_token_refused("send a commit's artifacts")
   if not uploads.enabled(project_id):
     return jsonify({"error": uploads.disabled_message(), "reason": "uploads_disabled"}), 400
   if request.content_length is None:
