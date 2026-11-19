@@ -22,7 +22,6 @@ was added, the small files the run rewrites (series.json, run.json), and the fil
 import hashlib
 import os
 import stat as stat_module
-import time
 from concurrent.futures import ThreadPoolExecutor
 from fnmatch import fnmatchcase
 from pathlib import Path
@@ -30,7 +29,8 @@ from threading import Event, Lock, Thread
 from typing import Dict, Iterator, List, Optional, Sequence, Tuple, Union
 from urllib.parse import quote
 
-from .results import ResultsError, _request
+from .conventions import Reason, RUN_FILES_REFUSALS
+from .http_client import ResultsError, FILE_TIMEOUT, RETRY_DELAYS, request
 
 # Files runs add to, at the root of their folder: we send what was added
 APPENDED_FILES = ('log.txt', 'series.jsonl')
@@ -42,11 +42,10 @@ APPEND_CHUNK = 4 * 1024 * 1024
 WORKERS = 4
 # How often the files that changed are sent while the run goes on, in seconds
 SYNC_INTERVAL = 10.0
-# (connect, read) timeouts, and how long we wait before trying a request again
-TIMEOUT = (10.0, 600.0)
-RETRY_DELAYS = (1.0, 4.0)
+# (connect, read) timeouts. How long we wait before trying a request again: RETRY_DELAYS (qaboard/http_client.py)
+TIMEOUT = FILE_TIMEOUT
 # Why the server won't take any file of the run: we stop asking
-FATAL_REASONS = ('uploads_disabled', 'not_uploaded', 'not_running')
+FATAL_REASONS = RUN_FILES_REFUSALS
 # How much of the end of what we sent of a growing file we remember, to know it is still the same file
 TAIL_SIZE = 64
 
@@ -229,7 +228,7 @@ class Uploader:
           try:
             self._request(path, lambda: chunk, params={'offset': offset}, headers={'X-Content-SHA256': hashlib.sha256(chunk).hexdigest()})
           except ResultsError as e:
-            if e.status == 409 and e.body.get('reason') == 'offset_mismatch':
+            if e.status == 409 and e.reason == Reason.OFFSET_MISMATCH:
               # the server has something else, e.g. what a previous process of the run sent
               return self._put_growing(path, f, stat)
             raise
@@ -269,24 +268,14 @@ class Uploader:
 
   def _request(self, path: str, body, params: Optional[Dict[str, int]] = None, headers: Optional[Dict[str, str]] = None) -> None:
     """One file's request, tried again when the server or the network had a problem. `body()` gives the content, or a file to read."""
-    for delay in (*RETRY_DELAYS, None):
-      data = body()
-      try:
-        _request(self.server, f"output/{self.run_id}/files/{quote(path)}", params=params, token=self._token, method='PUT',
-                 data=data, headers={'Content-Type': 'application/octet-stream', **(headers or {})}, timeout=TIMEOUT)
-        return
-      except ResultsError as e:
-        if not e.is_transient or delay is None or self.refused:
-          raise
-        time.sleep(delay)
-      finally:
-        if hasattr(data, 'close'):
-          data.close()
+    request(self.server, f"output/{self.run_id}/files/{quote(path)}", params=params, token=self._token, method='PUT', data=body,
+            headers={'Content-Type': 'application/octet-stream', **(headers or {})}, timeout=TIMEOUT, retries=RETRY_DELAYS,
+            give_up=lambda: bool(self.refused)).close()
 
   def _failed(self, path: str, stat: Stat, error: Exception) -> bool:
     """A file wasn't sent. Returns False"""
     status = getattr(error, 'status', None)
-    reason = getattr(error, 'reason', None) or getattr(error, 'body', {}).get('reason')
+    reason = getattr(error, 'reason', None)
     if status in (401, 403) or reason in FATAL_REASONS:
       # no file of this run will be accepted
       self.refused = str(error)

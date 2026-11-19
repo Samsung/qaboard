@@ -35,7 +35,7 @@ import uuid
 from pathlib import Path, PurePosixPath
 from typing import BinaryIO, List, Optional, Tuple
 
-from qaboard.conventions import make_hash, slugify_hash
+from qaboard.conventions import make_hash, slugify_hash, Reason
 
 from . import config, locations
 from .storage import check_inside, UnsafePathError
@@ -180,7 +180,7 @@ def run_dir(project_id: str, hexsha: str, batch_label: str, platform: str, confi
   configuration_dir = folder_name([platform, configurations or [], extra_parameters or {}, *([str(database)] if database else [])], maxlength=32)
   directory = project_runs_dir(project_id) / commit_dir / batch_dir / configuration_dir / folder_name(str(input_path))
   if not is_run_dir(directory, project_id):
-    raise UploadError(400, "This run can't be saved by the server: its project, batch or input have names that aren't folders' names.", "invalid_run")
+    raise UploadError(400, "This run can't be saved by the server: its project, batch or input have names that aren't folders' names.", Reason.INVALID_RUN)
   return directory
 
 
@@ -191,9 +191,9 @@ def commit_artifacts_dir(project_id: str, hexsha: str, base: Optional[Path] = No
   Each (sub)project has its own copy: deleting one's never touches another's.
   """
   if not isinstance(hexsha, str) or not re.fullmatch(r'[0-9a-f]{40}', hexsha):
-    raise UploadError(400, "Artifacts are saved for a git commit, named by its full id (40 hexadecimal characters).", "invalid_commit")
+    raise UploadError(400, "Artifacts are saved for a git commit, named by its full id (40 hexadecimal characters).", Reason.INVALID_COMMIT)
   if not supports_project(project_id):
-    raise UploadError(400, f"Projects with a folder named \"{RUNS_FOLDER}\" can't upload their files.", "uploads_unsupported_project")
+    raise UploadError(400, f"Projects with a folder named \"{RUNS_FOLDER}\" can't upload their files.", Reason.UPLOADS_UNSUPPORTED_PROJECT)
   return project_runs_dir(project_id, base) / commit_folder(hexsha) / ARTIFACTS_FOLDER
 
 
@@ -248,12 +248,12 @@ def project_of(path: str) -> Optional[Tuple[str, str]]:
 def clean_path(path: str) -> PurePosixPath:
   """The path of a file in its run's folder, as clients name it: relative, with "/", no way out of the folder"""
   if not isinstance(path, str) or not path or '\0' in path or '\\' in path or len(path) > MAX_PATH_LENGTH:
-    raise UploadError(400, f"Files are named by their path in the run's folder, like \"plots/loss.png\", of at most {MAX_PATH_LENGTH} characters.", "invalid_path")
+    raise UploadError(400, f"Files are named by their path in the run's folder, like \"plots/loss.png\", of at most {MAX_PATH_LENGTH} characters.", Reason.INVALID_PATH)
   parts = path.split('/')
   if any(part in ('', '.', '..') or len(part.encode()) > MAX_NAME_LENGTH for part in parts):
-    raise UploadError(400, f"{path!r} is not a path inside the run's folder: no empty, \".\" or \"..\" parts, and names of at most {MAX_NAME_LENGTH} bytes.", "invalid_path")
+    raise UploadError(400, f"{path!r} is not a path inside the run's folder: no empty, \".\" or \"..\" parts, and names of at most {MAX_NAME_LENGTH} bytes.", Reason.INVALID_PATH)
   if parts[-1].startswith(TEMPORARY_PREFIX):
-    raise UploadError(400, f"Files can't be named {TEMPORARY_PREFIX}*: the server names the files it is receiving like this.", "invalid_path")
+    raise UploadError(400, f"Files can't be named {TEMPORARY_PREFIX}*: the server names the files it is receiving like this.", Reason.INVALID_PATH)
   return PurePosixPath(*parts)
 
 
@@ -282,12 +282,12 @@ def _copy(source: BinaryIO, target: BinaryIO, length: int, sha256: Optional[str]
   while left > 0:
     chunk = source.read(min(CHUNK_SIZE, left))
     if not chunk:
-      raise UploadError(400, f"The upload stopped {left} bytes before its end (Content-Length: {length}).", "incomplete")
+      raise UploadError(400, f"The upload stopped {left} bytes before its end (Content-Length: {length}).", Reason.INCOMPLETE)
     target.write(chunk)
     digest.update(chunk)
     left -= len(chunk)
   if sha256 and digest.hexdigest() != sha256.lower():
-    raise UploadError(422, f"What the server received doesn't have the SHA-256 the client sent ({digest.hexdigest()}, not {sha256.lower()}).", "digest_mismatch")
+    raise UploadError(422, f"What the server received doesn't have the SHA-256 the client sent ({digest.hexdigest()}, not {sha256.lower()}).", Reason.DIGEST_MISMATCH)
 
 
 def save_file(directory: Path, path: str, source: BinaryIO, length: int, sha256: Optional[str] = None, offset: Optional[int] = None) -> int:
@@ -300,9 +300,9 @@ def save_file(directory: Path, path: str, source: BinaryIO, length: int, sha256:
   """
   relative = clean_path(path)
   if length < 0 or (offset or 0) < 0:
-    raise UploadError(400, "The file's size and offset can't be negative.", "invalid_size")
+    raise UploadError(400, "The file's size and offset can't be negative.", Reason.INVALID_SIZE)
   if (offset or 0) + length > config.upload_max_file_size:
-    raise UploadError(413, f"{path} is larger than what this server accepts ({config.upload_max_file_size // 1024**2} MB). Save big files in a storage shared with the server, or ask its administrators to raise QABOARD_UPLOAD_MAX_FILE_MB.", "too_large", max_file_size=config.upload_max_file_size)
+    raise UploadError(413, f"{path} is larger than what this server accepts ({config.upload_max_file_size // 1024**2} MB). Save big files in a storage shared with the server, or ask its administrators to raise QABOARD_UPLOAD_MAX_FILE_MB.", Reason.TOO_LARGE, max_file_size=config.upload_max_file_size)
   target = directory / relative
   try:
     # a symlink in the folder (they aren't ours) must not take the file elsewhere, nor create folders there: the
@@ -314,15 +314,15 @@ def save_file(directory: Path, path: str, source: BinaryIO, length: int, sha256:
     target.parent.mkdir(parents=True, exist_ok=True)
     check_inside(target, directory)
     if shutil.disk_usage(target.parent).free - length < config.upload_min_free_space:
-      raise UploadError(507, "The server's storage for uploaded files is full: tell its administrators.", "storage_full")
+      raise UploadError(507, "The server's storage for uploaded files is full: tell its administrators.", Reason.STORAGE_FULL)
     if offset is None:
       _replace(target, source, length, sha256)
       return length
     return _append(target, source, length, sha256, offset)
   except UnsafePathError:
-    raise UploadError(400, f"{path!r} is not a path inside the run's folder.", "invalid_path") from None
+    raise UploadError(400, f"{path!r} is not a path inside the run's folder.", Reason.INVALID_PATH) from None
   except (IsADirectoryError, NotADirectoryError, FileExistsError):
-    raise UploadError(409, f"{path} can't be both a file and a folder of the run.", "path_conflict") from None
+    raise UploadError(409, f"{path} can't be both a file and a folder of the run.", Reason.PATH_CONFLICT) from None
 
 
 def _replace(target: Path, source: BinaryIO, length: int, sha256: Optional[str]) -> None:
@@ -346,7 +346,7 @@ def _append(target: Path, source: BinaryIO, length: int, sha256: Optional[str], 
     fcntl.flock(f, fcntl.LOCK_EX)
     size = os.fstat(f.fileno()).st_size
     if size != offset:
-      raise UploadError(409, f"The file has {size} bytes, not {offset}: send it whole.", "offset_mismatch", size=size)
+      raise UploadError(409, f"The file has {size} bytes, not {offset}: send it whole.", Reason.OFFSET_MISMATCH, size=size)
     f.seek(offset)
     try:
       _copy(source, f, length, sha256)

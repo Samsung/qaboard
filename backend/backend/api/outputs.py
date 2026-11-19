@@ -9,7 +9,7 @@ from flask import request, jsonify, make_response, g
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.exc import NoResultFound
 
-from qaboard.conventions import deserialize_config
+from qaboard.conventions import deserialize_config, Reason
 
 from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
@@ -218,7 +218,7 @@ def add_output_metrics(output_id):
   # the run's own values are not replaced silently
   owned = sorted(k for k in metrics if k in previous_metrics and k not in previously_added)
   if owned and not data.get('overwrite'):
-    return jsonify({"error": f"The run itself returned {', '.join(owned)}: pass overwrite=True to replace its values", "reason": "metrics_exist", "metrics": owned}), 409
+    return jsonify({"error": f"The run itself returned {', '.join(owned)}: pass overwrite=True to replace its values", "reason": Reason.METRICS_EXIST, "metrics": owned}), 409
 
   source = data.get('source') if isinstance(data.get('source'), dict) else {}
   source = {k: str(source[k])[:500] for k in SOURCE_KEYS if source.get(k) is not None}
@@ -300,7 +300,7 @@ def report_output_progress(output_id):
     return jsonify({"error": f"Cannot find output {output_id}"}), 404
   # a run we failed because it was silent is running again (backend/heartbeats.py)
   if not (output.is_pending and output.is_running) and 'silent_since' not in (output.data or {}):
-    return jsonify({"error": "The run isn't running: only running runs report their progress", "reason": "not_running"}), 409
+    return jsonify({"error": "The run isn't running: only running runs report their progress", "reason": Reason.NOT_RUNNING}), 409
   heartbeats.reported(output)
 
   # the metrics scripts added to a previous attempt stay, unless the run now logs them.
@@ -370,7 +370,7 @@ def upload_output_file(output_id, path):
   if error:
     return error
   if not uploads.enabled(project_id):
-    return jsonify({"error": uploads.disabled_message(), "reason": "uploads_disabled"}), 400
+    return jsonify({"error": uploads.disabled_message(), "reason": Reason.UPLOADS_DISABLED}), 400
   try:
     offset = int(request.args['offset']) if 'offset' in request.args else None
   except ValueError:
@@ -381,9 +381,9 @@ def upload_output_file(output_id, path):
   directory = locations.local_path(output.output_dir_override) if output.output_dir_override else None
   # not any folder the database has: one we chose for a run of this project, that said it uploads
   if not directory or not (output.data or {}).get('uploads_files') or not uploads.is_run_dir(directory, project_id):
-    return jsonify({"error": "This run saves its files in a storage shared with the server: it doesn't upload them.", "reason": "not_uploaded"}), 409
+    return jsonify({"error": "This run saves its files in a storage shared with the server: it doesn't upload them.", "reason": Reason.NOT_UPLOADED}), 409
   if not output.is_pending:
-    return jsonify({"error": "The run has ended: its files don't change anymore.", "reason": "not_running"}), 409
+    return jsonify({"error": "The run has ended: its files don't change anymore.", "reason": Reason.NOT_RUNNING}), 409
   try:
     size = uploads.save_file(Path(directory), path, request.stream, request.content_length, sha256=request.headers.get('X-Content-SHA256'), offset=offset)
   except uploads.UploadError as e:
@@ -441,9 +441,9 @@ def new_output_webhook():
   # Runs without a storage shared with us send their files after this request: we choose their folder (backend/uploads.py)
   uploads_files = data.get('storage') == 'upload'
   if uploads_files and not uploads.enabled(str(data.get('project') or '')):
-    return jsonify({"error": uploads.disabled_message(), "reason": "uploads_disabled"}), 400
+    return jsonify({"error": uploads.disabled_message(), "reason": Reason.UPLOADS_DISABLED}), 400
   if uploads_files and not uploads.supports_project(str(data.get('project'))):
-    return jsonify({"error": f"Projects with a folder named \"{uploads.RUNS_FOLDER}\" can't upload their files.", "reason": "uploads_unsupported_project"}), 400
+    return jsonify({"error": f"Projects with a folder named \"{uploads.RUNS_FOLDER}\" can't upload their files.", "reason": Reason.UPLOADS_UNSUPPORTED_PROJECT}), 400
 
   # The server will write, delete and run code in those folders
   output_directory = data.get('output_directory') if not uploads_files else None
@@ -462,7 +462,7 @@ def new_output_webhook():
   # above them, else deleting its run would delete them
   for folder in (output_directory, artifacts_commit):
     if folder and uploads.overlaps_uploads(folder, project_ids=all_project_ids):
-      return jsonify({"error": f"{folder} is where the server saves the files runs send it: results can't be saved there directly.", "reason": "uploads_folder"}), 400
+      return jsonify({"error": f"{folder} is where the server saves the files runs send it: results can't be saved there directly.", "reason": Reason.UPLOADS_FOLDER}), 400
 
   if error := invalid_project(data.get('project')):
     return error

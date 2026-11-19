@@ -27,6 +27,7 @@ from ..artifacts import UPLOADED_ARTIFACTS, manifests, read_manifest
 from .. import locations, uploads
 from qaboard.api import dir_to_url
 from qaboard.commit_artifacts import bundle_hash, sha256_of
+from qaboard.conventions import Reason
 
 
 FULL_COMMIT_ID = re.compile(r'[0-9a-f]{40}')
@@ -82,7 +83,7 @@ def upload_commit_artifact(commit_id, path):
   if error := invalid_project(project_id):
     return error
   if not isinstance(commit_id, str) or not FULL_COMMIT_ID.fullmatch(commit_id):
-    return jsonify({"error": "Artifacts are saved for a git commit, named by its full id (40 hexadecimal characters).", "reason": "invalid_commit"}), 400
+    return jsonify({"error": "Artifacts are saved for a git commit, named by its full id (40 hexadecimal characters).", "reason": Reason.INVALID_COMMIT}), 400
   # who can't see the project doesn't learn whether the commit exists
   if not is_authorized_user(None, project_id):
     return forbidden_project(project_id)
@@ -90,15 +91,15 @@ def upload_commit_artifact(commit_id, path):
   if error:
     return error
   if not uploads.enabled(project_id):
-    return jsonify({"error": uploads.disabled_message(), "reason": "uploads_disabled"}), 400
+    return jsonify({"error": uploads.disabled_message(), "reason": Reason.UPLOADS_DISABLED}), 400
   if request.content_length is None:
     return jsonify({"error": "Send the file's size (Content-Length): chunked uploads aren't supported."}), 411
   sha256 = request.headers.get('X-Content-SHA256')
   if not sha256 or not re.fullmatch(r'[0-9a-fA-F]{64}', sha256):
-    return jsonify({"error": "Send the file's SHA-256 (X-Content-SHA256): pods that fetch the artifacts check it.", "reason": "digest_required"}), 400
+    return jsonify({"error": "Send the file's SHA-256 (X-Content-SHA256): pods that fetch the artifacts check it.", "reason": Reason.DIGEST_REQUIRED}), 400
   ci_commit = find_commit(project_id, commit_id)
   if ci_commit is None:
-    return jsonify({"error": f"QA-Board doesn't know the commit {commit_id} of {project_id}: send it first (POST /api/v1/commit/), as `qa save-artifacts` does.", "reason": "unknown_commit"}), 404
+    return jsonify({"error": f"QA-Board doesn't know the commit {commit_id} of {project_id}: send it first (POST /api/v1/commit/), as `qa save-artifacts` does.", "reason": Reason.UNKNOWN_COMMIT}), 404
 
   # Where they are already: they stay there, even when the project's new runs go to another storage location since
   directory = ci_commit.uploaded_artifacts_dir
@@ -135,14 +136,14 @@ def get_commit_artifacts(commit_id):
     return forbidden_project(project_id)
   ci_commit = find_commit(project_id, commit_id)
   if ci_commit is None:
-    return jsonify({"error": f"QA-Board doesn't know the commit {commit_id} of {project_id}.", "reason": "unknown_commit"}), 404
+    return jsonify({"error": f"QA-Board doesn't know the commit {commit_id} of {project_id}.", "reason": Reason.UNKNOWN_COMMIT}), 404
   if ci_commit.uploaded_artifacts_dir is None:
-    return jsonify({"error": f"The artifacts of {commit_id[:8]} weren't sent to QA-Board: they are in a storage it shares with its runs, or weren't saved (`qa save-artifacts`).", "reason": "not_uploaded"}), 404
+    return jsonify({"error": f"The artifacts of {commit_id[:8]} weren't sent to QA-Board: they are in a storage it shares with its runs, or weren't saved (`qa save-artifacts`).", "reason": Reason.NOT_UPLOADED}), 404
   if ci_commit.deleted:
-    return jsonify({"error": f"The artifacts of {commit_id[:8]} were deleted. Run `qa save-artifacts` on this commit again.", "reason": "deleted"}), 404
+    return jsonify({"error": f"The artifacts of {commit_id[:8]} were deleted. Run `qa save-artifacts` on this commit again.", "reason": Reason.DELETED}), 404
   files = uploaded_files(ci_commit)
   if not files:
-    return jsonify({"error": f"No artifacts of {commit_id[:8]} are left: run `qa save-artifacts` on this commit again.", "reason": "deleted"}), 404
+    return jsonify({"error": f"No artifacts of {commit_id[:8]} are left: run `qa save-artifacts` on this commit again.", "reason": Reason.DELETED}), 404
   return jsonify({
     "files": files,
     "hash": bundle_hash(files),

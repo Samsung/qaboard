@@ -10,6 +10,7 @@ from ..models import CiCommit, Batch
 from ..storage import check_storage_path, UnsafePathError
 from .. import uploads
 from ..tokens import batch_token_for
+from qaboard.conventions import Reason
 from ..redo import redo_response
 from ..origins import run_origin, run_user, claim_batch, clean_run_context
 from ..notifications.batches import request_batch_notification
@@ -245,7 +246,7 @@ def append_submission_log(command_id):
   """
   token = batch_token_for(g.get('actor'), command_id)
   if token is None:
-    return jsonify({"error": "Only the batch's own token can send its log.", "reason": "batch_token_required"}), 403
+    return jsonify({"error": "Only the batch's own token can send its log.", "reason": Reason.BATCH_TOKEN_REQUIRED}), 403
   # still allowed to send the project's results
   _, error = ingest_access(token.projects[0], require_token=True)
   if error:
@@ -262,7 +263,7 @@ def append_submission_log(command_id):
     size = uploads.save_file(log_dir, 'log.txt', request.stream, request.content_length, offset=offset)
   except UnsafePathError:
     # without the folder: it's the server's path
-    return jsonify({"error": "The batch's log isn't in QA-Board's storage anymore.", "reason": "invalid_log_dir"}), 400
+    return jsonify({"error": "The batch's log isn't in QA-Board's storage anymore.", "reason": Reason.INVALID_LOG_DIR}), 400
   except uploads.UploadError as e:
     return jsonify({"error": str(e), "reason": e.reason, **e.details}), e.status
   return jsonify({"size": size})

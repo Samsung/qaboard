@@ -775,6 +775,8 @@ with qb.start_run(input="slow") as run:
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertIn("the server refused the run", result.stderr)
     self.assertIn("doesn't accept uploaded files", result.stderr)
+    # and what to do about it (UPLOAD_FIX)
+    self.assertIn("QABOARD_UPLOAD_ROOT", result.stderr)
     self.assertEqual(server.files, {})
     self.assertTrue((self.local_dir() / 'model.onnx').exists())
 
