@@ -335,7 +335,7 @@ deploy:cli:windows:
   script:
     # Without signing in, QA-Board only starts the Jenkins jobs listed in projects' qaboard.yaml: QABOARD_TOKEN is a
     # CI variable, a token with the "act" scope
-    - 'curl --header "Content-Type: application/json" ${QABOARD_TOKEN:+--header "Authorization: Bearer $QABOARD_TOKEN"} --request POST --data ''{"build_url": "http://jenmaster1:8080/job/ALGO/job/Install_qaboard_on_windows_nodes", "cause": "cde-python updated", "params": {}}'' http://qa/api/v1/jenkins/build/trigger/'
+    - 'curl --header "Content-Type: application/json" ${QABOARD_TOKEN:+--header "Authorization: Bearer $QABOARD_TOKEN"} --request POST --data ''{"build_url": "https://jenkins3.transchip.com/job/ALGO/job/Install_qaboard_on_windows_nodes", "cause": "cde-python updated", "params": {}}'' http://qa/api/v1/jenkins/build/trigger/'
   rules:
     - !reference [.on-master, rules]
 
