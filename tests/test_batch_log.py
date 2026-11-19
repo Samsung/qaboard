@@ -91,10 +91,10 @@ if __name__ == '__main__':
     # too much while the server can't be reached: the oldest is dropped
     sender.add(b"x" * MAX_PENDING)
     sender.send()
-    self.assertIn(b"2 bytes of output are missing here", server.log)
+    self.assertIn(b"couldn't be reached is missing here (0 KB)", server.log)
     self.assertIn(b"kubectl logs -n runs job/qa-0123abcd-driver", server.log)
     self.assertTrue(server.log.endswith(b"x" * MAX_PENDING))
     # said once
     sender.add(b"b\n")
     sender.send()
-    self.assertEqual(server.log.count(b"missing here"), 1)
+    self.assertEqual(server.log.count(b"is missing here"), 1)

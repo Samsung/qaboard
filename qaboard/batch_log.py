@@ -50,8 +50,8 @@ class LogSender:
     from .results import ResultsError
     if self.dropped and not self.failed:
       # what we dropped while the server couldn't be reached: say where it is, where it would have been
-      self.pending[:0] = (f"\n[qaboard] WARNING: {self.dropped} bytes of output are missing here, printed while QA-Board couldn't be reached. "
-                          f"They are in the pod's logs: {self.pod_logs}\n").encode()
+      self.pending[:0] = (f"\n[qaboard] WARNING: output printed while QA-Board couldn't be reached is missing here ({self.dropped / 1024:.0f} KB). "
+                          f"It is in the pod's logs: {self.pod_logs}\n").encode()
       self.dropped = 0
     while self.pending and not self.failed:
       data = bytes(self.pending[:MAX_REQUEST])

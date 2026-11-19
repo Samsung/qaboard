@@ -49,10 +49,10 @@ TEMPORARY_PREFIX = '.qaboard-upload-'
 MAX_PATH_LENGTH = 1024
 MAX_NAME_LENGTH = 255
 CHUNK_SIZE = 1024 * 1024
-# The hash that tells apart texts with the same folder name: long enough that no one finds another text with the
-# same (an earlier version had 8 characters, which a computer finds in minutes)
+# The hash that tells apart texts with the same folder name: long enough that no one can find another text with it
 HASH_LENGTH = 16
-# Names that end like a name with a hash: hashed too, else "A/b" and its folder name "a-b-<hash>" would be one folder
+# Names that end like a folder name with a hash, 16 characters or the 8 of older folders: hashed too, else "A/b" and
+# its folder name "a-b-<hash>" would be one folder. So are names that end with 8 hexadecimal digits, like build-20261119
 HASHED_NAME = re.compile(r'.*-[0-9a-f]{8}(?:[0-9a-f]{8})?')
 
 
@@ -305,7 +305,8 @@ def save_file(directory: Path, path: str, source: BinaryIO, length: int, sha256:
     raise UploadError(413, f"{path} is larger than what this server accepts ({config.upload_max_file_size // 1024**2} MB). Save big files in a storage shared with the server, or ask its administrators to raise QABOARD_UPLOAD_MAX_FILE_MB.", "too_large", max_file_size=config.upload_max_file_size)
   target = directory / relative
   try:
-    # a symlink in the folder (they aren't ours) must not take the file elsewhere, nor create folders there
+    # a symlink in the folder (they aren't ours) must not take the file elsewhere, nor create folders there: the
+    # deepest folder that exists must really be inside the run's (check_inside checks the parent of what it's given)
     existing = target.parent
     while not existing.exists() and existing != directory and directory in existing.parents:
       existing = existing.parent

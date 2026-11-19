@@ -621,7 +621,6 @@ def driver_name(command_id: str) -> str:
 
 def pod_logs_command(job_options: Dict[str, Any], command_id: str) -> str:
   """How users read the driver pod's logs"""
-  from shlex import quote
   context = f" --context {quote(job_options['context'])}" if job_options.get('context') else ''
   return f"kubectl{context} logs -n {quote(job_options['namespace'])} job/{driver_name(command_id)}"
 
@@ -665,7 +664,7 @@ def submit_driver(script_path: Path, log_dir: Path, user_info: dict, ci_commit, 
       job_options["env"] = {**job_options.get("env", {}), POD_LOGS_VARIABLE: logs}
       from .submissions import append_log
       append_log(log_dir, f"[qaboard] `qa batch` runs in the Kubernetes pod of the job {driver_name(command_id)}, which sends its output here. "
-                          f"If this log stops before the batch ends, the rest is in the pod's logs, while the job exists: {logs}\n")
+                          f"If this log stops before the batch ends, the rest is in the pod's logs, while the job exists (ask your QA-Board admins if you can't run kubectl): {logs}\n")
     if script.startswith("#!/bin/bash\n"):
       script = script.replace("#!/bin/bash\n", f"#!/bin/bash\n{header}", 1)
     else:

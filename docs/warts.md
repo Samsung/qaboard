@@ -146,7 +146,8 @@ object storage mount.
   characters shared a folder (any 40-hex commit can be created), that folder names could be made to collide (8
   characters of hash, names that looked hashed), that nginx buffered 1 GB bodies before the token was checked, that
   the chart had no body limit on `/api`, that failed appends left half their bytes, and that folders were created
-  through symlinks before the check: all fixed, with tests. Left, documented in `backend-admin/uploads.mdx`:
+  through symlinks before the check: all fixed, with tests. Left (the first three and the last but one in
+  `backend-admin/uploads.mdx`):
   - uploaded HTML and SVG run as the people who open them unless `QABOARD_SANDBOX_HTML` is on (off by default, for
     every run: reports with scripts would change for shared-storage sites) [S, behaviour];
   - with the default *local* runner, anyone who can send a project's artifacts runs code in the backend's container

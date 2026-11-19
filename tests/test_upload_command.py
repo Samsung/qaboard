@@ -147,7 +147,7 @@ class TestUpload(QaTestCase):
     # outside the CI, runs go to the user's own batch
     result = self.qa('--dryrun', 'upload', 'junit.xml', '--project', 'kitefin/planner', '--commit', COMMIT, ci=False)
     self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertIn('batch: @alice| default', result.stdout)
+    self.assertIn('batch: default (your own, "@alice| default"', result.stdout)
 
   def test_errors_name_the_options(self):
     server = self.server()

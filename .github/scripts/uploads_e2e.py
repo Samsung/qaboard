@@ -155,6 +155,12 @@ def check_token_required(server):
     anonymous = Server(server.base)
     status, body = anonymous.json("POST", "/api/v1/output/", payload, expect=(401, 403))
     log(f"Without a token: HTTP {status} ({body.get('reason') or body.get('error')})")
+    # files: refused before their body is received (nginx asks the backend), with the backend's answer
+    for path in ("/api/v1/output/1/files/stolen.txt", f"/api/v1/batch/submissions/{uuid.uuid4()}/log?offset=0"):
+        status, body = anonymous.json("PUT", path, b"x" * 1024, {"Content-Type": "application/octet-stream"}, expect=(401,))
+        if body.get("reason") != "login_required":
+            fail(f"PUT {path} without a token: unexpected answer {body}")
+    log("Files without a token are refused")
 
 
 def qa_env(server, token):
@@ -362,7 +368,8 @@ def check_killed_run(server, env, workdir, minutes):
             log(f"The killed run was failed: {data.get('failed_reason')}")
             return
         time.sleep(10)
-    fail(f"The killed run is still {'running' if output.get('is_running') else 'not failed'} after {minutes} minutes and 2 more")
+    fail(f"The killed run is still {'running' if output.get('is_running') else 'not failed'} after {minutes} minutes and 2 more: "
+         f"is the server's QABOARD_SILENT_RUN_TIMEOUT_MINUTES {minutes}?")
 
 
 ARTIFACTS_PROJECT = "e2e/artifacts"

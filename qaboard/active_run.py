@@ -195,11 +195,19 @@ def _default_input() -> str:
   return stem or 'run'
 
 
-def _error(message: str, cli: str, kind: type = ValueError) -> Exception:
+class RunArgumentError(ValueError):
   """An error of start_run()'s arguments. `cli`: the same in the words of `qa upload`, which calls it with its options"""
-  error = kind(message)
-  error.cli = cli  # type: ignore[attr-defined]
-  return error
+  def __init__(self, message: str, cli: str):
+    super().__init__(message)
+    self.cli = cli
+
+
+class RunArgumentTypeError(RunArgumentError, TypeError):
+  """An argument of start_run() of the wrong type"""
+
+
+def _error(message: str, cli: str, kind: type = RunArgumentError) -> RunArgumentError:
+  return kind(message, cli)
 
 
 def _batch_label(batch: str, share: bool, setup: '_Setup') -> str:
@@ -404,7 +412,7 @@ def start_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] =
   for name, value in (('batch', batch), ('label', label)):
     if value is not None and (not isinstance(value, str) or not value.strip()):
       option = '--batch' if name == 'batch' else 'qa --label'
-      raise _error(f"start_run({name}=...) is a name, like 'lr-sweep', not {value!r}", f"{option} is a name, like unit-tests, not {value!r}", TypeError)
+      raise _error(f"start_run({name}=...) is a name, like 'lr-sweep', not {value!r}", f"{option} is a name, like unit-tests, not {value!r}", RunArgumentTypeError)
   # one name is the batch in the web app, whichever is given; with both, `batch` names the group of tests on the run's card
   raw_batch = label or batch or 'default'
   batch_name = batch if label and batch and batch != label else None
