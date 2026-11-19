@@ -150,10 +150,19 @@ object storage mount.
   - no limit on the number of files or a project's bytes (inodes, quotas), and the free-space check isn't atomic
     with concurrent uploads [M];
   - a redo's token can write any running run of the batch it redoes (same commit and label, e.g. CI's runs in it),
-    not only the redone ones; reads of batch tokens stay project-wide [S, API];
-  - in the chart, the backend's Service exposes uWSGI to the cluster: its HTTP port refuses files, but a client
-    speaking uwsgi to port 3000 can claim nginx checked them (tokens and sizes are still checked, after the body);
-    the ingress buffers bodies before nginx checks tokens [S];
+    not only the redone ones, and point its runs' `output_directory` anywhere under the storage roots (shared
+    storage); reads of batch tokens stay project-wide; with a batch token, `POST /api/v1/commit/` answers OK and saves
+    nothing, and the windows runner's status checks (`/jenkins/build/`) don't name the project, so they're not limited
+    to its jobs (only the status comes back) [S, API];
+  - in the chart, the backend's NetworkPolicy (`backend.networkPolicy`) keeps other pods from its uwsgi port only
+    where the network plugin enforces NetworkPolicies (not checked on a cluster: no `helm template` run either); the
+    ingress buffers bodies before nginx checks tokens [S];
+  - commit ids aren't normalised: `CiCommit.get_or_create` looks them up case-sensitively and by prefix, so an
+    upper-case or short id from a project token creates another commit (batch tokens need the exact full id, and
+    never create commits or projects). Lowercasing for everyone would move shared-storage folders, which both the
+    server and `qa` derive from the id as given, and orphan existing upper-case rows [S, behaviour];
+  - the files pre-check (`snippets/qaboard-files-server.conf`, `/__qaboard/files-auth`) still passes the raw
+    `$request_uri`, unlike the uploads one (`$uri`) [S];
   - a SIGKILL during a write leaves a `.qaboard-upload-*` file next to it. [S]
 - Files a run removed after they were sent (`outputs.live`) stay on the server. [S, behaviour]
 - A run killed without a chance to say so (SIGKILL, a lost machine) is failed after
@@ -260,6 +269,13 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   detached process of the backend container: another replica can't stop it, and redeploying the backend kills it.
   Tuning with `lsf` and no bridge still runs `bsub` from the server's container. The web app doesn't know that a
   server starts no batches: its buttons stay enabled until the refusal comes back. [M, behaviour]
+- Listing a batch's tests in the form (`POST /api/v1/tests/group`) runs `qa batch --list` with the project's code
+  when its entrypoint defines `iter_inputs`: only with `local`/`celery`, in the scrubbed environment, synchronously in
+  the request (240 s at most). With other runners the form can't count the runs (`unlisted`): it could ask the runner
+  (a Kubernetes pod) instead. [M, behaviour]
+- The backend restores artifacts with `qa save-artifacts` in a git worktree of the commit (`CiCommit.save_artifacts`,
+  "Restore the artifacts"), with the server's full environment: it runs QA-Board's `qa` on the repository's
+  *qaboard.yaml*, not the project's code. [S, no change]
 
 - Batches started from the web app through the LSF bridge get no QA-Board token (the bridge doesn't pass the server's
   environment): on a server with `ingest.auth: token`, their runs can't save results unless a shared HOME holds a

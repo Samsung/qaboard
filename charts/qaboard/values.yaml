@@ -162,6 +162,11 @@ backend:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  # Only the proxy reaches the backend's uwsgi port (3000): nginx tells the backend there that it checked an upload's
+  # token, and the client's address, so pods that run projects' code (runners.kubernetes) must not reach it. Its
+  # HTTP port (3001: health checks) stays open. Takes effect when the cluster's network plugin enforces NetworkPolicies.
+  networkPolicy:
+    enabled: true
   podDisruptionBudget:
     minAvailable: 1
   autoscaling:

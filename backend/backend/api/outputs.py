@@ -3,7 +3,7 @@ import json
 import math
 import re
 from pathlib import Path
-from urllib.parse import urlparse, unquote
+from urllib.parse import unquote
 
 from typing import Optional
 
@@ -26,7 +26,7 @@ from ..tokens import end_batch_token
 from ..attempts import record_attempt
 from ..access import invalid_project
 from .auth import login_required, is_authorized_user, ingest_access, forbidden_project, require_project_access
-from ..actor import batch_token_limits, output_batch_token_limits, batch_token_refused
+from ..actor import batch_token_limits, output_batch_token_limits, batch_token_refused, is_batch_request
 
 # Keys of a run's data that only the server sets
 # - optimization_best allows `qa optimize` to replace this run (see api/batch.py)
@@ -362,12 +362,14 @@ def batch_token_upload_limits(uri: Optional[str]):
   For authorize_upload: None if a batch token may send this file, else the 403. The endpoints check it again with
   the file, this only keeps other batches' files from nginx's disk. nginx says the URL (QABOARD_ORIGINAL_URI).
   """
-  path = urlparse(uri or '').path
-  if match := re.fullmatch(r'/api/v1/output/(\d+)/files/.+', path):
+  # the path as nginx routes it: decoded, with `..` resolved, without the query. A `?` or `#` may be in file names
+  path = uri or ''
+  if match := re.fullmatch(r'/api/v1/output/(\d+)/files/.+', path, re.DOTALL):
     output = Output.query.filter(Output.id == int(match.group(1))).one_or_none()
     # the endpoint says it doesn't exist
     return output_batch_token_limits(output, what="send files of this run") if output is not None else None
-  if match := re.fullmatch(r'/api/v1/batch/submissions/([^/]+)/log', path):
+  # (configurations from before nginx sent $uri send the query)
+  if match := re.fullmatch(r'/api/v1/batch/submissions/([^/?]+)/log(?:\?.*)?', path, re.DOTALL):
     if tokens.batch_token_for(g.actor, unquote(match.group(1))) is None:
       return batch_token_refused("send the log of another batch")
     return None
@@ -505,6 +507,8 @@ def new_output_webhook():
     return error
   if refused := batch_token_limits(data.get('project'), hexsha, data.get('batch_label')):
     return refused
+  # its commit exists, and stays as it is: where its artifacts are, its config, the project's...
+  from_batch = is_batch_request()
 
   # We get a handle on the Commit object related to our new output
   try:
@@ -513,6 +517,7 @@ def new_output_webhook():
       hexsha=hexsha,
       project_id=data['project'],
       data=data,
+      existing_only=from_batch,
     )
   except Exception as e:
     return jsonify({"error": f"Could not find your commit ({hexsha}). {e}"}), 404
@@ -626,7 +631,8 @@ def new_output_webhook():
   if output.deleted:
     output.deleted = False
 
-  ci_commit.commit_dir_override = artifacts_commit
+  if not from_batch:
+    ci_commit.commit_dir_override = artifacts_commit
   output.output_dir_override = output_directory
 
   # We update the output's status
@@ -657,7 +663,7 @@ def new_output_webhook():
   # The metrics the run's code declared, e.g. qaboard.Metric(12.3, suffix="ms")
   if data.get('metrics_definitions'):
     try:
-      save_metrics_definitions(db_session, ci_commit, data)
+      save_metrics_definitions(db_session, ci_commit, data, trust_branch=not from_batch)
     except Exception as e:
       db_session.rollback()
       print(f"WARNING: could not save the metrics definitions of a run of {hexsha}: {e}")

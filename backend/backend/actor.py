@@ -128,6 +128,15 @@ def batch_token_limits(project_id: Optional[str], hexsha: Optional[str], batch_l
   return batch_token_refused(what)
 
 
+def is_batch_request() -> bool:
+  """
+  Whether the request comes with a batch token (tokens.mint_for_batch). They send their batch's results to their commit,
+  which exists: they never create commits or projects, nor change what's commit- or project-wide (config, artifacts...).
+  """
+  actor = g.get('actor')
+  return tokens_lib.is_batch_token(actor.token if actor is not None else None)
+
+
 def output_batch_token_limits(output, what: str = "send results to this run"):
   """batch_token_limits for an existing run: its commit and batch"""
   actor = g.get('actor')

@@ -543,6 +543,13 @@ def test_authorize_upload_with_a_batch_token(outputs_api, dummy_app):
   with_log.projects = ["group/repo"]
   assert ask(with_log, "/api/v1/batch/submissions/c0ffee00-1/log?offset=0") == 204
   assert ask(with_log, "/api/v1/batch/submissions/c0ffee00-2/log?offset=0") == 403
+  # nginx says the path it routes ($uri: decoded, `..` resolved, no query), file names may have `?` or `#`
+  assert ask(own, "/api/v1/output/7/files/a?b#c.txt") == 204
+  assert ask(own, "/api/v1/output/7/files/sub\nname") == 204
+  assert ask(other, "/api/v1/output/7/files/a?b#c.txt") == 403
+  assert ask(with_log, "/api/v1/batch/submissions/c0ffee00-1/log") == 204
+  assert ask(with_log, "/api/v1/batch/submissions/c0ffee00-2/log") == 403
+  assert ask(own, "/api/v1/output/x/files/a") == 403
   # nginx didn't say
   assert ask(own, None) == 403
   # other tokens don't depend on the URL

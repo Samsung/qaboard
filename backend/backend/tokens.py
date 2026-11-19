@@ -298,11 +298,14 @@ def batch_allows(token, project_id: Optional[str], hexsha: Optional[str], batch_
   - redo: the label of the batch whose runs are done again. Pending runs keep the command id of the `qa batch` that
     first registered them, so the command id can't tell its runs.
   Sub-projects of its project too: a batch can run theirs, e.g. a monorepo's. Batch tokens that don't say their batch
-  (none shipped in a release) can't send anything.
+  (none shipped in a release) can't send anything. Their commit must exist: they never create commits or projects
+  (CiCommit.get_or_create's existing_only).
   """
   data = token.data or {}
   commit = data.get('commit')
-  if not isinstance(commit, str) or not isinstance(hexsha, str) or hexsha.lower() != commit.lower():
+  # exactly its commit: the full lowercase id. Commits are looked up by prefix, and case-sensitively: another
+  # spelling would create another commit (uploads.FULL_COMMIT_ID)
+  if not isinstance(commit, str) or not isinstance(hexsha, str) or not re.fullmatch(r'[0-9a-f]{40}', hexsha) or hexsha != commit:
     return False
   if not data.get('project') or not project_id or not matches_project([data['project']], project_id):
     return False

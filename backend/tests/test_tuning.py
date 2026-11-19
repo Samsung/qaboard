@@ -422,6 +422,8 @@ def custom_iter_inputs(batches_setup, monkeypatch):
     import backend.api.tuning as tuning
     (batches_setup.artifacts / "qa/main.py").write_text("def iter_inputs(*args):\n  pass\n")
     monkeypatch.setattr(tuning, "check_storage_path", lambda path: None)
+    # the server runs the project's code only when admins opted in
+    monkeypatch.setenv("QABOARD_TUNING_RUNNER", "local")
     return batches_setup
 
 
@@ -429,7 +431,8 @@ def list_tests_response(app, name):
     from backend.api.tuning import get_group
     query = {"project": "group/repo", "name": name, "commit": "94d909ca"}
     with app.test_request_context("/api/v1/tests/group", method="POST", query_string=query, json={"groups": []}):
-        response, status = get_group()
+        result = get_group()
+        response, status = result if isinstance(result, tuple) else (result, result.status_code)
         return response.get_json(), status
 
 
@@ -443,13 +446,45 @@ def test_listing_with_the_projects_code_in_a_missing_folder(dummy_app, custom_it
 def test_listing_with_the_projects_code_times_out(dummy_app, custom_iter_inputs, monkeypatch):
     import subprocess
     import backend.api.tuning as tuning
-    def too_slow(cmd, cwd, timeout):
+    def too_slow(cmd, cwd, timeout, env=None):
         assert timeout == tuning.LIST_TESTS_TIMEOUT
         raise subprocess.TimeoutExpired(cmd, timeout)
     monkeypatch.setattr(tuning, "run_with_timeout", too_slow)
     data, status = list_tests_response(dummy_app, "ci")
     assert status == 504
     assert "took more than" in data["error"]
+
+
+@pytest.mark.parametrize("runner", [None, "lsf", "kubernetes"])
+def test_listing_with_the_projects_code_needs_the_opt_in(dummy_app, custom_iter_inputs, monkeypatch, runner):
+    import backend.api.tuning as tuning
+    if runner:
+        monkeypatch.setenv("QABOARD_TUNING_RUNNER", runner)
+    else:
+        monkeypatch.delenv("QABOARD_TUNING_RUNNER")
+    def never(*args, **kwargs):
+        raise AssertionError("ran the project's code")
+    monkeypatch.setattr(tuning, "run_with_timeout", never)
+    data, status = list_tests_response(dummy_app, "ci")
+    assert status == 200
+    assert data["tests"] == [] and data["unlisted"] is True
+    assert any("its own `iter_inputs`" in w and "qa batch ci --list" in w for w in data["warnings"])
+
+
+def test_listing_with_the_projects_code_has_no_server_secrets(dummy_app, custom_iter_inputs, monkeypatch):
+    import subprocess
+    import backend.api.tuning as tuning
+    monkeypatch.setenv("QABOARD_DB_PASSWORD", "hunter2")
+    monkeypatch.setenv("QABOARD_SECRET_KEY", "flask-secret")
+    seen = {}
+    def run(cmd, cwd, timeout, env=None):
+        seen["env"] = env
+        return subprocess.CompletedProcess(cmd, 0, '[{"rel_input_path": "a", "configurations": []}]', "")
+    monkeypatch.setattr(tuning, "run_with_timeout", run)
+    data, status = list_tests_response(dummy_app, "ci")
+    assert data["tests"] == [{"input_path": "a", "configurations": []}]
+    assert "PATH" in seen["env"]
+    assert not {"QABOARD_DB_PASSWORD", "QABOARD_SECRET_KEY"} & set(seen["env"])
 
 
 def test_run_with_timeout_stops_what_the_command_started(tmp_path):

@@ -14,11 +14,22 @@ from .test_jobs import storage  # noqa: F401 (fixture)
 COMMAND_ID = "44444444-4444-4444-8444-444444444444"
 
 
+def known_commit(project=PROJECT, hexsha=SHA, **payload):
+  """The server starts batches on commits it knows: their tokens don't create them"""
+  from backend.database import db_session
+  from backend.models import CiCommit
+  commit = CiCommit.get_or_create(db_session, hexsha, project, data=commit_payload(project=project, commit_sha=hexsha, **payload))
+  db_session.add(commit)
+  db_session.commit()
+  return commit
+
+
 def batch_token(user_name, command_id=COMMAND_ID, batch="default", **data):
   """A batch token of `user_name`, as mint_for_batch makes them: for the batch `batch` of the commit SHA"""
   from backend.database import db_session
   from backend.models import User
   from backend import tokens
+  known_commit()
   user = User.query.filter(User.user_name == user_name).one()
   token, secret = tokens.mint(user, name="Batch", scopes=['read', 'ingest'], kind='batch', projects=[PROJECT],
                               expires_at=tokens.utcnow() + datetime.timedelta(days=30), idle_expiry_days=1,
@@ -220,3 +231,127 @@ def test_batch_tokens_that_dont_say_their_batch_send_nothing(logged_in, make_cli
   token.data = {"command_id": COMMAND_ID}
   db_session.commit()
   assert refused(make_client().post('/api/v1/output/', headers=bearer(secret), json=output_payload()))
+
+
+# --- a batch's token never changes what's commit- or project-wide ----------------------------------------------------
+def project_and_commits():
+  from backend.database import db_session
+  from backend.models import Project, CiCommit
+  db_session.expire_all()
+  project = Project.query.filter(Project.id == PROJECT).one()
+  return project, {c.hexsha: c for c in CiCommit.query.filter(CiCommit.project_id.startswith(PROJECT)).all()}
+
+
+def test_a_batch_token_sends_exactly_its_commit(logged_in, make_client):
+  """Commits are looked up case-sensitively and by prefix: another spelling of its id would create another commit"""
+  logged_in('alice', is_admin=True)
+  _, secret = batch_token('alice', batch="tuning")
+  config_before = project_and_commits()[0].data.get('qatools_config')
+  evil = {"project": {"name": PROJECT, "reference_branch": "master"}, "evil": True}
+  client = make_client()
+  for hexsha in (SHA.upper(), SHA[:8], f"{SHA}0"):
+    assert refused(client.post('/api/v1/output/', headers=bearer(secret), json=output_payload(batch_label="tuning", commit_sha=hexsha, qaboard_config=evil)))
+    assert refused(client.post('/api/v1/batch/', headers=bearer(secret), json=commit_payload(batch_label="tuning", commit_sha=hexsha, qaboard_config=evil)))
+    assert refused(client.post('/api/v1/commit/', headers=bearer(secret), json=commit_payload(commit_sha=hexsha, qaboard_config=evil)))
+  project, commits = project_and_commits()
+  assert list(commits) == [SHA]
+  assert project.data.get('qatools_config') == config_before
+
+
+def test_a_batch_token_creates_no_commits_nor_projects(logged_in, make_client):
+  """A batch can run its sub-projects' runs (a monorepo's batch), on their commits: it doesn't create them"""
+  from backend.database import db_session
+  from backend.models import Project
+  logged_in('alice', is_admin=True)
+  _, secret = batch_token('alice', batch="tuning")
+  client = make_client()
+  sub = f"{PROJECT}/sub"
+  answer = client.post('/api/v1/output/', headers=bearer(secret), json=output_payload(project=sub, batch_label="tuning"))
+  assert answer.status_code == 404 and "batch tokens don't create commits" in answer.get_json()["error"]
+  assert client.post('/api/v1/batch/', headers=bearer(secret), json=commit_payload(project=sub, batch_label="tuning")).status_code == 404
+  assert client.post('/api/v1/commit/', headers=bearer(secret), json=commit_payload(project=sub)).status_code == 404
+  db_session.expire_all()
+  assert Project.query.filter(Project.id == sub).one_or_none() is None
+  # once the sub-project's commit exists (e.g. its CI saved its artifacts)
+  known_commit(project=sub)
+  answer = client.post('/api/v1/output/', headers=bearer(secret), json=output_payload(project=sub, batch_label="tuning"))
+  assert answer.status_code == 200, answer.get_json()
+
+
+def test_a_batch_token_doesnt_change_its_commit(logged_in, make_client, storage):
+  logged_in('alice', is_admin=True)
+  from backend.database import db_session
+  _, secret = batch_token('alice', batch="tuning")
+  _, commits = project_and_commits()
+  commit = commits[SHA]
+  commit.deleted = True
+  commit.commit_dir_override = None
+  commit.data = {**commit.data, "qatools_config": {"project": {"name": PROJECT}, "mine": True}}
+  db_session.commit()
+  client = make_client()
+  # the commit's metadata, whether its artifacts are usable, who sent it
+  answer = client.post('/api/v1/commit/', headers=bearer(secret), json=commit_payload(
+    data={"qatools_config": {"x": 1}, "deleted": False, "submitted_by": "x", "metrics": 1}))
+  assert answer.status_code == 200 and "nothing was saved" in answer.get_json()["warning"]
+  # where its artifacts are, its configuration
+  elsewhere = storage / "elsewhere"
+  elsewhere.mkdir()
+  answer = client.post('/api/v1/output/', headers=bearer(secret), json=output_payload(
+    batch_label="tuning", artifacts_commit=str(elsewhere), qaboard_config={"project": {"name": PROJECT}, "theirs": True}))
+  assert answer.status_code == 200, answer.get_json()
+  answer = client.post('/api/v1/batch/', headers=bearer(secret), json=commit_payload(batch_label="tuning", qaboard_config={"theirs": True}))
+  assert answer.status_code == 200, answer.get_json()
+  _, commits = project_and_commits()
+  commit = commits[SHA]
+  assert commit.deleted and commit.commit_dir_override is None
+  assert commit.data["qatools_config"] == {"project": {"name": PROJECT}, "mine": True}
+  assert "metrics" not in commit.data and "submitted_by" not in commit.data
+
+
+def test_a_batch_token_doesnt_change_the_projects_metrics(logged_in, make_client):
+  """Runs declare metrics in code: a batch token saves them in its commit, in the project only for the reference branch"""
+  logged_in('alice', is_admin=True)
+  from backend.database import db_session
+  _, secret = batch_token('alice', batch="tuning")
+  project, commits = project_and_commits()
+  project.data = {**project.data, "qatools_config": {"project": {"name": PROJECT, "reference_branch": "master"}}, "metrics_definitions": {"loss": {"label": "Loss"}}}
+  commits[SHA].branch = "feature"
+  db_session.commit()
+  definitions = {"loss": {"label": "Hacked"}}
+  # the run says its commit is on the reference branch
+  answer = make_client().post('/api/v1/output/', headers=bearer(secret), json=output_payload(
+    batch_label="tuning", commit_branch="master", metrics_definitions=definitions))
+  assert answer.status_code == 200, answer.get_json()
+  project, commits = project_and_commits()
+  assert project.data["metrics_definitions"] == {"loss": {"label": "Loss"}}
+  assert commits[SHA].data["metrics_definitions"]["loss"]["label"] == "Hacked"
+
+
+def test_a_batch_token_only_starts_its_projects_jenkins_jobs(logged_in, make_client, monkeypatch):
+  """The windows runner starts runs with Jenkins builds: only the jobs the commit's or project's qaboard.yaml lists"""
+  import backend.api.integrations as integrations
+  from backend.database import db_session
+  logged_in('alice', is_admin=True)
+  started = []
+  monkeypatch.setattr(integrations, "trigger_jenkins_build", lambda data, **kwargs: started.append(data["build_url"]) or {"url": "ok"})
+  _, secret = batch_token('alice', batch="tuning")
+  job = "https://jenkins.example.com/job/windows-runner"
+  _, commits = project_and_commits()
+  commits[SHA].data = {**commits[SHA].data, "qatools_config": {"runners": {"jenkins": {"build_url": job}}}}
+  db_session.commit()
+  client = make_client()
+  trigger = lambda **data: client.post('/api/v1/jenkins/build/trigger', headers=bearer(secret), json=data)
+  assert refused(trigger(build_url=job))
+  assert refused(trigger(build_url=job, project=PROJECT))
+  assert refused(trigger(build_url=job, project=PROJECT, commit="f" * 40))
+  assert refused(trigger(build_url=job, project="group/other", commit=SHA))
+  assert refused(trigger(build_url="https://jenkins.example.com/job/deploy", project=PROJECT, commit=SHA))
+  # a batch's qaboard.yaml is what its token sent
+  answer = make_client().post('/api/v1/batch/', headers=bearer(secret), json=commit_payload(batch_label="tuning", qaboard_config={
+    "runners": {"jenkins": {"build_url": "https://jenkins.example.com/job/deploy"}}}))
+  assert answer.status_code == 200
+  assert refused(trigger(build_url="https://jenkins.example.com/job/deploy", project=PROJECT, commit=SHA))
+  assert started == []
+  answer = trigger(build_url=job, project=PROJECT, commit=SHA)
+  assert answer.status_code == 200, answer.get_json()
+  assert started == [job]

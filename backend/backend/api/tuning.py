@@ -35,7 +35,7 @@ from ..shell_utils import safe_user_name, lsf_bridge_command
 from ..storage import check_storage_path, UnsafePathError
 from ..submissions import record_submission, MAX_SUBMISSIONS, user_batch_dir, submission_dir, append_log, startup_logs # noqa: F401
 from ..artifacts import ArtifactsUnavailable, EXIT_TRAP, cd_lines, runner_unsupported
-from ..server_runner import server_runner, refusal as runner_refusal
+from ..server_runner import server_runner, runs_in_server, refusal as runner_refusal, DOCS
 from ..runner_jobs import driver_without_storage
 from .. import tokens
 from ..notifications.batches import request_batch_notification, cancel_batch_notification
@@ -298,12 +298,12 @@ def missing_inputs_from_logs(logs):
 # Below nginx's uwsgi_read_timeout (300s): users get our message, not a 504 from the proxy
 LIST_TESTS_TIMEOUT = 240
 
-def run_with_timeout(cmd, cwd, timeout):
+def run_with_timeout(cmd, cwd, timeout, env=None):
   """
   Like subprocess.run(capture_output=True, timeout=...), but on timeout it kills what the command started too
   (e.g. `qa` started by bash): they would keep running, and keep the pipes open.
   """
-  with subprocess.Popen(cmd, cwd=cwd, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True) as process:
+  with subprocess.Popen(cmd, cwd=cwd, env=env, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True) as process:
     try:
       stdout, stderr = process.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -444,6 +444,15 @@ def get_group():
             with qatools_config['project']['entrypoint'].open() as f:
                 entrypoint_source = f.read()
             has_custom_iter_inputs = re.search(r'^\s*(def iter_inputs\(|from .* import.* iter_inputs)', entrypoint_source, re.MULTILINE)
+    if has_custom_iter_inputs and not runs_in_server(server_runner()):
+        # Listing them runs the commit's code (its .envrc, iter_inputs) here: only for servers that opted in to run it.
+        # `qa batch` still lists them where it runs: the web app lets users start the batch without knowing its tests.
+        warnings.append(
+            "This project lists its inputs with its own `iter_inputs`, and this QA-Board server doesn't run projects' code "
+            "itself (QABOARD_TUNING_RUNNER isn't local or celery), so it can't list the tests here. "
+            f"The batch still runs them: `qa batch` lists them where it runs. To check them, run `qa batch {name} --list`. See {docs_link(DOCS)}"
+        )
+        return response([], [], unlisted=True)
     if has_custom_iter_inputs:
         cwd = ci_commit.artifacts_dir
         # We run code from this folder, which comes from unauthenticated API calls
@@ -463,7 +472,10 @@ def get_group():
         cmd = '\n'.join([*envrcs, cmd])
         print(cmd)
         try:
-            process = run_with_timeout(['bash', '-c', cmd], cwd=cwd, timeout=LIST_TESTS_TIMEOUT)
+            # without the server's secrets, like the batches it starts (local_jobs.py)
+            from ..local_jobs import qa_environment
+            env = qa_environment(f"list-{uuid.uuid4()}", celery=False)
+            process = run_with_timeout(['bash', '-c', cmd], cwd=cwd, timeout=LIST_TESTS_TIMEOUT, env=env)
         except subprocess.TimeoutExpired:
             return jsonify({"error": f"Listing the tests with the project's code took more than {LIST_TESTS_TIMEOUT}s: QA-Board stopped it.", "cmd": str(cmd)}), 504
         except OSError as e:

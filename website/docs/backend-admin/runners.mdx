@@ -35,6 +35,10 @@ commit's [artifacts](/docs/storage/artifacts), sources their *.envrc* files, and
 Projects need their artifacts saved by the CI: see [Let people tune from the web app](/docs/tuning-from-the-webapp)
 for what projects do.
 
+The form lists a batch's tests before it starts. For projects that list their inputs with their own `iter_inputs`,
+that runs their code: the server does it only with `local` or `celery`, in its container without its secrets.
+Otherwise the form says it can't list them, and users can still start the batch.
+
 <Shot id="logs/batch-commands" caption="The batch's Logs view shows the qa batch command the server ran and its log: the first place to look when a batch started from the web app doesn't run." />
 
 :::danger Runs started on the server run the projects' code in its container
@@ -322,7 +326,7 @@ user who started it, away from the server.
 
 | Variable | What it does |
 |---|---|
-| `QABOARD_TUNING_RUNNER` | Where `qa batch` runs for batches started from the web app: `kubernetes`, `lsf`, or in the backend's container with `local` or `celery`. Not set (default): the server starts none |
+| `QABOARD_TUNING_RUNNER` | Where `qa batch` runs for batches started from the web app: `kubernetes`, `lsf`, or in the backend's container with `local` or `celery`. Not set (default): the server starts none, and redoes runs only through `QA_RUNNERS_LSF_BRIDGE`, if set |
 | `QABOARD_LOCAL_START_WAIT` | With `local` and `celery`, how many seconds the server waits for `qa batch` before it answers, so users see right away when it fails to start. Default: 3 |
 | `QA_RUNNERS_LSF_BRIDGE` | The command template that runs LSF commands as `{user}`: starts, redoes and stops batches on LSF |
 | `QABOARD_DASK_SCHEDULERS` | Comma-separated addresses of the Dask schedulers the server may connect to, to stop batches |

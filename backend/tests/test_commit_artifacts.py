@@ -348,7 +348,11 @@ def test_batch_tokens_only_send_their_own_batch():
   from backend import tokens
   token = batch_token(project="group/repo", commit=COMMIT, batch="tuning")
   allows = lambda project="group/repo", hexsha=COMMIT, label="tuning", **kwargs: tokens.batch_allows(token, project, hexsha, label, **kwargs)
-  assert allows() and allows(hexsha=COMMIT.upper())
+  assert allows()
+  # exactly its id: commits are looked up by prefix and case-sensitively, another spelling would be another commit
+  assert not allows(hexsha=COMMIT.upper()) and not allows(hexsha=COMMIT + "0") and not allows(hexsha=f" {COMMIT}")
+  short = batch_token(project="group/repo", commit=COMMIT[:8], batch="tuning")
+  assert not tokens.batch_allows(short, "group/repo", COMMIT[:8], "tuning")
   # a batch can run its sub-projects' runs
   assert allows(project="group/repo/sub") and not allows(project="group/other") and not allows(project="group/repository")
   assert not allows(project=None) and not allows(hexsha="f" * 40) and not allows(hexsha=COMMIT[:8]) and not allows(hexsha=None)
