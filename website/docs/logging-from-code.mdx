@@ -40,7 +40,8 @@ curves dashed on the same axes. The **Summary** view plots all the runs of the b
 Leaving the `with` block ends the run; an exception ends it as failed, with the error in its log.
 
 You need what `qa --share` needs: the `qaboard` package, a server (`QABOARD_URL`, or your site's package), and to be
-signed in when the server asks for it (`qa auth login`, or `QABOARD_TOKEN`). The run's files are saved in the shared
+signed in when the server asks for it, and always when files are sent to the server (`qa auth login`, or
+`QABOARD_TOKEN`). The run's files are saved in the shared
 storage (`storage` in *qaboard.yaml*), or [sent to the server](/docs/storage/uploads) without one.
 [`qa doctor`](/docs/doctor) checks them. Without a server, the run stays in the project's *output/* folder: see
 [where the files go](#files).

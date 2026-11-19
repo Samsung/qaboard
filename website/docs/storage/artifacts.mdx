@@ -50,8 +50,8 @@ runs, as with a shared storage. Files the server already has for the commit aren
 a group of `artifacts` that matches no files, e.g. saved before the build.
 
 Where the runs execute depends on the server's runner:
-- **On the server's machine** (the default), in QA-Board's own container, with only what it has installed: fine for
-  self-contained binaries and scripts.
+- **On the server's machine**, when its admins allow it (by default, the server starts no batches), in QA-Board's
+  own container, with only what it has installed: fine for self-contained binaries and scripts.
 - **On Kubernetes**, in your image, which needs `qa` and what your code needs besides the artifacts. The pods
   download the artifacts first, and must reach the server.
 
@@ -70,7 +70,8 @@ prints the project's folder in the copy (`--root`: the repository's). Fetched ag
 listed, not downloaded. Nothing is removed from the cache.
 
 The runs of batches QA-Board starts send their results with a token it gives the batch, of the person who started
-it: limited to the project, to reading and sending results, and expiring a day after the runs stop.
+it: it reads the project, and only sends results to this batch (its commit and label). It ends when the batch is
+stopped, or soon after its last run ends.
 
 </details>
 

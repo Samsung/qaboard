@@ -18,7 +18,7 @@ Uploads are new. Start with a few projects.
 ## Turn uploads on {#enable}
 **They are on by default** where the server has the default storage: *docker-compose.yml* mounts a volume at
 `/mnt/qaboard` (your site overlay can mount your storage there instead), and the Helm chart saves them in its
-results volume. Check it in **Admin → Settings**, under *Uploads folder*, or with `qa doctor` in a project without
+results volume once you turn it on (`results.enabled: true`: without it, the chart takes no files). Check it in **Admin → Settings**, under *Uploads folder*, or with `qa doctor` in a project without
 `storage`: it says whether the server takes its files, and why not.
 
 **Choose another folder** when you set your own storage roots (`QABOARD_STORAGE_ROOTS`): the server then takes no
@@ -153,8 +153,16 @@ Whoever can send files can put any file on your server, which serves it to every
 | `QABOARD_UPLOAD_MAX_FILE_MB` | `1024` | The largest file. The proxy has its own limit, `client_max_body_size 1100m` for the runs' and commits' `/files/` in its configuration: to accept larger files, raise both |
 | `QABOARD_UPLOAD_MIN_FREE_GB` | `1` | Files are refused when the disk has less free space left |
 
-- **The proxy receives each file whole** before the backend sees it, so slow clients don't hold the backend's
-  workers. Its temporary folder needs room for the files being received.
+- **The proxy receives each file whole** before the backend sees it, once it checked the token, so slow clients
+  don't hold the backend's workers while they send. Its temporary folder (`/tmp` in its container) needs room for the
+  files being received: on Kubernetes, for the pod's ephemeral storage. The backend then copies each file into the
+  folder, and a thread of it is busy meanwhile: many large files at once slow the web app down.
+- **Logs and other files runs add to** are limited like any file, to `QABOARD_UPLOAD_MAX_FILE_MB` in all.
+- **In front of the proxy**, a load balancer or an ingress has its own limits on bodies and on how long a request
+  may last: raise them to the proxy's (1100 MB, 300 s). The chart sets them for ingress-nginx, and turns off its
+  buffering so that the proxy checks tokens first; other ingresses and cloud load balancers need the same by their
+  own settings (e.g. an AWS ALB's idle timeout is 60 s by default, a GCP backend service's timeout 30 s, and some
+  CDNs cap bodies at 100 MB).
 - **Disk usage** shows in [Storage usage](/docs/user-guide/storage-usage) like other results, and projects'
   [retention rules](/docs/storage/deleting-old-data) delete old runs. There are no quotas per project yet, nor
   limits on the number of files: whoever can send results can fill the disk, or its inodes. Give the folder its
@@ -234,6 +242,8 @@ QA-Board still has the runs' metrics in its database when that storage loses fil
 - ***No token that can send results*** or ***Sign in to do this***: files need a token, also when other results don't. `qa auth login`, or a token in the CI.
 - **`413`, or *larger than what this server accepts***: raise `QABOARD_UPLOAD_MAX_FILE_MB`, and the proxy's
   `client_max_body_size` when the answer comes from nginx.
+- **A file named `.qaboard-upload-...`** is one the server was receiving when it stopped. The jobs worker removes
+  those left for over a day.
 - **The run shows, its files don't**: the proxy doesn't mount the folder at `/var/qaboard<path>`, or the image
   server at `/repository<path>`.
 - ***The server's storage for uploaded files is full***: free space, or lower `QABOARD_UPLOAD_MIN_FREE_GB`.

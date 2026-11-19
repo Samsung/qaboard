@@ -21,7 +21,8 @@ are already files.
 Before you start, you need a QA-Board server that takes files: one that [accepts uploads](/docs/storage/uploads), or
 a [storage shared with it](/docs/storage/where-is-the-data). In a project that keeps a shared storage, `qa upload` saves
 the files there where it is mounted, and sends them to the server where it isn't, e.g. on GitHub-hosted runners. The server asks who sends files: a token in the job's
-`QABOARD_TOKEN` variable ([create one](/docs/ci-integration#tokens)), or a job that
+`QABOARD_TOKEN` variable ([create one](/docs/user-guide/account#access-tokens), with the `read` and `ingest`
+scopes; [for CI](/docs/ci-integration#tokens)), or a job that
 [signs in as itself](/docs/ci-integration#ci-without-secrets), once a service account trusts the repository.
 
 1. **Write the report** with your test runner, as you may already do:
@@ -35,7 +36,7 @@ the files there where it is mounted, and sends them to the server where it isn't
    ```bash
    pip install qaboard
    export QABOARD_URL=https://qaboard.example.com
-   export QABOARD_TOKEN=<a token with the ingest scope>   # or, on your machine: qa auth login
+   export QABOARD_TOKEN=<a token with the read and ingest scopes>   # or, on your machine: qa auth login
    qa upload junit.xml
    ```
 
@@ -80,7 +81,8 @@ qa upload --input codec junit.xml pytest.benchmarks.json cpu.folded build/covera
   shows the first four files of each kind; the others are in **Output Files**.
 - **In a folder**, hidden folders (*.git*, *.venv*) are left out, and so is *output/*, where `qa` keeps a copy of
   the runs it shares from this computer.
-- **Some names are QA-Board's own** in every run: *metrics.json*, *run.json*, *manifest.outputs.json*. Give metrics
+- **Some names are QA-Board's own** in every run: *metrics.json*, *metrics_definitions.json*, *run.json*,
+  *manifest.outputs.json*, *manifest.inputs.json*, *series.json* and *series.jsonl*. Give metrics
   with `--metrics`, and save other files under another name with `--as`. A *log.txt* of yours is the run's log.
 - **A test report under another name** is saved as any file: `qa` tells you, and `--as junit.xml` fixes it.
 
@@ -117,6 +119,8 @@ jobs:
       contents: read
     env:
       QABOARD_URL: https://qaboard.example.com
+      # until a service account trusts the repository, a token saved as a secret:
+      # QABOARD_TOKEN: ${{ secrets.QABOARD_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - run: pip install qaboard pytest
