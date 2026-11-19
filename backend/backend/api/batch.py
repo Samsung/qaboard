@@ -251,8 +251,8 @@ def append_submission_log(command_id):
   if error:
     return error
   try:
-    offset = int(request.args.get('offset', 0))
-  except ValueError:
+    offset = int(request.args['offset'])
+  except (KeyError, ValueError):
     return jsonify({"error": "?offset= is the log's current size, in bytes"}), 400
   if request.content_length is None:
     return jsonify({"error": "Send the size of what you add (Content-Length): chunked uploads aren't supported."}), 411
@@ -260,8 +260,9 @@ def append_submission_log(command_id):
   try:
     check_storage_path(log_dir)
     size = uploads.save_file(log_dir, 'log.txt', request.stream, request.content_length, offset=offset)
-  except UnsafePathError as e:
-    return jsonify({"error": str(e)}), 400
+  except UnsafePathError:
+    # without the folder: it's the server's path
+    return jsonify({"error": "The batch's log isn't in QA-Board's storage anymore.", "reason": "invalid_log_dir"}), 400
   except uploads.UploadError as e:
     return jsonify({"error": str(e), "reason": e.reason, **e.details}), e.status
   return jsonify({"size": size})

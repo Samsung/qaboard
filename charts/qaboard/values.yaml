@@ -208,8 +208,8 @@ ingress:
   className: ""
   host: qaboard.example.com
   annotations:
-    # Uploads and slow API calls
-    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    # Uploaded files (QABOARD_UPLOAD_MAX_FILE_MB, 1024 by default) and slow API calls. The chart's nginx limits each path
+    nginx.ingress.kubernetes.io/proxy-body-size: "1100m"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
   # - secretName: qaboard-tls
   tls: []

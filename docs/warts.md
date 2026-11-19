@@ -135,19 +135,30 @@ run-centric page, screenshots for the docs, gaps against experiment trackers): `
 Design: `docs/design/ingest-upload-sdk.md`. Tested with unit tests and a fake server (`tests/test_upload*.py`,
 `tests/test_active_run.py`, `backend/tests/test_uploads.py`), and end to end in CI's `docker` job
 (`.github/scripts/uploads_e2e.py`: `qa upload`, `start_run()` and `qa --share run` with `QA_STORAGE=upload` against
-`docker-compose.yml`'s defaults, through nginx and the image server); **not** on Windows, nor on any object storage
-mount.
+`docker-compose.yml`'s defaults, through nginx and the image server, `qa check-bit-accuracy` against an uploaded
+reference, a killed run failed by the heartbeats, batches started from the web app); **not** on Windows, nor on any
+object storage mount.
 
-- The end-to-end test doesn't cover `qa check-bit-accuracy` against an uploaded reference, nor heartbeats (a run
-  killed mid-way). [S, no change]
-- What `qa run` prints after its files are sent (that some couldn't be sent, that the server refused the results)
-  isn't in the *log.txt* the server has: files are sent before the run is said to have ended, and don't change
-  after. [S, behaviour]
 - `qa upload` keeps a copy of what it sends in the project's (or the current folder's) *output/*, like any shared
   run: CI workspaces don't mind, laptops may. [S, behaviour]
-- A first security review found that run folders were built from clients' input paths ("../" led to other projects'
-  files): fixed, with tests (`backend/tests/test_uploads.py`). The endpoint deserves a second, independent look
-  before servers that accept files face the internet. [M, no change]
+- Two security reviews of the endpoints that write files (runs' files, commits' artifacts, batch logs). The first
+  found run folders built from clients' paths; the second (December 2026) that commits sharing their first 16
+  characters shared a folder (any 40-hex commit can be created), that folder names could be made to collide (8
+  characters of hash, names that looked hashed), that nginx buffered 1 GB bodies before the token was checked, that
+  the chart had no body limit on `/api`, that failed appends left half their bytes, and that folders were created
+  through symlinks before the check: all fixed, with tests. Left (the first three and the last but one in
+  `backend-admin/uploads.mdx`):
+  - uploaded HTML and SVG run as the people who open them unless `QABOARD_SANDBOX_HTML` is on (off by default, for
+    every run: reports with scripts would change for shared-storage sites) [S, behaviour];
+  - with the default *local* runner, anyone who can send a project's artifacts runs code in the backend's container
+    (the trust model of `runners.mdx` "Security", now reachable with a token) [M, behaviour];
+  - no limit on the number of files or a project's bytes (inodes, quotas), and the free-space check isn't atomic
+    with concurrent uploads [M];
+  - a batch's token can write any running run's files and any commit's artifacts of its project, not only its
+    batch's [S, API];
+  - in the chart, the backend's Service also exposes uWSGI's HTTP port to the cluster, without nginx's limits (the
+    backend's own still apply); the ingress buffers bodies before nginx checks tokens [S];
+  - a SIGKILL during a write leaves a `.qaboard-upload-*` file next to it. [S]
 - Files a run removed after they were sent (`outputs.live`) stay on the server. [S, behaviour]
 - A run killed without a chance to say so (SIGKILL, a lost machine) is failed after
   `QABOARD_SILENT_RUN_TIMEOUT_MINUTES` (`backend/backend/heartbeats.py`), with the files it sent: only runs from
@@ -161,7 +172,9 @@ mount.
   with the LSF or Celery runners. Tokens are revoked when the batch is stopped and expire 10 minutes after its last
   run ends, except `qa optimize`'s and redo's: they expire a day after their runs stop. On Kubernetes, the driver
   pod gets the batch's files in its ConfigMap (768 KiB at most) and sends its log with the token: what it prints
-  after the token expired, or that the server refused, is only in the pod's logs, and the web app doesn't say so; `qa optimize` can't resume an experiment
+  after the token expired, or that the server refused, is only in the pod's logs (the log's first line says how to
+  read them), and while the server is slow to answer it stops reading the driver's output, which then waits (it
+  sends from the thread that copies it, `batch_log.forward`) [S]; `qa optimize` can't resume an experiment
   started again (its journal stays in the pod). See `docs/design/ingest-upload-sdk.md` §3 item 2. `qa check-bit-accuracy`
   compares fetched manifests only, not files (`QA_BITACCURACY_CMP`); `qa optimize` keeps its journal on the machine
   that runs it. `qaboard.runs(url)` gives uploaded runs' `output_dir` on the server, not a local folder. [L]

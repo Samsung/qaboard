@@ -330,6 +330,22 @@ def report_output_progress(output_id):
   return jsonify(output.to_dict())
 
 
+@app.route("/api/v1/uploads/authorize", methods=['PUT'])
+def authorize_upload():
+  """
+  Whether the request may send files: 204 with a token that can send results (or a session), else 401 or 403 with why.
+  nginx asks before it receives the body of a file (services/nginx/snippets/qaboard-uploads-auth.conf): who has no
+  token can't fill its disk. For runs' files, commits' artifacts and batch logs: their endpoints check the project
+  and the role with the file.
+  """
+  actor = g.get('actor')
+  if actor is None or actor.user is None:
+    return jsonify({"error": "No token that can send results: run `qa auth login`, or in CI set QABOARD_TOKEN to a token with the ingest scope.", "reason": "login_required"}), 401
+  if actor.token is not None and not actor.has_scope('ingest'):
+    return jsonify({"error": "This token can't send results: it needs the \"ingest\" scope.", "reason": "missing_scope", "required": "ingest"}), 403
+  return '', 204
+
+
 @app.route("/api/v1/output/<int:output_id>/files/<path:path>", methods=['PUT'])
 def upload_output_file(output_id, path):
   """

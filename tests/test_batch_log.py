@@ -80,3 +80,35 @@ class TestBatchLog(unittest.TestCase):
 
 if __name__ == '__main__':
   unittest.main()
+
+  def test_says_where_dropped_output_is(self):
+    from qaboard.batch_log import MAX_PENDING
+    server = FakeServer()
+    sender = LogSender(server.put, print, pod_logs="kubectl logs -n runs job/qa-0123abcd-driver")
+    server.fail_with = ResultsError("timeout")
+    sender.add(b"a\n")
+    sender.send()
+    # too much while the server can't be reached: the oldest is dropped
+    sender.add(b"x" * MAX_PENDING)
+    sender.send()
+    self.assertIn(b"couldn't be reached is missing here (0 KB)", server.log)
+    self.assertIn(b"kubectl logs -n runs job/qa-0123abcd-driver", server.log)
+    self.assertTrue(server.log.endswith(b"x" * MAX_PENDING))
+    # said once
+    sender.add(b"b\n")
+    sender.send()
+    self.assertEqual(server.log.count(b"is missing here"), 1)
+
+  def test_what_the_server_wrote_without_answering_isnt_sent_twice(self):
+    server = FakeServer()
+    def put(offset, data):
+      size = server.put(offset, data)
+      if data == b"a\n":
+        raise ResultsError("timeout")  # written, but the answer was lost
+      return size
+    sender = LogSender(put, print)
+    sender.add(b"a\n")
+    sender.send()
+    sender.add(b"b\n")
+    sender.send()
+    self.assertEqual(server.log, b"a\nb\n")

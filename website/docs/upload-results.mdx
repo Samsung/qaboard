@@ -50,8 +50,8 @@ This works in any repository: it doesn't need a *qaboard.yaml*. In a CI job, `qa
 repository's name) and the commit from the CI's environment. Elsewhere, run it from a
 [project](/docs/project-init), or give `--project group/repo`.
 
-On your computer, sign in with `qa auth login`. `qa --dryrun upload ...` says what would be sent: the run's name,
-its files and its metrics.
+On your computer, sign in with `qa auth login`. `qa --dryrun upload ...` says what would be sent, without a server:
+the run's project, commit, batch and name, its files and its metrics.
 
 ## What you can upload {#files}
 Any file. The web app opens each with the viewer its name picks ([viewers and file formats](/docs/viewers)).

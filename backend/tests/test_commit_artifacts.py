@@ -35,12 +35,12 @@ def upload_root(tmp_path, monkeypatch):
 # --- where they go -----------------------------------------------------------------------------------------------
 def test_commit_artifacts_dir_layout(upload_root):
   directory = uploads.commit_artifacts_dir("group/repo", COMMIT)
-  assert directory == upload_root / "group/repo/-/01/23456789abcdef/artifacts"
+  assert directory == upload_root / "group/repo/-/01/23456789abcdef0123456789abcdef01234567/artifacts"
   # next to the commit's runs, never one of them
   assert directory.parent == uploads.run_dir("group/repo", COMMIT, "default", "linux", [], {}, "input").parent.parent.parent
   assert uploads.is_commit_artifacts_dir(directory, "group/repo")
   # each subproject has its own copy
-  assert uploads.commit_artifacts_dir("group/repo/sub", COMMIT) == upload_root / "group/repo/sub/-/01/23456789abcdef/artifacts"
+  assert uploads.commit_artifacts_dir("group/repo/sub", COMMIT) == upload_root / "group/repo/sub/-/01/23456789abcdef0123456789abcdef01234567/artifacts"
 
 
 @pytest.mark.parametrize("commit", ["<local:alice>", "0123", COMMIT.upper(), f"../{COMMIT[3:]}", "", None])
@@ -54,7 +54,7 @@ def test_is_commit_artifacts_dir(upload_root):
   runs = upload_root / "group/repo/-"
   assert uploads.is_commit_artifacts_dir(runs / "01/23456789abcdef/artifacts", "group/repo")
   for directory in (runs / "01/23456789abcdef/output", runs / "01/23456789abcdef/artifacts/sub", runs / "01/23456789abcdef",
-                    runs / "local/alice/artifacts", runs / "01/../01/23456789abcdef/artifacts", upload_root / "other/repo/-/01/23456789abcdef/artifacts",
+                    runs / "local/alice/artifacts", runs / "01/../01/23456789abcdef0123456789abcdef01234567/artifacts", upload_root / "other/repo/-/01/23456789abcdef0123456789abcdef01234567/artifacts",
                     "/etc", "", None):
     assert not uploads.is_commit_artifacts_dir(directory, "group/repo"), directory
   assert not uploads.is_commit_artifacts_dir(runs / "01/23456789abcdef/artifacts", "other/repo")
@@ -116,7 +116,7 @@ def send_artifacts(api, dummy_app, files: dict, manifest="sub/manifests/__qaboar
 
 def test_sent_artifacts_are_the_commits(api, dummy_app, upload_root, commit):
   send_artifacts(api, dummy_app, {"qaboard.yaml": b"project: {name: group/repo}\n", "sub/qaboard.yaml": b"inputs: {}\n", "build/tool": b"\x7fELF"}, executables={"build/tool"})
-  directory = upload_root / "group/repo/sub/-/01/23456789abcdef/artifacts"
+  directory = upload_root / "group/repo/sub/-/01/23456789abcdef0123456789abcdef01234567/artifacts"
   assert (directory / "build/tool").read_bytes() == b"\x7fELF"
   assert api.required_tokens and all(api.required_tokens)
   # the commit runs from there: checks, batch files, deletion all read that folder
@@ -196,27 +196,27 @@ def test_artifacts_stay_where_they_were_sent(api, dummy_app, upload_root, commit
   locations.invalidate()
   try:
     send_artifacts(api, dummy_app, {"sub/qaboard.yaml": b"b"})
-    assert (upload_root / "group/repo/sub/-/01/23456789abcdef/artifacts/sub/qaboard.yaml").exists()
+    assert (upload_root / "group/repo/sub/-/01/23456789abcdef0123456789abcdef01234567/artifacts/sub/qaboard.yaml").exists()
     assert not list(mount.iterdir())
   finally:
     locations.invalidate()
 
 
 def test_the_database_cant_send_artifacts_elsewhere(api, dummy_app, upload_root, commit, tmp_path):
-  for location in ("/etc", str(tmp_path), str(upload_root / "other/repo/-/01/23456789abcdef/artifacts"), str(upload_root / "group/repo/sub/-/01/23456789abcdef/output")):
+  for location in ("/etc", str(tmp_path), str(upload_root / "other/repo/-/01/23456789abcdef0123456789abcdef01234567/artifacts"), str(upload_root / "group/repo/sub/-/01/23456789abcdef0123456789abcdef01234567/output")):
     commit.data = {UPLOADED_ARTIFACTS: location}
     assert commit.uploaded_artifacts_dir is None
     assert commit.repo_artifacts_dir != Path(location)
   put(api, dummy_app, "a.txt")
-  assert (upload_root / "group/repo/sub/-/01/23456789abcdef/artifacts/a.txt").exists()
+  assert (upload_root / "group/repo/sub/-/01/23456789abcdef0123456789abcdef01234567/artifacts/a.txt").exists()
 
 
 # --- running from them -------------------------------------------------------------------------------------------
 def a_commit(uploaded=True, artifacts_dir="/storage/artifacts/x y", id_relative="sub"):
   return SimpleNamespace(
     artifacts_dir=Path(artifacts_dir), project_id="group/repo/sub", hexsha=COMMIT, project=SimpleNamespace(id_relative=id_relative),
-    uploaded_artifacts_dir=Path("/uploads/group/repo/sub/-/01/23456789abcdef/artifacts") if uploaded else None,
-    outputs_dir=Path("/storage/outputs/group/repo/01/23456789abcdef/sub"),
+    uploaded_artifacts_dir=Path("/uploads/group/repo/sub/-/01/23456789abcdef0123456789abcdef01234567/artifacts") if uploaded else None,
+    outputs_dir=Path("/storage/outputs/group/repo/01/23456789abcdef0123456789abcdef01234567/sub"),
   )
 
 

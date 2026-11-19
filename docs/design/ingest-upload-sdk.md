@@ -1,7 +1,9 @@
 # Sending results without `qa run` or a shared storage: `start_run()`, `qa upload`, HTTP upload
 
 Status: v9 (2026-11-18). A first version is implemented, as experimental: §1 says what, §2 the decisions behind it,
-§3 what is left. v9: batches started from the server on Kubernetes without a shared storage, tested for real, and
+§3 what is left. v10: a second security review of the endpoints that write files, fixed (`docs/warts.md`), the
+end of `qa run`'s and the driver's logs, `qa upload --dryrun` without a server, the e2e test covers bit accuracy and
+heartbeats. v9: batches started from the server on Kubernetes without a shared storage, tested for real, and
 their tokens ended with them (§3, item 2). v8: a commit's artifacts through the server (§3, item 2). v7: an image per commit for the kubernetes runner (§3, item 2). v6: storage locations inside the storage roots, the upload root as the default one, edited in
 Admin → Storage. v5: uploads on by default, an end-to-end test in CI, and where storage settings should live. v4 added storage locations (runs store their full location), heartbeats, and `check-bit-accuracy`
 and `optimize` without a shared storage. v1 (2026-10-26) proposed a separate run client; v2 (2026-11-14) rebuilt the plan on
@@ -18,7 +20,7 @@ User docs: `website/docs/upload-results.mdx`, `storage/uploads.mdx`, `backend-ad
 | Recognized files (tests, benchmarks, profiles) on the cards of runs created from code, without qaboard.yaml | `webapp/src/viewers/runView.js` (`with_run_files`), names in `viewers/fileTypes.js` |
 | Results sent over HTTP: no `storage`, `storage: upload` or `QA_STORAGE=upload` | `qaboard/config.py` (`uploads_files`), `qaboard/payloads.py` (`"storage": "upload"`) |
 | The uploader, shared by `qa run` and `start_run()` | `qaboard/upload.py` |
-| The server: one folder, one endpoint | `backend/backend/uploads.py`, `PUT /api/v1/output/<id>/files/<path>` in `backend/api/outputs.py`, `QABOARD_UPLOAD_ROOT` |
+| The server: one folder, one endpoint | `backend/backend/uploads.py`, `PUT /api/v1/output/<id>/files/<path>` in `backend/api/outputs.py`, `QABOARD_UPLOAD_ROOT`. nginx asks `PUT /api/v1/uploads/authorize` before it receives a body (`snippets/qaboard-uploads-auth.conf`) |
 | `start_run(label=, batch=)`, the project in CI, the guard inside `qa run` | `qaboard/active_run.py` |
 | Storage locations: buckets or disks added while the server runs, per project, inside the storage roots; the upload root is the default one; runs store their full location | `backend/backend/locations.py` (and its changes: `add`, `update`, `remove`), `models/StorageLocation.py`, `qaboard-admin storage-locations`, Admin → Storage (`api/admin_storage_locations.py`, `webapp/src/admin/StorageLocations.jsx`) |
 | Heartbeats: runs that stop reporting are failed | `qaboard/heartbeat.py`, `backend/backend/heartbeats.py` (`QABOARD_SILENT_RUN_TIMEOUT_MINUTES`) |
@@ -77,8 +79,9 @@ sent (size and date) and sends what differs. A failed request needs no replay.
 
 ## 3. What is left
 In `docs/warts.md`, with sizes. The ones that matter first:
-1. ~~An end-to-end test in CI~~ (v5: `uploads_e2e.py`). Still to do: a try on Windows; `qa check-bit-accuracy`
-   against an uploaded reference in the same test.
+1. ~~An end-to-end test in CI~~ (v5: `uploads_e2e.py`; v10: `qa check-bit-accuracy` against an uploaded reference,
+   a killed run failed by the heartbeats, with `QABOARD_SILENT_RUN_TIMEOUT_MINUTES=1` in CI's `.env`). Still to do: a
+   try on Windows.
 2. **Runs the server starts, without a shared storage.** The code of a commit must reach the job. What the industry
    does: on HPC schedulers (Slurm, LSF), a shared file system, as QA-Board does today; on Kubernetes and cloud
    batch, either an image per commit built by CI (W&B Launch, Kubeflow, Argo), or a stable base image and a code
@@ -177,8 +180,16 @@ In `docs/warts.md`, with sizes. The ones that matter first:
      a backend test that runs the real `Uploader` against the Flask app instead of the tests' fake server [M].
    - `storage_usage.py` and the Storage page for runs stored as URLs; a test that fails when code outside
      `models/` and `locations.py` reads `output_dir_override`.
-   - `qa upload --dryrun` without a server, printing the run's project, commit and label; CLI wording for the
-     `start_run()` errors `qa upload` shows.
+   - ~~`qa upload --dryrun` without a server, printing the run's project, commit and label; CLI wording for the
+     `start_run()` errors `qa upload` shows~~ (v10: their `cli` attribute, `active_run._error`).
+   - ~~What `qa run` prints after its files are sent isn't in the server's log.txt~~ (v10: `Uploader.send_log()`
+     after `finish()`, and after the server refused how the run ended: it still runs there, and takes its log).
+   - ~~The web app's log of a Kubernetes driver just ends when `qa send-batch-log` stops~~ (v10: the server writes
+     `kubectl logs ...` at the top when it starts the driver, `QABOARD_POD_LOGS`; the driver says when it dropped
+     output).
+   - `qa send-batch-log` sending from a thread of its own, so that a slow server never blocks the driver's output.
+   - What the second security review left (`docs/warts.md`): `QABOARD_SANDBOX_HTML` on by default for uploaded runs,
+     the local runner and uploaded artifacts, batch tokens limited to their batch's runs, limits on files per run.
 6. Quotas per project.
 7. For projects with huge outputs: parts, "which hashes do you have", the content store (`http-upload.md`).
 

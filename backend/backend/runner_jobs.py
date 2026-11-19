@@ -619,6 +619,12 @@ def driver_name(command_id: str) -> str:
   return f"qa-{command_id[:8]}-driver"
 
 
+def pod_logs_command(job_options: Dict[str, Any], command_id: str) -> str:
+  """How users read the driver pod's logs"""
+  context = f" --context {quote(job_options['context'])}" if job_options.get('context') else ''
+  return f"kubectl{context} logs -n {quote(job_options['namespace'])} job/{driver_name(command_id)}"
+
+
 def submit_driver(script_path: Path, log_dir: Path, user_info: dict, ci_commit, command_id: str,
                   on_prepared: Optional[Callable[[Dict[str, Any]], None]] = None, token: Optional[str] = None) -> Dict[str, Any]:
   """
@@ -650,9 +656,15 @@ def submit_driver(script_path: Path, log_dir: Path, user_info: dict, ci_commit, 
     if not shared:
       # Without a shared storage, the pod can't read or write the batch's folder on the server: what the script reads
       # there (batches file, runs to redo...) is copied in the pod, and its output is sent with the batch's token
-      from qaboard.batch_log import send_log_command
+      from qaboard.batch_log import send_log_command, POD_LOGS_VARIABLE
       script, files = driver_files(script, Path(log_dir), script_path)
       header += send_log_command(command_id) + "\n"
+      # the pod's output stops coming here if its token expires or is revoked, or the server refuses it: say where it is
+      logs = pod_logs_command(job_options, command_id)
+      job_options["env"] = {**job_options.get("env", {}), POD_LOGS_VARIABLE: logs}
+      from .submissions import append_log
+      append_log(log_dir, f"[qaboard] `qa batch` runs in the Kubernetes pod of the job {driver_name(command_id)}, which sends its output here. "
+                          f"If this log stops before the batch ends, the rest is in the pod's logs, while the job exists (ask your QA-Board admins if you can't run kubectl): {logs}\n")
     if script.startswith("#!/bin/bash\n"):
       script = script.replace("#!/bin/bash\n", f"#!/bin/bash\n{header}", 1)
     else:

@@ -76,14 +76,18 @@ those folders, is in the database: [storage locations](#storage-locations), chan
 
 ## Where the files go {#layout}
 ```text
-<QABOARD_UPLOAD_ROOT>/<project>/-/<first 2 characters of the commit>/<next 14>/output[/<batch>]/<configuration>/<input>/
-/mnt/qaboard/kitefin/planner/-/3f/a91c02d4e7b815/output/linux-f0267280/unit-tests/junit.xml
-<QABOARD_UPLOAD_ROOT>/<project>/-/<first 2 characters of the commit>/<next 14>/artifacts/
+<QABOARD_UPLOAD_ROOT>/<project>/-/<first 2 characters of the commit>/<the other 38>/output[/<batch>]/<configuration>/<input>/
+/mnt/qaboard/kitefin/planner/-/3f/a91c02d4e7b815c2d9a0e6f37b48e1d05c9f2a6b/output/linux-f0267280c41d9e2b/unit-tests/junit.xml
+<QABOARD_UPLOAD_ROOT>/<project>/-/<first 2 characters of the commit>/<the other 38>/artifacts/
 ```
 
 - The server chooses the run's folder, and makes its names itself: what a client says about a run (its input, its
   batch, its configurations) becomes one folder name each, with a hash when it isn't one already. Clients only name
   files inside the run's folder, and can't write anywhere else. The default batch has no folder of its own.
+- Commits' folders have their full id, unlike in a shared storage (16 characters): whoever can send a project's
+  results can name a commit that starts like another's, and folder names have a 16-character hash. Runs and
+  artifacts sent to earlier versions stay in their folders (16 characters of the commit, 8 of hash): a run done
+  again goes to the new layout.
 - `-` separates a project from its runs, so a file's path says its project. Where you
   [restrict who reads files](/docs/backend-admin/user-management#restricting-who-can-read-files), who can read an
   uploaded file is who can [see its project](/docs/backend-admin/project-access). Projects with a folder named `-`
@@ -116,6 +120,22 @@ Whoever can send files can put any file on your server, which serves it to every
   meanwhile: one namespace per team. The driver pod also sends its log with it, since it can't write in the batch's
   folder. These batches download the artifacts from QA-Board, through the proxy: the server's own `qa` reaches it
   at `QABOARD_HOST`, set to the proxy by *docker-compose.yml* and the Helm chart.
+- **Developers can run code on the server** through the batches started from the web app: they run the commit's
+  `qaboard.yaml` and code, and with uploaded artifacts anyone with a token that can send the project's results can
+  change them. With the default runner (`QABOARD_TUNING_RUNNER` unset, *local*), that code runs in the backend's
+  container, with its secrets. On a server that people you don't trust can send results to, use the Kubernetes
+  runner, in a namespace per team ([runners](/docs/backend-admin/runners#security)).
+- **The proxy checks the token before it receives a file**: requests without one that can send results are refused
+  before their body is read, so they can't fill its disk. Its configuration has it for the files' and the batch logs'
+  paths (`snippets/qaboard-uploads-auth.conf`): keep it if you write your own, with
+  `include snippets/qaboard-files-server.conf;` in the `server` block, which defines the check it calls: without it,
+  nginx lets every request through. With the Helm chart, the ingress
+  controller in front of it receives bodies first (up to 1100m): limit who can reach the ingress, or the size, if
+  that matters.
+- **Inside a Kubernetes cluster**, pods can reach the backend's Service directly, without the proxy: the backend still
+  checks tokens and sizes, but not before it receives the body.
+- **A batch's token can send any results of its project** while it's valid, not only its batch's: who can read it
+  (the driver pod's ConfigMap) can write the project's running runs and its commits' artifacts.
 - **Use HTTPS**: tokens and files travel in the requests.
 
 ## Limits and disk space {#limits}
@@ -127,7 +147,9 @@ Whoever can send files can put any file on your server, which serves it to every
 - **The proxy receives each file whole** before the backend sees it, so slow clients don't hold the backend's
   workers. Its temporary folder needs room for the files being received.
 - **Disk usage** shows in [Storage usage](/docs/user-guide/storage-usage) like other results, and projects'
-  [retention rules](/docs/storage/deleting-old-data) delete old runs. There are no quotas per project yet.
+  [retention rules](/docs/storage/deleting-old-data) delete old runs. There are no quotas per project yet, nor
+  limits on the number of files: whoever can send results can fill the disk, or its inodes. Give the folder its
+  own file system, so that a full one doesn't stop the database or the server.
 - **Back the folder up** with your results. The database only has the runs' metrics.
 
 ## Use object storage: S3, GCS, Azure Blob {#object-storage}
@@ -200,7 +222,7 @@ QA-Board still has the runs' metrics in its database when that storage loses fil
 ## When things go wrong {#troubleshooting}
 - ***This server doesn't accept uploaded files***: it says why. There is no uploads folder (see [above](#enable)),
   and no [storage location](#storage-locations) lists the project.
-- ***Sign in to do this***: files need a token, also when other results don't. `qa auth login`, or a token in the CI.
+- ***No token that can send results*** or ***Sign in to do this***: files need a token, also when other results don't. `qa auth login`, or a token in the CI.
 - **`413`, or *larger than what this server accepts***: raise `QABOARD_UPLOAD_MAX_FILE_MB`, and the proxy's
   `client_max_body_size` when the answer comes from nginx.
 - **The run shows, its files don't**: the proxy doesn't mount the folder at `/var/qaboard<path>`, or the image

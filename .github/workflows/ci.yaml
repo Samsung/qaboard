@@ -172,7 +172,10 @@ jobs:
             cantaloupe.cache-from=type=gha,scope=cantaloupe
             cantaloupe.cache-to=type=gha,scope=cantaloupe,mode=max
       - name: Deploy
-        run: ./deployments/deploy.py deployments/production.env up --no-pull --init
+        # Silent runs fail after a minute, not 15: the end-to-end test of uploads kills one (.env: see docker-compose.yml)
+        run: |
+          echo "QABOARD_SILENT_RUN_TIMEOUT_MINUTES=1" >> .env
+          ./deployments/deploy.py deployments/production.env up --no-pull --init
       - name: Smoke Test @app
         run: curl -sSf --retry 10 --retry-all-errors --retry-delay 3 http://localhost:5151/ | grep -q 'id="root"'
       - name: Smoke Test @api
@@ -202,7 +205,7 @@ jobs:
         # This server has docker-compose.yml's defaults, no site overlay: it must take uploaded files. `qa upload` and
         # qaboard.start_run() from this checkout send runs, checked through nginx, the backend and the image server
         run: >-
-          uv run --frozen python .github/scripts/uploads_e2e.py http://localhost:5151
+          uv run --frozen python .github/scripts/uploads_e2e.py http://localhost:5151 --silent-runs-after 1
           --create-admin './deployments/deploy.py deployments/production.env compose exec -T backend qaboard-admin create-admin {user} --password'
       - name: Zero-downtime rolling deploy
         run: |

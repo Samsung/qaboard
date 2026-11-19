@@ -35,7 +35,7 @@ import uuid
 from pathlib import Path, PurePosixPath
 from typing import BinaryIO, List, Optional, Tuple
 
-from qaboard.conventions import commit_dir_name, make_hash, slugify_hash
+from qaboard.conventions import make_hash, slugify_hash
 
 from . import config, locations
 from .storage import check_inside, UnsafePathError
@@ -49,6 +49,11 @@ TEMPORARY_PREFIX = '.qaboard-upload-'
 MAX_PATH_LENGTH = 1024
 MAX_NAME_LENGTH = 255
 CHUNK_SIZE = 1024 * 1024
+# The hash that tells apart texts with the same folder name: long enough that no one can find another text with it
+HASH_LENGTH = 16
+# Names that end like a folder name with a hash, 16 characters or the 8 of older folders: hashed too, else "A/b" and
+# its folder name "a-b-<hash>" would be one folder. So are names that end with 8 hexadecimal digits, like build-20261119
+HASHED_NAME = re.compile(r'.*-[0-9a-f]{8}(?:[0-9a-f]{8})?')
 
 
 class UploadError(Exception):
@@ -136,12 +141,22 @@ def folder_name(text, maxlength: int = 70) -> str:
   """
   One folder's name for what a client sent (an input's path, a batch's label, configurations): lowercase letters,
   digits, ".", "=" and "-", never a path, and never "." or "..". Names that are already like that are kept
-  ("unit-tests"); the others get a hash of the text, so that "A/b" and "a-b" are two folders ("a-b-1f2e3d4c").
+  ("unit-tests"); the others get a hash of the text, so that "A/b" and "a-b" are two folders ("a-b-1f2e3d4c5b6a7980"),
+  and so do names that end like a hash, so that "a-b-1f2e3d4c5b6a7980" isn't the folder of "A/b".
   """
   slug = slugify_hash(text, maxlength=maxlength).replace('/', '-').strip('.-')
-  if isinstance(text, str) and slug == text and slug:
+  if isinstance(text, str) and slug == text and slug and not HASHED_NAME.fullmatch(slug):
     return slug
-  return f"{slug}-{make_hash(text)[:8]}".lstrip('-')
+  return f"{slug}-{make_hash(text)[:HASH_LENGTH]}".lstrip('-')
+
+
+def commit_folder(hexsha: str) -> Path:
+  """
+  A commit's folder in the project's uploaded runs: its full id, unlike the shared storage's 16 characters. Anyone
+  who can send a project's results creates commits: with a part of the id, one that starts like another commit's
+  would share its folder, and replace its runs' files.
+  """
+  return Path(hexsha[:2]) / hexsha[2:]
 
 
 def project_runs_dir(project_id: str, base: Optional[Path] = None) -> Path:
@@ -158,7 +173,7 @@ def run_dir(project_id: str, hexsha: str, batch_label: str, platform: str, confi
   input keeps its extension (code names runs "v1.2" and "v1.3"), and each level is one folder.
   """
   # runs outside git are attached to placeholder commits, like "<local:alice>"
-  commit_dir = commit_dir_name(hexsha) if re.fullmatch(r'[0-9a-f]{40}', hexsha) else Path('local') / folder_name(hexsha)
+  commit_dir = commit_folder(hexsha) if re.fullmatch(r'[0-9a-f]{40}', hexsha) else Path('local') / folder_name(hexsha)
   batch_dir = Path('output') if batch_label == 'default' else Path('output') / folder_name(batch_label, maxlength=32)
   # every run of the database has its own folder: all that tells runs apart is in the names
   # (the input's database too: runs on the same input path in two databases are two runs)
@@ -179,7 +194,7 @@ def commit_artifacts_dir(project_id: str, hexsha: str, base: Optional[Path] = No
     raise UploadError(400, "Artifacts are saved for a git commit, named by its full id (40 hexadecimal characters).", "invalid_commit")
   if not supports_project(project_id):
     raise UploadError(400, f"Projects with a folder named \"{RUNS_FOLDER}\" can't upload their files.", "uploads_unsupported_project")
-  return project_runs_dir(project_id, base) / commit_dir_name(hexsha) / ARTIFACTS_FOLDER
+  return project_runs_dir(project_id, base) / commit_folder(hexsha) / ARTIFACTS_FOLDER
 
 
 def is_commit_artifacts_dir(directory, project_id: str) -> bool:
@@ -191,7 +206,7 @@ def is_commit_artifacts_dir(directory, project_id: str) -> bool:
   if runs_dir is None:
     return False
   parts = directory.relative_to(runs_dir).parts
-  return len(parts) == 3 and parts[2] == ARTIFACTS_FOLDER and re.fullmatch(r'[0-9a-f]{2}', parts[0]) is not None and re.fullmatch(r'[0-9a-f]{14}', parts[1]) is not None
+  return len(parts) == 3 and parts[2] == ARTIFACTS_FOLDER and re.fullmatch(r'[0-9a-f]{2}', parts[0]) is not None and re.fullmatch(r'[0-9a-f]{38}|[0-9a-f]{14}', parts[1]) is not None
 
 
 def is_run_dir(directory, project_id: str) -> bool:
@@ -290,8 +305,13 @@ def save_file(directory: Path, path: str, source: BinaryIO, length: int, sha256:
     raise UploadError(413, f"{path} is larger than what this server accepts ({config.upload_max_file_size // 1024**2} MB). Save big files in a storage shared with the server, or ask its administrators to raise QABOARD_UPLOAD_MAX_FILE_MB.", "too_large", max_file_size=config.upload_max_file_size)
   target = directory / relative
   try:
+    # a symlink in the folder (they aren't ours) must not take the file elsewhere, nor create folders there: the
+    # deepest folder that exists must really be inside the run's (check_inside checks the parent of what it's given)
+    existing = target.parent
+    while not existing.exists() and existing != directory and directory in existing.parents:
+      existing = existing.parent
+    check_inside(existing / '_', directory)
     target.parent.mkdir(parents=True, exist_ok=True)
-    # a symlink in the folder (they aren't ours) must not take the file elsewhere
     check_inside(target, directory)
     if shutil.disk_usage(target.parent).free - length < config.upload_min_free_space:
       raise UploadError(507, "The server's storage for uploaded files is full: tell its administrators.", "storage_full")
@@ -330,7 +350,8 @@ def _append(target: Path, source: BinaryIO, length: int, sha256: Optional[str], 
     f.seek(offset)
     try:
       _copy(source, f, length, sha256)
-    except UploadError:
+    except BaseException:
+      # e.g. the client went away, the disk is full: what was added is not half there
       f.truncate(offset)
       raise
     return offset + length
