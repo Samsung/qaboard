@@ -20,6 +20,7 @@ import datetime
 import subprocess
 
 from backend import db_session
+from qaboard.conventions import Reason
 from .shell_utils import quote, is_shell_safe, safe_user_name, lsf_bridge_command
 from .storage import check_storage_path
 from .fs_utils import mkdir_shared
@@ -247,7 +248,7 @@ def redo_response(batch, outputs, user_info):
   from flask import jsonify, g
   # before anything is restored or written
   if refused := refusal(redo=True):
-    return jsonify({"error": refused, "reason": "no_server_runner"}), 400
+    return jsonify({"error": refused, "reason": Reason.NO_SERVER_RUNNER}), 400
   if not outputs:
     return jsonify({"error": "There are no runs to redo."}), 400
   try:

@@ -22,6 +22,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 
+from .conventions import Reason
 from .site_config import site_config, as_requests_verify
 
 
@@ -33,6 +34,8 @@ FILE_TIMEOUT = (10.0, 600.0)
 RETRY_DELAYS = (1.0, 4.0)
 # What may work later: a busy, restarting or overloaded server, or a proxy in front of it
 TRANSIENT_STATUSES = (408, 429, 500, 502, 503, 504)
+# answered with one of those statuses, but the same request won't work later
+FINAL_REASONS = (Reason.PROXY_MISCONFIGURED,)
 # We wait for the server's Retry-After up to this, in seconds: longer, we'd rather fail and say so
 MAX_RETRY_AFTER = 60.0
 # Refusals of the token: signing in again, or another token, fixes them
@@ -116,8 +119,10 @@ def error_for(r, server: str, path: str, method: str = 'GET', params: Optional[D
   message = body.get('error') if isinstance(body.get('error'), str) and body.get('error') else _text(r)
   reason = body.get('reason') if isinstance(body.get('reason'), str) and body.get('reason') else None
   where = f"{path}{f' ({params})' if params else ''}"
+  # a proxy that doesn't check tokens won't start to: not worth trying again
+  final = reason in FINAL_REASONS
   return ResultsError(f"{server} answered {r.status_code} to {where}: {message}", status=r.status_code, reason=reason,
-                      body=body or None, retry_after=retry_after)
+                      body=body or None, transient=False if final else None, retry_after=None if final else retry_after)
 
 
 def _json_dict(r) -> Dict[str, Any]:

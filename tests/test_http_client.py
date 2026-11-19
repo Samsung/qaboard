@@ -57,6 +57,15 @@ class TestRetries(RequestTestCase):
     self.assertTrue(e.exception.is_transient)
     self.assertEqual(sent.call_count, 1)
 
+  def test_a_misconfigured_proxy_isnt_tried_again(self):
+    # a 500, but nginx won't start checking tokens between two tries
+    sent = self.requests(answer(500, {'error': 'nginx misses a snippet', 'reason': 'proxy_misconfigured'}))
+    with self.assertRaises(ResultsError) as e:
+      request_json('http://qa', 'output/1/files/a', method='PUT', token='t', retries=(1, 4))
+    self.assertFalse(e.exception.is_transient)
+    self.assertEqual(e.exception.reason, 'proxy_misconfigured')
+    self.assertEqual(sent.call_count, 1)
+
   def test_gives_up_after_the_last_try(self):
     sent = self.requests(*[answer(502, text='bad gateway')] * 3)
     with self.assertRaises(ResultsError) as e:

@@ -61,6 +61,8 @@ class RunReporter:
     self._heartbeat: Optional[heartbeat.Heartbeat] = None
     self._reported_at = time.time()
     self._finishing = False
+    # set when finish() is done: a second call waits for the first one's answer
+    self._finished = threading.Event()
     self._closed = False
     self._lock = threading.RLock()
 
@@ -132,9 +134,17 @@ class RunReporter:
     again, returns the same.
     """
     with self._lock:
-      if self._finishing:
-        return bool(self.files_sent)
+      first = not self._finishing
       self._finishing = True
+    if not first:
+      self._finished.wait()
+      return bool(self.files_sent)
+    try:
+      return self._finish(create)
+    finally:
+      self._finished.set()
+
+  def _finish(self, create: Optional[Callable[[], Optional[int]]]) -> bool:
     if not self.uploads:
       self.files_sent = True
       return True

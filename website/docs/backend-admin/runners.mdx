@@ -26,7 +26,7 @@ commit's [artifacts](/docs/storage/artifacts), sources their *.envrc* files, and
 
 | `QABOARD_TUNING_RUNNER` | `qa batch` runs | As | For |
 |---|---|---|---|
-| _not set_ (default) | Nowhere: the server refuses to start or redo batches | | Servers where only CI and terminals run batches |
+| _not set_ (default) | Nowhere: the server refuses to start batches, and redoes runs only through the LSF bridge, if you set one | | Servers where only CI and terminals run batches |
 | `local` | In the backend's container | The server's account | Trying QA-Board on your laptop, or a server whose every user you trust with it |
 | `lsf` | In an LSF job, sent through the LSF bridge | The user who started it | LSF sites |
 | `kubernetes` | In a pod, in the project's namespace | The user's UID and GID | Kubernetes sites |

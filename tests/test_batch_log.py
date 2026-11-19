@@ -74,7 +74,8 @@ class TestBatchLog(unittest.TestCase):
   def test_a_misconfigured_proxy_isnt_asked_again(self):
     server, echoed = FakeServer(), []
     sender = LogSender(server.put, echoed.append)
-    server.fail_with = ResultsError("proxy", status=500, body={"reason": "proxy_misconfigured"})
+    # as http_client.error_for says it: final, though a 500
+    server.fail_with = ResultsError("proxy", status=500, reason="proxy_misconfigured", body={"reason": "proxy_misconfigured"}, transient=False)
     sender.add(b"a\n")
     sender.send()
     sender.add(b"b\n")
@@ -154,7 +155,8 @@ class TestBatchLog(unittest.TestCase):
     # the oldest of what came meanwhile is dropped, and said where
     self.assertIn(b"is missing here", server.log)
     self.assertTrue(server.log.endswith(b"0199" + b"x" * 65531 + b"\n"))
-    self.assertLess(len(server.log), MAX_PENDING + 65536 * 2)
+    # at most: the buffer, the note saying what's missing, and two reads that came after the server answered
+    self.assertLess(len(server.log), MAX_PENDING + 65536 * 2 + 1024)
     self.assertEqual(echoed, [])
 
   def test_the_end_is_sent_at_eof(self):
@@ -179,6 +181,17 @@ class TestBatchLog(unittest.TestCase):
     sender.add(b"the end\n")
     sender.close(timeout=10)
     self.assertEqual(server.log, b"the end\n")
+
+  def test_says_so_when_sending_fails_unexpectedly(self):
+    echoed = []
+    def put(offset, data):
+      raise KeyError('size')  # e.g. an answer we didn't expect
+    sender = LogSender(put, echoed.append)
+    sender.start(interval=3600)
+    sender.add(b"the end\n")
+    sender.close(timeout=5)
+    self.assertEqual(len(echoed), 1)
+    self.assertIn("could not send this log", echoed[0])
 
   def test_waits_a_bounded_time_at_eof(self):
     server, echoed, answer = FakeServer(), [], threading.Event()

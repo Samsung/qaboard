@@ -13,7 +13,6 @@ from typing import BinaryIO, Callable, Optional
 
 import click
 
-from .conventions import Reason
 
 # How often we send what was added: what came meanwhile goes in one request
 INTERVAL = 3
@@ -97,9 +96,7 @@ class LogSender:
           # else the server wrote in the log too (e.g. why a pod was pending): we go on after it
           self.offset, self.unconfirmed = size, False
           continue
-        reason = e.body.get('reason') if isinstance(e.body, dict) else None
-        # a proxy that doesn't check tokens won't start to
-        if e.is_transient and reason != Reason.PROXY_MISCONFIGURED:
+        if e.is_transient:
           self.unconfirmed = True
         else:
           # e.g. the batch's token expired: nothing more will be accepted
@@ -115,6 +112,15 @@ class LogSender:
   def start(self, interval: float = INTERVAL) -> None:
     """Sends what was added every `interval` seconds, from a thread, until `close()`"""
     def run():
+      try:
+        loop()
+      except Exception as e:  # e.g. an answer we didn't expect: say so, else the end of the log is lost silently
+        with self.lock:
+          self.failed = True
+          self.in_flight, self.pending = b'', bytearray()
+        self.echo(f"[qaboard] WARNING: could not send this log to QA-Board ({type(e).__name__}: {e}): the rest is only in the pod's logs.")
+
+    def loop():
       while True:
         with self.lock:
           self.lock.wait_for(lambda: self.closing, timeout=interval)

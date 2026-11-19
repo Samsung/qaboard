@@ -26,7 +26,7 @@ from sqlalchemy.orm.exc import NoResultFound
 
 from qaboard.utils import merge
 from qaboard.iterators import iter_inputs, resolve_aliases, recording_missing_inputs, BATCH_FILE_SETTINGS
-from qaboard.conventions import deserialize_config, location_from_spec
+from qaboard.conventions import deserialize_config, location_from_spec, Reason
 
 from backend import app, db_session
 from ..models import CiCommit, Project
@@ -1005,7 +1005,7 @@ def start_tuning(hexsha):
         return jsonify({"error": "Send the request as a JSON object.", "errors": ["Send the request as a JSON object."], "warnings": []}), 400
     # before anything is restored or written
     if refused := runner_refusal():
-        return jsonify({"error": refused, "errors": [refused], "warnings": [], "reason": "no_server_runner"}), 400
+        return jsonify({"error": refused, "errors": [refused], "warnings": [], "reason": Reason.NO_SERVER_RUNNER}), 400
 
     # API clients (`qa batch --commit`) get the web app's defaults
     data = with_defaults(data, user_name=user)

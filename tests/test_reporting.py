@@ -85,16 +85,37 @@ class TestLifecycle(ReporterTestCase):
     reporter = self.reporter(uploads=True, beat_while_running=False, heartbeat_interval=60)
     reporter.start(42)
     self.assertIsNone(reporter._heartbeat)
-    started = threading.Event()
+    beating = []
     def slow_finish():
-      started.set()
+      beating.append(reporter._heartbeat is not None)
       return True
     with mock.patch.object(reporter.uploader, 'finish', slow_finish):
       reporter.finish()
-    self.assertTrue(started.is_set())
-    self.assertIsNotNone(reporter._heartbeat)
+    self.assertEqual(beating, [True])
     reporter.ended(known=True)
     self.assertIsNone(reporter._heartbeat)
+
+  def test_a_second_finish_waits_for_the_first(self):
+    reporter = self.reporter(uploads=True)
+    reporter.start(42)
+    sending, release = threading.Event(), threading.Event()
+    def slow_finish():
+      sending.set()
+      release.wait(5)
+      return True
+    answers = []
+    with mock.patch.object(reporter.uploader, 'finish', slow_finish):
+      first = threading.Thread(target=lambda: answers.append(reporter.finish()))
+      first.start()
+      sending.wait(5)
+      second = threading.Thread(target=lambda: answers.append(reporter.finish()))
+      second.start()
+      second.join(0.2)
+      self.assertTrue(second.is_alive())
+      release.set()
+      first.join(5)
+      second.join(5)
+    self.assertEqual(answers, [True, True])
 
   def test_the_end_of_the_log_when_the_server_refused_how_the_run_ended(self):
     reporter = self.reporter(uploads=True)

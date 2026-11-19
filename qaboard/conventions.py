@@ -82,6 +82,8 @@ class Reason:
   INVALID_COMMIT = 'invalid_commit'
   UNKNOWN_COMMIT = 'unknown_commit'
   DELETED = 'deleted'
+  # --- batches started from the web app ---
+  NO_SERVER_RUNNER = 'no_server_runner'                        # QABOARD_TUNING_RUNNER unset: the server starts no batches
   # --- batch tokens (tokens.mint_for_batch in backend/backend/tokens.py) ---
   BATCH_TOKEN_REQUIRED = 'batch_token_required'                # only the batch's own token sends its log
   INVALID_LOG_DIR = 'invalid_log_dir'
