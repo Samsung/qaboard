@@ -2,7 +2,7 @@
  * Explore's tree: projects under their closest ancestor project, groups for shared prefixes, quiet projects.
  * Run with: cd webapp && npm test -- explore
  */
-import { build_tree, count_projects, filter_projects, is_quiet, last_activity, path_segments, quiet_after_days } from '../tree';
+import { build_tree, count_projects, filter_projects, is_listed, is_quiet, last_activity, path_segments, quiet_after_days } from '../tree';
 import { claimView, view_throttle_ms } from '../views';
 
 const now = Date.UTC(2026, 9, 24);
@@ -21,6 +21,15 @@ const project = (fields = {}) => ({
 const quiet = (fields = {}) => project({ latest_human_activity: null, latest_output_datetime: days_ago(1), ...fields });
 
 const ids = nodes => nodes.map(n => n.id);
+
+describe('is_listed', () => {
+  it('lists projects with commits, even without a qaboard.yaml (runs uploaded from outside a project)', () => {
+    expect(is_listed(project())).toBe(true);
+    expect(is_listed(project({ data: {} }))).toBe(true);
+    expect(is_listed(project({ data: { legacy: true } }))).toBe(false);
+    expect(is_listed(project({ latest_commit_datetime: null }))).toBe(false);
+  });
+});
 
 describe('is_quiet', () => {
   it('only the CI ran it in 90 days, whoever viewed it', () => {

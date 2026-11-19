@@ -33,6 +33,17 @@ describe('HtmlViewer', () => {
     expect(screen.getByTitle('report.html (v1.4)')).toBeInTheDocument();
   });
 
+  it('is as wide as the card, and its height is capped unless the visualization sets one', async () => {
+    const { unmount } = renderWithProviders(<HtmlViewer path="report.html" output_new={output_new}/>);
+    const frame = await screen.findByTitle('report.html (new)');
+    expect(frame.style.width).toBe('100%');
+    unmount();
+    renderWithProviders(<HtmlViewer path="report.html" output_new={output_new} style={{ width: '840px', maxHeight: '2000px' }}/>);
+    const configured = await screen.findByTitle('report.html (new)');
+    expect(configured.style.width).toBe('840px');
+    expect(configured.style.maxHeight).toBe('2000px');
+  });
+
   const scripted = '<div id="chart"></div><script>draw("chart")</script>';
   const sandbox_of = frame => frame.getAttribute('sandbox').split(' ');
 

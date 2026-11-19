@@ -25,10 +25,8 @@ const default_qatools_config = {
 		}
 	},
 	outputs: {
+		// no style: cards take the whole row, see OutputCard
 		visualizations: [],
-		style: {
-			width: '350px',
-		},
 	}
 }
 

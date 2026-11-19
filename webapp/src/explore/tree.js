@@ -12,10 +12,10 @@ export const time = date => date ? new Date(/(Z|[+-]\d\d:?\d\d)$/.test(date) ? d
 export const quiet_tooltip = `Only the CI ran them in the last ${quiet_after_days} days: nobody started batches from the web app or their terminal. `
   + "Pin a project to keep it in view.";
 
-// Projects that lists show: those with a qaboard.yaml and commits.
+// Projects that lists show: those with commits, with or without a qaboard.yaml (runs sent by `qa upload` or
+// `qaboard.start_run()` from outside a project create theirs, see qaboard/active_run.py).
 // Not those imported from older tools (backend/backend/scripts/migrate_legacy_commits.py)
 export const is_listed = details => !details.data?.legacy
-  && details.data?.qatools_config?.project?.name !== undefined
   && details.latest_commit_datetime !== undefined && details.latest_commit_datetime !== null;
 
 // What happened last: people's batches first, else any run, else the latest commit
