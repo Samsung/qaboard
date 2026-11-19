@@ -515,6 +515,8 @@ class ServerVariable(NamedTuple):
   secret: bool = False
   default_text: Optional[str] = None
   docs: Optional[str] = None
+  # what admins must know about its current value, or None
+  warning: Optional[Callable[[], Optional[str]]] = None
 
 
 BOOTSTRAP = "Read when the server starts, before it can reach the database."
@@ -532,6 +534,19 @@ def _upload_root_text():
   if config.upload_root is None:
     return None
   return str(config.upload_root) + ("" if os.environ.get('QABOARD_UPLOAD_ROOT', '').strip() else " (default)")
+
+
+def _tuning_runner_warning():
+  from .server_runner import server_runner, runs_in_server, RUNNERS
+  runner = server_runner()
+  if runs_in_server(runner):
+    return (f"With {runner}, batches started from the web app run the projects' code in the backend's container, as its account: "
+            "anyone who can send a project's artifacts (qa save-artifacts) or start its batches runs code with what the server "
+            "can read. Its environment's secrets are removed, its files aren't (sign-in keys, the LSF bridge's ssh key, tokens...). "
+            "Fine to try QA-Board on a laptop: for a shared server, use kubernetes or lsf.")
+  if runner is not None and runner not in RUNNERS:
+    return "Unknown runner: the server refuses to start batches. Use kubernetes, lsf, local or celery."
+  return None
 
 
 def _redact_url(url):
@@ -561,8 +576,9 @@ SERVER_VARIABLES = [
                  BOOTSTRAP, lambda: f"{os.environ.get('REDIS_HOST') or 'localhost'}:{os.environ.get('REDIS_PORT') or '6379'}"),
   ServerVariable('CELERY_BROKER_URL', "Task queue", 'server', "The RabbitMQ broker of the Celery workers that run batches.",
                  BOOTSTRAP, lambda: _redact_url(os.environ.get('CELERY_BROKER_URL'))),
-  ServerVariable('QABOARD_TUNING_RUNNER', "Runner of web app batches", 'server', "How batches and tuning started from the web app run: local, celery or lsf.",
-                 RUNS_COMMANDS, _env('QABOARD_TUNING_RUNNER'), default_text="local", docs="/docs/tuning-from-the-webapp"),
+  ServerVariable('QABOARD_TUNING_RUNNER', "Runner of web app batches", 'server', "Where the server runs qa batch for the batches, tuning and redo started from the web app, and qa batch --commit: kubernetes, lsf, or in its own container with local or celery.",
+                 RUNS_COMMANDS, _env('QABOARD_TUNING_RUNNER'), default_text="No batches from the web app",
+                 docs="/docs/backend-admin/runners", warning=_tuning_runner_warning),
   ServerVariable('QA_RUNNERS_LSF_BRIDGE', "LSF bridge", 'server', "With the lsf runner: the command that submits LSF jobs.",
                  RUNS_COMMANDS, _env('QA_RUNNERS_LSF_BRIDGE')),
   ServerVariable('SENTRY_DSN', "Sentry", 'server', "Where errors and performance data are reported (SENTRY_DSN, SENTRY_FRONTEND_DSN, SENTRY_ENVIRONMENT...).",
@@ -1113,8 +1129,16 @@ def describe_server_variable(variable: ServerVariable) -> dict:
     "why": variable.why,
     "default_text": variable.default_text,
     "docs": variable.docs,
+    "warning": _variable_warning(variable),
     "editable": False,
   }
+
+
+def _variable_warning(variable: ServerVariable) -> Optional[str]:
+  try:
+    return variable.warning() if variable.warning else None
+  except Exception as e:
+    return f"error: {type(e).__name__}"
 
 
 def describe_all() -> list:

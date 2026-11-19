@@ -124,6 +124,18 @@ def checklist() -> list:
        "Jenkins jobs start only with a token, or from a project's qaboard.yaml" if not anonymous_jobs else f"Anyone can start the Jenkins jobs matching {', '.join(anonymous_jobs)}",
        "jenkins.anonymous_jobs lets callers without a token start these jobs with the server's Jenkins credentials. Empty it once their scripts send tokens.")
 
+  from ..server_runner import server_runner, runs_in_server, RUNNERS
+  runner = server_runner()
+  if runner is not None and runner not in RUNNERS:
+    item('server_runner', False, 'warning', f"QABOARD_TUNING_RUNNER is {runner!r}, which isn't a runner",
+         f"The server refuses every batch and redo started from the web app: set it to one of {', '.join(RUNNERS)}, or unset it.")
+  else:
+    item('server_runner', not runs_in_server(runner), 'warning',
+         f"Batches started from the web app run in the server's container ({runner})" if runs_in_server(runner)
+         else "Batches started from the web app don't run in the server's container",
+         f"QABOARD_TUNING_RUNNER={runner}: anyone who can send a project's artifacts or start its batches runs code as the backend's account, with what it can read. Use kubernetes or lsf for a shared server.",
+         "Not set, the server starts no batches: set QABOARD_TUNING_RUNNER to kubernetes or lsf to start them from the web app." if runner is None else None)
+
   from backend import app
   secure = bool(app.config.get('SESSION_COOKIE_SECURE'))
   item('https', secure, 'warning', "Cookies are only sent over HTTPS" if secure else "Cookies can be sent over plain HTTP",

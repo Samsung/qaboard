@@ -309,20 +309,21 @@ def test_batch_tokens(monkeypatch):
   monkeypatch.setitem(sys.modules["backend"].__dict__, "db_session", MagicMock())
   alice = SimpleNamespace(id=1, user_name="alice")
   # projects with a shared storage: nothing changes
-  assert tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(uploaded=False), "c0ffee00-1", "local") is None
+  assert tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(uploaded=False), "c0ffee00-1", "local", batch_label="tuning") is None
   with pytest.raises(ValueError, match="Sign in"):
-    tokens.mint_for_batch(None, a_commit(), "c0ffee00-1", "local")
-  assert tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(), "c0ffee00-1", "kubernetes") == "qab_bat_secret"
+    tokens.mint_for_batch(None, a_commit(), "c0ffee00-1", "local", batch_label="tuning")
+  assert tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(), "c0ffee00-1", "kubernetes", batch_label="tuning") == "qab_bat_secret"
   user, options = minted[0]
   assert user is alice and options["kind"] == "batch" and options["projects"] == ["group/repo/sub"]
   assert options["scopes"] == ["read", "ingest"] and options["idle_expiry_days"] == 1
   assert tokens.is_well_formed(tokens.generate(tokens.BATCH_PREFIX))
-  # where its driver may send its log, and whether its runs' end ends it (not for `qa optimize` and redo)
-  assert options["data"] == {"command_id": "c0ffee00-1"}
-  tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(), "c0ffee00-2", "local", log_dir=Path("/logs/x"), until_stopped=True)
-  assert minted[1][1]["data"] == {"command_id": "c0ffee00-2", "log_dir": "/logs/x", "until_stopped": True}
+  # its batch, where its driver may send its log, and whether its runs' end ends it (not for `qa optimize` and redo)
+  its_batch = {"project": "group/repo/sub", "commit": COMMIT, "batch": "tuning"}
+  assert options["data"] == {"command_id": "c0ffee00-1", **its_batch}
+  tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(), "c0ffee00-2", "local", batch_label="tuning", log_dir=Path("/logs/x"), until_stopped=True, optimize=True)
+  assert minted[1][1]["data"] == {"command_id": "c0ffee00-2", "log_dir": "/logs/x", "until_stopped": True, **its_batch, "optimize": True}
   # LSF jobs don't get the server's environment
-  assert tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(), "c0ffee00-3", "lsf") is None
+  assert tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(), "c0ffee00-3", "lsf", batch_label="tuning") is None
   assert len(minted) == 2
 
 
@@ -334,13 +335,54 @@ def test_batch_tokens_with_a_shared_storage_when_the_server_requires_tokens(monk
   for mode, expected in (("off", None), ("warn", None), ("token", "qab_bat_secret")):
     monkeypatch.setattr(settings, "setting", lambda key, mode=mode: mode if key == "ingest.auth" else None)
     assert tokens.batch_needs_token(a_commit(uploaded=False)) == (expected is not None)
-    assert tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(uploaded=False), "c0ffee00-1", "local") == expected
+    assert tokens.mint_for_batch(SimpleNamespace(user=alice), a_commit(uploaded=False), "c0ffee00-1", "local", batch_label="tuning") == expected
     # without a shared storage, always
     assert tokens.batch_needs_token(a_commit())
     # LSF can't get one: refused before it starts
     problem = runner_unsupported(a_commit(uploaded=False), "lsf")
     assert (problem is not None) == (mode == "token")
     assert runner_unsupported(a_commit(uploaded=False), "local") is None
+
+
+def test_batch_tokens_only_send_their_own_batch():
+  from backend import tokens
+  token = batch_token(project="group/repo", commit=COMMIT, batch="tuning")
+  allows = lambda project="group/repo", hexsha=COMMIT, label="tuning", **kwargs: tokens.batch_allows(token, project, hexsha, label, **kwargs)
+  assert allows()
+  # exactly its id: commits are looked up by prefix and case-sensitively, another spelling would be another commit
+  assert not allows(hexsha=COMMIT.upper()) and not allows(hexsha=COMMIT + "0") and not allows(hexsha=f" {COMMIT}")
+  short = batch_token(project="group/repo", commit=COMMIT[:8], batch="tuning")
+  assert not tokens.batch_allows(short, "group/repo", COMMIT[:8], "tuning")
+  # a batch can run its sub-projects' runs
+  assert allows(project="group/repo/sub") and not allows(project="group/other") and not allows(project="group/repository")
+  assert not allows(project=None) and not allows(hexsha="f" * 40) and not allows(hexsha=COMMIT[:8]) and not allows(hexsha=None)
+  assert not allows(label="default") and not allows(label=None) and not allows(label="tuning|iter1")
+  # commits: any batch, still only its own
+  assert allows(label=None, any_batch=True) and not allows(hexsha="f" * 40, any_batch=True)
+  # `qa optimize` runs each iteration in its own batch
+  optimize = batch_token(project="group/repo", commit=COMMIT, batch="tuning", optimize=True)
+  assert tokens.batch_allows(optimize, "group/repo", COMMIT, "tuning")
+  assert tokens.batch_allows(optimize, "group/repo", COMMIT, "tuning|iter12")
+  for label in ("tuning|iter", "tuning|iter1x", "tuning|iter1|iter2", "other|iter1", "tuning|other"):
+    assert not tokens.batch_allows(optimize, "group/repo", COMMIT, label), label
+  # labels are text, not patterns
+  dots = batch_token(project="group/repo", commit=COMMIT, batch="a.b", optimize=True)
+  assert not tokens.batch_allows(dots, "group/repo", COMMIT, "axb|iter1")
+  # batch tokens that don't say their batch send nothing
+  assert not tokens.batch_allows(batch_token(), "group/repo", COMMIT, "tuning")
+  assert not tokens.batch_allows(batch_token(commit=COMMIT, batch="tuning"), "group/repo", COMMIT, "tuning")
+  assert 'the batch "tuning" (and its iterations, tuning|iter<N>) of the commit 01234567' in tokens.batch_description(optimize)
+
+
+def test_batch_tokens_cant_send_artifacts(api, dummy_app):
+  from flask import g
+  token = batch_token(project="group/repo/sub", commit=COMMIT, batch="tuning")
+  headers = {"X-Content-SHA256": hashlib.sha256(b"x").hexdigest()}
+  with dummy_app.test_request_context(f"/api/v1/commit/{COMMIT}/artifacts/files/a.txt?project=group/repo/sub", method="PUT", data=b"x", headers=headers):
+    g.actor = SimpleNamespace(user="alice", token=token)
+    response, status = api.upload_commit_artifact(COMMIT, "a.txt")
+  assert status == 403 and response.get_json()["reason"] == "batch_token_limited"
+  assert "token of a batch" in response.get_json()["error"]
 
 
 def batch_token(command_id="c0ffee00-1", **data):

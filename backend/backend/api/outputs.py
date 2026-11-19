@@ -1,7 +1,9 @@
 import datetime
 import json
 import math
+import re
 from pathlib import Path
+from urllib.parse import unquote
 
 from typing import Optional
 
@@ -9,13 +11,13 @@ from flask import request, jsonify, make_response, g
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.exc import NoResultFound
 
-from qaboard.conventions import deserialize_config
+from qaboard.conventions import deserialize_config, Reason
 
 from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
 from ..origins import run_origin, run_user, claim_batch
 from ..storage import check_storage_path, UnsafePathError
-from .. import heartbeats, locations, uploads
+from .. import heartbeats, locations, uploads, tokens
 from ..metrics_definitions import MAX_KEY_LENGTH, FORBIDDEN_KEYS
 from ..redo import redo_response
 from ..metrics_definitions import save_metrics_definitions
@@ -24,6 +26,7 @@ from ..tokens import end_batch_token
 from ..attempts import record_attempt
 from ..access import invalid_project
 from .auth import login_required, is_authorized_user, ingest_access, forbidden_project, require_project_access
+from ..actor import batch_token_limits, output_batch_token_limits, batch_token_refused, is_batch_request
 
 # Keys of a run's data that only the server sets
 # - optimization_best allows `qa optimize` to replace this run (see api/batch.py)
@@ -204,6 +207,8 @@ def add_output_metrics(output_id):
   submitted_by, error = ingest_access(project_id, require_token=True)
   if error:
     return error
+  if refused := output_batch_token_limits(output, what="add metrics to this run"):
+    return refused
   assert submitted_by
   data = request.get_json(silent=True) or {}
   metrics = data.get('metrics')
@@ -218,7 +223,7 @@ def add_output_metrics(output_id):
   # the run's own values are not replaced silently
   owned = sorted(k for k in metrics if k in previous_metrics and k not in previously_added)
   if owned and not data.get('overwrite'):
-    return jsonify({"error": f"The run itself returned {', '.join(owned)}: pass overwrite=True to replace its values", "reason": "metrics_exist", "metrics": owned}), 409
+    return jsonify({"error": f"The run itself returned {', '.join(owned)}: pass overwrite=True to replace its values", "reason": Reason.METRICS_EXIST, "metrics": owned}), 409
 
   source = data.get('source') if isinstance(data.get('source'), dict) else {}
   source = {k: str(source[k])[:500] for k in SOURCE_KEYS if source.get(k) is not None}
@@ -270,9 +275,10 @@ def report_output_progress(output_id):
   Same access as the results `qa` sends (ingest.auth). Much lighter than POST /api/v1/output/: no commit, batch or
   configuration to find or update.
   """
-  project_id = None
+  project_id, found = None, None
   try:
-    project_id = Output.query.filter(Output.id==output_id).one().batch.ci_commit.project_id
+    found = Output.query.filter(Output.id==output_id).one()
+    project_id = found.batch.ci_commit.project_id
   except NoResultFound:
     pass
   # who can't see the project doesn't learn whether the run exists
@@ -283,6 +289,8 @@ def report_output_progress(output_id):
   submitted_by, error = ingest_access(project_id)
   if error:
     return error
+  if refused := output_batch_token_limits(found, what="report the progress of this run"):
+    return refused
   data = request.get_json(silent=True) or {}
   metrics = data.get('metrics', {})
   if problem := invalid_added_metrics(metrics, max_metrics=MAX_PROGRESS_METRICS, allow_empty=True):
@@ -300,7 +308,7 @@ def report_output_progress(output_id):
     return jsonify({"error": f"Cannot find output {output_id}"}), 404
   # a run we failed because it was silent is running again (backend/heartbeats.py)
   if not (output.is_pending and output.is_running) and 'silent_since' not in (output.data or {}):
-    return jsonify({"error": "The run isn't running: only running runs report their progress", "reason": "not_running"}), 409
+    return jsonify({"error": "The run isn't running: only running runs report their progress", "reason": Reason.NOT_RUNNING}), 409
   heartbeats.reported(output)
 
   # the metrics scripts added to a previous attempt stay, unless the run now logs them.
@@ -343,7 +351,30 @@ def authorize_upload():
     return jsonify({"error": "No token that can send results: run `qa auth login`, or in CI set QABOARD_TOKEN to a token with the ingest scope.", "reason": "login_required"}), 401
   if actor.token is not None and not actor.has_scope('ingest'):
     return jsonify({"error": "This token can't send results: it needs the \"ingest\" scope.", "reason": "missing_scope", "required": "ingest"}), 403
-  return '', 204
+  if tokens.is_batch_token(actor.token) and (refused := batch_token_upload_limits(request.environ.get('QABOARD_ORIGINAL_URI'))):
+    return refused
+  # nginx passes it on with the file: the endpoints know it asked (uploads.unchecked_by_proxy)
+  return '', 204, {uploads.PROXY_CHECKED_HEADER: '1'}
+
+
+def batch_token_upload_limits(uri: Optional[str]):
+  """
+  For authorize_upload: None if a batch token may send this file, else the 403. The endpoints check it again with
+  the file, this only keeps other batches' files from nginx's disk. nginx says the URL (QABOARD_ORIGINAL_URI).
+  """
+  # the path as nginx routes it: decoded, with `..` resolved, without the query. A `?` or `#` may be in file names
+  path = uri or ''
+  if match := re.fullmatch(r'/api/v1/output/(\d+)/files/.+', path, re.DOTALL):
+    output = Output.query.filter(Output.id == int(match.group(1))).one_or_none()
+    # the endpoint says it doesn't exist
+    return output_batch_token_limits(output, what="send files of this run") if output is not None else None
+  # (configurations from before nginx sent $uri send the query)
+  if match := re.fullmatch(r'/api/v1/batch/submissions/([^/?]+)/log(?:\?.*)?', path, re.DOTALL):
+    if tokens.batch_token_for(g.actor, unquote(match.group(1))) is None:
+      return batch_token_refused("send the log of another batch")
+    return None
+  # the commits' artifacts (only `qa save-artifacts` sends them), or a URL nginx didn't say
+  return batch_token_refused("send these files")
 
 
 @app.route("/api/v1/output/<int:output_id>/files/<path:path>", methods=['PUT'])
@@ -359,6 +390,8 @@ def upload_output_file(output_id, path):
   Always with a token that can send results to the project, whatever ingest.auth says: the files are served to
   everyone who opens the run.
   """
+  if refused := uploads.unchecked_by_proxy(request.environ):
+    return jsonify({"error": str(refused), "reason": refused.reason}), refused.status
   output = Output.query.filter(Output.id==output_id).one_or_none()
   project_id = output.batch.ci_commit.project_id if output is not None else None
   # who can't see the project doesn't learn whether the run exists
@@ -369,8 +402,10 @@ def upload_output_file(output_id, path):
   submitted_by, error = ingest_access(project_id, require_token=True)
   if error:
     return error
+  if refused := output_batch_token_limits(output, what="send files of this run"):
+    return refused
   if not uploads.enabled(project_id):
-    return jsonify({"error": uploads.disabled_message(), "reason": "uploads_disabled"}), 400
+    return jsonify({"error": uploads.disabled_message(), "reason": Reason.UPLOADS_DISABLED}), 400
   try:
     offset = int(request.args['offset']) if 'offset' in request.args else None
   except ValueError:
@@ -381,9 +416,9 @@ def upload_output_file(output_id, path):
   directory = locations.local_path(output.output_dir_override) if output.output_dir_override else None
   # not any folder the database has: one we chose for a run of this project, that said it uploads
   if not directory or not (output.data or {}).get('uploads_files') or not uploads.is_run_dir(directory, project_id):
-    return jsonify({"error": "This run saves its files in a storage shared with the server: it doesn't upload them.", "reason": "not_uploaded"}), 409
+    return jsonify({"error": "This run saves its files in a storage shared with the server: it doesn't upload them.", "reason": Reason.NOT_UPLOADED}), 409
   if not output.is_pending:
-    return jsonify({"error": "The run has ended: its files don't change anymore.", "reason": "not_running"}), 409
+    return jsonify({"error": "The run has ended: its files don't change anymore.", "reason": Reason.NOT_RUNNING}), 409
   try:
     size = uploads.save_file(Path(directory), path, request.stream, request.content_length, sha256=request.headers.get('X-Content-SHA256'), offset=offset)
   except uploads.UploadError as e:
@@ -441,9 +476,9 @@ def new_output_webhook():
   # Runs without a storage shared with us send their files after this request: we choose their folder (backend/uploads.py)
   uploads_files = data.get('storage') == 'upload'
   if uploads_files and not uploads.enabled(str(data.get('project') or '')):
-    return jsonify({"error": uploads.disabled_message(), "reason": "uploads_disabled"}), 400
+    return jsonify({"error": uploads.disabled_message(), "reason": Reason.UPLOADS_DISABLED}), 400
   if uploads_files and not uploads.supports_project(str(data.get('project'))):
-    return jsonify({"error": f"Projects with a folder named \"{uploads.RUNS_FOLDER}\" can't upload their files.", "reason": "uploads_unsupported_project"}), 400
+    return jsonify({"error": f"Projects with a folder named \"{uploads.RUNS_FOLDER}\" can't upload their files.", "reason": Reason.UPLOADS_UNSUPPORTED_PROJECT}), 400
 
   # The server will write, delete and run code in those folders
   output_directory = data.get('output_directory') if not uploads_files else None
@@ -462,7 +497,7 @@ def new_output_webhook():
   # above them, else deleting its run would delete them
   for folder in (output_directory, artifacts_commit):
     if folder and uploads.overlaps_uploads(folder, project_ids=all_project_ids):
-      return jsonify({"error": f"{folder} is where the server saves the files runs send it: results can't be saved there directly.", "reason": "uploads_folder"}), 400
+      return jsonify({"error": f"{folder} is where the server saves the files runs send it: results can't be saved there directly.", "reason": Reason.UPLOADS_FOLDER}), 400
 
   if error := invalid_project(data.get('project')):
     return error
@@ -470,6 +505,10 @@ def new_output_webhook():
   submitted_by, error = ingest_access(data.get('project'), require_token=uploads_files)
   if error:
     return error
+  if refused := batch_token_limits(data.get('project'), hexsha, data.get('batch_label')):
+    return refused
+  # its commit exists, and stays as it is: where its artifacts are, its config, the project's...
+  from_batch = is_batch_request()
 
   # We get a handle on the Commit object related to our new output
   try:
@@ -478,6 +517,7 @@ def new_output_webhook():
       hexsha=hexsha,
       project_id=data['project'],
       data=data,
+      existing_only=from_batch,
     )
   except Exception as e:
     return jsonify({"error": f"Could not find your commit ({hexsha}). {e}"}), 404
@@ -591,7 +631,8 @@ def new_output_webhook():
   if output.deleted:
     output.deleted = False
 
-  ci_commit.commit_dir_override = artifacts_commit
+  if not from_batch:
+    ci_commit.commit_dir_override = artifacts_commit
   output.output_dir_override = output_directory
 
   # We update the output's status
@@ -622,7 +663,7 @@ def new_output_webhook():
   # The metrics the run's code declared, e.g. qaboard.Metric(12.3, suffix="ms")
   if data.get('metrics_definitions'):
     try:
-      save_metrics_definitions(db_session, ci_commit, data)
+      save_metrics_definitions(db_session, ci_commit, data, trust_branch=not from_batch)
     except Exception as e:
       db_session.rollback()
       print(f"WARNING: could not save the metrics definitions of a run of {hexsha}: {e}")

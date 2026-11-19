@@ -32,6 +32,7 @@ import sys
 import threading
 import time
 import traceback
+from dataclasses import dataclass, field
 from importlib import import_module
 from pathlib import Path
 from types import MappingProxyType
@@ -45,7 +46,7 @@ from .metrics import DEFINITIONS_FILE, clean_definition, declared_metrics, read_
 from .payloads import results_payload, serialize_path
 from .results import ResultsError, Run, _request, _script_source
 from .series import Point, SeriesWriter, as_number, flatten, read_series
-from .upload import Uploader
+from .reporting import RunReporter
 
 # How often the series' files are written and the server told about the run, in seconds, at least
 FLUSH_INTERVAL = 2.0
@@ -219,10 +220,12 @@ class _Setup:
   """Where a run goes: the project, its commit, its folders, read like `qa` does (qaboard/config.py)."""
   def _storage_missing(self, storage) -> None:
     self.uploads_files = True
-    _say(f"the shared storage isn't here ({storage}): the files are sent to the server")
+    self.notes.append(f"the shared storage isn't here ({storage}): the files are sent to the server")
 
   def __init__(self, project: Optional[str], commit: Optional[str], upload_without_storage: bool = False):
     """`upload_without_storage`: send the files to the server when the shared storage isn't mounted here (qa upload)"""
+    # what to tell the user about where the run goes, said when it starts
+    self.notes: List[str] = []
     # reads the qaboard.yaml above the current directory, git and the CI's environment
     c = import_module('qaboard.config')
     self.is_ci: bool = c.is_ci
@@ -336,39 +339,52 @@ class _Setup:
     self.outputs_commit = self._outputs_dir(resolved, outputs_project_root) if outputs_project_root else None
 
 
-def start_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] = None, batch: Optional[str] = None,
-              label: Optional[str] = None,
-              project: Optional[str] = None, commit: Optional[str] = None, output_dir: Union[str, Path, None] = None,
-              share: Optional[bool] = None, resume: bool = False, summary: Union[str, Mapping[str, str]] = 'last',
-              database: Union[str, Path, None] = None, platform: Optional[str] = None, capture_output: bool = True,
-              server: Optional[str] = None, token: Optional[str] = None, _upload_without_storage: bool = False) -> 'ActiveRun':
+@dataclass(frozen=True)
+class RunPlan:
   """
-  Starts a run from your code, and returns it: log to it, then `finish()` it, or use it as a context manager.
+  The run start_run() would start, and where: what plan_run() gives, before anything is written or sent. `qa upload
+  --dryrun` prints it.
+  """
+  project: str
+  commit: str
+  # the batch in the web app: shared runs outside the CI go to the user's own, "@you| <raw_batch>"
+  batch: str
+  raw_batch: str
+  # the group of tests shown on the run's card: start_run(label=..., batch=...)
+  batch_name: Optional[str]
+  input: str
+  database: Path
+  configurations: Tuple[Any, ...]
+  platform: str
+  # shown in the web app; `offline`: the server isn't told about it
+  share: bool
+  offline: bool
+  # its files are sent to the server, without a storage shared with it (qaboard/upload.py)
+  uploads_files: bool
+  # saved in the storage shared with the server, else in the project's output/ folder (or `custom_output`)
+  in_storage: bool
+  # the run's folder. With `new_attempt`, its latest attempt's: start_run() reserves the next one (qaboard/attempts.py)
+  output_dir: Path
+  new_attempt: bool
+  custom_output: bool
+  resume: bool
+  summaries: Mapping[str, str]
+  server: str
+  # which setting gives the server, None when nothing does (qaboard/credentials.py:default_server)
+  server_source: Optional[str]
+  # what to tell the user, e.g. that the shared storage isn't mounted here
+  notes: Tuple[str, ...] = ()
+  setup: Optional['_Setup'] = field(default=None, repr=False, compare=False)
 
-  A run is identified like `qa run`'s: the project, the commit, a batch, an input, and configurations.
-  - `input`: what the run works on, e.g. a dataset, as a path relative to the inputs' database, or any name. Runs with
-    the same input and configurations are compared from a commit to the next. Default: the script's name.
-  - `configs`: the configurations, texts and mappings like `qa --config`: `["resnet50", {"lr": 1e-3}]`. They make the
-    run: other configurations are another run. `run.params` merges the mappings.
-  - `batch`: the experiment the run belongs to, a batch in the web app. Default: "default". Like with `qa --share`,
-    runs you start outside the CI go to your own batch, "@you| <batch>".
-  - `label`: the same, under the name `qa --label` gives it: give either. With both, like `qa --label nightly batch
-    unit-tests`, `label` is the batch in the web app, and `batch` names the group of tests the run belongs to, shown
-    on its card: it tells apart runs whose inputs say little.
-  - `project`, `commit`: by default the project of the qaboard.yaml above the current directory, and the git HEAD.
-    Without a qaboard.yaml, give `project="group/repo"`; the CI's repository is the default there. `commit` attaches
-    the run to another commit.
-  - `share`: show the run in the web app, with its files: saved in the storage shared with the server, or sent to it
-    when there is none (no `storage` in qaboard.yaml, or `storage: upload`). Default: in the CI, and when a server is
-    configured. `share=False`, or `QA_OFFLINE=1`, keeps everything in `output/`.
-  - `output_dir`: your own folder for the run's files, instead of the one QA-Board's conventions give.
-  - `resume=True`: continue the previous run of the same identity: its files, metrics and parameters are kept, and
-    steps go on from its last. Without a previous run, it starts one.
-    Otherwise, starting a run again is a new attempt: the web app shows the latest, and remembers the earlier ones.
-  - `summary`: which value of each logged series is the run's metric: "last" (default), "min", "max", "mean", or
-    "none"; or a mapping by series, with `*` patterns: `{"val/loss": "min", "system/*": "none", "*": "last"}`.
-  - `capture_output`: also save what the process prints in the run's log.txt, shown in the web app's Logs.
-  - `server`, `token`: by default those `qa` uses (QABOARD_URL..., `qa auth login`).
+
+def plan_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] = None, batch: Optional[str] = None,
+             label: Optional[str] = None, project: Optional[str] = None, commit: Optional[str] = None,
+             output_dir: Union[str, Path, None] = None, share: Optional[bool] = None, resume: bool = False,
+             summary: Union[str, Mapping[str, str]] = 'last', database: Union[str, Path, None] = None,
+             platform: Optional[str] = None, server: Optional[str] = None, _upload_without_storage: bool = False) -> RunPlan:
+  """
+  Which run `start_run()` would start with these arguments (see there), and where, without starting it: it reads the
+  project, git and the settings, and checks the arguments like start_run(), but writes nothing and sends nothing.
   """
   if input is not None and (not isinstance(input, (str, os.PathLike)) or not str(input).strip()):
     raise TypeError(f"start_run(input=...) is a name or a path, like 'train/coco-mini', not {input!r}")
@@ -407,7 +423,6 @@ def start_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] =
   if '..' in input_path.parts:
     raise _error(f"start_run(input={input!r}): the input is a name or a path under its database, without '..'",
                  f"--input {input}: name the run like unit-tests or tests/unit, without '..'")
-  input_name = input_path.as_posix()
 
   for name, value in (('batch', batch), ('label', label)):
     if value is not None and (not isinstance(value, str) or not value.strip()):
@@ -415,14 +430,12 @@ def start_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] =
       raise _error(f"start_run({name}=...) is a name, like 'lr-sweep', not {value!r}", f"{option} is a name, like unit-tests, not {value!r}", RunArgumentTypeError)
   # one name is the batch in the web app, whichever is given; with both, `batch` names the group of tests on the run's card
   raw_batch = label or batch or 'default'
-  batch_name = batch if label and batch and batch != label else None
   batch_label = _batch_label(raw_batch, bool(share), setup)
   platform = platform or setup.platform
 
-  custom_output = output_dir is not None
   new_attempt = False
-  if custom_output:
-    run_dir = Path(output_dir).expanduser().resolve() # type: ignore[arg-type]
+  if output_dir is not None:
+    run_dir = Path(output_dir).expanduser().resolve()
   else:
     base = setup.outputs_commit if in_storage else setup.local_dir
     assert base is not None
@@ -433,33 +446,85 @@ def start_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] =
     if in_storage and attempts.reruns_mode(setup.config) != attempts.IN_PLACE:
       # like `qa run`: a run done again gets its own directory, and the previous attempt's log is kept
       run_dir = attempts.latest_dir(run_dir)
-      if not resume:
-        new_attempt = True
+      new_attempt = not resume
   # The run that `qa run` is doing in this process or above it: starting it again would remove its files
   outer_run_dir = os.environ.get(RUN_DIR_VARIABLE)
   if outer_run_dir and attempts.split(Path(outer_run_dir))[0] == attempts.split(run_dir)[0]:
     raise _error(f"start_run() would replace the run that `qa run` is doing now, in {outer_run_dir}: they have the same batch, input and configurations. "
                  "Return metrics from run() and write files in context.output_dir instead, or give start_run() another input=.",
                  f"`qa upload` would replace the run that `qa run` is doing now, in {outer_run_dir}: give it another --input, or write the files in the run's folder.")
+  return RunPlan(
+    project=setup.project, commit=setup.commit, batch=batch_label, raw_batch=raw_batch,
+    batch_name=batch if label and batch and batch != label else None,
+    input=input_path.as_posix(), database=database_path, configurations=tuple(configurations), platform=platform,
+    share=bool(share), offline=offline or not share, uploads_files=uploads_files, in_storage=in_storage,
+    output_dir=run_dir, new_attempt=new_attempt, custom_output=output_dir is not None, resume=resume,
+    summaries=MappingProxyType(summaries), server=server_url, server_source=server_source, notes=tuple(setup.notes), setup=setup,
+  )
+
+
+def start_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] = None, batch: Optional[str] = None,
+              label: Optional[str] = None,
+              project: Optional[str] = None, commit: Optional[str] = None, output_dir: Union[str, Path, None] = None,
+              share: Optional[bool] = None, resume: bool = False, summary: Union[str, Mapping[str, str]] = 'last',
+              database: Union[str, Path, None] = None, platform: Optional[str] = None, capture_output: bool = True,
+              server: Optional[str] = None, token: Optional[str] = None, _upload_without_storage: bool = False) -> 'ActiveRun':
+  """
+  Starts a run from your code, and returns it: log to it, then `finish()` it, or use it as a context manager.
+
+  A run is identified like `qa run`'s: the project, the commit, a batch, an input, and configurations.
+  - `input`: what the run works on, e.g. a dataset, as a path relative to the inputs' database, or any name. Runs with
+    the same input and configurations are compared from a commit to the next. Default: the script's name.
+  - `configs`: the configurations, texts and mappings like `qa --config`: `["resnet50", {"lr": 1e-3}]`. They make the
+    run: other configurations are another run. `run.params` merges the mappings.
+  - `batch`: the experiment the run belongs to, a batch in the web app. Default: "default". Like with `qa --share`,
+    runs you start outside the CI go to your own batch, "@you| <batch>".
+  - `label`: the same, under the name `qa --label` gives it: give either. With both, like `qa --label nightly batch
+    unit-tests`, `label` is the batch in the web app, and `batch` names the group of tests the run belongs to, shown
+    on its card: it tells apart runs whose inputs say little.
+  - `project`, `commit`: by default the project of the qaboard.yaml above the current directory, and the git HEAD.
+    Without a qaboard.yaml, give `project="group/repo"`; the CI's repository is the default there. `commit` attaches
+    the run to another commit.
+  - `share`: show the run in the web app, with its files: saved in the storage shared with the server, or sent to it
+    when there is none (no `storage` in qaboard.yaml, or `storage: upload`). Default: in the CI, and when a server is
+    configured. `share=False`, or `QA_OFFLINE=1`, keeps everything in `output/`.
+  - `output_dir`: your own folder for the run's files, instead of the one QA-Board's conventions give.
+  - `resume=True`: continue the previous run of the same identity: its files, metrics and parameters are kept, and
+    steps go on from its last. Without a previous run, it starts one.
+    Otherwise, starting a run again is a new attempt: the web app shows the latest, and remembers the earlier ones.
+  - `summary`: which value of each logged series is the run's metric: "last" (default), "min", "max", "mean", or
+    "none"; or a mapping by series, with `*` patterns: `{"val/loss": "min", "system/*": "none", "*": "last"}`.
+  - `capture_output`: also save what the process prints in the run's log.txt, shown in the web app's Logs.
+  - `server`, `token`: by default those `qa` uses (QABOARD_URL..., `qa auth login`).
+  """
+  # which run, and where: no side effects, `qa upload --dryrun` prints the same
+  plan = plan_run(input, configs=configs, batch=batch, label=label, project=project, commit=commit, output_dir=output_dir,
+                  share=share, resume=resume, summary=summary, database=database, platform=platform, server=server,
+                  _upload_without_storage=_upload_without_storage)
+  for note in plan.notes:
+    _say(note)
+  run_dir = plan.output_dir
   # Starting the same run again while it goes on, e.g. a notebook's cell run twice: the first ends here. Else both
   # would write in the same folder, or the new attempt would remove the files of a run that still logs
   for active in _same_run(run_dir):
     _say(f"the run in {active.output_dir} was not finished: finishing it before starting it again")
     active.finish()
-  if new_attempt:
+  if plan.new_attempt:
     run_dir = attempts.reserve_or_keep(run_dir)
-  if not resume and not custom_output and run_dir.exists():
+  if not plan.resume and not plan.custom_output and run_dir.exists():
     from .utils import clean_output_dir
     clean_output_dir(run_dir)
   _mkdir_shared(run_dir)
-  if new_attempt:
+  if plan.new_attempt:
     attempts.remove_previous(run_dir)
     _open(run_dir, 0o777)
 
+  assert plan.setup is not None
   run = ActiveRun(
-    setup=setup, input=input_name, database=database_path, configurations=configurations, batch=batch_label,
-    raw_batch=raw_batch, batch_name=batch_name, platform=platform, output_dir=run_dir, share=bool(share), offline=offline or not share,
-    resume=resume, summaries=summaries, server=server_url, token=token, capture_output=capture_output, uploads_files=uploads_files,
+    setup=plan.setup, input=plan.input, database=plan.database, configurations=list(plan.configurations), batch=plan.batch,
+    raw_batch=plan.raw_batch, batch_name=plan.batch_name, platform=plan.platform, output_dir=run_dir, share=plan.share,
+    offline=plan.offline, resume=plan.resume, summaries=dict(plan.summaries), server=plan.server, token=token,
+    capture_output=capture_output, uploads_files=plan.uploads_files,
   )
   run._start()
   return run
@@ -497,8 +562,6 @@ class ActiveRun:
     self._batch_name = batch_name
     # without a storage shared with the server, the run's files are sent to it: its log and series as it goes, all at the end
     self._uploads_files = uploads_files
-    self._uploader: Optional[Uploader] = None
-    self._files_sent = True
     self._offline = offline
     self._resume = resume
     self._summaries = summaries
@@ -509,6 +572,10 @@ class ActiveRun:
     except ValueError:
       self._sync_interval = SYNC_INTERVAL
     self._capture_output = capture_output and not os.environ.get('QA_NO_STREAM_REDIRECT')
+    # what the run tells the server besides its results: its files, heartbeats while the last ones go (qaboard/reporting.py).
+    # While it runs, its progress reports say that it runs
+    self._reporter = RunReporter(server, output_dir, token=token, uploads=uploads_files, live=(setup.config.get('outputs') or {}).get('live'),
+                                 sync_interval=self._sync_interval, beat_while_running=False)
 
     # what the run logged: guarded by _lock, written and sent by the background thread
     self._lock = threading.RLock()
@@ -527,9 +594,6 @@ class ActiveRun:
     self._pid = os.getpid()
 
     self._thread: Optional[threading.Thread] = None
-    # when we last told the server something about the run: heartbeats when it's been long
-    self._reported_at = time.time()
-    self._heartbeats = True
     self._stop = threading.Event()
     self._send_lock = threading.Lock()
     self._refused: Optional[str] = None            # the server refused the run: we stop asking until the end
@@ -999,11 +1063,13 @@ class ActiveRun:
         if self.id is None or final:
           # creates the run, or says how it ended: everything, like `qa run` does
           answer = _request(self.server, 'output/', method='POST', json=self._payload(final), token=self._token, timeout=TIMEOUT)
-          self._reported_at = time.time()
+          self._reporter.reported()
           if isinstance(answer.get('id'), int):
             self.id = answer['id']
-            self._start_upload()
-        elif self._live_updates and (changed or time.time() - self._reported_at >= heartbeat.INTERVAL):
+            if not self._finished:
+              # once the server knows the run: a thread sends its log and series as it goes
+              self._reporter.start(self.id)
+        elif self._live_updates and (changed or self._reporter.silent_for() >= heartbeat.INTERVAL):
           # what changed, or a heartbeat with what the run looks like: servers from before heartbeats replace the
           # run's metrics with what each request says (qaboard/heartbeat.py)
           with self._lock:
@@ -1014,9 +1080,8 @@ class ActiveRun:
           if definitions != self._sent_definitions:
             body['metrics_definitions'] = definitions
           try:
-            _request(self.server, f"output/{self.id}/progress", method='PATCH', json=body, token=self._token, timeout=TIMEOUT)
+            self._reporter.progress(body, timeout=TIMEOUT)
             self._sent_definitions = definitions
-            self._reported_at = time.time()
           except ResultsError as e:
             # the server is away, or the token is refused: handled like the run's other requests
             if e.is_transient or e.status in (401, 403):
@@ -1026,17 +1091,10 @@ class ActiveRun:
             self._live_updates = False
             if e.status not in (404, 405):
               self._warn_once('progress', f"WARNING: the web app will show the run's metrics when it ends, not before: {e}")
-        elif self._heartbeats and time.time() - self._reported_at >= heartbeat.INTERVAL:
-          # the server doesn't take this run's metrics while it runs: it must still know that it runs
-          try:
-            heartbeat.beat(self.server, self.id, self._token)
-            self._reported_at = time.time()
-          except ResultsError as e:
-            # the server is away, or the token is refused: handled like the run's other requests
-            if e.is_transient or e.status in (401, 403):
-              raise
-            # a server from before runs reported their progress: it doesn't fail silent runs either
-            self._heartbeats = False
+        elif self._reporter.heartbeats and self._reporter.silent_for() >= heartbeat.INTERVAL:
+          # the server doesn't take this run's metrics while it runs: it must still know that it runs. Errors that
+          # may pass (the server is away, the token is refused) are handled like the run's other requests
+          self._reporter.beat()
       except ResultsError as e:
         with self._lock:
           self._changed = True
@@ -1065,42 +1123,25 @@ class ActiveRun:
       self._next_sync = time.time() + self._sync_interval
       return True
 
-  def _start_upload(self) -> None:
-    """Once the server knows the run: a thread sends its log and series as it goes (qaboard/upload.py)"""
-    if not self._uploads_files or self._uploader is not None or self.id is None or self._finished or not self.server:
-      return
-    self._uploader = self._new_uploader().start(interval=self._sync_interval)
-
-  def _new_uploader(self) -> Uploader:
-    assert self.server and self.id is not None
-    return Uploader(self.server, self.id, self.output_dir, token=self._token, live=(self._setup.config.get('outputs') or {}).get('live'))
-
-  def _finish_upload(self) -> None:
-    """Sends the run's files before telling the server that it ended: finished runs' files don't change"""
+  def _finish_upload(self) -> bool:
+    """Sends the run's files before telling the server that it ended: finished runs' files don't change. Returns whether it has them"""
     if not self._uploads_files:
-      return
-    if self.id is None:
+      return True
+
+    def create() -> Optional[int]:
       # the server never heard of the run: it has to know it, as running, to take its files
       self._sync()
-    if self._uploader is None and self.id is not None and self.server:
-      self._uploader = self._new_uploader()
-    if self._uploader is None:
-      self._files_sent = False
+      return self.id
+
+    sent = self._reporter.finish(create=create)
+    if self._reporter.uploader is None:
       if not self._refused:  # else we said why already
         _say(f"WARNING: the server doesn't have the run's files: it didn't take the run. They are in {self.output_dir}")
-      return
-    # the sync thread has stopped: the server must still hear from the run while the last files go, which can take
-    # longer than the time after which it fails silent runs
-    beating = heartbeat.Heartbeat(self.server, self.id, self._token).start() if self._heartbeats and self.server and self.id is not None else None
-    try:
-      self._files_sent = self._uploader.finish()
-    finally:
-      if beating is not None:
-        beating.stop()
-    if not self._files_sent:
+    elif not sent:
       _say("WARNING: the server doesn't have all the run's files:")
-      for problem in self._uploader.problems():
+      for problem in self._reporter.problems():
         _say(f"         {problem}")
+    return sent
 
   def _finish(self, failed: bool, error: Union[BaseException, str, None] = None) -> None:
     with self._lock:
@@ -1150,9 +1191,10 @@ class ActiveRun:
       _say(f"WARNING: could not save the run's files: {e!r}")
 
     if not self._offline:
-      self._finish_upload()
+      files_sent = self._finish_upload()
       known = self._sync(final=True)
-      self.sent = known and self._files_sent
+      self._reporter.ended(known=known)
+      self.sent = known and files_sent
       if known:
         _say(f"{'failed' if self.is_failed else 'finished'}: {self.url}")
       elif self._refused:

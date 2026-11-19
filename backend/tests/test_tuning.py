@@ -3,6 +3,14 @@ Unit tests for starting batches from QA-Board (backend/api/tuning.py)
 """
 from types import SimpleNamespace
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def server_runner(monkeypatch):
+    """Most tests are about the request: the server starts batches in its container. Unset, it refuses them."""
+    monkeypatch.setenv("QABOARD_TUNING_RUNNER", "local")
+
 
 def test_parse_bsub_job_id():
     from backend.api.tuning import parse_bsub_job_id
@@ -414,6 +422,8 @@ def custom_iter_inputs(batches_setup, monkeypatch):
     import backend.api.tuning as tuning
     (batches_setup.artifacts / "qa/main.py").write_text("def iter_inputs(*args):\n  pass\n")
     monkeypatch.setattr(tuning, "check_storage_path", lambda path: None)
+    # the server runs the project's code only when admins opted in
+    monkeypatch.setenv("QABOARD_TUNING_RUNNER", "local")
     return batches_setup
 
 
@@ -421,7 +431,8 @@ def list_tests_response(app, name):
     from backend.api.tuning import get_group
     query = {"project": "group/repo", "name": name, "commit": "94d909ca"}
     with app.test_request_context("/api/v1/tests/group", method="POST", query_string=query, json={"groups": []}):
-        response, status = get_group()
+        result = get_group()
+        response, status = result if isinstance(result, tuple) else (result, result.status_code)
         return response.get_json(), status
 
 
@@ -435,13 +446,45 @@ def test_listing_with_the_projects_code_in_a_missing_folder(dummy_app, custom_it
 def test_listing_with_the_projects_code_times_out(dummy_app, custom_iter_inputs, monkeypatch):
     import subprocess
     import backend.api.tuning as tuning
-    def too_slow(cmd, cwd, timeout):
+    def too_slow(cmd, cwd, timeout, env=None):
         assert timeout == tuning.LIST_TESTS_TIMEOUT
         raise subprocess.TimeoutExpired(cmd, timeout)
     monkeypatch.setattr(tuning, "run_with_timeout", too_slow)
     data, status = list_tests_response(dummy_app, "ci")
     assert status == 504
     assert "took more than" in data["error"]
+
+
+@pytest.mark.parametrize("runner", [None, "lsf", "kubernetes"])
+def test_listing_with_the_projects_code_needs_the_opt_in(dummy_app, custom_iter_inputs, monkeypatch, runner):
+    import backend.api.tuning as tuning
+    if runner:
+        monkeypatch.setenv("QABOARD_TUNING_RUNNER", runner)
+    else:
+        monkeypatch.delenv("QABOARD_TUNING_RUNNER")
+    def never(*args, **kwargs):
+        raise AssertionError("ran the project's code")
+    monkeypatch.setattr(tuning, "run_with_timeout", never)
+    data, status = list_tests_response(dummy_app, "ci")
+    assert status == 200
+    assert data["tests"] == [] and data["unlisted"] is True
+    assert any("its own `iter_inputs`" in w and "qa batch ci --list" in w for w in data["warnings"])
+
+
+def test_listing_with_the_projects_code_has_no_server_secrets(dummy_app, custom_iter_inputs, monkeypatch):
+    import subprocess
+    import backend.api.tuning as tuning
+    monkeypatch.setenv("QABOARD_DB_PASSWORD", "hunter2")
+    monkeypatch.setenv("QABOARD_SECRET_KEY", "flask-secret")
+    seen = {}
+    def run(cmd, cwd, timeout, env=None):
+        seen["env"] = env
+        return subprocess.CompletedProcess(cmd, 0, '[{"rel_input_path": "a", "configurations": []}]', "")
+    monkeypatch.setattr(tuning, "run_with_timeout", run)
+    data, status = list_tests_response(dummy_app, "ci")
+    assert data["tests"] == [{"input_path": "a", "configurations": []}]
+    assert "PATH" in seen["env"]
+    assert not {"QABOARD_DB_PASSWORD", "QABOARD_SECRET_KEY"} & set(seen["env"])
 
 
 def test_run_with_timeout_stops_what_the_command_started(tmp_path):
@@ -668,6 +711,45 @@ def lookup(monkeypatch, hexshas, exact=None):
     return tuning.lookup_commit("group/repo", "abc")
 
 
+@pytest.mark.parametrize("runner, message", [
+    (None, "doesn't start batches itself"),
+    ("  ", "doesn't start batches itself"),
+    ("typo", "(typo) isn't local, celery, lsf or kubernetes"),
+])
+def test_batches_are_refused_when_the_server_starts_none(tmp_path, monkeypatch, dummy_app, runner, message):
+    """Without QABOARD_TUNING_RUNNER, the server doesn't run the projects' code in its container: the form says it first"""
+    import backend.api.tuning as tuning
+    if runner is None:
+        monkeypatch.delenv("QABOARD_TUNING_RUNNER")
+    else:
+        monkeypatch.setenv("QABOARD_TUNING_RUNNER", runner)
+    commit = make_commit(tmp_path, {"project": {"name": "repo"}, "inputs": {"batches": "sub/batches.yaml"}}, batches={"night": {"inputs": ["a"]}})
+    with dummy_app.test_request_context():
+        errors = tuning.check_tuning_request(commit, {"batch_label": "x", "selected_group": "night"})["errors"]
+    assert len(errors) == 1 and message in errors[0]
+    assert "`qa batch`" in errors[0] and "it still works" in errors[0] and "/docs/backend-admin/runners" in errors[0]
+    # starting it is refused before anything is restored or written
+    import flask
+    monkeypatch.setattr(tuning, "lookup_commit", lambda project_id, hexsha: (commit, None))
+    monkeypatch.setattr(tuning, "require_project_access", lambda user, project_id: None)
+    commit.ensure_artifacts = MagicMock()
+    commit.get_or_create_batch = MagicMock()
+    with dummy_app.test_request_context("/api/v1/commit/abcdef/batch", method="POST", query_string={"project": "repo/sub"}, json={"batch_label": "x", "selected_group": "night"}):
+        flask.g.user = {"user_name": "alice"}
+        response, status = tuning.start_tuning("abcdef")
+    assert status == 400 and response.get_json()["reason"] == "no_server_runner" and message in response.get_json()["error"]
+    commit.ensure_artifacts.assert_not_called()
+    commit.get_or_create_batch.assert_not_called()
+
+
+@pytest.mark.parametrize("runner", ["local", "celery", "lsf", "kubernetes"])
+def test_batches_start_with_a_server_runner(tmp_path, monkeypatch, runner):
+    import backend.api.tuning as tuning
+    monkeypatch.setenv("QABOARD_TUNING_RUNNER", runner)
+    commit = make_commit(tmp_path, {"project": {"name": "repo"}, "inputs": {"batches": "sub/batches.yaml"}}, batches={"night": {"inputs": ["a"]}})
+    assert tuning.check_tuning_request(commit, {"batch_label": "x", "selected_group": "night"})["errors"] == []
+
+
 def test_unknown_or_ambiguous_commits(monkeypatch):
     commit, error = lookup(monkeypatch, ["abc123"])
     assert commit.hexsha == "abc123" and error is None
@@ -733,7 +815,7 @@ def test_start_a_batch_from_an_api_client(dummy_app, tmp_path, monkeypatch):
         started.update(script=script.read_text(), log_dir=log_dir)
         return {"status": "submitted"}
     monkeypatch.setattr(tuning, "_dispatch_local", dispatch_local)
-    monkeypatch.delenv("QABOARD_TUNING_RUNNER", raising=False)
+    monkeypatch.setenv("QABOARD_TUNING_RUNNER", "local")
     request = {
         "batch_label": "from-cli",
         "selected_group": ["night", "mine"],

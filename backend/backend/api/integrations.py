@@ -306,8 +306,11 @@ def url_host_template(url: str):
   return netloc.partition(':')[0].lower() or None
 
 
-def configs_of(project_id, commit_id=None):
-  """The qaboard.yaml configurations whose integrations the web app shows for a project (and one of its commits)"""
+def configs_of(project_id, commit_id=None, with_batches=True):
+  """
+  The qaboard.yaml configurations whose integrations the web app shows for a project (and one of its commits, and
+  `with_batches` its batches': results send them, e.g. with batch tokens)
+  """
   project = Project.query.filter(Project.id == project_id).one_or_none()
   if not project:
     return
@@ -316,7 +319,7 @@ def configs_of(project_id, commit_id=None):
     ci_commit = CiCommit.query.filter(CiCommit.project_id == project_id, CiCommit.hexsha == commit_id).one_or_none()
     if ci_commit:
       yield None, (ci_commit.data or {}).get('qatools_config')
-      for batch in ci_commit.batches:
+      for batch in (ci_commit.batches if with_batches else []):
         yield None, (batch.data or {}).get('qatools_config')
 
 
@@ -870,6 +873,28 @@ def jenkins_jobs_owner(project_id):
   return f"the qaboard.yaml of {project_id}" if project_id else "the projects' qaboard.yaml"
 
 
+def batch_token_jenkins_limits(data, project_id, checking):
+  """
+  A batch token (tokens.mint_for_batch) starts the Jenkins builds of the windows runner for its batch: of its project
+  and commit, and only the jobs their qaboard.yaml lists, never any job on the Jenkins hosts we have credentials for.
+  Checking a build's status only says the status, on those hosts: `qa` doesn't say the project there.
+  None if it can (or it's not a batch token), else the response to return.
+  """
+  from .. import tokens
+  from ..actor import batch_token_refused
+  token = g.actor.token
+  if not tokens.is_batch_token(token) or checking:
+    return None
+  commit_id = data.get('commit') if isinstance(data.get('commit'), str) else None
+  build_url = data.get('build_url')
+  if not project_id or not tokens.batch_allows(token, project_id, commit_id, any_batch=True):
+    return batch_token_refused("start Jenkins builds outside of its project and commit")
+  # not the batches' qaboard.yaml: the token sends its batch's
+  if not isinstance(build_url, str) or not is_declared_jenkins_job(build_url, project_id, commit_id, with_batches=False):
+    return batch_token_refused(f"start Jenkins jobs that {jenkins_jobs_owner(project_id)} doesn't list (runners.jenkins.build_url, or jenkins integrations)")
+  return None
+
+
 def jenkins_trigger_access(data, checking=False):
   """None if the caller can start this Jenkins build (`checking`: check builds' status), else the response to return"""
   verb = "check" if checking else "start"
@@ -878,6 +903,8 @@ def jenkins_trigger_access(data, checking=False):
   if actor is not None and actor.user is not None:
     if actor.token is not None and not (actor.has_scope('act') or actor.has_scope('ingest')):
       return jsonify({"error": f"This token can't {verb} Jenkins builds: it needs the \"act\" or \"ingest\" scope.", "reason": "missing_scope", "required": "act"}), 403
+    if refused := batch_token_jenkins_limits(data, project_id, checking):
+      return refused
     if project_id:
       if not actor.allows_project(project_id):
         return jsonify({"error": f"This token can't access {project_id}.", "reason": "token_project"}), 403
@@ -934,10 +961,10 @@ def declared_jenkins_jobs() -> set:
     _declared_jenkins_jobs["at"] = time.time()
   return _declared_jenkins_jobs["build_urls"]
 
-def is_declared_jenkins_job(build_url, project_id=None, commit_id=None):
+def is_declared_jenkins_job(build_url, project_id=None, commit_id=None, with_batches=True):
   normalize = lambda url: url.strip().rstrip('/')
   if project_id:
-    configs = [config for _, config in configs_of(project_id, commit_id if isinstance(commit_id, str) else None)]
+    configs = [config for _, config in configs_of(project_id, commit_id if isinstance(commit_id, str) else None, with_batches=with_batches)]
     build_urls = {normalize(url) for config in configs for url in jenkins_jobs(config) if isinstance(url, str)}
   else:
     build_urls = declared_jenkins_jobs()

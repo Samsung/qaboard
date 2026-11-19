@@ -103,7 +103,22 @@ class CiCommit(Base):
   def get_or_create_batch(self, label):
     matching_batches = [b for b in self.batches if b.label == label]
     if matching_batches: return matching_batches[0]
-    return Batch(ci_commit=self, label=label)
+    session = orm.object_session(self)
+    if session is None or self.id is None:
+      return Batch(ci_commit=self, label=label)
+    # Requests often create the same batch at the same time (CI jobs starting `qa batch` together, the first runs of
+    # a batch): checking then inserting would fail one of them on the (ci_commit_id, label) unique constraint.
+    # The INSERT waits for another transaction that inserted the batch, then does nothing.
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    session.execute(
+      pg_insert(Batch)
+      .values(ci_commit_id=self.id, label=label)
+      .on_conflict_do_nothing(index_elements=['ci_commit_id', 'label'])
+    )
+    batch = session.query(Batch).filter(Batch.ci_commit_id == self.id, Batch.label == label).one()
+    if batch not in self.batches:
+      self.batches.append(batch)
+    return batch
 
   @property
   def ci_batch(self):
@@ -405,7 +420,22 @@ class CiCommit(Base):
     return summary
 
   @staticmethod
-  def get_or_create(session, hexsha, project_id, data=None):
+  def get_or_create(session, hexsha, project_id, data=None, existing_only=False):
+    """
+    The commit `hexsha` of the project, created if needed with what clients tell us about it (`data`, see
+    qaboard/payloads.py), which may also update the project's configuration.
+    `existing_only`: for batch tokens (actor.is_batch_request), the commit must exist, with exactly this id, and
+    nothing changes: raises LookupError otherwise.
+    """
+    if existing_only:
+      ci_commit = (session.query(CiCommit)
+                   .filter(CiCommit.project_id == project_id, CiCommit.hexsha == hexsha)
+                   .one_or_none())
+      if ci_commit is None:
+        raise LookupError(f"QA-Board doesn't know the commit {hexsha} in {project_id}, and batch tokens don't create commits.")
+      if ci_commit.data is None:
+        ci_commit.data = {}
+      return ci_commit
     try:
       ci_commit =(session.query(CiCommit)
                          .filter(

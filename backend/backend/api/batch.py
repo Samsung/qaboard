@@ -10,12 +10,14 @@ from ..models import CiCommit, Batch
 from ..storage import check_storage_path, UnsafePathError
 from .. import uploads
 from ..tokens import batch_token_for
+from qaboard.conventions import Reason
 from ..redo import redo_response
 from ..origins import run_origin, run_user, claim_batch, clean_run_context
 from ..notifications.batches import request_batch_notification
 from .export_to_folder import filter_outputs
 from ..access import invalid_project
 from .auth import login_required, require_project_access, ingest_access
+from ..actor import batch_token_limits, is_batch_request
 from ..audit import audit
 
 
@@ -71,6 +73,8 @@ def update_batch():
   submitted_by, error = ingest_access(data.get('project'))
   if error:
     return error
+  if refused := batch_token_limits(data.get('project'), data.get('commit_sha') or data.get('git_commit_sha'), data['batch_label'], what="change this batch"):
+    return refused
   if batch_data.get('optimization'):
     iteration = batch_data.get('iteration')
     if not isinstance(iteration, int):
@@ -87,6 +91,8 @@ def update_batch():
       hexsha=hexsha,
       project_id=request.json['project'],
       data=data,
+      # batch tokens: their commit exists, and stays as it is
+      existing_only=is_batch_request(),
     )
   except Exception as e:
     # usually a commit we don't know, and whose git repository we can't read
@@ -108,7 +114,7 @@ def update_batch():
       # we used to do it when receiving hooks from source control,
       # but it led to huge growth of the ci_commits table in a monorepo
       # with 100s of subprojects each full of config data
-      if attr_backward_compat not in ci_commit.data:
+      if attr_backward_compat not in ci_commit.data and not is_batch_request():
         ci_commit.data[attr_backward_compat] = data[attr]
         flag_modified(ci_commit, "data")
         db_session.add(ci_commit)
@@ -116,7 +122,7 @@ def update_batch():
       # And each batch can have changes vs its commit's config and metrics.
       # The use case is usually working locally with `qa --share` and
       # seeing updated visualizations and metrics.
-      if ci_commit.data[attr_backward_compat] != data[attr]:
+      if ci_commit.data.get(attr_backward_compat) != data[attr]:
         batch.data[attr_backward_compat] = data[attr]
         flag_modified(batch, "data")
       elif attr_backward_compat in batch.data:
@@ -243,9 +249,11 @@ def append_submission_log(command_id):
   `?offset=<size>`: the log's current size, else 409 with its `size`. Only with the batch's own token
   (tokens.mint_for_batch): it says which folder.
   """
+  if refused := uploads.unchecked_by_proxy(request.environ):
+    return jsonify({"error": str(refused), "reason": refused.reason}), refused.status
   token = batch_token_for(g.get('actor'), command_id)
   if token is None:
-    return jsonify({"error": "Only the batch's own token can send its log.", "reason": "batch_token_required"}), 403
+    return jsonify({"error": "Only the batch's own token can send its log.", "reason": Reason.BATCH_TOKEN_REQUIRED}), 403
   # still allowed to send the project's results
   _, error = ingest_access(token.projects[0], require_token=True)
   if error:
@@ -262,7 +270,7 @@ def append_submission_log(command_id):
     size = uploads.save_file(log_dir, 'log.txt', request.stream, request.content_length, offset=offset)
   except UnsafePathError:
     # without the folder: it's the server's path
-    return jsonify({"error": "The batch's log isn't in QA-Board's storage anymore.", "reason": "invalid_log_dir"}), 400
+    return jsonify({"error": "The batch's log isn't in QA-Board's storage anymore.", "reason": Reason.INVALID_LOG_DIR}), 400
   except uploads.UploadError as e:
     return jsonify({"error": str(e), "reason": e.reason, **e.details}), e.status
   return jsonify({"size": size})

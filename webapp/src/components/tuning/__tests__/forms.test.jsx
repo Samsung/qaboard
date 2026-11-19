@@ -158,6 +158,23 @@ describe('TuningForm', () => {
     expect(JSON.parse(init.body)).toEqual({ groups: ['extra-batches', 'arjun'] });
   });
 
+  it("lets users start batches whose tests the server can't list without running the project's code", async () => {
+    usePrefsStore.getState().updateTuning('proj', { experiment_name: 'exp', selected_group: 'nightly', parameter_search: '{"a": [1, 2]}' });
+    vi.spyOn(globalThis, 'fetch').mockImplementation(url => url.startsWith('/api/v1/tests/group?')
+      ? json({ tests: [], unlisted: true, definitions: [], warnings: ['This project lists its inputs with its own `iter_inputs`'] })
+      : json({}));
+    renderWithProviders(
+      <TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>,
+      { user: { is_logged: true, user_name: 'alice' }, siteConfig: {} },
+    );
+    expect(await screen.findByText('Check the batch files')).toBeInTheDocument();
+    expect(screen.queryByText('Why the batch has no tests')).toBeNull();
+    expect(screen.queryByText(/The batch has no tests/)).toBeNull();
+    expect(screen.getByTestId('tuning-start')).toBeEnabled();
+    fireEvent.change(screen.getByTestId('editor-tuning-set'), { target: { value: '{"a": [1, ' } });
+    await waitFor(() => expect(screen.getByTestId('tuning-start')).toBeDisabled());
+  });
+
   it('links to the docs of the site', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
     renderWithProviders(<TuningForm project="proj" config={{ inputs: {} }} metrics={metrics} commit={commit} available_tests_files={{}}/>, { siteConfig: { docs_root: '/qa/' } });

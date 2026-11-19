@@ -176,3 +176,25 @@ spec:
         name: cpu
         target: {type: Utilization, averageUtilization: {{ .Values.backend.autoscaling.targetCPUUtilizationPercentage }}}
 {{- end }}
+---
+{{- if .Values.backend.networkPolicy.enabled }}
+# The uwsgi port trusts what nginx says (QABOARD_UPLOAD_CHECKED, REMOTE_ADDR...): only the proxy reaches it
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "qaboard.fullname" . }}-backend
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {{- include "qaboard.selectorLabels" (list . "backend") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {{- include "qaboard.selectorLabels" (list . "proxy") | nindent 14 }}
+      ports:
+        - {port: uwsgi}
+    # health checks; HTTP clients can't pass uwsgi variables
+    - ports:
+        - {port: http}
+{{- end }}

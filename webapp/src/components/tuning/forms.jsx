@@ -552,6 +552,8 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
   };
 
   const { tests, warnings, definitions } = selected_group_info;
+  // the server can't list the tests without running the project's code (its own iter_inputs): `qa batch` will
+  const unlisted = !!selected_group_info.unlisted;
   const total_runs = combinations * tests.length;
   // no runs yet (e.g. no batch chosen) is not an error
   const time_intent =
@@ -762,7 +764,7 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
       />
       <BatchWarnings
         warnings={warnings}
-        title={tests.length === 0 ? "Why the batch has no tests" : "Check the batch files"}
+        title={tests.length === 0 && !unlisted ? "Why the batch has no tests" : "Check the batch files"}
         style={{ marginBottom: '15px' }}
       />
     </>}
@@ -802,7 +804,7 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
     <FormGroup
       helperText={!user ? "Please provide a user in the input below"
                         : experiment_name.length === 0 ? 'Please give the batch a label (the input is above)'
-                        : selected_group_info.tests.length === 0 ? "The batch has no tests: see why under its name"
+                        : (tests.length === 0 && !unlisted) ? "The batch has no tests: see why under its name"
                         : search_type === "optimize" ? (optimize_errors.length > 0 ? "Fix the automated tuning's configuration first: it says what's missing above" : undefined)
                         : combinations === "invalid" ? "The tuning parameters are not valid JSON, or the function throws"
                         : total_runs > MAX_RUNS ? `Too many runs: ${total_runs} (at most ${MAX_RUNS}). Use “Sampling” or fewer inputs.`
@@ -826,7 +828,8 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
         check_errors.length > 0 ||
         !user ||
         experiment_name.length === 0 ||
-        (!total_runs && search_type !== "optimize") ||
+        (!total_runs && search_type !== "optimize" && !unlisted) ||
+        (combinations === "invalid" && search_type !== "optimize") ||
         (search_type === "optimize" && optimize_errors.length > 0) ||
         total_runs > MAX_RUNS
       }

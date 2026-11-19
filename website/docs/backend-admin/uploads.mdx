@@ -112,30 +112,39 @@ Whoever can send files can put any file on your server, which serves it to every
   ([HTML reports](/docs/viewers#html-reports)). It is off by default.
 - **Images of restricted projects**: the image server (`/iiif/`) doesn't check who asks. If projects' visibility
   matters on your server, don't expose it beyond the people who may see every project.
-- **Batches started from the web app** for these projects get a token of the person who started them, limited to the
-  project, to reading and sending results. It is revoked when the batch is stopped, expires 10 minutes after the
+- **Batches started from the web app** for these projects get a token of the person who started them, limited to
+  reading the project and sending the results of that batch only (its commit and label, and the batches of each
+  `qa optimize` evaluation): it can't write other batches' runs, other commits, or any commit's artifacts. It is revoked when the batch is stopped, expires 10 minutes after the
   batch's last run ends (time for the driver to send the end of its log), and a day after the runs stop reporting
   otherwise. Redone runs and `qa optimize`, which starts batch after batch, keep it until they are stopped or idle.
   On Kubernetes it is in the driver pod's environment, so whoever can read the namespace's ConfigMaps can use it
   meanwhile: one namespace per team. The driver pod also sends its log with it, since it can't write in the batch's
   folder. These batches download the artifacts from QA-Board, through the proxy: the server's own `qa` reaches it
   at `QABOARD_HOST`, set to the proxy by *docker-compose.yml* and the Helm chart.
-- **Developers can run code on the server** through the batches started from the web app: they run the commit's
-  `qaboard.yaml` and code, and with uploaded artifacts anyone with a token that can send the project's results can
-  change them. With the default runner (`QABOARD_TUNING_RUNNER` unset, *local*), that code runs in the backend's
-  container, with its secrets. On a server that people you don't trust can send results to, use the Kubernetes
-  runner, in a namespace per team ([runners](/docs/backend-admin/runners#security)).
+- **Batches started from the web app run the commit's code**: its `qaboard.yaml` and code, and with uploaded
+  artifacts anyone with a token that can send the project's results can change them. By default
+  (`QABOARD_TUNING_RUNNER` unset) the server starts none (redo still goes through the LSF bridge, if set). With `local` or `celery`, that code runs in the backend's
+  container, as its account, with what it can read: keep them for your laptop. On a server that people you don't
+  trust can send results to, use the Kubernetes runner, in a namespace per team
+  ([runners](/docs/backend-admin/runners#security)).
 - **The proxy checks the token before it receives a file**: requests without one that can send results are refused
   before their body is read, so they can't fill its disk. Its configuration has it for the files' and the batch logs'
   paths (`snippets/qaboard-uploads-auth.conf`): keep it if you write your own, with
   `include snippets/qaboard-files-server.conf;` in the `server` block, which defines the check it calls: without it,
-  nginx lets every request through. With the Helm chart, the ingress
+  nginx refuses these requests (500, saying which snippet is missing), and the backend refuses files that nginx
+  didn't check. With the Helm chart, the ingress
   controller in front of it receives bodies first (up to 1100m): limit who can reach the ingress, or the size, if
   that matters.
-- **Inside a Kubernetes cluster**, pods can reach the backend's Service directly, without the proxy: the backend still
-  checks tokens and sizes, but not before it receives the body.
-- **A batch's token can send any results of its project** while it's valid, not only its batch's: who can read it
-  (the driver pod's ConfigMap) can write the project's running runs and its commits' artifacts.
+- **Inside a Kubernetes cluster**, the Helm chart's NetworkPolicy (`backend.networkPolicy.enabled`, on by default)
+  lets only the proxy reach the backend's uWSGI port, where the proxy says it checked a file's token and who the
+  client is: other pods, e.g. runs, would say it themselves. It takes effect when the cluster's network plugin
+  enforces NetworkPolicies; otherwise keep pods that run projects' code in other clusters, or add your own policy.
+  The backend's HTTP port stays open for health checks: it refuses files.
+- **Who can read a batch's token** (the driver pod's ConfigMap) can read the project and change that batch's results
+  while the token is valid, nothing else. Refusals say it's a batch's token (reason `batch_token_limited`). If you
+  write your own proxy configuration, include `snippets/qaboard-uploads-auth.conf` in the files' locations: it sets
+  the path the upload check gets (`QABOARD_ORIGINAL_URI`, as nginx routes it). Without it, the proxy refuses every
+  file sent with a batch's token.
 - **Use HTTPS**: tokens and files travel in the requests.
 
 ## Limits and disk space {#limits}

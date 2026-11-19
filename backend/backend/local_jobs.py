@@ -1,6 +1,7 @@
 """
 `qa batch` commands that the server runs itself, in the backend's container: batches started from the web app with
-QABOARD_TUNING_RUNNER=local (the default) or celery (api/tuning.py), and redoing runs without the LSF bridge (redo.py).
+QABOARD_TUNING_RUNNER=local or celery (api/tuning.py), and redoing runs with them without the LSF bridge (redo.py).
+Admins opt in by setting one: unset, the server starts no batches (server_runner.py).
 
 - They run detached (start_detached): in their own process group, outside of the HTTP request, so that uWSGI's
   `harakiri` (300s) doesn't kill them and requests don't wait for them. Their submission (submissions.py) records
@@ -25,13 +26,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from qaboard.runners.env import is_secret as is_runner_secret
+from .server_runner import IN_SERVER_RUNNERS
 
 
 # In the environment of what we start, to find it again, even processes that left its process group
 SUBMISSION_ENV = 'QABOARD_SUBMISSION_ID'
 EXIT_CODE_FILE = 'exit_code'
 # the runners whose `qa batch` the server starts itself
-LOCAL_RUNNERS = ('local', 'celery')
+LOCAL_RUNNERS = IN_SERVER_RUNNERS
 
 # Variables whose names contain these words hold secrets, besides those the runners never forward (runners/env.py:
 # *TOKEN*, *PASSWORD*, *SECRET*, *AUTH*...). The server is stricter: `qa batch` doesn't need its keys.
