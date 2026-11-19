@@ -11,9 +11,9 @@ Line references are to this branch's tree.
 
 | § | Proposed | Status |
 |---|---|---|
-| 1.3.1 | Authenticated ingest | **Partial**: `ingest.auth` `off`/`warn`/`token` (`api/auth.py` `ingest_access`), `off` by default everywhere. Files always need a token. Anonymous results can't replace a run that sent its files (`outputs.py`), but can replace shared-storage runs |
-| 1.3.2 | No stored XSS | **Partial**: the HTML viewer is a sandboxed iframe; `/s/` sandboxes HTML, SVG and XML only with `QABOARD_SANDBOX_HTML` (off by default), and sends `nosniff` |
-| 1.3.3 | `/iiif/` checks access | **Not built** |
+| 1.3.1 | Authenticated ingest | **Built**: `ingest.auth` `off`/`warn`/`token` (`api/auth.py` `ingest_access`), `token` by default. Files always need a token. Anonymous results can't replace a run that sent its files (`outputs.py`), but can replace shared-storage runs |
+| 1.3.2 | No stored XSS | **Built**: the HTML viewer is a sandboxed iframe; `/s/` sandboxes HTML, SVG and XML (`QABOARD_SANDBOX_HTML`, on by default), and sends `nosniff`. Files are still in the app's origin (`docs/warts.md`) |
+| 1.3.3 | `/iiif/` checks access | **Built**: `snippets/qaboard-iiif-auth.conf`, the answer cached a minute per image and credentials |
 | 1.3.4 | Image APIs read storage only | **Built** (`readable_file`) |
 | 1.3.5 | Tokens | **Built**: hashed, named, scopes (`read`, `ingest`, `act`, `admin`), projects, expiry (90 days by default, no maximum unless `tokens.max_lifetime_days`), a page, `?token=` read-only, `qab_bat_` batch tokens. The `ingest:` YAML became the project's developer role. CI OIDC (phase 4) is built: `ci_trust.py` |
 | 1.3.6 | Manifests not rewritten | **Built**: `?refresh` needs a signed-in user, and an uploaded run that ended keeps the manifest it sent |
@@ -38,7 +38,7 @@ Line references are to this branch's tree.
 | 7 | Artifacts, batch logs | **Built**: artifacts file by file with SHA-256 (`commit_artifacts.py`); batch logs from the Kubernetes driver (`batch_log.py`) |
 | 7 | `qa batch` matching | **Built** by run id; a pending run that sent its files is settled as failed |
 | 8 | `uploads`, `upload_parts`, `project_storage` tables | **Not built** (not needed without sessions). `outputs.reported_at`, `storage_locations` added |
-| 10.3 | Phases | 1: built but IIIF and the defaults. 2a: built, simpler. 2b: artifacts, batch logs, bit accuracy, chart, helm-e2e built; dedupe, quotas, async commit, ingest pool, load test not. 3: not planned (ingest-upload-sdk.md §4) |
+| 10.3 | Phases | 1: built. 2a: built, simpler. 2b: artifacts, batch logs, bit accuracy, chart, helm-e2e built; dedupe, quotas, async commit, ingest pool, load test not. 3: not planned (ingest-upload-sdk.md §4) |
 | 11 | Tests | Unit tests (`backend/tests/test_uploads.py`, `tests/test_upload*.py`...), e2e in compose (`.github/scripts/uploads_e2e.py`) and on kind (`helm_e2e.py`). Missing: the real `Uploader` against the Flask app, Range on a running log, 403/400 refusals and deletion end to end, fault injection, load |
 
 ## TL;DR

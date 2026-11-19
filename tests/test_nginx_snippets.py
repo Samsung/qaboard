@@ -25,7 +25,28 @@ class TestNginxSnippets(unittest.TestCase):
         self.assertIn(f"location = {uri} ", server, (snippet.name, uri))
         self.assertIn("if ($qaboard_files_server_included != 1) {", text, snippet.name)
         checked.append(snippet.name)
-    self.assertLessEqual({"qaboard-uploads-auth.conf", "qaboard-files-auth.conf", "qaboard-admins-only.conf"}, set(checked))
+    self.assertLessEqual({"qaboard-uploads-auth.conf", "qaboard-files-auth.conf", "qaboard-iiif-auth.conf", "qaboard-admins-only.conf"}, set(checked))
+
+  def test_files_and_images_are_checked_by_default(self):
+    """Private projects' files under /s/, and their images under /iiif/ (the image server reads the same files)"""
+    root = SNIPPETS.parent.parent.parent
+    for conf in (SNIPPETS.parent / "conf.d" / "qaboard.conf", root / "charts" / "qaboard" / "files" / "qaboard.conf"):
+      text = conf.read_text()
+      for location, snippet in (("location ^~ /s/ {", "include snippets/qaboard-files-auth.conf;"), ("location /iiif/ {", "include snippets/qaboard-iiif-auth.conf;")):
+        block = text[text.index(location):text.index("\n  }", text.index(location))]
+        self.assertIn(snippet, block, (conf, location))
+    self.assertIn("restrictFiles: true", (root / "charts" / "qaboard" / "values.yaml").read_text())
+
+  def test_image_checks_are_cached_per_image_and_credentials(self):
+    server = (SNIPPETS / "qaboard-files-server.conf").read_text()
+    check = server[server.index("location = /__qaboard/iiif-auth {"):]
+    check = check[:check.index("\n}")]
+    self.assertIn('uwsgi_cache_key "$qaboard_iiif_identifier|$http_authorization|$http_cookie";', check)
+    files = (SNIPPETS.parent / "conf.d" / "qaboard-files.conf").read_text()
+    regex = re.search(r'map \$request_uri \$qaboard_iiif_identifier \{[^}]*"~(\^/iiif/[^"]*)"', files).group(1)
+    regex = regex.replace("(?<", "(?P<")
+    self.assertEqual(re.match(regex, "/iiif/2/mnt%2Fa%2Fb.png/full/max/0/default.jpg").group("identifier"), "mnt%2Fa%2Fb.png")
+    self.assertEqual(re.match(regex, "/iiif/3/mnt%2Fb.png?x=1").group("identifier"), "mnt%2Fb.png")
 
   def test_the_backend_knows_nginx_checked_the_token(self):
     """The backend's yes reaches the endpoints that receive files (uploads.unchecked_by_proxy)"""

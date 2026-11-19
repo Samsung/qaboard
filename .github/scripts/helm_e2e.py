@@ -102,7 +102,7 @@ def kubectl(*args, check=True, json_output=False):
     return json.loads(r.stdout) if json_output else r.stdout
 
 
-def job_manifest(release):
+def job_manifest(release, token):
     """The Job uses the backend's image and results volume, so it sees the results at the same path."""
     deployments = kubectl("get", "deployment", "-l", f"app.kubernetes.io/instance={release},app.kubernetes.io/component=backend",
                           "-o", "json", json_output=True)["items"]
@@ -124,6 +124,8 @@ def job_manifest(release):
         "QABOARD_URL": f"http://{proxy}",
         "QA_STORAGE": mount["mountPath"],
         "QA_NO_CHECK_FOR_UPDATES": "1",
+        # results need a token by default (ingest.auth)
+        "QABOARD_TOKEN": token,
     }
     return mount["mountPath"], {
         "apiVersion": "batch/v1",
@@ -150,8 +152,8 @@ def job_manifest(release):
     }
 
 
-def run_job(release, timeout):
-    mount_path, manifest = job_manifest(release)
+def run_job(release, timeout, token):
+    mount_path, manifest = job_manifest(release, token)
     kubectl("delete", "job", JOB, "--ignore-not-found", "--wait")
     subprocess.run(["kubectl", "apply", "-f", "-"], input=json.dumps(manifest), text=True, check=True)
     log(f"qa batch runs in the Job {JOB}, with results in {mount_path}")
@@ -512,10 +514,10 @@ def main():
     parser.add_argument("--kubernetes", action="store_true", help="Only a batch started from the web app, on Kubernetes (runners.kubernetes.enabled)")
     args = parser.parse_args()
     base = args.url.rstrip("/")
-    if not args.kubernetes:
-        mount_path = run_job(args.release, args.timeout)
-        check_results(base, mount_path)
     session, token = sign_in(base, args.release)
+    if not args.kubernetes:
+        mount_path = run_job(args.release, args.timeout, token)
+        check_results(base, mount_path)
     check_batch_from_web_app(base, args.release, args.timeout, args.kubernetes, session, token)
     if not args.kubernetes:
         # Servers that require tokens for results: the runs of a project with a shared storage get one too

@@ -296,7 +296,9 @@ def test_deleting_the_commits_artifacts_deletes_what_was_sent(api, dummy_app, up
 
 
 # --- the batches QA-Board starts from them --------------------------------------------------------------------------
-def test_runs_from_uploaded_artifacts_need_a_runner_that_fetches_them():
+def test_runs_from_uploaded_artifacts_need_a_runner_that_fetches_them(monkeypatch):
+  # results without tokens: else LSF jobs, which can't get the batch's token, are refused anyway
+  monkeypatch.setenv('QABOARD_INGEST_AUTH', 'off')
   assert runner_unsupported(a_commit(uploaded=False), "lsf") is None
   assert runner_unsupported(a_commit(), "local") is None and runner_unsupported(a_commit(), "kubernetes") is None
   assert "lsf runner" in runner_unsupported(a_commit(), "lsf") and "qa batch" in runner_unsupported(a_commit(), "bridge")

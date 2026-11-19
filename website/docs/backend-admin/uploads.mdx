@@ -107,11 +107,13 @@ Whoever can send files can put any file on your server, which serves it to every
   [send results to the project](/docs/backend-admin/project-access), whatever the setting for other results says.
   Give CI jobs [their own identity](/docs/ci-integration#ci-without-secrets) or a
   [service account](/docs/backend-admin/user-management#service-accounts) limited to their project.
-- **Turn on `QABOARD_SANDBOX_HTML`** before the server is reachable from the internet, or by people you don't
-  trust with each other's sessions: uploaded HTML and SVG files then can't act as whoever opens them
-  ([HTML reports](/docs/viewers#html-reports)). It is off by default.
-- **Images of restricted projects**: the image server (`/iiif/`) doesn't check who asks. If projects' visibility
-  matters on your server, don't expose it beyond the people who may see every project.
+- **Keep `QABOARD_SANDBOX_HTML` on** (the default): uploaded HTML, SVG and XML files then can't act as whoever
+  opens them ([HTML reports](/docs/viewers#html-reports)).
+- **Files and images follow projects' visibility**: nginx asks the backend before serving a file under `/s/`, and
+  before the image server (`/iiif/`) shows an image, once a minute per image and person. Keep both checks
+  (`snippets/qaboard-files-auth.conf` and `qaboard-iiif-auth.conf` in your own nginx configuration, `proxy.restrictFiles`
+  with the chart): without them, anyone who can reach the server reads every project's files, at paths they can
+  guess from a commit id. Image servers you run elsewhere (`QABOARD_IMAGE_SERVERS`) don't get the check.
 - **Batches started from the web app** for these projects get a token of the person who started them, limited to
   reading the project and sending the results of that batch only (its commit and label, and the batches of each
   `qa optimize` evaluation): it can't write other batches' runs, other commits, or any commit's artifacts. It is revoked when the batch is stopped, expires 10 minutes after the

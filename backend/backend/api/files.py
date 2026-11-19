@@ -26,7 +26,7 @@ from flask import request, jsonify
 from backend import app
 from ..models import Project, Output
 from ..config import files_unix_permissions_roots
-from ..files import normalize, path_from_url, is_listable, longest_prefix, folder_for, folder_and_parents, list_directory, unix_account, unix_can_read, USER_PLACEHOLDER
+from ..files import normalize, path_from_url, is_image_server_url, image_server_path, is_listable, longest_prefix, folder_for, folder_and_parents, list_directory, unix_account, unix_can_read, USER_PLACEHOLDER
 from .auth import get_current_user, restrictions, matches_rules, is_authorized_user
 from ..access import authorize, current_actor, effective_visibility
 from ..settings import setting
@@ -157,7 +157,14 @@ def authorize_files():
   Others can ask with ?path=/algo/some/file
   """
   original_uri = request.environ.get('QABOARD_ORIGINAL_URI')
-  if original_uri:
+  if original_uri and is_image_server_url(original_uri):
+    # the image server's tiles: snippets/qaboard-iiif-auth.conf. nginx keeps our answer for a minute per image and user
+    path = image_server_path(original_uri)
+    if path is None:
+      return jsonify({"error": "This image's identifier can't be read.", "reason": "forbidden"}), 403
+    if not path:
+      return '', 204
+  elif original_uri:
     path = path_from_url(original_uri)
     if path is None:
       return '', 204

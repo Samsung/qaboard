@@ -103,13 +103,12 @@ what became of each part). In order, for a cloud-hosted server that takes upload
 
 1. **Release `qaboard`** [S]: PyPI's 1.2.0 has no `qa upload` and no uploads, and the docs say `pip install qaboard`.
    Until a release, the upload pages describe a version users can't install.
-2. **Safe defaults for an internet-facing server** [S, behaviour]: `ingest.auth: token`, `QABOARD_SANDBOX_HTML` on
-   and `proxy.restrictFiles` in the chart's and the quickstart's values (new installs only); checklist items in
-   Admin → Settings when the sandbox is off, or `/s/` isn't checked while some projects aren't public; a maximum token
-   lifetime and a `ref` pin required in CI trust policies. Anonymous results can still replace shared-storage runs:
-   per-project ingest policies are milestone M5 (`user-management.md`).
-3. **`/iiif/` checks who asks** [S-M]: an `auth_request` like `/s/`'s. Today images of restricted projects are
-   public through the image server, at paths anyone can guess (`uploads.run_dir`).
+2. ~~Safe defaults~~ (done, 2026-11-19): `ingest.auth` is `token` by default, `QABOARD_SANDBOX_HTML` on, `/s/` and
+   `/iiif/` check who asks in the default nginx configuration and the chart (`/iiif/`: `snippets/qaboard-iiif-auth.conf`,
+   the backend's answer cached a minute per image and credentials), tokens last at most 365 days, a checklist item when
+   the sandbox is off. Left: a `ref` pin required in CI trust policies [S]; per-project ingest policies (milestone M5,
+   `user-management.md`) for servers that keep `warn`.
+3. ~~`/iiif/` checks who asks~~ (done, item 2).
 4. **Uploads don't slow the web app down** [M]: they share uWSGI's threads with the UI (2×4 in compose), and a
    thread copies each file. A `limit_conn` per token on the upload locations (429, which clients retry), then an
    ingest pool (`http-upload.md` §4.2). Check whether uWSGI's `post-buffering` spools bodies a second time to disk.

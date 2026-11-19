@@ -66,7 +66,7 @@ computed at most every hour.
 | Setting | Environment variable | Default | |
 |---|---|---|---|
 | `analytics.enabled` | `QABOARD_ANALYTICS_ENABLED` | `true` | Off: the server records nothing, and the web app doesn't send events. Change it in **Admin → Settings** |
-| `ingest.auth` | `QABOARD_INGEST_AUTH` | `off` | With `token`, events from the CLI without a token are dropped, like results ([details](/docs/backend-admin/user-management#results-sent-by-qa)) |
+| `ingest.auth` | `QABOARD_INGEST_AUTH` | `token` | With `token`, events from the CLI without a token are dropped, like results ([details](/docs/backend-admin/user-management#results-sent-by-qa)) |
 
 Users can keep their `qa` quiet with `QA_NO_ANALYTICS=1` in their environment. `qa --offline` sends nothing either.
 

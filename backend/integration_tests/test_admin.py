@@ -696,7 +696,7 @@ def test_overview(people, make_client):
   # root, alice, bob signed in; erin is an admin from the env; carol disabled; dave pending
   assert overview["counts"] == {"users": 6, "active_30d": 3, "admins": 2, "pending": 1, "disabled": 1, "active_tokens": 1}
   checklist = {item["id"]: item for item in overview["checklist"]}
-  assert set(checklist) >= {"require_sign_in", "ingest_auth", "https", "secret_key", "legacy_tokens", "local_signup"}
+  assert set(checklist) >= {"require_sign_in", "ingest_auth", "sandbox_html", "https", "secret_key", "legacy_tokens", "local_signup"}
   for item in overview["checklist"]:
     assert item["severity"] in ("info", "warning", "danger") and item["title"]
     # what to do about it
@@ -831,11 +831,14 @@ def test_pgadmin_signs_admins_in(admin, logged_in, monkeypatch):
   assert response.status_code == 403 and 'X-Pgadmin-User' not in response.headers
 
 
-def test_sandbox_html_is_off_until_admins_turn_it_on(make_client, monkeypatch):
+def test_sandbox_html_is_on_until_admins_turn_it_off(make_client, monkeypatch):
   """The web app's HTML viewers follow QABOARD_SANDBOX_HTML, like the proxy (services/nginx/configure.sh)"""
   monkeypatch.delenv('QABOARD_SANDBOX_HTML', raising=False)
-  assert make_client().get('/api/v1/config').get_json()["sandbox_html"] is False
+  assert make_client().get('/api/v1/config').get_json()["sandbox_html"] is True
+  # docker-compose.yml passes it empty when it isn't set
+  monkeypatch.setenv('QABOARD_SANDBOX_HTML', '')
+  assert make_client().get('/api/v1/config').get_json()["sandbox_html"] is True
   monkeypatch.setenv('QABOARD_SANDBOX_HTML', '0')
   assert make_client().get('/api/v1/config').get_json()["sandbox_html"] is False
-  monkeypatch.setenv('QABOARD_SANDBOX_HTML', 'true')
-  assert make_client().get('/api/v1/config').get_json()["sandbox_html"] is True
+  monkeypatch.setenv('QABOARD_SANDBOX_HTML', 'false')
+  assert make_client().get('/api/v1/config').get_json()["sandbox_html"] is False

@@ -91,7 +91,7 @@ def no_database(monkeypatch):
 
 
 def test_settings_env_then_database_then_default(no_database, monkeypatch):
-  assert settings.setting('ingest.auth') == 'off' and settings.source('ingest.auth') == 'default'
+  assert settings.setting('ingest.auth') == 'token' and settings.source('ingest.auth') == 'default'
   no_database['ingest.auth'] = 'warn'
   assert settings.setting('ingest.auth') == 'warn' and settings.source('ingest.auth') == 'database'
   monkeypatch.setenv('QABOARD_INGEST_AUTH', 'token')

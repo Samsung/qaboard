@@ -12,13 +12,13 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 
 ## Security
 
-- **Users' files are served in QA-Board's origin**, and by default their HTML and SVG run scripts there (stored XSS).
-  `QABOARD_SANDBOX_HTML=true` sandboxes them (`services/nginx/conf.d/qaboard-files.conf`, the HTML and plotly viewers):
+- **Users' files are served in QA-Board's origin**. `QABOARD_SANDBOX_HTML` (on by default since November 2026)
+  sandboxes their HTML, SVG and XML (`services/nginx/conf.d/qaboard-files.conf`, the HTML and plotly viewers):
   in the web app's frames their scripts run in an origin of their own, opened in a tab they show without scripts, so
-  their images still load with the session where files are restricted. Turn it on by default once users know, then
+  their images still load with the session where files are restricted. Sites that turn it off get stored XSS. Next,
   serve the storage from another host name (e.g. `files.<qaboard>`, with its own sign-in handoff): reports opened in
   a tab could run their scripts too, and the class of bugs goes away. [L, behaviour]
-- **Anonymous results**: while `ingest.auth` is `off` (the default), anyone can send results to any project, and through
+- **Anonymous results**: where `ingest.auth` is `off` or `warn` (the default is `token` since November 2026), anyone can send results to any project, and through
   the `qaboard_config` they send, add hosts to the integrations' allow-list or Jenkins jobs that anonymous `qa` may start.
   They can also replace existing runs, sent with a token or not: runs are found by what anyone can read about them
   (`Output.get_or_create`), and the anonymous request repoints the run's folder. Only runs that sent their files over
@@ -144,8 +144,8 @@ object storage mount.
 - `qa upload` keeps a copy of what it sends in the project's (or the current folder's) *output/*, like any shared
   run: CI workspaces don't mind, laptops may. [S, behaviour]
 - Left by the security reviews of the endpoints that write files (first three in `backend-admin/uploads.mdx`):
-  - uploaded HTML, SVG and XML run as the people who open them unless `QABOARD_SANDBOX_HTML` is on (off by default,
-    for every run: reports with scripts would change for shared-storage sites). `/s/` sends `nosniff` [S, behaviour];
+  - uploaded HTML, SVG and XML run as the people who open them where admins turn `QABOARD_SANDBOX_HTML` off. `/s/`
+    sends `nosniff` [S, behaviour];
   - with `QABOARD_TUNING_RUNNER=local` or `celery` (opt-in, warned about in Admin → Settings), anyone who can send a
     project's artifacts or start its batches runs code as the backend's account and reads its files (only the
     environment is scrubbed) [M, behaviour];
@@ -199,8 +199,10 @@ object storage mount.
   there. Runs' own folders are always the ones saved with them (`output_dir_override`). [S, no change]
 - `examples/software-quality/qa/junit.py` and `qaboard/junit.py` read reports the same way, twice: the example is
   meant to be copied. [S, no change]
-- `/iiif/` doesn't check who asks, and `/s/` only where the deployment restricts files (`SECURITY.md`): uploads
-  don't change that, but they make servers reachable from more places. [M, behaviour]
+- `/s/` and `/iiif/` check who asks in the default nginx configuration and the chart (`snippets/qaboard-files-auth.conf`,
+  `qaboard-iiif-auth.conf`, `proxy.restrictFiles`), not in sites' own configurations that leave the snippets out, nor
+  on image servers hosted elsewhere (`QABOARD_IMAGE_SERVERS`, e.g. SIRC's). nginx keeps the image server's answers a
+  minute per image and credentials: access removed takes up to a minute to apply to images. [S]
 
 ## Runners (Kubernetes, Dask on any scheduler, `qa doctor`, November 2026)
 
