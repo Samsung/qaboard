@@ -109,10 +109,13 @@ Whoever can send files can put any file on your server, which serves it to every
 - **Images of restricted projects**: the image server (`/iiif/`) doesn't check who asks. If projects' visibility
   matters on your server, don't expose it beyond the people who may see every project.
 - **Batches started from the web app** for these projects get a token of the person who started them, limited to the
-  project, to reading and sending results, and expiring a day after the runs stop. On Kubernetes it is in the driver
-  pod's environment, so whoever can read the namespace's ConfigMaps can use it meanwhile: one namespace per team.
-  These batches download the artifacts from QA-Board, through the proxy: the server's own `qa` reaches it at
-  `QABOARD_HOST`, set to the proxy in *docker-compose.yml*.
+  project, to reading and sending results. It is revoked when the batch is stopped, expires 10 minutes after the
+  batch's last run ends (time for the driver to send the end of its log), and a day after the runs stop reporting
+  otherwise. Redone runs and `qa optimize`, which starts batch after batch, keep it until they are stopped or idle.
+  On Kubernetes it is in the driver pod's environment, so whoever can read the namespace's ConfigMaps can use it
+  meanwhile: one namespace per team. The driver pod also sends its log with it, since it can't write in the batch's
+  folder. These batches download the artifacts from QA-Board, through the proxy: the server's own `qa` reaches it
+  at `QABOARD_HOST`, set to the proxy by *docker-compose.yml* and the Helm chart.
 - **Use HTTPS**: tokens and files travel in the requests.
 
 ## Limits and disk space {#limits}

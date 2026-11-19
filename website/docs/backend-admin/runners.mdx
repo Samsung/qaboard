@@ -118,6 +118,19 @@ Projects need, in the *qaboard.yaml* of the commits they run:
 - `runners.default: kubernetes`, or Dask on Kubernetes: otherwise the driver pod does the runs itself.
 - `runners.kubernetes.image`, with `bash` and `qaboard[kubernetes]`, and `mounts` for the results storage and the
   artifacts, at the same paths as the server's. See [Run batches on Kubernetes](/docs/kubernetes-runner).
+- Or no mounts, for [projects without a shared storage](/docs/storage/artifacts#uploaded): the pods download the
+  commit's artifacts from QA-Board and send their results back with the batch's token, and the driver sends its log.
+
+<details>
+<summary>Limits without a shared storage</summary>
+
+- What `qa batch` reads (the batches as they were defined, the runs to redo) goes in the driver's ConfigMap: at most
+  768 KiB. Larger batches are refused when they start: select fewer, or start them from CI.
+- The driver's log reaches the web app while the batch's token is valid: until 10 minutes after its last run ends.
+  Anything later, or refused by the server, is only in the pod's logs (`kubectl logs -n <namespace> job/<driver>`).
+- `qa optimize` can't resume an experiment started again: its journal stays in the driver pod.
+
+</details>
 
 <details>
 <summary>Without the Helm chart</summary>

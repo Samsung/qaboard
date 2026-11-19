@@ -1,7 +1,8 @@
 # Sending results without `qa run` or a shared storage: `start_run()`, `qa upload`, HTTP upload
 
-Status: v8 (2026-11-18). A first version is implemented, as experimental: §1 says what, §2 the decisions behind it,
-§3 what is left. v8: a commit's artifacts through the server (§3, item 2). v7: an image per commit for the kubernetes runner (§3, item 2). v6: storage locations inside the storage roots, the upload root as the default one, edited in
+Status: v9 (2026-11-18). A first version is implemented, as experimental: §1 says what, §2 the decisions behind it,
+§3 what is left. v9: batches started from the server on Kubernetes without a shared storage, tested for real, and
+their tokens ended with them (§3, item 2). v8: a commit's artifacts through the server (§3, item 2). v7: an image per commit for the kubernetes runner (§3, item 2). v6: storage locations inside the storage roots, the upload root as the default one, edited in
 Admin → Storage. v5: uploads on by default, an end-to-end test in CI, and where storage settings should live. v4 added storage locations (runs store their full location), heartbeats, and `check-bit-accuracy`
 and `optimize` without a shared storage. v1 (2026-10-26) proposed a separate run client; v2 (2026-11-14) rebuilt the plan on
 `qaboard.start_run()` (`docs/rfcs/python-sdk-runs.md`). `docs/design/http-upload.md` is the full protocol this
@@ -72,7 +73,7 @@ sent (size and date) and sends what differs. A failed request needs no replay.
 | Where storage settings live | **The boundary in environment variables, the routing in the database.** Storage roots (and today the upload root) say where the server may write and delete: someone who takes over an admin's session must not move them (`settings.BOUNDARY`). Which folder a project's runs go to, inside them, is data: storage locations, edited without a restart | A new folder needs mounts in nginx and the image server anyway, so a restart. v6: locations must be inside a storage root (`locations.check_path`, symlinks resolved), from the CLI too, so that the web app can edit them. Locations added before stay readable, flagged "outside the storage roots" |
 | What needs a shared storage | v8: runs started from the web app (tuning, redo) with the LSF or Celery runners only. `qa save-artifacts` sends the artifacts; `qa batch` fetches its copy where it runs, the server's machine or a Kubernetes pod, and so do the run pods, and the runs send results with the batch's token (`tokens.mint_for_batch`). QA-Board refuses other runners for these projects (`artifacts.runner_unsupported`). `qa check-bit-accuracy` compares the reference's manifests, fetched over HTTP once per finished run; `qa optimize` reads metrics from the API | Bit accuracy only needs hashes: no file downloads. Inputs stay the user's |
 | How artifacts reach the server (v8) | **Files, not a bundle**: one `PUT` per file (`/api/v1/commit/<commit>/artifacts/files/<path>`, SHA-256 required), then the manifests, into `<base>/<project>/-/<commit>/artifacts/` with the repository's layout, one copy per (sub)project. `CiCommit.data.uploaded_artifacts` stores its location, checked like runs' folders (`uploads.is_commit_artifacts_dir`) | The server reads qaboard.yaml and the batch files there, checks, lists and deletes artifacts with the code it has for a shared storage (`artifacts.py`, `CiCommit.delete`): nothing else knows they were sent. Per file, a CI that saves again only sends what changed. One copy per subproject: no deletion can touch a sibling's |
-| How batches get them (v8) | `GET .../artifacts` lists the files with their SHA-256 (rehashed when a file is newer than its manifest), mode and a hash of the whole; files come from `/s/` (nginx, its access checks). `qa fetch-artifacts` downloads into `<cache>/<hash>/`, renamed into place when complete. **Every batch QA-Board starts from uploaded artifacts fetches its own copy into a temporary cache**, on the server's machine too, and removes it when it ends (`artifacts.cd_lines`, `EXIT_TRAP`); the scripts don't export `QA_OUTPUTS_COMMIT` for them, so the runs save their files in the copy, then send them. In a fetched copy, the kubernetes runner has its run pods fetch too (`fetched_artifacts`) | One path wherever `qa batch` runs; the uploaded folder stays as `qa save-artifacts` sent it; nothing is left on disk. No server-side tar: big binaries are served by nginx. The server's own `qa` must reach QA-Board through nginx (`QABOARD_HOST=proxy` in docker-compose.yml) |
+| How batches get them (v8) | `GET .../artifacts` lists the files with their SHA-256 (rehashed when a file is newer than its manifest), mode and a hash of the whole; files come from `/s/` (nginx, its access checks). `qa fetch-artifacts` downloads into `<cache>/<hash>/`, renamed into place when complete. **Every batch QA-Board starts from uploaded artifacts fetches its own copy into a temporary cache**, on the server's machine too, and removes it when it ends (`artifacts.cd_lines`, `EXIT_TRAP`); the scripts don't export `QA_OUTPUTS_COMMIT` for them, so the runs save their files in the copy, then send them. In a fetched copy, the kubernetes runner has its run pods fetch too (`fetched_artifacts`). v9: the Kubernetes driver pod doesn't see the batch's folder on the server either: it gets that folder's files in its ConfigMap, and sends its output to the server's log.txt with the batch's token (`qa send-batch-log`) | One path wherever `qa batch` runs; the uploaded folder stays as `qa save-artifacts` sent it; nothing is left on disk. No server-side tar: big binaries are served by nginx. The server's own `qa` must reach QA-Board through nginx (`QABOARD_HOST`: `proxy` in docker-compose.yml, the proxy's Service in the Helm chart). The log goes where the web app already reads it, rather than the server reading pods' logs (deleted with them) |
 
 ## 3. What is left
 In `docs/warts.md`, with sizes. The ones that matter first:
@@ -90,7 +91,8 @@ In `docs/warts.md`, with sizes. The ones that matter first:
      pods fetch them once per cache, keyed by their hash.
    - ~~A token for the runs the server starts~~ (v8): runs that upload always need one. `tokens.mint_for_batch`
      mints one per batch for the user who started it (`qab_bat_`, `read` + `ingest`, the project only, idle expiry
-     of a day, 30 days at most), only for commits whose artifacts were uploaded. In the environment of `qa batch` on
+     of a day, 30 days at most, ended with the batch since v9), for commits whose artifacts were
+     uploaded, and since v9 on servers with `ingest.auth: token`. In the environment of `qa batch` on
      the server; in the driver pod's `env` (its ConfigMap) on Kubernetes, and runners forward it to run pods, unlike
      other secrets (`runners/env.py`, `is_batch_token`). Accepted: who reads a namespace's ConfigMaps can use it while
      it is valid (a namespace is a trust domain). Not in a Secret: that would need `secrets` RBAC on every cluster.
@@ -98,29 +100,41 @@ In `docs/warts.md`, with sizes. The ones that matter first:
 
    **v8, to do next** (in order; [S]/[M] sizes). Context for whoever picks this up: PR #258 (artifacts through the
    server, tokens per batch) and the three reviews of it.
-   1. **A kind e2e of a batch started from the server on Kubernetes, without a shared storage** [M]. Only tested with
-      a fake `qa` so far, and that path already had a bug. Extend `.github/scripts/kubernetes_runner_e2e.py`: a
-      project with `storage: upload`, `qa save-artifacts`, `POST /api/v1/commit/<c>/batch` with
-      `QABOARD_TUNING_RUNNER=kubernetes`; check that the driver and run pods fetch, and that the runs end with their
-      metrics and files. Checks on the way: the batch token in the driver's env reaches the run pods
-      (`runners/env.py`), and `QABOARD_ARTIFACTS_CACHE` is a path the pods can write.
-   2. **The Helm chart sets `QABOARD_HOST` for the backend** [S], as docker-compose.yml does (`proxy`): else the
-      `qa batch` the server starts with the local runner reaches no server, for results too. `helm-e2e` covers it.
-   3. **Revoke the batch token when the batch ends or is stopped** [S]: today it expires a day after its runs stop.
-      Where the server learns a batch ended: `submissions.py`, the stop endpoints, `heartbeats.py`.
-   4. **Tokens for server-started batches of projects with a shared storage** [S], on servers with
-      `ingest.auth: token`, which refuse their results today: `tokens.mint_for_batch` for them too, when the setting
-      requires tokens. Nothing else changes for them.
+   1. ~~A kind e2e of a batch started from the server on Kubernetes, without a shared storage~~ (v9): in
+      `.github/scripts/helm_e2e.py --kubernetes` rather than `kubernetes_runner_e2e.py`, since the server must run in
+      the cluster with the chart's permissions, as deployed; CI's `helm-e2e` job already installs it. Checked: the
+      driver and run pods fetch, the token reaches the run pods, `QABOARD_ARTIFACTS_CACHE` is writable, the runs end
+      with their metrics and files, the driver's log reaches the server, stopping deletes the Jobs. It found:
+      - the driver pod wrote its log to, and read its batches file from, the batch's folder on the server, which it
+        doesn't see: now the files of that folder are copied in the pod (ConfigMap, `runner_jobs.driver_files`), and
+        its output goes to `qa send-batch-log`, which appends it to the server's log.txt with the batch's token
+        (`PUT /api/v1/batch/submissions/<id>/log`) and to the pod's logs;
+      - on servers whose storage roots don't include the default storage root (the chart), the batch's folder of
+        scripts and logs was outside them: for uploaded artifacts it is now the commit's folder among the project's
+        uploaded runs (`CiCommit.outputs_dir`), which also fixes papercut 3 of item 6 below;
+      - turning `runners.kubernetes` off again left the backend's pods unable to start (the chart deleted the
+        ServiceAccount they still named): the chart now always names one.
+   2. ~~The Helm chart sets `QABOARD_HOST` for the backend~~ (v9): to the proxy's Service, `helm_e2e.py` covers it.
+   3. ~~Revoke the batch token when the batch ends or is stopped~~ (v9): revoked by Batch.stop (and when the batch
+      fails to start). When a run ends and none of its command's runs are pending (`tokens.end_batch_token`, after
+      POST /api/v1/output/), it expires 10 minutes later, not at once: the driver may still send the end of its log
+      (a review found the `exited with code` line lost). Not for `qa optimize`, which starts batch after batch with
+      the same command id, nor redo: `qa batch` doesn't register the pending runs it redoes under its command id, so
+      none may be pending while they run. Those wait for the stop or the idle expiry (`until_stopped`). Not when the
+      heartbeats fail silent runs either: a run that reports again runs again, and would need its token.
+   4. ~~Tokens for server-started batches of projects with a shared storage~~ (v9), when `ingest.auth` is `token`
+      (`tokens.batch_needs_token`); Celery runs get it too (`runners/celery.py`). Not through LSF, whose jobs don't
+      get the server's environment: QA-Board refuses to start them then (`artifacts.runner_unsupported`).
    5. **The refactors the code review left for later** [S each]: one helper for the server's runner name
       (`redo.py` and `api/tuning.py` compute it differently); the token threaded through fewer functions
       (`submit_driver` could mint it); one retry and error-classification helper for `results._request`, `upload.py`
       and `commit_artifacts.py`; an artifacts endpoint path that doesn't overlap `/api/v1/commit/<path:commit_id>`
       (its fallback for branches named `*/artifacts` is a hidden coupling).
-   6. **Papercuts found on the way, before v8** [S each]: `qa` crashes with `KeyError: 'url'` on a qaboard.yaml
+   6. **Papercuts found on the way, before v8** [S each]: ~~`qa` crashes with `KeyError: 'url'` on a qaboard.yaml
       without `project.url`; "The result of the `postprocess` function misses a key `is_failed`" is printed to
-      projects without a `postprocess`; for projects without `storage` on servers with their own storage roots,
+      projects without a `postprocess`~~ (v9); ~~for projects without `storage` on servers with their own storage roots,
       batches started from the web app put their scripts and logs under the server's default storage root, outside
-      the roots (`Project.storage_roots`), and fail to start.
+      the roots (`Project.storage_roots`), and fail to start~~ (v9, item 1).
    7. Later, when someone needs it: LSF, Slurm, Celery and Jenkins jobs fetching the artifacts (the
       `fetched_artifacts` hook in their command line) [S each]; deduplication of identical files across commits and
       subprojects (hardlinks by hash, or the content store of `http-upload.md`) [M]; a cache eviction for

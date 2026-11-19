@@ -158,8 +158,11 @@ mount.
 - `qa batch` with cluster runners only works when the nodes share the working directory with the machine that
   starts the batch, or on Kubernetes with an image per commit. Runs started from the web app (tuning, redo) run from
   the artifacts `qa save-artifacts` sent, with a token per batch, on the server's machine or Kubernetes only: not
-  with the LSF or Celery runners. Tokens expire a day after the runs stop, not when the batch ends. See
-  `docs/design/ingest-upload-sdk.md` §3 item 2. `qa check-bit-accuracy`
+  with the LSF or Celery runners. Tokens are revoked when the batch is stopped and expire 10 minutes after its last
+  run ends, except `qa optimize`'s and redo's: they expire a day after their runs stop. On Kubernetes, the driver
+  pod gets the batch's files in its ConfigMap (768 KiB at most) and sends its log with the token: what it prints
+  after the token expired, or that the server refused, is only in the pod's logs, and the web app doesn't say so; `qa optimize` can't resume an experiment
+  started again (its journal stays in the pod). See `docs/design/ingest-upload-sdk.md` §3 item 2. `qa check-bit-accuracy`
   compares fetched manifests only, not files (`QA_BITACCURACY_CMP`); `qa optimize` keeps its journal on the machine
   that runs it. `qaboard.runs(url)` gives uploaded runs' `output_dir` on the server, not a local folder. [L]
 - Storage locations (`backend/backend/locations.py`) are reached through folders the admin mounts: no credentials,
@@ -184,9 +187,11 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
 ### What was verified, what wasn't
 - Real: the Kubernetes runner on a kind cluster (`.github/scripts/kubernetes_runner_e2e.py`, CI job
   `kubernetes-runner-e2e`), Dask with `cluster.type: local`, a real Celery worker for stopping batches
-  (`tests/test_celery_stop.py`), backend integration tests on Postgres for stop/tuning/redo.
+  (`tests/test_celery_stop.py`), backend integration tests on Postgres for stop/tuning/redo. The server starting and
+  stopping batches on kind, installed with the Helm chart, for a project without a shared storage
+  (`.github/scripts/helm_e2e.py --kubernetes`, CI job `helm-e2e`).
 - Only with fakes/mocks: LSF, Slurm, PBS, SGE, HTCondor, OAR and Moab commands (submit, cancel), Jenkins, Dask on
-  Kubernetes (`KubeCluster`), the server starting batches on a real cluster. Try them on a real cluster before
+  Kubernetes (`KubeCluster`), the server starting batches on a cluster with a shared storage. Try them on a real cluster before
   advertising them. `run_as: user` with a non-root UID first runs for real in CI. [M, no change]
 
 ### Kubernetes
@@ -196,8 +201,7 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   the run Jobs itself, the driver calls back with a per-batch credential (design doc, "Follow-ups"). [L, API]
 - Without a shared filesystem, `qa batch` needs an image per commit (`{commit}` in `image`, with `workdir`) and
   `storage: upload`; inputs still come from mounts or the user's code. Batches started from the web app still need
-  a shared storage, or the artifacts `qa save-artifacts` sent: the pods download them, once per pod (never verified on
-  a real cluster). Images per commit are looked up in their registry with pull
+  a shared storage, or the artifacts `qa save-artifacts` sent: the pods download them, once per pod. Images per commit are looked up in their registry with pull
   secrets or `docker login` only (no credential helpers, no cloud IAM: ECR/GCR/ACR without a pull secret read as
   "can't tell"), once, without waiting for a CI that is still pushing; `--prefix-outputs-path` isn't mapped to
   `workdir`. [M, API]
@@ -249,9 +253,9 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   Running projects' code on the server trusts every project developer with what the server's account can read (the
   environment is scrubbed, files aren't). [M, behaviour]
 
-- Batches started from the web app get no QA-Board token, whatever the runner: on a server with `ingest.auth: token`,
-  their runs can't save results unless a shared HOME holds a `qa auth login`, or (Celery) the workers set
-  `QABOARD_TOKEN`. The server could mint a short-lived, project-scoped ingest token per batch. [M, API]
+- Batches started from the web app through the LSF bridge get no QA-Board token (the bridge doesn't pass the server's
+  environment): on a server with `ingest.auth: token`, their runs can't save results unless a shared HOME holds a
+  `qa auth login`. The other runners get the batch's token (`tokens.mint_for_batch`). [S, API]
 - `runner_jobs.submit_driver` checks that the kubernetes runner exists, which can't fail (it's always registered):
   check that the `kubernetes` package is installed instead, with the install hint. [S, behaviour]
 - The worker job script `qa doctor` shows for Dask is named `doctor_dask`, not the batch's real name. [S, no change]

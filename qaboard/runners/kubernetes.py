@@ -349,6 +349,20 @@ def redirect_output(log_file: str, pending_file: str) -> List[str]:
     f'rm -f {shlex.quote(pending_file)} 2>/dev/null',
   ]
 
+def detached_files(files: Dict[str, str]) -> Tuple[Dict[str, str], List[str]]:
+  """
+  `files` ({absolute path in the pod: content}) as ConfigMap entries (file-<i>), and the sh lines that copy them
+  there, or exit 1 saying why.
+  """
+  data, lines = {}, []
+  for i, (path, content) in enumerate(files.items()):
+    if not os.path.isabs(path):
+      raise ValueError(f"Files of detached jobs need absolute paths, not {path!r}")
+    data[f'file-{i}'] = content
+    lines.append(f'path={shlex.quote(path)}; mkdir -p "$(dirname "$path")" && cp "$(dirname "$0")/file-{i}" "$path" '
+                 '|| { echo "[qaboard] ERROR: can not write $path as uid $(id -u), gid $(id -g)" >&2; exit 1; }')
+  return data, lines
+
 # sh: is `timeout` GNU coreutils' (`timeout (GNU coreutils) 9.4`, or uutils'), not e.g. BusyBox's?
 has_coreutils_timeout = 'timeout --version 2>/dev/null | grep -q coreutils'
 timeout_missing = "runners.kubernetes.timeout needs the timeout command of GNU coreutils in the image, not BusyBox's"
@@ -1932,12 +1946,16 @@ class KubernetesRunner(BaseRunner):
     return len(names)
 
   @classmethod
-  def submit_detached(cls, script: str, name: str, log_file: Path, job_options: Dict[str, Any]) -> Dict[str, Any]:
+  def submit_detached(cls, script: str, name: str, log_file: Path, job_options: Dict[str, Any],
+                      files: Optional[Dict[str, str]] = None, log_to_file: bool = True) -> Dict[str, Any]:
     """
     A 1-pod Job running `script` with sh, or with the interpreter of its #! line (e.g. #!/bin/bash: the image needs
     bash), with the batch's labels. No deadline. See BaseRunner.submit_detached.
     It's named qa-<name>-<random> (or <name>-<random> if `name` starts with qa-): the same name can be submitted again.
     While it's pending, why is in pending_log(log_file), e.g. log.pending.txt for log.txt.
+    Without a storage both see (the server's batches of projects without one):
+    - `files`: {absolute path in the pod: content}, written there before the script starts (e.g. the batches file);
+    - `log_to_file=False`: the pod doesn't write `log_file`, its output is in its logs, and the script sends it.
     """
     check_options(job_options)
     options = dict_to_KubernetesOptions(job_options)
@@ -1950,14 +1968,16 @@ class KubernetesRunner(BaseRunner):
     log_file = Path(log_file)
     shebang = script.split('\n', 1)[0]
     interpreter = shlex.split(shebang[2:]) if shebang.startswith('#!') and shebang[2:].strip() else ['sh']
+    files_data, write_files = detached_files(files or {})
     run_sh = '\n'.join([
       '#!/bin/sh',
       '# A detached QA-Board job, see qaboard/runners/kubernetes.py',
-      *redirect_output(str(log_file), str(pending_log(log_file))),
+      *(redirect_output(str(log_file), str(pending_log(log_file))) if log_to_file else []),
+      *write_files,
       '. "$(dirname "$0")/env.sh"',
       f'exec {" ".join(shlex.quote(a) for a in interpreter)} "$(dirname "$0")/script"',
     ]) + '\n'
-    data = {'env.sh': env_script(run_env(options)), 'run.sh': run_sh, 'script': script}
+    data = {'env.sh': env_script(run_env(options)), 'run.sh': run_sh, 'script': script, **files_data}
     try:
       job = create_job(kube, options, namespace, job_name, data, command=['sh', f'{scripts_dir}/run.sh'], role=driver_role)
     except NameTaken:
@@ -1966,7 +1986,8 @@ class KubernetesRunner(BaseRunner):
       with cleaning_up(kube, f'kubectl delete job -n {namespace} {job_name}'):
         delete_jobs(kube, namespace, [job_name])
       raise
-    secho(f"Started the Kubernetes Job {job_name} in namespace {namespace}. Logs: {log_file}", err=True)
+    logs = log_file if log_to_file else f"kubectl logs -n {namespace} job/{job_name}"
+    secho(f"Started the Kubernetes Job {job_name} in namespace {namespace}. Logs: {logs}", err=True)
     wait_until_started(kube, namespace, job, log_file)
     return {'kubernetes_job': job_name, 'namespace': namespace, **({'context': options.context} if options.context else {})}
 

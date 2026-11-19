@@ -103,7 +103,8 @@ def artifacts_status(artifacts_dir: Path, repo_artifacts_dir: Path, is_subprojec
 
 # The first line of the scripts that run `qa batch` from a commit's artifacts (redo.py, api/tuning.py): tells users how
 # it went, and removes the copy of the artifacts the batch fetched (cd_lines), with the runs' local files
-EXIT_TRAP = """trap 'code=$?; [[ -n "${QABOARD_BATCH_TMP:-}" ]] && rm -rf "$QABOARD_BATCH_TMP"; echo "[qaboard] qa batch exited with code $code"' EXIT"""
+# On Kubernetes without a shared storage, `qa send-batch-log` (QABOARD_LOG_PID) sends the log: it gets the end of it.
+EXIT_TRAP = """trap 'code=$?; [[ -n "${QABOARD_BATCH_TMP:-}" ]] && rm -rf "$QABOARD_BATCH_TMP"; echo "[qaboard] qa batch exited with code $code"; [[ -n "${QABOARD_LOG_PID:-}" ]] && { exec >&- 2>&-; wait "$QABOARD_LOG_PID"; }' EXIT"""
 # Where `qa batch` can run from artifacts sent to the server: they are fetched where it runs, the server's machine or
 # a Kubernetes pod, and so are the runs' on Kubernetes. The other runners' jobs would need the batch's copy.
 UPLOADED_ARTIFACTS_RUNNERS = ('local', 'kubernetes')
@@ -134,8 +135,19 @@ def cd_lines(ci_commit, source_envrc: bool = False) -> List[str]:
 
 
 def runner_unsupported(ci_commit, runner: str) -> Optional[str]:
-  """Why QA-Board can't start runs from this commit's artifacts with `runner` (its runner for batches), if it can't"""
-  if ci_commit.uploaded_artifacts_dir is None or runner in UPLOADED_ARTIFACTS_RUNNERS:
+  """
+  Why QA-Board can't start runs from this commit's artifacts with `runner` (its runner for batches), if it can't:
+  without a shared storage, or when their results need a token its jobs can't get (tokens.RUNNERS_WITHOUT_TOKEN).
+  """
+  if ci_commit.uploaded_artifacts_dir is None:
+    from .tokens import RUNNERS_WITHOUT_TOKEN
+    from .settings import setting
+    if runner in RUNNERS_WITHOUT_TOKEN and setting('ingest.auth') == 'token':
+      return ("QA-Board can't start this project's runs through LSF: this server only accepts results sent with a "
+              "token, and LSF jobs don't get one from QA-Board. Start the batch from CI or a terminal with `qa batch` "
+              "after `qa auth login`, or ask its administrators to set QABOARD_TUNING_RUNNER to local or kubernetes.")
+    return None
+  if runner in UPLOADED_ARTIFACTS_RUNNERS:
     return None
   return (f"QA-Board can't start this project's runs with its {runner} runner: the project has no storage shared with "
           "QA-Board. Ask its administrators to set QABOARD_TUNING_RUNNER to local or kubernetes, or start the batch "
