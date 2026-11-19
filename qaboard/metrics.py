@@ -62,12 +62,13 @@ def _is_number(value: Any) -> bool:
 
 def _clean_group(value: Any) -> Tuple[bool, Any]:
   """"Benchmarks / codec" is kept as "Benchmarks/codec": the web app splits groups on "/" into levels"""
-  if not isinstance(value, str) or len(value) > MAX_TEXT_LENGTH:
+  if not isinstance(value, str):
     return False, None
   segments = [segment.strip() for segment in value.split('/')]
-  if not all(segments):
+  group = '/'.join(segments)
+  if not all(segments) or len(group) > MAX_TEXT_LENGTH:
     return False, None
-  return True, '/'.join(segments)
+  return True, group
 
 
 def _clean_field(field: str, value: Any) -> Tuple[bool, Any]:
@@ -94,7 +95,8 @@ def _clean_field(field: str, value: Any) -> Tuple[bool, Any]:
   if field == 'intent':
     return value in INTENTS, value
   if field == 'part_of':
-    return isinstance(value, str) and 0 < len(value) <= MAX_TEXT_LENGTH, value
+    # a metric's key, as it is
+    return isinstance(value, str) and 0 < len(value.strip()) and len(value) <= MAX_TEXT_LENGTH, value
   if field == 'description':
     return isinstance(value, str) and len(value) <= MAX_DESCRIPTION_LENGTH, value
   if field in ('label', 'short_label', 'suffix'):

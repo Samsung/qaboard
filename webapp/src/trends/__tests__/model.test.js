@@ -4,7 +4,7 @@ import {
   buildSeries, compositions, findGroup, scopeOf, changeOf, movers, groupIndex, trendsOf, hasTrends,
   compositionKeys, hasGroups, samplePoints, formatRatio, valueAt,
 } from '../model';
-import { buildTestHistory, VIEWS, packagesOf, commonPackage } from '../testHistory';
+import { buildTestHistory, mergeReports, VIEWS, packagesOf, commonPackage } from '../testHistory';
 import { generate, TEST_DEFINITIONS } from '../generate';
 
 const point = (id, runs) => ({ id, label: id, runs: runs.map((metrics, i) => ({ name: `run${i}`, metrics })) });
@@ -47,10 +47,35 @@ describe('series over commits', () => {
     expect(hasGroups(TEST_DEFINITIONS)).toBe(false);
   });
 
-  it('gives the main color of an intent to its biggest part', () => {
-    const points = [point('a', [{ tests: 10, failed: 5, errors: 1 }])];
-    const [tests] = compositions(buildSeries(points, TEST_DEFINITIONS));
-    expect(tests.parts.map(s => s.key)).toEqual(['failed', 'errors']);
+  it('keeps the parts in the same order whatever their values: their colors don\'t swap', () => {
+    for (const metrics of [{ tests: 10, failed: 5, errors: 1 }, { tests: 10, failed: 1, errors: 5 }]) {
+      const [tests] = compositions(buildSeries([point('a', [metrics])], TEST_DEFINITIONS));
+      expect(tests.parts.map(s => s.key)).toEqual(['failed', 'errors']);
+    }
+  });
+
+  it('does not draw a report\'s total or time in another report\'s charts', () => {
+    const prefixed = prefix => Object.fromEntries(Object.entries(TEST_DEFINITIONS).map(([key, d]) => [prefix + key, { ...d, ...(d.part_of ? { part_of: prefix + d.part_of } : {}) }]));
+    const definitions = { ...prefixed('unit_'), ...prefixed('integ_') };
+    const points = [point('a', [{ unit_tests: 3, unit_passed: 3, unit_test_time: 1, integ_tests: 2, integ_passed: 2, integ_test_time: 9 }])];
+    const composed = compositions(buildSeries(points, definitions));
+    expect(composed.map(c => c.key)).toEqual(['integ_tests', 'unit_tests']);
+    expect(composed.map(c => c.extras)).toEqual([[], []]);
+    // in their own groups, each keeps its time
+    const apart = { ...prefixed('unit_'), ...Object.fromEntries(Object.entries(prefixed('integ_')).map(([k, d]) => [k, { ...d, group: 'Tests/integ' }])) };
+    expect(compositions(buildSeries(points, apart)).map(c => c.extras.map(s => s.key))).toEqual([['unit_test_time'], ['integ_test_time']]);
+  });
+
+  it('shows nothing for totals that are always 0, and computes nothing without groups', () => {
+    expect(compositions(buildSeries([point('a', [{ tests: 0, passed: 0, failed: 0 }])], TEST_DEFINITIONS))).toEqual([]);
+    const plain = trendsOf([point('a', [{ psnr: 30 }])], { psnr: { label: 'PSNR' } });
+    expect(hasTrends(plain)).toBe(false);
+    expect(plain.series).toEqual([]);
+  });
+
+  it('asks lists of commits for totals first', () => {
+    expect(compositionKeys(TEST_DEFINITIONS)[0]).toBe('tests');
+    expect(compositionKeys(TEST_DEFINITIONS).at(-1)).toBe('test_time');
   });
 });
 
@@ -105,6 +130,25 @@ describe('changes', () => {
     expect(rows.quiet).toBe(1);
     expect(rows[0].change.stepped).toBe(false);
   });
+  it('lists every change when there are too few commits to know what is usual', () => {
+    expect(changeOf(series([1, 1.3]))).toMatchObject({ notable: true, few: true, direction: 'worse' });
+    expect(changeOf(series([1, 1, 1.3]))).toMatchObject({ notable: true, few: true, stepped: true });
+    const rows = movers([series([1, 1.3]), series([5, 5])]);
+    expect(rows).toHaveLength(1);
+    expect(rows.few).toBe(true);
+  });
+  it('calls a step only a move that stands out, the same way as the change', () => {
+    // a slow drift with one noisy move the other way
+    const drift = changeOf(series([10, 10.3, 10.6, 10.2, 10.9, 11.2, 11.5, 11.8]));
+    expect(drift.notable).toBe(true);
+    expect(drift.stepped).toBe(false);
+  });
+  it('shows a difference, not a ratio, from zero or below', () => {
+    const below = changeOf(series([-10, -20]));
+    expect(below).toMatchObject({ ratio: null, delta: -10, direction: 'better' });
+    const rows = movers([{ ...series([0, 5]), key: 'a' }, { ...series([0, 7]), key: 'c' }]);
+    expect(rows.map(r => r.series.key)).toEqual(['c', 'a']);
+  });
   it('needs two values', () => {
     expect(changeOf(series([null, 3, null]))).toBeNull();
   });
@@ -124,8 +168,9 @@ describe('each test over the commits', () => {
     expect(history.loaded).toEqual([0, 2, 3]);
     expect(ids('failing')).toEqual(['a_breaks']);
     expect(history.tests.find(test => test.id === 'a_breaks').failing_since).toBe(2);
-    expect(ids('flaky')).toEqual(['b_flaky']);
-    expect(ids('fixed')).toEqual(['b_fixed']);
+    expect(ids('flaky')).toEqual([]);
+    // it failed in one report and passes again: fixed, like the one that failed from the start
+    expect(ids('fixed')).toEqual(['b_fixed', 'b_flaky']);
     expect(history.tests.find(test => test.id === 'b_fixed').fixed_at).toBe(3);
     expect(ids('added')).toEqual(['a_new']);
     expect(ids('removed')).toEqual(['a_gone']);
@@ -136,6 +181,37 @@ describe('each test over the commits', () => {
     expect(commonPackage(history.tests)).toEqual(['pkg']);
     const packages = packagesOf(history.tests, ['pkg']);
     expect(packages.map(p => [p.name, p.total, p.counts.failing])).toEqual([['a', 4, 1], ['b', 3, 0]]);
+  });
+  it('tells a test that broke once and was fixed from a flaky one', () => {
+    const run = statuses => statuses.map(status => [t('x_1', status)]);
+    const [fixed] = buildTestHistory(run(['passed', 'passed', 'failed', 'failed', 'passed', 'passed'])).tests;
+    expect(fixed).toMatchObject({ flaky: false, fixed_at: 4, streaks: 1 });
+    const [flaky] = buildTestHistory(run(['passed', 'failed', 'passed', 'failed', 'passed'])).tests;
+    expect(flaky).toMatchObject({ flaky: true, streaks: 2 });
+    expect(VIEWS.find(v => v.id === 'fixed').is(flaky)).toBe(false);
+    const [rerun] = buildTestHistory(run(['passed', 'flaky', 'passed'])).tests;
+    expect(rerun.flaky).toBe(true);
+  });
+  it('lists the tests that just broke before the flaky ones', () => {
+    const history = buildTestHistory([
+      [t('a_old', 'passed'), t('a_flaky', 'failed')],
+      [t('a_old', 'failed'), t('a_flaky', 'passed')],
+      [t('a_old', 'failed'), t('a_flaky', 'failed')],
+    ]);
+    const failing = VIEWS.find(v => v.id === 'failing');
+    expect(history.tests.filter(failing.is).sort(failing.sort).map(test => test.id)).toEqual(['a_old', 'a_flaky']);
+  });
+  it('keeps the same ids when only some commits have several reports', () => {
+    const one = [{ name: 'unit/junit.xml', tests: [t('a_1', 'passed')] }];
+    const two = [...one, { name: 'e2e/junit.xml', tests: [t('a_1', 'failed')] }];
+    const merged = mergeReports([one, null, two]);
+    expect(merged[1]).toBeNull();
+    expect(merged[0].map(test => test.id)).toEqual(['unit/junit.xml::a_1']);
+    expect(merged[2].map(test => test.id)).toEqual(['unit/junit.xml::a_1', 'e2e/junit.xml::a_1']);
+    const history = buildTestHistory(merged);
+    expect(history.tests.find(test => test.id === 'unit/junit.xml::a_1')).toMatchObject({ added_at: null, removed_at: null });
+    // a single report everywhere: ids as they are
+    expect(mergeReports([one, one])[0].map(test => test.id)).toEqual(['a_1']);
   });
   it('needs no report', () => {
     expect(buildTestHistory([null, null])).toEqual({ loaded: [], tests: [] });

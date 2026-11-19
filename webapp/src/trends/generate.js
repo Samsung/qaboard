@@ -92,9 +92,12 @@ export function generate({ commits = 60, tests = 1200, benchmarks = 120, seed = 
   for (let b = 0; b < benchmarks; b++) {
     const { suite, family } = suites[b % suites.length];
     const size = 2 ** (4 + Math.floor(b / suites.length) % 9);
-    const key = `bench_${suite}_${family}_${size}`;
+    // past 9 sizes per family, variants: keys stay unique however many benchmarks are asked for
+    const variant = Math.floor(b / (suites.length * 9));
+    const name = variant ? `${family}_v${variant + 1}` : family;
+    const key = `bench_${suite}_${name}_${size}`;
     definitions[key] = {
-      label: `${suite}::${family}[${size}]`, short_label: `${family}[${size}]`, group: `Benchmarks/${suite}/${family}`,
+      label: `${suite}::${name}[${size}]`, short_label: `${name}[${size}]`, group: `Benchmarks/${suite}/${family}`,
       suffix: ' ms', scale: 1000, smaller_is_better: true,
     };
     const base = 10 ** (-4 + 3 * random()) * (1 + Math.log2(size) / 4);

@@ -81,11 +81,14 @@ export function compositions(series) {
     parts.get(total).push(s);
   }
   const intent = s => Math.max(0, INTENTS.indexOf(s.definition.intent ?? 'none'));
+  const totals_in = new Map();   // group => how many totals: with several, we can't tell whose the other metrics are
+  for (const key of parts.keys()) {
+    const group = (by_key.get(key)?.path ?? parts.get(key)[0].path).join('/');
+    totals_in.set(group, (totals_in.get(group) ?? 0) + 1);
+  }
   return [...parts.entries()].map(([key, members]) => {
     const total = by_key.get(key) ?? null;
     const path = total?.path ?? members[0].path;
-    // within an intent, the biggest part first: it gets the intent's main color
-    const size = new Map(members.map(s => [s.key, s.values.reduce((sum, v) => sum + (v ?? 0), 0)]));
     const group = path.join('/');
     const member_keys = new Set(members.map(s => s.key));
     return {
@@ -93,10 +96,14 @@ export function compositions(series) {
       total,
       label: total?.label ?? key,
       path,
-      parts: members.sort((a, b) => intent(a) - intent(b) || size.get(b.key) - size.get(a.key) || a.key.localeCompare(b.key)),
-      extras: series.filter(s => s.key !== key && !member_keys.has(s.key) && !s.definition.part_of && s.path.length > 0 && s.path.join('/') === group),
+      // within an intent, always the same order, whatever the values: a part keeps its color (failed before errors)
+      parts: members.sort((a, b) => intent(a) - intent(b) || b.key.localeCompare(a.key)),
+      extras: totals_in.get(group) > 1 ? [] : series.filter(s => s.key !== key && !member_keys.has(s.key) && !parts.has(s.key) && !s.definition.part_of && s.path.length > 0 && s.path.join('/') === group),
     };
-  }).sort((a, b) => a.path.join('/').localeCompare(b.path.join('/')) || a.key.localeCompare(b.key));
+  })
+    // nothing to show for a total that is always 0 (no test in any report)
+    .filter(c => [c.total, ...c.parts].some(s => s?.values.some(v => v > 0)))
+    .sort((a, b) => a.path.join('/').localeCompare(b.path.join('/')) || a.key.localeCompare(b.key));
 }
 
 // The series that aren't part of a composition, as a tree of their groups:
@@ -137,20 +144,30 @@ export function groupTree(series, composed = compositions(series)) {
 export const findGroup = (root, path) => path.reduce((node, name) => node?.children.find(c => c.name === name), root) ?? null;
 
 // What there is to show: {series, composed, tree}
-export function trendsOf(points, definitions, options) {
+const NOTHING = { series: [], composed: [], tree: { name: '', path: [], children: [], series: [], all: [] } };
+export function trendsOf(points, definitions = {}, options) {
+  // most projects' metrics say nothing of groups: nothing to compute over their runs
+  if (!Object.values(definitions).some(d => !!d?.group || !!d?.part_of)) return NOTHING;
   const series = buildSeries(points, definitions, options);
   const composed = compositions(series);
   return { series, composed, tree: groupTree(series, composed) };
 }
 export const hasTrends = ({ composed, tree }) => composed.length > 0 || tree.children.length > 0;
 
+// Where a section is on the page, for links: a total's by its key, a group's by its name
+const slug = text => String(text).replace(/[^\w-]+/g, '-');
+export const anchorOf = { total: key => `trends-total-${slug(key)}`, group: name => `trends-group-${slug(name)}` };
+
 // The metrics the trends need when the server aggregates them (lists of commits): totals, their parts and what
 // else is in their groups. Groups of other metrics (benchmarks) can be thousands: they need the commits' runs.
 export function compositionKeys(definitions = {}) {
   const totals = new Set(Object.values(definitions).map(d => d?.part_of).filter(Boolean));
   const groups = new Set([...totals].map(key => definitions[key]?.group).filter(Boolean));
-  return Object.keys(definitions).filter(key => totals.has(key) || totals.has(definitions[key]?.part_of)
+  const keys = Object.keys(definitions).filter(key => totals.has(key) || totals.has(definitions[key]?.part_of)
     || (groups.has(definitions[key]?.group) && !!definitions[key]?.aggregation));
+  // totals first, then their parts: callers that can't ask for all of them keep the most useful
+  const rank = key => totals.has(key) ? 0 : definitions[key]?.part_of ? 1 : 2;
+  return keys.sort((a, b) => rank(a) - rank(b));
 }
 export const hasGroups = (definitions = {}) => Object.values(definitions).some(d => !!d?.group && !d.part_of && !d.aggregation);
 
@@ -191,9 +208,11 @@ const distance = (a, b) => a > 0 && b > 0 ? Math.log(b / a) : b - a;
 // - direction: 'better' | 'worse' | 'changed' (no better direction) | 'same',
 // - step: where it moved the most between two commits in a row, {index, from, to, ratio},
 // - usual: the median move between two commits in a row; `notable`: the change is over 3 times it. A hint, not a
-//   verdict: QA-Board doesn't know how noisy the machine is. Metrics that only wobble aren't "movers".
+//   verdict: QA-Board doesn't know how noisy the machine is. Metrics that only wobble aren't "movers". With fewer
+//   than MIN_POINTS commits (`few`), nothing says what is usual: every change is notable.
 // - stepped: most of the change happened at one commit (`step`), rather than drifting over many.
 export const MIN_CHANGE = 0.005;
+export const MIN_POINTS = 4;
 export function changeOf(series, { baseline = 'first', from = 0, to = series.values.length - 1 } = {}) {
   const present = [];
   for (let i = from; i <= to; i++)
@@ -202,7 +221,9 @@ export function changeOf(series, { baseline = 'first', from = 0, to = series.val
   const last_index = present[present.length - 1];
   const first_index = baseline === 'previous' ? present[present.length - 2] : present[0];
   const first = series.values[first_index], last = series.values[last_index];
-  const ratio = first !== 0 ? last / first : (last === 0 ? 1 : Infinity);
+  // a ratio only means something between positive values: otherwise the change is shown as a difference
+  const ratio_of = (a, b) => a > 0 && b > 0 ? b / a : (a === b ? 1 : null);
+  const ratio = ratio_of(first, last);
   const moves = [];
   let step = null;
   for (let k = 1; k < present.length; k++) {
@@ -210,11 +231,11 @@ export function changeOf(series, { baseline = 'first', from = 0, to = series.val
     const move = Math.abs(distance(a, b));
     moves.push(move);
     if (!step || move > step.move)
-      step = { move, index: present[k], previous_index: present[k - 1], from: a, to: b, ratio: a !== 0 ? b / a : Infinity };
+      step = { move, index: present[k], previous_index: present[k - 1], from: a, to: b, ratio: ratio_of(a, b), delta: b - a };
   }
   const usual = median(moves);
   const total = Math.abs(distance(first, last));
-  const relative = Number.isFinite(ratio) ? Math.abs(ratio - 1) : Infinity;
+  const relative = first !== 0 ? Math.abs((last - first) / first) : (last === 0 ? 0 : Infinity);
   let direction = 'same';
   if (relative >= MIN_CHANGE) {
     const smaller_is_better = series.definition.smaller_is_better;
@@ -222,11 +243,13 @@ export function changeOf(series, { baseline = 'first', from = 0, to = series.val
     else if (smaller_is_better === false) direction = last > first ? 'better' : 'worse';
     else direction = 'changed';
   }
-  const notable = direction !== 'same' && total > 3 * usual;
-  return {
-    first, last, first_index, last_index, ratio, relative, direction, step, usual, notable,
-    stepped: notable && step.move >= 0.6 * total,
-  };
+  // with few commits there is no usual variation to compare with: every change counts
+  const few = present.length < MIN_POINTS;
+  const notable = direction !== 'same' && (few || total > 3 * usual);
+  // a step: one move, the same way as the whole change, that stands out by itself and makes most of it
+  const same_way = Math.sign(step.to - step.from) === Math.sign(last - first);
+  const stepped = notable && same_way && step.move >= 0.6 * total && (few || step.move > 3 * usual);
+  return { first, last, delta: last - first, first_index, last_index, ratio, relative, direction, step, usual, notable, few, stepped, points: present.length };
 }
 
 // The series that moved beyond their usual variation, the worst first, then the best: [{series, change}].
@@ -240,8 +263,11 @@ export function movers(series_list, options) {
     else if (change && change.direction !== 'same') quiet += 1;
   }
   rows.quiet = quiet;
+  rows.few = rows.length > 0 && rows.every(row => row.change.few);
   const rank = { worse: 0, changed: 1, better: 2 };
-  rows.sort((a, b) => rank[a.change.direction] - rank[b.change.direction] || b.change.relative - a.change.relative);
+  // from zero, every change is infinite: the biggest difference first
+  const size = (a, b) => a.change.relative === b.change.relative ? Math.abs(b.change.delta) - Math.abs(a.change.delta) : b.change.relative - a.change.relative;
+  rows.sort((a, b) => rank[a.change.direction] - rank[b.change.direction] || size(a, b));
   return rows;
 }
 export function countDirections(rows) {

@@ -22,7 +22,7 @@ const { points, definitions, reports } = generate({ commits: number('commits', 6
 console.log(`generated ${points.length} commits in ${Math.round(performance.now() - t0)} ms`);
 const report_of = new Map(points.map((point, i) => [point.id, reports[i]]));
 // like reading a file from the server: not right away
-const loadTests = point => new Promise(resolve => setTimeout(() => resolve(report_of.get(point.id)), 15));
+const loadTests = point => new Promise(resolve => setTimeout(() => resolve([{ name: 'junit.xml', tests: report_of.get(point.id) }]), 15));
 
 const Page = () => {
   const trends = useTrends(points, definitions);

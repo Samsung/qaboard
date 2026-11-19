@@ -64,6 +64,8 @@ class TestJunit(unittest.TestCase):
     # parts point at the prefixed total
     unit = junit_metrics(self.write(REPORT), prefix='unit_', group='Tests/unit')
     self.assertEqual((unit['unit_failed'].definition['part_of'], unit['unit_failed'].definition['group']), ('unit_tests', 'Tests/unit'))
+    # a prefix alone names the group: two reports of a run don't share their charts
+    self.assertEqual(junit_metrics(self.write(REPORT), prefix='integration_')['integration_tests'].definition['group'], 'Tests/integration')
     # all valid definitions
     from qaboard.metrics import clean_definition
     for metric in [*metrics.values(), *unit.values()]:

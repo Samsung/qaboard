@@ -431,8 +431,8 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
   const offered_metrics = useMemo(() => {
     const listed = select_metrics || main_metrics;
     if (listed.length > 0) return listed;
-    const keys = compositionKeys(available_metrics);
-    return [...keys.filter(key => !available_metrics[key]?.part_of), ...keys.filter(key => !!available_metrics[key]?.part_of)].slice(0, 10);
+    // the same ones lists of commits ask the server to aggregate (aggregation_metrics in hooks.js)
+    return compositionKeys(available_metrics).slice(0, 10);
   }, [select_metrics, main_metrics, available_metrics]);
   const default_metric = configured_default_metric || offered_metrics[0];
   const flag = (name, default_value) => query[name] !== undefined ? query[name] === 'true' : default_value;

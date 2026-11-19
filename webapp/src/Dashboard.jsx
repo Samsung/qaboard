@@ -138,7 +138,7 @@ const Dashboard = () => {
         {sections => <ViewSection>
           <ViewHeader>
             <h2 className={Classes.HEADING}>Tests and benchmarks over time</h2>
-            <p className={Classes.TEXT_MUTED}>{commits.length} commit{commits.length > 1 ? 's' : ''}, oldest on the left</p>
+            <p className={Classes.TEXT_MUTED}>Commit after commit, oldest on the left</p>
           </ViewHeader>
           <Card>{sections}</Card>
         </ViewSection>}

@@ -52,13 +52,14 @@
 /* tiles */
 .qa-trends-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
   gap: 10px;
   margin-bottom: 15px;
 }
 .qa-trends-tile {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
+  overflow: hidden;
   grid-template-areas: "label label" "value spark" "detail detail";
   align-items: end;
   gap: 2px 8px;
@@ -76,7 +77,7 @@
 .qa-trends-tile:is(button):hover { background: var(--qa-hover); }
 .qa-trends-tile-danger { border-left-color: var(--trends-danger); }
 .qa-trends-tile-label { grid-area: label; color: var(--qa-text-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.qa-trends-tile-value { grid-area: value; font-size: 22px; line-height: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.qa-trends-tile-value { grid-area: value; white-space: nowrap; font-size: 22px; line-height: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .qa-trends-tile-value .qa-trends-change svg { width: 16px; height: 16px; }
 .qa-trends-tile-detail { grid-area: detail; color: var(--qa-text-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .qa-trends-tile-spark { grid-area: spark; line-height: 0; padding-bottom: 2px; }
@@ -125,7 +126,7 @@
 .qa-trends-reference { stroke: var(--trends-axis); stroke-width: 1; }
 .qa-trends-tick { fill: var(--qa-text-muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
 .qa-trends-hover-band { fill: var(--qa-hover); }
-.qa-trends-mark { fill: none; stroke: var(--trends-danger); stroke-width: 1.5; }
+.qa-trends-mark { fill: none; stroke: var(--qa-text); stroke-width: 1.5; }
 .qa-trends-tip {
   position: absolute;
   top: 4px;
@@ -168,7 +169,7 @@
   white-space: nowrap;
 }
 .qa-trends-chip:hover, .qa-trends-package:hover { background: var(--qa-hover); }
-.qa-trends-chip[aria-selected="true"] {
+.qa-trends-chip[aria-pressed="true"] {
   color: var(--qa-text);
   font-weight: 600;
   border-color: var(--qa-intent-primary);
@@ -191,6 +192,8 @@
 .qa-trends-crumb:not(:disabled):hover { text-decoration: underline; }
 
 /* tables */
+.qa-trends-scroll { overflow-x: auto; }
+.qa-trends-strip-legend { margin-left: 14px; gap: 10px; }
 .qa-trends-table { width: 100%; border-collapse: collapse; table-layout: auto; }
 .qa-trends-table th {
   padding: 4px 8px;
@@ -224,7 +227,7 @@
 .qa-trends-strip-cursor { fill: none; stroke: var(--qa-text); stroke-width: 1; }
 .qa-trends-strip-tip {
   position: absolute;
-  top: -4px;
+  bottom: calc(100% + 3px);
   z-index: 5;
   padding: 2px 7px;
   line-height: 18px;

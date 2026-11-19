@@ -53,7 +53,11 @@ export function Frame({ points, height = 140, domain, formatTick = String, hover
   const band = count > 0 ? inner_width / count : 0;
   const [min, max] = domain;
   const ticks = niceTicks(min, max, tick_count);
+  // from 0, the axis ends on a tick above the tallest column
+  if (min === 0 && ticks.length > 1 && ticks[ticks.length - 1] < max) ticks.push(ticks[ticks.length - 1] + (ticks[1] - ticks[0]));
   const top = Math.max(max, ticks[ticks.length - 1] ?? max);
+  // the charts of a section share the hovered commit: only the one under the pointer says more about it
+  const [inside, setInside] = useState(false);
   const x = i => margin.left + (i + 0.5) * band;
   const y = value => margin.top + inner_height - (top === min ? 0 : (value - min) / (top - min)) * inner_height;
   const index_at = event => {
@@ -75,8 +79,8 @@ export function Frame({ points, height = 140, domain, formatTick = String, hover
       height={height}
       role="img"
       aria-label={label}
-      onMouseMove={e => onHover?.(index_at(e))}
-      onMouseLeave={() => onHover?.(null)}
+      onMouseMove={e => { setInside(true); onHover?.(index_at(e)); }}
+      onMouseLeave={() => { setInside(false); onHover?.(null); }}
       onClick={e => { const i = index_at(e); if (i !== null) onSelect?.(points[i], i); }}
       style={{ cursor: onSelect ? 'pointer' : undefined }}
     >
@@ -86,11 +90,11 @@ export function Frame({ points, height = 140, domain, formatTick = String, hover
       </g>)}
       {hovered !== null && <rect className="qa-trends-hover-band" x={x(hovered) - band / 2} y={margin.top} width={band} height={inner_height}/>}
       {children({ x, y, band, inner_height, margin, width })}
-      {x_labels && dated.map(i => <text key={i} className="qa-trends-tick" x={x(i)} y={height - 5} textAnchor={i === count - 1 ? 'end' : 'middle'} dx={i === count - 1 ? band / 2 : 0}>
+      {x_labels && dated.map(i => <text key={i} className="qa-trends-tick" x={x(i)} y={height - 5} textAnchor={i === count - 1 && band < 60 ? 'end' : 'middle'} dx={i === count - 1 && band < 60 ? band / 2 : 0}>
         {short_date(points[i].date) || points[i].label}
       </text>)}
     </svg>}
-    {hovered !== null && tooltip && <div className="qa-trends-tip" style={flip ? { right: width - tip_left + 12 } : { left: tip_left + 12 }}>
+    {hovered !== null && inside && tooltip && <div className="qa-trends-tip" style={flip ? { right: width - tip_left + 12 } : { left: tip_left + 12 }}>
       <PointTitle point={points[hovered]}/>
       {tooltip(hovered)}
     </div>}
@@ -207,13 +211,15 @@ export function StatusStrip({ statuses, colors, names, points, width = 240, heig
   }
   const [hovered, setHovered] = useState(null);
   const index_at = event => Math.min(count - 1, Math.max(0, Math.floor((event.clientX - event.currentTarget.getBoundingClientRect().left) / cell)));
+  const summary = names.map((name, code) => [name, statuses.reduce((n, s) => n + (s === code), 0)]).filter(([name, n]) => n > 0 && name !== 'absent').map(([name, n]) => `${name} in ${n}`).join(', ');
   return <span className="qa-trends-strip" style={{ width, height }}>
-    <svg width={width} height={height} onMouseMove={e => setHovered(index_at(e))} onMouseLeave={() => setHovered(null)}>
+    {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- hovering only names the commit under the pointer */}
+    <svg width={width} height={height} role="img" aria-label={summary} onMouseMove={e => setHovered(index_at(e))} onMouseLeave={() => setHovered(null)}>
       <rect className="qa-trends-strip-track" x={0} y={height / 2 - 0.5} width={width} height={1}/>
       {rects}
       {hovered !== null && <rect className="qa-trends-strip-cursor" x={hovered * cell} y={0} width={Math.max(cell, 1)} height={height}/>}
     </svg>
-    {hovered !== null && points?.[hovered] && <span className="qa-trends-strip-tip" style={hovered > count / 2 ? { right: width - hovered * cell + 6 } : { left: (hovered + 1) * cell + 6 }}>
+    {hovered !== null && points?.[hovered] && <span className="qa-trends-strip-tip" style={hovered > count / 2 ? { right: width - (hovered + 1) * cell } : { left: hovered * cell }}>
       <code>{points[hovered].label}</code> {names[statuses[hovered]]}
     </span>}
   </span>;

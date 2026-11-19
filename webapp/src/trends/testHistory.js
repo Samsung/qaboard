@@ -12,8 +12,8 @@ const RAN = code => code === CODES.passed || code >= CODES.flaky;
 // Facts, only looking at commits with a report:
 // - failing_since: the index where the current streak of failures started (the test fails in the last report),
 // - fixed_at: it failed in these commits and passes now, since that index,
-// - flips: how many times it went from passing to failing or back; `flaky`: 2 flips or more, or reported as flaky
-//   by the test runner (it passed when run again),
+// - streaks: how many separate times it started failing; `flaky`: twice or more, or reported as flaky by the test
+//   runner (it passed when run again). A test that broke once and was fixed is not flaky,
 // - added_at / removed_at: not in the first report / not in the last, with the index where that changed,
 // - slowdown: its last time over its first, for tests that take long enough to tell (MIN_TIME).
 export const MIN_TIME = 0.05;
@@ -38,15 +38,16 @@ export function buildTestHistory(reports) {
   const first = loaded[0], last = loaded[loaded.length - 1];
   for (const test of tests) {
     const { statuses, times } = test;
-    let flips = 0, runner_flaky = 0, failures = 0, previous = null, since = null;
+    let streaks = 0, runner_flaky = 0, failures = 0, ran = 0, previous = null, since = null;
     let first_time = null, last_time = null;
     for (const i of loaded) {
       const code = statuses[i];
       if (code === CODES.flaky) runner_flaky += 1;
       if (!RAN(code)) continue;
       const failing = FAILING(code);
+      ran += 1;
       if (failing) failures += 1;
-      if (previous !== null && failing !== previous) flips += 1;
+      if (failing && previous !== true) streaks += 1;
       if (previous === null || failing !== previous) since = i;
       previous = failing;
       if (!failing && times[i] > 0) {
@@ -54,9 +55,10 @@ export function buildTestHistory(reports) {
         last_time = times[i];
       }
     }
-    test.flips = flips;
+    test.streaks = streaks;
     test.failures = failures;
-    test.flaky = flips >= 2 || runner_flaky > 0;
+    test.ran = ran;
+    test.flaky = streaks >= 2 || runner_flaky > 0;
     test.failing_since = FAILING(statuses[last]) ? since : null;
     test.fixed_at = !FAILING(statuses[last]) && statuses[last] !== CODES.absent && failures > 0 && previous === false ? since : null;
     test.added_at = statuses[first] === CODES.absent ? loaded.find(i => statuses[i] !== CODES.absent) : null;
@@ -76,9 +78,10 @@ const lastPresent = (statuses, loaded) => {
 export const SLOWER = 1.5;
 export const VIEWS = [
   { id: 'failing', label: 'Failing now', empty: 'No test fails in the latest report.',
-    is: t => t.failing_since !== null, sort: (a, b) => b.failing_since - a.failing_since || b.flips - a.flips },
-  { id: 'flaky', label: 'Flaky', empty: 'No test went back and forth between passing and failing.',
-    is: t => t.flaky, sort: (a, b) => b.flips - a.flips || b.failures - a.failures },
+    // tests that just broke first, those that come and go last
+    is: t => t.failing_since !== null, sort: (a, b) => a.flaky - b.flaky || b.failing_since - a.failing_since },
+  { id: 'flaky', label: 'Flaky', empty: 'No test failed, passed, then failed again, or passed only when run again.',
+    is: t => t.flaky, sort: (a, b) => b.streaks - a.streaks || b.failures - a.failures },
   { id: 'slower', label: 'Slower', empty: 'No test takes over 1.5× the time it took at the start.',
     is: t => t.slowdown !== null && t.slowdown >= SLOWER, sort: (a, b) => (b.last_time * (1 - 1 / b.slowdown)) - (a.last_time * (1 - 1 / a.slowdown)) },
   { id: 'fixed', label: 'Fixed', empty: 'No test that failed in these commits passes now.',
@@ -123,4 +126,16 @@ export function commonPackage(tests) {
     if (n === 0) break;
   }
   return prefix ?? [];
+}
+
+// The tests of each commit, from its reports: [{name, tests}] per commit, or null. When a commit has several reports
+// (several runs, or files), tests are told apart by their report in every commit: ids stay the same from a commit
+// to the next even if one of them has a single report.
+export function mergeReports(reports_per_point) {
+  const several = reports_per_point.some(reports => (reports?.length ?? 0) > 1);
+  return reports_per_point.map(reports => {
+    if (!reports || reports.length === 0) return null;
+    if (!several) return reports[0].tests;
+    return reports.flatMap(report => report.tests.map(test => ({ ...test, id: `${report.name}::${test.id}`, path: [report.name, ...(test.path ?? [test.id])] })));
+  });
 }

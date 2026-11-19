@@ -16,13 +16,22 @@ When a branch's runs have test reports or benchmark files, for instance from `qa
 CI, History starts with **Tests and benchmarks over time**. There is nothing to configure. Branch pages show its
 headline numbers above their commits: click one to open History there.
 
-- **Tests**: how many tests each commit ran, and below, on its own scale, those that didn't pass. Hover a commit to
-  read its numbers, click it to open it.
+Here a *test* is a test case of your reports, like `test_decode_empty`, not an input of your project.
+
+- **Tests**: the tests each commit passed or skipped, and below, on its own scale, those that didn't pass: failed,
+  errors, and *flaky* ones, which the test runner says passed only when run again. Hover a commit to read its numbers,
+  click it to open it.
 - **Each test over the commits** reads the commits' reports (at most 100 commits, spread over the dates you picked):
-  **Failing now** says since which commit, **Flaky** lists tests that went back and forth, then **Slower**, **Fixed**,
-  **Added**, **Removed** and **Slowest**. Click a package to look only at its tests.
-- **Benchmarks**: the geometric mean of the benchmarks against the first commit, one small chart per group (click it
-  to open the group), and the benchmarks that moved most, with the commit where they moved.
+  - **Failing now** says since which commit, the tests that just broke first.
+  - **Flaky** lists the tests that failed, passed, then failed again, or passed only when run again.
+  - **Fixed** lists the tests that failed in these commits and pass now, then **Slower**, **Added**, **Removed**
+    and **Slowest**.
+
+  Click a package to look only at its tests.
+- **Benchmarks**: how many got worse or better, the geometric mean of the benchmarks against the first commit, one
+  small chart per group (click it to open the group), and the benchmarks that moved, worst first. **Where** names the
+  commit when one move stands out. **Worse**, **Better**, **Added** and **Removed** show only those, and
+  **Latest vs. the commit before** compares the last two commits instead of the whole period.
 
 <details>
 <summary>Are these the same benchmarks from start to end?</summary>
@@ -36,9 +45,9 @@ are left out. **Added** and **Removed** list the others.
 <details>
 <summary>What counts as "moved"?</summary>
 
-A benchmark is listed when it changed by over 3 times what it usually moves from a commit to the next: *a step* when
-most of the change happened at one commit, *a drift* otherwise. This keeps wobble out of the list, it is not a
-statistical test: QA-Board doesn't know how noisy your machines are. See
+A benchmark is listed when it changed by over 3 times what it usually moves from a commit to the next. With fewer than
+4 commits there is nothing to compare with: every change of 0.5% or more is listed. This keeps wobble out of the list,
+it is not a statistical test: QA-Board doesn't know how noisy your machines are. See
 [Stable benchmarks in CI](/docs/benchmarking-in-ci).
 </details>
 

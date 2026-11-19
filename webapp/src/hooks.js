@@ -134,9 +134,9 @@ export const aggregation_metrics = (qatools_metrics, { dashboard = false } = {})
   const { available_metrics = {}, default_metric, main_metrics = [], dashboard_metrics } = qatools_metrics ?? {};
   // lists, see normalize_metrics: but the cache may have metrics files from before it
   const main = Array.isArray(main_metrics) ? main_metrics : [];
-  // lists also get totals and their parts (the tests of `qa upload`), for the numbers above a branch's commits:
-  // first, the server aggregates a limited number of metrics
-  const keys = dashboard ? (Array.isArray(dashboard_metrics) ? dashboard_metrics : main) : [...compositionKeys(available_metrics).slice(0, 10), default_metric, ...main];
+  // lists also get totals and their parts (the tests of `qa upload`), for the numbers above a branch's commits.
+  // After the project's own: the server aggregates a limited number of metrics (max_aggregated_metrics).
+  const keys = dashboard ? (Array.isArray(dashboard_metrics) ? dashboard_metrics : main) : [default_metric, ...main, ...compositionKeys(available_metrics).slice(0, 10)];
   return Object.fromEntries(keys
     .filter(m => !!m)
     .map(m => [m, available_metrics[m]?.target ?? 0]));
