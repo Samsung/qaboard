@@ -38,6 +38,31 @@ class TestNginxSnippets(unittest.TestCase):
     uploads = Path(__file__).parent.parent / "backend" / "backend" / "uploads.py"
     self.assertIn(f"PROXY_CHECKED_HEADER = '{PROXY_CHECKED_HEADER}'", uploads.read_text())
 
+  def test_files_being_received_arent_served(self):
+    files = (SNIPPETS / "qaboard-files.conf").read_text()
+    self.assertIn('if ($uri ~ "/\\.qaboard-upload-") {\n  return 404;', files)
+    # before anything else can answer
+    self.assertLess(files.index('qaboard-upload-'), files.index('include cors;'))
+    uploads = Path(__file__).parent.parent / "backend" / "backend" / "uploads.py"
+    self.assertIn("TEMPORARY_PREFIX = '.qaboard-upload-'", uploads.read_text())
+
+  def test_files_are_served_with_nosniff(self):
+    """add_header in an "if" drops the others: every block that sets the files' CSP sets nosniff too"""
+    nginx = SNIPPETS.parent
+    for text in ((nginx / "cors").read_text(), (SNIPPETS / "qaboard-files.conf").read_text()):
+      self.assertEqual(text.count('$qaboard_files_csp always;'), text.count('add_header "X-Content-Type-Options" $qaboard_files_nosniff always;'))
+    self.assertIn("map $uri $qaboard_files_nosniff {", (nginx / "conf.d" / "qaboard-files.conf").read_text())
+
+  def test_xml_files_are_sandboxed(self):
+    csp = (SNIPPETS.parent / "conf.d" / "qaboard-files.conf").read_text()
+    pattern = re.findall(r'^\s*"(~\*\^on[^"]*)"', csp, re.M)
+    self.assertEqual(len(pattern), 2)
+    for regex in pattern:
+      for content_type in ("text/html", "application/xhtml+xml", "image/svg+xml", "text/xml", "application/xml", "text/xsl", "application/rss+xml", "text/xml; charset=utf-8"):
+        self.assertTrue(re.search(regex[2:], f"on|iframe|/s/a/b|{content_type}", re.I), (regex, content_type))
+      for content_type in ("application/pdf", "image/png", "text/plain", "application/json"):
+        self.assertFalse(re.search(regex[2:], f"on|iframe|/s/a/b|{content_type}", re.I), (regex, content_type))
+
 
 if __name__ == '__main__':
   unittest.main()

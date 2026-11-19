@@ -216,6 +216,9 @@ ingress:
     # Uploaded files (QABOARD_UPLOAD_MAX_FILE_MB, 1024 by default) and slow API calls. The chart's nginx limits each path
     nginx.ingress.kubernetes.io/proxy-body-size: "1100m"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    # Passes files on as they come: the chart's nginx checks the token before taking the body, and buffers it once
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
   # - secretName: qaboard-tls
   tls: []
 
