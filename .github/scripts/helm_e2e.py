@@ -377,7 +377,9 @@ def check_batch_from_web_app(base, release, timeout, kubernetes, session, token,
         # the runs' pods use the backend's image: it has this checkout's qaboard, with the kubernetes extra
         deployment = kubectl("get", "deployment", f"{release}-backend", "-o", "json", json_output=True)
         image = next(c for c in deployment["spec"]["template"]["spec"]["containers"] if c["name"] == "backend")["image"]
-    project_name = f"e2e/web-app-{runner}" + ("-shared-storage" if storage else "")
+    # In the shared storage, the project's folder is created by `qa save-artifacts` here, as this user: not in a group
+    # folder the server (another user, e.g. root) created for other projects' runs
+    project_name = f"e2e-shared-storage/web-app-{runner}" if storage else f"e2e/web-app-{runner}"
     commit = uuid.uuid4().hex + uuid.uuid4().hex[:8]
     save_artifacts(base, token, project_name, artifacts_project(project_name, image, storage), commit)
 

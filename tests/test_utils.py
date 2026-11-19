@@ -146,7 +146,7 @@ class TestEolNormalizedCopy(unittest.TestCase):
 
     def open_with_failing_write(*args, **kwargs):
       f = real_open(*args, **kwargs)
-      if len(args) >= 2 and args[1] == 'w': # only the temp copy's write pass
+      if len(args) >= 2 and args[1] == 'wb': # only the temp copy's write pass
         def no_space_left(*a, **k):
           raise OSError(28, 'No space left on device')
         f.write = no_space_left
@@ -169,7 +169,7 @@ class TestEolNormalizedCopy(unittest.TestCase):
 
     def open_with_failing_close(*args, **kwargs):
       f = real_open(*args, **kwargs)
-      if len(args) >= 2 and args[1] == 'w': # only the temp copy's writer
+      if len(args) >= 2 and args[1] == 'wb': # only the temp copy's writer
         def no_space_left(*a, **k):
           raise OSError(errno.ENOSPC, 'No space left on device')
         f.flush = no_space_left # close() flushes first, so this is the close/flush-failure path

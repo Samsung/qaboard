@@ -92,6 +92,7 @@ files.
 ### Line endings {#line-endings}
 `qa` hashes text files with Unix line endings (`\n`), on every platform: a file with Windows line endings (`\r\n`)
 records the same manifest on Linux and Windows. By default, text files are *.txt*, *.cde*, *.hex*, *.iir* and *.dvs*.
+Files with a NUL byte in their first 8000 bytes are always hashed as they are, like git does.
 Say which files are text with `bit_accuracy.plaintext`, *or* which are binary with `bit_accuracy.binary`, like the
 camera ISP's `plaintext: ['*.txt']`:
 
