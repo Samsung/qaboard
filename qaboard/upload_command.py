@@ -189,7 +189,7 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
   It needs a QA-Board server (QABOARD_URL) that accepts files, or a storage shared with it (`storage` in qaboard.yaml).
   `qa --dryrun upload` says what it would send, without a server.
   """
-  from .active_run import start_run, RunArgumentError, _Setup, _batch_label
+  from .active_run import plan_run, start_run, RunArgumentError
   from .credentials import default_server
   # (not `from . import config`: the package has the project's configuration under that name)
   config = import_module('qaboard.config')
@@ -225,48 +225,53 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
     runs.append((input_name or default_input(run_paths), files, {**({} if no_read else read_metrics(files)), **metrics}))
   if len({name for name, _, _ in runs}) != len(runs):
     raise click.UsageError("--each names each run after its path, without its extension: some of these paths would be the same run. Upload them one by one, with --input.")
+  # what identifies the runs and where they go: the same for --dryrun's plan_run() and start_run()
+  arguments: Dict[str, Any] = dict(
+    configs=configurations, label=group.get('label'), batch=batch_name, project=project, commit=commit,
+    platform=group.get('platform'), share=True,
+    # a project that keeps its storage: from where it isn't mounted (a GitHub runner...), over HTTP
+    _upload_without_storage=True,
+  )
   if dryrun:
-    # what start_run() would say: the project, the commit, the batch, where the files go
+    # what start_run() would do: the project, the commit, the batch, where the files go
     try:
-      setup = _Setup(project, commit, upload_without_storage=True)
+      plans = [plan_run(name, **arguments) for name, _, _ in runs]
     except RunArgumentError as e:
       raise click.UsageError(e.cli)
-    raw_label = group.get('label') or batch_name or 'default'
-    label = _batch_label(raw_label, True, setup)
-    if label != raw_label:
-      label = f"{raw_label} (your own, \"{label}\": outside the CI)"
-    if group.get('label') and batch_name and batch_name != group.get('label'):
-      label += f", {batch_name} on the runs' cards"
-    is_commit = len(setup.commit) == 40 and all(c in '0123456789abcdef' for c in setup.commit)
-    click.echo(f"project: {setup.project}")
-    click.echo(f"commit: {setup.commit if is_commit else 'none (not in a git repository): give --commit <sha>'}")
+    plan = plans[0]
+    for note in plan.notes:
+      click.echo(f"qaboard: {note}", err=True)
+    label = plan.raw_batch
+    if plan.batch != plan.raw_batch:
+      label = f"{plan.raw_batch} (your own, \"{plan.batch}\": outside the CI)"
+    if plan.batch_name:
+      label += f", {plan.batch_name} on the runs' cards"
+    is_commit = len(plan.commit) == 40 and all(c in '0123456789abcdef' for c in plan.commit)
+    click.echo(f"project: {plan.project}")
+    click.echo(f"commit: {plan.commit if is_commit else 'none (not in a git repository): give --commit <sha>'}")
     click.echo(f"batch: {label}")
-    if not setup.uploads_files:
+    if not plan.uploads_files:
       click.echo("files: saved in the storage shared with the server")
-    elif server_source is None:
+    elif plan.server_source is None:
       click.echo("files: sent to the QA-Board server (set QABOARD_URL to say which)")
     else:
       from .credentials import resolve_token
       try:
-        token_source = resolve_token(server)[1]
+        token_source = resolve_token(plan.server)[1]
       except Exception:
         token_source = None
-      click.echo(f"files: sent to {server}")
+      click.echo(f"files: sent to {plan.server}")
       click.echo(f"token: {f'from {token_source}' if token_source else 'none: run `qa auth login`, or set QABOARD_TOKEN'}")
-    for name, files, run_metrics in runs:
+    for (name, files, run_metrics), run_plan in zip(runs, plans):
       click.echo(f"{name}: {len(files)} files, {sum(file.stat().st_size for file in files.values())} bytes, metrics: {json.dumps({k: float(v) if isinstance(v, float) else v for k, v in run_metrics.items()})}")
+      click.echo(f"  folder: {run_plan.output_dir}{' (its latest attempt: a new one goes next to it)' if run_plan.new_attempt else ''}")
       for file_name in files:
         click.echo(f"  {file_name}")
     return
 
   for name, files, run_metrics in runs:
     try:
-      run = start_run(
-        name, configs=configurations, label=group.get('label'), batch=batch_name,
-        project=project, commit=commit, platform=group.get('platform'), share=True, capture_output=False,
-        # a project that keeps its storage: from where it isn't mounted (a GitHub runner...), over HTTP
-        _upload_without_storage=True,
-      )
+      run = start_run(name, **arguments, capture_output=False)
     except RunArgumentError as e:
       # in the words of qa upload's options rather than start_run()'s arguments
       raise click.UsageError(e.cli)

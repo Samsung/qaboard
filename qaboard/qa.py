@@ -288,8 +288,7 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
           qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True, keep_previous=keep_previous, heartbeat=True, data={"attempt_logs": attempts.kept_logs(run_context.output_dir)})
           if qa_run_data:
             run_context.id = qa_run_data["id"]
-            start_heartbeat(run_context)
-            start_upload(run_context)
+            run_reporter(run_context).start(run_context.id)
           # in CI, results QA-Board refuses are lost: don't compute them
           exit_if_results_refused()
 
@@ -336,20 +335,16 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
           if metrics['is_failed']:
             sys.exit(1)
           # in CI, results the server doesn't have are lost
-          if not _files_sent and is_ci:
+          if files_not_sent() and is_ci:
             sys.exit(1)
         except KeyboardInterrupt:
           mark_aborted(run_context)
           raise
 
 
-# Without a storage shared with the server, `qa run` sends it the run's files (qaboard/upload.py): its log as it
-# goes, from a thread, and everything when the run ends. One run per process.
-_uploader = None
-_upload_finished = False
-# once it sent everything: to send what qa prints after (send_log_tail)
-_finished_uploader = None
-_files_sent = True
+# What `qa run` tells the server besides its results (qaboard/reporting.py): every few minutes that the run still
+# runs, and without a storage shared with it, the run's files: its log as it goes, everything when it ends. One run per process.
+_reporter = None
 
 
 def sends_files(qa_context) -> bool:
@@ -357,31 +352,22 @@ def sends_files(qa_context) -> bool:
   return bool(uploads_files and (is_ci or qa_context.get('share')) and not qa_context.get('offline') and not qa_context.get('dryrun'))
 
 
-def start_upload(run_context):
-  """Once the server knows the run (run_context.id): starts sending its files"""
-  global _uploader
-  if not sends_files(run_context.obj) or run_context.id is None or _uploader is not None:
-    return
-  from .api import qaboard_url
-  from .upload import Uploader
-  _uploader = Uploader(qaboard_url, run_context.id, run_context.output_dir, live=(config.get('outputs') or {}).get('live')).start()
-
-
-_heartbeat = None
-
-
-def start_heartbeat(run_context):
-  global _heartbeat
-  if _heartbeat is None and run_context.id is not None:
+def run_reporter(run_context):
+  """The run's reporter, created the first time"""
+  global _reporter
+  if _reporter is None:
     from .api import qaboard_url
-    from .heartbeat import Heartbeat
-    _heartbeat = Heartbeat(qaboard_url, run_context.id).start()
+    from .reporting import RunReporter
+    log = run_context.output_dir / 'log.txt'
+    _reporter = RunReporter(qaboard_url, run_context.output_dir, uploads=sends_files(run_context.obj), live=(config.get('outputs') or {}).get('live'),
+                            # with what the run printed last, e.g. that it failed
+                            before_log=lambda: wait_for_the_log(log))
+  return _reporter
 
 
-def stop_heartbeat():
-  """Once the server knows how the run ended. Not before: sending the last files can take longer than the timeout"""
-  if _heartbeat is not None:
-    _heartbeat.stop()
+def files_not_sent() -> bool:
+  """Whether the server doesn't have all the run's files, after finish_upload"""
+  return _reporter is not None and _reporter.files_sent is False
 
 
 def wait_for_the_log(log: Path, timeout: float = 1.0, quiet: float = 0.1):
@@ -402,51 +388,41 @@ def wait_for_the_log(log: Path, timeout: float = 1.0, quiet: float = 0.1):
 
 def finish_upload(run_context):
   """Sends the run's files before telling the server that it ended: finished runs' files don't change"""
-  global _uploader, _upload_finished, _files_sent, _finished_uploader
-  if not sends_files(run_context.obj) or _upload_finished:
+  if not sends_files(run_context.obj):
     return
-  _upload_finished = True
-  if _uploader is None:
+  reporter = run_reporter(run_context)
+  if reporter.finished:
+    return
+
+  def create():
     # the server didn't answer when the run started: it has to know the run, as running, to take its files
     started = notify_qa_database(**run_context.obj, is_pending=True, is_running=True, keep_previous=True, heartbeat=True)
     if started:
       run_context.id = started["id"]
-      start_upload(run_context)
-  if _uploader is None:
-    _files_sent = False
+      return started["id"]
+    return None
+
+  if reporter.finish(create=create):
+    click.secho(f"Sent {reporter.uploader.sent_files} files to QA-Board ({reporter.uploader.sent_bytes / 1e6:.1f} MB)", fg='cyan', err=True)
+  elif reporter.uploader is None:
     click.secho("ERROR: QA-Board doesn't have the files of the run: it didn't take the run. They are in " + str(run_context.output_dir), fg='red', bold=True, err=True)
     return
-  uploader, _uploader = _uploader, None
-  _finished_uploader = uploader
-  # with what the run printed last, e.g. that it failed
-  wait_for_the_log(run_context.output_dir / 'log.txt')
-  if uploader.finish():
-    click.secho(f"Sent {uploader.sent_files} files to QA-Board ({uploader.sent_bytes / 1e6:.1f} MB)", fg='cyan', err=True)
   else:
-    _files_sent = False
     click.secho("ERROR: QA-Board doesn't have all the files of the run:", fg='red', bold=True, err=True)
-    for problem in uploader.problems():
+    for problem in reporter.problems():
       click.secho(f"       {problem}", fg='red', err=True)
   # what we just printed, in the log the web app shows
-  send_log_tail(run_context)
-
-
-def send_log_tail(run_context):
-  """
-  Sends the end of log.txt after `finish_upload`: what qa printed since, e.g. which files couldn't be sent, or that the
-  server refused the run's results. It takes it until it heard that the run ended: call it before then, or after the
-  server refused that.
-  """
-  if _finished_uploader is not None:
-    wait_for_the_log(run_context.output_dir / 'log.txt')
-    _finished_uploader.send_log()
+  reporter.send_log()
 
 
 def notify_run_ended(run_context, **kwargs):
-  """Tells the server that the run ended (after `finish_upload`). If it refused that, it still has why, in the log"""
+  """
+  Tells the server that the run ended (after `finish_upload`), then stops reporting. If it refused that, it still
+  has why, in the log
+  """
   answer = notify_qa_database(**run_context.obj, **kwargs, is_pending=False, is_running=False)
-  if answer is None:
-    send_log_tail(run_context)
+  if _reporter is not None:
+    _reporter.ended(known=answer is not None)
   return answer
 
 
@@ -471,7 +447,6 @@ def mark_aborted(run_context):
     if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
       finish_upload(run_context)
       notify_run_ended(run_context, metrics=metrics, is_failed=True)
-      stop_heartbeat()
 
 
 def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_database=False, print_summary=False):
@@ -590,7 +565,6 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
   if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
     finish_upload(run_context)
     notify_run_ended(run_context, metrics=metrics, metrics_definitions=metrics_definitions, data=output_data)
-    stop_heartbeat()
 
 
   ###### SIRC-specific ########################################################

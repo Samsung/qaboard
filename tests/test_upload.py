@@ -322,11 +322,12 @@ class TestQaRun(UploaderTestCase):
     def refused(**kwargs):
       printed("WARNING: QA-Board refused the results: metrics are numbers")
     run_context = SimpleNamespace(obj={}, id=42, output_dir=self.run_dir)
-    with mock.patch.object(qa, 'sends_files', return_value=True), mock.patch.object(qa, '_uploader', self.uploader(server)), \
-         mock.patch.object(qa, '_upload_finished', False), mock.patch.object(qa, '_finished_uploader', None), \
-         mock.patch.object(qa, '_files_sent', True), mock.patch.object(qa.click, 'secho', printed), \
-         mock.patch.object(qa, 'notify_qa_database', refused):
+    with mock.patch.object(qa, 'sends_files', return_value=True), mock.patch.object(qa, '_reporter', None), \
+         mock.patch.object(qa, 'config', {}), mock.patch.object(qa.click, 'secho', printed), \
+         mock.patch.object(qa, 'notify_qa_database', refused), mock.patch('qaboard.api.qaboard_url', server.url):
+      qa.run_reporter(run_context).start(run_context.id)
       qa.finish_upload(run_context)
+      self.assertTrue(qa.files_not_sent())
       self.assertIn(b"model.pt: model.pt is too large", server.files['log.txt'])
       # the server didn't take how the run ended: it still takes its log, with why
       self.assertIsNone(qa.notify_run_ended(run_context, metrics={}))

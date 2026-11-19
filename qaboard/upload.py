@@ -4,7 +4,7 @@ in qaboard.yaml, or no storage at all): GitHub-hosted CI, a laptop, a cluster wi
 
 The run writes its files in a local folder, like a run that isn't shared. An `Uploader` sends that folder to the
 server (PUT /api/v1/output/<id>/files/<path>, backend/uploads.py), which saves it where it serves runs' files from.
-`qa run` and `qaboard.start_run()` both use it:
+`qa run` and `qaboard.start_run()` both use it, through their run's reporter (qaboard/reporting.py):
 
     uploader = Uploader(server, run_id, output_dir)
     uploader.start()            # a thread sends the run's log, series and metrics as it goes: uploader.sync()
@@ -25,7 +25,7 @@ import stat as stat_module
 from concurrent.futures import ThreadPoolExecutor
 from fnmatch import fnmatchcase
 from pathlib import Path
-from threading import Event, Lock, Thread
+from threading import Event, Lock, Thread, current_thread
 from typing import Dict, Iterator, List, Optional, Sequence, Tuple, Union
 from urllib.parse import quote
 
@@ -98,11 +98,15 @@ class Uploader:
 
   def finish(self) -> bool:
     """Sends everything that the server doesn't have yet, when the run ends. Returns whether it has it all."""
-    self._stop.set()
-    if self._thread is not None:
-      self._thread.join()
-      self._thread = None
+    self.stop()
     return self.sync(final=True)
+
+  def stop(self) -> None:
+    """Stops the thread of `start()`, without sending anything more. Idempotent"""
+    self._stop.set()
+    thread, self._thread = self._thread, None
+    if thread is not None and thread is not current_thread():
+      thread.join()
 
   def sync(self, final: bool = False) -> bool:
     """

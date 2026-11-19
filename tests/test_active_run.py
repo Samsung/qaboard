@@ -932,6 +932,76 @@ class TestWithoutAProject(ActiveRunTestCase):
     self.assertIn("give the commit's full id", result.stderr)
 
 
+PLAN_AND_START = """
+import json, sys
+from qaboard.active_run import plan_run, start_run
+kwargs = json.loads(sys.argv[1])
+plan = plan_run(**kwargs)
+run = start_run(**kwargs)
+run.finish()
+print(json.dumps({
+  'plan': [plan.project, plan.commit, plan.batch, plan.input, list(plan.configurations), plan.platform, plan.share, str(plan.output_dir), plan.new_attempt, plan.uploads_files],
+  'run': [run.project, run.commit, run.batch, run.input, list(run.configs), run.platform, run.share, str(run.output_dir), run._uploads_files],
+}))
+"""
+
+
+class TestPlan(ActiveRunTestCase):
+  """plan_run() says which run start_run() starts, and where: `qa upload --dryrun` prints it"""
+  def plan_and_start(self, cwd=None, server=None, **kwargs):
+    code = PLAN_AND_START.replace('sys.argv[1]', repr(json.dumps(kwargs)))
+    result = self.python(code=code, cwd=cwd, server=server, **self.env)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    return json.loads(result.stdout.strip().splitlines()[-1])
+
+  def assertAgree(self, answer):
+    plan, run = answer['plan'], answer['run']
+    *same, output_dir, new_attempt, uploads_files = plan
+    self.assertEqual(same, run[:7])
+    self.assertEqual(uploads_files, run[8])
+    from qaboard import attempts
+    if new_attempt:
+      # the plan has the latest attempt's folder: the run reserved the next one
+      self.assertEqual(attempts.split(Path(output_dir))[0], attempts.split(Path(run[7]))[0])
+    else:
+      self.assertEqual(output_dir, run[7])
+
+  def test_a_shared_run_in_the_storage(self):
+    server = self.server()
+    self.env = {}
+    arguments = dict(input='train/coco-mini', configs=['resnet50', {'lr': 0.001}], batch='lr-sweep')
+    self.assertAgree(self.plan_and_start(server=server, **arguments))
+    # done again: a new attempt
+    answer = self.plan_and_start(server=server, **arguments)
+    self.assertTrue(answer['plan'][8])
+    self.assertAgree(answer)
+    self.assertNotEqual(answer['plan'][7], answer['run'][7])
+
+  def test_a_local_run(self):
+    self.env = {}
+    answer = self.plan_and_start(input='explore', label='nightly', batch='unit-tests', share=False)
+    self.assertAgree(answer)
+    self.assertEqual(answer['plan'][2], 'nightly')
+
+  def test_runs_that_send_their_files(self):
+    server = self.server()
+    notebooks = Path(self.tmp.name).resolve() / 'notebooks'
+    notebooks.mkdir()
+    self.env = {'GITHUB_ACTIONS': 'true', 'CI': 'true', 'GITHUB_SHA': 'c' * 40}
+    answer = self.plan_and_start(cwd=notebooks, server=server, project='kitefin/planner', input='tests', platform='arm')
+    self.assertAgree(answer)
+    self.assertEqual(answer['plan'][:3], ['kitefin/planner', 'c' * 40, 'default'])
+    self.assertTrue(answer['plan'][9])
+
+  def test_plans_write_and_send_nothing(self):
+    server = self.server()
+    self.env = {}
+    result = self.python(server=server, code="from qaboard.active_run import plan_run\nprint(plan_run(input='x').output_dir)")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertFalse(Path(result.stdout.strip()).exists())
+    self.assertEqual(server.requests, [])
+
+
 class TestImport(ActiveRunTestCase):
   def test_import_qaboard_stays_light(self):
     result = self.python(code="import sys, qaboard\nassert 'qaboard.active_run' not in sys.modules and 'qaboard.config' not in sys.modules\nassert callable(qaboard.start_run) and qaboard.current_run() is None")
