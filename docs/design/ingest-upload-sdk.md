@@ -187,6 +187,7 @@ In `docs/warts.md`, with sizes. The ones that matter first:
    - ~~The web app's log of a Kubernetes driver just ends when `qa send-batch-log` stops~~ (v10: the server writes
      `kubectl logs ...` at the top when it starts the driver, `QABOARD_POD_LOGS`; the driver says when it dropped
      output).
+   - `qa send-batch-log` sending from a thread of its own, so that a slow server never blocks the driver's output.
    - What the second security review left (`docs/warts.md`): `QABOARD_SANDBOX_HTML` on by default for uploaded runs,
      the local runner and uploaded artifacts, batch tokens limited to their batch's runs, limits on files per run.
 6. Quotas per project.

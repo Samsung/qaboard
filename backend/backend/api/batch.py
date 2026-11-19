@@ -262,7 +262,7 @@ def append_submission_log(command_id):
     size = uploads.save_file(log_dir, 'log.txt', request.stream, request.content_length, offset=offset)
   except UnsafePathError:
     # without the folder: it's the server's path
-    return jsonify({"error": "The batch's log isn't in QA-Board's storage anymore.", "reason": "invalid_log_dir"}), 409
+    return jsonify({"error": "The batch's log isn't in QA-Board's storage anymore.", "reason": "invalid_log_dir"}), 400
   except uploads.UploadError as e:
     return jsonify({"error": str(e), "reason": e.reason, **e.details}), e.status
   return jsonify({"size": size})

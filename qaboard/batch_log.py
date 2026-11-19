@@ -37,6 +37,8 @@ class LogSender:
     self.offset = 0
     self.pending = bytearray()
     self.dropped = 0
+    # what the server may have written without our hearing its answer (a timeout): the start of `pending`
+    self.unconfirmed = 0
     self.failed = False
 
   def add(self, data: bytes) -> None:
@@ -44,13 +46,15 @@ class LogSender:
     if len(self.pending) > MAX_PENDING:
       self.dropped += len(self.pending) - MAX_PENDING
       del self.pending[:len(self.pending) - MAX_PENDING]
+      self.unconfirmed = 0
 
   def send(self) -> None:
     """Sends what is pending, in parts. Keeps it when the server can't be reached, drops it when it refuses it."""
     from .results import ResultsError
     if self.dropped and not self.failed:
       # what we dropped while the server couldn't be reached: say where it is, where it would have been
-      self.pending[:0] = (f"\n[qaboard] WARNING: output printed while QA-Board couldn't be reached is missing here ({self.dropped / 1024:.0f} KB). "
+      at = self.unconfirmed  # after what the server may already have
+      self.pending[at:at] = (f"\n[qaboard] WARNING: output printed while QA-Board couldn't be reached is missing here ({self.dropped / 1024:.0f} KB). "
                           f"It is in the pod's logs: {self.pod_logs}\n").encode()
       self.dropped = 0
     while self.pending and not self.failed:
@@ -60,15 +64,21 @@ class LogSender:
       except ResultsError as e:
         size = e.body.get('size') if isinstance(e.body, dict) else None
         if e.status == 409 and isinstance(size, int) and size != self.offset:
-          # the server wrote in the log too (e.g. why a pod was pending): we go on after it
-          self.offset = size
+          if self.unconfirmed and size == self.offset + self.unconfirmed:
+            # it had written what we sent last, but we didn't get its answer: not twice
+            del self.pending[:self.unconfirmed]
+          # else the server wrote in the log too (e.g. why a pod was pending): we go on after it
+          self.offset, self.unconfirmed = size, 0
           continue
-        if not e.is_transient:
+        if e.is_transient:
+          self.unconfirmed = len(data)
+        else:
           # e.g. the batch's token expired: nothing more will be accepted
           self.failed = True
           self.echo(f"[qaboard] WARNING: QA-Board doesn't take this log anymore ({e}): the rest is only in the pod's logs.")
         return
       del self.pending[:len(data)]
+      self.unconfirmed = 0
 
 
 def forward(source: BinaryIO, out: BinaryIO, sender: LogSender, interval: float = INTERVAL) -> None:

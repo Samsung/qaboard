@@ -98,3 +98,17 @@ if __name__ == '__main__':
     sender.add(b"b\n")
     sender.send()
     self.assertEqual(server.log.count(b"is missing here"), 1)
+
+  def test_what_the_server_wrote_without_answering_isnt_sent_twice(self):
+    server = FakeServer()
+    def put(offset, data):
+      size = server.put(offset, data)
+      if data == b"a\n":
+        raise ResultsError("timeout")  # written, but the answer was lost
+      return size
+    sender = LogSender(put, print)
+    sender.add(b"a\n")
+    sender.send()
+    sender.add(b"b\n")
+    sender.send()
+    self.assertEqual(server.log, b"a\nb\n")

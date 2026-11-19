@@ -173,7 +173,8 @@ object storage mount.
   run ends, except `qa optimize`'s and redo's: they expire a day after their runs stop. On Kubernetes, the driver
   pod gets the batch's files in its ConfigMap (768 KiB at most) and sends its log with the token: what it prints
   after the token expired, or that the server refused, is only in the pod's logs (the log's first line says how to
-  read them); `qa optimize` can't resume an experiment
+  read them), and while the server is slow to answer it stops reading the driver's output, which then waits (it
+  sends from the thread that copies it, `batch_log.forward`) [S]; `qa optimize` can't resume an experiment
   started again (its journal stays in the pod). See `docs/design/ingest-upload-sdk.md` §3 item 2. `qa check-bit-accuracy`
   compares fetched manifests only, not files (`QA_BITACCURACY_CMP`); `qa optimize` keeps its journal on the machine
   that runs it. `qaboard.runs(url)` gives uploaded runs' `output_dir` on the server, not a local folder. [L]
