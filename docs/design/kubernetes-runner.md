@@ -106,7 +106,10 @@ The options' types are checked (`option_errors`) before anything is created, and
   namespace), host-specific variables (PATH, HOME, locale, LD_LIBRARY_PATH, VIRTUAL_ENV, KUBECONFIG, `LC_*`, `XDG_*`,
   `SSH_*`, `CONDA_*`...), `PYTHONPATH` and CA bundles unless under `mounts`, proxies on localhost. Pods get
   USER/LOGNAME, HOME (ours if under `mounts`, else /tmp), `LANG=LC_ALL=C.UTF-8`, `MPLBACKEND=agg`, then `env`. Tokens
-  reach runs through a Secret in `job_template` or a shared HOME after `qa auth login`.
+  reach runs through a Secret in `job_template` or a shared HOME after `qa auth login`. Batches the server starts get
+  their own token (`qab_bat_`, `tokens.mint_for_batch`), forwarded in the ConfigMap: it reads the project, sends the
+  results of that batch only (its commit and label, and `qa optimize`'s "<label>|iter<N>", `tokens.batch_allows`) and
+  changes nothing else (`actor.BATCH_TOKEN_ENDPOINTS`), so who reads the namespace can tamper with that batch only.
 - Default pod security context: restricted-compatible (seccomp RuntimeDefault, no privilege escalation, drop ALL,
   `runAsNonRoot` with a UID). Precedence: defaults < `job_template` < options < what QA-Board controls.
 - Blocking: we watch the Jobs (re-reading the kubeconfig on 401: OIDC tokens expire during long batches) until they

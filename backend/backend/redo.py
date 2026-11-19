@@ -200,7 +200,7 @@ def redo_outputs(batch, outputs, user_info, actor=None) -> dict:
   try:
     # runs without a shared storage, or on servers that require tokens, send results with a token of the user. Until
     # the batch is stopped: runs that were pending run again under their first command id, not this one
-    token = tokens.mint_for_batch(actor, ci_commit, command_id, runner, log_dir=log_dir, until_stopped=True)
+    token = tokens.mint_for_batch(actor, ci_commit, command_id, runner, batch_label=batch.label, log_dir=log_dir, until_stopped=True)
     if on_kubernetes:
       from .runner_jobs import submit_driver
       def record_driver(driver):

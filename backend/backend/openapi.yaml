@@ -1138,7 +1138,8 @@ components:
     Forbidden:
       description: >-
         You can't read this project (`missing_role`, `forbidden_project`), your token lacks a scope
-        (`missing_scope`, with the scope in `required`), or it is restricted to other projects (`token_project`).
+        (`missing_scope`, with the scope in `required`), or it is restricted to other projects (`token_project`), or
+        it is the token of a batch QA-Board started, which only sends that batch's results (`batch_token_limited`).
       content:
         application/json:
           schema: {$ref: "#/components/schemas/Error"}

@@ -290,8 +290,8 @@ runners:
 ```
 
 ### Give the runs a QA-Board token {#token}
-Batches started from the web app get a token of whoever started them, when their runs need one: these steps are for
-the batches you start yourself. Other secrets are never forwarded to the pods. If your QA-Board server requires a
+Batches started from the web app get a token of whoever started them, when their runs need one, that only sends that
+batch's results: these steps are for the batches you start yourself. Other secrets are never forwarded to the pods. If your QA-Board server requires a
 token to save results, give the runs one of these:
 
 - **A Kubernetes Secret**, added to the pods by a `job_template`. Create a token in QA-Board (see

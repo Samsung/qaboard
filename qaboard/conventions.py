@@ -85,7 +85,7 @@ class Reason:
   # --- batch tokens (tokens.mint_for_batch in backend/backend/tokens.py) ---
   BATCH_TOKEN_REQUIRED = 'batch_token_required'                # only the batch's own token sends its log
   INVALID_LOG_DIR = 'invalid_log_dir'
-  # (batch tokens limited to their batch's runs: their refusal goes here)
+  BATCH_TOKEN_LIMITED = 'batch_token_limited'                  # a batch's token only changes its batch (commit + label) of its project
 
 
 # Why the server refuses runs that send their files, and what to do about it (qa run, start_run(), qa upload)

@@ -10,6 +10,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from backend import app, db_session
 from ..access import invalid_project
 from .auth import is_authorized_user, login_required, require_project_access, ingest_access, forbidden_project
+from ..actor import batch_token_limits
 from ..models import Project, CiCommit, latest_successful_commit, Batch
 from ..storage import UnsafePathError
 from .. import recreate_artifacts
@@ -30,6 +31,8 @@ def api_ci_commit(commit_id=None):
       return error
     # git_commit_sha for backward-compatibility
     hexsha = commit_id or request.json.get('commit_sha') or request.json.get('git_commit_sha')
+    if refused := batch_token_limits(request.json.get('project'), hexsha, any_batch=True, what="send this commit"):
+      return refused
     try:
       commit = CiCommit.get_or_create(
         session=db_session,

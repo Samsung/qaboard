@@ -17,7 +17,7 @@ import zlib
 from fnmatch import fnmatchcase
 from typing import Optional, List
 
-from qaboard.conventions import BATCH_TOKEN_PREFIX
+from qaboard.conventions import BATCH_TOKEN_PREFIX, Reason
 
 PREFIX = 'qab_pat_'
 SERVICE_PREFIX = 'qab_svc_'
@@ -230,12 +230,15 @@ def batch_needs_token(ci_commit) -> bool:
   return setting('ingest.auth') == 'token'
 
 
-def mint_for_batch(actor, ci_commit, command_id: str, runner: str, log_dir=None, until_stopped: bool = False) -> Optional[str]:
+def mint_for_batch(actor, ci_commit, command_id: str, runner: str, *, batch_label: str, log_dir=None, until_stopped: bool = False,
+                   optimize: bool = False) -> Optional[str]:
   """
   The token of the runs of a batch QA-Board starts (tuning, redo, `qa batch --commit`) with `runner`, if they need
   one (batch_needs_token), else None. None too for RUNNERS_WITHOUT_TOKEN: artifacts.runner_unsupported refuses them
   first when a token is needed. It is `actor`'s, who starts the batch:
-  - limited to the project, to reading and sending results (`read`, `ingest`);
+  - limited to the project, to reading and sending results (`read`, `ingest`), and it only sends the results of its own
+    batch: the commit and `batch_label` (and with `optimize`, the `qa optimize` iterations "<label>|iter<N>"), see
+    batch_allows;
   - revoked when the batch is stopped (revoke_batch_tokens), or ENDED_BATCH_GRACE after its last run ended
     (end_batch_token), unless `until_stopped`: `qa optimize` starts batch after batch with the same command id, and a
     redo runs pending runs that `qa batch` doesn't register again under its command id;
@@ -257,10 +260,60 @@ def mint_for_batch(actor, ci_commit, command_id: str, runner: str, log_dir=None,
     projects=[ci_commit.project_id], expires_at=utcnow() + datetime.timedelta(days=30), idle_expiry_days=1,
     created_by=user, actor=actor, data={
       "command_id": command_id, **({"log_dir": str(log_dir)} if log_dir else {}), **({"until_stopped": True} if until_stopped else {}),
+      # its batch (batch_allows)
+      "project": ci_commit.project_id, "commit": ci_commit.hexsha, "batch": batch_label, **({"optimize": True} if optimize else {}),
     },
   )
   db_session.commit()
   return secret
+
+
+# Why a batch token is refused (the `reason` of the 403s): it was used outside of its batch
+BATCH_TOKEN_REFUSAL = Reason.BATCH_TOKEN_LIMITED
+
+
+def is_batch_token(token) -> bool:
+  return getattr(token, 'kind', None) == 'batch'
+
+
+def batch_label_allowed(data: dict, batch_label: Optional[str]) -> bool:
+  """
+  Whether a batch token minted with `data` may send results to the batch `batch_label`: its own, and for
+  `qa optimize` the batches of its iterations, "<label>|iter<N>" (qaboard/optimize.py)
+  """
+  own = data.get('batch')
+  if not isinstance(own, str) or not isinstance(batch_label, str):
+    return False
+  if batch_label == own:
+    return True
+  return bool(data.get('optimize')) and re.fullmatch(re.escape(own) + r"\|iter\d+", batch_label) is not None
+
+
+def batch_allows(token, project_id: Optional[str], hexsha: Optional[str], batch_label: Optional[str] = None, any_batch: bool = False) -> bool:
+  """
+  Whether a batch token (mint_for_batch) may send results of this commit, and of this batch unless `any_batch`
+  (commits). Its batch is a commit and a label, whichever way the server started it:
+  - tuning and `qa batch --commit`: the label of the form;
+  - `qa optimize`: the label, and its iterations' (other batches, with the same command id);
+  - redo: the label of the batch whose runs are done again. Pending runs keep the command id of the `qa batch` that
+    first registered them, so the command id can't tell its runs.
+  Sub-projects of its project too: a batch can run theirs, e.g. a monorepo's. Batch tokens that don't say their batch
+  (none shipped in a release) can't send anything.
+  """
+  data = token.data or {}
+  commit = data.get('commit')
+  if not isinstance(commit, str) or not isinstance(hexsha, str) or hexsha.lower() != commit.lower():
+    return False
+  if not data.get('project') or not project_id or not matches_project([data['project']], project_id):
+    return False
+  return any_batch or batch_label_allowed(data, batch_label)
+
+
+def batch_description(token) -> str:
+  data = token.data or {}
+  commit, label = data.get('commit') or '?', data.get('batch') or '?'
+  iterations = f" (and its iterations, {label}|iter<N>)" if data.get('optimize') else ''
+  return f"the batch \"{label}\"{iterations} of the commit {commit[:8]} of {data.get('project') or '?'}"
 
 
 def active_batch_tokens(command_ids: List[str]):

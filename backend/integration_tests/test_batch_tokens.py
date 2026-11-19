@@ -1,27 +1,28 @@
 """
 The tokens of the batches QA-Board starts (tokens.mint_for_batch): revoked when the batch is stopped, ending soon
-after its runs end, and the only way its driver sends its log when it doesn't see the server's storage.
+after its runs end, the only way its driver sends its log when it doesn't see the server's storage, and limited to
+their own batch (tokens.batch_allows).
 """
 import datetime
 
 import pytest
 
 from .conftest import bearer
-from .test_ingest import output_payload, PROJECT
+from .test_ingest import output_payload, commit_payload, PROJECT, SHA
 from .test_jobs import storage  # noqa: F401 (fixture)
 
 COMMAND_ID = "44444444-4444-4444-8444-444444444444"
 
 
-def batch_token(user_name, command_id=COMMAND_ID, **data):
-  """A batch token of `user_name`, as mint_for_batch makes them"""
+def batch_token(user_name, command_id=COMMAND_ID, batch="default", **data):
+  """A batch token of `user_name`, as mint_for_batch makes them: for the batch `batch` of the commit SHA"""
   from backend.database import db_session
   from backend.models import User
   from backend import tokens
   user = User.query.filter(User.user_name == user_name).one()
   token, secret = tokens.mint(user, name="Batch", scopes=['read', 'ingest'], kind='batch', projects=[PROJECT],
                               expires_at=tokens.utcnow() + datetime.timedelta(days=30), idle_expiry_days=1,
-                              data={"command_id": command_id, **data})
+                              data={"command_id": command_id, "project": PROJECT, "commit": SHA, "batch": batch, **data})
   db_session.commit()
   return token.id, secret
 
@@ -97,3 +98,125 @@ def test_the_driver_sends_its_log_with_the_batchs_token(logged_in, make_client, 
   _, outside = batch_token('alice', log_dir=str(tmp_path))
   assert client.put(f"{url}?offset=0", headers=bearer(outside), data=b"x").status_code == 400
   assert (log_dir / "log.txt").read_text() == "hello\nworld\n"
+
+
+# --- a batch's token only reaches its own batch ---------------------------------------------------------------------
+OTHER_SHA = 'c' * 40
+
+
+@pytest.fixture
+def uploads_root(storage, monkeypatch):
+  from backend import config
+  root = storage / "uploads"
+  root.mkdir()
+  monkeypatch.setattr(config, "upload_root", root)
+  return root
+
+
+def refused(response):
+  assert response.status_code == 403, (response.status_code, response.get_json())
+  assert response.get_json()["reason"] == "batch_token_limited", response.get_json()
+  assert "token of a batch QA-Board started" in response.get_json()["error"]
+  return True
+
+
+def start_run(client, secret, **extra):
+  """What `qa run` sends when a run starts, without a shared storage: returns the response"""
+  return client.post('/api/v1/output/', headers=bearer(secret), json=output_payload(storage="upload", is_pending=True, is_running=True, **extra))
+
+
+def test_a_batch_token_is_refused_outside_of_its_batch(logged_in, make_client, uploads_root):
+  alice = logged_in('alice', is_admin=True)
+  personal = alice.post('/api/v1/user/tokens', json={"name": "t", "scopes": ["read", "ingest", "act"]}).get_json()["token"]
+  _, secret = batch_token('alice', batch="tuning")
+  client = make_client()
+  # its own batch: runs, their files and progress, the batch, the commit
+  mine = start_run(client, secret, batch_label="tuning")
+  assert mine.status_code == 200, mine.get_json()
+  mine = mine.get_json()["id"]
+  assert client.put(f"/api/v1/output/{mine}/files/log.txt", headers=bearer(secret), data=b"x").status_code == 200
+  assert client.patch(f"/api/v1/output/{mine}/progress", headers=bearer(secret), json={"metrics": {"loss": 1}}).status_code == 200
+  assert client.post('/api/v1/batch/', headers=bearer(secret), json=commit_payload(batch_label="tuning")).status_code == 200
+  assert client.post('/api/v1/commit/', headers=bearer(secret), json=commit_payload()).status_code == 200
+
+  # batch B of the same commit, sent with a personal token
+  theirs = start_run(client, personal, batch_label="nightly").get_json()["id"]
+  assert refused(client.put(f"/api/v1/output/{theirs}/files/log.txt", headers=bearer(secret), data=b"stolen"))
+  assert refused(client.patch(f"/api/v1/output/{theirs}/progress", headers=bearer(secret), json={"metrics": {"loss": 0}}))
+  assert refused(start_run(client, secret, batch_label="nightly"))
+  assert refused(client.post('/api/v1/batch/', headers=bearer(secret), json=commit_payload(batch_label="nightly")))
+  assert client.put(f"/api/v1/output/{theirs}/files/log.txt", headers=bearer(personal), data=b"ok").status_code == 200
+  # another commit
+  assert refused(start_run(client, secret, batch_label="tuning", commit_sha=OTHER_SHA))
+  assert refused(client.post('/api/v1/batch/', headers=bearer(secret), json=commit_payload(batch_label="tuning", commit_sha=OTHER_SHA)))
+  assert refused(client.post('/api/v1/commit/', headers=bearer(secret), json=commit_payload(commit_sha=OTHER_SHA)))
+  assert refused(client.post(f'/api/v1/commit/{OTHER_SHA}', headers=bearer(secret), json=commit_payload()))
+  # artifacts: batches only fetch them
+  url = f"/api/v1/commit/{SHA}/artifacts/files/qaboard.yaml?project={PROJECT}"
+  assert refused(client.put(url, headers={**bearer(secret), "X-Content-SHA256": "0" * 64}, data=b"x"))
+  # nor anything else that changes the project, even what the user could do
+  assert refused(client.post('/api/v1/project/access/requests', headers=bearer(secret), json={"project": PROJECT, "role": "maintainer"}))
+  assert refused(client.post('/api/v1/batch/stop', headers=bearer(secret), json={"id": 1}))
+  # reading stays project-wide
+  answer = client.get(f"/api/v1/commit/{OTHER_SHA}?project={PROJECT}", headers=bearer(secret))
+  assert answer.status_code != 403, answer.get_json()
+
+
+def test_nginx_asks_before_receiving_a_batch_tokens_files(logged_in, make_client, uploads_root):
+  alice = logged_in('alice', is_admin=True)
+  personal = alice.post('/api/v1/user/tokens', json={"name": "t", "scopes": ["read", "ingest", "act"]}).get_json()["token"]
+  _, secret = batch_token('alice', batch="tuning")
+  client = make_client()
+  mine = start_run(client, secret, batch_label="tuning").get_json()["id"]
+  theirs = start_run(client, personal, batch_label="nightly").get_json()["id"]
+  ask = lambda token, uri: client.put('/api/v1/uploads/authorize', headers=bearer(token), environ_base={"QABOARD_ORIGINAL_URI": uri})
+  assert ask(secret, f"/api/v1/output/{mine}/files/log.txt?offset=0").status_code == 204
+  assert refused(ask(secret, f"/api/v1/output/{theirs}/files/log.txt"))
+  assert refused(ask(secret, f"/api/v1/commit/{SHA}/artifacts/files/a.txt?project={PROJECT}"))
+  assert ask(personal, f"/api/v1/commit/{SHA}/artifacts/files/a.txt?project={PROJECT}").status_code == 204
+
+
+def test_qa_optimize_sends_its_iterations(logged_in, make_client, uploads_root):
+  """`qa optimize` runs each evaluation in a batch "<label>|iter<N>", with the same token, then updates its batch"""
+  logged_in('alice', is_admin=True)
+  _, secret = batch_token('alice', batch="tuning", optimize=True, until_stopped=True)
+  client = make_client()
+  for iteration in (1, 2):
+    run = start_run(client, secret, batch_label=f"tuning|iter{iteration}", data={"root_command_id": f"iteration-{iteration}"})
+    assert run.status_code == 200, run.get_json()
+  answer = client.post('/api/v1/batch/', headers=bearer(secret), json=commit_payload(batch_label="tuning", data={
+    "optimization": True, "iteration": 2, "is_best_iter": True, "iteration_label": "tuning|iter2"}))
+  assert answer.status_code == 200, answer.get_json()
+  assert refused(start_run(client, secret, batch_label="tuning|other"))
+  assert refused(start_run(client, secret, batch_label="other|iter1"))
+  # tokens of other batches can't send iterations
+  _, tuning = batch_token('alice', command_id="66666666-6666-4666-8666-666666666666", batch="tuning")
+  assert refused(start_run(client, tuning, batch_label="tuning|iter3"))
+
+
+def test_a_redo_runs_pending_runs_of_another_command(logged_in, make_client, uploads_root):
+  """Redone runs that were pending keep the command id of the `qa batch` that registered them: the batch decides"""
+  alice = logged_in('alice', is_admin=True)
+  personal = alice.post('/api/v1/user/tokens', json={"name": "t", "scopes": ["read", "ingest", "act"]}).get_json()["token"]
+  client = make_client()
+  first_command = "77777777-7777-4777-8777-777777777777"
+  pending = client.post('/api/v1/output/', headers=bearer(personal), json=output_payload(
+    storage="upload", is_pending=True, data={"root_command_id": first_command})).get_json()["id"]
+  # the redo's token, for the batch of the runs it does again
+  _, secret = batch_token('alice', batch="default", until_stopped=True)
+  run = start_run(client, secret, data={"root_command_id": first_command})
+  assert run.status_code == 200 and run.get_json()["id"] == pending
+  assert client.put(f"/api/v1/output/{pending}/files/log.txt", headers=bearer(secret), data=b"x").status_code == 200
+  done = client.post('/api/v1/output/', headers=bearer(secret), json=output_payload(storage="upload", data={"root_command_id": first_command}))
+  assert done.status_code == 200, done.get_json()
+
+
+def test_batch_tokens_that_dont_say_their_batch_send_nothing(logged_in, make_client):
+  logged_in('alice', is_admin=True)
+  from backend.database import db_session
+  from backend.models import Token
+  token_id, secret = batch_token('alice')
+  token = db_session.get(Token, token_id)
+  token.data = {"command_id": COMMAND_ID}
+  db_session.commit()
+  assert refused(make_client().post('/api/v1/output/', headers=bearer(secret), json=output_payload()))

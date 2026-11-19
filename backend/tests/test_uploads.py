@@ -494,6 +494,61 @@ def test_put_saves_appends_and_checks(outputs_api, dummy_app):
   assert put(outputs_api, dummy_app, "log.txt", query="?offset=abc")[1] == 400
 
 
+def a_batch_token(batch="default", commit=COMMIT, **data):
+  return SimpleNamespace(kind="batch", data={"command_id": "c0ffee00-1", "project": "group/repo", "commit": commit, "batch": batch, **data})
+
+
+def test_batch_tokens_only_send_their_batchs_runs(outputs_api, dummy_app):
+  """The token of a batch QA-Board started (tokens.mint_for_batch) can't reach other batches' runs"""
+  from flask import g
+  outputs_api.test_output.batch.label = "default"
+  def as_token(token, call):
+    with dummy_app.test_request_context("/"):
+      g.actor = SimpleNamespace(user="alice", token=token)
+      return call()
+  start(outputs_api, dummy_app)
+  # its own batch
+  own = a_batch_token()
+  assert as_token(own, lambda: start(outputs_api, dummy_app))[1] == 200
+  assert as_token(own, lambda: put(outputs_api, dummy_app, "log.txt"))[1] == 200
+  # another batch, another commit
+  for token in (a_batch_token("nightly"), a_batch_token(commit="f" * 40)):
+    response, status = as_token(token, lambda: start(outputs_api, dummy_app))
+    assert status == 403 and response.get_json()["reason"] == "batch_token_limited"
+    body, status = as_token(token, lambda: put(outputs_api, dummy_app, "log.txt"))
+    assert status == 403 and body["reason"] == "batch_token_limited" and "token of a batch" in body["error"]
+  # other tokens: as before
+  assert as_token(SimpleNamespace(kind="personal", data={}), lambda: put(outputs_api, dummy_app, "log.txt"))[1] == 200
+
+
+def test_authorize_upload_with_a_batch_token(outputs_api, dummy_app):
+  """nginx says which URL (QABOARD_ORIGINAL_URI): a batch token only sends its own batch's files"""
+  from flask import g
+  outputs_api.test_output.batch.label = "default"
+  def ask(token, uri):
+    environ = {"QABOARD_ORIGINAL_URI": uri} if uri is not None else {}
+    with dummy_app.test_request_context("/api/v1/uploads/authorize", method="PUT", environ_base=environ):
+      g.actor = SimpleNamespace(user="u", token=token, has_scope=lambda scope: True)
+      response = outputs_api.authorize_upload()
+    if isinstance(response, tuple) and response[1] == 403:
+      assert response[0].get_json()["reason"] == "batch_token_limited"
+    return response[1] if isinstance(response, tuple) else 200
+  own, other = a_batch_token(), a_batch_token("nightly")
+  assert ask(own, "/api/v1/output/7/files/log.txt?offset=4") == 204
+  assert ask(other, "/api/v1/output/7/files/log.txt") == 403
+  # artifacts: only `qa save-artifacts` sends them
+  assert ask(own, f"/api/v1/commit/{COMMIT}/artifacts/files/qaboard.yaml?project=group/repo") == 403
+  # its own log only (tokens.batch_token_for)
+  with_log = a_batch_token(log_dir="/logs/x")
+  with_log.projects = ["group/repo"]
+  assert ask(with_log, "/api/v1/batch/submissions/c0ffee00-1/log?offset=0") == 204
+  assert ask(with_log, "/api/v1/batch/submissions/c0ffee00-2/log?offset=0") == 403
+  # nginx didn't say
+  assert ask(own, None) == 403
+  # other tokens don't depend on the URL
+  assert ask("t", None) == 204
+
+
 def test_put_only_for_running_runs_that_upload(outputs_api, dummy_app):
   start(outputs_api, dummy_app)
   start(outputs_api, dummy_app, is_pending=False, is_running=False)

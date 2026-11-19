@@ -17,6 +17,7 @@ from ..notifications.batches import request_batch_notification
 from .export_to_folder import filter_outputs
 from ..access import invalid_project
 from .auth import login_required, require_project_access, ingest_access
+from ..actor import batch_token_limits
 from ..audit import audit
 
 
@@ -72,6 +73,8 @@ def update_batch():
   submitted_by, error = ingest_access(data.get('project'))
   if error:
     return error
+  if refused := batch_token_limits(data.get('project'), data.get('commit_sha') or data.get('git_commit_sha'), data['batch_label'], what="change this batch"):
+    return refused
   if batch_data.get('optimization'):
     iteration = batch_data.get('iteration')
     if not isinstance(iteration, int):
