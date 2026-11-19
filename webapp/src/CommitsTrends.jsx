@@ -8,35 +8,26 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Classes } from '@blueprintjs/core';
 
 import { commitsQuery, fileQuery } from './api/queries';
+import { commit_page } from './components/CommitRow';
+import { make_output_filter } from './CommitsEvolution';
+import { manifestQuery } from './viewers/OutputCard';
+import { hasGroups } from './metricGroups';
 import { history } from './router';
 import { path_segment } from './selection';
-import { match_query } from './utils';
 import { is_junit } from './viewers/fileTypes';
 import { parseJunit } from './viewers/junit/parse';
-import { trendsOf, hasTrends, hasGroups } from './trends/model';
+import { trendsOf, hasTrends } from './trends/model';
 import { SectionErrorBoundary } from './components/ErrorFallback';
 
 const TrendsReport = lazy(() => import('./trends/Trends').then(m => ({ default: m.TrendsReport })));
 const TrendsTiles = lazy(() => import('./trends/Trends').then(m => ({ default: m.TrendsTiles })));
 
-const commit_page = (project, commit, label) => {
-  const search = label && label !== 'default' ? `?${new URLSearchParams({ batch: label, batch_ref: label })}` : '';
-  return `/${path_segment(project)}/commit/${commit.id}${search}`;
-};
-
-// like the filter of the runs on the commit pages: words that must all match the input, platform or configurations
-const output_filter_of = filter => {
-  if (!filter) return () => true;
-  const matches = match_query(filter);
-  return output => matches(`${output.test_input_path} ${output.platform} ${JSON.stringify(output.configurations)}`.replace(/"/g, ''));
-};
-
 // The commits that have the batch as points, oldest first.
 // - with_runs: the commits came with their outputs (History): points have their runs, those that match `filter`,
-//   and count like the server's aggregates (not pending, failed or deleted). Otherwise points have what the server
+//   like History's chart (make_output_filter), and count like the server's aggregates (not pending, failed or deleted). Otherwise points have what the server
 //   aggregated: lists of commits always have `outputs`, empty (api/normalize.js), so we can't tell by looking.
 export function pointsOf(commits, { project, batch_label = 'default', with_runs = false, filter }) {
-  const matches = output_filter_of(filter);
+  const matches = make_output_filter(filter ?? '');
   return commits
     .filter(commit => !!commit.batches?.[batch_label])
     .map(commit => {
@@ -67,7 +58,7 @@ function useLoadTests() {
     for (const run of (point.runs ?? []).slice(0, MAX_RUNS_READ)) {
       const dir = run.output?.output_dir_url;
       if (!dir) continue;
-      const manifest = await queryClient.fetchQuery(fileQuery(`${dir}/manifest.outputs.json`)).catch(() => null);
+      const manifest = await queryClient.fetchQuery(manifestQuery(run.output)).catch(() => null);
       if (!manifest || typeof manifest !== 'object') continue;
       for (const path of Object.keys(manifest).filter(is_junit).sort()) {
         // the reports of a hundred commits can be big: we don't keep their text once it is read
@@ -108,12 +99,13 @@ export function HistoryTrends({ project, commits, batch_label, available_metrics
 // Above a branch's commits. The list has what the server aggregated: enough for totals and their parts (tests).
 // Groups of metrics (benchmarks) need the runs: we ask for them when the commits have few runs, as with uploads.
 const MAX_RUNS = 2000;
-export function BranchTiles({ project, branch, commits, date_range, available_metrics }) {
+// - complete: the list has every commit of the dates, so its runs are those the request would bring
+export function BranchTiles({ project, branch, commits, date_range, available_metrics, complete = true }) {
   const wants_runs = useMemo(() => hasGroups(available_metrics), [available_metrics]);
   const runs_count = commits.reduce((sum, commit) => sum + (commit.batches?.default?.valid_outputs ?? 0), 0);
   const { data: with_runs } = useQuery({
     ...commitsQuery({ project, branch, from: date_range[0].toISOString(), to: date_range[1].toISOString(), metrics: {}, with_outputs: true, only_ci_batches: true }),
-    enabled: wants_runs && commits.length > 1 && runs_count <= MAX_RUNS,
+    enabled: wants_runs && complete && commits.length > 1 && runs_count <= MAX_RUNS,
   });
   const points = useMemo(() => pointsOf(with_runs ?? commits, { project, with_runs: !!with_runs }), [with_runs, commits, project]);
   const trends = useMemo(() => trendsOf(points, available_metrics), [points, available_metrics]);

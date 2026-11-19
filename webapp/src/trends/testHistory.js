@@ -29,7 +29,8 @@ export function buildTestHistory(reports) {
         entry = { id: test.id, name: test.name ?? test.id, path: test.path ?? [test.id], statuses: new Uint8Array(count), times: new Float32Array(count) };
         by_id.set(test.id, entry);
       }
-      entry.statuses[i] = CODES[test.status] ?? CODES.passed;
+      // a status we don't know didn't pass or fail, as far as we can tell
+      entry.statuses[i] = CODES[test.status] ?? CODES.skipped;
       entry.times[i] = test.time ?? 0;
     }
   }
@@ -62,7 +63,8 @@ export function buildTestHistory(reports) {
     test.failing_since = FAILING(statuses[last]) ? since : null;
     test.fixed_at = !FAILING(statuses[last]) && statuses[last] !== CODES.absent && failures > 0 && previous === false ? since : null;
     test.added_at = statuses[first] === CODES.absent ? loaded.find(i => statuses[i] !== CODES.absent) : null;
-    test.removed_at = statuses[last] === CODES.absent ? loaded.find(i => i > lastPresent(statuses, loaded)) ?? null : null;
+    const last_present = statuses[last] === CODES.absent ? lastPresent(statuses, loaded) : null;
+    test.removed_at = last_present === null ? null : loaded.find(i => i > last_present) ?? null;
     test.last_time = last_time;
     test.slowdown = first_time !== null && last_time !== null && Math.max(first_time, last_time) >= MIN_TIME ? last_time / first_time : null;
   }
@@ -82,7 +84,7 @@ export const VIEWS = [
     is: t => t.failing_since !== null, sort: (a, b) => a.flaky - b.flaky || b.failing_since - a.failing_since },
   { id: 'flaky', label: 'Flaky', empty: 'No test failed, passed, then failed again, or passed only when run again.',
     is: t => t.flaky, sort: (a, b) => b.streaks - a.streaks || b.failures - a.failures },
-  { id: 'slower', label: 'Slower', empty: 'No test takes over 1.5× the time it took at the start.',
+  { id: 'slower', label: 'Slower', empty: `No test takes over ${SLOWER}× the time it took at the start.`,
     is: t => t.slowdown !== null && t.slowdown >= SLOWER, sort: (a, b) => (b.last_time * (1 - 1 / b.slowdown)) - (a.last_time * (1 - 1 / a.slowdown)) },
   { id: 'fixed', label: 'Fixed', empty: 'No test that failed in these commits passes now.',
     is: t => t.fixed_at !== null && !t.flaky, sort: (a, b) => b.fixed_at - a.fixed_at },

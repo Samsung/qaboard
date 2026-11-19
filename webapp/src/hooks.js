@@ -18,7 +18,7 @@ import { default_project } from "./defaults";
 import { milestonesQuery, milestones_of, milestone_name, no_milestones } from "./milestones/api";
 import { side_color } from "./sideColors";
 import { with_undeclared_metrics } from "./utils";
-import { compositionKeys } from "./trends/model";
+import { listMetricKeys } from "./metricGroups";
 import { automatic_default_view, batch_facts, default_views_of } from "./defaultViews";
 
 // The keys of a Set of metrics, as a string that only changes when they do
@@ -136,7 +136,7 @@ export const aggregation_metrics = (qatools_metrics, { dashboard = false } = {})
   const main = Array.isArray(main_metrics) ? main_metrics : [];
   // lists also get totals and their parts (the tests of `qa upload`), for the numbers above a branch's commits.
   // After the project's own: the server aggregates a limited number of metrics (max_aggregated_metrics).
-  const keys = dashboard ? (Array.isArray(dashboard_metrics) ? dashboard_metrics : main) : [default_metric, ...main, ...compositionKeys(available_metrics).slice(0, 10)];
+  const keys = dashboard ? (Array.isArray(dashboard_metrics) ? dashboard_metrics : main) : [default_metric, ...main, ...listMetricKeys(available_metrics)];
   return Object.fromEntries(keys
     .filter(m => !!m)
     .map(m => [m, available_metrics[m]?.target ?? 0]));

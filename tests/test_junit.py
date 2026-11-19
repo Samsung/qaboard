@@ -53,6 +53,12 @@ class TestJunit(unittest.TestCase):
     self.assertEqual((metrics['failed'].definition['smaller_is_better'], metrics['failed'].definition['target']), (True, 0))
     self.assertEqual(sorted(junit_metrics(read_junit(self.write(REPORT)), prefix='unit_'))[0], 'unit_errors')
 
+  def test_definitions_are_those_the_web_app_is_tested_on(self):
+    # webapp/src/trends/__tests__/model.test.js reads the same file
+    fixture = json.loads((Path(__file__).parent / 'fixtures' / 'metrics' / 'junit-definitions.json').read_text())
+    definitions = {key: metric.definition for key, metric in junit_metrics(self.write(REPORT)).items()}
+    self.assertEqual(definitions, fixture['definitions'])
+
   def test_metrics_are_grouped_and_add_up(self):
     metrics = junit_metrics(self.write(REPORT))
     self.assertEqual({key: metric.definition.get('group') for key, metric in metrics.items()}, dict.fromkeys(metrics, 'Tests'))

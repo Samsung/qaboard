@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { pointsOf } from '../CommitsTrends';
 import { aggregation_metrics } from '../hooks';
 import { normalize_commit } from '../api/normalize';
-import { trendsOf, hasTrends } from '../trends/model';
+import { trendsOf, hasTrends, AGGREGATIONS, INTENTS } from '../trends/model';
+import { compositionKeys, hasGroups, listMetricKeys, MAX_LIST_METRICS } from '../metricGroups';
+import schema from 'qaboard-schemas/metrics.schema.json';
+import junit from '../../../tests/fixtures/metrics/junit-definitions.json';
 import { TEST_DEFINITIONS } from '../trends/generate';
 
 const commit = (id, date, batch) => ({ id, authored_datetime: date, message: `${id}\n\ndetails`, batches: { default: batch } });
@@ -53,5 +56,41 @@ describe('the metrics lists of commits ask for', () => {
     const keys = Object.keys(aggregation_metrics({ available_metrics: TEST_DEFINITIONS, default_metric: 'm0', main_metrics }));
     expect(keys.slice(0, 15)).toEqual(main_metrics);
     expect(keys[15]).toBe('tests');
+  });
+});
+
+describe('what definitions say of groups', () => {
+  const bench = group => ({ group, smaller_is_better: true });
+  it('finds totals first, then their parts and what adds up with them', () => {
+    const keys = compositionKeys({ ...TEST_DEFINITIONS, bench_a: bench('Benchmarks/codec') });
+    expect([...keys].sort()).toEqual(Object.keys(TEST_DEFINITIONS).sort());
+    expect(keys[0]).toBe('tests');
+    expect(keys.at(-1)).toBe('test_time');
+    expect(listMetricKeys(TEST_DEFINITIONS).length).toBeLessThanOrEqual(MAX_LIST_METRICS);
+  });
+  it('knows groups that need the runs from a total\'s own', () => {
+    expect(hasGroups(TEST_DEFINITIONS)).toBe(false);
+    expect(hasGroups({ ...TEST_DEFINITIONS, bench_a: bench('Benchmarks/codec') })).toBe(true);
+    // grouped metrics that say how they aggregate are groups too
+    expect(hasGroups({ loss: { group: 'Training', aggregation: 'average' } })).toBe(true);
+    expect(hasGroups({ psnr: { label: 'PSNR' } })).toBe(false);
+  });
+});
+
+// Python (qaboard/metrics.py), the schema and the web app must agree: tests/test_schemas.py checks Python's side
+describe('the vocabulary of definitions', () => {
+  const { properties } = schema.$defs.metric;
+  it('is the schema\'s', () => {
+    expect(Object.keys(AGGREGATIONS).sort()).toEqual([...properties.aggregation.enum].sort());
+    expect([...INTENTS].sort()).toEqual([...properties.intent.enum].sort());
+  });
+  it('reads the definitions junit_metrics returns, like the generated ones of the playground', () => {
+    // tests/test_junit.py checks the same file against qaboard/junit.py
+    for (const [key, definition] of Object.entries(junit.definitions))
+      expect([key, definition]).toEqual([key, expect.objectContaining(TEST_DEFINITIONS[key])]);
+    const points = [{ id: 'a', runs: [{ metrics: { tests: 3, passed: 2, failed: 1, errors: 0, skipped: 0, flaky: 0, test_time: 2 } }] }];
+    const [tests] = trendsOf(points, junit.definitions).composed;
+    expect(tests.parts.map(s => s.key)).toEqual(['passed', 'skipped', 'flaky', 'failed', 'errors']);
+    expect(tests.extras.map(s => s.key)).toEqual(['test_time']);
   });
 });

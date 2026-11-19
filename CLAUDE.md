@@ -66,7 +66,8 @@ The parallel coordinates of Tuning Analysis (`webapp/src/viewers/parallel/`, dra
 for `qa optimize` batches, `TuningReport.jsx` for the others (logic in `optimization.js` and `analysis.js`), with explanations in `learn.jsx`.
 Trends over a branch's commits (`webapp/src/trends/`, standalone, prototype): tests and benchmarks in History and tiles above a branch's
 commits, drawn from the metrics' definitions (`group`, `aggregation`, `part_of`, `intent`: `qaboard/metrics.py`, set by `junit_metrics` and
-`benchmark_metrics`); the app's adapter is `src/CommitsTrends.jsx`. Playground: `/trends.html?commits=100&tests=20000&benchmarks=600`.
+`benchmark_metrics`); the app's adapter is `src/CommitsTrends.jsx`, its requests use `src/metricGroups.js`, and
+`trends/__tests__/isolation.test.js` checks it imports nothing from the app. Playground: `/trends.html?commits=100&tests=20000&benchmarks=600`.
 The commit page's Metrics Table and Metrics Diff (`components/tables.jsx`, with `components/metricsTable/`) too: `/metrics-table.html?runs=2000&metrics=30`.
 Like the image viewer, `viewers/benchmarks/` and `viewers/flamegraph/` are standalone: they import nothing from the app, which
 only loads their adapters (`viewers/benchmarks-viewer.jsx`, `viewers/flame-graph.jsx`), lazily. `viewers/__tests__/isolation.test.js`

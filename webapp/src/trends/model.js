@@ -18,10 +18,12 @@ export const AGGREGATIONS = {
     return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
   },
 };
-export const aggregationOf = definition => AGGREGATIONS[definition?.aggregation] ? definition.aggregation : 'median';
+// the keys of what the server aggregated: tests_sum, tests_median...
+const AGGREGATED = new RegExp(`_(${Object.keys(AGGREGATIONS).join('|')})$`);
+const aggregationOf = definition => AGGREGATIONS[definition?.aggregation] ? definition.aggregation : 'median';
 
 // "Benchmarks / codec" => ["Benchmarks", "codec"]
-export const groupPath = group => typeof group === 'string' ? group.split('/').map(s => s.trim()).filter(Boolean) : [];
+const groupPath = group => typeof group === 'string' ? group.split('/').map(s => s.trim()).filter(Boolean) : [];
 
 // A metric's value for a commit, over its runs
 export function valueAt(point, key, definition, run_filter) {
@@ -48,12 +50,15 @@ export function buildSeries(points, definitions = {}, { run_filter } = {}) {
       for (const run of point.runs)
         for (const key in run.metrics ?? {}) keys.add(key);
     } else {
-      for (const key in point.aggregated ?? {}) keys.add(key.replace(/_(sum|average|median)$/, ''));
+      for (const key in point.aggregated ?? {}) keys.add(key.replace(AGGREGATED, ''));
     }
   }
+  // only the metrics whose definitions say where they go: a project's other metrics can be many, with many runs
+  const totals = new Set(Object.values(definitions).map(d => d?.part_of).filter(Boolean));
   const series = [];
   for (const key of keys) {
     const definition = definitions[key] ?? {};
+    if (!definition.group && !definition.part_of && !totals.has(key)) continue;
     const values = points.map(point => valueAt(point, key, definition, run_filter));
     if (values.every(v => v === null)) continue;
     series.push({
@@ -108,7 +113,7 @@ export function compositions(series) {
 
 // The series that aren't part of a composition, as a tree of their groups:
 // {name, path, children: [nodes], series: [in this group], all: [in this group and below]}
-export function groupTree(series, composed = compositions(series)) {
+function groupTree(series, composed = compositions(series)) {
   const used = new Set();
   for (const c of composed) {
     used.add(c.key);
@@ -158,22 +163,9 @@ export const hasTrends = ({ composed, tree }) => composed.length > 0 || tree.chi
 const slug = text => String(text).replace(/[^\w-]+/g, '-');
 export const anchorOf = { total: key => `trends-total-${slug(key)}`, group: name => `trends-group-${slug(name)}` };
 
-// The metrics the trends need when the server aggregates them (lists of commits): totals, their parts and what
-// else is in their groups. Groups of other metrics (benchmarks) can be thousands: they need the commits' runs.
-export function compositionKeys(definitions = {}) {
-  const totals = new Set(Object.values(definitions).map(d => d?.part_of).filter(Boolean));
-  const groups = new Set([...totals].map(key => definitions[key]?.group).filter(Boolean));
-  const keys = Object.keys(definitions).filter(key => totals.has(key) || totals.has(definitions[key]?.part_of)
-    || (groups.has(definitions[key]?.group) && !!definitions[key]?.aggregation));
-  // totals first, then their parts: callers that can't ask for all of them keep the most useful
-  const rank = key => totals.has(key) ? 0 : definitions[key]?.part_of ? 1 : 2;
-  return keys.sort((a, b) => rank(a) - rank(b));
-}
-export const hasGroups = (definitions = {}) => Object.values(definitions).some(d => !!d?.group && !d.part_of && !d.aggregation);
-
 // The commits where at least one of the series has a value: the others didn't measure this at all (no benchmark job
 // on that commit), which says nothing about the scope.
-export function measuredIndexes(series_list, count) {
+function measuredIndexes(series_list, count) {
   const indexes = [];
   for (let i = 0; i < count; i++)
     if (series_list.some(s => s.values[i] !== null)) indexes.push(i);
@@ -317,9 +309,9 @@ export function formatNumber(value, precision) {
   if (precision !== undefined) return value.toLocaleString('en', { maximumFractionDigits: precision });
   return value.toLocaleString('en', { maximumSignificantDigits: 3 });
 }
-// with the metric's scale and unit: 0.0042 s => "4.2 ms"
+// as the metric's definition says: its scale, precision and unit (0.0042 with scale 1000 and " ms" => "4.2 ms")
 export const formatValue = (value, definition = {}) => is_number(value)
-  ? `${formatNumber(value * (definition.scale ?? 1))}${definition.suffix ?? ''}`
+  ? `${formatNumber(value * (definition.scale ?? 1), definition.precision)}${definition.suffix ?? ''}`
   : '–';
 // 1.034 => "+3.4%"
 export function formatRatio(ratio) {

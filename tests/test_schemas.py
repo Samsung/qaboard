@@ -79,6 +79,11 @@ class TestSchemas(unittest.TestCase):
     from qaboard.metrics import FIELDS
     from qaboard.junit import junit_metrics
     self.assertEqual(set(self.schemas['metrics.schema.json']['$defs']['metric']['properties']), set(FIELDS))
+    # the values too: the web app's trends are tested against the schema's (webapp/src/__tests__/CommitsTrends.test.js)
+    from qaboard.metrics import AGGREGATIONS, INTENTS
+    properties = self.schemas['metrics.schema.json']['$defs']['metric']['properties']
+    self.assertEqual(set(properties['aggregation']['enum']), set(AGGREGATIONS))
+    self.assertEqual(set(properties['intent']['enum']), set(INTENTS))
     cases = [{'id': 'a::b', 'classname': 'a', 'name': 'b', 'status': 'failed', 'time': 1.0}]
     definitions = {key: metric.definition for key, metric in junit_metrics(cases, prefix='unit_', group='Tests/unit').items()}
     self.assertEqual(self.errors('metrics_definitions.schema.json', definitions), [])

@@ -185,9 +185,9 @@ const CiCommitList = () => {
       {(scope === 'mine' || hide_ci) && !search && <ReferenceHead project={project} project_data={project_data} commit={latest_commit} density={density}/>}
       {show_batches && <BatchList key={`${scope}|${hide_ci}`} project={project} project_data={project_data} branch={branch} scope={scope} hide_ci={hide_ci} onShowEveryone={show_everyone}/>}
       {!show_batches && <>
-      {/* the chart has a fixed width: it scrolls rather than spill out of the card */}
       {/* tests, benchmarks: headline numbers that open History */}
-      {show_metrics_over_time && <BranchTiles project={project} branch={branch} commits={commits} date_range={date_range} available_metrics={evolution_project_data.data?.qatools_metrics?.available_metrics}/>}
+      {show_metrics_over_time && <BranchTiles project={project} branch={branch} commits={commits} date_range={date_range} complete={!hasNextPage} available_metrics={evolution_project_data.data?.qatools_metrics?.available_metrics}/>}
+      {/* the chart has a fixed width: it scrolls rather than spill out of the card */}
       {show_metrics_over_time && <Card elevation={0} style={{marginBottom: '15px', overflowX: 'auto'}}>
         <h4 className={Classes.HEADING}>Performance over time</h4>
         <CommitsEvolution

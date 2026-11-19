@@ -705,4 +705,4 @@ const OutputCard = memo(function OutputCard(props) {
 })
 
 
-export { OutputCard };
+export { OutputCard, manifestQuery };

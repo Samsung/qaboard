@@ -21,7 +21,7 @@ import { hash_color, match_query, average, median, metric_info } from "./utils";
 import { matching_output } from "./matching/match";
 import { yAxisSuffix, hasAllMetrics, sum } from "./evolutionAxis";
 import CommitRow from "./components/CommitRow";
-import { compositionKeys } from "./trends/model";
+import { listMetricKeys } from "./metricGroups";
 
 
 // As wide as its container
@@ -431,8 +431,8 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
   const offered_metrics = useMemo(() => {
     const listed = select_metrics || main_metrics;
     if (listed.length > 0) return listed;
-    // the same ones lists of commits ask the server to aggregate (aggregation_metrics in hooks.js)
-    return compositionKeys(available_metrics).slice(0, 10);
+    // the ones lists of commits ask the server to aggregate (aggregation_metrics in hooks.js)
+    return listMetricKeys(available_metrics);
   }, [select_metrics, main_metrics, available_metrics]);
   const default_metric = configured_default_metric || offered_metrics[0];
   const flag = (name, default_value) => query[name] !== undefined ? query[name] === 'true' : default_value;
@@ -563,4 +563,5 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
   );
 }
 
+export { make_output_filter };
 export default CommitsEvolution;

@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildSeries, compositions, findGroup, scopeOf, changeOf, movers, groupIndex, trendsOf, hasTrends,
-  compositionKeys, hasGroups, samplePoints, formatRatio, valueAt,
+  samplePoints, formatRatio, formatValue, valueAt,
 } from '../model';
 import { buildTestHistory, mergeReports, VIEWS, packagesOf, commonPackage } from '../testHistory';
 import { generate, TEST_DEFINITIONS } from '../generate';
@@ -23,7 +23,7 @@ describe('series over commits', () => {
 
   it('reads what the server aggregated when commits come without runs', () => {
     const points = [{ id: 'a', aggregated: { tests_sum: 40, tests_median: 20 } }, { id: 'b', aggregated: {} }];
-    const [series] = buildSeries(points, { tests: { aggregation: 'sum' } });
+    const [series] = buildSeries(points, { tests: { group: 'Tests', aggregation: 'sum' } });
     expect(series.values).toEqual([40, null]);
   });
 
@@ -39,12 +39,10 @@ describe('series over commits', () => {
     expect(tests.extras.map(s => s.key)).toEqual(['test_time']);
     // the tests' metrics aren't listed again as a group; metrics without a group stay at the root
     expect(trends.tree.children.map(c => c.name)).toEqual(['Benchmarks']);
-    expect(trends.tree.series.map(s => s.key)).toEqual(['loose']);
+    // a metric that says nothing of where it goes isn't looked at
+    expect(trends.series.map(s => s.key)).not.toContain('loose');
     expect(findGroup(trends.tree, ['Benchmarks', 'maps', 'tiles']).all.map(s => s.key)).toEqual(['bench_b']);
     expect(findGroup(trends.tree, ['Benchmarks']).all).toHaveLength(2);
-    expect(compositionKeys(definitions).sort()).toEqual(Object.keys(TEST_DEFINITIONS).sort());
-    expect(hasGroups(definitions)).toBe(true);
-    expect(hasGroups(TEST_DEFINITIONS)).toBe(false);
   });
 
   it('keeps the parts in the same order whatever their values: their colors don\'t swap', () => {
@@ -71,11 +69,6 @@ describe('series over commits', () => {
     const plain = trendsOf([point('a', [{ psnr: 30 }])], { psnr: { label: 'PSNR' } });
     expect(hasTrends(plain)).toBe(false);
     expect(plain.series).toEqual([]);
-  });
-
-  it('asks lists of commits for totals first', () => {
-    expect(compositionKeys(TEST_DEFINITIONS)[0]).toBe('tests');
-    expect(compositionKeys(TEST_DEFINITIONS).at(-1)).toBe('test_time');
   });
 });
 
@@ -246,6 +239,11 @@ describe('helpers', () => {
     expect(sampled).toHaveLength(100);
     expect([sampled[0], sampled.at(-1)]).toEqual([0, 249]);
     expect(samplePoints([1, 2], 100)).toEqual([1, 2]);
+  });
+  it('formats values as their definition says', () => {
+    expect(formatValue(0.0042, { scale: 1000, suffix: ' ms' })).toBe('4.2 ms');
+    expect(formatValue(31.4159, { precision: 1, suffix: ' dB' })).toBe('31.4 dB');
+    expect(formatValue(null, {})).toBe('–');
   });
   it('formats ratios', () => {
     expect(formatRatio(1.034)).toBe('+3.4%');

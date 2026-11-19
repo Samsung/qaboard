@@ -8,13 +8,13 @@ import { Button, HTMLSelect, Icon, InputGroup, ProgressBar, Switch, Tag } from '
 
 import {
   findGroup, movers, countDirections, groupIndex, groupDirection, changeOf,
-  formatNumber, formatValue, formatRatio, formatDelta, plural, samplePoints, trendsOf, hasTrends, anchorOf,
+  formatNumber, formatValue, formatRatio, formatDelta, plural, samplePoints, trendsOf, hasTrends, anchorOf, MIN_CHANGE,
 } from './model';
 import { buildTestHistory, mergeReports, VIEWS, STATUS_NAMES, packagesOf, inPackage, commonPackage } from './testHistory';
 import { Columns, Line, Sparkline, StatusStrip } from './charts';
 import './trends.css';
 
-export const MAX_REPORTS = 100;
+const MAX_REPORTS = 100;
 
 export const useTrends = (points, definitions, run_filter) => useMemo(
   () => trendsOf(points, definitions, { run_filter }),
@@ -71,7 +71,7 @@ const Change = ({ ratio, direction, delta, definition }) => {
 };
 const changeProps = (change, series) => ({ ratio: change.ratio, delta: change.delta, direction: change.direction, definition: series.definition });
 const directionOfRatio = (ratio, smaller_is_better) => {
-  if (!Number.isFinite(ratio) || Math.abs(ratio - 1) < 0.005) return 'same';
+  if (!Number.isFinite(ratio) || Math.abs(ratio - 1) < MIN_CHANGE) return 'same';
   if (smaller_is_better === undefined || smaller_is_better === null) return 'changed';
   return (ratio < 1) === smaller_is_better ? 'better' : 'worse';
 };
@@ -211,7 +211,7 @@ const TestFact = ({ view, test, points, loaded }) => {
 };
 
 const PAGE = 25;
-export function TestHistory({ points: all_points, loadTests }) {
+function TestHistory({ points: all_points, loadTests }) {
   const points = useMemo(() => samplePoints(all_points, MAX_REPORTS), [all_points]);
   const { reports, done } = useReports(points, loadTests);
   const ready = done === points.length && points.length > 0;
@@ -290,8 +290,24 @@ export function TestHistory({ points: all_points, loadTests }) {
 }
 
 
+// The commits' reports are read when asked: a request or more per commit, and reports can be big
+function TestsSection({ points, loadTests }) {
+  const [asked, setAsked] = useState(false);
+  const count = Math.min(points.length, MAX_REPORTS);
+  return <section className="qa-trends-section" id="trends-each-test">
+    <header className="qa-trends-header">
+      <h3>Each test over the commits</h3>
+      <span className="qa-trends-muted">which tests fail and since when, which are flaky, slower, new or gone</span>
+    </header>
+    {asked
+      ? <TestHistory points={points} loadTests={loadTests}/>
+      : <Button icon="history" onClick={() => setAsked(true)}>Read the test reports of {plural(count, 'commit')}</Button>}
+  </section>;
+}
+
+
 // --- A total and its parts: tests ---
-export function CompositionSection({ composition, points, loadTests, onSelect }) {
+function CompositionSection({ composition, points, onSelect }) {
   const [hover, setHover] = useState(null);
   const layers = useMemo(() => layersOf(composition.parts), [composition]);
   const volume = layers.filter(l => !is_problem(l));
@@ -320,10 +336,6 @@ export function CompositionSection({ composition, points, loadTests, onSelect })
       <div className="qa-trends-chart-title">{extra.label}</div>
       <Line {...shared} values={extra.values} height={96} name={extra.label} formatValue={v => formatValue(v, extra.definition)} label={`${extra.label} per commit`}/>
     </div>)}
-    {loadTests && <>
-      <div className="qa-trends-chart-title qa-trends-subtitle">Each test over the commits</div>
-      <TestHistory points={points} loadTests={loadTests}/>
-    </>}
   </section>;
 }
 
@@ -336,7 +348,6 @@ const DIRECTION_FILTERS = [
   { id: 'added', label: 'Added' },
   { id: 'removed', label: 'Removed' },
 ];
-const percent = ratio => formatRatio(ratio);
 
 function ScopeLine({ scope, same_scope, onChange, noun }) {
   const changed = scope.added.length + scope.removed.length + scope.partial.length;
@@ -361,7 +372,7 @@ function ScopeLine({ scope, same_scope, onChange, noun }) {
   </div>;
 }
 
-export function GroupSection({ node, points, onSelect }) {
+function GroupSection({ node, points, onSelect }) {
   const count = points.length;
   const [path, setPath] = useState([]);
   const [same_scope, setSameScope] = useState(true);
@@ -420,7 +431,7 @@ export function GroupSection({ node, points, onSelect }) {
         <span className="qa-trends-muted"> · {same_scope ? `the ${formatNumber(index.members.length)} in every commit` : 'whatever each commit measured'}</span>
       </div>
       <Line
-        {...shared} values={index.values} height={130} reference={1} name="Mean change" formatValue={percent}
+        {...shared} values={index.values} height={130} reference={1} name="Mean change" formatValue={formatRatio}
         extra={same_scope ? undefined : i => `over ${index.counts[i]}`}
         label={`${current.name}: geometric mean of the metrics against the first commit`}
       />
@@ -500,7 +511,8 @@ export function GroupSection({ node, points, onSelect }) {
 export function TrendsReport({ points, trends, loadTests, onSelect }) {
   if (!hasTrends(trends)) return null;
   return <SelectContext.Provider value={onSelect}><div className="qa-trends">
-    {trends.composed.map(composition => <CompositionSection key={composition.key} composition={composition} points={points} loadTests={loadTests} onSelect={onSelect}/>)}
+    {trends.composed.map(composition => <CompositionSection key={composition.key} composition={composition} points={points} onSelect={onSelect}/>)}
+    {loadTests && trends.composed.length > 0 && <TestsSection points={points} loadTests={loadTests}/>}
     {trends.tree.children.map(node => <GroupSection key={node.name} node={node} points={points} onSelect={onSelect}/>)}
   </div></SelectContext.Provider>;
 }

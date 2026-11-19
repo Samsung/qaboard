@@ -21,7 +21,8 @@ Here a *test* is a test case of your reports, like `test_decode_empty`, not an i
 - **Tests**: the tests each commit passed or skipped, and below, on its own scale, those that didn't pass: failed,
   errors, and *flaky* ones, which the test runner says passed only when run again. Hover a commit to read its numbers,
   click it to open it.
-- **Each test over the commits** reads the commits' reports (at most 100 commits, spread over the dates you picked):
+- **Each test over the commits**: click **Read the test reports** to read the commits' reports (at most 100 commits,
+  spread over the dates you picked, and the first 20 runs of each):
   - **Failing now** says since which commit, the tests that just broke first.
   - **Flaky** lists the tests that failed, passed, then failed again, or passed only when run again.
   - **Fixed** lists the tests that failed in these commits and pass now, then **Slower**, **Added**, **Removed**
@@ -98,7 +99,8 @@ the branch's commits, **Code**, **Integrations** and **Milestones**.
 
 ## Choose what the chart shows {#performance-over-time}
 **Performance over time** has one point per commit, for the selected **metric** (pick another at the top left; the
-project's configuration chooses which ones are offered, else all the metrics of the runs).
+project's configuration chooses which ones are offered, else all the metrics of the runs). Counts, like a test
+report's, add up over a commit's runs by default; other metrics show their median.
 
 <Shot
   id="history/performance-over-time"
