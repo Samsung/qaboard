@@ -192,7 +192,10 @@ def test_tuning_runner_warns_when_batches_run_in_the_server(admin, monkeypatch, 
   if runner in ('local', 'celery'):
     assert "backend's container" in variable["warning"] and "kubernetes" in variable["warning"]
   checklist = {item["id"]: item for item in admin.get('/api/v1/admin/overview').get_json()["checklist"]}
-  assert checklist["server_runner"]["ok"] is (runner not in ('local', 'celery'))
+  # not ok either for a runner that doesn't exist: every batch is refused
+  assert checklist["server_runner"]["ok"] is (runner in (None, 'kubernetes', 'lsf'))
+  if runner == 'dask':
+    assert "isn't a runner" in checklist["server_runner"]["title"]
 
 
 def test_rotating_the_key(admin, monkeypatch):
