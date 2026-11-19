@@ -286,7 +286,9 @@ transcript.
 **Files:** *.html*, e.g. reports your code renders.
 
 Each report shows in a frame of its own, the new run's above the reference's. Images and links relative to the HTML
-file work, and its styles don't change the page. The frame grows to fit the report once it loaded.
+file work, and its styles don't change the page. The frame is as wide as the card, and grows to fit the report once
+it loaded, up to the window's height: taller reports scroll in their frame. Change it with `style: {maxHeight: 2000px}`
+([sizes](/docs/visualizations#styles)).
 
 :::caution Scripts in HTML files
 By default, HTML and SVG files from runs show in QA-Board's origin: opened in a tab (from the file browser or a link),

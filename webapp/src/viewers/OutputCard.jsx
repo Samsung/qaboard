@@ -457,7 +457,7 @@ const OutputCard = memo(function OutputCard(props) {
   const already_shown_options = new Set();
   const render_view = (view, idx) => {
     if (!is_shown(view))
-      return <span key={idx} />
+      return null;
 
     const view_options = Object.entries(shown_options).filter(([, option]) => option.views?.includes(view.name));
     // inputs for unsynced options, and why we don't show the selected value, come before the first visualization that uses the option
@@ -519,7 +519,7 @@ const OutputCard = memo(function OutputCard(props) {
       if (!new_available && path?.endsWith('.png'))
         new_available = !!manifest_new?.[path.replace(/\.png$/i, '.tiff')];
       if (!new_available)
-        return <span key={key}/>
+        return null;
 
       // For the reference: only fallback if the exact file doesn't exist
       let path_ref = path;
@@ -628,14 +628,16 @@ const OutputCard = memo(function OutputCard(props) {
         added_metrics={output_new.added_metrics}
         metrics_ref={output_ref?.metrics && output_ref.id !== output_new.id ? output_ref.metrics : {}}
       />
-      {views.map(render_view)}
+      {/* one visualization under the other, with room between them */}
+      <div className="output-card-views">{views.map(render_view)}</div>
     </>
   }
 
   const container_style = {
     flex: "0 0 auto",
-    // as wide as the page allows, up to outputs.style.width in qaboard.yaml, else 1500px
-    width: at_most(style.width || '1500px'),
+    // the whole row: one card under the other. With outputs.style.width in qaboard.yaml, at most that wide: narrow
+    // cards then sit side by side, as many as fit
+    width: at_most(style.width) ?? '100%',
     // wider when a viewer needs it, e.g. a plot wider than outputs.style.width: it would spill out of the card
     minWidth: 'min-content',
     marginBottom: "250px !important",
