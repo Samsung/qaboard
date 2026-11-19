@@ -137,7 +137,8 @@ def test_invalid_settings(key, value, error):
 
 
 def test_valid_settings():
-  assert settings.validate('tokens.max_lifetime_days', None) is None
+  assert settings.validate('email.smtp_port', None) is None
+  assert settings.validate('tokens.max_lifetime_days', 30) == 30
   assert settings.validate('auth.allowed_origins', ['https://a']) == ['https://a']
 
 

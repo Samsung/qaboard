@@ -293,8 +293,8 @@ DEFINITIONS = {
     90, int, minimum=1, label="Default token lifetime", group='tokens', unit='days',
   ),
   'tokens.max_lifetime_days': Definition(
-    "The longest lifetime users may choose for their tokens. Empty: no maximum, and tokens without an expiry date are allowed.",
-    365, int, nullable=True, minimum=1, label="Longest token lifetime", group='tokens', unit='days',
+    "The longest lifetime users may choose for their tokens: tokens without an expiry date can't be created.",
+    365, int, minimum=1, label="Longest token lifetime", group='tokens', unit='days',
   ),
   'tokens.cli_idle_expiry_days': Definition(
     "Tokens created by `qa auth login` expire after this many days without being used.",

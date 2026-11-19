@@ -550,7 +550,7 @@ def test_settings_list(admin):
   assert settings["auth.require_sign_in"]["value"] is False and settings["auth.require_sign_in"]["env"] == "QABOARD_LOGIN_REQUIRED"
   assert settings["ingest.auth"]["value"] == "off" and settings["ingest.auth"]["choices"] == ["off", "warn", "token"]
   assert settings["tokens.default_lifetime_days"]["value"] == 90
-  assert settings["tokens.max_lifetime_days"]["value"] is None
+  assert settings["tokens.max_lifetime_days"]["value"] == 365
   assert settings["tokens.cli_idle_expiry_days"]["value"] == 180
   assert settings["audit.retention_days"]["value"] == 730
   assert settings["auth.local_signup"]["value"] is True
@@ -609,7 +609,7 @@ def test_settings_update_reset_and_audit(admin):
   assert settings["ingest.auth"]["value"] == "warn" and settings["ingest.auth"]["source"] == "database"
   from backend.models import AuditEvent, Setting
   events = {e.target_id: e for e in AuditEvent.query.filter(AuditEvent.action == 'setting.update')}
-  assert events["tokens.max_lifetime_days"].changes == {"value": {"from": None, "to": 30}}
+  assert events["tokens.max_lifetime_days"].changes == {"value": {"from": 365, "to": 30}}
   assert events["ingest.auth"].changes == {"value": {"from": "off", "to": "warn"}}
   assert all(e.actor_label == "root" and e.target_type == "setting" for e in events.values())
   assert Setting.query.filter(Setting.key == 'ingest.auth').one().updated_by_id == user_id("root")
@@ -623,7 +623,7 @@ def test_settings_update_reset_and_audit(admin):
   response = admin.post('/api/v1/admin/settings', json={"ingest.auth": None, "tokens.max_lifetime_days": None})
   settings = {s["key"]: s for s in response.get_json()["settings"]}
   assert settings["ingest.auth"]["value"] == "off" and settings["ingest.auth"]["source"] == "default"
-  assert settings["tokens.max_lifetime_days"]["value"] is None and settings["tokens.max_lifetime_days"]["source"] == "default"
+  assert settings["tokens.max_lifetime_days"]["value"] == 365 and settings["tokens.max_lifetime_days"]["source"] == "default"
   assert Setting.query.count() == 0
   event = AuditEvent.query.filter(AuditEvent.action == 'setting.update', AuditEvent.target_id == 'ingest.auth').order_by(AuditEvent.id.desc()).first()
   assert event.changes == {"value": {"from": "warn", "to": "off"}}
@@ -657,8 +657,11 @@ def test_env_wins_over_database_settings(admin, monkeypatch):
 
 def test_max_token_lifetime_takes_effect(admin, logged_in):
   bob = logged_in('bob')
+  # by default, a year at most
   response = bob.post('/api/v1/user/tokens', json={"name": "forever", "scopes": ["read"], "expires_in_days": None})
-  assert response.status_code == 201 and response.get_json()["expires_at"] is None
+  assert response.status_code == 400 and "at most 365 days" in response.get_json()["error"]
+  response = bob.post('/api/v1/user/tokens', json={"name": "a year", "scopes": ["read"], "expires_in_days": 365})
+  assert response.status_code == 201
   assert admin.post('/api/v1/admin/settings', json={"tokens.max_lifetime_days": 30}).status_code == 200
 
   response = bob.post('/api/v1/user/tokens', json={"name": "forever", "scopes": ["read"], "expires_in_days": None})
