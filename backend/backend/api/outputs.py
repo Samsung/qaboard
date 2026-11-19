@@ -343,7 +343,8 @@ def authorize_upload():
     return jsonify({"error": "No token that can send results: run `qa auth login`, or in CI set QABOARD_TOKEN to a token with the ingest scope.", "reason": "login_required"}), 401
   if actor.token is not None and not actor.has_scope('ingest'):
     return jsonify({"error": "This token can't send results: it needs the \"ingest\" scope.", "reason": "missing_scope", "required": "ingest"}), 403
-  return '', 204
+  # nginx passes it on with the file: the endpoints know it asked (uploads.unchecked_by_proxy)
+  return '', 204, {uploads.PROXY_CHECKED_HEADER: '1'}
 
 
 @app.route("/api/v1/output/<int:output_id>/files/<path:path>", methods=['PUT'])
@@ -359,6 +360,8 @@ def upload_output_file(output_id, path):
   Always with a token that can send results to the project, whatever ingest.auth says: the files are served to
   everyone who opens the run.
   """
+  if refused := uploads.unchecked_by_proxy(request.environ):
+    return jsonify({"error": str(refused), "reason": refused.reason}), refused.status
   output = Output.query.filter(Output.id==output_id).one_or_none()
   project_id = output.batch.ci_commit.project_id if output is not None else None
   # who can't see the project doesn't learn whether the run exists

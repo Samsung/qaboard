@@ -393,7 +393,7 @@ nginx serves the output and artifacts files under `/s/`, and by default anyone w
 - **Restricted projects**: with `QABOARD_LOGIN_RESTRICTED`, only the users allowed to see a project read its files.
 - **Unix permissions**: in some folders, like `/home`, users only read what their own Unix account can read.
 
-In both cases, nginx must ask the backend before sending files: add `include snippets/qaboard-files-auth.conf;` to **all** the `/s/` locations of your nginx configuration (with the helm chart, set `proxy.restrictFiles: true`). Files can be reached from several locations through symlinks: the backend checks where links lead, but only for the locations that ask it.
+In both cases, nginx must ask the backend before sending files: add `include snippets/qaboard-files-auth.conf;` to **all** the `/s/` locations of your nginx configuration, and `include snippets/qaboard-files-server.conf;` to its `server` block (with the helm chart, set `proxy.restrictFiles: true`). Without the latter, nginx refuses to serve those files rather than serve them unchecked. Files can be reached from several locations through symlinks: the backend checks where links lead, but only for the locations that ask it.
 
 In the [file browser](../user-guide/files.mdx), users who are not signed in see **Sign in to see these files**, others **You don't have access**. Scripts can authenticate with an API token: `curl -H "Authorization: Bearer <token>" https://qaboard/s/...`
 

@@ -129,11 +129,13 @@ Whoever can send files can put any file on your server, which serves it to every
   before their body is read, so they can't fill its disk. Its configuration has it for the files' and the batch logs'
   paths (`snippets/qaboard-uploads-auth.conf`): keep it if you write your own, with
   `include snippets/qaboard-files-server.conf;` in the `server` block, which defines the check it calls: without it,
-  nginx lets every request through. With the Helm chart, the ingress
+  nginx refuses these requests (500, saying which snippet is missing), and the backend refuses files that nginx
+  didn't check. With the Helm chart, the ingress
   controller in front of it receives bodies first (up to 1100m): limit who can reach the ingress, or the size, if
   that matters.
-- **Inside a Kubernetes cluster**, pods can reach the backend's Service directly, without the proxy: the backend still
-  checks tokens and sizes, but not before it receives the body.
+- **Inside a Kubernetes cluster**, pods can reach the backend's Service directly, without the proxy. Its HTTP port
+  refuses files, but a client that speaks uWSGI's protocol to its other port can say the proxy checked them: the
+  backend still checks tokens and sizes, but not before it receives the body.
 - **A batch's token can send any results of its project** while it's valid, not only its batch's: who can read it
   (the driver pod's ConfigMap) can write the project's running runs and its commits' artifacts.
 - **Use HTTPS**: tokens and files travel in the requests.

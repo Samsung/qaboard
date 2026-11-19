@@ -46,7 +46,7 @@ SYNC_INTERVAL = 10.0
 TIMEOUT = (10.0, 600.0)
 RETRY_DELAYS = (1.0, 4.0)
 # Why the server won't take any file of the run: we stop asking
-FATAL_REASONS = ('uploads_disabled', 'not_uploaded', 'not_running')
+FATAL_REASONS = ('uploads_disabled', 'not_uploaded', 'not_running', 'proxy_misconfigured')
 # How much of the end of what we sent of a growing file we remember, to know it is still the same file
 TAIL_SIZE = 64
 

@@ -243,6 +243,8 @@ def append_submission_log(command_id):
   `?offset=<size>`: the log's current size, else 409 with its `size`. Only with the batch's own token
   (tokens.mint_for_batch): it says which folder.
   """
+  if refused := uploads.unchecked_by_proxy(request.environ):
+    return jsonify({"error": str(refused), "reason": refused.reason}), refused.status
   token = batch_token_for(g.get('actor'), command_id)
   if token is None:
     return jsonify({"error": "Only the batch's own token can send its log.", "reason": "batch_token_required"}), 403
