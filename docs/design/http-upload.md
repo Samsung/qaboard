@@ -4,10 +4,42 @@ Status: proposal v1 (2026-10-12), for review. Context: `docs/docs-overhaul-plan.
 step 6: GitHub-hosted runners need HTTP upload) and §10 ("HTTP upload: yes, designed properly first").
 Line references are to this branch's tree.
 
-> **What was built (2026-11-17):** a small part of this design, as experimental: one `PUT` per file into a
-> server-managed folder, the log sent as it grows, tokens always. See `docs/design/ingest-upload-sdk.md` for what
-> exists, the decisions, and what is left; sessions, parts, packs, the content store and object storage below are
-> not built.
+> **Status (2026-11-19): a proposal, mostly superseded.** What was built is a small part of it, simpler: one `PUT`
+> per file into a folder the server chooses, appends by `?offset=`, tokens always. `docs/design/ingest-upload-sdk.md`
+> is the map of what exists, the decisions, and what is left (§3). The table below says what became of each section;
+> the rest of this page is kept as the proposal it was (line references are to the October tree).
+
+| § | Proposed | Status |
+|---|---|---|
+| 1.3.1 | Authenticated ingest | **Partial**: `ingest.auth` `off`/`warn`/`token` (`api/auth.py` `ingest_access`), `off` by default everywhere. Files always need a token. Anonymous results can't replace a run that sent its files (`outputs.py`), but can replace shared-storage runs |
+| 1.3.2 | No stored XSS | **Partial**: the HTML viewer is a sandboxed iframe; `/s/` sandboxes HTML, SVG and XML only with `QABOARD_SANDBOX_HTML` (off by default), and sends `nosniff` |
+| 1.3.3 | `/iiif/` checks access | **Not built** |
+| 1.3.4 | Image APIs read storage only | **Built** (`readable_file`) |
+| 1.3.5 | Tokens | **Built**: hashed, named, scopes (`read`, `ingest`, `act`, `admin`), projects, expiry (90 days by default, no maximum unless `tokens.max_lifetime_days`), a page, `?token=` read-only, `qab_bat_` batch tokens. The `ingest:` YAML became the project's developer role. CI OIDC (phase 4) is built: `ci_trust.py` |
+| 1.3.6 | Manifests not rewritten | **Built**: `?refresh` needs a signed-in user, and an uploaded run that ended keeps the manifest it sent |
+| 3.1 | `upload: never\|auto\|always`, `QA_UPLOAD`, a storage marker | **Superseded**: no `storage` or `storage: upload` sends files; `qa upload` saves where the shared storage is mounted, else sends |
+| 3.1 | Relative paths computed by the CLI | **Superseded**: the server chooses the folder (`uploads.run_dir`) |
+| 3.2 | Staging folder, `QA_STAGING_KEEP` | **Superseded**: runs are saved in the project's `output/`, like local runs |
+| 3.3 | Log streamed, sha256 in manifests, `QA_UPLOAD_CONCURRENCY` | **Partial**: log appended every 10 s; SHA-256 per request (`X-Content-SHA256`), not in manifests; 4 threads, fixed |
+| 3.4 | `--offline` + `qa upload --pending` | **Superseded**: a run the server never heard of isn't sent later |
+| 3.4 | Retries | **Built**, shorter: 3 tries, about 2 minutes for a run's end and its last files, `Retry-After` up to 60 s, 520-524 too |
+| 3.4 | Fail CI on lost results | **Built** (`QA_UPLOAD_ERRORS` not): `qa run` exits 1 in CI when files or the run's end didn't reach the server, `qa upload` when files didn't; the run's `data.files_missing` says how many files |
+| 3.4 | Version handshake (`min_cli`, 400 for old CLIs) | **Not built**. `User-Agent: qaboard/<version>` is sent |
+| 4.2-4.5 | Sessions, blobs, parts, packs, commit, idempotency keys | **Superseded** by one `PUT` per file (temporary name + rename), appends at an offset (409 `offset_mismatch`) |
+| 4.3 | `GET /config` `uploads` | **Partial**: `enabled`, `max_file_size`, `off_reason` |
+| 4.4 | Runs visible only when complete | **Not built**: files show as they arrive; a run is finished when the client says so (after sending everything). Nothing fences off an older attempt still sending |
+| 4.6 | Dedupe, parts for large files, compression | **Not built**: files up to `QABOARD_UPLOAD_MAX_FILE_MB` (1 GiB), no resume |
+| 4.6 | Per-token limits, 429 | **Not built** |
+| 5 | Server-managed root at today's paths | **Built**, another layout (`<project>/-/<sha[:2]>/<sha[2:]>/...`). No content store, state folder or trash. Storage locations (`locations.py`) were added: mounted buckets per project |
+| 6.3 | Limits | **Partial**: per file (1 GiB) and a free-space floor (1 GB, not atomic). No limit per run, on files per run, or quotas |
+| 6.4 | Paths | **Built** (no NFC check; paths up to 1024 bytes). `O_NOFOLLOW`, no way out through symlinks. The CLI doesn't send links that point out of the folder |
+| 6.5 | GC | **Partial**: silent runs are failed (`heartbeats.py`); temporary files left by killed requests are removed after a day (`uploads.remove_stale_temporary_files`), and nginx doesn't serve them |
+| 7 | Bit accuracy from manifests | **Built** (`run_files.py`); downloading the files that differ, for `QA_BITACCURACY_CMP`, not |
+| 7 | Artifacts, batch logs | **Built**: artifacts file by file with SHA-256 (`commit_artifacts.py`); batch logs from the Kubernetes driver (`batch_log.py`) |
+| 7 | `qa batch` matching | **Built** by run id; a pending run that sent its files is settled as failed |
+| 8 | `uploads`, `upload_parts`, `project_storage` tables | **Not built** (not needed without sessions). `outputs.reported_at`, `storage_locations` added |
+| 10.3 | Phases | 1: built but IIIF and the defaults. 2a: built, simpler. 2b: artifacts, batch logs, bit accuracy, chart, helm-e2e built; dedupe, quotas, async commit, ingest pool, load test not. 3: not planned (ingest-upload-sdk.md §4) |
+| 11 | Tests | Unit tests (`backend/tests/test_uploads.py`, `tests/test_upload*.py`...), e2e in compose (`.github/scripts/uploads_e2e.py`) and on kind (`helm_e2e.py`). Missing: the real `Uploader` against the Flask app, Range on a running log, 403/400 refusals and deletion end to end, fault injection, load |
 
 ## TL;DR
 - **Same files, same paths, new transport.** The server stores uploaded runs under a root it manages, at the

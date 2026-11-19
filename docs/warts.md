@@ -20,7 +20,9 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   a tab could run their scripts too, and the class of bugs goes away. [L, behaviour]
 - **Anonymous results**: while `ingest.auth` is `off` (the default), anyone can send results to any project, and through
   the `qaboard_config` they send, add hosts to the integrations' allow-list or Jenkins jobs that anonymous `qa` may start.
-  Per-project ingest policies and CI OIDC trust are milestone M5 (docs/design/user-management.md). [M, API]
+  They can also replace existing runs, sent with a token or not: runs are found by what anyone can read about them
+  (`Output.get_or_create`), and the anonymous request repoints the run's folder. Only runs that sent their files over
+  HTTP are protected (403 `ingest_token_required`). Per-project ingest policies and CI OIDC trust are milestone M5 (docs/design/user-management.md). [M, API]
 - The webhook and git proxies use `verify=False` (internal hosts with certificates the server doesn't trust): make it a
   setting, on by default for new installs. [S, behaviour]
 - The GitLab "play job" endpoint doesn't check that the job is listed in qaboard.yaml (GitHub workflows do): left out so
@@ -41,7 +43,7 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   forward if a future version deprecates them. [L, no change]
 - **History page with outputs** is still ~2 s and ~19 MB for 25k outputs (backend/benchmarks/bench_api.py): building ORM
   objects and `Output.to_dict`. Serialize from SQL rows (no ORM), or paginate/stream outputs. [M]
-- `GET .../manifest` writes manifests (api/outputs.py): make the refresh a POST, with OutputCard.jsx's `?refresh=true`. [S, API]
+- `GET .../manifest?refresh=true` writes manifests (api/outputs.py; signed-in users only, never for uploaded runs that ended): make the refresh a POST, with OutputCard.jsx's. [S, API]
 - `trigger_jenkins_build` holds a uwsgi worker for 5-30 s (sleeps, then polls Jenkins' queue), and `jenkins_build` retries
   with nested bare `except`s. The status check fails with a 500 while a build is queued (no `building` in a queue item). [M]
 - Commit search uses `ILIKE` over the project's commits (~40 ms for 5k commits). For projects with 100k+ commits, add
@@ -142,8 +144,8 @@ object storage mount.
 - `qa upload` keeps a copy of what it sends in the project's (or the current folder's) *output/*, like any shared
   run: CI workspaces don't mind, laptops may. [S, behaviour]
 - Left by the security reviews of the endpoints that write files (first three in `backend-admin/uploads.mdx`):
-  - uploaded HTML and SVG run as the people who open them unless `QABOARD_SANDBOX_HTML` is on (off by default, for
-    every run: reports with scripts would change for shared-storage sites) [S, behaviour];
+  - uploaded HTML, SVG and XML run as the people who open them unless `QABOARD_SANDBOX_HTML` is on (off by default,
+    for every run: reports with scripts would change for shared-storage sites). `/s/` sends `nosniff` [S, behaviour];
   - with `QABOARD_TUNING_RUNNER=local` or `celery` (opt-in, warned about in Admin → Settings), anyone who can send a
     project's artifacts or start its batches runs code as the backend's account and reads its files (only the
     environment is scrubbed) [M, behaviour];
@@ -162,8 +164,13 @@ object storage mount.
     never create commits or projects). Lowercasing for everyone would move shared-storage folders, which both the
     server and `qa` derive from the id as given, and orphan existing upper-case rows [S, behaviour];
   - the files pre-check (`snippets/qaboard-files-server.conf`, `/__qaboard/files-auth`) still passes the raw
-    `$request_uri`, unlike the uploads one (`$uri`) [S];
-  - a SIGKILL during a write leaves a `.qaboard-upload-*` file next to it. [S]
+    `$request_uri`, unlike the uploads one (`$uri`): switching needs `path_from_url` to stop decoding a second time,
+    else `%252e` becomes `..` [S];
+  - a SIGKILL (or uWSGI's harakiri) during a write leaves a `.qaboard-upload-*` file next to it: not served, and
+    removed by the jobs worker after a day (only when it runs). [S]
+  - files show as they arrive, and a run started again while its previous attempt still sends gets the old
+    attempt's late files (`ingest-upload-sdk.md` §3 item 6) [S-M];
+  - uploads share uWSGI's threads with the web app, with no limit per token (§3 item 4) [M].
 - Files a run removed after they were sent (`outputs.live`) stay on the server. [S, behaviour]
 - A run killed without a chance to say so (SIGKILL, a lost machine) is failed after
   `QABOARD_SILENT_RUN_TIMEOUT_MINUTES` (`backend/backend/heartbeats.py`), with the files it sent: only runs from
@@ -179,7 +186,7 @@ object storage mount.
   pod gets the batch's files in its ConfigMap (768 KiB at most) and sends its log with the token: what it prints
   after the token expired, that the server refused, beyond 4 MiB while the server is slow, or after 60 s at the end
   is only in the pod's logs (the log's first line says how to read them) [S]; `qa optimize` can't resume an experiment
-  started again (its journal stays in the pod). See `docs/design/ingest-upload-sdk.md` §1 and §3 item 6. `qa check-bit-accuracy`
+  started again (its journal stays in the pod). See `docs/design/ingest-upload-sdk.md` §1 and §3 item 13. `qa check-bit-accuracy`
   compares fetched manifests only, not files (`QA_BITACCURACY_CMP`); `qa optimize` keeps its journal on the machine
   that runs it. `qaboard.runs(url)` gives uploaded runs' `output_dir` on the server, not a local folder. [L]
 - Storage locations (`backend/backend/locations.py`) are reached through folders the admin mounts: no credentials,

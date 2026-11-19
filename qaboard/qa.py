@@ -438,7 +438,8 @@ def notify_run_ended(run_context, **kwargs):
     kwargs['data'] = {**(kwargs.get('data') or {}), 'files_missing': _reporter.files_missing}
   answer = notify_qa_database(**run_context.obj, **kwargs, is_pending=False, is_running=False)
   obj = run_context.obj
-  _run_end_lost = answer is None and (is_ci or bool(obj.get('share'))) and not obj.get('offline') and not obj.get('dryrun')
+  # runs in a shared storage keep their files: like files not sent, only uploads fail CI for it
+  _run_end_lost = answer is None and sends_files(obj)
   if _reporter is not None:
     _reporter.ended(known=answer is not None)
   return answer

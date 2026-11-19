@@ -17,7 +17,7 @@ and when it doesn't work, `qa doctor` tells them why and what to do.
 Out of scope for now: clusters without a shared filesystem. We assume the pods see the code, the inputs and the
 outputs at the same paths as the machine that runs `qa batch`. Later, HTTP upload (`docs/design/http-upload.md`) will
 remove the need for shared outputs, and an image per commit the need for shared code. Both exist now: `storage:
-upload`, and `{commit}` in `image` with `workdir` (`docs/design/ingest-upload-sdk.md` §1, what is left in §3 item 6).
+upload`, and `{commit}` in `image` with `workdir` (`docs/design/ingest-upload-sdk.md` §1, what is left in §3 item 13).
 
 ## Prior art (what we compete with)
 | Tool | Submits | Template | Identity in the pod | Quotas |

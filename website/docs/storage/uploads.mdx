@@ -63,8 +63,8 @@ outputs:
   shows with its other files. In CI the command fails; elsewhere it prints the error and goes on. Save big outputs
   in a shared storage.
 - **A server that doesn't accept files** refuses the run when it starts: in CI, `qa` stops there.
-- **When the server doesn't answer**, `qa` tries again a few times, then says what is missing. The files stay in
-  *output/*.
+- **When the server doesn't answer**, `qa` tries again, for about two minutes for the run's end and its last files,
+  then says what is missing: in CI the command fails. The files stay in *output/*.
 
 ## What still needs a shared storage {#limits}
 The server only has what runs sent it. It can't start your code where it has no build and no inputs.

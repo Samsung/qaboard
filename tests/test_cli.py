@@ -355,7 +355,12 @@ class TestQaCli(unittest.TestCase):
       return {'id': 1} if kwargs.get('is_running') else None
     with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(qa_module, 'is_ci', True), \
          mock.patch('qaboard.api.results_refused', None), mock.patch.object(qa_module, 'notify_qa_database', side_effect=notify):
+      # in a shared storage, the run keeps its files: a warning only
       result = self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"', reload_modules=False)
+      self.assertEqual(result.exit_code, 0, result.output)
+      # sent to the server, its results are lost
+      with mock.patch.object(qa_module, 'uploads_files', True), mock.patch.object(qa_module, 'run_reporter', return_value=mock.MagicMock(files_sent=True, files_missing=0)):
+        result = self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"', reload_modules=False)
     self.assertEqual(result.exit_code, 1, result.output)
     self.assertIn("QA-Board doesn't know how the run ended", result.output)
 
