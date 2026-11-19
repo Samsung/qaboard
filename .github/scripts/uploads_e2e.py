@@ -2,12 +2,13 @@
 """
 Results sent over HTTP, end to end, against a real server: `qa upload` and `qaboard.start_run()` from this checkout,
 without a storage shared with the server (docs/design/ingest-upload-sdk.md).
-Usage: uploads_e2e.py URL --create-admin 'COMMAND' [--no-proxy]
+Usage: uploads_e2e.py URL --create-admin 'COMMAND' [--no-proxy] [--silent-runs-after MINUTES]
 
 Run it with the qaboard package of this checkout (`uv run --frozen python .github/scripts/uploads_e2e.py ...`).
 COMMAND makes {user} an admin with a local account, reading its password on stdin, like CI's
   './deployments/deploy.py deployments/production.env compose exec -T backend qaboard-admin create-admin {user} --password'
 --no-proxy: URL is a backend alone (e.g. `flask run` in backend/, with a database): only the API is checked.
+--silent-runs-after: the server's QABOARD_SILENT_RUN_TIMEOUT_MINUTES, to check that a killed run is failed (CI sets 1).
 
 Checks that:
 1. a server with default settings takes uploaded files (docker-compose.yml without a site overlay)
@@ -16,9 +17,12 @@ Checks that:
 4. starting a run that uploads needs a token
 5. uploading the run again replaces its files: what isn't sent again is gone
 6. `start_run()` sends its series, its files and its metrics
-7. `qa --share run` with QA_STORAGE=upload, in a project whose storage this machine doesn't mount
+7. `qa --share run` with QA_STORAGE=upload, in a project whose storage this machine doesn't mount: what it prints
+   after its files are sent is in the server's log.txt, and `qa check-bit-accuracy` compares a new commit's run with
+   that uploaded reference (the same results pass, others fail)
 8. without a shared storage, `qa save-artifacts` sends the commit's artifacts, `qa fetch-artifacts` downloads them
    (not with --no-proxy), and a batch started from the web app runs from them on the server and sends its results
+9. a run killed mid-way (SIGKILL: it can't say so) is failed once it is silent (with --silent-runs-after)
 """
 import argparse
 import http.cookiejar
@@ -27,6 +31,7 @@ import json
 import os
 import shlex
 import shutil
+import signal
 import struct
 import subprocess
 import sys
@@ -170,22 +175,27 @@ def qa_env(server, token):
     return env
 
 
-def run(command, env, cwd):
+def run(command, env, cwd, expect=0):
     r = subprocess.run(command, env=env, cwd=cwd, text=True, capture_output=True)
     print(r.stdout + r.stderr, flush=True)
-    if r.returncode:
-        fail(f"{' '.join(map(str, command))} failed ({r.returncode})")
+    if r.returncode != expect:
+        fail(f"{' '.join(map(str, command))} exited with {r.returncode}, expected {expect}")
+    return r
 
 
-def find_run(server, input_path, project=PROJECT):
-    _, commit = server.json("GET", f"/api/v1/commit/{COMMIT}?project={urllib.parse.quote(project)}")
-    outputs = [o for batch in commit.get("batches", {}).values() for o in batch.get("outputs", {}).values()]
+def outputs_of(server, project=PROJECT, commit=COMMIT):
+    _, body = server.json("GET", f"/api/v1/commit/{commit}?project={urllib.parse.quote(project)}")
+    return [o for batch in body.get("batches", {}).values() for o in batch.get("outputs", {}).values()]
+
+
+def find_run(server, input_path, project=PROJECT, commit=COMMIT, finished=True):
+    outputs = outputs_of(server, project, commit)
     found = [o for o in outputs if o.get("test_input_path") == input_path]
     if len(found) != 1:
         fail(f"Expected one run of {input_path} in the commit, found {[o.get('test_input_path') for o in outputs]}")
     output = found[0]
     state = {k: output.get(k) for k in ("is_failed", "is_pending", "is_running")}
-    if any(state.values()):
+    if finished and any(state.values()):
         fail(f"The run of {input_path} didn't finish: {state}, {json.dumps(output.get('data'))[:500]}")
     url = output.get("output_dir_url") or ""
     if f"/{project}/-/" not in url:
@@ -272,7 +282,8 @@ def check_sdk(server, env, workdir, proxy):
 def check_qa_run(server, env, workdir, proxy):
     """`qa run` in a project whose qaboard.yaml has a storage, with QA_STORAGE=upload: like a runner that doesn't mount it"""
     project = workdir / "sample_project"
-    shutil.copytree(Path(importlib.util.find_spec("qaboard").origin).parent / "sample_project", project)
+    # not the runs that tests of this checkout left in it
+    shutil.copytree(Path(importlib.util.find_spec("qaboard").origin).parent / "sample_project", project, ignore=shutil.ignore_patterns("output"))
     inputs = workdir / "inputs"
     inputs.mkdir()
     (inputs / "input.txt").write_text("hello\n")
@@ -285,7 +296,73 @@ def check_qa_run(server, env, workdir, proxy):
             fail(f"Unexpected content for {url}/copy.txt")
         if "log.txt" not in listing(server, url):
             fail(f"qa run's log.txt isn't in {url}/")
+        # what qa printed once it had sent the files
+        if b"files to QA-Board" not in server.get(f"{url}/log.txt"):
+            fail(f"The end of qa run's log isn't in {url}/log.txt: {server.get(f'{url}/log.txt')[-500:]!r}")
     log(f"qa run with QA_STORAGE=upload: {url}")
+    check_bit_accuracy(server, run_env, project, inputs)
+
+
+def check_bit_accuracy(server, env, project, inputs):
+    """`qa check-bit-accuracy` on another commit, against the run above: the reference's manifests come from the server"""
+    subprocess.run(["git", "init", "-q"], cwd=project, check=True)  # it needs a repository, whatever the CI says
+    command = [*QA, "--share", "--database", str(inputs), "run", "--input", "input.txt", "--", "cp {input_path} {output_dir}/copy.txt"]
+    check = [*QA, "--share", "--database", str(inputs), "check-bit-accuracy", "--reference", COMMIT]
+    same = uuid.uuid4().hex + uuid.uuid4().hex[:8]
+    run(command, {**env, "GITHUB_SHA": same}, project)
+    r = run(check, {**env, "GITHUB_SHA": same}, project)
+    if "Nothing was compared" in r.stdout + r.stderr:
+        fail("qa check-bit-accuracy compared nothing with the uploaded reference")
+    log("qa check-bit-accuracy: bit-accurate to the uploaded reference")
+    other = uuid.uuid4().hex + uuid.uuid4().hex[:8]
+    (inputs / "input.txt").write_text("changed\n")
+    try:
+        run(command, {**env, "GITHUB_SHA": other}, project)
+        run(check, {**env, "GITHUB_SHA": other}, project, expect=1)
+    finally:
+        (inputs / "input.txt").write_text("hello\n")
+    log("qa check-bit-accuracy: other results aren't bit-accurate to it")
+
+
+KILLED_SCRIPT = r"""
+import sys, time, qaboard
+run = qaboard.start_run("e2e/killed", project=sys.argv[1], commit=sys.argv[2])
+run.log({"loss": 1.0}, step=0)
+deadline = time.time() + 60
+while run.id is None and time.time() < deadline:  # the server knows it
+    time.sleep(0.5)
+print(run.id, flush=True)
+time.sleep(3600)
+"""
+
+
+def check_killed_run(server, env, workdir, minutes):
+    """A run killed without a chance to say so is failed once it has been silent for QABOARD_SILENT_RUN_TIMEOUT_MINUTES"""
+    (workdir / "killed.py").write_text(KILLED_SCRIPT)
+    process = subprocess.Popen([sys.executable, "killed.py", PROJECT, COMMIT], env=env, cwd=workdir, stdout=subprocess.PIPE, text=True)
+    try:
+        run_id = process.stdout.readline().strip()
+        if not run_id.isdigit():
+            fail(f"The run of start_run() to kill didn't start: {run_id!r}")
+        output, _ = find_run(server, "e2e/killed", finished=False)
+        if not output.get("is_running"):
+            fail(f"The run to kill isn't running: {json.dumps(output)[:500]}")
+    finally:
+        process.send_signal(signal.SIGKILL)
+        process.wait()
+    log(f"Killed run {run_id}: waiting for the server to fail it (silent for {minutes} minutes)")
+    # the jobs worker looks every 30 seconds
+    deadline = time.time() + minutes * 60 + 120
+    while time.time() < deadline:
+        output, _ = find_run(server, "e2e/killed", finished=False)
+        if output.get("is_failed") and not output.get("is_running"):
+            data = output.get("data") or {}
+            if "silent_since" not in data:
+                fail(f"The killed run failed, but not for being silent: {json.dumps(data)[:500]}")
+            log(f"The killed run was failed: {data.get('failed_reason')}")
+            return
+        time.sleep(10)
+    fail(f"The killed run is still {'running' if output.get('is_running') else 'not failed'} after {minutes} minutes and 2 more")
 
 
 ARTIFACTS_PROJECT = "e2e/artifacts"
@@ -387,6 +464,7 @@ def main():
     parser.add_argument("url", help="QA-Board, e.g. http://localhost:5151")
     parser.add_argument("--create-admin", required=True, help=f"A command that makes {USER} an admin, reading its password on stdin")
     parser.add_argument("--no-proxy", action="store_true", help="Only the API: URL is the backend, without nginx and the image server")
+    parser.add_argument("--silent-runs-after", type=float, help="The server's QABOARD_SILENT_RUN_TIMEOUT_MINUTES: checks that a killed run is failed")
     args = parser.parse_args()
     server = Server(args.url)
     proxy = not args.no_proxy
@@ -402,6 +480,10 @@ def main():
         check_sdk(server, env, workdir, proxy)
         check_qa_run(server, env, workdir, proxy)
         check_artifacts(server, env, workdir, proxy)
+        if args.silent_runs_after:
+            check_killed_run(server, env, workdir, args.silent_runs_after)
+        else:
+            log("Not checked: a killed run is failed (--silent-runs-after)")
     log("All checks passed")
 
 

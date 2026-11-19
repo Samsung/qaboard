@@ -347,6 +347,8 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
 # goes, from a thread, and everything when the run ends. One run per process.
 _uploader = None
 _upload_finished = False
+# once it sent everything: to send what qa prints after (send_log_tail)
+_finished_uploader = None
 _files_sent = True
 
 
@@ -400,7 +402,7 @@ def wait_for_the_log(log: Path, timeout: float = 1.0, quiet: float = 0.1):
 
 def finish_upload(run_context):
   """Sends the run's files before telling the server that it ended: finished runs' files don't change"""
-  global _uploader, _upload_finished, _files_sent
+  global _uploader, _upload_finished, _files_sent, _finished_uploader
   if not sends_files(run_context.obj) or _upload_finished:
     return
   _upload_finished = True
@@ -415,6 +417,7 @@ def finish_upload(run_context):
     click.secho("ERROR: QA-Board doesn't have the files of the run: it didn't take the run. They are in " + str(run_context.output_dir), fg='red', bold=True, err=True)
     return
   uploader, _uploader = _uploader, None
+  _finished_uploader = uploader
   # with what the run printed last, e.g. that it failed
   wait_for_the_log(run_context.output_dir / 'log.txt')
   if uploader.finish():
@@ -424,6 +427,27 @@ def finish_upload(run_context):
     click.secho("ERROR: QA-Board doesn't have all the files of the run:", fg='red', bold=True, err=True)
     for problem in uploader.problems():
       click.secho(f"       {problem}", fg='red', err=True)
+  # what we just printed, in the log the web app shows
+  send_log_tail(run_context)
+
+
+def send_log_tail(run_context):
+  """
+  Sends the end of log.txt after `finish_upload`: what qa printed since, e.g. which files couldn't be sent, or that the
+  server refused the run's results. It takes it until it heard that the run ended: call it before then, or after the
+  server refused that.
+  """
+  if _finished_uploader is not None:
+    wait_for_the_log(run_context.output_dir / 'log.txt')
+    _finished_uploader.send_log()
+
+
+def notify_run_ended(run_context, **kwargs):
+  """Tells the server that the run ended (after `finish_upload`). If it refused that, it still has why, in the log"""
+  answer = notify_qa_database(**run_context.obj, **kwargs, is_pending=False, is_running=False)
+  if answer is None:
+    send_log_tail(run_context)
+  return answer
 
 
 def mark_aborted(run_context):
@@ -446,7 +470,7 @@ def mark_aborted(run_context):
       click.secho(f'[ERROR] Could not write {metrics_path}: {e}', fg='red', err=True)
     if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
       finish_upload(run_context)
-      notify_qa_database(**run_context.obj, metrics=metrics, is_failed=True, is_pending=False, is_running=False)
+      notify_run_ended(run_context, metrics=metrics, is_failed=True)
       stop_heartbeat()
 
 
@@ -565,7 +589,7 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
 
   if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
     finish_upload(run_context)
-    notify_qa_database(**run_context.obj, metrics=metrics, metrics_definitions=metrics_definitions, data=output_data, is_pending=False, is_running=False)
+    notify_run_ended(run_context, metrics=metrics, metrics_definitions=metrics_definitions, data=output_data)
     stop_heartbeat()
 
 

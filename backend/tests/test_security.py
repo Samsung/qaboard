@@ -466,6 +466,9 @@ UNAUTHENTICATED_ENDPOINTS = {
   # the driver pod of a batch QA-Board started, without a shared storage, sends its log (qa send-batch-log): only with
   # that batch's own token (ingest_access(require_token=True)), into the folder the server chose when it started it
   ("batch.py", "append_submission_log"),
+  # nginx asks it before it receives a file (snippets/qaboard-uploads-auth.conf): it only says whether the request has
+  # a token that can send results. The endpoints above check the project
+  ("outputs.py", "authorize_upload"),
   # the web app and the CLI send usage events (backend/usage.py): the CLI's are unverified without a token, dropped
   # when ingest.auth is "token", like results. Anonymous events have no user, they're counted and never resolved.
   ("usage.py", "usage_events"),
@@ -1485,6 +1488,8 @@ UNCHECKED_PROJECT_ROUTES = {
   ("access.py", "directory"),
   # it reads no project: it says which projects the token it mints is restricted to (the service account's)
   ("ci_trust.py", "token_exchange"),
+  # it reads no project: whether a token can send results at all, before nginx receives a file
+  ("outputs.py", "authorize_upload"),
   # login_required checks ?project=, the only project it reads
   ("tuning.py", "check_tuning"), ("integrations.py", "proxy_webook"),
 }

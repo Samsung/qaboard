@@ -201,6 +201,19 @@ class TestWhenTheRunEnds(UploaderTestCase):
     self.assertEqual(server.files['model.pt'], b'smaller')
     self.assertEqual(uploader.problems(), [])
 
+  def test_sends_what_was_printed_after_the_end(self):
+    # e.g. which files weren't sent: the server takes the log until it heard the run ended
+    too_large = (413, {'error': 'model.pt is too large', 'reason': 'too_large'})
+    server = self.server(file_errors={'model.pt': [too_large]})
+    self.write('log.txt', b'run\n')
+    self.write('model.pt', b'weights')
+    uploader = self.uploader(server)
+    self.assertFalse(uploader.finish())
+    self.write('log.txt', b'ERROR: model.pt is too large\n', mode='ab')
+    self.assertTrue(uploader.send_log())
+    self.assertEqual(server.files['log.txt'], b'run\nERROR: model.pt is too large\n')
+    self.assertEqual(len(server.puts('model.pt')), 1)
+
   def test_stops_when_the_server_refuses_the_runs_files(self):
     for status, body in [
       (401, {'error': 'Sign in to do this', 'reason': 'login_required'}),
@@ -288,3 +301,33 @@ class TestHeartbeat(unittest.TestCase):
 
 if __name__ == '__main__':
   unittest.main()
+
+
+class TestQaRun(UploaderTestCase):
+  """What `qa run` prints after it sent the run's files reaches the log the web app shows"""
+  def test_the_end_of_the_log_is_sent(self):
+    import sys
+    from types import SimpleNamespace
+    import qaboard.qa  # noqa: F401 (the module, not the `qa` command the package exports)
+    qa = sys.modules['qaboard.qa']
+    too_large = (413, {'error': 'model.pt is too large', 'reason': 'too_large'})
+    server = self.server(file_errors={'model.pt': [too_large]})
+    self.write('log.txt', b'run\n')
+    self.write('model.pt', b'weights')
+    log = self.run_dir / 'log.txt'
+    def printed(message, **kwargs):
+      # qa run copies what it prints to its log (fd_tee.py)
+      with log.open('a') as f:
+        f.write(f"{message}\n")
+    def refused(**kwargs):
+      printed("WARNING: QA-Board refused the results: metrics are numbers")
+    run_context = SimpleNamespace(obj={}, id=42, output_dir=self.run_dir)
+    with mock.patch.object(qa, 'sends_files', return_value=True), mock.patch.object(qa, '_uploader', self.uploader(server)), \
+         mock.patch.object(qa, '_upload_finished', False), mock.patch.object(qa, '_finished_uploader', None), \
+         mock.patch.object(qa, '_files_sent', True), mock.patch.object(qa.click, 'secho', printed), \
+         mock.patch.object(qa, 'notify_qa_database', refused):
+      qa.finish_upload(run_context)
+      self.assertIn(b"model.pt: model.pt is too large", server.files['log.txt'])
+      # the server didn't take how the run ended: it still takes its log, with why
+      self.assertIsNone(qa.notify_run_ended(run_context, metrics={}))
+      self.assertTrue(server.files['log.txt'].endswith(b"refused the results: metrics are numbers\n"))

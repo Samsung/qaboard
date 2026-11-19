@@ -51,10 +51,10 @@ def test_disabled_without_a_root(monkeypatch):
 
 def test_run_dir_layout(upload_root):
   directory = run_dir_of(input_path="unit-tests")
-  assert directory.parent.parent == upload_root / "group/repo/-/01/23456789abcdef/output"
+  assert directory.parent.parent == upload_root / "group/repo/-/01/23456789abcdef0123456789abcdef01234567/output"
   assert directory.name == "unit-tests"
   labelled = run_dir_of("group/repo/sub", batch="nightly")
-  assert labelled.is_relative_to(upload_root / "group/repo/sub/-/01/23456789abcdef/output/nightly")
+  assert labelled.is_relative_to(upload_root / "group/repo/sub/-/01/23456789abcdef0123456789abcdef01234567/output/nightly")
 
 
 def test_runs_that_differ_have_their_own_folder(upload_root):
@@ -222,6 +222,64 @@ def test_symlinks_dont_take_files_out_of_the_run(run_dir, tmp_path):
   with pytest.raises((UploadError, OSError)):
     send(run_dir, "log.txt", b"more", offset=9)
   assert (outside / "target.txt").read_text() == "untouched"
+
+
+def test_commits_that_start_alike_have_their_own_folders(upload_root):
+  # anyone who can send results creates commits: one named like another's first characters must not share its runs
+  twin = COMMIT[:16] + "f" * 24
+  assert run_dir_of(commit=twin) != run_dir_of()
+  assert uploads.commit_artifacts_dir("group/repo", twin) != uploads.commit_artifacts_dir("group/repo", COMMIT)
+  # artifacts saved before, in folders named by 16 characters, are still theirs
+  assert uploads.is_commit_artifacts_dir(upload_root / "group/repo/-/01/23456789abcdef/artifacts", "group/repo")
+
+
+def test_names_that_look_hashed_arent_the_folders_of_other_names(upload_root):
+  hashed = uploads.folder_name("A/b")
+  assert hashed.startswith("a-b-") and len(hashed) == len("a-b-") + uploads.HASH_LENGTH
+  assert uploads.folder_name(hashed) != hashed
+  assert run_dir_of(input_path=hashed) != run_dir_of(input_path="A/b")
+  assert run_dir_of(batch=hashed) != run_dir_of(batch="A/b")
+  assert uploads.folder_name("a-b-1f2e3d4c") != "a-b-1f2e3d4c"
+  # names without a hash stay readable
+  assert uploads.folder_name("unit-tests") == "unit-tests"
+
+
+def test_symlinks_dont_create_folders_out_of_the_run(run_dir, tmp_path):
+  outside = tmp_path / "outside"
+  outside.mkdir()
+  (run_dir / "link").symlink_to(outside)
+  with pytest.raises(UploadError) as e:
+    send(run_dir, "link/a/b/stolen.txt", b"x")
+  assert e.value.reason == "invalid_path"
+  assert list(outside.iterdir()) == []
+
+
+def test_append_interrupted_leaves_the_file_as_it_was(run_dir):
+  class Broken(io.BytesIO):
+    def read(self, size=-1):
+      if self.tell() >= 2:
+        raise OSError("the client went away")
+      return super().read(2)
+  send(run_dir, "log.txt", b"one\n")
+  with pytest.raises(OSError):
+    save_file(run_dir, "log.txt", Broken(b"two\n"), 4, offset=4)
+  assert (run_dir / "log.txt").read_bytes() == b"one\n"
+
+
+def test_authorize_upload(outputs_api, dummy_app):
+  """What nginx asks before it receives a file: only who may send results"""
+  from flask import g
+  def ask(actor):
+    with dummy_app.test_request_context("/api/v1/uploads/authorize", method="PUT"):
+      g.actor = actor
+      response = outputs_api.authorize_upload()
+    return response[1] if isinstance(response, tuple) else 200
+  assert ask(None) == 401
+  assert ask(SimpleNamespace(user=None, token=None)) == 401
+  scopes = lambda *names: SimpleNamespace(user="u", token="t", has_scope=lambda scope: scope in names)
+  assert ask(scopes("read")) == 403
+  assert ask(scopes("ingest")) == 204
+  assert ask(SimpleNamespace(user="u", token=None)) == 204
 
 
 def test_append(run_dir):
@@ -452,7 +510,7 @@ def test_clients_cant_say_their_results_are_in_the_uploads_folders(outputs_api, 
   response, status = start(outputs_api, dummy_app, storage=None, output_directory="/mnt/storage/group/repo/01/23/output/x")
   assert status == 200 and "uploads_files" not in outputs_api.test_output.data
   # the uploads folder can also be a storage that runs write to directly, like the quickstart's
-  for directory in (upload_root / "group/repo/01/23456789abcdef/output/linux/red", upload_root / "victim/secret/ab/cdef/output"):
+  for directory in (upload_root / "group/repo/01/23456789abcdef0123456789abcdef01234567/output/linux/red", upload_root / "victim/secret/ab/cdef/output"):
     response, status = start(outputs_api, dummy_app, storage=None, output_directory=str(directory), artifacts_commit=str(directory.parent))
     assert status == 200, (directory, response.get_json())
   # and clients can't say that a run uploads
@@ -509,7 +567,7 @@ def test_runs_in_a_location_store_its_url(outputs_api, dummy_app, team_bucket):
   response, status = start(outputs_api, dummy_app)
   assert status == 200
   location = outputs_api.test_output.output_dir_override
-  assert location.startswith("s3://team-bucket/qaboard/group/repo/-/01/23456789abcdef/output/")
+  assert location.startswith("s3://team-bucket/qaboard/group/repo/-/01/23456789abcdef0123456789abcdef01234567/output/")
   assert put(outputs_api, dummy_app, "log.txt", b"one\n", "?offset=0")[1] == 200
   assert list(team_bucket.rglob("log.txt"))[0].read_bytes() == b"one\n"
   # a run whose location the server can't reach takes no file

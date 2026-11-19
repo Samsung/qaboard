@@ -51,7 +51,8 @@ FLUSH_EVERY = 2000
 PROGRESS_EVERY = 2  # seconds: how often the folders explored are reported, and cancelling is checked
 # Storage snapshots are copies of everything: never scanned, whatever `exclude_paths` says
 SNAPSHOTS = {'.snapshot', '.snapshots', '.zfs'}
-commit_dirs_re = re.compile(r'/(?P<a>[0-9a-f]{2})/(?P<b>[0-9a-f]{14})(?=/|$)')
+# a shared storage's commit folders have 16 characters of their id, uploaded runs' all of it (uploads.commit_folder)
+commit_dirs_re = re.compile(r'/(?P<a>[0-9a-f]{2})/(?P<b>[0-9a-f]{14}(?:[0-9a-f]{24})?)(?=/|$)')
 
 
 def validate(params: dict) -> dict:

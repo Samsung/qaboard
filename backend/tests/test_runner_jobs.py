@@ -626,6 +626,10 @@ def test_submit_driver_without_a_shared_storage(fake_runners, account, tmp_path,
   assert "--batches-file /tmp/qaboard-batch/batches.yaml" in script and str(log_dir) not in script
   assert "exec > >(qa send-batch-log 0123abcd-0000-4000-8000-000000000000) 2>&1; QABOARD_LOG_PID=$!\n" in script
   assert submitted["job_options"]["env"]["QABOARD_TOKEN"] == "qab_bat_x"
+  # if the pod's output stops coming (its token expired...), users know where the rest is
+  logs = f"kubectl logs -n {submitted['job_options']['namespace']} job/qa-0123abcd-driver"
+  assert submitted["job_options"]["env"]["QABOARD_POD_LOGS"] == logs
+  assert (log_dir / "log.txt").read_text().startswith("[qaboard] `qa batch` runs in the Kubernetes pod") and logs in (log_dir / "log.txt").read_text()
   # the end of the log is sent before the pod ends: the exit trap waits for `qa send-batch-log`
   bin_dir = tmp_path / "bin"
   bin_dir.mkdir()

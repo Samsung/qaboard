@@ -136,6 +136,31 @@ class TestUpload(QaTestCase):
     self.assertEqual((server.outputs(), server.puts()), ([], []))
     self.assertFalse((self.work / 'output').exists())
 
+  def test_a_dry_run_needs_no_server(self):
+    result = self.qa('--dryrun', '--label', 'nightly', 'upload', 'junit.xml')
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn('project: kitefin/planner', result.stdout)
+    self.assertIn(f'commit: {COMMIT}', result.stdout)
+    self.assertIn('batch: nightly', result.stdout)
+    self.assertIn('QABOARD_URL', result.stdout)
+    self.assertIn('unit-tests/junit: 1 files', result.stdout)
+    # outside the CI, runs go to the user's own batch
+    result = self.qa('--dryrun', 'upload', 'junit.xml', '--project', 'kitefin/planner', '--commit', COMMIT, ci=False)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn('batch: @alice| default', result.stdout)
+
+  def test_errors_name_the_options(self):
+    server = self.server()
+    for args, expected in [
+      (('--input', '../up'), "--input ../up: name the run"),
+      (('--commit', 'nope'), "--commit nope: give the commit's full id"),
+    ]:
+      with self.subTest(args=args):
+        result = self.qa('upload', 'junit.xml', '--project', 'kitefin/planner', *args, server=server, ci=False, QA_STORAGE='upload')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(expected, result.stderr)
+        self.assertNotIn('start_run(', result.stderr)
+
   def test_a_folder_is_sent_without_hidden_folders_and_earlier_runs(self):
     server = self.server()
     (self.work / '.git').mkdir()

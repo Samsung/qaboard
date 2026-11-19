@@ -195,6 +195,18 @@ def _default_input() -> str:
   return stem or 'run'
 
 
+def _error(message: str, cli: str, kind: type = ValueError) -> Exception:
+  """An error of start_run()'s arguments. `cli`: the same in the words of `qa upload`, which calls it with its options"""
+  error = kind(message)
+  error.cli = cli  # type: ignore[attr-defined]
+  return error
+
+
+def _batch_label(batch: str, share: bool, setup: '_Setup') -> str:
+  """The batch in the web app: like with `qa --share`, shared runs outside the CI go to the user's own"""
+  return batch if (not share or setup.is_ci) else f"@{setup.user}| {batch}"
+
+
 class _Setup:
   """Where a run goes: the project, its commit, its folders, read like `qa` does (qaboard/config.py)."""
   def _storage_missing(self, storage) -> None:
@@ -214,7 +226,8 @@ class _Setup:
     if self.has_qaboard_yaml:
       self.project = c.project.as_posix()
       if project and Path(project).as_posix().strip('/') != self.project:
-        raise ValueError(f"start_run(project={project!r}), but the qaboard.yaml here ({c.qatools_config_paths[-1]}) is the project {self.project!r}. Leave project= out, or run from outside this project.")
+        raise _error(f"start_run(project={project!r}), but the qaboard.yaml here ({c.qatools_config_paths[-1]}) is the project {self.project!r}. Leave project= out, or run from outside this project.",
+                     f"--project {project}, but the qaboard.yaml here ({c.qatools_config_paths[-1]}) is the project {self.project}. Leave --project out, or run `qa upload` from outside this project.")
       self.project_root = c.project_root.as_posix()
       self.subproject = c.subproject
       self.config: Dict[str, Any] = c.config
@@ -231,7 +244,8 @@ class _Setup:
       # the CI says which repository it builds
       project = project or ci_project()
       if not project:
-        raise ValueError("start_run() needs to know the project: run it from a project (a folder with a qaboard.yaml, see `qa init`), or pass project='group/repo'.")
+        raise _error("start_run() needs to know the project: run it from a project (a folder with a qaboard.yaml, see `qa init`), or pass project='group/repo'.",
+                     "Which project? Give --project group/repo, or run `qa upload` in a project (a folder with a qaboard.yaml).")
       from .site_config import site_qaboard_config
       self.project = Path(project).as_posix().strip('/')
       self.project_root = self.project
@@ -298,7 +312,8 @@ class _Setup:
     if not re.fullmatch(r'[0-9a-f]{40}', commit):
       found = _git(self.repo_root, 'rev-parse', '--verify', '--quiet', f"{commit}^{{commit}}") if self.repo_root else None
       if not found or not found.strip():
-        raise ValueError(f"start_run(commit={commit!r}): give the commit's full id (40 hexadecimal digits), or a branch, tag or short id of this folder's git repository.")
+        raise _error(f"start_run(commit={commit!r}): give the commit's full id (40 hexadecimal digits), or a branch, tag or short id of this folder's git repository.",
+                     f"--commit {commit}: give the commit's full id (40 hexadecimal digits), or a branch, tag or short id of this folder's git repository.")
       resolved = found.strip()
     self.commit = resolved
     # only the date is required: the server knows the rest if it knows the commit
@@ -370,7 +385,8 @@ def start_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] =
   if share is None:
     share = not offline and can_share and (setup.is_ci or server_source is not None)
   elif share and not can_share:
-    raise ValueError("start_run(share=True) needs the shared storage: set `storage` in qaboard.yaml or QA_STORAGE, or pass output_dir= with a folder the server reads.")
+    raise _error("start_run(share=True) needs the shared storage: set `storage` in qaboard.yaml or QA_STORAGE, or pass output_dir= with a folder the server reads.",
+                 "QA-Board's settings here name a storage qa can't use, and don't send files to the server: set QA_STORAGE=upload to send them, or QA_STORAGE to the storage's folder.")
   in_storage = bool(share or setup.is_ci) and setup.outputs_commit is not None
   uploads_files = bool(share) and setup.uploads_files
 
@@ -381,16 +397,18 @@ def start_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] =
     database_path = Path(input_path.anchor)
     input_path = input_path.relative_to(input_path.anchor)
   if '..' in input_path.parts:
-    raise ValueError(f"start_run(input={input!r}): the input is a name or a path under its database, without '..'")
+    raise _error(f"start_run(input={input!r}): the input is a name or a path under its database, without '..'",
+                 f"--input {input}: name the run like unit-tests or tests/unit, without '..'")
   input_name = input_path.as_posix()
 
   for name, value in (('batch', batch), ('label', label)):
     if value is not None and (not isinstance(value, str) or not value.strip()):
-      raise TypeError(f"start_run({name}=...) is a name, like 'lr-sweep', not {value!r}")
+      option = '--batch' if name == 'batch' else 'qa --label'
+      raise _error(f"start_run({name}=...) is a name, like 'lr-sweep', not {value!r}", f"{option} is a name, like unit-tests, not {value!r}", TypeError)
   # one name is the batch in the web app, whichever is given; with both, `batch` names the group of tests on the run's card
   raw_batch = label or batch or 'default'
   batch_name = batch if label and batch and batch != label else None
-  batch_label = raw_batch if (not share or setup.is_ci) else f"@{setup.user}| {raw_batch}"
+  batch_label = _batch_label(raw_batch, bool(share), setup)
   platform = platform or setup.platform
 
   custom_output = output_dir is not None
@@ -412,8 +430,9 @@ def start_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] =
   # The run that `qa run` is doing in this process or above it: starting it again would remove its files
   outer_run_dir = os.environ.get(RUN_DIR_VARIABLE)
   if outer_run_dir and attempts.split(Path(outer_run_dir))[0] == attempts.split(run_dir)[0]:
-    raise ValueError(f"start_run() would replace the run that `qa run` is doing now, in {outer_run_dir}: they have the same batch, input and configurations. "
-                     "Return metrics from run() and write files in context.output_dir instead, or give start_run() another input=.")
+    raise _error(f"start_run() would replace the run that `qa run` is doing now, in {outer_run_dir}: they have the same batch, input and configurations. "
+                 "Return metrics from run() and write files in context.output_dir instead, or give start_run() another input=.",
+                 f"`qa upload` would replace the run that `qa run` is doing now, in {outer_run_dir}: give it another --input, or write the files in the run's folder.")
   # Starting the same run again while it goes on, e.g. a notebook's cell run twice: the first ends here. Else both
   # would write in the same folder, or the new attempt would remove the files of a run that still logs
   for active in _same_run(run_dir):

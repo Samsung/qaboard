@@ -187,8 +187,9 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
 
   Files need a token: `qa auth login` on your machine, QABOARD_TOKEN or the CI's ID token in CI.
   It needs a QA-Board server (QABOARD_URL) that accepts files, or a storage shared with it (`storage` in qaboard.yaml).
+  `qa --dryrun upload` says what it would send, without a server.
   """
-  from .active_run import start_run
+  from .active_run import start_run, _Setup, _batch_label
   from .credentials import default_server
   # (not `from . import config`: the package has the project's configuration under that name)
   config = import_module('qaboard.config')
@@ -198,7 +199,9 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
     raise click.UsageError("`qa upload` sends the run to QA-Board: it can't be --offline. `qa --dryrun upload` says what it would send.")
   if each and (input_name or rename):
     raise click.UsageError("--each names each run after its path: it can't be used with --input or --as.")
-  if default_server()[1] is None:
+  dryrun = bool(group.get('dryrun'))
+  server, server_source = default_server()
+  if server_source is None and not dryrun:
     raise click.UsageError("Which QA-Board server? Set QABOARD_URL, e.g. QABOARD_URL=https://qaboard.example.com")
   if config.project is None and not project and not ci_project():
     raise click.UsageError("Which project? Give --project group/repo, or run `qa upload` in a project (a folder with a qaboard.yaml).")
@@ -222,7 +225,16 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
     runs.append((input_name or default_input(run_paths), files, {**({} if no_read else read_metrics(files)), **metrics}))
   if len({name for name, _, _ in runs}) != len(runs):
     raise click.UsageError("--each names each run after its path, without its extension: some of these paths would be the same run. Upload them one by one, with --input.")
-  if group.get('dryrun'):
+  if dryrun:
+    # what start_run() would say: the project, the commit, the batch, where the files go
+    try:
+      setup = _Setup(project, commit, upload_without_storage=True)
+    except (ValueError, TypeError) as e:
+      raise click.UsageError(str(getattr(e, 'cli', e)))
+    label = _batch_label(group.get('label') or batch_name or 'default', True, setup)
+    destination = f"sent to {server}" if server_source is not None else "sent to the server, once QABOARD_URL says which"
+    click.echo(f"project: {setup.project}\ncommit: {setup.commit}\nbatch: {label}{f' ({batch_name} on the cards)' if group.get('label') and batch_name and batch_name != group.get('label') else ''}")
+    click.echo(f"files: {destination if setup.uploads_files else 'saved in the storage shared with the server'}")
     for name, files, run_metrics in runs:
       click.echo(f"{name}: {len(files)} files, {sum(file.stat().st_size for file in files.values())} bytes, metrics: {json.dumps({k: float(v) if isinstance(v, float) else v for k, v in run_metrics.items()})}")
       for file_name in files:
@@ -238,8 +250,8 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
         _upload_without_storage=True,
       )
     except (ValueError, TypeError) as e:
-      click.secho(f"ERROR: {e}", fg='red', bold=True, err=True)
-      sys.exit(1)
+      # in the words of qa upload's options rather than start_run()'s arguments
+      raise click.UsageError(str(getattr(e, 'cli', e)))
     try:
       for file_name, file in files.items():
         run.log_artifact(file_name, file)

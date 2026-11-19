@@ -122,6 +122,19 @@ class Uploader:
           self._fail('', repr(e))
       return False
 
+  def send_log(self) -> bool:
+    """
+    Sends what was added to log.txt only, e.g. after `finish()`, what was printed about the files that weren't sent:
+    the server still takes it until it hears the run ended. Returns whether it has the whole log. Never raises.
+    """
+    with self._sync_lock:
+      if self.refused:
+        return False
+      try:
+        return self._append('log.txt')
+      except Exception as e:
+        return self._fail('log.txt', repr(e))
+
   def problems(self, limit: int = 5) -> List[str]:
     """What to tell the user after a `sync()` that returned False: one line per problem"""
     if self.refused:
