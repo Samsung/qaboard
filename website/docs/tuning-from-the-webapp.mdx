@@ -30,7 +30,8 @@ and the settings on that frontier became the new defaults.
    batches files are always saved.
 2. **Choose where the runs execute.** The runs go to your project's runner, `runners.default` in *qaboard.yaml*
    (see [Choose where runs execute](/docs/runners)). The server starts the `qa batch` command where its admins chose:
-   on the server itself by default, in an LSF job, or in a Kubernetes pod. See
+   in a Kubernetes pod, in an LSF job, or in the server's own container. Until they choose, it starts none (it may
+   still redo runs, on LSF). See
    [Run batches from the web app](/docs/backend-admin/runners).
 3. **Log in.** Starting runs needs a logged-in user, and runs are started as that user. See
    [user management](/docs/backend-admin/user-management).

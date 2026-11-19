@@ -22,6 +22,7 @@ import click
 from click import secho
 
 from .conventions import batch_folder_name, get_commit_dirs, output_dirs_for_input_part, run_dir_in_commit
+from .run_files import FETCHED_MARKER
 from .attempts import latest_dir
 from .iterators import iter_inputs
 from .matching import run_distance
@@ -456,48 +457,14 @@ def describe_differences(settings: Dict, reference: Dict) -> str:
   )
 
 
-# Runs whose files we don't see, without a storage shared with the server: we fetch their manifests (hashes of
-# their files) over HTTP, once per run and attempt, and compare them. Not their files.
-MANIFESTS = ('manifest.outputs.json', 'manifest.inputs.json')
-FETCHED_MARKER = '.qaboard-fetched-manifests'
-
-
 def fetched_manifests(run: Dict) -> Optional[Path]:
-  """A folder with the manifests of a run from QA-Board whose files are on the server, None if it has none"""
-  import hashlib
-  import requests
+  """
+  Runs whose files we don't see, without a storage shared with the server: we fetch their manifests (hashes of their
+  files) over HTTP, once per run and attempt, and compare them. Not their files. qaboard/run_files.py
+  """
   from .api import qaboard_url
-  from .results import _token_for
-  from .site_config import as_requests_verify, site_config
-  url = run.get('output_dir_url')
-  if not url or not qaboard_url:
-    return None
-  key = hashlib.sha256(json.dumps([qaboard_url, url, run.get('finished_at'), run.get('id')]).encode()).hexdigest()[:32]
-  folder = Path(os.environ.get('XDG_CACHE_HOME') or Path.home() / '.cache') / 'qaboard' / 'manifests' / key
-  # finished runs' manifests don't change: from the cache
-  if (folder / FETCHED_MARKER).exists() and not run.get('is_pending'):
-    return folder
-  token = _token_for(qaboard_url, None)
-  headers = {'Authorization': f"Bearer {token}"} if token else {}
-  folder.mkdir(parents=True, exist_ok=True)
-  found = False
-  for name in MANIFESTS:
-    try:
-      r = requests.get(f"{qaboard_url}{url.rstrip('/')}/{name}", headers=headers, verify=as_requests_verify(site_config('QABOARD_API_VERIFY')), timeout=(10, 120))
-    except requests.RequestException as e:
-      secho(f"WARNING: could not fetch {name} of the reference run: {e}", fg='yellow', err=True)
-      return None
-    if r.status_code == 404:
-      continue
-    if not r.ok:
-      secho(f"WARNING: could not fetch {name} of the reference run ({r.status_code})", fg='yellow', err=True)
-      return None
-    (folder / name).write_bytes(r.content)
-    found = True
-  if not found:
-    return None
-  (folder / FETCHED_MARKER).write_text(url)
-  return folder
+  from .run_files import fetched_manifests as fetch
+  return fetch(run, qaboard_url)
 
 
 def is_bit_accurate(dir_new, dir_ref, run_context: RunContext, strict=False, manifest_name='manifest.outputs.json'):

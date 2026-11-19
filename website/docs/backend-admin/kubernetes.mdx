@@ -77,7 +77,7 @@ helm install qaboard oci://ghcr.io/samsung/charts/qaboard \
 ### What runs
 | Component | Kubernetes | Notes |
 |-----------|------------|-------|
-| backend | Deployment, 2+ replicas | Rolling updates with `maxUnavailable: 0`, readiness on `/api/v1/health`, a PodDisruptionBudget, spread on nodes. Optional HPA. |
+| backend | Deployment, 2+ replicas | Rolling updates with `maxUnavailable: 0`, readiness on `/api/v1/health`, a PodDisruptionBudget, spread on nodes. Optional HPA. A NetworkPolicy lets only the proxy reach its uWSGI port (`backend.networkPolicy.enabled`, see [uploads](./uploads.mdx#security)). |
 | proxy (nginx) | Deployment, 2 replicas | Serves the web app, the docs and the results (`/s/`). Init containers copy the frontend and docs bundles. |
 | database | external, CloudNativePG, or a pod | See [the database](#database). |
 | migrations | Job | Before each upgrade, and after the first install. If they fail, the release fails and the running version is untouched. |

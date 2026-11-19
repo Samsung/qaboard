@@ -15,7 +15,7 @@ the binaries the CI built.
 The cache is $QABOARD_ARTIFACTS_CACHE, else ~/.cache/qaboard/artifacts: point it to a folder the node's pods share
 (a hostPath) to fetch once per node. Nothing is removed from it.
 
-Server side: backend/backend/api/commit_artifacts.py. Design: docs/design/ingest-upload-sdk.md (§3, item 2).
+Server side: backend/backend/api/commit_artifacts.py. Design: docs/design/ingest-upload-sdk.md (§1, how batches get a commit's code).
 """
 import hashlib
 import json
@@ -24,7 +24,6 @@ import re
 import shutil
 import tempfile
 import sys
-import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -32,16 +31,15 @@ from urllib.parse import quote
 
 import click
 
-from .results import ResultsError, _request, _token_for
-from .site_config import site_config, as_requests_verify
+from .conventions import NO_ARTIFACTS
+from .http_client import DigestMismatch, ResultsError, FILE_TIMEOUT, RETRY_DELAYS, download, request, request_json
 
 # Next to the files of fetched artifacts: where they come from
 MARKER = '.qaboard-artifacts.json'
 # How many files are sent or downloaded at once
 WORKERS = 4
-# (connect, read) timeouts, and how long we wait before trying a request again
-TIMEOUT = (10.0, 600.0)
-RETRY_DELAYS = (1.0, 4.0)
+# (connect, read) timeouts. How long we wait before trying a request again: RETRY_DELAYS (qaboard/http_client.py)
+TIMEOUT = FILE_TIMEOUT
 CHUNK = 1024 * 1024
 
 
@@ -79,17 +77,6 @@ def _commit_path(commit: str, *rest: str) -> str:
   return '/'.join([f"commit/{quote(commit, safe='')}/artifacts", *rest])
 
 
-def _retried(request: Callable[[], Any]) -> Any:
-  """A request, tried again when the server or the network had a problem"""
-  for delay in (*RETRY_DELAYS, None):
-    try:
-      return request()
-    except ResultsError as e:
-      if not e.is_transient or delay is None:
-        raise
-      time.sleep(delay)
-
-
 class ServerTooOld(ArtifactsError):
   """The server doesn't take artifacts over HTTP: it is older than this `qa`"""
 
@@ -123,12 +110,11 @@ def listing(server: str, project: str, commit: str, token: Optional[str] = None)
   Raises ServerTooOld, or ArtifactsError when the server can't be asked.
   """
   try:
-    answer = _retried(lambda: _request(server, _commit_path(commit), params={'project': project}, token=token, timeout=TIMEOUT))
+    answer = request_json(server, _commit_path(commit), params={'project': project}, token=token, timeout=TIMEOUT, retries=RETRY_DELAYS)
   except ResultsError as e:
-    reason = (e.body or {}).get('reason') if isinstance(e.body, dict) else None
-    if e.status == 404 and reason in ('not_uploaded', 'deleted', 'unknown_commit'):
+    if e.status == 404 and e.reason in NO_ARTIFACTS:
       return None
-    if e.status == 404 and not reason and not e.reason and isinstance(e.body, dict):
+    if e.status == 404 and not e.reason and isinstance(e.body, dict):
       # older servers answer with the commit's results (GET /commit/<id>), here a commit they don't know
       raise ServerTooOld("This QA-Board server doesn't take artifacts over HTTP yet: upgrade it.") from e
     raise ArtifactsError(explain(e, server)) from e
@@ -150,16 +136,9 @@ def send(server: str, project: str, commit: str, groups: Dict[str, Tuple[Path, L
   has = {path: info['sha256'] for path, info in ((known or {}).get('files') or {}).items()}
 
   def put(path: str, content: Callable[[], Any], sha256: str, size: int) -> None:
-    def request():
-      body = content()
-      try:
-        return _request(server, _commit_path(commit, 'files', quote(path)), params={'project': project}, token=token, method='PUT',
-                        data=body, headers={'Content-Type': 'application/octet-stream', 'X-Content-SHA256': sha256}, timeout=TIMEOUT)
-      finally:
-        if hasattr(body, 'close'):
-          body.close()
     try:
-      _retried(request)
+      request(server, _commit_path(commit, 'files', quote(path)), params={'project': project}, token=token, method='PUT', data=content,
+              headers={'Content-Type': 'application/octet-stream', 'X-Content-SHA256': sha256}, timeout=TIMEOUT, retries=RETRY_DELAYS).close()
     except ResultsError as e:
       raise ArtifactsError(f"QA-Board refused {path}: {explain(e, server, path, size)}") from e
 
@@ -187,11 +166,17 @@ def _previous_manifest(server: str, known: Optional[Dict[str, Any]], manifest_pa
   if not known or manifest_path.as_posix() not in (known.get('files') or {}):
     return {}
   try:
-    content = _download_bytes(server, f"{known['url']}/{quote(manifest_path.as_posix())}", token)
+    content = request(server, f"{known['url']}/{quote(manifest_path.as_posix())}", token=token, timeout=TIMEOUT, retries=RETRY_DELAYS).content
+  except ResultsError as e:
+    if e.status == 404:
+      return {}
+    # not an empty manifest: it would forget what earlier calls listed
+    raise ArtifactsError(f"Could not read what QA-Board lists in {manifest_path.as_posix()}: {explain(e, server)}") from e
+  try:
     previous = json.loads(content)
-    return previous if isinstance(previous, dict) else {}
-  except (ArtifactsError, ValueError):
+  except ValueError:
     return {}
+  return previous if isinstance(previous, dict) else {}
 
 
 # --- fetching ----------------------------------------------------------------------------------------------------
@@ -244,42 +229,14 @@ def _is_relative_path(path: str) -> bool:
 def _download(server: str, url: str, path: str, info: Dict[str, Any], folder: Path, token: Optional[str]) -> None:
   file = folder.joinpath(*path.split('/'))
   file.parent.mkdir(parents=True, exist_ok=True)
-  import requests
-  headers = {'Authorization': f"Bearer {t}"} if (t := _token_for(server, token)) else {}
-  address = f"{server}{url}/{quote(path)}"
-  for delay in (*RETRY_DELAYS, None):
-    try:
-      with requests.get(address, headers=headers, stream=True, timeout=TIMEOUT, verify=as_requests_verify(site_config('QABOARD_API_VERIFY'))) as r:
-        if r.status_code >= 400:
-          if r.status_code < 500 and r.status_code not in (408, 429) or delay is None:
-            raise ArtifactsError(f"Could not download {path} ({address}): {r.status_code} {r.text[:200]}")
-        else:
-          digest = hashlib.sha256()
-          with open(file, 'wb') as f:
-            for chunk in r.iter_content(CHUNK):
-              f.write(chunk)
-              digest.update(chunk)
-          if digest.hexdigest() == info['sha256']:
-            os.chmod(file, 0o755 if info.get('executable') else 0o644)
-            return
-          if delay is None:
-            raise ArtifactsError(f"{path} doesn't have the SHA-256 QA-Board listed: it was replaced while we fetched it? Try again.")
-    except requests.RequestException as e:
-      if delay is None:
-        raise ArtifactsError(f"Could not download {path} ({address}): {e}") from e
-    time.sleep(delay)
-
-
-def _download_bytes(server: str, url: str, token: Optional[str]) -> bytes:
-  import requests
-  headers = {'Authorization': f"Bearer {t}"} if (t := _token_for(server, token)) else {}
+  address = f"{url}/{quote(path)}"
   try:
-    r = requests.get(f"{server}{url}", headers=headers, timeout=TIMEOUT, verify=as_requests_verify(site_config('QABOARD_API_VERIFY')))
-  except requests.RequestException as e:
-    raise ArtifactsError(str(e)) from e
-  if r.status_code >= 400:
-    raise ArtifactsError(f"{r.status_code} {r.text[:200]}")
-  return r.content
+    download(server, address, file, sha256=info['sha256'], token=token, timeout=TIMEOUT, retries=RETRY_DELAYS)
+  except DigestMismatch as e:
+    raise ArtifactsError(f"{path} doesn't have the SHA-256 QA-Board listed: it was replaced while we fetched it? Try again.") from e
+  except ResultsError as e:
+    raise ArtifactsError(f"Could not download {path} ({server}{address}): {e}") from e
+  os.chmod(file, 0o755 if info.get('executable') else 0o644)
 
 
 def read_marker(folder: Path) -> Optional[Dict[str, Any]]:

@@ -52,8 +52,50 @@ def ci_project() -> Optional[str]:
   return os.environ.get('QA_PROJECT') or os.environ.get('GITHUB_REPOSITORY') or os.environ.get('CI_PROJECT_PATH') or None
 
 
+class Reason:
+  """
+  Why the server refuses what clients send: the `reason` of its JSON errors, {"error": <for people>, "reason": <for
+  programs>}. The server answers with these (backend/uploads.py UploadError, api/outputs.py, api/commit_artifacts.py,
+  api/batch.py) and qa compares them (qaboard/http_client.py `ResultsError.reason`): change them on both sides at once.
+  The sign-in and access refusals (missing_scope, missing_role...) are backend/auth's, explained in qaboard/credentials.py.
+  """
+  # --- the run or the project can't send files ---
+  UPLOADS_DISABLED = 'uploads_disabled'                        # the server takes no files (QABOARD_UPLOAD_ROOT), or not this project's
+  UPLOADS_UNSUPPORTED_PROJECT = 'uploads_unsupported_project'  # the project has a folder named like the server's runs folder
+  UPLOADS_FOLDER = 'uploads_folder'                            # results saved directly in the folder of uploaded files
+  INVALID_RUN = 'invalid_run'                                  # the run's names can't be folders' names
+  NOT_UPLOADED = 'not_uploaded'                                # the run (or commit's artifacts) is in a shared storage, not sent
+  NOT_RUNNING = 'not_running'                                  # the run ended: its files and progress don't change anymore
+  PROXY_MISCONFIGURED = 'proxy_misconfigured'                  # nginx didn't check the token first: its configuration misses a snippet
+  METRICS_EXIST = 'metrics_exist'                              # run.log_metrics() of metrics the run returned, without overwrite
+  # --- one file ---
+  INVALID_PATH = 'invalid_path'
+  INVALID_SIZE = 'invalid_size'
+  INCOMPLETE = 'incomplete'                                    # the body ended before its Content-Length
+  DIGEST_REQUIRED = 'digest_required'                          # no X-Content-SHA256
+  DIGEST_MISMATCH = 'digest_mismatch'
+  TOO_LARGE = 'too_large'                                      # 413, with `max_file_size`
+  STORAGE_FULL = 'storage_full'                                # 507
+  PATH_CONFLICT = 'path_conflict'                              # a file where there is a folder, or the other way
+  OFFSET_MISMATCH = 'offset_mismatch'                          # 409 with the file's `size`: send it whole, or from there
+  # --- a commit's artifacts ---
+  INVALID_COMMIT = 'invalid_commit'
+  UNKNOWN_COMMIT = 'unknown_commit'
+  DELETED = 'deleted'
+  # --- batches started from the web app ---
+  NO_SERVER_RUNNER = 'no_server_runner'                        # QABOARD_TUNING_RUNNER unset: the server starts no batches
+  # --- batch tokens (tokens.mint_for_batch in backend/backend/tokens.py) ---
+  BATCH_TOKEN_REQUIRED = 'batch_token_required'                # only the batch's own token sends its log
+  INVALID_LOG_DIR = 'invalid_log_dir'
+  BATCH_TOKEN_LIMITED = 'batch_token_limited'                  # a batch's token only changes its batch (commit + label) of its project
+
+
 # Why the server refuses runs that send their files, and what to do about it (qa run, start_run(), qa upload)
-UPLOAD_REFUSALS = ('uploads_disabled', 'uploads_unsupported_project', 'invalid_run')
+UPLOAD_REFUSALS = (Reason.UPLOADS_DISABLED, Reason.UPLOADS_UNSUPPORTED_PROJECT, Reason.INVALID_RUN)
+# Why the server takes no more file of a run: the uploader stops asking (qaboard/upload.py)
+RUN_FILES_REFUSALS = (Reason.UPLOADS_DISABLED, Reason.NOT_UPLOADED, Reason.NOT_RUNNING, Reason.PROXY_MISCONFIGURED)
+# Why the server has no artifacts of a commit to give (qaboard/commit_artifacts.py): none to fetch, not an error
+NO_ARTIFACTS = (Reason.NOT_UPLOADED, Reason.DELETED, Reason.UNKNOWN_COMMIT)
 UPLOAD_FIX = ("Set `storage` in qaboard.yaml (or QA_STORAGE) to a folder the server reads too, or ask its administrators to accept files (QABOARD_UPLOAD_ROOT). "
               "If your organization has a site package (qaboard-site-...), install it: it says where results are saved.")
 

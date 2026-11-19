@@ -3,8 +3,9 @@ Tells the server, every few minutes, that a run still runs: if its machine is ki
 server marks it failed instead of showing it running forever (backend/backend/heartbeats.py).
 
 The run says it sends heartbeats when it starts (`heartbeat: true` in POST /api/v1/output/), then reports
-(PATCH /api/v1/output/<id>/progress, without metrics: nothing changes) at least every INTERVAL. `qa run` uses
-`Heartbeat`; qaboard.start_run() reports its progress anyway, and adds heartbeats when it has nothing new.
+(PATCH /api/v1/output/<id>/progress, without metrics: nothing changes) at least every INTERVAL. Runs use them through
+their reporter (qaboard/reporting.py): `qa run` beats all along; qaboard.start_run() reports its progress anyway,
+and beats when it has nothing new, and while its last files are sent.
 """
 import os
 from threading import Event, Thread

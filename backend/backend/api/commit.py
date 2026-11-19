@@ -10,6 +10,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from backend import app, db_session
 from ..access import invalid_project
 from .auth import is_authorized_user, login_required, require_project_access, ingest_access, forbidden_project
+from ..actor import batch_token_limits, is_batch_request
 from ..models import Project, CiCommit, latest_successful_commit, Batch
 from ..storage import UnsafePathError
 from .. import recreate_artifacts
@@ -30,18 +31,27 @@ def api_ci_commit(commit_id=None):
       return error
     # git_commit_sha for backward-compatibility
     hexsha = commit_id or request.json.get('commit_sha') or request.json.get('git_commit_sha')
+    if refused := batch_token_limits(request.json.get('project'), hexsha, any_batch=True, what="send this commit"):
+      return refused
+    from_batch = is_batch_request()
     try:
       commit = CiCommit.get_or_create(
         session=db_session,
         hexsha=hexsha,
         project_id=request.json['project'],
         data=request.json,
+        existing_only=from_batch,
       )
     except Exception as e:
       # usually a commit we don't know, and whose git repository we can't read
       db_session.rollback()
       project = request.json.get('project', 'unknown')
       return jsonify({"error": f"{e}\n Project: {project} - There is an issue with your commit id ({hexsha})"}), 404
+    if from_batch:
+      # the commit is everyone's: its metadata, whether its artifacts are usable, who sent it. A batch only sends
+      # its own results (`qa batch` and `qa run` never send commits, `qa save-artifacts` does)
+      db_session.rollback()
+      return jsonify({"status": "OK", "warning": "Batch tokens don't change commits: nothing was saved."})
     if not commit.data:
       commit.data = {}
     # Clients can store any metadata with each commit.

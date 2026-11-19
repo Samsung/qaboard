@@ -78,11 +78,12 @@ def _save(session, obj, definitions: Dict) -> bool:
   return updated is not None
 
 
-def save_metrics_definitions(session, ci_commit, data: Dict) -> None:
+def save_metrics_definitions(session, ci_commit, data: Dict, trust_branch: bool = True) -> None:
   """
   Saves the metrics a run declared in its commit, and in its project if the commit is on the reference branch
   (or if the project doesn't know any). Most runs declare what's already saved: then we don't write anything.
   One transaction per row, so that we never hold both locks.
+  Without `trust_branch` (batch tokens), the branch and reference branch are QA-Board's, not what the run says.
   """
   definitions = clean_definitions(data.get('metrics_definitions'))
   if not definitions:
@@ -90,6 +91,11 @@ def save_metrics_definitions(session, ci_commit, data: Dict) -> None:
   _save(session, ci_commit, definitions)
 
   project = ci_commit.project
+  if not trust_branch:
+    project_config = ((project.data or {}).get('qatools_config') or {}).get('project') or {}
+    if ci_commit.branch and ci_commit.branch == project_config.get('reference_branch', 'master'):
+      _save(session, project, definitions)
+    return
   project_config = (data.get('qaboard_config') or {}).get('project') or {}
   is_reference = data.get('commit_branch') == project_config.get('reference_branch', 'master')
   if is_reference or not (project.data or {}).get('metrics_definitions'):

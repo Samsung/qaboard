@@ -282,6 +282,55 @@ def test_authorize_upload(outputs_api, dummy_app):
   assert ask(SimpleNamespace(user="u", token=None)) == 204
 
 
+def test_authorize_upload_tells_nginx_it_checked(outputs_api, dummy_app):
+  """nginx passes the header of the answer on with the file (snippets/qaboard-uploads-auth.conf)"""
+  from flask import g
+  with dummy_app.test_request_context("/api/v1/uploads/authorize", method="PUT"):
+    g.actor = SimpleNamespace(user="u", token=None)
+    _, status, headers = outputs_api.authorize_upload()
+  assert status == 204 and headers == {"X-QABoard-Upload-Checked": "1"}
+  with dummy_app.test_request_context("/api/v1/uploads/authorize", method="PUT"):
+    g.actor = None
+    assert len(outputs_api.authorize_upload()) == 2
+
+
+UWSGI = {"uwsgi.version": b"2.0.28"}
+
+
+@pytest.mark.parametrize("environ, refused", [
+  # through nginx: refused unless it checked the token first
+  (UWSGI, True),
+  ({**UWSGI, "QABOARD_UPLOAD_CHECKED": ""}, True),  # without snippets/qaboard-files-server.conf
+  ({**UWSGI, "QABOARD_UPLOAD_CHECKED": "1"}, False),
+  # `flask run` on its own
+  ({}, False),
+])
+def test_uploads_nginx_didnt_check_are_refused(outputs_api, dummy_app, upload_root, environ, refused):
+  start(outputs_api, dummy_app)
+  directory = Path(outputs_api.test_output.output_dir_override)
+  with dummy_app.test_request_context("/api/v1/output/7/files/a.txt", method="PUT", data=b"x", environ_base=environ):
+    response = outputs_api.upload_output_file(7, "a.txt")
+  response, status = response if isinstance(response, tuple) else (response, 200)
+  if refused:
+    assert status == 500 and response.get_json()["reason"] == "proxy_misconfigured"
+    assert "snippets/qaboard-files-server.conf" in response.get_json()["error"]
+    assert not (directory / "a.txt").exists()
+  else:
+    assert status == 200 and (directory / "a.txt").read_bytes() == b"x"
+
+
+def test_every_upload_endpoint_needs_nginx_to_check_it():
+  """The endpoints behind snippets/qaboard-uploads-auth.conf (services/nginx/conf.d/qaboard.conf)"""
+  import ast
+  api = Path(__file__).parent.parent / "backend" / "api"
+  for file, function in [("outputs.py", "upload_output_file"), ("commit_artifacts.py", "upload_commit_artifact"), ("batch.py", "append_submission_log")]:
+    tree = ast.parse((api / file).read_text())
+    body = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == function).body
+    # the first thing it does, after its docstring
+    first = body[1] if isinstance(body[0], ast.Expr) else body[0]
+    assert "uploads.unchecked_by_proxy(request.environ)" in ast.unparse(first), (file, function)
+
+
 def test_append(run_dir):
   assert send(run_dir, "log.txt", b"one\n", offset=0) == 4
   assert send(run_dir, "log.txt", b"two\n", offset=4) == 8
@@ -443,6 +492,68 @@ def test_put_saves_appends_and_checks(outputs_api, dummy_app):
   assert status == 422 and body["reason"] == "digest_mismatch"
   assert put(outputs_api, dummy_app, "../a.bin")[1] == 400
   assert put(outputs_api, dummy_app, "log.txt", query="?offset=abc")[1] == 400
+
+
+def a_batch_token(batch="default", commit=COMMIT, **data):
+  return SimpleNamespace(kind="batch", data={"command_id": "c0ffee00-1", "project": "group/repo", "commit": commit, "batch": batch, **data})
+
+
+def test_batch_tokens_only_send_their_batchs_runs(outputs_api, dummy_app):
+  """The token of a batch QA-Board started (tokens.mint_for_batch) can't reach other batches' runs"""
+  from flask import g
+  outputs_api.test_output.batch.label = "default"
+  def as_token(token, call):
+    with dummy_app.test_request_context("/"):
+      g.actor = SimpleNamespace(user="alice", token=token)
+      return call()
+  start(outputs_api, dummy_app)
+  # its own batch
+  own = a_batch_token()
+  assert as_token(own, lambda: start(outputs_api, dummy_app))[1] == 200
+  assert as_token(own, lambda: put(outputs_api, dummy_app, "log.txt"))[1] == 200
+  # another batch, another commit
+  for token in (a_batch_token("nightly"), a_batch_token(commit="f" * 40)):
+    response, status = as_token(token, lambda: start(outputs_api, dummy_app))
+    assert status == 403 and response.get_json()["reason"] == "batch_token_limited"
+    body, status = as_token(token, lambda: put(outputs_api, dummy_app, "log.txt"))
+    assert status == 403 and body["reason"] == "batch_token_limited" and "token of a batch" in body["error"]
+  # other tokens: as before
+  assert as_token(SimpleNamespace(kind="personal", data={}), lambda: put(outputs_api, dummy_app, "log.txt"))[1] == 200
+
+
+def test_authorize_upload_with_a_batch_token(outputs_api, dummy_app):
+  """nginx says which URL (QABOARD_ORIGINAL_URI): a batch token only sends its own batch's files"""
+  from flask import g
+  outputs_api.test_output.batch.label = "default"
+  def ask(token, uri):
+    environ = {"QABOARD_ORIGINAL_URI": uri} if uri is not None else {}
+    with dummy_app.test_request_context("/api/v1/uploads/authorize", method="PUT", environ_base=environ):
+      g.actor = SimpleNamespace(user="u", token=token, has_scope=lambda scope: True)
+      response = outputs_api.authorize_upload()
+    if isinstance(response, tuple) and response[1] == 403:
+      assert response[0].get_json()["reason"] == "batch_token_limited"
+    return response[1] if isinstance(response, tuple) else 200
+  own, other = a_batch_token(), a_batch_token("nightly")
+  assert ask(own, "/api/v1/output/7/files/log.txt?offset=4") == 204
+  assert ask(other, "/api/v1/output/7/files/log.txt") == 403
+  # artifacts: only `qa save-artifacts` sends them
+  assert ask(own, f"/api/v1/commit/{COMMIT}/artifacts/files/qaboard.yaml?project=group/repo") == 403
+  # its own log only (tokens.batch_token_for)
+  with_log = a_batch_token(log_dir="/logs/x")
+  with_log.projects = ["group/repo"]
+  assert ask(with_log, "/api/v1/batch/submissions/c0ffee00-1/log?offset=0") == 204
+  assert ask(with_log, "/api/v1/batch/submissions/c0ffee00-2/log?offset=0") == 403
+  # nginx says the path it routes ($uri: decoded, `..` resolved, no query), file names may have `?` or `#`
+  assert ask(own, "/api/v1/output/7/files/a?b#c.txt") == 204
+  assert ask(own, "/api/v1/output/7/files/sub\nname") == 204
+  assert ask(other, "/api/v1/output/7/files/a?b#c.txt") == 403
+  assert ask(with_log, "/api/v1/batch/submissions/c0ffee00-1/log") == 204
+  assert ask(with_log, "/api/v1/batch/submissions/c0ffee00-2/log") == 403
+  assert ask(own, "/api/v1/output/x/files/a") == 403
+  # nginx didn't say
+  assert ask(own, None) == 403
+  # other tokens don't depend on the URL
+  assert ask("t", None) == 204
 
 
 def test_put_only_for_running_runs_that_upload(outputs_api, dummy_app):
@@ -638,3 +749,29 @@ def test_refusals_say_why_and_where_to_read_more(monkeypatch):
   monkeypatch.setattr(config, "upload_off_reason", "QABOARD_UPLOAD_ROOT is off")
   message = uploads.disabled_message()
   assert "QABOARD_UPLOAD_ROOT is off" in message and "/docs/backend-admin/uploads" in message
+
+
+@pytest.mark.parametrize("layout", ["uploaded", "shared-storage"])
+def test_the_storage_scan_finds_commit_folders(layout):
+  # the storage scan's (jobs/scan.py's commit_dirs_re)
+  from qaboard.conventions import commit_dir_name
+  commit_dirs_re = uploads.COMMIT_FOLDERS_IN_PATH
+  hexsha = "0123456789abcdef0123456789abcdef01234567"
+  # uploaded runs: the commit's full id; a shared storage: 16 characters of it
+  commit_dir = uploads.commit_folder(hexsha) if layout == "uploaded" else commit_dir_name(hexsha)
+  for path in (f"/root/group/repo/{commit_dir}", f"/root/group/repo/-/{commit_dir}/output/run/log.txt"):
+    match = commit_dirs_re.search(path)
+    assert match is not None, path
+    assert hexsha.startswith(match.group('a') + match.group('b'))
+    assert len(match.group('a') + match.group('b')) == len(str(commit_dir)) - 1
+  # not folders that only start like one
+  assert commit_dirs_re.search(f"/root/{commit_dir}0") is None
+
+
+def test_is_commit_artifacts_dir_in_both_layouts(upload_root):
+  hexsha = "0123456789abcdef0123456789abcdef01234567"
+  directory = uploads.commit_artifacts_dir("group/repo", hexsha)
+  assert uploads.is_commit_artifacts_dir(directory, "group/repo")
+  short = directory.parent.parent / hexsha[2:16] / directory.name
+  assert uploads.is_commit_artifacts_dir(short, "group/repo")
+  assert not uploads.is_commit_artifacts_dir(directory.parent.parent / hexsha[2:20] / directory.name, "group/repo")

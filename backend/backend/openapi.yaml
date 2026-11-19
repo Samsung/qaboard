@@ -769,7 +769,8 @@ paths:
       description: |
         Runs `qa batch` (or `qa optimize` for an automated tuning) from the commit's artifacts, as the signed-in user,
         with the runner the server's admins chose: the same as **Start** in the web app's **Run Tests / Tuning**. Answers
-        once the batch started; its runs show on the commit's page, under `batch_label`.
+        once the batch started; its runs show on the commit's page, under `batch_label`. Servers whose admins chose no
+        runner (`QABOARD_TUNING_RUNNER`) start none: `400`, with `reason: no_server_runner`.
 
         When the commit's artifacts are missing, QA-Board restores what's in the source code, or asks the project's CI
         to recreate them (`recreate_artifacts` in *qaboard.yaml*): then it answers `409`, try again once the CI is done.
@@ -1106,8 +1107,9 @@ components:
   responses:
     BatchRefused:
       description: >-
-        The request can't start: `errors` says why, e.g. an unknown batch, an invalid tuning, a commit QA-Board doesn't
-        know (`404`, it may not be pushed, or its CI didn't run `qa` yet) or an id several commits start with.
+        The request can't start: `errors` says why, e.g. an unknown batch, an invalid tuning, a server that starts no
+        batches, a commit QA-Board doesn't know (`404`, it may not be pushed, or its CI didn't run `qa` yet) or an id
+        several commits start with.
       content:
         application/json:
           schema: {$ref: "#/components/schemas/BatchCheck"}
@@ -1136,7 +1138,8 @@ components:
     Forbidden:
       description: >-
         You can't read this project (`missing_role`, `forbidden_project`), your token lacks a scope
-        (`missing_scope`, with the scope in `required`), or it is restricted to other projects (`token_project`).
+        (`missing_scope`, with the scope in `required`), or it is restricted to other projects (`token_project`), or
+        it is the token of a batch QA-Board started, which only sends that batch's results (`batch_token_limited`).
       content:
         application/json:
           schema: {$ref: "#/components/schemas/Error"}

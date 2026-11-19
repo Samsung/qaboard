@@ -1454,6 +1454,16 @@ def test_responses_say_browsers_must_not_guess_their_type(dummy_app):
     assert after_request(response).headers.getlist("X-Content-Type-Options") == ["nosniff"]
 
 
+def test_batch_tokens_only_change_what_batches_send():
+  """The endpoints batch tokens can call to change something (actor.BATCH_TOKEN_ENDPOINTS) exist: a typo would refuse them"""
+  from backend.actor import BATCH_TOKEN_ENDPOINTS
+  api = Path(__file__).parent.parent / "backend" / "api"
+  defined = {node.name for f in api.glob("*.py") for node in ast.parse(f.read_text()).body if isinstance(node, ast.FunctionDef)}
+  assert sorted(BATCH_TOKEN_ENDPOINTS - defined) == []
+  # what `qa save-artifacts` sends isn't for them, nor what users start or delete
+  assert not BATCH_TOKEN_ENDPOINTS & {"upload_commit_artifact", "start_tuning", "redo_batch", "stop_batch", "delete_batch", "request_project_access"}
+
+
 def test_auth_module_defines_each_name_once():
   # a decorator named like a helper silently replaced it once (signed_in): sign-ins weren't audited anymore
   tree = ast.parse((Path(__file__).parent.parent / "backend" / "api" / "auth.py").read_text())

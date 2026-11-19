@@ -316,6 +316,8 @@ describe('Settings', () => {
   ];
   const server = [
     { key: 'QABOARD_STORAGE_ROOTS', kind: 'environment', label: 'Storage roots', group: 'security', value: '/mnt/qaboard', is_set: true, source: 'env', description: 'Where results are.', why: 'A security boundary.', editable: false },
+    { key: 'QABOARD_TUNING_RUNNER', kind: 'environment', label: 'Runner of web app batches', group: 'security', value: 'local', is_set: true, source: 'env', description: 'Where the server runs qa batch.', why: 'Runs commands.', editable: false,
+      warning: 'With local, batches run the projects\' code in the backend\'s container: use `kubernetes` or `lsf` for a shared server.' },
   ];
   const encryption = { key: { id: 'a1b2c3d4e5f6', source: 'generated', origin: '/var/qaboard/encryption_key', created_at: '2026-11-01T00:00:00Z' }, can_encrypt: true, previous_keys: [],
     secrets: { total: 2, by_key: { a1b2c3d4e5f6: 2 }, unreadable: [], plaintext: 0, to_rotate: 0 }, weak: false, problems: [] };
@@ -353,6 +355,11 @@ describe('Settings', () => {
     expect(popover.getByText('in use')).toBeInTheDocument();
     // the variables only the environment sets, and the encryption key
     expect(within(screen.getByTestId('variable-QABOARD_STORAGE_ROOTS')).getByText('/mnt/qaboard')).toBeInTheDocument();
+    // what admins must know about a variable's value
+    const warning = within(screen.getByTestId('variable-QABOARD_TUNING_RUNNER')).getByRole('note', { name: 'Warning about QABOARD_TUNING_RUNNER' });
+    expect(warning).toHaveTextContent("batches run the projects' code in the backend's container");
+    expect(within(warning).getByText('kubernetes').tagName).toBe('CODE');
+    expect(within(screen.getByTestId('variable-QABOARD_STORAGE_ROOTS')).queryByRole('note')).not.toBeInTheDocument();
     expect(within(screen.getByTestId('encryption-panel')).getByText('a1b2c3d4e5f6')).toBeInTheDocument();
     expect(screen.getByText('Back up this key')).toBeInTheDocument();
   });

@@ -149,6 +149,26 @@ class TestUpload(QaTestCase):
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertIn('batch: default (your own, "@alice| default"', result.stdout)
 
+  def test_a_dry_run_says_what_the_upload_does(self):
+    """--dryrun prints plan_run(), and the upload start_run() with the same arguments"""
+    for ci, args in [(True, ('--label', 'nightly', '-c', 'O3', 'upload', '--batch', 'unit-tests', 'junit.xml')),
+                     (False, ('upload', 'junit.xml', '--project', 'kitefin/planner', '--commit', COMMIT, '--input', 'codec'))]:
+      with self.subTest(ci=ci):
+        server = self.server()
+        dryrun = self.qa('--dryrun', *args, server=server, ci=ci)
+        self.assertEqual(dryrun.returncode, 0, dryrun.stderr)
+        said = dict(line.split(': ', 1) for line in dryrun.stdout.splitlines() if ': ' in line and not line.startswith(' '))
+        folder = next(line.split('folder: ', 1)[1] for line in dryrun.stdout.splitlines() if 'folder: ' in line)
+        result = self.qa(*args, server=server, ci=ci)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        started = server.outputs()[0]
+        batch = f"{started['raw_batch_label']} (your own, \"{started['batch_label']}\": outside the CI)" if started['batch_label'] != started['raw_batch_label'] else started['batch_label']
+        if started.get('batch'):
+          batch += f", {started['batch']} on the runs' cards"
+        self.assertEqual((said['project'], said['commit'], said['batch']), (started['project'], started['commit_sha'], batch))
+        self.assertIn(f"{started['input_path']}: 1 files", dryrun.stdout)
+        self.assertIn(f"run files: {folder}", result.stderr)
+
   def test_errors_name_the_options(self):
     server = self.server()
     for args, expected in [

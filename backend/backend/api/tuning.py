@@ -26,7 +26,7 @@ from sqlalchemy.orm.exc import NoResultFound
 
 from qaboard.utils import merge
 from qaboard.iterators import iter_inputs, resolve_aliases, recording_missing_inputs, BATCH_FILE_SETTINGS
-from qaboard.conventions import deserialize_config, location_from_spec
+from qaboard.conventions import deserialize_config, location_from_spec, Reason
 
 from backend import app, db_session
 from ..models import CiCommit, Project
@@ -35,6 +35,7 @@ from ..shell_utils import safe_user_name, lsf_bridge_command
 from ..storage import check_storage_path, UnsafePathError
 from ..submissions import record_submission, MAX_SUBMISSIONS, user_batch_dir, submission_dir, append_log, startup_logs # noqa: F401
 from ..artifacts import ArtifactsUnavailable, EXIT_TRAP, cd_lines, runner_unsupported
+from ..server_runner import server_runner, runs_in_server, refusal as runner_refusal, DOCS
 from ..runner_jobs import driver_without_storage
 from .. import tokens
 from ..notifications.batches import request_batch_notification, cancel_batch_notification
@@ -297,12 +298,12 @@ def missing_inputs_from_logs(logs):
 # Below nginx's uwsgi_read_timeout (300s): users get our message, not a 504 from the proxy
 LIST_TESTS_TIMEOUT = 240
 
-def run_with_timeout(cmd, cwd, timeout):
+def run_with_timeout(cmd, cwd, timeout, env=None):
   """
   Like subprocess.run(capture_output=True, timeout=...), but on timeout it kills what the command started too
   (e.g. `qa` started by bash): they would keep running, and keep the pipes open.
   """
-  with subprocess.Popen(cmd, cwd=cwd, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True) as process:
+  with subprocess.Popen(cmd, cwd=cwd, env=env, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True) as process:
     try:
       stdout, stderr = process.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -443,6 +444,15 @@ def get_group():
             with qatools_config['project']['entrypoint'].open() as f:
                 entrypoint_source = f.read()
             has_custom_iter_inputs = re.search(r'^\s*(def iter_inputs\(|from .* import.* iter_inputs)', entrypoint_source, re.MULTILINE)
+    if has_custom_iter_inputs and not runs_in_server(server_runner()):
+        # Listing them runs the commit's code (its .envrc, iter_inputs) here: only for servers that opted in to run it.
+        # `qa batch` still lists them where it runs: the web app lets users start the batch without knowing its tests.
+        warnings.append(
+            "This project lists its inputs with its own `iter_inputs`, and this QA-Board server doesn't run projects' code "
+            "itself (QABOARD_TUNING_RUNNER isn't local or celery), so it can't list the tests here. "
+            f"The batch still runs them: `qa batch` lists them where it runs. To check them, run `qa batch {name} --list`. See {docs_link(DOCS)}"
+        )
+        return response([], [], unlisted=True)
     if has_custom_iter_inputs:
         cwd = ci_commit.artifacts_dir
         # We run code from this folder, which comes from unauthenticated API calls
@@ -462,7 +472,10 @@ def get_group():
         cmd = '\n'.join([*envrcs, cmd])
         print(cmd)
         try:
-            process = run_with_timeout(['bash', '-c', cmd], cwd=cwd, timeout=LIST_TESTS_TIMEOUT)
+            # without the server's secrets, like the batches it starts (local_jobs.py)
+            from ..local_jobs import qa_environment
+            env = qa_environment(f"list-{uuid.uuid4()}", celery=False)
+            process = run_with_timeout(['bash', '-c', cmd], cwd=cwd, timeout=LIST_TESTS_TIMEOUT, env=env)
         except subprocess.TimeoutExpired:
             return jsonify({"error": f"Listing the tests with the project's code took more than {LIST_TESTS_TIMEOUT}s: QA-Board stopped it.", "cmd": str(cmd)}), 504
         except OSError as e:
@@ -886,7 +899,8 @@ def check_tuning_request(ci_commit, data, user_name=None):
         errors.append("QA-Board doesn't know this project's configuration: run `qa save-artifacts` or `qa batch` on this commit, with qaboard.yaml.")
         config = {}
 
-    if problem := runner_unsupported(ci_commit, os.environ.get('QABOARD_TUNING_RUNNER', 'local')):
+    # where the server runs `qa batch`, if anywhere
+    if problem := runner_refusal() or runner_unsupported(ci_commit, server_runner()):
         errors.append(problem)
 
     label = str(data.get('batch_label') or '').strip()
@@ -1001,6 +1015,9 @@ def start_tuning(hexsha):
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "Send the request as a JSON object.", "errors": ["Send the request as a JSON object."], "warnings": []}), 400
+    # before anything is restored or written
+    if refused := runner_refusal():
+        return jsonify({"error": refused, "errors": [refused], "warnings": [], "reason": Reason.NO_SERVER_RUNNER}), 400
 
     # API clients (`qa batch --commit`) get the web app's defaults
     data = with_defaults(data, user_name=user)
@@ -1058,7 +1075,8 @@ def start_tuning(hexsha):
     print(working_directory)
 
     # This will make us do automated tuning, versus a single manual batch
-    runner = os.environ.get('QABOARD_TUNING_RUNNER', 'local')
+    # one of server_runner.RUNNERS: runner_refusal() refused the others
+    runner = server_runner()
     do_optimize = data['tuning_search'].get('search_type') == 'optimize'
     batches_names, _ = selected_batches(data)
     if do_optimize:
@@ -1132,7 +1150,7 @@ def start_tuning(hexsha):
 
     try:
         # runs without a shared storage, or on servers that require tokens, send results with a token of the user
-        token = tokens.mint_for_batch(g.get('actor'), ci_commit, command_id, runner, log_dir=log_dir, until_stopped=do_optimize)
+        token = tokens.mint_for_batch(g.get('actor'), ci_commit, command_id, runner, batch_label=str(data['batch_label']), log_dir=log_dir, until_stopped=do_optimize, optimize=do_optimize)
         if runner == 'lsf':
             submission.update(_dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize))
             submission["status"] = "submitted"
@@ -1148,8 +1166,10 @@ def start_tuning(hexsha):
         elif runner == 'celery':
             # status: "submitted" while it runs, "done"/"failed" if it ended already
             submission.update(_dispatch_celery(qa_batch_path, log_dir, command_id, token=token))
-        else:
+        elif runner == 'local':
             submission.update(_dispatch_local(qa_batch_path, log_dir, command_id, ci_commit, token=token))
+        else:
+            raise RuntimeError(f"Unknown runner: {runner}")
     except Exception as e:
         submission["status"] = "failed"
         # its token is of no use

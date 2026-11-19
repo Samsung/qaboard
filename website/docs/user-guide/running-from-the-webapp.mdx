@@ -239,6 +239,24 @@ To configure them for a project, see [Integrations menu](/docs/triggering-third-
 The commit page tells you why, in a message above the views or in the form.
 
 <details>
+<summary>This QA-Board server doesn't start batches itself</summary>
+
+Your QA-Board admins haven't chosen where batches started from the web app run: the form and
+`qa batch --commit` say so, and **Redo** too unless the server redoes runs on LSF. Ask them to [set it up](/docs/backend-admin/runners). Meanwhile, run `qa batch` from
+your CI or a terminal: it works as usual.
+
+</details>
+
+<details>
+<summary>QA-Board can't list the tests of this project</summary>
+
+Your project lists its inputs with its own code (`iter_inputs`), and your QA-Board server doesn't run projects' code
+itself. You can still start the batch: `qa batch` lists the tests where it runs. To see them first, run
+`qa batch <batch> --list` in a terminal.
+
+</details>
+
+<details>
 <summary>The commit's artifacts are missing</summary>
 
 Runs start from the commit's artifacts. When some are missing, a message above the views says which ones, and when and by whom they were deleted:

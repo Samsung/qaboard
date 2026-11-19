@@ -198,7 +198,7 @@ class TestSend(ArtifactsTestCase):
   def test_servers_that_dont_take_artifacts(self):
     # older servers answer GET /commit/<id>/artifacts with the commit's results, or 404 without a reason
     for answer in ({"id": 1, "batches": {}}, ResultsError_404()):
-      with mock.patch.object(commit_artifacts, '_request', side_effect=[answer] if isinstance(answer, Exception) else None, return_value=answer):
+      with mock.patch.object(commit_artifacts, 'request_json', side_effect=[answer] if isinstance(answer, Exception) else None, return_value=answer):
         with self.assertRaises(ServerTooOld):
           listing(self.server.url, PROJECT, COMMIT)
 

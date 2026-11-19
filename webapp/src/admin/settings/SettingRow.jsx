@@ -182,7 +182,8 @@ export const VariableRow = ({ variable }) => <Row data-testid={`variable-${varia
       <CopyKey name={variable.key} what="the variable's name"/>
       <DocsLink path={variable.docs}/>
     </div>
-    <p className="description">{variable.description}</p>
+    <p className="description"><WithCode text={variable.description}/></p>
+    {variable.warning && <Hint icon="warning-sign" intent={Intent.WARNING}><span role="note" aria-label={`Warning about ${variable.key}`}><WithCode text={variable.warning}/></span></Hint>}
     <Hint icon="lock">{variable.why}</Hint>
   </div>
   <div className="control">

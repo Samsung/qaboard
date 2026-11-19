@@ -21,7 +21,7 @@ export const filters = [
   { id: 'changed', label: 'Changed', description: 'Saved here, not at their default', test: s => !isEnvironmentOnly(s) && s.source === 'database' },
   { id: 'env', label: 'From the environment', description: "Set in the server's environment: read-only here", test: s => s.source === 'env' && (!isEnvironmentOnly(s) || s.is_set) },
   { id: 'secrets', label: 'Secrets', description: 'Encrypted here, never shown again', test: s => !isEnvironmentOnly(s) && hasSecrets(s) },
-  { id: 'attention', label: 'Needs attention', description: 'Invalid, undecryptable or overridden values', test: needsAttention, intent: 'danger' },
+  { id: 'attention', label: 'Needs attention', description: 'Invalid, undecryptable or overridden values, and variables with a warning', test: needsAttention, intent: 'danger' },
 ];
 export const filterById = Object.fromEntries(filters.map(filter => [filter.id, filter]));
 
@@ -29,7 +29,7 @@ const normalize = text => String(text ?? '').toLowerCase();
 
 // Every word must be found in the setting's label, key, variable, description, group, or its choices
 export const searchText = (setting, group) => normalize([
-  setting.label, setting.key, setting.env, setting.description, setting.default_text, setting.why,
+  setting.label, setting.key, setting.env, setting.description, setting.default_text, setting.why, setting.warning,
   group?.title, ...(setting.choices ?? []), ...(setting.fields ?? []).map(field => field.label),
 ].filter(Boolean).join(' '));
 
@@ -60,8 +60,10 @@ export function organize({ settings = [], server = [], groups = [] }, { query = 
   for (const variable of server) {
     const group = by_id[variable.group] ?? other;
     if (!matchesSearch(variable, query, group)) continue;
-    // the filters are about what admins can change: the variables only show with "all" and "from the environment"
-    if ((filter === 'all' || (filter === 'env' && test(variable))))
+    // the filters are about what admins can change: the variables only show with "all" and "from the environment",
+    // and "needs attention" with a warning (e.g. batches that run in the server's container)
+    if (variable.warning) counts.attention += 1;
+    if (filter === 'all' || (filter === 'env' && test(variable)) || (filter === 'attention' && variable.warning))
       section_of[group.id].variables.push(variable);
   }
   return {

@@ -141,23 +141,28 @@ object storage mount.
 
 - `qa upload` keeps a copy of what it sends in the project's (or the current folder's) *output/*, like any shared
   run: CI workspaces don't mind, laptops may. [S, behaviour]
-- Two security reviews of the endpoints that write files (runs' files, commits' artifacts, batch logs). The first
-  found run folders built from clients' paths; the second (December 2026) that commits sharing their first 16
-  characters shared a folder (any 40-hex commit can be created), that folder names could be made to collide (8
-  characters of hash, names that looked hashed), that nginx buffered 1 GB bodies before the token was checked, that
-  the chart had no body limit on `/api`, that failed appends left half their bytes, and that folders were created
-  through symlinks before the check: all fixed, with tests. Left (the first three and the last but one in
-  `backend-admin/uploads.mdx`):
+- Left by the security reviews of the endpoints that write files (first three in `backend-admin/uploads.mdx`):
   - uploaded HTML and SVG run as the people who open them unless `QABOARD_SANDBOX_HTML` is on (off by default, for
     every run: reports with scripts would change for shared-storage sites) [S, behaviour];
-  - with the default *local* runner, anyone who can send a project's artifacts runs code in the backend's container
-    (the trust model of `runners.mdx` "Security", now reachable with a token) [M, behaviour];
+  - with `QABOARD_TUNING_RUNNER=local` or `celery` (opt-in, warned about in Admin → Settings), anyone who can send a
+    project's artifacts or start its batches runs code as the backend's account and reads its files (only the
+    environment is scrubbed) [M, behaviour];
   - no limit on the number of files or a project's bytes (inodes, quotas), and the free-space check isn't atomic
     with concurrent uploads [M];
-  - a batch's token can write any running run's files and any commit's artifacts of its project, not only its
-    batch's [S, API];
-  - in the chart, the backend's Service also exposes uWSGI's HTTP port to the cluster, without nginx's limits (the
-    backend's own still apply); the ingress buffers bodies before nginx checks tokens [S];
+  - a redo's token can write any running run of the batch it redoes (same commit and label, e.g. CI's runs in it),
+    not only the redone ones, and point its runs' `output_directory` anywhere under the storage roots (shared
+    storage); reads of batch tokens stay project-wide; with a batch token, `POST /api/v1/commit/` answers OK and saves
+    nothing, and the windows runner's status checks (`/jenkins/build/`) don't name the project, so they're not limited
+    to its jobs (only the status comes back) [S, API];
+  - in the chart, the backend's NetworkPolicy (`backend.networkPolicy`) keeps other pods from its uwsgi port only
+    where the network plugin enforces NetworkPolicies (not checked on a cluster: no `helm template` run either); the
+    ingress buffers bodies before nginx checks tokens [S];
+  - commit ids aren't normalised: `CiCommit.get_or_create` looks them up case-sensitively and by prefix, so an
+    upper-case or short id from a project token creates another commit (batch tokens need the exact full id, and
+    never create commits or projects). Lowercasing for everyone would move shared-storage folders, which both the
+    server and `qa` derive from the id as given, and orphan existing upper-case rows [S, behaviour];
+  - the files pre-check (`snippets/qaboard-files-server.conf`, `/__qaboard/files-auth`) still passes the raw
+    `$request_uri`, unlike the uploads one (`$uri`) [S];
   - a SIGKILL during a write leaves a `.qaboard-upload-*` file next to it. [S]
 - Files a run removed after they were sent (`outputs.live`) stay on the server. [S, behaviour]
 - A run killed without a chance to say so (SIGKILL, a lost machine) is failed after
@@ -168,14 +173,13 @@ object storage mount.
   files over `QABOARD_UPLOAD_MAX_FILE_MB` are refused. [L]
 - `qa batch` with cluster runners only works when the nodes share the working directory with the machine that
   starts the batch, or on Kubernetes with an image per commit. Runs started from the web app (tuning, redo) run from
-  the artifacts `qa save-artifacts` sent, with a token per batch, on the server's machine or Kubernetes only: not
+  the artifacts `qa save-artifacts` sent, with a token per batch, on Kubernetes or, when admins opt in, the server's machine only: not
   with the LSF or Celery runners. Tokens are revoked when the batch is stopped and expire 10 minutes after its last
   run ends, except `qa optimize`'s and redo's: they expire a day after their runs stop. On Kubernetes, the driver
   pod gets the batch's files in its ConfigMap (768 KiB at most) and sends its log with the token: what it prints
-  after the token expired, or that the server refused, is only in the pod's logs (the log's first line says how to
-  read them), and while the server is slow to answer it stops reading the driver's output, which then waits (it
-  sends from the thread that copies it, `batch_log.forward`) [S]; `qa optimize` can't resume an experiment
-  started again (its journal stays in the pod). See `docs/design/ingest-upload-sdk.md` §3 item 2. `qa check-bit-accuracy`
+  after the token expired, that the server refused, beyond 4 MiB while the server is slow, or after 60 s at the end
+  is only in the pod's logs (the log's first line says how to read them) [S]; `qa optimize` can't resume an experiment
+  started again (its journal stays in the pod). See `docs/design/ingest-upload-sdk.md` §1 and §3 item 6. `qa check-bit-accuracy`
   compares fetched manifests only, not files (`QA_BITACCURACY_CMP`); `qa optimize` keeps its journal on the machine
   that runs it. `qaboard.runs(url)` gives uploaded runs' `output_dir` on the server, not a local folder. [L]
 - Storage locations (`backend/backend/locations.py`) are reached through folders the admin mounts: no credentials,
@@ -261,10 +265,17 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   team's own broker or vhost keep running (broker URLs from batch data can't be trusted). [M, behaviour]
 - Workers remember revoked tasks in memory: a worker started after a stop may still run the batch's queued tasks,
   unless workers use `--statedb`. Terminating running tasks needs Celery 5.3+ and the prefork pool. [S, behaviour]
-- `qa batch` started by the server (`QABOARD_TUNING_RUNNER=local`/`celery`, and redo without the LSF bridge) runs as a
+- `qa batch` started by the server with `QABOARD_TUNING_RUNNER=local`/`celery` (opt-in since November 2026) runs as a
   detached process of the backend container: another replica can't stop it, and redeploying the backend kills it.
-  Running projects' code on the server trusts every project developer with what the server's account can read (the
-  environment is scrubbed, files aren't). [M, behaviour]
+  Tuning with `lsf` and no bridge still runs `bsub` from the server's container. The web app doesn't know that a
+  server starts no batches: its buttons stay enabled until the refusal comes back. [M, behaviour]
+- Listing a batch's tests in the form (`POST /api/v1/tests/group`) runs `qa batch --list` with the project's code
+  when its entrypoint defines `iter_inputs`: only with `local`/`celery`, in the scrubbed environment, synchronously in
+  the request (240 s at most). With other runners the form can't count the runs (`unlisted`): it could ask the runner
+  (a Kubernetes pod) instead. [M, behaviour]
+- The backend restores artifacts with `qa save-artifacts` in a git worktree of the commit (`CiCommit.save_artifacts`,
+  "Restore the artifacts"), with the server's full environment: it runs QA-Board's `qa` on the repository's
+  *qaboard.yaml*, not the project's code. [S, no change]
 
 - Batches started from the web app through the LSF bridge get no QA-Board token (the bridge doesn't pass the server's
   environment): on a server with `ingest.auth: token`, their runs can't save results unless a shared HOME holds a
