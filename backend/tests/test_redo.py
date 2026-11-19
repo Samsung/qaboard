@@ -72,8 +72,9 @@ echo "$QA_BATCH_COMMAND_ID $QA_OUTPUTS_COMMIT $*" >> "{calls}"
 
 @pytest.fixture
 def setup(tmp_path, monkeypatch):
-  """A batch from the CI, with its artifacts. Returns a function that sets up a fake `qa`."""
+  """A batch from the CI, with its artifacts. Returns a function that sets up a fake `qa`. The server redoes runs itself."""
   monkeypatch.delenv("QA_RUNNERS_LSF_BRIDGE", raising=False)
+  monkeypatch.setenv("QABOARD_TUNING_RUNNER", "local")
   monkeypatch.setenv("QABOARD_DEFAULT_USER", "ci")
   monkeypatch.setattr(redo, "check_storage_path", lambda path: Path(path))
   monkeypatch.setattr(redo, "db_session", MagicMock())
@@ -155,6 +156,48 @@ def test_redo_refuses_unusable_artifacts(setup, dummy_app):
   assert response.get_json() == {"error": "The subproject's qaboard.yaml is missing.", "artifacts": {"ok": False}}
   # nothing was started
   assert not calls.exists()
+
+
+@pytest.mark.parametrize("runner, message", [
+  (None, "doesn't redo runs itself"),
+  ("", "doesn't redo runs itself"),
+  ("lsf", "QA_RUNNERS_LSF_BRIDGE"),
+  ("dask", "isn't local, celery, lsf or kubernetes"),
+])
+def test_redo_is_refused_when_the_server_starts_no_batches(setup, dummy_app, monkeypatch, runner, message):
+  """Without QABOARD_TUNING_RUNNER, `qa batch` doesn't run the project's code in the server's container: refused first"""
+  batch, calls = setup()
+  if runner is None:
+    monkeypatch.delenv("QABOARD_TUNING_RUNNER")
+  else:
+    monkeypatch.setenv("QABOARD_TUNING_RUNNER", runner)
+  with dummy_app.test_request_context():
+    response, status = redo.redo_response(batch, [make_output()], {"user_name": "arthurf"})
+  body = response.get_json()
+  assert status == 400 and body["reason"] == "no_server_runner"
+  assert message in body["error"] and "`qa batch`" in body["error"] and "/docs/backend-admin/runners" in body["error"]
+  # nothing was restored, written or started
+  batch.ci_commit.ensure_artifacts.assert_not_called()
+  assert "submissions" not in batch.data and not calls.exists()
+  with pytest.raises(ValueError) as refused:
+    redo.redo_outputs(batch, [make_output()], {"user_name": "arthurf"})
+  assert message in str(refused.value)
+
+
+@pytest.mark.parametrize("runner, expected", [
+  (None, None), ("local", "local"), ("celery", "local"), ("lsf", None), ("kubernetes", "kubernetes"), ("Kubernetes ", "kubernetes"),
+])
+def test_redo_runner(monkeypatch, runner, expected):
+  from backend.server_runner import redo_runner
+  monkeypatch.delenv("QA_RUNNERS_LSF_BRIDGE", raising=False)
+  if runner is None:
+    monkeypatch.delenv("QABOARD_TUNING_RUNNER", raising=False)
+  else:
+    monkeypatch.setenv("QABOARD_TUNING_RUNNER", runner)
+  assert redo_runner() == expected
+  # the LSF bridge redoes runs as before, whatever the runner but kubernetes
+  monkeypatch.setenv("QA_RUNNERS_LSF_BRIDGE", "ssh lsf {command}")
+  assert redo_runner() == ("kubernetes" if expected == "kubernetes" else "bridge")
 
 
 def test_redo_tells_what_could_not_be_restored(setup, dummy_app):

@@ -5,14 +5,14 @@ We start a single `qa batch --runs-file` for all the runs we redo, so that the r
 to them together, e.g. how many runs are in flight (concurrency). Like other batches started from QA-Board,
 its script, the list of runs and the logs are saved in the batch directory, and users see them with the batch's logs.
 
-With QABOARD_TUNING_RUNNER=kubernetes, `qa batch` runs in a pod, like batches started from the web app
-(runner_jobs.submit_driver), and we don't wait for it. With the LSF bridge, we run it there and wait. Otherwise it runs on
-the server, detached like batches started from the web app with the local runner (local_jobs.py): the request doesn't
-wait for it, and it gets the server's environment minus its secrets.
+Where `qa batch` runs is server_runner.redo_runner(). With QABOARD_TUNING_RUNNER=kubernetes, in a pod, like batches
+started from the web app (runner_jobs.submit_driver), and we don't wait for it. With the LSF bridge, we run it there and
+wait. With local or celery, on the server, detached like batches started from the web app with the local runner
+(local_jobs.py): the request doesn't wait for it, and it gets the server's environment minus its secrets. Otherwise
+(QABOARD_TUNING_RUNNER unset, or lsf without the bridge) we refuse, before writing anything.
 
 Note: almost everything used here comes from unauthenticated API calls (see shell_utils.py).
 """
-import os
 import re
 import json
 import uuid
@@ -24,6 +24,7 @@ from .shell_utils import quote, is_shell_safe, safe_user_name, lsf_bridge_comman
 from .storage import check_storage_path
 from .fs_utils import mkdir_shared
 from .artifacts import ArtifactsUnavailable, EXIT_TRAP, cd_lines, runner_unsupported
+from .server_runner import server_runner, redo_runner, refusal
 from . import tokens
 from .submissions import record_submission, user_batch_dir, submission_dir, startup_logs
 
@@ -49,7 +50,7 @@ _lsf_resources_re = re.compile(r'^[\w .,:;=<>\[\](){}|&!*+/#%@~-]*$')
 def _is_runner(value) -> bool:
   # Kubernetes runs only when the server starts `qa batch` there too: its pod's ServiceAccount, not the server's
   # credentials, may create them. Otherwise they'd run as the server's user (run_as: user).
-  return value in ("lsf", "dask", "local", "celery") or (value == "kubernetes" and os.environ.get('QABOARD_TUNING_RUNNER') == 'kubernetes')
+  return value in ("lsf", "dask", "local", "celery") or (value == "kubernetes" and server_runner() == 'kubernetes')
 
 SAFE_JOB_OPTIONS = {
   "type": _is_runner,
@@ -132,14 +133,17 @@ def redo_outputs(batch, outputs, user_info, actor=None) -> dict:
   batch's token is theirs, tokens.mint_for_batch).
   Returns the submission (see submissions.py): its status is "done" if `qa batch` could start the runs, "failed" otherwise,
   "submitted" when `qa batch` was started in a pod (QABOARD_TUNING_RUNNER=kubernetes) or still runs on the server.
-  Raises ValueError (e.g. UnsafePathError) if the user name or folders are not safe to use.
+  Raises ValueError (e.g. UnsafePathError) if the user name or folders are not safe to use, or the server redoes no runs.
   """
   user = safe_user_name(user_info['user_name'])
   ci_commit = batch.ci_commit
   # We run code from there
   check_storage_path(ci_commit.artifacts_dir)
-  on_kubernetes = os.environ.get('QABOARD_TUNING_RUNNER') == 'kubernetes'
-  runner = "kubernetes" if on_kubernetes else "bridge" if os.environ.get('QA_RUNNERS_LSF_BRIDGE') else "local"
+  # redo_response refuses first, with its reason
+  if refused := refusal(redo=True):
+    raise ValueError(refused)
+  runner = redo_runner()
+  on_kubernetes = runner == 'kubernetes'
   # first: no need to restore artifacts for runs that couldn't start
   if problem := runner_unsupported(ci_commit, runner):
     raise ArtifactsUnavailable(problem)
@@ -207,7 +211,7 @@ def redo_outputs(batch, outputs, user_info, actor=None) -> dict:
         db_session.commit()
       submission.update(submit_driver(script_path, log_dir, user_info, ci_commit, command_id, on_prepared=record_driver, token=token))
       submission["status"] = "submitted"
-    elif os.environ.get('QA_RUNNERS_LSF_BRIDGE'):
+    elif runner == 'bridge':
       print(command)
       with (log_dir / 'log.txt').open('a') as log:
         process = subprocess.run(command, shell=True, stdout=log, stderr=subprocess.STDOUT)
@@ -215,7 +219,7 @@ def redo_outputs(batch, outputs, user_info, actor=None) -> dict:
     else:
       from .local_jobs import start_detached, qa_environment, project_uses_celery
       # the runs are done again with their runner: they may need the broker
-      celery = (os.environ.get('QABOARD_TUNING_RUNNER') == 'celery' or project_uses_celery(ci_commit)
+      celery = (server_runner() == 'celery' or project_uses_celery(ci_commit)
                 or any(output_runner(output) == 'celery' for output in outputs))
       submission.update(start_detached(script_path, log_dir, qa_environment(command_id, celery=celery, token=token)))
   except Exception as e:
@@ -241,6 +245,9 @@ def log_tail(submission, size=4000) -> str:
 def redo_response(batch, outputs, user_info):
   """The API's response when users ask to redo runs"""
   from flask import jsonify, g
+  # before anything is restored or written
+  if refused := refusal(redo=True):
+    return jsonify({"error": refused, "reason": "no_server_runner"}), 400
   if not outputs:
     return jsonify({"error": "There are no runs to redo."}), 400
   try:

@@ -239,6 +239,15 @@ To configure them for a project, see [Integrations menu](/docs/triggering-third-
 The commit page tells you why, in a message above the views or in the form.
 
 <details>
+<summary>This QA-Board server doesn't start batches itself</summary>
+
+Your QA-Board admins haven't chosen where batches started from the web app run: the form, **Redo** and
+`qa batch --commit` say so. Ask them to [set it up](/docs/backend-admin/runners). Meanwhile, run `qa batch` from
+your CI or a terminal: it works as usual.
+
+</details>
+
+<details>
 <summary>The commit's artifacts are missing</summary>
 
 Runs start from the commit's artifacts. When some are missing, a message above the views says which ones, and when and by whom they were deleted:

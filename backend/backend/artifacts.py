@@ -134,24 +134,27 @@ def cd_lines(ci_commit, source_envrc: bool = False) -> List[str]:
   return lines
 
 
-def runner_unsupported(ci_commit, runner: str) -> Optional[str]:
+def runner_unsupported(ci_commit, runner: Optional[str]) -> Optional[str]:
   """
-  Why QA-Board can't start runs from this commit's artifacts with `runner` (its runner for batches), if it can't:
+  Why QA-Board can't start runs from this commit's artifacts with `runner` (server_runner.server_runner(), or for redo
+  redo_runner(): "bridge"), if it can't. None says nothing: server_runner.refusal() refuses it first. Here:
   without a shared storage, or when their results need a token its jobs can't get (tokens.RUNNERS_WITHOUT_TOKEN).
   """
+  if runner is None:
+    return None
   if ci_commit.uploaded_artifacts_dir is None:
     from .tokens import RUNNERS_WITHOUT_TOKEN
     from .settings import setting
     if runner in RUNNERS_WITHOUT_TOKEN and setting('ingest.auth') == 'token':
       return ("QA-Board can't start this project's runs through LSF: this server only accepts results sent with a "
               "token, and LSF jobs don't get one from QA-Board. Start the batch from CI or a terminal with `qa batch` "
-              "after `qa auth login`, or ask its administrators to set QABOARD_TUNING_RUNNER to local or kubernetes.")
+              "after `qa auth login`, or ask its administrators to run batches on Kubernetes (QABOARD_TUNING_RUNNER=kubernetes).")
     return None
   if runner in UPLOADED_ARTIFACTS_RUNNERS:
     return None
   return (f"QA-Board can't start this project's runs with its {runner} runner: the project has no storage shared with "
-          "QA-Board. Ask its administrators to set QABOARD_TUNING_RUNNER to local or kubernetes, or start the batch "
-          "from CI or a terminal with `qa batch`.")
+          "QA-Board. Ask its administrators to run batches on Kubernetes (QABOARD_TUNING_RUNNER=kubernetes; local works "
+          "too, but runs the projects' code in QA-Board's own container), or start the batch from CI or a terminal with `qa batch`.")
 
 
 class Protected:

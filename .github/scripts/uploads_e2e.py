@@ -22,6 +22,7 @@ Checks that:
    that uploaded reference (the same results pass, others fail)
 8. without a shared storage, `qa save-artifacts` sends the commit's artifacts, `qa fetch-artifacts` downloads them
    (not with --no-proxy), and a batch started from the web app runs from them on the server and sends its results
+   (the server needs QABOARD_TUNING_RUNNER=local: CI's .env sets it)
 9. a run killed mid-way (SIGKILL: it can't say so) is failed once it is silent (with --silent-runs-after)
 """
 import argparse
@@ -435,7 +436,7 @@ def check_artifacts(server, env, workdir, proxy):
     body = {"batch_label": "e2e-from-server", "selected_group": "e2e", "notify": False}
     _, check = server.json("POST", f"/api/v1/commit/{COMMIT}/batch/check?{query}", body, headers={"Origin": server.base})
     if check.get("errors"):
-        fail(f"QA-Board refuses to start a batch from the uploaded artifacts: {check['errors']}")
+        fail(f"QA-Board refuses to start a batch from the uploaded artifacts (does the server have QABOARD_TUNING_RUNNER=local?): {check['errors']}")
     _, started = server.json("POST", f"/api/v1/commit/{COMMIT}/batch?{query}", body, headers={"Origin": server.base})
     log(f"Started a batch from the web app: {started.get('submission', {}).get('status')}")
     deadline = time.time() + 180

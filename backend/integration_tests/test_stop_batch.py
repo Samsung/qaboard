@@ -246,3 +246,23 @@ def test_submissions_say_why_qa_batch_waits(world, tmp_path):
   world.db.commit()
   (tmp_path / 'log.txt').write_text("qa batch\n")
   assert "pending_note" not in batch.to_dict(db_session)["data"]["submissions"][DRIVER_ID]
+
+
+@pytest.mark.parametrize("url", ["/api/v1/batch/redo/", "/api/v1/output/redo/{output_id}/", "/api/v1/commit/{hexsha}/batch/?project=proj/a"])
+def test_the_server_starts_no_batches_by_default(logged_in, world, monkeypatch, url):
+  """Without QABOARD_TUNING_RUNNER, the server refuses to run `qa batch` (the project's code) in its container"""
+  from backend.models import Batch
+  monkeypatch.delenv("QABOARD_TUNING_RUNNER", raising=False)
+  monkeypatch.delenv("QA_RUNNERS_LSF_BRIDGE", raising=False)
+  alice = logged_in('alice')
+  batch = world.batch('proj/a')
+  run = world.run(batch, deleted=False, user='alice')
+  world.commit()
+  batch_id, hexsha = batch.id, batch.ci_commit.hexsha
+  body = {"id": batch_id} if "batch/redo" in url else {"batch_label": "tuning", "selected_group": "default"}
+  response = alice.post(url.format(output_id=run.id, hexsha=hexsha), json=body)
+  assert response.status_code == 400, response.get_json()
+  answer = response.get_json()
+  assert answer["reason"] == "no_server_runner" and "QABOARD_TUNING_RUNNER" in answer["error"] and "`qa batch`" in answer["error"]
+  world.db.expire_all()
+  assert "submissions" not in (world.db.get(Batch, batch_id).data or {})

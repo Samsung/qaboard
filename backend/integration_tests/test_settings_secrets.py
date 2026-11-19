@@ -179,6 +179,22 @@ def test_server_variables_are_shown_without_secrets(admin, monkeypatch):
   assert all(v["why"] and not v["editable"] for v in server.values())
 
 
+@pytest.mark.parametrize('runner, warned', [(None, False), ('kubernetes', False), ('lsf', False), ('local', True), ('celery', True), ('dask', True)])
+def test_tuning_runner_warns_when_batches_run_in_the_server(admin, monkeypatch, runner, warned):
+  if runner is None:
+    monkeypatch.delenv('QABOARD_TUNING_RUNNER', raising=False)
+  else:
+    monkeypatch.setenv('QABOARD_TUNING_RUNNER', runner)
+  server = {v["key"]: v for v in admin.get('/api/v1/admin/settings').get_json()["server"]}
+  variable = server["QABOARD_TUNING_RUNNER"]
+  assert variable["value"] == runner and variable["default_text"] == "No batches from the web app"
+  assert bool(variable["warning"]) is warned
+  if runner in ('local', 'celery'):
+    assert "backend's container" in variable["warning"] and "kubernetes" in variable["warning"]
+  checklist = {item["id"]: item for item in admin.get('/api/v1/admin/overview').get_json()["checklist"]}
+  assert checklist["server_runner"]["ok"] is (runner not in ('local', 'celery'))
+
+
 def test_rotating_the_key(admin, monkeypatch):
   admin.post('/api/v1/admin/settings', json={"jenkins.build_token": "build-token", "email.smtp_password": "smtp-password"})
   from backend import encryption, settings

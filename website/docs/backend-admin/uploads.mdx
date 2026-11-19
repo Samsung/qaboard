@@ -120,11 +120,12 @@ Whoever can send files can put any file on your server, which serves it to every
   meanwhile: one namespace per team. The driver pod also sends its log with it, since it can't write in the batch's
   folder. These batches download the artifacts from QA-Board, through the proxy: the server's own `qa` reaches it
   at `QABOARD_HOST`, set to the proxy by *docker-compose.yml* and the Helm chart.
-- **Developers can run code on the server** through the batches started from the web app: they run the commit's
-  `qaboard.yaml` and code, and with uploaded artifacts anyone with a token that can send the project's results can
-  change them. With the default runner (`QABOARD_TUNING_RUNNER` unset, *local*), that code runs in the backend's
-  container, with its secrets. On a server that people you don't trust can send results to, use the Kubernetes
-  runner, in a namespace per team ([runners](/docs/backend-admin/runners#security)).
+- **Batches started from the web app run the commit's code**: its `qaboard.yaml` and code, and with uploaded
+  artifacts anyone with a token that can send the project's results can change them. By default
+  (`QABOARD_TUNING_RUNNER` unset) the server starts none. With `local` or `celery`, that code runs in the backend's
+  container, as its account, with what it can read: keep them for your laptop. On a server that people you don't
+  trust can send results to, use the Kubernetes runner, in a namespace per team
+  ([runners](/docs/backend-admin/runners#security)).
 - **The proxy checks the token before it receives a file**: requests without one that can send results are refused
   before their body is read, so they can't fill its disk. Its configuration has it for the files' and the batch logs'
   paths (`snippets/qaboard-uploads-auth.conf`): keep it if you write your own, with

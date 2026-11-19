@@ -172,9 +172,11 @@ jobs:
             cantaloupe.cache-from=type=gha,scope=cantaloupe
             cantaloupe.cache-to=type=gha,scope=cantaloupe,mode=max
       - name: Deploy
-        # Silent runs fail after a minute, not 15: the end-to-end test of uploads kills one (.env: see docker-compose.yml)
+        # Silent runs fail after a minute, not 15: the end-to-end test of uploads kills one (.env: see docker-compose.yml).
+        # It also starts a batch from the web app: the server runs it in its container only when asked to (local runner)
         run: |
           echo "QABOARD_SILENT_RUN_TIMEOUT_MINUTES=1" >> .env
+          echo "QABOARD_TUNING_RUNNER=local" >> .env
           ./deployments/deploy.py deployments/production.env up --no-pull --init
       - name: Smoke Test @app
         run: curl -sSf --retry 10 --retry-all-errors --retry-delay 3 http://localhost:5151/ | grep -q 'id="root"'
@@ -436,8 +438,9 @@ jobs:
           # Helm 4.2.1 waited out the full --timeout after deleting hooks, then reported success anyway
           # (https://github.com/helm/helm/issues/32214): an install of a few minutes took 30. Fail instead.
           start=$SECONDS
+          # helm_e2e.py starts batches from the web app on the backend: the local runner, off by default
           helm install qaboard charts/qaboard -f charts/qaboard/quickstart.yaml --wait --timeout 15m \
-            --set image.repository="$QABOARD_IMAGE" --set-string image.version="$QABOARD_VERSION"
+            --set image.repository="$QABOARD_IMAGE" --set-string image.version="$QABOARD_VERSION" --set config.QABOARD_TUNING_RUNNER=local
           echo "helm install took $((SECONDS - start))s"
           if [ $((SECONDS - start)) -gt 600 ]; then
             echo "::error::helm install took over 10 minutes: is helm waiting out its timeout (helm/helm#32214)?"
@@ -477,7 +480,7 @@ jobs:
           before=$(revision)
           start=$SECONDS
           helm upgrade qaboard charts/qaboard -f charts/qaboard/quickstart.yaml --wait --timeout 15m \
-            --set image.repository="$QABOARD_IMAGE" --set-string image.version="$QABOARD_VERSION"
+            --set image.repository="$QABOARD_IMAGE" --set-string image.version="$QABOARD_VERSION" --set config.QABOARD_TUNING_RUNNER=local
           echo "helm upgrade took $((SECONDS - start))s"
           helm history qaboard
           if [ $((SECONDS - start)) -gt 600 ]; then
