@@ -35,6 +35,7 @@ from ..shell_utils import safe_user_name, lsf_bridge_command
 from ..storage import check_storage_path, UnsafePathError
 from ..submissions import record_submission, MAX_SUBMISSIONS, user_batch_dir, submission_dir, append_log, startup_logs # noqa: F401
 from ..artifacts import ArtifactsUnavailable, EXIT_TRAP, cd_lines, runner_unsupported
+from ..server_runner import server_runner, refusal as runner_refusal
 from ..runner_jobs import driver_without_storage
 from .. import tokens
 from ..notifications.batches import request_batch_notification, cancel_batch_notification
@@ -886,7 +887,8 @@ def check_tuning_request(ci_commit, data, user_name=None):
         errors.append("QA-Board doesn't know this project's configuration: run `qa save-artifacts` or `qa batch` on this commit, with qaboard.yaml.")
         config = {}
 
-    if problem := runner_unsupported(ci_commit, os.environ.get('QABOARD_TUNING_RUNNER', 'local')):
+    # where the server runs `qa batch`, if anywhere
+    if problem := runner_refusal() or runner_unsupported(ci_commit, server_runner()):
         errors.append(problem)
 
     label = str(data.get('batch_label') or '').strip()
@@ -1001,6 +1003,9 @@ def start_tuning(hexsha):
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "Send the request as a JSON object.", "errors": ["Send the request as a JSON object."], "warnings": []}), 400
+    # before anything is restored or written
+    if refused := runner_refusal():
+        return jsonify({"error": refused, "errors": [refused], "warnings": [], "reason": "no_server_runner"}), 400
 
     # API clients (`qa batch --commit`) get the web app's defaults
     data = with_defaults(data, user_name=user)
@@ -1058,7 +1063,8 @@ def start_tuning(hexsha):
     print(working_directory)
 
     # This will make us do automated tuning, versus a single manual batch
-    runner = os.environ.get('QABOARD_TUNING_RUNNER', 'local')
+    # one of server_runner.RUNNERS: runner_refusal() refused the others
+    runner = server_runner()
     do_optimize = data['tuning_search'].get('search_type') == 'optimize'
     batches_names, _ = selected_batches(data)
     if do_optimize:
@@ -1148,8 +1154,10 @@ def start_tuning(hexsha):
         elif runner == 'celery':
             # status: "submitted" while it runs, "done"/"failed" if it ended already
             submission.update(_dispatch_celery(qa_batch_path, log_dir, command_id, token=token))
-        else:
+        elif runner == 'local':
             submission.update(_dispatch_local(qa_batch_path, log_dir, command_id, ci_commit, token=token))
+        else:
+            raise RuntimeError(f"Unknown runner: {runner}")
     except Exception as e:
         submission["status"] = "failed"
         # its token is of no use

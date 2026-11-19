@@ -53,6 +53,7 @@ const item_links = {
   jenkins_anonymous_jobs: '/admin/settings?setting=jenkins.anonymous_jobs',
   signed_in_role: '/admin/settings?setting=projects.signed_in_role',
   webhook_secret: '/admin/settings?setting=git.webhook_secret',
+  server_runner: '/admin/settings?q=QABOARD_TUNING_RUNNER',
   legacy_tokens: '/admin/tokens',
   encryption_unreadable: '/admin/settings?group=security',
   encryption_problem: '/admin/settings?group=security',

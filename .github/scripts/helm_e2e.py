@@ -23,10 +23,14 @@ them too and send their results with the batch's token. Then a batch stopped fro
 its token revoked.
 Prints the logs of what failed.
 
+3. and 4. need the local runner, off by default: CI's helm install sets QABOARD_TUNING_RUNNER=local.
+
 On your computer, after the quickstart's commands (website/docs/get-started/quickstart.mdx, with images of this
 checkout), like CI's helm-e2e job:
+  helm upgrade qaboard charts/qaboard -f charts/qaboard/quickstart.yaml --wait --reuse-values --set config.QABOARD_TUNING_RUNNER=local
+  kubectl port-forward svc/qaboard-proxy 5151:80 &
   uv run --frozen python .github/scripts/helm_e2e.py http://localhost:5151
-  helm upgrade qaboard charts/qaboard -f charts/qaboard/quickstart.yaml --wait --reuse-values \
+  helm upgrade qaboard charts/qaboard -f charts/qaboard/quickstart.yaml --wait --reuse-values --set config.QABOARD_TUNING_RUNNER=kubernetes \
     --set runners.kubernetes.enabled=true --set 'runners.kubernetes.namespaces={default}' --set-string runners.kubernetes.runAs=1000:1000
   # the backend restarted: start the port-forward again
   kubectl port-forward svc/qaboard-proxy 5151:80 &

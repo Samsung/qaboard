@@ -3,6 +3,14 @@ Unit tests for starting batches from QA-Board (backend/api/tuning.py)
 """
 from types import SimpleNamespace
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def server_runner(monkeypatch):
+    """Most tests are about the request: the server starts batches in its container. Unset, it refuses them."""
+    monkeypatch.setenv("QABOARD_TUNING_RUNNER", "local")
+
 
 def test_parse_bsub_job_id():
     from backend.api.tuning import parse_bsub_job_id
@@ -668,6 +676,45 @@ def lookup(monkeypatch, hexshas, exact=None):
     return tuning.lookup_commit("group/repo", "abc")
 
 
+@pytest.mark.parametrize("runner, message", [
+    (None, "doesn't start batches itself"),
+    ("  ", "doesn't start batches itself"),
+    ("typo", "(typo) isn't local, celery, lsf or kubernetes"),
+])
+def test_batches_are_refused_when_the_server_starts_none(tmp_path, monkeypatch, dummy_app, runner, message):
+    """Without QABOARD_TUNING_RUNNER, the server doesn't run the projects' code in its container: the form says it first"""
+    import backend.api.tuning as tuning
+    if runner is None:
+        monkeypatch.delenv("QABOARD_TUNING_RUNNER")
+    else:
+        monkeypatch.setenv("QABOARD_TUNING_RUNNER", runner)
+    commit = make_commit(tmp_path, {"project": {"name": "repo"}, "inputs": {"batches": "sub/batches.yaml"}}, batches={"night": {"inputs": ["a"]}})
+    with dummy_app.test_request_context():
+        errors = tuning.check_tuning_request(commit, {"batch_label": "x", "selected_group": "night"})["errors"]
+    assert len(errors) == 1 and message in errors[0]
+    assert "`qa batch`" in errors[0] and "it still works" in errors[0] and "/docs/backend-admin/runners" in errors[0]
+    # starting it is refused before anything is restored or written
+    import flask
+    monkeypatch.setattr(tuning, "lookup_commit", lambda project_id, hexsha: (commit, None))
+    monkeypatch.setattr(tuning, "require_project_access", lambda user, project_id: None)
+    commit.ensure_artifacts = MagicMock()
+    commit.get_or_create_batch = MagicMock()
+    with dummy_app.test_request_context("/api/v1/commit/abcdef/batch", method="POST", query_string={"project": "repo/sub"}, json={"batch_label": "x", "selected_group": "night"}):
+        flask.g.user = {"user_name": "alice"}
+        response, status = tuning.start_tuning("abcdef")
+    assert status == 400 and response.get_json()["reason"] == "no_server_runner" and message in response.get_json()["error"]
+    commit.ensure_artifacts.assert_not_called()
+    commit.get_or_create_batch.assert_not_called()
+
+
+@pytest.mark.parametrize("runner", ["local", "celery", "lsf", "kubernetes"])
+def test_batches_start_with_a_server_runner(tmp_path, monkeypatch, runner):
+    import backend.api.tuning as tuning
+    monkeypatch.setenv("QABOARD_TUNING_RUNNER", runner)
+    commit = make_commit(tmp_path, {"project": {"name": "repo"}, "inputs": {"batches": "sub/batches.yaml"}}, batches={"night": {"inputs": ["a"]}})
+    assert tuning.check_tuning_request(commit, {"batch_label": "x", "selected_group": "night"})["errors"] == []
+
+
 def test_unknown_or_ambiguous_commits(monkeypatch):
     commit, error = lookup(monkeypatch, ["abc123"])
     assert commit.hexsha == "abc123" and error is None
@@ -733,7 +780,7 @@ def test_start_a_batch_from_an_api_client(dummy_app, tmp_path, monkeypatch):
         started.update(script=script.read_text(), log_dir=log_dir)
         return {"status": "submitted"}
     monkeypatch.setattr(tuning, "_dispatch_local", dispatch_local)
-    monkeypatch.delenv("QABOARD_TUNING_RUNNER", raising=False)
+    monkeypatch.setenv("QABOARD_TUNING_RUNNER", "local")
     request = {
         "batch_label": "from-cli",
         "selected_group": ["night", "mine"],
