@@ -1,201 +1,134 @@
 # Sending results without `qa run` or a shared storage: `start_run()`, `qa upload`, HTTP upload
 
-Status: v9 (2026-11-18). A first version is implemented, as experimental: §1 says what, §2 the decisions behind it,
-§3 what is left. v10: a second security review of the endpoints that write files, fixed (`docs/warts.md`), the
-end of `qa run`'s and the driver's logs, `qa upload --dryrun` without a server, the e2e test covers bit accuracy and
-heartbeats. v9: batches started from the server on Kubernetes without a shared storage, tested for real, and
-their tokens ended with them (§3, item 2). v8: a commit's artifacts through the server (§3, item 2). v7: an image per commit for the kubernetes runner (§3, item 2). v6: storage locations inside the storage roots, the upload root as the default one, edited in
-Admin → Storage. v5: uploads on by default, an end-to-end test in CI, and where storage settings should live. v4 added storage locations (runs store their full location), heartbeats, and `check-bit-accuracy`
-and `optimize` without a shared storage. v1 (2026-10-26) proposed a separate run client; v2 (2026-11-14) rebuilt the plan on
-`qaboard.start_run()` (`docs/rfcs/python-sdk-runs.md`). `docs/design/http-upload.md` is the full protocol this
-implements a small part of. Known limits: `docs/warts.md` ("Results sent over HTTP").
-User docs: `website/docs/upload-results.mdx`, `storage/uploads.mdx`, `backend-admin/uploads.mdx`.
+Status (2026-11-19): implemented and experimental; this page is the map for the next features (§3). §1 says what
+exists and where, §2 the decisions that constrain what comes next, §3 what is left, in order. `docs/design/http-upload.md`
+is the full protocol this implements a small part of (parts, content store); `docs/rfcs/python-sdk-runs.md` the SDK.
+Known limits: `docs/warts.md` ("Results sent over HTTP"). User docs: `website/docs/upload-results.mdx`,
+`storage/uploads.mdx`, `storage/artifacts.mdx`; admins: `backend-admin/uploads.mdx`, `backend-admin/runners.mdx`.
 
 ## 1. What is built
 
+### Client (`qaboard/`)
 | Piece | Where |
 |---|---|
-| `qa upload`: files other tools wrote become a run, without a `run()` | `qaboard/upload_command.py`: `start_run()` from the shell |
-| Metrics from test reports and benchmark files | `qaboard/junit.py` (`junit_metrics`), `qaboard/benchmarks.py` (`benchmark_metrics`) |
-| Recognized files (tests, benchmarks, profiles) on the cards of runs created from code, without qaboard.yaml | `webapp/src/viewers/runView.js` (`with_run_files`), names in `viewers/fileTypes.js` |
-| Results sent over HTTP: no `storage`, `storage: upload` or `QA_STORAGE=upload` | `qaboard/config.py` (`uploads_files`), `qaboard/payloads.py` (`"storage": "upload"`) |
-| The uploader, shared by `qa run` and `start_run()` | `qaboard/upload.py` |
-| The server: one folder, one endpoint | `backend/backend/uploads.py`, `PUT /api/v1/output/<id>/files/<path>` in `backend/api/outputs.py`, `QABOARD_UPLOAD_ROOT`. nginx asks `PUT /api/v1/uploads/authorize` before it receives a body (`snippets/qaboard-uploads-auth.conf`) |
-| `start_run(label=, batch=)`, the project in CI, the guard inside `qa run` | `qaboard/active_run.py` |
-| Storage locations: buckets or disks added while the server runs, per project, inside the storage roots; the upload root is the default one; runs store their full location | `backend/backend/locations.py` (and its changes: `add`, `update`, `remove`), `models/StorageLocation.py`, `qaboard-admin storage-locations`, Admin → Storage (`api/admin_storage_locations.py`, `webapp/src/admin/StorageLocations.jsx`) |
-| Heartbeats: runs that stop reporting are failed | `qaboard/heartbeat.py`, `backend/backend/heartbeats.py` (`QABOARD_SILENT_RUN_TIMEOUT_MINUTES`) |
-| `qa check-bit-accuracy` against references on the server: their manifests over HTTP, cached | `qaboard/bit_accuracy.py` (`fetched_manifests`) |
-| On by default: a server with the default storage takes files in `/mnt/qaboard` (a volume in `docker-compose.yml`, the chart's results volume); refusals say why (`uploads.off_reason`, also in `/api/v1/config` for `qa doctor`) | `backend/backend/config.py` (`_upload_root`) |
-| An image per commit: `{commit}` in `runners.kubernetes.image`, looked up in its registry before pods start; `workdir`, where the image has the repository | `qaboard/runners/registry.py`, `kubernetes.py` (`check_commit_images`, `in_pods`), the server's driver in `backend/runner_jobs.py` |
-| A commit's artifacts through the server: `qa save-artifacts` sends them, the server keeps them next to the commit's runs and runs batches from there, pods fetch them into a cache keyed by their hash (`qa fetch-artifacts`) | `qaboard/commit_artifacts.py`, `backend/api/commit_artifacts.py`, `uploads.commit_artifacts_dir`, `CiCommit.uploaded_artifacts_dir`, `artifacts.cd_lines`, `runners/kubernetes.py` (`fetched_artifacts`) |
-| End-to-end test: `docker-compose.yml` without an overlay, `qa upload` and `start_run()` from the checkout, files through nginx and the image server | `.github/scripts/uploads_e2e.py`, CI's `docker` job |
+| `start_run()`: runs from code; `plan_run()` says which run it would start, with no request and no side effect (`RunPlan`), also printed by `qa upload --dryrun` | `active_run.py` |
+| `qa upload`: files other tools wrote become a run (`start_run()` from the shell) | `upload_command.py` |
+| What runs send: one payload definition | `payloads.py` (`"storage": "upload"`) |
+| Whether results go over HTTP: no `storage`, `storage: upload` or `QA_STORAGE=upload` | `config.py` (`uploads_files`) |
+| **Every request to the server**: base URL and `/api/v1/` paths, the token, TLS (`QABOARD_API_VERIFY`), retries (opt-in per call: 408, 429 with `Retry-After` up to 60 s, 5xx but 501/505, network errors; not bad URLs or untrusted certificates), bodies given again per try (callables), `give_up()`, downloads checked by SHA-256. Errors are `ResultsError` (`status`, `reason`, `is_transient`, `is_refusal`) | `http_client.py`; `results._request` is a thin wrapper |
+| **Refusal reasons**, shared with the server (`from qaboard.conventions import Reason`), and the groups clients act on (`UPLOAD_REFUSALS`, `RUN_FILES_REFUSALS`, `NO_ARTIFACTS`) | `conventions.py` `Reason` |
+| **What a run tells the server besides its results**: the uploader, heartbeats, the run the server never heard of (`finish(create=)`), the end of the log after a refused end (`ended(known=False)`). Idempotent steps under a lock, a context manager; used by `qa run` (`qa.py` `_reporter`) and `start_run()` | `reporting.py` `RunReporter` |
+| The uploader: live files while the run goes on (`log.txt`, `series.jsonl` by `?offset=`, `series.json`, `run.json`, `outputs.live`), then everything with its SHA-256, 4 at a time, then the final `POST /output/` | `upload.py` `Uploader` |
+| Heartbeats (at least every 2 minutes, `PATCH .../progress`) | `heartbeat.py`, driven by `RunReporter` |
+| A run's files fetched from the server, with their cache (`cache_root`, `attempt_key`, `fetch_file`: whole or nothing). Today the reference's manifests for `qa check-bit-accuracy`, once per finished run. **`local_path()` goes here** | `run_files.py` (`fetched_manifests`), `bit_accuracy.py` calls it |
+| Metrics of uploaded files, by the file names the web app's viewers recognize | `junit.py`, `benchmarks.py`, `webapp/src/viewers/fileTypes.js` |
+| A commit's artifacts: `qa save-artifacts` sends them file by file, `qa fetch-artifacts` downloads them into `<cache>/<hash>/` | `commit_artifacts.py` |
+| The Kubernetes driver's log to the server: read and echoed without waiting for the network, sent every 3 s by a thread (4 MiB buffer, oldest dropped with a note, 60 s at the end), offsets and the 409 resync, no retries inside the request (a lost answer would write twice) | `batch_log.py` (`LogSender`) |
+| An image per commit: `{commit}` in `runners.kubernetes.image`, looked up in its registry before pods start | `runners/registry.py`, `runners/kubernetes.py` (`check_commit_images`, `in_pods`, `fetched_artifacts`) |
+
+### Server (`backend/backend/`)
+| Piece | Where |
+|---|---|
+| One folder (`QABOARD_UPLOAD_ROOT`, default `/mnt/qaboard` when no storage roots are set), one endpoint per file: `PUT /api/v1/output/<id>/files/<path>` (`?offset=` to append, `X-Content-SHA256`), written to a temporary name then renamed | `uploads.py` (`save_file`), `api/outputs.py` |
+| Folders the server chooses: `<root>/<project>/-/<commit>/<batch>/<configuration>/<input>/`, the commit's artifacts in `<commit>/artifacts/`. One pattern for commit folders (`FULL_COMMIT_ID`, `COMMIT_FOLDER`, `COMMIT_FOLDERS_IN_PATH`), also used by the storage scan | `uploads.py` (`run_dir`, `commit_folder`, `is_run_dir`, `is_commit_artifacts_dir`), `jobs/scan.py` |
+| nginx checks the token before it takes a body: `auth_request` to `PUT /api/v1/uploads/authorize` (gets the URI as `QABOARD_ORIGINAL_URI`). **Fail closed**: `snippets/qaboard-files-server.conf` sets `$qaboard_files_server_included`, which the auth snippets require (500 otherwise, `nginx -t` fails if no server includes it); the authorize answer's `X-QABoard-Upload-Checked` reaches the upload as the uwsgi param `QABOARD_UPLOAD_CHECKED`, and endpoints that take files refuse without it (`proxy_misconfigured`). `flask run` alone isn't checked | `services/nginx/snippets/qaboard-uploads-auth.conf`, `qaboard-uploads-authorize.conf`, `uploads.unchecked_by_proxy`; the chart uses the same snippets |
+| Storage locations: runs store their full location (a path or `s3://...`), resolved by the locations admins add, inside the storage roots | `locations.py`, `models/StorageLocation.py`, Admin → Storage |
+| Heartbeats: running runs silent for `QABOARD_SILENT_RUN_TIMEOUT_MINUTES` are failed by the jobs worker | `heartbeats.py` |
+| A commit's artifacts through the server: `PUT /api/v1/commit/<commit>/artifacts/files/<path>`, `GET .../artifacts` (files, SHA-256, mode, a hash of the whole), files served by nginx under `/s/` | `api/commit_artifacts.py`, `CiCommit.uploaded_artifacts_dir`, `artifacts.py` (`cd_lines`, `runner_unsupported`) |
+| **Where the server starts batches** (tuning, `qa optimize`, redo, `qa batch --commit`): `QABOARD_TUNING_RUNNER` unset means nowhere, refused up front with `no_server_runner`; `local`/`celery` (in the backend's container, warned about in Admin → Settings and the security checklist), `kubernetes` (a driver pod), `lsf` / the LSF bridge for redo | `server_runner.py` (`server_runner`, `redo_runner`, `refusal`), `local_jobs.py`, `runner_jobs.py` (`submit_driver`, `driver_files`) |
+| **Batch tokens** (`qab_bat_`, `read` + `ingest`): minted per batch the server starts, for the user who started it (`tokens.mint_for_batch`), with the batch in `Token.data` (project, commit, label, `optimize`). Writes: deny-by-default outside `actor.BATCH_TOKEN_ENDPOINTS`, and those only for its commit and label (`label|iterN` for `qa optimize`, sub-projects included: `tokens.batch_allows`); never commit artifacts. Reads stay project-wide. Revoked when the batch stops, expire 10 minutes after its last run (`end_batch_token`), or after a day idle for optimize and redo (`until_stopped`) | `tokens.py`, `actor.py`, refusals `batch_token_limited` |
+| End-to-end: `qa upload`, `start_run()`, `qa run` with uploads, bit accuracy against an uploaded reference, a killed run failed by heartbeats, batches started from the web app (`QABOARD_TUNING_RUNNER=local` in CI's `.env`); on Kubernetes with the Helm chart | `.github/scripts/uploads_e2e.py` (CI `docker`), `.github/scripts/helm_e2e.py --kubernetes` (CI `helm-e2e`) |
 
 ### How a run without a shared storage goes
-1. The run is saved like a local one, in the project's `output/` folder. Nothing new on the client's disk: no
-   staging area, no state file.
-2. `POST /api/v1/output/` with `"storage": "upload"` creates it. **The server chooses the folder**,
-   `<upload root>/<project>/-/<commit>/<batch>/<configuration>/<input>/`, and empties it when a run starts again
-   (not for `--keep-previous` and `resume=True`). Clients never send a folder, and what they say about the run only
-   reaches the path as folder names the server makes (`uploads.folder_name`: a slug, with a hash unless the text was
-   one already). Before it writes or deletes, the server checks that the folder is one it could have chosen for that
-   project (`uploads.is_run_dir`), for a run it marked as uploading (`data.uploads_files`): the folder the database
-   has isn't trusted, since other clients say where they saved theirs.
-3. While the run goes on, a thread sends what people look at then: `log.txt` and `series.jsonl` by what was added
-   (`?offset=`), `series.json` and `run.json` when they change, and the files matching `outputs.live`.
-4. When it ends: everything else, each file with its SHA-256, 4 at a time, **then** the final `POST /output/`. The
-   server only takes files of runs that are pending or running, so a finished run's files are all there and don't
-   change.
-5. From then on they are files of a storage root: nginx serves them under `/s/`, the image server, the file
-   browser, exports, deleting runs and retention work unchanged.
+1. The run is saved like a local one, in the project's `output/`. No staging area, no state file.
+2. `POST /api/v1/output/` with `"storage": "upload"` creates it. **The server chooses the folder** and empties it
+   when a run starts again (not for `--keep-previous` and `resume=True`). Clients never send a folder: what they say
+   about the run only reaches the path as names the server makes (`uploads.folder_name`: a slug, with a hash unless
+   the text was one already). Before it writes or deletes, the server checks the folder is one it could have chosen
+   for that project (`is_run_dir`), for a run it marked as uploading (`data.uploads_files`).
+3. While the run goes on, `RunReporter`'s uploader sends what people look at then.
+4. When it ends: everything else, then the final `POST /output/`. The server only takes files of pending or running
+   runs, so a finished run's files are all there and don't change.
+5. From then on they are files of a storage root: `/s/`, the image server, the file browser, exports, deletions and
+   retention work unchanged.
 
-Like the SDK's metrics, the uploader sends the state of the folder, not events: it compares files with what it
-sent (size and date) and sends what differs. A failed request needs no replay.
+The uploader sends the state of the folder, not events: it compares files with what it sent (size and date) and
+sends what differs. A failed request needs no replay.
 
-## 2. Decisions
+### How batches the server starts get a commit's code
+- With a shared storage: from the commit's artifacts folder, as always.
+- With uploaded artifacts: **every batch fetches its own copy** into a temporary cache (`artifacts.cd_lines`,
+  `EXIT_TRAP`), on the server's machine too; the runs save their files in the copy, then send them with the batch's
+  token. In a fetched copy the kubernetes runner has its run pods fetch too (`fetched_artifacts`).
+- On Kubernetes, the driver pod doesn't see the server's batch folder: it gets its files in its ConfigMap (768 KiB at
+  most, `runner_jobs.driver_files`) and sends its output with `qa send-batch-log` (`PUT /api/v1/batch/submissions/<id>/log`).
+  The server writes how to read the pod's logs at the top of log.txt (`QABOARD_POD_LOGS`).
+- The server's own `qa` reaches QA-Board through nginx (`QABOARD_HOST`: `proxy` in docker-compose.yml, the proxy's
+  Service in the chart), so its uploads are checked like everyone's.
+- Image per commit: `{commit}` or `{commit:.N}` only between braces. `check_commit_images` sends `HEAD
+  /v2/<repository>/manifests/<tag>` (OCI and Docker types; Bearer, anonymous or with credentials, or Basic). Credentials:
+  readable `image_pull_secrets` and `~/.docker/config.json`, never the server's own (`local_registry_credentials: false`).
+  404 stops the batch; 401/403 after authenticating, other statuses and network errors warn and continue. `workdir` maps
+  the runs' `cd` and log paths under the repository's root (`in_pods`).
+
+## 2. Decisions that constrain what comes next
 
 | Question | Decision | Why |
 |---|---|---|
-| A new run client? | No: `start_run()` is the one way to create runs outside `qa run`; `qa upload` is its command line | One vocabulary, one payload definition (`qaboard/payloads.py`) |
-| Batch, label or experiment | `label` stays the CLI's word, `batch=` the SDK's; `start_run()` takes both. One alone is the batch in the web app. Both, like `qa --label nightly batch unit-tests`: `label` is the web app's batch, `batch` the group of tests on the run's card (`data.batch`). No `experiment` | Too late to rename `--label`; the two-argument case mirrors `qa batch` |
-| Nested runs | Minimal: `qa run` exports `QABOARD_RUN_DIR`, and `start_run()` refuses to start that same run again (it would remove its files). No attaching | Not a concern yet |
-| Recognized files on cards | For runs created from code (`data.sdk`): series, test reports, benchmark files, profiles, 4 per kind, unless the project's visualizations already have that kind | `qa upload junit.xml` must show something in a project without configuration |
-| Metrics of uploaded files | The existing readers, by the same file names as the web app's viewers. Explicit `-m` wins | Reuse; one definition of "is a test report" per side, both tested on `tests/fixtures/file-types.json` |
-| Default run name of `qa upload` | In a CI job `<job>/<file>` (the job alone with several paths), elsewhere the file's name; `--input` for names that last | Two jobs that upload a junit.xml, or one job that uploads two files in turn, must not replace each other |
-| Syncing later | Not built. A request is tried 3 times; a run the server never heard of is not sent later | Not worth new commands yet |
-| Heartbeats | Clients that send them say so when the run starts (`heartbeat: true`); `qa run` and `start_run()` then report at least every 2 minutes (`PATCH .../progress`, empty for a bare heartbeat). Every report of a running run sets `outputs.reported_at`; the jobs worker fails those silent for 15 minutes, with `data.failed_reason` like "Fail stuck runs", and a silent run that reports again runs again | Old clients never send them, so they are never failed for being silent. No new endpoint, no new state: the run's state, like everything runs report |
-| Projects created before runs | Out of scope: `qa` still creates projects by sending results | Comes with project permissions |
-| `--append` to a finished run | Dropped: one upload is one run | Finished runs don't change; fewer states |
-| Which protocol | One `PUT` per file, with an offset to append, and no session, parts or content store | Test reports, benchmarks, logs and most images are small. Parts and deduplication wait for a project with huge outputs and no shared storage |
-| Who chooses the folder | The server, from the run's identity. Paths clients name are inside it, validated, written to a temporary name then renamed | Clients can't write anywhere else; no path of the client's machine reaches the server |
-| Tokens | Always, for files and for creating a run that uploads, whatever `ingest.auth` says | Whoever can upload stores files the server then serves |
-| Storage backends in the server | **One: a folder.** Object storage is mounted as a file system by the deployment (S3 Files, JuiceFS...); files are only renamed inside a run's folder | Every reader (nginx, Cantaloupe, the file browser, deletions) already works on files. A second backend would touch each of them (§4) |
-| Where a run is, with many buckets | **Each run stores its full location**: a path as before, or a URL (`s3://bucket/prefix/<project>/-/...`). A table of *storage locations*, edited while the server runs, maps URL prefixes to how the server reaches them (today: where they are mounted) and to the projects whose new runs go there. `Output.output_dir` resolves it (`locations.local_path`); unreachable locations resolve to a folder that doesn't exist | No name or id to keep in sync: editing a location (mount, later credentials) never strands runs, a public instance can add buckets it doesn't own without a restart, and runs of one project can be in several buckets. Credentials and native access attach to the location row later (`options`), not to runs |
-| Default when no `storage` is set | Send to the server | It was an error before; new projects need no storage line |
-| Does a new server take files? | Yes, when it has the default storage: `QABOARD_UPLOAD_ROOT` unset, `QABOARD_STORAGE_ROOTS` unset, and `/mnt/qaboard` writable. `off` turns uploads off. Sites that set their storage roots choose the folder | The client's default (send to the server) met a server that refused it: a new project and a new server didn't work together. Files always need a token, so being on costs little. At SIRC (storage roots set) nothing changes |
-| Where storage settings live | **The boundary in environment variables, the routing in the database.** Storage roots (and today the upload root) say where the server may write and delete: someone who takes over an admin's session must not move them (`settings.BOUNDARY`). Which folder a project's runs go to, inside them, is data: storage locations, edited without a restart | A new folder needs mounts in nginx and the image server anyway, so a restart. v6: locations must be inside a storage root (`locations.check_path`, symlinks resolved), from the CLI too, so that the web app can edit them. Locations added before stay readable, flagged "outside the storage roots" |
-| What needs a shared storage | v8: runs started from the web app (tuning, redo) with the LSF or Celery runners only. `qa save-artifacts` sends the artifacts; `qa batch` fetches its copy where it runs, the server's machine or a Kubernetes pod, and so do the run pods, and the runs send results with the batch's token (`tokens.mint_for_batch`). QA-Board refuses other runners for these projects (`artifacts.runner_unsupported`). `qa check-bit-accuracy` compares the reference's manifests, fetched over HTTP once per finished run; `qa optimize` reads metrics from the API | Bit accuracy only needs hashes: no file downloads. Inputs stay the user's |
-| How artifacts reach the server (v8) | **Files, not a bundle**: one `PUT` per file (`/api/v1/commit/<commit>/artifacts/files/<path>`, SHA-256 required), then the manifests, into `<base>/<project>/-/<commit>/artifacts/` with the repository's layout, one copy per (sub)project. `CiCommit.data.uploaded_artifacts` stores its location, checked like runs' folders (`uploads.is_commit_artifacts_dir`) | The server reads qaboard.yaml and the batch files there, checks, lists and deletes artifacts with the code it has for a shared storage (`artifacts.py`, `CiCommit.delete`): nothing else knows they were sent. Per file, a CI that saves again only sends what changed. One copy per subproject: no deletion can touch a sibling's |
-| How batches get them (v8) | `GET .../artifacts` lists the files with their SHA-256 (rehashed when a file is newer than its manifest), mode and a hash of the whole; files come from `/s/` (nginx, its access checks). `qa fetch-artifacts` downloads into `<cache>/<hash>/`, renamed into place when complete. **Every batch QA-Board starts from uploaded artifacts fetches its own copy into a temporary cache**, on the server's machine too, and removes it when it ends (`artifacts.cd_lines`, `EXIT_TRAP`); the scripts don't export `QA_OUTPUTS_COMMIT` for them, so the runs save their files in the copy, then send them. In a fetched copy, the kubernetes runner has its run pods fetch too (`fetched_artifacts`). v9: the Kubernetes driver pod doesn't see the batch's folder on the server either: it gets that folder's files in its ConfigMap, and sends its output to the server's log.txt with the batch's token (`qa send-batch-log`) | One path wherever `qa batch` runs; the uploaded folder stays as `qa save-artifacts` sent it; nothing is left on disk. No server-side tar: big binaries are served by nginx. The server's own `qa` must reach QA-Board through nginx (`QABOARD_HOST`: `proxy` in docker-compose.yml, the proxy's Service in the Helm chart). The log goes where the web app already reads it, rather than the server reading pods' logs (deleted with them) |
+| A new run client? | No: `start_run()` is the one way to create runs outside `qa run`; `qa upload` is its command line; `plan_run()` is what both say before starting | One vocabulary, one payload definition |
+| Batch, label or experiment | `label` is the CLI's word, `batch=` the SDK's; one alone is the web app's batch. Both: `label` is the batch, `batch` the group on the run's card (`data.batch`). No `experiment` | Too late to rename `--label` |
+| Nested runs | `qa run` exports `QABOARD_RUN_DIR`; `start_run()` refuses to start that same run again. No attaching | Not a concern yet |
+| Default run name of `qa upload` | In CI `<job>/<file>` (the job alone with several paths), elsewhere the file's name; `--input` for names that last | Jobs must not replace each other's runs |
+| Syncing later | Not built: a run the server never heard of is not sent later | Not worth new commands yet |
+| Heartbeats | Clients say so when the run starts (`heartbeat: true`); every report of a running run sets `outputs.reported_at`; silent runs are failed with `data.failed_reason`, and run again if they report again | Old clients are never failed for being silent. No new endpoint or state |
+| `--append` to a finished run | Dropped: one upload is one run | Finished runs don't change |
+| Which protocol | One `PUT` per file, an offset to append; no session, parts or content store | Most files are small. **Parts and deduplication wait for a project with huge outputs** (§3 item 2) |
+| Who chooses the folder | The server, from the run's identity. Client paths are inside it, validated, written to a temporary name then renamed | Clients can't write anywhere else |
+| Tokens | Always, for files and for creating a run that uploads, whatever `ingest.auth` says | Whoever uploads stores files the server then serves |
+| Retries | Per call, never by default: an append or a log whose answer was lost must not be sent twice unless the caller handles offsets (`http_client.request(retries=...)`) | One helper, no hidden resends |
+| Storage backends in the server | **One: a folder.** Object storage is mounted by the deployment (S3 Files, JuiceFS...) | Every reader (nginx, Cantaloupe, the file browser, deletions) works on files (§4) |
+| Where a run is | **Each run stores its full location** (a path or a URL); storage locations map URL prefixes to how the server reaches them. `Output.output_dir` resolves it (`locations.local_path`); never `Path()` | Editing a location never strands runs; buckets added without a restart; credentials attach to the location later (`options`) |
+| Default when no `storage` is set | Send to the server | New projects need no storage line |
+| Does a new server take files? | Yes with the default storage (`QABOARD_UPLOAD_ROOT` and `QABOARD_STORAGE_ROOTS` unset, `/mnt/qaboard` writable); `off` turns it off | A new project and a new server must work together |
+| Where storage settings live | The boundary (storage roots, the upload root) in environment variables; the routing (locations) in the database, inside the roots (`locations.check_path`) | Someone who takes over an admin's session must not move where the server writes |
+| Does the server run project code? | **Not by default** (`QABOARD_TUNING_RUNNER` unset). `local`/`celery` are an explicit opt-in, warned about; unknown values are refused rather than falling back | Anyone who can send a project's artifacts or start its batches would run code as the backend |
+| What a batch token reaches | Its batch: commit + label (+ optimize iterations), writes deny-by-default. Not the command id: redo runs pending runs under their first command id, and optimize evaluations are batches of their own | The token sits in a namespace's ConfigMaps |
+| How artifacts reach the server | Files, not a bundle: one `PUT` per file (SHA-256 required), then the manifests, one copy per (sub)project | The server reads, checks and deletes them with the shared-storage code (`artifacts.py`); CI sends only what changed |
+| How batches get them | Every batch fetches its own copy into a temporary cache, wherever `qa batch` runs; no server-side tar | One path everywhere; nothing left on disk |
 
 ## 3. What is left
-In `docs/warts.md`, with sizes. The ones that matter first:
-1. ~~An end-to-end test in CI~~ (v5: `uploads_e2e.py`; v10: `qa check-bit-accuracy` against an uploaded reference,
-   a killed run failed by the heartbeats, with `QABOARD_SILENT_RUN_TIMEOUT_MINUTES=1` in CI's `.env`). Still to do: a
-   try on Windows.
-2. **Runs the server starts, without a shared storage.** The code of a commit must reach the job. What the industry
-   does: on HPC schedulers (Slurm, LSF), a shared file system, as QA-Board does today; on Kubernetes and cloud
-   batch, either an image per commit built by CI (W&B Launch, Kubeflow, Argo), or a stable base image and a code
-   bundle fetched at start (SageMaker's `source_dir`, Ray's `working_dir`). Next steps, in order:
-   - ~~`{commit}` in `runners.kubernetes.image`, checked in the registry before launching~~ (v7, below). Covers
-     `qa batch` from CI for teams that build an image per commit. Not batches started from the web app: their driver
-     uses the commit's image, but the server still reads the batches from the commit's artifacts, and the driver
-     `cd`s there. That comes with the next step.
-   - ~~Artifacts through the server~~ (v8, below): `qa save-artifacts` sends the files with the same kind of `PUT`,
-     pods fetch them once per cache, keyed by their hash.
-   - ~~A token for the runs the server starts~~ (v8): runs that upload always need one. `tokens.mint_for_batch`
-     mints one per batch for the user who started it (`qab_bat_`, `read` + `ingest`, the project only, idle expiry
-     of a day, 30 days at most, ended with the batch since v9), for commits whose artifacts were
-     uploaded, and since v9 on servers with `ingest.auth: token`. In the environment of `qa batch` on
-     the server; in the driver pod's `env` (its ConfigMap) on Kubernetes, and runners forward it to run pods, unlike
-     other secrets (`runners/env.py`, `is_batch_token`). Accepted: who reads a namespace's ConfigMaps can use it while
-     it is valid (a namespace is a trust domain). Not in a Secret: that would need `secrets` RBAC on every cluster.
-   Inputs and datasets stay the user's (mounts, buckets, their code), as with every tool above.
+Sizes: [S] an hour, [M] a day, [L] more. In order:
 
-   **v8, to do next** (in order; [S]/[M] sizes). Context for whoever picks this up: PR #258 (artifacts through the
-   server, tokens per batch) and the three reviews of it.
-   1. ~~A kind e2e of a batch started from the server on Kubernetes, without a shared storage~~ (v9): in
-      `.github/scripts/helm_e2e.py --kubernetes` rather than `kubernetes_runner_e2e.py`, since the server must run in
-      the cluster with the chart's permissions, as deployed; CI's `helm-e2e` job already installs it. Checked: the
-      driver and run pods fetch, the token reaches the run pods, `QABOARD_ARTIFACTS_CACHE` is writable, the runs end
-      with their metrics and files, the driver's log reaches the server, stopping deletes the Jobs. It found:
-      - the driver pod wrote its log to, and read its batches file from, the batch's folder on the server, which it
-        doesn't see: now the files of that folder are copied in the pod (ConfigMap, `runner_jobs.driver_files`), and
-        its output goes to `qa send-batch-log`, which appends it to the server's log.txt with the batch's token
-        (`PUT /api/v1/batch/submissions/<id>/log`) and to the pod's logs;
-      - on servers whose storage roots don't include the default storage root (the chart), the batch's folder of
-        scripts and logs was outside them: for uploaded artifacts it is now the commit's folder among the project's
-        uploaded runs (`CiCommit.outputs_dir`), which also fixes papercut 3 of item 6 below;
-      - turning `runners.kubernetes` off again left the backend's pods unable to start (the chart deleted the
-        ServiceAccount they still named): the chart now always names one.
-   2. ~~The Helm chart sets `QABOARD_HOST` for the backend~~ (v9): to the proxy's Service, `helm_e2e.py` covers it.
-   3. ~~Revoke the batch token when the batch ends or is stopped~~ (v9): revoked by Batch.stop (and when the batch
-      fails to start). When a run ends and none of its command's runs are pending (`tokens.end_batch_token`, after
-      POST /api/v1/output/), it expires 10 minutes later, not at once: the driver may still send the end of its log
-      (a review found the `exited with code` line lost). Not for `qa optimize`, which starts batch after batch with
-      the same command id, nor redo: `qa batch` doesn't register the pending runs it redoes under its command id, so
-      none may be pending while they run. Those wait for the stop or the idle expiry (`until_stopped`). Not when the
-      heartbeats fail silent runs either: a run that reports again runs again, and would need its token.
-   4. ~~Tokens for server-started batches of projects with a shared storage~~ (v9), when `ingest.auth` is `token`
-      (`tokens.batch_needs_token`); Celery runs get it too (`runners/celery.py`). Not through LSF, whose jobs don't
-      get the server's environment: QA-Board refuses to start them then (`artifacts.runner_unsupported`).
-   5. **The refactors the code review left for later** [S each]: one helper for the server's runner name
-      (`redo.py` and `api/tuning.py` compute it differently); the token threaded through fewer functions
-      (`submit_driver` could mint it); one retry and error-classification helper for `results._request`, `upload.py`
-      and `commit_artifacts.py`; an artifacts endpoint path that doesn't overlap `/api/v1/commit/<path:commit_id>`
-      (its fallback for branches named `*/artifacts` is a hidden coupling).
-   6. **Papercuts found on the way, before v8** [S each]: ~~`qa` crashes with `KeyError: 'url'` on a qaboard.yaml
-      without `project.url`; "The result of the `postprocess` function misses a key `is_failed`" is printed to
-      projects without a `postprocess`~~ (v9); ~~for projects without `storage` on servers with their own storage roots,
-      batches started from the web app put their scripts and logs under the server's default storage root, outside
-      the roots (`Project.storage_roots`), and fail to start~~ (v9, item 1).
-   7. Later, when someone needs it: LSF, Slurm, Celery and Jenkins jobs fetching the artifacts (the
-      `fetched_artifacts` hook in their command line) [S each]; deduplication of identical files across commits and
-      subprojects (hardlinks by hash, or the content store of `http-upload.md`) [M]; a cache eviction for
-      `qa fetch-artifacts` outside temporary folders, and once-per-node fetching with a hostPath cache [S]; SHA-256 in
-      the manifests of `qa save-artifacts --out` [S]; trying Windows clients.
-
-   v7, how the image per commit works:
-   - `{commit}` or `{commit:.N}` in `image` (nothing else between braces, refused early, also by the server). `qa
-     batch` and `qa doctor` give the runner the commit (`commit` job option), the server gives the driver its commit.
-     The Dask runner on Kubernetes replaces it too, without the registry check.
-   - Before creating any Job (and before the server's driver pod), `check_commit_images` asks the registry: `HEAD
-     /v2/<repository>/manifests/<tag>` with OCI and Docker manifest types, a Bearer token (anonymous, or with
-     credentials) or Basic auth when it asks. Credentials: the `image_pull_secrets` the caller may read, and
-     `~/.docker/config.json` (not credential helpers), except on the server (`local_registry_credentials: false`):
-     its credentials never go to a registry a project's qaboard.yaml names. 404: *No image for this commit*, nothing
-     starts. 401/403 after authenticating, other statuses or network errors: we can't tell, a warning, pods start,
-     and the pull diagnostics explain failures as before. `http://` only for `localhost` registries.
-   - Why ask the registry instead of the cluster: Kubernetes has no "can you pull this?" without starting a pod, and
-     pods in `ImagePullBackOff` fail the batch only after 5 minutes (`image_pull_grace`).
-   - `workdir`: the runs' `cd` and log paths under the repository's root (`repo_root` job option) are mapped there
-     (`in_pods`). Commands keep relative paths (`cd <subproject> && qa run`), and with uploads `qa run` computes its
-     output folder in the pod, so nothing else is rewritten. `--prefix-outputs-path` with an absolute path under the
-     repository is not mapped.
-   - Known gaps: the server-side check sends HEAD requests to hosts users name (blind, status only; the same users
-     can already start pods in the namespace); no retry while CI is still pushing; no digest pinning (a tag pushed
-     again between the check and the pull is pulled as is).
-3. `qaboard.local_path("qaboard://<run>/checkpoints/last.pt")`: a run's file as a local path, from the folder when
-   its location is mounted here, else downloaded once into a cache keyed by the manifest's hash. Like W&B's
-   `use_artifact().download()` or MLflow's `download_artifacts("runs:/...")`, for checkpoints. Shares the cache of 2.
-4. Storage locations: ~~a web app page~~ (v6), credentials (encrypted, `backend/encryption.py`), the scans and the file
-   browser on locations, clients that mount a location writing there directly, then maybe native access (§4).
-5. From the reviews of the first version, not done yet (each S unless said):
-   - One object for a run's reporting (uploader, heartbeat, "the server never heard of the run") shared by
-     `qa run` (module globals in `qaboard/qa.py` today) and `start_run()` [M]; the CLI's "can I read this run's
-     folder here?" checks (`uploads_files` in `runners/job.py`, `bit_accuracy.py`, `qa.py`) as one helper.
-   - ~~The upload root as the default storage location, locations inside the storage roots, their changes in
-     `locations.py`~~ (v6). Left: the storage roots still list the upload root apart (`config.storage_roots`).
-   - `bit_accuracy.fetched_manifests` through `results._request` and in a module shared with `local_path()`.
-   - The refusal reasons (`uploads_disabled`, `not_running`...) in `qaboard/conventions.py` for the server too, and
-     a backend test that runs the real `Uploader` against the Flask app instead of the tests' fake server [M].
-   - `storage_usage.py` and the Storage page for runs stored as URLs; a test that fails when code outside
-     `models/` and `locations.py` reads `output_dir_override`.
-   - ~~`qa upload --dryrun` without a server, printing the run's project, commit and label; CLI wording for the
-     `start_run()` errors `qa upload` shows~~ (v10: their `cli` attribute, `active_run._error`).
-   - ~~What `qa run` prints after its files are sent isn't in the server's log.txt~~ (v10: `Uploader.send_log()`
-     after `finish()`, and after the server refused how the run ended: it still runs there, and takes its log).
-   - ~~The web app's log of a Kubernetes driver just ends when `qa send-batch-log` stops~~ (v10: the server writes
-     `kubectl logs ...` at the top when it starts the driver, `QABOARD_POD_LOGS`; the driver says when it dropped
-     output).
-   - `qa send-batch-log` sending from a thread of its own, so that a slow server never blocks the driver's output.
-   - What the second security review left (`docs/warts.md`): `QABOARD_SANDBOX_HTML` on by default for uploaded runs,
-     the local runner and uploaded artifacts, batch tokens limited to their batch's runs, limits on files per run.
-6. Quotas per project.
-7. For projects with huge outputs: parts, "which hashes do you have", the content store (`http-upload.md`).
+1. **`qaboard.local_path("qaboard://<run>/checkpoints/last.pt")`** [M]: a run's file as a local path, from the
+   folder when its location is mounted here, else downloaded once into the cache keyed by the manifest's hash. Like
+   W&B's `use_artifact().download()` or MLflow's `download_artifacts("runs:/...")`, for checkpoints. Build it in
+   `run_files.py` on `fetch_file` and `http_client.download(sha256=)`; it shares the cache with `fetched_manifests`
+   and `qa fetch-artifacts`. Needs: resolving a `qaboard://` run reference (by id, or project/commit/batch/input
+   like `qaboard.runs()`), and an eviction for caches outside temporary folders.
+2. **Huge outputs** [L]: parts (resumable uploads of files over `QABOARD_UPLOAD_MAX_FILE_MB`), "which hashes do you
+   have" before sending, and the content store (`http-upload.md`), which also deduplicates bit-accurate reruns and
+   artifacts across commits and subprojects (or hardlinks by hash first [M]). The uploader's request layer
+   (`Uploader._request` over `http_client`) and `Reason` are where the new answers go.
+3. **Limits** [M]: quotas per project, a limit on files per run (inodes), a free-space check atomic with concurrent
+   uploads.
+4. **A backend test that runs the real `Uploader` against the Flask app** [M], instead of the tests' fake server
+   (`tests/test_active_run.py`, which must answer like the real endpoints meanwhile).
+5. **Storage locations** [M each]: credentials (encrypted, `backend/encryption.py`); the scans, storage usage
+   (`storage_usage.py`, the Storage page) and the file browser on locations and on runs stored as URLs; clients that
+   mount a location writing there directly; a test that fails when code outside `models/` and `locations.py` reads
+   `output_dir_override`; the storage roots still list the upload root apart (`config.storage_roots`).
+6. **Runners** [S each]: LSF, Slurm, Celery and Jenkins jobs fetching uploaded artifacts (the `fetched_artifacts`
+   hook in their command line); once-per-node fetching with a hostPath cache; SHA-256 in the manifests of
+   `qa save-artifacts --out`; a retry of the image check while CI is still pushing, and digest pinning.
+7. **Code left as is, to fold when touched** [S each]: `submit_driver` could mint the batch token instead of
+   receiving it; the artifacts endpoint `/api/v1/commit/<commit>/artifacts/...` overlaps `/api/v1/commit/<path:commit_id>`
+   (its fallback for branches named `*/artifacts` is a hidden coupling); `QABOARD_SANDBOX_HTML` on by default for
+   uploaded runs. The CLI's "can I read this run's folder here?" checks (`runners/job.py`, `bit_accuracy.py`,
+   `qa.py`) were left apart: each is `not uploads_files` with a different local condition.
+8. Trying Windows clients.
 
 ## 4. If the server ever talks to object storage itself
-Not built, and not planned until a mounted file system proves not to be enough: this is what it would take, kept
-from v1.
+Not built, and not planned until a mounted file system proves not to be enough.
 
 ### 4.1 The principle: the server owns the index
 Whatever the storage, the server keeps: the database (metrics, statuses), every run's manifest with sha256,
@@ -216,8 +149,8 @@ operator pays for a small, predictable index, projects for their bulk.
 S3's "Requester Pays" is about who pays for downloads, not storage: it doesn't help here.
 
 ### 4.3 Serving files from anywhere: one resolver
-- A run records where its bulk lives: its full location, a URL (`outputs.output_dir_override`, built in v4). The
-  storage location matching it says how to reach it: today a mount, then a profile with credentials.
+- A run records where its bulk lives: its full location, a URL (`outputs.output_dir_override`). The storage location
+  matching it says how to reach it: today a mount, then a profile with credentials.
 - `/s/<path>` keeps its URLs. nginx's `auth_request` asks the backend, which answers with `X-Accel-Redirect` to
   the local alias, or to an internal location proxying a presigned URL of the right bucket (same origin, Range
   works, no CORS). Large videos can get a `302` to the presigned URL.
@@ -227,9 +160,7 @@ S3's "Requester Pays" is about who pays for downloads, not storage: it doesn't h
 | Need | Pick | Notes |
 |---|---|---|
 | One API over many storages (put, ranged get, delete, list, presign) | **Apache OpenDAL** (Python bindings; S3-compatible, GCS, Azure, local, WebDAV, SFTP, HDFS…) | **obstore** if the cloud object stores are enough; **fsspec** is slower and presigns per backend. Check presign support per service first. Keep our `BlobStore` to five calls so the library stays swappable |
-| Self-hosted S3 for the quickstart, Kubernetes, on-prem | **Garage** or **SeaweedFS**; **Ceph RGW** where Ceph exists | **MinIO**'s community edition stopped shipping binaries in Oct 2025 and is no longer maintained (2026): not the default (`http-upload.md` question 11; the public roadmap still names it) |
+| Self-hosted S3 for the quickstart, Kubernetes, on-prem | **Garage** or **SeaweedFS**; **Ceph RGW** where Ceph exists | **MinIO**'s community edition stopped shipping binaries in Oct 2025 and is no longer maintained (2026): not the default (`http-upload.md` question 11) |
 | S3 API over an existing NFS | **Versity S3 Gateway** | One code path for shared-storage sites, if ever wanted |
 | Exotic storages without code (SharePoint, SMB, SFTP) | **rclone** `serve s3` / `serve webdav`, run by the site | |
-| Resumable uploads | Our own parts (milestone 3) | tus: rejected in `http-upload.md` §4.2, still true |
-
----
+| Resumable uploads | Our own parts (§3 item 2) | tus: rejected in `http-upload.md` §4.2, still true |

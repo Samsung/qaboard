@@ -15,7 +15,7 @@ the binaries the CI built.
 The cache is $QABOARD_ARTIFACTS_CACHE, else ~/.cache/qaboard/artifacts: point it to a folder the node's pods share
 (a hostPath) to fetch once per node. Nothing is removed from it.
 
-Server side: backend/backend/api/commit_artifacts.py. Design: docs/design/ingest-upload-sdk.md (§3, item 2).
+Server side: backend/backend/api/commit_artifacts.py. Design: docs/design/ingest-upload-sdk.md (§1, how batches get a commit's code).
 """
 import hashlib
 import json

@@ -112,20 +112,26 @@ the file names the web app's viewers recognize (`webapp/src/viewers/fileTypes.js
 Runs report at least every 2 minutes and are failed when silent (`qaboard/heartbeat.py`, `backend/backend/heartbeats.py`). Design and decisions:
 `docs/design/ingest-upload-sdk.md`; limits: `docs/warts.md`. The tests' fake server (`tests/test_active_run.py`) answers
 like the real endpoints: change them together.
+Every request to the server goes through `qaboard/http_client.py` (retries only when a call asks for them); refusal
+codes are `qaboard/conventions.py` `Reason`, shared with the backend. What a run tells the server besides its results
+(files, heartbeats) is `qaboard/reporting.py` `RunReporter`, used by `qa run` and `start_run()`; `plan_run()`
+(`active_run.py`) says which run `start_run()` would start (`qa upload --dryrun`); a run's files fetched from the
+server and their cache are `qaboard/run_files.py`.
 
 ### Runners
 `qa batch` starts runs with a runner (`qaboard/runners/`): local, lsf, celery, dask (workers on LSF, Slurm, PBS, SGE,
 HTCondor, OAR, Moab, Kubernetes or local, `runners.dask.cluster.type`), kubernetes (Indexed Jobs), windows (Jenkins).
 Optional dependencies are extras: `uv sync --extra dev --extra celery --extra dask --extra kubernetes --extra dask-kubernetes`
 (CI's python 3.13 job installs them all, 3.11 none). `qa doctor [--runner X] [--test-job]` checks a setup and prints
-fixes (runners implement `doctor()`). The server starts/stops batches with `QABOARD_TUNING_RUNNER` (`backend/backend/runner_jobs.py`,
-`local_jobs.py`). `qa batch --commit <sha>` (`qaboard/on_server.py`) has the server start a batch on a commit through the
+fixes (runners implement `doctor()`). The server starts/stops batches with `QABOARD_TUNING_RUNNER`, decided in `backend/backend/server_runner.py`: unset,
+it starts none; `local`/`celery` (in its own container) are an opt-in (`runner_jobs.py`, `local_jobs.py`). `qa batch --commit <sha>` (`qaboard/on_server.py`) has the server start a batch on a commit through the
 web app's tuning endpoints (`backend/backend/api/tuning.py`, documented in `backend/backend/openapi.yaml`). Design and trust model: `docs/design/kubernetes-runner.md`; known limits: `docs/warts.md` (Runners).
 An image per commit (`{commit}` in `runners.kubernetes.image`, with `workdir`) is looked up in its registry before pods
 start (`qaboard/runners/registry.py`). Without a shared storage, `qa save-artifacts` sends a commit's artifacts to the
 server and `qa fetch-artifacts` downloads them into a cache keyed by their hash (`qaboard/commit_artifacts.py`,
 `backend/backend/api/commit_artifacts.py`); batches the server starts from them get a token of the user
-(`tokens.mint_for_batch` in `backend/backend/tokens.py`). What's left: `docs/design/ingest-upload-sdk.md` §3 item 2.
+that only changes that batch (`tokens.mint_for_batch`, `batch_allows` in `backend/backend/tokens.py`, `actor.BATCH_TOKEN_ENDPOINTS`).
+What's left: `docs/design/ingest-upload-sdk.md` §3.
 Kubernetes end-to-end test on kind: `.github/scripts/kubernetes_runner_e2e.py`; batches the server starts, on the Helm
 chart, without a shared storage: `.github/scripts/helm_e2e.py` (`--kubernetes`), in CI's `helm-e2e` job.
 
