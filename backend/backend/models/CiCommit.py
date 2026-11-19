@@ -103,7 +103,22 @@ class CiCommit(Base):
   def get_or_create_batch(self, label):
     matching_batches = [b for b in self.batches if b.label == label]
     if matching_batches: return matching_batches[0]
-    return Batch(ci_commit=self, label=label)
+    session = orm.object_session(self)
+    if session is None or self.id is None:
+      return Batch(ci_commit=self, label=label)
+    # Requests often create the same batch at the same time (CI jobs starting `qa batch` together, the first runs of
+    # a batch): checking then inserting would fail one of them on the (ci_commit_id, label) unique constraint.
+    # The INSERT waits for another transaction that inserted the batch, then does nothing.
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    session.execute(
+      pg_insert(Batch)
+      .values(ci_commit_id=self.id, label=label)
+      .on_conflict_do_nothing(index_elements=['ci_commit_id', 'label'])
+    )
+    batch = session.query(Batch).filter(Batch.ci_commit_id == self.id, Batch.label == label).one()
+    if batch not in self.batches:
+      self.batches.append(batch)
+    return batch
 
   @property
   def ci_batch(self):
