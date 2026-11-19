@@ -42,9 +42,9 @@ services:
     # At SIRC, deployments/sirc/.envrc sets QABOARD_DEV_DB_HOST to connect to the production database
     - QABOARD_DB_HOST=${QABOARD_DEV_DB_HOST:-db}
     - SSH_AUTH_SOCK=/ssh-agent
-    # Batches started from the web app (tuning, redo) run in this container: off by default on servers, since anyone
-    # who can start one runs code as the backend. Site overlays win (e.g. SIRC's lsf)
-    - QABOARD_TUNING_RUNNER=${QABOARD_TUNING_RUNNER:-local}
+    # Batches started from the web app (tuning, redo) are off unless you choose a runner: QABOARD_TUNING_RUNNER=local
+    # in .env runs them in this container, as the backend (anyone who can start one runs code here). Site overlays win
+    - QABOARD_TUNING_RUNNER=${QABOARD_TUNING_RUNNER:-}
     working_dir: /qaboard/backend
     # With what's just below, everything works except being able to delete files owned by other users
     # We wish we could do this, then remove sudo from the dockerfile, and use this command...
