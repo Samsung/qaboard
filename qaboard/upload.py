@@ -22,15 +22,16 @@ was added, the small files the run rewrites (series.json, run.json), and the fil
 import hashlib
 import os
 import stat as stat_module
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from fnmatch import fnmatchcase
 from pathlib import Path
 from threading import Event, Lock, Thread, current_thread
-from typing import Dict, Iterator, List, Optional, Sequence, Tuple, Union
+from typing import Dict, Iterator, List, Optional, Sequence, Set, Tuple, Union
 from urllib.parse import quote
 
 from .conventions import Reason, RUN_FILES_REFUSALS
-from .http_client import ResultsError, FILE_TIMEOUT, RETRY_DELAYS, request
+from .http_client import ResultsError, FILE_TIMEOUT, FINAL_RETRY_DELAYS, RETRY_DELAYS, request
 
 # Files runs add to, at the root of their folder: we send what was added
 APPENDED_FILES = ('log.txt', 'series.jsonl')
@@ -42,7 +43,8 @@ APPEND_CHUNK = 4 * 1024 * 1024
 WORKERS = 4
 # How often the files that changed are sent while the run goes on, in seconds
 SYNC_INTERVAL = 10.0
-# (connect, read) timeouts. How long we wait before trying a request again: RETRY_DELAYS (qaboard/http_client.py)
+# (connect, read) timeouts. How long we wait before trying a request again: RETRY_DELAYS (qaboard/http_client.py),
+# FINAL_RETRY_DELAYS at the end: what isn't sent then is lost
 TIMEOUT = FILE_TIMEOUT
 # Why the server won't take any file of the run: we stop asking
 FATAL_REASONS = RUN_FILES_REFUSALS
@@ -50,6 +52,22 @@ FATAL_REASONS = RUN_FILES_REFUSALS
 TAIL_SIZE = 64
 
 Stat = Tuple[int, int]  # size, mtime_ns
+
+
+def is_outside_link(file: Path, folder: Path) -> bool:
+  """A symbolic link to something outside `folder`, e.g. ~/.ssh: not sent, it isn't the run's"""
+  if not os.path.islink(file):
+    return False
+  try:
+    Path(file).resolve().relative_to(Path(folder).resolve())
+  except (ValueError, OSError, RuntimeError):
+    return True
+  return False
+
+
+def warn_outside_links(links: Sequence[str], limit: int = 5) -> None:
+  shown = ', '.join(links[:limit]) + (f" and {len(links) - limit} more" if len(links) > limit else '')
+  print(f"WARNING: not sending links to files outside the run's folder: {shown}", file=sys.stderr)
 
 
 def is_temporary(name: str) -> bool:
@@ -85,6 +103,13 @@ class Uploader:
     self._state_lock = Lock()  # files are sent from several threads
     self._thread: Optional[Thread] = None
     self._stop = Event()
+    # set by the last sync(): what fails then is lost, we try longer (FINAL_RETRY_DELAYS)
+    self._final = False
+    # a file still failed after the longest retries: the others don't wait as long
+    self._unreachable = False
+    # links to files outside the folder, not sent (warned once each)
+    self.outside_links: Set[str] = set()
+    self._new_links: List[str] = []
 
   def start(self, interval: float = SYNC_INTERVAL) -> 'Uploader':
     """Sends what changes while the run goes on, from a thread, every `interval` seconds, until `finish()`"""
@@ -114,16 +139,23 @@ class Uploader:
     with `final`, everything. Returns whether the server has all it should. Never raises.
     """
     with self._sync_lock:
-      # at the end, once more for the files that changed while we sent them
-      for _ in range(2 if final else 1):
-        if self.refused:
-          return False
-        try:
-          if self._send_changes(final):
-            return True
-        except Exception as e: # sending files must not end runs
-          self._fail('', repr(e))
-      return False
+      self._final = self._final or final
+      try:
+        # at the end, once more for the files that changed while we sent them
+        for _ in range(2 if final else 1):
+          if self.refused:
+            return False
+          try:
+            if self._send_changes(final):
+              return True
+          except Exception as e: # sending files must not end runs
+            self._fail('', repr(e))
+        return False
+      finally:
+        with self._state_lock:
+          links, self._new_links = self._new_links, []
+        if links:
+          warn_outside_links(sorted(links))
 
   def send_log(self) -> bool:
     """
@@ -180,8 +212,15 @@ class Uploader:
         if stat is not None:
           yield path, stat
 
-  @staticmethod
-  def _stat(file: Path) -> Optional[Stat]:
+  def _stat(self, file: Path) -> Optional[Stat]:
+    """The size and date of a file to send, None when there is none or it's a link out of the folder"""
+    if is_outside_link(file, self.directory):
+      path = Path(file).relative_to(self.directory).as_posix()
+      with self._state_lock:
+        if path not in self.outside_links:
+          self.outside_links.add(path)
+          self._new_links.append(path)
+      return None
     try:
       stat = os.stat(file)
     except OSError:
@@ -272,9 +311,16 @@ class Uploader:
 
   def _request(self, path: str, body, params: Optional[Dict[str, int]] = None, headers: Optional[Dict[str, str]] = None) -> None:
     """One file's request, tried again when the server or the network had a problem. `body()` gives the content, or a file to read."""
-    request(self.server, f"output/{self.run_id}/files/{quote(path)}", params=params, token=self._token, method='PUT', data=body,
-            headers={'Content-Type': 'application/octet-stream', **(headers or {})}, timeout=TIMEOUT, retries=RETRY_DELAYS,
-            give_up=lambda: bool(self.refused)).close()
+    # PUTs are idempotent; appends too: when an answer is lost, trying again gets a 409 offset_mismatch, then the whole file
+    final = self._final
+    try:
+      request(self.server, f"output/{self.run_id}/files/{quote(path)}", params=params, token=self._token, method='PUT', data=body,
+              headers={'Content-Type': 'application/octet-stream', **(headers or {})}, timeout=TIMEOUT, retries=FINAL_RETRY_DELAYS if final else RETRY_DELAYS,
+              give_up=lambda: bool(self.refused) or (final and self._unreachable)).close()
+    except ResultsError as e:
+      if final and e.is_transient:
+        self._unreachable = True
+      raise
 
   def _failed(self, path: str, stat: Stat, error: Exception) -> bool:
     """A file wasn't sent. Returns False"""

@@ -183,11 +183,35 @@ def makeNumpyEncoder():
 
 
 
+def _post_results(url: str, payload: str, ends: bool):
+  """
+  POSTs results. What ends a run, a batch or a commit is tried again when the server or the network may be back
+  later: it's idempotent (the server only empties a run's folder when it starts), and when lost, so are the results.
+  """
+  import time
+  import requests
+  from .http_client import FINAL_RETRY_DELAYS, RETRY_DELAYS, TRANSIENT_STATUSES
+  delays = list(FINAL_RETRY_DELAYS if ends else ())
+  for tried, delay in enumerate((*delays, None)):
+    try:
+      r = requests.post(url, data=payload, headers=headers, verify=api_verify, timeout=api_timeout)
+    except (requests.ConnectionError, requests.Timeout) as e:
+      # nothing that answers there, e.g. no server: we don't wait long
+      unreachable = isinstance(e, requests.ConnectionError) and not isinstance(e, requests.Timeout) and tried >= len(RETRY_DELAYS)
+      if delay is None or unreachable or isinstance(e, requests.exceptions.SSLError):
+        raise
+    else:
+      if delay is None or r.status_code not in TRANSIENT_STATUSES:
+        return r
+      r.close()
+    click.secho(f"WARNING: QA-Board didn't take the results, trying again in {delay:.0f}s...", fg='yellow', err=True)
+    time.sleep(delay)
+
+
 def notify_qa_database(object_type='output', **kwargs):
   """
   Updating the QA database.
   """
-  import requests
   from .config import is_ci, config, _metrics, run_context, commit_id, commit_data, uploads_files
 
   if kwargs.get('offline'):
@@ -208,7 +232,7 @@ def notify_qa_database(object_type='output', **kwargs):
   try:
     import simplejson
     payload = simplejson.dumps(data, ignore_nan=True, cls=makeNumpyEncoder())
-    r = requests.post(url, data=payload, headers=headers, verify=api_verify, timeout=api_timeout)
+    r = _post_results(url, payload, ends=object_type == 'output' and not data.get('is_running') and not data.get('is_pending'))
     if 'QA_VERBOSE' in os.environ:
       click.secho(r.text, fg='cyan', dim=True, err=True)
     print_server_warning(r)

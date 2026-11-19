@@ -192,6 +192,13 @@ class RunReporter:
     if uploader is not None:
       uploader.stop()
 
+  @property
+  def files_missing(self) -> Optional[int]:
+    """After `finish()`: how many files the server doesn't have, at least 1 when we don't know which. None when it has them all"""
+    if self.files_sent is not False:
+      return None
+    return max(1, len(self.uploader.failed)) if self.uploader is not None else 1
+
   def problems(self) -> List[str]:
     """Why the server doesn't have all the run's files, after `finish()` returned False: one line each"""
     return self.uploader.problems() if self.uploader is not None else []

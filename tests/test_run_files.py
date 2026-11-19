@@ -71,20 +71,20 @@ class TestFetchedManifests(unittest.TestCase):
   def test_errors_are_warnings(self):
     refused = mock.Mock(status_code=403, headers={}, text='')
     refused.json.return_value = {'error': "You can't see this project", 'reason': 'missing_role'}
-    with mock.patch('requests.request', return_value=refused):
+    with mock.patch('requests.Session.request', return_value=refused):
       self.assertIsNone(self.fetch())
     self.assertIn("You can't see this project", self.warnings[0])
 
   def test_busy_servers_are_asked_again(self):
     import requests
-    original = requests.request
+    original = requests.Session.request
     calls = []
     def flaky(method, url, **kwargs):
       calls.append(url)
       if len(calls) == 1:
         raise requests.ConnectionError('reset')
-      return original(method, url, **kwargs)
-    with mock.patch('requests.request', side_effect=flaky):
+      return original(requests.Session(), method, url, **kwargs)
+    with mock.patch('requests.Session.request', side_effect=flaky):
       folder = self.fetch()
     self.assertEqual((folder / 'manifest.outputs.json').read_bytes(), OUTPUTS)
     self.assertEqual(calls[0], calls[1])

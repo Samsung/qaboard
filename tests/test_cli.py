@@ -345,6 +345,20 @@ class TestQaCli(unittest.TestCase):
     self.assertEqual(click.unstyle(result.output).strip().splitlines()[-1], 'ERROR: QA-Board refused the results (token_expired): they were not saved. '
                      f'Set QABOARD_TOKEN to a valid token with the ingest scope for {Path(config.project).as_posix()}.')
 
+  def test_run_in_ci_when_the_server_never_gets_its_end(self):
+    from unittest import mock
+    self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"') # loads the modules
+    qa_module = import_module('qaboard.qa')
+    env = {k: v for k, v in os.environ.items() if k not in ('QA_OFFLINE',)}
+    # the server took the run's start, then was away: notify_qa_database warned and gave up
+    def notify(**kwargs):
+      return {'id': 1} if kwargs.get('is_running') else None
+    with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(qa_module, 'is_ci', True), \
+         mock.patch('qaboard.api.results_refused', None), mock.patch.object(qa_module, 'notify_qa_database', side_effect=notify):
+      result = self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"', reload_modules=False)
+    self.assertEqual(result.exit_code, 1, result.output)
+    self.assertIn("QA-Board doesn't know how the run ended", result.output)
+
   def test_batch_in_ci_when_the_server_refuses_results(self):
     from unittest import mock
     from tests.test_auth import response

@@ -335,7 +335,9 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
           if metrics['is_failed']:
             sys.exit(1)
           # in CI, results the server doesn't have are lost
-          if files_not_sent() and is_ci:
+          if (files_not_sent() or run_end_not_sent()) and is_ci:
+            if run_end_not_sent():
+              click.secho("ERROR: QA-Board doesn't know how the run ended: it shows it as running, then failed.", fg='red', bold=True, err=True)
             sys.exit(1)
         except KeyboardInterrupt:
           mark_aborted(run_context)
@@ -368,6 +370,16 @@ def run_reporter(run_context):
 def files_not_sent() -> bool:
   """Whether the server doesn't have all the run's files, after finish_upload"""
   return _reporter is not None and _reporter.files_sent is False
+
+
+# set by notify_run_ended when the server should have heard how the run ended, and didn't
+_run_end_lost = False
+
+
+def run_end_not_sent() -> bool:
+  """Whether the server never got the run's end, after notify_run_ended (refusals: exit_if_results_refused)"""
+  from .api import results_refused
+  return _run_end_lost and not results_refused
 
 
 def wait_for_the_log(log: Path, timeout: float = 1.0, quiet: float = 0.1):
@@ -420,7 +432,13 @@ def notify_run_ended(run_context, **kwargs):
   Tells the server that the run ended (after `finish_upload`), then stops reporting. If it refused that, it still
   has why, in the log
   """
+  global _run_end_lost
+  if _reporter is not None and _reporter.files_missing:
+    # the run's page can say so (the server keeps `data`)
+    kwargs['data'] = {**(kwargs.get('data') or {}), 'files_missing': _reporter.files_missing}
   answer = notify_qa_database(**run_context.obj, **kwargs, is_pending=False, is_running=False)
+  obj = run_context.obj
+  _run_end_lost = answer is None and (is_ci or bool(obj.get('share'))) and not obj.get('offline') and not obj.get('dryrun')
   if _reporter is not None:
     _reporter.ended(known=answer is not None)
   return answer
@@ -562,6 +580,8 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
     else:
       click.secho(str(metrics), fg='green')
 
+  global _run_end_lost
+  _run_end_lost = False
   if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
     finish_upload(run_context)
     notify_run_ended(run_context, metrics=metrics, metrics_definitions=metrics_definitions, data=output_data)
