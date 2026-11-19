@@ -121,8 +121,8 @@ and approve or deny in the project's Access tab; the requester gets an email.
 ## What else follows roles
 - **Results sent by `qa`**: a signed-in sender (or a token) needs the developer role. With `ingest.auth` set to
   `token`, others are refused; with `off` or `warn`, their results are saved as unverified, like anonymous ones.
-  **Anonymous results are still accepted with `off` and `warn`, also on private projects**: set `ingest.auth` to
-  `token` to stop them ([results sent by qa](/docs/backend-admin/user-management#results-sent-by-qa)).
+  **Anonymous results are accepted with `off` and `warn`, also on private projects**: keep `ingest.auth` to
+  `token` (the default) to refuse them ([results sent by qa](/docs/backend-admin/user-management#results-sent-by-qa)).
 - **Files under `/s/`**: the outputs and artifacts folders of a project follow its roles, when nginx checks who can
   read files ([restricting who can read files](/docs/backend-admin/user-management#restricting-who-can-read-files)).
   Sub-projects share their repository's folders: reading them needs access to every non-public project stored there.

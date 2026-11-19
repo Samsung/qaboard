@@ -29,7 +29,7 @@ class RequestTestCase(unittest.TestCase):
     self.addCleanup(sleep.stop)
 
   def requests(self, *answers):
-    patch = mock.patch('requests.request', side_effect=list(answers))
+    patch = mock.patch('requests.Session.request', side_effect=list(answers))
     self.addCleanup(patch.stop)
     return patch.start()
 
@@ -72,9 +72,28 @@ class TestRetries(RequestTestCase):
       request('http://qa', 'commit', token='t', retries=(0, 0))
     self.assertEqual((e.exception.status, sent.call_count), (502, 3))
 
+  def test_cloud_load_balancers_errors_are_tried_again(self):
+    # Cloudflare's 520-524: the server behind it is away or slow
+    for status in (520, 521, 522, 523, 524):
+      sent = self.requests(answer(status, text='<html>origin error</html>'), answer(200, {}))
+      request('http://qa', 'commit', token='t', retries=(0,))
+      self.assertEqual(sent.call_count, 2, status)
+
+  def test_the_longest_retries_when_nothing_answers(self):
+    # no server there: not worth waiting minutes. A server that answers 503 is tried for longer
+    sent = self.requests(*[requests.ConnectionError('refused')] * 6)
+    with self.assertRaises(ResultsError) as e:
+      request('http://qa', 'output/', method='POST', json={}, token='t', retries=http_client.FINAL_RETRY_DELAYS)
+    self.assertTrue(e.exception.unreachable)
+    self.assertEqual(sent.call_count, len(http_client.RETRY_DELAYS) + 1)
+    sent = self.requests(*[answer(503, text='busy')] * 5, answer(200, {}))
+    request('http://qa', 'output/', method='POST', json={}, token='t', retries=http_client.FINAL_RETRY_DELAYS)
+    self.assertEqual(sent.call_count, 6)
+    self.assertEqual(sum(c.args[0] for c in self.sleep.call_args_list[-5:]), sum(http_client.FINAL_RETRY_DELAYS))
+
   def test_refusals_are_not_tried_again(self):
     for status in (400, 404, 409, 413, 422, 501):
-      with mock.patch('requests.request', return_value=answer(status, {'error': 'No.', 'reason': 'some_reason'})) as sent, self.assertRaises(ResultsError) as e:
+      with mock.patch('requests.Session.request', return_value=answer(status, {'error': 'No.', 'reason': 'some_reason'})) as sent, self.assertRaises(ResultsError) as e:
         request('http://qa', 'output/1/files/a', method='PUT', data=b'x', token='t', retries=(0, 0))
       self.assertEqual(sent.call_count, 1)
       self.assertFalse(e.exception.is_transient)
@@ -140,6 +159,15 @@ class TestErrors(RequestTestCase):
     self.assertEqual(e.exception.reason, 'missing_scope')
     self.assertIn('ingest scope', str(e.exception))
 
+  def test_the_servers_token_reasons_say_how_to_sign_in(self):
+    # backend/backend/actor.py
+    for reason in ('sign_in_required', 'token_invalid', 'token_expired', 'token_idle_expired', 'token_revoked'):
+      self.requests(answer(401, {'error': "No.", 'reason': reason}))
+      with self.assertRaises(ResultsError) as e:
+        request('http://qa', 'output/', method='POST', json={}, token='t')
+      self.assertIn('QABOARD_TOKEN', str(e.exception), reason)
+      self.assertNotIn("project's owners", str(e.exception), reason)
+
   def test_answers_that_arent_the_apis(self):
     # e.g. a proxy's HTML page
     self.requests(answer(404, text='<html>Not Found</html>'))
@@ -150,6 +178,23 @@ class TestErrors(RequestTestCase):
     self.requests(answer(200, text='<html>sign in</html>'))
     with self.assertRaisesRegex(ResultsError, "Can't understand"):
       request_json('http://qa', 'commit', token='t')
+
+
+class TestConnections(unittest.TestCase):
+  def test_a_session_per_thread_with_our_user_agent(self):
+    import threading
+    from qaboard import __version__
+    session = http_client._session()
+    self.assertIs(http_client._session(), session)
+    self.assertEqual(session.headers['User-Agent'], f"qaboard/{__version__}")
+    other = []
+    thread = threading.Thread(target=lambda: other.append(http_client._session()))
+    thread.start()
+    thread.join()
+    self.assertIsNot(other[0], session)
+    # not shared with a forked process
+    with mock.patch('os.getpid', return_value=-1):
+      self.assertIsNot(http_client._session(), session)
 
 
 if __name__ == '__main__':

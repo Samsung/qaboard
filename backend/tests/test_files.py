@@ -295,6 +295,13 @@ def test_authorize_files_from_nginx(api_files, dummy_app):
   # nginx normalizes URLs, but let's not rely on it
   assert authorize("/s/algo/public/../secret/log.txt") == 401
   assert authorize("/s/algo/sec%72et/log.txt") == 401
+  # the image server's URLs (snippets/qaboard-iiif-auth.conf): the identifier is the path, its slashes encoded
+  assert authorize("/iiif/2/algo%2Fpublic%2Fimage.png/full/max/0/default.jpg") == 204
+  assert authorize("/iiif/2/algo%2Fsecret%2Fimage.png/info.json") == 401
+  assert authorize("/iiif/3/algo%2Fsec%2572et%2Fimage.png/info.json") == 204  # decoded once, like the image server: another folder
+  assert authorize("/iiif/cde/algo%2Fsecret%2Fimage.raw/full/max/0/default.jpg") == 401
+  assert authorize("/iiif/2/algo%2Fpublic%2F..%2Fsecret%2Fimage.png/info.json") == 403
+  assert authorize("/iiif/2/") == 204
 
 
 def test_authorize_files_from_users(api_files, dummy_app):

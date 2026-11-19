@@ -112,7 +112,7 @@ the file names the web app's viewers recognize (`webapp/src/viewers/fileTypes.js
 Runs report at least every 2 minutes and are failed when silent (`qaboard/heartbeat.py`, `backend/backend/heartbeats.py`). Design and decisions:
 `docs/design/ingest-upload-sdk.md`; limits: `docs/warts.md`. The tests' fake server (`tests/test_active_run.py`) answers
 like the real endpoints: change them together.
-Every request to the server goes through `qaboard/http_client.py` (retries only when a call asks for them); refusal
+Requests to the server go through `qaboard/http_client.py` (retries only when a call asks for them; `api.notify_qa_database` and a few older callers still use `requests` directly); refusal
 codes are `qaboard/conventions.py` `Reason`, shared with the backend. What a run tells the server besides its results
 (files, heartbeats) is `qaboard/reporting.py` `RunReporter`, used by `qa run` and `start_run()`; `plan_run()`
 (`active_run.py`) says which run `start_run()` would start (`qa upload --dryrun`); a run's files fetched from the

@@ -2,6 +2,7 @@ import datetime
 import json
 import math
 import re
+import time
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -12,6 +13,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.exc import NoResultFound
 
 from qaboard.conventions import deserialize_config, Reason
+from qaboard.utils import outputs_manifest
 
 from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
@@ -26,7 +28,7 @@ from ..tokens import end_batch_token
 from ..attempts import record_attempt
 from ..access import invalid_project
 from .auth import login_required, is_authorized_user, ingest_access, forbidden_project, require_project_access
-from ..actor import batch_token_limits, output_batch_token_limits, batch_token_refused, is_batch_request
+from ..actor import batch_token_limits, output_batch_token_limits, batch_token_refused, is_batch_request, unauthenticated
 
 # Keys of a run's data that only the server sets
 # - optimization_best allows `qa optimize` to replace this run (see api/batch.py)
@@ -419,10 +421,12 @@ def upload_output_file(output_id, path):
     return jsonify({"error": "This run saves its files in a storage shared with the server: it doesn't upload them.", "reason": Reason.NOT_UPLOADED}), 409
   if not output.is_pending:
     return jsonify({"error": "The run has ended: its files don't change anymore.", "reason": Reason.NOT_RUNNING}), 409
+  started = time.monotonic()
   try:
     size = uploads.save_file(Path(directory), path, request.stream, request.content_length, sha256=request.headers.get('X-Content-SHA256'), offset=offset)
   except uploads.UploadError as e:
     return jsonify({"error": str(e), "reason": e.reason, **e.details}), e.status
+  print(f"[uploads] output {output_id}: {path}, {request.content_length} bytes in {time.monotonic() - started:.1f}s", flush=True)
   return jsonify({"path": path, "size": size})
 
 
@@ -448,8 +452,20 @@ def get_output_manifest(output_id):
     return jsonify({"error": f"Cannot find output {output_id}"}), 404
   if not is_authorized_user(None, output.batch.ci_commit.project_id):
     return forbidden_project(output.batch.ci_commit.project_id)
+  refresh = request.args.get('refresh')
+  # rewriting it (without hashes) changes the run's files: signed-in users only
+  if refresh and (g.get('actor') is None or g.actor.user is None):
+    return unauthenticated()
   manifest_path = output.output_dir / "manifest.outputs.json"
-  if output.is_running or request.args.get('refresh') or not manifest_path.exists():
+  # uploaded runs that ended sent their manifest, with hashes: it stays as they sent it
+  uploaded_and_done = (output.data or {}).get('uploads_files') and not output.is_running
+  if uploaded_and_done and not manifest_path.exists():
+    try:
+      check_storage_path(output.output_dir)
+    except UnsafePathError as e:
+      return jsonify({"error": f"{e}"}), 400
+    return jsonify(outputs_manifest(output.output_dir, output.batch.ci_commit.project.data.get('qatools_config', {}), compute_hashes=False))
+  if not uploaded_and_done and (output.is_running or refresh or not manifest_path.exists()):
     try:
       manifest = output.update_manifest(compute_hashes=False)
     except UnsafePathError as e:
@@ -570,6 +586,10 @@ def new_output_webhook():
                                          extra_parameters=data['extra_parameters'],
                                          test_input=test_input,
                                         )
+  # the run is found by what anyone can say about it: without a token, no one replaces a run that sent its files
+  if not submitted_by and (output.data or {}).get('uploads_files'):
+    db_session.rollback()
+    return jsonify({"error": "This run's files were sent to the server with a token: send it with a token too.", "reason": "ingest_token_required"}), 403
   output.output_type = data.get('input_type', '')
   if uploads_files:
     starts = bool(data.get('is_running') and not data.get('keep_previous'))

@@ -198,9 +198,10 @@ proxy:
   #    server { ... }
   # e.g. to serve other storage under /s/: nginx serves /s/<path> from /var/qaboard/<path>
   extraVolumes: []
-  # Only the users allowed by QABOARD_LOGIN_RESTRICTED_YAML can read the files of restricted projects and folders under /s/.
-  # nginx asks the backend before serving each file.
-  restrictFiles: false
+  # Only who can see a project reads its files under /s/ and its images under /iiif/ (private projects,
+  # QABOARD_LOGIN_RESTRICTED_YAML). nginx asks the backend before serving each file, and once a minute per image.
+  # false: every file and image is public to whoever reaches the server.
+  restrictFiles: true
   extraVolumeMounts: []
   nodeSelector: {}
   tolerations: []
@@ -216,6 +217,9 @@ ingress:
     # Uploaded files (QABOARD_UPLOAD_MAX_FILE_MB, 1024 by default) and slow API calls. The chart's nginx limits each path
     nginx.ingress.kubernetes.io/proxy-body-size: "1100m"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    # Passes files on as they come: the chart's nginx checks the token before taking the body, and buffers it once
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
   # - secretName: qaboard-tls
   tls: []
 

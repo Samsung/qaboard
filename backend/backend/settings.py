@@ -32,10 +32,10 @@ def env_list(value: str) -> list:
 
 def sandbox_html() -> bool:
   """
-  QABOARD_SANDBOX_HTML: the runs' HTML and SVG files can't act as whoever opens them. Off by default, for now: reports
-  with scripts then run them in our origin. Read by the proxy too (services/nginx/configure.sh), set it for both.
+  QABOARD_SANDBOX_HTML: the runs' HTML, SVG and XML files can't act as whoever opens them. On by default; "false"
+  lets reports with scripts run them in our origin. Read by the proxy too (services/nginx/configure.sh), set it for both.
   """
-  return env_flag(os.environ.get('QABOARD_SANDBOX_HTML', ''))
+  return env_flag(os.environ.get('QABOARD_SANDBOX_HTML', '').strip() or 'true')
 
 
 def login_type() -> str:
@@ -284,8 +284,8 @@ DEFINITIONS = {
 
   # ---- API tokens and results
   'ingest.auth': Definition(
-    "How runs, batches and commits sent by `qa` are authenticated: \"off\" accepts anonymous results (they're marked unverified), \"warn\" also warns the senders, \"token\" requires a token with the ingest scope.",
-    'off', str, env='QABOARD_INGEST_AUTH', choices=('off', 'warn', 'token'),
+    "How runs, batches and commits sent by `qa` are authenticated: \"off\" accepts anonymous results (they're marked unverified), \"warn\" also warns the senders, \"token\" requires a token with the ingest scope (the default).",
+    'token', str, env='QABOARD_INGEST_AUTH', choices=('off', 'warn', 'token'),
     label="Authenticate results sent by qa", group='tokens', docs="/docs/backend-admin/user-management#results-sent-by-qa",
   ),
   'tokens.default_lifetime_days': Definition(
@@ -293,9 +293,8 @@ DEFINITIONS = {
     90, int, minimum=1, label="Default token lifetime", group='tokens', unit='days',
   ),
   'tokens.max_lifetime_days': Definition(
-    "The longest lifetime users may choose for their tokens. Empty: no maximum, and tokens without an expiry date are allowed.",
-    None, int, nullable=True, minimum=1, label="Longest token lifetime", group='tokens', unit='days',
-    default_text="No maximum: tokens may never expire.",
+    "The longest lifetime users may choose for their tokens: tokens without an expiry date can't be created.",
+    365, int, minimum=1, label="Longest token lifetime", group='tokens', unit='days',
   ),
   'tokens.cli_idle_expiry_days': Definition(
     "Tokens created by `qa auth login` expire after this many days without being used.",
@@ -603,7 +602,7 @@ SERVER_VARIABLES = [
   ServerVariable('QABOARD_TRUSTED_PROXY_HOPS', "Trusted proxies", 'security', "How many proxies in front of QA-Board add X-Forwarded-For: the audit log records the clients' addresses behind them.",
                  BOUNDARY, _env('QABOARD_TRUSTED_PROXY_HOPS'), default_text="0"),
   ServerVariable('QABOARD_SANDBOX_HTML', "Sandboxed HTML reports", 'security', "The runs' HTML and SVG files can't act as whoever opens them.",
-                 "The proxy reads it too: it must be set where both are deployed.", lambda: "on" if sandbox_html() else None, default_text="off", docs="/docs/viewers#html-reports"),
+                 "The proxy reads it too: it must be set where both are deployed.", lambda: None if sandbox_html() else "off", default_text="on", docs="/docs/viewers#html-reports"),
 
   ServerVariable('QABOARD_STORAGE_ROOTS', "Storage roots", 'storage', "The folders where projects store their results. The server never writes, deletes or runs code outside them.",
                  BOUNDARY, _env('QABOARD_STORAGE_ROOTS'), default_text="/mnt/qaboard"),

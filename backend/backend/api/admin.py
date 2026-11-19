@@ -119,6 +119,11 @@ def checklist() -> list:
         "token": None}[ingest],
        "CI jobs need a token with the ingest scope, in QABOARD_TOKEN.")
 
+  sandboxed = settings_lib.sandbox_html()
+  item('sandbox_html', sandboxed, 'warning',
+       "The runs' HTML files are sandboxed" if sandboxed else "The runs' HTML and SVG files run their scripts as whoever opens them",
+       "QABOARD_SANDBOX_HTML is off: anyone who can send results can write a report that acts as the admins who open it. Unset it, for the backend and the proxy.")
+
   anonymous_jobs = settings_lib.setting('jenkins.anonymous_jobs')
   item('jenkins_anonymous_jobs', not anonymous_jobs, 'warning',
        "Jenkins jobs start only with a token, or from a project's qaboard.yaml" if not anonymous_jobs else f"Anyone can start the Jenkins jobs matching {', '.join(anonymous_jobs)}",

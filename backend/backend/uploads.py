@@ -31,6 +31,7 @@ import hashlib
 import os
 import re
 import shutil
+import time
 import uuid
 from pathlib import Path, PurePosixPath
 from typing import BinaryIO, List, Optional, Tuple
@@ -303,6 +304,42 @@ def clean_run_dir(directory: Path, project_id: str) -> None:
         pass
 
 
+# A project's id has at most that many folders: deeper, outside a project's uploaded runs, are a shared storage's
+MAX_PROJECT_DEPTH = 8
+TEMPORARY_FILE = re.compile(rf'{re.escape(TEMPORARY_PREFIX)}[0-9a-f]{{32}}')
+
+
+def remove_stale_temporary_files(max_age: float = 24 * 3600) -> int:
+  """
+  Removes the files we were receiving when the server was killed (SIGKILL, uwsgi's harakiri), older than `max_age`
+  seconds, in the projects' uploaded runs. Returns how many. Symlinks aren't followed.
+  """
+  removed = 0
+  oldest = time.time() - max_age
+  for base in bases():
+    # (folder, in a project's runs, depth)
+    stack = [(str(base), False, 0)]
+    while stack:
+      folder, in_runs, depth = stack.pop()
+      try:
+        entries = list(os.scandir(folder))
+      except OSError:
+        continue
+      for entry in entries:
+        try:
+          if entry.is_dir(follow_symlinks=False):
+            if in_runs or (depth >= 1 and entry.name == RUNS_FOLDER):
+              stack.append((entry.path, True, depth + 1))
+            elif depth < MAX_PROJECT_DEPTH and not entry.name.startswith('.'):
+              stack.append((entry.path, False, depth + 1))
+          elif in_runs and TEMPORARY_FILE.fullmatch(entry.name) and entry.stat(follow_symlinks=False).st_mtime < oldest:
+            os.unlink(entry.path)
+            removed += 1
+        except OSError:
+          continue
+  return removed
+
+
 def _copy(source: BinaryIO, target: BinaryIO, length: int, sha256: Optional[str]) -> None:
   """Copies exactly `length` bytes, and checks their SHA-256 when the client sent it"""
   digest = hashlib.sha256()
@@ -351,6 +388,9 @@ def save_file(directory: Path, path: str, source: BinaryIO, length: int, sha256:
     raise UploadError(400, f"{path!r} is not a path inside the run's folder.", Reason.INVALID_PATH) from None
   except (IsADirectoryError, NotADirectoryError, FileExistsError):
     raise UploadError(409, f"{path} can't be both a file and a folder of the run.", Reason.PATH_CONFLICT) from None
+  except FileNotFoundError:
+    # clean_run_dir removed the folder, or our temporary file, while we received it
+    raise UploadError(409, "The run's folder changed while the file was sent: did the run start again?", Reason.PATH_CONFLICT) from None
 
 
 def _replace(target: Path, source: BinaryIO, length: int, sha256: Optional[str]) -> None:

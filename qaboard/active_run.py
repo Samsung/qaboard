@@ -44,6 +44,7 @@ from .conventions import run_dir_in_commit, slugify, get_settings, RUN_DIR_VARIA
 from .credentials import default_server
 from .metrics import DEFINITIONS_FILE, clean_definition, declared_metrics, read_definitions_file, split_metrics, with_default_direction
 from .payloads import results_payload, serialize_path
+from .http_client import FINAL_RETRY_DELAYS
 from .results import ResultsError, Run, _request, _script_source
 from .series import Point, SeriesWriter, as_number, flatten, read_series
 from .reporting import RunReporter
@@ -1006,6 +1007,8 @@ class ActiveRun:
     with self._lock:
       metrics = self._current_metrics(final=final)
       data = {**self._data, 'params': dict(self._params), 'attempt_logs': attempts.kept_logs(self.output_dir)}
+      if final and self._reporter.files_missing:
+        data['files_missing'] = self._reporter.files_missing
       definitions = with_default_direction(self._metrics_definitions(metrics), setup.available_metrics)
       if final:
         self._changed = False
@@ -1062,7 +1065,9 @@ class ActiveRun:
       try:
         if self.id is None or final:
           # creates the run, or says how it ended: everything, like `qa run` does
-          answer = _request(self.server, 'output/', method='POST', json=self._payload(final), token=self._token, timeout=TIMEOUT)
+          # how it ended is lost if this fails: tried longer (idempotent, the server only empties a run's folder when it starts)
+          answer = _request(self.server, 'output/', method='POST', json=self._payload(final), token=self._token, timeout=TIMEOUT,
+                            retries=FINAL_RETRY_DELAYS if final else ())
           self._reporter.reported()
           if isinstance(answer.get('id'), int):
             self.id = answer['id']

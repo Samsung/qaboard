@@ -10,7 +10,8 @@ How qa talks to the QA-Board server: one request, tried again when it may work l
 - The token is the one given, else the one qa is signed in with for that server (`results._token_for`). TLS
   verification follows QABOARD_API_VERIFY (qaboard/site_config.py), proxies the usual environment variables.
 - `retries`: how long to wait before each new try, e.g. (1, 4) for 3 tries. Only for what may work later
-  (`ResultsError.is_transient`): network errors and timeouts, 408, 429, 500, 502, 503, 504. The server's
+  (`ResultsError.is_transient`): network errors and timeouts, 408, 429, 500, 502, 503, 504, and the 520-524 of
+  cloud load balancers. FINAL_RETRY_DELAYS (about 2 minutes) is for requests whose failure loses results. The server's
   Retry-After is waited for, up to MAX_RETRY_AFTER. None by default: requests that aren't idempotent (appending to
   a log at an offset, creating a run) decide themselves what to do when an answer is lost.
 - Errors are `ResultsError`: `status` (None when the server didn't answer), `reason` (the server's reason code, for
@@ -18,6 +19,8 @@ How qa talks to the QA-Board server: one request, tried again when it may work l
 """
 import email.utils
 import hashlib
+import os
+import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
@@ -32,14 +35,18 @@ REQUEST_TIMEOUT = (30.0, 600.0)
 FILE_TIMEOUT = (10.0, 600.0)
 # How long we wait before trying a request again: 3 tries
 RETRY_DELAYS = (1.0, 4.0)
-# What may work later: a busy, restarting or overloaded server, or a proxy in front of it
-TRANSIENT_STATUSES = (408, 429, 500, 502, 503, 504)
+# For idempotent requests whose failure loses results (a run's end, its last files): longer than a server's restart
+FINAL_RETRY_DELAYS = (1.0, 4.0, 15.0, 30.0, 60.0)
+# What may work later: a busy, restarting or overloaded server, or a proxy in front of it (520-524: Cloudflare's)
+TRANSIENT_STATUSES = (408, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524)
 # answered with one of those statuses, but the same request won't work later
 FINAL_REASONS = (Reason.PROXY_MISCONFIGURED,)
 # We wait for the server's Retry-After up to this, in seconds: longer, we'd rather fail and say so
 MAX_RETRY_AFTER = 60.0
 # Refusals of the token: signing in again, or another token, fixes them
-TOKEN_REASONS = ('login_required', 'ingest_token_required', 'missing_scope', 'token_expired', 'invalid_token')
+# (backend/backend/actor.py; invalid_token: older servers)
+TOKEN_REASONS = ('sign_in_required', 'login_required', 'ingest_token_required', 'missing_scope', 'token_invalid', 'token_expired',
+                 'token_idle_expired', 'token_revoked', 'invalid_token')
 CHUNK = 1024 * 1024
 
 Timeout = Tuple[float, float]
@@ -63,6 +70,8 @@ class ResultsError(Exception):
     self._transient = transient
     # how long the server asked us to wait before trying again, in seconds
     self.retry_after = retry_after
+    # we couldn't connect at all
+    self.unreachable = False
 
   @property
   def is_transient(self) -> bool:
@@ -138,6 +147,21 @@ def _text(r) -> str:
   return text if isinstance(text, str) else str(text)
 
 
+_sessions = threading.local()
+
+
+def _session():
+  """This thread's requests.Session: connections are reused (the uploader sends from several threads). Not across a fork"""
+  import requests
+  session = getattr(_sessions, 'session', None)
+  if session is None or _sessions.pid != os.getpid():
+    from . import __version__
+    session = requests.Session()
+    session.headers['User-Agent'] = f"qaboard/{__version__}"
+    _sessions.session, _sessions.pid = session, os.getpid()
+  return session
+
+
 def _once(server: str, path: str, *, method: str, params, json, data: Body, headers: Optional[Dict[str, str]], token: Optional[str],
           timeout: Timeout, stream: bool):
   import requests
@@ -147,14 +171,17 @@ def _once(server: str, path: str, *, method: str, params, json, data: Body, head
   verify = as_requests_verify(site_config('QABOARD_API_VERIFY'))
   body = data() if callable(data) else data
   try:
-    r = requests.request(method, url_for(server, path), params=params, json=json, data=body, headers=headers, verify=verify, timeout=timeout, stream=stream)
+    r = _session().request(method, url_for(server, path), params=params, json=json, data=body, headers=headers, verify=verify, timeout=timeout, stream=stream)
   except (requests.exceptions.InvalidURL, requests.exceptions.MissingSchema, requests.exceptions.InvalidSchema, requests.exceptions.InvalidHeader) as e:
     # the same again won't work: QABOARD_URL, a header...
     raise ResultsError(f"Could not reach {server}: {e}", transient=False) from e
   except requests.RequestException as e:
     # a certificate we don't trust won't be trusted on the next try either (QABOARD_API_VERIFY). Other TLS errors can pass
     untrusted = isinstance(e, requests.exceptions.SSLError) and 'CERTIFICATE_VERIFY_FAILED' in str(e)
-    raise ResultsError(f"Could not reach {server}: {e}", transient=False if untrusted else None) from e
+    error = ResultsError(f"Could not reach {server}: {e}", transient=False if untrusted else None)
+    # nothing answers there (no server, a wrong port): not worth the longest retries
+    error.unreachable = isinstance(e, requests.ConnectionError) and not isinstance(e, requests.Timeout)
+    raise error from e
   finally:
     close = getattr(body, 'close', None)
     if callable(data) and callable(close):
@@ -168,11 +195,13 @@ def _once(server: str, path: str, *, method: str, params, json, data: Body, head
 
 def retried(attempt: Callable[[], Any], retries: Sequence[float] = (), give_up: Optional[Callable[[], bool]] = None) -> Any:
   """`attempt()`, tried again after each delay of `retries` when it raised a transient ResultsError (unless `give_up()`)"""
-  for delay in (*retries, None):
+  for tried, delay in enumerate((*retries, None)):
     try:
       return attempt()
     except ResultsError as e:
       if delay is None or not e.is_transient or (give_up is not None and give_up()):
+        raise
+      if e.unreachable and tried >= len(RETRY_DELAYS):
         raise
       if e.retry_after is not None and e.retry_after > MAX_RETRY_AFTER:
         raise

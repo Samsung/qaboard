@@ -393,6 +393,7 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
     self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
     self.assertIn("QA-Board doesn't have all the files of the run", result.stderr)
     self.assertIn('larger than what this server accepts', result.stderr)
+    self.assertEqual(server.outputs()[-1]['data']['files_missing'], 1)
 
   def test_the_servers_log_has_how_the_run_ended(self):
     server = self.server()

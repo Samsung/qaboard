@@ -32,7 +32,7 @@ from urllib.parse import quote
 import click
 
 from .conventions import NO_ARTIFACTS
-from .http_client import DigestMismatch, ResultsError, FILE_TIMEOUT, RETRY_DELAYS, download, request, request_json
+from .http_client import DigestMismatch, ResultsError, FILE_TIMEOUT, FINAL_RETRY_DELAYS, RETRY_DELAYS, download, request, request_json
 
 # Next to the files of fetched artifacts: where they come from
 MARKER = '.qaboard-artifacts.json'
@@ -138,7 +138,9 @@ def send(server: str, project: str, commit: str, groups: Dict[str, Tuple[Path, L
   def put(path: str, content: Callable[[], Any], sha256: str, size: int) -> None:
     try:
       request(server, _commit_path(commit, 'files', quote(path)), params={'project': project}, token=token, method='PUT', data=content,
-              headers={'Content-Type': 'application/octet-stream', 'X-Content-SHA256': sha256}, timeout=TIMEOUT, retries=RETRY_DELAYS).close()
+              headers={'Content-Type': 'application/octet-stream', 'X-Content-SHA256': sha256}, timeout=TIMEOUT,
+              # idempotent, and a CI job that fails here has nothing to run its batches on
+              retries=FINAL_RETRY_DELAYS).close()
     except ResultsError as e:
       raise ArtifactsError(f"QA-Board refused {path}: {explain(e, server, path, size)}") from e
 

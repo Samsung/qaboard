@@ -143,9 +143,9 @@ encryption key. The page shows them read-only, in their group, with why: see the
 
 | Setting | Environment variable | Default | What it does |
 |---|---|---|---|
-| `ingest.auth` | `QABOARD_INGEST_AUTH` | `off` | How runs, batches and commits sent by `qa` are authenticated: "off" accepts anonymous results (they're marked unverified), "warn" also warns the senders, "token" requires a token with the ingest scope. |
+| `ingest.auth` | `QABOARD_INGEST_AUTH` | `token` | How runs, batches and commits sent by `qa` are authenticated: "off" accepts anonymous results (they're marked unverified), "warn" also warns the senders, "token" requires a token with the ingest scope (the default). |
 | `tokens.default_lifetime_days` |  | `90` days | The default lifetime of the tokens users create in the web app. |
-| `tokens.max_lifetime_days` |  | No maximum: tokens may never expire | The longest lifetime users may choose for their tokens. Empty: no maximum, and tokens without an expiry date are allowed. |
+| `tokens.max_lifetime_days` |  | `365` | The longest lifetime users may choose for their tokens: tokens without an expiry date can't be created. |
 | `tokens.cli_idle_expiry_days` |  | `180` days | Tokens created by `qa auth login` expire after this many days without being used. |
 | `tokens.ci_lifetime_minutes` |  | `360` minutes | How long the tokens that CI jobs get without a stored secret (trusted CI jobs of service accounts) work. |
 

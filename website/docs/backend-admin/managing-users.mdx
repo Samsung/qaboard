@@ -226,14 +226,17 @@ The API: `GET/POST /api/v1/service-accounts` (`?project=group/repo` for a projec
 /api/v1/service-accounts/<id>/ci-trust/<policy id>`.
 
 ## Results sent by qa
-Until now, anyone who could reach the server could send results. `ingest.auth` (or `QABOARD_INGEST_AUTH`) decides:
-- `off` (the default): results without a token are accepted. They're shown as unverified: the user name they carry
-  (`$QA_USER` or the Unix login) is only what they claim.
-- `warn`: the same, and `qa` prints a warning asking users to run `qa auth login`.
-- `token`: results must be sent with a token with the `ingest` scope, for the project.
+`ingest.auth` (or `QABOARD_INGEST_AUTH`) decides who can send results:
+- `token` (the default): results must be sent with a token with the `ingest` scope, for the project: people run
+  `qa auth login`, CI jobs get a token (`QABOARD_TOKEN`, see [CI integration](/docs/ci-integration)) or
+  [sign in as themselves](/docs/ci-integration#ci-without-secrets).
+- `warn`: results without a token are accepted, and `qa` prints a warning asking users to run `qa auth login`.
+  They're shown as unverified: the user name they carry (`$QA_USER` or the Unix login) is only what they claim.
+- `off`: the same, without the warning.
 
-With a valid token, runs, batches and commits record who really sent them, and the web app shows it. Move from `off`
-to `warn` to `token` once your CI jobs have tokens (`QABOARD_TOKEN`, see [CI integration](/docs/ci-integration)).
+With a valid token, runs, batches and commits record who really sent them, and the web app shows it. Until
+November 2026 the default was `off`: a server whose users and CI jobs don't have tokens yet can set `warn` for a
+while (anonymous results can then replace other runs, except those that sent their files over HTTP).
 In every mode, a token that can't be used (unknown, expired, revoked, for other projects) is refused, and the results
 aren't saved: `qa` says why and what to do, and in CI, `qa run` and `qa batch` fail.
 
@@ -393,7 +396,7 @@ nginx serves the output and artifacts files under `/s/`, and by default anyone w
 - **Restricted projects**: with `QABOARD_LOGIN_RESTRICTED`, only the users allowed to see a project read its files.
 - **Unix permissions**: in some folders, like `/home`, users only read what their own Unix account can read.
 
-In both cases, nginx must ask the backend before sending files: add `include snippets/qaboard-files-auth.conf;` to **all** the `/s/` locations of your nginx configuration, and `include snippets/qaboard-files-server.conf;` to its `server` block (with the helm chart, set `proxy.restrictFiles: true`). Without the latter, nginx refuses to serve those files rather than serve them unchecked. Files can be reached from several locations through symlinks: the backend checks where links lead, but only for the locations that ask it.
+In both cases, nginx must ask the backend before sending files. The default configuration does (and the helm chart, `proxy.restrictFiles: true`); in your own, add `include snippets/qaboard-files-auth.conf;` to **all** the `/s/` locations, `include snippets/qaboard-iiif-auth.conf;` to the image server's (`/iiif/`), and `include snippets/qaboard-files-server.conf;` to its `server` block. Without the latter, nginx refuses to serve those files rather than serve them unchecked. Files can be reached from several locations through symlinks: the backend checks where links lead, but only for the locations that ask it.
 
 In the [file browser](../user-guide/files.mdx), users who are not signed in see **Sign in to see these files**, others **You don't have access**. Scripts can authenticate with an API token: `curl -H "Authorization: Bearer <token>" https://qaboard/s/...`
 

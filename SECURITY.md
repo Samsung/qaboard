@@ -81,8 +81,9 @@ Fixed on the default branch, after the `qaboard` 1.0.3 release:
 
 We know about the issues below. In the deployments maintained by the authors, they are mitigated by network isolation and site configuration. **If you run QA-Board yourself, please apply the mitigations listed below.** We plan to fix them in the code.
 
-### Results are sent to the server without authentication (by default)
-By default (`ingest.auth` is `off`), the `qa` CLI can send runs, batches and commits to `POST /api/v1/output`, `/api/v1/batch` and `/api/v1/commit` without authentication, so that it works from any CI or workstation. Runs that are running report their metrics so far to `PATCH /api/v1/output/<id>/progress` under the same policy. Results sent with a token record who really sent them; the others are shown as unverified. (Adding metrics to existing runs, `PATCH /api/v1/output/<id>/metrics`, always needs a token with the `ingest` scope and read access to the project.) As a result, until you require tokens:
+### Results sent to the server without authentication (`ingest.auth` set to `off` or `warn`)
+Since November 2026 the default is `token`: results need a token with the `ingest` scope. Servers that set `off` or
+`warn` (e.g. while their users and CI jobs get tokens) accept anonymous results: the `qa` CLI can send runs, batches and commits to `POST /api/v1/output`, `/api/v1/batch` and `/api/v1/commit` without authentication, so that it works from any CI or workstation. Runs that are running report their metrics so far to `PATCH /api/v1/output/<id>/progress` under the same policy. Results sent with a token record who really sent them; the others are shown as unverified. (Adding metrics to existing runs, `PATCH /api/v1/output/<id>/metrics`, always needs a token with the `ingest` scope and read access to the project.) As a result, until you require tokens:
 - anyone who can reach the server can create or change results, also in private projects, and delete results (`qa optimize` deletes the previous best iteration's runs through `POST /api/v1/batch`);
 - the output and artifacts folders stored with results can be any folder in the storage (`QABOARD_STORAGE_ROOTS`). Deleting results, and the cleanup scripts, delete files there, as the owner of the files when the server can switch users;
 - the reference branch's `qaboard.yaml` sent with a commit becomes the project's configuration. Its `recreate_artifacts` settings tell the server where to send a request (a webhook URL, a Jenkins job, a job of the project's own GitLab repository) when a logged-in user redoes runs on a commit whose artifacts are missing. GitLab and Jenkins credentials are only sent to the hosts configured on the server, but webhooks can target any address the server can reach (without following redirects);
@@ -116,16 +117,16 @@ Without `QABOARD_WEBHOOK_SECRET`, anyone who can reach the server can send fake 
 - The rate limits on signing in, sign-up, `qa auth login` codes and SSO redirects are in the nginx configuration QA-Board ships (`services/nginx/conf.d/qaboard.conf`, and the chart's). If you use your own reverse proxy in front of the backend, add `limit_req` rules on `/api/v1/user/auth/`, `/api/v1/user/signup/`, `/api/v1/auth/device/code` and `/api/v1/auth/oidc/`.
 
 ### Other
-- **HTML and SVG files in the storage run their scripts in QA-Board's origin, as whoever opens them** (stored XSS), by
-  default: opened from a link or the file browser (`/s/...`), and figures saved as HTML in the run cards. Anyone who can
-  save a run can write one. *Mitigation*: set `QABOARD_SANDBOX_HTML=true` for the backend and the proxy. In the web
-  app's viewers their scripts then run sandboxed, in an origin of their own; opened on their own, they show without
+- **HTML, SVG and XML files in the storage would run their scripts in QA-Board's origin, as whoever opens them**
+  (stored XSS): opened from a link or the file browser (`/s/...`), and figures saved as HTML in the run cards. Anyone
+  who can save a run can write one. *Mitigation*: `QABOARD_SANDBOX_HTML`, on by default since November 2026 (don't
+  set it to `false`). In the web app's viewers their scripts run sandboxed, in an origin of their own; opened on their own, they show without
   scripts (`Content-Security-Policy: sandbox`, `services/nginx/conf.d/qaboard-files.conf`). See
   [HTML reports](https://samsung.github.io/qaboard/docs/viewers#html-reports). Serving the storage from a host name
   of its own would let them run their scripts in a tab too.
 - `POST /api/v1/webhook/proxy` calls the hosts listed in the integrations of the projects' `qaboard.yaml`: while anyone can send results (`ingest.auth` is `off`), anyone can add hosts there. Likewise, without a user, `POST /api/v1/jenkins/build/trigger` starts the Jenkins jobs those files list.
-- Anyone who can reach the server can read the files it serves under `/s/`, unless you restrict them (see [user management](https://samsung.github.io/qaboard/docs/backend-admin/user-management#restricting-who-can-read-files)). Even then, the image server (IIIF, `/iiif/`) doesn't check permissions: anyone who can reach it can read the images it can decode in the folders mounted in it (`docker-compose.yml` used to mount the whole host filesystem, sites now mount their storage).
-  *Mitigations*: mount only the storage folders in the image server's container, and don't expose `/iiif/` to untrusted networks.
+- Files under `/s/` and images under `/iiif/` follow projects' visibility and the rules of `QABOARD_LOGIN_RESTRICTED_YAML` in the default nginx configuration and the Helm chart (see [user management](https://samsung.github.io/qaboard/docs/backend-admin/user-management#restricting-who-can-read-files)). Sites with their own nginx configuration must include `snippets/qaboard-files-auth.conf` and `snippets/qaboard-iiif-auth.conf`; image servers hosted elsewhere (`QABOARD_IMAGE_SERVERS`) aren't checked. Files outside every project's folders are public to whoever reaches the server, and the image server reads the images it can decode in the folders mounted in it.
+  *Mitigations*: mount only the storage folders in the image server's container, and don't expose other image servers to untrusted networks.
 - The example WebDAV configuration (`services/nginx/webdav.conf`) lets anyone who can reach the server read, write and delete files, without QA-Board's checks. It is only enabled where a deployment includes it.
 - `GET /api/v1/export` lets logged-in users create links or copies of output files in most folders the server can write to.
 - `GET /api/v1/output/<id>/manifest` doesn't require a login: it writes `manifest.outputs.json` in the output's folder, and returns the list of files in it.

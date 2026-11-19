@@ -26,12 +26,14 @@ class FakeServer:
   QA-Board (backend/api/outputs.py), and keeps the requests, and the files it was sent in `files`.
   - uploads=False: a server that doesn't accept files
   - file_errors: {path: [(status, body), ...]}: what it answers to the next requests for a file, before accepting it
+  - end_errors: [(status, body), ...]: what it answers to the next requests that end a run, before accepting one
   - served: {URL path: bytes}: files it serves, like nginx under /s/
   """
-  def __init__(self, progress_status=200, output_status=200, output_error=None, port=0, uploads=True, file_errors=None):
+  def __init__(self, progress_status=200, output_status=200, output_error=None, port=0, uploads=True, file_errors=None, end_errors=None):
     self.requests = []
     self.files = {}
     self.file_errors = {path: list(errors) for path, errors in (file_errors or {}).items()}
+    self.end_errors = list(end_errors or [])
     self.finished = False
     self.served = {}
     server = self
@@ -65,6 +67,8 @@ class FakeServer:
         if self.path.rstrip('/') == '/api/v1/output':
           if output_status != 200:
             return self.answer(output_status, output_error or {'error': 'no'})
+          if not body.get('is_pending') and server.end_errors:
+            return self.answer(*server.end_errors.pop(0))
           if body.get('storage') == 'upload' and not uploads:
             return self.answer(400, {'error': "This server doesn't accept uploaded files.", 'reason': 'uploads_disabled'})
           server.finished = not body.get('is_pending')
@@ -232,6 +236,14 @@ class TestSharedRuns(ActiveRunTestCase):
       # others, like the server, can list and delete the run's folder
       self.assertEqual(run_dir.stat().st_mode & 0o777, 0o777)
       self.assertEqual((run_dir / 'checkpoints').stat().st_mode & 0o777, 0o777)
+
+  def test_the_end_of_a_run_is_tried_again(self):
+    # e.g. a cloud load balancer while the server restarts: else the run would stay running, then be failed
+    server = self.server(end_errors=[(522, {'error': 'origin timed out'})])
+    result = self.python(server=server)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertTrue(server.finished)
+    self.assertEqual([b['is_running'] for b in server.outputs()][-2:], [False, False])
 
   def test_the_web_app_sees_the_metrics_while_the_run_goes_on(self):
     server = self.server()
@@ -789,6 +801,8 @@ with qb.start_run(input="slow") as run:
     self.assertIn("model.onnx: ", result.stderr)
     self.assertNotIn('model.onnx', server.files)
     self.assertFalse(server.outputs()[-1]['is_pending'])
+    # the run's page can say so
+    self.assertEqual(server.outputs()[-1]['data']['files_missing'], 1)
 
   def test_a_resumed_run_keeps_what_it_sent(self):
     server = self.server()

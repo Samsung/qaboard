@@ -2,8 +2,10 @@
 Tests for qaboard/upload.py: what runs without a storage shared with the server send it, and when.
 The server is the fake one of test_active_run.py, which answers like backend/api/outputs.py.
 """
+import io
 import os
 import tempfile
+from contextlib import redirect_stderr
 import time
 import unittest
 from pathlib import Path
@@ -22,9 +24,10 @@ class UploaderTestCase(unittest.TestCase):
     self.run_dir = Path(self.tmp.name) / 'run'
     self.run_dir.mkdir()
     # no waiting between tries
-    patch = mock.patch.object(upload, 'RETRY_DELAYS', (0.0, 0.0))
-    patch.start()
-    self.addCleanup(patch.stop)
+    for name, delays in (('RETRY_DELAYS', (0.0, 0.0)), ('FINAL_RETRY_DELAYS', (0.0, 0.0, 0.0))):
+      patch = mock.patch.object(upload, name, delays)
+      patch.start()
+      self.addCleanup(patch.stop)
 
   def server(self, **options):
     server = FakeServer(**options)
@@ -172,6 +175,36 @@ class TestWhenTheRunEnds(UploaderTestCase):
     self.assertEqual(server.files, {'result.bin': b'result'})
     self.assertEqual(len(server.puts('result.bin')), 3)
 
+  def test_the_last_sync_tries_longer(self):
+    # what isn't sent at the end is lost: FINAL_RETRY_DELAYS, while the run goes on RETRY_DELAYS
+    busy = [(503, {'error': 'busy'})] * 3
+    server = self.server(file_errors={'series.json': list(busy), 'result.bin': list(busy)})
+    self.write('series.json', b'{}')
+    self.write('result.bin', b'result')
+    uploader = self.uploader(server)
+    self.assertFalse(uploader.sync())
+    self.assertEqual(len(server.puts('series.json')), 3)
+    self.assertTrue(uploader.sync(final=True))
+    self.assertEqual(server.files, {'series.json': b'{}', 'result.bin': b'result'})
+    self.assertEqual(len(server.puts('result.bin')), 4)
+
+  def test_links_out_of_the_folder_are_not_sent(self):
+    secret = Path(self.tmp.name) / 'id_rsa'
+    secret.write_bytes(b'secret')
+    self.write('result.bin', b'result')
+    (self.run_dir / 'key').symlink_to(secret)
+    (self.run_dir / 'log.txt').symlink_to(secret)
+    (self.run_dir / 'same.bin').symlink_to(self.run_dir / 'result.bin')
+    server = self.server()
+    uploader = self.uploader(server)
+    with redirect_stderr(io.StringIO()) as stderr:
+      self.assertTrue(uploader.sync(final=True))
+      self.assertTrue(uploader.sync(final=True))
+    # links inside the folder: their content
+    self.assertEqual(server.files, {'result.bin': b'result', 'same.bin': b'result'})
+    self.assertEqual(stderr.getvalue().count('WARNING'), 1, stderr.getvalue())
+    self.assertIn('key, log.txt', stderr.getvalue())
+
   def test_a_file_that_changed_while_it_was_sent_is_sent_again(self):
     server = self.server(file_errors={'result.bin': [(422, {'error': 'digest', 'reason': 'digest_mismatch'})]})
     self.write('result.bin', b'result')
@@ -271,6 +304,22 @@ class TestWhenTheRunEnds(UploaderTestCase):
     self.assertTrue(uploader.sync(final=True))
     self.assertEqual(server.files, {})
 
+
+
+class TestQaUploadFolders(unittest.TestCase):
+  def test_links_out_of_the_folder_are_left_out(self):
+    from qaboard.upload_command import files_in
+    with tempfile.TemporaryDirectory() as tmp:
+      folder, secret = Path(tmp) / 'reports', Path(tmp) / 'id_rsa'
+      folder.mkdir()
+      secret.write_bytes(b'secret')
+      (folder / 'junit.xml').write_text('<testsuites/>')
+      (folder / 'key').symlink_to(secret)
+      (folder / 'same.xml').symlink_to(folder / 'junit.xml')
+      with redirect_stderr(io.StringIO()) as stderr:
+        files = files_in(folder, Path(os.devnull))
+      self.assertEqual([f.name for f in files], ['junit.xml', 'same.xml'])
+      self.assertIn('key', stderr.getvalue())
 
 
 class TestHeartbeat(unittest.TestCase):

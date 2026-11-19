@@ -14,6 +14,7 @@ files and the binaries the CI built.
 """
 import os
 import re
+import time
 from pathlib import Path
 
 from flask import request, jsonify, g
@@ -110,9 +111,11 @@ def upload_commit_artifact(commit_id, path):
   try:
     if directory is None:
       directory = uploads.commit_artifacts_dir(project_id, commit_id)
+    started = time.monotonic()
     size = uploads.save_file(directory, path, request.stream, request.content_length, sha256=sha256)
   except uploads.UploadError as e:
     return jsonify({"error": str(e), "reason": e.reason, **e.details}), e.status
+  print(f"[uploads] artifacts of {project_id} {commit_id}: {path}, {size} bytes in {time.monotonic() - started:.1f}s", flush=True)
   location = locations.location_of(directory)
   if (ci_commit.data or {}).get(UPLOADED_ARTIFACTS) != location:
     ci_commit.data = {**(ci_commit.data or {}), UPLOADED_ARTIFACTS: location}

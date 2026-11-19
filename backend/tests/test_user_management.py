@@ -91,7 +91,7 @@ def no_database(monkeypatch):
 
 
 def test_settings_env_then_database_then_default(no_database, monkeypatch):
-  assert settings.setting('ingest.auth') == 'off' and settings.source('ingest.auth') == 'default'
+  assert settings.setting('ingest.auth') == 'token' and settings.source('ingest.auth') == 'default'
   no_database['ingest.auth'] = 'warn'
   assert settings.setting('ingest.auth') == 'warn' and settings.source('ingest.auth') == 'database'
   monkeypatch.setenv('QABOARD_INGEST_AUTH', 'token')
@@ -137,7 +137,8 @@ def test_invalid_settings(key, value, error):
 
 
 def test_valid_settings():
-  assert settings.validate('tokens.max_lifetime_days', None) is None
+  assert settings.validate('email.smtp_port', None) is None
+  assert settings.validate('tokens.max_lifetime_days', 30) == 30
   assert settings.validate('auth.allowed_origins', ['https://a']) == ['https://a']
 
 
