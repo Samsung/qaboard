@@ -157,6 +157,32 @@ class TestProgress(ReporterTestCase):
     self.assertEqual(self.server.progress(), [{'metrics': {'loss': 0.5}}, {}])
     self.assertLess(reporter.silent_for(), 5)
 
+  def test_what_the_run_uses_of_its_machine_goes_with_each_report(self):
+    """qaboard/system_metrics.py: a run its scheduler kills said what it used until its last heartbeat"""
+    used = {'memory': {'peak_mb': 100}}
+    reporter = self.reporter(extra=lambda: {'resources': dict(used)}, beat_while_running=True, heartbeat_interval=0.05)
+    reporter.start(42)
+    reporter.progress({'metrics': {'loss': 0.5}})
+    self.assertTrue(reporter.beat())
+    used['memory'] = {'peak_mb': 200}
+    deadline = threading.Event()
+    for _ in range(100):  # the heartbeats' thread
+      if any(body.get('resources') == {'memory': {'peak_mb': 200}} for body in self.server.progress()):
+        break
+      deadline.wait(0.05)
+    progress = self.server.progress()
+    self.assertEqual(progress[:2], [{'resources': {'memory': {'peak_mb': 100}}, 'metrics': {'loss': 0.5}}, {'resources': {'memory': {'peak_mb': 100}}}])
+    self.assertIn({'resources': {'memory': {'peak_mb': 200}}}, progress[2:])
+
+  def test_reports_go_even_when_measuring_fails(self):
+    def broken():
+      raise RuntimeError('no /proc')
+    reporter = self.reporter(extra=broken)
+    reporter.start(42)
+    reporter.progress({'metrics': {'loss': 0.5}})
+    self.assertTrue(reporter.beat())
+    self.assertEqual(self.server.progress(), [{'metrics': {'loss': 0.5}}, {}])
+
   def test_servers_without_heartbeats(self):
     reporter = self.reporter()
     reporter.start(42)

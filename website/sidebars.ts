@@ -174,6 +174,8 @@ const sidebars: SidebarsConfig = {
           ],
         },
         "batches-advanced",
+        // What runs use of their machine: memory, CPU, GPUs
+        "system-metrics",
         "using-the-qa-cli",
       ],
     },

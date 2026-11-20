@@ -44,9 +44,11 @@ SOURCE_KEYS = ('script', 'script_sha256', 'qaboard_version', 'note')
 # At most that many metrics added per request, and their text values' length: they're parsed by every view of the batch
 MAX_ADDED_METRICS = 500
 MAX_ADDED_TEXT = 500
-# What a running run reports (report_output_progress): its metrics so far, and its parameters as JSON
+# What a running run reports (report_output_progress): its metrics so far, its parameters and what it uses of its
+# machine (qaboard/system_metrics.py: a summary of a few hundred bytes, more with many GPUs), as JSON
 MAX_PROGRESS_METRICS = 2000
 MAX_PROGRESS_PARAMS_SIZE = 100_000
+MAX_RESOURCES_SIZE = 20_000
 
 
 def all_project_ids() -> list:
@@ -270,7 +272,8 @@ def add_output_metrics(output_id):
 @app.route("/api/v1/output/<int:output_id>/progress/", methods=['PATCH'])
 def report_output_progress(output_id):
   """
-  What a running run looks like so far: its metrics, and the parameters it reported. Runs started from code
+  What a running run looks like so far: its metrics, the parameters it reported, and what it uses of its machine
+  (`resources`, also sent with heartbeats). Runs started from code
   (`qaboard.start_run()`) send it every few seconds while they log, so that the web app shows them before they end.
   It replaces what the run said before: the run sends everything each time, nothing has to arrive in order.
   Only for runs that are running: when a run ends, POST /api/v1/output/ says its final metrics, as always.
@@ -300,6 +303,9 @@ def report_output_progress(output_id):
   params = data.get('params')
   if params is not None and (not isinstance(params, dict) or len(json.dumps(params)) > MAX_PROGRESS_PARAMS_SIZE):
     return jsonify({"error": f"`params` must be an object, of at most {MAX_PROGRESS_PARAMS_SIZE} characters as JSON"}), 400
+  resources = data.get('resources')
+  if resources is not None and (not isinstance(resources, dict) or len(json.dumps(resources)) > MAX_RESOURCES_SIZE):
+    return jsonify({"error": f"`resources` must be an object, of at most {MAX_RESOURCES_SIZE} characters as JSON"}), 400
   # only now the lock: callers we refuse don't hold up the run's own updates
   try:
     # only the run's row: Output.test_input is loaded with an outer join, which PostgreSQL can't lock
@@ -322,6 +328,12 @@ def report_output_progress(output_id):
     if not output.data:
       output.data = {}
     output.data['params'] = params
+    flag_modified(output, "data")
+  # heartbeats say it too: a run that is killed said what it used until then
+  if resources is not None:
+    if not output.data:
+      output.data = {}
+    output.data['resources'] = resources
     flag_modified(output, "data")
   db_session.add(output)
   db_session.commit()

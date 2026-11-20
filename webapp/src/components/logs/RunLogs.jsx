@@ -13,6 +13,7 @@ import { fileExists } from "./fetchRange";
 import { DirectoryActions } from "./DirectoryActions";
 import { runTime } from "../RunInfoMenu";
 import { attemptLogs } from "../../utils/attempts";
+import { resourcesDetails, resourcesText } from "../../utils/resources";
 
 
 // A list of runs, each with its logs
@@ -116,6 +117,9 @@ const Details = styled.div`
     margin-right: 12px;
     overflow-wrap: anywhere;
   }
+  .resources {
+    flex-basis: 100%;
+  }
 `
 
 // Don't toggle the logs when users click links, buttons, tags... Clicking the run's name does: hovering it shows what we know about the run
@@ -134,6 +138,8 @@ const input_path = output => output.test_input_database
 const RunDetails = ({ output }) => {
   const has_configurations = (output.configurations ?? []).length > 0 || Object.keys(output.extra_parameters ?? {}).length > 0
   const has_badges = (output.params?.badges ?? []).length > 0
+  // what it used of its machine
+  const resources = resourcesText(output)
   return <Details>
     <span className={`input ${Classes.TEXT_MUTED}`}>
       {!!output.data?.batch && <span title="Batch">{output.data.batch} › </span>}
@@ -143,6 +149,7 @@ const RunDetails = ({ output }) => {
     <PlatformTag platform={output.platform} />
     {has_configurations && <ConfigurationsTags configurations={output.configurations ?? []} tuning={output.extra_parameters} collapse={false} />}
     {has_badges && <RunBadges output={output} />}
+    {!!resources && <span className={`resources ${Classes.TEXT_MUTED}`} title={resourcesDetails(output)}>{resources}</span>}
   </Details>
 }
 

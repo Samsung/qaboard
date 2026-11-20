@@ -52,6 +52,12 @@ test('helpers', () => {
   expect(previousMetricsText(undefined)).toBe(null);
   expect(attemptLogs({ data: { attempt_logs: [1, 3, 3, 'x', 0] } })).toEqual([{ attempt: 3, name: 'log.attempt3.txt' }, { attempt: 1, name: 'log.attempt1.txt' }]);
   expect(attemptLogs({})).toEqual([]);
+  // with their runners' logs, the latest attempt first, its log.txt first
+  expect(attemptLogs({ data: { attempt_logs: [1, 2], attempt_log_files: ['log.attempt1.lsf.txt', 'log.attempt1.txt', 'log.attempt2.pending.txt', 'log.attempt2.k8s.txt', 'log.attempt2.txt', 'log.attempt2.txt', 'other.txt', 3] } }))
+    .toEqual([
+      { attempt: 2, name: 'log.attempt2.txt' }, { attempt: 2, name: 'log.attempt2.k8s.txt' }, { attempt: 2, name: 'log.attempt2.pending.txt' },
+      { attempt: 1, name: 'log.attempt1.txt' }, { attempt: 1, name: 'log.attempt1.lsf.txt' },
+    ]);
   expect(doneAgainInPlace({ data: { previous_attempts: [{ attempt: 1 }, null, { in_place: true }] } })).toBe(true);
   expect(doneAgainInPlace({ data: { attempt: 2, previous_attempts: [{ attempt: 1 }] } })).toBe(false);
   expect(doneAgainInPlace(undefined)).toBe(false);

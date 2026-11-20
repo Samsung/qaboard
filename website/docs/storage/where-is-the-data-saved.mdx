@@ -75,14 +75,15 @@ wouldn't find the artifacts that the CI saved.
 
 ## When a run is done again {#reruns}
 Shared and CI results are not replaced in place: when the same run (commit, label, input, configuration) is done
-again, `qa` saves it in a new folder. It removes the files of the previous attempt, and moves its log to the new
-folder.
+again, `qa` saves it in a new folder. It removes the files of the previous attempt, and moves its logs to the new
+folder: its *log.txt*, and its runner's, like *log.lsf.txt* with LSF's report of why it ended the job.
 
 ```text
 output/<configuration>/<input>/                         the first attempt's folder
 output/<configuration>/<input>/latest_attempt.txt       "3": the run was done again, its results are in...
 output/<configuration>/<input>_attempt3/                ...the third attempt's folder
 output/<configuration>/<input>_attempt3/log.attempt2.txt    with the logs of the attempts before it, the last 10
+output/<configuration>/<input>_attempt3/log.attempt2.lsf.txt    and their runners' logs
 ```
 
 `output/` is the CI's results (label `default`); other labels are in `output/<label>/`. After a run is done again,

@@ -225,11 +225,16 @@ class TestSharedRuns(ActiveRunTestCase):
     # the same files as a `qa run`, and the series
     files = {p.relative_to(run_dir).as_posix() for p in run_dir.rglob('*') if p.is_file()}
     self.assertEqual(files, {'run.json', 'metrics.json', 'metrics_definitions.json', 'manifest.outputs.json', 'log.txt',
-                             'series.jsonl', 'series.json', 'checkpoints/last.pt', 'model.onnx'})
+                             'series.jsonl', 'series.json', 'checkpoints/last.pt', 'model.onnx', 'system.series.json'})
+    # what it used of its machine: a summary for the server, the samples plotted from its folder (qaboard/system_metrics.py)
+    self.assertGreater(finished['data']['resources']['memory']['peak_mb'], 0)
+    self.assertIn('memory_mb', json.loads((run_dir / 'system.series.json').read_text())['series'])
+
     self.assertEqual(json.loads((run_dir / 'metrics.json').read_text()), metrics)
     self.assertEqual(json.loads((run_dir / 'run.json').read_text())['configurations'], ['resnet50', {'lr': 0.001}])
     manifest = json.loads((run_dir / 'manifest.outputs.json').read_text())
     self.assertLessEqual({'series.json', 'series.jsonl', 'checkpoints/last.pt', 'model.onnx'}, set(manifest))
+    self.assertIn('system.series.json', manifest)
     self.assertIn('training done', (run_dir / 'log.txt').read_text())
     self.assertEqual(json.loads((run_dir / 'series.json').read_text())['series']['train/loss']['points'], 100)
     if os.name != 'nt':
@@ -264,7 +269,9 @@ run.finish()
     self.assertGreaterEqual(len(progress), 2)
     self.assertLessEqual(len(progress), 4)  # only when something changed
     self.assertEqual(progress[0]['metrics'], {'loss': 1.0})
-    self.assertEqual(progress[-1], {'metrics': {'loss': 0.5}, 'params': {'device': 'cuda:0'}})
+    self.assertEqual({k: v for k, v in progress[-1].items() if k != 'resources'}, {'metrics': {'loss': 0.5}, 'params': {'device': 'cuda:0'}})
+    # what the run uses of its machine, with each report
+    self.assertTrue(all(body['resources']['version'] == 1 for body in progress))
     # how to show the metrics: once, not with every update
     self.assertEqual([p.get('metrics_definitions') for p in progress if 'metrics_definitions' in p], [{'loss': {'smaller_is_better': True}}])
     self.assertEqual(len(server.outputs()), 2)  # started, finished: progress doesn't go through the heavy route

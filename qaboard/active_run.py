@@ -576,7 +576,9 @@ class ActiveRun:
     # what the run tells the server besides its results: its files, heartbeats while the last ones go (qaboard/reporting.py).
     # While it runs, its progress reports say that it runs
     self._reporter = RunReporter(server, output_dir, token=token, uploads=uploads_files, live=(setup.config.get('outputs') or {}).get('live'),
-                                 sync_interval=self._sync_interval, beat_while_running=False)
+                                 sync_interval=self._sync_interval, beat_while_running=False, extra=self._resources)
+    # what the run uses of its machine, from _start() to _finish(): with each report, and plotted (qaboard/system_metrics.py)
+    self._system_metrics: Any = None
 
     # what the run logged: guarded by _lock, written and sent by the background thread
     self._lock = threading.RLock()
@@ -859,11 +861,21 @@ class ActiveRun:
         definitions[key] = definition
     return definitions
 
+  def _resources(self) -> Dict[str, Any]:
+    """What the server keeps as data.resources (qaboard/system_metrics.py)"""
+    return {"resources": self._system_metrics.summary()} if self._system_metrics is not None else {}
+
   def _start(self) -> None:
     global _hooks_installed
     setup = self._setup
     with self._lock:
       self._series = SeriesWriter(self.output_dir, resume=self._resume)
+    from . import system_metrics
+    if system_metrics.enabled(setup.config):
+      try:
+        self._system_metrics = system_metrics.SystemMetrics(self.output_dir, interval=system_metrics.interval()).start()
+      except Exception as e:
+        self._warn_once('system_metrics', f"WARNING: can't measure what the run uses of its machine: {e!r}")
     if not setup.is_ci and setup.repo_root is not None and setup.is_default_commit:
       self._data.update(_dirty(setup.repo_root) or {})
     self._data['sdk'] = {k: v for k, v in _script_source().items() if k in ('script', 'script_sha256', 'qaboard_version')}
@@ -1006,7 +1018,7 @@ class ActiveRun:
     setup = self._setup
     with self._lock:
       metrics = self._current_metrics(final=final)
-      data = {**self._data, 'params': dict(self._params), 'attempt_logs': attempts.kept_logs(self.output_dir)}
+      data = {**self._data, 'params': dict(self._params), **attempts.kept_logs_data(self.output_dir), **self._resources()}
       if final and self._reporter.files_missing:
         data['files_missing'] = self._reporter.files_missing
       definitions = with_default_direction(self._metrics_definitions(metrics), setup.available_metrics)
@@ -1175,6 +1187,9 @@ class ActiveRun:
       except (OSError, ValueError):
         pass
     self._release_output()
+    if self._system_metrics is not None:
+      # before the manifest: system.series.json is final
+      self._system_metrics.stop()
 
     metrics: Dict[str, Any] = {}
     try:

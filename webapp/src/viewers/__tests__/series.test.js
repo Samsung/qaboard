@@ -113,6 +113,18 @@ describe('with_run_files', () => {
     expect(with_run_files(views, { 'series.json': {} }, { data: {} })).toBe(views);
   });
 
+  it('shows what the run used of its machine after its series', () => {
+    expect(with_run_files(views, { 'series.json': {}, 'system.series.json': {} }, from_code).map(view => view.name))
+      .toEqual(['Logged series', 'System metrics', 'Output']);
+    expect(with_run_files([], { 'system.series.json': {} }, from_code)).toEqual([
+      { name: 'System metrics', path: 'system.series.json', type: 'series', automatic: true },
+    ]);
+    // `qa run`'s: projects list it in their visualizations
+    expect(with_run_files(views, { 'system.series.json': {} }, { data: {} })).toBe(views);
+    const listed = [{ name: 'Machine', path: 'system.series.json', type: 'series', default_hidden: true }];
+    expect(with_run_files(listed, { 'system.series.json': {} }, from_code)).toBe(listed);
+  });
+
   it('changes nothing for runs without series, or before their files are known', () => {
     expect(with_run_files(views, { 'out.png': {} }, from_code)).toBe(views);
     expect(with_run_files(views, undefined, from_code)).toBe(views);

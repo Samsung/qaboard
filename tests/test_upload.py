@@ -328,7 +328,7 @@ class TestHeartbeat(unittest.TestCase):
     from qaboard.results import ResultsError
     answers = [ResultsError('away'), ResultsError('busy', status=503), None, ResultsError('The run has ended', status=409, reason='not_running')]
     calls = []
-    def beat(server, run_id, token=None):
+    def beat(server, run_id, token=None, body=None):
       calls.append(run_id)
       answer = answers.pop(0)
       if answer is not None:

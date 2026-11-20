@@ -4,6 +4,7 @@ import { Classes, Intent, Tag, Tooltip } from "@blueprintjs/core";
 import { DateTime } from "luxon";
 
 import { previousAttempts, attemptLogs } from "../utils/attempts";
+import { memoryText, peakMemory } from "../utils/resources";
 
 const status_text = { success: 'succeeded', failed: 'failed', unfinished: "didn't finish" };
 // not about what the run measured
@@ -29,6 +30,16 @@ export const previousMetricsText = (metrics, max = MAX_METRICS) => {
   return entries.slice(0, max).map(([key, value]) => `${key} ${formatValue(value)}`).join(' · ') + (more > 0 ? ` (+${more} more)` : '');
 };
 
+// The peaks of what it used of its machine (backend/attempts.py:kept_resources): "4.1 GB peak memory (limit 4 GB) · 21 GB on its GPU"
+export const previousResourcesText = resources => {
+  if (!resources || typeof resources !== 'object') return null;
+  const memory = peakMemory({ memory: resources });
+  const parts = [];
+  if (memory !== null) parts.push(`${memoryText(memory)} peak memory${typeof resources.cgroup_limit_mb === 'number' ? ` (limit ${memoryText(resources.cgroup_limit_mb)})` : ''}`);
+  if (typeof resources.gpu_memory_peak_mb === 'number') parts.push(`${memoryText(resources.gpu_memory_peak_mb)} on its GPU`);
+  return parts.length ? parts.join(' · ') : null;
+};
+
 // `data`: the run's data. Nothing for runs done once.
 export const AttemptTag = ({ data, style }) => {
   const attempt = data?.attempt;
@@ -41,9 +52,11 @@ export const AttemptTag = ({ data, style }) => {
     {previous.length > 0 && <ul className={Classes.LIST} style={{ margin: '6px 0 0', paddingLeft: 18 }}>
       {previous.map((a, index) => {
         const metrics = previousMetricsText(a.metrics);
+        const resources = previousResourcesText(a.resources);
         return <li key={index}>
           {previousAttemptText(a)}
           {metrics && <div style={{ opacity: 0.8, fontSize: 12 }}>{metrics}</div>}
+          {resources && <div style={{ opacity: 0.8, fontSize: 12 }}>{resources}</div>}
         </li>;
       })}
     </ul>}

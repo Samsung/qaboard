@@ -326,6 +326,28 @@ def test_a_run_done_again_in_place_keeps_a_trace_too(outputs_api, dummy_app):
   assert output.data["previous_attempts"][1]["metrics"]["psnr"] == 32
 
 
+def test_earlier_attempts_keep_the_peaks_of_what_they_used():
+  """e.g. an attempt killed because it used too much memory: the next one shows its own"""
+  from backend.attempts import record_attempt
+  resources = {"version": 1, "updated_at": "2026-11-20T10:00:00Z", "host": {"name": "node-12", "cpus": 64},
+               "memory": {"peak_mb": 4000.0, "mean_mb": 2000.0, "max_process_mb": 4090.5, "cgroup_peak_mb": 4096.0, "cgroup_limit_mb": 4096.0},
+               "cpu": {"mean_cores": 1.0}, "gpus": [{"index": 0, "memory_peak_mb": 30000.0, "run_memory_peak_mb": 12000.0}, {"index": 1, "memory_peak_mb": 8000.0}]}
+  output = SimpleNamespace(id=7, data={"resources": resources}, output_dir_override="/storage/output", is_pending=True, is_failed=False)
+  record_attempt(output, "/storage/output_attempt2", is_pending=True)
+  assert "resources" not in output.data
+  assert output.data["previous_attempts"][0]["resources"] == {
+    "peak_mb": 4000.0, "max_process_mb": 4090.5, "cgroup_peak_mb": 4096.0, "cgroup_limit_mb": 4096.0,
+    "gpu_memory_peak_mb": 12000.0, "updated_at": "2026-11-20T10:00:00Z", "host": "node-12"}
+  # nothing to keep
+  output.data["resources"] = {"version": 1, "memory": "?"}
+  record_attempt(output, "/storage/output_attempt3", is_pending=True)
+  assert "resources" not in output.data["previous_attempts"][1]
+  output.data["resources"] = ["not", "an", "object"]
+  output.output_dir_override = "/storage/output_attempt3"
+  record_attempt(output, "/storage/output_attempt4", is_pending=True)
+  assert "resources" not in output.data["previous_attempts"][2]
+
+
 def test_only_the_last_attempts_are_remembered():
   from backend.attempts import record_attempt, MAX_PREVIOUS_ATTEMPTS
   output = SimpleNamespace(id=7, data={}, output_dir_override="/storage/output", is_pending=False, is_failed=False)
@@ -401,6 +423,22 @@ def test_running_runs_report_their_metrics_and_params(outputs_api, dummy_app, ru
   assert outputs_api.save_metrics_definitions.call_count == 1
 
 
+def test_running_runs_say_what_they_use_of_their_machine(outputs_api, dummy_app, running_run):
+  """qaboard/system_metrics.py: with each heartbeat, so that a run its scheduler kills said what it used until then"""
+  output = running_run
+  output.metrics = {"loss": 0.5}
+  resources = {"version": 1, "memory": {"peak_mb": 4096.0}, "gpus": [{"index": 0, "memory_peak_mb": 20000.0}]}
+  # a heartbeat: no metrics, nothing else changes
+  report_progress(outputs_api, dummy_app, {"resources": resources})
+  assert output.data["resources"] == resources and output.metrics == {"loss": 0.5}
+  # the latest one
+  report_progress(outputs_api, dummy_app, {"metrics": {"loss": 0.4}, "resources": {"version": 1, "memory": {"peak_mb": 5000.0}}})
+  assert output.data["resources"]["memory"] == {"peak_mb": 5000.0} and output.metrics == {"loss": 0.4}
+  # reports that don't say keep it
+  report_progress(outputs_api, dummy_app, {})
+  assert output.data["resources"]["memory"] == {"peak_mb": 5000.0}
+
+
 def test_progress_keeps_the_metrics_scripts_added(outputs_api, dummy_app, running_run):
   output = running_run
   output.data["added_metrics"] = {"sharpness": {"value": 0.4, "at": "2026-11-02T10:00:00+00:00"}, "loss": {"value": 3, "at": "2026-11-02T10:00:00+00:00"}}
@@ -427,6 +465,8 @@ def test_only_running_runs_report_progress(outputs_api, dummy_app, running_run):
   ({"metrics": {f"m{i}": i for i in range(2001)}}, "at most 2000"),
   ({"metrics": {}, "params": ["adamw"]}, "`params` must be an object"),
   ({"metrics": {}, "params": {"x": "y" * 100_000}}, "`params` must be an object"),
+  ({"resources": [1]}, "`resources` must be an object"),
+  ({"resources": {"x": "y" * 20_000}}, "`resources` must be an object"),
 ])
 def test_progress_is_checked(outputs_api, dummy_app, running_run, body, message):
   response, status = report_progress(outputs_api, dummy_app, body)

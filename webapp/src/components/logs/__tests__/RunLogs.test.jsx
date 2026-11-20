@@ -148,6 +148,17 @@ describe('RunLogs', () => {
     await waitFor(() => expect(screen.getByLabelText('Download')).toHaveAttribute('href', '/s/out/7/log.attempt1.txt'))
   })
 
+  it("offers the runners' logs of the earlier attempts", async () => {
+    // e.g. LSF's job report of an attempt it killed because it used too much memory
+    renderRun({ expanded: true, output: { ...output, data: { attempt: 2, attempt_logs: [1], attempt_log_files: ['log.attempt1.lsf.txt', 'log.attempt1.txt'] } } })
+    expect(screen.getAllByRole('radio').map(radio => radio.textContent)).toEqual(['log.txt', 'log.attempt1.txt', 'log.attempt1.lsf.txt'])
+  })
+
+  it('says what the run used of its machine', async () => {
+    renderRun({ expanded: true, output: { ...output, data: { resources: { memory: { peak_mb: 6963 }, cpu: { mean_cores: 1 } } } } })
+    expect(await screen.findByText('6.8 GB peak memory · 1.0 core')).toBeInTheDocument()
+  })
+
   it('says when the output files of a run were deleted', async () => {
     renderRun({ expanded: true, output: { ...output, deleted: true } })
     expect(await screen.findByText("The run's output files were deleted.")).toBeInTheDocument()

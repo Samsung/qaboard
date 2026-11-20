@@ -490,6 +490,8 @@ def is_bit_accurate(dir_new, dir_ref, run_context: RunContext, strict=False, man
     ignore.append('metrics.json')         # contains measured run time
     ignore.append('metrics_definitions.json') # how to show metrics, not outputs
     ignore.append('latest_attempt.txt')   # which attempt of the run is the latest (qaboard/attempts.py)
+    ignore.append('system.series.json')   # what the run used of its machine (qaboard/system_metrics.py)
+    ignore.append('.system.series.json.') # the same, while it's replaced
     ignore.append('.nfs000*')             # NFS temporary files
 
     missing_runs = False
