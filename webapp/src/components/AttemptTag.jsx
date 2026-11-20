@@ -30,13 +30,14 @@ export const previousMetricsText = (metrics, max = MAX_METRICS) => {
   return entries.slice(0, max).map(([key, value]) => `${key} ${formatValue(value)}`).join(' · ') + (more > 0 ? ` (+${more} more)` : '');
 };
 
-// The peaks of what it used of its machine (backend/attempts.py:kept_resources): "4.1 GB peak memory (limit 4 GB) · 21 GB on its GPU"
+// The peaks of what it used of its machine (backend/attempts.py:kept_resources): "4.1 GiB peak memory (limit 4 GiB) · 21 GiB GPU memory"
 export const previousResourcesText = resources => {
   if (!resources || typeof resources !== 'object') return null;
   const memory = peakMemory({ memory: resources });
   const parts = [];
   if (memory !== null) parts.push(`${memoryText(memory)} peak memory${typeof resources.cgroup_limit_mb === 'number' ? ` (limit ${memoryText(resources.cgroup_limit_mb)})` : ''}`);
-  if (typeof resources.gpu_memory_peak_mb === 'number') parts.push(`${memoryText(resources.gpu_memory_peak_mb)} on its GPU`);
+  if (typeof resources.gpu_memory_peak_mb === 'number') parts.push(`${memoryText(resources.gpu_memory_peak_mb)} GPU memory`);
+  if (typeof resources.oom_kills === 'number' && resources.oom_kills > 0) parts.push('out of memory');
   return parts.length ? parts.join(' · ') : null;
 };
 

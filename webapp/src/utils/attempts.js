@@ -16,13 +16,16 @@ const ATTEMPT_LOG = /^log\.attempt([1-9][0-9]*)(?:\.([a-z0-9]+))?\.txt$/;
 // The logs of the earlier attempts kept in the run's folder, the latest first, each attempt's log.txt before its
 // runner's: [{attempt, name}]. `qa` lists them in data.attempt_log_files; older versions only kept log.txt (attempt_logs)
 export const attemptLogs = output => {
-  const files = output?.data?.attempt_log_files;
-  const logs = Array.isArray(files)
-    ? files.flatMap(name => {
-        const match = typeof name === 'string' && name.match(ATTEMPT_LOG);
-        return match ? [{ attempt: Number(match[1]), runner: match[2] ?? '', name }] : [];
-      })
-    : (output?.data?.attempt_logs ?? []).filter(a => Number.isInteger(a) && a > 0).map(attempt => ({ attempt, runner: '', name: attemptLogName(attempt) }));
+  const files = Array.isArray(output?.data?.attempt_log_files) ? output.data.attempt_log_files : [];
+  const attempts = Array.isArray(output?.data?.attempt_logs) ? output.data.attempt_logs : [];
+  // both: a server may have the list of an older `qa`, without the runners' logs
+  const logs = [
+    ...files.flatMap(name => {
+      const match = typeof name === 'string' && name.match(ATTEMPT_LOG);
+      return match ? [{ attempt: Number(match[1]), runner: match[2] ?? '', name }] : [];
+    }),
+    ...attempts.filter(a => Number.isInteger(a) && a > 0).map(attempt => ({ attempt, runner: '', name: attemptLogName(attempt) })),
+  ];
   const unique = [...new Map(logs.map(log => [log.name, log])).values()];
   return unique
     .sort((a, b) => b.attempt - a.attempt || (a.runner === '' ? -1 : b.runner === '' ? 1 : a.runner.localeCompare(b.runner)))

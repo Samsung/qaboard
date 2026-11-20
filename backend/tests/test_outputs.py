@@ -437,6 +437,29 @@ def test_running_runs_say_what_they_use_of_their_machine(outputs_api, dummy_app,
   # reports that don't say keep it
   report_progress(outputs_api, dummy_app, {})
   assert output.data["resources"]["memory"] == {"peak_mb": 5000.0}
+  # an odd one is ignored, not refused: a refused heartbeat would fail the run once it's silent
+  for odd in ([1], {"x": "y" * 20_000}):
+    response = report_progress(outputs_api, dummy_app, {"metrics": {"loss": 0.3}, "resources": odd})
+    assert response.status_code == 200 and output.metrics == {"loss": 0.3}
+    assert output.data["resources"]["memory"] == {"peak_mb": 5000.0}
+
+
+def test_the_end_of_a_run_says_what_it_used(outputs_api, dummy_app):
+  """POST /api/v1/output/ keeps data.resources, if it looks like one: it's sent with every run of a batch"""
+  output = outputs_api.test_output
+  notify(outputs_api, dummy_app, is_pending=False, metrics={}, data={"resources": {"version": 1, "memory": {"peak_mb": 10.0}}})
+  assert output.data["resources"] == {"version": 1, "memory": {"peak_mb": 10.0}}
+  notify(outputs_api, dummy_app, is_pending=False, metrics={}, data={"resources": {"x": "y" * 20_000}, "storage": 5})
+  assert output.data["resources"] == {"version": 1, "memory": {"peak_mb": 10.0}} and output.data["storage"] == 5
+
+
+def test_an_older_qa_lists_the_earlier_attempts_logs_without_their_runners(outputs_api, dummy_app):
+  """What a newer `qa` listed is stale: the web app reads attempt_logs"""
+  output = outputs_api.test_output
+  notify(outputs_api, dummy_app, is_pending=False, metrics={}, data={"attempt_logs": [1], "attempt_log_files": ["log.attempt1.txt", "log.attempt1.lsf.txt"]})
+  assert output.data["attempt_log_files"] == ["log.attempt1.txt", "log.attempt1.lsf.txt"]
+  notify(outputs_api, dummy_app, is_pending=False, metrics={}, data={"attempt_logs": [1, 2]})
+  assert output.data["attempt_logs"] == [1, 2] and "attempt_log_files" not in output.data
 
 
 def test_progress_keeps_the_metrics_scripts_added(outputs_api, dummy_app, running_run):
@@ -465,8 +488,6 @@ def test_only_running_runs_report_progress(outputs_api, dummy_app, running_run):
   ({"metrics": {f"m{i}": i for i in range(2001)}}, "at most 2000"),
   ({"metrics": {}, "params": ["adamw"]}, "`params` must be an object"),
   ({"metrics": {}, "params": {"x": "y" * 100_000}}, "`params` must be an object"),
-  ({"resources": [1]}, "`resources` must be an object"),
-  ({"resources": {"x": "y" * 20_000}}, "`resources` must be an object"),
 ])
 def test_progress_is_checked(outputs_api, dummy_app, running_run, body, message):
   response, status = report_progress(outputs_api, dummy_app, body)

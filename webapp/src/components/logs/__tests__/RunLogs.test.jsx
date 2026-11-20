@@ -156,7 +156,7 @@ describe('RunLogs', () => {
 
   it('says what the run used of its machine', async () => {
     renderRun({ expanded: true, output: { ...output, data: { resources: { memory: { peak_mb: 6963 }, cpu: { mean_cores: 1 } } } } })
-    expect(await screen.findByText('6.8 GB peak memory · 1.0 core')).toBeInTheDocument()
+    expect(await screen.findByText('6.8 GiB peak memory · 1.0 core')).toBeInTheDocument()
   })
 
   it('says when the output files of a run were deleted', async () => {

@@ -131,7 +131,7 @@ export const RunInfoMenuItems = ({ project, commit, output, type, history: with_
     />}
     {!!output?.data?.storage && <MenuItem key="storage" text={humanFileSize(output.data.storage, true)} label="storage" icon="folder-close" />}
     {!!memory && <MenuItem key="memory" text={<span title={resourcesDetails(output)}>{memoryText(memory)}</span>} label="peak memory" icon="database" />}
-    {gpus.map(gpu => <MenuItem key={`gpu-${gpu.uuid ?? gpu.index}`} text={gpuText(gpu)} label={gpu.name} icon="dashboard" />)}
+    {gpus.map((gpu, index) => <MenuItem key={`gpu-${index}`} text={gpuText(gpu)} label={typeof gpu.name === 'string' ? gpu.name : undefined} icon="dashboard" />)}
     {(!!output.data?.batch || (!!output.test_input_database && output.test_input_database !== '/')) && <>
       <MenuDivider key="display" title="Display" />
       <RunNameOriginMenuItem />

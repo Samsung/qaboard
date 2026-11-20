@@ -46,6 +46,7 @@ class TestSettings(unittest.TestCase):
   def test_interval(self):
     self.assertEqual(system_metrics.interval({}), system_metrics.INTERVAL)
     self.assertEqual(system_metrics.interval({'QA_SYSTEM_METRICS_INTERVAL': '0.5'}), 0.5)
+    self.assertEqual(system_metrics.interval({'QA_SYSTEM_METRICS_INTERVAL': '0.001'}), system_metrics.MIN_INTERVAL)
     self.assertEqual(system_metrics.interval({'QA_SYSTEM_METRICS_INTERVAL': 'often'}), system_metrics.INTERVAL)
     self.assertEqual(system_metrics.interval({'QA_SYSTEM_METRICS_INTERVAL': '-1'}), system_metrics.INTERVAL)
 
@@ -72,8 +73,9 @@ class TestSampling(unittest.TestCase):
     self.assertEqual(summary['version'], 1)
     self.assertGreater(summary['samples'], 3)
     self.assertGreaterEqual(summary['memory']['peak_mb'], 200)
-    # the exact peak of the biggest process, even between samples
-    self.assertGreaterEqual(summary['memory']['max_process_mb'], 200)
+    # the exact peak of the biggest process, when the run made it grow: an earlier test's subprocess may have been bigger
+    if 'max_process_mb' in summary['memory']:
+      self.assertGreaterEqual(summary['memory']['max_process_mb'], 200)
     self.assertGreater(summary['cpu']['peak_cores'], 0.5)
     self.assertGreater(summary['cpu']['time_s'], 0.5)
     self.assertEqual(summary['host']['cpus'], os.cpu_count())
@@ -86,6 +88,28 @@ class TestSampling(unittest.TestCase):
     # bounded: no history of every point
     self.assertFalse((self.dir / 'system.series.jsonl').exists())
     self.assertEqual([p.name for p in self.dir.iterdir()], [system_metrics.SERIES_FILE])
+
+  def test_the_biggest_process_before_the_run_doesnt_count(self):
+    """e.g. a notebook's earlier cell, an earlier start_run() in the same process"""
+    with mock.patch.object(system_metrics, 'max_process_rss', side_effect=[30000 * MB, 30000 * MB]):
+      self.assertNotIn('max_process_mb', SystemMetrics(None, interval=60, gpus=None, cgroup=None).stop().get('memory', {}))
+    with mock.patch.object(system_metrics, 'max_process_rss', side_effect=[300 * MB, 500 * MB]):
+      self.assertEqual(SystemMetrics(None, interval=60, gpus=None, cgroup=None).stop()['memory']['max_process_mb'], 500)
+
+  def test_cpu_rates_need_time_between_samples(self):
+    """CPU times count in steps of 10ms: two samples a few ms apart would say hundreds of cores"""
+    metrics = SystemMetrics(None, interval=5, gpus=None, cgroup=None)
+    times = iter([(100.0, 0.0), (100.004, 0.01), (102.5, 2.5), (102.502, 2.52)])
+    metrics.processes = mock.Mock()
+    with mock.patch.object(system_metrics.time, 'time', side_effect=lambda: clock[0]):
+      for now, cpu in times:
+        clock = [now]
+        metrics.processes.sample.return_value = (MB, cpu, {1})
+        metrics.sample()
+    summary = metrics.summary()['cpu']
+    self.assertEqual(summary['peak_cores'], 1.0)
+    # over the whole run: what it used by how long we measured
+    self.assertEqual(summary['mean_cores'], round(2.52 / 2.502, 2))
 
   def test_stop_is_idempotent_and_the_summary_stays(self):
     metrics = SystemMetrics(None, interval=60, gpus=None, cgroup=None).start()
@@ -113,9 +137,13 @@ class TestSampling(unittest.TestCase):
     cgroup.current.return_value = 300 * MB
     cgroup.peak.return_value = 400 * MB
     cgroup.limit.return_value = 1024 * MB
+    cgroup.working_set.return_value = 250 * MB
+    cgroup.oom_kills.return_value = 0
     metrics = SystemMetrics(self.dir, interval=60, gpus=None, cgroup=cgroup)
     summary = metrics.stop()
     self.assertEqual((summary['memory']['cgroup_peak_mb'], summary['memory']['cgroup_limit_mb']), (400, 1024))
+    # without the files' cache, like kubelet counts it
+    self.assertEqual((summary['memory']['cgroup_working_set_peak_mb'], summary['memory']['oom_kills']), (250, 0))
     self.assertIn('cgroup_memory_mb', json.loads((self.dir / system_metrics.SERIES_FILE).read_text())['series'])
     # kernels before 5.19 don't say the peak: the samples' then
     cgroup.peak.return_value = None
@@ -140,6 +168,8 @@ class TestGpus(unittest.TestCase):
     # CUDA stops at the first invalid one
     self.assertEqual(visible_gpus({'CUDA_VISIBLE_DEVICES': '1,-1,0'}), ['1'])
     self.assertEqual(visible_gpus({'CUDA_VISIBLE_DEVICES': 'NoDevFiles'}), [])
+    # MIG instances: the GPUs the run's processes use
+    self.assertIsNone(visible_gpus({'CUDA_VISIBLE_DEVICES': 'MIG-4b0a7f7c-3e2d-5a1b-9c8d-0123456789ab'}))
 
   def test_the_gpus_of_cuda_visible_devices(self):
     reader = FakeGpus([gpu(0, 'GPU-aaa', utilization=10), gpu(1, 'GPU-bbb', utilization=90)])
@@ -170,11 +200,17 @@ class TestGpus(unittest.TestCase):
     # the run's own memory on it, and everyone's
     self.assertEqual((summary['gpus'][0]['run_memory_peak_mb'], summary['gpus'][0]['memory_peak_mb']), (2048, 30000))
 
+  def test_the_runs_memory_on_a_gpu_is_unknown_without_its_pids(self):
+    """In a container, NVML gives the host's pids: not ours"""
+    summary = self.sampled(FakeGpus([gpu(0, 'GPU-aaa', used=30000)], processes={'GPU-aaa': {1: 9000 * MB}}), container=True)
+    self.assertNotIn('run_memory_peak_mb', summary['gpus'][0])
+    self.assertEqual(summary['gpus'][0]['memory_peak_mb'], 30000)
+
   def test_the_gpus_in_the_series(self):
     tmp = tempfile.TemporaryDirectory()
     self.addCleanup(tmp.cleanup)
     with mock.patch.object(system_metrics, 'in_container', return_value=True):
-      metrics = SystemMetrics(Path(tmp.name), interval=60, gpus=FakeGpus([gpu(0, 'GPU-aaa', used=512)]), cgroup=None)
+      metrics = SystemMetrics(Path(tmp.name), interval=60, gpus=FakeGpus([gpu(0, 'GPU-aaa', used=512)], processes={'GPU-aaa': {os.getpid(): 256 * MB}}), cgroup=None)
       metrics.sample()
       metrics.stop()
     series = json.loads((Path(tmp.name) / system_metrics.SERIES_FILE).read_text())['series']
@@ -228,6 +264,14 @@ class TestGpus(unittest.TestCase):
     )
     reader = Nvml(nvml)
     gpus, processes = reader.sample()
+    # a GPU we may not read: the others still count
+    nvml.nvmlDeviceGetCount = lambda: 2
+    def handle(index):
+      if index == 1:
+        raise Unsupported('NVML_ERROR_NO_PERMISSION')
+      return 'handle0'
+    nvml.nvmlDeviceGetHandleByIndex = handle
+    self.assertEqual([g['uuid'] for g in reader.sample()[0]], ['GPU-aaa'])
     self.assertEqual(dict(gpus[0]), {'index': 0, 'uuid': 'GPU-aaa', 'name': 'NVIDIA H100', 'utilization': 42.0, 'memory_used': 10 * MB,
                                      'memory_total': 80 * MB, 'temperature': 55.0, 'power': 123.456, 'power_limit': None})
     self.assertEqual(processes, {'GPU-aaa': {7: 5 * MB, 8: 0.0}})
@@ -255,6 +299,11 @@ class TestCgroups(unittest.TestCase):
     cgroup = self.cgroup([f'0::{path}'], self.root / path.lstrip('/'),
                          {'memory.current': str(100 * MB), 'memory.peak': str(200 * MB), 'memory.max': str(4096 * MB)}, {'LSB_JOBID': '4242'})
     self.assertEqual((cgroup.current(), cgroup.peak(), cgroup.limit()), (100 * MB, 200 * MB, 4096 * MB))
+    # without the files' cache, and the kernel's kills
+    directory = self.root / path.lstrip('/')
+    (directory / 'memory.stat').write_text(f"anon {60 * MB}\nfile {40 * MB}\ninactive_file {30 * MB}\n")
+    (directory / 'memory.events').write_text("low 0\nhigh 0\nmax 3\noom 1\noom_kill 1\n")
+    self.assertEqual((cgroup.working_set(100 * MB), cgroup.oom_kills()), (70 * MB, 1))
     # without a limit
     (self.root / path.lstrip('/') / 'memory.max').write_text('max\n')
     self.assertIsNone(cgroup.limit())
@@ -266,6 +315,17 @@ class TestCgroups(unittest.TestCase):
                          {'memory.usage_in_bytes': '1000', 'memory.max_usage_in_bytes': '2000', 'memory.limit_in_bytes': str(2 ** 63 - 4096)},
                          {'SLURM_JOB_ID': '77'})
     self.assertEqual((cgroup.version, cgroup.current(), cgroup.peak(), cgroup.limit()), (1, 1000, 2000, None))
+    # the limit is on the job, not its step
+    (self.root / 'memory' / 'slurm/uid_1000/job_77' / 'memory.limit_in_bytes').write_text(str(8192 * MB))
+    self.assertEqual(cgroup.limit(), 8192 * MB)
+    (self.root / 'memory' / 'slurm/uid_1000' / 'memory.limit_in_bytes').write_text('1')
+    self.assertEqual(cgroup.limit(), 8192 * MB)  # above the job: not its own
+
+  def test_a_slurm_job_with_cgroups_v2(self):
+    path = '/system.slice/slurmstepd.scope/job_77/step_0/user/task_0'
+    cgroup = self.cgroup([f'0::{path}'], self.root / path.lstrip('/'), {'memory.current': '10', 'memory.max': 'max'}, {'SLURM_JOB_ID': '77'})
+    (self.root / 'system.slice/slurmstepd.scope/job_77' / 'memory.max').write_text(str(4096 * MB))
+    self.assertEqual(cgroup.limit(), 4096 * MB)
 
   def test_a_container(self):
     cgroup = self.cgroup(['0::/'], self.root, {'memory.current': '10', 'memory.max': '20'}, {}, container=True)
@@ -280,12 +340,22 @@ class TestCgroups(unittest.TestCase):
     self.assertIsNone(self.cgroup([f'0::{path}'], self.root / path.lstrip('/'), {'memory.current': '10'}, {}))
     # the host's root cgroup, outside a container
     self.assertIsNone(self.cgroup(['0::/'], self.root, {'memory.current': '10'}, {}))
-    # another LSF job's id doesn't count
-    self.assertIsNone(self.cgroup([f'0::{path}'], self.root / path.lstrip('/'), {'memory.current': '10'}, {'LSB_JOBID': '999'}))
+    # another LSF job's id doesn't count, even when it's part of a name
+    self.assertIsNone(self.cgroup([f'0::{path}'], self.root / path.lstrip('/'), {'memory.current': '10'}, {'LSB_JOBID': '1000'}))
+    self.assertIsNone(self.cgroup([f'0::{path}'], self.root / path.lstrip('/'), {'memory.current': '10'}, {'LSB_JOBID': '2'}))
+    self.assertIsNone(self.cgroup(['0::/lsf/cluster/job.42420.1.1'], self.root / 'lsf/cluster/job.42420.1.1', {'memory.current': '10'}, {'LSB_JOBID': '4242'}))
     # no memory files: no memory controller
     path = '/lsf/cluster/job.5.1.1'
     self.assertIsNone(self.cgroup([f'0::{path}'], self.root / path.lstrip('/'), {}, {'LSB_JOBID': '5'}))
     self.assertIsNone(job_cgroup(self.proc.with_name('missing'), self.root, {}))
+
+
+class TestIsolation(unittest.TestCase):
+  def test_imports_nothing_from_qaboard_but_the_series(self):
+    import ast
+    tree = ast.parse(Path(system_metrics.__file__).read_text())
+    imported = {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) and node.level > 0}
+    self.assertEqual(imported, {'series'})
 
 
 class TestQaRun(unittest.TestCase):
@@ -304,13 +374,13 @@ class TestQaRun(unittest.TestCase):
     qa = self.qa
     sent = []
     with mock.patch.object(qa, '_system_metrics', None), mock.patch.object(qa, '_reporter', None), mock.patch.object(qa, 'config', {}), \
+         mock.patch.object(system_metrics, 'gpu_reader', return_value=None), mock.patch.object(system_metrics, 'job_cgroup', return_value=None), \
          mock.patch.dict(os.environ, {'QA_SYSTEM_METRICS_INTERVAL': '0.05'}), \
          mock.patch.object(qa, 'notify_qa_database', lambda **kwargs: sent.append(kwargs) or {'id': 42}):
       run_context = self.run_context()
       metrics = qa.start_system_metrics(run_context)
       self.assertIs(qa.start_system_metrics(run_context), metrics)  # one per run
-      time.sleep(0.2)
-      self.assertGreater(qa.resources_report()['resources']['samples'], 0)
+      self.assertEqual(qa.resources_report(), {'resources': metrics.summary()})
       qa.stop_system_metrics()
       qa.notify_run_ended(run_context, metrics={}, data={'storage': 1})
     self.assertEqual(sent[0]['data']['storage'], 1)

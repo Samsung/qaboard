@@ -123,6 +123,8 @@ describe('with_run_files', () => {
     expect(with_run_files(views, { 'system.series.json': {} }, { data: {} })).toBe(views);
     const listed = [{ name: 'Machine', path: 'system.series.json', type: 'series', default_hidden: true }];
     expect(with_run_files(listed, { 'system.series.json': {} }, from_code)).toBe(listed);
+    // as the docs say for `qa run`: the series the run logged still show
+    expect(with_run_files(listed, { 'series.json': {}, 'system.series.json': {} }, from_code).map(view => view.name)).toEqual(['Logged series', 'Machine']);
   });
 
   it('changes nothing for runs without series, or before their files are known', () => {

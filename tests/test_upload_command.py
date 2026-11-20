@@ -368,7 +368,9 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
     self.assertTrue(started['heartbeat'])
     self.assertNotIn('heartbeat', finished)
     self.assertGreaterEqual(len(server.progress()), 2)
-    self.assertTrue(all(body == {} for body in server.progress()))
+    # no metrics: only what the run uses of its machine so far (qaboard/system_metrics.py)
+    self.assertTrue(all(set(body) == {'resources'} for body in server.progress()))
+    self.assertEqual(finished['data']['resources']['version'], 1)
 
   def test_a_local_run_sends_nothing(self):
     server = self.server()

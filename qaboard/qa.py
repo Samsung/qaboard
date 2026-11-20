@@ -357,7 +357,10 @@ def start_system_metrics(run_context):
   global _system_metrics
   from . import system_metrics
   if _system_metrics is None and system_metrics.enabled(config):
-    _system_metrics = system_metrics.SystemMetrics(run_context.output_dir, interval=system_metrics.interval()).start()
+    try:
+      _system_metrics = system_metrics.SystemMetrics(run_context.output_dir, interval=system_metrics.interval()).start()
+    except Exception as e:  # e.g. no thread left: the run matters more
+      click.secho(f"WARNING: can't measure what the run uses of its machine: {e!r}", fg='yellow', err=True)
   return _system_metrics
 
 
@@ -493,11 +496,12 @@ def mark_aborted(run_context):
         json.dump(metrics, f, sort_keys=True, indent=2, separators=(',', ': '))
     except OSError as e:
       click.secho(f'[ERROR] Could not write {metrics_path}: {e}', fg='red', err=True)
-    # e.g. LSF stops jobs that use too much memory, with SIGINT/SIGTERM then SIGKILL: what it used until now
-    stop_system_metrics()
+    # e.g. LSF stops jobs that use too much memory, with SIGINT/SIGTERM, and SIGKILL a few seconds later: the server
+    # hears first, with what the run used until its last sample
     if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
       finish_upload(run_context)
       notify_run_ended(run_context, metrics=metrics, is_failed=True)
+    stop_system_metrics()
 
 
 def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_database=False, print_summary=False):

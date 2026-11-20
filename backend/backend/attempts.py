@@ -38,15 +38,22 @@ def kept_metrics(metrics) -> Dict[str, Any]:
   return kept
 
 
+def is_number(value) -> bool:
+  return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
 def kept_resources(resources) -> Optional[Dict[str, Any]]:
   """What we keep of what an earlier attempt used of its machine: its peaks"""
   if not isinstance(resources, dict):
     return None
   memory = resources.get('memory') if isinstance(resources.get('memory'), dict) else {}
-  kept = {key: memory[key] for key in ('peak_mb', 'max_process_mb', 'cgroup_peak_mb', 'cgroup_limit_mb') if isinstance(memory.get(key), (int, float))}
-  gpus = [gpu for gpu in resources.get('gpus') or [] if isinstance(gpu, dict)]
+  kept = {key: memory[key] for key in ('peak_mb', 'max_process_mb', 'cgroup_peak_mb', 'cgroup_working_set_peak_mb', 'cgroup_limit_mb', 'oom_kills')
+          if is_number(memory.get(key))}
+  gpus = [gpu for gpu in resources.get('gpus') or [] if isinstance(gpu, dict)] if isinstance(resources.get('gpus'), list) else []
+  # the memory of the run's own processes on its GPUs. Else, e.g. in a container where we don't see their pids, the
+  # GPU's: in a container, the run's GPUs are its own
   gpu_memory = [gpu.get('run_memory_peak_mb') or gpu.get('memory_peak_mb') for gpu in gpus]
-  gpu_memory = [value for value in gpu_memory if isinstance(value, (int, float))]
+  gpu_memory = [value for value in gpu_memory if is_number(value)]
   if gpu_memory:
     kept['gpu_memory_peak_mb'] = max(gpu_memory)
   for key in ('updated_at', 'host'):

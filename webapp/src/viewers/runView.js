@@ -101,7 +101,8 @@ export const with_run_files = (views, manifest, output) => {
     return views;
   const added = [];
   const series = SERIES_FILES.find(file => manifest[file]);
-  if (series && !views.some(view => view.type === 'series' || SERIES_FILES.includes(view.path)))
+  // the projects' own series: what they plot of system.series.json (below) isn't the series the run logged
+  if (series && !views.some(view => (view.type === 'series' && view.path !== SYSTEM_METRICS_FILE) || SERIES_FILES.includes(view.path)))
     added.push({ name: SERIES_VIEW_NAME, path: series, type: 'series', automatic: true });
   if (manifest[SYSTEM_METRICS_FILE] && !views.some(view => view.path === SYSTEM_METRICS_FILE))
     added.push({ name: SYSTEM_METRICS_VIEW_NAME, path: SYSTEM_METRICS_FILE, type: 'series', automatic: true });

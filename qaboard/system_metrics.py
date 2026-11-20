@@ -10,13 +10,17 @@ or `qaboard.start_run()`.
 
 What we measure:
 - memory: the resident memory (RSS) of the run's processes, its own and its subprocesses', summed: what schedulers
-  like LSF count. Samples miss spikes shorter than the interval: at the end we also have the exact peak of the
-  biggest process (getrusage). When the run has its own cgroup (a Kubernetes pod, an LSF or Slurm job with cgroups)
-  we read the cgroup's peak and limit too: what the kernel kills the job for. Its usage counts the files' cache.
-- cpu: how many cores the run's processes used, on average between samples (1.0 = one core busy).
-- gpus: those the run may use: its container's, those in $CUDA_VISIBLE_DEVICES, else those its processes use.
-  Their utilization, memory, temperature and power, and the GPU memory of the run's own processes. With NVML
-  (`pip install nvidia-ml-py`), else nvidia-smi. Other runs may share a GPU: its utilization is everyone's.
+  like LSF count (pages forked workers share count for each). Samples miss spikes shorter than the interval: at the
+  end we also have the exact peak of the biggest process (getrusage), when the run made it grow. When the run has its
+  own cgroup (a Kubernetes pod, an LSF or Slurm job with cgroups) we read the cgroup's peak, limit and kills too:
+  what the kernel kills the job for. Its usage counts the files' cache: its working set doesn't.
+- cpu: how many cores the run's processes used (1.0 = one core busy), between samples at least a second apart, and
+  on average over the run. Our own nvidia-smi doesn't count.
+- gpus: those the run may use: those in $CUDA_VISIBLE_DEVICES, else in a container all its GPUs, else (and for MIG
+  instances) those its processes use. Their utilization, memory, temperature and power, and the GPU memory of the
+  run's own processes when we see their pids. With NVML (`pip install nvidia-ml-py`), else nvidia-smi. Other runs
+  may share a GPU: its utilization is everyone's.
+Sizes are in MiB (the *_mb keys), like LSF and nvidia-smi count them.
 
 Turned off with `outputs: {system_metrics: false}` in qaboard.yaml, or QA_SYSTEM_METRICS=0.
 QA_SYSTEM_METRICS_INTERVAL sets how often we sample, in seconds (default 5).
@@ -26,6 +30,7 @@ Nothing here talks to the server, or imports from qaboard but the series' writer
 import datetime
 import os
 import platform
+import re
 import shutil
 import socket
 import subprocess
@@ -38,6 +43,7 @@ SERIES_NAME = 'system'
 # what the web app plots (qaboard/series.py)
 SERIES_FILE = f"{SERIES_NAME}.series.json"
 INTERVAL = 5.0  # seconds
+MIN_INTERVAL = 0.5
 # how often system.series.json is written: the storage is often shared over the network
 WRITE_EVERY = 30.0  # seconds
 # GPU queries that take longer stop GPU sampling: nvidia-smi can hang on a broken driver
@@ -45,6 +51,7 @@ GPU_TIMEOUT = 10.0  # seconds
 VERSION = 1
 MB = 1024 * 1024
 OFF = ('0', 'false', 'no', 'off', 'none')
+AUTO = 'auto'
 
 
 def enabled(config: Optional[dict] = None, environ=os.environ) -> bool:
@@ -60,7 +67,8 @@ def interval(environ=os.environ) -> float:
     value = float(environ.get('QA_SYSTEM_METRICS_INTERVAL') or INTERVAL)
   except ValueError:
     return INTERVAL
-  return value if value > 0 else INTERVAL
+  # not a busy thread
+  return max(value, MIN_INTERVAL) if value > 0 else INTERVAL
 
 
 def _iso(timestamp: float) -> str:
@@ -136,7 +144,10 @@ class ProcessTree:
 
 
 def max_process_rss() -> Optional[float]:
-  """The peak RSS of the biggest of our processes, exact, in bytes: ours, or of a subprocess that ended (POSIX)"""
+  """
+  The peak RSS of the biggest of our processes, exact, in bytes: ours, or of a subprocess that ended (POSIX).
+  Since the process started: a notebook's earlier cells count too (see SystemMetrics.max_process_rss)
+  """
   try:
     import resource
   except ImportError:
@@ -144,6 +155,24 @@ def max_process_rss() -> Optional[float]:
   peak = max(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss, resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss)
   # kilobytes on Linux, bytes on macOS
   return float(peak) if platform.system() == 'Darwin' else peak * 1024.0
+
+
+def _children_cpu() -> Optional[float]:
+  """CPU time of the subprocesses we waited for, in seconds (POSIX)"""
+  try:
+    import resource
+  except ImportError:
+    return None
+  usage = resource.getrusage(resource.RUSAGE_CHILDREN)
+  return usage.ru_utime + usage.ru_stime
+
+
+def allocated_cpus() -> Optional[int]:
+  """The cores the run may use, e.g. those its scheduler gave the job (Linux), else None"""
+  try:
+    return len(os.sched_getaffinity(0))  # type: ignore[attr-defined]
+  except (AttributeError, OSError):
+    return None
 
 
 # --- cgroups -----------------------------------------------------------------------------------------------------------
@@ -164,9 +193,11 @@ def in_container() -> bool:
 
 class Cgroup:
   """The memory of the run's cgroup, when the scheduler gave it its own: what the kernel kills the run for"""
-  def __init__(self, directory: Path, version: int):
+  def __init__(self, directory: Path, version: int, levels: int = 0):
+    """`levels`: how many of its parents are still the job's"""
     self.directory = directory
     self.version = version
+    self.levels = levels
 
   def _file(self, v2: str, v1: str) -> Path:
     return self.directory / (v2 if self.version == 2 else v1)
@@ -175,13 +206,44 @@ class Cgroup:
     return _read_int(self._file('memory.current', 'memory.usage_in_bytes'))
 
   def peak(self) -> Optional[int]:
-    """Since the cgroup was created. Linux 5.19+ with cgroups v2"""
+    """Since the cgroup was created, with the files' cache. Linux 5.19+ with cgroups v2"""
     return _read_int(self._file('memory.peak', 'memory.max_usage_in_bytes'))
 
+  def _stat(self, path: Path) -> Dict[str, int]:
+    try:
+      lines = path.read_text().splitlines()
+    except OSError:
+      return {}
+    values = {}
+    for line in lines:
+      key, _, value = line.partition(' ')
+      if value.strip().isdigit():
+        values[key] = int(value)
+    return values
+
+  def working_set(self, current: Optional[int]) -> Optional[int]:
+    """What the job uses without the cache of files it read and could give back: like kubelet counts it"""
+    if current is None:
+      return None
+    stat = self._stat(self._file('memory.stat', 'memory.stat'))
+    inactive = stat.get('inactive_file' if self.version == 2 else 'total_inactive_file')
+    return max(0, current - inactive) if inactive is not None else None
+
+  def oom_kills(self) -> Optional[int]:
+    """How many of the job's processes the kernel killed because the cgroup had no memory left"""
+    return self._stat(self._file('memory.events', 'memory.oom_control')).get('oom_kill')
+
   def limit(self) -> Optional[int]:
-    limit = _read_int(self._file('memory.max', 'memory.limit_in_bytes'))
-    # cgroups v1 say "no limit" with a huge number
-    return limit if limit is not None and limit < 2 ** 60 else None
+    """The smallest limit of the cgroup and its parents, up to the job's: e.g. Slurm limits job_<id>, not its steps"""
+    limits = []
+    directory = self.directory
+    for _ in range(self.levels + 1):
+      limit = _read_int(directory / ('memory.max' if self.version == 2 else 'memory.limit_in_bytes'))
+      # cgroups v1 say "no limit" with a huge number
+      if limit is not None and limit < 2 ** 60:
+        limits.append(limit)
+      directory = directory.parent
+    return min(limits) if limits else None
 
 
 def job_cgroup(proc_cgroup: Path = Path('/proc/self/cgroup'), root: Path = Path('/sys/fs/cgroup'), environ=os.environ) -> Optional[Cgroup]:
@@ -207,16 +269,25 @@ def job_cgroup(proc_cgroup: Path = Path('/proc/self/cgroup'), root: Path = Path(
   if found is None:
     return None
   path, version = found
-  markers = ['kubepods']
+  parts = [part for part in path.split('/') if part]
+  # the job's directory: LSF's job.<id>.<index>.<time>, Slurm's job_<id>, a pod's
+  patterns = [re.compile(r'^kubepods([.-].*)?$')]
   if environ.get('LSB_JOBID'):
-    markers.append(environ['LSB_JOBID'])
+    patterns.append(re.compile(rf"^job\.{re.escape(environ['LSB_JOBID'])}(\..*)?$"))
   if environ.get('SLURM_JOB_ID'):
-    markers.append(f"job_{environ['SLURM_JOB_ID']}")
-  own = (path == '/' and in_container()) or any(marker in path for marker in markers)
-  if not own:
+    patterns.append(re.compile(rf"^job_{re.escape(environ['SLURM_JOB_ID'])}$"))
+  job_level = next((index for index, part in enumerate(parts) if any(pattern.match(part) for pattern in patterns)), None)
+  if not parts and in_container():
+    job_level = 0
+  if job_level is None:
     return None
   directory = (root if version == 2 else root / 'memory') / path.lstrip('/')
-  cgroup = Cgroup(directory, version)
+  # kubepods: the pod's limit is below it, in the leaf
+  levels = 0 if parts and parts[job_level].startswith('kubepods') else max(0, len(parts) - 1 - job_level)
+  cgroup = Cgroup(directory, version, levels)
+  if cgroup.current() is None and in_container():
+    # a container without its own cgroup namespace (cgroups v1): its cgroup is mounted at the root
+    cgroup = Cgroup(root if version == 2 else root / 'memory', version)
   return cgroup if cgroup.current() is not None else None
 
 
@@ -236,10 +307,13 @@ def visible_gpus(environ=os.environ) -> Optional[List[str]]:
   if value is None:
     return None
   tokens = [token.strip() for token in value.split(',') if token.strip()]
+  # MIG instances: we don't report them, only the GPUs the run's processes use (the whole GPU's memory and use)
+  if any(token.startswith('MIG-') for token in tokens):
+    return None
   # CUDA stops at the first invalid one
   valid = []
   for token in tokens:
-    if token in ('-1', 'NoDevFiles') or token.lower() == 'none' or token.startswith('MIG-'):
+    if token in ('-1', 'NoDevFiles') or token.lower() == 'none':
       break
     valid.append(token)
   return valid
@@ -311,8 +385,11 @@ class Nvml:
     gpus: List[GpuSample] = []
     processes: Dict[str, Dict[int, float]] = {}
     for index in range(nvml.nvmlDeviceGetCount()):
-      handle = nvml.nvmlDeviceGetHandleByIndex(index)
-      uuid = self._text(nvml.nvmlDeviceGetUUID(handle))
+      # a GPU we may not read, e.g. one the job's cgroup hides: the others still count
+      handle = self._try(lambda: nvml.nvmlDeviceGetHandleByIndex(index))
+      uuid = self._try(lambda: self._text(nvml.nvmlDeviceGetUUID(handle))) if handle is not None else None
+      if uuid is None:
+        continue
       memory = self._try(lambda: nvml.nvmlDeviceGetMemoryInfo(handle))
       utilization = self._try(lambda: nvml.nvmlDeviceGetUtilizationRates(handle))
       power = self._try(lambda: nvml.nvmlDeviceGetPowerUsage(handle))
@@ -395,12 +472,17 @@ class SystemMetrics:
     self.started_at = time.time()
     self.updated_at: Optional[float] = None
     self.samples = 0
-    self.memory, self.cpu, self.cgroup_memory = Stat(), Stat(), Stat()
+    self.memory, self.cpu, self.cgroup_memory, self.working_set = Stat(), Stat(), Stat(), Stat()
     self.cpu_time: Optional[float] = None
     self.max_process_rss: Optional[float] = None
+    # what it was before the run: a notebook's earlier cells, earlier runs of start_run() in the same process
+    self._max_process_rss_before = max_process_rss()
     self.gpus: Dict[str, GpuStats] = {}
     self._gpus_used: Set[str] = set()  # those our processes used, when we don't know which are the run's
-    self._last_cpu: Optional[Tuple[float, float]] = None
+    self._last_cpu: Optional[Tuple[float, float]] = None         # when the last rate was measured
+    self._first_cpu: Optional[Tuple[float, float]] = None        # (time, CPU time) of the first sample
+    self._last_cpu_sample: Optional[Tuple[float, float]] = None  # and of the last one
+    self._sampler_cpu = 0.0  # what our own nvidia-smi used, in our subprocesses' CPU time
     self._last_write = 0.0
     self._visible = visible_gpus()
     try:
@@ -409,7 +491,8 @@ class SystemMetrics:
       self.processes = None
     self.cgroup = job_cgroup() if cgroup == 'auto' else cgroup
     self.cgroup_limit = self.cgroup.limit() if self.cgroup is not None else None
-    self._gpu_reader = (gpu_reader() if self._visible != [] else None) if gpus == 'auto' else gpus
+    # 'auto': found by the thread, at its first sample: NVML can be slow to start, or hang on a broken driver
+    self._gpu_reader = (AUTO if self._visible != [] else None) if gpus == 'auto' else gpus
     self._series: Any = None
     if output_dir is not None:
       from .series import SeriesWriter
@@ -417,7 +500,8 @@ class SystemMetrics:
         self._series = SeriesWriter(output_dir, name=SERIES_NAME, history=False)
       except Exception:
         self._series = None
-    self.host = _compact({"name": socket.gethostname(), "cpus": os.cpu_count(), "memory_mb": self._host_memory()})
+    self.host = _compact({"name": socket.gethostname(), "cpus": os.cpu_count(), "allocated_cpus": allocated_cpus(),
+                          "memory_mb": self._host_memory()})
 
   def _host_memory(self) -> Optional[float]:
     try:
@@ -447,14 +531,18 @@ class SystemMetrics:
       # the processes, not the GPUs: nvidia-smi can be slow, and their last samples tell the same
       self.sample(gpus=False)
       with self._lock:
-        self.max_process_rss = max_process_rss()
+        peak = max_process_rss()
+        # only when the run made it grow: else it's from before
+        before = self._max_process_rss_before
+        self.max_process_rss = peak if peak is not None and (before is None or peak > before) else None
         self._write(force=True)
         if self._series is not None:
           try:
             self._series.close()
           except Exception:
             pass
-        if isinstance(self._gpu_reader, Nvml):
+        # not while the thread may still be in NVML
+        if isinstance(self._gpu_reader, Nvml) and (self._thread is None or not self._thread.is_alive()):
           self._gpu_reader.close()
     return self.summary()
 
@@ -474,9 +562,10 @@ class SystemMetrics:
   def _sample(self, with_gpus: bool = True) -> None:
     now = time.time()
     rss, cpu_time, pids = self.processes.sample() if self.processes is not None else (None, None, set())
-    cgroup_memory = None
+    cgroup_memory = working_set = None
     if self.cgroup is not None:
       cgroup_memory = self.cgroup.current()
+      working_set = self.cgroup.working_set(cgroup_memory)
     gpus, gpu_processes = self._sample_gpus() if with_gpus else ([], {})
     with self._lock:
       values: Dict[str, float] = {}
@@ -484,20 +573,32 @@ class SystemMetrics:
         self.memory.add(rss)
         values['memory_mb'] = rss / MB
       if cpu_time is not None:
-        if self._last_cpu is not None and now > self._last_cpu[0]:
+        # not what our nvidia-smi used: it's our subprocess too
+        cpu_time = max(0.0, cpu_time - self._sampler_cpu)
+        if self._first_cpu is None:
+          self._first_cpu = (now, cpu_time)
+        # CPU times count in steps of 10ms: over less than a second, a rate means nothing (e.g. stop() right after a sample)
+        if self._last_cpu is None:
+          self._last_cpu = (now, cpu_time)
+        elif now - self._last_cpu[0] >= max(1.0, self.interval / 2):
           # subprocesses that ended without being waited for take their time with them: never below 0
           cores = max(0.0, (cpu_time - self._last_cpu[1]) / (now - self._last_cpu[0]))
           self.cpu.add(cores)
           values['cpu_cores'] = cores
-        self._last_cpu = (now, cpu_time)
+          self._last_cpu = (now, cpu_time)
+        self._last_cpu_sample = (now, cpu_time)
         self.cpu_time = cpu_time if self.cpu_time is None else max(self.cpu_time, cpu_time)
       if cgroup_memory is not None:
         self.cgroup_memory.add(cgroup_memory)
         values['cgroup_memory_mb'] = cgroup_memory / MB
+      if working_set is not None:
+        self.working_set.add(working_set)
+        values['cgroup_working_set_mb'] = working_set / MB
       for gpu in gpus:
-        ours = gpu_processes.get(gpu['uuid'], {})
-        run_memory = sum(memory for pid, memory in ours.items() if pid in pids)
-        if run_memory or any(pid in pids for pid in ours):
+        ours = [memory for pid, memory in gpu_processes.get(gpu['uuid'], {}).items() if pid in pids]
+        # unknown when none of our processes are on it: in a container, their pids aren't those NVML gives
+        run_memory = sum(ours) if ours else None
+        if ours:
           self._gpus_used.add(gpu['uuid'])
         if not self._is_runs(gpu):
           continue
@@ -520,15 +621,21 @@ class SystemMetrics:
       self._write()
 
   def _sample_gpus(self) -> Tuple[List[GpuSample], Dict[str, Dict[int, float]]]:
+    if self._gpu_reader is AUTO:
+      self._gpu_reader = gpu_reader()
     reader = self._gpu_reader
-    if reader is None:
+    if reader is None or isinstance(reader, str):
       return [], {}
+    before = _children_cpu()
     try:
       return reader.sample()
     except Exception:
       # no driver, a hung nvidia-smi...: we don't try again
       self._gpu_reader = None
       return [], {}
+    finally:
+      if isinstance(reader, NvidiaSmi) and before is not None:
+        self._sampler_cpu += max(0.0, (_children_cpu() or before) - before)
 
   def _is_runs(self, gpu: GpuSample) -> bool:
     """Whether the run may use the GPU (visible_gpus), or used it"""
@@ -558,9 +665,10 @@ class SystemMetrics:
       memory = _compact({
         "peak_mb": _mb(self.memory.peak), "mean_mb": _mb(self.memory.mean), "last_mb": _mb(self.memory.last),
         "max_process_mb": _mb(self.max_process_rss),
-        "cgroup_peak_mb": _mb(self._cgroup_peak()), "cgroup_limit_mb": _mb(self.cgroup_limit),
+        "cgroup_peak_mb": _mb(self._cgroup_peak()), "cgroup_working_set_peak_mb": _mb(self.working_set.peak),
+        "cgroup_limit_mb": _mb(self.cgroup_limit), "oom_kills": self._oom_kills(),
       })
-      cpu = _compact({"mean_cores": _round(self.cpu.mean, 2), "peak_cores": _round(self.cpu.peak, 2), "time_s": _round(self.cpu_time)})
+      cpu = _compact({"mean_cores": _round(self._mean_cores(), 2), "peak_cores": _round(self.cpu.peak, 2), "time_s": _round(self.cpu_time)})
       return _compact({
         "version": VERSION,
         "started_at": _iso(self.started_at),
@@ -572,6 +680,20 @@ class SystemMetrics:
         "cpu": cpu or None,
         "gpus": [stats.summary() for stats in sorted(self.gpus.values(), key=lambda s: s.index)] or None,
       })
+
+  def _mean_cores(self) -> Optional[float]:
+    """Over the whole run: the CPU time it used, by how long we measured. Callers hold the lock"""
+    if self._first_cpu is None or self._last_cpu_sample is None or self._last_cpu_sample[0] - self._first_cpu[0] < 1.0:
+      return self.cpu.mean
+    return max(0.0, (self._last_cpu_sample[1] - self._first_cpu[1]) / (self._last_cpu_sample[0] - self._first_cpu[0]))
+
+  def _oom_kills(self) -> Optional[int]:
+    if self.cgroup is None:
+      return None
+    try:
+      return self.cgroup.oom_kills()
+    except Exception:
+      return None
 
   def _cgroup_peak(self) -> Optional[float]:
     if self.cgroup is None:
