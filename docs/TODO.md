@@ -58,3 +58,14 @@ The shot list is `docs-media/shots.yaml`, how to capture is `docs-media/README.m
   `new Date(str)` (`CommitsListNavbar` in `webapp/src/AppNavbar.jsx`), which depends on the browser's locale.
 - **Bit accuracy**: when both runs have a pixel hash (`md5_data`), the web app compares it instead of the file's md5,
   so it can call images identical when `qa check-bit-accuracy` wouldn't.
+- **System metrics, next** (`qaboard/system_metrics.py`, docs `website/docs/system-metrics.mdx`):
+  - **PSS** next to the RSS sum: forked workers (PyTorch DataLoader) count their shared pages once each in the sum.
+    `memory_full_info().pss` reads smaps: measure its cost on a big process before sampling it every 5 s.
+  - **More from GPUs**, one number each in the summary: energy (`nvmlDeviceGetTotalEnergyConsumption`), throttle
+    reasons, XID/ECC errors. DCGM's `SM_ACTIVE`/`PIPE_TENSOR_ACTIVE` where DCGM runs: what "busy" really means.
+  - **Disk I/O** of the process tree (`io_counters`, read/written bytes): shows trainings waiting on their data.
+  - **MIG instances**: today they fall back to the GPUs the run's processes use, with the whole GPU's numbers.
+    Their own memory needs `nvmlDeviceGetMigDeviceHandleByIndex`.
+  - **Heartbeats rewrite `outputs.data`** every 2 minutes for each running run, now that they carry `resources`
+    (`report_output_progress`): skip the write when the peaks didn't change, if the database notices.
+  - **Many log files**: up to 10 attempts x 5 logs are radios in `LogViewer`: a select past ~8.
