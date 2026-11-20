@@ -283,9 +283,11 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
       click.echo(click.style("Outputs: ", fg='cyan') + click.style(str(run_context.output_dir), fg='cyan', bold=True), err=True)
       print_url(ctx)
 
+      # what the run uses of its machine, sent with heartbeats and its end, plotted from system.series.json
+      start_system_metrics(run_context)
       if not ctx.obj['offline']:
           # heartbeat: we say every few minutes that the run still runs, else the server fails it (qaboard/heartbeat.py)
-          qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True, keep_previous=keep_previous, heartbeat=True, data={"attempt_logs": attempts.kept_logs(run_context.output_dir)})
+          qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True, keep_previous=keep_previous, heartbeat=True, data=attempts.kept_logs_data(run_context.output_dir))
           if qa_run_data:
             run_context.id = qa_run_data["id"]
             run_reporter(run_context).start(run_context.id)
@@ -325,6 +327,8 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
             runtime_metrics = {'is_failed': True}
 
           runtime_metrics['compute_time'] = time.time() - start
+          # we measure run(): postprocess() comes after, and system.series.json is final when the outputs' manifest is made
+          stop_system_metrics()
 
           # avoid issues if code in run() changes cwd
           if os.getcwd() != cwd:
@@ -342,6 +346,33 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
         except KeyboardInterrupt:
           mark_aborted(run_context)
           raise
+
+
+# What the run uses of its machine (qaboard/system_metrics.py). One run per process.
+_system_metrics = None
+
+
+def start_system_metrics(run_context):
+  """Samples what the run uses of its machine, unless the project or $QA_SYSTEM_METRICS turned it off"""
+  global _system_metrics
+  from . import system_metrics
+  if _system_metrics is None and system_metrics.enabled(config):
+    try:
+      _system_metrics = system_metrics.SystemMetrics(run_context.output_dir, interval=system_metrics.interval()).start()
+    except Exception as e:  # e.g. no thread left: the run matters more
+      click.secho(f"WARNING: can't measure what the run uses of its machine: {e!r}", fg='yellow', err=True)
+  return _system_metrics
+
+
+def stop_system_metrics():
+  """The last sample: the summary stays the same after"""
+  if _system_metrics is not None:
+    _system_metrics.stop()
+
+
+def resources_report() -> dict:
+  """What the server keeps as data.resources: with each heartbeat, and with the run's end"""
+  return {"resources": _system_metrics.summary()} if _system_metrics is not None else {}
 
 
 # What `qa run` tells the server besides its results (qaboard/reporting.py): every few minutes that the run still
@@ -363,7 +394,7 @@ def run_reporter(run_context):
     log = run_context.output_dir / 'log.txt'
     _reporter = RunReporter(qaboard_url, run_context.output_dir, uploads=sends_files(run_context.obj), live=(config.get('outputs') or {}).get('live'),
                             # with what the run printed last, e.g. that it failed
-                            before_log=lambda: wait_for_the_log(log))
+                            before_log=lambda: wait_for_the_log(log), extra=resources_report)
   return _reporter
 
 
@@ -436,6 +467,8 @@ def notify_run_ended(run_context, **kwargs):
   if _reporter is not None and _reporter.files_missing:
     # the run's page can say so (the server keeps `data`)
     kwargs['data'] = {**(kwargs.get('data') or {}), 'files_missing': _reporter.files_missing}
+  if _system_metrics is not None:
+    kwargs['data'] = {**(kwargs.get('data') or {}), **resources_report()}
   answer = notify_qa_database(**run_context.obj, **kwargs, is_pending=False, is_running=False)
   obj = run_context.obj
   # runs in a shared storage keep their files: like files not sent, only uploads fail CI for it
@@ -463,9 +496,12 @@ def mark_aborted(run_context):
         json.dump(metrics, f, sort_keys=True, indent=2, separators=(',', ': '))
     except OSError as e:
       click.secho(f'[ERROR] Could not write {metrics_path}: {e}', fg='red', err=True)
+    # e.g. LSF stops jobs that use too much memory, with SIGINT/SIGTERM, and SIGKILL a few seconds later: the server
+    # hears first, with what the run used until its last sample
     if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
       finish_upload(run_context)
       notify_run_ended(run_context, metrics=metrics, is_failed=True)
+    stop_system_metrics()
 
 
 def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_database=False, print_summary=False):
@@ -563,7 +599,7 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
     output_data['params'] = metrics['params']
     del metrics['params']
   # the earlier attempts whose logs are next to the run's (qaboard/attempts.py)
-  output_data['attempt_logs'] = attempts.kept_logs(run_context.output_dir)
+  output_data.update(attempts.kept_logs_data(run_context.output_dir))
 
 
   if save_manifests_in_database:

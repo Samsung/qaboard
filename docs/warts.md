@@ -299,6 +299,17 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
 - SIRC's `bsub_su` wrapper isn't in the repo (`deployments/sirc/runbooks/lsf-bridge.md`). The bridge path's
   environment isn't scrubbed like local dispatches. [S, no change]
 
+### System metrics (`qaboard/system_metrics.py`, November 2026)
+- Not tried on real clusters: LSF and Slurm cgroups, Kubernetes pods, NVML and nvidia-smi only through fakes in
+  `tests/test_system_metrics.py`. Check a GPU job and an LSF job with cgroups, and a cgroup v1 node. [S, no change]
+- `CUDA_VISIBLE_DEVICES` indexes are matched to NVML's indexes: CUDA counts the fastest GPU first unless
+  `CUDA_DEVICE_ORDER=PCI_BUS_ID`, so on machines with different GPU models the run can be shown another GPU.
+  Prefer the GPUs its processes use when they're known, and read `SLURM_STEP_GPUS`. [S, behaviour]
+- `start_run(resume=True)` starts *system.series.json* over: its writer keeps no history to resume from. [S, behaviour]
+- The process tree is found again at each sample (`psutil` `children(recursive=True)`, which reads every process of
+  the machine): on hosts with thousands of processes, measure its cost. [S, no change]
+- Older `qa` don't ignore *system.series.json* in bit-accuracy checks: mixed versions see differences. [S, no change]
+
 ### `qa doctor`
 - No server version compatibility check (the server doesn't expose its version). CLI overrides like `--lsf-queue`
   and `QA_BATCH_LSF_*` aren't reflected in its checks. [S, behaviour]

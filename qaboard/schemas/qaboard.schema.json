@@ -151,6 +151,10 @@
         "reruns": {
           "enum": ["new-directory", "in-place"],
           "description": "Where results saved in the storage (CI, --share) go when a run is done again. new-directory (default): in <run>_attempt2, _attempt3..., and <run>/latest_attempt.txt has the latest attempt's number. in-place: in the same directory. $QA_RERUNS overrides it."
+        },
+        "system_metrics": {
+          "type": "boolean",
+          "description": "Measure what runs use of their machine (memory, CPU, GPUs): a summary sent to QA-Board, and system.series.json in their output directory. Default: true. $QA_SYSTEM_METRICS overrides it."
         }
       },
       "additionalProperties": false

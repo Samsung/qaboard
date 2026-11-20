@@ -224,9 +224,17 @@ class SeriesWriter:
   With `resume`, continues the files that are there: steps go on from the last one.
   Not thread-safe: callers hold a lock.
   """
-  def __init__(self, output_dir: Union[str, Path], resume: bool = False, max_points: int = MAX_POINTS):
+  def __init__(self, output_dir: Union[str, Path], resume: bool = False, max_points: int = MAX_POINTS,
+               name: str = '', history: bool = True):
+    """
+    - name: the files are <name>.series.jsonl and <name>.series.json, e.g. system.series.json (qaboard/system_metrics.py)
+    - history: whether to write the .jsonl with every point, or only the .json, whose size is bounded
+    """
     self.output_dir = Path(output_dir)
     self.max_points = max_points
+    self.history_name = f"{name}.{HISTORY}" if name else HISTORY
+    self.summary_name = f"{name}.{SUMMARY}" if name else SUMMARY
+    self.history = history
     self.series: Dict[str, Downsampled] = {}
     self.last: Dict[str, float] = {}       # the last finite value of each series
     self.stats: Dict[str, List[float]] = {}  # of its finite values: [min, max, sum, how many]
@@ -236,12 +244,12 @@ class SeriesWriter:
     self._dirty = False
     self._file: Optional[IO[str]] = None
     if resume:
-      for step, time, values in read_history(self.output_dir / HISTORY):
+      for step, time, values in read_history(self.output_dir / self.history_name):
         self._add(step, time, values)
     else:
-      for name in (HISTORY, SUMMARY):
+      for file_name in (self.history_name, self.summary_name):
         try:
-          (self.output_dir / name).unlink()
+          (self.output_dir / file_name).unlink()
         except OSError:
           pass
 
@@ -282,9 +290,9 @@ class SeriesWriter:
       step = self.last_step + 1
     if time is None:
       time = time_module.time()
-    if self._file is None:
+    if self._file is None and self.history:
       self.output_dir.mkdir(parents=True, exist_ok=True)
-      path = self.output_dir / HISTORY
+      path = self.output_dir / self.history_name
       # a run that was killed can leave a line cut short: we don't write ours at its end
       cut = False
       try:
@@ -296,8 +304,9 @@ class SeriesWriter:
       self._file = open(path, 'a', encoding='utf-8')
       if cut:
         self._file.write('\n')
-    row = {STEP: step, TIME: round(time, 3), **{key: _encode(value) for key, value in values.items()}}
-    self._file.write(json.dumps(row, separators=(',', ':')) + '\n')
+    if self._file is not None:
+      row = {STEP: step, TIME: round(time, 3), **{key: _encode(value) for key, value in values.items()}}
+      self._file.write(json.dumps(row, separators=(',', ':')) + '\n')
     self._add(step, time, values)
     self._dirty = True
     return step
@@ -319,10 +328,10 @@ class SeriesWriter:
     if self._file is not None:
       self._file.flush()
     # atomic: the web app reads the file while the run goes on
-    temporary = self.output_dir / f".{SUMMARY}.{uuid.uuid4().hex}.tmp"
+    temporary = self.output_dir / f".{self.summary_name}.{uuid.uuid4().hex}.tmp"
     try:
       temporary.write_text(json.dumps(self.summary(), separators=(',', ':')), encoding='utf-8')
-      os.replace(temporary, self.output_dir / SUMMARY)
+      os.replace(temporary, self.output_dir / self.summary_name)
     except OSError:
       try:
         temporary.unlink()

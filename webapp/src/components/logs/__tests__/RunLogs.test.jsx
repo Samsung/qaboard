@@ -148,6 +148,23 @@ describe('RunLogs', () => {
     await waitFor(() => expect(screen.getByLabelText('Download')).toHaveAttribute('href', '/s/out/7/log.attempt1.txt'))
   })
 
+  it("offers the runners' logs of the earlier attempts", async () => {
+    // e.g. LSF's job report of an attempt it killed because it used too much memory
+    renderRun({ expanded: true, output: { ...output, data: { attempt: 2, attempt_logs: [1], attempt_log_files: ['log.attempt1.lsf.txt', 'log.attempt1.txt'] } } })
+    expect(screen.getAllByRole('radio').map(radio => radio.textContent)).toEqual(['log.txt', 'log.attempt1.txt', 'log.attempt1.lsf.txt'])
+  })
+
+  it('says what the run used of its machine, and plots it', async () => {
+    const series = JSON.stringify({ format: 'qaboard-series', version: 1, started_at: 0, series: { memory_mb: { points: 2, step: [0, 1], time: [0, 5], value: [100, 6963] } } })
+    const fetch = vi.fn(async url => url === '/s/out/7/system.series.json' ? new Response(series, { status: 200 }) : new Response('Not Found', { status: 404 }))
+    vi.stubGlobal('fetch', fetch)
+    renderRun({ expanded: true, output: { ...output, data: { resources: { memory: { peak_mb: 6963 }, cpu: { mean_cores: 1 } } } } })
+    expect(await screen.findByText('6.8 GiB peak memory · 1.0 core')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Plot' }))
+    expect(await screen.findByRole('button', { name: 'Hide the plots' })).toHaveAttribute('aria-expanded', 'true')
+    await waitFor(() => expect(fetch.mock.calls.some(([url]) => String(url).endsWith('/system.series.json'))).toBe(true))
+  })
+
   it('says when the output files of a run were deleted', async () => {
     renderRun({ expanded: true, output: { ...output, deleted: true } })
     expect(await screen.findByText("The run's output files were deleted.")).toBeInTheDocument()
