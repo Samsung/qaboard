@@ -188,28 +188,6 @@ def _dirty(repo_root: Path) -> Optional[Dict[str, Any]]:
   return dirty
 
 
-def _default_branch(repo_root: Optional[Path], environ=os.environ) -> Optional[str]:
-  """
-  The repository's default branch, the reference of projects without a qaboard.yaml (backend Project.reference_branch_of):
-  the CI's, else the branch the clone's origin points to. None when nothing says.
-  """
-  if environ.get('CI_DEFAULT_BRANCH'):
-    return environ['CI_DEFAULT_BRANCH']
-  if environ.get('GITHUB_EVENT_PATH'):
-    try:
-      event = json.loads(Path(environ['GITHUB_EVENT_PATH']).read_text(encoding='utf-8'))
-      branch = (event.get('repository') or {}).get('default_branch')
-      if isinstance(branch, str) and branch:
-        return branch
-    except (OSError, ValueError, AttributeError):
-      pass
-  if repo_root is None:
-    return None
-  ref = _git(repo_root, 'symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD')
-  ref = (ref or '').strip()
-  return ref.split('/', 1)[1] if ref.startswith('origin/') else None
-
-
 def _default_input() -> str:
   """Runs without an input are named after their script: stable from a commit to the next, so they compare"""
   script = _script_source().get('script') or ''
@@ -324,8 +302,8 @@ class _Setup:
     elif not self.has_qaboard_yaml and outputs_project_root:
       self.outputs_commit = self._outputs_dir(self.commit, outputs_project_root)
     self.is_default_commit = not commit or commit == c.commit_id
-    # without a qaboard.yaml, the project's reference branch, if the server doesn't know it (backend models/CiCommit.py)
-    self.default_branch: Optional[str] = None if self.has_qaboard_yaml else _default_branch(self.repo_root)
+    # the project's reference branch when its qaboard.yaml doesn't say it (backend/reference_branch.py)
+    self.default_branch: Optional[str] = c.repo_default_branch()
 
   def _head(self) -> Optional[Tuple[str, str]]:
     """The repository's (branch, commit) now, outside the CI, which says which commit it tests"""
@@ -1132,9 +1110,7 @@ class ActiveRun:
     }, is_ci=setup.is_ci, run_context=setup.run_context, commit_id=self.commit, commit=_jsonable(setup.commit_data),
        # without a qaboard.yaml we send no configuration: the project keeps the one it has
        config=setup.config if setup.has_qaboard_yaml else None, metrics_file=_jsonable(setup.metrics_file),
-       uploads_files=self._uploads_files)
-    if not setup.has_qaboard_yaml and setup.default_branch:
-      payload['project_default_branch'] = setup.default_branch
+       uploads_files=self._uploads_files, default_branch=setup.default_branch)
     if setup.artifacts_commit is not None:
       payload['artifacts_commit'] = serialize_path(setup.artifacts_commit)
     if definitions:

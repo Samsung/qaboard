@@ -99,7 +99,9 @@ class TestServerUrl(unittest.TestCase):
     return process.stderr
 
   def test_warns_without_a_server(self):
-    self.assertIn('not sure where to find your QA-Board server', self.stderr_of_import())
+    # in CI, or with --share: else results stay local, and `qa` says it in one line
+    self.assertIn('not sure where to find your QA-Board server', self.stderr_of_import(CI='true'))
+    self.assertNotIn('not sure where', self.stderr_of_import())
 
   def test_no_warning_for_a_server_on_localhost(self):
     self.assertNotIn('not sure where', self.stderr_of_import(QABOARD_URL='http://localhost:5151'))

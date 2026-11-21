@@ -372,11 +372,35 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
     self.assertTrue(all(set(body) == {'resources'} for body in server.progress()))
     self.assertEqual(finished['data']['resources']['version'], 1)
 
-  def test_a_local_run_sends_nothing(self):
+  def test_runs_are_shared_by_default(self):
     server = self.server()
     result = self.qa_in_project('run', '-i', 'inputs/a.txt', server=server)
     self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+    self.assertEqual({body['batch_label'] for body in server.outputs()}, {'@alice| default'})
+    self.assertEqual(len(server.puts('result.txt')), 1)
+
+  def test_a_local_run_sends_nothing(self):
+    server = self.server()
+    for option in ('--no-share', '--offline'):
+      result = self.qa_in_project(option, 'run', '-i', 'inputs/a.txt', server=server)
+      self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+      self.assertEqual((server.outputs(), server.puts()), ([], []))
+
+  def test_without_a_server_runs_stay_here_and_it_says_so(self):
+    result = self.qa_in_project('run', '-i', 'inputs/a.txt')
+    self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+    self.assertIn('results stay in output/, not shown in QA-Board (no QA-Board server is set', result.stderr)
+    self.assertNotIn('not sure where', result.stderr)
+    self.assertNotIn('stay in output/', self.qa_in_project('--no-share', 'run', '-i', 'inputs/a.txt').stderr)
+
+  def test_a_local_batch_runs_locally(self):
+    # the runs `qa batch` starts decide as it did, not by themselves
+    server = self.server()
+    (self.project / 'batches.yaml').write_text("texts:\n  inputs:\n    - inputs/a.txt\n")
+    result = self.qa_in_project('--no-share', 'batch', '--batches-file', 'batches.yaml', 'texts', '--runner=local', server=server)
+    self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
     self.assertEqual((server.outputs(), server.puts()), ([], []))
+    self.assertTrue((self.project / 'output').is_dir())
 
   def test_a_batch_sends_each_run(self):
     server = self.server()

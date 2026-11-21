@@ -25,6 +25,7 @@ from ..git_hosts import committer_avatar_url, committers
 from ..fs_utils import rm_empty_parents, rmtree
 from ..storage import check_storage_path, check_inside, UnsafePathError
 from ..git_utils import find_branch
+from ..reference_branch import reference_branch_of
 from ..artifacts import UPLOADED_ARTIFACTS, MAX_CHECKED_FILES, artifacts_status, protected_by_siblings, is_kept, read_manifest, rmtree_except, ArtifactsUnavailable
 from .. import recreate_artifacts, locations, uploads
 
@@ -452,7 +453,7 @@ class CiCommit(Base):
           project_config = data["qaboard_config"].get('project') or {}
           # The project's configuration comes from its reference branch, or from the first commit we see
           is_initialization = not project.data or 'qatools_config' not in project.data
-          reference_branch = project_config.get('reference_branch', 'master')
+          reference_branch = reference_branch_of(project.data, data["qaboard_config"])
           is_reference = data.get("commit_branch") == reference_branch
           if is_initialization or is_reference:
             # FIXME: We put in Project.data.git the content of
@@ -542,8 +543,8 @@ class CiCommit(Base):
     if data and "qaboard_metrics" in data and ci_commit.data.get('qatools_metrics') is None:
       ci_commit.data['qatools_metrics'] = data['qaboard_metrics']
       flag_modified(ci_commit, "data")
-    # Runs without a qaboard.yaml (qaboard.start_run(), qa upload) send their repository's default branch: it is the
-    # reference of projects that have no qaboard.yaml (Project.reference_branch_of). Git servers' webhooks know better
+    # Runs send their repository's default branch: the reference of projects whose qaboard.yaml doesn't set
+    # project.reference_branch (reference_branch.py). We keep the first: git servers' webhooks know better
     default_branch = data.get('project_default_branch') if data else None
     if isinstance(default_branch, str) and 0 < len(default_branch) <= 255 and ci_commit.project is not None:
       project_data = ci_commit.project.data or {}

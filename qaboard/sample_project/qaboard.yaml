@@ -180,7 +180,7 @@ runners:
   #   # You can also set: project, resources, priority
 
 
-# Where results are saved when using --share or in CI
+# Where shared results are saved: by default, unless --no-share or --offline
 storage:
   linux: /mnt/qaboard
   # windows: '//server/share/qaboard'

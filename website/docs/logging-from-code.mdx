@@ -35,7 +35,7 @@ curves dashed on the same axes. The **Summary** view plots all the runs of the b
 ([Logged series](/docs/user-guide/other-viewers#logged-series) in the user guide).
 Leaving the `with` block ends the run; an exception ends it as failed, with the error in its log.
 
-You need what `qa --share` needs: the `qaboard` package, a server (`QABOARD_URL`, or your site's package), and to be
+You need what `qa run` needs to share results: the `qaboard` package, a server (`QABOARD_URL`, or your site's package), and to be
 signed in when the server asks for it, and always when files are sent to the server (`qa auth login`, or
 `QABOARD_TOKEN`). The run's files are saved in the shared
 storage (`storage` in *qaboard.yaml*), or [sent to the server](/docs/storage/uploads) without one.
@@ -50,7 +50,7 @@ If you come from an experiment tracker:
 | You know | In QA-Board | With `start_run()` |
 |---|---|---|
 | Project | The project | The one of the *qaboard.yaml* above the current folder, or `project="group/repo"` without one |
-| Experiment, group | A batch | `batch="lr-sweep"`. Outside the CI, your runs go to your own batch, shown as yours, like with `qa --share` |
+| Experiment, group | A batch | `batch="lr-sweep"`. Outside the CI, your runs go to your own batch, shown as yours, like with `qa run` |
 | Run name | The input and the configurations | `input="train/coco-mini"`: what the run works on, a dataset or any name. Default: the script's name |
 | Config, hyperparameters | Configurations | `configs=["resnet50", {"lr": 1e-3}]`: names and mappings, like `qa --config`. `run.params` merges the mappings |
 | Code version | The commit | The git `HEAD`, or the CI's commit. A run whose tracked files differ from the commit is recorded as such (`data.dirty`) |
@@ -117,7 +117,7 @@ prints is saved in the run's *log.txt*, shown in **Logs**.
 ## Where the files go, with and without a server {#files}
 | | Files | Web app |
 |---|---|---|
-| In the CI, or with a server, and a `storage` in *qaboard.yaml* | In the shared storage, where `qa --share run` would save them | The run shows when it starts |
+| In the CI, or with a server, and a `storage` in *qaboard.yaml* | In the shared storage, where `qa run` would save them | The run shows when it starts |
 | In the CI, or with a server, without `storage` (or `storage: upload`) | In the project's *output/* folder, and [sent to the server](/docs/storage/uploads): the log and the series as the run goes, the rest when it ends | The run shows when it starts |
 | `share=False`, `QA_OFFLINE=1`, or no server | In the project's *output/* folder, like a local `qa run` | Not shown |
 | `output_dir="..."` | In your folder. The server must read it to show the files | As above |
@@ -149,7 +149,7 @@ qaboard: what QA-Board chose for you (said once; QA_QUIET=1 hides it, ...):
 | Batch | `default`. Outside the CI, your own: `@you\| default` | `batch=` |
 | Server | `QABOARD_URL`, else the server you signed in to with `qa auth login --server <url>`, if it's the only one. Without a server, the run stays in *output/* and isn't in the web app: it says so | `QABOARD_URL`, `share=` |
 | Files | [Sent to the server](/docs/storage/uploads), unless `QA_STORAGE` or your site package names a shared storage | `QA_STORAGE` |
-| Reference branch | Your repository's default branch: the CI's, or the one your clone's `origin` points to, else `master` | `project.reference_branch` in a *qaboard.yaml* |
+| Reference branch | Your repository's default branch: the CI's, or the one your clone's `origin` points to, else `main` | `project.reference_branch` in a *qaboard.yaml* |
 | Retention | The deletion rules your admins set for every project: the project's **Storage** page lists them ([storage usage](/docs/user-guide/storage-usage)) | Your admins |
 | Metrics | Each series' last value, and what `log_metrics()` gives, shown with their names: no unit, neither direction better | `Metric(...)`, `define_metric()` ([metrics](#metrics)) |
 

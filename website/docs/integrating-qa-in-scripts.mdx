@@ -139,7 +139,7 @@ for run in qb.runs(url):
 
 - Nothing is overwritten: a name that exists fails, unless you pass `overwrite=True`. Keep your files in a folder of
   their own (`sharpness/`), and leave what the run wrote alone: runs' folders are shared with everyone.
-- The file is written as you, in the shared storage, like `qa run --share` does: you need write access to the run's
+- The file is written as you, in the shared storage, like `qa run` does: you need write access to the run's
   folder. The run's manifest is then refreshed on the server, so the file shows in the web app at once.
 - `dry_run=True` prints what would be written.
 - To show the file on run cards for every run, declare it in *qaboard.yaml*'s `outputs.visualizations`
@@ -194,13 +194,13 @@ To know where the runs of a batch were saved, e.g. for the next step of a pipeli
 Listing before running and reading after can disagree: someone can do a run again in between.
 
 ```bash
-qa --share batch ci --save-runs runs.json
+qa batch ci --save-runs runs.json
 python compute_metrics.py runs.json
 ```
 
-`--list-inputs` only prints the inputs. These are local runs' directories: runs in the CI, or with `--share`, save
+`--list-inputs` only prints the inputs. These are the directories of runs with `--no-share`: shared runs save
 their files under the project's `storage` (see [where is the data](/docs/storage/where-is-the-data)), and
-`qa --share batch ci --list-output-dirs` prints those.
+`qa batch ci --list-output-dirs` prints those.
 
 For other values, `qa get` prints the variables `qa` uses:
 

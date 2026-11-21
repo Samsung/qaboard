@@ -97,8 +97,8 @@ def save_metrics_definitions(session, ci_commit, data: Dict, trust_branch: bool 
     if ci_commit.branch and ci_commit.branch == reference_branch_of(project.data):
       _save(session, project, definitions)
     return
-  # runs without a qaboard.yaml (qaboard.start_run()) are on the project's reference branch, whatever gives it
-  reference = ((data.get('qaboard_config') or {}).get('project') or {}).get('reference_branch', 'master') if data.get('qaboard_config') else reference_branch_of(project.data)
+  # the reference branch of the qaboard.yaml the run sent, else the project's
+  reference = reference_branch_of(project.data, data.get('qaboard_config') or None)
   is_reference = data.get('commit_branch') == reference
   if is_reference or not (project.data or {}).get('metrics_definitions'):
     _save(session, project, definitions)

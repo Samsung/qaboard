@@ -27,12 +27,12 @@ Sending results over HTTP is new. Tell us how it goes with your projects.
 3. **Sign in**: files are always sent with a token. Run `qa auth login`, and in CI let the job
    [sign in as itself](/docs/ci-integration#ci-without-secrets) or [give it a token](/docs/ci-integration#tokens).
 
-Then use `qa` as usual: `qa --share run`, `qa batch` in CI, [`qa upload`](/docs/upload-results) and
+Then use `qa` as usual: `qa run`, `qa batch` in CI, [`qa upload`](/docs/upload-results) and
 [`qaboard.start_run()`](/docs/log-from-code) all send their runs' files.
 
 ```bash
 export QABOARD_URL=https://qaboard.example.com
-qa --share run --input images/a.jpg
+qa run --input images/a.jpg
 # ...
 # Sent 12 files to QA-Board (3.4 MB)
 ```

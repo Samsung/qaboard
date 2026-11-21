@@ -30,7 +30,8 @@ qaboard_url, qaboard_url_source = default_server()
 # Only when nothing says where the server is: QABOARD_URL=http://localhost:5151 is fine.
 # `qa auth status` and `qa doctor` say it too.
 # (`qa upload` doesn't guess: it says to set QABOARD_URL)
-if not qaboard_url_source and sys.argv[1:2] not in (['auth'], ['runs']) and not is_doctor_command and not is_command_without_project:
+# Without --share or a CI, results then stay local, and `qa` says it in one line (qa.py, config.default_share)
+if not qaboard_url_source and ('--share' in sys.argv or os.environ.get('QA_SHARE', '').lower() in ('1', 'true', 'yes', 'on') or is_ci) and sys.argv[1:2] not in (['auth'], ['runs']) and not is_doctor_command and not is_command_without_project:
   click.secho("WARNING: We are not sure where to find your QA-Board server.", fg='yellow', bold=True, err=True)
   click.secho(f"         We will default to {qaboard_url}", fg='yellow', bold=True, err=True)
   click.secho("         To remove this warning provide it as an environment variable (via QABOARD_HOST, e.g. 'qaboard-srv', 'qaboard-srv:443').", fg='yellow', err=True)
@@ -212,7 +213,7 @@ def notify_qa_database(object_type='output', **kwargs):
   """
   Updating the QA database.
   """
-  from .config import is_ci, config, _metrics, run_context, commit_id, commit_data, uploads_files
+  from .config import is_ci, config, _metrics, run_context, commit_id, commit_data, uploads_files, repo_default_branch
 
   if kwargs.get('offline'):
     return
@@ -224,7 +225,7 @@ def notify_qa_database(object_type='output', **kwargs):
   url = f"{api_prefix}/{object_type}/"
   # send all the data, with where it comes from and what describes its commit and project (qaboard/payloads.py)
   data = results_payload(kwargs, is_ci=is_ci, run_context=run_context(), commit_id=commit_id, commit=commit_data(), config=config, metrics_file=_metrics,
-                         uploads_files=uploads_files)
+                         uploads_files=uploads_files, default_branch=repo_default_branch())
   if 'QA_VERBOSE' in os.environ:
     click.secho(url, fg='cyan', err=True)
     click.secho(str(data), fg='cyan', dim=True, err=True)

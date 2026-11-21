@@ -255,7 +255,7 @@ pip install qaboard
 export QABOARD_URL=http://qaboard.example.com:5151
 ```
 
-In a project wrapped with `qa`, `qa --share batch <batch>` saves the results and prints a link to them:
+In a project wrapped with `qa`, `qa batch <batch>` saves the results and prints a link to them:
 [Your project on QA-Board](/docs/get-started/tutorial) walks through it. **Check it worked:** the link opens the
 commit page with your runs and their output files.
 
@@ -511,7 +511,7 @@ When a variable is set, it wins, and the page shows it read-only: see [settings 
 
 
 ### Emails
-QA-Board can email users when the batches they start end, from the web app or with `qa --share batch` ([what users get](/docs/user-guide/running-from-the-webapp#emails-when-batches-end)). Once the backend has an SMTP server, everyone gets them, except in CI. Users turn them off in the terminal with `QA_NOTIFY=none`.
+QA-Board can email users when the batches they start end, from the web app or with `qa batch` ([what users get](/docs/user-guide/running-from-the-webapp#emails-when-batches-end)). Once the backend has an SMTP server, everyone gets them, except in CI. Users turn them off in the terminal with `QA_NOTIFY=none`.
 
 Set the SMTP server in **Admin → Settings → Email**, then click **Send a test email**: it says what the SMTP server answered. Or configure it in your overlay, and the SMTP password, if any, in `.env` (the variables win over the settings page):
 

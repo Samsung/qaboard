@@ -45,7 +45,7 @@ class TestInitFromGitRemote(unittest.TestCase):
       _, config = self.qa_init()
     self.assertEqual(config['project']['name'], 'group/project')
     self.assertEqual(config['project']['url'], 'git@gitlab.example.com:group/project.git')
-    self.assertEqual(config['project']['reference_branch'], 'master')
+    self.assertEqual(config['project']['reference_branch'], 'main')
 
   def test_remote_head_branch(self):
     remote = self.tmp / 'remote.git'

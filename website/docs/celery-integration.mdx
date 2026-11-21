@@ -51,11 +51,11 @@ folder that the workers' machines share: the runs get your `HOME`, and with it y
 4. **Check it**: `qa doctor --runner celery --test-job` checks the broker, that workers answer and listen to the
    runs' queue, then has a worker run a task. See [qa doctor](/docs/doctor).
 
-5. **Run a batch**: `qa --share batch ci`. To see the runs' logs live in your terminal instead, run them on your
+5. **Run a batch**: `qa batch ci`. To see the runs' logs live in your terminal instead, run them on your
    machine: `qa batch --runner local ci`.
 
-Without `--share` (or a CI), runs write their files in `output/`, in the folder where you started `qa batch`: use
-`--share` so that they go to the results storage that the server reads.
+With `--no-share`, runs write their files in `output/`, in the folder where you started `qa batch`: by default
+they go to the results storage that the server reads.
 
 ## Stop a batch {#stop-a-batch}
 Press Ctrl+C in `qa batch`, or click **Stop runs** in the web app: the workers drop the batch's tasks that wait, and

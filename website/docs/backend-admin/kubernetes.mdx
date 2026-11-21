@@ -43,7 +43,7 @@ export QABOARD_URL=http://localhost:5151
 storage: /tmp/qaboard
 ```
 
-Then run `qa --share batch ...` (or `qa batch` in CI) in your project, and open the link it prints.
+Then run `qa batch ...` (or `qa batch` in CI) in your project, and open the link it prints.
 
 :::tip
 `/tmp/qaboard` works on Linux and macOS without `sudo`, but your system may clean `/tmp`. To keep results elsewhere, change the path in `kind.yaml` (both `hostPath` and `containerPath`), in `quickstart.yaml` (`results.mountPath` and `results.hostPath.path`), and in your `qaboard.yaml`. Create the folder before the cluster: otherwise docker creates it, owned by `root`.

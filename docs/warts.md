@@ -100,11 +100,12 @@ run-centric page, screenshots for the docs, gaps against experiment trackers): `
 - Verified end to end only without a shared storage (CI's `docker` job, `.github/scripts/uploads_e2e.py`); with a
   shared storage, the SDK's tests use an HTTP server that records requests, the backend's mock the database. Not on
   Windows, in Jupyter, or with a site package. [M, no change]
-- Without a *qaboard.yaml*: the project's reference branch is the first default branch a run sends
-  (`project_default_branch`, kept in `project.data.git`): a renamed default branch isn't followed, and projects
-  with a *qaboard.yaml* that doesn't set `project.reference_branch` keep `master`, whatever their git server says
-  (`backend/backend/reference_branch.py`). Runs outside git all go to one placeholder commit per user,
-  `<local:user>`, which compares with nothing. [S, behaviour]
+- Without `project.reference_branch`, the reference is the repository's default branch: the git server's webhooks', else
+  the first one a run sends (`project_default_branch`, kept in `project.data.git`), else `main`
+  (`backend/backend/reference_branch.py`, `qaboard/config.py reference_branch`). A renamed default branch isn't
+  followed, and clients without `origin/HEAD` (a fresh `git init`, some CI checkouts) say `main`, while the server may
+  know another. Runs outside git all go to one placeholder commit per user, `<local:user>`, which compares with
+  nothing. [S, behaviour]
 - What `start_run()` chose (`active_run.defaults_chosen`) is said once per process: a Jupyter kernel that changes
   project or directory isn't told again. [S, no change]
 - A process killed without warning (SIGKILL, out of memory, a node that dies) leaves its run "running" in the web

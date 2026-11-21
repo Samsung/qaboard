@@ -142,8 +142,8 @@ class TestLatestCommit:
         assert response.status_code == 200
 
     def test_projects_with_qaboard_yaml_keep_their_reference_branch(self, dummy_app, mock_ci_commit, monkeypatch):
-        calls, response = self.get(dummy_app, monkeypatch, {'qatools_config': {'project': {'name': 'a/b'}}})
-        assert calls == ['master']
+        calls, response = self.get(dummy_app, monkeypatch, {'qatools_config': {'project': {'name': 'a/b', 'reference_branch': 'develop'}}})
+        assert calls == ['develop']
         assert response[1] == 404
         # a branch that was asked for is not replaced
         calls, _ = self.get(dummy_app, monkeypatch, {}, query='&branch=feature')

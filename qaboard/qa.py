@@ -33,7 +33,7 @@ from .api import get_outputs, notify_qa_database, serialize_paths, exit_if_resul
 from .iterators import iter_inputs, iter_parameters, load_runs_file, iter_runs, rerun_job_options, local_job_options
 from .batch_logs import saves_logs, batch_log
 
-from .config import config_has_error, ignore_config_errors, report_missing_storage, storage_needed_by
+from .config import config_has_error, ignore_config_errors, report_missing_storage, storage_needed_by, default_share, missing_storage
 from .config import project, project_root, subproject, config
 from .config import default_batches_files, get_default_database, default_batch_label, default_platform
 from .config import get_default_configuration, default_input_type
@@ -52,16 +52,23 @@ from . import analytics
 @click.option('--tuning', multiple=True, help="Extra parameters for tuning (as JSON).")
 @click.option('--tuning-filepath', type=PathType(), multiple=True, help="File with extra parameters for tuning")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
-@click.option('--share', is_flag=True, help="Show outputs in QA-Board, doesn't just save them locally.")
+@click.option('--share/--no-share', default=None, help="Show results in QA-Board (the default when a server is set), or keep them in output/ (--no-share).")
 @click.option('--database', type=PathType(), help="Input database location")
 @click.option('--type', 'input_type', default=default_input_type, help="How we define inputs")
-@click.option('--offline', is_flag=True, help="Do not notify QA-Board about run statuses.")
+@click.option('--offline', is_flag=True, help="Never contact QA-Board: results stay in output/, like --no-share.")
 def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, share, database, input_type, offline):
   """Entrypoint to running your algo, launching batchs..."""
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
   if not ctx.obj:
     ctx.obj = {}
+  # Results show in QA-Board by default (config.default_share): --no-share or --offline keep them here
+  if share is None and ctx.invoked_subcommand not in ('auth', 'runs', *COMMANDS_WITHOUT_PROJECT):
+    share, kept_here_because = default_share(offline)
+    # said once, not again by the runs `qa batch` starts. A missing storage has its own warning (report_missing_storage)
+    if kept_here_because and not missing_storage and ctx.invoked_subcommand in ('run', 'batch', 'optimize') and 'QA_BATCH' not in os.environ and not dryrun:
+      click.secho(f"qa: results stay in output/, not shown in QA-Board ({kept_here_because}). `qa --no-share` hides this.", fg="yellow", err=True)
+  share = bool(share)
   # One usage event per command, sent when it ends (qaboard/analytics.py), never from CI
   analytics.start(ctx.invoked_subcommand, share=share, tuning=bool(tuning or tuning_filepath), dryrun=dryrun, offline=offline)
   # Signing in is global, per server: it doesn't need a project
@@ -940,7 +947,7 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
   # An email when the runs end, unless QA_NOTIFY=none
   notify = notify_channel(is_ci, nested, started_by_qaboard) if not dryrun else None
   if notify and not should_notify_qa_database and os.environ.get('QA_NOTIFY'):
-    click.secho("QA_NOTIFY: QA-Board can only email you about runs it knows: use `qa --share batch`.", fg='yellow', err=True)
+    click.secho("QA_NOTIFY: QA-Board can only email you about runs it knows: these stay here (--no-share, --offline, or no server).", fg='yellow', err=True)
   notification = None
   if should_notify_qa_database:
     command_data = {
@@ -1248,7 +1255,8 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
       # We could serialize properly the run_context/runner_options, and e.g. call "qa --pickled-cli" and use the CLI command below just for logs... 
       args = [
           f"qa",
-          f'--share' if ctx.obj["share"] else None,
+          # children decide as their parent did: never by themselves (config.default_share)
+          '--share' if ctx.obj["share"] else '--no-share',
           f'--offline' if ctx.obj['offline'] else None,
           f'--label "{ctx.obj["raw_batch_label"]}"' if ctx.obj["raw_batch_label"] != default_batch_label else None,
           platform_cli,

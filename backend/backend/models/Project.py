@@ -318,7 +318,7 @@ def update_project(data, db_session):
     #   It is only updated when there are changes on the "reference branch" (eg master, develop...)
     #   This said, we also update project-level data when it's the first time we get a QA-Board config for a project
     is_initialization = 'qatools_config' not in project.data
-    reference_branch = qatools_config['project'].get('reference_branch', 'master')
+    reference_branch = reference_branch_of(project.data, qatools_config)
     is_reference = branch == reference_branch
     if is_initialization or is_reference:
       project.data.update({'qatools_config': qatools_config,})

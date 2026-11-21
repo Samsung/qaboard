@@ -183,7 +183,7 @@ The other keys of the `gate:` section:
 
 | Key | Default | Meaning |
 |---|---|---|
-| `reference` | `project.reference_branch`, else `master` | What to compare with: the name of a shared [milestone](/docs/references-and-milestones) (or `#12` for the milestone whose link is `/<project>/milestone/12-...`), a commit's sha, or a branch. A branch means its latest commit with runs with the same label, other than the commit you check. If that commit is on the same branch, the latest one before it. |
+| `reference` | `project.reference_branch`, else your repository's default branch, else `main` | What to compare with: the name of a shared [milestone](/docs/references-and-milestones) (or `#12` for the milestone whose link is `/<project>/milestone/12-...`), a commit's sha, or a branch. A branch means its latest commit with runs with the same label, other than the commit you check. If that commit is on the same branch, the latest one before it. |
 | `labels` | `[default]` | The labels of the results to check, as `qa --label` sets them. The CI's label is `default`, and the web app shows it as **CI**: `ci` names it too. Each label is compared with the reference's results that have the same label. `batches` is its older name, still accepted (not both). |
 | `expect_batches` | none | The batches, as named after `qa batch`, that must have at least one run before the gate decides: e.g. `[ci, perf]`, when a job runs the gate between `qa batch ci` and `qa batch perf`. Until then the gate is undecidable, and `--wait` waits. Per label: `{default: [ci, perf], nightly: [all]}`. |
 | `max_failed_runs` | `0` | How many runs may fail in each label's results. `null` doesn't check. |

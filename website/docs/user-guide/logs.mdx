@@ -163,7 +163,7 @@ They are listed with the other [commands that started the batch](#batch-commands
 At the top of the Logs view, **Commands** lists the `qa batch` (and `qa optimize`) commands that started the batch,
 the latest first, wherever they ran (**Show N older** for more than four). Each one says where it comes from:
 *from QA-Board* (with its status: **Queued**, **Running**, **Failed**, **Done**, **Stopped**), **Terminal**
-(`qa --share batch`) or **CI**, who started it and when, on which host or where it runs (e.g. an LSF job, a
+(`qa batch`) or **CI**, who started it and when, on which host or where it runs (e.g. an LSF job, a
 Kubernetes job, or the QA-Board server itself), and the batch files its batches come from. The buttons next to
 **Commands** copy the path of the batch's directory, or open it.
 
@@ -179,7 +179,7 @@ QA-Board also show where their batches are defined, linked to your git server at
 with the script QA-Board ran and its logs. On the right, where the logs of a command are:
 
 - **Logs in the CI job**: a link to the CI job that ran it.
-- **Show its logs**: QA-Board has them. The command was started from a terminal with `qa --share batch` (or
+- **Show its logs**: QA-Board has them. The command was started from a terminal with `qa batch` (or
   `qa optimize`), which saves what it prints; or from QA-Board; or it's an older batch that logged in its directory's
   *log.txt*, shown as **Batch logs**.
 - **Logs not saved**: for instance, it was started from a terminal by an older version of `qaboard`, which only
@@ -243,8 +243,8 @@ Each run writes its logs in its output directory:
 - *log.attempt1.lsf.txt*...: the runners' logs of those earlier attempts, their *log.lsf.txt*, *log.dask.txt*,
   *log.k8s.txt* or *log.pending.txt*.
 
-Batches started from a terminal with `qa --share batch` save what `qa batch` prints in the batch directory, under
-*qa-batch-logs/* (see [`qa --share`](/docs/using-the-qa-cli#qa---share)). In the CI, the CI job keeps them.
+Batches started from a terminal with `qa batch` save what `qa batch` prints in the batch directory, under
+*qa-batch-logs/* (see [shared results](/docs/using-the-qa-cli#qa---share)). In the CI, the CI job keeps them.
 
 </details>
 

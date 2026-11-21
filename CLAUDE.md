@@ -101,9 +101,11 @@ uv sync --extra dev     # Install with dev dependencies
 `viewers/series/series.js` reads the same files: both are tested on `tests/fixtures/series/`). Design and what's left
 out: `docs/rfcs/python-sdk-runs.md` (next steps: `python-sdk-runs-follow-ups.md`); user docs: `website/docs/logging-from-code.mdx`.
 What `qa` and the SDK send with results is built in one place, `qaboard/payloads.py`.
-Without a qaboard.yaml, `start_run()` says once what it chose (`active_run.defaults_chosen`), and the project's reference
-branch is the repository's default branch its runs send (`backend/backend/reference_branch.py`, `reference_branch_of`
-in `webapp/src/defaults.js`): change both together.
+Without a qaboard.yaml, `start_run()` says once what it chose (`active_run.defaults_chosen`). Without
+`project.reference_branch`, a project's reference branch is its repository's default branch (`git.default_branch`, sent
+with results), else `main`: `backend/backend/reference_branch.py`, `reference_branch_of` in `webapp/src/defaults.js`,
+`reference_branch()` in `qaboard/config.py`: change them together. `qa` shares results by default
+(`config.default_share`: not with `--no-share`, `--offline`, without a server, or without the storage here).
 
 Runs don't need a storage shared with the server: without `storage` in qaboard.yaml (or `storage: upload`), `qa run` and
 `start_run()` save them in the project's `output/` and send their files (`qaboard/upload.py`) to the one folder the server

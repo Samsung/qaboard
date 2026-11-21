@@ -23,8 +23,8 @@ def run(context):
     }
 ```
 
-That's all QA-Board needs. `qa run` prints the metrics, `qa` sends them to QA-Board with the run (with `--share`,
-or in CI), and the web app shows every metric with a number. `qa` adds `compute_time`, the run's duration in seconds,
+That's all QA-Board needs. `qa run` prints the metrics, `qa` sends them to QA-Board with the run (unless
+`--no-share`), and the web app shows every metric with a number. `qa` adds `compute_time`, the run's duration in seconds,
 and `is_failed` says whether the run [failed](#failed-runs).
 
 :::tip Code in another language or process

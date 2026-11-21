@@ -10,12 +10,12 @@ describe('projects without a qaboard.yaml', () => {
     const sdk_project = normalize_project({ data: { git: { default_branch: 'main' } } });
     expect(without_qaboard_yaml(sdk_project)).toBe(true);
     expect(reference_branch_of(sdk_project)).toBe('main');
-    expect(reference_branch_of(normalize_project({ data: null }))).toBe('master');
+    expect(reference_branch_of(normalize_project({ data: null }))).toBe('main');
     expect(reference_branch_of(normalize_project({ data: null }), null)).toBe(null);
-    // a qaboard.yaml says it, else master, whatever the git server's default branch
-    const with_yaml = { data: { git: { default_branch: 'main' }, qatools_config: { project: { name: 'a/b' } } } };
+    // a qaboard.yaml that doesn't say it: the repository's default branch too
+    const with_yaml = { data: { git: { default_branch: 'develop' }, qatools_config: { project: { name: 'a/b' } } } };
     expect(without_qaboard_yaml(with_yaml)).toBe(false);
-    expect(reference_branch_of(with_yaml)).toBe('master');
+    expect(reference_branch_of(with_yaml)).toBe('develop');
     expect(reference_branch_of({ data: { qatools_config: { project: { name: 'a/b', reference_branch: 'develop' } } } })).toBe('develop');
   });
 

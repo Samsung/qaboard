@@ -30,13 +30,13 @@ quantization hurts most, and the **Tuning Analysis** view showed what it found a
 2. **Start it**, on a batch of tests:
 
    ```bash
-   qa --share --label tune-int8 optimize --batch quant-search --config-file qa/tune-int8.yaml
+   qa --label tune-int8 optimize --batch quant-search --config-file qa/tune-int8.yaml
    ```
 
    Each evaluation runs `qa batch` with the label `tune-int8|iterN` and the chosen parameters as tuning parameters,
    which your code reads like any other (see
    [how parameters reach your code](/docs/tuning-from-the-webapp#how-tuning-parameters-reach-your-code)).
-   `qa optimize` reads each evaluation's metrics from QA-Board: from your computer, `--share` saves the runs there,
+   `qa optimize` reads each evaluation's metrics from QA-Board: from your computer, `qa` saves the runs there (not with `--no-share`),
    as the CI does.
 
 3. **Look at the results.** On the commit page, select the experiment's batch, `tune-int8`, then the

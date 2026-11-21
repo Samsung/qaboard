@@ -248,14 +248,16 @@ def test_runs_without_qaboard_yaml_give_the_default_branch(ci_commit_model):
 
 
 @pytest.mark.parametrize("data, expected", [
-  (None, "master"),
-  ({}, "master"),
-  ({"git": {"default_branch": "main"}}, "main"),
-  ({"qatools_config": {}, "git": {"default_branch": "main"}}, "main"),
-  # with a qaboard.yaml, its reference branch, else master as always
+  (None, "main"),
+  ({}, "main"),
+  ({"git": {"default_branch": "master"}}, "master"),
+  ({"qatools_config": {}, "git": {"default_branch": "develop"}}, "develop"),
+  # a qaboard.yaml's reference branch wins
   ({"qatools_config": {"project": {"reference_branch": "release"}}, "git": {"default_branch": "main"}}, "release"),
-  ({"qatools_config": {"project": {"name": "a/b"}}, "git": {"default_branch": "main"}}, "master"),
+  ({"qatools_config": {"project": {"name": "a/b"}}, "git": {"default_branch": "develop"}}, "develop"),
 ])
 def test_reference_branch(data, expected):
   from backend.reference_branch import reference_branch_of
   assert reference_branch_of(data) == expected
+  # the qaboard.yaml a run sends, rather than the project's
+  assert reference_branch_of(data, {"project": {"reference_branch": "next"}}) == "next"

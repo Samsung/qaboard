@@ -94,7 +94,7 @@ input and configurations are compared from a commit to the next, and with the re
 |---|---|---|
 | What was tested: the input | `--input codec` | In a CI job: the job's name, then the file's name without its extension (`unit-tests/junit`), or the job's name alone with several paths. Elsewhere: the file's name without its extension. In a GitHub matrix, give each job its own, e.g. `--input unit-tests-${{ matrix.os }}`: jobs of a matrix have the same name |
 | How: the configurations | `qa -c O3 -c '{"threads": 4}' upload ...` | None |
-| The batch, in the web app | `qa --label nightly upload ...` | `default`: the CI's results. Outside the CI, your own batch, like `qa --share` |
+| The batch, in the web app | `qa --label nightly upload ...` | `default`: the CI's results. Outside the CI, your own batch, like `qa run` |
 | The group of tests, on the run's card | `--batch unit-tests` | None |
 | The project and the commit | `--project group/repo`, `--commit <id>` | The *qaboard.yaml*'s or the CI's repository; the git `HEAD` or the CI's commit |
 

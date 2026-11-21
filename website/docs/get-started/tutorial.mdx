@@ -103,9 +103,9 @@ qa init
 
 Open *qaboard.yaml* and check the settings at its top: `project.name` (your project's id in QA-Board),
 `project.url` and `project.reference_branch`. `qa init` fills them from your git remote. When it can't reach it, the
-reference branch stays `master`, and it says so. At the bottom, `storage` is where shared results go:
+reference branch is `main`, and it says so. At the bottom, `storage` is where shared results go:
 `/mnt/qaboard`, or your server's results folder (`QA_STORAGE` wins over it). When `qa` can't create that folder,
-local runs only warn about it, but `--share`, CI runs and `qa save-artifacts` stop with *The storage path does not
+runs from your computer stay in `output/` with a warning, but `--share`, CI runs and `qa save-artifacts` stop with *The storage path does not
 exist*.
 
 `qa` calls the `run(context)` function of `qa/main.py` for each run. It runs your code on `context.input_path`,
@@ -186,10 +186,10 @@ qa run --input <an-input>
 
 <Clip id="cli/first-run" />
 
-Then run a batch, and send its results to the server with `--share`:
+Then run a batch: its results go to the server:
 
 ```bash
-qa --share batch ci
+qa batch ci
 ```
 
 `qa` prints a link after `Results:`: open it to see the commit page, with your runs. Shared results are saved where

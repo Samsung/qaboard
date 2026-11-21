@@ -949,9 +949,10 @@ class TestWithoutAProject(ActiveRunTestCase):
     result = self.python(cwd=self.notebooks, server=server, code="import qaboard as qb\nqb.start_run(project='kitefin/planner').finish()")
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertEqual({body.get('project_default_branch') for body in server.outputs()}, {'main'})
-    # with a qaboard.yaml, it says the reference branch itself
-    result = self.python(server=server, code="import qaboard as qb\nqb.start_run().finish()")
-    self.assertNotIn('project_default_branch', server.outputs()[-1])
+    # with a qaboard.yaml too: the reference branch when it doesn't set project.reference_branch. The CI says it first
+    result = self.python(server=server, code="import qaboard as qb\nqb.start_run().finish()", CI_DEFAULT_BRANCH='trunk')
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertEqual(server.outputs()[-1]['project_default_branch'], 'trunk')
 
   def test_in_the_ci_the_project_is_the_repository(self):
     server = self.server()
