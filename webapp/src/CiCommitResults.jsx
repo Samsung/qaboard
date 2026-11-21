@@ -4,6 +4,7 @@ import styled from "styled-components";
 import {
   AnchorButton,
   Button,
+  ButtonGroup,
   Classes,
   Card,
   NonIdealState,
@@ -36,6 +37,7 @@ import { LegacyExportPlugin } from "./plugins/LegacyExportPlugin";
 import { ScriptPlugin } from "./plugins/ScriptPlugin";
 import { humanFileSize, file_options as file_options_list, bit_accuracy_url_defaults } from "./viewers/bit_accuracy/utils";
 import { project_web_url } from "./utils";
+import { reference_branch_of, without_qaboard_yaml } from "./defaults";
 import { blob_url } from "./git";
 import { SHARED_BATCHES_FILE } from "./components/tuning/availableTests";
 
@@ -291,13 +293,16 @@ const CiCommitResults = () => {
   if (!!new_commit && !has_batches) {
     // Without a commit id, we show the latest commit with results on the reference branch: there may be none yet
     const no_commit_with_results = !new_commit_id && !!new_commit.error?.startsWith('404');
-    const reference_branch = project_data?.data?.qatools_config?.project?.reference_branch;
+    const reference_branch = reference_branch_of(project_data, null);
     if (no_commit_with_results) {
       hidden_views = [...results_views, 'parameters'];
       commit_state = <NonIdealState
         icon="inbox"
         title={reference_branch ? <>No commit with results on <code>{reference_branch}</code> yet</> : "No commit with results yet"}
-        description={<p>Results appear once <code>qa batch</code> runs in your CI. {ci_docs_link}</p>}
+        description={without_qaboard_yaml(project_data)
+          ? <p>Runs started from code (<code>qaboard.start_run()</code>) or sent with <code>qa upload</code> appear here. Open the
+             project's commits to see those on other branches. <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/log-from-code`}>Log from your code</a></p>
+          : <p>Results appear once <code>qa batch</code> runs in your CI. {ci_docs_link}</p>}
       />;
     } else if (new_commit.error) {
       hidden_views = [...results_views, 'parameters'];
@@ -522,9 +527,17 @@ const CiCommitResults = () => {
               {!has_cards
                 ? <NonIdealState
                     icon="heatmap"
-                    title="Visualizations are not configured yet."
-                    description={<p>{docs_link} to learn how to declare visualizations. Meanwhile, you can browse the files each run created.</p>}
-                    action={<Button icon="folder-open" text="Show output files" onClick={() => updateSelected({ selected_views: 'bit-accuracy' })}/>}
+                    title="No visualizations for these runs"
+                    description={<p>
+                      Cards show the files that <em>qaboard.yaml</em> declares in <code>outputs.visualizations</code>, and the series that runs
+                      started from code logged. These runs have neither. {docs_link} to declare visualizations.
+                      Meanwhile, nothing is lost: each run's files, logs and metrics are one click away.
+                    </p>}
+                    action={<ButtonGroup>
+                      <Button icon="folder-open" text="Output files" onClick={() => updateSelected({ selected_views: 'bit-accuracy' })}/>
+                      <Button icon="console" text="Logs" onClick={() => updateSelected({ selected_views: 'logs' })}/>
+                      <Button icon="th" text="Metrics" onClick={() => updateSelected({ selected_views: 'table-kpi' })}/>
+                    </ButtonGroup>}
                   />
                 : <OutputCardsList {...output_cards_props}/>}
             </ViewSection>}

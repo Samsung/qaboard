@@ -81,7 +81,8 @@ uninstalling anything. Set `QABOARD_IGNORE_SITE=1` to ignore the site package al
 | `QABOARD_HOST`, `QABOARD_PROTOCOL` | `qaboard.kitefin.example:5151`, `https` | The host (and port), and the protocol: `http` by default. They win over `QABOARD_URL`. |
 | `QABOARD_HOSTNAME`, `QABOARD_PORT` | `qaboard.kitefin.example`, `5151` | Both together win over the others. |
 
-Without any of them, `qa` uses `http://localhost:5151` and prints a warning. With `qa --offline`, it never contacts the
+Without any of them, `qa` uses the server you signed in to with `qa auth login --server <url>`, when you signed in
+to one only ([sign in](#signing-in)). Else it uses `http://localhost:5151` and prints a warning. With `qa --offline`, it never contacts the
 server: your runs are only saved on disk.
 
 Outside CI, each `qa` command tells the server it ran: the command, your user name, the `qaboard` version, the project,

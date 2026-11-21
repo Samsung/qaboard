@@ -11,6 +11,7 @@ from ..access import authorize, can, denied
 from ..project_settings import SettingsError, clean_gate, describe_yaml_gate, gate_changes, get_settings, save_gate
 from .access import project_param, may_manage
 from .auth import login_required
+from ..reference_branch import reference_branch_of
 
 
 def reference_gate(project_id):
@@ -19,8 +20,7 @@ def reference_gate(project_id):
   project = db_session.get(Project, project_id)
   config = (project.data or {}).get('qatools_config') if project is not None else None
   described = describe_yaml_gate(config)
-  reference_branch = ((config or {}).get('project') or {}).get('reference_branch') if isinstance(config, dict) else None
-  return {**described, 'branch': reference_branch or 'master', 'exists': project is not None}
+  return {**described, 'branch': reference_branch_of(project.data if project is not None else None), 'exists': project is not None}
 
 
 def serialize(project_id):

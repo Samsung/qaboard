@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import { reference_branch_of } from './defaults';
 import { Link, useLinkClickHandler, useRouter } from "./router";
 import { path_segment, project_url, url_for_selection } from "./selection";
 import styled from "styled-components";
@@ -612,9 +613,8 @@ const SiderMilestones = ({ project, project_data, docs_root }) => {
 
 const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_commit = {}, user, docs_root, ...integrationProps }) => {
   const { selected } = useComparison();
-  let qatools_config = project_data.data?.qatools_config || {};
   let integrations = branch_integrations({ project_data, commit });
-  let reference_branch = qatools_config.project?.reference_branch;
+  let reference_branch = reference_branch_of(project_data, null) ?? undefined;
 
   const is_history = selected.route.is_history;
   // the project's Admin pages: Access, Quality gate
@@ -796,7 +796,7 @@ const AppSider = () => {
   ];
   const template_context = {
     project, project_data, commit, ref_commit, integrations, user, docs_root,
-    branch: selected.branch ?? project_data.data?.qatools_config?.project?.reference_branch,
+    branch: selected.branch ?? reference_branch_of(project_data, null) ?? undefined,
     new_batch, ref_batch: ref_batch?.label,
     filter: selected.filter_batch_new, ref_filter: selected.filter_batch_ref, ref_project: selected.ref_project,
   };

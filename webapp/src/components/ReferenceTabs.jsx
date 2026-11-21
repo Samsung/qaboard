@@ -18,6 +18,7 @@
 // The references not shown are fetched without their outputs (commits can have thousands), those shown together with them.
 // Once the page is idle, we load the next and previous references' outputs, so that "r" shows them at once.
 // Hovering a tab loads it too.
+import { reference_branch_of } from '../defaults';
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import styled from "styled-components";
@@ -790,7 +791,7 @@ const AddReferencePanel = ({ actions, can_duplicate }) => {
   const { project, project_data, references, selected } = useComparison();
   const [text, setText] = useState('');
   const shown = references[selected.ref_index];
-  const reference_branch = project_data?.data?.qatools_config?.project?.reference_branch ?? 'master';
+  const reference_branch = reference_branch_of(project_data);
   const submit = () => {
     const value = text.trim();
     if (!value) return;

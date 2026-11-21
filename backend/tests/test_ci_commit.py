@@ -229,3 +229,33 @@ def test_branches_skip_commits_without_branch(api, dummy_app):
   query.yield_per.return_value = [("develop",), ("feature",), (None,)]
   with dummy_app.test_request_context("/api/v1/project/branches?project=group/project"):
     assert api.get_branches().get_json() == ["develop", "feature"]
+
+
+# ==========================================
+# Projects without a qaboard.yaml (qaboard.start_run(), qa upload)
+# ==========================================
+
+def test_runs_without_qaboard_yaml_give_the_default_branch(ci_commit_model):
+  project = make_project()
+  data = {k: v for k, v in cli_data(project_default_branch="main").items() if k not in ("qaboard_config", "qaboard_metrics")}
+  get_or_create(ci_commit_model, project, data)
+  assert project.data["git"]["default_branch"] == "main"
+  assert "qatools_config" not in project.data
+  # what the git server's webhooks said is kept
+  project = make_project(data={"git": {"default_branch": "develop"}})
+  get_or_create(ci_commit_model, project, {**data, "project_default_branch": "main"})
+  assert project.data["git"]["default_branch"] == "develop"
+
+
+@pytest.mark.parametrize("data, expected", [
+  (None, "master"),
+  ({}, "master"),
+  ({"git": {"default_branch": "main"}}, "main"),
+  ({"qatools_config": {}, "git": {"default_branch": "main"}}, "main"),
+  # with a qaboard.yaml, its reference branch, else master as always
+  ({"qatools_config": {"project": {"reference_branch": "release"}}, "git": {"default_branch": "main"}}, "release"),
+  ({"qatools_config": {"project": {"name": "a/b"}}, "git": {"default_branch": "main"}}, "master"),
+])
+def test_reference_branch(data, expected):
+  from backend.reference_branch import reference_branch_of
+  assert reference_branch_of(data) == expected

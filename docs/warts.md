@@ -94,12 +94,19 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 
 ## Runs created from code (`qaboard.start_run()`, November 2026)
 
-Experimental: `qaboard/active_run.py`, `qaboard/series.py`. Design: `docs/rfcs/python-sdk-runs.md`. Follow-ups (a
+`qaboard/active_run.py`, `qaboard/series.py`. Design: `docs/rfcs/python-sdk-runs.md`. Follow-ups (a
 run-centric page, screenshots for the docs, gaps against experiment trackers): `docs/rfcs/python-sdk-runs-follow-ups.md`.
 
-- Not verified against a real server and database end to end: the SDK's tests use an HTTP server that records
-  requests, the backend's tests mock the database, the web app's a mocked API. Nor on Windows, in Jupyter, or with a
-  site package. [M, no change]
+- Verified end to end only without a shared storage (CI's `docker` job, `.github/scripts/uploads_e2e.py`); with a
+  shared storage, the SDK's tests use an HTTP server that records requests, the backend's mock the database. Not on
+  Windows, in Jupyter, or with a site package. [M, no change]
+- Without a *qaboard.yaml*: the project's reference branch is the first default branch a run sends
+  (`project_default_branch`, kept in `project.data.git`): a renamed default branch isn't followed, and projects
+  with a *qaboard.yaml* that doesn't set `project.reference_branch` keep `master`, whatever their git server says
+  (`backend/backend/reference_branch.py`). Runs outside git all go to one placeholder commit per user,
+  `<local:user>`, which compares with nothing. [S, behaviour]
+- What `start_run()` chose (`active_run.defaults_chosen`) is said once per process: a Jupyter kernel that changes
+  project or directory isn't told again. [S, no change]
 - A process killed without warning (SIGKILL, out of memory, a node that dies) leaves its run "running" in the web
   app, like `qa run`. `resume=True` or a new attempt fixes the row. [M, behaviour]
 - Distributed trainings that start the script once per GPU must call `start_run()` in one process only: each call is

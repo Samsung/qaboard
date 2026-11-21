@@ -15,6 +15,8 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from qaboard.metrics import clean_definition
 
+from .reference_branch import reference_branch_of
+
 
 # More is likely a bug, e.g. a metric per frame: we don't let it bloat commits and projects, which most pages load
 MAX_DEFINITIONS = 5000
@@ -92,11 +94,11 @@ def save_metrics_definitions(session, ci_commit, data: Dict, trust_branch: bool 
 
   project = ci_commit.project
   if not trust_branch:
-    project_config = ((project.data or {}).get('qatools_config') or {}).get('project') or {}
-    if ci_commit.branch and ci_commit.branch == project_config.get('reference_branch', 'master'):
+    if ci_commit.branch and ci_commit.branch == reference_branch_of(project.data):
       _save(session, project, definitions)
     return
-  project_config = (data.get('qaboard_config') or {}).get('project') or {}
-  is_reference = data.get('commit_branch') == project_config.get('reference_branch', 'master')
+  # runs without a qaboard.yaml (qaboard.start_run()) are on the project's reference branch, whatever gives it
+  reference = ((data.get('qaboard_config') or {}).get('project') or {}).get('reference_branch', 'master') if data.get('qaboard_config') else reference_branch_of(project.data)
+  is_reference = data.get('commit_branch') == reference
   if is_reference or not (project.data or {}).get('metrics_definitions'):
     _save(session, project, definitions)

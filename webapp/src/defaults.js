@@ -49,3 +49,18 @@ export const empty_batch = {
 	failed_outputs: 0,
 	outputs: {},
 };
+
+
+// The project's reference branch, like the backend (backend/reference_branch.py): its qaboard.yaml's, else, for
+// projects whose runs sent no qaboard.yaml (qaboard.start_run(), qa upload), their repository's default branch.
+// Configurations sent by `qa` always have project.name: the defaults above don't.
+// `fallback`: when nothing says, e.g. null to tell
+export const reference_branch_of = (project_data, fallback = 'master') => {
+  const project_config = project_data?.data?.qatools_config?.project;
+  if (project_config?.name)
+    return project_config.reference_branch ?? fallback;
+  return project_data?.data?.git?.default_branch ?? fallback;
+};
+
+// Whether the project's runs never sent a qaboard.yaml: created by qaboard.start_run() or `qa upload`
+export const without_qaboard_yaml = project_data => !project_data?.data?.qatools_config?.project?.name;

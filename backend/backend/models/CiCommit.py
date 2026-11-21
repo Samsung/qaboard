@@ -542,6 +542,15 @@ class CiCommit(Base):
     if data and "qaboard_metrics" in data and ci_commit.data.get('qatools_metrics') is None:
       ci_commit.data['qatools_metrics'] = data['qaboard_metrics']
       flag_modified(ci_commit, "data")
+    # Runs without a qaboard.yaml (qaboard.start_run(), qa upload) send their repository's default branch: it is the
+    # reference of projects that have no qaboard.yaml (Project.reference_branch_of). Git servers' webhooks know better
+    default_branch = data.get('project_default_branch') if data else None
+    if isinstance(default_branch, str) and 0 < len(default_branch) <= 255 and ci_commit.project is not None:
+      project_data = ci_commit.project.data or {}
+      git = project_data.get('git') if isinstance(project_data.get('git'), dict) else {}
+      if not git.get('default_branch'):
+        ci_commit.project.data = {**project_data, 'git': {**git, 'default_branch': default_branch}}
+        flag_modified(ci_commit.project, "data")
     # Commits from before we saved emails get theirs when `qa` sends results again
     sent_email = data and (data.get("commit_author_email") or data.get("commit_committer_email"))
     if sent_email and not getattr(ci_commit, 'author_email', None) and \

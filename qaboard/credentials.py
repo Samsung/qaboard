@@ -39,6 +39,8 @@ CI_TOKEN_SOURCE = 'ci-id-token'
 # Set once qa printed a warning about signing in, so that the runs `qa batch` starts don't repeat it
 WARNING_SHOWN_ENV = 'QA_AUTH_WARNING_SHOWN'
 DEFAULT_SERVER = 'http://localhost:5151'
+# what gives the server when no setting does, but you signed in to one server only (default_server)
+SIGNED_IN_SOURCE = 'your only sign-in (qa auth login)'
 # Legacy Windows consoles and log files may not have "→"
 ACCESS_TOKENS_PAGE = "Settings > Access tokens" if os.name == 'nt' else "Settings → Access tokens"
 
@@ -91,6 +93,13 @@ def default_server() -> Tuple[str, Optional[str]]:
   url = site_config('QABOARD_URL')
   if url:
     return url, setting_source('QABOARD_URL')
+  # `qa auth login --server X` says which server people use: without a setting, the only one they signed in to
+  try:
+    logins = saved_logins()
+  except Exception:
+    logins = []
+  if len(logins) == 1:
+    return logins[0][0], SIGNED_IN_SOURCE
   return DEFAULT_SERVER, None
 
 

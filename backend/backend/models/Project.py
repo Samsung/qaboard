@@ -28,6 +28,8 @@ from backend.models import Base, CiCommit
 from backend import repos
 from .. import uploads
 from ..git_utils import git_pull
+
+from ..reference_branch import reference_branch_of
 from ..git_hosts.base import branch_from_ref
 from ..config import default_outputs_root, default_artifacts_root
 
@@ -102,8 +104,8 @@ class Project(Base):
   @property
   def protected_refs(self):
     # git references that are explicitely protected from deletion in qaboard.yaml
-    project_config = self.data.get("qatools_config", {}).get("project", {})
-    reference_branch = project_config.get("reference_branch", "master")
+    project_config = (self.data.get("qatools_config") or {}).get("project") or {}
+    reference_branch = reference_branch_of(self.data)
     return [
         reference_branch,
         *project_config.get("milestones", []),

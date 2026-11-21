@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { reference_branch_of } from '../defaults';
 import { useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -32,7 +33,7 @@ import { CommitMilestoneButton } from "../milestones/CommitMilestone"
 import { milestone_name, milestones_of, milestone_selection_changes, stack_milestone_changes, prefetch_milestone } from "../milestones/api"
 import { useMilestones } from "../milestones/hooks"
 
-import { shortId, pretty_label } from "../utils";
+import { shortId, pretty_label, is_placeholder_commit } from "../utils";
 import { http, errorMessage, isArtifactsError } from "../api/http";
 import { commitQuery } from "../api/queries";
 import { useRefreshCommit, useUrlText, updateSelected, useSiteConfig, useUser } from "../hooks";
@@ -49,6 +50,8 @@ import { CopyLinkButton } from "./CopyLinkButton"
 const CommitMessage = ({ commit, error, style: extra_style }) => {
   const style = { whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', ...extra_style }
   if (!commit?.message) {
+    if (is_placeholder_commit(commit?.id))
+      return <span className={Classes.TEXT_MUTED} style={style} title="qaboard.start_run() and qa upload attach the runs they start outside a git repository to a commit of their own, per user. Pass commit= to attach them to a real one.">Runs outside a git repository</span>
     if (error)
       return <span className={Classes.TEXT_MUTED} style={style}>{error.startsWith('404') ? "Commit not found" : "Could not load this commit"}</span>
     return <span className={Classes.SKELETON} style={style}>This is a placeholder for the commit message. Yep.</span>
@@ -61,7 +64,7 @@ const CommitMessage = ({ commit, error, style: extra_style }) => {
 const CommitBranchButton = ({ commit, error, onClick, style }) => {
   const has_branch = !!commit?.branch
   // we won't learn the branch: no placeholder
-  if (!has_branch && error)
+  if (!has_branch && (error || is_placeholder_commit(commit?.id)))
     return null
   return <span style={style}>
     <Tooltip content={<span>Click to select the latest commit from <code>{has_branch ? commit.branch : 'the branch'}</code></span>}>
@@ -447,8 +450,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
   const switchSelection = () => updateSelected(switch_new_and_reference(selected))
 
 
-  const qatools_config = project_data?.data?.qatools_config
-  const reference_branch = qatools_config?.project?.reference_branch ?? 'master';
+  const reference_branch = reference_branch_of(project_data);
 
   const is_milestone = milestones_of(milestones, {project: selected[project_attr] ?? project, commit: commit?.id, batch: batch?.label ?? 'default'}).length > 0
   // The Change menu: quick actions, then the milestones to pick from

@@ -921,6 +921,38 @@ class TestWithoutAProject(ActiveRunTestCase):
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertNotIn('results:', result.stderr)
 
+  def test_says_once_what_it_chose(self):
+    server = self.server()
+    code = "import qaboard as qb\nqb.start_run(input='a').finish()\nqb.start_run(input='b').finish()"
+    result = self.python(cwd=self.notebooks, server=server, code=code, QA_PROJECT='kitefin/planner', QA_STORAGE=str(self.storage))
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertEqual(result.stderr.count('what QA-Board chose for you'), 1, result.stderr)
+    for said in ("project 'kitefin/planner', from $QA_PROJECT", "'<local:alice>', a placeholder commit", "your own batch, '@alice| default'", "without a qaboard.yaml"):
+      self.assertIn(said, result.stderr)
+    # no server: it says why the run isn't in the web app
+    result = self.python(cwd=self.notebooks, code="import qaboard as qb\nqb.start_run(project='kitefin/detector').finish()")
+    self.assertIn("no QA-Board server is set", result.stderr)
+    self.assertNotIn("from $", result.stderr)
+    # chosen on purpose: nothing to say
+    for env, code in (({'QA_QUIET': '1'}, "qb.start_run(project='kitefin/detector').finish()"), ({}, "qb.start_run(project='kitefin/detector', share=False).finish()")):
+      result = self.python(cwd=self.notebooks, code=f"import qaboard as qb\n{code}", **env)
+      self.assertEqual(result.returncode, 0, result.stderr)
+      self.assertNotIn('no QA-Board server is set', result.stderr)
+
+  def test_sends_the_repository_default_branch(self):
+    # the reference branch of projects without a qaboard.yaml: the clone's origin/HEAD
+    git(self.notebooks, 'init', '-q', '.')
+    git(self.notebooks, 'commit', '-q', '--allow-empty', '-m', 'Start')
+    git(self.notebooks, 'update-ref', 'refs/remotes/origin/main', 'HEAD')
+    git(self.notebooks, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main')
+    server = self.server()
+    result = self.python(cwd=self.notebooks, server=server, code="import qaboard as qb\nqb.start_run(project='kitefin/planner').finish()")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertEqual({body.get('project_default_branch') for body in server.outputs()}, {'main'})
+    # with a qaboard.yaml, it says the reference branch itself
+    result = self.python(server=server, code="import qaboard as qb\nqb.start_run().finish()")
+    self.assertNotIn('project_default_branch', server.outputs()[-1])
+
   def test_in_the_ci_the_project_is_the_repository(self):
     server = self.server()
     code = "import qaboard as qb\nqb.start_run(input='tests').finish()"
