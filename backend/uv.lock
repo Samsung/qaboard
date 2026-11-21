@@ -3065,6 +3065,7 @@ requires-dist = [
     { name = "joblib" },
     { name = "jsonschema", marker = "extra == 'dev'" },
     { name = "kubernetes", marker = "python_full_version >= '3.9' and extra == 'kubernetes'", specifier = ">=29" },
+    { name = "mlflow-skinny", marker = "python_full_version >= '3.9' and extra == 'mlflow'", specifier = ">=2.10" },
     { name = "mypy", marker = "extra == 'dev'" },
     { name = "optuna", marker = "python_full_version >= '3.9'", specifier = ">=4.5" },
     { name = "psutil" },
@@ -3079,7 +3080,7 @@ requires-dist = [
     { name = "types-setuptools", marker = "extra == 'dev'" },
     { name = "types-simplejson", marker = "extra == 'dev'" },
 ]
-provides-extras = ["dev", "celery", "dask", "kubernetes", "dask-kubernetes"]
+provides-extras = ["dev", "celery", "dask", "kubernetes", "dask-kubernetes", "mlflow"]
 
 [[package]]
 name = "redis"
