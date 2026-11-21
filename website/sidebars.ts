@@ -131,6 +131,9 @@ const sidebars: SidebarsConfig = {
         "running-your-code",
         // Runs created from code that starts by itself: training loops, notebooks
         "log-from-code",
+        // The same, from code written for W&B or MLflow: shims, with their compatibility matrices
+        "from-wandb",
+        "from-mlflow",
         // Results other tools already wrote: test reports, benchmarks, profiles
         "upload-results",
         "inputs",
