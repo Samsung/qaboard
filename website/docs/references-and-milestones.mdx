@@ -27,9 +27,9 @@ milestones, and to switch the new and reference commits:
   caption="The reference's Change menu: the reference branch, main, then the shared milestones, kd-1.3 and kd-1.2."
 />
 
-:::caution
-Set `reference_branch`: without it, the commit page compares with the latest commit that has results on any branch,
-while the **Change** menu, `qa check-bit-accuracy` and `qa gate` use `master`.
+:::info
+Without `reference_branch`, QA-Board uses your repository's default branch: the one your git server says, or the
+first one your runs send it (the CI's, or your clone's `origin`), else `main`.
 :::
 
 ## List reference branches in *qaboard.yaml* {#project-references}

@@ -40,13 +40,15 @@ CLIENT_FOLDERS = ('output_directory', 'artifacts_commit', 'ci_commit_dir', 'comm
 
 def results_payload(fields: Mapping[str, Any], *, is_ci: bool, run_context: Mapping[str, Any], commit_id: Optional[str],
                     commit: Mapping[str, Any], config: Optional[Mapping[str, Any]], metrics_file: Optional[Mapping[str, Any]],
-                    uploads_files: bool = False) -> Dict[str, Any]:
+                    uploads_files: bool = False, default_branch: Optional[str] = None) -> Dict[str, Any]:
   """
   The body of a request that sends results: `fields` (the run, batch or commit), with where it comes from and what
   the server needs to create its commit, batch and project when it doesn't know them.
   - commit: what we know about the commit, as `commit_*` fields (config.commit_data()). Only the date is required.
   - config, metrics_file: the project's qaboard.yaml and metrics file. None when there is none, e.g. a notebook
     outside a project: the project then keeps the configuration it has.
+  - default_branch: the repository's default branch (git.default_branch): the server keeps the first it gets, the
+    reference of projects whose qaboard.yaml doesn't set project.reference_branch.
   - uploads_files: the results aren't in a storage the server reads, their files are sent to it ("storage": "upload").
     The folders of this computer mean nothing to the server: they aren't sent.
   """
@@ -66,6 +68,8 @@ def results_payload(fields: Mapping[str, Any], *, is_ci: bool, run_context: Mapp
   }
   if uploads_files:
     payload['storage'] = 'upload'
+  if default_branch:
+    payload['project_default_branch'] = default_branch
   if config is not None:
     payload['qaboard_config'] = serialize_paths(_plain(config))
     payload['qaboard_metrics'] = metrics_file

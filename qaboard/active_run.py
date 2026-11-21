@@ -234,6 +234,8 @@ class _Setup:
     self.platform: str = c.platform
     self.run_context: Dict[str, Any] = c.run_context()
     self.has_qaboard_yaml = c.project is not None
+    # what gives the project: None for a qaboard.yaml, else "project=" or the environment variable
+    self.project_source: Optional[str] = None
     self.repo_root: Optional[Path] = c.repo_root if c.is_in_git_repo else None
     if self.has_qaboard_yaml:
       self.project = c.project.as_posix()
@@ -254,6 +256,7 @@ class _Setup:
       self.database: Path = c.get_default_database(get_settings(self.input_type, self.config))
     else:
       # the CI says which repository it builds
+      self.project_source = 'project=' if project else next((f"${v}" for v in ('QA_PROJECT', 'GITHUB_REPOSITORY', 'CI_PROJECT_PATH') if os.environ.get(v)), None)
       project = project or ci_project()
       if not project:
         raise _error("start_run() needs to know the project: run it from a project (a folder with a qaboard.yaml, see `qa init`), or pass project='group/repo'.",
@@ -299,6 +302,8 @@ class _Setup:
     elif not self.has_qaboard_yaml and outputs_project_root:
       self.outputs_commit = self._outputs_dir(self.commit, outputs_project_root)
     self.is_default_commit = not commit or commit == c.commit_id
+    # the project's reference branch when its qaboard.yaml doesn't say it (backend/reference_branch.py)
+    self.default_branch: Optional[str] = c.repo_default_branch()
 
   def _head(self) -> Optional[Tuple[str, str]]:
     """The repository's (branch, commit) now, outside the CI, which says which commit it tests"""
@@ -375,6 +380,8 @@ class RunPlan:
   server_source: Optional[str]
   # what to tell the user, e.g. that the shared storage isn't mounted here
   notes: Tuple[str, ...] = ()
+  # why the run isn't shared though share= wasn't given: "no_server", "no_storage", or None
+  local_because: Optional[str] = None
   setup: Optional['_Setup'] = field(default=None, repr=False, compare=False)
 
 
@@ -407,8 +414,12 @@ def plan_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] = 
   offline = os.environ.get('QA_OFFLINE', '').lower() in OFFLINE_VALUES
   server_url, server_source = (server.rstrip('/'), 'server=') if server else default_server()
   can_share = setup.uploads_files or setup.outputs_commit is not None or output_dir is not None
+  # why the run stays here, when nobody asked for it: said once per process (start_run)
+  local_because: Optional[str] = None
   if share is None:
     share = not offline and can_share and (setup.is_ci or server_source is not None)
+    if not share and not offline:
+      local_because = 'no_server' if can_share else 'no_storage'
   elif share and not can_share:
     raise _error("start_run(share=True) needs the shared storage: set `storage` in qaboard.yaml or QA_STORAGE, or pass output_dir= with a folder the server reads.",
                  "QA-Board's settings here name a storage qa can't use, and don't send files to the server: set QA_STORAGE=upload to send them, or QA_STORAGE to the storage's folder.")
@@ -460,8 +471,50 @@ def plan_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] = 
     input=input_path.as_posix(), database=database_path, configurations=tuple(configurations), platform=platform,
     share=bool(share), offline=offline or not share, uploads_files=uploads_files, in_storage=in_storage,
     output_dir=run_dir, new_attempt=new_attempt, custom_output=output_dir is not None, resume=resume,
-    summaries=MappingProxyType(summaries), server=server_url, server_source=server_source, notes=tuple(setup.notes), setup=setup,
+    summaries=MappingProxyType(summaries), server=server_url, server_source=server_source, notes=tuple(setup.notes), local_because=local_because, setup=setup,
   )
+
+
+DOCS = 'https://samsung.github.io/qaboard/docs/log-from-code'
+_explained = False
+
+
+def defaults_chosen(plan: RunPlan) -> List[str]:
+  """
+  What QA-Board decided for the run that its code didn't say, in words people act on: where the project, the commit
+  and the batch come from, why the run stays on this machine, what the web app shows without a qaboard.yaml.
+  """
+  setup = plan.setup
+  assert setup is not None
+  lines = []
+  if not setup.has_qaboard_yaml and setup.project_source != 'project=':
+    lines.append(f"project {plan.project!r}, from {setup.project_source}: pass project= to choose another")
+  if not re.fullmatch(r'[0-9a-f]{40}', plan.commit):
+    lines.append(f"not in a git repository: the run is attached to {plan.commit!r}, a placeholder commit of your own, compared with no other commit. Pass commit= to attach it to one.")
+  if plan.share and plan.batch != plan.raw_batch:
+    lines.append(f"outside the CI, your runs go to your own batch, {plan.batch!r}, so that they don't mix with the CI's")
+  if plan.local_because == 'no_server':
+    lines.append("not shown in the web app: no QA-Board server is set. Set QABOARD_URL, or sign in with `qa auth login --server <url>`; share=False keeps runs here without this message.")
+  elif plan.local_because == 'no_storage':
+    lines.append("not shown in the web app: QA-Board's settings here name a storage this machine doesn't have. Set QA_STORAGE=upload to send the files to the server.")
+  if not setup.has_qaboard_yaml and plan.share:
+    lines.append("without a qaboard.yaml, the web app shows the run's logged series, metrics, logs and files, compared with your repository's default branch. "
+                 "Visualizations of other files, milestones and the quality gate need a qaboard.yaml in the project.")
+  return lines
+
+
+def _explain_defaults(plan: RunPlan) -> None:
+  """Says what defaults_chosen() says, once per process: a notebook that starts 50 runs isn't told 50 times"""
+  global _explained
+  if _explained or os.environ.get('QA_QUIET', '').lower() in OFFLINE_VALUES:
+    return
+  lines = defaults_chosen(plan)
+  if not lines:
+    return
+  _explained = True
+  _say(f"what QA-Board chose for you (said once; QA_QUIET=1 hides it, details: {DOCS}#defaults):")
+  for line in lines:
+    print(f"  - {line}", file=sys.stderr)
 
 
 def start_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] = None, batch: Optional[str] = None,
@@ -504,6 +557,7 @@ def start_run(input: Optional[str] = None, *, configs: Optional[Sequence[Any]] =
                   _upload_without_storage=_upload_without_storage)
   for note in plan.notes:
     _say(note)
+  _explain_defaults(plan)
   run_dir = plan.output_dir
   # Starting the same run again while it goes on, e.g. a notebook's cell run twice: the first ends here. Else both
   # would write in the same folder, or the new attempt would remove the files of a run that still logs
@@ -1056,7 +1110,7 @@ class ActiveRun:
     }, is_ci=setup.is_ci, run_context=setup.run_context, commit_id=self.commit, commit=_jsonable(setup.commit_data),
        # without a qaboard.yaml we send no configuration: the project keeps the one it has
        config=setup.config if setup.has_qaboard_yaml else None, metrics_file=_jsonable(setup.metrics_file),
-       uploads_files=self._uploads_files)
+       uploads_files=self._uploads_files, default_branch=setup.default_branch)
     if setup.artifacts_commit is not None:
       payload['artifacts_commit'] = serialize_path(setup.artifacts_commit)
     if definitions:

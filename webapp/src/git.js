@@ -115,7 +115,8 @@ const link = (kind, project_data, ...args) => {
   const patterns = url_patterns[host_type(project_data)] ?? url_patterns.generic;
   return `${repo_url(project_data)}/${patterns[kind](...args.map(encode_path))}`.replace(/\/+$/, '');
 }
-const commit_url = (project_data, sha) => link('commit', project_data, sha);
+// none for the placeholder commit of runs outside git, "<local:user>": the git server doesn't have it
+const commit_url = (project_data, sha) => typeof sha === 'string' && sha.startsWith('<') ? undefined : link('commit', project_data, sha);
 // A folder at a branch or commit, e.g. a subproject
 const tree_url = (project_data, ref, path = '') => link('tree', project_data, ref, path);
 const blob_url = (project_data, ref, path) => link('blob', project_data, ref, path);

@@ -189,14 +189,14 @@ and runs its image pipeline on test charts and photos.
    downloads its photos and generates its charts.
 
    ```bash
-   qa --share batch ci
+   qa batch ci
    ```
 
 5. **Open the link** that `qa` prints after `Results:`. It's the commit page of the `kitefin/camera-isp` project, with
    your 18 runs: their metrics, then their output images, which you can zoom into, all in sync. Your commit joins
    the demo commits of the project.
 
-Without `--share`, `qa` saves the results in `output/` and doesn't tell the server.
+With `--offline`, `qa` saves the results in `output/` and doesn't tell the server.
 
 :::tip Clean up
 Docker Compose: `docker compose down --volumes`, in the folder of `compose.yml`, deletes QA-Board and its data.

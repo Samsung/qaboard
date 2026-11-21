@@ -75,8 +75,11 @@ const groupByObject = (array, prop) => {
   }, {});
 };
 
+// Runs outside a git repository are attached to a commit of their own, "<local:user>" (qaboard/config.py)
+export const is_placeholder_commit = id => typeof id === 'string' && id.startsWith('<');
+
 const shortId = (project, id) => {
-  return id.substring(0, 8);
+  return is_placeholder_commit(id) ? id : id.substring(0, 8);
 };
 
 const pretty_label = batch => {

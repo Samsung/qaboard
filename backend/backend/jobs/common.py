@@ -10,6 +10,7 @@ from typing import List
 
 from ..database import db_session
 from ..models import Project, CiCommit
+from ..reference_branch import reference_branch_of
 from . import params as p
 
 
@@ -118,7 +119,7 @@ class Protection:
     if not isinstance(project_config, dict):
       project_config = {}
     milestones = project_config.get('milestones') or []
-    self.reference = project_config.get('reference_branch') or 'master'
+    self.reference = reference_branch_of(project.data)
     self.protected_refs = [self.reference, *([milestones] if isinstance(milestones, str) else milestones)]
     repo = project.repo if milestones else None
     if milestones and not repo:

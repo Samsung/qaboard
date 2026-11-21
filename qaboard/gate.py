@@ -1548,7 +1548,8 @@ def gate(ctx, reference, labels, batches, commit, output_format, as_json, wait, 
   if reference:
     gate_config.reference = reference
   if not gate_config.reference:
-    gate_config.reference = 'master'
+    from .config import reference_branch
+    gate_config.reference = reference_branch()
   if labels:
     gate_config.labels = list(dict.fromkeys(labels))
 

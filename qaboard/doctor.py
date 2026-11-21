@@ -871,7 +871,7 @@ class Report():
       for line in check.fix.splitlines():
         self.echo(f"      {line}")
 
-  def summary(self, next_step: str = "qa --share batch <batch>") -> int:
+  def summary(self, next_step: str = "qa batch <batch>") -> int:
     """Prints how it went, and the command to run next if nothing must be fixed. Returns the exit code: 1 if a check failed."""
     errors = [c for c in self.checks if c.status == ERROR]
     warnings = [c for c in self.checks if c.status == WARNING]
@@ -1023,7 +1023,7 @@ def run_doctor(obj: Dict[str, Any], runner: str, test_job: bool = False, echo=cl
     echo('')
     echo(click.style(f"To check that a job really runs (where, as who, what it can access): qa doctor --test-job{runner_option}", dim=True))
   names = batch_names(list(qaboard_config.default_batches_files), root) if state['has_project'] else []
-  return report.summary(f"qa{'' if offline else ' --share'} batch{runner_option} {names[0] if names else '<batch>'}")
+  return report.summary(f"qa{' --offline' if offline else ''} batch{runner_option} {names[0] if names else '<batch>'}")
 
 
 def batch_names(batches_files: List[Any], root: Path) -> List[str]:

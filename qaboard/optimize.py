@@ -280,8 +280,7 @@ def init_optimization(optim_config_file, checkpoint, ctx, parallel_param_samplin
     command = ' '.join([
       'qa',
       f"--label '{batch_label}'",
-      f'--share' if ctx.obj["share"] else '',
-      f'--offline' if ctx.obj['offline'] else '',
+      '--offline' if ctx.obj['offline'] or not ctx.obj['share'] else '',
       f'--platform "{ctx.obj["platform"]}"' if ctx.obj['platform'] != default_platform else '',
       f"--configuration '{ctx.obj['configuration']}'" if ctx.params.get('configurations') else '',
       f"--tuning '{json.dumps(params, sort_keys=True, cls=makeNumpyEncoder())}'",

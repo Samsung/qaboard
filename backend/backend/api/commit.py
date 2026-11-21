@@ -12,6 +12,7 @@ from ..access import invalid_project
 from .auth import is_authorized_user, login_required, require_project_access, ingest_access, forbidden_project
 from ..actor import batch_token_limits, is_batch_request
 from ..models import Project, CiCommit, latest_successful_commit, Batch
+from ..reference_branch import reference_branch_of
 from ..storage import UnsafePathError
 from .. import recreate_artifacts
 from ..artifacts import UPLOADED_ARTIFACTS
@@ -101,13 +102,19 @@ def api_ci_commit(commit_id=None):
 
   if not commit_id:
     commit_id = request.args.get('commit', None)
+    project_data = None
     try:
       project = Project.query.filter(Project.id==project_id).one()
-      default_branch = project.data['qatools_config']['project']['reference_branch']
+      project_data = project.data
+      default_branch = reference_branch_of(project.data)
     except:
       default_branch = None
     branch = request.args.get('branch', default_branch)
     ci_commit = latest_successful_commit(db_session, project_id=project_id, branch=branch, batch_label=request.args.get('batch'))
+    # Projects without a qaboard.yaml may have runs only outside git, or on other branches (qaboard.start_run() in a
+    # notebook): their latest commit with results, on any branch, rather than nothing
+    if not ci_commit and 'branch' not in request.args and isinstance(project_data, dict) and not project_data.get('qatools_config'):
+      ci_commit = latest_successful_commit(db_session, project_id=project_id, branch=None, batch_label=request.args.get('batch'))
     if not ci_commit:
       return jsonify({'error': f'No commit with results yet for {project_id} on {branch}.'}), 404
   else:

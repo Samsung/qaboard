@@ -170,11 +170,11 @@ better:
   `tensorboard` for neural networks, one-off scripts...), keep using them. It's still worth having them call your
   code through `qa`, so that runs behave the same everywhere: see [debugging with IDEs](/docs/debugging-runs-with-an-IDE).
 - **Your local code, results in QA-Board**: tweak, compile and run your code, then compare the results across runs
-  in the web app. Runs started with `--share` appear in a batch named after you, with a warning that they may not
+  in the web app. Runs started from a computer appear in a batch named after you, with a warning that they may not
   match the committed code:
   ```bash
-  qa --share run --input slices/small-objects
-  qa --share --label testing-some-logic-tweaks batch quant-search
+  qa run --input slices/small-objects
+  qa --label testing-some-logic-tweaks batch quant-search
   ```
 - **Commit, CI, QA-Board**: to change configuration files that live in your repository, commit and push the changes,
   and look at the results of the CI runs.

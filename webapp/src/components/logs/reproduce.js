@@ -29,7 +29,7 @@ export const snapshotFileName = label => {
   return name ? `batches.${name}.yaml` : 'batches.yaml'
 }
 
-// `--share` batches are labeled "@alice| label": the label people chose
+// batches started from a computer are labeled "@alice| label": the label people chose
 export const rawLabel = label => String(label ?? '').replace(/^@[^|]*\|\s*/, '')
 
 
@@ -92,7 +92,7 @@ export function terminalCommands(spec, { file, commit_id, label }) {
   } else if (spec.argv) {
     local = shellJoin(spec.snapshot.reproduce.map(arg => arg === 'batches.yaml' ? file : arg))
   } else if (names.length) {
-    local = shellJoin(['qa', '--share', '--label', label, ...platform, 'batch', '--batches-file', file, ...names, ...tuning])
+    local = shellJoin(['qa', '--label', label, ...platform, 'batch', '--batches-file', file, ...names, ...tuning])
   }
   const server = names.length && commit_id && spec.search_type !== 'optimize'
     ? shellJoin(['qa', '--label', label, ...platform, 'batch', '--commit', String(commit_id).slice(0, 10), '--batches-file', file, ...names, ...tuning])

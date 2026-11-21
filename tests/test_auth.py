@@ -193,6 +193,11 @@ class TestStorage(AuthTestCase):
       self.assertEqual(default_server(), ('https://qa-srv:5151', '$QABOARD_HOST'))
     del os.environ['QABOARD_URL']
     self.assertEqual(default_server(), ('http://localhost:5151', None))
+    # without a setting, the only server you signed in to
+    self.save({'user': 'alice', 'token': 'saved'}, url='https://qa.example')
+    self.assertEqual(default_server(), ('https://qa.example', 'your only sign-in (qa auth login)'))
+    self.auth.save_login('https://other.example', user='bob', token='qab_pat_other')
+    self.assertEqual(default_server(), ('http://localhost:5151', None))
 
   def test_headers_for_another_server(self):
     from qaboard.api import headers_for

@@ -630,6 +630,12 @@ const OutputCard = memo(function OutputCard(props) {
       />
       {/* one visualization under the other, with room between them */}
       <div className="output-card-views">{views.map(render_view)}</div>
+      {/* the run's files are loaded, and there is nothing to show: say where its results are rather than an empty card */}
+      {views.length === 0 && query_new.isSuccess && !output_new.is_pending && !output_new.is_failed && <p className={Classes.TEXT_MUTED} style={{ margin: '8px 0 0' }}>
+        Nothing to show here: the project declares no visualizations, and this run logged no series.
+        {' '}<Button size="small" variant="minimal" icon="folder-open" text="Its files" onClick={() => updateSelected({ selected_views: 'bit-accuracy' })}/>
+        <Button size="small" variant="minimal" icon="console" text="Its logs" onClick={() => updateSelected({ selected_views: 'logs' })}/>
+      </p>}
     </>
   }
 
