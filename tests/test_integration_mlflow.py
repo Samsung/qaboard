@@ -369,32 +369,26 @@ class TestMirror(MlflowTestCase):
 
 
 @unittest.skipIf(mlflow is None, "needs MLflow: uv sync --extra mlflow")
-class TestInProcess(unittest.TestCase):
-  """MlflowClient in this process, without the fluent API"""
+class TestClient(MlflowTestCase):
   def test_client(self):
-    from qaboard.integrations.mlflow.recorder import recorder
-    tmp = tempfile.TemporaryDirectory()
-    self.addCleanup(tmp.cleanup)
-    project = Path(tmp.name).resolve()
-    previous = os.getcwd()
-    os.chdir(project)
-    self.addCleanup(os.chdir, previous)
-    environ = dict(os.environ)
-    self.addCleanup(lambda: (os.environ.clear(), os.environ.update(environ)))
-    # (qaboard.config read the project when it was imported: the project comes from the environment here)
-    os.environ.update({'QA_PROJECT': 'kitefin/detector', 'QA_OFFLINE': '1', 'QA_QUIET': '1', 'QA_NO_STREAM_REDIRECT': '1', 'QABOARD_IGNORE_SITE': '1'})
-    client = mlflow.MlflowClient(tracking_uri='qaboard:')
-    experiment_id = client.create_experiment('in-process')
-    run = client.create_run(experiment_id, run_name='client')
-    client.log_batch(run.info.run_id, params=[mlflow.entities.Param('depth', '4')])
-    client.log_metric(run.info.run_id, 'loss', 0.25, step=3)
-    client.set_terminated(run.info.run_id)
-    qb = recorder.get(run.info.run_id).qb
-    self.assertEqual((qb.batch, qb.input, qb.configs, qb.state), ('in-process', 'client', ({'depth': 4},), 'finished'))
-    self.assertEqual(qb.metrics['loss'], 0.25)
-    self.assertEqual(client.get_run(run.info.run_id).info.status, 'FINISHED')
-    self.assertTrue(Path(qb.output_dir).is_relative_to(project))
-
+    """MlflowClient, without the fluent API. In its own process, like the other tests: qaboard.config reads the
+    project and where its runs go when it is first imported, which another test of this process may have done."""
+    _, runs = self.python("""
+      import mlflow
+      client = mlflow.MlflowClient(tracking_uri='qaboard:')
+      experiment_id = client.create_experiment('in-process')
+      run = client.create_run(experiment_id, run_name='client')
+      client.log_batch(run.info.run_id, params=[mlflow.entities.Param('depth', '4')])
+      client.log_metric(run.info.run_id, 'loss', 0.25, step=3)
+      client.set_terminated(run.info.run_id)
+      assert client.get_run(run.info.run_id).info.status == 'FINISHED'
+    """)
+    run_dir = self.only(runs)
+    self.assertTrue(run_dir.is_relative_to(self.project), run_dir)
+    run = self.run_json(run_dir)
+    self.assertEqual((run['batch'], run['input_path'], run['configurations']), ('in-process', 'client', [{'depth': 4}]), run)
+    self.assertEqual(self.metrics(run_dir)['loss'], 0.25)
+    self.assertEqual(self.series(run_dir, 'loss'), [(3, 0.25)])
 
 if __name__ == '__main__':
   unittest.main()
