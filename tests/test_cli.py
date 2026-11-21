@@ -271,7 +271,8 @@ class TestQaCli(unittest.TestCase):
         try:
           log = output_dir / 'log.txt'
           deadline = time.time() + 30
-          while not (log.exists() and 'sleep 30' in log.read_text()) and time.time() < deadline:
+          # what run() prints first: the header, with the command, comes before qa catches interrupts
+          while not (log.exists() and 'Edit qa/main.py' in log.read_text()) and time.time() < deadline:
             time.sleep(0.1)
           process.send_signal(signo)
           output, _ = process.communicate(timeout=20)
