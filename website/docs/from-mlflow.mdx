@@ -1,0 +1,170 @@
+---
+id: from-mlflow
+title: Log with your MLflow code
+sidebar_label: Log with your MLflow code
+description: "Send what your MLflow code logs (parameters, metrics, tags, artifacts, autolog) to QA-Board by setting MLFLOW_TRACKING_URI, without changing the code, or keep your MLflow server and copy everything to QA-Board."
+---
+
+Code that already logs with MLflow (`mlflow.start_run()`, `log_param`, `log_metric`, `log_artifact`, `autolog()`)
+logs to QA-Board when you set one environment variable. Each MLflow run becomes a QA-Board run, compared with the
+reference's like the runs of [`qaboard.start_run()`](/docs/log-from-code): its curves, its metrics, its files.
+
+:::caution Experimental
+The MLflow plugin is new: what it maps may change. Tell us what your MLflow code needs.
+:::
+
+## Send your MLflow runs to QA-Board {#quick-start}
+1. Install QA-Board's package with its MLflow plugin where your code runs, and connect it to your server
+   ([Install qa](/docs/installation#install)):
+
+   ```bash
+   pip install "qaboard[mlflow]"
+   export QABOARD_URL=http://<your-qaboard>
+   ```
+
+2. Run your code with QA-Board as MLflow's tracking URI, from your project (a folder with a *qaboard.yaml*, or
+   with `QA_PROJECT=group/repo` without one):
+
+   ```bash
+   MLFLOW_TRACKING_URI=qaboard: python train.py
+   ```
+
+```python title="train.py, unchanged"
+import mlflow
+
+mlflow.set_experiment("lr-sweep")
+with mlflow.start_run(run_name="coco-mini"):
+    mlflow.log_params({"lr": 1e-3, "model": "resnet50"})
+    for step, batch in enumerate(loader):
+        mlflow.log_metric("train/loss", train_step(batch), step=step)
+    mlflow.log_metric("mAP", evaluate(model))
+    mlflow.log_artifact("predictions.json")
+```
+
+The run shows in the web app in the batch `lr-sweep`: `train/loss` is plotted as it is logged, next to the
+reference run's curve, `mAP` is a metric, *predictions.json* is in its files. It prints where its files are and its
+address in the web app, like `start_run()`. Without a server, the run stays in the project's *output/* folder
+([where the files go](/docs/log-from-code#files)).
+
+`mlflow.get_run()`, `search_runs()`, metric histories and the artifacts of the runs work as usual in the process
+that logs them: MLflow's runs and experiments live in its memory. Other processes and people see the runs in
+QA-Board's web app.
+
+## Keep your MLflow server too {#mirror}
+Put `qaboard+` in front of your MLflow tracking URI: MLflow logs everything there as usual, and QA-Board gets a copy.
+
+```bash
+MLFLOW_TRACKING_URI=qaboard+http://mlflow.example:5000 python train.py
+MLFLOW_TRACKING_URI=qaboard+sqlite:///mlflow.db python train.py
+MLFLOW_TRACKING_URI=qaboard+file:///home/me/mlruns python train.py
+```
+
+- MLflow's store stays the source of truth: run ids, `get_run()`, `search_runs()`, artifacts, the model registry and
+  traces all work like without QA-Board, from any process.
+- The artifacts go to MLflow's artifact store, and are copied to the QA-Board run when the process that logs them
+  logs the run.
+- If QA-Board can't take something, MLflow still gets it: QA-Board says what it missed once, and your code goes on.
+- The QA-Board run links to the MLflow run (parameter `mlflow/url`, for HTTP servers).
+
+Mirror mode works with MLflow's tracking servers (`http`, `https`), folders (`file`) and databases (`sqlite`,
+`postgresql`, `mysql`, `mssql`). Databricks isn't supported yet.
+
+<details>
+<summary>Limits of mirror mode</summary>
+
+- MLflow sees `qaboard+...` as its tracking URI. Code that reads it, e.g. `mlflow.get_tracking_uri()` to build links,
+  gets that, and an `mlflow-artifacts:/` URI given by hand to `mlflow.artifacts.download_artifacts()` doesn't resolve:
+  pass a run id or a `runs:/` URI instead.
+- The runs' artifact URIs read `qaboard-artifacts:/<run id>`: MLflow reads and writes the real ones through them.
+  Code that writes directly in the folder of `mlflow.get_artifact_uri()` must use `mlflow.log_artifact()` instead.
+
+</details>
+
+## How MLflow runs become QA-Board runs {#identity}
+QA-Board identifies a run by its project, commit, batch, input and configurations, and compares the runs with the same
+input and configurations from a commit to the next ([what makes a run](/docs/log-from-code#identity)):
+
+| MLflow | QA-Board |
+|---|---|
+| Experiment | The batch. The `Default` experiment is the default batch. Outside the CI, your runs go to your own batch, like with `start_run()` |
+| Run name, when your code gives one | The input, e.g. `coco-mini`. MLflow's random names (`bold-fox-123`) change at each run: without a name, the run is named after the script, like `train` |
+| Parameters logged before the run's first metric or artifact | The configurations: they identify the run. Numbers and booleans become numbers and booleans again |
+| Parameters logged later | Parameters, shown with the configuration, which don't identify the run. QA-Board says so once |
+| Tag `mlflow.source.git.commit` | The commit, when it isn't the current one |
+| Tags | Parameters, under `tags/`: `tags/team` |
+| `mlflow.note.content`, the user, the source file, the parent run, the run id | Parameters: `mlflow/note`, `mlflow/user`, `mlflow/source`, `mlflow/parent_run_id`, `mlflow/run_id` |
+| `log_metric(key, value, step)` | A point of the series `key`, at `step`. The series' last value is a metric of the run, like MLflow's latest value |
+| A metric logged several times without a step | A series, at steps 0, 1, 2...: MLflow gives them all step 0 |
+| `end_run()`, leaving the `with` block | The run ends: finished, or failed for `FAILED` and `KILLED` and when an exception ends the block |
+| Artifacts | Files of the run, in its folder: `log_artifact("a.png", "plots")` is *plots/a.png* |
+
+The QA-Board run starts at the MLflow run's first metric or artifact (or its end), so that the parameters logged
+first are its configurations. Code that logs everything with autolog does that already.
+
+<details>
+<summary>Choose which parameters identify runs</summary>
+
+Parameters that change at each run, like a temporary folder or a timestamp, make every run a new test, compared with
+no other. Leave them out of the configurations with `QABOARD_MLFLOW_CONFIGS`, patterns separated by commas, `!` to
+leave out:
+
+```bash
+QABOARD_MLFLOW_CONFIGS='*,!data_dir,!output_*'   # all parameters but these identify runs
+QABOARD_MLFLOW_CONFIGS='lr,model,batch_size'     # only these
+QABOARD_MLFLOW_CONFIGS=none                      # none: runs are told apart by their name only
+```
+
+The other parameters are still saved, as parameters.
+
+</details>
+
+<details>
+<summary>Nested runs, distributed trainings, async logging</summary>
+
+- **Nested runs** (`start_run(nested=True)`, a sweep's trials) are runs of their own in the batch, with their parent
+  in the parameter `mlflow/parent_run_id`. Children that would have the same identity are named after MLflow's
+  name of them, e.g. `train/bold-fox-123`.
+- **Distributed trainings**: when `RANK` (else `LOCAL_RANK`) says the process isn't rank 0, it makes no QA-Board run:
+  rank 0 does.
+- **`synchronous=False`**: works. QA-Board logs at once, in memory and files, which doesn't wait for the network.
+- **Starting the same run again** with `mlflow.start_run(run_id=...)` in the same process goes on in the same
+  QA-Board run. Runs of other processes can't be resumed without mirror mode.
+- **System metrics**: QA-Board measures memory, CPU and GPUs itself ([system metrics](/docs/system-metrics)); MLflow's
+  `log_system_metrics=True` adds its own series too.
+
+</details>
+
+## What works {#compatibility}
+When your code calls what QA-Board doesn't keep, your code goes on: QA-Board says what it skipped the first time,
+and lists everything it skipped when the run ends, in the same words as this table.
+
+| MLflow | With `qaboard:` | Mirror mode |
+|---|---|---|
+| `start_run`, `end_run`, `set_experiment`, `create_experiment`, `get_experiment_by_name`, `active_run`, `last_active_run` | Supported | Supported |
+| `log_param(s)`, `log_metric(s)`, `set_tag(s)`, `log_batch`, `synchronous=False` | Supported. Parameters logged after the first metric or artifact are parameters, not configurations: *mlflow.log_param after the run's first metric, file or end* | Supported |
+| `log_artifact(s)`, `log_dict`, `log_text`, `log_figure`, `log_image` | Supported: files of the run, shown by the viewer their type picks. An artifact named like QA-Board's own files (*metrics.json*, *log.txt*...) is saved under *mlflow/* | Supported |
+| `log_image(key=..., step=...)` | Partial: each image is a file under *images/*, without a step slider: *mlflow.log_image(key=..., step=...)* | MLflow has the slider |
+| `log_table` | Partial: the table is a JSON file: *mlflow.log_table* | MLflow shows the table |
+| `autolog()` (scikit-learn, PyTorch Lightning, Keras, XGBoost...) | Supported: parameters, metrics, models as files | Supported |
+| `log_model`, `load_model("runs:/...")`, `load_model("models:/<model id>")` | Supported in the process that logs the model. Its files are under *models/&lt;name&gt;* (MLflow 3) or the artifact path (MLflow 2) | Supported, from any process |
+| `get_run`, `search_runs`, `get_metric_history`, `list_artifacts`, `download_artifacts`, `mlflow.artifacts.load_*` | Partial: the runs of this process only; others raise an error that says so | Supported |
+| `search_experiments`, `search_logged_models` | Partial: this process's | Supported |
+| `delete_tag` | Partial: the tag stays a parameter of the QA-Board run: *MlflowClient.delete_tag* | Supported, and the parameter stays |
+| `delete_run`, `delete_experiment`, `rename_experiment`, `delete_logged_model`, deleting artifacts | Not supported: QA-Board keeps runs, batches and files; delete runs from the web app: *mlflow.delete_run*, *mlflow.delete_experiment*, *MlflowClient.rename_experiment*, *MlflowClient.delete_logged_model*, *deleting artifacts (MlflowClient.delete_artifacts)* | Supported in MLflow; QA-Board keeps its runs |
+| Experiment tags | Not supported: kept in this process only: *experiment tags* | Supported in MLflow |
+| Datasets: `log_input`, autolog's datasets | Not supported: log the dataset's name and digest as parameters, before the first metric, to make them part of the identity: *datasets (mlflow.log_input)* | Kept in MLflow only: *datasets (mlflow.log_input)* |
+| Logged models without a run (`initialize_logged_model`) | Not supported: QA-Board saves a model's files in its run's folder: *logged models without a run (mlflow.initialize_logged_model)* | Kept in MLflow only |
+| Model registry: `register_model`, `log_model(registered_model_name=...)`, `models:/<name>/<version>` | Not supported, it raises an error: *the model registry (mlflow.register_model, models:/&lt;name&gt;/&lt;version&gt; URIs)*. Use mirror mode | Supported in MLflow |
+| Tracing: `mlflow.trace`, `start_span`, GenAI autologging | Not supported, your code goes on: *MLflow Tracing (mlflow.trace, mlflow.start_span, GenAI autologging)* | Supported in MLflow |
+| GenAI evaluation, evaluation datasets, prompts, AI gateway, MCP servers, skills | Not supported: *GenAI evaluation (scorers, labeling, review queues)*, *evaluation datasets (mlflow.genai.datasets)*, *prompts (mlflow.genai prompt registry)*, *MLflow's AI gateway and webhooks*, *MLflow's MCP servers and skills registries* | Supported in MLflow |
+| MLflow Projects (`mlflow run`) | Runs log like any code; to run evaluations at scale, see [coming from other tools](/docs/coming-from-other-tools#mlflow-projects) | Same |
+
+**Python only.** The plugin works in Python code that uses MLflow's Python package: `mlflow`, or `mlflow-skinny`
+(MLflow 2.10 or later). MLflow's clients in other languages (R, Java, JavaScript) and calls to MLflow's REST API
+don't use it: they need an MLflow server, with mirror mode on the Python side, or `qaboard.start_run()`
+([log from your code](/docs/log-from-code)).
+
+<Cards>
+  <Card title="Log from your code" to="/docs/log-from-code">QA-Board's own API: metrics with targets, summaries, resume.</Card>
+  <Card title="Memory, CPU and GPUs" to="/docs/system-metrics">What each run used, measured for you.</Card>
+</Cards>

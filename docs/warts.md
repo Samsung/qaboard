@@ -141,6 +141,32 @@ run-centric page, screenshots for the docs, gaps against experiment trackers): `
 - `Run._new` (qaboard/results.py) was the placeholder for this: `ActiveRun.run` builds its `Run` itself, and only
   tests use `_new`. [S, no change]
 
+## Logging with W&B and MLflow code (`qaboard/integrations/`, November 2026)
+
+`qaboard/integrations/wandb/` (drop-in, `mirror()`, `python -m`), `qaboard/integrations/mlflow/` (tracking store
+plugin, `qaboard:` and `qaboard+<uri>`). What QA-Board lacks as a product is in the compatibility matrices of
+`website/docs/from-wandb.mdx` and `from-mlflow.mdx`, and said at runtime through `_common.Unsupported`: keep the three
+in sync. Limits of the shims themselves:
+
+- Both use private parts of `active_run.py`: `_summaries` (wandb's `define_metric` after the start), `_series.last_step`,
+  `_default_input`, `_metric_value`, `_jsonable`, and install `start_run()`'s exit hooks early (a run first started at
+  exit can't register atexit hooks). Make them public, or a small `ActiveRun.set_summary()`, before a third shim. [S, behaviour]
+- Runs start lazily (at the first metric, log, artifact or end) so that the config or params set after `init` are
+  part of the identity: *log.txt* misses what was printed before. [S, behaviour]
+- MLflow: all params logged before the first metric become configurations (`QABOARD_MLFLOW_CONFIGS` narrows them):
+  autolog's dozens of params make long configurations. Params are parsed back to numbers. [S, behaviour]
+- MLflow standalone: reading runs or artifacts of other processes raises; `synchronous=False` is logged synchronously.
+  Mirror: `get_tracking_uri()` and artifact URIs show the `qaboard+`/`qaboard-artifacts:` forms; a hand-written
+  `mlflow-artifacts:/` URI doesn't resolve; no Databricks. The HTTP mirror and `MirrorRegistry` were checked by hand
+  against an MLflow 3.18 server only (tests use a `file:` store). [M, behaviour]
+- Only Python clients: MLflow's R/Java/REST clients would need the server to accept MLflow's REST API
+  (`docs/rfcs/python-sdk-runs-follow-ups.md` D). [L, decide]
+- wandb: when wandb isn't installed, the runner puts the shim in `sys.modules['wandb']`: libraries that probe for
+  wandb (Transformers' `report_to`) may think it's installed and reach submodules the shim lacks (warned no-ops).
+  `WANDB_MODE=offline` keeps the QA-Board run local too. A bare `sys.exit(3)` after `mirror()` or the drop-in import
+  ends the run as finished (with `python -m` or a `with` block it is failed). Checked by hand against wandb 0.31.2;
+  tests use a fake wandb. [S, behaviour]
+
 ## Results sent over HTTP (`storage: upload`, `qa upload`, November 2026)
 Design: `docs/design/ingest-upload-sdk.md`. Tested with unit tests and a fake server (`tests/test_upload*.py`,
 `tests/test_active_run.py`, `backend/tests/test_uploads.py`), and end to end in CI's `docker` job
