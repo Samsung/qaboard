@@ -9,6 +9,9 @@ Create a run from code that is already running, a training loop, a notebook, an 
 as you go. The run shows in the web app like the runs of `qa run`: compared with the reference, with its metrics, its
 files, and the curves of what it logged at each step, while it runs.
 
+Your code already logs with W&B or MLflow? Keep it: see [log with your W&B code](/docs/from-wandb) and
+[log with your MLflow code](/docs/from-mlflow).
+
 Use `qa run` when QA-Board starts your code on each input of a batch ([Running your code](/docs/running-your-code)).
 Use `start_run()` when your code starts by itself and results appear while it runs. When the results are already
 files, like a test report, [`qa upload`](/docs/upload-results) saves them as a run from the shell.
@@ -234,8 +237,9 @@ run.finish()          # or run.fail("the loss diverged")
 ## What it doesn't do yet {#limits}
 - **Compare runs across batches or commits on one plot.** The **Summary** view plots the runs of one batch
   together, up to 40, and each with its reference run.
-- **Images per step, system metrics (GPU, memory), alerts, a model registry.** Save images as files of the run;
-  link to your registry with [badges](/docs/deep-learning#workflows).
+- **Images per step, alerts, a model registry.** Save images as files of the run; link to your registry with
+  [badges](/docs/deep-learning#workflows). What runs use of their machine is measured for you
+  ([memory, CPU and GPUs](/docs/system-metrics)).
 - **Sweeps.** Loop over configurations in your script, or use [automated tuning](/docs/auto-optimization) with
   `qa run`.
 - **Sending a run later** when the server was away for the whole run: its files are complete, but only a run that
