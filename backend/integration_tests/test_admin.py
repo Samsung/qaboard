@@ -540,7 +540,7 @@ def test_settings_list(admin):
     'auth.login_hint', 'git.hosts', 'git.webhook_secret', 'git.gitlab_web_logins', 'jenkins.servers', 'jenkins.build_token',
     'email.smtp_host', 'email.smtp_security', 'email.smtp_port', 'email.smtp_user', 'email.smtp_password', 'email.smtp_timeout',
     'email.from', 'email.reply_to', 'email.domain', 'email.timezone', 'web.support_url', 'web.docs_root', 'web.avatar_url',
-    'web.cli_requirements', 'web.webcde_installer', 'web.proxy_hosts', 'analytics.posthog_api_key', 'analytics.posthog_host',
+    'web.cli_requirements', 'web.webcde_installer', 'web.proxy_hosts', 'web.maintainers_contact', 'analytics.posthog_api_key', 'analytics.posthog_host',
     'storage.image_cache_gb', 'metrics.skip_aggregation',
   }
   groups = {g["id"] for g in admin.get('/api/v1/admin/settings').get_json()["groups"]}
@@ -760,6 +760,15 @@ def test_usage_events_and_dashboard(people, make_client, logged_in):
   overview = admin.get('/api/v1/admin/overview').get_json()
   assert {item["id"] for item in overview["value_checklist"]} >= {"email_notifications", "single_sign_on", "sentry"}
   assert overview["counts"]["active_30d"] == 3
+  # the overview offers to write to the maintainers, with a message about the server, not its people
+  maintainers = overview["maintainers"]
+  assert maintainers["email"] and maintainers["status"] is None and "alice" not in maintainers["body"]
+  assert "Sign-in: local" in maintainers["body"]
+  assert not next(item for item in overview["value_checklist"] if item["id"] == "maintainers")["ok"]
+  assert admin.post('/api/v1/admin/settings', json={'web.maintainers_contact': 'sent'}).status_code == 200
+  overview = admin.get('/api/v1/admin/overview').get_json()
+  assert overview["maintainers"]["status"] == "sent"
+  assert next(item for item in overview["value_checklist"] if item["id"] == "maintainers")["ok"]
   # the usage-based items come apart: the overview doesn't wait for them
   usage_items = admin.get('/api/v1/admin/overview/usage').get_json()["items"]
   assert {item["id"] for item in usage_items} == {"ci_only_projects", "web_only_users", "tuning_products"}

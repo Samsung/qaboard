@@ -94,7 +94,9 @@ def admin_overview():
     "disabled": User.query.filter(User.status == 'disabled').count(),
     "active_tokens": sum(active_token_counts([u for (u,) in db_session.query(User.id).all()]).values()),
   }
-  return jsonify({"counts": counts, "checklist": checklist(), "value_checklist": value_checklist()})
+  from ..maintainers import contact
+  return jsonify({"counts": counts, "checklist": checklist(), "value_checklist": value_checklist(),
+                  "maintainers": contact(g.actor.user)})
 
 
 def checklist() -> list:
@@ -289,6 +291,13 @@ def value_checklist() -> list:
   item('project_owners', owners > 0 or projects == 0,
        "Projects have owners" if owners > 0 else ("No projects yet" if projects == 0 else "No project has an owner"),
        "Make the people in charge of each project its owners (Project > Access): they can then add their team, restrict who sees it, and get the access requests.")
+
+  contacted = settings_lib.setting('web.maintainers_contact')
+  item('maintainers', bool(contacted),
+       {'sent': "You wrote to QA-Board's maintainers", 'dismissed': "You chose not to write to QA-Board's maintainers"}.get(contacted)
+       or "Tell QA-Board's maintainers about your team",
+       "They'd love to help you make QA-Board work for your teams, and can tell you about security fixes and new releases: write to them from the card below.",
+       ok_detail="Write to them anytime from the card below.")
 
   return items
 
