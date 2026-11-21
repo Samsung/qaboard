@@ -19,8 +19,7 @@ from .. import tokens as tokens_lib
 from .. import usage as usage_lib
 from ..hybrid_cache import hybrid_cache
 from .auth import admin_required, is_login_restricted
-from .users import page_of_events
-from ..search import escape_like
+from . import audit_log
 from ..sign_in.profiles import avatar_url, public as public_profile
 
 
@@ -557,27 +556,18 @@ def admin_revoke_token(token_id):
 @app.route('/api/v1/admin/audit/', methods=['GET'])
 @admin_required
 def admin_audit():
+  """Every event, newest first. Filters: action, category, actor, target_type, target_id, project, since, until. ?format=csv|jsonl exports"""
   query = AuditEvent.query
-  if request.args.get('action'):
-    action = request.args['action']
-    # "token" matches every token.* action
-    query = query.filter(or_(AuditEvent.action == action, AuditEvent.action.like(f"{escape_like(action)}.%", escape='\\')))
-  if request.args.get('actor'):
-    query = query.filter(AuditEvent.actor_label == request.args['actor'])
-  if request.args.get('target_type'):
-    query = query.filter(AuditEvent.target_type == request.args['target_type'])
-  if request.args.get('target_id'):
-    query = query.filter(AuditEvent.target_id == request.args['target_id'])
   if request.args.get('project'):
     query = query.filter(AuditEvent.project_id == request.args['project'])
-  answer, error = page_of_events(query, default_limit=100)
-  return error or jsonify(answer)
+  return audit_log.answer(query, "qaboard-audit", default_limit=100)
 
 
 @app.route('/api/v1/admin/audit/actions', methods=['GET'])
 @app.route('/api/v1/admin/audit/actions/', methods=['GET'])
 @admin_required
 def admin_audit_actions():
+  """The actions in the log, to filter by"""
   actions = [a for (a,) in db_session.query(AuditEvent.action).distinct().order_by(AuditEvent.action).all()]
   return jsonify({"actions": actions})
 

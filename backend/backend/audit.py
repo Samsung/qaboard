@@ -1,11 +1,27 @@
 """
-The audit log of security events: who did what to whom, when, from where.
+The audit log: who did what to whom, when, from where. The actions are listed in backend/audit_actions.py.
 Events are added to the current database session: they're saved with the change they describe, by the caller's commit.
+With QABOARD_AUDIT_STDOUT=1, committed events are also printed as JSON lines, for log collectors and SIEMs.
 """
 import os
+import sys
+import json
+import logging
 from typing import Optional
 
 from flask import request, g, has_request_context
+
+from .audit_actions import ACTIONS
+from .settings import env_flag
+
+
+logger = logging.getLogger(__name__)
+
+# Tests set it: an action missing from audit_actions.ACTIONS is an error. Else we record it and warn once.
+strict = env_flag(os.environ.get('QABOARD_AUDIT_STRICT', ''))
+# Prints committed events on stdout, one JSON object per line prefixed with "qaboard-audit "
+to_stdout = env_flag(os.environ.get('QABOARD_AUDIT_STDOUT', ''))
+_warned = set()
 
 
 # How many proxies in front of QA-Board's nginx add the client to X-Forwarded-For, e.g. 1 behind a Kubernetes ingress.
@@ -48,6 +64,12 @@ def audit(action: str, target_type: Optional[str] = None, target_id=None, target
   """
   from backend import db_session
   from .models import AuditEvent
+  if action not in ACTIONS:
+    if strict:
+      raise ValueError(f"Unknown audit action {action!r}: add it to backend/audit_actions.py")
+    if action not in _warned:
+      _warned.add(action)
+      logger.warning(f"[audit] unknown action {action!r}: add it to backend/audit_actions.py")
   if actor is None and has_request_context():
     actor = g.get('actor')
   kind, user_id, token_id, label = 'anonymous', None, None, None
@@ -78,6 +100,37 @@ def audit(action: str, target_type: Optional[str] = None, target_id=None, target
   )
   db_session.add(event)
   return event
+
+
+def print_committed(session):
+  """Called after commits (database.py): prints the events the transaction saved, see QABOARD_AUDIT_STDOUT"""
+  events = session.info.pop('audit_flushed', None)
+  for event in events or []:
+    print(f"qaboard-audit {json.dumps(event, default=str, separators=(',', ':'))}", file=sys.stdout, flush=True)
+
+
+def remember_flushed(session, flush_context=None):
+  """Called after flushes: ids and dates are set, and we can't query the database once committed"""
+  from .models import AuditEvent
+  events = [serialize(o) for o in session.new if isinstance(o, AuditEvent)]
+  if events:
+    session.info.setdefault('audit_flushed', []).extend(events)
+
+
+def forget_flushed(session):
+  session.info.pop('audit_flushed', None)
+
+
+def install_stdout():
+  """Prints committed events if QABOARD_AUDIT_STDOUT is set: from every session (requests, jobs, scripts)"""
+  if not to_stdout:
+    return
+  from sqlalchemy import event
+  from sqlalchemy.orm import Session
+  if not event.contains(Session, 'after_commit', print_committed):
+    event.listen(Session, 'after_flush', remember_flushed)
+    event.listen(Session, 'after_commit', print_committed)
+    event.listen(Session, 'after_rollback', forget_flushed)
 
 
 def system_audit(action: str, label='qaboard-admin', **kwargs):

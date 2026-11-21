@@ -9,6 +9,8 @@ def pytest_configure():
     # CI runs the tests in the deployed backend, whose default storage takes uploads (backend/config.py):
     # tests turn them on themselves
     os.environ.setdefault("QABOARD_UPLOAD_ROOT", "off")
+    # audit() refuses actions missing from backend/audit_actions.py
+    os.environ.setdefault("QABOARD_AUDIT_STRICT", "1")
     # Escape mocking by setting this env var
     if os.getenv("BACKEND_TEST_MODE") == "no-mock":
         return

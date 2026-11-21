@@ -54,6 +54,8 @@ else:
     # tests of the jobs worker don't want its default jobs (test_storage_usage.py does)
     'QABOARD_STORAGE_USAGE_AUTO': '0',
     'QABOARD_GROUPS_SYNC_AUTO': '0',
+    # audit() refuses actions missing from backend/audit_actions.py
+    'QABOARD_AUDIT_STRICT': '1',
   })
   for name in ['QABOARD_LOGIN_TYPE', 'QABOARD_LOGIN_REQUIRED', 'QABOARD_DISABLE_SIGNUP', 'QABOARD_INGEST_AUTH',
                'QABOARD_ADMINS', 'QABOARD_ADMIN_USER', 'QABOARD_ADMIN_PASSWORD', 'QABOARD_ADMIN_PASSWORD_FILE', 'QABOARD_SETUP_TOKEN', 'QABOARD_LOGIN_RESTRICTED', 'QABOARD_URL', 'QABOARD_ALLOWED_ORIGINS', 'SENTRY_DSN']:
