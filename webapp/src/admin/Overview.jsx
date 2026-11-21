@@ -1,4 +1,4 @@
-// Admin → Overview: how many users and tokens, and what to fix to make the server safer
+// Admin → Overview: how many users and tokens, what to fix to make the server safer, and who can help
 import { useQuery } from "@tanstack/react-query";
 import { Card, Classes, Colors, Icon, Intent, Spinner, Tag } from "@blueprintjs/core";
 import styled from "styled-components";
@@ -6,6 +6,7 @@ import styled from "styled-components";
 import { Link } from "../router";
 import { AdminError } from "./states";
 import { InstanceRoles } from "./InstanceRoles";
+import { Maintainers } from "./Maintainers";
 import { overviewQuery, overviewUsageQuery } from "./api";
 
 
@@ -134,6 +135,7 @@ export const Overview = () => {
         pending={usage.isPending ? 'Looking at the last 90 days of usage…' : undefined}
       />
       {usage.error && <AdminError error={usage.error} refetch={usage.refetch} what="what the usage says"/>}
+      <Maintainers maintainers={data.maintainers}/>
     </div>}
     <div style={{ marginTop: 28 }}><InstanceRoles/></div>
   </>;

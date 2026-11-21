@@ -139,7 +139,11 @@ def test_first_start_logs_the_token(setup_on, capsys, monkeypatch):
   import backend.first_admin as first_admin
   monkeypatch.setattr(first_admin, '_started', False)
   first_admin.first_start()
-  assert token() in capsys.readouterr().out
+  out = capsys.readouterr().out
+  assert token() in out
+  # new servers hear that the maintainers can help
+  from backend.maintainers import MAINTAINERS_EMAIL
+  assert MAINTAINERS_EMAIL in out
 
 
 # ---------------------------------------------------------------------------

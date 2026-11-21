@@ -122,6 +122,32 @@ describe('AdminPage', () => {
     expect(screen.queryByLabelText('Looking at the last 90 days of usage…')).not.toBeInTheDocument();
   });
 
+  it("offers to write to the maintainers, until admins did or said no thanks", async () => {
+    const maintainers = { email: 'maintainers@example.com', subject: 'Hello from a QA-Board server', body: 'Hi QA-Board maintainers,\n- Sign-in: local & oidc\n', status: null };
+    const fetch = mockApi({
+      'GET /api/v1/admin/overview': { counts: {}, checklist: [], value_checklist: [], maintainers },
+      'POST /api/v1/admin/settings': { settings: [] },
+    });
+    renderPage('/admin', admin);
+    const write = await screen.findByRole('button', { name: 'Tell them about your team' });
+    // the admin's email app opens with the message: QA-Board sends nothing by itself
+    expect(write).toHaveAttribute('href', 'mailto:maintainers@example.com?subject=Hello%20from%20a%20QA-Board%20server&body=Hi%20QA-Board%20maintainers%2C%0A-%20Sign-in%3A%20local%20%26%20oidc%0A');
+    expect(screen.getByRole('link', { name: 'maintainers@example.com' })).toHaveAttribute('href', 'mailto:maintainers@example.com');
+    write.addEventListener('click', event => event.preventDefault());
+    fireEvent.click(write);
+    fireEvent.click(screen.getByRole('button', { name: 'I sent it' }));
+    await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/admin/settings')).toHaveLength(1));
+    expect(JSON.parse(calls(fetch, 'POST', '/api/v1/admin/settings')[0][1].body)).toEqual({ 'web.maintainers_contact': 'sent' });
+  });
+
+  it("still says how to reach the maintainers once admins wrote", async () => {
+    mockApi({ 'GET /api/v1/admin/overview': { counts: {}, checklist: [], value_checklist: [], maintainers: { email: 'maintainers@example.com', subject: 's', body: 'b', status: 'dismissed' } } });
+    renderPage('/admin', admin);
+    expect(await screen.findByRole('link', { name: 'maintainers@example.com' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tell them about your team' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'No thanks' })).not.toBeInTheDocument();
+  });
+
   it('says when the server refuses: not an admin anymore', async () => {
     mockApi({ 'GET /api/v1/admin/overview': () => [{ error: 'Only admins can do this.', reason: 'not_admin' }, 403] });
     renderPage('/admin/overview', admin);

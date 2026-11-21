@@ -453,6 +453,11 @@ DEFINITIONS = {
     [], list, env='QABOARD_PROXY_HOSTS', parse_env=env_list,
     label="Other image hosts", group='web_app', placeholder="badges.example.com", check=_check_hosts,
   ),
+  'web.maintainers_contact': Definition(
+    "Whether admins wrote to QA-Board's maintainers from Admin → Overview (sent), or said no thanks (dismissed). Empty: the overview offers it. QA-Board sends them nothing by itself.",
+    None, str, env='QABOARD_MAINTAINERS_CONTACT', choices=('sent', 'dismissed'), nullable=True,
+    label="Wrote to QA-Board's maintainers", group='web_app', docs="/docs/backend-admin/support",
+  ),
 
   # ---- Usage analytics
   'analytics.enabled': Definition(

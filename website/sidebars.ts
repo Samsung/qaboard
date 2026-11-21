@@ -229,6 +229,7 @@ const sidebars: SidebarsConfig = {
         "backend-admin/monitoring",
         "backend-admin/usage-analytics",
         "backend-admin/troubleshooting",
+        "backend-admin/support",
     ]
   }
 };
