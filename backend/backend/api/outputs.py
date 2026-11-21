@@ -27,6 +27,7 @@ from ..notifications.batches import on_run_ended
 from ..tokens import end_batch_token
 from ..attempts import record_attempt
 from ..access import invalid_project
+from ..audit import audit, capped, diff
 from .auth import login_required, is_authorized_user, ingest_access, forbidden_project, require_project_access
 from ..actor import batch_token_limits, output_batch_token_limits, batch_token_refused, is_batch_request, unauthenticated
 
@@ -152,6 +153,51 @@ def get_output(output_id):
   return jsonify(output.to_dict())
 
 
+def run_label(output) -> str:
+  """How people recognize a run: its input, and its configuration"""
+  input_path = str(output.test_input.path) if output.test_input is not None else f"run {output.id}"
+  configurations = output.configurations if isinstance(output.configurations, list) else []
+  # configurations can be objects: only their names
+  names = [c for c in configurations if isinstance(c, str)]
+  return capped(f"{input_path} ({', '.join(names)})" if names else input_path)
+
+
+def run_meta(output) -> dict:
+  batch, ci_commit = output.batch, output.batch.ci_commit
+  return capped({
+    "commit": ci_commit.hexsha,
+    "batch": batch.label,
+    "batch_id": batch.id,
+    "input": str(output.test_input.path) if output.test_input is not None else None,
+    "database": str(output.test_input.database) if output.test_input is not None else None,
+    "platform": output.platform,
+    "configurations": output.configurations,
+    "extra_parameters": output.extra_parameters,
+  }, items=20)
+
+
+# What run.update events say changed
+AUDITED_STATUS = ('is_failed', 'is_pending', 'is_running')
+
+def run_state(output) -> dict:
+  # copies: updates change output.data in place
+  return {
+    **{k: getattr(output, k) for k in AUDITED_STATUS},
+    "metrics": dict(output.metrics or {}),
+    "data": dict(output.data or {}),
+  }
+
+
+def run_changes(before: dict, after: dict) -> dict:
+  """{field: {from, to}} for the statuses that changed, and {metrics|data: {key: {from, to}}} for the keys that did"""
+  changes = diff({k: before[k] for k in AUDITED_STATUS}, {k: after[k] for k in AUDITED_STATUS})
+  for field in ('metrics', 'data'):
+    changed = diff(before[field], after[field])
+    if changed:
+      changes[field] = capped(changed)
+  return changes
+
+
 # Only the web app changes or deletes outputs, the CLI uses POST /api/v1/output/
 # Deleting removes the output's folder, which comes from unauthenticated API calls
 @app.route("/api/v1/output/<int:output_id>", methods=['PUT', 'DELETE'])
@@ -169,6 +215,8 @@ def update_output(output_id):
 
   if request.method == 'PUT':
     data = request.get_json()
+    # editing results is tampering with them: the audit log says who changed what
+    before = run_state(output)
     if 'is_pending' in data or 'is_running' in data:
       is_pending = data.get('is_pending', output.is_pending)
       output.set_status(is_pending, data.get('is_running', output.is_running if is_pending else False))
@@ -187,6 +235,8 @@ def update_output(output_id):
     if 'metrics' in data:
       output.metrics = {**output.metrics,  **data['metrics']}
       flag_modified(output, "metrics")
+    if changes := run_changes(before, run_state(output)):
+      audit('run.update', 'run', output.id, run_label(output), project_id=output.batch.ci_commit.project_id, changes=changes, meta=run_meta(output))
     db_session.add(output)
     db_session.commit()
     return jsonify(output.to_dict())
@@ -200,6 +250,7 @@ def update_output(output_id):
       output.delete(soft=soft)
     except UnsafePathError as e:
       return jsonify({"error": f"{e}"}), 400
+    audit('run.delete', 'run', output.id, run_label(output), project_id=output.batch.ci_commit.project_id, meta={**run_meta(output), "soft": soft})
     if not soft:
       db_session.delete(output)
     # soft deletes mark the run as deleted

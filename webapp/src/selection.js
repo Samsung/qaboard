@@ -44,7 +44,7 @@ export const route_info = (path, params = {}) => {
   const is_commit = ['commit', 'latest_commit'].includes(name);
   const is_history = ['history', 'history_branch', 'dashboard', 'dashboard_branch'].includes(name);
   const is_access = name === 'access';
-  // the project's Admin pages besides Access: `section` says which (gate)
+  // the project's Admin pages besides Access: `section` says which (gate, audit)
   const is_project_admin = name === 'project_admin';
   const section = is_project_admin ? params.section ?? null : null;
   return { is_committer, is_commits, is_commit, is_history, is_access, is_project_admin, section, is_list: is_commits || is_committer };

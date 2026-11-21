@@ -12,8 +12,9 @@ export const route_paths = {
   history: "/:project_id+/history",
   // links to milestones: /<project>/milestone/<id>-<label>
   milestone: "/:project_id+/milestone/:name+",
-  // the project's Admin pages, next to Access: /<project>/admin/gate (docs/rfcs/project-admin.md)
-  project_admin: "/:project_id+/admin/:section(gate)",
+  // the project's Admin pages, next to Access: /<project>/admin/gate (docs/rfcs/project-admin.md),
+  // /<project>/admin/audit (who ran, deleted or changed what in the project)
+  project_admin: "/:project_id+/admin/:section(gate|audit)",
   // who can see and change the project
   access: "/:project_id+/access",
   project: "/:project_id+",

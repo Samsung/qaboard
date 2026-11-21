@@ -11,6 +11,7 @@ import { SettingsPage, tabs } from '../SettingsPage';
 import { usePrefsStore } from '../../stores/prefs';
 import { actionLabel } from '../format';
 import { renderWithProviders } from '../../test-utils';
+import { audit_registry } from './auditRegistry';
 
 const json = data => Promise.resolve(new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } }));
 const alice = { is_logged: true, user_id: 1, user_name: 'alice', full_name: 'Alice', email: 'alice@example.com', login_type: 'LDAP', is_admin: true };
@@ -87,7 +88,7 @@ test('preferences use the same store as the pages', async () => {
 });
 
 test('activity loads older events on demand', async () => {
-  const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(url => url.includes('before_id=10')
+  const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(url => url.startsWith('/api/v1/audit/actions') ? json(audit_registry) : url.includes('before_id=10')
     ? json({ events: [{ id: 9, created_at: '2026-09-01T00:00:00Z', action: 'auth.login', actor_kind: 'user', actor_user_id: 1, actor_label: 'alice', ip: '10.0.0.2' }], next_before_id: null })
     : json({ events: [
       { id: 11, created_at: '2026-10-01T00:00:00Z', action: 'token.create', actor_kind: 'user', actor_user_id: 1, actor_label: 'alice', target_type: 'token', target_id: '3', target_label: 'ci-bot' },
@@ -119,12 +120,13 @@ test('failed sign-ins say which user name was tried, and why it failed', async (
     ip: '10.0.0.9', user_agent: 'Mozilla/5.0', action: 'auth.login_failed', target_type: 'user', target_id: '1', target_label: 'alice',
     project_id: null, changes: {}, meta: { reason, login_type: 'LOCAL' },
   });
-  vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ events: [
+  vi.spyOn(globalThis, 'fetch').mockImplementation(url => url.startsWith('/api/v1/audit/actions') ? json(audit_registry) : json({ events: [
     failed('invalid-password'), failed('pending'),
     { id: 20, created_at: '2026-10-01T00:00:00Z', actor_kind: 'anonymous', actor_user_id: null, actor_token_id: null, actor_label: null, ip: '10.0.0.8', user_agent: null, action: 'auth.signup', target_type: 'user', target_id: '1', target_label: 'alice', project_id: null, changes: {}, meta: {} },
   ], next_before_id: null }));
   renderAt('/settings/activity');
-  const items = (await screen.findAllByRole('listitem')).map(item => item.textContent);
+  await screen.findAllByText('Failed to sign in');
+  const items = screen.getAllByRole('listitem').map(item => item.textContent);
   expect(items[0]).toMatch(/Failed to sign in as alice: wrong password/);
   expect(items[0]).toMatch(/from 10\.0\.0\.9/);
   expect(items[0]).not.toMatch(/by /);
@@ -132,10 +134,11 @@ test('failed sign-ins say which user name was tried, and why it failed', async (
   expect(items[2]).toMatch(/by someone not signed in/);
 });
 
-test('audit actions are said in words', () => {
-  expect(actionLabel('auth.login')).toBe('Signed in');
-  expect(actionLabel('device.approve')).toBe('Approved a CLI sign-in');
-  expect(actionLabel('batch.delete')).toBe('Deleted a batch');
-  expect(actionLabel('token.revoke')).toBe('Revoked a token');
-  expect(actionLabel('group.rule_changed')).toBe('Group: rule changed');
+test("audit actions are said in the server's words, else guessed", () => {
+  expect(actionLabel('auth.login', audit_registry)).toBe('Signed in');
+  expect(actionLabel('batch.delete', audit_registry)).toBe('Deleted a batch');
+  // older servers, or while the registry loads
+  expect(actionLabel('token.revoke')).toBe('Token: revoke');
+  expect(actionLabel('group.rule_changed', audit_registry)).toBe('Group: rule changed');
+  expect(actionLabel('')).toBe('');
 });

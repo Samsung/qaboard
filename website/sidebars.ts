@@ -108,7 +108,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Account and projects',
       collapsed: false,
-      items: ['user-guide/account', 'user-guide/project-access', 'user-guide/project-gate'],
+      items: ['user-guide/account', 'user-guide/project-access', 'user-guide/project-gate', 'user-guide/project-audit-log'],
     },
     {
       type: 'category',
@@ -222,6 +222,7 @@ const sidebars: SidebarsConfig = {
         "backend-admin/settings",
         "backend-admin/sign-in",
         "backend-admin/project-access",
+        "backend-admin/audit-log",
         "backend-admin/storage",
         "backend-admin/uploads",
         "backend-admin/runners",

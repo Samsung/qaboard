@@ -174,6 +174,7 @@ NOT_AUDITED = {
   'export_to_folder.py:export_to_folder': "copies runs the caller can read to a folder it shares",
   'integrations.py:gitlab_job': "read-only: a GitLab job's status",
   'integrations.py:github_workflow_run': "read-only: a GitHub workflow's status",
+  'integrations.py:jenkins_build': "read-only: a Jenkins build's status (POST for its URL in the body)",
   'integrations.py:proxy_webook': "forwards a project's own webhook; what it starts is audited by its target",
   'storage.py:storage_measure_export': "read-only: measures an export's size",
   # The user's own conveniences

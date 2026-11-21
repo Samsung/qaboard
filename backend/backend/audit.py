@@ -6,6 +6,7 @@ With QABOARD_AUDIT_STDOUT=1, committed events are also printed as JSON lines, fo
 import os
 import sys
 import json
+import hashlib
 import logging
 from typing import Optional
 
@@ -52,6 +53,42 @@ def without_secrets(value):
 def diff(before: dict, after: dict) -> dict:
   """{field: {from, to}} for the fields that changed"""
   return {k: {"from": before.get(k), "to": after.get(k)} for k in sorted({*before, *after}) if before.get(k) != after.get(k)}
+
+
+# Events stay small: they're listed, filtered and exported. Lists and mappings keep their first items, texts are cut.
+MAX_ITEMS = 50
+MAX_TEXT = 300
+
+
+def capped(value, items: int = MAX_ITEMS, text: int = MAX_TEXT):
+  """A copy of `value` small enough for an event's meta or changes"""
+  if isinstance(value, str):
+    return value if len(value) <= text else value[:text] + '…'
+  if isinstance(value, dict):
+    return {str(k)[:text]: capped(v, items, text) for k, v in list(value.items())[:items]}
+  if isinstance(value, (list, tuple, set)):
+    return [capped(v, items, text) for v in list(value)[:items]]
+  return value
+
+
+def canonical_json(value) -> str:
+  return json.dumps(value, sort_keys=True, separators=(',', ':'), default=str)
+
+
+def fingerprint(value, limit: int = 4000) -> dict:
+  """What identifies large parameters in an event: the hash of their canonical JSON, and the JSON, cut at `limit`"""
+  text = canonical_json(value)
+  return {
+    "parameters_sha256": hashlib.sha256(text.encode('utf-8')).hexdigest(),
+    "parameters": text[:limit],
+    **({"parameters_truncated": True} if len(text) > limit else {}),
+  }
+
+
+def update_meta(event, **meta):
+  """Adds to the meta of an event recorded before what it describes ended, e.g. whether a batch started: the caller commits"""
+  if event is not None:
+    event.meta = without_secrets({**(event.meta or {}), **meta})
 
 
 def audit(action: str, target_type: Optional[str] = None, target_id=None, target_label: Optional[str] = None,

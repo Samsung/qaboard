@@ -1494,6 +1494,8 @@ UNCHECKED_PROJECT_ROUTES = {
   ("access.py", "request_project_access"),
   # "project" is a word in their answers, not a project they read
   ("auth.py", "get_current_user"), ("sign_in.py", "my_access_request"), ("tokens.py", "new_token"),
+  # whether actions show in projects' history: it reads no project
+  ("audit_log.py", "audit_actions"),
   # users and groups to pick from: it leaves out projects' service accounts, it reads no project
   ("access.py", "directory"),
   # it reads no project: it says which projects the token it mints is restricted to (the service account's)

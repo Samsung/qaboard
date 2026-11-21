@@ -16,6 +16,7 @@ import { parseSettingValue, formatSettingValue } from '../settingValue';
 import { parseTarget } from '../Audit';
 import { renderWithProviders } from '../../test-utils';
 import { toaster } from '../../toaster';
+import { audit_registry } from '../../settings/__tests__/auditRegistry';
 
 const json = (data, status = 200) => Promise.resolve(new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }));
 
@@ -219,11 +220,11 @@ describe('UserDetail', () => {
   });
 
   it('shows the user, their tokens and activity', async () => {
-    mockApi({ 'GET /api/v1/admin/users/2': detail() });
+    mockApi({ 'GET /api/v1/admin/users/2': detail(), 'GET /api/v1/audit/actions': audit_registry });
     renderAt('/admin/users/2', <UserDetail id="2" me={admin}/>);
     expect(await screen.findByRole('heading', { name: 'Alice' })).toBeInTheDocument();
     expect(screen.getByText('qab_pat_abcd…')).toBeInTheDocument();
-    expect(screen.getByText('Created a token')).toBeInTheDocument();
+    expect(await screen.findByText('Created a token')).toBeInTheDocument();
   });
 
   it('shows their picture and job, from their sign-in', async () => {

@@ -105,9 +105,22 @@ def export(query, name: str, redact=False):
   if count > MAX_EXPORT:
     return jsonify({"error": f"That's {count} events: export at most {MAX_EXPORT} at once, with narrower dates (since, until)."}), 400
   def rows():
-    for event in query.order_by(AuditEvent.id.desc()).yield_per(1000):
-      data = serialize_event(event)
-      yield {c: data[c] for c in columns}
+    # The response streams after the request ended: each batch is read in its own short session, always closed
+    from sqlalchemy.orm import Session
+    from ..database import engine
+    before_id = None
+    while True:
+      with Session(engine) as session:
+        batch = query.with_session(session)
+        if before_id is not None:
+          batch = batch.filter(AuditEvent.id < before_id)
+        events = batch.order_by(AuditEvent.id.desc()).limit(1000).all()
+        serialized = [serialize_event(e) for e in events]
+      for data in serialized:
+        yield {c: data[c] for c in columns}
+      if len(events) < 1000:
+        return
+      before_id = events[-1].id
   if fmt == 'jsonl':
     body = (json.dumps(row, default=str) + '\n' for row in rows())
     mimetype, extension = 'application/x-ndjson', 'jsonl'

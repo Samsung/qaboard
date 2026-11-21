@@ -79,6 +79,12 @@ cd backend
 # Backend runs in Docker, see docker-compose.yml
 ```
 
+**Audit log**: an endpoint or job that runs code, deletes or changes something records an event with
+`audit('category.verb', ...)` (`backend/backend/audit.py`, same transaction as the change), registered in
+`backend/backend/audit_actions.py` (label, category, `project=True` to show it in the project's audit log); else it says why
+in `NOT_AUDITED` there. `tests/test_audit_actions.py` checks both; the web app reads labels from `/api/v1/audit/actions`
+and shows `meta` as details, so a new action needs no frontend change. Docs: `website/docs/backend-admin/audit-log.mdx`.
+
 ### Documentation Site
 ```bash
 cd website  

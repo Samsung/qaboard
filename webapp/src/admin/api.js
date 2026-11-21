@@ -96,18 +96,11 @@ export const adminRevokeToken = async (queryClient, id) => {
 
 // Keyset pagination: each page gives the id to continue before
 export const audit_page_size = 100;
-export const auditQuery = ({ action = '', actor = '', target_type = '', target_id = '' }) => infiniteQueryOptions({
-  queryKey: ['admin', 'audit', { action, actor, target_type, target_id }],
+// `params`: the filters, see audit/filters.js filterParams
+export const auditQuery = (params = {}) => infiniteQueryOptions({
+  queryKey: ['admin', 'audit', params],
   queryFn: async ({ signal, pageParam }) => {
-    const params = {
-      action: action || undefined,
-      actor: actor || undefined,
-      target_type: target_type || undefined,
-      target_id: target_id || undefined,
-      before_id: pageParam,
-      limit: audit_page_size,
-    };
-    const { data } = await http.get('/api/v1/admin/audit', { params, signal });
+    const { data } = await http.get('/api/v1/admin/audit', { params: { ...params, before_id: pageParam, limit: audit_page_size }, signal });
     return { events: data?.events ?? [], next_before_id: data?.next_before_id ?? null };
   },
   initialPageParam: undefined,
@@ -115,6 +108,8 @@ export const auditQuery = ({ action = '', actor = '', target_type = '', target_i
   placeholderData: keepPreviousData,
   staleTime: 30 * 1000,
 });
+// Every matching event, as a download: `format` is csv or jsonl
+export const auditExportUrl = (params, format) => buildUrl('/api/v1/admin/audit', { ...params, format });
 
 export const auditActionsQuery = queryOptions({
   queryKey: ['admin', 'audit-actions'],
