@@ -76,8 +76,10 @@ export const AuditLog = ({ label, what = 'the events', query, exportUrl, actions
   // an action of another category would match nothing
   const setCategory = category => setFilter({ category, ...(category && filters.action && category_of(filters.action) !== category ? { action: '' } : {}) });
 
+  // people who can't see the log get no filters nor export, only why
+  const refused = error?.response?.status === 403;
   return <section aria-label={label}>
-    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+    {!refused && <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginBottom: 16 }}>
       {categories.length > 0 && <HTMLSelect aria-label="Category" options={category_options} value={filters.category} onChange={e => setCategory(e.target.value)}/>}
       <HTMLSelect aria-label="Action" options={action_options} value={filters.action} onChange={e => setFilter({ action: e.target.value })}/>
       <InputGroup leftIcon="person" placeholder="By user, or part of a name" aria-label="Actor" value={actor} onChange={e => setActor(e.target.value)} style={{ width: 210 }}/>
@@ -86,7 +88,7 @@ export const AuditLog = ({ label, what = 'the events', query, exportUrl, actions
       <DateFilter label="to" aria-label="To" value={filters.until} min={filters.since || undefined} onChange={e => setFilter({ until: e.target.value })}/>
       {filtered && <Button variant="minimal" icon="cross" text="Clear the filters" onClick={() => setFilter(Object.fromEntries(Object.keys(filters).map(name => [name, ''])))}/>}
       <span style={{ marginLeft: 'auto' }}><ExportMenu exportUrl={format => exportUrl(params, format)}/></span>
-    </div>
+    </div>}
     {isPending && <Loading label={`Loading ${what}`}/>}
     {error && (renderError?.(error, refetch) ?? <QueryError error={error} refetch={refetch} what={what}/>)}
     {!isPending && !error && (events.length === 0

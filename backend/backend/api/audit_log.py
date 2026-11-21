@@ -58,10 +58,17 @@ def filtered(query):
   if args.get('actor'):
     # part of the user name, any case: "alic" finds alice
     query = query.filter(AuditEvent.actor_label.ilike(f"%{escape_like(args['actor'])}%", escape='\\'))
-  if args.get('target_type'):
-    query = query.filter(AuditEvent.target_type == args['target_type'])
-  if args.get('target_id'):
-    query = query.filter(AuditEvent.target_id == args['target_id'])
+  if args.get('target_type') == 'batch' and args.get('target_id'):
+    # a batch's events include those about its runs (run.update, run.delete)
+    query = query.filter(or_(
+      (AuditEvent.target_type == 'batch') & (AuditEvent.target_id == args['target_id']),
+      (AuditEvent.target_type == 'run') & (AuditEvent.meta['batch_id'].astext == args['target_id']),
+    ))
+  else:
+    if args.get('target_type'):
+      query = query.filter(AuditEvent.target_type == args['target_type'])
+    if args.get('target_id'):
+      query = query.filter(AuditEvent.target_id == args['target_id'])
   since, until = parse_date('since'), parse_date('until')
   if since is not None:
     query = query.filter(AuditEvent.created_at >= since)

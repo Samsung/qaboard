@@ -183,7 +183,7 @@ def test_routes_that_change_things_are_audited():
 
   routes = dict(mutating_routes())
   assert len(routes) > 100, "the scan should find the API's routes"
-  unaudited = sorted(key for key, (path, name) in routes.items() if not audits(path, name, frozenset()) and key not in audit_actions.NOT_AUDITED)
+  unaudited = sorted(key for key, (path, name) in routes.items() if not audits(path, name, frozenset()) and key not in audit_actions.NOT_AUDITED and key not in audit_actions.AUDITED_IN_METHODS)
   assert not unaudited, (
     "These endpoints change things without recording an audit event. Call audit() (backend/audit.py), "
     f"or say why not in backend/audit_actions.py NOT_AUDITED: {unaudited}"
@@ -192,7 +192,7 @@ def test_routes_that_change_things_are_audited():
 
 def test_not_audited_lists_existing_routes():
   routes = dict(mutating_routes())
-  stale = sorted(set(audit_actions.NOT_AUDITED) - set(routes))
+  stale = sorted((set(audit_actions.NOT_AUDITED) | set(audit_actions.AUDITED_IN_METHODS)) - set(routes))
   assert not stale, f"Remove from backend/audit_actions.py NOT_AUDITED, these endpoints don't exist: {stale}"
 
 

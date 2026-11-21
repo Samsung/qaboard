@@ -104,6 +104,8 @@ ACTIONS = {
   'jenkins.build': Action("Started a Jenkins build", 'ci', project=True),
   'ci.gitlab_job_play': Action("Started a GitLab job", 'ci', project=True),
   'ci.github_workflow_dispatch': Action("Started a GitHub workflow", 'ci', project=True),
+  # from the source code (git checkout && qa save-artifacts on the server) or by the CI (recreate_artifacts)
+  'artifacts.restore': Action("Restored a commit's artifacts", 'ci', project=True),
   # Milestones
   'milestone.create': Action("Saved a milestone", 'milestones', project=True),
   'milestone.update': Action("Changed a milestone", 'milestones', project=True),
@@ -142,13 +144,18 @@ assert all(action.category in CATEGORIES for action in ACTIONS.values())
 PROJECT_ACTIONS = sorted(name for name, action in ACTIONS.items() if action.project)
 
 
+# Endpoints whose events are recorded in a method, that tests/test_audit_actions.py can't follow: where
+AUDITED_IN_METHODS = {
+  'commit.py:commit_save_artifacts': "CiCommit.restore_artifacts records artifacts.restore",
+}
+
+
 # Endpoints that change things and record no audit event, by "file.py:function" in backend/api/.
 # A route that records events through a helper (tokens.issue, locations.add...) needs no entry: the test follows calls.
 NOT_AUDITED = {
   # Results sent by `qa run`/`qa batch`/start_run(): the run itself says who sent it (Output.data, its token).
   # Auditing each call would flood the log.
   'commit.py:api_ci_commit': "ingest: CI says which commit it builds",
-  'commit.py:commit_save_artifacts': "ingest: a commit's artifacts",
   'commit_artifacts.py:upload_commit_artifact': "ingest: a commit's artifacts",
   'batch.py:update_batch': "ingest: `qa batch` says which batch it runs",
   'batch.py:append_submission_log': "ingest: a batch's log, only with the batch's own token",

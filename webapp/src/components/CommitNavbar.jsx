@@ -659,6 +659,8 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             icon="history"
             href={target_audit_location(selected[project_attr] ?? project, 'batch', batch.id)}
             onClick={event => {
+              // ctrl/cmd/shift-click open it in a new tab or window, as links do
+              if (event.button !== 0 || event.metaKey || event.altKey || event.ctrlKey || event.shiftKey) return;
               event.preventDefault();
               history.push(target_audit_location(selected[project_attr] ?? project, 'batch', batch.id));
             }}

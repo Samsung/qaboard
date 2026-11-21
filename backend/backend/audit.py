@@ -149,7 +149,8 @@ def print_committed(session):
 def remember_flushed(session, flush_context=None):
   """Called after flushes: ids and dates are set, and we can't query the database once committed"""
   from .models import AuditEvent
-  events = [serialize(o) for o in session.new if isinstance(o, AuditEvent)]
+  # with the events whose details were completed later (update_meta): printed again, with the same id
+  events = [serialize(o) for o in [*session.new, *session.dirty] if isinstance(o, AuditEvent)]
   if events:
     session.info.setdefault('audit_flushed', []).extend(events)
 

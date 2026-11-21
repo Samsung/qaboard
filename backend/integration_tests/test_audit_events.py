@@ -88,6 +88,10 @@ def test_run_events_say_only_what_changed(logged_in, world):
   assert (delete.project_id, delete.target_id) == ('proj/a', str(run.id))
   assert delete.meta["soft"] is True and delete.meta["input"] == "input-1.bin" and delete.meta["batch"] == "default"
 
+  # a batch's events include its runs'
+  answer = bob.get(f'/api/v1/project/audit?project=proj/a&target_type=batch&target_id={run.batch_id}').get_json()
+  assert [e["action"] for e in answer["events"]] == ["run.delete", "run.update", "run.update", "run.update"]
+
 
 def test_milestone_events(bob):
   answer = bob.post('/api/v1/milestones', json={"project": PROJECT, "label": "v1", "commit": SHA, "shared": True})
@@ -182,3 +186,30 @@ def test_garbage_collection_records_one_event_per_project(world, storage, monkey
   assert (event.project_id, event.target_type, event.target_id, event.actor_kind) == ('proj', 'project', 'proj', 'system')
   assert event.meta["runs"] == 4 and event.meta["commits"] == 2 and event.meta["commits_deleted"] == 0
   assert event.meta["older_than"] == "1month" and event.meta["older_than_source"] == "default" and event.meta["dry_run"] is False
+
+
+def test_restoring_artifacts(world, monkeypatch):
+  """It runs code on the server or in CI: recorded, unless a recreation already in progress is waited for"""
+  from backend.database import db_session
+  from backend.models import CiCommit
+  batch = world.batch('proj/a')
+  world.commit()
+  ci_commit = db_session.query(CiCommit).filter(CiCommit.id == batch.ci_commit_id).one()
+  def no_checkout():
+    raise RuntimeError("no git here")
+  monkeypatch.setattr(ci_commit, 'save_artifacts', no_checkout)
+  assert ci_commit.restore_artifacts(force=True)["status"] == "failed"
+  db_session.commit()
+  [restore] = events('artifacts.restore')
+  assert (restore.project_id, restore.target_type, restore.target_id) == ('proj/a', 'commit', ci_commit.hexsha)
+  assert restore.meta["via"] == "source code" and restore.meta["status"] == "failed" and "no git here" in restore.meta["message"]
+
+  # a CI recreation in progress: we wait for it, nothing starts
+  from backend import recreate_artifacts
+  monkeypatch.setattr(type(ci_commit), 'recreate_artifacts_settings', property(lambda self: {"webhook": {"url": "https://ci.example.com"}}))
+  monkeypatch.setattr(recreate_artifacts, 'in_progress', lambda recreation: True)
+  ci_commit.data = {**(ci_commit.data or {}), "artifacts_recreation": {"via": "a webhook", "at": "2026-11-21T00:00:00Z"}}
+  answer = ci_commit.restore_artifacts()
+  assert answer["status"] == "recreating" and "in_progress" not in answer
+  db_session.commit()
+  assert len(events('artifacts.restore')) == 1

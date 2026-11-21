@@ -14,7 +14,11 @@ import { Audit } from '../../admin/Audit';
 import { ProjectAdminPage } from '../../projectAdmin/ProjectAdminPage';
 import { target_audit_location } from '../../projectAdmin/api';
 import { audit_registry } from '../../settings/__tests__/auditRegistry';
-import { readFilters, filtersSearch, filterParams } from '../filters';
+import { readFilters, filtersSearch, filterParams, dayStart, dayEnd } from '../filters';
+
+// dates as the API gets them: the user's day, in UTC
+const since_param = encodeURIComponent(dayStart('2026-11-01'));
+const until_param = encodeURIComponent(dayEnd('2026-11-21'));
 
 const json = (data, status = 200) => Promise.resolve(new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }));
 
@@ -57,6 +61,8 @@ describe('events', () => {
     const fetch = mockApi({ '/api/v1/audit/actions': () => [{ error: 'Not found' }, 404] });
     renderAt('/', <AuditEvents events={[event({ action: 'token.create' })]}/>);
     await waitFor(() => expect(calls(fetch, '/api/v1/audit/actions').length).toBeGreaterThan(0));
+    // once the request failed, not only while it loads
+    await act(() => new Promise(resolve => setTimeout(resolve, 50)));
     expect(screen.getByText('Token: create')).toBeInTheDocument();
   });
 
@@ -71,15 +77,15 @@ describe('events', () => {
     expect(screen.getByRole('link', { name: '01234567' })).toHaveAttribute('href', `/group/repo/commit/${meta.commit}`);
     expect(screen.getByText('tuning')).toBeInTheDocument();
     // collapsed, and not rendered
-    const toggle = screen.getByRole('button', { name: 'Details' });
+    const toggle = screen.getByRole('button', { name: /^Details of / });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByRole('region', { name: 'Details' })).toBeNull();
+    expect(screen.queryByRole('region', { name: /^Details of / })).toBeNull();
     expect(screen.queryByText('runner')).toBeNull();
 
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    const details = within(screen.getByRole('region', { name: 'Details' }));
-    expect(toggle).toHaveAttribute('aria-controls', screen.getByRole('region', { name: 'Details' }).id);
+    const details = within(screen.getByRole('region', { name: /^Details of / }));
+    expect(toggle).toHaveAttribute('aria-controls', screen.getByRole('region', { name: /^Details of / }).id);
     const value = key => details.getByText(key).nextElementSibling.textContent;
     expect(value('runner')).toBe('local');
     expect(value('redo')).toBe('false');
@@ -95,13 +101,13 @@ describe('events', () => {
     expect(value('command')).toBe(`${'x'.repeat(300)} Show less`);
 
     fireEvent.click(toggle);
-    expect(screen.queryByRole('region', { name: 'Details' })).toBeNull();
+    expect(screen.queryByRole('region', { name: /^Details of / })).toBeNull();
   });
 
   it('have no details without meta', () => {
     mockApi({ '/api/v1/audit/actions': audit_registry });
     renderAt('/', <AuditEvents events={[event()]}/>);
-    expect(screen.queryByRole('button', { name: 'Details' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Details/ })).toBeNull();
   });
 });
 
@@ -111,6 +117,10 @@ describe('filters', () => {
     expect(readFilters('?category=runs&since=2026-11-01&other=1')).toEqual({ action: '', category: 'runs', actor: '', target: '', since: '2026-11-01', until: '' });
     expect(filtersSearch('?other=1&actor=bob', { actor: '', until: '2026-11-21' })).toBe('?other=1&until=2026-11-21');
     expect(filterParams({ action: '', category: 'runs', actor: 'al', target: 'batch:12', since: '', until: '' })).toEqual({ category: 'runs', actor: 'al', target_type: 'batch', target_id: '12' });
+    // the user's days: from their midnight, until the end of the last day
+    const { since, until } = filterParams({ since: '2026-11-01', until: '2026-11-21' });
+    expect(new Date(since).getTime()).toBe(new Date(2026, 10, 1).getTime());
+    expect(new Date(until).getTime()).toBe(new Date(2026, 10, 22).getTime() - 1);
   });
 });
 
@@ -140,7 +150,7 @@ describe('Admin → Audit', () => {
     fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-11-21' } });
     expect(history.location.pathname).toBe('/admin/audit');
     expect(readFilters(history.location.search)).toMatchObject({ category: 'runs', since: '2026-11-01', until: '2026-11-21' });
-    await waitFor(() => expect(calls(fetch, '/api/v1/admin/audit?')).toContain('/api/v1/admin/audit?category=runs&since=2026-11-01&until=2026-11-21&limit=100'));
+    await waitFor(() => expect(calls(fetch, '/api/v1/admin/audit?')).toContain(`/api/v1/admin/audit?category=runs&since=${since_param}&until=${until_param}&limit=100`));
     expect(screen.getByLabelText('To')).toHaveAttribute('min', '2026-11-01');
   });
 
@@ -148,9 +158,9 @@ describe('Admin → Audit', () => {
     renderAudit('?category=runs&actor=ali&since=2026-11-01&target=batch:12');
     fireEvent.click(await screen.findByRole('button', { name: 'Export' }));
     const csv = await screen.findByRole('menuitem', { name: 'Download CSV' });
-    expect(csv).toHaveAttribute('href', '/api/v1/admin/audit?category=runs&actor=ali&since=2026-11-01&target_type=batch&target_id=12&format=csv');
+    expect(csv).toHaveAttribute('href', `/api/v1/admin/audit?category=runs&actor=ali&since=${since_param}&target_type=batch&target_id=12&format=csv`);
     expect(csv).toHaveAttribute('download');
-    expect(screen.getByRole('menuitem', { name: 'Download JSON Lines' })).toHaveAttribute('href', '/api/v1/admin/audit?category=runs&actor=ali&since=2026-11-01&target_type=batch&target_id=12&format=jsonl');
+    expect(screen.getByRole('menuitem', { name: 'Download JSON Lines' })).toHaveAttribute('href', `/api/v1/admin/audit?category=runs&actor=ali&since=${since_param}&target_type=batch&target_id=12&format=jsonl`);
   });
 
   it('says the actor filter matches part of names', async () => {
@@ -174,7 +184,8 @@ describe("a project's audit log", () => {
   };
 
   it("lists the project's events, with its actions' categories", async () => {
-    const fetch = renderPage({ '/api/v1/project/audit': { events: [event({ meta: { commit: 'abc' } })], next_before_id: 1 } });
+    // the next page has older events
+    const fetch = renderPage({ '/api/v1/project/audit': url => [{ events: [event({ id: url.includes('before_id') ? 1 : 2, meta: { commit: 'abc' } })], next_before_id: 1 }, 200] });
     const list = within(await screen.findByRole('list', { name: 'Activity' }));
     expect(await list.findByText('Started a batch')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Audit log', current: 'page' })).toHaveAttribute('href', `/${project}/admin/audit`);
@@ -206,5 +217,8 @@ describe("a project's audit log", () => {
     }, 403] });
     expect(await screen.findByText('Developers and owners only')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'See who has which role' })).toHaveAttribute('href', `/${project}/access`);
+    // nothing to filter nor export
+    expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Action' })).not.toBeInTheDocument();
   });
 });

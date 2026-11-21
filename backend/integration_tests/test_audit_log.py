@@ -115,6 +115,12 @@ def test_committed_events_on_stdout(team, monkeypatch, capsys):
     assert len(lines) == 1
     printed = json.loads(lines[0][len('qaboard-audit '):])
     assert printed["target_label"] == "kept" and printed["action"] == "batch.delete" and printed["id"] and printed["created_at"]
+    # completed later: printed again, with the same id
+    from backend.models import AuditEvent
+    audit_lib.update_meta(AuditEvent.query.filter(AuditEvent.id == printed["id"]).one(), status="done")
+    db_session.commit()
+    [again] = [json.loads(line[len('qaboard-audit '):]) for line in capsys.readouterr().out.splitlines() if line.startswith('qaboard-audit ')]
+    assert again["id"] == printed["id"] and again["meta"]["status"] == "done"
   finally:
     for name, fn in [('after_flush', audit_lib.remember_flushed), ('after_commit', audit_lib.print_committed), ('after_rollback', audit_lib.forget_flushed)]:
       event.remove(Session, name, fn)

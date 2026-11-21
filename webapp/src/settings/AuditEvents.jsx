@@ -127,7 +127,11 @@ const AuditEvent = ({ event, registry, self_id, onFilter }) => {
   const category = registry.categories[registry.actions[event.action]?.category];
   // what batches and runs were about, at a glance: the commit (a link in its project) and the batch
   const commit = typeof meta.commit === 'string' ? meta.commit : null;
-  const batch_label = typeof meta.batch_label === 'string' && meta.batch_label !== event.target_label ? meta.batch_label : null;
+  // batch.start says batch_label, run events say batch
+  const meta_batch = meta.batch_label ?? meta.batch;
+  const batch_label = typeof meta_batch === 'string' && meta_batch !== event.target_label ? meta_batch : null;
+  // each toggle says which event it opens, for screen readers
+  const details_label = `Details of ${[actionLabel(event.action, registry), target].filter(Boolean).join(', ')}`;
   const panel_id = `audit-event-${event.id}-details`;
   return <li>
     <Icon icon={category?.icon ?? guessed_icon(event.action)} title={category?.label ?? false} size={14} intent={failed ? 'danger' : undefined} className={failed ? undefined : Classes.TEXT_MUTED}/>
@@ -157,12 +161,13 @@ const AuditEvent = ({ event, registry, self_id, onFilter }) => {
         size="small"
         icon={open ? 'chevron-down' : 'chevron-right'}
         text="Details"
+        aria-label={details_label}
         aria-expanded={open}
         aria-controls={open ? panel_id : undefined}
         onClick={() => setOpen(!open)}
       /></>}
     </span>
-    {open && <div className="meta-panel" id={panel_id} role="region" aria-label="Details"><MetaList meta={meta}/></div>}
+    {open && <div className="meta-panel" id={panel_id} role="region" aria-label={details_label}><MetaList meta={meta}/></div>}
   </li>;
 };
 

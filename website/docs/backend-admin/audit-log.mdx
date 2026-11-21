@@ -60,6 +60,7 @@ curl -H "Authorization: Bearer $QABOARD_TOKEN" \
 With `QABOARD_AUDIT_STDOUT=1`, the backend also prints each event on its standard output once it's saved, as a line
 starting with `qaboard-audit ` followed by the event as JSON. Your log collector (Fluent Bit, Vector, Splunk, a
 Kubernetes logging agent...) can forward these lines to your SIEM, where QA-Board's admins can't delete them.
+Events completed later, like a batch's final status, are printed again with the same `id`: keep the last line of each `id`.
 
 ## Keep it for as long as you need
 Events are kept 730 days by default: change **Keep audit events for** in **Admin → Settings → Security**, and delete
