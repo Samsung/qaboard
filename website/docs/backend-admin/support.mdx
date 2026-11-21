@@ -1,0 +1,41 @@
+---
+id: support
+sidebar_label: Getting help
+title: Getting help from the maintainers
+description: "Write to QA-Board's maintainers for help setting up your server and integrating your projects, and to hear about security fixes and new releases."
+---
+QA-Board's maintainers would love to help you make it work for your teams: setting up the server, integrating your
+projects with `qa`, choosing and configuring runners, getting the most out of the viewers and tuning. If you have
+more advanced needs, write to them too: they're happy to discuss them.
+
+## Write to the maintainers
+- **From the web app**: **Admin → Overview → Tell them about your team** opens your email app with a message to
+  edit, then send or not.
+- **By email**: [arthur@fl.am](mailto:arthur@fl.am).
+- **Bugs and feature requests**: [open an issue on GitHub](https://github.com/Samsung/qaboard/issues).
+- **Security problems**: by email, not in public issues, see the
+  [security policy](https://github.com/Samsung/qaboard/blob/master/SECURITY.md).
+
+Ask to hear about **security fixes** and **new releases** (about once a month) in your message, and you'll get them
+by email. You can also follow the [release notes](/release-notes), which have RSS and Atom feeds.
+
+<details>
+<summary>What the message from Admin → Overview says</summary>
+
+It starts with blanks for you to fill: your company or team, what you use QA-Board for, and what you'd like help
+with. Then it lists, for you to keep or delete:
+
+- QA-Board's version, and whether it runs on Kubernetes,
+- how people sign in (local accounts, LDAP, SAML, OpenID Connect...),
+- the runner of the batches started from the web app, if any,
+- rough sizes: up to 10, 50, 200 or 1000 active users and projects.
+
+It says nothing about your projects, your users or your hostnames. **QA-Board sends nothing to its maintainers by
+itself**: only the email you choose to send.
+</details>
+
+## Stop the overview from asking
+Once an admin clicks **I sent it** or **No thanks**, the overview stops asking, for every admin, and only shows how to
+reach the maintainers. It's the `web.maintainers_contact` setting (`sent` or `dismissed`): clear it in
+**Admin → Settings** to see the offer again, or set `QABOARD_MAINTAINERS_CONTACT=dismissed` on the backend, e.g. for
+automated installs ([settings](settings.mdx)).

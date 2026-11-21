@@ -277,8 +277,8 @@ class TestQaCli(unittest.TestCase):
         try:
           log = output_dir / 'log.txt'
           deadline = time.time() + 30
-          # until run() runs: in CI, the log starts with the command line, which says "sleep 30" too
-          while not (log.exists() and 'sleep 30' in log.read_text().split('Outputs:', 1)[-1]) and time.time() < deadline:
+          # what run() prints first: the header, with the command, comes before qa catches interrupts
+          while not (log.exists() and 'Edit qa/main.py' in log.read_text()) and time.time() < deadline:
             time.sleep(0.1)
           process.send_signal(signo)
           output, _ = process.communicate(timeout=20)

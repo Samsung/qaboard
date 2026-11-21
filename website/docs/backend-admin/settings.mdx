@@ -192,6 +192,7 @@ encryption key. The page shows them read-only, in their group, with why: see the
 | `web.cli_requirements` | `QABOARD_CLI_REQUIREMENTS` | none | What scripts install besides qaboard to use `qa` here, as pip requirements, e.g. your site package. The web app's Script snippets list them. |
 | `web.webcde_installer` | `QABOARD_WEBCDE_INSTALLER` | none | Runs whose outputs have a cde.sh get a button to open them in WebCDE, a desktop app. When it isn't running, users are told to install it from here. |
 | `web.proxy_hosts` | `QABOARD_PROXY_HOSTS` | none | Hostnames the web app may load images from through the server (it adds no credentials), besides the git hosts, the avatars' host and gravatar: the hosts of projects' avatar_url and integrations' images. |
+| `web.maintainers_contact` | `QABOARD_MAINTAINERS_CONTACT` | none | Whether admins wrote to QA-Board's maintainers from Admin → Overview (sent), or said no thanks (dismissed). Empty: the overview offers it. QA-Board sends them nothing by itself. |
 
 **Usage analytics**
 
