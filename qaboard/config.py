@@ -368,7 +368,7 @@ def storage_needed_by(command: Optional[str], share: bool, is_ci: bool) -> Optio
   if is_ci:
     return 'In CI, `qa` saves results there'
   if share:
-    return '`qa --share` saves results there'
+    return '`qa` saves results there'
   return commands_using_storage.get(command) if command else None
 
 
@@ -401,9 +401,8 @@ def report_missing_storage(needed_by: Optional[str], environ=os.environ) -> bool
 
 def default_share(offline: bool = False) -> Tuple[bool, Optional[str]]:
   """
-  Whether `qa` shows results in QA-Board when neither --share nor --no-share is given, and if not, why, for people.
-  Runs are shared by default, like start_run()'s, unless --offline, when no server is set, or when the shared storage
-  isn't on this machine (`qa --share` then fails, to say so).
+  Whether `qa` shows results in QA-Board, and if not, why, for people. Runs are always shared, like start_run()'s,
+  unless --offline, when no server is set, or when the shared storage isn't on this machine.
   """
   if offline or not root_qatools_config:
     return False, None

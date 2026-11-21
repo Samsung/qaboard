@@ -36,7 +36,7 @@ quantization hurts most, and the **Tuning Analysis** view showed what it found a
    Each evaluation runs `qa batch` with the label `tune-int8|iterN` and the chosen parameters as tuning parameters,
    which your code reads like any other (see
    [how parameters reach your code](/docs/tuning-from-the-webapp#how-tuning-parameters-reach-your-code)).
-   `qa optimize` reads each evaluation's metrics from QA-Board: from your computer, `qa` saves the runs there (not with `--no-share`),
+   `qa optimize` reads each evaluation's metrics from QA-Board: from your computer too, `qa` saves the runs there,
    as the CI does.
 
 3. **Look at the results.** On the commit page, select the experiment's batch, `tune-int8`, then the

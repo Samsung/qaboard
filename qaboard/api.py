@@ -30,8 +30,8 @@ qaboard_url, qaboard_url_source = default_server()
 # Only when nothing says where the server is: QABOARD_URL=http://localhost:5151 is fine.
 # `qa auth status` and `qa doctor` say it too.
 # (`qa upload` doesn't guess: it says to set QABOARD_URL)
-# Without --share or a CI, results then stay local, and `qa` says it in one line (qa.py, config.default_share)
-if not qaboard_url_source and ('--share' in sys.argv or os.environ.get('QA_SHARE', '').lower() in ('1', 'true', 'yes', 'on') or is_ci) and sys.argv[1:2] not in (['auth'], ['runs']) and not is_doctor_command and not is_command_without_project:
+# Outside a CI, results then stay local, and `qa` says it in one line (qa.py, config.default_share)
+if not qaboard_url_source and is_ci and sys.argv[1:2] not in (['auth'], ['runs']) and not is_doctor_command and not is_command_without_project:
   click.secho("WARNING: We are not sure where to find your QA-Board server.", fg='yellow', bold=True, err=True)
   click.secho(f"         We will default to {qaboard_url}", fg='yellow', bold=True, err=True)
   click.secho("         To remove this warning provide it as an environment variable (via QABOARD_HOST, e.g. 'qaboard-srv', 'qaboard-srv:443').", fg='yellow', err=True)

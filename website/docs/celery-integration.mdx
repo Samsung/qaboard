@@ -54,8 +54,7 @@ folder that the workers' machines share: the runs get your `HOME`, and with it y
 5. **Run a batch**: `qa batch ci`. To see the runs' logs live in your terminal instead, run them on your
    machine: `qa batch --runner local ci`.
 
-With `--no-share`, runs write their files in `output/`, in the folder where you started `qa batch`: by default
-they go to the results storage that the server reads.
+Runs write their files in the results storage that the server reads.
 
 ## Stop a batch {#stop-a-batch}
 Press Ctrl+C in `qa batch`, or click **Stop runs** in the web app: the workers drop the batch's tasks that wait, and

@@ -198,8 +198,7 @@ qa batch ci --save-runs runs.json
 python compute_metrics.py runs.json
 ```
 
-`--list-inputs` only prints the inputs. These are the directories of runs with `--no-share`: shared runs save
-their files under the project's `storage` (see [where is the data](/docs/storage/where-is-the-data)), and
+`--list-inputs` only prints the inputs. Runs save their files under the project's `storage` (see [where is the data](/docs/storage/where-is-the-data)), and
 `qa batch ci --list-output-dirs` prints those.
 
 For other values, `qa get` prints the variables `qa` uses:

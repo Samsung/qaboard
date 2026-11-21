@@ -81,7 +81,9 @@ class TestServerUrl(unittest.TestCase):
     import sys
     import subprocess
     import tempfile
-    clean_env = {k: v for k, v in os.environ.items() if k == 'QABOARD_IGNORE_SITE' or not k.startswith(('QABOARD_', 'QA_'))}
+    from qaboard.config import ci_env_variables
+    # outside a CI, like people's terminals: tests give CI=true when they need it
+    clean_env = {k: v for k, v in os.environ.items() if (k == 'QABOARD_IGNORE_SITE' or not k.startswith(('QABOARD_', 'QA_'))) and k not in ci_env_variables}
     # Without the defaults of an installed site package (e.g. qaboard-site-sirc gives the server's URL)
     without_site_packages = (
       "import importlib.metadata as m; entry_points = m.entry_points\n"

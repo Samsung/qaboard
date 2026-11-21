@@ -381,26 +381,32 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
 
   def test_a_local_run_sends_nothing(self):
     server = self.server()
-    for option in ('--no-share', '--offline'):
-      result = self.qa_in_project(option, 'run', '-i', 'inputs/a.txt', server=server)
-      self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-      self.assertEqual((server.outputs(), server.puts()), ([], []))
+    result = self.qa_in_project('--offline', 'run', '-i', 'inputs/a.txt', server=server)
+    self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+    self.assertEqual((server.outputs(), server.puts()), ([], []))
+    # --share is the default: scripts that still give it work
+    result = self.qa_in_project('--share', '--offline', 'run', '-i', 'inputs/a.txt', server=server)
+    self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
 
   def test_without_a_server_runs_stay_here_and_it_says_so(self):
     result = self.qa_in_project('run', '-i', 'inputs/a.txt')
     self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
     self.assertIn('results stay in output/, not shown in QA-Board (no QA-Board server is set', result.stderr)
     self.assertNotIn('not sure where', result.stderr)
-    self.assertNotIn('stay in output/', self.qa_in_project('--no-share', 'run', '-i', 'inputs/a.txt').stderr)
+    self.assertNotIn('stay in output/', self.qa_in_project('--offline', 'run', '-i', 'inputs/a.txt').stderr)
 
   def test_a_local_batch_runs_locally(self):
     # the runs `qa batch` starts decide as it did, not by themselves
     server = self.server()
     (self.project / 'batches.yaml').write_text("texts:\n  inputs:\n    - inputs/a.txt\n")
-    result = self.qa_in_project('--no-share', 'batch', '--batches-file', 'batches.yaml', 'texts', '--runner=local', server=server)
+    result = self.qa_in_project('--offline', 'batch', '--batches-file', 'batches.yaml', 'texts', '--runner=local', server=server)
     self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
     self.assertEqual((server.outputs(), server.puts()), ([], []))
     self.assertTrue((self.project / 'output').is_dir())
+    # a batch that can't share, without a server: its runs stay here too
+    result = self.qa_in_project('batch', '--batches-file', 'batches.yaml', 'texts', '--runner=local')
+    self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+    self.assertEqual(result.stderr.count('results stay in output/'), 1, result.stderr)
 
   def test_a_batch_sends_each_run(self):
     server = self.server()

@@ -8,7 +8,7 @@ description: Where qa saves your runs' files and your builds, how to set the res
 `qa` saves your runs' output files in folders, and the QA-Board server reads them there to show them in the web app.
 This page sets where they go.
 
-- **Local runs**, with `--no-share` or `--offline`, or without a server, are saved in your project, under `output/`. Only you see them.
+- **Local runs**, with `--offline` or without a server, are saved in your project, under `output/`. Only you see them.
 - **Shared runs**, by default, are saved in the results **storage**, a folder that the server and every
   machine running `qa` mount at the same path, often an NFS share. Where machines can't mount it, they
   [send their files to the server](/docs/storage/uploads) instead (experimental).

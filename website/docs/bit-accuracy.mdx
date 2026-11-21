@@ -140,7 +140,7 @@ like the web app picks reference runs (see [options](#options)):
    `/mnt/outputs/{user}`, it looks in every user's folder: the reference's runs were saved by its CI's user. When a run
    is missing, it prints where it looked.
 
-Your own runs are where `qa batch` saves them: in the storage, or in your project's `output/` folder with `--no-share`.
+Your own runs are where `qa batch` saves them, in the storage.
 The reference's runs are CI runs, so their label isn't prefixed by your name like yours:
 to compare with runs you shared, use `--reference-label "@<your-user>| <label>"`.
 

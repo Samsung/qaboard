@@ -7,6 +7,7 @@ from pathlib import Path
 import yaml
 import unittest
 import click
+from contextlib import nullcontext
 from click.testing import CliRunner
 
 os.environ['QA_TESTING'] = 'true'
@@ -58,7 +59,12 @@ class TestQaCli(unittest.TestCase):
       import qaboard
       qaboard = reload(qaboard)
       runner = CliRunner()
-      result = runner.invoke(qaboard.qa, argv, obj={}, auto_envvar_prefix='QA', color=False)
+      # qa always shares results when it can (config.default_share): `--share` in these tests means a machine that can,
+      # whose results go to the storage, without a server (QA_OFFLINE)
+      from unittest import mock
+      can_share = mock.patch('qaboard.qa.default_share', return_value=(True, None)) if '--share' in argv else nullcontext()
+      with can_share:
+        result = runner.invoke(qaboard.qa, argv, obj={}, auto_envvar_prefix='QA', color=False)
       if result.exception:
         print("EXCEPTION: ", result.exception)
       if result.exc_info and result.exception:
@@ -271,7 +277,8 @@ class TestQaCli(unittest.TestCase):
         try:
           log = output_dir / 'log.txt'
           deadline = time.time() + 30
-          while not (log.exists() and 'sleep 30' in log.read_text()) and time.time() < deadline:
+          # until run() runs: in CI, the log starts with the command line, which says "sleep 30" too
+          while not (log.exists() and 'sleep 30' in log.read_text().split('Outputs:', 1)[-1]) and time.time() < deadline:
             time.sleep(0.1)
           process.send_signal(signo)
           output, _ = process.communicate(timeout=20)
@@ -939,11 +946,7 @@ class TestQaCli(unittest.TestCase):
     print('stdout:', result.stdout)
     print('stderr:', result.stderr)
     assert result.exit_code == 0
-    # we test with --share, but really being offline is a problem here..
-    result = self.qa('--share', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{input_path} => {output_dir}"')
-    print('stdout:', result.stdout)
-    print('stderr:', result.stderr)
-    assert result.exit_code == 0
+    # shared batches with the local runner: tests/test_upload_command.py, with a server
 
 
   def test_batch_prints_the_results_url_at_the_start_and_the_end(self):

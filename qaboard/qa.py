@@ -52,23 +52,24 @@ from . import analytics
 @click.option('--tuning', multiple=True, help="Extra parameters for tuning (as JSON).")
 @click.option('--tuning-filepath', type=PathType(), multiple=True, help="File with extra parameters for tuning")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
-@click.option('--share/--no-share', default=None, help="Show results in QA-Board (the default when a server is set), or keep them in output/ (--no-share).")
+# results are always shared (config.default_share): --share is accepted, for scripts that still give it
+@click.option('--share', 'share_flag', is_flag=True, hidden=True)
 @click.option('--database', type=PathType(), help="Input database location")
 @click.option('--type', 'input_type', default=default_input_type, help="How we define inputs")
-@click.option('--offline', is_flag=True, help="Never contact QA-Board: results stay in output/, like --no-share.")
-def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, share, database, input_type, offline):
+@click.option('--offline', is_flag=True, help="Never contact QA-Board: results stay in output/.")
+def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, share_flag, database, input_type, offline):
   """Entrypoint to running your algo, launching batchs..."""
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
   if not ctx.obj:
     ctx.obj = {}
-  # Results show in QA-Board by default (config.default_share): --no-share or --offline keep them here
-  if share is None and ctx.invoked_subcommand not in ('auth', 'runs', *COMMANDS_WITHOUT_PROJECT):
+  # Results always show in QA-Board (config.default_share): only --offline keeps them here, or when qa can't share them
+  share = False
+  if ctx.invoked_subcommand not in ('auth', 'runs', *COMMANDS_WITHOUT_PROJECT):
     share, kept_here_because = default_share(offline)
     # said once, not again by the runs `qa batch` starts. A missing storage has its own warning (report_missing_storage)
     if kept_here_because and not missing_storage and ctx.invoked_subcommand in ('run', 'batch', 'optimize') and 'QA_BATCH' not in os.environ and not dryrun:
-      click.secho(f"qa: results stay in output/, not shown in QA-Board ({kept_here_because}). `qa --no-share` hides this.", fg="yellow", err=True)
-  share = bool(share)
+      click.secho(f"qa: results stay in output/, not shown in QA-Board ({kept_here_because}). `qa --offline` hides this.", fg="yellow", err=True)
   # One usage event per command, sent when it ends (qaboard/analytics.py), never from CI
   analytics.start(ctx.invoked_subcommand, share=share, tuning=bool(tuning or tuning_filepath), dryrun=dryrun, offline=offline)
   # Signing in is global, per server: it doesn't need a project
@@ -290,16 +291,22 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
       click.echo(click.style("Outputs: ", fg='cyan') + click.style(str(run_context.output_dir), fg='cyan', bold=True), err=True)
       print_url(ctx)
 
-      # what the run uses of its machine, sent with heartbeats and its end, plotted from system.series.json
-      start_system_metrics(run_context)
-      if not ctx.obj['offline']:
-          # heartbeat: we say every few minutes that the run still runs, else the server fails it (qaboard/heartbeat.py)
-          qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True, keep_previous=keep_previous, heartbeat=True, data=attempts.kept_logs_data(run_context.output_dir))
-          if qa_run_data:
-            run_context.id = qa_run_data["id"]
-            run_reporter(run_context).start(run_context.id)
-          # in CI, results QA-Board refuses are lost: don't compute them
-          exit_if_results_refused()
+      # Interrupted while it starts, e.g. while the server is slow to answer, the run fails like during run()
+      with interrupted_by_sigterm():
+        try:
+          # what the run uses of its machine, sent with heartbeats and its end, plotted from system.series.json
+          start_system_metrics(run_context)
+          if not ctx.obj['offline']:
+              # heartbeat: we say every few minutes that the run still runs, else the server fails it (qaboard/heartbeat.py)
+              qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True, keep_previous=keep_previous, heartbeat=True, data=attempts.kept_logs_data(run_context.output_dir))
+              if qa_run_data:
+                run_context.id = qa_run_data["id"]
+                run_reporter(run_context).start(run_context.id)
+              # in CI, results QA-Board refuses are lost: don't compute them
+              exit_if_results_refused()
+        except KeyboardInterrupt:
+          mark_aborted(run_context)
+          raise
 
       os.environ[RUN_DIR_VARIABLE] = str(run_context.output_dir)
       # LSF sends SIGINT then SIGTERM when users bkill the job or it uses too much memory, before a SIGKILL:
@@ -947,7 +954,7 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
   # An email when the runs end, unless QA_NOTIFY=none
   notify = notify_channel(is_ci, nested, started_by_qaboard) if not dryrun else None
   if notify and not should_notify_qa_database and os.environ.get('QA_NOTIFY'):
-    click.secho("QA_NOTIFY: QA-Board can only email you about runs it knows: these stay here (--no-share, --offline, or no server).", fg='yellow', err=True)
+    click.secho("QA_NOTIFY: QA-Board can only email you about runs it knows: these stay here (--offline, or no server).", fg='yellow', err=True)
   notification = None
   if should_notify_qa_database:
     command_data = {
@@ -1255,9 +1262,8 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
       # We could serialize properly the run_context/runner_options, and e.g. call "qa --pickled-cli" and use the CLI command below just for logs... 
       args = [
           f"qa",
-          # children decide as their parent did: never by themselves (config.default_share)
-          '--share' if ctx.obj["share"] else '--no-share',
-          f'--offline' if ctx.obj['offline'] else None,
+          # runs share like their batch: those of a batch that can't share stay local too (config.default_share)
+          '--offline' if ctx.obj['offline'] or not ctx.obj['share'] else None,
           f'--label "{ctx.obj["raw_batch_label"]}"' if ctx.obj["raw_batch_label"] != default_batch_label else None,
           platform_cli,
           f'--type "{run_context.type}"' if run_context.type != default_input_type else None,

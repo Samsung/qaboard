@@ -104,8 +104,8 @@ What `qa` and the SDK send with results is built in one place, `qaboard/payloads
 Without a qaboard.yaml, `start_run()` says once what it chose (`active_run.defaults_chosen`). Without
 `project.reference_branch`, a project's reference branch is its repository's default branch (`git.default_branch`, sent
 with results), else `main`: `backend/backend/reference_branch.py`, `reference_branch_of` in `webapp/src/defaults.js`,
-`reference_branch()` in `qaboard/config.py`: change them together. `qa` shares results by default
-(`config.default_share`: not with `--no-share`, `--offline`, without a server, or without the storage here).
+`reference_branch()` in `qaboard/config.py`: change them together. `qa` always shares results
+(`config.default_share`: not with `--offline`, without a server, or without the storage here; `--share` is a hidden no-op).
 
 Runs don't need a storage shared with the server: without `storage` in qaboard.yaml (or `storage: upload`), `qa run` and
 `start_run()` save them in the project's `output/` and send their files (`qaboard/upload.py`) to the one folder the server

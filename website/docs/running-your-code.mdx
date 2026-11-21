@@ -49,8 +49,7 @@ The example's [`qa/main.py`](https://github.com/Samsung/qaboard/blob/master/exam
 complete `run()` to copy from: it simulates the camera, runs the pipeline, saves the output image and each stage, then
 measures PSNR, sharpness and halos.
 
-`qa` prints the link to the results in the web app. To keep them on your computer, in `output/`, add
-[`--no-share`](/docs/using-the-qa-cli#qa---share): `qa --no-share run --input charts/slanted-edge.png`.
+`qa` prints the link to the results in the web app ([where they go](/docs/using-the-qa-cli#qa---share)).
 
 ## What `qa` does around `run()` {#wrapping-your-code}
 1. It reads *qaboard.yaml* and imports the file named by `project.entrypoint`. That file's folder is on Python's
@@ -59,7 +58,7 @@ measures PSNR, sharpness and halos.
    gets a [new folder](/docs/storage/where-is-the-data#reruns).
 3. It saves the metrics `run()` returns in *metrics.json*, everything printed in *log.txt*, and the lists of input and
    output files in *manifest.inputs.json* and *manifest.outputs.json*.
-4. Unless `--no-share` or `--offline`, it sends the metrics to QA-Board, which shows the output files from where they are.
+4. It sends the metrics to QA-Board, which shows the output files from where they are.
 
 What `run()` returns is a dict of metrics: the web app shows the numbers, compared with the reference's. See
 [Metrics](/docs/computing-quantitative-metrics) for strings, units, and which way is better. A run fails when `run()`
@@ -190,7 +189,7 @@ Run `qa batch import-standard-benchmark`, then make that batch a
 | `forwarded_args` | The arguments after the input: `qa run --input A.jpg --verbose`. |
 | `output_dir` | Where to save the output files. `qa` creates it, and empties it before the run. |
 | `dryrun` | `True` with `qa --dryrun run`: print what you would do, without doing it. |
-| `id` | The run's id in QA-Board. `None` when results aren't sent: with `--no-share` or `--offline`, without a server, or when the server can't be reached. |
+| `id` | The run's id in QA-Board. `None` when results aren't sent: with `--offline`, without a server, or when the server can't be reached. |
 | `configurations`, `extra_parameters` | `configs` in two parts: the configurations, and the tuning parameters with the forwarded arguments. Rarely needed. |
 
 The runs you read back from scripts have the same names ([results in scripts](/docs/apis#runs-in-scripts)).
