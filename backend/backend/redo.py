@@ -153,6 +153,10 @@ def redo_outputs(batch, outputs, user_info, actor=None, selection=None) -> dict:
   # We never run from missing artifacts: e.g. without its qaboard.yaml, a subproject's runs would be saved in the parent project.
   # Raises ArtifactsUnavailable if they are missing and can't be restored right now.
   restored = ci_commit.ensure_artifacts(user=user_info)
+  if restored and restored.get("status") == "restored":
+    # code ran to restore them (artifacts.restore): saved even if the redo fails below
+    db_session.add(ci_commit)
+    db_session.commit()
 
   command_id = str(uuid.uuid4())
   created_at = datetime.datetime.utcnow()

@@ -10,7 +10,8 @@ import time
 from celery.app.control import Inspect
 from qaboard.runners.celery_app import app as celery_app, ssh_task
 
-from backend import app
+from backend import app, db_session
+from ..audit import audit
 from .auth import login_required
 
 
@@ -22,6 +23,8 @@ inspector = Inspect(app=celery_app)
 @login_required
 def task_celery(id):
     result = ssh_task.delay(id)
+    audit('celery.ssh_session', 'celery_task', result.id, str(id)[:200], meta={"connection_id": str(id)[:200]})
+    db_session.commit()
     # without a free worker, don't hold a uwsgi worker forever
     deadline = time.monotonic() + 120
     while result.status == "PENDING":

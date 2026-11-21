@@ -125,6 +125,8 @@ ACTIONS = {
   'storage_location.delete': Action("Removed a storage location", 'storage'),
   # Jobs
   'job.create': Action("Started a job", 'jobs'),
+  # a Celery worker waits for an SSH connection (WebCDE remote sessions, api/tasks.py)
+  'celery.ssh_session': Action("Reserved a worker for a remote session", 'jobs'),
   'job.cancel': Action("Cancelled a job", 'jobs'),
   'job_schedule.create': Action("Scheduled a job", 'jobs'),
   'job_schedule.update': Action("Changed a job schedule", 'jobs'),

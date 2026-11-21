@@ -29,9 +29,11 @@ redone or deleted...
   Renamed and moved batches, and milestones.
 - **Access**: sign-ins (and failed ones), tokens, `qa auth login` approvals, users, groups, roles on projects,
   visibility and access requests.
-- **Administration**: settings, sign-in providers, storage locations, jobs and their schedules.
+- **Administration**: settings, sign-in providers, storage locations, jobs and their schedules, and Celery workers
+  reserved for remote sessions.
 
-It never contains passwords or tokens: a changed secret is recorded as changed, never with its value.
+It never contains passwords or tokens: a changed secret is recorded as changed, never with its value, and
+parameters or CI inputs named like secrets (`*_token`, `*password*`, `api_key`...) are left out.
 
 <details>
 <summary>What isn't recorded, and why</summary>
@@ -75,6 +77,8 @@ addresses, not the proxy's.
 - Events live in QA-Board's database: people who can write to it can change them. Forward them to a SIEM if you need
   a log they can't change.
 - Events before this version only cover sign-ins, tokens, admin changes and batch deletions.
-- Projects' members don't see the IP addresses and browsers in their project's audit log: only admins do.
+- Projects' members don't see the IP addresses and browsers in their project's audit log, nor the events of
+  subprojects they can't see: only admins do.
+- CSV exports start cells like `=` with `'`, so that spreadsheets don't run labels as formulas.
 
 </details>

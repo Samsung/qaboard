@@ -265,6 +265,14 @@ class GarbageEvent:
                                 target_label=self.project_id, project_id=self.project_id, meta=meta)
     else:
       self.event.meta = meta
+      # QABOARD_AUDIT_STDOUT prints the counts once, when the project is done (finish)
+      self.event.audit_quiet = True
+
+  def finish(self):
+    if self.event is not None:
+      self.event.audit_quiet = False
+      # written again (expired since the last commit): printed with the final counts
+      self.event.meta = {**self.counts, **self.settings}
 
 
 def collect_garbage(select_project, report, before=None, default_after='1month', can_delete_reference_branch=False,
@@ -415,6 +423,7 @@ def collect_garbage(select_project, report, before=None, default_after='1month',
     if dryrun:
         db_session.rollback()
     else:
+        garbage_event.finish()
         db_session.commit()
     finished.add(project.id)
     report.set(projects_finished=sorted(finished), projects_done=len(finished))

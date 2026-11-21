@@ -238,10 +238,18 @@ def stop_batch():
     return not_found
   if forbidden := require_project_access(g.user, batch.ci_commit.project_id):
     return forbidden
-  status = batch.stop(db_session)
+  batch_id, label, project_id, hexsha = batch.id, batch.label, batch.ci_commit.project_id, batch.ci_commit.hexsha
+  try:
+    status = batch.stop(db_session)
+  except Exception as e:
+    # some of its jobs may be stopped already (stop() commits as it goes): recorded, then the error is raised
+    db_session.rollback()
+    audit('batch.stop', 'batch', batch_id, label, project_id=project_id, meta={"commit": hexsha, "status": "error", "error": capped(str(e))})
+    db_session.commit()
+    raise
   # also when it failed: some of its jobs may be stopped
-  audit('batch.stop', 'batch', batch.id, batch.label, project_id=batch.ci_commit.project_id, meta={
-    "commit": batch.ci_commit.hexsha, "status": "failed" if "error" in status else "stopped", **capped(status, items=20),
+  audit('batch.stop', 'batch', batch_id, label, project_id=project_id, meta={
+    "commit": hexsha, "status": "failed" if "error" in status else "stopped", **capped(status, items=20),
   })
   db_session.commit()
   return jsonify(status), 200 if not "error" in status else 500

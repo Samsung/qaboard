@@ -55,6 +55,34 @@ def test_project_history_has_only_project_actions_of_the_project_and_subprojects
   assert not [e for e in history(team['bob']).get_json()["events"] if e["action"] == "storage.delete"]
 
 
+def test_project_history_hides_private_subprojects(team, client):
+  """Subprojects can be more private than their parent: their events are only for those who may see them"""
+  from backend.audit import system_audit
+  from backend.database import db_session
+  root = team['root']
+  for sub in ('team/open', 'team/secret'):
+    assert ingest(client, project=sub).status_code == 200
+    system_audit('batch.delete', target_type='batch', target_id=1, target_label=sub, project_id=sub)
+  db_session.commit()
+  assert root.post('/api/v1/project/access/visibility', json={"project": 'team/secret', "visibility": "private"}).status_code == 200
+  # dave is a developer of team, public, like every signed-in user (projects.signed_in_role), not of team/secret
+  def labels(client):
+    response = client.get('/api/v1/project/audit?project=team&action=batch.delete')
+    assert response.status_code == 200, response.get_json()
+    return {e["target_label"] for e in response.get_json()["events"]}
+  assert labels(team['dave']) == {"team/open"}
+  assert labels(root) == {"team/open", "team/secret"}
+
+
+def test_csv_exports_dont_run_formulas(team):
+  from backend.audit import system_audit
+  from backend.database import db_session
+  system_audit('batch.delete', target_type='batch', target_id=1, target_label='=HYPERLINK("https://example.com")', project_id=PROJECT)
+  db_session.commit()
+  rows = list(csv.DictReader(io.StringIO(team['root'].get('/api/v1/admin/audit?format=csv&action=batch.delete').get_data(as_text=True))))
+  assert rows[0]["target_label"] == """'=HYPERLINK("https://example.com")"""
+
+
 def test_filters_by_category_actor_and_dates(team):
   root = team['root']
   def actions(query):
@@ -121,6 +149,18 @@ def test_committed_events_on_stdout(team, monkeypatch, capsys):
     db_session.commit()
     [again] = [json.loads(line[len('qaboard-audit '):]) for line in capsys.readouterr().out.splitlines() if line.startswith('qaboard-audit ')]
     assert again["id"] == printed["id"] and again["meta"]["status"] == "done"
+
+    # a savepoint that rolls back forgets its own events, not those of the transaction around it
+    audit_lib.system_audit('batch.delete', target_type='batch', target_id=9, target_label='before', project_id=PROJECT)
+    try:
+      with db_session.begin_nested():
+        audit_lib.system_audit('batch.delete', target_type='batch', target_id=10, target_label='in the savepoint', project_id=PROJECT)
+        raise RuntimeError
+    except RuntimeError:
+      pass
+    db_session.commit()
+    labels = [json.loads(line[len('qaboard-audit '):])["target_label"] for line in capsys.readouterr().out.splitlines() if line.startswith('qaboard-audit ')]
+    assert labels == ["before"]
   finally:
-    for name, fn in [('after_flush', audit_lib.remember_flushed), ('after_commit', audit_lib.print_committed), ('after_rollback', audit_lib.forget_flushed)]:
+    for name, fn in [('after_flush', audit_lib.remember_flushed), ('after_commit', audit_lib.print_committed), ('after_soft_rollback', audit_lib.forget_rolled_back)]:
       event.remove(Session, name, fn)

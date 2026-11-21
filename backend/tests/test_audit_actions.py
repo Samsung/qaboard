@@ -154,9 +154,15 @@ def mutating_routes():
         continue
       methods = set()
       for decorator in node.decorator_list:
-        if isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Attribute) and decorator.func.attr == 'route':
+        if not (isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Attribute)):
+          continue
+        # @app.post(...), @app.delete(...)
+        if decorator.func.attr in ('post', 'put', 'patch', 'delete'):
+          methods.add(decorator.func.attr.upper())
+        if decorator.func.attr == 'route':
           for keyword in decorator.keywords:
             if keyword.arg == 'methods':
+              # ast.literal_eval fails on computed methods: list them literally, so that the test sees them
               methods |= set(ast.literal_eval(keyword.value))
       if methods & MUTATING:
         yield f"{path.name}:{node.name}", (path, node.name)
@@ -188,6 +194,12 @@ def test_routes_that_change_things_are_audited():
     "These endpoints change things without recording an audit event. Call audit() (backend/audit.py), "
     f"or say why not in backend/audit_actions.py NOT_AUDITED: {unaudited}"
   )
+
+
+def test_routes_are_declared_with_decorators():
+  """add_url_rule() would hide routes from the test above"""
+  for path in sorted((BACKEND / 'api').glob('*.py')):
+    assert 'add_url_rule(' not in path.read_text(), f"{path.name}: declare routes with @app.route, the audit coverage test reads them"
 
 
 def test_not_audited_lists_existing_routes():

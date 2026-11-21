@@ -10,7 +10,7 @@ import datetime
 from flask import request, jsonify, g, Response
 from sqlalchemy import or_
 
-from backend import app
+from backend import app, db_session
 from ..models import AuditEvent
 from ..audit import serialize as serialize_event
 from ..audit_actions import ACTIONS, CATEGORIES, PROJECT_ACTIONS
@@ -104,6 +104,13 @@ def page_of_events(query, default_limit=50, redact=False):
   return {"events": serialized, "next_before_id": events[-1].id if more else None}, None
 
 
+def spreadsheet_safe(value):
+  """Spreadsheets run cells starting with = + - @ as formulas: labels are written by users, we make them text"""
+  if isinstance(value, str) and value[:1] in ('=', '+', '-', '@', '\t', '\r'):
+    return "'" + value
+  return value
+
+
 def export(query, name: str, redact=False):
   """`?format=csv` or `jsonl`: every matching event, newest first, as a download"""
   fmt = request.args.get('format')
@@ -137,7 +144,7 @@ def export(query, name: str, redact=False):
       writer = csv.DictWriter(buffer, fieldnames=columns)
       writer.writeheader()
       for row in rows():
-        writer.writerow({k: json.dumps(v, default=str) if isinstance(v, (dict, list)) else v for k, v in row.items()})
+        writer.writerow({k: spreadsheet_safe(json.dumps(v, default=str) if isinstance(v, (dict, list)) else v) for k, v in row.items()})
         yield buffer.getvalue()
         buffer.seek(0)
         buffer.truncate(0)
@@ -187,7 +194,13 @@ def project_audit():
   decision = authorize(g.actor, 'project.history', project_id)
   if not decision.allowed:
     return denied(decision)
+  # Subprojects can be more private than their parent (visibility, per-project rules): only those the caller may see
+  from ..access import can
+  subprojects = [p for (p,) in (db_session.query(AuditEvent.project_id).distinct()
+                                .filter(AuditEvent.project_id.like(f"{escape_like(project_id)}/%", escape='\\'))
+                                .filter(AuditEvent.action.in_(PROJECT_ACTIONS)))]
+  projects = [project_id, *[p for p in subprojects if can('project.history', p)]]
   query = (AuditEvent.query
-           .filter(or_(AuditEvent.project_id == project_id, AuditEvent.project_id.like(f"{escape_like(project_id)}/%", escape='\\')))
+           .filter(AuditEvent.project_id.in_(projects))
            .filter(AuditEvent.action.in_(PROJECT_ACTIONS)))
   return answer(query, f"{project_id.replace('/', '-')}-history", redact=True)

@@ -42,9 +42,23 @@ def client_ip() -> Optional[str]:
   return request.remote_addr
 
 
+# Keys holding secrets in what users send (tuning parameters, CI inputs...): e.g. github_token, AWS_SECRET_ACCESS_KEY.
+# Only text values are redacted: flags and ids like generated_password, token_id stay.
+SECRET_WORDS = ('password', 'passwd', 'secret', 'token', 'api_key', 'apikey', 'private_key', 'access_key', 'credential')
+
+
+def is_secret(key, value) -> bool:
+  key = str(key).lower()
+  if key in SECRET_KEYS:
+    return True
+  if not isinstance(value, str) or key.endswith(('_id', '_env')):
+    return False
+  return any(word in key for word in SECRET_WORDS)
+
+
 def without_secrets(value):
   if isinstance(value, dict):
-    return {k: ('[redacted]' if k.lower() in SECRET_KEYS else without_secrets(v)) for k, v in value.items()}
+    return {k: ('[redacted]' if is_secret(k, v) else without_secrets(v)) for k, v in value.items()}
   if isinstance(value, list):
     return [without_secrets(v) for v in value]
   return value
@@ -77,11 +91,12 @@ def canonical_json(value) -> str:
 
 def fingerprint(value, limit: int = 4000) -> dict:
   """What identifies large parameters in an event: the hash of their canonical JSON, and the JSON, cut at `limit`"""
-  text = canonical_json(value)
+  # without their secrets, also in the hash: a hash of a short password could be guessed
+  kept = canonical_json(without_secrets(value))
   return {
-    "parameters_sha256": hashlib.sha256(text.encode('utf-8')).hexdigest(),
-    "parameters": text[:limit],
-    **({"parameters_truncated": True} if len(text) > limit else {}),
+    "parameters_sha256": hashlib.sha256(kept.encode('utf-8')).hexdigest(),
+    "parameters": kept[:limit],
+    **({"parameters_truncated": True} if len(kept) > limit else {}),
   }
 
 
@@ -141,22 +156,39 @@ def audit(action: str, target_type: Optional[str] = None, target_id=None, target
 
 def print_committed(session):
   """Called after commits (database.py): prints the events the transaction saved, see QABOARD_AUDIT_STDOUT"""
-  events = session.info.pop('audit_flushed', None)
-  for event in events or []:
+  flushed = session.info.pop('audit_flushed', None) or []
+  # an event completed in the same transaction is printed once, as it ends up
+  latest = {}
+  for _, event in flushed:
+    latest[event["id"]] = event
+  for event in latest.values():
     print(f"qaboard-audit {json.dumps(event, default=str, separators=(',', ':'))}", file=sys.stdout, flush=True)
 
 
 def remember_flushed(session, flush_context=None):
   """Called after flushes: ids and dates are set, and we can't query the database once committed"""
   from .models import AuditEvent
-  # with the events whose details were completed later (update_meta): printed again, with the same id
-  events = [serialize(o) for o in [*session.new, *session.dirty] if isinstance(o, AuditEvent)]
+  # with the events whose details were completed later (update_meta): printed again, with the same id,
+  # unless they're progress that will be completed again (audit_quiet, e.g. a garbage collection's counts)
+  events = [serialize(o) for o in session.new if isinstance(o, AuditEvent)]
+  events += [serialize(o) for o in session.dirty if isinstance(o, AuditEvent) and not getattr(o, 'audit_quiet', False)]
   if events:
-    session.info.setdefault('audit_flushed', []).extend(events)
+    # by transaction: a savepoint that rolls back forgets only its own
+    transaction = session.get_nested_transaction() or session.get_transaction()
+    session.info.setdefault('audit_flushed', []).extend((transaction, e) for e in events)
 
 
-def forget_flushed(session):
-  session.info.pop('audit_flushed', None)
+def forget_rolled_back(session, previous_transaction):
+  """Called after rollbacks, of savepoints too: forgets the events flushed in the transaction, or in those it contains"""
+  def within(transaction):
+    while transaction is not None:
+      if transaction is previous_transaction:
+        return True
+      transaction = transaction.parent
+    return False
+  flushed = session.info.get('audit_flushed')
+  if flushed:
+    session.info['audit_flushed'] = [(t, e) for t, e in flushed if not within(t)]
 
 
 def install_stdout():
@@ -167,8 +199,9 @@ def install_stdout():
   from sqlalchemy.orm import Session
   if not event.contains(Session, 'after_commit', print_committed):
     event.listen(Session, 'after_flush', remember_flushed)
+    # not for savepoints: only once the whole transaction is committed
     event.listen(Session, 'after_commit', print_committed)
-    event.listen(Session, 'after_rollback', forget_flushed)
+    event.listen(Session, 'after_soft_rollback', forget_rolled_back)
 
 
 def system_audit(action: str, label='qaboard-admin', **kwargs):
