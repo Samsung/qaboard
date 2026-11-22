@@ -68,6 +68,10 @@ export const usePrefsStore = create()(persist(
     exportLast: {},
     // export settings users saved: [{id, name, project (null: all projects), settings}]
     exportPresets: [],
+    // project => { [key]: true }: the logged media keys users pinned on top of run cards (viewers/media/)
+    mediaPins: {},
+    // project => { [group]: true }: the groups of logged media keys users collapsed
+    mediaGroupsCollapsed: {},
 
     toggleFavorite: project => set(state => ({
       favorites: { ...state.favorites, [project]: !state.favorites[project] },
@@ -119,6 +123,14 @@ export const usePrefsStore = create()(persist(
       return { exportPresets: [...others, { id, name, project, settings }] };
     }),
     deleteExportPreset: id => set(state => ({ exportPresets: (state.exportPresets ?? []).filter(p => p.id !== id) })),
+    toggleMediaPin: (project, key) => set(state => {
+      const { [key]: pinned, ...others } = state.mediaPins?.[project ?? ''] ?? {};
+      return { mediaPins: { ...state.mediaPins, [project ?? '']: pinned ? others : { ...others, [key]: true } } };
+    }),
+    toggleMediaGroup: (project, group) => set(state => {
+      const { [group]: collapsed, ...others } = state.mediaGroupsCollapsed?.[project ?? ''] ?? {};
+      return { mediaGroupsCollapsed: { ...state.mediaGroupsCollapsed, [project ?? '']: collapsed ? others : { ...others, [group]: true } } };
+    }),
     toggleHideSharedSettings: () => set(state => ({ hide_shared_settings: !state.hide_shared_settings })),
     toggleShortenLongSettings: () => set(state => ({ shorten_long_settings: !state.shorten_long_settings })),
     updateTuning: (project, form) => set(state => ({

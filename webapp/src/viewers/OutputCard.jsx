@@ -577,6 +577,7 @@ const OutputCard = memo(function OutputCard(props) {
           {...view}
           {...controls}
           onControlsChange={onControlsChange}
+          project={project}
           path={path}
           path_ref={path_ref}
           style={{ ...style, ...view.style }}

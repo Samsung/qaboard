@@ -56,3 +56,57 @@ export const tableRows = ({ rows }, { filter = '', sort = null } = {}) => {
   }
   return shown;
 };
+
+// The column rows are joined by to compare two tables: one named id, name or key, else the first text column, else the first
+export const keyColumn = ({ columns, rows }) => {
+  const named = columns.findIndex(column => /^(id|name|key)$/i.test(column.trim()));
+  if (named >= 0) return named;
+  const text = columns.findIndex((_, c) => rows.length > 0 && rows.every(row => typeof row[c] === 'string'));
+  return Math.max(0, text);
+};
+
+const sameCell = (a, b) => {
+  if (is_media_cell(a) && is_media_cell(b)) return a.path.split('/').pop() === b.path.split('/').pop();
+  if (typeof a === 'number' && typeof b === 'number') return a === b || Math.abs(a - b) <= 1e-12 * Math.max(Math.abs(a), Math.abs(b));
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+};
+
+// The new table against the reference's, rows joined by a column (its index in the new table; the reference's column
+// of the same name): [{ status: 'same' | 'changed' | 'added' | 'removed', row, ref_row, changed: Set(column indices) }],
+// the new table's rows in order, then the rows only in the reference. Columns are matched by name.
+export const diffTables = (table, ref, column) => {
+  const ref_columns = table.columns.map(name => ref.columns.indexOf(name));
+  const ref_key = ref_columns[column];
+  const by_key = new Map();
+  if (ref_key >= 0)
+    ref.rows.forEach((row, i) => {
+      const key = cellText(row[ref_key]);
+      if (!by_key.has(key)) by_key.set(key, i);
+    });
+  const used = new Set();
+  const rows = table.rows.map(row => {
+    const key = cellText(row[column]);
+    const i = by_key.get(key);
+    if (i === undefined || used.has(i)) return { status: 'added', row, ref_row: null, changed: new Set() };
+    used.add(i);
+    const ref_row = ref.rows[i];
+    const changed = new Set(table.columns.map((_, c) => c).filter(c => ref_columns[c] < 0 || !sameCell(row[c], ref_row[ref_columns[c]])));
+    return { status: changed.size ? 'changed' : 'same', row, ref_row, changed };
+  });
+  ref.rows.forEach((ref_row, i) => {
+    if (used.has(i)) return;
+    rows.push({ status: 'removed', row: table.columns.map((_, c) => ref_columns[c] >= 0 ? ref_row[ref_columns[c]] : null), ref_row, changed: new Set() });
+  });
+  return rows;
+};
+
+// A numeric column's distribution, for a sparkline in its header: `bins` counts from min to max
+export const columnHistogram = (rows, column, bins = 12) => {
+  const values = rows.map(row => row[column]).filter(Number.isFinite);
+  if (values.length < 2) return null;
+  let min = Infinity, max = -Infinity;
+  for (const v of values) { if (v < min) min = v; if (v > max) max = v; }
+  const counts = Array.from({ length: bins }, () => 0);
+  for (const v of values) counts[max > min ? Math.min(bins - 1, Math.floor((v - min) / (max - min) * bins)) : 0]++;
+  return { min, max, counts };
+};

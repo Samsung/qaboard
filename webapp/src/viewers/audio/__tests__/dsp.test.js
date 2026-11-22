@@ -1,5 +1,5 @@
 // The audio viewer's computations. Run with: cd webapp && npm test -- --run src/viewers/audio
-import { CLIP, dbfs, difference, fft, frequencyRow, levels, mixdown, peaks, rowFrequency, stft, summarize } from '../dsp';
+import { CLIP, dbfs, difference, fft, frequencyRow, levels, loudness, matchingGains, mixdown, peaks, rowFrequency, stft, summarize } from '../dsp';
 import { formatDb, formatRate, formatTime, timeTicks } from '../format';
 import { magma } from '../colormap';
 
@@ -61,6 +61,31 @@ describe('levels', () => {
   });
 });
 
+describe('loudness', () => {
+  it('measures a full-scale 1 kHz sine at -3 LUFS, as BS.1770 says', () => {
+    expect(loudness([sine(997, 48000, 3)], 48000)).toBeCloseTo(-3.01, 1);
+    // at another rate, and twice as loud on two channels
+    expect(loudness([sine(997, 44100, 3), sine(997, 44100, 3)], 44100)).toBeCloseTo(0, 1);
+    // 20 dB quieter
+    expect(loudness([sine(997, 48000, 3, 0.1)], 48000)).toBeCloseTo(-23.01, 1);
+  });
+
+  it('weighs bass less, and gates silence out', () => {
+    expect(loudness([sine(40, 48000, 3)], 48000)).toBeLessThan(-6);
+    const half_silent = new Float32Array(48000 * 6);
+    half_silent.set(sine(997, 48000, 3));
+    expect(loudness([half_silent], 48000)).toBeCloseTo(-3.01, 0);
+    expect(loudness([new Float32Array(48000)], 48000)).toBe(-Infinity);
+    expect(loudness([sine(997, 48000, 0.05)], 48000)).toBeGreaterThan(-6);
+  });
+
+  it('matches tracks to the quietest, never up', () => {
+    expect(matchingGains([-14, -20])).toEqual([-6, 0]);
+    expect(matchingGains([-Infinity, -20])).toEqual([0, 0]);
+    expect(matchingGains([-14])).toEqual([0]);
+  });
+});
+
 describe('FFT and spectrograms', () => {
   it('finds a sine in its bin', () => {
     const n = 64;
@@ -79,7 +104,7 @@ describe('FFT and spectrograms', () => {
     const frequency = 64 * rate / size;
     const spectrogram = stft([sine(frequency, rate, 1)], { size });
     expect(spectrogram.bins).toBe(513);
-    expect(spectrogram.frames).toBe(Math.floor((16000 - size) / spectrogram.hop) + 1);
+    expect(spectrogram.frames).toBe(Math.ceil(16000 / (size / 4)));
     const frame = spectrogram.data.subarray(spectrogram.bins * 3, spectrogram.bins * 4);
     expect(frame.indexOf(Math.max(...frame))).toBe(64);
     expect(frame[64]).toBeCloseTo(0, 1);
@@ -89,9 +114,17 @@ describe('FFT and spectrograms', () => {
     expect(stereo.data[stereo.bins * 3 + 64]).toBeCloseTo(-6.02, 1);
   });
 
-  it('keeps long files to max_frames frames', () => {
-    const spectrogram = stft([new Float32Array(48000 * 600)], { size: 2048, max_frames: 2000 });
-    expect(spectrogram.frames).toBeLessThanOrEqual(2001);
+  it('computes a frame per column of what is shown', () => {
+    expect(stft([new Float32Array(48000 * 600)], { size: 2048 }).frames).toBe(2000);
+    // zoomed in on 1 s of a 440 Hz sine, after 1 s of silence
+    const rate = 8000;
+    const samples = new Float32Array(2 * rate);
+    samples.set(sine(440, rate, 1), rate);
+    const zoomed = stft([samples], { size: 256, start: 0.5 * rate, end: 1.5 * rate, frames: 100 });
+    expect(zoomed.frames).toBe(100);
+    const bin = Math.round(440 / rate * 256);
+    expect(zoomed.data[10 * zoomed.bins + bin]).toBeLessThan(-100);
+    expect(zoomed.data[90 * zoomed.bins + bin]).toBeGreaterThan(-3);
   });
 
   it('maps rows to log frequencies and back', () => {
@@ -123,10 +156,12 @@ describe('formatting', () => {
   });
 
   it('puts ticks at round times', () => {
-    const ticks = timeTicks(30, 900);
+    const ticks = timeTicks(0, 30, 900);
     expect(ticks.map(t => t.time)).toEqual([0, 5, 10, 15, 20, 25, 30]);
     expect(ticks[1].label).toBe('0:05');
-    expect(timeTicks(0.5, 1000).map(t => t.label).slice(0, 3)).toEqual(['0:00.00', '0:00.05', '0:00.10']);
-    expect(timeTicks(0, 100)).toEqual([]);
+    expect(timeTicks(0, 0.5, 1000).map(t => t.label).slice(0, 3)).toEqual(['0:00.00', '0:00.05', '0:00.10']);
+    // zoomed in: from the first tick in view
+    expect(timeTicks(12.34, 12.36, 900).map(t => t.label).slice(0, 2)).toEqual(['0:12.340', '0:12.342']);
+    expect(timeTicks(0, 0, 100)).toEqual([]);
   });
 });

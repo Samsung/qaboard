@@ -1,8 +1,12 @@
 // Generated audio for the playground and tests: a "new" track, and a reference that differs from it in known ways
 import { encodeWav } from './wav';
 
-// deterministic noise in [-1, 1)
-const noise = i => (((Math.imul(i + 1, 2654435761) ^ 0x5bd1e995) >>> 0) / 2147483648) - 1;
+// deterministic white noise in [-1, 1): murmur3's finalizer, without the periods of simpler hashes (they'd be tones)
+const noise = i => {
+  let x = Math.imul(i ^ (i >>> 16), 0x85ebca6b);
+  x = Math.imul(x ^ (x >>> 13), 0xc2b2ae35);
+  return ((x ^ (x >>> 16)) >>> 0) / 2147483648 - 1;
+};
 
 // A chirp from 110 Hz up 6 octaves and back, with a beat of short tones every second, then a little noise.
 // - pitch: multiplies the frequencies

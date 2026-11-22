@@ -75,6 +75,7 @@ const logged = {
   label: 'Logged with the image',
   description: 'The boxes the run logged with this image',
   overview: true,
+  available: ({ boxes }) => !!boxes?.length,
   regions: ({ boxes }) => boxes?.length ? boxes : null,
 };
 

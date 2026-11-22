@@ -135,34 +135,28 @@ export function fft(re, im) {
   }
 }
 
-// Short-time Fourier transform of the mix of the channels, in dBFS (a full-scale sine is 0 dB), with a Hann window.
-// Long files get a larger hop: at most max_frames frames, about a column per pixel.
-// data[frame * bins + bin], frame f is centered on sample f * hop + size / 2.
-// Long files: only the samples of the frames are read, it doesn't mix the channels first.
-export function stft(channels, { size = 2048, hop, max_frames = 2000 } = {}) {
+// Short-time Fourier transform of the mean of the channels, in dBFS (a full-scale sine is 0 dB), with a Hann window.
+// `frames` frames centered at regular intervals over samples [start, end): one per pixel column of what's shown, so
+// zooming in computes finer frames. Only the samples of the frames are read: long files cost what's drawn.
+// data[frame * bins + bin]
+export function stft(channels, { size = 2048, start = 0, end = channels[0].length, frames } = {}) {
   const length = channels[0].length;
-  hop = hop ?? Math.max(size / 4, Math.ceil((length - size) / max_frames));
-  const frames = Math.max(1, Math.floor((length - size) / hop) + 1);
+  frames = Math.max(1, frames ?? Math.min(2000, Math.ceil((end - start) / (size / 4))));
+  const hop = (end - start) / frames;
   const bins = size / 2 + 1;
-  const window = new Float32Array(size);
-  let sum = 0;
-  for (let i = 0; i < size; i++) {
-    window[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / size);
-    sum += window[i];
-  }
+  const window = windowOf(size);
   // the mean of the channels, and a full-scale sine at 0 dB
-  const scale = (2 / sum / channels.length) ** 2;
+  const scale = (2 / window.sum / channels.length) ** 2;
   const data = new Float32Array(frames * bins);
   const re = new Float64Array(size), im = new Float64Array(size);
   let max = -Infinity;
   for (let f = 0; f < frames; f++) {
-    const offset = f * hop;
+    const offset = Math.round(start + (f + 0.5) * hop - size / 2);
     re.fill(0);
     im.fill(0);
-    for (const samples of channels) {
-      const end = Math.min(size, length - offset);
-      for (let i = 0; i < end; i++) re[i] += samples[offset + i] * window[i];
-    }
+    const i0 = Math.max(0, -offset), i1 = Math.min(size, length - offset);
+    for (const samples of channels)
+      for (let i = i0; i < i1; i++) re[i] += samples[offset + i] * window.values[i];
     fft(re, im);
     for (let k = 0; k < bins; k++) {
       // 10 log10(power): no square root
@@ -171,7 +165,92 @@ export function stft(channels, { size = 2048, hop, max_frames = 2000 } = {}) {
       if (db > max) max = db;
     }
   }
-  return { size, hop, frames, bins, data, max };
+  return { size, start, end, hop, frames, bins, data, max };
+}
+
+const windows = new Map();
+const windowOf = size => {
+  if (!windows.has(size)) {
+    const values = new Float32Array(size);
+    let sum = 0;
+    for (let i = 0; i < size; i++) {
+      values[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / size);
+      sum += values[i];
+    }
+    windows.set(size, { values, sum });
+  }
+  return windows.get(size);
+};
+
+// Loudness in LUFS, as ITU-R BS.1770 measures it: K-weighting, 400 ms blocks overlapping by 75%, an absolute gate at
+// -70 LUFS and a relative gate 10 LU below. All channels weigh 1 (no surround weights). What "match loudness" equalizes:
+// RMS overrates bass and silence, so the louder-sounding track would still win A/B.
+export function loudness(channels, sample_rate) {
+  const length = channels[0]?.length ?? 0;
+  if (!length) return -Infinity;
+  const [shelf, highpass] = kWeighting(sample_rate);
+  // mean squares of 100 ms steps, summed over channels
+  const step = Math.min(length, Math.round(0.1 * sample_rate));
+  const steps = Math.floor(length / step);
+  const power = new Float64Array(steps);
+  const filtered = new Float32Array(length);
+  for (const samples of channels) {
+    biquad(samples, shelf, filtered);
+    biquad(filtered, highpass, filtered);
+    for (let s = 0; s < steps; s++) {
+      let sum = 0;
+      for (let i = s * step; i < (s + 1) * step; i++) sum += filtered[i] * filtered[i];
+      power[s] += sum / step;
+    }
+  }
+  // 400 ms blocks are 4 steps
+  const blocks = [];
+  for (let b = 0; b <= Math.max(0, steps - 4); b++) {
+    const n = Math.min(4, steps - b);
+    let z = 0;
+    for (let s = b; s < b + n; s++) z += power[s];
+    blocks.push(z / n);
+  }
+  const lufs = z => -0.691 + 10 * Math.log10(z);
+  const mean = values => values.reduce((a, b) => a + b, 0) / values.length;
+  const loud = blocks.filter(z => lufs(z) > -70);
+  if (!loud.length) return -Infinity;
+  const relative = lufs(mean(loud)) - 10;
+  const gated = loud.filter(z => lufs(z) > relative);
+  return lufs(mean(gated));
+}
+
+// The two biquads of the K-weighting at any sample rate, as libebur128 computes them (the standard's coefficients at
+// 48 kHz): a high shelf for the head, then a high pass
+const kWeighting = rate => {
+  let K = Math.tan(Math.PI * 1681.974450955533 / rate), Q = 0.7071752369554196;
+  const Vh = 10 ** (3.999843853973347 / 20), Vb = Vh ** 0.4996667741545416;
+  let a0 = 1 + K / Q + K * K;
+  const shelf = [(Vh + Vb * K / Q + K * K) / a0, 2 * (K * K - Vh) / a0, (Vh - Vb * K / Q + K * K) / a0, 2 * (K * K - 1) / a0, (1 - K / Q + K * K) / a0];
+  K = Math.tan(Math.PI * 38.13547087602444 / rate);
+  Q = 0.5003270373238773;
+  a0 = 1 + K / Q + K * K;
+  const highpass = [1, -2, 1, 2 * (K * K - 1) / a0, (1 - K / Q + K * K) / a0];
+  return [shelf, highpass];
+};
+
+// [b0, b1, b2, a1, a2], normalized. output can be input.
+function biquad(input, [b0, b1, b2, a1, a2], output) {
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  for (let i = 0; i < input.length; i++) {
+    const x = input[i];
+    const y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+    x2 = x1; x1 = x; y2 = y1; y1 = y;
+    output[i] = y;
+  }
+}
+
+// The gains (dB) that bring tracks to the loudness of the quietest: never up, so nothing clips
+export function matchingGains(loudnesses) {
+  const finite = loudnesses.filter(Number.isFinite);
+  if (finite.length < 2) return loudnesses.map(() => 0);
+  const target = Math.min(...finite);
+  return loudnesses.map(l => Number.isFinite(l) ? target - l : 0);
 }
 
 // Frequency (Hz) of a row of a log-frequency spectrogram `rows` high, top row is Nyquist

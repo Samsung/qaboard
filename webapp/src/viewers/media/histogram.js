@@ -59,3 +59,24 @@ export const distribution = (entries, rows = 64, range = histogramRange(entries.
   });
   return { range, rows, columns, max };
 };
+
+// The values under which a fraction q of a histogram's counts are, for each q: e.g. [0.05, 0.5, 0.95] for the
+// 5–95% band and the median. Values are spread evenly inside a bin. null without counts
+export const quantiles = (item, qs) => {
+  if (!valid(item)) return null;
+  const total = item.counts.reduce((a, b) => a + (b > 0 ? b : 0), 0);
+  if (!total) return null;
+  return qs.map(q => {
+    const target = q * total;
+    let cumulated = 0;
+    for (let i = 0; i < item.counts.length; i++) {
+      const count = item.counts[i] > 0 ? item.counts[i] : 0;
+      if (count && cumulated + count >= target) {
+        const fraction = (target - cumulated) / count;
+        return item.bins[i] + fraction * (item.bins[i + 1] - item.bins[i]);
+      }
+      cumulated += count;
+    }
+    return item.bins.at(-1);
+  });
+};

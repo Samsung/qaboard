@@ -1,373 +1,414 @@
 // The audio viewer: a file and, optionally, the same file of the reference, as waveforms or spectrograms on a shared
-// time axis, played in sync. A/B switches what's heard at the same position, as audio people compare.
+// time axis, played in sync. A/B switches what's heard at the same position, at matched loudness by default, so that
+// the louder track doesn't win. With `compact`, a row for grids of sounds (CompactAudio.jsx) that expands into it.
 // Standalone: it imports nothing from the app (viewers/__tests__/isolation.test.js), QA-Board uses it through
 // ../audio-viewer.jsx. On its own, with generated audio: npm start, then /audio-viewer.html (playground.jsx).
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Button, Callout, Classes, Intent, SegmentedControl, Slider, Spinner, Switch, Tag } from '@blueprintjs/core';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Button, Callout, Classes, Intent, SegmentedControl, Slider, Switch, Tag, Tooltip } from '@blueprintjs/core';
 
 import './audio.css';
-import { createPlayer } from './player';
-import { loadTrack, toTrack } from './tracks';
+import { useDark, usePlayback, useTrack, useWidth } from './hooks';
+import { CompactAudioViewer } from './CompactAudio';
+import { toTrack } from './tracks';
 import { dbfs, difference } from './dsp';
-import { drawSpectrogram, drawWaveform, spectrogramOf } from './draw';
-import { formatDb, formatRate, formatTime, timeTicks } from './format';
+import { drawSpectrogram, drawSplitWaveform, drawWaveform, DIFFERENCE_RANGE, SPECTROGRAM_RANGE, spectrogramTop } from './draw';
+import { diverging, gradient, magma } from './colormap';
+import { formatDb, formatGain, formatLufs, formatRate, formatTime, timeTicks } from './format';
+import { colorOf, describe, nameOf } from './sides';
 
-// light and dark theme colors, like the app's for the new and reference sides
-const COLORS = { new: ['#2d72d2', '#4c90f0'], reference: ['#9752fe', '#9c4bf5'], difference: ['#5f6b7c', '#abb3bf'] };
-// a label's color: a CSS color, or the app's side colors { hex, hex_dark }
-const colorOf = (color, side, dark) => {
-  if (typeof color === 'string' && !color.startsWith('var(')) return color;
-  if (color?.hex) return dark ? color.hex_dark ?? color.hex : color.hex;
-  return COLORS[side][dark ? 1 : 0];
-};
+export { CompactAudioViewer };
 
-// src => { status: none | loading | ready | error, track, error }
-function useTrack(src, onError) {
-  const [state, setState] = useState({});
-  // not a dependency: an inline callback would load the file again on every render
-  const callback = useRef(onError);
-  useEffect(() => { callback.current = onError; });
-  useEffect(() => {
-    if (!src) return undefined;
-    const controller = new AbortController();
-    loadTrack(src, { signal: controller.signal }).then(
-      track => setState({ src, track }),
-      error => {
-        if (controller.signal.aborted) return;
-        setState({ src, error });
-        callback.current?.(error);
-      });
-    return () => controller.abort();
-  }, [src]);
-  if (!src) return { status: 'none' };
-  if (state.src !== src) return { status: 'loading' };
-  return state.error ? { status: 'error', error: state.error } : { status: 'ready', track: state.track };
-}
+const SHORTCUTS = [
+  ['Space', 'Play or pause'],
+  ['A / B', 'Hear the new or the reference track, at the same position'],
+  ['X', 'Switch to the next track (A, B, difference)'],
+  ['← / →', 'Move 1 second (5 with Shift)'],
+  ['0 or Home', 'Back to the start (of the loop)'],
+  ['Drag', 'Select a region: it loops'],
+  ['L', 'Loop the selection, or stop looping'],
+  ['M', 'Match loudness'],
+  ['S', 'Waveform or spectrogram'],
+  ['+ / −', 'Zoom in or out'],
+  ['Ctrl + wheel, pinch', 'Zoom where the pointer is'],
+  ['Shift + wheel, Alt + drag', 'Pan when zoomed in'],
+  ['Z, double-click', 'Zoom on the selection, or show everything'],
+  ['Escape', 'Clear the selection'],
+  ['?', 'These shortcuts'],
+];
+const NAVIGATION_KEYS = [' ', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+// zoomed in to 2 ms at most: a few samples per pixel at 48 kHz
+const MIN_SPAN = 0.002;
 
-// whether the viewer is in Blueprint's dark theme, a class on an ancestor
-function useDark(ref) {
-  const [dark, setDark] = useState(false);
-  useLayoutEffect(() => {
-    const detect = () => setDark(!!ref.current?.closest(`.${Classes.DARK}`));
-    detect();
-    if (typeof MutationObserver === 'undefined') return undefined;
-    const observer = new MutationObserver(detect);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-    return () => observer.disconnect();
-  }, [ref]);
-  return dark;
-}
-
-// [ref callback, width of the element]
-function useWidth() {
-  const [element, setElement] = useState(null);
-  const [width, setWidth] = useState(0);
-  useLayoutEffect(() => {
-    // it measures the element when it starts observing it, before the first paint
-    if (!element || typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(([entry]) => setWidth(Math.round(entry.contentRect.width)));
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [element]);
-  // jsdom lays out nothing
-  return [setElement, width || 600];
-}
-
-const Lane = ({ track, view, width, height, duration, color, max_db, dark }) => {
+const Lane = ({ draw, height, deps }) => {
   const canvas = useRef(null);
   useEffect(() => {
-    if (!canvas.current || !width) return;
-    if (view === 'spectrogram') drawSpectrogram(canvas.current, track, { width, height, duration, max_db });
-    else drawWaveform(canvas.current, track, { width, height, duration, color, axis_color: dark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(17, 20, 24, 0.15)' });
-  }, [track, view, width, height, duration, color, max_db, dark]);
-  return <canvas ref={canvas} className="qa-audio-canvas" style={{ width: width || '100%', height }} aria-hidden="true"/>;
+    if (canvas.current) draw(canvas.current);
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- draw is a new function at each render: deps says what it draws
+  }, deps);
+  return <canvas ref={canvas} className="qa-audio-canvas" style={{ height }} aria-hidden="true"/>;
 };
 
-const Levels = ({ track }) => <span className="qa-audio-meta">
-  {formatRate(track.sample_rate)}{track.resampled ? ' (as decoded)' : ''}
-  {' · '}{track.channels.length === 1 ? 'mono' : track.channels.length === 2 ? 'stereo' : `${track.channels.length} channels`}
-  {' · '}{formatTime(track.duration)}
-  {' · '}peak {formatDb(dbfs(track.levels.peak))}
-  {' · '}RMS {formatDb(dbfs(track.levels.rms))}
+const Legend = ({ colors, low, high, title }) => <span className="qa-audio-legend" title={title}>
+  <span className="qa-audio-legend-label">{low}</span>
+  <span className="qa-audio-legend-bar" style={{ background: gradient(colors) }}/>
+  <span className="qa-audio-legend-label">{high}</span>
 </span>;
 
-const SHORTCUTS = 'Space: play or pause, X: switch between A and B, arrows: move 1 second (5 with Shift), Home: back to the start, L: loop the selection, Escape: clear the selection';
-const NAVIGATION_KEYS = [' ', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+const Shortcuts = ({ onClose }) => <div className="qa-audio-help" role="dialog" aria-label="Keyboard shortcuts">
+  <div className="qa-audio-help-title">
+    Keyboard shortcuts
+    <Button size="small" variant="minimal" icon="cross" aria-label="Close" onClick={onClose}/>
+  </div>
+  <dl>{SHORTCUTS.map(([keys, what]) => <div key={keys}><dt><kbd>{keys}</kbd></dt><dd>{what}</dd></div>)}</dl>
+</div>;
 
 // - src: the file's URL, src_ref: the reference's (optional)
 // - labels: { new, reference, colors: { new, reference } }: names, and CSS colors or the app's side colors ({hex, hex_dark})
-// - caption, caption_ref: shown under each track's name
+// - caption, caption_ref: shown next to each track's name
 // - height: of each track, in pixels
 // - onError(error): when the file can't be loaded or decoded
-export const AudioViewer = ({ src, src_ref, labels, caption, caption_ref, height = 96, onError }) => {
+// - onCollapse: shows a button that calls it (the compact row's full view)
+export const FullAudioViewer = ({ src, src_ref, labels, caption, caption_ref, height = 96, onError, onCollapse }) => {
   const root = useRef(null);
-  const shortcuts_id = useId();
   const dark = useDark(root);
-  const [lanes, width] = useWidth();
+  const [lanes, width, lanes_element] = useWidth();
 
-  const loaded_new = useTrack(src, onError);
+  const loaded_new = useTrack(src, { onError });
   const loaded_ref = useTrack(src_ref);
   const track_new = loaded_new.track;
   const track_ref = loaded_ref.track;
 
   const [view, setView] = useState('waveform');
   const [show_difference, setShowDifference] = useState(false);
-  const [heard_, setHeard] = useState('new');
-  const [playing, setPlaying] = useState(false);
-  const [time, setTime] = useState(0);
-  const [volume, setVolume] = useState(1);
+  const [match_loudness, setMatchLoudness] = useState(true);
+  const [zoom, setZoom] = useState(null);
   const [region, setRegion] = useState(null);
-  const [looping, setLooping] = useState(false);
   const [selecting, setSelecting] = useState(null);
-  const [play_error, setPlayError] = useState(null);
+  const [help, setHelp] = useState(false);
 
-  // what's left of new - reference: sample-aligned only at the same rate
-  const can_diff = !!track_new && !!track_ref && track_new.sample_rate === track_ref.sample_rate;
+  // new - reference: sample-aligned, so at the same rate and about the same duration
+  const no_difference = !track_new || !track_ref ? 'it needs both tracks'
+    : track_new.sample_rate !== track_ref.sample_rate ? `the sample rates differ (${formatRate(track_new.sample_rate)} and ${formatRate(track_ref.sample_rate)})`
+    : Math.abs(track_new.duration - track_ref.duration) > 0.01 * Math.max(track_new.duration, track_ref.duration) ? `the durations differ (${formatTime(track_new.duration)} and ${formatTime(track_ref.duration)})`
+    : null;
+  const differing = show_difference && !no_difference;
   const track_diff = useMemo(
-    () => can_diff && show_difference ? toTrack({ sample_rate: track_new.sample_rate, channels: difference(track_new.channels, track_ref.channels) }) : null,
-    [can_diff, show_difference, track_new, track_ref],
+    () => differing ? toTrack({ sample_rate: track_new.sample_rate, channels: difference(track_new.channels, track_ref.channels) }) : null,
+    [differing, track_new, track_ref],
   );
-  const tracks = [
-    track_new && { side: 'new', track: track_new, name: labels?.new ?? 'new', caption, play: 'A' },
-    track_ref && { side: 'reference', track: track_ref, name: labels?.reference ?? 'reference', caption: caption_ref, play: 'B' },
-    track_diff && { side: 'difference', track: track_diff, name: 'Difference', caption: `${labels?.new ?? 'new'} − ${labels?.reference ?? 'reference'}`, play: 'Δ' },
-  ].filter(Boolean);
-  // what's heard, if it's still there
-  const heard = tracks.some(t => t.side === heard_) ? heard_ : 'new';
-  const duration = Math.max(0, ...tracks.map(t => t.track.duration));
-  const max_db = useMemo(
-    () => view === 'spectrogram' && track_new ? Math.max(...[track_new, track_ref].filter(Boolean).map(t => spectrogramOf(t).max)) : undefined,
-    [view, track_new, track_ref],
-  );
+  const playback = usePlayback({ new: track_new, reference: track_ref, difference: track_diff }, { match_loudness });
+  const { duration, time, heard, playing } = playback;
+  const looping = !!playback.loop;
 
-  // a player for the tracks. Changing them (e.g. showing the difference) keeps the position, but pauses.
-  const player = useRef(null);
-  const state = useRef({});
-  useEffect(() => { state.current = { time, heard, volume, loop: looping ? region : null }; });
+  // what's shown: everything, or the zoomed-in window
+  const shown = zoom ?? { start: 0, end: duration || 1 };
+  const span = shown.end - shown.start;
+  const setWindow = (start, end) => {
+    const length = Math.max(MIN_SPAN, Math.min(duration, end - start));
+    const from = Math.max(0, Math.min(duration - length, start));
+    setZoom(length >= duration ? null : { start: from, end: from + length });
+  };
+  // around `center`, by default the playhead when it's in view
+  const zoomBy = (factor, center = time >= shown.start && time <= shown.end ? time : shown.start + span / 2) =>
+    setWindow(center - (center - shown.start) * factor, center + (shown.end - center) * factor);
+  const timeAt = client_x => {
+    const rect = lanes_element?.getBoundingClientRect();
+    return shown.start + Math.max(0, Math.min(1, (client_x - (rect?.left ?? 0)) / (rect?.width || 1))) * span;
+  };
+
+  // while it plays, the window follows the playhead
   useEffect(() => {
-    if (!track_new) return undefined;
-    const created = createPlayer({ new: track_new, reference: track_ref, difference: track_diff });
-    const { time: t = 0, heard: h, volume: v = 1, loop } = state.current;
-    created.seek(t);
-    created.hear(h);
-    created.setVolume(v);
-    created.setLoop(loop ?? null);
-    player.current = created;
-    return () => {
-      created.dispose();
-      player.current = null;
-      setPlaying(false);
-    };
-  }, [track_new, track_ref, track_diff]);
+    if (!zoom || !playing || (time >= zoom.start && time <= zoom.end)) return;
+    const length = zoom.end - zoom.start;
+    const start = Math.max(0, Math.min(duration - length, time));
+    // oxlint-disable-next-line react/set-state-in-effect -- it follows the player, an external clock
+    setZoom({ start, end: start + length });
+  }, [zoom, playing, time, duration]);
 
-  // the playhead follows the player
+  // ctrl + wheel and pinch zoom, shift + wheel and horizontal wheels pan. Plain wheels scroll the page.
+  const onWheel = useRef(null);
   useEffect(() => {
-    if (!playing) return undefined;
-    let frame;
-    const tick = () => {
-      const p = player.current;
-      if (!p) return;
-      setTime(p.time());
-      if (!p.playing) setPlaying(false);
-      else frame = requestAnimationFrame(tick);
+    onWheel.current = event => {
+      if (!duration) return;
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault();
+        zoomBy(Math.exp(Math.max(-1, Math.min(1, event.deltaY * 0.01))), timeAt(event.clientX));
+      } else if (zoom && (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY))) {
+        event.preventDefault();
+        const delta = event.shiftKey ? event.deltaY || event.deltaX : event.deltaX;
+        setWindow(shown.start + delta / width * span, shown.end + delta / width * span);
+      }
     };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [playing]);
+  });
+  useEffect(() => {
+    if (!lanes_element) return undefined;
+    // React's wheel listeners are passive: they can't keep the page from scrolling
+    const listener = event => onWheel.current?.(event);
+    lanes_element.addEventListener('wheel', listener, { passive: false });
+    return () => lanes_element.removeEventListener('wheel', listener);
+  }, [lanes_element]);
 
-  const play = () => {
-    const p = player.current;
-    if (!p) return;
-    setPlayError(null);
-    p.play().catch(error => {
-      setPlaying(false);
-      setPlayError(error);
-    });
-    setPlaying(true);
-  };
-  const pause = () => {
-    player.current?.pause();
-    setPlaying(false);
-    setTime(player.current?.time() ?? time);
-  };
-  const toggle = () => playing ? pause() : play();
-  const hear = side => {
-    player.current?.hear(side);
-    setHeard(side);
-  };
-  const seek = t => {
-    const clamped = Math.max(0, Math.min(duration, t));
-    player.current?.seek(clamped);
-    setTime(clamped);
-  };
-  const changeVolume = value => {
-    player.current?.setVolume(value);
-    setVolume(value);
-  };
-  const loopOn = (on, selection = region) => {
-    player.current?.setLoop(on ? selection : null);
-    setLooping(on && !!selection);
-  };
   const select = selection => {
     setRegion(selection);
-    loopOn(!!selection, selection);
+    playback.setLoop(selection);
   };
+  const toggleLoop = () => playback.setLoop(looping || !region ? null : region);
 
-  // click: seek, drag: select a region (and loop it)
+  // click: seek, drag: select a region (and loop it), alt or middle drag: pan
   const drag = useRef(null);
-  const timeAt = event => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    return Math.max(0, Math.min(1, (event.clientX - rect.left) / (rect.width || 1))) * duration;
-  };
   const onPointerDown = event => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 && event.button !== 1) return;
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    drag.current = { x: event.clientX, time: timeAt(event), moved: false };
+    const pan = event.button === 1 || event.altKey;
+    if (pan) event.preventDefault();
+    drag.current = { x: event.clientX, time: timeAt(event.clientX), pan, window: shown, moved: false };
   };
   const onPointerMove = event => {
     const d = drag.current;
     if (!d) return;
     if (Math.abs(event.clientX - d.x) > 4) d.moved = true;
-    if (d.moved) {
-      const t = timeAt(event);
+    if (!d.moved) return;
+    if (d.pan) {
+      const shift = (event.clientX - d.x) / width * (d.window.end - d.window.start);
+      setWindow(d.window.start - shift, d.window.end - shift);
+    } else {
+      const t = timeAt(event.clientX);
       setSelecting({ start: Math.min(d.time, t), end: Math.max(d.time, t) });
     }
   };
   const onPointerUp = event => {
     const d = drag.current;
     drag.current = null;
-    if (!d) return;
+    if (!d || d.pan) return;
     setSelecting(null);
-    if (!d.moved) return seek(d.time);
-    const t = timeAt(event);
+    if (!d.moved) return playback.seek(d.time);
+    const t = timeAt(event.clientX);
     select({ start: Math.min(d.time, t), end: Math.max(d.time, t) });
-    seek(Math.min(d.time, t));
+    playback.seek(Math.min(d.time, t));
   };
 
+  const sides = ['new', track_ref && 'reference', track_diff && 'difference'].filter(Boolean);
   const onKeyDown = event => {
     const on_control = event.target !== event.currentTarget && event.target.closest?.(`button, input, select, textarea, a, .${Classes.SLIDER}`);
     if (on_control && NAVIGATION_KEYS.includes(event.key)) return;
-    const sides = tracks.map(t => t.side);
+    if (!track_new || event.ctrlKey || event.metaKey || event.altKey) return;
     const step = event.shiftKey ? 5 : 1;
     const actions = {
-      ' ': toggle,
-      x: () => hear(sides[(sides.indexOf(heard) + 1) % sides.length]),
-      a: () => hear('new'),
-      b: () => track_ref && hear('reference'),
-      ArrowLeft: () => seek(time - step),
-      ArrowRight: () => seek(time + step),
-      Home: () => seek(region?.start ?? 0),
-      l: () => loopOn(!looping),
-      Escape: () => select(null),
+      ' ': playback.toggle,
+      a: () => playback.hear('new'),
+      b: () => playback.hear('reference'),
+      x: () => playback.hear(sides[(sides.indexOf(heard) + 1) % sides.length]),
+      ArrowLeft: () => playback.seek(time - step),
+      ArrowRight: () => playback.seek(time + step),
+      0: () => playback.seek(looping ? region.start : 0),
+      Home: () => playback.seek(looping ? region.start : 0),
+      l: toggleLoop,
+      m: () => setMatchLoudness(!match_loudness),
+      s: () => setView(view === 'waveform' ? 'spectrogram' : 'waveform'),
+      '+': () => zoomBy(0.5),
+      '=': () => zoomBy(0.5),
+      '-': () => zoomBy(2),
+      z: () => region && !zoom ? setWindow(region.start, region.end) : setZoom(null),
+      '?': () => setHelp(!help),
+      Escape: () => help ? setHelp(false) : select(null),
     };
     const action = actions[event.key.length === 1 ? event.key.toLowerCase() : event.key];
-    if (!action || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (!action) return;
     event.preventDefault();
     action();
   };
 
   if (loaded_new.status === 'error') return <div className="qa-audio" ref={root}>
     <Callout compact intent={Intent.WARNING} icon="warning-sign" className="qa-audio-callout">
-      Could not read the audio ({loaded_new.error?.message ?? String(loaded_new.error)}). The browser's player may still play it.
+      This browser can't decode the file ({loaded_new.error?.message ?? String(loaded_new.error)}): here is its own player.
     </Callout>
-    {[[src, labels?.new ?? 'new'], [src_ref, labels?.reference ?? 'reference']].filter(([url]) => url).map(([url, name], i) => <div key={i} className="qa-audio-fallback">
-      {src_ref && <span className="qa-audio-name">{name}</span>}
+    {[[src, 'new'], [src_ref, 'reference']].filter(([url]) => url).map(([url, side]) => <div key={side} className="qa-audio-fallback">
+      {src_ref && <span className="qa-audio-name"><span className="qa-audio-dot" style={{ background: colorOf(labels, side, dark) }}/>{nameOf(labels, side)}</span>}
       {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- files that runs wrote have no captions */}
-      <audio controls preload="metadata" src={url} aria-label={`Play ${name}`}/>
+      <audio controls preload="metadata" src={url} aria-label={`Play ${nameOf(labels, side)}`}/>
     </div>)}
   </div>;
 
-  const loading = loaded_new.status === 'loading' || loaded_ref.status === 'loading';
-  const shown = selecting ?? region;
-  const ticks = timeTicks(duration, width);
-  const percent = t => `${duration ? t / duration * 100 : 0}%`;
+  const ready = !!track_new && loaded_ref.status !== 'loading';
+  const top_db = spectrogramTop(dbfs(Math.max(track_new?.levels.peak ?? 0, track_ref?.levels.peak ?? 0)));
+  const shown_region = selecting ?? region;
+  const percent = t => `${(t - shown.start) / span * 100}%`;
+  const ticks = timeTicks(shown.start, shown.end, width);
+  const axis_color = dark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(17, 20, 24, 0.14)';
+  const lane_deps = [view, width, height, shown.start, shown.end, dark, top_db];
+  const rows = [
+    { side: 'new', loaded: loaded_new, track: track_new, caption },
+    src_ref && { side: 'reference', loaded: loaded_ref, track: track_ref, caption: caption_ref },
+    track_diff && { side: 'difference', loaded: { status: 'ready' }, track: track_diff, caption: `${nameOf(labels, 'new')} − ${nameOf(labels, 'reference')}` },
+  ].filter(Boolean);
+  const multiple = !!track_ref;
+
   // the keys of the tracks (a slider) and of the buttons bubble here
   // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- see above
   return <div className="qa-audio" ref={root} role="group" aria-label="Audio player" onKeyDown={onKeyDown}>
-    {loading && <div className="qa-audio-loading" style={{ minHeight: height }}><Spinner size={20} aria-label="Loading the audio"/></div>}
-    {loaded_ref.status === 'error' && <Callout compact icon="info-sign" className="qa-audio-callout">
-      Could not load the reference ({loaded_ref.error?.message ?? String(loaded_ref.error)}): only the new file is shown.
-    </Callout>}
-    {play_error && <Callout compact intent={Intent.WARNING} icon="warning-sign" className="qa-audio-callout">
-      Could not play: {play_error.message ?? String(play_error)}
-    </Callout>}
-    {!loading && track_new && <div className="qa-audio-toolbar">
+    <div className="qa-audio-toolbar">
       <Button
-        icon={playing ? 'pause' : 'play'} intent={Intent.PRIMARY} size="small"
+        icon={playing ? 'pause' : 'play'} intent={Intent.PRIMARY} size="small" disabled={!ready}
         aria-label={playing ? 'Pause' : 'Play'} title={playing ? 'Pause (Space)' : 'Play (Space)'}
-        onClick={toggle}
+        onClick={playback.toggle}
       />
-      <span className="qa-audio-time" aria-live="off">{formatTime(time)} / {formatTime(duration)}</span>
-      {tracks.length > 1 && <SegmentedControl
-        size="small" role="radiogroup" aria-label="What's heard"
-        title="What's heard: switches at the same position (X)"
-        value={heard} onValueChange={hear}
-        options={tracks.map(t => ({ value: t.side, label: `${t.play}: ${t.name}` }))}
+      <span className="qa-audio-time"><span>{formatTime(time)}</span><span className="qa-audio-muted"> / {formatTime(duration)}</span></span>
+      {src_ref && <SegmentedControl
+        size="small" role="radiogroup" aria-label="What you hear" disabled={!ready || !track_ref}
+        value={heard} onValueChange={playback.hear}
+        options={sides.map((side, i) => ({ value: side, label: `${['A', 'B', 'Δ'][i]} · ${nameOf(labels, side)}` }))}
       />}
-      <Button
-        icon="refresh" size="small" variant="minimal" active={looping} disabled={!region}
-        aria-label="Loop the selection" aria-pressed={looping}
-        title={region ? `Loop ${formatTime(region.start)}–${formatTime(region.end)} (L)` : 'Drag on a track to select a region to loop'}
-        onClick={() => loopOn(!looping)}
-      >Loop</Button>
-      {region && <Button icon="cross" size="small" variant="minimal" aria-label="Clear the selection" title="Clear the selection (Escape)" onClick={() => select(null)}/>}
+      {src_ref && <Tooltip
+        content={track_new && track_ref ? `Played at the loudness of the quieter track (${formatLufs(Math.min(track_new.loudness, track_ref.loudness))}): the louder one doesn't win A/B. (M)` : 'Plays both tracks as loud'}
+        placement="bottom" openOnTargetFocus={false}
+      >
+        <Switch inline className="qa-audio-switch" label="Match loudness" checked={match_loudness} disabled={!track_ref} onChange={event => setMatchLoudness(event.target.checked)}/>
+      </Tooltip>}
+      <span className="qa-audio-group">
+        <Button
+          icon="repeat" size="small" variant="minimal" active={looping} disabled={!region}
+          aria-label="Loop the selection" aria-pressed={looping}
+          title={region ? `Loop ${formatTime(region.start)}–${formatTime(region.end)} (L)` : 'Drag on a track to select a region, it loops'}
+          onClick={toggleLoop}
+        />
+        {region && <Button icon="cross" size="small" variant="minimal" aria-label="Clear the selection" title="Clear the selection (Escape)" onClick={() => select(null)}/>}
+      </span>
       <span className="qa-audio-volume">
         <Button
-          icon={volume === 0 ? 'volume-off' : volume < 0.5 ? 'volume-down' : 'volume-up'} size="small" variant="minimal"
-          aria-label={volume === 0 ? 'Unmute' : 'Mute'} onClick={() => changeVolume(volume === 0 ? 1 : 0)}
+          icon={playback.volume === 0 ? 'volume-off' : playback.volume < 0.5 ? 'volume-down' : 'volume-up'} size="small" variant="minimal"
+          aria-label={playback.volume === 0 ? 'Unmute' : 'Mute'} onClick={() => playback.setVolume(playback.volume === 0 ? 1 : 0)}
         />
-        <Slider min={0} max={1} stepSize={0.01} labelRenderer={false} value={volume} onChange={changeVolume} handleHtmlProps={{ 'aria-label': 'Volume' }}/>
+        <Slider min={0} max={1} stepSize={0.01} labelRenderer={false} value={playback.volume} onChange={playback.setVolume} handleHtmlProps={{ 'aria-label': 'Volume' }}/>
       </span>
       <span className="qa-audio-spacer"/>
-      {can_diff && <Switch
-        inline className="qa-audio-switch" label="Difference" checked={show_difference}
-        title="What's left of new − reference, sample by sample: silent when they're identical"
-        onChange={event => setShowDifference(event.target.checked)}
-      />}
+      {src_ref && <Tooltip
+        content={no_difference ? `No difference: ${no_difference}` : 'New − reference: a waveform of what\'s left sample by sample (silent when identical), or where their spectra differ, in dB'}
+        placement="bottom" openOnTargetFocus={false}
+      >
+        <Switch inline className="qa-audio-switch" label="Difference" checked={differing} disabled={!!no_difference} onChange={event => setShowDifference(event.target.checked)}/>
+      </Tooltip>}
       <SegmentedControl
         size="small" aria-label="View" value={view} onValueChange={setView}
         options={[{ value: 'waveform', label: 'Waveform' }, { value: 'spectrogram', label: 'Spectrogram' }]}
       />
-    </div>}
+      {onCollapse && <Button icon="minimize" size="small" variant="minimal" aria-label="Collapse" title="Back to the compact row" onClick={onCollapse}/>}
+    </div>
+    {playback.error && <Callout compact intent={Intent.WARNING} icon="warning-sign" className="qa-audio-callout">
+      Could not play: {playback.error.message ?? String(playback.error)}
+    </Callout>}
+
     <div
       ref={lanes} className="qa-audio-lanes"
-      tabIndex={track_new ? 0 : -1} role="slider" aria-label="Position"
+      tabIndex={ready ? 0 : -1} role="slider" aria-label="Position"
       aria-valuemin={0} aria-valuemax={Math.round(duration * 1000) / 1000} aria-valuenow={Math.round(time * 1000) / 1000}
-      aria-valuetext={`${formatTime(time)} of ${formatTime(duration)}`} aria-describedby={shortcuts_id} title={SHORTCUTS}
+      aria-valuetext={`${formatTime(time)} of ${formatTime(duration)}`} title="Press ? for the keyboard shortcuts"
     >
-      {!loading && tracks.map(({ side, track, name, caption: text, play: letter }) => {
-        const color = colorOf(labels?.colors?.[side], side, dark);
-        return <div key={side} className={`qa-audio-track${tracks.length > 1 && heard === side ? ' qa-audio-heard' : ''}`} style={{ '--qa-audio-color': color }}>
+      {rows.map(({ side, loaded, track, caption: text }) => {
+        const color = colorOf(labels, side, dark);
+        const name = nameOf(labels, side);
+        const gain = playback.gains[side] ?? 0;
+        const is_heard = multiple && heard === side;
+        const difference_lane = side === 'difference';
+        return <div key={side} className={`qa-audio-track${is_heard ? ' qa-audio-heard' : ''}`} style={{ '--qa-audio-color': color }}>
           <div className="qa-audio-header">
-            {tracks.length > 1 && <Button
-              size="small" variant="minimal" icon={playing && heard === side ? 'volume-up' : 'play'}
-              aria-label={`Play ${name}`} title={`Play ${name} (${letter})`}
-              onClick={() => { hear(side); if (!playing) play(); }}
+            {multiple && <Button
+              size="small" variant="minimal" icon={playing && is_heard ? 'volume-up' : 'play'} disabled={!track}
+              aria-label={`Play ${name}`} title={`Play ${name} (${{ new: 'A', reference: 'B', difference: 'X' }[side]})`}
+              onClick={() => { playback.hear(side); if (!playing) playback.play(); }}
             />}
             <span className="qa-audio-name"><span className="qa-audio-dot"/>{name}</span>
             {text && <span className="qa-audio-caption">{text}</span>}
-            <Levels track={track}/>
-            {track.levels.clipped > 0 && side !== 'difference' && <Tag minimal intent={Intent.DANGER} title="Samples at full scale, in red on the waveform">
-              {track.levels.clipped.toLocaleString()} clipped samples
+            {track && !difference_lane && <span className="qa-audio-meta">{describe(track)}</span>}
+            {difference_lane && <span className="qa-audio-meta">{track.levels.peak === 0 ? 'identical samples' : `peak ${formatDb(dbfs(track.levels.peak))} · ${formatLufs(track.loudness)}`}</span>}
+            {loaded.status === 'loading' && <span className="qa-audio-meta">decoding…</span>}
+            {match_loudness && Math.abs(gain) >= 0.05 && <Tag minimal round title={`Played ${formatGain(gain)} to sound as loud as the other track. Turn off Match loudness to hear it as it is.`}>
+              {formatGain(gain)} to match
             </Tag>}
-            {side === 'difference' && track.levels.peak === 0 && <Tag minimal intent={Intent.SUCCESS}>identical samples</Tag>}
+            {track && !difference_lane && track.levels.clipped > 0 && <Tag minimal round intent={Intent.DANGER} title="Samples at full scale, in red on the waveform">
+              {track.levels.clipped.toLocaleString()} clipped
+            </Tag>}
           </div>
           <div
-            className="qa-audio-lane"
+            className="qa-audio-lane" style={{ height }}
             onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
             onPointerCancel={() => { drag.current = null; setSelecting(null); }}
+            onDoubleClick={() => setZoom(null)}
           >
-            <Lane track={track} view={view} width={width} height={height} duration={duration} color={color} max_db={max_db} dark={dark}/>
-            {shown && <div className="qa-audio-region" style={{ left: percent(shown.start), width: percent(shown.end - shown.start) }}/>}
-            <div className="qa-audio-playhead" style={{ left: percent(time) }}/>
+            {track && <Lane height={height} deps={[track, track_ref, ...lane_deps, color]} draw={canvas => {
+              const range = { width, height, start: shown.start, end: shown.end };
+              if (view === 'spectrogram' && difference_lane) drawSpectrogram(canvas, track_new, { ...range, top_db, reference: track_ref });
+              else if (view === 'spectrogram') drawSpectrogram(canvas, track, { ...range, top_db });
+              else drawWaveform(canvas, track, { ...range, color, axis_color });
+            }}/>}
+            {loaded.status === 'loading' && <div className={`qa-audio-placeholder ${Classes.SKELETON}`}/>}
+            {loaded.status === 'error' && <div className="qa-audio-lane-message">
+              Could not load {name}: {loaded.error?.message ?? String(loaded.error)}
+            </div>}
+            {track && shown_region && <div className="qa-audio-region" style={{ left: percent(shown_region.start), width: `${(shown_region.end - shown_region.start) / span * 100}%` }}/>}
+            {track && time >= shown.start && time <= shown.end && <div className="qa-audio-playhead" style={{ left: percent(time) }}/>}
           </div>
         </div>;
       })}
     </div>
-    <span id={shortcuts_id} hidden>{SHORTCUTS}</span>
-    {!loading && track_new && <div className="qa-audio-axis" aria-hidden="true">
-      {ticks.map(tick => <span key={tick.time} className="qa-audio-tick" style={{ left: percent(tick.time) }}>{tick.label}</span>)}
-    </div>}
+    <div className="qa-audio-footer">
+      <div className="qa-audio-axis" aria-hidden="true">
+        {ready && ticks.map(tick => <span key={tick.time} className="qa-audio-tick" style={{ left: percent(tick.time) }}>{tick.label}</span>)}
+      </div>
+      {zoom && track_new && <Overview
+        tracks={[track_new, track_ref].filter(Boolean).map((track, i) => ({ track, color: colorOf(labels, i ? 'reference' : 'new', dark) }))}
+        duration={duration} shown={shown} time={time} width={width} dark={dark}
+        onMove={center => setWindow(center - span / 2, center + span / 2)}
+      />}
+      <div className="qa-audio-footer-bar">
+        <span className="qa-audio-group">
+          <Button icon="zoom-in" size="small" variant="minimal" aria-label="Zoom in" title="Zoom in (+, Ctrl + wheel)" disabled={!ready || span <= MIN_SPAN * 1.01} onClick={() => zoomBy(0.5)}/>
+          <Button icon="zoom-out" size="small" variant="minimal" aria-label="Zoom out" title="Zoom out (−)" disabled={!zoom} onClick={() => zoomBy(2)}/>
+          <Button
+            icon={region && !zoom ? 'zoom-to-fit' : 'maximize'} size="small" variant="minimal" disabled={!zoom && !region}
+            aria-label={region && !zoom ? 'Zoom on the selection' : 'Show everything'} title={`${region && !zoom ? 'Zoom on the selection' : 'Show everything'} (Z)`}
+            onClick={() => region && !zoom ? setWindow(region.start, region.end) : setZoom(null)}
+          />
+        </span>
+        {zoom && <span className="qa-audio-hint" title="Ctrl + wheel or pinch to zoom, Shift + wheel or Alt + drag to pan, double-click to show everything">
+          {formatTime(shown.start)}–{formatTime(shown.end)}
+        </span>}
+        <span className="qa-audio-spacer"/>
+        {view === 'spectrogram' && <span className="qa-audio-legends">
+          <Legend colors={magma} low={`${top_db - SPECTROGRAM_RANGE}`} high={`${top_db} dBFS`} title="Level of each frequency, in dBFS: a full-scale sine is 0 dB"/>
+          {track_diff && <Legend colors={diverging} low={`louder in ${nameOf(labels, 'reference')} −${DIFFERENCE_RANGE}`} high={`+${DIFFERENCE_RANGE} dB louder in ${nameOf(labels, 'new')}`} title="New − reference, in dB: blue where the new track is louder, orange where the reference is. Dim where both are quiet."/>}
+        </span>}
+        <Button icon="key-command" size="small" variant="minimal" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" active={help} onClick={() => setHelp(!help)}/>
+      </div>
+    </div>
+    {help && <Shortcuts onClose={() => setHelp(false)}/>}
   </div>;
+};
+
+// When zoomed in: everything, small, with the window shown. Click or drag to move it.
+const Overview = ({ tracks, duration, shown, time, width, dark, onMove }) => {
+  const dragging = useRef(false);
+  const timeAt = event => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (event.clientX - rect.left) / (rect.width || 1))) * duration;
+  };
+  return <div
+    className="qa-audio-overview" aria-hidden="true" title="Drag to move what's shown"
+    onPointerDown={event => { event.currentTarget.setPointerCapture?.(event.pointerId); dragging.current = true; onMove(timeAt(event)); }}
+    onPointerMove={event => dragging.current && onMove(timeAt(event))}
+    onPointerUp={() => { dragging.current = false; }}
+  >
+    <Lane height={20} deps={[tracks[0].track, tracks[1]?.track, tracks[0].color, width, duration, dark]} draw={canvas => drawSplitWaveform(canvas, tracks, {
+      width, height: 20, start: 0, end: duration, axis_color: dark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(17, 20, 24, 0.14)',
+    })}/>
+    <div className="qa-audio-overview-window" style={{ left: `${shown.start / duration * 100}%`, width: `${(shown.end - shown.start) / duration * 100}%` }}/>
+    <div className="qa-audio-playhead" style={{ left: `${time / duration * 100}%` }}/>
+  </div>;
+};
+
+// The full viewer, or with `compact` a row that expands into it: in place, or with onExpand, wherever the page wants
+// (e.g. full screen). See FullAudioViewer and CompactAudioViewer for the props.
+export const AudioViewer = ({ compact = false, onExpand, ...props }) => {
+  const [expanded, setExpanded] = useState(false);
+  if (compact && !expanded) return <CompactAudioViewer {...props} onExpand={onExpand ?? (() => setExpanded(true))}/>;
+  return <FullAudioViewer {...props} height={compact ? undefined : props.height} onCollapse={compact ? () => setExpanded(false) : undefined}/>;
 };

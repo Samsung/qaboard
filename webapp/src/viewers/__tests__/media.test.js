@@ -6,9 +6,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { boxInPixels, boxLabel, boxRegions, groupKeys, itemAt, nextStep, parseMedia, snap, unionSteps } from '../media/media';
-import { distribution, histogramRange, resample } from '../media/histogram';
-import { numericColumns, parseTable, tableRows } from '../media/table';
+import { boxInPixels, boxLabel, boxRegions, evolution, filterBoxes, groupKeys, itemAt, labelColor, matchItem, nextStep, parseMedia, sampleKey, snap, summary, unionSteps } from '../media/media';
+import { distribution, histogramRange, quantiles, resample } from '../media/histogram';
+import { columnHistogram, diffTables, keyColumn, numericColumns, parseTable, tableRows } from '../media/table';
 import { columnsX } from '../media/HistogramView';
 
 const FIXTURES = path.join(import.meta.dirname, '../../../../tests/fixtures/media');
@@ -159,5 +159,61 @@ describe('tables', () => {
     expect(tableRows(t, { filter: ' 10 ' })).toEqual([2]);
     // media cells are filtered by their path
     expect(tableRows(table, { filter: '0_0.png' })).toEqual([0]);
+  });
+});
+
+describe('samples', () => {
+  const model = parseMedia(read('run/media.jsonl'));
+
+  it('match by id, else caption, else position', () => {
+    const at_10 = itemAt(model, 'val/samples', 10).items;
+    // the loader shuffled: img_0 is second at step 10
+    const img_0 = itemAt(model, 'val/samples', 0).items[0];
+    expect(sampleKey(img_0)).toBe('id:img_0');
+    expect(matchItem(img_0, at_10)).toEqual({ item: at_10[1], by: 'id' });
+    expect(matchItem('id:img_1', at_10).item).toBe(at_10[0]);
+    expect(matchItem('id:nope', at_10).item).toBe(null);
+    const captioned = [{ caption: 'b', index: 0 }, { caption: 'a', index: 1 }];
+    expect(matchItem({ caption: 'a', index: 0 }, captioned)).toEqual({ item: captioned[1], by: 'caption' });
+    expect(matchItem({ index: 1 }, [{ index: 0 }, { index: 1 }]).item).toEqual({ index: 1 });
+    expect(sampleKey({ index: 2 })).toBe('index:2');
+  });
+
+  it('follow a sample across the steps', () => {
+    expect(evolution(model, 'val/samples', 'id:img_0').map(({ step, item }) => [step, item.index])).toEqual([[0, 0], [10, 1], [20, 0]]);
+    expect(evolution(model, 'nothing', 'id:img_0')).toEqual([]);
+  });
+
+  it('are summed up', () => {
+    expect(summary(model)).toBe('7 keys · steps 0–30 · images, audio, tables, histograms, texts, HTML');
+    expect(summary(parseMedia('{"_step": 24000, "key": "a", "kind": "text"}'))).toBe('1 key · step 24\u2009000 · texts');
+  });
+
+  it('have boxes users filter, a color per label', () => {
+    const boxes = [{ label: 'cat', score: 0.9, group: 'predictions' }, { label: 'cat', score: 0.1, group: 'predictions' }, { label: 'dog', group: 'ground_truth' }];
+    expect(filterBoxes(boxes, { min_score: 0.5 })).toEqual([boxes[0], boxes[2]]);
+    expect(filterBoxes(boxes, { hidden: new Set(['ground_truth']) })).toEqual([boxes[0], boxes[1]]);
+    expect(labelColor('cat')).toBe(labelColor('cat'));
+    expect(labelColor('cat')).not.toBe(labelColor('dog'));
+  });
+});
+
+describe('quantiles and table diffs', () => {
+  it('give the median and the 5-95% band of a histogram', () => {
+    expect(quantiles({ bins: [0, 1, 2], counts: [1, 1] }, [0.05, 0.5, 0.95])).toEqual([0.1, 1, 1.9]);
+    expect(quantiles({ bins: [0, 1], counts: [0] }, [0.5])).toBe(null);
+  });
+
+  it('join rows by a key column, and mark what changed', () => {
+    const table = { columns: ['score', 'name'], rows: [[1, 'a'], [2, 'b'], [3, 'c']] };
+    const ref = { columns: ['name', 'score'], rows: [['b', 2], ['a', 5], ['d', 1]] };
+    expect(keyColumn(table)).toBe(1);
+    expect(keyColumn({ columns: ['x', 'ID'], rows: [] })).toBe(1);
+    expect(keyColumn({ columns: ['x', 'y'], rows: [[1, 2]] })).toBe(0);
+    const diff = diffTables(table, ref, 1);
+    expect(diff.map(d => d.status)).toEqual(['changed', 'same', 'added', 'removed']);
+    expect([...diff[0].changed]).toEqual([0]);
+    expect(diff[3].row).toEqual([1, 'd']);
+    expect(columnHistogram([[0], [1], [1], ['x']], 0, 2)).toEqual({ min: 0, max: 1, counts: [1, 2] });
   });
 });

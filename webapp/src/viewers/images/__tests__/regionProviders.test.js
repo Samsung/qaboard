@@ -50,6 +50,10 @@ describe('region providers', () => {
   it('offers the presets, and the regions where images differ only with a reference', () => {
     const available = providers => providers.filter(p => !p.available || p.available(context)).map(p => p.id);
     expect(available(regionProviders())).toEqual(['presets']);
+    // the boxes the run logged with the image (viewers/media/), first
+    const boxes = [{ x: 0, y: 0, w: 1, h: 1, label: 'cat' }];
+    expect(regionProviders().filter(p => !p.available || p.available({ ...context, boxes })).map(p => p.id)).toEqual(['logged', 'presets']);
+    expect(regionProviders()[0].regions({ ...context, boxes })).toBe(boxes);
     expect(regionProviders().filter(p => p.available?.({ ...context, output_ref: { output_dir_url: '/s/ref' } })).map(p => p.id))
       .toEqual(['auto-yiq', 'auto-ssim', 'auto-ciede2000']);
   });

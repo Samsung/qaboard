@@ -5,8 +5,9 @@ import { useEffect, useRef } from "react";
 import { Classes } from "@blueprintjs/core";
 
 import { colorAt } from "../../image-viewer/colormaps";
-import { distribution, histogramRange } from "./histogram";
-import { snap } from "./media";
+import { distribution, histogramRange, quantiles } from "./histogram";
+import { nextStep, snap } from "./media";
+import { useWidth } from "./useWidth";
 
 const WIDTH = 480;
 const HEAT_HEIGHT = 140;
@@ -29,9 +30,10 @@ export const columnsX = (steps, width) => {
   return steps.map((step, i) => ({ x0: x(step), x1: x(steps[i + 1] ?? last) }));
 };
 
-const Heatmap = ({ heat, steps, step, onStep, label }) => {
+// bands: per step, the [5%, median, 95%] values, drawn as lines over the heatmap
+const Heatmap = ({ heat, bands, steps, step, onStep, label, width }) => {
   const canvas = useRef(null);
-  const plot_width = WIDTH - AXIS;
+  const plot_width = width - AXIS;
   const columns = columnsX(steps, plot_width);
   useEffect(() => {
     const element = canvas.current;
@@ -54,7 +56,23 @@ const Heatmap = ({ heat, steps, step, onStep, label }) => {
         context.fillRect(x0, HEAT_HEIGHT - (row + 1) * row_height, Math.max(1, x1 - x0 + 0.5), row_height + 0.5);
       }
     });
-  }, [heat, columns, plot_width]);
+    const y = value => HEAT_HEIGHT - (value - heat.range.min) / (heat.range.max - heat.range.min) * HEAT_HEIGHT;
+    for (const [q, dash, width] of [[0, [3, 2], 1], [2, [3, 2], 1], [1, [], 1.5]]) {
+      context.beginPath();
+      context.setLineDash(dash);
+      context.lineWidth = width;
+      context.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+      let started = false;
+      bands.forEach((band, i) => {
+        if (!band) return;
+        const middle = (columns[i].x0 + columns[i].x1) / 2;
+        if (started) context.lineTo(middle, y(band[q])); else context.moveTo(middle, y(band[q]));
+        started = true;
+      });
+      context.stroke();
+    }
+    context.setLineDash([]);
+  }, [heat, bands, columns, plot_width]);
   const marked = steps.length ? snap(steps, step) : null;
   const marker = marked !== null ? columns[steps.indexOf(marked)] : null;
   const pick = e => {
@@ -69,12 +87,15 @@ const Heatmap = ({ heat, steps, step, onStep, label }) => {
       <span>{format(heat.range.min)}</span>
     </div>
     <div>
-      <div style={{ position: 'relative', width: plot_width, height: HEAT_HEIGHT, cursor: onStep ? 'pointer' : undefined, outline: '1px solid rgba(128, 128, 128, 0.3)' }} onClick={pick}>
+      <div style={{ position: 'relative', width: plot_width, height: HEAT_HEIGHT, cursor: onStep ? 'pointer' : undefined, outline: '1px solid rgba(128, 128, 128, 0.3)' }} onClick={pick}
+        role="slider" tabIndex={0} aria-label="Step of the histogram" aria-valuemin={steps[0]} aria-valuemax={steps.at(-1)} aria-valuenow={marked ?? steps[0]}
+        onKeyDown={e => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); onStep?.(nextStep(steps, marked ?? steps[0], e.key === 'ArrowRight' ? 1 : -1)); } }}>
         <canvas ref={canvas} role="img" aria-label={label} style={{ width: plot_width, height: HEAT_HEIGHT, display: 'block' }}/>
         {marker && <div data-testid="histogram-step" style={{ position: 'absolute', top: 0, bottom: 0, left: marker.x0, width: Math.max(2, marker.x1 - marker.x0), border: '1px solid #f5498b', boxSizing: 'border-box', pointerEvents: 'none' }}/>}
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', width: plot_width }}>
         <span>step {steps[0]}</span>
+        <span>— median, - - 5–95%</span>
         <span>{steps.at(-1)}</span>
       </div>
     </div>
@@ -91,13 +112,13 @@ const densities = item => {
   });
 };
 
-export const Bars = ({ item_new, item_ref, colors, names }) => {
+export const Bars = ({ item_new, item_ref, colors, names, width = WIDTH }) => {
   const range = histogramRange([item_new, item_ref].filter(Boolean));
   if (!range) return null;
   const bars_new = densities(item_new);
   const bars_ref = densities(item_ref);
   const max = Math.max(...bars_new.map(b => b.density), ...bars_ref.map(b => b.density)) || 1;
-  const plot_width = WIDTH - AXIS;
+  const plot_width = width - AXIS;
   const x = value => (value - range.min) / (range.max - range.min) * plot_width;
   const y = density => BARS_HEIGHT - density / max * (BARS_HEIGHT - 4);
   // the reference's outline, as steps
@@ -122,15 +143,18 @@ export const Bars = ({ item_new, item_ref, colors, names }) => {
 
 // entry_new, entry_ref: the key's { steps, by_step } in the new and reference runs (media.js). step: the one selected
 const HistogramView = ({ entry_new, entry_ref, step, step_ref, onStep, colors, names }) => {
+  const [container, available] = useWidth(WIDTH);
+  const width = Math.max(240, Math.min(720, available));
   const entries = histograms(entry_new);
   const range = histogramRange([...entries, ...histograms(entry_ref)].map(([, item]) => item));
   const heat = distribution(entries, ROWS, range);
+  const bands = entries.map(([, item]) => quantiles(item, [0.05, 0.5, 0.95]));
   if (!heat) return <p className={Classes.TEXT_MUTED}>No values in these histograms.</p>;
   const item_new = step !== null ? entry_new.by_step.get(step)?.[0] : undefined;
   const item_ref = step_ref !== null && step_ref !== undefined ? entry_ref?.by_step.get(step_ref)?.[0] : undefined;
-  return <div data-testid="histogram-view">
-    <Heatmap heat={heat} steps={entry_new.steps} step={step} onStep={onStep} label="Distribution over the steps"/>
-    <Bars item_new={item_new} item_ref={item_ref} colors={colors} names={names}/>
+  return <div data-testid="histogram-view" ref={container}>
+    <Heatmap heat={heat} bands={bands} steps={entry_new.steps} step={step} onStep={onStep} label="Distribution over the steps" width={width}/>
+    <Bars item_new={item_new} item_ref={item_ref} colors={colors} names={names} width={width}/>
   </div>;
 };
 

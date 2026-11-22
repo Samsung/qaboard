@@ -106,22 +106,69 @@ export const boxInPixels = (box, width, height) => box.units === 'fraction'
 
 export const boxLabel = box => [box.label, Number.isFinite(box.score) ? box.score.toFixed(2) : null].filter(v => v !== null && v !== undefined && v !== '').join(' ');
 
-// The boxes of an image as the image viewer's regions of interest (src/image-viewer/regions.js), a color per group
-// (e.g. predictions and ground truth). The viewer scales them to the image it shows.
-const BOX_COLORS = ['#4c90f0', '#fbb360', '#72ca9b', '#f5498b', '#bdadff', '#68c1ee'];
-export const boxColor = (groups, box) => BOX_COLORS[Math.max(0, groups.indexOf(box.group ?? '')) % BOX_COLORS.length];
+// --- samples: the same sample across steps and runs ------------------------------------------------------------
+// Items match by their `id` (e.g. "img_0042"), else their caption, else their position in the list: loaders shuffle,
+// so positions only work for fixed sets.
+const has = value => value !== undefined && value !== null && value !== '';
+
+// A sample's name, for URLs: "id:img_0042", "caption:cat", "index:3"
+export const sampleKey = item => has(item?.id) ? `id:${item.id}` : has(item?.caption) ? `caption:${item.caption}` : `index:${index_of(item ?? {})}`;
+
+// The item of `items` that is the same sample as `item` (or as a sampleKey), and how it matched: { item, by }, item null
+// when there is none. Ids are used when both sides have some, captions likewise, else positions.
+export const matchItem = (sample, items) => {
+  const key = typeof sample === 'string' ? sample : sampleKey(sample);
+  const [by, ...rest] = key.split(':');
+  const value = rest.join(':');
+  const item = typeof sample === 'string' ? null : sample;
+  if (by === 'id' && items.some(c => has(c.id)))
+    return { item: items.find(c => has(c.id) && String(c.id) === value) ?? null, by: 'id' };
+  const caption = by === 'caption' ? value : item?.caption;
+  if (has(caption) && items.some(c => has(c.caption)))
+    return { item: items.find(c => c.caption === caption) ?? null, by: 'caption' };
+  const index = by === 'index' ? Number(value) : item ? index_of(item) : null;
+  return { item: index === null ? null : items.find(c => index_of(c) === index) ?? null, by: 'index' };
+};
+
+// One sample at every step of a key: [{ step, item }], item null where it wasn't logged
+export const evolution = (model, key, sample) => {
+  const entry = model?.keys?.[key];
+  if (!entry) return [];
+  return entry.steps.map(step => ({ step, item: matchItem(sample, entry.by_step.get(step)).item }));
+};
+
+// What a run logged: "12 keys · steps 0–24 000 · images, audio, tables"
+const KIND_NAMES = { image: 'images', video: 'videos', audio: 'audio', table: 'tables', histogram: 'histograms', text: 'texts', html: 'HTML', plotly: 'plots', file: 'files' };
+export const formatStep = step => String(step).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+export const summary = model => {
+  const keys = Object.values(model.keys);
+  const kinds = KINDS.filter(kind => keys.some(key => key.kind === kind)).map(kind => KIND_NAMES[kind]);
+  const steps = model.steps.length === 0 ? null : model.steps.length === 1 ? `step ${formatStep(model.steps[0])}` : `steps ${formatStep(model.steps[0])}–${formatStep(model.steps.at(-1))}`;
+  return [`${keys.length} ${keys.length === 1 ? 'key' : 'keys'}`, steps, kinds.join(', ')].filter(Boolean).join(' · ');
+};
+
+// --- boxes ---------------------------------------------------------------------------------------------------------
+// One color per label, the same on every image and run: from a hash of the label
+const BOX_COLORS = ['#4c90f0', '#fbb360', '#72ca9b', '#f5498b', '#bdadff', '#68c1ee', '#fbd065', '#d1f26d', '#ff9980', '#c5cbd3'];
+export const labelColor = label => {
+  let hash = 7;
+  for (const c of String(label ?? '')) hash = (Math.imul(hash, 31) + c.charCodeAt(0)) >>> 0;
+  return BOX_COLORS[hash % BOX_COLORS.length];
+};
 export const boxGroups = boxes => [...new Set(boxes.map(box => box.group ?? ''))];
 export const validBoxes = item => (Array.isArray(item?.boxes) ? item.boxes : [])
   .filter(box => box && [box.x, box.y, box.w, box.h].every(Number.isFinite));
-export const boxRegions = item => {
-  const boxes = validBoxes(item);
-  const groups = boxGroups(boxes);
-  return boxes.map(box => ({
-    x: box.x, y: box.y, w: box.w, h: box.h,
-    label: boxLabel(box) || undefined,
-    detail: box.group,
-    color: boxColor(groups, box),
-    ...(box.units === 'fraction' ? { imageWidth: 1, imageHeight: 1 }
-      : item.width && item.height ? { imageWidth: item.width, imageHeight: item.height } : {}),
-  }));
-};
+// What users chose to see: { hidden: Set of groups, min_score }. Boxes without a score are always shown.
+export const filterBoxes = (boxes, { hidden, min_score = 0 } = {}) => boxes.filter(box =>
+  !hidden?.has(box.group ?? '') && !(Number.isFinite(box.score) && box.score < min_score));
+
+// The boxes of an image as the image viewer's regions of interest (src/image-viewer/regions.js). The viewer scales them
+// to the image it shows.
+export const boxRegions = (item, filters) => filterBoxes(validBoxes(item), filters).map(box => ({
+  x: box.x, y: box.y, w: box.w, h: box.h,
+  label: boxLabel(box) || undefined,
+  detail: box.group,
+  color: labelColor(box.label),
+  ...(box.units === 'fraction' ? { imageWidth: 1, imageHeight: 1 }
+    : item.width && item.height ? { imageWidth: item.width, imageHeight: item.height } : {}),
+}));

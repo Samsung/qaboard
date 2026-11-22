@@ -391,7 +391,8 @@ const CiCommitResults = () => {
     <SharedConfigurationContext value={shared}>
     <RunOriginsContext value={run_origins}>
     <LocalChangesSharedContext value={shows_batch_messages ? local_changes.shared : null}>
-    <Container style={{ marginTop: 0, paddingTop: header_height + header_gap }}>
+    {/* --qa-sticky-top: what stays at the top of run cards (e.g. the logged media's timeline) stays under the header */}
+    <Container style={{ marginTop: 0, paddingTop: header_height + header_gap, '--qa-sticky-top': `${header_height}px` }}>
 
       {(!new_commit || !ref_commit) && show_ref_navbar && <Messages>
         {warning_messages}

@@ -53,8 +53,18 @@ export const series_traces = (key, { model_new, model_ref, options, names, color
   return traces;
 };
 
-const SeriesPlot = ({ name, traces, options }) =>
-  <Plot data={traces} layout={plot_layout(name, options, { width: PLOT_WIDTH, height: PLOT_HEIGHT })} config={plot_config}/>;
+// media_step: the step the card's logged media show (media/LoggedMedia.jsx), a cursor on the plots. onStep: clicking
+// a plot moves the media there
+const SeriesPlot = ({ name, traces, options, media_step, onStep }) => {
+  const layout = plot_layout(name, options, { width: PLOT_WIDTH, height: PLOT_HEIGHT });
+  if (media_step !== undefined && media_step !== null)
+    layout.shapes = [{ type: 'line', xref: 'x', yref: 'paper', x0: media_step, x1: media_step, y0: 0, y1: 1, line: { color: '#f5498b', width: 1.5 } }];
+  const onClick = onStep ? event => {
+    const x = event?.points?.[0]?.x;
+    if (Number.isFinite(x)) onStep(Math.round(x));
+  } : undefined;
+  return <Plot data={traces} layout={layout} config={plot_config} onClick={onClick}/>;
+};
 
 const toolbar_style = { display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', margin: '6px 0' };
 const grid_style = { display: 'flex', flexWrap: 'wrap', gap: 4 };
@@ -62,7 +72,7 @@ const grid_style = { display: 'flex', flexWrap: 'wrap', gap: 4 };
 // - series: the options people chose, the same for all the runs' cards (controls.series in the URL)
 // - fallback_to_text: the file was picked by its name (series.json...), without `type: series`: if it isn't a series
 //   file, it's shown as text, as before the viewer existed
-const SeriesViewer = ({ output_new, output_ref, path, path_ref, labels: labels_, series: chosen, onControlsChange, fallback_to_text, style, ...props }) => {
+const SeriesViewer = ({ output_new, output_ref, path, path_ref, labels: labels_, series: chosen, onControlsChange, fallback_to_text, style, media_step, ...props }) => {
   const labels = useLabels(labels_);
   const is_dark = useIsDark();
   const [options, setOptions, preview] = useSeriesOptions(chosen, onControlsChange);
@@ -104,6 +114,8 @@ const SeriesViewer = ({ output_new, output_ref, path, path_ref, labels: labels_,
   if (keys.length === 0)
     return <Callout compact icon="info-sign">{output_new?.is_running ? "The run hasn't logged anything yet." : "The run logged no series."}</Callout>;
 
+  // runs that logged media: the plots and the media share their step (by step, the series of the run itself)
+  const linked = !!onControlsChange && options.x === 'step' && path !== 'system.series.json' && !!props.manifests?.new?.['media.jsonl'];
   const needle = filter.trim().toLowerCase();
   const matching = needle ? keys.filter(key => key.toLowerCase().includes(needle)) : keys;
   const shown = show_all ? matching : matching.slice(0, SHOWN_AT_FIRST);
@@ -134,6 +146,8 @@ const SeriesViewer = ({ output_new, output_ref, path, path_ref, labels: labels_,
         name={key}
         options={options}
         traces={series_traces(key, { model_new, model_ref, options, names, colors })}
+        media_step={linked ? media_step : undefined}
+        onStep={linked ? step => onControlsChange({ media_step: step }) : undefined}
       />)}
     </div>
     {matching.length > shown.length && <Button size="small" variant="minimal" icon="chevron-down" onClick={() => setShowAll(true)}>

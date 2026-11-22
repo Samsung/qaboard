@@ -1,5 +1,5 @@
 // The "Logged media" section alone, with generated runs: npm start, then open /logged-media.html
-// ?steps=50&keys=10 for more steps and keys, ?dark for the dark theme, ?cards=2 for the cards of two runs (their step
+// ?steps=200&keys=12 for more steps and keys, ?shuffle=1 to shuffle the samples' order at each step (they match by id), ?dark for the dark theme, ?cards=2 for the cards of two runs (their step
 // is the same, like on a commit's page), ?noref without a reference.
 // The files are generated in the browser (images drawn on a canvas): the items' viewers are simple ones, not the app's
 // (the image viewer needs an image server). The tables and histograms are the real ones.
@@ -23,6 +23,7 @@ const params = new URLSearchParams(window.location.search);
 const step_count = Math.max(1, parseInt(params.get('steps') || '30', 10));
 const key_count = Math.max(1, parseInt(params.get('keys') || '8', 10));
 const card_count = Math.max(1, parseInt(params.get('cards') || '1', 10));
+const shuffle = params.has('shuffle');
 if (params.has('dark')) document.documentElement.classList.add(Classes.DARK);
 
 // a deterministic random, so that screenshots don't change
@@ -72,14 +73,23 @@ const generate = (seed, reference) => {
   const lines = [];
   const log = (step_index, item) => lines.push(JSON.stringify({ _step: step_index * STEP, _time: 1731500000 + step_index * 30, index: 0, ...item }));
   const KINDS = ['images', 'histogram', 'table', 'text', 'image', 'histogram', 'html', 'audio'];
+  const BASE = { images: 'val/samples', histogram: 'weights/fc', table: 'val/predictions', text: 'generation/answer', image: 'train/attention', html: 'report', audio: 'tts/sample' };
+  const used = new Map();
   const keys = Array.from({ length: key_count }, (_, i) => {
     const kind = KINDS[i % KINDS.length];
-    const name = {
-      images: 'val/samples', histogram: i < 8 ? 'weights/fc1' : `weights/layer${i}`, table: 'val/predictions',
-      text: 'generation/answer', image: 'train/attention', html: 'report', audio: 'tts/sample',
-    }[kind];
-    return { kind, name: i >= KINDS.length && kind !== 'histogram' ? `${name}_${i}` : name, variant: i };
+    const base = BASE[kind];
+    const n = used.get(base) ?? 0;
+    used.set(base, n + 1);
+    return { kind, name: kind === 'histogram' ? `${base}${n + 1}` : n ? `${base}_${n + 1}` : base, variant: i };
   });
+  // the table's images: a few, used again
+  const pool = Array.from({ length: 8 }, (_, i) => scene(random, step_count - 1, i, reference));
+  // the training's loss, behind the timeline
+  const loss = Array.from({ length: step_count * 4 }, (_, i) => 2.5 * Math.exp(-i / (step_count * 1.2)) + 0.15 * random() + (i > step_count * 2 && i < step_count * 2.1 ? 0.8 : 0));
+  files['series.json'] = blob(JSON.stringify({ format: 'qaboard-series', version: 1, started_at: 1731500000, series: {
+    'train/loss': { points: loss.length, step: loss.map((_, i) => i * STEP / 4), time: loss.map((_, i) => i * 7), value: loss },
+    lr: { points: 2, step: [0, (step_count - 1) * STEP], time: [0, 1], value: [0.001, 0.0001] },
+  } }), 'application/json');
   for (let s = 0; s < step_count; s++) {
     for (const { kind, name, variant } of keys) {
       // some keys are logged less often
@@ -89,13 +99,16 @@ const generate = (seed, reference) => {
       if (reference && s >= step_count - 2) continue;
       const step = s * STEP;
       if (kind === 'images' || kind === 'image') {
-        const count = kind === 'images' ? 4 : 1;
-        for (let index = 0; index < count; index++) {
-          const { url, width, height, boxes } = scene(random, s, variant + index, reference);
+        const count = kind === 'images' ? 6 : 1;
+        // a data loader that shuffles: the same samples, in another order at each step
+        const order = Array.from({ length: count }, (_, i) => i);
+        if (shuffle) order.sort(() => random() - 0.5);
+        order.forEach((sample, index) => {
+          const { url, width, height, boxes } = scene(random, s, variant + sample, reference);
           const path = `media/${name}/${step}_${index}.png`;
           files[path] = url;
-          log(s, { key: name, kind: 'image', index, path, width, height, boxes: kind === 'images' ? boxes : undefined, caption: `sample ${index}` });
-        }
+          log(s, { key: name, kind: 'image', index, path, width, height, boxes: kind === 'images' ? boxes : undefined, caption: kind === 'images' ? `street ${sample + 1}` : undefined, id: kind === 'images' ? `img_${String(sample).padStart(4, '0')}` : undefined });
+        });
       } else if (kind === 'histogram') {
         // a distribution that drifts and narrows as the training goes
         const center = (reference ? 0.4 : 0.8) * s / step_count + variant * 0.1;
@@ -105,14 +118,17 @@ const generate = (seed, reference) => {
         log(s, { key: name, kind: 'histogram', bins, counts });
       } else if (kind === 'table') {
         const data = Array.from({ length: 200 }, (_, i) => {
-          const image = scene(random, s, i % 5, reference);
-          const path = `media/${name}/${step}_0/${i}_0.png`;
+          const image = pool[i % pool.length];
+          const path = `media/${name}/${step}_0/${i % pool.length}_0.png`;
           files[path] = image.url;
-          return [{ kind: 'image', path, width: image.width, height: image.height }, ['cat', 'dog', 'car', 'sign'][i % 4], +(random()).toFixed(3), i % 7 === 0 ? null : Math.round(random() * 100)];
-        }).slice(0, 200);
+          // the reference predicts differently on some samples, and misses a few
+          const label = ['cat', 'dog', 'car', 'sign'][(i + (reference && i % 9 === 0 ? 1 : 0)) % 4];
+          return [`img_${String(i).padStart(4, '0')}`, { kind: 'image', path, width: image.width, height: image.height }, label, +(0.4 + 0.6 * random()).toFixed(3), i % 7 === 0 ? null : Math.round(random() * 100)];
+        }).filter((_, i) => !(reference ? i % 50 === 3 : i % 61 === 5));
         const path = `media/${name}/${step}_0.table.json`;
-        files[path] = blob(JSON.stringify({ columns: ['image', 'label', 'score', 'iou'], data }), 'application/json');
-        log(s, { key: name, kind: 'table', path, columns: ['image', 'label', 'score', 'iou'], rows: data.length });
+        const columns = ['id', 'image', 'label', 'score', 'iou'];
+        files[path] = blob(JSON.stringify({ columns, data }), 'application/json');
+        log(s, { key: name, kind: 'table', path, columns, rows: data.length });
       } else if (kind === 'text') {
         const path = `media/${name}/${step}_0.txt`;
         files[path] = blob(`Q: what is in the picture?\nA: ${['a cat', 'a cat on a mat', 'a grey cat on a red mat', 'a grey cat sleeping on a red mat'][Math.min(3, Math.floor(4 * s / step_count))]}${reference ? '.' : ''}\n`);
@@ -146,15 +162,16 @@ const Viewer = ({ output_new, output_ref, path, path_ref, boxes }) => {
   const url_ref = output_ref ? fileUrl(output_ref, path_ref) : undefined;
   let side;
   if (path.endsWith('.png'))
-    side = (url, item) => <div style={{ transform: 'scale(2.5)', transformOrigin: 'top left', width: 96 * 2.5, height: 72 * 2.5 }}>
-      <Thumbnail src={url} item={item}/>
-    </div>;
+    side = (url, item) => <Thumbnail src={url} item={item} size={300}/>;
   else if (path.endsWith('.txt'))
     side = url => <TextFile url={url}/>;
   else
     side = () => <div className={Classes.TEXT_MUTED} style={{ fontSize: 12, padding: 8, border: '1px dashed rgba(128,128,128,0.4)' }}>The app's viewer for <code>{path.split('/').pop()}</code></div>;
   // the playground's image boxes, back from the viewer's regions
-  const item = { width: 96, height: 72, boxes: (boxes ?? []).map(({ imageWidth, label, ...box }) => ({ ...box, label, units: imageWidth === 1 ? 'fraction' : undefined })) };
+  const item = { width: 96, height: 72, boxes: (boxes ?? []).map(({ imageWidth, label, ...box }) => {
+    const [, name, score] = /^(.*?)(?: ([\d.]+))?$/.exec(label ?? '');
+    return { ...box, label: name || undefined, score: score ? Number(score) : undefined, units: imageWidth === 1 ? 'fraction' : undefined };
+  }) };
   return <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
     <Side title="new">{side(url_new, item)}</Side>
     {url_ref && <Side title="reference">{side(url_ref, { width: 96, height: 72 })}</Side>}
@@ -175,6 +192,8 @@ const Page = () => {
           output_ref={run.ref}
           labels={labels}
           media_step={controls.media_step}
+          media_focus={controls.media_focus}
+          project="playground"
           onControlsChange={changes => setControls(controls => ({ ...controls, ...changes }))}
         />
       </Card>)}
