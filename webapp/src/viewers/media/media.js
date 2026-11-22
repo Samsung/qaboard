@@ -82,13 +82,22 @@ export const itemAt = (model, key, step) => {
 // The steps of several models (the new run's and the reference's), sorted
 export const unionSteps = (...models) => [...new Set(models.flatMap(model => model?.steps ?? []))].sort((a, b) => a - b);
 
+// The steps users can pick: either run's, each key showing its own nearest earlier step in each run
+export const mediaSteps = (model_new, model_ref) => model_ref?.steps?.length ? unionSteps(model_new, model_ref) : model_new?.steps ?? [];
+
+// The step the logged media show, and the series' cursor with them: the one chosen (for all the cards of the page),
+// snapped to the steps of either run, by default the new run's last. null when nothing was logged.
+export const mediaStepFor = (model_new, model_ref, chosen) => {
+  const steps = mediaSteps(model_new, model_ref);
+  if (!steps.length) return null;
+  return snap(steps, chosen ?? model_new?.steps?.at(-1) ?? steps.at(-1)) ?? steps[0];
+};
+
 // The logged step before or after a step (arrow keys), or the step itself at the ends
 export const nextStep = (steps, step, direction) => direction > 0
   ? steps.find(s => s > step) ?? steps.at(-1) ?? step
   : steps.findLast(s => s < step) ?? steps[0] ?? step;
 
-// The keys grouped by their prefix: "val/samples" and "val/masks" under "val", keys without "/" under "".
-// [{ group, keys: [key] }], groups sorted, "" first
 // What people come to look at first: images and videos, then sounds, tables, distributions, and texts last
 const KIND_RANK = { image: 0, video: 1, audio: 2, table: 3, histogram: 4, plotly: 5, text: 6, html: 7, file: 8 };
 const rank = kind => KIND_RANK[kind] ?? 9;
@@ -223,13 +232,17 @@ export const summary = model => {
 };
 
 // --- boxes ---------------------------------------------------------------------------------------------------------
-// One color per label, the same on every image and run: from a hash of the label
-const BOX_COLORS = ['#4c90f0', '#fbb360', '#72ca9b', '#f5498b', '#bdadff', '#68c1ee', '#fbd065', '#d1f26d', '#ff9980', '#c5cbd3'];
-export const labelColor = label => {
+// One color per label, the same on every image and run: from a hash of the label. The image viewer's groups of regions
+// use them too (images/regionProviders.js)
+export const LABEL_COLORS = ['#4c90f0', '#fbb360', '#72ca9b', '#f5498b', '#bdadff', '#68c1ee', '#fbd065', '#d1f26d', '#ff9980', '#c5cbd3'];
+export const colorIndex = (value, count = LABEL_COLORS.length) => {
   let hash = 7;
-  for (const c of String(label ?? '')) hash = (Math.imul(hash, 31) + c.charCodeAt(0)) >>> 0;
-  return BOX_COLORS[hash % BOX_COLORS.length];
+  for (const c of String(value ?? '')) hash = (Math.imul(hash, 31) + c.charCodeAt(0)) >>> 0;
+  return hash % count;
 };
+export const labelColor = label => LABEL_COLORS[colorIndex(label)];
+// The text that reads on a label's color: they are all light
+export const LABEL_TEXT_COLOR = '#111418';
 export const boxGroups = boxes => [...new Set(boxes.map(box => box.group ?? ''))];
 export const validBoxes = item => (Array.isArray(item?.boxes) ? item.boxes : [])
   .filter(box => box && [box.x, box.y, box.w, box.h].every(Number.isFinite));

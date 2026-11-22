@@ -37,6 +37,7 @@
 import { http } from '../../api/http';
 import { colorAt } from '../../image-viewer/colormaps';
 import { run_view } from '../runView';
+import { LABEL_COLORS, colorIndex } from '../media/media';
 
 
 // The presets of the input (in its metadata), and of the configurations: `roi`, or `view.images.roi` (../runView.js)
@@ -187,14 +188,14 @@ export const annotationProvider = ({ id, label, description, group_noun }) => ({
 });
 
 // Outlines of the groups, distinct on an image, and the same on most images: from a hash of the group, else the next
-const GROUP_COLORS = ['#4c90f0', '#fbb360', '#72ca9b', '#f5498b', '#bdadff', '#68c1ee', '#fbd065', '#d1f26d'];
+// (the colors of the labels of logged boxes, media/media.js)
 export const groupColors = groups => {
   const used = new Set();
   return Object.fromEntries(groups.map(({ id }) => {
-    let i = [...String(id)].reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) >>> 0, 7) % GROUP_COLORS.length;
-    for (let tries = 0; used.has(i) && tries < GROUP_COLORS.length; tries++) i = (i + 1) % GROUP_COLORS.length;
+    let i = colorIndex(id);
+    for (let tries = 0; used.has(i) && tries < LABEL_COLORS.length; tries++) i = (i + 1) % LABEL_COLORS.length;
     used.add(i);
-    return [id, GROUP_COLORS[i]];
+    return [id, LABEL_COLORS[i]];
   }));
 };
 

@@ -6,7 +6,7 @@ import { Classes, HTMLSelect, Icon } from "@blueprintjs/core";
 
 import { KIND_ICONS } from "./kinds";
 import { formatStep, nextStep, snap, stepRange } from "./media";
-import { useWidth } from "./useWidth";
+import { useWidth } from "../audio/hooks";
 
 const ROW = 14;
 const MAX_ROWS = 6;

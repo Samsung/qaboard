@@ -7,7 +7,7 @@ import { Classes } from "@blueprintjs/core";
 import { colorAt } from "../../image-viewer/colormaps";
 import { distribution, histogramRange, quantiles } from "./histogram";
 import { nextStep, snap } from "./media";
-import { useWidth } from "./useWidth";
+import { useWidth } from "../audio/hooks";
 
 const WIDTH = 480;
 const HEAT_HEIGHT = 140;
