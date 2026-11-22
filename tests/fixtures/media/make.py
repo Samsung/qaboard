@@ -19,7 +19,8 @@ log = media.MediaLog(run)
 t = 1731500000.0
 gradient = numpy.linspace(0, 1, 8 * 6 * 3).reshape(8, 6, 3)
 for step in (0, 10, 20):
-  log.add('val/samples', step, [media.Image(gradient * (1 - step / 40), caption=f"sample {i}",
+  # the loader shuffles: the ids say which sample is which
+  log.add('val/samples', step, [media.Image(gradient * (1 - step / 40), caption=f"sample {i}", id=f"img_{(i + step // 10) % 2}",
                                             boxes=[{'x': 1, 'y': 1, 'w': 3, 'h': 2, 'label': 'cat', 'score': 0.5 + i / 10}])
                                 for i in range(2)], time=t + step)
   log.add('weights/fc1', step, media.Histogram(numpy.random.default_rng(step).normal(step / 10, 1, 500), bins=8), time=t + step)

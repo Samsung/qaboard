@@ -17,6 +17,8 @@ Fields, besides `_step` (an integer), `_time` (seconds since the epoch), `key`, 
 a list logged at that step, 0 for a single value):
 - `path`: the file, relative to the run's folder, with "/". Histograms have none: their values are in the line.
 - `caption`: optional, a short text
+- `id`: optional, the sample's name, e.g. "img_0042": the web app matches items across steps and runs by it, else by
+  caption, else by index. Give it when the samples aren't logged in the same order at each step (shuffled loaders).
 - image: `width` and `height` when known; `boxes`, regions in pixels from the top left, with an optional `label`,
   `score` and `group` (e.g. "predictions", "ground_truth"). Boxes given as fractions of the image's size, when its
   size isn't known, have `"units": "fraction"`.
@@ -120,9 +122,10 @@ class Media:
   """What logged media share: their data (a file's path, bytes, arrays...) and a caption"""
   kind = 'file'
 
-  def __init__(self, data: Any = None, caption: Optional[str] = None):
+  def __init__(self, data: Any = None, caption: Optional[str] = None, id: Optional[str] = None):
     self.data = data
     self.caption = None if caption is None else str(caption)[:MAX_CAPTION_LENGTH]
+    self.id = None if id is None else str(id)[:MAX_CAPTION_LENGTH]
 
   def __repr__(self) -> str:
     what = str(self.data) if isinstance(self.data, (str, os.PathLike)) else type(self.data).__name__
@@ -191,8 +194,9 @@ class Image(Media):
   """
   kind = 'image'
 
-  def __init__(self, data: Any, caption: Optional[str] = None, boxes: Optional[Sequence[Mapping[str, Any]]] = None):
-    super().__init__(data, caption)
+  def __init__(self, data: Any, caption: Optional[str] = None, boxes: Optional[Sequence[Mapping[str, Any]]] = None,
+               id: Optional[str] = None):
+    super().__init__(data, caption, id)
     self.boxes = _boxes(boxes)
 
   def encode(self) -> Tuple[Optional[Source], str, Dict[str, Any]]:
@@ -318,8 +322,8 @@ class Audio(Media):
   """
   kind = 'audio'
 
-  def __init__(self, data: Any, sample_rate: Optional[int] = None, caption: Optional[str] = None):
-    super().__init__(data, caption)
+  def __init__(self, data: Any, sample_rate: Optional[int] = None, caption: Optional[str] = None, id: Optional[str] = None):
+    super().__init__(data, caption, id)
     self.sample_rate = None if sample_rate is None else int(sample_rate)
 
   def encode(self) -> Tuple[Optional[Source], str, Dict[str, Any]]:
@@ -383,8 +387,8 @@ class Video(Media):
   """
   kind = 'video'
 
-  def __init__(self, data: Any, fps: Optional[float] = None, caption: Optional[str] = None):
-    super().__init__(data, caption)
+  def __init__(self, data: Any, fps: Optional[float] = None, caption: Optional[str] = None, id: Optional[str] = None):
+    super().__init__(data, caption, id)
     self.fps = fps
 
   def encode(self) -> Tuple[Optional[Source], str, Dict[str, Any]]:
@@ -422,8 +426,8 @@ class Table(Media):
   kind = 'table'
 
   def __init__(self, columns: Optional[Sequence[Any]] = None, data: Optional[Sequence[Sequence[Any]]] = None,
-               dataframe: Any = None, caption: Optional[str] = None):
-    super().__init__(None, caption)
+               dataframe: Any = None, caption: Optional[str] = None, id: Optional[str] = None):
+    super().__init__(None, caption, id)
     if dataframe is not None:
       columns, data = [str(c) for c in dataframe.columns], dataframe.values.tolist()
     self.rows: List[List[Any]] = [list(row) for row in (data or [])]
@@ -441,8 +445,8 @@ class Histogram(Media):
   kind = 'histogram'
 
   def __init__(self, values: Any = None, bins: int = DEFAULT_BINS, np_histogram: Optional[Tuple[Any, Any]] = None,
-               caption: Optional[str] = None):
-    super().__init__(None, caption)
+               caption: Optional[str] = None, id: Optional[str] = None):
+    super().__init__(None, caption, id)
     if np_histogram is not None:
       counts, edges = (_cell(v) for v in np_histogram)
     else:
@@ -488,8 +492,8 @@ class Text(Media):
   """A text, e.g. a model's answer at this step"""
   kind = 'text'
 
-  def __init__(self, text: Any, caption: Optional[str] = None):
-    super().__init__(str(text), caption)
+  def __init__(self, text: Any, caption: Optional[str] = None, id: Optional[str] = None):
+    super().__init__(str(text), caption, id)
 
   def encode(self) -> Tuple[Optional[Source], str, Dict[str, Any]]:
     return str(self.data).encode('utf-8'), '.txt', {}
@@ -499,10 +503,10 @@ class Html(Media):
   """An HTML page, or a file's path"""
   kind = 'html'
 
-  def __init__(self, html: Any, caption: Optional[str] = None):
+  def __init__(self, html: Any, caption: Optional[str] = None, id: Optional[str] = None):
     if hasattr(html, 'read'):
       html = html.read()
-    super().__init__(html, caption)
+    super().__init__(html, caption, id)
 
   def encode(self) -> Tuple[Optional[Source], str, Dict[str, Any]]:
     path = _existing_path(self.data) if '<' not in str(self.data) else None
@@ -515,8 +519,8 @@ class Plotly(Media):
   """A Plotly figure"""
   kind = 'plotly'
 
-  def __init__(self, figure: Any, caption: Optional[str] = None):
-    super().__init__(figure, caption)
+  def __init__(self, figure: Any, caption: Optional[str] = None, id: Optional[str] = None):
+    super().__init__(figure, caption, id)
 
   def encode(self) -> Tuple[Optional[Source], str, Dict[str, Any]]:
     if hasattr(self.data, 'to_json'):
@@ -611,6 +615,8 @@ class MediaLog:
       line.update({k: v for k, v in fields.items() if v is not None})
     if media.caption:
       line['caption'] = media.caption
+    if media.id:
+      line['id'] = media.id
     return line
 
   def _table(self, stem: str, table: Table) -> Tuple[List[str], List[List[Any]]]:

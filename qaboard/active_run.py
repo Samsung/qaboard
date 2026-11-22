@@ -771,16 +771,18 @@ class ActiveRun:
     return step
 
   def log_image(self, key: str, image: Any, step: Optional[int] = None, *, caption: Optional[str] = None,
-                boxes: Optional[Sequence[Mapping[str, Any]]] = None) -> int:
+                boxes: Optional[Sequence[Mapping[str, Any]]] = None, id: Optional[str] = None) -> int:
     """
     An image at a step: a file's path, bytes, a Pillow image, a matplotlib figure, or an array (HxW, HxWxC or CxHxW,
-    uint8 or floats in [0, 1]). `boxes`: [{"x", "y", "w", "h", "label"?, "score"?}] in pixels. See `log_media()`.
+    uint8 or floats in [0, 1]). `boxes`: [{"x", "y", "w", "h", "label"?, "score"?}] in pixels. `id`: the sample's
+    name, to match it across steps and runs when samples come in another order. See `log_media()`.
     """
-    return self.log_media(key, image if isinstance(image, (list, tuple)) else media_module.Image(image, caption=caption, boxes=boxes), step)
+    return self.log_media(key, image if isinstance(image, (list, tuple)) else media_module.Image(image, caption=caption, boxes=boxes, id=id), step)
 
-  def log_audio(self, key: str, audio: Any, sample_rate: Optional[int] = None, step: Optional[int] = None, *, caption: Optional[str] = None) -> int:
+  def log_audio(self, key: str, audio: Any, sample_rate: Optional[int] = None, step: Optional[int] = None, *,
+                caption: Optional[str] = None, id: Optional[str] = None) -> int:
     """A sound at a step: a file's path, bytes, or samples (N or NxC, floats in [-1, 1]) and their sample rate. See `log_media()`."""
-    return self.log_media(key, media_module.Audio(audio, sample_rate=sample_rate, caption=caption), step)
+    return self.log_media(key, media_module.Audio(audio, sample_rate=sample_rate, caption=caption, id=id), step)
 
   def log_video(self, key: str, video: Any, fps: Optional[float] = None, step: Optional[int] = None, *, caption: Optional[str] = None) -> int:
     """A video at a step: a file's path, bytes, or frames (TxHxWxC, saved as a GIF with Pillow). See `log_media()`."""
@@ -804,9 +806,9 @@ class ActiveRun:
     """A distribution at a step, e.g. a layer's weights: shown over the steps. See `log_media()`."""
     return self.log_media(key, values if isinstance(values, media_module.Histogram) else media_module.Histogram(values, bins=bins), step)
 
-  def log_text(self, key: str, text: str, step: Optional[int] = None) -> int:
+  def log_text(self, key: str, text: str, step: Optional[int] = None, *, id: Optional[str] = None) -> int:
     """A text at a step, e.g. what a model answers to a prompt. See `log_media()`."""
-    return self.log_media(key, media_module.Text(text), step)
+    return self.log_media(key, media_module.Text(text, id=id), step)
 
   def media(self, key: Optional[str] = None) -> List[Dict[str, Any]]:
     """What the run logged as media (of `key`): the lines of its media.jsonl, by key, step and index"""

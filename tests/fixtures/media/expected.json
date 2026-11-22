@@ -60,7 +60,8 @@
     "score": 0.5
    }
   ],
-  "caption": "sample 0"
+  "caption": "sample 0",
+  "id": "img_0"
  },
  {
   "_step": 0,
@@ -81,7 +82,8 @@
     "score": 0.6
    }
   ],
-  "caption": "sample 1"
+  "caption": "sample 1",
+  "id": "img_1"
  },
  {
   "_step": 10,
@@ -102,7 +104,8 @@
     "score": 0.5
    }
   ],
-  "caption": "sample 0"
+  "caption": "sample 0",
+  "id": "img_1"
  },
  {
   "_step": 10,
@@ -123,7 +126,8 @@
     "score": 0.6
    }
   ],
-  "caption": "sample 1"
+  "caption": "sample 1",
+  "id": "img_0"
  },
  {
   "_step": 20,
@@ -144,7 +148,8 @@
     "score": 0.5
    }
   ],
-  "caption": "sample 0"
+  "caption": "sample 0",
+  "id": "img_0"
  },
  {
   "_step": 20,
@@ -165,7 +170,8 @@
     "score": 0.6
    }
   ],
-  "caption": "sample 1"
+  "caption": "sample 1",
+  "id": "img_1"
  },
  {
   "_step": 0,

@@ -118,7 +118,9 @@ run.log_text("answers/prompt-3", model.generate(prompt))
 
 Pillow images and matplotlib or Plotly figures can be logged as they are. Without `step`, the methods use the step
 of the last `run.log()`; in `run.log()`, media count as a step like numbers do. Logging the same key at the same step
-again replaces it. A value that can't be saved is said once and skipped: logging never ends a training. Media aren't
+again replaces it. Give samples an `id`, like `qb.Image(x, id="img_0042")`, when your loader shuffles them: the web
+app matches samples across steps and with the reference run's by their id, else by caption, else by position. A
+value that can't be saved is said once and skipped: logging never ends a training. Media aren't
 metrics. Read what a run logged with `run.media("val/samples")`.
 
 The files go in the run's folder, *media/&lt;key&gt;/&lt;step&gt;_&lt;index&gt;.&lt;ext&gt;*, listed in *media.jsonl*,

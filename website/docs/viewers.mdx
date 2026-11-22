@@ -284,7 +284,8 @@ Programs in any language can write the same files: the media in the run's folder
 <summary>The fields of each kind</summary>
 
 - Every line: `_step` (an integer), `key`, `kind`, and `index`, the position in a list logged at that step (0 for one
-  value). `_time` (seconds since the epoch) and `caption` are optional. `path` is the file, relative to the run's
+  value). `_time` (seconds since the epoch), `caption` and `id` are optional: `id` names the sample, to match it
+  across steps and runs, else the caption, else the index do. `path` is the file, relative to the run's
   folder, with `/`.
 - `image`: `width` and `height` when known; `boxes` in pixels from the top left, with an optional `label`, `score`
   and `group`. Boxes with `"units": "fraction"` are fractions of the image's size.
