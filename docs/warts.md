@@ -207,6 +207,13 @@ of `qaboard/media.py`, tested with the web app's parser on `tests/fixtures/media
   *media.jsonl* themselves, but the card shows **Logged media** only for runs with `data.sdk`. [S, decide]
 - `qaboard.runs(url)` runs have `series()`, not `media()`: reading another run's media needs its folder. [S, behaviour]
 - *media.jsonl* has the times things were logged: bit-accuracy checks see differences, like with *series.jsonl*. [S, behaviour]
+- While a run goes on, the uploader lists and stats all of *media/* every 10 seconds (only for runs with a
+  *media.jsonl*): with 10^5 files on NFS, send the files the new lines of *media.jsonl* list instead. [S, behaviour]
+- A run that isn't resumed starts a new *media.jsonl* but leaves old *media/* files of a reused `output_dir` there: not
+  listed, but uploaded. [S, behaviour]
+- MLflow: the `mlflow/run_id` and `mlflow/git_commit` parameters differ in every run, so the card and the "vs.
+  reference" callout show them as changed settings; `log_metric()` without a step is a one-point series at step 0,
+  plotted next to the curves. [S, behaviour]
 - Web app: the evolution strip and the contents' thumbnails are for images only; `space` swaps which of new and
   reference comes first, it isn't an in-place flip; `f` opens the sample inline, not full screen. [S, behaviour]
 - Web app: the series' cursor shows the step people picked, not each card's snapped step, and nothing while following

@@ -15,8 +15,9 @@ Like the rest of what runs tell the server (qaboard/active_run.py), it sends the
 `sync()` compares the files with what it sent and sends what differs. Nothing to replay when a request fails: the
 next `sync()` sends what is missing, and the last one sends everything.
 
-While the run goes on, only what people look at then is sent: the files that grow (log.txt, series.jsonl) by what
-was added, the small files the run rewrites (series.json, run.json), and the files matching the project's
+While the run goes on, only what people look at then is sent: the files that grow (log.txt, series.jsonl,
+media.jsonl) by what was added, the small files the run rewrites (series.json, run.json), the media the run logged
+(media/, qaboard/media.py: before the lines of media.jsonl that list them), and the files matching the project's
 `outputs.live` patterns. The rest goes at the end.
 """
 import hashlib
@@ -186,11 +187,13 @@ class Uploader:
   def _send_changes(self, final: bool) -> bool:
     with self._state_lock:
       self.failed = {}
-    ok = all([self._append(path) for path in APPENDED_FILES])
+    # the whole files first: the media.jsonl lines sent next list media files the server then has
+    ok = True
     files = [(path, stat) for path, stat in self._files(final) if self._sent.get(path) != stat]
     if files and not self.refused:
       with ThreadPoolExecutor(max_workers=min(WORKERS, len(files)), thread_name_prefix='qaboard-upload') as pool:
-        ok = all(list(pool.map(lambda file: self._put(*file), files))) and ok
+        ok = all(list(pool.map(lambda file: self._put(*file), files)))
+    ok = all([self._append(path) for path in APPENDED_FILES]) and ok
     return ok and not self.refused
 
   def _files(self, final: bool) -> Iterator[Tuple[str, Stat]]:
@@ -203,20 +206,25 @@ class Uploader:
           yield name, stat
       yield from self._media_files()
       return
+    media = (self.directory / 'media.jsonl').is_file() and not is_outside_link(self.directory / MEDIA_FOLDER, self.directory)
     for root, dirs, names in os.walk(self.directory):
       for name in names:
         file = Path(root) / name
         path = file.relative_to(self.directory).as_posix()
         if path in APPENDED_FILES or is_temporary(name):
           continue
-        if not final and path not in LIVE_FILES and not path.startswith(f"{MEDIA_FOLDER}/") and not any(fnmatchcase(path, pattern) for pattern in self.live):
+        if not final and path not in LIVE_FILES and not (path.startswith(f"{MEDIA_FOLDER}/") and media) and not any(fnmatchcase(path, pattern) for pattern in self.live):
           continue
         stat = self._stat(file)
         if stat is not None:
           yield path, stat
 
   def _media_files(self) -> Iterator[Tuple[str, Stat]]:
-    for root, _, names in os.walk(self.directory / MEDIA_FOLDER):
+    """The media runs started from code logged: only theirs (with a media.jsonl), and never through a link out of the folder"""
+    folder = self.directory / MEDIA_FOLDER
+    if not (self.directory / 'media.jsonl').is_file() or not folder.is_dir() or is_outside_link(folder, self.directory):
+      return
+    for root, _, names in os.walk(folder):
       for name in names:
         if is_temporary(name):
           continue

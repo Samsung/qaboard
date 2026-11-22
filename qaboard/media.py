@@ -37,6 +37,7 @@ tests/fixtures/media/. Change one, change the other.
 This module needs only the standard library; numpy, Pillow and matplotlib are used when the values are theirs.
 It imports nothing from qaboard.
 """
+import hashlib
 import io
 import json
 import math
@@ -46,6 +47,7 @@ import shutil
 import struct
 import threading
 import time as time_module
+import uuid
 import wave
 import zlib
 from pathlib import Path
@@ -238,13 +240,16 @@ def _boxes(boxes: Optional[Sequence[Mapping[str, Any]]]) -> List[Dict[str, Any]]
       raise MediaError(f"Image(boxes=...) is a list of {{'x', 'y', 'w', 'h', 'label'}}, not {box!r}")
     try:
       region: Dict[str, Any] = {k: float(box[k]) for k in ('x', 'y', 'w', 'h')}
+      score = None if box.get('score') is None else float(box['score'])
     except (KeyError, TypeError, ValueError):
-      raise MediaError(f"Image(boxes=...): each box has numbers x, y, w and h, not {dict(box)!r}") from None
+      raise MediaError(f"Image(boxes=...): each box has numbers x, y, w and h, and a number as score, not {dict(box)!r}") from None
+    if not all(math.isfinite(v) for v in region.values()) or (score is not None and not math.isfinite(score)):
+      raise MediaError(f"Image(boxes=...): NaN or infinite numbers in {dict(box)!r}")
     for name in ('label', 'group', 'units'):
       if box.get(name) is not None:
         region[name] = str(box[name])
-    if box.get('score') is not None:
-      region['score'] = float(box['score'])
+    if score is not None:
+      region['score'] = score
     cleaned.append({k: ((int(v) if v.is_integer() else round(v, 6)) if k in ('x', 'y', 'w', 'h') else v) for k, v in region.items()})
   return cleaned
 
@@ -290,6 +295,8 @@ def image_array(array: Any) -> Any:
     array = numpy.moveaxis(array, 0, -1)  # CHW
   if array.ndim == 3 and array.shape[-1] == 1:
     array = array[..., 0]
+  if array.size == 0:
+    raise MediaError("Image(): the array is empty")
   if array.ndim not in (2, 3) or (array.ndim == 3 and array.shape[-1] not in (3, 4)):
     raise MediaError(f"Image(): an array of shape {tuple(array.shape)} isn't an image: HxW, HxWxC or CxHxW, with 1, 3 or 4 channels")
   if array.dtype == numpy.bool_:
@@ -298,6 +305,8 @@ def image_array(array: Any) -> Any:
     finite = array[numpy.isfinite(array)]
     scale = 255.0 if finite.size == 0 or finite.max() <= 1.0 else 1.0
     array = numpy.clip(numpy.nan_to_num(array) * scale, 0, 255)
+  elif array.dtype.kind == 'u' and array.dtype.itemsize > 1:
+    array = array >> (8 * array.dtype.itemsize - 8)  # 16-bit images, scaled down
   elif array.dtype != numpy.uint8:
     array = numpy.clip(array, 0, 255)
   return numpy.ascontiguousarray(array.astype(numpy.uint8))
@@ -324,7 +333,12 @@ class Audio(Media):
 
   def __init__(self, data: Any, sample_rate: Optional[int] = None, caption: Optional[str] = None, id: Optional[str] = None):
     super().__init__(data, caption, id)
-    self.sample_rate = None if sample_rate is None else int(sample_rate)
+    try:
+      self.sample_rate = None if sample_rate is None else int(sample_rate)
+    except (TypeError, ValueError):
+      raise MediaError(f"Audio(sample_rate=...) is a number of samples per second, not {sample_rate!r}") from None
+    if self.sample_rate is not None and self.sample_rate <= 0:
+      raise MediaError(f"Audio(sample_rate=...) is positive, not {sample_rate}")
 
   def encode(self) -> Tuple[Optional[Source], str, Dict[str, Any]]:
     path = _existing_path(self.data)
@@ -352,16 +366,30 @@ def wav(array: Any, sample_rate: int) -> bytes:
   """N or NxC samples as a 16-bit PCM WAV. Arrays of C x N, with C < N and C <= 8, are transposed."""
   import numpy
   samples = numpy.asarray(array)
+  if samples.ndim == 0:
+    raise MediaError("Audio(): samples are N or NxC values, not a single number")
   if samples.ndim == 2 and samples.shape[0] <= 8 and samples.shape[0] < samples.shape[1]:
     samples = samples.T
   if samples.ndim == 1:
     samples = samples[:, None]
   if samples.ndim != 2:
-    raise MediaError(f"Audio(): samples are N or NxC values, not an array of shape {tuple(array.shape)}")
+    raise MediaError(f"Audio(): samples are N or NxC values, not an array of shape {tuple(samples.shape)}")
   if samples.dtype.kind == 'f':
     samples = numpy.clip(numpy.nan_to_num(samples), -1.0, 1.0) * 32767
-  elif samples.dtype.itemsize > 2:
-    samples = samples / (2 ** (8 * samples.dtype.itemsize - 16))
+  elif samples.dtype.kind == 'u':
+    # centered, then like the signed integers of the same width
+    bits = 8 * samples.dtype.itemsize
+    samples = (samples.astype(numpy.int64) - (1 << (bits - 1))) * (2.0 ** (16 - bits))
+  elif samples.dtype.kind == 'i':
+    # int16 values in a wider type are common (lists of ints are int64): kept as they are; else scaled from the type's range
+    peak = int(numpy.abs(samples.astype(numpy.int64)).max()) if samples.size else 0
+    if samples.dtype.itemsize == 1:
+      samples = samples.astype(numpy.int16) * 256
+    elif samples.dtype.itemsize > 2 and peak > 32767:
+      samples = samples / (2.0 ** (8 * samples.dtype.itemsize - 16))
+  elif samples.dtype.kind == 'b':
+    raise MediaError("Audio(): samples are numbers, not booleans")
+  samples = numpy.clip(numpy.rint(samples) if samples.dtype.kind == 'f' else samples, -32768, 32767)
   buffer = io.BytesIO()
   with wave.open(buffer, 'wb') as f:
     f.setnchannels(samples.shape[1])
@@ -389,6 +417,13 @@ class Video(Media):
 
   def __init__(self, data: Any, fps: Optional[float] = None, caption: Optional[str] = None, id: Optional[str] = None):
     super().__init__(data, caption, id)
+    if fps is not None:
+      try:
+        fps = float(fps)
+      except (TypeError, ValueError):
+        raise MediaError(f"Video(fps=...) is a number, not {fps!r}") from None
+      if not 0 < fps <= 1000:
+        raise MediaError(f"Video(fps=...) is between 0 and 1000, not {fps}")
     self.fps = fps
 
   def encode(self) -> Tuple[Optional[Source], str, Dict[str, Any]]:
@@ -430,6 +465,14 @@ class Table(Media):
     super().__init__(None, caption, id)
     if dataframe is not None:
       columns, data = [str(c) for c in dataframe.columns], dataframe.values.tolist()
+    if isinstance(data, Mapping):
+      # {"label": [...], "score": [...]}, like MLflow's log_table
+      columns = [str(c) for c in data]
+      values = [list(v) if isinstance(v, (list, tuple)) or hasattr(v, '__len__') and not isinstance(v, str) else [v] for v in data.values()]
+      length = max((len(v) for v in values), default=0)
+      data = [[v[i] if i < len(v) else None for v in values] for i in range(length)]
+    if data is not None and (isinstance(data, (str, bytes)) or not all(isinstance(row, (list, tuple)) or (hasattr(row, '__len__') and not isinstance(row, (str, bytes, Mapping))) for row in data)):
+      raise MediaError("Table(data=...) is a list of rows, e.g. [[\"cat\", 0.9], [\"dog\", 0.4]], or a mapping of columns")
     self.rows: List[List[Any]] = [list(row) for row in (data or [])]
     self.columns: List[str] = [str(c) for c in columns] if columns else [f"c{i}" for i in range(len(self.rows[0]) if self.rows else 0)]
 
@@ -447,16 +490,23 @@ class Histogram(Media):
   def __init__(self, values: Any = None, bins: int = DEFAULT_BINS, np_histogram: Optional[Tuple[Any, Any]] = None,
                caption: Optional[str] = None, id: Optional[str] = None):
     super().__init__(None, caption, id)
-    if np_histogram is not None:
-      counts, edges = (_cell(v) for v in np_histogram)
-    else:
-      counts, edges = histogram(values, bins)
-    if len(edges) != len(counts) + 1:
-      raise MediaError(f"Histogram(): {len(counts)} counts need {len(counts) + 1} bin edges, not {len(edges)}")
-    if len(counts) > MAX_BINS:
-      raise MediaError(f"Histogram(): at most {MAX_BINS} bins, not {len(counts)}")
-    self.counts: List[float] = [float(c or 0) for c in counts]
-    self.bins: List[float] = [float(e) for e in edges]
+    try:
+      if np_histogram is not None:
+        counts, edges = (_cell(v) for v in np_histogram)
+      else:
+        counts, edges = histogram(values, bins)
+      if len(edges) != len(counts) + 1:
+        raise MediaError(f"Histogram(): {len(counts)} counts need {len(counts) + 1} bin edges, not {len(edges)}")
+      if len(counts) > MAX_BINS:
+        raise MediaError(f"Histogram(): at most {MAX_BINS} bins, not {len(counts)}")
+      self.counts: List[float] = [float(c or 0) for c in counts]
+      self.bins: List[float] = [float(e) for e in edges]
+    except MediaError:
+      raise
+    except (TypeError, ValueError, OverflowError) as e:
+      raise MediaError(f"Histogram() takes numbers: {e}") from None
+    if not all(math.isfinite(v) for v in self.bins + self.counts):
+      raise MediaError("Histogram(): NaN or infinite bin edges or counts")
 
   def encode(self) -> Tuple[Optional[Source], str, Dict[str, Any]]:
     return None, '', {'bins': [_number(e) for e in self.bins], 'counts': [_number(c) for c in self.counts]}
@@ -488,12 +538,16 @@ def histogram(values: Any, bins: int = DEFAULT_BINS) -> Tuple[List[float], List[
   return result, [low + i * width for i in range(bins + 1)]
 
 
+def _text(value: Any) -> str:
+  return value.decode('utf-8', errors='replace') if isinstance(value, (bytes, bytearray)) else str(value)
+
+
 class Text(Media):
   """A text, e.g. a model's answer at this step"""
   kind = 'text'
 
   def __init__(self, text: Any, caption: Optional[str] = None, id: Optional[str] = None):
-    super().__init__(str(text), caption, id)
+    super().__init__(_text(text), caption, id)
 
   def encode(self) -> Tuple[Optional[Source], str, Dict[str, Any]]:
     return str(self.data).encode('utf-8'), '.txt', {}
@@ -506,11 +560,13 @@ class Html(Media):
   def __init__(self, html: Any, caption: Optional[str] = None, id: Optional[str] = None):
     if hasattr(html, 'read'):
       html = html.read()
-    super().__init__(html, caption, id)
+    super().__init__(html if isinstance(html, os.PathLike) else _text(html), caption, id)
 
   def encode(self) -> Tuple[Optional[Source], str, Dict[str, Any]]:
-    path = _existing_path(self.data) if '<' not in str(self.data) else None
-    if path is not None:
+    if isinstance(self.data, os.PathLike) or (isinstance(self.data, str) and '<' not in self.data and len(self.data) < 4096 and self.data.lower().endswith(('.html', '.htm'))):
+      path = _existing_path(self.data)
+      if path is None:
+        raise MediaError(f"Html(): {self.data} is not a file")
       return path, '.html', {}
     return str(self.data).encode('utf-8'), '.html', {}
 
@@ -560,7 +616,8 @@ def is_media(value: Any) -> bool:
 def _write(target: Path, source: Source) -> None:
   target.parent.mkdir(parents=True, exist_ok=True)
   # atomic: the web app may read the previous file
-  temporary = target.with_name(f".{target.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+  # unique per call, and short: the file's own name can be near the system's limit
+  temporary = target.with_name(f".{uuid.uuid4().hex[:16]}.tmp")
   try:
     if isinstance(source, bytes):
       temporary.write_bytes(source)
@@ -582,44 +639,77 @@ class MediaLog:
     self._save = save or (lambda relative, source: _write(self.output_dir / relative, source))
     self._lock = threading.Lock()
     self.count = 0
-    if not resume:
+    # each key's folder: keys that are the same once made safe for paths, or but for their case, get folders of their own
+    self._folders: Dict[str, str] = {}
+    if resume:
+      for line in read_media(self.output_dir):
+        path = line.get('path')
+        if isinstance(path, str) and path.startswith(f"{FOLDER}/") and path.count('/') >= 2:
+          self._folders.setdefault(line['key'], path[len(FOLDER) + 1:path.rindex('/')])
+    else:
       try:
         (self.output_dir / INDEX).unlink()
       except OSError:
         pass
 
+  def folder(self, key: str) -> str:
+    """Where a key's files go, under media/"""
+    with self._lock:
+      folder = self._folders.get(key)
+      if folder is None:
+        folder = safe_key(key)
+        taken = {f.lower() for k, f in self._folders.items() if k != key}
+        if folder.lower() in taken:
+          folder = f"{folder}-{hashlib.sha1(key.encode('utf-8')).hexdigest()[:8]}"
+        self._folders[key] = folder
+      return folder
+
   def add(self, key: str, step: int, value: Any, time: Optional[float] = None) -> List[Dict[str, Any]]:
-    """Saves a media value, or a list of them, at a step. Returns the index's lines. Raises MediaError"""
+    """
+    Saves a media value, or a list of them, at a step. Returns the index's lines. Raises MediaError, and then saves
+    nothing: the values are all encoded and checked before any file is written.
+    """
     values = list(value) if isinstance(value, (list, tuple)) else [value]
     media = [as_media(v) for v in values]
     if not media or any(m is None for m in media):
       raise MediaError(f"{key}: not a media value: {type(value).__name__}")
     when = time_module.time() if time is None else time
-    lines = [self._save_one(key, int(step), m, index, when) for index, m in enumerate(media) if m is not None]
+    stem = f"{FOLDER}/{self.folder(key)}/{int(step)}"
+    prepared = [self._prepare(key, f"{stem}_{index}", int(step), m, index, when) for index, m in enumerate(media) if m is not None]
+    for line, _ in prepared:
+      try:
+        json.dumps(line, allow_nan=False)
+      except (TypeError, ValueError) as e:
+        raise MediaError(f"{key}: {e}") from None
+    for _, writes in prepared:
+      for path, content in writes:
+        self._save(path, content)
+    lines = [line for line, _ in prepared]
     self._append(lines)
     return lines
 
-  def _save_one(self, key: str, step: int, media: Media, index: int, when: float) -> Dict[str, Any]:
-    stem = f"{FOLDER}/{safe_key(key)}/{step}_{index}"
+  def _prepare(self, key: str, stem: str, step: int, media: Media, index: int, when: float) -> Tuple[Dict[str, Any], List[Tuple[str, Source]]]:
+    """An item's line in the index, and the files to write for it"""
     line: Dict[str, Any] = {STEP: step, TIME: round(when, 3), 'key': key, 'kind': media.kind, 'index': index}
+    writes: List[Tuple[str, Source]] = []
     if isinstance(media, Table):
-      columns, rows = self._table(stem, media)
+      columns, rows = self._table(stem, media, writes)
       path = f"{stem}.table.json"
-      self._save(path, json.dumps({'columns': columns, 'data': rows}, separators=(',', ':')).encode('utf-8'))
+      writes.append((path, json.dumps({'columns': columns, 'data': rows}, separators=(',', ':'), allow_nan=False).encode('utf-8')))
       line.update(path=path, columns=columns, rows=len(rows))
     else:
       content, suffix, fields = media.encode()
       if content is not None:
         line['path'] = f"{stem}{suffix}"
-        self._save(line['path'], content)
-      line.update({k: v for k, v in fields.items() if v is not None})
+        writes.append((line['path'], content))
+      line.update({k: _cell(v) for k, v in fields.items() if v is not None})
     if media.caption:
       line['caption'] = media.caption
     if media.id:
       line['id'] = media.id
-    return line
+    return line, writes
 
-  def _table(self, stem: str, table: Table) -> Tuple[List[str], List[List[Any]]]:
+  def _table(self, stem: str, table: Table, writes: List[Tuple[str, Source]]) -> Tuple[List[str], List[List[Any]]]:
     rows = table.rows
     if len(rows) > MAX_TABLE_ROWS:
       raise MediaError(f"Table(): at most {MAX_TABLE_ROWS} rows, not {len(rows)}: save bigger tables as files")
@@ -635,8 +725,8 @@ class MediaLog:
         cell: Dict[str, Any] = {'kind': media.kind}
         if content is not None:
           cell['path'] = f"{stem}/{r}_{c}{suffix}"
-          self._save(cell['path'], content)
-        cell.update({k: v for k, v in fields.items() if v is not None})
+          writes.append((cell['path'], content))
+        cell.update({k: _cell(v) for k, v in fields.items() if v is not None})
         if media.caption:
           cell['caption'] = media.caption
         cells.append(cell)
@@ -677,7 +767,7 @@ def read_media(output_dir: Union[str, Path], key: Optional[str] = None) -> List[
       if not isinstance(line, dict) or line.get('kind') not in KINDS or not isinstance(line.get('key'), str):
         continue
       step, index = line.get(STEP), line.get('index', 0)
-      if not isinstance(step, int) or isinstance(step, bool) or not isinstance(index, int):
+      if not isinstance(step, int) or isinstance(step, bool) or not isinstance(index, int) or isinstance(index, bool):
         continue
       if key is not None and line['key'] != key:
         continue

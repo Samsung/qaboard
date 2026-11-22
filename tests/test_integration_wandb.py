@@ -485,5 +485,41 @@ class TestRunner(WandbTestCase):
     self.assertIn('usage', usage.stderr)
 
 
+
+
+class TestRealWandbObjects(unittest.TestCase):
+  """What the real wandb's objects hold (checked against wandb 0.31.2): the tests' fake wandb is ours"""
+  def test_boxes_of_bounding_boxes_2d(self):
+    from qaboard.integrations.wandb import _media
+
+    class BoundingBoxes2D:  # wandb.data_types: the boxes in _val, the labels in _class_labels
+      def __init__(self, val):
+        self._val, self._class_labels = val['box_data'], val.get('class_labels')
+
+    class Image:
+      _boxes = {'predictions': BoundingBoxes2D({'box_data': [{'position': {'minX': 1, 'maxX': 3, 'minY': 2, 'maxY': 6}, 'domain': 'pixel', 'class_id': 0, 'scores': {'conf': 'high'}}], 'class_labels': {0: 'cat'}})}
+    self.assertEqual(_media._boxes(Image()), [{'x': 1.0, 'y': 2.0, 'w': 2.0, 'h': 4.0, 'group': 'predictions', 'label': 'cat'}])
+
+  def test_plotly_kept_as_a_file(self):
+    import tempfile
+    from qaboard.integrations.wandb import _media
+    with tempfile.TemporaryDirectory() as d:
+      path = Path(d) / 'figure.plotly.json'
+      path.write_text('{"data": [{"y": [1, 2]}]}')
+
+      class Plotly:
+        __module__ = 'wandb.sdk.data_types.plotly'
+        _path, _caption = str(path), None
+      Plotly.__name__ = 'Plotly'
+      figure = _media.to_media(Plotly())
+      self.assertEqual(figure.data, {'data': [{'y': [1, 2]}]})
+
+  def test_histograms_of_arrays(self):
+    import numpy
+    from qaboard.integrations.wandb import _media
+    histogram = _media.Histogram(numpy.array([[1.0, 2.0], [2.0, float('nan')]]), num_bins=2)
+    self.assertEqual(histogram.histogram, [1, 2])
+
+
 if __name__ == '__main__':
   unittest.main()

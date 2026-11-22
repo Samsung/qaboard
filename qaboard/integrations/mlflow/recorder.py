@@ -224,7 +224,12 @@ class RecordedRun:
           # mlflow.log_image(key=..., step=...): media at their step, shown with a slider. Not its smaller copy
           if not image['compressed']:
             from ... import media
-            run.log_media(image['key'].replace('~', '/').replace('#', '/'), media.Image(path), step=int(image['step']))
+            key = image['key'].replace('~', '/').replace('#', '/')
+            try:
+              run.log_media(key.lstrip('_') or 'image', media.Image(path), step=int(image['step']))
+            except (ValueError, TypeError) as e:  # a key QA-Board can't take: the image is still a file of the run
+              say_once(f"image:{key}", f"WARNING: mlflow.log_image(key={key!r}): {e}: saved as a file instead")
+              run.log_artifact(target.as_posix(), str(path))
           continue
         if len(target.parts) == 1 and QABOARD_FILES.fullmatch(target.name):
           say_once(f"reserved:{target.name}", f"WARNING: QA-Board writes its own {target.name} in the run's folder: the MLflow artifact is saved as mlflow/{target.name}")
@@ -243,6 +248,8 @@ class RecordedRun:
       return
     for entry in entries if isinstance(entries, list) else []:
       path = entry.get('path') if isinstance(entry, dict) and entry.get('type') == 'table' else None
+      if isinstance(path, str) and QABOARD_FILES.fullmatch(path):
+        path = f"mlflow/{path}"  # where save_artifact() put it
       if isinstance(path, str) and path not in self._tables:
         self._tables.add(path)
         if self.qb is not None:
@@ -251,15 +258,22 @@ class RecordedRun:
   def _log_table(self, path: str) -> None:
     """A table file as a table at the run's last step: MLflow's tables have no step"""
     from ... import media
-    file = Path(self.qb.output_dir) / path
-    if not file.is_file():
-      file = Path(self.qb.output_dir) / 'mlflow' / path
+    root = Path(self.qb.output_dir)
+    file = root / path
     if not path.endswith('.json'):
       unsupported.warn("mlflow.log_table to a .parquet file", "kept as a file, not shown as a table: log tables as .json")
       return
     try:
       table = json.loads(file.read_text(encoding='utf-8'))
-      self.qb.log_media(path[:-len('.json')], media.Table(columns=table['columns'], data=table['data']))
+      # MLflow's image cells: {"type": "image", "filepath": "table_images/...png", ...}, files next to the table
+      def cell(value: Any) -> Any:
+        if isinstance(value, dict) and value.get('type') == 'image' and isinstance(value.get('filepath'), str):
+          images = [root / value['filepath'], root / Path(path).parent / value['filepath'], root / 'mlflow' / value['filepath']]
+          image = next((i for i in images if i.is_file()), None)
+          return media.Image(image) if image is not None else value['filepath']
+        return value
+      name = path[len('mlflow/'):] if path.startswith('mlflow/') else path
+      self.qb.log_media(name[:-len('.json')].lstrip('_') or 'table', media.Table(columns=table['columns'], data=[[cell(v) for v in row] for row in table['data']]))
     except (OSError, ValueError, KeyError, TypeError) as e:
       say_once(f"table:{path}", f"WARNING: mlflow.log_table: can't read {path} as a table: {e}")
 

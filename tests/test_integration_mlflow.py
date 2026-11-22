@@ -320,6 +320,24 @@ class TestFluentApi(MlflowTestCase):
                      [('val/sample', 0, 'media/val/sample/0_0.png'), ('val/sample', 5, 'media/val/sample/5_0.png')])
     self.assertFalse((run_dir / 'images').exists())
 
+  def test_stepped_images_with_keys_qaboard_doesnt_take(self):
+    # MLflow takes keys QA-Board's media don't: "_debug" loses its "_", a 210-character key stays a file
+    result, runs = self.python("""
+      import mlflow
+      from pathlib import Path
+      Path("tmp").mkdir()
+      for key in ("_debug", "k" * 210):
+          (Path("tmp") / f"{key}+step+3+timestamp+17+abc.png").write_bytes(b"png")
+      with mlflow.start_run(run_name="a"):
+          for path in sorted(Path("tmp").iterdir()):
+              mlflow.log_artifact(str(path), artifact_path="images")
+    """)
+    run_dir = self.only(runs)
+    from qaboard.media import read_media
+    self.assertEqual([(i['key'], i['_step']) for i in read_media(run_dir)], [('debug', 3)])
+    self.assertTrue((run_dir / 'images' / f"{'k' * 210}+step+3+timestamp+17+abc.png").exists())
+    self.assertIn("saved as a file instead", result.stderr)
+
   @unittest.skipIf(mlflow is not None and not hasattr(mlflow, 'trace'), "MLflow 2.14+")
   def test_tracing_never_breaks_the_code(self):
     _, runs = self.python("""

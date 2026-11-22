@@ -211,6 +211,99 @@ class TestOtherKinds(MediaTestCase):
     self.assertFalse(media.is_media(1.0) or media.is_media([]) or media.is_media('a.png') or media.is_media(numpy.zeros(3)))
 
 
+class TestWhatTheReviewFound(MediaTestCase):
+  def test_integer_audio_of_any_width(self):
+    def frames(line):
+      with wave.open(io.BytesIO(self.file(line))) as f:
+        return numpy.frombuffer(f.readframes(f.getnframes()), dtype='<i2').tolist()
+    # int16 values in an int64 array, like a list of ints: kept, not divided to silence
+    [line] = self.log.add('pcm', 0, media.Audio([0, 16000, -16000], sample_rate=8000))
+    self.assertEqual(frames(line), [0, 16000, -16000])
+    [line] = self.log.add('int32', 0, media.Audio(numpy.array([0, 2 ** 30, -2 ** 30], dtype=numpy.int32), sample_rate=8000))
+    self.assertEqual(frames(line), [0, 16384, -16384])
+    [line] = self.log.add('uint8', 0, media.Audio(numpy.array([128, 255, 0], dtype=numpy.uint8), sample_rate=8000))
+    self.assertEqual(frames(line), [0, 32512, -32768])
+    [line] = self.log.add('uint16', 0, media.Audio(numpy.array([32768, 65535, 0], dtype=numpy.uint16), sample_rate=8000))
+    self.assertEqual(frames(line), [0, 32767, -32768])
+    for bad in (dict(data=numpy.zeros(3), sample_rate='fast'), dict(data=numpy.zeros(3), sample_rate=0), dict(data=3.0, sample_rate=8000)):
+      with self.assertRaises(MediaError):
+        self.log.add('bad', 0, media.Audio(**bad))
+
+  def test_a_bad_value_saves_nothing(self):
+    with self.assertRaises(MediaError):
+      media.Image(numpy.zeros((2, 2)), boxes=[{'x': float('nan'), 'y': 0, 'w': 1, 'h': 1}])
+    clip = self.run_dir / 'clip.mp4'
+    clip.write_bytes(b'mp4')
+    # numpy numbers in the fields are numbers
+    [line] = self.log.add('video', 0, media.Video(clip, fps=numpy.float32(30)))
+    self.assertEqual(line['fps'], 30.0)
+
+    too_big = media.Table(columns=['a'], data=[[i] for i in range(media.MAX_TABLE_ROWS + 1)])
+    with self.assertRaises(MediaError):
+      self.log.add('list', 1, [media.Text('fine'), too_big])
+    self.assertFalse((self.run_dir / 'media/list').exists())   # neither file of the list
+    self.assertEqual(read_media(self.run_dir, 'list'), [])
+
+  def test_keys_never_share_a_folder(self):
+    [a] = self.log.add('a b', 7, media.Text('first'))
+    [b] = self.log.add('a_b', 7, media.Text('second'))
+    [c] = self.log.add('A_B', 7, media.Text('third'))   # the same folder on macOS and Windows
+    self.assertEqual(a['path'], 'media/a_b/7_0.txt')
+    self.assertEqual(len({a['path'], b['path'], c['path']}), 3)
+    self.assertEqual([self.file(i) for i in (a, b, c)], [b'first', b'second', b'third'])
+    # resumed, keys keep their folders
+    resumed = MediaLog(self.run_dir, resume=True)
+    [b2] = resumed.add('a_b', 8, media.Text('again'))
+    self.assertEqual(b2['path'].rsplit('/', 1)[0], b['path'].rsplit('/', 1)[0])
+
+  def test_threads_logging_together(self):
+    import threading
+    errors = []
+
+    def log(i):
+      try:
+        self.log.add('same', 0, media.Text(str(i)))
+      except Exception as e:
+        errors.append(e)
+    threads = [threading.Thread(target=log, args=(i,)) for i in range(16)]
+    for t in threads:
+      t.start()
+    for t in threads:
+      t.join()
+    self.assertEqual(errors, [])
+    self.assertEqual(len((self.run_dir / INDEX).read_text().splitlines()), 16)
+
+  def test_tables_from_mappings_and_bad_rows(self):
+    self.assertEqual(media.Table(data={'label': ['cat', 'dog'], 'score': [0.9, 0.4]}).rows, [['cat', 0.9], ['dog', 0.4]])
+    self.assertEqual(media.Table(data={'label': ['cat', 'dog'], 'score': [0.9, 0.4]}).columns, ['label', 'score'])
+    for bad in ([1, 2, 3], 'abc', ['ab', 'cd']):
+      with self.assertRaises(MediaError):
+        media.Table(data=bad)
+
+  def test_html_and_text_from_bytes(self):
+    [html] = self.log.add('html', 0, media.Html(b'<p>hi</p>'))
+    [stream] = self.log.add('stream', 0, media.Html(io.BytesIO(b'<p>ho</p>')))
+    [text] = self.log.add('text', 0, media.Text('caf\u00e9'.encode()))
+    self.assertEqual([self.file(html), self.file(stream), self.file(text)], [b'<p>hi</p>', b'<p>ho</p>', 'caf\u00e9'.encode()])
+    with self.assertRaises(MediaError):
+      self.log.add('missing', 0, media.Html('missing.html'))
+
+  def test_16_bit_images_are_scaled_and_empty_ones_refused(self):
+    [line] = self.log.add('u16', 0, media.Image(numpy.array([[0, 65535, 32768]], dtype=numpy.uint16)))
+    self.assertEqual(decode_png(self.file(line)).tolist(), [[0, 255, 128]])
+    with self.assertRaisesRegex(MediaError, 'empty'):
+      media.Image(numpy.zeros((0, 3))).encode()
+
+  def test_histograms_of_what_isnt_numbers(self):
+    for values in (['a', 'b'], 3.0, [None, None]):
+      try:
+        media.Histogram(values)
+      except MediaError:
+        pass
+    with self.assertRaises(MediaError):
+      media.Histogram(np_histogram=([1, 2], [0, float('nan'), 1]))
+
+
 class TestIndex(MediaTestCase):
   def test_last_of_duplicates_and_cut_lines(self):
     self.log.add('answer', 1, media.Text('a'))
@@ -241,6 +334,33 @@ class TestUploads(UploaderTestCase):
     log.add('answer', 1, media.Text('ho'))
     self.assertTrue(uploader.sync())
     self.assertEqual(server.files[INDEX], (self.run_dir / INDEX).read_bytes())  # appended, like series.jsonl
+
+
+class TestUploadsOnlyTheirMedia(UploaderTestCase):
+  def test_a_media_link_out_of_the_folder_isnt_followed(self):
+    import os
+    server = self.server()
+    secret = Path(self.tmp.name) / 'secret'
+    secret.mkdir()
+    (secret / 'id_rsa').write_bytes(b'key')
+    os.symlink(secret, self.run_dir / 'media')
+    self.write(INDEX, b'{}\n')
+    self.assertTrue(self.uploader(server).sync())
+    self.assertNotIn('media/id_rsa', server.files)
+
+  def test_a_media_folder_without_index_isnt_sent_while_the_run_goes_on(self):
+    server = self.server()
+    self.write('media/frame.png', b'png')   # a `qa run` project's own folder
+    self.assertTrue(self.uploader(server).sync())
+    self.assertEqual(server.files, {})
+
+  def test_the_files_go_before_the_lines_that_list_them(self):
+    server = self.server()
+    MediaLog(self.run_dir).add('answer', 0, media.Text('hi'))
+    self.assertTrue(self.uploader(server).sync())
+    paths = [request[1] for request in server.requests if request[0] == 'PUT']
+    self.assertTrue(paths, server.requests)
+    self.assertLess(next(i for i, p in enumerate(paths) if 'answer' in p), next(i for i, p in enumerate(paths) if INDEX in p))
 
 
 class TestActiveRun(ActiveRunTestCase):
@@ -278,13 +398,25 @@ keys = sorted({(i["key"], i["_step"]) for i in run.media()})
 assert keys == [("answer", 1), ("answer", 3), ("nested/hist", 0), ("preds", 1), ("report", 1), ("samples", 0), ("tts", 5), ("val/sample", 1), ("w", 2)], keys
 assert [i["index"] for i in run.media("samples")] == [0, 1]
 assert run.media("val/sample")[0]["boxes"] == [{"x": 0, "y": 0, "w": 2, "h": 2}]
+# the helpers never raise out of a training: said once, skipped
+run.log_image("bad_boxes", numpy.zeros((2, 2)), boxes=[{"x": 1}])
+run.log_histogram("bad_hist", ["a"])
+run.log_histogram("bad_hist2", 3.0)
+run.log_audio("bad_rate", numpy.zeros(3), sample_rate="fast")
+run.log_table("bad_table", [1, 2, 3])
+assert run.log_image("listed", [numpy.zeros((1, 1)), qb.Image(numpy.ones((1, 1)), caption="b")], step=9) == 9
+assert [i.get("caption") for i in run.media("listed")] == [None, "b"]
+for key in ("bad_boxes", "bad_hist", "bad_rate", "bad_table"):
+  assert run.media(key) == [], key
 run.finish()
-run.log_image("late", numpy.zeros((1, 1)))
+assert run.log_image("late", numpy.zeros((1, 1))) == -1   # like log()
 assert run.media("late") == []
 """)
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertEqual(result.stderr.count('not logging broken'), 1, result.stderr)
     self.assertIn('sample_rate', result.stderr)
+    for key in ("bad_boxes", "bad_hist", "bad_rate", "bad_table"):
+      self.assertIn(f'not logging {key}', result.stderr)
 
 
 class TestIsolation(unittest.TestCase):

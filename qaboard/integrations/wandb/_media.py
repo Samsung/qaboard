@@ -90,18 +90,9 @@ class Histogram:
     if np_histogram is not None:
       self.histogram, self.bins = [_jsonable(v) for v in np_histogram]
       return
-    values = [float(v) for v in _jsonable(list(sequence or []))]
-    try:
-      import numpy
-      histogram, bins = numpy.histogram(values, bins=num_bins)
-      self.histogram, self.bins = histogram.tolist(), bins.tolist()
-    except ImportError:
-      low, high = (min(values), max(values)) if values else (0.0, 1.0)
-      width = (high - low) / num_bins or 1.0
-      self.bins = [low + i * width for i in range(num_bins + 1)]
-      self.histogram = [0] * num_bins
-      for v in values:
-        self.histogram[min(int((v - low) / width), num_bins - 1)] += 1
+    from ...media import histogram
+    # lists, arrays and tensors of any shape; NaN left out
+    self.histogram, self.bins = histogram(sequence if sequence is not None else [], num_bins)
 
 
 class Table:
@@ -275,17 +266,26 @@ def _kind(value: Any) -> Optional[str]:
   return None
 
 
+def is_media(value: Any) -> bool:
+  """A wandb media value, or a non-empty list of them"""
+  values = list(value) if isinstance(value, (list, tuple)) else [value]
+  return bool(values) and all(_kind(v) for v in values)
+
+
 def save(run: Any, key: str, step: int, value: Any) -> bool:
   """Logs a media value (or a list of them) with the run's log_media(), at the step. False when it isn't one"""
   values = list(value) if isinstance(value, (list, tuple)) else [value]
   if not values or not all(_kind(v) for v in values):
     return False
-  from ...media import MediaError
-  try:
-    converted = [m for m in (to_media(v) for v in values) if m is not None]
-  except MediaError as e:
-    UNSUPPORTED.warn(f"{key} in wandb.log()", f"not logged: {e}")
-    return True
+  converted = []
+  for v in values:
+    try:
+      m = to_media(v)
+    except Exception as e:  # what wandb's objects hold is theirs: a value we can't read never fails wandb.log()
+      UNSUPPORTED.warn(f"{key} in wandb.log()", f"not logged: {e}")
+      continue
+    if m is not None:
+      converted.append(m)
   if converted:
     run.log_media(key, converted if isinstance(value, (list, tuple)) else converted[0], step=step)
   return True
@@ -338,7 +338,13 @@ def to_media(value: Any) -> Any:
     figure = getattr(value, '_data', None)
     if figure is None:
       figure = getattr(value, '_val', None)
-    return media.Plotly(figure) if figure is not None else None
+    if figure is None and path:  # the real wandb keeps only its .plotly.json
+      import json
+      figure = json.loads(Path(str(path)).read_text(encoding='utf-8'))
+    if figure is None:
+      UNSUPPORTED.warn("wandb.Plotly without its figure", "not logged")
+      return None
+    return media.Plotly(figure)
   # Object3D, Molecule, Graph: the file, at its step
   if path:
     UNSUPPORTED.warn(f"wandb.{kind}", "logged as a file at its step: open it from the run's media")
@@ -366,11 +372,17 @@ def _boxes(value: Any) -> List[Dict[str, Any]]:
   if not isinstance(groups, dict):
     return boxes
   for group, spec in groups.items():
-    spec = getattr(spec, '_val', spec)  # the real wandb's BoundingBoxes2D keep what they were given
     if not isinstance(spec, dict):
+      # the real wandb's BoundingBoxes2D: the boxes in _val, the labels in _class_labels
+      boxes_val = getattr(spec, '_val', None)
+      spec = boxes_val if isinstance(boxes_val, dict) else {'box_data': boxes_val, 'class_labels': getattr(spec, '_class_labels', None)}
+    if not isinstance(spec.get('box_data'), list):
       continue
-    labels = {str(k): str(v) for k, v in (spec.get('class_labels') or {}).items()}
-    for box in spec.get('box_data') or []:
+    class_labels = spec.get('class_labels')
+    labels = {str(k): str(v) for k, v in class_labels.items()} if isinstance(class_labels, dict) else {}
+    for box in spec['box_data']:
+      if not isinstance(box, dict):
+        continue
       position = box.get('position') or {}
       try:
         if 'middle' in position:
@@ -388,7 +400,10 @@ def _boxes(value: Any) -> List[Dict[str, Any]]:
         region['label'] = str(label)
       scores = box.get('scores') or {}
       if isinstance(scores, dict) and scores:
-        region['score'] = float(next(iter(scores.values())))
+        try:
+          region['score'] = float(next(iter(scores.values())))
+        except (TypeError, ValueError):
+          pass
       if box.get('domain') != 'pixel':
         region['units'] = 'fraction'
       boxes.append(region)
