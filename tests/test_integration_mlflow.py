@@ -113,7 +113,8 @@ class TestFluentApi(MlflowTestCase):
     self.assertEqual(info['configurations'], [{'lr': 0.001, 'model': 'resnet50', 'epochs': 3, 'pretrained': True}])
     params = info['logged']['params']
     self.assertEqual((params['tags/team'], params['mlflow/note'], params['mlflow/run_name']), ('vision', 'baseline', 'coco-mini'))
-    self.assertIn('mlflow/run_id', params)
+    # per run identifiers would show as changed settings next to the reference: the run id only in mirror mode
+    self.assertFalse({'mlflow/run_id', 'mlflow/git_commit'} & set(params))
     # series, and their last values as metrics
     self.assertEqual(self.series(run_dir, 'train/loss'), [(s, 1 / (1 + s)) for s in range(5)])
     # logged again at step 0, MLflow's default: the next steps

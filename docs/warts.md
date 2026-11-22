@@ -211,9 +211,23 @@ of `qaboard/media.py`, tested with the web app's parser on `tests/fixtures/media
   *media.jsonl*): with 10^5 files on NFS, send the files the new lines of *media.jsonl* list instead. [S, behaviour]
 - A run that isn't resumed starts a new *media.jsonl* but leaves old *media/* files of a reused `output_dir` there: not
   listed, but uploaded. [S, behaviour]
-- MLflow: the `mlflow/run_id` and `mlflow/git_commit` parameters differ in every run, so the card and the "vs.
-  reference" callout show them as changed settings; `log_metric()` without a step is a one-point series at step 0,
-  plotted next to the curves. [S, behaviour]
+- MLflow: in mirror mode, `mlflow/run_id` and `mlflow/url` differ in every run, so the card and the "vs. reference"
+  callout show them as changed settings: params that describe a run rather than configure it need a place of their
+  own (run metadata, or a prefix the params diff skips). `log_metric()` without a step is a one-point series at step
+  0, plotted full size next to the curves: don't plot series of fewer than 2 points. [S, behaviour]
+- Every series is a metric (its last value), the learning rate too: a cosine schedule's run shows `lr 0` in its
+  metric chips. Default `summary="none"` for names like `lr`, or let shims mark them. [S, behaviour]
+- The demo stack's runs log every key at the same steps as their reference: the "from step N" chips, reference-only
+  keys and the timeline's separate rows never show in its screenshots. Seed one pair whose reference logs at other
+  steps and one key only the reference has (`docs-media/demo/local-stack/project/train.py`). [S, no change]
+- Maintenance, later: split `qaboard/media.py` into encoders (Image, Audio... with png/wav) and storage (MediaLog,
+  read_media); `Table.encode()` raises while `MediaLog._prepare` special-cases tables (let tables encode their cell
+  files); `Html`/`Text` tell paths from contents by heuristics (an explicit `path=`); `FullAudioViewer` (~260
+  lines): extract its zoom window, region drag and shortcuts; `test_logging_media` is one 50-line script in a
+  subprocess (split the warn-and-skip cases from the API's shape). [S, no change]
+- The local stack (`docs-media/demo/local-stack/`) assumes Debian or Ubuntu as root (bind mount, `runuser`,
+  `/usr/lib/postgresql`, `/mnt/qaboard`), and its ports and defaults are repeated in its scripts: a non-root path
+  (`pg_ctl` on `PATH`, results under the stack folder) and one `stack.json` that `stack.py up` writes. [S, no change]
 - Web app: the evolution strip and the contents' thumbnails are for images only; `space` swaps which of new and
   reference comes first, it isn't an in-place flip; `f` opens the sample inline, not full screen. [S, behaviour]
 - Web app: the series' cursor is the new run's step its media show (the step picked, snapped to the run's): a step

@@ -92,7 +92,7 @@ input and configurations from a commit to the next ([what makes a run](/docs/log
 | Parameters logged later | Parameters, shown with the configuration, which don't identify the run. QA-Board says so once |
 | Tag `mlflow.source.git.commit` | The commit, when it isn't the current one |
 | Tags | Parameters, under `tags/`: `tags/team` |
-| `mlflow.note.content`, the user, the source file, the parent run, the run id | Parameters: `mlflow/note`, `mlflow/user`, `mlflow/source`, `mlflow/parent_run_id`, `mlflow/run_id` |
+| `mlflow.note.content`, the user, the source file, the parent run | Parameters: `mlflow/note`, `mlflow/user`, `mlflow/source`, `mlflow/parent_run_id`. In mirror mode, also the MLflow run's id and address, `mlflow/run_id` and `mlflow/url` |
 | `log_metric(key, value, step)` | A point of the series `key`, at `step`. The series' last value is a metric of the run, like MLflow's latest value |
 | A metric logged several times without a step | A series, at steps 0, 1, 2...: MLflow gives them all step 0 |
 | `end_run()`, leaving the `with` block | The run ends: finished, or failed for `FAILED` and `KILLED` and when an exception ends the block |

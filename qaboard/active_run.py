@@ -21,6 +21,7 @@ because of it. Series never go through the server: the web app reads them from t
 """
 import atexit
 import datetime
+import functools
 import json
 import math
 import os
@@ -64,6 +65,10 @@ RESERVED_METRICS = ('is_failed', 'compute_time')
 MAX_NAME_LENGTH = 200
 MAX_TEXT_LENGTH = 500
 OFFLINE_VALUES = ('1', 'true', 'yes', 'on')
+
+def _same(value: Any) -> Any:
+  return value
+
 
 def _parse_step(step: Any, method: str) -> Optional[int]:
   """A step given to run.log() and co.: an integer, also as a numpy integer or 3.0. Raises TypeError"""
@@ -755,7 +760,7 @@ class ActiveRun:
         self._definitions[key] = {**self._definitions.get(key, {}), **definition}
       self._changed = True
     for key, value in media.items():
-      self._add_media(key, logged_step, lambda value=value: value)
+      self._add_media(key, logged_step, functools.partial(_same, value))
     return logged_step
 
   def log_media(self, key: str, value: Any, step: Optional[int] = None) -> int:

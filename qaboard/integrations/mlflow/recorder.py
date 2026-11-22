@@ -30,10 +30,9 @@ from . import unsupported
 
 DOCS = 'https://samsung.github.io/qaboard/docs/from-mlflow'
 
-# MLflow's system tags we keep, as parameters
+# MLflow's system tags we keep, as parameters. Not mlflow.source.git.commit: it is the run's commit
 SYSTEM_TAGS = {
   'mlflow.runName': 'mlflow/run_name',
-  'mlflow.source.git.commit': 'mlflow/git_commit',
   'mlflow.parentRunId': 'mlflow/parent_run_id',
   'mlflow.user': 'mlflow/user',
   'mlflow.source.name': 'mlflow/source',
@@ -354,7 +353,9 @@ class RecordedRun:
       del options['commit']
       self.qb = start_run(**options)
     self._send_params({**{k: v for k, v in params.items() if k not in configs}, **self._tag_params(self.tags),
-                       'mlflow/run_id': self.run_id, **({'mlflow/url': self.mirror} if self.mirror else {})})
+                       # the run id only where it names a run you can open: with an MLflow server. It differs in every
+                       # run, and would show as a changed setting next to the reference
+                       **({'mlflow/run_id': self.run_id, 'mlflow/url': self.mirror} if self.mirror else {})})
     return self.qb
 
   def _tag_params(self, tags: Mapping[str, str]) -> Dict[str, Any]:
