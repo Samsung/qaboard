@@ -143,8 +143,8 @@ and lists everything it skipped when the run ends, in the same words as this tab
 | `start_run`, `end_run`, `set_experiment`, `create_experiment`, `get_experiment_by_name`, `active_run`, `last_active_run` | Supported | Supported |
 | `log_param(s)`, `log_metric(s)`, `set_tag(s)`, `log_batch`, `synchronous=False` | Supported. Parameters logged after the first metric or artifact are parameters, not configurations: *mlflow.log_param after the run's first metric, file or end* | Supported |
 | `log_artifact(s)`, `log_dict`, `log_text`, `log_figure`, `log_image` | Supported: files of the run, shown by the viewer their type picks. An artifact named like QA-Board's own files (*metrics.json*, *log.txt*...) is saved under *mlflow/* | Supported |
-| `log_image(key=..., step=...)` | Partial: each image is a file under *images/*, without a step slider: *mlflow.log_image(key=..., step=...)* | MLflow has the slider |
-| `log_table` | Partial: the table is a JSON file: *mlflow.log_table* | MLflow shows the table |
+| `log_image(key=..., step=...)` | Supported: [logged media](/docs/log-from-code#media), on the run's card at their step with a slider, next to the reference run's. One image per key and step | Supported |
+| `log_table` | Supported: a table on the run's card, at the run's last step, and its JSON file. Tables saved as *.parquet* are only files | Supported |
 | `autolog()` (scikit-learn, PyTorch Lightning, Keras, XGBoost...) | Supported: parameters, metrics, models as files | Supported |
 | `log_model`, `load_model("runs:/...")`, `load_model("models:/<model id>")` | Supported in the process that logs the model. Its files are under *models/&lt;name&gt;* (MLflow 3) or the artifact path (MLflow 2) | Supported, from any process |
 | `get_run`, `search_runs`, `get_metric_history`, `list_artifacts`, `download_artifacts`, `mlflow.artifacts.load_*` | Partial: the runs of this process only; others raise an error that says so | Supported |

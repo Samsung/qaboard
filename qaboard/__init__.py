@@ -50,6 +50,8 @@ _LAZY = {
   'qa': ('.qa', 'qa'),
   'Context': ('.run', 'RunContext'),
   'Metric': ('.metrics', 'Metric'),
+  # media that runs log at a step: run.log({"samples": [qaboard.Image(x)]}, step=step)
+  **{name: ('.media', name) for name in ('Image', 'Audio', 'Video', 'Table', 'Histogram', 'Text', 'Html', 'Plotly', 'File')},
   'define_metric': ('.metrics', 'define_metric'),
   'config': ('.config', 'config'),
   'is_ci': ('.config', 'is_ci'),

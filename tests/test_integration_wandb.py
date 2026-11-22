@@ -247,7 +247,7 @@ class TestDropIn(WandbTestCase):
     for warned in ('define_metric(summary="first")', 'define_metric(step_metric=...)'):
       self.assertIn(warned, result.stderr)
 
-  def test_media_are_saved_as_files_and_said(self):
+  def test_media_are_logged_at_their_step(self):
     result = self.ok(self.python("""
       from pathlib import Path
       import qaboard.integrations.wandb as wandb
@@ -263,23 +263,38 @@ class TestDropIn(WandbTestCase):
         "curve": wandb.plot.line(table, "x", "y"),
         "loss": 0.5,
       })
+      boxes = {"predictions": {"box_data": [
+        {"position": {"minX": 0.1, "maxX": 0.5, "minY": 0.2, "maxY": 0.6}, "class_id": 1, "scores": {"conf": 0.9}},
+        {"position": {"middle": [10, 10], "width": 4, "height": 2}, "domain": "pixel", "box_caption": "dog"},
+      ], "class_labels": {1: "cat"}}}
+      wandb.log({"detections": wandb.Image("sample.png", boxes=boxes, masks={"m": {}})})
       wandb.log({"other": object()})
       wandb.something_new(1)          # what wandb has and the shim doesn't: does nothing, said once
       wandb.watch(None)
       wandb.finish()
     """))
     run_dir = self.run_dir('media')
-    table = json.loads((run_dir / 'media/predictions/0.table.json').read_text())
+    from qaboard.media import read_media
+    items = {(i['key'], i['index']): i for i in read_media(run_dir)}
+    self.assertEqual({k: i['_step'] for k, i in items.items()}, {
+      ('predictions', 0): 0, ('weights', 0): 0, ('report', 0): 0, ('samples', 0): 0, ('samples', 1): 0, ('curve', 0): 0, ('detections', 0): 1})
+    table = json.loads((run_dir / items['predictions', 0]['path']).read_text())
     self.assertEqual(table, {'columns': ['x', 'y'], 'data': [[0, 1], [1, 2]]})
-    self.assertEqual(json.loads((run_dir / 'media/weights/0.histogram.json').read_text())['histogram'], [1, 2, 1])
-    self.assertEqual((run_dir / 'media/report/0.html').read_text(), '<b>ok</b>')
+    self.assertEqual(items['weights', 0]['counts'], [1, 2, 1])
+    self.assertEqual((run_dir / items['report', 0]['path']).read_text(), '<b>ok</b>')
     self.assertEqual((run_dir / 'media/samples/0_1.png').read_bytes(), b'png')
-    self.assertTrue((run_dir / 'media/curve/0.table.json').exists())
+    self.assertEqual(items['samples', 1]['caption'], 'b')
+    self.assertEqual(items['curve', 0]['kind'], 'table')
+    self.assertEqual(items['detections', 0]['boxes'], [
+      {'x': 0.1, 'y': 0.2, 'w': 0.4, 'h': 0.4, 'label': 'cat', 'group': 'predictions', 'units': 'fraction', 'score': 0.9},
+      {'x': 8, 'y': 9, 'w': 4, 'h': 2, 'label': 'dog', 'group': 'predictions'},
+    ])
     self.assertEqual(self.metrics(run_dir)['loss'], 0.5)
     report = result.stderr[result.stderr.index("didn't keep"):]
-    for feature in ('wandb.Table in wandb.log()', 'wandb.Image in wandb.log() (2 calls)', 'wandb.Histogram', 'wandb.Html', 'wandb.plot.*',
-                    'values of type object', 'wandb.something_new()', 'wandb.watch()'):
+    for feature in ('wandb.plot.*', 'wandb.Image(masks=...)', 'values of type object', 'wandb.something_new()', 'wandb.watch()'):
       self.assertIn(feature, report)
+    for kept in ('wandb.Table', 'wandb.Image in', 'wandb.Histogram', 'wandb.Html'):
+      self.assertNotIn(kept, report)
 
   def test_artifacts_and_save(self):
     self.ok(self.python("""

@@ -40,7 +40,9 @@ SYSTEM_TAGS = {
   'mlflow.note.content': 'mlflow/note',
 }
 # QA-Board's own files in the run's folder: artifacts of these names go under mlflow/ instead
-QABOARD_FILES = re.compile(r'(run\.json|metrics\.json|metrics_definitions\.json|log\.txt|manifest\..*\.json|(.*\.)?series\.jsonl?)')
+QABOARD_FILES = re.compile(r'(run\.json|metrics\.json|metrics_definitions\.json|log\.txt|manifest\..*\.json|(.*\.)?series\.jsonl?|media\.jsonl)')
+# What mlflow.log_image(image, key=..., step=...) names its files: "/" in the key are "~" ("#" and "%" before MLflow 3)
+STEPPED_IMAGE = re.compile(r'images/(?P<key>[^/]+?)[+%]step[+%](?P<step>\d+)[+%]timestamp[+%]\d+[+%][^/+%]+(?P<compressed>[+%]compressed)?\.(png|webp|jpe?g)')
 CONFIGS_VARIABLE = 'QABOARD_MLFLOW_CONFIGS'
 
 _INT = re.compile(r'[-+]?(0|[1-9][0-9]*)')
@@ -123,6 +125,8 @@ class RecordedRun:
     self.skip = rank() != 0
     self.lock = threading.RLock()
     self._steps: Dict[str, Tuple[int, bool]] = {}
+    # mlflow.log_table()'s files, in the run's folder: logged as tables each time they are written
+    self._tables: Set[str] = set()
     # what start_run() would choose, checked when the run is created
     self.default_commit: Optional[str] = None
     self.set_tags(tags, at_creation=True)
@@ -131,11 +135,8 @@ class RecordedRun:
   def set_tags(self, tags: Mapping[str, str], at_creation: bool = False) -> None:
     with self.lock:
       tags = {str(k): ('' if v is None else str(v)) for k, v in tags.items()}
-      for key in tags:
-        if key == 'mlflow.loggedArtifacts':
-          unsupported.warn("mlflow.log_table", "the table is saved as a JSON file in the run's files, not shown as a table")
-        elif key == 'mlflow.loggedImages':
-          unsupported.warn("mlflow.log_image(key=..., step=...)", "each image is saved as a file in the run's files (images/), not shown with a step slider")
+      if 'mlflow.loggedArtifacts' in tags:
+        self._new_tables(tags['mlflow.loggedArtifacts'])
       if 'mlflow.runName' in tags and not at_creation and not self.started:
         # mlflow.set_tag("mlflow.runName", ...): a name the code gives
         self.name, self.named = tags['mlflow.runName'], True
@@ -218,12 +219,49 @@ class RecordedRun:
         (path, Path(relative) / path.relative_to(source)) for path in sorted(source.rglob('*')) if path.is_file()]
       for path, target in files:
         target = Path(*[part for part in target.parts if part not in ('', '.', '/')])
+        image = STEPPED_IMAGE.fullmatch(target.as_posix())
+        if image:
+          # mlflow.log_image(key=..., step=...): media at their step, shown with a slider. Not its smaller copy
+          if not image['compressed']:
+            from ... import media
+            run.log_media(image['key'].replace('~', '/').replace('#', '/'), media.Image(path), step=int(image['step']))
+          continue
         if len(target.parts) == 1 and QABOARD_FILES.fullmatch(target.name):
           say_once(f"reserved:{target.name}", f"WARNING: QA-Board writes its own {target.name} in the run's folder: the MLflow artifact is saved as mlflow/{target.name}")
           target = Path('mlflow') / target
         if not target.parts:
           continue
         run.log_artifact(target.as_posix(), str(path))
+        if target.as_posix() in self._tables:
+          self._log_table(target.as_posix())
+
+  def _new_tables(self, tag: str) -> None:
+    """The mlflow.loggedArtifacts tag lists the files of mlflow.log_table(), once they are written"""
+    try:
+      entries = json.loads(tag)
+    except ValueError:
+      return
+    for entry in entries if isinstance(entries, list) else []:
+      path = entry.get('path') if isinstance(entry, dict) and entry.get('type') == 'table' else None
+      if isinstance(path, str) and path not in self._tables:
+        self._tables.add(path)
+        if self.qb is not None:
+          self._log_table(path)
+
+  def _log_table(self, path: str) -> None:
+    """A table file as a table at the run's last step: MLflow's tables have no step"""
+    from ... import media
+    file = Path(self.qb.output_dir) / path
+    if not file.is_file():
+      file = Path(self.qb.output_dir) / 'mlflow' / path
+    if not path.endswith('.json'):
+      unsupported.warn("mlflow.log_table to a .parquet file", "kept as a file, not shown as a table: log tables as .json")
+      return
+    try:
+      table = json.loads(file.read_text(encoding='utf-8'))
+      self.qb.log_media(path[:-len('.json')], media.Table(columns=table['columns'], data=table['data']))
+    except (OSError, ValueError, KeyError, TypeError) as e:
+      say_once(f"table:{path}", f"WARNING: mlflow.log_table: can't read {path} as a table: {e}")
 
   # --- lifecycle ---------------------------------------------------------------------------------------------------
   def end(self, status: str) -> None:

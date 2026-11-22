@@ -46,6 +46,7 @@ from .payloads import results_payload, serialize_path
 from .http_client import FINAL_RETRY_DELAYS
 from .results import ResultsError, Run, _request, _script_source
 from .series import Point, SeriesWriter, as_number, flatten, read_series
+from . import media as media_module
 from .reporting import RunReporter
 
 # How often the series' files are written and the server told about the run, in seconds, at least
@@ -624,6 +625,7 @@ class ActiveRun:
     # what the run logged: guarded by _lock, written and sent by the background thread
     self._lock = threading.RLock()
     self._series: Optional[SeriesWriter] = None
+    self._media: Optional[media_module.MediaLog] = None  # thread-safe
     self._metrics: Dict[str, Any] = {}             # log_metrics()
     self._params: Dict[str, Any] = {}              # log_params()
     self._definitions: Dict[str, Dict[str, Any]] = {}
@@ -705,6 +707,10 @@ class ActiveRun:
     plots them next to the reference run's; each series' last value is also a metric of the run (see `summary=` in
     `start_run`). Wrap a value in `Metric(...)` to say how to show that metric. Returns the step.
 
+    Values can also be media, or lists of them, shown at their step on the run's card: `qaboard.Image(...)`,
+    `Audio`, `Video`, `Table`, `Histogram`, `Text`, `Html`, `Plotly`, Pillow images, matplotlib and Plotly figures
+    (see `log_media()`).
+
     Never waits for the server. NaN and infinities are kept in the series, not in the metric.
     """
     if not isinstance(values, Mapping):
@@ -719,11 +725,15 @@ class ActiveRun:
       step = int(number)
     flat, definitions = split_metrics(flatten(values))
     numbers: Dict[str, float] = {}
+    media: Dict[str, Any] = {}
     for key, value in flat.items():
       if not key or key.startswith('_') or len(key) > MAX_NAME_LENGTH or key in RESERVED_METRICS:
         raise ValueError(f"run.log(): {key!r} can't name a series: names are 1 to {MAX_NAME_LENGTH} characters, don't start with '_', and {' and '.join(RESERVED_METRICS)} are the run's own")
       if value is None:
         continue  # e.g. a scheduler without a learning rate yet
+      if media_module.is_media(value):
+        media[key] = value
+        continue
       try:
         numbers[key] = as_number(value)
       except TypeError as e:
@@ -737,7 +747,96 @@ class ActiveRun:
       for key, definition in definitions.items():
         self._definitions[key] = {**self._definitions.get(key, {}), **definition}
       self._changed = True
+    for key, value in media.items():
+      self._add_media(key, logged_step, value)
     return logged_step
+
+  def log_media(self, key: str, value: Any, step: Optional[int] = None) -> int:
+    """
+    Saves media at a step, shown on the run's card with a step slider, next to the reference run's at the same step:
+    `run.log_media("val/samples", [qaboard.Image(x, caption=c) for x, c in batch], step=step)`.
+
+    `value` is a `qaboard.Image`, `Audio`, `Video`, `Table`, `Histogram`, `Text`, `Html`, `Plotly` or `File`, a
+    Pillow image, a matplotlib or Plotly figure, or a list of them. Without `step`, the step of the last `log()`:
+    unlike `log()`, it doesn't count as a step. The files go in the run's folder, media/<key>/<step>_<index>.<ext>,
+    listed in media.jsonl (qaboard/media.py). Returns the step.
+    A value that can't be saved is said once and skipped: logging doesn't end trainings.
+    """
+    if not isinstance(key, str) or not key or key.startswith('_') or len(key) > MAX_NAME_LENGTH:
+      raise ValueError(f"run.log_media(): {key!r} can't name media: names are 1 to {MAX_NAME_LENGTH} characters and don't start with '_'")
+    step = self._media_step(step, 'log_media')
+    if not media_module.is_media(value):
+      raise TypeError(f"run.log_media(): {key} is a {type(value).__name__}, not media: qaboard.Image(...), Audio, Video, Table, Histogram, Text, Html, Plotly, File, or a list of them")
+    self._add_media(key, step, value)
+    return step
+
+  def log_image(self, key: str, image: Any, step: Optional[int] = None, *, caption: Optional[str] = None,
+                boxes: Optional[Sequence[Mapping[str, Any]]] = None) -> int:
+    """
+    An image at a step: a file's path, bytes, a Pillow image, a matplotlib figure, or an array (HxW, HxWxC or CxHxW,
+    uint8 or floats in [0, 1]). `boxes`: [{"x", "y", "w", "h", "label"?, "score"?}] in pixels. See `log_media()`.
+    """
+    return self.log_media(key, image if isinstance(image, (list, tuple)) else media_module.Image(image, caption=caption, boxes=boxes), step)
+
+  def log_audio(self, key: str, audio: Any, sample_rate: Optional[int] = None, step: Optional[int] = None, *, caption: Optional[str] = None) -> int:
+    """A sound at a step: a file's path, bytes, or samples (N or NxC, floats in [-1, 1]) and their sample rate. See `log_media()`."""
+    return self.log_media(key, media_module.Audio(audio, sample_rate=sample_rate, caption=caption), step)
+
+  def log_video(self, key: str, video: Any, fps: Optional[float] = None, step: Optional[int] = None, *, caption: Optional[str] = None) -> int:
+    """A video at a step: a file's path, bytes, or frames (TxHxWxC, saved as a GIF with Pillow). See `log_media()`."""
+    return self.log_media(key, media_module.Video(video, fps=fps, caption=caption), step)
+
+  def log_table(self, key: str, data: Any = None, step: Optional[int] = None, *, columns: Optional[Sequence[str]] = None,
+                dataframe: Any = None) -> int:
+    """
+    A table at a step: `run.log_table("predictions", rows, columns=["image", "label", "score"])`, a pandas DataFrame,
+    or a `qaboard.Table`. Cells can be media, e.g. `qaboard.Image(x)`. See `log_media()`.
+    """
+    if isinstance(data, media_module.Table):
+      table = data
+    elif dataframe is not None or (hasattr(data, 'columns') and hasattr(data, 'values')):
+      table = media_module.Table(dataframe=dataframe if dataframe is not None else data)
+    else:
+      table = media_module.Table(columns=columns, data=data)
+    return self.log_media(key, table, step)
+
+  def log_histogram(self, key: str, values: Any, step: Optional[int] = None, *, bins: int = media_module.DEFAULT_BINS) -> int:
+    """A distribution at a step, e.g. a layer's weights: shown over the steps. See `log_media()`."""
+    return self.log_media(key, values if isinstance(values, media_module.Histogram) else media_module.Histogram(values, bins=bins), step)
+
+  def log_text(self, key: str, text: str, step: Optional[int] = None) -> int:
+    """A text at a step, e.g. what a model answers to a prompt. See `log_media()`."""
+    return self.log_media(key, media_module.Text(text), step)
+
+  def media(self, key: Optional[str] = None) -> List[Dict[str, Any]]:
+    """What the run logged as media (of `key`): the lines of its media.jsonl, by key, step and index"""
+    return media_module.read_media(self.output_dir, key)
+
+  def _media_step(self, step: Any, method: str) -> int:
+    if step is None:
+      with self._lock:
+        return max(self._series.last_step, 0) if self._series is not None else 0
+    if isinstance(step, bool) or not isinstance(step, int):
+      try:
+        number = as_number(step)
+      except TypeError:
+        raise TypeError(f"run.{method}(step=...) is an integer, not {step!r}") from None
+      if number != int(number):
+        raise TypeError(f"run.{method}(step=...) is an integer, not {step!r}")
+      step = int(number)
+    if step < 0:
+      raise ValueError(f"run.{method}(step=...) is 0 or more, not {step}")
+    return step
+
+  def _add_media(self, key: str, step: int, value: Any) -> None:
+    if not self._can_log('log_media') or self._media is None:
+      return
+    try:
+      self._media.add(key, step, value)
+    except media_module.MediaError as e:
+      self._warn_once(f"media:{key}", f"WARNING: not logging {key}: {e}")
+    except Exception as e:  # a value's own code (savefig, to_json...) failing
+      self._warn_once(f"media:{key}", f"WARNING: not logging {key}: {e!r}")
 
   def log_metrics(self, metrics: Mapping[str, Any]) -> None:
     """
@@ -804,6 +903,9 @@ class ActiveRun:
       raise ValueError(f"{source!r} is not a file to copy. To write text, pass bytes: log_artifact(name, text.encode())")
     if not self._can_log('log_artifact'):
       return None
+    return self._save_file(relative, source)
+
+  def _save_file(self, relative: Union[str, Path], source: Union[str, Path, bytes]) -> Path:
     target = self.output_dir / relative
     _mkdir_shared(target.parent)
     # atomic: the web app may read the previous file
@@ -914,6 +1016,7 @@ class ActiveRun:
     setup = self._setup
     with self._lock:
       self._series = SeriesWriter(self.output_dir, resume=self._resume)
+      self._media = media_module.MediaLog(self.output_dir, resume=self._resume, save=self._save_file)
     from . import system_metrics
     if system_metrics.enabled(setup.config):
       try:

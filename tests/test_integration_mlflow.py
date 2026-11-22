@@ -285,14 +285,40 @@ class TestFluentApi(MlflowTestCase):
       self.assertIn(feature, report)
 
   @unittest.skipIf(not has_sklearn_autolog, "mlflow.log_table needs pandas")
-  def test_tables_are_files(self):
+  def test_tables_are_tables(self):
     result, runs = self.python("""
       import mlflow
       with mlflow.start_run(run_name="a"):
-          mlflow.log_table({"a": [1, 2]}, "table.json")
+          mlflow.log_metric("loss", 1.0, step=3)
+          mlflow.log_table({"a": [1, 2]}, "eval/table.json")
+          mlflow.log_table({"a": [3]}, "eval/table.json")   # MLflow appends
     """)
-    self.assertTrue((self.only(runs) / 'table.json').exists())
-    self.assertIn("mlflow.log_table", result.stderr)
+    run_dir = self.only(runs)
+    self.assertTrue((run_dir / 'eval/table.json').exists())
+    from qaboard.media import read_media
+    [table] = read_media(run_dir, 'eval/table')
+    self.assertEqual((table['kind'], table['_step'], table['rows']), ('table', 3, 3))
+    self.assertNotIn("mlflow.log_table", result.stderr)
+
+  def test_stepped_images_are_media(self):
+    # the files mlflow.log_image(image, key="val/sample", step=...) writes: it needs Pillow, we write them ourselves
+    result, runs = self.python("""
+      import mlflow
+      from pathlib import Path
+      Path("tmp").mkdir()
+      for step in (0, 5):
+          name = f"val~sample+step+{step}+timestamp+17+abc-def"
+          (Path("tmp") / f"{name}.png").write_bytes(b"png")
+          (Path("tmp") / f"{name}+compressed.webp").write_bytes(b"webp")
+      with mlflow.start_run(run_name="a"):
+          for path in sorted(Path("tmp").iterdir()):
+              mlflow.log_artifact(str(path), artifact_path="images")
+    """)
+    run_dir = self.only(runs)
+    from qaboard.media import read_media
+    self.assertEqual([(i['key'], i['_step'], i['path']) for i in read_media(run_dir)],
+                     [('val/sample', 0, 'media/val/sample/0_0.png'), ('val/sample', 5, 'media/val/sample/5_0.png')])
+    self.assertFalse((run_dir / 'images').exists())
 
   @unittest.skipIf(mlflow is not None and not hasattr(mlflow, 'trace'), "MLflow 2.14+")
   def test_tracing_never_breaks_the_code(self):

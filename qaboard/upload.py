@@ -34,7 +34,9 @@ from .conventions import Reason, RUN_FILES_REFUSALS
 from .http_client import ResultsError, FILE_TIMEOUT, FINAL_RETRY_DELAYS, RETRY_DELAYS, request
 
 # Files runs add to, at the root of their folder: we send what was added
-APPENDED_FILES = ('log.txt', 'series.jsonl')
+APPENDED_FILES = ('log.txt', 'series.jsonl', 'media.jsonl')
+# Where runs save the media they log at each step (qaboard/media.py): sent as they come, people look at them while it runs
+MEDIA_FOLDER = 'media'
 # Small files runs rewrite as they go, at the root of their folder
 LIVE_FILES = ('series.json', 'run.json')
 # What we read and send of a growing file per request
@@ -199,6 +201,7 @@ class Uploader:
         stat = self._stat(self.directory / name)
         if stat is not None:
           yield name, stat
+      yield from self._media_files()
       return
     for root, dirs, names in os.walk(self.directory):
       for name in names:
@@ -206,11 +209,21 @@ class Uploader:
         path = file.relative_to(self.directory).as_posix()
         if path in APPENDED_FILES or is_temporary(name):
           continue
-        if not final and path not in LIVE_FILES and not any(fnmatchcase(path, pattern) for pattern in self.live):
+        if not final and path not in LIVE_FILES and not path.startswith(f"{MEDIA_FOLDER}/") and not any(fnmatchcase(path, pattern) for pattern in self.live):
           continue
         stat = self._stat(file)
         if stat is not None:
           yield path, stat
+
+  def _media_files(self) -> Iterator[Tuple[str, Stat]]:
+    for root, _, names in os.walk(self.directory / MEDIA_FOLDER):
+      for name in names:
+        if is_temporary(name):
+          continue
+        file = Path(root) / name
+        stat = self._stat(file)
+        if stat is not None:
+          yield file.relative_to(self.directory).as_posix(), stat
 
   def _stat(self, file: Path) -> Optional[Stat]:
     """The size and date of a file to send, None when there is none or it's a link out of the folder"""

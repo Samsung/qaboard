@@ -127,15 +127,15 @@ graph against the reference's profile, with a table of the top functions (see
 
 <RoadmapItem status="experimental" title="Create runs from Python, and log while they run">
 `qaboard.start_run(...)` from training loops, notebooks and scripts, without `qa run`: `log()` with a `step` for the
-values logged during training, `log_metrics()`, `log_params()`, `log_artifact()`, `finish()`. These runs show in the
-web app like any other, with the curves of what they logged next to the reference run's, while they run
-([log from your code](/docs/log-from-code)). The design is in the repository,
+values logged during training, media at each step (images, sounds, videos, tables, histograms), `log_metrics()`,
+`log_params()`, `log_artifact()`, `finish()`. These runs show in the web app like any other, with the curves and the
+media they logged next to the reference run's, while they run ([log from your code](/docs/log-from-code)). The design is in the repository,
 [`docs/rfcs/python-sdk-runs.md`](https://github.com/Samsung/qaboard/blob/master/docs/rfcs/python-sdk-runs.md).
 </RoadmapItem>
 
 <RoadmapItem status="exploring" title="More to log from code">
-Images per step, sending later the runs logged while the server was away, and a pytest plugin that makes a run of
-a test session. What runs use of their machine (memory, CPU, GPUs) is already measured, with nothing to set up
+Segmentation masks on logged images, sending later the runs logged while the server was away, and a pytest plugin
+that makes a run of a test session. What runs use of their machine (memory, CPU, GPUs) is already measured, with nothing to set up
 ([memory, CPU and GPUs](/docs/system-metrics)).
 </RoadmapItem>
 

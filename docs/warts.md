@@ -181,6 +181,33 @@ in sync. Limits of the shims themselves:
   ends the run as finished (with `python -m` or a `with` block it is failed). Checked by hand against wandb 0.31.2;
   tests use a fake wandb. [S, behaviour]
 
+## Logged media (`qaboard/media.py`, `webapp/src/viewers/media/`, November 2026)
+
+`run.log()` with `qaboard.Image/Audio/Video/Table/Histogram/Text/Html/Plotly/File`, `run.log_media()` and
+`log_image/audio/video/table/histogram/text()`; the card's **Logged media**; the audio viewer. Format: the docstring
+of `qaboard/media.py`, tested with the web app's parser on `tests/fixtures/media/`.
+
+- Every logged item is a file, kept: nothing downsamples media like `series.json` does series. A training that logs
+  a batch of images at every step fills the storage, and *media.jsonl* (read whole by the web app, histograms inline)
+  grows: 1000 steps of 50 histograms of 64 bins is ~20 MB. Keep at most N steps per key in the web app's view, or
+  thin out old steps. [M, behaviour]
+- Files are written synchronously by `log_media()` (encoding included): a big batch of images slows the step it is
+  logged at. A writer thread, like the series'. [S, behaviour]
+- Boxes are kept simple, to be redesigned: one list per image, `group` and `label` as texts, no class ids or
+  per-class colors and toggles. Masks aren't kept (wandb's `masks=` is said once). [M, decide]
+- Videos from frames are GIFs, with Pillow: no MP4 encoding (it needs ffmpeg). [S, behaviour]
+- MLflow: `log_image(key=, step=)` keeps one image per key and step (index 0, the last wins); `log_table` is a table at
+  the run's last step, re-logged when MLflow appends to it; *.parquet* tables are only files. Checked against
+  MLflow 3.18's file names (`key+step+N+timestamp+T+uuid.png`, `~` for `/`) and the 2.x `%` form, from their source:
+  tests write the files themselves, MLflow's `log_image` needs Pillow. [S, behaviour]
+- wandb: `wandb.plot.*` charts are logged as their tables, not drawn; `Object3D` and `Molecule` from data aren't
+  kept; the real wandb's private attributes (`_path`, `_image`, `_boxes`, `_sample_rate`) are read: checked against
+  the fake wandb of the tests only. [S, behaviour]
+- Only runs started from code log media: `qa run`'s `run()` has no `context.log_media()`. They can write
+  *media.jsonl* themselves, but the card shows **Logged media** only for runs with `data.sdk`. [S, decide]
+- `qaboard.runs(url)` runs have `series()`, not `media()`: reading another run's media needs its folder. [S, behaviour]
+- *media.jsonl* has the times things were logged: bit-accuracy checks see differences, like with *series.jsonl*. [S, behaviour]
+
 ## Results sent over HTTP (`storage: upload`, `qa upload`, November 2026)
 Design: `docs/design/ingest-upload-sdk.md`. Tested with unit tests and a fake server (`tests/test_upload*.py`,
 `tests/test_active_run.py`, `backend/tests/test_uploads.py`), and end to end in CI's `docker` job
