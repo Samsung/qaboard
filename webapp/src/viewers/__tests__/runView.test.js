@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { has_run_view, is_visualization_shown, run_shown, run_view } from '../runView';
+import { has_run_view, is_visualization_shown, run_shown, run_view, with_run_files } from '../runView';
 import { presetRegions } from '../images/regionProviders';
 import { config_tokens, configurationSummary } from '../../configurations/tokens';
 
@@ -64,5 +64,21 @@ describe('which visualizations a run shows', () => {
 
   it("ignores a run that names no visualization of the project", () => {
     expect(shown({ configurations: [{ view: { show: ['Typo'] } }] }, defaults)).toEqual(['Output']);
+  });
+});
+
+describe('with_run_files: logged media', () => {
+  const from_code = { data: { sdk: { script: 'train.py' } } };
+
+  it('shows the logged media of runs started from code', () => {
+    expect(with_run_files([], { 'media.jsonl': {}, 'series.json': {} }, from_code)).toEqual([
+      { name: 'Logged series', path: 'series.json', type: 'series', automatic: true },
+      { name: 'Logged media', path: 'media.jsonl', type: 'media', automatic: true },
+    ]);
+    const views = [{ name: 'Output', path: 'out.png' }];
+    expect(with_run_files(views, { 'media.jsonl': {} }, { data: {} })).toBe(views);
+    // projects that show it themselves choose where
+    const listed = [{ name: 'Samples', type: 'media' }];
+    expect(with_run_files(listed, { 'media.jsonl': {} }, from_code)).toBe(listed);
   });
 });

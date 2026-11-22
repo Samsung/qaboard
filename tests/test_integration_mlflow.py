@@ -113,7 +113,8 @@ class TestFluentApi(MlflowTestCase):
     self.assertEqual(info['configurations'], [{'lr': 0.001, 'model': 'resnet50', 'epochs': 3, 'pretrained': True}])
     params = info['logged']['params']
     self.assertEqual((params['tags/team'], params['mlflow/note'], params['mlflow/run_name']), ('vision', 'baseline', 'coco-mini'))
-    self.assertIn('mlflow/run_id', params)
+    # per run identifiers would show as changed settings next to the reference: the run id only in mirror mode
+    self.assertFalse({'mlflow/run_id', 'mlflow/git_commit'} & set(params))
     # series, and their last values as metrics
     self.assertEqual(self.series(run_dir, 'train/loss'), [(s, 1 / (1 + s)) for s in range(5)])
     # logged again at step 0, MLflow's default: the next steps
@@ -285,14 +286,58 @@ class TestFluentApi(MlflowTestCase):
       self.assertIn(feature, report)
 
   @unittest.skipIf(not has_sklearn_autolog, "mlflow.log_table needs pandas")
-  def test_tables_are_files(self):
+  def test_tables_are_tables(self):
     result, runs = self.python("""
       import mlflow
       with mlflow.start_run(run_name="a"):
-          mlflow.log_table({"a": [1, 2]}, "table.json")
+          mlflow.log_metric("loss", 1.0, step=3)
+          mlflow.log_table({"a": [1, 2]}, "eval/table.json")
+          mlflow.log_table({"a": [3]}, "eval/table.json")   # MLflow appends
     """)
-    self.assertTrue((self.only(runs) / 'table.json').exists())
-    self.assertIn("mlflow.log_table", result.stderr)
+    run_dir = self.only(runs)
+    self.assertTrue((run_dir / 'eval/table.json').exists())
+    from qaboard.media import read_media
+    [table] = read_media(run_dir, 'eval/table')
+    self.assertEqual((table['kind'], table['_step'], table['rows']), ('table', 3, 3))
+    self.assertNotIn("mlflow.log_table", result.stderr)
+
+  def test_stepped_images_are_media(self):
+    # the files mlflow.log_image(image, key="val/sample", step=...) writes: it needs Pillow, we write them ourselves
+    result, runs = self.python("""
+      import mlflow
+      from pathlib import Path
+      Path("tmp").mkdir()
+      for step in (0, 5):
+          name = f"val~sample+step+{step}+timestamp+17+abc-def"
+          (Path("tmp") / f"{name}.png").write_bytes(b"png")
+          (Path("tmp") / f"{name}+compressed.webp").write_bytes(b"webp")
+      with mlflow.start_run(run_name="a"):
+          for path in sorted(Path("tmp").iterdir()):
+              mlflow.log_artifact(str(path), artifact_path="images")
+    """)
+    run_dir = self.only(runs)
+    from qaboard.media import read_media
+    self.assertEqual([(i['key'], i['_step'], i['path']) for i in read_media(run_dir)],
+                     [('val/sample', 0, 'media/val/sample/0_0.png'), ('val/sample', 5, 'media/val/sample/5_0.png')])
+    self.assertFalse((run_dir / 'images').exists())
+
+  def test_stepped_images_with_keys_qaboard_doesnt_take(self):
+    # MLflow takes keys QA-Board's media don't: "_debug" loses its "_", a 210-character key stays a file
+    result, runs = self.python("""
+      import mlflow
+      from pathlib import Path
+      Path("tmp").mkdir()
+      for key in ("_debug", "k" * 210):
+          (Path("tmp") / f"{key}+step+3+timestamp+17+abc.png").write_bytes(b"png")
+      with mlflow.start_run(run_name="a"):
+          for path in sorted(Path("tmp").iterdir()):
+              mlflow.log_artifact(str(path), artifact_path="images")
+    """)
+    run_dir = self.only(runs)
+    from qaboard.media import read_media
+    self.assertEqual([(i['key'], i['_step']) for i in read_media(run_dir)], [('debug', 3)])
+    self.assertTrue((run_dir / 'images' / f"{'k' * 210}+step+3+timestamp+17+abc.png").exists())
+    self.assertIn("saved as a file instead", result.stderr)
 
   @unittest.skipIf(mlflow is not None and not hasattr(mlflow, 'trace'), "MLflow 2.14+")
   def test_tracing_never_breaks_the_code(self):

@@ -181,6 +181,72 @@ in sync. Limits of the shims themselves:
   ends the run as finished (with `python -m` or a `with` block it is failed). Checked by hand against wandb 0.31.2;
   tests use a fake wandb. [S, behaviour]
 
+## Logged media (`qaboard/media.py`, `webapp/src/viewers/media/`, November 2026)
+
+`run.log()` with `qaboard.Image/Audio/Video/Table/Histogram/Text/Html/Plotly/File`, `run.log_media()` and
+`log_image/audio/video/table/histogram/text()`; the card's **Logged media**; the audio viewer. Format: the docstring
+of `qaboard/media.py`, tested with the web app's parser on `tests/fixtures/media/`.
+
+- Every logged item is a file, kept: nothing downsamples media like `series.json` does series. A training that logs
+  a batch of images at every step fills the storage, and *media.jsonl* (read whole by the web app, histograms inline)
+  grows: 1000 steps of 50 histograms of 64 bins is ~20 MB. Keep at most N steps per key in the web app's view, or
+  thin out old steps. [M, behaviour]
+- Files are written synchronously by `log_media()` (encoding included): a big batch of images slows the step it is
+  logged at. A writer thread, like the series'. [S, behaviour]
+- Boxes are kept simple, to be redesigned: one list per image, `group` and `label` as texts, no class ids or
+  per-class colors and toggles. Masks aren't kept (wandb's `masks=` is said once). [M, decide]
+- Videos from frames are GIFs, with Pillow: no MP4 encoding (it needs ffmpeg). [S, behaviour]
+- MLflow: `log_image(key=, step=)` keeps one image per key and step (index 0, the last wins); `log_table` is a table at
+  the run's last step, re-logged when MLflow appends to it; *.parquet* tables are only files. Checked against
+  MLflow 3.18's file names (`key+step+N+timestamp+T+uuid.png`, `~` for `/`) and the 2.x `%` form, from their source:
+  tests write the files themselves, MLflow's `log_image` needs Pillow. [S, behaviour]
+- wandb: `wandb.plot.*` charts are logged as their tables, not drawn; `Object3D` and `Molecule` from data aren't
+  kept; the real wandb's private attributes (`_path`, `_image`, `_boxes`, `_sample_rate`) are read: checked against
+  the fake wandb of the tests only. [S, behaviour]
+- Only runs started from code log media: `qa run`'s `run()` has no `context.log_media()`. They can write
+  *media.jsonl* themselves, but the card shows **Logged media** only for runs with `data.sdk`. [S, decide]
+- `qaboard.runs(url)` runs have `series()`, not `media()`: reading another run's media needs its folder. [S, behaviour]
+- *media.jsonl* has the times things were logged: bit-accuracy checks see differences, like with *series.jsonl*. [S, behaviour]
+- While a run goes on, the uploader lists and stats all of *media/* every 10 seconds (only for runs with a
+  *media.jsonl*): with 10^5 files on NFS, send the files the new lines of *media.jsonl* list instead. [S, behaviour]
+- A run that isn't resumed starts a new *media.jsonl* but leaves old *media/* files of a reused `output_dir` there: not
+  listed, but uploaded. [S, behaviour]
+- MLflow: in mirror mode, `mlflow/run_id` and `mlflow/url` differ in every run, so the card and the "vs. reference"
+  callout show them as changed settings: params that describe a run rather than configure it need a place of their
+  own (run metadata, or a prefix the params diff skips). `log_metric()` without a step is a one-point series at step
+  0, plotted full size next to the curves: don't plot series of fewer than 2 points. [S, behaviour]
+- Every series is a metric (its last value), the learning rate too: a cosine schedule's run shows `lr 0` in its
+  metric chips. Default `summary="none"` for names like `lr`, or let shims mark them. [S, behaviour]
+- The demo stack's runs log every key at the same steps as their reference: the "from step N" chips, reference-only
+  keys and the timeline's separate rows never show in its screenshots. Seed one pair whose reference logs at other
+  steps and one key only the reference has (`docs-media/demo/local-stack/project/train.py`). [S, no change]
+- Maintenance, later: split `qaboard/media.py` into encoders (Image, Audio... with png/wav) and storage (MediaLog,
+  read_media); `Table.encode()` raises while `MediaLog._prepare` special-cases tables (let tables encode their cell
+  files); `Html`/`Text` tell paths from contents by heuristics (an explicit `path=`); `FullAudioViewer` (~260
+  lines): extract its zoom window, region drag and shortcuts; `test_logging_media` is one 50-line script in a
+  subprocess (split the warn-and-skip cases from the API's shape). [S, no change]
+- The local stack (`docs-media/demo/local-stack/`) assumes Debian or Ubuntu as root (bind mount, `runuser`,
+  `/usr/lib/postgresql`, `/mnt/qaboard`), and its ports and defaults are repeated in its scripts: a non-root path
+  (`pg_ctl` on `PATH`, results under the stack folder) and one `stack.json` that `stack.py up` writes. [S, no change]
+- Web app: the evolution strip and the contents' thumbnails are for images only; `space` swaps which of new and
+  reference comes first, it isn't an in-place flip; `f` opens the sample inline, not full screen. [S, behaviour]
+- Web app: clicking a series plot to pick the media's step is checked in a browser only (Plotly doesn't run in
+  jsdom): a Playwright check on the demo stack would keep it. The series' cursor uses the reference's media steps
+  only when the series view gets the reference run (it has the series file too). [S, behaviour]
+- Web app: the image viewer draws a set of regions over every image it shows, not per side: the new and reference
+  runs' boxes are two sets ("Boxes of <name>"), one shown at a time. [S, behaviour]
+- Web app: keys render lazily with placeholders sized from width and height, not a virtualized list; up to 40 images
+  of the neighboring steps are prefetched. The audio viewer decodes and draws on the main thread (~2 s for 10 minutes
+  of stereo 48 kHz): a worker. [S, behaviour]
+- The step and the opened sample are in `?controls=` (`media_step`, `media_focus` with the run's id), not in
+  `src/selection.js`: several cards on a page would collide on a page-level key or sample. [S, decide]
+- Web app, narrow windows (~700 px): the app's sidebar doesn't collapse by itself, so a run card gets ~460 px; the
+  section fits in it (it wraps and scrolls its tables) but shows little. Collapsing the sidebar under a width is the
+  app's. Hovering the timeline previews the new run's first image only, small: new and reference, wider. [S, behaviour]
+- Web app: without an image server, or when it can't read a file, the image viewer shows the file as the browser
+  decodes it (PNG, JPEG, WebP, GIF, AVIF, BMP): no tiles (a big image loads whole), and region thumbnails, which are
+  IIIF, stay empty. TIFFs and raw formats still need the server. [S, behaviour]
+
 ## Results sent over HTTP (`storage: upload`, `qa upload`, November 2026)
 Design: `docs/design/ingest-upload-sdk.md`. Tested with unit tests and a fake server (`tests/test_upload*.py`,
 `tests/test_active_run.py`, `backend/tests/test_uploads.py`), and end to end in CI's `docker` job

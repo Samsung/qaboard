@@ -1,18 +1,16 @@
 """
-wandb's media and data types: the drop-in's minimal classes, and saving them, ours or the real wandb's, as files of
-the run (`media/<key>/<step>.<ext>`). QA-Board lists them in Output Files and opens them with the viewer their name
-picks; it doesn't show media per step next to the series: each type says so once (UNSUPPORTED).
+wandb's media and data types: the drop-in's minimal classes, and logging them, ours or the real wandb's, as
+QA-Board's media (qaboard/media.py, `run.log_media()`): the run's card shows them at their step, next to the
+reference run's.
 
-Only what is cheap: images (with Pillow, or from a file), files given by path (video, audio, 3D, molecules), HTML,
-Plotly figures, tables and histograms as JSON.
+Images (with their boxes, not their masks), audio, video, tables (with media in their cells), histograms, HTML and
+Plotly figures; 3D objects and molecules given by path are files at their step. wandb.plot.* charts are their tables.
 """
-import io
-import json
 import os
 import re
 import tempfile
 from pathlib import Path
-from typing import Any, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from ._bridge import UNSUPPORTED
 
@@ -46,8 +44,6 @@ class Image(Media):
   def __init__(self, data_or_path: Any, mode: Optional[str] = None, caption: Optional[str] = None, **kwargs: Any):
     super().__init__(data_or_path, caption=caption, **kwargs)
     self.mode = mode
-    if kwargs.get('boxes') or kwargs.get('masks'):
-      UNSUPPORTED.warn("wandb.Image(boxes=..., masks=...)", "the image is saved without its boxes and masks")
 
 
 class Video(Media):
@@ -94,18 +90,9 @@ class Histogram:
     if np_histogram is not None:
       self.histogram, self.bins = [_jsonable(v) for v in np_histogram]
       return
-    values = [float(v) for v in _jsonable(list(sequence or []))]
-    try:
-      import numpy
-      histogram, bins = numpy.histogram(values, bins=num_bins)
-      self.histogram, self.bins = histogram.tolist(), bins.tolist()
-    except ImportError:
-      low, high = (min(values), max(values)) if values else (0.0, 1.0)
-      width = (high - low) / num_bins or 1.0
-      self.bins = [low + i * width for i in range(num_bins + 1)]
-      self.histogram = [0] * num_bins
-      for v in values:
-        self.histogram[min(int((v - low) / width), num_bins - 1)] += 1
+    from ...media import histogram
+    # lists, arrays and tensors of any shape; NaN left out
+    self.histogram, self.bins = histogram(sequence if sequence is not None else [], num_bins)
 
 
 class Table:
@@ -279,101 +266,143 @@ def _kind(value: Any) -> Optional[str]:
   return None
 
 
-def save(run: Any, key: str, step: int, value: Any) -> bool:
-  """Saves a logged media value (or a list of them) as files of the run. False when it isn't one"""
-  if isinstance(value, (list, tuple)) and value and all(_kind(v) for v in value):
-    for index, item in enumerate(value):
-      _save_one(run, key, step, item, index)
-    return True
-  if _kind(value) is None:
-    return False
-  _save_one(run, key, step, value, None)
-  return True
+def is_media(value: Any) -> bool:
+  """A wandb media value, or a non-empty list of them"""
+  values = list(value) if isinstance(value, (list, tuple)) else [value]
+  return bool(values) and all(_kind(v) for v in values)
 
 
-def _save_one(run: Any, key: str, step: int, value: Any, index: Optional[int]) -> None:
+def save(run: Any, key: str, step: int, value: Any) -> None:
+  """Logs a media value (or a list of them) with the run's log_media(), at the step"""
+  values = list(value) if isinstance(value, (list, tuple)) else [value]
+  converted = []
+  for v in values:
+    try:
+      m = to_media(v)
+    except Exception as e:  # what wandb's objects hold is theirs: a value we can't read never fails wandb.log()
+      UNSUPPORTED.warn(f"{key} in wandb.log()", f"not logged: {e}")
+      m = None
+    if m is None:
+      # the whole list or nothing: items match the reference's and other steps' by their position
+      return
+    converted.append(m)
+  run.log_media(key, converted if isinstance(value, (list, tuple)) else converted[0], step=step)
+
+
+def to_media(value: Any) -> Any:
+  """A wandb media value (ours, or the real wandb's) as QA-Board's (qaboard/media.py), None when we can't keep it"""
+  from ... import media
   kind = _kind(value)
-  feature = 'wandb.plot.*' if kind == 'plot' else ('matplotlib figures' if kind == 'figure' else f"wandb.{kind}")
-  UNSUPPORTED.warn(f"{feature} in wandb.log()", f"saved as files, media/<key>/<step>.<ext>, listed in Output Files: the web app doesn't show {'tables' if kind in ('Table', 'plot') else 'media'} per step")
-  stem = f"media/{_safe(key)}/{step}{'' if index is None else f'_{index}'}"
-  content: Optional[bytes] = None
-  suffix = ''
   path = getattr(value, '_path', None)
+  path = path if path and Path(str(path)).is_file() else None
+  caption = getattr(value, '_caption', None) or getattr(value, 'caption', None)
   if kind == 'plot':
     table = getattr(value, 'table', None)
-    value = table if table is not None else getattr(value, '_data', None)
-    kind = 'Table' if value is not None and _is(value, 'Table') else None
-    if kind is None:
-      return
+    if table is None:
+      table = getattr(value, '_data', None)
+    if table is None or not _is(table, 'Table'):
+      UNSUPPORTED.warn("wandb.plot.* without a table", "not logged")
+      return None
+    UNSUPPORTED.warn("wandb.plot.*", "the chart's table is logged, not the chart: shown as a table at its step")
+    return to_media(table)
+  if kind == 'figure':
+    return media.Image(value)
+  if kind == 'Image':
+    if _masks(value):
+      UNSUPPORTED.warn("wandb.Image(masks=...)", "the image is logged without its masks")
+    data = path if path else _image_data(value)
+    if data is None:
+      UNSUPPORTED.warn("wandb.Image from this data", "not logged: give a path, an array, a Pillow image or a figure")
+      return None
+    return media.Image(data, caption=caption, boxes=_boxes(value))
+  if kind == 'Audio':
+    rate = getattr(value, '_sample_rate', None) or getattr(value, 'sample_rate', None)
+    return media.Audio(path or getattr(value, '_data', None), sample_rate=rate, caption=caption)
+  if kind == 'Video':
+    return media.Video(path or getattr(value, '_data', None), fps=getattr(value, '_fps', None) or getattr(value, 'fps', None), caption=caption)
   if kind == 'Table':
     columns = list(getattr(value, 'columns', []) or [])
-    content, suffix = json.dumps({'columns': _jsonable(columns), 'data': _jsonable(_table_rows(value))}).encode(), '.table.json'
-  elif kind == 'Histogram':
-    content, suffix = json.dumps({'histogram': _jsonable(getattr(value, 'histogram', None)), 'bins': _jsonable(getattr(value, 'bins', None))}).encode(), '.histogram.json'
-  elif kind == 'Html' and getattr(value, 'html', None) is not None:
-    content, suffix = str(value.html).encode(), '.html'
-  elif kind == 'Plotly':
-    data = getattr(value, '_data', None)
-    if data is not None and hasattr(data, 'to_json'):
-      content, suffix = data.to_json().encode(), '.plotly.json'
-  elif kind == 'figure':
-    content, suffix = _figure_png(value), '.png'
-  elif kind == 'Image' and not (path and Path(path).is_file()):
-    image = getattr(value, '_image', None)
-    content, suffix = _image_png(image if image is not None else getattr(value, '_data', None)), '.png'
-  if content is None and path and Path(str(path)).is_file():
-    source = Path(str(path))
-    name = source.name
-    suffix = name[name.index('.'):] if '.' in name else ''
-    run.log_artifact(f"{stem}{suffix}", source)
-    return
-  if content is None:
-    UNSUPPORTED.warn(f"wandb.{kind} from in-memory data", "saved only from a file path (or, for images, with Pillow installed)")
-    return
-  run.log_artifact(f"{stem}{suffix}", content)
+    rows = [[(to_media(cell) or repr(cell)) if _kind(cell) else cell for cell in row] for row in (getattr(value, 'data', None) or [])]
+    return media.Table(columns=columns, data=rows)
+  if kind == 'Histogram':
+    counts, bins = getattr(value, 'histogram', None), getattr(value, 'bins', None)
+    if counts is None or bins is None:
+      return None
+    return media.Histogram(np_histogram=(counts, bins))
+  if kind == 'Html':
+    html = getattr(value, 'html', None)
+    return media.Html(html if html is not None else Path(str(path)).read_text(encoding='utf-8', errors='replace')) if (html or path) else None
+  if kind == 'Plotly':
+    figure = getattr(value, '_data', None)
+    if figure is None:
+      figure = getattr(value, '_val', None)
+    if figure is None and path:  # the real wandb keeps only its .plotly.json
+      import json
+      figure = json.loads(Path(str(path)).read_text(encoding='utf-8'))
+    if figure is None:
+      UNSUPPORTED.warn("wandb.Plotly without its figure", "not logged")
+      return None
+    return media.Plotly(figure)
+  # Object3D, Molecule, Graph: the file, at its step
+  if path:
+    UNSUPPORTED.warn(f"wandb.{kind}", "logged as a file at its step: open it from the run's media")
+    return media.File(path, caption=caption)
+  UNSUPPORTED.warn(f"wandb.{kind} from in-memory data", "not logged: give a file's path")
+  return None
 
 
-def _table_rows(table: Any) -> List[Any]:
-  data = getattr(table, 'data', None)
-  if data is None:
-    return []
-  return [[v if not _kind(v) else repr(v) for v in row] for row in data]
+def _image_data(value: Any) -> Any:
+  for name in ('_image', '_data'):
+    data = getattr(value, name, None)
+    if data is not None:
+      return data
+  return None
 
 
-def _figure_png(figure: Any) -> Optional[bytes]:
-  try:
-    buffer = io.BytesIO()
-    figure.savefig(buffer, format='png')
-    return buffer.getvalue()
-  except Exception:
-    return None
+def _masks(value: Any) -> Any:
+  return getattr(value, '_masks', None) or (getattr(value, '_kwargs', None) or {}).get('masks')
 
 
-def _image_png(data: Any) -> Optional[bytes]:
-  if data is None:
-    return None
-  if hasattr(data, 'savefig'):
-    return _figure_png(data)
-  try:
-    from PIL import Image as PILImage  # type: ignore[import-not-found,unused-ignore]
-  except ImportError:
-    return None
-  try:
-    if not hasattr(data, 'save'):  # numpy arrays, tensors
-      if hasattr(data, 'detach'):
-        data = data.detach().cpu().numpy()
-      import numpy
-      array = numpy.asarray(data)
-      if array.ndim == 3 and array.shape[0] in (1, 3, 4) and array.shape[-1] not in (1, 3, 4):
-        array = numpy.moveaxis(array, 0, -1)  # CHW, like wandb
-      if array.ndim == 3 and array.shape[-1] == 1:
-        array = array[..., 0]
-      if array.dtype.kind == 'f':
-        array = (numpy.clip(array, 0, 1) * 255) if array.max() <= 1.0 else numpy.clip(array, 0, 255)
-      data = PILImage.fromarray(array.astype(numpy.uint8))
-    buffer = io.BytesIO()
-    data.save(buffer, format='PNG')
-    return buffer.getvalue()
-  except Exception:
-    return None
-
+def _boxes(value: Any) -> List[Dict[str, Any]]:
+  """wandb's boxes, {group: {"box_data": [...], "class_labels": {id: name}}}, as QA-Board's: pixels, or fractions"""
+  groups = (getattr(value, '_kwargs', None) or {}).get('boxes') or getattr(value, '_boxes', None) or {}
+  boxes: List[Dict[str, Any]] = []
+  if not isinstance(groups, dict):
+    return boxes
+  for group, spec in groups.items():
+    if not isinstance(spec, dict):
+      # the real wandb's BoundingBoxes2D: the boxes in _val, the labels in _class_labels
+      boxes_val = getattr(spec, '_val', None)
+      spec = boxes_val if isinstance(boxes_val, dict) else {'box_data': boxes_val, 'class_labels': getattr(spec, '_class_labels', None)}
+    if not isinstance(spec.get('box_data'), list):
+      continue
+    class_labels = spec.get('class_labels')
+    labels = {str(k): str(v) for k, v in class_labels.items()} if isinstance(class_labels, dict) else {}
+    for box in spec['box_data']:
+      if not isinstance(box, dict):
+        continue
+      position = box.get('position') or {}
+      try:
+        if 'middle' in position:
+          (mx, my), w, h = position['middle'], float(position['width']), float(position['height'])
+          x, y = float(mx) - w / 2, float(my) - h / 2
+        else:
+          x, y = float(position['minX']), float(position['minY'])
+          w, h = float(position['maxX']) - x, float(position['maxY']) - y
+      except (KeyError, TypeError, ValueError):
+        UNSUPPORTED.warn("wandb.Image(boxes=...) without a position", "those boxes aren't logged")
+        continue
+      region: Dict[str, Any] = {'x': x, 'y': y, 'w': w, 'h': h, 'group': str(group)}
+      label = box.get('box_caption') or labels.get(str(box.get('class_id')))
+      if label:
+        region['label'] = str(label)
+      scores = box.get('scores') or {}
+      if isinstance(scores, dict) and scores:
+        try:
+          region['score'] = float(next(iter(scores.values())))
+        except (TypeError, ValueError):
+          pass
+      if box.get('domain') != 'pixel':
+        region['units'] = 'fraction'
+      boxes.append(region)
+  return boxes

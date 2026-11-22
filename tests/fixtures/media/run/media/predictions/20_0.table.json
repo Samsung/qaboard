@@ -1,0 +1,1 @@
+{"columns":["image","label","score"],"data":[[{"kind":"image","path":"media/predictions/20_0.cells/0_0.png","width":6,"height":8},"cat",0.9],["n/a","dog",null]]}

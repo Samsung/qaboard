@@ -15,8 +15,9 @@ Like the rest of what runs tell the server (qaboard/active_run.py), it sends the
 `sync()` compares the files with what it sent and sends what differs. Nothing to replay when a request fails: the
 next `sync()` sends what is missing, and the last one sends everything.
 
-While the run goes on, only what people look at then is sent: the files that grow (log.txt, series.jsonl) by what
-was added, the small files the run rewrites (series.json, run.json), and the files matching the project's
+While the run goes on, only what people look at then is sent: the files that grow (log.txt, series.jsonl,
+media.jsonl) by what was added, the small files the run rewrites (series.json, run.json), the media the run logged
+(media/, qaboard/media.py: before the lines of media.jsonl that list them), and the files matching the project's
 `outputs.live` patterns. The rest goes at the end.
 """
 import hashlib
@@ -34,7 +35,11 @@ from .conventions import Reason, RUN_FILES_REFUSALS
 from .http_client import ResultsError, FILE_TIMEOUT, FINAL_RETRY_DELAYS, RETRY_DELAYS, request
 
 # Files runs add to, at the root of their folder: we send what was added
-APPENDED_FILES = ('log.txt', 'series.jsonl')
+APPENDED_FILES = ('log.txt', 'series.jsonl', 'media.jsonl')
+# The media runs log at each step and their index: media.FOLDER and media.INDEX (qaboard/media.py, not imported here so
+# that `qa` doesn't load it). Sent as they come: people look at them while the run goes on
+MEDIA_FOLDER = 'media'
+MEDIA_INDEX = 'media.jsonl'
 # Small files runs rewrite as they go, at the root of their folder
 LIVE_FILES = ('series.json', 'run.json')
 # What we read and send of a growing file per request
@@ -184,11 +189,16 @@ class Uploader:
   def _send_changes(self, final: bool) -> bool:
     with self._state_lock:
       self.failed = {}
-    ok = all([self._append(path) for path in APPENDED_FILES])
+    # what people follow first: the log and the series
+    ok = all([self._append(path) for path in APPENDED_FILES if path != MEDIA_INDEX])
+    # media.jsonl last, up to its size before the files were listed: its lines sent list media the server has (they
+    # are written before their line)
+    index = self._stat(self.directory / MEDIA_INDEX)
     files = [(path, stat) for path, stat in self._files(final) if self._sent.get(path) != stat]
     if files and not self.refused:
       with ThreadPoolExecutor(max_workers=min(WORKERS, len(files)), thread_name_prefix='qaboard-upload') as pool:
         ok = all(list(pool.map(lambda file: self._put(*file), files))) and ok
+    ok = self._append(MEDIA_INDEX, up_to=None if final else (index[0] if index else 0)) and ok
     return ok and not self.refused
 
   def _files(self, final: bool) -> Iterator[Tuple[str, Stat]]:
@@ -199,18 +209,38 @@ class Uploader:
         stat = self._stat(self.directory / name)
         if stat is not None:
           yield name, stat
+      yield from self._media_files()
       return
+    media = self._has_media()
     for root, dirs, names in os.walk(self.directory):
       for name in names:
         file = Path(root) / name
         path = file.relative_to(self.directory).as_posix()
         if path in APPENDED_FILES or is_temporary(name):
           continue
-        if not final and path not in LIVE_FILES and not any(fnmatchcase(path, pattern) for pattern in self.live):
+        if not final and path not in LIVE_FILES and not (path.startswith(f"{MEDIA_FOLDER}/") and media) and not any(fnmatchcase(path, pattern) for pattern in self.live):
           continue
         stat = self._stat(file)
         if stat is not None:
           yield path, stat
+
+  def _has_media(self) -> bool:
+    """Media logged by a run started from code (qaboard/media.py), not a project's own media/ folder, nor a link out"""
+    folder = self.directory / MEDIA_FOLDER
+    return (self.directory / MEDIA_INDEX).is_file() and folder.is_dir() and not is_outside_link(folder, self.directory)
+
+  def _media_files(self) -> Iterator[Tuple[str, Stat]]:
+    """The media runs started from code logged: only theirs (with a media.jsonl), and never through a link out of the folder"""
+    if not self._has_media():
+      return
+    for root, _, names in os.walk(self.directory / MEDIA_FOLDER):
+      for name in names:
+        if is_temporary(name):
+          continue
+        file = Path(root) / name
+        stat = self._stat(file)
+        if stat is not None:
+          yield file.relative_to(self.directory).as_posix(), stat
 
   def _stat(self, file: Path) -> Optional[Stat]:
     """The size and date of a file to send, None when there is none or it's a link out of the folder"""
@@ -249,12 +279,19 @@ class Uploader:
       self.sent_bytes += stat[0]
     return True
 
-  def _append(self, path: str) -> bool:
-    """Sends what was added to a file that grows since we last sent it, or all of it when it isn't what the server has"""
+  def _append(self, path: str, up_to: Optional[int] = None) -> bool:
+    """
+    Sends what was added to a file that grows since we last sent it, or all of it when it isn't what the server has.
+    `up_to`: at most its first bytes, e.g. what it had when other files were listed
+    """
     file = self.directory / path
     stat = self._stat(file)
     if stat is None:
       return True
+    if up_to is not None and up_to < stat[0]:
+      if up_to <= self._offsets.get(path, 0):
+        return True  # what was added goes with the next sync
+      stat = (up_to, stat[1])
     if path in self._rejected and self._rejected[path][0] == stat:
       return self._fail(path, self._rejected[path][1])
     size, offset = stat[0], self._offsets.get(path, 0)

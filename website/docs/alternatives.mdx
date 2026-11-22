@@ -78,7 +78,7 @@ QA-Board's place is **after training**, when the question becomes "should we shi
 | Training curves, logged per step | Their core, for hundreds of runs at once | Experimental: `run.log()` plots each run's series against its reference's, live, and the runs of a batch together, up to 40 |
 | Logging from any script or notebook | Two lines of code | Experimental: `qaboard.start_run()` ([log from your code](/docs/log-from-code)), with a QA-Board server to send results to; or wrap your code with `qa run` |
 | Comparing hundreds of runs at once | Their core | New against one reference at a time, or the image viewer with every stacked reference; a batch's logged series together; a tuning experiment's runs in **Tuning Analysis** |
-| System metrics, images per step, sweeps with early stopping | Yes | No: images are files of the run; sweeps are batches and `qa optimize` |
+| System metrics, media per step, sweeps with early stopping | Yes | Experimental: memory, CPU and GPUs are measured, and images, sounds, videos, tables and histograms logged per step show next to the reference run's, with a step slider. No early stopping: sweeps are batches and `qa optimize` |
 | Hosted service | Weights & Biases, Comet, managed MLflow | Self-hosted only |
 | Model registry and lineage | Yes | No: runs link to your registry with badges |
 | Each commit against the release, by default | By convention | Yes |
