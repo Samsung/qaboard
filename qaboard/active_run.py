@@ -65,8 +65,18 @@ MAX_NAME_LENGTH = 200
 MAX_TEXT_LENGTH = 500
 OFFLINE_VALUES = ('1', 'true', 'yes', 'on')
 
-# What log_image() and co. pass to log_media() when they couldn't make the media: they said why
-_NOT_MEDIA = object()
+def _parse_step(step: Any, method: str) -> Optional[int]:
+  """A step given to run.log() and co.: an integer, also as a numpy integer or 3.0. Raises TypeError"""
+  if step is None or (isinstance(step, int) and not isinstance(step, bool)):
+    return step
+  try:
+    number = as_number(step)
+  except TypeError:
+    raise TypeError(f"run.{method}(step=...) is an integer, not {step!r}") from None
+  if isinstance(step, bool) or number != int(number):
+    raise TypeError(f"run.{method}(step=...) is an integer, not {step!r}")
+  return int(number)
+
 
 # The runs started and not finished, the latest last
 _active: List['ActiveRun'] = []
@@ -719,14 +729,7 @@ class ActiveRun:
     """
     if not isinstance(values, Mapping):
       raise TypeError("run.log() takes a mapping, e.g. run.log({'loss': 0.3}, step=10)")
-    if step is not None and (isinstance(step, bool) or not isinstance(step, int)):
-      try:
-        number = as_number(step)
-      except TypeError:
-        raise TypeError(f"run.log(step=...) is an integer, not {step!r}") from None
-      if number != int(number):
-        raise TypeError(f"run.log(step=...) is an integer, not {step!r}")
-      step = int(number)
+    step = _parse_step(step, 'log')
     flat, definitions = split_metrics(flatten(values))
     numbers: Dict[str, float] = {}
     media: Dict[str, Any] = {}
@@ -752,109 +755,97 @@ class ActiveRun:
         self._definitions[key] = {**self._definitions.get(key, {}), **definition}
       self._changed = True
     for key, value in media.items():
-      self._add_media(key, logged_step, value)
+      self._add_media(key, logged_step, lambda value=value: value)
     return logged_step
 
   def log_media(self, key: str, value: Any, step: Optional[int] = None) -> int:
     """
-    Saves media at a step, shown on the run's card with a step slider, next to the reference run's at the same step:
+    Saves media at a step, shown on the run's card next to the reference run's at the same step:
     `run.log_media("val/samples", [qaboard.Image(x, caption=c) for x, c in batch], step=step)`.
 
     `value` is a `qaboard.Image`, `Audio`, `Video`, `Table`, `Histogram`, `Text`, `Html`, `Plotly` or `File`, a
     Pillow image, a matplotlib or Plotly figure, or a list of them. Without `step`, the highest step logged so far
-    (0 before any): unlike `log()`, it doesn't count as a step. The files go in the run's folder, media/<key>/<step>_<index>.<ext>,
-    listed in media.jsonl (qaboard/media.py). Returns the step.
-    A value that can't be saved is said once and skipped: logging doesn't end trainings.
+    (0 before any): unlike `log()`, it doesn't count as a step. The files go in the run's folder,
+    media/<key>/<step>_<index>.<ext>, listed in media.jsonl (qaboard/media.py). Returns the step, -1 once the run ended.
+
+    Mistakes in the call (a key, a step or a value of the wrong type) raise the first time it runs. A value that can't
+    be saved (an array of the wrong shape, a missing file...) is said once and skipped: logging doesn't end trainings.
     """
-    if not isinstance(key, str) or not key or key.startswith('_') or len(key) > MAX_NAME_LENGTH:
-      raise ValueError(f"run.log_media(): {key!r} can't name media: names are 1 to {MAX_NAME_LENGTH} characters and don't start with '_'")
-    step = self._media_step(step, 'log_media')
-    if not self._can_log('log_media'):
-      return -1  # like log()
-    if value is _NOT_MEDIA:  # a log_*() helper couldn't make it, and said why
-      return step
     if not media_module.is_media(value):
       raise TypeError(f"run.log_media(): {key} is a {type(value).__name__}, not media: qaboard.Image(...), Audio, Video, Table, Histogram, Text, Html, Plotly, File, or a list of them")
-    self._add_media(key, step, value)
-    return step
+    return self._log_made(key, lambda: value, step, 'log_media')
 
-  def log_image(self, key: str, image: Any, step: Optional[int] = None, *, caption: Optional[str] = None,
+  # The helpers: everything after the value is a keyword, the same in each. See log_media().
+  def log_image(self, key: str, image: Any, *, step: Optional[int] = None, caption: Optional[str] = None,
                 boxes: Optional[Sequence[Mapping[str, Any]]] = None, id: Optional[str] = None) -> int:
     """
     An image at a step: a file's path, bytes, a Pillow image, a matplotlib figure, or an array (HxW, HxWxC or CxHxW,
-    uint8 or floats in [0, 1]). `boxes`: [{"x", "y", "w", "h", "label"?, "score"?}] in pixels. `id`: the sample's
-    name, to match it across steps and runs when samples come in another order. See `log_media()`.
+    uint8 or floats in [0, 1]); or a list of them. `boxes`: [{"x", "y", "w", "h", "label"?, "score"?}] in pixels.
+    `id`: the sample's name, to match it across steps and runs when samples come in another order.
     """
     if isinstance(image, (list, tuple)):
-      return self.log_media(key, self._make_media(key, lambda: [v if media_module.is_media(v) else media_module.Image(v) for v in image]), step)
-    return self.log_media(key, self._make_media(key, lambda: media_module.Image(image, caption=caption, boxes=boxes, id=id)), step)
+      if caption is not None or boxes is not None or id is not None:
+        raise TypeError("run.log_image(): with a list of images, give each its caption, boxes and id: [qaboard.Image(x, caption=..., id=...), ...]")
+      return self._log_made(key, lambda: [v if media_module.is_media(v) else media_module.Image(v) for v in image], step, 'log_image')
+    return self._log_made(key, lambda: media_module.Image(image, caption=caption, boxes=boxes, id=id), step, 'log_image')
 
-  def log_audio(self, key: str, audio: Any, sample_rate: Optional[int] = None, step: Optional[int] = None, *,
+  def log_audio(self, key: str, audio: Any, *, sample_rate: Optional[int] = None, step: Optional[int] = None,
                 caption: Optional[str] = None, id: Optional[str] = None) -> int:
-    """A sound at a step: a file's path, bytes, or samples (N or NxC, floats in [-1, 1]) and their sample rate. See `log_media()`."""
-    return self.log_media(key, self._make_media(key, lambda: media_module.Audio(audio, sample_rate=sample_rate, caption=caption, id=id)), step)
+    """A sound at a step: a file's path, bytes, or samples (N or NxC, floats in [-1, 1]) and their `sample_rate`."""
+    return self._log_made(key, lambda: media_module.Audio(audio, sample_rate=sample_rate, caption=caption, id=id), step, 'log_audio')
 
-  def log_video(self, key: str, video: Any, fps: Optional[float] = None, step: Optional[int] = None, *, caption: Optional[str] = None) -> int:
-    """A video at a step: a file's path, bytes, or frames (TxHxWxC, saved as a GIF with Pillow). See `log_media()`."""
-    return self.log_media(key, self._make_media(key, lambda: media_module.Video(video, fps=fps, caption=caption)), step)
+  def log_video(self, key: str, video: Any, *, fps: Optional[float] = None, step: Optional[int] = None,
+                caption: Optional[str] = None, id: Optional[str] = None) -> int:
+    """A video at a step: a file's path, bytes, or frames (TxHxWxC, saved as a GIF with Pillow)."""
+    return self._log_made(key, lambda: media_module.Video(video, fps=fps, caption=caption, id=id), step, 'log_video')
 
-  def log_table(self, key: str, data: Any = None, step: Optional[int] = None, *, columns: Optional[Sequence[str]] = None,
-                dataframe: Any = None) -> int:
+  def log_table(self, key: str, data: Any = None, *, columns: Optional[Sequence[str]] = None, dataframe: Any = None,
+                step: Optional[int] = None, caption: Optional[str] = None, id: Optional[str] = None) -> int:
     """
-    A table at a step: `run.log_table("predictions", rows, columns=["image", "label", "score"])`, a pandas DataFrame,
-    or a `qaboard.Table`. Cells can be media, e.g. `qaboard.Image(x)`. See `log_media()`.
+    A table at a step: `run.log_table("predictions", rows, columns=["image", "label", "score"])`, a mapping of
+    columns, a pandas DataFrame, or a `qaboard.Table`. Cells can be media, e.g. `qaboard.Image(x)`.
     """
     def table() -> Any:
       if isinstance(data, media_module.Table):
         return data
       if dataframe is not None or (hasattr(data, 'columns') and hasattr(data, 'values')):
-        return media_module.Table(dataframe=dataframe if dataframe is not None else data)
-      return media_module.Table(columns=columns, data=data)
-    return self.log_media(key, self._make_media(key, table), step)
+        return media_module.Table(dataframe=dataframe if dataframe is not None else data, caption=caption, id=id)
+      return media_module.Table(columns=columns, data=data, caption=caption, id=id)
+    return self._log_made(key, table, step, 'log_table')
 
-  def log_histogram(self, key: str, values: Any, step: Optional[int] = None, *, bins: int = media_module.DEFAULT_BINS) -> int:
-    """A distribution at a step, e.g. a layer's weights: shown over the steps. See `log_media()`."""
-    return self.log_media(key, self._make_media(key, lambda: values if isinstance(values, media_module.Histogram) else media_module.Histogram(values, bins=bins)), step)
+  def log_histogram(self, key: str, values: Any, *, bins: int = media_module.DEFAULT_BINS, step: Optional[int] = None,
+                    caption: Optional[str] = None, id: Optional[str] = None) -> int:
+    """A distribution at a step, e.g. a layer's weights: shown over the steps."""
+    return self._log_made(key, lambda: values if isinstance(values, media_module.Histogram) else media_module.Histogram(values, bins=bins, caption=caption, id=id), step, 'log_histogram')
 
-  def log_text(self, key: str, text: str, step: Optional[int] = None, *, id: Optional[str] = None) -> int:
-    """A text at a step, e.g. what a model answers to a prompt. See `log_media()`."""
-    return self.log_media(key, self._make_media(key, lambda: media_module.Text(text, id=id)), step)
-
-  def _make_media(self, key: str, make: Callable[[], Any]) -> Any:
-    """What a log_*() helper logs, or _NOT_MEDIA when the values can't be: said once, the training goes on"""
-    try:
-      return make()
-    except media_module.MediaError as e:
-      self._warn_once(f"media:{key}", f"WARNING: not logging {key}: {e}")
-    except Exception as e:
-      self._warn_once(f"media:{key}", f"WARNING: not logging {key}: {e!r}")
-    return _NOT_MEDIA
+  def log_text(self, key: str, text: str, *, step: Optional[int] = None, caption: Optional[str] = None, id: Optional[str] = None) -> int:
+    """A text at a step, e.g. what a model answers to a prompt."""
+    return self._log_made(key, lambda: media_module.Text(text, caption=caption, id=id), step, 'log_text')
 
   def media(self, key: Optional[str] = None) -> List[Dict[str, Any]]:
     """What the run logged as media (of `key`): the lines of its media.jsonl, by key, step and index"""
     return media_module.read_media(self.output_dir, key)
 
-  def _media_step(self, step: Any, method: str) -> int:
-    if step is None:
+  def _log_made(self, key: str, make: Callable[[], Any], step: Any, method: str) -> int:
+    """Checks the call, then makes the media and saves them: what can't be is said once, the training goes on"""
+    if not isinstance(key, str) or not key or key.startswith('_') or len(key) > MAX_NAME_LENGTH:
+      raise ValueError(f"run.{method}(): {key!r} can't name media: names are 1 to {MAX_NAME_LENGTH} characters and don't start with '_'")
+    parsed = _parse_step(step, method)
+    if parsed is None:
       with self._lock:
-        return max(self._series.last_step, 0) if self._series is not None else 0
-    if isinstance(step, bool) or not isinstance(step, int):
-      try:
-        number = as_number(step)
-      except TypeError:
-        raise TypeError(f"run.{method}(step=...) is an integer, not {step!r}") from None
-      if number != int(number):
-        raise TypeError(f"run.{method}(step=...) is an integer, not {step!r}")
-      step = int(number)
-    if step < 0:
-      raise ValueError(f"run.{method}(step=...) is 0 or more, not {step}")
-    return step
+        parsed = max(self._series.last_step, 0) if self._series is not None else 0
+    elif parsed < 0:
+      raise ValueError(f"run.{method}(step=...) is 0 or more, not {parsed}")
+    if not self._can_log(method):
+      return -1  # like log()
+    self._add_media(key, parsed, make)
+    return parsed
 
-  def _add_media(self, key: str, step: int, value: Any) -> None:
-    if not self._can_log('log_media') or self._media is None:
+  def _add_media(self, key: str, step: int, make: Callable[[], Any]) -> None:
+    if self._media is None:
       return
     try:
-      self._media.add(key, step, value)
+      self._media.add(key, step, make())
     except media_module.MediaError as e:
       self._warn_once(f"media:{key}", f"WARNING: not logging {key}: {e}")
     except Exception as e:  # a value's own code (savefig, to_json...) failing

@@ -25,12 +25,15 @@ a list logged at that step, 0 for a single value):
 - audio: `sample_rate`, `channels` and `duration` (seconds) when known
 - video: `fps` when known
 - table: `columns`, and `rows` (how many). The file, .table.json, is {"columns": [...], "data": [[...], ...]}; cells
-  that are media are files too, and in the table {"kind": "image", "path": "media/..."}.
+  that are media are files too, media/<key>/<step>_<index>.cells/<row>_<column>.<ext>, and in the table
+  {"kind": "image", "path": "media/..."}.
 - histogram: `bins`, the n+1 edges, and `counts`, the n counts
 - text (.txt), html (.html), plotly (.plotly.json), file (anything else): only `path`
 
-The same key, step and index logged again replaces the item: readers keep the last line. Readers skip lines that
-don't parse (a run killed while it wrote one), and the kinds and fields they don't know.
+The same key, step and index logged again replaces the item: readers keep the last line. (A list logged again with
+fewer items keeps the old items past its end.) Readers skip lines that don't parse (a run killed while it wrote one),
+and the kinds and fields they don't know. The format has no version: new kinds and fields are additions readers
+skip; a change old readers would misread gets a new file name.
 The web app reads the index into the same model (webapp/src/viewers/media/media.js): both are tested on
 tests/fixtures/media/. Change one, change the other.
 
@@ -379,14 +382,19 @@ def wav(array: Any, sample_rate: int) -> bytes:
   elif samples.dtype.kind == 'u':
     # centered, then like the signed integers of the same width
     bits = 8 * samples.dtype.itemsize
-    samples = (samples.astype(numpy.int64) - (1 << (bits - 1))) * (2.0 ** (16 - bits))
+    samples = (samples.astype(numpy.float64) - 2.0 ** (bits - 1)) * (2.0 ** (16 - bits))
   elif samples.dtype.kind == 'i':
-    # int16 values in a wider type are common (lists of ints are int64): kept as they are; else scaled from the type's range
-    peak = int(numpy.abs(samples.astype(numpy.int64)).max()) if samples.size else 0
+    # int16 values in a wider type are common: kept as they are. Lists of ints are int64, whatever their range: scaled from
+    # the range their peak is in (16, 24 or 32 bits); other types from their own range
+    peak = float(numpy.abs(samples.astype(numpy.float64)).max()) if samples.size else 0.0
     if samples.dtype.itemsize == 1:
       samples = samples.astype(numpy.int16) * 256
     elif samples.dtype.itemsize > 2 and peak > 32767:
-      samples = samples / (2.0 ** (8 * samples.dtype.itemsize - 16))
+      if samples.dtype.itemsize == 8:
+        bits = next(b for b in (24, 32, 64) if peak <= 2.0 ** (b - 1))
+      else:
+        bits = 8 * samples.dtype.itemsize
+      samples = samples.astype(numpy.float64) / (2.0 ** (bits - 16))
   elif samples.dtype.kind == 'b':
     raise MediaError("Audio(): samples are numbers, not booleans")
   samples = numpy.clip(numpy.rint(samples) if samples.dtype.kind == 'f' else samples, -32768, 32767)
@@ -465,6 +473,8 @@ class Table(Media):
     super().__init__(None, caption, id)
     if dataframe is not None:
       columns, data = [str(c) for c in dataframe.columns], dataframe.values.tolist()
+    if data is not None and not isinstance(data, (Mapping, str, bytes)):
+      data = data.tolist() if hasattr(data, 'tolist') else list(data)  # arrays, generators, zip(): read once
     if isinstance(data, Mapping):
       # {"label": [...], "score": [...]}, like MLflow's log_table
       columns = [str(c) for c in data]
@@ -473,7 +483,7 @@ class Table(Media):
       data = [[v[i] if i < len(v) else None for v in values] for i in range(length)]
     if data is not None and (isinstance(data, (str, bytes)) or not all(isinstance(row, (list, tuple)) or (hasattr(row, '__len__') and not isinstance(row, (str, bytes, Mapping))) for row in data)):
       raise MediaError("Table(data=...) is a list of rows, e.g. [[\"cat\", 0.9], [\"dog\", 0.4]], or a mapping of columns")
-    self.rows: List[List[Any]] = [list(row) for row in (data or [])]
+    self.rows: List[List[Any]] = [] if data is None else [list(row) for row in data]
     self.columns: List[str] = [str(c) for c in columns] if columns else [f"c{i}" for i in range(len(self.rows[0]) if self.rows else 0)]
 
   def add_data(self, *values: Any) -> None:
@@ -638,7 +648,6 @@ class MediaLog:
     self.output_dir = Path(output_dir)
     self._save = save or (lambda relative, source: _write(self.output_dir / relative, source))
     self._lock = threading.Lock()
-    self.count = 0
     # each key's folder: keys that are the same once made safe for paths, or but for their case, get folders of their own
     self._folders: Dict[str, str] = {}
     if resume:
@@ -659,7 +668,8 @@ class MediaLog:
       if folder is None:
         folder = safe_key(key)
         taken = {f.lower() for k, f in self._folders.items() if k != key}
-        if folder.lower() in taken:
+        # "<step>_<index>.cells" folders hold tables' cells (see _table)
+        if folder.lower() in taken or re.search(r'(^|/)\d+_\d+\.cells(/|$)', folder):
           folder = f"{folder}-{hashlib.sha1(key.encode('utf-8')).hexdigest()[:8]}"
         self._folders[key] = folder
       return folder
@@ -724,7 +734,8 @@ class MediaLog:
         content, suffix, fields = media.encode()
         cell: Dict[str, Any] = {'kind': media.kind}
         if content is not None:
-          cell['path'] = f"{stem}/{r}_{c}{suffix}"
+          # next to the table, where no key's folder is (folder() keeps keys out of "<step>_<index>.cells")
+          cell['path'] = f"{stem}.cells/{r}_{c}{suffix}"
           writes.append((cell['path'], content))
         cell.update({k: _cell(v) for k, v in fields.items() if v is not None})
         if media.caption:
@@ -746,7 +757,6 @@ class MediaLog:
           if f.read(1) != b'\n':
             f.write(b'\n')
         f.write(text.encode('utf-8'))
-      self.count += len(lines)
 
 
 # --- reading --------------------------------------------------------------------------------------------------------
@@ -767,6 +777,8 @@ def read_media(output_dir: Union[str, Path], key: Optional[str] = None) -> List[
       if not isinstance(line, dict) or line.get('kind') not in KINDS or not isinstance(line.get('key'), str):
         continue
       step, index = line.get(STEP), line.get('index', 0)
+      if isinstance(step, float) and step.is_integer():
+        step = line[STEP] = int(step)  # 10.0: what some JSON writers make of 10
       if not isinstance(step, int) or isinstance(step, bool) or not isinstance(index, int) or isinstance(index, bool):
         continue
       if key is not None and line['key'] != key:

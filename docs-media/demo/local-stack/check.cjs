@@ -4,7 +4,7 @@
 const fs = require('fs')
 const path = require('path')
 let playwright
-try { playwright = require('playwright') } catch { playwright = require('/opt/node-tools/node_modules/playwright') }
+try { playwright = require('playwright') } catch { console.error('Needs Playwright: npm i -g playwright, or run it from webapp/'); process.exit(1) }
 
 const stack = process.env.QABOARD_LOCAL_STACK || require('path').join(require('os').tmpdir(), 'qaboard-local-stack')
 const out = process.argv[2] || path.join(stack, 'shots')

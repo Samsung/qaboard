@@ -4,6 +4,9 @@ For screenshots where Docker images can't be pulled: Postgres and Redis from the
 the web app from this checkout, and training runs logged from Python with `qaboard.start_run()`, the W&B shim and
 the MLflow plugin.
 
+It assumes Debian or Ubuntu, as root, e.g. in a container: Postgres from `/usr/lib/postgresql/*/bin`, a bind mount for
+its data, results under `/mnt/qaboard`. Elsewhere, use the Docker setup (`docker-compose.yml`).
+
 ```bash
 uv run docs-media/demo/local-stack/stack.py up      # (re)starts everything, idempotent; prints the user and token file
 uv run docs-media/demo/local-stack/seed.py          # demo repository + 9 runs, ~1 min; prints the pages' URLs
@@ -21,8 +24,8 @@ uv run docs-media/demo/local-stack/stack.py status | down | reset   # reset: del
 | Results | `/mnt/qaboard` (`QABOARD_UPLOAD_ROOT`): the runs have no shared storage and upload their files, like the product's default |
 
 ## How it maps to the Docker setup
-- **Postgres** (`/usr/lib/postgresql/*/bin`) runs as the `postgres` user, which can't reach every folder (e.g. under a 0700 parent
-  are `0700 root`, reset by the harness): `<stack>/postgres` is bind-mounted at `/var/lib/postgresql/qaboard-local-stack`.
+- **Postgres** (`/usr/lib/postgresql/*/bin`) runs as the `postgres` user, which may not reach `<stack>` (e.g. when a
+  parent folder is `0700 root`): `<stack>/postgres` is bind-mounted at `/var/lib/postgresql/qaboard-local-stack`.
 - **Backend**: the environment of `docker-compose.yml` + `development.yml` (`QABOARD_DB_*`, `REDIS_*`, `QABOARD_DATA_DIR`,
   `QABOARD_LOGIN_TYPE=LOCAL`), plus `QABOARD_UPLOAD_ROOT=/mnt/qaboard` and `QABOARD_URL=http://localhost:3000` (the links
   `qa` prints). Migrations as `migrate.sh` does: `flask routes` creates the tables, then `alembic stamp head` (or `upgrade`).

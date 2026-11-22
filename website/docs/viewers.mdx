@@ -270,7 +270,17 @@ the step, the time in seconds since the epoch, and the values logged together.
 
 The card shows them under **Logged media**, with one step slider for all of them, each next to the reference run's at
 the same step: images in the image viewer, sounds in the audio viewer, videos, tables, histograms over the steps,
-texts, HTML and Plotly figures. **For runs started from Python, it shows without a visualization in *qaboard.yaml***.
+texts, HTML and Plotly figures. **For runs started from Python, it shows without a visualization in *qaboard.yaml***. List
+it yourself to place it elsewhere or to hide it by default:
+
+```yaml title="qaboard.yaml"
+outputs:
+  visualizations:
+    - name: Logged media
+      path: media.jsonl
+      type: media
+      default_hidden: true
+```
 
 Programs in any language can write the same files: the media in the run's folder, and a line per item in
 *media.jsonl*:

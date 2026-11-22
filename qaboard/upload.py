@@ -36,8 +36,10 @@ from .http_client import ResultsError, FILE_TIMEOUT, FINAL_RETRY_DELAYS, RETRY_D
 
 # Files runs add to, at the root of their folder: we send what was added
 APPENDED_FILES = ('log.txt', 'series.jsonl', 'media.jsonl')
-# Where runs save the media they log at each step (qaboard/media.py): sent as they come, people look at them while it runs
+# The media runs log at each step and their index: media.FOLDER and media.INDEX (qaboard/media.py, not imported here so
+# that `qa` doesn't load it). Sent as they come: people look at them while the run goes on
 MEDIA_FOLDER = 'media'
+MEDIA_INDEX = 'media.jsonl'
 # Small files runs rewrite as they go, at the root of their folder
 LIVE_FILES = ('series.json', 'run.json')
 # What we read and send of a growing file per request
@@ -187,13 +189,16 @@ class Uploader:
   def _send_changes(self, final: bool) -> bool:
     with self._state_lock:
       self.failed = {}
-    # the whole files first: the media.jsonl lines sent next list media files the server then has
-    ok = True
+    # what people follow first: the log and the series
+    ok = all([self._append(path) for path in APPENDED_FILES if path != MEDIA_INDEX])
+    # media.jsonl last, up to its size before the files were listed: its lines sent list media the server has (they
+    # are written before their line)
+    index = self._stat(self.directory / MEDIA_INDEX)
     files = [(path, stat) for path, stat in self._files(final) if self._sent.get(path) != stat]
     if files and not self.refused:
       with ThreadPoolExecutor(max_workers=min(WORKERS, len(files)), thread_name_prefix='qaboard-upload') as pool:
-        ok = all(list(pool.map(lambda file: self._put(*file), files)))
-    ok = all([self._append(path) for path in APPENDED_FILES]) and ok
+        ok = all(list(pool.map(lambda file: self._put(*file), files))) and ok
+    ok = self._append(MEDIA_INDEX, up_to=None if final else (index[0] if index else 0)) and ok
     return ok and not self.refused
 
   def _files(self, final: bool) -> Iterator[Tuple[str, Stat]]:
@@ -206,7 +211,7 @@ class Uploader:
           yield name, stat
       yield from self._media_files()
       return
-    media = (self.directory / 'media.jsonl').is_file() and not is_outside_link(self.directory / MEDIA_FOLDER, self.directory)
+    media = self._has_media()
     for root, dirs, names in os.walk(self.directory):
       for name in names:
         file = Path(root) / name
@@ -219,12 +224,16 @@ class Uploader:
         if stat is not None:
           yield path, stat
 
+  def _has_media(self) -> bool:
+    """Media logged by a run started from code (qaboard/media.py), not a project's own media/ folder, nor a link out"""
+    folder = self.directory / MEDIA_FOLDER
+    return (self.directory / MEDIA_INDEX).is_file() and folder.is_dir() and not is_outside_link(folder, self.directory)
+
   def _media_files(self) -> Iterator[Tuple[str, Stat]]:
     """The media runs started from code logged: only theirs (with a media.jsonl), and never through a link out of the folder"""
-    folder = self.directory / MEDIA_FOLDER
-    if not (self.directory / 'media.jsonl').is_file() or not folder.is_dir() or is_outside_link(folder, self.directory):
+    if not self._has_media():
       return
-    for root, _, names in os.walk(folder):
+    for root, _, names in os.walk(self.directory / MEDIA_FOLDER):
       for name in names:
         if is_temporary(name):
           continue
@@ -270,12 +279,19 @@ class Uploader:
       self.sent_bytes += stat[0]
     return True
 
-  def _append(self, path: str) -> bool:
-    """Sends what was added to a file that grows since we last sent it, or all of it when it isn't what the server has"""
+  def _append(self, path: str, up_to: Optional[int] = None) -> bool:
+    """
+    Sends what was added to a file that grows since we last sent it, or all of it when it isn't what the server has.
+    `up_to`: at most its first bytes, e.g. what it had when other files were listed
+    """
     file = self.directory / path
     stat = self._stat(file)
     if stat is None:
       return True
+    if up_to is not None and up_to < stat[0]:
+      if up_to <= self._offsets.get(path, 0):
+        return True  # what was added goes with the next sync
+      stat = (up_to, stat[1])
     if path in self._rejected and self._rejected[path][0] == stat:
       return self._fail(path, self._rejected[path][1])
     size, offset = stat[0], self._offsets.get(path, 0)

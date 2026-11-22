@@ -164,10 +164,10 @@ class TestOtherKinds(MediaTestCase):
     self.assertEqual({k: line[k] for k in ('path', 'columns', 'rows')}, {'path': 'media/predictions/1_0.table.json', 'columns': ['image', 'label', 'score', 'nested'], 'rows': 2})
     saved = json.loads(self.file(line))
     self.assertEqual(saved['data'], [
-      [{'kind': 'image', 'path': 'media/predictions/1_0/0_0.png', 'width': 3, 'height': 2}, 'cat', 0.5, {'a': 1}],
+      [{'kind': 'image', 'path': 'media/predictions/1_0.cells/0_0.png', 'width': 3, 'height': 2}, 'cat', 0.5, {'a': 1}],
       [None, 'dog', None, [1, 2]],
     ])
-    self.assertTrue((self.run_dir / 'media/predictions/1_0/0_0.png').is_file())
+    self.assertTrue((self.run_dir / 'media/predictions/1_0.cells/0_0.png').is_file())
 
   def test_tables_from_dataframes(self):
     class Frame:  # what we use of pandas
@@ -211,7 +211,8 @@ class TestOtherKinds(MediaTestCase):
     self.assertFalse(media.is_media(1.0) or media.is_media([]) or media.is_media('a.png') or media.is_media(numpy.zeros(3)))
 
 
-class TestWhatTheReviewFound(MediaTestCase):
+class TestHardValues(MediaTestCase):
+  """Values that are easy to get wrong: integer audio, iterators, collisions, partial saves"""
   def test_integer_audio_of_any_width(self):
     def frames(line):
       with wave.open(io.BytesIO(self.file(line))) as f:
@@ -272,6 +273,34 @@ class TestWhatTheReviewFound(MediaTestCase):
       t.join()
     self.assertEqual(errors, [])
     self.assertEqual(len((self.run_dir / INDEX).read_text().splitlines()), 16)
+
+  def test_integer_lists_of_wider_pcm(self):
+    def frames(line):
+      with wave.open(io.BytesIO(self.file(line))) as f:
+        return numpy.frombuffer(f.readframes(f.getnframes()), dtype='<i2').tolist()
+    # lists of ints are int64 whatever their range: 32-bit and 24-bit PCM scaled from the range of their peak
+    [line] = self.log.add('pcm32', 0, media.Audio([0, 2 ** 30, -2 ** 30], sample_rate=8000))
+    self.assertEqual(frames(line), [0, 16384, -16384])
+    [line] = self.log.add('pcm24', 0, media.Audio([0, 2 ** 22], sample_rate=8000))
+    self.assertEqual(frames(line), [0, 16384])
+    [line] = self.log.add('uint64', 0, media.Audio(numpy.array([0, 2 ** 64 - 1], dtype=numpy.uint64), sample_rate=8000))
+    self.assertEqual(frames(line), [-32768, 32767])
+
+  def test_tables_from_iterators_and_arrays(self):
+    self.assertEqual(media.Table(columns=['a', 'b'], data=zip(['x', 'y'], [1, 2])).rows, [['x', 1], ['y', 2]])
+    self.assertEqual(media.Table(data=([i, i * i] for i in range(3))).rows, [[0, 0], [1, 1], [2, 4]])
+    self.assertEqual(media.Table(data=numpy.eye(2)).rows, [[1.0, 0.0], [0.0, 1.0]])
+
+  def test_table_cells_and_keys_never_share_files(self):
+    [table] = self.log.add('a', 0, media.Table(columns=['c'], data=[[media.Text('cell')]]))
+    [other] = self.log.add('a/0_0.cells', 0, media.Text('other'))
+    cell = json.loads(self.file(table))['data'][0][0]
+    self.assertNotEqual(cell['path'].rsplit('/', 1)[0], other['path'].rsplit('/', 1)[0])
+    self.assertEqual((self.run_dir / cell['path']).read_bytes(), b'cell')
+
+  def test_steps_written_as_floats_by_other_programs(self):
+    (self.run_dir / INDEX).write_text('{"_step": 3.0, "key": "k", "kind": "text", "path": "x"}\n{"_step": 3.5, "key": "k", "kind": "text", "path": "y"}\n')
+    self.assertEqual([(i['_step'], i['path']) for i in read_media(self.run_dir)], [(3, 'x')])
 
   def test_tables_from_mappings_and_bad_rows(self):
     self.assertEqual(media.Table(data={'label': ['cat', 'dog'], 'score': [0.9, 0.4]}).rows, [['cat', 0.9], ['dog', 0.4]])
@@ -354,6 +383,26 @@ class TestUploadsOnlyTheirMedia(UploaderTestCase):
     self.assertTrue(self.uploader(server).sync())
     self.assertEqual(server.files, {})
 
+  def test_lines_logged_while_files_are_sent_wait_for_their_files(self):
+    from unittest import mock
+    server = self.server()
+    log = MediaLog(self.run_dir)
+    log.add('answer', 0, media.Text('first'))
+    uploader = self.uploader(server)
+    files = uploader._files
+
+    def files_then_a_new_item(final):
+      listed = list(files(final))
+      log.add('answer', 1, media.Text('logged meanwhile'))   # its file isn't in the list
+      return iter(listed)
+    with mock.patch.object(uploader, '_files', files_then_a_new_item):
+      self.assertTrue(uploader.sync())
+    sent = server.files[INDEX].decode().splitlines()
+    self.assertEqual([json.loads(line)['_step'] for line in sent], [0])   # the new line waits for the next sync
+    self.assertTrue(uploader.sync())
+    self.assertEqual(len(server.files[INDEX].decode().splitlines()), 2)
+    self.assertIn('media/answer/1_0.txt', server.files)
+
   def test_the_files_go_before_the_lines_that_list_them(self):
     server = self.server()
     MediaLog(self.run_dir).add('answer', 0, media.Text('hi'))
@@ -405,6 +454,14 @@ run.log_histogram("bad_hist2", 3.0)
 run.log_audio("bad_rate", numpy.zeros(3), sample_rate="fast")
 run.log_table("bad_table", [1, 2, 3])
 assert run.log_image("listed", [numpy.zeros((1, 1)), qb.Image(numpy.ones((1, 1)), caption="b")], step=9) == 9
+# the call's shape is checked: everything after the value is a keyword
+for call in (lambda: run.log_audio("tts", numpy.zeros(10), 8000), lambda: run.log_image("x", [numpy.zeros((1, 1))], caption="a")):
+  try:
+    call()
+  except TypeError:
+    pass
+  else:
+    raise AssertionError("not refused")
 assert [i.get("caption") for i in run.media("listed")] == [None, "b"]
 for key in ("bad_boxes", "bad_hist", "bad_rate", "bad_table"):
   assert run.media(key) == [], key

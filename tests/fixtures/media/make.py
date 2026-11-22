@@ -34,5 +34,7 @@ log.add('answers', 20, media.Text("The answer is 43."), time=t + 21)
 with open(run / media.INDEX, 'a') as f:
   f.write('{"_step": 30, "kind": "image", "key": "without a time", "path": "media/val/samples/0_0.png"}\n')
   f.write('{"_step": 30, "_time": 1731500030, "key": "future", "kind": "point_cloud", "path": "x.pcd"}\n')
+  f.write('{"_step": 40.0, "key": "float step", "kind": "text", "path": "media/answers/20_0.txt"}\n')  # read as 40
+  f.write('{"_step": 40, "index": null, "key": "null index", "kind": "text", "path": "media/answers/20_0.txt"}\n')  # skipped
   f.write('{"_step": 40, "_time": 1731500040, "key": "val/sam')  # cut short by a killed run
 (here / 'expected.json').write_text(json.dumps(media.read_media(run), indent=1) + '\n')

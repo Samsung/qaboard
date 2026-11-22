@@ -22,7 +22,8 @@ const read_line = text => {
   }
   if (line === null || typeof line !== 'object' || Array.isArray(line)) return null;
   if (!known_kinds.has(line.kind) || typeof line.key !== 'string') return null;
-  if (!Number.isInteger(line._step) || !Number.isInteger(line.index ?? 0)) return null;
+  // like Python's read_media: an index that is there is an integer (null isn't 0)
+  if (!Number.isInteger(line._step) || (Object.hasOwn(line, 'index') && !Number.isInteger(line.index))) return null;
   return line;
 };
 

@@ -2,7 +2,7 @@
 // current folder: node docs-media/demo/local-stack/showcase-shots.cjs [scale]. Checked by eye, not part of docs-media's shots.
 const path = require('path');
 let chromium;
-try { ({ chromium } = require('playwright')); } catch { ({ chromium } = require('/opt/node-tools/node_modules/playwright')); }
+try { ({ chromium } = require('playwright')); } catch { console.error('Needs Playwright: npm i -g playwright, or run it from webapp/'); process.exit(1); }
 const stack = process.env.QABOARD_LOCAL_STACK || path.join(require('os').tmpdir(), 'qaboard-local-stack');
 const urls = require(path.join(stack, 'seeded.json')).urls;
 const scale = Number(process.argv[2] || 2);

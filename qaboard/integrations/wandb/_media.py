@@ -272,23 +272,21 @@ def is_media(value: Any) -> bool:
   return bool(values) and all(_kind(v) for v in values)
 
 
-def save(run: Any, key: str, step: int, value: Any) -> bool:
-  """Logs a media value (or a list of them) with the run's log_media(), at the step. False when it isn't one"""
+def save(run: Any, key: str, step: int, value: Any) -> None:
+  """Logs a media value (or a list of them) with the run's log_media(), at the step"""
   values = list(value) if isinstance(value, (list, tuple)) else [value]
-  if not values or not all(_kind(v) for v in values):
-    return False
   converted = []
   for v in values:
     try:
       m = to_media(v)
     except Exception as e:  # what wandb's objects hold is theirs: a value we can't read never fails wandb.log()
       UNSUPPORTED.warn(f"{key} in wandb.log()", f"not logged: {e}")
-      continue
-    if m is not None:
-      converted.append(m)
-  if converted:
-    run.log_media(key, converted if isinstance(value, (list, tuple)) else converted[0], step=step)
-  return True
+      m = None
+    if m is None:
+      # the whole list or nothing: items match the reference's and other steps' by their position
+      return
+    converted.append(m)
+  run.log_media(key, converted if isinstance(value, (list, tuple)) else converted[0], step=step)
 
 
 def to_media(value: Any) -> Any:

@@ -14,4 +14,6 @@
 {"_step":20,"_time":1731500021.0,"key":"answers","kind":"text","index":0,"path":"media/answers/20_0.txt"}
 {"_step": 30, "kind": "image", "key": "without a time", "path": "media/val/samples/0_0.png"}
 {"_step": 30, "_time": 1731500030, "key": "future", "kind": "point_cloud", "path": "x.pcd"}
+{"_step": 40.0, "key": "float step", "kind": "text", "path": "media/answers/20_0.txt"}
+{"_step": 40, "index": null, "key": "null index", "kind": "text", "path": "media/answers/20_0.txt"}
 {"_step": 40, "_time": 1731500040, "key": "val/sam

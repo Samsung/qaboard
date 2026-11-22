@@ -8,6 +8,12 @@
   "path": "media/answers/20_0.txt"
  },
  {
+  "_step": 40,
+  "key": "float step",
+  "kind": "text",
+  "path": "media/answers/20_0.txt"
+ },
+ {
   "_step": 20,
   "_time": 1731500020.0,
   "key": "predictions",

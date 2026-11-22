@@ -26,6 +26,8 @@ sub.batches.yaml
 
 # Images are mostly generated outputs (runs, tests)...
 *.png
+# fixtures the Python and web app tests share (tests/fixtures/media/)
+!tests/fixtures/**/*.png
 *.jpg
 *.ico
 *.svg

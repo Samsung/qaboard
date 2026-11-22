@@ -116,12 +116,16 @@ run.log_text("answers/prompt-3", model.generate(prompt))
 | `qb.Text`, `qb.Html`, `qb.Plotly` | A text, an HTML page, a Plotly figure | .txt, .html, .plotly.json |
 | `qb.File(path)` | Any file, e.g. a point cloud | The file |
 
-Pillow images and matplotlib or Plotly figures can be logged as they are. Without `step`, the methods use the step
-of the last `run.log()`; in `run.log()`, media count as a step like numbers do. Logging the same key at the same step
-again replaces it. Give samples an `id`, like `qb.Image(x, id="img_0042")`, when your loader shuffles them: the web
-app matches samples across steps and with the reference run's by their id, else by caption, else by position. A
-value that can't be saved is said once and skipped: logging never ends a training. Media aren't
-metrics. Read what a run logged with `run.media("val/samples")`.
+Pillow images and matplotlib or Plotly figures can be logged as they are. In the `log_*()` methods, everything after
+the value is a keyword: `step=`, `caption=`, `id=`, and `sample_rate=`, `fps=`, `boxes=`, `columns=`, `bins=`. Without
+`step`, they use the highest step logged so far; in `run.log()`, media count as a step like numbers do. Logging the
+same key at the same step again replaces it (a shorter list keeps the old items past its end). Give samples an `id`,
+like `qb.Image(x, id="img_0042")`, when your loader shuffles them: the web app matches samples across steps and with
+the reference run's by their id, else by caption, else by position.
+
+Mistakes in a call, like a key or a step of the wrong type, raise the first time it runs. A value that can't be
+saved, like an array of the wrong shape or a missing file, is said once and skipped: logging never ends a training.
+Media aren't metrics. Read what a run logged with `run.media("val/samples")`.
 
 The files go in the run's folder, *media/&lt;key&gt;/&lt;step&gt;_&lt;index&gt;.&lt;ext&gt;*, listed in *media.jsonl*,
 which programs in any language can write too ([the format](/docs/viewers#media)). Without a shared storage they are

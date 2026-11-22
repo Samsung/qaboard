@@ -514,6 +514,19 @@ class TestRealWandbObjects(unittest.TestCase):
       figure = _media.to_media(Plotly())
       self.assertEqual(figure.data, {'data': [{'y': [1, 2]}]})
 
+  def test_a_list_with_an_item_we_cant_keep_isnt_logged(self):
+    # else the other items would shift, and match the wrong samples of other steps and of the reference
+    from qaboard.integrations.wandb import _media
+    logged = []
+
+    class Run:
+      def log_media(self, key, value, step):
+        logged.append((key, value, step))
+    _media.save(Run(), 'samples', 3, [_media.Html('<b>a</b>'), _media.Object3D(None)])
+    self.assertEqual(logged, [])
+    _media.save(Run(), 'samples', 3, [_media.Html('<b>a</b>'), _media.Html('<b>b</b>')])
+    self.assertEqual([(k, len(v), s) for k, v, s in logged], [('samples', 2, 3)])
+
   def test_histograms_of_arrays(self):
     import numpy
     from qaboard.integrations.wandb import _media
