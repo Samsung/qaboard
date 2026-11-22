@@ -33,12 +33,17 @@ const Cell = ({ cell, output, onOpen }) => {
 };
 
 // A numeric column's distribution, in its header
+// the distribution of a numeric column, in its header: from 10 values, below that it's noise
+const MIN_SPARKLINE_VALUES = 10;
 const Sparkline = ({ histogram }) => {
-  if (!histogram) return null;
-  const max = Math.max(...histogram.counts);
-  return <svg width={36} height={12} aria-hidden style={{ flex: 'none', marginRight: 4, opacity: 0.7 }}>
+  const total = histogram ? histogram.counts.reduce((a, b) => a + b, 0) : 0;
+  if (total < MIN_SPARKLINE_VALUES) return null;
+  const max = histogram.counts.reduce((a, b) => Math.max(a, b), 1);
+  const width = 3 * histogram.counts.length;
+  return <svg width={width} height={13} aria-hidden style={{ flex: 'none', marginRight: 4, opacity: 0.6 }}>
     <title>{`${format_number(histogram.min)} to ${format_number(histogram.max)}`}</title>
-    {histogram.counts.map((count, i) => <rect key={i} x={i * 3} y={12 - 12 * count / max} width={2.4} height={12 * count / max} fill="currentColor"/>)}
+    {histogram.counts.map((count, i) => count > 0 && <rect key={i} x={i * 3} y={12 - Math.max(1.5, 11 * count / max)} width={2.6} height={Math.max(1.5, 11 * count / max)} fill="currentColor"/>)}
+    <line x1={0} x2={width} y1={12.5} y2={12.5} stroke="currentColor" strokeWidth={0.5}/>
   </svg>;
 };
 

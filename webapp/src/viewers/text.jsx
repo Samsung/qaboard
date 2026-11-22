@@ -78,10 +78,11 @@ const editor_height = (data, max_lines, inline) => {
 const fit_height = (estimate, content_height, max_lines) => content_height === null ? estimate : Math.min(content_height + 10, 18 * max_lines + 10);
 
 
+// - hide_filename: e.g. when the file's key already titles it (logged media); word_wrap: long lines wrap
 // - filename_ref: the compared file's path, when it isn't `filename` (e.g. logged media at another step)
 // - has_same_data: whether the files are the same, when the caller knows (else: from the manifests, or the texts)
 // - compared_to: what the file is compared with, e.g. "step 10" (by default "the reference")
-function GenericTextViewer({ text_url_new, text_url_ref, filename, filename_ref, has_same_data: has_same_data_prop, compared_to = 'the reference', renderSideBySide: side_by_side_default, always_show_diff, only_diff, manifests, width, max_lines = 40, language: language_prop, is_running, labels: labels_ }) {
+function GenericTextViewer({ text_url_new, text_url_ref, filename, filename_ref, has_same_data: has_same_data_prop, compared_to = 'the reference', hide_filename = false, word_wrap = false, renderSideBySide: side_by_side_default, always_show_diff, only_diff, manifests, width, max_lines = 40, language: language_prop, is_running, labels: labels_ }) {
   const labels = useLabels(labels_);
   const query_new = useQuery(textFileQuery(text_url_new, { is_running }));
   // we don't really care about errors for reference files
@@ -139,7 +140,7 @@ function GenericTextViewer({ text_url_new, text_url_ref, filename, filename_ref,
         language={editor_language}
         value={shown_left==='reference' ? data.new : data.reference}
         original={shown_left==='reference' ? data.reference : data.new}
-        options={{ ...diff_options, renderSideBySide }}
+        options={{ ...diff_options, renderSideBySide, ...(word_wrap ? { wordWrap: 'on', diffWordWrap: 'on' } : {}) }}
         editorDidMount={instance => {
           editor.current = instance;
           // Side by side, Monaco pads the sides to align them: the right side has the diff's height. Inline, it has the removed lines too.
@@ -155,14 +156,14 @@ function GenericTextViewer({ text_url_new, text_url_ref, filename, filename_ref,
         height={height}
         language={editor_language}
         value={data.new}
-        options={editor_options}
+        options={word_wrap ? { ...editor_options, wordWrap: 'on' } : editor_options}
       />
 
   // what the commit page calls the files' runs, in their colors
   const side = key => <><span aria-hidden style={{ color: labels.colors[key].css }}>●</span> {labels[key]}</>;
   return <>
     <h3 className={Classes.HEADING}>
-      <span style={{marginRight: "5px"}}>{filename}</span>
+      {!hide_filename && <span style={{marginRight: "5px"}}>{filename}</span>}
       {show_diff
         ? <Tooltip content={`Press T to swap ${labels.new} and ${labels.reference}`}><Tag>{side(shown_left)} ➡️ {side(shown_left==="reference" ? "new" : "reference")}</Tag></Tooltip>
         : <Tag>{side('new')}</Tag>}

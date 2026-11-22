@@ -8,8 +8,8 @@ import { KIND_ICONS } from "./kinds";
 import { formatStep, nextStep, snap, stepRange } from "./media";
 import { useWidth } from "./useWidth";
 
-const ROW = 9;
-const MAX_ROWS = 10;
+const ROW = 14;
+const MAX_ROWS = 6;
 const DENSITY = 44;
 const REF_ROW = 7;
 const AXIS = 16;
@@ -51,9 +51,27 @@ const merge = (a, b) => {
 // rows: [{ key, kind, steps, only_ref }] (only_ref: a key only the reference logged, its steps are the reference's);
 // steps: the run's, ref_steps: the reference's, both selectable; series: { step, value } or null;
 // preview(step): { src, label } of what to show on hover, or null
-const Timeline = ({ rows, steps, ref_steps, step, onStep, series, series_names = [], series_name, onSeriesChange, preview, names, colors }) => {
+// Keys logged at the same steps share a row: one row per key repeats the same ticks, and says nothing more.
+// Rows of several keys say how many, with every key in their title.
+export const mergeRows = rows => {
+  const groups = new Map();
+  for (const row of rows) {
+    const signature = `${row.only_ref ? 'ref' : 'new'}:${row.steps.join(',')}`;
+    if (!groups.has(signature)) groups.set(signature, []);
+    groups.get(signature).push(row);
+  }
+  return [...groups.values()].map(group => ({
+    ...group[0],
+    keys: group.map(row => row.key),
+    label: group.length > 1 ? `${group.length} keys` : group[0].key,
+    kind: group.every(row => row.kind === group[0].kind) ? group[0].kind : null,
+  }));
+};
+
+const Timeline = ({ rows: logged_rows, steps, ref_steps, step, onStep, series, series_names = [], series_name, onSeriesChange, preview, names, colors }) => {
   const [container, width] = useWidth(800);
   const [hover, setHover] = useState(null);
+  const rows = mergeRows(logged_rows);
   const labels = width >= 560 ? LABELS : 0;
   const plot = Math.max(80, width - labels - 8);
   // the steps users can pick: either run's
@@ -71,11 +89,11 @@ const Timeline = ({ rows, steps, ref_steps, step, onStep, series, series_names =
   if (dense) {
     // how many keys logged at each step
     const counts = new Map();
-    for (const row of rows) for (const s of row.steps) counts.set(s, (counts.get(s) ?? 0) + 1);
+    for (const row of logged_rows) for (const s of row.steps) counts.set(s, (counts.get(s) ?? 0) + 1);
     // at the bottom, under the series: the more keys logged at a step, the darker
-    ticks = steps.map(s => <line key={s} x1={x(s)} x2={x(s)} y1={rows_height - 11} y2={rows_height - 2} stroke={colors.new} strokeOpacity={0.15 + 0.6 * (counts.get(s) ?? 0) / rows.length} strokeWidth={1}/>);
+    ticks = steps.map(s => <line key={s} x1={x(s)} x2={x(s)} y1={rows_height - 11} y2={rows_height - 2} stroke={colors.new} strokeOpacity={0.15 + 0.6 * (counts.get(s) ?? 0) / logged_rows.length} strokeWidth={1}/>);
   } else {
-    ticks = rows.map((row, i) => <path key={row.key} d={tick_path(row.steps, 2 + i * ROW + 1, ROW - 3)} stroke={row.only_ref ? colors.ref : colors.new} strokeWidth={1.5} strokeOpacity={0.9} strokeDasharray={row.only_ref ? '2 1' : undefined}/>);
+    ticks = rows.map((row, i) => <path key={row.key} d={tick_path(row.steps, 2 + i * ROW + 3, ROW - 6)} stroke={row.only_ref ? colors.ref : colors.new} strokeWidth={1.5} strokeOpacity={0.9} strokeDasharray={row.only_ref ? '2 1' : undefined}/>);
   }
   let series_path = null;
   if (series?.step?.length > 1) {
@@ -104,12 +122,12 @@ const Timeline = ({ rows, steps, ref_steps, step, onStep, series, series_names =
 
   return <div ref={container} style={{ position: 'relative', userSelect: 'none' }} data-testid="media-timeline">
     <div style={{ display: 'flex' }}>
-      {labels > 0 && <div style={{ width: labels, flex: 'none', fontSize: 10, lineHeight: `${ROW}px`, paddingTop: 2, overflow: 'hidden' }} className={Classes.TEXT_MUTED}>
+      {labels > 0 && <div style={{ width: labels, flex: 'none', fontSize: 11, lineHeight: `${ROW}px`, paddingTop: 2, overflow: 'hidden' }} className={Classes.TEXT_MUTED}>
         {dense
-          ? <div style={{ height: DENSITY - 2, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}><span>{series_path ? series_name : ''}</span><span>{rows.length} keys</span></div>
-          : rows.map(row => <div key={row.key} title={row.key} style={{ height: ROW, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: 6, display: 'flex', alignItems: 'center', gap: 3 }}>
-              <Icon icon={KIND_ICONS[row.kind]} size={8} style={{ flex: 'none', opacity: 0.8 }}/>
-              {row.key}
+          ? <div style={{ height: DENSITY - 2, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}><span>{series_path ? series_name : ''}</span><span>{logged_rows.length} keys</span></div>
+          : rows.map(row => <div key={row.key} title={row.keys.join('\n')} style={{ height: ROW, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Icon icon={KIND_ICONS[row.kind] ?? 'layers'} size={10} style={{ flex: 'none', opacity: 0.8 }}/>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.label}</span>
             </div>)}
         {has_ref && <div style={{ height: REF_ROW + 3, lineHeight: `${REF_ROW + 3}px`, marginTop: dense ? 0 : rows_height - rows.length * ROW - 2 }}>{names.ref}</div>}
       </div>}

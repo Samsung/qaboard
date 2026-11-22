@@ -16,7 +16,7 @@ worker from backend/ (uv), the web app's Vite dev server (npm start), and filese
   http://localhost:5152       the backend (flask run)
   http://localhost:5151/s/... the runs' files
 
-Everything lives in $QABOARD_LOCAL_STACK (default: <scratchpad>/stack): pgdata/, redis/, data/ (QABOARD_DATA_DIR),
+Everything lives in $QABOARD_LOCAL_STACK (default: $TMPDIR/qaboard-local-stack): pgdata/, redis/, data/ (QABOARD_DATA_DIR),
 logs/, pids/, token. The runs' files go to $QABOARD_LOCAL_RESULTS (default /mnt/qaboard, the product's default
 storage): runs without a shared storage upload their files there (QABOARD_UPLOAD_ROOT).
 """
@@ -26,6 +26,7 @@ import os
 import shutil
 import signal
 import subprocess
+import tempfile
 import sys
 import time
 import urllib.error
@@ -36,7 +37,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
 HERE = Path(__file__).resolve().parent
-DEFAULT_STACK = '/tmp/claude-0/-home-user-qaboard/88260a3d-f3d3-593d-9548-4a253f5cae08/scratchpad/stack'
+DEFAULT_STACK = str(Path(tempfile.gettempdir()) / 'qaboard-local-stack')
 STACK = Path(os.environ.get('QABOARD_LOCAL_STACK', DEFAULT_STACK))
 RESULTS = Path(os.environ.get('QABOARD_LOCAL_RESULTS', '/mnt/qaboard'))
 PG_PORT = int(os.environ.get('QABOARD_LOCAL_PG_PORT', 5432))
@@ -49,7 +50,7 @@ FULL_NAME = os.environ.get('QABOARD_LOCAL_FULL_NAME', 'Maya Chen')
 EMAIL = os.environ.get('QABOARD_LOCAL_EMAIL', 'maya@example.com')
 
 LOGS, PIDS, DATA = STACK / 'logs', STACK / 'pids', STACK / 'data'
-# Postgres refuses to run as root, and its user can't reach the scratchpad (its parents are 0700 root, and the
+# Postgres refuses to run as root, and its user can't reach every folder (e.g. under a 0700 root parent, and the
 # harness resets them): its folder, <stack>/postgres, is bind-mounted where it can.
 PG_DIR = STACK / 'postgres'
 PG_MOUNT = Path(os.environ.get('QABOARD_LOCAL_PG_MOUNT', '/var/lib/postgresql/qaboard-local-stack'))

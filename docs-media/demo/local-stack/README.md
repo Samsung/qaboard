@@ -17,11 +17,11 @@ uv run docs-media/demo/local-stack/stack.py status | down | reset   # reset: del
 | Backend | http://localhost:5152 (`flask run` from `backend/`, plus `qaboard-admin jobs worker`) |
 | Run files | http://localhost:5151/s/mnt/qaboard/... (`fileserver.py`, in place of nginx's `/s/`) |
 | User | `maya` / `qaboard-demo` (local account, admin); its API token in `<stack>/token` |
-| State | `<stack>` = `$QABOARD_LOCAL_STACK`, default the session's scratchpad `stack/`: `postgres/`, `data/`, `logs/`, `pids/`, `seeded.json` |
+| State | `<stack>` = `$QABOARD_LOCAL_STACK`, default `$TMPDIR/qaboard-local-stack`: `postgres/`, `data/`, `logs/`, `pids/`, `seeded.json` |
 | Results | `/mnt/qaboard` (`QABOARD_UPLOAD_ROOT`): the runs have no shared storage and upload their files, like the product's default |
 
 ## How it maps to the Docker setup
-- **Postgres** (`/usr/lib/postgresql/*/bin`) runs as the `postgres` user, which can't reach the scratchpad (its parents
+- **Postgres** (`/usr/lib/postgresql/*/bin`) runs as the `postgres` user, which can't reach every folder (e.g. under a 0700 parent
   are `0700 root`, reset by the harness): `<stack>/postgres` is bind-mounted at `/var/lib/postgresql/qaboard-local-stack`.
 - **Backend**: the environment of `docker-compose.yml` + `development.yml` (`QABOARD_DB_*`, `REDIS_*`, `QABOARD_DATA_DIR`,
   `QABOARD_LOGIN_TYPE=LOCAL`), plus `QABOARD_UPLOAD_ROOT=/mnt/qaboard` and `QABOARD_URL=http://localhost:3000` (the links
@@ -33,7 +33,7 @@ uv run docs-media/demo/local-stack/stack.py status | down | reset   # reset: del
 - The release notes popup is off with `npm start`; `check.cjs` also sets `qaboard.release-notes.last-seen`.
 
 ## The demo project (`project/`)
-`kitefin/denoiser`, a git repository made by `seed.py` in `<scratchpad>/demo-project`, no `storage` in its
+`kitefin/denoiser`, a git repository made by `seed.py` in `$TMPDIR/qaboard-demo-project`, no `storage` in its
 qaboard.yaml (uploads), `reference_branch: main`. `train.py` simulates a denoiser with a detection head on procedural
 scenes (`scenes.py`, numpy only), in seconds: series per step (`train/loss`, `lr`, `val/loss` and `val/psnr` every
 25 steps), media every 200 steps (`val/samples` with ids and a shuffled order, `val/detections/*` with boxes,

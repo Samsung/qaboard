@@ -12,7 +12,7 @@ Seeds the local stack (stack.py) with training runs created from Python with qab
                                                                        batch lr-sweep: 3 runs, lr 3e-4, 1e-3, 3e-3
                                                                        batch wandb-shim, mlflow-plugin
 
-The demo project is a git repository made from project/ (default: <scratchpad>/demo-project). Runs go through the
+The demo project is a git repository made from project/ (default: $TMPDIR/qaboard-demo-project). Runs go through the
 web app's address (Vite proxies /api to the backend), as CI jobs (CI=true, GIT_COMMIT, GIT_BRANCH) with the user's
 token, and send their files to the server (no `storage` in qaboard.yaml). The trainings run with the repository's
 qaboard (uv run --project <repo>, with the mlflow extra; --inexact keeps the other extras installed).
@@ -25,13 +25,14 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
-SCRATCHPAD = Path('/tmp/claude-0/-home-user-qaboard/88260a3d-f3d3-593d-9548-4a253f5cae08/scratchpad')
-STACK = Path(os.environ.get('QABOARD_LOCAL_STACK', SCRATCHPAD / 'stack'))
+TEMPORARY = Path(tempfile.gettempdir())
+STACK = Path(os.environ.get('QABOARD_LOCAL_STACK', TEMPORARY / 'qaboard-local-stack'))
 WEB_URL = 'http://localhost:3000'
 PROJECT = 'kitefin/denoiser'
 FEATURE = 'feat/attention-skips'
@@ -98,7 +99,7 @@ def run(workdir: Path, branch: str, args, extra_env=None, with_packages=()):
 
 def main():
   parser = argparse.ArgumentParser()
-  parser.add_argument('--workdir', type=Path, default=SCRATCHPAD / 'demo-project')
+  parser.add_argument('--workdir', type=Path, default=TEMPORARY / 'qaboard-demo-project')
   parser.add_argument('--only', nargs='*', choices=['baseline', 'new', 'sweep', 'wandb', 'mlflow'])
   args = parser.parse_args()
   only = set(args.only or ['baseline', 'new', 'sweep', 'wandb', 'mlflow'])

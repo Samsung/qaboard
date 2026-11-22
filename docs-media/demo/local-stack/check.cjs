@@ -6,7 +6,7 @@ const path = require('path')
 let playwright
 try { playwright = require('playwright') } catch { playwright = require('/opt/node-tools/node_modules/playwright') }
 
-const stack = process.env.QABOARD_LOCAL_STACK || '/tmp/claude-0/-home-user-qaboard/88260a3d-f3d3-593d-9548-4a253f5cae08/scratchpad/stack'
+const stack = process.env.QABOARD_LOCAL_STACK || require('path').join(require('os').tmpdir(), 'qaboard-local-stack')
 const out = process.argv[2] || path.join(stack, 'shots')
 fs.mkdirSync(out, { recursive: true })
 const { urls } = JSON.parse(fs.readFileSync(path.join(stack, 'seeded.json'), 'utf8'))

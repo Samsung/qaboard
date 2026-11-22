@@ -217,8 +217,8 @@ of `qaboard/media.py`, tested with the web app's parser on `tests/fixtures/media
 - Web app: the evolution strip and the contents' thumbnails are for images only; `space` swaps which of new and
   reference comes first, it isn't an in-place flip; `f` opens the sample inline, not full screen. [S, behaviour]
 - Web app: the series' cursor is the new run's step its media show (the step picked, snapped to the run's): a step
-  only the reference logged shows as the new run's step before it. Clicking a plot relies on Plotly's click events
-  reaching `PlotlyPlot` (not testable in jsdom: checked in a browser only). [S, behaviour]
+  only the reference logged shows as the new run's step before it. Clicking a plot to pick the step is checked in a
+  browser only (Plotly doesn't run in jsdom): a Playwright check on the demo stack would keep it. [S, behaviour]
 - Web app: the image viewer draws a set of regions over every image it shows, not per side: the new and reference
   runs' boxes are two sets ("Boxes of <name>"), one shown at a time. [S, behaviour]
 - Web app: keys render lazily with placeholders sized from width and height, not a virtualized list; up to 40 images

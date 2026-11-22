@@ -129,7 +129,9 @@ const MediaKey = props => {
     />
   </div>;
   // the text viewer says what it compares with: "step 10", not "reference"
-  const compared_with = (name_new, name_ref) => ({ compared_to: name_ref, labels: labels ? { ...labels, new: name_new, reference: name_ref } : undefined });
+  // texts: the key titles them, and answers are long lines
+  const text_props = { hide_filename: true, word_wrap: true };
+  const compared_with = (name_new, name_ref) => ({ ...text_props, compared_to: name_ref, labels: labels ? { ...labels, new: name_new, reference: name_ref } : undefined });
 
   let content;
   if (at_new.step === null) {
@@ -176,7 +178,7 @@ const MediaKey = props => {
       </ButtonGroup>
       {at_new.items.map(item => against === 'previous'
         ? viewer(item, matchItem(item, previous, at_new.items).item, output_new, compared_with(`step ${formatStep(at_new.step)}`, `step ${formatStep(previous_step)}`))
-        : viewer(item, ref_of(item), output_ref, at_ref && at_ref.step !== at_new.step ? compared_with(names.new, `${names.ref} at step ${formatStep(at_ref.step)}`) : {}))}
+        : viewer(item, ref_of(item), output_ref, at_ref && at_ref.step !== at_new.step ? compared_with(names.new, `${names.ref} at step ${formatStep(at_ref.step)}`) : text_props))}
     </>;
   } else if (kind === 'audio' && at_new.items.length > 1) {
     // several sounds at a step: compact rows (play, A/B), one opened in the full viewer at a time

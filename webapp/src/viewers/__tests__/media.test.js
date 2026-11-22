@@ -10,6 +10,7 @@ import { boxInPixels, boxLabel, boxRegions, cleanFocus, evolution, filterBoxes, 
 import { distribution, histogramRange, quantiles, resample } from '../media/histogram';
 import { BY_ROW, columnHistogram, diffTables, keyColumn, numericColumns, parseTable, tableRows } from '../media/table';
 import { columnsX } from '../media/HistogramView';
+import { mergeRows } from '../media/Timeline';
 
 const FIXTURES = path.join(import.meta.dirname, '../../../../tests/fixtures/media');
 const read = name => fs.readFileSync(path.join(FIXTURES, name), 'utf-8');
@@ -288,5 +289,20 @@ describe('quantiles and table diffs', () => {
     const different = { ...same, ref: { 'media/t/20/0_1.png': { md5: 'y' } } };
     expect(diffTables(table, table, 0, same)[0].status).toBe('same');
     expect(diffTables(table, table, 0, different)[0].status).toBe('changed');
+  });
+});
+
+describe('the timeline rows', () => {
+  it('merges the keys logged at the same steps, and keeps apart the others', () => {
+    const rows = mergeRows([
+      { key: 'val/samples', kind: 'image', steps: [0, 200] },
+      { key: 'val/boxes', kind: 'image', steps: [0, 200] },
+      { key: 'tts', kind: 'audio', steps: [0, 200] },
+      { key: 'weights', kind: 'histogram', steps: [0, 100, 200] },
+      { key: 'old', kind: 'image', steps: [0, 200], only_ref: true },
+    ]);
+    expect(rows.map(r => [r.label, r.keys.length, r.kind])).toEqual([
+      ['3 keys', 3, null], ['weights', 1, 'histogram'], ['old', 1, 'image'],
+    ]);
   });
 });
