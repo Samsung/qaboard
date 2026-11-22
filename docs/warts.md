@@ -230,9 +230,9 @@ of `qaboard/media.py`, tested with the web app's parser on `tests/fixtures/media
   (`pg_ctl` on `PATH`, results under the stack folder) and one `stack.json` that `stack.py up` writes. [S, no change]
 - Web app: the evolution strip and the contents' thumbnails are for images only; `space` swaps which of new and
   reference comes first, it isn't an in-place flip; `f` opens the sample inline, not full screen. [S, behaviour]
-- Web app: the series' cursor is the new run's step its media show (the step picked, snapped to the run's): a step
-  only the reference logged shows as the new run's step before it. Clicking a plot to pick the step is checked in a
-  browser only (Plotly doesn't run in jsdom): a Playwright check on the demo stack would keep it. [S, behaviour]
+- Web app: clicking a series plot to pick the media's step is checked in a browser only (Plotly doesn't run in
+  jsdom): a Playwright check on the demo stack would keep it. The series' cursor uses the reference's media steps
+  only when the series view gets the reference run (it has the series file too). [S, behaviour]
 - Web app: the image viewer draws a set of regions over every image it shows, not per side: the new and reference
   runs' boxes are two sets ("Boxes of <name>"), one shown at a time. [S, behaviour]
 - Web app: keys render lazily with placeholders sized from width and height, not a virtualized list; up to 40 images
@@ -240,6 +240,12 @@ of `qaboard/media.py`, tested with the web app's parser on `tests/fixtures/media
   of stereo 48 kHz): a worker. [S, behaviour]
 - The step and the opened sample are in `?controls=` (`media_step`, `media_focus` with the run's id), not in
   `src/selection.js`: several cards on a page would collide on a page-level key or sample. [S, decide]
+- Web app, narrow windows (~700 px): the app's sidebar doesn't collapse by itself, so a run card gets ~460 px; the
+  section fits in it (it wraps and scrolls its tables) but shows little. Collapsing the sidebar under a width is the
+  app's. Hovering the timeline previews the new run's first image only, small: new and reference, wider. [S, behaviour]
+- Web app: without an image server, or when it can't read a file, the image viewer shows the file as the browser
+  decodes it (PNG, JPEG, WebP, GIF, AVIF, BMP): no tiles (a big image loads whole), and region thumbnails, which are
+  IIIF, stay empty. TIFFs and raw formats still need the server. [S, behaviour]
 
 ## Results sent over HTTP (`storage: upload`, `qa upload`, November 2026)
 Design: `docs/design/ingest-upload-sdk.md`. Tested with unit tests and a fake server (`tests/test_upload*.py`,

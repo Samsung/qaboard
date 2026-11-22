@@ -8,7 +8,7 @@ import type { CSSProperties, ReactNode } from 'react';
 export type ImageSource = string | ImageDescriptor;
 
 export interface ImageDescriptor {
-  /** A plain image, loaded at once */
+  /** A plain image, loaded at once. With `iiif`: what's shown when the IIIF service can't serve the image */
   url?: string;
   /** An IIIF Image API service (the URL without /info.json): streamed tile by tile, for large images */
   iiif?: string;

@@ -80,16 +80,16 @@ export const keyColumn = ({ columns, rows }) => {
   return columns.findIndex((_, c) => rows.every(row => typeof row[c] === 'string') && uniqueColumn(rows, c));
 };
 
-// Media cells are files: the same when the runs' manifests give them the same hash, else when they are at the same
-// path with the same metadata. identity: { new, ref }, the runs' manifests ({ [path]: { md5 } }), optional.
+// Media cells are files: the runs' manifests tell whether they're the same, by their hash. identity: { new, reference },
+// the runs' manifests ({ [path]: { md5 } }), optional. Without both hashes, nobody knows: null (the same path at the
+// same step of two runs is two files, and the same name at another step can be the same image).
 const hash_of = (manifest, path) => manifest?.[path]?.md5_data ?? manifest?.[path]?.md5;
 const sameMedia = (a, b, identity) => {
-  const hash_a = hash_of(identity?.new, a.path), hash_b = hash_of(identity?.ref, b.path);
-  if (hash_a && hash_b) return hash_a === hash_b;
-  const { path: path_a, ...meta_a } = a, { path: path_b, ...meta_b } = b;
-  return path_a === path_b && JSON.stringify(meta_a) === JSON.stringify(meta_b);
+  const hash_a = hash_of(identity?.new, a.path), hash_b = hash_of(identity?.reference, b.path);
+  return hash_a && hash_b ? hash_a === hash_b : null;
 };
 
+// true, false, or null when it can't be told (media without hashes)
 const sameCell = (a, b, identity) => {
   if (is_media_cell(a) && is_media_cell(b)) return sameMedia(a, b, identity);
   if (typeof a === 'number' && typeof b === 'number') return a === b || Math.abs(a - b) <= 1e-12 * Math.max(Math.abs(a), Math.abs(b));
@@ -97,9 +97,10 @@ const sameCell = (a, b, identity) => {
 };
 
 // The new table against the reference's, rows joined by a column (its index in the new table; the reference's column
-// of the same name), or by their position (BY_ROW): [{ status: 'same' | 'changed' | 'added' | 'removed', row, ref_row,
-// changed: Set(column indices) }], the new table's rows in order, then the rows only in the reference. Columns are
-// matched by name. Rows with the same key are joined in order: the first with the first.
+// of the same name), or by their position (BY_ROW): [{ status: 'same' | 'changed' | 'unknown' | 'added' | 'removed',
+// row, ref_row, changed: Set(column indices), unknown: Set(column indices) }], the new table's rows in order, then the
+// rows only in the reference. Columns are matched by name. Rows with the same key are joined in order: the first with
+// the first. 'unknown': nothing differs, but some cells can't be compared (images without hashes).
 export const diffTables = (table, ref, column, identity) => {
   const ref_columns = table.columns.map(name => ref.columns.indexOf(name));
   const by_row = column === BY_ROW || column === null || column === undefined || column < 0;
@@ -117,15 +118,20 @@ export const diffTables = (table, ref, column, identity) => {
     let i;
     if (by_row) i = r < ref.rows.length ? r : undefined;
     else i = by_key.get(cellText(row[column]))?.shift();
-    if (i === undefined) return { status: 'added', row, ref_row: null, changed: new Set() };
+    if (i === undefined) return { status: 'added', row, ref_row: null, changed: new Set(), unknown: new Set() };
     used.add(i);
     const ref_row = ref.rows[i];
-    const changed = new Set(table.columns.map((_, c) => c).filter(c => ref_columns[c] < 0 || !sameCell(row[c], ref_row[ref_columns[c]], identity)));
-    return { status: changed.size ? 'changed' : 'same', row, ref_row, changed };
+    const changed = new Set(), unknown = new Set();
+    table.columns.forEach((_, c) => {
+      const same = ref_columns[c] < 0 ? false : sameCell(row[c], ref_row[ref_columns[c]], identity);
+      if (same === false) changed.add(c);
+      else if (same === null) unknown.add(c);
+    });
+    return { status: changed.size ? 'changed' : unknown.size ? 'unknown' : 'same', row, ref_row, changed, unknown };
   });
   ref.rows.forEach((ref_row, i) => {
     if (used.has(i)) return;
-    rows.push({ status: 'removed', row: table.columns.map((_, c) => ref_columns[c] >= 0 ? ref_row[ref_columns[c]] : null), ref_row, changed: new Set() });
+    rows.push({ status: 'removed', row: table.columns.map((_, c) => ref_columns[c] >= 0 ? ref_row[ref_columns[c]] : null), ref_row, changed: new Set(), unknown: new Set() });
   });
   return rows;
 };

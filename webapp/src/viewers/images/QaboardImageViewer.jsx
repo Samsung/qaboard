@@ -30,15 +30,19 @@ import './image-viewer-theme.css';
 
 
 // An image of a run, served by the site's IIIF image server
+// Without an image server (or one that can't read the file), what browsers decode is shown as it is
+const BROWSER_IMAGES = /\.(png|jpe?g|gif|webp|avif|bmp)$/i;
 const runImage = (output, path, manifest, image_servers, label, color) => {
   const name = build_image_name(path, manifest);
   const file = `${output.output_dir_url}/${name}`;
+  const href = `${output.output_dir_url}/${name.split('/').map(encodeURIComponent).join('/')}`;
   return {
     iiif: iiif_url(output.output_dir_url, path, manifest, true, image_servers),
+    url: BROWSER_IMAGES.test(name) ? href : undefined,
     label,
     color: color?.hex,
     textColor: color?.text,
-    href: `${output.output_dir_url}/${name.split('/').map(encodeURIComponent).join('/')}`,
+    href,
     // for the server's pixel values
     file,
   };

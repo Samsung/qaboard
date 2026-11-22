@@ -7,7 +7,8 @@ import { createPlayer } from './player';
 import { matchingGains } from './dsp';
 
 // src => { status: none | loading | ready | error, track, error }. Nothing is loaded until `enabled`.
-export function useTrack(src, { onError, enabled = true } = {}) {
+// version, live: see cachedTrack: a new version loads the file again
+export function useTrack(src, { onError, enabled = true, version, live = false } = {}) {
   const [state, setState] = useState({});
   // not a dependency: an inline callback would load the file again on every render
   const callback = useRef(onError);
@@ -15,7 +16,7 @@ export function useTrack(src, { onError, enabled = true } = {}) {
   useEffect(() => {
     if (!src || !enabled) return undefined;
     let current = true;
-    cachedTrack(src).then(
+    cachedTrack(src, { version, live }).then(
       track => current && setState({ src, track }),
       error => {
         if (!current) return;
@@ -23,7 +24,7 @@ export function useTrack(src, { onError, enabled = true } = {}) {
         callback.current?.(error);
       });
     return () => { current = false; };
-  }, [src, enabled]);
+  }, [src, enabled, version, live]);
   if (!src) return { status: 'none' };
   if (state.src !== src) return { status: 'loading' };
   return state.error ? { status: 'error', error: state.error } : { status: 'ready', track: state.track };

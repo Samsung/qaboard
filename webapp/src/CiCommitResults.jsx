@@ -90,7 +90,10 @@ const ViewActions = styled.div`
   margin-left: auto;
   align-self: center;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
+  min-width: 0;
 `;
 const ViewTitle = ({ title, actions, children }) => <ViewHeader>
   <h2 className={Classes.HEADING}>{title}</h2>

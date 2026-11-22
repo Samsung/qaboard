@@ -10,16 +10,16 @@ import { drawSplitWaveform } from './draw';
 import { formatGain, formatTime } from './format';
 import { colorOf, describe, nameOf } from './sides';
 
-// - src, src_ref, labels, caption, onError: like the full viewer's
+// - src, src_ref, labels, caption, onError, version, version_ref, live: like the full viewer's
 // - height: of the waveform, in pixels
 // - onExpand: what the expand button does
-export const CompactAudioViewer = ({ src, src_ref, labels, caption, height = 36, onError, onExpand }) => {
+export const CompactAudioViewer = ({ src, src_ref, labels, caption, height = 36, onError, onExpand, version, version_ref, live }) => {
   const root = useRef(null);
   const dark = useDark(root);
   const [row, seen] = useSeen();
   const [lane, width] = useWidth(240);
-  const loaded_new = useTrack(src, { onError, enabled: seen });
-  const loaded_ref = useTrack(src_ref, { enabled: seen });
+  const loaded_new = useTrack(src, { onError, enabled: seen, version, live });
+  const loaded_ref = useTrack(src_ref, { enabled: seen, version: version_ref, live });
   const track_new = loaded_new.track, track_ref = loaded_ref.track;
   const playback = usePlayback({ new: track_new, reference: track_ref }, { match_loudness: true });
   const { duration, time, heard, playing } = playback;

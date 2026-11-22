@@ -165,7 +165,12 @@ function GenericTextViewer({ text_url_new, text_url_ref, filename, filename_ref,
     <h3 className={Classes.HEADING}>
       {!hide_filename && <span style={{marginRight: "5px"}}>{filename}</span>}
       {show_diff
-        ? <Tooltip content={`Press T to swap ${labels.new} and ${labels.reference}`}><Tag>{side(shown_left)} ➡️ {side(shown_left==="reference" ? "new" : "reference")}</Tag></Tooltip>
+        ? <Tooltip content={`Press T to swap ${labels.new} and ${labels.reference}`}>
+            {/* without the file's name (e.g. in logged media, under the key's), a quiet line */}
+            {hide_filename
+              ? <span className={Classes.TEXT_MUTED} style={{ fontSize: 12, fontWeight: 'normal' }}>{side(shown_left)} → {side(shown_left==="reference" ? "new" : "reference")}</span>
+              : <Tag minimal>{side(shown_left)} → {side(shown_left==="reference" ? "new" : "reference")}</Tag>}
+          </Tooltip>
         : <Tag>{side('new')}</Tag>}
       {!no_reference && <Button size="small" variant="minimal" style={{marginLeft: "5px", verticalAlign: "bottom"}} icon={renderSideBySide ? "comparison" : "align-justify"} onClick={() => setRenderSideBySide(!renderSideBySide)}>
         {renderSideBySide ? "Side-by-side" : "Inline diff"}

@@ -191,6 +191,30 @@ export const matchItem = (sample, items, from) => {
   return { item: items.find(c => index_of(c) === index) ?? null, by: 'index' };
 };
 
+// A key's items at one of its steps in a stable order: each sample where it was first seen, across the steps (ids,
+// else captions, else positions: see sampleKeys), samples seen later at the end. Loaders shuffle: in the order they
+// were logged, samples would move between steps. Matching still uses their `index`.
+const order_cache = new WeakMap();
+export const orderedItems = (entry, step) => {
+  if (!entry || step === null || step === undefined) return [];
+  let cache = order_cache.get(entry);
+  if (!cache) {
+    const rank = new Map();
+    for (const s of entry.steps) for (const key of sampleKeys(entry.by_step.get(s))) if (!rank.has(key)) rank.set(key, rank.size);
+    cache = { rank, steps: new Map() };
+    order_cache.set(entry, cache);
+  }
+  if (!cache.steps.has(step)) {
+    const items = entry.by_step.get(step) ?? [];
+    const keys = sampleKeys(items);
+    cache.steps.set(step, items
+      .map((item, i) => ({ item, i, rank: cache.rank.get(keys[i]) ?? Infinity }))
+      .sort((a, b) => a.rank - b.rank || a.i - b.i)
+      .map(({ item }) => item));
+  }
+  return cache.steps.get(step);
+};
+
 // One sample at every step of a key: [{ step, item }], item null where it wasn't logged
 export const evolution = (model, key, sample) => {
   const entry = model?.keys?.[key];
@@ -221,9 +245,10 @@ export const stepRange = (...arrays) => {
   return { min, max };
 };
 
-// What a run logged: "12 keys · steps 0–24 000 · images, audio, tables"
+// What a run logged: "12 keys · steps 0–24000 · images, audio, tables"
 const KIND_NAMES = { image: 'images', video: 'videos', audio: 'audio', table: 'tables', histogram: 'histograms', text: 'texts', html: 'HTML', plotly: 'plots', file: 'files' };
-export const formatStep = step => String(step).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+// as the series plots label their axes: 24000, no separators
+export const formatStep = step => String(step);
 export const summary = model => {
   const keys = Object.values(model.keys);
   const kinds = KINDS.filter(kind => keys.some(key => key.kind === kind)).map(kind => KIND_NAMES[kind]);
@@ -246,9 +271,10 @@ export const LABEL_TEXT_COLOR = '#111418';
 export const boxGroups = boxes => [...new Set(boxes.map(box => box.group ?? ''))];
 export const validBoxes = item => (Array.isArray(item?.boxes) ? item.boxes : [])
   .filter(box => box && [box.x, box.y, box.w, box.h].every(Number.isFinite));
-// What users chose to see: { hidden: Set of groups, min_score }. Boxes without a score are always shown.
-export const filterBoxes = (boxes, { hidden, min_score = 0 } = {}) => boxes.filter(box =>
-  !hidden?.has(box.group ?? '') && !(Number.isFinite(box.score) && box.score < min_score));
+// What users chose to see: { hidden: Set of groups, hidden_labels: Set of labels (as strings), min_score }. Boxes
+// without a score pass the threshold.
+export const filterBoxes = (boxes, { hidden, hidden_labels, min_score = 0 } = {}) => boxes.filter(box =>
+  !hidden?.has(box.group ?? '') && !hidden_labels?.has(String(box.label ?? '')) && !(Number.isFinite(box.score) && box.score < min_score));
 
 // The boxes of an image as the image viewer's regions of interest (src/image-viewer/regions.js). The viewer scales them
 // to the image it shows.

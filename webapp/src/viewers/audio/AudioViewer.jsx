@@ -68,13 +68,15 @@ const Shortcuts = ({ onClose }) => <div className="qa-audio-help" role="dialog" 
 // - height: of each track, in pixels
 // - onError(error): when the file can't be loaded or decoded
 // - onCollapse: shows a button that calls it (the compact row's full view)
-export const FullAudioViewer = ({ src, src_ref, labels, caption, caption_ref, height = 96, onError, onCollapse }) => {
+// - version, version_ref: what identifies the files' contents (e.g. their hash), live: they can still change. Decoded
+//   tracks are cached: a new version is decoded again, a live file without version every time (tracks.js)
+export const FullAudioViewer = ({ src, src_ref, labels, caption, caption_ref, height = 96, onError, onCollapse, version, version_ref, live }) => {
   const root = useRef(null);
   const dark = useDark(root);
   const [lanes, width, lanes_element] = useWidth();
 
-  const loaded_new = useTrack(src, { onError });
-  const loaded_ref = useTrack(src_ref);
+  const loaded_new = useTrack(src, { onError, version, live });
+  const loaded_ref = useTrack(src_ref, { version: version_ref, live });
   const track_new = loaded_new.track;
   const track_ref = loaded_ref.track;
 

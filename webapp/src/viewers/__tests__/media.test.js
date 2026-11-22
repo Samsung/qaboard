@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { boxInPixels, boxLabel, boxRegions, cleanFocus, evolution, filterBoxes, groupKeys, itemAt, labelColor, matchItem, nextStep, parseMedia, sampleKey, sampleKeys, snap, stepRange, summary, unionSteps } from '../media/media';
+import { boxInPixels, boxLabel, boxRegions, cleanFocus, evolution, filterBoxes, formatStep, groupKeys, itemAt, labelColor, matchItem, mediaStepFor, mediaSteps, nextStep, orderedItems, parseMedia, sampleKey, sampleKeys, snap, stepRange, summary, unionSteps } from '../media/media';
 import { distribution, histogramRange, quantiles, resample } from '../media/histogram';
 import { BY_ROW, columnHistogram, diffTables, keyColumn, numericColumns, parseTable, tableRows } from '../media/table';
 import { columnsX } from '../media/HistogramView';
@@ -23,13 +23,14 @@ describe('parseMedia', () => {
   });
 
   it('gives each key its kind, steps and items by step, by index', () => {
-    expect(Object.keys(model.keys)).toEqual(['answers', 'predictions', 'report', 'tts/sample', 'val/samples', 'weights/fc1', 'without a time']);
+    expect(Object.keys(model.keys)).toEqual(['answers', 'float step', 'predictions', 'report', 'tts/sample', 'val/samples', 'weights/fc1', 'without a time']);
     expect(model.keys['val/samples'].kind).toBe('image');
     expect(model.keys['val/samples'].steps).toEqual([0, 10, 20]);
     expect(model.keys['val/samples'].by_step.get(10).map(item => item.index)).toEqual([0, 1]);
     // the last line wins
     expect(model.keys.answers.by_step.get(20)[0]._time).toBe(1731500021);
-    expect(model.steps).toEqual([0, 10, 20, 30]);
+    // 40.0 is 40, in JSON as in Python
+    expect(model.steps).toEqual([0, 10, 20, 30, 40]);
   });
 
   it('skips what it cannot read', () => {
@@ -71,7 +72,7 @@ describe('steps', () => {
   });
 
   it('unites the steps of runs, and moves between them', () => {
-    expect(unionSteps(parseMedia('{"_step": 3, "key": "a", "kind": "text"}'), model, null)).toEqual([0, 3, 10, 20, 30]);
+    expect(unionSteps(parseMedia('{"_step": 3, "key": "a", "kind": "text"}'), model, null)).toEqual([0, 3, 10, 20, 30, 40]);
     const steps = [0, 10, 20];
     expect(nextStep(steps, 10, 1)).toBe(20);
     expect(nextStep(steps, 15, 1)).toBe(20);
@@ -80,6 +81,34 @@ describe('steps', () => {
     expect(nextStep(steps, 15, -1)).toBe(10);
     expect(nextStep(steps, 0, -1)).toBe(0);
     expect(nextStep([], 7, 1)).toBe(7);
+  });
+
+  it('have a range, also when there are too many to spread them', () => {
+    const many = Array.from({ length: 300000 }, (_, i) => i * 2);
+    expect(stepRange(many, [-5, 7])).toEqual({ min: -5, max: 599998 });
+  });
+
+  it('are the same for the section and the series cursor: either run\'s, by default the new run\'s last', () => {
+    const new_ = parseMedia('{"_step": 0, "key": "a", "kind": "text"}\n{"_step": 10, "key": "a", "kind": "text"}');
+    const ref = parseMedia('{"_step": 0, "key": "a", "kind": "text"}\n{"_step": 15, "key": "a", "kind": "text"}');
+    expect(mediaSteps(new_, ref)).toEqual([0, 10, 15]);
+    expect(mediaSteps(new_, null)).toEqual([0, 10]);
+    expect(mediaStepFor(new_, ref, undefined)).toBe(10);
+    expect(mediaStepFor(new_, ref, 17)).toBe(15);
+    expect(mediaStepFor(new_, null, 17)).toBe(10);
+    expect(mediaStepFor(new_, ref, -3)).toBe(0);
+    expect(mediaStepFor(null, null, 5)).toBe(null);
+    expect(formatStep(24000)).toBe('24000');
+  });
+
+  it('keep samples where they were first seen, whatever the order they were logged in', () => {
+    const at = (step, index, id) => JSON.stringify({ _step: step, key: 'k', kind: 'image', index, id });
+    const entry = parseMedia([at(0, 0, 'a'), at(0, 1, 'b'), at(10, 0, 'c'), at(10, 1, 'b'), at(10, 2, 'a')].join('\n')).keys.k;
+    expect(orderedItems(entry, 10).map(item => item.id)).toEqual(['a', 'b', 'c']);
+    expect(orderedItems(entry, 0).map(item => item.id)).toEqual(['a', 'b']);
+    // the same array: sample keys are cached by it
+    expect(orderedItems(entry, 10)).toBe(orderedItems(entry, 10));
+    expect(orderedItems(entry, null)).toEqual([]);
   });
 
   it('groups the keys by their prefix', () => {
@@ -220,8 +249,8 @@ describe('samples', () => {
   });
 
   it('are summed up', () => {
-    expect(summary(model)).toBe('7 keys · steps 0–30 · images, audio, tables, histograms, texts, HTML');
-    expect(summary(parseMedia('{"_step": 24000, "key": "a", "kind": "text"}'))).toBe('1 key · step 24\u2009000 · texts');
+    expect(summary(model)).toBe('8 keys · steps 0–40 · images, audio, tables, histograms, texts, HTML');
+    expect(summary(parseMedia('{"_step": 24000, "key": "a", "kind": "text"}'))).toBe('1 key · step 24000 · texts');
   });
 
   it('have boxes users filter, a color per label', () => {
@@ -230,13 +259,6 @@ describe('samples', () => {
     expect(filterBoxes(boxes, { hidden: new Set(['ground_truth']) })).toEqual([boxes[0], boxes[1]]);
     expect(labelColor('cat')).toBe(labelColor('cat'));
     expect(labelColor('cat')).not.toBe(labelColor('dog'));
-  });
-});
-
-describe('steps', () => {
-  it('have a range, also when there are too many to spread them', () => {
-    const many = Array.from({ length: 300000 }, (_, i) => i * 2);
-    expect(stepRange(many, [-5, 7])).toEqual({ min: -5, max: 599998 });
   });
 });
 
@@ -277,18 +299,20 @@ describe('quantiles and table diffs', () => {
     expect(diffTables(epochs, { ...epochs, rows: [[1, 0.5]] }, BY_ROW).map(d => d.status)).toEqual(['same', 'added']);
   });
 
-  it('compare the images of cells by the files, not their names', () => {
+  it('compare the images of cells by their hashes, and don\'t claim anything without', () => {
     const cell = (path, extra) => ({ kind: 'image', path, width: 4, height: 4, ...extra });
     const table = { columns: ['name', 'image'], rows: [['a', cell('media/t/20/0_1.png')]] };
-    // the same name at another step isn't the same file
-    expect(diffTables(table, { ...table, rows: [['a', cell('media/t/10/0_1.png')]] }, 0)[0].status).toBe('changed');
-    expect(diffTables(table, { ...table, rows: [['a', cell('media/t/20/0_1.png', { width: 8 })]] }, 0)[0].status).toBe('changed');
-    expect(diffTables(table, table, 0)[0].status).toBe('same');
-    // the runs' manifests know whether the files are the same
-    const same = { new: { 'media/t/20/0_1.png': { md5: 'x' } }, ref: { 'media/t/20/0_1.png': { md5: 'x' } } };
-    const different = { ...same, ref: { 'media/t/20/0_1.png': { md5: 'y' } } };
+    // without the runs' hashes: the same path is two runs' files, another path can be the same image
+    expect(diffTables(table, table, 0)[0]).toMatchObject({ status: 'unknown', changed: new Set(), unknown: new Set([1]) });
+    expect(diffTables(table, { ...table, rows: [['a', cell('media/t/10/0_1.png')]] }, 0)[0].status).toBe('unknown');
+    // with them: changed only when they differ
+    const same = { new: { 'media/t/20/0_1.png': { md5: 'x' } }, reference: { 'media/t/20/0_1.png': { md5: 'x' }, 'media/t/10/0_1.png': { md5: 'x' } } };
+    const different = { ...same, reference: { 'media/t/20/0_1.png': { md5: 'y' } } };
     expect(diffTables(table, table, 0, same)[0].status).toBe('same');
+    expect(diffTables(table, { ...table, rows: [['a', cell('media/t/10/0_1.png', { width: 8 })]] }, 0, same)[0].status).toBe('same');
     expect(diffTables(table, table, 0, different)[0].status).toBe('changed');
+    // an image against nothing did change
+    expect(diffTables(table, { ...table, rows: [['a', null]] }, 0)[0].status).toBe('changed');
   });
 });
 

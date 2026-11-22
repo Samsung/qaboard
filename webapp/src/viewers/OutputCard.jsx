@@ -190,6 +190,8 @@ const CompactHeader = styled.div`
 `;
 
 const configuration_popover_style = { padding: 8, maxWidth: 600 };
+// like the batch Summary's "Logged series" (SeriesComparison.jsx)
+const automatic_heading_style = { margin: "14px 0 4px", fontSize: 14 };
 
 const OutputHeader = ({ project, commit, output, output_ref, type, manifests, style, prefix, viewable, compact }) => {
   const tags = <OutputTags
@@ -588,8 +590,13 @@ const OutputCard = memo(function OutputCard(props) {
         />
       </div>
     })
+    // what the app adds by itself (runs created from code) says what it is: "Logged series", "Logged media"...
+    const heading = view.automatic && view.name && viewers.some(Boolean)
+      ? <h4 className={`${Classes.HEADING} qa-automatic-view-heading`} style={automatic_heading_style}>{view.name}</h4>
+      : null;
     return <Fragment key={idx}>
       {options_inputs}
+      {heading}
       {viewers}
     </Fragment>
   }

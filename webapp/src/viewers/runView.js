@@ -89,7 +89,7 @@ const SERIES_FILES = ['series.json', 'series.jsonl'];
 export const SERIES_VIEW_NAME = 'Logged series';
 const MEDIA_FILE = 'media.jsonl';
 export const MEDIA_VIEW_NAME = 'Logged media';
-const SYSTEM_METRICS_FILE = 'system.series.json';
+export const SYSTEM_METRICS_FILE = 'system.series.json';
 export const SYSTEM_METRICS_VIEW_NAME = 'System metrics';
 const RECOGNIZED_FILES = [
   { name: 'Tests', is: is_junit, types: ['junit'] },

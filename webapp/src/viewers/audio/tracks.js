@@ -36,27 +36,32 @@ export function toTrack({ sample_rate, channels, resampled }) {
   };
 }
 
-export async function loadTrack(src, { signal, decode = decodeAudio } = {}) {
-  const response = await fetch(src, { signal });
+// fresh: ask the server again, not the browser's cache (a file that can still change)
+export async function loadTrack(src, { signal, decode = decodeAudio, fresh = false } = {}) {
+  const response = await fetch(src, fresh ? { signal, cache: 'no-cache' } : { signal });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText || 'error'}`.trim());
   const decoded = await decode(await response.arrayBuffer());
   return toTrack(decoded);
 }
 
-// The tracks decoded last, by URL: going back to a step, or expanding a compact row, doesn't decode again.
+// The tracks decoded last, by URL and version: going back to a step, or expanding a compact row, doesn't decode again.
 // Up to 25M samples (100 MB of Float32): a few long files (10 minutes of stereo at 48 kHz is 58M samples: alone, it
 // stays until the next one), or hundreds of short ones.
+// - version: what identifies the file's contents when it's known, e.g. its hash: a file written again is decoded again
+// - live: the file can still change (its run is running): without a version, it's fetched and decoded every time
 export const MAX_CACHED_SAMPLES = 25e6;
 const cache = new Map();
-export function cachedTrack(src) {
-  if (cache.has(src)) {
-    const entry = cache.get(src);
-    cache.delete(src);
-    cache.set(src, entry);
+export function cachedTrack(src, { version, live = false } = {}) {
+  if (live && !version) return loadTrack(src, { fresh: true });
+  const key = version ? `${src}\n${version}` : src;
+  if (cache.has(key)) {
+    const entry = cache.get(key);
+    cache.delete(key);
+    cache.set(key, entry);
     return entry.promise;
   }
   const entry = { samples: 0 };
-  entry.promise = loadTrack(src).then(track => {
+  entry.promise = loadTrack(src, { fresh: !!version }).then(track => {
     entry.samples = track.length * track.channels.length;
     let total = 0;
     for (const e of cache.values()) total += e.samples;
@@ -68,9 +73,9 @@ export function cachedTrack(src) {
     return track;
   }, error => {
     // a file may be written later (the run is running): try again next time
-    cache.delete(src);
+    cache.delete(key);
     throw error;
   });
-  cache.set(src, entry);
+  cache.set(key, entry);
   return entry.promise;
 }

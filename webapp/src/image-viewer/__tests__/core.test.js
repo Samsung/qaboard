@@ -56,6 +56,17 @@ describe('images', () => {
       vi.stubGlobal('fetch', vi.fn(async () => new Response('Not found', { status: 404, statusText: 'Not Found' })));
       await expect(openImage({ iiif: '/iiif/2/a' })).rejects.toMatchObject({ url: '/iiif/2/a/info.json', message: expect.stringContaining('404') });
     });
+
+    it("shows the plain image when the IIIF service can't serve it", async () => {
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('Not found', { status: 404, statusText: 'Not Found' })));
+      vi.stubGlobal('Image', class {
+        set src(value) { this.value = value; if (value) queueMicrotask(() => value === '/a.png' ? (this.naturalWidth = 8, this.naturalHeight = 6, this.onload()) : this.onerror()); }
+      });
+      const { width, height, tileSource } = await openImage({ iiif: '/iiif/2/a', url: '/a.png' });
+      expect({ width, height, url: tileSource.url }).toEqual({ width: 8, height: 6, url: '/a.png' });
+      // neither: the server's error
+      await expect(openImage({ iiif: '/iiif/2/a', url: '/missing.png' })).rejects.toMatchObject({ message: expect.stringContaining('404') });
+    });
   });
 });
 

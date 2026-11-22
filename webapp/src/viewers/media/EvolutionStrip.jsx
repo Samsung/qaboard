@@ -4,7 +4,9 @@ import { useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Button, Classes } from "@blueprintjs/core";
 
+import { STEP_CURSOR_COLOR } from "../../sideColors";
 import { useMediaContext } from "./context";
+import { STICKY_MARGIN, useScrollIntoView } from "./scroll";
 import { Thumbnail, slotSize } from "./ImageGrid";
 import { evolution, formatStep, itemAt, matchItem } from "./media";
 
@@ -15,7 +17,8 @@ const EvolutionStrip = ({ name, sample, model_new, model_ref, output_new, output
   const { fileUrl } = useMediaContext();
   const scroll = useRef(null);
   const frames = evolution(model_new, name, sample).filter(frame => frame.item);
-  const first = frames.find(frame => frame.item)?.item;
+  const first = frames[0]?.item;
+  const root = useScrollIntoView(sample);
   const slot = slotSize(first, null, SIZE);
   const virtualizer = useVirtualizer({
     horizontal: true,
@@ -31,7 +34,7 @@ const EvolutionStrip = ({ name, sample, model_new, model_ref, output_new, output
   }, [selected, virtualizer]);
   const label = first?.caption ?? first?.id ?? sample;
   const row_height = 18 + slot.height + (model_ref ? slot.height + 20 : 0) + 4;
-  return <div data-testid="evolution-strip" style={{ border: '1px solid rgba(128, 128, 128, 0.25)', borderRadius: 3, padding: '4px 6px 6px', margin: '4px 0 10px' }}>
+  return <div ref={root} data-testid="evolution-strip" style={{ scrollMarginTop: STICKY_MARGIN, border: '1px solid rgba(128, 128, 128, 0.25)', borderRadius: 3, padding: '4px 6px 6px', margin: '4px 0 10px' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginBottom: 4 }}>
       <strong>{label}</strong>
       <span className={Classes.TEXT_MUTED}>across {frames.length} steps</span>
@@ -48,12 +51,12 @@ const EvolutionStrip = ({ name, sample, model_new, model_ref, output_new, output
             const ref = at_ref ? matchItem(item, at_ref.items, model_new.keys[name].by_step.get(frame_step)).item : null;
             const is_selected = frame_step === step;
             return <div key={virtual.key} style={{ position: 'absolute', left: 0, top: 0, width: SIZE, transform: `translateX(${virtual.start}px)`, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontSize: 10, fontWeight: is_selected ? 700 : 400, color: is_selected ? '#f5498b' : undefined, height: 16 }}>{formatStep(frame_step)}</span>
+              <span style={{ fontSize: 10, fontWeight: is_selected ? 700 : 400, color: is_selected ? STEP_CURSOR_COLOR : undefined, height: 16 }}>{formatStep(frame_step)}</span>
               <Thumbnail src={fileUrl(output_new, item.path)} item={item} size={SIZE} selected={is_selected} filters={filters} onClick={() => onStep(frame_step)} title={`${names.new}, step ${frame_step}`}/>
               {model_ref && (ref
                 ? <>
-                  <Thumbnail src={fileUrl(output_ref, ref.path)} item={ref} size={SIZE} color={colors.ref} filters={filters} onClick={() => onStep(frame_step)} title={`${names.ref}, step ${at_ref.step}`}/>
-                  <span className={Classes.TEXT_MUTED} style={{ fontSize: 10, height: 16 }}>{at_ref.step !== frame_step ? `${names.ref} @ ${formatStep(at_ref.step)}` : names.ref}</span>
+                  <Thumbnail src={fileUrl(output_ref, ref.path)} item={ref} size={SIZE} color={colors.reference} filters={filters} onClick={() => onStep(frame_step)} title={`${names.reference}, step ${at_ref.step}`}/>
+                  <span className={Classes.TEXT_MUTED} style={{ fontSize: 10, height: 16 }}>{at_ref.step !== frame_step ? `${names.reference} @ ${formatStep(at_ref.step)}` : names.reference}</span>
                 </>
                 : <div className={Classes.TEXT_MUTED} style={{ height: slot.height + 18, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed rgba(128,128,128,0.35)' }}>—</div>)}
             </div>;

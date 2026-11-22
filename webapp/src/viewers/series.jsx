@@ -7,11 +7,14 @@ import { Button, Callout, Classes, InputGroup, Tag } from "@blueprintjs/core";
 import Plot from "../components/Plot";
 import { fileQuery } from "../api/queries";
 import { ViewerError, ViewerLoading } from "./ViewerStates";
-import { plot_color } from "../sideColors";
+import { STEP_CURSOR_COLOR, plot_colors } from "../sideColors";
 import { useIsDark } from "../theme";
 import { useLabels } from "../hooks";
 import { format_duration, smooth, sorted_keys } from "./series/series";
-import { MEDIA_INDEX, parseMedia, snap } from "./media/media";
+import { mediaStepFor } from "./media/media";
+import { useMediaModel } from "./media/useMediaModel";
+import { useWidth } from "./audio/hooks";
+import { SYSTEM_METRICS_FILE } from "./runView";
 import { REFRESH_INTERVAL, SeriesOptions, parse_file, plot_config, plot_layout, useSeriesOptions } from "./series/SeriesOptions";
 
 const LoadableTextViewer = lazy(() => import('./textViewer'));
@@ -19,6 +22,7 @@ const LoadableTextViewer = lazy(() => import('./textViewer'));
 // Plots are drawn one after the other: runs with hundreds of series show the first ones, and the others on demand
 const SHOWN_AT_FIRST = 12;
 const PLOT_WIDTH = 400;
+const PLOT_MIN_WIDTH = 340;
 const PLOT_HEIGHT = 250;
 const x_values = (series, x) => x === 'time' ? series.time : series.step;
 
@@ -56,19 +60,22 @@ export const series_traces = (key, { model_new, model_ref, options, names, color
 
 // media_step: the step the card's logged media show (media/LoggedMedia.jsx), a cursor on the plots. onStep: clicking
 // a plot moves the media there
+// Plots take the width of their column: as many columns as fit, at least PLOT_MIN_WIDTH wide
 const SeriesPlot = ({ name, traces, options, media_step, onStep }) => {
-  const layout = plot_layout(name, options, { width: PLOT_WIDTH, height: PLOT_HEIGHT });
+  const [cell, width] = useWidth(PLOT_WIDTH);
+  const layout = plot_layout(name, options, { width, height: PLOT_HEIGHT });
   if (media_step !== undefined && media_step !== null)
-    layout.shapes = [{ type: 'line', xref: 'x', yref: 'paper', x0: media_step, x1: media_step, y0: 0, y1: 1, line: { color: '#f5498b', width: 1.5 } }];
+    layout.shapes = [{ type: 'line', xref: 'x', yref: 'paper', x0: media_step, x1: media_step, y0: 0, y1: 1, line: { color: STEP_CURSOR_COLOR, width: 1.5 } }];
   const onClick = onStep ? event => {
     const x = event?.points?.[0]?.x;
     if (Number.isFinite(x)) onStep(Math.round(x));
   } : undefined;
-  return <Plot data={traces} layout={layout} config={plot_config} onClick={onClick}/>;
+  return <div ref={cell} style={{ minWidth: 0 }}><Plot data={traces} layout={layout} config={plot_config} onClick={onClick}/></div>;
 };
 
 const toolbar_style = { display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', margin: '6px 0' };
-const grid_style = { display: 'flex', flexWrap: 'wrap', gap: 4 };
+// contain: its width is the card's, not the plots' (they're drawn to the width of their column)
+const grid_style = { display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(min(${PLOT_MIN_WIDTH}px, 100%), 1fr))`, gap: 4, contain: 'inline-size' };
 
 // - series: the options people chose, the same for all the runs' cards (controls.series in the URL)
 // - fallback_to_text: the file was picked by its name (series.json...), without `type: series`: if it isn't a series
@@ -91,14 +98,14 @@ const SeriesViewer = ({ output_new, output_ref, path, path_ref, labels: labels_,
     ...fileQuery(url_ref, { is_running: output_ref?.is_running, responseType: 'text' }),
     refetchInterval: output_ref?.is_running ? REFRESH_INTERVAL : false,
   });
-  // runs that logged media: the plots show the step their media show (media/LoggedMedia.jsx reads the same file)
-  const has_media = !!onControlsChange && path !== 'system.series.json' && !!props.manifests?.new?.[MEDIA_INDEX];
-  const media_url = has_media && output_new?.output_dir_url ? `${output_new.output_dir_url}/${MEDIA_INDEX}` : undefined;
-  const query_media = useQuery({
-    ...fileQuery(media_url, { is_running: output_new?.is_running, responseType: 'text' }),
-    refetchInterval: output_new?.is_running ? REFRESH_INTERVAL : false,
-  });
-  const media_steps = useMemo(() => typeof query_media.data === 'string' ? parseMedia(query_media.data).steps : null, [query_media.data]);
+  // runs that logged media: the plots show the step their media show, the reference's media steps included, like the
+  // section's (media/LoggedMedia.jsx reads the same files)
+  const manifests = props.manifests;
+  const linkable = !!onControlsChange && path !== SYSTEM_METRICS_FILE && !!manifests?.new;
+  const { model: media_new } = useMediaModel(linkable ? output_new : undefined, manifests?.new);
+  const media_compared = linkable && !!output_ref && output_ref.id !== output_new?.id && !!manifests?.reference;
+  const { model: media_ref } = useMediaModel(media_compared ? output_ref : undefined, manifests?.reference);
+  const has_media = linkable && !!media_new;
   const parsed_new = useMemo(() => parse_file(query_new.data), [query_new.data]);
   const parsed_ref = useMemo(() => parse_file(query_ref.isSuccess ? query_ref.data : undefined), [query_ref.isSuccess, query_ref.data]);
 
@@ -125,16 +132,14 @@ const SeriesViewer = ({ output_new, output_ref, path, path_ref, labels: labels_,
 
   // runs that logged media: the plots and the media share their step (by step, the series of the run itself)
   const linked = has_media && options.x === 'step';
-  // what the media show: the step chosen (for all the cards), snapped to this run's, by default its last
-  const cursor = media_steps?.length ? snap(media_steps, media_step ?? media_steps.at(-1)) ?? media_steps[0] : media_step;
+  // what the media show: the step chosen (for all the cards), snapped to the runs' steps, by default the new run's last
+  const cursor = media_new?.steps.length ? mediaStepFor(media_new, media_ref, media_step) : media_step;
   const needle = filter.trim().toLowerCase();
   const matching = needle ? keys.filter(key => key.toLowerCase().includes(needle)) : keys;
   const shown = show_all ? matching : matching.slice(0, SHOWN_AT_FIRST);
   const names = { new: labels?.new ?? 'new', ref: labels?.reference ?? 'reference' };
-  const colors = {
-    new: labels?.colors?.new ? plot_color(labels.colors.new, is_dark) : '#2d72d2',
-    ref: labels?.colors?.reference ? plot_color(labels.colors.reference, is_dark) : '#738091',
-  };
+  const { new: color_new, reference: color_ref } = plot_colors(labels, is_dark);
+  const colors = { new: color_new, ref: color_ref };
   const last = Math.max(...keys.map(key => model_new.series[key].time.at(-1) ?? 0));
   const has_ref = !!model_ref && keys.some(key => model_ref.series[key]);
 

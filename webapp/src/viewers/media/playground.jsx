@@ -191,6 +191,8 @@ const Page = () => {
           output_new={run.new}
           output_ref={run.ref}
           labels={labels}
+          // what the app knows from the runs' manifests: which files they have (series.json, for the timeline)
+          manifests={{ new: run.new.files, reference: run.ref?.files }}
           media_step={controls.media_step}
           media_focus={controls.media_focus}
           project="playground"

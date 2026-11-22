@@ -13,6 +13,7 @@ import { BY_ROW, cellText, columnHistogram, diffTables, is_media_cell, keyColumn
 const ROW_HEIGHT = 30;
 const IMAGE_ROW_HEIGHT = 52;
 const MAX_HEIGHT = 420;
+const IMAGE_COLUMN_WIDTH = 132;
 
 const format_number = value => Number.isInteger(value) ? String(value) : Math.abs(value) >= 1e5 || (value !== 0 && Math.abs(value) < 1e-3) ? value.toExponential(3) : String(+value.toPrecision(5));
 
@@ -32,8 +33,7 @@ const Cell = ({ cell, output, onOpen }) => {
   return cellText(cell);
 };
 
-// A numeric column's distribution, in its header
-// the distribution of a numeric column, in its header: from 10 values, below that it's noise
+// The distribution of a numeric column, in its header: from 10 values, below that it's noise
 const MIN_SPARKLINE_VALUES = 10;
 const Sparkline = ({ histogram }) => {
   const total = histogram ? histogram.counts.reduce((a, b) => a + b, 0) : 0;
@@ -52,15 +52,38 @@ const STATUS_STYLES = {
   removed: { boxShadow: 'inset 3px 0 0 #cd4246', background: 'rgba(205, 66, 70, 0.08)', opacity: 0.75 },
 };
 const CHANGED_STYLE = { background: 'rgba(251, 179, 96, 0.28)' };
+// whether a number went up or down: neither is good or bad, a score up is a loss up
+const DELTA_COLORS = { up: 'var(--qa-side-0, #2d72d2)', down: '#c87619' };
+const DIFF_ROW_HEIGHT = 36;
+
+const format_delta = (value, was) => {
+  const delta = value - was;
+  const text = format_number(Math.abs(delta));
+  return delta > 0 ? `+${text}` : delta < 0 ? `−${text}` : '±0';
+};
+
+// A changed cell: the new value, and under it what the reference had: "0.912 ref · +0.027" for numbers, struck for texts
+const Changed = ({ cell, was, names, children }) => {
+  const numbers = typeof cell === 'number' && typeof was === 'number';
+  return <span style={{ display: 'flex', flexDirection: 'column', alignItems: numbers ? 'flex-end' : 'flex-start', lineHeight: '14px', minWidth: 0, maxWidth: '100%' }}>
+    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{children}</span>
+    <span className={Classes.TEXT_MUTED} style={{ fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+      {numbers
+        ? <>{format_number(was)} {names.reference} · <span style={{ color: cell > was ? DELTA_COLORS.up : DELTA_COLORS.down }}>{format_delta(cell, was)}</span></>
+        : is_media_cell(was) ? `${names.reference}: ${cellText(was)}`
+        : <del>{cellText(was) || '(empty)'}</del>}
+    </span>
+  </span>;
+};
 
 // diff: the new table against the reference's (diffTables), aligned with table.rows, to mark rows and cells
-export const Table = ({ table, output, output_ref, filter, sort, onSortChange, diff }) => {
+export const Table = ({ table, output, output_ref, filter, sort, onSortChange, diff, names = { new: 'new', reference: 'reference' } }) => {
   const scroll = useRef(null);
   const [opened, setOpened] = useState(null);
   const rows = tableRows(table, { filter, sort });
   const numeric = numericColumns(table);
   const has_images = table.rows.some(row => row.some(cell => is_media_cell(cell) && cell.kind === 'image'));
-  const row_height = has_images ? IMAGE_ROW_HEIGHT : ROW_HEIGHT;
+  const row_height = has_images ? IMAGE_ROW_HEIGHT : diff ? DIFF_ROW_HEIGHT : ROW_HEIGHT;
   const height = Math.min(MAX_HEIGHT, row_height * rows.length + 2);
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -71,13 +94,16 @@ export const Table = ({ table, output, output_ref, filter, sort, onSortChange, d
     initialRect: { width: 800, height: MAX_HEIGHT },
   });
   const histograms = table.columns.map((_, c) => numeric[c] ? columnHistogram(table.rows, c) : null);
-  const template = table.columns.map((_, c) => numeric[c] ? 'minmax(70px, max-content)' : 'minmax(90px, 1fr)').join(' ');
+  // images take their thumbnails' width, texts the rest
+  const images = table.columns.map((_, c) => table.rows.some(row => is_media_cell(row[c]) && row[c].kind === 'image'));
+  // numbers whole, with what they were in a diff: the table scrolls sideways when they don't fit
+  const template = table.columns.map((_, c) => numeric[c] ? (diff ? 'max-content' : 'minmax(70px, max-content)') : images[c] ? `${IMAGE_COLUMN_WIDTH}px` : 'minmax(90px, 1fr)').join(' ');
   const toggleSort = column => onSortChange(
     sort?.column !== column ? { column, order: numeric[column] ? -1 : 1 }
       : sort.order === (numeric[column] ? -1 : 1) ? { column, order: -sort.order } : null,
   );
   const cell_style = c => ({ padding: '0 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: numeric[c] ? 'right' : 'left', fontVariantNumeric: numeric[c] ? 'tabular-nums' : undefined, display: 'flex', alignItems: 'center', justifyContent: numeric[c] ? 'flex-end' : 'flex-start' });
-  return <div role="table" aria-rowcount={rows.length} style={{ fontSize: 12, border: '1px solid rgba(128, 128, 128, 0.3)', borderRadius: 2, maxWidth: '100%', overflowX: 'auto' }}>
+  return <div role="table" aria-rowcount={rows.length} style={{ fontSize: 12, border: '1px solid rgba(128, 128, 128, 0.3)', borderRadius: 2, maxWidth: '100%', minWidth: 0, overflowX: 'auto' }}>
     <div role="row" style={{ display: 'grid', gridTemplateColumns: template, fontWeight: 600, borderBottom: '1px solid rgba(128, 128, 128, 0.3)', minWidth: 'min-content' }}>
       {table.columns.map((column, c) => <div role="columnheader" key={c} aria-sort={sort?.column === c ? (sort.order > 0 ? 'ascending' : 'descending') : 'none'} style={{ ...cell_style(c), height: ROW_HEIGHT, cursor: 'pointer', userSelect: 'none' }} tabIndex={0} onClick={() => toggleSort(c)} onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), toggleSort(c))} title={`Sort by ${column}`}>
         {numeric[c] && <Sparkline histogram={histograms[c]}/>}
@@ -93,9 +119,13 @@ export const Table = ({ table, output, output_ref, filter, sort, onSortChange, d
           return <div role="row" key={virtual.key} data-index={virtual.index} data-status={change?.status} style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${virtual.start}px)`, height: row_height, display: 'grid', gridTemplateColumns: template, borderBottom: '1px solid rgba(128, 128, 128, 0.12)', ...STATUS_STYLES[change?.status] }}>
             {table.columns.map((_, c) => {
               const changed = change?.changed.has(c);
+              const unknown = change?.unknown?.has(c);
               const was = changed ? change.ref_row[table.ref_columns?.[c] ?? c] : undefined;
-              return <div role="cell" key={c} data-changed={changed || undefined} title={changed ? `${cellText(was) || '(empty)'} in the reference` : undefined} style={{ ...cell_style(c), ...(changed ? CHANGED_STYLE : {}) }}>
-                <Cell cell={row[c]} output={change?.status === 'removed' ? output_ref : output} onOpen={setOpened}/>
+              const cell = <Cell cell={row[c]} output={change?.status === 'removed' ? output_ref : output} onOpen={setOpened}/>;
+              return <div role="cell" key={c} data-changed={changed || undefined} data-unknown={unknown || undefined}
+                title={changed ? `${cellText(was) || '(empty)'} in ${names.reference}` : unknown ? `Can't tell whether it changed: the runs' files have no hash` : undefined}
+                style={{ ...cell_style(c), ...(changed ? CHANGED_STYLE : {}) }}>
+                {changed && !is_media_cell(row[c]) ? <Changed cell={row[c]} was={was} names={names}>{cell}</Changed> : cell}
               </div>;
             })}
           </div>;
@@ -122,7 +152,7 @@ const useTable = (url, is_running) => {
 };
 
 // item_new, item_ref: the tables logged at the step (media.js), the reference's can be missing. identity: the runs'
-// manifests { new, ref }, to tell whether images in cells changed
+// manifests { new, reference }, to tell whether images in cells changed
 const TableView = ({ item_new, item_ref, output_new, output_ref, names, identity }) => {
   const { fileUrl } = useMediaContext();
   const [side, setSide] = useState('new');
@@ -148,12 +178,12 @@ const TableView = ({ item_new, item_ref, output_new, output_ref, names, identity
   }
   const output = shown_side === 'reference' ? output_ref : output_new;
   const shown = table ? tableRows(table, { filter: deferred_filter }).length : 0;
-  const counts = diff ? ['changed', 'added', 'removed'].map(status => [status, diff.filter(d => d.status === status).length]).filter(([, n]) => n > 0) : [];
-  return <div data-testid="table-view">
+  const counts = diff ? ['changed', 'added', 'removed', 'unknown'].map(status => [status, diff.filter(d => d.status === status).length]).filter(([, n]) => n > 0) : [];
+  return <div data-testid="table-view" style={{ minWidth: 0, maxWidth: '100%' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0', flexWrap: 'wrap' }}>
       {item_ref && <ButtonGroup size="small">
         <Button active={shown_side === 'new'} onClick={() => setSide('new')} text={names.new}/>
-        <Button active={shown_side === 'reference'} onClick={() => setSide('reference')} text={names.ref}/>
+        <Button active={shown_side === 'reference'} onClick={() => setSide('reference')} text={names.reference}/>
         <Button active={shown_side === 'diff'} onClick={() => setSide('diff')} icon="changes" text="Diff"/>
       </ButtonGroup>}
       {shown_side === 'diff' && query_new.table && <label style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -164,12 +194,12 @@ const TableView = ({ item_new, item_ref, output_new, output_ref, names, identity
       <InputGroup size="small" leftIcon="search" placeholder="Filter rows" aria-label="Filter rows" value={filter} onChange={e => setFilter(e.target.value)} style={{ width: 180 }}/>
       {table && <span className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>
         {shown === table.rows.length ? `${table.rows.length} rows` : `${shown} of ${table.rows.length} rows`}
-        {diff && (counts.length ? `: ${counts.map(([status, n]) => `${n} ${status}`).join(', ')}` : ', identical')}
+        {diff && (counts.length ? `: ${counts.map(([status, n]) => status === 'unknown' ? `${n} with images that can't be compared` : `${n} ${status}`).join(', ')}` : ', identical')}
       </span>}
     </div>
     {error ? <ViewerError path={path} error={error}/>
       : pending || !table ? <ViewerLoading height={120}/>
-      : <Table table={table} output={output} output_ref={output_ref} filter={deferred_filter} sort={sort} onSortChange={setSort} diff={diff}/>}
+      : <Table table={table} output={output} output_ref={output_ref} filter={deferred_filter} sort={sort} onSortChange={setSort} diff={diff} names={names}/>}
   </div>;
 };
 

@@ -5,8 +5,10 @@ import { useEffect, useRef } from "react";
 import { Classes } from "@blueprintjs/core";
 
 import { colorAt } from "../../image-viewer/colormaps";
+import { STEP_CURSOR_COLOR } from "../../sideColors";
+import { axisTicks } from "./axis";
 import { distribution, histogramRange, quantiles } from "./histogram";
-import { nextStep, snap } from "./media";
+import { formatStep, nextStep, snap } from "./media";
 import { useWidth } from "../audio/hooks";
 
 const WIDTH = 480;
@@ -29,6 +31,28 @@ export const columnsX = (steps, width) => {
   const x = step => (step - first) / (last - first) * width;
   return steps.map((step, i) => ({ x0: x(step), x1: x(steps[i + 1] ?? last) }));
 };
+
+// The steps under the heatmap, labeled like the timeline's: round numbers, at the middle of their column
+const StepAxis = ({ steps, columns, width }) => {
+  if (!steps.length) return null;
+  const first = steps[0], last = steps.at(-1);
+  // a step is at the middle of its column; between steps, in proportion
+  const middles = columns.map(({ x0, x1 }) => (x0 + x1) / 2);
+  const x = step => {
+    if (steps.length === 1) return middles[0];
+    const i = Math.min(steps.length - 2, Math.max(0, steps.findLastIndex(s => s <= step)));
+    return middles[i] + (step - steps[i]) / (steps[i + 1] - steps[i] || 1) * (middles[i + 1] - middles[i]);
+  };
+  const ticks = axisTicks(first, last, width);
+  return <svg width={width} height={16} style={{ display: 'block', overflow: 'visible' }} aria-hidden>
+    {ticks.map(t => <g key={t} transform={`translate(${x(t)},0)`}>
+      <line y1={0} y2={3} stroke="currentColor" strokeOpacity={0.4}/>
+      <text y={13} textAnchor={x(t) < 20 ? 'start' : x(t) > width - 20 ? 'end' : 'middle'} fontSize={10} fill="currentColor" fillOpacity={0.6}>{formatStep(t)}</text>
+    </g>)}
+  </svg>;
+};
+
+const legend_style = { display: 'flex', justifyContent: 'flex-end', gap: 10, fontSize: 11, marginBottom: 2 };
 
 // bands: per step, the [5%, median, 95%] values, drawn as lines over the heatmap
 const Heatmap = ({ heat, bands, steps, step, onStep, label, width }) => {
@@ -81,7 +105,9 @@ const Heatmap = ({ heat, bands, steps, step, onStep, label, width }) => {
     const i = columns.findIndex(c => x >= c.x0 && x < c.x1);
     if (i >= 0) onStep?.(steps[i]);
   };
-  return <div style={{ display: 'flex', fontSize: 11 }} className={Classes.TEXT_MUTED}>
+  return <div className={Classes.TEXT_MUTED} style={{ fontSize: 11 }}>
+   <div style={{ ...legend_style, width }}><span>— median</span><span>- - 5–95%</span></div>
+   <div style={{ display: 'flex' }}>
     <div style={{ width: AXIS, height: HEAT_HEIGHT, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', textAlign: 'right', paddingRight: 4 }}>
       <span>{format(heat.range.max)}</span>
       <span>{format(heat.range.min)}</span>
@@ -91,14 +117,11 @@ const Heatmap = ({ heat, bands, steps, step, onStep, label, width }) => {
         role="slider" tabIndex={0} aria-label="Step of the histogram" aria-valuemin={steps[0]} aria-valuemax={steps.at(-1)} aria-valuenow={marked ?? steps[0]}
         onKeyDown={e => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); onStep?.(nextStep(steps, marked ?? steps[0], e.key === 'ArrowRight' ? 1 : -1)); } }}>
         <canvas ref={canvas} role="img" aria-label={label} style={{ width: plot_width, height: HEAT_HEIGHT, display: 'block' }}/>
-        {marker && <div data-testid="histogram-step" style={{ position: 'absolute', top: 0, bottom: 0, left: marker.x0, width: Math.max(2, marker.x1 - marker.x0), border: '1px solid #f5498b', boxSizing: 'border-box', pointerEvents: 'none' }}/>}
+        {marker && <div data-testid="histogram-step" style={{ position: 'absolute', top: 0, bottom: 0, left: marker.x0, width: Math.max(2, marker.x1 - marker.x0), border: `1px solid ${STEP_CURSOR_COLOR}`, boxSizing: 'border-box', pointerEvents: 'none' }}/>}
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', width: plot_width }}>
-        <span>step {steps[0]}</span>
-        <span>— median, - - 5–95%</span>
-        <span>{steps.at(-1)}</span>
-      </div>
+      <StepAxis steps={steps} columns={columns} width={plot_width}/>
     </div>
+   </div>
   </div>;
 };
 
@@ -124,14 +147,19 @@ export const Bars = ({ item_new, item_ref, colors, names, width = WIDTH }) => {
   const y = density => BARS_HEIGHT - density / max * (BARS_HEIGHT - 4);
   // the reference's outline, as steps
   const outline = bars_ref.length ? ['M', x(bars_ref[0].x0), BARS_HEIGHT, ...bars_ref.flatMap(b => ['L', x(b.x0), y(b.density), 'L', x(b.x1), y(b.density)]), 'L', x(bars_ref.at(-1).x1), BARS_HEIGHT].join(' ') : null;
-  return <div style={{ display: 'flex', fontSize: 11, marginTop: 6 }} className={Classes.TEXT_MUTED}>
+  return <div className={Classes.TEXT_MUTED} style={{ fontSize: 11, marginTop: 6 }}>
+   <div style={{ ...legend_style, width }} data-testid="histogram-legend">
+    <span><span aria-hidden style={{ display: 'inline-block', width: 9, height: 9, background: colors.new, opacity: 0.75, marginRight: 4 }}/>{names.new}</span>
+    {outline && <span><span aria-hidden style={{ display: 'inline-block', width: 12, borderTop: `2px dashed ${colors.reference}`, verticalAlign: 'middle', marginRight: 4 }}/>{names.reference}</span>}
+   </div>
+   <div style={{ display: 'flex' }}>
     <div style={{ width: AXIS }}/>
     <div>
       <svg width={plot_width} height={BARS_HEIGHT} role="img" aria-label="Histogram at the selected step" style={{ display: 'block', overflow: 'visible' }}>
         {bars_new.map((bar, i) => <rect key={i} x={x(bar.x0)} y={y(bar.density)} width={Math.max(0.5, x(bar.x1) - x(bar.x0) - 0.5)} height={BARS_HEIGHT - y(bar.density)} fill={colors.new} fillOpacity={0.75}>
           <title>{`${names.new}: ${format(bar.x0)} to ${format(bar.x1)}: ${bar.count}`}</title>
         </rect>)}
-        {outline && <path d={outline} fill="none" stroke={colors.ref} strokeWidth={1.5} strokeDasharray="4 2"><title>{names.ref}</title></path>}
+        {outline && <path d={outline} fill="none" stroke={colors.reference} strokeWidth={1.5} strokeDasharray="4 2"><title>{names.reference}</title></path>}
         <line x1={0} x2={plot_width} y1={BARS_HEIGHT} y2={BARS_HEIGHT} stroke="currentColor" strokeOpacity={0.4}/>
       </svg>
       <div style={{ display: 'flex', justifyContent: 'space-between', width: plot_width }}>
@@ -139,6 +167,7 @@ export const Bars = ({ item_new, item_ref, colors, names, width = WIDTH }) => {
         <span>{format(range.max)}</span>
       </div>
     </div>
+   </div>
   </div>;
 };
 
