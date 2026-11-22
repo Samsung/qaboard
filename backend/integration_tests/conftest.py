@@ -54,6 +54,8 @@ else:
     # tests of the jobs worker don't want its default jobs (test_storage_usage.py does)
     'QABOARD_STORAGE_USAGE_AUTO': '0',
     'QABOARD_GROUPS_SYNC_AUTO': '0',
+    # audit() refuses actions missing from backend/audit_actions.py
+    'QABOARD_AUDIT_STRICT': '1',
   })
   for name in ['QABOARD_LOGIN_TYPE', 'QABOARD_LOGIN_REQUIRED', 'QABOARD_DISABLE_SIGNUP', 'QABOARD_INGEST_AUTH',
                'QABOARD_ADMINS', 'QABOARD_ADMIN_USER', 'QABOARD_ADMIN_PASSWORD', 'QABOARD_ADMIN_PASSWORD_FILE', 'QABOARD_SETUP_TOKEN', 'QABOARD_LOGIN_RESTRICTED', 'QABOARD_URL', 'QABOARD_ALLOWED_ORIGINS', 'SENTRY_DSN']:
@@ -77,10 +79,15 @@ def app():
 
 
 @pytest.fixture(autouse=True)
-def empty_database(app, monkeypatch):
+def empty_database(app, monkeypatch, request):
   """Every test starts with empty tables and the default settings"""
   for name in ['QABOARD_LOGIN_REQUIRED', 'QABOARD_DISABLE_SIGNUP', 'QABOARD_INGEST_AUTH', 'QABOARD_ADMINS', 'QABOARD_ALLOWED_ORIGINS']:
     monkeypatch.delenv(name, raising=False)
+  # Most tests send results without a token: they were written when ingest.auth's default was "off". The server's
+  # default is "token" (test_ingest.py checks it); tests of the other modes set them
+  from backend import settings
+  if not request.node.get_closest_marker('real_ingest_default'):
+    monkeypatch.setitem(settings.DEFINITIONS, 'ingest.auth', settings.DEFINITIONS['ingest.auth']._replace(default='off'))
   yield
   from sqlalchemy import text
   from backend.database import db_session, Base

@@ -7,7 +7,7 @@ and tells us where the run is. Some runs are still done again in place: local on
 We keep in the run's data:
 - `attempt`: the number of the attempt whose results we have, when it's over 1;
 - `previous_attempts`: what we knew of the attempts it replaced, the last MAX_PREVIOUS_ATTEMPTS: how they ended,
-  when, who ran them, and their metrics. `in_place` marks those whose files were replaced where they were: what
+  when, who ran them, their metrics, and the peaks of what they used of their machine (`resources`). `in_place` marks those whose files were replaced where they were: what
   viewers show from that directory may come from a cache.
 The earlier attempts' metrics are a record, not samples: people run again after they changed their code or fixed a
 machine, an earlier attempt often measured something else.
@@ -38,6 +38,33 @@ def kept_metrics(metrics) -> Dict[str, Any]:
   return kept
 
 
+def is_number(value) -> bool:
+  return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def kept_resources(resources) -> Optional[Dict[str, Any]]:
+  """What we keep of what an earlier attempt used of its machine: its peaks"""
+  if not isinstance(resources, dict):
+    return None
+  memory = resources.get('memory') if isinstance(resources.get('memory'), dict) else {}
+  kept = {key: memory[key] for key in ('peak_mb', 'max_process_mb', 'cgroup_peak_mb', 'cgroup_working_set_peak_mb', 'cgroup_limit_mb', 'oom_kills')
+          if is_number(memory.get(key))}
+  gpus = [gpu for gpu in resources.get('gpus') or [] if isinstance(gpu, dict)] if isinstance(resources.get('gpus'), list) else []
+  # the memory of the run's own processes on its GPUs. Else, e.g. in a container where we don't see their pids, the
+  # GPU's: in a container, the run's GPUs are its own
+  gpu_memory = [gpu.get('run_memory_peak_mb') or gpu.get('memory_peak_mb') for gpu in gpus]
+  gpu_memory = [value for value in gpu_memory if is_number(value)]
+  if gpu_memory:
+    kept['gpu_memory_peak_mb'] = max(gpu_memory)
+  for key in ('updated_at', 'host'):
+    value = resources.get(key)
+    if key == 'host' and isinstance(value, dict):
+      value = value.get('name')
+    if isinstance(value, str):
+      kept[key] = value[:MAX_TEXT]
+  return kept or None
+
+
 def attempt_summary(output) -> Dict[str, Any]:
   """What the row says of the attempt it holds, before a new attempt replaces it."""
   if getattr(output, 'is_pending', False):
@@ -54,6 +81,9 @@ def attempt_summary(output) -> Dict[str, Any]:
     "user": data.get('user'),
     # a run that didn't finish has the metrics of the attempt before it, if any: they're not its own
     "metrics": (kept_metrics(getattr(output, 'metrics', None)) or None) if status != 'unfinished' else None,
+    # what it used of its machine (qaboard/system_metrics.py), until it ended or its last heartbeat: e.g. its job was
+    # killed because it used too much memory
+    "resources": kept_resources(data.get('resources')),
   }
   return {k: v for k, v in summary.items() if v is not None}
 
@@ -76,6 +106,8 @@ def record_attempt(output, output_directory: Optional[str], is_pending: bool = F
     if restarted_in_place:
       summary['in_place'] = True
     data['previous_attempts'] = [*previous_attempts, summary][-MAX_PREVIOUS_ATTEMPTS:]
+    # what the attempt used of its machine is its own (summary['resources'] keeps its peaks)
+    data.pop('resources', None)
   if output_directory:
     attempt = attempt_of(output_directory)
     if attempt > 1:

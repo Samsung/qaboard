@@ -2,6 +2,7 @@ import datetime
 import json
 import math
 import re
+import time
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -12,12 +13,13 @@ from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.exc import NoResultFound
 
 from qaboard.conventions import deserialize_config, Reason
+from qaboard.utils import outputs_manifest
 
 from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
 from ..origins import run_origin, run_user, claim_batch
 from ..storage import check_storage_path, UnsafePathError
-from .. import heartbeats, locations, uploads, tokens
+from .. import heartbeats, local_changes, locations, uploads, tokens
 from ..metrics_definitions import MAX_KEY_LENGTH, FORBIDDEN_KEYS
 from ..redo import redo_response
 from ..metrics_definitions import save_metrics_definitions
@@ -25,8 +27,9 @@ from ..notifications.batches import on_run_ended
 from ..tokens import end_batch_token
 from ..attempts import record_attempt
 from ..access import invalid_project
+from ..audit import audit, capped, diff
 from .auth import login_required, is_authorized_user, ingest_access, forbidden_project, require_project_access
-from ..actor import batch_token_limits, output_batch_token_limits, batch_token_refused, is_batch_request
+from ..actor import batch_token_limits, output_batch_token_limits, batch_token_refused, is_batch_request, unauthenticated
 
 # Keys of a run's data that only the server sets
 # - optimization_best allows `qa optimize` to replace this run (see api/batch.py)
@@ -42,9 +45,37 @@ SOURCE_KEYS = ('script', 'script_sha256', 'qaboard_version', 'note')
 # At most that many metrics added per request, and their text values' length: they're parsed by every view of the batch
 MAX_ADDED_METRICS = 500
 MAX_ADDED_TEXT = 500
-# What a running run reports (report_output_progress): its metrics so far, and its parameters as JSON
+# What a running run reports (report_output_progress): its metrics so far, its parameters and what it uses of its
+# machine (qaboard/system_metrics.py: a summary of a few hundred bytes, more with many GPUs), as JSON
 MAX_PROGRESS_METRICS = 2000
 MAX_PROGRESS_PARAMS_SIZE = 100_000
+MAX_RESOURCES_SIZE = 20_000
+
+
+def checked_resources(resources) -> Optional[dict]:
+  """
+  What a run says it uses of its machine (qaboard/system_metrics.py), if it looks like it: an object, small enough
+  to send with every run of a batch. Else None: we ignore it rather than refuse the report, heartbeats included.
+  """
+  if not isinstance(resources, dict):
+    return None
+  try:
+    return resources if len(json.dumps(resources)) <= MAX_RESOURCES_SIZE else None
+  except (TypeError, ValueError):
+    return None
+
+
+def update_run_data(output, data: dict) -> None:
+  """Saves what a run says in `data`, but what only the server sets. Ignores a `resources` that doesn't look like one"""
+  kept = {k: v for k, v in data.items() if k not in SERVER_KEYS}
+  if 'resources' in kept and checked_resources(kept['resources']) is None:
+    del kept['resources']
+  # as much as the server allows of how the run's code differs from its commit (backend/local_changes.py)
+  local_changes.allowed_data(kept)
+  output.data.update(kept)
+  # an older `qa` lists the earlier attempts' logs without their runners': what a newer one listed is stale
+  if 'attempt_logs' in kept and 'attempt_log_files' not in kept:
+    output.data.pop('attempt_log_files', None)
 
 
 def all_project_ids() -> list:
@@ -124,6 +155,51 @@ def get_output(output_id):
   return jsonify(output.to_dict())
 
 
+def run_label(output) -> str:
+  """How people recognize a run: its input, and its configuration"""
+  input_path = str(output.test_input.path) if output.test_input is not None else f"run {output.id}"
+  configurations = output.configurations if isinstance(output.configurations, list) else []
+  # configurations can be objects: only their names
+  names = [c for c in configurations if isinstance(c, str)]
+  return capped(f"{input_path} ({', '.join(names)})" if names else input_path)
+
+
+def run_meta(output) -> dict:
+  batch, ci_commit = output.batch, output.batch.ci_commit
+  return capped({
+    "commit": ci_commit.hexsha,
+    "batch": batch.label,
+    "batch_id": batch.id,
+    "input": str(output.test_input.path) if output.test_input is not None else None,
+    "database": str(output.test_input.database) if output.test_input is not None else None,
+    "platform": output.platform,
+    "configurations": output.configurations,
+    "extra_parameters": output.extra_parameters,
+  }, items=20)
+
+
+# What run.update events say changed
+AUDITED_STATUS = ('is_failed', 'is_pending', 'is_running')
+
+def run_state(output) -> dict:
+  # copies: updates change output.data in place
+  return {
+    **{k: getattr(output, k) for k in AUDITED_STATUS},
+    "metrics": dict(output.metrics or {}),
+    "data": dict(output.data or {}),
+  }
+
+
+def run_changes(before: dict, after: dict) -> dict:
+  """{field: {from, to}} for the statuses that changed, and {metrics|data: {key: {from, to}}} for the keys that did"""
+  changes = diff({k: before[k] for k in AUDITED_STATUS}, {k: after[k] for k in AUDITED_STATUS})
+  for field in ('metrics', 'data'):
+    changed = diff(before[field], after[field])
+    if changed:
+      changes[field] = capped(changed)
+  return changes
+
+
 # Only the web app changes or deletes outputs, the CLI uses POST /api/v1/output/
 # Deleting removes the output's folder, which comes from unauthenticated API calls
 @app.route("/api/v1/output/<int:output_id>", methods=['PUT', 'DELETE'])
@@ -141,6 +217,8 @@ def update_output(output_id):
 
   if request.method == 'PUT':
     data = request.get_json()
+    # editing results is tampering with them: the audit log says who changed what
+    before = run_state(output)
     if 'is_pending' in data or 'is_running' in data:
       is_pending = data.get('is_pending', output.is_pending)
       output.set_status(is_pending, data.get('is_running', output.is_running if is_pending else False))
@@ -151,7 +229,7 @@ def update_output(output_id):
         return jsonify({"error": "`data` must be an object"}), 400
       if not output.data:
         output.data = {}
-      output.data.update({k: v for k, v in data['data'].items() if k not in SERVER_KEYS})
+      update_run_data(output, data['data'])
       flag_modified(output, "data")
     if data.get('batch'):
       output.data["batch"] = data["batch"]
@@ -159,6 +237,8 @@ def update_output(output_id):
     if 'metrics' in data:
       output.metrics = {**output.metrics,  **data['metrics']}
       flag_modified(output, "metrics")
+    if changes := run_changes(before, run_state(output)):
+      audit('run.update', 'run', output.id, run_label(output), project_id=output.batch.ci_commit.project_id, changes=changes, meta=run_meta(output))
     db_session.add(output)
     db_session.commit()
     return jsonify(output.to_dict())
@@ -172,6 +252,7 @@ def update_output(output_id):
       output.delete(soft=soft)
     except UnsafePathError as e:
       return jsonify({"error": f"{e}"}), 400
+    audit('run.delete', 'run', output.id, run_label(output), project_id=output.batch.ci_commit.project_id, meta={**run_meta(output), "soft": soft})
     if not soft:
       db_session.delete(output)
     # soft deletes mark the run as deleted
@@ -268,7 +349,8 @@ def add_output_metrics(output_id):
 @app.route("/api/v1/output/<int:output_id>/progress/", methods=['PATCH'])
 def report_output_progress(output_id):
   """
-  What a running run looks like so far: its metrics, and the parameters it reported. Runs started from code
+  What a running run looks like so far: its metrics, the parameters it reported, and what it uses of its machine
+  (`resources`, also sent with heartbeats). Runs started from code
   (`qaboard.start_run()`) send it every few seconds while they log, so that the web app shows them before they end.
   It replaces what the run said before: the run sends everything each time, nothing has to arrive in order.
   Only for runs that are running: when a run ends, POST /api/v1/output/ says its final metrics, as always.
@@ -298,6 +380,8 @@ def report_output_progress(output_id):
   params = data.get('params')
   if params is not None and (not isinstance(params, dict) or len(json.dumps(params)) > MAX_PROGRESS_PARAMS_SIZE):
     return jsonify({"error": f"`params` must be an object, of at most {MAX_PROGRESS_PARAMS_SIZE} characters as JSON"}), 400
+  # heartbeats carry it: an odd one is ignored, a refused heartbeat would fail the run once it's silent
+  resources = checked_resources(data.get('resources'))
   # only now the lock: callers we refuse don't hold up the run's own updates
   try:
     # only the run's row: Output.test_input is loaded with an outer join, which PostgreSQL can't lock
@@ -320,6 +404,12 @@ def report_output_progress(output_id):
     if not output.data:
       output.data = {}
     output.data['params'] = params
+    flag_modified(output, "data")
+  # heartbeats say it too: a run that is killed said what it used until then
+  if resources is not None:
+    if not output.data:
+      output.data = {}
+    output.data['resources'] = resources
     flag_modified(output, "data")
   db_session.add(output)
   db_session.commit()
@@ -419,10 +509,14 @@ def upload_output_file(output_id, path):
     return jsonify({"error": "This run saves its files in a storage shared with the server: it doesn't upload them.", "reason": Reason.NOT_UPLOADED}), 409
   if not output.is_pending:
     return jsonify({"error": "The run has ended: its files don't change anymore.", "reason": Reason.NOT_RUNNING}), 409
+  if local_changes.refuses_file(path):
+    return jsonify({"error": "This server doesn't keep the code of the runs' local changes (runs.local_changes): only their summary.", "reason": Reason.LOCAL_CHANGES_NOT_ALLOWED}), 422
+  started = time.monotonic()
   try:
     size = uploads.save_file(Path(directory), path, request.stream, request.content_length, sha256=request.headers.get('X-Content-SHA256'), offset=offset)
   except uploads.UploadError as e:
     return jsonify({"error": str(e), "reason": e.reason, **e.details}), e.status
+  print(f"[uploads] output {output_id}: {path}, {request.content_length} bytes in {time.monotonic() - started:.1f}s", flush=True)
   return jsonify({"path": path, "size": size})
 
 
@@ -448,8 +542,20 @@ def get_output_manifest(output_id):
     return jsonify({"error": f"Cannot find output {output_id}"}), 404
   if not is_authorized_user(None, output.batch.ci_commit.project_id):
     return forbidden_project(output.batch.ci_commit.project_id)
+  refresh = request.args.get('refresh')
+  # rewriting it (without hashes) changes the run's files: signed-in users only
+  if refresh and (g.get('actor') is None or g.actor.user is None):
+    return unauthenticated()
   manifest_path = output.output_dir / "manifest.outputs.json"
-  if output.is_running or request.args.get('refresh') or not manifest_path.exists():
+  # uploaded runs that ended sent their manifest, with hashes: it stays as they sent it
+  uploaded_and_done = (output.data or {}).get('uploads_files') and not output.is_running
+  if uploaded_and_done and not manifest_path.exists():
+    try:
+      check_storage_path(output.output_dir)
+    except UnsafePathError as e:
+      return jsonify({"error": f"{e}"}), 400
+    return jsonify(outputs_manifest(output.output_dir, output.batch.ci_commit.project.data.get('qatools_config', {}), compute_hashes=False))
+  if not uploaded_and_done and (output.is_running or refresh or not manifest_path.exists()):
     try:
       manifest = output.update_manifest(compute_hashes=False)
     except UnsafePathError as e:
@@ -570,6 +676,10 @@ def new_output_webhook():
                                          extra_parameters=data['extra_parameters'],
                                          test_input=test_input,
                                         )
+  # the run is found by what anyone can say about it: without a token, no one replaces a run that sent its files
+  if not submitted_by and (output.data or {}).get('uploads_files'):
+    db_session.rollback()
+    return jsonify({"error": "This run's files were sent to the server with a token: send it with a token too.", "reason": "ingest_token_required"}), 403
   output.output_type = data.get('input_type', '')
   if uploads_files:
     starts = bool(data.get('is_running') and not data.get('keep_previous'))
@@ -595,7 +705,7 @@ def new_output_webhook():
   if not output.data:
     output.data = {}
   if "data" in data: # e.g. storage, job_options, batch name
-    output.data.update({k: v for k, v in data['data'].items() if k not in SERVER_KEYS})
+    update_run_data(output, data['data'])
     # The `qa batch` command that started the run: the first one when they are nested, e.g. in pipelines.
     # Older clients only send the command of their own `qa batch`. Used to know when batches end (backend/notifications/)
     job_options = data['data'].get('job_options') if isinstance(data['data'].get('job_options'), dict) else {}
@@ -667,7 +777,8 @@ def new_output_webhook():
     except Exception as e:
       db_session.rollback()
       print(f"WARNING: could not save the metrics definitions of a run of {hexsha}: {e}")
-  return jsonify(output.to_dict())
+  # the most the run may record of its local changes: runs in a storage shared with us don't write more
+  return jsonify({**output.to_dict(), "local_changes_level": local_changes.level()})
 
 
 

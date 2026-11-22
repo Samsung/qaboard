@@ -3,6 +3,7 @@
     add_header "Access-Control-Allow-Origin"  * always;
     # users' HTML files under /s/, see conf.d/qaboard-files.conf
     add_header "Content-Security-Policy" $qaboard_files_csp always;
+    add_header "X-Content-Type-Options" $qaboard_files_nosniff always;
   }
   # Preflighted requests
   if ($request_method = OPTIONS ) {

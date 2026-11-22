@@ -35,7 +35,7 @@ export const list_title = ({ project, branch, committer }) => join_title(branch 
 export const history_title = ({ project, branch }) => join_title(branch ? `History of ${branch}` : 'History', project_name(project))
 
 // The views that are destinations: people open them in their own tab, so the tab says so (after the subject)
-const sections = [['logs', 'Logs'], ['optimization', 'Tuning Analysis'], ['tuning', 'Run Tests / Tuning'], ['groups', 'Available Tests']]
+const sections = [['logs', 'Logs'], ['optimization', 'Tuning Analysis'], ['tuning', 'Run Tests / Tuning'], ['groups', 'Available Tests'], ['local-changes', 'Local changes']]
 
 export const short_id = commit_id => (commit_id ?? '').slice(0, 8)
 

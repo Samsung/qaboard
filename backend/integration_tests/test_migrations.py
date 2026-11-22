@@ -197,3 +197,13 @@ def test_redundant_commits_index_is_dropped(alembic):
   alembic('stamp', 'a3c5e7f9b1d4')
   alembic('upgrade', 'head')
   assert 'ix_ci_commits_project_id' not in commits_indexes()
+
+
+def test_audit_events_are_indexed_by_project(alembic):
+  def audit_indexes():
+    return {r[0] for r in sql("SELECT indexname FROM pg_indexes WHERE tablename = 'audit_events'")}
+  assert 'ix_audit_events_project' in audit_indexes()
+  alembic('downgrade', 'f4b6d8a0c2e4')
+  assert 'ix_audit_events_project' not in audit_indexes()
+  alembic('upgrade', 'head')
+  assert 'ix_audit_events_project' in audit_indexes()

@@ -65,12 +65,16 @@ Click a run to open it. Above its log, its input path and full configuration: ho
 - the buttons on the right wrap lines, make the log taller, copy it, download it, or open the raw file;
 - when a run has several logs, switch between them at the top left: *log.txt*, and *log.lsf.txt* or *log.dask.txt*
   when the run used LSF or Dask. When the run was [done again](/docs/user-guide/commit-page#run-cards), the logs of
-  its earlier attempts are there too, *log.attempt2.txt*, *log.attempt1.txt*: often the only place that says why an
-  attempt failed.
+  its earlier attempts are there too, *log.attempt2.txt*, *log.attempt1.txt*, with their runners' logs,
+  *log.attempt1.lsf.txt*: often the only place that says why an attempt failed, e.g. LSF's report of a job it
+  killed because it used too much memory.
+
+Open a run's logs to see what it used of its machine: *6.8 GiB peak memory · 1.0 core · GPU 0: 87% · 21 GiB / 40 GiB*.
+Hover it for the details, and click **Plot** to see them over time ([memory, CPU and GPUs](/docs/system-metrics)).
 
 Each run's line says how long it ran, and has buttons to copy the path of its output directory, open it in the
 [file browser](/docs/user-guide/files), and a **⋯** menu: its input's **History**, its batch, input path and database
-(click to copy), who ran it, its compute time, date and storage, and the actions to redo, mark as failed or delete
+(click to copy), who ran it, its compute time, date, storage, peak memory and GPUs, and the actions to redo, mark as failed or delete
 the run. Hover the run's name to see the same, without the actions, like on the
 [run cards](/docs/user-guide/commit-page#run-cards). When the runs come from several batches or databases, their names
 start with them.
@@ -159,7 +163,7 @@ They are listed with the other [commands that started the batch](#batch-commands
 At the top of the Logs view, **Commands** lists the `qa batch` (and `qa optimize`) commands that started the batch,
 the latest first, wherever they ran (**Show N older** for more than four). Each one says where it comes from:
 *from QA-Board* (with its status: **Queued**, **Running**, **Failed**, **Done**, **Stopped**), **Terminal**
-(`qa --share batch`) or **CI**, who started it and when, on which host or where it runs (e.g. an LSF job, a
+(`qa batch`) or **CI**, who started it and when, on which host or where it runs (e.g. an LSF job, a
 Kubernetes job, or the QA-Board server itself), and the batch files its batches come from. The buttons next to
 **Commands** copy the path of the batch's directory, or open it.
 
@@ -175,7 +179,7 @@ QA-Board also show where their batches are defined, linked to your git server at
 with the script QA-Board ran and its logs. On the right, where the logs of a command are:
 
 - **Logs in the CI job**: a link to the CI job that ran it.
-- **Show its logs**: QA-Board has them. The command was started from a terminal with `qa --share batch` (or
+- **Show its logs**: QA-Board has them. The command was started from a terminal with `qa batch` (or
   `qa optimize`), which saves what it prints; or from QA-Board; or it's an older batch that logged in its directory's
   *log.txt*, shown as **Batch logs**.
 - **Logs not saved**: for instance, it was started from a terminal by an older version of `qaboard`, which only
@@ -236,9 +240,11 @@ Each run writes its logs in its output directory:
 - *log.dask.txt*: with the [Dask runner](/docs/dask-integration).
 - *log.attempt1.txt*, *log.attempt2.txt*...: the *log.txt* of the earlier attempts of a shared or CI run that was
   [done again](/docs/storage/where-is-the-data#reruns), the last 10.
+- *log.attempt1.lsf.txt*...: the runners' logs of those earlier attempts, their *log.lsf.txt*, *log.dask.txt*,
+  *log.k8s.txt* or *log.pending.txt*.
 
-Batches started from a terminal with `qa --share batch` save what `qa batch` prints in the batch directory, under
-*qa-batch-logs/* (see [`qa --share`](/docs/using-the-qa-cli#qa---share)). In the CI, the CI job keeps them.
+Batches started from a terminal with `qa batch` save what `qa batch` prints in the batch directory, under
+*qa-batch-logs/* (see [shared results](/docs/using-the-qa-cli#qa---share)). In the CI, the CI job keeps them.
 
 </details>
 

@@ -150,9 +150,9 @@ def qa_init(ctx):
       if not reference_branch or reference_branch == '(unknown)': # e.g. an empty remote
         raise ValueError(reference_branch)
     except Exception:
-      click.secho('Warning: Could not find the remote HEAD, using master as reference branch', fg='yellow')
+      click.secho('Warning: Could not find the remote HEAD, using main as reference branch', fg='yellow')
       click.secho('         If your main branch is another one, change project.reference_branch in qaboard.yaml', fg='yellow')
-      reference_branch = 'master'
+      reference_branch = 'main'
     print(f"reference_branch: {reference_branch}")
 
     config = Path('qaboard.yaml')

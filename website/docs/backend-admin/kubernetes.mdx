@@ -43,7 +43,7 @@ export QABOARD_URL=http://localhost:5151
 storage: /tmp/qaboard
 ```
 
-Then run `qa --share batch ...` (or `qa batch` in CI) in your project, and open the link it prints.
+Then run `qa batch ...` (or `qa batch` in CI) in your project, and open the link it prints.
 
 :::tip
 `/tmp/qaboard` works on Linux and macOS without `sudo`, but your system may clean `/tmp`. To keep results elsewhere, change the path in `kind.yaml` (both `hostPath` and `containerPath`), in `quickstart.yaml` (`results.mountPath` and `results.hostPath.path`), and in your `qaboard.yaml`. Create the folder before the cluster: otherwise docker creates it, owned by `root`.
@@ -154,10 +154,9 @@ Name your first admins in `config.QABOARD_ADMINS` ([user management](./managing-
 `QABOARD_LOGIN_REQUIRED` blocks anonymous users. To restrict who can read the files of some projects, see [user management](./managing-users.mdx#restricting-who-can-read-files) and `proxy.restrictFiles`.
 
 :::danger Keep QA-Board on a trusted network
-By default (`ingest.auth` is `off`), the API that `qa` uses to save results accepts results without a token, even when
-sign-in is required: anyone who can reach the server can create or delete results, and make the server act on files
-in its storage. Require tokens once your CI jobs have them ([results sent by qa](./managing-users.mdx#results-sent-by-qa)),
-and only expose QA-Board to networks you trust (an internal load balancer, a VPN, an allowlist on the ingress). See the
+The API that `qa` uses to save results requires a token by default. If you set `ingest.auth` to `off` or `warn`
+([results sent by qa](./managing-users.mdx#results-sent-by-qa)), anyone who can reach the server can create or
+replace results, and make the server act on files in its storage. Either way, only expose QA-Board to networks you trust (an internal load balancer, a VPN, an allowlist on the ingress). See the
 [known issues](https://github.com/Samsung/qaboard/blob/master/SECURITY.md#known-issues) in *SECURITY.md*.
 :::
 

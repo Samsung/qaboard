@@ -7,7 +7,7 @@ in a storage this machine doesn't see). Fetched once per run and attempt into a 
 The cache is under $XDG_CACHE_HOME/qaboard, else ~/.cache/qaboard. `<key>` names a run's attempt: the server, the
 run's folder, id and when it finished, so a run done again is fetched again. Nothing is removed from it.
 
-Next (docs/design/ingest-upload-sdk.md §3 item 1): `qaboard.local_path("qaboard://<run>/...")`, a run's file as a
+Next (docs/design/ingest-upload-sdk.md §3 item 10): `qaboard.local_path("qaboard://<run>/...")`, a run's file as a
 local path, downloaded here once, keyed by its manifest's hash.
 """
 import hashlib

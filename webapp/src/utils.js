@@ -75,8 +75,11 @@ const groupByObject = (array, prop) => {
   }, {});
 };
 
+// Runs outside a git repository are attached to a commit of their own, "<local:user>" (qaboard/config.py)
+export const is_placeholder_commit = id => typeof id === 'string' && id.startsWith('<');
+
 const shortId = (project, id) => {
-  return id.substring(0, 8);
+  return is_placeholder_commit(id) ? id : id.substring(0, 8);
 };
 
 const pretty_label = batch => {
@@ -133,6 +136,16 @@ const match_query = pattern => {
   }
 }
 
+// Runs that recorded their local changes (docs/rfcs/local-changes.md): changes:local (uncommitted changes), changes:none,
+// changes:unknown (git couldn't tell)
+const changes_keyword = output => {
+  const changes = output.data?.local_changes;
+  const dirty = changes ? changes.dirty : output.data?.dirty;
+  if (dirty === true) return ' changes:local';
+  if (dirty === false) return ' changes:none';
+  return changes ? ' changes:unknown' : '';
+};
+
 const filter_batch = (batch, filter_values) => {
   if (filter_values === undefined || filter_values === null || filter_values.length === 0)
     return {
@@ -160,7 +173,7 @@ const filter_batch = (batch, filter_values) => {
     let failed = output.is_failed ? 'fail crash status:failed' : '';
     let pending = output.is_pending ? 'pending running' : ''
     let status = !output.is_failed && !output.is_pending && !output.is_running ? 'status:success' : '';
-    let searched = `${output.test_input_path} ${output.configurations_str} ${metadata} ${JSON.stringify(output.params)} ${output.data?.batch} ${failed} ${pending} ${status} ${output.platform} id:${id}`;
+    let searched = `${output.test_input_path} ${output.configurations_str} ${metadata} ${JSON.stringify(output.params)} ${output.data?.batch} ${failed} ${pending} ${status} ${output.platform} id:${id}${changes_keyword(output)}`;
     // console.log(searched)
     if (matcher(searched)) {
       filtered.outputs.push(id);

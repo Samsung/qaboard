@@ -25,7 +25,28 @@ class TestNginxSnippets(unittest.TestCase):
         self.assertIn(f"location = {uri} ", server, (snippet.name, uri))
         self.assertIn("if ($qaboard_files_server_included != 1) {", text, snippet.name)
         checked.append(snippet.name)
-    self.assertLessEqual({"qaboard-uploads-auth.conf", "qaboard-files-auth.conf", "qaboard-admins-only.conf"}, set(checked))
+    self.assertLessEqual({"qaboard-uploads-auth.conf", "qaboard-files-auth.conf", "qaboard-iiif-auth.conf", "qaboard-admins-only.conf"}, set(checked))
+
+  def test_files_and_images_are_checked_by_default(self):
+    """Private projects' files under /s/, and their images under /iiif/ (the image server reads the same files)"""
+    root = SNIPPETS.parent.parent.parent
+    for conf in (SNIPPETS.parent / "conf.d" / "qaboard.conf", root / "charts" / "qaboard" / "files" / "qaboard.conf"):
+      text = conf.read_text()
+      for location, snippet in (("location ^~ /s/ {", "include snippets/qaboard-files-auth.conf;"), ("location /iiif/ {", "include snippets/qaboard-iiif-auth.conf;")):
+        block = text[text.index(location):text.index("\n  }", text.index(location))]
+        self.assertIn(snippet, block, (conf, location))
+    self.assertIn("restrictFiles: true", (root / "charts" / "qaboard" / "values.yaml").read_text())
+
+  def test_image_checks_are_cached_per_image_and_credentials(self):
+    server = (SNIPPETS / "qaboard-files-server.conf").read_text()
+    check = server[server.index("location = /__qaboard/iiif-auth {"):]
+    check = check[:check.index("\n}")]
+    self.assertIn('uwsgi_cache_key "$qaboard_iiif_identifier|$http_authorization|$http_cookie";', check)
+    files = (SNIPPETS.parent / "conf.d" / "qaboard-files.conf").read_text()
+    regex = re.search(r'map \$request_uri \$qaboard_iiif_identifier \{[^}]*"~(\^/iiif/[^"]*)"', files).group(1)
+    regex = regex.replace("(?<", "(?P<")
+    self.assertEqual(re.match(regex, "/iiif/2/mnt%2Fa%2Fb.png/full/max/0/default.jpg").group("identifier"), "mnt%2Fa%2Fb.png")
+    self.assertEqual(re.match(regex, "/iiif/3/mnt%2Fb.png?x=1").group("identifier"), "mnt%2Fb.png")
 
   def test_the_backend_knows_nginx_checked_the_token(self):
     """The backend's yes reaches the endpoints that receive files (uploads.unchecked_by_proxy)"""
@@ -37,6 +58,31 @@ class TestNginxSnippets(unittest.TestCase):
   def test_the_header_name_is_the_backends(self):
     uploads = Path(__file__).parent.parent / "backend" / "backend" / "uploads.py"
     self.assertIn(f"PROXY_CHECKED_HEADER = '{PROXY_CHECKED_HEADER}'", uploads.read_text())
+
+  def test_files_being_received_arent_served(self):
+    files = (SNIPPETS / "qaboard-files.conf").read_text()
+    self.assertIn('if ($uri ~ "/\\.qaboard-upload-") {\n  return 404;', files)
+    # before anything else can answer
+    self.assertLess(files.index('qaboard-upload-'), files.index('include cors;'))
+    uploads = Path(__file__).parent.parent / "backend" / "backend" / "uploads.py"
+    self.assertIn("TEMPORARY_PREFIX = '.qaboard-upload-'", uploads.read_text())
+
+  def test_files_are_served_with_nosniff(self):
+    """add_header in an "if" drops the others: every block that sets the files' CSP sets nosniff too"""
+    nginx = SNIPPETS.parent
+    for text in ((nginx / "cors").read_text(), (SNIPPETS / "qaboard-files.conf").read_text()):
+      self.assertEqual(text.count('$qaboard_files_csp always;'), text.count('add_header "X-Content-Type-Options" $qaboard_files_nosniff always;'))
+    self.assertIn("map $uri $qaboard_files_nosniff {", (nginx / "conf.d" / "qaboard-files.conf").read_text())
+
+  def test_xml_files_are_sandboxed(self):
+    csp = (SNIPPETS.parent / "conf.d" / "qaboard-files.conf").read_text()
+    pattern = re.findall(r'^\s*"(~\*\^on[^"]*)"', csp, re.M)
+    self.assertEqual(len(pattern), 2)
+    for regex in pattern:
+      for content_type in ("text/html", "application/xhtml+xml", "image/svg+xml", "text/xml", "application/xml", "text/xsl", "application/rss+xml", "text/xml; charset=utf-8"):
+        self.assertTrue(re.search(regex[2:], f"on|iframe|/s/a/b|{content_type}", re.I), (regex, content_type))
+      for content_type in ("application/pdf", "image/png", "text/plain", "application/json"):
+        self.assertFalse(re.search(regex[2:], f"on|iframe|/s/a/b|{content_type}", re.I), (regex, content_type))
 
 
 if __name__ == '__main__':

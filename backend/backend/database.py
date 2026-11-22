@@ -70,4 +70,8 @@ db_session = scoped_session(
     scopefunc=getcurrent
 )
 Base = declarative_base() # prints (no name)
+
+# QABOARD_AUDIT_STDOUT: audit events are also printed once committed
+from .audit import install_stdout
+install_stdout()
 Base.query = db_session.query_property()

@@ -1,0 +1,32 @@
+/* The changes dialog (LocalChangesDialog.jsx): lines the patch adds and removes, tinted in both themes */
+.qa-diff-inserted { background: color-mix(in srgb, var(--qa-text-success, #1c6e42) 16%, transparent); }
+.qa-diff-deleted { background: color-mix(in srgb, var(--qa-text-danger, #ac2f33) 16%, transparent); }
+.qa-diff-file { background: color-mix(in srgb, currentColor 10%, transparent); font-weight: 600; }
+
+.local-changes-dialog .local-changes-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0 0 10px;
+}
+.local-changes-dialog .local-changes-facts dt { display: inline; font-weight: 600; margin-right: 4px; }
+.local-changes-dialog .local-changes-facts dd { display: inline; margin: 0; }
+.local-changes-dialog .local-changes-get {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.local-changes-dialog .local-changes-get code { flex: 0 1 auto; margin: 0; }
+.local-changes-dialog .bp6-dialog-footer-actions { flex-wrap: wrap; gap: 6px; }
+.local-changes-dialog .bp6-dialog-footer-actions .bp6-button { margin-left: 0; }
+.local-changes-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.local-changes-table-wrapper { overflow-x: auto; max-width: 100%; }

@@ -16,6 +16,8 @@ PERMISSIONS = {
   # redo, stop, rename, move or delete batches and runs, start tuning, export, save artifacts
   'runs.act': ('developer', 'act'),
   'milestones.write': ('developer', 'act'),
+  # who ran, deleted or changed what in the project (api/audit_log.py)
+  'project.history': ('developer', 'read'),
   # visibility, members, access requests
   'project.access': ('owner', 'act'),
 }

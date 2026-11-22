@@ -54,7 +54,7 @@ runs, or when getting a GPU node is the slow part, each pod can do several runs.
    It checks your kubeconfig, your permissions in the namespace, the image pull secrets and the claims, then starts a
    pod that checks the mounts and `qa` as the user your runs will use. See [qa doctor](/docs/doctor).
 
-4. **Run a batch**: `qa --share batch ci`. Each run is a pod; `qa batch` prints their progress, and why pods wait.
+4. **Run a batch**: `qa batch ci`. Each run is a pod; `qa batch` prints their progress, and why pods wait.
    With `--no-wait`, it returns once the Jobs are created.
 
 Or keep another default runner, and choose Kubernetes for one command: `qa batch --runner kubernetes ci`.
@@ -76,7 +76,7 @@ runners:
 ```yaml title="CI job"
 - docker build -t registry.example.com/algo/qa:$CI_COMMIT_SHA .   # with qa, your code at /src, and its dependencies
 - docker push registry.example.com/algo/qa:$CI_COMMIT_SHA
-- qa --share batch ci --runner kubernetes
+- qa batch ci --runner kubernetes
 ```
 
 - `qa batch` replaces `{commit}` with the commit it runs on, then asks the image's registry whether it has it: if

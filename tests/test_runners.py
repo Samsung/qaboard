@@ -10,6 +10,8 @@ import tempfile
 import unittest
 import subprocess
 from pathlib import Path
+import io
+from contextlib import redirect_stdout
 from unittest import mock
 
 
@@ -405,6 +407,23 @@ class TestJobGroups(unittest.TestCase):
     self.assertEqual(notify.call_args.kwargs['output_dir'], killed.run_context.output_dir)
     self.assertEqual((notify.call_args.kwargs['is_pending'], notify.call_args.kwargs['is_failed']), (False, True))
 
+  def test_pending_runs_that_send_their_files_are_failed(self):
+    """A run that sends its files to the server writes metrics.json before it sends them: killed meanwhile, it's failed"""
+    import json
+    from qaboard.api import dir_to_url
+    from qaboard.runners import JobGroup
+    from qaboard.runners.lsf import LsfRunner
+    killed, = make_jobs('lsf', ['a'], self.root.resolve(), queue='q')
+    killed.run_context.output_dir.mkdir()
+    (killed.run_context.output_dir / 'metrics.json').write_text(json.dumps({"is_failed": False}))
+    outputs = {1: {"output_dir_url": dir_to_url(killed.run_context.output_dir), "is_pending": True, "is_failed": False}}
+    group = JobGroup(jobs=[killed], job_options={"type": "lsf", "command_id": "abcdefgh-1234", "queue": "q"})
+    with mock.patch.object(LsfRunner, 'start_groups'), mock.patch('qaboard.config.uploads_files', True), \
+         mock.patch('qaboard.runners.job.get_outputs', return_value=outputs), \
+         mock.patch('qaboard.runners.job.notify_qa_database') as notify, redirect_stdout(io.StringIO()) as stdout:
+      self.assertTrue(group.start(blocking=True, qa_context={"share": True}))
+    self.assertEqual((notify.call_args.kwargs['is_pending'], notify.call_args.kwargs['is_failed']), (False, True))
+    self.assertIn('may not have all its files', stdout.getvalue())
 
   def test_runs_are_found_by_their_id_when_they_moved(self):
     """A run that is done again gets a new directory: if its `qa run` didn't use the one `qa batch` expected

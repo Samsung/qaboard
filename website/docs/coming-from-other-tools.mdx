@@ -57,7 +57,7 @@ model on a slice of your test set:
 
 3. **Pick the runner** that sends the runs where your tool sent them: the sections below.
 
-4. **Run it**: `qa --share batch ci`. The 8 runs execute on your compute, and `qa` prints the link to their results.
+4. **Run it**: `qa batch ci`. The 8 runs execute on your compute, and `qa` prints the link to their results.
 
 `qa init` creates *qaboard.yaml* and *qa/*: see [Set up a project](/docs/project-init), and
 [Run your code](/docs/running-your-code) for `run()`.
@@ -136,7 +136,7 @@ jobs with `wandb launch -j <job> -q <queue> -c config.json`.
 | The queue | The runner, its `namespace`, and a Kueue `queue` |
 | The agent's `max_jobs` | `concurrency` |
 | `resource_args` in a launch config | [Runner settings per batch](/docs/batches-running-on-multiple-inputs#runner-settings-per-batch) |
-| `wandb launch -q <queue>` | `qa --share batch <batch>`, or **Run Tests / Tuning** in the web app |
+| `wandb launch -q <queue>` | `qa batch <batch>`, or **Run Tests / Tuning** in the web app |
 | Sweeps | Batches with a `matrix`, tuning from the web app, `qa optimize` |
 
 **What differs:** there is no agent. `qa batch` creates the Jobs with your kubeconfig, so users need

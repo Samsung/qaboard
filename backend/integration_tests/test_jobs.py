@@ -147,8 +147,8 @@ def test_hard_delete_keeps_milestones(admin, world):
   from backend.models import Output, Milestone, Project
   saved = world.batch('proj', hexsha='b' * 40, label='saved')
   in_milestone = world.run(saved)
-  # qaboard.yaml protects the latest commit of the reference branch
-  reference = world.batch('proj', hexsha='c' * 40, branch='master')
+  # the latest commit of the reference branch is protected: main, without project.reference_branch
+  reference = world.batch('proj', hexsha='c' * 40, branch='main')
   on_reference = world.run(reference)
   other = world.run(world.batch('proj', hexsha='b' * 40, label='other'))
   world.db.add(Milestone(project_id='proj', commit_hexsha='b' * 8, batch='saved', label='best so far'))
@@ -761,8 +761,8 @@ def test_delete_artifacts(admin, world, storage):
   gone, _ = artifacts(world, storage, '2' * 40, files=False)
   milestone, milestone_dir = artifacts(world, storage, '3' * 40)
   world.db.add(Milestone(project_id='proj', commit_hexsha='3' * 40, batch='default'))
-  reference, reference_dir = artifacts(world, storage, '4' * 40, branch='master')
-  older_reference, older_reference_dir = artifacts(world, storage, '5' * 40, branch='master', days=200)
+  reference, reference_dir = artifacts(world, storage, '4' * 40, branch='main')
+  older_reference, older_reference_dir = artifacts(world, storage, '5' * 40, branch='main', days=200)
   recent, recent_dir = artifacts(world, storage, '6' * 40, latest=datetime.datetime.now(datetime.timezone.utc))
   busy, busy_dir = artifacts(world, storage, '7' * 40)
   world.run(world.batch('proj', hexsha='7' * 40), deleted=False, pending=True)

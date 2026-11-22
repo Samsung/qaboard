@@ -21,7 +21,8 @@ are already files.
 Before you start, you need a QA-Board server that takes files: one that [accepts uploads](/docs/storage/uploads), or
 a [storage shared with it](/docs/storage/where-is-the-data). In a project that keeps a shared storage, `qa upload` saves
 the files there where it is mounted, and sends them to the server where it isn't, e.g. on GitHub-hosted runners. The server asks who sends files: a token in the job's
-`QABOARD_TOKEN` variable ([create one](/docs/ci-integration#tokens)), or a job that
+`QABOARD_TOKEN` variable ([create one](/docs/user-guide/account#access-tokens), with the `read` and `ingest`
+scopes; [for CI](/docs/ci-integration#tokens)), or a job that
 [signs in as itself](/docs/ci-integration#ci-without-secrets), once a service account trusts the repository.
 
 1. **Write the report** with your test runner, as you may already do:
@@ -35,7 +36,7 @@ the files there where it is mounted, and sends them to the server where it isn't
    ```bash
    pip install qaboard
    export QABOARD_URL=https://qaboard.example.com
-   export QABOARD_TOKEN=<a token with the ingest scope>   # or, on your machine: qa auth login
+   export QABOARD_TOKEN=<a token with the read and ingest scopes>   # or, on your machine: qa auth login
    qa upload junit.xml
    ```
 
@@ -80,7 +81,8 @@ qa upload --input codec junit.xml pytest.benchmarks.json cpu.folded build/covera
   shows the first four files of each kind; the others are in **Output Files**.
 - **In a folder**, hidden folders (*.git*, *.venv*) are left out, and so is *output/*, where `qa` keeps a copy of
   the runs it shares from this computer.
-- **Some names are QA-Board's own** in every run: *metrics.json*, *run.json*, *manifest.outputs.json*. Give metrics
+- **Some names are QA-Board's own** in every run: *metrics.json*, *metrics_definitions.json*, *run.json*,
+  *manifest.outputs.json*, *manifest.inputs.json*, *series.json* and *series.jsonl*. Give metrics
   with `--metrics`, and save other files under another name with `--as`. A *log.txt* of yours is the run's log.
 - **A test report under another name** is saved as any file: `qa` tells you, and `--as junit.xml` fixes it.
 
@@ -92,7 +94,7 @@ input and configurations are compared from a commit to the next, and with the re
 |---|---|---|
 | What was tested: the input | `--input codec` | In a CI job: the job's name, then the file's name without its extension (`unit-tests/junit`), or the job's name alone with several paths. Elsewhere: the file's name without its extension. In a GitHub matrix, give each job its own, e.g. `--input unit-tests-${{ matrix.os }}`: jobs of a matrix have the same name |
 | How: the configurations | `qa -c O3 -c '{"threads": 4}' upload ...` | None |
-| The batch, in the web app | `qa --label nightly upload ...` | `default`: the CI's results. Outside the CI, your own batch, like `qa --share` |
+| The batch, in the web app | `qa --label nightly upload ...` | `default`: the CI's results. Outside the CI, your own batch, like `qa run` |
 | The group of tests, on the run's card | `--batch unit-tests` | None |
 | The project and the commit | `--project group/repo`, `--commit <id>` | The *qaboard.yaml*'s or the CI's repository; the git `HEAD` or the CI's commit |
 
@@ -117,6 +119,8 @@ jobs:
       contents: read
     env:
       QABOARD_URL: https://qaboard.example.com
+      # until a service account trusts the repository, a token saved as a secret:
+      # QABOARD_TOKEN: ${{ secrets.QABOARD_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - run: pip install qaboard pytest

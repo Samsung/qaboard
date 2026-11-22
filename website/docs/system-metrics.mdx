@@ -1,0 +1,86 @@
+---
+id: system-metrics
+title: Memory, CPU and GPUs
+sidebar_label: Memory, CPU and GPUs
+description: "See how much memory, CPU and GPU each run used: qa run and qaboard.start_run() measure it while the run goes on, QA-Board keeps the peaks, and run cards plot it from system.series.json."
+---
+
+See how much memory, CPU and GPU each run used: its peak memory, to ask the cluster for the right amount; how busy
+its GPUs were, to spot a training waiting on its data. `qa run` and `qaboard.start_run()` measure it while the run
+goes on, with nothing to set up.
+
+## See what a run used {#see}
+- **In Logs**, when you open a run's logs: *6.8 GiB peak memory · 1.0 core · GPU 0: 87% · 21 GiB / 40 GiB*. Hover it for
+  the details: the machine and the cores the job was given, the peak of the biggest process, the cgroup's limit, and
+  whether the kernel killed some of its processes because it ran out of memory.
+  Click **Plot** next to it to see its memory, CPU and GPUs over time.
+- **In the run's ⋯ menu** (*Run Info*): its peak memory, and each GPU it used.
+- **When a run was done again**, hover its **attempt 2** tag: each earlier attempt says its peak memory. A run its
+  scheduler killed because it used too much memory says what it used until it was killed.
+
+## Plot it {#plot}
+The samples are saved in the run's folder, in *system.series.json*: memory, CPU and, for each GPU, its utilization,
+memory, temperature and power, every 5 seconds. Every run plots them in **Logs** (**Plot**), and runs from
+[`start_run()`](/docs/log-from-code) on their card too, as **System metrics**. To show them on the cards of `qa run`'s
+runs, add the file to your visualizations:
+
+```yaml title="qaboard.yaml"
+outputs:
+  visualizations:
+    - name: System metrics
+      path: system.series.json
+      type: series
+      default_hidden: true   # people show it with the view options
+```
+
+The plots work like [logged series](/docs/user-guide/other-viewers#logged-series): compared with the reference
+run's, smoothed, by step or by time. The file stays small, about 1000 points per series whatever the length of the
+run, and [bit-accuracy checks](/docs/bit-accuracy) ignore it.
+
+## Turn it off {#off}
+```yaml title="qaboard.yaml"
+outputs:
+  system_metrics: false
+```
+`QA_SYSTEM_METRICS=0` turns it off too, e.g. for one CI job, and `QA_SYSTEM_METRICS=1` back on.
+`QA_SYSTEM_METRICS_INTERVAL=1` samples every second instead of every 5 (half a second at least).
+
+Check bit accuracy with this version of `qa` or a later one: older ones don't know they should ignore
+*system.series.json*, and find it differs between runs.
+
+<details>
+<summary>What is measured, and how</summary>
+
+| | What | Notes |
+|---|---|---|
+| **Memory** | The resident memory (RSS) of the run's processes, its own and its subprocesses', summed, like LSF counts it. | Pages that forked workers share, like PyTorch's DataLoader workers, count for each. Samples miss spikes shorter than the interval: the exact peak of the biggest process is measured too, when the run ends. |
+| **cgroup memory** | When the run has a cgroup of its own (a Kubernetes pod, an LSF or Slurm job with cgroups): its peak and limit, what the kernel kills the job for, and how many processes it killed. | The peak counts the files' cache: reading large images raises it. The working set, also shown, doesn't. |
+| **CPU** | How many cores the run's processes used: 1.0 is one core busy. Its peak between samples, and its average over the run. | Next to the cores the job was given, when the scheduler pins them. |
+| **GPUs** | Utilization, memory, temperature and power of the GPUs the run may use, and the GPU memory of the run's own processes. | With [NVML](https://pypi.org/project/nvidia-ml-py/) if installed (`pip install nvidia-ml-py`), else `nvidia-smi`. |
+
+Sizes are binary, like LSF, Slurm and `nvidia-smi` count them: 1 GiB is 1024 MiB.
+
+**Which GPUs are the run's**: those in `CUDA_VISIBLE_DEVICES`, which LSF and Slurm set for GPU jobs; without it, in a
+container (Kubernetes, Docker), all those it sees; else, and for MIG instances, those its processes use. Other runs
+may share a GPU: its utilization and memory are everyone's. The run's own memory on it shows when QA-Board sees its
+processes, which it doesn't in a container: then the GPU's memory is shown.
+`CUDA_VISIBLE_DEVICES` counts GPUs the fastest first unless `CUDA_DEVICE_ORDER=PCI_BUS_ID`, while drivers count them
+by their place on the bus: on machines with different GPU models, the run may be shown another GPU than its own.
+
+**What GPU utilization means**: the share of the time a kernel ran, like `nvidia-smi` and Weights & Biases report
+it, not how busy the GPU's cores were. GPU memory is what your framework reserved, e.g. PyTorch's cache, plus about
+half a gigabyte for CUDA, not what tensors use (`torch.cuda.max_memory_allocated()`).
+
+**What QA-Board keeps**: a summary, with each heartbeat of `qa run` (every 2 minutes), each progress report of
+`start_run()`, and when the run ends: the peaks, the averages and the last values, a few hundred bytes. The samples
+stay in the run's folder.
+
+**What it costs**: a thread of `qa run` or `start_run()` reads `/proc` every 5 seconds, and runs `nvidia-smi` on
+machines without NVML. It writes *system.series.json* every 30 seconds.
+
+</details>
+
+<Cards>
+  <Card title="LSF integration" to="/docs/lsf-integration" eyebrow="Run batches">Ask for the memory your runs need.</Card>
+  <Card title="Log from your code" to="/docs/log-from-code" eyebrow="Set up a project">Trainings that log their own series.</Card>
+</Cards>

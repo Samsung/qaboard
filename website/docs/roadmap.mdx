@@ -134,20 +134,26 @@ web app like any other, with the curves of what they logged next to the referenc
 </RoadmapItem>
 
 <RoadmapItem status="exploring" title="More to log from code">
-Images per step, system metrics (GPU memory and utilization), sending later the runs logged while the server was
-away, and a pytest plugin that makes a run of a test session.
+Images per step, sending later the runs logged while the server was away, and a pytest plugin that makes a run of
+a test session. What runs use of their machine (memory, CPU, GPUs) is already measured, with nothing to set up
+([memory, CPU and GPUs](/docs/system-metrics)).
 </RoadmapItem>
 
-<RoadmapItem status="exploring" title="A wandb.log shim">
-Mirror your existing `wandb.log` calls to QA-Board, without changing your code.
+<RoadmapItem status="experimental" title="Log with your W&B code">
+Run your script with `python -m qaboard.integrations.wandb train.py`, or add `qaboard.integrations.wandb.mirror()`:
+your `wandb.init()`, `wandb.log()` and summaries also go to QA-Board. Or import QA-Board in place of `wandb`. What
+QA-Board can't keep yet is said once, and listed when the run ends ([log with your W&B code](/docs/from-wandb)).
+</RoadmapItem>
+
+<RoadmapItem status="experimental" title="Log with your MLflow code">
+Set `MLFLOW_TRACKING_URI=qaboard:` and your MLflow code, autolog included, logs to QA-Board; `qaboard+<your MLflow
+URI>` keeps your MLflow server and copies everything to QA-Board ([log with your MLflow code](/docs/from-mlflow)).
+This is a plugin for MLflow's Python client: we're evaluating whether the server should also accept MLflow's REST
+API, for clients in other languages.
 </RoadmapItem>
 
 <RoadmapItem status="exploring" title="Importers">
 Bring past runs from W&B, MLflow or TensorBoard into QA-Board, to compare them with new ones.
-</RoadmapItem>
-
-<RoadmapItem status="exploring" title="MLflow tracking API">
-We're evaluating whether QA-Board should accept MLflow's tracking API, so that MLflow clients can log to it.
 </RoadmapItem>
 
 ## Cloud-native
@@ -223,13 +229,14 @@ Owners choose who can see their projects and act on their runs, from the web app
 requests. Groups follow your directory or your SSO. See [Project access and roles](/docs/backend-admin/project-access).
 </RoadmapItem>
 
-<RoadmapItem status="exploring" title="SCIM provisioning">
-Create and remove users and groups from your identity provider.
+<RoadmapItem status="shipped" title="Audit log">
+Who ran, deleted or changed what, and when: batches started from the web app, deleted and edited runs, sign-ins,
+tokens and admin changes. Projects' members see their project's history, admins export everything or send it to
+their SIEM. See [The audit log](/docs/backend-admin/audit-log).
 </RoadmapItem>
 
-<RoadmapItem status="exploring" title="Audit log">
-Who ran, deleted or changed what, and when. Sign-ins, tokens, admin changes and batch deletions are already in the
-admin panel's audit log.
+<RoadmapItem status="exploring" title="SCIM provisioning">
+Create and remove users and groups from your identity provider.
 </RoadmapItem>
 
 <RoadmapItem status="exploring" title="Retention and quotas in the web app">

@@ -217,6 +217,9 @@ Admins see **Admin** in the user menu: users, sign-in, settings, and the jobs th
 **Check it worked:** sign in with **Sign in**, at the top right, and open **Admin**. Its **Overview** has a security
 checklist of what to look at next. More in [User management](/docs/backend-admin/user-management).
 
+Stuck on a step, or want a hand with the rest? QA-Board's maintainers would love to help: **Admin → Overview → Tell
+them about your team** writes to them ([getting help](/docs/backend-admin/support)).
+
 ## 7. Choose how users sign in {#7-choose-how-users-sign-in}
 <Anchor id="managing-access-rights-and-users" />
 
@@ -255,15 +258,15 @@ pip install qaboard
 export QABOARD_URL=http://qaboard.example.com:5151
 ```
 
-In a project wrapped with `qa`, `qa --share batch <batch>` saves the results and prints a link to them:
+In a project wrapped with `qa`, `qa batch <batch>` saves the results and prints a link to them:
 [Your project on QA-Board](/docs/get-started/tutorial) walks through it. **Check it worked:** the link opens the
 commit page with your runs and their output files.
 
 ## 10. Secure the server {#10-secure-the-server}
 Before you open it to your team:
 - **Serve it over HTTPS** ([below](#using-ssl--hosting-behind-a-reverse-proxy)), with `QABOARD_URL=https://...`.
-- **Require tokens to send results**: by default, anyone who can reach the server can send results. Move
-  `ingest.auth` from `off` to `warn` to `token` once your CI jobs have tokens
+- **Give tokens to whoever sends results**: by default, results need a token (`qa auth login`, and a token for
+  CI jobs). While they don't have one yet, `ingest.auth: warn` accepts anonymous results
   ([results sent by qa](/docs/backend-admin/user-management#results-sent-by-qa)).
 - **Set `QABOARD_WEBHOOK_SECRET`** ([step 4](#4-write-the-env-file-and-the-secrets)), and the same secret in your
   webhooks: without it, anyone can send fake push events.
@@ -273,8 +276,11 @@ Before you open it to your team:
   expose QA-Board to networks you trust.
 - **Keep your users' code out of the server's container**: start the web app's batches on Kubernetes or LSF, not with
   `QABOARD_TUNING_RUNNER=local` or `celery` ([batches from the web app](#start-batches-from-the-web-app)).
-- **Sandbox the runs' HTML files**: by default, the HTML and SVG files of runs run their scripts as whoever opens
-  them. Set `QABOARD_SANDBOX_HTML=true` once your users know ([HTML reports](/docs/viewers#html-reports)).
+- **Keep the runs' HTML files sandboxed** (`QABOARD_SANDBOX_HTML`, on by default): turned off, their scripts run as
+  whoever opens them ([HTML reports](/docs/viewers#html-reports)).
+- **Decide whether the server keeps source code**: runs from people's computers save the patch of their uncommitted
+  changes with their files. `runs.local_changes: summary` keeps only the changed files' names and counts
+  ([local changes](/docs/backend-admin/settings#local-changes)).
 
 The security checklist in **Admin → Overview** checks the sign-in, token and HTTPS settings, and where batches run. *SECURITY.md* lists the
 [known issues](https://github.com/Samsung/qaboard/blob/master/SECURITY.md#known-issues) and their mitigations.
@@ -455,7 +461,7 @@ When a variable is set, it wins, and the page shows it read-only: see [settings 
 | `QABOARD_PROXY_HOSTS` | _none_  | Comma-separated hostnames the web app may load avatars and badges from through the backend, besides your git hosts (`QABOARD_GIT_HOSTS`, `GITLAB_HOST`...), the host of `QABOARD_AVATAR_URL`, and gravatar. Add the hosts of your projects' `project.avatar_url` and `integrations[].src` images |
 | `QABOARD_STORAGE_ROOTS` | */mnt/qaboard* | Folders where your projects store outputs and artifacts, separated by `:` (e.g. `/mnt/qaboard:/mnt/datasets`). The backend refuses results stored elsewhere, and never writes, deletes or runs code outside these folders |
 | `QABOARD_UPLOAD_ROOT` | */mnt/qaboard*, without `QABOARD_STORAGE_ROOTS` | Where the server saves the files runs send over HTTP; `off` refuses them ([accept results over HTTP](/docs/backend-admin/uploads#enable)) |
-| `QABOARD_SANDBOX_HTML` | _off_ | `true`: the runs' HTML and SVG files can't act as whoever opens them, their scripts run sandboxed. Set it for the backend and the proxy. See [HTML reports](/docs/viewers#html-reports) |
+| `QABOARD_SANDBOX_HTML` | `true` | The runs' HTML, SVG and XML files can't act as whoever opens them, their scripts run sandboxed. `false` turns it off: set it for the backend and the proxy. See [HTML reports](/docs/viewers#html-reports) |
 | `QABOARD_FILES_UNIX_PERMISSIONS` | _none_ | Folders, separated by `:` (e.g. `/home`), where users only read the files under `/s/` that their Unix account can read. See [user management](/docs/backend-admin/user-management#unix-permissions) |
 | `QABOARD_ACCOUNTS_COMMAND` | _none_ | Command printing the users' accounts like `/etc/passwd` (e.g. `ssh host getent passwd`), for file owners and Unix permissions, when you can't mount a complete `/etc/passwd`. See [users' accounts](/docs/backend-admin/user-management#users-accounts) |
 | `QABOARD_GROUPS_COMMAND` | _none_ | Same for the groups, like `/etc/group` |
@@ -511,7 +517,7 @@ When a variable is set, it wins, and the page shows it read-only: see [settings 
 
 
 ### Emails
-QA-Board can email users when the batches they start end, from the web app or with `qa --share batch` ([what users get](/docs/user-guide/running-from-the-webapp#emails-when-batches-end)). Once the backend has an SMTP server, everyone gets them, except in CI. Users turn them off in the terminal with `QA_NOTIFY=none`.
+QA-Board can email users when the batches they start end, from the web app or with `qa batch` ([what users get](/docs/user-guide/running-from-the-webapp#emails-when-batches-end)). Once the backend has an SMTP server, everyone gets them, except in CI. Users turn them off in the terminal with `QA_NOTIFY=none`.
 
 Set the SMTP server in **Admin → Settings → Email**, then click **Send a test email**: it says what the SMTP server answered. Or configure it in your overlay, and the SMTP password, if any, in `.env` (the variables win over the settings page):
 

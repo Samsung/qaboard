@@ -27,12 +27,12 @@ Sending results over HTTP is new. Tell us how it goes with your projects.
 3. **Sign in**: files are always sent with a token. Run `qa auth login`, and in CI let the job
    [sign in as itself](/docs/ci-integration#ci-without-secrets) or [give it a token](/docs/ci-integration#tokens).
 
-Then use `qa` as usual: `qa --share run`, `qa batch` in CI, [`qa upload`](/docs/upload-results) and
+Then use `qa` as usual: `qa run`, `qa batch` in CI, [`qa upload`](/docs/upload-results) and
 [`qaboard.start_run()`](/docs/log-from-code) all send their runs' files.
 
 ```bash
 export QABOARD_URL=https://qaboard.example.com
-qa --share run --input images/a.jpg
+qa run --input images/a.jpg
 # ...
 # Sent 12 files to QA-Board (3.4 MB)
 ```
@@ -63,8 +63,8 @@ outputs:
   shows with its other files. In CI the command fails; elsewhere it prints the error and goes on. Save big outputs
   in a shared storage.
 - **A server that doesn't accept files** refuses the run when it starts: in CI, `qa` stops there.
-- **When the server doesn't answer**, `qa` tries again a few times, then says what is missing. The files stay in
-  *output/*.
+- **When the server doesn't answer**, `qa` tries again, for about two minutes for the run's end and its last files,
+  then says what is missing: in CI the command fails. The files stay in *output/*.
 
 ## What still needs a shared storage {#limits}
 The server only has what runs sent it. It can't start your code where it has no build and no inputs.
@@ -94,6 +94,23 @@ A project can mix both: most machines save in the shared storage, and the ones t
 - Runs send the state of their folder, not events: after a failed request, the next one sends what is missing.
 
 </details>
+
+## When files are refused {#troubleshooting}
+`qa` prints the server's sentence and its reason, e.g. *(too_large)*. Before a first CI run, `qa --dryrun upload
+<file>` says which server and which token it would use.
+
+| Reason | What to do |
+|---|---|
+| `login_required`, `sign_in_required`, `token_invalid`, `token_expired`, `token_revoked` | Files always need a token: `qa auth login`, or `QABOARD_TOKEN` in CI ([create one](/docs/user-guide/account#access-tokens) with the `read` and `ingest` scopes) |
+| `missing_scope`, `token_project`, `missing_role` | The token lacks the `ingest` scope, is restricted to other projects, or its user can't send this project's results: ask the project's owners |
+| `uploads_disabled`, `uploads_unsupported_project` | The server takes no files, or not this project's: ask its [administrators](/docs/backend-admin/uploads) |
+| `too_large`, `storage_full` | The file is over the server's limit (1 GB by default), or its disk is full: save big outputs in a shared storage, or ask its administrators |
+| `not_running` | The run already ended: its files don't change anymore. Run it again |
+| `invalid_path`, `path_conflict` | A file's name can't be saved, e.g. a file where the run has a folder of the same name |
+| `digest_mismatch`, `incomplete`, `offset_mismatch` | What arrived isn't what was sent: `qa` sends it again. If it goes on, check the proxies between you and the server |
+| `batch_token_limited` | A batch QA-Board started only changes its own batch |
+
+Refusals of tokens: [the HTTP API](/docs/http-api#authentication); the files' endpoint: [Send a run's files](/docs/http-api#upload-files).
 
 ## Where next
 <Cards>

@@ -80,6 +80,8 @@ def get_site_config():
         "setup_required": _setup_required(),
         # how `qa` authenticates the results it sends: off, warn or token
         "ingest_auth": setting('ingest.auth'),
+        # what local runs may record of how their code differs from their commit: patch, summary or off
+        "local_changes": setting('runs.local_changes'),
         # whether runs can send their files over HTTP, without a storage shared with the server (backend/uploads.py)
         # with why not, for `qa doctor`
         "uploads": {"enabled": uploads.enabled(), "max_file_size": upload_max_file_size,

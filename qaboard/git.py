@@ -1,4 +1,5 @@
 import os
+import json
 import subprocess
 from pathlib import Path
 from typing import Tuple, Optional, List
@@ -219,3 +220,29 @@ class _Commit(object):
       raise GitWrapperError(f"ERROR: Could not init a GitPython Commit: {object.__getattribute__(self, 'commit_id')}")
     # getattr() and not __getattribute__: GitPython reads most attributes lazily, in __getattr__
     return getattr(commit, name)
+
+
+def default_branch(repo_root: Optional[Path], environ=os.environ) -> Optional[str]:
+  """
+  The repository's default branch: the CI's, else the branch the clone's origin points to. None when nothing says.
+  Projects whose qaboard.yaml doesn't set project.reference_branch use it as their reference (backend/reference_branch.py).
+  """
+  if environ.get('CI_DEFAULT_BRANCH'):
+    return environ['CI_DEFAULT_BRANCH']
+  if environ.get('GITHUB_EVENT_PATH'):
+    try:
+      event = json.loads(Path(environ['GITHUB_EVENT_PATH']).read_text(encoding='utf-8'))
+      branch = (event.get('repository') or {}).get('default_branch')
+      if isinstance(branch, str) and branch:
+        return branch
+    except (OSError, ValueError, AttributeError):
+      pass
+  if repo_root is None:
+    return None
+  try:
+    p = subprocess.run(['git', 'symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD'], cwd=repo_root,
+                       stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=20)
+  except (OSError, subprocess.SubprocessError):
+    return None
+  ref = p.stdout.decode('utf-8', errors='replace').strip() if p.returncode == 0 else ''
+  return ref.split('/', 1)[1] if ref.startswith('origin/') else None

@@ -45,6 +45,7 @@ from sqlalchemy import func, or_, not_
 from .database import db_session
 from .models import Project, CiCommit, Batch, Output
 from .durations import parse_time
+from .audit import system_audit
 
 
 now = datetime.datetime.utcnow()
@@ -244,6 +245,36 @@ def clean_untracked_hwalg_outputs(outputs_roots, user, use_cache):
 
 
 
+class GarbageEvent:
+  """
+  One storage.garbage_collect event per project per pass, recorded with its first deletion, then counting as it goes:
+  each commit's deletion is committed with the counts so far. Dry runs record nothing: they change nothing, and roll back.
+  """
+  def __init__(self, project_id, settings):
+    self.project_id, self.settings, self.event = project_id, settings, None
+    self.counts = {"runs": 0, "commits": 0, "commits_deleted": 0, "artifacts": 0, "artifacts_files": 0}
+
+  def add(self, **counts):
+    for k, v in counts.items():
+      self.counts[k] += v
+    if not any(self.counts.values()):
+      return
+    meta = {**self.counts, **self.settings}
+    if self.event is None:
+      self.event = system_audit('storage.garbage_collect', label='garbage collection', target_type='project', target_id=self.project_id,
+                                target_label=self.project_id, project_id=self.project_id, meta=meta)
+    else:
+      self.event.meta = meta
+      # QABOARD_AUDIT_STDOUT prints the counts once, when the project is done (finish)
+      self.event.audit_quiet = True
+
+  def finish(self):
+    if self.event is not None:
+      self.event.audit_quiet = False
+      # written again (expired since the last commit): printed with the final counts
+      self.event.meta = {**self.counts, **self.settings}
+
+
 def collect_garbage(select_project, report, before=None, default_after='1month', can_delete_reference_branch=False,
                     can_delete_outputs=True, can_delete_artifacts=False, dryrun=False, verbose=False):
   """
@@ -294,6 +325,17 @@ def collect_garbage(select_project, report, before=None, default_after='1month',
     protected_commits = project.protected_ref_commits
     milestone_batches = project.milestone_batches
     report.log(f"keeping {len(protected_commits)} commits protected in qaboard.yaml, and {len(milestone_batches)} milestone batches", level='debug')
+    garbage_event = GarbageEvent(project.id, {
+      # the retention applied, and where it comes from
+      "older_than": project_before.strip(),
+      "older_than_source": "job" if before else ("qaboard.yaml" if gc_config.get('after') else "default"),
+      "threshold": old_treshold.isoformat() + 'Z',
+      "delete_outputs": bool(can_delete_outputs),
+      "delete_artifacts": bool(project_can_delete_artifacts),
+      "can_delete_reference_branch": bool(project_can_delete_reference_branch),
+      "dry_run": False,
+      **({"job_id": report.job_id} if getattr(report, 'job_id', None) else {}),
+    })
     commits = (
         db_session.query(CiCommit)
         .filter(CiCommit.project == project)
@@ -363,9 +405,14 @@ def collect_garbage(select_project, report, before=None, default_after='1month',
             report.add(commits=1)
         if not dryrun:
             db_session.add(commit)
-            if not nb_outputs and deleted_artifacts and can_delete_outputs and not kept_batches:
+            commit_deleted = not nb_outputs and deleted_artifacts and can_delete_outputs and not kept_batches
+            if commit_deleted:
                 report.log(f"DELETE {commit}", level='debug')
                 db_session.delete(commit)
+            garbage_event.add(
+              runs=nb_outputs_deleted, commits=1 if nb_outputs_deleted or summary["nb_deleted"] else 0, commits_deleted=1 if commit_deleted else 0,
+              artifacts=1 if deleted_artifacts and summary["nb_deleted"] else 0, artifacts_files=summary["nb_deleted"],
+            )
             # the artifacts' state must be saved as soon as possible: if we crash later, we must not lose that they were deleted
             commit_id = commit.id
             db_session.commit()
@@ -376,6 +423,7 @@ def collect_garbage(select_project, report, before=None, default_after='1month',
     if dryrun:
         db_session.rollback()
     else:
+        garbage_event.finish()
         db_session.commit()
     finished.add(project.id)
     report.set(projects_finished=sorted(finished), projects_done=len(finished))

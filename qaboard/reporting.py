@@ -38,11 +38,13 @@ class RunReporter:
     caller reports its progress itself (start_run() sends its metrics): the thread then only runs from `finish()`,
     while the last files go, which can take longer than the time after which the server fails silent runs
   - before_log: called before the log is sent at the end, e.g. to wait for what was just printed to reach it
+  - extra: what the run says with each heartbeat and progress report, e.g. {"resources": {...}}, what it uses of its
+    machine (qaboard/system_metrics.py)
   """
   def __init__(self, server: str, directory: Union[str, Path], *, token: Optional[str] = None, uploads: bool = False,
                live: Union[str, Sequence[str], None] = None, sync_interval: float = SYNC_INTERVAL,
                beat_while_running: bool = True, heartbeat_interval: Optional[float] = None,
-               before_log: Optional[Callable[[], None]] = None):
+               before_log: Optional[Callable[[], None]] = None, extra: Optional[Callable[[], Dict[str, Any]]] = None):
     self.server = server
     self.directory = Path(directory)
     self.uploads = uploads
@@ -58,6 +60,7 @@ class RunReporter:
     self.heartbeats = True
     self._token = token
     self._before_log = before_log
+    self._extra = extra
     self._heartbeat: Optional[heartbeat.Heartbeat] = None
     self._reported_at = time.time()
     self._finishing = False
@@ -104,7 +107,7 @@ class RunReporter:
   def progress(self, body: Dict[str, Any], timeout: Any = heartbeat.TIMEOUT) -> None:
     """PATCH /api/v1/output/<id>/progress: what the run looks like now (its metrics...). Raises ResultsError"""
     assert self.id is not None, "the server doesn't know the run yet"
-    _request(self.server, f"output/{self.id}/progress", method='PATCH', json=body, token=self._token, timeout=timeout)
+    _request(self.server, f"output/{self.id}/progress", method='PATCH', json={**self.extra(), **body}, token=self._token, timeout=timeout)
     self.reported()
 
   def beat(self) -> bool:
@@ -115,7 +118,7 @@ class RunReporter:
     if not self.heartbeats or self.id is None:
       return False
     try:
-      heartbeat.beat(self.server, self.id, self._token)
+      heartbeat.beat(self.server, self.id, self._token, self.extra())
     except ResultsError as e:
       if e.is_transient or e.status in (401, 403):
         raise
@@ -192,6 +195,13 @@ class RunReporter:
     if uploader is not None:
       uploader.stop()
 
+  @property
+  def files_missing(self) -> Optional[int]:
+    """After `finish()`: how many files the server doesn't have, at least 1 when we don't know which. None when it has them all"""
+    if self.files_sent is not False:
+      return None
+    return max(1, len(self.uploader.failed)) if self.uploader is not None else 1
+
   def problems(self) -> List[str]:
     """Why the server doesn't have all the run's files, after `finish()` returned False: one line each"""
     return self.uploader.problems() if self.uploader is not None else []
@@ -203,11 +213,20 @@ class RunReporter:
     self.close()
 
   # --- internals -----------------------------------------------------------------------------------------------------
+  def extra(self) -> Dict[str, Any]:
+    """What goes with each report besides its metrics (see `extra`). Never raises: reports matter more"""
+    if self._extra is None:
+      return {}
+    try:
+      return dict(self._extra() or {})
+    except Exception:
+      return {}
+
   def _start_heartbeat(self) -> None:
     with self._lock:
       if self._heartbeat is None and self.heartbeats and self.id is not None and not self._closed:
         interval = self.heartbeat_interval if self.heartbeat_interval is not None else heartbeat.INTERVAL
-        self._heartbeat = heartbeat.Heartbeat(self.server, self.id, self._token, interval=interval).start()
+        self._heartbeat = heartbeat.Heartbeat(self.server, self.id, self._token, interval=interval, body=self.extra).start()
 
   def _wait_for_the_log(self) -> None:
     if self._before_log is not None:

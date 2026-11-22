@@ -445,6 +445,9 @@ paths:
         files (`uploads.enabled` in `GET /config`).
 
         Always needs a token that can send results to the project, whatever the server's `ingest.auth` setting.
+        The patches of the run's local changes (`.qaboard/*.patch`) are refused (403, `reason:
+        local_changes_not_allowed`) when the server's `runs.local_changes` setting isn't `patch` (`local_changes`
+        in `GET /config`, `local_changes_level` in the answer to `POST /output/`).
       security:
         - bearerAuth: []
       parameters:

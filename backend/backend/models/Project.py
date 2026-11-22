@@ -28,6 +28,8 @@ from backend.models import Base, CiCommit
 from backend import repos
 from .. import uploads
 from ..git_utils import git_pull
+
+from ..reference_branch import reference_branch_of
 from ..git_hosts.base import branch_from_ref
 from ..config import default_outputs_root, default_artifacts_root
 
@@ -102,8 +104,8 @@ class Project(Base):
   @property
   def protected_refs(self):
     # git references that are explicitely protected from deletion in qaboard.yaml
-    project_config = self.data.get("qatools_config", {}).get("project", {})
-    reference_branch = project_config.get("reference_branch", "master")
+    project_config = (self.data.get("qatools_config") or {}).get("project") or {}
+    reference_branch = reference_branch_of(self.data)
     return [
         reference_branch,
         *project_config.get("milestones", []),
@@ -316,7 +318,7 @@ def update_project(data, db_session):
     #   It is only updated when there are changes on the "reference branch" (eg master, develop...)
     #   This said, we also update project-level data when it's the first time we get a QA-Board config for a project
     is_initialization = 'qatools_config' not in project.data
-    reference_branch = qatools_config['project'].get('reference_branch', 'master')
+    reference_branch = reference_branch_of(project.data, qatools_config)
     is_reference = branch == reference_branch
     if is_initialization or is_reference:
       project.data.update({'qatools_config': qatools_config,})

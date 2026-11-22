@@ -26,7 +26,7 @@ server's results folder, mounted at the same path on the machine that ran `qa`: 
 server. See [Where is the data saved?](/docs/storage/where-is-the-data)
 
 ## Do I need a CI? {#do-i-need-a-ci}
-No, but it's what gives every commit results to compare with. Without a CI, `qa --share batch` saves your runs and
+No, but it's what gives every commit results to compare with. Without a CI, `qa batch` saves your runs and
 shows them in the web app, in a batch named after you (see [CI integration](/docs/ci-integration#without-a-ci)).
 
 ## Can I use GitHub-hosted runners? {#github-hosted-runners}
@@ -37,7 +37,7 @@ reads at the same path, like an NFS share, and the CI runner must mount it: use 
 ## Where are results saved? {#where-are-results-saved}
 - **Local runs** are saved under the *output/* directory of the project. They don't need the storage: when `qa`
   can't create its folder, it warns and runs anyway.
-- **CI runs**, and runs with `--share`, are saved under the `storage` set in *qaboard.yaml*, like */mnt/qaboard*. See
+- **Shared runs**, by default, are saved under the `storage` set in *qaboard.yaml*, like */mnt/qaboard*. See
   [where is the data](/docs/storage/where-is-the-data).
 
 To find a run's files, `qa batch <batch> --list-output-dirs` prints the output directory of each run (see

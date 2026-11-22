@@ -21,7 +21,7 @@ from .site_config import user_secrets, user_secrets_path  # noqa: F401 (resolve_
 from .credentials import ENV_TOKENS, WARNING_SHOWN_ENV, ACCESS_TOKENS_PAGE  # noqa: F401
 from .credentials import normalize_url, hosts_path, read_hosts, find_login, saved_logins, write_hosts, save_login, forget_login  # noqa: F401
 from .credentials import resolve_token, describe_source, json_body, refusal, fix_for, auth_error_hint  # noqa: F401
-from .credentials import describe_body, is_json, describe_network_error
+from .credentials import describe_body, is_json, describe_network_error, SIGNED_IN_SOURCE
 
 # (connect, read) timeouts for the requests `qa auth` sends
 timeout = (30, 60)
@@ -76,6 +76,8 @@ class Server(NamedTuple):
     """The setting to fix when the URL is wrong."""
     if self.where == '--server':
       return "--server"
+    if self.where == SIGNED_IN_SOURCE:
+      return "QABOARD_URL"
     return (self.where or 'QABOARD_URL').lstrip('$').split(' ')[0]
 
   def check_url(self) -> str:

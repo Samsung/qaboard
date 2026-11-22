@@ -14,10 +14,10 @@ Known limits: `docs/warts.md` ("Results sent over HTTP"). User docs: `website/do
 | `start_run()`: runs from code; `plan_run()` says which run it would start, with no request and no side effect (`RunPlan`), also printed by `qa upload --dryrun` | `active_run.py` |
 | `qa upload`: files other tools wrote become a run (`start_run()` from the shell) | `upload_command.py` |
 | What runs send: one payload definition | `payloads.py` (`"storage": "upload"`) |
-| Whether results go over HTTP: no `storage`, `storage: upload` or `QA_STORAGE=upload` | `config.py` (`uploads_files`) |
-| **Every request to the server**: base URL and `/api/v1/` paths, the token, TLS (`QABOARD_API_VERIFY`), retries (opt-in per call: 408, 429 with `Retry-After` up to 60 s, 5xx but 501/505, network errors; not bad URLs or untrusted certificates), bodies given again per try (callables), `give_up()`, downloads checked by SHA-256. Errors are `ResultsError` (`status`, `reason`, `is_transient`, `is_refusal`) | `http_client.py`; `results._request` is a thin wrapper |
+| Whether results go over HTTP: no `storage`, `storage: upload` or `QA_STORAGE=upload` | `conventions.py` (`storage_setting`, `sends_files`), used by `config.py` (`uploads_files`, in a project) and `active_run.py` (outside one) |
+| **Requests to the server** (all the new code's; `api.notify_qa_database`, `get_output(s)`, `on_server.py`, `optimize.py`, `doctor.py` and the Jenkins runner still use `requests` directly, the first with its own retries of a run's end): base URL and `/api/v1/` paths, the token, TLS (`QABOARD_API_VERIFY`), one `requests.Session` per thread with `User-Agent: qaboard/<version>`, retries (opt-in per call, `RETRY_DELAYS` ~5 s or `FINAL_RETRY_DELAYS` ~2 min for what loses results: 408, 429 with `Retry-After` up to 60 s, 500/502/503/504, 520-524, network errors, cut short when nothing answers; not bad URLs or untrusted certificates), bodies given again per try (callables), `give_up()`, downloads checked by SHA-256 when the caller knows it (artifacts; manifests have no SHA-256). Errors are `ResultsError` (`status`, `reason`, `is_transient`, `is_refusal`) | `http_client.py`; `results._request` is a thin wrapper |
 | **Refusal reasons**, shared with the server (`from qaboard.conventions import Reason`), and the groups clients act on (`UPLOAD_REFUSALS`, `RUN_FILES_REFUSALS`, `NO_ARTIFACTS`) | `conventions.py` `Reason` |
-| **What a run tells the server besides its results**: the uploader, heartbeats, the run the server never heard of (`finish(create=)`), the end of the log after a refused end (`ended(known=False)`). Idempotent steps under a lock, a context manager; used by `qa run` (`qa.py` `_reporter`) and `start_run()` | `reporting.py` `RunReporter` |
+| **What a run tells the server besides its results**: the uploader, heartbeats, the run the server never heard of (`finish(create=)`), the end of the log after a refused end (`ended(known=False)`). Idempotent steps under a lock, a context manager; used by `qa run` (`qa.py` `run_reporter()`) and `start_run()` | `reporting.py` `RunReporter` |
 | The uploader: live files while the run goes on (`log.txt`, `series.jsonl` by `?offset=`, `series.json`, `run.json`, `outputs.live`), then everything with its SHA-256, 4 at a time, then the final `POST /output/` | `upload.py` `Uploader` |
 | Heartbeats (at least every 2 minutes, `PATCH .../progress`) | `heartbeat.py`, driven by `RunReporter` |
 | A run's files fetched from the server, with their cache (`cache_root`, `attempt_key`, `fetch_file`: whole or nothing). Today the reference's manifests for `qa check-bit-accuracy`, once per finished run. **`local_path()` goes here** | `run_files.py` (`fetched_manifests`), `bit_accuracy.py` calls it |
@@ -29,9 +29,10 @@ Known limits: `docs/warts.md` ("Results sent over HTTP"). User docs: `website/do
 ### Server (`backend/backend/`)
 | Piece | Where |
 |---|---|
-| One folder (`QABOARD_UPLOAD_ROOT`, default `/mnt/qaboard` when no storage roots are set), one endpoint per file: `PUT /api/v1/output/<id>/files/<path>` (`?offset=` to append, `X-Content-SHA256`), written to a temporary name then renamed | `uploads.py` (`save_file`), `api/outputs.py` |
-| Folders the server chooses: `<root>/<project>/-/<commit>/<batch>/<configuration>/<input>/`, the commit's artifacts in `<commit>/artifacts/`. One pattern for commit folders (`FULL_COMMIT_ID`, `COMMIT_FOLDER`, `COMMIT_FOLDERS_IN_PATH`), also used by the storage scan | `uploads.py` (`run_dir`, `commit_folder`, `is_run_dir`, `is_commit_artifacts_dir`), `jobs/scan.py` |
-| nginx checks the token before it takes a body: `auth_request` to `PUT /api/v1/uploads/authorize` (gets the URI as `QABOARD_ORIGINAL_URI`). **Fail closed**: `snippets/qaboard-files-server.conf` sets `$qaboard_files_server_included`, which the auth snippets require (500 otherwise, `nginx -t` fails if no server includes it); the authorize answer's `X-QABoard-Upload-Checked` reaches the upload as the uwsgi param `QABOARD_UPLOAD_CHECKED`, and endpoints that take files refuse without it (`proxy_misconfigured`). `flask run` alone isn't checked | `services/nginx/snippets/qaboard-uploads-auth.conf`, `qaboard-uploads-authorize.conf`, `uploads.unchecked_by_proxy`; the chart uses the same snippets |
+| One folder (`QABOARD_UPLOAD_ROOT`, default `/mnt/qaboard` when no storage roots are set and it is writable), one endpoint per file: `PUT /api/v1/output/<id>/files/<path>` (`?offset=` to append, `X-Content-SHA256`). Whole files are written to a temporary name then renamed; appends are written in place under a lock, and truncated back when they fail | `uploads.py` (`save_file`), `api/outputs.py` |
+| Folders the server chooses: `<root>/<project>/-/<sha[:2]>/<sha[2:]>/output[/<batch>]/<configuration>/<input>/` (the default batch has no folder; commits that aren't full ids under `local/`), the commit's artifacts in `<commit folder>/artifacts/`. One pattern for commit folders (`FULL_COMMIT_ID`, `COMMIT_FOLDER`, `COMMIT_FOLDERS_IN_PATH`), also used by the storage scan | `uploads.py` (`run_dir`, `commit_folder`, `is_run_dir`, `is_commit_artifacts_dir`), `jobs/scan.py` |
+| nginx checks the token before it takes a body: `auth_request` to `PUT /api/v1/uploads/authorize` (gets the URI as `QABOARD_ORIGINAL_URI`). **Fail closed**: `snippets/qaboard-files-server.conf` sets `$qaboard_files_server_included`, which the auth snippets require (500 otherwise, `nginx -t` fails if no server includes it); the authorize answer's `X-QABoard-Upload-Checked` reaches the upload as the uwsgi param `QABOARD_UPLOAD_CHECKED`, and endpoints that take files refuse without it (`proxy_misconfigured`). `flask run` alone isn't checked. In front of it, the chart's ingress-nginx passes bodies through (`proxy-request-buffering: off`); other ingresses and load balancers buffer them before the token is checked | `services/nginx/snippets/qaboard-uploads-auth.conf`, `qaboard-uploads-authorize.conf`, `uploads.unchecked_by_proxy`; the chart uses the same snippets |
+| Without a token, a run that sent its files can't be replaced (403 `ingest_token_required`), nor a manifest rewritten (`?refresh` needs a signed-in user; uploaded runs that ended keep theirs). Files being received (`.qaboard-upload-*`) aren't served (404), and the jobs worker removes those older than a day (`uploads.remove_stale_temporary_files`, every 6 h). Each file received is printed (`[uploads] ...`) | `api/outputs.py`, `uploads.py`, `jobs/worker.py`, `snippets/qaboard-files.conf` |
 | Storage locations: runs store their full location (a path or `s3://...`), resolved by the locations admins add, inside the storage roots | `locations.py`, `models/StorageLocation.py`, Admin → Storage |
 | Heartbeats: running runs silent for `QABOARD_SILENT_RUN_TIMEOUT_MINUTES` are failed by the jobs worker | `heartbeats.py` |
 | A commit's artifacts through the server: `PUT /api/v1/commit/<commit>/artifacts/files/<path>`, `GET .../artifacts` (files, SHA-256, mode, a hash of the whole), files served by nginx under `/s/` | `api/commit_artifacts.py`, `CiCommit.uploaded_artifacts_dir`, `artifacts.py` (`cd_lines`, `runner_unsupported`) |
@@ -82,7 +83,7 @@ sends what differs. A failed request needs no replay.
 | Syncing later | Not built: a run the server never heard of is not sent later | Not worth new commands yet |
 | Heartbeats | Clients say so when the run starts (`heartbeat: true`); every report of a running run sets `outputs.reported_at`; silent runs are failed with `data.failed_reason`, and run again if they report again | Old clients are never failed for being silent. No new endpoint or state |
 | `--append` to a finished run | Dropped: one upload is one run | Finished runs don't change |
-| Which protocol | One `PUT` per file, an offset to append; no session, parts or content store | Most files are small. **Parts and deduplication wait for a project with huge outputs** (§3 item 2) |
+| Which protocol | One `PUT` per file, an offset to append; no session, parts or content store | Most files are small. **Parts and deduplication wait for a project with huge outputs** (§3 item 8) |
 | Who chooses the folder | The server, from the run's identity. Client paths are inside it, validated, written to a temporary name then renamed | Clients can't write anywhere else |
 | Tokens | Always, for files and for creating a run that uploads, whatever `ingest.auth` says | Whoever uploads stores files the server then serves |
 | Retries | Per call, never by default: an append or a log whose answer was lost must not be sent twice unless the caller handles offsets (`http_client.request(retries=...)`) | One helper, no hidden resends |
@@ -97,35 +98,58 @@ sends what differs. A failed request needs no replay.
 | How batches get them | Every batch fetches its own copy into a temporary cache, wherever `qa batch` runs; no server-side tar | One path everywhere; nothing left on disk |
 
 ## 3. What is left
-Sizes: [S] an hour, [M] a day, [L] more. In order:
+Sizes: [S] an hour, [M] a day, [L] more. Reviewed on 2026-11-19 against `http-upload.md` (its status table says
+what became of each part). In order, for a cloud-hosted server that takes uploads from CI runners it doesn't manage:
 
-1. **`qaboard.local_path("qaboard://<run>/checkpoints/last.pt")`** [M]: a run's file as a local path, from the
-   folder when its location is mounted here, else downloaded once into the cache keyed by the manifest's hash. Like
-   W&B's `use_artifact().download()` or MLflow's `download_artifacts("runs:/...")`, for checkpoints. Build it in
-   `run_files.py` on `fetch_file` and `http_client.download(sha256=)`; it shares the cache with `fetched_manifests`
-   and `qa fetch-artifacts`. Needs: resolving a `qaboard://` run reference (by id, or project/commit/batch/input
-   like `qaboard.runs()`), and an eviction for caches outside temporary folders.
-2. **Huge outputs** [L]: parts (resumable uploads of files over `QABOARD_UPLOAD_MAX_FILE_MB`), "which hashes do you
+1. **Release `qaboard`** [S]: PyPI's 1.2.0 has no `qa upload` and no uploads, and the docs say `pip install qaboard`.
+   Until a release, the upload pages describe a version users can't install.
+2. ~~Safe defaults~~ (done, 2026-11-19): `ingest.auth` is `token` by default, `QABOARD_SANDBOX_HTML` on, `/s/` and
+   `/iiif/` check who asks in the default nginx configuration and the chart (`/iiif/`: `snippets/qaboard-iiif-auth.conf`,
+   the backend's answer cached a minute per image and credentials), tokens last at most 365 days, a checklist item when
+   the sandbox is off. Left: a `ref` pin required in CI trust policies [S]; per-project ingest policies (milestone M5,
+   `user-management.md`) for servers that keep `warn`.
+3. ~~`/iiif/` checks who asks~~ (done, item 2).
+4. **Uploads don't slow the web app down** [M]: they share uWSGI's threads with the UI (2×4 in compose), and a
+   thread copies each file. A `limit_conn` per token on the upload locations (429, which clients retry), then an
+   ingest pool (`http-upload.md` §4.2). Check whether uWSGI's `post-buffering` spools bodies a second time to disk.
+   The proxy's temporary folder in the chart: an `emptyDir` with a `sizeLimit`, and ephemeral-storage requests.
+5. **Tests** [M]: the real `Uploader` against the Flask app instead of the fake server (`tests/test_active_run.py`,
+   which must answer like the real endpoints meanwhile); end to end, a Range request on a running log, refusals (403
+   another project's token, 400 traversal), deleting an uploaded run, a backend restart during a batch. `nginx -t`
+   on the snippets in CI (the Python tests only read them). The chart's ingress annotations are never exercised.
+6. **A run started again while its previous attempt still sends** [S-M]: the old attempt's files land in the new
+   attempt's folder. Send the attempt (`finished_at`/a counter from the start's answer) with each `PUT`, refused when
+   it's not the current one.
+7. **The web app shows runs that miss files** [S]: `data.files_missing` is stored, nothing shows it.
+8. **Huge outputs** [L]: parts (resumable uploads of files over `QABOARD_UPLOAD_MAX_FILE_MB`), "which hashes do you
    have" before sending, and the content store (`http-upload.md`), which also deduplicates bit-accurate reruns and
    artifacts across commits and subprojects (or hardlinks by hash first [M]). The uploader's request layer
-   (`Uploader._request` over `http_client`) and `Reason` are where the new answers go.
-3. **Limits** [M]: quotas per project, a limit on files per run (inodes), a free-space check atomic with concurrent
-   uploads.
-4. **A backend test that runs the real `Uploader` against the Flask app** [M], instead of the tests' fake server
-   (`tests/test_active_run.py`, which must answer like the real endpoints meanwhile).
-5. **Storage locations** [M each]: credentials (encrypted, `backend/encryption.py`); the scans, storage usage
+   (`Uploader._request` over `http_client`) and `Reason` are where the new answers go. Compression of text files [M]
+   (a bounded decoder on the server) and one read per file for md5 and SHA-256 [S] go with it.
+9. **A version handshake** [S]: `GET /config` could say the oldest `qa` it takes (`http-upload.md` §3.4); old servers
+   answer every file with 404 today, which `qa` reports as missing files.
+10. **`qaboard.local_path("qaboard://<run>/checkpoints/last.pt")`** [M], waiting for a user: a run's file as a local
+   path, from the folder when its location is mounted here, else downloaded once into the cache. Open questions: the
+   URL's convention (run id, or project/commit/batch/input like `qaboard.runs()`, and artifacts), one cache per
+   machine shared by users and processes (locks), and an eviction policy. Build it in `run_files.py` on `fetch_file`
+   and `http_client.download(sha256=)`; it shares the cache with `fetched_manifests` and `qa fetch-artifacts`.
+11. **Limits** [M], deferred: quotas per project, a limit on files per run (inodes), a free-space check atomic with
+   concurrent uploads.
+12. **Storage locations** [M each]: credentials (encrypted, `backend/encryption.py`); the scans, storage usage
    (`storage_usage.py`, the Storage page) and the file browser on locations and on runs stored as URLs; clients that
    mount a location writing there directly; a test that fails when code outside `models/` and `locations.py` reads
    `output_dir_override`; the storage roots still list the upload root apart (`config.storage_roots`).
-6. **Runners** [S each]: LSF, Slurm, Celery and Jenkins jobs fetching uploaded artifacts (the `fetched_artifacts`
+13. **Runners** [S each]: LSF, Slurm, Celery and Jenkins jobs fetching uploaded artifacts (the `fetched_artifacts`
    hook in their command line); once-per-node fetching with a hostPath cache; SHA-256 in the manifests of
    `qa save-artifacts --out`; a retry of the image check while CI is still pushing, and digest pinning.
-7. **Code left as is, to fold when touched** [S each]: `submit_driver` could mint the batch token instead of
+14. **Code left as is, to fold when touched** [S each]: `submit_driver` could mint the batch token instead of
    receiving it; the artifacts endpoint `/api/v1/commit/<commit>/artifacts/...` overlaps `/api/v1/commit/<path:commit_id>`
-   (its fallback for branches named `*/artifacts` is a hidden coupling); `QABOARD_SANDBOX_HTML` on by default for
-   uploaded runs. The CLI's "can I read this run's folder here?" checks (`runners/job.py`, `bit_accuracy.py`,
-   `qa.py`) were left apart: each is `not uploads_files` with a different local condition.
-8. Trying Windows clients.
+   (its fallback for branches named `*/artifacts` is a hidden coupling). The CLI's "can I read this run's folder
+   here?" checks (`runners/job.py`, `bit_accuracy.py`, `qa.py`) were left apart: each is `not uploads_files` with a
+   different local condition. `api.notify_qa_database` and the other direct `requests` callers could use `http_client`.
+   The files pre-check (`snippets/qaboard-files-server.conf`) passes `$request_uri`: switching to `$uri` needs
+   `path_from_url` to stop decoding a second time first (`%252e` would become `..`).
+15. Trying Windows clients.
 
 ## 4. If the server ever talks to object storage itself
 Not built, and not planned until a mounted file system proves not to be enough.
@@ -163,4 +187,4 @@ S3's "Requester Pays" is about who pays for downloads, not storage: it doesn't h
 | Self-hosted S3 for the quickstart, Kubernetes, on-prem | **Garage** or **SeaweedFS**; **Ceph RGW** where Ceph exists | **MinIO**'s community edition stopped shipping binaries in Oct 2025 and is no longer maintained (2026): not the default (`http-upload.md` question 11) |
 | S3 API over an existing NFS | **Versity S3 Gateway** | One code path for shared-storage sites, if ever wanted |
 | Exotic storages without code (SharePoint, SMB, SFTP) | **rclone** `serve s3` / `serve webdav`, run by the site | |
-| Resumable uploads | Our own parts (§3 item 2) | tus: rejected in `http-upload.md` §4.2, still true |
+| Resumable uploads | Our own parts (§3 item 8) | tus: rejected in `http-upload.md` §4.2, still true |

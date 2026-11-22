@@ -79,6 +79,15 @@ describe('OutputCardsList', () => {
     expect(screen.queryByText(/show all/)).toBeNull();
   }, 30_000);
 
+  it('gives cards the whole row by default, at most the width qaboard.yaml sets', () => {
+    const { container, unmount } = render_list({ ...props, ...batches(2) });
+    cards(container).forEach(card => expect(card.style.width).toBe('100%'));
+    unmount();
+    const narrow = render_list({ ...props, ...batches(2), config: { outputs: { visualizations: [], style: { width: '840px' } } } });
+    // min(840px, 100%): jsdom doesn't parse min(), we only check it isn't the whole row
+    cards(narrow.container).forEach(card => expect(card.style.width).not.toBe('100%'));
+  });
+
   it('keeps cards light until they come into view', () => {
     const { container } = render_list({ ...props, ...batches(2) });
     expect(screen.getByText('input_1')).toBeInTheDocument();

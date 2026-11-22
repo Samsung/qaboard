@@ -8,6 +8,7 @@ import { fileQuery } from "../api/queries";
 import { is_same_data } from "../utils"
 import { ViewerError } from "./ViewerStates";
 import { useLabels } from "../hooks";
+import { is_patch } from "./fileTypes";
 
 const ansi_pattern = [
   '[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\\u0007)',
@@ -16,7 +17,9 @@ const ansi_pattern = [
 const ansi_regexp = new RegExp(ansi_pattern, 'g');
 const strip_ansi = text => text.replace(ansi_regexp, '');
 
-const language = filename => {
+export const language = (filename = '') => {
+  if (is_patch(filename))
+    return 'diff';
   if (filename.endsWith('yaml') || filename.endsWith('yml'))
     return 'yaml';
   if (filename.endsWith('json') || filename.endsWith('tuneset0'))

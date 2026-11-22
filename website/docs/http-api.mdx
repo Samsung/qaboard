@@ -92,7 +92,8 @@ Errors are JSON, with what went wrong in `error` and a stable code in `reason`:
 
 | Status | `reason` | What to do |
 |---|---|---|
-| 401 | `sign_in_required` | Send a token. |
+| 401 | `sign_in_required`, `login_required` | Send a token. Files always need one, whatever the server's settings for other results. |
+| 401 | `ingest_token_required` | The server only takes results sent with a token: send one. |
 | 401 | `token_invalid` | The token is mistyped, or was deleted: check it, or create another. |
 | 401 | `token_expired`, `token_idle_expired`, `token_revoked` | Create another token. |
 | 401 | `token_in_url` | Send the token in the `Authorization` header: `?token=` is only accepted to read. |

@@ -160,6 +160,7 @@ const ICONS = [
   [/\.(json|ya?ml|toml|ini|cfg|conf|cde|set)$/i, 'numerical'],
   [/\.(csv|tsv|xlsx?)$/i, 'th'],
   [/\.(log|txt|out|err)$/i, 'align-left'],
+  [/\.(patch|diff)$/i, 'code'],
   [/\.(md|rst|pdf|docx?|pptx?)$/i, 'document'],
   [/\.(xml|html?|css|jsx?|tsx?|py|c|cc|cpp|h|hpp|m|java|go|rs)$/i, 'code'],
   [/\.(sh|bash|bat|ps1|exe|bin)$/i, 'console'],

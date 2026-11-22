@@ -92,7 +92,7 @@ class TestStorageNeededBy(unittest.TestCase):
     for command in ('run', 'batch', 'get', 'postprocess', 'check-bit-accuracy-manifest', None):
       self.assertIsNone(storage_needed_by(command, share=False, is_ci=False), command)
     for command in ('run', 'batch', 'get'):
-      self.assertIn('--share', storage_needed_by(command, share=True, is_ci=False))
+      self.assertIn('`qa` saves results there', storage_needed_by(command, share=True, is_ci=False))
       self.assertIn('CI', storage_needed_by(command, share=False, is_ci=True))
     for command in ('save-artifacts', 'check-bit-accuracy', 'optimize'):
       self.assertIn(f'`qa {command}`', storage_needed_by(command, share=False, is_ci=False))
@@ -159,7 +159,6 @@ class TestMissingStorage(unittest.TestCase):
 
   def test_commands_that_need_the_storage(self):
     for args, environ, reason in [
-      (['--share', 'run', '--input', str(self.input), 'echo hi'], {}, '`qa --share` saves results there'),
       (['run', '--input', str(self.input), 'echo hi'], {'CI': 'true'}, 'In CI'),
       (['save-artifacts'], {}, '`qa save-artifacts`'),
     ]:
@@ -174,7 +173,8 @@ class TestMissingStorage(unittest.TestCase):
   def test_valid_storage(self):
     # As before: `qa` creates the storage, and shared runs save their results there
     storage = self.tmp / 'storage'
-    out = self.qa('--share', 'run', '--input', str(self.input), 'echo hi', QA_STORAGE=str(storage))
+    # with a server, qa shares: it doesn't answer here, the run goes on
+    out = self.qa('run', '--input', str(self.input), 'echo hi', QA_STORAGE=str(storage), QABOARD_URL='http://127.0.0.1:9', QA_OFFLINE='false')
     self.assertEqual(out.returncode, 0, out.stderr)
     self.assertIn(f'Created: {storage}', out.stderr)
     self.assertNotIn('storage path', out.stderr)
