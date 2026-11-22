@@ -117,7 +117,8 @@ export const Bars = ({ item_new, item_ref, colors, names, width = WIDTH }) => {
   if (!range) return null;
   const bars_new = densities(item_new);
   const bars_ref = densities(item_ref);
-  const max = Math.max(...bars_new.map(b => b.density), ...bars_ref.map(b => b.density)) || 1;
+  // a loop: histograms can have more bins than a function takes arguments
+  const max = [...bars_new, ...bars_ref].reduce((m, b) => b.density > m ? b.density : m, 0) || 1;
   const plot_width = width - AXIS;
   const x = value => (value - range.min) / (range.max - range.min) * plot_width;
   const y = density => BARS_HEIGHT - density / max * (BARS_HEIGHT - 4);

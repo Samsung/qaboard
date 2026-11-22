@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Classes, HTMLSelect, Icon } from "@blueprintjs/core";
 
 import { KIND_ICONS } from "./kinds";
-import { formatStep, nextStep, snap } from "./media";
+import { formatStep, nextStep, snap, stepRange } from "./media";
 import { useWidth } from "./useWidth";
 
 const ROW = 9;
@@ -35,15 +35,30 @@ const nearest = (steps, step) => {
   return step - before <= after - step ? before : after;
 };
 
-// rows: [{ key, kind, steps }]; steps: the run's, ref_steps: the reference's; series: { step, value } or null;
+// The sorted steps of both runs, merged
+const merge = (a, b) => {
+  if (!b.length) return a;
+  if (!a.length) return b;
+  const merged = [];
+  let i = 0, j = 0;
+  while (i < a.length || j < b.length) {
+    const next = j >= b.length || (i < a.length && a[i] <= b[j]) ? a[i++] : b[j++];
+    if (merged.length === 0 || merged[merged.length - 1] !== next) merged.push(next);
+  }
+  return merged;
+};
+
+// rows: [{ key, kind, steps, only_ref }] (only_ref: a key only the reference logged, its steps are the reference's);
+// steps: the run's, ref_steps: the reference's, both selectable; series: { step, value } or null;
 // preview(step): { src, label } of what to show on hover, or null
 const Timeline = ({ rows, steps, ref_steps, step, onStep, series, series_names = [], series_name, onSeriesChange, preview, names, colors }) => {
   const [container, width] = useWidth(800);
   const [hover, setHover] = useState(null);
   const labels = width >= 560 ? LABELS : 0;
   const plot = Math.max(80, width - labels - 8);
-  const all = [...steps, ...ref_steps];
-  const min = Math.min(...all), max = Math.max(...all);
+  // the steps users can pick: either run's
+  const choices = merge(steps, ref_steps);
+  const { min, max } = stepRange(steps, ref_steps);
   const x = s => max > min ? (s - min) / (max - min) * plot : plot / 2;
   const dense = rows.length > MAX_ROWS;
   const rows_height = dense ? DENSITY : Math.max(DENSITY, rows.length * ROW + 4);
@@ -60,12 +75,11 @@ const Timeline = ({ rows, steps, ref_steps, step, onStep, series, series_names =
     // at the bottom, under the series: the more keys logged at a step, the darker
     ticks = steps.map(s => <line key={s} x1={x(s)} x2={x(s)} y1={rows_height - 11} y2={rows_height - 2} stroke={colors.new} strokeOpacity={0.15 + 0.6 * (counts.get(s) ?? 0) / rows.length} strokeWidth={1}/>);
   } else {
-    ticks = rows.map((row, i) => <path key={row.key} d={tick_path(row.steps, 2 + i * ROW + 1, ROW - 3)} stroke={colors.new} strokeWidth={1.5} strokeOpacity={0.9}/>);
+    ticks = rows.map((row, i) => <path key={row.key} d={tick_path(row.steps, 2 + i * ROW + 1, ROW - 3)} stroke={row.only_ref ? colors.ref : colors.new} strokeWidth={1.5} strokeOpacity={0.9} strokeDasharray={row.only_ref ? '2 1' : undefined}/>);
   }
   let series_path = null;
   if (series?.step?.length > 1) {
-    const values = series.value.filter(Number.isFinite);
-    const low = Math.min(...values), high = Math.max(...values);
+    const { min: low, max: high } = stepRange(series.value.filter(Number.isFinite));
     // dense: above the ticks
     const bottom = dense ? rows_height - 13 : rows_height - 2;
     const y = v => bottom - (high > low ? (v - low) / (high - low) : 0.5) * (bottom - 3);
@@ -75,11 +89,11 @@ const Timeline = ({ rows, steps, ref_steps, step, onStep, series, series_names =
   const selected = x(step);
   const move = e => {
     const { left } = e.currentTarget.getBoundingClientRect();
-    const at = nearest(steps, min + (e.clientX - left) / plot * (max - min));
+    const at = nearest(choices, min + (e.clientX - left) / plot * (max - min));
     setHover(at === null ? null : { step: at });
   };
   const onKeyDown = e => {
-    const target = { ArrowLeft: nextStep(steps, step, -1), ArrowRight: nextStep(steps, step, 1), Home: steps[0], End: steps.at(-1) }[e.key];
+    const target = { ArrowLeft: nextStep(choices, step, -1), ArrowRight: nextStep(choices, step, 1), Home: choices[0], End: choices.at(-1) }[e.key];
     if (target === undefined) return;
     e.preventDefault();
     e.stopPropagation();
@@ -105,8 +119,8 @@ const Timeline = ({ rows, steps, ref_steps, step, onStep, series, series_names =
         role="slider"
         tabIndex={0}
         aria-label="Step"
-        aria-valuemin={steps[0]}
-        aria-valuemax={steps.at(-1)}
+        aria-valuemin={choices[0]}
+        aria-valuemax={choices.at(-1)}
         aria-valuenow={step}
         aria-valuetext={`step ${step}`}
         onKeyDown={onKeyDown}

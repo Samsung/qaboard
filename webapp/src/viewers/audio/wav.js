@@ -48,10 +48,11 @@ export function decodeWav(buffer) {
     const size = view.getUint32(offset + 4, true);
     const body = offset + 8;
     if (id === 'fmt ') {
+      if (size < 16 || body + 16 > view.byteLength) throw new Error(`WAV with a fmt chunk of ${size} bytes: at least 16 expected`);
       let code = view.getUint16(body, true);
       // WAVE_FORMAT_EXTENSIBLE: the codec is the first 2 bytes of the sub-format GUID
-      if (code === 0xfffe && size >= 26) code = view.getUint16(body + 24, true);
-      format = { code, channels: view.getUint16(body + 2, true), sample_rate: view.getUint32(body + 4, true), bits: view.getUint16(body + 14, true) };
+      if (code === 0xfffe && size >= 26 && body + 26 <= view.byteLength) code = view.getUint16(body + 24, true);
+      format = checkFormat({ code, channels: view.getUint16(body + 2, true), sample_rate: view.getUint32(body + 4, true), bits: view.getUint16(body + 14, true) });
     } else if (id === 'data') {
       if (!format) throw new Error('WAV without a fmt chunk');
       // files written while streaming can have a size of 0 or 0xFFFFFFFF: what's left
@@ -61,6 +62,16 @@ export function decodeWav(buffer) {
     offset = body + size + (size % 2);
   }
   throw new Error('WAV without a data chunk');
+}
+
+// Headers that would make no sense, or an endless loop (0 channels: an infinite number of samples), throw
+const MAX_CHANNELS = 256;
+function checkFormat(format) {
+  const { channels, sample_rate, bits } = format;
+  if (channels < 1 || channels > MAX_CHANNELS) throw new Error(`WAV with ${channels} channels`);
+  if (sample_rate < 1) throw new Error(`WAV with a sample rate of ${sample_rate} Hz`);
+  if (bits < 8 || bits % 8 !== 0 || bits > 64) throw new Error(`WAV with ${bits} bits per sample isn't supported`);
+  return format;
 }
 
 function samples(view, offset, size, { code, channels: count, bits }) {
@@ -74,6 +85,7 @@ function samples(view, offset, size, { code, channels: count, bits }) {
     : null;
   if (!read) throw new Error(`WAV codec ${code} with ${bits} bits isn't supported`);
   const length = Math.floor(size / (bytes * count));
+  if (!Number.isFinite(length) || length < 0 || length > view.byteLength) throw new Error(`WAV with a data chunk of ${size} bytes`);
   const channels = Array.from({ length: count }, () => new Float32Array(length));
   for (let i = 0; i < length; i++)
     for (let c = 0; c < count; c++) {

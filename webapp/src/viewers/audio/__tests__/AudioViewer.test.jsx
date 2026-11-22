@@ -88,7 +88,10 @@ describe('the audio viewer', () => {
     render(<AudioViewer src="/new.wav" src_ref="/same.wav" labels={labels}/>);
     await screen.findAllByText(/8 kHz/);
     await act(async () => fireEvent.click(screen.getByLabelText('Difference')));
-    expect(screen.getByText('identical samples')).toBeInTheDocument();
+    // computed off the render, and it says so meanwhile
+    expect(screen.getByText('computing the difference…')).toBeInTheDocument();
+    expect(await screen.findByText('identical samples')).toBeInTheDocument();
+    expect(screen.queryByText('computing the difference…')).not.toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Δ · Difference' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('radio', { name: 'Spectrogram' }));
     expect(screen.getByText(/louder in my-branch/)).toBeInTheDocument();

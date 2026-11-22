@@ -57,40 +57,70 @@ export const tableRows = ({ rows }, { filter = '', sort = null } = {}) => {
   return shown;
 };
 
-// The column rows are joined by to compare two tables: one named id, name or key, else the first text column, else the first
-export const keyColumn = ({ columns, rows }) => {
-  const named = columns.findIndex(column => /^(id|name|key)$/i.test(column.trim()));
-  if (named >= 0) return named;
-  const text = columns.findIndex((_, c) => rows.length > 0 && rows.every(row => typeof row[c] === 'string'));
-  return Math.max(0, text);
+// Whether a column's values are all there and all different: rows can be joined by it
+const uniqueColumn = (rows, c) => {
+  const seen = new Set();
+  for (const row of rows) {
+    const cell = row[c];
+    if (is_empty(cell) || is_media_cell(cell)) return false;
+    const text = cellText(cell);
+    if (seen.has(text)) return false;
+    seen.add(text);
+  }
+  return true;
 };
 
-const sameCell = (a, b) => {
-  if (is_media_cell(a) && is_media_cell(b)) return a.path.split('/').pop() === b.path.split('/').pop();
+// The column rows are joined by to compare two tables: one named id, name or key, else the first text column, whose
+// values are unique. BY_ROW (-1) when there is none: rows are joined by their position.
+export const BY_ROW = -1;
+export const keyColumn = ({ columns, rows }) => {
+  const named = columns.findIndex((column, c) => /^(id|name|key)$/i.test(column.trim()) && uniqueColumn(rows, c));
+  if (named >= 0) return named;
+  if (rows.length === 0) return BY_ROW;
+  return columns.findIndex((_, c) => rows.every(row => typeof row[c] === 'string') && uniqueColumn(rows, c));
+};
+
+// Media cells are files: the same when the runs' manifests give them the same hash, else when they are at the same
+// path with the same metadata. identity: { new, ref }, the runs' manifests ({ [path]: { md5 } }), optional.
+const hash_of = (manifest, path) => manifest?.[path]?.md5_data ?? manifest?.[path]?.md5;
+const sameMedia = (a, b, identity) => {
+  const hash_a = hash_of(identity?.new, a.path), hash_b = hash_of(identity?.ref, b.path);
+  if (hash_a && hash_b) return hash_a === hash_b;
+  const { path: path_a, ...meta_a } = a, { path: path_b, ...meta_b } = b;
+  return path_a === path_b && JSON.stringify(meta_a) === JSON.stringify(meta_b);
+};
+
+const sameCell = (a, b, identity) => {
+  if (is_media_cell(a) && is_media_cell(b)) return sameMedia(a, b, identity);
   if (typeof a === 'number' && typeof b === 'number') return a === b || Math.abs(a - b) <= 1e-12 * Math.max(Math.abs(a), Math.abs(b));
   return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 };
 
 // The new table against the reference's, rows joined by a column (its index in the new table; the reference's column
-// of the same name): [{ status: 'same' | 'changed' | 'added' | 'removed', row, ref_row, changed: Set(column indices) }],
-// the new table's rows in order, then the rows only in the reference. Columns are matched by name.
-export const diffTables = (table, ref, column) => {
+// of the same name), or by their position (BY_ROW): [{ status: 'same' | 'changed' | 'added' | 'removed', row, ref_row,
+// changed: Set(column indices) }], the new table's rows in order, then the rows only in the reference. Columns are
+// matched by name. Rows with the same key are joined in order: the first with the first.
+export const diffTables = (table, ref, column, identity) => {
   const ref_columns = table.columns.map(name => ref.columns.indexOf(name));
-  const ref_key = ref_columns[column];
+  const by_row = column === BY_ROW || column === null || column === undefined || column < 0;
+  const ref_key = by_row ? -1 : ref_columns[column];
+  // key => the reference's rows with it, in order
   const by_key = new Map();
   if (ref_key >= 0)
     ref.rows.forEach((row, i) => {
       const key = cellText(row[ref_key]);
-      if (!by_key.has(key)) by_key.set(key, i);
+      if (!by_key.has(key)) by_key.set(key, []);
+      by_key.get(key).push(i);
     });
   const used = new Set();
-  const rows = table.rows.map(row => {
-    const key = cellText(row[column]);
-    const i = by_key.get(key);
-    if (i === undefined || used.has(i)) return { status: 'added', row, ref_row: null, changed: new Set() };
+  const rows = table.rows.map((row, r) => {
+    let i;
+    if (by_row) i = r < ref.rows.length ? r : undefined;
+    else i = by_key.get(cellText(row[column]))?.shift();
+    if (i === undefined) return { status: 'added', row, ref_row: null, changed: new Set() };
     used.add(i);
     const ref_row = ref.rows[i];
-    const changed = new Set(table.columns.map((_, c) => c).filter(c => ref_columns[c] < 0 || !sameCell(row[c], ref_row[ref_columns[c]])));
+    const changed = new Set(table.columns.map((_, c) => c).filter(c => ref_columns[c] < 0 || !sameCell(row[c], ref_row[ref_columns[c]], identity)));
     return { status: changed.size ? 'changed' : 'same', row, ref_row, changed };
   });
   ref.rows.forEach((ref_row, i) => {

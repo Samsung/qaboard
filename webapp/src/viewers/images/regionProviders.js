@@ -20,7 +20,8 @@
 //     // `key(context)`: what its regions depend on, if not the image pair, `staleTime`: when to find them again.
 //     section: 'Annotations', auto: true, overview: true,
 //   }
-// context: { output_new, output_ref, path, path_ref, diff_size, boxes }, diff_size: the size of the differences users look for,
+// `label` can be a function of the context.
+// context: { output_new, output_ref, path, path_ref, diff_size, boxes, boxes_ref, names }, diff_size: the size of the differences users look for,
 // { min, max } in pixels (either can be null), for the providers that compare the images. Regions are in the pixels of the image shown, or of an image of
 // size imageWidth x imageHeight, e.g. the input's: the viewer scales them. boxes: the regions logged with the image. A region's `value` (optional) says how
 // interesting it is, e.g. how much the images differ there: searches over all the runs of a page rank runs with it.
@@ -69,14 +70,23 @@ const presets = {
 };
 
 // The regions the run logged with the image (run.log() in Python, ../media/), e.g. a detector's boxes: shown first,
-// outlined on the whole image
+// outlined on the whole image. The viewer draws a set over every image it shows: with the reference's image, its boxes
+// are a set of their own (boxes_ref), and the labels say whose they are. `names`: { new, reference }
 const logged = {
   id: 'logged',
-  label: 'Logged with the image',
-  description: 'The boxes the run logged with this image',
+  label: ({ boxes_ref, output_ref, names }) => boxes_ref?.length || output_ref ? `Boxes of ${names?.new ?? 'new'}` : 'Logged with the image',
+  description: 'The boxes the run logged with this image, drawn over every image shown',
   overview: true,
   available: ({ boxes }) => !!boxes?.length,
   regions: ({ boxes }) => boxes?.length ? boxes : null,
+};
+const logged_ref = {
+  id: 'logged-ref',
+  label: ({ names }) => `Boxes of ${names?.reference ?? 'reference'}`,
+  description: "The boxes the reference run logged with its image, drawn over every image shown",
+  overview: true,
+  available: ({ boxes_ref }) => !!boxes_ref?.length,
+  regions: ({ boxes_ref }) => boxes_ref?.length ? boxes_ref : null,
 };
 
 
@@ -128,6 +138,7 @@ const autoRegions = (diff_type, label, description) => ({
 
 const providers = [
   logged,
+  logged_ref,
   presets,
   autoRegions('yiq', 'Where they differ: perceptual', 'The server compares the full images by perceived color difference (YIQ, like the viewer\'s), pixel by pixel, and finds where they differ most'),
   autoRegions('ssim', 'Where they differ: structure (SSIM)', 'The server compares the full images by structural similarity (SSIM), about 1000 pixels wide, and finds where they differ most'),

@@ -6,9 +6,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { boxInPixels, boxLabel, boxRegions, evolution, filterBoxes, groupKeys, itemAt, labelColor, matchItem, nextStep, parseMedia, sampleKey, snap, summary, unionSteps } from '../media/media';
+import { boxInPixels, boxLabel, boxRegions, cleanFocus, evolution, filterBoxes, groupKeys, itemAt, labelColor, matchItem, nextStep, parseMedia, sampleKey, sampleKeys, snap, stepRange, summary, unionSteps } from '../media/media';
 import { distribution, histogramRange, quantiles, resample } from '../media/histogram';
-import { columnHistogram, diffTables, keyColumn, numericColumns, parseTable, tableRows } from '../media/table';
+import { BY_ROW, columnHistogram, diffTables, keyColumn, numericColumns, parseTable, tableRows } from '../media/table';
 import { columnsX } from '../media/HistogramView';
 
 const FIXTURES = path.join(import.meta.dirname, '../../../../tests/fixtures/media');
@@ -189,6 +189,30 @@ describe('samples', () => {
     expect(sampleKey({ index: 2 })).toBe('index:2');
   });
 
+  it('logged twice with the same caption match in order, with keys of their own', () => {
+    const items_new = [{ index: 0, caption: 'cat', path: 'n0' }, { index: 1, caption: 'cat', path: 'n1' }, { index: 2, caption: 'dog', path: 'n2' }];
+    const items_ref = [{ index: 0, caption: 'dog', path: 'r0' }, { index: 1, caption: 'cat', path: 'r1' }, { index: 2, caption: 'cat', path: 'r2' }];
+    expect(sampleKeys(items_new)).toEqual(['caption:cat', 'caption:cat#1', 'caption:dog']);
+    expect(sampleKey(items_new[1], items_new)).toBe('caption:cat#1');
+    expect(items_new.map(item => matchItem(item, items_ref, items_new).item.path)).toEqual(['r1', 'r2', 'r0']);
+    // the second "cat" across the steps, by its key
+    expect(matchItem('caption:cat#1', items_ref).item.path).toBe('r2');
+    expect(matchItem('caption:cat#1', [{ caption: 'cat' }]).item).toBe(null);
+    // only one "cat" in the reference: the second has none
+    expect(matchItem(items_new[1], [{ caption: 'cat', path: 'r' }], items_new).item).toBe(null);
+    // ids first, also when logged twice
+    const ids = [{ id: 'a', caption: 'cat' }, { id: 'a', caption: 'cat' }];
+    expect(sampleKeys(ids)).toEqual(['id:a', 'id:a#1']);
+    expect(matchItem(ids[1], [{ id: 'a', path: 'x' }, { id: 'a', path: 'y' }], ids).item.path).toBe('y');
+  });
+
+  it('users are on come from the address: what isn\'t of the expected type is dropped', () => {
+    expect(cleanFocus({ run: 1, key: 'val/samples', sample: 'id:cat', open: true, evolution: false })).toEqual({ run: 1, key: 'val/samples', sample: 'id:cat', open: true, evolution: false });
+    expect(cleanFocus({ run: 1, key: ['a'], sample: { id: 'cat' }, open: 'yes', evolution: 1 })).toEqual({ run: 1 });
+    expect(cleanFocus('id:cat')).toEqual({});
+    expect(cleanFocus(null)).toEqual({});
+  });
+
   it('follow a sample across the steps', () => {
     expect(evolution(model, 'val/samples', 'id:img_0').map(({ step, item }) => [step, item.index])).toEqual([[0, 0], [10, 1], [20, 0]]);
     expect(evolution(model, 'nothing', 'id:img_0')).toEqual([]);
@@ -208,6 +232,13 @@ describe('samples', () => {
   });
 });
 
+describe('steps', () => {
+  it('have a range, also when there are too many to spread them', () => {
+    const many = Array.from({ length: 300000 }, (_, i) => i * 2);
+    expect(stepRange(many, [-5, 7])).toEqual({ min: -5, max: 599998 });
+  });
+});
+
 describe('quantiles and table diffs', () => {
   it('give the median and the 5-95% band of a histogram', () => {
     expect(quantiles({ bins: [0, 1, 2], counts: [1, 1] }, [0.05, 0.5, 0.95])).toEqual([0.1, 1, 1.9]);
@@ -219,11 +250,43 @@ describe('quantiles and table diffs', () => {
     const ref = { columns: ['name', 'score'], rows: [['b', 2], ['a', 5], ['d', 1]] };
     expect(keyColumn(table)).toBe(1);
     expect(keyColumn({ columns: ['x', 'ID'], rows: [] })).toBe(1);
-    expect(keyColumn({ columns: ['x', 'y'], rows: [[1, 2]] })).toBe(0);
+    // no column of unique texts: rows are joined by their position
+    expect(keyColumn({ columns: ['x', 'y'], rows: [[1, 2]] })).toBe(BY_ROW);
     const diff = diffTables(table, ref, 1);
     expect(diff.map(d => d.status)).toEqual(['changed', 'same', 'added', 'removed']);
     expect([...diff[0].changed]).toEqual([0]);
     expect(diff[3].row).toEqual([1, 'd']);
     expect(columnHistogram([[0], [1], [1], ['x']], 0, 2)).toEqual({ min: 0, max: 1, counts: [1, 2] });
+  });
+
+  it('join rows with the same key in order, and prefer a column of unique values', () => {
+    // two "cat" rows: the first with the first, the second with the second
+    const table = { columns: ['class', 'score'], rows: [['cat', 1], ['cat', 2], ['dog', 3]] };
+    expect(diffTables(table, table, 0).map(d => d.status)).toEqual(['same', 'same', 'same']);
+    const changed = diffTables(table, { ...table, rows: [['cat', 1], ['cat', 5], ['dog', 3]] }, 0);
+    expect(changed.map(d => d.status)).toEqual(['same', 'changed', 'same']);
+    // "class" isn't unique: the first column of unique texts, else by row
+    expect(keyColumn(table)).toBe(BY_ROW);
+    expect(keyColumn({ columns: ['class', 'file'], rows: [['cat', 'a.png'], ['cat', 'b.png']] })).toBe(1);
+    expect(keyColumn({ columns: ['name', 'id'], rows: [['cat', 1], ['cat', 2]] })).toBe(1);
+    // numbers aren't keys unless named so: the epochs of two runs are joined by row, and compared
+    const epochs = { columns: ['epoch', 'loss'], rows: [[1, 0.5], [2, 0.4]] };
+    expect(keyColumn(epochs)).toBe(BY_ROW);
+    expect(diffTables(epochs, { ...epochs, rows: [[1, 0.5], [2, 0.41]] }, BY_ROW).map(d => d.status)).toEqual(['same', 'changed']);
+    expect(diffTables(epochs, { ...epochs, rows: [[1, 0.5]] }, BY_ROW).map(d => d.status)).toEqual(['same', 'added']);
+  });
+
+  it('compare the images of cells by the files, not their names', () => {
+    const cell = (path, extra) => ({ kind: 'image', path, width: 4, height: 4, ...extra });
+    const table = { columns: ['name', 'image'], rows: [['a', cell('media/t/20/0_1.png')]] };
+    // the same name at another step isn't the same file
+    expect(diffTables(table, { ...table, rows: [['a', cell('media/t/10/0_1.png')]] }, 0)[0].status).toBe('changed');
+    expect(diffTables(table, { ...table, rows: [['a', cell('media/t/20/0_1.png', { width: 8 })]] }, 0)[0].status).toBe('changed');
+    expect(diffTables(table, table, 0)[0].status).toBe('same');
+    // the runs' manifests know whether the files are the same
+    const same = { new: { 'media/t/20/0_1.png': { md5: 'x' } }, ref: { 'media/t/20/0_1.png': { md5: 'x' } } };
+    const different = { ...same, ref: { 'media/t/20/0_1.png': { md5: 'y' } } };
+    expect(diffTables(table, table, 0, same)[0].status).toBe('same');
+    expect(diffTables(table, table, 0, different)[0].status).toBe('changed');
   });
 });

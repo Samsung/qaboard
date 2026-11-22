@@ -3,7 +3,7 @@
 // the louder track doesn't win. With `compact`, a row for grids of sounds (CompactAudio.jsx) that expands into it.
 // Standalone: it imports nothing from the app (viewers/__tests__/isolation.test.js), QA-Board uses it through
 // ../audio-viewer.jsx. On its own, with generated audio: npm start, then /audio-viewer.html (playground.jsx).
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, Callout, Classes, Intent, SegmentedControl, Slider, Switch, Tag, Tooltip } from '@blueprintjs/core';
 
 import './audio.css';
@@ -92,10 +92,25 @@ export const FullAudioViewer = ({ src, src_ref, labels, caption, caption_ref, he
     : Math.abs(track_new.duration - track_ref.duration) > 0.01 * Math.max(track_new.duration, track_ref.duration) ? `the durations differ (${formatTime(track_new.duration)} and ${formatTime(track_ref.duration)})`
     : null;
   const differing = show_difference && !no_difference;
-  const track_diff = useMemo(
-    () => differing ? toTrack({ sample_rate: track_new.sample_rate, channels: difference(track_new.channels, track_ref.channels) }) : null,
-    [differing, track_new, track_ref],
-  );
+  // computed when users turn it on, off the render: minutes of audio take a while
+  const [computed, setComputed] = useState(null);
+  useEffect(() => {
+    if (!differing) return undefined;
+    let cancelled = false;
+    const compute = () => {
+      if (cancelled) return;
+      const track = toTrack({ sample_rate: track_new.sample_rate, channels: difference(track_new.channels, track_ref.channels) });
+      setComputed({ track_new, track_ref, track });
+    };
+    if (globalThis.requestIdleCallback) {
+      const id = globalThis.requestIdleCallback(compute, { timeout: 100 });
+      return () => { cancelled = true; globalThis.cancelIdleCallback?.(id); };
+    }
+    const id = setTimeout(compute, 0);
+    return () => { cancelled = true; clearTimeout(id); };
+  }, [differing, track_new, track_ref]);
+  const track_diff = differing && computed?.track_new === track_new && computed?.track_ref === track_ref ? computed.track : null;
+  const computing_difference = differing && !track_diff;
   const playback = usePlayback({ new: track_new, reference: track_ref, difference: track_diff }, { match_loudness });
   const { duration, time, heard, playing } = playback;
   const looping = !!playback.loop;
@@ -287,6 +302,7 @@ export const FullAudioViewer = ({ src, src_ref, labels, caption, caption_ref, he
       >
         <Switch inline className="qa-audio-switch" label="Difference" checked={differing} disabled={!!no_difference} onChange={event => setShowDifference(event.target.checked)}/>
       </Tooltip>}
+      {computing_difference && <span className="qa-audio-meta" role="status">computing the difference…</span>}
       <SegmentedControl
         size="small" aria-label="View" value={view} onValueChange={setView}
         options={[{ value: 'waveform', label: 'Waveform' }, { value: 'spectrogram', label: 'Spectrogram' }]}

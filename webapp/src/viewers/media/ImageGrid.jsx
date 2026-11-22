@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Button, Classes, Tooltip } from "@blueprintjs/core";
 
 import { useMediaContext } from "./context";
-import { boxInPixels, boxLabel, filterBoxes, labelColor, matchItem, sampleKey, validBoxes } from "./media";
+import { boxInPixels, boxLabel, filterBoxes, labelColor, matchItem, sampleKeys, validBoxes } from "./media";
 
 const SHOWN_AT_FIRST = 48;
 
@@ -72,9 +72,9 @@ const ImageGrid = ({ items_new, items_ref, output_new, output_ref, names, colors
   const side_by_side = items_new.length === 1 && !!items_ref && side_by_side_room;
   return <>
     <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, ${size}px)`, gap: '10px 10px' }} data-testid="image-grid">
-      {shown.map(item => {
-        const key = sampleKey(item);
-        const ref = items_ref ? matchItem(item, items_ref).item : null;
+      {shown.map((item, i) => {
+        const key = sampleKeys(items_new)[i];
+        const ref = items_ref ? matchItem(item, items_ref, items_new).item : null;
         const is_focused = focused === key;
         const sides = [
           <Thumbnail key="new" src={fileUrl(output_new, item.path)} item={item} size={size} label={items_ref ? names.new : undefined} color={colors.new} selected={is_focused} filters={filters} onClick={() => onOpen(key)}/>,
@@ -89,9 +89,9 @@ const ImageGrid = ({ items_new, items_ref, output_new, output_ref, names, colors
             <span className={Classes.TEXT_MUTED} style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={[item.caption, item.id].filter(Boolean).join(' · ')}>
               {item.caption ?? item.id ?? `#${item.index ?? 0}`}
             </span>
-            <Tooltip content="Across the steps (e)" compact>
+            {onEvolution && <Tooltip content="Across the steps (e)" compact>
               <Button size="small" variant="minimal" icon="film" aria-label={`Evolution of ${item.caption ?? item.id ?? `#${item.index ?? 0}`}`} onClick={() => onEvolution(key)}/>
-            </Tooltip>
+            </Tooltip>}
           </figcaption>
         </figure>;
       })}

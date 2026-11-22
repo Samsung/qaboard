@@ -8,7 +8,7 @@ import { Button, ButtonGroup, Classes, Dialog, DialogBody, HTMLSelect, Icon, Inp
 import { fileQuery } from "../../api/queries";
 import { ViewerError, ViewerLoading } from "../ViewerStates";
 import { useMediaContext } from "./context";
-import { cellText, columnHistogram, diffTables, is_media_cell, keyColumn, numericColumns, parseTable, tableRows } from "./table";
+import { BY_ROW, cellText, columnHistogram, diffTables, is_media_cell, keyColumn, numericColumns, parseTable, tableRows } from "./table";
 
 const ROW_HEIGHT = 30;
 const IMAGE_ROW_HEIGHT = 52;
@@ -116,8 +116,9 @@ const useTable = (url, is_running) => {
   return { table, error, pending: !!url && query.isPending };
 };
 
-// item_new, item_ref: the tables logged at the step (media.js), the reference's can be missing
-const TableView = ({ item_new, item_ref, output_new, output_ref, names }) => {
+// item_new, item_ref: the tables logged at the step (media.js), the reference's can be missing. identity: the runs'
+// manifests { new, ref }, to tell whether images in cells changed
+const TableView = ({ item_new, item_ref, output_new, output_ref, names, identity }) => {
   const { fileUrl } = useMediaContext();
   const [side, setSide] = useState('new');
   const [filter, setFilter] = useState('');
@@ -131,7 +132,7 @@ const TableView = ({ item_new, item_ref, output_new, output_ref, names }) => {
   let table = null, diff = null, error, pending, path;
   if (shown_side === 'diff' && both) {
     const column = key_column ?? keyColumn(query_new.table);
-    diff = diffTables(query_new.table, query_ref.table, column);
+    diff = diffTables(query_new.table, query_ref.table, column, identity);
     table = { columns: query_new.table.columns, rows: diff.map(d => d.row), ref_columns: query_new.table.columns.map(name => query_ref.table.columns.indexOf(name)) };
     path = item_new.path;
   } else {
@@ -151,9 +152,9 @@ const TableView = ({ item_new, item_ref, output_new, output_ref, names }) => {
         <Button active={shown_side === 'diff'} onClick={() => setSide('diff')} icon="changes" text="Diff"/>
       </ButtonGroup>}
       {shown_side === 'diff' && query_new.table && <label style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-        rows joined by
+        rows joined
         <HTMLSelect minimal value={key_column ?? keyColumn(query_new.table)} onChange={e => setKeyColumn(Number(e.target.value))} aria-label="Rows joined by"
-          options={query_new.table.columns.map((name, c) => ({ value: c, label: name }))}/>
+          options={[{ value: BY_ROW, label: 'by row' }, ...query_new.table.columns.map((name, c) => ({ value: c, label: `by ${name}` }))]}/>
       </label>}
       <InputGroup size="small" leftIcon="search" placeholder="Filter rows" aria-label="Filter rows" value={filter} onChange={e => setFilter(e.target.value)} style={{ width: 180 }}/>
       {table && <span className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>

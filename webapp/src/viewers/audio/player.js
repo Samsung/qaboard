@@ -19,11 +19,16 @@ export function createPlayer(tracks) {
   const duration = Math.max(0, ...sides.map(side => tracks[side].duration));
   let context = null, master = null, trims = {}, gains = {}, buffers = {}, sources = [];
   let playing = false, offset = 0, started_at = 0;
+  // the context's resume() that play() waits for: playing once it resolved
+  let pending = null;
   let heard = sides[0], volume = 1, loop = null, trim_db = {};
 
+  // A buffer of its own (Firefox detaches the arrays of a buffer that plays: the track's stay usable), as long as the
+  // longest track, silent after the track's end: all the sources loop over the same times, and stay in sync after
+  // the loop wraps, even when it starts after the end of a shorter track
   const toBuffer = track => {
-    if (track.buffer) return track.buffer;
-    const buffer = context.createBuffer(track.channels.length, track.length, track.sample_rate);
+    const length = Math.max(track.length, Math.round(duration * track.sample_rate));
+    const buffer = context.createBuffer(track.channels.length, length, track.sample_rate);
     track.channels.forEach((samples, c) => buffer.copyToChannel(samples, c));
     return buffer;
   };
@@ -77,7 +82,8 @@ export function createPlayer(tracks) {
 
   const player = {
     duration,
-    get playing() { return playing; },
+    // also while the context resumes
+    get playing() { return playing || !!pending; },
     get heard() { return heard; },
     // the position, in seconds. Stops at the end.
     time() {
@@ -91,27 +97,47 @@ export function createPlayer(tracks) {
       return t;
     },
     async play() {
-      if (playing) return;
+      if (playing || pending) return;
       setup();
       if (active && active !== player) active.pause();
       active = player;
       if (loop && (offset < loop.start || offset >= loop.end)) offset = loop.start;
       if (!loop && offset >= duration) offset = 0;
-      playing = true;
       start();
-      if (context.state === 'suspended') await context.resume();
+      if (context.state === 'suspended') {
+        const resuming = pending = Promise.resolve(context.resume());
+        try {
+          await resuming;
+        } catch (error) {
+          // not playing: it can be tried again
+          if (pending === resuming) {
+            pending = null;
+            stopSources();
+          }
+          throw error;
+        }
+        // paused, or disposed, meanwhile
+        if (pending !== resuming) return;
+        pending = null;
+      }
+      playing = true;
     },
     pause() {
+      if (pending) {
+        pending = null;
+        stopSources();
+        return;
+      }
       if (!playing) return;
       offset = position();
       stopSources();
       playing = false;
     },
     seek(t) {
-      const was_playing = playing;
+      const was_playing = playing || !!pending;
       player.pause();
       offset = Math.max(0, Math.min(duration, t));
-      if (was_playing) player.play();
+      if (was_playing) player.play().catch(() => {});
     },
     hear(side) {
       if (!tracks[side]) return;
@@ -130,15 +156,16 @@ export function createPlayer(tracks) {
     // { start, end } in seconds, or null
     setLoop(region) {
       const t = position();
-      const was_playing = playing;
+      const was_playing = playing || !!pending;
       player.pause();
       loop = region && region.end > region.start ? region : null;
       offset = t;
-      if (was_playing) player.play();
+      if (was_playing) player.play().catch(() => {});
     },
     dispose() {
       stopSources();
       playing = false;
+      pending = null;
       master?.disconnect();
       if (active === player) active = null;
     },

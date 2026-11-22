@@ -44,7 +44,8 @@ const EvolutionStrip = ({ name, sample, model_new, model_ref, output_new, output
           {virtualizer.getVirtualItems().map(virtual => {
             const { step: frame_step, item } = frames[virtual.index];
             const at_ref = model_ref ? itemAt(model_ref, name, frame_step) : null;
-            const ref = at_ref ? matchItem(item, at_ref.items).item : null;
+            // the n-th "cat" of the step with the reference's n-th
+            const ref = at_ref ? matchItem(item, at_ref.items, model_new.keys[name].by_step.get(frame_step)).item : null;
             const is_selected = frame_step === step;
             return <div key={virtual.key} style={{ position: 'absolute', left: 0, top: 0, width: SIZE, transform: `translateX(${virtual.start}px)`, display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontSize: 10, fontWeight: is_selected ? 700 : 400, color: is_selected ? '#f5498b' : undefined, height: 16 }}>{formatStep(frame_step)}</span>

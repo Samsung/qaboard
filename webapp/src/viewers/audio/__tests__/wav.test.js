@@ -56,4 +56,18 @@ describe('WAV files', () => {
     expect(a.some((v, i) => Math.abs(v - b[i]) > 0.01)).toBe(true);
     expect(synthesize({ seconds: 0.1, rate: 8000, channels: 3 })).toHaveLength(3);
   });
+
+  it('throws on headers that make no sense, instead of looping forever', () => {
+    const broken = (offset, value, bits = 16) => {
+      const buffer = encodeWav([new Float32Array(10)], 8000);
+      const view = new DataView(buffer);
+      if (bits === 32) view.setUint32(offset, value, true); else view.setUint16(offset, value, true);
+      return buffer;
+    };
+    expect(() => decodeWav(broken(22, 0))).toThrow(/0 channels/);
+    expect(() => decodeWav(broken(24, 0, 32))).toThrow(/sample rate of 0/);
+    expect(() => decodeWav(broken(34, 12))).toThrow(/12 bits/);
+    expect(() => decodeWav(broken(34, 0))).toThrow(/0 bits/);
+    expect(() => decodeWav(broken(16, 8, 32))).toThrow(/fmt chunk of 8 bytes/);
+  });
 });

@@ -9,7 +9,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useInView } from "react-intersection-observer";
-import { Button, ButtonGroup, Callout, Classes, Dialog, DialogBody, Icon, InputGroup, Tag, Tooltip } from "@blueprintjs/core";
+import { AnchorButton, Button, ButtonGroup, Callout, Classes, Dialog, DialogBody, Icon, InputGroup, Tag, Tooltip } from "@blueprintjs/core";
 
 import { fileQuery } from "../../api/queries";
 import { useLabels } from "../../hooks";
@@ -24,7 +24,7 @@ import { KIND_ICONS } from "./kinds";
 import ImageGrid, { slotSize } from "./ImageGrid";
 import BoxControls from "./BoxControls";
 import Timeline from "./Timeline";
-import { boxRegions, formatStep, groupKeys, itemAt, matchItem, nextStep, parseMedia, sampleKey, snap, summary } from "./media";
+import { boxRegions, cleanFocus, formatStep, groupKeys, itemAt, matchItem, nextStep, parseMedia, sampleKey, snap, summary, unionSteps } from "./media";
 import { useWidth } from "./useWidth";
 
 const LoadableTableView = lazy(() => import('./TableView'));
@@ -82,10 +82,11 @@ const EmptyState = ({ running }) => <Callout compact icon="media" title={running
 run.log({"weights/fc1": qaboard.Histogram(model.fc1.weight)}, step=step)`}</pre>
 </Callout>;
 
-// Keys are drawn when they come near the screen: runs log dozens. Until then, a placeholder of about their size.
-const Lazy = ({ height, children }) => {
+// Keys are drawn when they come near the screen: runs log dozens. Until then, a placeholder of about their size, with
+// the key's name: jumping to a key far below scrolls to its placeholder, which then draws it.
+const Lazy = ({ name, height, children }) => {
   const { ref, inView } = useInView({ triggerOnce: true, rootMargin: '600px', fallbackInView: true });
-  return <div ref={ref} style={inView ? undefined : { minHeight: height }}>{inView && children}</div>;
+  return <div ref={ref} data-key={name} style={{ scrollMarginTop: 120, ...(inView ? {} : { minHeight: height }) }}>{inView && children}</div>;
 };
 
 const estimated_height = (entry, ref) => {
@@ -101,7 +102,7 @@ const estimated_height = (entry, ref) => {
 
 // One key: what it logged at the step, and the reference's
 const MediaKey = props => {
-  const { name, model_new, model_ref, step, output_new, output_ref, viewer_props, names, colors, onStep, focus, setFocus, flipped, pinned, onPin, width } = props;
+  const { name, model_new, model_ref, step, output_new, output_ref, viewer_props, labels, names, colors, onStep, focus, setFocus, flipped, pinned, onPin, width } = props;
   const { Viewer: CustomViewer, fileUrl } = useMediaContext();
   const Viewer = CustomViewer ?? OutputViewer;
   const [box_filters, setBoxFilters] = useState({ hidden: new Set(), min_score: 0 });
@@ -112,9 +113,9 @@ const MediaKey = props => {
   const at_ref = model_ref ? itemAt(model_ref, name, step) : null;
   const items_ref = at_ref?.items ?? null;
   const is_focused = focus.key === name;
-  const ref_of = item => items_ref ? matchItem(item, items_ref).item : null;
+  const ref_of = item => items_ref ? matchItem(item, items_ref, at_new.items).item : null;
   // items in viewers don't take the section's keys
-  const viewer = (item, ref, ref_output = output_ref, extra = {}) => <div className="qa-media-viewer" key={sampleKey(item)}>
+  const viewer = (item, ref, ref_output = output_ref, extra = {}) => <div className="qa-media-viewer" key={sampleKey(item, at_new.items)}>
     <Viewer
       {...viewer_props}
       {...extra}
@@ -122,9 +123,13 @@ const MediaKey = props => {
       output_ref={ref ? ref_output : undefined}
       path={item.path}
       path_ref={ref?.path}
+      // the image viewer draws a set of regions over every image it shows: each side's boxes are a set of their own
       boxes={kind === 'image' ? boxRegions(item, box_filters) : undefined}
+      boxes_ref={kind === 'image' && ref ? boxRegions(ref, box_filters) : undefined}
     />
   </div>;
+  // the text viewer says what it compares with: "step 10", not "reference"
+  const compared_with = (name_new, name_ref) => ({ compared_to: name_ref, labels: labels ? { ...labels, new: name_new, reference: name_ref } : undefined });
 
   let content;
   if (at_new.step === null) {
@@ -132,7 +137,7 @@ const MediaKey = props => {
   } else if (kind === 'histogram') {
     content = <LoadableHistogramView entry_new={entry} entry_ref={model_ref?.keys[name]} step={at_new.step} step_ref={at_ref?.step} onStep={onStep} colors={colors} names={names}/>;
   } else if (kind === 'table') {
-    content = <LoadableTableView key={at_new.step} item_new={at_new.items[0]} item_ref={items_ref?.[0]} output_new={output_new} output_ref={output_ref} names={names}/>;
+    content = <LoadableTableView key={at_new.step} item_new={at_new.items[0]} item_ref={items_ref?.[0]} output_new={output_new} output_ref={output_ref} names={names} identity={{ new: viewer_props.manifests?.new, ref: viewer_props.manifests?.reference }}/>;
   } else if (kind === 'image') {
     const opened = is_focused && focus.open && focus.sample ? matchItem(focus.sample, at_new.items).item : null;
     const evolving = is_focused && focus.evolution && focus.sample;
@@ -170,14 +175,14 @@ const MediaKey = props => {
         <Button active={against === 'previous'} disabled={!previous} onClick={() => setTextAgainst('previous')} text={previous_step !== undefined ? `vs step ${formatStep(previous_step)}` : 'vs previous step'}/>
       </ButtonGroup>
       {at_new.items.map(item => against === 'previous'
-        ? viewer(item, matchItem(item, previous).item, output_new)
-        : viewer(item, ref_of(item)))}
+        ? viewer(item, matchItem(item, previous, at_new.items).item, output_new, compared_with(`step ${formatStep(at_new.step)}`, `step ${formatStep(previous_step)}`))
+        : viewer(item, ref_of(item), output_ref, at_ref && at_ref.step !== at_new.step ? compared_with(names.new, `${names.ref} at step ${formatStep(at_ref.step)}`) : {}))}
     </>;
   } else if (kind === 'audio' && at_new.items.length > 1) {
     // several sounds at a step: compact rows (play, A/B), one opened in the full viewer at a time
     const opened = is_focused && focus.open && focus.sample ? focus.sample : null;
     content = at_new.items.map(item => {
-      const sample = sampleKey(item);
+      const sample = sampleKey(item, at_new.items);
       const ref = ref_of(item);
       const caption = item.caption ?? item.id ?? `#${item.index ?? 0}`;
       return opened === sample
@@ -193,7 +198,7 @@ const MediaKey = props => {
   } else {
     content = at_new.items.map(item => {
       const ref = ref_of(item);
-      return <div key={sampleKey(item)}>
+      return <div key={sampleKey(item, at_new.items)}>
         {item.path ? viewer(item, ref) : <span className={Classes.TEXT_MUTED}>No file.</span>}
         {(item.caption || ref?.caption) && <div className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>
           {item.caption}{ref?.caption && ref.caption !== item.caption && <> ({names.ref}: {ref.caption})</>}
@@ -203,7 +208,7 @@ const MediaKey = props => {
   }
 
   const download = at_new.items[0]?.path ? fileUrl(output_new, at_new.items[0].path) : null;
-  return <section aria-label={name} data-testid="media-key" data-key={name} style={{ marginBottom: 18, scrollMarginTop: 120 }}>
+  return <section aria-label={name} data-testid="media-key" style={{ marginBottom: 18 }}>
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 13, marginBottom: 6, minHeight: 24 }}>
      <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minHeight: 24 }}>
       <Icon icon={KIND_ICONS[kind] ?? 'document'} size={12} title={kind} className={Classes.TEXT_MUTED}/>
@@ -217,10 +222,10 @@ const MediaKey = props => {
      </div>
      <div style={{ flex: 'none', display: 'flex' }}>
       {kind === 'image' && at_new.items.length > 0 && <Tooltip content="Across the steps (e)" compact>
-        <Button size="small" variant="minimal" icon="film" aria-label={`Evolution of ${name}`} onClick={() => setFocus({ key: name, sample: focus.key === name && focus.sample ? focus.sample : sampleKey(at_new.items[0]), evolution: !(is_focused && focus.evolution) })}/>
+        <Button size="small" variant="minimal" icon="film" aria-label={`Evolution of ${name}`} onClick={() => setFocus({ key: name, sample: focus.key === name && focus.sample ? focus.sample : sampleKey(at_new.items[0], at_new.items), evolution: !(is_focused && focus.evolution) })}/>
       </Tooltip>}
       {download && kind !== 'histogram' && <Tooltip content="Download the file" compact>
-        <Button size="small" variant="minimal" icon="download" aria-label={`Download ${name}`} href={download} download target="_blank"/>
+        <AnchorButton size="small" variant="minimal" icon="download" aria-label={`Download ${name}`} href={download} download target="_blank" rel="noopener noreferrer"/>
       </Tooltip>}
       <Tooltip content={pinned ? 'Unpin' : 'Pin on top, for this project'} compact>
         <Button size="small" variant="minimal" icon={pinned ? 'unpin' : 'pin'} aria-label={pinned ? `Unpin ${name}` : `Pin ${name}`} onClick={() => onPin(name)} active={pinned}/>
@@ -231,16 +236,68 @@ const MediaKey = props => {
   </section>;
 };
 
+// A key only the reference logged: what the new run doesn't log anymore, a regression to see
+const RefOnlyKey = ({ name, model_ref, step, output_ref, viewer_props, names, colors, onStep, pinned, onPin, width }) => {
+  const { Viewer: CustomViewer } = useMediaContext();
+  const Viewer = CustomViewer ?? OutputViewer;
+  const [opened, setOpened] = useState(null);
+  const entry = model_ref.keys[name];
+  const kind = entry.kind;
+  const at = itemAt(model_ref, name, step);
+  const ref_names = { new: names.ref, ref: names.ref };
+  const ref_colors = { new: colors.ref, ref: colors.ref };
+  const viewer = item => <div className="qa-media-viewer" key={sampleKey(item, at.items)}>
+    <Viewer {...viewer_props} output_new={output_ref} output_ref={undefined} path={item.path} boxes={kind === 'image' ? boxRegions(item) : undefined}/>
+  </div>;
+  let content;
+  if (at.step === null) {
+    content = <span className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>{names.ref} logs it from step {formatStep(entry.steps[0])}.</span>;
+  } else if (kind === 'histogram') {
+    content = <LoadableHistogramView entry_new={entry} step={at.step} onStep={onStep} colors={ref_colors} names={ref_names}/>;
+  } else if (kind === 'table') {
+    content = <LoadableTableView key={at.step} item_new={at.items[0]} output_new={output_ref} names={ref_names}/>;
+  } else if (kind === 'image') {
+    const item = opened ? matchItem(opened, at.items).item : null;
+    content = <>
+      <ImageGrid
+        items_new={at.items} items_ref={null} output_new={output_ref} names={ref_names} colors={ref_colors}
+        size={at.items.length === 1 ? Math.min(320, width - 10) : width < 520 ? 110 : 150} filters={{ hidden: new Set(), min_score: 0 }}
+        focused={opened} onOpen={sample => setOpened(opened === sample ? null : sample)}
+      />
+      {item && <div style={{ marginTop: 8 }}>{viewer(item)}</div>}
+    </>;
+  } else {
+    content = at.items.map(item => item.path ? viewer(item) : <span key={sampleKey(item, at.items)} className={Classes.TEXT_MUTED}>No file.</span>);
+  }
+  return <section aria-label={name} data-testid="media-key" data-only-ref style={{ marginBottom: 18 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, marginBottom: 6, minHeight: 24, flexWrap: 'wrap' }}>
+      <Icon icon={KIND_ICONS[kind] ?? 'document'} size={12} title={kind} className={Classes.TEXT_MUTED}/>
+      <strong style={{ overflowWrap: 'anywhere' }}>{name}</strong>
+      <Tooltip content={`${names.ref} logged this key, ${names.new} didn't: shown is ${names.ref}'s`} compact>
+        <Tag minimal size="small" intent="warning" icon="warning-sign">Not logged by {names.new}</Tag>
+      </Tooltip>
+      {at.step !== null && <Tag minimal size="small" icon={at.step !== step ? 'history' : undefined}>{names.ref} at step {formatStep(at.step)}</Tag>}
+      <span style={{ flex: 1 }}/>
+      <Tooltip content={pinned ? 'Unpin' : 'Pin on top, for this project'} compact>
+        <Button size="small" variant="minimal" icon={pinned ? 'unpin' : 'pin'} aria-label={pinned ? `Unpin ${name}` : `Pin ${name}`} onClick={() => onPin(name)} active={pinned}/>
+      </Tooltip>
+    </div>
+    <Suspense fallback={<ViewerLoading height={120}/>}>{content}</Suspense>
+  </section>;
+};
+
 const link_style = { border: 'none', background: 'none', padding: 0, color: 'inherit', font: 'inherit', fontSize: 12, textAlign: 'left', cursor: 'pointer' };
 
 // The keys, grouped by prefix, to jump to one: kind, how many steps, the last
-const Contents = ({ groups, pinned, model, collapsed, onToggleGroup, onPin, onJump, filter, setFilter, total }) => {
+// entries: { [key]: { kind, steps, only_ref } }, the keys of both runs
+const Contents = ({ groups, pinned, entries, names, collapsed, onToggleGroup, onPin, onJump, filter, setFilter, total }) => {
   const entry = key => <li key={key} style={{ display: 'flex', alignItems: 'center', gap: 4, minHeight: 22, fontSize: 12 }}>
-    <Icon icon={KIND_ICONS[model.keys[key].kind]} size={11} className={Classes.TEXT_MUTED}/>
-    <button type="button" className="qa-media-link" onClick={() => onJump(key)} style={{ ...link_style, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={key}>
+    <Icon icon={KIND_ICONS[entries[key].kind]} size={11} className={Classes.TEXT_MUTED}/>
+    <button type="button" className="qa-media-link" onClick={() => onJump(key)} style={{ ...link_style, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={entries[key].only_ref ? `${key}: not logged by ${names.new}` : key}>
       {key.includes('/') ? key.slice(key.indexOf('/') + 1) : key}
     </button>
-    <span className={Classes.TEXT_MUTED} style={{ fontSize: 10, whiteSpace: 'nowrap' }}>{model.keys[key].steps.length}× · {formatStep(model.keys[key].steps.at(-1))}</span>
+    {entries[key].only_ref && <Tag minimal size="small" intent="warning" style={{ fontSize: 10, minHeight: 16, padding: '0 4px' }}>only {names.ref}</Tag>}
+    <span className={Classes.TEXT_MUTED} style={{ fontSize: 10, whiteSpace: 'nowrap' }}>{entries[key].steps.length}× · {formatStep(entries[key].steps.at(-1))}</span>
     <Button size="small" variant="minimal" icon={pinned.has(key) ? 'unpin' : 'pin'} aria-label={pinned.has(key) ? `Unpin ${key}` : `Pin ${key}`} onClick={() => onPin(key)} style={{ minHeight: 18, minWidth: 18, padding: 0, opacity: pinned.has(key) ? 1 : 0.45 }}/>
   </li>;
   return <nav aria-label="Logged media keys" data-testid="media-contents">
@@ -248,7 +305,7 @@ const Contents = ({ groups, pinned, model, collapsed, onToggleGroup, onPin, onJu
     <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
       {pinned.size > 0 && <>
         <li className={Classes.TEXT_MUTED} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.4, margin: '2px 0' }}>Pinned</li>
-        {[...pinned].filter(key => model.keys[key]).map(entry)}
+        {[...pinned].filter(key => entries[key]).map(entry)}
       </>}
       {groups.map(({ group, keys }) => !group ? keys.map(entry) : <li key={group}>
         <button type="button" className="qa-media-link" onClick={() => onToggleGroup(group)} aria-expanded={!collapsed[group]} style={{ ...link_style, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600, minHeight: 22 }}>
@@ -292,9 +349,13 @@ const LoggedMedia = ({ output_new, output_ref, path = 'media.jsonl', path_ref, l
   const series = useSeries(output_new, manifests?.new, fileUrl);
 
   const steps = model_new?.steps ?? no_steps;
+  // the steps either run logged at: each key shows its own nearest earlier step, in each run
+  const all_steps = useMemo(() => model_ref?.steps.length ? unionSteps(model_new, model_ref) : steps, [model_new, model_ref, steps]);
   const chosen = onControlsChange ? media_step : own_step;
-  const step = steps.length ? snap(steps, chosen ?? steps.at(-1)) ?? steps[0] : null;
-  const focus = onControlsChange ? (media_focus?.run === output_new?.id ? media_focus : {}) : own_focus;
+  // by default, the new run's last step
+  const step = all_steps.length ? snap(all_steps, chosen ?? steps.at(-1) ?? all_steps.at(-1)) ?? all_steps[0] : null;
+  // from the address: anything
+  const focus = onControlsChange ? (media_focus?.run === output_new?.id ? cleanFocus(media_focus) : {}) : own_focus;
 
   // the images of the steps around are fetched before users go there
   useEffect(() => {
@@ -313,8 +374,14 @@ const LoggedMedia = ({ output_new, output_ref, path = 'media.jsonl', path_ref, l
 
   if (query_new.isError) return <ViewerError path={path} error={query_new.error}/>;
   if (!query_new.isSuccess || (compared && query_ref.isPending)) return <ViewerLoading height={style?.height}/>;
-  const keys = Object.keys(model_new.keys);
-  if (keys.length === 0) return <EmptyState running={output_new?.is_running}/>;
+  const new_keys = Object.keys(model_new.keys);
+  if (new_keys.length === 0) return <EmptyState running={output_new?.is_running}/>;
+  // the keys of both runs: those only the reference logged are shown too, they're what the new run stopped logging
+  const ref_only = Object.keys(model_ref?.keys ?? {}).filter(key => !model_new.keys[key]);
+  const keys = [...new_keys, ...ref_only];
+  const entries = {};
+  for (const key of new_keys) entries[key] = model_new.keys[key];
+  for (const key of ref_only) entries[key] = { ...model_ref.keys[key], only_ref: true };
 
   const choose = value => onControlsChange ? onControlsChange({ media_step: value }) : setOwnStep(value);
   const setFocus = change => {
@@ -327,22 +394,22 @@ const LoggedMedia = ({ output_new, output_ref, path = 'media.jsonl', path_ref, l
     new: labels?.colors?.new ? plot_color(labels.colors.new, is_dark) : '#2d72d2',
     ref: labels?.colors?.reference ? plot_color(labels.colors.reference, is_dark) : '#738091',
   };
-  const pinned = new Set(Object.keys(pins).filter(key => model_new.keys[key]));
+  const pinned = new Set(Object.keys(pins).filter(key => entries[key]));
   const needle = filter.trim().toLowerCase();
   const matching = needle ? keys.filter(key => key.toLowerCase().includes(needle)) : keys;
-  const groups = groupKeys(matching.filter(key => !pinned.has(key)), key => model_new.keys[key]?.kind);
+  const groups = groupKeys(matching.filter(key => !pinned.has(key)), key => entries[key]?.kind);
   const shown_keys = [...[...pinned].filter(key => matching.includes(key)), ...groups.flatMap(({ group, keys }) => collapsed[group] ? [] : keys)];
   const series_names = series ? sorted_keys(Object.keys(series.series)) : [];
   const series_name = series_choice === undefined ? defaultSeries(series_names) : series_choice;
   const ref_steps = model_ref?.steps ?? [];
-  const image_keys = shown_keys.filter(key => model_new.keys[key].kind === 'image');
+  const image_keys = shown_keys.filter(key => model_new.keys[key]?.kind === 'image');
 
   const preview = at => {
     for (const key of image_keys) {
       const items = model_new.keys[key].by_step.get(at);
       if (items) return { src: fileUrl(output_new, items[0].path), label: `${key}${items[0].caption ? ` · ${items[0].caption}` : ''}` };
     }
-    const logged = shown_keys.filter(key => model_new.keys[key].by_step.has(at));
+    const logged = shown_keys.filter(key => entries[key].by_step.has(at));
     return { label: logged.length ? logged.join(', ') : 'nothing logged' };
   };
   const jump = key => {
@@ -355,19 +422,23 @@ const LoggedMedia = ({ output_new, output_ref, path = 'media.jsonl', path_ref, l
   // the key and sample the keyboard acts on: the one users are on, else the first images
   const focus_key = focus.key && model_new.keys[focus.key] ? focus.key : image_keys[0];
   const focus_items = focus_key ? itemAt(model_new, focus_key, step).items : [];
-  const focus_sample = focus.key === focus_key && focus.sample ? focus.sample : focus_items[0] ? sampleKey(focus_items[0]) : null;
+  const focus_sample = focus.key === focus_key && focus.sample ? focus.sample : focus_items[0] ? sampleKey(focus_items[0], focus_items) : null;
   const onKeyDown = e => {
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
-    if (e.target.closest?.('input, textarea, select, [contenteditable="true"], [role="slider"]')) return;
+    // React bubbles events through portals: the popovers and menus of the viewers inside aren't in the section
+    if (!(e.target instanceof Node) || !e.currentTarget.contains(e.target)) return;
+    if (e.target.isContentEditable || e.target.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="slider"]')) return;
+    // space activates buttons and links, but the thumbnails': on them, it switches new and reference
+    if (e.key === ' ' && e.target.closest?.('button:not(.qa-media-thumbnail), a[href], [role="button"], [role="menuitem"], summary')) return;
     // the viewers of the items have their own keys
     const in_viewer = !!e.target.closest?.('.qa-media-viewer');
     const go = action => { e.preventDefault(); action(); };
-    if (!in_viewer && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return go(() => choose(nextStep(steps, step, e.key === 'ArrowRight' ? 1 : -1)));
+    if (!in_viewer && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return go(() => choose(nextStep(all_steps, step, e.key === 'ArrowRight' ? 1 : -1)));
     if (!in_viewer && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && focus_items.length > 0) return go(() => {
-      const i = focus_items.findIndex(item => sampleKey(item) === focus_sample);
-      const next = focus_items[Math.max(0, Math.min(focus_items.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))];
-      setFocus({ key: focus_key, sample: sampleKey(next) });
-      root_element?.querySelector(`${selector('key', focus_key)} ${selector('sample', sampleKey(next))} button`)?.focus();
+      const i = focus_items.findIndex(item => sampleKey(item, focus_items) === focus_sample);
+      const next = sampleKey(focus_items[Math.max(0, Math.min(focus_items.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))], focus_items);
+      setFocus({ key: focus_key, sample: next });
+      root_element?.querySelector(`${selector('key', focus_key)} ${selector('sample', next)} button`)?.focus();
     });
     if (in_viewer) return;
     if (e.key === ' ' && focus_key) return go(() => setFlipped(f => !f));
@@ -379,13 +450,13 @@ const LoggedMedia = ({ output_new, output_ref, path = 'media.jsonl', path_ref, l
 
   const wide = width >= WIDE;
   const contents = <Contents
-    groups={groups} pinned={pinned} model={model_new} collapsed={collapsed} total={keys.length}
+    groups={groups} pinned={pinned} entries={entries} names={names} collapsed={collapsed} total={keys.length}
     onToggleGroup={group => toggleGroup(project_key, group)} onPin={key => togglePin(project_key, key)} onJump={jump}
     filter={filter} setFilter={setFilter}
   />;
   const key_width = wide ? width - 236 : width;
   const key_props = {
-    model_new, model_ref, step, output_new, output_ref: compared ? output_ref : undefined, names, colors, onStep: choose,
+    model_new, model_ref, step, output_new, output_ref: compared ? output_ref : undefined, labels, names, colors, onStep: choose,
     focus, setFocus, flipped, onPin: key => togglePin(project_key, key), width: key_width,
     viewer_props: { ...props, labels: labels_, manifests, style, onControlsChange },
   };
@@ -397,13 +468,16 @@ const LoggedMedia = ({ output_new, output_ref, path = 'media.jsonl', path_ref, l
       {output_new?.is_running && <Tag minimal intent="primary" icon="pulse">Live</Tag>}
       <span className={Classes.TEXT_MUTED} data-testid="media-summary">{summary(model_new)}</span>
       {compared && !model_ref?.items.length && <span className={Classes.TEXT_MUTED}>· nothing logged in {names.ref}</span>}
+      {ref_only.length > 0 && <Tooltip content={ref_only.join(', ')} compact>
+        <Tag minimal size="small" intent="warning" icon="warning-sign">{ref_only.length} {ref_only.length === 1 ? 'key' : 'keys'} not logged by {names.new}</Tag>
+      </Tooltip>}
     </div>
     <div style={{ position: 'sticky', top: 'var(--qa-sticky-top, 0px)', zIndex: 6, background: 'var(--qa-surface, #fff)', padding: '28px 0 6px', marginBottom: 8, borderBottom: '1px solid var(--qa-border, rgba(128, 128, 128, 0.18))' }}>
       <div style={{ position: 'absolute', top: 2, left: 0, display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
         <span>Step <strong data-testid="media-step" style={{ fontVariantNumeric: 'tabular-nums' }}>{formatStep(step)}</strong></span>
         {chosen !== undefined && chosen !== step && <span className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>(chosen: {formatStep(chosen)})</span>}
-        <Button size="small" variant="minimal" icon="chevron-left" aria-label="Previous step" disabled={step === steps[0]} onClick={() => choose(nextStep(steps, step, -1))}/>
-        <Button size="small" variant="minimal" icon="chevron-right" aria-label="Next step" disabled={step === steps.at(-1)} onClick={() => choose(nextStep(steps, step, 1))}/>
+        <Button size="small" variant="minimal" icon="chevron-left" aria-label="Previous step" disabled={step === all_steps[0]} onClick={() => choose(nextStep(all_steps, step, -1))}/>
+        <Button size="small" variant="minimal" icon="chevron-right" aria-label="Next step" disabled={step === all_steps.at(-1)} onClick={() => choose(nextStep(all_steps, step, 1))}/>
         <Tooltip content="The last step, following the run while it logs more" compact>
           <Button size="small" variant="minimal" icon="fast-forward" active={following} onClick={() => choose(undefined)} text="Latest"/>
         </Tooltip>
@@ -412,7 +486,7 @@ const LoggedMedia = ({ output_new, output_ref, path = 'media.jsonl', path_ref, l
         </Tooltip>
       </div>
       <Timeline
-        rows={shown_keys.map(key => ({ key, kind: model_new.keys[key].kind, steps: model_new.keys[key].steps }))}
+        rows={shown_keys.map(key => ({ key, kind: entries[key].kind, steps: entries[key].steps, only_ref: entries[key].only_ref }))}
         steps={steps} ref_steps={ref_steps} step={step} onStep={choose} preview={preview} names={names} colors={colors}
         series={series_name ? series?.series[series_name] : null} series_names={series_names} series_name={series_name} onSeriesChange={setSeriesChoice}
       />
@@ -428,8 +502,10 @@ const LoggedMedia = ({ output_new, output_ref, path = 'media.jsonl', path_ref, l
           {!contents_open && !needle && keys.length > FILTER_FROM && <InputGroup size="small" leftIcon="search" placeholder="Filter keys" aria-label="Filter keys" value={filter} onChange={e => setFilter(e.target.value)} style={{ width: 180, display: 'inline-block', marginLeft: 8 }}/>}
         </div>}
       <div style={{ minWidth: 0 }}>
-        {shown_keys.map(key => <Lazy key={key} height={estimated_height(model_new.keys[key], !!model_ref)}>
-          <MediaKey name={key} pinned={pinned.has(key)} {...key_props}/>
+        {shown_keys.map(key => <Lazy key={key} name={key} height={estimated_height(entries[key], !!model_ref && !entries[key].only_ref)}>
+          {entries[key].only_ref
+            ? <RefOnlyKey name={key} pinned={pinned.has(key)} {...key_props}/>
+            : <MediaKey name={key} pinned={pinned.has(key)} {...key_props}/>}
         </Lazy>)}
         {needle && matching.length === 0 && <span className={Classes.TEXT_MUTED}>No key matches "{filter}".</span>}
         {!needle && shown_keys.length === 0 && <span className={Classes.TEXT_MUTED}>All the groups are collapsed.</span>}

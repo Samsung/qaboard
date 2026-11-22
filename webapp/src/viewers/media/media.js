@@ -118,26 +118,67 @@ export const boxLabel = box => [box.label, Number.isFinite(box.score) ? box.scor
 
 // --- samples: the same sample across steps and runs ------------------------------------------------------------
 // Items match by their `id` (e.g. "img_0042"), else their caption, else their position in the list: loaders shuffle,
-// so positions only work for fixed sets.
+// so positions only work for fixed sets. Ids or captions logged several times at a step (two "cat" images) match in
+// order: the second "cat" with the other side's second "cat".
 const has = value => value !== undefined && value !== null && value !== '';
+const base_key = item => has(item?.id) ? `id:${item.id}` : has(item?.caption) ? `caption:${item.caption}` : `index:${index_of(item ?? {})}`;
 
-// A sample's name, for URLs: "id:img_0042", "caption:cat", "index:3"
-export const sampleKey = item => has(item?.id) ? `id:${item.id}` : has(item?.caption) ? `caption:${item.caption}` : `index:${index_of(item ?? {})}`;
+// The samples' names at a step, for URLs and React keys, unique: "id:img_0042", "caption:cat", "caption:cat#1" (the
+// second "cat"), "index:3"
+const keys_cache = new WeakMap();
+export const sampleKeys = items => {
+  if (keys_cache.has(items)) return keys_cache.get(items);
+  const seen = new Map();
+  const keys = items.map(item => {
+    const key = base_key(item);
+    const n = seen.get(key) ?? 0;
+    seen.set(key, n + 1);
+    return n ? `${key}#${n}` : key;
+  });
+  keys_cache.set(items, keys);
+  return keys;
+};
+
+// A sample's name (see sampleKeys), unique among `items`, the items logged with it
+export const sampleKey = (item, items) => {
+  const i = items ? items.indexOf(item) : -1;
+  return i >= 0 ? sampleKeys(items)[i] : base_key(item);
+};
+
+// Which of the items with the same value of `field` the item is: 0 for the first
+const occurrence = (item, items, field) => {
+  let n = 0;
+  for (const other of items ?? []) {
+    if (other === item) return n;
+    if (has(other[field]) && String(other[field]) === String(item[field])) n++;
+  }
+  return 0;
+};
+const nth = (items, field, value, n) => {
+  for (const item of items) if (has(item[field]) && String(item[field]) === String(value) && n-- === 0) return item;
+  return null;
+};
 
 // The item of `items` that is the same sample as `item` (or as a sampleKey), and how it matched: { item, by }, item null
-// when there is none. Ids are used when both sides have some, captions likewise, else positions.
-export const matchItem = (sample, items) => {
-  const key = typeof sample === 'string' ? sample : sampleKey(sample);
-  const [by, ...rest] = key.split(':');
-  const value = rest.join(':');
-  const item = typeof sample === 'string' ? null : sample;
-  if (by === 'id' && items.some(c => has(c.id)))
-    return { item: items.find(c => has(c.id) && String(c.id) === value) ?? null, by: 'id' };
-  const caption = by === 'caption' ? value : item?.caption;
-  if (has(caption) && items.some(c => has(c.caption)))
-    return { item: items.find(c => c.caption === caption) ?? null, by: 'caption' };
-  const index = by === 'index' ? Number(value) : item ? index_of(item) : null;
-  return { item: index === null ? null : items.find(c => index_of(c) === index) ?? null, by: 'index' };
+// when there is none. Ids are used when both sides have some, captions likewise, else positions. `from`: the items
+// logged with `item`, to match the n-th of the same id or caption with the n-th.
+export const matchItem = (sample, items, from) => {
+  if (typeof sample === 'string') {
+    const [by, ...rest] = sample.split(':');
+    if (by === 'index') {
+      const index = Number(rest.join(':'));
+      return { item: items.find(c => index_of(c) === index) ?? null, by };
+    }
+    const i = sampleKeys(items).indexOf(sample);
+    return { item: i >= 0 ? items[i] : null, by };
+  }
+  const item = sample ?? {};
+  if (has(item.id) && items.some(c => has(c.id)))
+    return { item: nth(items, 'id', item.id, occurrence(item, from, 'id')), by: 'id' };
+  if (has(item.caption) && items.some(c => has(c.caption)))
+    return { item: nth(items, 'caption', item.caption, occurrence(item, from, 'caption')), by: 'caption' };
+  const index = index_of(item);
+  return { item: items.find(c => index_of(c) === index) ?? null, by: 'index' };
 };
 
 // One sample at every step of a key: [{ step, item }], item null where it wasn't logged
@@ -145,6 +186,29 @@ export const evolution = (model, key, sample) => {
   const entry = model?.keys?.[key];
   if (!entry) return [];
   return entry.steps.map(step => ({ step, item: matchItem(sample, entry.by_step.get(step)).item }));
+};
+
+// The key, sample and evolution strip users are on (controls.media_focus): from the address, so anything. What isn't
+// of the expected type is dropped.
+export const cleanFocus = focus => {
+  if (!focus || typeof focus !== 'object' || Array.isArray(focus)) return {};
+  const clean = {};
+  if (typeof focus.run === 'number' || typeof focus.run === 'string') clean.run = focus.run;
+  if (typeof focus.key === 'string') clean.key = focus.key;
+  if (typeof focus.sample === 'string') clean.sample = focus.sample;
+  if (typeof focus.open === 'boolean') clean.open = focus.open;
+  if (typeof focus.evolution === 'boolean') clean.evolution = focus.evolution;
+  return clean;
+};
+
+// The smallest and greatest of sorted (or not) step arrays, without spreading them (too many arguments past ~100k)
+export const stepRange = (...arrays) => {
+  let min = Infinity, max = -Infinity;
+  for (const steps of arrays) for (const s of steps) {
+    if (s < min) min = s;
+    if (s > max) max = s;
+  }
+  return { min, max };
 };
 
 // What a run logged: "12 keys · steps 0–24 000 · images, audio, tables"

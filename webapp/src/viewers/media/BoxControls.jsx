@@ -10,7 +10,8 @@ const BoxControls = ({ items, filters, onChange }) => {
   if (boxes.length === 0) return null;
   const groups = boxGroups(boxes);
   const shown = filterBoxes(boxes, filters);
-  const labels = [...new Set(boxes.map(box => box.label ?? ''))].filter(Boolean).sort();
+  // labels can be numbers (class ids): 0 is one
+  const labels = [...new Set(boxes.map(box => box.label).filter(label => label !== null && label !== undefined && label !== '').map(String))].sort();
   const scored = boxes.some(box => Number.isFinite(box.score));
   const toggle = group => {
     const hidden = new Set(filters.hidden);

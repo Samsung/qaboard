@@ -54,6 +54,14 @@ describe('region providers', () => {
     const boxes = [{ x: 0, y: 0, w: 1, h: 1, label: 'cat' }];
     expect(regionProviders().filter(p => !p.available || p.available({ ...context, boxes })).map(p => p.id)).toEqual(['logged', 'presets']);
     expect(regionProviders()[0].regions({ ...context, boxes })).toBe(boxes);
+    // the reference's own boxes, a set of their own: the labels say whose they are
+    const boxes_ref = [{ x: 1, y: 1, w: 1, h: 1, label: 'dog' }];
+    const names = { new: 'my-branch', reference: 'main' };
+    const both = regionProviders().filter(p => !p.available || p.available({ ...context, boxes, boxes_ref, names }));
+    expect(both.map(p => p.id)).toEqual(['logged', 'logged-ref', 'presets']);
+    expect(both.slice(0, 2).map(p => p.label({ ...context, boxes, boxes_ref, names }))).toEqual(['Boxes of my-branch', 'Boxes of main']);
+    expect(both[1].regions({ ...context, boxes, boxes_ref })).toBe(boxes_ref);
+    expect(regionProviders()[0].label({ ...context, boxes })).toBe('Logged with the image');
     expect(regionProviders().filter(p => p.available?.({ ...context, output_ref: { output_dir_url: '/s/ref' } })).map(p => p.id))
       .toEqual(['auto-yiq', 'auto-ssim', 'auto-ciede2000']);
   });

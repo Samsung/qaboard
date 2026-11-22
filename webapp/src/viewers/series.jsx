@@ -11,6 +11,7 @@ import { plot_color } from "../sideColors";
 import { useIsDark } from "../theme";
 import { useLabels } from "../hooks";
 import { format_duration, smooth, sorted_keys } from "./series/series";
+import { MEDIA_INDEX, parseMedia, snap } from "./media/media";
 import { REFRESH_INTERVAL, SeriesOptions, parse_file, plot_config, plot_layout, useSeriesOptions } from "./series/SeriesOptions";
 
 const LoadableTextViewer = lazy(() => import('./textViewer'));
@@ -90,6 +91,14 @@ const SeriesViewer = ({ output_new, output_ref, path, path_ref, labels: labels_,
     ...fileQuery(url_ref, { is_running: output_ref?.is_running, responseType: 'text' }),
     refetchInterval: output_ref?.is_running ? REFRESH_INTERVAL : false,
   });
+  // runs that logged media: the plots show the step their media show (media/LoggedMedia.jsx reads the same file)
+  const has_media = !!onControlsChange && path !== 'system.series.json' && !!props.manifests?.new?.[MEDIA_INDEX];
+  const media_url = has_media && output_new?.output_dir_url ? `${output_new.output_dir_url}/${MEDIA_INDEX}` : undefined;
+  const query_media = useQuery({
+    ...fileQuery(media_url, { is_running: output_new?.is_running, responseType: 'text' }),
+    refetchInterval: output_new?.is_running ? REFRESH_INTERVAL : false,
+  });
+  const media_steps = useMemo(() => typeof query_media.data === 'string' ? parseMedia(query_media.data).steps : null, [query_media.data]);
   const parsed_new = useMemo(() => parse_file(query_new.data), [query_new.data]);
   const parsed_ref = useMemo(() => parse_file(query_ref.isSuccess ? query_ref.data : undefined), [query_ref.isSuccess, query_ref.data]);
 
@@ -115,7 +124,9 @@ const SeriesViewer = ({ output_new, output_ref, path, path_ref, labels: labels_,
     return <Callout compact icon="info-sign">{output_new?.is_running ? "The run hasn't logged anything yet." : "The run logged no series."}</Callout>;
 
   // runs that logged media: the plots and the media share their step (by step, the series of the run itself)
-  const linked = !!onControlsChange && options.x === 'step' && path !== 'system.series.json' && !!props.manifests?.new?.['media.jsonl'];
+  const linked = has_media && options.x === 'step';
+  // what the media show: the step chosen (for all the cards), snapped to this run's, by default its last
+  const cursor = media_steps?.length ? snap(media_steps, media_step ?? media_steps.at(-1)) ?? media_steps[0] : media_step;
   const needle = filter.trim().toLowerCase();
   const matching = needle ? keys.filter(key => key.toLowerCase().includes(needle)) : keys;
   const shown = show_all ? matching : matching.slice(0, SHOWN_AT_FIRST);
@@ -146,7 +157,7 @@ const SeriesViewer = ({ output_new, output_ref, path, path_ref, labels: labels_,
         name={key}
         options={options}
         traces={series_traces(key, { model_new, model_ref, options, names, colors })}
-        media_step={linked ? media_step : undefined}
+        media_step={linked ? cursor : undefined}
         onStep={linked ? step => onControlsChange({ media_step: step }) : undefined}
       />)}
     </div>

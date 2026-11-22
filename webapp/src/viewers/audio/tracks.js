@@ -18,15 +18,17 @@ export async function decodeAudio(bytes) {
   }).catch(error => {
     throw new Error(error?.message ? `could not decode the file (${error.message})` : 'could not decode the file: unsupported codec?');
   });
-  const channels = Array.from({ length: buffer.numberOfChannels }, (_, c) => buffer.getChannelData(c));
-  return { sample_rate: buffer.sampleRate, channels, buffer, resampled: rate === undefined };
+  // copies: tracks are cached and shared, and Firefox detaches the arrays of an AudioBuffer once it plays (player.js
+  // plays buffers of its own)
+  const channels = Array.from({ length: buffer.numberOfChannels }, (_, c) => Float32Array.from(buffer.getChannelData(c)));
+  return { sample_rate: buffer.sampleRate, channels, resampled: rate === undefined };
 }
 
-export function toTrack({ sample_rate, channels, buffer, resampled }) {
+export function toTrack({ sample_rate, channels, resampled }) {
   if (!channels.length || !channels[0].length) throw new Error('the file has no samples');
   const length = channels[0].length;
   return {
-    sample_rate, channels, buffer, resampled, length,
+    sample_rate, channels, resampled, length,
     duration: length / sample_rate,
     summary: summarize(channels),
     levels: levels(channels),
@@ -42,8 +44,9 @@ export async function loadTrack(src, { signal, decode = decodeAudio } = {}) {
 }
 
 // The tracks decoded last, by URL: going back to a step, or expanding a compact row, doesn't decode again.
-// Up to ~100M samples (400 MB): a few long files, or hundreds of short ones.
-const MAX_SAMPLES = 100e6;
+// Up to 25M samples (100 MB of Float32): a few long files (10 minutes of stereo at 48 kHz is 58M samples: alone, it
+// stays until the next one), or hundreds of short ones.
+export const MAX_CACHED_SAMPLES = 25e6;
 const cache = new Map();
 export function cachedTrack(src) {
   if (cache.has(src)) {
@@ -58,7 +61,7 @@ export function cachedTrack(src) {
     let total = 0;
     for (const e of cache.values()) total += e.samples;
     for (const [key, e] of cache) {
-      if (total <= MAX_SAMPLES || e === entry) break;
+      if (total <= MAX_CACHED_SAMPLES || e === entry) break;
       total -= e.samples;
       cache.delete(key);
     }

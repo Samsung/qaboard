@@ -2,9 +2,12 @@
  * The "Logged media" section of run cards: one timeline for all the keys, each key next to the reference's same samples
  * at the same step. Run with: cd webapp && npm test -- loggedMedia
  */
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { createPortal } from 'react-dom';
+import { fireEvent, render as renderPlain, screen, waitFor, within } from '@testing-library/react';
 
 import LoggedMedia, { defaultSeries } from '../media/LoggedMedia';
+import BoxControls from '../media/BoxControls';
+import Timeline from '../media/Timeline';
 import { MediaContext, runFileUrl } from '../media/context';
 import { OutputViewer } from '../OutputViewer';
 import { usePrefsStore } from '../../stores/prefs';
@@ -55,8 +58,9 @@ afterEach(() => {
 const output_new = { id: 1, output_dir_url: '/s/new' };
 const output_ref = { id: 2, output_dir_url: '/s/ref' };
 // the viewers of the items: what they'd show
-const Viewer = ({ path, path_ref, output_ref, boxes }) => <div data-testid="viewer">
+const Viewer = ({ path, path_ref, output_ref, boxes, boxes_ref, compared_to }) => <div data-testid="viewer">
   {path}{output_ref ? ` vs ${output_ref.output_dir_url}/${path_ref}` : ''}{boxes?.length ? ` boxes: ${boxes.map(box => box.label ?? '-').join(',')}` : ''}
+  {boxes_ref?.length ? ` reference boxes: ${boxes_ref.map(box => box.label ?? '-').join(',')}` : ''}{compared_to ? ` (compared to ${compared_to})` : ''}
 </div>;
 const wrap = ui => <MediaContext.Provider value={{ fileUrl: runFileUrl, Viewer }}>{ui}</MediaContext.Provider>;
 const render = props => renderWithProviders(wrap(<LoggedMedia path="media.jsonl" output_new={output_new} output_ref={output_ref} project="p" {...props}/>));
@@ -188,5 +192,135 @@ describe('LoggedMedia', () => {
     expect(defaultSeries(['lr', 'val_loss_ema'])).toBe('val_loss_ema');
     expect(defaultSeries(['lr', 'acc'])).toBe('lr');
     expect(defaultSeries([])).toBe(null);
+  });
+});
+
+
+describe('LoggedMedia, after review', () => {
+  const lines = (dir, items) => { files[`/s/${dir}/media.jsonl`] = index(items); };
+  const text = (step, key, extra = {}) => ({ _step: step, key, kind: 'text', path: `media/${key}/${step}_0.txt`, ...extra });
+  const renderDirs = (dir_new, dir_ref, props = {}) => renderWithProviders(wrap(<LoggedMedia path="media.jsonl" output_new={{ id: 11, output_dir_url: `/s/${dir_new}` }} output_ref={dir_ref ? { id: 12, output_dir_url: `/s/${dir_ref}` } : undefined} project="p" {...props}/>));
+  beforeEach(() => usePrefsStore.setState({ mediaPins: {}, mediaGroupsCollapsed: {} }));
+
+  it('matches samples logged with the same caption in order, with keys of their own', async () => {
+    const error = vi.spyOn(console, 'error');
+    const cat = (dir, index) => ({ _step: 0, key: 'val/samples', kind: 'image', index, caption: 'cat', path: `media/${dir}_${index}.png`, width: 4, height: 4 });
+    lines('dup-new', [cat('n', 0), cat('n', 1)]);
+    lines('dup-ref', [cat('r', 0), cat('r', 1)]);
+    renderDirs('dup-new', 'dup-ref');
+    await screen.findByTestId('logged-media');
+    expect(images(key('val/samples'))).toEqual(['/s/dup-new/media/n_0.png', '/s/dup-ref/media/r_0.png', '/s/dup-new/media/n_1.png', '/s/dup-ref/media/r_1.png']);
+    expect([...key('val/samples').querySelectorAll('[data-sample]')].map(e => e.dataset.sample)).toEqual(['caption:cat', 'caption:cat#1']);
+    expect(error.mock.calls.some(args => String(args[0]).includes('same key'))).toBe(false);
+  });
+
+  it('has a download link', async () => {
+    render();
+    await screen.findByTestId('logged-media');
+    // a link (Blueprint's AnchorButton), not a button that ignores its href
+    const download = within(key('answer')).getByRole('button', { name: 'Download answer' });
+    expect(download.tagName).toBe('A');
+    expect(download).toHaveAttribute('href', '/s/new/media/answer/20_0.txt');
+    expect(download).toHaveAttribute('download');
+  });
+
+  it("shows the keys only the reference logged, and the reference's steps", async () => {
+    lines('union-new', [text(0, 'answer'), text(10, 'answer')]);
+    lines('union-ref', [text(0, 'answer'), text(0, 'gone'), text(30, 'gone')]);
+    renderDirs('union-new', 'union-ref');
+    await screen.findByTestId('logged-media');
+    // a regression: said, not hidden
+    expect(screen.getByText('1 key not logged by new')).toBeInTheDocument();
+    expect(within(key('gone')).getByText('Not logged by new')).toBeInTheDocument();
+    expect(within(key('gone')).getByTestId('viewer')).toHaveTextContent(/^media\/gone\/0_0.txt$/);
+    expect(within(screen.getByTestId('media-contents')).getByText('only reference')).toBeInTheDocument();
+    expect(within(screen.getByTestId('media-timeline')).getByTitle('gone')).toBeInTheDocument();
+    // the new run's last step by default, then the reference's steps can be picked: each side shows its nearest earlier one
+    expect(screen.getByTestId('media-step')).toHaveTextContent('10');
+    fireEvent.click(screen.getByRole('button', { name: 'Next step' }));
+    expect(screen.getByTestId('media-step')).toHaveTextContent('30');
+    expect(within(key('answer')).getByText('from step 10')).toBeInTheDocument();
+    expect(within(key('gone')).getByTestId('viewer')).toHaveTextContent(/^media\/gone\/30_0.txt$/);
+  });
+
+  it("leaves the keys of popovers, inputs and buttons alone", async () => {
+    const onControlsChange = vi.fn();
+    // a viewer with a menu in a portal, like Blueprint's popovers
+    const PortalViewer = ({ path }) => <div data-testid="viewer">{path}{createPortal(<button type="button">menu item</button>, document.body)}</div>;
+    renderWithProviders(<MediaContext.Provider value={{ fileUrl: runFileUrl, Viewer: PortalViewer }}>
+      <LoggedMedia path="media.jsonl" output_new={output_new} output_ref={output_ref} project="p" media_step={20} onControlsChange={onControlsChange}/>
+    </MediaContext.Provider>);
+    await screen.findByTestId('logged-media');
+    fireEvent.keyDown(screen.getAllByRole('button', { name: 'menu item' })[0], { key: 'ArrowLeft' });
+    fireEvent.keyDown(screen.getAllByRole('button', { name: 'menu item' })[0], { key: 'e' });
+    expect(onControlsChange).not.toHaveBeenCalled();
+    // in the section: it moves
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Previous step' }), { key: 'ArrowLeft' });
+    expect(onControlsChange).toHaveBeenLastCalledWith({ media_step: 10 });
+  });
+
+  it('lets space activate buttons, and switch new and reference on thumbnails', async () => {
+    renderWithProviders(wrap(<LoggedMedia path="media.jsonl" output_new={output_new} output_ref={output_ref} project="p"/>));
+    await screen.findByTestId('logged-media');
+    const thumbnail = within(key('val/samples')).getAllByRole('button', { name: /Open dog/ })[0];
+    fireEvent.click(thumbnail);
+    const order = images(key('val/samples'));
+    expect(order[0]).toBe('/s/new/media/val/samples/10_0.png');
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Previous step' }), { key: ' ' });
+    expect(images(key('val/samples'))).toEqual(order);
+    // a native button: the contents' links to the keys
+    fireEvent.keyDown(within(screen.getByTestId('media-contents')).getByRole('button', { name: 'answer' }), { key: ' ' });
+    expect(images(key('val/samples'))).toEqual(order);
+    fireEvent.keyDown(within(key('val/samples')).getAllByRole('button', { name: /Open dog/ })[0], { key: ' ' });
+    expect(images(key('val/samples'))[0]).toBe('/s/ref/media/val/samples/0_0.png');
+  });
+
+  it('says what texts are compared with', async () => {
+    render();
+    await screen.findByTestId('logged-media');
+    expect(within(key('answer')).getByTestId('viewer')).toHaveTextContent('(compared to reference at step 10)');
+    fireEvent.click(within(key('answer')).getByRole('button', { name: 'vs step 10' }));
+    expect(within(key('answer')).getByTestId('viewer')).toHaveTextContent('media/answer/20_0.txt vs /s/new/media/answer/10_0.txt (compared to step 10)');
+  });
+
+  it("gives the image viewer the reference's own boxes", async () => {
+    const box = label => [{ x: 0, y: 0, w: 1, h: 1, label }];
+    lines('boxes-new', [{ ...image(0, 0, 'cat'), boxes: box('new-box') }]);
+    lines('boxes-ref', [{ ...image(0, 0, 'cat'), boxes: box('ref-box') }]);
+    renderDirs('boxes-new', 'boxes-ref', { media_focus: { run: 11, key: 'val/samples', sample: 'id:cat', open: true }, onControlsChange: () => {} });
+    expect(await screen.findByText(/boxes: new-box reference boxes: ref-box/)).toBeInTheDocument();
+  });
+
+  it("isn't broken by a focus from the address that isn't one", async () => {
+    render({ onControlsChange: () => {}, media_step: 0, media_focus: { run: 1, key: 'val/samples', sample: { id: 'cat' }, evolution: true, open: 'yes' } });
+    expect(await screen.findByTestId('logged-media')).toBeInTheDocument();
+    expect(screen.queryByTestId('evolution-strip')).not.toBeInTheDocument();
+    expect(screen.getAllByTestId('media-key').length).toBeGreaterThan(0);
+  });
+
+  it('keeps the label 0 in the legend', () => {
+    renderPlain(<BoxControls items={[{ boxes: [{ x: 0, y: 0, w: 1, h: 1, label: 0 }, { x: 0, y: 0, w: 1, h: 1, label: 1 }] }]} filters={{ hidden: new Set(), min_score: 0 }} onChange={() => {}}/>);
+    expect(within(screen.getByLabelText('Labels')).getByText('0')).toBeInTheDocument();
+    expect(within(screen.getByLabelText('Labels')).getByText('1')).toBeInTheDocument();
+  });
+
+  it('draws a timeline of many steps', () => {
+    const steps = Array.from({ length: 200000 }, (_, i) => i);
+    renderPlain(<Timeline rows={[]} steps={steps} ref_steps={[]} step={10} onStep={() => {}} names={{ new: 'new', ref: 'reference' }} colors={{ new: 'blue', ref: 'gray' }}/>);
+    expect(screen.getByRole('slider', { name: 'Step' })).toHaveAttribute('aria-valuemax', '199999');
+  });
+
+  // last: react-intersection-observer keeps its observers
+  it('jumps to keys far below, not drawn yet', async () => {
+    vi.stubGlobal('IntersectionObserver', class { observe() {} unobserve() {} disconnect() {} });
+    const scrolled = [];
+    Element.prototype.scrollIntoView = function () { scrolled.push(this); };
+    render();
+    await screen.findByTestId('logged-media');
+    // nothing is in view: placeholders
+    expect(screen.queryAllByTestId('media-key')).toHaveLength(0);
+    fireEvent.click(within(screen.getByTestId('media-contents')).getByRole('button', { name: 'answer' }));
+    expect(scrolled.map(element => element.dataset.key)).toEqual(['answer']);
+    delete Element.prototype.scrollIntoView;
   });
 });
