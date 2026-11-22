@@ -88,6 +88,16 @@ describe('steps', () => {
       { group: 'val', keys: ['val/masks', 'val/samples'] },
     ]);
   });
+
+  it('puts what people look at first first: images, then sounds, tables... texts last', () => {
+    const kinds = { 'report': 'html', 'val/answer': 'text', 'val/samples': 'image', 'tts/a': 'audio', 'weights/fc1': 'histogram' };
+    expect(groupKeys(Object.keys(kinds), key => kinds[key])).toEqual([
+      { group: 'val', keys: ['val/samples', 'val/answer'] },
+      { group: 'tts', keys: ['tts/a'] },
+      { group: 'weights', keys: ['weights/fc1'] },
+      { group: '', keys: ['report'] },
+    ]);
+  });
 });
 
 describe('boxes', () => {

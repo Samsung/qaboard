@@ -114,9 +114,10 @@ const MediaKey = props => {
   const is_focused = focus.key === name;
   const ref_of = item => items_ref ? matchItem(item, items_ref).item : null;
   // items in viewers don't take the section's keys
-  const viewer = (item, ref, ref_output = output_ref) => <div className="qa-media-viewer" key={sampleKey(item)}>
+  const viewer = (item, ref, ref_output = output_ref, extra = {}) => <div className="qa-media-viewer" key={sampleKey(item)}>
     <Viewer
       {...viewer_props}
+      {...extra}
       output_new={output_new}
       output_ref={ref ? ref_output : undefined}
       path={item.path}
@@ -172,6 +173,23 @@ const MediaKey = props => {
         ? viewer(item, matchItem(item, previous).item, output_new)
         : viewer(item, ref_of(item)))}
     </>;
+  } else if (kind === 'audio' && at_new.items.length > 1) {
+    // several sounds at a step: compact rows (play, A/B), one opened in the full viewer at a time
+    const opened = is_focused && focus.open && focus.sample ? focus.sample : null;
+    content = at_new.items.map(item => {
+      const sample = sampleKey(item);
+      const ref = ref_of(item);
+      const caption = item.caption ?? item.id ?? `#${item.index ?? 0}`;
+      return opened === sample
+        ? <div key={sample}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+              <strong>{caption}</strong><span style={{ flex: 1 }}/>
+              <Button size="small" variant="minimal" icon="minimize" aria-label="Back to the list" onClick={() => setFocus({ open: false })}/>
+            </div>
+            {viewer(item, ref, output_ref, { caption, caption_ref: ref?.caption })}
+          </div>
+        : viewer(item, ref, output_ref, { compact: true, caption, onExpand: () => setFocus({ key: name, sample, open: true }) });
+    });
   } else {
     content = at_new.items.map(item => {
       const ref = ref_of(item);
@@ -312,7 +330,7 @@ const LoggedMedia = ({ output_new, output_ref, path = 'media.jsonl', path_ref, l
   const pinned = new Set(Object.keys(pins).filter(key => model_new.keys[key]));
   const needle = filter.trim().toLowerCase();
   const matching = needle ? keys.filter(key => key.toLowerCase().includes(needle)) : keys;
-  const groups = groupKeys(matching.filter(key => !pinned.has(key)));
+  const groups = groupKeys(matching.filter(key => !pinned.has(key)), key => model_new.keys[key]?.kind);
   const shown_keys = [...[...pinned].filter(key => matching.includes(key)), ...groups.flatMap(({ group, keys }) => collapsed[group] ? [] : keys)];
   const series_names = series ? sorted_keys(Object.keys(series.series)) : [];
   const series_name = series_choice === undefined ? defaultSeries(series_names) : series_choice;

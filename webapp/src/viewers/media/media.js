@@ -88,15 +88,25 @@ export const nextStep = (steps, step, direction) => direction > 0
 
 // The keys grouped by their prefix: "val/samples" and "val/masks" under "val", keys without "/" under "".
 // [{ group, keys: [key] }], groups sorted, "" first
-export const groupKeys = keys => {
+// What people come to look at first: images and videos, then sounds, tables, distributions, and texts last
+const KIND_RANK = { image: 0, video: 1, audio: 2, table: 3, histogram: 4, plotly: 5, text: 6, html: 7, file: 8 };
+const rank = kind => KIND_RANK[kind] ?? 9;
+
+// The keys grouped by their prefix ("val/samples" in "val"), keys without one in a group of their own name. With
+// `kind_of`, the most visual groups and keys come first, then by name; without it, by name.
+export const groupKeys = (keys, kind_of = () => undefined) => {
   const groups = new Map();
-  for (const key of [...keys].sort(compare)) {
+  for (const key of keys) {
     const slash = key.indexOf('/');
     const group = slash > 0 ? key.slice(0, slash) : '';
     if (!groups.has(group)) groups.set(group, []);
     groups.get(group).push(key);
   }
-  return [...groups.entries()].sort(([a], [b]) => (a === '' ? -1 : b === '' ? 1 : compare(a, b))).map(([group, keys]) => ({ group, keys }));
+  const by_kind = (a, b) => rank(kind_of(a)) - rank(kind_of(b)) || compare(a, b);
+  const entries = [...groups.entries()].map(([group, keys]) => ({ group, keys: keys.sort(by_kind), rank: Math.min(...keys.map(key => rank(kind_of(key)))) }));
+  return entries
+    .sort((a, b) => a.rank - b.rank || (a.group === '' ? -1 : b.group === '' ? 1 : compare(a.group, b.group)))
+    .map(({ group, keys }) => ({ group, keys }));
 };
 
 // A box of an image in its pixels: boxes may be given as fractions of the image's size
