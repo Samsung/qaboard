@@ -207,6 +207,16 @@ of `qaboard/media.py`, tested with the web app's parser on `tests/fixtures/media
   *media.jsonl* themselves, but the card shows **Logged media** only for runs with `data.sdk`. [S, decide]
 - `qaboard.runs(url)` runs have `series()`, not `media()`: reading another run's media needs its folder. [S, behaviour]
 - *media.jsonl* has the times things were logged: bit-accuracy checks see differences, like with *series.jsonl*. [S, behaviour]
+- Web app: the evolution strip and the contents' thumbnails are for images only; `space` swaps which of new and
+  reference comes first, it isn't an in-place flip; `f` opens the sample inline, not full screen. [S, behaviour]
+- Web app: the series' cursor shows the step people picked, not each card's snapped step, and nothing while following
+  **Latest**; clicking a plot relies on Plotly's click events reaching `PlotlyPlot` (not testable in jsdom: checked
+  in a browser only). [S, behaviour]
+- Web app: keys render lazily with placeholders sized from width and height, not a virtualized list; up to 40 images
+  of the neighboring steps are prefetched. The audio viewer decodes and draws on the main thread (~2 s for 10 minutes
+  of stereo 48 kHz): a worker. [S, behaviour]
+- The step and the opened sample are in `?controls=` (`media_step`, `media_focus` with the run's id), not in
+  `src/selection.js`: several cards on a page would collide on a page-level key or sample. [S, decide]
 
 ## Results sent over HTTP (`storage: upload`, `qa upload`, November 2026)
 Design: `docs/design/ingest-upload-sdk.md`. Tested with unit tests and a fake server (`tests/test_upload*.py`,

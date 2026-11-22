@@ -64,6 +64,10 @@ with a new and a reference profile that differ in known ways (`generate.js`); `q
 The parallel coordinates of Tuning Analysis (`webapp/src/viewers/parallel/`, drawn on a canvas, no Plotly) too: `/parallel-coordinates.html?rows=2000&columns=30`;
 `components/tuning/ParallelCoordinatesPlot.jsx` loads it lazily. Tuning Analysis itself is `components/tuning/TuningAnalysis.jsx`: `OptimizationReport.jsx`
 for `qa optimize` batches, `TuningReport.jsx` for the others (logic in `optimization.js` and `analysis.js`), with explanations in `learn.jsx`.
+Runs started from code log media per step (`qaboard/media.py`: *media.jsonl* and *media/*, standalone; the web app's
+`viewers/media/media.js` reads the same index, both tested on `tests/fixtures/media/`): the card's **Logged media**
+(`viewers/media/`, design in `docs/design/logged-media.md`) has its playground, `/logged-media.html?steps=200&keys=12&shuffle=1`.
+The audio viewer (`viewers/audio/`, standalone like the image viewer, adapter `viewers/audio-viewer.jsx`) too: `/audio-viewer.html`.
 The commit page's Metrics Table and Metrics Diff (`components/tables.jsx`, with `components/metricsTable/`) too: `/metrics-table.html?runs=2000&metrics=30`.
 Like the image viewer, `viewers/benchmarks/` and `viewers/flamegraph/` are standalone: they import nothing from the app, which
 only loads their adapters (`viewers/benchmarks-viewer.jsx`, `viewers/flame-graph.jsx`), lazily. `viewers/__tests__/isolation.test.js`

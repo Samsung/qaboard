@@ -11,6 +11,7 @@ trajectories. Each viewer puts the reference's result next to the new one, or ov
 |---|---|
 | Curves, bars, heatmaps: a detector's precision-recall curves, a server's latency percentiles | [Plots](#plots), the reference's drawn over the new ones, or next to them |
 | Values logged while a run goes on: a training's loss and learning rate at each step | [Logged series](#logged-series): one plot per series, the reference's dashed on the same axes, live |
+| Images, sounds, tables, histograms and texts a training logged at its steps | [Logged media](#logged-media): one timeline for all of them, each next to the reference run's at the same step |
 | CPU profiles of a server or a pipeline | [Flame graphs](#flame-graphs), colored by what got slower or faster |
 | Unit and integration test reports (JUnit XML) | [Test reports](#test-reports): each test against the reference, with what started failing, what got fixed and what disappeared |
 | Benchmark results: pytest-benchmark, Google Benchmark, hyperfine, Criterion, JMH | [Benchmarks](#benchmarks): each one against the reference, what got slower or faster beyond noise |
@@ -123,6 +124,46 @@ seeds.
 
 Integrators: see [Log from your code](/docs/log-from-code) to log series from Python, and
 [the file format](/docs/viewers#series) for other languages.
+
+## Logged media {#logged-media}
+Runs started from code can log images, sounds, videos, tables, histograms and texts at their steps: a model's
+predictions on a few validation images every 1000 steps, a TTS sample, the distribution of a layer's weights. Their
+card shows them under **Logged media**, with nothing to set up, each next to the reference run's at the same step.
+
+1. **Pick a moment of the run on the timeline**: it shows where each key logged something, with the loss (or a series
+   you pick) drawn behind it, so you see where the interesting steps are. Hover a step to preview its images; click,
+   or use <kbd>←</kbd> <kbd>→</kbd>. **Latest** follows a run that is still running. Clicking a point of a
+   [logged series](#logged-series) plot moves the media to that step, and once you picked a step the plots show it as a cursor.
+2. **Compare with the reference run**: each sample sits next to the reference's same sample, matched by the name
+   your code gave it, so samples that come in another order still match. When a run didn't log at the step you picked,
+   you see its last item before it, with a chip that says from which step.
+3. **Open an image** to compare it in the [image viewer](/docs/user-guide/image-viewer): zoom, pixel values, the
+   difference. **Follow one sample over training** with the filmstrip button (<kbd>e</kbd>): every step it was logged
+   at, new above reference.
+4. **Read boxes**: show or hide predictions and ground truth, hide boxes under a score, and see one color per label.
+
+Each kind has its view:
+- **Tables**: sort, filter, and **Diff** against the reference's table, rows joined by a key column you can change:
+  changed cells are tinted, with the old value on hover. Numeric columns show their distribution in their header.
+- **Histograms**: the distribution over all the steps as a heatmap, with its median and 5–95% band; below, the
+  step's histogram with the reference's outlined.
+- **Sounds** open in the [audio viewer](#audio); several at a step are rows to play and switch A/B, expanded on
+  click.
+- **Texts** show as a diff against the reference's, or against the run's previous step.
+
+<details>
+<summary>Finding your way in many keys, sharing a view, and shortcuts</summary>
+
+The section's header says what the run logged (*12 keys · steps 0–24 000 · images, audio, tables*). **Contents**
+lists the keys grouped by the start of their name, with how many steps each logged; filter them as you type. Pin the
+keys you look at most: they stay on top for you in this project, like the groups you collapse. Images
+and videos come first, texts last.
+
+The step you picked is in the page's address, shared by every card, and so is the sample you opened: copy the address
+to send someone *this sample at this step*. <kbd>?</kbd> lists the shortcuts: <kbd>←</kbd> <kbd>→</kbd> between
+logged steps, <kbd>e</kbd> the filmstrip, <kbd>space</kbd> swaps new and reference.
+
+</details>
 
 ## Audio {#audio}
 Sound files (*.wav*, *.mp3*, *.flac*, *.ogg*...) open in the audio viewer: the new run's above the reference run's, on
