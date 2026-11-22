@@ -120,6 +120,11 @@ keeps for that (`QABOARD_UPLOAD_ROOT`, `backend/backend/uploads.py`). `qa upload
 the file names the web app's viewers recognize (`webapp/src/viewers/fileTypes.js`). Runs store their full location
 (`outputs.output_dir_override`: a path, or a URL like `s3://...` resolved by the storage locations admins add,
 `backend/backend/locations.py`): never resolve it with `Path()`, use `Output.output_dir` or `locations.local_path`.
+Local runs record how their code differs from their commit (`qaboard/local_changes.py`, standalone): a summary in
+`data.local_changes`, the patches in the run's `.qaboard/` (out of manifests); `qa batch` computes them once for its
+runs, which check a fingerprint. The server caps it (`runs.local_changes`, `backend/backend/local_changes.py` keeps
+only known fields), `qa restore` (`qaboard/restore.py`) gets the code back, the web app shows it
+(`webapp/src/components/LocalChanges/`). Design: `docs/rfcs/local-changes.md`.
 Runs report at least every 2 minutes and are failed when silent (`qaboard/heartbeat.py`, `backend/backend/heartbeats.py`). Design and decisions:
 `docs/design/ingest-upload-sdk.md`; limits: `docs/warts.md`. The tests' fake server (`tests/test_active_run.py`) answers
 like the real endpoints: change them together.

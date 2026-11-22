@@ -35,6 +35,7 @@ import { path_segments } from "./explore/tree"
 import { usePrefsStore } from "./stores/prefs"
 import { tuning_kind } from "./components/tuning/analysis"
 import { has_result_metrics } from "./defaultViews"
+import { has_local_changes_data, local_changes_view, unpushed_commit } from "./components/LocalChanges/localChanges"
 import { useIntegrationStatuses } from "./useIntegrationStatuses"
 import { repo_url, tree_url, commit_url, commits_url as git_commits_url, default_integrations } from "./git"
 
@@ -432,36 +433,44 @@ const ProjectSideAvatar = ({ project, project_data = {} }) => {
 // hovering lists the others: the commit's changes and files, the subproject's folder, the branch, the repository.
 const external = { target: "_blank", rel: "noopener noreferrer" };
 const short_sha = sha => sha?.slice(0, 8);
-export const CodeMenu = ({ project, project_data, commit, branch }) => {
+// unpushed: { sha, base } when runs say their commit isn't pushed: the git host doesn't have it, links to it would 404.
+// base: the last pushed commit they started from, when known
+export const CodeMenu = ({ project, project_data, commit, branch, unpushed }) => {
   const project_repo = project_data.data?.git?.path_with_namespace || '';
   // monorepos: projects can be a folder of their repository
   const subproject = project_repo && project.startsWith(`${project_repo}/`) ? project.slice(project_repo.length + 1) : '';
   const repo = repo_url(project_data);
   const sha = commit?.id;
-  const ref = sha ?? branch;
+  const base = unpushed?.base;
   const items = [
-    sha && { icon: "git-commit", text: <>Changes in <code>{short_sha(sha)}</code></>, href: commit_url(project_data, sha) },
-    sha && { icon: "folder-close", text: <>Files at <code>{short_sha(sha)}</code></>, href: tree_url(project_data, sha) },
-    sha && subproject && { icon: "folder-open", text: <>{subproject} at <code>{short_sha(sha)}</code></>, href: tree_url(project_data, sha, subproject) },
+    sha && { icon: "git-commit", text: <>Changes in <code>{short_sha(sha)}</code></>, href: commit_url(project_data, sha), disabled: !!unpushed },
+    sha && { icon: "folder-close", text: <>Files at <code>{short_sha(sha)}</code></>, href: tree_url(project_data, sha), disabled: !!unpushed },
+    sha && subproject && { icon: "folder-open", text: <>{subproject} at <code>{short_sha(sha)}</code></>, href: tree_url(project_data, sha, subproject), disabled: !!unpushed },
+    base && { icon: "git-commit", text: <>Last pushed commit, <code>{short_sha(base)}</code></>, href: commit_url(project_data, base) },
     branch && { icon: "folder-close", text: <>Files on {branch}</>, href: tree_url(project_data, branch) },
     branch && subproject && { icon: "folder-open", text: <>{subproject} on {branch}</>, href: tree_url(project_data, branch, subproject) },
     branch && { icon: "git-branch", text: <>Commits on {branch}</>, href: git_commits_url(project_data, branch) },
     { icon: "git-repo", text: "Repository", href: repo },
   ].filter(Boolean);
   // the commit, else the project's folder on the branch
-  const main = sha
-    ? (subproject ? tree_url(project_data, sha, subproject) : commit_url(project_data, sha))
-    : (ref && subproject ? tree_url(project_data, ref, subproject) : repo);
+  const pushed_sha = unpushed ? null : sha;
+  const pushed_ref = pushed_sha ?? branch;
+  const main = pushed_sha
+    ? (subproject ? tree_url(project_data, pushed_sha, subproject) : commit_url(project_data, pushed_sha))
+    : (pushed_ref && subproject ? tree_url(project_data, pushed_ref, subproject) : repo);
   return <MenuItem
     icon={sha ? "git-commit" : "git-repo"}
     text="Code"
     href={main}
     {...external}
-    title={sha ? "The commit on your git host. Hover for its files, branch and repository" : "The code on your git host. Hover for more links"}
+    title={pushed_sha ? "The commit on your git host. Hover for its files, branch and repository" : "The code on your git host. Hover for more links"}
     // In a portal, like the sidebar's other submenus: the sidebar scrolls, so it would cut the submenu off, or flip it off-screen on the left
     popoverProps={{ usePortal: true, hoverCloseDelay: 300 }}
   >
-    {items.map(({ icon, text, href }) => <MenuItem key={href} icon={icon} text={text} href={href} {...external} labelElement={<Icon icon="share" size={12}/>}/>)}
+    {unpushed && <MenuItem disabled icon="warning-sign" text={<>Not pushed: the git host doesn't have <code>{short_sha(unpushed.sha ?? sha) || 'this commit'}</code> yet</>}/>}
+    {items.map(({ icon, text, href, disabled }) => disabled
+      ? <MenuItem key={href} icon={icon} text={text} disabled title="Not on the git host yet"/>
+      : <MenuItem key={href} icon={icon} text={text} href={href} {...external} labelElement={<Icon icon="share" size={12}/>}/>)}
   </MenuItem>
 }
 
@@ -706,6 +715,11 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
   // a batch that tried several parameters has something to analyze
   const has_tuning = has_optim || tuning_kind(new_batch) !== null;
   const active = view => selected_views.includes(view);
+  // runs started from a computer recorded their local changes
+  // the runs shown, like the batch's callout
+  const batch_outputs = (new_batch?.filtered?.outputs ?? Object.keys(new_batch?.outputs ?? {})).map(id => new_batch.outputs[id]);
+  const has_local_changes = has_local_changes_data(batch_outputs);
+  const unpushed = has_local_changes ? unpushed_commit(batch_outputs) : null;
   return <>
     {/* What the runs gave */}
     <SectionHeader>Results</SectionHeader>
@@ -725,7 +739,10 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
     <SiderHint name="Artifacts & Configs" content="The commit's build artifacts and qaboard.yaml configuration, diffed with the reference.">
       <ViewMenuItem view='parameters' default_views={default_views} icon="settings" text="Artifacts & Configs" active={active('parameters')}/>
     </SiderHint>
-    <CodeMenu project={project} project_data={project_data} commit={commit?.id ? commit : undefined} branch={commit?.branch}/>
+    {has_local_changes && <SiderHint name="Local changes" content="The code changes the local runs had, which weren't committed or pushed: see them, and how to get that code back.">
+      <ViewMenuItem view={local_changes_view} default_views={default_views} icon="git-new-branch" text="Local changes" active={active(local_changes_view)}/>
+    </SiderHint>}
+    <CodeMenu project={project} project_data={project_data} commit={commit?.id ? commit : undefined} branch={commit?.branch} unpushed={unpushed}/>
     <IntegrationsMenus
       integrations={results_integrations({ new_batch, commit, project_data })}
       project={project}

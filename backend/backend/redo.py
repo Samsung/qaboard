@@ -286,4 +286,7 @@ def redo_response(batch, outputs, user_info, selection=None):
       "logs": log_tail(submission),
       "submission": submission,
     }), 500
-  return jsonify({"status": "OK", "submission": submission, "warning": submission.get("warning")})
+  # runs that ran code their commit doesn't have: redone, they run the commit (backend/local_changes.py)
+  from .local_changes import redo_warning
+  warning = ' '.join(w for w in (submission.get("warning"), redo_warning(outputs)) if w) or None
+  return jsonify({"status": "OK", "submission": submission, "warning": warning})

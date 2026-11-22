@@ -198,6 +198,10 @@ and runs its image pipeline on test charts and photos.
 
 With `--offline`, `qa` saves the results in `output/` and doesn't tell the server.
 
+Change the code without committing, and run again: `qa` prints `Local changes: 1 file, +2 -1`, and saves the patch
+with each run. The web app tags the runs with it, and `qa restore <run id>` gets that code back
+([local changes](/docs/local-changes)).
+
 :::tip Clean up
 Docker Compose: `docker compose down --volumes`, in the folder of `compose.yml`, deletes QA-Board and its data.
 Kubernetes: `kind delete cluster --name qaboard` deletes the cluster. Your results stay in `/tmp/qaboard`.

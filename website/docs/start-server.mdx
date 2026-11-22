@@ -278,6 +278,9 @@ Before you open it to your team:
   `QABOARD_TUNING_RUNNER=local` or `celery` ([batches from the web app](#start-batches-from-the-web-app)).
 - **Keep the runs' HTML files sandboxed** (`QABOARD_SANDBOX_HTML`, on by default): turned off, their scripts run as
   whoever opens them ([HTML reports](/docs/viewers#html-reports)).
+- **Decide whether the server keeps source code**: runs from people's computers save the patch of their uncommitted
+  changes with their files. `runs.local_changes: summary` keeps only the changed files' names and counts
+  ([local changes](/docs/backend-admin/settings#local-changes)).
 
 The security checklist in **Admin → Overview** checks the sign-in, token and HTTPS settings, and where batches run. *SECURITY.md* lists the
 [known issues](https://github.com/Samsung/qaboard/blob/master/SECURITY.md#known-issues) and their mitigations.

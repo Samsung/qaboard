@@ -19,7 +19,7 @@ from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
 from ..origins import run_origin, run_user, claim_batch
 from ..storage import check_storage_path, UnsafePathError
-from .. import heartbeats, locations, uploads, tokens
+from .. import heartbeats, local_changes, locations, uploads, tokens
 from ..metrics_definitions import MAX_KEY_LENGTH, FORBIDDEN_KEYS
 from ..redo import redo_response
 from ..metrics_definitions import save_metrics_definitions
@@ -70,6 +70,8 @@ def update_run_data(output, data: dict) -> None:
   kept = {k: v for k, v in data.items() if k not in SERVER_KEYS}
   if 'resources' in kept and checked_resources(kept['resources']) is None:
     del kept['resources']
+  # as much as the server allows of how the run's code differs from its commit (backend/local_changes.py)
+  local_changes.allowed_data(kept)
   output.data.update(kept)
   # an older `qa` lists the earlier attempts' logs without their runners': what a newer one listed is stale
   if 'attempt_logs' in kept and 'attempt_log_files' not in kept:
@@ -227,7 +229,7 @@ def update_output(output_id):
         return jsonify({"error": "`data` must be an object"}), 400
       if not output.data:
         output.data = {}
-      output.data.update({k: v for k, v in data['data'].items() if k not in SERVER_KEYS})
+      update_run_data(output, data['data'])
       flag_modified(output, "data")
     if data.get('batch'):
       output.data["batch"] = data["batch"]
@@ -507,6 +509,8 @@ def upload_output_file(output_id, path):
     return jsonify({"error": "This run saves its files in a storage shared with the server: it doesn't upload them.", "reason": Reason.NOT_UPLOADED}), 409
   if not output.is_pending:
     return jsonify({"error": "The run has ended: its files don't change anymore.", "reason": Reason.NOT_RUNNING}), 409
+  if local_changes.refuses_file(path):
+    return jsonify({"error": "This server doesn't keep the code of the runs' local changes (runs.local_changes): only their summary.", "reason": Reason.LOCAL_CHANGES_NOT_ALLOWED}), 422
   started = time.monotonic()
   try:
     size = uploads.save_file(Path(directory), path, request.stream, request.content_length, sha256=request.headers.get('X-Content-SHA256'), offset=offset)
@@ -773,7 +777,8 @@ def new_output_webhook():
     except Exception as e:
       db_session.rollback()
       print(f"WARNING: could not save the metrics definitions of a run of {hexsha}: {e}")
-  return jsonify(output.to_dict())
+  # the most the run may record of its local changes: runs in a storage shared with us don't write more
+  return jsonify({**output.to_dict(), "local_changes_level": local_changes.level()})
 
 
 

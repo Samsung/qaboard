@@ -539,6 +539,8 @@ def outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -
     # avoid logs with timestamps and temporary NFS files
     # nor which attempt of the run is the latest (qaboard/attempts.py): it's not an output
     illegal_file = path.name in ('log.txt', 'latest_attempt.txt') or path.name.startswith('.nfs00000')
+    # what qa saves about the run, e.g. its local changes (qaboard/local_changes.py): not outputs, not compared
+    illegal_file = illegal_file or path.relative_to(output_directory).parts[0] == '.qaboard'
     # avoid source-controled files and logs in HW_ALG
     if config is not None and config.get("project", {}).get("name", "").startswith("CDE-Users/HW_ALG"):
       illegal_file = illegal_file or \

@@ -77,6 +77,7 @@ const sidebars: SidebarsConfig = {
         'user-guide/metrics',
         'user-guide/comparing-results',
         'user-guide/reference-runs',
+        'user-guide/local-changes',
         'user-guide/milestones',
         'user-guide/history-and-dashboards',
       ],
@@ -179,6 +180,8 @@ const sidebars: SidebarsConfig = {
         "batches-advanced",
         // What runs use of their machine: memory, CPU, GPUs
         "system-metrics",
+        // What code local runs ran: their changes compared with their commit
+        "local-changes",
         "using-the-qa-cli",
       ],
     },

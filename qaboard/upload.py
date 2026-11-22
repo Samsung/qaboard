@@ -326,6 +326,11 @@ class Uploader:
     """A file wasn't sent. Returns False"""
     status = getattr(error, 'status', None)
     reason = getattr(error, 'reason', None)
+    if reason == Reason.LOCAL_CHANGES_NOT_ALLOWED:
+      # the server keeps only a summary of the run's local changes (qaboard/local_changes.py): not a missing file
+      with self._state_lock:
+        self._sent[path] = stat
+      return True
     if status in (401, 403) or reason in FATAL_REASONS:
       # no file of this run will be accepted
       self.refused = str(error)

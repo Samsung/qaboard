@@ -112,6 +112,20 @@ move: the storage roots, the admins of `QABOARD_ADMINS`, the commands the server
 encryption key. The page shows them read-only, in their group, with why: see the
 [environment variables](/docs/deploy#optional-environment-variables).
 
+## Local changes {#local-changes}
+Runs from people's computers record how their code differs from its commit: the changed files, and the patch, saved
+with the run ([local changes](/docs/local-changes)). `runs.local_changes` is the most they may record:
+
+- `patch` (the default): the summary and the patches.
+- `summary`: the changed files' paths, line counts and a hash, no code. For a server that must not receive source
+  code: it drops the patches from what runs send, refuses them when runs upload their files, and tells `qa` not to
+  write them in a storage shared with it.
+- `off`: nothing.
+
+Projects can record less in their *qaboard.yaml*, not more. With a storage shared with the server, `qa` writes the
+patches itself, and follows the setting: nothing stops a modified client from writing files in a storage it can
+write to. Runs that send their files to the server can't get around it.
+
 ## Every setting
 <details>
 <summary>Every setting, its variable and its default</summary>
@@ -214,6 +228,7 @@ encryption key. The page shows them read-only, in their group, with why: see the
 
 | Setting | Environment variable | Default | What it does |
 |---|---|---|---|
+| `runs.local_changes` | `QABOARD_LOCAL_CHANGES` | `patch` | The most that runs from people's computers record of their uncommitted code changes. "patch" (the default): the changed files and the patch, saved with the run. "summary": only the changed files' paths, line counts and a hash, no code, for a server that must not receive source code. "off": nothing. Projects can record less in qaboard.yaml. See [Local changes](#local-changes). |
 | `auth.allowed_origins` | `QABOARD_ALLOWED_ORIGINS` | none | Other origins (e.g. https://dashboards.example.com) allowed to make changes with the users' cookies. The server's own origin is always allowed. |
 | `audit.retention_days` |  | `730` days | Audit events older than this are deleted by `qaboard-admin purge-audit` (run it from a scheduled job). |
 

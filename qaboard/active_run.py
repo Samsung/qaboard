@@ -21,7 +21,6 @@ because of it. Series never go through the server: the web app reads them from t
 """
 import atexit
 import datetime
-import hashlib
 import json
 import math
 import os
@@ -39,7 +38,7 @@ from types import MappingProxyType
 from fnmatch import fnmatchcase
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple, Union
 
-from . import attempts, heartbeat
+from . import attempts, heartbeat, local_changes
 from .conventions import run_dir_in_commit, slugify, get_settings, RUN_DIR_VARIABLE, UPLOAD_FIX, UPLOAD_REFUSALS, ci_project
 from .credentials import default_server
 from .metrics import DEFINITIONS_FILE, clean_definition, declared_metrics, read_definitions_file, split_metrics, with_default_direction
@@ -174,18 +173,6 @@ def _git(repo_root: Path, *args: str) -> Optional[str]:
   except (OSError, subprocess.SubprocessError):
     return None
   return p.stdout.decode('utf-8', errors='replace') if p.returncode == 0 else None
-
-
-def _dirty(repo_root: Path) -> Optional[Dict[str, Any]]:
-  """When tracked files differ from the commit: {"dirty": True, "diff_sha256": ...}. The run is not the commit's code."""
-  status = _git(repo_root, 'status', '--porcelain', '--untracked-files=no')
-  if not status or not status.strip():
-    return None
-  diff = _git(repo_root, 'diff', 'HEAD')
-  dirty: Dict[str, Any] = {'dirty': True}
-  if diff:
-    dirty['diff_sha256'] = hashlib.sha256(diff.encode('utf-8', errors='replace')).hexdigest()[:16]
-  return dirty
 
 
 def _default_input() -> str:
@@ -641,6 +628,9 @@ class ActiveRun:
     self._params: Dict[str, Any] = {}              # log_params()
     self._definitions: Dict[str, Dict[str, Any]] = {}
     self._data: Dict[str, Any] = {}
+    self._local_changes: Optional[local_changes.ForRun] = None
+    # the most the server lets runs record, from its answer when the run starts
+    self._local_changes_level: Optional[str] = None
     self._changed = False                          # since the server was told
     self._finished = False
     self._started_at = time.time()
@@ -930,8 +920,15 @@ class ActiveRun:
         self._system_metrics = system_metrics.SystemMetrics(self.output_dir, interval=system_metrics.interval()).start()
       except Exception as e:
         self._warn_once('system_metrics', f"WARNING: can't measure what the run uses of its machine: {e!r}")
-    if not setup.is_ci and setup.repo_root is not None and setup.is_default_commit:
-      self._data.update(_dirty(setup.repo_root) or {})
+    if setup.repo_root is not None and setup.is_default_commit:
+      # what the code differs from its commit by (qaboard/local_changes.py): saved once the server says how much it may
+      self._local_changes = local_changes.ForRun(
+        (setup.config.get('outputs') or {}).get('local_changes'), repo_root=setup.repo_root, is_ci=setup.is_ci, commit=setup.commit,
+        ignore=local_changes.inside(setup.repo_root, [self.output_dir, setup.local_dir / 'output' if setup.local_dir else None]),
+      )
+      for problem in self._local_changes.problems:
+        self._warn_once('local_changes', f"WARNING: {problem}")
+      self._data.update(self._local_changes.data())
     self._data['sdk'] = {k: v for k, v in _script_source().items() if k in ('script', 'script_sha256', 'qaboard_version')}
     if self._resume:
       self._restore()
@@ -954,8 +951,26 @@ class ActiveRun:
       self._sync(first=True)
       if self.id is not None:
         _say(f"results: {self.url}")
+    self._save_local_changes()
     self._thread = threading.Thread(target=self._loop, name='qaboard-run', daemon=True)
     self._thread.start()
+
+  def _save_local_changes(self) -> None:
+    """The patches, in the run's folder, as far as the server allows"""
+    if self._local_changes is None or self._local_changes.capture is None:
+      return
+    try:
+      unanswered = not self._offline and bool(self.server) and self.id is None
+      state = self._local_changes.save(self.output_dir, self._local_changes_level, unanswered=unanswered)
+    except Exception as e:  # the run matters more
+      self._warn_once('local_changes', f"WARNING: can't save the run's local changes: {e!r}")
+      return
+    with self._lock:
+      self._data.update(self._local_changes.data())
+      self._changed = True
+    line = local_changes.describe(state, saved_in=str(self.output_dir / local_changes.PATCH_FILE) if (state or {}).get('patch', {}).get('path') else None)
+    if line:
+      _say(f"local changes: {line}")
 
   def _write_run_json(self) -> None:
     """
@@ -1135,6 +1150,8 @@ class ActiveRun:
           answer = _request(self.server, 'output/', method='POST', json=self._payload(final), token=self._token, timeout=TIMEOUT,
                             retries=FINAL_RETRY_DELAYS if final else ())
           self._reporter.reported()
+          if answer.get('local_changes_level'):
+            self._local_changes_level = answer['local_changes_level']
           if isinstance(answer.get('id'), int):
             self.id = answer['id']
             if not self._finished:

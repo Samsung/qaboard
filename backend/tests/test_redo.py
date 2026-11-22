@@ -220,6 +220,18 @@ def test_redo_tells_what_could_not_be_restored(setup, dummy_app):
   assert response.get_json()["warning"] == "Build outputs (e.g. binaries) can't be restored this way."
 
 
+def test_redo_warns_about_runs_that_ran_local_changes(setup, dummy_app):
+  batch, calls = setup()
+  local = make_output()
+  local.data = {**local.data, "local_changes": {"dirty": True}}
+  with dummy_app.test_request_context():
+    response = redo.redo_response(batch, [local, make_output("images/b.jpg")], {"user_name": "arthurf"})
+  assert response.get_json()["warning"].startswith("1 of these 2 runs ran local changes")
+  with dummy_app.test_request_context():
+    response = redo.redo_response(batch, [make_output()], {"user_name": "arthurf"})
+  assert response.get_json()["warning"] is None
+
+
 def test_safe_job_options_of_kubernetes_runs(monkeypatch):
   options = {"type": "kubernetes", "concurrency": 10, "runs_per_pod": 4, "namespace": "kube-system", "run_as": {"uid": 0}}
   # Kubernetes runs only when the server starts `qa batch` on Kubernetes: else they'd use the server's credentials

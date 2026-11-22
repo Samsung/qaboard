@@ -141,6 +141,20 @@ run-centric page, screenshots for the docs, gaps against experiment trackers): `
 - `Run._new` (qaboard/results.py) was the placeholder for this: `ActiveRun.run` builds its `Run` itself, and only
   tests use `_new`. [S, no change]
 
+## Local changes (`data.local_changes`, `qa restore`, November 2026)
+Design: `docs/rfcs/local-changes.md` ("Later" lists the features left out).
+
+- Each run of a local `qa batch` runs `git status` again to check the batch's fingerprint: on a repository where
+  status takes seconds, a 1000-run batch pays it 1000 times. Pass the fingerprint check only to runners that read
+  the working tree, or trust the batch's capture for a few seconds. [S, behaviour]
+- A run whose first request to the server failed saves no patch, even when a later request says the server takes
+  them: save it then (`ForRun.save` again, before the files are sent). [S, behaviour]
+- The counts and the patch are two `git diff` passes (each runs git-lfs's filters again): compute the numstat from
+  the patch when it is kept. [S, no change]
+- With a storage shared with the server, `qa` writes the patches itself: `runs.local_changes` is followed by `qa`,
+  not enforced. Only uploads are refused. [M, behaviour]
+- Changes inside submodules aren't recorded (`--ignore-submodules=dirty`): say which submodules have changes. [S, behaviour]
+
 ## Logging with W&B and MLflow code (`qaboard/integrations/`, November 2026)
 
 `qaboard/integrations/wandb/` (drop-in, `mirror()`, `python -m`), `qaboard/integrations/mlflow/` (tracking store

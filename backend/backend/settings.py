@@ -494,6 +494,11 @@ DEFINITIONS = {
   ),
 
   # ---- Security
+  'runs.local_changes': Definition(
+    "The most that runs from people's computers record of their uncommitted code changes. \"patch\" (the default): the changed files and the patch, saved with the run. \"summary\": only the changed files' paths, line counts and a hash, no code, for a server that must not receive source code. \"off\": nothing. Projects can record less in qaboard.yaml.",
+    'patch', str, env='QABOARD_LOCAL_CHANGES', choices=('patch', 'summary', 'off'),
+    label="Code changes kept with local runs", group='security', docs="/docs/backend-admin/settings#local-changes",
+  ),
   'auth.allowed_origins': Definition(
     "Other origins (e.g. https://dashboards.example.com) allowed to make changes with the users' cookies. The server's own origin is always allowed.",
     [], list, env='QABOARD_ALLOWED_ORIGINS', parse_env=env_list,

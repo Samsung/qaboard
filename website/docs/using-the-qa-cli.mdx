@@ -29,6 +29,7 @@ Every command has its help: `qa --help`, `qa batch --help`...
 | `qa sync --input <input>` | Sends a run's *metrics.json* to QA-Board again. | |
 | `qa get <setting>` | Prints a setting, e.g. `qa get config`, `qa get --input A.jpg output_dir`. | [API](/docs/apis) |
 | `qa runs <url>` | Lists the runs a web app page shows: their folders, or everything with `--json`. | [Runs in scripts](/docs/apis#runs-in-scripts) |
+| `qa restore <run>` | Makes a branch with the code a local run ran: its commit and its uncommitted changes. | [Local changes](/docs/local-changes#restore) |
 | `qa save-artifacts` | Saves what your runs need to be redone from the web app, e.g. your build. | [Artifacts](/docs/storage/artifacts) |
 | `qa check-bit-accuracy` | Compares a commit's output files with a reference's, byte for byte. | [Bit accuracy](/docs/bit-accuracy) |
 | `qa gate` | Experimental: fails the CI when metrics regress. | [Quality gate](/docs/quality-gate) |

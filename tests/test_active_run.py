@@ -28,8 +28,10 @@ class FakeServer:
   - file_errors: {path: [(status, body), ...]}: what it answers to the next requests for a file, before accepting it
   - end_errors: [(status, body), ...]: what it answers to the next requests that end a run, before accepting one
   - served: {URL path: bytes}: files it serves, like nginx under /s/
+  - local_changes_level: the most runs may record of their local changes, as it answers (backend/api/outputs.py)
   """
-  def __init__(self, progress_status=200, output_status=200, output_error=None, port=0, uploads=True, file_errors=None, end_errors=None):
+  def __init__(self, progress_status=200, output_status=200, output_error=None, port=0, uploads=True, file_errors=None, end_errors=None,
+               local_changes_level=None):
     self.requests = []
     self.files = {}
     self.file_errors = {path: list(errors) for path, errors in (file_errors or {}).items()}
@@ -74,7 +76,7 @@ class FakeServer:
           server.finished = not body.get('is_pending')
           if body.get('storage') == 'upload' and body.get('is_running') and not body.get('keep_previous'):
             server.files.clear()
-          return self.answer(200, {'id': 42})
+          return self.answer(200, {'id': 42, **({'local_changes_level': local_changes_level} if local_changes_level else {})})
         if self.path.endswith('/progress'):
           return self.answer(progress_status, {'id': 42} if progress_status == 200 else {'error': 'not found'})
         self.answer(404, {'error': 'not found'})
@@ -317,15 +319,44 @@ with qb.start_run(input="train/coco-mini") as run:
     self.assertEqual((body['job_type'], body['commit_sha'], body['commit_branch'], body['batch_label']), ('ci', 'a' * 40, 'feature/quantize', 'lr-sweep'))
     self.assertIn(f"{self.storage}/kitefin/detector/aa/{'a' * 14}/output/lr-sweep/", body['output_directory'])
     self.assertNotIn('dirty', body['data'])
+    self.assertNotIn('local_changes', body['data'])
 
   def test_code_that_differs_from_the_commit_is_marked(self):
     server = self.server()
     (self.project / 'train.py').write_text(TRAINING + "\n# tuned by hand\n")
+    (self.project / 'augment.py').write_text("flip = True\n")
     result = self.python(server=server)
     self.assertEqual(result.returncode, 0, result.stderr)
-    data = server.outputs()[0]['data']
-    self.assertIs(data['dirty'], True)
-    self.assertRegex(data['diff_sha256'], '^[0-9a-f]{16}$')
+    self.assertIn("local changes: 2 files (1 new), +3 -0, saved in ", result.stderr)
+    started, *_, finished = server.outputs()
+    self.assertIs(started['data']['dirty'], True)
+    # before the server answers, the run doesn't say where its patch is
+    self.assertNotIn('patch', started['data']['local_changes'])
+    changes = finished['data']['local_changes']
+    self.assertEqual([f['path'] for f in changes['files']], ['augment.py', 'train.py'])
+    self.assertEqual((changes['head'], changes['scope'], changes['patch']['path']), (self.commit, 'run', '.qaboard/local-changes.patch'))
+    patch = (self.shared_dir() / '.qaboard/local-changes.patch').read_text()
+    self.assertIn('+# tuned by hand', patch)
+    self.assertIn('+flip = True', patch)
+
+  def test_the_server_can_allow_less_local_changes(self):
+    server = self.server(local_changes_level='summary')
+    (self.project / 'train.py').write_text(TRAINING + "\n# tuned by hand\n")
+    result = self.python(server=server)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    changes = server.outputs()[-1]['data']['local_changes']
+    self.assertEqual((changes['level'], changes['patch']), ('summary', {'omitted': 'level'}))
+    self.assertFalse((self.shared_dir() / '.qaboard').exists())
+
+  def test_projects_can_turn_local_changes_off(self):
+    server = self.server()
+    with (self.project / 'qaboard.yaml').open('a') as f:
+      f.write("outputs:\n  local_changes: off\n")
+    git(self.project, 'commit', '-q', '-am', 'No local changes')
+    (self.project / 'train.py').write_text(TRAINING + "\n# tuned by hand\n")
+    result = self.python(server=server)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertNotIn('local_changes', server.outputs()[-1]['data'])
 
   def test_sends_the_token(self):
     server = self.server()
@@ -707,7 +738,7 @@ run.finish()
     self.assertNotEqual(head, self.commit)
     last = server.outputs()[-1]
     self.assertEqual((last['commit_sha'], last['commit_message'].strip()), (head, 'Notes'))
-    self.assertNotIn('dirty', last['data'])
+    self.assertIs(last['data']['dirty'], False)
     self.assertIn(f"/{head[:2]}/{head[2:16]}/", last['output_directory'])
 
 
