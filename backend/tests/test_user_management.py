@@ -176,3 +176,14 @@ def test_hosts_the_server_calls_cant_be_itself():
     settings.validate('jenkins.servers', [{"hostname": "http://127.0.0.1:8080/", "user": "u", "token": "t"}])
   [server] = settings.validate('jenkins.servers', [{"hostname": "https://Jenkins.example.com/job/x", "user": "u", "token": "t"}])
   assert server["hostname"] == "jenkins.example.com"
+
+
+def test_audit_events_leave_secrets_out():
+  from backend.audit import without_secrets, fingerprint
+  inputs = {"github_token": "ghp_x", "AWS_SECRET_ACCESS_KEY": "abc", "api_key": "k", "token_id": 12, "generated_password": True,
+            "key": "git.host", "token_env": "GITLAB_TOKEN", "iso": 100}
+  assert without_secrets(inputs) == {"github_token": "[redacted]", "AWS_SECRET_ACCESS_KEY": "[redacted]", "api_key": "[redacted]",
+                                     "token_id": 12, "generated_password": True, "key": "git.host", "token_env": "GITLAB_TOKEN", "iso": 100}
+  printed = fingerprint({"parameters": {"iso": 100, "password": "hunter2"}})
+  assert "hunter2" not in printed["parameters"] and "iso" in printed["parameters"]
+  assert printed["parameters_sha256"] == fingerprint({"parameters": {"iso": 100, "password": "other"}})["parameters_sha256"]

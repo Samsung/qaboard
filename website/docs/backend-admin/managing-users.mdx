@@ -24,8 +24,8 @@ Admins see **Admin** in the user menu, at `/admin`:
 - **Tokens**: every API token, with when and from where it was last used. Revoke any of them.
 - **Service accounts**: bots for CI and scripts, with their own tokens (see [below](#service-accounts)).
 - **Storage**: the jobs that clean the storage, and their schedules (see [Cleaning the storage](/docs/backend-admin/storage)).
-- **Audit**: sign-ins (and failed ones), tokens created and revoked, `qa auth login` approvals, admin changes and
-  setting changes, with who did it and from which IP.
+- **Audit**: who ran, deleted or changed what, and when: batches started from the web app, deleted and edited runs,
+  sign-ins, tokens, admin and setting changes, with who did it and from which IP (see [the audit log](/docs/backend-admin/audit-log)).
 - **Settings**: change the settings below without restarting the server.
 
 <Shot id="admin/overview" />
@@ -259,7 +259,8 @@ and the admin checklist reminds you to empty it. It has no effect when `ingest.a
 - Session cookies are `HttpOnly` and `SameSite=Lax`, and `Secure` when `QABOARD_URL` is `https://…`.
 - Changes made with cookies must come from QA-Board's own pages: other websites can't make users' browsers change
   things (add exceptions to `auth.allowed_origins`).
-- Signing in, signing out, failed sign-ins, tokens and admin changes are in the audit log. It never contains passwords or tokens.
+- Signing in, signing out, failed sign-ins, tokens, admin changes, and what people run, delete or change are in the
+  [audit log](/docs/backend-admin/audit-log). It never contains passwords or tokens.
 
 ## Restricting sign-in
 To allow only specific users to sign-in, set the environment variables:

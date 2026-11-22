@@ -37,4 +37,6 @@ class AuditEvent(Base):
     Index('ix_audit_events_actor_user_id', 'actor_user_id'),
     Index('ix_audit_events_target', 'target_type', 'target_id'),
     Index('ix_audit_events_action', 'action'),
+    # projects' audit logs: a project and its subprojects (LIKE 'a/b/%'), newest first
+    Index('ix_audit_events_project', 'project_id', 'id', postgresql_ops={'project_id': 'text_pattern_ops'}),
   )

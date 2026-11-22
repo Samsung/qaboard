@@ -37,30 +37,6 @@ export const ScopeTags = ({ scopes: token_scopes = [] }) => <span style={{ displ
 </span>;
 
 
-// Audit actions are codes, e.g. "token.create" or "auth.login_failed" (the server's backend/audit.py callers): we say them in words
-const action_labels = {
-  'auth.login': 'Signed in',
-  'auth.login_failed': 'Failed to sign in',
-  'auth.logout': 'Signed out',
-  'auth.signup': 'Signed up',
-  'token.create': 'Created a token',
-  'token.revoke': 'Revoked a token',
-  'token.new_ip': 'Token used from a new address',
-  // it creates a CLI token: its own token.create event follows
-  'device.approve': 'Approved a CLI sign-in',
-  'device.deny': 'Denied a CLI sign-in',
-  'user.create': 'Created a user',
-  'user.update': 'Updated a user',
-  'setting.update': 'Changed a setting',
-  'setting.import_env': 'Saved a setting from the environment',
-  'setting.test_email': 'Sent a test email',
-  'encryption.rotate': 'Re-encrypted the stored secrets',
-  'encryption.show_key': 'Printed the encryption key',
-  'audit.purge': 'Deleted old audit events',
-  'batch.delete': 'Deleted a batch',
-  'jenkins.build': 'Started a Jenkins build',
-};
-
 // Why signing in failed (`meta.reason` of auth.login_failed events)
 export const login_failure_reasons = {
   'invalid-password': 'wrong password',
@@ -69,10 +45,12 @@ export const login_failure_reasons = {
   'pending': 'pending account',
 };
 
-// Unknown actions: "user.sign_in_failed" => "User: sign in failed"
-export const actionLabel = action => {
+// Audit actions are codes, e.g. "token.create": the server's registry says them in words (settings/api.js
+// auditRegistryQuery). Actions it doesn't know (older servers), or while it loads: "user.sign_in_failed" => "User: sign in failed"
+export const actionLabel = (action, registry) => {
   if (!action) return '';
-  if (action_labels[action]) return action_labels[action];
+  const label = registry?.actions?.[action]?.label;
+  if (label) return label;
   const [subject, ...rest] = action.split('.');
   const words = text => text.replace(/[_-]+/g, ' ');
   const what = rest.length ? `${words(subject)}: ${words(rest.join(' '))}` : words(subject);

@@ -38,6 +38,7 @@ from ..artifacts import ArtifactsUnavailable, EXIT_TRAP, cd_lines, runner_unsupp
 from ..server_runner import server_runner, runs_in_server, refusal as runner_refusal, DOCS
 from ..runner_jobs import driver_without_storage
 from .. import tokens
+from ..audit import audit, capped, fingerprint, update_meta
 from ..notifications.batches import request_batch_notification, cancel_batch_notification
 from .auth import login_required, require_project_access, is_authorized_user, forbidden_project
 
@@ -1022,7 +1023,7 @@ def start_tuning(hexsha):
     # API clients (`qa batch --commit`) get the web app's defaults
     data = with_defaults(data, user_name=user)
     check = check_tuning_request(ci_commit, data, user_name=user)
-    restored_message = None
+    restored_message, artifacts_restored = None, False
     if not check["artifacts"]["ok"]:
         # We never run from missing artifacts: e.g. without its qaboard.yaml, a subproject's runs would be saved in the parent project
         try:
@@ -1035,6 +1036,7 @@ def start_tuning(hexsha):
         db_session.commit()
         # the batches files come from the artifacts
         restored_message = restored["message"] if restored else None
+        artifacts_restored = True
         check = check_tuning_request(ci_commit, data, user_name=user)
     if check["errors"]:
         return jsonify({"error": " ".join(check["errors"]), "errors": check["errors"], "warnings": check["warnings"]}), 400
@@ -1143,6 +1145,23 @@ def start_tuning(hexsha):
     }
     record_submission(batch, submission)
     db_session.add(batch)
+    # It runs code: recorded before it starts, with the submission, then with how it went
+    event = audit('batch.start', 'batch', batch.id, batch.label, project_id=ci_commit.project_id, meta={
+        "commit": ci_commit.hexsha,
+        "batch_label": str(data['batch_label']),
+        "runner": runner,
+        "search_type": data['tuning_search'].get('search_type'),
+        # the submission's scripts and logs: SNAPSHOT_FILE says which inputs, qa_batch.sh which command
+        "command_id": command_id,
+        "artifacts_restored": artifacts_restored,
+        "batches": capped(batches_names),
+        "groups": capped(data.get('groups') or []),
+        "definitions": capped(check["definitions"], items=20),
+        "platform": data.get('platform'),
+        "overwrite": data["overwrite"] in ("on", True),
+        **fingerprint(data['tuning_search']),
+        "status": "submitting",
+    })
     db_session.commit()
 
     # Before we start: with the local runner, runs can end before the dispatch returns
@@ -1182,6 +1201,7 @@ def start_tuning(hexsha):
     db_session.refresh(batch)
     record_submission(batch, submission)
     db_session.add(batch)
+    update_meta(event, status=submission["status"], **capped({k: submission[k] for k in ("exit_code", "error") if k in submission}))
     db_session.commit()
 
     if submission["status"] == "failed":

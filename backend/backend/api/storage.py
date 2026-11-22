@@ -562,6 +562,7 @@ def storage_cancel_job(job_id):
   if job.status not in queue.ACTIVE:
     return jsonify({"error": f"This deletion is {job.status}: it can't be cancelled."}), 400
   queue.cancel(job)
+  audit('job.cancel', 'job', job.id, (job.params or {}).get('description') or job.kind, meta={"kind": job.kind})
   db_session.commit()
   return jsonify(queue.serialize_job(job, with_log=True))
 

@@ -801,10 +801,15 @@ def test_start_a_batch_from_an_api_client(dummy_app, tmp_path, monkeypatch):
     import backend.api.tuning as tuning
     config = {"project": {"name": "repo"}, "inputs": {"batches": "sub/batches.yaml"}}
     commit = make_commit(tmp_path, config, batches={"night": {"inputs": ["a"]}})
-    batch = SimpleNamespace(batch_dir=tmp_path / "outputs" / "batch", batch_dir_override=None, data={})
+    batch = SimpleNamespace(id=3, label="from-cli", batch_dir=tmp_path / "outputs" / "batch", batch_dir_override=None, data={})
     commit.get_or_create_batch = lambda label: batch
     commit.outputs_dir = tmp_path / "outputs"
     monkeypatch.setattr(tuning, "lookup_commit", lambda project_id, hexsha: (commit, None))
+    events = []
+    def audit(action, *args, meta=None, **kwargs):
+        events.append(SimpleNamespace(action=action, args=args, meta=meta, **kwargs))
+        return events[-1]
+    monkeypatch.setattr(tuning, "audit", audit)
     monkeypatch.setattr(tuning, "db_session", MagicMock())
     monkeypatch.setattr(tuning, "check_storage_path", lambda path: None)
     monkeypatch.setattr(tuning, "user_batch_dir", lambda batch_dir, user: batch_dir)
@@ -839,4 +844,13 @@ def test_start_a_batch_from_an_api_client(dummy_app, tmp_path, monkeypatch):
     assert yaml.safe_load((started["log_dir"] / "batches.yaml").read_text()) == {"night": {"inputs": ["a"]}, "mine": {"inputs": ["b"]}}
     assert body["submission"]["batches_snapshot"] == {"batches": ["night", "mine"], "aliases": [], "files": ["sub/batches.yaml", "local.yaml (sent with qa batch --commit)"], "inputs": [], "path": "batches.yaml"}
     assert body["submission"]["request"]["selected_group"] == ["night", "mine"]
+    # It runs code: the audit log says who started what, with which parameters, and how it went
+    [event] = events
+    assert event.action == "batch.start" and event.args == ("batch", 3, "from-cli") and event.project_id == "repo/sub"
+    assert event.meta["command_id"] == body["submission"]["id"] and event.meta["status"] == "submitted"
+    assert event.meta["batches"] == ["night", "mine"] and event.meta["runner"] == "local" and event.meta["search_type"] == "grid"
+    import hashlib
+    assert event.meta["parameters"] == '{"parameter_search":{},"search_type":"grid"}'
+    assert event.meta["parameters_sha256"] == hashlib.sha256(event.meta["parameters"].encode()).hexdigest()
+    assert "parameters_truncated" not in event.meta
     assert "export QABOARD_TUNING=true" in started["script"]

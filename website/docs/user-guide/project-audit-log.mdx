@@ -1,0 +1,39 @@
+---
+id: project-audit-log
+title: Find who ran, deleted or changed something in a project
+sidebar_label: Project audit log
+description: As a project's developer or owner, see who started batches, redid or deleted runs, changed results, milestones and roles in the project, and when.
+---
+
+A batch disappeared, a tuning of 2,000 runs is filling the cluster, a run's metric changed overnight: the project's
+**audit log** says who did it, and when.
+
+Open **Admin → Audit log** in the project's sidebar. Events are newest first, about the project and the subprojects you can see:
+- batches and tunings started from the web app, runs redone, batches stopped, CI jobs started from the web app,
+- batches, runs and milestones deleted, and old results deleted by the project's [retention](/docs/storage/deleting-old-data),
+- runs marked as failed or whose metrics were edited, with their old and new values, batches renamed or moved,
+- roles, visibility and access requests.
+
+Each event says who did it, and whether with a token. **Details** shows the rest: the commit and the runner of a
+batch, the parameters of a tuning, how many runs were redone.
+
+To see the events about one batch, open its menu on the commit page and choose **Audit log of this batch**.
+
+## Find an event
+- **Category** or **Action**: e.g. *Runs and batches*, or only *Deleted a batch*.
+- **By**: part of a user name, e.g. `ali` finds `alice`. Click a name in the list to see only their events.
+- **About**: e.g. `batch:1234`. Click what an event is about to see only its events.
+- **From** and **to**: the dates, both included.
+
+**Export** downloads the matching events as CSV or JSON Lines.
+
+<details>
+<summary>Who can see it</summary>
+
+The project's developers and owners, and admins. Viewers see who to ask instead. The project's audit log doesn't
+show where people connected from: admins see it, with everything else, in **Admin → Audit** (see
+[the audit log](/docs/backend-admin/audit-log)).
+
+Results sent by `qa run` and CI aren't in it: each run already says who sent it.
+
+</details>

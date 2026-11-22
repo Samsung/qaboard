@@ -272,6 +272,22 @@ class CiCommit(Base):
   def restore_artifacts(self, user=None, force=False):
     """
     Brings the artifacts back (`user` is who asked, as in g.user): asks the CI to recreate them if `recreate_artifacts` is configured,
+    otherwise restores the files from the source code. It runs code (git checkout && qa save-artifacts, a CI job): audited.
+    Returns {status: restored|recreating|failed, message, ...}
+    """
+    from ..audit import audit, capped
+    result = self._restore_artifacts(user=user, force=force)
+    recreation = result.get("recreation") or {}
+    # a recreation already in progress: nothing started now
+    if not result.pop("in_progress", False):
+      audit('artifacts.restore', 'commit', self.hexsha, self.hexsha[:8], project_id=self.project_id, meta={
+        "via": recreation.get('via') or 'source code', "status": result["status"], "message": capped(result.get("message")),
+      })
+    return result
+
+  def _restore_artifacts(self, user=None, force=False):
+    """
+    Brings the artifacts back (`user` is who asked, as in g.user): asks the CI to recreate them if `recreate_artifacts` is configured,
     otherwise restores the files from the source code.
     Returns {status: restored|recreating|failed, message, ...}
     """
@@ -279,7 +295,7 @@ class CiCommit(Base):
     if settings:
       recreation = self.data.get('artifacts_recreation')
       if not force and recreate_artifacts.in_progress(recreation):
-        return {"status": "recreating", "message": f"The artifacts are being recreated by {recreation.get('via')}, since {recreation['at']}.", "recreation": recreation}
+        return {"status": "recreating", "message": f"The artifacts are being recreated by {recreation.get('via')}, since {recreation['at']}.", "recreation": recreation, "in_progress": True}
       recreation = recreate_artifacts.trigger(settings, self, user=user)
       self.data = {**self.data, 'artifacts_recreation': recreation}
       flag_modified(self, "data")

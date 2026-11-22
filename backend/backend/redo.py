@@ -27,6 +27,7 @@ from .fs_utils import mkdir_shared
 from .artifacts import ArtifactsUnavailable, EXIT_TRAP, cd_lines, runner_unsupported
 from .server_runner import server_runner, redo_runner, refusal
 from . import tokens
+from .audit import audit, capped, update_meta
 from .submissions import record_submission, user_batch_dir, submission_dir, startup_logs
 
 
@@ -128,13 +129,14 @@ def redo_script(ci_commit, user, command_id, batch_command) -> str:
   ])
 
 
-def redo_outputs(batch, outputs, user_info, actor=None) -> dict:
+def redo_outputs(batch, outputs, user_info, actor=None, selection=None) -> dict:
   """
   Redo the `outputs` from `batch`, as `user_info` (the logged-in user who asked, g.user, and `actor`, g.actor: the
   batch's token is theirs, tokens.mint_for_batch).
   Returns the submission (see submissions.py): its status is "done" if `qa batch` could start the runs, "failed" otherwise,
   "submitted" when `qa batch` was started in a pod (QABOARD_TUNING_RUNNER=kubernetes) or still runs on the server.
   Raises ValueError (e.g. UnsafePathError) if the user name or folders are not safe to use, or the server redoes no runs.
+  `selection` says how the runs were chosen, for the audit log, e.g. {"only_failed": True}.
   """
   user = safe_user_name(user_info['user_name'])
   ci_commit = batch.ci_commit
@@ -151,6 +153,10 @@ def redo_outputs(batch, outputs, user_info, actor=None) -> dict:
   # We never run from missing artifacts: e.g. without its qaboard.yaml, a subproject's runs would be saved in the parent project.
   # Raises ArtifactsUnavailable if they are missing and can't be restored right now.
   restored = ci_commit.ensure_artifacts(user=user_info)
+  if restored and restored.get("status") == "restored":
+    # code ran to restore them (artifacts.restore): saved even if the redo fails below
+    db_session.add(ci_commit)
+    db_session.commit()
 
   command_id = str(uuid.uuid4())
   created_at = datetime.datetime.utcnow()
@@ -196,6 +202,16 @@ def redo_outputs(batch, outputs, user_info, actor=None) -> dict:
     submission["warning"] = restored["message"]
   record_submission(batch, submission)
   db_session.add(batch)
+  # It runs code: recorded before it starts, with the submission, then with how it went
+  event = audit('batch.redo', 'batch', batch.id, batch.label, project_id=ci_commit.project_id, meta={
+    "commit": ci_commit.hexsha,
+    "runs": len(outputs),
+    "output_ids": capped([output.id for output in outputs]),
+    "runner": runner,
+    "command_id": command_id,
+    **(selection or {}),
+    "status": "submitting",
+  })
   db_session.commit()
 
   try:
@@ -230,6 +246,7 @@ def redo_outputs(batch, outputs, user_info, actor=None) -> dict:
   db_session.refresh(batch)
   record_submission(batch, submission)
   db_session.add(batch)
+  update_meta(event, status=submission["status"], **capped({k: submission[k] for k in ("exit_code", "error") if k in submission}))
   db_session.commit()
   return submission
 
@@ -243,8 +260,8 @@ def log_tail(submission, size=4000) -> str:
   return submission.get('error', '') if logs is None else logs
 
 
-def redo_response(batch, outputs, user_info):
-  """The API's response when users ask to redo runs"""
+def redo_response(batch, outputs, user_info, selection=None):
+  """The API's response when users ask to redo runs. `selection`: how they were chosen (only_failed...), for the audit log"""
   from flask import jsonify, g
   # before anything is restored or written
   if refused := refusal(redo=True):
@@ -252,7 +269,7 @@ def redo_response(batch, outputs, user_info):
   if not outputs:
     return jsonify({"error": "There are no runs to redo."}), 400
   try:
-    submission = redo_outputs(batch, outputs, user_info, actor=g.get('actor'))
+    submission = redo_outputs(batch, outputs, user_info, actor=g.get('actor'), selection=selection)
   except ArtifactsUnavailable as e:
     # we remember that the artifacts are missing, and that we asked to recreate them
     db_session.add(batch.ci_commit)

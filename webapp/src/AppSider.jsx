@@ -524,7 +524,7 @@ const AdminMenuItem = ({ project, route }) => {
   const pages = project_admin_pages(project)
   const current = route.is_access ? 'access' : route.is_project_admin ? route.section : null
   // the hint above the item: on the right, it would cover the submenu
-  return <SiderHint name="Admin" content="Who can access the project, and the rules its quality gate holds every commit to." placement="top-start">
+  return <SiderHint name="Admin" content="Who can access the project, the rules its quality gate holds every commit to, and who changed what." placement="top-start">
     <MenuItemLink
       to={pages[0].to}
       active={current !== null}

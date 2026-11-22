@@ -40,6 +40,8 @@ import { useRefreshCommit, useUrlText, updateSelected, useSiteConfig, useUser } 
 import { is_default_name, remove_reference, switch_new_and_reference } from "../selection";
 import { LoginMenuItem } from "./authentication/login";
 import { toaster } from "../toaster"
+import { history } from "../router"
+import { target_audit_location } from "../projectAdmin/api"
 import { track } from "../analytics"
 import { copyDirectory } from "./logs/DirectoryActions"
 import { hasPathMappings } from "../utils/paths"
@@ -648,6 +650,21 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
           {hasPathMappings() && <MenuItem text="Copy output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(batch.batch_dir_url, { windows: true })} />}
           <MenuItem text="Copy output directory" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(batch.batch_dir_url)} />
           <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={batch.batch_dir_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
+          {/* the project's audit log about this batch: for developers and owners, the page says so to the others */}
+          {is_logged && batch.id !== undefined && batch.id !== null && <MenuItem
+            text="Audit log of this batch"
+            htmlTitle="Who started, redid, renamed, moved or deleted its runs"
+            className={Classes.TEXT_MUTED}
+            minimal
+            icon="history"
+            href={target_audit_location(selected[project_attr] ?? project, 'batch', batch.id)}
+            onClick={event => {
+              // ctrl/cmd/shift-click open it in a new tab or window, as links do
+              if (event.button !== 0 || event.metaKey || event.altKey || event.ctrlKey || event.shiftKey) return;
+              event.preventDefault();
+              history.push(target_audit_location(selected[project_attr] ?? project, 'batch', batch.id));
+            }}
+          />}
           <MenuDivider/>
           {!is_logged && <LoginMenuItem/>}
           <Dialog
