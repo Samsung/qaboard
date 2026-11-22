@@ -156,6 +156,7 @@ export const formatAbsoluteTime = mtime => mtime === undefined || mtime === null
 const ICONS = [
   [/\.(png|jpe?g|bmp|gif|tiff?|webp|svg|hex|raw|imgprops|exr|dng)$/i, 'media'],
   [/\.(mp4|avi|mkv|mov|webm)$/i, 'video'],
+  [/\.(wav|mp3|flac|ogg|oga|opus|m4a|aac)$/i, 'music'],
   [/\.plotly\.json$/i, 'timeline-line-chart'],
   [/\.(json|ya?ml|toml|ini|cfg|conf|cde|set)$/i, 'numerical'],
   [/\.(csv|tsv|xlsx?)$/i, 'th'],

@@ -1,5 +1,5 @@
 /**
- * The benchmark, flame graph and parallel coordinates viewers are standalone components, like the image viewer
+ * The benchmark, flame graph, parallel coordinates and audio viewers are standalone components, like the image viewer
  * (src/image-viewer/): they import only third-party packages and their own files, the app reaches them only through
  * their adapter, they are loaded lazily, and their styles don't leak to the rest of the page.
  * Run with: cd webapp && npm test -- isolation
@@ -45,6 +45,14 @@ const viewers = {
     adapter: '../flame-graph.jsx',
     lazy: { file: '../OutputViewer.jsx', specifier: './flame-graph' },
   },
+  audio: {
+    sources: import.meta.glob(['../audio/*.{js,jsx}', '!../audio/playground.jsx'], { query: '?raw', import: 'default', eager: true }),
+    css: stylesheets('audio'),
+    packages: ['react', '@blueprintjs/core'],
+    prefixes: ['qa-audio'],
+    adapter: '../audio-viewer.jsx',
+    lazy: { file: '../OutputViewer.jsx', specifier: './audio-viewer' },
+  },
   parallel: {
     sources: import.meta.glob(['../parallel/*.{js,jsx}', '!../parallel/playground.jsx'], { query: '?raw', import: 'default', eager: true }),
     css: stylesheets('parallel'),
@@ -57,7 +65,7 @@ const viewers = {
 };
 
 // Everything else in the app, but the viewers' own folders and the tests
-const app = import.meta.glob(['../../**/*.{js,jsx}', '!../../**/__tests__/**', '!../../**/*.test.{js,jsx}', '!../benchmarks/**', '!../flamegraph/**', '!../parallel/**'], { query: '?raw', import: 'default', eager: true });
+const app = import.meta.glob(['../../**/*.{js,jsx}', '!../../**/__tests__/**', '!../../**/*.test.{js,jsx}', '!../benchmarks/**', '!../flamegraph/**', '!../parallel/**', '!../audio/**'], { query: '?raw', import: 'default', eager: true });
 
 describe.each(Object.entries(viewers))('the %s viewer', (folder, { sources, css, packages, prefixes, adapter, lazy }) => {
   it("imports nothing from the app", () => {

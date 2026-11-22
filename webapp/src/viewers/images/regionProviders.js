@@ -20,9 +20,9 @@
 //     // `key(context)`: what its regions depend on, if not the image pair, `staleTime`: when to find them again.
 //     section: 'Annotations', auto: true, overview: true,
 //   }
-// context: { output_new, output_ref, path, path_ref, diff_size }, diff_size: the size of the differences users look for,
+// context: { output_new, output_ref, path, path_ref, diff_size, boxes }, diff_size: the size of the differences users look for,
 // { min, max } in pixels (either can be null), for the providers that compare the images. Regions are in the pixels of the image shown, or of an image of
-// size imageWidth x imageHeight, e.g. the input's: the viewer scales them. A region's `value` (optional) says how
+// size imageWidth x imageHeight, e.g. the input's: the viewer scales them. boxes: the regions logged with the image. A region's `value` (optional) says how
 // interesting it is, e.g. how much the images differ there: searches over all the runs of a page rank runs with it.
 // Results of `find` are kept by the page (regionSearch.js), for every viewer of the same files.
 //
@@ -66,6 +66,16 @@ const presets = {
     const regions = presetRegions(output_new);
     return regions.length > 0 ? regions : null;
   },
+};
+
+// The regions the run logged with the image (run.log() in Python, ../media/), e.g. a detector's boxes: shown first,
+// outlined on the whole image
+const logged = {
+  id: 'logged',
+  label: 'Logged with the image',
+  description: 'The boxes the run logged with this image',
+  overview: true,
+  regions: ({ boxes }) => boxes?.length ? boxes : null,
 };
 
 
@@ -116,6 +126,7 @@ const autoRegions = (diff_type, label, description) => ({
 });
 
 const providers = [
+  logged,
   presets,
   autoRegions('yiq', 'Where they differ: perceptual', 'The server compares the full images by perceived color difference (YIQ, like the viewer\'s), pixel by pixel, and finds where they differ most'),
   autoRegions('ssim', 'Where they differ: structure (SSIM)', 'The server compares the full images by structural similarity (SSIM), about 1000 pixels wide, and finds where they differ most'),

@@ -1,0 +1,143 @@
+/* The audio viewer (AudioViewer.jsx): follows the theme with the app's CSS variables, with fallbacks when alone */
+.qa-audio {
+  color: var(--qa-text, inherit);
+  font-size: 13px;
+  min-width: 0;
+}
+.qa-audio-lanes:focus {
+  outline: none;
+}
+.qa-audio-lanes:focus-visible {
+  outline: 2px solid var(--qa-intent-primary, #2d72d2);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.qa-audio-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.qa-audio-time {
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+.qa-audio-volume {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: 130px;
+}
+.qa-audio-volume .bp6-slider {
+  min-width: 80px;
+}
+.qa-audio-spacer {
+  flex: 1;
+}
+.qa-audio-switch.bp6-control {
+  margin: 0;
+}
+.qa-audio-callout {
+  margin: 4px 0;
+}
+.qa-audio-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.qa-audio-lanes {
+  position: relative;
+  min-width: 0;
+}
+.qa-audio-track {
+  margin-bottom: 4px;
+}
+.qa-audio-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  align-items: center;
+  min-height: 24px;
+}
+.qa-audio-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+}
+.qa-audio-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--qa-audio-color, #2d72d2);
+}
+.qa-audio-caption,
+.qa-audio-meta {
+  color: var(--qa-text-muted, #5f6b7c);
+  font-size: 12px;
+}
+.qa-audio-meta {
+  font-variant-numeric: tabular-nums;
+}
+.qa-audio-lane {
+  position: relative;
+  cursor: text;
+  touch-action: none;
+  user-select: none;
+  border-radius: 2px;
+  background: var(--qa-surface-alt, #f6f7f9);
+  box-shadow: inset 0 0 0 1px var(--qa-border, rgba(17, 20, 24, 0.15));
+  overflow: hidden;
+}
+.qa-audio-heard .qa-audio-lane {
+  box-shadow: inset 0 0 0 1px var(--qa-audio-color, #2d72d2);
+}
+.qa-audio-canvas {
+  display: block;
+}
+.qa-audio-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  margin-left: -0.5px;
+  /* visible on waveforms and spectrograms, in both themes */
+  background: #ffffff;
+  box-shadow: 0 0 0 1px rgba(17, 20, 24, 0.75);
+  pointer-events: none;
+}
+.qa-audio-region {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(251, 179, 96, 0.28);
+  box-shadow: inset 1px 0 0 #c87619, inset -1px 0 0 #c87619;
+  pointer-events: none;
+}
+.qa-audio-axis {
+  position: relative;
+  height: 16px;
+  color: var(--qa-text-muted, #5f6b7c);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+}
+.qa-audio-tick {
+  position: absolute;
+  top: 0;
+  padding-left: 3px;
+  border-left: 1px solid var(--qa-border, rgba(17, 20, 24, 0.15));
+  line-height: 14px;
+  white-space: nowrap;
+}
+.qa-audio-fallback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+.qa-audio-fallback audio {
+  max-width: 100%;
+}

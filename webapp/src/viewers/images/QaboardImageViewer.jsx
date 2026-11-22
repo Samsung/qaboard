@@ -275,6 +275,8 @@ const ImageViewerForRuns = ({
   // false: users turned off what runs ask to show
   run_views,
   onControlsChange,
+  // the regions the run logged with the image, e.g. a detector's boxes (../media/): shown outlined
+  boxes,
 }) => {
   const labels = useLabels(labels_);
   // What the run asks for its images (its `view.images`): the comparison mode, the analysis panel
@@ -379,8 +381,8 @@ const ImageViewerForRuns = ({
   // the regions where the images differ: of the image and the other image of the run, or its reference
   const [diff_size, setDiffSize] = useDiffSize();
   const region_context = other
-    ? { output_new, output_ref: output_new, path, path_ref: other, diff_size }
-    : { output_new, output_ref: has_reference ? output_ref : null, path, path_ref, diff_size };
+    ? { output_new, output_ref: output_new, path, path_ref: other, diff_size, boxes }
+    : { output_new, output_ref: has_reference ? output_ref : null, path, path_ref, diff_size, boxes };
   const region_sets = useRegionSets(region_context, signed_in, setDiffSize);
   const page = usePageKey();
   const chosen = useRegionSetStore(state => state.by_path[path]);
@@ -389,7 +391,7 @@ const ImageViewerForRuns = ({
   const is_search = id => !!region_sets.find(set => set.id === id)?.load;
   const region_set = chosen && (chosen.page === page || !is_search(chosen.id))
     ? chosen.id
-    : region_sets.some(set => set.id === 'presets') ? 'presets' : null;
+    : region_sets.find(set => set.id === 'logged' || set.id === 'presets')?.id ?? null;
   // another size of differences: the set shown searches again
   const size_key = JSON.stringify(sizeKey(diff_size));
   const shown_set = region_sets.find(set => set.id === region_set);
