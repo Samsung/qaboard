@@ -13,7 +13,7 @@ vi.mock('../components/MonacoEditor', () => ({
   preloadMonaco: () => {},
 }));
 
-const files = { '/new/log.txt': 'new log', '/ref/log.txt': 'reference log' };
+const files = { '/new/log.txt': 'new log', '/ref/log.txt': 'reference log', '/run/media/a/20.txt': 'step 20', '/run/media/a/10.txt': 'step 10', '/run/media/b/20.txt': 'same', '/run/media/b/10.txt': 'same' };
 
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn((url, { signal } = {}) => {
@@ -37,13 +37,19 @@ describe('GenericTextViewer', () => {
 
   it("says what it diffs: the page's names", async () => {
     const { unmount } = render(<GenericTextViewer filename="log.txt" text_url_new="/new/log.txt" text_url_ref="/ref/log.txt"/>);
-    expect(await screen.findByText(/reference ➡️/)).toHaveTextContent('● reference ➡️ ● new');
+    expect(await screen.findByText(/reference →/)).toHaveTextContent('● reference → ● new');
     unmount();
     const labels = { new: 'ISP v2', reference: 'v1.4', colors: { new: { css: 'var(--qa-side-0)' }, reference: { css: 'var(--qa-side-1)' } } };
     render(<GenericTextViewer filename="log.txt" text_url_new="/new/log.txt" text_url_ref="/ref/log.txt" labels={labels}/>);
-    const header = await screen.findByText(/v1.4 ➡️/);
-    expect(header).toHaveTextContent('● v1.4 ➡️ ● ISP v2');
+    const header = await screen.findByText(/v1.4 →/);
+    expect(header).toHaveTextContent('● v1.4 → ● ISP v2');
     expect(header.querySelector('[aria-hidden]')).toHaveStyle({ color: 'var(--qa-side-1)' });
+  });
+
+  it("says it quietly without the file's name, e.g. under a logged key", async () => {
+    render(<GenericTextViewer filename="log.txt" hide_filename text_url_new="/new/log.txt" text_url_ref="/ref/log.txt"/>);
+    const line = await screen.findByText(/reference →/);
+    expect(line).toHaveClass('bp6-text-muted');
   });
 
   it('shows the file when the reference is missing', async () => {
@@ -55,5 +61,17 @@ describe('GenericTextViewer', () => {
     const { rerender } = render(<GenericTextViewer filename="log.txt" text_url_new="/slow/log.txt"/>);
     rerender(<GenericTextViewer filename="log.txt" text_url_new="/new/log.txt"/>);
     expect(await screen.findByTestId('editor')).toHaveTextContent('new log');
+  });
+
+  it("says whether the file compared is the same, not the reference's at the same path", async () => {
+    // the reference's manifest has the same file at the path: it isn't what is compared
+    const manifests = { new: { 'media/a/20.txt': { md5: 'x' } }, reference: { 'media/a/20.txt': { md5: 'x' } } };
+    const { unmount } = render(<GenericTextViewer filename="media/a/20.txt" filename_ref="media/a/10.txt" text_url_new="/run/media/a/20.txt" text_url_ref="/run/media/a/10.txt" manifests={manifests} compared_to="step 10"/>);
+    expect(await screen.findByText('Next diff')).toBeInTheDocument();
+    expect(screen.queryByText(/Identical/)).not.toBeInTheDocument();
+    unmount();
+    render(<GenericTextViewer filename="media/b/20.txt" filename_ref="media/b/10.txt" text_url_new="/run/media/b/20.txt" text_url_ref="/run/media/b/10.txt" compared_to="step 10"/>);
+    expect(await screen.findByText('Identical to step 10')).toBeInTheDocument();
+    expect(screen.queryByText('Next diff')).not.toBeInTheDocument();
   });
 });

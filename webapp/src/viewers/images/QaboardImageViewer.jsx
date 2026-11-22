@@ -30,15 +30,19 @@ import './image-viewer-theme.css';
 
 
 // An image of a run, served by the site's IIIF image server
+// Without an image server (or one that can't read the file), what browsers decode is shown as it is
+const BROWSER_IMAGES = /\.(png|jpe?g|gif|webp|avif|bmp)$/i;
 const runImage = (output, path, manifest, image_servers, label, color) => {
   const name = build_image_name(path, manifest);
   const file = `${output.output_dir_url}/${name}`;
+  const href = `${output.output_dir_url}/${name.split('/').map(encodeURIComponent).join('/')}`;
   return {
     iiif: iiif_url(output.output_dir_url, path, manifest, true, image_servers),
+    url: BROWSER_IMAGES.test(name) ? href : undefined,
     label,
     color: color?.hex,
     textColor: color?.text,
-    href: `${output.output_dir_url}/${name.split('/').map(encodeURIComponent).join('/')}`,
+    href,
     // for the server's pixel values
     file,
   };
@@ -208,7 +212,7 @@ const useRegionSets = (context, signed_in, onDiffSizeChange) => {
   const found = useQueries({ queries: finders.map(provider => ({ ...regionsQuery(provider, context), enabled: !!provider.auto })) });
   const sets = [];
   for (const provider of providers) {
-    const base = { id: provider.id, label: provider.label, description: provider.description, section: provider.section, overview: provider.overview };
+    const base = { id: provider.id, label: typeof provider.label === 'function' ? provider.label(context) : provider.label, description: provider.description, section: provider.section, overview: provider.overview };
     if (provider.auto) {
       const { data, error, fetchStatus } = found[finders.indexOf(provider)];
       const shown = new Set(data?.groups.filter(group => isGroupShown(group, group_choices?.[provider.source])).map(group => group.id));
@@ -275,6 +279,10 @@ const ImageViewerForRuns = ({
   // false: users turned off what runs ask to show
   run_views,
   onControlsChange,
+  // the regions the run logged with the image, e.g. a detector's boxes (../media/): shown outlined. boxes_ref: the
+  // reference's, with its image
+  boxes,
+  boxes_ref,
 }) => {
   const labels = useLabels(labels_);
   // What the run asks for its images (its `view.images`): the comparison mode, the analysis panel
@@ -378,9 +386,10 @@ const ImageViewerForRuns = ({
   const signed_in = useUser().is_logged;
   // the regions where the images differ: of the image and the other image of the run, or its reference
   const [diff_size, setDiffSize] = useDiffSize();
+  const names = { new: labels?.new ?? 'new', reference: labels?.reference ?? 'reference' };
   const region_context = other
-    ? { output_new, output_ref: output_new, path, path_ref: other, diff_size }
-    : { output_new, output_ref: has_reference ? output_ref : null, path, path_ref, diff_size };
+    ? { output_new, output_ref: output_new, path, path_ref: other, diff_size, boxes, names }
+    : { output_new, output_ref: has_reference ? output_ref : null, path, path_ref, diff_size, boxes, boxes_ref: has_reference ? boxes_ref : undefined, names };
   const region_sets = useRegionSets(region_context, signed_in, setDiffSize);
   const page = usePageKey();
   const chosen = useRegionSetStore(state => state.by_path[path]);
@@ -389,7 +398,7 @@ const ImageViewerForRuns = ({
   const is_search = id => !!region_sets.find(set => set.id === id)?.load;
   const region_set = chosen && (chosen.page === page || !is_search(chosen.id))
     ? chosen.id
-    : region_sets.some(set => set.id === 'presets') ? 'presets' : null;
+    : region_sets.find(set => set.id === 'logged' || set.id === 'presets')?.id ?? null;
   // another size of differences: the set shown searches again
   const size_key = JSON.stringify(sizeKey(diff_size));
   const shown_set = region_sets.find(set => set.id === region_set);

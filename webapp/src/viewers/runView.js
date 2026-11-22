@@ -80,13 +80,16 @@ export const is_visualization_shown = (view, controls, shown_by_run) => {
 // What runs created from code (`qaboard.start_run()`, `qa upload`) show without anything in qaboard.yaml, before the
 // project's visualizations: there is often no project configuration to speak of when a CI job uploads a test report.
 // - the series they logged (run.log() in Python, qaboard/series.py): the file made for plots, else the full history
+// - the media they logged at their steps (images, audio, tables, histograms...: qaboard/media.py), with a step slider
 // - what they used of their machine: memory, CPU, GPUs (qaboard/system_metrics.py). `qa run` writes it too: projects
 //   list it in their visualizations to see it, e.g. hidden by default
 // - the files viewers recognize by their name: test reports, benchmark files, profiles
 // Projects that list such files themselves, by path or by type, choose where they go and whether they start hidden.
 const SERIES_FILES = ['series.json', 'series.jsonl'];
 export const SERIES_VIEW_NAME = 'Logged series';
-const SYSTEM_METRICS_FILE = 'system.series.json';
+const MEDIA_FILE = 'media.jsonl';
+export const MEDIA_VIEW_NAME = 'Logged media';
+export const SYSTEM_METRICS_FILE = 'system.series.json';
 export const SYSTEM_METRICS_VIEW_NAME = 'System metrics';
 const RECOGNIZED_FILES = [
   { name: 'Tests', is: is_junit, types: ['junit'] },
@@ -104,6 +107,8 @@ export const with_run_files = (views, manifest, output) => {
   // the projects' own series: what they plot of system.series.json (below) isn't the series the run logged
   if (series && !views.some(view => (view.type === 'series' && view.path !== SYSTEM_METRICS_FILE) || SERIES_FILES.includes(view.path)))
     added.push({ name: SERIES_VIEW_NAME, path: series, type: 'series', automatic: true });
+  if (manifest[MEDIA_FILE] && !views.some(view => view.type === 'media' || view.path === MEDIA_FILE))
+    added.push({ name: MEDIA_VIEW_NAME, path: MEDIA_FILE, type: 'media', automatic: true });
   if (manifest[SYSTEM_METRICS_FILE] && !views.some(view => view.path === SYSTEM_METRICS_FILE))
     added.push({ name: SYSTEM_METRICS_VIEW_NAME, path: SYSTEM_METRICS_FILE, type: 'series', automatic: true });
   const paths = Object.keys(manifest).sort();

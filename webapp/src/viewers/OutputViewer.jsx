@@ -6,7 +6,7 @@ import {
 import { useComparison, useSiteConfig } from "../hooks";
 import { is_image } from "./images/utils"
 import { is_series } from "./series/series"
-import { is_flame_graph, is_junit, is_benchmarks } from "./fileTypes"
+import { is_flame_graph, is_junit, is_benchmarks, is_audio } from "./fileTypes"
 import { ViewerLoading } from "./ViewerStates"
 import { ErrorBoundary } from "../components/ErrorBoundary"
 import { ViewerErrorFallback } from "../components/ErrorFallback"
@@ -26,14 +26,17 @@ const LoadableFlameGraphViewer = lazy(() => import('./flame-graph' /* webpackChu
 const LoadableJunitViewer = lazy(() => import('./junit/JunitViewer'));
 
 
-// The viewers in their own folder (src/image-viewer, benchmarks, flamegraph) are standalone components: the app only loads
+// The viewers in their own folder (src/image-viewer, benchmarks, flamegraph, audio) are standalone components: the app only loads
 // their adapters, lazily, and they import nothing from the app (viewers/__tests__/isolation.test.js)
 const LoadableBenchmarksViewer = lazy(() => import('./benchmarks-viewer'));
+const LoadableAudioViewer = lazy(() => import('./audio-viewer'));
 
 // What runs logged while they ran, e.g. a training's loss per step: series.json (written by run.log() in Python, see
 // qaboard/series.py), series.jsonl, train.series.json... Other names need `type: series`. Files picked by their name
 // that aren't series files are shown as text.
 const LoadableSeriesViewer = lazy(() => import('./series'));
+// What runs logged at their steps besides numbers: images, audio, tables, histograms... (media.jsonl, qaboard/media.py)
+const LoadableLoggedMedia = lazy(() => import('./media/LoggedMedia'));
 
 // labels: what the viewers call the new and reference results, and their colors, by default those of the page
 // (useComparison().labels): milestones' names, what users called them...
@@ -72,6 +75,8 @@ const OutputViewer = props_ => {
         viewer = <LoadablePointCloudViewer {...props} output_ref={maybe_output_ref}/>
       else if (type === "plotly/json" || type === "plotly/html")
         viewer = <LoadablePlotlyViewer {...props} output_ref={maybe_output_ref}/>
+      else if (type === 'audio' || type.startsWith('audio/'))
+        viewer = <LoadableAudioViewer {...props} output_ref={maybe_output_ref}/>
       else if (type.startsWith('video'))
         viewer = <LoadableVideoViewer {...props} type={type} output_ref={maybe_output_ref}/>
       else if (type.startsWith('image'))
@@ -88,6 +93,8 @@ const OutputViewer = props_ => {
         viewer = <LoadableBenchmarksViewer {...props} format={type.split('/')[1]} output_ref={maybe_output_ref}/>
       else if (type === 'series')
         viewer = <LoadableSeriesViewer {...props} output_ref={maybe_output_ref}/>
+      else if (type === 'media')
+        viewer = <LoadableLoggedMedia {...props} output_ref={maybe_output_ref}/>
       else if (type === 'files/bit-accuracy')
         viewer = <LoadableBitAccuracyViewer {...props} type={type} output_ref={output_ref}/>
       else viewer = <p>
@@ -109,6 +116,8 @@ const OutputViewer = props_ => {
         viewer = <LoadableSeriesViewer {...props} output_ref={maybe_output_ref} fallback_to_text/>
       } else if (path.endsWith('html')) {
         viewer = <LoadableHtmlViewer {...props} type={type} output_ref={maybe_output_ref}/>
+      } else if (is_audio(path)) {
+        viewer = <LoadableAudioViewer {...props} output_ref={maybe_output_ref}/>
       } else if (/\.(mp4|m4v|mov|webm|mkv|ogv|webp|gif)$/i.test(path)) {
         viewer = <LoadableVideoViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else {

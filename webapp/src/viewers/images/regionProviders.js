@@ -20,9 +20,10 @@
 //     // `key(context)`: what its regions depend on, if not the image pair, `staleTime`: when to find them again.
 //     section: 'Annotations', auto: true, overview: true,
 //   }
-// context: { output_new, output_ref, path, path_ref, diff_size }, diff_size: the size of the differences users look for,
+// `label` can be a function of the context.
+// context: { output_new, output_ref, path, path_ref, diff_size, boxes, boxes_ref, names }, diff_size: the size of the differences users look for,
 // { min, max } in pixels (either can be null), for the providers that compare the images. Regions are in the pixels of the image shown, or of an image of
-// size imageWidth x imageHeight, e.g. the input's: the viewer scales them. A region's `value` (optional) says how
+// size imageWidth x imageHeight, e.g. the input's: the viewer scales them. boxes: the regions logged with the image. A region's `value` (optional) says how
 // interesting it is, e.g. how much the images differ there: searches over all the runs of a page rank runs with it.
 // Results of `find` are kept by the page (regionSearch.js), for every viewer of the same files.
 //
@@ -36,6 +37,7 @@
 import { http } from '../../api/http';
 import { colorAt } from '../../image-viewer/colormaps';
 import { run_view } from '../runView';
+import { LABEL_COLORS, colorIndex } from '../media/media';
 
 
 // The presets of the input (in its metadata), and of the configurations: `roi`, or `view.images.roi` (../runView.js)
@@ -66,6 +68,26 @@ const presets = {
     const regions = presetRegions(output_new);
     return regions.length > 0 ? regions : null;
   },
+};
+
+// The regions the run logged with the image (run.log() in Python, ../media/), e.g. a detector's boxes: shown first,
+// outlined on the whole image. The viewer draws a set over every image it shows: with the reference's image, its boxes
+// are a set of their own (boxes_ref), and the labels say whose they are. `names`: { new, reference }
+const logged = {
+  id: 'logged',
+  label: ({ boxes_ref, output_ref, names }) => boxes_ref?.length || output_ref ? `Boxes of ${names?.new ?? 'new'}` : 'Logged with the image',
+  description: 'The boxes the run logged with this image, drawn over every image shown',
+  overview: true,
+  available: ({ boxes }) => !!boxes?.length,
+  regions: ({ boxes }) => boxes?.length ? boxes : null,
+};
+const logged_ref = {
+  id: 'logged-ref',
+  label: ({ names }) => `Boxes of ${names?.reference ?? 'reference'}`,
+  description: "The boxes the reference run logged with its image, drawn over every image shown",
+  overview: true,
+  available: ({ boxes_ref }) => !!boxes_ref?.length,
+  regions: ({ boxes_ref }) => boxes_ref?.length ? boxes_ref : null,
 };
 
 
@@ -116,6 +138,8 @@ const autoRegions = (diff_type, label, description) => ({
 });
 
 const providers = [
+  logged,
+  logged_ref,
   presets,
   autoRegions('yiq', 'Where they differ: perceptual', 'The server compares the full images by perceived color difference (YIQ, like the viewer\'s), pixel by pixel, and finds where they differ most'),
   autoRegions('ssim', 'Where they differ: structure (SSIM)', 'The server compares the full images by structural similarity (SSIM), about 1000 pixels wide, and finds where they differ most'),
@@ -164,14 +188,14 @@ export const annotationProvider = ({ id, label, description, group_noun }) => ({
 });
 
 // Outlines of the groups, distinct on an image, and the same on most images: from a hash of the group, else the next
-const GROUP_COLORS = ['#4c90f0', '#fbb360', '#72ca9b', '#f5498b', '#bdadff', '#68c1ee', '#fbd065', '#d1f26d'];
+// (the colors of the labels of logged boxes, media/media.js)
 export const groupColors = groups => {
   const used = new Set();
   return Object.fromEntries(groups.map(({ id }) => {
-    let i = [...String(id)].reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) >>> 0, 7) % GROUP_COLORS.length;
-    for (let tries = 0; used.has(i) && tries < GROUP_COLORS.length; tries++) i = (i + 1) % GROUP_COLORS.length;
+    let i = colorIndex(id);
+    for (let tries = 0; used.has(i) && tries < LABEL_COLORS.length; tries++) i = (i + 1) % LABEL_COLORS.length;
     used.add(i);
-    return [id, GROUP_COLORS[i]];
+    return [id, LABEL_COLORS[i]];
   }));
 };
 

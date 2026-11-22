@@ -339,6 +339,7 @@ class Bridge:
     from . import _media
     numbers: Dict[str, Any] = {}
     texts: Dict[str, Any] = {}
+    media: Dict[str, Any] = {}
     for key, value in flatten(row).items():
       if not _usable_name(key):
         continue
@@ -353,14 +354,19 @@ class Bridge:
         UNSUPPORTED.warn("texts in wandb.log()", "kept as the run's metric of that name, its last value: series are numbers")
         texts[key] = value[:500]
         continue
-      if not _media.save(self.run, key, self.step, value):
+      if _media.is_media(value):
+        media[key] = value
+      else:
         UNSUPPORTED.warn(f"values of type {type(value).__name__} in wandb.log()", "not logged: series are numbers")
+    # the numbers first: they are the step, whatever happens to its media
     if numbers:
       self.run.log(numbers, step=self.step)
       self.summary.update(numbers)
     if texts:
       self.run.log_metrics(texts)
       self.summary.update(texts)
+    for key, value in media.items():
+      _media.save(self.run, key, self.step, value)
 
   # --- summary, define_metric ---------------------------------------------------------------------------------------
   def summary_update(self, values: Mapping[str, Any]) -> None:

@@ -1,5 +1,5 @@
 /**
- * The benchmark, flame graph and parallel coordinates viewers are standalone components, like the image viewer
+ * The benchmark, flame graph, parallel coordinates and audio viewers are standalone components, like the image viewer
  * (src/image-viewer/): they import only third-party packages and their own files, the app reaches them only through
  * their adapter, they are loaded lazily, and their styles don't leak to the rest of the page.
  * Run with: cd webapp && npm test -- isolation
@@ -24,7 +24,8 @@ const imports = source => [
 ].map(m => m[1]);
 
 // The playgrounds (playground.jsx) are development pages, outside the build: they may use the app's CSS.
-// - adapter: the only file of the app that imports from the viewer's folder,
+// - adapter: the only file of the app that imports from the viewer's folder (but `shared`: files of the viewer's whose
+//   hooks the app reuses, from code it loads lazily),
 // - lazy: where the viewer's code is split from the app's: the file that has the dynamic import(), and what it imports.
 //   OutputViewer.jsx loads the adapters of the viewers of output files; an adapter can also load its viewer itself.
 const viewers = {
@@ -45,6 +46,16 @@ const viewers = {
     adapter: '../flame-graph.jsx',
     lazy: { file: '../OutputViewer.jsx', specifier: './flame-graph' },
   },
+  audio: {
+    sources: import.meta.glob(['../audio/*.{js,jsx}', '!../audio/playground.jsx'], { query: '?raw', import: 'default', eager: true }),
+    css: stylesheets('audio'),
+    packages: ['react', '@blueprintjs/core'],
+    prefixes: ['qa-audio'],
+    adapter: '../audio-viewer.jsx',
+    // useWidth: the logged media (media/) and series plots measure themselves with it
+    shared: ['audio/hooks'],
+    lazy: { file: '../OutputViewer.jsx', specifier: './audio-viewer' },
+  },
   parallel: {
     sources: import.meta.glob(['../parallel/*.{js,jsx}', '!../parallel/playground.jsx'], { query: '?raw', import: 'default', eager: true }),
     css: stylesheets('parallel'),
@@ -57,9 +68,9 @@ const viewers = {
 };
 
 // Everything else in the app, but the viewers' own folders and the tests
-const app = import.meta.glob(['../../**/*.{js,jsx}', '!../../**/__tests__/**', '!../../**/*.test.{js,jsx}', '!../benchmarks/**', '!../flamegraph/**', '!../parallel/**'], { query: '?raw', import: 'default', eager: true });
+const app = import.meta.glob(['../../**/*.{js,jsx}', '!../../**/__tests__/**', '!../../**/*.test.{js,jsx}', '!../benchmarks/**', '!../flamegraph/**', '!../parallel/**', '!../audio/**'], { query: '?raw', import: 'default', eager: true });
 
-describe.each(Object.entries(viewers))('the %s viewer', (folder, { sources, css, packages, prefixes, adapter, lazy }) => {
+describe.each(Object.entries(viewers))('the %s viewer', (folder, { sources, css, packages, prefixes, adapter, lazy, shared = [] }) => {
   it("imports nothing from the app", () => {
     expect(Object.keys(sources).length).toBeGreaterThan(2);
     for (const [file, source] of Object.entries(sources))
@@ -69,7 +80,7 @@ describe.each(Object.entries(viewers))('the %s viewer', (folder, { sources, css,
 
   it('is reached by the app only through its adapter, loaded lazily', () => {
     for (const [file, source] of Object.entries(app)) {
-      const inside = imports(source).filter(s => s.includes(`${folder}/`));
+      const inside = imports(source).filter(s => s.includes(`${folder}/`) && !shared.some(file => s.endsWith(file)));
       if (file === adapter) continue;
       expect([file, inside]).toEqual([file, []]);
     }

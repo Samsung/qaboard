@@ -78,7 +78,11 @@ const editor_height = (data, max_lines, inline) => {
 const fit_height = (estimate, content_height, max_lines) => content_height === null ? estimate : Math.min(content_height + 10, 18 * max_lines + 10);
 
 
-function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideBySide: side_by_side_default, always_show_diff, only_diff, manifests, width, max_lines = 40, language: language_prop, is_running, labels: labels_ }) {
+// - hide_filename: e.g. when the file's key already titles it (logged media); word_wrap: long lines wrap
+// - filename_ref: the compared file's path, when it isn't `filename` (e.g. logged media at another step)
+// - has_same_data: whether the files are the same, when the caller knows (else: from the manifests, or the texts)
+// - compared_to: what the file is compared with, e.g. "step 10" (by default "the reference")
+function GenericTextViewer({ text_url_new, text_url_ref, filename, filename_ref, has_same_data: has_same_data_prop, compared_to = 'the reference', hide_filename = false, word_wrap = false, renderSideBySide: side_by_side_default, always_show_diff, only_diff, manifests, width, max_lines = 40, language: language_prop, is_running, labels: labels_ }) {
   const labels = useLabels(labels_);
   const query_new = useQuery(textFileQuery(text_url_new, { is_running }));
   // we don't really care about errors for reference files
@@ -117,7 +121,11 @@ function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideByS
   if (only_diff && data.new === data.reference)
     return <span></span>
 
-  const has_same_data = is_same_data(filename, manifests?.new?.[filename], manifests?.reference?.[filename])
+  // the manifests know the files at the same path in both runs; for others (another step, the same run), the texts do
+  const same_path = !filename_ref || filename_ref === filename;
+  const has_same_data = has_same_data_prop ?? (same_path
+    ? is_same_data(filename, manifests?.new?.[filename], manifests?.reference?.[filename])
+    : data.new === data.reference);
   const no_reference = !text_url_ref || !data.reference || (!!text_url_new && text_url_new === text_url_ref);
   const show_diff = !no_reference || always_show_diff;
 
@@ -132,7 +140,7 @@ function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideByS
         language={editor_language}
         value={shown_left==='reference' ? data.new : data.reference}
         original={shown_left==='reference' ? data.reference : data.new}
-        options={{ ...diff_options, renderSideBySide }}
+        options={{ ...diff_options, renderSideBySide, ...(word_wrap ? { wordWrap: 'on', diffWordWrap: 'on' } : {}) }}
         editorDidMount={instance => {
           editor.current = instance;
           // Side by side, Monaco pads the sides to align them: the right side has the diff's height. Inline, it has the removed lines too.
@@ -148,16 +156,21 @@ function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideByS
         height={height}
         language={editor_language}
         value={data.new}
-        options={editor_options}
+        options={word_wrap ? { ...editor_options, wordWrap: 'on' } : editor_options}
       />
 
   // what the commit page calls the files' runs, in their colors
   const side = key => <><span aria-hidden style={{ color: labels.colors[key].css }}>●</span> {labels[key]}</>;
   return <>
     <h3 className={Classes.HEADING}>
-      <span style={{marginRight: "5px"}}>{filename}</span>
+      {!hide_filename && <span style={{marginRight: "5px"}}>{filename}</span>}
       {show_diff
-        ? <Tooltip content={`Press T to swap ${labels.new} and ${labels.reference}`}><Tag>{side(shown_left)} ➡️ {side(shown_left==="reference" ? "new" : "reference")}</Tag></Tooltip>
+        ? <Tooltip content={`Press T to swap ${labels.new} and ${labels.reference}`}>
+            {/* without the file's name (e.g. in logged media, under the key's), a quiet line */}
+            {hide_filename
+              ? <span className={Classes.TEXT_MUTED} style={{ fontSize: 12, fontWeight: 'normal' }}>{side(shown_left)} → {side(shown_left==="reference" ? "new" : "reference")}</span>
+              : <Tag minimal>{side(shown_left)} → {side(shown_left==="reference" ? "new" : "reference")}</Tag>}
+          </Tooltip>
         : <Tag>{side('new')}</Tag>}
       {!no_reference && <Button size="small" variant="minimal" style={{marginLeft: "5px", verticalAlign: "bottom"}} icon={renderSideBySide ? "comparison" : "align-justify"} onClick={() => setRenderSideBySide(!renderSideBySide)}>
         {renderSideBySide ? "Side-by-side" : "Inline diff"}
@@ -165,8 +178,8 @@ function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideByS
       {!no_reference && !has_same_data && <Button size="small" variant="minimal" style={{marginLeft: "5px", verticalAlign: "bottom"}} icon="double-chevron-right" onClick={() => editor.current?.goToDiff('next')}>
         Next diff
       </Button>}
-      {!no_reference && has_same_data && <Tooltip content="The new and reference files have the same hash">
-        <Tag style={{marginLeft: "5px", verticalAlign: "bottom"}} icon="duplicate" minimal>Identical to the reference</Tag>
+      {!no_reference && has_same_data && <Tooltip content={`Same contents as ${compared_to}`}>
+        <Tag style={{marginLeft: "5px", verticalAlign: "bottom"}} icon="duplicate" minimal>Identical to {compared_to}</Tag>
       </Tooltip>}
     </h3>
     {editor_element}

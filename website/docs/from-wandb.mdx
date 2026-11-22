@@ -100,11 +100,11 @@ metrics (CPU, memory, GPU) are sampled by QA-Board itself.
 
 | W&B | In QA-Board | Instead |
 |---|---|---|
-| `wandb.Image` in `log()` | Partial: saved as files, *media/&lt;key&gt;/&lt;step&gt;.png*, listed in **Output Files**. The web app doesn't show images per step | Show files on the run's card with [visualizations](/docs/visualizations). From arrays, needs Pillow. Boxes and masks aren't saved |
-| `wandb.Video`, `Audio`, `Object3D`, `Molecule` in `log()` | Partial: saved as files when made from a file. From arrays, not saved (with QA-Board's module) | Write the file in `run.dir` |
-| `wandb.Html`, `wandb.Plotly`, matplotlib figures in `log()` | Partial: saved as *.html*, *.plotly.json*, *.png* files, which open in their viewers | |
-| `wandb.Table`, `wandb.plot.*` in `log()` | Partial: saved as *&lt;step&gt;.table.json* files, not shown as tables or charts | |
-| `wandb.Histogram` in `log()` | Partial: saved as *&lt;step&gt;.histogram.json* files, not plotted | Log a few quantiles as series |
+| `wandb.Image`, `Audio`, `Video`, `Table`, `Histogram`, `Html`, `Plotly`, matplotlib figures in `log()`, and lists of them | Supported: [logged media](/docs/log-from-code#media), on the run's card at their step, next to the reference run's. Videos from frames need Pillow (the real wandb saves them itself) | |
+| `wandb.Image(boxes=...)` | Supported: drawn on the image, with their class and score | |
+| `wandb.Image(masks=...)` | Not kept: the image is logged without its masks | Log the masks as images of their own |
+| `wandb.plot.*` in `log()` | Partial: the chart's table is logged, shown as a table, not drawn as a chart | Log the values as series, or a Plotly figure |
+| `wandb.Object3D`, `Molecule` in `log()` | Partial: made from a file, the file is logged at its step; from data, not kept | |
 | Texts in `log()` | Partial: the last one is a metric of the run. Series are numbers | |
 | Other values in `log()` (lists...) | Not kept | |
 | `config` changed after the first log | Partial: kept as parameters, not in the run's identity | Set it in `wandb.init(config=...)` |

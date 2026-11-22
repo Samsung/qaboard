@@ -3,6 +3,8 @@
 //   - { url }: the same
 //   - { iiif }: the URL of an IIIF Image API service, i.e. without "/info.json": the image is streamed tile by tile,
 //     for large images (https://iiif.io/api/image/)
+//   - { iiif, url }: the IIIF service, else the image at `url` when the service can't serve it (no image server, a
+//     server that doesn't know the file...)
 // with optional fields:
 //   - label: shown on the image, e.g. "new" or "reference"
 //   - href: a link to the original file, to open it
@@ -100,7 +102,14 @@ const loadImageSize = (url, signal) => new Promise((resolve, reject) => {
 export const openImage = async (image, { signal } = {}) => {
   const normalized = normalizeImage(image);
   if (normalized?.iiif) {
-    const info = await loadIiifInfo(normalized.iiif, signal);
+    let info;
+    try {
+      info = await loadIiifInfo(normalized.iiif, signal);
+    } catch (error) {
+      if (error?.name === 'AbortError' || !normalized.url) throw error;
+      // the browser decodes the file itself: what it can't, the IIIF server's error says
+      return openImage({ url: normalized.url }, { signal }).catch(() => { throw error; });
+    }
     if (!info?.width || !info?.height)
       throw Object.assign(new Error("The image server's info.json has no size"), { url: `${normalized.iiif}/info.json` });
     return { width: info.width, height: info.height, tileSource: iiifTileSource(info, normalized.iiif) };

@@ -327,7 +327,7 @@ resolution), and show a cross where the pointer is on the others. Viewers off-sc
 ## Props
 | Prop | Type | Default | |
 |---|---|---|---|
-| `image` | URL or `{ url \| iiif, label?, color?, textColor?, href?, ... }` | required | The image. `color`: of its label (blue by default, purple for `reference`), `textColor`: of the label's text (white) |
+| `image` | URL or `{ url \| iiif, label?, color?, textColor?, href?, ... }` | required | The image. `color`: of its label (blue by default, purple for `reference`), `textColor`: of the label's text (white). With both `iiif` and `url`, `url` is shown when the IIIF service can't serve the image |
 | `reference` | same, or `null` | `null` | What it's compared with. `detail`: what it is, in the **vs** menu |
 | `more` | images, or `{ label, loading }` / `{ label, missing }` | `[]` | [More images](#more-than-two-images) to compare, each in its tile |
 | `anchor`, `defaultAnchor`, `onAnchorChange` | index | `0` | With `more`: the image the others are compared with |

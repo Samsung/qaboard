@@ -236,7 +236,7 @@ tracker are in `docs/rfcs/python-sdk-runs-follow-ups.md`.
   the Summary view (`webapp/src/viewers/SeriesComparison.jsx`): up to 40, shown and hidden from a legend, colored
   per run or per value of a parameter, with their reference runs on demand. Grouping the History page by a
   parameter is not done.
-- **`log_image()`**: without a place on the card for per-step images, it would only be `log_artifact()`.
+- **`log_image()`**: without a place on the card for per-step images, it would only be `log_artifact()`. Shipped since (November 2026), with a place on the card: `qaboard/media.py`, `run.log_media()` and the card's **Logged media**; see `python-sdk-runs-follow-ups.md` C.
 - **`qa sync` for series and runs logged offline**: a run whose every message failed stays on disk. Its folder has
   what a later `sync` needs (`run.json` has the project, commit and batch).
 - **System metrics, alerts, sweeps, a registry**, as planned.

@@ -17,3 +17,6 @@ export const is_benchmarks = path => /(^|\/)(([^/]*[._-])?benchmarks?|[^/]*[._-]
 
 // Patches: shown as text, highlighted as diffs (text.jsx). Runs save their local changes as .qaboard/local-changes.patch
 export const is_patch = path => /\.(patch|diff)$/i.test(path || '');
+
+// Audio files, shown by the audio viewer (audio/AudioViewer.jsx). Ogg and WebM videos (.ogv, .webm) are videos.
+export const is_audio = path => /\.(wav|mp3|flac|ogg|oga|opus|m4a|aac)$/i.test(path || '');
