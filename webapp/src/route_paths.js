@@ -17,12 +17,16 @@ export const route_paths = {
   project_admin: "/:project_id+/admin/:section(gate|audit)",
   // who can see and change the project
   access: "/:project_id+/access",
+  // the inputs runs used, and the collections saved from them (docs/design/inputs-and-collections.md)
+  inputs: "/:project_id+/inputs",
+  collection: "/:project_id+/collections/:collection_id(\\d+)",
+  collections: "/:project_id+/collections",
   project: "/:project_id+",
 };
 
 // Pages with nothing after their name in the URL, matched exactly: /team/access/tools is the project
 // "team/access/tools", not the Access page of "team" (the other pages' URLs go on, with branches and commits)
-export const exact_route_names = ['project_admin', 'access'];
+export const exact_route_names = ['project_admin', 'access', 'inputs', 'collection', 'collections'];
 // The projects' pages, as matchRoutes reads them, in matching order
 export const project_routes = Object.entries(route_paths).map(([name, path]) => ({ name, path, exact: exact_route_names.includes(name) }));
 
