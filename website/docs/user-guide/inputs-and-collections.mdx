@@ -1,0 +1,97 @@
+---
+id: inputs-and-collections
+title: Inputs and collections
+sidebar_label: Inputs and collections
+description: "Browse the inputs your project's runs used, pick some, and save them as a versioned collection that batches and scripts run on."
+---
+The **Inputs** page shows every input your project's runs used, as thumbnails: search them, open them full screen, see
+the runs that used them. Select some and save them as a **collection**, like `night/hard-cases`: a list of inputs with
+a name, that batches and your scripts can use.
+
+You'll do three things:
+
+1. [Find inputs](#find-inputs): open **Inputs** in the project's sidebar.
+2. [Save them as a collection](#save-a-collection): select them, click **Save as collection**.
+3. [Use the collection](#use-a-collection): in a batch, or from Python.
+
+## Find inputs {#find-inputs}
+Open **Inputs** in the project's sidebar. It lists the inputs of the runs of the project and of its subprojects, the
+most recently used first.
+
+- **Search** paths, e.g. `night street`: every word must match.
+- Go into a **Folder**: the list shows the folders under the current one, with how many inputs each has. The
+  breadcrumb goes back up.
+- Pick a **Database** when the project's runs use several.
+- **Only inputs with runs** is on by default: it hides inputs whose runs were all deleted. Turn it off to see them too.
+- **Sort by** path instead of last use.
+
+The page's link keeps the search, folder and database: copy it to share what you see.
+
+Double-click an input, or press <kbd>Enter</kbd>, to open it full screen. Arrows (or <kbd>←</kbd> <kbd>→</kbd>) go to the
+previous and next inputs, and **Used in runs** lists the latest runs that used it, with links to them.
+
+<details>
+<summary>Why an input shows a placeholder instead of a thumbnail</summary>
+
+QA-Board makes thumbnails of the image formats browsers and Pillow read, and of videos' first frames. Other formats,
+like raw sensor files, need a small plugin your administrators install ([thumbnail decoders](/docs/backend-admin/thumbnails)).
+Inputs the server can't read show a placeholder too.
+</details>
+
+## Save a collection {#save-a-collection}
+1. Select inputs: click one, <kbd>Shift</kbd>-click to select a range, <kbd>Ctrl</kbd>-click (<kbd>⌘</kbd> on macOS) to add
+   or remove one.
+2. Click **Save as collection** in the selection bar.
+3. Type a **Collection name**: `/` makes groups, e.g. `night/hard-cases`. Add a **Description**: what the inputs have
+   in common, what they're for.
+4. Click **Save**.
+
+To add inputs to a collection that exists, select them and click **Add to collection…**.
+
+A collection belongs to the project, and its subprojects see it too. Anyone with the
+[developer role](/docs/user-guide/project-access) can save and change it.
+
+### Versions {#versions}
+Collections never change behind your back: each change saves a new **version**, and older versions stay as they were.
+
+To change a collection, open it, click **Edit**, select the inputs to remove or click **Add inputs**, then save the new
+version with notes on what changed. If someone saved a version meanwhile, you're asked whether to reload theirs or save
+yours anyway.
+
+The version picker on the collection's page shows each version's inputs, who saved it, and when.
+
+### Find collections {#find-collections}
+The sidebar's **Collections** lists pinned collections, then your favorites. Its menu lists them all, by group.
+
+- Click the **star** on a collection's page to add it to your favorites.
+- **Pin** it for one of your groups, or as the project's owner for **Everyone on the project**: it then shows in their
+  sidebar.
+- **Archive** collections nobody should pick anymore: they're hidden from the lists, and batches and scripts that use
+  them keep working. **Show archived** lists them again.
+
+## Use a collection {#use-a-collection}
+The collection's page shows the code to copy, in its **Python** and **Batch file** tabs.
+
+In a batch, list it with the inputs:
+
+```yaml title="qa/batches.yaml"
+hard-cases:
+  inputs:
+    - collection: night/hard-cases@2   # version 2
+  configurations: [base]
+```
+
+Without `@2`, batches use the latest version when they start. Pin a version in CI, so that results stay comparable.
+More in [running on many inputs](/docs/batches-running-on-multiple-inputs#collections).
+
+From Python:
+
+```python
+import qaboard
+
+collection = qaboard.collections.get("night/hard-cases@2")
+for database, path in collection.inputs:
+    print(database, path)
+```
+
+From the shell: `qa collections show night/hard-cases@2` prints the inputs, one per line.

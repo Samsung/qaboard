@@ -114,6 +114,26 @@ crops:
 
 </details>
 
+## Inputs from a collection {#collections}
+A [collection](/docs/user-guide/inputs-and-collections) is a list of inputs saved in the web app, like
+`night/hard-cases`. List it with the batch's inputs:
+
+```yaml title="qa/batches.yaml"
+hard-cases:
+  inputs:
+  - collection: night/hard-cases@2   # version 2; without @2, the latest when the batch starts
+    configurations: [{gain: 2}]      # optional, like other inputs
+  - charts/slanted-edge.png          # other inputs work as before
+```
+
+- `qa batch` asks the server for the collection once, so every run of the batch uses the same version. Pin a version
+  in CI, so that results stay comparable.
+- A collection of a parent project works from its subprojects. Name another project's with `project:name`, e.g.
+  `isp/camera:night/hard-cases@2`.
+- `only` and `exclude` filter the collection's inputs too. A missing collection stops the batch; a missing input is
+  skipped with a warning, like other inputs.
+- From scripts: `qaboard.collections.get("night/hard-cases@2").inputs`, or `qa collections show night/hard-cases@2`.
+
 ## Database and platform {#setting-a-custom-database}
 A batch can set its own `database`, where its inputs are, and its `platform`, like the camera ISP's `bitexact` batch
 above. Runs are compared with the reference's runs on the same platform. At the top of a batch file, `database`,

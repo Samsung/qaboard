@@ -1,0 +1,45 @@
+---
+id: thumbnails
+sidebar_label: Thumbnails
+title: Thumbnails of inputs
+description: "Show thumbnails of inputs in formats only your site reads, like raw sensor files, with a thumbnail decoder: a small Python function."
+---
+The [Inputs page](/docs/user-guide/inputs-and-collections) shows thumbnails of the inputs. Out of the box, QA-Board
+makes them for the image formats Pillow reads and for videos' first frames. For other formats, like raw sensor files,
+install a **thumbnail decoder**: a Python function, in a package installed with the backend, that reads your format.
+
+## Write a decoder
+It gets the input's absolute path and the size wanted, and returns a Pillow image, or `None` when it doesn't read
+that file:
+
+```python title="my_site/thumbnails.py"
+from PIL import Image
+
+def thumbnail(path, size):
+  if not path.endswith(".raw"):
+    return None                      # the next decoder tries
+  pixels = read_my_raw(path)         # e.g. a numpy array, demosaiced and tone-mapped to 8 bits
+  return Image.fromarray(pixels)     # can be bigger than size: QA-Board downscales it
+```
+
+Declare it with an entry point, in the `qaboard.thumbnails` group, in your [site package](/docs/installation#with-your-organizations-site-package)
+or any package installed in the backend's image:
+
+```toml title="pyproject.toml"
+[project.entry-points."qaboard.thumbnails"]
+raw = "my_site.thumbnails:thumbnail"
+```
+
+Restart the backend. Several decoders can be installed: they're tried in turn, then Pillow, then video frames.
+
+<details>
+<summary>How QA-Board calls it</summary>
+
+- Thumbnails are made when the web app shows them, at most 1024 pixels on their longest side. Files no decoder reads
+  are remembered, so they're answered quickly.
+- Make it fast: the Inputs page asks for dozens at once. Read a downscaled version of the file if your format allows.
+- Each backend process decodes 4 thumbnails at a time (`QABOARD_THUMBNAIL_DECODES`); the others wait.
+- Thumbnails up to 256 pixels are cached in Redis for a day: give Redis a `maxmemory` with `maxmemory-policy allkeys-lru`. Bigger ones are cached by browsers.
+- An exception counts as `None`, and is logged.
+- Only files users can read are decoded: the same check as for runs' files.
+</details>
