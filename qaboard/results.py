@@ -26,34 +26,22 @@ import sys
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 from urllib.parse import parse_qs, quote, unquote, urlencode, urlsplit
 
 from .compat import url_to_dir
-from .credentials import resolve_token, refusal, default_server, same_server, read_hosts, find_login, ENV_TOKENS
+from .credentials import resolve_token, default_server, same_server, read_hosts, find_login, ENV_TOKENS
 from .filters import filter_runs, run_params
 from .metrics import split_metrics, declared_metrics
 from .series import Point
-from .site_config import site_config, as_requests_verify
+# how we talk to the server, shared with qaboard/upload.py, commit_artifacts.py, run_files.py...
+from .http_client import ResultsError, request_json  # noqa: F401 (ResultsError: imported from here)
 
 
-# (connect, read) timeouts for requests to the server: commits with thousands of runs take a while to serialize
-REQUEST_TIMEOUT = (30, 600)
 # Runs of `qa optimize`'s iterations: the web app doesn't show them with the batch's runs
 HIDDEN_RUN_TYPES = ('optim_iteration',)
 # runs(side=): the runs compared, or those of the reference bar. The web app may compare with several references one day (?compare=)
 SIDES = ('new', 'reference')
-
-
-class ResultsError(Exception):
-  """
-  The server could not give the runs: unknown project or commit, refused request, network error...
-  `status` is its HTTP status when it answered, `reason` why it refused the request (e.g. "missing_role").
-  """
-  def __init__(self, message: str, status: Optional[int] = None, reason: Optional[str] = None):
-    super().__init__(message)
-    self.status = status
-    self.reason = reason
 
 
 @dataclass(frozen=True)
@@ -432,31 +420,14 @@ def _token_for(server: str, token: Optional[str]) -> Optional[str]:
 
 
 def _request(server: str, path: str, params: Optional[Dict[str, Any]] = None, token: Optional[str] = None,
-             method: str = 'GET', json: Optional[Dict[str, Any]] = None, timeout: Optional[Tuple[float, float]] = None) -> Dict[str, Any]:
-  import requests
-  token = _token_for(server, token)
-  headers = {'Authorization': f"Bearer {token}"} if token else {}
-  verify = as_requests_verify(site_config('QABOARD_API_VERIFY'))
-  url = f"{server}/api/v1/{path}"
-  try:
-    r = requests.request(method, url, params=params, json=json, headers=headers, verify=verify, timeout=timeout or REQUEST_TIMEOUT)
-  except requests.RequestException as e:
-    raise ResultsError(f"Could not reach {server}: {e}") from e
-  if r.status_code >= 400:
-    refused = refusal(r)
-    if refused:
-      scope = 'ingest' if method != 'GET' else 'read'
-      hint = f"Sign in with `qa auth login {server}`, or set QABOARD_TOKEN to a token with the {scope} scope." if refused.get('reason') in ('login_required', 'ingest_token_required', 'missing_scope', 'token_expired', 'invalid_token') else "Ask the project's owners for access."
-      raise ResultsError(f"{refused['error']} ({refused.get('reason')}). {hint}", status=r.status_code, reason=refused.get('reason') or 'refused')
-    try:
-      message = r.json().get('error') or r.text
-    except ValueError:
-      message = r.text
-    raise ResultsError(f"{server} answered {r.status_code} to {path} ({params}): {message}", status=r.status_code)
-  try:
-    return r.json()
-  except ValueError as e:
-    raise ResultsError(f"Can't understand the answer of {url}: {r.text[:200]}") from e
+             method: str = 'GET', json: Optional[Dict[str, Any]] = None, timeout: Optional[Tuple[float, float]] = None,
+             data: Any = None, headers: Optional[Dict[str, str]] = None, retries: Sequence[float] = ()) -> Dict[str, Any]:
+  """
+  The API's JSON answer to `path` (under /api/v1/), else raises ResultsError: qaboard/http_client.py `request()`.
+  `data`: a request body that isn't JSON, e.g. a file's content (qaboard/upload.py), with its `headers`.
+  `retries`: the delays before trying again when the request may work later, none by default.
+  """
+  return request_json(server, path, params=params, token=token, method=method, json=json, timeout=timeout, data=data, headers=headers, retries=retries)
 
 
 def _side_runs(server: str, side: _Side, *, token: Optional[str], include_deleted: bool, include_hidden: bool, dry_run: bool = False) -> Runs:

@@ -34,8 +34,7 @@ model on a slice of your test set:
        # Tuning parameters, e.g. {"score_threshold": 0.3} from the web app
        for name, value in context.params.items():
            command += [f"--{name.replace('_', '-')}", str(value)]
-       process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-       print(process.stdout)  # saved in the run's log
+       process = subprocess.run(command)  # what it prints is saved in the run's log
        if process.returncode != 0:
            return {"is_failed": True}
        metrics = json.loads((context.output_dir / "metrics.json").read_text())
@@ -58,7 +57,7 @@ model on a slice of your test set:
 
 3. **Pick the runner** that sends the runs where your tool sent them: the sections below.
 
-4. **Run it**: `qa --share batch ci`. The 8 runs execute on your compute, and `qa` prints the link to their results.
+4. **Run it**: `qa batch ci`. The 8 runs execute on your compute, and `qa` prints the link to their results.
 
 `qa init` creates *qaboard.yaml* and *qa/*: see [Set up a project](/docs/project-init), and
 [Run your code](/docs/running-your-code) for `run()`.
@@ -137,7 +136,7 @@ jobs with `wandb launch -j <job> -q <queue> -c config.json`.
 | The queue | The runner, its `namespace`, and a Kueue `queue` |
 | The agent's `max_jobs` | `concurrency` |
 | `resource_args` in a launch config | [Runner settings per batch](/docs/batches-running-on-multiple-inputs#runner-settings-per-batch) |
-| `wandb launch -q <queue>` | `qa --share batch <batch>`, or **Run Tests / Tuning** in the web app |
+| `wandb launch -q <queue>` | `qa batch <batch>`, or **Run Tests / Tuning** in the web app |
 | Sweeps | Batches with a `matrix`, tuning from the web app, `qa optimize` |
 
 **What differs:** there is no agent. `qa batch` creates the Jobs with your kubeconfig, so users need
@@ -313,14 +312,17 @@ Compared in November 2026, with the tools' public docs.
 
 - **A shared storage, at the same paths.** The machines that run your code read it, and your inputs, from a shared
   storage, and write their outputs there. QA-Board doesn't build an image for each run or copy your code: it runs a
-  commit's [artifacts](/docs/storage/artifacts). Clusters without a shared storage can't run batches yet: see the
-  [roadmap](/docs/roadmap).
+  commit's [artifacts](/docs/storage/artifacts). Where the results storage isn't mounted, runs can
+  [send their files to the server](/docs/storage/uploads) instead (experimental), and a cluster runs batches when
+  its nodes share the project's folder; starting runs from the web app still needs the shared storage
+  ([what needs it](/docs/storage/uploads#limits)).
 - **Your cluster's scheduler, not a queue of its own.** QA-Board sends the runs to LSF, Slurm, Kubernetes or Celery,
   and leaves the quotas and priorities to them, e.g. to Kueue. W&B Launch and ClearML have queues served by their
   agents.
 - **Results of each input, for each commit.** Tracking tools excel at logging a training run's metrics as it goes.
   QA-Board compares the final metrics and output files of every input, between commits, branches and experiments,
-  with viewers for images, videos, point clouds and reports.
+  with viewers for images, videos, point clouds and reports. Runs can log values as they go too, with
+  [`qaboard.start_run()`](/docs/log-from-code) (experimental).
 
 ## Where to go next
 

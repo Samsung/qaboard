@@ -19,7 +19,7 @@ outputs:
       path: out.png
 ```
 
-`path` is relative to the run's output directory. Run a batch with `qa --share batch <batch>`, open the link it
+`path` is relative to the run's output directory. Run a batch with `qa batch <batch>`, open the link it
 prints, then the **Visualizations** view: each run's card shows its *out.png* next to the reference's, and zooming one
 zooms the other.
 
@@ -30,9 +30,9 @@ zooms the other.
 
 :::note When the web app sees your changes
 A commit keeps the *qaboard.yaml* that `qa` sent with its first results. To try new visualizations, edit
-*qaboard.yaml* and run `qa --share batch <batch>` again: the batch keeps your edited *qaboard.yaml*, and the web app
+*qaboard.yaml* and run `qa batch <batch>` again: the batch keeps your edited *qaboard.yaml*, and the web app
 shows its new visualizations for that batch. The commit's other batches, like the CI's, keep the commit's.
-`qa --share run` doesn't change which *qaboard.yaml* a batch uses.
+`qa run` doesn't change which *qaboard.yaml* a batch uses.
 :::
 
 ## Which viewer opens a file {#available-file-viewers}
@@ -298,18 +298,23 @@ you add them. How people use regions: [the image viewer](/docs/user-guide/image-
 ## Make room on the cards {#styles}
 <Anchor id="custom-styles" />
 
-Cards are as wide as the page allows, up to 1500 px. Set a width for all of them in `outputs.style`, or for one
-visualization in its `style`. Widths are a maximum: cards get narrower when the window is.
+Cards take the page's whole width, one under the other, with their visualizations one under the other. Images,
+videos and HTML reports fill the card, but not more than the window's height: an HTML report taller than that
+scrolls. Plots, point clouds, test reports and benchmarks keep their own size.
+
+To see several cards side by side, set their width in `outputs.style`: they're at most that wide, and as many as fit
+share a row. Set a visualization's size in its `style`: `width`, and for HTML reports `maxHeight` (or `none`).
 
 ```yaml title="qaboard.yaml"
 outputs:
   style:
-    width: 1180px    # new and reference images about 600 px wide each
+    width: 1180px    # cards side by side on wide screens, new and reference images about 600 px wide each
   visualizations:
     - name: Report
       path: report.html
       style:
         width: 840px
+        maxHeight: 2000px   # taller than the window, before it scrolls
 ```
 
 ## The view commit pages open on {#default-view}

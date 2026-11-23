@@ -22,12 +22,13 @@ import click
 from click import secho
 
 from .conventions import batch_folder_name, get_commit_dirs, output_dirs_for_input_part, run_dir_in_commit
+from .run_files import FETCHED_MARKER
 from .attempts import latest_dir
 from .iterators import iter_inputs
 from .matching import run_distance
 from .run import RunContext
 from .utils import PathType, checked_cde_attrs
-from .config import project, config, default_batches_files
+from .config import project, default_batches_files
 
 
 def default_cmp(file_1, file_2):
@@ -326,7 +327,11 @@ class CommitRuns:
         run = matching_run(run_context, runs, self.match)
         if run:
           from .api import url_to_dir
-          return [(url_to_dir(run['output_dir_url']), run_settings(run))]
+          output_dir = url_to_dir(run['output_dir_url'])
+          if not output_dir.is_dir():
+            # its files are on the server, e.g. it sent them over HTTP: we compare its manifests
+            output_dir = fetched_manifests(run) or output_dir
+          return [(output_dir, run_settings(run))]
     run_dir = self.run_dir(run_context)
     found = [self.local_dir / run_dir] if self.local_dir is not None and (self.local_dir / run_dir).is_dir() else []
     if not found:
@@ -387,12 +392,12 @@ class CommitRuns:
 
 def current_runs(ctx) -> CommitRuns:
   """Where the current commit's runs are, see `qa batch`"""
-  from .config import is_ci, commit_id, local_commit_placeholder, outputs_commit, subproject
-  shared = bool(is_ci or ctx.obj['share'])
+  from .config import is_ci, commit_id, local_commit_placeholder, outputs_commit, subproject, uploads_files
+  # runs that are not shared are not in QA-Board; those that send their files to it are here too, in output/
+  shared = bool(is_ci or ctx.obj['share']) and not uploads_files
   return CommitRuns(
     commit=commit_id or local_commit_placeholder,
     batch_label=ctx.obj['batch_label'],
-    # runs that are not shared are not in QA-Board
     ask_qaboard=shared and not (ctx.obj['offline'] or ctx.obj['dryrun']),
     local_dir=outputs_commit if shared else subproject.resolve(),
     in_storage=shared,
@@ -452,6 +457,16 @@ def describe_differences(settings: Dict, reference: Dict) -> str:
   )
 
 
+def fetched_manifests(run: Dict) -> Optional[Path]:
+  """
+  Runs whose files we don't see, without a storage shared with the server: we fetch their manifests (hashes of their
+  files) over HTTP, once per run and attempt, and compare them. Not their files. qaboard/run_files.py
+  """
+  from .api import qaboard_url
+  from .run_files import fetched_manifests as fetch
+  return fetch(run, qaboard_url)
+
+
 def is_bit_accurate(dir_new, dir_ref, run_context: RunContext, strict=False, manifest_name='manifest.outputs.json'):
     """Compares the results of a run versus a reference"""
     from .config import config
@@ -475,6 +490,8 @@ def is_bit_accurate(dir_new, dir_ref, run_context: RunContext, strict=False, man
     ignore.append('metrics.json')         # contains measured run time
     ignore.append('metrics_definitions.json') # how to show metrics, not outputs
     ignore.append('latest_attempt.txt')   # which attempt of the run is the latest (qaboard/attempts.py)
+    ignore.append('system.series.json')   # what the run used of its machine (qaboard/system_metrics.py)
+    ignore.append('.system.series.json.') # the same, while it's replaced
     ignore.append('.nfs000*')             # NFS temporary files
 
     missing_runs = False
@@ -489,6 +506,12 @@ def is_bit_accurate(dir_new, dir_ref, run_context: RunContext, strict=False, man
     if missing_runs:
       return False
 
+    if (dir_ref / FETCHED_MARKER).exists() and (custom_cmp or not (dir_new / manifest_name).exists() or not (dir_ref / manifest_name).exists()):
+      if manifest_name != 'manifest.outputs.json' and not (dir_ref / manifest_name).exists():
+        return True  # the reference didn't save its inputs' manifest: nothing to compare
+      reason = "QA_BITACCURACY_CMP compares files" if custom_cmp else f"both runs need their {manifest_name}"
+      click.secho(f"ERROR: {run_identifier}: the reference's files are on the QA-Board server, we only compare manifests, and {reason}.", fg='red')
+      return False
     if (dir_new / manifest_name).exists() and (dir_ref / manifest_name).exists() and not custom_cmp:
       comparison = cmpmanifests(
         manifest_path_1 = dir_new / manifest_name,
@@ -628,8 +651,8 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
 @click.pass_context
 @click.option(
     "--reference",
-    default=config.get('project', {}).get('reference_branch', 'master'),
-    help="Branch, tag or commit used as reference."
+    default=None,
+    help="Branch, tag or commit used as reference. Default: project.reference_branch in qaboard.yaml, else the repository's default branch, else main."
 )
 @click.option('--batch', '-b', 'batches', multiple=True, help="Only check bit-accuracy for those batches of inputs+configs+database.")
 @click.option('--batches-file', 'batches_files', type=PathType(),  default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
@@ -642,8 +665,9 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
     Checks the bit accuracy of the results in the current output directory
     versus the latest commit on origin/develop.
     """
-    from .config import is_in_git_repo, commit_branch, commit_id, is_ci
+    from .config import is_in_git_repo, commit_branch, commit_id, is_ci, reference_branch
     from .git_hosts import lastest_successful_ci_commit
+    reference = reference or reference_branch()
     from .api import qaboard_url
     from .git import latest_commit, git_parents
 

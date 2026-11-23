@@ -404,7 +404,7 @@ const ViewOptionsPanel = ({
       summary: `${nb_shown} of ${visualizations_in_runs.length} shown`,
       meta: visualizations.length > 0 && <Meta>{nb_shown} of {visualizations_in_runs.length} shown</Meta>,
       content: <>
-        {visualizations.length === 0 && <Hint>None configured in <em>qaboard.yaml</em></Hint>}
+        {visualizations.length === 0 && <Hint>None declared in <em>qaboard.yaml</em>. Runs started from code always show what they logged: series, test reports, benchmarks, profiles.</Hint>}
         {visualizations_in_runs.length > 8 && <InputGroup
           leftIcon="search"
           placeholder="Filter visualizations"

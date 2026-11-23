@@ -20,12 +20,15 @@ from sqlalchemy import update, text
 from ..database import db_session, engine
 from ..models import Job, JobWorker, JobSchedule
 from . import queue, alerts
+from .. import heartbeats, uploads
 from .report import utcnow
 
 
 HEARTBEAT_EVERY = 30  # seconds
 PURGE_EVERY = 3600
 USAGE_EVERY = 300
+# the files uploads left when the server was killed: walking runs' folders isn't free
+SWEEP_EVERY = 6 * 3600
 USAGE_LOCK = 802_517  # pg_advisory_lock key: one worker at a time updates the storage usage
 # The worker schedules a nightly rebuild of the storage usage, and runs one if there was none. QABOARD_STORAGE_USAGE_AUTO=0 to manage it yourself.
 USAGE_SCHEDULE = {"name": "Storage usage", "kind": "storage_usage", "cron": "17 3 * * *", "timezone": "UTC", "params": {}}
@@ -50,6 +53,7 @@ class Worker:
     self.running = {}  # lane => job id
     self.purged_at = None
     self.usage_at = None
+    self.swept_at = None
     self.usage_since = utcnow() - datetime.timedelta(hours=1)
 
   @property
@@ -120,11 +124,23 @@ class Worker:
 
   def housekeeping(self):
     queue.requeue_stale()
+    try:
+      heartbeats.fail_silent_runs()
+    except Exception as e:
+      db_session.rollback()
+      print(f"[worker {self.id}] WARNING: could not fail the silent runs: {e}", flush=True)
     queue.run_due_schedules()
     now = utcnow()
     if not self.purged_at or (now - self.purged_at).total_seconds() > PURGE_EVERY:
       queue.purge_old_errors(now)
       self.purged_at = now
+    if not self.swept_at or (now - self.swept_at).total_seconds() > SWEEP_EVERY:
+      self.swept_at = now
+      try:
+        if removed := uploads.remove_stale_temporary_files():
+          print(f"[worker {self.id}] removed {removed} files uploads left unfinished", flush=True)
+      except Exception as e:
+        print(f"[worker {self.id}] WARNING: could not remove the files uploads left unfinished: {e}", flush=True)
     if storage_usage_auto():
       try:
         self.refresh_usage()

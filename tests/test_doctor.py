@@ -1041,7 +1041,7 @@ class TestCli(TempDirTestCase):
     result = self.doctor(root_repo / 'qaboard' / 'sample_project', '--offline', 'doctor', '--runner', 'local')
     self.assertEqual(result.exit_code, 0, result.output_text)
     self.assertIn('--offline', result.output_text)
-    self.assertIn('qa batch my-batch', result.output_text)
+    self.assertIn('qa --offline batch my-batch', result.output_text)
 
   def test_unknown_runner(self):
     result = self.doctor(root_repo / 'qaboard' / 'sample_project', '--offline', 'doctor', '--runner', 'nope')

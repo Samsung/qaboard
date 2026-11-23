@@ -679,6 +679,29 @@ def check_folder(name: str, path: Path, required: bool = True, root: Optional[Pa
   return Check(name, OK, f"{where}, writable, {human_size(free)} free")
 
 
+def check_uploads(site: Optional[Dict[str, Any]], token: Optional[str]) -> Check:
+  """
+  Without a storage shared with the server (no `storage` in qaboard.yaml, or `storage: upload`), shared runs send it
+  their files (qaboard/upload.py): whether the server takes them. `site` are its settings (/api/v1/config).
+  """
+  name = "Results sent to the server"
+  if site is None:
+    return Check(name, SKIPPED, "Without a storage shared with the server, `qa --share` and CI runs send it their files. It didn't answer: fix that first.")
+  uploads: Dict[str, Any] = {}
+  if isinstance(site.get('uploads'), dict):
+    uploads = site['uploads']
+  if not uploads.get('enabled'):
+    why = f" ({uploads['off_reason']})" if isinstance(uploads.get('off_reason'), str) else ""
+    return Check(name, ERROR, f"qaboard.yaml sets no `storage` shared with the server (or `storage: upload`): `qa --share` and CI runs would send it their files, but this server doesn't accept files{why}.",
+                 fix=f"Save results in a folder that the server reads too, in qaboard.yaml:\nstorage:\n  linux: /mnt/qaboard\n  windows: \\\\server\\share\\qaboard\n"
+                     f"Or ask the server's administrators to accept files (QABOARD_UPLOAD_ROOT): {docs('backend-admin/uploads')}\nDocs: {docs('storage/uploads')}")
+  limit = f", up to {uploads['max_file_size'] // 1024 ** 2} MB per file" if isinstance(uploads.get('max_file_size'), int) else ''
+  if not token:
+    return Check(name, ERROR, "Without a storage shared with the server, `qa --share` and CI runs send it their files: that always needs a token, and qa has none.",
+                 fix="Sign in: qa auth login\nIn CI: set QABOARD_TOKEN to a token with the ingest scope.")
+  return Check(name, OK, f"Without a storage shared with the server, `qa --share` and CI runs send it their files{limit}. They are saved in the project's output/ folder first.")
+
+
 def check_storage_setting(config: Dict[str, Any], project: Path, subproject: Path) -> Optional[Check]:
   """An ERROR if qaboard.yaml (or QA_STORAGE) doesn't say where to save shared results, None if it does."""
   qaboard_config = config_module()
@@ -700,6 +723,50 @@ def check_storage_setting(config: Dict[str, Any], project: Path, subproject: Pat
   finally:
     qaboard_config.ignore_config_errors = previous
   return Check("Results storage", ERROR, problem, fix=fix)
+
+
+SLOW_LOCAL_CHANGES_MS = 3000
+
+
+def check_local_changes(value: Any, repo_root: Path, is_ci: bool, site: Optional[Dict[str, Any]], ignore: Iterable[Path] = ()) -> Check:
+  """What local runs record of their changes compared with their commit, and how long it takes (qaboard/local_changes.py)"""
+  from . import local_changes
+  name = "Local changes"
+  settings, problems = local_changes.settings(value, is_ci=is_ci)
+  if problems:
+    return Check(name, WARNING, problems[0], fix=f"Docs: {docs('local-changes#settings')}")
+  server_level = (site or {}).get('local_changes')
+  level = local_changes.lowest(settings.level, server_level) if server_level in local_changes.LEVELS else settings.level
+  if level == 'off':
+    forced = os.environ.get(local_changes.ENV_LEVEL)
+    why = f"${local_changes.ENV_LEVEL} is {forced}" if forced else \
+          "in CI, checkouts are clean" if is_ci else \
+          "the server's administrators turned it off (runs.local_changes)" if server_level == 'off' else "outputs.local_changes is off in qaboard.yaml"
+    return Check(name, OK, f"Not recorded: {why}.")
+  captured = local_changes.capture(repo_root, settings._replace(level=level), ignore=local_changes.inside(repo_root, list(ignore)))
+  state = captured.state if captured else {}
+  what = "Runs save the patch of their uncommitted changes" if level == 'patch' else "Runs save which files they changed, not the code"
+  if server_level and level != settings.level:
+    what += f" (the server allows {server_level})"
+  ms = state.get('ms', 0)
+  if state.get('timed_out') and settings.timeout < 1:
+    return Check(name, WARNING, f"outputs.local_changes.timeout is {settings.timeout:g}s: too short for git to compare the working tree with HEAD.",
+                 fix=f"Raise it, or remove it to use the default ({local_changes.DEFAULT_TIMEOUT:g}s). Docs: {docs('local-changes#settings')}")
+  if state.get('timed_out') or ms > SLOW_LOCAL_CHANGES_MS:
+    gave_up = f", and gave up after outputs.local_changes.timeout ({settings.timeout:g}s)" if state.get('timed_out') else ''
+    return Check(name, WARNING, f"git took {ms / 1000:.1f}s to compare the working tree with HEAD{gave_up}: every local run waits for it.",
+                 fix="Make git status faster on big repositories:\n  git config feature.manyFiles true\n  git config core.untrackedCache true\n"
+                     "  git config core.fsmonitor true   # git >= 2.37 on macOS and Windows; on Linux, a hook like watchman's\n"
+                     f"Or add big untracked folders to .gitignore. Docs: {docs('local-changes#performance')}")
+  if state.get('error') and state.get('dirty') is None:
+    return Check(name, WARNING, f"Can't tell what runs change: {state['error']}")
+  now = local_changes.describe(state, saving=False)
+  patch = state.get('patch') or {}
+  if patch.get('omitted') == 'too_large':
+    size = -(-patch.get('bytes', 0) // 1024)
+    return Check(name, WARNING, f"{what}, but your changes' patch is {size} KB, above outputs.local_changes.max_patch_kb ({settings.max_patch_bytes / 1024:g}): runs would only save the summary. Now: {now}.",
+                 fix=f"Commit some changes, exclude big files (outputs.local_changes.exclude), or raise max_patch_kb. Docs: {docs('local-changes#settings')}")
+  return Check(name, OK, f"{what}. Now: {now} ({ms} ms).")
 
 
 def check_database(database: Path, input_type: str = 'default', configured: bool = True) -> Check:
@@ -848,7 +915,7 @@ class Report():
       for line in check.fix.splitlines():
         self.echo(f"      {line}")
 
-  def summary(self, next_step: str = "qa --share batch <batch>") -> int:
+  def summary(self, next_step: str = "qa batch <batch>") -> int:
     """Prints how it went, and the command to run next if nothing must be fixed. Returns the exit code: 1 if a check failed."""
     errors = [c for c in self.checks if c.status == ERROR]
     warnings = [c for c in self.checks if c.status == WARNING]
@@ -943,6 +1010,10 @@ def run_doctor(obj: Dict[str, Any], runner: str, test_job: bool = False, echo=cl
     if offline:
       state['batch_dir'] = make_batch_dir(qaboard_config.outputs_commit, label, platform, configurations, extra_parameters, False)
       yield check_folder("Local results", root / 'output', purpose="Local runs save their results there")
+    elif qaboard_config.uploads_files:
+      batch_label = label if is_ci else f"@{user}| {label}"
+      state['batch_dir'] = make_batch_dir(qaboard_config.outputs_commit, batch_label, platform, configurations, extra_parameters, True)
+      yield check_uploads(state['site'], state['token'])
     else:
       assert project is not None
       setting_error = check_storage_setting(config, project, subproject)
@@ -951,6 +1022,9 @@ def run_doctor(obj: Dict[str, Any], runner: str, test_job: bool = False, echo=cl
       else:
         yield from shared_storage_checks(label, platform, configurations, extra_parameters)
     yield from database_checks(config, obj)
+    if qaboard_config.is_in_git_repo:
+      yield check_local_changes((config.get('outputs') or {}).get('local_changes'), Path(qaboard_config.repo_root), is_ci, state['site'],
+                                ignore=[root / 'output'])
 
   def shared_storage_checks(label, platform, configurations, extra_parameters) -> Iterator[Check]:
     batch_label = label if is_ci else f"@{user}| {label}"
@@ -977,6 +1051,9 @@ def run_doctor(obj: Dict[str, Any], runner: str, test_job: bool = False, echo=cl
 
   def runner_checks() -> Iterator[Check]:
     job_options = runner_job_options(runner, config, project, user, state['batch_dir'], cwd)
+    if runner == 'kubernetes':
+      # like `qa batch`: {commit} in the image, and the repository's root for `workdir`
+      job_options.update({"commit": qaboard_config.commit_id, "repo_root": str(qaboard_config.repo_root)})
     yield from check_runner(runner, job_options, test_job=test_job)
 
   report.section("qa and your project")
@@ -993,7 +1070,7 @@ def run_doctor(obj: Dict[str, Any], runner: str, test_job: bool = False, echo=cl
     echo('')
     echo(click.style(f"To check that a job really runs (where, as who, what it can access): qa doctor --test-job{runner_option}", dim=True))
   names = batch_names(list(qaboard_config.default_batches_files), root) if state['has_project'] else []
-  return report.summary(f"qa{'' if offline else ' --share'} batch{runner_option} {names[0] if names else '<batch>'}")
+  return report.summary(f"qa{' --offline' if offline else ''} batch{runner_option} {names[0] if names else '<batch>'}")
 
 
 def batch_names(batches_files: List[Any], root: Path) -> List[str]:

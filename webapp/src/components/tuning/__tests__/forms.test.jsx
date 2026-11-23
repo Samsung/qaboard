@@ -81,6 +81,28 @@ describe('TuningForm', () => {
     });
   });
 
+  it('runs the batches of an earlier batch as they ran, until users drop them', async () => {
+    const files = [{ path: 'batches.night.yaml', content: 'nightly: {inputs: [a.jpg]}\n' }];
+    usePrefsStore.getState().updateTuning('proj', { experiment_name: 'night-again', selected_group: 'nightly', batches_snapshot: { from: 'night', files, names: ['nightly'] } });
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(url => url.startsWith('/api/v1/tests/group?')
+      ? json({ tests: [{ input_path: 'a.jpg', configurations: [] }] })
+      : json({}));
+    renderWithProviders(
+      <TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>,
+      { user: { is_logged: true, user_name: 'alice' }, siteConfig: {} },
+    );
+    expect(screen.getByText('The batches as they ran in night')).toBeInTheDocument();
+    // the tests are listed from them too
+    await waitFor(() => expect(JSON.parse(fetch.mock.calls.find(([url]) => url.startsWith('/api/v1/tests/group?'))[1].body).batches_files).toEqual(files));
+    fireEvent.click(await screen.findByText('Start 1 run'));
+    await waitFor(() => expect(fetch.mock.calls.some(([url]) => url === '/api/v1/commit/abcdef12/batch?project=proj')).toBe(true));
+    const [, init] = fetch.mock.calls.find(([url]) => url === '/api/v1/commit/abcdef12/batch?project=proj');
+    expect(JSON.parse(init.body).batches_files).toEqual(files);
+    fireEvent.click(screen.getByText('Use the batches as defined now'));
+    expect(usePrefsStore.getState().tuning.proj.batches_snapshot).toBeNull();
+    expect(screen.queryByText('The batches as they ran in night')).toBeNull();
+  });
+
   it('asks for an email when the batch ends, if the server can send them', async () => {
     usePrefsStore.getState().updateTuning('proj', { experiment_name: 'exp', selected_group: 'nightly' });
     const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(url => url.startsWith('/api/v1/tests/group?')
@@ -134,6 +156,23 @@ describe('TuningForm', () => {
     const [url, init] = fetch.mock.calls.find(([url]) => url.startsWith('/api/v1/tests/group?'));
     expect(url).toBe('/api/v1/tests/group?project=kitefin%2Fdetector&name=nightly%2Bfs&commit=abc123');
     expect(JSON.parse(init.body)).toEqual({ groups: ['extra-batches', 'arjun'] });
+  });
+
+  it("lets users start batches whose tests the server can't list without running the project's code", async () => {
+    usePrefsStore.getState().updateTuning('proj', { experiment_name: 'exp', selected_group: 'nightly', parameter_search: '{"a": [1, 2]}' });
+    vi.spyOn(globalThis, 'fetch').mockImplementation(url => url.startsWith('/api/v1/tests/group?')
+      ? json({ tests: [], unlisted: true, definitions: [], warnings: ['This project lists its inputs with its own `iter_inputs`'] })
+      : json({}));
+    renderWithProviders(
+      <TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>,
+      { user: { is_logged: true, user_name: 'alice' }, siteConfig: {} },
+    );
+    expect(await screen.findByText('Check the batch files')).toBeInTheDocument();
+    expect(screen.queryByText('Why the batch has no tests')).toBeNull();
+    expect(screen.queryByText(/The batch has no tests/)).toBeNull();
+    expect(screen.getByTestId('tuning-start')).toBeEnabled();
+    fireEvent.change(screen.getByTestId('editor-tuning-set'), { target: { value: '{"a": [1, ' } });
+    await waitFor(() => expect(screen.getByTestId('tuning-start')).toBeDisabled());
   });
 
   it('links to the docs of the site', () => {

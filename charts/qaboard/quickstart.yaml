@@ -9,6 +9,9 @@
 config:
   # For the links QA-Board creates (e.g. in exports), through the port-forward
   QABOARD_URL: http://localhost:5151
+  # Batches started from the web app (tuning, redo) are off. To try them here, in the backend's container: anyone who
+  # can start a batch then runs code as the backend, with what it can read (docs: backend-admin/runners)
+  # QABOARD_TUNING_RUNNER: local
 
 # A single PostgreSQL pod
 database:
@@ -45,6 +48,8 @@ cantaloupe:
 results:
   enabled: true
   mountPath: /tmp/qaboard
+  # runs from other computers and containers can send their files over HTTP
+  uploads: true
   hostPath: {path: /tmp/qaboard}
 
 # The docs' demo projects, restored the first time QA-Board starts. Their results are in a volume of their own.

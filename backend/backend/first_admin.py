@@ -215,8 +215,13 @@ def first_start():
     done = create_env_admin()
     if done:
       print(f"[setup] {done}", flush=True)
-    if setup_open():
+    new_server = setup_open()
+    if new_server:
       log_setup_token()
+    # only new servers: not a message at every restart
+    if done or new_server:
+      from .maintainers import log_offer
+      log_offer()
   except Exception as e:
     # e.g. the database isn't migrated yet: requests must still work
     db_session.rollback()

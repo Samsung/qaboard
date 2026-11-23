@@ -2,7 +2,7 @@
 id: robotics-3d
 title: "Robotics: see where the trajectory went wrong"
 sidebar_label: Robotics and 3D
-description: For robotics, perception and automotive teams. Trajectories against the ground truth, maps in 3D and sensor videos in sync with the reference's, per sequence, on every commit, with History and a gate on trajectory metrics.
+description: "For robotics, perception and automotive teams. Trajectories against the ground truth, 3D maps and sensor videos in sync with the reference's, on every commit."
 ---
 For robotics, perception and automotive engineers whose outputs are trajectories, maps and sensor streams.
 
@@ -83,7 +83,7 @@ qa run --input sequences/figure8-fast
 qa batch ci                     # the 6 sequences
 ```
 
-Without `--share`, results stay in `output/`. To see them in the web app, run `qa --share batch ci`. With the
+`qa batch ci` shows the results in the web app. With the
 [quickstart](/docs/get-started/quickstart#save-results-from-your-computer)'s server, first
 `export QABOARD_URL=http://localhost:5151 QA_STORAGE=/tmp/qaboard`. See the example's
 [README](https://github.com/Samsung/qaboard/tree/master/examples/robotics-3d#readme) for the flags and the tuning

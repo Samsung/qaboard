@@ -10,9 +10,12 @@ from sqlalchemy.orm.attributes import flag_modified
 from backend import app, db_session
 from ..access import invalid_project
 from .auth import is_authorized_user, login_required, require_project_access, ingest_access, forbidden_project
+from ..actor import batch_token_limits, is_batch_request
 from ..models import Project, CiCommit, latest_successful_commit, Batch
+from ..reference_branch import reference_branch_of
 from ..storage import UnsafePathError
 from .. import recreate_artifacts
+from ..artifacts import UPLOADED_ARTIFACTS
 from ..metrics_aggregation import parse_metrics_arg
 
 
@@ -29,18 +32,27 @@ def api_ci_commit(commit_id=None):
       return error
     # git_commit_sha for backward-compatibility
     hexsha = commit_id or request.json.get('commit_sha') or request.json.get('git_commit_sha')
+    if refused := batch_token_limits(request.json.get('project'), hexsha, any_batch=True, what="send this commit"):
+      return refused
+    from_batch = is_batch_request()
     try:
       commit = CiCommit.get_or_create(
         session=db_session,
         hexsha=hexsha,
         project_id=request.json['project'],
         data=request.json,
+        existing_only=from_batch,
       )
     except Exception as e:
       # usually a commit we don't know, and whose git repository we can't read
       db_session.rollback()
       project = request.json.get('project', 'unknown')
       return jsonify({"error": f"{e}\n Project: {project} - There is an issue with your commit id ({hexsha})"}), 404
+    if from_batch:
+      # the commit is everyone's: its metadata, whether its artifacts are usable, who sent it. A batch only sends
+      # its own results (`qa batch` and `qa run` never send commits, `qa save-artifacts` does)
+      db_session.rollback()
+      return jsonify({"status": "OK", "warning": "Batch tokens don't change commits: nothing was saved."})
     if not commit.data:
       commit.data = {}
     # Clients can store any metadata with each commit.
@@ -50,7 +62,7 @@ def api_ci_commit(commit_id=None):
     if not isinstance(commit_data, dict):
       commit_data = {}
     # QA-Board's own bookkeeping, clients can't change it
-    commit_data = {k: v for k, v in commit_data.items() if k not in ('artifacts_recreation', 'artifacts_deleted', 'submitted_by')}
+    commit_data = {k: v for k, v in commit_data.items() if k not in ('artifacts_recreation', 'artifacts_deleted', 'submitted_by', UPLOADED_ARTIFACTS)}
     commit.data = {**commit.data, **commit_data}
     if submitted_by:
       commit.data['submitted_by'] = submitted_by
@@ -90,13 +102,19 @@ def api_ci_commit(commit_id=None):
 
   if not commit_id:
     commit_id = request.args.get('commit', None)
+    project_data = None
     try:
       project = Project.query.filter(Project.id==project_id).one()
-      default_branch = project.data['qatools_config']['project']['reference_branch']
+      project_data = project.data
+      default_branch = reference_branch_of(project.data)
     except:
       default_branch = None
     branch = request.args.get('branch', default_branch)
     ci_commit = latest_successful_commit(db_session, project_id=project_id, branch=branch, batch_label=request.args.get('batch'))
+    # Projects without a qaboard.yaml may have runs only outside git, or on other branches (qaboard.start_run() in a
+    # notebook): their latest commit with results, on any branch, rather than nothing
+    if not ci_commit and 'branch' not in request.args and isinstance(project_data, dict) and not project_data.get('qatools_config'):
+      ci_commit = latest_successful_commit(db_session, project_id=project_id, branch=None, batch_label=request.args.get('batch'))
     if not ci_commit:
       return jsonify({'error': f'No commit with results yet for {project_id} on {branch}.'}), 404
   else:

@@ -34,6 +34,14 @@ describe('organize', () => {
     expect(matchesSearch(settings[2], 'email ldap', groups[1])).toBe(false);
   });
 
+  it('shows the variables with a warning under "needs attention"', () => {
+    const risky = [...server, { key: 'QABOARD_TUNING_RUNNER', kind: 'environment', label: 'Runner', group: 'email', source: 'env', is_set: true, value: 'local', warning: 'Runs the projects\' code in the backend\'s container' }];
+    const { sections, counts } = organize({ settings, server: risky, groups }, { filter: 'attention' });
+    expect(counts.attention).toBe(2);
+    expect(sections.flatMap(s => s.variables.map(v => v.key))).toEqual(['QABOARD_TUNING_RUNNER']);
+    expect(matchesSearch(risky[1], 'container')).toBe(true);
+  });
+
   it('says what needs attention', () => {
     expect(needsAttention(settings[3])).toBe(true);
     expect(needsAttention({ shadowed: true, env_matches_database: true })).toBe(false);

@@ -22,6 +22,15 @@ data:
   # The results storage (and the demo data's): the backend only writes, deletes or runs code there
   QABOARD_STORAGE_ROOTS: {{ join ":" $roots | quote }}
   {{- end }}
+  {{- if and .Values.results.enabled .Values.results.uploads (not (hasKey .Values.config "QABOARD_UPLOAD_ROOT")) }}
+  # Runs that don't mount the results storage send their files over HTTP: the backend saves them there
+  QABOARD_UPLOAD_ROOT: {{ include "qaboard.resultsPath" . | quote }}
+  {{- end }}
+  {{- if not (hasKey .Values.config "QABOARD_HOST") }}
+  # Where the `qa batch` the backend starts itself (tuning, redo, with the local runner) reaches QA-Board: through the
+  # proxy, which serves the files they fetch (like `proxy` in docker-compose.yml)
+  QABOARD_HOST: {{ printf "%s-proxy" (include "qaboard.fullname" .) | quote }}
+  {{- end }}
   {{- if and .Values.cantaloupe.enabled (not (hasKey .Values.config "QABOARD_IMAGE_SERVERS")) }}
   # The web app gets image tiles from /iiif/2/<path of the image> (see cantaloupe.yaml)
   QABOARD_IMAGE_SERVERS: '{"default": "/iiif/2/"}'

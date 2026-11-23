@@ -32,6 +32,7 @@ from typing import Optional
 from sqlalchemy import text
 
 from ..database import db_session, engine, make_engine
+from .. import locations, uploads
 from ..models import Project, CiCommit, Batch, Output, Export, StorageScan
 from ..storage import check_storage_path, UnsafePathError
 from ..exports import MARKERS, owner_name, found
@@ -50,7 +51,8 @@ FLUSH_EVERY = 2000
 PROGRESS_EVERY = 2  # seconds: how often the folders explored are reported, and cancelling is checked
 # Storage snapshots are copies of everything: never scanned, whatever `exclude_paths` says
 SNAPSHOTS = {'.snapshot', '.snapshots', '.zfs'}
-commit_dirs_re = re.compile(r'/(?P<a>[0-9a-f]{2})/(?P<b>[0-9a-f]{14})(?=/|$)')
+# commits' folders, in a shared storage and for uploaded runs
+commit_dirs_re = uploads.COMMIT_FOLDERS_IN_PATH
 
 
 def validate(params: dict) -> dict:
@@ -265,7 +267,9 @@ class Known:
       found = self.runs_of(batch_id).get(path)
       if found:
         return found
-    row = self.session.execute(text("SELECT id, deleted FROM outputs WHERE output_dir_override = :path LIMIT 1"), {"path": path}).first()
+    # runs in a storage location store its URL (backend/locations.py)
+    row = self.session.execute(text("SELECT id, deleted FROM outputs WHERE output_dir_override IN (:path, :location) LIMIT 1"),
+                               {"path": path, "location": locations.location_of(path)}).first()
     self.session.rollback()
     return (row[0], bool(row[1])) if row else None
 

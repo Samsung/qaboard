@@ -75,6 +75,7 @@ def shutdown_session(exception=None):
 
 import backend.api.api
 import backend.api.commit
+import backend.api.commit_artifacts
 import backend.api.compare
 import backend.api.batch
 import backend.api.outputs
@@ -92,11 +93,13 @@ import backend.api.tokens
 import backend.api.service_accounts
 import backend.api.ci_trust
 import backend.api.users
+import backend.api.audit_log
 import backend.api.admin
 import backend.api.admin_settings
 import backend.api.project_settings
 import backend.api.sign_in
 import backend.api.admin_sign_in
+import backend.api.admin_storage_locations
 import backend.api.admin_jobs
 import backend.api.storage
 import backend.api.admin_storage

@@ -92,6 +92,7 @@ files.
 ### Line endings {#line-endings}
 `qa` hashes text files with Unix line endings (`\n`), on every platform: a file with Windows line endings (`\r\n`)
 records the same manifest on Linux and Windows. By default, text files are *.txt*, *.cde*, *.hex*, *.iir* and *.dvs*.
+Files with a NUL byte in their first 8000 bytes are always hashed as they are, like git does.
 Say which files are text with `bit_accuracy.plaintext`, *or* which are binary with `bit_accuracy.binary`, like the
 camera ISP's `plaintext: ['*.txt']`:
 
@@ -112,7 +113,7 @@ those files binary.
 
 ## Which reference {#which-reference}
 `qa check-bit-accuracy --batch <batch>` compares the results of `qa batch <batch>` with:
-- the latest commit of `project.reference_branch` (default: `master`) on your git remote,
+- the latest commit of `project.reference_branch` (default: your repository's default branch, else `main`) on your git remote,
 - or, in the CI of that branch, the commit's parents: a merge is compared with the commits it merges,
 - or what you give with `--reference`: a branch, a tag or a commit. The camera ISP compares with its release,
   `qa --platform hw-model check-bit-accuracy --batch bitexact --reference <release-sha>`.
@@ -133,14 +134,14 @@ yours (with `--reference-platform`, on that platform), in the reference's batch 
 `--reference-label`). With `--reference-match closest`, it compares with the closest run on the same input instead,
 like the web app picks reference runs (see [options](#options)):
 
-1. **It asks QA-Board** where they are. It knows the runs of every CI and `qa --share` batch, wherever they were saved.
+1. **It asks QA-Board** where they are. It knows the runs of every CI and shared `qa batch`, wherever they were saved.
 2. **Otherwise it looks in the storage**, where `qa` saves runs (`storage` in *qaboard.yaml*): offline (`qa --offline`),
    when QA-Board can't be reached, or for runs it doesn't know. If your storage settings have a folder per user, like
    `/mnt/outputs/{user}`, it looks in every user's folder: the reference's runs were saved by its CI's user. When a run
    is missing, it prints where it looked.
 
-Your own runs are where `qa batch` saves them: in your project's `output/` folder, or with `qa --share` and in the CI,
-in the storage. The reference's runs are CI runs, so their label isn't prefixed by your name like with `qa --share`:
+Your own runs are where `qa batch` saves them, in the storage.
+The reference's runs are CI runs, so their label isn't prefixed by your name like yours:
 to compare with runs you shared, use `--reference-label "@<your-user>| <label>"`.
 
 ## Options {#options}

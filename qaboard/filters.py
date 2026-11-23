@@ -71,10 +71,11 @@ def run_params(configurations: Optional[List[Any]], extra_parameters: Optional[D
 
 def searched_text(*, id: Any, test_input_path: str, platform: Optional[str], configurations: Optional[List[Any]],
                   extra_parameters: Optional[Dict[str, Any]], test_input_metadata: Optional[Dict[str, Any]] = None,
-                  batch: Optional[str] = None, is_failed: bool = False, is_pending: bool = False, is_running: bool = False) -> str:
+                  batch: Optional[str] = None, is_failed: bool = False, is_pending: bool = False, is_running: bool = False,
+                  changes: str = '') -> str:
   """
   What a filter is matched against, for one run: the same text as the web app's `filter_batch`, so the same runs match.
-  `batch` is the batch of qaboard.yaml the run comes from (`data.batch`), not the batch label.
+  `batch` is the batch of qaboard.yaml the run comes from (`data.batch`), not the batch label. `changes`: changes_keyword().
   """
   metadata = js_stringify(test_input_metadata) if test_input_metadata else ''
   failed = 'fail crash status:failed' if is_failed else ''
@@ -83,7 +84,18 @@ def searched_text(*, id: Any, test_input_path: str, platform: Optional[str], con
   # JavaScript prints a missing batch as "undefined": nobody filters on it, we keep the texts identical
   batch_text = batch if batch is not None else 'undefined'
   params = js_stringify(run_params(configurations, extra_parameters))
-  return f"{test_input_path} {js_stringify(configurations)} {metadata} {params} {batch_text} {failed} {pending} {status} {platform} id:{id}"
+  return f"{test_input_path} {js_stringify(configurations)} {metadata} {params} {batch_text} {failed} {pending} {status} {platform} id:{id}{changes}"
+
+
+def changes_keyword(data: Dict[str, Any]) -> str:
+  """Runs that recorded their local changes (qaboard/local_changes.py): changes:local, changes:none or changes:unknown"""
+  changes = data.get('local_changes') if isinstance(data.get('local_changes'), dict) else None
+  dirty = changes.get('dirty') if changes is not None else data.get('dirty')
+  if dirty is True:
+    return ' changes:local'
+  if dirty is False:
+    return ' changes:none'
+  return ' changes:unknown' if changes is not None else ''
 
 
 def searched_text_of(output: Dict[str, Any]) -> str:
@@ -104,6 +116,7 @@ def searched_text_of(output: Dict[str, Any]) -> str:
     is_failed=bool(output.get('is_failed')),
     is_pending=bool(output.get('is_pending')),
     is_running=bool(output.get('is_running')),
+    changes=changes_keyword(data),
   )
 
 

@@ -1,5 +1,7 @@
 // Tabs for the landing page's sections (WAI-ARIA tabs pattern, automatic activation): the arrow keys move between
-// them, Home and End go to the ends. Spread the props on a tablist, its tab buttons and the one tabpanel.
+// them, Home and End go to the ends. Spread the props on a tablist, its tab buttons and their tabpanels.
+// Every panel is in the page, the others `hidden`: search engines and AI assistants, which don't click, read all the
+// tabs' text. Their media only for the selected one, to keep the page light.
 import {useId, useRef, useState, type KeyboardEvent} from 'react';
 
 export function useTabs(count: number, label: string) {
@@ -36,10 +38,15 @@ export function useTabs(count: number, label: string) {
       role: 'tab',
       id: `${id}-tab-${index}`,
       'aria-selected': index === selected,
-      'aria-controls': `${id}-panel`,
+      'aria-controls': `${id}-panel-${index}`,
       tabIndex: index === selected ? 0 : -1,
       onClick: () => setSelected(index),
     }),
-    panelProps: {role: 'tabpanel', id: `${id}-panel`, 'aria-labelledby': `${id}-tab-${selected}`},
+    panelProps: (index: number) => ({
+      role: 'tabpanel',
+      id: `${id}-panel-${index}`,
+      'aria-labelledby': `${id}-tab-${index}`,
+      hidden: index !== selected,
+    }),
   };
 }

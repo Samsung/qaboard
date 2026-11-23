@@ -5,7 +5,9 @@ Each run is a pod of an Indexed Job (several runs per pod with `runs_per_pod`). 
 owned by the Job: the pods run `sh /etc/qaboard/run-$JOB_COMPLETION_INDEX.sh`, which runs where `qa batch` runs and
 writes each run's output live to <output_dir>/log.k8s.txt (pod logs vanish with the pod). While a pod is pending, `qa batch`
 writes why in its runs' <output_dir>/log.pending.txt (a file of its own: the pods may run as another user), deleted when they start.
-We assume the pods see the code, inputs and outputs at the same paths as the machine running `qa batch` (`mounts`).
+We assume the pods see the code, inputs and outputs at the same paths as the machine running `qa batch` (`mounts`),
+or that the image has the code (an image per commit, `{commit}` in `image`) at `workdir`, and the runs send their
+files to the server (`storage: upload`). Images per commit are looked up in their registry before pods start.
 
 Setup: `pip install "qaboard[kubernetes]"`. We use your kubeconfig (the `context` option, or the current context),
 or, in a pod without kubeconfig, the pod's ServiceAccount. `qa doctor --runner kubernetes` checks everything,
@@ -18,6 +20,8 @@ qaboard.yaml:
       namespace: algo-qa           # default: the context's namespace, else "default"
       # context: my-cluster        # kubeconfig context. Default: current
       image: registry.example.com/algo/qa-env:2026.11  # must have `qa` and your code's dependencies
+      # image: registry.example.com/algo/qa:{commit}   # an image per commit, built by CI ({commit:.8}: its first 8 characters)
+      # workdir: /src              # where the repository is in the image, for images with the code. Default: the same path as here
       # image_pull_secrets: [registry-creds]
       # queue: algo-gpu            # Kueue LocalQueue
       # priority_class: batch-low
@@ -72,6 +76,7 @@ from .base import BaseRunner
 from .job import Job
 from .env import forwarded_env
 from .labels import label_value
+from .registry import commit_image, has_commit, image_exists
 from ..run import RunContext
 from ..checks import Check, OK, WARNING, ERROR, SKIPPED
 
@@ -80,7 +85,10 @@ from ..checks import Check, OK, WARNING, ERROR, SKIPPED
 class KubernetesOptions():
   namespace: Optional[str] = None
   context: Optional[str] = None
+  # {commit} (or {commit:.8}) is replaced by the commit's id: an image per commit (registry.py)
   image: Optional[str] = None
+  # Where the repository is in the image: runs `cd` there, not to where `qa batch` runs. For images with the code.
+  workdir: Optional[str] = None
   image_pull_secrets: List[str] = field(default_factory=list)
   # Kueue LocalQueue
   queue: Optional[str] = None
@@ -114,6 +122,11 @@ class KubernetesOptions():
   batch_dir: Optional[str] = None
   user: Optional[str] = None
   project: Optional[str] = None
+  # the commit, for {commit} in `image`, and the repository's root, mapped to `workdir`
+  commit: Optional[str] = None
+  repo_root: Optional[str] = None
+  # To look images per commit up in their registry, also use ~/.docker/config.json's credentials (not on the server)
+  local_registry_credentials: bool = True
 
 kubernetes_option_names = set(f.name for f in fields(KubernetesOptions))
 
@@ -131,6 +144,7 @@ option_types: Dict[str, Tuple[type, ...]] = {
   'pod_timeout': (int, float), 'resources': (dict,), 'node_selector': (dict,), 'tolerations': (list,),
   'run_as': (str, dict), 'run_as_non_root': (bool,), 'service_account': (str,), 'mounts': (list,), 'env': (dict,),
   'forward_env': (bool,), 'job_template': (str,), 'ttl_seconds_after_finished': (int,), 'api_retry_seconds': (int, float),
+  'workdir': (str,), 'commit': (str,), 'repo_root': (str,), 'local_registry_credentials': (bool,),
 }
 
 type_names = {'str': 'a string', 'int': 'an integer', 'list': 'a list', 'dict': 'a mapping', 'bool': 'true or false'}
@@ -150,6 +164,13 @@ def option_errors(job_options: Dict[str, Any]) -> Dict[str, str]:
       errors[name] = f'runners.kubernetes.{name} should be {expected}, not {value!r}.'
     elif name == 'image_pull_secrets' and isinstance(value, list) and not all(isinstance(s, str) for s in value):
       errors[name] = f'runners.kubernetes.image_pull_secrets should be a list of Secret names, not {value!r}.'
+  if 'image' not in errors and job_options.get('image'):
+    try:
+      commit_image(job_options['image'], 'commit')
+    except ValueError as e:
+      errors['image'] = str(e)
+  if 'workdir' not in errors and job_options.get('workdir') and not job_options['workdir'].startswith('/'):
+    errors['workdir'] = f"runners.kubernetes.workdir should be an absolute path in the image, not {job_options['workdir']!r}."
   if 'resources' not in errors and job_options.get('resources'):
     try:
       resources_spec(job_options['resources'])
@@ -167,6 +188,8 @@ def check_options(job_options: Dict[str, Any]):
 pod_option_names = (
   'image', 'image_pull_secrets', 'queue', 'priority_class', 'resources', 'node_selector', 'tolerations', 'run_as',
   'run_as_non_root', 'service_account', 'mounts', 'env', 'forward_env', 'job_template', 'ttl_seconds_after_finished',
+  # not in the spec, but in the runs' scripts: one per Job
+  'workdir',
 )
 
 # A ConfigMap must be under 1MiB
@@ -326,6 +349,20 @@ def redirect_output(log_file: str, pending_file: str) -> List[str]:
     f'rm -f {shlex.quote(pending_file)} 2>/dev/null',
   ]
 
+def detached_files(files: Dict[str, str]) -> Tuple[Dict[str, str], List[str]]:
+  """
+  `files` ({absolute path in the pod: content}) as ConfigMap entries (file-<i>), and the sh lines that copy them
+  there, or exit 1 saying why.
+  """
+  data, lines = {}, []
+  for i, (path, content) in enumerate(files.items()):
+    if not os.path.isabs(path):
+      raise ValueError(f"Files of detached jobs need absolute paths, not {path!r}")
+    data[f'file-{i}'] = content
+    lines.append(f'path={shlex.quote(path)}; mkdir -p "$(dirname "$path")" && cp "$(dirname "$0")/file-{i}" "$path" '
+                 '|| { echo "[qaboard] ERROR: can not write $path as uid $(id -u), gid $(id -g)" >&2; exit 1; }')
+  return data, lines
+
 # sh: is `timeout` GNU coreutils' (`timeout (GNU coreutils) 9.4`, or uutils'), not e.g. BusyBox's?
 has_coreutils_timeout = 'timeout --version 2>/dev/null | grep -q coreutils'
 timeout_missing = "runners.kubernetes.timeout needs the timeout command of GNU coreutils in the image, not BusyBox's"
@@ -334,6 +371,8 @@ def run_script(runs: List[Dict[str, Any]]) -> str:
   """
   Runs a pod's runs one after the other, each with its output live in <output_dir>/log.k8s.txt, even if one fails.
   Fails if any failed. `runs`: [{"command", "cwd", "output_dir", "timeout"}], with `timeout` in seconds (0: none).
+  With "artifacts": {"project", "commit"}, `cwd` and `output_dir` are relative to the commit's artifacts, fetched from
+  QA-Board first (`qa fetch-artifacts`, once per cache: the other runs of the pod find them there).
   Only needs a POSIX sh, and for runs with a timeout, `timeout` from GNU coreutils.
   Note: `qa run` cleans its output directory but keeps the file its output goes to.
   """
@@ -349,9 +388,14 @@ def run_script(runs: List[Dict[str, Any]]) -> str:
     timeout = int(math.ceil(float(run.get('timeout') or 0)))
     lines.append(f'echo "[qaboard] run {index}/{len(runs)}:" {name}')
     lines.append('(')
+    artifacts = run.get('artifacts')
+    if artifacts:
+      # the paths are relative to the copy
+      fetch = f"qa fetch-artifacts --project {shlex.quote(artifacts['project'])} --commit {shlex.quote(artifacts['commit'])} --root"
+      lines.append(f'  artifacts="$({fetch})" && cd "$artifacts" || {{ echo "[qaboard] ERROR: could not fetch the commit\'s artifacts from QA-Board: does the image have qa, and can it reach the server?" >&2; exit 1; }}')
     if output_dir:
       lines.extend(f'  {line}' for line in redirect_output(os.path.join(output_dir, 'log.k8s.txt'), os.path.join(output_dir, pending_log_name)))
-    lines.append(f'  cd {shlex.quote(run["cwd"])} || {{ echo "[qaboard] ERROR: can not cd to" {shlex.quote(run["cwd"])}": is it under runners.kubernetes.mounts?" >&2; exit 1; }}')
+    lines.append(f'  cd {shlex.quote(run["cwd"])} || {{ echo "[qaboard] ERROR: can not cd to" {shlex.quote(run["cwd"])}": is it under runners.kubernetes.mounts, or in the image (workdir)?" >&2; exit 1; }}')
     if timeout > 0:
       # coreutils' timeout signals the process group (qa run and what it started), and kills it if it's still there
       # 60s later. Not BusyBox's: it may accept -k, but signals only its child, and its exit code isn't always 124
@@ -364,17 +408,46 @@ def run_script(runs: List[Dict[str, Any]]) -> str:
   lines.append('[ "$failed" -eq 0 ]')
   return '\n'.join(lines) + '\n'
 
-def job_to_run(job: Job) -> Dict[str, Any]:
+def in_pods(path: Union[str, Path], options: KubernetesOptions) -> str:
+  """
+  Where the pods see `path` (a path here): the same path, except with `workdir` (the image has the code), where
+  what is in the repository is under `workdir`.
+  """
+  path = logical_path(path)
+  if options.workdir and options.repo_root:
+    root = logical_path(options.repo_root)
+    if is_under(path, root):
+      return options.workdir.rstrip('/') + path[len(root.rstrip('/')):] if path != root else options.workdir
+  return path
+
+def fetched_artifacts(cwd: str) -> Optional[Dict[str, Any]]:
+  """Where a commit's artifacts fetched from QA-Board are, if `cwd` is in them (qaboard/commit_artifacts.py)"""
+  from ..commit_artifacts import read_marker
+  marker = read_marker(Path(cwd))
+  return marker if marker and marker.get('project') and marker.get('commit') else None
+
+def job_to_run(job: Job, options: Optional[KubernetesOptions] = None) -> Dict[str, Any]:
+  options = options or dict_to_KubernetesOptions(job.run_context.job_options)
   output_dir = job.run_context.output_dir
-  return {
+  run = {
     "command": job.run_context.command or 'echo OK',
     # Like other runners, we run where `qa batch` runs: the root of the project (it changes directory there).
     # Commands start with "cd {subproject}" if needed. The paths are the ones the pods see, not resolved.
-    "cwd": logical_path(os.getcwd()),
-    "output_dir": logical_path(output_dir) if output_dir else None,
+    "cwd": in_pods(os.getcwd(), options),
+    "output_dir": in_pods(output_dir, options) if output_dir else None,
     # seconds, 0: none. Per run: runs can have their own (e.g. per input type)
     "timeout": job.run_context.job_options.get('timeout') or 0,
   }
+  # `qa batch` in a commit's artifacts it fetched from QA-Board (a batch the server started, without a shared storage):
+  # its pods fetch them too, and run in their copy. Not with `workdir`: the image has the code
+  fetched = fetched_artifacts(os.getcwd()) if not options.workdir else None
+  if fetched:
+    root = fetched['root']
+    relative = lambda path: os.path.relpath(path, root) if is_under(os.path.abspath(path), root) else None
+    cwd, output = relative(os.getcwd()), relative(output_dir) if output_dir else None
+    if cwd is not None and (output_dir is None or output is not None):
+      run.update(cwd=cwd, output_dir=output, artifacts={"project": fetched['project'], "commit": fetched['commit']})
+  return run
 
 
 ###
@@ -561,7 +634,7 @@ def job_body(options: KubernetesOptions, name: str, namespace: str, command: Lis
     run_as['runAsNonRoot'] = True
   container: Dict[str, Any] = {'name': container_name}
   if options.image:
-    container['image'] = options.image
+    container['image'] = commit_image(options.image, options.commit)
   if options.resources:
     container['resources'] = resources_spec(options.resources)
   volumes, volume_mounts = mounts_spec(options.mounts)
@@ -1095,6 +1168,55 @@ def create_job(kube: Kube, options: KubernetesOptions, namespace: str, name: str
 class NameTaken(Exception):
   """Another object has the name: it's not ours, we must not delete it"""
 
+
+class NoImageForCommit(Exception):
+  """The registry doesn't have the commit's image (`{commit}` in runners.kubernetes.image)"""
+
+def pull_secret_configs(kube: Kube, namespace: str, secrets: List[str]) -> List[Dict[str, Any]]:
+  """The docker configs in the image pull secrets we can read (it needs `get secrets`, often not allowed)"""
+  import base64
+  configs = []
+  for name in secrets:
+    try:
+      secret = kube.call('core', 'read_namespaced_secret', name, namespace)
+      data = secret.get('data') or {}
+      encoded = data.get('.dockerconfigjson') or data.get('.dockercfg')
+      if not encoded:
+        continue
+      config = json.loads(base64.b64decode(encoded))
+      # .dockercfg is the old format, without "auths"
+      configs.append(config if '.dockerconfigjson' in data else {'auths': config})
+    except (ApiError, ValueError, TypeError):
+      continue
+  return configs
+
+def check_commit_images(kube: Kube, namespace: str, all_options: Iterable[KubernetesOptions]):
+  """
+  Before starting pods with an image per commit (`{commit}` in `image`): is it in its registry? Raises
+  NoImageForCommit if it isn't, rather than pods in ImagePullBackOff. When we can't tell, says so and goes on.
+  """
+  from .registry import local_docker_config
+  checked: Set[str] = set()
+  for options in all_options:
+    if not has_commit(options.image):
+      continue
+    assert options.image
+    image = commit_image(options.image, options.commit)
+    if image in checked:
+      continue
+    checked.add(image)
+    configs = pull_secret_configs(kube, namespace, options.image_pull_secrets)
+    if options.local_registry_credentials:
+      configs.append(local_docker_config())
+    found = image_exists(image, configs)
+    if found.exists is False:
+      raise NoImageForCommit(
+        f"No image for this commit: {image} is not in its registry ({found.why}). runners.kubernetes.image is {options.image}: "
+        "did the CI build and push it? If it's still running, try again when it's done."
+      )
+    if found.exists is None:
+      secho(f"WARNING: Can't check that {image} exists: {found.why}. Starting anyway.", fg='yellow', err=True)
+
 def read_own(kube: Kube, method: str, name: str, namespace: str, invocation: str) -> Optional[Dict[str, Any]]:
   """The object, if this create_job call created it: it has its nonce"""
   try:
@@ -1172,7 +1294,7 @@ def create_group(kube: Kube, job_options: Dict[str, Any], jobs: List[Job], group
     options = dict_to_KubernetesOptions({**job_options, **own})
     uid = run_as_ids(options.run_as)[0]
     pods_run_as_us = uid is not None and hasattr(os, 'getuid') and uid == os.getuid()
-    runs = [job_to_run(job) for job in same_pod_spec]
+    runs = [job_to_run(job, options) for job in same_pod_spec]
     runs_per_pod = max(1, int(options.runs_per_pod))
     pods = [runs[i:i + runs_per_pod] for i in range(0, len(runs), runs_per_pod)]
     env_sh = env_script(run_env(options))
@@ -1604,7 +1726,23 @@ class Doctor():
       yield Check('Kubernetes: image', ERROR, 'No image: the pods need one with `qa` and what your code needs.',
                   fix='runners:\n  kubernetes:\n    image: registry.example.com/your/image:tag')
       return
-    yield Check('Kubernetes: image', OK, self.options.image)
+    if not has_commit(self.options.image):
+      yield Check('Kubernetes: image', OK, self.options.image)
+      return
+    try:
+      image = commit_image(self.options.image, self.options.commit)
+    except ValueError as e:
+      yield Check('Kubernetes: image', ERROR, str(e))
+      return
+    configs = pull_secret_configs(self.kube, self.namespace, self.options.image_pull_secrets) if self.kube and not self.blocked else []
+    from .registry import local_docker_config
+    found = image_exists(image, [*configs, local_docker_config()])
+    if found.exists:
+      yield Check('Kubernetes: image', OK, f'{image}, this commit\'s image, is in its registry')
+    elif found.exists is False:
+      yield Check('Kubernetes: image', WARNING, f"No image for this commit yet: {found.why}. `qa batch` will refuse to start until the CI pushes {image}.")
+    else:
+      yield Check('Kubernetes: image', WARNING, f"Can't check that this commit's image exists ({image}): {found.why}.")
 
   def check_pull_secrets(self):
     if self.blocked or not self.kube:
@@ -1762,6 +1900,11 @@ class KubernetesRunner(BaseRunner):
       signal.signal(signal.SIGINT, abort)
 
     suffix = unique_suffix()
+    pod_options = [
+      dict_to_KubernetesOptions({**job_options, **{k: v for k, v in job.run_context.job_options.items() if k in pod_option_names}})
+      for job_options, jobs in groups for job in jobs
+    ]
+    check_commit_images(kube, namespace_of(kube, options), pod_options)
     try:
       for group_index, (job_options, jobs) in enumerate(groups):
         create_group(kube, job_options, jobs, group_index, created, suffix)
@@ -1803,31 +1946,38 @@ class KubernetesRunner(BaseRunner):
     return len(names)
 
   @classmethod
-  def submit_detached(cls, script: str, name: str, log_file: Path, job_options: Dict[str, Any]) -> Dict[str, Any]:
+  def submit_detached(cls, script: str, name: str, log_file: Path, job_options: Dict[str, Any],
+                      files: Optional[Dict[str, str]] = None, log_to_file: bool = True) -> Dict[str, Any]:
     """
     A 1-pod Job running `script` with sh, or with the interpreter of its #! line (e.g. #!/bin/bash: the image needs
     bash), with the batch's labels. No deadline. See BaseRunner.submit_detached.
     It's named qa-<name>-<random> (or <name>-<random> if `name` starts with qa-): the same name can be submitted again.
     While it's pending, why is in pending_log(log_file), e.g. log.pending.txt for log.txt.
+    Without a storage both see (the server's batches of projects without one):
+    - `files`: {absolute path in the pod: content}, written there before the script starts (e.g. the batches file);
+    - `log_to_file=False`: the pod doesn't write `log_file`, its output is in its logs, and the script sends it.
     """
     check_options(job_options)
     options = dict_to_KubernetesOptions(job_options)
     batch_selector(options.command_id) # it must be valid to stop it
     kube = connect(options)
     namespace = namespace_of(kube, options)
+    check_commit_images(kube, namespace, [options])
     suffix = unique_suffix()
     job_name = dns_name(name if name.startswith('qa-') else f'qa-{name}')[:63 - len(suffix) - 1].rstrip('-') + f'-{suffix}'
     log_file = Path(log_file)
     shebang = script.split('\n', 1)[0]
     interpreter = shlex.split(shebang[2:]) if shebang.startswith('#!') and shebang[2:].strip() else ['sh']
+    files_data, write_files = detached_files(files or {})
     run_sh = '\n'.join([
       '#!/bin/sh',
       '# A detached QA-Board job, see qaboard/runners/kubernetes.py',
-      *redirect_output(str(log_file), str(pending_log(log_file))),
+      *(redirect_output(str(log_file), str(pending_log(log_file))) if log_to_file else []),
+      *write_files,
       '. "$(dirname "$0")/env.sh"',
       f'exec {" ".join(shlex.quote(a) for a in interpreter)} "$(dirname "$0")/script"',
     ]) + '\n'
-    data = {'env.sh': env_script(run_env(options)), 'run.sh': run_sh, 'script': script}
+    data = {'env.sh': env_script(run_env(options)), 'run.sh': run_sh, 'script': script, **files_data}
     try:
       job = create_job(kube, options, namespace, job_name, data, command=['sh', f'{scripts_dir}/run.sh'], role=driver_role)
     except NameTaken:
@@ -1836,7 +1986,8 @@ class KubernetesRunner(BaseRunner):
       with cleaning_up(kube, f'kubectl delete job -n {namespace} {job_name}'):
         delete_jobs(kube, namespace, [job_name])
       raise
-    secho(f"Started the Kubernetes Job {job_name} in namespace {namespace}. Logs: {log_file}", err=True)
+    logs = log_file if log_to_file else f"kubectl logs -n {namespace} job/{job_name}"
+    secho(f"Started the Kubernetes Job {job_name} in namespace {namespace}. Logs: {logs}", err=True)
     wait_until_started(kube, namespace, job, log_file)
     return {'kubernetes_job': job_name, 'namespace': namespace, **({'context': options.context} if options.context else {})}
 

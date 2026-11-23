@@ -21,7 +21,7 @@ from ..git_hosts import git_hosts
 from ..git_utils import check_project_path
 from ..models import Project, CiCommit
 from ..settings import setting
-from ..audit import audit
+from ..audit import audit, capped, update_meta
 from .auth import login_required, require_project_access
 from ..access import can
 
@@ -306,8 +306,11 @@ def url_host_template(url: str):
   return netloc.partition(':')[0].lower() or None
 
 
-def configs_of(project_id, commit_id=None):
-  """The qaboard.yaml configurations whose integrations the web app shows for a project (and one of its commits)"""
+def configs_of(project_id, commit_id=None, with_batches=True):
+  """
+  The qaboard.yaml configurations whose integrations the web app shows for a project (and one of its commits, and
+  `with_batches` its batches': results send them, e.g. with batch tokens)
+  """
   project = Project.query.filter(Project.id == project_id).one_or_none()
   if not project:
     return
@@ -316,7 +319,7 @@ def configs_of(project_id, commit_id=None):
     ci_commit = CiCommit.query.filter(CiCommit.project_id == project_id, CiCommit.hexsha == commit_id).one_or_none()
     if ci_commit:
       yield None, (ci_commit.data or {}).get('qatools_config')
-      for batch in ci_commit.batches:
+      for batch in (ci_commit.batches if with_batches else []):
         yield None, (batch.data or {}).get('qatools_config')
 
 
@@ -518,8 +521,19 @@ def gitlab_play_manual_job():
   try:
     host, project_id = gitlab_project(data, 'runs.act')
     job = gitlab_job_named(host, project_id, data['commit_id'], data['job_name'])
-    # https://docs.gitlab.com/ee/api/jobs.html#run-a-job
-    r = host.api('POST', f"/projects/{project_id}/jobs/{job['id']}/play")
+    # It starts code in CI: recorded whether GitLab accepts or not
+    meta = {"repo": str(data.get('project_id'))[:200], "commit": str(data['commit_id'])[:100], "job_id": job['id'], "host": host.url}
+    try:
+      # https://docs.gitlab.com/ee/api/jobs.html#run-a-job
+      r = host.api('POST', f"/projects/{project_id}/jobs/{job['id']}/play")
+    except Exception as e:
+      audit('ci.gitlab_job_play', 'gitlab_job', job['id'], str(job['name'])[:200], project_id=data['project'], meta={**meta, "status": "error", "error": str(e)[:300]})
+      db_session.commit()
+      raise
+    audit('ci.gitlab_job_play', 'gitlab_job', job['id'], str(job['name'])[:200], project_id=data['project'], meta={
+      **meta, "status": "started" if r.ok else "refused", "status_code": r.status_code,
+    })
+    db_session.commit()
     return r.content, r.status_code
   except IntegrationError as e:
     return integration_error(e)
@@ -708,11 +722,23 @@ def github_workflow_dispatch():
     if not isinstance(data.get('ref'), str) or not data['ref']:
       raise IntegrationError("Missing `ref`: the branch or tag to run the workflow on", 400)
     dispatched_at = f"{datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=10):%Y-%m-%dT%H:%M:%SZ}"
-    # https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event
-    r = host.api('POST', f"/repos/{repo}/actions/workflows/{workflow}/dispatches", json={
-      "ref": data['ref'],
-      "inputs": data.get('inputs') or {},
+    # It starts code in CI: recorded whether GitHub accepts or not
+    meta = {"repo": repo, "ref": data['ref'][:200], "inputs": capped(data.get('inputs') or {}, items=20), "host": host.url}
+    target = ('github_workflow', data['workflow'], f"{repo}: {data['workflow']}"[:200])
+    try:
+      # https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event
+      r = host.api('POST', f"/repos/{repo}/actions/workflows/{workflow}/dispatches", json={
+        "ref": data['ref'],
+        "inputs": data.get('inputs') or {},
+      })
+    except Exception as e:
+      audit('ci.github_workflow_dispatch', *target, project_id=data['project'], meta={**meta, "status": "error", "error": str(e)[:300]})
+      db_session.commit()
+      raise
+    event = audit('ci.github_workflow_dispatch', *target, project_id=data['project'], meta={
+      **meta, "status": "started" if r.ok else "refused", "status_code": r.status_code,
     })
+    db_session.commit()
     if not r.ok:
       return r.content, r.status_code
     # GitHub doesn't tell us which run it started: we look for it for a few seconds
@@ -720,6 +746,9 @@ def github_workflow_dispatch():
       time.sleep(1.5)
       run = dispatched_run(host, repo, workflow, data['ref'], dispatched_at)
       if run:
+        # which run it started, likely (see dispatched_run)
+        update_meta(event, run_id=run['id'], run_url=run.get('html_url'))
+        db_session.commit()
         return jsonify(workflow_run_status(run))
     # The web app sends it back when it asks for the status, and we look again
     return jsonify({"status": "pending", "dispatched_at": dispatched_at})
@@ -870,6 +899,28 @@ def jenkins_jobs_owner(project_id):
   return f"the qaboard.yaml of {project_id}" if project_id else "the projects' qaboard.yaml"
 
 
+def batch_token_jenkins_limits(data, project_id, checking):
+  """
+  A batch token (tokens.mint_for_batch) starts the Jenkins builds of the windows runner for its batch: of its project
+  and commit, and only the jobs their qaboard.yaml lists, never any job on the Jenkins hosts we have credentials for.
+  Checking a build's status only says the status, on those hosts: `qa` doesn't say the project there.
+  None if it can (or it's not a batch token), else the response to return.
+  """
+  from .. import tokens
+  from ..actor import batch_token_refused
+  token = g.actor.token
+  if not tokens.is_batch_token(token) or checking:
+    return None
+  commit_id = data.get('commit') if isinstance(data.get('commit'), str) else None
+  build_url = data.get('build_url')
+  if not project_id or not tokens.batch_allows(token, project_id, commit_id, any_batch=True):
+    return batch_token_refused("start Jenkins builds outside of its project and commit")
+  # not the batches' qaboard.yaml: the token sends its batch's
+  if not isinstance(build_url, str) or not is_declared_jenkins_job(build_url, project_id, commit_id, with_batches=False):
+    return batch_token_refused(f"start Jenkins jobs that {jenkins_jobs_owner(project_id)} doesn't list (runners.jenkins.build_url, or jenkins integrations)")
+  return None
+
+
 def jenkins_trigger_access(data, checking=False):
   """None if the caller can start this Jenkins build (`checking`: check builds' status), else the response to return"""
   verb = "check" if checking else "start"
@@ -878,6 +929,8 @@ def jenkins_trigger_access(data, checking=False):
   if actor is not None and actor.user is not None:
     if actor.token is not None and not (actor.has_scope('act') or actor.has_scope('ingest')):
       return jsonify({"error": f"This token can't {verb} Jenkins builds: it needs the \"act\" or \"ingest\" scope.", "reason": "missing_scope", "required": "act"}), 403
+    if refused := batch_token_jenkins_limits(data, project_id, checking):
+      return refused
     if project_id:
       if not actor.allows_project(project_id):
         return jsonify({"error": f"This token can't access {project_id}.", "reason": "token_project"}), 403
@@ -934,10 +987,10 @@ def declared_jenkins_jobs() -> set:
     _declared_jenkins_jobs["at"] = time.time()
   return _declared_jenkins_jobs["build_urls"]
 
-def is_declared_jenkins_job(build_url, project_id=None, commit_id=None):
+def is_declared_jenkins_job(build_url, project_id=None, commit_id=None, with_batches=True):
   normalize = lambda url: url.strip().rstrip('/')
   if project_id:
-    configs = [config for _, config in configs_of(project_id, commit_id if isinstance(commit_id, str) else None)]
+    configs = [config for _, config in configs_of(project_id, commit_id if isinstance(commit_id, str) else None, with_batches=with_batches)]
     build_urls = {normalize(url) for config in configs for url in jenkins_jobs(config) if isinstance(url, str)}
   else:
     build_urls = declared_jenkins_jobs()

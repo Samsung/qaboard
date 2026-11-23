@@ -195,6 +195,10 @@ The viewer shows the run's tests as a tree, compared with the reference run's: n
 newly flaky and skipped tests, with each failure's message, trace and output. How people use it:
 [Test reports](/docs/user-guide/other-viewers#test-reports).
 
+To bring a report in from a CI job without writing a `run()`, `qa upload junit.xml` saves it as a run, with the
+counts of tests as metrics: see [Upload results from any tool](/docs/upload-results). From `run()`,
+`qaboard.junit.junit_metrics(path)` returns the same metrics.
+
 ```yaml title="qaboard.yaml"
 outputs:
   visualizations:
@@ -260,6 +264,59 @@ the step, the time in seconds since the epoch, and the values logged together.
   next to the full *series.jsonl*, so that the web app doesn't download the whole history.
 - A file with one of these names that isn't a series file is shown as text, with a line that says why.
 
+## Logged media {#media}
+**Files:** *media.jsonl* and the files it lists, written by [`run.log()` and `run.log_image()`,
+`log_audio()`...](/docs/log-from-code#media) in runs started from Python.
+
+The card shows them under **Logged media**, with one step slider for all of them, each next to the reference run's at
+the same step: images in the image viewer, sounds in the audio viewer, videos, tables, histograms over the steps,
+texts, HTML and Plotly figures. **For runs started from Python, it shows without a visualization in *qaboard.yaml***. List
+it yourself to place it elsewhere or to hide it by default:
+
+```yaml title="qaboard.yaml"
+outputs:
+  visualizations:
+    - name: Logged media
+      path: media.jsonl
+      type: media
+      default_hidden: true
+```
+
+Programs in any language can write the same files: the media in the run's folder, and a line per item in
+*media.jsonl*:
+
+```json
+{"_step": 1200, "_time": 1731500000.5, "key": "val/samples", "kind": "image", "index": 0, "path": "media/val/samples/1200_0.png", "caption": "cat", "width": 64, "height": 48, "boxes": [{"x": 3, "y": 4, "w": 20, "h": 10, "label": "cat", "score": 0.9}]}
+{"_step": 1200, "_time": 1731500000.6, "key": "weights/fc1", "kind": "histogram", "index": 0, "bins": [-1, 0, 1], "counts": [12, 30]}
+```
+
+<details>
+<summary>The fields of each kind</summary>
+
+- Every line: `_step` (an integer), `key`, `kind`, and `index`, the position in a list logged at that step (0 for one
+  value). `_time` (seconds since the epoch), `caption` and `id` are optional: `id` names the sample, to match it
+  across steps and runs, else the caption, else the index do. `path` is the file, relative to the run's
+  folder, with `/`.
+- `image`: `width` and `height` when known; `boxes` in pixels from the top left, with an optional `label`, `score`
+  and `group`. Boxes with `"units": "fraction"` are fractions of the image's size.
+- `audio`: `sample_rate`, `channels`, `duration` in seconds. `video`: `fps`.
+- `table`: `columns` and `rows` (how many). The file, *.table.json*, is `{"columns": [...], "data": [[...], ...]}`;
+  a cell that is a file is `{"kind": "image", "path": "media/..."}`.
+- `histogram`: `bins`, the n+1 edges, and `counts`, the n counts, in the line: no file.
+- `text`, `html`, `plotly` (*.plotly.json*) and `file`: only `path`.
+
+The same key, step and index written again replaces the item. Lines that don't parse, like a last line cut when the
+run was killed, and kinds the web app doesn't know are skipped.
+
+</details>
+
+## Audio {#audio}
+**Files:** *.wav*, *.mp3*, *.flac*, *.ogg*, *.opus*, *.m4a* and *.aac*, or any file with `type: audio`.
+
+The viewer draws the sound's waveform or its spectrogram, above the reference run's on the same time axis, and plays
+either at the same position: switch between them while it plays to hear the difference. It shows each sound's
+duration, sample rate, channels and levels. Formats the browser can't decode play in the browser's own player.
+
 ## Text {#text}
 **Files:** any file no other viewer opens, like *.txt*, *.json*, *.yaml* or *.log*, or `type: text/plain`.
 
@@ -282,21 +339,24 @@ transcript.
 **Files:** *.html*, e.g. reports your code renders.
 
 Each report shows in a frame of its own, the new run's above the reference's. Images and links relative to the HTML
-file work, and its styles don't change the page. The frame grows to fit the report once it loaded.
+file work, and its styles don't change the page. The frame is as wide as the card, and grows to fit the report once
+it loaded, up to the window's height: taller reports scroll in their frame. Change it with `style: {maxHeight: 2000px}`
+([sizes](/docs/visualizations#styles)).
 
 :::caution Scripts in HTML files
-By default, HTML and SVG files from runs show in QA-Board's origin: opened in a tab (from the file browser or a link),
-and figures saved as HTML in the run cards, their scripts run **as whoever opens them**, with their access. In the
-HTML viewer, reports show without their scripts. Anyone who can save a run can write such a file.
-
-Server admins close this by setting `QABOARD_SANDBOX_HTML=true`, for the backend and the proxy (with Docker Compose, in
-your env file or `.env`; with the helm chart, `config.QABOARD_SANDBOX_HTML`):
+Anyone who can save a run can write an HTML, SVG or XML file with scripts. So that they can't act as whoever opens
+them, QA-Board sandboxes them (`QABOARD_SANDBOX_HTML`, on by default since November 2026):
 - In the run cards, reports with scripts, and figures saved as HTML, run sandboxed, in an origin of their own: their
   scripts run (e.g. to draw charts) but can't read QA-Board's pages, cookies or local storage, or call its API as the
   user. What they load is requested without the user's session: if your server restricts who can read files, they
   can't load files of restricted projects. Reports without scripts load them as usual.
 - Opened in a tab, HTML and SVG files show in QA-Board's origin, but their scripts don't run. To see a report's
   charts, open it in QA-Board.
+
+Server admins who trust everyone who saves runs can turn it off, `QABOARD_SANDBOX_HTML=false` for the backend and the
+proxy (with Docker Compose, in your env file or `.env`; with the helm chart, `config.QABOARD_SANDBOX_HTML`): HTML and
+SVG files then run their scripts **as whoever opens them**, with their access, opened in a tab or as figures in the
+run cards. The HTML viewer then shows reports without their scripts.
 :::
 
 <Shot

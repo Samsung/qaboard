@@ -5,14 +5,14 @@ We start a single `qa batch --runs-file` for all the runs we redo, so that the r
 to them together, e.g. how many runs are in flight (concurrency). Like other batches started from QA-Board,
 its script, the list of runs and the logs are saved in the batch directory, and users see them with the batch's logs.
 
-With QABOARD_TUNING_RUNNER=kubernetes, `qa batch` runs in a pod, like batches started from the web app
-(runner_jobs.submit_driver), and we don't wait for it. With the LSF bridge, we run it there and wait. Otherwise it runs on
-the server, detached like batches started from the web app with the local runner (local_jobs.py): the request doesn't
-wait for it, and it gets the server's environment minus its secrets.
+Where `qa batch` runs is server_runner.redo_runner(). With QABOARD_TUNING_RUNNER=kubernetes, in a pod, like batches
+started from the web app (runner_jobs.submit_driver), and we don't wait for it. With the LSF bridge, we run it there and
+wait. With local or celery, on the server, detached like batches started from the web app with the local runner
+(local_jobs.py): the request doesn't wait for it, and it gets the server's environment minus its secrets. Otherwise
+(QABOARD_TUNING_RUNNER unset, or lsf without the bridge) we refuse, before writing anything.
 
 Note: almost everything used here comes from unauthenticated API calls (see shell_utils.py).
 """
-import os
 import re
 import json
 import uuid
@@ -20,10 +20,14 @@ import datetime
 import subprocess
 
 from backend import db_session
+from qaboard.conventions import Reason
 from .shell_utils import quote, is_shell_safe, safe_user_name, lsf_bridge_command
 from .storage import check_storage_path
 from .fs_utils import mkdir_shared
-from .artifacts import ArtifactsUnavailable
+from .artifacts import ArtifactsUnavailable, EXIT_TRAP, cd_lines, runner_unsupported
+from .server_runner import server_runner, redo_runner, refusal
+from . import tokens
+from .audit import audit, capped, update_meta
 from .submissions import record_submission, user_batch_dir, submission_dir, startup_logs
 
 
@@ -48,7 +52,7 @@ _lsf_resources_re = re.compile(r'^[\w .,:;=<>\[\](){}|&!*+/#%@~-]*$')
 def _is_runner(value) -> bool:
   # Kubernetes runs only when the server starts `qa batch` there too: its pod's ServiceAccount, not the server's
   # credentials, may create them. Otherwise they'd run as the server's user (run_as: user).
-  return value in ("lsf", "dask", "local", "celery") or (value == "kubernetes" and os.environ.get('QABOARD_TUNING_RUNNER') == 'kubernetes')
+  return value in ("lsf", "dask", "local", "celery") or (value == "kubernetes" and server_runner() == 'kubernetes')
 
 SAFE_JOB_OPTIONS = {
   "type": _is_runner,
@@ -95,24 +99,24 @@ def output_runner(output):
 def redo_script(ci_commit, user, command_id, batch_command) -> str:
   # CI results are saved under the CI user's folder (QABOARD_DEFAULT_USER), runs started here under the user's
   outputs_dir_prefix = str(user_batch_dir(ci_commit.outputs_dir, user))
-  artifacts_dir = str(ci_commit.artifacts_dir)
+  # without a shared storage, runs save their files in their copy of the artifacts, then send them (cd_lines)
+  shared = ci_commit.uploaded_artifacts_dir is None
   return '\n'.join([
     '#!/bin/bash',
     # Tells users how it went, like other batches started from QA-Board
-    'trap \'echo "[qaboard] qa batch exited with code $?"\' EXIT',
+    EXIT_TRAP,
     'set -ex',
     "export CI=true",
     f"export GIT_COMMIT={quote(ci_commit.hexsha)}",
-    f"export QA_OUTPUTS_COMMIT={quote(outputs_dir_prefix)}",
-    # backward compatibility with previous qa versions, remove later...
-    f"export QATOOLS_CI_COMMIT_DIR={quote(outputs_dir_prefix)}",
+    *([f"export QA_OUTPUTS_COMMIT={quote(outputs_dir_prefix)}",
+       # backward compatibility with previous qa versions, remove later...
+       f"export QATOOLS_CI_COMMIT_DIR={quote(outputs_dir_prefix)}"] if shared else []),
     "export QABOARD_TUNING=true",
     f'export QA_BATCH_COMMAND_ID={quote(command_id)}',
     "",
     # get the env right
     'umask 0',
-    f'mkdir -p {quote(artifacts_dir)}',
-    f'cd {quote(artifacts_dir)}',
+    *cd_lines(ci_commit),
     'set +ex',
     '[[ -f ".envrc" ]] && source .envrc',
     '[[ -f "../.envrc" ]] && source ../.envrc',
@@ -125,20 +129,34 @@ def redo_script(ci_commit, user, command_id, batch_command) -> str:
   ])
 
 
-def redo_outputs(batch, outputs, user_info) -> dict:
+def redo_outputs(batch, outputs, user_info, actor=None, selection=None) -> dict:
   """
-  Redo the `outputs` from `batch`, as `user_info` (the logged-in user who asked, g.user).
+  Redo the `outputs` from `batch`, as `user_info` (the logged-in user who asked, g.user, and `actor`, g.actor: the
+  batch's token is theirs, tokens.mint_for_batch).
   Returns the submission (see submissions.py): its status is "done" if `qa batch` could start the runs, "failed" otherwise,
   "submitted" when `qa batch` was started in a pod (QABOARD_TUNING_RUNNER=kubernetes) or still runs on the server.
-  Raises ValueError (e.g. UnsafePathError) if the user name or folders are not safe to use.
+  Raises ValueError (e.g. UnsafePathError) if the user name or folders are not safe to use, or the server redoes no runs.
+  `selection` says how the runs were chosen, for the audit log, e.g. {"only_failed": True}.
   """
   user = safe_user_name(user_info['user_name'])
   ci_commit = batch.ci_commit
   # We run code from there
   check_storage_path(ci_commit.artifacts_dir)
+  # redo_response refuses first, with its reason
+  if refused := refusal(redo=True):
+    raise ValueError(refused)
+  runner = redo_runner()
+  on_kubernetes = runner == 'kubernetes'
+  # first: no need to restore artifacts for runs that couldn't start
+  if problem := runner_unsupported(ci_commit, runner):
+    raise ArtifactsUnavailable(problem)
   # We never run from missing artifacts: e.g. without its qaboard.yaml, a subproject's runs would be saved in the parent project.
   # Raises ArtifactsUnavailable if they are missing and can't be restored right now.
   restored = ci_commit.ensure_artifacts(user=user_info)
+  if restored and restored.get("status") == "restored":
+    # code ran to restore them (artifacts.restore): saved even if the redo fails below
+    db_session.add(ci_commit)
+    db_session.commit()
 
   command_id = str(uuid.uuid4())
   created_at = datetime.datetime.utcnow()
@@ -164,7 +182,6 @@ def redo_outputs(batch, outputs, user_info) -> dict:
   script_path = log_dir / 'redo.sh'
   with script_path.open('w') as f:
     f.write(script)
-  on_kubernetes = os.environ.get('QABOARD_TUNING_RUNNER') == 'kubernetes'
   # raises if the user or path are not safe to use in the LSF bridge
   command = None if on_kubernetes else lsf_bridge_command(user, script_path)
 
@@ -175,7 +192,7 @@ def redo_outputs(batch, outputs, user_info) -> dict:
     "kind": "redo",
     "runs": len(outputs),
     # we run `qa batch` via the LSF bridge and wait for it, or start it on the server (detached) or in a pod
-    "runner": "kubernetes" if on_kubernetes else "bridge" if os.environ.get('QA_RUNNERS_LSF_BRIDGE') else "local",
+    "runner": runner,
     "command": batch_command,
     "log_dir": str(log_dir),
     "status": "submitting",
@@ -185,9 +202,22 @@ def redo_outputs(batch, outputs, user_info) -> dict:
     submission["warning"] = restored["message"]
   record_submission(batch, submission)
   db_session.add(batch)
+  # It runs code: recorded before it starts, with the submission, then with how it went
+  event = audit('batch.redo', 'batch', batch.id, batch.label, project_id=ci_commit.project_id, meta={
+    "commit": ci_commit.hexsha,
+    "runs": len(outputs),
+    "output_ids": capped([output.id for output in outputs]),
+    "runner": runner,
+    "command_id": command_id,
+    **(selection or {}),
+    "status": "submitting",
+  })
   db_session.commit()
 
   try:
+    # runs without a shared storage, or on servers that require tokens, send results with a token of the user. Until
+    # the batch is stopped: runs that were pending run again under their first command id, not this one
+    token = tokens.mint_for_batch(actor, ci_commit, command_id, runner, batch_label=batch.label, log_dir=log_dir, until_stopped=True)
     if on_kubernetes:
       from .runner_jobs import submit_driver
       def record_driver(driver):
@@ -196,9 +226,9 @@ def redo_outputs(batch, outputs, user_info) -> dict:
         record_submission(batch, submission)
         db_session.add(batch)
         db_session.commit()
-      submission.update(submit_driver(script_path, log_dir, user_info, ci_commit, command_id, on_prepared=record_driver))
+      submission.update(submit_driver(script_path, log_dir, user_info, ci_commit, command_id, on_prepared=record_driver, token=token))
       submission["status"] = "submitted"
-    elif os.environ.get('QA_RUNNERS_LSF_BRIDGE'):
+    elif runner == 'bridge':
       print(command)
       with (log_dir / 'log.txt').open('a') as log:
         process = subprocess.run(command, shell=True, stdout=log, stderr=subprocess.STDOUT)
@@ -206,15 +236,17 @@ def redo_outputs(batch, outputs, user_info) -> dict:
     else:
       from .local_jobs import start_detached, qa_environment, project_uses_celery
       # the runs are done again with their runner: they may need the broker
-      celery = (os.environ.get('QABOARD_TUNING_RUNNER') == 'celery' or project_uses_celery(ci_commit)
+      celery = (server_runner() == 'celery' or project_uses_celery(ci_commit)
                 or any(output_runner(output) == 'celery' for output in outputs))
-      submission.update(start_detached(script_path, log_dir, qa_environment(command_id, celery=celery)))
+      submission.update(start_detached(script_path, log_dir, qa_environment(command_id, celery=celery, token=token)))
   except Exception as e:
     submission.update({"status": "failed", "error": str(e)})
+    tokens.revoke_batch_tokens([command_id], reason="its batch failed to start")
   # `qa batch` updated the batch meanwhile
   db_session.refresh(batch)
   record_submission(batch, submission)
   db_session.add(batch)
+  update_meta(event, status=submission["status"], **capped({k: submission[k] for k in ("exit_code", "error") if k in submission}))
   db_session.commit()
   return submission
 
@@ -228,13 +260,16 @@ def log_tail(submission, size=4000) -> str:
   return submission.get('error', '') if logs is None else logs
 
 
-def redo_response(batch, outputs, user_info):
-  """The API's response when users ask to redo runs"""
-  from flask import jsonify
+def redo_response(batch, outputs, user_info, selection=None):
+  """The API's response when users ask to redo runs. `selection`: how they were chosen (only_failed...), for the audit log"""
+  from flask import jsonify, g
+  # before anything is restored or written
+  if refused := refusal(redo=True):
+    return jsonify({"error": refused, "reason": Reason.NO_SERVER_RUNNER}), 400
   if not outputs:
     return jsonify({"error": "There are no runs to redo."}), 400
   try:
-    submission = redo_outputs(batch, outputs, user_info)
+    submission = redo_outputs(batch, outputs, user_info, actor=g.get('actor'), selection=selection)
   except ArtifactsUnavailable as e:
     # we remember that the artifacts are missing, and that we asked to recreate them
     db_session.add(batch.ci_commit)
@@ -251,4 +286,7 @@ def redo_response(batch, outputs, user_info):
       "logs": log_tail(submission),
       "submission": submission,
     }), 500
-  return jsonify({"status": "OK", "submission": submission, "warning": submission.get("warning")})
+  # runs that ran code their commit doesn't have: redone, they run the commit (backend/local_changes.py)
+  from .local_changes import redo_warning
+  warning = ' '.join(w for w in (submission.get("warning"), redo_warning(outputs)) if w) or None
+  return jsonify({"status": "OK", "submission": submission, "warning": warning})

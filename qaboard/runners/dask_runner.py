@@ -510,6 +510,9 @@ def kubernetes_cluster_spec(options: DaskOptions, command_id: str, nb_runs: int)
   image = kwargs.pop('image', None) or k8s.get('image')
   if not image:
     raise ValueError("Set runners.kubernetes.image (or runners.dask.cluster.image): an image with qa, distributed and your code's dependencies.")
+  from .registry import commit_image
+  # an image per commit (not looked up in its registry, unlike the kubernetes runner's)
+  image = commit_image(image, k8s.get('commit'))
   resources = resources_spec(kwargs.pop('resources', None) or k8s.get('resources'))
   env = {k: str(v) for k, v in {**(k8s.get('env') or {}), **(kwargs.pop('env', None) or {})}.items()}
   # dask-kubernetes' defaults, `dask-worker` and `dask-scheduler`, were removed from recent versions of distributed

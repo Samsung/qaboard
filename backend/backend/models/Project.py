@@ -20,12 +20,16 @@ from sqlalchemy.orm.attributes import flag_modified
 
 import qaboard
 from qaboard.config import storage_roots
+from qaboard.conventions import is_upload_storage, storage_setting
 
 # "from X import Y" can cause circular import errors..
 from backend.models import Base, CiCommit  
 # import backend.models as models
 from backend import repos
+from .. import uploads
 from ..git_utils import git_pull
+
+from ..reference_branch import reference_branch_of
 from ..git_hosts.base import branch_from_ref
 from ..config import default_outputs_root, default_artifacts_root
 
@@ -100,8 +104,8 @@ class Project(Base):
   @property
   def protected_refs(self):
     # git references that are explicitely protected from deletion in qaboard.yaml
-    project_config = self.data.get("qatools_config", {}).get("project", {})
-    reference_branch = project_config.get("reference_branch", "master")
+    project_config = (self.data.get("qatools_config") or {}).get("project") or {}
+    reference_branch = reference_branch_of(self.data)
     return [
         reference_branch,
         *project_config.get("milestones", []),
@@ -190,10 +194,20 @@ def _storage_roots(project_id, id_git, id_relative, storage_config_json, qa_stor
   storage_config = json.loads(storage_config_json)
   try:
     # projects without storage settings, when the caller has no defaults: the server's
-    if storage_config is None:
+    # (`qa` sends such projects' files to us, like those with `storage: upload`: each run says where we saved it)
+    setting = storage_setting(storage_config, qa_storage)
+    if storage_config is None or not setting:
       outputs_root, artifacts_root, subproject_for_artifacts = default_outputs_root, default_artifacts_root, Path()
+    elif is_upload_storage(setting):
+      # `storage: upload`: the project's runs send us their files, and each run says where we saved it (backend/uploads.py).
+      # There is no storage of the project's own to read: its folder would be under the uploads'
+      outputs_root = artifacts_root = uploads.upload_root() or default_outputs_root
+      subproject_for_artifacts = Path()
     else:
       outputs_root, artifacts_root, subproject_for_artifacts = storage_roots(storage_config, Path(project_id), Path(id_relative), user_name=user_name)
+      # the folders' URLs need absolute paths
+      if not outputs_root.is_absolute() or not artifacts_root.is_absolute():
+        raise ValueError(f"the storage isn't an absolute path: {outputs_root}, {artifacts_root}")
   except Exception:
     print(f"WARNING: invalid storage settings for {project_id}, we use the server's: {traceback.format_exc()}")
     outputs_root = default_outputs_root
@@ -304,7 +318,7 @@ def update_project(data, db_session):
     #   It is only updated when there are changes on the "reference branch" (eg master, develop...)
     #   This said, we also update project-level data when it's the first time we get a QA-Board config for a project
     is_initialization = 'qatools_config' not in project.data
-    reference_branch = qatools_config['project'].get('reference_branch', 'master')
+    reference_branch = reference_branch_of(project.data, qatools_config)
     is_reference = branch == reference_branch
     if is_initialization or is_reference:
       project.data.update({'qatools_config': qatools_config,})

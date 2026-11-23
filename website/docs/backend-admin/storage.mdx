@@ -7,7 +7,8 @@ description: "Free disk space and keep the database small from the admin panel: 
 Free disk space and keep the database small from **Admin → Storage**: delete for good the runs users deleted, purge the
 runs whose files are gone, delete commits' artifacts, delete old results as each project's *qaboard.yaml* says, find
 and delete what QA-Board doesn't track, and schedule these jobs instead of keeping cron jobs on the server. Jobs run in
-the background: their page shows their progress, their log, and every error.
+the background: their page shows their progress, their log, and every error. The same tab lists the
+[storage locations](/docs/backend-admin/uploads#storage-locations): where projects' uploaded runs go.
 
 <Shot id="admin/storage" />
 
@@ -199,6 +200,12 @@ and says which schedule does it. Each run says why it failed (`data.failed_reaso
 
 Runs from before QA-Board recorded when runs start count from when they were created: a run redone just before the
 upgrade may look old. The dry run lists how many runs it would change, per project.
+
+### Runs that stop reporting {#silent-runs}
+Runs from recent `qa run` and `qaboard.start_run()` tell the server every two minutes that they still run. Those
+silent for `QABOARD_SILENT_RUN_TIMEOUT_MINUTES` (default `15`, `0`: never) are failed by the jobs worker, without
+waiting for **Fail stuck runs**, with the same kind of reason in **Runs activity**. A run that reports again runs
+again. Runs from older clients, and runs waiting in a queue, are left to **Fail stuck runs**.
 
 ## Schedule jobs
 Click **New schedule**, choose the job and its settings, and when it runs with a cron expression

@@ -457,6 +457,18 @@ UNAUTHENTICATED_ENDPOINTS = {
   ("outputs.py", "report_output_progress"),
   # scripts add metrics to runs (run.log_metrics() in the SDK): a token with the ingest scope is always required (ingest_access(require_token=True))
   ("outputs.py", "add_output_metrics"),
+  # runs without a storage shared with the server send their files (backend/uploads.py): a token that can send results
+  # to the project is always required (ingest_access(require_token=True)), only for runs that are running
+  ("outputs.py", "upload_output_file"),
+  # `qa save-artifacts` without a shared storage sends a commit's artifacts (api/commit_artifacts.py): the same token,
+  # always, into a folder the server chooses for a commit it already knows
+  ("commit_artifacts.py", "upload_commit_artifact"),
+  # the driver pod of a batch QA-Board started, without a shared storage, sends its log (qa send-batch-log): only with
+  # that batch's own token (ingest_access(require_token=True)), into the folder the server chose when it started it
+  ("batch.py", "append_submission_log"),
+  # nginx asks it before it receives a file (snippets/qaboard-uploads-auth.conf): it only says whether the request has
+  # a token that can send results. The endpoints above check the project
+  ("outputs.py", "authorize_upload"),
   # the web app and the CLI send usage events (backend/usage.py): the CLI's are unverified without a token, dropped
   # when ingest.auth is "token", like results. Anonymous events have no user, they're counted and never resolved.
   ("usage.py", "usage_events"),
@@ -1442,6 +1454,16 @@ def test_responses_say_browsers_must_not_guess_their_type(dummy_app):
     assert after_request(response).headers.getlist("X-Content-Type-Options") == ["nosniff"]
 
 
+def test_batch_tokens_only_change_what_batches_send():
+  """The endpoints batch tokens can call to change something (actor.BATCH_TOKEN_ENDPOINTS) exist: a typo would refuse them"""
+  from backend.actor import BATCH_TOKEN_ENDPOINTS
+  api = Path(__file__).parent.parent / "backend" / "api"
+  defined = {node.name for f in api.glob("*.py") for node in ast.parse(f.read_text()).body if isinstance(node, ast.FunctionDef)}
+  assert sorted(BATCH_TOKEN_ENDPOINTS - defined) == []
+  # what `qa save-artifacts` sends isn't for them, nor what users start or delete
+  assert not BATCH_TOKEN_ENDPOINTS & {"upload_commit_artifact", "start_tuning", "redo_batch", "stop_batch", "delete_batch", "request_project_access"}
+
+
 def test_auth_module_defines_each_name_once():
   # a decorator named like a helper silently replaced it once (signed_in): sign-ins weren't audited anymore
   tree = ast.parse((Path(__file__).parent.parent / "backend" / "api" / "auth.py").read_text())
@@ -1459,6 +1481,8 @@ UNCHECKED_PROJECT_ROUTES = {
   ("admin.py", "admin_audit"), ("admin_access.py", "admin_grants"), ("admin_access.py", "admin_delete_grant"),
   ("admin_jobs.py", "admin_estimate_job"), ("admin_jobs.py", "admin_jobs_projects"), ("admin_jobs.py", "admin_job_errors"),
   ("admin_jobs.py", "admin_job_errors_csv"), ("usage.py", "admin_usage_projects"),
+  # which projects' uploaded runs a storage location takes: a list admins edit, it reads no project
+  ("admin_storage_locations.py", "admin_add_storage_location"), ("admin_storage_locations.py", "admin_change_storage_location"),
   # storage usage: filters_from limits them to the projects users can read (allowed_projects), and users only
   # delete their own runs. Their deletions' errors are about their own runs.
   ("storage.py", "storage_overview"), ("storage.py", "storage_delete"), ("storage.py", "storage_job_errors"),
@@ -1470,10 +1494,14 @@ UNCHECKED_PROJECT_ROUTES = {
   ("access.py", "request_project_access"),
   # "project" is a word in their answers, not a project they read
   ("auth.py", "get_current_user"), ("sign_in.py", "my_access_request"), ("tokens.py", "new_token"),
+  # whether actions show in projects' history: it reads no project
+  ("audit_log.py", "audit_actions"),
   # users and groups to pick from: it leaves out projects' service accounts, it reads no project
   ("access.py", "directory"),
   # it reads no project: it says which projects the token it mints is restricted to (the service account's)
   ("ci_trust.py", "token_exchange"),
+  # it reads no project: whether a token can send results at all, before nginx receives a file
+  ("outputs.py", "authorize_upload"),
   # login_required checks ?project=, the only project it reads
   ("tuning.py", "check_tuning"), ("integrations.py", "proxy_webook"),
 }

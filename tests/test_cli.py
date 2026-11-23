@@ -7,6 +7,7 @@ from pathlib import Path
 import yaml
 import unittest
 import click
+from contextlib import nullcontext
 from click.testing import CliRunner
 
 os.environ['QA_TESTING'] = 'true'
@@ -58,7 +59,12 @@ class TestQaCli(unittest.TestCase):
       import qaboard
       qaboard = reload(qaboard)
       runner = CliRunner()
-      result = runner.invoke(qaboard.qa, argv, obj={}, auto_envvar_prefix='QA', color=False)
+      # qa always shares results when it can (config.default_share): `--share` in these tests means a machine that can,
+      # whose results go to the storage, without a server (QA_OFFLINE)
+      from unittest import mock
+      can_share = mock.patch('qaboard.qa.default_share', return_value=(True, None)) if '--share' in argv else nullcontext()
+      with can_share:
+        result = runner.invoke(qaboard.qa, argv, obj={}, auto_envvar_prefix='QA', color=False)
       if result.exception:
         print("EXCEPTION: ", result.exception)
       if result.exc_info and result.exception:
@@ -236,6 +242,26 @@ class TestQaCli(unittest.TestCase):
       assert {'input_path', 'configurations', 'extra_parameters', 'platform', 'database'} <= set(runs[0])
 
   @unittest.skipIf(os.name == 'nt', "no SIGTERM")
+  @unittest.skipIf(os.name != 'posix', 'on Windows, log.txt has only what Python prints')
+  def test_run_logs_what_executables_print(self):
+    """log.txt has what the executables a run starts write themselves, not only what python prints"""
+    import sys
+    import tempfile
+    import subprocess
+    with tempfile.TemporaryDirectory() as tmp:
+      output_dir = Path(tmp) / 'output'
+      command = [sys.executable, '-c', 'from qaboard.qa import main; main()', 'run', '-i', 'cli_tests/a.jpg', '-o', str(output_dir),
+                 # what the shell prints isn't in the command: $((6*7))
+                 'echo stdout-$((6*7)); echo stderr-$((6*7)) >&2']
+      env = {k: v for k, v in os.environ.items() if k != 'QA_NO_STREAM_REDIRECT'}
+      process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', env=env, timeout=60)
+      self.assertEqual(process.returncode, 0, process.stdout)
+      log = (output_dir / 'log.txt').read_text()
+      # still printed, once
+      self.assertEqual(process.stdout.count('stdout-42'), 1, process.stdout)
+      self.assertIn('stdout-42\nstderr-42\n', log)
+      self.assertIn("'is_failed': False", log)
+
   def test_aborted_run_is_failed(self):
     """LSF sends SIGINT then SIGTERM when users bkill the job or it uses too much memory: the run says it failed"""
     import sys
@@ -251,7 +277,8 @@ class TestQaCli(unittest.TestCase):
         try:
           log = output_dir / 'log.txt'
           deadline = time.time() + 30
-          while not (log.exists() and 'sleep 30' in log.read_text()) and time.time() < deadline:
+          # what run() prints first: the header, with the command, comes before qa catches interrupts
+          while not (log.exists() and 'Edit qa/main.py' in log.read_text()) and time.time() < deadline:
             time.sleep(0.1)
           process.send_signal(signo)
           output, _ = process.communicate(timeout=20)
@@ -325,6 +352,25 @@ class TestQaCli(unittest.TestCase):
     self.assertEqual(click.unstyle(result.output).strip().splitlines()[-1], 'ERROR: QA-Board refused the results (token_expired): they were not saved. '
                      f'Set QABOARD_TOKEN to a valid token with the ingest scope for {Path(config.project).as_posix()}.')
 
+  def test_run_in_ci_when_the_server_never_gets_its_end(self):
+    from unittest import mock
+    self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"') # loads the modules
+    qa_module = import_module('qaboard.qa')
+    env = {k: v for k, v in os.environ.items() if k not in ('QA_OFFLINE',)}
+    # the server took the run's start, then was away: notify_qa_database warned and gave up
+    def notify(**kwargs):
+      return {'id': 1} if kwargs.get('is_running') else None
+    with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(qa_module, 'is_ci', True), \
+         mock.patch('qaboard.api.results_refused', None), mock.patch.object(qa_module, 'notify_qa_database', side_effect=notify):
+      # in a shared storage, the run keeps its files: a warning only
+      result = self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"', reload_modules=False)
+      self.assertEqual(result.exit_code, 0, result.output)
+      # sent to the server, its results are lost
+      with mock.patch.object(qa_module, 'uploads_files', True), mock.patch.object(qa_module, 'run_reporter', return_value=mock.MagicMock(files_sent=True, files_missing=0)):
+        result = self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"', reload_modules=False)
+    self.assertEqual(result.exit_code, 1, result.output)
+    self.assertIn("QA-Board doesn't know how the run ended", result.output)
+
   def test_batch_in_ci_when_the_server_refuses_results(self):
     from unittest import mock
     from tests.test_auth import response
@@ -346,6 +392,27 @@ class TestQaCli(unittest.TestCase):
     self.assertEqual(output.count('This server only accepts results sent with a token.'), 1)
     self.assertEqual(output.strip().splitlines()[-1], 'ERROR: QA-Board refused the results (ingest_token_required): they were not saved. '
                      f'Set QABOARD_TOKEN to a valid token with the ingest scope for {Path(config.project).as_posix()}.')
+
+  def test_batch_sends_a_snapshot_of_its_batches(self):
+    """QA-Board keeps the batches as they ran, filtered to what ran, and how to run them again"""
+    from unittest import mock
+    self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--list') # loads the modules
+    qa_module = import_module('qaboard.qa')
+    env = {k: v for k, v in os.environ.items() if k not in ('QA_OFFLINE',)}
+    # we stop when the command is sent, before any run
+    args = ('batch', '--batches-file', 'image.batches.yaml', 'images', '--tuning-search', '{"parameter_search": {"a": [1, 2]}}')
+    with mock.patch.dict(os.environ, env, clear=True), mock.patch('sys.argv', ['/venv/bin/qa', *args]), mock.patch.object(qa_module, 'is_ci', True), mock.patch.object(qa_module, 'get_outputs', return_value={}), \
+         mock.patch.object(qa_module, 'notify_qa_database', side_effect=SystemExit(3)) as notify:
+      result = self.qa(*args, reload_modules=False)
+    self.assertEqual(result.exit_code, 3, result.output)
+    command = next(iter(notify.call_args.kwargs['command'].values()))
+    self.assertEqual(command['tuning_search'], {"parameter_search": {"a": [1, 2]}})
+    snapshot = command['batches_snapshot']
+    self.assertEqual(snapshot['batches'], ['images'])
+    self.assertEqual(snapshot['names'], ['images'])
+    self.assertEqual(snapshot['files'], ['image.batches.yaml'])
+    self.assertIn('images', yaml.safe_load(snapshot['yaml']))
+    self.assertEqual(snapshot['reproduce'], ['qa', 'batch', '--batches-file', 'batches.yaml', 'images', '--tuning-search', '{"parameter_search": {"a": [1, 2]}}'])
 
   def test_get(self):
     result = self.qa('get', 'commit_id')
@@ -879,11 +946,7 @@ class TestQaCli(unittest.TestCase):
     print('stdout:', result.stdout)
     print('stderr:', result.stderr)
     assert result.exit_code == 0
-    # we test with --share, but really being offline is a problem here..
-    result = self.qa('--share', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{input_path} => {output_dir}"')
-    print('stdout:', result.stdout)
-    print('stderr:', result.stderr)
-    assert result.exit_code == 0
+    # shared batches with the local runner: tests/test_upload_command.py, with a server
 
 
   def test_batch_prints_the_results_url_at_the_start_and_the_end(self):

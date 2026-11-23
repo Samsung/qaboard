@@ -24,7 +24,7 @@ import { LoginMenuItem } from "./authentication/login";
 import { CommitAvatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
 import { LazyPopover, LazyTooltip } from "./LazyPopover";
-import { format, shortId, pretty_label, metric_info } from "../utils";
+import { format, shortId, pretty_label, metric_info, is_placeholder_commit } from "../utils";
 import { commit_url as git_commit_url } from "../git"
 import { milestones_of, milestone_name } from '../milestones/api'
 import { useMilestones } from '../milestones/hooks'
@@ -139,7 +139,7 @@ const commit_page = (project, commit, label) => {
 
 
 const CommitResults = ({ project, project_data = {}, commit, className, default_batch = "default" }) => {
-    let incomplete_data = commit.message === undefined || commit.message === null;
+    let incomplete_data = (commit.message === undefined || commit.message === null) && !is_placeholder_commit(commit.id);
     if (incomplete_data)
       return <span></span>
 

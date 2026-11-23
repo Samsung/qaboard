@@ -256,7 +256,7 @@ function BatchPreview({ project, commit, file_names, file_labels, files_context,
       .then(({ data }) => {
         if (id !== request.current) return;
         const { warnings = [], files = [], definitions = [] } = data;
-        setState({ loading: false, tests: data.tests ?? [], error: data.error ?? null, report: { name, warnings, files, definitions } });
+        setState({ loading: false, tests: data.tests ?? [], error: data.error ?? null, report: { name, warnings, files, definitions, unlisted: !!data.unlisted } });
       })
       .catch(error => {
         if (id !== request.current) return;
@@ -299,7 +299,7 @@ function BatchPreview({ project, commit, file_names, file_labels, files_context,
 
         {!state.loading && <BatchWarnings
           warnings={report?.warnings}
-          title={state.tests?.length === 0 ? "Why there are no tests" : "Check the batch files"}
+          title={state.tests?.length === 0 && !report?.unlisted ? "Why there are no tests" : "Check the batch files"}
           style={{ marginBottom: 12 }}
         />}
 
@@ -310,13 +310,15 @@ function BatchPreview({ project, commit, file_names, file_labels, files_context,
         {state.loading && <Spinner size={30} />}
 
         {state.tests !== null && !state.loading && (tests.length === 0
-          ? !state.error && <NonIdealState
+          ? !state.error && (report?.unlisted
+            ? <NonIdealState icon="code" title="Tests not listed" description="QA-Board can't list them without running the project's code: see above." />
+            : <NonIdealState
               icon="search"
               title="No tests"
               description={is_defined
                 ? <>The server found none of the inputs of <code>{report.name}</code>.</>
                 : <>No batch matches <code>{report?.name ?? query}</code> on this commit. Check its name, or save the file that defines it.</>}
-            />
+            />)
           : <>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <strong>{tests.length} test{tests.length === 1 ? "" : "s"}</strong>

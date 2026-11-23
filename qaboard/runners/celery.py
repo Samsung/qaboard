@@ -10,15 +10,15 @@ from .base import BaseRunner
 from .job import Job
 from ..checks import Check
 # is_secret: imported from here by other modules. The filter is shared by the runners (env.py)
-from .env import is_secret
+from .env import is_secret, is_batch_token
 
 
 def without_secrets(forward_secrets: Optional[Iterable[str]] = None) -> Dict[str, str]:
   """
-  qa's environment, minus the variables that likely hold secrets (env.py's is_secret, from their name or value):
-  the runs get it. `forward_secrets` (runners.celery.forward_secrets) names variables to forward anyway.
+  qa's environment, minus the variables that likely hold secrets (env.py's is_secret, from their name or value), but
+  the token of the batch QA-Board started (is_batch_token): the runs get it. `forward_secrets` (runners.celery.forward_secrets) names variables to forward anyway.
   """
-  env = {k: v for k, v in os.environ.items() if not is_secret(k, v)}
+  env = {k: v for k, v in os.environ.items() if not is_secret(k, v) or is_batch_token(k, v)}
   for name in forward_secrets or ():
     if name in os.environ:
       env[name] = os.environ[name]

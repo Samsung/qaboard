@@ -24,11 +24,11 @@ spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets: {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with include "qaboard.backendServiceAccount" . }}
-      serviceAccountName: {{ . }}
+      # Always named: with none, Kubernetes keeps the previous one (from the deprecated `serviceAccount` field), e.g. the
+      # one the chart deleted when runners.kubernetes was turned off, and the pods can't start
+      serviceAccountName: {{ include "qaboard.backendServiceAccount" . | default "default" }}
       # runners.kubernetes: it starts and stops runs with the Kubernetes API
-      automountServiceAccountToken: {{ $.Values.runners.kubernetes.enabled }}
-      {{- end }}
+      automountServiceAccountToken: {{ .Values.runners.kubernetes.enabled }}
       {{- with .Values.backend.podSecurityContext }}
       securityContext: {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -175,4 +175,26 @@ spec:
       resource:
         name: cpu
         target: {type: Utilization, averageUtilization: {{ .Values.backend.autoscaling.targetCPUUtilizationPercentage }}}
+{{- end }}
+---
+{{- if .Values.backend.networkPolicy.enabled }}
+# The uwsgi port trusts what nginx says (QABOARD_UPLOAD_CHECKED, REMOTE_ADDR...): only the proxy reaches it
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "qaboard.fullname" . }}-backend
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {{- include "qaboard.selectorLabels" (list . "backend") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {{- include "qaboard.selectorLabels" (list . "proxy") | nindent 14 }}
+      ports:
+        - {port: uwsgi}
+    # health checks; HTTP clients can't pass uwsgi variables
+    - ports:
+        - {port: http}
 {{- end }}

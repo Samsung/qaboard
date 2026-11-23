@@ -17,7 +17,7 @@ import {
 
 import { OutputViewer } from "./OutputViewer";
 import { config_visualizations } from "./controls";
-import { is_visualization_shown, run_shown, with_logged_series } from "./runView";
+import { is_visualization_shown, run_shown, with_run_files } from "./runView";
 import { MetricsTags } from "../components/metrics";
 import { ConfigurationsTags, OutputTags, PlatformTag, StatusTag, RunBadges, style_skeleton } from '../components/tags'
 import { runTime } from '../components/RunInfoMenu'
@@ -190,6 +190,8 @@ const CompactHeader = styled.div`
 `;
 
 const configuration_popover_style = { padding: 8, maxWidth: 600 };
+// like the batch Summary's "Logged series" (SeriesComparison.jsx)
+const automatic_heading_style = { margin: "14px 0 4px", fontSize: 14 };
 
 const OutputHeader = ({ project, commit, output, output_ref, type, manifests, style, prefix, viewable, compact }) => {
   const tags = <OutputTags
@@ -445,19 +447,19 @@ const OutputCard = memo(function OutputCard(props) {
   const error = { new: query_new.error, reference: query_ref.error, parse: parse_errors.length > 0 ? parse_errors : undefined, registration: registration_error };
 
   const configured_views = config_visualizations(config?.outputs);
-  // Runs that logged series (run.log() in Python) show them without anything in qaboard.yaml, before the project's
-  // visualizations. Projects that list the file themselves choose where it goes, and whether it starts hidden.
-  const views = with_logged_series(configured_views, manifest_new, output_new);
+  // Runs created from code show the series they logged and their test reports, benchmarks and profiles without
+  // anything in qaboard.yaml, before the project's visualizations
+  const views = with_run_files(configured_views, manifest_new, output_new);
   // what users chose in the view options, else what the run asks to show (its `view`), else the project's defaults
   const shown_by_run = run_shown(output_new, views);
-  // the logged series aren't one of the project's visualizations: what runs ask to show doesn't hide them
-  const is_shown = view => view.logged_series || is_visualization_shown(view, controls, shown_by_run);
+  // those aren't the project's visualizations: what runs ask to show doesn't hide them
+  const is_shown = view => view.automatic || is_visualization_shown(view, controls, shown_by_run);
 
   // we display the input for each option before the first visualization that uses it
   const already_shown_options = new Set();
   const render_view = (view, idx) => {
     if (!is_shown(view))
-      return <span key={idx} />
+      return null;
 
     const view_options = Object.entries(shown_options).filter(([, option]) => option.views?.includes(view.name));
     // inputs for unsynced options, and why we don't show the selected value, come before the first visualization that uses the option
@@ -519,7 +521,7 @@ const OutputCard = memo(function OutputCard(props) {
       if (!new_available && path?.endsWith('.png'))
         new_available = !!manifest_new?.[path.replace(/\.png$/i, '.tiff')];
       if (!new_available)
-        return <span key={key}/>
+        return null;
 
       // For the reference: only fallback if the exact file doesn't exist
       let path_ref = path;
@@ -577,6 +579,7 @@ const OutputCard = memo(function OutputCard(props) {
           {...view}
           {...controls}
           onControlsChange={onControlsChange}
+          project={project}
           path={path}
           path_ref={path_ref}
           style={{ ...style, ...view.style }}
@@ -587,8 +590,13 @@ const OutputCard = memo(function OutputCard(props) {
         />
       </div>
     })
+    // what the app adds by itself (runs created from code) says what it is: "Logged series", "Logged media"...
+    const heading = view.automatic && view.name && viewers.some(Boolean)
+      ? <h4 className={`${Classes.HEADING} qa-automatic-view-heading`} style={automatic_heading_style}>{view.name}</h4>
+      : null;
     return <Fragment key={idx}>
       {options_inputs}
+      {heading}
       {viewers}
     </Fragment>
   }
@@ -628,14 +636,22 @@ const OutputCard = memo(function OutputCard(props) {
         added_metrics={output_new.added_metrics}
         metrics_ref={output_ref?.metrics && output_ref.id !== output_new.id ? output_ref.metrics : {}}
       />
-      {views.map(render_view)}
+      {/* one visualization under the other, with room between them */}
+      <div className="output-card-views">{views.map(render_view)}</div>
+      {/* the run's files are loaded, and there is nothing to show: say where its results are rather than an empty card */}
+      {views.length === 0 && query_new.isSuccess && !output_new.is_pending && !output_new.is_failed && <p className={Classes.TEXT_MUTED} style={{ margin: '8px 0 0' }}>
+        Nothing to show here: the project declares no visualizations, and this run logged no series.
+        {' '}<Button size="small" variant="minimal" icon="folder-open" text="Its files" onClick={() => updateSelected({ selected_views: 'bit-accuracy' })}/>
+        <Button size="small" variant="minimal" icon="console" text="Its logs" onClick={() => updateSelected({ selected_views: 'logs' })}/>
+      </p>}
     </>
   }
 
   const container_style = {
     flex: "0 0 auto",
-    // as wide as the page allows, up to outputs.style.width in qaboard.yaml, else 1500px
-    width: at_most(style.width || '1500px'),
+    // the whole row: one card under the other. With outputs.style.width in qaboard.yaml, at most that wide: narrow
+    // cards then sit side by side, as many as fit
+    width: at_most(style.width) ?? '100%',
     // wider when a viewer needs it, e.g. a plot wider than outputs.style.width: it would spill out of the card
     minWidth: 'min-content',
     marginBottom: "250px !important",

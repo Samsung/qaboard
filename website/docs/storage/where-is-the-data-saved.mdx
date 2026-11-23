@@ -8,9 +8,10 @@ description: Where qa saves your runs' files and your builds, how to set the res
 `qa` saves your runs' output files in folders, and the QA-Board server reads them there to show them in the web app.
 This page sets where they go.
 
-- **Local runs**, without `--share` and outside CI, are saved in your project, under `output/`. Only you see them.
-- **Shared runs**, with `qa --share` or in CI, are saved in the results **storage**, a folder that the server and every
-  machine running `qa` mount at the same path, often an NFS share.
+- **Local runs**, with `--offline` or without a server, are saved in your project, under `output/`. Only you see them.
+- **Shared runs**, by default, are saved in the results **storage**, a folder that the server and every
+  machine running `qa` mount at the same path, often an NFS share. Where machines can't mount it, they
+  [send their files to the server](/docs/storage/uploads) instead (experimental).
 - **Artifacts**, the files a commit needs to run again, like its build, are saved in the storage too (see
   [Artifacts](/docs/storage/artifacts)). They let people start runs and tuning from the web app.
 - **Metadata**, like the runs' metrics and the commits, is in the server's database.
@@ -25,11 +26,13 @@ storage:
 
 The `QA_STORAGE` environment variable wins over it, e.g. `export QA_STORAGE=/tmp/qaboard` for the
 [quickstart](/docs/get-started/quickstart)'s server, which reads results there. If your organization's site package
-[sets a `storage`](/docs/project-init#site-defaults), you don't need one.
+[sets a `storage`](/docs/project-init#site-defaults), you don't need one. Without any `storage`, or with
+`storage: upload`, shared runs are [sent to the server](/docs/storage/uploads).
 
 `qa` creates the folder if it doesn't exist. When it can't, the commands that use it stop with *The storage path
-does not exist*: `qa --share`, CI runs, `qa save-artifacts`, `qa check-bit-accuracy` and `qa optimize`. The others
-only warn: local runs save their results in your project's `output/` folder. The server must mount the storage too,
+does not exist*: `qa --share`, CI runs, `qa save-artifacts`, `qa check-bit-accuracy` and `qa optimize` (without a storage, they
+[work over HTTP](/docs/storage/uploads#limits)). The others
+only warn: runs from your computer then save their results in your project's `output/` folder. The server must mount the storage too,
 at the same path: see [Starting a server](/docs/deploy#create-a-directory-to-store-results).
 
 Under the storage, each commit's results are in `<project>/<first 2 characters of the commit>/<next 14>/`, e.g.
@@ -72,14 +75,15 @@ wouldn't find the artifacts that the CI saved.
 
 ## When a run is done again {#reruns}
 Shared and CI results are not replaced in place: when the same run (commit, label, input, configuration) is done
-again, `qa` saves it in a new folder. It removes the files of the previous attempt, and moves its log to the new
-folder.
+again, `qa` saves it in a new folder. It removes the files of the previous attempt, and moves its logs to the new
+folder: its *log.txt*, and its runner's, like *log.lsf.txt* with LSF's report of why it ended the job.
 
 ```text
 output/<configuration>/<input>/                         the first attempt's folder
 output/<configuration>/<input>/latest_attempt.txt       "3": the run was done again, its results are in...
 output/<configuration>/<input>_attempt3/                ...the third attempt's folder
 output/<configuration>/<input>_attempt3/log.attempt2.txt    with the logs of the attempts before it, the last 10
+output/<configuration>/<input>_attempt3/log.attempt2.lsf.txt    and their runners' logs
 ```
 
 `output/` is the CI's results (label `default`); other labels are in `output/<label>/`. After a run is done again,

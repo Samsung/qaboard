@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import { reference_branch_of } from '../defaults';
 import { useQueryClient } from "@tanstack/react-query";
 
 import {
   Alert,
+  Callout,
   Classes,
   Icon,
   Intent,
@@ -32,13 +34,16 @@ import { CommitMilestoneButton } from "../milestones/CommitMilestone"
 import { milestone_name, milestones_of, milestone_selection_changes, stack_milestone_changes, prefetch_milestone } from "../milestones/api"
 import { useMilestones } from "../milestones/hooks"
 
-import { shortId, pretty_label } from "../utils";
+import { shortId, pretty_label, is_placeholder_commit } from "../utils";
 import { http, errorMessage, isArtifactsError } from "../api/http";
 import { commitQuery } from "../api/queries";
 import { useRefreshCommit, useUrlText, updateSelected, useSiteConfig, useUser } from "../hooks";
 import { is_default_name, remove_reference, switch_new_and_reference } from "../selection";
 import { LoginMenuItem } from "./authentication/login";
+import { redo_local_note } from "./LocalChanges/localChanges";
 import { toaster } from "../toaster"
+import { history } from "../router"
+import { target_audit_location } from "../projectAdmin/api"
 import { track } from "../analytics"
 import { copyDirectory } from "./logs/DirectoryActions"
 import { hasPathMappings } from "../utils/paths"
@@ -49,6 +54,8 @@ import { CopyLinkButton } from "./CopyLinkButton"
 const CommitMessage = ({ commit, error, style: extra_style }) => {
   const style = { whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', ...extra_style }
   if (!commit?.message) {
+    if (is_placeholder_commit(commit?.id))
+      return <span className={Classes.TEXT_MUTED} style={style} title="qaboard.start_run() and qa upload attach the runs they start outside a git repository to a commit of their own, per user. Pass commit= to attach them to a real one.">Runs outside a git repository</span>
     if (error)
       return <span className={Classes.TEXT_MUTED} style={style}>{error.startsWith('404') ? "Commit not found" : "Could not load this commit"}</span>
     return <span className={Classes.SKELETON} style={style}>This is a placeholder for the commit message. Yep.</span>
@@ -61,7 +68,7 @@ const CommitMessage = ({ commit, error, style: extra_style }) => {
 const CommitBranchButton = ({ commit, error, onClick, style }) => {
   const has_branch = !!commit?.branch
   // we won't learn the branch: no placeholder
-  if (!has_branch && error)
+  if (!has_branch && (error || is_placeholder_commit(commit?.id)))
     return null
   return <span style={style}>
     <Tooltip content={<span>Click to select the latest commit from <code>{has_branch ? commit.branch : 'the branch'}</code></span>}>
@@ -447,8 +454,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
   const switchSelection = () => updateSelected(switch_new_and_reference(selected))
 
 
-  const qatools_config = project_data?.data?.qatools_config
-  const reference_branch = qatools_config?.project?.reference_branch ?? 'master';
+  const reference_branch = reference_branch_of(project_data);
 
   const is_milestone = milestones_of(milestones, {project: selected[project_attr] ?? project, commit: commit?.id, batch: batch?.label ?? 'default'}).length > 0
   // The Change menu: quick actions, then the milestones to pick from
@@ -492,6 +498,10 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
   const has_selected_batch = !!commit?.batches && !!batch && Object.keys(commit.batches).includes(batch.label)
   // With a filter, we only redo the runs that match it
   const redo_counts = (batch_filter ? batch?.filtered : batch) ?? {}
+  // runs that ran local changes run their commit without them when redone: the confirmation says so
+  const redo_note = confirming === 'redo-all'
+    ? redo_local_note((batch_filter ? (batch?.filtered?.outputs ?? []) : Object.keys(batch?.outputs ?? {})).map(id => batch?.outputs?.[id]).filter(Boolean))
+    : null
   const error_text = commit?.error ? commit_error_text(commit.error) : ''
   const confirmation = confirmations[confirming]
   const confirmation_counts = {
@@ -506,6 +516,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
     <li>You can use negative filters: <code>-2X5</code></li>
     <li>You can use regular expressions: <code>2X5|GW1</code>, <code>.*</code></li>
     <li>You can filter runs by all their properties: path, batch, parameters (key:value), metadata, platform...</li>
+    <li>Local runs: <code>changes:local</code> (with uncommitted changes), <code>changes:none</code> (without), <code>changes:unknown</code></li>
     <li>Redo and Move apply to the runs that match. Delete applies to the whole batch.</li>
   </ul>
   return <>
@@ -646,6 +657,21 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
           {hasPathMappings() && <MenuItem text="Copy output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(batch.batch_dir_url, { windows: true })} />}
           <MenuItem text="Copy output directory" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(batch.batch_dir_url)} />
           <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={batch.batch_dir_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
+          {/* the project's audit log about this batch: for developers and owners, the page says so to the others */}
+          {is_logged && batch.id !== undefined && batch.id !== null && <MenuItem
+            text="Audit log of this batch"
+            htmlTitle="Who started, redid, renamed, moved or deleted its runs"
+            className={Classes.TEXT_MUTED}
+            minimal
+            icon="history"
+            href={target_audit_location(selected[project_attr] ?? project, 'batch', batch.id)}
+            onClick={event => {
+              // ctrl/cmd/shift-click open it in a new tab or window, as links do
+              if (event.button !== 0 || event.metaKey || event.altKey || event.ctrlKey || event.shiftKey) return;
+              event.preventDefault();
+              history.push(target_audit_location(selected[project_attr] ?? project, 'batch', batch.id));
+            }}
+          />}
           <MenuDivider/>
           {!is_logged && <LoginMenuItem/>}
           <Dialog
@@ -798,7 +824,10 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
           {!!confirmation && <>
             <p><strong>{confirmation.title(confirmation_counts)}</strong></p>
             {confirming === 'redo-all'
-              ? <p>{confirmation.body()}</p>
+              ? <>
+                <p>{confirmation.body()}</p>
+                {!!redo_note && <Callout intent={Intent.WARNING} compact>{redo_note} To run them with their changes, get their code with <code>qa restore &lt;run id&gt;</code>.</Callout>}
+              </>
               : <>
                 {soft_delete
                   ? <p>Their metrics are kept. {!!files_delete_filter && <>Only the files matching <code>{files_delete_filter}</code> are deleted.</>}</p>

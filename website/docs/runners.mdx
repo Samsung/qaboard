@@ -124,7 +124,7 @@ Then check the setup, and run a batch:
 
 ```bash
 qa doctor --test-job
-qa --share batch ci
+qa batch ci
 ```
 
 [`qa doctor`](/docs/doctor) checks *qaboard.yaml*, the server, the storage and the runner, and says how to fix what
@@ -147,7 +147,7 @@ web app can do with them.
 
 | Runner | `--no-wait` | Stop runs from the web app | Start and redo runs from the web app |
 |---|---|---|---|
-| `local` | No: `qa batch` waits for the runs | Yes when the server started them, on the server itself. Started elsewhere: marks them as failed, the runs go on | Yes, where the server runs `qa batch`: by default on the server itself, for small batches |
+| `local` | No: `qa batch` waits for the runs | Yes when the server started them, on the server itself. Started elsewhere: marks them as failed, the runs go on | Yes, where the server runs `qa batch` (its admins choose, e.g. on the server itself, for small batches) |
 | `lsf` | Yes | Yes, with `bkill` | Yes, as the user who starts them |
 | `dask` | Yes: a driver job keeps the runs going | Yes, except with `cluster.type: local`. Slurm, PBS, SGE, HTCondor and OAR need their commands on the server; an existing cluster, its scheduler in the server's settings | Yes |
 | `kubernetes` | Yes | Yes: deletes the batch's Jobs | Yes, as the user who starts them |

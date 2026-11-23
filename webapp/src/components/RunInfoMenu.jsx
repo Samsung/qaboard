@@ -5,6 +5,7 @@ import { Classes, MenuDivider, MenuItem } from "@blueprintjs/core";
 import { DateTime } from 'luxon';
 
 import { SubmittedByMenuItem } from './SubmittedBy'
+import { gpuText, memoryText, peakMemory, resourcesDetails, resourcesOf } from '../utils/resources'
 import { humanFileSize, humanElapsedTime } from "../viewers/bit_accuracy/utils";
 import { history } from "../router"
 import { date_range_from_query, parse_query, path_segment, stringify_query } from "../selection";
@@ -94,6 +95,9 @@ export const RunInfoMenuItems = ({ project, commit, output, type, history: with_
   const has_metadata = !!output.test_input_metadata && (Object.keys(output.test_input_metadata).length > 0)
   const has_label = has_metadata && !!output.test_input_metadata.label
   const runtime = runTime(output);
+  const resources = resourcesOf(output);
+  const memory = peakMemory(resources);
+  const gpus = (Array.isArray(resources?.gpus) ? resources.gpus : []).filter(gpu => gpu && typeof gpu === 'object');
   return <>
     {with_history && !!output.test_input_path && !!commit?.branch && <RunHistoryMenuItem project={project} commit={commit} output={output} type={type} />}
     {!!output.data?.batch && <>
@@ -126,6 +130,8 @@ export const RunInfoMenuItems = ({ project, commit, output, type, history: with_
       icon="calendar"
     />}
     {!!output?.data?.storage && <MenuItem key="storage" text={humanFileSize(output.data.storage, true)} label="storage" icon="folder-close" />}
+    {!!memory && <MenuItem key="memory" text={<span title={resourcesDetails(output)}>{memoryText(memory)}</span>} label="peak memory" icon="database" />}
+    {gpus.map((gpu, index) => <MenuItem key={`gpu-${index}`} text={gpuText(gpu)} label={typeof gpu.name === 'string' ? gpu.name : undefined} icon="dashboard" />)}
     {(!!output.data?.batch || (!!output.test_input_database && output.test_input_database !== '/')) && <>
       <MenuDivider key="display" title="Display" />
       <RunNameOriginMenuItem />

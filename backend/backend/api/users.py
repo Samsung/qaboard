@@ -10,9 +10,9 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from backend import app, db_session
 from ..models import AuditEvent
-from ..audit import serialize as serialize_event
 from .. import tokens as tokens_lib
 from .auth import login_required
+from .audit_log import page_of_events
 
 
 MAX_PREFERENCES_BYTES = 64 * 1024
@@ -52,20 +52,6 @@ def update_preferences():
   user.preferences_updated_at = tokens_lib.utcnow()
   db_session.commit()
   return preferences_answer(user)
-
-
-def page_of_events(query, default_limit=50):
-  try:
-    limit = max(1, min(int(request.args.get('limit', default_limit)), 500))
-    before_id = int(request.args['before_id']) if request.args.get('before_id') else None
-  except ValueError:
-    return None, (jsonify({"error": "limit and before_id must be numbers"}), 400)
-  if before_id is not None:
-    query = query.filter(AuditEvent.id < before_id)
-  events = query.order_by(AuditEvent.id.desc()).limit(limit + 1).all()
-  more = len(events) > limit
-  events = events[:limit]
-  return {"events": [serialize_event(e) for e in events], "next_before_id": events[-1].id if more else None}, None
 
 
 @app.route('/api/v1/user/audit', methods=['GET'])

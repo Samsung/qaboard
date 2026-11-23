@@ -12,7 +12,7 @@ import datetime
 import traceback
 from shlex import quote
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import click
 from rich.traceback import install
@@ -21,7 +21,7 @@ install(show_locals=False, suppress=[click])
 from .run import RunContext
 from .runners import Job, JobGroup
 
-from .conventions import make_batch_dir, make_batch_conf_dir
+from .conventions import make_batch_dir, make_batch_conf_dir, RUN_DIR_VARIABLE
 from .conventions import serialize_config, deserialize_config, get_settings
 from .utils import PathType, entrypoint_module, load_tuning_search
 from .utils import save_outputs_manifest, total_storage
@@ -33,12 +33,12 @@ from .api import get_outputs, notify_qa_database, serialize_paths, exit_if_resul
 from .iterators import iter_inputs, iter_parameters, load_runs_file, iter_runs, rerun_job_options, local_job_options
 from .batch_logs import saves_logs, batch_log
 
-from .config import config_has_error, ignore_config_errors, report_missing_storage, storage_needed_by
+from .config import config_has_error, ignore_config_errors, report_missing_storage, storage_needed_by, default_share, missing_storage
 from .config import project, project_root, subproject, config
 from .config import default_batches_files, get_default_database, default_batch_label, default_platform
 from .config import get_default_configuration, default_input_type
 from .config import commit_id, outputs_commit, artifacts_commit, root_qatools, artifacts_commit_root
-from .config import user, is_ci, on_windows, available_metrics
+from .config import user, is_ci, on_windows, available_metrics, uploads_files, repo_root, COMMANDS_WITHOUT_PROJECT
 from .metrics import split_metrics, resolve_definitions, write_definitions_file, with_default_direction
 from . import analytics
 
@@ -52,20 +52,32 @@ from . import analytics
 @click.option('--tuning', multiple=True, help="Extra parameters for tuning (as JSON).")
 @click.option('--tuning-filepath', type=PathType(), multiple=True, help="File with extra parameters for tuning")
 @click.option('--dryrun', is_flag=True, help="Only show the commands that would be executed")
-@click.option('--share', is_flag=True, help="Show outputs in QA-Board, doesn't just save them locally.")
+# results are always shared (config.default_share): --share is accepted, for scripts that still give it
+@click.option('--share', 'share_flag', is_flag=True, hidden=True)
 @click.option('--database', type=PathType(), help="Input database location")
 @click.option('--type', 'input_type', default=default_input_type, help="How we define inputs")
-@click.option('--offline', is_flag=True, help="Do not notify QA-Board about run statuses.")
-def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, share, database, input_type, offline):
+@click.option('--offline', is_flag=True, help="Never contact QA-Board: results stay in output/.")
+def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, share_flag, database, input_type, offline):
   """Entrypoint to running your algo, launching batchs..."""
   # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
   # http://click.pocoo.org/6/complex/
   if not ctx.obj:
     ctx.obj = {}
+  # Results always show in QA-Board (config.default_share): only --offline keeps them here, or when qa can't share them
+  share = False
+  if ctx.invoked_subcommand not in ('auth', 'runs', *COMMANDS_WITHOUT_PROJECT):
+    share, kept_here_because = default_share(offline)
+    # said once, not again by the runs `qa batch` starts. A missing storage has its own warning (report_missing_storage)
+    if kept_here_because and not missing_storage and ctx.invoked_subcommand in ('run', 'batch', 'optimize') and 'QA_BATCH' not in os.environ and not dryrun:
+      click.secho(f"qa: results stay in output/, not shown in QA-Board ({kept_here_because}). `qa --offline` hides this.", fg="yellow", err=True)
   # One usage event per command, sent when it ends (qaboard/analytics.py), never from CI
   analytics.start(ctx.invoked_subcommand, share=share, tuning=bool(tuning or tuning_filepath), dryrun=dryrun, offline=offline)
   # Signing in is global, per server: it doesn't need a project
   if ctx.invoked_subcommand in ('auth', 'runs'):
+    return
+  # `qa upload` works outside a project too: it reads --label, --configuration and --platform itself
+  # `qa fetch-artifacts` and `qa send-batch-log` only talk to the server, e.g. in a pod before it has the commit's qaboard.yaml
+  if ctx.invoked_subcommand in COMMANDS_WITHOUT_PROJECT:
     return
   # Local runs save their results in output/: only some commands need the storage
   needed_by = storage_needed_by(ctx.invoked_subcommand, share, is_ci)
@@ -82,8 +94,8 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
     sys.exit(1)
   if storage_is_missing:
     sys.exit(1)
-
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
+
   noop_command = 'init' in sys.argv
   if root_qatools and root_qatools != Path().resolve() and not will_show_help and not noop_command:
     ctx.obj['previous_cwd'] = os.getcwd()
@@ -181,6 +193,9 @@ def saves_attempts(qa_context, custom_output=None) -> bool:
   (CI, --share), unless the project opts out (outputs.reruns: in-place). Local runs, in the working directory's
   output/, and runs with their own --output are done again in place.
   """
+  if uploads_files:
+    # their files are in this computer's output/ folder, done again in place; the server replaces what it has
+    return False
   return bool(is_ci or qa_context.get('share')) and not custom_output and attempts.reruns_mode(config) != attempts.IN_PLACE
 
 
@@ -276,13 +291,28 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
       click.echo(click.style("Outputs: ", fg='cyan') + click.style(str(run_context.output_dir), fg='cyan', bold=True), err=True)
       print_url(ctx)
 
-      if not ctx.obj['offline']:
-          qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True, data={"attempt_logs": attempts.kept_logs(run_context.output_dir)})
-          if qa_run_data:
-            run_context.id = qa_run_data["id"]
-          # in CI, results QA-Board refuses are lost: don't compute them
-          exit_if_results_refused()
+      # Interrupted while it starts, e.g. while the server is slow to answer, the run fails like during run()
+      with interrupted_by_sigterm():
+        try:
+          # what the run uses of its machine, sent with heartbeats and its end, plotted from system.series.json
+          start_system_metrics(run_context)
+          start_local_changes(run_context)
+          qa_run_data = None
+          if not ctx.obj['offline']:
+              # heartbeat: we say every few minutes that the run still runs, else the server fails it (qaboard/heartbeat.py)
+              qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True, keep_previous=keep_previous, heartbeat=True,
+                                               data={**attempts.kept_logs_data(run_context.output_dir), **local_changes_data()})
+              if qa_run_data:
+                run_context.id = qa_run_data["id"]
+                run_reporter(run_context).start(run_context.id)
+              # in CI, results QA-Board refuses are lost: don't compute them
+              exit_if_results_refused()
+          save_local_changes(run_context, qa_run_data, offline=ctx.obj['offline'])
+        except KeyboardInterrupt:
+          mark_aborted(run_context)
+          raise
 
+      os.environ[RUN_DIR_VARIABLE] = str(run_context.output_dir)
       # LSF sends SIGINT then SIGTERM when users bkill the job or it uses too much memory, before a SIGKILL:
       # we say the run failed, or QA-Board would show it as running
       with interrupted_by_sigterm():
@@ -301,6 +331,11 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
             except Exception as e: # debug strange stale file errors, ideally remove this...
               print(f"ERROR: {e}")
             runtime_metrics = {'is_failed': True}
+          except SystemExit as e:
+            # run() exited instead of returning: the run ends here, and we still save what it did
+            if e.code not in (None, 0):
+              click.secho(f'[ERROR] Your `run` function exited with {e.code}', fg='red', bold=True)
+            runtime_metrics = {'is_failed': e.code not in (None, 0)}
 
           if not runtime_metrics:
             runtime_metrics = {"is_failed": False}
@@ -310,26 +345,242 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
             runtime_metrics = {'is_failed': True}
 
           runtime_metrics['compute_time'] = time.time() - start
+          # we measure run(): postprocess() comes after, and system.series.json is final when the outputs' manifest is made
+          stop_system_metrics()
 
           # avoid issues if code in run() changes cwd
           if os.getcwd() != cwd:
             os.chdir(cwd)
 
-          metrics = postprocess_(runtime_metrics, run_context, skip=no_postprocess or runtime_metrics['is_failed'], save_manifests_in_database=save_manifests_in_database)
-          if not metrics:
-            metrics = runtime_metrics
-
-          if metrics['is_failed']:
-            click.secho('[ERROR] The run has failed.', fg='red', err=True)
-            click.secho(str(metrics), fg='red', bold=True)
-          else:
-            click.secho(str(metrics), fg='green')
+          metrics = postprocess_(runtime_metrics, run_context, skip=no_postprocess or runtime_metrics.get('is_failed', False), save_manifests_in_database=save_manifests_in_database, print_summary=True)
           exit_if_results_refused()
           if metrics['is_failed']:
+            sys.exit(1)
+          # in CI, results the server doesn't have are lost
+          if (files_not_sent() or run_end_not_sent()) and is_ci:
+            if run_end_not_sent():
+              click.secho("ERROR: QA-Board doesn't know how the run ended: it shows it as running, then failed.", fg='red', bold=True, err=True)
             sys.exit(1)
         except KeyboardInterrupt:
           mark_aborted(run_context)
           raise
+
+
+# What the run uses of its machine (qaboard/system_metrics.py). One run per process.
+_system_metrics = None
+
+
+def start_system_metrics(run_context):
+  """Samples what the run uses of its machine, unless the project or $QA_SYSTEM_METRICS turned it off"""
+  global _system_metrics
+  from . import system_metrics
+  if _system_metrics is None and system_metrics.enabled(config):
+    try:
+      _system_metrics = system_metrics.SystemMetrics(run_context.output_dir, interval=system_metrics.interval()).start()
+    except Exception as e:  # e.g. no thread left: the run matters more
+      click.secho(f"WARNING: can't measure what the run uses of its machine: {e!r}", fg='yellow', err=True)
+  return _system_metrics
+
+
+def stop_system_metrics():
+  """The last sample: the summary stays the same after"""
+  if _system_metrics is not None:
+    _system_metrics.stop()
+
+
+def resources_report() -> dict:
+  """What the server keeps as data.resources: with each heartbeat, and with the run's end"""
+  return {"resources": _system_metrics.summary()} if _system_metrics is not None else {}
+
+
+# What the run changed in its repository, compared with its commit (qaboard/local_changes.py). One run per process.
+_local_changes = None
+
+
+def start_local_changes(run_context):
+  """What the run's code differs from its commit by: per run, or what `qa batch` captured when it started"""
+  global _local_changes
+  from . import local_changes
+  from .config import project_dir, is_in_git_repo
+  if _local_changes is None:
+    project_output = project_dir / 'output' if project_dir else None
+    _local_changes = local_changes.ForRun(
+      (config.get('outputs') or {}).get('local_changes'),
+      repo_root=repo_root if is_in_git_repo else None,
+      is_ci=is_ci,
+      commit=commit_id,
+      ignore=local_changes.inside(repo_root, [project_output, run_context.output_dir]),
+    )
+    for problem in _local_changes.problems:
+      click.secho(f"WARNING: {problem}", fg='yellow', err=True)
+  return _local_changes
+
+
+def save_local_changes(run_context, answer=None, offline=False):
+  """
+  Saves the patches in the run's folder, as far as the server allows (its answer when the run started). The runs
+  of a batch say it only when the code changed since the batch said it.
+  """
+  from . import local_changes
+  if _local_changes is None or _local_changes.capture is None:
+    return
+  state = _local_changes.save(run_context.output_dir, (answer or {}).get('local_changes_level'), unanswered=not offline and answer is None)
+  if 'QA_BATCH' in os.environ and not _local_changes.changed_since_batch:
+    return
+  patch = run_context.output_dir / local_changes.PATCH_FILE
+  try:
+    saved_in = os.path.relpath(patch) if patch.exists() else None
+  except ValueError:  # another drive, on Windows
+    saved_in = str(patch)
+  line = local_changes.describe(state, saved_in=saved_in)
+  if line:
+    click.secho(f"Local changes: {line}", fg='cyan', err=True)
+
+
+def share_local_changes():
+  """
+  Captures the local changes once for the runs of a batch (they read $QA_LOCAL_CHANGES_STATE), unless a batch that
+  started this one did. Returns what to restore with restore_local_changes.
+  """
+  from . import local_changes
+  from .config import project_dir, is_in_git_repo
+  previous = os.environ.get(local_changes.ENV_STATE)
+  if previous is not None or not is_in_git_repo:
+    return previous
+  settings, _ = local_changes.settings((config.get('outputs') or {}).get('local_changes'), is_ci=is_ci)
+  if settings.level == 'off':
+    return None
+  project_output = project_dir / 'output' if project_dir else None
+  captured = local_changes.capture(repo_root, settings, ignore=local_changes.inside(repo_root, [project_output]))
+  if captured is None:
+    return None
+  if captured.state.get('head') and captured.state['head'] != commit_id:
+    return None
+  path = local_changes.share(captured)
+  if path is not None:
+    os.environ[local_changes.ENV_STATE] = str(path)
+  line = local_changes.describe(captured.state, batch=True)
+  if line:
+    click.secho(f"Local changes: {line}", fg='cyan', err=True)
+  return None
+
+
+def restore_local_changes(previous):
+  from . import local_changes
+  if previous is None:
+    os.environ.pop(local_changes.ENV_STATE, None)
+  else:
+    os.environ[local_changes.ENV_STATE] = previous
+
+
+def local_changes_data() -> dict:
+  """What the server keeps as data.local_changes"""
+  return _local_changes.data() if _local_changes is not None else {}
+
+
+# What `qa run` tells the server besides its results (qaboard/reporting.py): every few minutes that the run still
+# runs, and without a storage shared with it, the run's files: its log as it goes, everything when it ends. One run per process.
+_reporter = None
+
+
+def sends_files(qa_context) -> bool:
+  """Whether the run's files are sent to the server: shared runs, when there is no storage shared with it"""
+  return bool(uploads_files and (is_ci or qa_context.get('share')) and not qa_context.get('offline') and not qa_context.get('dryrun'))
+
+
+def run_reporter(run_context):
+  """The run's reporter, created the first time"""
+  global _reporter
+  if _reporter is None:
+    from .api import qaboard_url
+    from .reporting import RunReporter
+    log = run_context.output_dir / 'log.txt'
+    _reporter = RunReporter(qaboard_url, run_context.output_dir, uploads=sends_files(run_context.obj), live=(config.get('outputs') or {}).get('live'),
+                            # with what the run printed last, e.g. that it failed
+                            before_log=lambda: wait_for_the_log(log), extra=resources_report)
+  return _reporter
+
+
+def files_not_sent() -> bool:
+  """Whether the server doesn't have all the run's files, after finish_upload"""
+  return _reporter is not None and _reporter.files_sent is False
+
+
+# set by notify_run_ended when the server should have heard how the run ended, and didn't
+_run_end_lost = False
+
+
+def run_end_not_sent() -> bool:
+  """Whether the server never got the run's end, after notify_run_ended (refusals: exit_if_results_refused)"""
+  from .api import results_refused
+  return _run_end_lost and not results_refused
+
+
+def wait_for_the_log(log: Path, timeout: float = 1.0, quiet: float = 0.1):
+  """A thread copies what the run prints to its log (qaboard/fd_tee.py): what was just printed may not be there yet"""
+  for stream in (sys.stdout, sys.stderr):
+    try:
+      stream.flush()
+    except (AttributeError, OSError, ValueError):
+      pass
+  deadline, size = time.monotonic() + timeout, None
+  while time.monotonic() < deadline:
+    current = log.stat().st_size if log.exists() else 0
+    if current == size:
+      return
+    size = current
+    time.sleep(quiet)
+
+
+def finish_upload(run_context):
+  """Sends the run's files before telling the server that it ended: finished runs' files don't change"""
+  if not sends_files(run_context.obj):
+    return
+  reporter = run_reporter(run_context)
+  if reporter.finished:
+    return
+
+  def create():
+    # the server didn't answer when the run started: it has to know the run, as running, to take its files
+    started = notify_qa_database(**run_context.obj, is_pending=True, is_running=True, keep_previous=True, heartbeat=True)
+    if started:
+      run_context.id = started["id"]
+      return started["id"]
+    return None
+
+  if reporter.finish(create=create):
+    click.secho(f"Sent {reporter.uploader.sent_files} files to QA-Board ({reporter.uploader.sent_bytes / 1e6:.1f} MB)", fg='cyan', err=True)
+  elif reporter.uploader is None:
+    click.secho("ERROR: QA-Board doesn't have the files of the run: it didn't take the run. They are in " + str(run_context.output_dir), fg='red', bold=True, err=True)
+    return
+  else:
+    click.secho("ERROR: QA-Board doesn't have all the files of the run:", fg='red', bold=True, err=True)
+    for problem in reporter.problems():
+      click.secho(f"       {problem}", fg='red', err=True)
+  # what we just printed, in the log the web app shows
+  reporter.send_log()
+
+
+def notify_run_ended(run_context, **kwargs):
+  """
+  Tells the server that the run ended (after `finish_upload`), then stops reporting. If it refused that, it still
+  has why, in the log
+  """
+  global _run_end_lost
+  if _reporter is not None and _reporter.files_missing:
+    # the run's page can say so (the server keeps `data`)
+    kwargs['data'] = {**(kwargs.get('data') or {}), 'files_missing': _reporter.files_missing}
+  if _system_metrics is not None:
+    kwargs['data'] = {**(kwargs.get('data') or {}), **resources_report()}
+  if local_changes_data():
+    kwargs['data'] = {**(kwargs.get('data') or {}), **local_changes_data()}
+  answer = notify_qa_database(**run_context.obj, **kwargs, is_pending=False, is_running=False)
+  obj = run_context.obj
+  # runs in a shared storage keep their files: like files not sent, only uploads fail CI for it
+  _run_end_lost = answer is None and sends_files(obj)
+  if _reporter is not None:
+    _reporter.ended(known=answer is not None)
+  return answer
 
 
 def mark_aborted(run_context):
@@ -350,25 +601,36 @@ def mark_aborted(run_context):
         json.dump(metrics, f, sort_keys=True, indent=2, separators=(',', ': '))
     except OSError as e:
       click.secho(f'[ERROR] Could not write {metrics_path}: {e}', fg='red', err=True)
+    # e.g. LSF stops jobs that use too much memory, with SIGINT/SIGTERM, and SIGKILL a few seconds later: the server
+    # hears first, with what the run used until its last sample
     if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
-      notify_qa_database(**run_context.obj, metrics=metrics, is_failed=True, is_pending=False, is_running=False)
+      finish_upload(run_context)
+      notify_run_ended(run_context, metrics=metrics, is_failed=True)
+    stop_system_metrics()
 
 
-def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_database=False):
-  """Computes computes various success metrics and outputs."""
+def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_database=False, print_summary=False):
+  """
+  Computes computes various success metrics and outputs.
+  `print_summary`: print the metrics, and whether the run failed, before the results are sent: runs that send their
+  files to the server send their log with them, and a finished run's files don't change.
+  """
   from .utils import file_info
   from .compat import windows_to_linux_path
 
+  # whether the project's `postprocess` gave the metrics
+  postprocessed = False
   try:
     if not skip:
       try:
         entrypoint_postprocess = entrypoint_module(config).postprocess
       except Exception:
         metrics = runtime_metrics
-      else: 
+      else:
         metrics = entrypoint_postprocess(runtime_metrics, run_context)
+        postprocessed = True
     else:
-      metrics = runtime_metrics 
+      metrics = runtime_metrics
   except Exception:
     exc_type, exc_value, exc_traceback = sys.exc_info()
     # TODO: in case of import error because postprocess was not defined, just ignore it...?
@@ -379,7 +641,9 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
     metrics = {**runtime_metrics, 'is_failed': True}
 
   if 'is_failed' not in metrics:
-    click.secho("[Warning] The result of the `postprocess` function misses a key `is_failed` (bool)", fg='yellow')
+    # run() may leave it out: it didn't fail
+    if postprocessed:
+      click.secho("[Warning] The result of the `postprocess` function misses a key `is_failed` (bool)", fg='yellow')
     metrics['is_failed'] = False
 
   if (run_context.output_dir / 'metrics.json').exists():
@@ -440,7 +704,7 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
     output_data['params'] = metrics['params']
     del metrics['params']
   # the earlier attempts whose logs are next to the run's (qaboard/attempts.py)
-  output_data['attempt_logs'] = attempts.kept_logs(run_context.output_dir)
+  output_data.update(attempts.kept_logs_data(run_context.output_dir))
 
 
   if save_manifests_in_database:
@@ -451,8 +715,18 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
       copy(run_context.output_dir / 'manifest.inputs.json', run_context.input_path / 'manifest.inputs.json')
       copy(run_context.output_dir / 'manifest.outputs.json', run_context.input_path / 'manifest.outputs.json')
 
+  if print_summary:
+    if metrics['is_failed']:
+      click.secho('[ERROR] The run has failed.', fg='red', err=True)
+      click.secho(str(metrics), fg='red', bold=True)
+    else:
+      click.secho(str(metrics), fg='green')
+
+  global _run_end_lost
+  _run_end_lost = False
   if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
-    notify_qa_database(**run_context.obj, metrics=metrics, metrics_definitions=metrics_definitions, data=output_data, is_pending=False, is_running=False)
+    finish_upload(run_context)
+    notify_run_ended(run_context, metrics=metrics, metrics_definitions=metrics_definitions, data=output_data)
 
 
   ###### SIRC-specific ########################################################
@@ -765,13 +1039,15 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
   os.environ['QA_BATCH']= 'true' # triggered runs will be less verbose than with just `qa run`
   os.environ['QA_BATCHES_FILES'] = json.dumps([str(b) for b in batches_files])
   dryrun = ctx.obj['dryrun'] or list_output_dirs or list_inputs or list_contexts
+  # The runs record the local changes as they were when the batch started: we capture them once
+  previous_local_changes = share_local_changes() if not dryrun else None
   if dryrun:
     analytics.note(dryrun=True)
   should_notify_qa_database = (is_ci or ctx.obj['share']) and not (dryrun or ctx.obj['offline'])
   # An email when the runs end, unless QA_NOTIFY=none
   notify = notify_channel(is_ci, nested, started_by_qaboard) if not dryrun else None
   if notify and not should_notify_qa_database and os.environ.get('QA_NOTIFY'):
-    click.secho("QA_NOTIFY: QA-Board can only email you about runs it knows: use `qa --share batch`.", fg='yellow', err=True)
+    click.secho("QA_NOTIFY: QA-Board can only email you about runs it knows: these stay here (--offline, or no server).", fg='yellow', err=True)
   notification = None
   if should_notify_qa_database:
     command_data = {
@@ -782,6 +1058,21 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
     }
     if log:
       command_data['log'] = log['path'] # relative to the batch directory
+    if tuning_search_dict or tuning_search_file:
+      command_data['tuning_search'], _ = load_tuning_search(tuning_search_dict, tuning_search_file)
+    if runs is None:
+      # The batches as they are now, filtered to what runs: to see and run them again after the files change
+      from .batch_snapshot import command_snapshot
+      from .conventions import location_from_spec
+      snapshot = command_snapshot(
+        batches,
+        [(str(f), location_from_spec(f, {"project": project, "subproject": subproject})) for f in batches_files],
+        allow_duplicate_batches=bool((config.get('inputs') or {}).get('allow_duplicate_batches')),
+        argv=sys.argv,
+        when=command_data["command_created_at_datetime"] + 'Z',
+      )
+      if snapshot:
+        command_data['batches_snapshot'] = snapshot
     if runner == 'dask':
       # so that the backend can stop the batch
       scheduler_address = runs_job_options.get('scheduler_address', dask_config.get('scheduler_address'))
@@ -898,7 +1189,7 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
     if (dask_config.get('cluster') or {}).get('type') == 'kubernetes':
       from .runners.dask_runner import kubernetes_defaults
       # The project labels the DaskCluster and driver Job: the server stops the batch by command id and project
-      base_runner_options['kubernetes'] = {**kubernetes_defaults(config), **({"project": project.as_posix()} if project else {})}
+      base_runner_options['kubernetes'] = {**kubernetes_defaults(config), **({"project": project.as_posix()} if project else {}), "commit": commit_id}
     # We save logs there
     base_runner_options['batch_dir'] = str(ctx.obj['batch_dir'])
     if given('dask_concurrency', dask_concurrency, default_dask_concurrency):
@@ -912,6 +1203,9 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
     cli_runner_overrides.update({
       "user": ctx.obj['user'],
       "project": project.as_posix() if project else None,
+      # {commit} in the image, and where the repository is: `workdir` in images with the code
+      "commit": commit_id,
+      "repo_root": str(repo_root),
     })
 
   if runner == 'local' or runner == 'celery':
@@ -984,7 +1278,8 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
       # In most cases we don't care: worse case re-running will lead to some orphan output dirs on disk and wasted compute
       # But when trying to get results from older `qa batch`, we care...
       # We could remove the feature flag, maybe when it's used a bit more and we check there is no noticeable runtime cost..
-      if not 'QA_BATCH_COMPLEX_MATCHING' in os.environ:
+      # runs that send their files to the server aren't in the folder it says: we match what they ran on
+      if not 'QA_BATCH_COMPLEX_MATCHING' in os.environ and not uploads_files:
         matching_existing_outputs = [o for o in existing_outputs.values() if url_to_dir(o['output_dir_url']) == run_context.output_dir]
         matching_existing_output = matching_existing_outputs[0] if matching_existing_outputs else None
       else:
@@ -1060,8 +1355,8 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
       # We could serialize properly the run_context/runner_options, and e.g. call "qa --pickled-cli" and use the CLI command below just for logs... 
       args = [
           f"qa",
-          f'--share' if ctx.obj["share"] else None,
-          f'--offline' if ctx.obj['offline'] else None,
+          # runs share like their batch: those of a batch that can't share stay local too (config.default_share)
+          '--offline' if ctx.obj['offline'] or not ctx.obj['share'] else None,
           f'--label "{ctx.obj["raw_batch_label"]}"' if ctx.obj["raw_batch_label"] != default_batch_label else None,
           platform_cli,
           f'--type "{run_context.type}"' if run_context.type != default_input_type else None,
@@ -1158,6 +1453,7 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
       )
 
     exit_if_results_refused()
+    restore_local_changes(previous_local_changes)
     if is_failed and not no_wait:
       del os.environ['QA_BATCH'] # restore verbosity
       if should_notify_qa_database:
@@ -1179,13 +1475,18 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
 @click.argument('groups', nargs=-1, type=click.UNPROCESSED, default=None)
 @click.pass_context
 def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
-  """Save the results at a standard location"""
+  """
+  Saves what runs QA-Board starts itself (tuning, runs done again) need: qaboard.yaml, the batch files, and the
+  `artifacts` of qaboard.yaml, e.g. binaries. In the commit's folder of the storage, or, without a storage shared with
+  the server (`storage: upload`), on the server.
+  """
   import filecmp
   from .config import is_in_git_repo, qatools_config_paths
   from .utils import copy, file_info
-  from .compat import cased_path
 
-  click.secho(f"Saving artifacts in: {artifacts_commit if not artifacts_path else artifacts_path}", bold=True, underline=True)
+  # Without a storage shared with the server, they are sent to it, unless --out says where (the server restoring them)
+  sends = uploads_files and not artifacts_path
+  click.secho("Sending the artifacts to QA-Board" if sends else f"Saving artifacts in: {artifacts_commit if not artifacts_path else artifacts_path}", bold=True, underline=True)
 
   artifacts = {}
 
@@ -1217,9 +1518,15 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
           fg='yellow', dim=True)
       sys.exit(1)
 
+  if sends:
+    send_artifacts(ctx, {name: artifact_globs(artifact_config) for name, artifact_config in artifacts.items()})
+    return
+
   for artifact_name, artifact_config in artifacts.items():
     click.secho(f'Saving artifacts: {artifact_name}', bold=True)
-    manifest_path = artifacts_commit / 'manifests' / f'{artifact_name}.json'
+    # without a storage, the commit's folder is --out's
+    manifests_dir = (artifacts_commit_root / artifacts_path / subproject) if uploads_files else artifacts_commit
+    manifest_path = manifests_dir / 'manifests' / f'{artifact_name}.json'
     try:
       manifest_path.parent.mkdir(parents=True, exist_ok=True)
     except Exception as e:
@@ -1241,16 +1548,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
       manifest = {} 
 
     nb_files = 0
-    globs = artifact_config.get('globs', artifact_config.get('glob', []))
-    if not isinstance(globs, list):
-      globs = [globs]
-
-    for g in globs:
-      if not g: continue
-      for path in Path('.').glob(g):
-        path = cased_path(path)
-        if not path.is_file():
-          continue
+    for path in artifact_paths(artifact_globs(artifact_config)):
         if artifacts_path:
           destination = artifacts_commit_root / artifacts_path / path
         else:
@@ -1285,6 +1583,74 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
   exit_if_results_refused()
 
 
+def artifact_globs(artifact_config) -> List[str]:
+  """The patterns of an artifact group of qaboard.yaml, e.g. {glob: "build/*.so"}"""
+  globs = artifact_config.get('globs', artifact_config.get('glob', [])) if isinstance(artifact_config, dict) else []
+  return [g for g in (globs if isinstance(globs, list) else [globs]) if g]
+
+
+def artifact_paths(globs: List[str]) -> List[Path]:
+  """The files that match the patterns, relative to the current folder: the repository's root, as `qa` sees it"""
+  from .compat import cased_path
+  paths: Dict[Path, None] = {}  # in order, once
+  for g in globs:
+    for path in Path('.').glob(g):
+      path = cased_path(path)
+      if path.is_file():
+        paths[path] = None
+  return list(paths)
+
+
+def send_artifacts(ctx, groups):
+  """`qa save-artifacts` without a storage shared with the server: sends the commit's artifacts to it (qaboard/commit_artifacts.py)"""
+  from .api import qaboard_url
+  from .commit_artifacts import listing, send, ArtifactsError, ServerTooOld
+  files = {name: (subproject / 'manifests' / f'{name}.json', [p.as_posix() for p in artifact_paths(globs)]) for name, globs in groups.items()}
+  # the groups of qaboard.yaml (qa's own start with __): one that matches nothing is likely saved before the build
+  for name, (_, paths) in files.items():
+    if not paths and not name.startswith('__'):
+      click.secho(f"WARNING: The artifacts `{name}` match no files ({', '.join(groups[name])}): run `qa save-artifacts` after the build.", fg='yellow', err=True)
+  if ctx.obj['dryrun']:
+    for path in sorted({path for _, paths in files.values() for path in paths}):
+      click.secho(path, dim=True)
+    return
+  if not commit_id or not re.fullmatch(r'[0-9a-f]{40}', str(commit_id)):
+    click.secho(f"ERROR: QA-Board keeps artifacts for git commits, not for {commit_id}.", fg='red', err=True)
+    sys.exit(1)
+  try:
+    known = listing(qaboard_url, project.as_posix(), str(commit_id))
+  except ServerTooOld as e:
+    # so that CI jobs keep working with the servers that didn't take artifacts
+    click.secho(f"WARNING: {e} The artifacts were not sent: runs can't be started from QA-Board.", fg='yellow', err=True)
+    return
+  except ArtifactsError as e:
+    click.secho(f"ERROR: {e} The artifacts were not sent.", fg='red', err=True)
+    sys.exit(1)
+  # The server keeps artifacts for commits it knows: we send the commit first, also outside CI
+  if notify_qa_database(object_type='commit', **{**ctx.obj, 'share': True}) is None:
+    exit_if_results_refused()
+    click.secho("ERROR: QA-Board didn't save the commit (see above): the artifacts were not sent.", fg='red', err=True)
+    sys.exit(1)
+  try:
+    sent = send(qaboard_url, project.as_posix(), str(commit_id), files, known)
+  except ArtifactsError as e:
+    click.secho(f"ERROR: {e}", fg='red', err=True)
+    sys.exit(1)
+  plural = lambda n: f"{n} file{'s' if n != 1 else ''}"
+  already = f", {plural(sent['skipped'])} already there" if sent['skipped'] else ""
+  click.secho(f"Sent {plural(sent['sent'])} ({sent['bytes'] / 1024**2:.1f} MB){already}. Runs started from QA-Board use them: "
+              f"{qaboard_url}/{project.as_posix()}/commit/{commit_id}", fg='green')
+  # if the commit's artifacts were deleted, this marks them as good again
+  notify_qa_database(object_type='commit', **{**ctx.obj, 'share': True})
+  exit_if_results_refused()
+
+
+from .commit_artifacts import fetch_artifacts
+qa.add_command(fetch_artifacts)
+from .batch_log import send_batch_log
+qa.add_command(send_batch_log)
+
+
 from .bit_accuracy import check_bit_accuracy, check_bit_accuracy_manifest
 qa.add_command(check_bit_accuracy)
 qa.add_command(check_bit_accuracy_manifest)
@@ -1300,6 +1666,10 @@ qa.add_command(gate)
 
 from .auth import auth
 qa.add_command(auth)
+from .upload_command import upload
+qa.add_command(upload)
+from .restore import restore
+qa.add_command(restore)
 
 
 @qa.command(name='runs')

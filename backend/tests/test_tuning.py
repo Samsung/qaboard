@@ -3,6 +3,14 @@ Unit tests for starting batches from QA-Board (backend/api/tuning.py)
 """
 from types import SimpleNamespace
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def server_runner(monkeypatch):
+    """Most tests are about the request: the server starts batches in its container. Unset, it refuses them."""
+    monkeypatch.setenv("QABOARD_TUNING_RUNNER", "local")
+
 
 def test_parse_bsub_job_id():
     from backend.api.tuning import parse_bsub_job_id
@@ -110,6 +118,7 @@ def make_commit(tmp_path, config, batches=None):
     status = {"ok": True, "problems": []}
     return SimpleNamespace(
         hexsha="abcdef",
+        uploaded_artifacts_dir=None,
         deleted=False,
         data={"qatools_config": config},
         project=SimpleNamespace(id="repo/sub", id_relative="sub", id_git="repo", data={}),
@@ -158,33 +167,23 @@ def test_check_tuning_request_says_where_batches_are_defined(tmp_path, monkeypat
     assert [f["path"] for f in check["batches_files"]] == ["sub/batches.yaml", "alice.yml"]
 
 
-def test_copy_batches_files(tmp_path):
-    # `qa batch` reads exact copies, with their comments and file-level defaults, so runs match local ones
-    from backend.api.tuning import copy_batches_files
-    content = "# nightly runs\nconfigurations: [base]\nnight: {inputs: [a]}\n"
-    (tmp_path / "batches.yaml").write_text(content)
-    (tmp_path / "alice.yml").write_text("night: {inputs: [b]}\n")
+def test_write_batches_snapshot(tmp_path):
+    # `qa batch` reads one file, with only what runs: the batches, their nested aliases, and the file-level defaults
+    import yaml
+    from backend.api.tuning import write_batches_snapshot
+    (tmp_path / "batches.yaml").write_text("# nightly runs\nconfigurations: [base]\nnight: {inputs: [a]}\nday: {inputs: [d]}\n")
+    (tmp_path / "alice.yml").write_text("aliases: {all: [nights], nights: [night], other: [day]}\nnight: {inputs: [b]}\nmine: {}\n")
     files = [
-        {"source": "commit", "path": "qa/batches.yaml", "location": tmp_path / "batches.yaml"},
-        # paths from qaboard.yaml can be absolute or go up: the copies stay in the submission's folder
-        {"source": "commit", "path": "/shared/../batches.yaml", "location": tmp_path / "batches.yaml"},
-        {"source": "commit", "path": "batches.yaml", "location": tmp_path / "batches.yaml"},
-        {"source": "qaboard", "path": "alice.yml", "location": tmp_path / "alice.yml"},
+        {"source": "commit", "path": "qa/batches.yaml", "location": tmp_path / "batches.yaml", "exists": True},
+        {"source": "qaboard", "path": "alice.yml", "location": tmp_path / "alice.yml", "exists": True},
     ]
-    log_dir = tmp_path / "log"
-    copies = copy_batches_files(files, log_dir)
-    assert [c.relative_to(log_dir).as_posix() for c in copies] == [
-        "batches/commit/qa/batches.yaml",
-        "batches/commit/shared/batches.yaml",
-        "batches/commit/batches.yaml",
-        "batches/qaboard/alice.yml",
-    ]
-    assert copies[0].read_text() == content
-    assert copies[3].read_text() == "night: {inputs: [b]}\n"
-    # two paths that end up the same don't overwrite each other
-    copies = copy_batches_files([files[2], {**files[3], "source": "commit", "path": "batches.yaml"}], tmp_path / "log2")
-    assert [c.name for c in copies] == ["batches.yaml", "1-batches.yaml"]
-    assert copies[1].read_text() == "night: {inputs: [b]}\n"
+    (tmp_path / "log").mkdir()
+    path, summary = write_batches_snapshot(files, ["all"], {}, tmp_path / "log", when="2026-11-18T10:00:00Z")
+    assert path == tmp_path / "log" / "batches.yaml"
+    assert summary == {"batches": ["night"], "aliases": ["all", "nights"], "files": ["alice.yml (in QA-Board)"], "inputs": []}
+    text = path.read_text()
+    assert "# from alice.yml (in QA-Board)" in text and "Started: 2026-11-18T10:00:00Z" in text
+    assert yaml.safe_load(text) == {"aliases": {"all": ["nights"], "nights": ["night"]}, "night": {"inputs": ["b"]}}
 
 
 def test_check_tuning_request_without_batches_files(tmp_path):
@@ -234,7 +233,7 @@ def test_commit_database_relative_to_the_artifacts():
 def test_batch_script_runs_as_the_user(tmp_path):
     from pathlib import Path
     from backend.api.tuning import _generate_batch_script
-    commit = SimpleNamespace(hexsha="94d909ca8934d5f214bd2280ff9ec7a4093f6ea2", outputs_dir=Path("/mnt/qaboard/outputs/qaboard/x"))
+    commit = SimpleNamespace(hexsha="94d909ca8934d5f214bd2280ff9ec7a4093f6ea2", uploaded_artifacts_dir=None, outputs_dir=Path("/mnt/qaboard/outputs/qaboard/x"))
     script = _generate_batch_script(commit, "arjun", tmp_path, "id", "qa batch ci", {})
     assert "export QA_USER=arjun;" in script
     assert script.index("export QA_USER") < script.index("qa batch ci")
@@ -269,6 +268,7 @@ def batches_setup(tmp_path, monkeypatch):
     project = SimpleNamespace(id="group/repo", id_relative="", data={"qatools_config": config})
     commit = SimpleNamespace(
         hexsha="94d909ca8934d5f214bd2280ff9ec7a4093f6ea2",
+        uploaded_artifacts_dir=None,
         project=project,
         data={"qatools_config": config},
         repo_artifacts_dir=artifacts,
@@ -284,11 +284,23 @@ def batches_setup(tmp_path, monkeypatch):
     return SimpleNamespace(commit=commit, config=config, artifacts=artifacts, database=database, tmp_path=tmp_path)
 
 
-def list_tests(app, name, commit="94d909ca"):
+def list_tests(app, name, commit="94d909ca", batches_files=None):
     from backend.api.tuning import get_group
     query = {"project": "group/repo", "name": name, **({"commit": commit} if commit else {})}
-    with app.test_request_context("/api/v1/tests/group", method="POST", query_string=query, json={"groups": ["extra-batches", "alice"]}):
+    body = {"groups": ["extra-batches", "alice"], **({"batches_files": batches_files} if batches_files else {})}
+    with app.test_request_context("/api/v1/tests/group", method="POST", query_string=query, json=body):
         return get_group().get_json()
+
+
+def test_lists_a_batch_from_sent_files(dummy_app, batches_setup):
+    # e.g. the snapshot of an earlier batch, to run it again: it wins
+    data = list_tests(dummy_app, "ci", batches_files=[{"path": "batches.yaml", "content": "ci: {inputs: [b]}\n"}])
+    assert data["tests"] == [{"input_path": "b", "configurations": []}]
+    assert data["definitions"] == [{"name": "ci", "files": ["qa/tests/tests.yaml", "batches.yaml"], "sources": ["commit", "sent"]}]
+    from backend.api.tuning import get_group
+    with dummy_app.test_request_context("/api/v1/tests/group", method="POST", query_string={"project": "group/repo", "name": "ci"}, json={"groups": [], "batches_files": "x"}):
+        response, status = get_group()
+    assert status == 400
 
 
 def test_lists_a_batch_and_where_it_is_defined(dummy_app, batches_setup):
@@ -410,6 +422,8 @@ def custom_iter_inputs(batches_setup, monkeypatch):
     import backend.api.tuning as tuning
     (batches_setup.artifacts / "qa/main.py").write_text("def iter_inputs(*args):\n  pass\n")
     monkeypatch.setattr(tuning, "check_storage_path", lambda path: None)
+    # the server runs the project's code only when admins opted in
+    monkeypatch.setenv("QABOARD_TUNING_RUNNER", "local")
     return batches_setup
 
 
@@ -417,7 +431,8 @@ def list_tests_response(app, name):
     from backend.api.tuning import get_group
     query = {"project": "group/repo", "name": name, "commit": "94d909ca"}
     with app.test_request_context("/api/v1/tests/group", method="POST", query_string=query, json={"groups": []}):
-        response, status = get_group()
+        result = get_group()
+        response, status = result if isinstance(result, tuple) else (result, result.status_code)
         return response.get_json(), status
 
 
@@ -431,13 +446,45 @@ def test_listing_with_the_projects_code_in_a_missing_folder(dummy_app, custom_it
 def test_listing_with_the_projects_code_times_out(dummy_app, custom_iter_inputs, monkeypatch):
     import subprocess
     import backend.api.tuning as tuning
-    def too_slow(cmd, cwd, timeout):
+    def too_slow(cmd, cwd, timeout, env=None):
         assert timeout == tuning.LIST_TESTS_TIMEOUT
         raise subprocess.TimeoutExpired(cmd, timeout)
     monkeypatch.setattr(tuning, "run_with_timeout", too_slow)
     data, status = list_tests_response(dummy_app, "ci")
     assert status == 504
     assert "took more than" in data["error"]
+
+
+@pytest.mark.parametrize("runner", [None, "lsf", "kubernetes"])
+def test_listing_with_the_projects_code_needs_the_opt_in(dummy_app, custom_iter_inputs, monkeypatch, runner):
+    import backend.api.tuning as tuning
+    if runner:
+        monkeypatch.setenv("QABOARD_TUNING_RUNNER", runner)
+    else:
+        monkeypatch.delenv("QABOARD_TUNING_RUNNER")
+    def never(*args, **kwargs):
+        raise AssertionError("ran the project's code")
+    monkeypatch.setattr(tuning, "run_with_timeout", never)
+    data, status = list_tests_response(dummy_app, "ci")
+    assert status == 200
+    assert data["tests"] == [] and data["unlisted"] is True
+    assert any("its own `iter_inputs`" in w and "qa batch ci --list" in w for w in data["warnings"])
+
+
+def test_listing_with_the_projects_code_has_no_server_secrets(dummy_app, custom_iter_inputs, monkeypatch):
+    import subprocess
+    import backend.api.tuning as tuning
+    monkeypatch.setenv("QABOARD_DB_PASSWORD", "hunter2")
+    monkeypatch.setenv("QABOARD_SECRET_KEY", "flask-secret")
+    seen = {}
+    def run(cmd, cwd, timeout, env=None):
+        seen["env"] = env
+        return subprocess.CompletedProcess(cmd, 0, '[{"rel_input_path": "a", "configurations": []}]', "")
+    monkeypatch.setattr(tuning, "run_with_timeout", run)
+    data, status = list_tests_response(dummy_app, "ci")
+    assert data["tests"] == [{"input_path": "a", "configurations": []}]
+    assert "PATH" in seen["env"]
+    assert not {"QABOARD_DB_PASSWORD", "QABOARD_SECRET_KEY"} & set(seen["env"])
 
 
 def test_run_with_timeout_stops_what_the_command_started(tmp_path):
@@ -625,16 +672,6 @@ def test_sent_batch_files_are_read_last(tmp_path):
     assert [(f["source"], f["path"]) for f in check["batches_files"]] == [("commit", "sub/batches.yaml"), ("sent", "qa/local.yaml")]
 
 
-def test_sent_batch_files_are_copied_as_sent(tmp_path):
-    from backend.api.tuning import copy_batches_files, sent_batches_files
-    content = "# mine\nconfigurations: [base]\nmine: {inputs: [c]}\n"
-    files, errors = sent_batches_files([{"path": "C:\\work\\..\\qa\\local.yaml", "content": content}])
-    assert errors == []
-    copies = copy_batches_files(files, tmp_path / "log")
-    assert [c.relative_to(tmp_path / "log").as_posix() for c in copies] == ["batches/sent/0/local.yaml"]
-    assert copies[0].read_text() == content
-
-
 def test_invalid_sent_batch_files_are_errors(tmp_path):
     from backend.api.tuning import sent_batches_files, check_tuning_request, MAX_SENT_BATCHES_FILES
     assert sent_batches_files(None) == ([], [])
@@ -674,6 +711,45 @@ def lookup(monkeypatch, hexshas, exact=None):
     return tuning.lookup_commit("group/repo", "abc")
 
 
+@pytest.mark.parametrize("runner, message", [
+    (None, "doesn't start batches itself"),
+    ("  ", "doesn't start batches itself"),
+    ("typo", "(typo) isn't local, celery, lsf or kubernetes"),
+])
+def test_batches_are_refused_when_the_server_starts_none(tmp_path, monkeypatch, dummy_app, runner, message):
+    """Without QABOARD_TUNING_RUNNER, the server doesn't run the projects' code in its container: the form says it first"""
+    import backend.api.tuning as tuning
+    if runner is None:
+        monkeypatch.delenv("QABOARD_TUNING_RUNNER")
+    else:
+        monkeypatch.setenv("QABOARD_TUNING_RUNNER", runner)
+    commit = make_commit(tmp_path, {"project": {"name": "repo"}, "inputs": {"batches": "sub/batches.yaml"}}, batches={"night": {"inputs": ["a"]}})
+    with dummy_app.test_request_context():
+        errors = tuning.check_tuning_request(commit, {"batch_label": "x", "selected_group": "night"})["errors"]
+    assert len(errors) == 1 and message in errors[0]
+    assert "`qa batch`" in errors[0] and "it still works" in errors[0] and "/docs/backend-admin/runners" in errors[0]
+    # starting it is refused before anything is restored or written
+    import flask
+    monkeypatch.setattr(tuning, "lookup_commit", lambda project_id, hexsha: (commit, None))
+    monkeypatch.setattr(tuning, "require_project_access", lambda user, project_id: None)
+    commit.ensure_artifacts = MagicMock()
+    commit.get_or_create_batch = MagicMock()
+    with dummy_app.test_request_context("/api/v1/commit/abcdef/batch", method="POST", query_string={"project": "repo/sub"}, json={"batch_label": "x", "selected_group": "night"}):
+        flask.g.user = {"user_name": "alice"}
+        response, status = tuning.start_tuning("abcdef")
+    assert status == 400 and response.get_json()["reason"] == "no_server_runner" and message in response.get_json()["error"]
+    commit.ensure_artifacts.assert_not_called()
+    commit.get_or_create_batch.assert_not_called()
+
+
+@pytest.mark.parametrize("runner", ["local", "celery", "lsf", "kubernetes"])
+def test_batches_start_with_a_server_runner(tmp_path, monkeypatch, runner):
+    import backend.api.tuning as tuning
+    monkeypatch.setenv("QABOARD_TUNING_RUNNER", runner)
+    commit = make_commit(tmp_path, {"project": {"name": "repo"}, "inputs": {"batches": "sub/batches.yaml"}}, batches={"night": {"inputs": ["a"]}})
+    assert tuning.check_tuning_request(commit, {"batch_label": "x", "selected_group": "night"})["errors"] == []
+
+
 def test_unknown_or_ambiguous_commits(monkeypatch):
     commit, error = lookup(monkeypatch, ["abc123"])
     assert commit.hexsha == "abc123" and error is None
@@ -701,20 +777,6 @@ def test_aliases_can_not_stand_for_too_many_batches(tmp_path):
     assert "more than 10000 batches" in check["errors"][0]
 
 
-def test_sent_batch_files_copies_never_collide(tmp_path):
-    from backend.api.tuning import copy_batches_files, sent_batches_files
-    files, errors = sent_batches_files([
-        {"path": "a", "content": "a: {}\n"}, {"path": "a/b.yaml", "content": "b: {}\n"},
-        {"path": "2-a.yaml", "content": "c: {}\n"}, {"path": "a.yaml", "content": "d: {}\n"}, {"path": "a.yaml", "content": "e: {}\n"},
-        {"path": "x" * 300 + ".yaml", "content": "f: {}\n"},
-    ])
-    assert errors == []
-    copies = copy_batches_files(files, tmp_path / "log")
-    assert len(set(copies)) == len(files)
-    assert [c.read_text() for c in copies] == ["a: {}\n", "b: {}\n", "c: {}\n", "d: {}\n", "e: {}\n", "f: {}\n"]
-    assert copies[5].name == "batches.yaml"
-
-
 def test_sent_batch_files_with_lone_surrogates_are_invalid():
     from backend.api.tuning import sent_batches_files
     for sent in ({"path": "a.yaml", "content": "a: {}\n\ud800"}, {"path": "\ud800.yaml", "content": "a: {}\n"}):
@@ -739,21 +801,26 @@ def test_start_a_batch_from_an_api_client(dummy_app, tmp_path, monkeypatch):
     import backend.api.tuning as tuning
     config = {"project": {"name": "repo"}, "inputs": {"batches": "sub/batches.yaml"}}
     commit = make_commit(tmp_path, config, batches={"night": {"inputs": ["a"]}})
-    batch = SimpleNamespace(batch_dir=tmp_path / "outputs" / "batch", batch_dir_override=None, data={})
+    batch = SimpleNamespace(id=3, label="from-cli", batch_dir=tmp_path / "outputs" / "batch", batch_dir_override=None, data={})
     commit.get_or_create_batch = lambda label: batch
     commit.outputs_dir = tmp_path / "outputs"
     monkeypatch.setattr(tuning, "lookup_commit", lambda project_id, hexsha: (commit, None))
+    events = []
+    def audit(action, *args, meta=None, **kwargs):
+        events.append(SimpleNamespace(action=action, args=args, meta=meta, **kwargs))
+        return events[-1]
+    monkeypatch.setattr(tuning, "audit", audit)
     monkeypatch.setattr(tuning, "db_session", MagicMock())
     monkeypatch.setattr(tuning, "check_storage_path", lambda path: None)
     monkeypatch.setattr(tuning, "user_batch_dir", lambda batch_dir, user: batch_dir)
     monkeypatch.setattr(tuning, "qaboard_data_shared_dir", tmp_path / "shared")
     monkeypatch.setattr(tuning, "record_submission", lambda batch, submission: None)
     started = {}
-    def dispatch_local(script, log_dir, command_id, ci_commit):
+    def dispatch_local(script, log_dir, command_id, ci_commit, token=None):
         started.update(script=script.read_text(), log_dir=log_dir)
         return {"status": "submitted"}
     monkeypatch.setattr(tuning, "_dispatch_local", dispatch_local)
-    monkeypatch.delenv("QABOARD_TUNING_RUNNER", raising=False)
+    monkeypatch.setenv("QABOARD_TUNING_RUNNER", "local")
     request = {
         "batch_label": "from-cli",
         "selected_group": ["night", "mine"],
@@ -770,9 +837,20 @@ def test_start_a_batch_from_an_api_client(dummy_app, tmp_path, monkeypatch):
     command = body["submission"]["command"]
     assert "--batch night --batch mine" in command and "--action-on-existing sync --no-wait" in command
     assert '"parameter_search": {}' in command
-    # the user's private and the shared batches, then the sent file
-    assert [p.relative_to(started["log_dir"]).as_posix() for p in sorted(started["log_dir"].glob("batches/**/*.y*ml"))] == [
-        "batches/commit/sub/batches.yaml", "batches/qaboard/alice.yml", "batches/qaboard/extra-batches.yml", "batches/sent/3/local.yaml",
-    ]
-    assert (started["log_dir"] / "batches/sent/3/local.yaml").read_text() == "mine: {inputs: [b]}\n"
+    # one snapshot of the batches that run, from the commit's file and the sent one: not QA-Board's whole files
+    assert [p.relative_to(started["log_dir"]).as_posix() for p in started["log_dir"].glob("**/*.y*ml")] == ["batches.yaml"]
+    assert f"--batches-file {started['log_dir'] / 'batches.yaml'}" in command
+    import yaml
+    assert yaml.safe_load((started["log_dir"] / "batches.yaml").read_text()) == {"night": {"inputs": ["a"]}, "mine": {"inputs": ["b"]}}
+    assert body["submission"]["batches_snapshot"] == {"batches": ["night", "mine"], "aliases": [], "files": ["sub/batches.yaml", "local.yaml (sent with qa batch --commit)"], "inputs": [], "path": "batches.yaml"}
+    assert body["submission"]["request"]["selected_group"] == ["night", "mine"]
+    # It runs code: the audit log says who started what, with which parameters, and how it went
+    [event] = events
+    assert event.action == "batch.start" and event.args == ("batch", 3, "from-cli") and event.project_id == "repo/sub"
+    assert event.meta["command_id"] == body["submission"]["id"] and event.meta["status"] == "submitted"
+    assert event.meta["batches"] == ["night", "mine"] and event.meta["runner"] == "local" and event.meta["search_type"] == "grid"
+    import hashlib
+    assert event.meta["parameters"] == '{"parameter_search":{},"search_type":"grid"}'
+    assert event.meta["parameters_sha256"] == hashlib.sha256(event.meta["parameters"].encode()).hexdigest()
+    assert "parameters_truncated" not in event.meta
     assert "export QABOARD_TUNING=true" in started["script"]

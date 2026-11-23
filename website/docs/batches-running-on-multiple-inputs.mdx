@@ -38,15 +38,15 @@ qa run --input "profiles/heavy-tail-high.yaml"
    /home/kaito/kitefin/inference-gateway/output/linux/profiles-heavy-tail-high
 ```
 
-Then run it, with `--share` to see the results in the web app. `qa` prints the link to the commit's results first:
+Then run it: the results show in the web app. `qa` prints the link to the commit's results first:
 
 ```bash
-qa --share batch ci
+qa batch ci
 ```
 
 <Clip
   id="cli/batch"
-  caption="qa --share batch ci on the camera pipeline: qa prints the link to the results, then runs each input and configuration of the batch."
+  caption="qa batch ci on the camera pipeline: qa prints the link to the results, then runs each input and configuration of the batch."
 />
 
 - Run several batches at once: `qa batch ci capacity`, or with a wildcard: `qa batch 'sweep-*'`.

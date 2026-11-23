@@ -77,6 +77,7 @@ const sidebars: SidebarsConfig = {
         'user-guide/metrics',
         'user-guide/comparing-results',
         'user-guide/reference-runs',
+        'user-guide/local-changes',
         'user-guide/milestones',
         'user-guide/history-and-dashboards',
       ],
@@ -108,7 +109,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Account and projects',
       collapsed: false,
-      items: ['user-guide/account', 'user-guide/project-access', 'user-guide/project-gate'],
+      items: ['user-guide/account', 'user-guide/project-access', 'user-guide/project-gate', 'user-guide/project-audit-log'],
     },
     {
       type: 'category',
@@ -131,6 +132,11 @@ const sidebars: SidebarsConfig = {
         "running-your-code",
         // Runs created from code that starts by itself: training loops, notebooks
         "log-from-code",
+        // The same, from code written for W&B or MLflow: shims, with their compatibility matrices
+        "from-wandb",
+        "from-mlflow",
+        // Results other tools already wrote: test reports, benchmarks, profiles
+        "upload-results",
         "inputs",
         "specifying-configurations",
       ],
@@ -172,6 +178,10 @@ const sidebars: SidebarsConfig = {
           ],
         },
         "batches-advanced",
+        // What runs use of their machine: memory, CPU, GPUs
+        "system-metrics",
+        // What code local runs ran: their changes compared with their commit
+        "local-changes",
         "using-the-qa-cli",
       ],
     },
@@ -202,7 +212,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Storage & Artifacts',
-      items: ["storage/artifacts", "storage/where-is-the-data", "storage/deleting-old-data"],
+      items: ["storage/artifacts", "storage/where-is-the-data", "storage/uploads", "storage/deleting-old-data"],
     },
     "faq",
   ],
@@ -218,12 +228,15 @@ const sidebars: SidebarsConfig = {
         "backend-admin/settings",
         "backend-admin/sign-in",
         "backend-admin/project-access",
+        "backend-admin/audit-log",
         "backend-admin/storage",
+        "backend-admin/uploads",
         "backend-admin/runners",
         "backend-admin/annotations",
         "backend-admin/monitoring",
         "backend-admin/usage-analytics",
         "backend-admin/troubleshooting",
+        "backend-admin/support",
     ]
   }
 };

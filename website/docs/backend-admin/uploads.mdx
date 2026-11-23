@@ -1,0 +1,251 @@
+---
+id: uploads
+sidebar_label: Accepting results over HTTP
+title: Accept results over HTTP
+description: "Let runs send their files to the QA-Board server instead of saving them in a shared storage: turn it on, choose where files go, require tokens, set limits, and use object storage like S3 through a file system."
+---
+
+By default, runs save their files in a storage that the server mounts too. Turn uploads on, and runs that can't
+mount it send their files to the server over HTTP: CI runners hosted by GitHub or GitLab, laptops, clusters without
+the shared volume. The server saves them in one folder, and from there they are files like the others: the web app,
+the image server, exports, deleting runs and the [retention rules](/docs/backend-admin/storage) treat them the same.
+What projects set: [Send results without a shared storage](/docs/storage/uploads).
+
+:::caution Experimental
+Uploads are new. Start with a few projects.
+:::
+
+## Turn uploads on {#enable}
+**They are on by default** where the server has the default storage: *docker-compose.yml* mounts a volume at
+`/mnt/qaboard` (your site overlay can mount your storage there instead), and the Helm chart saves them in its
+results volume once you turn it on (`results.enabled: true`: without it, the chart takes no files). Check it in **Admin → Settings**, under *Uploads folder*, or with `qa doctor` in a project without
+`storage`: it says whether the server takes its files, and why not.
+
+**Choose another folder** when you set your own storage roots (`QABOARD_STORAGE_ROOTS`): the server then takes no
+files until you set `QABOARD_UPLOAD_ROOT`. Pick a disk with room for the results, a storage root you already have or
+a new one. The backend writes there; the proxy and the image server read it at the same path, like every
+[results storage](/docs/deploy#2-create-the-results-storage):
+
+<Tabs groupId="deployment">
+<TabItem value="compose" label="Docker Compose" default>
+
+```yaml title="Your overlay"
+services:
+  backend:
+    environment:
+      QABOARD_UPLOAD_ROOT: /mnt/results
+    volumes:
+      - /mnt/results:/mnt/results
+  proxy:
+    volumes:
+      - /mnt/results:/var/qaboard/mnt/results:ro
+  cantaloupe:
+    volumes:
+      - /mnt/results:/repository/mnt/results:ro
+```
+
+</TabItem>
+<TabItem value="kubernetes" label="Kubernetes">
+
+```yaml title="values.yaml"
+results:
+  enabled: true
+  uploads: true     # the default: in the results volume, which the backend, the proxy and the image server mount
+```
+
+</TabItem>
+</Tabs>
+
+**Turn them off** with `QABOARD_UPLOAD_ROOT=off` (`results.uploads: false` with the chart): runs must then save
+their results in a storage shared with the server, and the server tells those that send files why it refuses them.
+
+Then:
+- **Recommended: require tokens for all results**, if you don't yet: set **Authenticate results sent by qa** to
+  *token* in **Admin → Settings** ([Results sent by qa](/docs/backend-admin/user-management#results-sent-by-qa)).
+  Files need a token either way.
+- **Before the server is reachable by people you don't trust** with each other's sessions, read
+  [Keep it safe](#security).
+
+<details>
+<summary>Why these are environment variables, not settings in the web app</summary>
+
+The storage roots and the uploads folder say where the server may write and delete files. If an admin's session were
+stolen, a setting in the web app could point them at any folder of the server. Where *a project's* runs go, inside
+those folders, is in the database: [storage locations](#storage-locations), changed in **Admin → Storage** without a restart.
+</details>
+
+## Where the files go {#layout}
+```text
+<QABOARD_UPLOAD_ROOT>/<project>/-/<first 2 characters of the commit>/<the other 38>/output[/<batch>]/<configuration>/<input>/
+/mnt/qaboard/kitefin/planner/-/3f/a91c02d4e7b815c2d9a0e6f37b48e1d05c9f2a6b/output/linux-f0267280c41d9e2b/unit-tests/junit.xml
+<QABOARD_UPLOAD_ROOT>/<project>/-/<first 2 characters of the commit>/<the other 38>/artifacts/
+```
+
+- The server chooses the run's folder, and makes its names itself: what a client says about a run (its input, its
+  batch, its configurations) becomes one folder name each, with a hash when it isn't one already. Clients only name
+  files inside the run's folder, and can't write anywhere else. The default batch has no folder of its own.
+- Commits' folders have their full id, unlike in a shared storage (16 characters): whoever can send a project's
+  results can name a commit that starts like another's, and folder names have a 16-character hash. Runs and
+  artifacts sent to earlier versions stay in their folders (16 characters of the commit, 8 of hash): a run done
+  again goes to the new layout.
+- `-` separates a project from its runs, so a file's path says its project. Where you
+  [restrict who reads files](/docs/backend-admin/user-management#restricting-who-can-read-files), who can read an
+  uploaded file is who can [see its project](/docs/backend-admin/project-access). Projects with a folder named `-`
+  in their name can't upload.
+- The folder can be a storage root that runs also write to directly: uploaded runs are under `<project>/-/`, the
+  others under `<project>/<commit>/`. The server refuses runs and artifacts that say they are in a project's uploaded
+  runs or above them (the project's or its group's folder), since deleting them would delete uploaded runs.
+- A commit's [artifacts](/docs/storage/artifacts#uploaded) go to its `artifacts/` folder, with the repository's
+  layout, one copy per project. Batches started from the web app run there, and Kubernetes pods download them.
+  They are deleted like artifacts in a shared storage, by the projects' retention rules.
+- The files belong to the server's user. Users delete them from the web app, never by hand.
+
+## Keep it safe {#security}
+Whoever can send files can put any file on your server, which serves it to everyone who opens the run.
+
+- **Files always need a token** with the *ingest* scope, from someone who can
+  [send results to the project](/docs/backend-admin/project-access), whatever the setting for other results says.
+  Give CI jobs [their own identity](/docs/ci-integration#ci-without-secrets) or a
+  [service account](/docs/backend-admin/user-management#service-accounts) limited to their project.
+- **Keep `QABOARD_SANDBOX_HTML` on** (the default): uploaded HTML, SVG and XML files then can't act as whoever
+  opens them ([HTML reports](/docs/viewers#html-reports)).
+- **Files and images follow projects' visibility**: nginx asks the backend before serving a file under `/s/`, and
+  before the image server (`/iiif/`) shows an image, once a minute per image and person. Keep both checks
+  (`snippets/qaboard-files-auth.conf` and `qaboard-iiif-auth.conf` in your own nginx configuration, `proxy.restrictFiles`
+  with the chart): without them, anyone who can reach the server reads every project's files, at paths they can
+  guess from a commit id. Image servers you run elsewhere (`QABOARD_IMAGE_SERVERS`) don't get the check.
+- **Batches started from the web app** for these projects get a token of the person who started them, limited to
+  reading the project and sending the results of that batch only (its commit and label, and the batches of each
+  `qa optimize` evaluation): it can't write other batches' runs, other commits, or any commit's artifacts. It is revoked when the batch is stopped, expires 10 minutes after the
+  batch's last run ends (time for the driver to send the end of its log), and a day after the runs stop reporting
+  otherwise. Redone runs and `qa optimize`, which starts batch after batch, keep it until they are stopped or idle.
+  On Kubernetes it is in the driver pod's environment, so whoever can read the namespace's ConfigMaps can use it
+  meanwhile: one namespace per team. The driver pod also sends its log with it, since it can't write in the batch's
+  folder. These batches download the artifacts from QA-Board, through the proxy: the server's own `qa` reaches it
+  at `QABOARD_HOST`, set to the proxy by *docker-compose.yml* and the Helm chart.
+- **Batches started from the web app run the commit's code**: its `qaboard.yaml` and code, and with uploaded
+  artifacts anyone with a token that can send the project's results can change them. By default
+  (`QABOARD_TUNING_RUNNER` unset) the server starts none (redo still goes through the LSF bridge, if set). With `local` or `celery`, that code runs in the backend's
+  container, as its account, with what it can read: keep them for your laptop. On a server that people you don't
+  trust can send results to, use the Kubernetes runner, in a namespace per team
+  ([runners](/docs/backend-admin/runners#security)).
+- **The proxy checks the token before it receives a file**: requests without one that can send results are refused
+  before their body is read, so they can't fill its disk. Its configuration has it for the files' and the batch logs'
+  paths (`snippets/qaboard-uploads-auth.conf`): keep it if you write your own, with
+  `include snippets/qaboard-files-server.conf;` in the `server` block, which defines the check it calls: without it,
+  nginx refuses these requests (500, saying which snippet is missing), and the backend refuses files that nginx
+  didn't check. With the Helm chart, the ingress
+  controller in front of it receives bodies first (up to 1100m): limit who can reach the ingress, or the size, if
+  that matters.
+- **Inside a Kubernetes cluster**, the Helm chart's NetworkPolicy (`backend.networkPolicy.enabled`, on by default)
+  lets only the proxy reach the backend's uWSGI port, where the proxy says it checked a file's token and who the
+  client is: other pods, e.g. runs, would say it themselves. It takes effect when the cluster's network plugin
+  enforces NetworkPolicies; otherwise keep pods that run projects' code in other clusters, or add your own policy.
+  The backend's HTTP port stays open for health checks: it refuses files.
+- **Who can read a batch's token** (the driver pod's ConfigMap) can read the project and change that batch's results
+  while the token is valid, nothing else. Refusals say it's a batch's token (reason `batch_token_limited`). If you
+  write your own proxy configuration, include `snippets/qaboard-uploads-auth.conf` in the files' locations: it sets
+  the path the upload check gets (`QABOARD_ORIGINAL_URI`, as nginx routes it). Without it, the proxy refuses every
+  file sent with a batch's token.
+- **Use HTTPS**: tokens and files travel in the requests.
+
+## Limits and disk space {#limits}
+| Setting | Default | |
+|---|---|---|
+| `QABOARD_UPLOAD_MAX_FILE_MB` | `1024` | The largest file. The proxy has its own limit, `client_max_body_size 1100m` for the runs' and commits' `/files/` in its configuration: to accept larger files, raise both |
+| `QABOARD_UPLOAD_MIN_FREE_GB` | `1` | Files are refused when the disk has less free space left |
+
+- **The proxy receives each file whole** before the backend sees it, once it checked the token, so slow clients
+  don't hold the backend's workers while they send. Its temporary folder (`/tmp` in its container) needs room for the
+  files being received: on Kubernetes, for the pod's ephemeral storage. The backend then copies each file into the
+  folder, and a thread of it is busy meanwhile: many large files at once slow the web app down.
+- **Logs and other files runs add to** are limited like any file, to `QABOARD_UPLOAD_MAX_FILE_MB` in all.
+- **In front of the proxy**, a load balancer or an ingress has its own limits on bodies and on how long a request
+  may last: raise them to the proxy's (1100 MB, 300 s). The chart sets them for ingress-nginx, and turns off its
+  buffering so that the proxy checks tokens first; other ingresses and cloud load balancers need the same by their
+  own settings (e.g. an AWS ALB's idle timeout is 60 s by default, a GCP backend service's timeout 30 s, and some
+  CDNs cap bodies at 100 MB).
+- **Disk usage** shows in [Storage usage](/docs/user-guide/storage-usage) like other results, and projects'
+  [retention rules](/docs/storage/deleting-old-data) delete old runs. There are no quotas per project yet, nor
+  limits on the number of files: whoever can send results can fill the disk, or its inodes. Give the folder its
+  own file system, so that a full one doesn't stop the database or the server.
+- **Back the folder up** with your results. The database only has the runs' metrics.
+
+## Use object storage: S3, GCS, Azure Blob {#object-storage}
+The server needs a file system: it writes each file under a temporary name and renames it, appends to logs, and
+nginx and the image server read plain files. It doesn't talk to buckets itself. To keep uploaded results in object
+storage, mount it as a file system, on the backend, the proxy and the image server:
+
+| | Fits | Notes |
+|---|---|---|
+| A managed file system: Amazon EFS, Google Filestore, Azure Files, your NFS | Yes | The simplest, when you don't need a bucket |
+| [Amazon S3 Files](https://aws.amazon.com/about-aws/whats-new/2026/04/amazon-s3-files) | Yes | A bucket mounted over NFS, in its AWS region |
+| [JuiceFS](https://juicefs.com/docs/community/introduction/) | Yes | A POSIX file system on any object store (S3, GCS, Azure Blob, Ceph, Garage...). It keeps files' names in a database you run (PostgreSQL, Redis...): back it up with the bucket |
+| [rclone mount](https://rclone.org/commands/rclone_mount/) with `--vfs-cache-mode writes` | Try it first | Files go through a local cache before the bucket: size it, and run the check below |
+| [Mountpoint for Amazon S3](https://github.com/awslabs/mountpoint-s3) | No | It can't rename files, nor change or append to existing ones |
+
+We haven't tested each of these with QA-Board: check a mount before you rely on it. As the backend's user:
+
+```bash
+cd "$QABOARD_UPLOAD_ROOT" && mkdir -p .check && cd .check \
+  && echo one > .tmp && mv .tmp log.txt && echo two >> log.txt \
+  && [ "$(wc -l < log.txt)" = 2 ] && cd .. && rm -r .check && echo "The folder fits"
+```
+
+Then upload a run and open one of its images: the proxy and the image server must see the file right away.
+
+### Let a project bring its own storage {#storage-locations}
+To keep the results of a project, or of a group, on storage they pay for, e.g. their own bucket, add a **storage
+location**: no restart needed, it applies within a minute.
+
+1. Mount their storage on the server, in the backend, the proxy and the image server, at the same path, **inside a
+   storage root** (`QABOARD_STORAGE_ROOTS`), e.g. their bucket at `/mnt/qaboard/kitefin`. Run the check above in it.
+2. Add it in **Admin → Storage → Storage locations**, with the URL its runs will say they are in, its folder, and
+   the projects whose runs go there. Or from the server's shell:
+   ```bash
+   qaboard-admin storage-locations add s3://kitefin-bucket/qaboard/ /mnt/qaboard/kitefin --project kitefin/
+   ```
+   Projects are a project, a group (`kitefin/`: all its projects), or `*`. The most specific location wins. The
+   projects that no location lists go to the default location, the uploads folder ([above](#enable)): without one,
+   only the projects a location lists can upload.
+
+The new runs of those projects are saved in the location, with the same layout (`<project>/-/...`), and each run
+stores its full location, e.g. `s3://kitefin-bucket/qaboard/kitefin/planner/-/3f/.../junit.xml`. Their older runs
+stay where they are, and both show in the web app.
+
+:::note Why the folder must be in a storage root
+Admins add locations from the web app, but where the server may write and delete is only set in its environment: a
+stolen admin session can't point the server at another folder. To use a disk outside the storage roots, add it to
+`QABOARD_STORAGE_ROOTS` and restart the server. Locations added before this check keep working, flagged *Outside the
+storage roots* until you do.
+:::
+
+| | |
+|---|---|
+| `qaboard-admin storage-locations list` | The locations, with how many runs are in each |
+| `... set <url> --path /mnt/elsewhere` | The bucket is mounted elsewhere now: its runs don't change, the server finds them there |
+| `... set <url> --project kitefin/ --project acme/` | Whose new runs go there. `--no-projects`: no new runs, the old ones stay readable |
+| `... remove <url>` | Refused while runs are in it. With `--force`, their files can't be read until you add it back. The files stay |
+
+<details>
+<summary>Why runs store a URL, not the location's name</summary>
+
+A run's location is all it needs to be found: changing how the server reaches a bucket (where it's mounted, later
+its credentials) never makes runs point to nothing, and a location removed by mistake strands nothing once added
+back. Only data that moves needs its runs' locations rewritten, like with any path. The server still reads and
+writes plain folders: it doesn't talk to buckets itself, nor hold credentials, yet.
+</details>
+
+QA-Board still has the runs' metrics in its database when that storage loses files.
+
+## When things go wrong {#troubleshooting}
+- ***This server doesn't accept uploaded files***: it says why. There is no uploads folder (see [above](#enable)),
+  and no [storage location](#storage-locations) lists the project.
+- ***No token that can send results*** or ***Sign in to do this***: files need a token, also when other results don't. `qa auth login`, or a token in the CI.
+- **`413`, or *larger than what this server accepts***: raise `QABOARD_UPLOAD_MAX_FILE_MB`, and the proxy's
+  `client_max_body_size` when the answer comes from nginx.
+- **A file named `.qaboard-upload-...`** is one the server was receiving when it stopped. The jobs worker removes
+  those left for over a day.
+- **The run shows, its files don't**: the proxy doesn't mount the folder at `/var/qaboard<path>`, or the image
+  server at `/repository<path>`.
+- ***The server's storage for uploaded files is full***: free space, or lower `QABOARD_UPLOAD_MIN_FREE_GB`.

@@ -5,6 +5,8 @@ import os
 import re
 from typing import Dict, Iterable
 
+from ..conventions import BATCH_TOKEN_PREFIX
+
 
 # Variables specific to the host or the scheduler job qa runs in, not to the runs
 excluded_env = {'HOSTNAME', 'PWD', 'OLDPWD', 'SHLVL', 'TMPDIR', 'TMP', 'TEMP', 'CUDA_VISIBLE_DEVICES', '_'}
@@ -26,11 +28,16 @@ def is_secret(name: str, value: str = '') -> bool:
   return bool(value) and bool(credentials_in_url.search(value))
 
 
+def is_batch_token(name: str, value: str) -> bool:
+  """The token QA-Board gives the runs of a batch it starts: it is for them, wherever they run"""
+  return name == 'QABOARD_TOKEN' and value.startswith(BATCH_TOKEN_PREFIX)
+
+
 def forwarded_env(excluded: Iterable[str] = (), excluded_prefixes: Iterable[str] = (), keep_secrets: bool = False) -> Dict[str, str]:
-  """qa's environment, minus host-specific variables (and the given ones) and, unless `keep_secrets`, secrets."""
+  """qa's environment, minus host-specific variables (and the given ones) and, unless `keep_secrets`, secrets, but the batch's token."""
   excluded = excluded_env | set(excluded)
   prefixes = excluded_env_prefixes + tuple(excluded_prefixes)
   return {
     k: v for k, v in os.environ.items()
-    if k not in excluded and not k.startswith(prefixes) and (keep_secrets or not is_secret(k, v))
+    if k not in excluded and not k.startswith(prefixes) and (keep_secrets or not is_secret(k, v) or is_batch_token(k, v))
   }

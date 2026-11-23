@@ -14,7 +14,7 @@ import click
 
 from .utils import merge, getenvs
 from .git import git_head, git_show
-from .conventions import slugify, get_commit_dirs, location_from_spec, batches_files
+from .conventions import slugify, get_commit_dirs, location_from_spec, batches_files, sends_files
 from .iterators import flatten
 from .site_config import site_config, site_qaboard_config, without_locations_from
 
@@ -53,6 +53,11 @@ ignore_config_errors = ignore_config_errors or is_auth_command
 # `qa doctor` says what's wrong in qaboard.yaml, the storage... with how to fix it: it starts even if they are wrong
 is_doctor_command = is_qa_program(sys.argv) and invoked_command(sys.argv) == 'doctor'
 ignore_config_errors = ignore_config_errors or is_doctor_command
+# `qa upload` saves files as a run, also outside a project: it says itself what it misses (qaboard/upload_command.py)
+# `qa fetch-artifacts` and `qa send-batch-log` only talk to the server
+COMMANDS_WITHOUT_PROJECT = ('upload', 'fetch-artifacts', 'send-batch-log', 'restore')
+is_command_without_project = is_qa_program(sys.argv) and invoked_command(sys.argv) in COMMANDS_WITHOUT_PROJECT
+ignore_config_errors = ignore_config_errors or is_command_without_project
 # The errors in the configuration that make `qa` commands refuse to run, and how to fix them: `qa doctor` reports them
 config_errors: List[Tuple[str, str]] = []
 # What qa warns about in the configuration, and how to fix it
@@ -246,9 +251,11 @@ else:
   # that have tons of small repos configured the name
   interpolation_vars = {"root_path": root_qatools, "project_path": project_dir}
   root_qatools_config['project']['name'] = expand_paths(root_qatools_config['project']['name'], interpolation_vars)
-  root_qatools_config['project']['url'] = expand_paths(root_qatools_config['project']['url'], interpolation_vars)
   config['project']['name'] = expand_paths(config['project']['name'], interpolation_vars)
-  config['project']['url'] = expand_paths(config['project']['url'], interpolation_vars)
+  # project.url is optional: the git remote, or the CI, say where the repository is
+  for project_config in (root_qatools_config['project'], config['project']):
+    if project_config.get('url'):
+      project_config['url'] = expand_paths(project_config['url'], interpolation_vars)
 
 
   # We identify sub-qatools projects using the location of qaboard.yaml related to the project root
@@ -298,7 +305,7 @@ def storage_roots(config: Dict, project: Path, subproject: Path, user_name: Opti
     if 'ci_root' in config:
       # click.secho('DEPRECATION WARNING: the config key "ci_root" was renamed "storage"', fg='yellow', err=True)
       config['storage'] = config['ci_root']
-    config_storage: Union[str, Dict] = os.environ.get('QA_STORAGE', config.get('storage', {}))
+    config_storage: Union[str, Dict] = os.environ.get('QA_STORAGE') or config.get('storage', {})
     interpolation_vars = {"project": project, "subproject": subproject, "user": user_}
     spec_artifacts = config_storage.get('artifacts', config_storage) if isinstance(config_storage, dict) else config_storage
     spec_outputs = config_storage.get('outputs', config_storage) if isinstance(config_storage, dict) else config_storage
@@ -361,7 +368,7 @@ def storage_needed_by(command: Optional[str], share: bool, is_ci: bool) -> Optio
   if is_ci:
     return 'In CI, `qa` saves results there'
   if share:
-    return '`qa --share` saves results there'
+    return '`qa` saves results there'
   return commands_using_storage.get(command) if command else None
 
 
@@ -388,11 +395,40 @@ def report_missing_storage(needed_by: Optional[str], environ=os.environ) -> bool
       click.secho(f'INFO: {storage_help}', fg='blue', err=True)
     return True
   if 'QA_BATCH' not in environ:
-    click.secho(f'WARNING: The storage path does not exist: {paths}. Local runs save their results in output/ without it,', fg='yellow', err=True)
-    click.secho('         but `qa --share`, CI runs and `qa save-artifacts` need it: create or mount it, or set QA_STORAGE.', fg='yellow', err=True)
+    click.secho(f'WARNING: The storage path does not exist: {paths}. Results stay in output/, not shown in QA-Board,', fg='yellow', err=True)
+    click.secho('         and CI runs and `qa save-artifacts` need it: create or mount it, or set QA_STORAGE (QA_STORAGE=upload sends results to the server).', fg='yellow', err=True)
   return False
 
+def default_share(offline: bool = False) -> Tuple[bool, Optional[str]]:
+  """
+  Whether `qa` shows results in QA-Board, and if not, why, for people. Runs are always shared, like start_run()'s,
+  unless --offline, when no server is set, or when the shared storage isn't on this machine.
+  """
+  if offline or not root_qatools_config:
+    return False, None
+  if is_ci:
+    return True, None
+  from .credentials import default_server
+  if default_server()[1] is None:
+    return False, "no QA-Board server is set: set QABOARD_URL, or sign in with `qa auth login --server <url>`"
+  if missing_storage and not uploads_files:
+    paths = ', '.join(str(p) for p in missing_storage)
+    return False, f"the shared storage isn't on this machine ({paths}): mount it, or set QA_STORAGE=upload to send the files to the server"
+  return True, None
+
+
+def uploads_files_with(config: Dict, environ=os.environ) -> bool:
+  """
+  Whether shared results are sent to the server over HTTP (qaboard/upload.py), instead of saved in a storage it reads:
+  `storage: upload` in qaboard.yaml (or the site's), QA_STORAGE=upload, or no storage settings at all.
+  """
+  return sends_files(config, environ.get('QA_STORAGE'))
+
+# only in a project: outside one, `qa` shares nothing (qa upload and start_run() decide for themselves, active_run.py)
+uploads_files = bool(root_qatools_config) and uploads_files_with(config)
+
 outputs_root: Optional[Path]
+storage_found = False
 artifacts_root: Optional[Path]
 artifacts_project_root: Optional[Path]
 artifacts_project: Optional[Path]
@@ -401,13 +437,22 @@ outputs_project: Optional[Path]
 if root_qatools_config:
   assert project
   assert project_root
-  outputs_root, artifacts_root, subproject_for_artifacts = storage_roots(config, project, subproject)
-  mkdir(outputs_root)
-  mkdir(artifacts_root)
-  artifacts_project_root = artifacts_root / project_root
-  artifacts_project = artifacts_root / project
-  outputs_project_root = outputs_root / project_root
-  outputs_project = outputs_root / project
+  if uploads_files:
+    # There is no storage: like outside a project, its folders are None. The commands that need one say so (qa.py)
+    outputs_root = artifacts_root = None
+    subproject_for_artifacts = Path()
+    artifacts_project_root = artifacts_project = outputs_project_root = outputs_project = None
+  else:
+    outputs_root, artifacts_root, subproject_for_artifacts = storage_roots(config, project, subproject)
+    # whether the storage is mounted here, before we create its folder (if we can): `qa upload` sends the files to the
+    # server when it isn't, e.g. on a CI runner that doesn't mount it (qaboard/upload_command.py)
+    storage_found = outputs_root.is_dir()
+    mkdir(outputs_root)
+    mkdir(artifacts_root)
+    artifacts_project_root = artifacts_root / project_root
+    artifacts_project = artifacts_root / project
+    outputs_project_root = outputs_root / project_root
+    outputs_project = outputs_root / project
 else:
   outputs_root = None
   artifacts_root = None
@@ -597,6 +642,25 @@ if commit_id and is_in_git_repo:
       print(e, file=sys.stderr)
 
 
+_default_branch: List[Optional[str]] = []
+
+def repo_default_branch() -> Optional[str]:
+  """The repository's default branch (git.default_branch), read once"""
+  if not _default_branch:
+    from .git import default_branch
+    _default_branch.append(default_branch(repo_root if is_in_git_repo else None))
+  return _default_branch[0]
+
+
+def reference_branch() -> str:
+  """
+  The project's reference branch: project.reference_branch in qaboard.yaml, else the repository's default branch,
+  else main. Like the server's (backend/reference_branch.py), which keeps the first default branch runs send it.
+  """
+  configured = (config.get('project') or {}).get('reference_branch') if isinstance(config.get('project'), dict) else None
+  return str(configured) if configured else (repo_default_branch() or 'main')
+
+
 def commit_data() -> Dict[str, Any]:
   """What we tell QA-Board about the commit, with results: enough for it to create a commit it doesn't know."""
   return {
@@ -616,7 +680,15 @@ def commit_outputs_dir(commit, outputs_project_root: Path, subproject: Path) -> 
   return outputs_project_root / get_commit_dirs(commit, repo_root) / subproject
 
 
-if root_qatools_config:
+if root_qatools_config and uploads_files:
+  assert project_dir and root_qatools
+  # Without a storage, shared runs are saved where local runs are, <project>/output/...: `qa` sends their files to the
+  # server from there (qaboard/upload.py). There are no artifacts: placeholders, like outside a project
+  artifacts_commit_root = Path()
+  artifacts_commit = Path()
+  outputs_commit_root = root_qatools
+  outputs_commit = project_dir
+elif root_qatools_config:
   assert artifacts_project_root
   assert outputs_project_root
   commit_dirs = get_commit_dirs(commit_id, repo_root)

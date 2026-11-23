@@ -29,6 +29,10 @@ app.conf.update(
   broker_transport_options={transport_options!r},
   result_backend={result_backend!r},
   worker_prefetch_multiplier=1,
+  # The filesystem transport polls (RabbitMQ and Redis are evented): the prefork pool then blocks the worker's
+  # main loop when it gets a task while its process is busy, and it no longer reads control messages, like our revoke.
+  # Acknowledged late, the running task keeps the prefetch full: the worker doesn't take the next one meanwhile.
+  task_acks_late=True,
 )
 """
 
@@ -137,6 +141,14 @@ class TestCeleryEnvironment(unittest.TestCase):
     self.assertIn('CI_REPOSITORY_URL', env)
     self.assertNotIn('NOT_SET', env)
     self.assertNotIn('GITLAB_TOKEN', env)
+
+  def test_runs_get_the_token_of_the_batch_qaboard_started(self):
+    from qaboard.runners.celery import without_secrets
+    with mock.patch.dict(os.environ, {'PATH': '/bin', 'QABOARD_TOKEN': 'qab_bat_x'}, clear=True):
+      self.assertEqual(without_secrets(), {'PATH': '/bin', 'QABOARD_TOKEN': 'qab_bat_x'})
+    # not other tokens
+    with mock.patch.dict(os.environ, {'PATH': '/bin', 'QABOARD_TOKEN': 'qab_pat_x'}, clear=True):
+      self.assertEqual(without_secrets(), {'PATH': '/bin'})
 
   def test_forward_secrets_setting(self):
     from qaboard.runners.celery import forward_secrets_option

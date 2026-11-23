@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { DateTime } from "luxon";
 
 import { http, errorMessage, isArtifactsError } from "../../api/http";
 import { requestLogin } from "../authentication/login";
@@ -326,13 +327,15 @@ const default_search_options = { n_iter: 50 };
 const no_tests = { tests: [] };
 
 // What tests a batch (a "group") would run
-const useGroupInfo = ({ project, selected_group, commit_id, available_tests_files, is_logged }) => {
+// `batches_files`: files sent with the request, read last, e.g. the batches of an earlier batch, as they ran
+const useGroupInfo = ({ project, selected_group, commit_id, available_tests_files, is_logged, batches_files }) => {
   const query = useQuery({
-    queryKey: ['tests-group', project, selected_group, commit_id ?? null, available_tests_files],
+    queryKey: ['tests-group', project, selected_group, commit_id ?? null, available_tests_files, batches_files ?? null],
     queryFn: async ({ signal }) => {
       const params = { project, name: selected_group, commit: commit_id };
+      const body = { groups: Object.values(available_tests_files ?? {}), ...(batches_files ? { batches_files } : {}) };
       // background: no "Sign in" toast, the form already says to sign in
-      return (await http.post('/api/v1/tests/group', { groups: Object.values(available_tests_files ?? {}) }, { params, signal, background: true })).data;
+      return (await http.post('/api/v1/tests/group', body, { params, signal, background: true })).data;
     },
     // the server needs to know who asks
     enabled: !!selected_group && is_logged,
@@ -376,6 +379,18 @@ const useTuningCheck = ({ project, commit_id, request, is_logged }) => {
 
 
 // Starts tuning experiments. What users enter is remembered per project.
+// The form runs the batches of an earlier batch, as they ran: they win over the files' current definitions
+const SnapshotCallout = ({ snapshot, onDrop }) => {
+  const when = DateTime.fromISO(snapshot.created_at ?? '', { zone: 'utc' });
+  return <Callout icon="history" intent={Intent.PRIMARY} style={{ margin: '-8px 0 15px', maxWidth: 640 }} title={`The batches as they ran in ${snapshot.from}`}>
+    <p style={{ margin: '0 0 6px 0' }}>
+      QA-Board sends the definitions it saved when <strong>{snapshot.from}</strong> started{when.isValid ? ` (${when.toRelative()})` : ''}:
+      they replace the current ones of {snapshot.names?.length ? snapshot.names.join(', ') : 'those batches'} and of the aliases that reach them.
+    </p>
+    <Button size="small" icon="cross" onClick={onDrop}>Use the batches as defined now</Button>
+  </Callout>;
+};
+
 const TuningForm = ({ project, git, config, metrics, commit, available_tests_files, repo_file_url }) => {
   const logged_user = useUser();
   const { docs_root, support_url, email_notifications } = useSiteConfig();
@@ -401,7 +416,10 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
     search_options = default_search_options,
     parameter_search_auto = default_parameter_search_auto,
     optimize_mode = 'guided',
+    // "Run again" from a batch's logs: its batches, as they ran (see logs/reproduce.js)
+    batches_snapshot = null,
   } = form;
+  const batches_files = batches_snapshot?.files ?? null;
   const user = logged_user.user_name || form.user || default_user;
 
   const { combinations, language } = useMemo(
@@ -410,7 +428,7 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
   );
   const is_logged = logged_user.is_logged;
   const { group_info: selected_group_info, loading: selected_group_info_loading, error } = useGroupInfo({
-    project, selected_group, commit_id: commit?.id, available_tests_files, is_logged,
+    project, selected_group, commit_id: commit?.id, available_tests_files, is_logged, batches_files,
   });
 
   // The batch's settings, as sent to the server
@@ -433,12 +451,13 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
       },
       selected_group,
       groups: Object.values(available_tests_files ?? {}),
+      ...(batches_files ? { batches_files } : {}),
       user,
       overwrite,
       // an email when the last run ends (everyone gets them for now, not for automated tuning yet)
       notify: email_notifications && search_type !== 'optimize' ? 'email' : undefined,
     };
-  }, [project, experiment_name, platform, search_type, search_options, parameter_search, parameter_search_auto, selected_group, available_tests_files, user, overwrite, email_notifications]);
+  }, [project, experiment_name, platform, search_type, search_options, parameter_search, parameter_search_auto, selected_group, available_tests_files, batches_files, user, overwrite, email_notifications]);
   const check = useTuningCheck({ project, commit_id: commit?.id, request, is_logged });
   // the automated tuning's configuration, checked as users type. The server checks it too, with the same messages.
   const optimize_errors = useMemo(() => {
@@ -533,6 +552,8 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
   };
 
   const { tests, warnings, definitions } = selected_group_info;
+  // the server can't list the tests without running the project's code (its own iter_inputs): `qa batch` will
+  const unlisted = !!selected_group_info.unlisted;
   const total_runs = combinations * tests.length;
   // no runs yet (e.g. no batch chosen) is not an error
   const time_intent =
@@ -734,6 +755,7 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
         dir="auto"
       />
     </FormGroup>
+    {!!batches_snapshot && <SnapshotCallout snapshot={batches_snapshot} onDrop={() => updateTuning(project, { batches_snapshot: null })} />}
     {!!selected_group && !selected_group_info_loading && <>
       <BatchDefinitions
         definitions={definitions}
@@ -742,7 +764,7 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
       />
       <BatchWarnings
         warnings={warnings}
-        title={tests.length === 0 ? "Why the batch has no tests" : "Check the batch files"}
+        title={tests.length === 0 && !unlisted ? "Why the batch has no tests" : "Check the batch files"}
         style={{ marginBottom: '15px' }}
       />
     </>}
@@ -782,7 +804,7 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
     <FormGroup
       helperText={!user ? "Please provide a user in the input below"
                         : experiment_name.length === 0 ? 'Please give the batch a label (the input is above)'
-                        : selected_group_info.tests.length === 0 ? "The batch has no tests: see why under its name"
+                        : (tests.length === 0 && !unlisted) ? "The batch has no tests: see why under its name"
                         : search_type === "optimize" ? (optimize_errors.length > 0 ? "Fix the automated tuning's configuration first: it says what's missing above" : undefined)
                         : combinations === "invalid" ? "The tuning parameters are not valid JSON, or the function throws"
                         : total_runs > MAX_RUNS ? `Too many runs: ${total_runs} (at most ${MAX_RUNS}). Use “Sampling” or fewer inputs.`
@@ -806,7 +828,8 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
         check_errors.length > 0 ||
         !user ||
         experiment_name.length === 0 ||
-        (!total_runs && search_type !== "optimize") ||
+        (!total_runs && search_type !== "optimize" && !unlisted) ||
+        (combinations === "invalid" && search_type !== "optimize") ||
         (search_type === "optimize" && optimize_errors.length > 0) ||
         total_runs > MAX_RUNS
       }

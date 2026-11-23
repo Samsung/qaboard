@@ -118,11 +118,10 @@ upgrades the release (the `helm-e2e` job).
 </TabItem>
 </Tabs>
 
-:::danger Keep QA-Board on your computer, or behind a firewall
-By default, the API that `qa` uses to save results doesn't require a login: anyone who can reach the server can add
-or delete results. The quickstarts only answer on your computer (the Compose file publishes the port on `127.0.0.1`,
-kind through the port-forward). Never expose a QA-Board server to the internet: keep it on a network you trust. A
-server for your team can require tokens to save results: see [results sent by qa](/docs/backend-admin/user-management#results-sent-by-qa).
+:::danger Keep the quickstart on your computer
+The quickstarts only answer on your computer (the Compose file publishes the port on `127.0.0.1`, kind through the
+port-forward), and their demo accounts share a known password. Before a server faces others, follow
+[Deploying QA-Board](/docs/deploy) and [Keep it safe](/docs/backend-admin/uploads#security).
 :::
 
 ## Look at the demo projects
@@ -176,18 +175,32 @@ and runs its image pipeline on test charts and photos.
    `QA_STORAGE` replaces `storage` in the example's *qaboard.yaml*, `/mnt/qaboard`: the quickstart's server only
    reads your results in `/tmp/qaboard`.
 
+   **Sign in**: QA-Board only saves results sent with a token. `qa auth login` prints a link: open it, sign in as
+   `ines` with the password `kitefin-demo`, and approve.
+
+   ```bash
+   qa auth login
+   ```
+
+   When `qa` runs on another computer, or in a container that doesn't see that folder, it can send the files to the
+   server instead: `export QA_STORAGE=upload` ([without a shared storage](/docs/storage/uploads)).
+
 4. **Run the example's CI batch:** 5 test charts and 4 photos, each at ISO 100 and 3200. The first time, the example
    downloads its photos and generates its charts.
 
    ```bash
-   qa --share batch ci
+   qa batch ci
    ```
 
 5. **Open the link** that `qa` prints after `Results:`. It's the commit page of the `kitefin/camera-isp` project, with
    your 18 runs: their metrics, then their output images, which you can zoom into, all in sync. Your commit joins
    the demo commits of the project.
 
-Without `--share`, `qa` saves the results in `output/` and doesn't tell the server.
+With `--offline`, `qa` saves the results in `output/` and doesn't tell the server.
+
+Change the code without committing, and run again: `qa` prints `Local changes: 1 file, +2 -1`, and saves the patch
+with each run. The web app tags the runs with it, and `qa restore <run id>` gets that code back
+([local changes](/docs/local-changes)).
 
 :::tip Clean up
 Docker Compose: `docker compose down --volumes`, in the folder of `compose.yml`, deletes QA-Board and its data.

@@ -42,6 +42,9 @@ services:
     # At SIRC, deployments/sirc/.envrc sets QABOARD_DEV_DB_HOST to connect to the production database
     - QABOARD_DB_HOST=${QABOARD_DEV_DB_HOST:-db}
     - SSH_AUTH_SOCK=/ssh-agent
+    # Batches started from the web app (tuning, redo) are off unless you choose a runner: QABOARD_TUNING_RUNNER=local
+    # in .env runs them in this container, as the backend (anyone who can start one runs code here). Site overlays win
+    - QABOARD_TUNING_RUNNER=${QABOARD_TUNING_RUNNER:-}
     working_dir: /qaboard/backend
     # With what's just below, everything works except being able to delete files owned by other users
     # We wish we could do this, then remove sudo from the dockerfile, and use this command...
@@ -57,9 +60,11 @@ services:
     # The jobs worker (Admin > Storage) doesn't reload when the code changes: restart the container.
     # The proxy talks uwsgi to backend:3000: to check who can read files (500 errors without it), for the file browser
     # under /s/ (folder listings, /api/v1/... calls: 502 errors)... Next to flask, uwsgi serves them (as you, not $UWSGI_UID)
+    # `flask routes` imports the app once first: it creates the missing tables (Base.metadata.create_all), which
+    # uwsgi, the jobs worker and flask would otherwise all do at the same time on an empty database, and race
     command: >
       bash -c "
-      serve='env -u UWSGI_UID -u UWSGI_GID uv run uwsgi --ini uwsgi.ini --py-autoreload 2 & uv run qaboard-admin jobs worker & exec uv run flask run --host 0.0.0.0 --with-threads --port 5152';
+      serve='uv run flask routes > /dev/null; env -u UWSGI_UID -u UWSGI_GID uv run uwsgi --ini uwsgi.ini --py-autoreload 2 & uv run qaboard-admin jobs worker & exec uv run flask run --host 0.0.0.0 --with-threads --port 5152';
       if id '${USER}' >/dev/null 2>&1; then
         echo '${USER} ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers;
         exec su '${USER}' -c \"$$serve\";

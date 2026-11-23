@@ -2,7 +2,7 @@
 id: serving-latency
 title: "Performance: catch tail latency before users do"
 sidebar_label: Performance
-description: For backend and performance teams, and anyone who reviews "it's faster" claims, including coding agents'. Latency distributions under the same load on every commit, flame graph diffs from your profiler's files, your benchmark harness's results against the reference's, History to find a regression, and a gate on p99.
+description: "For backend and performance teams. Latency percentiles, flame graph diffs and benchmarks against the reference's on every commit, to check any \"it's faster\" claim."
 ---
 For backend and performance engineers, and for anyone who reviews "it's faster" claims, including the ones coding
 agents make.
@@ -141,7 +141,7 @@ qa run --input profiles/steady-high.yaml   # 6,000 requests/s, about 10 s
 qa batch ci                                # 5 load profiles, about 45 s
 ```
 
-Without `--share`, results stay in `output/`. To see them in the web app, run `qa --share batch ci`. With the
+`qa batch ci` shows the results in the web app. With the
 [quickstart](/docs/get-started/quickstart#save-results-from-your-computer)'s server, first
 `export QABOARD_URL=http://localhost:5151 QA_STORAGE=/tmp/qaboard`.
 

@@ -48,26 +48,9 @@ def run(context):
   if context.dryrun:
     return {"is_failed": False}
 
-  # We do extra work to capture real-time logs and print it ourselves
-  # otherwise it won't show in both STDOUT and the captured log.txt file
-  # https://stackoverflow.com/questions/803265/getting-realtime-output-using-subprocess
-  process = subprocess.Popen(
-    command,
-    shell=True,
-    cwd=context.output_dir,
-    encoding='utf-8',
-    stdout=subprocess.PIPE,
-    stderr=subprocess.STDOUT,
-    bufsize=1,
-    errors='replace',
-  )
-  while True:
-      line = process.stdout.readline()
-      if line == '' and process.poll() is not None:
-          break
-      if line:
-          print(line.strip(), flush=True)
-  returncode = process.poll()
+  # What the command prints is saved in the run's log.txt (on Windows, only what Python prints:
+  # pass stdout=subprocess.PIPE and print its output)
+  returncode = subprocess.run(command, shell=True, cwd=context.output_dir).returncode
   if returncode != 0:
     return {"is_failed": True, "returncode": returncode}
   return {"is_failed": False}

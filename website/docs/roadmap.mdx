@@ -127,32 +127,39 @@ graph against the reference's profile, with a table of the top functions (see
 
 <RoadmapItem status="experimental" title="Create runs from Python, and log while they run">
 `qaboard.start_run(...)` from training loops, notebooks and scripts, without `qa run`: `log()` with a `step` for the
-values logged during training, `log_metrics()`, `log_params()`, `log_artifact()`, `finish()`. These runs show in the
-web app like any other, with the curves of what they logged next to the reference run's, while they run
-([log from your code](/docs/log-from-code)). The design is in the repository,
+values logged during training, media at each step (images, sounds, videos, tables, histograms), `log_metrics()`,
+`log_params()`, `log_artifact()`, `finish()`. These runs show in the web app like any other, with the curves and the
+media they logged next to the reference run's, while they run ([log from your code](/docs/log-from-code)). The design is in the repository,
 [`docs/rfcs/python-sdk-runs.md`](https://github.com/Samsung/qaboard/blob/master/docs/rfcs/python-sdk-runs.md).
 </RoadmapItem>
 
 <RoadmapItem status="exploring" title="More to log from code">
-Images per step, system metrics (GPU memory and utilization), sending later the runs logged while the server was
-away, and a pytest plugin that makes a run of a test session.
+Segmentation masks on logged images, sending later the runs logged while the server was away, and a pytest plugin
+that makes a run of a test session. What runs use of their machine (memory, CPU, GPUs) is already measured, with nothing to set up
+([memory, CPU and GPUs](/docs/system-metrics)).
 </RoadmapItem>
 
-<RoadmapItem status="exploring" title="A wandb.log shim">
-Mirror your existing `wandb.log` calls to QA-Board, without changing your code.
+<RoadmapItem status="experimental" title="Log with your W&B code">
+Run your script with `python -m qaboard.integrations.wandb train.py`, or add `qaboard.integrations.wandb.mirror()`:
+your `wandb.init()`, `wandb.log()` and summaries also go to QA-Board. Or import QA-Board in place of `wandb`. What
+QA-Board can't keep yet is said once, and listed when the run ends ([log with your W&B code](/docs/from-wandb)).
+</RoadmapItem>
+
+<RoadmapItem status="experimental" title="Log with your MLflow code">
+Set `MLFLOW_TRACKING_URI=qaboard:` and your MLflow code, autolog included, logs to QA-Board; `qaboard+<your MLflow
+URI>` keeps your MLflow server and copies everything to QA-Board ([log with your MLflow code](/docs/from-mlflow)).
+This is a plugin for MLflow's Python client: we're evaluating whether the server should also accept MLflow's REST
+API, for clients in other languages.
 </RoadmapItem>
 
 <RoadmapItem status="exploring" title="Importers">
 Bring past runs from W&B, MLflow or TensorBoard into QA-Board, to compare them with new ones.
 </RoadmapItem>
 
-<RoadmapItem status="exploring" title="MLflow tracking API">
-We're evaluating whether QA-Board should accept MLflow's tracking API, so that MLflow clients can log to it.
-</RoadmapItem>
-
 ## Cloud-native
-Today `qa` writes results to a storage that the server mounts at the same path, like an NFS share. That works well
-on-premises, next to a cluster. It leaves out GitHub-hosted runners and clusters without shared volumes.
+`qa` writes results to a storage that the server mounts at the same path, like an NFS share. That works well
+on-premises, next to a cluster. GitHub-hosted runners and clusters without shared volumes send their files to the
+server instead.
 
 <RoadmapItem status="shipped" title="Published images and Helm chart">
 CI tests every image, including a Helm install on Kubernetes that runs a real `qa batch`, then publishes them to
@@ -160,10 +167,13 @@ CI tests every image, including a Helm install on Kubernetes that runs a real `q
 [Kubernetes](/docs/backend-admin/kubernetes).
 </RoadmapItem>
 
-<RoadmapItem status="next" title="HTTP upload of outputs">
-`qa` uploads a run's files to the server, which stores them where shared-storage runs would be. GitHub-hosted
-runners, laptops off the VPN and pods without a shared volume can save results, and the web app shows them like any
-other.
+<RoadmapItem status="shipped" title="HTTP upload of outputs">
+Experimental: without a shared storage, `qa` and `qaboard.start_run()` send a run's files to the server, its log as
+it goes. GitHub-hosted runners, laptops off the VPN and pods without a shared volume can save results, and the web
+app shows them like any other. `qa upload` saves the files other tools wrote, like test reports and benchmark
+files, as runs, without a `run()` function. See [Send results without a shared storage](/docs/storage/uploads) and
+[Upload results from any tool](/docs/upload-results). Next: files larger than 1 GB sent in parts, files that didn't
+change sent once, and starting runs from the web app without a shared storage.
 </RoadmapItem>
 
 <RoadmapItem status="shipped" title="Token-authenticated ingest">
@@ -172,8 +182,9 @@ where `qa` only warns. See [Results sent by qa](/docs/backend-admin/user-managem
 </RoadmapItem>
 
 <RoadmapItem status="exploring" title="Object storage for results">
-Keep results in S3, R2, GCS or MinIO instead of a file share. The upload protocol is designed for it, and Cantaloupe,
-the image server, can read from S3.
+Today, the files runs send to the server can live in a bucket mounted as a file system
+([how](/docs/backend-admin/uploads#object-storage)). Next: the server talking to S3-compatible storage itself, with
+files sent straight to the bucket, and buckets that projects bring.
 </RoadmapItem>
 
 <RoadmapItem status="shipped" title="A Kubernetes Job runner">
@@ -218,13 +229,14 @@ Owners choose who can see their projects and act on their runs, from the web app
 requests. Groups follow your directory or your SSO. See [Project access and roles](/docs/backend-admin/project-access).
 </RoadmapItem>
 
-<RoadmapItem status="exploring" title="SCIM provisioning">
-Create and remove users and groups from your identity provider.
+<RoadmapItem status="shipped" title="Audit log">
+Who ran, deleted or changed what, and when: batches started from the web app, deleted and edited runs, sign-ins,
+tokens and admin changes. Projects' members see their project's history, admins export everything or send it to
+their SIEM. See [The audit log](/docs/backend-admin/audit-log).
 </RoadmapItem>
 
-<RoadmapItem status="exploring" title="Audit log">
-Who ran, deleted or changed what, and when. Sign-ins, tokens, admin changes and batch deletions are already in the
-admin panel's audit log.
+<RoadmapItem status="exploring" title="SCIM provisioning">
+Create and remove users and groups from your identity provider.
 </RoadmapItem>
 
 <RoadmapItem status="exploring" title="Retention and quotas in the web app">

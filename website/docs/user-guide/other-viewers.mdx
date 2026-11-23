@@ -2,7 +2,7 @@
 id: other-viewers
 title: Plots, flame graphs, 3D and more
 sidebar_label: Plots, 3D and more
-description: "How the other viewers compare new and reference: plots, training curves and other logged series, flame graphs, test reports, benchmarks, text, HTML reports, point clouds and trajectories, and the stages or frames of a run."
+description: "Compare plots, training curves, flame graphs, test reports, benchmarks, text, HTML reports, point clouds and trajectories with the reference's in the web app."
 ---
 Runs show more than images and videos: plots, CPU profiles, transcripts, the reports your code writes, 3D maps and
 trajectories. Each viewer puts the reference's result next to the new one, or over it, so you see what the change did.
@@ -11,10 +11,12 @@ trajectories. Each viewer puts the reference's result next to the new one, or ov
 |---|---|
 | Curves, bars, heatmaps: a detector's precision-recall curves, a server's latency percentiles | [Plots](#plots), the reference's drawn over the new ones, or next to them |
 | Values logged while a run goes on: a training's loss and learning rate at each step | [Logged series](#logged-series): one plot per series, the reference's dashed on the same axes, live |
+| Images, sounds, tables, histograms and texts a training logged at its steps | [Logged media](#logged-media): one timeline for all of them, each next to the reference run's at the same step |
 | CPU profiles of a server or a pipeline | [Flame graphs](#flame-graphs), colored by what got slower or faster |
 | Unit and integration test reports (JUnit XML) | [Test reports](#test-reports): each test against the reference, with what started failing, what got fixed and what disappeared |
 | Benchmark results: pytest-benchmark, Google Benchmark, hyperfine, Criterion, JMH | [Benchmarks](#benchmarks): each one against the reference, what got slower or faster beyond noise |
 | Text: an LLM agent's transcripts, logs, tables | [Text diffs](#text), line by line |
+| Sounds: a TTS model's samples, a denoiser's outputs | [Audio](#audio): the waveform or spectrogram above the reference's; switch between them while it plays |
 | Reports your code writes as web pages | [HTML reports](#html-reports), the new one above the reference's |
 | A robot's maps and 6DoF trajectories | [Point clouds and trajectories](#point-clouds-and-trajectories), in 3D, with the ground truth |
 | Many files per run: an ISP's stages, the frames of a sequence, the images of a test set | [A slider](#pipeline-stages-and-frames) that picks the file every card shows |
@@ -122,6 +124,72 @@ seeds.
 
 Integrators: see [Log from your code](/docs/log-from-code) to log series from Python, and
 [the file format](/docs/viewers#series) for other languages.
+
+## Logged media {#logged-media}
+Runs started from code can log images, sounds, videos, tables, histograms and texts at their steps: a model's
+predictions on a few validation images every 1000 steps, a TTS sample, the distribution of a layer's weights. Their
+card shows them under **Logged media**, with nothing to set up, each next to the reference run's at the same step.
+
+1. **Pick a moment of the run on the timeline**: it shows where each key logged something, with the loss (or a series
+   you pick) drawn behind it, so you see where the interesting steps are. Hover a step to preview its images; click,
+   or use <kbd>←</kbd> <kbd>→</kbd>. **Latest** follows a run that is still running. Clicking a point of a
+   [logged series](#logged-series) plot moves the media to that step, and once you picked a step the plots show it as a cursor.
+2. **Compare with the reference run**: each sample sits next to the reference's same sample, matched by the name
+   your code gave it, so samples that come in another order still match. When a run didn't log at the step you picked,
+   you see its last item before it, with a chip that says from which step.
+3. **Open an image** to compare it in the [image viewer](/docs/user-guide/image-viewer): zoom, pixel values, the
+   difference. **Follow one sample over training** with the filmstrip button (<kbd>e</kbd>): every step it was logged
+   at, new above reference.
+4. **Read boxes**: show or hide predictions and ground truth, hide boxes under a score, and see one color per label.
+
+Each kind has its view:
+- **Tables**: sort, filter, and **Diff** against the reference's table, rows joined by a key column you can change:
+  changed cells are tinted, with the old value on hover. Numeric columns show their distribution in their header.
+- **Histograms**: the distribution over all the steps as a heatmap, with its median and 5–95% band; below, the
+  step's histogram with the reference's outlined.
+- **Sounds** open in the [audio viewer](#audio); several at a step are rows to play and switch A/B, expanded on
+  click.
+- **Texts** show as a diff against the reference's, or against the run's previous step.
+
+<details>
+<summary>Finding your way in many keys, sharing a view, and shortcuts</summary>
+
+The section's header says what the run logged (*12 keys · steps 0–24 000 · images, audio, tables*). **Contents**
+lists the keys grouped by the start of their name, with how many steps each logged; filter them as you type. Pin the
+keys you look at most: they stay on top for you in this project, like the groups you collapse. Images
+and videos come first, texts last.
+
+The step you picked is in the page's address, shared by every card, and so is the sample you opened: copy the address
+to send someone *this sample at this step*. <kbd>?</kbd> lists the shortcuts: <kbd>←</kbd> <kbd>→</kbd> between
+logged steps, <kbd>e</kbd> the filmstrip, <kbd>space</kbd> swaps new and reference.
+
+</details>
+
+## Audio {#audio}
+Sound files (*.wav*, *.mp3*, *.flac*, *.ogg*...) open in the audio viewer: the new run's above the reference run's, on
+the same time axis.
+
+1. **Play**, then **switch between A and B while it plays** (<kbd>a</kbd>, <kbd>b</kbd>): playback continues at the
+   same position, in the other file. That is how you hear a difference.
+2. **Match loudness** is on by default: the louder file is turned down to the other's level (the gain shows on its
+   track, e.g. *−4.1 dB to match*), so that the louder one doesn't sound better only because it is louder.
+3. **See the frequencies** with **Spectrogram** (<kbd>s</kbd>): both files share the same color scale.
+4. **See what differs** with **Difference**: what is left once the reference is subtracted, sample by sample, or
+   where their spectra differ, in blue where new is louder and orange where the reference is. You can play it too. It
+   needs files of the same sample rate and length: otherwise its switch says why it is off.
+5. **Zoom on a moment**: <kbd>Ctrl</kbd> + wheel or pinch zooms where the pointer is, dragging selects a region that
+   loops, <kbd>z</kbd> zooms on it, a double-click shows everything again.
+
+<details>
+<summary>What the numbers say, and every shortcut</summary>
+
+Each track shows its sample rate, channels, duration, peak and RMS levels (dBFS), its loudness (LUFS, measured like
+broadcast loudness meters do), and how many samples clip, drawn red on the waveform. <kbd>?</kbd> lists the
+shortcuts: <kbd>space</kbd> plays or pauses, <kbd>x</kbd> goes to the next track (A, B, difference), arrows move by a
+second (five with <kbd>shift</kbd>), <kbd>0</kbd> goes back to the start, <kbd>l</kbd> loops, <kbd>m</kbd> matches
+loudness. Files the browser can't decode play in its own player.
+
+</details>
 
 ## Flame graphs {#flame-graphs}
 A flame graph shows where a program spends its CPU time. Each bar is a function, as wide as the time spent in it, with

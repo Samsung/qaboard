@@ -1,6 +1,7 @@
 """
 `qa batch` commands that the server runs itself, in the backend's container: batches started from the web app with
-QABOARD_TUNING_RUNNER=local (the default) or celery (api/tuning.py), and redoing runs without the LSF bridge (redo.py).
+QABOARD_TUNING_RUNNER=local or celery (api/tuning.py), and redoing runs with them without the LSF bridge (redo.py).
+Admins opt in by setting one: unset, the server starts no batches (server_runner.py).
 
 - They run detached (start_detached): in their own process group, outside of the HTTP request, so that uWSGI's
   `harakiri` (300s) doesn't kill them and requests don't wait for them. Their submission (submissions.py) records
@@ -25,13 +26,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from qaboard.runners.env import is_secret as is_runner_secret
+from .server_runner import IN_SERVER_RUNNERS
 
 
 # In the environment of what we start, to find it again, even processes that left its process group
 SUBMISSION_ENV = 'QABOARD_SUBMISSION_ID'
 EXIT_CODE_FILE = 'exit_code'
 # the runners whose `qa batch` the server starts itself
-LOCAL_RUNNERS = ('local', 'celery')
+LOCAL_RUNNERS = IN_SERVER_RUNNERS
 
 # Variables whose names contain these words hold secrets, besides those the runners never forward (runners/env.py:
 # *TOKEN*, *PASSWORD*, *SECRET*, *AUTH*...). The server is stricter: `qa batch` doesn't need its keys.
@@ -51,10 +53,11 @@ SERVER_ONLY_PREFIXES = (
 CELERY_VARIABLES = ('CELERY_BROKER_URL', 'CELERY_RESULT_BACKEND')
 
 
-def qa_environment(submission_id: str, celery: bool = False, environ: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+def qa_environment(submission_id: str, celery: bool = False, environ: Optional[Dict[str, str]] = None, token: Optional[str] = None) -> Dict[str, str]:
   """
   The environment of the `qa batch` the server starts: the server's, minus its secrets. It keeps what `qa` needs: PATH,
   HOME, LANG, QABOARD_HOST/QABOARD_PROTOCOL, proxies, CA bundles, QA_RUNNERS_LSF_BRIDGE... and with `celery`, the broker.
+  `token`: the batch's own (tokens.mint_for_batch), for runs that send their results over HTTP.
   """
   environ = os.environ if environ is None else environ
   env = {
@@ -64,6 +67,8 @@ def qa_environment(submission_id: str, celery: bool = False, environ: Optional[D
   if celery:
     env.update({k: environ[k] for k in CELERY_VARIABLES if k in environ})
   env[SUBMISSION_ENV] = submission_id
+  if token:
+    env['QABOARD_TOKEN'] = token
   return env
 
 

@@ -49,6 +49,10 @@ config:
 results:
   enabled: false
   mountPath: /mnt/qaboard
+  # Also save there, under <mountPath>/<project>/-/, the files of runs that don't mount the storage: they send them
+  # over HTTP (projects without `storage` in qaboard.yaml, or `storage: upload`), always with a token. false: the
+  # server refuses them. See https://samsung.github.io/qaboard/docs/backend-admin/uploads
+  uploads: true
   # Set one of existingClaim, nfs or hostPath. Else the chart creates a PersistentVolumeClaim.
   # An existing PersistentVolumeClaim, e.g. on a storage class for NFS, EFS, Filestore or Azure Files
   existingClaim: ""
@@ -158,6 +162,11 @@ backend:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  # Only the proxy reaches the backend's uwsgi port (3000): nginx tells the backend there that it checked an upload's
+  # token, and the client's address, so pods that run projects' code (runners.kubernetes) must not reach it. Its
+  # HTTP port (3001: health checks) stays open. Takes effect when the cluster's network plugin enforces NetworkPolicies.
+  networkPolicy:
+    enabled: true
   podDisruptionBudget:
     minAvailable: 1
   autoscaling:
@@ -189,9 +198,10 @@ proxy:
   #    server { ... }
   # e.g. to serve other storage under /s/: nginx serves /s/<path> from /var/qaboard/<path>
   extraVolumes: []
-  # Only the users allowed by QABOARD_LOGIN_RESTRICTED_YAML can read the files of restricted projects and folders under /s/.
-  # nginx asks the backend before serving each file.
-  restrictFiles: false
+  # Only who can see a project reads its files under /s/ and its images under /iiif/ (private projects,
+  # QABOARD_LOGIN_RESTRICTED_YAML). nginx asks the backend before serving each file, and once a minute per image.
+  # false: every file and image is public to whoever reaches the server.
+  restrictFiles: true
   extraVolumeMounts: []
   nodeSelector: {}
   tolerations: []
@@ -204,9 +214,12 @@ ingress:
   className: ""
   host: qaboard.example.com
   annotations:
-    # Uploads and slow API calls
-    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    # Uploaded files (QABOARD_UPLOAD_MAX_FILE_MB, 1024 by default) and slow API calls. The chart's nginx limits each path
+    nginx.ingress.kubernetes.io/proxy-body-size: "1100m"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    # Passes files on as they come: the chart's nginx checks the token before taking the body, and buffers it once
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
   # - secretName: qaboard-tls
   tls: []
 

@@ -1,0 +1,114 @@
+---
+id: local-changes
+title: Local changes
+sidebar_label: Local changes
+description: "Know what code a local run ran: qa run, qa batch and qaboard.start_run() record how your working tree differs from its commit, save the patch with the run, and qa restore gets the code back."
+---
+
+Know what code a run from your computer ran, even when you hadn't committed it. `qa run`, `qa batch` and
+[`qaboard.start_run()`](/docs/log-from-code) record how your working tree differs from its commit, and save the patch
+with the run, with nothing to set up. The web app shows it on the run, and `qa restore` gets the code back.
+
+```text
+$ qa batch ci
+Local changes: 3 files, +40 -12 (saved with each run)
+```
+
+In CI, nothing is recorded: checkouts are clean.
+
+## See a run's changes {#see}
+Runs with local changes are tagged **uncommitted +40 −12** on their card: click it to see the changed files and the
+patch, download it, or compare it with the reference run's. A batch whose runs all ran the same code says it once,
+above the runs. The runs' filter takes `changes:local` and `changes:none`. **Redo** from the web app runs the commit without the local changes, and says so first. See
+[what code a run ran](/docs/user-guide/local-changes).
+
+## Get the code back {#restore}
+In a clone of the repository, without uncommitted changes:
+
+```bash
+qa restore 1234       # the run's id, or the address of its page
+```
+
+`qa restore` makes a branch `qa-restore/1234` at the run's commit, with its uncommitted changes in the working
+tree, as they were when it ran: `git diff` shows them. When the run's commit was never pushed, it starts from the
+commit it was based on and commits the unpushed changes first. `--download` only saves the patches in the current
+folder, and says the `git` commands to apply them.
+
+## What is recorded {#what}
+- Whether the working tree differs from its commit, the changed files with their added and removed lines, and a
+  hash of the patch. Runs with the same hash ran the same code.
+- The patch, in the run's folder: *.qaboard/local-changes.patch*. Modified, deleted and new files are in it, except
+  files your *.gitignore* ignores. Binary files are listed, without their content, and new files over 1 MB, or more
+  than 200 new files, are listed without their content too. Changes inside submodules aren't recorded, only their
+  commits.
+- Whether your commit is pushed. When it isn't, also the unpushed commits, as a patch from the last pushed commit:
+  *.qaboard/unpushed.patch*. Others can then get the code back without your clone.
+
+The patches follow the run: they are in its folder, deleted with it, sent with its files [without a shared
+storage](/docs/storage/uploads), and visible to whoever sees the run. Bit-accuracy checks ignore them.
+
+`qa batch` computes the patch once, when it starts, for all its runs. Each run checks that the code didn't change
+since, which is quicker than the patch: if you edited it while the batch ran, the run records what it ran, and says
+so. Runs on other machines (Kubernetes, Dask on a cluster) run your commit's image or artifacts, not your working
+tree: they record their own checkout.
+
+## Choose what is recorded {#settings}
+```yaml title="qaboard.yaml"
+outputs:
+  local_changes: patch     # the default; summary: the files and counts, no code; off: nothing
+```
+
+Or with more control:
+
+```yaml title="qaboard.yaml"
+outputs:
+  local_changes:
+    level: patch
+    max_patch_kb: 2048     # larger patches aren't saved, only their summary
+    timeout: 10            # seconds git may take, else the run records what's known
+    exclude: ["data/**", "*.ckpt"]   # files whose changes stay out of the patch
+```
+
+`QA_LOCAL_CHANGES=summary` (or `off`, `patch`) overrides it for one command, in CI too.
+
+The server's administrators choose the most runs may record: a server that must not receive source code keeps
+only the summary, and tells `qa` not to save patches ([the setting](/docs/backend-admin/settings#local-changes)).
+
+## Secrets {#secrets}
+New files that look like secrets are never in the patch, only listed by name: *.env*, *\*.pem*, *\*.key*, *id_rsa*,
+*\*.tfvars*, what's in folders like *.ssh/*, *.aws/* or *secrets/*, and files that aren't code with *secret*,
+*token*, *password* or *credential* in their name (*tokenizer.py* is code: it is saved). Add your own globs to
+`exclude`. Files you committed are in git already: their changes are in the patch like the others.
+
+The patch is visible to whoever can see the run. `qa restore` applies a patch from the server to your repository:
+read it first (`--download`) when the run isn't yours.
+
+## Big repositories {#performance}
+Recording takes as long as `git status` and `git diff`: a few milliseconds in most repositories, more in huge
+ones. git runs what your own git configuration sets up, like git-lfs's filters or an fsmonitor hook, as with any
+git command; nothing the repository itself configures runs. `qa doctor`
+measures it and says how to make it faster when it's slow:
+
+```bash
+git config feature.manyFiles true
+git config core.untrackedCache true
+git config core.fsmonitor true   # git 2.37+ on macOS and Windows; on Linux, a hook like watchman's
+```
+
+Past `timeout`, runs record what is known and say so: they never fail because of it.
+
+<details>
+<summary>What runs send QA-Board, in data.local_changes</summary>
+
+| Field | What it is |
+|---|---|
+| `dirty` | Whether the working tree differs from its commit. `null` when git couldn't tell in time. |
+| `head`, `branch`, `upstream` | The commit, its branch and its upstream branch. |
+| `pushed`, `unpushed_commits`, `base` | Whether the commit is pushed; when not, how many commits aren't, and the last pushed commit. Without a remote, `pushed` is missing. |
+| `files`, `files_total`, `added`, `deleted` | The changed files (500 at most) with their status (`M`, `A`, `D`, `?` for new) and line counts. |
+| `untracked`, `excluded` | How many new files are in the patch, and which were left out. |
+| `sha256` | The hash of the patch, even when it is too large to save. |
+| `patch`, `unpushed` | Where the patches are in the run's folder, or why they weren't saved (`omitted`: `too_large`, `level`, `timeout`...). |
+| `scope` | `batch` when `qa batch` recorded them for its runs, else `run`. |
+
+</details>

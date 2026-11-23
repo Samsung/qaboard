@@ -119,10 +119,9 @@ Creating runs needs what `qa run --share` needs. The SDK sends the token `qa aut
 `QABOARD_TOKEN`. Metrics and params go through the server with the `ingest` policy. Files are the user's.
 
 ## Migration from other trackers
-- A thin shim module (`qaboard.compat.wandb`) that exposes `init`, `log`, `config`, `finish` with the same signatures,
-  mapping to the API above, so that existing scripts run with an import change. Listed on the roadmap as
-  "A wandb.log shim".
-- An importer for past runs is out of scope here (roadmap: "Importers").
+- Shipped as `qaboard.integrations.wandb` and an MLflow tracking store plugin (`qaboard.integrations.mlflow`): see
+  `docs/rfcs/python-sdk-runs-follow-ups.md` part D.
+- An importer for past runs is out of scope here (roadmap: "Importers", part D).
 
 ## Open questions
 1. **`log()` vs `log_metrics()`.** Two names for "numbers": one for series during the run, one for the run's final
@@ -237,9 +236,7 @@ tracker are in `docs/rfcs/python-sdk-runs-follow-ups.md`.
   the Summary view (`webapp/src/viewers/SeriesComparison.jsx`): up to 40, shown and hidden from a legend, colored
   per run or per value of a parameter, with their reference runs on demand. Grouping the History page by a
   parameter is not done.
-- **`log_image()`**: without a place on the card for per-step images, it would only be `log_artifact()`.
-- **`qaboard.compat.wandb`**: `qaboard/compat.py` is a module; the shim needs it to become a package, or another
-  name.
+- **`log_image()`**: without a place on the card for per-step images, it would only be `log_artifact()`. Shipped since (November 2026), with a place on the card: `qaboard/media.py`, `run.log_media()` and the card's **Logged media**; see `python-sdk-runs-follow-ups.md` C.
 - **`qa sync` for series and runs logged offline**: a run whose every message failed stays on disk. Its folder has
   what a later `sync` needs (`run.json` has the project, commit and batch).
 - **System metrics, alerts, sweeps, a registry**, as planned.

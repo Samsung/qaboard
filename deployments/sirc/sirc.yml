@@ -42,6 +42,8 @@ services:
     environment:
     - GITLAB_HOST=http://gitlab-srv
     - QABOARD_PROXY_HOSTS=gitlab-srv,gitlab-srv.transchip.com,dag.sirc.co.il
+    # the maintainers run this server: Admin → Overview doesn't offer to write to them
+    - QABOARD_MAINTAINERS_CONTACT=dismissed
     - UWSGI_UID=ispq
     - UWSGI_GID=uucp
     - QABOARD_DATA_SHARED_DIR=/home/ispq/qaboard/shared

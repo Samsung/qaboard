@@ -13,7 +13,7 @@ from pathlib import Path
 from itertools import chain
 from fnmatch import fnmatch
 from contextlib import contextmanager
-from typing import Optional, Dict, Iterable, Sequence, Tuple, Union
+from typing import Optional, Dict, Iterable, Sequence, Set, Tuple, Union
 
 import yaml
 import click
@@ -90,6 +90,19 @@ class RedirectStream():
     self.stream.flush()
 
 
+def own_log_files() -> Set[Tuple[int, int]]:
+  """(device, inode) of the files our STDOUT/STDERR are redirected to, e.g. a runner's log"""
+  own = set()
+  for fd in (1, 2):
+    try:
+      fd_stat = os.fstat(fd)
+    except OSError: # closed
+      continue
+    if S_ISREG(fd_stat.st_mode):
+      own.add((fd_stat.st_dev, fd_stat.st_ino))
+  return own
+
+
 def clean_output_dir(output_dir: Path, keep: Sequence[str] = ()):
   """
   Removes everything in output_dir, except the files our STDOUT/STDERR are redirected to.
@@ -98,14 +111,7 @@ def clean_output_dir(output_dir: Path, keep: Sequence[str] = ()):
   the rest of the output would be written to a deleted inode and lost, including errors.
   `keep`: names of files directly in output_dir that stay, e.g. latest_attempt.txt (qaboard/attempts.py).
   """
-  own_logs = set()
-  for fd in (1, 2):
-    try:
-      fd_stat = os.fstat(fd)
-    except OSError: # closed
-      continue
-    if S_ISREG(fd_stat.st_mode):
-      own_logs.add((fd_stat.st_dev, fd_stat.st_ino))
+  own_logs = own_log_files()
 
   def clean(directory: Path, top=False) -> bool:
     """Returns True if the directory is now empty."""
@@ -141,9 +147,27 @@ def clean_output_dir(output_dir: Path, keep: Sequence[str] = ()):
 
 @contextmanager
 def redirect_std_streams(file, color=None):
+  """
+  In the block, what is written to stdout and stderr is also saved in `file`, e.g. a run's log.txt.
+  On POSIX, we tee the file descriptors (qaboard/fd_tee.py): the log also gets what subprocesses
+  and native code write. Elsewhere, or when sys.stdout isn't the process's stdout, only what Python prints.
+  """
   if os.environ.get('QA_NO_STREAM_REDIRECT'):
     yield sys.stdout, sys.stderr
     return
+  from . import fd_tee
+  if fd_tee.supported():
+    tee = fd_tee.FdTee(file)
+    try:
+      tee.start()
+    except OSError:
+      pass # e.g. too many open files: we save at least what Python prints
+    else:
+      try:
+        yield sys.stdout, sys.stderr
+      finally:
+        tee.stop()
+      return
   stdout = RedirectStream('stdout', file, color)
   stderr = RedirectStream('stderr', file, color)
   try:
@@ -389,29 +413,26 @@ def is_plaintext(path, config=None):
   sys.exit(1)
 
 
+def looks_binary(path) -> bool:
+  """A NUL byte in the first 8000 bytes, like git: binary whatever the bit_accuracy patterns say"""
+  with Path(path).open('rb') as f:
+    return b'\0' in f.read(8000)
+
+
 def eol_normalized_copy(path) -> Path:
   """A temp copy of a plaintext file with universal-newline EOLs (CRLF/CR -> LF):
-  the transform file_info() applies to plaintext files before hashing. The caller deletes it."""
+  the transform file_info() applies to plaintext files before hashing. The caller deletes it.
+  Works on bytes, so bytes that aren't valid UTF-8 are kept."""
   path = Path(path)
-  try:
-    with path.open(newline=None, encoding="utf-8", errors='surrogateescape') as raw_file: # newline=None: universal newlines — \r\n, \r and \n are all line endings
-      text = raw_file.read()
-  except Exception as e:
-    print(f"WARNING: Error reading {path} (utf8/surrogateescape), {e}")
-    try:
-      with path.open(newline=None, encoding="utf-8", errors="ignore") as raw_file:
-        text = raw_file.read()
-    except Exception as e:
-      print(f"ERROR: Error reading {path} (utf8/ignore), {e}")
-      raise e
+  data = path.read_bytes().replace(b'\r\n', b'\n').replace(b'\r', b'\n')
 
   from tempfile import mkstemp
   fd, normalized_file_name = mkstemp(suffix=path.suffix)
   temp_path = Path(normalized_file_name)
   completed = False
   try:
-    with open(fd, 'w', newline='\n', encoding="utf-8", errors='ignore') as normalized_file:
-      normalized_file.write(text)
+    with open(fd, 'wb') as normalized_file:
+      normalized_file.write(data)
     completed = True
   finally:
     if not completed:
@@ -427,7 +448,7 @@ def file_info(path, normalize_eof=True, config=None, compute_hashes=True, has_fo
   is_hw_alg = (config or {}).get('project', {}).get('name', '').startswith('CDE-Users/HW_ALG')
   normalize_eol = os.environ.get('QA_RECORD_EOL_NORMALIZED') == '1' if is_hw_alg else True
   # without hashes there is nothing to compare: skip the copy (the server refreshes running outputs' manifests this way)
-  if compute_hashes and normalize_eol and is_plaintext(path, config=config) and normalize_eof:
+  if compute_hashes and normalize_eol and normalize_eof and is_plaintext(path, config=config) and not looks_binary(path):
     normalized_file = eol_normalized_copy(path)
     try:
       return file_info(normalized_file, normalize_eof=False, has_footer=has_footer)
@@ -518,6 +539,8 @@ def outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -
     # avoid logs with timestamps and temporary NFS files
     # nor which attempt of the run is the latest (qaboard/attempts.py): it's not an output
     illegal_file = path.name in ('log.txt', 'latest_attempt.txt') or path.name.startswith('.nfs00000')
+    # what qa saves about the run, e.g. its local changes (qaboard/local_changes.py): not outputs, not compared
+    illegal_file = illegal_file or path.relative_to(output_directory).parts[0] == '.qaboard'
     # avoid source-controled files and logs in HW_ALG
     if config is not None and config.get("project", {}).get("name", "").startswith("CDE-Users/HW_ALG"):
       illegal_file = illegal_file or \

@@ -40,6 +40,17 @@ describe('PlotlyViewer', () => {
       expect(screen.getByTitle(side)).not.toHaveAttribute('sandbox');
   });
 
+  it("shares the card's width between figures saved as HTML, up to the configured width", () => {
+    render({ path: 'plot.plotly.html', style: { width: '840px' } });
+    for (const side of ['new', 'reference']) {
+      const frame = screen.getByTitle(side);
+      // a fixed width would grow the card to fit both figures at full width, wider than the page
+      expect(frame).not.toHaveAttribute('width');
+      expect(frame.style.maxWidth).toBe('840px');
+      expect(frame.style.minWidth).toBe('0px');
+    }
+  });
+
   it("with sandbox_html, runs figures saved as HTML sandboxed, outside of the app's origin", () => {
     renderWithProviders(<PlotlyViewer path="plot.plotly.html" output_new={{ output_dir_url: '/s/new' }} output_ref={{ output_dir_url: '/s/ref' }}/>, { siteConfig: { sandbox_html: true } });
     for (const side of ['new', 'reference']) {

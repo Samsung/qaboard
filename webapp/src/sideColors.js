@@ -33,3 +33,13 @@ export const side_color = slot => ({
 
 // For plots (Plotly, canvases): the side's color in the theme, e.g. plot_color(labels.colors.new, useIsDark())
 export const plot_color = (color, is_dark) => is_dark ? color.hex_dark ?? color.hex : color.hex;
+
+// The colors of the new and reference sides in plots, from the page's labels (useLabels()): { new, reference }. Without
+// labels, the defaults: blue and purple
+export const plot_colors = (labels, is_dark) => ({
+  new: plot_color(labels?.colors?.new ?? side_color(0), is_dark),
+  reference: plot_color(labels?.colors?.reference ?? side_color(1), is_dark),
+});
+
+// The step the logged media show, wherever it is marked: their timeline, the series plots, histograms, filmstrips
+export const STEP_CURSOR_COLOR = '#f5498b';

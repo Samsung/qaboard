@@ -2,7 +2,7 @@
  * The sidebar shows the project's navigation on commit lists and on the History page.
  * Run with: cd webapp && npm test -- AppSider.test
  */
-import { act, fireEvent, screen } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import { unstable_HistoryRouter as HistoryRouter, useLocation } from 'react-router';
 
 import AppSider from '../AppSider';
@@ -28,6 +28,14 @@ beforeEach(() => {
   }));
 });
 afterEach(() => vi.unstubAllGlobals());
+
+// Hovering an item opens its submenu, in a portal, after a delay. We wait for the submenu with a cheap text query, then
+// query roles inside it: *ByRole computes the accessible name of every element of the sidebar, ~300ms per query in
+// jsdom, so findByRole on the whole page, retried until the submenu shows, could take more than its 1s.
+const hoverSubmenu = async (item, entry) => {
+  fireEvent.mouseEnter(item);
+  return within((await screen.findByText(entry)).closest('.bp6-menu'));
+};
 
 const renderSider = pathname => {
   act(() => history.replace(pathname));
@@ -81,9 +89,9 @@ test("the metrics views are one entry: it opens the last one used, and lists the
   const link = item.closest('a') ?? item.querySelector('a');
   expect(link).toHaveAttribute('href', '/kitefin/camera-isp/commit/0123456789abcdef?batch=nightly&selected_views=table-compare');
   expect(screen.queryByRole('menuitem', { name: 'Metrics Table' })).toBeNull();
-  fireEvent.mouseEnter(item);
-  const table = await screen.findByRole('menuitem', { name: 'Metrics Table' });
-  expect(screen.getByRole('menuitem', { name: 'Summary' })).toHaveAttribute('href', '/kitefin/camera-isp/commit/0123456789abcdef?batch=nightly&selected_views=summary');
+  const submenu = await hoverSubmenu(item, 'Metrics Table');
+  const table = submenu.getByRole('menuitem', { name: 'Metrics Table' });
+  expect(submenu.getByRole('menuitem', { name: 'Summary' })).toHaveAttribute('href', '/kitefin/camera-isp/commit/0123456789abcdef?batch=nightly&selected_views=summary');
   expect(fireEvent.click(table)).toBe(false);
   expect(window.location.search).toBe('?batch=nightly&selected_views=table-kpi');
   expect(usePrefsStore.getState().metricsView).toBe('table-kpi');
@@ -96,8 +104,8 @@ describe('the Admin menu', () => {
   const admin = async () => link(await screen.findByRole('menuitem', { name: /^Admin/ }));
   // its pages are in a submenu, that opens on hover
   const open = async () => {
-    fireEvent.mouseEnter(screen.getByRole('menuitem', { name: /^Admin/ }));
-    return { access: await screen.findByRole('menuitem', { name: 'Access' }), gate: await screen.findByRole('menuitem', { name: 'Quality gate' }) };
+    const submenu = await hoverSubmenu(screen.getByRole('menuitem', { name: /^Admin/ }), 'Quality gate');
+    return { access: submenu.getByRole('menuitem', { name: 'Access' }), gate: submenu.getByRole('menuitem', { name: 'Quality gate' }) };
   };
 
   test('links to the Access page, and lists the Admin pages on hover', async () => {

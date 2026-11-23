@@ -13,7 +13,8 @@ uses, in the order you meet them.
   See [Running your code](/docs/running-your-code).
 - **The server** stores what runs report in a database, and serves the web app. It reads the output files from a
   storage that every machine running `qa` also mounts, at the same path (by default `/mnt/qaboard`, often an NFS
-  share). See [Where is the data saved?](/docs/storage/where-is-the-data)
+  share). See [Where is the data saved?](/docs/storage/where-is-the-data) Machines that can't mount it
+  [send it their files](/docs/storage/uploads).
 - ***qaboard.yaml***, at the root of your project, tells `qa` how to run your code, where your inputs are, which
   metrics matter and how to show your outputs. See [Project setup](/docs/project-init).
 
@@ -29,7 +30,8 @@ uses, in the order you meet them.
 - **Platform**: where the code runs or what it targets, e.g. `linux` or a hardware model. Runs are compared on the same
   platform.
 - **Run**: your code from one commit, on one input, with one configuration, on one platform. A run has output files,
-  metrics and a log. An input with its configuration is a **test**, as in the web app's **Available Tests**.
+  metrics and a log. An input with its configuration is a **test**, as in the web app's **Available Tests**. Runs
+  from your computer also save what you changed and didn't commit yet: see [local changes](/docs/local-changes).
 - **Batch**: the inputs and configurations listed under a name in your batches file: `qa batch ci` runs those listed
   under `ci`. See [Batches of inputs](/docs/batches-running-on-multiple-inputs).
 - **Label**: the name of a group of a commit's runs, set with `qa --label`. CI runs have the label `default`, shown

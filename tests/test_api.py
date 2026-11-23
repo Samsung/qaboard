@@ -30,6 +30,26 @@ class TestNotifyQaDatabase(unittest.TestCase):
     self.assertIn("Authorization", stderr.getvalue())
     self.assertNotIn("secret-token", stderr.getvalue())
 
+  def test_the_end_of_a_run_is_tried_again(self):
+    import io
+    import requests
+    from contextlib import redirect_stderr
+    from qaboard.api import notify_qa_database
+    busy, ok = mock.Mock(status_code=522, text='origin timed out'), mock.Mock(status_code=200)
+    ok.json.return_value = {'id': 1}
+    with mock.patch("requests.post", side_effect=[busy, requests.ConnectionError('reset'), ok]) as post, \
+         mock.patch("time.sleep") as sleep, redirect_stderr(io.StringIO()):
+      self.assertEqual(notify_qa_database(share=True, batch_label="default", is_pending=False, is_running=False), {'id': 1})
+    self.assertEqual((post.call_count, sleep.call_count), (3, 2))
+    # not when it starts: `qa run` decides what to do
+    with mock.patch("requests.post", return_value=busy) as post, mock.patch("time.sleep"), redirect_stderr(io.StringIO()):
+      notify_qa_database(share=True, batch_label="default", is_pending=True, is_running=True)
+    self.assertEqual(post.call_count, 1)
+    # no server there: we don't wait long
+    with mock.patch("requests.post", side_effect=requests.ConnectionError('refused')) as post, mock.patch("time.sleep"), redirect_stderr(io.StringIO()):
+      self.assertIsNone(notify_qa_database(share=True, batch_label="default", is_pending=False, is_running=False))
+    self.assertEqual(post.call_count, 3)
+
   def test_requests_have_a_timeout(self):
     """A hung server must not block CI jobs forever"""
     from qaboard.api import notify_qa_database, get_output, batch_info, api_timeout
@@ -61,7 +81,9 @@ class TestServerUrl(unittest.TestCase):
     import sys
     import subprocess
     import tempfile
-    clean_env = {k: v for k, v in os.environ.items() if k == 'QABOARD_IGNORE_SITE' or not k.startswith(('QABOARD_', 'QA_'))}
+    from qaboard.config import ci_env_variables
+    # outside a CI, like people's terminals: tests give CI=true when they need it
+    clean_env = {k: v for k, v in os.environ.items() if (k == 'QABOARD_IGNORE_SITE' or not k.startswith(('QABOARD_', 'QA_'))) and k not in ci_env_variables}
     # Without the defaults of an installed site package (e.g. qaboard-site-sirc gives the server's URL)
     without_site_packages = (
       "import importlib.metadata as m; entry_points = m.entry_points\n"
@@ -79,7 +101,9 @@ class TestServerUrl(unittest.TestCase):
     return process.stderr
 
   def test_warns_without_a_server(self):
-    self.assertIn('not sure where to find your QA-Board server', self.stderr_of_import())
+    # in CI, or with --share: else results stay local, and `qa` says it in one line
+    self.assertIn('not sure where to find your QA-Board server', self.stderr_of_import(CI='true'))
+    self.assertNotIn('not sure where', self.stderr_of_import())
 
   def test_no_warning_for_a_server_on_localhost(self):
     self.assertNotIn('not sure where', self.stderr_of_import(QABOARD_URL='http://localhost:5151'))

@@ -30,7 +30,7 @@ def mock_get(response, status=200):
   r.status_code = status
   r.json.return_value = response
   r.text = json.dumps(response)
-  return mock.patch('requests.request', return_value=r)
+  return mock.patch('requests.Session.request', return_value=r)
 
 
 class TestParseUrl(unittest.TestCase):
@@ -387,7 +387,7 @@ class TestLog(unittest.TestCase):
   def test_log_sends_a_patch_and_updates_the_run(self):
     from qaboard import Metric
     run, patched = self.run_and_patch()
-    with mock.patch('requests.request', return_value=patched) as request, mock.patch('qaboard.results.resolve_token', return_value=('tok', 'hosts.yaml')):
+    with mock.patch('requests.Session.request', return_value=patched) as request, mock.patch('qaboard.results.resolve_token', return_value=('tok', 'hosts.yaml')):
       added = run.log_metrics({'sharpness': Metric(0.4, smaller_is_better=False, suffix=''), 'blur': 2})
     method, url = request.call_args[0]
     self.assertEqual((method, url), ('PATCH', 'https://qaboard/api/v1/output/1/metrics'))
@@ -409,14 +409,14 @@ class TestLog(unittest.TestCase):
 
   def test_log_uses_the_token_given_to_runs(self):
     run, patched = self.run_and_patch(token='given')
-    with mock.patch('requests.request', return_value=patched) as request:
+    with mock.patch('requests.Session.request', return_value=patched) as request:
       run.log_metrics({'sharpness': 0.4})
     self.assertEqual(request.call_args[1]['headers'], {'Authorization': 'Bearer given'})
 
   def test_dry_run_sends_nothing(self):
     run, patched = self.run_and_patch(dry_run=True)
     stderr = io.StringIO()
-    with mock.patch('requests.request', return_value=patched) as request, redirect_stderr(stderr):
+    with mock.patch('requests.Session.request', return_value=patched) as request, redirect_stderr(stderr):
       added = run.log_metrics({'sharpness': 0.4})
       # per call too
       run.log_metrics({'blur': 1}, dry_run=True)
@@ -426,7 +426,7 @@ class TestLog(unittest.TestCase):
     self.assertTrue(added['sharpness']['dry_run'])
     self.assertIn('script', added['sharpness'])
     self.assertNotIn('sharpness', run.metrics)
-    with mock.patch('requests.request', return_value=patched) as request:
+    with mock.patch('requests.Session.request', return_value=patched) as request:
       run.log_metrics({'sharpness': 0.4}, dry_run=False, overwrite=True)
     self.assertTrue(request.call_args[1]['json']['overwrite'])
 
@@ -436,7 +436,7 @@ class TestLog(unittest.TestCase):
     except ImportError:
       self.skipTest('numpy')
     run, patched = self.run_and_patch()
-    with mock.patch('requests.request', return_value=patched) as request:
+    with mock.patch('requests.Session.request', return_value=patched) as request:
       run.log_metrics({'a': np.float32(0.5), 'b': np.int64(3), 'c': np.array(2.0), 'd': np.bool_(True)})
     body = request.call_args[1]['json']['metrics']
     self.assertEqual(body, {'a': 0.5, 'b': 3, 'c': 2.0, 'd': True})
@@ -447,7 +447,7 @@ class TestLog(unittest.TestCase):
     with self.assertRaises(ValueError):
       run.log_metrics({})
     stderr = io.StringIO()
-    with mock.patch('requests.request', return_value=patched) as request, redirect_stderr(stderr):
+    with mock.patch('requests.Session.request', return_value=patched) as request, redirect_stderr(stderr):
       self.assertEqual(run.log_metrics({'x': float('nan'), 'y': float('inf')}), {})
     request.assert_not_called()
     self.assertIn('NaN', stderr.getvalue())
@@ -463,7 +463,7 @@ class TestLog(unittest.TestCase):
     run, _ = self.run_and_patch()
     refused = mock.Mock(status_code=403)
     refused.json.return_value = {'error': "This token can't send results", 'reason': 'missing_scope'}
-    with mock.patch('requests.request', return_value=refused), self.assertRaises(ResultsError) as e:
+    with mock.patch('requests.Session.request', return_value=refused), self.assertRaises(ResultsError) as e:
       run.log_metrics({'x': 1})
     self.assertIn('ingest scope', str(e.exception))
 
@@ -489,7 +489,7 @@ class TestLogArtifact(unittest.TestCase):
       run = self.run_in(folder, token='tok')
       refreshed = mock.Mock(status_code=200)
       refreshed.json.return_value = {}
-      with mock.patch('requests.request', return_value=refreshed) as request:
+      with mock.patch('requests.Session.request', return_value=refreshed) as request:
         target = run.log_artifact('sharpness/map.png', source)
       self.assertEqual(target, folder / 'sharpness' / 'map.png')
       self.assertEqual(target.read_bytes(), b'PNG')
@@ -498,7 +498,7 @@ class TestLogArtifact(unittest.TestCase):
       self.assertEqual(request.call_args[1]['params'], {'refresh': '1'})
       self.assertEqual(request.call_args[1]['headers'], {'Authorization': 'Bearer tok'})
       # bytes are written; nothing is overwritten unless asked
-      with mock.patch('requests.request', return_value=refreshed):
+      with mock.patch('requests.Session.request', return_value=refreshed):
         run.log_artifact('notes.txt', b'hello')
         self.assertEqual((folder / 'notes.txt').read_bytes(), b'hello')
         with self.assertRaises(ResultsError):
@@ -522,7 +522,7 @@ class TestLogArtifact(unittest.TestCase):
     with tempfile.TemporaryDirectory() as tmp:
       run = self.run_in(Path(tmp), dry_run=True)
       stderr = io.StringIO()
-      with mock.patch('requests.request') as request, redirect_stderr(stderr):
+      with mock.patch('requests.Session.request') as request, redirect_stderr(stderr):
         self.assertIsNone(run.log_artifact('x.txt', b'x'))
       request.assert_not_called()
       self.assertIn('would write 1 bytes', stderr.getvalue())

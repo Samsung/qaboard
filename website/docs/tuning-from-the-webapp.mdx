@@ -30,7 +30,8 @@ and the settings on that frontier became the new defaults.
    batches files are always saved.
 2. **Choose where the runs execute.** The runs go to your project's runner, `runners.default` in *qaboard.yaml*
    (see [Choose where runs execute](/docs/runners)). The server starts the `qa batch` command where its admins chose:
-   on the server itself by default, in an LSF job, or in a Kubernetes pod. See
+   in a Kubernetes pod, in an LSF job, or in the server's own container. Until they choose, it starts none (it may
+   still redo runs, on LSF). See
    [Run batches from the web app](/docs/backend-admin/runners).
 3. **Log in.** Starting runs needs a logged-in user, and runs are started as that user. See
    [user management](/docs/backend-admin/user-management).
@@ -53,6 +54,11 @@ For each request, the server writes a script in the batch's directory and runs i
 - sets `CI=true`, `GIT_COMMIT` to the commit, `QA_USER` to the user who started it, and `QABOARD_TUNING=true`;
 - runs `qa --label <label> batch --batches-file <the batches> --batch <the batch> --tuning-search ...`, or
   `qa optimize` for [automated tuning](/docs/auto-optimization).
+
+`<the batches>` is *batches.yaml*, next to the script: the batches that run, as they are defined when you start,
+with only them and the aliases that reach them, from the commit's `inputs.batches`, the shared and private batches
+and the files you send. It is what ran, even after the files change, and how to
+[run it again](/docs/user-guide/logs#run-again).
 
 When the batch doesn't start, the **Logs** view says why, with the end of that script's log: a
 `ModuleNotFoundError` points to the environment, an LSF report to the cluster. See
@@ -164,11 +170,11 @@ better:
   `tensorboard` for neural networks, one-off scripts...), keep using them. It's still worth having them call your
   code through `qa`, so that runs behave the same everywhere: see [debugging with IDEs](/docs/debugging-runs-with-an-IDE).
 - **Your local code, results in QA-Board**: tweak, compile and run your code, then compare the results across runs
-  in the web app. Runs started with `--share` appear in a batch named after you, with a warning that they may not
+  in the web app. Runs started from a computer appear in a batch named after you, with a warning that they may not
   match the committed code:
   ```bash
-  qa --share run --input slices/small-objects
-  qa --share --label testing-some-logic-tweaks batch quant-search
+  qa run --input slices/small-objects
+  qa --label testing-some-logic-tweaks batch quant-search
   ```
 - **Commit, CI, QA-Board**: to change configuration files that live in your repository, commit and push the changes,
   and look at the results of the CI runs.

@@ -44,7 +44,7 @@ def response(status, body=None, headers=None, text=None):
 
 
 class FakeServer:
-  """Replaces requests.request. `routes` maps (method, path) to the responses to give in order (the last one repeats)."""
+  """Replaces requests.Session.request. `routes` maps (method, path) to the responses to give in order (the last one repeats)."""
   def __init__(self, routes):
     self.routes = {k: list(v) for k, v in routes.items()}
     self.calls = []
@@ -96,7 +96,7 @@ class AuthTestCase(unittest.TestCase):
   def qa_auth(self, *args, server=None, input=None):
     """Runs `qa auth ...` against a fake server"""
     server = server or FakeServer({})
-    with mock.patch('requests.request', server), mock.patch('time.sleep') as sleep:
+    with mock.patch('requests.Session.request', server), mock.patch('time.sleep') as sleep:
       result = CliRunner().invoke(self.auth.auth, [*args], input=input, catch_exceptions=False)
     result.sleeps = [c.args[0] for c in sleep.call_args_list]
     return result
@@ -193,6 +193,11 @@ class TestStorage(AuthTestCase):
       self.assertEqual(default_server(), ('https://qa-srv:5151', '$QABOARD_HOST'))
     del os.environ['QABOARD_URL']
     self.assertEqual(default_server(), ('http://localhost:5151', None))
+    # without a setting, the only server you signed in to
+    self.save({'user': 'alice', 'token': 'saved'}, url='https://qa.example')
+    self.assertEqual(default_server(), ('https://qa.example', 'your only sign-in (qa auth login)'))
+    self.auth.save_login('https://other.example', user='bob', token='qab_pat_other')
+    self.assertEqual(default_server(), ('http://localhost:5151', None))
 
   def test_headers_for_another_server(self):
     from qaboard.api import headers_for
@@ -208,7 +213,7 @@ EXCHANGED = {"access_token": "qab_tmp_ci", "issued_token_type": "urn:ietf:params
 class TestCiIdToken(AuthTestCase):
   """CI jobs' OIDC ID tokens, exchanged for a service account's token (backend/ci_trust.py)"""
   def resolve(self, server, url=SERVER):
-    with mock.patch('requests.request', server), redirect_stderr(io.StringIO()) as stderr:
+    with mock.patch('requests.Session.request', server), redirect_stderr(io.StringIO()) as stderr:
       found = self.auth.resolve_token(url)
     return found, stderr.getvalue()
 
@@ -261,7 +266,7 @@ class TestCiIdToken(AuthTestCase):
 
   def test_unreachable_server(self):
     with mock.patch.dict(os.environ, {'QABOARD_ID_TOKEN': 'the.id.token'}), \
-         mock.patch('requests.request', side_effect=requests.ConnectionError('refused')), redirect_stderr(io.StringIO()) as stderr:
+         mock.patch('requests.Session.request', side_effect=requests.ConnectionError('refused')), redirect_stderr(io.StringIO()) as stderr:
       self.assertEqual(self.auth.resolve_token(SERVER), (None, None))
     self.assertIn("Could not exchange the CI job's ID token", stderr.getvalue())
 
@@ -318,7 +323,7 @@ class TestLogin(AuthTestCase):
 
   def test_ctrl_c(self):
     server = self.device_server(response(400, {"error": "authorization_pending"}))
-    with mock.patch('requests.request', server), mock.patch('time.sleep', side_effect=KeyboardInterrupt):
+    with mock.patch('requests.Session.request', server), mock.patch('time.sleep', side_effect=KeyboardInterrupt):
       result = CliRunner().invoke(self.auth.auth, ['login', '--server', SERVER, '--no-browser'])
     self.assertEqual(result.exit_code, 130)
     self.assertIn('The sign-in was cancelled.', result.output)
@@ -514,17 +519,17 @@ class TestStatusLogoutToken(AuthTestCase):
         result = self.qa_auth('status', server=server)
       self.assertEqual(result.exit_code, 1)
       self.assertIn(f"answered {status} (a web page: Welcome to nginx!), not QA-Board's API. Is QABOARD_URL right?", result.output)
-      self.assertNotIn('xxx', result.output)
+      self.assertNotIn('x' * 100, result.output)  # not the page (temporary paths can have "xxx")
       self.assertNotIn('not accepted', result.output)
 
   def test_status_server_down(self):
     self.save({'user': 'alice', 'token': 'qab_pat_saved', 'token_id': 12})
     refused = requests.ConnectionError("HTTPConnectionPool(host='qa.test', port=80): Max retries exceeded (Caused by NewConnectionError(...: [Errno 111] Connection refused'))")
-    with mock.patch('requests.request', side_effect=refused):
+    with mock.patch('requests.Session.request', side_effect=refused):
       result = CliRunner().invoke(self.auth.auth, ['status', '--server', SERVER])
     self.assertEqual(result.exit_code, 1)
     self.assertIn(f'Could not reach QA-Board at {SERVER} (connection refused). Check --server.', result.output)
-    with mock.patch('requests.request', side_effect=requests.ConnectTimeout('timed out')), \
+    with mock.patch('requests.Session.request', side_effect=requests.ConnectTimeout('timed out')), \
          mock.patch.multiple('qaboard.api', qaboard_url=SERVER, api_prefix=f'{SERVER}/api/v1', qaboard_url_source='$QABOARD_URL'):
       result = CliRunner().invoke(self.auth.auth, ['status'])
     self.assertIn(f'Could not reach QA-Board at {SERVER} (timed out). Check QABOARD_URL or --server.', result.output)
@@ -573,7 +578,7 @@ class TestStatusLogoutToken(AuthTestCase):
     self.assertEqual(result.exit_code, 0, result.output)
     self.assertIn('Could not revoke the token on the server (500: Internal error). Revoke it in Settings → Access tokens.', result.output)
     self.assertEqual(list(self.hosts()), ['https://other.example'])
-    with mock.patch('requests.request', side_effect=requests.ConnectionError('unreachable')):
+    with mock.patch('requests.Session.request', side_effect=requests.ConnectionError('unreachable')):
       result = CliRunner().invoke(self.auth.auth, ['logout', '--revoke', '--server', 'https://other.example'])
     self.assertEqual(result.exit_code, 0, result.output)
     self.assertIn("qa doesn't know the token's id", result.output)

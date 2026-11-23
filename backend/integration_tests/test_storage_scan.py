@@ -108,6 +108,12 @@ def test_cron_in_words():
   assert describe('*/10 2 * * *') == 'on the schedule "*/10 2 * * *" (UTC)'
 
 
+def test_scan_finds_commits_folders_like_uploads_makes_them():
+  # one pattern for both layouts, tested in tests/test_uploads.py
+  from backend import uploads
+  from backend.jobs.scan import commit_dirs_re
+  assert commit_dirs_re is uploads.COMMIT_FOLDERS_IN_PATH
+
 # ---------------------------------------------------------------------------
 # Exports
 # ---------------------------------------------------------------------------

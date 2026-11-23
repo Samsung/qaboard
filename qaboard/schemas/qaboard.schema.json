@@ -151,6 +151,27 @@
         "reruns": {
           "enum": ["new-directory", "in-place"],
           "description": "Where results saved in the storage (CI, --share) go when a run is done again. new-directory (default): in <run>_attempt2, _attempt3..., and <run>/latest_attempt.txt has the latest attempt's number. in-place: in the same directory. $QA_RERUNS overrides it."
+        },
+        "system_metrics": {
+          "type": "boolean",
+          "description": "Measure what runs use of their machine (memory, CPU, GPUs): a summary sent to QA-Board, and system.series.json in their output directory. Default: true. $QA_SYSTEM_METRICS overrides it."
+        },
+        "local_changes": {
+          "description": "What local runs record of how their code differs from their commit (not in CI). patch (default): the changed files and the patch, saved with the run. summary: the changed files' paths and counts, no code. off: nothing. The server's administrators can allow less. $QA_LOCAL_CHANGES overrides it.",
+          "anyOf": [
+            {"enum": ["off", "summary", "patch"]},
+            {"type": "boolean"},
+            {
+              "type": "object",
+              "properties": {
+                "level": {"enum": ["off", "summary", "patch"], "description": "Default: patch."},
+                "max_patch_kb": {"type": "number", "description": "Larger patches aren't saved, only their summary. Default: 2048."},
+                "timeout": {"type": "number", "description": "Seconds git may take: past it, runs record what's known. Default: 10."},
+                "exclude": {"type": "array", "items": {"type": "string"}, "description": "Globs of files whose changes stay out of the patch, e.g. \"data/**\". Untracked files that look like secrets (.env, *.pem, *secret*...) always do."}
+              },
+              "additionalProperties": false
+            }
+          ]
         }
       },
       "additionalProperties": false

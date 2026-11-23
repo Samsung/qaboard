@@ -79,6 +79,15 @@ describe('OutputCardsList', () => {
     expect(screen.queryByText(/show all/)).toBeNull();
   }, 30_000);
 
+  it('gives cards the whole row by default, at most the width qaboard.yaml sets', () => {
+    const { container, unmount } = render_list({ ...props, ...batches(2) });
+    cards(container).forEach(card => expect(card.style.width).toBe('100%'));
+    unmount();
+    const narrow = render_list({ ...props, ...batches(2), config: { outputs: { visualizations: [], style: { width: '840px' } } } });
+    // min(840px, 100%): jsdom doesn't parse min(), we only check it isn't the whole row
+    cards(narrow.container).forEach(card => expect(card.style.width).not.toBe('100%'));
+  });
+
   it('keeps cards light until they come into view', () => {
     const { container } = render_list({ ...props, ...batches(2) });
     expect(screen.getByText('input_1')).toBeInTheDocument();
@@ -271,5 +280,17 @@ describe('OutputCardsList', () => {
     expect(select).toHaveValue('a');
     fireEvent.click(screen.getByText('Same for all runs'));
     expect(onToggleDynamicOptionSync).toHaveBeenCalledWith('scene');
+  });
+
+  it('titles what it shows by itself for runs created from code: "Logged media"', async () => {
+    vi.stubGlobal('fetch', vi.fn(async url => String(url?.url ?? url).includes('media.jsonl')
+      ? new Response('')
+      : new Response(JSON.stringify({ 'media.jsonl': { st_size: 0, md5: 'x' } }), { status: 200 })));
+    const outputs = { 1: make_output(1, { data: { sdk: { script: 'train.py' } } }) };
+    render_list({ ...props, new_batch: { outputs, filtered: { outputs: [1] } }, ref_batch: { outputs: {} } });
+    act(() => mockAllIsIntersecting(true));
+    expect(await screen.findByRole('heading', { name: 'Logged media' })).toBeInTheDocument();
+    // under it, what the run logged, muted
+    expect(await screen.findByText("The run logged no media")).toBeInTheDocument();
   });
 });

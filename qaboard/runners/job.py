@@ -158,10 +158,17 @@ class JobGroup():
   @staticmethod
   def settle_pending_run(job: Job, qa_context: Optional[Dict[str, Any]]) -> bool:
     """Tells QA-Board that a run QA-Board shows as pending ended, failed unless it saved successful metrics. Returns whether it failed."""
-    # where the run said it was, if we found it by its id
-    if job.qaboard_output and job.qaboard_output.get('output_dir_url'):
+    # where the run said it was, if we found it by its id. Runs that send their files to the server (qaboard/upload.py)
+    # are in this computer's output/ folder: the server's folder isn't ours
+    from ..config import uploads_files
+    if job.qaboard_output and job.qaboard_output.get('output_dir_url') and not uploads_files:
       job.run_context.output_dir = url_to_dir(job.qaboard_output['output_dir_url'])
-    job_is_failed = job.run_context.is_failed(verbose=True)
+    if uploads_files:
+      # metrics.json is written before the files are sent: the run may have been killed while it sent them
+      print("[ERROR] The run never told QA-Board it ended, it may not have all its files: marked as failed.", job.run_context)
+      job_is_failed = True
+    else:
+      job_is_failed = job.run_context.is_failed(verbose=True)
     if not job_is_failed:
       print("[INFO] Job status was 'pending':", job.run_context, job.qaboard_output)
     notify_qa_database(**{
