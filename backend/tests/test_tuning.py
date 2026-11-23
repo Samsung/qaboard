@@ -455,6 +455,66 @@ def test_listing_with_the_projects_code_times_out(dummy_app, custom_iter_inputs,
     assert "took more than" in data["error"]
 
 
+def test_collection_refs_of_batch_files():
+    from backend.api.tuning import collection_refs
+    batches = [{"a": {"inputs": [{"collection": " night@2 "}, "x.jpg", {"collection": "night@2"}]}, "b": {"matrix": {}, "inputs": [{"collection": "g/r:day", "configurations": [{"collection": 3}]}]}}, None]
+    assert collection_refs(batches) == ["night@2", "g/r:day"]
+
+
+def test_listing_with_the_projects_code_resolves_collections_first(dummy_app, custom_iter_inputs, monkeypatch):
+    """`qa batch --list` started by the server has no token to ask it for collections: it gets them in a file"""
+    import json
+    import subprocess
+    import backend.api.tuning as tuning
+    import backend.api.collections as collections_api
+    from qaboard.input_collections import Collection, CollectionError, CollectionInput, CollectionNotFound, resolver_from_file, RESOLVED_COLLECTIONS_ENV
+    (custom_iter_inputs.artifacts / "qa/tests/tests.yaml").write_text("ci:\n  inputs:\n    - collection: night@2\n    - collection: typo\n    - collection: group:night@2\n    - collection: other/secret:night@1\n")
+    asked = []
+    def in_process_resolver(project_id):
+        def resolve(ref, project=None):
+            asked.append((project_id, ref))
+            if ref == 'typo':
+                raise CollectionNotFound("No collection named typo in group/repo.", ref=ref, project=project_id, status=404)
+            return Collection(ref=ref, project='group', name='night', version=2, id=7, inputs=[CollectionInput(1, '/db', 'a')])
+        return resolve
+    monkeypatch.setattr(collections_api, "in_process_resolver", in_process_resolver)
+    seen = {}
+    def qa_batch_list(cmd, cwd, timeout, env=None):
+        path = env[RESOLVED_COLLECTIONS_ENV]
+        seen['path'] = path
+        resolve = resolver_from_file(path)
+        night = resolve('night@2', 'group/repo')
+        seen['night'] = (night.name, night.version, night.project, [tuple(i) for i in night.inputs])
+        with pytest.raises(CollectionNotFound, match='No collection named typo'):
+            resolve('typo')
+        # the commit's code reads the file: never another project's collections, even if the viewer reads them
+        with pytest.raises(CollectionError, match='can only use its collections and its parent projects'):
+            resolve('other/secret:night@1')
+        runs = [{"rel_input_path": i.path, "configurations": []} for i in night.inputs]
+        return subprocess.CompletedProcess(cmd, 0, json.dumps(runs), "")
+    monkeypatch.setattr(tuning, "run_with_timeout", qa_batch_list)
+    data, status = list_tests_response(dummy_app, "ci")
+    assert status == 200 and data["tests"] == [{"input_path": "a", "configurations": []}]
+    assert asked == [("group/repo", "night@2"), ("group/repo", "typo"), ("group/repo", "group:night@2")]
+    assert seen['night'] == ('night', 2, 'group', [('/db', 'a')])
+    # removed once listed
+    assert not Path(seen['path']).exists()
+
+
+def test_listing_with_the_projects_code_without_collections(dummy_app, custom_iter_inputs, monkeypatch):
+    import subprocess
+    import backend.api.tuning as tuning
+    envs = []
+    def qa_batch_list(cmd, cwd, timeout, env=None):
+        envs.append(env)
+        return subprocess.CompletedProcess(cmd, 0, "[]", "")
+    monkeypatch.setattr(tuning, "run_with_timeout", qa_batch_list)
+    data, status = list_tests_response(dummy_app, "ci")
+    from qaboard.input_collections import RESOLVED_COLLECTIONS_ENV
+    # the environment without the server's secrets, and without a collections file
+    assert status == 200 and len(envs) == 1 and RESOLVED_COLLECTIONS_ENV not in envs[0]
+
+
 @pytest.mark.parametrize("runner", [None, "lsf", "kubernetes"])
 def test_listing_with_the_projects_code_needs_the_opt_in(dummy_app, custom_iter_inputs, monkeypatch, runner):
     import backend.api.tuning as tuning

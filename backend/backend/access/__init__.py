@@ -207,7 +207,7 @@ def subject_of(subject_type: str, subject_id: int) -> dict:
 
 VERBS = {
   'project.read': "see", 'runs.ingest': "send results to", 'runs.act': "change the runs of",
-  'milestones.write': "save milestones in", 'project.access': "manage who can access",
+  'milestones.write': "save milestones in", 'collections.write': "save collections in", 'project.access': "manage who can access",
 }
 
 

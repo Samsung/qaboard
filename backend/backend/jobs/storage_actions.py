@@ -17,6 +17,7 @@ from ..storage import check_storage_path
 from ..fs_utils import rmtree, rm_empty_parents
 from qaboard.attempts import split as split_attempt, latest_attempt
 from .. import locations, storage_usage, accounts
+from ..input_catalog import record_run_in_savepoint
 from . import params as p
 from .common import quiet
 from .report import Reporter, utcnow
@@ -174,7 +175,8 @@ class ImportRuns:
       if entry is None or entry.kind != 'untracked_run' or entry.action:
         continue
       batch_id = (entry.ref or {}).get('batch_id')
-      if not batch_id or db_session.get(Batch, batch_id) is None:
+      batch = db_session.get(Batch, batch_id) if batch_id else None
+      if batch is None:
         report.error('other', f"{path} isn't in a batch's folder: QA-Board can't know its commit", path=path)
         continue
       # runs in a storage location store its URL (backend/locations.py)
@@ -208,6 +210,11 @@ class ImportRuns:
         created_date=entry.newest_mtime or datetime.datetime.utcnow(),
       )
       db_session.add(output)
+      # the project's Inputs tab lists the input, like for runs `qa` sends (api/outputs.py): never fails the import
+      project_id = getattr(getattr(batch, 'ci_commit', None), 'project_id', None)
+      if project_id:
+        db_session.flush() # a new input gets its id
+        record_run_in_savepoint(db_session, test_input.id, project_id, new_output=True, now=output.created_date)
       entry.action = 'imported'
       db_session.commit()
       batch_ids.add(batch_id)

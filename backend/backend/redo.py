@@ -88,6 +88,8 @@ def run_spec(output) -> dict:
     "extra_parameters": output.extra_parameters,
     "batch": data.get("batch"),
     "job_options": safe_job_options(data.get("job_options")),
+    # redone runs of a collection's inputs keep saying which version they used
+    **{key: data[key] for key in ("collection", "collection_version", "collection_id") if data.get(key) is not None},
   }
 
 
