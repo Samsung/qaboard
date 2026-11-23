@@ -148,5 +148,19 @@ class TestWinNormalize(unittest.TestCase):
     self.assertEqual(ctx.rel_input_path, PureWindowsPath('inputs/img.png'))
 
 
+class TestStoredDatabase(unittest.TestCase):
+  def test_database_sent_to_the_server_has_no_extended_prefix(self):
+    """The database `qa` sends with results is the plain `\\\\server\\share` form, even if resolve() kept `\\\\?\\UNC\\`"""
+    from types import SimpleNamespace
+    from unittest import mock
+    from qaboard.run import RunContext
+    prefixed = Path(r'\\?\UNC\server\share\db')
+    ctx = SimpleNamespace(params={'input_path': Path('/db/in.raw')}, obj={})
+    with mock.patch.object(Path, 'resolve', lambda self, strict=False: prefixed if str(self) == '/' else self):
+      with self.assertRaises(SystemExit):  # the input doesn't exist: it stops after setting the database
+        RunContext.from_click_run_context(ctx, {})
+    self.assertEqual(str(ctx.obj['database']), r'\\server\share\db')
+
+
 if __name__ == '__main__':
   unittest.main()

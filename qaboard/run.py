@@ -153,7 +153,8 @@ class RunContext():
         if database_is_absolute:
             # for relative database paths we don't want an absolute path ending up in the QA-Board database...
             # note that right now .obj is the info that will get send there
-            ctx.obj["database"] = database
+            # (without the `\\?\UNC\` prefix resolve() can keep on Windows, or the server stores two names for one database)
+            ctx.obj["database"] = _win_normalize(database)
         input_path_absolute = (database / input_path).resolve()
         if not input_path_absolute.exists():
             click.secho(f"[ERROR] {input_path_absolute} cannot be found", fg='red')
