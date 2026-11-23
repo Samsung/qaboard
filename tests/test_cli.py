@@ -442,6 +442,34 @@ class TestQaCli(unittest.TestCase):
     assert len(output_dirs) == 3
     assert result.exit_code == 0
 
+  def test_runs_of_collections_say_which_version_they_used(self):
+    """qa batch passes the collection and its version to the runs (hidden options), that send them with their data"""
+    from unittest import mock
+    from tests.test_collections import FakeServer, resolved
+    database = Path().resolve()
+    batches = {'hard': {'inputs': [{'collection': 'night/hard'}]}}
+    with Path('collection.batches.yaml').open('w') as f:
+      f.write(yaml.dump(batches))
+    self.addCleanup(lambda: Path(self.project_dir / 'collection.batches.yaml').unlink(missing_ok=True))
+    config = self.qa('get', 'project').stdout.splitlines()[-1]
+    server = FakeServer({(config, 'night/hard'): (200, resolved(name='night/hard', version=4, project=config, inputs=[(str(database), 'cli_tests/a.jpg')]))})
+    with mock.patch('requests.Session.request', side_effect=server):
+      result = self.qa('--dryrun', 'batch', '--batches-file', 'collection.batches.yaml', 'hard', '--list')
+    assert result.exit_code == 0, result.output
+    run, = json.loads(result.stdout)
+    assert (run['collection'], run['collection_version']) == ('night/hard', 4)
+    assert ' --collection night/hard --collection-version 4 --collection-id 7 run --input "cli_tests/a.jpg"' in run['command'], run['command']
+    # the run's `qa` reads them: they are in its context, and in what it sends
+    result = self.qa('--collection', 'night/hard', '--collection-version', '4', 'get', '-i', 'cli_tests/a.jpg', 'collection')
+    assert result.exit_code == 0, result.output
+    assert result.stdout.splitlines()[-1] == 'night/hard'
+    result = self.qa('--collection', 'night/hard', '--collection-version', '4', 'get', '-i', 'cli_tests/a.jpg', 'collection_version')
+    assert result.stdout.splitlines()[-1] == '4'
+    result = self.qa('--collection', 'night/hard', '--collection-version', '4', '--collection-id', '7', 'get', '-i', 'cli_tests/a.jpg', 'collection_id')
+    assert result.stdout.splitlines()[-1] == '7'
+    # hidden: not in the help
+    assert '--collection' not in self.qa('--help').output
+
   def test_batch_runs_file(self):
     import tempfile
     database = str(Path().resolve())

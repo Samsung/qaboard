@@ -61,6 +61,11 @@ _LAZY = {
   'slugify': ('.conventions', 'slugify'),
   'check_for_updates': ('.check_for_updates', 'check_for_updates'),
 }
+# submodules that `import qaboard` gives on first access, by their public name: `qaboard.collections.get(...)` and
+# `from qaboard import collections`. The module is input_collections.py: a qaboard/collections.py would shadow the
+# standard library's `collections` for scripts run from the qaboard/ folder. Not in __all__: `from qaboard import *`
+# must not replace `collections`.
+_LAZY_MODULES = {'collections': '.input_collections'}
 __all__ = ['__version__', *_LAZY]
 
 
@@ -69,11 +74,13 @@ def __getattr__(name: str) -> Any:
   if name in _LAZY:
     module, attribute = _LAZY[name]
     return getattr(import_module(module, __name__), attribute)
+  if name in _LAZY_MODULES:
+    return import_module(_LAZY_MODULES[name], __name__)
   raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def __dir__():
-  return sorted({*globals(), *_LAZY})
+  return sorted({*globals(), *_LAZY, *_LAZY_MODULES})
 
 
 class _Package(ModuleType):

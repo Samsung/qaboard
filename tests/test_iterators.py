@@ -608,8 +608,9 @@ class TestRunsFile(unittest.TestCase):
     from qaboard.iterators import iter_runs
     runs = [
       {"input_path": "a/b.jpg", "database": "/database/../data", "type": "image", "platform": "windows", "configurations": ["base", {"x": 1}],
-       "extra_parameters": {"p": 1}, "batch": "my-batch", "job_options": {"type": "dask", "concurrency": 3}},
-      {"input_path": "c.jpg", "database": "relative"},
+       "extra_parameters": {"p": 1}, "batch": "my-batch", "job_options": {"type": "dask", "concurrency": 3},
+       "collection": "night@2", "collection_version": 2, "collection_id": 7},
+      {"input_path": "c.jpg", "database": "relative", "collection_version": "2"},
     ]
     first, second = list(iter_runs(runs, default_type="default", default_platform="linux", default_job_options=self.defaults))
     self.assertEqual(first.input_path, Path("/data/a/b.jpg"))
@@ -622,6 +623,9 @@ class TestRunsFile(unittest.TestCase):
     self.assertEqual(second.rel_input_path, Path("c.jpg"))
     self.assertEqual((second.type, second.platform, second.configurations, second.extra_parameters), ("default", "linux", [], {}))
     self.assertEqual(second.job_options, self.defaults)
+    # redone runs of a collection's inputs keep saying which version they used
+    self.assertEqual((first.collection, first.collection_version, first.collection_id), ("night@2", 2, 7))
+    self.assertEqual((second.collection, second.collection_version, second.collection_id), (None, None, None))
 
   def test_load_runs_file(self):
     import json
