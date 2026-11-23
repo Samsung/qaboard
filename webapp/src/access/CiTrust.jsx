@@ -12,7 +12,7 @@ import { toaster } from "../toaster";
 import { useSiteConfig } from "../hooks";
 import { Time } from "../settings/format";
 import { Snippet } from "../settings/CreateTokenDialog";
-import { addCiTrust, removeCiTrust } from "./serviceAccounts";
+import { addCiTrust, removeCiTrust } from "./serviceAccountsApi";
 
 
 const GITLAB_COM = 'https://gitlab.com';
