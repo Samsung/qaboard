@@ -180,6 +180,16 @@ token: the server resolves the refs of the batch files' `collections` keys first
   `.data`. How to run (runner options, configurations) stays in batch files, next to `collections:`, with per-input
   overrides there. A collection says *what* to run on, a batch *how*: the same collection runs with other settings in
   another batch, and no run setting hides in a collection's version.
+- **Thumbnails: made on request by the backend, nothing stored on disk, until measured.** The backend decodes an input
+  when the web app asks (4 decodes at a time per process), and Redis keeps grid sizes for a day. Thumbnails are never
+  written next to inputs (they're read-only and belong to others) nor on users' quotas. Measure with the site's
+  decoder on real raws first: if a cold folder of ~40 thumbnails fills in a second or two, keep this. If not, add a
+  disk cache on the server's own volume, capped and pruned oldest first; and only if cold folders are still slow,
+  make thumbnails in the background when runs record new inputs.
+- **Sidecar files (e.g. `.imgprops` next to a `.raw`): out of scope.** A collection lists the main files runs used;
+  sidecars stay where they are, and decoders and scripts read them next to the main file. It would only get
+  complicated if collections were exposed as folders, or sidecars were versioned or synced with metadata: neither is
+  planned.
 
 ## Web app
 
