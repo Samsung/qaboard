@@ -6765,7 +6765,7 @@ mlflow = [
 [package.metadata]
 requires-dist = [
     { name = "celery", marker = "python_full_version >= '3.9' and extra == 'celery'", specifier = ">=5.3" },
-    { name = "click", specifier = ">=7.0" },
+    { name = "click", specifier = ">=8.0" },
     { name = "dask-jobqueue", marker = "python_full_version >= '3.9' and extra == 'dask'" },
     { name = "dask-kubernetes", marker = "python_full_version >= '3.10' and extra == 'dask-kubernetes'" },
     { name = "distributed", marker = "python_full_version >= '3.9' and extra == 'dask'" },

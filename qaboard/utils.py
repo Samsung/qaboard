@@ -57,6 +57,11 @@ class PathType(click.ParamType):
       return None
     return Path(value)
 
+  def shell_complete(self, ctx, param, incomplete):
+    # the shell completes paths
+    from click.shell_completion import CompletionItem
+    return [CompletionItem(incomplete, type='file')]
+
 class RedirectStream():
   def __init__(self, stream_name, file, color):
     self.stream_name = stream_name

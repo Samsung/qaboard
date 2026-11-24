@@ -55,9 +55,12 @@ is_doctor_command = is_qa_program(sys.argv) and invoked_command(sys.argv) == 'do
 ignore_config_errors = ignore_config_errors or is_doctor_command
 # `qa upload` saves files as a run, also outside a project: it says itself what it misses (qaboard/upload_command.py)
 # `qa fetch-artifacts` and `qa send-batch-log` only talk to the server
-COMMANDS_WITHOUT_PROJECT = ('upload', 'fetch-artifacts', 'send-batch-log', 'restore')
+# `qa completion` and `qa version` don't need one either
+COMMANDS_WITHOUT_PROJECT = ('upload', 'fetch-artifacts', 'send-batch-log', 'restore', 'completion', 'version')
 is_command_without_project = is_qa_program(sys.argv) and invoked_command(sys.argv) in COMMANDS_WITHOUT_PROJECT
 ignore_config_errors = ignore_config_errors or is_command_without_project
+# `qa --version`, and shell completion (qaboard/completion.py): it prints nothing but candidates, without a project too
+ignore_config_errors = ignore_config_errors or '--version' in sys.argv or '_QA_COMPLETE' in os.environ
 # The errors in the configuration that make `qa` commands refuse to run, and how to fix them: `qa doctor` reports them
 config_errors: List[Tuple[str, str]] = []
 # What qa warns about in the configuration, and how to fix it

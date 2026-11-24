@@ -18,6 +18,15 @@ import click
 
 from .lazy import lazy_function, install_rich_traceback_lazily
 install_rich_traceback_lazily()
+from . import completion
+from .completion import complete_batches, complete_platforms, complete_input_types, complete_configurations, complete_inputs
+from .completion import complete_runners, complete_actions_on_existing, complete_actions_on_pending
+if completion.is_completing():
+  # completion prints only the candidates, not what reading qaboard.yaml says
+  import io
+  import contextlib
+  with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+    from . import config as _config # noqa: F401
 
 from .run import RunContext
 
@@ -47,13 +56,15 @@ from .config import commit_id, outputs_commit, artifacts_commit, root_qatools, a
 from .config import user, is_ci, on_windows, available_metrics, uploads_files, repo_root, COMMANDS_WITHOUT_PROJECT
 from .metrics import split_metrics, resolve_definitions, write_definitions_file, with_default_direction
 from . import analytics
+from . import __version__
 
 
 
 @click.group()
 @click.pass_context
-@click.option('--platform', default=default_platform)
-@click.option('--configuration', '--config', '-c', 'configurations', multiple=True, help="Will be passed to the run function")
+@click.version_option(__version__, '--version', message='qa, version %(version)s', help="Print qa's version (qa version --json for more).")
+@click.option('--platform', default=default_platform, shell_complete=complete_platforms)
+@click.option('--configuration', '--config', '-c', 'configurations', multiple=True, shell_complete=complete_configurations, help="Will be passed to the run function")
 @click.option('--label', '-l', default=default_batch_label, help="Gives tuning experiments a name.")
 @click.option('--tuning', multiple=True, help="Extra parameters for tuning (as JSON).")
 @click.option('--tuning-filepath', type=PathType(), multiple=True, help="File with extra parameters for tuning")
@@ -61,7 +72,7 @@ from . import analytics
 # results are always shared (config.default_share): --share is accepted, for scripts that still give it
 @click.option('--share', 'share_flag', is_flag=True, hidden=True)
 @click.option('--database', type=PathType(), help="Input database location")
-@click.option('--type', 'input_type', default=default_input_type, help="How we define inputs")
+@click.option('--type', 'input_type', default=default_input_type, shell_complete=complete_input_types, help="How we define inputs")
 @click.option('--offline', is_flag=True, help="Never contact QA-Board: results stay in output/.")
 def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, share_flag, database, input_type, offline):
   """Entrypoint to running your algo, launching batchs..."""
@@ -206,7 +217,7 @@ def saves_attempts(qa_context, custom_output=None) -> bool:
 
 
 @qa.command()
-@click.option('-i', '--input', 'input_path', type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
+@click.option('-i', '--input', 'input_path', type=PathType(), shell_complete=complete_inputs, help='Path of the input/recording/test we should work on, relative to the database directory.')
 @click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path.')
 @click.argument('variable')
 @click.pass_context
@@ -239,7 +250,7 @@ def get(ctx, input_path, output_path, variable):
     allow_interspersed_args=False,
 ))
 @click.pass_context
-@click.option('-i', '--input', 'input_path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
+@click.option('-i', '--input', 'input_path', required=True, type=PathType(), shell_complete=complete_inputs, help='Path of the input/recording/test we should work on, relative to the database directory.')
 @click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path.')
 @click.option('--keep-previous', is_flag=True, help="Don't clean previous outputs before the run.")
 @click.option('--no-postprocess', is_flag=True, help="Don't do the postprocessing.")
@@ -791,7 +802,7 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
     ignore_unknown_options=True,
 ))
 @click.pass_context
-@click.option('-i', '--input', 'input_path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
+@click.option('-i', '--input', 'input_path', required=True, type=PathType(), shell_complete=complete_inputs, help='Path of the input/recording/test we should work on, relative to the database directory.')
 @click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path.')
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 def postprocess(ctx, input_path, output_path, forwarded_args):
@@ -817,7 +828,7 @@ def postprocess(ctx, input_path, output_path, forwarded_args):
     ignore_unknown_options=True,
 ))
 @click.pass_context
-@click.option('-i', '--input', 'input_path', required=True, type=PathType(), help='Path of the input/recording/test we should work on, relative to the database directory.')
+@click.option('-i', '--input', 'input_path', required=True, type=PathType(), shell_complete=complete_inputs, help='Path of the input/recording/test we should work on, relative to the database directory.')
 @click.option('-o', '--output', 'output_path', type=PathType(), default=None, help='Custom output directory path.')
 def sync(ctx, input_path, output_path):
   """Updates the database metrics using metrics.json"""
@@ -946,7 +957,7 @@ default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "
     allow_interspersed_args=True,
 ))
 @click.option('--commit', 'on_commit', help="Have QA-Board start the batch on this pushed commit (id, branch, tag), as from its web app, from the commit's artifacts. Batches come from the commit's inputs.batches, then your shared and private batches in QA-Board, then the --batches-file you send (read last, they win). Needs --label. Prints the batch's page and returns.")
-@click.option('--batch', '-b', 'batches', multiple=True, help="We run over all inputs+configs+database in those batches")
+@click.option('--batch', '-b', 'batches', multiple=True, shell_complete=complete_batches, help="We run over all inputs+configs+database in those batches")
 @click.option('--batches-file', 'batches_files', type=PathType(),  default=default_batches_files, multiple=True, help="YAML files listing batches of inputs+configs+database.")
 @click.option('--runs-file', type=PathType(), default=None, help='Instead of batches, a JSON file listing the runs to do, e.g. to redo runs: {"runs": [{"input_path", "database", "type", "platform", "configurations", "extra_parameters", "job_options"}]}. Runs are done with the runner and job options they list, unless you give a --runner.')
 @click.option('--tuning-search', 'tuning_search_dict', help='string containing JSON describing the tuning parameters to explore')
@@ -956,7 +967,7 @@ default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "
 @click.option('--list-output-dirs', is_flag=True, help="Only print where the results of each run are saved now (their latest attempt).")
 @click.option('--save-runs', type=PathType(), default=None, help="Once the runs are started (and done, without --no-wait), write to this JSON file the details of each, as --list prints them: where they were saved, and whether they were skipped. For scripts that read the results next.")
 @click.option('--list-inputs', is_flag=True, help="Print to stdout a JSON with a list of the inputs we would call qa run on.")
-@click.option('--runner', default=default_runner, help="Run runs locally or using a task queue like Celery, LSF...")
+@click.option('--runner', default=default_runner, shell_complete=complete_runners, help="Run runs locally or using a task queue like Celery, LSF...")
 @click.option('--local-concurrency', default=default_local_concurrency, type=int, help="How many runs run at the same time (joblib's n_jobs): 1=one at a time (if not set), 2=2 at a time, -1=one per CPU, -2=all CPUs but one")
 @click.option('--local-timeout', default=default_local_timeout, type=int, help="Timeout for local runs")
 @click.option('--lsf-max-threads', default=default_lsf_max_threads, type=int, help="restrict number of lsf threads to use. 0=no restriction")
@@ -967,10 +978,10 @@ default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "
 @click.option('--lsf-options', default=default_lsf_options, help="Other LSF options (as 1 string, like '-W 24:00') that bsub can understand. Will be added after all other CLI flags.")
 @click.option('--lsf-concurrency', default=default_lsf_concurrency, type=int, help="Max number of LSF jobs from this batch running at the same time. 0=unlimited")
 @click.option('--dask-concurrency', default=default_dask_concurrency, type=int, help="Max number of runs from this batch running at the same time on dask workers.")
-@click.option('--action-on-existing', default=default_action_on_existing, help="When there are already finished successful runs, whether to do run / postprocess (only) / sync (re-read metrics from output dir) / skip / assert-exists")
-@click.option('--action-on-pending', default=default_action_on_pending, help="When there are already pending runs, whether to do wait (then run) / sync (use those runs' results) / skip (don't run) / run (run as usual, can cause races)")
+@click.option('--action-on-existing', default=default_action_on_existing, shell_complete=complete_actions_on_existing, help="When there are already finished successful runs, whether to do run / postprocess (only) / sync (re-read metrics from output dir) / skip / assert-exists")
+@click.option('--action-on-pending', default=default_action_on_pending, shell_complete=complete_actions_on_pending, help="When there are already pending runs, whether to do wait (then run) / sync (use those runs' results) / skip (don't run) / run (run as usual, can cause races)")
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
-@click.argument('batch_names', nargs=-1, type=click.UNPROCESSED)
+@click.argument('batch_names', nargs=-1, type=click.UNPROCESSED, shell_complete=complete_batches)
 @click.pass_context
 @saves_logs
 def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, save_runs, list_inputs, runner, local_concurrency, local_timeout, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_resources, lsf_priority, lsf_options, lsf_concurrency, dask_concurrency, action_on_existing, action_on_pending, prefix_outputs_path, batch_names):
@@ -1738,7 +1749,7 @@ def init(ctx):
 
 
 @qa.command()
-@click.option('--runner', default=default_runner, show_default=True, help="The runner to check: local, lsf, celery, dask, windows... By default, the one `qa batch` uses.")
+@click.option('--runner', default=default_runner, show_default=True, shell_complete=complete_runners, help="The runner to check: local, lsf, celery, dask, windows... By default, the one `qa batch` uses.")
 @click.option('--test-job', is_flag=True, help="Also start a small job with the runner, to check that it runs, where, as who, and what it can access. It can take a few minutes, e.g. waiting for a slot.")
 @click.pass_context
 def doctor(ctx, runner, test_job):
@@ -1764,6 +1775,87 @@ def doctor(ctx, runner, test_job):
   from .doctor import run_doctor
   sys.exit(run_doctor(ctx.obj, runner=runner, test_job=test_job))
 
+
+
+@qa.group(name='completion')
+def completion_command():
+  """
+  Shell completion: complete qa's commands, options, batch names, --input paths, --platform...
+
+  \b
+  Completion reads qaboard.yaml and the batches files, never QA-Board: it works offline.
+  It needs the shell to find `qa` (in your PATH).
+
+  \b
+  Examples:
+    qa completion install          # for your shell ($SHELL), then open a new shell
+    qa completion install zsh
+    qa completion bash > ~/.qa-completion.bash   # the script, to load it yourself
+  """
+
+
+def shell_argument(command):
+  return click.argument('shell', required=False, type=click.Choice(completion.SHELLS))(command)
+
+
+@completion_command.command(name='install')
+@shell_argument
+@click.option('--json', 'as_json', is_flag=True, help="Print what was installed as JSON: shell, script, startup_file, startup_file_changed.")
+def completion_install(shell, as_json):
+  """
+  Install completion for your shell (bash, zsh, fish, powershell). Default: $SHELL's.
+
+  \b
+  It writes the script in qa's configuration folder (fish: ~/.config/fish/completions/qa.fish),
+  and loads it from ~/.bashrc, ~/.zshrc or your PowerShell $PROFILE, once. Doing it again updates the script.
+  """
+  shell = shell or completion.detect_shell()
+  if not shell:
+    raise click.UsageError(f"Could not tell your shell from $SHELL: give it, one of {', '.join(completion.SHELLS)}")
+  installed = completion.install(shell)
+  if as_json:
+    click.echo(json.dumps(installed, indent=2))
+    return
+  click.secho(f"Installed completion for {shell}: {installed['script']}", fg='green', err=True)
+  if installed['startup_file_changed']:
+    click.echo(f"Loaded from {installed['startup_file']}. Open a new shell to use it.", err=True)
+  elif installed['startup_file']:
+    click.echo(f"{installed['startup_file']} already loads it. Open a new shell to use the update.", err=True)
+  else:
+    click.echo("Open a new shell to use it.", err=True)
+
+
+def _script_command(shell):
+  def print_script():
+    click.echo(completion.source(shell))
+  print_script.__name__ = f"completion_{shell}"
+  return completion_command.command(name=shell, help=f"Print the {shell} completion script, to load it yourself.")(print_script)
+
+for _shell in completion.SHELLS:
+  _script_command(_shell)
+
+
+@qa.command(name='version')
+@click.option('--json', 'as_json', is_flag=True, help="Print as JSON: qaboard, python, click, platform, executable, package.")
+def version_command(as_json):
+  """Print qa's version (also: qa --version)."""
+  from . import __version__
+  if not as_json:
+    click.echo(f"qa, version {__version__}")
+    return
+  import platform
+  try:
+    from importlib.metadata import version
+  except ImportError: # python 3.7
+    from importlib_metadata import version # type: ignore
+  click.echo(json.dumps({
+    "qaboard": __version__,
+    "python": platform.python_version(),
+    "click": version('click'),
+    "platform": sys.platform,
+    "executable": sys.executable,
+    "package": str(Path(__file__).resolve().parent),
+  }, indent=2))
 
 
 # We want to allow both
@@ -1805,6 +1897,11 @@ def init_sentry():
 
 
 def main():
+  if completion.is_completing():
+    # fast, quiet and offline: no update check, no Sentry, no usage event (the `qa` group's callback doesn't run)
+    completion.register_shells()
+    qa(obj={"forwarded_args": []}, auto_envvar_prefix='QA', complete_var=completion.COMPLETE_VAR)
+    return
   # not on `import qaboard`: scripts using the package shouldn't wait for PyPI
   from .check_for_updates import check_for_updates
   check_for_updates()
