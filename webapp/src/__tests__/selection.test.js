@@ -5,7 +5,7 @@ import {
   show_reference, add_reference, remove_reference, swap_with_top, move_reference, duplicate_reference, rename_reference,
   toggle_together, set_together_mode, set_anchor,
   reference_names, reference_colors, side_colors, switch_new_and_reference,
-  project_url,
+  project_url, parse_local_date,
 } from '../selection';
 import { vi } from 'vitest';
 import { matchRoutes } from '../router';
@@ -615,5 +615,26 @@ describe('usage analytics', () => {
     updateSelected({ ref_commit_id: 'def0123', selected_batch_ref: 'tuning' });
     updateSelected({ ref_commit_id: '' });
     expect(track).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('dates typed in the date pickers', () => {
+  const day = date => date && [date.getFullYear(), date.getMonth() + 1, date.getDate(), date.getHours()];
+
+  it('reads them as toLocaleDateString() writes them, whatever the locale', () => {
+    for (const locale of ['en-US', 'en-GB', 'de-DE', 'fr-FR', 'ja-JP', 'he-IL']) {
+      const date = new Date(2026, 8, 6);
+      expect(day(parse_local_date(date.toLocaleDateString(locale), locale))).toEqual([2026, 9, 6, 0]);
+    }
+    // the US order, the day before the month elsewhere
+    expect(day(parse_local_date('06/09/2026', 'en-US'))).toEqual([2026, 6, 9, 0]);
+    expect(day(parse_local_date('06/09/2026', 'en-GB'))).toEqual([2026, 9, 6, 0]);
+  });
+
+  it('reads YYYY-MM-DD as local midnight, and nothing else', () => {
+    expect(day(parse_local_date('2026-09-17'))).toEqual([2026, 9, 17, 0]);
+    expect(parse_local_date('31/02/2026', 'en-GB')).toBeNull();
+    expect(parse_local_date('yesterday')).toBeNull();
+    expect(parse_local_date('')).toBeNull();
   });
 });

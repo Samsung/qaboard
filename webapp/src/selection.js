@@ -89,6 +89,30 @@ export const date_range_from_query = query => {
 
 const to_day = date => DateTime.fromJSDate(date).toISODate();
 
+// What users type in the date pickers, as toLocaleDateString() writes it (9/17/2026, 17/09/2026, 17.9.2026...), or
+// YYYY-MM-DD: local midnight. `new Date(str)` only reads the US order, and reads 06/09/2026 as June 9 everywhere.
+// null when it's not a date.
+export const parse_local_date = (str, locale) => {
+  const text = (str ?? '').trim();
+  if (day.test(text)) {
+    const date = DateTime.fromISO(text);
+    return date.isValid ? date.toJSDate() : null;
+  }
+  const numbers = text.match(/\d+/g);
+  if (!numbers || numbers.length !== 3) return null;
+  let order;
+  try {
+    order = new Intl.DateTimeFormat(locale).formatToParts(new Date(2026, 10, 24))
+      .map(part => part.type).filter(type => type === 'day' || type === 'month' || type === 'year');
+  } catch {
+    return null;
+  }
+  if (order.length !== 3) return null;
+  const parts = Object.fromEntries(order.map((type, index) => [type, Number(numbers[index])]));
+  const date = DateTime.fromObject(parts);
+  return date.isValid ? date.toJSDate() : null;
+};
+
 
 // Users can select several references, and compare the new commit with one of them at a time.
 // The one shown is in ?reference=&batch_ref=&filter_ref=&ref_project= as before, so that existing links and code
