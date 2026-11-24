@@ -492,8 +492,13 @@ def begin_local_changes(run_context):
   """Starts capturing the local changes in the background, once the run's folder is known: start_local_changes waits"""
   global _local_changes_pending
   from . import local_changes
-  if _local_changes is None and _local_changes_pending is None:
-    _local_changes_pending = local_changes.in_background(_for_run, run_context.output_dir)
+  from .config import is_in_git_repo
+  if _local_changes is not None or _local_changes_pending is not None or not is_in_git_repo:
+    return
+  # off, e.g. in CI unless $QA_LOCAL_CHANGES says otherwise: no thread, no git
+  if local_changes.settings((config.get('outputs') or {}).get('local_changes'), is_ci=is_ci)[0].level == 'off':
+    return
+  _local_changes_pending = local_changes.in_background(_for_run, run_context.output_dir)
 
 
 def start_local_changes(run_context):
