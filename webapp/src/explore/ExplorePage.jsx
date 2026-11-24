@@ -308,7 +308,7 @@ const ExplorePage = () => {
   return (
     <div style={{minHeight: '100vh', display: 'flex', flexDirection: 'column'}}>
       <SiteNavbar/>
-      <Container>
+      <Container as="main">
         <PrivateContent>
           <ExploreList/>
         </PrivateContent>

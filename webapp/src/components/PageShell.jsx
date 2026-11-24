@@ -19,8 +19,9 @@ import EmptyLoading from "./EmptyLoading";
 import { usePageTitle, app_title } from "../pageTitle";
 
 
-// On narrow screens the bar's groups wrap on several rows instead of overflowing the page
-export const WrappingNavbar = styled(Navbar)`
+// On narrow screens the bar's groups wrap on several rows instead of overflowing the page.
+// The page's banner landmark: it's always outside of <main>
+export const WrappingNavbar = styled(Navbar).attrs({ role: 'banner' })`
   && {
     height: auto;
     min-height: 50px;

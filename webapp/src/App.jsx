@@ -189,17 +189,21 @@ const ProjectApp = ({ pathname }) => {
     <Layout className={Classes.UI_TEXT}>
       <AppSider/>
       <div style={{width: '100%'}}>
-        <AppNavbar/>
+        {/* the banner landmark: the commits' bars, or the list's filters */}
+        <header><AppNavbar/></header>
         {/* the content area: on its left the sidebar (collapsible), on its right room for a docked side panel (see App.css) */}
         <div className="qa-content-area" style={{paddingLeft: sider_width, minHeight: '100vh', display: 'flex', flexDirection: 'column'}}>
           {/* projects users can't see say whom to ask */}
-          <ProjectAccessGate>
-            <PageErrorBoundary fallback={projectPageFallback}>
-              <Suspense fallback={<EmptyLoading/>}>
-                <Main/>
-              </Suspense>
-            </PageErrorBoundary>
-          </ProjectAccessGate>
+          {/* the page's one main landmark: the project pages don't add their own */}
+          <main style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
+            <ProjectAccessGate>
+              <PageErrorBoundary fallback={projectPageFallback}>
+                <Suspense fallback={<EmptyLoading/>}>
+                  <Main/>
+                </Suspense>
+              </PageErrorBoundary>
+            </ProjectAccessGate>
+          </main>
           <Footer/>
         </div>
       </div>

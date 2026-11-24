@@ -249,7 +249,12 @@ def proxy_gitlab():
     cookie = gitlab_cookie(urlparse(url).hostname)
     cookies = {'_gitlab_session': cookie} if cookie else {}
     # We follow redirects ourselves to check where they go
-    r = requests.get(url, cookies=cookies, verify=verify_tls(), allow_redirects=False, timeout=10)
+    try:
+      r = requests.get(url, cookies=cookies, verify=verify_tls(), allow_redirects=False, timeout=10)
+    except requests.RequestException as e:
+      # e.g. an air-gapped server and users' gravatars: the web app shows their initials
+      print(f"[gitlab-proxy] Could not reach {url}: {type(e).__name__}")
+      return jsonify({"error": f"Could not reach {urlparse(url).hostname}"}), 502
     if not r.is_redirect:
       break
     url = urljoin(url, r.headers['Location'])

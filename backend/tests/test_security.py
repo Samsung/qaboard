@@ -1146,6 +1146,15 @@ def test_gitlab_proxy_checks_redirects(integrations, dummy_app, monkeypatch):
   assert all(c.kwargs["allow_redirects"] is False for c in get.call_args_list)
 
 
+def test_gitlab_proxy_unreachable_host(integrations, dummy_app, monkeypatch):
+  # e.g. gravatar from an air-gapped server: a 502, not an error with a traceback
+  import requests
+  monkeypatch.setattr(integrations.requests, "get", MagicMock(side_effect=requests.ConnectionError("refused")))
+  with dummy_app.test_request_context("/api/v1/gitlab/proxy", query_string={"url": "https://gitlab.example.com/avatar/1.png"}):
+    response, status = integrations.proxy_gitlab()
+  assert status == 502
+
+
 def test_gitlab_proxy_response(integrations, dummy_app, monkeypatch):
   headers = {"Content-Type": "image/svg+xml", "Set-Cookie": "_gitlab_session=secret", "Content-Encoding": "gzip", "ETag": "abc"}
   monkeypatch.setattr(integrations.requests, "get", MagicMock(return_value=fake_response(200, headers)))

@@ -69,8 +69,9 @@ export const summary_stats = (new_values, ref_values, metric) => {
     new_med,
     ref_med,
     delta,
-    // relative to the reference's magnitude, so that the sign says whether the metric went up or down
-    delta_relative: delta / Math.abs(ref_med),
+    // relative to the reference's magnitude, so that the sign says whether the metric went up or down.
+    // Like relative_change in backend/backend/compare.py: 0 from 0 to 0, null from 0 to anything else
+    delta_relative: ref_med === 0 ? (delta === 0 ? 0 : null) : delta / Math.abs(ref_med),
     new_pc_good: pass_rate(new_values, metric),
     ref_pc_good: pass_rate(ref_values, metric),
   };

@@ -332,20 +332,23 @@ const CommitsEvolutionPerTest = props => {
       {hovered_test_input_path && <Tag style={{ background: hash_color(hovered_test_input_path) }}>
           {hovered_test_input_path} @{JSON.stringify(hovered_test_configurations)}
       </Tag>}
-      <CommitRow
-        default_batch={hovered_label}
-        commit={legend_commit}
-        project={project}
-        project_data={project_data}
-        tag={side_tag('new')}
-      />
-      {!!legend_commit_ref && <div><CommitRow
-        default_batch={hovered_label}
-        commit={legend_commit_ref}
-        project={project}
-        project_data={project_data}
-        tag={side_tag('reference')}
-      /></div>}
+      {/* CommitRow is a list item */}
+      <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+        <CommitRow
+          default_batch={hovered_label}
+          commit={legend_commit}
+          project={project}
+          project_data={project_data}
+          tag={side_tag('new')}
+        />
+        {!!legend_commit_ref && <CommitRow
+          default_batch={hovered_label}
+          commit={legend_commit_ref}
+          project={project}
+          project_data={project_data}
+          tag={side_tag('reference')}
+        />}
+      </ul>
       {!aggregation && <div style={{display: 'flex', flex: '0 0 auto'}}>{controls_switches}</div>}
       {!!hovered_output && <OutputCard
         project={project}

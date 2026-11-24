@@ -48,7 +48,7 @@ export const UsersView = ({ me, filters, storageUrl, openUser }) => {
               <td style={{ minWidth: 180 }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                   {user.user_name
-                    ? <><Avatar name={name} size="24px"/><Link to={runsOf(user)}><strong>{name}</strong></Link></>
+                    ? <><Avatar name={name} size="24px" alt=""/><Link to={runsOf(user)}><strong>{name}</strong></Link></>
                     : <Tooltip content="Runs from older qa versions don't say who ran them" hoverOpenDelay={200}>
                       <Link to={runsOf(user)} className={Classes.TEXT_MUTED} style={{ fontStyle: 'italic' }}>(unknown user)</Link>
                     </Tooltip>}
