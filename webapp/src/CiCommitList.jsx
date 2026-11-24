@@ -22,8 +22,11 @@ import CommitsEvolution from "./CommitsEvolution";
 import { BranchTrends } from "./CommitsTrends";
 import { groupBy } from "./utils";
 
-import { useCommitsList, useProjectData, useSelected, useSiteConfig, useUser, updateSelected } from './hooks'
-import { errorMessage } from './api/http'
+import { useBranches, useCommitsList, useProjectData, useSelected, useSiteConfig, useUser, updateSelected } from './hooks'
+import { branches_limit } from './api/queries'
+import { Link } from './router'
+import { path_segment } from './selection'
+import { errorMessage, errorTitle, isRetryable } from './api/http'
 import { useCommitListDensity } from './stores/prefs'
 import { CommitListDensityControl } from './components/DensityControl'
 import { RulesButton } from './storage/Rules'
@@ -173,6 +176,15 @@ const CiCommitList = () => {
   }, [is_branch, some_commits_loaded, commits, project_data]);
 
   const show_everyone = () => updateSelected({ scope: 'all', list_view: undefined });
+
+  // Nothing to show on a branch: does it have results at all? The branches whose name contains its name tell us,
+  // unless there are too many to be sure
+  const nothing_shown = isSuccess && !loading && !error && !some_commits_loaded && !search;
+  const branch_name = (branch ?? '').replace(/^origin\//, '');
+  const similar_branches = useBranches(project, branch_name, { enabled: is_branch && nothing_shown });
+  const unknown_branch = is_branch && nothing_shown && similar_branches.isSuccess
+    && similar_branches.data.length < branches_limit && !similar_branches.data.includes(branch_name);
+  const other_branches = unknown_branch ? similar_branches.data.slice(0, 5) : [];
   return (
     <Container style={{paddingTop: '50px'}}>
       {!branch && !committer && <SubprojectsCard project={project}/>}
@@ -203,17 +215,31 @@ const CiCommitList = () => {
       {!!search && <SearchHeader search={search} nb_commits={commits.length} has_more={hasNextPage} isFetching={loading}/>}
       {error && <NonIdealState
         icon="error"
-        title="Could not load the commits"
+        title={errorTitle(error, "the commits")}
         description={<p style={{ overflowWrap: 'anywhere' }}>
           <code>{errorMessage(error)}</code>
           {error.response?.status >= 500 && <><br/>If it persists, contact your QA-Board administrators.</>}
         </p>}
-        action={<Button icon="refresh" text="Retry" onClick={() => refetch()}/>}
+        action={isRetryable(error) ? <Button icon="refresh" text="Retry" onClick={() => refetch()}/> : undefined}
       />}
       {isPending && !error && <NonIdealState title="Loading commits…" icon={<Spinner />} />}
       {isSuccess && !loading && !error && !some_commits_loaded && !!search &&
         <NonIdealState title="No commit matches your search" icon="search" />}
-      {isSuccess && !loading && !error && !some_commits_loaded && !search &&
+      {nothing_shown && unknown_branch &&
+        <NonIdealState
+          title={<>No results on <code>{branch}</code></>}
+          icon="git-branch"
+          description={<span>
+            QA-Board has no commits of this branch: check its name.
+            {other_branches.length > 0 && <><br/>Branches with a similar name:{' '}
+              {other_branches.map((name, index) => <span key={name}>{index > 0 && ', '}
+                <Link to={`/${path_segment(project)}/commits/${path_segment(name)}`}>{name}</Link>
+              </span>)}
+            </>}
+          </span>}
+          action={<Link to={`/${path_segment(project)}/commits`}>See the project's commits</Link>}
+      />}
+      {nothing_shown && !unknown_branch && !(is_branch && similar_branches.isPending) &&
         <NonIdealState
           title={scope === 'mine' ? no_commits_title(date_range, now).replace('No commits', 'None of your commits') : no_commits_title(date_range, now)}
           description={<span>

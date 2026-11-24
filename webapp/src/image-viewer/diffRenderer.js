@@ -276,7 +276,7 @@ export const renderDiff = (target, a, b, diff) => {
     renderDiffOnCpu(pixelsOf(a, width, height), pixelsOf(b, width, height), out.data, diff);
     context.putImageData(out, 0, 0);
   } catch (error) {
-    if (error?.name === 'SecurityError') throw new Error(cors_message);
+    if (error?.name === 'SecurityError') throw new Error(cors_message, { cause: error });
     throw error;
   }
 };

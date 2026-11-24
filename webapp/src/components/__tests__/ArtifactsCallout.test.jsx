@@ -28,13 +28,24 @@ describe('ArtifactsCallout', () => {
     expect(screen.getByText(/You can still redo runs/)).toBeInTheDocument()
   })
 
-  it('warns about artifacts deleted behind QA-Board\'s back', () => {
-    const problems = ["The subproject's qaboard.yaml is missing from /x: runs would use the parent project's configuration, and be saved in the wrong project."]
-    render(<ArtifactsCallout deleted={false} artifacts={{ok: false, problems}} onRestore={() => {}} />)
+  it('says in one muted line when artifacts are incomplete, e.g. never saved with qa save-artifacts', () => {
+    const problems = ["qaboard.yaml is missing from /x"]
+    const onRestore = vi.fn()
+    render(<ArtifactsCallout deleted={false} artifacts={{ok: false, exists: true, problems}} onRestore={onRestore} />)
+    const line = screen.getByTestId('artifacts-callout')
+    expect(line.tagName).toBe('P')
+    expect(line).toHaveClass('bp6-text-muted')
+    expect(screen.getByText(/This commit's artifacts are incomplete/)).toHaveAttribute('title', problems[0])
+    // not a warning callout above the results
+    expect(document.querySelector('.bp6-callout')).toBeNull()
+    fireEvent.click(screen.getByText('Restore the artifacts'))
+    expect(onRestore).toHaveBeenCalled()
+  })
+
+  it('keeps the callout when incomplete artifacts come with configuration errors', () => {
+    render(<ArtifactsCallout deleted={false} artifacts={{ok: false, problems: ['qaboard.yaml is missing from /x'], recreate: 'a webhook', recreate_errors: ['Unknown variable.']}} onRestore={() => {}} />)
     expect(screen.getByText("This commit's artifacts are incomplete")).toBeInTheDocument()
-    expect(screen.getByText(problems[0])).toBeInTheDocument()
-    expect(screen.getByText('recreate_artifacts').closest('a')).toHaveAttribute('href', '/docs/storage/deleting-old-data#recreating-artifacts')
-    expect(screen.getByText('Restore the artifacts')).toBeInTheDocument()
+    expect(screen.getByText(/Unknown variable/)).toBeInTheDocument()
   })
 
   it('says who deleted them, and offers to recreate them', () => {

@@ -126,7 +126,7 @@ const LegacyExportPlugin = props => {
       labelInfo="(glob pattern)"
       helperText={<div>
         {path_has_invalid_globs && path.startsWith('/') && <><Tag minimal intent="warning">File patterns must be relative.</Tag><br/></>}
-        {path_has_invalid_globs && !path.startsWith('/') && <><Tag minimal intent="warning"><code>**</code> must be entire path components: <code>/**/</code>.</Tag><br/></>}
+        {path_has_invalid_globs && !path.startsWith('/') && <><Tag minimal intent="warning"><code>**</code> must be entire path components: <code>{'/**/'}</code>.</Tag><br/></>}
         Files will be exported as
           {edit_export_dir ? <SegmentedControl
             style={{
