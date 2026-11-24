@@ -182,8 +182,8 @@ fewest different settings; between as many, the one whose values are the most si
 rather than `other`, for `gain: 3`, `gain: 4` rather than `gain: 100`.
 
 When the best match is not identical, an orange tag with a `≠` warns you on the run: **Config** or **Platform**
-(in tables, **Input** too). Hover it to see what the reference run used. **Config** shows how the configurations and
-tuning parameters differ, line by line, and says when other reference runs were as close.
+(in tables, **Input** too). Hover it to see what the reference run used. Click **Config** to see how the
+configurations and tuning parameters differ, line by line, and whether other reference runs were as close.
 
 Runs on other inputs, runs without a reference, and runs with several reference runs as close say so next to their
 name: click it to pick another reference run, or pair runs by name, like a register sweep's captures. See
@@ -231,9 +231,9 @@ many runs have each one.
 />
 
 With many runs on the page, most settings are the same for all of them. To show you what matters, each run only shows
-its **own** settings: what all the runs share hides behind a dashed tag like **··· 9 shared**. Hover it to see those
-settings, click it to show them in this run. The top of the page lists them once, next to **All 12 runs**. Hover any
-tag to see what it means and copy it.
+its **own** settings: what all the runs share hides behind a dashed tag like **··· 9 shared**. Click it to show them
+in this run, or click the caret next to it to list them. The top of the page lists them once, next to **All 12 runs**.
+Hover any tag to see what it means; click the caret next to it to copy it.
 
 - **What all the runs share** follows the filter: filter runs, and what the remaining ones share hides too. The
   **··· shared** tags sit where the settings they hide are when those come first or last
@@ -267,7 +267,7 @@ tag to see what it means and copy it.
 - A list of values is one setting. Long ones show their first values and their size:
   `tone_lut: [0, 0.016, 0.032, …] 64 values`, `ccm: [[1.6, -0.4, -0.2], …] 3×3`.
 - A list of objects has a setting per value (`layers[1].stride: 2`), so that you see which one changed.
-- To copy settings, hover them: copy a setting as text or JSON, or the run's settings as `qa` options
+- To copy settings, click the caret next to a tag: copy a setting as text or JSON, or the run's settings as `qa` options
   (`-c base -c '{"gain": 4}' --tuning '{"nr": 2}'`), as JSON, or as a tuning search space. The **Config** tag's diff
   copies the changes, or the reference's `qa` options.
 - Short configurations (one or two short settings) are never hidden, and the **Logs** view always shows full
