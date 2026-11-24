@@ -82,10 +82,15 @@ const shortId = (project, id) => {
   return is_placeholder_commit(id) ? id : id.substring(0, 8);
 };
 
+// A user's local batches are "@user| label": "user 🏠 label", or "user 🏠" for their default one
+export const local_batch_user = batch => (batch.data || {}).type === 'local' || !!batch.label.match(/^@.+\| .+/)
+  ? batch.label.replace('@', '').split('| ')[0]
+  : null;
 const pretty_label = batch => {
-  if ((batch.data || {}).type === 'local' || !!batch.label.match(/^@.+\| .+/)) {
-    var [user, label] = batch.label.replace('@', '').split('| ');
-    return `${user} 🏠 ${label !== 'default' ? label : ''}`;
+  const user = local_batch_user(batch);
+  if (user !== null) {
+    const label = batch.label.replace('@', '').split('| ')[1];
+    return label && label !== 'default' ? `${user} 🏠 ${label}` : `${user} 🏠`;
   } else {
     return batch.label === "default" ? "CI" : batch.label;
   }

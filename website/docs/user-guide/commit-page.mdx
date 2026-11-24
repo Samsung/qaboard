@@ -79,8 +79,9 @@ Batches that are milestones are protected: see [What a milestone keeps](/docs/us
 - **N of the runs below were deleted**: **Redo deleted runs** runs them again.
 - **Be careful, those are local runs**: they were started from someone's workspace, and may not match the committed
   code.
-- **This commit's artifacts were deleted**, **are incomplete**, or **are being recreated**: when and by whom, and what's
-  missing, with buttons to bring them back. See [If runs don't start](/docs/user-guide/running-from-the-webapp#if-runs-dont-start).
+- **This commit's artifacts were deleted** or **are being recreated**: when and by whom, and what's missing, with
+  buttons to bring them back. When they're only incomplete (e.g. never saved with `qa save-artifacts`), a muted line
+  says so: it matters only to start runs from the web app. See [If runs don't start](/docs/user-guide/running-from-the-webapp#if-runs-dont-start).
 - For batches started from the web app: **Your batch is waiting for LSF**, **The batch you started from QA-Board
   failed**... See [Batches started from QA-Board](/docs/user-guide/logs#started-from-qa-board).
 - On the views that show runs, what all the runs share: see

@@ -45,7 +45,6 @@ The shot list is `docs-media/shots.yaml`, how to capture is `docs-media/README.m
   is still on for the `<!-- truncate -->` and other HTML comments of the release notes and blog posts: moving them to
   `{/* truncate */}` means changing `release_notes.py` (writes and checks them) and `webapp/releaseNotes.js` (renders
   the notes with markdown-it after removing `<!-- -->`: `{/* */}` would show as text).
-- **picomatch ReDoS** via `@docusaurus/utils` (`yarn audit`'s 8 findings, build time only): no fixed release yet.
 - DocSearch 4.5's Ask AI suggested questions, if we turn Ask AI on in Algolia.
 
 ## Product, small

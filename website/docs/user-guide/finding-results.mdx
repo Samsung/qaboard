@@ -214,7 +214,8 @@ By default, the list shows the **last 3 days**. Pick other dates at the top left
 
 ## Follow a branch or a committer {/* #branches-and-committers */}
 - **A branch**: click its name in a commit row, or the reference branch at the top of the sidebar. The page is
-  `/<project>/commits/<branch>`.
+  `/<project>/commits/<branch>`. For a branch QA-Board has no results of (a typo, a branch whose CI doesn't run
+  `qa`), it says so and links to the branches with a similar name.
 - **A committer**: click an avatar or a committer's name to see their commits on all branches:
   `/<project>/committer/<name>`.
 
@@ -293,7 +294,7 @@ batch selector next to the filter box shows the selected batch: click it to pick
 />
 
 - **CI** is the batch from your continuous integration (label `default`).
-- **user 🏠 label** are local runs started by *user* from their workspace. A warning reminds you they may not use the
+- **user 🏠 label** (**user 🏠** without `--label`) are local runs started by *user* from their workspace. A warning reminds you they may not use the
   code under version control.
 - Other labels are tuning experiments, or runs started with `qa --label`.
 

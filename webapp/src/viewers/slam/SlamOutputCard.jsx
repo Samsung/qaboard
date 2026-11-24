@@ -234,7 +234,7 @@ const make_traces = function(poses, label, data_set, style) {
         name: style.name,
         legendgroup: label,
         yaxis: `y${(index + 1)}`,
-        showlegend: index === 4 ? true : false
+        showlegend: index === 4
       };
     });
   }catch{console.log("error at make traces for ".concat(label))}  

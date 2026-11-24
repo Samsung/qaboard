@@ -11,7 +11,7 @@ import {
 import { Link, history } from "./router";
 import { path_segment } from "./selection";
 import { batchesPagesQuery } from "./api/queries";
-import { errorMessage } from "./api/http";
+import { errorMessage, errorTitle, isRetryable } from "./api/http";
 import { aggregation_metrics, useUser } from "./hooks";
 import { LoadMore } from "./components/LoadMore";
 import { format, metric_info, shortId } from "./utils";
@@ -162,8 +162,8 @@ export const BatchList = ({ project, project_data, branch, scope, hide_ci, onSho
   if (query.isPending)
     return <NonIdealState title="Loading batches…" icon={<Spinner/>}/>;
   if (query.error)
-    return <NonIdealState icon="error" title="Could not load the batches" description={<code>{errorMessage(query.error)}</code>}
-      action={<Button icon="refresh" text="Retry" onClick={() => query.refetch()}/>}/>;
+    return <NonIdealState icon="error" title={errorTitle(query.error, "the batches")} description={<code>{errorMessage(query.error)}</code>}
+      action={isRetryable(query.error) ? <Button icon="refresh" text="Retry" onClick={() => query.refetch()}/> : undefined}/>;
   if (batches.length === 0)
     return <NonIdealState
       icon="search"

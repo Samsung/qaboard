@@ -38,16 +38,11 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   or let pgAdmin create a webserver account that owns the server. Then pin the version, and set
   `WEBSERVER_SHARED_SECRET` (nginx sends it in `X-Pgadmin-Webserver-Secret`, services/nginx/snippets/pgadmin.conf). [S, no change]
 - **`scripts/dev.py` servers can be signed in to by others**: they listen on loopback only, but with fixed credentials
-  (admin `admin`/`qaboard-dev`, PostgreSQL `qaboard`/`password`) and without checking the `Host` header: other users of
-  a shared machine can sign in as admin, and so can a web page the developer opens, through DNS rebinding (the
-  backend counts the request's own Host as a same-origin one, `actor.own_origins`). Fine on a laptop or a container.
-  Next: a random admin password saved in `.dev/` (0600) and shown by `status`, and refusing Hosts other than
-  localhost/127.0.0.1 in the proxy and in flask (`TRUSTED_HOSTS`). [S, dev only]
-- **Logs the scrubber doesn't see**: `qa`'s handlers and the backend's (`qaboard.log_setup.ScrubSecrets`) filter
-  tokens, passwords in URLs and secret headers out of logging records, but many backend messages are still `print()`ed
-  with exceptions' text (`sign_in/`, `git_hosts/gitlab.py`, `git_hosts/committers.py`...), and uWSGI's request lines,
-  when `UWSGI_REQUEST_LOGS` is set, have query strings. Move the prints to `logger` (backend/CLAUDE.md). Note that
-  `UWSGI_REQUEST_LOGS=0` also turns those lines on (`if-not-env` only checks that it's set). [S]
+  (admin `admin`/`qaboard-dev`, PostgreSQL `qaboard`/`password`): other users of a shared machine can sign in as
+  admin. Fine on a laptop or a container. The proxy (`:5151`) refuses Hosts other than localhost/127.0.0.1/[::1]
+  (DNS rebinding), flask (`:5152`) doesn't yet: the backend counts the request's own Host as a same-origin one
+  (`actor.own_origins`); it needs `TRUSTED_HOSTS` set from an environment variable. Next: a random admin password
+  saved in `.dev/` (0600) and shown by `status`, once agents' docs stop relying on the fixed one. [S, dev only]
 - **`json_typeof(jsonb)` in the `public` schema** (migration `d3f5b7c9e1a4`), for older versions' queries during a
   rolling deploy or after a rollback. It doesn't shadow the built-in (other argument type), but on PostgreSQL < 15
   every role can create functions in `public`: databases shared with other roles (e.g. a BI tool's) should
@@ -55,8 +50,10 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 
 ## Backend
 
-- **celery is held at 5.6** in backend/uv.lock: 5.7 still pulls python-dateutil back to 2.9 (checked November 24).
-  Retry `uv lock --upgrade-package celery` when its constraints relax. [S, no change]
+- **celery is held at 5.6** in backend/uv.lock, with kombu, amqp, billiard and click-repl: 5.7 still pulls
+  python-dateutil back to 2.9 (checked November 24). Retry `uv lock --upgrade-package celery` when its constraints
+  relax. [S, no change]
+- **sentry-sdk is held at 2.x** in both uv.lock files: 3.0 is a major release, not yet reviewed. [S, no change]
 - The backend still uses ~220 legacy `Model.query` calls: SQLAlchemy 2.1 keeps them, but `select()` is the way
   forward if a future version deprecates them. [L, no change]
 - **History page with outputs** is ~1.4 s and 20 MB for 25k outputs (backend/benchmarks/bench_api.py, 2.5 s before
@@ -128,16 +125,14 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - Internal names left in `qaboard/`: compat.py's `\\netapp\vol23_algo` -> `vol24_algo` rewrite of inputs' paths
   (`linux_to_windows`) is one site's: it belongs in its site package (like `QABOARD_PATH_MAPPINGS`), which needs a new
   site setting and a release of the site package before `qa` drops it. [S, behaviour]
-- Logs (qaboard/log_setup.py): `QA_VERBOSE` still prints with `click.secho` (or `print`) in api.py, config.py, analytics.py and
-  qa.py (payloads, answers): move what is diagnostics to `logger.debug`. Config resolution happens on import of
-  qaboard/config.py, before `-v` is parsed: `qa -v` logs a summary of what it resolved, not each step. [S]
+- Logs (qaboard/log_setup.py): config resolution happens on import of qaboard/config.py, before `-v` is parsed and
+  logs are set up: `qa -v` logs a summary of what it resolved, not each step, and the commit git can't read there is
+  still a `print` under `QA_VERBOSE` (a log record would have no handler yet). [S]
 - Messages left out of qaboard/ui.py's style: the SDK's `[ERROR] The run failed.` (active_run.py, asserted by
   tests/test_active_run.py), the `[qaboard] ...` lines that go to workers' and pods' logs (dask_runner.py,
   batch_log.py, the Kubernetes runner's pod script), the output of `bkill`/`scancel`... that the LSF and dask runners'
   `stop_jobs` print on stdout (the server calls them in-process), the integrations' own prefixes (`wandb: WARNING`),
   site_config.py's warnings about secrets files (read when qaboard is imported) and sentry_utils.py's. [S, no change]
-- `qa batch --runner nope` ends with a KeyError traceback (runners/job.py `JobGroup.__post_init__`): it should be a
-  usage error that lists the runners (exit code 2). [S, behaviour]
 
 ## Runs created from code (`qaboard.start_run()`, November 2026)
 
@@ -187,8 +182,6 @@ run-centric page, screenshots for the docs, gaps against experiment trackers): `
 - In notebooks, `capture_output` wraps `sys.stdout` and `sys.stderr` until `finish()`: what every cell prints meanwhile
   goes to the run's log.txt too. The wrapper passes ipykernel's `set_parent()` on (`TeeStream.DELEGATED`), not other
   attributes of the stream it wraps. [S, behaviour]
-- `Run._new` (qaboard/results.py) was the placeholder for this: `ActiveRun.run` builds its `Run` itself, and only
-  tests use `_new`. [S, no change]
 
 ## Local changes (`data.local_changes`, `qa restore`, November 2026)
 Design: `docs/rfcs/local-changes.md` ("Later" lists the features left out).
@@ -518,11 +511,6 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
     scroll that the re-render would undo, checked against the bug. [S, no change]
 
 - Found by an agent integrating a new project from the docs only (November 2026):
-  - The commit page's "This commit's artifacts are incomplete" warning (qaboard.yaml missing from the commit's
-    artifacts) shows on every commit of a project that never ran `qa save-artifacts`, as the biggest thing above the
-    metrics. It matters only to start runs from the web app: show it there, or as one muted line. [S, behaviour]
-  - The batch selector shows "root 🏠 root" for a user's `@root| default`: the label's user and the label both read as
-    the user name. [S, behaviour]
   - Metrics without a noise level: sub-millisecond timings of unchanged code are colored as 20-40% regressions in the
     Metrics Diff. Benchmarks have "within the reported spread"; a per-metric tolerance (`Metric(..., tolerance=)`,
     metrics.yaml) would cover the rest, in the gate too. [M, API]

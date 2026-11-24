@@ -260,7 +260,7 @@ itself. You can still start the batch: `qa batch` lists the tests where it runs.
 <summary>The commit's artifacts are missing</summary>
 
 Runs start from the commit's artifacts. When some are missing, a message above the views says which ones, and when and by whom they were deleted:
-- **This commit's artifacts were deleted** (or **are incomplete**, when files went missing without QA-Board knowing). If your project [configured it](/docs/storage/deleting-old-data#recreating-artifacts), **Recreate the artifacts** asks your CI to rebuild them, and redoing runs or starting a batch does it too. Otherwise, **Restore the artifacts** restores the files from the source code, but not build outputs like binaries.
+- **This commit's artifacts were deleted** (or, in one muted line, **are incomplete**: files went missing without QA-Board knowing, or were never saved with `qa save-artifacts`). If your project [configured it](/docs/storage/deleting-old-data#recreating-artifacts), **Recreate the artifacts** asks your CI to rebuild them, and redoing runs or starting a batch does it too. Otherwise, **Restore the artifacts** restores the files from the source code, but not build outputs like binaries.
 - **This commit's artifacts are being recreated**: QA-Board asked your CI, with a link to follow the build. It doesn't start anything until the build is done: try again then.
 - **Some of this commit's artifacts are missing**: you can still redo runs and start tuning, but the runs that need these files will fail.
 - **Running tests from the web app needs build artifacts**, instead of the form: the project doesn't declare any artifacts in its *qaboard.yaml*. Ask whoever integrated QA-Board in your project, and see [Tuning from QA-Board](/docs/tuning-from-the-webapp).
