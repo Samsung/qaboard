@@ -242,9 +242,8 @@ class TestRuns(unittest.TestCase):
 
 class TestRunContract(unittest.TestCase):
   """
-  Runs read from the server and runs created from code (training loops, evals, once the SDK writes) are the same
-  object: `Run._new` is what `start_run()` will build. `to_dict()` is the JSON of `qa runs --json`: its keys are a
-  contract with scripts, pin them.
+  Runs read from the server and runs created from code (`start_run()`'s `ActiveRun.run`) are the same object.
+  `to_dict()` is the JSON of `qa runs --json`: its keys are a contract with scripts, pin them.
   """
   JSON_KEYS = {'project', 'commit', 'batch', 'input', 'database', 'platform', 'configs', 'extra_parameters', 'params',
                'metrics', 'type', 'id', 'output_dir', 'is_pending', 'is_running', 'is_failed', 'deleted', 'input_metadata', 'data',
@@ -252,7 +251,8 @@ class TestRunContract(unittest.TestCase):
 
   def test_same_object_from_the_server_and_from_code(self):
     from_server = Run.from_api(FIXTURE['outputs']['1'], project='g/repo', commit=COMMIT, batch='ci', server='https://qaboard')
-    from_code = Run._new(project='g/repo', input='slices/indoor/kitchen.jpg', configs=['base', {'gain': 2}], extra_parameters={'lr': 0.1}, batch='exp-1')
+    from_code = Run(project='g/repo', commit=None, batch='exp-1', input='slices/indoor/kitchen.jpg', configs=['base', {'gain': 2}, {'lr': 0.1}],
+                    params={'gain': 2, 'lr': 0.1}, extra_parameters={'lr': 0.1})
     self.assertIs(type(from_server), type(from_code))
     self.assertEqual(set(from_server.to_dict()), self.JSON_KEYS)
     self.assertEqual(set(from_code.to_dict()), self.JSON_KEYS)
@@ -261,17 +261,13 @@ class TestRunContract(unittest.TestCase):
     self.assertEqual(from_server.state, 'finished')
     self.assertIsNone(from_code.id)
     self.assertIsNone(from_code.url)
-    # the same meaning of params everywhere: the configurations' objects and the tuning parameters
-    self.assertEqual(from_code.params, {'gain': 2, 'lr': 0.1})
-    self.assertEqual(from_code.extra_parameters, {'lr': 0.1})
-    # like context.configs: the tuning parameters are the last configuration
     self.assertEqual(from_code.configs, ('base', {'gain': 2}, {'lr': 0.1}))
     self.assertEqual(from_code.rel_input_path, Path('slices/indoor/kitchen.jpg'))
 
   def test_read_only(self):
     # changing a run read from the server would change nothing on the server: it is an error
     run = Run.from_api(FIXTURE['outputs']['2'], project='g/repo', commit=COMMIT, batch='ci', server='https://qaboard')
-    from_code = Run._new(project='g/repo', input='a.jpg', configs=['base'], extra_parameters={'lr': 0.1})
+    from_code = Run(project='g/repo', commit=None, batch='default', input='a.jpg', configs=['base', {'lr': 0.1}], extra_parameters={'lr': 0.1})
     for r in (run, from_code):
       for name in ('metrics', 'extra_parameters', 'params', 'input_metadata', 'data'):
         with self.subTest(name=name), self.assertRaises(TypeError):
@@ -283,7 +279,7 @@ class TestRunContract(unittest.TestCase):
     self.assertEqual(run.extra_parameters.get('gain'), 8)
     # runs don't share the dicts they were made from
     extra = {'lr': 0.1}
-    made = Run._new(project='g/repo', input='a.jpg', extra_parameters=extra)
+    made = Run(project='g/repo', commit=None, batch='default', input='a.jpg', extra_parameters=extra)
     extra['lr'] = 1
     self.assertEqual(made.extra_parameters, {'lr': 0.1})
     # to_dict gives plain data
@@ -467,7 +463,7 @@ class TestLog(unittest.TestCase):
         run.log_metrics(bad)
     # a run the server doesn't know
     with self.assertRaises(ResultsError):
-      Run._new(project='g/repo', input='a.jpg').log_metrics({'x': 1})
+      Run(project='g/repo', commit=None, batch='default', input='a.jpg').log_metrics({'x': 1})
 
   def test_log_errors_name_the_ingest_scope(self):
     run, _ = self.run_and_patch()
@@ -539,7 +535,7 @@ class TestLogArtifact(unittest.TestCase):
       self.assertEqual(list(Path(tmp).iterdir()), [])
 
   def test_a_run_without_a_folder(self):
-    run = Run._new(project='g/repo', input='a.jpg')
+    run = Run(project='g/repo', commit=None, batch='default', input='a.jpg')
     with self.assertRaises(ResultsError):
       run.log_artifact('x.txt', b'x')
 

@@ -8,6 +8,7 @@ import sys
 import json
 import time
 import uuid
+import logging
 import datetime
 import traceback
 from shlex import quote
@@ -17,6 +18,7 @@ import click
 
 from .lazy import lazy_function, install_rich_traceback_lazily
 install_rich_traceback_lazily()
+logger = logging.getLogger(__name__)
 from . import completion
 from .completion import complete_batches, complete_platforms, complete_input_types, complete_configurations, complete_inputs
 from .completion import complete_runners, complete_actions_on_existing, complete_actions_on_pending
@@ -62,7 +64,6 @@ from . import ui
 
 def log_config(command: str | None) -> None:
   """What qa resolved before it started (qaboard/config.py does it on import), for `qa -v`"""
-  import logging
   logger = logging.getLogger('qaboard.config')
   if not logger.isEnabledFor(logging.INFO):
     return
@@ -1206,6 +1207,15 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
   keeps_runs_runner = runs is not None and runner == default_runner
   if keeps_runs_runner and runs_job_options.get('type'):
     runner = runs_job_options['type']
+  if runner not in runners:
+    from click.core import ParameterSource
+    if keeps_runs_runner and runs_job_options.get('type'):
+      where = f" (the runs' job_options in {runs_file})"
+    elif ctx.get_parameter_source('runner') == ParameterSource.DEFAULT:
+      where = " (runners.default in qaboard.yaml)"
+    else:
+      where = ""
+    raise click.UsageError(f"Unknown runner: {runner}{where}. The runners are {ui._quoted(runners)}.", ctx)
 
   analytics.note(runner=runner, n_batches=len(batches) if batches else None)
   print_url(ctx)
@@ -1716,7 +1726,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
       artifacts = {g: config['artifacts'][g] for g in groups if g in config['artifacts'].keys()}
     else:
       artifacts = config['artifacts']
-  if 'QA_VERBOSE_VERBOSE' in os.environ: print(artifacts)
+  logger.debug("artifacts: %s", artifacts)
   if not is_in_git_repo:
       ui.fail(f"{Path().resolve()} is not in a git repository (maybe in an artifacts folder): qa save-artifacts saves the artifacts of git commits.",
               hint="Run it in your project's git repository, after the build.")
@@ -1751,16 +1761,17 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
           destination = artifacts_commit_root / artifacts_path / path
         else:
           destination = artifacts_commit_root / path
-        if 'QA_VERBOSE_VERBOSE' in os.environ:
-          print(destination)
+        logger.debug("%s -> %s", path, destination)
         if destination.exists() and filecmp.cmp(str(path), str(destination), shallow=True):
           # when working on subprojects, the artifact might be copied already,
           # but manifests are saved per-subproject
           if path.as_posix() not in manifest:
             manifest[path.as_posix()] = file_info(path, config=config)
           continue
-        if 'QA_VERBOSE' in os.environ or ctx.obj['dryrun']:
+        if ctx.obj['dryrun']:
           click.secho(str(path), dim=True)
+        else:
+          logger.info("copying %s", path)
         if not ctx.obj['dryrun']:
           copy(path, destination)
           manifest[path.as_posix()] = file_info(path, config=config)

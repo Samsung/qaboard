@@ -280,15 +280,13 @@ def notify_qa_database(object_type='output', **kwargs):
   # send all the data, with where it comes from and what describes its commit and project (qaboard/payloads.py)
   data = results_payload(kwargs, is_ci=is_ci, run_context=run_context(), commit_id=commit_id, commit=commit_data(), config=config, metrics_file=_metrics,
                          uploads_files=uploads_files, default_branch=repo_default_branch())
-  if 'QA_VERBOSE' in os.environ:
-    click.secho(url, fg='cyan', err=True)
-    click.secho(str(data), fg='cyan', dim=True, err=True)
+  # what `qa -v` shows it sends
+  logger.info("POST %s %s", url, data)
 
   try:
     payload = json.dumps(json_ready(data), cls=makeNumpyEncoder())
     r = _post_results(url, payload, ends=object_type == 'output' and not data.get('is_running') and not data.get('is_pending'))
-    if 'QA_VERBOSE' in os.environ:
-      click.secho(r.text, fg='cyan', dim=True, err=True)
+    logger.info("QA-Board answered %s: %s", r.status_code, r.text)
     print_server_warning(r)
     if print_auth_error(r, "QA-Board refused the results", ingest=True):
       return None
