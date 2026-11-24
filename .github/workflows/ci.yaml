@@ -83,8 +83,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.13: the Python of the images (the backend imports qaboard), 3.11: the oldest we test
-        python: ['3.11', '3.13']
+        # 3.14: the Python of the images (the backend imports qaboard, backend/Dockerfile), 3.11: the oldest we test
+        python: ['3.11', '3.14']
     steps:
       - uses: actions/checkout@v7
         with:
@@ -97,8 +97,8 @@ jobs:
           python-version: ${{ matrix.python }}
           enable-cache: true
       - name: Install dependencies
-        # 3.13 also gets the runners' optional dependencies, so their tests run; 3.11 checks qa works without them
-        run: uv sync --locked --extra dev ${{ matrix.python == '3.13' && '--extra celery --extra dask --extra kubernetes --extra dask-kubernetes --extra mlflow' || '' }}
+        # 3.14 also gets the runners' optional dependencies, so their tests run; 3.11 checks qa works without them
+        run: uv sync --locked --extra dev ${{ matrix.python == '3.14' && '--extra celery --extra dask --extra kubernetes --extra dask-kubernetes --extra mlflow' || '' }}
       - name: Lint with flake8
         # syntax errors, undefined names, unused imports and variables (see .flake8)
         run: uv run --no-sync flake8 backend qaboard --count --show-source --statistics
