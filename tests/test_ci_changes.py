@@ -70,6 +70,7 @@ class TestDecide(unittest.TestCase):
     self.assertEqual(runs([".github/workflows/ci.yaml"]), ("full", ALL))
     self.assertEqual(runs([".github/scripts/ci_changes.py"]), ("full", ALL))
     self.assertEqual(runs([".github/scripts/helm_e2e.py"])[1], {"helm-e2e"})
+    self.assertEqual(runs([".github/scripts/shuffled_tests.py"])[1], {"python"})  # the python job runs it
     self.assertEqual(runs([".github/workflows/website.yml"])[1], set())
 
   def test_unknown_files_run_the_python_tests(self):

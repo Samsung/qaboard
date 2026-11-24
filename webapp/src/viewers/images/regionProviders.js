@@ -38,6 +38,7 @@ import { http } from '../../api/http';
 import { colorAt } from '../../image-viewer/colormaps';
 import { run_view } from '../runView';
 import { LABEL_COLORS, colorIndex } from '../media/media';
+import { resetAfterEachTest } from '../../testState';
 
 
 // The presets of the input (in its metadata), and of the configurations: `roi`, or `view.images.roi` (../runView.js)
@@ -229,3 +230,7 @@ export const registerRegionProvider = provider => {
 };
 
 export const regionProviders = () => providers;
+
+// tests' providers don't outlive them
+const defaults = [...providers];
+resetAfterEachTest(() => providers.splice(0, Infinity, ...defaults));

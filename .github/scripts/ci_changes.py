@@ -50,7 +50,7 @@ JOBS: Dict[str, List[str]] = {
     "!webapp/**",
     "!charts/**", "charts/qaboard/values.yaml", "charts/qaboard/files/**",
     "!website/**", "website/docs/**", "website/release-notes/**", "website/media.json",
-    "!.github/**", ".github/scripts/check_migrations.py",
+    "!.github/**", ".github/scripts/check_migrations.py", ".github/scripts/shuffled_tests.py",
   ],
   # vite bundles the release notes and the schemas, the viewers' tests read the shared fixtures
   "webapp": ["webapp/**", "website/release-notes/**", "qaboard/schemas/**", "tests/fixtures/**"],

@@ -20,8 +20,9 @@ what's selected (`src/selection.js`), Blueprint 6, React Router 8, D3, Plotly.js
 - Popovers: always `<PopoverNext>`, never Blueprint's `<Popover>` (it mis-positions content with React 19).
 - `REACT_COMPILER_LOG=1 npm run build` lists the components the React Compiler skips.
 - A full `npm test -- --run` takes ~3 min on 4 idle cores. `findBy*`/`waitFor` wait up to 5 s (`src/setupTests.js`):
-  don't add per-call timeouts. Tests share their file's module-level state (zustand stores, registries): reset what a
-  test changes. `--sequence.shuffle --sequence.seed=N` runs them in another order (`docs/warts.md`, Webapp).
+  don't add per-call timeouts. Module-level state outlives a test: zustand stores are reset after each test, but the
+  persisted prefs, which a test resets itself; register a new registry with `resetAfterEachTest` (`src/testState.js`).
+  CI runs the tests in a random order: `--sequence.shuffle --sequence.seed=N` reproduces one (`docs/ci.md`).
 
 ## Standalone viewers
 These import only third-party packages and their own files; the app reaches them only through an adapter, loaded
