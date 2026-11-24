@@ -20,7 +20,7 @@ Do the integration right rather than fast: the people reviewing results will liv
   user for `QABOARD_URL` (and `QA_STORAGE` if the server reads a shared folder). `qa` sends results to the server
   whenever it can; without a server you can still integrate: results stay in `output/`, and `qa` says why.
   `qa --offline` keeps them there on purpose.
-- **Install**: `pip install qaboard` (or `uv add qaboard`). The project's requirements file should list it.
+- **Install**: `pip install qaboard` (or `uv add qaboard`), on Python 3.11 or newer. The project's requirements file should list it.
 - **Look at what exists**: a `qaboard.yaml` means an integration exists; read it and `qa/main.py` before changing
   anything. `qa batch --list-batches` names the batches; `qa --dryrun batch <name> --list` shows what a batch would
   run without running it. `qa doctor --json` says what's missing (each check's `status` and `fix`).

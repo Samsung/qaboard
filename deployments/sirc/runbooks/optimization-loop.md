@@ -14,7 +14,7 @@ Notes to reproduce and debug a tuning run of SIRC's projects (formerly `drafts/`
 
 4. Clone:
       git clone git@gitlab-srv/common-infrastructure/qaboard
-5. Install the qaboard CLI locally (Optuna is a dependency, it needs Python 3.9 or later):
+5. Install the qaboard CLI locally (it needs Python 3.11 or later):
       pip install --editable .
 
 6. Go to HW_ALG

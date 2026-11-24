@@ -81,10 +81,6 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 
 ## CLI
 
-- `requires-python = ">=3.7"` (pyproject.toml) while the test suite needs click 8.2, so Python 3.10, and CI tests 3.11
-  and 3.13. Before raising it, check the Python of the Windows nodes and of projects' venvs (docs/known-issues.md).
-  On 3.10, `mock.patch('qaboard.config.x')` would patch the dict `qaboard.config` gives (qaboard/__init__.py), not the
-  module: from 3.11 mock resolves the module, as the tests need. [S, behaviour]
 - Reruns' directories (qaboard/attempts.py): `qa batch` writes *latest_attempt.txt* when it reserves a new attempt
   (`reserve_or_keep`), before the job starts. While the job waits in a queue (LSF...), or for good if it never starts
   (batch killed, job lost), `latest_dir()` and its readers (`qa batch --list-output-dirs`, `qa get output_dir`,
