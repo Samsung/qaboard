@@ -1,6 +1,6 @@
 """
 `--json` options: commands print one JSON document on stdout, for scripts and agents, and everything else on stderr.
-The shapes are documented in website/docs/cli-json.md: add keys, don't rename or remove them.
+The shapes are documented in website/docs/using-the-qa-cli.mdx (#json-output): add keys, don't rename or remove them.
 """
 import os
 import sys
