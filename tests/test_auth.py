@@ -522,6 +522,38 @@ class TestStatusLogoutToken(AuthTestCase):
       self.assertNotIn('x' * 100, result.output)  # not the page (temporary paths can have "xxx")
       self.assertNotIn('not accepted', result.output)
 
+  def test_status_json(self):
+    self.save({'user': 'alice', 'token': 'qab_pat_saved', 'token_id': 12})
+    result = self.qa_auth('status', '--server', SERVER, '--json', server=FakeServer({('GET', '/api/v1/user/me/'): [response(200, ME)]}))
+    self.assertEqual(result.exit_code, 0, result.output)
+    status = json.loads(result.stdout)
+    self.assertEqual(status, {
+      "server": SERVER, "server_from": "--server", "signed_in": True, "token_from": "hosts.yaml",
+      "user": {"user_name": "alice", "full_name": "Alice Doe"},
+      "token": {"name": "qa CLI on host-12", "prefix": "qab_pat_Xk3f", "scopes": ["read", "ingest", "act"], "projects": [],
+                "expires_at": None, "idle_expiry_days": None, "last_used_at": None},
+      "error": None, "reason": None, "fix": None, "other_logins": [],
+    })
+
+  def test_status_json_not_signed_in(self):
+    self.auth.save_login('https://qa.example', user='alice', token='qab_pat_example')
+    result = self.qa_auth('status', '--server', SERVER, '--json')
+    self.assertEqual(result.exit_code, 1)
+    status = json.loads(result.stdout)
+    self.assertFalse(status['signed_in'])
+    self.assertEqual(status['error'], f'Not signed in to {SERVER}.')
+    self.assertEqual(status['fix'], f'Run `qa auth login --server {SERVER}`.')
+    self.assertEqual(status['other_logins'], [{"server": "https://qa.example", "user": "alice"}])
+
+  def test_status_json_rejected(self):
+    self.save({'user': 'alice', 'token': 'qab_pat_saved', 'token_id': 12})
+    server = FakeServer({('GET', '/api/v1/user/me/'): [response(401, {"error": "This token expired on 2026-09-01.", "reason": "token_expired"})]})
+    result = self.qa_auth('status', '--server', SERVER, '--json', server=server)
+    self.assertEqual(result.exit_code, 1)
+    status = json.loads(result.stdout)
+    self.assertEqual((status['signed_in'], status['error'], status['reason']), (False, 'This token expired on 2026-09-01.', 'token_expired'))
+    self.assertEqual(status['fix'], 'Run `qa auth login` to sign in again.')
+
   def test_status_server_down(self):
     self.save({'user': 'alice', 'token': 'qab_pat_saved', 'token_id': 12})
     refused = requests.ConnectionError("HTTPConnectionPool(host='qa.test', port=80): Max retries exceeded (Caused by NewConnectionError(...: [Errno 111] Connection refused'))")

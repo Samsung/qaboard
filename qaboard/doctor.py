@@ -889,8 +889,14 @@ class Report():
     self.checks: List[Check] = []
     self.echo = echo
     self.symbols = symbols()
+    # for --json: the section of each check
+    self.current_section: Optional[str] = None
+    self.sections: List[Optional[str]] = []
+    self.next_step: Optional[str] = None
+    self.exit_code: Optional[int] = None
 
   def section(self, title: str):
+    self.current_section = title
     self.echo('')
     self.echo(click.style(title, bold=True))
 
@@ -901,6 +907,7 @@ class Report():
         continue
       added.append(check)
       self.checks.append(check)
+      self.sections.append(self.current_section)
       self.print_check(check)
     return added
 
@@ -919,6 +926,8 @@ class Report():
     """Prints how it went, and the command to run next if nothing must be fixed. Returns the exit code: 1 if a check failed."""
     errors = [c for c in self.checks if c.status == ERROR]
     warnings = [c for c in self.checks if c.status == WARNING]
+    self.next_step = next_step
+    self.exit_code = 1 if errors else 0
     self.echo('')
     if errors:
       self.echo(click.style(f"{self.symbols[ERROR]} {plural(len(errors), 'problem')} to fix", fg='red', bold=True)
@@ -932,6 +941,23 @@ class Report():
     return 0
 
 
+  def as_json(self) -> Dict[str, Any]:
+    """`qa doctor --json`, documented in website/docs/using-the-qa-cli.mdx"""
+    def count(status):
+      return sum(1 for c in self.checks if c.status == status)
+    return {
+      "ok": self.exit_code == 0,
+      "exit_code": self.exit_code,
+      "errors": count(ERROR),
+      "warnings": count(WARNING),
+      "next_step": self.next_step,
+      "checks": [
+        {"section": section, "name": c.name, "status": c.status, "message": c.message or '', "fix": c.fix}
+        for section, c in zip(self.sections, self.checks)
+      ],
+    }
+
+
 def guarded(name: str, checks: Callable[[], Iterable[Check]]) -> Iterator[Check]:
   """The checks, or an ERROR check if they fail unexpectedly: `qa doctor` goes on with the next ones."""
   try:
@@ -941,12 +967,13 @@ def guarded(name: str, checks: Callable[[], Iterable[Check]]) -> Iterator[Check]
                 fix=f"Fix what the other checks say first. If it lasts, please report it, with the output of `qa doctor`: {ISSUES}")
 
 
-def run_doctor(obj: Dict[str, Any], runner: str, test_job: bool = False, echo=click.echo) -> int:
+def run_doctor(obj: Dict[str, Any], runner: str, test_job: bool = False, echo=click.echo, report: Optional[Report] = None) -> int:
   """
   `qa doctor`: prints the checks, and returns the exit code. `obj` is the `qa` command's context (ctx.obj).
   Like `qa --share batch` (or a CI), it checks what's needed for results that show in QA-Board:
   with `qa --offline doctor`, only what local runs need.
   Each section is guarded: if a check fails unexpectedly, it's an ERROR, and the next sections still run.
+  With a `report`, it's the one filled (`qa doctor --json` reads it).
   """
   qaboard_config = config_module()
   from . import __version__
@@ -955,7 +982,7 @@ def run_doctor(obj: Dict[str, Any], runner: str, test_job: bool = False, echo=cl
 
   offline = bool(obj.get('offline'))
   cwd = Path(obj.get('previous_cwd') or os.getcwd())
-  report = Report(echo=echo)
+  report = report if report is not None else Report(echo=echo)
   shared = "what you need for runs whose results show in QA-Board (like `qa --share batch`)" if not offline else "what you need for local runs (--offline)"
   echo(click.style("qa doctor", bold=True) + f": checking {shared}, with the {runner} runner.")
   root = Path(root_qatools) if root_qatools else cwd

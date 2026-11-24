@@ -1751,8 +1751,9 @@ def init(ctx):
 @qa.command()
 @click.option('--runner', default=default_runner, show_default=True, shell_complete=complete_runners, help="The runner to check: local, lsf, celery, dask, windows... By default, the one `qa batch` uses.")
 @click.option('--test-job', is_flag=True, help="Also start a small job with the runner, to check that it runs, where, as who, and what it can access. It can take a few minutes, e.g. waiting for a slot.")
+@click.option('--json', 'as_json', is_flag=True, help="Print the checks as JSON on stdout (ok, exit_code, errors, warnings, next_step, checks: section, name, status, message, fix); the report goes to stderr.")
 @click.pass_context
-def doctor(ctx, runner, test_job):
+def doctor(ctx, runner, test_job, as_json):
   """
   Check that you can run batches, and say how to fix what's wrong.
 
@@ -1772,8 +1773,17 @@ def doctor(ctx, runner, test_job):
     qa doctor
     qa doctor --runner lsf --test-job
   """
-  from .doctor import run_doctor
-  sys.exit(run_doctor(ctx.obj, runner=runner, test_job=test_job))
+  from .doctor import run_doctor, Report
+  if not as_json:
+    sys.exit(run_doctor(ctx.obj, runner=runner, test_job=test_job))
+  from .json_output import stdout_to_stderr, print_json
+  def echo(message=''):
+    click.echo(message, err=True)
+  report = Report(echo=echo)
+  with stdout_to_stderr():
+    exit_code = run_doctor(ctx.obj, runner=runner, test_job=test_job, echo=echo, report=report)
+  print_json({"runner": runner, "offline": bool(ctx.obj.get('offline')), **report.as_json()})
+  sys.exit(exit_code)
 
 
 
