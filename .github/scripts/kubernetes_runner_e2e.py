@@ -19,7 +19,8 @@ Needs docker, kind and kubectl.
    - pods that are pending for a while (a node_selector no node matches, until we label the node) say why in
      log.pending.txt, written by `qa batch` (as root, when the pods run as uid 1000), then run and write their logs
    - a Job whose name is taken, with the same command id, isn't reused (create_job refuses it)
-   - `qa batch --no-wait`, then KubernetesRunner.stop_jobs (what the server calls) deletes the Jobs
+   - `qa batch --no-wait`, then KubernetesRunner.stop_jobs (what the server calls) deletes the Jobs: their pods get
+     SIGTERM, which reaches `qa run`, which marks its run as failed
    - KubernetesRunner.submit_detached runs a script in a pod, also after a pending phase (why: in log.pending.txt)
    - KubernetesRunner.doctor(..., test_job=True) has no errors, and its test pod ran as the user
 Behind a TLS-intercepting proxy, the CA bundle at $SSL_CERT_FILE (or $PIP_CERT) is added to the image build.
@@ -313,9 +314,12 @@ def main():
     log("qa batch --no-wait, then the server stops it")
     command_id = str(uuid.uuid4())
     selector = f'qaboard.io/command-id={command_id}'
-    returncode = qa_batch('--no-wait', 'slow', '--', 'sleep 600', command_id=command_id)
+    # the run prints run-42 (its command, which `qa run` prints first, doesn't)
+    returncode = qa_batch('--no-wait', 'slow', '--', 'echo run-$((40 + 2)) && sleep 600', command_id=command_id)
     check(returncode == 0, "qa batch --no-wait returns")
     check(len(kubectl_json('get', 'jobs', '-l', selector)['items']) == 1, "its Job is labeled with the command id")
+    slow_log = output_dir('a') / 'log.k8s.txt'
+    check(wait_for(lambda: slow_log.is_file() and 'run-42' in slow_log.read_text(), 180), "the run started")
     stop = "from qaboard.runners.kubernetes import KubernetesRunner; KubernetesRunner.stop_jobs([], {'type': 'kubernetes', 'command_id': %r})" % command_id
     out = run(*python, '-c', stop, check=False, cwd=project)
     check(out.returncode == 0, "stop_jobs succeeds")
@@ -325,6 +329,10 @@ def main():
         break
       time.sleep(2)
     check(not kubectl_json('get', 'pods', '-l', selector)['items'], "and their pods")
+    # the pod's PID 1 (its script) forwarded SIGTERM to `qa run`, and waited for it to say the run failed
+    check(slow_log.is_file() and 'marked as failed' in slow_log.read_text(), "qa run got SIGTERM: its log says the run was aborted")
+    metrics = output_dir('a') / 'metrics.json'
+    check(metrics.is_file() and json.loads(metrics.read_text()).get('is_failed') is True, "and its metrics.json is_failed")
 
     log("submit_detached")
     detached_log = shared / 'detached' / 'log.txt'
