@@ -20,6 +20,11 @@ uv run release-notes/release_notes.py check   # notes' frontmatter, docs links, 
 - A change to how people use the web app updates its user-guide page: one page per task; the viewers have their own
   (`user-guide/image-viewer`, `video-viewer`, `other-viewers`; their formats for integrators in `docs/viewers`).
 - Pages start with the task and keep details collapsed: "Page structure" in `STYLE.md`.
+- A page with sub-pages becomes a sidebar category whose `link` is that page (no file moves, URLs stay). Sidebar
+  labels come from the pages' front matter `sidebar_label`: a `label` in `sidebars.ts` is ignored for docs.
+- Entry points by audience: `docs/get-started/overview.mdx` ("Where to start") and the homepage's "Where to start"
+  section (`src/pages/`): update both when a new audience-level entry point appears.
+- Without access to the media host, build with `QABOARD_MEDIA=remote yarn build` (CI builds with the media).
 - Pages for one site's users: `site-docs/<site>/`, built only into that site's web app (`QABOARD_SITE`). Internal
   runbooks: `deployments/<site>/runbooks/`, not here.
 
