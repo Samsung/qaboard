@@ -10,6 +10,7 @@ from typing import Any
 
 import click
 
+from . import ui
 from .completion import complete_batches
 
 from .lazy import lazy_function
@@ -145,7 +146,7 @@ def optimize(ctx, on_commit, batches, batches_files, config_file, checkpoint, pa
       # a failed evaluation may have no results to aggregate: that must not stop the search
       aggregated_metrics_ = {}
     if failed:
-      click.secho(f'Iteration {iteration} failed: its runs are kept, check their logs', fg='red')
+      ui.error(f"Iteration {iteration} failed: its runs are kept, their logs say why.")
     elif is_best:
       click.secho(f'New best @iteration{iteration}: {loss}', fg='green')
     try:
@@ -189,7 +190,7 @@ def optimize(ctx, on_commit, batches, batches_files, config_file, checkpoint, pa
         **study_summary(study, metric_names if pareto else None),
       )
     except Exception as e:
-      click.secho(f"WARNING: could not update QA-Board for iteration {iteration}: {e}", fg='yellow', err=True)
+      ui.warning(f"Could not update QA-Board for iteration {iteration}: {e}")
     if not is_best and not failed:
       # We remove the results to make sure we don't waste disk space
       # It is also be done server-side...
@@ -226,12 +227,12 @@ def optimize(ctx, on_commit, batches, batches_files, config_file, checkpoint, pa
         **study_summary(study, metric_names if pareto else None),
       )
     except Exception as e:
-      click.secho(f"WARNING: could not update QA-Board: {e}", fg='yellow', err=True)
+      ui.warning(f"Could not update QA-Board: {e}")
 
   if error:
     raise click.ClickException(error)
   if status == "failed":
-    raise click.ClickException("qa optimize: no evaluation succeeded. Check the logs of the iterations' runs.")
+    raise ui.QAError("No evaluation succeeded.", hint="The logs of the iterations' runs say why")
   if summary['early_stopped']:
     click.secho(f"Stopped early after {summary['finished']} evaluations.", fg='blue', bold=True)
   click.secho(f"Best objective: {best_objective(study)}", fg='green', bold=True)
@@ -315,7 +316,7 @@ def init_optimization(optim_config_file, checkpoint, ctx, parallel_param_samplin
             encoding="utf-8",
         ).returncode
       if returncode != 0:
-        click.secho(f'[ERROR ({returncode})] Check the logs in QA-Board to know what output failed', fg='red', bold=True)
+        ui.error(f"Iteration {iteration}'s batch failed (exit code {returncode}).", hint="Its runs' logs in QA-Board say which failed, and why")
 
     # Now that we finished computing all the results, we will download the results and
     # compute the objective function:
@@ -325,7 +326,7 @@ def init_optimization(optim_config_file, checkpoint, ctx, parallel_param_samplin
     except ObjectiveError:
       raise
     except Exception as e:
-      click.secho(f"[ERROR] Iteration {iteration}: could not compute the objective: {e}", fg='red', bold=True)
+      ui.error(f"Iteration {iteration}: could not compute the objective: {e}")
       return None
 
   # The search is saved as it goes: running the same experiment again resumes it
@@ -379,12 +380,13 @@ def code_definitions() -> dict[str, dict[str, Any]]:
   """
   import requests
   from .api import api_prefix, api_verify, api_timeout, headers
+  from .http_client import LOG_HOOKS
   try:
     r = requests.get(f'{api_prefix}/commit/{commit_id}', params={
       "project": Path(project).as_posix() if project else '',
       "with_outputs": "false",
       "metrics": json.dumps({"none-required": 0}),
-    }, headers=headers, verify=api_verify, timeout=api_timeout)
+    }, headers=headers, verify=api_verify, timeout=api_timeout, hooks=LOG_HOOKS)
     r.raise_for_status()
     definitions = (r.json().get('data') or {}).get('metrics_definitions') or {}
     return definitions if isinstance(definitions, dict) else {}
@@ -465,7 +467,8 @@ def check_objective(config_objective: dict[str, Any], directions: Directions):
     if directions.smaller_is_better(metric) is None:
       if directions.declared(metric):
         raise ValueError(unknown_direction(metric))
-      click.secho(f"qa optimize will read which way is better for {metric} from your runs, if they declare it.", fg='yellow', err=True)
+      ui.warning(f"qa optimize will read which way is better for {metric} from your runs, if they declare it.",
+                 hint=f"Or say it in the objective: `{metric}: max` (higher is better) or `{metric}: min`")
     compares_to_target = 'shift' in options['loss'] or 'relative' in options['loss']
     if compares_to_target and not compares_to_reference(config_objective) and directions.target(metric) is None and directions.declared(metric):
       raise ValueError(no_target(metric, options['loss']))
@@ -561,14 +564,12 @@ def batch_objective_components(project, commit_id, batch_label, config_objective
       else:
         metric_target = directions.target(metric)
       if output['metrics'].get('is_failed'):
-        click.secho('Failed output', fg='red')
-        click.secho(output['output_dir_url'][2:], fg='red')
+        ui.error(f"A run failed: {output['output_dir_url'][2:]}")
       else:
         try:
           losses.append(loss(output['metrics'][metric], metric_target) )
         except Exception:
-          click.secho(f'Could not find {metric}', fg='red')
-          click.secho(output['output_dir_url'][2:], fg='red')
+          ui.error(f"No {metric} in the metrics of {output['output_dir_url'][2:]}")
     if not losses:
       raise ValueError(f"Could not compute the loss of {metric}: no run returned it.")
     partial_objective = make_reduce(options)(losses)
