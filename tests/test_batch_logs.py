@@ -1,6 +1,7 @@
 """
 Tests for the logs that `qa batch` saves when it's started from a terminal.
 """
+import io
 import os
 import sys
 import tempfile
@@ -55,6 +56,20 @@ class TestTeeStdStreams(unittest.TestCase):
       self.assertFalse(tee.isatty())
       # click would write to it instead of us
       self.assertFalse(hasattr(tee, 'buffer'))
+      self.assertFalse(hasattr(tee, 'set_parent'))
+
+  def test_jupyter_shows_each_cells_output_under_it(self):
+    # ipykernel calls sys.stdout.set_parent() when a cell starts
+    from qaboard.utils import TeeStream
+    class OutStream(io.StringIO):
+      parent = None
+      def set_parent(self, parent):
+        self.parent = parent
+    with tempfile.TemporaryFile('w+') as file:
+      stream = OutStream()
+      tee = TeeStream(TeeStream(stream, file), file)
+      tee.set_parent({'msg_id': 'cell-2'})
+      self.assertEqual(stream.parent, {'msg_id': 'cell-2'})
 
 
 @click.command()
