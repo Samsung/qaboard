@@ -91,9 +91,9 @@ file listed in `inputs.batches` differs from the commit's, since the commit's is
 - **The commit**: an id, a branch or a tag, found with your local git: run `git fetch` first. `qa` warns when the
   commit isn't on a remote branch you fetched, or when your branch and its upstream differ.
 - **Options**: `--label`, `--platform` and `--dryrun`; for `qa batch` the batches, `--batches-file`,
-  `--tuning-search(-file)` and `--action-on-existing run|sync` (by default existing runs are kept, like in the web
-  app); for `qa optimize`, `--batch`, `--batches-file` and `--config-file`. Other options on the command line, like
-  `--runner` or `--share`, are refused: the server's settings decide where runs execute. `QA_LABEL` and `QA_PLATFORM`
+  `--tuning-search(-file)`, `--action-on-existing run|sync` (by default existing runs are kept, like in the web
+  app) and `--no-wait`; for `qa optimize`, `--batch`, `--batches-file` and `--config-file`. Other options on the
+  command line, like `--runner` or `--offline`, are refused: the server's settings decide where runs execute. `QA_LABEL` and `QA_PLATFORM`
   are used; other options set in `QA_*` variables, e.g. in an *.envrc*, are ignored.
 - **The commit must be known to QA-Board**, with its artifacts saved: right after a push, wait for the CI job that
   runs `qa save-artifacts`. If the artifacts were deleted, `qa` doesn't start, unless the project lets QA-Board
