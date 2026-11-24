@@ -90,7 +90,9 @@ def explain(error: ResultsError, server: str, what: str = '', size: Optional[int
   if error.status is None:
     # the network: the cause, without the HTTP library's internals
     cause = re.search(r"\[Errno -?\d+\] ([^\"')]+)|(Read timed out|timed out)", str(error))
-    reason = f" ({(cause.group(1) or cause.group(2)).strip().lower()})" if cause else ""
+    # or as http_client says it: "Could not reach QA-Board at <server>: connection refused"
+    said = re.match(r"Could not reach QA-Board at \S+: ([^(]+)", str(error))
+    reason = f" ({(cause.group(1) or cause.group(2)).strip().lower()})" if cause else f" ({said.group(1).strip()})" if said else ""
     return f"Could not reach QA-Board at {server}{reason}: check QABOARD_URL, and that the server runs."
   if error.status == 413:
     megabytes = f" ({size / 1024**2:.0f} MB)" if size else ""

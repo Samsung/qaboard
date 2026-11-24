@@ -372,7 +372,7 @@ class TestQaRun(UploaderTestCase):
       printed("WARNING: QA-Board refused the results: metrics are numbers")
     run_context = SimpleNamespace(obj={}, id=42, output_dir=self.run_dir)
     with mock.patch.object(qa, 'sends_files', return_value=True), mock.patch.object(qa, '_reporter', None), \
-         mock.patch.object(qa, 'config', {}), mock.patch.object(qa.click, 'secho', printed), \
+         mock.patch.object(qa, 'config', {}), mock.patch.object(qa.ui, 'error', printed), \
          mock.patch.object(qa, 'notify_qa_database', refused), mock.patch('qaboard.api.qaboard_url', server.url):
       qa.run_reporter(run_context).start(run_context.id)
       qa.finish_upload(run_context)

@@ -97,7 +97,9 @@ def qa_init(ctx):
   # Locate the sample project's configuration
   qatools_dir = Path(__file__).resolve().parent
 
-  click.secho('Creating a `qaboard.yaml` configuration based on the sample project 🎉', fg='green')
+  from .ui import fancy
+  # the emoji only where it can be shown (not Windows' legacy consoles, not piped)
+  click.secho(f"Creating a `qaboard.yaml` configuration based on the sample project{' 🎉' if fancy(sys.stdout) else ''}", fg='green')
   sample_config = (qatools_dir / 'sample_project/qaboard.yaml').read_text()
   site = site_qaboard_config()
   if site:
@@ -120,7 +122,9 @@ def qa_init(ctx):
   try:
     subprocess.run("git rev-parse --is-inside-work-tree", shell=True, stdout=subprocess.PIPE, check=True)
   except Exception:
-    click.secho('Warning: Could not find a git repository', fg='yellow')
+    from .ui import warning
+    warning(f"{Path().resolve()} is not in a git repository: project.name and project.url in qaboard.yaml are the sample's.",
+            hint="Run `git init` (and add a remote), then edit qaboard.yaml.")
     sys.exit(0)
 
 

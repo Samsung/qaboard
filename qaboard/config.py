@@ -172,6 +172,11 @@ try:
   qatools_configsxpaths = find_configs(path=Path()) if not is_auth_command else []
 except Exception as e: # e.g. invalid YAML
   if not is_doctor_command:
+    from .ui import yaml_problem, verbose, fail
+    # the `qa` command says what's wrong, without the traceback. Code that imports qaboard gets the exception.
+    if isinstance(e, yaml.YAMLError) and is_qa_program(sys.argv) and not verbose():
+      fail(f"{getattr(getattr(e, 'problem_mark', None), 'name', None) or 'qaboard.yaml'} is not valid YAML: {yaml_problem(e)}",
+           hint="Fix the YAML syntax at that line. `qa doctor` checks qaboard.yaml.")
     raise
   config_error, qatools_configsxpaths = str(e), []
 if is_doctor_command and qatools_configsxpaths:
@@ -183,15 +188,13 @@ qatools_config_paths = [q[1] for q in qatools_configsxpaths]
 if not qatools_configsxpaths:
   config_has_error = True
   if not ignore_config_errors:
-    click.secho('ERROR: Could not find a `qaboard.yaml` configuration file.', fg='red', err=True)
+    from .ui import error
     if 'QABOARD_TUNING' not in os.environ:
-      click.secho('       If you are starting a new project, run `qa init`.', fg='red', err=True)
+      error(f"No qaboard.yaml in {Path().resolve()} or its parent folders.",
+            hint="Run `qa` in your project, or `qa init` to start a new one.")
     else:
-      click.secho(f'       It seems "artifacts" are missing. To save them:', fg='red', err=True)
-      click.secho(f'       1. cd your/project', fg='red', err=True)
-      click.secho(f'       2. git checkout {os.environ.get("GIT_COMMIT", "your-commit")}', fg='red', err=True)
-      click.secho(f'       3. # build whatever is needed', fg='red', err=True)
-      click.secho(f'       4. qa save-artifacts', fg='red', err=True)
+      error(f"No qaboard.yaml in {Path().resolve()}: the commit's artifacts seem missing.",
+            hint=f"To save them, in your project: git checkout {os.environ.get('GIT_COMMIT', 'your-commit')}, build what is needed, then `qa save-artifacts`.")
 
 
 def expand_paths(value: str, interpolation_vars):
@@ -247,8 +250,9 @@ else:
         f"Remove project.url from {qatools_config_paths[-1]}: subprojects use the root qaboard.yaml's ({qatools_config_paths[0]}).",
       ))
       if not ignore_config_errors:
-        click.secho(f"ERROR: Don't redefine the project's URL in ./qaboard.yaml.", fg='red', bold=True, err=True)
-        click.secho(f"Changed from {root_qatools_config.get('project', {}).get('url')} to {config.get('project', {}).get('url')}", fg='red')
+        from .ui import error
+        error(f"The subproject's qaboard.yaml ({qatools_config_paths[-1]}) changes project.url, from {root_qatools_config.get('project', {}).get('url')} to {config.get('project', {}).get('url')}.",
+              hint=f"Remove project.url from {qatools_config_paths[-1]}: subprojects use the root qaboard.yaml's.")
 
   # we support "prefix/{root_path.name}" to make configuration easier for groups
   # that have tons of small repos configured the name
@@ -273,8 +277,9 @@ else:
       f"Remove project.name from {qatools_config_paths[-1]}: subprojects are named after their folder, e.g. {project.as_posix()}.",
     ))
     if not ignore_config_errors:
-      click.secho(f"ERROR: Don't redefine <project.name> in ./qaboard.yaml", fg='red', bold=True, err=True)
-      click.secho(f"Changed from {root_qatools_config['project']['name']} to {config['project']['name']})", fg='red')
+      from .ui import error
+      error(f"The subproject's qaboard.yaml ({qatools_config_paths[-1]}) changes project.name, from {root_qatools_config['project']['name']} to {config['project']['name']}.",
+            hint=f"Remove project.name from {qatools_config_paths[-1]}: subprojects are named after their folder, e.g. {project.as_posix()}.")
   # make sure everything is consistent even if users call this directly
   config['project']['name'] = project.as_posix()
   root_qatools_config['project']['name'] = project_root.as_posix()
@@ -334,10 +339,10 @@ def storage_roots(config: Dict, project: Path, subproject: Path, user_name: Opti
     outputs_root = Path()
     subproject_for_artifacts = Path()
     if not ignore_config_errors:
-      click.secho('ERROR: Could not find the storage settings that define where outputs & artifacts are saved.', fg='red', err=True)
-      click.secho('Consider adding to qaboard.yaml:\n```storage:\n  linux: /mnt/qaboard\n  windows: "\\\\server\\share\\qaboard"\n```', fg='red', err=True, dim=True)
-      if not site_config('QABOARD_SITE_CONFIG'):
-        click.secho('If your organization has a site package (e.g. qaboard-site-sirc), install it to get default settings.', fg='red', err=True, dim=True)
+      from .ui import error
+      error('Could not find the storage settings that define where outputs & artifacts are saved.',
+            hint=['Add to qaboard.yaml:\nstorage:\n  linux: /mnt/qaboard\n  windows: "\\\\server\\share\\qaboard"',
+                  None if site_config('QABOARD_SITE_CONFIG') else 'If your organization has a site package (qaboard-site-...), install it to get default settings.'])
   return outputs_root, artifacts_root, subproject_for_artifacts
 
 # The storage folders that don't exist, and that we couldn't create. Only the commands that save or read results
@@ -389,17 +394,17 @@ def report_missing_storage(needed_by: Optional[str], environ=os.environ) -> bool
     return False
   paths = ', '.join(f'"{p}"' for p in missing_storage)
   if needed_by:
-    click.secho(f'ERROR: The storage path does not exist, and qa could not create it: {paths}', fg='red', bold=True, err=True)
-    click.secho(f'       {needed_by}. To fix it: create the folder, mount your shared storage there,', fg='red', err=True)
-    click.secho('       or set QA_STORAGE (or `storage` in qaboard.yaml) to a folder your QA-Board server reads.', fg='red', err=True)
+    from .ui import error
     # Sites can explain how to get storage for new projects
     storage_help = site_config('QABOARD_STORAGE_HELP')
-    if storage_help:
-      click.secho(f'INFO: {storage_help}', fg='blue', err=True)
+    error(f'The storage path does not exist, and qa could not create it: {paths}\n{needed_by}.',
+          hint=['Create the folder, mount your shared storage there, or set QA_STORAGE (or `storage` in qaboard.yaml) to a folder your QA-Board server reads.',
+                storage_help])
     return True
   if 'QA_BATCH' not in environ:
-    click.secho(f'WARNING: The storage path does not exist: {paths}. Results stay in output/, not shown in QA-Board,', fg='yellow', err=True)
-    click.secho('         and CI runs and `qa save-artifacts` need it: create or mount it, or set QA_STORAGE (QA_STORAGE=upload sends results to the server).', fg='yellow', err=True)
+    from .ui import warning
+    warning(f'The storage path does not exist: {paths}. Results stay in output/, not shown in QA-Board, and CI runs and `qa save-artifacts` need it.',
+            hint='Create or mount it, or set QA_STORAGE (QA_STORAGE=upload sends results to the server).')
   return False
 
 def default_share(offline: bool = False) -> Tuple[bool, Optional[str]]:
@@ -593,7 +598,8 @@ def _git_head_or_placeholder(repo_root: Path) -> Tuple[str, str]:
     try:
       return git_head(repo_root)
     except (OSError, ValueError) as e: # e.g. a .git pointer to a missing directory, an undecodable file
-      click.secho(f'WARNING: Could not read the git HEAD, using placeholders: {e}', fg='yellow', err=True)
+      from .ui import warning
+      warning(f'Could not read the git HEAD, using placeholders: {e}')
   return local_commit_placeholder, local_commit_placeholder
 
 
@@ -753,8 +759,9 @@ def get_default_database(inputs_settings, interpolation_vars=None):
   if not database:
     database = "."
     if not ignore_config_errors:
-      click.secho(f'WARNING: Could not find the default database location, defaulting to "."', fg='yellow', err=True)
-      click.secho(f'Consider adding to qaboard.yaml:\n```\ninputs:\n  database:\n    linux: /mnt/datasets\n    windows: "\\\\server\\datasets"\n```', fg='yellow', err=True, dim=True)
+      from .ui import warning
+      warning('Could not find the default database location, defaulting to "."',
+              hint='Add to qaboard.yaml:\ninputs:\n  database:\n    linux: /mnt/datasets\n    windows: "\\\\server\\datasets"')
       ignore_config_errors = True
   return Path(database)
 
@@ -772,8 +779,9 @@ if metrics_file:
     config_warnings.append((f"The metrics file {metrics_file} doesn't exist (outputs.metrics in qaboard.yaml): QA-Board shows your metrics without their names and units.",
                             f"Create it, or fix outputs.metrics in qaboard.yaml. `qa init` writes an example: qa/metrics.yaml"))
     if not ignore_config_errors:
-      click.secho(f'WARNING: Could not find the file containing metrics ({metrics_file})', fg='yellow', err=True)
-      click.secho(f'         It is defined in qaboard.yaml under outputs.metrics', fg='yellow', err=True, dim=True)
+      from .ui import warning
+      warning(f'Could not find the file containing metrics: {metrics_file} (outputs.metrics in qaboard.yaml)',
+              hint='Create it, or fix outputs.metrics in qaboard.yaml. `qa init` writes an example: qa/metrics.yaml')
       ignore_config_errors = True
   else:
     with metrics_file_path.open(encoding="utf-8", errors="surrogateescape") as f:
@@ -783,14 +791,15 @@ if metrics_file:
         config_has_error = True
         config_errors.append((f"Can't parse the metrics file {metrics_file}: {e}", f"Fix the YAML syntax in {metrics_file_path}."))
         if not ignore_config_errors:
-          click.secho(f'ERROR: Unable to parse {metrics_file}', fg='red', err=True, bold=True)
-          click.secho(f'{e}', fg='red', err=True)
+          from .ui import error, yaml_problem
+          error(f'Unable to parse {metrics_file}: {yaml_problem(e)}', hint=f"Fix the YAML syntax in {metrics_file_path}.")
           ignore_config_errors = False
       if _metrics is not None and not isinstance(_metrics, dict):
         config_has_error = True
         config_errors.append((f"The metrics file {metrics_file} must be a mapping, with available_metrics: and main_metrics:.", f"Fix {metrics_file_path}. `qa init` writes an example."))
         if not ignore_config_errors:
-          click.secho(f'ERROR: The metrics file {metrics_file} must be a mapping, with available_metrics: and main_metrics:', fg='red', err=True, bold=True)
+          from .ui import error
+          error(f'The metrics file {metrics_file} must be a mapping, with available_metrics: and main_metrics:', hint="`qa init` writes an example: qa/metrics.yaml")
         _metrics = {}
       # an empty file, or `available_metrics:` with only comments under it, are null
       available_metrics = (_metrics or {}).get('available_metrics') or {}

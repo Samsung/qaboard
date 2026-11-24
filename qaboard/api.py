@@ -35,12 +35,10 @@ qaboard_url, qaboard_url_source = default_server()
 # (`qa upload` doesn't guess: it says to set QABOARD_URL)
 # Outside a CI, results then stay local, and `qa` says it in one line (qa.py, config.default_share)
 if not qaboard_url_source and is_ci and sys.argv[1:2] not in (['auth'], ['runs']) and not is_doctor_command and not is_command_without_project:
-  click.secho("WARNING: We are not sure where to find your QA-Board server.", fg='yellow', bold=True, err=True)
-  click.secho(f"         We will default to {qaboard_url}", fg='yellow', bold=True, err=True)
-  click.secho("         To remove this warning provide it as an environment variable (via QABOARD_HOST, e.g. 'qaboard-srv', 'qaboard-srv:443').", fg='yellow', err=True)
-  click.secho("         If needed you can define QABOARD_PROTOCOL (default: http). You can also provide both QABOARD_HOSTNAME and QABOARD_PORT.", fg='yellow', err=True)
-  click.secho("       > If you have not started a QA-Board server, read the docs to learn how to start one!", fg='yellow', err=True)
-  click.secho("       > If your organization has a site package (e.g. qaboard-site-sirc), install it.", fg='yellow', err=True)
+  from .ui import warning
+  warning(f"No QA-Board server is set: qa uses {qaboard_url}.",
+          hint=["Set QABOARD_URL (e.g. https://qaboard.example.com), or QABOARD_HOST (e.g. qaboard-srv:443) with QABOARD_PROTOCOL.",
+                "If your organization has a site package (qaboard-site-...), install it: it says where the server is."])
 
 api_prefix = site_config('QABOARD_API_PREFIX', f"{qaboard_url}/api/v1")
 # Whether requests to the API check TLS certificates: true (default), false, or the path to a CA bundle.
@@ -90,10 +88,9 @@ def print_auth_error(r, message="Failed to update QA-Board", ingest=False):
     results_refused = refused
   if not first_time(f"{refused['reason']}: {refused['error']}"):
     return True
-  click.secho(f"WARNING: {message}: {refused['error']}", fg='yellow', bold=True, err=True)
   fix = None if ingest and is_ci and refused['reason'] != 'missing_role' else fix_for(refused, qa_token_source, ci=is_ci, project=project_name(), server=qaboard_url)
-  if fix:
-    click.secho(f"         {fix}", fg='yellow', err=True)
+  from .ui import warning
+  warning(f"{message}: {refused['error']}", hint=fix)
   return True
 
 
@@ -119,8 +116,10 @@ def print_upload_refusal(r) -> bool:
   if results_refused is None:
     results_refused = {'reason': body['reason'], 'error': str(body.get('error') or '')}
   if first_time(f"{body['reason']}: {body.get('error')}"):
-    click.secho(f"WARNING: QA-Board refused the results: {body.get('error')}", fg='yellow', bold=True, err=True)
-    click.secho(f"         {UPLOAD_FIX}", fg='yellow', err=True)
+    from .ui import warning
+    from .config import is_ci
+    # in CI, exit_if_results_refused says what to do, at the end
+    warning(f"QA-Board refused the results: {body.get('error')}", hint=None if is_ci else UPLOAD_FIX)
   return True
 
 
@@ -137,8 +136,8 @@ def exit_if_results_refused():
     fix = f"The user of {env_name} must be a developer of {results_refused.get('project') or project or 'the project'}."
   else:
     fix = f"Set {env_name} to a valid token with the ingest scope{f' for {project}' if project else ''}."
-  click.secho(f"ERROR: QA-Board refused the results ({results_refused['reason']}): they were not saved. {fix}", fg='red', bold=True, err=True)
-  sys.exit(1)
+  from .ui import fail
+  fail(f"QA-Board refused the results ({results_refused['reason']}): they were not saved.", hint=fix)
 
 def dir_to_url(path: Path) -> str:
   if not path.is_absolute():
@@ -216,7 +215,8 @@ def _post_results(url: str, payload: str, ends: bool):
       if delay is None or r.status_code not in TRANSIENT_STATUSES:
         return r
       r.close()
-    click.secho(f"WARNING: QA-Board didn't take the results, trying again in {delay:.0f}s...", fg='yellow', err=True)
+    from .ui import warning
+    warning(f"QA-Board didn't take the results, trying again in {delay:.0f}s...")
     time.sleep(delay)
 
 
@@ -256,19 +256,31 @@ def notify_qa_database(object_type='output', **kwargs):
     try:
       return r.json()
     except Exception:
-      click.secho(f"WARNING: Can't understand the server response: {r.text}", fg='yellow', err=True)
+      from .ui import warning
+      warning(f"Can't understand the answer of QA-Board ({url}): {r.text[:300]}")
   except Exception as e:
-    click.secho(f'WARNING: [{e}] Failed to update QA-Board.', fg='yellow', bold=True, err=True)
-    click.secho(url, fg='yellow', err=True)
-    # what we sent (or failed to serialize), without the big fields
-    data = {k: v for k, v in data.items() if k not in ['qaboard_config', 'qaboard_metrics', 'inputs_settings']}
-    click.secho(str(data), fg='yellow', err=True)
-    try:
-      request_headers = {k: '<redacted>' if k.lower() == 'authorization' else v for k, v in r.request.headers.items()}
-      click.secho(str(request_headers), fg='yellow', dim=True, err=True)
-      click.secho(f'{r.status_code}: {r.text}', fg='yellow', dim=True, err=True)
-    except Exception:
-      pass
+    from .ui import warning, verbose, request_problem, is_connection_error
+    if is_connection_error(e):
+      # said once: a batch would say it for each run
+      if first_time(f"unreachable: {qaboard_url}"):
+        warning(f"Could not reach QA-Board at {qaboard_url}: {request_problem(e)}. The results were not sent.",
+                hint="Check that the server is up and that QABOARD_URL is right, or use `qa --offline`. `qa doctor` checks the connection.")
+    else:
+      try:
+        answer = f"\nQA-Board answered {r.status_code}: {r.text[:500]}"
+      except Exception:
+        answer = ''  # e.g. the data could not be serialized: nothing was sent
+      warning(f"Failed to update QA-Board ({url}): {e}{answer}",
+              hint=None if verbose() else "`qa --verbose` shows what was sent.")
+    if verbose():
+      # what we sent (or failed to serialize), without the big fields
+      data = {k: v for k, v in data.items() if k not in ['qaboard_config', 'qaboard_metrics', 'inputs_settings']}
+      click.secho(str(data), fg='yellow', err=True)
+      try:
+        request_headers = {k: '<redacted>' if k.lower() == 'authorization' else v for k, v in r.request.headers.items()}
+        click.secho(str(request_headers), fg='yellow', dim=True, err=True)
+      except Exception:
+        pass
 
 
 def get_output(output_id):
@@ -281,11 +293,12 @@ def get_output(output_id):
     r.raise_for_status()
     return r.json()
   except Exception:
-    click.secho(f'WARNING: Failed to contact the QA-Board server. (GET Output {output_id})', fg='yellow', bold=True, err=True)
+    from .ui import warning
     try:
-      click.secho(f'{r.status_code}: {r.text}', fg='yellow', dim=True, err=True)
+      answer = f'{r.status_code}: {r.text[:300]}'
     except Exception:
-      pass
+      answer = None
+    warning(f"Could not get the run {output_id} from QA-Board ({url}){f': {answer}' if answer else ''}")
 
 
 class ResultsUnreadable(Exception):
@@ -324,7 +337,8 @@ def batch_info(reference, batch, is_branch=False, project=None, metrics: Optiona
       return {}
     if not print_auth_error(r, "Failed to get info from QA-Board"):
       click.secho(r.text, fg='red', err=True)
-    click.secho(f'[ERROR]: Failed to get info from QA-Board. ({url} | {params})', fg='red', bold=True, err=True)
+    from .ui import error
+    error(f'Failed to get info from QA-Board: {r.status_code} ({url} | {params})')
     raise e
   if 'batches' not in data:
     raise ValueError(f'We could not get the results for {batch} batch {reference}')

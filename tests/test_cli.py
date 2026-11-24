@@ -348,9 +348,10 @@ class TestQaCli(unittest.TestCase):
     # the results would be lost: it doesn't run
     self.assertEqual(post.call_count, 1)
     self.assertNotIn('a.jpg =>', result.output)
-    self.assertIn('WARNING: QA-Board refused the results: This token expired on 2026-09-01.', result.output)
-    self.assertEqual(click.unstyle(result.output).strip().splitlines()[-1], 'ERROR: QA-Board refused the results (token_expired): they were not saved. '
-                     f'Set QABOARD_TOKEN to a valid token with the ingest scope for {Path(config.project).as_posix()}.')
+    output = click.unstyle(result.output)
+    self.assertIn('warning: QA-Board refused the results: This token expired on 2026-09-01.', output)
+    self.assertEqual(output.strip().splitlines()[-2:], ['error: QA-Board refused the results (token_expired): they were not saved.',
+                     f'hint: Set QABOARD_TOKEN to a valid token with the ingest scope for {Path(config.project).as_posix()}.'])
 
   def test_run_in_ci_when_the_server_never_gets_its_end(self):
     from unittest import mock
@@ -390,8 +391,8 @@ class TestQaCli(unittest.TestCase):
     self.assertNotIn('a.jpg =>', result.output)
     output = click.unstyle(result.output)
     self.assertEqual(output.count('This server only accepts results sent with a token.'), 1)
-    self.assertEqual(output.strip().splitlines()[-1], 'ERROR: QA-Board refused the results (ingest_token_required): they were not saved. '
-                     f'Set QABOARD_TOKEN to a valid token with the ingest scope for {Path(config.project).as_posix()}.')
+    self.assertEqual(output.strip().splitlines()[-2:], ['error: QA-Board refused the results (ingest_token_required): they were not saved.',
+                     f'hint: Set QABOARD_TOKEN to a valid token with the ingest scope for {Path(config.project).as_posix()}.'])
 
   def test_batch_sends_a_snapshot_of_its_batches(self):
     """QA-Board keeps the batches as they ran, filtered to what ran, and how to run them again"""
@@ -565,7 +566,7 @@ class TestQaCli(unittest.TestCase):
     result = batch('--action-on-existing', 'skip')
     assert result.exit_code == 1, result.output
     output = click.unstyle(result.output)
-    assert "WARNING: QA-Board refused to read the batch's runs: Sign in to do this." in output
+    assert "warning: QA-Board refused to read the batch's runs: Sign in to do this." in output
     assert "--action-on-existing=skip needs the batch's runs" in output
     # by default runs are done again anyway: a warning
     result = batch()
@@ -1073,7 +1074,7 @@ class TestQaCli(unittest.TestCase):
     with tempfile.TemporaryDirectory() as tmp:
       # outside a project
       out = subprocess.run([str(qa), 'get', 'commit_id'], cwd=tmp, capture_output=True, encoding='utf-8')
-      self.assertIn('run `qa init`', out.stderr)
+      self.assertIn('`qa init` to start a new one', out.stderr)
       out_init = subprocess.run([str(qa), '--dryrun', 'init'], cwd=tmp, capture_output=True, encoding='utf-8')
       self.assertIn('Creating a `qaboard.yaml` configuration', out_init.stdout)
       for output in [out.stdout, out.stderr, out_init.stdout, out_init.stderr]:
