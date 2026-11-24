@@ -4,6 +4,7 @@ Tests for the files runs send over HTTP: backend/uploads.py, and its endpoints i
 import hashlib
 import importlib.util
 import io
+import logging
 import os
 import sys
 from pathlib import Path
@@ -864,10 +865,11 @@ def test_a_run_that_starts_again_during_an_upload_isnt_a_server_error(run_dir, m
   assert e.value.status == 409 and e.value.reason == "path_conflict" and "start again" in str(e.value)
 
 
-def test_put_logs_each_file(outputs_api, dummy_app, capsys):
+def test_put_logs_each_file(outputs_api, dummy_app, caplog):
   start(outputs_api, dummy_app)
-  put(outputs_api, dummy_app, "plots/a.png", b"data")
-  assert "[uploads] output 7: plots/a.png, 4 bytes in " in capsys.readouterr().out
+  with caplog.at_level(logging.DEBUG, logger="backend"):
+    put(outputs_api, dummy_app, "plots/a.png", b"data")
+  assert "Uploaded to output 7: plots/a.png, 4 bytes in " in caplog.text
 
 
 def test_stale_temporary_files_are_removed(run_dir, upload_root, tmp_path):

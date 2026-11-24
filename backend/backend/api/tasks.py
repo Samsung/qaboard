@@ -5,6 +5,7 @@ and stay live until it disconnects.
 This will be used by WebCDE to use celery as job scheduler to
 manage remote sessions.
 """
+import logging
 import time
 
 from celery.app.control import Inspect
@@ -13,6 +14,8 @@ from qaboard.runners.celery_app import app as celery_app, ssh_task
 from backend import app, db_session
 from ..audit import audit
 from .auth import login_required
+
+logger = logging.getLogger(__name__)
 
 
 # https://github.com/celery/celery/blob/main/celery/app/control.py#L340
@@ -31,7 +34,7 @@ def task_celery(id):
         if time.monotonic() > deadline:
             return "No Celery worker started the task within 2 minutes", 504
         time.sleep(1)
-    print(f"{result} {result.id} {result.status}")
+    logger.debug("Celery task %s: %s", result.id, result.status)
     statuses = inspector.query_task(result.id)
     for hostname, tasks_info in statuses.items():
         if result.id not in tasks_info:

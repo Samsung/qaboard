@@ -479,7 +479,7 @@ def test_failures_are_grouped_and_explained(export_api, tmp_path, monkeypatch):
   assert len(exported) == 1 and problems.count == 59 and problems.not_attempted == 0
 
 
-def test_failed_exports_are_reported_once(export_api, tmp_path, dummy_app, monkeypatch, capsys):
+def test_failed_exports_are_reported_once(export_api, tmp_path, dummy_app, monkeypatch, caplog):
   """Admins get the tracebacks in the logs and one Sentry event per export, users a reference to give them"""
   import types
   from contextlib import contextmanager
@@ -513,7 +513,7 @@ def test_failed_exports_are_reported_once(export_api, tmp_path, dummy_app, monke
   assert re.fullmatch(r'[0-9a-f]{12}', result['reference']) and [p['count'] for p in result['problems']] == [3]
   # no traceback for users
   assert 'Traceback' not in json_text(result)
-  logs = capsys.readouterr().out
+  logs = caplog.text
   assert f"export {result['reference']}: 3 files failed" in logs and 'Traceback' in logs and 'PermissionError' in logs
   assert len(events) == 1 and isinstance(events[0], PermissionError)
   assert scope.tags == {'export.reference': result['reference'], 'export.step': 'copy', 'export.by': 'user', 'export.error': 'EACCES'}

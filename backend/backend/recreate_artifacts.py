@@ -21,12 +21,15 @@ The CI job is expected to build and call `qa save-artifacts`, which tells QA-Boa
 Without `recreate_artifacts`, QA-Board can only restore the files from the source code (`git checkout && qa save-artifacts`),
 not build outputs like binaries.
 """
+import logging
 import re
 import datetime
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote, urlparse
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 
 KINDS = ('gitlabCI', 'jenkins', 'webhook')
@@ -170,7 +173,8 @@ def trigger(settings: Dict, ci_commit, user: Optional[Dict] = None) -> Dict:
     else:
       web_url = _trigger_webhook(fill(settings['webhook'], variables))
   except Exception as e:
-    print(f"[recreate-artifacts] {ci_commit}: {e}")
+    # not the message: a webhook's URL can have a token
+    logger.warning("Could not recreate the artifacts of %s: %s", ci_commit, type(e).__name__)
     return {**recreation, "status": "failed", "error": str(e)}
   return {**recreation, "status": "triggered", "web_url": web_url}
 
