@@ -1,6 +1,7 @@
 """
 What the commit page and the history page get about runs: /api/v1/commit/<id> and /api/v1/commits?with_outputs=true.
 Outputs are serialized from SQL rows (models/Output.py outputs_of_batches), like Output.to_dict() does from ORM objects.
+The commit page polls while runs wait: an ETag tells it when nothing changed.
 """
 from .test_ingest import PROJECT, SHA, send
 
@@ -69,3 +70,23 @@ def test_commits_without_outputs_have_none(client):
   assert response.get_json()['batches']['default']['outputs'] == {}
   response = client.get(f'/api/v1/commits?project={PROJECT}&with_outputs=true&from=2026-09-01T00:00:00.000Z&to=2026-10-02T00:00:00.000Z')
   assert response.get_json()[0]['batches']['default']['outputs'] == {}
+
+
+def test_commit_etag(client, monkeypatch, tmp_path):
+  send_runs(client, monkeypatch, tmp_path)
+  url = f'/api/v1/commit/{SHA}?project={PROJECT}'
+  first = client.get(url)
+  etag = first.headers['ETag']
+  assert etag.startswith('W/"') and first.headers['Cache-Control'] == 'private, no-cache'
+  # nothing changed: no body
+  again = client.get(url, headers={'If-None-Match': etag})
+  assert again.status_code == 304 and again.data == b'' and again.headers['ETag'] == etag
+  # nginx may send a strong ETag back, without W/
+  assert client.get(url, headers={'If-None-Match': etag[2:]}).status_code == 304
+  assert client.get(url, headers={'If-None-Match': 'W/"other"'}).status_code == 200
+  # a run ended
+  response = send(client, 'output', rel_input_path="inputs/b.txt", configurations=["base", {"threshold": 2}], metrics={"loss": 2.0})
+  assert response.status_code == 200
+  changed = client.get(url, headers={'If-None-Match': etag})
+  assert changed.status_code == 200 and changed.headers['ETag'] != etag
+  assert changed.get_json()['batches']['default']['pending_outputs'] == 0
