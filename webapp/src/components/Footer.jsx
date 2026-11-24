@@ -17,6 +17,11 @@ const Bar = styled.footer`
   border-top: 1px solid var(--qa-border);
   font-size: 12px;
 
+  /* a link in a sentence: not told apart by its color only */
+  > span a {
+    text-decoration: underline;
+  }
+
   nav {
     display: flex;
     flex-wrap: wrap;

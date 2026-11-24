@@ -615,6 +615,7 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
     >
       <HTMLSelect
         id="select-search-type"
+        aria-label="How to explore the parameters"
         value={search_type}
         onChange={update('search_type')}
         minimal
