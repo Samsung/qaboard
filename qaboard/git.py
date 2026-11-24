@@ -57,7 +57,8 @@ def latest_commit(reference: str) -> str:
     remotes = git_remotes()
     remote = remotes[-1] if remotes else None
     if len(remotes) > 1:
-      click.secho(f"WARNING: Multiple remotes found, defaulting to {remote}", fg='yellow')
+      from .ui import warning
+      warning(f"Several git remotes: qa uses {remote}.")
 
     if remote:
       p = subprocess.run(

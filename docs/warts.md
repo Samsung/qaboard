@@ -37,6 +37,21 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   `WEBSERVER_AUTO_CREATE_USER=False`). Check `/pgadmin4/` at SIRC: if it's refused, pin `dpage/pgadmin4:9.18` there
   or let pgAdmin create a webserver account that owns the server. Then pin the version, and set
   `WEBSERVER_SHARED_SECRET` (nginx sends it in `X-Pgadmin-Webserver-Secret`, services/nginx/snippets/pgadmin.conf). [S, no change]
+- **`scripts/dev.py` servers can be signed in to by others**: they listen on loopback only, but with fixed credentials
+  (admin `admin`/`qaboard-dev`, PostgreSQL `qaboard`/`password`) and without checking the `Host` header: other users of
+  a shared machine can sign in as admin, and so can a web page the developer opens, through DNS rebinding (the
+  backend counts the request's own Host as a same-origin one, `actor.own_origins`). Fine on a laptop or a container.
+  Next: a random admin password saved in `.dev/` (0600) and shown by `status`, and refusing Hosts other than
+  localhost/127.0.0.1 in the proxy and in flask (`TRUSTED_HOSTS`). [S, dev only]
+- **Logs the scrubber doesn't see**: `qa`'s handlers and the backend's (`qaboard.log_setup.ScrubSecrets`) filter
+  tokens, passwords in URLs and secret headers out of logging records, but many backend messages are still `print()`ed
+  with exceptions' text (`sign_in/`, `git_hosts/gitlab.py`, `git_hosts/committers.py`...), and uWSGI's request lines,
+  when `UWSGI_REQUEST_LOGS` is set, have query strings. Move the prints to `logger` (backend/CLAUDE.md). Note that
+  `UWSGI_REQUEST_LOGS=0` also turns those lines on (`if-not-env` only checks that it's set). [S]
+- **`json_typeof(jsonb)` in the `public` schema** (migration `d3f5b7c9e1a4`), for older versions' queries during a
+  rolling deploy or after a rollback. It doesn't shadow the built-in (other argument type), but on PostgreSQL < 15
+  every role can create functions in `public`: databases shared with other roles (e.g. a BI tool's) should
+  `REVOKE CREATE ON SCHEMA public FROM PUBLIC`. Drop the shim in a later migration once no older version runs. [S]
 
 ## Backend
 
@@ -73,17 +88,19 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - If `QABOARD_GIT_HOSTS` points to a file the kubernetes migration Job doesn't mount (it mounts none of the backend's
   `extraVolumes`), the setting is ignored with a warning: the Job succeeds, but migration d1a6c0f9e2b3 skips describing
   projects' git hosts (push webhooks describe them later). Mount the backend's extra volumes in the Job too. [S]
-- Logs (backend/logs.py): most modules still `print()` (api/integrations.py, api/tuning.py, clean.py, runner_jobs.py,
-  sign-in, git_utils.py, the scripts...): they reach `docker compose logs` without level, time or request id, and not
-  as JSON. Move them to `logging.getLogger(__name__)` when touching them. nginx neither sends the backend an
-  `X-Request-ID` nor logs the one the backend returns, so its access log and the backend's don't share ids yet
-  (`uwsgi_param HTTP_X_REQUEST_ID $request_id;`, and `$upstream_http_x_request_id` in its log format). [S]
-- `GET /api/v1/git/proxy` (api/integrations.py, the avatars from gravatar) answers 500 with a traceback when the
-  server can't reach the host (seen behind a proxy that blocks gravatar.com, with scripts/dev.py): a 502 or 404,
-  without logging a traceback, would do. [S]
 
 ## CLI
 
+- Tests and `qa`'s process-wide state: `qaboard.config` and `qaboard.qa` read the project when imported (the CLI tests
+  reload them), and a run keeps `qa._local_changes`, `_reporter`, `_system_metrics`, `api.results_refused` and
+  `auth._warnings_shown` (which also sets `QA_AUTH_WARNING_SHOWN` in `os.environ`) for the process. Tests that run `qa`
+  in-process patch each one they depend on; shuffled runs found two that didn't (`test_on_server.py`,
+  `test_system_metrics.py`, fixed in November 2026), and the next new global will break tests in some orders only. A
+  function that resets them all, called by the tests' `qa` helpers, would end the class of bug. [M, no change]
+- `.github/scripts/shuffled_tests.py` (random order, `--load`, and a check that the tests leave nothing in the
+  checkout) isn't in CI: one process, ~4 min on an idle machine, ~7 with `--load 4`. As a step of the `python` job, with
+  the seed printed, a new order dependency or a file written in `qaboard/sample_project` would fail the PR that adds
+  it. [S, no change]
 - Reruns' directories (qaboard/attempts.py): `qa batch` writes *latest_attempt.txt* when it reserves a new attempt
   (`reserve_or_keep`), before the job starts. While the job waits in a queue (LSF...), or for good if it never starts
   (batch killed, job lost), `latest_dir()` and its readers (`qa batch --list-output-dirs`, `qa get output_dir`,
@@ -100,14 +117,27 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
     have to skip only those where a run started, and two attempts queued at once must not move the pointer back.
   Tests need: a queued job (pointer still on the previous attempt, which `--list-output-dirs` gives), its start
   (pointer moves), a job that never starts, two batches submitting the same run. [M, behaviour]
+- Batches from a computer are named after the login on it (`@$USER| <label>`, `QA_USER` overrides, qa.py's
+  `batch_label`), not after the account `qa auth login` signed in to: a shared or root shell gives `@root| default`
+  while the run's `submitted_by` is the signed-in user. Using the token's user needs a `/auth/me` call before every
+  run and changes the folders runs are saved in (`{user}` in storage paths), so existing local batches would split.
+  Found by an agent integrating a project from the docs only (November 2026). [M, behaviour]
+- `qa batch 2> file`: the runs' lines (`{'rmse': ...}`, "Sent 8 files to QA-Board") are still colored, while `qa`'s
+  own lines aren't: the runs' `qa run` subprocesses decide colors for themselves, not from the parent's stderr
+  (`terminal.py`). [S, behaviour]
 - Internal names left in `qaboard/`: compat.py's `\\netapp\vol23_algo` -> `vol24_algo` rewrite of inputs' paths
   (`linux_to_windows`) is one site's: it belongs in its site package (like `QABOARD_PATH_MAPPINGS`), which needs a new
   site setting and a release of the site package before `qa` drops it. [S, behaviour]
 - Logs (qaboard/log_setup.py): `QA_VERBOSE` still prints with `click.secho` (or `print`) in api.py, config.py, analytics.py and
   qa.py (payloads, answers): move what is diagnostics to `logger.debug`. Config resolution happens on import of
-  qaboard/config.py, before `-v` is parsed: `qa -v` logs a summary of what it resolved, not each step. Requests that
-  don't go through http_client.py log only when they pass `hooks=LOG_HOOKS` (doctor.py, gate.py, optimize.py,
-  credentials.py, git_hosts.py, check_for_updates.py, runners/registry.py, runners/jenkins_windows.py don't yet). [S]
+  qaboard/config.py, before `-v` is parsed: `qa -v` logs a summary of what it resolved, not each step. [S]
+- Messages left out of qaboard/ui.py's style: the SDK's `[ERROR] The run failed.` (active_run.py, asserted by
+  tests/test_active_run.py), the `[qaboard] ...` lines that go to workers' and pods' logs (dask_runner.py,
+  batch_log.py, the Kubernetes runner's pod script), the output of `bkill`/`scancel`... that the LSF and dask runners'
+  `stop_jobs` print on stdout (the server calls them in-process), the integrations' own prefixes (`wandb: WARNING`),
+  site_config.py's warnings about secrets files (read when qaboard is imported) and sentry_utils.py's. [S, no change]
+- `qa batch --runner nope` ends with a KeyError traceback (runners/job.py `JobGroup.__post_init__`): it should be a
+  usage error that lists the runners (exit code 2). [S, behaviour]
 
 ## Runs created from code (`qaboard.start_run()`, November 2026)
 
@@ -463,12 +493,39 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
 
 ## Webapp
 
-- Under load (the full run on 4 cores takes ~7 minutes), tests that pass alone time out: `AppNavbar.test.jsx` ("with
-  the arrow keys, then Enter"), `ReferenceTabs.test.jsx` ("with one reference, users stack more", the 5 s test
-  timeout). Lazy components found with `findBy*` can need more than its default second (`loggedMedia.test.jsx`'s
-  histogram view). A longer `testTimeout` and `asyncUtilTimeout` for the whole suite, or fewer workers (CI: 4,
-  `maxWorkers` in `vite.config.js`). [S, no change]
+- Tests' order and load (November 2026, with shuffled runs: `npm test -- --run --sequence.shuffle --sequence.seed=N`,
+  and busy processes alongside). Fixed: `findBy*`/`waitFor` wait 5 s for the whole suite and tests 20 s
+  (`src/setupTests.js`, `vite.config.js`) instead of per-call timeouts; tests reset the module-level state that outlived
+  them (the milestone dialog, the list scope's fallbacks, the region providers). Left:
+  - Module-level state is behind every order bug found: stores created with zustand's `create()` outside the prefs
+    store (dialog hosts, session caches) and registries (`registerRegionProvider`). Each test has to reset what it
+    uses, and a new one breaks tests in some orders only. A helper that registers such stores, reset by an `afterEach`
+    in `setupTests.js`, would cover them all. [S, no change]
+  - CI runs each file's tests in their written order: an order dependency shows only to whoever shuffles. Shuffling in
+    CI (`sequence.shuffle`, the seed printed) would catch them in the PR that adds them. [S, no change]
+  - Sleeps on real timers that check something did *not* happen (500 ms in `ReferenceTabs.test.jsx`, 700 ms in
+    `forms.test.jsx`, 400 ms in `tokens.test.jsx`, `LazyPopover.test.jsx`...): they don't fail under load, but check
+    less, and add up. Fake timers would make them exact. `ReferenceTabs.test.jsx`'s `afterAll` waits 1 s for
+    Blueprint's popover delays, which aren't cleared when popovers unmount. [S, no change]
+  - `ParallelCoordinates.test.jsx` ("offers a menu per axis") failed once with 12 busy processes on 4 cores: "Hide",
+    clicked in a menu that was closing, did nothing. The test now opens the menu again for each step, but the failure
+    didn't reproduce in 12 runs before or after the change: the cause is likely, not proven. Other tests click in
+    Blueprint menus while they close. [S, no change]
+  - `SelectBatches.test.jsx` ("keeps the scroll position when the parent re-renders") failed under load: Blueprint's
+    first scroll to the selected batch came after the test's own re-render, and looked like the jump it tests. The test
+    now waits for that first scroll. But it doesn't fail with the bug put back (`items` with a new identity on each
+    render, in a way the React Compiler can't memoize): before or after this change, it guards nothing. It needs a
+    scroll that the re-render would undo, checked against the bug. [S, no change]
 
+- Found by an agent integrating a new project from the docs only (November 2026):
+  - The commit page's "This commit's artifacts are incomplete" warning (qaboard.yaml missing from the commit's
+    artifacts) shows on every commit of a project that never ran `qa save-artifacts`, as the biggest thing above the
+    metrics. It matters only to start runs from the web app: show it there, or as one muted line. [S, behaviour]
+  - The batch selector shows "root 🏠 root" for a user's `@root| default`: the label's user and the label both read as
+    the user name. [S, behaviour]
+  - Metrics without a noise level: sub-millisecond timings of unchanged code are colored as 20-40% regressions in the
+    Metrics Diff. Benchmarks have "within the reported spread"; a per-metric tolerance (`Metric(..., tolerance=)`,
+    metrics.yaml) would cover the rest, in the gate too. [M, API]
 - Several references together (the image viewer's default once two references are stacked, "One at a time | Together"
   after the reference tabs, November 2026): only the image viewer shows them; every other viewer (videos, plots, text,
   benchmarks, flame graphs...) and the metrics still compare with the selected reference only. [L, behaviour]
@@ -483,8 +540,6 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
 
 - **PostgreSQL 12 is EOL** (compose, production.yml): upgrade with dump/restore (known-issues.md). [M, behaviour]
 - **RabbitMQ 3 is EOL**: move to 4.x after `rabbitmqctl enable_feature_flag all` (known-issues.md). [S, behaviour]
-- **Python 3.14 for the backend image**: builds (November 2026); change `backend/.python-version`, the site-packages
-  path in `backend/Dockerfile` and CI's matrix together. [S, no change]
 - **Cantaloupe**: drop `services/cantaloupe/logback.xml` with 5.0.9. 5.0.6 fixed TurboJpegProcessor's 415 on
   non-JPEG output: check whether `ManualSelectionStrategy` in `cantaloupe.properties` is still needed (keep Java2d
   for JPEG: the pixel tooltip and diffs need exact values). [S, no change]
@@ -497,3 +552,10 @@ Pod Security, admission policies, Kueue/ResourceQuota) rather than re-implementi
   persists (pgAdmin sets itself up again when its container is recreated). Mounting it at `/var/lib/pgadmin` keeps
   admins' pgAdmin settings, but the entrypoint only loads servers.json and the passfile when it creates its database:
   a new `QABOARD_DB_PASSWORD` would then need the passfile copied again (website/docs/backend-admin/deployment.mdx). [S, behaviour]
+- **The demo data's storage usage is partial** (docs-media snapshots, the quickstarts' demo-data image): seed.py
+  starts the stack on an empty database, where the jobs worker runs its one "first start" rebuild of the storage
+  usage (backend/jobs/worker.py `defaults`); afterwards it only updates the commits with runs from the last hour, and
+  seeded runs are dated in the past. The snapshot keeps that job's row, so neither a restore nor the quickstart
+  rebuilds it: Storage usage shows a fraction of the demo's runs until the nightly rebuild. The storage/* shots start
+  a rebuild (`storageUsageReady` in docs-media/shots/demoState.ts). Fix: `snapshot.py save` rebuilds it, or leaves
+  out the storage_usage jobs' rows, before dumping the database (then reseed). [S, behaviour]

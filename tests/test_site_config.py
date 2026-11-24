@@ -110,9 +110,9 @@ class TestSiteConfigPath(unittest.TestCase):
     from unittest import mock
     from qaboard.site_config import site_qaboard_config
     for value in ('/does/not/exist.yaml', '{"linux": ', '{"other-platform": "/x"}'):
-      with mock.patch.dict(os.environ, {'QABOARD_SITE_CONFIG': value}), mock.patch('click.secho') as secho:
+      with mock.patch.dict(os.environ, {'QABOARD_SITE_CONFIG': value}), mock.patch('qaboard.ui.error') as error:
         self.assertEqual(site_qaboard_config(), {})
-      self.assertIn('ERROR', secho.call_args[0][0])
+      self.assertIn("Could not read the site's base qaboard.yaml", error.call_args[0][0])
 
 
 class TestSitePackages(unittest.TestCase):

@@ -88,7 +88,7 @@ done
 ```
 
 Reading needs the `qaboard` package (`pip install qaboard`) and, when the project isn't public, to be signed in:
-`qa auth login https://qaboard.example.com`, or a token in `QABOARD_TOKEN` (see [Authentication](#authentication)).
+`qa auth login --server https://qaboard.example.com`, or a token in `QABOARD_TOKEN` (see [Authentication](#authentication)).
 A token from the environment is only sent to the server `qa` is configured for, not to any server a pasted URL names.
 When the server is behind a path prefix like `https://tools.example.com/qaboard/`, pass `server=` (`--server`): the
 address alone can't say where the project's name starts.
@@ -226,7 +226,7 @@ Reading results doesn't need to be signed in, unless your server
 [requires it](/docs/backend-admin/user-management#blocking-anonymous-users) or the project isn't public. Adding
 metrics or files does, and so do some actions, like starting batches with `qa batch --commit`.
 
-- `qa` and `qaboard.runs()` use your login: run `qa auth login https://qaboard.example.com` once
+- `qa` and `qaboard.runs()` use your login: run `qa auth login --server https://qaboard.example.com` once
   (see [Sign in](/docs/installation#signing-in)).
 - In CI and scripts, set `QABOARD_TOKEN` to a token: create one in the web app, in **Settings → Access tokens**
   ([how](/docs/user-guide/account#access-tokens)), or use the one of `qa auth token`. Give it only the **scopes** it

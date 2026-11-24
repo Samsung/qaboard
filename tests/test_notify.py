@@ -1,6 +1,7 @@
 """
 Tests for QA_NOTIFY=email: when `qa batch` asks QA-Board for an email at the end of its runs.
 """
+import io
 import os
 import unittest
 from unittest import mock
@@ -21,9 +22,10 @@ class TestNotifyChannel(unittest.TestCase):
       self.assertIsNone(self.channel({'QA_NOTIFY': off}))
 
   def test_unknown_channels_warn(self):
-    with mock.patch('click.secho') as secho:
+    with mock.patch('sys.stderr', new_callable=io.StringIO) as stderr:
       self.assertIsNone(self.channel({'QA_NOTIFY': 'slack'}))
-    self.assertIn('QA_NOTIFY=slack', secho.call_args.args[0])
+    self.assertIn('warning: QA_NOTIFY=slack is not supported', stderr.getvalue())
+    self.assertIn('hint: Use QA_NOTIFY=email', stderr.getvalue())
 
   def test_never_in_ci_nested_or_from_qaboard(self):
     environ = {'QA_NOTIFY': 'email'}
@@ -71,13 +73,16 @@ class TestRunnersForwardTheRootCommand(unittest.TestCase):
 class TestPrintNotification(unittest.TestCase):
   def test_print(self):
     from qaboard.notify import print_notification
-    with mock.patch('click.secho') as secho:
+    with mock.patch('sys.stderr', new_callable=io.StringIO) as stderr:
       print_notification(None)
-      secho.assert_not_called()
+      self.assertEqual(stderr.getvalue(), '')
       print_notification({'channel': 'email', 'recipient': 'jdoe@example.com'})
-      self.assertIn('jdoe@example.com', secho.call_args.args[0])
-      print_notification({'error': "This QA-Board server can't send emails."})
-      self.assertIn("can't send emails", secho.call_args.args[0])
+      self.assertIn('jdoe@example.com', stderr.getvalue())
+      # emails are on by default: not a warning on every batch for those who didn't ask
+      print_notification({'error': "This QA-Board server can't send emails."}, environ={})
+      self.assertNotIn("can't send emails", stderr.getvalue())
+      print_notification({'error': "This QA-Board server can't send emails."}, environ={'QA_NOTIFY': 'email'})
+      self.assertIn("warning: QA-Board won't notify you (QA_NOTIFY): This QA-Board server can't send emails.", stderr.getvalue())
 
 
 if __name__ == '__main__':

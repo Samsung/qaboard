@@ -46,6 +46,15 @@ class QaTestCase(ActiveRunTestCase):
     return subprocess.run([sys.executable, '-m', 'qaboard', *args], cwd=cwd or self.work, env=environ, capture_output=True, text=True, timeout=120)
 
 
+class TestReadMetrics(unittest.TestCase):
+  def test_a_report_and_its_rerun_count_each_test_once(self):
+    from qaboard.upload_command import read_metrics
+    fixtures = Path(__file__).parent / 'fixtures' / 'junit'
+    expected = json.loads((fixtures / 'merged.expected.json').read_text())
+    metrics = read_metrics({name: fixtures / name for name in expected['reports']})
+    self.assertEqual({key: float(metrics[key]) for key in expected['metrics']}, expected['metrics'])
+
+
 class TestUpload(QaTestCase):
   def test_a_test_report_from_a_ci_job_without_a_project(self):
     server = self.server()
@@ -215,7 +224,8 @@ class TestUpload(QaTestCase):
 
   def test_several_reports_add_up_and_benchmarks_are_metrics(self):
     server = self.server()
-    (self.work / 'TEST-b.xml').write_text(REPORT)
+    # another class's tests (Maven writes a file per class): they add up
+    (self.work / 'TEST-b.xml').write_text(REPORT.replace('tests.codec', 'tests.maps'))
     benchmarks = (ROOT / 'tests/fixtures/benchmarks/pytest-benchmark.json').read_bytes()
     (self.work / 'pytest.benchmarks.json').write_bytes(benchmarks)
     result = self.qa('upload', 'junit.xml', 'TEST-b.xml', 'pytest.benchmarks.json', server=server)

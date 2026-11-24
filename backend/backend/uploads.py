@@ -26,6 +26,7 @@ shared storage (backend/artifacts.py), and pods without that storage fetch them 
 
 Docs: website/docs/backend-admin/uploads.mdx. API: upload_output_file and new_output_webhook in backend/api/outputs.py.
 """
+import logging
 import fcntl
 import hashlib
 import os
@@ -40,6 +41,8 @@ from qaboard.conventions import make_hash, slugify_hash, Reason
 
 from . import config, locations
 from .storage import check_inside, UnsafePathError
+
+logger = logging.getLogger(__name__)
 
 # Between a project's folder and its runs'
 RUNS_FOLDER = '-'
@@ -175,7 +178,7 @@ def unchecked_by_proxy(environ: dict) -> Optional[UploadError]:
   """
   if 'uwsgi.version' not in environ or environ.get('QABOARD_UPLOAD_CHECKED') == '1':
     return None
-  print(f"ERROR: nginx sent {environ.get('PATH_INFO')} without checking its token first: its configuration needs `include snippets/qaboard-files-server.conf;` in the server, and `include snippets/qaboard-uploads-auth.conf;` in this location")
+  logger.error("nginx sent %s without checking its token first: its configuration needs `include snippets/qaboard-files-server.conf;` in the server, and `include snippets/qaboard-uploads-auth.conf;` in this location", environ.get('PATH_INFO'))
   return UploadError(500, "The server's proxy doesn't check tokens before receiving files, so the server refuses them: its nginx configuration needs `include snippets/qaboard-files-server.conf;` in the server, and `include snippets/qaboard-uploads-auth.conf;` where files are sent. Tell your QA-Board admins.", Reason.PROXY_MISCONFIGURED)
 
 

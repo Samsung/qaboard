@@ -2,6 +2,7 @@
 import { execFileSync } from 'node:child_process';
 import { expect, test, type Page } from '@playwright/test';
 import { demo } from './demo';
+import { ADMIN, apiAs, storageUsageReady } from '../demoState';
 
 // The web app's stacks (webapp/src/App.css, Blueprint) and the fonts they must resolve to, with docs-media/fonts.conf
 const APP_SANS = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif';
@@ -19,6 +20,18 @@ test('demo facts and stack', async ({ request }) => {
     const response = await request.get(`${d.baseUrl}/api/v1/health`, { timeout: 5_000 });
     expect(response.ok()).toBeTruthy();
   }).toPass({ timeout: 60_000 });
+});
+
+// The storage usage, rebuilt once before any capture (storageUsageReady): the shots that show it (storage/*, and the
+// home page's storage card in projects/home) see the same usage in light and dark, whichever runs first.
+test('storage usage', async () => {
+  test.setTimeout(330_000);
+  const admin = await apiAs(demo(), ADMIN);
+  try {
+    await storageUsageReady(admin);
+  } finally {
+    await admin.dispose();
+  }
 });
 
 async function platformFonts(page: Page, family: string, text: string) {

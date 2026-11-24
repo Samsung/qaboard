@@ -1,6 +1,10 @@
 // cd webapp && npm test -- CommitsTrends
 import { describe, expect, it } from 'vitest';
-import { pointsOf } from '../CommitsTrends';
+import fs from 'node:fs';
+import path from 'node:path';
+import { configurationOf, pointsOf, reportOfRun } from '../CommitsTrends';
+import { parseJunit } from '../viewers/junit/parse';
+import { buildTestHistory, mergeReports } from '../trends/testHistory';
 import { aggregation_metrics } from '../hooks';
 import { normalize_commit } from '../api/normalize';
 import { trendsOf, hasTrends, AGGREGATIONS, INTENTS } from '../trends/model';
@@ -47,9 +51,45 @@ describe('commits as points', () => {
     expect(pointsOf([listed], { project: 'p' })).toEqual([]);
   });
 
+  it('names the configuration of each run', () => {
+    const outputs = {
+      1: { test_input_path: 'codec', configurations: ['default'], metrics: { tests: 5 } },
+      2: { test_input_path: 'codec', configurations: ['strict', { opt: 2 }], extra_parameters: { seed: 1 }, metrics: { tests: 5 } },
+      3: { test_input_path: 'maps', metrics: { tests: 5 } },
+    };
+    const [point] = pointsOf([commit('aaaaaaaaaaaa', '2026-11-01T10:00:00+00:00', { outputs })], { project: 'p', with_runs: true });
+    expect(point.runs.map(run => run.configuration)).toEqual(['default', 'strict {"opt":2} {"seed":1}', '']);
+    expect(configurationOf({})).toBe('');
+  });
+
   it('orders commits by date, whatever their time zone', () => {
     const commits = [commit('aaaaaaaaaaaa', '2026-11-01T12:00:00+02:00', {}), commit('bbbbbbbbbbbb', '2026-11-01T09:00:00-05:00', {})];
     expect(pointsOf(commits, { project: 'p' }).map(p => p.label)).toEqual(['aaaaaaaa', 'bbbbbbbb']);
+  });
+});
+
+describe('the test reports of a commit', () => {
+  const read = name => parseJunit(fs.readFileSync(path.join(import.meta.dirname, '../../../tests/fixtures/junit', name), 'utf-8')).tests;
+  const report = read('junit.xml'), rerun = read('rerun.junit.xml');
+
+  it('count the tests of a report and of its re-run once, like qa upload', () => {
+    const { name, tests } = reportOfRun({ name: 'codec', configuration: 'default' }, [report, rerun]);
+    expect(name).toBe('codec (default)');
+    expect(tests).toHaveLength(7);
+    expect(tests.filter(t => t.status === 'flaky')).toHaveLength(2);
+    expect(reportOfRun({ name: 'codec', configuration: '' }, [])).toBe(null);
+  });
+
+  it('keep runs in different configurations apart', () => {
+    const default_ = reportOfRun({ name: 'codec', configuration: 'default' }, [report, rerun]);
+    const strict = reportOfRun({ name: 'codec', configuration: 'strict' }, [report]);
+    const [tests] = mergeReports([[default_, strict]]);
+    expect(tests).toHaveLength(14);
+    const history = buildTestHistory([tests]);
+    expect(history.tests.filter(t => t.failing_since !== null).map(t => t.id)).toEqual([
+      'codec (default)::tests.codec.test_varint::test_still_fails', 'codec (default)::tests.client.test_retry::test_error_then_fails', 'codec (default)::tests.client.test_retry::test_not_run_again',
+      'codec (strict)::tests.codec.test_varint::test_passes_alone', 'codec (strict)::tests.codec.test_varint::test_still_fails', 'codec (strict)::tests.client.test_retry::test_error_then_fails', 'codec (strict)::tests.client.test_retry::test_not_run_again',
+    ]);
   });
 });
 

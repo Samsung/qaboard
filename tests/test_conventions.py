@@ -6,14 +6,15 @@ import unittest
 
 import os
 from pathlib import Path
+from unittest import mock
 
 class TestConventions(unittest.TestCase):
   def test_location_spec(self):
     from qaboard.conventions import location_from_spec
     self.assertEqual(location_from_spec({"linux": "/mnt/qaboard"}), Path("/mnt/qaboard"))
     self.assertEqual(location_from_spec("/mnt/qaboard"), Path("/mnt/qaboard"))
-    os.environ['XXXXX'] = "user"
-    self.assertEqual(location_from_spec("/mnt/${XXXXX}"), Path("/mnt/user"))
+    with mock.patch.dict(os.environ, {'XXXXX': 'user'}):
+      self.assertEqual(location_from_spec("/mnt/${XXXXX}"), Path("/mnt/user"))
     self.assertEqual(location_from_spec("/mnt/{subproject.parts[0]}", {"subproject": Path("x/y")}), Path("/mnt/x"))
     self.assertEqual(location_from_spec("/mnt/{subproject_parts[0]}", {"subproject_parts": ["x","y"]}), Path("/mnt/x"))
     self.assertEqual(location_from_spec("/mnt/{subproject.name}", {"subproject": Path("x/y")}), Path("/mnt/y"))

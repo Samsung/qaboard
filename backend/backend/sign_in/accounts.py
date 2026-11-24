@@ -2,12 +2,15 @@
 What every sign-in does, whatever the provider: find or create the account (per the access policy), record the identity,
 open the session, audit. Pending users get a session too: they see the page that says they wait for an admin.
 """
+import logging
 from typing import Optional
 
 from ..tokens import utcnow
 from . import identities, sessions
 from .access import initial_status, request_access
 from .oidc import SignInError
+
+logger = logging.getLogger(__name__)
 
 
 def finish(user, provider_id: str, subject: Optional[str] = None, email: Optional[str] = None, claims: Optional[dict] = None,
@@ -26,7 +29,7 @@ def finish(user, provider_id: str, subject: Optional[str] = None, email: Optiona
       groups = sync_groups(user, provider_id, claims).groups
   except Exception as e:
     # a sign-in never fails because of groups: the memberships stay as they were
-    print(f"[sign-in] WARNING: could not update the groups of {user.user_name}: {type(e).__name__}: {e}")
+    logger.warning("Could not update the groups of %s: %s: %s", user.user_name, type(e).__name__, e)
     groups = None
   audit('auth.login', 'user', user.id, user.user_name, user=user, meta={
     "provider": provider_id, **({"pending": True} if user.status == 'pending' else {}),

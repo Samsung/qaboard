@@ -193,7 +193,7 @@ class TestLsfConcurrency(unittest.TestCase):
     def run(command, **kwargs):
       commands.append(command)
       return subprocess.CompletedProcess(command, returncode if 'bwait' in command else 0, stdout='', stderr='')
-    with mock.patch('qaboard.runners.lsf.subprocess.run', run), has_bsub(), mock.patch('signal.signal'), mock.patch('qaboard.runners.lsf.time.sleep'), mock.patch('qaboard.runners.lsf.secho'):
+    with mock.patch('qaboard.runners.lsf.subprocess.run', run), has_bsub(), mock.patch('signal.signal'), mock.patch('qaboard.runners.lsf.time.sleep'), mock.patch('qaboard.runners.lsf.ui'):
       LsfRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=True)
     return commands
 
@@ -212,7 +212,7 @@ class TestLsfConcurrency(unittest.TestCase):
     from qaboard.runners.lsf import LsfRunner, LsfOptions
     with self.assertRaisesRegex(Exception, 'Failed to wait'):
       self.start_blocking(1, returncode=255)
-    with mock.patch('qaboard.runners.lsf.subprocess.run', return_value=subprocess.CompletedProcess('', 255)) as run, mock.patch('qaboard.runners.lsf.time.sleep'), mock.patch('qaboard.runners.lsf.secho'):
+    with mock.patch('qaboard.runners.lsf.subprocess.run', return_value=subprocess.CompletedProcess('', 255)) as run, mock.patch('qaboard.runners.lsf.time.sleep'), mock.patch('qaboard.runners.lsf.ui'):
       with self.assertRaises(Exception):
         LsfRunner.wait_jobs('abcdefgh', LsfOptions())
     self.assertEqual(run.call_count, 3)
@@ -224,7 +224,7 @@ class TestLsfConcurrency(unittest.TestCase):
     jobs = make_jobs('lsf', ['a', 'b', 'c'], Path(tmp.name), queue='q', concurrency=1)
     jobs += make_jobs('lsf', ['d', 'e'], Path(tmp.name) / 'big', queue='q', concurrency=1, max_memory=1000)
     bsub = FakeBsub()
-    with mock.patch('qaboard.runners.lsf.subprocess.run', bsub), has_bsub(), mock.patch('qaboard.runners.lsf.secho'):
+    with mock.patch('qaboard.runners.lsf.subprocess.run', bsub), has_bsub(), mock.patch('qaboard.runners.lsf.ui'):
       LsfRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
     self.assertEqual(len(bsub.commands), 2)
     self.assertRegex(bsub.names()[0], r'\[1-3\]%1$')
@@ -457,6 +457,24 @@ class TestJobGroups(unittest.TestCase):
     self.assertEqual((notify.call_args.kwargs['is_pending'], notify.call_args.kwargs['is_failed']), (False, False))
 
 
+class TestLocalRunsUseThisQa(unittest.TestCase):
+  """`.venv/bin/qa batch` (or `uv run qa batch`) without the venv on the PATH: the runs' `qa run` is the same qa"""
+  def test_path(self):
+    from unittest import mock
+    from qaboard.runners.local import env_with_this_qa
+    with tempfile.TemporaryDirectory() as tmp:
+      bin_dir = Path(tmp)
+      python = bin_dir / 'python'
+      with mock.patch.object(sys, 'executable', str(python)):
+        # no qa next to this Python: nothing changes
+        self.assertIsNone(env_with_this_qa({'PATH': '/usr/bin'}))
+        (bin_dir / ('qa.exe' if os.name == 'nt' else 'qa')).touch()
+        self.assertEqual(env_with_this_qa({'PATH': '/usr/bin', 'X': '1'}), {'PATH': os.pathsep.join([str(bin_dir), '/usr/bin']), 'X': '1'})
+        self.assertEqual(env_with_this_qa({})['PATH'], str(bin_dir))
+        # already first
+        self.assertIsNone(env_with_this_qa({'PATH': os.pathsep.join([str(bin_dir), '/usr/bin'])}))
+
+
 class TestBuildPowershellEnv(unittest.TestCase):
   def env_lines(self, **context_env):
     from qaboard.runners.jenkins_windows import build_powershell_env
@@ -490,11 +508,11 @@ class TestBuildPowershellEnv(unittest.TestCase):
 
   def test_prepend_path_ignores_custom_path(self):
     # a regular PATH key would overwrite the prepended value since it's rendered after
-    from qaboard.runners.jenkins_windows import secho
-    with mock.patch('qaboard.runners.jenkins_windows.secho') as secho:
+    import qaboard.runners.jenkins_windows  # noqa: F401
+    with mock.patch('qaboard.runners.jenkins_windows.ui') as secho:
       lines = self.env_lines(prepend_path='C:\\tools', PATH='C:\\evil')
     self.assertEqual(lines, ["$Env:PATH = 'C:\\tools;' + $env:PATH"])
-    self.assertTrue(any('PATH' in str(call) for call in secho.call_args_list))
+    self.assertTrue(any('PATH' in str(call) for call in secho.mock_calls))
 
   def test_prepend_path_falsy_is_ignored(self):
     self.assertEqual(self.env_lines(prepend_path=None), [])
@@ -569,10 +587,10 @@ class TestJenkinsWindowsRunner(unittest.TestCase):
   def test_invalid_env_error_action_falls_back(self):
     os.environ['QA_RUNNER_ERROR_ACTION'] = 'Bogus'
     self.addCleanup(os.environ.pop, 'QA_RUNNER_ERROR_ACTION', None)
-    with mock.patch('qaboard.runners.jenkins_windows.secho') as secho:
+    with mock.patch('qaboard.runners.jenkins_windows.ui') as secho:
       content = self.run_ps1()
     self.assertIn('$ErrorActionPreference = "Stop"', content)
-    self.assertTrue(any('Bogus' in str(c) for c in secho.call_args_list))
+    self.assertTrue(any('Bogus' in str(c) for c in secho.mock_calls))
 
   def test_context_without_job_options_attribute(self):
     # regression: external callers (e.g. CI scripts) may pass a duck-typed
@@ -646,26 +664,26 @@ class TestJenkinsPolling(unittest.TestCase):
       self.assertEqual(self.resolve(timeout_seconds=100, interval_seconds=5), (100, 5))
 
   def test_invalid_env_falls_back_to_defaults(self):
-    from qaboard.runners.jenkins_windows import secho
-    with mock.patch.dict(os.environ, {'QA_JENKINS_TIMEOUT': 'two hours', 'QA_JENKINS_STATUS_INTERVAL': ''}), mock.patch('qaboard.runners.jenkins_windows.secho') as secho:
+    import qaboard.runners.jenkins_windows  # noqa: F401
+    with mock.patch.dict(os.environ, {'QA_JENKINS_TIMEOUT': 'two hours', 'QA_JENKINS_STATUS_INTERVAL': ''}), mock.patch('qaboard.runners.jenkins_windows.ui') as secho:
       self.assertEqual(self.resolve(), (2 * 60 * 60, 30))
-    self.assertTrue(any('QA_JENKINS_TIMEOUT' in str(call) for call in secho.call_args_list))
+    self.assertTrue(any('QA_JENKINS_TIMEOUT' in str(call) for call in secho.mock_calls))
 
   def test_inf_env_falls_back_to_defaults(self):
     # int(float('inf')) raises OverflowError (not ValueError): it must be caught, falling back with a warning
-    from qaboard.runners.jenkins_windows import secho
-    with mock.patch.dict(os.environ, {'QA_JENKINS_TIMEOUT': 'inf', 'QA_JENKINS_STATUS_INTERVAL': 'nan'}), mock.patch('qaboard.runners.jenkins_windows.secho') as secho:
+    import qaboard.runners.jenkins_windows  # noqa: F401
+    with mock.patch.dict(os.environ, {'QA_JENKINS_TIMEOUT': 'inf', 'QA_JENKINS_STATUS_INTERVAL': 'nan'}), mock.patch('qaboard.runners.jenkins_windows.ui') as secho:
       self.assertEqual(self.resolve(), (2 * 60 * 60, 30))
-    self.assertTrue(any('QA_JENKINS_TIMEOUT' in str(call) for call in secho.call_args_list))
+    self.assertTrue(any('QA_JENKINS_TIMEOUT' in str(call) for call in secho.mock_calls))
 
   def test_inf_param_falls_back_to_defaults(self):
-    from qaboard.runners.jenkins_windows import secho
-    with mock.patch('qaboard.runners.jenkins_windows.secho') as secho:
+    import qaboard.runners.jenkins_windows  # noqa: F401
+    with mock.patch('qaboard.runners.jenkins_windows.ui') as secho:
       self.assertEqual(self.resolve(timeout_seconds=float('inf')), (2 * 60 * 60, 30))
-    self.assertTrue(any('timeout_seconds' in str(call) for call in secho.call_args_list))
+    self.assertTrue(any('timeout_seconds' in str(call) for call in secho.mock_calls))
 
   def test_fractional_values_are_truncated_to_ints(self):
-    with mock.patch('qaboard.runners.jenkins_windows.secho'):
+    with mock.patch('qaboard.runners.jenkins_windows.ui'):
       self.assertEqual(self.resolve(timeout_seconds=30.9, interval_seconds=10.2), (30, 10))
       # a positive fraction below 1 truncates to 0, which is invalid and falls back to the default
       self.assertEqual(self.resolve(interval_seconds=0.5), (2 * 60 * 60, 30))
@@ -685,9 +703,9 @@ class TestJenkinsPolling(unittest.TestCase):
     from qaboard.runners.jenkins_windows import poll_jenkins_status
     with mock.patch('qaboard.runners.jenkins_windows.build_status', side_effect=['running', 'BLOCKED', 'success']), \
          mock.patch('qaboard.runners.jenkins_windows.time.sleep'), \
-         mock.patch('qaboard.runners.jenkins_windows.secho') as secho:
+         mock.patch('qaboard.runners.jenkins_windows.ui') as secho:
       self.assertTrue(poll_jenkins_status({'url': 'http://jenkins/job/1/'}))
-    secho_messages = [call[0][0] for call in secho.call_args_list]
+    secho_messages = [call.args[0] for call in secho.mock_calls]
     self.assertTrue(any('status: BLOCKED' in message for message in secho_messages))
     self.assertTrue(any('finished with status: success' in message for message in secho_messages))
 
@@ -698,7 +716,7 @@ class TestJenkinsPolling(unittest.TestCase):
     with mock.patch('qaboard.runners.jenkins_windows.build_status', side_effect=lambda _: next(remaining, statuses[-1])) as build_status, \
          mock.patch('qaboard.runners.jenkins_windows.time.sleep'), \
          mock.patch('qaboard.runners.jenkins_windows.print_log') as print_log, \
-         mock.patch('qaboard.runners.jenkins_windows.secho') as secho:
+         mock.patch('qaboard.runners.jenkins_windows.ui') as secho:
       raised = None
       try:
         wait_for_build({'web_url': 'http://jenkins/job/1/', 'url': 'http://jenkins/job/1/'}, should_print_log)
@@ -719,14 +737,14 @@ class TestJenkinsPolling(unittest.TestCase):
   def test_wait_for_build_failure_raises_with_error_messages(self):
     build_status, print_log, secho, raised = self.wait_for(['running', 'failed'])
     self.assertIsNotNone(raised)
-    messages = [str(call) for call in secho.call_args_list]
-    self.assertTrue(any('[ERROR] There was an issue while waiting for the end of:' in m for m in messages))
-    self.assertTrue(any('The job is marked as: failed' in m for m in messages))
+    messages = [str(call) for call in secho.mock_calls]
+    self.assertTrue(any('The Jenkins job ended with status failed: http://jenkins/job/1/' in m for m in messages))
+    self.assertIn('call.error(', ' '.join(messages))
 
   def test_wait_for_build_success_prints_no_error(self):
     build_status, print_log, secho, raised = self.wait_for(['success'])
     self.assertIsNone(raised)
-    self.assertFalse(any('[ERROR]' in str(call) for call in secho.call_args_list))
+    self.assertFalse(any('error' in str(call) for call in secho.mock_calls))
 
   def test_wait_for_build_does_not_poll_again_after_the_loop(self):
     # regression: wait_for_build used to call build_status once more after the poll loop ended
@@ -734,30 +752,30 @@ class TestJenkinsPolling(unittest.TestCase):
     self.assertEqual(build_status.call_count, 2)
 
   def test_invalid_interval_env_warns(self):
-    from qaboard.runners.jenkins_windows import secho
-    with mock.patch.dict(os.environ, {'QA_JENKINS_STATUS_INTERVAL': 'nan'}), mock.patch('qaboard.runners.jenkins_windows.secho') as secho:
+    import qaboard.runners.jenkins_windows  # noqa: F401
+    with mock.patch.dict(os.environ, {'QA_JENKINS_STATUS_INTERVAL': 'nan'}), mock.patch('qaboard.runners.jenkins_windows.ui') as secho:
       self.assertEqual(self.resolve(), (2 * 60 * 60, 30))
-    self.assertTrue(any('QA_JENKINS_STATUS_INTERVAL' in str(call) for call in secho.call_args_list))
+    self.assertTrue(any('QA_JENKINS_STATUS_INTERVAL' in str(call) for call in secho.mock_calls))
 
   def test_non_positive_env_falls_back(self):
-    from qaboard.runners.jenkins_windows import secho
-    with mock.patch.dict(os.environ, {'QA_JENKINS_TIMEOUT': '0'}), mock.patch('qaboard.runners.jenkins_windows.secho') as secho:
+    import qaboard.runners.jenkins_windows  # noqa: F401
+    with mock.patch.dict(os.environ, {'QA_JENKINS_TIMEOUT': '0'}), mock.patch('qaboard.runners.jenkins_windows.ui') as secho:
       self.assertEqual(self.resolve(), (2 * 60 * 60, 30))
-    self.assertTrue(any('QA_JENKINS_TIMEOUT' in str(call) for call in secho.call_args_list))
+    self.assertTrue(any('QA_JENKINS_TIMEOUT' in str(call) for call in secho.mock_calls))
 
   def test_non_positive_params_fall_back(self):
-    from qaboard.runners.jenkins_windows import secho
-    with mock.patch('qaboard.runners.jenkins_windows.secho') as secho:
+    import qaboard.runners.jenkins_windows  # noqa: F401
+    with mock.patch('qaboard.runners.jenkins_windows.ui') as secho:
       self.assertEqual(self.resolve(timeout_seconds=0, interval_seconds=-5), (2 * 60 * 60, 30))
-    messages = [str(call) for call in secho.call_args_list]
+    messages = [str(call) for call in secho.mock_calls]
     self.assertTrue(any('timeout_seconds' in m for m in messages))
     self.assertTrue(any('interval_seconds' in m for m in messages))
 
   def test_non_numeric_params_fall_back(self):
-    from qaboard.runners.jenkins_windows import secho
-    with mock.patch('qaboard.runners.jenkins_windows.secho') as secho:
+    import qaboard.runners.jenkins_windows  # noqa: F401
+    with mock.patch('qaboard.runners.jenkins_windows.ui') as secho:
       self.assertEqual(self.resolve(timeout_seconds='two hours'), (2 * 60 * 60, 30))
-    self.assertTrue(any('timeout_seconds' in str(call) for call in secho.call_args_list))
+    self.assertTrue(any('timeout_seconds' in str(call) for call in secho.mock_calls))
 
 
 try:
@@ -981,7 +999,7 @@ class TestDaskRunner(unittest.TestCase):
     from qaboard.runners.dask_runner import DaskRunner
     jobs = make_jobs('dask', [f'echo run-{i}' for i in range(3)], self.root, scheduler_address=self.cluster.scheduler_address, concurrency=1)
     with mock.patch.dict(os.environ, {'QA_RUNNERS_LSF_BRIDGE': ''}), mock.patch('qaboard.runners.dask_runner.shutil.which', return_value=None), \
-         mock.patch('qaboard.runners.lsf.subprocess.run') as run, mock.patch('qaboard.runners.dask_runner.secho'):
+         mock.patch('qaboard.runners.lsf.subprocess.run') as run, mock.patch('qaboard.runners.dask_runner.ui'):
       DaskRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
     run.assert_not_called()
     logs = [job.run_context.output_dir / 'log.dask.txt' for job in jobs]

@@ -2,6 +2,7 @@
 CI jobs without stored secrets (backend/ci_trust.py): service accounts list the CI jobs they trust, and those jobs
 exchange their OIDC ID token for a short-lived token of the account.
 """
+import logging
 from flask import request, jsonify, g
 
 from backend import app, db_session
@@ -10,6 +11,8 @@ from .. import service_accounts as accounts
 from .auth import session_required
 from .service_accounts import managed_account, error
 from .tokens import public_url
+
+logger = logging.getLogger(__name__)
 
 
 @app.route('/api/v1/service-accounts/<int:account_id>/ci-trust', methods=['POST'])
@@ -45,7 +48,7 @@ def delete_ci_trust(account_id, policy_id):
 
 def oauth_error(e: ci_trust.CiTrustError):
   # admins debug refusals from the log: the token itself is never written
-  print(f"[ci-trust] refused a token exchange ({e.status}): {e.message}{f' ({e.detail})' if e.detail else ''}")
+  logger.info("Refused a CI token exchange (%s): %s%s", e.status, e.message, f" ({e.detail})" if e.detail else '')
   return jsonify({"error": e.code, "error_description": e.message}), e.status
 
 

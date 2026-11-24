@@ -1,0 +1,14 @@
+{
+  "_": "junit.xml and rerun.junit.xml (its failed tests, run again) read as one run's tests, by qaboard/junit.py (merge_reports, tests/test_junit.py) and webapp/src/viewers/junit/parse.js (mergeJunitReports, webapp/src/viewers/__tests__/junit.test.js). A test in both is one test: flaky when it failed in one and passed in the other, with the time of its first report.",
+  "reports": ["junit.xml", "rerun.junit.xml"],
+  "tests": [
+    {"id": "tests.codec.test_crc::test_known", "status": "passed", "time": 0.01},
+    {"id": "tests.codec.test_crc::test_marked_flaky", "status": "flaky", "time": 0.2},
+    {"id": "tests.codec.test_varint::test_passes_alone", "status": "flaky", "time": 0.3},
+    {"id": "tests.codec.test_varint::test_still_fails", "status": "failed", "time": 0.4},
+    {"id": "tests.client.test_retry::test_error_then_fails", "status": "failed", "time": 0.5},
+    {"id": "tests.client.test_retry::test_skipped", "status": "skipped", "time": 0},
+    {"id": "tests.client.test_retry::test_not_run_again", "status": "failed", "time": 0.05}
+  ],
+  "metrics": {"tests": 7, "passed": 1, "failed": 3, "errors": 0, "skipped": 1, "flaky": 2}
+}

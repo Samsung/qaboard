@@ -10,6 +10,8 @@ import click
 from contextlib import nullcontext
 from click.testing import CliRunner
 
+from tests.sample_project import forget_runs, sample_project_class_fixture
+
 os.environ['QA_TESTING'] = 'true'
 
 
@@ -24,30 +26,20 @@ def mock_environ(**env):
 
 class TestQaCli(unittest.TestCase):
   @classmethod
-  def setUpClass(self):
-    self.previous_cwd = os.getcwd()
-    root_repo = Path(__file__).resolve().parent.parent
-    self.project_dir = root_repo / 'qaboard/sample_project'
-    os.chdir(self.project_dir)
+  def setUpClass(cls):
+    # a copy of qaboard/sample_project, committed in a git repository of its own, with a storage next to it
     database = str(Path())
     images = {'images': {
       "globs": ['*.jpg'],
       "inputs": ['cli_tests'],
-      "database": {"linux": database, "windows": database} 
+      "database": {"linux": database, "windows": database},
       }
     }
-    # TODO: use a temp file?
-    with Path('image.batches.yaml').open('w') as f:
-      f.write(yaml.dump(images))
-    os.environ['QA_DATABASE'] = database
-    os.environ['QA_OFFLINE'] = 'true'
-    os.environ['QA_STORAGE'] = str(root_repo.resolve())
-
-  @classmethod
-  def tearDownClass(self):
-    os.chdir(self.previous_cwd)
+    files = {'image.batches.yaml': yaml.dump(images)}
+    cls.project_dir = sample_project_class_fixture(cls, files, QA_DATABASE=database, QA_OFFLINE='true')
 
   def setUp(self):
+    forget_runs(self)
     # the qa CLI chdirs without restoring the cwd
     os.chdir(self.project_dir)
     def qa_(*argv, reload_modules=True):
@@ -322,7 +314,9 @@ class TestQaCli(unittest.TestCase):
       assert result.exit_code == 0, result.output
       metrics = json.loads((output_dir / 'metrics.json').read_text())
       self.assertEqual({k: metrics[k] for k in ('latency', 'frames')}, {"latency": 12.0, "frames": 3})
-      saved = {"latency": {"suffix": " ms", "smaller_is_better": True}}
+      # qa says how to show the run time it adds
+      saved = {"latency": {"suffix": " ms", "smaller_is_better": True},
+               "compute_time": {"label": "Run time", "short_label": "Run time", "suffix": " s", "smaller_is_better": True}}
       self.assertEqual(json.loads((output_dir / 'metrics_definitions.json').read_text()), saved)
 
       result = self.qa('postprocess', '-i', 'cli_tests/a.jpg', '-o', tmp, reload_modules=False)
@@ -438,7 +432,7 @@ class TestQaCli(unittest.TestCase):
     result = self.qa('batch', '--list-batches', '--json')
     assert result.exit_code == 0, result.output
     batches = json.loads(result.stdout)['batches']
-    assert {'name': 'my-batch', 'kind': 'batch'}.items() <= batches[0].items(), batches
+    assert {'name': 'ci', 'kind': 'batch'}.items() <= batches[0].items(), batches
     assert Path(batches[0]['file']).name == 'batches.yaml'
 
   def test_batch_json(self):
@@ -469,11 +463,13 @@ class TestQaCli(unittest.TestCase):
     assert result.exit_code == 0, result.output
     summary = json.loads(result.stdout)
     assert 'what runs print' not in result.stdout and 'what runs print' in result.stderr
-    assert {k: summary[k] for k in ('ok', 'exit_code', 'batch_label', 'shared', 'url', 'waited', 'dryrun')} == \
-      {'ok': True, 'exit_code': 0, 'batch_label': 'default', 'shared': False, 'url': None, 'waited': True, 'dryrun': False}
+    assert {k: summary[k] for k in ('ok', 'exit_code', 'batch_label', 'label', 'shared', 'url', 'waited', 'dryrun')} == \
+      {'ok': True, 'exit_code': 0, 'batch_label': 'default', 'label': 'default', 'shared': False, 'url': None, 'waited': True, 'dryrun': False}
     assert summary['counts'] == {'runs': 3, 'skipped': 0}
     assert sorted(Path(run['input_path']).name for run in summary['runs']) == ['a.jpg', 'b.jpg', 'c.jpg']
     assert {'output_dir', 'configurations', 'platform', 'skipped'} <= set(summary['runs'][0])
+    # what each run returned
+    assert [(run['is_failed'], run['metrics']) for run in summary['runs']] == [(False, {'is_failed': False})] * 3
     # failed runs: the same exit code, and the summary
     with mock.patch('qaboard.runners.job.JobGroup.start', return_value=True):
       result = self.qa(*batch, reload_modules=False)
@@ -642,7 +638,7 @@ class TestQaCli(unittest.TestCase):
       self.write_runs(reference_dirs)
       result = self.check_bit_accuracy()
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6 # outputs and inputs of each run
+      assert result.output.count('ok  cli_tests') == 6 # outputs and inputs of each run
       self.write_runs(reference_dirs[1:2], 'other')
       result = self.check_bit_accuracy()
       assert result.exit_code == 1
@@ -662,10 +658,10 @@ class TestQaCli(unittest.TestCase):
       for d, input in zip(output_dirs + other_label_dirs, 2 * ['cli_tests/a.jpg', 'cli_tests/b.jpg', 'cli_tests/dir/c.jpg']):
         (d / 'run.json').write_text(json.dumps({"database": ".", "input_path": input, "configurations": ["base"], "extra_parameters": {}, "platform": "linux"}))
       # other tests leave runs in the project's output directory: we only look at ours
-      checked = lambda result: [f'✔️  {input}  ["base"]  @{manifest}' in result.unstyled_output for input in ['cli_tests/a.jpg', 'cli_tests/b.jpg', 'cli_tests/dir/c.jpg'] for manifest in ['manifest.outputs.json', 'manifest.inputs.json']]
+      checked = lambda result: [f'ok  {input}  ["base"]  @{manifest}' in result.unstyled_output for input in ['cli_tests/a.jpg', 'cli_tests/b.jpg', 'cli_tests/dir/c.jpg'] for manifest in ['manifest.outputs.json', 'manifest.inputs.json']]
       result = self.check_bit_accuracy(with_batch=False)
       assert all(checked(result)), result.output
-      assert result.unstyled_output.count('✔️  cli_tests/a.jpg  ["base"]  @manifest.outputs.json') == 1 # not the run with the other label
+      assert result.unstyled_output.count('ok  cli_tests/a.jpg  ["base"]  @manifest.outputs.json') == 1 # not the run with the other label
       self.write_runs(reference_dirs[:1], 'other')
       result = self.check_bit_accuracy(with_batch=False)
       assert result.exit_code == 1
@@ -692,7 +688,7 @@ class TestQaCli(unittest.TestCase):
       done_again(reference_dirs[0])
       result = self.check_bit_accuracy()
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
       done_again(reference_dirs[0], md5='other')
       result = self.check_bit_accuracy()
       assert result.exit_code == 1
@@ -706,7 +702,7 @@ class TestQaCli(unittest.TestCase):
         done_again(d, run_info={"database": ".", "input_path": input, "configurations": ["base", "delta-v2"], "extra_parameters": {}, "platform": "linux"})
       result = self.check_bit_accuracy(*ours, args=['--reference-match', 'closest'])
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
 
   def test_check_bit_accuracy_closest_reference(self):
     """--reference-match closest compares with the reference's closest run on each input, like the web app"""
@@ -724,10 +720,10 @@ class TestQaCli(unittest.TestCase):
       self.write_runs(output_dirs)
       result = self.check_bit_accuracy(*ours)
       assert result.exit_code == 1
-      assert result.unstyled_output.count('ERROR: No reference for') == 3
+      assert result.unstyled_output.count('error: No reference for') == 3
       result = self.check_bit_accuracy(*ours, args=['--reference-match', 'closest'])
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
       assert '≈  cli_tests/a.jpg  ["base", "delta-v1"]  versus the closest run, with configurations: ["base", "delta-v2"]' in result.unstyled_output
       self.write_runs(references['delta-v2'][:1], md5='other')
       result = self.check_bit_accuracy(*ours, args=['--reference-match', 'closest'])
@@ -750,10 +746,10 @@ class TestQaCli(unittest.TestCase):
       self.write_runs(reference_dirs)
       result = self.check_bit_accuracy()
       assert result.exit_code == 1
-      assert result.unstyled_output.count('ERROR: No reference for') == 3
+      assert result.unstyled_output.count('error: No reference for') == 3
       result = self.check_bit_accuracy(args=['--reference-platform', 'hw'])
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
       self.write_runs(reference_dirs[1:2], 'other')
       result = self.check_bit_accuracy(args=['--reference-platform', 'hw'])
       assert result.exit_code == 1
@@ -770,11 +766,11 @@ class TestQaCli(unittest.TestCase):
       self.write_runs(reference_dirs)
       result = self.check_bit_accuracy('--share')
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
       # --reference-label picks the reference's runs with another label
       result = self.check_bit_accuracy('--share', args=['--reference-label', 'other'])
       assert result.exit_code == 1
-      assert result.unstyled_output.count('ERROR: No reference for') == 3
+      assert result.unstyled_output.count('error: No reference for') == 3
       assert f"nothing at {reference_dirs[0].parents[2] / 'output' / 'other'}" in result.unstyled_output
       self.write_runs(reference_dirs[2:], 'other')
       result = self.check_bit_accuracy('--share')
@@ -788,15 +784,15 @@ class TestQaCli(unittest.TestCase):
       self.write_runs(output_dirs[1:])
       result = self.check_bit_accuracy()
       assert result.exit_code == 1
-      assert result.unstyled_output.count('ERROR: No reference for') == 3
+      assert result.unstyled_output.count('error: No reference for') == 3
       # it says where it looked, with {user} for any user
       assert f"nothing at {Path(storage) / '{user}' / 'user/sample_project' / self.REFERENCE[:2]}" in result.unstyled_output
       self.write_runs(reference_dirs)
       result = self.check_bit_accuracy()
       assert result.exit_code == 1
-      assert 'ERROR: Missing run for cli_tests/a.jpg  ["base"]' in result.unstyled_output
+      assert 'error: Missing run for cli_tests/a.jpg  ["base"]' in result.unstyled_output
       assert f'nothing at {output_dirs[0]}' in result.unstyled_output
-      assert result.output.count('✔️') == 4
+      assert result.output.count('ok  cli_tests') == 4
 
   def test_check_bit_accuracy_asks_qaboard(self):
     """QA-Board knows where the reference's runs are: we don't guess"""
@@ -817,7 +813,7 @@ class TestQaCli(unittest.TestCase):
       } for input, d in zip(inputs, reference_dirs)]
       result = self.check_bit_accuracy(runs_known_by_qaboard=tuple(runs))
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
       self.write_runs(reference_dirs[:1], 'other')
       result = self.check_bit_accuracy(runs_known_by_qaboard=tuple(runs))
       assert result.exit_code == 1
@@ -825,11 +821,11 @@ class TestQaCli(unittest.TestCase):
       # it doesn't know this run: we look in the storage
       result = self.check_bit_accuracy(runs_known_by_qaboard=tuple(runs[1:]))
       assert result.exit_code == 1
-      assert 'ERROR: No reference for cli_tests/a.jpg' in result.unstyled_output
+      assert 'error: No reference for cli_tests/a.jpg' in result.unstyled_output
       self.write_runs(self.reference_dirs(storage)[:1])
       result = self.check_bit_accuracy(runs_known_by_qaboard=tuple(runs[1:]))
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 6
+      assert result.output.count('ok  cli_tests') == 6
 
   def test_check_bit_accuracy_manifest(self):
     """Versus the manifests saved next to the inputs, which are folders"""
@@ -847,11 +843,11 @@ class TestQaCli(unittest.TestCase):
       assert len(output_dirs) == 2
       result = qa('check-bit-accuracy-manifest', '--batch', 'tvs')
       assert result.exit_code == 1
-      assert 'ERROR: 2 runs are missing!' in click.unstyle(result.output)
+      assert 'error: 2 runs are missing!' in click.unstyle(result.output)
       self.write_runs(output_dirs)
       result = qa('check-bit-accuracy-manifest', '--batch', 'tvs')
       assert result.exit_code == 0, result.output
-      assert result.output.count('✔️') == 4
+      assert result.output.count('ok  tv') == 4
       self.write_runs(output_dirs[1:], 'other')
       result = qa('check-bit-accuracy-manifest', '--batch', 'tvs')
       assert result.exit_code == 1
@@ -1075,6 +1071,11 @@ class TestQaCli(unittest.TestCase):
       # assert not os.system('git remote add origin https://github.com/Samsung/qaboard.git')
       assert not os.system('qa init')
       assert not os.system('qa get project')
+      # local runs stay out of git, once
+      assert Path('.gitignore').read_text().splitlines() == ['output/']
+      assert not Path('qa/__pycache__').exists()
+      # the remote doesn't answer: the reference branch is main
+      assert 'reference_branch: main' in Path('qaboard.yaml').read_text()
     os.chdir(prev)
 
 

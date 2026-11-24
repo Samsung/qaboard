@@ -12,7 +12,6 @@ import re
 import json
 import datetime
 
-import click
 
 
 def latest_qaboard_version(quiet=False):
@@ -27,8 +26,8 @@ def latest_qaboard_version(quiet=False):
     r.raise_for_status()
   except Exception as e:
     if not quiet:
-      click.secho(f'WARNING: Unable to find latest qaboard version', fg='yellow', bold=True, err=True)
-      click.secho(str(e), fg='yellow', err=True)
+      from .ui import warning, request_problem, is_connection_error
+      warning(f"Could not find the latest version of qaboard: {request_problem(e) if is_connection_error(e) else e}")
     return None
   try:
     return r.json()['info']['version']
@@ -105,5 +104,5 @@ def check_for_updates():
     current_key, latest_key = version_key(current_version), version_key(latest_version)
     newer_version_available = current_key is not None and latest_key is not None and current_key < latest_key
     if newer_version_available:
-      click.secho(f'[INFO] A new version of qaboard is available! Upgrade to {latest_version}:', fg='yellow', bold=True, err=True)
-      click.secho(f'       $ {upgrade_command()}', fg='yellow', err=True)
+      from .ui import show_hint
+      show_hint(f"qaboard {latest_version} is available. Upgrade with `{upgrade_command()}`")

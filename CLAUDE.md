@@ -22,7 +22,7 @@ The `qa` CLI / SDK runs user code and sends results; the backend stores them in 
 | `qatools/` | Backward-compatibility alias (`import qatools`) | |
 
 ## Setup
-Python with `uv` (the backend needs 3.11+; CI tests `qa` on 3.11 and 3.13), `npm` for the web app, `yarn` for the website.
+Python with `uv` (the backend needs 3.11+; CI tests `qa` on 3.11 and 3.14), `npm` for the web app, `yarn` for the website.
 ```bash
 docker compose -f docker-compose.yml -f development.yml up -d   # full dev stack (SIRC: see deployments/CLAUDE.md)
 uv sync --extra dev        # qaboard + dev tools; runner extras: --extra celery --extra dask --extra kubernetes --extra dask-kubernetes --extra mlflow
@@ -43,6 +43,7 @@ them locally (commands in `docs/ci.md`) or add the label.** `ci-ok` is the one r
 output of `changes`, an `if:` on it, and a place in `ci-ok`'s `needs`.
 ```bash
 uv run green tests                                      # qaboard tests (unittest, green runner)
+uv run python .github/scripts/shuffled_tests.py --repeat 3   # in random order (--load N: under load), and checks they leave nothing in the checkout
 uv run flake8 backend qaboard                           # lint (config: .flake8)
 uv run mypy -p qaboard --ignore-missing-imports         # types
 cd backend && uv run python -m pytest -q -p no:cacheprovider tests   # needs C headers, see backend/tests/TESTING.md

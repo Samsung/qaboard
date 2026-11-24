@@ -17,9 +17,14 @@ Do the integration right rather than fast: the people reviewing results will liv
   `qa batch --list-batches --json`, `qa version --json` print one JSON document on stdout (logs on stderr, same exit
   codes): parse it instead of the text. Shapes: https://samsung.github.io/qaboard/docs/using-the-qa-cli#json-output
 - **Find the server**: `qa auth status` (`--json`) says which server `qa` uses and whether you're signed in. Without one, ask the
-  user for `QABOARD_URL` (and `QA_STORAGE` if the server reads a shared folder). `qa` sends results to the server
-  whenever it can; without a server you can still integrate: results stay in `output/`, and `qa` says why.
-  `qa --offline` keeps them there on purpose.
+  user for `QABOARD_URL`: the address people open the web app at (and `QA_STORAGE` if the server reads a shared
+  folder). `qa run` and `qa batch` send results to the server whenever they can, also before you commit (the run is
+  then on the commit you started from, with your local changes); without a server you can still integrate: results
+  stay in `output/`, and `qa` says why. `qa --offline` keeps them there on purpose: use it while trying things out.
+- **Pick the storage with `qa doctor`**: once `qaboard.yaml` exists, its "Server sees the storage" check says whether
+  the server reads the `storage` folder; if not, `QA_STORAGE=upload qa doctor` says whether it accepts the files
+  over HTTP (`storage: upload` in `qaboard.yaml`). Don't keep a `storage` the server doesn't read: runs would show
+  without their files.
 - **Install**: `pip install qaboard` (or `uv add qaboard`), on Python 3.11 or newer. The project's requirements file should list it.
 - **Look at what exists**: a `qaboard.yaml` means an integration exists; read it and `qa/main.py` before changing
   anything. `qa batch --list-batches` names the batches; `qa --dryrun batch <name> --list` shows what a batch would
@@ -155,7 +160,9 @@ https://samsung.github.io/qaboard/docs/tuning-from-the-webapp#from-the-command-l
 
 Rules about regressions need the metric's `smaller_is_better`. A rule with `batch: perf` checks only the runs of
 `qa batch perf`: the gate can't decide until those exist. `qa gate --post-status github --post-comment github`
-reports on the pull request. https://samsung.github.io/qaboard/docs/quality-gate
+reports on the pull request. From a laptop, `qa --label X batch ci` saves `@<user>| X`: `qa gate --label X
+--reference-label default` compares it with the reference branch's CI results. Without `gate.rules` on metrics, PASS
+only means no run failed. https://samsung.github.io/qaboard/docs/quality-gate#local
 
 ## 6. Tell the agents of the project
 Add the snippet in `templates/AGENTS.md` to the project's `AGENTS.md` or `CLAUDE.md`: how to run the batch, and that a

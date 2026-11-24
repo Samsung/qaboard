@@ -119,7 +119,7 @@ class TestSavesLogs(unittest.TestCase):
 
   def test_unwritable_batch_dir(self):
     result, logs = self.invoke(batch_dir=Path('/proc/qaboard-tests'))
-    self.assertIn('WARNING: Could not save the logs', result.output)
+    self.assertIn('warning: Could not save the logs', result.output)
     self.assertIn('log: None', result.output)
 
 

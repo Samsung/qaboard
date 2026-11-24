@@ -15,6 +15,13 @@ class TestBatchInfo(unittest.TestCase):
 
 
 class TestNotifyQaDatabase(unittest.TestCase):
+  def setUp(self):
+    # qa prints the server's refusals once per process (qaboard.auth.first_time, which sets QA_AUTH_WARNING_SHOWN):
+    # what these tests make it print must not silence later tests
+    for patch in (mock.patch.dict('os.environ'), mock.patch('qaboard.auth._warnings_shown', set())):
+      patch.start()
+      self.addCleanup(patch.stop)
+
   def test_failed_request_does_not_print_the_token(self):
     import io
     import requests
@@ -82,6 +89,30 @@ class TestNotifyQaDatabase(unittest.TestCase):
     with mock.patch("requests.post") as post, redirect_stderr(stderr), mock.patch.dict("os.environ", {"QA_VERBOSE": "1"}):
       notify_qa_database(object_type="batch", share=True, batch_label="default", data={"not-json": object()})
     self.assertIn("not-json", stderr.getvalue())
+
+  def test_results_without_nan(self):
+    import json
+    from collections import namedtuple
+    from decimal import Decimal
+    from qaboard.api import notify_qa_database
+    Point = namedtuple("Point", "x y")
+    data = {"nan": float("nan"), "inf": [float("-inf"), 1.5], "point": Point(1, float("nan")), "decimal": Decimal("0.5"), "pair": (1, 2)}
+    with mock.patch("requests.post") as post:
+      post.return_value.status_code = 200
+      notify_qa_database(object_type="batch", share=True, batch_label="default", data=data)
+    sent = json.loads(post.call_args.kwargs["data"])["data"]
+    self.assertEqual(sent, {"nan": None, "inf": [None, 1.5], "point": {"x": 1, "y": None}, "decimal": 0.5, "pair": [1, 2]})
+
+  def test_numpy_values(self):
+    try:
+      import numpy as np
+    except ImportError:
+      self.skipTest("needs numpy")
+    import json
+    from qaboard.api import json_ready, makeNumpyEncoder
+    data = {"array": np.array([1.5, np.nan]), "int": np.int64(3), "float": np.float32(np.inf)}
+    self.assertEqual(json.dumps(json_ready(data)), '{"array": [1.5, null], "int": 3, "float": null}')
+    self.assertEqual(json.dumps({"a": np.arange(2)}, cls=makeNumpyEncoder()), '{"a": [0, 1]}')
 
 
 class TestServerUrl(unittest.TestCase):

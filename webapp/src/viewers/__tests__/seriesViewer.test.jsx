@@ -130,7 +130,7 @@ describe('OutputViewer', () => {
 
   it("shows files named like series that aren't as text, like before the viewer", async () => {
     renderWithProviders(<OutputViewer path="eval.series.json" output_new={output_new}/>);
-    expect(await screen.findByText(/Not a series file the viewer reads/, {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText(/Not a series file the viewer reads/)).toBeInTheDocument();
   });
 
   it('marks the step the media show: the last one by default, the one before the chosen step', async () => {

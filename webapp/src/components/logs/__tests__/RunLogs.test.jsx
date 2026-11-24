@@ -99,7 +99,7 @@ describe('RunLogs', () => {
     expect(onToggle).toHaveBeenCalledWith(7)
     // the same as hovering a run card's name
     fireEvent.mouseEnter(name.closest('.bp6-popover-target'))
-    expect(await screen.findByText('Input path', {}, { timeout: 2000 })).toBeInTheDocument()
+    expect(await screen.findByText('Input path')).toBeInTheDocument()
     expect(screen.getByText('Batch & database in names')).toBeInTheDocument()
   })
 

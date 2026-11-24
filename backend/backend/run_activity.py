@@ -15,6 +15,7 @@ We don't know how long they waited in a queue.
 
 Nothing here depends on the web framework: api/activity.py is a thin layer over these functions.
 """
+import logging
 import datetime
 from backend import clock
 from typing import Dict, List, Optional
@@ -22,6 +23,8 @@ from typing import Dict, List, Optional
 from sqlalchemy import text
 
 from .database import db_session
+
+logger = logging.getLogger(__name__)
 
 
 def utcnow():
@@ -456,7 +459,7 @@ def output_dir_urls(ids: List[int]) -> Dict[int, str]:
     try:
       urls[output.id] = dir_to_url(output.output_dir)
     except Exception as e:
-      print(f"WARNING: no folder for run {output.id}: {e}")
+      logger.warning("No folder for run %s: %s", output.id, e)
   return urls
 
 
@@ -548,4 +551,4 @@ def cancel_notifications(command_ids: List[str], reason: str) -> None:
         cancel_batch_notification(db_session, command_id, reason)
     except Exception as e:
       db_session.rollback()
-      print(f"WARNING: could not cancel the notification of {command_id}: {e}")
+      logger.warning("Could not cancel the notification of %s: %s", command_id, e)

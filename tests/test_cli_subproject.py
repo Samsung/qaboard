@@ -9,6 +9,8 @@ import unittest
 import click
 from click.testing import CliRunner
 
+from tests.sample_project import forget_runs, sample_project_class_fixture
+
 os.environ['QA_TESTING'] = 'true'
 
 # Missing:
@@ -18,30 +20,21 @@ os.environ['QA_TESTING'] = 'true'
 
 class TestQaCliSubproject(unittest.TestCase):
   @classmethod
-  def setUpClass(self):
-    self.previous_cwd = os.getcwd()
-    root_repo = Path(__file__).resolve().parent.parent
-    self.subproject_dir = root_repo / 'qaboard/sample_project/subproject'
-    os.chdir(self.subproject_dir)
+  def setUpClass(cls):
+    # a copy of qaboard/sample_project, committed in a git repository of its own, with a storage next to it
     database = str(Path())
     images = {'images': {
       "globs": ['*.jpg'],
       "inputs": ['cli_tests'],
-      "database": {"linux": database, "windows": database} 
+      "database": {"linux": database, "windows": database},
       }
     }
-    # TODO: use a temp file?
-    with Path('../sub.batches.yaml').open('w') as f:
-      f.write(yaml.dump(images))
-    os.environ['QA_DATABASE'] = database
-    os.environ['QA_OFFLINE'] = 'true'
-    os.environ['QA_STORAGE'] = str(root_repo.resolve())
-
-  @classmethod
-  def tearDownClass(self):
-    os.chdir(self.previous_cwd)
+    files = {'sub.batches.yaml': yaml.dump(images)}
+    cls.project_dir = sample_project_class_fixture(cls, files, QA_DATABASE=database, QA_OFFLINE='true')
+    cls.subproject_dir = cls.project_dir / 'subproject'
 
   def setUp(self):
+    forget_runs(self)
     # the qa CLI chdirs to the project root without restoring the cwd
     os.chdir(self.subproject_dir)
     # qaboard.config resolves the project from the cwd, and qa.py binds it at import time

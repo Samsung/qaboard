@@ -30,6 +30,7 @@ import click
 import yaml
 
 from .checks import Check, OK, WARNING, ERROR, SKIPPED
+from .http_client import LOG_HOOKS
 
 
 DOCS = "https://samsung.github.io/qaboard/docs"
@@ -328,7 +329,7 @@ def check_git(is_in_git_repo: bool, commit_id: str | None, commit_branch: str | 
                    fix="Run qa in the git clone of the commit, or set CI_COMMIT_SHA (or GIT_COMMIT) to the commit's hash.")
     if not is_in_git_repo:
       return Check(name, WARNING, f"Not in a git repository: QA-Board can't tell which commit results come from (they're all \"{placeholder}\"), "
-                                  "and `qa --share` saves them in your project's folder, not in the storage.",
+                                  "and `qa run` saves them in your project's folder, not in the storage.",
                    fix=f"Use git for your project, then commit:\n  git init && git add -A && git commit -m \"First commit\"\nDocs: {docs('project-init')}")
     return Check(name, WARNING, f"The git repository has no commit yet: QA-Board can't tell which commit results come from (they're all \"{placeholder}\").",
                  fix="git add -A && git commit -m \"First commit\"")
@@ -379,7 +380,7 @@ def check_server(server, verify: Any = True, timeout=TIMEOUT) -> tuple[Check, di
   name = "QA-Board server"
   where = server.described()
   try:
-    r = requests.get(f"{server.api_prefix}/health", verify=verify, timeout=timeout)
+    r = requests.get(f"{server.api_prefix}/health", verify=verify, timeout=timeout, hooks=LOG_HOOKS)
   except requests.RequestException as e:
     reason = describe_error(e)
     return Check(name, ERROR, f"Can't reach QA-Board at {where}: {reason}.", fix=server_fix(server, reason)), None
@@ -391,7 +392,7 @@ def check_server(server, verify: Any = True, timeout=TIMEOUT) -> tuple[Check, di
     return Check(name, ERROR, f"QA-Board at {server.url} answered {r.status_code}: it may be down or restarting.",
                  fix="Try again in a minute. If it lasts, tell your QA-Board admins."), None
   try:
-    c = requests.get(f"{server.api_prefix}/config", verify=verify, timeout=timeout)
+    c = requests.get(f"{server.api_prefix}/config", verify=verify, timeout=timeout, hooks=LOG_HOOKS)
     site = json_of(c) if c.ok else None
   except requests.RequestException:
     site = None
@@ -466,7 +467,7 @@ def check_sign_in(server, token: str | None, token_source: str | None, site: dic
 
   source = describe_source(token_source)
   try:
-    r = requests.get(f"{server.api_prefix}/user/me/", headers={'Accept': 'application/json', 'Authorization': f"Bearer {token}"}, verify=verify, timeout=timeout)
+    r = requests.get(f"{server.api_prefix}/user/me/", headers={'Accept': 'application/json', 'Authorization': f"Bearer {token}"}, verify=verify, timeout=timeout, hooks=LOG_HOOKS)
   except requests.RequestException as e:
     return [Check(name, SKIPPED, f"Couldn't check your token: {describe_error(e)}.")], False
   refused = refusal(r)
@@ -511,7 +512,7 @@ def check_project_access(server, token: str, token_source: str | None, project: 
   consequence = "QA-Board refuses the results you send" if severity == ERROR else "QA-Board saves the results you send as unverified"
   try:
     r = requests.get(f"{server.api_prefix}/project/access", params={'project': project},
-                     headers={'Accept': 'application/json', 'Authorization': f"Bearer {token}"}, verify=verify, timeout=timeout)
+                     headers={'Accept': 'application/json', 'Authorization': f"Bearer {token}"}, verify=verify, timeout=timeout, hooks=LOG_HOOKS)
   except requests.RequestException as e:
     return Check(name, SKIPPED, f"Couldn't check your role in {project}: {describe_error(e)}.")
   refused = refusal(r)
@@ -544,7 +545,7 @@ def check_server_sees(server, path: Path, token: str | None, verify: Any = True,
   url = f"{server.url}/s{quote(posix)}/"
   headers = {'Accept': 'application/json', **({'Authorization': f"Bearer {token}"} if token else {})}
   try:
-    r = requests.get(url, headers=headers, verify=verify, timeout=timeout)
+    r = requests.get(url, headers=headers, verify=verify, timeout=timeout, hooks=LOG_HOOKS)
   except requests.RequestException as e:
     return Check(name, SKIPPED, f"Couldn't ask QA-Board: {describe_error(e)}.")
   body = json_of(r)
@@ -554,8 +555,9 @@ def check_server_sees(server, path: Path, token: str | None, verify: Any = True,
   if reason == 'not-listable':
     return Check(name, WARNING, f"QA-Board doesn't read the files in {posix}: it's not in its storage folders.",
                  fix=("Save the results where QA-Board reads them: set `storage` in qaboard.yaml (or QA_STORAGE),\n"
+                      "or send them to the server with `storage: upload` (check it accepts them: QA_STORAGE=upload qa doctor),\n"
                       f"or ask your QA-Board admins to mount {posix} on the server, at the same path, and add it to QABOARD_STORAGE_ROOTS.\n"
-                      f"Docs: {docs('storage/where-is-the-data')}"))
+                      f"Docs: {docs('storage/where-is-the-data')}, {docs('storage/uploads')}"))
   if reason == 'not-found':
     return Check(name, WARNING, f"QA-Board doesn't see {posix}: the storage isn't mounted on the server at this path.",
                  fix=(f"Ask your QA-Board admins to mount it on the server at {posix}, the same path as here.\n"
@@ -572,7 +574,15 @@ def check_server_sees(server, path: Path, token: str | None, verify: Any = True,
     if token:
       return Check(name, SKIPPED, f"QA-Board didn't accept your token to read {posix}: see \"Signed in\" above.")
     return Check(name, SKIPPED, "Sign in to check if QA-Board reads your storage: qa auth login")
-  return Check(name, SKIPPED, f"Couldn't tell if QA-Board reads {posix}: {url} answered {r.status_code} ({describe_body(r) or 'an empty body'}).")
+  answer = f"{url} answered {r.status_code} ({describe_body(r) or 'an empty body'})"
+  if r.status_code == 403:
+    # it answered, and won't show these files: results saved there would have no files in the web app
+    # (a 404 page is an older server, without folder listings)
+    return Check(name, WARNING, f"QA-Board may not show the files in {posix}: {answer}.",
+                 fix=("Save the results where QA-Board reads them (`storage` in qaboard.yaml, or QA_STORAGE),\n"
+                      "or send them to the server with `storage: upload` (check it accepts them: QA_STORAGE=upload qa doctor).\n"
+                      f"Docs: {docs('storage/uploads')}"))
+  return Check(name, SKIPPED, f"Couldn't tell if QA-Board reads {posix}: {answer}.")
 
 
 ###############################################################################
@@ -649,7 +659,7 @@ def check_folder(name: str, path: Path, required: bool = True, root: Path | None
   why = f" {purpose}." if purpose else ''
   existing = closest_existing(path)
   root_missing = root is not None and not root.exists()
-  storage_fix = ("The storage is where shared results go (`qa --share`, CI): a folder your QA-Board server reads too, often a shared drive.\n"
+  storage_fix = ("The storage is where shared results go (`qa run`, `qa batch`, CI): a folder your QA-Board server reads too, often a shared drive.\n"
                  f"Mount it at {root}, or create it:\n  mkdir -p {root}\n"
                  "Or use another folder that your QA-Board server reads:\n  export QA_STORAGE=/path/to/storage   # or `storage:` in qaboard.yaml"
                  f"{storage_help()}\nDocs: {docs('storage/where-is-the-data')}")
@@ -687,20 +697,20 @@ def check_uploads(site: dict[str, Any] | None, token: str | None) -> Check:
   """
   name = "Results sent to the server"
   if site is None:
-    return Check(name, SKIPPED, "Without a storage shared with the server, `qa --share` and CI runs send it their files. It didn't answer: fix that first.")
+    return Check(name, SKIPPED, "Without a storage shared with the server, `qa run`, `qa batch` and CI runs send it their files. It didn't answer: fix that first.")
   uploads: dict[str, Any] = {}
   if isinstance(site.get('uploads'), dict):
     uploads = site['uploads']
   if not uploads.get('enabled'):
     why = f" ({uploads['off_reason']})" if isinstance(uploads.get('off_reason'), str) else ""
-    return Check(name, ERROR, f"qaboard.yaml sets no `storage` shared with the server (or `storage: upload`): `qa --share` and CI runs would send it their files, but this server doesn't accept files{why}.",
+    return Check(name, ERROR, f"qaboard.yaml sets no `storage` shared with the server (or `storage: upload`): `qa run`, `qa batch` and CI runs would send it their files, but this server doesn't accept files{why}.",
                  fix=f"Save results in a folder that the server reads too, in qaboard.yaml:\nstorage:\n  linux: /mnt/qaboard\n  windows: \\\\server\\share\\qaboard\n"
                      f"Or ask the server's administrators to accept files (QABOARD_UPLOAD_ROOT): {docs('backend-admin/uploads')}\nDocs: {docs('storage/uploads')}")
   limit = f", up to {uploads['max_file_size'] // 1024 ** 2} MB per file" if isinstance(uploads.get('max_file_size'), int) else ''
   if not token:
-    return Check(name, ERROR, "Without a storage shared with the server, `qa --share` and CI runs send it their files: that always needs a token, and qa has none.",
+    return Check(name, ERROR, "Without a storage shared with the server, `qa run`, `qa batch` and CI runs send it their files: that always needs a token, and qa has none.",
                  fix="Sign in: qa auth login\nIn CI: set QABOARD_TOKEN to a token with the ingest scope.")
-  return Check(name, OK, f"Without a storage shared with the server, `qa --share` and CI runs send it their files{limit}. They are saved in the project's output/ folder first.")
+  return Check(name, OK, f"Without a storage shared with the server, `qa run`, `qa batch` and CI runs send it their files{limit}. They are saved in the project's output/ folder first.")
 
 
 def check_storage_setting(config: dict[str, Any], project: Path, subproject: Path) -> Check | None:
@@ -971,7 +981,7 @@ def guarded(name: str, checks: Callable[[], Iterable[Check]]) -> Iterator[Check]
 def run_doctor(obj: dict[str, Any], runner: str, test_job: bool = False, echo=click.echo, report: Report | None = None) -> int:
   """
   `qa doctor`: prints the checks, and returns the exit code. `obj` is the `qa` command's context (ctx.obj).
-  Like `qa --share batch` (or a CI), it checks what's needed for results that show in QA-Board:
+  Like `qa batch` (or a CI), it checks what's needed for results that show in QA-Board:
   with `qa --offline doctor`, only what local runs need.
   Each section is guarded: if a check fails unexpectedly, it's an ERROR, and the next sections still run.
   With a `report`, it's the one filled (`qa doctor --json` reads it).
@@ -984,7 +994,7 @@ def run_doctor(obj: dict[str, Any], runner: str, test_job: bool = False, echo=cl
   offline = bool(obj.get('offline'))
   cwd = Path(obj.get('previous_cwd') or os.getcwd())
   report = report if report is not None else Report(echo=echo)
-  shared = "what you need for runs whose results show in QA-Board (like `qa --share batch`)" if not offline else "what you need for local runs (--offline)"
+  shared = "what you need for runs whose results show in QA-Board (like `qa batch`)" if not offline else "what you need for local runs (--offline)"
   echo(click.style("qa doctor", bold=True) + f": checking {shared}, with the {runner} runner.")
   root = Path(root_qatools) if root_qatools else cwd
   state: dict[str, Any] = {
@@ -1060,10 +1070,10 @@ def run_doctor(obj: dict[str, Any], runner: str, test_job: bool = False, echo=cl
     outputs_root = Path(qaboard_config.outputs_root or '')
     artifacts_root = qaboard_config.artifacts_root
     outputs_commit = Path(qaboard_config.outputs_commit)
-    purpose = "`qa --share` and CI runs save their results there"
+    purpose = "`qa run`, `qa batch` and CI runs save their results there"
     if outputs_commit != outputs_root and outputs_root not in outputs_commit.parents:
       # without a git commit, qa saves shared results in the project's folder
-      yield Check("Results location", WARNING, f"Without a git commit, `qa --share` saves results in {outputs_commit}, not in the storage ({outputs_root}): QA-Board won't find them.",
+      yield Check("Results location", WARNING, f"Without a git commit, `qa run` saves results in {outputs_commit}, not in the storage ({outputs_root}): QA-Board won't find them.",
                   fix=f"Use git for your project, then commit:\n  git init && git add -A && git commit -m \"First commit\"\nDocs: {docs('project-init')}")
       yield check_folder("Results storage", outputs_root, root=outputs_root, purpose=purpose)
     else:

@@ -124,7 +124,7 @@ def error_for(r, server: str, path: str, method: str = 'GET', params: dict[str, 
   refused = refusal(r)
   if refused:
     scope = 'ingest' if method != 'GET' else 'read'
-    hint = (f"Sign in with `qa auth login {server}`, or set QABOARD_TOKEN to a token with the {scope} scope."
+    hint = (f"Sign in with `qa auth login --server {server}`, or set QABOARD_TOKEN to a token with the {scope} scope."
             if refused.get('reason') in TOKEN_REASONS else "Ask the project's owners for access.")
     return ResultsError(f"{refused['error']} ({refused.get('reason')}). {hint}", status=r.status_code, reason=refused.get('reason') or 'refused',
                         body=_json_dict(r), retry_after=retry_after)

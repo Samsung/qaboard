@@ -12,6 +12,7 @@ The admin panel shows, for each setting, where its value comes from and what the
 
 The database values are cached a few seconds per process, so every worker and replica sees changes quickly.
 """
+import logging
 import os
 import json
 import time
@@ -19,6 +20,8 @@ import uuid
 import threading
 from typing import Any, Callable, NamedTuple, Optional
 from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
 
 
 def env_flag(value: str) -> bool:
@@ -667,7 +670,7 @@ def _database_rows() -> dict:
       rows = {key: {"value": (value or {}).get('value'), "updated_by_id": by, "updated_at": at} for key, value, by, at in result}
   except Exception as e:
     # e.g. before the migrations ran: the defaults are safe
-    print(f"[settings] WARNING: could not read the settings: {type(e).__name__}")
+    logger.warning("Could not read the settings: %s", type(e).__name__)
     rows = {}
   try:
     signature = json.dumps({k: r["value"] for k, r in rows.items()}, sort_keys=True, default=str)
@@ -728,7 +731,7 @@ def from_env(key: str):
   is_set, value, problem = _from_env(key)
   if problem:
     # the admin panel's checklist shows it (invalid_env)
-    print(f"[settings] WARNING: ignoring {problem}")
+    logger.warning("Ignoring %s", problem)
   return is_set, value
 
 
@@ -789,7 +792,7 @@ def setting(key: str):
     return value
   is_set, value, problem = _from_database(key)
   if problem:
-    print(f"[settings] ERROR: {key}: {problem} QA-Board uses the default.")
+    logger.error("%s: %s QA-Board uses the default.", key, problem)
   if is_set:
     return value
   return default(key)

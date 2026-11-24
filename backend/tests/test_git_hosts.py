@@ -768,3 +768,20 @@ def test_jenkins_build_trigger_only_sends_credentials_to_jenkins(integrations, d
   assert not isinstance(result, tuple)
   with dummy_app.test_request_context("/"):
     assert integrations.trigger_jenkins_build({"build_url": "ftp://jenkins/job/x"}, declared=True)[1] == 403
+
+
+def test_jenkins_build_trigger_errors_dont_show_the_token(integrations, dummy_app, monkeypatch, capsys):
+  """requests' errors have the URL with its query string: the job's token, maybe the server's JENKINS_BUILD_TOKEN"""
+  import requests as real_requests
+  monkeypatch.setattr(integrations, "jenkins_credentials", lambda: {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
+  monkeypatch.setattr(integrations, "jenkins_build_token", lambda: "SERVER-SECRET")
+  requests = MagicMock()
+  requests.post.side_effect = real_requests.exceptions.ConnectionError(
+    "HTTPConnectionPool(host='jenkins', port=80): Max retries exceeded with url: /job/x/buildWithParameters?cause=Triggered&token=SERVER-SECRET")
+  monkeypatch.setattr(integrations, "requests", requests)
+  with dummy_app.test_request_context("/api/v1/jenkins/build/trigger/", method="POST"):
+    result, status = integrations.trigger_jenkins_build({"build_url": "http://jenkins/job/x"}, declared=True)
+    body = result.get_json()
+  assert requests.post.call_args.kwargs["params"]["token"] == "SERVER-SECRET"
+  assert status == 500 and body["error"] == "ERROR: When triggering job: could not reach jenkins (ConnectionError)"
+  assert "SERVER-SECRET" not in capsys.readouterr().out

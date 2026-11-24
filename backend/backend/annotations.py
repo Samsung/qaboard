@@ -25,12 +25,15 @@ Sites add their sources with a package, like the site defaults (qaboard/site_con
 All fields but x, y, w, h are optional. Groups without annotations are fine: e.g. where else the image is used.
 Groups of annotations kept by QA-Board itself would be one more source.
 """
+import logging
 from functools import lru_cache
 from typing import Any, Dict, Optional
 
 from qaboard.site_config import site_entry_points
 
 from .hybrid_cache import hybrid_cache
+
+logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=None)
@@ -41,7 +44,7 @@ def annotation_sources() -> Dict[str, Any]:
     try:
       sources[entry_point.name] = entry_point.load()
     except Exception as e:
-      print(f"WARNING: could not load the annotation source {entry_point.name}: {e}")
+      logger.warning("Could not load the annotation source %s: %s", entry_point.name, e)
   return sources
 
 

@@ -1,6 +1,7 @@
 """
 Describes an Output from `qa run`.
 """
+import logging
 import os
 import json
 import fnmatch
@@ -24,6 +25,8 @@ from backend.fs_utils import rm_empty_parents, rmtree, mkdir_shared, chmod_share
 from backend.storage import check_storage_path, check_inside
 from backend.attempts import forget_attempts
 from backend.locations import local_path
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -303,7 +306,7 @@ class Output(Base):
     except MultipleResultsFound:
       # This should not happen (e.g. concurrent calls for the same run). We keep the newest, the one runs
       # update now. The others' files may be the same folder: we only delete their rows.
-      print('WARNING: MultipleResultsFound')
+      logger.warning("Several runs of %s in batch %s: we keep the newest", kwargs['test_input'].id, kwargs['batch'].id)
       newest, *others = session.query(Output).filter(
           and_(
               Output.batch_id == kwargs['batch'].id,
@@ -369,11 +372,11 @@ class Output(Base):
       self.deleted = True
       if not dryrun:
         self.measure_left(output_dir)
-      print(f"WARN: already deleted: {output_dir}")
+      logger.debug("Already deleted: %s", output_dir)
       return
 
     if not soft:
-      print(output_dir)
+      logger.debug("Deleting %s", output_dir)
       if dryrun:
         return
       rmtree(output_dir)
@@ -388,7 +391,7 @@ class Output(Base):
           with manifest_path.open() as f:
             files = json.load(f)
         except Exception as e:
-            print(f"{e}: corrupted manifest {manifest_path}")
+            logger.warning("Corrupted manifest %s: %s", manifest_path, e)
             if dryrun:
               return
             rmtree(output_dir)
@@ -408,7 +411,7 @@ class Output(Base):
           output_file = check_inside(output_dir / file, output_dir)
           if not output_file.exists():
             continue
-          print(f'{output_file}')
+          logger.debug("Deleting %s", output_file)
           if not dryrun:
             rmtree(output_file)
             # the folders it leaves empty: the manifest stays in the output's
@@ -447,7 +450,7 @@ class Output(Base):
         setattr(self, 'metrics', metrics)
         if 'is_failed' in metrics: setattr(self, 'is_failed', metrics['is_failed'])
     except:
-      print(f'[WARNING] Output.update_metrics: failed to read {filepath}')
+      logger.warning("Could not read the metrics of run %s in %s", self.id, filepath)
       # we *could* return False then consider the run crashed if more than X time has passed...
       # metrics = {'is_failed': True}
       # metrics = {}

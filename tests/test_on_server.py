@@ -14,6 +14,7 @@ import click
 from click.testing import CliRunner
 
 from tests.test_auth import response
+from tests.sample_project import forget_runs, sample_project_class_fixture
 
 os.environ['QA_TESTING'] = 'true'
 
@@ -128,20 +129,14 @@ class TestCli(unittest.TestCase):
   """`qa batch --commit` in the sample project, with a fake server"""
   @classmethod
   def setUpClass(cls):
-    cls.previous_cwd = os.getcwd()
-    cls.project_dir = Path(__file__).resolve().parent.parent / 'qaboard/sample_project'
+    # a copy of qaboard/sample_project, committed in a git repository of its own (QA_STORAGE: each test's)
+    files = {'local.batches.yaml': "images: {inputs: [cli_tests]}\n", 'tuning.yaml': "search_type: grid\nparameter_search: {threshold: [1, 2]}\n"}
+    cls.project_dir = sample_project_class_fixture(cls, files)
     cls.head = git(cls.project_dir, "rev-parse", "HEAD")
 
-  @classmethod
-  def tearDownClass(cls):
-    os.chdir(cls.previous_cwd)
-
   def setUp(self):
+    forget_runs(self)
     os.chdir(self.project_dir)
-    (self.project_dir / 'local.batches.yaml').write_text("images: {inputs: [cli_tests]}\n")
-    self.addCleanup((self.project_dir / 'local.batches.yaml').unlink)
-    (self.project_dir / 'tuning.yaml').write_text("search_type: grid\nparameter_search: {threshold: [1, 2]}\n")
-    self.addCleanup((self.project_dir / 'tuning.yaml').unlink)
     self.calls = []
     storage = TemporaryDirectory()
     self.addCleanup(storage.cleanup)
@@ -155,7 +150,8 @@ class TestCli(unittest.TestCase):
       return response(status, body)
     environ = {k: v for k, v in os.environ.items() if not k.startswith(('QA_', 'QABOARD_')) or k == 'QA_TESTING'}
     environ.update({'QABOARD_URL': 'http://qaboard.example.com', 'QA_STORAGE': self.storage, **(env or {})})
-    with mock.patch('requests.post', side_effect=post), mock.patch.dict(os.environ, environ, clear=True):
+    # sign-in messages are printed once per process (qaboard.auth.first_time): earlier tests may have printed ours
+    with mock.patch('requests.post', side_effect=post), mock.patch.dict(os.environ, environ, clear=True), mock.patch('qaboard.auth._warnings_shown', set()):
       # they read the server and the project when imported
       for module in ('qaboard.api', 'qaboard.config', 'qaboard.qa'):
         reload(import_module(module))
@@ -228,7 +224,7 @@ class TestCli(unittest.TestCase):
 
   def test_bad_tuning_searches_are_clean_errors(self):
     result = self.qa('--label', 'x', 'batch', '--commit', self.head, 'images', '--tuning-search', '{bad')
-    assert result.exit_code == 1 and result.unstyled_output.startswith("ERROR: Invalid tuning search") and "Traceback" not in result.output
+    assert result.exit_code == 1 and result.unstyled_output.startswith("error: Invalid tuning search") and "Traceback" not in result.output
     result = self.qa('--label', 'x', 'batch', '--commit', self.head, 'images', '--tuning-search-file', 'nope.yaml')
     assert result.exit_code == 1 and "Could not find the tuning search file nope.yaml" in result.unstyled_output
     assert self.calls == []
@@ -260,11 +256,11 @@ class TestCli(unittest.TestCase):
     error = "Unknown batch: imgs. Defined: images"
     result = self.qa('--label', 'x', 'batch', '--commit', self.head, 'imgs', check={**CHECK_OK, "errors": [error], "warnings": ["The entrypoint is not in the artifacts."]})
     assert result.exit_code == 1
-    assert f"ERROR: {error}" in result.unstyled_output and "WARNING: The entrypoint is not in the artifacts." in result.unstyled_output
+    assert f"error: {error}" in result.unstyled_output and "warning: The entrypoint is not in the artifacts." in result.unstyled_output
     assert len(self.calls) == 1
     unknown = "QA-Board doesn't know the commit abc1234 in user/sample_project."
     result = self.qa('--label', 'x', 'batch', '--commit', self.head, 'images', check=(404, {"error": unknown, "errors": [unknown]}))
-    assert result.exit_code == 1 and f"ERROR: {unknown}" in result.unstyled_output
+    assert result.exit_code == 1 and f"error: {unknown}" in result.unstyled_output
     # e.g. QA-Board asked the CI to recreate the artifacts
     result = self.qa('--label', 'x', 'batch', '--commit', self.head, 'images', started=(409, {"error": "Asked the GitLab CI job build to recreate the artifacts. Try again once it is done.", "artifacts": {"status": "recreating"}}))
     # scripts can try again later

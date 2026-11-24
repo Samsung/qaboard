@@ -45,10 +45,10 @@ class TestCandidates(unittest.TestCase):
     self.assertIn('install', complete('qa completion '))
 
   def test_batches(self):
-    self.assertIn('my-batch', complete('qa batch '))
-    self.assertEqual(complete('qa batch my-'), ['my-batch'])
-    self.assertEqual(complete('qa batch --batch my-'), ['my-batch'])
-    self.assertEqual(complete('qa optimize --batch my-'), ['my-batch'])
+    self.assertIn('ci', complete('qa batch '))
+    self.assertEqual(complete('qa batch c'), ['ci'])
+    self.assertEqual(complete('qa batch --batch c'), ['ci'])
+    self.assertEqual(complete('qa optimize --batch c'), ['ci'])
 
   def test_batches_from_batches_file(self):
     with tempfile.TemporaryDirectory() as d:
@@ -147,6 +147,19 @@ class TestCompletionCommand(unittest.TestCase):
       fish = json.loads(qa('completion', 'install', 'fish', '--json', env=env).stdout)
       self.assertEqual(fish['script'], str(Path(home) / '.config' / 'fish' / 'completions' / 'qa.fish'))
       self.assertIsNone(fish['startup_file'])
+
+  def test_startup_lines_quote_the_path(self):
+    from qaboard.completion import startup_lines
+    # e.g. XDG_CONFIG_HOME="/tmp/x'; touch pwned; '": the startup file must not run it
+    script = Path("/home/o'; touch pwned; '$(id)/qaboard/completion/qa.bash")
+    with tempfile.TemporaryDirectory() as tmp:
+      for shell in ('bash', 'zsh'):
+        with self.subTest(shell=shell):
+          line = startup_lines(shell, script).splitlines()[-1]
+          p = subprocess.run(['sh', '-c', line + '\necho done'], cwd=tmp, capture_output=True, text=True)
+          self.assertEqual(p.stdout, 'done\n', p.stderr)
+          self.assertEqual(os.listdir(tmp), [])
+    self.assertEqual(startup_lines('powershell', Path("C:/Users/o'$(x)/qa.ps1")), ". 'C:/Users/o''$(x)/qa.ps1'")
 
   def test_install_says_what_it_did(self):
     with tempfile.TemporaryDirectory() as home:

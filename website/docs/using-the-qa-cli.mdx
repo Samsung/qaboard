@@ -43,7 +43,8 @@ in your shell ([Shell completion](#shell-completion)), and `--json` prints resul
 ## See results in the web app {#see-results-in-the-web-app}
 `qa run` and `qa batch` show their results in the web app: they save them in the shared storage (or send them to the
 server, [without one](/docs/storage/uploads)), and print the link to them. From your computer, they go to a batch of
-your own, `@you| <label>`, so that they don't mix with the CI's:
+your own, `@you| <label>`, so that they don't mix with the CI's. `you` is your login on the computer (`$USER`), or
+`QA_USER`, not the account you signed in to QA-Board with:
 
 ```bash
 qa batch ci
@@ -150,6 +151,8 @@ It's the same email users get when they start a batch from the web app
 ([what it says](/docs/user-guide/running-from-the-webapp#emails-when-batches-end)): one per `qa batch`, when its last
 run ends.
 - To stop them, `export QA_NOTIFY=none`.
+- When the server can't send emails, or doesn't know your address, `qa batch` says so only if you set
+  `QA_NOTIFY=email`.
 - Not with `--offline`: QA-Board only knows about the runs it saves.
 - It's never sent in CI, nor for `qa batch` commands started by other ones, like the steps of a pipeline or the
   iterations of `qa optimize`: their runs count as the first command's runs, and its email comes when they are all
@@ -188,7 +191,7 @@ qa runs "$URL" --json | jq '.[].metrics' # a page's runs with their metrics
 
 | Command | Prints |
 |---|---|
-| `qa batch <batch> --json` | `ok`, `exit_code`, `batch_label`, `commit`, `platform`, `shared`, `url` (the batch's page), `waited`, `dryrun`, `counts` (`runs`, `skipped`), and `runs`, as `--list` describes them (`input_path`, `configurations`, `output_dir`, `skipped`...). With `--commit`: `started`, `url`, `error`, `try_later`. |
+| `qa batch <batch> --json` | `ok`, `exit_code`, `batch_label` (as saved: `@you\| <label>` from your computer), `label` (as given to `qa --label`), `commit`, `platform`, `shared`, `url` (the batch's page), `waited`, `dryrun`, `counts` (`runs`, `skipped`), and `runs`, as `--list` describes them (`id`, `input_path`, `configurations`, `output_dir`, `skipped`...), with `local_output_dir` when the files were sent to the server, and `is_failed` and `metrics` once done. With `--commit`: `started`, `url`, `error`, `try_later`. |
 | `qa batch --list <batch>` | The runs the batch would do (already JSON, no need for `--json`). |
 | `qa batch --list-batches --json` | `batches`: `name`, `kind` (`batch` or `alias`), `file`. |
 | `qa runs <url> --json` | The runs of a web app page: input, configurations, parameters, metrics, `output_dir`... ([Runs in scripts](/docs/apis#runs-in-scripts)). |

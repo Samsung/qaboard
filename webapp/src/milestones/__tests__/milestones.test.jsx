@@ -29,7 +29,7 @@ const commit_page_comparison = () => {
     references: selected.references.map((r, i) => ({ ...r, color: color(['purple', 'pink'][i]) })),
   };
 };
-import { MilestoneDialogHost, openMilestoneDialog } from '../MilestoneDialog';
+import { MilestoneDialogHost, openMilestoneDialog, resetMilestoneDialog } from '../MilestoneDialog';
 import { CommitMilestoneButton } from '../CommitMilestone';
 import { useImportLegacyMilestones } from '../hooks';
 import { usePrefsStore } from '../../stores/prefs';
@@ -74,6 +74,7 @@ const stubApi = (answers = {}) => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  resetMilestoneDialog();
   usePrefsStore.setState({ milestones: {}, milestoneGroupsCollapsed: {} });
 });
 

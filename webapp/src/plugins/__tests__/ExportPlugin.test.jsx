@@ -245,8 +245,8 @@ describe('ExportPlugin', () => {
     expect(screen.getByRole('checkbox', { name: 'Windows-compatible names' })).not.toBeChecked();
     expect(screen.getByRole('button', { name: /More options/ })).toHaveTextContent('1 changed');
     // the preview comes back without the problem
-    await waitFor(() => expect(screen.queryByText('4 paths are too long for Windows')).not.toBeInTheDocument(), { timeout: 3000 });
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Export 4 files' })).toBeEnabled(), { timeout: 3000 });
+    await waitFor(() => expect(screen.queryByText('4 paths are too long for Windows')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Export 4 files' })).toBeEnabled());
   });
 
   it('lists the settings that differ, and lets users pick them', async () => {
@@ -383,12 +383,12 @@ describe('ExportPlugin', () => {
     fireEvent.click(await screen.findByRole('checkbox', { name: /crops of the images' regions of interest/ }));
     fireEvent.click(screen.getByRole('checkbox', { name: /Where they differ: perceptual/ }));
     const diffs = run => previews(fetch).at(-1)?.runs.find(r => r.id === run)?.regions?.map(r => r.name);
-    await waitFor(() => expect(diffs(1)).toEqual(['diff-01', 'diff-02', 'diff-03', 'diff-04', 'diff-05']), { timeout: 3000 });
+    await waitFor(() => expect(diffs(1)).toEqual(['diff-01', 'diff-02', 'diff-03', 'diff-04', 'diff-05']));
     // the reference is cropped at the same places
     expect(diffs(11)).toEqual(diffs(1));
     expect(screen.getByRole('checkbox', { name: /Where they differ: perceptual/ }).closest('label')).toHaveTextContent('10 regions in 2 runs (of 16 found)');
     fireEvent.change(screen.getByLabelText('Differences per image'), { target: { value: '2' } });
-    await waitFor(() => expect(diffs(2)).toEqual(['diff-01', 'diff-02']), { timeout: 3000 });
+    await waitFor(() => expect(diffs(2)).toEqual(['diff-01', 'diff-02']));
     // what they don't mean yet isn't applied
     fireEvent.change(screen.getByLabelText('Differences per image'), { target: { value: '' } });
     expect(screen.getByLabelText('Differences per image')).toHaveValue(null);
@@ -412,7 +412,7 @@ describe('ExportPlugin', () => {
     expect(await screen.findByText(/Unknown field \{nope\}/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('radio', { name: 'A folder for new, one for reference' }));
     // the button says how many files once the preview is back, after its debounce: like above, slow CI runners need time
-    fireEvent.click(await screen.findByRole('button', { name: 'Export 4 files' }, { timeout: 3000 }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Export 4 files' }));
     await waitFor(() => expect(usePrefsStore.getState().exportLast.p).toMatchObject({ layout: 'by-side', template: '{side}/{input}__{settings}__{file}__{region}', files: 'debug/*/out.png', settings_keys: null, file_in_names: 'auto' }));
   });
 });

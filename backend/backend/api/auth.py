@@ -1,6 +1,7 @@
 """
 Authentication for qaboard - LOCAL, LDAP and SAML.
 """
+import logging
 import os
 from functools import wraps
 
@@ -11,11 +12,14 @@ import simplejson
 from flask import request, jsonify, redirect, session, g, has_request_context
 from flask_login import LoginManager, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+
+logger = logging.getLogger(__name__)
+
 try:
   # FIXME: Unfortunately we run often into libxml mismatch version issues
   from onelogin.saml2.auth import OneLogin_Saml2_Auth
 except Exception as e:
-  print(f"WARNING: Could not import onelogin.saml2: {e}")
+  logger.warning("SAML sign-in is unavailable: could not import onelogin.saml2: %s", e)
 from backend import app, db_session
 from ..models import User
 from ..settings import setting, env_list
@@ -132,7 +136,7 @@ def signup():
     })
   except Exception as e:
     db_session.rollback()
-    print(f"[signup] Error when creating new user @{user_name}: {type(e).__name__}")
+    logger.warning("Could not create the user %s: %s", user_name, type(e).__name__)
     if type(e).__name__ == "IntegrityError": # sqlalchemy.exc, e.g. the email is already used
       return jsonify({"error": "This user name or email is already used"}), 409
     return jsonify({"error": "Could not create the user"}), 500
@@ -173,7 +177,7 @@ def auth_post():
     elif user.status == 'disabled':
       user_info = {"login_success": False, "error": user.status}
   if not user_info["login_success"]:
-    print(f"[auth] Failed Login @{username}")
+    logger.info("Sign-in failed: %s (%s)", username, user_info.get("error"))
     error = user_info.get("error")
     # linked to the account if it exists, so its owner sees the attempts
     known = user or User.query.filter_by(user_name=username).one_or_none()
@@ -189,7 +193,7 @@ def auth_post():
 
   provider_id = 'ldap' if (user.login_type or '').upper() == 'LDAP' else 'local'
   finish_sign_in(user, provider_id)
-  print(f"[auth] Login @{username}")
+  logger.info("Signed in: %s", username)
   return jsonify(sign_in_response(user_info, user))
 
 
@@ -459,7 +463,7 @@ def create_user(info):
   from ..usage import claim_events
   claim_events(user)
   db_session.commit()
-  print(f"[auth] Created the user @{user.user_name}" + (" (waiting for an admin)" if user.status == 'pending' else ""))
+  logger.info("Created the user %s%s", user.user_name, " (waiting for an admin)" if user.status == 'pending' else "")
   return user
 
 
@@ -580,7 +584,7 @@ def auth_local(username, password):
   }
 
   if is_login_restricted and not is_authorized_user(info):
-    print(f"[auth] Unauthorized login @{username}")
+    logger.info("Sign-in refused by the login rules: %s", username)
     info["error"] = not_authorized_error
     session.clear()
     return info
@@ -725,7 +729,7 @@ def auth_ldap(user_name, password):
   if user_info["login_success"]:
     if is_login_restricted and not is_authorized_user(user_info):
       user_info["login_success"] = False
-      print(f"[auth] Unauthorized login @{user_name}")
+      logger.info("Sign-in refused by the login rules: %s", user_name)
       user_info["error"] = not_authorized_error
       session.clear()
       # return user_info
@@ -804,7 +808,7 @@ def saml_auth():
               "picture": saml_picture,
               }
               if is_login_restricted and not is_authorized_user(user_info):
-                print(f"[auth] Unauthorized login @{user_info['user_name']}")
+                logger.info("Sign-in refused by the login rules: %s", user_info['user_name'])
                 errors.append(not_authorized_error)
                 session.clear()
                 return " ".join(errors), 403
@@ -837,7 +841,7 @@ def saml_auth():
 
     # Handle bad requests:
     # raise Exception(" ".join(errors))
-    print(" ".join(errors))
+    logger.warning("SAML sign-in failed: %s", " ".join(errors))
     return " ".join(errors), 403
 
 

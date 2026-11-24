@@ -60,7 +60,7 @@ export const ProfileTab = ({ user }) => {
         <tr><th scope="row">Name</th><td>{user.full_name || <span className={Classes.TEXT_MUTED}>Not set</span>}</td></tr>
         <tr><th scope="row">User name</th><td><code>{user.user_name}</code></td></tr>
         <tr><th scope="row">Email</th><td>{user.email || <span className={Classes.TEXT_MUTED}>Not set</span>}</td></tr>
-        <tr><th scope="row">Sign-in</th><td>{loginTypeLabel(user.login_type) ?? '—'} · <Link to="/settings/sign-in">Sign-in methods</Link></td></tr>
+        <tr><th scope="row">Sign-in</th><td>{loginTypeLabel(user.login_type) ?? '—'} · <Link to="/settings/sign-in" style={{ textDecoration: 'underline' }}>Sign-in methods</Link></td></tr>
         <tr><th scope="row">Role</th><td>{user.is_admin ? 'Admin: you can manage users and the server' : 'User'}</td></tr>
       </tbody>
     </HTMLTable>

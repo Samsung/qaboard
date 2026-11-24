@@ -10,21 +10,20 @@ project:
   # description
   # Where the script implementing `run` and `postprocess` functions is located (relative to the project's root)
   entrypoint: qa/main.py
-  # The latest commit on this branch is used for as default reference when comparing results
-  reference_branch: master # or develop, release... 
+  # Commits are compared with the latest results on this branch
+  reference_branch: main # or master, develop...
 
 
 # Default settings (can be overridden per run...)
 inputs:
   # We assume your inputs are located at $database/$input. [read the docs for other options...]
   database:
-    # Often databases are mounted at different locations on linux and windows...
+    # A folder relative to the project's root (e.g. `data`), or an absolute path per OS
     linux: /
     windows: C://
-    # TODO: - List those mappings under storage.mapping[{linux,windows}]
 
   # What kind of inputs do you have? images? folders containing images?
-  # To find them automaticall when you run `qa batch my/folder`, you need to provide a way to identify them:
+  # To find them automatically when you run `qa batch my/folder`, you need to provide a way to identify them:
   # globs: '*.jpg'
   # It is sometimes nicer to identify the folder containing a matching path as the input;
   # for instance if you identify inputs as folders with a file named "Frame_000.jpg":
@@ -70,7 +69,7 @@ outputs:
 
   # - name: My plot
   #   # path: data.plotly.json
-  #   ## If you use plotly, it is very simple to view yours plots in the web UI
+  #   ## If you use plotly, it is very simple to view your plots in the web UI
   #   ## Save your plot's data and layout in a json file
   #   ## Note: To find the data they will display, some viewers might rely on conventions
   #   ##       but it is best to be explicit
@@ -96,16 +95,16 @@ outputs:
 
   # The UI lets you define controls that pass parameters down to all viewers
   # controls:
-  #   - type: toggle     # TODO: Only toggle is supported for now. We could support all HTML inputs: text_input, select...
+  #   - type: toggle     # only toggles for now
   #     label: Debug     # optional
   #     name: show_debug # required
   #     default: false   # required
 
-   # Decides what to do when asked to re-run a test for which we already have results
-   # action_on_existing: run          # redo both the run and postprocessing
-   ##                  | postprocess  # redo the postprocessing
-   ##                  | sync         # reads `metrics.json` to make sure the database is up to date
-   ##                  | skip         # continue to the next test
+  # Decides what to do when asked to re-run a test for which we already have results
+  # action_on_existing: run          # redo both the run and postprocessing
+  ##                  | postprocess  # redo the postprocessing
+  ##                  | sync         # reads `metrics.json` to make sure the database is up to date
+  ##                  | skip         # continue to the next test
 
 
 # # After the build, you must define the "artifacts" needed to run your software:
@@ -119,7 +118,7 @@ outputs:
 #     glob: 'build/sample_project'
 
 
-# Bit accuray tests will look for files matching those glob patterns
+# Bit accuracy tests will look for files matching those glob patterns
 bit_accuracy: {}
   # In order to compare file hashes/sizes between Linux and Windows, text files need to have end of lines normalized.
   # If you provide a list of patterns for plaintext files, the rest will be considered binary
@@ -149,8 +148,9 @@ bit_accuracy: {}
 # Experimental, may change without notice: `qa gate` fails the CI when the results regress vs a reference.
 # See the docs' "Quality gate" page.
 # gate:
-#   reference: master     # a branch, a shared milestone or a commit. Default: project.reference_branch
-#   batches: [default]    # the labels of the batches to check. Default: the CI batch
+#   reference: main       # a branch, a shared milestone or a commit. Default: project.reference_branch
+#   labels: [default]     # the labels of the results to check (`qa --label`). Default: the CI's, "default"
+#   expect_batches: [ci]  # undecidable until `qa batch ci` has runs
 #   rules:                # "worse" depends on the metrics' smaller_is_better
 #     - {metric: loss, max_regression: 5%}            # the median over the runs vs the reference's
 #     - {metric: loss, per_test_max_regression: 20%}  # each run vs its reference run
@@ -167,10 +167,10 @@ bit_accuracy: {}
 
 
 runners:
-  # By default `qa batch` uses the first task runner configured below (e.g. LSF), else runs on the local host
-  # default: lsf
+  # The runner `qa batch` uses: local, lsf, celery, dask, kubernetes...
+  default: local
   local:
-    concurrency: -1
+    concurrency: -1  # one run per CPU
   # lsf: # to use an LSF cluster
   #   # Depending on your project, you may want to use different LSF job queues
   #   # In doubt, ask advice from your manager / CAD / bqueues. If not set: LSF's default queue.

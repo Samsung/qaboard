@@ -17,6 +17,7 @@ Admins opt in by setting one: unset, the server starts no batches (server_runner
 batch.data.submissions can be written by unauthenticated API calls: before we kill processes, we check they're those
 we started for the submission (QABOARD_SUBMISSION_ID in their environment), never just the pid we're given.
 """
+import logging
 import os
 import time
 import signal
@@ -27,6 +28,8 @@ from typing import Any, Dict, List, Optional
 
 from qaboard.runners.env import is_secret as is_runner_secret
 from .server_runner import IN_SERVER_RUNNERS
+
+logger = logging.getLogger(__name__)
 
 
 # In the environment of what we start, to find it again, even processes that left its process group
@@ -103,7 +106,7 @@ def start_detached(script_path, log_dir, env: Dict[str, str], wait: Optional[flo
   """
   log_dir = Path(log_dir)
   (log_dir / EXIT_CODE_FILE).unlink(missing_ok=True)
-  print(['bash', str(script_path)])
+  logger.info("Starting `bash %s`", script_path)
   launcher = subprocess.Popen(
     ['bash', '-c', LAUNCHER, 'qaboard-launcher', str(script_path), str(log_dir)],
     cwd=log_dir, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -212,7 +215,7 @@ def persist_final_status(batch_id, submission) -> bool:
       """), {"batch_id": batch_id, "submission_id": submission_id, "patch": json.dumps(patch)})
       return result.rowcount > 0
   except Exception as e:
-    print(f"WARNING: could not record the status of the `qa batch` {submission_id} of batch {batch_id}: {e}")
+    logger.warning("Could not record the status of the `qa batch` %s of batch %s: %s", submission_id, batch_id, e)
     return False
 
 
@@ -274,10 +277,10 @@ def stop_local_submissions(data) -> Dict[str, list]:
     if host != here:
       message = (f"Could not stop the `qa batch` {submission_id[:8]}: it runs on {host}, another replica of the QA-Board server "
                  f"(this one is {here}). Try again, or ask your QA-Board admins to stop it.")
-      print(f"WARNING: {message}")
+      logger.warning(message)
       errors.append(message)
       continue
-    print(f"stopping the local `qa batch` {submission_id} (pid {submission.get('pid')})")
+    logger.info("Stopping the local `qa batch` %s (pid %s)", submission_id, submission.get('pid'))
     _kill(submission_id, submission)
     stopped.append(submission_id)
   return {"stopped": stopped, "errors": errors}

@@ -757,6 +757,26 @@ class TestIngestMessages(AuthTestCase):
         self.assertNotIn('Traceback', stderr)
         self.assertEqual(self.exit_if_results_refused(), (None, ''))
 
+  def test_unreachable_is_said_once(self):
+    """A run's last results are tried again: "can't reach QA-Board" is said once, not each time it tries"""
+    os.environ.pop('QA_AUTH_WARNING_SHOWN', None)
+    refused = requests.ConnectionError('Connection refused')
+    unavailable = response(503, {})
+    unavailable.close = lambda: None
+    with mock.patch('qaboard.auth._warnings_shown', set()), mock.patch('qaboard.api._said_unreachable', set()), mock.patch('time.sleep'):
+      _, stderr = self.notify(refused)
+      self.assertEqual(stderr.splitlines(), [
+        'warning: Could not reach QA-Board at http://qa.test: connection refused. The results were not sent.',
+        'hint: Check that the server is up and that QABOARD_URL is right, or use `qa --offline`. `qa doctor` checks the connection.',
+      ])
+      # e.g. the server answers again, but is restarting: qa already said it can't reach it
+      _, stderr = self.notify(unavailable)
+      self.assertNotIn("trying again", stderr)
+    with mock.patch('qaboard.api._said_unreachable', set()), mock.patch('time.sleep'):
+      _, stderr = self.notify(unavailable)
+    self.assertIn("warning: QA-Board didn't take the results (503), trying again in 1s...", stderr)
+    os.environ.pop('QA_AUTH_WARNING_SHOWN', None)
+
   def test_once_per_batch(self):
     expired = response(401, {"error": "This token expired on 2026-09-01.", "reason": "token_expired"})
     _, stderr = self.notify(expired)

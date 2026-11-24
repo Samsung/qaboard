@@ -6,7 +6,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 import CiCommitList from '../CiCommitList';
-import { ComparisonProvider } from '../hooks';
+import { ComparisonProvider, resetListScopeFallbacks } from '../hooks';
 import { history, matchRoutes, RouteMatch } from '../router';
 import { renderWithProviders } from '../test-utils';
 import { usePrefsStore } from '../stores/prefs';
@@ -62,6 +62,7 @@ describe('the project page for signed-in users', () => {
   beforeEach(() => {
     has_mine = true;
     has_my_commits = true;
+    resetListScopeFallbacks();
     fetchMock.mockClear();
     vi.stubGlobal('fetch', fetchMock);
     vi.spyOn(history, 'push').mockImplementation(() => {});

@@ -316,14 +316,17 @@ const CiCommitResults = () => {
       />;
     } else if (new_commit.error) {
       hidden_views = [...results_views, 'parameters'];
+      // e.g. "404 Sorry, we could not find...": a 4xx won't change if we retry. Same title as the commit's bar
+      const client_error = new_commit.error.startsWith('4');
+      const not_found = new_commit.error.startsWith('404');
       commit_state = <NonIdealState
-        icon="error"
-        title="Could not load this commit"
+        icon={not_found ? "search" : "error"}
+        title={not_found ? "Commit not found" : "Could not load this commit"}
         description={<p>
-          <code>{new_commit.error}</code>
-          {new_commit.error.startsWith('4') && <><br/>Check the commit id, or whether its runs belong to another project.</>}
+          {not_found ? new_commit.error.replace(/^404\s+/, '') : new_commit.error}
+          {client_error && <><br/>Check the commit id, or whether its runs belong to another project.</>}
         </p>}
-        action={<Button icon="refresh" text="Retry" onClick={() => refreshCommit(new_project, new_commit.id ?? null)}/>}
+        action={client_error ? undefined : <Button icon="refresh" text="Retry" onClick={() => refreshCommit(new_project, new_commit.id ?? null)}/>}
       />;
     } else if (!new_commit.is_loaded) {
       hidden_views = [...results_views, 'parameters'];

@@ -20,6 +20,7 @@ the storage (NFS...) answers slowly, but in parallel. An interrupted scan resume
 Cancelling stops the threads at the next folder they read, even deep in a huge folder: only a folder whose storage
 doesn't answer at all (a hung mount) can't be stopped, admins then force the job to stop (api/admin_jobs.py).
 """
+import logging
 import os
 import re
 import glob
@@ -40,6 +41,8 @@ from .. import accounts
 from . import params as p
 from .common import matching_projects
 from .report import Reporter, utcnow
+
+logger = logging.getLogger(__name__)
 
 
 PARAMS = ('roots', 'projects', 'exclude_projects', 'exclude_paths', 'min_size_mb', 'threads')
@@ -505,7 +508,7 @@ def run(params: dict, report: Reporter):
     updated = accounts.refresh()
   except Exception as e:
     updated = False
-    print(f"[scan] could not update the accounts: {e}")
+    logger.warning("Could not update the accounts: %s", e)
   if not updated:
     report.log("Could not update the accounts (QABOARD_ACCOUNTS_COMMAND, see the backend's logs): we use the ones we have", level='warning')
   report.log(f"Scanning {len(roots)} folders: {', '.join(roots[:10])}{'…' if len(roots) > 10 else ''}")

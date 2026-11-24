@@ -12,6 +12,7 @@ files and the binaries the CI built.
   /api/v1/commit/<commit>/artifacts?project=<project> lists the files with their SHA-256, and the hash of the whole
   that clients cache them by; the files are downloaded from the storage's URL (/s/..., with its access checks).
 """
+import logging
 import os
 import re
 import time
@@ -31,6 +32,8 @@ from ..uploads import FULL_COMMIT_ID
 from qaboard.api import dir_to_url
 from qaboard.commit_artifacts import bundle_hash, sha256_of
 from qaboard.conventions import Reason
+
+logger = logging.getLogger(__name__)
 
 
 def find_commit(project_id, hexsha):
@@ -115,7 +118,7 @@ def upload_commit_artifact(commit_id, path):
     size = uploads.save_file(directory, path, request.stream, request.content_length, sha256=sha256)
   except uploads.UploadError as e:
     return jsonify({"error": str(e), "reason": e.reason, **e.details}), e.status
-  print(f"[uploads] artifacts of {project_id} {commit_id}: {path}, {size} bytes in {time.monotonic() - started:.1f}s", flush=True)
+  logger.debug("Uploaded to the artifacts of %s %s: %s, %s bytes in %.1fs", project_id, commit_id, path, size, time.monotonic() - started)
   location = locations.location_of(directory)
   if (ci_commit.data or {}).get(UPLOADED_ARTIFACTS) != location:
     ci_commit.data = {**(ci_commit.data or {}), UPLOADED_ARTIFACTS: location}

@@ -227,7 +227,7 @@ const UserMenu = ({ user, logout, avatar_url_template, appSider = false }) => {
   const nb_pending = user.is_admin ? requests?.length ?? 0 : 0;
   const pending_tag = nb_pending > 0 && <Tag round intent={Intent.WARNING} title={`${nb_pending} access request${nb_pending === 1 ? '' : 's'} to review`}>{nb_pending}</Tag>;
   const trigger = <UserMenuTrigger>
-    <Avatar src={avatarUrl} name={display_name} size="28px"/>
+    <Avatar src={avatarUrl} name={display_name} size="28px" alt=""/>
     <span className="user-display">{display_name}</span>
     {pending_tag}
     <Icon icon="chevron-down" className="chevron-icon" size={10} />
@@ -246,7 +246,7 @@ const UserMenu = ({ user, logout, avatar_url_template, appSider = false }) => {
     <MenuItem text="Sign out" icon="log-out" onClick={logout}/>
   </>;
   const header = <UserProfileHeader>
-    <Avatar src={avatarUrl} name={display_name} size="36px"/>
+    <Avatar src={avatarUrl} name={display_name} size="36px" alt=""/>
     <UserInfo>
       <div className="user-name">{display_name}</div>
       {user.email && <div className="user-email">{user.email}</div>}
