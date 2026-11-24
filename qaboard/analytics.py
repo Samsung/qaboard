@@ -48,8 +48,12 @@ def enabled(offline: Optional[bool] = None) -> bool:
   # As seen when the command started: `qa batch` marks its own environment for its children (QA_BATCH).
   if _state.get('nested', is_nested()):
     return False
-  from .api import qaboard_url_source
-  return bool(qaboard_url_source)
+  # qaboard.api imports requests: commands that didn't need it (e.g. `qa runs --help`) don't import it for this
+  api = sys.modules.get('qaboard.api')
+  if api is not None:
+    return bool(api.qaboard_url_source)
+  from .credentials import default_server
+  return bool(default_server()[1])
 
 
 def start(command: Optional[str], share: bool = False, tuning: bool = False, dryrun: bool = False, offline: bool = False):

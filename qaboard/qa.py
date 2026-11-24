@@ -15,11 +15,11 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import click
-from rich.traceback import install
-install(show_locals=False, suppress=[click])
+
+from .lazy import lazy_function, install_rich_traceback_lazily
+install_rich_traceback_lazily()
 
 from .run import RunContext
-from .runners import Job, JobGroup
 
 from .conventions import make_batch_dir, make_batch_conf_dir, RUN_DIR_VARIABLE
 from .conventions import serialize_config, deserialize_config, get_settings
@@ -28,8 +28,14 @@ from .utils import save_outputs_manifest, total_storage
 from .utils import redirect_std_streams, clean_output_dir, interrupted_by_sigterm, ignored_signals
 from . import attempts
 from .utils import getenvs
-from .api import url_to_dir, print_url
-from .api import get_outputs, notify_qa_database, serialize_paths, exit_if_results_refused, ResultsUnreadable, print_auth_error
+from .compat import url_to_dir
+from .payloads import serialize_paths
+# qaboard.api imports requests: `qa --help` and shell completion don't need it (tests/test_startup.py)
+print_url = lazy_function('.api', 'print_url')
+get_outputs = lazy_function('.api', 'get_outputs')
+notify_qa_database = lazy_function('.api', 'notify_qa_database')
+exit_if_results_refused = lazy_function('.api', 'exit_if_results_refused')
+print_auth_error = lazy_function('.api', 'print_auth_error')
 from .iterators import iter_inputs, iter_parameters, load_runs_file, iter_runs, rerun_job_options, local_job_options
 from .batch_logs import saves_logs, batch_log
 
@@ -909,6 +915,7 @@ default_local_timeout = env_number(float, os.environ.get('QA_BATCH_TIMEOUT', loc
 def listed_runs(listed) -> List[dict]:
   """The runs of `qa batch --list` and --save-runs: the jobs, where their run was saved (QA-Board knows it once
   they ran: their `qa run` may have used another directory than we reserved), and the runs we skipped."""
+  from .runners import Job
   runs = []
   for item in listed:
     if not isinstance(item, Job):
@@ -1011,6 +1018,8 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
 
   analytics.note(runner=runner, n_batches=len(batches) if batches else None)
   print_url(ctx)
+  from .api import ResultsUnreadable
+  from .runners import Job, JobGroup
   # if the commit does not exist or there are network errors it will return empty data
   try:
     existing_outputs = get_outputs(ctx.obj, ignore_errors=True)

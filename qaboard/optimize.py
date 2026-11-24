@@ -10,7 +10,13 @@ from typing import Any, Dict, Optional
 
 import click
 
-from .api import makeNumpyEncoder, batch_info, notify_qa_database, print_url, matching_output
+from .lazy import lazy_function
+# qaboard.api imports requests: not needed by `qa --help` (tests/test_startup.py)
+makeNumpyEncoder = lazy_function('.api', 'makeNumpyEncoder')
+batch_info = lazy_function('.api', 'batch_info')
+notify_qa_database = lazy_function('.api', 'notify_qa_database')
+print_url = lazy_function('.api', 'print_url')
+matching_output = lazy_function('.api', 'matching_output')
 from .config import project, subproject, commit_id, outputs_commit, available_metrics, default_batches_files, default_platform
 from .conventions import batch_dir
 from .utils import PathType, getenvs
