@@ -332,7 +332,10 @@ const OptimizationReport = ({ batch, project, commit_id, available_metrics: decl
     return () => clearInterval(interval);
   }, [running, project, commit_id, refresh]);
 
-  const objective_metrics = Object.keys(data.optimization_config?.objective ?? data.best_metrics ?? {}).filter(m => m !== 'target' && m !== 'objective');
+  const objective_metrics = useMemo(
+    () => Object.keys(data.optimization_config?.objective ?? data.best_metrics ?? {}).filter(m => m !== 'target' && m !== 'objective'),
+    [data],
+  );
   const best = summary.best;
   const best_params = best ? Object.fromEntries(space.map(d => [d.name, best.params[d.name]]).filter(([, v]) => v !== undefined)) : (data.best_params ?? {});
   const all_best_params = best?.params ?? data.best_params ?? {};
@@ -377,8 +380,7 @@ const OptimizationReport = ({ batch, project, commit_id, available_metrics: decl
       },
     }));
     return { columns, rows };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [evaluations, space, available_metrics, pareto, objective_metrics.join('\n')]);
+  }, [evaluations, space, available_metrics, pareto, objective_metrics]);
   const marks = useMemo(() => pareto
     ? Object.fromEntries([...front_ids].map(i => [i, { label: '' }]))
     : best ? { [best.iteration]: { label: 'Best' } } : {}, [pareto, front_ids, best]);

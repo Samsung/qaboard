@@ -1006,7 +1006,7 @@ export const ReferenceTabs = () => {
     else if (moves_nowhere) drop_hint = <>{name(dragging)} is already there</>;
     else {
       const others = references.map(r => r.index).filter(i => i !== dragging);
-      const left = others.filter(i => i < drop_gap).at(-1);
+      const left = others.findLast(i => i < drop_gap);
       const right = others.find(i => i >= drop_gap);
       drop_hint = left === undefined ? <>Move {name(dragging)} first, before {name(right)}</>
         : right === undefined ? <>Move {name(dragging)} last, after {name(left)}</>
