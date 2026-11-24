@@ -23,7 +23,8 @@ import tempfile
 import subprocess
 from pathlib import Path
 from urllib.parse import quote
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple
+from typing import Any
+from collections.abc import Callable, Iterable, Iterator
 
 import click
 import yaml
@@ -47,7 +48,7 @@ LOW_DISK_SPACE = 1024 ** 3
 CONFIG_NAMES = ('qaboard.yaml', 'qatools.yaml')
 
 
-def run_command(command: str, timeout: float = 15, cwd: Optional[str] = None) -> Tuple[Optional[int], str]:
+def run_command(command: str, timeout: float = 15, cwd: str | None = None) -> tuple[int | None, str]:
   """Runs a shell command: (its exit code, None if it timed out, and its output: stdout and stderr together)."""
   try:
     out = subprocess.run(command, shell=True, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -69,7 +70,7 @@ def tail(text: str, lines: int = 5) -> str:
   return '\n'.join(line.rstrip() for line in (text or '').strip().splitlines()[-lines:])
 
 
-def mask_token(token: str, prefix: Optional[str] = None) -> str:
+def mask_token(token: str, prefix: str | None = None) -> str:
   """What we show of a token: the prefix the server shows too, or its first characters."""
   if prefix:
     return f"{prefix}..."
@@ -86,7 +87,7 @@ def mask_url_password(url: str) -> str:
   return re.sub(r'((?:password|passwd|pwd|token|secret|api_key|apikey)=)[^&;\s]*', r'\1****', url, flags=re.IGNORECASE)
 
 
-def plural(n: int, word: str, words: Optional[str] = None) -> str:
+def plural(n: int, word: str, words: str | None = None) -> str:
   return f"{n} {word if n == 1 else (words or word + 's')}"
 
 
@@ -102,7 +103,7 @@ def human_size(size: float) -> str:
 # qa and qaboard.yaml
 ###############################################################################
 
-def latest_version() -> Optional[str]:
+def latest_version() -> str | None:
   """The latest qaboard version, from the cache `qa` keeps (see check_for_updates.py), else asked quickly."""
   from .site_config import user_config_dir
   try:
@@ -116,14 +117,14 @@ def latest_version() -> Optional[str]:
   return latest_qaboard_version(quiet=True)
 
 
-def check_version(current: str, latest: Optional[str], python: Tuple[int, ...] = tuple(sys.version_info[:3])) -> Check:
+def check_version(current: str, latest: str | None, python: tuple[int, ...] = tuple(sys.version_info[:3])) -> Check:
   """`qa` is up to date, and Python is recent enough."""
   from .check_for_updates import version_key, upgrade_command
   python_str = '.'.join(str(n) for n in python)
   name = "qa version"
-  if python[:2] < (3, 9):
-    return Check(name, WARNING, f"qa {current} on Python {python_str}: `qa optimize` and the dask runner need Python 3.9 or later.",
-                 fix=f"Use Python 3.9 or later, e.g. in a new virtual environment:\n  python3 -m venv .venv && . .venv/bin/activate && pip install qaboard\nDocs: {docs('installation')}")
+  if python[:2] < (3, 11):
+    return Check(name, WARNING, f"qa {current} on Python {python_str}: qa needs Python 3.11 or later.",
+                 fix=f"Use Python 3.11 or later, e.g. in a new virtual environment:\n  python3 -m venv .venv && . .venv/bin/activate && pip install qaboard\nDocs: {docs('installation')}")
   if current == 'unknown':
     return Check(name, OK, f"qa from a source checkout (its version is unknown), on Python {python_str}")
   current_key, latest_key = version_key(current), version_key(latest) if latest else None
@@ -147,12 +148,12 @@ PROJECT_SNIPPET = """project:
   entrypoint: qa/main.py"""
 
 
-def find_config_files(start: Path) -> Tuple[List[Tuple[Dict[str, Any], Path]], Optional[Check]]:
+def find_config_files(start: Path) -> tuple[list[tuple[dict[str, Any], Path]], Check | None]:
   """
   The qaboard.yaml files of the project at `start`, root first, like config.find_configs,
   and an ERROR Check if one can't be read or is not valid YAML.
   """
-  found: List[Tuple[Dict[str, Any], Path]] = []
+  found: list[tuple[dict[str, Any], Path]] = []
   start = Path(os.path.abspath(start))
   for parent in [start, *start.parents]:
     path = next((parent / n for n in CONFIG_NAMES if (parent / n).is_file()), None)
@@ -178,7 +179,7 @@ def find_config_files(start: Path) -> Tuple[List[Tuple[Dict[str, Any], Path]], O
   return found, None
 
 
-def schema_errors(content: Dict[str, Any]) -> Optional[List[str]]:
+def schema_errors(content: dict[str, Any]) -> list[str] | None:
   """The errors of a qaboard.yaml against its JSON schema, as "path: message". None if jsonschema isn't installed."""
   try:
     from jsonschema import Draft202012Validator  # type: ignore
@@ -186,7 +187,7 @@ def schema_errors(content: Dict[str, Any]) -> Optional[List[str]]:
     return None
   schemas_dir = Path(__file__).parent / 'schemas'
   schema = json.loads((schemas_dir / 'qaboard.schema.json').read_text())
-  kwargs: Dict[str, Any] = {}
+  kwargs: dict[str, Any] = {}
   try:
     from referencing import Registry, Resource
     schemas = [json.loads(p.read_text()) for p in schemas_dir.glob('*.schema.json')]
@@ -198,7 +199,7 @@ def schema_errors(content: Dict[str, Any]) -> Optional[List[str]]:
   return [f"{'.'.join(str(p) for p in e.absolute_path) or '(top)'}: {e.message}" for e in errors]
 
 
-def check_config(start: Path, load_error: Optional[str] = None) -> Iterator[Check]:
+def check_config(start: Path, load_error: str | None = None) -> Iterator[Check]:
   """
   qaboard.yaml is found from `start`, is valid YAML, has what `qa` needs, and matches its JSON schema
   (when jsonschema is installed). `load_error` is why qaboard.config could not load it, if it failed.
@@ -245,7 +246,7 @@ def check_config(start: Path, load_error: Optional[str] = None) -> Iterator[Chec
     return
 
   where = str(root_path) if len(found) == 1 else f"{root_path}, and {found[-1][1]} for this subproject"
-  all_errors: List[str] = []
+  all_errors: list[str] = []
   checked = True
   for content, path in found:
     errors = schema_errors(content)
@@ -261,7 +262,7 @@ def check_config(start: Path, load_error: Optional[str] = None) -> Iterator[Chec
   yield Check(name, OK, where + ('' if checked else " (not checked against the schema: pip install jsonschema)"))
 
 
-def check_project(project: Optional[Path], project_root: Optional[Path], subproject: Path, config: Dict[str, Any], root: Path) -> Iterator[Check]:
+def check_project(project: Path | None, project_root: Path | None, subproject: Path, config: dict[str, Any], root: Path) -> Iterator[Check]:
   """The project's name, its entrypoint (the code `qa run` runs), and its batches files."""
   if not project:
     return
@@ -291,14 +292,14 @@ def check_project(project: Optional[Path], project_root: Optional[Path], subproj
         yield Check(name, ERROR, f"qa can't read {entrypoint}: {e}", fix=f"ls -l {path}   # ask its owner for read access")
 
 
-def check_batches_files(batches_files: List[Any], root: Path) -> Check:
+def check_batches_files(batches_files: list[Any], root: Path) -> Check:
   """The files that define the batches `qa batch` runs: listed, existing, valid YAML."""
   name = "Batches"
   snippet = "inputs:\n  batches: qa/batches.yaml"
   if not batches_files:
     return Check(name, WARNING, "No batches files: `qa batch` needs them to know what to run.",
                  fix=f"In qaboard.yaml:\n{snippet}\nand list your batches there.\nDocs: {docs('batches-running-on-multiple-inputs')}")
-  names: List[str] = []
+  names: list[str] = []
   for batches_file in batches_files:
     path = root / batches_file
     if not path.is_file():
@@ -318,7 +319,7 @@ def check_batches_files(batches_files: List[Any], root: Path) -> Check:
   return Check(name, OK, f"{files}: {plural(len(names), 'batch', 'batches')}" + (f" ({shown})" if names else ''))
 
 
-def check_git(is_in_git_repo: bool, commit_id: Optional[str], commit_branch: Optional[str], is_ci: bool, placeholder: str) -> Check:
+def check_git(is_in_git_repo: bool, commit_id: str | None, commit_branch: str | None, is_ci: bool, placeholder: str) -> Check:
   """Results are saved per commit: qa needs to know which one."""
   name = "Git commit"
   if not commit_id or commit_id == placeholder:
@@ -367,7 +368,7 @@ def server_fix(server, reason: str) -> str:
           f"If it's down, tell your QA-Board admins.\nDocs: {docs('installation#connecting-to-a-custom-qa-board-server')}")
 
 
-def check_server(server, verify: Any = True, timeout=TIMEOUT) -> Tuple[Check, Optional[Dict[str, Any]]]:
+def check_server(server, verify: Any = True, timeout=TIMEOUT) -> tuple[Check, dict[str, Any] | None]:
   """
   The server answers like QA-Board, and its database works. Returns the Check and the server's settings
   (/api/v1/config: how it authenticates results...), or None if it can't be reached.
@@ -406,7 +407,7 @@ def check_server(server, verify: Any = True, timeout=TIMEOUT) -> Tuple[Check, Op
   return Check(name, OK, f"{where}"), site
 
 
-def token_matches_project(patterns: List[str], project: Optional[str]) -> bool:
+def token_matches_project(patterns: list[str], project: str | None) -> bool:
   """Like the server's tokens.matches_project: whether a token restricted to `patterns` can access a project."""
   if not patterns:
     return True
@@ -423,7 +424,7 @@ def token_matches_project(patterns: List[str], project: Optional[str]) -> bool:
   return False
 
 
-def auth_fix(refused: Dict[str, Any], token_source: Optional[str], ci: bool, project: Optional[str], server: str) -> Optional[str]:
+def auth_fix(refused: dict[str, Any], token_source: str | None, ci: bool, project: str | None, server: str) -> str | None:
   """credentials.fix_for, with the link to the web app's page where people create tokens."""
   from .credentials import fix_for, ACCESS_TOKENS_PAGE
   fix = fix_for(refused, token_source, ci=ci, project=project, server=server)
@@ -439,8 +440,8 @@ def sign_in_fix(server, ci: bool) -> str:
           f"Docs: {docs('installation#signing-in')}")
 
 
-def check_sign_in(server, token: Optional[str], token_source: Optional[str], site: Dict[str, Any], project: Optional[str],
-                  ci: bool, verify: Any = True, timeout=TIMEOUT, now=None) -> Tuple[List[Check], bool]:
+def check_sign_in(server, token: str | None, token_source: str | None, site: dict[str, Any], project: str | None,
+                  ci: bool, verify: Any = True, timeout=TIMEOUT, now=None) -> tuple[list[Check], bool]:
   """
   Whether QA-Board accepts the results qa sends: signed in (with a valid token that can send results to the project),
   or the server accepts them without a token. Returns the Checks, and whether the token was accepted.
@@ -480,7 +481,7 @@ def check_sign_in(server, token: Optional[str], token_source: Optional[str], sit
     fix = auth_fix({'reason': 'token_invalid'}, token_source, ci=ci, project=project, server=server.url)
     return [Check(name, ERROR, f"QA-Board did not accept your token ({mask_token(token)}, from {source}).", fix=fix)], False
 
-  token_info: Dict[str, Any] = me['token'] if isinstance(me.get('token'), dict) else {}
+  token_info: dict[str, Any] = me['token'] if isinstance(me.get('token'), dict) else {}
   shown = mask_token(token, token_info.get('prefix'))
   checks = [Check(name, OK, f"as {me['user_name']} (token {shown} from {source})")]
   scopes = token_info.get('scopes')
@@ -492,7 +493,7 @@ def check_sign_in(server, token: Optional[str], token_source: Optional[str], sit
     fix = auth_fix({'reason': 'token_project'}, token_source, ci=ci, project=project, server=server.url)
     checks.append(Check("Token projects", severity, f"Your token is only for {', '.join(projects)}, not {project}.", fix=fix))
   expires_at = parse_time(token_info.get('expires_at'))
-  now = now or datetime.datetime.now(datetime.timezone.utc)
+  now = now or datetime.datetime.now(datetime.UTC)
   if expires_at and expires_at - now < datetime.timedelta(days=7):
     expired = expires_at <= now
     fix = auth_fix({'reason': 'token_expired'}, token_source, ci=ci, project=project, server=server.url)
@@ -500,7 +501,7 @@ def check_sign_in(server, token: Optional[str], token_source: Optional[str], sit
   return checks, True
 
 
-def check_project_access(server, token: str, token_source: Optional[str], project: str, site: Dict[str, Any], ci: bool,
+def check_project_access(server, token: str, token_source: str | None, project: str, site: dict[str, Any], ci: bool,
                          verify: Any = True, timeout=TIMEOUT) -> Check:
   """Signed-in users need the developer role to send results to a project (or QA-Board saves them as unverified)."""
   import requests
@@ -530,7 +531,7 @@ def check_project_access(server, token: str, token_source: Optional[str], projec
                fix=auth_fix(refused, token_source, ci=ci, project=project, server=server.url))
 
 
-def check_server_sees(server, path: Path, token: Optional[str], verify: Any = True, timeout=TIMEOUT) -> Check:
+def check_server_sees(server, path: Path, token: str | None, verify: Any = True, timeout=TIMEOUT) -> Check:
   """
   The server reads the storage at the same path as here: else the web app can't show the results.
   We ask for the folder's listing (/s/<path>), like the web app's file browser.
@@ -578,7 +579,7 @@ def check_server_sees(server, path: Path, token: Optional[str], verify: Any = Tr
 # Storage and inputs
 ###############################################################################
 
-def closest_existing(path: Path) -> Optional[Path]:
+def closest_existing(path: Path) -> Path | None:
   """The path, or its closest parent that exists."""
   for candidate in [path, *path.parents]:
     if candidate.exists():
@@ -586,7 +587,7 @@ def closest_existing(path: Path) -> Optional[Path]:
   return None
 
 
-def make_test_dir(job_options: Dict[str, Any]) -> Tuple[Path, Optional[Path]]:
+def make_test_dir(job_options: dict[str, Any]) -> tuple[Path, Path | None]:
   """
   Creates a folder for a test job's files, in the batch's folder like the runs' (<batch_dir>/doctor/<id>).
   Returns it, and its closest parent that existed before, for remove_test_dir. Raises OSError if it can't.
@@ -598,7 +599,7 @@ def make_test_dir(job_options: Dict[str, Any]) -> Tuple[Path, Optional[Path]]:
   return path, existing
 
 
-def remove_test_dir(path: Path, existing: Optional[Path]):
+def remove_test_dir(path: Path, existing: Path | None):
   """Removes a test job's folder, and the parents make_test_dir created, if they're empty."""
   shutil.rmtree(path, ignore_errors=True)
   parent = path.parent
@@ -610,7 +611,7 @@ def remove_test_dir(path: Path, existing: Optional[Path]):
     parent = parent.parent
 
 
-def write_error(folder: Path) -> Optional[OSError]:
+def write_error(folder: Path) -> OSError | None:
   """Whether we can create files in a folder: we create a temporary file there, and delete it. None if we can."""
   try:
     fd, tmp = tempfile.mkstemp(prefix='.qa-doctor-', dir=str(folder))
@@ -638,7 +639,7 @@ def storage_help() -> str:
   return f"\n{help_text}" if help_text else ''
 
 
-def check_folder(name: str, path: Path, required: bool = True, root: Optional[Path] = None, purpose: str = '') -> Check:
+def check_folder(name: str, path: Path, required: bool = True, root: Path | None = None, purpose: str = '') -> Check:
   """
   qa can write in `path`, or create it: we write a temporary file in its closest existing parent.
   `root` is the storage folder it's in: when it's missing, the fix is about the storage, not the permissions.
@@ -679,7 +680,7 @@ def check_folder(name: str, path: Path, required: bool = True, root: Optional[Pa
   return Check(name, OK, f"{where}, writable, {human_size(free)} free")
 
 
-def check_uploads(site: Optional[Dict[str, Any]], token: Optional[str]) -> Check:
+def check_uploads(site: dict[str, Any] | None, token: str | None) -> Check:
   """
   Without a storage shared with the server (no `storage` in qaboard.yaml, or `storage: upload`), shared runs send it
   their files (qaboard/upload.py): whether the server takes them. `site` are its settings (/api/v1/config).
@@ -687,7 +688,7 @@ def check_uploads(site: Optional[Dict[str, Any]], token: Optional[str]) -> Check
   name = "Results sent to the server"
   if site is None:
     return Check(name, SKIPPED, "Without a storage shared with the server, `qa --share` and CI runs send it their files. It didn't answer: fix that first.")
-  uploads: Dict[str, Any] = {}
+  uploads: dict[str, Any] = {}
   if isinstance(site.get('uploads'), dict):
     uploads = site['uploads']
   if not uploads.get('enabled'):
@@ -702,7 +703,7 @@ def check_uploads(site: Optional[Dict[str, Any]], token: Optional[str]) -> Check
   return Check(name, OK, f"Without a storage shared with the server, `qa --share` and CI runs send it their files{limit}. They are saved in the project's output/ folder first.")
 
 
-def check_storage_setting(config: Dict[str, Any], project: Path, subproject: Path) -> Optional[Check]:
+def check_storage_setting(config: dict[str, Any], project: Path, subproject: Path) -> Check | None:
   """An ERROR if qaboard.yaml (or QA_STORAGE) doesn't say where to save shared results, None if it does."""
   qaboard_config = config_module()
   fix = (f"In qaboard.yaml, a folder that your QA-Board server reads too:\nstorage:\n  linux: /mnt/qaboard\n  windows: \\\\server\\share\\qaboard\n"
@@ -728,7 +729,7 @@ def check_storage_setting(config: Dict[str, Any], project: Path, subproject: Pat
 SLOW_LOCAL_CHANGES_MS = 3000
 
 
-def check_local_changes(value: Any, repo_root: Path, is_ci: bool, site: Optional[Dict[str, Any]], ignore: Iterable[Path] = ()) -> Check:
+def check_local_changes(value: Any, repo_root: Path, is_ci: bool, site: dict[str, Any] | None, ignore: Iterable[Path] = ()) -> Check:
   """What local runs record of their changes compared with their commit, and how long it takes (qaboard/local_changes.py)"""
   from . import local_changes
   name = "Local changes"
@@ -795,8 +796,8 @@ def runner_settings_key(runner: str) -> str:
   return 'jenkins' if runner == 'windows' else runner
 
 
-def runner_job_options(runner: str, config: Dict[str, Any], project: Optional[Path], user: str, batch_dir: Path, cwd: Path,
-                       command_id: Optional[str] = None, environ=os.environ) -> Dict[str, Any]:
+def runner_job_options(runner: str, config: dict[str, Any], project: Path | None, user: str, batch_dir: Path, cwd: Path,
+                       command_id: str | None = None, environ=os.environ) -> dict[str, Any]:
   """
   The job options `qa batch` gives a runner, from qaboard.yaml and the environment (not the command line's options),
   for the runners' doctor(). A simpler version of what `batch` does in qa.py.
@@ -805,7 +806,7 @@ def runner_job_options(runner: str, config: Dict[str, Any], project: Optional[Pa
   lsf_config = config['lsf'] if 'lsf' in config else (runners_config.get('lsf') or {})
   settings = runners_config.get(runner_settings_key(runner))
   default_project = str(project) if project else 'qaboard'
-  options: Dict[str, Any] = {
+  options: dict[str, Any] = {
     "type": runner,
     "command_id": command_id or str(uuid.uuid4()),
     **(settings if isinstance(settings, dict) else {}),
@@ -843,7 +844,7 @@ def unknown_runner_fix(runner: str, known: Iterable[str]) -> str:
           f"Docs: {docs('using-the-qa-cli#batch-runners')}")
 
 
-def check_runner(runner: str, job_options: Dict[str, Any], test_job: bool = False, registry: Optional[Dict[str, Any]] = None) -> Iterator[Check]:
+def check_runner(runner: str, job_options: dict[str, Any], test_job: bool = False, registry: dict[str, Any] | None = None) -> Iterator[Check]:
   """The runner's own checks (BaseRunner.doctor). Its unexpected exceptions become ERROR checks."""
   if registry is None:
     from .runners import runners as registry
@@ -870,7 +871,7 @@ def check_runner(runner: str, job_options: Dict[str, Any], test_job: bool = Fals
 # Report
 ###############################################################################
 
-def symbols() -> Dict[str, str]:
+def symbols() -> dict[str, str]:
   """✔ ! ✘ -, or ASCII when the terminal can't show them (e.g. Windows' legacy consoles)."""
   fancy = {OK: '✔', WARNING: '!', ERROR: '✘', SKIPPED: '-'}
   encoding = getattr(sys.stdout, 'encoding', None) or 'ascii'
@@ -883,24 +884,31 @@ def symbols() -> Dict[str, str]:
 COLORS = {OK: 'green', WARNING: 'yellow', ERROR: 'red', SKIPPED: None}
 
 
-class Report():
+class Report:
   """Prints the checks as they come, and says at the end what's wrong."""
   def __init__(self, echo=click.echo):
-    self.checks: List[Check] = []
+    self.checks: list[Check] = []
     self.echo = echo
     self.symbols = symbols()
+    # for --json: the section of each check
+    self.current_section: str | None = None
+    self.sections: list[str | None] = []
+    self.next_step: str | None = None
+    self.exit_code: int | None = None
 
   def section(self, title: str):
+    self.current_section = title
     self.echo('')
     self.echo(click.style(title, bold=True))
 
-  def add(self, checks: Iterable[Check]) -> List[Check]:
+  def add(self, checks: Iterable[Check]) -> list[Check]:
     added = []
     for check in checks:
       if check is None:
         continue
       added.append(check)
       self.checks.append(check)
+      self.sections.append(self.current_section)
       self.print_check(check)
     return added
 
@@ -919,6 +927,8 @@ class Report():
     """Prints how it went, and the command to run next if nothing must be fixed. Returns the exit code: 1 if a check failed."""
     errors = [c for c in self.checks if c.status == ERROR]
     warnings = [c for c in self.checks if c.status == WARNING]
+    self.next_step = next_step
+    self.exit_code = 1 if errors else 0
     self.echo('')
     if errors:
       self.echo(click.style(f"{self.symbols[ERROR]} {plural(len(errors), 'problem')} to fix", fg='red', bold=True)
@@ -932,6 +942,23 @@ class Report():
     return 0
 
 
+  def as_json(self) -> dict[str, Any]:
+    """`qa doctor --json`, documented in website/docs/using-the-qa-cli.mdx"""
+    def count(status):
+      return sum(1 for c in self.checks if c.status == status)
+    return {
+      "ok": self.exit_code == 0,
+      "exit_code": self.exit_code,
+      "errors": count(ERROR),
+      "warnings": count(WARNING),
+      "next_step": self.next_step,
+      "checks": [
+        {"section": section, "name": c.name, "status": c.status, "message": c.message or '', "fix": c.fix}
+        for section, c in zip(self.sections, self.checks)
+      ],
+    }
+
+
 def guarded(name: str, checks: Callable[[], Iterable[Check]]) -> Iterator[Check]:
   """The checks, or an ERROR check if they fail unexpectedly: `qa doctor` goes on with the next ones."""
   try:
@@ -941,12 +968,13 @@ def guarded(name: str, checks: Callable[[], Iterable[Check]]) -> Iterator[Check]
                 fix=f"Fix what the other checks say first. If it lasts, please report it, with the output of `qa doctor`: {ISSUES}")
 
 
-def run_doctor(obj: Dict[str, Any], runner: str, test_job: bool = False, echo=click.echo) -> int:
+def run_doctor(obj: dict[str, Any], runner: str, test_job: bool = False, echo=click.echo, report: Report | None = None) -> int:
   """
   `qa doctor`: prints the checks, and returns the exit code. `obj` is the `qa` command's context (ctx.obj).
   Like `qa --share batch` (or a CI), it checks what's needed for results that show in QA-Board:
   with `qa --offline doctor`, only what local runs need.
   Each section is guarded: if a check fails unexpectedly, it's an ERROR, and the next sections still run.
+  With a `report`, it's the one filled (`qa doctor --json` reads it).
   """
   qaboard_config = config_module()
   from . import __version__
@@ -955,11 +983,11 @@ def run_doctor(obj: Dict[str, Any], runner: str, test_job: bool = False, echo=cl
 
   offline = bool(obj.get('offline'))
   cwd = Path(obj.get('previous_cwd') or os.getcwd())
-  report = Report(echo=echo)
+  report = report if report is not None else Report(echo=echo)
   shared = "what you need for runs whose results show in QA-Board (like `qa --share batch`)" if not offline else "what you need for local runs (--offline)"
   echo(click.style("qa doctor", bold=True) + f": checking {shared}, with the {runner} runner.")
   root = Path(root_qatools) if root_qatools else cwd
-  state: Dict[str, Any] = {
+  state: dict[str, Any] = {
     'has_project': False, 'server': None, 'site': None, 'token': None,
     'batch_dir': Path(obj.get('batch_dir') or (root / 'output')),
   }
@@ -1073,9 +1101,9 @@ def run_doctor(obj: Dict[str, Any], runner: str, test_job: bool = False, echo=cl
   return report.summary(f"qa{' --offline' if offline else ''} batch{runner_option} {names[0] if names else '<batch>'}")
 
 
-def batch_names(batches_files: List[Any], root: Path) -> List[str]:
+def batch_names(batches_files: list[Any], root: Path) -> list[str]:
   """The names of the batches in these files, for examples. Files we can't read are ignored."""
-  names: List[str] = []
+  names: list[str] = []
   for batches_file in batches_files:
     try:
       with (root / batches_file).open(encoding='utf-8') as f:
@@ -1095,7 +1123,7 @@ def default_runner_name() -> str:
     return 'local'
 
 
-def database_checks(config: Dict[str, Any], obj: Dict[str, Any]) -> Iterator[Check]:
+def database_checks(config: dict[str, Any], obj: dict[str, Any]) -> Iterator[Check]:
   """The inputs databases: the default input type's (or --database), and those of the other input types."""
   from .config import get_default_database
   from .conventions import get_settings

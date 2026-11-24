@@ -17,16 +17,16 @@ import os
 import sys
 from functools import wraps
 import fnmatch
-from typing import Callable, List, Set
+from collections.abc import Callable
 
 import click
 
 
 # We store all tests that we may want to execute
-test_funcs: List[Callable] = []
+test_funcs: list[Callable] = []
 
 # To give helpful error messages, we store a few things
-test_funcs_names : Set[str] = set()
+test_funcs_names : set[str] = set()
 skipped_test_nb = 0
 
 
@@ -76,9 +76,9 @@ def run_tests() -> bool:
   
   from joblib import Parallel, delayed
   return_codes = Parallel(n_jobs=int(os.environ.get("QA_CI_HELPERS_N_JOBS", -1)), verbose=50)(delayed(run_test)(t) for t in test_funcs)
-  if any((return_code is None for return_code in return_codes)):
+  if any(return_code is None for return_code in return_codes):
     click.secho(f"WARNING: Your test should return a return code (success==0)", fg='yellow', bold=True)
-  return all((not return_code for return_code in return_codes))
+  return all(not return_code for return_code in return_codes)
 
 
 

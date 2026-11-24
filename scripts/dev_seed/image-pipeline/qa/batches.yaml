@@ -1,0 +1,20 @@
+ci:
+  inputs:
+    - indoor.txt
+    - outdoor.txt
+    - night.txt
+    - chart.txt
+  matrix:
+    configs:
+      - [base]
+      - [low-light]
+
+tune-strength:
+  inputs:
+    - night.txt
+    - chart.txt
+  matrix:
+    strength: [0.5, 1.0, 2.0]
+  configs:
+    - low-light
+    - strength: ${matrix.strength}

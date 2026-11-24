@@ -17,14 +17,14 @@ import os
 import shlex
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import click
 
 from .conventions import ci_project
 
 
-def trends_url(run: Any, metrics: Optional[Dict[str, Any]]) -> Optional[str]:
+def trends_url(run: Any, metrics: dict[str, Any] | None) -> str | None:
   """The branch's Trends page in the web app, when the run was sent and its metrics say how they group (tests, benchmarks)"""
   from urllib.parse import quote
   grouped = any(getattr(metric, 'definition', {}).get('group') for metric in (metrics or {}).values())
@@ -35,9 +35,9 @@ def trends_url(run: Any, metrics: Optional[Dict[str, Any]]) -> Optional[str]:
   return f"{server}/{quote(run.project)}/trends/{quote(branch)}"
 
 
-def expand(paths: Tuple[str, ...]) -> List[Path]:
+def expand(paths: tuple[str, ...]) -> list[Path]:
   """The files and folders to upload: those given, and those matching the patterns the shell didn't expand"""
-  found: List[Path] = []
+  found: list[Path] = []
   for path in paths:
     if Path(path).exists():
       found.append(Path(path))
@@ -53,10 +53,10 @@ def expand(paths: Tuple[str, ...]) -> List[Path]:
 RESERVED_FILES = ('run.json', 'metrics.json', 'metrics_definitions.json', 'manifest.outputs.json', 'manifest.inputs.json', 'series.json', 'series.jsonl')
 
 
-def files_in(folder: Path, skipped: Path) -> List[Path]:
+def files_in(folder: Path, skipped: Path) -> list[Path]:
   """The files of a folder, without hidden folders (.git, .venv...) nor `skipped`: where runs are saved on this computer"""
   from .upload import is_outside_link, warn_outside_links
-  found: List[Path] = []
+  found: list[Path] = []
   for root, dirs, names in os.walk(folder):
     dirs[:] = sorted(d for d in dirs if not d.startswith('.') and (Path(root) / d).resolve() != skipped)
     found.extend(Path(root) / name for name in sorted(names))
@@ -67,7 +67,7 @@ def files_in(folder: Path, skipped: Path) -> List[Path]:
   return [file for file in found if file.is_file() and file not in outside]
 
 
-def files_of(paths: List[Path], rename: Optional[str] = None, skipped: Optional[Path] = None) -> Dict[str, Path]:
+def files_of(paths: list[Path], rename: str | None = None, skipped: Path | None = None) -> dict[str, Path]:
   """
   {path in the run's folder: file}. A file keeps its name, a folder its name and what is in it.
   - rename: another name for the only file, or folder, given.
@@ -77,7 +77,7 @@ def files_of(paths: List[Path], rename: Optional[str] = None, skipped: Optional[
     raise click.UsageError("--as names one file or folder: give only one, or use --each.")
   if rename is not None and (Path(rename).is_absolute() or '..' in Path(rename).parts or not Path(rename).name):
     raise click.UsageError(f"--as {rename}: give a name in the run's folder, like junit.xml or reports/junit.xml")
-  files: Dict[str, Path] = {}
+  files: dict[str, Path] = {}
   def add(name: str, file: Path) -> None:
     if name in files and files[name].resolve() != file.resolve():
       raise click.UsageError(f"{files[name]} and {file} would both be saved as {name} in the run: upload their folder instead, or one run each with --each.")
@@ -97,12 +97,12 @@ def files_of(paths: List[Path], rename: Optional[str] = None, skipped: Optional[
   return files
 
 
-def read_metrics(files: Dict[str, Path]) -> Dict[str, Any]:
+def read_metrics(files: dict[str, Path]) -> dict[str, Any]:
   """The metrics of the test reports and benchmark files among `files`, recognized by their names like the web app does"""
   from .junit import is_junit, read_junit, junit_metrics
   from .benchmarks import is_benchmarks, benchmark_metrics
-  metrics: Dict[str, Any] = {}
-  cases: List[Dict[str, Any]] = []
+  metrics: dict[str, Any] = {}
+  cases: list[dict[str, Any]] = []
   has_reports = False
   benchmark_files = [name for name in files if is_benchmarks(name)]
   for name, file in files.items():
@@ -117,7 +117,8 @@ def read_metrics(files: Dict[str, Path]) -> Dict[str, Any]:
         several = len(benchmark_files) > 1
         metrics.update(benchmark_metrics(file, prefix=f"{stem}_" if several else '', group=f"Benchmarks/{stem}" if several else 'Benchmarks'))
     except Exception as e:
-      click.secho(f"WARNING: no metrics read from {file}: {e}", fg='yellow', err=True)
+      from .ui import warning
+      warning(f"No metrics read from {file}: {e}")
   if has_reports:
     metrics.update(junit_metrics(cases))
   for name, file in files.items():
@@ -132,9 +133,9 @@ def read_metrics(files: Dict[str, Path]) -> Dict[str, Any]:
   return metrics
 
 
-def given_metrics(pairs: Tuple[str, ...], metrics_file: Optional[str]) -> Dict[str, Any]:
+def given_metrics(pairs: tuple[str, ...], metrics_file: str | None) -> dict[str, Any]:
   """The metrics of --metrics FILE (a JSON object), then of -m key=value: numbers, true/false, else texts"""
-  metrics: Dict[str, Any] = {}
+  metrics: dict[str, Any] = {}
   if metrics_file:
     try:
       content = json.loads(Path(metrics_file).read_text())
@@ -154,7 +155,7 @@ def given_metrics(pairs: Tuple[str, ...], metrics_file: Optional[str]) -> Dict[s
   return metrics
 
 
-def default_input(paths: List[Path]) -> str:
+def default_input(paths: list[Path]) -> str:
   """
   The run's name when --input doesn't give it. In a CI job: the job's name, then the only path's name without its
   extension, so that two jobs that upload a junit.xml, and one job that uploads two files in turn, make different
@@ -243,7 +244,7 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
   if len({name for name, _, _ in runs}) != len(runs):
     raise click.UsageError("--each names each run after its path, without its extension: some of these paths would be the same run. Upload them one by one, with --input.")
   # what identifies the runs and where they go: the same for --dryrun's plan_run() and start_run()
-  arguments: Dict[str, Any] = dict(
+  arguments: dict[str, Any] = dict(
     configs=configurations, label=group.get('label'), batch=batch_name, project=project, commit=commit,
     platform=group.get('platform'), share=True,
     # a project that keeps its storage: from where it isn't mounted (a GitHub runner...), over HTTP
@@ -293,8 +294,8 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
       # in the words of qa upload's options rather than start_run()'s arguments
       raise click.UsageError(e.cli)
     except (ValueError, TypeError) as e:
-      click.secho(f"ERROR: {e}", fg='red', bold=True, err=True)
-      sys.exit(1)
+      from .ui import fail
+      fail(str(e))
     try:
       for file_name, file in files.items():
         run.log_artifact(file_name, file)
@@ -306,8 +307,8 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
         run.log_metrics(run_metrics)
     except Exception as e:
       run.fail(e)
-      click.secho(f"ERROR: {e}", fg='red', bold=True, err=True)
-      sys.exit(1)
+      from .ui import fail
+      fail(str(e))
     if failed:
       run.fail("qa upload --failed: what made these files failed.")
     else:
@@ -319,5 +320,5 @@ def upload(ctx, paths, input_name, each, rename, batch_name, metric_pairs, metri
     if not run.sent:
       # the same would happen to the next runs
       missing = "all the files of the run" if run.id is not None else "the run"
-      click.secho(f"ERROR: QA-Board doesn't have {missing} {name}: see above.", fg='red', bold=True, err=True)
-      sys.exit(1)
+      from .ui import fail
+      fail(f"QA-Board doesn't have {missing} {name}: see above.")

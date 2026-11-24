@@ -538,3 +538,6 @@ users_restrict.yml
 
 # git worktrees of Claude Code agents
 .claude/worktrees/
+
+# scripts/dev.py: the local development server (database, results, logs)
+/.dev/

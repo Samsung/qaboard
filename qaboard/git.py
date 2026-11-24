@@ -2,14 +2,13 @@ import os
 import json
 import subprocess
 from pathlib import Path
-from typing import Tuple, Optional, List
 
 import click
 
 from .compat import linux_to_windows
 
 
-def git_show(format: str, reference: Optional[str] = None) -> str:
+def git_show(format: str, reference: str | None = None) -> str:
   """
   Wrapper around git show --format={format} [reference]
 
@@ -26,8 +25,7 @@ def git_show(format: str, reference: Optional[str] = None) -> str:
   p = subprocess.run(
     command,
     encoding='utf8',
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE,
+    capture_output=True,
   )
   try:
     p.check_returncode()
@@ -38,18 +36,17 @@ def git_show(format: str, reference: Optional[str] = None) -> str:
   return p.stdout.strip()
 
 
-def git_parents(reference: str) -> List[str]:
+def git_parents(reference: str) -> list[str]:
   # returns a list of the parent hashes
   return git_show('%P', reference).split()
 
 
-def git_remotes() -> List[str]:
+def git_remotes() -> list[str]:
   # returns a list of the remote names
   p = subprocess.run(
     ["git", "remote", "show"],
     encoding='utf8',
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE,
+    capture_output=True,
     check=True,
   )
   return p.stdout.strip().splitlines()
@@ -66,8 +63,7 @@ def latest_commit(reference: str) -> str:
       p = subprocess.run(
         ["git", "ls-remote", remote, reference],
         encoding='utf8',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
       )
       lines = p.stdout.strip().splitlines()
       if lines:
@@ -76,8 +72,7 @@ def latest_commit(reference: str) -> str:
     p = subprocess.run(
         ["git", "show", "-s", f"--format=%H", reference],
         encoding='utf8',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     local_commit = p.stdout.strip()
     if local_commit:
@@ -92,7 +87,7 @@ def _safe_linux_to_windows(path: str) -> str:
   return linux_to_windows(path)
 
 
-def git_dirs(repo_root: Path) -> Tuple[Path, Path]:
+def git_dirs(repo_root: Path) -> tuple[Path, Path]:
   """
   Return the git directory (HEAD) and the common directory (refs/, packed-refs) of a checkout.
 
@@ -115,7 +110,7 @@ def git_dirs(repo_root: Path) -> Tuple[Path, Path]:
   return git_dir, common_dir
 
 
-def git_head(repo_root : Path) -> Tuple[str, str]:
+def git_head(repo_root : Path) -> tuple[str, str]:
   """Return the git ref and sha for the HEAD"""
   git_dir, common_dir = git_dirs(repo_root)
   # branch names are UTF-8, whatever the locale
@@ -151,8 +146,7 @@ def git_head(repo_root : Path) -> Tuple[str, str]:
     ["git", "rev-parse", "--verify", "--quiet", "HEAD"],
     cwd=repo_root,
     encoding='utf8',
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE,
+    capture_output=True,
   )
   if p.returncode == 0 and p.stdout.strip():
     return commit_branch, p.stdout.strip()
@@ -171,7 +165,7 @@ class GitWrapperError(ValueError, AttributeError):
 
 
 # for backward compatibility only
-class _Repo(object):
+class _Repo:
   """Lazily wraps gitpython's Repo to avoid high import times and stay backward-compatible"""
   def __init__(self, repo_root):
     self.repo = None
@@ -196,7 +190,7 @@ class _Repo(object):
     return getattr(repo, name)
 
 # for backward compatibility only
-class _Commit(object):
+class _Commit:
   """Lazily wraps gitpython's Commit to avoid high import times and stay backward-compatible"""
   def __init__(self, repo, commit_id):
     self.commit = None
@@ -222,7 +216,7 @@ class _Commit(object):
     return getattr(commit, name)
 
 
-def default_branch(repo_root: Optional[Path], environ=os.environ) -> Optional[str]:
+def default_branch(repo_root: Path | None, environ=os.environ) -> str | None:
   """
   The repository's default branch: the CI's, else the branch the clone's origin points to. None when nothing says.
   Projects whose qaboard.yaml doesn't set project.reference_branch use it as their reference (backend/reference_branch.py).

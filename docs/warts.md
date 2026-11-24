@@ -70,13 +70,17 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   and tested on sample payloads only: check them against real servers. [S]
 - If `QABOARD_GIT_HOSTS` points to a file the kubernetes migration Job doesn't mount, the backend fails to import and
   the migrations Job fails (it used to stamp the database and skip the migrations silently). [S]
+- Logs (backend/logs.py): most modules still `print()` (api/integrations.py, api/tuning.py, clean.py, runner_jobs.py,
+  sign-in, git_utils.py, the scripts...): they reach `docker compose logs` without level, time or request id, and not
+  as JSON. Move them to `logging.getLogger(__name__)` when touching them. nginx neither sends the backend an
+  `X-Request-ID` nor logs the one the backend returns, so its access log and the backend's don't share ids yet
+  (`uwsgi_param HTTP_X_REQUEST_ID $request_id;`, and `$upstream_http_x_request_id` in its log format). [S]
+- `GET /api/v1/git/proxy` (api/integrations.py, the avatars from gravatar) answers 500 with a traceback when the
+  server can't reach the host (seen behind a proxy that blocks gravatar.com, with scripts/dev.py): a 502 or 404,
+  without logging a traceback, would do. [S]
 
 ## CLI
 
-- `requires-python = ">=3.7"` (pyproject.toml) while the test suite needs click 8.2, so Python 3.10, and CI tests 3.11
-  and 3.14. Before raising it, check the Python of the Windows nodes and of projects' venvs (docs/known-issues.md).
-  On 3.10, `mock.patch('qaboard.config.x')` would patch the dict `qaboard.config` gives (qaboard/__init__.py), not the
-  module: from 3.11 mock resolves the module, as the tests need. [S, behaviour]
 - Reruns' directories (qaboard/attempts.py): `qa batch` writes *latest_attempt.txt* when it reserves a new attempt
   (`reserve_or_keep`), before the job starts. While the job waits in a queue (LSF...), or for good if it never starts
   (batch killed, job lost), `latest_dir()` and its readers (`qa batch --list-output-dirs`, `qa get output_dir`,
@@ -96,6 +100,11 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
 - Internal names left in `qaboard/`: compat.py's `\\netapp\vol23_algo` -> `vol24_algo` rewrite of inputs' paths
   (`linux_to_windows`) is one site's: it belongs in its site package (like `QABOARD_PATH_MAPPINGS`), which needs a new
   site setting and a release of the site package before `qa` drops it. [S, behaviour]
+- Logs (qaboard/log_setup.py): `QA_VERBOSE` still prints with `click.secho` in api.py, config.py, analytics.py and
+  qa.py (payloads, answers): move what is diagnostics to `logger.debug`. Config resolution happens on import of
+  qaboard/config.py, before `-v` is parsed: `qa -v` logs a summary of what it resolved, not each step. Requests that
+  don't go through http_client.py log only when they pass `hooks=LOG_HOOKS` (doctor.py, gate.py, optimize.py,
+  credentials.py, the Jenkins runner don't yet). [S]
 
 ## Runs created from code (`qaboard.start_run()`, November 2026)
 

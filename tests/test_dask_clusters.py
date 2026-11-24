@@ -48,7 +48,7 @@ def make_jobs(commands, output_root: Path, **job_options):
   return jobs
 
 
-class FakeCommands():
+class FakeCommands:
   """Commands on the PATH that record how they were called, save the script they got, and print `output`."""
   def __init__(self, directory: Path):
     self.bin = directory / 'bin'
@@ -534,7 +534,7 @@ class TestStop(TempDirTestCase):
       return {"qaboard.io/command-id": command_id, **({"qaboard.io/project": label_value(project)} if project else {})}
     def matches(object_labels, selector):
       return all(object_labels.get(k) == v for k, v in (part.split('=') for part in selector.split(',')))
-    class FakeKube():
+    class FakeKube:
       def __init__(self):
         self.clusters = [
           {"metadata": {"name": "qa-abcdefgh-dask-0a1b2c", "labels": labels("abcdefgh-1234", "algo/project")}},

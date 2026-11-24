@@ -17,7 +17,6 @@ import re
 import json
 import time
 from functools import lru_cache
-from typing import Optional, List, Dict
 from urllib.parse import quote, urlparse
 
 import click
@@ -30,7 +29,7 @@ class GitHostClient:
   """The API of a git host, for one repository."""
   type = 'generic'
 
-  def __init__(self, url: str, api_url: str, repo: str, token: Optional[str]):
+  def __init__(self, url: str, api_url: str, repo: str, token: str | None):
     self.url = url.rstrip('/')
     self.api_url = api_url.rstrip('/')
     self.repo = repo # e.g. group/repo
@@ -39,7 +38,7 @@ class GitHostClient:
   def __repr__(self):
     return f"<{self.__class__.__name__} {self.url}/{self.repo}>"
 
-  def headers(self) -> Dict[str, str]:
+  def headers(self) -> dict[str, str]:
     return {}
 
   def request(self, method, path, **kwargs):
@@ -52,7 +51,7 @@ class GitHostClient:
   def update_status(self, commit_id: str, state: str, name: str, target_url: str, description: str):
     raise NotImplementedError
 
-  def statuses(self, commit_id: str, ref: Optional[str] = None) -> List[Dict]:
+  def statuses(self, commit_id: str, ref: str | None = None) -> list[dict]:
     """The CI jobs of a commit, as [{name, status, allow_failure}] with GitLab's statuses: success, failed, canceled, running..."""
     raise NotImplementedError
 
@@ -146,7 +145,7 @@ def check_run_status(run):
 CLIENTS = {'gitlab': GitLab, 'github': GitHub}
 
 
-def hostname_of(url: Optional[str]) -> Optional[str]:
+def hostname_of(url: str | None) -> str | None:
   """https://host:8080/a/b => host, git@host:a/b.git => host"""
   if not url:
     return None
@@ -155,7 +154,7 @@ def hostname_of(url: Optional[str]) -> Optional[str]:
   match = re.match(r'(?:[^@/\s]+@)?([^:/@\s]+)', url)
   return match.group(1).lower() if match else None
 
-def repo_path_of(url: Optional[str]) -> Optional[str]:
+def repo_path_of(url: str | None) -> str | None:
   """https://host/a/b.git => a/b, git@host:a/b.git => a/b"""
   if not url:
     return None
@@ -163,7 +162,7 @@ def repo_path_of(url: Optional[str]) -> Optional[str]:
   return re.sub(r'\.git$', '', path.strip('/')) or None
 
 
-def configured_hosts() -> List[Dict]:
+def configured_hosts() -> list[dict]:
   value = site_config('QABOARD_GIT_HOSTS')
   if not value:
     return []
@@ -182,7 +181,7 @@ def configured_hosts() -> List[Dict]:
   return [h for h in hosts if isinstance(h, dict) and h.get('url')] if isinstance(hosts, list) else []
 
 
-def host_token(host: Dict) -> Optional[str]:
+def host_token(host: dict) -> str | None:
   if host.get('token'):
     return host['token']
   if host.get('token_env'):
@@ -196,7 +195,7 @@ def default_api_url(type, url):
   return f"{url}/api/v4"
 
 
-def detect_git_host(env=None) -> Optional[GitHostClient]:
+def detect_git_host(env=None) -> GitHostClient | None:
   """The git host of the project, from the CI's environment or from qaboard.yaml's project.url"""
   env = os.environ if env is None else env
   project = root_qatools_config.get('project', {})
@@ -252,8 +251,8 @@ def detect_git_host(env=None) -> Optional[GitHostClient]:
   )
 
 
-@lru_cache()
-def git_host() -> Optional[GitHostClient]:
+@lru_cache
+def git_host() -> GitHostClient | None:
   try:
     return detect_git_host()
   except Exception as e:
@@ -261,7 +260,7 @@ def git_host() -> Optional[GitHostClient]:
     return None
 
 
-def check_token(host: Optional[GitHostClient]):
+def check_token(host: GitHostClient | None):
   if host and not host.token:
     variable = 'GITHUB_TOKEN' if host.type == 'github' else 'GITLAB_ACCESS_TOKEN'
     click.secho(f"WARNING: {variable} is not defined, we can't use the {host.type} API.", fg='yellow', bold=True, err=True)

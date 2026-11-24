@@ -4,7 +4,6 @@ import time
 import signal
 import psutil
 import subprocess
-from typing import Optional
 from contextlib import contextmanager
 
 from celery import Celery, signals
@@ -57,7 +56,7 @@ def require_broker(**kwargs):
 @app.task(bind=True, name=celery_config.get('qaboard_task_name', "qaboard"))
 def start(self, job, cwd=None, env=None):
   # https://docs.celeryproject.org/en/stable/userguide/tasks.html#task-request-info
-  print('Executing task id {0.id}, groupID: {0.group}'.format(self.request))
+  print(f'Executing task id {self.request.id}, groupID: {self.request.group}')
 
   # The command runs in its own process group: when the task is revoked with terminate=True (stopping the batch),
   # the worker's pool sends SIGTERM to the process that runs this task, and we stop all that the command started.
@@ -153,7 +152,7 @@ def stopped_with_task(process: subprocess.Popen):
 
 
 
-def find_process(env_key, env_value) -> Optional[psutil.Process]:
+def find_process(env_key, env_value) -> psutil.Process | None:
     """Returns the process that includes a given environment variable."""
     # Since the pids are sorted, it supports cases where the task spawns short-lived processes
     for pid in psutil.pids():

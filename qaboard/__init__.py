@@ -25,15 +25,16 @@ def _version() -> str:
     match = re.search(r'^version = "([^"]+)"$', text, re.MULTILINE)
     if match:
       return match.group(1)
-  try:
-    from importlib.metadata import version, PackageNotFoundError
-  except ImportError: # python 3.7
-    from importlib_metadata import version, PackageNotFoundError # type: ignore
+  from importlib.metadata import version, PackageNotFoundError
   try:
     return version('qaboard')
   except PackageNotFoundError:
     return 'unknown'
 __version__ = _version()
+
+# What qaboard logs (diagnostics, qaboard/log_setup.py) shows only where your logging configuration says, not on stderr
+import logging as _logging
+_logging.getLogger(__name__).addHandler(_logging.NullHandler())
 
 
 # name: (module, attribute)

@@ -83,7 +83,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.14: the Python of the images (the backend imports qaboard, backend/Dockerfile), 3.11: the oldest we test
+        # 3.14: the Python of the images (the backend imports qaboard, backend/Dockerfile), 3.11: the oldest qaboard supports
         python: ['3.11', '3.14']
     steps:
       - uses: actions/checkout@v7

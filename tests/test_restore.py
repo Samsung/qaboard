@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 def git(*args, cwd):
   env = {**os.environ, 'GIT_AUTHOR_NAME': 't', 'GIT_AUTHOR_EMAIL': 't@example.com', 'GIT_COMMITTER_NAME': 't', 'GIT_COMMITTER_EMAIL': 't@example.com'}
-  return subprocess.run(['git', *args], cwd=cwd, env=env, check=True, encoding='utf8', stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.strip()
+  return subprocess.run(['git', *args], cwd=cwd, env=env, check=True, encoding='utf8', capture_output=True).stdout.strip()
 
 
 class Server:

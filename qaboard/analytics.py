@@ -18,7 +18,8 @@ import time
 import platform
 import datetime
 import threading
-from typing import Any, Callable, Dict, Optional
+from typing import Any
+from collections.abc import Callable
 
 import click
 
@@ -30,12 +31,12 @@ TIMEOUT = (1, 2)
 JOIN_TIMEOUT = 1.0
 
 # The invocation: set by the `qa` group callback, read when the command ends
-_state: Dict[str, Any] = {}
+_state: dict[str, Any] = {}
 # `qa auth <subcommand>`
 AUTH_SUBCOMMANDS = ('login', 'status', 'logout', 'token')
 
 
-def enabled(offline: Optional[bool] = None) -> bool:
+def enabled(offline: bool | None = None) -> bool:
   """Whether this invocation sends an event, see the module's docstring."""
   if offline is None:
     offline = bool(_state.get('offline'))
@@ -48,11 +49,15 @@ def enabled(offline: Optional[bool] = None) -> bool:
   # As seen when the command started: `qa batch` marks its own environment for its children (QA_BATCH).
   if _state.get('nested', is_nested()):
     return False
-  from .api import qaboard_url_source
-  return bool(qaboard_url_source)
+  # qaboard.api imports requests: commands that didn't need it (e.g. `qa runs --help`) don't import it for this
+  api = sys.modules.get('qaboard.api')
+  if api is not None:
+    return bool(api.qaboard_url_source)
+  from .credentials import default_server
+  return bool(default_server()[1])
 
 
-def start(command: Optional[str], share: bool = False, tuning: bool = False, dryrun: bool = False, offline: bool = False):
+def start(command: str | None, share: bool = False, tuning: bool = False, dryrun: bool = False, offline: bool = False):
   """Called by the `qa` group callback, once the options are parsed"""
   _state.clear()
   _state.update(
@@ -69,7 +74,7 @@ def note(**properties):
   _state.setdefault('properties', {}).update({k: v for k, v in properties.items() if v is not None})
 
 
-def command_name(command: Optional[str], argv=None) -> Optional[str]:
+def command_name(command: str | None, argv=None) -> str | None:
   """The subcommand, with `qa auth login` as auth_login"""
   if command != 'auth':
     return command
@@ -83,13 +88,13 @@ def command_name(command: Optional[str], argv=None) -> Optional[str]:
   return f"auth_{subcommand}" if subcommand else command
 
 
-def project_id() -> Optional[str]:
+def project_id() -> str | None:
   """The project as the server knows it: what `qa` sends as the batches' project (config.project, as a posix path)"""
   from .api import project_name
   return project_name()
 
 
-def event(command: Optional[str], started_at: Optional[float], exit_code: Optional[int], properties: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def event(command: str | None, started_at: float | None, exit_code: int | None, properties: dict[str, Any] | None = None) -> dict[str, Any]:
   """The `cli_command` event, see the catalog in docs/design/usage-analytics.md"""
   from qaboard import __version__
   if not isinstance(exit_code, int) or isinstance(exit_code, bool):
@@ -97,7 +102,7 @@ def event(command: Optional[str], started_at: Optional[float], exit_code: Option
   duration = round(time.monotonic() - started_at, 1) if started_at is not None else None
   return {
     "event": "cli_command",
-    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z'),
+    "timestamp": datetime.datetime.now(datetime.UTC).isoformat(timespec='milliseconds').replace('+00:00', 'Z'),
     "project_id": project_id(),
     "properties": {
       "command": command,
@@ -114,12 +119,12 @@ def event(command: Optional[str], started_at: Optional[float], exit_code: Option
   }
 
 
-def payload(event_: Dict[str, Any]) -> Dict[str, Any]:
+def payload(event_: dict[str, Any]) -> dict[str, Any]:
   from .config import user
   return {"source": "cli", "user_name": user, "events": [event_]}
 
 
-def send(payload_: Dict[str, Any]) -> None:
+def send(payload_: dict[str, Any]) -> None:
   """POSTs the events to the server. Never raises, never prints (except with QA_VERBOSE)."""
   try:
     import json
@@ -140,10 +145,10 @@ def send(payload_: Dict[str, Any]) -> None:
 
 
 # What `finish` sends with, replaced in tests
-_sender: Callable[[Dict[str, Any]], None] = send
+_sender: Callable[[dict[str, Any]], None] = send
 
 
-def finish(exit_code: Optional[int] = None) -> None:
+def finish(exit_code: int | None = None) -> None:
   """
   Called once when the command ends: sends the event from a daemon thread, waits for it at most JOIN_TIMEOUT.
   Idempotent, and it never raises: `qa` exits with its own code whatever happens here.

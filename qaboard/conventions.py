@@ -6,7 +6,6 @@ import re
 import json
 import hashlib
 from pathlib import Path
-from typing import List, Dict, Union, Optional
 
 import yaml
 import click
@@ -15,7 +14,7 @@ from .git import git_show
 
 
 
-def location_from_spec(spec: Union[str, Dict, os.PathLike], interpolation_vars: Optional[Dict] = None) -> Path:
+def location_from_spec(spec: str | dict | os.PathLike, interpolation_vars: dict | None = None) -> Path:
   if isinstance(spec, dict):
     # Mounts are often called differently on linux and windows
     mount_flavor = 'windows' if os.name == 'nt' else 'linux'
@@ -47,7 +46,7 @@ def is_upload_storage(storage) -> bool:
   return isinstance(storage, str) and storage.strip().lower() == UPLOAD_STORAGE
 
 
-def ci_project() -> Optional[str]:
+def ci_project() -> str | None:
   """The project of runs created without a qaboard.yaml, from the environment: QA_PROJECT, else the CI's repository"""
   return os.environ.get('QA_PROJECT') or os.environ.get('GITHUB_REPOSITORY') or os.environ.get('CI_PROJECT_PATH') or None
 
@@ -101,7 +100,7 @@ UPLOAD_FIX = ("Set `storage` in qaboard.yaml (or QA_STORAGE) to a folder the ser
               "If your organization has a site package (qaboard-site-...), install it: it says where results are saved.")
 
 
-def storage_setting(config: Optional[Dict], qa_storage: Optional[str] = None):
+def storage_setting(config: dict | None, qa_storage: str | None = None):
   """
   The storage setting that applies to a project, for `qa` and the server alike: $QA_STORAGE, else `storage` in
   qaboard.yaml (or the site's), where `ci_root`, its former name, wins (like config.storage_roots). None if none.
@@ -110,7 +109,7 @@ def storage_setting(config: Optional[Dict], qa_storage: Optional[str] = None):
   return qa_storage or config.get('ci_root') or config.get('storage') or None
 
 
-def sends_files(config: Optional[Dict], qa_storage: Optional[str] = None) -> bool:
+def sends_files(config: dict | None, qa_storage: str | None = None) -> bool:
   """Whether shared runs send their files to the server over HTTP: `storage: upload`, or no storage setting at all"""
   setting = storage_setting(config, qa_storage)
   return not setting or is_upload_storage(setting)
@@ -154,18 +153,9 @@ def batches_files(config, batch_paths, project, subproject, root_qatools):
 
   if any(['*' in str(paths)]):
     from itertools import chain
-    import sys
     from glob import iglob
-    if sys.version_info >= (3, 10):
-      # no chdir: the cwd is process-wide, the server calls us from many threads
-      paths = list(chain.from_iterable([iglob(str(path), root_dir=root_qatools) for path in paths]))
-    else:
-      prev_cwd = os.getcwd()
-      os.chdir(root_qatools)
-      try:
-        paths = list(chain.from_iterable([iglob(str(path)) for path in paths]))
-      finally:
-        os.chdir(prev_cwd)
+    # no chdir: the cwd is process-wide, the server calls us from many threads
+    paths = list(chain.from_iterable([iglob(str(path), root_dir=root_qatools) for path in paths]))
   return paths
 
 def slugify(s : str, maxlength=32):
@@ -193,10 +183,10 @@ def slugify_hash(s, maxlength=32):
   return f"{s_hash}-{slugify(s_to_slugify[-(maxlength-8):], maxlength=None)}"
 
 
-def deserialize_config(configuration: str) -> List:
+def deserialize_config(configuration: str) -> list:
   if configuration == '-':
     return []
-  configurations: List = []
+  configurations: list = []
   configuration_part = ''
 
   is_windows = os.name == 'nt'
@@ -234,7 +224,7 @@ def deserialize_config(configuration: str) -> List:
   return configurations
 
 
-def serialize_config(configurations: List) -> str:
+def serialize_config(configurations: list) -> str:
   if not configurations:
     return '-'
   if isinstance(configurations, str):
@@ -284,7 +274,7 @@ def make_hash(obj):
 
 
 
-def get_commit_dirs(commit, repo_root: Optional[Path]=None) -> Path:
+def get_commit_dirs(commit, repo_root: Path | None=None) -> Path:
   # If there is no git data we store outputs in the current working directory,
   # or at the project root if using subprojects...
   # FIXME: on Windows the trick of returning an absolute path and have some_path / get_commit_dirs()

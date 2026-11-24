@@ -348,9 +348,10 @@ class TestQaCli(unittest.TestCase):
     # the results would be lost: it doesn't run
     self.assertEqual(post.call_count, 1)
     self.assertNotIn('a.jpg =>', result.output)
-    self.assertIn('WARNING: QA-Board refused the results: This token expired on 2026-09-01.', result.output)
-    self.assertEqual(click.unstyle(result.output).strip().splitlines()[-1], 'ERROR: QA-Board refused the results (token_expired): they were not saved. '
-                     f'Set QABOARD_TOKEN to a valid token with the ingest scope for {Path(config.project).as_posix()}.')
+    output = click.unstyle(result.output)
+    self.assertIn('warning: QA-Board refused the results: This token expired on 2026-09-01.', output)
+    self.assertEqual(output.strip().splitlines()[-2:], ['error: QA-Board refused the results (token_expired): they were not saved.',
+                     f'hint: Set QABOARD_TOKEN to a valid token with the ingest scope for {Path(config.project).as_posix()}.'])
 
   def test_run_in_ci_when_the_server_never_gets_its_end(self):
     from unittest import mock
@@ -390,8 +391,8 @@ class TestQaCli(unittest.TestCase):
     self.assertNotIn('a.jpg =>', result.output)
     output = click.unstyle(result.output)
     self.assertEqual(output.count('This server only accepts results sent with a token.'), 1)
-    self.assertEqual(output.strip().splitlines()[-1], 'ERROR: QA-Board refused the results (ingest_token_required): they were not saved. '
-                     f'Set QABOARD_TOKEN to a valid token with the ingest scope for {Path(config.project).as_posix()}.')
+    self.assertEqual(output.strip().splitlines()[-2:], ['error: QA-Board refused the results (ingest_token_required): they were not saved.',
+                     f'hint: Set QABOARD_TOKEN to a valid token with the ingest scope for {Path(config.project).as_posix()}.'])
 
   def test_batch_sends_a_snapshot_of_its_batches(self):
     """QA-Board keeps the batches as they ran, filtered to what ran, and how to run them again"""
@@ -429,6 +430,59 @@ class TestQaCli(unittest.TestCase):
     tests = json.loads(result.stdout)
     assert len(tests) == 3
     assert result.exit_code == 0
+
+  def test_batch_list_batches(self):
+    result = self.qa('batch', '--batches-file', 'image.batches.yaml', '--list-batches')
+    assert result.exit_code == 0, result.output
+    assert result.stdout.splitlines() == ['images']
+    result = self.qa('batch', '--list-batches', '--json')
+    assert result.exit_code == 0, result.output
+    batches = json.loads(result.stdout)['batches']
+    assert {'name': 'my-batch', 'kind': 'batch'}.items() <= batches[0].items(), batches
+    assert Path(batches[0]['file']).name == 'batches.yaml'
+
+  def test_batch_json(self):
+    """--json: a summary on stdout once the batch is done, what runs print on stderr"""
+    from unittest import mock
+    from qaboard.terminal import CI_VARIABLES
+    from qaboard.config import ci_env_variables
+    batch = ('batch', '--batches-file', 'image.batches.yaml', 'images', '--json')
+    # as on a laptop: in CI, qa batch checks the folders of the runs, which our fake runner doesn't make
+    with mock.patch.dict(os.environ):
+      for name in {*CI_VARIABLES, *ci_env_variables}:
+        os.environ.pop(name, None)
+      self.qa('--dryrun', *batch[:-1])  # loads the modules we patch
+      def start_jobs(jobs, job_options, blocking=True):
+        print("what runs print")
+        click.echo("on stdout")
+        for job in jobs:  # like successful runs
+          job.run_context.output_dir.mkdir(parents=True)
+          made.append(job.run_context.output_dir)
+          (job.run_context.output_dir / 'metrics.json').write_text('{"is_failed": false}')
+      made: list[Path] = []
+      try:
+        with mock.patch('qaboard.runners.local.LocalRunner.start_jobs', side_effect=start_jobs):
+          result = self.qa(*batch, reload_modules=False)
+      finally:  # other tests find the runs' folders: they'd become attempts
+        for directory in made:
+          shutil.rmtree(directory)
+    assert result.exit_code == 0, result.output
+    summary = json.loads(result.stdout)
+    assert 'what runs print' not in result.stdout and 'what runs print' in result.stderr
+    assert {k: summary[k] for k in ('ok', 'exit_code', 'batch_label', 'shared', 'url', 'waited', 'dryrun')} == \
+      {'ok': True, 'exit_code': 0, 'batch_label': 'default', 'shared': False, 'url': None, 'waited': True, 'dryrun': False}
+    assert summary['counts'] == {'runs': 3, 'skipped': 0}
+    assert sorted(Path(run['input_path']).name for run in summary['runs']) == ['a.jpg', 'b.jpg', 'c.jpg']
+    assert {'output_dir', 'configurations', 'platform', 'skipped'} <= set(summary['runs'][0])
+    # failed runs: the same exit code, and the summary
+    with mock.patch('qaboard.runners.job.JobGroup.start', return_value=True):
+      result = self.qa(*batch, reload_modules=False)
+    assert result.exit_code == 1
+    summary = json.loads(result.stdout)
+    assert (summary['ok'], summary['exit_code'], summary['counts']['runs']) == (False, 1, 3)
+    # what --list prints is JSON already
+    result = self.qa('--dryrun', *batch, '--list', reload_modules=False)
+    assert len(json.loads(result.stdout)) == 3
 
   def test_batch_list_output_dirs(self):
     result = self.qa('--dryrun', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--list-output-dirs')
@@ -527,7 +581,7 @@ class TestQaCli(unittest.TestCase):
     result = batch('--action-on-existing', 'skip')
     assert result.exit_code == 1, result.output
     output = click.unstyle(result.output)
-    assert "WARNING: QA-Board refused to read the batch's runs: Sign in to do this." in output
+    assert "warning: QA-Board refused to read the batch's runs: Sign in to do this." in output
     assert "--action-on-existing=skip needs the batch's runs" in output
     # by default runs are done again anyway: a warning
     result = batch()
@@ -1035,7 +1089,7 @@ class TestQaCli(unittest.TestCase):
     with tempfile.TemporaryDirectory() as tmp:
       # outside a project
       out = subprocess.run([str(qa), 'get', 'commit_id'], cwd=tmp, capture_output=True, encoding='utf-8')
-      self.assertIn('run `qa init`', out.stderr)
+      self.assertIn('`qa init` to start a new one', out.stderr)
       out_init = subprocess.run([str(qa), '--dryrun', 'init'], cwd=tmp, capture_output=True, encoding='utf-8')
       self.assertIn('Creating a `qaboard.yaml` configuration', out_init.stdout)
       for output in [out.stdout, out.stderr, out_init.stdout, out_init.stderr]:

@@ -2,6 +2,13 @@
 The Python package: the `qa` CLI (`qa.py`, Click) and the SDK. Tests: `tests/` at the repo root (`uv run green tests`).
 Cross-directory rules ("Change together"): root `CLAUDE.md`.
 
+## Logging
+Diagnostics go to `logger = logging.getLogger(__name__)` (`logger.debug` for details, `info` for the steps `qa -v`
+shows); what users must read stays `click.echo`/`secho`. Never configure handlers: only `qa`'s entry point does,
+with `log_setup.setup()` (`-v`, `QA_LOG_LEVEL`, `--log-file`); as a library, `qaboard` adds a NullHandler only. No
+tokens in log messages (handlers scrub them as a backstop); requests log through `http_client.log_response`.
+Colors on terminals and in CI: `terminal.py`.
+
 ## Standalone modules
 Projects import these from their code, so they import only the standard library (`TestIsolation` in each test file
 checks it): `benchmarks.py` (+ `.metrics`), `flamegraphs.py`, `series.py`, `media.py` (+ numpy/PIL when the values

@@ -111,4 +111,9 @@ qa --offline batch ci                        # local only, results in output/
 qa --label try-1 batch ci                    # in the web app, under your name
 qa get config                                # the merged qaboard.yaml
 qa get --input <input> output_dir
+qa -v batch ci                               # also what qa resolved and sends, and tracebacks
 ```
+When `qa` doesn't do what you expect: `qa -v ...` logs what it resolved (qaboard.yaml, project, commit, server,
+storage), `qa -vv ...` also each request to the server. https://samsung.github.io/qaboard/docs/using-the-qa-cli#debug-what-qa-does
+`qa` reports problems on stderr as `error:` / `warning:` lines, each with a `hint:` saying what to do; stdout
+is what scripts read (paths, JSON, metrics). `NO_COLOR=1` removes colors.

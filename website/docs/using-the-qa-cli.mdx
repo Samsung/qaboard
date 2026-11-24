@@ -2,7 +2,7 @@
 id: using-the-qa-cli
 title: The qa command line
 sidebar_label: qa command line
-description: The qa options you use every day, to share results, name experiments, preview a batch, choose where it runs, skip what already ran, and get an email when it ends.
+description: The qa options you use every day, to share results, name experiments, preview a batch, choose where it runs, skip what already ran, and get an email when it ends. Shell completion, and JSON for scripts and agents.
 ---
 
 `qa` runs your code: on one input with `qa run`, on a batch with `qa batch`. This page covers the options you use
@@ -15,7 +15,9 @@ the command. The command's options, like `--input` or `--runner`, go after it:
 qa --label ines-halo batch ci --runner local
 ```
 
-Every command has its help: `qa --help`, `qa batch --help`...
+Every command has its help: `qa --help`, `qa batch --help`... `qa completion install` completes commands, options and batch names
+in your shell ([Shell completion](#shell-completion)), and `--json` prints results for scripts and agents
+([JSON](#json-output)).
 
 ## The commands {#commands}
 | Command | What it does | Read more |
@@ -25,6 +27,7 @@ Every command has its help: `qa --help`, `qa batch --help`...
 | `qa batch <batch>` | Runs the inputs and configurations of a batch. | [Batches](/docs/batches-running-on-multiple-inputs) |
 | `qa upload <files>` | Saves files other tools wrote as a run: test reports, benchmark files, profiles. | [Upload results](/docs/upload-results) |
 | `qa doctor` | Checks *qaboard.yaml*, the server, the storage and the runner, and says how to fix problems. | [Check your setup](/docs/doctor) |
+| `qa completion install` | Completes `qa`'s commands, options and batch names in your shell. | [Shell completion](#shell-completion) |
 | `qa postprocess --input <input>` | Redoes only your `postprocess()` function, on a run's files. | [Postprocessing](/docs/running-your-code#postprocess) |
 | `qa sync --input <input>` | Sends a run's *metrics.json* to QA-Board again. | |
 | `qa get <setting>` | Prints a setting, e.g. `qa get config`, `qa get --input A.jpg output_dir`. | [API](/docs/apis) |
@@ -160,6 +163,64 @@ With `qa --offline`, `qa` never contacts QA-Board: results are only saved on dis
 Outside CI, `qa` also tells the server which command ran, so that admins see how QA-Board is used
 ([what it sends](/docs/installation#connecting-to-a-custom-qa-board-server)). `QA_NO_ANALYTICS=1` or `--offline` keep
 it quiet.
+
+## Shell completion {#shell-completion}
+`qa` completes its commands and options, and from your project: batch names, `--input` paths in the database,
+`--platform`, `--type`, `--config`, `--runner`. To install it for your shell (bash, zsh, fish or PowerShell):
+
+```bash
+qa completion install        # your shell, from $SHELL; or e.g. qa completion install zsh
+```
+
+Then open a new shell. It writes the script in qa's configuration folder (fish: *~/.config/fish/completions/*), and
+loads it from *~/.bashrc*, *~/.zshrc* or your PowerShell `$PROFILE`. To load it yourself, print it:
+`qa completion bash`. Completion only reads *qaboard.yaml* and the batches files: it works offline, and never
+contacts QA-Board. Bash needs version 4.4 or newer.
+
+## JSON for scripts and agents: `--json` {#json-output}
+Commands that print results take `--json`: they print one JSON document on stdout, and everything else, like
+what your runs print, on stderr. The exit code is the same as without `--json`.
+
+```bash
+qa batch ci --json > batch.json          # the runs, once they're done, and whether some failed
+qa runs "$URL" --json | jq '.[].metrics' # a page's runs with their metrics
+```
+
+| Command | Prints |
+|---|---|
+| `qa batch <batch> --json` | `ok`, `exit_code`, `batch_label`, `commit`, `platform`, `shared`, `url` (the batch's page), `waited`, `dryrun`, `counts` (`runs`, `skipped`), and `runs`, as `--list` describes them (`input_path`, `configurations`, `output_dir`, `skipped`...). With `--commit`: `started`, `url`, `error`, `try_later`. |
+| `qa batch --list <batch>` | The runs the batch would do (already JSON, no need for `--json`). |
+| `qa batch --list-batches --json` | `batches`: `name`, `kind` (`batch` or `alias`), `file`. |
+| `qa runs <url> --json` | The runs of a web app page: input, configurations, parameters, metrics, `output_dir`... ([Runs in scripts](/docs/apis#runs-in-scripts)). |
+| `qa gate --json` | The verdict and each check ([Quality gate](/docs/quality-gate)). |
+| `qa doctor --json` | `ok`, `exit_code`, `errors`, `warnings`, `next_step`, `runner`, `offline`, and `checks`: `section`, `name`, `status` (`ok`, `warning`, `error`, `skipped`), `message`, `fix`. |
+| `qa auth status --json` | `server`, `server_from`, `signed_in`, `token_from`, `user` (`user_name`, `full_name`), `token` (`name`, `prefix`, `scopes`, `projects`, `expires_at`...), `error`, `reason`, `fix`, `other_logins`. |
+| `qa version --json` | `qaboard`, `python`, `click`, `platform`, `executable`, `package`. `qa --version` prints the version. |
+
+Keys are only added, never renamed or removed. Errors in how a command is used (exit code 2) print no JSON.
+
+## Debug what qa does: `-v` {#debug-what-qa-does}
+When `qa` doesn't do what you expect, ask it what it does. It writes these logs on stderr, so they also land in runs'
+*log.txt*:
+
+```bash
+qa -v run -i in.txt    # what it found: qaboard.yaml, project, commit, server, storage; runners and uploads
+qa -vv run -i in.txt   # and each request to QA-Board: method, URL, status, duration, retries
+qa -vvv batch ...      # and the logs of the libraries qa uses
+```
+
+```text
+[10:00:01] INFO     qa run: qaboard.yaml /work/project/qaboard.yaml, project group/project, commit 76ea984, user alice
+           INFO     server https://qaboard.example.com (from $QABOARD_URL), storage: shared
+[10:00:02] DEBUG    POST https://qaboard.example.com/api/v1/output/ => 200 in 12ms
+```
+
+- `QA_LOG_LEVEL=DEBUG` (or `INFO`) does the same without changing the command, e.g. in CI. The runs `qa -v batch`
+  starts log like it.
+- `qa --log-file qa.log ...` (or `QA_LOG_FILE`) also writes the most detailed logs in a file.
+- Tokens never appear in these logs.
+- In your own Python code, qaboard logs to the standard `logging` module, under the `qaboard` logger, and configures
+  nothing: `logging.basicConfig(level=logging.DEBUG)` shows them.
 
 ## Options as environment variables {#options-as-environment-variables}
 Every option can be set in the environment: `QA_<OPTION>` for `qa`'s own options, `QA_<COMMAND>_<OPTION>` for a

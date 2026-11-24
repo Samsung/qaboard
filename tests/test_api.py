@@ -1,4 +1,5 @@
 import unittest
+import click
 from pathlib import PureWindowsPath
 from unittest import mock
 
@@ -24,9 +25,11 @@ class TestNotifyQaDatabase(unittest.TestCase):
     response.status_code, response.text = 401, "You need to be logged-in to do this."
     response.request.headers = {"Content-Type": "application/json", "Authorization": "Bearer secret-token"}
     stderr = io.StringIO()
-    with mock.patch("requests.post", return_value=response), redirect_stderr(stderr):
+    # the request's headers are shown with --verbose
+    with mock.patch("requests.post", return_value=response), redirect_stderr(stderr), mock.patch.dict("os.environ", {"QA_VERBOSE": "1"}):
       notify_qa_database(object_type="batch", share=True, batch_label="default")
     self.assertIn("Failed to update QA-Board", stderr.getvalue())
+    self.assertIn("You need to be logged-in to do this.", stderr.getvalue())
     self.assertIn("Authorization", stderr.getvalue())
     self.assertNotIn("secret-token", stderr.getvalue())
 
@@ -72,6 +75,12 @@ class TestNotifyQaDatabase(unittest.TestCase):
       notify_qa_database(object_type="batch", share=True, batch_label="default", data={"not-json": object()})
     post.assert_not_called()
     self.assertIn("Failed to update QA-Board", stderr.getvalue())
+    self.assertIn("is not JSON serializable", stderr.getvalue())
+    self.assertIn("`qa --verbose` shows what was sent", stderr.getvalue())
+    # what was sent, with --verbose
+    stderr = io.StringIO()
+    with mock.patch("requests.post") as post, redirect_stderr(stderr), mock.patch.dict("os.environ", {"QA_VERBOSE": "1"}):
+      notify_qa_database(object_type="batch", share=True, batch_label="default", data={"not-json": object()})
     self.assertIn("not-json", stderr.getvalue())
 
 
@@ -87,8 +96,7 @@ class TestServerUrl(unittest.TestCase):
     # Without the defaults of an installed site package (e.g. qaboard-site-sirc gives the server's URL)
     without_site_packages = (
       "import importlib.metadata as m; entry_points = m.entry_points\n"
-      "class NoSite:\n  def select(self, **kwargs): return []\n  def get(self, group, default=None): return []\n"
-      "m.entry_points = lambda **kwargs: entry_points(**kwargs) if kwargs else NoSite()\n"
+      "m.entry_points = lambda **kwargs: [] if kwargs.get('group', '').startswith('qaboard.') else entry_points(**kwargs)\n"
       "import qaboard.api\n"
     )
     with tempfile.TemporaryDirectory() as tmp:
@@ -102,8 +110,8 @@ class TestServerUrl(unittest.TestCase):
 
   def test_warns_without_a_server(self):
     # in CI, or with --share: else results stay local, and `qa` says it in one line
-    self.assertIn('not sure where to find your QA-Board server', self.stderr_of_import(CI='true'))
-    self.assertNotIn('not sure where', self.stderr_of_import())
+    self.assertIn('warning: No QA-Board server is set: qa uses http://localhost:5151.', click.unstyle(self.stderr_of_import(CI='true')))
+    self.assertNotIn('No QA-Board server is set', self.stderr_of_import())
 
   def test_no_warning_for_a_server_on_localhost(self):
     self.assertNotIn('not sure where', self.stderr_of_import(QABOARD_URL='http://localhost:5151'))
