@@ -21,6 +21,8 @@ from typing import Dict, Iterator, List, Optional, Tuple
 import click
 from click import secho
 
+from .completion import complete_batches
+
 from .conventions import batch_folder_name, get_commit_dirs, output_dirs_for_input_part, run_dir_in_commit
 from .run_files import FETCHED_MARKER
 from .attempts import latest_dir
@@ -586,7 +588,7 @@ def find_current_run(current: CommitRuns, run_context: RunContext) -> List[Path]
 
 @click.command()
 @click.pass_context
-@click.option('--batch', '-b', 'batches', required=True, multiple=True, help="Only check bit-accuracy for this batch of inputs+configs+database.")
+@click.option('--batch', '-b', 'batches', required=True, multiple=True, shell_complete=complete_batches, help="Only check bit-accuracy for this batch of inputs+configs+database.")
 @click.option('--batches-file', 'batches_files', type=PathType(),  default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 @click.option('--strict', is_flag=True, help="By default only files existing in current/ref runs are checked. This files ensure we fail if some files exist in one run and not the other.")
 def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
@@ -654,7 +656,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
     default=None,
     help="Branch, tag or commit used as reference. Default: project.reference_branch in qaboard.yaml, else the repository's default branch, else main."
 )
-@click.option('--batch', '-b', 'batches', multiple=True, help="Only check bit-accuracy for those batches of inputs+configs+database.")
+@click.option('--batch', '-b', 'batches', multiple=True, shell_complete=complete_batches, help="Only check bit-accuracy for those batches of inputs+configs+database.")
 @click.option('--batches-file', 'batches_files', type=PathType(),  default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 @click.option('--strict', is_flag=True, help="By default only files existing in current/ref runs are checked. This files ensure we fail if some files exist in one run and not the other.")
 @click.option('--reference-label', default = None, help="Compare against another label on the same batch")

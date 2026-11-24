@@ -57,10 +57,11 @@ app's **Script** button writes it; `GET /api/v1/config` gives `cli_requirements`
 A change is better when its runs beat the *same* runs on the reference, not when a mean moved.
 
 1. Run the batch the project uses in CI, shared under a label:
-   `qa --label <topic> batch ci` (prints the results URL). Local-only: `qa --offline batch ci` keeps them in `output/`.
+   `qa --label <topic> batch ci --json`: once it's done, stdout has `ok`, `url` (the results' page) and the `runs`
+   with their `output_dir` (what the runs print goes to stderr). Local-only: `qa --offline batch ci` keeps them in `output/`.
    On a pushed commit whose CI saved its artifacts, prefer `qa --label <topic> batch --commit <sha> ci`: QA-Board runs
    the commit's code as from its web app, so results can't come from uncommitted changes. It prints the batch's page
-   and returns without waiting (exit 2: the artifacts are being recreated, try later); `--batches-file` sends batch
+   and returns without waiting (exit 2: the artifacts are being recreated, try later; `--json`: `started`, `url`); `--batches-file` sends batch
    files you didn't commit. Then `qa gate --label <topic> --json` exits `2` while runs are missing or still running.
 2. Ask the gate: `qa gate --json` compares the current commit's CI results (label `default`, once CI ran on the
    pushed commit) with the reference (`gate:` in `qaboard.yaml`, else `project.reference_branch`). Exit `0` pass, `1`

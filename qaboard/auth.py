@@ -378,12 +378,56 @@ def describe_expiry(token_info: Dict[str, Any]) -> str:
   return ', or '.join(parts) or 'never'
 
 
+# what `qa auth status --json` says of the token, as the server describes it
+TOKEN_FIELDS = ('name', 'prefix', 'scopes', 'projects', 'expires_at', 'idle_expiry_days', 'last_used_at')
+
+
+def status_json(srv: Server, token: Optional[str], source: Optional[str]) -> Dict[str, Any]:
+  """`qa auth status --json`, documented in website/docs/using-the-qa-cli.mdx"""
+  data: Dict[str, Any] = {
+    "server": srv.url,
+    "server_from": srv.where,
+    "signed_in": False,
+    "token_from": source if token else None,
+    "user": None,
+    "token": None,
+    "error": None,
+    "reason": None,
+    "fix": None,
+    "other_logins": [{"server": url, "user": login_.get('user')} for url, login_ in saved_logins() if url != srv.url],
+  }
+  if not token:
+    data.update(error=f"Not signed in to {srv.url}.", fix=f"Run `{srv.login_command()}`.")
+    return data
+  try:
+    me = fetch_me(srv, token)
+  except AuthError as e:
+    data['error'] = str(e)
+    if e.refused:
+      data.update(reason=e.refused.get('reason'), fix=fix_for(e.refused, source, ci=is_ci()))
+    return data
+  token_info = me.get('token')
+  data.update(
+    signed_in=True,
+    user={"user_name": me['user_name'], "full_name": me.get('full_name')},
+    token={k: token_info.get(k) for k in TOKEN_FIELDS} if isinstance(token_info, dict) else None,
+  )
+  return data
+
+
 @auth.command()
 @server_option
-def status(server):
+@click.option('--json', 'as_json', is_flag=True, help="Print as JSON: server, server_from, signed_in, token_from, user, token, error, reason, fix, other_logins. Exits with 1 if you are not signed in.")
+def status(server, as_json):
   """Show who you are signed in as, and the token qa uses. Exits with 1 if you are not signed in."""
   srv = server_api(server)
   token, source = resolve_token(srv.url)
+  if as_json:
+    from .json_output import stdout_to_stderr, print_json
+    with stdout_to_stderr():
+      data = status_json(srv, token, source)
+    print_json(data)
+    raise click.exceptions.Exit(0 if data['signed_in'] else 1)
   click.echo(f"QA-Board server: {srv.described()}")
   if not token:
     lines = [f"Not signed in to {srv.url}. Run `{srv.login_command()}`."]

@@ -4,9 +4,9 @@
 This project's results are tracked with QA-Board (https://samsung.github.io/qaboard/docs/). `qaboard.yaml` and
 `qa/main.py` define what runs; `qa/batches.yaml` the batches.
 
-- **Run the CI batch before claiming a change is better**: `qa --label <short-name> batch ci`, then read the
-  results against the reference branch's: `qa gate --json` for the verdict, or
-  `qaboard.runs(<url>)` / `qa runs <url> --json` for each run's metrics (the command prints the results' URL).
+- **Run the CI batch before claiming a change is better**: `qa --label <short-name> batch ci --json` (the JSON on
+  stdout has the results' `url` and the `runs`), then read the results against the reference branch's:
+  `qa gate --json` for the verdict, or `qaboard.runs(<url>)` / `qa runs <url> --json` for each run's metrics.
   A median that moved is not enough: check the per-test changes and the failed runs.
 - **On a pushed commit**, have QA-Board run the batch from the commit's artifacts, so local changes can't leak in:
   `qa --label <short-name> batch --commit <sha> ci` (prints the batch's page, returns at once; exit 2: try later),

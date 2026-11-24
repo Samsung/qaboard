@@ -145,6 +145,13 @@ def dir_to_url(path: Path) -> str:
   return quote(f"/s{path.as_posix()}")
 
 
+def results_url(qa_context):
+  """The web app's page with the commit's batch"""
+  from .config import project, commit_id
+  batch_label = qa_context["batch_label"]
+  return f"{qaboard_url}/{project.as_posix()}/commit/{commit_id[:10] if commit_id else ''}{f'?batch={quote(batch_label)}' if batch_label != 'default' else ''}"
+
+
 def print_url(ctx, status="starting"):
   if ctx.obj['offline']:
     return
@@ -152,9 +159,9 @@ def print_url(ctx, status="starting"):
     return
   if '--list' in sys.argv:
     return
-  from .config import project, commit_id, is_ci
+  from .config import is_ci
   batch_label = ctx.obj["batch_label"]
-  commit_url = f"{qaboard_url}/{project.as_posix()}/commit/{commit_id[:10] if commit_id else ''}{f'?batch={quote(batch_label)}' if batch_label != 'default' else ''}"
+  commit_url = results_url(ctx.obj)
   if is_ci or ctx.obj['share']:
     if status == "starting":
       click.echo(click.style("Results: ", bold=True) + click.style(commit_url, underline=True, bold=True), err=True)

@@ -430,6 +430,44 @@ class TestQaCli(unittest.TestCase):
     assert len(tests) == 3
     assert result.exit_code == 0
 
+  def test_batch_list_batches(self):
+    result = self.qa('batch', '--batches-file', 'image.batches.yaml', '--list-batches')
+    assert result.exit_code == 0, result.output
+    assert result.stdout.splitlines() == ['images']
+    result = self.qa('batch', '--list-batches', '--json')
+    assert result.exit_code == 0, result.output
+    batches = json.loads(result.stdout)['batches']
+    assert {'name': 'my-batch', 'kind': 'batch'}.items() <= batches[0].items(), batches
+    assert Path(batches[0]['file']).name == 'batches.yaml'
+
+  def test_batch_json(self):
+    """--json: a summary on stdout once the batch is done, what runs print on stderr"""
+    from unittest import mock
+    batch = ('batch', '--batches-file', 'image.batches.yaml', 'images', '--json')
+    self.qa('--dryrun', *batch[:-1])  # loads the modules we patch
+    def start_jobs(jobs, job_options, blocking=True):
+      print("what runs print")
+      click.echo("on stdout")
+    with mock.patch('qaboard.runners.local.LocalRunner.start_jobs', side_effect=start_jobs):
+      result = self.qa(*batch, reload_modules=False)
+    assert result.exit_code == 0, result.output
+    summary = json.loads(result.stdout)
+    assert 'what runs print' not in result.stdout and 'what runs print' in result.stderr
+    assert {k: summary[k] for k in ('ok', 'exit_code', 'batch_label', 'shared', 'url', 'waited', 'dryrun')} == \
+      {'ok': True, 'exit_code': 0, 'batch_label': 'default', 'shared': False, 'url': None, 'waited': True, 'dryrun': False}
+    assert summary['counts'] == {'runs': 3, 'skipped': 0}
+    assert sorted(Path(run['input_path']).name for run in summary['runs']) == ['a.jpg', 'b.jpg', 'c.jpg']
+    assert {'output_dir', 'configurations', 'platform', 'skipped'} <= set(summary['runs'][0])
+    # failed runs: the same exit code, and the summary
+    with mock.patch('qaboard.runners.job.JobGroup.start', return_value=True):
+      result = self.qa(*batch, reload_modules=False)
+    assert result.exit_code == 1
+    summary = json.loads(result.stdout)
+    assert (summary['ok'], summary['exit_code'], summary['counts']['runs']) == (False, 1, 3)
+    # what --list prints is JSON already
+    result = self.qa('--dryrun', *batch, '--list', reload_modules=False)
+    assert len(json.loads(result.stdout)) == 3
+
   def test_batch_list_output_dirs(self):
     result = self.qa('--dryrun', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--list-output-dirs')
     output_dirs = result.stdout.splitlines()

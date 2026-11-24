@@ -10,7 +10,15 @@ from typing import Any, Dict, Optional
 
 import click
 
-from .api import makeNumpyEncoder, batch_info, notify_qa_database, print_url, matching_output
+from .completion import complete_batches
+
+from .lazy import lazy_function
+# qaboard.api imports requests: not needed by `qa --help` (tests/test_startup.py)
+makeNumpyEncoder = lazy_function('.api', 'makeNumpyEncoder')
+batch_info = lazy_function('.api', 'batch_info')
+notify_qa_database = lazy_function('.api', 'notify_qa_database')
+print_url = lazy_function('.api', 'print_url')
+matching_output = lazy_function('.api', 'matching_output')
 from .config import project, subproject, commit_id, outputs_commit, available_metrics, default_batches_files, default_platform
 from .conventions import batch_dir
 from .utils import PathType, getenvs
@@ -24,7 +32,7 @@ seed = int(os.environ.get('QA_SEED', 101))
     ignore_unknown_options=True,
 ))
 @click.option('--commit', 'on_commit', help="Have QA-Board run the optimization on this pushed commit (id, branch, tag), as from its web app, from the commit's artifacts. Batches come from the commit's inputs.batches, then your shared and private batches in QA-Board, then the --batches-file you send (read last, they win). Needs --label. Prints the batch's page and returns.")
-@click.option('--batch', '-b', 'batches', required=True, multiple=True, help="Use the inputs+configs+database in those batches")
+@click.option('--batch', '-b', 'batches', required=True, multiple=True, shell_complete=complete_batches, help="Use the inputs+configs+database in those batches")
 @click.option('--batches-file', 'batches_files', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 @click.option('--config-file', required=True, type=PathType(), help="YAML file with the search space, the objective and the number of evaluations.")
 @click.option('--checkpoint', type=PathType(), help="Where to save the search, to resume it if it's interrupted. Default: in the batch's directory.")
