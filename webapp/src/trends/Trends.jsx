@@ -120,7 +120,7 @@ export function TrendsTiles({ points, trends, onOpen, max = 6 }) {
         label={`${composition.label} failing`}
         value={formatNumber(now)}
         intent={now > 0 ? 'danger' : 'success'}
-        detail={commits_with === 0 ? 'none in these commits' : `in ${plural(commits_with, 'commit')} of ${count}`}
+        detail={commits_with === 0 ? 'none in these commits' : `failures in ${commits_with} of ${plural(count, 'commit')}`}
         spark={<Sparkline values={values} color={now > 0 ? 'var(--trends-danger)' : 'var(--trends-line)'}/>}
         onClick={onOpen && (() => onOpen(anchor))}
       />);
@@ -148,7 +148,7 @@ export function TrendsTiles({ points, trends, onOpen, max = 6 }) {
       label={node.name}
       value={counts.worse > 0 ? `${counts.worse} worse` : counts.better > 0 ? `${counts.better} better` : 'Steady'}
       intent={counts.worse > 0 ? 'danger' : undefined}
-      detail={<>{counts.worse > 0 && counts.better > 0 ? `${counts.better} better, ` : ''}of {formatNumber(index.scope.common.length)}{ratio !== null && ` · mean ${formatRatio(ratio)}`}</>}
+      detail={<>{counts.worse > 0 && counts.better > 0 ? `${counts.better} better · ` : ''}{formatNumber(index.scope.common.length)} compared{ratio !== null && ` · mean ${formatRatio(ratio)}`}</>}
       spark={<Sparkline values={index.values} domain={ratio === null ? undefined : [Math.min(1, ...index.values.filter(v => v !== null)), Math.max(1, ...index.values.filter(v => v !== null))]}/>}
       onClick={onOpen && (() => onOpen(anchorOf.group(node.name)))}
     />);

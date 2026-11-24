@@ -1,17 +1,17 @@
 // Trends over a branch's commits, for the app: what src/trends/ draws (standalone, loaded on demand) from the commits
 // the pages already list. Shown without configuration when the runs' metrics say how they group and add up
 // (`group`, `part_of`... in their definitions), which `qa upload` does for test reports and benchmark files.
-// - <HistoryTrends>: History's sections, from the commits with their runs,
+// - <HistoryTrends>: the Trends page's sections, from the commits with their runs,
 // - <BranchTiles>: the headline numbers above a branch's commits.
 import { lazy, Suspense, useCallback, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Classes, Section, SectionCard } from '@blueprintjs/core';
+import { Button, Card, Classes, Collapse, H6, Icon } from '@blueprintjs/core';
+import { DateTime } from 'luxon';
 
-import { commitsQuery, fileQuery } from './api/queries';
+import { commitsQuery, fileQuery, manifestQuery } from './api/queries';
 import { commit_page } from './components/CommitRow';
-import { make_output_filter } from './CommitsEvolution';
-import { manifestQuery } from './viewers/OutputCard';
-import { hasGroups } from './metricGroups';
+import { make_output_filter } from './utils';
+import { hasGroups, describesTrends } from './metricGroups';
 import { history, Link } from './router';
 import { usePrefsStore } from './stores/prefs';
 import { path_segment } from './selection';
@@ -24,8 +24,8 @@ const TrendsReport = lazy(() => import('./trends/Trends').then(m => ({ default: 
 const TrendsTiles = lazy(() => import('./trends/Trends').then(m => ({ default: m.TrendsTiles })));
 
 // The commits that have the batch as points, oldest first.
-// - with_runs: the commits came with their outputs (History): points have their runs, those that match `filter`,
-//   like History's chart (make_output_filter), and count like the server's aggregates (not pending, failed or deleted). Otherwise points have what the server
+// - with_runs: the commits came with their outputs (the Trends page): points have their runs, those that match `filter`,
+//   like the Trends page's chart (make_output_filter), and count like the server's aggregates (not pending, failed or deleted). Otherwise points have what the server
 //   aggregated: lists of commits always have `outputs`, empty (api/normalize.js), so we can't tell by looking.
 export function pointsOf(commits, { project, batch_label = 'default', with_runs = false, filter }) {
   const matches = make_output_filter(filter ?? '');
@@ -76,9 +76,11 @@ function useLoadTests() {
 const select = point => history.push(point.href);
 const Loading = () => <div className={Classes.SKELETON} style={{ height: 120 }}/>;
 
-// History's sections. `children(sections)` wraps them (the page's title and card) when there is something to show.
+// the Trends page's sections. `children(sections)` wraps them (the page's title and card) when there is something to show.
 export function HistoryTrends({ project, commits, batch_label, available_metrics, filter, children }) {
-  const points = useMemo(() => pointsOf(commits, { project, batch_label, with_runs: true, filter }), [commits, project, batch_label, filter]);
+  // most projects' metrics say nothing of groups: nothing to look at in their runs
+  const describes = describesTrends(available_metrics);
+  const points = useMemo(() => describes ? pointsOf(commits, { project, batch_label, with_runs: true, filter }) : [], [describes, commits, project, batch_label, filter]);
   const trends = useMemo(() => trendsOf(points, available_metrics), [points, available_metrics]);
   const loadTests = useLoadTests();
   const shown = hasTrends(trends);
@@ -92,7 +94,8 @@ export function HistoryTrends({ project, commits, batch_label, available_metrics
   if (!shown) return null;
   return children(<SectionErrorBoundary>
     <Suspense fallback={<Loading/>}>
-      <TrendsReport points={points} trends={trends} loadTests={loadTests} onSelect={select}/>
+      {/* another batch or filter: other runs, whose test reports are read again when asked */}
+      <TrendsReport key={`${batch_label}|${filter ?? ''}`} points={points} trends={trends} loadTests={loadTests} onSelect={select}/>
     </Suspense>
   </SectionErrorBoundary>);
 }
@@ -112,7 +115,7 @@ export function BranchTiles({ project, branch, commits, date_range, available_me
   const points = useMemo(() => pointsOf(with_runs ?? commits, { project, with_runs: !!with_runs }), [with_runs, commits, project]);
   const trends = useMemo(() => trendsOf(points, available_metrics), [points, available_metrics]);
   if (points.length < 2 || !hasTrends(trends)) return isLoading ? <Loading/> : fallback;
-  const open = anchor => history.push(`/${path_segment(project)}/trends/${path_segment(branch)}#${anchor}`);
+  const open = anchor => history.push(trends_location(project, branch, date_range, anchor));
   return <SectionErrorBoundary>
     <Suspense fallback={null}>
       <TrendsTiles points={points} trends={trends} onOpen={open}/>
@@ -120,25 +123,47 @@ export function BranchTiles({ project, branch, commits, date_range, available_me
   </SectionErrorBoundary>;
 }
 
+// The branch's Trends page, on the same dates as the list: its numbers are those of the same commits
+const trends_location = (project, branch, date_range, anchor) => {
+  const day = date => DateTime.fromJSDate(date).toISODate();
+  const search = new URLSearchParams({ from: day(date_range[0]), to: day(date_range[1]) });
+  return `/${path_segment(project)}/trends/${path_segment(branch)}?${search}${anchor ? `#${anchor}` : ''}`;
+};
+
 // Above a branch's commits: its trends, closed until people open them, then as they left them (a preference).
 // Open, the headline numbers when the runs' metrics say how they group (tests, benchmarks), else `chart`.
 export function BranchTrends({ project, branch, commits, date_range, complete, available_metrics, chart }) {
   const open = usePrefsStore(state => state.branchTrendsOpen);
   const setOpen = usePrefsStore(state => state.setBranchTrendsOpen);
-  const trends_url = `/${path_segment(project)}/trends/${path_segment(branch)}`;
-  return <Section
-    compact
-    collapsible
-    collapseProps={{ isOpen: open, onToggle: () => setOpen(!open) }}
-    icon="timeline-line-chart"
-    title="Trends"
-    subtitle={open ? undefined : 'Tests, benchmarks and metrics over these commits'}
-    // a link in the header: clicking it doesn't open or close the card
-    rightElement={<Link to={trends_url} onClick={event => event.stopPropagation()}>Open Trends</Link>}
-    style={{ marginBottom: 15 }}
-  >
-    <SectionCard style={{ overflowX: 'auto' }}>
-      {open && <BranchTiles project={project} branch={branch} commits={commits} date_range={date_range} complete={complete} available_metrics={available_metrics} fallback={chart}/>}
-    </SectionCard>
-  </Section>;
+  const toggle = () => setOpen(!open);
+  // what opening shows: say tests and benchmarks only when there are some
+  const what = describesTrends(available_metrics) ? 'Tests, benchmarks and metrics over these commits' : 'Metrics over these commits';
+  return <Card elevation={0} className="qa-branch-trends" style={{ marginBottom: 15, padding: 0 }}>
+    {/* the whole header opens and closes the card; its button says so to keyboards and screen readers */}
+    {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- the button inside is the keyboard's way */}
+    <div onClick={toggle} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px 6px 15px', cursor: 'pointer', flexWrap: 'wrap' }}>
+      <Icon icon="timeline-line-chart" className={Classes.TEXT_MUTED}/>
+      <H6 style={{ margin: 0 }}>Trends</H6>
+      {!open && <span className={Classes.TEXT_MUTED}>{what}</span>}
+      <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+        {/* a link: it goes to the Trends page, and doesn't open or close the card */}
+        <Link to={trends_location(project, branch, date_range)} onClick={event => event.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
+          Trends page <Icon icon="arrow-right" size={12}/>
+        </Link>
+        <Button
+          variant="minimal"
+          icon={open ? 'chevron-up' : 'chevron-down'}
+          aria-expanded={open}
+          aria-controls="branch-trends"
+          aria-label={open ? 'Hide the trends' : 'Show the trends'}
+          onClick={event => { event.stopPropagation(); toggle(); }}
+        />
+      </span>
+    </div>
+    <Collapse isOpen={open}>
+      <div id="branch-trends" style={{ padding: '12px 15px 0', overflowX: 'auto', borderTop: '1px solid var(--qa-border)' }}>
+        {open && <BranchTiles project={project} branch={branch} commits={commits} date_range={date_range} complete={complete} available_metrics={available_metrics} fallback={chart}/>}
+      </div>
+    </Collapse>
+  </Card>;
 }

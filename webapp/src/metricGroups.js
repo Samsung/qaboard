@@ -24,3 +24,8 @@ export function hasGroups(definitions = {}) {
   const total_groups = new Set([...totals].map(key => definitions[key]?.group).filter(Boolean));
   return Object.entries(definitions).some(([key, d]) => !!d?.group && !d.part_of && !totals.has(key) && !total_groups.has(d.group));
 }
+
+// Whether some metrics say how they group: the trends can show something (else nothing is computed for them)
+export const describesTrends = (definitions = {}) => Object.values(definitions ?? {}).some(d => !!d?.group || !!d?.part_of);
+// A metric the trends show: the other views of the Trends page can leave it to them
+export const isGrouped = (definitions, key) => !!definitions?.[key]?.group || !!definitions?.[key]?.part_of;

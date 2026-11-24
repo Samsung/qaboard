@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import unittest
 from pathlib import Path
 
 from .test_active_run import ActiveRunTestCase, ROOT, git
@@ -483,3 +484,22 @@ class TestQaRunWithoutASharedStorage(QaTestCase):
     result = self.qa_in_project('check-bit-accuracy', '--batch', 'texts')
     self.assertNotIn('storage shared', result.stderr)
     self.assertIn('There are no runs to compare', result.stderr)
+
+
+class TestTrendsUrl(unittest.TestCase):
+  """qa upload prints where the branch's test reports and benchmarks show over its commits"""
+  def run_like(self, **kwargs):
+    from types import SimpleNamespace
+    fields = dict(server='https://qa.example', project='group/sdk', sent=True, _setup=SimpleNamespace(commit_data={'commit_branch': 'feature/x'}))
+    return SimpleNamespace(**{**fields, **kwargs})
+
+  def test_for_grouped_metrics(self):
+    from qaboard.metrics import Metric
+    from qaboard.upload_command import trends_url
+    grouped = {'tests': Metric(3, group='Tests')}
+    self.assertEqual(trends_url(self.run_like(), grouped), 'https://qa.example/group/sdk/trends/feature/x')
+    # nothing to see there: other metrics, a run the server doesn't have, no branch
+    self.assertIsNone(trends_url(self.run_like(), {'psnr': Metric(30)}))
+    self.assertIsNone(trends_url(self.run_like(sent=False), grouped))
+    from types import SimpleNamespace
+    self.assertIsNone(trends_url(self.run_like(_setup=SimpleNamespace(commit_data={})), grouped))

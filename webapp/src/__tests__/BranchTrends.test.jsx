@@ -31,16 +31,19 @@ describe('the Trends card of a branch', () => {
     const get = vi.spyOn(http, 'get');
     render({ ...TEST_DEFINITIONS, bench: { group: 'Benchmarks/codec' } });
     expect(screen.getByText('Tests, benchmarks and metrics over these commits')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show the trends' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByText('Tests failing')).not.toBeInTheDocument();
     expect(screen.queryByText('the chart')).not.toBeInTheDocument();
     expect(get).not.toHaveBeenCalled();
-    expect(screen.getByRole('link', { name: 'Open Trends' })).toHaveAttribute('href', '/group/sdk/trends/main');
+    // the Trends page, on the same dates as the list
+    expect(screen.getByRole('link', { name: /Trends page/ })).toHaveAttribute('href', '/group/sdk/trends/main?from=2026-10-30&to=2026-11-03');
   });
 
   it("shows the tests' numbers once opened, and stays open", async () => {
     render(TEST_DEFINITIONS);
-    fireEvent.click(screen.getByText('Trends'));
+    fireEvent.click(screen.getByRole('button', { name: 'Show the trends' }));
     expect(await screen.findByText('Tests failing')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hide the trends' })).toHaveAttribute('aria-expanded', 'true');
     expect(usePrefsStore.getState().branchTrendsOpen).toBe(true);
   });
 
@@ -48,5 +51,6 @@ describe('the Trends card of a branch', () => {
     usePrefsStore.setState({ branchTrendsOpen: true });
     render({ psnr: { label: 'PSNR' } });
     expect(await screen.findByText('the chart')).toBeInTheDocument();
+    expect(screen.queryByText(/Tests, benchmarks/)).not.toBeInTheDocument();
   });
 });

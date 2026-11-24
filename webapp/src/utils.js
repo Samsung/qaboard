@@ -146,6 +146,19 @@ const changes_keyword = output => {
   return changes ? ' changes:unknown' : '';
 };
 
+// Which runs a chart over commits keeps, like the filter of the runs on the Trends page: words that must all
+// match the input, platform, metadata or configurations. Not the pending runs.
+const make_output_filter = output_filter => {
+  const matcher = match_query(output_filter)
+  return o => {
+    if (o.is_pending) return false;
+    if (output_filter.length === 0) return true;
+    let metadata_s = Object.keys(o.test_input_metadata ?? {}).length > 0 ? JSON.stringify(o.test_input_metadata) : "";
+    let searched = `${o.test_input_path} ${o.platform} ${metadata_s} ${JSON.stringify(o.configurations)}`.replace(/"/g, "");
+    return matcher(searched)
+  };
+};
+
 const filter_batch = (batch, filter_values) => {
   if (filter_values === undefined || filter_values === null || filter_values.length === 0)
     return {
@@ -474,6 +487,7 @@ export {
   pretty_label,
   filter_batch,
   match_query,
+  make_output_filter,
   shows_only_failed,
   only_failed_filter,
   without_failed_filter,

@@ -291,6 +291,32 @@ export const fileQuery = (url, { is_running = false, responseType } = {}) => que
   staleTime: is_running ? 0 : output_files_stale_time,
 });
 
+export const manifest_url = (output, { refresh = false } = {}) => (output?.is_running || refresh)
+  ? `/api/v1/output/${output?.id}/manifest/${refresh ? '?refresh=true' : ''}`
+  : `${output?.output_dir_url}/manifest.outputs.json`;
+
+// The manifest lists all the files created by a run, with their size and hash.
+// Many components need it: the cache lets them share it, and new outputs often share the same reference.
+export const manifestQuery = output => {
+  const url = manifest_url(output);
+  return queryOptions({
+    queryKey: ['manifest', url],
+    queryFn: async ({ signal }) => {
+      const { data } = await http.get(url, { signal });
+      if (typeof data !== 'string') return data;
+      // The manifest is sometimes corrupt, e.g. when a running output updates it while it ends.
+      // We ask the server to regenerate it.
+      const { data: refreshed } = await http.get(manifest_url(output, { refresh: true }), { signal });
+      if (typeof refreshed === 'string') throw new Error('Corrupt output manifest.');
+      return refreshed;
+    },
+    enabled: !!output?.output_dir_url,
+    // the files of finished outputs don't change
+    staleTime: output?.is_running ? 0 : output_files_stale_time,
+    refetchInterval: output?.is_running ? 30 * 1000 : false,
+  });
+};
+
 export const invalidateOutputFiles = (queryClient, output_dir_url) => queryClient.invalidateQueries({
   predicate: ({ queryKey: [kind, url] }) => ['manifest', 'file'].includes(kind) && typeof url === 'string' && url.startsWith(`${output_dir_url}/`),
 });

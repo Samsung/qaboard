@@ -127,7 +127,7 @@ export function useRefreshCommit() {
 
 
 // The metrics the commits endpoint aggregates per batch (median, average), with their targets:
-// History's (dashboard_metrics), else the default and main metrics, which the commit list and the branch's chart show.
+// The Trends page's (dashboard_metrics), else the default and main metrics, which the commit list and the branch's chart show.
 // Metrics without a target need one: JSON leaves out undefined values, and the server would not aggregate them.
 // They don't need to be declared.
 export const aggregation_metrics = (qatools_metrics, { dashboard = false } = {}) => {
@@ -151,10 +151,10 @@ const unique_commits = commits => {
 };
 
 // The commits shown on the current page: the project's latest, a branch's or a committer's,
-// in the date range from the URL. On the History page they come with all their outputs.
+// in the date range from the URL. On the Trends page they come with all their outputs.
 // On lists of commits they come in pages (fetchNextPage, hasNextPage...), and the `search` from the URL
 // Whose commits the project's pages list: the URL says, else what users last picked in this project, else theirs
-// ("mine") if they're signed in. Branch and committer pages, and History, are about everyone's.
+// ("mine") if they're signed in. Branch and committer pages, and Trends, are about everyone's.
 // {scope, is_default}: the default falls back to everyone's when users have nothing in the project.
 // `ready`: we know who the user is, lists wait for it rather than show everyone's, then theirs.
 export function useListScope(selected) {
@@ -190,7 +190,7 @@ function useCommitsListState(selected, project_data, { enabled, refetchInterval,
   const list_key = `${project}|${branch}`;
   const known_branch_metrics = branch && branch_metrics.key === list_key ? branch_metrics.qatools_metrics : undefined;
   const project_metrics = project_data.data?.qatools_metrics;
-  // History picks its metrics and loads every run: asking again with the latest commit's would load them twice
+  // Trends picks its metrics and loads every run: asking again with the latest commit's would load them twice
   const requested_metrics = (!dashboard && known_branch_metrics) || project_metrics;
   const metrics = useMemo(
     () => aggregation_metrics(requested_metrics, { dashboard }),
@@ -552,7 +552,7 @@ export const ComparisonProvider = ({ children }) => {
     createElement(TogetherContext.Provider, { value: comparison.together }, children));
 };
 
-// useComparison().together, or none without a comparison (e.g. History's previews)
+// useComparison().together, or none without a comparison (e.g. the Trends page's previews)
 export const useReferencesTogether = () => useContext(TogetherContext);
 
 // Everything about the comparison of the new and reference commits: commits, batches, configuration and metrics

@@ -9,11 +9,12 @@ import { cwd } from 'node:process';
 import { describe, expect, it } from 'vitest';
 
 const sources = import.meta.glob(['../*.{js,jsx}', '!../playground.jsx'], { query: '?raw', import: 'default', eager: true });
-const app = import.meta.glob(['../../**/*.{js,jsx}', '!../../**/__tests__/**', '!../../trends/**'], { query: '?raw', import: 'default', eager: true });
+const app = import.meta.glob(['../../**/*.{js,jsx}', '!../../**/__tests__/**', '!../../**/*.test.{js,jsx}', '!../../trends/**'], { query: '?raw', import: 'default', eager: true });
 const imports = source => [
   ...source.matchAll(/^\s*import\s[^'"]*?\sfrom\s+['"]([^'"]+)['"]/gm),
   ...source.matchAll(/^\s*import\s+['"]([^'"]+)['"]/gm),
   ...source.matchAll(/\bimport\(\s*['"]([^'"]+)['"]/g),
+  ...source.matchAll(/^\s*export\s[^'"]*?\sfrom\s+['"]([^'"]+)['"]/gm),
 ].map(m => m[1]);
 
 describe('the trends', () => {
@@ -24,12 +25,17 @@ describe('the trends', () => {
         expect([file, specifier]).toEqual([file, expect.toSatisfy(s => /^\.\/[\w.-]+$/.test(s) || ['react', '@blueprintjs/core'].includes(s))]);
   });
 
-  it('have their components loaded on demand, by one file of the app', () => {
+  it('are reached by one file of the app, which loads their components on demand', () => {
+    const adapter = '../../CommitsTrends.jsx';
     for (const [file, source] of Object.entries(app)) {
-      const statically = [...source.matchAll(/^\s*import\s[^'"]*?\sfrom\s+['"]([^'"]+)['"]/gm)].map(m => m[1]).filter(s => /trends\/(?!model)/.test(s));
-      expect([file, statically]).toEqual([file, []]);
+      if (file === adapter) continue;
+      expect([file, imports(source).filter(s => s.includes('trends/'))]).toEqual([file, []]);
     }
-    expect(app['../../CommitsTrends.jsx']).toMatch(/\bimport\(\s*['"]\.\/trends\/Trends['"]/);
+    // the adapter imports the model (small), and the components only with import()
+    const source = app[adapter];
+    expect(source).toMatch(/\bimport\(\s*['"]\.\/trends\/Trends['"]/);
+    const statically = [...source.matchAll(/^\s*import\s[^'"]*?\sfrom\s+['"]([^'"]+)['"]/gm)].map(m => m[1]).filter(s => s.includes('trends/'));
+    expect(statically).toEqual(['./trends/model']);
   });
 
   it('style only their own elements', () => {

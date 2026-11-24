@@ -68,7 +68,7 @@ Runs started from code log media per step (`qaboard/media.py`: *media.jsonl* and
 `viewers/media/media.js` reads the same index, both tested on `tests/fixtures/media/`): the card's **Logged media**
 (`viewers/media/`, design in `docs/design/logged-media.md`) has its playground, `/logged-media.html?steps=200&keys=12&shuffle=1`.
 The audio viewer (`viewers/audio/`, standalone like the image viewer, adapter `viewers/audio-viewer.jsx`) too: `/audio-viewer.html`.
-Trends over a branch's commits (`webapp/src/trends/`, standalone, prototype): tests and benchmarks in History and tiles above a branch's
+Trends over a branch's commits (`webapp/src/trends/`, standalone, prototype): tests and benchmarks on the Trends page (formerly History, `/trends`) and in a card above a branch's
 commits, drawn from the metrics' definitions (`group`, `aggregation`, `part_of`, `intent`: `qaboard/metrics.py`, set by `junit_metrics` and
 `benchmark_metrics`); the app's adapter is `src/CommitsTrends.jsx`, its requests use `src/metricGroups.js`, and
 `trends/__tests__/isolation.test.js` checks it imports nothing from the app. Playground: `/trends.html?commits=100&tests=20000&benchmarks=600`.

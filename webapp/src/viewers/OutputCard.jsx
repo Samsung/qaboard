@@ -1,6 +1,6 @@
 import { Fragment, memo, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { useInView } from 'react-intersection-observer'
-import { queryOptions, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FullScreen, useFullScreenHandle } from "react-full-screen";
 
 import styled from "styled-components";
@@ -29,8 +29,8 @@ import { useOutputCardDensity, usePrefsStore } from '../stores/prefs'
 
 import { updateSelected, useReferencesTogether } from "../hooks";
 import { track } from "../analytics";
-import { http, errorMessage } from "../api/http";
-import { output_files_stale_time, invalidateOutputFiles } from "../api/queries";
+import { errorMessage } from "../api/http";
+import { invalidateOutputFiles, manifestQuery, manifest_url } from "../api/queries";
 import { at_most, is_same_data } from '../utils'
 import { is_image } from "./images/utils"
 import {
@@ -43,31 +43,6 @@ import {
 } from "../utils/dynamicOptions"
 
 
-const manifest_url = (output, { refresh = false } = {}) => (output?.is_running || refresh)
-  ? `/api/v1/output/${output?.id}/manifest/${refresh ? '?refresh=true' : ''}`
-  : `${output?.output_dir_url}/manifest.outputs.json`;
-
-// The manifest lists all the files created by a run, with their size and hash.
-// Many components need it: the cache lets them share it, and new outputs often share the same reference.
-const manifestQuery = output => {
-  const url = manifest_url(output);
-  return queryOptions({
-    queryKey: ['manifest', url],
-    queryFn: async ({ signal }) => {
-      const { data } = await http.get(url, { signal });
-      if (typeof data !== 'string') return data;
-      // The manifest is sometimes corrupt, e.g. when a running output updates it while it ends.
-      // We ask the server to regenerate it.
-      const { data: refreshed } = await http.get(manifest_url(output, { refresh: true }), { signal });
-      if (typeof refreshed === 'string') throw new Error('Corrupt output manifest.');
-      return refreshed;
-    },
-    enabled: !!output?.output_dir_url,
-    // the files of finished outputs don't change
-    staleTime: output?.is_running ? 0 : output_files_stale_time,
-    refetchInterval: output?.is_running ? 30 * 1000 : false,
-  });
-};
 
 const empty_manifest = {};
 const no_options = {};
@@ -719,4 +694,4 @@ const OutputCard = memo(function OutputCard(props) {
 })
 
 
-export { OutputCard, manifestQuery };
+export { OutputCard };

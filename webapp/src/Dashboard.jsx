@@ -16,6 +16,7 @@ import {
 
 import CommitsEvolution from "./CommitsEvolution";
 import { HistoryTrends } from "./CommitsTrends";
+import { describesTrends, isGrouped, listMetricKeys } from "./metricGroups";
 import { Container, Section } from "./components/layout";
 import { SectionErrorBoundary } from "./components/ErrorFallback";
 import { MetricsSummary, MetricSelect } from "./components/metrics";
@@ -82,23 +83,30 @@ const Dashboard = () => {
     [qatools_metrics, used_metrics_key],
   );
   const { available_metrics, main_metrics, dashboard_metrics, dashboard_evolution_metrics, dashboard_breakdown_by_tag } = metrics;
+  // Runs whose metrics say how they group (tests, benchmarks from `qa upload`): the trends section shows those, and
+  // without configuration the views below keep to the other metrics, and to the totals in the tables
+  const has_trends = describesTrends(available_metrics);
   // Without configuration, the plot over time offers the metrics of all the commits shown (the latest may still be running)
   const evolution_metrics = useMemo(
-    () => Array.isArray(dashboard_evolution_metrics) ? dashboard_evolution_metrics : (main_metrics?.length ? main_metrics : history_metrics(commits, selected_batch_new, qatools_metrics?.available_metrics)),
-    [dashboard_evolution_metrics, main_metrics, commits, selected_batch_new, qatools_metrics],
+    () => Array.isArray(dashboard_evolution_metrics) ? dashboard_evolution_metrics : (main_metrics?.length ? main_metrics
+      : history_metrics(commits, selected_batch_new, qatools_metrics?.available_metrics).filter(key => !has_trends || !isGrouped(available_metrics, key))),
+    [dashboard_evolution_metrics, main_metrics, commits, selected_batch_new, qatools_metrics, has_trends, available_metrics],
   );
 
   // null: the project's default metrics, else the summary chooses
   const [user_selected_metrics, setSelectedMetrics] = useState(null);
   // lists, see normalize_metrics: but the cache may have metrics files from before it
-  const configured_metrics = [dashboard_metrics, main_metrics].find(Array.isArray) ?? [];
+  const chosen_metrics = [dashboard_metrics, main_metrics].find(list => Array.isArray(list) && list.length > 0);
+  const configured_metrics = chosen_metrics ?? (has_trends ? listMetricKeys(available_metrics) : [dashboard_metrics, main_metrics].find(Array.isArray) ?? []);
+  // only the trends' metrics, and nothing chosen: the distributions would repeat the trends with less sense (medians of counts)
+  const only_trends = has_trends && !chosen_metrics && [...(used_metrics ?? [])].filter(key => key !== 'compute_time').every(key => isGrouped(available_metrics, key));
   const selected_metrics_keys = user_selected_metrics ?? configured_metrics;
   const selected_metrics = (user_selected_metrics || configured_metrics.length > 0) ? selected_metrics_keys.map(k => metric_info(available_metrics, k)) : undefined;
   const [selected_tab, setSelectedTab] = useState(undefined);
 
   if (!!error && commits.length === 0) return <Container style={{paddingTop: '50px'}}>
     <NonIdealState
-      title="Could not load the history"
+      title="Could not load the trends"
       icon='error'
       description={<p style={{ overflowWrap: 'anywhere' }}><code>{errorMessage(error)}</code></p>}
       action={<Button icon="refresh" text="Retry" onClick={() => refetch()}/>}
@@ -107,7 +115,7 @@ const Dashboard = () => {
   if (isPending || (isFetching && commits.length === 0))
     return (
       <Container style={{paddingTop: '50px'}}>
-        <NonIdealState title={`Loading the history${selected.branch ? ` of ${selected.branch}` : ''}…`} icon={<Spinner />} />
+        <NonIdealState title={`Loading the trends${selected.branch ? ` of ${selected.branch}` : ''}…`} icon={<Spinner />} />
       </Container>
     );
   const show_older = () => updateSelected({ from: DateTime.fromJSDate(date_range[0]).minus({ days: 30 }).toJSDate() }, { replace: true });
@@ -143,7 +151,8 @@ const Dashboard = () => {
           <Card>{sections}</Card>
         </ViewSection>}
       </HistoryTrends>
-      <ViewSection style={{ breakInside: "avoid" }}>
+      {/* nothing left to plot once the trends show their metrics: no "No metrics to plot" below them */}
+      {!(has_trends && evolution_metrics.length === 0) && <ViewSection style={{ breakInside: "avoid" }}>
         <ViewHeader>
           {/* a small spinner while refreshing: a big one would push the page down */}
           <h2 className={Classes.HEADING}>
@@ -166,9 +175,9 @@ const Dashboard = () => {
             onSelect={commits => updateSelected(commits, { replace: true })}
           />
         </Card>
-      </ViewSection>
+      </ViewSection>}
 
-      {has_reference && (
+      {has_reference && !only_trends && (
         <ViewSection style={{ breakAfter: "always", breakInside: "avoid" }}>
           <ViewHeader>
             <h2 className={Classes.HEADING}>Metrics distribution</h2>

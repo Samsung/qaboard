@@ -17,7 +17,7 @@ import { useComparison, useSelected, useSiteConfig, useUrlText, updateSelected }
 import { OutputCard } from "./viewers/OutputCard";
 import { useViewerControls, config_visualizations } from "./viewers/controls";
 import { BitAccuracyForm, bit_accuracy_url_defaults } from "./viewers/bit_accuracy/utils";
-import { hash_color, match_query, average, median, metric_info } from "./utils";
+import { hash_color, average, median, metric_info, make_output_filter } from "./utils";
 import { matching_output } from "./matching/match";
 import { yAxisSuffix, hasAllMetrics, sum } from "./evolutionAxis";
 import CommitRow from "./components/CommitRow";
@@ -52,16 +52,6 @@ let default_layout = {
 };
 
 
-const make_output_filter = output_filter => {
-  const matcher = match_query(output_filter)
-  return o => {
-    if (o.is_pending) return false;
-    if (output_filter.length === 0) return true;
-    let metadata_s = Object.keys(o.test_input_metadata ?? {}).length > 0 ? JSON.stringify(o.test_input_metadata) : "";
-    let searched = `${o.test_input_path} ${o.platform} ${metadata_s} ${JSON.stringify(o.configurations)}`.replace(/"/g, "");
-    return matcher(searched)
-  };
-};
 
 
 // A copy of the commit, with only the outputs that match the filter, and their counts
@@ -439,7 +429,7 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
 
   const selected_metric = query.selected_metric || default_metric;
   // counts add up over a commit's runs: their definition says so (`aggregation`)
-  const default_aggregation = available_metrics[selected_metric]?.aggregation || 'median';
+  const default_aggregation = ['median', 'average', 'sum'].includes(available_metrics[selected_metric]?.aggregation) ? available_metrics[selected_metric].aggregation : 'median';
   const selected_aggregation = query.selected_aggregation || default_aggregation;
   const breakdown_per_test = flag('breakdown_per_test', !!default_breakdown_per_test);
   const relative = flag('relative', default_breakdown_per_test !== true);
@@ -563,5 +553,4 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
   );
 }
 
-export { make_output_filter };
 export default CommitsEvolution;
