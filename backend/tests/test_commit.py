@@ -122,7 +122,7 @@ class TestLatestCommit:
         import backend.api.auth as auth
         auth.is_authorized_user.return_value = True
         project = MagicMock(data=project_data)
-        monkeypatch.setattr(commit_api.Project, 'query', MagicMock(), raising=False)
+        monkeypatch.setattr(commit_api, 'Project', MagicMock())
         commit_api.Project.query.filter.return_value.one.return_value = project
         ci_commit = MagicMock()
         ci_commit.to_dict.return_value = {'id': HEXSHA, 'batches': {}}

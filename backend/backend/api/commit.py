@@ -1,4 +1,5 @@
 import re
+import hashlib
 import datetime
 
 import ujson
@@ -11,7 +12,7 @@ from backend import app, db_session
 from ..access import invalid_project
 from .auth import is_authorized_user, login_required, require_project_access, ingest_access, forbidden_project
 from ..actor import batch_token_limits, is_batch_request
-from ..models import Project, CiCommit, latest_successful_commit, Batch
+from ..models import Project, CiCommit, latest_successful_commit
 from ..reference_branch import reference_branch_of
 from ..storage import UnsafePathError
 from .. import recreate_artifacts
@@ -96,9 +97,8 @@ def api_ci_commit(commit_id=None):
   # ?with_outputs=false: only the commit and its batches' counts and metrics, e.g. for the references users
   # stacked but don't look at (a commit can have thousands of outputs)
   with_outputs = request.args.get('with_outputs', 'true') != 'false'
+  # outputs are serialized from rows (CiCommit.to_dict)
   batches_loader = selectinload(CiCommit.batches)
-  if with_outputs:
-    batches_loader = batches_loader.selectinload(Batch.outputs)
 
   if not commit_id:
     commit_id = request.args.get('commit', None)
@@ -152,9 +152,22 @@ def api_ci_commit(commit_id=None):
   # checking the artifacts reads the storage, often a slow network filesystem
   if with_outputs:
     commit_dict['artifacts'] = commit_artifacts_info(ci_commit)
-  response = make_response(ujson.dumps(commit_dict))
+  return conditional_json(ujson.dumps(commit_dict))
+
+
+def conditional_json(body: str):
+  """
+  A JSON response with an ETag: the web app polls commits while their runs wait or run, and they can have
+  thousands of runs. When nothing changed it gets a 304 without a body (If-None-Match), and keeps what it has.
+  """
+  data = body.encode()
+  response = make_response(data)
   response.headers['Content-Type'] = 'application/json'
-  return response
+  # weak: nginx's gzip changes the bytes, not what they mean
+  response.set_etag(hashlib.blake2b(data, digest_size=16).hexdigest(), weak=True)
+  # browsers ask again each time, they may answer from their cache when it's still the same
+  response.headers['Cache-Control'] = 'private, no-cache'
+  return response.make_conditional(request)
 
 
 def git_ref_hexsha(project_id, ref):

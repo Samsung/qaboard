@@ -1,281 +1,91 @@
 # CLAUDE.md
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for coding agents in this repository. Each top-level directory with its own rules has a `CLAUDE.md`, loaded
+when you work on its files: read it before changing code there.
 
+QA-Board is a self-hosted quality tracking platform: every commit's outputs and metrics next to a reference's, with
+advanced viewers, reviewed by people and coding agents alike (positioning: "Positioning" in `website/STYLE.md`).
+The `qa` CLI / SDK runs user code and sends results; the backend stores them in PostgreSQL; the web app shows them.
 
-## QA-Board Architecture
+## Repository map
+| Directory | What | Rules |
+|---|---|---|
+| `qaboard/` | Python package: the `qa` CLI (Click), the SDK (`qaboard.start_run()`), runners. Tests in `tests/` | `qaboard/CLAUDE.md` |
+| `backend/` | Flask API (uWSGI), PostgreSQL (SQLAlchemy, Alembic in `backend/backend/alembic/`), a jobs worker. Tests in `backend/tests/` | `backend/CLAUDE.md` |
+| `webapp/` | React SPA served by nginx, and the standalone viewers | `webapp/CLAUDE.md` |
+| `website/` | Docusaurus docs site and the release notes | `website/CLAUDE.md` |
+| `deployments/`, `charts/qaboard/` | Compose env files and `deploy.py`, site overlays (`sirc/`, `dsk/`), runbooks; the Helm chart | `deployments/CLAUDE.md` |
+| `services/` | Images and config of the infrastructure: nginx, db, cantaloupe (IIIF image server), vips, pgadmin, metabase, flower | |
+| `tests/` | Python tests of `qaboard/`; `tests/fixtures/` are shared with the web app's tests | |
+| `skills/` | Skills for agents working in *users'* projects (`skills/README.md`) | |
+| `examples/`, `docs-media/` | Demo projects whose history feeds the demo server; the pipeline that captures the docs' screenshots | `README.md` in each |
+| `docs/` | Design docs, RFCs, warts, TODO (see below) | |
+| `qatools/` | Backward-compatibility alias (`import qatools`) | |
 
-QA-Board is a self-hosted quality tracking platform: every commit's outputs and metrics next to a reference's, with advanced viewers, reviewed by people and coding agents alike (positioning: "Positioning" in `website/STYLE.md`). It consists of:
-
-- **`qaboard/`** - Python CLI package that wraps user code and manages experiments
-- **`backend/`** - Flask API with PostgreSQL database for managing runs and data  
-- **`webapp/`** - React.js frontend for visualizing and comparing results
-- **`services/`** - Infrastructure services (nginx, databases, message queues)
-- **`website/`** - Docusaurus documentation site
-
-## Development Commands
-
-### Environment Setup
+## Setup
+Python with `uv` (the backend needs 3.11+; CI tests `qa` on 3.11 and 3.13), `npm` for the web app, `yarn` for the website.
 ```bash
-# Start full development environment
-docker compose -f docker-compose.yml -f development.yml up -d
-
-# At SIRC, run this first to set proxies/dev settings and mount important folders
-source deployments/sirc/.envrc
-./at-sirc-before-up.py
-
-# With SIRC-specific config
-docker compose -f docker-compose.yml -f development.yml -f deployments/sirc/sirc.yml up -d
+docker compose -f docker-compose.yml -f development.yml up -d   # full dev stack (SIRC: see deployments/CLAUDE.md)
+uv sync --extra dev        # qaboard + dev tools; runner extras: --extra celery --extra dask --extra kubernetes --extra dask-kubernetes --extra mlflow
+cd webapp && npm install && npm start      # Vite dev server, proxies the API to localhost:5151
+cd website && yarn install && yarn start   # docs site
 ```
 
-### Deploying
+## CI and tests
+CI: `.github/workflows/ci.yaml` (jobs `python`, `webapp`, `docker`, `helm`, `quickstart`, `helm-e2e`,
+`kubernetes-runner-e2e`, image/chart publishing), `website.yml`, `docs-media.yml`; helper scripts in `.github/scripts/`.
+CI runs the jobs a change needs: the `changes` job maps files to jobs in `.github/scripts/ci_changes.py` (the only
+mapping, tested by `tests/test_ci_changes.py`); `uv run .github/scripts/ci_changes.py` shows what your branch runs.
+Master, releases and workflow_dispatch run every job. On branches, `quickstart`, `helm-e2e` and `kubernetes-runner-e2e`
+run only for changes to what they protect, or with the `run-e2e` PR label: **when your change can break them, run
+them locally (commands in `docs/ci.md`) or add the label.** `ci-ok` is the one required check: a new job needs an
+output of `changes`, an `if:` on it, and a place in `ci-ok`'s `needs`.
 ```bash
-# Zero-downtime deploys, one env file per environment (compose files, project, replicas...)
-deployments/deploy.py deployments/sirc/production.env up|status|rollback|restore-db|compose ...
-docker compose --env-file deployments/sirc/production.env ps
-# Kubernetes: helm chart in charts/qaboard, laptop quickstart: charts/qaboard/quickstart.yaml + kind.yaml
-# (installed by the helm-e2e CI job, .github/scripts/helm_e2e.py). SIRC values in deployments/sirc/values.yaml
+uv run green tests                                      # qaboard tests (unittest, green runner)
+uv run flake8 backend qaboard                           # lint (config: .flake8)
+uv run mypy -p qaboard --ignore-missing-imports         # types
+cd backend && uv run python -m pytest -q -p no:cacheprovider tests   # needs C headers, see backend/tests/TESTING.md
+cd webapp && npm run lint && npm run typecheck && npm test -- --run  # oxlint, tsc, vitest
+cd webapp && npm run build && npm run e2e               # Playwright smoke tests on the production build
+uv run website/release-notes/release_notes.py check --strict
 ```
-GitHub CI publishes the images to `ghcr.io/<owner>/qaboard` (`<service>-<sha8>` on master, `<service>` once every job passed,
-`<service>-<version>` for releases) and the chart to `oci://ghcr.io/<owner>/charts/qaboard`; compose and the chart default to
-`ghcr.io/samsung/qaboard`, `QABOARD_IMAGE` / `image.repository` override it.
-GitLab CI deploys master to staging then production automatically. SIRC runbooks: `deployments/sirc/runbooks/`; generic server docs: `website/docs/backend-admin/`.
+CI also checks that merged Alembic migrations are never changed (`.github/scripts/check_migrations.py`) and that
+`backend/uv.lock` is up to date (`uv lock --check --directory backend`).
 
-### Frontend Development (React)
-```bash
-cd webapp
-npm install
-npm start               # Vite dev server
-npm run build           # Production build (Vite)
-npm test                # Vitest (watch mode), `npm test -- --run` for a single run
-npm run lint            # oxlint
-npm run e2e             # Playwright smoke tests on the production build (after npm run build)
-npm run build:image-viewer  # the image viewer as an npm package, see src/image-viewer/README.md
-```
-The image viewer (`webapp/src/image-viewer/`) is a standalone React component on OpenSeadragon: it must not import
-from the app (a test checks it). QA-Board adapts it in `webapp/src/viewers/images/` (runs, image servers, pixel values,
-regions of interest providers). `npm start` then `/image-viewer.html` shows it alone, with generated images.
-With several references ticked in the reference tabs (`together` in `src/selection.js`, `useComparison().together`), it shows N images
-as tiles compared with an anchor (`tiles.jsx`, `grid.js`, `comparePanel.jsx`): `/image-viewer.html?images=5` tries it; other viewers keep the selected reference.
-The JUnit test report viewer (`webapp/src/viewers/junit/`) has its playground too: `/junit-viewer.html?tests=50000`.
-So does the benchmark viewer (`webapp/src/viewers/benchmarks/`): `/benchmark-viewer.html?benchmarks=5000`. Its parser
-and `qaboard/benchmarks.py` read the same formats: both are tested on `tests/fixtures/benchmarks/`.
-The flame graph viewer (`webapp/src/viewers/flamegraph/`, the formats it reads in `formats.js`) too: `/flame-graph-viewer.html?stacks=300000`,
-with a new and a reference profile that differ in known ways (`generate.js`); `qaboard/flamegraphs.py` converts `perf script` and pprof.
-The parallel coordinates of Tuning Analysis (`webapp/src/viewers/parallel/`, drawn on a canvas, no Plotly) too: `/parallel-coordinates.html?rows=2000&columns=30`;
-`components/tuning/ParallelCoordinatesPlot.jsx` loads it lazily. Tuning Analysis itself is `components/tuning/TuningAnalysis.jsx`: `OptimizationReport.jsx`
-for `qa optimize` batches, `TuningReport.jsx` for the others (logic in `optimization.js` and `analysis.js`), with explanations in `learn.jsx`.
-Runs started from code log media per step (`qaboard/media.py`: *media.jsonl* and *media/*, standalone; the web app's
-`viewers/media/media.js` reads the same index, both tested on `tests/fixtures/media/`): the card's **Logged media**
-(`viewers/media/`, design in `docs/design/logged-media.md`) has its playground, `/logged-media.html?steps=200&keys=12&shuffle=1`.
-The audio viewer (`viewers/audio/`, standalone like the image viewer, adapter `viewers/audio-viewer.jsx`) too: `/audio-viewer.html`.
-The commit page's Metrics Table and Metrics Diff (`components/tables.jsx`, with `components/metricsTable/`) too: `/metrics-table.html?runs=2000&metrics=30`.
-Like the image viewer, `viewers/benchmarks/` and `viewers/flamegraph/` are standalone: they import nothing from the app, which
-only loads their adapters (`viewers/benchmarks-viewer.jsx`, `viewers/flame-graph.jsx`), lazily. `viewers/__tests__/isolation.test.js`
-checks it, and `TestIsolation` in the Python tests checks that `qaboard/benchmarks.py` and `flamegraphs.py` import nothing from `qaboard`.
-The "What's new" release notes popup is off with `npm start` (dev mode), so it doesn't cover the page when you
-drive the app; `QABOARD_RELEASE_NOTES_POPUP=1 npm start` turns it on to work on it. On a production build
-(`npm run preview`, e2e, a deployed server) it still pops up: mark the notes seen first, as the e2e tests do,
-`localStorage.setItem('qaboard.release-notes.last-seen', '9999-12-31')` (Playwright: `page.addInitScript`).
+## Rules that apply everywhere
+- **Release notes in the same PR as any user-visible change** (web app, `qa` CLI, qaboard.yaml, server/admin): update
+  the current month's `website/release-notes/YYYY-MM.md` (create it with
+  `website/release-notes/release_notes.py draft YYYY-MM --write`), edit the feature's bullet rather than append, then
+  run `release_notes.py check` and fix its warnings. Skip refactors, CI-only and typo changes. How to write them:
+  `website/CLAUDE.md`.
+- **Docs in the same PR**: a change to how people use the web app updates its `website/docs/user-guide/` page; a change
+  to qaboard.yaml keys, `qa` options or the `Run` object also updates `skills/` (CI checks their docs links).
+- **Audit log**: an endpoint or job that runs code, deletes or changes something records an `audit(...)` event,
+  registered in `backend/backend/audit_actions.py` (or listed in `NOT_AUDITED` with why). Details: `backend/CLAUDE.md`.
+- **The repo and website are public**: no internal hostnames, paths, emails, people, commit shas or ticket ids in
+  `website/` or release notes. Site-specific pages: `website/site-docs/<site>/`; runbooks: `deployments/<site>/runbooks/`.
+- **Attribution**: end commits and PR descriptions with the attribution lines your session gives. Never put a model
+  name in commits or code.
 
-### Backend Development (Python Flask)
-```bash
-cd backend
-# Backend runs in Docker, see docker-compose.yml
-```
+## Change together
+Pieces in different directories that must agree; each side's `CLAUDE.md` points back here.
+- **Reference branch** (`project.reference_branch`, else the repo's default branch sent as `git.default_branch`,
+  else `main`): `backend/backend/reference_branch.py`, `reference_branch_of` in `webapp/src/defaults.js`,
+  `reference_branch()` in `qaboard/config.py`.
+- **File formats read in Python and in the web app**, tested on the same fixtures:
+  `qaboard/benchmarks.py` / `webapp/src/viewers/benchmarks/parse.js` (`tests/fixtures/benchmarks/`),
+  `qaboard/series.py` / `webapp/src/viewers/series/series.js` (`tests/fixtures/series/`),
+  `qaboard/media.py` / `webapp/src/viewers/media/media.js` (`tests/fixtures/media/`).
+- **File names the viewers recognize** (`webapp/src/viewers/fileTypes.js`) are the ones `qaboard/junit.py` and
+  `qaboard/benchmarks.py` read metrics from.
+- **The tests' fake server** (`tests/test_active_run.py`) answers like the real backend endpoints.
+- **Refusal codes**: `Reason` in `qaboard/conventions.py`, shared with the backend.
+- **Local changes** (`data.local_changes`): written by `qaboard/local_changes.py`, capped to known fields by
+  `backend/backend/local_changes.py`, shown by `webapp/src/components/LocalChanges/`.
+- **What `qa` and the SDK send with results** is built in one place: `qaboard/payloads.py`.
 
-**Audit log**: an endpoint or job that runs code, deletes or changes something records an event with
-`audit('category.verb', ...)` (`backend/backend/audit.py`, same transaction as the change), registered in
-`backend/backend/audit_actions.py` (label, category, `project=True` to show it in the project's audit log); else it says why
-in `NOT_AUDITED` there. `tests/test_audit_actions.py` checks both; the web app reads labels from `/api/v1/audit/actions`
-and shows `meta` as details, so a new action needs no frontend change. Docs: `website/docs/backend-admin/audit-log.mdx`.
-
-### Documentation Site
-```bash
-cd website  
-yarn install
-yarn start              # Start Docusaurus dev server
-yarn build              # Build static site
-```
-The Website workflow deploys `master` to GitHub Pages, then starts a crawl of the Algolia crawler, which updates the
-search index (its config, in the Algolia dashboard: `website/README.md`, skips elements marked `data-nosearch`).
-
-### Python CLI Package
-```bash
-# Main qaboard package uses uv for dependencies
-# Development dependencies include testing tools
-uv sync --extra dev     # Install with dev dependencies
-```
-
-`qaboard.start_run()` creates runs from code that starts by itself (training loops, notebooks), without `qa run`:
-`qaboard/active_run.py`, with the series it logs in `qaboard/series.py` (standalone, the web app's
-`viewers/series/series.js` reads the same files: both are tested on `tests/fixtures/series/`). Design and what's left
-out: `docs/rfcs/python-sdk-runs.md` (next steps: `python-sdk-runs-follow-ups.md`); user docs: `website/docs/logging-from-code.mdx`.
-What `qa` and the SDK send with results is built in one place, `qaboard/payloads.py`.
-Without a qaboard.yaml, `start_run()` says once what it chose (`active_run.defaults_chosen`). Without
-`project.reference_branch`, a project's reference branch is its repository's default branch (`git.default_branch`, sent
-with results), else `main`: `backend/backend/reference_branch.py`, `reference_branch_of` in `webapp/src/defaults.js`,
-`reference_branch()` in `qaboard/config.py`: change them together. `qa` always shares results
-(`config.default_share`: not with `--offline`, without a server, or without the storage here; `--share` is a hidden no-op).
-
-Runs don't need a storage shared with the server: without `storage` in qaboard.yaml (or `storage: upload`), `qa run` and
-`start_run()` save them in the project's `output/` and send their files (`qaboard/upload.py`) to the one folder the server
-keeps for that (`QABOARD_UPLOAD_ROOT`, `backend/backend/uploads.py`). `qa upload` (`qaboard/upload_command.py`) is
-`start_run()` from the shell, for files other tools wrote; `qaboard/junit.py` and `benchmarks.py` read their metrics, by
-the file names the web app's viewers recognize (`webapp/src/viewers/fileTypes.js`). Runs store their full location
-(`outputs.output_dir_override`: a path, or a URL like `s3://...` resolved by the storage locations admins add,
-`backend/backend/locations.py`): never resolve it with `Path()`, use `Output.output_dir` or `locations.local_path`.
-Local runs record how their code differs from their commit (`qaboard/local_changes.py`, standalone): a summary in
-`data.local_changes`, the patches in the run's `.qaboard/` (out of manifests); `qa batch` computes them once for its
-runs, which check a fingerprint. The server caps it (`runs.local_changes`, `backend/backend/local_changes.py` keeps
-only known fields), `qa restore` (`qaboard/restore.py`) gets the code back, the web app shows it
-(`webapp/src/components/LocalChanges/`). Design: `docs/rfcs/local-changes.md`.
-Runs report at least every 2 minutes and are failed when silent (`qaboard/heartbeat.py`, `backend/backend/heartbeats.py`). Design and decisions:
-`docs/design/ingest-upload-sdk.md`; limits: `docs/warts.md`. The tests' fake server (`tests/test_active_run.py`) answers
-like the real endpoints: change them together.
-Requests to the server go through `qaboard/http_client.py` (retries only when a call asks for them; `api.notify_qa_database` and a few older callers still use `requests` directly); refusal
-codes are `qaboard/conventions.py` `Reason`, shared with the backend. What a run tells the server besides its results
-(files, heartbeats) is `qaboard/reporting.py` `RunReporter`, used by `qa run` and `start_run()`; `plan_run()`
-(`active_run.py`) says which run `start_run()` would start (`qa upload --dryrun`); a run's files fetched from the
-server and their cache are `qaboard/run_files.py`.
-
-### Runners
-`qa batch` starts runs with a runner (`qaboard/runners/`): local, lsf, celery, dask (workers on LSF, Slurm, PBS, SGE,
-HTCondor, OAR, Moab, Kubernetes or local, `runners.dask.cluster.type`), kubernetes (Indexed Jobs), windows (Jenkins).
-Optional dependencies are extras: `uv sync --extra dev --extra celery --extra dask --extra kubernetes --extra dask-kubernetes`
-(CI's python 3.13 job installs them all, 3.11 none). `qa doctor [--runner X] [--test-job]` checks a setup and prints
-fixes (runners implement `doctor()`). The server starts/stops batches with `QABOARD_TUNING_RUNNER`, decided in `backend/backend/server_runner.py`: unset,
-it starts none; `local`/`celery` (in its own container) are an opt-in (`runner_jobs.py`, `local_jobs.py`). `qa batch --commit <sha>` (`qaboard/on_server.py`) has the server start a batch on a commit through the
-web app's tuning endpoints (`backend/backend/api/tuning.py`, documented in `backend/backend/openapi.yaml`). Design and trust model: `docs/design/kubernetes-runner.md`; known limits: `docs/warts.md` (Runners).
-An image per commit (`{commit}` in `runners.kubernetes.image`, with `workdir`) is looked up in its registry before pods
-start (`qaboard/runners/registry.py`). Without a shared storage, `qa save-artifacts` sends a commit's artifacts to the
-server and `qa fetch-artifacts` downloads them into a cache keyed by their hash (`qaboard/commit_artifacts.py`,
-`backend/backend/api/commit_artifacts.py`); batches the server starts from them get a token of the user
-that only changes that batch (`tokens.mint_for_batch`, `batch_allows` in `backend/backend/tokens.py`, `actor.BATCH_TOKEN_ENDPOINTS`).
-What's left: `docs/design/ingest-upload-sdk.md` §3.
-Kubernetes end-to-end test on kind: `.github/scripts/kubernetes_runner_e2e.py`; batches the server starts, on the Helm
-chart, without a shared storage: `.github/scripts/helm_e2e.py` (`--kubernetes`), in CI's `helm-e2e` job.
-
-## Release notes and docs (communicating with users)
-
-Users see the release notes in the web app's "What's new" panel: it pops up once when a period with notes
-is over, and opens anytime from the sidebar's sparkles button, the footer, or `/#whats-new`. The docs
-website shows them at `/release-notes` (with RSS/Atom feeds).
-
-- **Source**: `website/release-notes/YYYY-MM.md`, one file per month (`YYYY-qN.md` or `YYYY.md` for quiet
-  or old periods; periods can't overlap). The format is documented in `website/release-notes/_template.md`.
-- **In the same PR as any user-visible change** (web app, `qa` CLI, qaboard.yaml, server/admin), update the
-  current month's note, under the right section: `## Web app`, `## CLI and project setup`,
-  `## Server and administration`, `## Documentation`, `## Performance`, `## Fixes` (grouped by theme under `###`
-  headings when there are many, in every section). Update, not append: if the note already has a bullet on the
-  feature, edit it; add a bullet only for a new feature, or for a fix of what shipped before the period. If the
-  month's file doesn't exist, create it as a draft: `website/release-notes/release_notes.py draft 2026-11 --write`
-  (pre-filled from the git log, keeps `draft: true`). Skip refactors, CI-only and typo changes.
-- **Then run `website/release-notes/release_notes.py check`**, and fix its warnings on the note you edited. It warns
-  when a note being written (a draft, or its period isn't over) has more than 40 bullets, a `###` theme (or a
-  section without themes) more than 6, or a bullet more than 400 characters (links count for their text): merge
-  the bullets on the same feature, cut polish, shorten and link the docs. Never move bullets to another period to
-  get under the limits: the note says when things shipped. `check --strict` makes these errors.
-- **Write for the reader**: one change per bullet, starting with a verb, saying what they can now do, in 1-3
-  sentences: the details are in the docs, linked as `[text](/docs/page-id)`. No commit shas, no names, no internal
-  hostnames or ticket ids: the repo and website are public.
-- **Keep the note organized as it grows**, so that publishing it is curation, not a rewrite:
-  - Each `##` section once, in the template's order (`release_notes.py check` fails on duplicates). Past ~6 bullets,
-    group a section by theme under `###` headings named like the app's areas (*Automated tuning*, *Image viewer*,
-    *Storage usage*), the biggest themes first, and put a new bullet under its theme.
-  - One bullet per feature, not per commit or per PR: a feature that took ten PRs gets one bullet, two or three
-    for a big one. Polish and bug fixes of something added in the same period aren't bullets at all (readers never
-    saw the old behavior), and don't go under `## Fixes` either: Fixes is for what shipped before the period.
-  - Split a change by audience, not by commit: what people see goes under Web app, what integrators write
-    (qaboard.yaml, `qa` flags, code) under CLI and project setup, what admins install, configure or migrate under
-    Server and administration. A change that spans audiences gets one short bullet per audience, each saying only
-    what that audience does.
-  - Keep implementation details out (endpoints the web app calls, packages the image installs, every variable's
-    name): one sentence on what changed and a docs link. Keep what readers must act on: renames, upgrade steps,
-    security caveats.
-- **Publishing** (maintainers, at the start of the next month or for a big release): curate the bullets,
-  write `description` (1-2 sentences) and 2-4 `highlights` (up to 8 for a big release) (title, `audience`: users | project-integration |
-  admins, a Blueprint `icon` name, plain-text `description` (backticks for code), optional `link: /docs/...`), set `date`
-  to the publication date, and remove `draft: true`. Until its period is over, a published note is a
-  preview in the panel ("In progress"), so keep adding bullets as work lands: it pops up once, after the
-  period's last day, with everything in it (notes whose period ended over 60 days ago don't pop up).
-  "Seen" is remembered per period: later edits to a note don't notify again.
-- **Nothing to generate or commit besides the `.md`**: vite reads the notes when it builds or serves the web
-  app, or runs its tests (`webapp/releaseNotes.js`, imported as `virtual:release-notes`; the frontend image
-  is built from the repo root for that, see `webapp/Dockerfile`). `npm start` reloads when a note changes;
-  `QABOARD_RELEASE_NOTES_DRAFTS=1 npm start` also shows the drafts. `release_notes.py check` validates the
-  frontmatter and the docs links, and checks notes being written aren't too long to read: CI runs it with `--strict`.
-- **Changelog from git**: `release_notes.py changelog 2026-09` (or `2026-q3`, `2026`) lists the period's
-  commits grouped by the area they touch, as raw material for a note.
-- Code: `webapp/src/releaseNotes/` (popup, panel, links), `website/src/components/ReleaseNoteHighlights.js`
-  and `website/src/theme/BlogPostItem/Content/` (highlight cards on the website).
-
-**Docs** (`website/docs/`) have one sidebar per audience (`website/sidebars.ts`): the **User guide**
-(`user-guide/`, for people looking at results in the web app), **Project integration** (wrapping code with `qa`,
-qaboard.yaml, runners, integrations), and **Admin** (`backend-admin/`, running the server). When a change
-affects how people use the web app, update the user guide page too: one page per task, and the viewers have their own
-(`user-guide/image-viewer`, `video-viewer`, `other-viewers`; their formats for integrators in `viewers`). Pages start
-with the task and keep details collapsed: see "Page structure" in `website/STYLE.md`.
-
-The website is public: keep internal hostnames, paths, emails and people out of `website/docs/`. Pages for one site's users go in
-`website/site-docs/<site>/`, built only into that site's web app (`QABOARD_SITE`); runbooks go in `deployments/<site>/runbooks/`.
-`yarn build` fails on broken links: when you move or remove a page, add a redirect in `website/docusaurus.config.ts`.
-
-## Testing
-
-### Python Tests
-- **Framework**: `green` test runner (configured in pyproject.toml)
-- **Backend tests**: `pytest` (in backend/pyproject.toml dev dependencies)
-- **Type checking**: `mypy` 
-- **Linting**: `flake8`
-- **Test files**: Located in `tests/` directory
-
-```bash
-# Run Python tests (use green test runner)
-green tests
-
-# Type checking
-mypy qaboard/
-
-# Linting  
-flake8 qaboard/
-```
-
-### Frontend Tests
-```bash
-cd webapp
-npm test -- --run       # Vitest + Testing Library, jsdom
-```
-
-## Key Technologies
-
-- **Backend**: Python 3.11+, Flask, PostgreSQL, SQLAlchemy, Celery, Redis
-- **Frontend**: React 19 (function components, React Compiler), TanStack Query (server state), Zustand (user preferences), the URL for what's selected (`src/selection.js`), Blueprint UI 6, React Router 8, D3.js, Plotly.js 3, Monaco. Built with Vite 8, tested with Vitest, linted with oxlint. `npm run bench` measures performance
-- **Infrastructure**: Docker Compose, nginx, RabbitMQ
-- **CLI**: Python with Click framework
-- **Package Management**: `uv` for Python, `npm` for JavaScript
-
-## Development Workflow
-
-1. **Environment**: Use Docker Compose for full stack development
-2. **Database**: PostgreSQL with Alembic migrations
-3. **Task Queue**: LSF or Celery with RabbitMQ for background jobs
-4. **Image Serving**: Cantaloupe IIIF server for advanced image viewing
-5. **Authentication**: Supports local, LDAP, and SAML authentication
-
-## Special Features
-
-- **LSF Integration**: High-performance computing cluster support for batch jobs
-- **Advanced Visualizations**: Images, videos, plots, 3D point clouds, flame graphs
-- **Git Integration**: Version control awareness and commit tracking
-- **Parameter Tuning**: grid search and sampling, and automated tuning (`qa optimize`, with Optuna)
-- **Bit Accuracy Testing**: Automated regression testing for algorithm validation
-
-## Architecture Notes
-
-The system follows a microservices pattern with Docker containers. The CLI submits jobs and uploads results, the backend processes data and stores in PostgreSQL, and the frontend fetches data via REST API to render visualizations. Services provide infrastructure like reverse proxy, image serving, and task processing.
-
-Main entry points:
-- CLI: `qa` command (from qaboard package)
-- Backend API: Flask application served via uWSGI
-- Frontend: React SPA served by nginx
-- Documentation: Static Docusaurus site
+## Design docs, known warts, TODO
+- Design: `docs/design/` (ingest/upload/SDK, Kubernetes runner, logged media, user management...), `docs/rfcs/`
+  (SDK runs, local changes, ...). Read the relevant one before changing a subsystem.
+- **Known warts**: `docs/warts.md`, by area (Security, Backend, CLI, SDK runs, Local changes, Logged media, Uploads,
+  Runners, Webapp, Deployments). Add what you find but don't fix there, under its area.
+- Site-specific leftovers: `docs/known-issues.md`. Docs to-dos: `docs/TODO.md`; web app follow-ups: `webapp/TODO.md`.

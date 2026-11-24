@@ -1036,6 +1036,16 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
     del os.environ['QA_BATCH_COMMAND_ID']
 
   previous_qa_batch = os.environ.get('QA_BATCH') # set when this batch was started by another
+  previous_batches_files = os.environ.get('QA_BATCHES_FILES')
+  def restore_batch_environment():
+    for name, previous in (('QA_BATCH', previous_qa_batch), ('QA_BATCHES_FILES', previous_batches_files)):
+      if previous is None:
+        os.environ.pop(name, None)
+      else:
+        os.environ[name] = previous
+  # also on the early returns (--list...), sys.exit and errors: commands run after this one in the same process
+  # (tests, `qa` called from Python) aren't taken for runs of a batch
+  ctx.call_on_close(restore_batch_environment)
   os.environ['QA_BATCH']= 'true' # triggered runs will be less verbose than with just `qa run`
   os.environ['QA_BATCHES_FILES'] = json.dumps([str(b) for b in batches_files])
   dryrun = ctx.obj['dryrun'] or list_output_dirs or list_inputs or list_contexts
@@ -1454,17 +1464,14 @@ def batch(ctx, on_commit, batches, batches_files, runs_file, tuning_search_dict,
 
     exit_if_results_refused()
     restore_local_changes(previous_local_changes)
+    # restore verbosity: print_url is quiet in runs started by `qa batch`, but this one ends (unless it's nested)
+    restore_batch_environment()
     if is_failed and not no_wait:
-      del os.environ['QA_BATCH'] # restore verbosity
       if should_notify_qa_database:
         print_url(ctx, status="failure")
       sys.exit(1)
-    else:
-      # restore verbosity: print_url is quiet in runs started by `qa batch`, but this one ends
-      if previous_qa_batch is None:
-        del os.environ['QA_BATCH']
-      if should_notify_qa_database:
-        print_url(ctx)
+    elif should_notify_qa_database:
+      print_url(ctx)
 
 
 @qa.command()

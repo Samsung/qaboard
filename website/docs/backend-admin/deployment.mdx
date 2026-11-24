@@ -160,7 +160,7 @@ At every start, `init.sh` copies the file into the database's folder and include
 The database is created with `QABOARD_DB_PASSWORD` from `.env` (default: `password`), and the backend and the backups connect with it. It's only used when the database is created: to change the password of an existing database,
 1. Change it in PostgreSQL: `deployments/deploy.py <env file> compose exec db psql -U qaboard -c "ALTER USER qaboard PASSWORD '<new password>'"` (connections from inside the container don't need the password).
 2. Set `QABOARD_DB_PASSWORD=<new password>` in `.env`, and deploy: `deployments/deploy.py <env file> up`. The backend replicas connect with the new password; the backups too.
-3. Update the other clients: dashboards (e.g. Metabase), `QABOARD_SEED_SOURCE` of a staging environment, `services/pgadmin/passfile`.
+3. Update the other clients: dashboards (e.g. Metabase) and `QABOARD_SEED_SOURCE` of a staging environment. The bundled pgAdmin gets the new password when its container is recreated: `deployments/deploy.py <env file> compose up -d --force-recreate pgadmin`.
 
 ## Host maintenance
 Before upgrading the host (CPU, memory, storage, OS...):

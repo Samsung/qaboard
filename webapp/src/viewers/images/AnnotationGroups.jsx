@@ -1,7 +1,7 @@
 // The groups of annotations of an image, e.g. the workspaces of an annotation app, next to the set's name above the
 // regions: users toggle those they see (remembered, for every image), and open them in the app. Each has the color of
 // its outlines. By default, users see theirs.
-import { AnchorButton, Button, Checkbox, Icon, Popover } from '@blueprintjs/core';
+import { AnchorButton, Button, Checkbox, Icon, PopoverNext } from '@blueprintjs/core';
 
 import { usePrefsStore } from '../../stores/prefs';
 import { isGroupShown } from './regionProviders';
@@ -74,7 +74,7 @@ export const AnnotationGroups = ({ source, groups, noun = 'group', label }) => {
   return <span className="qaboard-annotation-groups-inline">
     {groups.slice(0, INLINE).map(group => <Chip key={group.id} group={group} shown={shown(group)} onToggle={() => toggle(group)} />)}
     {/* in the viewer: else it wouldn't show in full screen */}
-    <Popover content={menu} placement="bottom-start" usePortal={false} minimal>
+    <PopoverNext content={menu} placement="bottom-start" usePortal={false} arrow={false} animation="minimal">
       <Button
         size="small"
         variant="minimal"
@@ -82,6 +82,6 @@ export const AnnotationGroups = ({ source, groups, noun = 'group', label }) => {
         text={groups.length > INLINE ? `+${groups.length - INLINE}` : undefined}
         title={`${count} of ${plural(groups.length, noun)} shown: pick them, open them in ${label}`}
       />
-    </Popover>
+    </PopoverNext>
   </span>;
 };

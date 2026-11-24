@@ -235,8 +235,9 @@ def purge(retention_days: int) -> int:
   """Deletes the events older than the retention. Returns how many."""
   import datetime
   from backend import db_session
+  from .clock import utcnow
   from .models import AuditEvent
-  cutoff = datetime.datetime.utcnow() - datetime.timedelta(days=retention_days)
+  cutoff = utcnow() - datetime.timedelta(days=retention_days)
   count = AuditEvent.query.filter(AuditEvent.created_at < cutoff).delete(synchronize_session=False)
   db_session.commit()
   return count

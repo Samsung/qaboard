@@ -2,7 +2,7 @@
 Security events: sign-ins, tokens, admin changes... Written with backend/audit.py, in the same transaction as the change.
 They never contain secrets.
 """
-import datetime
+from backend import clock
 
 from sqlalchemy import Column, BigInteger, Integer, String, DateTime, Index
 from sqlalchemy.dialects.postgresql import JSONB
@@ -14,7 +14,7 @@ class AuditEvent(Base):
   __tablename__ = 'audit_events'
 
   id = Column(BigInteger, primary_key=True)
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow, index=True)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow, index=True)
   # user, token, system (e.g. the qaboard-admin CLI), anonymous
   actor_kind = Column(String(), nullable=False)
   # no foreign keys: events outlive the users and tokens they mention

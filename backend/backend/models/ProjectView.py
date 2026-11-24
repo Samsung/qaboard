@@ -2,7 +2,7 @@
 Who looked at which project, and when: Explore lets projects nobody looks at fade (webapp/src/explore/), and it can
 tell users what they viewed recently. One row per user and project, written at most once an hour (api/api.py: post_project_view).
 """
-import datetime
+from backend import clock
 
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint, Index
 
@@ -15,7 +15,7 @@ class ProjectView(Base):
   id = Column(Integer, primary_key=True)
   user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
   project_id = Column(String(), ForeignKey('projects.id', ondelete='CASCADE'), nullable=False)
-  last_viewed_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  last_viewed_at = Column(DateTime, nullable=False, default=clock.utcnow)
   # page views, counted at most once an hour
   views = Column(Integer, nullable=False, default=1, server_default='1')
 

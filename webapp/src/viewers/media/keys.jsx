@@ -22,7 +22,9 @@ const caption_of = item => item.caption ?? item.id ?? `#${item.index ?? 0}`;
 const TEXT_PROPS = { hide_filename: true, word_wrap: true };
 
 // The key's name, kind, the steps it shows when they aren't the one selected, and its actions
-export const KeyHeader = ({ name, kind, step, step_new, step_ref, only_ref, names, pinned, onPin, actions }) => <div style={{ display: 'flex', alignItems: 'flex-start', flexWrap: 'wrap', gap: '2px 6px', fontSize: 13, marginBottom: 6, minHeight: 24 }}>
+// step_ref: the reference's step, null before its first, undefined without a reference. ref_logs: whether the reference
+// logs the key at all
+export const KeyHeader = ({ name, kind, step, step_new, step_ref, ref_logs = true, only_ref, names, pinned, onPin, actions }) => <div style={{ display: 'flex', alignItems: 'flex-start', flexWrap: 'wrap', gap: '2px 6px', fontSize: 13, marginBottom: 6, minHeight: 24 }}>
   <div style={{ flex: '1 1 200px', minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minHeight: 24 }}>
     <Icon icon={KIND_ICONS[kind] ?? 'document'} size={12} title={kind} className={Classes.TEXT_MUTED}/>
     <strong style={{ overflowWrap: 'anywhere' }}>{name}</strong>
@@ -36,7 +38,7 @@ export const KeyHeader = ({ name, kind, step, step_new, step_ref, only_ref, name
           <Tag minimal size="small" icon="history">from step {formatStep(step_new)}</Tag>
         </Tooltip>}
         {step_ref !== undefined && step_new !== null && (step_ref === null
-          ? <Tag minimal size="small">not in {names.reference} yet</Tag>
+          ? <Tag minimal size="small">not in {names.reference}{ref_logs ? ' yet' : ''}</Tag>
           : step_ref !== step_new && <Tag minimal size="small" icon="history">{names.reference} from step {formatStep(step_ref)}</Tag>)}
       </>}
   </div>
@@ -210,7 +212,7 @@ export const MediaKey = ({ name, model_new, model_ref, step, output_new, output_
   return <section aria-label={name} data-testid="media-key" data-only-ref={only_ref || undefined} style={{ marginBottom: 18 }}>
     <KeyHeader
       name={name} kind={kind} step={step} step_new={shown.at.step} step_ref={only_ref ? shown.at.step : at_ref ? at_ref.step : undefined}
-      only_ref={only_ref} names={names_} pinned={pinned} onPin={onPin} actions={actions}
+      ref_logs={!!model_ref?.keys[name]} only_ref={only_ref} names={names_} pinned={pinned} onPin={onPin} actions={actions}
     />
     <Suspense fallback={<ViewerLoading height={120}/>}>{content}</Suspense>
   </section>;

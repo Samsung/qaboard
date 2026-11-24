@@ -9,7 +9,7 @@ import {
   Icon,
   Button,
   Menu,
-  Popover,
+  PopoverNext,
   Tag,
 } from "@blueprintjs/core";
 import { http, errorMessage, reason_messages } from "../../api/http";
@@ -254,14 +254,14 @@ const UserMenu = ({ user, logout, avatar_url_template, appSider = false }) => {
   </UserProfileHeader>;
 
   if (!appSider)
-    return <Popover
+    return <PopoverNext
       placement="bottom-end"
       interactionKind="click"
       popoverClassName="user-menu-popover"
       content={<UserDropdownMenu>{header}<Menu>{items}</Menu></UserDropdownMenu>}
     >
       <Button variant="minimal" aria-label={`${display_name}: your account`} style={{ padding: `0 ${spacing.sm}` }}>{trigger}</Button>
-    </Popover>;
+    </PopoverNext>;
 
   return (
     <UserMenuItemWrapper>

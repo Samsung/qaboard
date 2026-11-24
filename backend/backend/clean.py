@@ -36,6 +36,7 @@ import sys
 import json
 import glob
 import datetime
+from backend import clock
 from pathlib import Path
 
 import click
@@ -48,7 +49,7 @@ from .durations import parse_time
 from .audit import system_audit
 
 
-now = datetime.datetime.utcnow()
+now = clock.utcnow()
 
 
 def mark_artifacts_deleted(hexsha, project_prefix, deleted_dir, by):
@@ -282,7 +283,7 @@ def collect_garbage(select_project, report, before=None, default_after='1month',
   `before` overrides qaboard.yaml's `storage.garbage.after`, `default_after` is for projects that don't set it.
   What happens, and the errors, go to `report` (backend/jobs/report.py): the console, or a job in the database.
   """
-  now = datetime.datetime.utcnow()  # not the module's: workers run for days
+  now = clock.utcnow()  # not the module's: workers run for days
   if dryrun:
     report.log('DRYRUN: nothing will be deleted', level='warning')
 

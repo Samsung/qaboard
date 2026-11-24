@@ -1,5 +1,6 @@
 """What users manage about themselves: preferences, and their own audit log"""
 import datetime
+from backend import clock
 
 import pytest
 
@@ -168,7 +169,7 @@ def test_my_audit_token_events(logged_in, make_client):
   make_client().get('/api/v1/user/me/', headers=bearer(token["token"]), environ_base={"REMOTE_ADDR": "10.0.0.1"})
   from backend.database import db_session
   from backend.models import Token
-  Token.query.filter(Token.id == token["id"]).update({"last_used_at": datetime.datetime.utcnow() - datetime.timedelta(hours=1)})
+  Token.query.filter(Token.id == token["id"]).update({"last_used_at": clock.utcnow() - datetime.timedelta(hours=1)})
   db_session.commit()
   make_client().get('/api/v1/user/me/', headers=bearer(token["token"]), environ_base={"REMOTE_ADDR": "10.0.0.2"})
   event = my_events(alice)["events"][0]

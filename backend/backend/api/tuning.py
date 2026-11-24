@@ -10,6 +10,7 @@ import shutil
 import signal
 import fnmatch
 import datetime
+from backend import clock
 import tempfile
 import itertools
 import subprocess
@@ -1069,7 +1070,7 @@ def start_tuning(hexsha):
 
     command_id = str(uuid.uuid4())
     # Each batch started from QA-Board has its own scripts and logs
-    created_at = datetime.datetime.utcnow()
+    created_at = clock.utcnow()
     log_dir = submission_dir(batch_dir, created_at, command_id)
     mkdir_for_everyone(log_dir)
 

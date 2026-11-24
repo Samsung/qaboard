@@ -50,14 +50,10 @@ The shot list is `docs-media/shots.yaml`, how to capture is `docs-media/README.m
 ## Product, small
 - **Constraints in `qa optimize`**: Optuna 5's `trial.set_constraint()` would allow "best quality with runtime under
   X" (`qaboard/optimize.py`, the config, the report). 2-3 days.
-- **Analysis view** (tuning): before its rewrite (November 2026, `TuningReport.jsx`), the frontier and plots only
-  used the metrics selected in its tag picker; with another metric, the points were null and the plot empty. Check
-  that the new report doesn't, then delete this.
 - **Commits page**: `from=2026-09-17` showed 9/18 while `from=2026-09-10` showed 9/10: a time zone off-by-one?
-  Not reproduced by reading the code. A lead: the date picker parses what `toLocaleDateString()` wrote with
-  `new Date(str)` (`CommitsListNavbar` in `webapp/src/AppNavbar.jsx`), which depends on the browser's locale.
-- **Bit accuracy**: when both runs have a pixel hash (`md5_data`), the web app compares it instead of the file's md5,
-  so it can call images identical when `qa check-bit-accuracy` wouldn't.
+  Not reproduced. The URL is read as local days (`date_range_from_query`), and the picker now reads typed dates in
+  the browser's locale (`parse_local_date`, it used `new Date(str)`, US order only). If it's seen again, note the
+  browser's locale and time zone.
 - **System metrics, next** (`qaboard/system_metrics.py`, docs `website/docs/system-metrics.mdx`):
   - **PSS** next to the RSS sum: forked workers (PyTorch DataLoader) count their shared pages once each in the sum.
     `memory_full_info().pss` reads smaps: measure its cost on a big process before sampling it every 5 s.
@@ -68,4 +64,3 @@ The shot list is `docs-media/shots.yaml`, how to capture is `docs-media/README.m
     Their own memory needs `nvmlDeviceGetMigDeviceHandleByIndex`.
   - **Heartbeats rewrite `outputs.data`** every 2 minutes for each running run, now that they carry `resources`
     (`report_output_progress`): skip the write when the peaks didn't change, if the database notices.
-  - **Many log files**: up to 10 attempts x 5 logs are radios in `LogViewer`: a select past ~8.

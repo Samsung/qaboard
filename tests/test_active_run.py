@@ -431,6 +431,10 @@ with qb.start_run(input="train/coco-mini") as run:
     # what was logged while the server was away shows before the run ends
     self.assertEqual(server.progress()[0]['metrics'], {'loss': 1.0})
     self.assertIn('finished: http://127.0.0.1', stderr)
+    # the code differs from the commit (late.py is new): the patch, not saved while the server was away, is once it answers
+    self.assertIn("the patch isn't saved: the server didn't answer", stderr)
+    self.assertEqual(finished['data']['local_changes']['patch']['path'], '.qaboard/local-changes.patch')
+    self.assertIn('+import qaboard as qb', (Path(finished['output_directory']) / '.qaboard/local-changes.patch').read_text())
 
   def test_offline(self):
     server = self.server()
@@ -607,6 +611,22 @@ assert dict(run.metrics) == {"val/loss": 1.0, "val/top1": 3.0, "train/loss": 2.0
 run.finish()
 """)
     self.assertEqual(result.returncode, 0, result.stderr)
+
+  def test_a_thread_that_logs_while_the_run_finishes(self):
+    # it checked that the run goes on just before another thread finished it
+    code = """
+from unittest import mock
+import qaboard as qb
+run = qb.start_run(input='a', share=False)
+run.log({'loss': 1})
+with mock.patch.object(type(run), '_can_log', return_value=True):
+  run.finish()
+  print(run.log({'loss': 2}))
+print(len((run.output_dir / 'series.jsonl').read_text().splitlines()), run._series._file)
+"""
+    result = self.python(code=code)
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertEqual(result.stdout.split(), ['-1', '1', 'None'])
 
   def test_starting_a_run_again_while_it_goes_on_ends_the_first(self):
     # a notebook's cell run twice
@@ -856,6 +876,19 @@ with qb.start_run(input="slow") as run:
     self.assertEqual(self.python(server=server, code=code.format(resume=False, name='third.txt')).returncode, 0)
     self.assertNotIn('first.txt', server.files)
     self.assertIn('third.txt', server.files)
+
+  def test_runs_nobody_finished_send_their_files_at_exit(self):
+    # they end in an atexit hook, when thread pools take no new work
+    server = self.server()
+    for ending, failed in (("", False), ("raise ValueError('bad batch')", True)):
+      code = f"import qaboard as qb\nrun = qb.start_run(input='a')\nrun.log_artifact('model.onnx', b'model')\n{ending}"
+      result = self.python(server=server, code=code)
+      self.assertEqual(result.returncode, 1 if failed else 0, result.stderr)
+      self.assertNotIn("doesn't have all the run's files", result.stderr)
+      self.assertEqual(server.outputs()[-1]['is_failed'], failed)
+      self.assertEqual(server.files.get('model.onnx'), b'model')
+      for name in ('run.json', 'metrics.json', 'manifest.outputs.json'):
+        self.assertIn(name, server.files)
 
   def test_not_shared_nothing_is_sent(self):
     server = self.server()

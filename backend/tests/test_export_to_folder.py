@@ -25,6 +25,22 @@ def run(path, input_id=None, configurations=('base',), is_pending=False):
   return SimpleNamespace(test_input=test_input, configurations=list(configurations), extra_parameters={}, platform='linux', is_pending=is_pending)
 
 
+def test_load_commit(export_api, monkeypatch):
+  session = MagicMock()
+  monkeypatch.setattr(export_api, 'db_session', session)
+  assert export_api.load_commit('project', '') is None
+  session.query.assert_not_called()
+  found = session.query.return_value.options.return_value.filter.return_value.one_or_none
+  found.return_value = None
+  assert export_api.load_commit('project', 'abcdef') is None
+  found.return_value = commit = object()
+  assert export_api.load_commit('project', 'abcdef') is commit
+  # database errors aren't hidden as "commit not found"
+  found.side_effect = RuntimeError('the database is down')
+  with pytest.raises(RuntimeError):
+    export_api.load_commit('project', 'abcdef')
+
+
 def test_runs_on_the_same_input_match(export_api):
   new = run('a.jpg')
   assert export_api.compatible(new, run('a.jpg'))

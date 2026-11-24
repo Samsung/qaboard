@@ -48,6 +48,7 @@ Derived Instructions:
 ### 2. Local State Control (Pytest Fixtures)
 We strictly avoid global `@patch` decorators. Instead, we use local **Fixtures** to manage test data.
 *   **The Singleton Mock:** Fixtures retrieve the global mock via in-fixture import and then yield them to each test. Example from `test_milestones.py`: Inside `mock_project` fixture, we start with `import backend.models as models` and then `yield models.Project` yields the `Project` mock to each test using this fixture.
+*   **Don't `monkeypatch` the shared mocks' attributes** (`monkeypatch.setattr(api.Project, 'query', ...)`): since pytest 9.2, undoing it deletes the attribute from the shared `MagicMock` (pytest#10644), and later tests get `AttributeError`. Replace the module's name with a fresh mock instead: `monkeypatch.setattr(api, 'Project', MagicMock())`. Setting return values on the shared mocks (`mock_project.query.filter.return_value = ...`) is fine.
 
 
 ## ➕ Add a New Test
@@ -89,4 +90,5 @@ Here is a ledger of import quirks and context errors we have solved, and how to 
 | `TypeError: 'Response' object is not subscriptable` | Attempting to access response data via tuples (e.g., `response[1]`). | Use the native Flask response attributes: `response.status_code` and `response.get_json()`. |
 | `ModuleNotFoundError: No module named 'sqlalchemy.orm.exc'` | The app tried to catch a specific exception that wasn't globally mocked. | Create a dummy `class MockNoResultFound(Exception)` in `conftest.py` and assign it to `sys.modules['sqlalchemy.orm.exc'].NoResultFound`. |
 | `ImportError: cannot import name 'Output' from 'backend.models'` | The app tried to import a model that hasn't been added to the global `sys.modules` fake. | Add `models_mod.Output = MagicMock()` to the `backend.models` section in `conftest.py`. |
+| `AttributeError: <MagicMock ...> has no attribute 'query'` (or `AttributeError: query`) in tests that pass alone | An earlier test monkeypatched an attribute of a shared mock: undoing it deleted the attribute. | In that earlier test, `monkeypatch.setattr(module, 'Model', MagicMock(...))`, not `monkeypatch.setattr(module.Model, 'attribute', ...)`. |
 | *Tests fail randomly during `ThreadPoolExecutor` concurrency* | Using `with patch(...)` inside thread workers causes race conditions on the global mock dictionary. | Apply `patch.object()` **outside** the thread pool executor block to keep the mock state stable for all workers. |

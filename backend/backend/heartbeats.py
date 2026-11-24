@@ -11,6 +11,7 @@ leaving them "running" forever.
 - A failed silent run that reports again is running again: what runs tell us is their state, not events.
 """
 import datetime
+from backend import clock
 from typing import Optional
 
 from sqlalchemy import text
@@ -22,7 +23,7 @@ from .attempts import iso_utc
 
 def reported(output, now: Optional[datetime.datetime] = None) -> None:
   """A running run told us something. Revives a run we failed because it was silent."""
-  now = now or datetime.datetime.utcnow()
+  now = now or clock.utcnow()
   data = output.data or {}
   if 'silent_since' in data:
     output.data = {k: v for k, v in data.items() if k not in ('silent_since', 'failed_reason')}
@@ -54,7 +55,7 @@ def fail_silent_runs(now: Optional[datetime.datetime] = None) -> int:
   from .models import Output
   if not config.silent_run_timeout_minutes:
     return 0
-  now = now or datetime.datetime.utcnow()
+  now = now or clock.utcnow()
   limit = now - datetime.timedelta(minutes=config.silent_run_timeout_minutes)
   # only runs that said they send heartbeats: those of older clients are never locked or loaded here
   silent = (Output.query

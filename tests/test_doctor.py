@@ -770,6 +770,13 @@ class TestCeleryRunner(unittest.TestCase):
     self.assertEqual(check.status, ERROR)
     self.assertIn('export QA_CELERY_PASSWORD=', check.fix)
 
+  def test_no_broker(self):
+    from qaboard.runners.celery import check_broker, NO_BROKER
+    check = check_broker('', NO_BROKER, 'docs')
+    self.assertEqual(check.status, ERROR)
+    self.assertIn('export CELERY_BROKER_URL=', check.fix)
+    self.assertIn('broker_url:', check.fix)
+
   def test_queue(self):
     from qaboard.runners.celery import runs_queue
     self.assertEqual(runs_queue({}), 'celery')

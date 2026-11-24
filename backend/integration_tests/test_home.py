@@ -3,6 +3,7 @@ What the home page needs (webapp/src/home/): my running and failed batches, my r
 metric, teammates' batches in my projects (?projects=, ?scope=others), and my projects (my_latest_activity)
 """
 import datetime
+from backend import clock
 
 from .test_ingest import output_payload, PROJECT
 
@@ -61,10 +62,10 @@ def test_status_filters_are_recent(logged_in, client):
   """Filters on runs only look at the batches of the last 30 days by default, at most 90"""
   alice = logged_in('alice')
   run(client, batch_label='old', user='alice', is_failed=True)
-  set_batch('old', latest_output_datetime=datetime.datetime.utcnow() - datetime.timedelta(days=40))
+  set_batch('old', latest_output_datetime=clock.utcnow() - datetime.timedelta(days=40))
   assert labels(alice, scope='mine', status='failed') == []
   assert labels(alice, scope='mine', status='failed', since_days=60) == [(PROJECT, 'old')]
-  set_batch('old', latest_output_datetime=datetime.datetime.utcnow() - datetime.timedelta(days=100))
+  set_batch('old', latest_output_datetime=clock.utcnow() - datetime.timedelta(days=100))
   assert labels(alice, scope='mine', status='failed', since_days=365) == []
 
 
@@ -74,7 +75,7 @@ def test_my_running_and_failed_batches(logged_in, client):
   run(client, batch_label='failed', user='alice', is_failed=True)
   run(client, batch_label='failed long ago', user='alice', is_failed=True)
   run(client, batch_label='ok', user='alice')
-  set_batch('failed long ago', latest_output_datetime=datetime.datetime.utcnow() - datetime.timedelta(days=10))
+  set_batch('failed long ago', latest_output_datetime=clock.utcnow() - datetime.timedelta(days=10))
 
   assert labels(alice, scope='mine', status='pending') == [(PROJECT, 'running')]
   assert labels(alice, scope='mine', status='failed') == [(PROJECT, 'failed'), (PROJECT, 'failed long ago')]

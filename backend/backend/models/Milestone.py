@@ -5,7 +5,7 @@ They belong to a project and to the user who saved them. Personal milestones are
 shared milestones for everyone on the project. Anyone who can see the project can open a milestone from its link.
 Users can add any milestone they see to their favorites.
 """
-import datetime
+from backend import clock
 
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import JSONB
@@ -40,8 +40,8 @@ class Milestone(Base):
   # branch, committer_name, message. Also legacy_key/legacy_owners for imported milestones.
   data = Column(JSONB(), nullable=False, default=dict, server_default='{}')
 
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
-  updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow)
+  updated_at = Column(DateTime, nullable=False, default=clock.utcnow, onupdate=clock.utcnow)
 
   user = relationship("User", lazy='joined')
   favorites = relationship("MilestoneFavorite", back_populates="milestone", cascade="all, delete-orphan", passive_deletes=True)
@@ -64,7 +64,7 @@ class MilestoneFavorite(Base):
 
   user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
   milestone_id = Column(Integer, ForeignKey('milestones.id', ondelete='CASCADE'), primary_key=True, index=True)
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow)
 
   milestone = relationship("Milestone", back_populates="favorites")
 
@@ -78,4 +78,4 @@ class MilestoneGroupFavorite(Base):
   # the groups of "My milestones" and of the milestones shared with the project are different groups
   section = Column(String(), primary_key=True)  # mine | shared
   group = Column(String(), primary_key=True)
-  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+  created_at = Column(DateTime, nullable=False, default=clock.utcnow)

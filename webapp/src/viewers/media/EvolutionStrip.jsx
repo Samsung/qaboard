@@ -20,6 +20,7 @@ const EvolutionStrip = ({ name, sample, model_new, model_ref, output_new, output
   const first = frames[0]?.item;
   const root = useScrollIntoView(sample);
   const slot = slotSize(first, null, SIZE);
+  // oxlint-disable-next-line react/incompatible-library -- the compiler doesn't memoize this component: fine, it renders the frames in view
   const virtualizer = useVirtualizer({
     horizontal: true,
     count: frames.length,

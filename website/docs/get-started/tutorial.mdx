@@ -7,6 +7,10 @@ description: Wrap your code with qa, run it on your test set, connect your repos
 By the end of this tutorial, every commit you push runs on your test set, and QA-Board shows its outputs and metrics
 next to your reference branch's. Pick your stack: the steps follow your choices.
 
+This tutorial is the short path through [Project integration](/docs/introduction), which has every option. A coding
+agent can do these steps with the [integration skill](/docs/agents). Looking at results someone else set up? Read
+the [user guide](/docs/user-guide/overview) instead.
+
 <StackPicker />
 
 :::info Where results go
@@ -105,7 +109,7 @@ Open *qaboard.yaml* and check the settings at its top: `project.name` (your proj
 `project.url` and `project.reference_branch`. `qa init` fills them from your git remote. When it can't reach it, the
 reference branch is `main`, and it says so. At the bottom, `storage` is where shared results go:
 `/mnt/qaboard`, or your server's results folder (`QA_STORAGE` wins over it). When `qa` can't create that folder,
-runs from your computer stay in `output/` with a warning, but `--share`, CI runs and `qa save-artifacts` stop with *The storage path does not
+runs from your computer stay in `output/` with a warning, but CI runs and `qa save-artifacts` stop with *The storage path does not
 exist*.
 
 `qa` calls the `run(context)` function of `qa/main.py` for each run. It runs your code on `context.input_path`,

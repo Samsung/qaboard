@@ -162,6 +162,32 @@ const scenarios = {
       await page.locator(':has(> * > h2:text-is("Metrics")) tbody tr').nth(10).waitFor({ timeout: 60_000 });
     });
   },
+  // While runs wait, the page refreshes the commit. When nothing changed, the server answers 304 to its ETag
+  // (builds that don't send it back get everything again)
+  'commit page: refresh, nothing changed': async page => {
+    const cdp = await setup(page);
+    const commit = api['/api/v1/commit/c0000'];
+    const body = JSON.stringify({ ...commit, batches: { ...commit.batches, default: { ...commit.batches.default, pending_outputs: 1 } } });
+    const etag = 'W/"bench"';
+    let fetched = 0;
+    await page.route(url => url.pathname === '/api/v1/commit/c0000', route => {
+      fetched += 1;
+      if (route.request().headers()['if-none-match'] === etag)
+        return route.fulfill({ status: 304, headers: { ETag: etag } });
+      return route.fulfill({ body, contentType: 'application/json', headers: { ETag: etag } });
+    });
+    await page.goto(`/${project}/commit/c0000?reference=c0001&selected_views=summary`);
+    await page.getByText(/^PSNR/).first().waitFor({ timeout: 60_000 });
+    // once the commit is stale (staleTime), reconnecting refreshes it
+    await page.waitForTimeout(10_500);
+    return measure(page, cdp, async () => {
+      const before = fetched;
+      await page.context().setOffline(true);
+      await page.context().setOffline(false);
+      for (let i = 0; fetched === before && i < 600; i++)
+        await page.waitForTimeout(50);
+    });
+  },
 };
 
 for (const [name, run] of Object.entries(scenarios)) {
